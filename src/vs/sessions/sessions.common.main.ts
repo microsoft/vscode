@@ -140,6 +140,7 @@ import '../workbench/services/dataChannel/browser/dataChannelService.js';
 import '../workbench/services/inlineCompletions/common/inlineCompletionsUnification.js';
 import '../workbench/services/chat/common/chatEntitlementService.js';
 import '../workbench/services/log/common/defaultLogLevels.js';
+import '../workbench/services/agentHost/common/agentHostPermissionService.js';
 
 import { InstantiationType, registerSingleton } from '../platform/instantiation/common/extensions.js';
 import { GlobalExtensionEnablementService } from '../platform/extensionManagement/common/extensionEnablementService.js';
@@ -250,6 +251,11 @@ import '../workbench/contrib/inlineCompletions/browser/renameSymbolTrackerServic
 // Search Quick Access (file picker only, not the full search contribution)
 import '../workbench/contrib/search/browser/searchQuickAccess.contribution.js';
 
+// Search Editor
+import '../workbench/contrib/searchEditor/browser/searchEditor.contribution.js';
+import '../workbench/contrib/search/browser/search.common.contribution.js';
+import './contrib/search/browser/search.contribution.js';
+
 // Sash
 import '../workbench/contrib/sash/browser/sash.contribution.js';
 
@@ -302,6 +308,9 @@ registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService, Insta
 // Output View
 import '../workbench/contrib/output/browser/output.contribution.js';
 import '../workbench/contrib/output/browser/outputView.js';
+
+// Problems View
+import '../workbench/contrib/markers/browser/markers.contribution.js';
 
 // Terminal
 import '../workbench/contrib/terminal/terminal.all.js';

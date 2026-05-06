@@ -8,6 +8,7 @@ import { HoverStyle } from '../../../../../../../base/browser/ui/hover/hover.js'
 import { HoverPosition } from '../../../../../../../base/browser/ui/hover/hoverWidget.js';
 import { Separator } from '../../../../../../../base/common/actions.js';
 import { asArray } from '../../../../../../../base/common/arrays.js';
+import { CancellationTokenSource } from '../../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { ErrorNoTelemetry } from '../../../../../../../base/common/errors.js';
 import { createCommandUri, MarkdownString, type IMarkdownString } from '../../../../../../../base/common/htmlContent.js';
@@ -30,14 +31,17 @@ import { TerminalContribCommandId, TerminalContribSettingId } from '../../../../
 import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
 import { migrateLegacyTerminalToolSpecificData } from '../../../../common/chat.js';
 import { IChatToolInvocation, ToolConfirmKind, type IChatTerminalToolInvocationData, type ILegacyChatTerminalToolInvocationData } from '../../../../common/chatService/chatService.js';
+import { ILanguageModelToolsService } from '../../../../common/tools/languageModelToolsService.js';
 import { AcceptToolConfirmationActionId, SkipToolConfirmationActionId } from '../../../actions/chatToolActions.js';
 import { IChatCodeBlockInfo, IChatWidgetService } from '../../../chat.js';
+import { IChatToolRiskAssessmentService } from '../../../tools/chatToolRiskAssessmentService.js';
 import { ChatCustomConfirmationWidget, IChatConfirmationButton } from '../chatConfirmationWidget.js';
 import { EditorPool } from '../chatContentCodePools.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { ChatMarkdownContentPart } from '../chatMarkdownContentPart.js';
 import { CodeBlockPart, ICodeBlockRenderOptions } from '../codeBlockPart.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
+import { ToolRiskBadgeWidget } from './toolRiskBadgeWidget.js';
 
 export const enum TerminalToolConfirmationStorageKeys {
 	TerminalAutoApproveWarningAccepted = 'chat.tools.terminal.autoApprove.warningAccepted'
@@ -83,6 +87,8 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 		@IStorageService private readonly storageService: IStorageService,
 		@ITerminalChatService private readonly terminalChatService: ITerminalChatService,
 		@IHoverService hoverService: IHoverService,
+		@ILanguageModelToolsService private readonly languageModelToolsService: ILanguageModelToolsService,
+		@IChatToolRiskAssessmentService private readonly riskAssessmentService: IChatToolRiskAssessmentService,
 	) {
 		super(toolInvocation);
 
@@ -184,13 +190,20 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 			style: HoverStyle.Pointer,
 			position: { hoverPosition: HoverPosition.LEFT },
 		}));
+
+		// LLM-generated risk assessment badge — slotted between the title and the
+		// message body of the confirmation widget via the `headerBanner` option.
+		const riskBadge = this._createRiskBadge(state.parameters);
+		const messageRoot = elements.root;
+
 		const confirmWidget = this._register(this.instantiationService.createInstance(
 			ChatCustomConfirmationWidget<TerminalNewAutoApproveButtonData | boolean>,
 			this.context,
 			{
 				title,
 				icon: Codicon.terminal,
-				message: elements.root,
+				message: messageRoot,
+				headerBanner: riskBadge,
 				buttons: this._createButtons(moreActions)
 			},
 		));
@@ -421,6 +434,40 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 			}
 		});
 		return promptResult.result === true;
+	}
+
+	private _createRiskBadge(parameters: unknown): HTMLElement | undefined {
+		if (!this.riskAssessmentService.isEnabled()) {
+			return undefined;
+		}
+		const tool = this.languageModelToolsService.getTool(this.toolInvocation.toolId);
+		if (!tool) {
+			return undefined;
+		}
+		const widget = this._register(this.instantiationService.createInstance(ToolRiskBadgeWidget));
+		const cached = this.riskAssessmentService.getCached(tool, parameters);
+		if (cached) {
+			widget.setAssessment(cached);
+		} else {
+			widget.setLoading();
+			const cts = this._register(new CancellationTokenSource());
+			(async () => {
+				try {
+					const result = await this.riskAssessmentService.assess(tool, parameters, cts.token);
+					if (cts.token.isCancellationRequested) {
+						return;
+					}
+					if (!result) {
+						widget.setHidden();
+						return;
+					}
+					widget.setAssessment(result);
+				} catch {
+					widget.setHidden();
+				}
+			})();
+		}
+		return widget.domNode;
 	}
 
 	private _appendMarkdownPart(container: HTMLElement, message: string | IMarkdownString, codeBlockRenderOptions: ICodeBlockRenderOptions) {

@@ -286,12 +286,14 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 					localize('workbench.editor.splitSizingDistribute', "Splits all the editor groups to equal parts."),
 					localize('workbench.editor.splitSizingSplit', "Splits the active editor group to equal parts.")
 				],
-				'description': localize('splitSizing', "Controls the size of editor groups when splitting them.")
+				'description': localize('splitSizing', "Controls the size of editor groups when splitting them."),
+				'keywords': ['pane']
 			},
 			'workbench.editor.splitOnDragAndDrop': {
 				'type': 'boolean',
 				'default': true,
-				'description': localize('splitOnDragAndDrop', "Controls if editor groups can be split from drag and drop operations by dropping an editor or file on the edges of the editor area.")
+				'description': localize('splitOnDragAndDrop', "Controls if editor groups can be split from drag and drop operations by dropping an editor or file on the edges of the editor area."),
+				'keywords': ['pane']
 			},
 			'workbench.editor.dragToOpenWindow': {
 				'type': 'boolean',
@@ -343,7 +345,8 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			'workbench.editor.closeEmptyGroups': {
 				'type': 'boolean',
 				'description': localize('closeEmptyGroups', "Controls the behavior of empty editor groups when the last tab in the group is closed. When enabled, empty groups will automatically close. When disabled, empty groups will remain part of the grid."),
-				'default': true
+				'default': true,
+				'keywords': ['pane']
 			},
 			'workbench.editor.revealIfOpen': {
 				'type': 'boolean',
@@ -359,7 +362,8 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 					localize('useModal.all', "All editors open in a centered modal overlay."),
 				],
 				'description': localize('useModal', "Controls whether editors open in a modal overlay."),
-				'default': 'some'
+				'default': 'some',
+				agentsWindow: { default: 'all' },
 			},
 			'workbench.editor.swipeToNavigate': {
 				'type': 'boolean',
@@ -397,7 +401,8 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			'workbench.editor.restoreEditors': {
 				'type': 'boolean',
 				'description': localize('restoreOnStartup', "Controls whether editors are restored on startup. When disabled, only dirty editors will be restored from the previous session."),
-				'default': true
+				'default': true,
+				agentsWindow: { default: false, readOnly: true },
 			},
 			'workbench.editor.splitInGroupLayout': {
 				'type': 'string',
@@ -428,7 +433,8 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 					localize('workbench.editor.doubleClickTabToToggleEditorGroupSizes.maximize', "All other editor groups are hidden and the current editor group is maximized to take up the entire editor area."),
 					localize('workbench.editor.doubleClickTabToToggleEditorGroupSizes.expand', "The editor group takes as much space as possible by making all other editor groups as small as possible."),
 					localize('workbench.editor.doubleClickTabToToggleEditorGroupSizes.off', "No editor group is resized when double clicking on a tab.")
-				]
+				],
+				agentsWindow: { default: 'maximize' },
 			},
 			'workbench.editor.limit.enabled': {
 				'type': 'boolean',
@@ -566,6 +572,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'type': 'boolean',
 				'default': true,
 				'description': localize('panelShowLabels', "Controls whether activity items in the panel title are shown as label or icon."),
+				agentsWindow: { default: false },
 			},
 			'workbench.panel.defaultLocation': {
 				'type': 'string',
@@ -774,11 +781,13 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				],
 				'default': 'both',
 				'description': localize('layoutControlType', "Controls whether the layout control in the custom title bar is displayed as a single menu button or with multiple UI toggles."),
+				agentsWindow: { default: 'toggles' },
 			},
 			'workbench.tips.enabled': {
 				'type': 'boolean',
 				'default': true,
-				'description': localize('tips.enabled', "When enabled, will show the watermark tips when no editor is open.")
+				'description': localize('tips.enabled', "When enabled, will show the watermark tips when no editor is open."),
+				agentsWindow: { default: false },
 			},
 			[LayoutSettings.SHADOWS]: {
 				'type': 'boolean',

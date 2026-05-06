@@ -182,6 +182,7 @@ export class CopilotAgentSession extends Disposable {
 
 	/** Tracks active tool invocations so we can produce past-tense messages on completion. */
 	private readonly _activeToolCalls = new Map<string, { toolName: string; displayName: string; parameters: Record<string, unknown> | undefined; content: ToolResultContent[]; parentToolCallId: string | undefined }>();
+	private readonly _parentToolCallIdsByAgentId = new Map<string, string>();
 	/** Pending permission requests awaiting a renderer-side decision. */
 	private readonly _pendingPermissions = new Map<string, DeferredPromise<boolean>>();
 	/** Pending user input requests awaiting a renderer-side answer. */
@@ -229,14 +230,14 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _customizationDirectory: URI | undefined;
 
 	/**
-	 * Current markdown response part ID for the active turn. Streaming text
-	 * deltas append to this part; the first delta of a turn allocates a new
-	 * part ID. Reset on each new turn (in {@link send}) and invalidated when
-	 * a tool call begins so subsequent text creates a fresh part.
+	 * Current markdown response part IDs for the active turn, keyed by
+	 * `parentToolCallId ?? ''`. Parent and subagent text stream through the
+	 * same SDK session but land in different AHP sessions, so their markdown
+	 * part state must not mask or append to each other.
 	 */
-	private _currentMarkdownPartId: string | undefined;
-	/** Current reasoning response part ID for the active turn. Reset on each new turn. */
-	private _currentReasoningPartId: string | undefined;
+	private readonly _currentMarkdownPartIds = new Map<string, string>();
+	/** Current reasoning response part IDs for the active turn, keyed by `parentToolCallId ?? ''`. */
+	private readonly _currentReasoningPartIds = new Map<string, string>();
 	/** Tracks whether a non-empty activity has been published, so we only emit a clear when needed. */
 	private _hasReportedActivity = false;
 	private _activeAgentSpan: IAgentHostSpanHandle | undefined;
@@ -329,6 +330,19 @@ export class CopilotAgentSession extends Disposable {
 		});
 	}
 
+	private _parentToolCallIdForSubagentEvent(e: { readonly agentId?: string }): string | undefined {
+		return e.agentId ? this._parentToolCallIdsByAgentId.get(e.agentId) : undefined;
+	}
+
+	private _shouldDropUnmappedSubagentEvent(e: { readonly agentId?: string }, eventName: string): boolean {
+		const parentToolCallId = this._parentToolCallIdForSubagentEvent(e);
+		if (!parentToolCallId && e.agentId) {
+			this._logService.warn(`[Copilot:${this.sessionId}] Dropping ${eventName} for unknown subagent agentId=${e.agentId}`);
+			return true;
+		}
+		return false;
+	}
+
 	/**
 	 * Resets per-turn streaming state so the next text/reasoning chunk
 	 * allocates a fresh response part. Called by the agent when a new turn
@@ -336,8 +350,9 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	resetTurnState(turnId: string): void {
 		this._turnId = turnId;
-		this._currentMarkdownPartId = undefined;
-		this._currentReasoningPartId = undefined;
+		this._currentMarkdownPartIds.clear();
+		this._currentReasoningPartIds.clear();
+		this._parentToolCallIdsByAgentId.clear();
 	}
 
 	/**
@@ -357,10 +372,11 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	private _emitMarkdownDelta(content: string, parentToolCallId?: string): void {
 		const session = this._protocolSession();
-		let partId = this._currentMarkdownPartId;
+		const markdownScope = parentToolCallId ?? '';
+		let partId = this._currentMarkdownPartIds.get(markdownScope);
 		if (!partId) {
 			partId = generateUuid();
-			this._currentMarkdownPartId = partId;
+			this._currentMarkdownPartIds.set(markdownScope, partId);
 			this._emitAction({
 				type: ActionType.SessionResponsePart,
 				session,
@@ -379,18 +395,19 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	/** Emits a reasoning delta, similar to {@link _emitMarkdownDelta} but for reasoning parts. */
-	private _emitReasoningDelta(content: string): void {
+	private _emitReasoningDelta(content: string, parentToolCallId?: string): void {
 		const session = this._protocolSession();
-		let partId = this._currentReasoningPartId;
+		const reasoningScope = parentToolCallId ?? '';
+		let partId = this._currentReasoningPartIds.get(reasoningScope);
 		if (!partId) {
 			partId = generateUuid();
-			this._currentReasoningPartId = partId;
+			this._currentReasoningPartIds.set(reasoningScope, partId);
 			this._emitAction({
 				type: ActionType.SessionResponsePart,
 				session,
 				turnId: this._turnId,
 				part: { kind: ResponsePartKind.Reasoning, id: partId, content },
-			});
+			}, parentToolCallId);
 			return;
 		}
 		this._emitAction({
@@ -399,7 +416,7 @@ export class CopilotAgentSession extends Disposable {
 			turnId: this._turnId,
 			partId,
 			content,
-		});
+		}, parentToolCallId);
 	}
 
 	/**
@@ -1122,7 +1139,10 @@ export class CopilotAgentSession extends Disposable {
 
 		this._register(wrapper.onMessageDelta(e => {
 			this._logService.trace(`[Copilot:${sessionId}] delta: ${e.data.deltaContent}`);
-			this._emitMarkdownDelta(e.data.deltaContent, e.data.parentToolCallId);
+			if (this._shouldDropUnmappedSubagentEvent(e, 'assistant.message_delta')) {
+				return;
+			}
+			this._emitMarkdownDelta(e.data.deltaContent, this._parentToolCallIdForSubagentEvent(e));
 		}));
 
 		this._register(wrapper.onMessage(e => {
@@ -1139,17 +1159,22 @@ export class CopilotAgentSession extends Disposable {
 			if (!e.data.content) {
 				return;
 			}
-			if (this._currentMarkdownPartId) {
+			if (this._shouldDropUnmappedSubagentEvent(e, 'assistant.message')) {
+				return;
+			}
+			const parentToolCallId = this._parentToolCallIdForSubagentEvent(e);
+			const markdownScope = parentToolCallId ?? '';
+			if (this._currentMarkdownPartIds.has(markdownScope)) {
 				return;
 			}
 			const partId = generateUuid();
-			this._currentMarkdownPartId = partId;
+			this._currentMarkdownPartIds.set(markdownScope, partId);
 			this._emitAction({
 				type: ActionType.SessionResponsePart,
 				session: this._protocolSession(),
 				turnId: this._turnId,
 				part: { kind: ResponsePartKind.Markdown, id: partId, content: e.data.content },
-			}, e.data.parentToolCallId);
+			}, parentToolCallId);
 		}));
 
 		this._register(wrapper.onToolStart(e => {
@@ -1189,7 +1214,11 @@ export class CopilotAgentSession extends Disposable {
 				toolArgs = tryStringify(parameters);
 			}
 			const displayName = getToolDisplayName(e.data.toolName);
-			this._activeToolCalls.set(e.data.toolCallId, { toolName: e.data.toolName, displayName, parameters, content: [], parentToolCallId: e.data.parentToolCallId });
+			if (this._shouldDropUnmappedSubagentEvent(e, 'tool.execution_start')) {
+				return;
+			}
+			const parentToolCallId = this._parentToolCallIdForSubagentEvent(e);
+			this._activeToolCalls.set(e.data.toolCallId, { toolName: e.data.toolName, displayName, parameters, content: [], parentToolCallId });
 			const toolSpan = this._agentHostOTelService.startSpan(`execute_tool ${e.data.toolName}`, {
 				parentTraceContext: this._activeAgentSpan?.getSpanContext(),
 				attributes: {
@@ -1208,15 +1237,14 @@ export class CopilotAgentSession extends Disposable {
 			const toolKind = getToolKind(e.data.toolName);
 			const subagentMeta = toolKind === 'subagent' ? getSubagentMetadata(parameters) : undefined;
 			const toolClientId = this._clientToolNames.has(e.data.toolName) ? this._appliedSnapshot.clientId : undefined;
-			const parentToolCallId = e.data.parentToolCallId;
 
 			// A new tool call invalidates the current markdown and reasoning
 			// parts so the next text/reasoning delta after the tool call
 			// starts a fresh part. Without invalidating reasoning here, a
 			// later round of reasoning (after tool_start/tool_complete)
 			// would silently append to the pre-tool-call reasoning block.
-			this._currentMarkdownPartId = undefined;
-			this._currentReasoningPartId = undefined;
+			this._currentMarkdownPartIds.delete(parentToolCallId ?? '');
+			this._currentReasoningPartIds.delete(parentToolCallId ?? '');
 
 			const meta: Record<string, unknown> = { toolKind, language: toolKind === 'terminal' ? getShellLanguage(e.data.toolName) : undefined };
 			if (subagentMeta?.description) {
@@ -1268,6 +1296,11 @@ export class CopilotAgentSession extends Disposable {
 		this._register(wrapper.onToolComplete(async e => {
 			const tracked = this._activeToolCalls.get(e.data.toolCallId);
 			if (!tracked) {
+				return;
+			}
+			const parentToolCallId = tracked.parentToolCallId ?? this._parentToolCallIdForSubagentEvent(e);
+			if (!parentToolCallId && e.agentId) {
+				this._logService.warn(`[Copilot:${this.sessionId}] Dropping tool.execution_complete for unknown subagent agentId=${e.agentId}`);
 				return;
 			}
 			this._activeAgentSpan?.addEvent('tool.execution_complete', {
@@ -1335,7 +1368,7 @@ export class CopilotAgentSession extends Disposable {
 					content: content.length > 0 ? content : undefined,
 					error: e.data.error,
 				},
-			}, e.data.parentToolCallId);
+			}, parentToolCallId);
 		}));
 
 		this._register(wrapper.onIdle(() => {
@@ -1395,6 +1428,9 @@ export class CopilotAgentSession extends Disposable {
 		}));
 
 		this._register(wrapper.onSubagentStarted(e => {
+			if (e.agentId) {
+				this._parentToolCallIdsByAgentId.set(e.agentId, e.data.toolCallId);
+			}
 			this._logService.info(`[Copilot:${sessionId}] Subagent started: toolCallId=${e.data.toolCallId}, agent=${e.data.agentName}`);
 			this._onDidSessionProgress.fire({
 				kind: 'subagent_started',
@@ -1437,7 +1473,10 @@ export class CopilotAgentSession extends Disposable {
 
 		this._register(wrapper.onReasoningDelta(e => {
 			this._logService.trace(`[Copilot:${sessionId}] Reasoning delta: ${e.data.deltaContent.length} chars`);
-			this._emitReasoningDelta(e.data.deltaContent);
+			if (this._shouldDropUnmappedSubagentEvent(e, 'assistant.reasoning_delta')) {
+				return;
+			}
+			this._emitReasoningDelta(e.data.deltaContent, this._parentToolCallIdForSubagentEvent(e));
 		}));
 
 		// Sync the AHP session config when the SDK's `currentMode` changes
@@ -1689,6 +1728,9 @@ export class CopilotAgentSession extends Disposable {
 		}));
 
 		this._register(wrapper.onSubagentCompleted(e => {
+			if (e.agentId) {
+				this._parentToolCallIdsByAgentId.delete(e.agentId);
+			}
 			this._logService.trace(`[Copilot:${sessionId}] Subagent completed: ${e.data.agentName}`);
 			this._activeAgentSpan?.addEvent('subagent.completed', {
 				[AgentHostGenAiAttr.AGENT_NAME]: e.data.agentName,
@@ -1696,6 +1738,9 @@ export class CopilotAgentSession extends Disposable {
 		}));
 
 		this._register(wrapper.onSubagentFailed(e => {
+			if (e.agentId) {
+				this._parentToolCallIdsByAgentId.delete(e.agentId);
+			}
 			this._logService.error(`[Copilot:${sessionId}] Subagent failed: ${e.data.agentName} - ${e.data.error}`);
 			this._activeAgentSpan?.addEvent('subagent.failed', {
 				[AgentHostGenAiAttr.AGENT_NAME]: e.data.agentName,

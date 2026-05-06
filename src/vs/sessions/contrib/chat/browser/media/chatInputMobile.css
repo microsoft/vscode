@@ -1,0 +1,60 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Phone-specific overrides for the sessions chat input.
+ *
+ * Imported from `newChatInput.ts` after `chatInput.css` so these rules
+ * cascade after the desktop ones. Selectors prepend
+ * `.agent-sessions-workbench.phone-layout` to win on specificity
+ * without needing `!important`.
+ *
+ * Scope:
+ *  - Send button: 36×36 circular accent button
+ *  - Editor: bump vertical padding so the empty new-chat input area
+ *    matches the running-session input height (the running-session
+ *    `interactive-input-editor` natively renders ~64px tall while the
+ *    new-chat `sessions-chat-editor` is clamped to a 50px minimum).
+ *  - Mode/model presentation on phone is owned by the
+ *    {@link MobileChatInputConfigPicker} contribution (a unified
+ *    bottom sheet) — no CSS for that here.
+ */
+
+/* Editor padding: more breathing room on phone so the empty new-chat
+ * input feels as substantial as the running-session input. The Monaco
+ * editor inside still renders at the JS-clamped MIN_EDITOR_HEIGHT
+ * (50px), but the surrounding container's extra padding lifts the
+ * visible cursor row down so the placeholder + cursor align with the
+ * larger touch surface users expect on phone. */
+.agent-sessions-workbench.phone-layout .sessions-chat-editor {
+	padding-top: 8px;
+	padding-bottom: 6px;
+}
+
+/* The send button on phone is a 36×36 circle with the same accent
+ * gradient fill as the desktop button. The wrapper and inner Button
+ * widget both grow so the focus outline (drawn on the wrapper) and
+ * the click target (the wrapper's `:has(...)` rules) align with the
+ * circular pill. */
+.agent-sessions-workbench.phone-layout .sessions-chat-send-button {
+	width: 36px;
+	height: 36px;
+	border-radius: 50%;
+}
+
+.agent-sessions-workbench.phone-layout .sessions-chat-send-button .monaco-button {
+	width: 36px;
+	height: 36px;
+	min-width: 36px;
+	border-radius: 50%;
+	margin-bottom: 18px;
+}
+
+/* The active-state pulse pseudo-element in `chatInput.css` uses
+ * `border-radius: 6px` (matching the desktop button's rounded square).
+ * Round it to a circle on phone so the pulse animates concentrically
+ * with the new shape. */
+.agent-sessions-workbench.phone-layout .sessions-chat-send-button:has(.monaco-button:not(.disabled):active)::after {
+	border-radius: 50%;
+}

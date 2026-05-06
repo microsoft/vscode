@@ -11,6 +11,7 @@ import { Disposable, DisposableResourceMap, DisposableStore, IDisposable } from 
 import { ResourceMap } from '../../../base/common/map.js';
 import { equals as objectEquals } from '../../../base/common/objects.js';
 import { observableValue } from '../../../base/common/observable.js';
+import { isEqual } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { FileSystemProviderErrorCode, IFileService, toFileSystemProviderErrorCode } from '../../files/common/files.js';
@@ -24,9 +25,9 @@ import { AgentHostSpanStatusCode, IAgentHostOTelService, type AgentHostCompleted
 import { NoopAgentHostOTelService } from '../common/otel/noopAgentHostOTelService.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { ActionType, ActionEnvelope, INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
-import type { CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
+import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
-import { ResponsePartKind, SessionStatus, ToolCallStatus, ToolResultContentType, parseSubagentSessionUri, readSessionGitState, withSessionGitState, type SessionConfigState, type ISessionFileDiff, type SessionSummary, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
+import { ResponsePartKind, SessionStatus, ToolCallStatus, ToolResultContentType, buildSubagentSessionUriPrefix, parseSubagentSessionUri, readSessionGitState, withSessionGitState, type SessionConfigState, type ISessionFileDiff, type SessionSummary, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
 import { IProductService } from '../../product/common/productService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from './agentConfigurationService.js';
 import { AgentSideEffects } from './agentSideEffects.js';
@@ -35,6 +36,8 @@ import { ISessionDbUriFields, parseSessionDbUri } from './copilot/fileEditTracke
 import { IGitBlobUriFields, parseGitBlobUri } from './gitDiffContent.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostGitService } from './agentHostGitService.js';
+import { AgentHostCompletions, IAgentHostCompletions } from './agentHostCompletions.js';
+import { AgentHostFileCompletionProvider } from './agentHostFileCompletionProvider.js';
 
 /**
  * Grace period before an empty, unsubscribed session is garbage-collected
@@ -84,6 +87,8 @@ export class AgentService extends Disposable implements IAgentService {
 	/** Manages PTY-backed terminals for the agent host protocol. */
 	private readonly _terminalManager: AgentHostTerminalManager;
 	private readonly _configurationService: IAgentConfigurationService;
+	/** Pluggable completion item providers (e.g. workspace file completions, agent-specific @-mentions). */
+	private readonly _completions: IAgentHostCompletions;
 
 	/**
 	 * Authoritative server-side per-resource subscription refcount, keyed by
@@ -131,11 +136,18 @@ export class AgentService extends Disposable implements IAgentService {
 		this._configurationService = configurationService;
 		const services = new ServiceCollection(
 			[ILogService, this._logService],
+			[IProductService, this._productService],
 			[IAgentConfigurationService, configurationService],
 			[IAgentHostGitService, this._gitService],
 			[IAgentHostOTelService, this._agentHostOTelService],
 		);
 		const instantiationService = this._register(new InstantiationService(services, /*strict*/ true));
+
+		this._completions = this._register(instantiationService.createInstance(AgentHostCompletions));
+		// Built-in generic provider: completes files in the session's workspace folder.
+		this._register(this._completions.registerProvider(
+			new AgentHostFileCompletionProvider(this._stateManager),
+		));
 
 		this._sideEffects = this._register(instantiationService.createInstance(AgentSideEffects, this._stateManager, {
 			getAgent: session => this._findProviderForSession(session),
@@ -149,7 +161,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 		// Terminal management — the terminal manager listens to the state
 		// manager's action stream and dispatches PTY output back through it.
-		this._terminalManager = this._register(new AgentHostTerminalManager(this._stateManager, this._logService, this._productService));
+		this._terminalManager = this._register(instantiationService.createInstance(AgentHostTerminalManager, this._stateManager));
 	}
 
 	// ---- provider registration ----------------------------------------------
@@ -602,6 +614,10 @@ export class AgentService extends Disposable implements IAgentService {
 		return provider.sessionConfigCompletions(params);
 	}
 
+	async completions(params: CompletionsParams): Promise<CompletionsResult> {
+		return this._completions.completions(params);
+	}
+
 	async disposeSession(session: URI): Promise<void> {
 		this._logService.trace(`[AgentService] disposeSession: ${session.toString()}`);
 		const provider = this._findProviderForSession(session);
@@ -642,7 +658,7 @@ export class AgentService extends Disposable implements IAgentService {
 			let snapshot = this._stateManager.getSnapshot(resourceStr);
 			if (!snapshot) {
 				// Try subagent restore before regular session restore
-				const parsed = parseSubagentSessionUri(resourceStr);
+				const parsed = parseSubagentSessionUri(resource);
 				if (parsed) {
 					await this._restoreSubagentSession(resourceStr, parsed.parentSession, parsed.toolCallId);
 				} else {
@@ -725,12 +741,12 @@ export class AgentService extends Disposable implements IAgentService {
 	 * so callers can skip alternative cleanup paths.
 	 */
 	private _maybeScheduleSessionGc(resource: URI): boolean {
-		const key = resource.toString();
 		// Subagent URIs are backed by the parent session; the parent's GC is
 		// scheduled when its own subscriber count reaches zero.
-		if (parseSubagentSessionUri(key)) {
+		if (parseSubagentSessionUri(resource)) {
 			return false;
 		}
+		const key = resource.toString();
 		const state = this._stateManager.getSessionState(key);
 		if (!state) {
 			return false;
@@ -785,41 +801,49 @@ export class AgentService extends Disposable implements IAgentService {
 		if (this._resourceSubscribers.has(resource)) {
 			return;
 		}
-		const parsed = parseSubagentSessionUri(key);
-		let evictionTarget: string;
-		if (parsed) {
-			evictionTarget = parsed.parentSession;
-			if (this._resourceSubscribers.has(URI.parse(evictionTarget))) {
-				return;
-			}
-			const parentPrefix = parsed.parentSession + '/subagent/';
-			for (const subscribedUri of this._resourceSubscribers.keys()) {
-				if (subscribedUri.toString().startsWith(parentPrefix)) {
-					return;
-				}
-			}
-		} else {
-			evictionTarget = key;
-			const subagentPrefix = key + '/subagent/';
-			for (const subscribedUri of this._resourceSubscribers.keys()) {
-				if (subscribedUri.toString().startsWith(subagentPrefix)) {
-					return;
-				}
+		// Walk up the subagent ancestry: the SDK session and its turn tree are
+		// owned by the root session, so eviction must target the root.
+		let evictionTarget = resource;
+		{
+			let parsed;
+			while ((parsed = parseSubagentSessionUri(evictionTarget))) {
+				evictionTarget = parsed.parentSession;
 			}
 		}
-		const targetState = this._stateManager.getSessionState(evictionTarget);
+		// Don't evict if the root or any of its subagent descendants still has subscribers.
+		if (this._resourceSubscribers.has(evictionTarget)) {
+			return;
+		}
+		for (const subscribedUri of this._resourceSubscribers.keys()) {
+			if (this._isSubagentDescendantOf(subscribedUri, evictionTarget)) {
+				return;
+			}
+		}
+		const evictionTargetKey = evictionTarget.toString();
+		const targetState = this._stateManager.getSessionState(evictionTargetKey);
 		if (!targetState || targetState.activeTurn !== undefined) {
 			return;
 		}
-		this._logService.trace(`[AgentService] Evicting idle session: ${evictionTarget} (triggered by unsubscribe of ${key})`);
+		this._logService.trace(`[AgentService] Evicting idle session: ${evictionTargetKey} (triggered by unsubscribe of ${key})`);
 		// Also evict any sibling subagent entries cached under the parent: their
 		// authoritative state is the parent's turn tree, and dropping the parent
 		// would leave them orphaned.
-		const subagentPrefix = evictionTarget + '/subagent/';
+		const subagentPrefix = buildSubagentSessionUriPrefix(evictionTarget);
 		for (const cachedKey of this._stateManager.getSessionUrisWithPrefix(subagentPrefix)) {
 			this._stateManager.removeSession(cachedKey);
 		}
-		this._stateManager.removeSession(evictionTarget);
+		this._stateManager.removeSession(evictionTargetKey);
+	}
+
+	private _isSubagentDescendantOf(resource: URI, parent: URI): boolean {
+		let parsed = parseSubagentSessionUri(resource);
+		while (parsed) {
+			if (isEqual(parsed.parentSession, parent)) {
+				return true;
+			}
+			parsed = parseSubagentSessionUri(parsed.parentSession);
+		}
+		return false;
 	}
 
 	dispatchAction(action: SessionAction | TerminalAction | IRootConfigChangedAction, clientId: string, clientSeq: number, options?: IAgentDispatchOptions): void {
@@ -1195,19 +1219,19 @@ export class AgentService extends Disposable implements IAgentService {
 	 * the subagent (by `parentToolCallId`), and builds the child session's
 	 * turns from those events.
 	 */
-	private async _restoreSubagentSession(subagentUri: string, parentSession: string, toolCallId: string): Promise<void> {
+	private async _restoreSubagentSession(subagentUri: string, parentSession: URI, toolCallId: string): Promise<void> {
 		// Ensure the parent session is loaded first
-		const parentUri = URI.parse(parentSession);
-		if (!this._stateManager.getSessionState(parentSession)) {
+		const parentSessionKey = parentSession.toString();
+		if (!this._stateManager.getSessionState(parentSessionKey)) {
 			try {
-				await this.restoreSession(parentUri);
+				await this.restoreSession(parentSession);
 			} catch {
-				this._logService.warn(`[AgentService] Cannot restore parent session for subagent: ${parentSession}`);
+				this._logService.warn(`[AgentService] Cannot restore parent session for subagent: ${parentSessionKey}`);
 				return;
 			}
 		}
 
-		const parentState = this._stateManager.getSessionState(parentSession);
+		const parentState = this._stateManager.getSessionState(parentSessionKey);
 		if (!parentState) {
 			return;
 		}
@@ -1246,7 +1270,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// Load the subagent's turns from the agent (which knows how to
 		// extract them from the parent session's event log).
 		let childTurns: readonly Turn[] = [];
-		const agent = this._findProviderForSession(parentUri);
+		const agent = this._findProviderForSession(parentSession);
 		if (agent) {
 			try {
 				childTurns = await agent.getSessionMessages(URI.parse(subagentUri));

@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AgentHostOTelAttr } from './agentHostOTelAttributes.js';
+import { AgentHostGenAiAttr, AgentHostGenAiOperationName, AgentHostOTelAttr } from './agentHostOTelAttributes.js';
 import type { AgentHostTraceContext } from './agentHostTraceContext.js';
 import { AgentHostSpanStatusCode, type AgentHostSpanAttributes, type IAgentHostOTelService, type IAgentHostSpanHandle } from './agentHostOTelService.js';
 
 export interface AgentHostVerboseOperation {
 	readonly name: string;
 	readonly operation: string;
+	readonly attributes?: AgentHostSpanAttributes;
 }
 
 export interface AgentHostSdkOperation extends AgentHostVerboseOperation {
@@ -17,8 +18,8 @@ export interface AgentHostSdkOperation extends AgentHostVerboseOperation {
 	readonly reason: string;
 }
 
-function verboseOperation(name: string, operation: string): AgentHostVerboseOperation {
-	return { name, operation };
+function verboseOperation(name: string, operation: string, attributes?: AgentHostSpanAttributes): AgentHostVerboseOperation {
+	return { name, operation, attributes };
 }
 
 function sdkOperation(call: string, reason: string): AgentHostSdkOperation {
@@ -31,6 +32,8 @@ function sdkOperation(call: string, reason: string): AgentHostSdkOperation {
 }
 
 export const AgentHostVerboseTrace = {
+	ChatInvoke: verboseOperation('chat.agent_host.invoke', 'chat.invoke', { [AgentHostGenAiAttr.OPERATION_NAME]: AgentHostGenAiOperationName.CHAT }),
+	ChatTurn: verboseOperation('chat.agent_host.turn', 'chat.turn', { [AgentHostGenAiAttr.OPERATION_NAME]: AgentHostGenAiOperationName.CHAT }),
 	ListSessions: verboseOperation('vscode_agent_host.list_sessions', 'list_sessions'),
 	ListSessionProviders: verboseOperation('vscode_agent_host.list_sessions.providers', 'list_sessions.providers'),
 	SessionMetadataOverlay: verboseOperation('vscode_agent_host.db.session_metadata_overlay', 'db.session_metadata_overlay'),
@@ -93,17 +96,20 @@ export class AgentHostOTelTracer {
 			attributes: {
 				[AgentHostOTelAttr.VERBOSE]: true,
 				[AgentHostOTelAttr.OPERATION]: operation.operation,
+				...operation.attributes,
 				...this._baseAttributes(),
 				...attributes,
 			},
 		});
 	}
 
-	async traceVerbose<T>(operation: AgentHostVerboseOperation, fn: (span: IAgentHostSpanHandle | undefined) => Promise<T>, attributes: AgentHostSpanAttributes = {}, parentSpan?: IAgentHostSpanHandle): Promise<T> {
+	async traceVerbose<T>(operation: AgentHostVerboseOperation, fn: (span: IAgentHostSpanHandle | undefined) => Promise<T>, attributes: AgentHostSpanAttributes = {}, parentSpan?: IAgentHostSpanHandle, options: { readonly setOkStatus?: boolean } = {}): Promise<T> {
 		const span = this.startVerbose(operation, attributes, parentSpan);
 		try {
 			const result = await fn(span);
-			span?.setStatus(AgentHostSpanStatusCode.OK);
+			if (options.setOkStatus !== false) {
+				span?.setStatus(AgentHostSpanStatusCode.OK);
+			}
 			return result;
 		} catch (error) {
 			span?.recordException(error);
@@ -111,6 +117,22 @@ export class AgentHostOTelTracer {
 		} finally {
 			span?.end();
 		}
+	}
+
+	async traceActiveVerbose<T>(operation: AgentHostVerboseOperation, fn: (span: IAgentHostSpanHandle | undefined) => Promise<T>, attributes: AgentHostSpanAttributes = {}, parentSpan?: IAgentHostSpanHandle): Promise<T> {
+		if (!this._otelService.config.enabled || !this._otelService.config.verboseTracing) {
+			return fn(undefined);
+		}
+		return this._otelService.startActiveSpan(operation.name, {
+			parentTraceContext: parentSpan?.getSpanContext() ?? this._context.parentTraceContext?.(),
+			attributes: {
+				[AgentHostOTelAttr.VERBOSE]: true,
+				[AgentHostOTelAttr.OPERATION]: operation.operation,
+				...operation.attributes,
+				...this._baseAttributes(),
+				...attributes,
+			},
+		}, fn);
 	}
 
 	traceSdkCall<T>(operation: AgentHostSdkOperation, fn: () => Promise<T>, attributes: AgentHostSpanAttributes = {}, parentSpan?: IAgentHostSpanHandle): Promise<T> {
