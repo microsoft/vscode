@@ -27,10 +27,6 @@ export class NullLanguageModelsService implements ILanguageModelsService {
 	onDidChangeLanguageModelVendors = Event.None;
 	onDidChangeModelsControlManifest = Event.None;
 
-	updateModelPickerPreference(modelIdentifier: string, showInModelPicker: boolean): void {
-		return;
-	}
-
 	getVendors(): ILanguageModelProviderDescriptor[] {
 		return [];
 	}
@@ -61,6 +57,10 @@ export class NullLanguageModelsService implements ILanguageModelsService {
 
 	getLanguageModelGroups(vendor: string): ILanguageModelsGroup[] {
 		return [];
+	}
+
+	hasResolvedVendor(vendor: string): boolean {
+		return false;
 	}
 
 	async selectLanguageModels(selector: ILanguageModelChatSelector): Promise<string[]> {

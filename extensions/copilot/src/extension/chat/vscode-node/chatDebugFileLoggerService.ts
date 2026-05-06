@@ -962,6 +962,9 @@ export class ChatDebugFileLoggerService extends Disposable implements IChatDebug
 						...(span.attributes[CopilotChatAttr.REQUEST_OPTIONS] !== undefined
 							? { requestOptions: String(span.attributes[CopilotChatAttr.REQUEST_OPTIONS]) }
 							: {}),
+						...(span.attributes[CopilotChatAttr.REQUEST_SHAPE] !== undefined
+							? { requestShape: String(span.attributes[CopilotChatAttr.REQUEST_SHAPE]) }
+							: {}),
 						...(isError && span.status.message ? { error: span.status.message } : {}),
 					},
 				};

@@ -33,7 +33,7 @@ import { IChatDebugService } from '../chatDebugService.js';
 import { IMcpService } from '../../../mcp/common/mcpTypes.js';
 import { awaitStatsForSession } from '../chat.js';
 import { ChatPerfMark, clearChatMarks, markChat } from '../chatPerf.js';
-import { IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../participants/chatAgents.js';
+import { IChatAgentAttachmentCapabilities, IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../participants/chatAgents.js';
 import { chatEditingSessionIsReady } from '../editing/chatEditingService.js';
 import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, IChatModel, IChatRequestModel, IChatRequestModeInfo, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData, ISerializableChatDataIn, ISerializableChatsData, ISerializedChatDataReference, normalizeSerializableChatData, toChatHistoryContent, updateRanges, ISerializableChatModelInputState } from '../model/chatModel.js';
 import { ChatModelStore, IStartSessionProps } from '../model/chatModelStore.js';
@@ -663,13 +663,13 @@ export class ChatService extends Disposable implements IChatService {
 		const parseAgentHostHistoryPrompt = (text: string, agent: IChatAgentData | undefined): IParsedChatRequest => {
 			if (requestParser) {
 				try {
-					const sessionCapabilities = this.chatSessionService.getCapabilitiesForSessionType(chatSessionType);
+					const attachmentCapabilities = this.getAttachmentCapabilitiesForParser(chatSessionType, agent);
 					const parsed = requestParser.parseChatRequestWithReferences(
 						EMPTY_REFERENCES,
 						EMPTY_TOOL_ENABLEMENT_MAP,
 						text,
 						location,
-						{ sessionType: chatSessionType, forcedAgent: agent, attachmentCapabilities: sessionCapabilities ?? agent?.capabilities },
+						{ sessionType: chatSessionType, forcedAgent: agent, attachmentCapabilities },
 					);
 					if (parsed.parts.length > 0) {
 						return parsed;
@@ -990,23 +990,35 @@ export class ChatService extends Disposable implements IChatService {
 		}
 	}
 
+	private getAttachmentCapabilitiesForParser(chatSessionType: string, agent: IChatAgentData | undefined): IChatAgentAttachmentCapabilities | undefined {
+		return this.chatSessionService.getCapabilitiesForSessionType(chatSessionType) ?? agent?.capabilities;
+	}
+
 	private parseChatRequest(sessionResource: URI, request: string, location: ChatAgentLocation, options: IChatSendRequestOptions | undefined): IParsedChatRequest {
 		let parserContext = options?.parserContext;
+		let contextAgent = parserContext?.forcedAgent ?? parserContext?.selectedAgent;
 		if (options?.agentId) {
 			const agent = this.chatAgentService.getAgent(options.agentId);
 			if (!agent) {
 				throw new Error(`Unknown agent: ${options.agentId}`);
 			}
-			parserContext = { selectedAgent: agent, mode: options.modeInfo?.kind };
+			contextAgent = agent;
+			parserContext = { ...parserContext, selectedAgent: agent, mode: options.modeInfo?.kind };
 			const commandPart = options.slashCommand ? ` ${chatSubcommandLeader}${options.slashCommand}` : '';
 			request = `${chatAgentLeader}${agent.name}${commandPart} ${request}`;
 		} else if (options?.agentIdSilent && !parserContext?.forcedAgent) {
-			// Resolve slash commandsin the context of locked participant so its subcommands take precedence over global
+			// Resolve slash commands in the context of locked participant so its subcommands take precedence over global
 			// slash commands with the same name.
 			const silentAgent = this.chatAgentService.getAgent(options.agentIdSilent);
 			if (silentAgent) {
+				contextAgent = silentAgent;
 				parserContext = { ...parserContext, forcedAgent: silentAgent };
 			}
+		}
+
+		const attachmentCapabilities = parserContext?.attachmentCapabilities ?? this.getAttachmentCapabilitiesForParser(getChatSessionType(sessionResource), contextAgent);
+		if (attachmentCapabilities) {
+			parserContext = { ...parserContext, attachmentCapabilities };
 		}
 
 		const parsedRequest = this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(sessionResource, request, location, parserContext);
