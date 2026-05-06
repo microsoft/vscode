@@ -1026,31 +1026,46 @@ function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentifier): H
 
 	// --- Cost info ---
 	if (!isAuto) {
-		const costParts: { label: string; value: string }[] = [];
+		const costLines: { label: string; value: string }[] = [];
 		if (model.metadata.inputCost !== undefined) {
-			costParts.push({ label: localize('models.inputCostLabel', "In"), value: String(model.metadata.inputCost) });
-		}
-		if (model.metadata.outputCost !== undefined) {
-			costParts.push({ label: localize('models.outputCostLabel', "Out"), value: String(model.metadata.outputCost) });
+			costLines.push({
+				label: localize('models.inputCostLabel', "Input"),
+				value: model.metadata.inputCost === 1
+					? localize('models.costValueSingular', "{0} credit / 1M tokens", model.metadata.inputCost)
+					: localize('models.costValuePlural', "{0} credits / 1M tokens", model.metadata.inputCost),
+			});
 		}
 		if (model.metadata.cacheCost !== undefined) {
-			costParts.push({ label: localize('models.cacheCostLabel', "Cache"), value: String(model.metadata.cacheCost) });
+			costLines.push({
+				label: localize('models.cacheCostLabel', "Cached input"),
+				value: model.metadata.cacheCost === 1
+					? localize('models.costValueSingular', "{0} credit / 1M tokens", model.metadata.cacheCost)
+					: localize('models.costValuePlural', "{0} credits / 1M tokens", model.metadata.cacheCost),
+			});
+		}
+		if (model.metadata.outputCost !== undefined) {
+			costLines.push({
+				label: localize('models.outputCostLabel', "Output"),
+				value: model.metadata.outputCost === 1
+					? localize('models.costValueSingular', "{0} credit / 1M tokens", model.metadata.outputCost)
+					: localize('models.costValuePlural', "{0} credits / 1M tokens", model.metadata.outputCost),
+			});
 		}
 
-		if (costParts.length > 0) {
-			const costRow = dom.$('.chat-model-hover-cost');
-			costRow.appendChild(dom.$('span.chat-model-hover-cost-label', undefined, localize('models.creditsPerToken', "Credits per 1M T:")));
-			for (const part of costParts) {
-				costRow.appendChild(dom.$('span.chat-model-hover-cost-item', undefined,
-					dom.$('span.chat-model-hover-cost-item-label', undefined, `${part.label}: `),
-					dom.$('span.chat-model-hover-cost-item-value', undefined, part.value),
+		if (costLines.length > 0) {
+			const costSection = dom.$('.chat-model-hover-cost');
+			costSection.appendChild(dom.$('.chat-model-hover-cost-title', undefined, localize('models.priceTitle', "Price")));
+			for (const line of costLines) {
+				costSection.appendChild(dom.$('.chat-model-hover-cost-line', undefined,
+					dom.$('span.chat-model-hover-cost-line-label', undefined, line.label),
+					dom.$('span', undefined, line.value),
 				));
 			}
-			container.appendChild(costRow);
+			container.appendChild(costSection);
 		} else if (model.metadata.pricing && !isMultiplierPricing(model)) {
-			const costRow = dom.$('.chat-model-hover-cost');
-			costRow.appendChild(dom.$('span', undefined, localize('models.cost', 'Cost: {0}', model.metadata.pricing)));
-			container.appendChild(costRow);
+			const costSection = dom.$('.chat-model-hover-cost');
+			costSection.appendChild(dom.$('span', undefined, localize('models.cost', 'Cost: {0}', model.metadata.pricing)));
+			container.appendChild(costSection);
 		}
 	}
 
@@ -1058,8 +1073,11 @@ function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentifier): H
 	if (!isAuto && model.metadata.configurationSchema?.properties) {
 		const configurableLabels: string[] = [];
 		for (const [, propSchema] of Object.entries(model.metadata.configurationSchema.properties)) {
-			if (propSchema.enum && propSchema.enum.length >= 2 && propSchema.description) {
-				configurableLabels.push(propSchema.description);
+			if (propSchema.enum && propSchema.enum.length >= 2) {
+				const label = propSchema.title ?? propSchema.description;
+				if (label) {
+					configurableLabels.push(label);
+				}
 			}
 		}
 		if (configurableLabels.length > 0) {

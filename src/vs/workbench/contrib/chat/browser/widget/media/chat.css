@@ -4003,16 +4003,26 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .chat-model-hover-cost {
-	display: flex;
-	flex-wrap: wrap;
-	align-items: baseline;
-	gap: 8px;
+	display: grid;
+	grid-template-columns: auto 1fr;
+	gap: 2px 12px;
 	font-size: 12px;
 	color: var(--vscode-descriptionForeground);
 }
 
-.chat-model-hover-cost-label {
+.chat-model-hover-cost-title {
 	font-weight: 600;
+	margin-bottom: 2px;
+	grid-column: 1 / -1;
+}
+
+.chat-model-hover-cost-line {
+	display: contents;
+}
+
+.chat-model-hover-cost-line-label {
+	color: var(--vscode-foreground);
+	opacity: 0.85;
 }
 
 .chat-model-hover-configurable {
@@ -4028,9 +4038,9 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .chat-model-hover-configurable-tag {
-	padding: 1px 6px;
-	border-radius: 3px;
-	background: var(--vscode-badge-background);
-	color: var(--vscode-badge-foreground);
+	padding: 2px 8px;
+	border-radius: 10px;
+	border: 1px solid var(--vscode-contrastBorder, var(--vscode-editorWidget-border));
+	background: transparent;
 	font-size: 11px;
 }
