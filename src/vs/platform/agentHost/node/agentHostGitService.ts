@@ -151,10 +151,19 @@ export class AgentHostGitService implements IAgentHostGitService {
 			}
 
 			const branch = remoteRef.substring('refs/remotes/origin/'.length);
-			// Check whether a local branch exists; if not, use the remote-tracking ref
-			// so that 'git worktree add ... <startPoint>' resolves correctly.
+			// Prefer the remote-tracking ref ('origin/<branch>') over the local
+			// branch when both exist, so worktrees are based on the most
+			// up-to-date commit rather than a possibly stale local branch.
+			// This mirrors the extension-host CLI which resolves a branch's
+			// upstream and uses that as the worktree start point. Falls back
+			// to the local branch when the remote-tracking ref is missing
+			// (e.g. fresh clone with no remote-tracking refs yet).
+			const hasRemoteRef = (await this._runGit(workingDirectory, ['show-ref', '--verify', '--quiet', `refs/remotes/origin/${branch}`])) !== undefined;
+			if (hasRemoteRef) {
+				return `origin/${branch}`;
+			}
 			const hasLocalBranch = (await this._runGit(workingDirectory, ['show-ref', '--verify', '--quiet', `refs/heads/${branch}`])) !== undefined;
-			return hasLocalBranch ? branch : `origin/${branch}`;
+			return hasLocalBranch ? branch : undefined;
 		}
 		return undefined;
 	}
@@ -187,7 +196,11 @@ export class AgentHostGitService implements IAgentHostGitService {
 	}
 
 	async addWorktree(repositoryRoot: URI, worktree: URI, branchName: string, startPoint: string): Promise<void> {
-		await this._runGit(repositoryRoot, ['worktree', 'add', '-b', branchName, worktree.fsPath, startPoint], { timeout: 30_000, throwOnError: true });
+		// Pass --no-track so the new agent branch never picks up upstream
+		// tracking from the start point (e.g. when starting from
+		// 'origin/main', without --no-track git would set the new branch's
+		// upstream to origin/main, which would mis-attribute pushes/pulls).
+		await this._runGit(repositoryRoot, ['worktree', 'add', '--no-track', '-b', branchName, worktree.fsPath, startPoint], { timeout: 30_000, throwOnError: true });
 	}
 
 	async addExistingWorktree(repositoryRoot: URI, worktree: URI, branchName: string): Promise<void> {
