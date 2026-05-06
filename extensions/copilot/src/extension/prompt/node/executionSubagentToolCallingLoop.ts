@@ -361,6 +361,7 @@ export class ExecutionSubagentToolCallingLoop extends ToolCallingLoop<IExecution
 				subType: 'execution_subagent',
 				conversationId: this.options.conversation.sessionId,
 				parentToolCallId: this.options.parentToolCallId,
+				parentRequestId: this.options.request.id,
 				parentHeaderRequestId: this.options.parentHeaderRequestId,
 				parentModelCallId: this.options.parentModelCallId,
 				iterationNumber: iterationNumber.toString(),
