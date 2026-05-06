@@ -6,6 +6,7 @@
 import { RunOnceScheduler } from '../../../base/common/async.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
+import { equals } from '../../../base/common/objects.js';
 import { ILogService } from '../../log/common/log.js';
 import { ActionType, NotificationType, ActionEnvelope, ActionOrigin, INotification, IRootConfigChangedAction, SessionAction, RootAction, StateAction, TerminalAction, isRootAction, isSessionAction } from '../common/state/sessionActions.js';
 import type { IStateSnapshot } from '../common/state/sessionProtocol.js';
@@ -333,8 +334,18 @@ export class AgentHostStateManager extends Disposable {
 		let resultingState: unknown = undefined;
 		// Apply to state
 		if (isRootAction(action)) {
-			this._rootState = rootReducer(this._rootState, action as RootAction, this._log);
-			resultingState = this._rootState;
+			const prevRoot = this._rootState;
+			const nextRoot = rootReducer(prevRoot, action as RootAction, this._log);
+			// Skip emission entirely when the action is a no-op against the
+			// current root state. Otherwise downstream listeners (and clients
+			// observing rootState.onDidChange) treat every dispatched action as
+			// a change, which can spin into an infinite loop when something
+			// re-publishes a value that already matches.
+			if (equals(prevRoot, nextRoot)) {
+				return prevRoot;
+			}
+			this._rootState = nextRoot;
+			resultingState = nextRoot;
 		}
 
 		if (isSessionAction(action)) {

@@ -128,6 +128,45 @@ suite('AgentHostStateManager', () => {
 		assert.deepStrictEqual(envelopes[0].origin, origin);
 	});
 
+	test('root action that does not change state is not emitted', () => {
+		const envelopes: ActionEnvelope[] = [];
+		disposables.add(manager.onDidEmitEnvelope(e => envelopes.push(e)));
+
+		// First dispatch: introduces a new value, should emit.
+		manager.dispatchServerAction({
+			type: ActionType.RootConfigChanged,
+			config: { 'my.setting': 'value-a' },
+		});
+		assert.strictEqual(envelopes.length, 1);
+
+		// Second dispatch with the same value: should be deduped and not emit.
+		manager.dispatchServerAction({
+			type: ActionType.RootConfigChanged,
+			config: { 'my.setting': 'value-a' },
+		});
+		assert.strictEqual(envelopes.length, 1);
+
+		// Third dispatch with a deeply-equal but newly allocated object value:
+		// should also be deduped.
+		manager.dispatchServerAction({
+			type: ActionType.RootConfigChanged,
+			config: { 'my.nested': { allow: ['x'], deny: [] } },
+		});
+		assert.strictEqual(envelopes.length, 2);
+		manager.dispatchServerAction({
+			type: ActionType.RootConfigChanged,
+			config: { 'my.nested': { allow: ['x'], deny: [] } },
+		});
+		assert.strictEqual(envelopes.length, 2);
+
+		// Real change still emits.
+		manager.dispatchServerAction({
+			type: ActionType.RootConfigChanged,
+			config: { 'my.setting': 'value-b' },
+		});
+		assert.strictEqual(envelopes.length, 3);
+	});
+
 	test('removeSession clears state without notification', () => {
 		manager.createSession(makeSessionSummary());
 
