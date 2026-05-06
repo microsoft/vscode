@@ -27,31 +27,20 @@ KeybindingsRegistry.registerKeybindingRule({
 	weight: KeybindingWeight.WorkbenchContrib,
 });
 
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'sessions.files.action.openSearch',
-			title: localize2('openSearch', "Search"),
-			icon: Codicon.search,
-			menu: {
-				id: MenuId.ViewTitle,
-				group: 'navigation',
-				order: 0,
-				when: ContextKeyExpr.equals('view', SESSIONS_FILES_VIEW_ID),
-			},
-		});
-	}
-
-	run(accessor: ServicesAccessor) {
-		return accessor.get(ICommandService).executeCommand(OpenEditorCommandId, {
-			location: 'reuse',
-		});
-	}
+MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
+	command: {
+		id: OpenEditorCommandId,
+		title: localize2('openSearch', "Search"),
+		icon: Codicon.search,
+	},
+	group: 'navigation',
+	order: 0,
+	when: ContextKeyExpr.equals('view', SESSIONS_FILES_VIEW_ID),
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 	command: {
-		id: 'sessions.files.action.openSearch',
+		id: OpenEditorCommandId,
 		title: localize({ key: 'miSearch', comment: ['&& denotes a mnemonic'] }, "&&Search"),
 	},
 	group: '4_auxbar',
