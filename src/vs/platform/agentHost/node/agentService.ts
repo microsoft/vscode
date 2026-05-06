@@ -21,7 +21,7 @@ import { ILogService } from '../../log/common/log.js';
 import { AgentProvider, AgentSession, IAgent, IAgentCreateSessionConfig, IAgentMaterializeSessionEvent, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult } from '../common/agentService.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { ActionType, ActionEnvelope, INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
-import type { CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
+import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { ResponsePartKind, SessionStatus, ToolCallStatus, ToolResultContentType, buildSubagentSessionUriPrefix, parseSubagentSessionUri, readSessionGitState, withSessionGitState, type SessionConfigState, type ISessionFileDiff, type SessionSummary, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
 import { IProductService } from '../../product/common/productService.js';
@@ -32,6 +32,8 @@ import { ISessionDbUriFields, parseSessionDbUri } from './copilot/fileEditTracke
 import { IGitBlobUriFields, parseGitBlobUri } from './gitDiffContent.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostGitService } from './agentHostGitService.js';
+import { AgentHostCompletions, IAgentHostCompletions } from './agentHostCompletions.js';
+import { AgentHostFileCompletionProvider } from './agentHostFileCompletionProvider.js';
 
 /**
  * Grace period before an empty, unsubscribed session is garbage-collected
@@ -81,6 +83,8 @@ export class AgentService extends Disposable implements IAgentService {
 	/** Manages PTY-backed terminals for the agent host protocol. */
 	private readonly _terminalManager: AgentHostTerminalManager;
 	private readonly _configurationService: IAgentConfigurationService;
+	/** Pluggable completion item providers (e.g. workspace file completions, agent-specific @-mentions). */
+	private readonly _completions: IAgentHostCompletions;
 
 	/**
 	 * Authoritative server-side per-resource subscription refcount, keyed by
@@ -130,6 +134,12 @@ export class AgentService extends Disposable implements IAgentService {
 			[IAgentHostGitService, this._gitService],
 		);
 		const instantiationService = this._register(new InstantiationService(services, /*strict*/ true));
+
+		this._completions = this._register(instantiationService.createInstance(AgentHostCompletions));
+		// Built-in generic provider: completes files in the session's workspace folder.
+		this._register(this._completions.registerProvider(
+			new AgentHostFileCompletionProvider(this._stateManager),
+		));
 
 		this._sideEffects = this._register(instantiationService.createInstance(AgentSideEffects, this._stateManager, {
 			getAgent: session => this._findProviderForSession(session),
@@ -505,6 +515,10 @@ export class AgentService extends Disposable implements IAgentService {
 			throw new Error(`No agent provider registered for: ${providerId ?? '(none)'}`);
 		}
 		return provider.sessionConfigCompletions(params);
+	}
+
+	async completions(params: CompletionsParams): Promise<CompletionsResult> {
+		return this._completions.completions(params);
 	}
 
 	async disposeSession(session: URI): Promise<void> {

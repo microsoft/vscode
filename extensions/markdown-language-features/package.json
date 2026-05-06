@@ -215,11 +215,11 @@
       "webview/context": [
         {
           "command": "_markdown.copyImage",
-          "when": "webviewId == 'markdown.preview' && (webviewSection == 'image' || webviewSection == 'localImage')"
+          "when": "(webviewId == 'markdown.preview' || webviewId == 'vscode.markdown.preview.editor') && (webviewSection == 'image' || webviewSection == 'localImage')"
         },
         {
           "command": "_markdown.openImage",
-          "when": "webviewId == 'markdown.preview' && webviewSection == 'localImage'"
+          "when": "(webviewId == 'markdown.preview' || webviewId == 'vscode.markdown.preview.editor') && webviewSection == 'localImage'"
         }
       ],
       "editor/title": [
@@ -741,7 +741,7 @@
           },
           "markdown.preview.markEditorSelection": {
             "type": "boolean",
-            "default": true,
+            "default": false,
             "description": "%markdown.preview.markEditorSelection.desc%",
             "scope": "resource"
           },
@@ -753,7 +753,7 @@
           },
           "markdown.preview.doubleClickToSwitchToEditor": {
             "type": "boolean",
-            "default": true,
+            "default": false,
             "description": "%markdown.preview.doubleClickToSwitchToEditor.desc%",
             "scope": "resource"
           },
