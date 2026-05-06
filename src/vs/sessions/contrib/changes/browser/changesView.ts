@@ -206,6 +206,7 @@ class ChangesButtonBarWidget extends Disposable {
 			action.id === 'github.copilot.claude.sessions.commit' ||
 			action.id === 'github.copilot.claude.sessions.commitAndSync' ||
 			action.id === 'agentSession.markAsDone' ||
+			action.id === 'agentSession.restore' ||
 			isAgentHostSkillButtonId(action.id)
 		) {
 			return { showIcon: true, showLabel: true, isSecondary: false };
@@ -563,8 +564,9 @@ export class ChangesViewPane extends ViewPane {
 
 			// Hide the actions toolbar for untitled sessions.
 			const activeSessionStatus = activeSessionStatusObs.read(reader);
+			const isUntitled = activeSessionStatus === SessionStatus.Untitled;
 			if (this.actionsContainer) {
-				dom.setVisibility(activeSessionStatus !== undefined && activeSessionStatus !== SessionStatus.Untitled, this.actionsContainer);
+				dom.setVisibility(!isUntitled, this.actionsContainer);
 			}
 
 			const hasGitRepository = this.viewModel.activeSessionHasGitRepositoryObs.read(reader);
@@ -575,7 +577,7 @@ export class ChangesViewPane extends ViewPane {
 			// Show the files header whenever the session is git-backed (so users
 			// can switch version modes) or there are session-provided entries to
 			// count (for non-git sessions like the local agent host).
-			dom.setVisibility(hasGitRepository || hasEntries, this.filesHeaderNode!);
+			dom.setVisibility(!isUntitled && (hasGitRepository || hasEntries), this.filesHeaderNode!);
 
 			if (this.fileHeaderToolbarContainer) {
 				dom.setVisibility(hasEntries, this.fileHeaderToolbarContainer);
@@ -1278,6 +1280,7 @@ class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem {
 							: branchName,
 						checked: viewModel.versionModeObs.get() === ChangesVersionMode.BranchChanges,
 						category: { label: 'changes', order: 1, showHeader: false },
+						enabled: viewModel.activeSessionIsArchivedObs.get() === false,
 						run: async () => {
 							viewModel.setVersionMode(ChangesVersionMode.BranchChanges);
 							logChangesViewVersionModeChange(this.telemetryService, ChangesVersionMode.BranchChanges);
@@ -1296,7 +1299,9 @@ class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem {
 						detail: localize('chatEditing.versionsUncommittedChanges.description', 'Show uncommitted changes in this session'),
 						checked: viewModel.versionModeObs.get() === ChangesVersionMode.UncommittedChanges,
 						category: { label: 'changes', order: 2, showHeader: false },
-						enabled: viewModel.activeSessionTypeObs.get() !== COPILOT_CLOUD_SESSION_TYPE,
+						enabled: viewModel.activeSessionTypeObs.get() !== COPILOT_CLOUD_SESSION_TYPE &&
+							viewModel.activeSessionFirstCheckpointRefObs.get() !== undefined &&
+							viewModel.activeSessionIsArchivedObs.get() === false,
 						run: async () => {
 							viewModel.setVersionMode(ChangesVersionMode.UncommittedChanges);
 							logChangesViewVersionModeChange(this.telemetryService, ChangesVersionMode.UncommittedChanges);

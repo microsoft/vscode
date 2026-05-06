@@ -191,7 +191,7 @@
         "command": "markdown.reopenAsSource",
         "title": "%markdown.reopenAsSource.title%",
         "category": "Markdown",
-        "icon": "$(file-text)"
+        "icon": "$(file-code)"
       },
       {
         "command": "markdown.togglePreview",
@@ -241,7 +241,7 @@
         },
         {
           "command": "markdown.reopenAsSource",
-          "when": "activeCustomEditorId == 'vscode.markdown.preview.editor'",
+          "when": "activeCustomEditorId == 'vscode.markdown.preview.editor' && !activeCustomEditorTextDiff",
           "group": "navigation"
         },
         {
@@ -274,7 +274,7 @@
         },
         {
           "command": "markdown.reopenAsSource",
-          "when": "activeCustomEditorId == 'vscode.markdown.preview.editor'",
+          "when": "activeCustomEditorId == 'vscode.markdown.preview.editor' && !activeCustomEditorTextDiff",
           "group": "navigation"
         }
       ],
@@ -741,7 +741,7 @@
           },
           "markdown.preview.markEditorSelection": {
             "type": "boolean",
-            "default": true,
+            "default": false,
             "description": "%markdown.preview.markEditorSelection.desc%",
             "scope": "resource"
           },
@@ -753,7 +753,7 @@
           },
           "markdown.preview.doubleClickToSwitchToEditor": {
             "type": "boolean",
-            "default": true,
+            "default": false,
             "description": "%markdown.preview.doubleClickToSwitchToEditor.desc%",
             "scope": "resource"
           },
