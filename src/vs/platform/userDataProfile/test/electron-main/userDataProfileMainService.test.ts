@@ -114,4 +114,30 @@ suite('UserDataProfileMainService', () => {
 		assert.strictEqual(testObject.getProfileForWorkspace(workspace)?.id, profile.id);
 	});
 
+	test('creating agents window profile should return profile with agent window default flags', async () => {
+		const profile = await testObject.createAgentsWindowProfile();
+
+		assert.deepStrictEqual(profile.id, 'agents');
+		assert.deepStrictEqual(profile.name, 'Agents');
+		assert.deepStrictEqual(profile.isDefault, false);
+		assert.deepStrictEqual(profile.isAgentsWindowProfile, true);
+		assert.deepStrictEqual(profile.isInternal, true);
+		assert.deepStrictEqual(profile.useDefaultFlags, {
+			settings: true,
+			keybindings: true,
+			prompts: true,
+			mcp: true,
+			snippets: true,
+			tasks: true,
+			extensions: true,
+		});
+		assert.strictEqual(profile.settingsResource.toString(), testObject.defaultProfile.settingsResource.toString());
+		assert.strictEqual(profile.keybindingsResource.toString(), testObject.defaultProfile.keybindingsResource.toString());
+		assert.strictEqual(profile.snippetsHome.toString(), testObject.defaultProfile.snippetsHome.toString());
+		assert.strictEqual(profile.tasksResource.toString(), testObject.defaultProfile.tasksResource.toString());
+		assert.strictEqual(profile.extensionsResource.toString(), testObject.defaultProfile.extensionsResource.toString());
+		assert.strictEqual(profile.promptsHome.toString(), testObject.defaultProfile.promptsHome.toString());
+		assert.strictEqual(profile.mcpResource.toString(), testObject.defaultProfile.mcpResource.toString());
+	});
+
 });

@@ -40,7 +40,11 @@
 	background-size: contain;
 	/* Keep desaturated for legibility against light/dark titlebar backgrounds; brighten on hover/focus. */
 	filter: grayscale(1);
-	transition: filter 150ms ease;
+}
+
+.monaco-enable-motion .monaco-workbench .open-in-agents-titlebar-widget > .open-in-agents-titlebar-widget-icon,
+.monaco-workbench.monaco-enable-motion .open-in-agents-titlebar-widget > .open-in-agents-titlebar-widget-icon {
+	transition: filter 160ms ease;
 }
 
 .monaco-workbench .open-in-agents-titlebar-widget:hover > .open-in-agents-titlebar-widget-icon,
@@ -57,7 +61,12 @@
 	font: inherit;
 	overflow: hidden;
 	white-space: nowrap;
-	transition: max-width 150ms ease, opacity 150ms ease, margin-left 150ms ease;
+}
+
+.monaco-enable-motion .monaco-workbench .open-in-agents-titlebar-widget > .open-in-agents-titlebar-widget-label,
+.monaco-workbench.monaco-enable-motion .open-in-agents-titlebar-widget > .open-in-agents-titlebar-widget-label {
+	transition: max-width 160ms ease, opacity 160ms ease, margin-left 160ms ease;
+	transition-delay: 200ms;
 }
 
 .monaco-workbench .open-in-agents-titlebar-widget:hover,
@@ -71,6 +80,13 @@
 	max-width: 200px;
 	opacity: 1;
 	margin-left: 6px;
+}
+
+.monaco-enable-motion .monaco-workbench .open-in-agents-titlebar-widget:hover > .open-in-agents-titlebar-widget-label,
+.monaco-enable-motion .monaco-workbench .open-in-agents-titlebar-widget:focus-visible > .open-in-agents-titlebar-widget-label,
+.monaco-workbench.monaco-enable-motion .open-in-agents-titlebar-widget:hover > .open-in-agents-titlebar-widget-label,
+.monaco-workbench.monaco-enable-motion .open-in-agents-titlebar-widget:focus-visible > .open-in-agents-titlebar-widget-label {
+	transition-delay: 0ms;
 }
 
 .monaco-workbench .open-in-agents-titlebar-widget:focus-visible {

@@ -120,6 +120,8 @@ export const CopilotChatAttr = {
 	USER_REQUEST: 'copilot_chat.user_request',
 	/** Cache-relevant request options as a JSON blob (tool_choice, reasoning_effort, thinking, response_format, etc.). Used by Cache Explorer. */
 	REQUEST_OPTIONS: 'copilot_chat.request.options',
+	/** Request-shape metadata as a JSON blob (e.g. Responses API previous-response continuation and input item types). Used by Cache Explorer. */
+	REQUEST_SHAPE: 'copilot_chat.request.shape',
 	/** Resolved context section (code snippets, file contents, etc.) */
 	PROMPT_CONTEXT: 'copilot_chat.prompt_context',
 	/** Custom instructions section */
