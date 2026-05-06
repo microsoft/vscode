@@ -687,6 +687,8 @@ export class ModelPickerWidget extends Disposable {
 		this._tokensButton = dom.append(this._domNode, dom.$('a.model-picker-section.model-picker-tokens'));
 		this._tokensButton.tabIndex = 0;
 		this._tokensButton.setAttribute('role', 'button');
+		this._tokensButton.setAttribute('aria-haspopup', 'true');
+		this._tokensButton.setAttribute('aria-expanded', 'false');
 		this._tokensButton.style.display = 'none';
 
 		this._badgeIcon = dom.$('span.model-picker-badge');
@@ -696,7 +698,7 @@ export class ModelPickerWidget extends Disposable {
 
 		this._registerButtonAction(this._nameButton, () => this.show());
 		this._registerButtonAction(this._effortButton, () => this._showEffortPicker());
-		this._registerButtonAction(this._tokensButton, () => this._cycleTokens());
+		this._registerButtonAction(this._tokensButton, () => this._showTokensPicker());
 
 		// Managed hovers for effort and tokens buttons
 		this._register(getBaseLayerHoverDelegate().setupManagedHover(
@@ -921,13 +923,29 @@ export class ModelPickerWidget extends Disposable {
 		const modelIdentifier = this._selectedModel.identifier;
 		const enumValues = config.schema.enum ?? [];
 		const enumItemLabels = config.schema.enumItemLabels;
-		const items: IActionListItem<IActionWidgetDropdownAction>[] = enumValues.map((value: unknown, index: number) => {
+
+		const effortDescriptions: Record<string, string> = {
+			'low': localize('chat.effort.low.description', "Faster responses with less reasoning"),
+			'medium': localize('chat.effort.medium.description', "Balanced reasoning and speed"),
+			'high': localize('chat.effort.high.description', "Greater reasoning depth but slower"),
+			'very_high': localize('chat.effort.veryHigh.description', "Maximum reasoning depth for complex problems"),
+		};
+
+		const items: IActionListItem<IActionWidgetDropdownAction>[] = [
+			{
+				kind: ActionListItemKind.Header,
+				label: localize('chat.effort.header', "Thinking Effort"),
+			}
+		];
+
+		for (let index = 0; index < enumValues.length; index++) {
+			const value = enumValues[index];
 			const label = enumItemLabels?.[index] ?? String(value);
 			const isDefault = value === config.schema.default;
 			const displayLabel = isDefault
 				? localize('models.effortDefault', "{0} (default)", label)
 				: label;
-			return {
+			items.push({
 				item: {
 					id: `effort.${value}`,
 					enabled: true,
@@ -944,10 +962,11 @@ export class ModelPickerWidget extends Disposable {
 				},
 				kind: ActionListItemKind.Action,
 				label: displayLabel,
+				description: effortDescriptions[String(value)],
 				group: { title: '', icon: ThemeIcon.fromId(config.value === value ? Codicon.check.id : Codicon.blank.id) },
 				hideIcon: false,
-			};
-		});
+			});
+		}
 
 		const previouslyFocusedElement = dom.getActiveElement();
 		const delegate = {
@@ -983,20 +1002,88 @@ export class ModelPickerWidget extends Disposable {
 		);
 	}
 
-	private _cycleTokens(): void {
+	private _showTokensPicker(): void {
 		if (this._domNode?.classList.contains('disabled')) {
 			return;
 		}
 		const config = this._getConfigProperty('tokens');
-		if (!config || !this._selectedModel) {
+		if (!config || !this._tokensButton || !this._selectedModel) {
 			return;
 		}
+
+		const modelIdentifier = this._selectedModel.identifier;
 		const enumValues = config.schema.enum ?? [];
-		const currentIndex = enumValues.indexOf(config.value);
-		const nextIndex = (currentIndex + 1) % enumValues.length;
-		this._languageModelsService.setModelConfiguration(
-			this._selectedModel.identifier,
-			{ [config.key]: enumValues[nextIndex] }
+		const enumItemLabels = config.schema.enumItemLabels;
+
+		const items: IActionListItem<IActionWidgetDropdownAction>[] = [
+			{
+				kind: ActionListItemKind.Header,
+				label: localize('chat.tokens.header', "Context Size"),
+			}
+		];
+
+		for (let index = 0; index < enumValues.length; index++) {
+			const value = enumValues[index];
+			const label = enumItemLabels?.[index] ?? formatTokenCount(Number(value));
+			const isDefault = value === config.schema.default;
+			const displayLabel = isDefault
+				? localize('models.tokensDefault', "{0} (default)", label)
+				: label;
+			const description = config.schema.enumDescriptions?.[index];
+			items.push({
+				item: {
+					id: `tokens.${value}`,
+					enabled: true,
+					checked: config.value === value,
+					class: undefined,
+					tooltip: description ?? '',
+					label: displayLabel,
+					run: () => {
+						this._languageModelsService.setModelConfiguration(
+							modelIdentifier,
+							{ [config.key]: value }
+						);
+					}
+				},
+				kind: ActionListItemKind.Action,
+				label: displayLabel,
+				description,
+				group: { title: '', icon: ThemeIcon.fromId(config.value === value ? Codicon.check.id : Codicon.blank.id) },
+				hideIcon: false,
+			});
+		}
+
+		const previouslyFocusedElement = dom.getActiveElement();
+		const delegate = {
+			onSelect: (action: IActionWidgetDropdownAction) => {
+				this._actionWidgetService.hide();
+				action.run();
+			},
+			onHide: () => {
+				this._tokensButton?.setAttribute('aria-expanded', 'false');
+				if (dom.isHTMLElement(previouslyFocusedElement)) {
+					previouslyFocusedElement.focus();
+				}
+			}
+		};
+
+		this._tokensButton.setAttribute('aria-expanded', 'true');
+
+		this._actionWidgetService.show(
+			'ChatModelTokensPicker',
+			false,
+			items,
+			delegate,
+			this._tokensButton,
+			undefined,
+			[],
+			{
+				isChecked(element: IActionListItem<IActionWidgetDropdownAction>) {
+					return element.kind === ActionListItemKind.Action ? !!element?.item?.checked : undefined;
+				},
+				getRole: () => 'menuitemradio' as const,
+				getWidgetRole: () => 'menu' as const,
+			}
 		);
 	}
 }

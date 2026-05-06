@@ -54,13 +54,17 @@ const experimentalAutoModelHintMarkers = ['minimax', 'mp3yn0h7', 'yaqq2gxh'];
  * Builds a configurationSchema for the model picker based on the endpoint's supported capabilities.
  * Models that support reasoning_effort get a "Thinking Effort" dropdown in the model picker UI.
  */
-function buildConfigurationSchema(endpoint: IChatEndpoint): { configurationSchema?: vscode.LanguageModelConfigurationSchema } {
-	const effortLevels = endpoint.supportsReasoningEffort;
-	if (!effortLevels || effortLevels.length <= 1) {
-		return {};
-	}
+/**
+ * Returns true if the endpoint is an opus model with a 1M context variant
+ * (e.g. claude-opus-4.6-1m).
+ */
+function isOpus1MModel(endpoint: IChatEndpoint): boolean {
+	const model = endpoint.model.toLowerCase();
+	return model.includes('opus') && model.includes('1m');
+}
 
-	// Auto model delegates to different backends, so don't expose effort picker
+function buildConfigurationSchema(endpoint: IChatEndpoint): { configurationSchema?: vscode.LanguageModelConfigurationSchema } {
+	// Auto model delegates to different backends, so don't expose config pickers
 	if (endpoint instanceof AutoChatEndpoint) {
 		return {};
 	}
@@ -70,37 +74,68 @@ function buildConfigurationSchema(endpoint: IChatEndpoint): { configurationSchem
 		return {};
 	}
 
-	let defaultEffort: string | undefined;
-	if (family.startsWith('claude')) {
-		defaultEffort = effortLevels.includes('high') ? 'high' : undefined;
-	} else if (family.startsWith('gpt-')) {
-		defaultEffort = effortLevels.includes('medium') ? 'medium' : undefined;
+	const properties: Record<string, {
+		type: string;
+		title: string;
+		enum: readonly string[];
+		enumItemLabels: string[];
+		enumDescriptions: string[];
+		default?: string;
+		group: string;
+	}> = {};
+
+	// Reasoning effort config
+	const effortLevels = endpoint.supportsReasoningEffort;
+	if (effortLevels && effortLevels.length > 1) {
+		let defaultEffort: string | undefined;
+		if (family.startsWith('claude')) {
+			defaultEffort = effortLevels.includes('high') ? 'high' : undefined;
+		} else if (family.startsWith('gpt-')) {
+			defaultEffort = effortLevels.includes('medium') ? 'medium' : undefined;
+		}
+
+		properties.reasoningEffort = {
+			type: 'string',
+			title: vscode.l10n.t('Thinking Effort'),
+			enum: effortLevels,
+			enumItemLabels: effortLevels.map(level => level.charAt(0).toUpperCase() + level.slice(1)),
+			enumDescriptions: effortLevels.map(level => {
+				switch (level) {
+					case 'none': return vscode.l10n.t('No reasoning applied');
+					case 'low': return vscode.l10n.t('Faster responses with less reasoning');
+					case 'medium': return vscode.l10n.t('Balanced reasoning and speed');
+					case 'high': return vscode.l10n.t('Greater reasoning depth but slower');
+					case 'xhigh': return vscode.l10n.t('Maximum reasoning depth but slower');
+					default: return level;
+				}
+			}),
+			default: defaultEffort,
+			group: 'navigation',
+		};
 	}
 
-	return {
-		configurationSchema: {
-			properties: {
-				reasoningEffort: {
-					type: 'string',
-					title: vscode.l10n.t('Thinking Effort'),
-					enum: effortLevels,
-					enumItemLabels: effortLevels.map(level => level.charAt(0).toUpperCase() + level.slice(1)),
-					enumDescriptions: effortLevels.map(level => {
-						switch (level) {
-							case 'none': return vscode.l10n.t('No reasoning applied');
-							case 'low': return vscode.l10n.t('Faster responses with less reasoning');
-							case 'medium': return vscode.l10n.t('Balanced reasoning and speed');
-							case 'high': return vscode.l10n.t('Greater reasoning depth but slower');
-							case 'xhigh': return vscode.l10n.t('Maximum reasoning depth but slower');
-							default: return level;
-						}
-					}),
-					default: defaultEffort,
-					group: 'navigation',
-				}
-			}
-		}
-	};
+	// Context size config for opus 1M models
+	if (isOpus1MModel(endpoint)) {
+		const contextSizes = ['200000', '1000000'] as const;
+		properties.contextSize = {
+			type: 'string',
+			title: vscode.l10n.t('Context Size'),
+			enum: contextSizes,
+			enumItemLabels: ['200K', '1M'],
+			enumDescriptions: [
+				vscode.l10n.t('Standard context window'),
+				vscode.l10n.t('Larger context window, may increase cost'),
+			],
+			default: '200000',
+			group: 'tokens',
+		};
+	}
+
+	if (Object.keys(properties).length === 0) {
+		return {};
+	}
+
+	return { configurationSchema: { properties } };
 }
 
 export class LanguageModelAccess extends Disposable implements IExtensionContribution {
@@ -202,7 +237,14 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 			}
 			seenFamilies.add(endpoint.family);
 
-			const sanitizedModelName = endpoint.name.replace(/\(Preview\)/g, '').trim();
+			const rawModelName = endpoint.name;
+			const sanitizedModelName = rawModelName
+				.replace(/\(1M context\)/gi, '')
+				.trim();
+			if (rawModelName !== sanitizedModelName) {
+				this._logService.info(`[LanguageModelAccess] Stripped 1M context from model name: "${rawModelName}" -> "${sanitizedModelName}"`);
+			}
+			this._logService.info(`[LanguageModelAccess] Model: id="${endpoint.model}", name="${rawModelName}", family="${endpoint.family}", isOpus1M=${isOpus1MModel(endpoint)}`);
 			let modelTooltip: string | undefined;
 			if (endpoint.degradationReason) {
 				modelTooltip = endpoint.degradationReason;
@@ -255,7 +297,7 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 
 			const model: vscode.LanguageModelChatInformation = {
 				id: endpoint instanceof AutoChatEndpoint ? AutoChatEndpoint.pseudoModelId : endpoint.model,
-				name: endpoint instanceof AutoChatEndpoint ? 'Auto' : endpoint.name,
+				name: endpoint instanceof AutoChatEndpoint ? 'Auto' : sanitizedModelName,
 				family: endpoint.family,
 				tooltip: modelTooltip,
 				pricing: endpoint instanceof AutoChatEndpoint ? undefined : (multiplier ?? (endpoint.tokenPricing ? formatPricingLabel(endpoint.tokenPricing) : undefined)),
