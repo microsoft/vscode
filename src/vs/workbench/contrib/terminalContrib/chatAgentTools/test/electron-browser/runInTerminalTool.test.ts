@@ -1980,6 +1980,7 @@ suite('RunInTerminalTool', () => {
 
 		const outputMonitor = {
 			onDidDetectInputNeeded: inputNeededEmitter.event,
+			onDidDetectSensitiveInputNeeded: Event.None,
 			continueMonitoringAsync: () => { },
 			dispose: () => { },
 		} as unknown as { onDidDetectInputNeeded: Event<void>; continueMonitoringAsync: () => void; dispose: () => void };
@@ -2021,6 +2022,7 @@ suite('RunInTerminalTool', () => {
 
 		const outputMonitor = {
 			onDidDetectInputNeeded: inputNeededEmitter.event,
+			onDidDetectSensitiveInputNeeded: Event.None,
 			continueMonitoringAsync: () => { },
 			dispose: () => { },
 		} as unknown as { onDidDetectInputNeeded: Event<void>; continueMonitoringAsync: () => void; dispose: () => void };
@@ -2066,6 +2068,7 @@ suite('RunInTerminalTool', () => {
 
 		const outputMonitor = {
 			onDidDetectInputNeeded: inputNeededEmitter.event,
+			onDidDetectSensitiveInputNeeded: Event.None,
 			continueMonitoringAsync: () => { },
 			dispose: () => { },
 		} as unknown as { onDidDetectInputNeeded: Event<void>; continueMonitoringAsync: () => void; dispose: () => void };
