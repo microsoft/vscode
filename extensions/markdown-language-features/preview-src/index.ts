@@ -38,8 +38,10 @@ const state: State = {
 	...getData<Partial<State>>('data-state')
 };
 
-if (typeof originalState.scrollProgress !== 'undefined' && originalState?.resource !== state.resource) {
-	state.scrollProgress = 0;
+const hasStartingLine = typeof settings.settings.line === 'number' && !isNaN(settings.settings.line);
+if (typeof originalState.scrollProgress !== 'undefined'
+	&& (originalState?.resource !== state.resource || (hasStartingLine && originalState.line !== settings.settings.line))) {
+	state.scrollProgress = undefined;
 }
 
 // Make sure to sync VS Code state here
@@ -419,6 +421,8 @@ window.addEventListener('scroll', throttle(() => {
 
 	const line = getEditorLineNumberForPageOffset(window.scrollY, documentVersion);
 	if (typeof line === 'number' && !isNaN(line)) {
+		state.line = line;
+		vscode.setState(state);
 		messaging.postMessage('revealLine', { line });
 	}
 }, 50));

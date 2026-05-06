@@ -88,7 +88,8 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 					value: localize('autoApproveMode.description', "Controls whether to allow auto approval in the run in terminal tool."),
 				}
 			}
-		}
+		},
+		agentsWindow: { default: true },
 	},
 	[TerminalChatAgentToolsSettingId.AutoApprove]: {
 		markdownDescription: [
