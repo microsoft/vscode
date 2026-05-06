@@ -93,6 +93,12 @@
 	position: relative;
 }
 
+/* Match hover color used by session list items rather than the
+	default toolbar hover used by `.sidebar-action-button`. */
+.ai-customization-toolbar .customization-link-button.sidebar-action-button:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
 /* Customizations header label uses heavier weight and lays out
 	label on the left with chevron/count pushed to the right. */
 .ai-customization-toolbar .ai-customization-header .customization-link-button {
