@@ -37,10 +37,6 @@ const FILES_TO_SKIP = [
 	// Copilot SDK (extensions/copilot): single-arch prebuilds and ripgrep binaries
 	'**/node_modules/@github/copilot/sdk/prebuilds/darwin-*/**',
 	'**/node_modules/@github/copilot/sdk/ripgrep/bin/darwin-*/**',
-	// Claude agent SDK: universal app has both x64 and arm64 platform packages,
-	// each carrying a single-arch `claude` executable.
-	'**/node_modules/@anthropic-ai/claude-agent-sdk-darwin-*/**',
-	'**/node_modules.asar.unpacked/@anthropic-ai/claude-agent-sdk-darwin-*/**',
 ];
 
 function isFileSkipped(file: string): boolean {

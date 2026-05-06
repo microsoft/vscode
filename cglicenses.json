@@ -832,69 +832,6 @@
 		]
 	},
 	{
-		// Reason: SDK ships with a "© Anthropic PBC. All rights reserved." notice in README.md and no SPDX identifier; the OSS tool can't extract a standard license blob, so the proprietary terms must be stated manually.
-		"name": "@anthropic-ai/claude-agent-sdk",
-		"licenseDetail": [
-			"© Anthropic PBC. All rights reserved. Use is subject to Anthropic's Commercial Terms of Service."
-		]
-	},
-	{
-		// Reason: Platform-specific binary package for @anthropic-ai/claude-agent-sdk; same proprietary "© Anthropic PBC" terms as the parent SDK.
-		"name": "@anthropic-ai/claude-agent-sdk-darwin-arm64",
-		"licenseDetail": [
-			"© Anthropic PBC. All rights reserved. Use is subject to Anthropic's Commercial Terms of Service."
-		]
-	},
-	{
-		// Reason: Platform-specific binary package for @anthropic-ai/claude-agent-sdk; same proprietary "© Anthropic PBC" terms as the parent SDK.
-		"name": "@anthropic-ai/claude-agent-sdk-darwin-x64",
-		"licenseDetail": [
-			"© Anthropic PBC. All rights reserved. Use is subject to Anthropic's Commercial Terms of Service."
-		]
-	},
-	{
-		// Reason: Platform-specific binary package for @anthropic-ai/claude-agent-sdk; same proprietary "© Anthropic PBC" terms as the parent SDK.
-		"name": "@anthropic-ai/claude-agent-sdk-linux-arm64",
-		"licenseDetail": [
-			"© Anthropic PBC. All rights reserved. Use is subject to Anthropic's Commercial Terms of Service."
-		]
-	},
-	{
-		// Reason: Platform-specific binary package for @anthropic-ai/claude-agent-sdk; same proprietary "© Anthropic PBC" terms as the parent SDK.
-		"name": "@anthropic-ai/claude-agent-sdk-linux-arm64-musl",
-		"licenseDetail": [
-			"© Anthropic PBC. All rights reserved. Use is subject to Anthropic's Commercial Terms of Service."
-		]
-	},
-	{
-		// Reason: Platform-specific binary package for @anthropic-ai/claude-agent-sdk; same proprietary "© Anthropic PBC" terms as the parent SDK.
-		"name": "@anthropic-ai/claude-agent-sdk-linux-x64",
-		"licenseDetail": [
-			"© Anthropic PBC. All rights reserved. Use is subject to Anthropic's Commercial Terms of Service."
-		]
-	},
-	{
-		// Reason: Platform-specific binary package for @anthropic-ai/claude-agent-sdk; same proprietary "© Anthropic PBC" terms as the parent SDK.
-		"name": "@anthropic-ai/claude-agent-sdk-linux-x64-musl",
-		"licenseDetail": [
-			"© Anthropic PBC. All rights reserved. Use is subject to Anthropic's Commercial Terms of Service."
-		]
-	},
-	{
-		// Reason: Platform-specific binary package for @anthropic-ai/claude-agent-sdk; same proprietary "© Anthropic PBC" terms as the parent SDK.
-		"name": "@anthropic-ai/claude-agent-sdk-win32-arm64",
-		"licenseDetail": [
-			"© Anthropic PBC. All rights reserved. Use is subject to Anthropic's Commercial Terms of Service."
-		]
-	},
-	{
-		// Reason: Platform-specific binary package for @anthropic-ai/claude-agent-sdk; same proprietary "© Anthropic PBC" terms as the parent SDK.
-		"name": "@anthropic-ai/claude-agent-sdk-win32-x64",
-		"licenseDetail": [
-			"© Anthropic PBC. All rights reserved. Use is subject to Anthropic's Commercial Terms of Service."
-		]
-	},
-	{
 		"name": "@github/blackbird-external-ingest-utils",
 		"licenseDetail": [
 			"MIT License",

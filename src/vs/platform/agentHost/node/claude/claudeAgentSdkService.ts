@@ -4,8 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { ListSessionsOptions, Options, SDKSessionInfo, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
+import * as fs from 'fs';
+import { pathToFileURL } from 'url';
+import { join, resolve } from '../../../../base/common/path.js';
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
+import { AgentHostClaudeSdkPathEnvVar } from '../../common/agentService.js';
 
 export const IClaudeAgentSdkService = createDecorator<IClaudeAgentSdkService>('claudeAgentSdkService');
 
@@ -119,6 +123,27 @@ export class ClaudeAgentSdkService implements IClaudeAgentSdkService {
 	}
 
 	protected async _loadSdk(): Promise<IClaudeSdkBindings> {
-		return import('@anthropic-ai/claude-agent-sdk');
+		// The SDK is intentionally not bundled with VS Code. The user supplies an
+		// absolute path to a locally-installed `@anthropic-ai/claude-agent-sdk`
+		// package via the `chat.agentHost.claudeAgent.path` setting, which is
+		// forwarded to this process as `AgentHostClaudeSdkPathEnvVar`. Convert
+		// to a `file://` URL so dynamic `import()` accepts paths with spaces and
+		// works on Windows.
+		const sdkPath = process.env[AgentHostClaudeSdkPathEnvVar];
+		if (!sdkPath) {
+			throw new Error(`Cannot load @anthropic-ai/claude-agent-sdk: ${AgentHostClaudeSdkPathEnvVar} is not set. Set the 'chat.agentHost.claudeAgent.path' setting to a locally-installed SDK package.`);
+		}
+		// Node ESM rejects directory imports, so if the user pointed at the
+		// package directory, resolve its `exports['.']` / `main` entry first.
+		let entry = sdkPath;
+		if (fs.statSync(sdkPath).isDirectory()) {
+			const pkgJson = JSON.parse(fs.readFileSync(join(sdkPath, 'package.json'), 'utf8'));
+			const mainEntry = pkgJson.exports?.['.']?.default
+				?? pkgJson.exports?.['.']?.import
+				?? pkgJson.main
+				?? 'index.js';
+			entry = resolve(sdkPath, mainEntry);
+		}
+		return import(pathToFileURL(entry).href);
 	}
 }

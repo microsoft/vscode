@@ -32,7 +32,6 @@ import { compileBuildWithoutManglingTask, compileBuildWithManglingTask } from '.
 import { compileNonNativeExtensionsBuildTask, compileNativeExtensionsBuildTask, compileAllExtensionsBuildTask, compileExtensionMediaBuildTask, cleanExtensionsBuildTask, compileCopilotExtensionBuildTask } from './gulpfile.extensions.ts';
 import { copyCodiconsTask } from './lib/compilation.ts';
 import { getCopilotExcludeFilter, prepareBuiltInCopilotRipgrepShim } from './lib/copilot.ts';
-import { getClaudeAgentSdkExcludeFilter } from './lib/claudeAgentSdk.ts';
 import type { EmbeddedProductInfo } from './lib/embeddedType.ts';
 import { useEsbuildTranspile } from './buildConfig.ts';
 import { promisify } from 'util';
@@ -373,7 +372,6 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 			.pipe(util.cleanNodeModules(path.join(import.meta.dirname, '.moduleignore')))
 			.pipe(util.cleanNodeModules(path.join(import.meta.dirname, `.moduleignore.${process.platform}`)))
 			.pipe(filter(getCopilotExcludeFilter(platform, arch)))
-			.pipe(filter(getClaudeAgentSdkExcludeFilter(platform, arch)))
 			.pipe(jsFilter)
 			.pipe(util.rewriteSourceMappingURL(sourceMappingURLBase))
 			.pipe(jsFilter.restore)
@@ -381,7 +379,6 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 				'**/*.node',
 				'**/@vscode/ripgrep/bin/*',
 				'**/@github/copilot-*/**',
-				'**/@anthropic-ai/claude-agent-sdk-*/**',
 				'**/node-pty/build/Release/*',
 				'**/node-pty/build/Release/conpty/*',
 				'**/node-pty/lib/worker/conoutSocketWorker.js',

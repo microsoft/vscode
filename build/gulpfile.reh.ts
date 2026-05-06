@@ -35,7 +35,6 @@ import log from 'fancy-log';
 import buildfile from './buildfile.ts';
 import { fetchUrls, fetchGithub } from './lib/fetch.ts';
 import { getCopilotExcludeFilter, prepareBuiltInCopilotRipgrepShim } from './lib/copilot.ts';
-import { getClaudeAgentSdkExcludeFilter } from './lib/claudeAgentSdk.ts';
 import jsonEditor from 'gulp-json-editor';
 
 
@@ -346,7 +345,6 @@ function packageTask(type: string, platform: string, arch: string, sourceFolderN
 			.pipe(util.cleanNodeModules(path.join(import.meta.dirname, '.moduleignore')))
 			.pipe(util.cleanNodeModules(path.join(import.meta.dirname, `.moduleignore.${process.platform}`)))
 			.pipe(filter(getCopilotExcludeFilter(platform, arch)))
-			.pipe(filter(getClaudeAgentSdkExcludeFilter(platform, arch)))
 			.pipe(jsFilter)
 			.pipe(util.stripSourceMappingURL())
 			.pipe(jsFilter.restore);
