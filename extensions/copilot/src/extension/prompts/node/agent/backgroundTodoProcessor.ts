@@ -100,7 +100,7 @@ export interface IBackgroundTodoExecutionContext {
 	readonly toolsService: IToolsService;
 	readonly telemetryService: ITelemetryService;
 	readonly promptContext: IBuildPromptContext;
-	/** Set on the synthetic context used by {@link BackgroundTodoProcessor.executeFinalReview}.
+	/** Set on the synthetic context used by {@link BackgroundTodoProcessor.requestFinalReview}.
 	 *  Switches the prompt into finalize mode so the bg agent can mark completions
 	 *  the regular per-round passes never had a chance to see (the last round of a
 	 *  turn has no follow-up `buildPrompt` to fire the bg agent against). */
@@ -120,8 +120,13 @@ export interface IBackgroundTodoResult {
  * Manages a single background todo processor per chat session.
  *
  * Owns a {@link BackgroundTodoDeltaTracker} for high-watermark tracking
- * and coalesces concurrent updates so at most one background pass runs
- * at a time.
+ * and a two-slot queue (regular pass + final review) so that at most one
+ * background pass runs at a time and final review always drains after
+ * regular work regardless of processor state.
+ *
+ * Drain order:
+ *   1. Pending regular pass (coalesced — only the latest survives).
+ *   2. Pending final review (at most once per turn).
  */
 export class BackgroundTodoProcessor {
 
@@ -135,19 +140,28 @@ export class BackgroundTodoProcessor {
 	private _promise: Promise<void> | undefined;
 	private _cts: CancellationTokenSource | undefined;
 	private _lastError: unknown;
-	private _pendingDelta: IBackgroundTodoDelta | undefined;
-	/** Work callback associated with {@link _pendingDelta}. Captured at queue time so a
-	 *  coalesced finalize pass keeps its finalize-mode closure (regular per-round work
-	 *  would otherwise overwrite finalize-mode behavior when the queued delta drains). */
-	private _pendingWork: ((delta: IBackgroundTodoDelta, token: CancellationToken) => Promise<IBackgroundTodoResult>) | undefined;
 	private _hasCreatedTodos: boolean = false;
 	private _passCount: number = 0;
-	/** Cached on the most recent {@link executePass} call so {@link executeFinalReview}
-	 *  can re-use the same services + most recent prompt context without a fresh build. */
+
+	// ── Two-slot queue ──────────────────────────────────────────
+	// Regular passes coalesce into one slot; final review occupies a
+	// second independent slot that drains only after all regular work.
+
+	private _pendingRegularDelta: IBackgroundTodoDelta | undefined;
+	private _pendingRegularContext: IBackgroundTodoExecutionContext | undefined;
+	private _pendingRegularToken: CancellationToken | undefined;
+
+	/** Pending final-review execution context. When set, {@link _drainQueue}
+	 *  will run a finalize pass after all regular work has drained. */
+	private _pendingFinalReview: IBackgroundTodoExecutionContext | undefined;
+	private _pendingFinalReviewToken: CancellationToken | undefined;
+	/** Turn ID for which final review has already been attempted/queued.
+	 *  Prevents duplicate finalize passes within a single turn. */
+	private _finalReviewAttemptedTurnId: string | undefined;
+	/** The most recent execution context from any {@link requestRegularPass}
+	 *  call.  Used by {@link requestFinalReview} to build the synthetic
+	 *  final-review delta when no explicit context is provided. */
 	private _lastExecutionContext: IBackgroundTodoExecutionContext | undefined;
-	/** True after a final review pass has been queued for this turn; reset on the next
-	 *  regular {@link executePass}. Prevents duplicate finalize passes. */
-	private _finalReviewQueued: boolean = false;
 
 	readonly deltaTracker = new BackgroundTodoDeltaTracker();
 
@@ -215,41 +229,224 @@ export class BackgroundTodoProcessor {
 		return { decision: BackgroundTodoDecision.Wait, reason: 'contextOnlyWaiting', delta };
 	}
 
+	// ── Public queue API ────────────────────────────────────────
+
+	/**
+	 * Enqueue or coalesce a regular background pass. If a pass is already
+	 * running, the delta is stashed and will drain when the current pass
+	 * completes.  Always updates {@link _lastExecutionContext}.
+	 */
+	requestRegularPass(
+		delta: IBackgroundTodoDelta,
+		context: IBackgroundTodoExecutionContext,
+		parentToken?: CancellationToken,
+	): void {
+		this._lastExecutionContext = context;
+		this._logService?.debug(`[BackgroundTodo] requestRegularPass — newRounds=${delta.metadata.newRoundCount}, meaningful=${delta.metadata.meaningfulToolCallCount}, state=${this._state}`);
+		this._pendingRegularDelta = delta;
+		this._pendingRegularContext = context;
+		this._pendingRegularToken = parentToken;
+		this._drainQueue();
+	}
+
+	/**
+	 * Request a single final-review pass for this turn.  The pass runs
+	 * after all pending regular work has drained, regardless of whether
+	 * the processor is currently Idle, InProgress, or Failed.
+	 *
+	 * No-op when:
+	 * - No execution context has been recorded (no prompt build happened).
+	 * - No todos have been created yet (nothing to finalize).
+	 * - Final review was already requested for the given {@link turnId}.
+	 */
+	requestFinalReview(turnId: string, parentToken?: CancellationToken): void {
+		if (!this._hasCreatedTodos || !this._lastExecutionContext) {
+			this._logService?.debug(`[BackgroundTodo] final review skipped — hasCreatedTodos=${this._hasCreatedTodos}, hasExecutionContext=${this._lastExecutionContext !== undefined}`);
+			return;
+		}
+		if (this._finalReviewAttemptedTurnId === turnId) {
+			this._logService?.debug(`[BackgroundTodo] final review skipped — already attempted for turn ${turnId}`);
+			return;
+		}
+		this._finalReviewAttemptedTurnId = turnId;
+		this._logService?.debug(`[BackgroundTodo] final review requested for turn ${turnId} — currentState=${this._state}`);
+
+		this._pendingFinalReview = { ...this._lastExecutionContext, isFinalReview: true };
+		this._pendingFinalReviewToken = parentToken;
+		this._drainQueue();
+	}
+
+	/**
+	 * Wait for any in-flight pass — and any pending queued pass that drains
+	 * from it — to settle.  Returns immediately if idle with nothing queued.
+	 */
+	async waitForCompletion(): Promise<void> {
+		while (this._promise) {
+			const current = this._promise;
+			await current;
+			// If _drainQueue started a new pass, _promise has been replaced.
+			// Loop until no new work was queued.
+			if (this._promise === current) {
+				break;
+			}
+		}
+	}
+
+	// ── Low-level start (kept for direct unit tests) ────────────
+
 	/**
 	 * Start a background pass if one is not already running.
 	 *
-	 * If a pass is in progress, the delta is stashed and will be processed
-	 * automatically when the current pass completes.
+	 * If a pass is in progress, the delta is stashed as a pending regular
+	 * pass and will drain via {@link _drainQueue} when the current pass
+	 * completes.
 	 *
 	 * @param delta The new activity to process.
 	 * @param work  An async function that performs the actual model call and
 	 *              tool invocation. It receives a cancellation token.
 	 * @param parentToken Optional parent cancellation token.
+	 * @param advanceCursor Whether to advance the delta tracker cursor on
+	 *        success.  Regular passes set this to `true`; final review sets
+	 *        it to `false` so it does not interfere with regular-pass tracking.
 	 */
 	start(
 		delta: IBackgroundTodoDelta,
 		work: (delta: IBackgroundTodoDelta, token: CancellationToken) => Promise<IBackgroundTodoResult>,
 		parentToken?: CancellationToken,
+		advanceCursor: boolean = true,
 	): void {
 		if (this._state === BackgroundTodoProcessorState.InProgress) {
-			// Coalesce: stash the latest delta AND its work callback for when the current
-			// pass finishes. Storing the callback is critical for finalize passes — they
-			// carry an `isFinalReview: true` execution context in the closure that must
-			// survive the queue. Without this, a finalize pass queued behind a regular
-			// pass would silently drain in regular mode.
-			this._logService?.debug(`[BackgroundTodo] coalescing delta (pass #${this._passCount} in progress) — newRounds=${delta.metadata.newRoundCount}, meaningful=${delta.metadata.meaningfulToolCallCount}, replacingPending=${this._pendingDelta !== undefined}`);
-			this._pendingDelta = delta;
-			this._pendingWork = work;
+			// Coalesce into the regular-pass slot so _drainQueue picks it up.
+			this._logService?.debug(`[BackgroundTodo] coalescing delta (pass #${this._passCount} in progress) — newRounds=${delta.metadata.newRoundCount}, meaningful=${delta.metadata.meaningfulToolCallCount}`);
+			this._pendingRegularDelta = delta;
+			this._pendingRegularContext = undefined; // will use work callback directly
+			this._pendingRegularToken = parentToken;
+			// Stash the work callback so _drainQueue can use it for the
+			// coalesced pass (preserves finalize-mode closures).
+			this._pendingRegularWork = work;
+			this._pendingRegularAdvanceCursor = advanceCursor;
 			return;
 		}
 
-		this._runPass(delta, work, parentToken);
+		this._runPass(delta, work, parentToken, advanceCursor);
+	}
+
+	/** Stashed work callback for coalesced start() calls. */
+	private _pendingRegularWork: ((delta: IBackgroundTodoDelta, token: CancellationToken) => Promise<IBackgroundTodoResult>) | undefined;
+	private _pendingRegularAdvanceCursor: boolean = true;
+
+	// ── Internal execution ──────────────────────────────────────
+
+	/**
+	 * Central scheduler.  Called after every state transition and after
+	 * every enqueue.  Picks the next item to run:
+	 *   1. Pending regular pass (coalesced — only the latest survives).
+	 *   2. Pending final review.
+	 * Does nothing if a pass is already running.
+	 */
+	private _drainQueue(): void {
+		if (this._state === BackgroundTodoProcessorState.InProgress) {
+			return;
+		}
+
+		// ── Regular pass first ──────────────────────────────────
+		const regularDelta = this._pendingRegularDelta;
+		if (regularDelta) {
+			const ctx = this._pendingRegularContext;
+			const token = this._pendingRegularToken;
+			const stashedWork = this._pendingRegularWork;
+			const advanceCursor = this._pendingRegularAdvanceCursor;
+			this._pendingRegularDelta = undefined;
+			this._pendingRegularContext = undefined;
+			this._pendingRegularToken = undefined;
+			this._pendingRegularWork = undefined;
+			this._pendingRegularAdvanceCursor = true;
+
+			if (stashedWork) {
+				// Coalesced via start() — use the stashed callback directly.
+				this._runPass(regularDelta, stashedWork, token, advanceCursor);
+				return;
+			} else if (ctx) {
+				// Enqueued via requestRegularPass — recompute against the latest cursor.
+				// This avoids replaying the in-flight delta when no new rounds arrived
+				// while the previous pass was running, and retries the full delta if the
+				// previous pass failed and did not advance the cursor.
+				const latestDelta = this.deltaTracker.peekDelta(ctx.promptContext);
+				if (!latestDelta) {
+					this._logService?.debug('[BackgroundTodo] queued regular pass skipped: no new delta remains after in-flight pass');
+				} else {
+					this._runPass(
+						latestDelta,
+						(d, t) => BackgroundTodoProcessor._doExecute(d, ctx, t),
+						token,
+						true, // regular passes always advance cursor
+					);
+					return;
+				}
+			} else {
+				this._logService?.debug('[BackgroundTodo] queued regular pass skipped: missing execution context');
+			}
+		}
+
+		// ── Final review ────────────────────────────────────────
+		const finalCtx = this._pendingFinalReview;
+		if (finalCtx) {
+			const token = this._pendingFinalReviewToken;
+			this._pendingFinalReview = undefined;
+			this._pendingFinalReviewToken = undefined;
+
+			// Build a synthetic delta from the full trajectory so the
+			// finalize prompt sees every round.
+			const allRounds = collectAllRounds(
+				finalCtx.promptContext.history,
+				finalCtx.promptContext.toolCallRounds ?? [],
+			);
+			if (allRounds.length === 0) {
+				return;
+			}
+			let meaningful = 0;
+			let contextual = 0;
+			for (const round of allRounds) {
+				for (const call of round.toolCalls) {
+					const category = classifyTool(call.name);
+					if (category === 'meaningful') {
+						meaningful++;
+					} else if (category === 'context') {
+						contextual++;
+					}
+				}
+			}
+			const delta: IBackgroundTodoDelta = {
+				userRequest: finalCtx.promptContext.query,
+				newRounds: allRounds,
+				history: finalCtx.promptContext.history,
+				sessionResource: extractSessionResource(finalCtx.promptContext),
+				metadata: {
+					newRoundCount: allRounds.length,
+					newToolCallCount: meaningful + contextual,
+					meaningfulToolCallCount: meaningful,
+					contextToolCallCount: contextual,
+					isInitialDelta: false,
+					isRequestOnly: false,
+				},
+			};
+
+			this._logService?.debug(`[BackgroundTodo] draining final review — rounds=${allRounds.length}, meaningful=${meaningful}, context=${contextual}`);
+			this._runPass(
+				delta,
+				(d, t) => BackgroundTodoProcessor._doExecute(d, finalCtx, t),
+				token,
+				false, // final review must NOT advance the regular-pass cursor
+			);
+			return;
+		}
 	}
 
 	private _runPass(
 		delta: IBackgroundTodoDelta,
 		work: (delta: IBackgroundTodoDelta, token: CancellationToken) => Promise<IBackgroundTodoResult>,
 		parentToken?: CancellationToken,
+		advanceCursor: boolean = true,
 	): void {
 		this._passCount++;
 		const passNum = this._passCount;
@@ -259,7 +456,7 @@ export class BackgroundTodoProcessor {
 		this._cts = cts;
 		const token = cts.token;
 
-		this._logService?.debug(`[BackgroundTodo] starting pass #${passNum} — newRounds=${delta.metadata.newRoundCount}, meaningful=${delta.metadata.meaningfulToolCallCount}, context=${delta.metadata.contextToolCallCount}`);
+		this._logService?.debug(`[BackgroundTodo] starting pass #${passNum} — newRounds=${delta.metadata.newRoundCount}, meaningful=${delta.metadata.meaningfulToolCallCount}, context=${delta.metadata.contextToolCallCount}, advanceCursor=${advanceCursor}`);
 
 		const passPromise = work(delta, token).then(
 			(result) => {
@@ -271,11 +468,13 @@ export class BackgroundTodoProcessor {
 					this._hasCreatedTodos = true;
 				}
 				this._logService?.debug(`[BackgroundTodo] pass #${passNum} completed: outcome=${result.outcome}, durationMs=${result.durationMs ?? '?'}, model=${result.model ?? '?'}, promptTokens=${result.promptTokens ?? '?'}, completionTokens=${result.completionTokens ?? '?'}`);
-				this.deltaTracker.markProcessed(delta);
+				if (advanceCursor) {
+					this.deltaTracker.markProcessed(delta);
+				}
 				this._disposeCts(cts);
 				this._state = BackgroundTodoProcessorState.Idle;
-				const hasPending = this._checkPending(work, parentToken);
-				if (!hasPending && this._promise === passPromise) {
+				this._drainQueue();
+				if (!this._promise || this._promise === passPromise) {
 					this._promise = undefined;
 				}
 			},
@@ -289,8 +488,8 @@ export class BackgroundTodoProcessor {
 				this._logService?.warn(`[BackgroundTodo] pass #${passNum} failed: ${err}`);
 				// Do NOT advance the cursor — the delta's rounds remain unprocessed
 				// so a subsequent pass can retry with fresh or coalesced activity.
-				const hasPending = this._checkPending(work, parentToken);
-				if (!hasPending && this._promise === passPromise) {
+				this._drainQueue();
+				if (!this._promise || this._promise === passPromise) {
 					this._promise = undefined;
 				}
 			},
@@ -303,134 +502,6 @@ export class BackgroundTodoProcessor {
 			this._cts = undefined;
 		}
 		cts.dispose();
-	}
-
-	/**
-	 * If a delta was stashed while a pass was running, start a new pass now.
-	 */
-	private _checkPending(
-		work: (delta: IBackgroundTodoDelta, token: CancellationToken) => Promise<IBackgroundTodoResult>,
-		parentToken?: CancellationToken,
-	): boolean {
-		const pending = this._pendingDelta;
-		if (pending) {
-			// Prefer the work callback that was stashed alongside the pending delta —
-			// it preserves finalize-mode (or any future per-pass) context in its closure.
-			// Fall back to the caller-provided work only if no stashed callback exists.
-			const pendingWork = this._pendingWork ?? work;
-			const usingStashed = this._pendingWork !== undefined;
-			this._logService?.debug(`[BackgroundTodo] draining pending delta — newRounds=${pending.metadata.newRoundCount}, meaningful=${pending.metadata.meaningfulToolCallCount}, usingStashedWork=${usingStashed}`);
-			this._pendingDelta = undefined;
-			this._pendingWork = undefined;
-			this._runPass(pending, pendingWork, parentToken);
-			return true;
-		}
-		return false;
-	}
-
-	/**
-	 * Wait for any in-flight pass — and any pending coalesced pass that drains
-	 * from it — to settle. Returns immediately if idle.
-	 */
-	async waitForCompletion(): Promise<void> {
-		while (this._promise) {
-			const current = this._promise;
-			await current;
-			// If _checkPending started a new pass, _promise has been replaced.
-			// Loop until no new work was queued.
-			if (this._promise === current) {
-				break;
-			}
-		}
-	}
-
-	// ── Execution ──────────────────────────────────────────────
-
-	/**
-	 * Convenience method: starts a background pass using the built-in
-	 * execution logic (acquire copilot-fast endpoint → render prompt →
-	 * call model → invoke todo tool).
-	 */
-	executePass(
-		delta: IBackgroundTodoDelta,
-		context: IBackgroundTodoExecutionContext,
-		parentToken?: CancellationToken,
-	): void {
-		this._lastExecutionContext = context;
-		this._finalReviewQueued = false;
-		this.start(
-			delta,
-			(d, token) => BackgroundTodoProcessor._doExecute(d, context, token),
-			parentToken,
-		);
-	}
-
-	/**
-	 * Fire one extra background pass after the agent loop has ended for this turn.
-	 *
-	 * The regular per-round bg passes never see the very last round (there is no
-	 * follow-up `buildPrompt` to fire against), so any task that *just* completed
-	 * on the final round stays stuck as 'in-progress' until the next user turn.
-	 * This pass uses the cached execution context from the most recent
-	 * {@link executePass} and runs in finalize mode so the model focuses on
-	 * promoting completed work rather than re-planning.
-	 *
-	 * No-op when:
-	 * - No bg pass has ever run for this session (no cached context).
-	 * - No todos exist yet (nothing to finalize).
-	 * - A final review has already been queued for this turn.
-	 */
-	executeFinalReview(parentToken?: CancellationToken): void {
-		if (this._finalReviewQueued || !this._hasCreatedTodos || !this._lastExecutionContext) {
-			this._logService?.debug(`[BackgroundTodo] final review skipped — alreadyQueued=${this._finalReviewQueued}, hasCreatedTodos=${this._hasCreatedTodos}, hasExecutionContext=${this._lastExecutionContext !== undefined}`);
-			return;
-		}
-		this._finalReviewQueued = true;
-		this._logService?.debug(`[BackgroundTodo] final review requested — currentState=${this._state}`);
-
-		const ctx = this._lastExecutionContext;
-		const finalCtx: IBackgroundTodoExecutionContext = { ...ctx, isFinalReview: true };
-
-		// Build a synthetic delta that includes every round we know about so the
-		// finalize prompt has full trajectory context. Skip cursor advancement
-		// (markProcessed is intentionally not called) since this is a one-shot review.
-		const allRounds = collectAllRounds(ctx.promptContext.history, ctx.promptContext.toolCallRounds ?? []);
-		if (allRounds.length === 0) {
-			return;
-		}
-		let meaningful = 0;
-		let contextual = 0;
-		for (const round of allRounds) {
-			for (const call of round.toolCalls) {
-				const category = classifyTool(call.name);
-				if (category === 'meaningful') {
-					meaningful++;
-				} else if (category === 'context') {
-					contextual++;
-				}
-			}
-		}
-		const delta: IBackgroundTodoDelta = {
-			userRequest: ctx.promptContext.query,
-			newRounds: allRounds,
-			history: ctx.promptContext.history,
-			sessionResource: extractSessionResource(ctx.promptContext),
-			metadata: {
-				newRoundCount: allRounds.length,
-				newToolCallCount: meaningful + contextual,
-				meaningfulToolCallCount: meaningful,
-				contextToolCallCount: contextual,
-				isInitialDelta: false,
-				isRequestOnly: false,
-			},
-		};
-
-		this._logService?.debug(`[BackgroundTodo] queueing final review — rounds=${allRounds.length}, meaningful=${meaningful}, context=${contextual}`);
-		this.start(
-			delta,
-			(d, token) => BackgroundTodoProcessor._doExecute(d, finalCtx, token),
-			parentToken,
-		);
 	}
 
 	/**
@@ -652,10 +723,15 @@ export class BackgroundTodoProcessor {
 		this._state = BackgroundTodoProcessorState.Idle;
 		this._lastError = undefined;
 		this._promise = undefined;
-		this._pendingDelta = undefined;
-		this._pendingWork = undefined;
+		this._pendingRegularDelta = undefined;
+		this._pendingRegularContext = undefined;
+		this._pendingRegularToken = undefined;
+		this._pendingRegularWork = undefined;
+		this._pendingRegularAdvanceCursor = true;
+		this._pendingFinalReview = undefined;
+		this._pendingFinalReviewToken = undefined;
 		this._lastExecutionContext = undefined;
-		this._finalReviewQueued = false;
+		this._finalReviewAttemptedTurnId = undefined;
 	}
 }
 

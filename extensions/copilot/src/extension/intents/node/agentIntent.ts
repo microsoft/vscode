@@ -304,7 +304,8 @@ export class AgentIntent extends EditCodeIntent {
 			if (isBackgroundTodoAgentEnabled(this.configurationService, this.expService, request)) {
 				const todoProcessor = this._backgroundTodoProcessors.get(conversation.sessionId);
 				if (todoProcessor) {
-					todoProcessor.executeFinalReview();
+					const turnId = conversation.getLatestTurn().id;
+					todoProcessor.requestFinalReview(turnId);
 					await todoProcessor.waitForCompletion();
 				}
 			}
@@ -1233,17 +1234,25 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 
 		this.logService.debug(`[BackgroundTodo] policy decision: ${decision} (${reason})`);
 
-		if (decision !== BackgroundTodoDecision.Run || !delta) {
-			return;
-		}
-
-		processor.executePass(delta, {
+		const executionContext = {
 			instantiationService: this.instantiationService,
 			logService: this.logService,
 			toolsService: this.toolsService,
 			telemetryService: this.telemetryService,
 			promptContext,
-		}, token);
+		};
+
+		if (decision === BackgroundTodoDecision.Wait && reason === 'processorInProgress' && delta) {
+			// Coalesce into the queue so the latest context is not lost.
+			processor.requestRegularPass(delta, executionContext, token);
+			return;
+		}
+
+		if (decision !== BackgroundTodoDecision.Run || !delta) {
+			return;
+		}
+
+		processor.requestRegularPass(delta, executionContext, token);
 	}
 
 	override processResponse = undefined;

@@ -157,6 +157,8 @@ import './widget/input/editor/chatInputEditorContrib.js';
 import './widget/input/editor/chatInputEditorHover.js';
 import { LanguageModelToolsConfirmationService } from './tools/languageModelToolsConfirmationService.js';
 import { LanguageModelToolsService, globalAutoApproveDescription } from './tools/languageModelToolsService.js';
+import { IToolResultCompressor } from '../common/tools/toolResultCompressor.js';
+import { ToolResultCompressorService } from './tools/toolResultCompressorService.js';
 import { AgentPluginService, ConfiguredAgentPluginDiscovery, ExtensionAgentPluginDiscovery, MarketplaceAgentPluginDiscovery } from '../common/plugins/agentPluginServiceImpl.js';
 import { IAgentPluginRepositoryService } from '../common/plugins/agentPluginRepositoryService.js';
 import { IPluginInstallService } from '../common/plugins/pluginInstallService.js';
@@ -214,6 +216,7 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.experimentalSessionsWindowOverride', "When true, enables sessions-window-specific behavior for extensions."),
 			default: false,
 			tags: ['experimental'],
+			agentsWindow: { default: true },
 		},
 		'chat.fontSize': {
 			type: 'number',
@@ -296,12 +299,14 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental'],
 			experiment: {
 				mode: 'startup'
-			}
+			},
+			agentsWindow: { default: { 'panel': 'never' } },
 		},
 		'chat.implicitContext.suggestedContext': {
 			type: 'boolean',
 			markdownDescription: nls.localize('chat.implicitContext.suggestedContext', "Controls whether the new implicit context flow is shown. In Ask and Edit modes, the context will automatically be included. When using an agent, context will be suggested as an attachment. Selections are always included as context."),
 			default: true,
+			agentsWindow: { default: false },
 		},
 		'chat.editing.autoAcceptDelay': {
 			type: 'number',
@@ -653,6 +658,7 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			default: true,
 			description: nls.localize('chat.viewSessions.enabled', "Show chat agent sessions when chat is empty or to the side when chat view is wide enough."),
+			agentsWindow: { default: false },
 		},
 		[ChatConfiguration.ChatViewSessionsOrientation]: {
 			type: 'string',
@@ -1386,6 +1392,7 @@ configurationRegistry.registerConfiguration({
 					'custom-hooks/hooks.json': true,
 				},
 			],
+			agentsWindow: { default: { '.claude/settings.local.json': false, '.claude/settings.json': false, '~/.claude/settings.json': false } },
 		},
 		[PromptsConfig.USE_CHAT_HOOKS]: {
 			type: 'boolean',
@@ -1490,6 +1497,15 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			markdownDescription: nls.localize('chat.tools.terminal.simpleCollapsible', "When enabled, terminal tool calls are always displayed in a collapsible container with a simplified view."),
 			tags: ['experimental'],
+		},
+		[ChatConfiguration.CompressOutputEnabled]: {
+			type: 'boolean',
+			default: false,
+			markdownDescription: nls.localize('chat.tools.compressOutput.enabled', "Post-process tool output (for example `git diff`, `ls -l`, or `npm install`) to reduce token usage before it is sent to the model."),
+			tags: ['preview'],
+			experiment: {
+				mode: 'auto'
+			}
 		},
 		'chat.tools.usagesTool.enabled': {
 			type: 'boolean',
@@ -1916,6 +1932,7 @@ class ChatAgentSettingContribution extends Disposable implements IWorkbenchContr
 							markdownDescription: nls.localize('chat.agent.maxRequests', "The maximum number of requests to allow per-turn when using an agent. When the limit is reached, will ask to confirm to continue."),
 							default: value ?? 50,
 							order: 2,
+							agentsWindow: { default: 1000 },
 						},
 					}
 				};
@@ -2292,6 +2309,7 @@ registerSingleton(IAgentPluginRepositoryService, AgentPluginRepositoryService, I
 registerSingleton(IPluginGitService, BrowserPluginGitCommandService, InstantiationType.Delayed);
 registerSingleton(IPluginInstallService, PluginInstallService, InstantiationType.Delayed);
 registerSingleton(ILanguageModelToolsService, LanguageModelToolsService, InstantiationType.Delayed);
+registerSingleton(IToolResultCompressor, ToolResultCompressorService, InstantiationType.Delayed);
 registerSingleton(ILanguageModelToolsConfirmationService, LanguageModelToolsConfirmationService, InstantiationType.Delayed);
 registerSingleton(IChatToolRiskAssessmentService, ChatToolRiskAssessmentService, InstantiationType.Delayed);
 registerSingleton(IVoiceChatService, VoiceChatService, InstantiationType.Delayed);
