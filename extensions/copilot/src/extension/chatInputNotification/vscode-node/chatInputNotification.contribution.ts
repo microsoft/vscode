@@ -37,6 +37,15 @@ export class ChatInputNotificationContribution extends Disposable {
 	private _notification: vscode.ChatInputNotification | undefined;
 	/** Tracks whether the current notification is the quota-exhausted variant. */
 	private _showingExhausted = false;
+	/** Tracks the SKU of the last auth identity to detect sign-in/sign-out transitions. */
+	private _lastSku: string | undefined;
+	/**
+	 * When true, the exhausted notification is suppressed until the quota
+	 * transitions from non-exhausted → exhausted during this identity's
+	 * session. Set after an identity change to avoid immediately re-showing
+	 * a stale exhausted notification for the new identity.
+	 */
+	private _suppressExhaustedUntilTransition = false;
 
 	private readonly _shownQuotaThresholds = new Set<number>();
 	private readonly _shownSessionThresholds = new Set<number>();
@@ -47,8 +56,28 @@ export class ChatInputNotificationContribution extends Disposable {
 		@IChatQuotaService private readonly _chatQuotaService: IChatQuotaService,
 	) {
 		super();
-		this._register(this._authService.onDidAuthenticationChange(() => this._update()));
+		this._lastSku = this._authService.copilotToken?.sku;
+		this._register(this._authService.onDidAuthenticationChange(() => this._onAuthChanged()));
 		this._register(this._chatQuotaService.onDidChange(() => this._update()));
+	}
+
+	/**
+	 * Handles auth changes. When the identity changes (e.g. sign-out from
+	 * free → anonymous), hide any stale notification and reset shown
+	 * thresholds so the new identity starts fresh.
+	 */
+	private _onAuthChanged(): void {
+		const currentSku = this._authService.copilotToken?.sku;
+		if (currentSku !== this._lastSku) {
+			this._lastSku = currentSku;
+			this._shownQuotaThresholds.clear();
+			this._shownSessionThresholds.clear();
+			this._shownWeeklyThresholds.clear();
+			this._suppressExhaustedUntilTransition = true;
+			this._hideNotification();
+			return;
+		}
+		this._update();
 	}
 
 	/**
@@ -58,12 +87,23 @@ export class ChatInputNotificationContribution extends Disposable {
 	private _update(): void {
 		// Priority 1: Quota exhausted — sticky info notification
 		if (this._chatQuotaService.quotaExhausted) {
+			if (this._suppressExhaustedUntilTransition) {
+				// After an identity change, suppress the exhausted notification
+				// until the quota transitions from non-exhausted to exhausted
+				// during this identity's session. This prevents the stale
+				// exhausted state from immediately re-showing after sign-out.
+				return;
+			}
 			const isAnonymous = this._authService.copilotToken?.isNoAuthUser;
 			const isFree = this._authService.copilotToken?.isFreeUser;
 			if (isAnonymous || isFree) {
 				this._showExhaustedNotification(!!isAnonymous);
 				return;
 			}
+		} else {
+			// Quota is no longer exhausted — clear the suppression flag so
+			// that a future transition to exhausted will show the notification.
+			this._suppressExhaustedUntilTransition = false;
 		}
 
 		// Priority 2: Quota approaching threshold
@@ -236,6 +276,7 @@ export class ChatInputNotificationContribution extends Disposable {
 	private _hideNotification(): void {
 		if (this._notification) {
 			this._notification.hide();
+			this._showingExhausted = false;
 		}
 	}
 }

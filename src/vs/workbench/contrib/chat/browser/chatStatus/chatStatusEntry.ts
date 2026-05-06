@@ -138,6 +138,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		let text = '$(copilot)';
 		let ariaLabel = localize('chatStatusAria', "Copilot status");
 		let kind: StatusbarEntryKind | undefined;
+		let triggerSetup = false;
 
 		if (isNewUser(this.chatEntitlementService)) {
 			const entitlement = this.chatEntitlementService.entitlement;
@@ -153,6 +154,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 
 				text = `$(copilot) ${signIn}`;
 				ariaLabel = signIn;
+				triggerSetup = true;
 			}
 		} else {
 			const chatQuotaExceeded = this.chatEntitlementService.quotas.chat?.percentRemaining === 0;
@@ -179,6 +181,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 				const signIn = localize('signIn', "Sign In");
 				text = `$(copilot) ${signIn}`;
 				ariaLabel = signIn;
+				triggerSetup = true;
 			}
 
 			// Free Quota Exceeded
@@ -208,6 +211,19 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 				text = '$(copilot-snooze)';
 				ariaLabel = localize('completionsSnoozedStatus', "Inline suggestions snoozed");
 			}
+		}
+
+		// When user needs to sign in, clicking the status bar entry
+		// directly triggers setup instead of showing the dashboard
+		if (triggerSetup) {
+			return {
+				name: localize('chatStatus', "Copilot Status"),
+				text,
+				ariaLabel,
+				command: 'workbench.action.chat.triggerSetup',
+				showInAllWindows: true,
+				kind,
+			};
 		}
 
 		const baseResult = {
