@@ -189,6 +189,7 @@ suite('ChatService', () => {
 		instantiationService.stub(IChatSlashCommandService, testDisposables.add(instantiationService.createInstance(ChatSlashCommandService)));
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(IChatService, new MockChatService());
+		instantiationService.stub(IChatSessionsService, new MockChatSessionsService());
 		instantiationService.stub(IEnvironmentService, { workspaceStorageHome: URI.file('/test/path/to/workspaceStorage') });
 		instantiationService.stub(ILifecycleService, { onWillShutdown: Event.None });
 		instantiationService.stub(IWorkspaceEditingService, { onDidEnterWorkspace: Event.None });
