@@ -783,7 +783,7 @@ export class ModelPickerWidget extends Disposable {
 			showFilter,
 			filterPlaceholder: localize('chat.modelPicker.search', "Search models"),
 			filterActions: undefined,
-			filterLabel: hasPriceCategories ? localize('chat.modelPicker.cost', "Cost") : undefined,
+			secondaryHeading: hasPriceCategories ? localize('chat.modelPicker.cost', "Cost") : undefined,
 			focusFilterOnOpen: true,
 			collapsedByDefault: new Set([ModelPickerSection.Other]),
 			onDidToggleSection: (section: string, collapsed: boolean) => {
