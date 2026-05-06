@@ -197,25 +197,24 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		if (token.isCancellationRequested) {
 			return undefined;
 		}
-		let result;
 		try {
-			result = await this._connection.resolveSessionConfig({ provider: this._provider });
+			const result = await this._connection.resolveSessionConfig({ provider: this._provider });
+			if (token.isCancellationRequested) {
+				return undefined;
+			}
+			const schema = result?.schema?.properties?.[SessionConfigKey.Mode];
+			if (!schema) {
+				return undefined;
+			}
+			const group = buildModeOptionGroup(schema);
+			if (!group) {
+				return undefined;
+			}
+			const selected = getSelectedModeOptionItem(group, result.values?.[SessionConfigKey.Mode], schema);
+			return [{ ...group, selected }];
 		} catch {
 			return undefined;
 		}
-		if (token.isCancellationRequested) {
-			return undefined;
-		}
-		const schema = result?.schema?.properties?.[SessionConfigKey.Mode];
-		if (!schema) {
-			return undefined;
-		}
-		const group = buildModeOptionGroup(schema);
-		if (!group) {
-			return undefined;
-		}
-		const selected = getSelectedModeOptionItem(group, result.values?.[SessionConfigKey.Mode], schema);
-		return [{ ...group, selected }];
 	}
 
 	async refresh(_token: CancellationToken): Promise<void> {

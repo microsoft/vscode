@@ -357,6 +357,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	private readonly _pendingMessageSubscriptions = this._register(new DisposableResourceMap());
 	/** Per-session subscription watching for server-initiated turns. */
 	private readonly _serverTurnWatchers = this._register(new DisposableResourceMap());
+	/** Per-session subscription watching `SessionState.config` for the mode option group. */
+	private readonly _sessionConfigWatchers = this._register(new DisposableResourceMap());
 	/** Historical turns with file edits, pending hydration into the editing session. */
 	private readonly _pendingHistoryTurns = new ResourceMap<readonly Turn[]>();
 	/** Turn IDs dispatched by this client, used to distinguish server-originated turns. */
@@ -590,6 +592,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				this._activeSessions.delete(sessionResource);
 				this._pendingMessageSubscriptions.deleteAndDispose(sessionResource);
 				this._serverTurnWatchers.deleteAndDispose(sessionResource);
+				this._sessionConfigWatchers.deleteAndDispose(sessionResource);
 				this._pendingHistoryTurns.delete(sessionResource);
 				this._releaseSessionSubscription(resolvedSession.toString());
 			},
@@ -974,20 +977,31 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 * inbound listener registered in the constructor.
 	 */
 	private _watchSessionConfig(backendSession: URI, sessionResource: URI): void {
+		// Replace any prior watcher for this session so repeated calls
+		// (e.g. resolve + first request) don't accumulate listeners.
+		if (this._sessionConfigWatchers.has(sessionResource)) {
+			return;
+		}
 		const sub = this._ensureSessionSubscription(backendSession.toString());
+		const clearPublishedGroup = () => {
+			if (this._lastPublishedModeSchemaFingerprint !== undefined) {
+				this._chatSessionsService.setOptionGroupsForSessionType(this._config.sessionType, this._optionGroupsHandle, undefined);
+				this._lastPublishedModeSchemaFingerprint = undefined;
+			}
+		};
 		const apply = (state: SessionState | undefined) => {
 			const schema = state?.config?.schema?.properties?.[SessionConfigKey.Mode];
-			if (!schema) {
-				return;
-			}
-			const group = buildModeOptionGroup(schema);
+			const group = schema ? buildModeOptionGroup(schema) : undefined;
 			if (!group) {
-				// Not well-known, not mutable, or dynamic — never advertise it.
+				// Schema missing, not well-known, dynamic, or non-mutable —
+				// unpublish any previously advertised group so the chat input
+				// doesn't show a stale picker.
+				clearPublishedGroup();
 				return;
 			}
 
 			// Republish only when the schema changed (avoid event noise).
-			const fingerprint = getModeSchemaFingerprint(schema);
+			const fingerprint = getModeSchemaFingerprint(schema!);
 			if (fingerprint !== this._lastPublishedModeSchemaFingerprint) {
 				this._chatSessionsService.setOptionGroupsForSessionType(this._config.sessionType, this._optionGroupsHandle, [group]);
 				this._lastPublishedModeSchemaFingerprint = fingerprint;
@@ -995,7 +1009,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 			// Seed/refresh the per-session selection.
 			const currentValue = state?.config?.values?.[SessionConfigKey.Mode];
-			const item = getSelectedModeOptionItem(group, currentValue, schema);
+			const item = getSelectedModeOptionItem(group, currentValue, schema!);
 			if (!item) {
 				return;
 			}
@@ -1007,7 +1021,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		};
 		// Apply once from the current state (may already be hydrated by the time we wire up).
 		apply(this._getSessionState(backendSession.toString()));
-		this._register(sub.onDidChange(state => apply(state)));
+		this._sessionConfigWatchers.set(sessionResource, sub.onDidChange(state => apply(state)));
 	}
 
 	/**
