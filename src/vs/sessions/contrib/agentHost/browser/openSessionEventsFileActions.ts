@@ -13,7 +13,7 @@ import { INotificationService } from '../../../../platform/notification/common/n
 import { agentHostAuthority, toAgentHostUri } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
+import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { IsAgentHostSession } from './agentHostSkillButtons.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { IPathService } from '../../../../workbench/services/path/common/pathService.js';
@@ -46,9 +46,11 @@ export function buildLocalEventsUri(userHome: URI, rawSessionId: string): URI {
  * `defaultDirectory` (set from `os.homedir()` on the host during the
  * AHP handshake).
  *
- * The path is joined with POSIX semantics — remote AH hosts are POSIX
- * today. Returns `undefined` if the host did not report a usable
- * `defaultDirectory`.
+ * The path is joined at the URI-path level using forward slashes, which
+ * works for both POSIX hosts (`/home/me`) and Windows hosts whose
+ * `URI.file(os.homedir()).path` is also forward-slash-rooted (e.g.
+ * `/c:/Users/me`). Returns `undefined` if the host did not report a
+ * usable `defaultDirectory`.
  */
 export function buildRemoteEventsUri(connection: IRemoteAgentHostConnectionInfo, rawSessionId: string): URI | undefined {
 	const homePath = connection.defaultDirectory;
@@ -137,13 +139,13 @@ export class OpenSessionEventsFileAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
-		const widgetService = accessor.get(IChatWidgetService);
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
 		const pathService = accessor.get(IPathService);
 		const remoteAgentHostService = accessor.get(IRemoteAgentHostService);
 		const editorService = accessor.get(IEditorService);
 		const notificationService = accessor.get(INotificationService);
 
-		const sessionResource = widgetService.lastFocusedWidget?.viewModel?.sessionResource;
+		const sessionResource = sessionsManagementService.activeSession.get()?.resource;
 		const userHome = pathService.userHome({ preferLocal: true });
 
 		const result = resolveEventsUri(
