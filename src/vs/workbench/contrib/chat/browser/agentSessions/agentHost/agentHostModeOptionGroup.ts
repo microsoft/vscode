@@ -9,8 +9,6 @@ import { isWellKnownModeSchema, SessionConfigKey } from '../../../../../../platf
 import type { SessionConfigPropertySchema } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import type { IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem } from '../../../common/chatSessionsService.js';
 
-// export { isWellKnownModeSchema };
-
 /**
  * Codicon for a known mode value, or `undefined` for values the picker doesn't
  * have an icon for. Used keyed by enum value, never by hardcoded position.
