@@ -6,6 +6,7 @@
 import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { isWeb } from '../../../../base/common/platform.js';
 import { mainWindow } from '../../../../base/browser/window.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
 import * as nls from '../../../../nls.js';
 import { IRemoteAgentHostService, RemoteAgentHostAutoConnectSettingId, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ITunnelAgentHostService, TUNNEL_ADDRESS_PREFIX, type ITunnelInfo } from '../../../../platform/agentHost/common/tunnelAgentHost.js';
@@ -70,8 +71,10 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 	 * Per-address connect sessions for telemetry. A session starts at the
 	 * first attempt of a connect cycle (initial or reconnect) and ends on
 	 * terminal resolution (connected, host-offline, max-attempts).
+	 * `tunnelSessionId` is a UUID that correlates all attempts within a
+	 * single connect cycle and propagates to vscode-dev tunnel relay events.
 	 */
-	private readonly _connectSessions = new Map<string, { startedAt: number; attempts: number; isReconnect: boolean }>();
+	private readonly _connectSessions = new Map<string, { startedAt: number; attempts: number; isReconnect: boolean; tunnelSessionId: string }>();
 
 	constructor(
 		@ITunnelAgentHostService private readonly _tunnelService: ITunnelAgentHostService,
@@ -389,7 +392,7 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 			if (wasConnected && isExplicitlyDisconnected && !this._pendingConnects.has(address)) {
 				this._logService.info(`[TunnelAgentHost] Connection lost for ${address}, scheduling reconnect`);
 				if (!this._connectSessions.has(address)) {
-					this._connectSessions.set(address, { startedAt: Date.now(), attempts: 0, isReconnect: true });
+					this._connectSessions.set(address, { startedAt: Date.now(), attempts: 0, isReconnect: true, tunnelSessionId: generateUuid() });
 				}
 				this._scheduleReconnect(address, /*immediate*/ true);
 			}
@@ -577,6 +580,7 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 				totalDurationMs: Date.now() - session.startedAt,
 				success: false,
 				failureReason: reason,
+				tunnelSessionId: session.tunnelSessionId,
 			});
 			this._connectSessions.delete(address);
 		}
@@ -588,10 +592,10 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 	 * already exists if `_handleConnectionChanges` marked this as a
 	 * reconnect cycle; otherwise this starts a fresh initial-connect session.
 	 */
-	private _beginConnectAttempt(address: string): { session: { startedAt: number; attempts: number; isReconnect: boolean }; attemptNumber: number; attemptStart: number; isReconnect: boolean } {
+	private _beginConnectAttempt(address: string): { session: { startedAt: number; attempts: number; isReconnect: boolean; tunnelSessionId: string }; attemptNumber: number; attemptStart: number; isReconnect: boolean } {
 		let session = this._connectSessions.get(address);
 		if (!session) {
-			session = { startedAt: Date.now(), attempts: 0, isReconnect: false };
+			session = { startedAt: Date.now(), attempts: 0, isReconnect: false, tunnelSessionId: generateUuid() };
 			this._connectSessions.set(address, session);
 		}
 		session.attempts++;
@@ -607,7 +611,7 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 		success: boolean;
 		attemptNumber: number;
 		attemptStart: number;
-		session: { startedAt: number; attempts: number; isReconnect: boolean };
+		session: { startedAt: number; attempts: number; isReconnect: boolean; tunnelSessionId: string };
 		isReconnect: boolean;
 		error?: unknown;
 	}): void {
@@ -615,11 +619,11 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 		const durationMs = Date.now() - attemptStart;
 		if (success) {
 			this._clearReconnectBackoff(address);
-			logTunnelConnectAttempt(this._telemetryService, { isReconnect, attempt: attemptNumber, durationMs, success: true });
-			logTunnelConnectResolved(this._telemetryService, { isReconnect, totalAttempts: attemptNumber, totalDurationMs: Date.now() - session.startedAt, success: true });
+			logTunnelConnectAttempt(this._telemetryService, { isReconnect, attempt: attemptNumber, durationMs, success: true, tunnelSessionId: session.tunnelSessionId });
+			logTunnelConnectResolved(this._telemetryService, { isReconnect, totalAttempts: attemptNumber, totalDurationMs: Date.now() - session.startedAt, success: true, tunnelSessionId: session.tunnelSessionId });
 			this._connectSessions.delete(address);
 		} else {
-			logTunnelConnectAttempt(this._telemetryService, { isReconnect, attempt: attemptNumber, durationMs, success: false, errorCategory: this._categorizeError(error) });
+			logTunnelConnectAttempt(this._telemetryService, { isReconnect, attempt: attemptNumber, durationMs, success: false, errorCategory: this._categorizeError(error), tunnelSessionId: session.tunnelSessionId });
 		}
 	}
 

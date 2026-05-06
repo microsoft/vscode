@@ -11,8 +11,10 @@ import { Button } from '../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { logPolicyBlockedShown } from '../../../common/sessionsTelemetry.js';
 
 export const enum SessionsBlockedReason {
 	AgentDisabled = 'agentDisabled',
@@ -41,6 +43,7 @@ export class SessionsPolicyBlockedOverlay extends Disposable {
 		@ICommandService private readonly commandService: ICommandService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IProductService private readonly productService: IProductService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 
@@ -81,6 +84,8 @@ export class SessionsPolicyBlockedOverlay extends Disposable {
 				this._renderAccountPolicyGate(card, options);
 				break;
 		}
+
+		try { logPolicyBlockedShown(this.telemetryService, { policyId: String(options.reason), surface: 'sessionsOverlay' }); } catch { /* telemetry must never break */ }
 	}
 
 	private _renderAgentDisabled(card: HTMLElement): void {

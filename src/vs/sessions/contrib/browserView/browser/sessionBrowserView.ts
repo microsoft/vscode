@@ -9,9 +9,11 @@ import { IBrowserViewWorkbenchService } from '../../../../workbench/contrib/brow
 import { BrowserEditorInput } from '../../../../workbench/contrib/browserView/common/browserEditorInput.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISession } from '../../../services/sessions/common/session.js';
 import { runOnChange } from '../../../../base/common/observable.js';
+import { logBrowserViewOpened } from '../../../common/sessionsTelemetry.js';
 
 export class SessionBrowserViewController extends Disposable implements IWorkbenchContribution {
 
@@ -28,13 +30,14 @@ export class SessionBrowserViewController extends Disposable implements IWorkben
 		@IBrowserViewWorkbenchService private readonly _browserViewService: IBrowserViewWorkbenchService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
 
 		// Catch editors opened via normal user/tool actions.
 		this._register(this._editorService.onWillOpenEditor(e => {
 			if (e.editor instanceof BrowserEditorInput) {
-				this._attachLifecycle(e.editor);
+				this._attachLifecycle(e.editor, 'opened');
 			}
 		}));
 
@@ -44,7 +47,7 @@ export class SessionBrowserViewController extends Disposable implements IWorkben
 		this._register(this._editorGroupsService.onDidAddGroup(group => {
 			for (const editor of group.editors) {
 				if (editor instanceof BrowserEditorInput) {
-					this._attachLifecycle(editor);
+					this._attachLifecycle(editor, 'restored');
 				}
 			}
 		}));
@@ -68,7 +71,7 @@ export class SessionBrowserViewController extends Disposable implements IWorkben
 		}));
 	}
 
-	private _attachLifecycle(input: BrowserEditorInput): void {
+	private _attachLifecycle(input: BrowserEditorInput, source: 'opened' | 'restored'): void {
 		if (this._trackedInputs.has(input.id)) {
 			return;
 		}
@@ -77,6 +80,10 @@ export class SessionBrowserViewController extends Disposable implements IWorkben
 		if (!session) {
 			return; // no session, no lifecycle management needed
 		}
+
+		try {
+			logBrowserViewOpened(this._telemetryService, { source, isInternal: false });
+		} catch { /* telemetry must never break flow */ }
 
 		const store = new DisposableStore();
 		this._trackedInputs.set(input.id, { session, dispose: () => store.dispose() });

@@ -12,6 +12,7 @@ import { IEnvironmentService } from '../../../../platform/environment/common/env
 import { ISharedProcessService } from '../../../../platform/ipc/electron-browser/services.js';
 import { ILogger, ILoggerService } from '../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { localize } from '../../../../nls.js';
 import {
 	ITunnelAgentHostHostingService,
@@ -23,6 +24,7 @@ import {
 import { IAgentHostService } from '../../../../platform/agentHost/common/agentService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ITunnelHostService } from '../common/tunnelHost.js';
+import { logTunnelHostConnect } from '../../../common/sessionsTelemetry.js';
 
 export const CONFIGURATION_KEY_MICROSOFT_AUTH = 'remote.tunnels.access.enableMicrosoftAuth';
 export const SHOW_TUNNEL_HOST_OUTPUT_ID = 'sessions.tunnelHost.showOutput';
@@ -51,6 +53,7 @@ export class TunnelHostService extends Disposable implements ITunnelHostService 
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILoggerService loggerService: ILoggerService,
 		@IEnvironmentService environmentService: IEnvironmentService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
 
@@ -98,10 +101,13 @@ export class TunnelHostService extends Disposable implements ITunnelHostService 
 		this._isConnecting = true;
 		this._onDidChangeStatus.fire();
 
+		const startedAt = Date.now();
+		let errorCategory: string | undefined;
 		try {
 			const auth = await this._getToken(false);
 			if (!auth) {
 				this._logger.warn(`No auth token available for tunnel hosting`);
+				errorCategory = 'noAuth';
 				throw new Error(localize('tunnelHost.noAuth', "No authentication token available. Please sign in and try again."));
 			}
 
@@ -111,6 +117,26 @@ export class TunnelHostService extends Disposable implements ITunnelHostService 
 			const info = await this._mainService.startHosting(auth.token, auth.provider, socketInfo);
 			this._isSharing = true;
 			this._sharingInfo = info;
+			try {
+				logTunnelHostConnect(this._telemetryService, { success: true, durationMs: Date.now() - startedAt });
+			} catch { /* telemetry must never break user flow */ }
+		} catch (err) {
+			if (!errorCategory) {
+				const msg = err instanceof Error ? err.message : String(err);
+				if (/network|ENOTFOUND|ECONNRESET|ECONNREFUSED|EAI_AGAIN/i.test(msg)) {
+					errorCategory = 'network';
+				} else if (/timeout|timed out/i.test(msg)) {
+					errorCategory = 'timeout';
+				} else if (/auth|401|403|unauthorized/i.test(msg)) {
+					errorCategory = 'auth';
+				} else {
+					errorCategory = 'other';
+				}
+			}
+			try {
+				logTunnelHostConnect(this._telemetryService, { success: false, errorCategory, durationMs: Date.now() - startedAt });
+			} catch { /* telemetry must never break user flow */ }
+			throw err;
 		} finally {
 			this._isConnecting = false;
 			this._onDidChangeStatus.fire();

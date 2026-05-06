@@ -21,7 +21,7 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ICodeReviewSuggestion } from '../../codeReview/browser/codeReviewService.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { logChangesViewReviewCommentAdded } from '../../../common/sessionsTelemetry.js';
+import { logAgentFeedbackSubmitFailed, logChangesViewReviewCommentAdded } from '../../../common/sessionsTelemetry.js';
 import { ISessionFileChange } from '../../../services/sessions/common/session.js';
 
 // --- Types --------------------------------------------------------------------
@@ -465,6 +465,10 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 			await this._commandService.executeCommand('agentFeedbackEditor.action.submit');
 		} catch (err) {
 			this._logService.error('[AgentFeedback] Failed to execute submit feedback command', err);
+			logAgentFeedbackSubmitFailed(this._telemetryService, {
+				errorCategory: err instanceof Error ? (err.constructor?.name || 'Error') : 'Other',
+				errorMessage: err instanceof Error ? (err.message ?? '') : String(err)
+			});
 		}
 	}
 }

@@ -9,6 +9,7 @@ import { SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { localize2 } from '../../../../nls.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
@@ -21,6 +22,7 @@ import { IWorkbenchEnvironmentService } from '../../../../workbench/services/env
 import { IAuthenticationService } from '../../../../workbench/services/authentication/common/authentication.js';
 import { SessionsWalkthroughOverlay, WalkthroughOutcome } from './sessionsWalkthrough.js';
 import { WELCOME_COMPLETE_KEY } from '../../../common/welcome.js';
+import { logWelcomeShown } from '../../../common/sessionsTelemetry.js';
 
 function shouldSkipSessionsWelcome(environmentService: IWorkbenchEnvironmentService): boolean {
 	const envArgs = (environmentService as IWorkbenchEnvironmentService & { args?: Record<string, unknown> }).args;
@@ -100,6 +102,7 @@ export class SessionsWelcomeContribution extends Disposable implements IWorkbenc
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
 		@ILogService private readonly logService: ILogService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 
@@ -224,6 +227,10 @@ export class SessionsWelcomeContribution extends Disposable implements IWorkbenc
 		const welcomeVisibleKey = SessionsWelcomeVisibleContext.bindTo(this.contextKeyService);
 		welcomeVisibleKey.set(true);
 		this.overlayRef.value.add(toDisposable(() => welcomeVisibleKey.reset()));
+
+		try {
+			logWelcomeShown(this.telemetryService, { surface: isFirstLaunch ? 'firstLaunch' : 'reopen' });
+		} catch { /* telemetry must never break user flow */ }
 
 		const walkthrough = this.overlayRef.value.add(this.instantiationService.createInstance(
 			SessionsWalkthroughOverlay,

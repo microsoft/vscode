@@ -46,6 +46,8 @@ import { IAuthenticationUsageService } from '../../../../workbench/services/auth
 import { IAuthenticationService } from '../../../../workbench/services/authentication/common/authentication.js';
 import { IChatDashboardService } from '../../../browser/chatDashboardService.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { logAccountMenuOpened } from '../../../common/sessionsTelemetry.js';
 
 // --- Account Menu Items --- //
 const AccountMenu = Menus.AccountMenu;
@@ -297,6 +299,7 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		@IHoverService private readonly hoverService: IHoverService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IChatEntitlementService private readonly chatEntitlementService: ChatEntitlementService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super(undefined, action, options);
 		this.lastState = getAccountTitleBarState({
@@ -343,6 +346,7 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 			return;
 		}
 
+		try { logAccountMenuOpened(this.telemetryService, { source: 'titleBar' }); } catch { /* telemetry must never break */ }
 		this.showCombinedPanel();
 	}
 

@@ -17,7 +17,7 @@ import { IProductService } from '../../../../platform/product/common/productServ
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { IsPhoneLayoutContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
-import { logSessionsInteraction } from '../../../common/sessionsTelemetry.js';
+import { logOpenInVSCodeOutcome, logSessionsInteraction } from '../../../common/sessionsTelemetry.js';
 import { Menus } from '../../../browser/menus.js';
 import { isWorkspaceAgentSessionType } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
@@ -71,6 +71,7 @@ registerAction2(class OpenSessionWorktreeInVSCodeAction extends Action2 {
 		const activeSession = sessionsManagementService.activeSession.get();
 		if (!activeSession) {
 			await openerService.open(URI.from({ scheme, query: params.toString() }), { openExternal: true });
+			try { logOpenInVSCodeOutcome(telemetryService, { outcome: 'fallback' }); } catch { /* noop */ }
 			return;
 		}
 
@@ -80,6 +81,7 @@ registerAction2(class OpenSessionWorktreeInVSCodeAction extends Action2 {
 
 		if (!rawFolderUri) {
 			await openerService.open(URI.from({ scheme, query: params.toString() }), { openExternal: true });
+			try { logOpenInVSCodeOutcome(telemetryService, { outcome: 'fallback' }); } catch { /* noop */ }
 			return;
 		}
 
@@ -89,20 +91,26 @@ registerAction2(class OpenSessionWorktreeInVSCodeAction extends Action2 {
 
 		params.set('session', activeSession.resource.toString());
 
-		if (remoteAuthority) {
-			await openerService.open(URI.from({
-				scheme,
-				authority: Schemas.vscodeRemote,
-				path: `/${remoteAuthority}${folderUri.path}`,
-				query: params.toString(),
-			}), { openExternal: true });
-		} else {
-			await openerService.open(URI.from({
-				scheme,
-				authority: Schemas.file,
-				path: folderUri.path,
-				query: params.toString(),
-			}), { openExternal: true });
+		try {
+			if (remoteAuthority) {
+				await openerService.open(URI.from({
+					scheme,
+					authority: Schemas.vscodeRemote,
+					path: `/${remoteAuthority}${folderUri.path}`,
+					query: params.toString(),
+				}), { openExternal: true });
+			} else {
+				await openerService.open(URI.from({
+					scheme,
+					authority: Schemas.file,
+					path: folderUri.path,
+					query: params.toString(),
+				}), { openExternal: true });
+			}
+			try { logOpenInVSCodeOutcome(telemetryService, { outcome: 'launched' }); } catch { /* noop */ }
+		} catch (err) {
+			try { logOpenInVSCodeOutcome(telemetryService, { outcome: 'failed' }); } catch { /* noop */ }
+			throw err;
 		}
 	}
 });

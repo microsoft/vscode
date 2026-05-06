@@ -25,6 +25,8 @@ import { ICodeReviewService } from '../../codeReview/browser/codeReviewService.j
 import { getSessionEditorComments } from './sessionEditorComments.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { logAgentFeedbackSubmitted } from '../../../common/sessionsTelemetry.js';
 
 export const submitFeedbackActionId = 'agentFeedbackEditor.action.submit';
 export const navigatePreviousFeedbackActionId = 'agentFeedbackEditor.action.navigatePrevious';
@@ -103,12 +105,16 @@ class SubmitFeedbackAction extends AgentFeedbackEditorAction {
 		const agentFeedbackService = accessor.get(IAgentFeedbackService);
 		const editorService = accessor.get(IEditorService);
 		const logService = accessor.get(ILogService);
+		const telemetryService = accessor.get(ITelemetryService);
 
 		const widget = chatWidgetService.getWidgetBySessionResource(sessionResource);
 		if (!widget) {
 			logService.error('[AgentFeedback] Cannot submit feedback: no chat widget found for session', sessionResource.toString());
 			return;
 		}
+
+		const feedback = agentFeedbackService.getFeedback(sessionResource);
+		const hasComment = feedback.length > 0;
 
 		// Close all editors belonging to the session resource
 		const editorsToClose: IEditorIdentifier[] = [];
@@ -126,6 +132,9 @@ class SubmitFeedbackAction extends AgentFeedbackEditorAction {
 		}
 
 		await widget.acceptInput('/act-on-feedback');
+		try {
+			logAgentFeedbackSubmitted(telemetryService, { rating: 'down', hasComment, surface: 'editor' });
+		} catch { /* telemetry must never break user flow */ }
 	}
 }
 

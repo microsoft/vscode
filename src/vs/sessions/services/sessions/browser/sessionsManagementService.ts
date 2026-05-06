@@ -11,6 +11,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { ChatViewPaneTarget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -21,6 +22,7 @@ import { ISendRequestOptions, ISessionChangeEvent, ISessionsProvider } from '../
 import { IChat, ISession, isWorkspaceAgentSessionType, SessionStatus, ISessionType } from '../common/session.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../common/agentHostSessionsProvider.js';
+import { logSessionActivated, logSessionArchived, logSessionCreated, logSessionDeleted, logSessionError } from '../../../common/sessionsTelemetry.js';
 
 const ACTIVE_SESSION_STATES_KEY = 'agentSessions.activeSessionStates';
 
@@ -74,6 +76,7 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 
@@ -268,6 +271,12 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 		const session = provider.createNewSession(repositoryUri, sessionTypeId);
 		this._pendingNewSession = session;
 		this.setActiveSession(session);
+		logSessionCreated(this.telemetryService, {
+			providerId: session.providerId,
+			sessionType: session.sessionType,
+			source: 'newSession',
+			isWorkspace: isWorkspaceAgentSessionType(session.sessionType)
+		});
 		return session;
 	}
 
@@ -304,6 +313,16 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 				this.setActiveSession(updatedSession);
 				setActiveChatToLast();
 			}
+		} catch (err) {
+			try {
+				logSessionError(this.telemetryService, {
+					providerId: session.providerId,
+					area: 'send',
+					errorCategory: err instanceof Error ? (err.constructor?.name || 'Error') : 'Other',
+					errorMessage: err instanceof Error ? (err.message ?? '') : String(err),
+				});
+			} catch { /* telemetry must never break user flow */ }
+			throw err;
 		} finally {
 			chatsListener.dispose();
 		}
@@ -377,6 +396,13 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 		this._isWorkspaceAgent.set(isWorkspaceAgentSessionType(session?.sessionType));
 		this._isActiveSessionArchived.set(session?.isArchived.get() ?? false);
 		this._supportsMultiChat.set(session?.capabilities.supportsMultipleChats ?? false);
+
+		if (session) {
+			logSessionActivated(this.telemetryService, {
+				providerId: session.providerId,
+				sessionType: session.sessionType
+			});
+		}
 
 		if (session) {
 			this.logService.info(`[ActiveSessionService] Active session changed: ${session.resource.toString()}`);
@@ -478,7 +504,15 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 				const uri = URI.parse(entry.sessionResource);
 				map.set(uri, entry);
 			}
-		} catch {
+		} catch (err) {
+			try {
+				logSessionError(this.telemetryService, {
+					providerId: '',
+					area: 'load',
+					errorCategory: err instanceof Error ? (err.constructor?.name || 'Error') : 'Other',
+					errorMessage: err instanceof Error ? (err.message ?? '') : String(err),
+				});
+			} catch { /* telemetry must never break user flow */ }
 			// ignore corrupt data
 		}
 		return map;
@@ -500,6 +534,11 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 
 	async archiveSession(session: ISession): Promise<void> {
 		await this._getProvider(session)?.archiveSession(session.sessionId);
+		logSessionArchived(this.telemetryService, {
+			providerId: session.providerId,
+			sessionType: session.sessionType,
+			ageMinutes: Math.round((Date.now() - session.createdAt.getTime()) / 60_000)
+		});
 	}
 
 	async unarchiveSession(session: ISession): Promise<void> {
@@ -508,6 +547,11 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 
 	async deleteSession(session: ISession): Promise<void> {
 		await this._getProvider(session)?.deleteSession(session.sessionId);
+		logSessionDeleted(this.telemetryService, {
+			providerId: session.providerId,
+			sessionType: session.sessionType,
+			ageMinutes: Math.round((Date.now() - session.createdAt.getTime()) / 60_000)
+		});
 	}
 
 	async deleteChat(session: ISession, chatUri: URI): Promise<void> {

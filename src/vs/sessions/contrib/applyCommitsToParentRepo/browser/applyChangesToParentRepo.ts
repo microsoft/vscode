@@ -16,10 +16,12 @@ import { ServicesAccessor } from '../../../../platform/instantiation/common/inst
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { logApplyCommitsResolved, logApplyCommitsStarted } from '../../../common/sessionsTelemetry.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { URI } from '../../../../base/common/uri.js';
 
@@ -84,6 +86,7 @@ class ApplyChangesToParentRepoAction extends Action2 {
 		const logService = accessor.get(ILogService);
 		const openerService = accessor.get(IOpenerService);
 		const productService = accessor.get(IProductService);
+		const telemetryService = accessor.get(ITelemetryService);
 
 		const activeSession = sessionManagementService.activeSession.get();
 		const repo = activeSession?.workspace.get()?.repositories[0];
@@ -93,6 +96,8 @@ class ApplyChangesToParentRepoAction extends Action2 {
 
 		const worktreeRoot = repo.workingDirectory;
 		const repoRoot = repo.uri;
+
+		try { logApplyCommitsStarted(telemetryService, { commitCount: 0 }); } catch { /* noop */ }
 
 		const openFolderAction = toAction({
 			id: 'applyChangesToParentRepo.openFolder',
@@ -140,6 +145,7 @@ class ApplyChangesToParentRepoAction extends Action2 {
 			const result = await commandService.executeCommand('_git.mergeBranch', repoRoot.fsPath, worktreeBranch);
 			if (!result) {
 				logService.warn('[ApplyChangesToParentRepo] No result from merge command');
+				try { logApplyCommitsResolved(telemetryService, { commitCount: 0, success: false, errorCategory: 'noResult' }); } catch { /* noop */ }
 			} else {
 				notificationService.notify({
 					severity: Severity.Info,
@@ -148,6 +154,7 @@ class ApplyChangesToParentRepoAction extends Action2 {
 						: localize('applyChangesSuccess', 'Applied changes to parent repository.'),
 					actions: { primary: [openFolderAction] }
 				});
+				try { logApplyCommitsResolved(telemetryService, { commitCount: 0, success: true }); } catch { /* noop */ }
 			}
 		} catch (err) {
 			logService.error('[ApplyChangesToParentRepo] Failed to apply changes', err);
@@ -156,6 +163,7 @@ class ApplyChangesToParentRepoAction extends Action2 {
 				message: localize('applyChangesConflict', "Failed to apply changes to parent repo. The parent repo may have diverged — resolve conflicts manually."),
 				actions: { primary: [openFolderAction] }
 			});
+			try { logApplyCommitsResolved(telemetryService, { commitCount: 0, success: false, errorCategory: 'mergeFailed' }); } catch { /* noop */ }
 		}
 	}
 }
