@@ -5,6 +5,7 @@
 
 import * as vscode from 'vscode';
 import { IFileSystemService } from '../../../platform/filesystem/common/fileSystemService';
+import { IParserService } from '../../../platform/parser/node/parserService';
 import { IWorkspaceService } from '../../../platform/workspace/common/workspaceService';
 import { collapseRangeToStart } from '../../../util/common/range';
 import { CancellationToken } from '../../../util/vs/base/common/cancellation';
@@ -12,6 +13,7 @@ import { SymbolInformation, Uri } from '../../../vscodeTypes';
 import { LinkifiedPart, LinkifiedText, LinkifySymbolAnchor } from '../common/linkifiedText';
 import { IContributedLinkifier, LinkifierContext } from '../common/linkifyService';
 import { findBestSymbolByPath } from './findSymbol';
+import { findSymbolLocationInFile, type SymbolFileCache } from './findWord';
 
 /**
  * Linkifies symbol paths in responses. For example:
@@ -24,6 +26,7 @@ export class SymbolLinkifier implements IContributedLinkifier {
 
 	constructor(
 		@IFileSystemService private readonly fileSystem: IFileSystemService,
+		@IParserService private readonly parserService: IParserService,
 		@IWorkspaceService private readonly workspaceService: IWorkspaceService,
 	) { }
 
@@ -38,6 +41,7 @@ export class SymbolLinkifier implements IContributedLinkifier {
 		}
 
 		const out: LinkifiedPart[] = [];
+		const symbolFileCache: SymbolFileCache = new Map();
 
 		let endLastMatch = 0;
 		for (const match of text.matchAll(/\[`([^`\[\]]+?)`]\((\S+?\.\w+)\)/g)) {
@@ -57,21 +61,25 @@ export class SymbolLinkifier implements IContributedLinkifier {
 			const resolvedUri = await this.resolveInWorkspace(symbolPath, workspaceFolders);
 
 			if (resolvedUri) {
+				const initialLocation = await findSymbolLocationInFile(this.parserService, resolvedUri, symbolText, token, symbolFileCache)
+					.catch(() => undefined);
 				const info: SymbolInformation = {
 					name: symbolText,
 					containerName: '',
 					kind: vscode.SymbolKind.Variable,
-					location: new vscode.Location(resolvedUri, new vscode.Position(0, 0))
+					location: initialLocation ?? new vscode.Location(resolvedUri, new vscode.Position(0, 0))
 				};
 
 				out.push(new LinkifySymbolAnchor(info, async (token) => {
 					let symbols: Array<vscode.SymbolInformation | vscode.DocumentSymbol> | undefined;
 					try {
 						symbols = await vscode.commands.executeCommand<Array<vscode.SymbolInformation | vscode.DocumentSymbol> | undefined>('vscode.executeDocumentSymbolProvider', resolvedUri);
-					} catch (e) {
-						// Noop
+					} catch {
+						// noop
 					}
 
+					// Tree-sitter gives a best-effort initial location. Document symbols remain
+					// the richer source for symbol kind and nested same-name disambiguation.
 					if (symbols?.length) {
 						const matchingSymbol = findBestSymbolByPath(symbols, symbolText);
 						if (matchingSymbol) {
