@@ -68,6 +68,19 @@ interface IConfigPickerItem {
 	readonly description?: string;
 }
 
+/**
+ * Display rank for well-known session-config properties. Lower ranks render
+ * first. Properties not listed render after the well-known ones in their
+ * original schema order.
+ */
+function wellKnownDisplayRank(property: string): number {
+	switch (property) {
+		case SessionConfigKey.Isolation: return 0;
+		case SessionConfigKey.Branch: return 1;
+		default: return 100;
+	}
+}
+
 function getConfigIcon(property: string, value: unknown | undefined): ThemeIcon | undefined {
 	if (property === 'isolation') {
 		if (value === 'folder') {
@@ -295,7 +308,15 @@ class AgentHostSessionConfigPicker extends Disposable {
 		// interactive there.
 		const isNewSession = provider.getCreateSessionConfig(session.sessionId) !== undefined;
 
-		for (const [property, schema] of Object.entries(resolvedConfig.schema.properties)) {
+		// Enforce a stable display order for well-known properties: the
+		// isolation (worktree/folder) picker comes first, then the branch
+		// picker. Any other properties keep their original schema order
+		// after these two.
+		const orderedEntries = Object.entries(resolvedConfig.schema.properties)
+			.map(([property, schema], index) => ({ property, schema, index }))
+			.sort((a, b) => wellKnownDisplayRank(a.property) - wellKnownDisplayRank(b.property) || a.index - b.index);
+
+		for (const { property, schema } of orderedEntries) {
 			if (property === SessionConfigKey.BranchNameHint) {
 				continue;
 			}
