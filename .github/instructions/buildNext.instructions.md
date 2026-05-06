@@ -1,3 +1,8 @@
+---
+description: Working notes and architecture documentation for the new esbuild-based build system in `build/next`. Use when making changes to the new build pipeline (transpile/bundle commands, NLS plugin, source-map handling, resource copying, or self-hosting watch tasks).
+applyTo: 'build/next/**'
+---
+
 # Working Notes: New esbuild-based Build System
 
 > These notes are for AI agents to help with context in new or summarized sessions.
@@ -6,15 +11,15 @@
 
 **The `VS Code - Build` task is NOT needed to validate changes in the `build/` folder!**
 
-Build scripts in `build/` are TypeScript files that run directly with `tsx` (e.g., `npx tsx build/next/index.ts`). They are not compiled by the main VS Code build.
+Build scripts in `build/` are TypeScript files that run directly with `node` (e.g., `node build/next/index.ts`). They are not compiled by the main VS Code build.
 
 To test changes:
 ```bash
 # Test transpile
-npx tsx build/next/index.ts transpile --out out-test
+node build/next/index.ts transpile --out out-test
 
 # Test bundle (server-web target to test the auth fix)
-npx tsx build/next/index.ts bundle --nls --target server-web --out out-vscode-reh-web-test
+node build/next/index.ts bundle --nls --target server-web --out out-vscode-reh-web-test
 
 # Verify product config was injected
 grep -l "serverLicense" out-vscode-reh-web-test/vs/code/browser/workbench/workbench.js
@@ -30,10 +35,11 @@ grep -l "serverLicense" out-vscode-reh-web-test/vs/code/browser/workbench/workbe
   - `transpile` command: Fast TS → JS using `esbuild.transform()`
   - `bundle` command: TS → bundled JS using `esbuild.build()`
 - **[nls-plugin.ts](nls-plugin.ts)** - NLS (localization) esbuild plugin
+- **[private-to-property.ts](../../build/next/private-to-property.ts)** - Native private to property transformation
 
 ### Integration with Old Build
 
-In [gulpfile.vscode.ts](../gulpfile.vscode.ts#L228-L242), the `core-ci` task uses these new scripts:
+In [build/gulpfile.vscode.ts](../../build/gulpfile.vscode.ts), the `core-ci` task wires up these helpers (defined in [build/lib/esbuild.ts](../../build/lib/esbuild.ts)):
 - `runEsbuildTranspile()` → transpile command
 - `runEsbuildBundle()` → bundle command
 
@@ -117,7 +123,7 @@ Two placeholders that need injection:
 
 ```bash
 # Build server-web with new system
-npx tsx build/next/index.ts bundle --nls --target server-web --out out-vscode-reh-web-min
+node build/next/index.ts bundle --nls --target server-web --out out-vscode-reh-web-min
 
 # Package it (uses gulp task)
 npm run gulp vscode-reh-web-darwin-arm64-min
@@ -285,13 +291,13 @@ npm run gulp vscode-min
 **How to debug further:**
 ```bash
 # 1. Build with just --nls (no mangle) to isolate NLS from mangle issues
-npx tsx build/next/index.ts bundle --nls --minify --target desktop --out out-debug
+node build/next/index.ts bundle --nls --minify --target desktop --out out-debug
 
 # 2. Build with just --mangle-privates (no NLS) to isolate mangle issues
-npx tsx build/next/index.ts bundle --mangle-privates --minify --target desktop --out out-debug
+node build/next/index.ts bundle --mangle-privates --minify --target desktop --out out-debug
 
 # 3. Build with neither (baseline — does esbuild's own map work?)
-npx tsx build/next/index.ts bundle --minify --target desktop --out out-debug
+node build/next/index.ts bundle --minify --target desktop --out out-debug
 
 # 4. Compare .map files across the three builds to find where mappings diverge
 
@@ -314,14 +320,14 @@ The default `VS Code - Build` task now runs three parallel watchers:
 
 | Task | What it does | Script |
 |------|-------------|--------|
-| **Core - Transpile** | esbuild single-file TS→JS (fast, no type checking) | `watch-client-transpiled` → `npx tsx build/next/index.ts transpile --watch` |
-| **Core - Typecheck** | gulp-tsb `noEmit` watch (type errors only, no output) | `watch-clientd` → `gulp watch-client` (with `noEmit: true`) |
+| **Core - Transpile** | esbuild single-file TS→JS (fast, no type checking) | `watch-client-transpiled` → `node build/next/index.ts transpile --watch` |
+| **Core - Typecheck** | tsgo `noEmit` watch (type errors only, no output) | `watch-clientd` → `gulp watch-client` (uses `watchTypeCheckTask`) |
 | **Ext - Build** | Extension compilation (unchanged) | `watch-extensionsd` |
 
 ### Key Changes
 
-- **`compilation.ts`**: `ICompileTaskOptions` gained `noEmit?: boolean`. When set, `overrideOptions.noEmit = true` is passed to tsb. `watchTask()` accepts an optional 4th parameter `{ noEmit?: boolean }`.
-- **`gulpfile.ts`**: `watchClientTask` no longer runs `rimraf('out')` (the transpiler owns that). Passes `{ noEmit: true }` to `watchTask`.
-- **`index.ts`**: Watch mode emits `Starting transpilation...` / `Finished transpilation with N errors after X ms` for VS Code problem matcher.
-- **`tasks.json`**: Old "Core - Build" split into "Core - Transpile" + "Core - Typecheck" with separate problem matchers (owners: `esbuild` vs `typescript`).
+- **`build/lib/compilation.ts`**: `ICompileTaskOptions` gained `noEmit?: boolean`. `watchTypeCheckTask()` runs the tsgo type-checker in watch mode with `noEmit: true`.
+- **`build/gulpfile.ts`**: `watchClientTask` is now `task.parallel(compilation.watchTypeCheckTask('src'), ...)` — no `rimraf('out')` (the transpiler owns that), no JS emit.
+- **`build/next/index.ts`**: Watch mode emits `Starting transpilation...` / `Finished transpilation with N errors after X ms` for VS Code problem matcher.
+- **`.vscode/tasks.json`**: Old "Core - Build" split into "Core - Transpile" + "Core - Typecheck" with separate problem matchers (owners: `esbuild` vs `typescript`).
 - **`package.json`**: Added `watch-client-transpile`, `watch-client-transpiled`, `kill-watch-client-transpiled` scripts.

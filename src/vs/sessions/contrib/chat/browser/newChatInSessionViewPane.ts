@@ -28,7 +28,6 @@ import { IViewDescriptorService } from '../../../../workbench/common/views.js';
 import { IViewPaneOptions, ViewPane } from '../../../../workbench/browser/parts/views/viewPane.js';
 import { NewChatInputWidget } from './newChatInput.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
-import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../common/agentHostSessionsProvider.js';
 
 // #region --- New Chat In Session Widget ---
 
@@ -66,10 +65,6 @@ class NewChatInSessionWidget extends Disposable {
 			loading,
 			minEditorHeight: 64,
 			placeholder: localize('newChatInSessionPlaceholder', 'Ask a follow-up question or start a new topic within this session...'),
-			shouldExpandPromptSlashCommand: () => {
-				const providerId = this.sessionsManagementService.activeSession.get()?.providerId;
-				return !providerId || !ANY_AGENT_HOST_PROVIDER_RE.test(providerId);
-			},
 		}));
 	}
 

@@ -56,6 +56,7 @@ import { NotificationsCenter } from '../../workbench/browser/parts/notifications
 import { NotificationsAlerts } from '../../workbench/browser/parts/notifications/notificationsAlerts.js';
 import { NotificationsStatus } from '../../workbench/browser/parts/notifications/notificationsStatus.js';
 import { registerNotificationCommands } from '../../workbench/browser/parts/notifications/notificationsCommands.js';
+import { CommandsRegistry } from '../../platform/commands/common/commands.js';
 import { NotificationsToasts } from '../../workbench/browser/parts/notifications/notificationsToasts.js';
 import { IMarkdownRendererService } from '../../platform/markdown/browser/markdownRenderer.js';
 import { EditorMarkdownCodeBlockRenderer } from '../../editor/browser/widget/markdownRenderer/browser/editorMarkdownCodeBlockRenderer.js';
@@ -122,6 +123,8 @@ export interface IAgentWorkbenchLayoutService extends IWorkbenchLayoutService {
 }
 
 export const IAgentWorkbenchLayoutService = refineServiceDecorator<IWorkbenchLayoutService, IAgentWorkbenchLayoutService>(IWorkbenchLayoutService);
+
+export const CLOSE_MOBILE_SIDEBAR_DRAWER_COMMAND_ID = 'sessions.closeMobileSidebarDrawer';
 
 export class Workbench extends Disposable implements IAgentWorkbenchLayoutService {
 
@@ -518,6 +521,15 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 	}
 
 	private registerListeners(lifecycleService: ILifecycleService, storageService: IStorageService, configurationService: IConfigurationService, hostService: IHostService, dialogService: IDialogService): void {
+		// Command: close the mobile sidebar drawer (no-op outside phone layout).
+		// Routes through the proper close path so the mobile nav/history stack
+		// stays in sync (avoids extra Android back-button presses).
+		this._register(CommandsRegistry.registerCommand(CLOSE_MOBILE_SIDEBAR_DRAWER_COMMAND_ID, () => {
+			if (this.layoutPolicy.viewportClass.get() === 'phone') {
+				this.closeMobileSidebarDrawer();
+			}
+		}));
+
 		// Configuration changes
 		this._register(configurationService.onDidChangeConfiguration(e => this.updateFontAliasing(e, configurationService)));
 
@@ -678,9 +690,12 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 			this.toggleMobileSidebarDrawer();
 		}));
 
-		// New session: open new chat view
+		// New session: open new chat view and dismiss the sidebar drawer
+		// so the new session view becomes visible. createMobileTitlebar() is
+		// only invoked in phone layout, so closing the drawer here is safe.
 		this.mobileTopBarDisposables.add(mobileTitlebar.onDidClickNewSession(() => {
 			this.sessionsManagementService.openNewSessionView();
+			this.closeMobileSidebarDrawer();
 		}));
 	}
 
