@@ -832,6 +832,12 @@
 		]
 	},
 	{
+		"name": "@anthropic-ai/claude-agent-sdk",
+		"licenseDetail": [
+			"© Anthropic PBC. All rights reserved. Use is subject to Anthropic's Commercial Terms of Service."
+		]
+	},
+	{
 		"name": "@github/blackbird-external-ingest-utils",
 		"licenseDetail": [
 			"MIT License",
