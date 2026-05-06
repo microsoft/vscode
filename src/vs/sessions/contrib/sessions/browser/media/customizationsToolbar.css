@@ -7,9 +7,20 @@
 	display: flex;
 	flex-direction: column;
 	flex-shrink: 0;
-	border-top: 1px solid var(--vscode-agentsPanel-border, transparent);
-	margin: 0 10px;
+	position: relative;
+	/* margin: 0 10px; */
 	padding: 6px 0 10px 0;
+}
+
+.ai-customization-toolbar::before {
+	content: '';
+	position: absolute;
+	top: 0;
+	left: 10px;
+	right: 10px;
+	height: 1px;
+	background-color: var(--vscode-agentsPanel-border, transparent);
+	pointer-events: none;
 }
 
 /* Make the toolbar, action bar, and items fill full width and stack vertically */
@@ -39,16 +50,13 @@
 	align-items: center;
 	-webkit-user-select: none;
 	user-select: none;
-	gap: 4px;
-}
-
-.ai-customization-toolbar .ai-customization-header:not(.collapsed) {
-	margin-bottom: 4px;
+	/* gap: 4px; */
 }
 
 .ai-customization-toolbar .ai-customization-chevron {
 	flex-shrink: 0;
 	opacity: 0.7;
+	margin-left: auto;
 }
 
 .ai-customization-toolbar .ai-customization-header-total {
@@ -56,10 +64,20 @@
 	opacity: 0.7;
 	font-size: 11px;
 	line-height: 1;
+	margin-left: auto;
 }
 
-.ai-customization-toolbar .ai-customization-header.collapsed .ai-customization-collapse-toggle .ai-customization-header-total:not(.hidden) {
+.ai-customization-toolbar .ai-customization-header-total + .ai-customization-chevron {
+	margin-left: 6px;
+}
+
+.ai-customization-toolbar .ai-customization-header.collapsed .customization-link-button .ai-customization-header-total:not(.hidden) {
 	display: inline;
+}
+
+.ai-customization-toolbar .ai-customization-header .customization-link-button-container {
+	margin: 0;
+	border-radius: 0;
 }
 
 /* Button container - fills available space */
@@ -67,6 +85,7 @@
 	overflow: hidden;
 	min-width: 0;
 	flex: 1;
+	margin: 0 10px;
 }
 
 /* Button needs relative positioning for counts overlay */
@@ -74,9 +93,14 @@
 	position: relative;
 }
 
-/* Customizations header label uses heavier weight */
+/* Customizations header label uses heavier weight and lays out
+	label on the left with chevron/count pushed to the right. */
 .ai-customization-toolbar .ai-customization-header .customization-link-button {
 	font-weight: 500;
+	justify-content: space-between;
+	gap: 0;
+	padding: 6px 16px 6px 10px;
+	border-radius: 0;
 }
 
 /* Counts - floating right inside the per-item link button */
@@ -88,31 +112,6 @@
 	display: flex;
 	align-items: center;
 	gap: 6px;
-}
-
-/* Header collapse toggle (chevron + optional total count). Sits at the far right of the header. */
-.ai-customization-toolbar .ai-customization-collapse-toggle {
-	flex-shrink: 0;
-	display: flex;
-	align-items: center;
-	gap: 6px;
-	padding: 0 4px;
-	height: 24px;
-	border: none;
-	border-radius: 4px;
-	background: transparent;
-	color: inherit;
-	font-family: inherit;
-	cursor: pointer;
-}
-
-.ai-customization-toolbar .ai-customization-collapse-toggle:hover {
-	background-color: var(--vscode-toolbar-hoverBackground);
-}
-
-.ai-customization-toolbar .ai-customization-collapse-toggle:focus-visible {
-	outline: 1px solid var(--vscode-focusBorder);
-	outline-offset: -1px;
 }
 
 .ai-customization-toolbar .customization-link-counts.hidden {
