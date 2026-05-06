@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { raceTimeout, disposableTimeout } from '../../../../base/common/async.js';
+import { disposableTimeout, raceTimeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, IReference, MutableDisposable } from '../../../../base/common/lifecycle.js';
@@ -15,25 +16,25 @@ import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { AgentSession, IAgentConnection, IAgentSessionMetadata } from '../../../../platform/agentHost/common/agentService.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { KNOWN_AUTO_APPROVE_VALUES, SessionConfigKey } from '../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { ResolveSessionConfigResult } from '../../../../platform/agentHost/common/state/protocol/commands.js';
 import { NotificationType } from '../../../../platform/agentHost/common/state/protocol/notifications.js';
-import { FileEdit, ModelSelection, RootConfigState, RootState, SessionState, SessionSummary, SessionStatus as ProtocolSessionStatus } from '../../../../platform/agentHost/common/state/protocol/state.js';
+import { FileEdit, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, SessionState, SessionSummary } from '../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, isSessionAction } from '../../../../platform/agentHost/common/state/sessionActions.js';
 import { readSessionGitState, StateComponents, type ISessionGitState } from '../../../../platform/agentHost/common/state/sessionState.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 import { ChatViewPaneTarget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatSendRequestOptions, IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionFileChange, IChatSessionFileChange2, IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
-import { ILogService } from '../../../../platform/log/common/log.js';
-import { diffsEqual, diffsToChanges, mapProtocolStatus } from './agentHostDiffs.js';
 import { buildMutableConfigSchema, IAgentHostSessionsProvider, resolvedConfigsEqual } from '../../../common/agentHostSessionsProvider.js';
 import { agentHostSessionWorkspaceKey } from '../../../common/agentHostSessionWorkspace.js';
 import { isSessionConfigComplete } from '../../../common/sessionConfig.js';
-import { IChat, IGitHubInfo, ISession, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, SessionStatus, toSessionId } from '../../../services/sessions/common/session.js';
+import { CopilotCLISessionType, IChat, IGitHubInfo, ISession, ISessionChangeset, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, SessionStatus, toSessionId } from '../../../services/sessions/common/session.js';
 import { ISendRequestOptions, ISessionChangeEvent } from '../../../services/sessions/common/sessionsProvider.js';
+import { diffsEqual, diffsToChanges, mapProtocolStatus } from './agentHostDiffs.js';
 
 // ============================================================================
 // AgentHostSessionAdapter — shared adapter for local and remote sessions
@@ -74,6 +75,7 @@ export class AgentHostSessionAdapter implements ISession {
 	readonly updatedAt: ISettableObservable<Date>;
 	readonly status: ISettableObservable<SessionStatus>;
 	readonly changes = observableValue<readonly (IChatSessionFileChange | IChatSessionFileChange2)[]>('changes', []);
+	readonly changesets = observableValue<readonly ISessionChangeset[]>('changesets', []);
 	readonly modelId: ISettableObservable<string | undefined>;
 	modelSelection: ModelSelection | undefined;
 	readonly mode = observableValue<{ readonly id: string; readonly kind: string } | undefined>('mode', undefined);
@@ -162,6 +164,7 @@ export class AgentHostSessionAdapter implements ISession {
 			updatedAt: this.updatedAt,
 			status: this.status,
 			changes: this.changes,
+			changesets: this.changesets,
 			modelId: this.modelId,
 			mode: this.mode,
 			isArchived: this.isArchived,
@@ -381,6 +384,7 @@ class NewSession extends Disposable {
 		this._status = observableValue<SessionStatus>(this, SessionStatus.Untitled);
 		const title = observableValue<string>(this, '');
 		const updatedAt = observableValue(this, new Date());
+		const changesets = observableValue<readonly ISessionChangeset[]>(this, []);
 		const changes = observableValue<readonly (IChatSessionFileChange | IChatSessionFileChange2)[]>(this, []);
 		this._modelId = observableValue<string | undefined>(this, undefined);
 		const mode = observableValue<{ readonly id: string; readonly kind: string } | undefined>(this, undefined);
@@ -394,6 +398,7 @@ class NewSession extends Disposable {
 		const mainChat: IChat = {
 			resource, createdAt, title, updatedAt,
 			status: this._status,
+			changesets,
 			changes,
 			modelId: this._modelId,
 			mode, isArchived, isRead, description, lastTurnEnd,
@@ -411,6 +416,7 @@ class NewSession extends Disposable {
 			title,
 			updatedAt,
 			status: this._status,
+			changesets,
 			changes,
 			modelId: this._modelId,
 			mode,
@@ -756,7 +762,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const next = rootState.agents.map((agent): ISessionType => ({
 			id: agent.provider,
 			label: this._formatSessionTypeLabel(agent.displayName?.trim() || agent.provider),
-			icon: this.icon,
+			icon: this.iconForAgentProvider(agent.provider) ?? this.icon,
 		}));
 
 		const prev = this._sessionTypes;
@@ -765,6 +771,26 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 		this._sessionTypes = next;
 		this._onDidChangeSessionTypes.fire();
+	}
+
+	/**
+	 * Returns the {@link ThemeIcon} associated with a known agent provider, or
+	 * `undefined` when the provider is not recognised.
+	 */
+	private iconForAgentProvider(provider: string): ThemeIcon | undefined {
+		if (provider === CopilotCLISessionType.id) {
+			return CopilotCLISessionType.icon;
+		}
+
+		if (provider.includes('claude')) {
+			return Codicon.claude;
+		}
+
+		if (provider === 'openai' || provider.includes('codex')) {
+			return Codicon.openai;
+		}
+
+		return undefined;
 	}
 
 	/**

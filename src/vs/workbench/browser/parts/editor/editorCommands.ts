@@ -37,7 +37,10 @@ import { mainWindow } from '../../../../base/browser/window.js';
 import { IEditorResolverService } from '../../../services/editor/common/editorResolverService.js';
 import { IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { IPathService } from '../../../services/path/common/pathService.js';
+import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { IUntitledTextEditorService } from '../../../services/untitled/common/untitledTextEditorService.js';
+import { IWorkingCopyEditorService } from '../../../services/workingCopy/common/workingCopyEditorService.js';
+import { IWorkingCopyService } from '../../../services/workingCopy/common/workingCopyService.js';
 import { DIFF_FOCUS_OTHER_SIDE, DIFF_FOCUS_PRIMARY_SIDE, DIFF_FOCUS_SECONDARY_SIDE, registerDiffEditorCommands } from './diffEditorCommands.js';
 import { IResolvedEditorCommandsContext, resolveCommandsContext } from './editorCommandsContext.js';
 import { prepareMoveCopyEditors } from './editor.js';
@@ -950,6 +953,9 @@ function registerCloseEditorCommands() {
 		const editorService = accessor.get(IEditorService);
 		const editorResolverService = accessor.get(IEditorResolverService);
 		const telemetryService = accessor.get(ITelemetryService);
+		const textFileService = accessor.get(ITextFileService);
+		const workingCopyService = accessor.get(IWorkingCopyService);
+		const workingCopyEditorService = accessor.get(IWorkingCopyEditorService);
 
 		const resolvedContext = resolveCommandsContext(args, editorService, accessor.get(IEditorGroupsService), accessor.get(IListService));
 		const editorReplacements = new Map<IEditorGroup, IEditorReplacement[]>();
@@ -974,10 +980,39 @@ function registerCloseEditorCommands() {
 					editorReplacements.set(group, editorReplacementsInGroup);
 				}
 
+				// Force replace when closing the editor without saving cannot
+				// lose data. This is the case when the dirty state lives in a
+				// working copy whose lifetime is independent of the editor:
+				// `TextFileEditorModel`s and `UntitledTextEditorModel`s are
+				// kept alive while dirty by their owning service.
+				//
+				// This way switching between a text editor and a text-document
+				// based custom editor (such as the Markdown preview) for the
+				// same resource does not trigger a save dialog.
+				//
+				// Custom-document custom editors (e.g. hex editors) maintain
+				// their dirty state in a working copy whose lifetime is tied
+				// to the editor input, so we must not skip the save prompt
+				// for those — detect this by looking for any dirty working
+				// copy that backs this editor at a different resource.
+				const resource = editorToResolve.resource;
+				let forceReplaceDirty = !!resource && (resource.scheme === Schemas.untitled || textFileService.isDirty(resource));
+				if (forceReplaceDirty && editorToResolve.isDirty()) {
+					for (const workingCopy of workingCopyService.dirtyWorkingCopies) {
+						if (isEqual(workingCopy.resource, resource)) {
+							continue; // working copy at the editor's own resource is text-based and survives close
+						}
+						if (workingCopyEditorService.findEditor(workingCopy)?.editor === editorToResolve) {
+							forceReplaceDirty = false;
+							break;
+						}
+					}
+				}
+
 				editorReplacementsInGroup.push({
 					editor: editor,
 					replacement: resolvedEditor.editor,
-					forceReplaceDirty: editorToResolve.resource?.scheme === Schemas.untitled,
+					forceReplaceDirty,
 					options: resolvedEditor.options
 				});
 

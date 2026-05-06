@@ -12,7 +12,7 @@ import {
 import { localize } from '../../../../../nls.js';
 import { IPlaywrightService } from '../../../../../platform/browserView/common/playwrightService.js';
 import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../chat/common/tools/languageModelToolsService.js';
-import { createBrowserPageLink, errorResult, playwrightInvoke } from './browserToolHelpers.js';
+import { createBrowserPageLink, errorResult, getSessionId, playwrightInvoke } from './browserToolHelpers.js';
 import { BrowserChatToolReferenceName } from '../../common/browserChatToolReferenceNames.js';
 import { OpenPageToolId } from './openBrowserTool.js';
 
@@ -106,6 +106,7 @@ export class TypeBrowserTool implements IToolImpl {
 
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, _token: CancellationToken): Promise<IToolResult> {
 		const params = invocation.parameters as ITypeBrowserToolParams;
+		const sessionId = getSessionId(invocation);
 
 		if (!params.pageId) {
 			return errorResult(`No page ID provided. Use '${OpenPageToolId}' first.`);
@@ -123,15 +124,15 @@ export class TypeBrowserTool implements IToolImpl {
 		// Press key
 		if (params.key) {
 			if (selector) {
-				return playwrightInvoke(this.playwrightService, params.pageId, (page, sel, key) => page.locator(sel).press(key), selector, params.key);
+				return playwrightInvoke(this.playwrightService, sessionId, params.pageId, (page, sel, key) => page.locator(sel).press(key), selector, params.key);
 			}
-			return playwrightInvoke(this.playwrightService, params.pageId, (page, key) => page.keyboard.press(key), params.key);
+			return playwrightInvoke(this.playwrightService, sessionId, params.pageId, (page, key) => page.keyboard.press(key), params.key);
 		}
 
 		// Type text
 		if (selector) {
-			return playwrightInvoke(this.playwrightService, params.pageId, (page, sel, text) => page.locator(sel).fill(text), selector, params.text!);
+			return playwrightInvoke(this.playwrightService, sessionId, params.pageId, (page, sel, text) => page.locator(sel).fill(text), selector, params.text!);
 		}
-		return playwrightInvoke(this.playwrightService, params.pageId, (page, text) => page.keyboard.type(text), params.text!);
+		return playwrightInvoke(this.playwrightService, sessionId, params.pageId, (page, text) => page.keyboard.type(text), params.text!);
 	}
 }
