@@ -70,14 +70,29 @@ export interface IAquariumService {
 	readonly _serviceBrand: undefined;
 
 	/**
-	 * Mount a toggle button into `parent`. Returns a disposable that removes
-	 * the button and tears down the active aquarium if it was the last mount.
+	 * Mount a toggle button into `parent`. Returns a handle that exposes a
+	 * {@link IMountedToggleHandle.setHostVisible} hook so callers can keep the
+	 * aquarium tied to their own visibility (e.g. a view pane). Disposing the
+	 * handle removes the button and tears down the active aquarium if it was
+	 * the last mount.
 	 */
-	mountToggle(parent: HTMLElement): IDisposable;
+	mountToggle(parent: HTMLElement): IMountedToggleHandle;
+}
+
+export interface IMountedToggleHandle extends IDisposable {
+	/**
+	 * Inform the service whether this mount's host is currently visible. The
+	 * aquarium is only considered active when at least one mount is visible;
+	 * when the last visible mount goes invisible the aquarium is disposed
+	 * synchronously (no fade-out) so it cannot flash behind a sibling view.
+	 * Hosts that don't care can leave this alone — mounts default to visible.
+	 */
+	setHostVisible(visible: boolean): void;
 }
 
 interface IMountedToggle {
 	readonly button: HTMLButtonElement;
+	hostVisible: boolean;
 }
 
 export class AquariumService extends Disposable implements IAquariumService {
@@ -111,7 +126,7 @@ export class AquariumService extends Disposable implements IAquariumService {
 		}));
 	}
 
-	mountToggle(parent: HTMLElement): IDisposable {
+	mountToggle(parent: HTMLElement): IMountedToggleHandle {
 		const doc = parent.ownerDocument;
 		const button = doc.createElement('button');
 		button.className = 'agents-aquarium-toggle';
@@ -134,25 +149,55 @@ export class AquariumService extends Disposable implements IAquariumService {
 
 		parent.appendChild(button);
 
-		const mount: IMountedToggle = { button };
+		const mount: IMountedToggle = { button, hostVisible: true };
 		this.mounts.add(mount);
 		this.applyFeatureEnabledStateForButton(button);
+		this.reconcileActivation();
 
-		// First mount with the user's stored preference on — auto-restore.
-		if (this.isFeatureEnabled() && this.isStoredEnabled() && !this.activeRef.value) {
+		return {
+			setHostVisible: (visible: boolean) => {
+				if (mount.hostVisible === visible) {
+					return;
+				}
+				mount.hostVisible = visible;
+				this.reconcileActivation();
+			},
+			dispose: () => {
+				store.dispose();
+				button.remove();
+				this.mounts.delete(mount);
+				this.reconcileActivation();
+			},
+		};
+	}
+
+	/**
+	 * Activate when at least one mount is host-visible and the user has it on;
+	 * otherwise deactivate synchronously (no fade) so the aquarium can't flash
+	 * behind a sibling view during a view swap.
+	 */
+	private reconcileActivation(): void {
+		const anyHostVisible = this.hasVisibleMount();
+		if (anyHostVisible && this.isFeatureEnabled() && this.isStoredEnabled() && !this.activeRef.value) {
 			this.activate(/* persist */ false);
-		}
-
-		return toDisposable(() => {
-			store.dispose();
-			button.remove();
-			this.mounts.delete(mount);
-			// Last host gone — tear down without persisting so the user's
-			// preference for next time stays as it was.
-			if (this.mounts.size === 0 && this.activeRef.value) {
-				this.deactivate(/* persist */ false);
+		} else if (!anyHostVisible) {
+			// Host hide: dispose any active aquarium synchronously AND cancel
+			// any in-flight animated exit (from a prior user toggle-off) so it
+			// can't keep painting fish behind whatever view took our place.
+			this.pendingExit.clear();
+			if (this.activeRef.value) {
+				this.deactivate(/* persist */ false, /* animate */ false);
 			}
-		});
+		}
+	}
+
+	private hasVisibleMount(): boolean {
+		for (const m of this.mounts) {
+			if (m.hostVisible) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private isFeatureEnabled(): boolean {
@@ -174,8 +219,8 @@ export class AquariumService extends Disposable implements IAquariumService {
 		if (!this.isFeatureEnabled() && this.activeRef.value) {
 			// Setting turned off — don't persist so the prior preference survives a re-enable.
 			this.deactivate(/* persist */ false);
-		} else if (this.isFeatureEnabled() && this.isStoredEnabled() && !this.activeRef.value && this.mounts.size > 0) {
-			this.activate(/* persist */ false);
+		} else if (this.isFeatureEnabled()) {
+			this.reconcileActivation();
 		}
 	}
 
@@ -209,7 +254,7 @@ export class AquariumService extends Disposable implements IAquariumService {
 	private toggle(): void {
 		if (this.activeRef.value) {
 			this.deactivate(/* persist */ true);
-		} else {
+		} else if (this.hasVisibleMount()) {
 			this.activate(/* persist */ true);
 		}
 	}
@@ -248,8 +293,22 @@ export class AquariumService extends Disposable implements IAquariumService {
 		}
 	}
 
-	/** @param persist false when tearing down for non-user reasons. */
-	private deactivate(persist: boolean): void {
+	/**
+	 * @param persist false when tearing down for non-user reasons.
+	 * @param animate false to dispose synchronously (no fade-out). Used for
+	 * host-driven teardown where running a 900ms fade would let fish stay
+	 * visible while the next view layers on top.
+	 */
+	private deactivate(persist: boolean, animate: boolean = true): void {
+		if (!animate) {
+			this.activeRef.clear();
+			this.activeContextKey.set(false);
+			this.updateAllToggleButtonsVisual(false);
+			if (persist) {
+				this.setStoredEnabled(false);
+			}
+			return;
+		}
 		// Detach from activeRef WITHOUT disposing (clearAndLeak) so the exit
 		// animation can run; the returned handle from active.exit() is parked
 		// in `pendingExit` and disposes the underlying store either when the

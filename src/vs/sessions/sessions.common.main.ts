@@ -251,6 +251,11 @@ import '../workbench/contrib/inlineCompletions/browser/renameSymbolTrackerServic
 // Search Quick Access (file picker only, not the full search contribution)
 import '../workbench/contrib/search/browser/searchQuickAccess.contribution.js';
 
+// Search Editor
+import '../workbench/contrib/searchEditor/browser/searchEditor.contribution.js';
+import '../workbench/contrib/search/browser/search.common.contribution.js';
+import './contrib/search/browser/search.contribution.js';
+
 // Sash
 import '../workbench/contrib/sash/browser/sash.contribution.js';
 
