@@ -36,6 +36,47 @@ suite('parseCommandHead', () => {
 	test('does not skip short-flag values before the subcommand', () => {
 		deepStrictEqual(parseCommandHead('git -C /tmp/repo diff'), { head: 'git', sub: '-C' });
 	});
+
+	test('skips leading cd && and similar shell builtins', () => {
+		deepStrictEqual(parseCommandHead('cd /tmp/repo && git diff HEAD~1'), { head: 'git', sub: 'diff' });
+		deepStrictEqual(parseCommandHead('cd /tmp/repo ; git diff HEAD~1'), { head: 'git', sub: 'diff' });
+		deepStrictEqual(parseCommandHead('pushd /tmp && git diff'), { head: 'git', sub: 'diff' });
+		deepStrictEqual(parseCommandHead('export FOO=bar && git diff'), { head: 'git', sub: 'diff' });
+		deepStrictEqual(parseCommandHead('source ./env && npm install'), { head: 'npm', sub: 'install' });
+	});
+
+	test('skips multiple chained shell builtins', () => {
+		deepStrictEqual(
+			parseCommandHead('cd /tmp/repo && export FOO=bar && git diff HEAD~1'),
+			{ head: 'git', sub: 'diff' },
+		);
+	});
+
+	test('returns the first non-builtin segment when several pipelines are joined', () => {
+		// Sequence with two real commands — first wins.
+		deepStrictEqual(
+			parseCommandHead('git diff > out.txt ; npm install'),
+			{ head: 'git', sub: 'diff' },
+		);
+	});
+
+	test('returns undefined when every segment is a builtin', () => {
+		strictEqual(parseCommandHead('cd /tmp && export FOO=bar'), undefined);
+	});
+
+	test('handles repeated && and || operators', () => {
+		// `&&` becomes two `&` splits + one empty segment between, which is filtered out.
+		deepStrictEqual(parseCommandHead('cd /tmp && git diff'), { head: 'git', sub: 'diff' });
+		// `||` likewise — the segment between is empty and skipped.
+		deepStrictEqual(parseCommandHead('false || git diff'), { head: 'false', sub: undefined });
+	});
+
+	test('strips env-var prefixes inside a non-first segment', () => {
+		deepStrictEqual(
+			parseCommandHead('cd /tmp && CI=1 NODE_ENV=test npm install'),
+			{ head: 'npm', sub: 'install' },
+		);
+	});
 });
 
 suite('gitDiffFilter', () => {
@@ -49,6 +90,14 @@ suite('gitDiffFilter', () => {
 
 	test('matches git --no-pager diff', () => {
 		ok(gitDiffFilter.matches('run_in_terminal', { command: 'git --no-pager diff src/foo.ts' }));
+	});
+
+	test('matches when prefixed with cd && (compound command)', () => {
+		ok(gitDiffFilter.matches('run_in_terminal', { command: 'cd /tmp/repo && git diff HEAD~1' }));
+	});
+
+	test('matches when prefixed with env-var assignment', () => {
+		ok(gitDiffFilter.matches('run_in_terminal', { command: 'GIT_PAGER=cat git diff' }));
 	});
 
 	test('does not match git status', () => {

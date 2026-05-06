@@ -15,38 +15,64 @@ interface ITerminalInput {
 }
 
 /**
- * Returns the "head" of a shell command — the first executable word, after
- * skipping common env-var assignments like `FOO=bar baz`. `sub` is the first
+ * Shell builtins / no-op-for-routing prefixes. When a compound command begins
+ * with one of these (e.g. `cd /tmp && git diff`), we skip past the segment so
+ * the filter sees the actual program (`git diff`).
+ */
+const SKIPPABLE_HEADS = new Set<string>([
+	'cd', 'pushd', 'popd',
+	'export', 'unset', 'set',
+	'source', '.',
+	'eval', 'exec',
+	'time',
+	'sudo', 'doas',
+	'env', // when used as a prefix-only invocation; envs after it are still skipped below
+	'nice', 'ionice',
+	'true', ':',
+]);
+
+/**
+ * Returns the "head" of a shell command — the first *executable* word that
+ * isn't a shell-builtin prefix or env-var assignment. `sub` is the first
  * non-long-flag token after the head, so `git --no-pager diff` yields
  * `{ head: 'git', sub: 'diff' }`. Returns `undefined` when the command can't
  * be parsed.
+ *
+ * Compound commands joined by `|`, `;`, `&&` or `||` are scanned segment by
+ * segment; segments whose head is a shell builtin (e.g. `cd`, `export`) are
+ * skipped so `cd /tmp && git diff` still routes to `{ head: 'git', sub: 'diff' }`.
  */
 export function parseCommandHead(command: string | undefined): { head: string; sub: string | undefined } | undefined {
 	if (!command) {
 		return undefined;
 	}
-	// Take only the first pipeline segment so `git diff | cat` still routes to git.
-	const firstSegment = command.split(/[|;&]/)[0].trim();
-	if (!firstSegment) {
-		return undefined;
-	}
-	const tokens = firstSegment.split(/\s+/).filter(t => !/^[A-Z_][A-Z0-9_]*=/.test(t));
-	const head = tokens[0];
-	if (!head) {
-		return undefined;
-	}
-	// Skip leading long flags like `--no-pager` so `git --no-pager diff` parses
-	// as `{ head: 'git', sub: 'diff' }`. Short flags (`-la`) stay as the sub
-	// because for tools like `ls` they're the entire intent.
-	let sub: string | undefined;
-	for (let i = 1; i < tokens.length; i++) {
-		if (tokens[i].startsWith('--')) {
+	// Split on pipeline / sequence operators. We split on the *single* `&` and
+	// `|` characters too — `&&` and `||` collapse to multiple empty segments
+	// that we filter out below, which is fine for routing purposes.
+	const segments = command.split(/[|;&]/).map(s => s.trim()).filter(s => s.length > 0);
+	for (const segment of segments) {
+		const tokens = segment.split(/\s+/).filter(t => !/^[A-Z_][A-Z0-9_]*=/.test(t));
+		const head = tokens[0];
+		if (!head) {
 			continue;
 		}
-		sub = tokens[i];
-		break;
+		if (SKIPPABLE_HEADS.has(head)) {
+			continue;
+		}
+		// Skip leading long flags like `--no-pager` so `git --no-pager diff` parses
+		// as `{ head: 'git', sub: 'diff' }`. Short flags (`-la`) stay as the sub
+		// because for tools like `ls` they're the entire intent.
+		let sub: string | undefined;
+		for (let i = 1; i < tokens.length; i++) {
+			if (tokens[i].startsWith('--')) {
+				continue;
+			}
+			sub = tokens[i];
+			break;
+		}
+		return { head, sub };
 	}
-	return { head, sub };
+	return undefined;
 }
 
 function isTerminalInput(input: unknown): input is ITerminalInput {
