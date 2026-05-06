@@ -7,7 +7,7 @@ import assert from 'assert';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { isWellKnownModeSchema, SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
-import { SessionConfigPropertySchema } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
+import type { SessionConfigPropertySchema } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { buildModeOptionGroup, getModeIcon, getModeSchemaFingerprint, getSelectedModeOptionItem } from '../../../browser/agentSessions/agentHost/agentHostModeOptionGroup.js';
 
 function modeSchema(overrides: Partial<SessionConfigPropertySchema> = {}): SessionConfigPropertySchema {
