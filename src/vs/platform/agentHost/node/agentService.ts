@@ -19,7 +19,8 @@ import { ServiceCollection } from '../../instantiation/common/serviceCollection.
 import { ILogService } from '../../log/common/log.js';
 import { AgentProvider, AgentSession, IAgent, IAgentCreateSessionConfig, IAgentDispatchOptions, IAgentMaterializeSessionEvent, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult } from '../common/agentService.js';
 import { AgentHostOTelAttr } from '../common/otel/agentHostOTelAttributes.js';
-import { AgentHostSpanStatusCode, IAgentHostOTelService, type AgentHostCompletedSpan, type AgentHostSpanAttributes, type IAgentHostSpanHandle } from '../common/otel/agentHostOTelService.js';
+import { AgentHostOTelTracer, AgentHostVerboseTrace } from '../common/otel/agentHostOTelTracing.js';
+import { AgentHostSpanStatusCode, IAgentHostOTelService, type AgentHostCompletedSpan, type IAgentHostSpanHandle } from '../common/otel/agentHostOTelService.js';
 import { NoopAgentHostOTelService } from '../common/otel/noopAgentHostOTelService.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { ActionType, ActionEnvelope, INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
@@ -94,6 +95,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 * for it.
 	 */
 	private readonly _resourceSubscribers = new ResourceMap<Set<string>>();
+	private readonly _otelTracer: AgentHostOTelTracer;
 
 	/**
 	 * Pending {@link _runSessionGc} timers, keyed by session URI. A timer is
@@ -106,19 +108,6 @@ export class AgentService extends Disposable implements IAgentService {
 	/** Exposes the terminal manager for use by agent providers. */
 	get terminalManager(): IAgentHostTerminalManager { return this._terminalManager; }
 
-	private _startVerboseSpan(name: string, attributes: AgentHostSpanAttributes = {}, parentSpan?: IAgentHostSpanHandle): IAgentHostSpanHandle | undefined {
-		if (!this._agentHostOTelService.config.enabled || !this._agentHostOTelService.config.verboseTracing) {
-			return undefined;
-		}
-		return this._agentHostOTelService.startSpan(name, {
-			parentTraceContext: parentSpan?.getSpanContext(),
-			attributes: {
-				[AgentHostOTelAttr.VERBOSE]: true,
-				...attributes,
-			},
-		});
-	}
-
 	constructor(
 		private readonly _logService: ILogService,
 		private readonly _fileService: IFileService,
@@ -129,6 +118,7 @@ export class AgentService extends Disposable implements IAgentService {
 		private readonly _agentHostOTelService: IAgentHostOTelService = NoopAgentHostOTelService.INSTANCE,
 	) {
 		super();
+		this._otelTracer = new AgentHostOTelTracer(this._agentHostOTelService);
 		this._logService.info('AgentService initialized');
 		this._stateManager = this._register(new AgentHostStateManager(_logService));
 		this._register(this._stateManager.onDidEmitEnvelope(e => this._onDidAction.fire(e)));
@@ -217,45 +207,25 @@ export class AgentService extends Disposable implements IAgentService {
 	// ---- session management -------------------------------------------------
 
 	async listSessions(): Promise<IAgentSessionMetadata[]> {
-		const span = this._startVerboseSpan('vscode_agent_host.list_sessions', {
-			[AgentHostOTelAttr.OPERATION]: 'list_sessions',
-			[AgentHostOTelAttr.PROVIDER]: this._defaultProvider ?? '',
-		});
-		this._logService.trace('[AgentService] listSessions called');
-		try {
-			const providerSpan = this._startVerboseSpan('vscode_agent_host.list_sessions.providers', {
-				[AgentHostOTelAttr.OPERATION]: 'list_sessions.providers',
-				[AgentHostOTelAttr.SESSION_COUNT]: this._providers.size,
-			}, span);
-			let results: IAgentSessionMetadata[][];
-			try {
+		return this._otelTracer.traceVerbose(AgentHostVerboseTrace.ListSessions, async span => {
+			this._logService.trace('[AgentService] listSessions called');
+			const results = await this._otelTracer.traceVerbose(AgentHostVerboseTrace.ListSessionProviders, async providerSpan => {
 				const providerContext = providerSpan?.getSpanContext();
-				results = await Promise.all(
+				return Promise.all(
 					[...this._providers.values()].map(p => providerContext
 						? this._agentHostOTelService.runWithTraceContext(providerContext, () => p.listSessions())
 						: p.listSessions()
 					)
 				);
-				providerSpan?.setStatus(AgentHostSpanStatusCode.OK);
-			} catch (error) {
-				providerSpan?.recordException(error);
-				throw error;
-			} finally {
-				providerSpan?.end();
-			}
+			}, {
+				[AgentHostOTelAttr.SESSION_COUNT]: this._providers.size,
+			}, span);
 			const flat = results.flat();
 			span?.setAttribute(AgentHostOTelAttr.SESSION_COUNT, flat.length);
 
-			// Overlay persisted custom titles from per-session databases.
-			const overlaySpan = this._startVerboseSpan('vscode_agent_host.db.session_metadata_overlay', {
-				[AgentHostOTelAttr.OPERATION]: 'db.session_metadata_overlay',
-				[AgentHostOTelAttr.SESSION_COUNT]: flat.length,
-				[AgentHostOTelAttr.DB_KEY_COUNT]: flat.length * 5,
-			}, span);
 			const overlayStats = { dbHits: 0, failures: 0 };
-			let result: IAgentSessionMetadata[];
-			try {
-				result = await Promise.all(flat.map(async s => {
+			const result = await this._otelTracer.traceVerbose(AgentHostVerboseTrace.SessionMetadataOverlay, async overlaySpan => {
+				const sessions = await Promise.all(flat.map(async s => {
 					try {
 						return await this._readSessionMetadataOverlay(s, overlayStats);
 					} catch (e) {
@@ -269,12 +239,11 @@ export class AgentService extends Disposable implements IAgentService {
 					[AgentHostOTelAttr.FAILURE_COUNT]: overlayStats.failures,
 				});
 				overlaySpan?.setStatus(overlayStats.failures === 0 ? AgentHostSpanStatusCode.OK : AgentHostSpanStatusCode.ERROR);
-			} catch (error) {
-				overlaySpan?.recordException(error);
-				throw error;
-			} finally {
-				overlaySpan?.end();
-			}
+				return sessions;
+			}, {
+				[AgentHostOTelAttr.SESSION_COUNT]: flat.length,
+				[AgentHostOTelAttr.DB_KEY_COUNT]: flat.length * 5,
+			}, span);
 
 			// Overlay live session state from the state manager.
 			// For the title, prefer the state manager's value when it is
@@ -295,14 +264,10 @@ export class AgentService extends Disposable implements IAgentService {
 			});
 
 			this._logService.trace(`[AgentService] listSessions returned ${withStatus.length} sessions`);
-			span?.setStatus(AgentHostSpanStatusCode.OK);
 			return withStatus;
-		} catch (error) {
-			span?.recordException(error);
-			throw error;
-		} finally {
-			span?.end();
-		}
+		}, {
+			[AgentHostOTelAttr.PROVIDER]: this._defaultProvider ?? '',
+		});
 	}
 
 	private async _readSessionMetadataOverlay(session: IAgentSessionMetadata, stats: { dbHits: number }): Promise<IAgentSessionMetadata> {
@@ -347,8 +312,7 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!provider) {
 			throw new Error(`No agent provider registered for: ${providerId ?? '(none)'}`);
 		}
-		const span = this._startVerboseSpan('vscode_agent_host.create_session', {
-			[AgentHostOTelAttr.OPERATION]: 'create_session',
+		const span = this._otelTracer.startVerbose(AgentHostVerboseTrace.CreateSession, {
 			[AgentHostOTelAttr.PROVIDER]: provider.id,
 			[AgentHostOTelAttr.FORK]: config?.fork !== undefined,
 			[AgentHostOTelAttr.ACTIVE_CLIENT]: config?.activeClient !== undefined,
@@ -563,8 +527,7 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	private _persistConfigValues(session: URI, values: Record<string, unknown>, parentSpan?: IAgentHostSpanHandle): void {
-		const span = this._startVerboseSpan('vscode_agent_host.db.persist_config_values', {
-			[AgentHostOTelAttr.OPERATION]: 'db.persist_config_values',
+		const span = this._otelTracer.startVerbose(AgentHostVerboseTrace.PersistConfigValues, {
 			[AgentHostOTelAttr.SESSION_ID]: AgentSession.id(session),
 			[AgentHostOTelAttr.DB_KEY_COUNT]: Object.keys(values).length,
 		}, parentSpan);
@@ -592,8 +555,7 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	private async _resolveCreatedSessionConfig(provider: IAgent, config: IAgentCreateSessionConfig | undefined, parentSpan?: IAgentHostSpanHandle): Promise<SessionConfigState | undefined> {
-		const span = this._startVerboseSpan('vscode_agent_host.resolve_created_session_config', {
-			[AgentHostOTelAttr.OPERATION]: 'resolve_created_session_config',
+		const span = this._otelTracer.startVerbose(AgentHostVerboseTrace.ResolveCreatedSessionConfig, {
 			[AgentHostOTelAttr.PROVIDER]: provider.id,
 			[AgentHostOTelAttr.HAS_INITIAL_CONFIG]: config?.config !== undefined,
 			[AgentHostOTelAttr.HAS_WORKING_DIRECTORY]: config?.workingDirectory !== undefined,

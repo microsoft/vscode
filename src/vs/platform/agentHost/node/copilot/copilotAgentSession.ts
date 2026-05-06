@@ -23,8 +23,9 @@ import { AgentSignal, IAgentAttachment } from '../../common/agentService.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { AgentHostGenAiAttr, AgentHostGenAiOperationName, AgentHostGenAiProviderName, AgentHostOTelAttr, AgentHostStdAttr } from '../../common/otel/agentHostOTelAttributes.js';
 import { truncateForAgentHostOTel } from '../../common/otel/agentHostOTelFormatting.js';
+import { AgentHostOTelTracer, AgentHostSdkTrace } from '../../common/otel/agentHostOTelTracing.js';
 import type { AgentHostTraceContext } from '../../common/otel/agentHostTraceContext.js';
-import { AgentHostSpanStatusCode, IAgentHostOTelService, type AgentHostSpanAttributes, type IAgentHostSpanHandle } from '../../common/otel/agentHostOTelService.js';
+import { AgentHostSpanStatusCode, IAgentHostOTelService, type IAgentHostSpanHandle } from '../../common/otel/agentHostOTelService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
 import type { FileEdit, ToolDefinition } from '../../common/state/protocol/state.js';
@@ -241,6 +242,7 @@ export class CopilotAgentSession extends Disposable {
 	private _activeAgentSpan: IAgentHostSpanHandle | undefined;
 	private readonly _activeToolSpans = new Map<string, IAgentHostSpanHandle>();
 	private readonly _activeHookSpans = new Map<string, IAgentHostSpanHandle>();
+	private readonly _otelTracer: AgentHostOTelTracer;
 	private _agentSpanEndTimer: ReturnType<typeof setTimeout> | undefined;
 
 	constructor(
@@ -261,6 +263,12 @@ export class CopilotAgentSession extends Disposable {
 		this._shellManager = options.shellManager;
 		this._workingDirectory = options.workingDirectory;
 		this._customizationDirectory = options.customizationDirectory;
+		this._otelTracer = new AgentHostOTelTracer(this._agentHostOTelService, {
+			provider: 'copilotcli',
+			sessionId: () => this.sessionId,
+			turnId: () => this._turnId,
+			parentTraceContext: () => this._activeAgentSpan?.getSpanContext(),
+		});
 
 		this._appliedSnapshot = options.clientSnapshot ?? { clientId: '', tools: [], plugins: [] };
 		this._clientToolNames = new Set(this._appliedSnapshot.tools.map(t => t.name));
@@ -520,7 +528,7 @@ export class CopilotAgentSession extends Disposable {
 			const spanContext = span.getSpanContext();
 			const send = async () => {
 				await this.applyMode(mode);
-				await this._traceSdkCall('session.send', 'user_turn', () => this._wrapper.session.send({ prompt, attachments: sdkAttachments }), {
+				await this._otelTracer.traceSdkCall(AgentHostSdkTrace.SessionSendUserTurn, () => this._wrapper.session.send({ prompt, attachments: sdkAttachments }), {
 					[AgentHostOTelAttr.ATTACHMENT_COUNT]: sdkAttachments?.length ?? 0,
 					[AgentHostOTelAttr.PROMPT_LENGTH]: prompt.length,
 				});
@@ -554,7 +562,7 @@ export class CopilotAgentSession extends Disposable {
 			return;
 		}
 		try {
-			await this._traceSdkCall('session.rpc.mode.set', 'apply_chat_mode', () => this._wrapper.session.rpc.mode.set({ mode }), {
+			await this._otelTracer.traceSdkCall(AgentHostSdkTrace.SessionApplyMode, () => this._wrapper.session.rpc.mode.set({ mode }), {
 				[AgentHostOTelAttr.MODE]: mode,
 			});
 			this._lastAppliedMode = mode;
@@ -567,7 +575,7 @@ export class CopilotAgentSession extends Disposable {
 	async sendSteering(steeringMessage: PendingMessage): Promise<void> {
 		this._logService.info(`[Copilot:${this.sessionId}] Sending steering message: "${steeringMessage.userMessage.text.substring(0, 100)}"`);
 		try {
-			await this._traceSdkCall('session.send', 'steering_message', () => this._wrapper.session.send({
+			await this._otelTracer.traceSdkCall(AgentHostSdkTrace.SessionSendSteering, () => this._wrapper.session.send({
 				prompt: steeringMessage.userMessage.text,
 				mode: 'immediate',
 			}), {
@@ -642,35 +650,8 @@ export class CopilotAgentSession extends Disposable {
 		}
 	}
 
-	private async _traceSdkCall<T>(call: string, reason: string, fn: () => Promise<T>, attributes: AgentHostSpanAttributes = {}): Promise<T> {
-		const span = this._agentHostOTelService.config.enabled && this._agentHostOTelService.config.verboseTracing
-			? this._agentHostOTelService.startSpan(`vscode_agent_host.sdk.${call}`, {
-				parentTraceContext: this._activeAgentSpan?.getSpanContext(),
-				attributes: {
-					[AgentHostOTelAttr.VERBOSE]: true,
-					[AgentHostOTelAttr.OPERATION]: `sdk.${call}`,
-					[AgentHostOTelAttr.SDK_CALL]: call,
-					[AgentHostOTelAttr.SDK_REASON]: reason,
-					[AgentHostOTelAttr.SESSION_ID]: this.sessionId,
-					[AgentHostOTelAttr.TURN_ID]: this._turnId,
-					...attributes,
-				},
-			})
-			: undefined;
-		try {
-			const result = await fn();
-			span?.setStatus(AgentHostSpanStatusCode.OK);
-			return result;
-		} catch (error) {
-			span?.recordException(error);
-			throw error;
-		} finally {
-			span?.end();
-		}
-	}
-
 	async getMessages(): Promise<readonly Turn[]> {
-		const events = await this._traceSdkCall('session.get_messages', 'read_session_history', () => this._wrapper.session.getMessages());
+		const events = await this._otelTracer.traceSdkCall(AgentHostSdkTrace.SessionGetMessages, () => this._wrapper.session.getMessages());
 		let db: ISessionDatabase | undefined;
 		try {
 			db = this._databaseRef.object;
@@ -682,7 +663,7 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	async getSubagentMessages(parentToolCallId: string, childSessionUri: string): Promise<readonly Turn[]> {
-		const events = await this._traceSdkCall('session.get_messages', 'read_subagent_history', () => this._wrapper.session.getMessages(), {
+		const events = await this._otelTracer.traceSdkCall(AgentHostSdkTrace.SessionGetSubagentMessages, () => this._wrapper.session.getMessages(), {
 			[AgentHostGenAiAttr.TOOL_CALL_ID]: parentToolCallId,
 		});
 		let db: ISessionDatabase | undefined;
@@ -698,7 +679,7 @@ export class CopilotAgentSession extends Disposable {
 	async abort(): Promise<void> {
 		this._logService.info(`[Copilot:${this.sessionId}] Aborting session...`);
 		this._denyPendingPermissions();
-		await this._traceSdkCall('session.abort', 'cancel_turn', () => this._wrapper.session.abort());
+		await this._otelTracer.traceSdkCall(AgentHostSdkTrace.SessionAbort, () => this._wrapper.session.abort());
 	}
 
 	/**
@@ -708,12 +689,12 @@ export class CopilotAgentSession extends Disposable {
 	 * truncation or fork operations that modify the session files).
 	 */
 	async destroySession(): Promise<void> {
-		await this._traceSdkCall('session.destroy', 'dispose_session', () => this._wrapper.session.destroy());
+		await this._otelTracer.traceSdkCall(AgentHostSdkTrace.SessionDestroy, () => this._wrapper.session.destroy());
 	}
 
 	async setModel(model: string, reasoningEffort?: SessionConfig['reasoningEffort']): Promise<void> {
 		this._logService.info(`[Copilot:${this.sessionId}] Changing model to: ${model}`);
-		await this._traceSdkCall('session.set_model', 'change_model', () => this._wrapper.session.setModel(model, { reasoningEffort }), {
+		await this._otelTracer.traceSdkCall(AgentHostSdkTrace.SessionSetModel, () => this._wrapper.session.setModel(model, { reasoningEffort }), {
 			[AgentHostOTelAttr.HAS_MODEL]: true,
 		});
 	}
@@ -1535,7 +1516,7 @@ export class CopilotAgentSession extends Disposable {
 		// Resolve the plan file path so we can embed a markdown link.
 		let planPath: string | null = null;
 		try {
-			const planRead = await this._traceSdkCall('session.rpc.plan.read', 'exit_plan_mode_request', () => this._wrapper.session.rpc.plan.read());
+			const planRead = await this._otelTracer.traceSdkCall(AgentHostSdkTrace.SessionReadPlan, () => this._wrapper.session.rpc.plan.read());
 			planPath = planRead.path ?? null;
 		} catch (err) {
 			this._logService.warn(`[Copilot:${this.sessionId}] rpc.plan.read failed for exit_plan_mode: ${err instanceof Error ? err.message : String(err)}`);
@@ -1790,7 +1771,7 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	async truncateAtEventId(eventId: string, keepTurnId?: string): Promise<void> {
 		this._logService.info(`[Copilot:${this.sessionId}] Truncating via SDK RPC at eventId=${eventId}`);
-		const result = await this._traceSdkCall('session.rpc.history.truncate', 'truncate_session_history', () => this._wrapper.session.rpc.history.truncate({ eventId }), {
+		const result = await this._otelTracer.traceSdkCall(AgentHostSdkTrace.SessionTruncateHistory, () => this._wrapper.session.rpc.history.truncate({ eventId }), {
 			[AgentHostOTelAttr.TURN_ID]: keepTurnId ?? this._turnId,
 		});
 		this._logService.info(`[Copilot:${this.sessionId}] SDK truncation removed ${result.eventsRemoved} events`);

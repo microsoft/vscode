@@ -27,8 +27,9 @@ import { AutoApproveLevel, ISchemaProperty, SessionMode, createSchema, platformS
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE, IAgent, IAgentAttachment, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSessionProjectInfo } from '../../common/agentService.js';
 import { AgentHostOTelAttr } from '../../common/otel/agentHostOTelAttributes.js';
+import { AgentHostOTelTracer, AgentHostSdkTrace, AgentHostVerboseTrace } from '../../common/otel/agentHostOTelTracing.js';
 import { formatTraceParent, type AgentHostTraceContext } from '../../common/otel/agentHostTraceContext.js';
-import { AgentHostSpanStatusCode, IAgentHostOTelService, type AgentHostSpanAttributes, type IAgentHostSpanHandle } from '../../common/otel/agentHostOTelService.js';
+import { AgentHostSpanStatusCode, IAgentHostOTelService, type IAgentHostSpanHandle } from '../../common/otel/agentHostOTelService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ISessionDataService, SESSION_DB_FILENAME } from '../../common/sessionDataService.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
@@ -284,6 +285,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private readonly _sessionSequencer = new SequencerByKey<string>();
 	private _shutdownPromise: Promise<void> | undefined;
 	private readonly _plugins: PluginController;
+	private readonly _otelTracer: AgentHostOTelTracer;
 	readonly onDidCustomizationsChange: Event<void>;
 	/** Per-session active client state for tools + plugin snapshot tracking. */
 	private readonly _activeClients = new ResourceMap<ActiveClient>();
@@ -299,45 +301,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 		@IAgentHostOTelService private readonly _agentHostOTelService: IAgentHostOTelService,
 	) {
 		super();
+		this._otelTracer = new AgentHostOTelTracer(this._agentHostOTelService, { provider: this.id });
 		this._plugins = this._register(this._instantiationService.createInstance(PluginController));
 		this.onDidCustomizationsChange = this._plugins.onDidChange;
 	}
 
 	protected _createCopilotClient(options: CopilotClientOptions): ICopilotClient {
 		return new CopilotClient(options);
-	}
-
-	private _startVerboseSpan(name: string, attributes: AgentHostSpanAttributes = {}, parentSpan?: IAgentHostSpanHandle): IAgentHostSpanHandle | undefined {
-		if (!this._agentHostOTelService.config.enabled || !this._agentHostOTelService.config.verboseTracing) {
-			return undefined;
-		}
-		return this._agentHostOTelService.startSpan(name, {
-			parentTraceContext: parentSpan?.getSpanContext(),
-			attributes: {
-				[AgentHostOTelAttr.VERBOSE]: true,
-				[AgentHostOTelAttr.PROVIDER]: this.id,
-				...attributes,
-			},
-		});
-	}
-
-	private async _traceSdkCall<T>(call: string, reason: string, fn: () => Promise<T>, attributes: AgentHostSpanAttributes = {}, parentSpan?: IAgentHostSpanHandle): Promise<T> {
-		const span = this._startVerboseSpan(`vscode_agent_host.sdk.${call}`, {
-			[AgentHostOTelAttr.OPERATION]: `sdk.${call}`,
-			[AgentHostOTelAttr.SDK_CALL]: call,
-			[AgentHostOTelAttr.SDK_REASON]: reason,
-			...attributes,
-		}, parentSpan);
-		try {
-			const result = await fn();
-			span?.setStatus(AgentHostSpanStatusCode.OK);
-			return result;
-		} catch (error) {
-			span?.recordException(error);
-			throw error;
-		} finally {
-			span?.end();
-		}
 	}
 
 	// ---- auth ---------------------------------------------------------------
@@ -531,9 +501,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 			if (this._agentHostOTelService.config.enabled) {
 				this._logService.info(`[Copilot] SDK OTel enabled: endpoint=${toCopilotSdkOtlpEndpoint(this._agentHostOTelService.config.otlpEndpoint) ?? '<default>'}, captureContent=${this._agentHostOTelService.config.captureContent}`);
 			}
-			await this._traceSdkCall('client.start', 'ensure_client', () => client.start());
+			await this._otelTracer.traceSdkCall(AgentHostSdkTrace.ClientStart, () => client.start());
 			if (this._githubToken !== tokenAtStartup) {
-				await this._traceSdkCall('client.stop', 'authentication_changed_during_start', () => client.stop());
+				await this._otelTracer.traceSdkCall(AgentHostSdkTrace.ClientStopAuthenticationChanged, () => client.stop());
 				throw new Error('Copilot authentication changed while the client was starting');
 			}
 			this._logService.info('[Copilot] CopilotClient started successfully');
@@ -647,24 +617,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	async listSessions(): Promise<IAgentSessionMetadata[]> {
-		const span = this._startVerboseSpan('vscode_agent_host.copilot.list_sessions', {
-			[AgentHostOTelAttr.OPERATION]: 'copilot.list_sessions',
-		});
-		this._logService.info('[Copilot] Listing sessions...');
-		try {
+		return this._otelTracer.traceVerbose(AgentHostVerboseTrace.CopilotListSessions, async span => {
+			this._logService.info('[Copilot] Listing sessions...');
 			const client = await this._ensureClient();
-			const sessions = await this._traceSdkCall('client.list_sessions', 'provider_list_sessions', () => client.listSessions(), {}, span);
+			const sessions = await this._otelTracer.traceSdkCall(AgentHostSdkTrace.ClientListSessions, () => client.listSessions(), {}, span);
 			span?.setAttribute(AgentHostOTelAttr.SESSION_COUNT, sessions.length);
 			const projectLimiter = new Limiter<IAgentSessionProjectInfo | undefined>(4);
 			const projectByContext = new Map<string, Promise<IAgentSessionProjectInfo | undefined>>();
-			const metadataSpan = this._startVerboseSpan('vscode_agent_host.db.read_stored_session_metadata_batch', {
-				[AgentHostOTelAttr.OPERATION]: 'db.read_stored_session_metadata_batch',
-				[AgentHostOTelAttr.SESSION_COUNT]: sessions.length,
-				[AgentHostOTelAttr.DB_KEY_COUNT]: sessions.length * 6,
-			}, span);
-			let mapped: (IAgentSessionMetadata | undefined)[];
-			try {
-				mapped = await Promise.all(sessions.map(async s => {
+			const mapped = await this._otelTracer.traceVerbose(AgentHostVerboseTrace.ReadStoredSessionMetadataBatch, async () => {
+				return Promise.all(sessions.map(async s => {
 					const session = AgentSession.uri(this.id, s.sessionId);
 					const metadata = await this._readStoredSessionMetadata(session, undefined, false);
 					if (!metadata) {
@@ -688,44 +649,29 @@ export class CopilotAgent extends Disposable implements IAgent {
 					};
 					return result;
 				}));
-				metadataSpan?.setStatus(AgentHostSpanStatusCode.OK);
-			} catch (error) {
-				metadataSpan?.recordException(error);
-				throw error;
-			} finally {
-				metadataSpan?.end();
-			}
+			}, {
+				[AgentHostOTelAttr.SESSION_COUNT]: sessions.length,
+				[AgentHostOTelAttr.DB_KEY_COUNT]: sessions.length * 6,
+			}, span);
 			const result = mapped.filter((s): s is IAgentSessionMetadata => s !== undefined);
 			this._logService.info(`[Copilot] Found ${result.length} sessions`);
-			span?.setStatus(AgentHostSpanStatusCode.OK);
 			return result;
-		} catch (error) {
-			span?.recordException(error);
-			throw error;
-		} finally {
-			span?.end();
-		}
+		});
 	}
 
 	async getSessionMetadata(session: URI): Promise<IAgentSessionMetadata | undefined> {
 		const sessionId = AgentSession.id(session);
-		const span = this._startVerboseSpan('vscode_agent_host.copilot.get_session_metadata', {
-			[AgentHostOTelAttr.OPERATION]: 'copilot.get_session_metadata',
-			[AgentHostOTelAttr.SESSION_ID]: sessionId,
-		});
-		try {
+		return this._otelTracer.traceVerbose(AgentHostVerboseTrace.CopilotGetSessionMetadata, async span => {
 			const storedMetadata = await this._readStoredSessionMetadata(session);
 			if (!storedMetadata) {
-				span?.setStatus(AgentHostSpanStatusCode.OK);
 				return undefined;
 			}
 
 			const client = await this._ensureClient();
-			const sessionMetadata = await this._traceSdkCall('client.get_session_metadata', 'provider_get_session_metadata', () => client.getSessionMetadata(sessionId), {
+			const sessionMetadata = await this._otelTracer.traceSdkCall(AgentHostSdkTrace.ClientGetSessionMetadata, () => client.getSessionMetadata(sessionId), {
 				[AgentHostOTelAttr.SESSION_ID]: sessionId,
 			}, span);
 			if (!sessionMetadata) {
-				span?.setStatus(AgentHostSpanStatusCode.OK);
 				return undefined;
 			}
 
@@ -737,7 +683,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 
 			const workingDirectory = storedMetadata?.workingDirectory ?? (typeof sessionMetadata?.context?.cwd === 'string' ? URI.file(sessionMetadata.context.cwd) : undefined);
-			span?.setStatus(AgentHostSpanStatusCode.OK);
 			return {
 				session,
 				startTime: sessionMetadata?.startTime.getTime() ?? Date.now(),
@@ -748,22 +693,16 @@ export class CopilotAgent extends Disposable implements IAgent {
 				workingDirectory,
 				customizationDirectory: storedMetadata?.customizationDirectory,
 			};
-		} catch (error) {
-			span?.recordException(error);
-			throw error;
-		} finally {
-			span?.end();
-		}
+		}, {
+			[AgentHostOTelAttr.SESSION_ID]: sessionId,
+		});
 	}
 
 	private async _listModels(): Promise<IAgentModelInfo[]> {
-		const span = this._startVerboseSpan('vscode_agent_host.copilot.list_models', {
-			[AgentHostOTelAttr.OPERATION]: 'copilot.list_models',
-		});
-		this._logService.info('[Copilot] Listing models...');
-		try {
+		return this._otelTracer.traceVerbose(AgentHostVerboseTrace.CopilotListModels, async span => {
+			this._logService.info('[Copilot] Listing models...');
 			const client = await this._ensureClient();
-			const models = await this._traceSdkCall('client.list_models', 'provider_list_models', () => client.listModels(), {}, span);
+			const models = await this._otelTracer.traceSdkCall(AgentHostSdkTrace.ClientListModels, () => client.listModels(), {}, span);
 			const result = models.map((m): IAgentModelInfo => ({
 				provider: this.id,
 				id: m.id,
@@ -776,14 +715,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 				policyState: m.policy?.state as PolicyState | undefined,
 			}));
 			this._logService.info(`[Copilot] Found ${result.length} models`);
-			span?.setStatus(AgentHostSpanStatusCode.OK);
 			return result;
-		} catch (error) {
-			span?.recordException(error);
-			throw error;
-		} finally {
-			span?.end();
-		}
+		});
 	}
 
 	async createSession(config?: IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult> {
@@ -813,7 +746,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				// If there's no next turn, omit toEventId to include all events.
 				const toEventId = await sourceEntry.getNextTurnEventId(config.fork!.turnId);
 
-				const forkResult = await this._traceSdkCall('client.rpc.sessions.fork', 'fork_session', () => client.rpc.sessions.fork({
+				const forkResult = await this._otelTracer.traceSdkCall(AgentHostSdkTrace.ClientForkSession, () => client.rpc.sessions.fork({
 					sessionId: sourceSessionId,
 					...(toEventId ? { toEventId } : {}),
 				}), {
@@ -943,8 +876,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (!provisional) {
 			throw new Error(`Cannot materialize unknown provisional session: ${sessionId}`);
 		}
-		const span = this._startVerboseSpan('vscode_agent_host.materialize_provisional', {
-			[AgentHostOTelAttr.OPERATION]: 'materialize_provisional',
+		const span = this._otelTracer.startVerbose(AgentHostVerboseTrace.MaterializeProvisional, {
 			[AgentHostOTelAttr.SESSION_ID]: sessionId,
 			[AgentHostOTelAttr.PROVISIONAL]: true,
 			[AgentHostOTelAttr.HAS_MODEL]: provisional.model !== undefined,
@@ -977,7 +909,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const sessionConfigBuilder = this._buildSessionConfig(snapshot, shellManager);
 
 			const factory: SessionWrapperFactory = async callbacks => {
-				const raw = await this._traceSdkCall('client.create_session', 'materialize_provisional', async () => client.createSession({
+				const raw = await this._otelTracer.traceSdkCall(AgentHostSdkTrace.ClientCreateSessionForMaterialization, async () => client.createSession({
 					model: provisional.model?.id,
 					reasoningEffort: this._getReasoningEffort(provisional.model),
 					sessionId,
@@ -1563,7 +1495,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const customizationDirectory = storedMetadata.customizationDirectory ?? storedMetadata.workingDirectory;
 		const activeClient = this._activeClients.get(sessionUri);
 		const snapshot = activeClient ? await activeClient.snapshot(customizationDirectory) : undefined;
-		const sessionMetadata = await this._traceSdkCall('client.get_session_metadata', 'resume_session_metadata_lookup', () => client.getSessionMetadata(sessionId), {
+		const sessionMetadata = await this._otelTracer.traceSdkCall(AgentHostSdkTrace.ClientGetSessionMetadataForResume, () => client.getSessionMetadata(sessionId), {
 			[AgentHostOTelAttr.SESSION_ID]: sessionId,
 		}).catch(err => {
 			this._logService.warn(`[Copilot:${sessionId}] getSessionMetadata failed`, err);
@@ -1581,7 +1513,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const config = await sessionConfig(callbacks);
 			try {
 				this._logService.info(`[Copilot:${sessionId}] Calling SDK resumeSession...`);
-				const raw = await this._traceSdkCall('client.resume_session', 'resume_cached_session', () => client.resumeSession(sessionId, {
+				const raw = await this._otelTracer.traceSdkCall(AgentHostSdkTrace.ClientResumeSession, () => client.resumeSession(sessionId, {
 					...config,
 					workingDirectory: workingDirectory?.fsPath,
 				}), {
@@ -1602,7 +1534,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				}
 
 				this._logService.warn(`[Copilot:${sessionId}] Resume failed (code=-32603), falling back to createSession with same ID`);
-				const raw = await this._traceSdkCall('client.create_session', 'resume_fallback_after_empty_session', () => client.createSession({
+				const raw = await this._otelTracer.traceSdkCall(AgentHostSdkTrace.ClientCreateSessionForResumeFallback, () => client.createSession({
 					...config,
 					sessionId,
 					streaming: true,
@@ -1740,8 +1672,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private async _storeSessionMetadata(session: URI, model: ModelSelection | undefined, workingDirectory: URI | undefined, customizationDirectory: URI | undefined, project: IAgentSessionProjectInfo | undefined, projectResolved = project !== undefined, parentSpan?: IAgentHostSpanHandle): Promise<void> {
-		const span = this._startVerboseSpan('vscode_agent_host.db.store_session_metadata', {
-			[AgentHostOTelAttr.OPERATION]: 'db.store_session_metadata',
+		const span = this._otelTracer.startVerbose(AgentHostVerboseTrace.StoreSessionMetadata, {
 			[AgentHostOTelAttr.SESSION_ID]: AgentSession.id(session),
 			[AgentHostOTelAttr.HAS_MODEL]: model !== undefined,
 			[AgentHostOTelAttr.HAS_WORKING_DIRECTORY]: workingDirectory !== undefined,
@@ -1780,8 +1711,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private async _readSessionMetadata(session: URI): Promise<{ model?: ModelSelection; workingDirectory?: URI; customizationDirectory?: URI }> {
-		const span = this._startVerboseSpan('vscode_agent_host.db.read_session_metadata', {
-			[AgentHostOTelAttr.OPERATION]: 'db.read_session_metadata',
+		const span = this._otelTracer.startVerbose(AgentHostVerboseTrace.ReadSessionMetadata, {
 			[AgentHostOTelAttr.SESSION_ID]: AgentSession.id(session),
 			[AgentHostOTelAttr.DB_KEY_COUNT]: 3,
 		});
@@ -1815,8 +1745,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private async _readStoredSessionMetadata(session: URI, parentSpan?: IAgentHostSpanHandle, emitSpan = true): Promise<{ model?: ModelSelection; workingDirectory?: URI; customizationDirectory?: URI; project?: IAgentSessionProjectInfo; resolved: boolean } | undefined> {
-		const span = emitSpan ? this._startVerboseSpan('vscode_agent_host.db.read_stored_session_metadata', {
-			[AgentHostOTelAttr.OPERATION]: 'db.read_stored_session_metadata',
+		const span = emitSpan ? this._otelTracer.startVerbose(AgentHostVerboseTrace.ReadStoredSessionMetadata, {
 			[AgentHostOTelAttr.SESSION_ID]: AgentSession.id(session),
 			[AgentHostOTelAttr.DB_KEY_COUNT]: 6,
 		}, parentSpan) : undefined;

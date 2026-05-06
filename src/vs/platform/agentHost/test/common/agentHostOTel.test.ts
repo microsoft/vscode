@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { AgentHostGenAiAttr, AgentHostGenAiOperationName, AgentHostSpanStatusCode, InMemoryAgentHostOTelService, NoopAgentHostOTelService, formatTraceParent, parseTraceParent, truncateForAgentHostOTel } from '../../common/otel/index.js';
+import { AgentHostGenAiAttr, AgentHostGenAiOperationName, AgentHostOTelAttr, AgentHostOTelTracer, AgentHostSdkTrace, AgentHostSpanStatusCode, InMemoryAgentHostOTelService, NoopAgentHostOTelService, formatTraceParent, parseTraceParent, truncateForAgentHostOTel } from '../../common/otel/index.js';
 
 suite('Agent Host OTel', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -139,5 +139,72 @@ suite('Agent Host OTel', () => {
 			observed: traceContext,
 			after: undefined,
 		});
+	});
+
+	test('tracer emits typed SDK spans with context attributes', async () => {
+		const service = disposables.add(new InMemoryAgentHostOTelService({
+			enabled: true,
+			verboseTracing: true,
+			captureContent: false,
+			maxAttributeSizeChars: 0,
+		}));
+		const completed: Array<{ name: string; spanId: string; parentSpanId: string | undefined; attributes: Record<string, unknown>; status: AgentHostSpanStatusCode }> = [];
+		disposables.add(service.onDidCompleteSpan(span => completed.push({
+			name: span.name,
+			spanId: span.spanId,
+			parentSpanId: span.parentSpanId,
+			attributes: span.attributes,
+			status: span.status.code,
+		})));
+
+		await service.startActiveSpan('parent', {}, async parent => {
+			const tracer = new AgentHostOTelTracer(service, {
+				provider: 'copilotcli',
+				sessionId: 'session-1',
+				turnId: () => 'turn-1',
+				parentTraceContext: () => parent.getSpanContext(),
+			});
+			await tracer.traceSdkCall(AgentHostSdkTrace.SessionSendUserTurn, async () => undefined, {
+				[AgentHostOTelAttr.PROMPT_LENGTH]: 5,
+			});
+		});
+
+		assert.deepStrictEqual(completed.map(span => ({
+			name: span.name,
+			parentSpanId: span.parentSpanId,
+			provider: span.attributes[AgentHostOTelAttr.PROVIDER],
+			sessionId: span.attributes[AgentHostOTelAttr.SESSION_ID],
+			turnId: span.attributes[AgentHostOTelAttr.TURN_ID],
+			operation: span.attributes[AgentHostOTelAttr.OPERATION],
+			sdkCall: span.attributes[AgentHostOTelAttr.SDK_CALL],
+			sdkReason: span.attributes[AgentHostOTelAttr.SDK_REASON],
+			promptLength: span.attributes[AgentHostOTelAttr.PROMPT_LENGTH],
+			status: span.status,
+		})), [
+			{
+				name: 'vscode_agent_host.sdk.session.send',
+				parentSpanId: completed[1].spanId,
+				provider: 'copilotcli',
+				sessionId: 'session-1',
+				turnId: 'turn-1',
+				operation: 'sdk.session.send',
+				sdkCall: 'session.send',
+				sdkReason: 'user_turn',
+				promptLength: 5,
+				status: AgentHostSpanStatusCode.OK,
+			},
+			{
+				name: 'parent',
+				parentSpanId: undefined,
+				provider: undefined,
+				sessionId: undefined,
+				turnId: undefined,
+				operation: undefined,
+				sdkCall: undefined,
+				sdkReason: undefined,
+				promptLength: undefined,
+				status: AgentHostSpanStatusCode.OK,
+			},
+		]);
 	});
 });
