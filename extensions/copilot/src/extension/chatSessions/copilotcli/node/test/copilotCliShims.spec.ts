@@ -77,9 +77,12 @@ describe('Copilot CLI shims', () => {
 		);
 	}
 
-	it('creates ripgrep and node-pty shims before SDK import', async () => {
+	it('creates runtime ripgrep and node-pty shims for separate extension installs before SDK import', async () => {
 		const extensionPath = join(testDir, 'extension');
 		const vscodeAppRoot = join(testDir, 'app');
+		// Marketplace/VSIX installs live outside VS Code's app tree. In that route the SDK
+		// cannot rely on the built-in extension packaging marker, so runtime setup copies
+		// both native dependencies from VS Code's appRoot into the extension's SDK layout.
 		const ripgrepSourceDir = join(vscodeAppRoot, 'node_modules', '@vscode', 'ripgrep', 'bin');
 		const nodePtySourceDir = join(vscodeAppRoot, 'node_modules', 'node-pty', 'prebuilds', process.platform + '-' + process.arch);
 		await mkdir(ripgrepSourceDir, { recursive: true });
@@ -98,10 +101,13 @@ describe('Copilot CLI shims', () => {
 		await expect(readFile(join(sdkNodePtyDir, 'spawn-helper'), 'utf8')).resolves.toBe('spawn-helper');
 	});
 
-	it('skips shim creation for bundled installs when shims.txt already exists', async () => {
+	it('skips runtime node-pty shimming for bundled installs when shims.txt already exists', async () => {
 		const extensionPath = join(testDir, 'extension');
 		const vscodeAppRoot = join(testDir, 'app');
 		const placeholder = join(extensionPath, 'node_modules', '@github', 'copilot', 'shims.txt');
+		// Built-in packaging materializes only the ripgrep shim and writes this marker.
+		// Runtime ensureShims then returns before copying node-pty; the bundled/core route
+		// resolves node-pty from VS Code's own app tree instead of an SDK prebuild copy.
 		await mkdir(join(extensionPath, 'node_modules', '@github', 'copilot'), { recursive: true });
 		await writeFile(placeholder, 'already created');
 
