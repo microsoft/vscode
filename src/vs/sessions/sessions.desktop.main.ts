@@ -182,10 +182,6 @@ import '../workbench/contrib/multiDiffEditor/browser/multiDiffEditor.contributio
 // Remote Tunnel
 import '../workbench/contrib/remoteTunnel/electron-browser/remoteTunnel.contribution.js';
 
-// Chat
-import './contrib/agentFeedback/browser/agentFeedback.contribution.js';
-import './contrib/chat/electron-browser/openInVSCode.contribution.js';
-
 // Encryption
 import '../workbench/contrib/encryption/electron-browser/encryption.contribution.js';
 
@@ -203,6 +199,7 @@ import '../workbench/contrib/policyExport/electron-browser/policyExport.contribu
 
 //#region --- sessions contributions
 
+import './electron-browser/sessions.desktop.contribution.js';
 import './services/vscode/electron-browser/themeImporterService.js';
 
 // Remote Agent Host
@@ -213,6 +210,10 @@ import './contrib/remoteAgentHost/electron-browser/tunnelAgentHostService.js';
 import './contrib/remoteAgentHost/browser/remoteAgentHost.contribution.js';
 import './contrib/remoteAgentHost/browser/remoteAgentHostTerminal.contribution.js';
 import './contrib/remoteAgentHost/browser/tunnelAgentHost.contribution.js';
+
+// Chat
+import './contrib/agentFeedback/browser/agentFeedback.contribution.js';
+import './contrib/chat/electron-browser/chat.contribution.js';
 
 // Local Agent Host
 import './contrib/agentHost/browser/localAgentHost.contribution.js';

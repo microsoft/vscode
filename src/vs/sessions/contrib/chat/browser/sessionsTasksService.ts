@@ -62,7 +62,7 @@ interface ITasksJson {
 	tasks?: ITaskEntry[];
 }
 
-export interface ISessionsConfigurationService {
+export interface ISessionsTasksService {
 	readonly _serviceBrand: undefined;
 
 	/**
@@ -118,9 +118,9 @@ export interface ISessionsConfigurationService {
 	setPinnedTaskLabel(repository: URI | undefined, taskLabel: string | undefined): void;
 }
 
-export const ISessionsConfigurationService = createDecorator<ISessionsConfigurationService>('sessionsConfigurationService');
+export const ISessionsTasksService = createDecorator<ISessionsTasksService>('sessionsTasksService');
 
-export class SessionsConfigurationService extends Disposable implements ISessionsConfigurationService {
+export class SessionsTasksService extends Disposable implements ISessionsTasksService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -146,11 +146,8 @@ export class SessionsConfigurationService extends Disposable implements ISession
 	}
 
 	getSessionTasks(session: ISession): IObservable<readonly ISessionTaskWithTarget[]> {
-		const repo = this._getSessionRepo(session);
-		const folder = repo?.workingDirectory ?? repo?.uri;
-		if (folder) {
-			this._ensureFileWatch(folder);
-		}
+		const folder = this._getSessionFolder(session);
+		this._ensureFileWatch(folder);
 		// Trigger initial read only when the folder changes; the file watcher handles subsequent updates
 		if (!isEqual(this._lastRefreshedFolder, folder)) {
 			this._lastRefreshedFolder = folder;
@@ -353,13 +350,30 @@ export class SessionsConfigurationService extends Disposable implements ISession
 		return session.workspace.get()?.repositories[0];
 	}
 
+	private _getSessionFolder(session: ISession): URI | undefined {
+		const repo = this._getSessionRepo(session);
+		return repo?.workingDirectory ?? repo?.uri;
+	}
+
 	private _getTasksJsonUri(session: ISession, target: TaskStorageTarget): URI | undefined {
 		if (target === 'workspace') {
-			const repo = this._getSessionRepo(session);
-			const folder = repo?.workingDirectory ?? repo?.uri;
-			return folder ? joinPath(folder, '.vscode', 'tasks.json') : undefined;
+			return this._getWorkspaceTasksJsonUri(this._getSessionFolder(session));
 		}
-		return joinPath(dirname(this._preferencesService.userSettingsResource), 'tasks.json');
+		return this._getUserTasksJsonUri();
+	}
+
+	private _getWorkspaceTasksJsonUri(folder: URI | undefined): URI | undefined {
+		return folder?.path ? joinPath(folder, '.vscode', 'tasks.json') : undefined;
+	}
+
+	private _getUserTasksJsonUri(): URI | undefined {
+		const userSettingsResource = this._preferencesService.userSettingsResource;
+		if (!userSettingsResource.path) {
+			return undefined;
+		}
+
+		const userSettingsFolder = dirname(userSettingsResource);
+		return userSettingsFolder.path ? joinPath(userSettingsFolder, 'tasks.json') : undefined;
 	}
 
 	private async _readTasksJson(uri: URI): Promise<ITasksJson> {
@@ -375,8 +389,14 @@ export class SessionsConfigurationService extends Disposable implements ISession
 		return !!task.label;
 	}
 
-	private _ensureFileWatch(folder: URI): void {
-		const tasksUri = joinPath(folder, '.vscode', 'tasks.json');
+	private _ensureFileWatch(folder: URI | undefined): void {
+		const tasksUri = this._getWorkspaceTasksJsonUri(folder);
+		if (!tasksUri) {
+			this._watchedResource = undefined;
+			this._fileWatcher.clear();
+			return;
+		}
+
 		if (this._watchedResource && this._watchedResource.toString() === tasksUri.toString()) {
 			return;
 		}
@@ -388,11 +408,13 @@ export class SessionsConfigurationService extends Disposable implements ISession
 		disposables.add(this._fileService.watch(tasksUri));
 
 		// Also watch user-level tasks.json so that user session tasks changes refresh the observable
-		const userUri = joinPath(dirname(this._preferencesService.userSettingsResource), 'tasks.json');
-		disposables.add(this._fileService.watch(userUri));
+		const userUri = this._getUserTasksJsonUri();
+		if (userUri) {
+			disposables.add(this._fileService.watch(userUri));
+		}
 
 		disposables.add(this._fileService.onDidFilesChange(e => {
-			if (e.affects(tasksUri) || e.affects(userUri)) {
+			if (e.affects(tasksUri) || (userUri && e.affects(userUri))) {
 				this._refreshSessionTasks(folder);
 			}
 		}));
@@ -406,15 +428,15 @@ export class SessionsConfigurationService extends Disposable implements ISession
 			return;
 		}
 
-		const tasksUri = joinPath(folder, '.vscode', 'tasks.json');
-		const tasksJson = await this._readTasksJson(tasksUri);
+		const tasksUri = this._getWorkspaceTasksJsonUri(folder);
+		const tasksJson = tasksUri ? await this._readTasksJson(tasksUri) : {};
 		const sessionTasks: ISessionTaskWithTarget[] = (tasksJson.tasks ?? [])
 			.filter(t => t.inAgents && this._isSupportedTask(t))
 			.map(t => ({ task: t, target: 'workspace' as TaskStorageTarget }));
 
 		// Also include user-level session tasks
-		const userUri = joinPath(dirname(this._preferencesService.userSettingsResource), 'tasks.json');
-		const userJson = await this._readTasksJson(userUri);
+		const userUri = this._getUserTasksJsonUri();
+		const userJson = userUri ? await this._readTasksJson(userUri) : {};
 		const userSessionTasks: ISessionTaskWithTarget[] = (userJson.tasks ?? [])
 			.filter(t => t.inAgents && this._isSupportedTask(t))
 			.map(t => ({ task: t, target: 'user' as TaskStorageTarget }));
@@ -423,7 +445,7 @@ export class SessionsConfigurationService extends Disposable implements ISession
 	}
 
 	private _loadPinnedTaskLabels(): Map<string, string> {
-		const raw = this._storageService.get(SessionsConfigurationService._PINNED_TASK_LABELS_KEY, StorageScope.APPLICATION);
+		const raw = this._storageService.get(SessionsTasksService._PINNED_TASK_LABELS_KEY, StorageScope.APPLICATION);
 		if (raw) {
 			try {
 				return new Map(Object.entries(JSON.parse(raw)));
@@ -436,7 +458,7 @@ export class SessionsConfigurationService extends Disposable implements ISession
 
 	private _savePinnedTaskLabels(): void {
 		this._storageService.store(
-			SessionsConfigurationService._PINNED_TASK_LABELS_KEY,
+			SessionsTasksService._PINNED_TASK_LABELS_KEY,
 			JSON.stringify(Object.fromEntries(this._pinnedTaskLabels)),
 			StorageScope.APPLICATION,
 			StorageTarget.USER

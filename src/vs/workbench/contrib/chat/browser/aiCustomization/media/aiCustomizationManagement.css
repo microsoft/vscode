@@ -41,7 +41,7 @@
 	display: flex;
 	align-items: center;
 	gap: 10px;
-	padding: 4px 8px;
+	padding: 5px 8px;
 	border: none;
 	border-radius: 4px;
 	background: transparent;
@@ -208,21 +208,18 @@
 	align-items: center;
 	gap: 6px;
 	width: 100%;
-	padding: 3px 6px;
-	border: 1px solid var(--vscode-dropdown-border, transparent);
-	border-radius: 6px;
-	color: var(--vscode-dropdown-foreground);
-	background: transparent;
-	cursor: pointer;
+	padding: 2px 6px;
+	min-height: 26px;
+	border: 1px solid var(--vscode-dropdown-border, var(--vscode-dropdown-background));
 	font-size: 12px;
+	border-radius: var(--vscode-cornerRadius-small);
+	color: var(--vscode-dropdown-foreground);
+	background: var(--vscode-dropdown-background);
+	cursor: pointer;
 	font-family: inherit;
 	text-align: left;
 	-webkit-appearance: none;
 	appearance: none;
-}
-
-.ai-customization-management-editor .harness-dropdown-button:hover {
-	background: var(--vscode-dropdown-background);
 }
 
 .ai-customization-management-editor .harness-dropdown-button:focus-visible {

@@ -34,7 +34,7 @@ import { IsActiveSessionBackgroundProviderContext, SessionsWelcomeVisibleContext
 import { ISession } from '../../../services/sessions/common/session.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { Menus } from '../../../browser/menus.js';
-import { INonSessionTaskEntry, ISessionsConfigurationService, ISessionTaskWithTarget, ITaskEntry, TaskStorageTarget } from './sessionsConfigurationService.js';
+import { INonSessionTaskEntry, ISessionsTasksService, ISessionTaskWithTarget, ITaskEntry, TaskStorageTarget } from './sessionsTasksService.js';
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { IRunScriptCustomTaskWidgetResult, RunScriptCustomTaskWidget } from './runScriptCustomTaskWidget.js';
 
@@ -119,7 +119,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 		@ISessionsManagementService private readonly _sessionManagementService: ISessionsManagementService,
 		@IKeybindingService _keybindingService: IKeybindingService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
-		@ISessionsConfigurationService private readonly _sessionsConfigService: ISessionsConfigurationService,
+		@ISessionsTasksService private readonly _sessionsConfigService: ISessionsTasksService,
 		@IActionViewItemService private readonly _actionViewItemService: IActionViewItemService,
 		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
@@ -496,7 +496,7 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 		private readonly _showCustomCommandInput: (session: ISession, existingTask: INonSessionTaskEntry, mode?: TaskConfigurationMode) => Promise<ITaskEntry | undefined>,
 		private readonly _generateNewTask: (session: ISession) => Promise<void>,
 		@ICommandService private readonly _commandService: ICommandService,
-		@ISessionsConfigurationService private readonly _sessionsConfigService: ISessionsConfigurationService,
+		@ISessionsTasksService private readonly _sessionsConfigService: ISessionsTasksService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IActionWidgetService private readonly _actionWidgetService: IActionWidgetService,
 		@IContextKeyService contextKeyService: IContextKeyService,

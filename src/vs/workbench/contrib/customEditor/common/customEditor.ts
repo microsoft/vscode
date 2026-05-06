@@ -25,6 +25,9 @@ export const CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE = new RawContextKey<boole
 
 export interface CustomEditorCapabilities {
 	readonly supportsMultipleEditorsPerDocument?: boolean;
+	readonly isTextEditor?: boolean;
+	readonly supportsInlineDiff?: boolean;
+	readonly supportsSideBySideDiff?: boolean;
 }
 
 export interface ICustomEditorService {
@@ -78,6 +81,11 @@ export const enum CustomEditorPriority {
 	default = 'default',
 	builtin = 'builtin',
 	option = 'option',
+}
+
+export const enum CustomEditorDiffEditorLayout {
+	Inline = 'inline',
+	SideBySide = 'sideBySide',
 }
 
 export interface CustomEditorSelector {

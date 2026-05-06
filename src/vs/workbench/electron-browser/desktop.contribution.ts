@@ -284,13 +284,15 @@ import product from '../../platform/product/common/product.js';
 				'markdownDescription': isMacintosh ?
 					localize('window.menuStyle.mac', "Adjust the context menu appearances to either be native by the OS, custom, or inherited from the title bar style defined in {0}.", '`#window.titleBarStyle#`') :
 					localize('window.menuStyle', "Adjust the menu style to either be native by the OS, custom, or inherited from the title bar style defined in {0}. This also affects the context menu appearance. Changes require a full restart to apply.", '`#window.titleBarStyle#`'),
+				agentsWindow: { default: 'custom' },
 			},
 			'window.dialogStyle': {
 				'type': 'string',
 				'enum': ['native', 'custom'],
 				'default': 'native',
 				'scope': ConfigurationScope.APPLICATION,
-				'description': localize('dialogStyle', "Adjust the appearance of dialogs to be native by the OS or custom.")
+				'description': localize('dialogStyle', "Adjust the appearance of dialogs to be native by the OS or custom."),
+				agentsWindow: { default: 'custom' },
 			},
 			'window.nativeTabs': {
 				'type': 'boolean',

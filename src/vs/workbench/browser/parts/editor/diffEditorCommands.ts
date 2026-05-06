@@ -13,10 +13,10 @@ import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextke
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { TextDiffEditor } from './textDiffEditor.js';
-import { ActiveCompareEditorCanSwapContext, TextCompareEditorActiveContext, TextCompareEditorVisibleContext } from '../../../common/contextkeys.js';
+import { ActiveCompareEditorCanSwapContext, ActiveCustomEditorDiffCanToggleLayoutContext, TextCompareEditorActiveContext, TextCompareEditorVisibleContext } from '../../../common/contextkeys.js';
 import { DiffEditorInput } from '../../../common/editor/diffEditorInput.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { IUntypedEditorInput } from '../../../common/editor.js';
+import { IUntypedEditorInput, isDiffEditorInput } from '../../../common/editor.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { isDiffEditor } from '../../../../editor/browser/editorBrowser.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
@@ -109,6 +109,24 @@ export function registerDiffEditorCommands(): void {
 		return undefined;
 	}
 
+	function getActiveDiffModifiedResource(accessor: ServicesAccessor, args: unknown[]): URI | undefined {
+		const activeTextDiffEditor = getActiveTextDiffEditor(accessor, args);
+		const model = activeTextDiffEditor?.getControl()?.getModifiedEditor()?.getModel();
+		if (model) {
+			return model.uri;
+		}
+
+		const editorService = accessor.get(IEditorService);
+		const resource = args.length > 0 && args[0] instanceof URI ? args[0] : undefined;
+		for (const editor of [editorService.activeEditor, ...editorService.visibleEditors]) {
+			if (isDiffEditorInput(editor) && editor.modified.resource && (!resource || isEqual(editor.modified.resource, resource))) {
+				return editor.modified.resource;
+			}
+		}
+
+		return undefined;
+	}
+
 	function navigateInDiffEditor(accessor: ServicesAccessor, args: unknown[], next: boolean): void {
 		const activeTextDiffEditor = getActiveTextDiffEditor(accessor, args);
 
@@ -146,14 +164,12 @@ export function registerDiffEditorCommands(): void {
 
 	function toggleDiffSideBySide(accessor: ServicesAccessor, args: unknown[]): void {
 		const configService = accessor.get(ITextResourceConfigurationService);
-		const activeTextDiffEditor = getActiveTextDiffEditor(accessor, args);
-
-		const m = activeTextDiffEditor?.getControl()?.getModifiedEditor()?.getModel();
-		if (!m) { return; }
+		const modifiedResource = getActiveDiffModifiedResource(accessor, args);
+		if (!modifiedResource) { return; }
 
 		const key = 'diffEditor.renderSideBySide';
-		const val = configService.getValue(m.uri, key);
-		configService.updateValue(m.uri, key, !val);
+		const val = configService.getValue(modifiedResource, key);
+		configService.updateValue(modifiedResource, key, !val);
 	}
 
 	function toggleDiffIgnoreTrimWhitespace(accessor: ServicesAccessor, args: unknown[]): void {
@@ -269,7 +285,7 @@ export function registerDiffEditorCommands(): void {
 			title: localize2('toggleInlineView', "Toggle Inline View"),
 			category: localize('compare', "Compare")
 		},
-		when: TextCompareEditorActiveContext
+		when: ContextKeyExpr.or(TextCompareEditorActiveContext, ActiveCustomEditorDiffCanToggleLayoutContext)
 	});
 
 	MenuRegistry.appendMenuItem(MenuId.CommandPalette, {

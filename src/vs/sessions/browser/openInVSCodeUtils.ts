@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IRemoteAgentHostService, IRemoteAgentHostSSHConnection, RemoteAgentHostEntryType } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
-import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
-import { encodeHex, VSBuffer } from '../../../../base/common/buffer.js';
+import { IRemoteAgentHostService, IRemoteAgentHostSSHConnection, RemoteAgentHostEntryType } from '../../platform/agentHost/common/remoteAgentHostService.js';
+import { ISessionsProvidersService } from '../services/sessions/browser/sessionsProvidersService.js';
+import { isAgentHostProvider } from '../common/agentHostSessionsProvider.js';
+import { encodeHex, VSBuffer } from '../../base/common/buffer.js';
 
 /**
  * Resolves the VS Code remote authority for the given session provider,

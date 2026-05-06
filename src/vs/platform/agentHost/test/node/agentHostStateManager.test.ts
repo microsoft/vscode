@@ -128,6 +128,50 @@ suite('AgentHostStateManager', () => {
 		assert.deepStrictEqual(envelopes[0].origin, origin);
 	});
 
+	test('root action that does not change state is not emitted', () => {
+		const envelopes: ActionEnvelope[] = [];
+		disposables.add(manager.onDidEmitEnvelope(e => envelopes.push(e)));
+
+		// First dispatch: introduces a new value, should emit.
+		manager.dispatchServerAction({
+			type: ActionType.RootConfigChanged,
+			config: { 'my.setting': 'value-a' },
+		});
+		assert.strictEqual(envelopes.length, 1);
+		assert.strictEqual(manager.serverSeq, 1);
+
+		// Second dispatch with the same value: should be deduped and not emit.
+		manager.dispatchServerAction({
+			type: ActionType.RootConfigChanged,
+			config: { 'my.setting': 'value-a' },
+		});
+		assert.strictEqual(envelopes.length, 1);
+		assert.strictEqual(manager.serverSeq, 1, 'serverSeq must not advance on a no-op');
+
+		// Third dispatch with a deeply-equal but newly allocated object value:
+		// should also be deduped.
+		manager.dispatchServerAction({
+			type: ActionType.RootConfigChanged,
+			config: { 'my.nested': { allow: ['x'], deny: [] } },
+		});
+		assert.strictEqual(envelopes.length, 2);
+		assert.strictEqual(manager.serverSeq, 2);
+		manager.dispatchServerAction({
+			type: ActionType.RootConfigChanged,
+			config: { 'my.nested': { allow: ['x'], deny: [] } },
+		});
+		assert.strictEqual(envelopes.length, 2);
+		assert.strictEqual(manager.serverSeq, 2, 'serverSeq must not advance on a no-op');
+
+		// Real change still emits.
+		manager.dispatchServerAction({
+			type: ActionType.RootConfigChanged,
+			config: { 'my.setting': 'value-b' },
+		});
+		assert.strictEqual(envelopes.length, 3);
+		assert.strictEqual(manager.serverSeq, 3);
+	});
+
 	test('removeSession clears state without notification', () => {
 		manager.createSession(makeSessionSummary());
 
@@ -380,6 +424,51 @@ suite('AgentHostStateManager', () => {
 
 			const changed = notifications.filter(n => n.type === NotificationType.SessionSummaryChanged);
 			assert.strictEqual(changed.length, 0, 'should not emit for deleted sessions');
+		});
+	});
+
+	test('removeSession flushes pending status=Idle notification before eviction', () => {
+		// Regression: when _maybeEvictIdleSession calls removeSession within the
+		// 100 ms scheduler window after a turn completes, the client must still
+		// receive a SessionSummaryChanged with status=Idle so the spinner clears.
+		//
+		// The key precondition is that _lastNotifiedSummaries already has
+		// status=InProgress (the scheduler must have fired after TurnStarted so
+		// the client knows the session is busy). Then TurnComplete flips the
+		// summary back to Idle and schedules another flush. If removeSession
+		// races with that 100 ms window the flush must happen synchronously.
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			manager.createSession(makeSessionSummary());
+			manager.dispatchServerAction({ type: ActionType.SessionReady, session: sessionUri });
+
+			// Start a turn → status becomes InProgress.
+			manager.dispatchServerAction({
+				type: ActionType.SessionTurnStarted,
+				session: sessionUri,
+				turnId: 'turn-1',
+				userMessage: { text: 'hello' },
+			});
+
+			// Let the scheduler fire so _lastNotifiedSummaries now has status=InProgress.
+			await new Promise(r => setTimeout(r, 150));
+
+			const notifications: INotification[] = [];
+			disposables.add(manager.onDidEmitNotification(n => notifications.push(n)));
+
+			// Turn completes — status flips back to Idle. This schedules a summary
+			// flush 100 ms later but we will call removeSession before it fires.
+			manager.dispatchServerAction({
+				type: ActionType.SessionTurnComplete,
+				session: sessionUri,
+				turnId: 'turn-1',
+			});
+
+			// Simulate eviction within the 100 ms debounce window.
+			manager.removeSession(sessionUri);
+
+			const changed = notifications.filter(n => n.type === NotificationType.SessionSummaryChanged) as SessionSummaryChangedNotification[];
+			assert.strictEqual(changed.length, 1, 'should emit SessionSummaryChanged synchronously in removeSession');
+			assert.strictEqual(changed[0].changes.status, SessionStatus.Idle, 'status should be Idle so the spinner clears');
 		});
 	});
 });

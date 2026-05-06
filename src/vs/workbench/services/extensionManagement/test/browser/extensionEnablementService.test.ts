@@ -1199,6 +1199,52 @@ suite('ExtensionEnablementService Test', () => {
 		assert.strictEqual(testObject.getEnablementState(local), EnablementState.DisabledByMalicious);
 	});
 
+	test('test extensions are disabled in sessions window unless they only contribute themes', () => {
+		instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow: true });
+		testObject = disposableStore.add(new TestExtensionEnablementService(instantiationService));
+
+		const themeOnly = aLocalExtension2('pub.themeOnly', { contributes: aContributes('themes') });
+		const iconTheme = aLocalExtension2('pub.iconTheme', { contributes: aContributes('iconThemes') });
+		const productIconTheme = aLocalExtension2('pub.productIconTheme', { contributes: aContributes('productIconThemes') });
+		const grammar = aLocalExtension2('pub.grammar', { contributes: aContributes('grammars') });
+		const withMain = aLocalExtension2('pub.withMain', { main: 'main.js', contributes: aContributes('themes') });
+		const withBrowser = aLocalExtension2('pub.withBrowser', { browser: 'main.browser.js', contributes: aContributes('themes') });
+		const nonThemeContrib = aLocalExtension2('pub.nonThemeContrib', { contributes: aContributes('commands') });
+		const builtinWithMain = aLocalExtension2('pub.builtinWithMain', { main: 'main.js' }, { type: ExtensionType.System });
+
+		assert.deepStrictEqual([
+			themeOnly,
+			iconTheme,
+			productIconTheme,
+			grammar,
+			withMain,
+			withBrowser,
+			nonThemeContrib,
+			builtinWithMain,
+		].map(ext => testObject.getEnablementState(ext)), [
+			EnablementState.EnabledGlobally,
+			EnablementState.EnabledGlobally,
+			EnablementState.EnabledGlobally,
+			EnablementState.EnabledGlobally,
+			EnablementState.DisabledByEnvironment,
+			EnablementState.DisabledByEnvironment,
+			EnablementState.DisabledByEnvironment,
+			EnablementState.EnabledGlobally,
+		]);
+	});
+
+	test('test extensions are not disabled in non-sessions window', () => {
+		const withMain = aLocalExtension2('pub.withMain', { main: 'main.js' });
+		const withBrowser = aLocalExtension2('pub.withBrowser', { browser: 'main.browser.js' });
+		const commandContrib = aLocalExtension2('pub.commands', { contributes: aContributes('commands') });
+
+		assert.deepStrictEqual([withMain, withBrowser, commandContrib].map(ext => testObject.getEnablementState(ext)), [
+			EnablementState.EnabledGlobally,
+			EnablementState.EnabledGlobally,
+			EnablementState.EnabledGlobally,
+		]);
+	});
+
 });
 
 function anExtensionManagementServer(authority: string, instantiationService: TestInstantiationService): IExtensionManagementServer {
@@ -1241,6 +1287,14 @@ export function anExtensionManagementServerService(localExtensionManagementServe
 
 function aLocalExtension(id: string, contributes?: IExtensionContributions, type?: ExtensionType): ILocalExtension {
 	return aLocalExtension2(id, contributes ? { contributes } : {}, isUndefinedOrNull(type) ? {} : { type });
+}
+
+function aContributes(...points: Array<keyof IExtensionContributions>): IExtensionContributions {
+	const result: Record<string, unknown[]> = {};
+	for (const point of points) {
+		result[point] = [];
+	}
+	return result as IExtensionContributions;
 }
 
 function aLocalExtension2(id: string, manifest: Partial<IExtensionManifest> = {}, properties: IStringDictionary<unknown> = {}): ILocalExtension {

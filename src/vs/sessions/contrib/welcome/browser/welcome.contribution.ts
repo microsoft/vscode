@@ -66,7 +66,7 @@ export function resetSessionsWelcome(
 	store.add(defaultAccountService.onDidChangeDefaultAccount(account => {
 		if (!walkthrough.isShowingWelcome && walkthrough.isShowingSignIn && account !== null) {
 			storageService.store(WELCOME_COMPLETE_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
-			walkthrough.showThemeStep();
+			walkthrough.complete();
 		}
 	}));
 
@@ -239,7 +239,7 @@ export class SessionsWelcomeContribution extends Disposable implements IWorkbenc
 			if (!welcomeCompletionStored && !walkthrough.isShowingWelcome && walkthrough.isShowingSignIn && account !== null) {
 				welcomeCompletionStored = true;
 				this.storageService.store(WELCOME_COMPLETE_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
-				walkthrough.showThemeStep();
+				walkthrough.complete();
 			}
 		}));
 

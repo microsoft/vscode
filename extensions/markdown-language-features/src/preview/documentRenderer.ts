@@ -13,6 +13,7 @@ import { WebviewResourceProvider } from '../util/resources';
 import { generateUuid } from '../util/uuid';
 import { MarkdownPreviewConfiguration, MarkdownPreviewConfigurationManager } from './previewConfig';
 import { ContentSecurityPolicyArbiter, MarkdownPreviewSecurityLevel } from './security';
+import type { MarkdownPreviewLineChanges } from '../../types/previewMessaging';
 
 
 /**
@@ -76,6 +77,7 @@ export class MdDocumentRenderer {
 		selectedLine: number | undefined,
 		state: any | undefined,
 		imageInfo: readonly ImageInfo[],
+		lineChanges: MarkdownPreviewLineChanges | undefined,
 		token: vscode.CancellationToken
 	): Promise<MarkdownContentProviderOutput> {
 		const sourceUri = markdownDocument.uri;
@@ -85,6 +87,7 @@ export class MdDocumentRenderer {
 			fragment: state?.fragment || markdownDocument.uri.fragment || undefined,
 			line: initialLine,
 			selectedLine,
+			lineChanges,
 			scrollPreviewWithEditor: config.scrollPreviewWithEditor,
 			scrollEditorWithPreview: config.scrollEditorWithPreview,
 			doubleClickToSwitchToEditor: config.doubleClickToSwitchToEditor,

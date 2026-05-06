@@ -6,11 +6,11 @@
 import { ActiveLineMarker } from './activeLineMarker';
 import { onceDocumentLoaded } from './events';
 import { createPosterForVsCode } from './messaging';
-import { getEditorLineNumberForPageOffset, scrollToRevealSourceLine, getLineElementForFragment } from './scroll-sync';
+import { getEditorLineNumberForPageOffset, getElementsForSourceLine, getLineElementForFragment, scrollToRevealSourceLine } from './scroll-sync';
 import { SettingsManager, getData, getRawData } from './settings';
 import throttle = require('lodash.throttle');
 import morphdom from 'morphdom';
-import type { ToWebviewMessage } from '../types/previewMessaging';
+import type { MarkdownPreviewLineChanges, ToWebviewMessage } from '../types/previewMessaging';
 import { isOfScheme, Schemes } from '../src/util/schemes';
 
 let scrollDisabledCount = 0;
@@ -21,6 +21,7 @@ const settings = new SettingsManager();
 
 let documentVersion = 0;
 let documentResource = settings.settings.source;
+let lineChanges = settings.settings.lineChanges;
 
 const vscode = acquireVsCodeApi();
 
@@ -37,8 +38,10 @@ const state: State = {
 	...getData<Partial<State>>('data-state')
 };
 
-if (typeof originalState.scrollProgress !== 'undefined' && originalState?.resource !== state.resource) {
-	state.scrollProgress = 0;
+const hasStartingLine = typeof settings.settings.line === 'number' && !isNaN(settings.settings.line);
+if (typeof originalState.scrollProgress !== 'undefined'
+	&& (originalState?.resource !== state.resource || (hasStartingLine && originalState.line !== settings.settings.line))) {
+	state.scrollProgress = undefined;
 }
 
 // Make sure to sync VS Code state here
@@ -88,6 +91,7 @@ onceDocumentLoaded(() => {
 	// Restore
 	const scrollProgress = state.scrollProgress;
 	addImageContexts();
+	applyLineChanges(lineChanges);
 	if (typeof scrollProgress === 'number' && !settings.settings.fragment) {
 		doAfterImagesLoaded(() => {
 			scrollDisabledCount = 1;
@@ -243,6 +247,7 @@ window.addEventListener('message', async event => {
 			return;
 
 		case 'updateContent': {
+			lineChanges = data.lineChanges;
 			const root = document.querySelector('.markdown-body')!;
 
 			const parser = new DOMParser();
@@ -314,10 +319,35 @@ window.addEventListener('message', async event => {
 
 			window.dispatchEvent(new CustomEvent('vscode.markdown.updateContent'));
 			addImageContexts();
+			applyLineChanges(lineChanges);
 			break;
 		}
 	}
 }, false);
+
+function applyLineChanges(lineChanges: MarkdownPreviewLineChanges | undefined): void {
+	for (const element of document.querySelectorAll('.code-line-diff-added, .code-line-diff-deleted')) {
+		element.classList.remove('code-line-diff', 'code-line-diff-added', 'code-line-diff-deleted');
+	}
+
+	markChangedLines(lineChanges?.added, 'code-line-diff-added');
+	markChangedLines(lineChanges?.deleted, 'code-line-diff-deleted');
+}
+
+function markChangedLines(lines: readonly number[] | undefined, className: string): void {
+	if (!lines) {
+		return;
+	}
+
+	for (const line of lines) {
+		const { previous, next } = getElementsForSourceLine(line, documentVersion);
+		const lineElement = previous.line >= 0 ? previous : next;
+		const element = lineElement?.codeElement || lineElement?.element;
+		if (element) {
+			element.classList.add('code-line-diff', className);
+		}
+	}
+}
 
 
 
@@ -391,6 +421,8 @@ window.addEventListener('scroll', throttle(() => {
 
 	const line = getEditorLineNumberForPageOffset(window.scrollY, documentVersion);
 	if (typeof line === 'number' && !isNaN(line)) {
+		state.line = line;
+		vscode.setState(state);
 		messaging.postMessage('revealLine', { line });
 	}
 }, 50));

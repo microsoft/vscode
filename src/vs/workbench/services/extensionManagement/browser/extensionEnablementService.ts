@@ -447,6 +447,10 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 			enablementState = EnablementState.DisabledByExtensionKind;
 		}
 
+		else if (this._isDisabledBySessionsWindow(extension)) {
+			enablementState = EnablementState.DisabledByEnvironment;
+		}
+
 		else if (isEnabled && this._isDisabledByExtensionDependency(extension, extensions, workspaceType, computedEnablementStates)) {
 			enablementState = EnablementState.DisabledByExtensionDependency;
 		}
@@ -612,6 +616,19 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 
 	private _isDisabledByUnification(identifier: IExtensionIdentifier): boolean {
 		return this._extensionUnificationEnabled && identifier.id.toLowerCase() === this._completionsExtensionId;
+	}
+
+	private _isDisabledBySessionsWindow(extension: IExtension): boolean {
+		if (!this.environmentService.isSessionsWindow) {
+			return false;
+		}
+
+		// Built-in extensions are always enabled in the sessions window.
+		if (extension.isBuiltin) {
+			return false;
+		}
+
+		return !this.extensionManifestPropertiesService.canExecuteOnSessionsWindow(extension.manifest);
 	}
 
 	private _enableExtension(identifier: IExtensionIdentifier): Promise<boolean> {

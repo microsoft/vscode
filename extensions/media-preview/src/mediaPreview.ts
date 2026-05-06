@@ -31,11 +31,13 @@ export abstract class MediaPreview extends Disposable {
 	) {
 		super();
 
+		const resourceRoot = Utils.dirname(_resource).with({ query: '', fragment: '' });
+
 		_webviewEditor.webview.options = {
 			enableScripts: true,
 			enableForms: false,
 			localResourceRoots: [
-				Utils.dirname(_resource),
+				resourceRoot,
 				extensionRoot,
 			]
 		};

@@ -22,14 +22,15 @@ import { escapeRegExpCharacters } from '../../../base/common/strings.js';
 import { isString, Mutable } from '../../../base/common/types.js';
 
 export const AGENTS_WINDOW_PROFILE_ID = 'agents';
-const AGENTS_WINDOW_PROFILE_OPTIONS: IUserDataProfileOptions = {
-	useDefaultFlags: {
-		keybindings: true,
-		prompts: true,
-		mcp: true,
-		snippets: true,
-		tasks: true,
-	}
+
+const AGENTS_WINDOW_PROFILE_FLAGS: UseDefaultProfileFlags = {
+	settings: true,
+	keybindings: true,
+	prompts: true,
+	mcp: true,
+	snippets: true,
+	tasks: true,
+	extensions: true,
 };
 
 export const enum ProfileResourceType {
@@ -180,6 +181,7 @@ export function reviveProfile(profile: UriDto<IUserDataProfile>, scheme: string)
 }
 
 export function toUserDataProfile(id: string, name: string, location: URI, profilesCacheHome: URI, options?: IUserDataProfileOptions, defaultProfile?: IUserDataProfile): IUserDataProfile {
+	const isAgentsWindowProfile = id === AGENTS_WINDOW_PROFILE_ID;
 	return {
 		id,
 		name,
@@ -198,8 +200,8 @@ export function toUserDataProfile(id: string, name: string, location: URI, profi
 		cacheHome: joinPath(profilesCacheHome, id),
 		useDefaultFlags: options?.useDefaultFlags,
 		isTransient: options?.transient,
-		isInternal: id === AGENTS_WINDOW_PROFILE_ID || options?.transient,
-		isAgentsWindowProfile: id === AGENTS_WINDOW_PROFILE_ID,
+		isInternal: isAgentsWindowProfile || options?.transient,
+		isAgentsWindowProfile,
 		workspaces: options?.workspaces,
 	};
 }
@@ -289,7 +291,7 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 						this.profilesCacheHome,
 						{
 							icon: storedProfile.icon,
-							useDefaultFlags: storedProfile.useDefaultFlags,
+							useDefaultFlags: id === AGENTS_WINDOW_PROFILE_ID ? AGENTS_WINDOW_PROFILE_FLAGS : storedProfile.useDefaultFlags,
 						},
 						defaultProfile));
 				}
@@ -393,7 +395,7 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 						name,
 						this.uriIdentityService.extUri.joinPath(this.profilesHome, ...(id === AGENTS_WINDOW_PROFILE_ID ? [SYSTEM_PROFILES_HOME, id] : [id])),
 						this.profilesCacheHome,
-						id === AGENTS_WINDOW_PROFILE_ID ? AGENTS_WINDOW_PROFILE_OPTIONS : options,
+						id === AGENTS_WINDOW_PROFILE_ID ? {} : options,
 						this.defaultProfile);
 					await this.fileService.createFolder(profile.location);
 
@@ -586,6 +588,11 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 
 	getProfileForWorkspace(workspaceIdentifier: IAnyWorkspaceIdentifier): IUserDataProfile | undefined {
 		const workspace = this.getWorkspace(workspaceIdentifier);
+
+		if (URI.isUri(workspace) && this.uriIdentityService.extUri.isEqual(workspace, this.environmentService.agentSessionsWorkspace)) {
+			return this.profiles.find(p => p.isAgentsWindowProfile);
+		}
+
 		return URI.isUri(workspace)
 			? this.profiles.find(p => p.workspaces?.some(w => this.uriIdentityService.extUri.isEqual(w, workspace)))
 			: (this.profilesObject.emptyWindows.get(workspace) ?? this.transientProfilesObject.emptyWindows.get(workspace));

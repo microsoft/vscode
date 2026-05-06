@@ -52,27 +52,6 @@ export const ClaudeCodeSessionType: ISessionType = {
 };
 
 /**
- * Returns the {@link ThemeIcon} associated with a known agent provider, or
- * `undefined` when the provider is not recognised.
- *
- * - Any provider whose ID contains `'copilot'` → {@link Codicon.copilot}
- * - Any provider whose ID contains `'claude'` → {@link Codicon.claude}
- * - `'openai'` or any provider whose ID contains `'codex'` → {@link Codicon.openai}
- */
-export function iconForAgentProvider(provider: string): ThemeIcon | undefined {
-	if (provider.includes('copilot')) {
-		return Codicon.copilot;
-	}
-	if (provider.includes('claude')) {
-		return Codicon.claude;
-	}
-	if (provider === 'openai' || provider.includes('codex')) {
-		return Codicon.openai;
-	}
-	return undefined;
-}
-
-/**
  * Returns whether the given session type represents a workspace-backed
  * agent (e.g. Copilot CLI, Claude Code) that operates on a worktree or
  * repository — regardless of whether the agent runs locally or remotely.

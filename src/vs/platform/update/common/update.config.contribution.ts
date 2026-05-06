@@ -76,7 +76,8 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			scope: ConfigurationScope.APPLICATION,
 			description: localize('showReleaseNotes', "Show Release Notes after an update. The Release Notes are fetched from a Microsoft online service."),
-			tags: ['usesOnlineServices']
+			tags: ['usesOnlineServices'],
+			agentsWindow: { default: false, readOnly: true },
 		},
 		'update.showPostInstallInfo': {
 			type: 'boolean',

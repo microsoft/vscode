@@ -13,13 +13,13 @@ import { VSBuffer } from '../../../../base/common/buffer.js';
 import { JSONPath, ParseError, parse } from '../../../../base/common/json.js';
 import { applyEdits, setProperty } from '../../../../base/common/jsonEdit.js';
 import { Edit, FormattingOptions } from '../../../../base/common/jsonFormatter.js';
-import { equals } from '../../../../base/common/objects.js';
+import { deepClone, equals } from '../../../../base/common/objects.js';
 import { distinct, equals as arrayEquals } from '../../../../base/common/arrays.js';
 import { OS, OperatingSystem } from '../../../../base/common/platform.js';
 import { IConfigurationChange, IConfigurationChangeEvent, IConfigurationData, IConfigurationOverrides, IConfigurationUpdateOptions, IConfigurationUpdateOverrides, IConfigurationValue, ConfigurationTarget, isConfigurationOverrides, isConfigurationUpdateOverrides } from '../../../../platform/configuration/common/configuration.js';
 import { ConfigurationChangeEvent, ConfigurationModel } from '../../../../platform/configuration/common/configurationModels.js';
 import { DefaultConfiguration, IPolicyConfiguration, NullPolicyConfiguration, PolicyConfiguration } from '../../../../platform/configuration/common/configurations.js';
-import { Extensions, IConfigurationRegistry, keyFromOverrideIdentifiers } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { Extensions, IConfigurationRegistry, IRegisteredConfigurationPropertySchema, keyFromOverrideIdentifiers } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { IFileService, FileOperationError, FileOperationResult } from '../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IPolicyService, NullPolicyService } from '../../../../platform/policy/common/policy.js';
@@ -34,6 +34,17 @@ import { IUserDataProfileService } from '../../../../workbench/services/userData
 // Import to register configuration contributions
 import '../../../../workbench/services/configuration/browser/configurationService.js';
 
+class SessionsDefaultConfiguration extends DefaultConfiguration {
+
+	protected override getDefaultValue(_key: string, propertySchema: IRegisteredConfigurationPropertySchema): unknown {
+		if (propertySchema.agentsWindow) {
+			return deepClone(propertySchema.agentsWindow.default);
+		}
+		return super.getDefaultValue(_key, propertySchema);
+	}
+
+}
+
 export class ConfigurationService extends Disposable implements IWorkbenchConfigurationService {
 
 	declare readonly _serviceBrand: undefined;
@@ -43,6 +54,7 @@ export class ConfigurationService extends Disposable implements IWorkbenchConfig
 	private readonly policyConfiguration: IPolicyConfiguration;
 	private readonly userConfiguration: UserConfiguration;
 	private readonly cachedFolderConfigs = this._register(new DisposableMap<URI, FolderConfiguration>(new ResourceMap()));
+	private readonly agentsWindowReadOnlyKeys = new Set<string>();
 
 	private readonly _onDidChangeConfiguration = this._register(new Emitter<IConfigurationChangeEvent>());
 	readonly onDidChangeConfiguration = this._onDidChangeConfiguration.event;
@@ -66,9 +78,10 @@ export class ConfigurationService extends Disposable implements IWorkbenchConfig
 		super();
 
 		this.settingsResource = userDataProfileService.currentProfile.settingsResource;
-		this.defaultConfiguration = this._register(new DefaultConfiguration(logService));
+		this.defaultConfiguration = this._register(new SessionsDefaultConfiguration(logService));
 		this.policyConfiguration = policyService instanceof NullPolicyService ? new NullPolicyConfiguration() : this._register(new PolicyConfiguration(this.defaultConfiguration, policyService, logService));
-		this.userConfiguration = this._register(new UserConfiguration(userDataProfileService.currentProfile.settingsResource, userDataProfileService.currentProfile.tasksResource, userDataProfileService.currentProfile.mcpResource, {}, fileService, uriIdentityService, logService));
+		this.initAgentsWindowReadOnlyKeys();
+		this.userConfiguration = this._register(new UserConfiguration(userDataProfileService.currentProfile.settingsResource, userDataProfileService.currentProfile.tasksResource, userDataProfileService.currentProfile.mcpResource, { exclude: [...this.agentsWindowReadOnlyKeys] }, fileService, uriIdentityService, logService));
 		this.configurationEditing = new ConfigurationEditing(fileService, this);
 
 		this._configuration = new Configuration(
@@ -150,6 +163,10 @@ export class ConfigurationService extends Disposable implements IWorkbenchConfig
 			throw new Error(`Unable to write ${key} because it is configured in system policy.`);
 		}
 
+		if (this.agentsWindowReadOnlyKeys.has(key)) {
+			throw new Error(`Unable to write ${key} because it is read-only in the Agents window.`);
+		}
+
 		// Remove the setting, if the value is same as default value
 		if (equals(value, inspect.defaultValue)) {
 			value = undefined;
@@ -226,12 +243,35 @@ export class ConfigurationService extends Disposable implements IWorkbenchConfig
 
 	// #endregion
 
+	private initAgentsWindowReadOnlyKeys(): void {
+		const properties = this.configurationRegistry.getConfigurationProperties();
+		for (const key in properties) {
+			if (properties[key].agentsWindow?.readOnly) {
+				this.agentsWindowReadOnlyKeys.add(key);
+			}
+		}
+	}
+
+	private updateAgentsWindowReadOnlyKeys(changedProperties: string[]): void {
+		const properties = this.configurationRegistry.getConfigurationProperties();
+		for (const key of changedProperties) {
+			if (properties[key]?.agentsWindow?.readOnly) {
+				this.agentsWindowReadOnlyKeys.add(key);
+			} else {
+				this.agentsWindowReadOnlyKeys.delete(key);
+			}
+		}
+	}
+
 	// #region Configuration change handlers
 
 	private onDefaultConfigurationChanged(defaults: ConfigurationModel, properties?: string[]): void {
+		if (properties) {
+			this.updateAgentsWindowReadOnlyKeys(properties);
+		}
 		const previousData = this._configuration.toData();
 		const change = this._configuration.compareAndUpdateDefaultConfiguration(defaults, properties);
-		this._configuration.updateLocalUserConfiguration(this.userConfiguration.reparse());
+		this._configuration.updateLocalUserConfiguration(this.userConfiguration.reparse({ exclude: [...this.agentsWindowReadOnlyKeys] }));
 		for (const folder of this.workspaceService.getWorkspace().folders) {
 			const folderConfiguration = this.cachedFolderConfigs.get(folder.uri);
 			if (folderConfiguration) {

@@ -69,62 +69,10 @@
 	display: none;
 }
 
-/* Update widget in titlebar */
+/* Spacing between titlebar-right action items (account widget, update indicator, etc.) */
 
 .monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-right-layout-container .monaco-action-bar .actions-container {
 	gap: 5px;
-}
-
-.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-right-layout-container .monaco-action-bar .action-item.sessions-update-titlebar-widget {
-	display: flex;
-	align-items: center;
-	height: 22px;
-	min-width: 0;
-	padding: 0 8px;
-	border-radius: var(--vscode-cornerRadius-medium);
-	background: transparent;
-	color: var(--vscode-foreground);
-	cursor: pointer;
-	-webkit-app-region: no-drag;
-	overflow: hidden;
-}
-
-.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-right-layout-container .monaco-action-bar .action-item.sessions-update-titlebar-widget.hidden {
-	display: none;
-}
-
-.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-right-layout-container .monaco-action-bar .action-item.sessions-update-titlebar-widget:hover,
-.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-right-layout-container .monaco-action-bar .action-item.sessions-update-titlebar-widget:focus-within {
-	background: var(--vscode-toolbar-hoverBackground);
-}
-
-.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-right-layout-container .monaco-action-bar .action-item.sessions-update-titlebar-widget:active,
-.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-right-layout-container .monaco-action-bar .action-item.sessions-update-titlebar-widget.primary-state {
-	background: var(--vscode-button-background);
-	color: var(--vscode-button-foreground);
-}
-
-.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-right-layout-container .monaco-action-bar .action-item.sessions-update-titlebar-widget.primary-state:hover,
-.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-right-layout-container .monaco-action-bar .action-item.sessions-update-titlebar-widget.primary-state:focus-within,
-.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-right-layout-container .monaco-action-bar .action-item.sessions-update-titlebar-widget.primary-state:active {
-	background: var(--vscode-button-hoverBackground);
-	color: var(--vscode-button-foreground);
-}
-
-.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-right-layout-container .monaco-action-bar .action-item.sessions-update-titlebar-widget.busy-state {
-	cursor: default;
-	color: var(--vscode-descriptionForeground);
-}
-
-.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-right-layout-container .monaco-action-bar .action-item.sessions-update-titlebar-widget .sessions-update-titlebar-widget-label {
-	min-width: 0;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-	font-size: 12px;
-	font-weight: 500;
-	line-height: 16px;
-	color: inherit;
 }
 
 /* Badge on account icon */

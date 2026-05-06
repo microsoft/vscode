@@ -144,10 +144,13 @@ export function buildHistoryFromTasks(
 }
 
 /**
- * Extract the first stack frame that is not from the scheduler/tracing
- * infrastructure. Returns `undefined` when no useful frame is found.
+ * Extract up to {@link MAX_DETAIL_FRAMES} stack frames that are not from
+ * the scheduler/tracing infrastructure. Returns the frames joined by
+ * newline (callers may render them stacked) or `undefined` when none.
  */
 const _skipFramePatterns = [
+	/[\\/]virtualScheduling[\\/]/,
+	/[\\/]vs[\\/]base[\\/]common[\\/]async\./,
 	/timeTravelScheduler|traceableTimeApi/,
 	/RunOnceScheduler\.schedule/,
 	/scheduleAtNextAnimationFrame/,
@@ -157,15 +160,19 @@ const _skipFramePatterns = [
 	/createTimeout/,
 ];
 
+const MAX_DETAIL_FRAMES = 5;
+
 function extractCallerFrame(stackTrace: string | undefined): string | undefined {
 	if (!stackTrace) { return undefined; }
+	const frames: string[] = [];
 	for (const line of stackTrace.split('\n')) {
 		const trimmed = line.trim();
 		if (!trimmed.startsWith('at ')) { continue; }
 		if (_skipFramePatterns.some(p => p.test(trimmed))) { continue; }
-		return trimmed.slice(3);
+		frames.push(trimmed.slice(3));
+		if (frames.length >= MAX_DETAIL_FRAMES) { break; }
 	}
-	return undefined;
+	return frames.length === 0 ? undefined : frames.join('\n');
 }
 
 // -----------------------------------------------------------------------------
@@ -235,13 +242,28 @@ export function renderSwimlanes(history: ExecutionHistory): string {
 		}
 	}
 
+	// Display label = label plus the caller stack frame when present,
+	// e.g. `setTimeout · MyClass.foo (file.ts:42)`. Computed once so width
+	// math and the per-row render agree. `detailLines` holds any additional
+	// stack frames beyond the first; they are rendered as continuation rows.
+	const displayLabelOf = new Array<string>(n);
+	const detailLinesOf = new Array<readonly string[]>(n);
+	for (let i = 0; i < n; i++) {
+		const e = events[i];
+		const frames = e.detail ? e.detail.split('\n') : [];
+		displayLabelOf[i] = frames.length > 0 ? `${e.label} · ${frames[0]}` : e.label;
+		detailLinesOf[i] = frames.slice(1);
+	}
+
 	// Column width per root: indentation uses slots (last-children collapse
 	// into their parent's slot), so width must be slot-based to avoid
 	// reserving empty space for degenerate last-child chains.
 	const widthOf = new Map<ExecutionRoot, number>();
 	for (const r of roots) { widthOf.set(r, r.label.length); }
 	for (let i = 0; i < n; i++) {
-		const w = slotOf[i] * 3 + 3 + events[i].label.length;
+		const baseIndent = slotOf[i] * 3 + 3;
+		const maxLen = Math.max(displayLabelOf[i].length, ...detailLinesOf[i].map(l => l.length + 2));
+		const w = baseIndent + maxLen;
 		const cur = widthOf.get(events[i].root) ?? 0;
 		if (w > cur) { widthOf.set(events[i].root, w); }
 	}
@@ -295,7 +317,7 @@ export function renderSwimlanes(history: ExecutionHistory): string {
 					indent.push(hasActive ? '│  ' : '   ');
 				}
 				const prefix = isLastChild[i] ? '└─ ' : '├─ ';
-				parts.push(`${indent.join('')}${prefix}${event.label}`.padEnd(w));
+				parts.push(`${indent.join('')}${prefix}${displayLabelOf[i]}`.padEnd(w));
 			} else {
 				// Cross-lane continuation. Draw `│` at each slot occupied by
 				// an active ancestor (lastChild > i). Also show a `|` placeholder
@@ -329,6 +351,52 @@ export function renderSwimlanes(history: ExecutionHistory): string {
 		}
 
 		lines.push(`${timeStr} ${parts.join('  ')}`.trimEnd());
+
+		// Continuation lines for any extra stack frames. Indented under the
+		// label, with no time column, no `├─`/`└─` glyph, and `│  `
+		// continuations for active ancestor lanes (including this event itself
+		// when it has children that haven't been rendered yet).
+		const extras = detailLinesOf[i];
+		if (extras.length > 0) {
+			const slot = slotOf[i];
+			const stackForExtras = laneStacks.get(event.root)!;
+			// Pretend this event is already on the lane stack so its column
+			// gets a continuation glyph beneath the `├─`/`└─`.
+			const hasOpenChildren = childrenOf[i].length > 0;
+			const extraIndent: string[] = [];
+			for (let s = 0; s < slot; s++) {
+				let hasActive = false;
+				for (const a of stackForExtras) {
+					if (slotOf[a] === s && lastChildOf[a] > i) { hasActive = true; break; }
+				}
+				extraIndent.push(hasActive ? '│  ' : '   ');
+			}
+			extraIndent.push(hasOpenChildren ? '│  ' : '   ');
+			for (const extra of extras) {
+				const extrasParts: string[] = [];
+				for (const r of roots) {
+					const w = widthOf.get(r)!;
+					if (r === event.root) {
+						extrasParts.push(`${extraIndent.join('')}${extra}`.padEnd(w));
+					} else {
+						// Reuse the same continuation logic: any active lane on
+						// other roots needs `│` glyphs.
+						const otherStack = laneStacks.get(r)!;
+						const activeSlots: number[] = [];
+						for (const a of otherStack) {
+							if (lastChildOf[a] > i) { activeSlots.push(slotOf[a]); }
+						}
+						const maxSlot = Math.max(...activeSlots, -1);
+						const chars: string[] = new Array(Math.max(maxSlot + 1, 0)).fill('   ');
+						for (const s of activeSlots) { chars[s] = '│  '; }
+						while (chars.length > 0 && chars[chars.length - 1] === '   ') { chars.pop(); }
+						extrasParts.push(chars.join('').padEnd(w));
+					}
+				}
+				const timePad = ' '.repeat(timeColWidth);
+				lines.push(`${timePad} ${extrasParts.join('  ')}`.trimEnd());
+			}
+		}
 
 		// Stack maintenance: push this event if it has children, then pop
 		// any ancestors whose last child was just rendered (propagating up).

@@ -8,8 +8,10 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { Range } from '../../../../../../editor/common/core/range.js';
 import type { IManagedHover } from '../../../../../../base/browser/ui/hover/hover.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { AICustomizationManagementEditor } from '../../../browser/aiCustomization/aiCustomizationManagementEditor.js';
 import { BUILTIN_STORAGE } from '../../../browser/aiCustomization/aiCustomizationManagement.js';
+import { ChatConfiguration } from '../../../common/constants.js';
 import { IHeaderAttribute } from '../../../common/promptSyntax/promptFileParser.js';
 import { PromptsType, Target } from '../../../common/promptSyntax/promptTypes.js';
 
@@ -22,14 +24,31 @@ suite('aiCustomizationManagementEditor', () => {
 		currentEditingReadOnly: boolean;
 		editorDisplayMode: 'preview' | 'raw';
 		editorPreviewFrontMatterContainer: HTMLElement | undefined;
-		editorPreviewDisposables: { add<T>(value: T): T; dispose(): void };
+		editorPreviewDisposables: { add<T>(value: T): T; clear(): void; dispose(): void };
+		editorPreviewRenderScheduler: { cancel(): void; schedule(): void };
+		viewMode: 'list' | 'editor' | 'mcpDetail' | 'pluginDetail';
+		dimension: undefined;
 		hoverService: IHoverService;
+		configurationService: IConfigurationService;
 		getEditorModeButtonLabel(): string;
 		getEditorModeButtonTooltip(): string;
 		renderPreviewAttribute(attribute: IHeaderAttribute, promptType: PromptsType, target: Target): void;
+		onStructuredPreviewSettingChanged(): void;
 	};
 
-	function createTestEditor(hoverService?: IHoverService): TestableEditor {
+	function createConfigurationServiceStub(values: Record<string, unknown> = {}): IConfigurationService {
+		// Default to enabling the structured preview so existing assertions exercise the preview path.
+		const merged: Record<string, unknown> = {
+			[ChatConfiguration.ChatCustomizationsStructuredPreviewEnabled]: true,
+			...values,
+		};
+		return {
+			getValue: (key: string) => merged[key],
+			setValue: (key: string, value: unknown) => { merged[key] = value; },
+		} as unknown as IConfigurationService & { setValue(key: string, value: unknown): void };
+	}
+
+	function createTestEditor(hoverService?: IHoverService, configurationService?: IConfigurationService): TestableEditor {
 		const editor = Object.create(AICustomizationManagementEditor.prototype) as unknown as TestableEditor;
 		editor.currentEditingPromptType = undefined;
 		editor.currentEditingStorage = undefined;
@@ -40,6 +59,7 @@ suite('aiCustomizationManagementEditor', () => {
 			add<T>(value: T): T {
 				return value;
 			},
+			clear(): void { },
 			dispose(): void { },
 		};
 		editor.hoverService = hoverService ?? {
@@ -50,6 +70,13 @@ suite('aiCustomizationManagementEditor', () => {
 				update() { },
 			}),
 		} as unknown as IHoverService;
+		editor.configurationService = configurationService ?? createConfigurationServiceStub();
+		editor.editorPreviewRenderScheduler = {
+			cancel(): void { },
+			schedule(): void { },
+		};
+		editor.viewMode = 'list';
+		editor.dimension = undefined;
 		return editor;
 	}
 
@@ -121,5 +148,40 @@ suite('aiCustomizationManagementEditor', () => {
 			container.remove();
 			editor.editorPreviewDisposables.dispose();
 		}
+	});
+
+	test('hides preview button when structured preview setting is disabled', () => {
+		const editor = createTestEditor(undefined, createConfigurationServiceStub({
+			[ChatConfiguration.ChatCustomizationsStructuredPreviewEnabled]: false,
+		}));
+		editor.currentEditingPromptType = PromptsType.agent;
+		editor.currentEditingStorage = BUILTIN_STORAGE;
+		editor.currentEditingReadOnly = false;
+		editor.editorDisplayMode = 'preview';
+
+		assert.strictEqual(editor.getEditorModeButtonLabel(), '');
+		assert.strictEqual(editor.getEditorModeButtonTooltip(), '');
+
+		editor.editorPreviewDisposables.dispose();
+	});
+
+	test('disabling the setting at runtime forces the editor back to raw mode', () => {
+		const configurationService = createConfigurationServiceStub() as IConfigurationService & { setValue(key: string, value: unknown): void };
+		const editor = createTestEditor(undefined, configurationService);
+		editor.viewMode = 'editor';
+		editor.currentEditingPromptType = PromptsType.agent;
+		editor.editorDisplayMode = 'preview';
+
+		// Sanity: setting is on and file is editable, so label is "Edit" (preview mode).
+		assert.strictEqual(editor.getEditorModeButtonLabel(), 'Edit');
+
+		// Flip the setting off and run the change handler.
+		configurationService.setValue(ChatConfiguration.ChatCustomizationsStructuredPreviewEnabled, false);
+		editor.onStructuredPreviewSettingChanged();
+
+		assert.strictEqual(editor.editorDisplayMode, 'raw');
+		assert.strictEqual(editor.getEditorModeButtonLabel(), '');
+
+		editor.editorPreviewDisposables.dispose();
 	});
 });

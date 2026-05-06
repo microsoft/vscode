@@ -5,7 +5,7 @@
 
 import { localize, localize2 } from '../../../../nls.js';
 import { Action } from '../../../../base/common/actions.js';
-import { IEditorIdentifier, IEditorCommandsContext, CloseDirection, SaveReason, EditorsOrder, EditorInputCapabilities, DEFAULT_EDITOR_ASSOCIATION, GroupIdentifier, EditorResourceAccessor } from '../../../common/editor.js';
+import { IEditorIdentifier, IEditorCommandsContext, CloseDirection, SaveReason, EditorsOrder, EditorInputCapabilities, DEFAULT_EDITOR_ASSOCIATION, GroupIdentifier, EditorResourceAccessor, isDiffEditorInput, isResourceDiffEditorInput } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { SideBySideEditorInput } from '../../../common/editor/sideBySideEditorInput.js';
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
@@ -2543,11 +2543,13 @@ export class ToggleEditorTypeAction extends Action2 {
 }
 
 export class ReOpenInTextEditorAction extends Action2 {
+	static readonly ID = 'workbench.action.reopenTextEditor';
+	static readonly TITLE = localize2('reopenTextEditor', 'Reopen Editor with Text Editor');
 
 	constructor() {
 		super({
-			id: 'workbench.action.reopenTextEditor',
-			title: localize2('reopenTextEditor', 'Reopen Editor with Text Editor'),
+			id: ReOpenInTextEditorAction.ID,
+			title: ReOpenInTextEditorAction.TITLE,
 			f1: true,
 			category: Categories.View,
 			precondition: ActiveEditorAvailableEditorIdsContext
@@ -2559,6 +2561,27 @@ export class ReOpenInTextEditorAction extends Action2 {
 
 		const activeEditorPane = editorService.activeEditorPane;
 		if (!activeEditorPane) {
+			return;
+		}
+
+		if (isDiffEditorInput(activeEditorPane.input)) {
+			const untypedEditor = activeEditorPane.input.toUntyped();
+			if (!isResourceDiffEditorInput(untypedEditor)) {
+				return;
+			}
+
+			await editorService.replaceEditors([
+				{
+					editor: activeEditorPane.input,
+					replacement: {
+						...untypedEditor,
+						options: {
+							...untypedEditor.options,
+							override: DEFAULT_EDITOR_ASSOCIATION.id
+						}
+					}
+				}
+			], activeEditorPane.group);
 			return;
 		}
 

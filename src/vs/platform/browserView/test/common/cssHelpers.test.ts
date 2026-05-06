@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { collapseToShorthands, formatAuthorStyles, type IMatchedStyles } from '../../common/cssHelpers.js';
+import { collapseToShorthands, formatMatchedStyles, type IMatchedStyles } from '../../common/cssHelpers.js';
 
 /** Helper: build a Map from an object literal and run collapseToShorthands. */
 function collapse(props: Record<string, string>): string[] {
@@ -247,7 +247,7 @@ suite('formatAuthorStyles', () => {
 				rule('button', 'display: inline-block;', 'user-agent'),
 			],
 		};
-		const { rulesText } = formatAuthorStyles(matched);
+		const { rulesText } = formatMatchedStyles(matched);
 		assert.ok(rulesText.includes('.btn'));
 		assert.ok(rulesText.includes('padding: 8px'));
 		assert.ok(!rulesText.includes('display: inline-block'));
@@ -267,7 +267,7 @@ suite('formatAuthorStyles', () => {
 				},
 			],
 		};
-		const { rulesText } = formatAuthorStyles(matched);
+		const { rulesText } = formatMatchedStyles(matched);
 		assert.ok(rulesText.includes('/* Pseudo-elements */'));
 		assert.ok(rulesText.includes('.btn::before'));
 		assert.ok(rulesText.includes('.btn::after'));
@@ -284,7 +284,7 @@ suite('formatAuthorStyles', () => {
 				},
 			],
 		};
-		const { rulesText } = formatAuthorStyles(matched);
+		const { rulesText } = formatMatchedStyles(matched);
 		assert.ok(!rulesText.includes('Pseudo-elements'));
 	});
 
@@ -295,7 +295,7 @@ suite('formatAuthorStyles', () => {
 				matchedCSSRules: [rule('body', 'font-family: sans-serif; background: red; margin: 0;')],
 			}],
 		};
-		const { rulesText } = formatAuthorStyles(matched);
+		const { rulesText } = formatMatchedStyles(matched);
 		assert.ok(rulesText.includes('font-family: sans-serif'));
 		assert.ok(!rulesText.includes('background'));
 		assert.ok(!rulesText.includes('margin'));
@@ -305,7 +305,7 @@ suite('formatAuthorStyles', () => {
 		const matched: IMatchedStyles = {
 			matchedCSSRules: [rule('.x', 'color: var(--fg-color); border: var(--border-width) solid;')],
 		};
-		const { referencedVars } = formatAuthorStyles(matched);
+		const { referencedVars } = formatMatchedStyles(matched);
 		assert.ok(referencedVars.has('--fg-color'));
 		assert.ok(referencedVars.has('--border-width'));
 	});
@@ -327,11 +327,51 @@ suite('formatAuthorStyles', () => {
 				},
 			}],
 		};
-		const { authorPropertyNames } = formatAuthorStyles(matched);
+		const { authorPropertyNames } = formatMatchedStyles(matched);
 		assert.ok(authorPropertyNames.has('border-top-width'));
 		assert.ok(authorPropertyNames.has('border-top-style'));
 		// Always-shown properties
 		assert.ok(authorPropertyNames.has('display'));
 		assert.ok(authorPropertyNames.has('width'));
+	});
+
+	test('tracks user-agent property names from direct rules', () => {
+		const matched: IMatchedStyles = {
+			matchedCSSRules: [
+				rule('.btn', 'color: white;'),
+				rule('button', 'display: inline-block; padding: 2px;', 'user-agent'),
+			],
+		};
+		const { userAgentPropertyNames } = formatMatchedStyles(matched);
+		assert.ok(userAgentPropertyNames.has('display'));
+		assert.ok(userAgentPropertyNames.has('padding'));
+		assert.ok(!userAgentPropertyNames.has('color'));
+	});
+
+	test('tracks user-agent property names from pseudo-element rules', () => {
+		const matched: IMatchedStyles = {
+			matchedCSSRules: [rule('.x', 'color: red;')],
+			pseudoElements: [
+				{
+					pseudoType: 'before',
+					matches: [rule('input::before', 'content: ""; display: block;', 'user-agent')],
+				},
+			],
+		};
+		const { userAgentPropertyNames } = formatMatchedStyles(matched);
+		assert.ok(userAgentPropertyNames.has('content'));
+		assert.ok(userAgentPropertyNames.has('display'));
+	});
+
+	test('tracks user-agent property names from inherited rules (inheritable only)', () => {
+		const matched: IMatchedStyles = {
+			matchedCSSRules: [rule('.child', 'display: flex;')],
+			inherited: [{
+				matchedCSSRules: [rule('body', 'font-family: sans-serif; margin: 0;', 'user-agent')],
+			}],
+		};
+		const { userAgentPropertyNames } = formatMatchedStyles(matched);
+		assert.ok(userAgentPropertyNames.has('font-family'));
+		assert.ok(!userAgentPropertyNames.has('margin'));
 	});
 });

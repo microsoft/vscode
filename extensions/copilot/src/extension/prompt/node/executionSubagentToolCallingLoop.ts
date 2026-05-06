@@ -358,7 +358,7 @@ export class ExecutionSubagentToolCallingLoop extends ToolCallingLoop<IExecution
 				requestId: this.options.subAgentInvocationId,
 				messageId: randomUUID(),
 				messageSource: 'chat.editAgent',
-				subType: 'subagent/execution',
+				subType: 'execution_subagent',
 				conversationId: this.options.conversation.sessionId,
 				parentToolCallId: this.options.parentToolCallId,
 				parentHeaderRequestId: this.options.parentHeaderRequestId,

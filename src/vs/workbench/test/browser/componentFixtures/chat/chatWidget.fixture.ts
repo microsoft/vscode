@@ -42,7 +42,6 @@ interface IFixtureMessage {
 
 interface IChatWidgetFixtureOptions {
 	readonly messages: ReadonlyArray<IFixtureMessage>;
-	readonly withInput?: boolean;
 }
 
 function makeUserMessage(text: string) {
@@ -161,33 +160,32 @@ async function renderChatWidget(context: ComponentFixtureContext, options: IChat
 	// Build the input part FIRST so the widget (with its inputPart) is registered
 	// in IChatWidgetService before the list widget renders. The renderer queries
 	// the service synchronously when routing tool confirmations to the carousel.
-	let inputPart: ChatInputPart | undefined;
-	if (options.withInput) {
-		const menuService = instantiationService.get(IMenuService) as FixtureMenuService;
-		menuService.addItem(MenuId.ChatInput, { command: { id: 'workbench.action.chat.attachContext', title: '+', icon: Codicon.add }, group: 'navigation', order: -1 });
-		menuService.addItem(MenuId.ChatInput, { command: { id: 'workbench.action.chat.openModePicker', title: 'Agent' }, group: 'navigation', order: 1 });
-		menuService.addItem(MenuId.ChatInput, { command: { id: 'workbench.action.chat.openModelPicker', title: 'GPT-5.3-Codex' }, group: 'navigation', order: 3 });
-		menuService.addItem(MenuId.ChatInput, { command: { id: 'workbench.action.chat.configureTools', title: '', icon: Codicon.settingsGear }, group: 'navigation', order: 100 });
-		menuService.addItem(MenuId.ChatExecute, { command: { id: 'workbench.action.chat.submit', title: 'Send', icon: Codicon.arrowUp }, group: 'navigation', order: 4 });
-		menuService.addItem(MenuId.ChatInputSecondary, { command: { id: 'workbench.action.chat.openSessionTargetPicker', title: 'Local' }, group: 'navigation', order: 0 });
-		menuService.addItem(MenuId.ChatInputSecondary, { command: { id: 'workbench.action.chat.openPermissionPicker', title: 'Default Approvals' }, group: 'navigation', order: 10 });
+	// In production a chat widget always has an inputPart, so the fixture creates
+	// one unconditionally; `withInput` only controls whether it is rendered in DOM.
+	const menuService = instantiationService.get(IMenuService) as FixtureMenuService;
+	menuService.addItem(MenuId.ChatInput, { command: { id: 'workbench.action.chat.attachContext', title: '+', icon: Codicon.add }, group: 'navigation', order: -1 });
+	menuService.addItem(MenuId.ChatInput, { command: { id: 'workbench.action.chat.openModePicker', title: 'Agent' }, group: 'navigation', order: 1 });
+	menuService.addItem(MenuId.ChatInput, { command: { id: 'workbench.action.chat.openModelPicker', title: 'GPT-5.3-Codex' }, group: 'navigation', order: 3 });
+	menuService.addItem(MenuId.ChatInput, { command: { id: 'workbench.action.chat.configureTools', title: '', icon: Codicon.settingsGear }, group: 'navigation', order: 100 });
+	menuService.addItem(MenuId.ChatExecute, { command: { id: 'workbench.action.chat.submit', title: 'Send', icon: Codicon.arrowUp }, group: 'navigation', order: 4 });
+	menuService.addItem(MenuId.ChatInputSecondary, { command: { id: 'workbench.action.chat.openSessionTargetPicker', title: 'Local' }, group: 'navigation', order: 0 });
+	menuService.addItem(MenuId.ChatInputSecondary, { command: { id: 'workbench.action.chat.openPermissionPicker', title: 'Default Approvals' }, group: 'navigation', order: 10 });
 
-		const inputOptions: IChatInputPartOptions = {
-			renderFollowups: false,
-			renderInputToolbarBelowInput: false,
-			renderWorkingSet: false,
-			menus: { executeToolbar: MenuId.ChatExecute, telemetrySource: 'fixture' },
-			widgetViewKindTag: 'view',
-			inputEditorMinLines: 2,
-		};
-		const inputStyles: IChatInputStyles = {
-			overlayBackground: 'var(--vscode-editor-background)',
-			listForeground: 'var(--vscode-foreground)',
-			listBackground: 'var(--vscode-editor-background)',
-		};
+	const inputOptions: IChatInputPartOptions = {
+		renderFollowups: false,
+		renderInputToolbarBelowInput: false,
+		renderWorkingSet: false,
+		menus: { executeToolbar: MenuId.ChatExecute, telemetrySource: 'fixture' },
+		widgetViewKindTag: 'view',
+		inputEditorMinLines: 2,
+	};
+	const inputStyles: IChatInputStyles = {
+		overlayBackground: 'var(--vscode-editor-background)',
+		listForeground: 'var(--vscode-foreground)',
+		listBackground: 'var(--vscode-editor-background)',
+	};
 
-		inputPart = disposableStore.add(instantiationService.createInstance(ChatInputPart, ChatAgentLocation.Chat, inputOptions, inputStyles, false));
-	}
+	const inputPart = disposableStore.add(instantiationService.createInstance(ChatInputPart, ChatAgentLocation.Chat, inputOptions, inputStyles, false));
 
 	const fixtureWidget = new class extends mock<IChatWidget>() {
 		override readonly onDidChangeViewModel = new Emitter<never>().event;
@@ -195,16 +193,14 @@ async function renderChatWidget(context: ComponentFixtureContext, options: IChat
 		override readonly contribs = [];
 		override readonly location = ChatAgentLocation.Chat;
 		override readonly viewContext = {};
-		override readonly inputPart = inputPart!;
+		override readonly inputPart = inputPart;
 	}();
 	widgetHolder.current = fixtureWidget;
 
-	if (inputPart) {
-		inputPart.render(session, '', fixtureWidget);
-		inputPart.layout(720);
-		await new Promise(r => setTimeout(r, 50));
-		inputPart.layout(720);
-	}
+	inputPart.render(session, '', fixtureWidget);
+	inputPart.layout(720);
+	await new Promise(r => setTimeout(r, 50));
+	inputPart.layout(720);
 
 	const listContainer = dom.$('.interactive-list');
 	listContainer.style.flex = '1 1 auto';
@@ -234,7 +230,7 @@ async function renderChatWidget(context: ComponentFixtureContext, options: IChat
 	listWidget.setVisible(true);
 	listWidget.refresh();
 
-	const listHeight = options.withInput ? 420 : 600;
+	const listHeight = 420;
 	listWidget.layout(listHeight, 720);
 
 	// Allow the renderer to flush its async progressive rendering pass.
@@ -297,7 +293,5 @@ export default defineThemedFixtureGroup({ path: 'chat/widget/' }, {
 	SimpleQA: defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: SIMPLE_QA }) }),
 	Streaming: defineComponentFixture({ labels: { kind: 'animated' }, render: ctx => renderChatWidget(ctx, { messages: STREAMING }) }),
 	PendingToolApproval: defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: PENDING_TOOL_APPROVAL }) }),
-	PendingToolApprovalWithInput: defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: PENDING_TOOL_APPROVAL, withInput: true }) }),
 	MultiTurn: defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: MULTI_TURN }) }),
-	WithInput: defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: MULTI_TURN, withInput: true }) }),
 });

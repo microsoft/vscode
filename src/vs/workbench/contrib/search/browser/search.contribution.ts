@@ -14,12 +14,9 @@ import { Extensions as QuickAccessExtensions, IQuickAccessRegistry } from '../..
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { ViewPaneContainer } from '../../../browser/parts/views/viewPaneContainer.js';
 import { Extensions as ViewExtensions, IViewContainersRegistry, IViewDescriptor, IViewsRegistry, ViewContainerLocation } from '../../../common/views.js';
-import { registerContributions as replaceContributions } from './replaceContributions.js';
-import { registerContributions as notebookSearchContributions } from './notebookSearch/notebookSearchContributions.js';
 import { searchViewIcon } from './searchIcons.js';
 import { SearchView } from './searchView.js';
 import { registerContributions as searchWidgetContributions } from './searchWidget.js';
-import { ISearchHistoryService, SearchHistoryService } from '../common/searchHistoryService.js';
 import { SearchViewModelWorkbenchService } from './searchTreeModel/searchModel.js';
 import { ISearchViewModelWorkbenchService } from './searchTreeModel/searchViewModelWorkbenchService.js';
 import { SearchSortOrder, SEARCH_EXCLUDE_CONFIG, VIEWLET_ID, ViewMode, VIEW_ID, DEFAULT_MAX_SEARCH_RESULTS, SemanticSearchBehavior } from '../../../services/search/common/search.js';
@@ -36,6 +33,7 @@ import './searchActionsRemoveReplace.js';
 import './searchActionsTopBar.js';
 import './searchActionsTextQuickAccess.js';
 import './searchQuickAccess.contribution.js';
+import './search.common.contribution.js';
 import { TEXT_SEARCH_QUICK_ACCESS_PREFIX, TextSearchQuickAccess } from './quickTextSearch/textSearchQuickAccess.js';
 import { Extensions, IConfigurationMigrationRegistry } from '../../../common/configuration.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
@@ -43,10 +41,7 @@ import { AccessibleViewRegistry } from '../../../../platform/accessibility/brows
 import { SearchAccessibilityHelp } from './searchAccessibilityHelp.js';
 
 registerSingleton(ISearchViewModelWorkbenchService, SearchViewModelWorkbenchService, InstantiationType.Delayed);
-registerSingleton(ISearchHistoryService, SearchHistoryService, InstantiationType.Delayed);
 
-replaceContributions();
-notebookSearchContributions();
 searchWidgetContributions();
 
 registerWorkbenchContribution2(SearchChatContextContribution.ID, SearchChatContextContribution, WorkbenchPhase.AfterRestored);
@@ -190,7 +185,8 @@ configurationRegistry.registerConfiguration({
 		'search.quickOpen.includeHistory': {
 			type: 'boolean',
 			description: nls.localize('search.quickOpen.includeHistory', "Whether to include results from recently opened files in the file results for Quick Open."),
-			default: true
+			default: true,
+			agentsWindow: { default: false },
 		},
 		'search.quickOpen.history.filterSortOrder': {
 			type: 'string',
@@ -286,42 +282,6 @@ configurationRegistry.registerConfiguration({
 			type: 'number',
 			default: 300,
 			markdownDescription: nls.localize('search.searchOnTypeDebouncePeriod', "When {0} is enabled, controls the timeout in milliseconds between a character being typed and the search starting. Has no effect when {0} is disabled.", '`#search.searchOnType#`')
-		},
-		'search.searchEditor.doubleClickBehaviour': {
-			type: 'string',
-			enum: ['selectWord', 'goToLocation', 'openLocationToSide'],
-			default: 'goToLocation',
-			enumDescriptions: [
-				nls.localize('search.searchEditor.doubleClickBehaviour.selectWord', "Double-clicking selects the word under the cursor."),
-				nls.localize('search.searchEditor.doubleClickBehaviour.goToLocation', "Double-clicking opens the result in the active editor group."),
-				nls.localize('search.searchEditor.doubleClickBehaviour.openLocationToSide', "Double-clicking opens the result in the editor group to the side, creating one if it does not yet exist."),
-			],
-			markdownDescription: nls.localize('search.searchEditor.doubleClickBehaviour', "Configure effect of double-clicking a result in a search editor.")
-		},
-		'search.searchEditor.singleClickBehaviour': {
-			type: 'string',
-			enum: ['default', 'peekDefinition',],
-			default: 'default',
-			enumDescriptions: [
-				nls.localize('search.searchEditor.singleClickBehaviour.default', "Single-clicking does nothing."),
-				nls.localize('search.searchEditor.singleClickBehaviour.peekDefinition', "Single-clicking opens a Peek Definition window."),
-			],
-			markdownDescription: nls.localize('search.searchEditor.singleClickBehaviour', "Configure effect of single-clicking a result in a search editor.")
-		},
-		'search.searchEditor.reusePriorSearchConfiguration': {
-			type: 'boolean',
-			default: false,
-			markdownDescription: nls.localize({ key: 'search.searchEditor.reusePriorSearchConfiguration', comment: ['"Search Editor" is a type of editor that can display search results. "includes, excludes, and flags" refers to the "files to include" and "files to exclude" input boxes, and the flags that control whether a query is case-sensitive or a regex.'] }, "When enabled, new Search Editors will reuse the includes, excludes, and flags of the previously opened Search Editor.")
-		},
-		'search.searchEditor.defaultNumberOfContextLines': {
-			type: ['number', 'null'],
-			default: 1,
-			markdownDescription: nls.localize('search.searchEditor.defaultNumberOfContextLines', "The default number of surrounding context lines to use when creating new Search Editors. If using `#search.searchEditor.reusePriorSearchConfiguration#`, this can be set to `null` (empty) to use the prior Search Editor's configuration.")
-		},
-		'search.searchEditor.focusResultsOnSearch': {
-			type: 'boolean',
-			default: false,
-			markdownDescription: nls.localize('search.searchEditor.focusResultsOnSearch', "When a search is triggered, focus the Search Editor results instead of the Search Editor input.")
 		},
 		'search.sortOrder': {
 			type: 'string',
