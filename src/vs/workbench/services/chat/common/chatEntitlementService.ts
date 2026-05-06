@@ -685,6 +685,63 @@ interface IQuotas {
 	readonly additionalUsageCount?: number;
 }
 
+export function parseQuotas(entitlementsData: IEntitlementsData): IQuotas {
+	const quotas: Mutable<IQuotas> = {
+		resetDate: entitlementsData.quota_reset_date_utc ?? entitlementsData.quota_reset_date ?? entitlementsData.limited_user_reset_date,
+		resetDateHasTime: typeof entitlementsData.quota_reset_date_utc === 'string',
+	};
+
+	// Legacy Free SKU Quota
+	if (entitlementsData.monthly_quotas?.chat && typeof entitlementsData.limited_user_quotas?.chat === 'number') {
+		quotas.chat = {
+			percentRemaining: Math.min(100, Math.max(0, (entitlementsData.limited_user_quotas.chat / entitlementsData.monthly_quotas.chat) * 100)),
+			unlimited: false
+		};
+	}
+
+	if (entitlementsData.monthly_quotas?.completions && typeof entitlementsData.limited_user_quotas?.completions === 'number') {
+		quotas.completions = {
+			percentRemaining: Math.min(100, Math.max(0, (entitlementsData.limited_user_quotas.completions / entitlementsData.monthly_quotas.completions) * 100)),
+			unlimited: false
+		};
+	}
+
+	// New Quota Snapshot
+	if (entitlementsData.quota_snapshots) {
+		for (const quotaType of ['chat', 'completions', 'premium_interactions'] as const) {
+			const rawQuotaSnapshot = entitlementsData.quota_snapshots[quotaType];
+			if (!rawQuotaSnapshot) {
+				continue;
+			}
+			const parsedEntitlement = rawQuotaSnapshot.entitlement !== undefined ? Number(rawQuotaSnapshot.entitlement) : undefined;
+			const quotaSnapshot: IQuotaSnapshot = {
+				percentRemaining: Math.min(100, Math.max(0, rawQuotaSnapshot.percent_remaining)),
+				unlimited: rawQuotaSnapshot.unlimited,
+				usageBasedBilling: entitlementsData.token_based_billing,
+				resetAt: rawQuotaSnapshot.quota_reset_at || undefined,
+				entitlement: parsedEntitlement !== undefined && Number.isSafeInteger(parsedEntitlement) && parsedEntitlement >= 0 ? parsedEntitlement : undefined,
+			};
+
+			switch (quotaType) {
+				case 'chat':
+					quotas.chat = quotaSnapshot;
+					break;
+				case 'completions':
+					quotas.completions = quotaSnapshot;
+					break;
+				case 'premium_interactions':
+					quotas.premiumChat = quotaSnapshot;
+					break;
+			}
+		}
+
+		const overageSource = entitlementsData.quota_snapshots['premium_interactions'];
+		quotas.additionalUsageEnabled = overageSource?.overage_permitted ?? false;
+		quotas.additionalUsageCount = overageSource?.overage_count ?? 0;
+	}
+	return quotas;
+}
+
 export class ChatEntitlementRequests extends Disposable {
 
 	private state: IEntitlements;
@@ -821,60 +878,7 @@ export class ChatEntitlementRequests extends Disposable {
 	}
 
 	private toQuotas(entitlementsData: IEntitlementsData): IQuotas {
-		const quotas: Mutable<IQuotas> = {
-			resetDate: entitlementsData.quota_reset_date_utc ?? entitlementsData.quota_reset_date ?? entitlementsData.limited_user_reset_date,
-			resetDateHasTime: typeof entitlementsData.quota_reset_date_utc === 'string',
-		};
-
-		// Legacy Free SKU Quota
-		if (entitlementsData.monthly_quotas?.chat && typeof entitlementsData.limited_user_quotas?.chat === 'number') {
-			quotas.chat = {
-				percentRemaining: Math.min(100, Math.max(0, (entitlementsData.limited_user_quotas.chat / entitlementsData.monthly_quotas.chat) * 100)),
-				unlimited: false
-			};
-		}
-
-		if (entitlementsData.monthly_quotas?.completions && typeof entitlementsData.limited_user_quotas?.completions === 'number') {
-			quotas.completions = {
-				percentRemaining: Math.min(100, Math.max(0, (entitlementsData.limited_user_quotas.completions / entitlementsData.monthly_quotas.completions) * 100)),
-				unlimited: false
-			};
-		}
-
-		// New Quota Snapshot
-		if (entitlementsData.quota_snapshots) {
-			for (const quotaType of ['chat', 'completions', 'premium_interactions'] as const) {
-				const rawQuotaSnapshot = entitlementsData.quota_snapshots[quotaType];
-				if (!rawQuotaSnapshot) {
-					continue;
-				}
-				const parsedEntitlement = rawQuotaSnapshot.entitlement !== undefined ? Number(rawQuotaSnapshot.entitlement) : undefined;
-				const quotaSnapshot: IQuotaSnapshot = {
-					percentRemaining: Math.min(100, Math.max(0, rawQuotaSnapshot.percent_remaining)),
-					unlimited: rawQuotaSnapshot.unlimited,
-					usageBasedBilling: rawQuotaSnapshot.token_based_billing,
-					resetAt: rawQuotaSnapshot.quota_reset_at || undefined,
-					entitlement: parsedEntitlement !== undefined && Number.isSafeInteger(parsedEntitlement) && parsedEntitlement >= 0 ? parsedEntitlement : undefined,
-				};
-
-				switch (quotaType) {
-					case 'chat':
-						quotas.chat = quotaSnapshot;
-						break;
-					case 'completions':
-						quotas.completions = quotaSnapshot;
-						break;
-					case 'premium_interactions':
-						quotas.premiumChat = quotaSnapshot;
-						break;
-				}
-			}
-
-			const overageSource = entitlementsData.quota_snapshots['premium_interactions'];
-			quotas.additionalUsageEnabled = overageSource?.overage_permitted ?? false;
-			quotas.additionalUsageCount = overageSource?.overage_count ?? 0;
-		}
-		return quotas;
+		return parseQuotas(entitlementsData);
 	}
 
 	private async request(url: string, type: 'GET', body: undefined, sessions: AuthenticationSession[], token: CancellationToken, callSite: string): Promise<IRequestContext | undefined>;

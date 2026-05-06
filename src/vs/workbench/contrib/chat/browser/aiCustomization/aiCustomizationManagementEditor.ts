@@ -630,6 +630,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 					this.harnessService.setActiveHarness(SessionType.Local);
 				}
 			}
+			if (e.affectsConfiguration(ChatConfiguration.ChatCustomizationsStructuredPreviewEnabled)) {
+				this.onStructuredPreviewSettingChanged();
+			}
 		}));
 
 	}
@@ -1969,10 +1972,31 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	private isStructuredPreviewSupported(promptType: PromptsType | undefined): boolean {
+		if (this.configurationService.getValue<boolean>(ChatConfiguration.ChatCustomizationsStructuredPreviewEnabled) !== true) {
+			return false;
+		}
 		return promptType === PromptsType.agent
 			|| promptType === PromptsType.skill
 			|| promptType === PromptsType.instructions
 			|| promptType === PromptsType.prompt;
+	}
+
+	private onStructuredPreviewSettingChanged(): void {
+		if (this.viewMode !== 'editor') {
+			return;
+		}
+		const supportsStructuredPreview = this.isStructuredPreviewSupported(this.currentEditingPromptType);
+		if (!supportsStructuredPreview) {
+			this.editorDisplayMode = 'raw';
+			this.editorPreviewRenderScheduler.cancel();
+			this.clearEditorPreview();
+		} else if (this.editorDisplayMode === 'preview') {
+			this.editorPreviewRenderScheduler.schedule();
+		}
+		this.updateEditorDisplayMode();
+		if (this.dimension) {
+			this.layout(this.dimension);
+		}
 	}
 
 	private getCurrentEditingModel(): ITextModel | undefined {
