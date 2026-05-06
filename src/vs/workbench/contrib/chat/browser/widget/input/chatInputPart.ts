@@ -1178,8 +1178,16 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			.map(modelId => ({ identifier: modelId, metadata: this.languageModelsService.lookupLanguageModel(modelId)! }));
 
 		const contributedVendors = new Set(this.languageModelsService.getVendors().map(v => v.vendor));
-		const models = mergeModelsWithCache(liveModels, cachedModels, contributedVendors);
-		if (liveModels.length > 0) {
+		const resolvedVendors = new Set<string>();
+		for (const v of contributedVendors) {
+			if (this.languageModelsService.hasResolvedVendor(v)) {
+				resolvedVendors.add(v);
+			}
+		}
+		const models = mergeModelsWithCache(liveModels, cachedModels, contributedVendors, resolvedVendors);
+		// Persist whenever we have any authoritative information — either live
+		// models, or at least one resolved vendor (so cache eviction sticks).
+		if (liveModels.length > 0 || resolvedVendors.size > 0) {
 			this.storageService.store(CachedLanguageModelsKey, models, StorageScope.APPLICATION, StorageTarget.MACHINE);
 		}
 		return models;

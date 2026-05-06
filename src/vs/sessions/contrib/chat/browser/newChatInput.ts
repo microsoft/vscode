@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/chatInput.css';
+import './media/chatInputMobile.css';
 import * as dom from '../../../../base/browser/dom.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter } from '../../../../base/common/event.js';
@@ -37,6 +38,9 @@ import { ContextMenuController } from '../../../../editor/contrib/contextmenu/br
 import { getSimpleEditorOptions } from '../../../../workbench/contrib/codeEditor/browser/simpleEditorOptions.js';
 import { NewChatContextAttachments } from './newChatContextAttachments.js';
 import { SessionTypePicker } from './sessionTypePicker.js';
+import { MobileSessionTypePicker } from './mobileSessionTypePicker.js';
+import { installMobileChipLaneScroll } from '../../../browser/parts/mobile/mobileChipLaneScroll.js';
+import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { Menus } from '../../../browser/menus.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { SlashCommandHandler } from './slashCommands.js';
@@ -152,11 +156,17 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		@IHoverService private readonly hoverService: IHoverService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 	) {
 		super();
 		this._history = this._register(this.instantiationService.createInstance(ChatHistoryNavigator, ChatAgentLocation.Chat));
 		this._contextAttachments = this._register(this.instantiationService.createInstance(NewChatContextAttachments));
-		this.sessionTypePicker = this._register(this.instantiationService.createInstance(SessionTypePicker));
+		// Always use the mobile-aware picker. Its overrides bail to the
+		// desktop behavior when `isPhoneLayout()` is false, so picking
+		// the same class regardless of construction-time viewport
+		// avoids a class-mismatch when the user resizes across the
+		// phone breakpoint after the chat input mounted.
+		this.sessionTypePicker = this._register(this.instantiationService.createInstance(MobileSessionTypePicker));
 		this._register(this._contextAttachments.onDidChangeContext(() => {
 			this._updateDraftState();
 			this.focus();
@@ -209,6 +219,15 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, repoConfigContainer, Menus.NewSessionRepositoryConfig, {
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 		}));
+
+		// On phone, the chip lane is horizontally scrollable when its
+		// content overflows the viewport. Native touch scroll is blocked
+		// because each chip registers a `Gesture.addTarget` handler in
+		// `renderPickerTrigger` that calls `preventDefault` on
+		// `touchmove`, swallowing the pan. The helper below installs a
+		// pointer-event-based scroll handler that no-ops on desktop and
+		// kicks in once a drag crosses a small threshold on phone.
+		this._register(installMobileChipLaneScroll(newChatBottomContainer, this.layoutService));
 
 		// Restore draft input state from storage
 		this._restoreState();
@@ -489,7 +508,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 
 	private async _send(): Promise<void> {
-		let query = this._editor.getModel()?.getValue().trim();
+		const query = this._editor.getModel()?.getValue().trim();
 		if (!query || this._sending) {
 			return;
 		}
@@ -498,12 +517,6 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		if (this._slashCommandHandler?.tryExecuteSlashCommand(query)) {
 			this._editor.getModel()?.setValue('');
 			return;
-		}
-
-		// Expand prompt/skill slash commands into a CLI-friendly reference
-		const expanded = this._slashCommandHandler?.tryExpandPromptSlashCommand(query);
-		if (expanded) {
-			query = expanded;
 		}
 
 		const attachedContext = this._contextAttachments.attachments.length > 0
