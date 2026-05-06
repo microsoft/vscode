@@ -259,7 +259,7 @@ setPartHidden(hidden: boolean, part: Parts): void
     - The main editor part is hidden by default but can be shown for explicit editor workflows that target the main editor part
     - Modal editor opens do not change the current main editor visibility state
     - The sessions **Maximize Editor** action temporarily hides the panel when the visible panel is the terminal view, and the matching **Restore Editor** action reopens that terminal panel if maximize hid it
-    - When a maximized main editor attached to the auxiliary bar closes, the next attached-editor reopen restores that maximized state; modal editor flows do not participate in this restore behavior
+    - When a maximized main editor attached to the auxiliary bar closes, the next attached-editor reopen restores that maximized state only if the auxiliary bar is visible at reopen time; hiding and later re-showing the auxiliary bar does not by itself clear this pending restore state. Modal editor flows do not participate in this restore behavior
   - All editors open via `MODAL_GROUP` into the `ModalEditorPart` overlay, which manages its own lifecycle
 
 ### 6.2 Part Sizing
