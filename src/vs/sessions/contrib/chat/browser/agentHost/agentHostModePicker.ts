@@ -18,7 +18,6 @@ import { type IAgentHostSessionsProvider, isAgentHostProvider } from '../../../.
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { type ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
-import { IChatPhoneInputPresenter } from '../../../../../workbench/contrib/chat/browser/widget/input/chatPhoneInputPresenter.js';
 import { isWellKnownModeSchema } from './agentHostPermissionPickerDelegate.js';
 
 interface IModePickerItem {
@@ -212,45 +211,5 @@ export class AgentHostModePicker extends Disposable {
 				getWidgetAriaLabel: () => localize('agentHostModePicker.ariaLabel', "Agent Mode Picker"),
 			},
 		);
-	}
-}
-
-/**
- * Phone-aware variant of {@link AgentHostModePicker}. On phone-layout
- * viewports the desktop action-widget popover is replaced with the same
- * combined Mode + Model bottom sheet used by the workbench chip and the
- * empty new-chat picker (see {@link IChatPhoneInputPresenter}). On
- * desktop the inherited `_showPicker` falls through to the base
- * implementation, so this class is safe to keep through viewport-class
- * transitions.
- *
- * Same file as the base class to avoid the circular ESM dependency that
- * would arise from a separate file importing the base.
- */
-export class MobileAgentHostModePicker extends AgentHostModePicker {
-
-	constructor(
-		@IActionWidgetService actionWidgetService: IActionWidgetService,
-		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
-		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
-		@IChatPhoneInputPresenter private readonly _phonePresenter: IChatPhoneInputPresenter,
-	) {
-		super(actionWidgetService, sessionsManagementService, sessionsProvidersService);
-	}
-
-	protected override _showPicker(): void {
-		if (!this._triggerElement) {
-			return;
-		}
-		if (this._phonePresenter.enabled.get()) {
-			// The presenter's agent-host branch reads mode + model
-			// directly from the active session's provider, so we don't
-			// need to pass chat-input delegates here.
-			const trigger = this._triggerElement;
-			this._phonePresenter.showCombinedModeAndModelSheet(trigger, undefined, undefined)
-				.finally(() => trigger.focus());
-			return;
-		}
-		super._showPicker();
 	}
 }

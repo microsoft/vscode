@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ActionListItemKind, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
-import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
-import { isPhoneLayout } from '../../../browser/parts/mobile/mobileLayout.js';
-import { IMobilePickerSheetHeaderAction, IMobilePickerSheetItem, IMobilePickerSheetSearchSource, MOBILE_PICKER_SHEET_HEADER_ACTION_PREFIX, showMobilePickerSheet } from '../../../browser/parts/mobile/mobilePickerSheet.js';
-import { localize } from '../../../../nls.js';
-import { IWorkspacePickerItem } from './sessionWorkspacePicker.js';
-import { SubmenuAction, IAction } from '../../../../base/common/actions.js';
-import { isString } from '../../../../base/common/types.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
-import { Codicon } from '../../../../base/common/codicons.js';
-import { ISessionWorkspaceBrowseAction } from '../../../services/sessions/common/session.js';
+import { ActionListItemKind, IActionListItem } from '../../../../../platform/actionWidget/browser/actionList.js';
+import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
+import { isPhoneLayout } from '../../../../browser/parts/mobile/mobileLayout.js';
+import { IMobilePickerSheetHeaderAction, IMobilePickerSheetItem, IMobilePickerSheetSearchSource, MOBILE_PICKER_SHEET_HEADER_ACTION_PREFIX, showMobilePickerSheet } from '../../../../browser/parts/mobile/mobilePickerSheet.js';
+import { localize } from '../../../../../nls.js';
+import { IWorkspacePickerItem } from '../sessionWorkspacePicker.js';
+import { SubmenuAction, IAction } from '../../../../../base/common/actions.js';
+import { isString } from '../../../../../base/common/types.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { ISessionWorkspaceBrowseAction } from '../../../../services/sessions/common/session.js';
 
 /** Prefix used for ids of dynamically-loaded folder rows in the sheet. */
 const SEARCH_RESULT_ID_PREFIX = 'searchResult:';

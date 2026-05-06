@@ -81,8 +81,6 @@ function getAgentHostModels(
  */
 export const AGENT_HOST_MODEL_STORAGE_KEY = 'sessions.agentHostModelPicker.selectedModelId';
 
-const STORAGE_KEY = AGENT_HOST_MODEL_STORAGE_KEY;
-
 class AgentHostModelPickerContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'sessions.contrib.agentHostModelPicker';
@@ -105,7 +103,7 @@ class AgentHostModelPickerContribution extends Disposable implements IWorkbenchC
 					currentModel,
 					setModel: (model: ILanguageModelChatMetadataAndIdentifier) => {
 						currentModel.set(model, undefined);
-						storageService.store(STORAGE_KEY, model.identifier, StorageScope.PROFILE, StorageTarget.MACHINE);
+						storageService.store(AGENT_HOST_MODEL_STORAGE_KEY, model.identifier, StorageScope.PROFILE, StorageTarget.MACHINE);
 						const session = sessionsManagementService.activeSession.get();
 						if (session) {
 							const provider = sessionsProvidersService.getProviders().find(p => p.id === session.providerId);
@@ -124,7 +122,7 @@ class AgentHostModelPickerContribution extends Disposable implements IWorkbenchC
 				const action = { id: 'sessions.agentHost.modelPicker', label: '', enabled: true, class: undefined, tooltip: '', run: () => { } };
 				const modelPicker = instantiationService.createInstance(ModelPickerActionItem, action, delegate, pickerOptions);
 
-				const rememberedModelId = storageService.get(STORAGE_KEY, StorageScope.PROFILE);
+				const rememberedModelId = storageService.get(AGENT_HOST_MODEL_STORAGE_KEY, StorageScope.PROFILE);
 				const initModel = (session: ISession | undefined, sessionModelId: string | undefined) => {
 					const models = getAgentHostModels(languageModelsService, session);
 					modelPicker.setEnabled(models.length > 0);
