@@ -149,10 +149,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 				isProUser(entitlement) ||						// user is already pro
 				entitlement === ChatEntitlement.Free			// user is already free
 			) {
-				const signIn = localize('signInSetup', "Sign In");
-
-				text = `$(copilot) ${signIn}`;
-				ariaLabel = signIn;
+				return this.getSetupEntryProps();
 			}
 		} else {
 			const chatQuotaExceeded = this.chatEntitlementService.quotas.chat?.percentRemaining === 0;
@@ -176,9 +173,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 
 			// Signed out
 			else if (this.chatEntitlementService.entitlement === ChatEntitlement.Unknown) {
-				const signIn = localize('signIn', "Sign In");
-				text = `$(copilot) ${signIn}`;
-				ariaLabel = signIn;
+				return this.getSetupEntryProps();
 			}
 
 			// Free Quota Exceeded
@@ -239,6 +234,18 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		} satisfies IStatusbarEntry;
 
 		return baseResult;
+	}
+
+	private getSetupEntryProps(): IStatusbarEntry {
+		const signInLabel = localize('signIn', "Sign In");
+		return {
+			name: localize('chatStatus', "Copilot Status"),
+			text: `$(copilot) ${signInLabel}`,
+			ariaLabel: signInLabel,
+			command: 'workbench.action.chat.triggerSetup',
+			showInAllWindows: true,
+			kind: undefined,
+		};
 	}
 
 	override dispose(): void {
