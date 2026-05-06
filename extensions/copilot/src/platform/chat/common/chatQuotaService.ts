@@ -78,12 +78,14 @@ export interface IChatQuotaService {
 	readonly rateLimitInfo: { readonly session: IChatQuota | undefined; readonly weekly: IChatQuota | undefined };
 	quotaExhausted: boolean;
 	additionalUsageEnabled: boolean;
-	/** AIC credits used by the last processed request, from copilot_usage.total_nano_aiu. */
+	/** AIC credits accumulated for the current turn, from copilot_usage.total_nano_aiu. */
 	readonly lastCreditsUsed: number | undefined;
 	processQuotaHeaders(headers: IHeaders): void;
 	processQuotaSnapshots(snapshots: QuotaSnapshots): void;
-	/** Store the per-request cost from copilot_usage.total_nano_aiu (in nano-AIUs). */
+	/** Accumulate per-request cost from copilot_usage.total_nano_aiu (in nano-AIUs). */
 	setLastCopilotUsage(totalNanoAiu: number): void;
+	/** Reset accumulated turn credits. Call at the start of each turn. */
+	resetTurnCredits(): void;
 	clearQuota(): void;
 }
 

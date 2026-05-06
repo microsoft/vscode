@@ -204,6 +204,8 @@ export class ChatParticipantRequestHandler {
 	}
 
 	async getResult(): Promise<ICopilotChatResult> {
+		this._chatQuotaService.resetTurnCredits();
+
 		if (await this._shouldAskForPermissiveAuth()) {
 			// Return a random response
 			return {

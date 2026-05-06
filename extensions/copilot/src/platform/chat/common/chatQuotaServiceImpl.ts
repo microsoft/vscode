@@ -56,7 +56,13 @@ export class ChatQuotaService extends Disposable implements IChatQuotaService {
 	setLastCopilotUsage(totalNanoAiu: number): void {
 		// Convert nano-AIUs to AIC credits: 1 AIC = 1_000_000_000 nano-AIU
 		const aic = totalNanoAiu / 1_000_000_000;
-		this._lastCreditsUsed = aic > 0 ? aic : undefined;
+		if (aic > 0) {
+			this._lastCreditsUsed = (this._lastCreditsUsed ?? 0) + aic;
+		}
+	}
+
+	resetTurnCredits(): void {
+		this._lastCreditsUsed = undefined;
 	}
 
 	clearQuota(): void {
