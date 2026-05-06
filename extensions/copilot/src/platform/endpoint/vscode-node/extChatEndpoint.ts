@@ -18,7 +18,7 @@ import { ContextManagementResponse } from '../../networking/common/anthropic';
 import { FinishedCallback, OpenAiFunctionTool, OptionalChatRequestParams } from '../../networking/common/fetch';
 import { Response } from '../../networking/common/fetcherService';
 import { IChatEndpoint, ICreateEndpointBodyOptions, IEndpointBody, IMakeChatRequestOptions } from '../../networking/common/networking';
-import { ChatCompletion } from '../../networking/common/openai';
+import { APIUsage, ChatCompletion, isApiUsage } from '../../networking/common/openai';
 import { IOTelService } from '../../otel/common/otelService';
 import { retrieveCapturingTokenByCorrelation, storeCapturingTokenForCorrelation } from '../../requestLogger/node/requestLogger';
 import { ITelemetryService } from '../../telemetry/common/telemetry';
@@ -35,6 +35,92 @@ enum ChatImageMimeType {
 	GIF = 'image/gif',
 	WEBP = 'image/webp',
 	BMP = 'image/bmp',
+}
+
+const ZERO_USAGE: APIUsage = {
+	prompt_tokens: 0,
+	completion_tokens: 0,
+	total_tokens: 0,
+	prompt_tokens_details: { cached_tokens: 0 },
+};
+
+/**
+ * Parse a `LanguageModelDataPart` payload tagged with
+ * {@link CustomDataPartMimeTypes.Usage} into an {@link APIUsage} shape.
+ *
+ * The wire format is UTF-8 JSON. The full shape is the host's `APIUsage`
+ * interface; the parser is permissive and accepts any object whose
+ * numeric fields can be coerced — missing fields default to 0 — so a
+ * provider can emit a partial payload (e.g. only `prompt_tokens` and
+ * `completion_tokens`) without breaking the host. Returns `undefined` on
+ * `JSON.parse` failure or when the payload is not an object.
+ *
+ * Example: an extension `LanguageModelChatProvider` populates the
+ * Context Window indicator by emitting a final Usage part on its
+ * response stream:
+ *
+ * ```ts
+ * progress.report(new vscode.LanguageModelDataPart(
+ *     new TextEncoder().encode(JSON.stringify({
+ *         prompt_tokens: 12345,
+ *         completion_tokens: 678,
+ *         total_tokens: 13023,
+ *         prompt_tokens_details: { cached_tokens: 9000 }
+ *     })),
+ *     'usage' // CustomDataPartMimeTypes.Usage
+ * ));
+ * ```
+ */
+export function parseExtensionContributedUsage(data: Uint8Array): APIUsage | undefined {
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(new TextDecoder().decode(data));
+	} catch {
+		return undefined;
+	}
+	if (!parsed || typeof parsed !== 'object') {
+		return undefined;
+	}
+	// Coerce to non-negative finite numbers. `isApiUsage` only checks
+	// that the three top-level fields are `typeof === 'number'`, so a
+	// provider could still emit negatives or NaN; the host's cumulative
+	// completion-token counter (`ChatResponseModel.setUsage`) treats
+	// these as monotonic, so a negative would silently corrupt it.
+	const num = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? Math.max(0, v) : 0);
+	const obj = parsed as Record<string, unknown>;
+	if (isApiUsage(parsed)) {
+		// Strict shape: preserve any extra fields the provider sent
+		// (e.g. `cache_creation_input_tokens`, `completion_tokens_details`)
+		// while still clamping the load-bearing counters that downstream
+		// monotonic accounting depends on.
+		const strict: APIUsage = {
+			...parsed,
+			prompt_tokens: num(parsed.prompt_tokens),
+			completion_tokens: num(parsed.completion_tokens),
+			total_tokens: num(parsed.total_tokens),
+		};
+		if (parsed.prompt_tokens_details) {
+			strict.prompt_tokens_details = {
+				...parsed.prompt_tokens_details,
+				cached_tokens: num(parsed.prompt_tokens_details.cached_tokens),
+			};
+		}
+		return strict;
+	}
+	// Permissive fallback: accept partial payloads, zero-fill missing
+	// numeric fields. A provider that only knows prompt_tokens shouldn't
+	// have to fabricate the rest.
+	const result: APIUsage = {
+		prompt_tokens: num(obj.prompt_tokens),
+		completion_tokens: num(obj.completion_tokens),
+		total_tokens: num(obj.total_tokens),
+	};
+	const detailsRaw = obj.prompt_tokens_details;
+	if (detailsRaw && typeof detailsRaw === 'object') {
+		const d = detailsRaw as Record<string, unknown>;
+		result.prompt_tokens_details = { cached_tokens: num(d.cached_tokens) };
+	}
+	return result;
 }
 
 export class ExtensionContributedChatEndpoint implements IChatEndpoint {
@@ -204,6 +290,7 @@ export class ExtensionContributedChatEndpoint implements IChatEndpoint {
 			const response = await this.languageModel.sendRequest(vscodeMessages, vscodeOptions, token);
 			let text = '';
 			let numToolsCalled = 0;
+			let extensionUsage: APIUsage | undefined;
 			const requestId = ourRequestId;
 
 			// consume stream
@@ -230,6 +317,14 @@ export class ExtensionContributedChatEndpoint implements IChatEndpoint {
 					} else if (chunk.mimeType === CustomDataPartMimeTypes.ContextManagement) {
 						const contextManagement = JSON.parse(new TextDecoder().decode(chunk.data)) as ContextManagementResponse;
 						await streamRecorder.callback?.(text, 0, { text: '', contextManagement });
+					} else if (chunk.mimeType === CustomDataPartMimeTypes.Usage) {
+						// Last-write-wins: if a provider emits multiple Usage parts the
+						// final one is reported, matching the OpenAI streaming convention
+						// where the terminating chunk carries the usage tally.
+						const parsed = parseExtensionContributedUsage(chunk.data);
+						if (parsed) {
+							extensionUsage = parsed;
+						}
 					}
 				} else if (chunk instanceof vscode.LanguageModelThinkingPart) {
 					if (streamRecorder.callback) {
@@ -250,7 +345,11 @@ export class ExtensionContributedChatEndpoint implements IChatEndpoint {
 					type: ChatFetchResponseType.Success,
 					requestId,
 					serverRequestId: requestId,
-					usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0, prompt_tokens_details: { cached_tokens: 0 } },
+					// Prefer the provider-supplied counts so the Context Window
+					// indicator and any token-usage telemetry reflect reality.
+					// When the provider doesn't emit a Usage data part we keep
+					// the historical zero-fallback behaviour.
+					usage: extensionUsage ?? ZERO_USAGE,
 					value: text,
 					resolvedModel: this.languageModel.id
 				};

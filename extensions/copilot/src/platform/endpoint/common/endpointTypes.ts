@@ -9,6 +9,18 @@ export namespace CustomDataPartMimeTypes {
 	export const ThinkingData = 'thinking';
 	export const ContextManagement = 'context_management';
 	export const PhaseData = 'phase_data';
+	/**
+	 * Mime type for an extension-contributed token-usage payload, emitted by a
+	 * `vscode.LanguageModelChatProvider` as a `LanguageModelDataPart` in its
+	 * response stream. The `data` is a UTF-8 JSON encoding of an `APIUsage`
+	 * shape (at minimum `prompt_tokens`/`completion_tokens`/`total_tokens`,
+	 * with optional `prompt_tokens_details.cached_tokens`).
+	 *
+	 * Consumed by `ExtensionContributedChatEndpoint.makeChatRequest2`. When no
+	 * Usage part is emitted, the host falls back to zero counts (which leaves
+	 * the Context Window indicator stuck at 0 — see microsoft/vscode#314722).
+	 */
+	export const Usage = 'usage';
 }
 
 export const CacheType = 'ephemeral';
