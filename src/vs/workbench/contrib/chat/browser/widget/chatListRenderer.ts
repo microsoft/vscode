@@ -636,11 +636,42 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}
 		}));
 
+		// Chat rows can drive a `ResizeObserver loop completed with undelivered
+		// notifications` warning because dispatching a height change re-enters
+		// layout synchronously inside the observer callback, which causes the
+		// observer to fire again in the same animation frame. Defer the
+		// dispatch onto the next task with setTimeout(0) so the observer
+		// callback returns cleanly before the layout mutation runs. Coalesce
+		// repeated observations into a single dispatch using the latest size.
+		let pendingBlockSize: number | undefined;
+		let pendingDispatchHandle: ReturnType<typeof setTimeout> | undefined;
+		templateDisposables.add(toDisposable(() => {
+			if (pendingDispatchHandle !== undefined) {
+				clearTimeout(pendingDispatchHandle);
+				pendingDispatchHandle = undefined;
+			}
+		}));
 		const resizeObserver = templateDisposables.add(new dom.DisposableResizeObserver('ChatListItemRenderer.itemHeight', (entries) => {
 			const entry = entries[0];
-			if (entry) {
-				this.fireItemHeightChange(template, entry.borderBoxSize.at(0)?.blockSize);
+			if (!entry) {
+				return;
 			}
+			const blockSize = entry.borderBoxSize.at(0)?.blockSize;
+			if (typeof blockSize !== 'number') {
+				return;
+			}
+			pendingBlockSize = blockSize;
+			if (pendingDispatchHandle !== undefined) {
+				return;
+			}
+			pendingDispatchHandle = setTimeout(() => {
+				pendingDispatchHandle = undefined;
+				const size = pendingBlockSize;
+				pendingBlockSize = undefined;
+				if (size !== undefined) {
+					this.fireItemHeightChange(template, size);
+				}
+			}, 0);
 		}));
 		templateDisposables.add(resizeObserver.observe(rowContainer));
 
