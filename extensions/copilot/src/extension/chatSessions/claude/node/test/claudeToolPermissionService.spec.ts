@@ -148,7 +148,7 @@ describe('ClaudeToolPermissionService', () => {
 
 		mockToolsService = new MockToolsService();
 		serviceCollection.set(IToolsService, mockToolsService);
-		serviceCollection.set(IClaudePlanFileTracker, new SyncDescriptor(ClaudePlanFileTracker));
+		serviceCollection.define(IClaudePlanFileTracker, new SyncDescriptor(ClaudePlanFileTracker));
 
 		const accessor = serviceCollection.createTestingAccessor();
 		instantiationService = accessor.get(IInstantiationService);
@@ -418,7 +418,7 @@ describe('ClaudeToolPermissionService', () => {
 
 				const serviceCollection = store.add(createExtensionUnitTestingServices());
 				serviceCollection.set(IToolsService, failingService);
-				serviceCollection.set(IClaudePlanFileTracker, new SyncDescriptor(ClaudePlanFileTracker));
+				serviceCollection.define(IClaudePlanFileTracker, new SyncDescriptor(ClaudePlanFileTracker));
 				const accessor = serviceCollection.createTestingAccessor();
 				const newService = accessor.get(IInstantiationService).createInstance(ClaudeToolPermissionService);
 
