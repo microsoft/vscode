@@ -85,8 +85,8 @@ function formatTokenCount(count: number): string {
 	return count.toString();
 }
 
+// Auto model delegates to different backends, so don't expose config pickers
 function buildConfigurationSchema(endpoint: IChatEndpoint): { configurationSchema?: vscode.LanguageModelConfigurationSchema } {
-	// Auto model delegates to different backends, so don't expose config pickers
 	if (endpoint instanceof AutoChatEndpoint) {
 		return {};
 	}
@@ -376,9 +376,15 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 		progress: vscode.Progress<vscode.LanguageModelResponsePart2>,
 		token: vscode.CancellationToken
 	): Promise<void> {
-		const endpoint = await this._getEndpointForModel(model);
+		let endpoint = await this._getEndpointForModel(model);
 		if (!endpoint) {
 			throw new Error(`Endpoint not found for model ${model.id}`);
+		}
+
+		// Apply context size override if configured
+		const contextSize = options.modelConfiguration?.contextSize;
+		if (typeof contextSize === 'number' && contextSize < endpoint.modelMaxPromptTokens) {
+			endpoint = endpoint.cloneWithTokenOverride(contextSize);
 		}
 
 		return this._lmWrapper.provideLanguageModelResponse(endpoint, messages, {

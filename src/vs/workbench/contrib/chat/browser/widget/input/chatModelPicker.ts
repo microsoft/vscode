@@ -683,7 +683,7 @@ export class ModelPickerWidget extends Disposable {
 		this._effortButton.setAttribute('aria-expanded', 'false');
 		this._effortButton.style.display = 'none';
 
-		// Max tokens toggle button (conditionally visible)
+		// Context size button (conditionally visible)
 		this._tokensButton = dom.append(this._domNode, dom.$('a.model-picker-section.model-picker-tokens'));
 		this._tokensButton.tabIndex = 0;
 		this._tokensButton.setAttribute('role', 'button');
@@ -895,7 +895,7 @@ export class ModelPickerWidget extends Disposable {
 				: formatTokenCount(Number(tokensConfig.value));
 			dom.reset(this._tokensButton, dom.$('span.chat-input-picker-label', undefined, tokensLabel));
 			this._tokensButton.style.display = '';
-			this._tokensButton.ariaLabel = localize('chat.modelPicker.tokensAriaLabel', "Max Tokens: {0}", tokensLabel);
+			this._tokensButton.ariaLabel = localize('chat.modelPicker.tokensAriaLabel', "Context Size: {0}", tokensLabel);
 		} else if (this._tokensButton) {
 			this._tokensButton.style.display = 'none';
 		}
@@ -923,13 +923,6 @@ export class ModelPickerWidget extends Disposable {
 		const modelIdentifier = this._selectedModel.identifier;
 		const enumValues = config.schema.enum ?? [];
 		const enumItemLabels = config.schema.enumItemLabels;
-
-		const effortDescriptions: Record<string, string> = {
-			'low': localize('chat.effort.low.description', "Faster responses with less reasoning"),
-			'medium': localize('chat.effort.medium.description', "Balanced reasoning and speed"),
-			'high': localize('chat.effort.high.description', "Greater reasoning depth but slower"),
-			'xhigh': localize('chat.effort.xhigh.description', "Highest reasoning depth but slowest"),
-		};
 
 		const items: IActionListItem<IActionWidgetDropdownAction>[] = [
 			{
@@ -962,7 +955,7 @@ export class ModelPickerWidget extends Disposable {
 				},
 				kind: ActionListItemKind.Action,
 				label: displayLabel,
-				description: effortDescriptions[String(value)],
+				description: config.schema.enumDescriptions?.[index],
 				group: { title: '', icon: ThemeIcon.fromId(config.value === value ? Codicon.check.id : Codicon.blank.id) },
 				hideIcon: false,
 			});
@@ -1125,11 +1118,12 @@ function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentifier): M
 }
 
 
-export function formatTokenCount(count: number): string {
-	if (count >= 1000000) {
-		return `${(count / 1000000).toFixed(1)}M`;
+function formatTokenCount(count: number): string {
+	if (count >= 900_000) {
+		const value = Math.ceil(count / 1_000_000);
+		return `${value}M`;
 	} else if (count >= 1000) {
-		return `${(count / 1000).toFixed(0)}K`;
+		return `${Math.round(count / 1000)}K`;
 	}
 	return count.toString();
 }
