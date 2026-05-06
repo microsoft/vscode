@@ -19,6 +19,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { ChatSetupStrategy } from '../../../../workbench/contrib/chat/browser/chatSetup/chatSetup.js';
 import { IExtensionService } from '../../../../workbench/services/extensions/common/extensions.js';
+import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 
 
 export type WalkthroughOutcome = 'completed' | 'dismissed';
@@ -79,6 +80,7 @@ export class SessionsWalkthroughOverlay extends Disposable {
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IExtensionService private readonly extensionService: IExtensionService,
+		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IProductService private readonly productService: IProductService,
 		@ILogService private readonly logService: ILogService,
@@ -175,7 +177,7 @@ export class SessionsWalkthroughOverlay extends Disposable {
 
 		this.contentContainer.textContent = '';
 		this.footerContainer.textContent = '';
-		this.disclaimerElement.classList.toggle('hidden', this.disclaimerLinks.length === 0);
+		this.disclaimerElement.classList.toggle('hidden', !this._shouldShowDisclaimer);
 
 		const productName = localize('walkthrough.productName', "{0} - Agents", this.productService.nameLong);
 
@@ -242,7 +244,7 @@ export class SessionsWalkthroughOverlay extends Disposable {
 			}
 		}, 0, stepDisposables);
 
-		this.currentFocusableElements = [...providerButtons, ...this.disclaimerLinks];
+		this.currentFocusableElements = [...providerButtons, ...(this._shouldShowDisclaimer ? this.disclaimerLinks : [])];
 
 		if (isWeb) {
 			// Web: GitHub button uses IAuthenticationService with product scopes
@@ -282,7 +284,7 @@ export class SessionsWalkthroughOverlay extends Disposable {
 
 	private _renderWelcome(stepDisposables: DisposableStore, right: HTMLElement, productName: string): void {
 		this._isShowingWelcome = true;
-		this.disclaimerElement.classList.toggle('hidden', this.disclaimerLinks.length === 0);
+		this.disclaimerElement.classList.toggle('hidden', !this._shouldShowDisclaimer);
 
 		append(right, $('h2', undefined, localize('walkthrough.welcome.title', "Welcome to {0}", productName)));
 		append(right, $('p', undefined, localize('walkthrough.welcome.subtitle', "Your AI-powered coding experience where agents explore, build, and iterate with you.")));
@@ -296,7 +298,7 @@ export class SessionsWalkthroughOverlay extends Disposable {
 			this.complete();
 		}));
 
-		this.currentFocusableElements = [getStartedBtn, ...this.disclaimerLinks];
+		this.currentFocusableElements = [getStartedBtn, ...(this._shouldShowDisclaimer ? this.disclaimerLinks : [])];
 
 		disposableTimeout(() => {
 			if (this.overlay.isConnected) {
@@ -307,6 +309,10 @@ export class SessionsWalkthroughOverlay extends Disposable {
 
 	private _isSignedIn(): boolean {
 		return this.defaultAccountService.currentDefaultAccount !== null;
+	}
+
+	private get _shouldShowDisclaimer(): boolean {
+		return this.disclaimerLinks.length > 0 && !this.chatEntitlementService.sentiment.completed;
 	}
 
 	private async _runSignIn(providerButtons: HTMLButtonElement[], error: HTMLElement, strategy: ChatSetupStrategy, titleEl: HTMLElement, subtitleEl: HTMLElement, taglineEl: HTMLElement, signInActions: HTMLElement): Promise<void> {
