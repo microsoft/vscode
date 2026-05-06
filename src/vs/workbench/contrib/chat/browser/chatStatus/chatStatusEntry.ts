@@ -24,6 +24,7 @@ import product from '../../../../../platform/product/common/product.js';
 import { isCompletionsEnabled } from '../../../../../editor/common/services/completionsEnablement.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { CHAT_SETUP_ACTION_ID } from '../actions/chatActions.js';
 
 export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribution {
 
@@ -242,7 +243,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 			name: localize('chatStatus', "Copilot Status"),
 			text: `$(copilot) ${signInLabel}`,
 			ariaLabel: signInLabel,
-			command: 'workbench.action.chat.triggerSetup',
+			command: CHAT_SETUP_ACTION_ID,
 			showInAllWindows: true,
 			kind: undefined,
 		};
