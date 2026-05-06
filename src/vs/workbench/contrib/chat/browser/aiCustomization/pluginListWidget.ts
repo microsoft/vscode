@@ -602,7 +602,7 @@ export class PluginListWidget extends Disposable {
 							return localize('pluginGroupAriaLabel', "{0}, {1} items, {2}", element.label, element.count, element.collapsed ? localize('collapsed', "collapsed") : localize('expanded', "expanded"));
 						}
 						const name = formatDisplayName(element.item.name);
-						const description = truncateToFirstLine(element.item.description);
+						const description = element.item.description ? truncateToFirstLine(element.item.description) : undefined;
 						return description
 							? localize('pluginItemAriaLabel', "{0}. {1}", name, description)
 							: name;

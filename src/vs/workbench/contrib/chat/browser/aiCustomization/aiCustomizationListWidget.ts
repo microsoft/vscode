@@ -690,7 +690,7 @@ export class AICustomizationListWidget extends Disposable {
 							return localize('groupAriaLabel', "{0}, {1} items, {2}", entry.label, entry.count, entry.collapsed ? localize('collapsed', "collapsed") : localize('expanded', "expanded"));
 						}
 						const displayName = entry.item.displayName ?? formatDisplayName(entry.item.name);
-						const secondaryText = getCustomizationSecondaryText(entry.item);
+						const secondaryText = getCustomizationSecondaryText(entry.item.description, entry.item.filename, entry.item.promptType);
 						const nameAndDesc = secondaryText
 							? localize('itemAriaLabel', "{0}. {1}", displayName, secondaryText)
 							: displayName;
