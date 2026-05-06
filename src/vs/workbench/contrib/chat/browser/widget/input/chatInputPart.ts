@@ -837,7 +837,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const target = this.inputActionsToolbar.getElement();
 		this.chatPhoneInputPresenter
 			.showCombinedModeAndModelSheet(target, this._createModePickerDelegate(), this._createModelPickerDelegate())
-			.catch(() => { });
+			.catch(err => this.logService.error('[ChatInputPart] phone picker sheet failed', err));
 	}
 
 	private _createModelPickerDelegate(): IModelPickerDelegate {
@@ -2406,7 +2406,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				// `vs/sessions` (see `MobileChatInputConfigPicker`).
 				if (this.chatPhoneInputPresenter.enabled.get()) {
 					if (action.id === OpenModelPickerAction.ID && action instanceof MenuItemAction) {
-						if (!this._currentLanguageModel) {
+						if (!this._currentLanguageModel.get()) {
 							this.setCurrentLanguageModelToDefault();
 						}
 						const modelDelegate = this._createModelPickerDelegate();
@@ -2418,7 +2418,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				}
 
 				if (action.id === OpenModelPickerAction.ID && action instanceof MenuItemAction) {
-					if (!this._currentLanguageModel) {
+					if (!this._currentLanguageModel.get()) {
 						this.setCurrentLanguageModelToDefault();
 					}
 

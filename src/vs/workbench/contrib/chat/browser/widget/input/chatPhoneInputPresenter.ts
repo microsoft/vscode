@@ -146,7 +146,10 @@ export class MobileChatInputCombinedPickerActionItem extends BaseActionViewItem 
 	}
 
 	override render(container: HTMLElement): void {
-		super.render(container);
+		// Skip `super.render` so the base view item doesn't install its
+		// own Gesture/Tap/CLICK on the container — that would dispatch
+		// each tap twice (container runs the action, trigger opens the sheet).
+		this.element = container;
 		container.classList.add('chat-input-picker-item');
 		this._renderDisposables.clear();
 
@@ -214,20 +217,7 @@ export class MobileChatInputCombinedPickerActionItem extends BaseActionViewItem 
 		);
 	}
 
-	/**
-	 * Suppress {@link BaseActionViewItem}'s default action dispatch.
-	 *
-	 * Both this view item and its parent container call
-	 * `Gesture.addTarget`, and {@link Gesture.dispatchEvent} dispatches
-	 * the same Tap event to every registered target as separate
-	 * `dispatchEvent` calls. `stopPropagation` only stops propagation
-	 * within a single dispatch — it cannot prevent the parent's
-	 * dispatch from also firing. Without this override, our trigger
-	 * opens the bottom sheet and the parent's Tap handler invokes the
-	 * action's default `run()` (which opens the desktop model picker
-	 * popup), producing two stacked surfaces that each need a Done tap
-	 * to dismiss.
-	 */
+	/** Belt-and-braces: keep the action's `run()` suppressed even if `super.render` is reintroduced. */
 	override onClick(): void { /* handled by trigger */ }
 
 	private async _showSheet(): Promise<void> {

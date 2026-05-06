@@ -11,6 +11,7 @@
 .chat-input-picker-item .action-label.chat-phone-input-chip {
 	gap: 4px;
 	cursor: pointer;
+	touch-action: manipulation;
 }
 
 .chat-input-picker-item .action-label.chat-phone-input-chip .chat-input-picker-label {
