@@ -1704,9 +1704,9 @@ export class CodeApplication extends Disposable {
 		// host VS Code can detect that the Agents app was running and restore
 		// the appropriate windows on next launch.
 		if ((process as INodeProcess).isEmbeddedApp) {
-			const hostUserDataDir = this.environmentMainService.parentAppUserRoamingDataHome?.fsPath;
-			if (hostUserDataDir) {
-				this._register(instantiationService.createInstance(AgentsLastRunningTracker, hostUserDataDir));
+			const hostUserRoamingDataHome = this.environmentMainService.parentAppUserRoamingDataHome;
+			if (hostUserRoamingDataHome) {
+				this._register(instantiationService.createInstance(AgentsLastRunningTracker, hostUserRoamingDataHome));
 			}
 		}
 	}

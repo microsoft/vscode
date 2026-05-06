@@ -32,14 +32,14 @@ export class AgentsLastRunningTracker extends Disposable {
 	private readonly markerResource: URI;
 
 	constructor(
-		hostUserDataDir: string,
+		hostUserRoamingDataHome: URI,
 		@ICrossAppIPCService private readonly crossAppIPCService: ICrossAppIPCService,
 		@IFileService private readonly fileService: IFileService,
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 
-		this.markerResource = joinPath(URI.file(hostUserDataDir).with({ scheme: Schemas.file }), AGENTS_LAST_RUNNING_MARKER_FILE_NAME);
+		this.markerResource = joinPath(hostUserRoamingDataHome.with({ scheme: Schemas.file }), AGENTS_LAST_RUNNING_MARKER_FILE_NAME);
 
 		// Write marker now and refresh whenever the host's liveness changes
 		// so the recorded `vscodeRunning` snapshot reflects the latest state.
