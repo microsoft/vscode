@@ -11,7 +11,7 @@ import { IProductService } from '../../../../../platform/product/common/productS
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 
-import { OPEN_AGENTS_WINDOW_COMMAND_ID } from '../../common/constants.js';
+import { OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID } from '../../common/constants.js';
 
 
 type AgentsBannerClickedEvent = {
@@ -33,7 +33,7 @@ export interface IAgentsBannerResult {
 
 /**
  * Returns whether the agents banner can be shown.
- * The banner requires the `workbench.action.openAgentsWindow` command
+ * The banner requires the open agents window command
  * to be registered (desktop builds only) and is limited to Insiders quality.
  * It is also hidden when AI features are disabled.
  */
@@ -43,7 +43,7 @@ export function canShowAgentsBanner(productService: IProductService, chatEntitle
 		return false;
 	}
 	return productService.quality !== 'stable'
-		&& !!CommandsRegistry.getCommand(OPEN_AGENTS_WINDOW_COMMAND_ID);
+		&& !!CommandsRegistry.getCommand(OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID);
 }
 
 export interface IAgentsBannerOptions {
@@ -78,7 +78,7 @@ export function createAgentsBanner(
 	disposables.add(addDisposableListener(button, 'click', () => {
 		options.onButtonClick?.();
 		telemetryService.publicLog2<AgentsBannerClickedEvent, AgentsBannerClickedClassification>('agentsBanner.clicked', { source: options.source, action: 'openAgentsWindow' });
-		commandService.executeCommand(OPEN_AGENTS_WINDOW_COMMAND_ID, { forceNewWindow: true });
+		commandService.executeCommand(OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, { forceNewWindow: true });
 	}));
 
 	const element = $(`.${options.cssClass}`, {}, button);
