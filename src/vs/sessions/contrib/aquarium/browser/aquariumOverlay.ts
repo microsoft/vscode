@@ -180,9 +180,14 @@ export class AquariumService extends Disposable implements IAquariumService {
 		const anyHostVisible = this.hasVisibleMount();
 		if (anyHostVisible && this.isFeatureEnabled() && this.isStoredEnabled() && !this.activeRef.value) {
 			this.activate(/* persist */ false);
-		} else if (!anyHostVisible && this.activeRef.value) {
-			// Host hide: dispose synchronously, do not persist.
-			this.deactivate(/* persist */ false, /* animate */ false);
+		} else if (!anyHostVisible) {
+			// Host hide: dispose any active aquarium synchronously AND cancel
+			// any in-flight animated exit (from a prior user toggle-off) so it
+			// can't keep painting fish behind whatever view took our place.
+			this.pendingExit.clear();
+			if (this.activeRef.value) {
+				this.deactivate(/* persist */ false, /* animate */ false);
+			}
 		}
 	}
 
