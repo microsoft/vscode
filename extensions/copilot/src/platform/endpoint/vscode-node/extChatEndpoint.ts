@@ -55,6 +55,13 @@ const ZERO_USAGE: APIUsage = {
  * `completion_tokens`) without breaking the host. Returns `undefined` on
  * `JSON.parse` failure or when the payload is not an object.
  *
+ * Defensive coercion: every numeric field — top-level and inside the
+ * optional `prompt_tokens_details` / `completion_tokens_details` nested
+ * objects — is clamped to a non-negative finite number. Nested detail
+ * objects whose value is not a plain object (string, array, `null`,
+ * etc.) are dropped rather than passed through, so downstream
+ * telemetry / OTel attributes only ever see well-formed shapes.
+ *
  * Example: an extension `LanguageModelChatProvider` populates the
  * Context Window indicator by emitting a final Usage part on its
  * response stream:
@@ -83,42 +90,69 @@ export function parseExtensionContributedUsage(data: Uint8Array): APIUsage | und
 	}
 	// Coerce to non-negative finite numbers. `isApiUsage` only checks
 	// that the three top-level fields are `typeof === 'number'`, so a
-	// provider could still emit negatives or NaN; the host's cumulative
-	// completion-token counter (`ChatResponseModel.setUsage`) treats
-	// these as monotonic, so a negative would silently corrupt it.
+	// provider could still emit negatives or non-finite values; the
+	// host's cumulative completion-token counter (`ChatResponseModel.setUsage`)
+	// treats these as monotonic, so a negative would silently corrupt
+	// it, and `Infinity`/`NaN` would poison telemetry.
 	const num = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? Math.max(0, v) : 0);
 	const obj = parsed as Record<string, unknown>;
-	if (isApiUsage(parsed)) {
-		// Strict shape: preserve any extra fields the provider sent
-		// (e.g. `cache_creation_input_tokens`, `completion_tokens_details`)
-		// while still clamping the load-bearing counters that downstream
-		// monotonic accounting depends on.
-		const strict: APIUsage = {
-			...parsed,
-			prompt_tokens: num(parsed.prompt_tokens),
-			completion_tokens: num(parsed.completion_tokens),
-			total_tokens: num(parsed.total_tokens),
-		};
-		if (parsed.prompt_tokens_details) {
-			strict.prompt_tokens_details = {
-				...parsed.prompt_tokens_details,
-				cached_tokens: num(parsed.prompt_tokens_details.cached_tokens),
-			};
+
+	// Treat arrays and `null` as malformed for the nested-detail
+	// builders below, since `typeof [] === 'object'` and `typeof null
+	// === 'object'` are both true in JS.
+	const isPlainObject = (v: unknown): v is Record<string, unknown> =>
+		!!v && typeof v === 'object' && !Array.isArray(v);
+
+	// Build a clamped `prompt_tokens_details`. Drop the nested object
+	// entirely if the provider sent a non-object (string, array, etc.)
+	// so downstream consumers never see malformed shapes.
+	const buildPromptDetails = (raw: unknown): APIUsage['prompt_tokens_details'] => {
+		if (!isPlainObject(raw)) {
+			return undefined;
 		}
-		return strict;
-	}
-	// Permissive fallback: accept partial payloads, zero-fill missing
-	// numeric fields. A provider that only knows prompt_tokens shouldn't
-	// have to fabricate the rest.
+		const d = raw;
+		const out: NonNullable<APIUsage['prompt_tokens_details']> = {
+			cached_tokens: num(d.cached_tokens),
+		};
+		if ('cache_creation_input_tokens' in d) {
+			out.cache_creation_input_tokens = num(d.cache_creation_input_tokens);
+		}
+		return out;
+	};
+
+	// Build a clamped `completion_tokens_details`. Same drop-on-malformed
+	// policy. All three numeric fields are required by the type, so we
+	// zero-fill anything the provider omitted.
+	const buildCompletionDetails = (raw: unknown): APIUsage['completion_tokens_details'] => {
+		if (!isPlainObject(raw)) {
+			return undefined;
+		}
+		const d = raw;
+		return {
+			reasoning_tokens: num(d.reasoning_tokens),
+			accepted_prediction_tokens: num(d.accepted_prediction_tokens),
+			rejected_prediction_tokens: num(d.rejected_prediction_tokens),
+		};
+	};
+
 	const result: APIUsage = {
 		prompt_tokens: num(obj.prompt_tokens),
 		completion_tokens: num(obj.completion_tokens),
 		total_tokens: num(obj.total_tokens),
 	};
-	const detailsRaw = obj.prompt_tokens_details;
-	if (detailsRaw && typeof detailsRaw === 'object') {
-		const d = detailsRaw as Record<string, unknown>;
-		result.prompt_tokens_details = { cached_tokens: num(d.cached_tokens) };
+	const promptDetails = buildPromptDetails(obj.prompt_tokens_details);
+	if (promptDetails) {
+		result.prompt_tokens_details = promptDetails;
+	} else if (isApiUsage(parsed)) {
+		// `APIUsage` doesn't require `prompt_tokens_details`, but the
+		// historical `ZERO_USAGE` fallback always sets it. Preserve that
+		// invariant on the strict path so downstream consumers that read
+		// `usage.prompt_tokens_details?.cached_tokens` see a stable shape.
+		result.prompt_tokens_details = { cached_tokens: 0 };
+	}
+	const completionDetails = buildCompletionDetails(obj.completion_tokens_details);
+	if (completionDetails) {
+		result.completion_tokens_details = completionDetails;
 	}
 	return result;
 }
@@ -318,9 +352,11 @@ export class ExtensionContributedChatEndpoint implements IChatEndpoint {
 						const contextManagement = JSON.parse(new TextDecoder().decode(chunk.data)) as ContextManagementResponse;
 						await streamRecorder.callback?.(text, 0, { text: '', contextManagement });
 					} else if (chunk.mimeType === CustomDataPartMimeTypes.Usage) {
-						// Last-write-wins: if a provider emits multiple Usage parts the
-						// final one is reported, matching the OpenAI streaming convention
-						// where the terminating chunk carries the usage tally.
+						// Last-valid-wins: if a provider emits multiple Usage parts
+						// the final *parseable* one is reported. This matches the
+						// OpenAI streaming convention where the terminating chunk
+						// carries the tally, while ensuring a malformed trailing
+						// part can't blow away an earlier valid reading.
 						const parsed = parseExtensionContributedUsage(chunk.data);
 						if (parsed) {
 							extensionUsage = parsed;

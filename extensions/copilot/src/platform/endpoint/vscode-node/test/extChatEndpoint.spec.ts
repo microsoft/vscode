@@ -141,11 +141,30 @@ describe('parseExtensionContributedUsage', () => {
 	});
 
 	it('coerces non-numeric fields to 0', () => {
+		// `JSON.stringify(NaN)` becomes `null`, so use only types that
+		// actually round-trip through the wire format. Non-finite handling
+		// is exercised separately below.
 		const bytes = new TextEncoder().encode(JSON.stringify({
-			prompt_tokens: 'oops', completion_tokens: null, total_tokens: NaN,
+			prompt_tokens: 'oops', completion_tokens: null, total_tokens: [],
 		}));
 		expect(parseExtensionContributedUsage(bytes)).toEqual({
 			prompt_tokens: 0, completion_tokens: 0, total_tokens: 0,
+		});
+	});
+
+	it('coerces non-finite numeric fields (Infinity) to 0', () => {
+		// `JSON.parse('1e999')` yields `Infinity` — a value `isApiUsage`
+		// accepts (it's `typeof === 'number'`) but that would poison any
+		// downstream arithmetic / OTel attribute. Hand-build the JSON
+		// because `JSON.stringify(Infinity)` lossily becomes `null`.
+		const bytes = new TextEncoder().encode(
+			'{"prompt_tokens":1e999,"completion_tokens":-1e999,"total_tokens":1}'
+		);
+		expect(parseExtensionContributedUsage(bytes)).toEqual({
+			prompt_tokens: 0,
+			completion_tokens: 0,
+			total_tokens: 1,
+			prompt_tokens_details: { cached_tokens: 0 },
 		});
 	});
 
@@ -181,6 +200,44 @@ describe('parseExtensionContributedUsage', () => {
 			prompt_tokens_details: { cached_tokens: 1, cache_creation_input_tokens: 2 },
 			completion_tokens_details: { reasoning_tokens: 3, accepted_prediction_tokens: 0, rejected_prediction_tokens: 0 },
 		});
+	});
+
+	it('clamps negative values inside nested detail objects', () => {
+		// Same defence as the top-level negative-clamp test, but for the
+		// optional nested details. Without this clamp a provider could
+		// leak negative `cache_creation_input_tokens` /
+		// `reasoning_tokens` into OTel attributes via the strict path.
+		const bytes = new TextEncoder().encode(JSON.stringify({
+			prompt_tokens: 10, completion_tokens: 5, total_tokens: 15,
+			prompt_tokens_details: { cached_tokens: -1, cache_creation_input_tokens: -2 },
+			completion_tokens_details: { reasoning_tokens: -3, accepted_prediction_tokens: -4, rejected_prediction_tokens: -5 },
+		}));
+		expect(parseExtensionContributedUsage(bytes)).toEqual({
+			prompt_tokens: 10, completion_tokens: 5, total_tokens: 15,
+			prompt_tokens_details: { cached_tokens: 0, cache_creation_input_tokens: 0 },
+			completion_tokens_details: { reasoning_tokens: 0, accepted_prediction_tokens: 0, rejected_prediction_tokens: 0 },
+		});
+	});
+
+	it('drops nested detail objects when the provider sends a non-object', () => {
+		// A provider that wires up `prompt_tokens_details` as a string or
+		// array would otherwise leak that malformed shape through to
+		// telemetry. Drop the nested object so downstream always sees
+		// either a well-formed object or nothing.
+		const bytes = new TextEncoder().encode(JSON.stringify({
+			prompt_tokens: 10, completion_tokens: 5, total_tokens: 15,
+			prompt_tokens_details: 'oops',
+			completion_tokens_details: [1, 2, 3],
+		}));
+		const result = parseExtensionContributedUsage(bytes);
+		expect(result).toBeDefined();
+		expect(result!.prompt_tokens).toBe(10);
+		expect(result!.completion_tokens).toBe(5);
+		expect(result!.total_tokens).toBe(15);
+		// Strict path falls back to the historical zero-shape so consumers
+		// reading `usage.prompt_tokens_details?.cached_tokens` see a stable value.
+		expect(result!.prompt_tokens_details).toEqual({ cached_tokens: 0 });
+		expect(result!.completion_tokens_details).toBeUndefined();
 	});
 
 	it('returns undefined on malformed JSON', () => {
@@ -277,7 +334,7 @@ describe('ExtensionContributedChatEndpoint.makeChatRequest2 – usage propagatio
 		}
 	});
 
-	it('uses the last Usage part when the provider emits more than one (last-write-wins)', async () => {
+	it('uses the last valid Usage part when the provider emits more than one (last-valid-wins)', async () => {
 		const endpoint = createEndpoint([
 			new vscode.LanguageModelTextPart('x'),
 			usagePart({ prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 }),
@@ -288,6 +345,23 @@ describe('ExtensionContributedChatEndpoint.makeChatRequest2 – usage propagatio
 		}, noToken);
 		if (result.type === ChatFetchResponseType.Success) {
 			expect(result.usage?.prompt_tokens).toBe(99);
+		}
+	});
+
+	it('keeps the previous valid Usage when a later part fails to parse', async () => {
+		// Pins the contract documented at the dispatch site: a malformed
+		// trailing Usage part must not blow away an earlier valid reading.
+		const endpoint = createEndpoint([
+			new vscode.LanguageModelTextPart('x'),
+			usagePart({ prompt_tokens: 42, completion_tokens: 7, total_tokens: 49 }),
+			new vscode.LanguageModelDataPart(new TextEncoder().encode('not json'), 'usage'),
+		]);
+		const result = await endpoint.makeChatRequest2({
+			debugName: 't', messages: [helloMessage], finishedCb: noopFinish, location: ChatLocation.Other,
+		}, noToken);
+		if (result.type === ChatFetchResponseType.Success) {
+			expect(result.usage?.prompt_tokens).toBe(42);
+			expect(result.usage?.completion_tokens).toBe(7);
 		}
 	});
 });
