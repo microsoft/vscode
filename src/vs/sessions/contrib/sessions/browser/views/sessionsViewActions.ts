@@ -841,7 +841,8 @@ registerAction2(class RestoreSessionAction extends Action2 {
 		if (!activeSession || activeSession.status.get() === SessionStatus.Untitled) {
 			return;
 		}
-		sessionsManagementService.unarchiveSession(activeSession);
+
+		await sessionsManagementService.unarchiveSession(activeSession);
 	}
 });
 

@@ -564,8 +564,9 @@ export class ChangesViewPane extends ViewPane {
 
 			// Hide the actions toolbar for untitled sessions.
 			const activeSessionStatus = activeSessionStatusObs.read(reader);
+			const isUntitled = activeSessionStatus === SessionStatus.Untitled;
 			if (this.actionsContainer) {
-				dom.setVisibility(activeSessionStatus !== undefined && activeSessionStatus !== SessionStatus.Untitled, this.actionsContainer);
+				dom.setVisibility(!isUntitled, this.actionsContainer);
 			}
 
 			const hasGitRepository = this.viewModel.activeSessionHasGitRepositoryObs.read(reader);
@@ -576,7 +577,7 @@ export class ChangesViewPane extends ViewPane {
 			// Show the files header whenever the session is git-backed (so users
 			// can switch version modes) or there are session-provided entries to
 			// count (for non-git sessions like the local agent host).
-			dom.setVisibility(hasGitRepository || hasEntries, this.filesHeaderNode!);
+			dom.setVisibility(!isUntitled && (hasGitRepository || hasEntries), this.filesHeaderNode!);
 
 			if (this.fileHeaderToolbarContainer) {
 				dom.setVisibility(hasEntries, this.fileHeaderToolbarContainer);
