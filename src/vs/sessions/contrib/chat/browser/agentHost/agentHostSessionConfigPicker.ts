@@ -40,7 +40,7 @@ import { PermissionPicker } from '../../../copilotChatSessions/browser/permissio
 import { MobilePermissionPicker } from '../../../copilotChatSessions/browser/mobilePermissionPicker.js';
 import { isPhoneLayout } from '../../../../browser/parts/mobile/mobileLayout.js';
 import { showMobilePickerSheet, IMobilePickerSheetItem, IMobilePickerSheetSearchSource } from '../../../../browser/parts/mobile/mobilePickerSheet.js';
-import { AgentHostModePicker } from './agentHostModePicker.js';
+import { AgentHostModePicker, MobileAgentHostModePicker } from './agentHostModePicker.js';
 import { AgentHostPermissionPickerActionItem } from './agentHostPermissionPickerActionItem.js';
 import { AgentHostPermissionPickerDelegate, isWellKnownAutoApproveSchema, isWellKnownModeSchema } from './agentHostPermissionPickerDelegate.js';
 import { SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
@@ -705,12 +705,12 @@ class AgentHostSessionConfigPickerContribution extends Disposable implements IWo
 		this._register(actionViewItemService.register(
 			Menus.NewSessionConfig,
 			NEW_SESSION_MODE_PICKER_ID,
-			() => new PickerActionViewItem(this._instantiationService.createInstance(AgentHostModePicker)),
+			() => new PickerActionViewItem(this._instantiationService.createInstance(MobileAgentHostModePicker)),
 		));
 		this._register(actionViewItemService.register(
 			MenuId.ChatInput,
 			RUNNING_SESSION_MODE_PICKER_ID,
-			() => new PickerActionViewItem(this._instantiationService.createInstance(AgentHostModePicker)),
+			() => new PickerActionViewItem(this._instantiationService.createInstance(MobileAgentHostModePicker)),
 		));
 		this._register(actionViewItemService.register(
 			Menus.NewSessionControl,

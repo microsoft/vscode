@@ -53,13 +53,12 @@ export class AgentHostModePicker extends Disposable {
 	private readonly _renderDisposables = this._register(new DisposableStore());
 	private readonly _providerListeners = this._register(new DisposableMap<string>());
 	private _slotElement: HTMLElement | undefined;
-	private _triggerElement: HTMLElement | undefined;
+	protected _triggerElement: HTMLElement | undefined;
 
 	constructor(
 		@IActionWidgetService private readonly _actionWidgetService: IActionWidgetService,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
-		@IChatPhoneInputPresenter private readonly _phonePresenter: IChatPhoneInputPresenter,
 	) {
 		super();
 
@@ -173,20 +172,8 @@ export class AgentHostModePicker extends Disposable {
 		this._triggerElement.ariaLabel = localize('agentHostModePicker.triggerAriaLabel', "Pick Agent Mode, {0}", label);
 	}
 
-	private _showPicker(): void {
+	protected _showPicker(): void {
 		if (!this._triggerElement || this._actionWidgetService.isVisible) {
-			return;
-		}
-		// On phone, route to the same combined Mode + Model bottom
-		// sheet used by the workbench chip and the empty new-chat
-		// picker, instead of the desktop action-widget popover. The
-		// presenter's agent-host branch reads mode + model directly
-		// from the active session's provider, so we don't need to pass
-		// chat-input delegates here.
-		if (this._phonePresenter.enabled.get()) {
-			const trigger = this._triggerElement;
-			this._phonePresenter.showCombinedModeAndModelSheet(trigger, undefined, undefined)
-				.finally(() => trigger.focus());
 			return;
 		}
 		const ctx = this._getActiveContext();
@@ -225,5 +212,45 @@ export class AgentHostModePicker extends Disposable {
 				getWidgetAriaLabel: () => localize('agentHostModePicker.ariaLabel', "Agent Mode Picker"),
 			},
 		);
+	}
+}
+
+/**
+ * Phone-aware variant of {@link AgentHostModePicker}. On phone-layout
+ * viewports the desktop action-widget popover is replaced with the same
+ * combined Mode + Model bottom sheet used by the workbench chip and the
+ * empty new-chat picker (see {@link IChatPhoneInputPresenter}). On
+ * desktop the inherited `_showPicker` falls through to the base
+ * implementation, so this class is safe to keep through viewport-class
+ * transitions.
+ *
+ * Same file as the base class to avoid the circular ESM dependency that
+ * would arise from a separate file importing the base.
+ */
+export class MobileAgentHostModePicker extends AgentHostModePicker {
+
+	constructor(
+		@IActionWidgetService actionWidgetService: IActionWidgetService,
+		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
+		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
+		@IChatPhoneInputPresenter private readonly _phonePresenter: IChatPhoneInputPresenter,
+	) {
+		super(actionWidgetService, sessionsManagementService, sessionsProvidersService);
+	}
+
+	protected override _showPicker(): void {
+		if (!this._triggerElement) {
+			return;
+		}
+		if (this._phonePresenter.enabled.get()) {
+			// The presenter's agent-host branch reads mode + model
+			// directly from the active session's provider, so we don't
+			// need to pass chat-input delegates here.
+			const trigger = this._triggerElement;
+			this._phonePresenter.showCombinedModeAndModelSheet(trigger, undefined, undefined)
+				.finally(() => trigger.focus());
+			return;
+		}
+		super._showPicker();
 	}
 }
