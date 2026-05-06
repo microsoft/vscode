@@ -1166,9 +1166,13 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				async () => {
 					pending = undefined;
 					part.hide();
-					this._terminalService.setActiveInstance(terminalInstance);
-					await this._terminalService.revealTerminal(terminalInstance, true);
-					terminalInstance.focus();
+					try {
+						this._terminalService.setActiveInstance(terminalInstance);
+						await this._terminalService.revealTerminal(terminalInstance, true);
+						terminalInstance.focus();
+					} catch (err) {
+						this._logService.warn(`RunInTerminalTool: failed to reveal terminal for sensitive input`, err);
+					}
 					return ElicitationState.Accepted;
 				},
 				async () => {
