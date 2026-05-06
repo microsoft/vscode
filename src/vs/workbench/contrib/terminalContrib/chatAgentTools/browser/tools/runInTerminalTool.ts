@@ -1346,7 +1346,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		let altBufferResult: IToolResult | undefined;
 		let didTimeout = false;
 		let didInputNeeded = false;
-		let didSensitiveInputNeeded = false;
 		// Covers both terminals that start as background (persistentSession) and
 		// foreground terminals that later move to background (timeout/continue-in-bg).
 		let isBackgroundExecution = executionOptions.persistentSession;
@@ -1512,12 +1511,12 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				const raceCleanup = new DisposableStore();
 				// Sensitive prompts (passwords, OTPs, …) must never reach the model.
 				// Show a confirmation dialog that focuses the terminal so the user
-				// types the secret directly, and resolve the race so the agent's
-				// tool call returns immediately — otherwise it would hang waiting
-				// for executionPromise (which can't complete until the user types
-				// the secret in the focused terminal). The elicitation lives on the
-				// chat model and persists past the race resolving so the user can
-				// still interact with it.
+				// types the secret directly. The race is *not* resolved by sensitive
+				// prompts — the running command keeps waiting for user input until
+				// either it completes (executionPromise wins) or the user cancels
+				// it from the dialog (which cancels execution and also makes
+				// executionPromise resolve). This means we never hand a secret
+				// prompt back to the model; the user is always in control.
 				if (outputMonitor) {
 					raceCleanup.add(this._registerSensitiveInputElicitation(
 						chatSessionResource,
@@ -1526,7 +1525,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 						() => executeCancellation.cancel(),
 					));
 				}
-				const raceCandidates: Promise<{ type: 'completed'; result: ITerminalExecuteStrategyResult } | { type: 'background' } | { type: 'timeout' } | { type: 'inputNeeded' } | { type: 'sensitiveInputNeeded' }>[] = [
+				const raceCandidates: Promise<{ type: 'completed'; result: ITerminalExecuteStrategyResult } | { type: 'background' } | { type: 'timeout' } | { type: 'inputNeeded' }>[] = [
 					executionPromise.then(result => ({ type: 'completed' as const, result })),
 					continueInBackgroundPromise.then(() => ({ type: 'background' as const })),
 					new Promise<{ type: 'inputNeeded' }>(resolve => {
@@ -1534,58 +1533,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 							if (outputMonitor && !raceCleanup.isDisposed) {
 								raceCleanup.add(outputMonitor.onDidDetectInputNeeded(() => resolve({ type: 'inputNeeded' as const })));
 							}
-						});
-					}),
-					new Promise<{ type: 'sensitiveInputNeeded' }>(resolve => {
-						startMarkerPromise.then(() => {
-							if (!outputMonitor || raceCleanup.isDisposed) {
-								return;
-							}
-							// When a sensitive prompt is detected we don't immediately
-							// surrender the tool call to the agent — we first give the
-							// user a chance to actually engage with the terminal (focus
-							// it and type their secret). If executionPromise resolves
-							// during that window the outer Promise.race takes the
-							// 'completed' branch and we never fire here. If the user
-							// doesn't engage we fall through to 'sensitiveInputNeeded'
-							// so the agent gets control back rather than hanging
-							// forever.
-							//
-							// "Engagement" is measured as terminal data activity (user
-							// keystrokes / shell echo): every onData event resets the
-							// grace timer. This means once the user starts typing we
-							// keep waiting, but if they ignore the dialog we eventually
-							// hand control back.
-							const SENSITIVE_GRACE_MS = 45_000;
-							let pendingTimer: { dispose(): void } | undefined;
-							const armTimer = () => {
-								pendingTimer?.dispose();
-								const cancel = new CancellationTokenSource();
-								pendingTimer = {
-									dispose: () => {
-										cancel.cancel();
-										cancel.dispose();
-									},
-								};
-								timeout(SENSITIVE_GRACE_MS, cancel.token).then(() => {
-									if (!cancel.token.isCancellationRequested) {
-										resolve({ type: 'sensitiveInputNeeded' as const });
-									}
-								}).catch(() => { /* cancelled */ });
-							};
-							raceCleanup.add(outputMonitor.onDidDetectSensitiveInputNeeded(() => {
-								if (pendingTimer) {
-									return;
-								}
-								armTimer();
-								// Reset the grace timer on terminal activity so the
-								// user can take their time typing the secret.
-								raceCleanup.add(toolTerminal.instance.onData(() => armTimer()));
-								raceCleanup.add(toDisposable(() => {
-									pendingTimer?.dispose();
-									pendingTimer = undefined;
-								}));
-							}));
 						});
 					})
 				];
@@ -1606,19 +1553,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					// Read output directly from the execution rather than from pollingResult,
 					// because the output monitor may not have set pollingResult yet at this point
 					// (it is written in the finally block after onDidFinishCommand).
-					const idleOutput = execution.getOutput();
-					outputLineCount = idleOutput ? count(idleOutput.trim(), '\n') + 1 : 0;
-					terminalResult = idleOutput ?? '';
-				} else if (raceResult.type === 'sensitiveInputNeeded') {
-					// Output monitor detected a password / passphrase / secret prompt.
-					// The user has been shown an elicitation that focuses the terminal
-					// so they can type the secret directly. We return control to the
-					// agent immediately so its tool call doesn't hang waiting for
-					// the secret to be typed. The terminal stays foreground.
-					this._logService.debug(`RunInTerminalTool: Output monitor detected sensitive input needed in foreground terminal, returning output to agent`);
-					error = 'sensitiveInputNeeded';
-					didInputNeeded = true;
-					didSensitiveInputNeeded = true;
 					const idleOutput = execution.getOutput();
 					outputLineCount = idleOutput ? count(idleOutput.trim(), '\n') + 1 : 0;
 					terminalResult = idleOutput ?? '';
@@ -1888,9 +1822,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				resultText.push(`Note: This terminal execution was moved to the background using the ID ${termId}\n`);
 			}
 		}
-		if (didSensitiveInputNeeded) {
-			resultText.push(`Note: The command in terminal ID ${termId} appears to be waiting for a password, passphrase, or other secret. The user has already been shown a confirmation dialog to focus the terminal and type the secret directly. Do NOT call ${TerminalToolId.SendToTerminal}, do NOT call vscode_askQuestions, and do NOT guess the value — stop and let the user enter the secret. After acknowledging this, end your turn.\n\n`);
-		} else if (didInputNeeded) {
+		if (didInputNeeded) {
 			resultText.push(`Note: The command is running in terminal ID ${termId} and may be waiting for input.\n${this._buildInputNeededSteeringText(chatSessionResource, termId, /*mentionTimeout*/ false)}\n\n`);
 		} else if (didTimeout && timeoutValue !== undefined && timeoutValue > 0) {
 			const notificationHint = shouldSendNotifications
