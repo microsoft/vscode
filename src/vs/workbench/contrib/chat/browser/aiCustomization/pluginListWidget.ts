@@ -605,23 +605,18 @@ export class PluginListWidget extends Disposable {
 						if (element.type === 'group-header') {
 							return localize('pluginGroupAriaLabel', "{0}, {1} items, {2}", element.label, element.count, element.collapsed ? localize('collapsed', "collapsed") : localize('expanded', "expanded"));
 						}
-						if (element.type === 'marketplace-item') {
-							return element.item.description
-								? localize('pluginMarketplaceItemAriaLabel', "{0}. {1}", element.item.name, element.item.description)
-								: element.item.name;
+						const name = formatDisplayName(element.item.name);
+						const description = element.item.description ? truncateToFirstLine(element.item.description) : undefined;
+						const nameAndDesc = description
+							? localize('pluginItemAriaLabel', "{0}. {1}", name, description)
+							: name;
+						if (element.type === 'plugin-item') {
+							const enabled = isContributionEnabled(element.item.plugin.enablement.get());
+							return enabled
+								? localize('pluginInstalledItemAriaLabelEnabled', "{0}. Enabled", nameAndDesc)
+								: localize('pluginInstalledItemAriaLabelDisabled', "{0}. Disabled", nameAndDesc);
 						}
-						if (element.type === 'remote-item') {
-							return element.item.description
-								? localize('pluginRemoteItemAriaLabel', "{0}. {1}", element.item.name, element.item.description)
-								: element.item.name;
-						}
-						const nameAndDesc = element.item.description
-							? localize('pluginInstalledItemAriaLabel', "{0}. {1}", element.item.name, element.item.description)
-							: element.item.name;
-						const enabled = isContributionEnabled(element.item.plugin.enablement.get());
-						return enabled
-							? localize('pluginInstalledItemAriaLabelEnabled', "{0}. Enabled", nameAndDesc)
-							: localize('pluginInstalledItemAriaLabelDisabled', "{0}. Disabled", nameAndDesc);
+						return nameAndDesc;
 					},
 					getWidgetAriaLabel() {
 						return localize('pluginsListAriaLabel', "Plugins");

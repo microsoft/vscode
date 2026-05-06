@@ -759,7 +759,6 @@ const CONTEXT_TOOLS: ReadonlySet<string> = new Set([
 	ToolName.SearchWorkspaceSymbols,
 	ToolName.GetNotebookSummary,
 	ToolName.ReadCellOutput,
-	ToolName.SearchViewResults,
 	ToolName.GithubSemanticRepoSearch,
 	ToolName.GithubTextSearch,
 	// Browser read-only

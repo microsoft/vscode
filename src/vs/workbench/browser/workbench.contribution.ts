@@ -962,61 +962,6 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 		}
 	});
 
-	// Zen Mode
-	registry.registerConfiguration({
-		'id': 'zenMode',
-		'order': 9,
-		'title': localize('zenModeConfigurationTitle', "Zen Mode"),
-		'type': 'object',
-		'properties': {
-			'zenMode.fullScreen': {
-				'type': 'boolean',
-				'default': true,
-				'description': localize('zenMode.fullScreen', "Controls whether turning on Zen Mode also puts the workbench into full screen mode.")
-			},
-			'zenMode.centerLayout': {
-				'type': 'boolean',
-				'default': true,
-				'description': localize('zenMode.centerLayout', "Controls whether turning on Zen Mode also centers the layout.")
-			},
-			'zenMode.showTabs': {
-				'type': 'string',
-				'enum': ['multiple', 'single', 'none'],
-				'description': localize('zenMode.showTabs', "Controls whether turning on Zen Mode should show multiple editor tabs, a single editor tab, or hide the editor title area completely."),
-				'enumDescriptions': [
-					localize('zenMode.showTabs.multiple', "Each editor is displayed as a tab in the editor title area."),
-					localize('zenMode.showTabs.single', "The active editor is displayed as a single large tab in the editor title area."),
-					localize('zenMode.showTabs.none', "The editor title area is not displayed."),
-				],
-				'default': 'multiple'
-			},
-			'zenMode.hideStatusBar': {
-				'type': 'boolean',
-				'default': true,
-				'description': localize('zenMode.hideStatusBar', "Controls whether turning on Zen Mode also hides the status bar at the bottom of the workbench.")
-			},
-			'zenMode.hideActivityBar': {
-				'type': 'boolean',
-				'default': true,
-				'description': localize('zenMode.hideActivityBar', "Controls whether turning on Zen Mode also hides the activity bar either at the left or right of the workbench.")
-			},
-			'zenMode.hideLineNumbers': {
-				'type': 'boolean',
-				'default': true,
-				'description': localize('zenMode.hideLineNumbers', "Controls whether turning on Zen Mode also hides the editor line numbers.")
-			},
-			'zenMode.restore': {
-				'type': 'boolean',
-				'default': true,
-				'description': localize('zenMode.restore', "Controls whether a window should restore to Zen Mode if it was exited in Zen Mode.")
-			},
-			'zenMode.silentNotifications': {
-				'type': 'boolean',
-				'default': true,
-				'description': localize('zenMode.silentNotifications', "Controls whether notifications do not disturb mode should be enabled while in Zen Mode. If true, only error notifications will pop out.")
-			}
-		}
-	});
 })();
 
 Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
