@@ -308,6 +308,21 @@ function prepareOutputForModel(rawOutput: string): string {
 	return text;
 }
 
+async function getReadTerminalContent(terminalManager: IAgentHostTerminalManager, terminalUri: string): Promise<string> {
+	const renderedContent = await terminalManager.getRenderedContent(terminalUri);
+	if (renderedContent?.trim()) {
+		return renderedContent;
+	}
+	return terminalManager.getContent(terminalUri) ?? '';
+}
+
+function writeShellCommand(terminalManager: IAgentHostTerminalManager, shell: IManagedShell, command: string): void {
+	terminalManager.writeCommandInput(shell.terminalUri, `${prefixForHistorySuppression(shell.shellType)}${command}`, {
+		addNewLine: true,
+		forceBracketedPaste: true,
+	});
+}
+
 // ---------------------------------------------------------------------------
 // Tool implementations
 // ---------------------------------------------------------------------------
@@ -349,8 +364,10 @@ async function executeCommandWithShellIntegration(
 	logService: ILogService,
 ): Promise<ToolResultObject> {
 	const disposables = new DisposableStore();
+	const contentBefore = terminalManager.getContent(shell.terminalUri) ?? '';
+	const offsetBefore = contentBefore.length;
 
-	terminalManager.writeInput(shell.terminalUri, `${prefixForHistorySuppression(shell.shellType)}${command}\r`);
+	writeShellCommand(terminalManager, shell, command);
 
 	return new Promise<ToolResultObject>(resolve => {
 		let resolved = false;
@@ -377,7 +394,8 @@ async function executeCommandWithShellIntegration(
 		disposables.add(terminalManager.onExit(shell.terminalUri, (exitCode: number) => {
 			logService.info(`[ShellTool] Shell exited unexpectedly with code ${exitCode}`);
 			const fullContent = terminalManager.getContent(shell.terminalUri) ?? '';
-			const output = prepareOutputForModel(fullContent);
+			const newContent = fullContent.substring(Math.min(offsetBefore, fullContent.length));
+			const output = prepareOutputForModel(newContent);
 			finish(makeFailureResult(`Shell exited with code ${exitCode}\n${output}`));
 		}));
 
@@ -391,7 +409,8 @@ async function executeCommandWithShellIntegration(
 		const timer = setTimeout(() => {
 			logService.warn(`[ShellTool] Command timed out after ${timeoutMs}ms`);
 			const fullContent = terminalManager.getContent(shell.terminalUri) ?? '';
-			const output = prepareOutputForModel(fullContent);
+			const newContent = fullContent.substring(Math.min(offsetBefore, fullContent.length));
+			const output = prepareOutputForModel(newContent);
 			finish(makeFailureResult(
 				`Command timed out after ${Math.round(timeoutMs / 1000)}s. Partial output:\n${output}`,
 				'timeout',
@@ -419,9 +438,8 @@ async function executeCommandWithSentinel(
 	const contentBefore = terminalManager.getContent(shell.terminalUri) ?? '';
 	const offsetBefore = contentBefore.length;
 
-	// PTY input uses \r for line endings — the PTY translates to \r\n
-	const input = `${prefixForHistorySuppression(shell.shellType)}${command}\r${sentinelCmd}\r`;
-	terminalManager.writeInput(shell.terminalUri, input);
+	writeShellCommand(terminalManager, shell, command);
+	terminalManager.writeCommandInput(shell.terminalUri, sentinelCmd, { addNewLine: true });
 
 	return new Promise<ToolResultObject>(resolve => {
 		let resolved = false;
@@ -561,7 +579,7 @@ export async function createShellTools(
 		},
 		overridesBuiltInTool: true,
 		skipPermission: true,
-		handler: (args) => {
+		handler: async (args) => {
 			const shells = shellManager.listShells();
 			const shell = args.shell_id
 				? shellManager.getShell(args.shell_id)
@@ -569,7 +587,7 @@ export async function createShellTools(
 			if (!shell) {
 				return makeFailureResult('No active shell found.', 'no_shell');
 			}
-			const content = terminalManager.getContent(shell.terminalUri);
+			const content = await getReadTerminalContent(terminalManager, shell.terminalUri);
 			if (!content) {
 				return makeSuccessResult('(no output)');
 			}

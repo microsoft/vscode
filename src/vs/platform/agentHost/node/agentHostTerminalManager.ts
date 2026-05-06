@@ -22,10 +22,12 @@ import type { CreateTerminalParams } from '../common/state/protocol/commands.js'
 import { TerminalClaim, TerminalContentPart, TerminalInfo, TerminalState, TerminalClaimKind } from '../common/state/protocol/state.js';
 import { isTerminalAction } from '../common/state/sessionActions.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
+import { AgentHostHeadlessTerminal } from './agentHostHeadlessTerminal.js';
 import type { AgentHostStateManager } from './agentHostStateManager.js';
 import { Osc633Event, Osc633EventType, Osc633Parser } from './osc633Parser.js';
 
 const WAIT_FOR_PROMPT_TIMEOUT = 10_000;
+const HEADLESS_TERMINAL_SCROLLBACK = 1000;
 
 export const IAgentHostTerminalManager = createDecorator<IAgentHostTerminalManager>('agentHostTerminalManager');
 
@@ -36,6 +38,24 @@ export interface ICommandFinishedEvent {
 	output: string;
 }
 
+export interface IWriteCommandInputOptions {
+	addNewLine?: boolean;
+	forceBracketedPaste?: boolean;
+}
+
+export function formatTerminalCommandInput(data: string, options: IWriteCommandInputOptions | undefined, bracketedPasteMode: boolean): string {
+	let input = data;
+	const hasNewLine = /\r\n|\r|\n/.test(input);
+	if (options?.forceBracketedPaste && hasNewLine && bracketedPasteMode) {
+		input = `\x1b[200~${input}\x1b[201~`;
+	}
+	input = input.replace(/\r\n|\r|\n/g, '\r');
+	if (options?.addNewLine) {
+		input += '\r';
+	}
+	return input;
+}
+
 /**
  * Service interface for terminal management in the agent host.
  */
@@ -43,11 +63,14 @@ export interface IAgentHostTerminalManager {
 	readonly _serviceBrand: undefined;
 	createTerminal(params: CreateTerminalParams, options?: { shell?: string; preventShellHistory?: boolean; nonInteractive?: boolean }): Promise<void>;
 	writeInput(uri: string, data: string): void;
+	writeCommandInput(uri: string, data: string, options?: IWriteCommandInputOptions): void;
 	onData(uri: string, cb: (data: string) => void): IDisposable;
 	onExit(uri: string, cb: (exitCode: number) => void): IDisposable;
 	onClaimChanged(uri: string, cb: (claim: TerminalClaim) => void): IDisposable;
 	onCommandFinished(uri: string, cb: (event: ICommandFinishedEvent) => void): IDisposable;
 	getContent(uri: string): string | undefined;
+	getRenderedContent(uri: string, options?: { lines?: number }): Promise<string | undefined>;
+	isBracketedPasteMode(uri: string): boolean;
 	getClaim(uri: string): TerminalClaim | undefined;
 	hasTerminal(uri: string): boolean;
 	getExitCode(uri: string): number | undefined;
@@ -96,6 +119,7 @@ interface IManagedTerminal {
 	claim: TerminalClaim;
 	exitCode?: number;
 	commandTracker?: ICommandTracker;
+	headlessTerminal?: AgentHostHeadlessTerminal;
 }
 
 /**
@@ -287,6 +311,13 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 		const onExitEmitter = store.add(new Emitter<number>());
 		const onClaimChangedEmitter = store.add(new Emitter<TerminalClaim>());
 		const onCommandFinishedEmitter = store.add(new Emitter<ICommandFinishedEvent>());
+		const headlessTerminal = store.add(new AgentHostHeadlessTerminal({
+			cols,
+			rows,
+			scrollback: HEADLESS_TERMINAL_SCROLLBACK,
+			shellIntegrationNonce: commandTracker?.nonce,
+			logService: this._logService,
+		}));
 
 		const managed: IManagedTerminal = {
 			uri,
@@ -304,6 +335,7 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 			contentSize: 0,
 			claim,
 			commandTracker,
+			headlessTerminal,
 		};
 
 		this._terminals.set(uri, managed);
@@ -312,9 +344,20 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 		store.add(toDisposable(() => {
 			try { ptyProcess.kill(); } catch { /* already dead */ }
 		}));
+		store.add(headlessTerminal.onResponseData(data => {
+			if (managed.exitCode !== undefined) {
+				return;
+			}
+			try {
+				ptyProcess.write(data);
+			} catch (err) {
+				this._logService.warn(`[TerminalManager] Failed to write headless terminal response for ${uri}: ${err}`);
+			}
+		}));
 
 		const onFirstData = new DeferredPromise<void>();
 		const dataListener = ptyProcess.onData(rawData => {
+			void headlessTerminal.writePtyData(rawData);
 			this._handlePtyData(managed, rawData);
 			onFirstData.complete();
 		});
@@ -368,6 +411,15 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 		}
 	}
 
+	/** Send command text to a terminal, normalizing shell input semantics. */
+	writeCommandInput(uri: string, data: string, options?: IWriteCommandInputOptions): void {
+		const terminal = this._terminals.get(uri);
+		if (!terminal || terminal.exitCode !== undefined) {
+			return;
+		}
+		terminal.pty.write(formatTerminalCommandInput(data, options, terminal.headlessTerminal?.isBracketedPasteMode() ?? false));
+	}
+
 	/** Register a callback for PTY data events on a terminal. */
 	onData(uri: string, cb: (data: string) => void): IDisposable {
 		const terminal = this._terminals.get(uri);
@@ -413,6 +465,17 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 		return terminal.content.map(p => p.type === 'command' ? p.output : p.value).join('');
 	}
 
+	/** Get rendered terminal content from the headless xterm mirror. */
+	async getRenderedContent(uri: string, options?: { lines?: number }): Promise<string | undefined> {
+		const terminal = this._terminals.get(uri);
+		return terminal?.headlessTerminal?.getRecentRenderedText(options);
+	}
+
+	/** Whether the headless terminal mirror currently reports bracketed paste mode. */
+	isBracketedPasteMode(uri: string): boolean {
+		return this._terminals.get(uri)?.headlessTerminal?.isBracketedPasteMode() ?? false;
+	}
+
 	/** Get the current claim for a terminal. */
 	getClaim(uri: string): TerminalClaim | undefined {
 		return this._terminals.get(uri)?.claim;
@@ -440,6 +503,7 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 		if (terminal && terminal.exitCode === undefined) {
 			terminal.cols = cols;
 			terminal.rows = rows;
+			terminal.headlessTerminal?.resize(cols, rows);
 			terminal.pty.resize(cols, rows);
 		}
 	}
@@ -469,6 +533,7 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 		if (terminal) {
 			terminal.content = [];
 			terminal.contentSize = 0;
+			terminal.headlessTerminal?.clear();
 		}
 	}
 

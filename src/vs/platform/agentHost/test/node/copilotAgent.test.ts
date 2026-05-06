@@ -86,11 +86,14 @@ class TestAgentHostTerminalManager implements IAgentHostTerminalManager {
 
 	async createTerminal(): Promise<void> { }
 	writeInput(): void { }
+	writeCommandInput(): void { }
 	onData(): IDisposable { return Disposable.None; }
 	onExit(): IDisposable { return Disposable.None; }
 	onClaimChanged(): IDisposable { return Disposable.None; }
 	onCommandFinished(): IDisposable { return Disposable.None; }
 	getContent(): string | undefined { return undefined; }
+	async getRenderedContent(): Promise<string | undefined> { return undefined; }
+	isBracketedPasteMode(): boolean { return false; }
 	getClaim(): undefined { return undefined; }
 	hasTerminal(): boolean { return false; }
 	getExitCode(): number | undefined { return undefined; }
