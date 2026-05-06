@@ -6,6 +6,7 @@
 import { RunOnceScheduler } from '../../../base/common/async.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
+import { equals } from '../../../base/common/objects.js';
 import { ILogService } from '../../log/common/log.js';
 import { ActionType, NotificationType, ActionEnvelope, ActionOrigin, INotification, IRootConfigChangedAction, SessionAction, RootAction, StateAction, TerminalAction, isRootAction, isSessionAction } from '../common/state/sessionActions.js';
 import type { IStateSnapshot } from '../common/state/sessionProtocol.js';
@@ -237,14 +238,28 @@ export class AgentHostStateManager extends Disposable {
 	}
 
 	/**
-	 * Removes a session from in-memory state without emitting a notification.
+	 * Removes a session from in-memory state without emitting a
+	 * {@link NotificationType.SessionRemoved} notification.
 	 * Use {@link deleteSession} when the session is being permanently deleted
-	 * and clients need to be notified.
+	 * and clients need to be notified of its removal.
+	 *
+	 * Any pending summary change is flushed synchronously before the session is
+	 * torn down, so clients receive the final status (e.g. Idle after a turn
+	 * completes) even when the session is evicted before the scheduler fires.
+	 * A {@link NotificationType.SessionSummaryChanged} notification may therefore
+	 * be emitted as a side-effect of this call.
 	 */
 	removeSession(session: URI): void {
 		const state = this._sessionStates.get(session);
 		if (!state) {
 			return;
+		}
+
+		// Flush any pending summary notification before tearing down state so
+		// that the final status (e.g. Idle) reaches clients even if the session
+		// is evicted within the scheduler's debounce window.
+		if (this._dirtySummaries.has(session)) {
+			this._flushSummaryNotificationFor(session);
 		}
 
 		// Clean up active turn tracking
@@ -271,6 +286,10 @@ export class AgentHostStateManager extends Disposable {
 	 */
 	deleteSession(session: URI): void {
 		const wasAnnounced = this._lastNotifiedSummaries.has(session);
+		// Drop any pending summary diff: the forthcoming SessionRemoved notification
+		// supersedes it and we don't want to emit spurious SessionSummaryChanged
+		// events just before the session disappears from the client's view.
+		this._dirtySummaries.delete(session);
 		this.removeSession(session);
 		if (wasAnnounced) {
 			this._onDidEmitNotification.fire({
@@ -333,6 +352,22 @@ export class AgentHostStateManager extends Disposable {
 		let resultingState: unknown = undefined;
 		// Apply to state
 		if (isRootAction(action)) {
+			// `RootConfigChanged` can be a true no-op: the reducer merges/replaces
+			// values even when the patch matches the current state, and re-emitting
+			// it would cause clients observing rootState.onDidChange to react and
+			// potentially re-dispatch in a loop. Check the action's own patch
+			// against current values before running the reducer so we avoid
+			// allocating a new state object at all.
+			if (action.type === ActionType.RootConfigChanged && this._rootState.config) {
+				const current = this._rootState.config.values;
+				const patch = action.config;
+				const isNoOp = action.replace
+					? equals(current, patch)
+					: equals({ ...current, ...patch }, current);
+				if (isNoOp) {
+					return this._rootState;
+				}
+			}
 			this._rootState = rootReducer(this._rootState, action as RootAction, this._log);
 			resultingState = this._rootState;
 		}
@@ -385,33 +420,45 @@ export class AgentHostStateManager extends Disposable {
 
 	private _flushSummaryNotifications(): void {
 		for (const session of this._dirtySummaries) {
-			const state = this._sessionStates.get(session);
-			const lastNotified = this._lastNotifiedSummaries.get(session);
-			if (!state || !lastNotified || state.summary === lastNotified) {
-				continue;
-			}
-
-			const current = state.summary;
-			const changes: Partial<SessionSummary> = {};
-			if (current.title !== lastNotified.title) { changes.title = current.title; }
-			if (current.status !== lastNotified.status) { changes.status = current.status; }
-			if (current.activity !== lastNotified.activity) { changes.activity = current.activity; }
-			if (current.modifiedAt !== lastNotified.modifiedAt) { changes.modifiedAt = current.modifiedAt; }
-			if (current.project !== lastNotified.project) { changes.project = current.project; }
-			if (current.model !== lastNotified.model) { changes.model = current.model; }
-			if (current.workingDirectory !== lastNotified.workingDirectory) { changes.workingDirectory = current.workingDirectory; }
-			if (current.diffs !== lastNotified.diffs) { changes.diffs = current.diffs; }
-
-			this._lastNotifiedSummaries.set(session, current);
-
-			if (Object.keys(changes).length > 0) {
-				this._onDidEmitNotification.fire({
-					type: NotificationType.SessionSummaryChanged,
-					session,
-					changes,
-				});
-			}
+			this._flushSummaryNotificationFor(session);
 		}
 		this._dirtySummaries.clear();
+	}
+
+	/**
+	 * Emits a {@link NotificationType.SessionSummaryChanged} notification for
+	 * `session` if its current summary differs from the last one sent to
+	 * clients, then advances `_lastNotifiedSummaries` to the current summary.
+	 *
+	 * Does NOT remove `session` from `_dirtySummaries` — callers are
+	 * responsible for that bookkeeping.
+	 */
+	private _flushSummaryNotificationFor(session: string): void {
+		const state = this._sessionStates.get(session);
+		const lastNotified = this._lastNotifiedSummaries.get(session);
+		if (!state || !lastNotified || state.summary === lastNotified) {
+			return;
+		}
+
+		const current = state.summary;
+		const changes: Partial<SessionSummary> = {};
+		if (current.title !== lastNotified.title) { changes.title = current.title; }
+		if (current.status !== lastNotified.status) { changes.status = current.status; }
+		if (current.activity !== lastNotified.activity) { changes.activity = current.activity; }
+		if (current.modifiedAt !== lastNotified.modifiedAt) { changes.modifiedAt = current.modifiedAt; }
+		if (current.project !== lastNotified.project) { changes.project = current.project; }
+		if (current.model !== lastNotified.model) { changes.model = current.model; }
+		if (current.workingDirectory !== lastNotified.workingDirectory) { changes.workingDirectory = current.workingDirectory; }
+		if (current.diffs !== lastNotified.diffs) { changes.diffs = current.diffs; }
+
+		this._lastNotifiedSummaries.set(session, current);
+
+		if (Object.keys(changes).length > 0) {
+			this._onDidEmitNotification.fire({
+				type: NotificationType.SessionSummaryChanged,
+				session,
+				changes,
+			});
+		}
 	}
 }

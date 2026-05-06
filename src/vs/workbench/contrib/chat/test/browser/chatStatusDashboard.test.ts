@@ -366,6 +366,24 @@ suite('ChatStatusDashboard', () => {
 		assert.deepStrictEqual(getQuotaValues(dashboard.element), ['20%', '30%']);
 	});
 
+	test('Hover is a no-op when entitlement is zero', () => {
+		const dashboard = createDashboard(createEntitlementService({
+			premiumChat: { percentRemaining: 0, unlimited: false, usageBasedBilling: true, entitlement: 0 },
+			completions: { percentRemaining: 70, unlimited: false, entitlement: 0 },
+			entitlement: ChatEntitlement.Free,
+		}));
+
+		const quotaPercentages = dashboard.element.querySelectorAll('.quota-indicator:not(.included) .quota-percentage');
+		assert.strictEqual(quotaPercentages.length, 2);
+
+		// Before hover: shows percentages
+		const valuesBefore = getQuotaValues(dashboard.element);
+
+		// Hover: still shows percentages (entitlement is 0, no meaningful total)
+		quotaPercentages[0].dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+		assert.deepStrictEqual(getQuotaValues(dashboard.element), valuesBefore);
+	});
+
 	test('Quota percentage element is keyboard-focusable', () => {
 		const dashboard = createDashboard(createEntitlementService({
 			chat: { percentRemaining: 80, unlimited: false, entitlement: 2000 },

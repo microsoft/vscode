@@ -10,7 +10,7 @@ import { IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IModelsControlManifest, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatProvider, ILanguageModelChatSelector, ILanguageModelsGroup, ILanguageModelsService, IUserFriendlyLanguageModel, ILanguageModelProviderDescriptor } from '../../../common/languageModels.js';
-import { ChatModelGroup, ChatModelsViewModel, ILanguageModelEntry, ILanguageModelProviderEntry, isLanguageModelProviderEntry, isLanguageModelGroupEntry, ILanguageModelGroupEntry } from '../../../browser/chatManagement/chatModelsViewModel.js';
+import { ChatModelsViewModel, ILanguageModelEntry, ILanguageModelProviderEntry, isLanguageModelProviderEntry, isLanguageModelGroupEntry } from '../../../browser/chatManagement/chatModelsViewModel.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { IStringDictionary } from '../../../../../../base/common/collections.js';
 import { ILanguageModelsProviderGroup } from '../../../common/languageModelsConfiguration.js';
@@ -65,13 +65,6 @@ class MockLanguageModelsService implements ILanguageModelsService {
 
 	deltaLanguageModelChatProviderDescriptors(added: IUserFriendlyLanguageModel[], removed: IUserFriendlyLanguageModel[]): void {
 		throw new Error('Method not implemented.');
-	}
-
-	updateModelPickerPreference(modelIdentifier: string, showInModelPicker: boolean): void {
-		const metadata = this.models.get(modelIdentifier);
-		if (metadata) {
-			this.models.set(modelIdentifier, { ...metadata, isUserSelectable: showInModelPicker });
-		}
 	}
 
 	getVendors(): ILanguageModelProviderDescriptor[] {
@@ -372,22 +365,6 @@ suite('ChatModelsViewModel', () => {
 		assert.strictEqual(models[0].model.metadata.id, 'gpt-4o');
 	});
 
-	test('should filter by visibility - visible:true', () => {
-		const results = viewModel.filter('@visible:true');
-
-		const models = results.filter(r => !isLanguageModelProviderEntry(r) && !isLanguageModelGroupEntry(r)) as ILanguageModelEntry[];
-		assert.strictEqual(models.length, 3);
-		assert.ok(models.every(m => m.model.visible === true));
-	});
-
-	test('should filter by visibility - visible:false', () => {
-		const results = viewModel.filter('@visible:false');
-
-		const models = results.filter(r => !isLanguageModelProviderEntry(r) && !isLanguageModelGroupEntry(r)) as ILanguageModelEntry[];
-		assert.strictEqual(models.length, 1);
-		assert.strictEqual(models[0].model.visible, false);
-	});
-
 	test('should combine provider and capability filters', () => {
 		const results = viewModel.filter('@provider:copilot @capability:vision');
 
@@ -397,14 +374,6 @@ suite('ChatModelsViewModel', () => {
 			m.model.provider.vendor.vendor === 'copilot' &&
 			m.model.metadata.capabilities?.vision === true
 		));
-	});
-
-	test('should combine provider, capability, and visibility filters', () => {
-		const results = viewModel.filter('@provider:openai @capability:vision @visible:false');
-
-		const models = results.filter(r => !isLanguageModelProviderEntry(r) && !isLanguageModelGroupEntry(r)) as ILanguageModelEntry[];
-		assert.strictEqual(models.length, 1);
-		assert.strictEqual(models[0].model.metadata.id, 'gpt-4-vision');
 	});
 
 	test('should filter by text matching model name', () => {
@@ -767,105 +736,6 @@ suite('ChatModelsViewModel', () => {
 		assert.strictEqual(vendors.length, 0);
 	});
 
-	test('should group by visibility', () => {
-		viewModel.groupBy = ChatModelGroup.Visibility;
-		const actuals = viewModel.viewModelEntries;
-
-		assert.strictEqual(actuals.length, 6);
-		assert.strictEqual(actuals[0].type, 'group');
-		assert.strictEqual(actuals[0].id, 'visible');
-		assert.strictEqual(actuals[1].type, 'model');
-		assert.strictEqual(actuals[1].model.identifier, 'copilot-gpt-4');
-		assert.strictEqual(actuals[2].type, 'model');
-		assert.strictEqual(actuals[2].model.identifier, 'copilot-gpt-4o');
-		assert.strictEqual(actuals[3].type, 'model');
-		assert.strictEqual(actuals[3].model.identifier, 'openai-gpt-3.5');
-		assert.strictEqual(actuals[4].type, 'group');
-		assert.strictEqual(actuals[4].id, 'hidden');
-		assert.strictEqual(actuals[5].type, 'model');
-		assert.strictEqual(actuals[5].model.identifier, 'openai-gpt-4-vision');
-	});
-
-	test('should fire onDidChangeGrouping when grouping changes', () => {
-		let fired = false;
-		store.add(viewModel.onDidChangeGrouping(() => {
-			fired = true;
-		}));
-
-		viewModel.groupBy = ChatModelGroup.Visibility;
-		assert.strictEqual(fired, true);
-	});
-
-	test('should reset collapsed state when grouping changes', () => {
-		const vendorEntry = viewModel.viewModelEntries.find(r => isLanguageModelProviderEntry(r) && r.vendorEntry.vendor.vendor === 'copilot') as ILanguageModelProviderEntry;
-		viewModel.toggleCollapsed(vendorEntry);
-
-		viewModel.groupBy = ChatModelGroup.Visibility;
-
-		const results = viewModel.filter('');
-		const groups = results.filter(isLanguageModelGroupEntry) as ILanguageModelGroupEntry[];
-		assert.ok(groups.every(v => !v.collapsed));
-	});
-
-	test('should sort models within visibility groups', async () => {
-		languageModelsService.addVendor({
-			vendor: 'anthropic',
-			displayName: 'Anthropic',
-			managementCommand: undefined,
-			when: undefined,
-			configuration: undefined
-		});
-
-		languageModelsService.addModel('anthropic', 'anthropic-claude', {
-			extension: new ExtensionIdentifier('anthropic.api'),
-			id: 'claude-3',
-			name: 'Claude 3',
-			family: 'claude',
-			version: '1.0',
-			vendor: 'anthropic',
-			maxInputTokens: 100000,
-			maxOutputTokens: 4096,
-			modelPickerCategory: { label: 'Anthropic', order: 3 },
-			isUserSelectable: true,
-			capabilities: {
-				toolCalling: true,
-				vision: false,
-				agentMode: false
-			},
-			isDefaultForLocation: {
-				[ChatAgentLocation.Chat]: true
-			}
-		});
-
-		await viewModel.refresh();
-
-		viewModel.groupBy = ChatModelGroup.Visibility;
-		const actuals = viewModel.viewModelEntries;
-
-		assert.strictEqual(actuals.length, 7);
-
-		assert.strictEqual(actuals[0].type, 'group');
-		assert.strictEqual(actuals[0].id, 'visible');
-
-		assert.strictEqual(actuals[1].type, 'model');
-		assert.strictEqual(actuals[1].model.metadata.id, 'gpt-4');
-
-		assert.strictEqual(actuals[2].type, 'model');
-		assert.strictEqual(actuals[2].model.metadata.id, 'gpt-4o');
-
-		assert.strictEqual(actuals[3].type, 'model');
-		assert.strictEqual(actuals[3].model.metadata.id, 'claude-3');
-
-		assert.strictEqual(actuals[4].type, 'model');
-		assert.strictEqual(actuals[4].model.metadata.id, 'gpt-3.5-turbo');
-
-		assert.strictEqual(actuals[5].type, 'group');
-		assert.strictEqual(actuals[5].id, 'hidden');
-
-		assert.strictEqual(actuals[6].type, 'model');
-		assert.strictEqual(actuals[6].model.metadata.id, 'gpt-4-vision');
-	});
-
 	test('should get configured vendors', () => {
 		const vendors = viewModel.getConfiguredVendors();
 		assert.ok(vendors.length > 0);
@@ -945,178 +815,6 @@ suite('ChatModelsViewModel', () => {
 		const results = viewModel.filter('@provider:nonexistent');
 		const models = results.filter(r => !isLanguageModelProviderEntry(r) && !isLanguageModelGroupEntry(r)) as ILanguageModelEntry[];
 		assert.strictEqual(models.length, 0);
-	});
-
-	test('setModelsVisibility should update visibility for multiple models', () => {
-		// Get initial results
-		const initialResults = viewModel.filter('');
-		const modelEntries = initialResults.filter(r => !isLanguageModelProviderEntry(r) && !isLanguageModelGroupEntry(r)) as ILanguageModelEntry[];
-		assert.ok(modelEntries.length >= 2, 'Should have at least 2 models for testing');
-
-		// Get first two models
-		const modelsToHide = modelEntries.slice(0, 2);
-		const initialVisibility = modelsToHide.map(m => m.model.visible);
-
-		// Hide the models
-		viewModel.setModelsVisibility(modelsToHide, false);
-
-		// Verify visibility was updated
-		assert.strictEqual(modelsToHide[0].model.visible, false);
-		assert.strictEqual(modelsToHide[1].model.visible, false);
-
-		// Verify language models service was called by checking metadata
-		const metadata1 = languageModelsService.lookupLanguageModel(modelsToHide[0].model.identifier);
-		const metadata2 = languageModelsService.lookupLanguageModel(modelsToHide[1].model.identifier);
-		assert.strictEqual(metadata1?.isUserSelectable, false);
-		assert.strictEqual(metadata2?.isUserSelectable, false);
-
-		// Verify UI was updated by filtering
-		const updatedResults = viewModel.filter('');
-		const updatedModelEntries = updatedResults.filter(r => !isLanguageModelProviderEntry(r) && !isLanguageModelGroupEntry(r)) as ILanguageModelEntry[];
-		assert.ok(updatedModelEntries.length > 0);
-
-		// Restore original visibility - group by visibility state for efficient restoration
-		const modelsToMakeVisible = modelsToHide.filter((_, i) => initialVisibility[i]);
-		const modelsToMakeHidden = modelsToHide.filter((_, i) => !initialVisibility[i]);
-		if (modelsToMakeVisible.length > 0) {
-			viewModel.setModelsVisibility(modelsToMakeVisible, true);
-		}
-		if (modelsToMakeHidden.length > 0) {
-			viewModel.setModelsVisibility(modelsToMakeHidden, false);
-		}
-	});
-
-	test('setModelsVisibility should make hidden models visible', () => {
-		// Get initial results
-		const initialResults = viewModel.filter('');
-		const modelEntries = initialResults.filter(r => !isLanguageModelProviderEntry(r) && !isLanguageModelGroupEntry(r)) as ILanguageModelEntry[];
-		assert.ok(modelEntries.length >= 1, 'Should have at least 1 model for testing');
-
-		// Get a model and hide it first
-		const modelToTest = [modelEntries[0]];
-		viewModel.setModelsVisibility(modelToTest, false);
-		assert.strictEqual(modelToTest[0].model.visible, false);
-
-		// Now make it visible
-		viewModel.setModelsVisibility(modelToTest, true);
-
-		// Verify visibility was updated
-		assert.strictEqual(modelToTest[0].model.visible, true);
-
-		// Verify language models service was called
-		const metadata = languageModelsService.lookupLanguageModel(modelToTest[0].model.identifier);
-		assert.strictEqual(metadata?.isUserSelectable, true);
-	});
-
-	test('setGroupVisibility should update visibility for all models in a provider group', () => {
-		// Get initial results to find a provider group
-		const initialResults = viewModel.filter('');
-		const providerGroups = initialResults.filter(isLanguageModelProviderEntry);
-		assert.ok(providerGroups.length > 0, 'Should have at least 1 provider group');
-
-		const providerGroup = providerGroups[0];
-		const modelsInGroup = viewModel.getModelsForGroup(providerGroup);
-		assert.ok(modelsInGroup.length > 0, 'Provider group should have models');
-
-		// Store initial visibility
-		const initialVisibility = modelsInGroup.map(m => m.visible);
-
-		// Hide all models in the group
-		viewModel.setGroupVisibility(providerGroup, false);
-
-		// Verify all models in group are now hidden
-		const updatedModels = viewModel.getModelsForGroup(providerGroup);
-		for (const model of updatedModels) {
-			assert.strictEqual(model.visible, false, `Model ${model.identifier} should be hidden`);
-
-			// Verify language models service was called
-			const metadata = languageModelsService.lookupLanguageModel(model.identifier);
-			assert.strictEqual(metadata?.isUserSelectable, false);
-		}
-
-		// Restore original visibility using setGroupVisibility for models that were visible
-		const modelsToRestore = modelsInGroup.filter((_, i) => initialVisibility[i]);
-		if (modelsToRestore.length > 0) {
-			const modelEntries = initialResults.filter(r => !isLanguageModelProviderEntry(r) && !isLanguageModelGroupEntry(r)) as ILanguageModelEntry[];
-			const entriesToRestore = modelEntries.filter(e => modelsToRestore.some(m => m.identifier === e.model.identifier));
-			viewModel.setModelsVisibility(entriesToRestore, true);
-		}
-	});
-
-	test('setGroupVisibility should update visibility for all models in a visibility group', () => {
-		// Store initial visibility state
-		const allResults = viewModel.filter('');
-		const allModelEntries = allResults.filter(r => !isLanguageModelProviderEntry(r) && !isLanguageModelGroupEntry(r)) as ILanguageModelEntry[];
-		const initialModelStates = allModelEntries.map(m => ({ entry: m, visible: m.model.visible }));
-
-		// First ensure we have some visible and some hidden models
-		if (allModelEntries.length >= 2) {
-			// Hide one model to create a mixed state
-			viewModel.setModelsVisibility([allModelEntries[0]], false);
-			viewModel.setModelsVisibility([allModelEntries[1]], true);
-		}
-
-		// Filter to trigger visibility group creation - the visibility filter activates grouping by visibility
-		viewModel.filter('@visible:true');
-		// Now get the results with visibility groups
-		const resultsWithGroups = viewModel.filter('');
-
-		// Find the visibility group entries
-		const visibilityGroups = resultsWithGroups.filter(isLanguageModelGroupEntry);
-
-		if (visibilityGroups.length > 0) {
-			const visibleGroup = visibilityGroups.find(g => g.id === 'visible');
-			if (visibleGroup) {
-				const visibleModels = viewModel.getModelsForGroup(visibleGroup);
-				const initialCount = visibleModels.length;
-
-				if (initialCount > 0) {
-					// Hide all visible models
-					viewModel.setGroupVisibility(visibleGroup, false);
-
-					// Verify all previously visible models are now hidden
-					const updatedVisibleModels = viewModel.getModelsForGroup(visibleGroup);
-					assert.strictEqual(updatedVisibleModels.length, 0, 'Should have no visible models after hiding the visible group');
-
-					// Verify the hidden group now contains those models
-					const hiddenGroup = visibilityGroups.find(g => g.id === 'hidden');
-					if (hiddenGroup) {
-						const hiddenModels = viewModel.getModelsForGroup(hiddenGroup);
-						assert.ok(hiddenModels.length >= initialCount, 'Hidden group should contain the previously visible models');
-					}
-				}
-			}
-		}
-
-		// Restore original visibility state
-		const modelsToMakeVisible = initialModelStates.filter(s => s.visible).map(s => s.entry);
-		const modelsToMakeHidden = initialModelStates.filter(s => !s.visible).map(s => s.entry);
-		if (modelsToMakeVisible.length > 0) {
-			viewModel.setModelsVisibility(modelsToMakeVisible, true);
-		}
-		if (modelsToMakeHidden.length > 0) {
-			viewModel.setModelsVisibility(modelsToMakeHidden, false);
-		}
-	});
-
-	test('setGroupVisibility should trigger UI update through doFilter', () => {
-		// Get a provider group
-		const initialResults = viewModel.filter('');
-		const providerGroups = initialResults.filter(isLanguageModelProviderEntry);
-
-		if (providerGroups.length > 0) {
-			const providerGroup = providerGroups[0];
-
-			// Change visibility
-			viewModel.setGroupVisibility(providerGroup, false);
-
-			// Filter again to ensure UI was updated
-			const updatedResults = viewModel.filter('');
-			const updatedProviderGroups = updatedResults.filter(isLanguageModelProviderEntry);
-
-			// Verify we can still get results (doFilter was called)
-			assert.ok(updatedProviderGroups.length > 0, 'Should still have provider groups after visibility change');
-		}
 	});
 
 });

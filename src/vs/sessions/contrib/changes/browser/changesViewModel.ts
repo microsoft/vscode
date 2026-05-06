@@ -7,7 +7,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { arrayEqualsC, structuralEquals } from '../../../../base/common/equals.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { derived, derivedOpts, IObservable, IObservableWithChange, ISettableObservable, runOnChange, observableValue, observableSignalFromEvent, constObservable, ObservablePromise, derivedObservableWithCache } from '../../../../base/common/observable.js';
+import { derived, derivedOpts, IObservable, IObservableWithChange, ISettableObservable, observableValue, observableSignalFromEvent, constObservable, ObservablePromise, derivedObservableWithCache, autorun } from '../../../../base/common/observable.js';
 import { isWeb } from '../../../../base/common/platform.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -78,6 +78,7 @@ export interface ActiveSessionState {
 export class ChangesViewModel extends Disposable {
 	readonly activeSessionResourceObs: IObservable<URI | undefined>;
 	readonly activeSessionTypeObs: IObservable<string | undefined>;
+	readonly activeSessionIsArchivedObs: IObservable<boolean>;
 	readonly activeSessionChangesObs: IObservable<readonly ISessionFileChange[]>;
 	readonly activeSessionHasGitRepositoryObs: IObservable<boolean>;
 	readonly activeSessionFirstCheckpointRefObs: IObservable<string | undefined>;
@@ -130,6 +131,11 @@ export class ChangesViewModel extends Disposable {
 		this.activeSessionTypeObs = derived(reader => {
 			const activeSession = this.sessionManagementService.activeSession.read(reader);
 			return activeSession?.sessionType;
+		});
+
+		this.activeSessionIsArchivedObs = derived(reader => {
+			const activeSession = this.sessionManagementService.activeSession.read(reader);
+			return activeSession?.isArchived.read(reader) === true;
 		});
 
 		// Active session metadata
@@ -203,8 +209,19 @@ export class ChangesViewModel extends Disposable {
 		// Version mode
 		this.versionModeObs = observableValue<ChangesVersionMode>(this, ChangesVersionMode.BranchChanges);
 
-		this._register(runOnChange(this.activeSessionResourceObs, () => {
-			this.setVersionMode(ChangesVersionMode.BranchChanges);
+		this._register(autorun(reader => {
+			const activeSessionResource = this.activeSessionResourceObs.read(reader);
+			if (!activeSessionResource) {
+				this.setVersionMode(ChangesVersionMode.BranchChanges);
+				return;
+			}
+
+			const isArchived = this.activeSessionIsArchivedObs.read(reader);
+			const versionMode = isArchived
+				? ChangesVersionMode.AllChanges
+				: ChangesVersionMode.BranchChanges;
+
+			this.setVersionMode(versionMode);
 		}));
 
 		// View mode
