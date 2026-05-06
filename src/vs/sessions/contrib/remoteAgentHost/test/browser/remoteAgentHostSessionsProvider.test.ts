@@ -33,6 +33,7 @@ import { SessionStatus, COPILOT_CLI_SESSION_TYPE } from '../../../../services/se
 import { RemoteAgentHostSessionsProvider, type IRemoteAgentHostSessionsProviderConfig } from '../../browser/remoteAgentHostSessionsProvider.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
+import { IGitHubService } from '../../../github/browser/githubService.js';
 
 // ---- Mock connection --------------------------------------------------------
 
@@ -211,6 +212,9 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 		getUriLabel: (uri: URI) => uri.path,
 	});
 	instantiationService.stub(ILogService, new NullLogService());
+	instantiationService.stub(IGitHubService, new class extends mock<IGitHubService>() {
+		override findPullRequestNumberByHeadBranch = async () => undefined;
+	}());
 
 	const config: IRemoteAgentHostSessionsProviderConfig = {
 		address: overrides?.address ?? 'localhost:4321',
