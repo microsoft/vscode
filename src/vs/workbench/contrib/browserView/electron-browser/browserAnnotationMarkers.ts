@@ -733,14 +733,13 @@ return '<div><span style="color:#9cdcfe;">' + prop + '</span>:<span style="color
 }
 
 popupEl.innerHTML = [
-'<div style="position:relative;">',
+'<div style="display:flex;align-items:flex-end;gap:6px;">',
 '  <textarea id="' + HOVER_ID + '-ta" rows="1" aria-label="Annotation comment" placeholder="What should change?" style="',
-'    width:100%;box-sizing:border-box;padding:6px 28px 6px 8px;font-size:13px;line-height:1.4;font-family:inherit;',
+'    flex:1;box-sizing:border-box;padding:6px 8px;font-size:13px;line-height:1.4;font-family:inherit;',
 '    background:var(--ann-input-bg, #3c3c3c);color:var(--ann-fg, #ccc);border:1px solid var(--ann-input-border, #3c3c3c);',
-'    border-radius:6px;resize:none;outline:none;"></textarea>',
+'    border-radius:6px;resize:none;outline:none;min-height:32px;"></textarea>',
 '  <button id="'+HOVER_ID+'-submit" aria-label="Add annotation" style="',
-'    position:absolute;right:4px;bottom:4px;',
-'    width:20px;height:20px;border-radius:4px;border:none;',
+'    width:20px;height:20px;border-radius:4px;border:none;flex-shrink:0;margin-bottom:5px;',
 '    background:transparent;color:var(--ann-desc-fg, rgba(204,204,204,0.4));',
 '    cursor:pointer;display:flex;align-items:center;justify-content:center;',
 '    transition:color 0.15s;padding:0;">',
@@ -948,14 +947,13 @@ return '<div><span style="color:#9cdcfe;">' + prop + '</span>:<span style="color
 }
 
 popupEl.innerHTML = [
-'<div style="position:relative;">',
+'<div style="display:flex;align-items:flex-end;gap:6px;">',
 '  <textarea id="' + HOVER_ID + '-ta" rows="1" aria-label="Annotation comment" style="',
-'    width:100%;box-sizing:border-box;padding:6px 28px 6px 8px;font-size:13px;line-height:1.4;font-family:inherit;',
+'    flex:1;box-sizing:border-box;padding:6px 8px;font-size:13px;line-height:1.4;font-family:inherit;',
 '    background:var(--ann-input-bg, #3c3c3c);color:var(--ann-fg, #ccc);border:1px solid var(--ann-input-border, #3c3c3c);',
-'    border-radius:6px;resize:none;outline:none;"></textarea>',
+'    border-radius:6px;resize:none;outline:none;min-height:32px;"></textarea>',
 '  <button id="'+HOVER_ID+'-submit" aria-label="Save" style="',
-'    position:absolute;right:4px;bottom:4px;',
-'    width:20px;height:20px;border-radius:4px;border:none;',
+'    width:20px;height:20px;border-radius:4px;border:none;flex-shrink:0;margin-bottom:5px;',
 '    background:transparent;color:var(--ann-desc-fg, rgba(204,204,204,0.4));',
 '    cursor:pointer;display:flex;align-items:center;justify-content:center;',
 '    transition:color 0.15s;padding:0;">',
