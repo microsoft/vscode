@@ -3980,7 +3980,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .chat-model-hover {
 	display: flex;
 	flex-direction: column;
-	gap: 4px;
+	gap: 8px;
 }
 
 .chat-model-hover-name {
@@ -3998,14 +3998,14 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	line-height: 1.4;
 }
 
-.chat-model-hover-description > .rendered-markdown p {
+.chat-model-hover-description > div p {
 	margin: 0;
 }
 
 .chat-model-hover-cost {
-	display: grid;
-	grid-template-columns: auto 1fr;
-	gap: 2px 12px;
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
 	font-size: 12px;
 	color: var(--vscode-descriptionForeground);
 }
@@ -4013,16 +4013,23 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .chat-model-hover-cost-title {
 	font-weight: 600;
 	margin-bottom: 2px;
-	grid-column: 1 / -1;
-}
-
-.chat-model-hover-cost-line {
-	display: contents;
 }
 
 .chat-model-hover-cost-line-label {
 	color: var(--vscode-foreground);
 	opacity: 0.85;
+}
+
+.chat-model-hover-context {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.chat-model-hover-context-label {
+	font-weight: 600;
 }
 
 .chat-model-hover-configurable {

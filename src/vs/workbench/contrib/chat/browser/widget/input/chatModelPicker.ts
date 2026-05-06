@@ -15,7 +15,7 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
-import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -104,8 +104,9 @@ function createModelItem(
 	action: IActionWidgetDropdownAction & { section?: string },
 	model?: ILanguageModelChatMetadataAndIdentifier,
 	descriptionOverride?: string | MarkdownString,
+	openerService?: IOpenerService,
 ): IActionListItem<IActionWidgetDropdownAction> {
-	const hoverElement = model ? getModelHoverContent(model) : undefined;
+	const hover = model && openerService ? getModelHoverContent(model, openerService) : undefined;
 	return {
 		item: action,
 		kind: ActionListItemKind.Action,
@@ -114,7 +115,7 @@ function createModelItem(
 		group: { title: '', icon: action.icon ?? ThemeIcon.fromId(action.checked ? Codicon.check.id : Codicon.blank.id) },
 		hideIcon: false,
 		section: action.section,
-		hover: hoverElement ? { content: hoverElement } : undefined,
+		hover: hover ? { content: hover.element, disposable: hover.disposable } : undefined,
 		tooltip: action.tooltip,
 		submenuActions: action.toolbarActions?.length ? action.toolbarActions : undefined,
 	};
@@ -253,6 +254,7 @@ export function buildModelPickerItems(
 	showUnavailableFeatured: boolean,
 	showFeatured: boolean,
 	languageModelsService?: ILanguageModelsService,
+	openerService?: IOpenerService,
 ): IActionListItem<IActionWidgetDropdownAction>[] {
 	const items: IActionListItem<IActionWidgetDropdownAction>[] = [];
 	if (models.length === 0) {
@@ -305,7 +307,7 @@ export function buildModelPickerItems(
 			if (autoModel) {
 				markPlaced(autoModel.identifier, autoModel.metadata.id);
 				const { action: autoAction, descriptionOverride: autoDesc } = createModelAction(autoModel, selectedModelId, onSelect, languageModelsService!);
-				items.push(createModelItem(autoAction, autoModel, autoDesc));
+				items.push(createModelItem(autoAction, autoModel, autoDesc, openerService));
 			}
 
 			// --- 2. Promoted section (selected + recently used + featured) ---
@@ -394,7 +396,7 @@ export function buildModelPickerItems(
 				for (const item of promotedItems) {
 					if (item.kind === 'available') {
 						const { action: promotedAction, descriptionOverride: promotedDesc } = createModelAction(item.model, selectedModelId, onSelect, languageModelsService!);
-						items.push(createModelItem(promotedAction, item.model, promotedDesc));
+						items.push(createModelItem(promotedAction, item.model, promotedDesc, openerService));
 					} else {
 						items.push(createUnavailableModelItem(item.id, item.entry, item.reason, manageSettingsUrl, updateStateType, chatEntitlementService));
 					}
@@ -453,7 +455,7 @@ export function buildModelPickerItems(
 						items.push(createUnavailableModelItem(model.metadata.id, entry, 'update', manageSettingsUrl, updateStateType, chatEntitlementService, ModelPickerSection.Other));
 					} else {
 						const { action: otherAction, descriptionOverride: otherDesc } = createModelAction(model, selectedModelId, onSelect, languageModelsService!, ModelPickerSection.Other);
-						items.push(createModelItem(otherAction, model, otherDesc));
+						items.push(createModelItem(otherAction, model, otherDesc, openerService));
 					}
 				}
 			}
@@ -476,7 +478,7 @@ export function buildModelPickerItems(
 		const autoModel = models.find(m => isAutoModel(m));
 		if (autoModel) {
 			const { action: flatAutoAction, descriptionOverride: flatAutoDesc } = createModelAction(autoModel, selectedModelId, onSelect, languageModelsService!);
-			items.push(createModelItem(flatAutoAction, autoModel, flatAutoDesc));
+			items.push(createModelItem(flatAutoAction, autoModel, flatAutoDesc, openerService));
 		}
 		const sortedModels = models
 			.filter(m => m !== autoModel)
@@ -486,7 +488,7 @@ export function buildModelPickerItems(
 			});
 		for (const model of sortedModels) {
 			const { action: flatAction, descriptionOverride: flatDesc } = createModelAction(model, selectedModelId, onSelect, languageModelsService!);
-			items.push(createModelItem(flatAction, model, flatDesc));
+			items.push(createModelItem(flatAction, model, flatDesc, openerService));
 		}
 	}
 
@@ -776,6 +778,7 @@ export class ModelPickerWidget extends Disposable {
 			this._delegate.showUnavailableFeatured(),
 			this._delegate.showFeatured(),
 			this._languageModelsService,
+			this._openerService,
 		);
 
 		const hasPriceCategories = models.some(m => !!m.metadata.priceCategory);
@@ -1003,9 +1006,10 @@ export class ModelPickerWidget extends Disposable {
 }
 
 
-function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentifier): HTMLElement | undefined {
+function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentifier, openerService: IOpenerService): { element: HTMLElement; disposable: DisposableStore } | undefined {
 	const isAuto = isAutoModel(model);
 	const container = dom.$('.chat-model-hover');
+	const disposables = new DisposableStore();
 
 	// --- Model name header ---
 	container.appendChild(dom.$('.chat-model-hover-name', undefined, model.metadata.name));
@@ -1019,7 +1023,12 @@ function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentifier): H
 			md.appendMarkdown(`$(${model.metadata.statusIcon.id})&nbsp;`);
 		}
 		md.appendMarkdown(model.metadata.tooltip);
-		const rendered = renderMarkdown(md);
+		const rendered = renderMarkdown(md, {
+			actionHandler: (url: string) => {
+				openerService.open(URI.parse(url), { allowCommands: true });
+			},
+		});
+		disposables.add(rendered);
 		descriptionContainer.appendChild(rendered.element);
 		container.appendChild(descriptionContainer);
 	}
@@ -1057,7 +1066,7 @@ function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentifier): H
 			costSection.appendChild(dom.$('.chat-model-hover-cost-title', undefined, localize('models.priceTitle', "Price")));
 			for (const line of costLines) {
 				costSection.appendChild(dom.$('.chat-model-hover-cost-line', undefined,
-					dom.$('span.chat-model-hover-cost-line-label', undefined, line.label),
+					dom.$('span.chat-model-hover-cost-line-label', undefined, `${line.label}: `),
 					dom.$('span', undefined, line.value),
 				));
 			}
@@ -1067,6 +1076,15 @@ function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentifier): H
 			costSection.appendChild(dom.$('span', undefined, localize('models.cost', 'Cost: {0}', model.metadata.pricing)));
 			container.appendChild(costSection);
 		}
+	}
+
+	// --- Context size ---
+	if (!isAuto && (model.metadata.maxInputTokens || model.metadata.maxOutputTokens)) {
+		const totalTokens = (model.metadata.maxInputTokens ?? 0) + (model.metadata.maxOutputTokens ?? 0);
+		const contextSection = dom.$('.chat-model-hover-context');
+		contextSection.appendChild(dom.$('.chat-model-hover-context-label', undefined, localize('models.contextSize', "Max context")));
+		contextSection.appendChild(dom.$('.chat-model-hover-context-value', undefined, formatTokenCount(totalTokens)));
+		container.appendChild(contextSection);
 	}
 
 	// --- Configurable properties ---
@@ -1091,7 +1109,7 @@ function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentifier): H
 		}
 	}
 
-	return container.children.length > 0 ? container : undefined;
+	return container.children.length > 0 ? { element: container, disposable: disposables } : undefined;
 }
 
 

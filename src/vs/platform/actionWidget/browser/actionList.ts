@@ -17,7 +17,7 @@ import { Emitter } from '../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../base/common/htmlContent.js';
 import { ResolvedKeybinding } from '../../../base/common/keybindings.js';
 import { AnchorPosition } from '../../../base/common/layout.js';
-import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { OS } from '../../../base/common/platform.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { URI } from '../../../base/common/uri.js';
@@ -50,6 +50,10 @@ export interface IActionListItemHover {
 	 * Content to display in the hover. Can be a markdown string or an HTMLElement for full DOM control.
 	 */
 	readonly content?: string | MarkdownString | HTMLElement;
+	/**
+	 * Optional disposable associated with the hover content (e.g. from rendered markdown).
+	 */
+	readonly disposable?: IDisposable;
 }
 
 export interface IActionListItem<T> {
@@ -1352,6 +1356,9 @@ export class ActionListWidget<T> extends Disposable {
 		if (hoverContent) {
 			if (dom.isHTMLElement(hoverContent)) {
 				hoverHeader = hoverContent;
+				if (element.hover?.disposable) {
+					this._submenuDisposables.add(element.hover.disposable);
+				}
 			} else {
 				const markdown = typeof hoverContent === 'string' ? new MarkdownString(hoverContent) : hoverContent;
 				const linkHandler = this._options?.linkHandler;
