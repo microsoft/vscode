@@ -336,12 +336,14 @@ export class AgentHostStateManager extends Disposable {
 		if (isRootAction(action)) {
 			const prevRoot = this._rootState;
 			const nextRoot = rootReducer(prevRoot, action as RootAction, this._log);
-			// Skip emission entirely when the action is a no-op against the
-			// current root state. Otherwise downstream listeners (and clients
-			// observing rootState.onDidChange) treat every dispatched action as
-			// a change, which can spin into an infinite loop when something
-			// re-publishes a value that already matches.
-			if (equals(prevRoot, nextRoot)) {
+			// `RootConfigChanged` is the one root action that can be a true
+			// no-op against current state (the reducer spreads values even
+			// when the patch matches), and re-emitting it would cause clients
+			// observing rootState.onDidChange to react and potentially
+			// re-dispatch in a loop. Other root actions always replace whole
+			// fields and are only dispatched on real changes, so we skip the
+			// deep-compare for them.
+			if (action.type === ActionType.RootConfigChanged && equals(prevRoot.config, nextRoot.config)) {
 				return prevRoot;
 			}
 			this._rootState = nextRoot;
