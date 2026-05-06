@@ -84,6 +84,8 @@ Subclasses implement `_discoverPluginSources()` to determine *which* plugin URIs
 
 **MarketplaceAgentPluginDiscovery** — discovers plugins from `IPluginMarketplaceService.installedPlugins` and delegates to the install/repository services for on-disk availability.
 
+**CopilotCliAgentPluginDiscovery** — discovers plugins installed by the Copilot CLI under `~/.copilot/installed-plugins/<marketplace>/<plugin>/` (two levels deep; `_direct` is the marketplace segment for non-marketplace installs). The root directory is watched recursively for live install/uninstall changes.
+
 ### Plugin Formats
 
 Three format adapters implement `IAgentPluginFormatAdapter`:
