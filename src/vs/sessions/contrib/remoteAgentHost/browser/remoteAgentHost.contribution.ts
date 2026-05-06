@@ -29,7 +29,7 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { registerAction2 } from '../../../../platform/actions/common/actions.js';
-import { OpenSessionEventsFileAction, CollectAgentHostDebugLogsAction } from '../../agentHost/browser/openSessionEventsFileActions.js';
+import { OpenSessionEventsFileAction } from '../../agentHost/browser/openSessionEventsFileActions.js';
 import { AgentCustomizationSyncProvider } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentCustomizationSyncProvider.js';
 import { authenticateProtectedResources, AgentHostAuthTokenCache, resolveAuthenticationInteractively } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostAuth.js';
 import { AgentHostLanguageModelProvider } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostLanguageModelProvider.js';
@@ -591,7 +591,6 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 registerWorkbenchContribution2(RemoteAgentHostContribution.ID, RemoteAgentHostContribution, WorkbenchPhase.AfterRestored);
 
 registerAction2(OpenSessionEventsFileAction);
-registerAction2(CollectAgentHostDebugLogsAction);
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	properties: {
