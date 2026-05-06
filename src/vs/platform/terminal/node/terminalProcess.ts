@@ -157,13 +157,15 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		this._properties[ProcessPropertyType.Cwd] = this._initialCwd;
 		const useConpty = process.platform === 'win32' && getWindowsBuildNumberSync() >= 18309;
 		const useConptyDll = useConpty && this._options.windowsUseConptyDll;
+		const ptyCols = isWindows ? cols : Math.max(cols, 1);
+		const ptyRows = isWindows ? rows : Math.max(rows, 1);
 		this._ptyOptions = {
 			name,
 			cwd,
 			// TODO: When node-pty is updated this cast can be removed
 			env: env as { [key: string]: string },
-			cols,
-			rows,
+			cols: ptyCols,
+			rows: ptyRows,
 			useConpty,
 			useConptyDll,
 			// This option will force conpty to not redraw the whole viewport on launch
