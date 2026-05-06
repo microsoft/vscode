@@ -35,11 +35,17 @@ export interface IChatPhonePresenterImpl {
 	/**
 	 * Show a unified bottom sheet listing both Mode and Model rows for the
 	 * given chat input pickers. Resolves once the user dismisses the sheet.
+	 *
+	 * `modeDelegate` / `modelDelegate` are optional: callers without
+	 * access to a workbench `ChatInputPart` (e.g. the agents-window
+	 * agent-host mode pill, which does not own the chat input) can pass
+	 * `undefined` and the implementation will fall back to its
+	 * agent-host data path.
 	 */
 	showCombinedModeAndModelSheet(
 		target: HTMLElement,
-		modeDelegate: IModePickerDelegate,
-		modelDelegate: IModelPickerDelegate,
+		modeDelegate: IModePickerDelegate | undefined,
+		modelDelegate: IModelPickerDelegate | undefined,
 	): Promise<void>;
 }
 
@@ -71,8 +77,8 @@ export interface IChatPhoneInputPresenter {
 	 */
 	showCombinedModeAndModelSheet(
 		target: HTMLElement,
-		modeDelegate: IModePickerDelegate,
-		modelDelegate: IModelPickerDelegate,
+		modeDelegate: IModePickerDelegate | undefined,
+		modelDelegate: IModelPickerDelegate | undefined,
 	): Promise<void>;
 
 	/**
@@ -96,8 +102,8 @@ class ChatPhoneInputPresenterService extends Disposable implements IChatPhoneInp
 
 	showCombinedModeAndModelSheet(
 		target: HTMLElement,
-		modeDelegate: IModePickerDelegate,
-		modelDelegate: IModelPickerDelegate,
+		modeDelegate: IModePickerDelegate | undefined,
+		modelDelegate: IModelPickerDelegate | undefined,
 	): Promise<void> {
 		const impl = this._impl.get();
 		return impl ? impl.showCombinedModeAndModelSheet(target, modeDelegate, modelDelegate) : Promise.resolve();
@@ -207,6 +213,22 @@ export class MobileChatInputCombinedPickerActionItem extends BaseActionViewItem 
 			ariaParts.join(', '),
 		);
 	}
+
+	/**
+	 * Suppress {@link BaseActionViewItem}'s default action dispatch.
+	 *
+	 * Both this view item and its parent container call
+	 * `Gesture.addTarget`, and {@link Gesture.dispatchEvent} dispatches
+	 * the same Tap event to every registered target as separate
+	 * `dispatchEvent` calls. `stopPropagation` only stops propagation
+	 * within a single dispatch — it cannot prevent the parent's
+	 * dispatch from also firing. Without this override, our trigger
+	 * opens the bottom sheet and the parent's Tap handler invokes the
+	 * action's default `run()` (which opens the desktop model picker
+	 * popup), producing two stacked surfaces that each need a Done tap
+	 * to dismiss.
+	 */
+	override onClick(): void { /* handled by trigger */ }
 
 	private async _showSheet(): Promise<void> {
 		const trigger = this._triggerElement;

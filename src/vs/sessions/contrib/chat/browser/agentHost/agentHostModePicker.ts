@@ -18,6 +18,7 @@ import { type IAgentHostSessionsProvider, isAgentHostProvider } from '../../../.
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { type ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
+import { IChatPhoneInputPresenter } from '../../../../../workbench/contrib/chat/browser/widget/input/chatPhoneInputPresenter.js';
 import { isWellKnownModeSchema } from './agentHostPermissionPickerDelegate.js';
 
 interface IModePickerItem {
@@ -58,6 +59,7 @@ export class AgentHostModePicker extends Disposable {
 		@IActionWidgetService private readonly _actionWidgetService: IActionWidgetService,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
+		@IChatPhoneInputPresenter private readonly _phonePresenter: IChatPhoneInputPresenter,
 	) {
 		super();
 
@@ -173,6 +175,18 @@ export class AgentHostModePicker extends Disposable {
 
 	private _showPicker(): void {
 		if (!this._triggerElement || this._actionWidgetService.isVisible) {
+			return;
+		}
+		// On phone, route to the same combined Mode + Model bottom
+		// sheet used by the workbench chip and the empty new-chat
+		// picker, instead of the desktop action-widget popover. The
+		// presenter's agent-host branch reads mode + model directly
+		// from the active session's provider, so we don't need to pass
+		// chat-input delegates here.
+		if (this._phonePresenter.enabled.get()) {
+			const trigger = this._triggerElement;
+			this._phonePresenter.showCombinedModeAndModelSheet(trigger, undefined, undefined)
+				.finally(() => trigger.focus());
 			return;
 		}
 		const ctx = this._getActiveContext();
