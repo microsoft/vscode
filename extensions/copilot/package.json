@@ -1336,7 +1336,6 @@
 					"codebase",
 					"fileSearch",
 					"listDirectory",
-					"searchResults",
 					"textSearch",
 					"searchSubagent",
 					"usages"
