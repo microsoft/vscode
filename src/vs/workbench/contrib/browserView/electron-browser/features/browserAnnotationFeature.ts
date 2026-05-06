@@ -331,35 +331,59 @@ export class BrowserAnnotationFeature extends BrowserEditorContribution {
 	 * Instead of adding a separate attachment, the annotation content is appended
 	 * directly to the chat input prompt along with any screenshot.
 	 */
-	private async _autoSendAnnotationToChat(annotation: IBrowserAnnotation): Promise<void> {
+	private async _autoSendAnnotationToChat(_annotation: IBrowserAnnotation): Promise<void> {
+		await this._syncAnnotationsToChat();
+	}
+
+	/**
+	 * Rebuild the chat input from all current annotations.
+	 * Called when annotations are added, edited, or deleted while sharing.
+	 */
+	private async _syncAnnotationsToChat(): Promise<void> {
 		const widget = await this.chatWidgetService.revealWidget() ?? this.chatWidgetService.lastFocusedWidget;
 		if (!widget) {
 			return;
 		}
 
+		if (this._annotations.length === 0) {
+			widget.setInput('');
+			return;
+		}
+
 		const url = this.editor.model?.url ?? '';
-		const output = generateAnnotationOutput([annotation], url, this._detailLevel);
+		const output = generateAnnotationOutput(this._annotations, url, this._detailLevel);
+		widget.setInput(output);
 
-		// Append annotation text directly to the current input
-		const currentInput = widget.getInput();
-		const separator = currentInput.length > 0 ? '\n\n' : '';
-		widget.setInput(currentInput + separator + output);
-
-		// Attach screenshot as image if enabled
+		// Rebuild screenshot attachments
 		const attachImages = this.configurationService.getValue<boolean>('chat.sendElementsToChat.attachImages');
-		if (attachImages && annotation.screenshotBase64) {
-			const binary = atob(annotation.screenshotBase64);
-			const bytes = new Uint8Array(binary.length);
-			for (let i = 0; i < binary.length; i++) {
-				bytes[i] = binary.charCodeAt(i);
+		if (attachImages) {
+			// Remove old annotation screenshots first
+			const existing = widget.attachmentModel?.attachments ?? [];
+			const toRemove = existing.filter(att => att.id.startsWith('annotation-screenshot-')).map(att => att.id);
+			if (toRemove.length > 0) {
+				widget.attachmentModel?.delete(...toRemove);
 			}
-			widget.attachmentModel?.addContext({
-				id: `annotation-screenshot-${annotation.id}`,
-				name: `#${annotation.index} Screenshot`,
-				fullName: `Element Screenshot for ${annotation.displayName}`,
-				kind: 'image',
-				value: bytes.buffer,
-			});
+			// Add current screenshots
+			const toAttach: IChatRequestVariableEntry[] = [];
+			for (const annotation of this._annotations) {
+				if (annotation.screenshotBase64) {
+					const binary = atob(annotation.screenshotBase64);
+					const bytes = new Uint8Array(binary.length);
+					for (let i = 0; i < binary.length; i++) {
+						bytes[i] = binary.charCodeAt(i);
+					}
+					toAttach.push({
+						id: `annotation-screenshot-${annotation.id}`,
+						name: `#${annotation.index} Screenshot`,
+						fullName: `Element Screenshot for ${annotation.displayName}`,
+						kind: 'image',
+						value: bytes.buffer,
+					});
+				}
+			}
+			if (toAttach.length > 0) {
+				widget.attachmentModel?.addContext(...toAttach);
+			}
 		}
 	}
 
@@ -766,6 +790,10 @@ export class BrowserAnnotationFeature extends BrowserEditorContribution {
 
 			if (editResult.action === 'delete') {
 				this.deleteAnnotation(annotation.id);
+				// Sync chat if sharing
+				if (this.editor.model?.sharingState === BrowserViewSharingState.Shared) {
+					await this._syncAnnotationsToChat();
+				}
 				return;
 			}
 
@@ -776,6 +804,10 @@ export class BrowserAnnotationFeature extends BrowserEditorContribution {
 					this._syncMarkers();
 					this._saveAnnotationsToStorage();
 					this.logService.debug(`BrowserAnnotationFeature: Updated annotation #${annotation.index}`);
+					// Sync chat if sharing
+					if (this.editor.model?.sharingState === BrowserViewSharingState.Shared) {
+						await this._syncAnnotationsToChat();
+					}
 				}
 			}
 		} finally {
