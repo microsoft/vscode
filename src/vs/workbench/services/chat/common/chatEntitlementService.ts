@@ -710,10 +710,19 @@ export function parseQuotas(entitlementsData: IEntitlementsData): IQuotas {
 	if (entitlementsData.quota_snapshots) {
 		for (const quotaType of ['chat', 'completions', 'premium_interactions'] as const) {
 			const rawQuotaSnapshot = entitlementsData.quota_snapshots[quotaType];
-			if (!rawQuotaSnapshot || rawQuotaSnapshot.has_quota === false) {
+			if (!rawQuotaSnapshot) {
 				continue;
 			}
 			const parsedEntitlement = rawQuotaSnapshot.entitlement !== undefined ? Number(rawQuotaSnapshot.entitlement) : undefined;
+
+			// Skip snapshots where the user has no allocated entitlement for this
+			// category (e.g. free tier premium_interactions with 0 credits). Under
+			// TBB, has_quota is always false at the per-snapshot level so we cannot
+			// rely on it; instead check the actual entitlement value.
+			if (!rawQuotaSnapshot.unlimited && parsedEntitlement === 0) {
+				continue;
+			}
+
 			const quotaSnapshot: IQuotaSnapshot = {
 				percentRemaining: Math.min(100, Math.max(0, rawQuotaSnapshot.percent_remaining)),
 				unlimited: rawQuotaSnapshot.unlimited,

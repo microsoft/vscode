@@ -11,7 +11,7 @@ import { MarkdownString } from '../../../../../../../base/common/htmlContent.js'
 import { ActionListItemKind, IActionListItem } from '../../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetDropdownAction } from '../../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { StateType } from '../../../../../../../platform/update/common/update.js';
-import { buildModelPickerItems, getModelPickerAccessibilityProvider } from '../../../../browser/widget/input/chatModelPicker.js';
+import { buildModelPickerItems, formatTokenCount, getModelPickerAccessibilityProvider } from '../../../../browser/widget/input/chatModelPicker.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelControlEntry } from '../../../../common/languageModels.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../../services/chat/common/chatEntitlementService.js';
 
@@ -806,6 +806,29 @@ suite('buildModelPickerItems', () => {
 		// Unknown category should fall through to normal description (undefined since no detail)
 		assert.strictEqual(gptItem.item?.description, undefined);
 		assert.strictEqual(gptItem.description, undefined);
+	});
+});
+
+suite('formatTokenCount', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('returns M for counts above 900K', () => {
+		assert.strictEqual(formatTokenCount(1_000_000), '1M');
+		assert.strictEqual(formatTokenCount(935_997), '1M');
+		assert.strictEqual(formatTokenCount(1_500_000), '2M');
+		assert.strictEqual(formatTokenCount(2_000_000), '2M');
+	});
+
+	test('returns K for counts between 1000 and 900K', () => {
+		assert.strictEqual(formatTokenCount(200_000), '200K');
+		assert.strictEqual(formatTokenCount(128_000), '128K');
+		assert.strictEqual(formatTokenCount(1_000), '1K');
+		assert.strictEqual(formatTokenCount(900_000), '900K');
+	});
+
+	test('returns raw number for counts below 1000', () => {
+		assert.strictEqual(formatTokenCount(500), '500');
+		assert.strictEqual(formatTokenCount(0), '0');
 	});
 });
 
