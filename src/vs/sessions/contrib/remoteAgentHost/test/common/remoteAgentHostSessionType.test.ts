@@ -10,14 +10,15 @@ import { remoteAgentHostSessionTypeId } from '../../common/remoteAgentHostSessio
 suite('remoteAgentHostSessionType', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	// This pins the exact wire format that spans three boundaries:
-	//  - `ISession.sessionType` returned by `RemoteAgentHostSessionsProvider`
+	// This pins the exact wire format that spans two boundaries:
 	//  - The resource URI scheme registered via `registerChatSessionContentProvider`
 	//    in `remoteAgentHost.contribution.ts`
-	//  - `AgentHostLanguageModelProvider.targetChatSessionType`
-	// If these drift, the model picker filter
-	// (`m.metadata.targetChatSessionType === session.sessionType`) stops
+	//  - `AgentHostLanguageModelProvider.targetChatSessionType` (the vendor)
+	// If these drift, the remote agent host model picker filter
+	// (`m.metadata.targetChatSessionType === session.resource.scheme`) stops
 	// matching the remote host's own models.
+	// Note: `ISession.sessionType` for copilot agents uses the platform
+	// `COPILOT_CLI_SESSION_TYPE` instead of this per-connection value.
 	test('remoteAgentHostSessionTypeId pins the wire format', () => {
 		assert.strictEqual(remoteAgentHostSessionTypeId('foo', 'copilot'), 'remote-foo-copilot');
 		assert.strictEqual(remoteAgentHostSessionTypeId('10.0.0.1__8080', 'copilot'), 'remote-10.0.0.1__8080-copilot');

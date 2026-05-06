@@ -9,6 +9,7 @@ export type EmbeddedProductInfo = {
 	applicationName: string;
 	dataFolderName: string;
 	darwinBundleIdentifier: string;
+	darwinSiblingBundleIdentifier?: string;
 	urlProtocol: string;
 	win32AppUserModelId: string;
 	win32MutexName: string;

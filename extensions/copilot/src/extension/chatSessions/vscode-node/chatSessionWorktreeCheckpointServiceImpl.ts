@@ -17,7 +17,7 @@ import { IChatSessionMetadataStore } from '../common/chatSessionMetadataStore';
 import { IChatSessionWorkspaceFolderService } from '../common/chatSessionWorkspaceFolderService';
 import { IChatSessionWorktreeCheckpointService } from '../common/chatSessionWorktreeCheckpointService';
 import { IChatSessionWorktreeService } from '../common/chatSessionWorktreeService';
-import { buildTempIndexEnv } from '../../../platform/git/vscode-node/utils';
+import { buildTempIndexEnv, getUncommittedFilePaths } from '../../../platform/git/vscode-node/utils';
 
 const CHECKPOINT_REF_PREFIX = 'refs/sessions/';
 
@@ -207,27 +207,32 @@ export class ChatSessionWorktreeCheckpointService extends Disposable implements 
 
 	private async _createCheckpoint(sessionId: string, repository: RepoContext, turnNumber: number, parentCheckpointRef?: string): Promise<string | undefined> {
 		const repositoryUri = repository.rootUri;
+
 		const tmpDirName = `vscode-sessions-${sessionId}-${generateUuid()}`;
 		const checkpointIndexFile = path.join(this.extensionContext.globalStorageUri.fsPath, tmpDirName, `checkpoint.index`);
+		const pathspecFile = path.join(this.extensionContext.globalStorageUri.fsPath, tmpDirName, `pathspec.txt`);
+
 		const env = buildTempIndexEnv(repository, checkpointIndexFile);
 
 		try {
 			// Create temp index file directory
 			await fs.mkdir(path.dirname(checkpointIndexFile), { recursive: true });
 
+			// Populate temp index from HEAD
+			await this.gitService.exec(repositoryUri, ['read-tree', 'HEAD'], env);
+
+			// Stage entire working directory into temp index
+			const uncommittedFilePaths = getUncommittedFilePaths(repository);
+			await fs.writeFile(pathspecFile, uncommittedFilePaths.join('\n'), 'utf8');
+			await this.gitService.exec(repositoryUri, ['add', '-A', `--pathspec-from-file=${pathspecFile}`], env);
+
+			// Write the temp index as a tree object
+			const treeOid = await this.gitService.exec(repositoryUri, ['write-tree'], env);
+
 			// Resolve parent checkpoint ref
 			const parentCommitOid = parentCheckpointRef
 				? await this.gitService.exec(repositoryUri, ['rev-parse', parentCheckpointRef])
 				: undefined;
-
-			// Populate temp index from previous checkpoint tree (or HEAD for the baseline)
-			await this.gitService.exec(repositoryUri, ['read-tree', parentCommitOid ?? 'HEAD'], env);
-
-			// Stage entire working directory into temp index
-			await this.gitService.exec(repositoryUri, ['add', '-A', '--', '.'], env);
-
-			// Write the temp index as a tree object
-			const treeOid = await this.gitService.exec(repositoryUri, ['write-tree'], env);
 
 			// Create a commit pointing to the tree, chained to the previous checkpoint
 			const commitTreeArgs = ['commit-tree', treeOid, ...(parentCommitOid ? ['-p', parentCommitOid] : []), '-m', `Session ${sessionId} - checkpoint turn ${turnNumber}`];

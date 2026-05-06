@@ -255,9 +255,9 @@ export class ChatParticipantRequestHandler {
 
 				result = await chatResult;
 				const endpoint = await this._endpointProvider.getChatEndpoint(this.request);
-				result.details = this._authService.copilotToken?.isNoAuthUser ?
+				result.details = this._authService.copilotToken?.isNoAuthUser || endpoint.multiplier === undefined ?
 					`${endpoint.name}` :
-					`${endpoint.name} • ${endpoint.multiplier ?? 0}x`;
+					`${endpoint.name} • ${endpoint.multiplier}x`;
 			}
 
 			this._conversationStore.addConversation(this.turn.id, this.conversation);
@@ -395,7 +395,10 @@ function createTurnFromVSCodeChatHistoryTurns(
 		{ message: chatRequestTurn.prompt, type: 'user' },
 		new ChatVariablesCollection(chatRequestTurn.references),
 		chatRequestTurn.toolReferences.map(InternalToolReference.from),
-		chatRequestAsTurn2.editedFileEvents
+		chatRequestAsTurn2.editedFileEvents,
+		undefined,
+		false,
+		chatRequestAsTurn2.modeInstructions2,
 	);
 
 	// Take just the content messages

@@ -7,6 +7,9 @@ import * as path from 'path';
 import { Uri } from 'vscode';
 import { Change, DiffChange } from '../vscode/git';
 import { RepoContext } from '../common/gitService';
+import { coalesce } from '../../../util/vs/base/common/arrays';
+import { ResourceSet } from '../../../util/vs/base/common/map';
+import { isEqual, relativePath } from '../../../util/vs/base/common/resources';
 
 export function parseGitChangesRaw(repositoryRoot: string, raw: string): DiffChange[] {
 	const changes: Change[] = [];
@@ -90,6 +93,32 @@ export function parseGitChangesRaw(repositoryRoot: string, raw: string): DiffCha
 		insertions: numStats.get(change.uri.fsPath)?.insertions ?? 0,
 		deletions: numStats.get(change.uri.fsPath)?.deletions ?? 0,
 	}));
+}
+
+export function getUncommittedFilePaths(repository: RepoContext): string[] {
+	const resources = new ResourceSet();
+
+	const allChanges = [
+		...repository.changes?.indexChanges ?? [],
+		...repository.changes?.workingTree ?? [],
+		...repository.changes?.untrackedChanges ?? []
+	];
+
+	for (const change of allChanges) {
+		resources.add(change.uri);
+		if (
+			change.originalUri &&
+			!isEqual(change.uri, change.originalUri)
+		) {
+			resources.add(change.originalUri);
+		}
+	}
+
+	const relativePaths = coalesce(Array.from(resources)
+		.map(uri => relativePath(repository.rootUri, uri)));
+
+	// Git expects forward slashes even on Windows
+	return relativePaths.map(p => p.replace(/\\/g, '/'));
 }
 
 export function buildTempIndexEnv(repository: RepoContext, indexFile: string): Record<string, string> {

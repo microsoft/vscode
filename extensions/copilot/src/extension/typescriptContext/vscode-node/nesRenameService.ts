@@ -70,7 +70,7 @@ namespace NesRenameRequestArgs {
 type TextChange = {
 	range: protocol.Range;
 	newText?: string;
-}
+};
 type RenameGroup = {
 	file: vscode.Uri;
 	changes: TextChange[];
@@ -138,14 +138,14 @@ class TelemetrySender {
 export class NesRenameContribution implements vscode.Disposable {
 
 	private _isActivated: Promise<boolean> | undefined;
-	private disposables: DisposableStore;
+	private readonly disposables: DisposableStore;
 	private readonly telemetrySender: TelemetrySender;
 
 	private static readonly ExecConfig: ExecConfig = { executionTarget: ExecutionTarget.Semantic };
 
 	constructor(
-		@ITelemetryService readonly telemetryService: ITelemetryService,
-		@ILogService readonly logService: ILogService,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		this.telemetrySender = new TelemetrySender(telemetryService, logService);
 		this.disposables = new DisposableStore();

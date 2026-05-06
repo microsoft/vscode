@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { GenAiAttr, GenAiOperationName, StdAttr } from './genAiAttributes';
-import { truncateForOTel } from './messageFormatters';
+import { normalizeProviderMessages, toSystemInstructions, truncateForOTel } from './messageFormatters';
 import type { IOTelService } from './otelService';
 import { type WorkspaceOTelMetadata, workspaceMetadataToOTelAttributes } from './workspaceOTelMetadata';
 
@@ -51,16 +51,27 @@ export function emitInferenceDetailsEvent(
 		attributes[StdAttr.ERROR_TYPE] = error.type;
 	}
 
-	// Full content capture with truncation to prevent OTLP batch failures
+	// Full content capture (optionally truncated per OTelConfig.maxAttributeSizeChars).
+	// Normalize to OTel GenAI semantic convention format.
 	if (otel.config.captureContent) {
+		const maxLen = otel.config.maxAttributeSizeChars;
 		if (request.messages !== undefined) {
-			attributes[GenAiAttr.INPUT_MESSAGES] = truncateForOTel(JSON.stringify(request.messages));
+			const msgs = Array.isArray(request.messages) ? request.messages as ReadonlyArray<Record<string, unknown>> : undefined;
+			attributes[GenAiAttr.INPUT_MESSAGES] = truncateForOTel(JSON.stringify(
+				msgs ? normalizeProviderMessages(msgs) : request.messages
+			), maxLen);
 		}
 		if (request.systemMessage !== undefined) {
-			attributes[GenAiAttr.SYSTEM_INSTRUCTIONS] = truncateForOTel(JSON.stringify(request.systemMessage));
+			const systemText = typeof request.systemMessage === 'string'
+				? request.systemMessage
+				: JSON.stringify(request.systemMessage);
+			const systemInstructions = toSystemInstructions(systemText);
+			if (systemInstructions !== undefined) {
+				attributes[GenAiAttr.SYSTEM_INSTRUCTIONS] = truncateForOTel(JSON.stringify(systemInstructions), maxLen);
+			}
 		}
 		if (request.tools !== undefined) {
-			attributes[GenAiAttr.TOOL_DEFINITIONS] = truncateForOTel(JSON.stringify(request.tools));
+			attributes[GenAiAttr.TOOL_DEFINITIONS] = truncateForOTel(JSON.stringify(request.tools), maxLen);
 		}
 	}
 

@@ -20,6 +20,8 @@ import { IHookExecutor } from '../../../platform/chat/common/hookExecutor';
 import { IHooksOutputChannel } from '../../../platform/chat/common/hooksOutputChannel';
 import { ISessionTranscriptService } from '../../../platform/chat/common/sessionTranscriptService';
 import { NodeHookExecutor } from '../../../platform/chat/node/hookExecutor';
+import { ISessionStore } from '../../../platform/chronicle/common/sessionStore';
+import { SessionStore } from '../../../platform/chronicle/node/sessionStore';
 import { IChunkingEndpointClient } from '../../../platform/chunking/common/chunkingEndpointClient';
 import { ChunkingEndpointClientImpl } from '../../../platform/chunking/common/chunkingEndpointClientImpl';
 import { INaiveChunkingService, NaiveChunkingService } from '../../../platform/chunking/node/naiveChunkerService';
@@ -52,6 +54,7 @@ import { ILanguageContextService } from '../../../platform/languageServer/common
 import { ICompletionsFetchService } from '../../../platform/nesFetch/common/completionsFetchService';
 import { CompletionsFetchService } from '../../../platform/nesFetch/node/completionsFetchServiceImpl';
 import { IFetcherService } from '../../../platform/networking/common/fetcherService';
+import { IToolDeferralService } from '../../../platform/networking/common/toolDeferralService';
 import { ChatWebSocketManager, IChatWebSocketManager } from '../../../platform/networking/node/chatWebSocketManager';
 import { FetcherService } from '../../../platform/networking/vscode-node/fetcherServiceImpl';
 import { resolveOTelConfig } from '../../../platform/otel/common/otelConfig';
@@ -138,7 +141,6 @@ import { FixCookbookService, IFixCookbookService } from '../../prompts/node/inli
 import { WorkspaceMutationManager } from '../../testing/node/setupTestsFileManager';
 import { AgentMemoryService, IAgentMemoryService } from '../../tools/common/agentMemoryService';
 import { IMemoryCleanupService, MemoryCleanupService } from '../../tools/common/memoryCleanupService';
-import { IToolDeferralService } from '../../../platform/networking/common/toolDeferralService';
 import { ToolDeferralService } from '../../tools/common/toolDeferralService';
 import { IToolsService } from '../../tools/common/toolsService';
 import { ToolsService } from '../../tools/vscode-node/toolsService';
@@ -147,6 +149,8 @@ import { IWorkspaceListenerService } from '../../workspaceRecorder/common/worksp
 import { WorkspacListenerService } from '../../workspaceRecorder/vscode-node/workspaceListenerService';
 import { ISimilarFilesContextService } from '../../xtab/common/similarFilesContextService';
 import { registerServices as registerCommonServices } from '../vscode/services';
+import { PromptsServiceImpl } from '../../../platform/promptFiles/vscode-node/promptsServiceImpl';
+import { IPromptsService } from '../../../platform/promptFiles/common/promptsService';
 
 // ###########################################################################################
 // ###                                                                                     ###
@@ -172,6 +176,7 @@ export function registerServices(builder: IInstantiationServiceBuilder, extensio
 	builder.define(IChatDiskSessionResources, new SyncDescriptor(ChatDiskSessionResources));
 	builder.define(IRequestLogger, new SyncDescriptor(RequestLogger));
 	builder.define(INativeEnvService, new SyncDescriptor(NativeEnvServiceImpl));
+	builder.define(IPromptsService, new SyncDescriptor(PromptsServiceImpl));
 
 	builder.define(IFetcherService, new SyncDescriptor(FetcherService, [undefined]));
 	builder.define(IDomainService, new SyncDescriptor(DomainService));
@@ -268,6 +273,13 @@ export function registerServices(builder: IInstantiationServiceBuilder, extensio
 	builder.define(IGitHubOrgChatResourcesService, new SyncDescriptor(GitHubOrgChatResourcesService));
 	builder.define(IToolResultContentRenderer, new SyncDescriptor(ToolResultContentRenderer));
 
+	// Chronicle session store — tracks sessions, turns, files, and refs for /standup
+	const sessionStoreDbPath = extensionContext.globalStorageUri
+		? path.join(extensionContext.globalStorageUri.fsPath, 'session-store.db')
+		: path.join(os.tmpdir(), 'copilot-session-store.db');
+	const sessionStore = new SessionStore(sessionStoreDbPath);
+	builder.define(ISessionStore, sessionStore);
+
 	// OTel SQLite store — created lazily, DB file only appears when dbSpanExporter.enabled is true
 	const otelDbPath = extensionContext.globalStorageUri
 		? path.join(extensionContext.globalStorageUri.fsPath, 'agent-traces.db')
@@ -283,6 +295,7 @@ export function registerServices(builder: IInstantiationServiceBuilder, extensio
 		settingExporterType: otelSettings.get<'otlp-grpc' | 'otlp-http' | 'console' | 'file'>('exporterType'),
 		settingOtlpEndpoint: otelSettings.get<string>('otlpEndpoint'),
 		settingCaptureContent: otelSettings.get<boolean>('captureContent'),
+		settingMaxAttributeSizeChars: otelSettings.get<number>('maxAttributeSizeChars'),
 		settingOutfile: otelSettings.get<string>('outfile') || undefined,
 		settingDbSpanExporter: otelSettings.get<boolean>('dbSpanExporter.enabled'),
 		extensionVersion: extensionContext.extension.packageJSON.version ?? '0.0.0',
@@ -305,7 +318,8 @@ export function registerServices(builder: IInstantiationServiceBuilder, extensio
 }
 
 function setupMSFTExperimentationService(builder: IInstantiationServiceBuilder, extensionContext: ExtensionContext) {
-	if (ExtensionMode.Production === extensionContext.extensionMode && !isScenarioAutomation) {
+	const experimentsEnabled = workspace.getConfiguration('workbench').get<boolean>('enableExperiments', true);
+	if (ExtensionMode.Production === extensionContext.extensionMode && !isScenarioAutomation && experimentsEnabled) {
 		// Intitiate the experimentation service
 		builder.define(IExperimentationService, new SyncDescriptor(MicrosoftExperimentationService));
 	} else {

@@ -10,6 +10,9 @@ import type { FileEditKind } from './state/sessionState.js';
 
 export const ISessionDataService = createDecorator<ISessionDataService>('sessionDataService');
 
+/** Filename of the per-session SQLite database. */
+export const SESSION_DB_FILENAME = 'session.db';
+
 // ---- File-edit types ----------------------------------------------------
 
 /**
@@ -69,6 +72,48 @@ export interface ISessionDatabase extends IDisposable {
 	deleteTurn(turnId: string): Promise<void>;
 
 	/**
+	 * Associates a Copilot SDK event ID with a turn. The event ID corresponds
+	 * to the `user.message` event in the SDK event stream and is used by
+	 * the SDK's `history.truncate` and `sessions.fork` RPCs.
+	 */
+	setTurnEventId(turnId: string, eventId: string): Promise<void>;
+
+	/**
+	 * Retrieves the SDK event ID previously stored for a turn.
+	 * Returns `undefined` if no event ID has been set.
+	 */
+	getTurnEventId(turnId: string): Promise<string | undefined>;
+
+	/**
+	 * Returns the SDK event ID of the turn inserted immediately after the
+	 * given turn, or `undefined` if the given turn is the last one.
+	 */
+	getNextTurnEventId(turnId: string): Promise<string | undefined>;
+
+	/**
+	 * Returns the SDK event ID of the earliest turn in insertion order,
+	 * or `undefined` if there are no turns.
+	 */
+	getFirstTurnEventId(): Promise<string | undefined>;
+
+	/**
+	 * Deletes the given turn and all turns inserted after it, along
+	 * with their associated file edits (cascade).
+	 */
+	truncateFromTurn(turnId: string): Promise<void>;
+
+	/**
+	 * Deletes all turns inserted after the given turn (but keeps the
+	 * given turn itself). Associated file edits cascade-delete.
+	 */
+	deleteTurnsAfter(turnId: string): Promise<void>;
+
+	/**
+	 * Deletes all turns and their associated file edits.
+	 */
+	deleteAllTurns(): Promise<void>;
+
+	/**
 	 * Store a file-edit snapshot (metadata + content) for a tool invocation
 	 * within a turn.
 	 *
@@ -121,6 +166,25 @@ export interface ISessionDatabase extends IDisposable {
 	 * Store a metadata key-value pair. Overwrites any existing value for the key.
 	 */
 	setMetadata(key: string, value: string): Promise<void>;
+
+	/**
+	 * Bulk-remaps turn IDs using the provided old→new mapping.
+	 * Used after copying a database file for a forked session.
+	 */
+	remapTurnIds(mapping: ReadonlyMap<string, string>): Promise<void>;
+
+	/**
+	 * Creates a safe, consistent copy of the database at the given path
+	 * using SQLite's `VACUUM INTO` command.
+	 */
+	vacuumInto(targetPath: string): Promise<void>;
+
+	/**
+	 * Resolves once all in-flight write operations on this database have
+	 * settled. Used by graceful shutdown to flush fire-and-forget writes
+	 * before the process exits.
+	 */
+	whenIdle(): Promise<void>;
 
 	/**
 	 * Close the database connection. After calling this method, the object is
@@ -184,4 +248,12 @@ export interface ISessionDataService {
 	 * Called at startup; safe to call multiple times.
 	 */
 	cleanupOrphanedData(knownSessionIds: Set<string>): Promise<void>;
+
+	/**
+	 * Resolves once all in-flight write operations across every currently
+	 * open per-session database have settled. Intended for graceful
+	 * shutdown — fire-and-forget writes (e.g. metadata persistence) would
+	 * otherwise be lost when the process exits.
+	 */
+	whenIdle(): Promise<void>;
 }

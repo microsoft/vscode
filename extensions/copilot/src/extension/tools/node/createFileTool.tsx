@@ -21,7 +21,7 @@ import { extname } from '../../../util/vs/base/common/resources';
 import { count } from '../../../util/vs/base/common/strings';
 import { URI } from '../../../util/vs/base/common/uri';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
-import { Position as ExtPosition, LanguageModelPromptTsxPart, LanguageModelTextPart, LanguageModelToolResult, MarkdownString, TextEdit } from '../../../vscodeTypes';
+import { Position as ExtPosition, Range as ExtRange, LanguageModelPromptTsxPart, LanguageModelTextPart, LanguageModelToolResult, MarkdownString, TextEdit } from '../../../vscodeTypes';
 import { CodeBlockProcessor } from '../../codeBlocks/node/codeBlockProcessor';
 import { IBuildPromptContext } from '../../prompt/common/intents';
 import { renderPromptElementJSON } from '../../prompts/node/base/promptRenderer';
@@ -114,7 +114,15 @@ export class CreateFileTool implements ICopilotTool<ICreateFileParams> {
 			this.sendTelemetry(options.chatRequestId, modelId, fileExtension);
 		} else {
 			const content = removeLeadingFilepathComment(options.input.content, languageId, options.input.filePath);
-			this._promptContext.stream.textEdit(uri, TextEdit.insert(new ExtPosition(0, 0), content));
+			// When the file has been deleted from disk but VS Code still holds a stale
+			// in-memory doc with content, use a full-document replace so the old buffer
+			// is overwritten rather than prepended to (https://github.com/microsoft/vscode/issues/311043).
+			if (!fileExists && doc && doc.getText().length > 0) {
+				const lastLine = doc.lineCount - 1;
+				this._promptContext.stream.textEdit(uri, TextEdit.replace(new ExtRange(0, 0, lastLine, doc.lineAt(lastLine).text.length), content));
+			} else {
+				this._promptContext.stream.textEdit(uri, TextEdit.insert(new ExtPosition(0, 0), content));
+			}
 			this._promptContext.stream.textEdit(uri, true);
 			this.sendTelemetry(options.chatRequestId, modelId, fileExtension);
 			return new LanguageModelToolResult([

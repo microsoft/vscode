@@ -37,6 +37,20 @@ export interface INativeEnvironmentPaths {
 	 * OS tmp dir.
 	 */
 	tmpDir: string;
+
+	/**
+	 * The parent application user data directory, if the current instance is running as an embedded application.
+	 * This can be used to access data from the parent application that is not shared with the embedded application.
+	 * This is only set when running as an embedded application and is `undefined` otherwise.
+	 */
+	parentAppUserDataDir: string | undefined;
+
+	/**
+	 * The parent application home directory, if the current instance is running as an embedded application.
+	 * This can be used to access data from the parent application that is not shared with the embedded application.
+	 * This is only set when running as an embedded application and is `undefined` otherwise.
+	 */
+	parentAppUserHomeDir: string | undefined;
 }
 
 export abstract class AbstractNativeEnvironmentService implements INativeEnvironmentService {
@@ -148,23 +162,18 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 	}
 
 	@memoize
-	get agentPluginsPath(): string {
-		const cliAgentPluginsDir = this.args['agent-plugins-dir'];
-		if (cliAgentPluginsDir) {
-			return resolve(cliAgentPluginsDir);
-		}
-
-		const vscodeAgentPlugins = env['VSCODE_AGENT_PLUGINS'];
-		if (vscodeAgentPlugins) {
-			return vscodeAgentPlugins;
+	get appSharedDataHome(): URI {
+		const cliSharedDataDir = this.args['shared-data-dir'];
+		if (cliSharedDataDir) {
+			return URI.file(resolve(cliSharedDataDir));
 		}
 
 		const vscodePortable = env['VSCODE_PORTABLE'];
 		if (vscodePortable) {
-			return join(vscodePortable, 'agent-plugins');
+			return URI.file(join(vscodePortable, 'shared-data'));
 		}
 
-		return joinPath(this.userHome, this.productService.dataFolderName, 'agent-plugins').fsPath;
+		return joinPath(this.userHome, this.productService.sharedDataFolderName);
 	}
 
 	@memoize
@@ -304,12 +313,41 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 		this.args['continueOn'] = value;
 	}
 
+	@memoize
+	get parentAppUserRoamingDataHome(): URI | undefined {
+		return this.paths.parentAppUserDataDir ? URI.file(this.paths.parentAppUserDataDir).with({ scheme: Schemas.vscodeUserData }) : undefined;
+	}
+
+	@memoize
+	get parentAppUserHome(): URI | undefined {
+		return this.paths.parentAppUserHomeDir ? URI.file(this.paths.parentAppUserHomeDir) : undefined;
+	}
+
+	@memoize
+	get parentAppExtensionsHome(): URI | undefined {
+		if (!this.parentAppUserHome) {
+			return undefined;
+		}
+		return joinPath(this.parentAppUserHome, 'extensions');
+	}
+
+	@memoize
+	get parentAppNameShort(): string | undefined {
+		return getParentAppName(this.productService, this.isEmbeddedApp, 'short');
+	}
+
+	@memoize
+	get parentAppNameLong(): string | undefined {
+		return getParentAppName(this.productService, this.isEmbeddedApp, 'long');
+	}
+
 	get args(): NativeParsedArgs { return this._args; }
 
 	constructor(
 		private readonly _args: NativeParsedArgs,
 		private readonly paths: INativeEnvironmentPaths,
-		protected readonly productService: IProductService
+		protected readonly productService: IProductService,
+		readonly isEmbeddedApp: boolean = false
 	) { }
 }
 
@@ -331,4 +369,19 @@ export function parseDebugParams(debugArg: string | undefined, debugBrkArg: stri
 	}
 
 	return { port, break: brk, debugId, env };
+}
+
+function getParentAppName(productService: IProductService, isEmbeddedApp: boolean, variant: 'short' | 'long'): string | undefined {
+	if (!isEmbeddedApp) {
+		return undefined;
+	}
+	const quality = productService.quality;
+	if (quality === 'stable') {
+		return variant === 'short' ? 'VS Code' : 'Visual Studio Code';
+	} else if (quality === 'insider') {
+		return variant === 'short' ? 'VS Code Insiders' : 'Visual Studio Code Insiders';
+	} else if (quality === 'exploration') {
+		return variant === 'short' ? 'VS Code Exploration' : 'Visual Studio Code Exploration';
+	}
+	return undefined;
 }

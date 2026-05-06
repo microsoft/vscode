@@ -42,7 +42,10 @@ export class GitBranchNameGenerator {
 		const parentChatSessionId = sessionResource ? sessionResourceToId(URI.from(sessionResource)) : undefined;
 
 		const endpoint = await this.endpointProvider.getChatEndpoint('copilot-fast');
-		const { messages } = await renderPromptElement(this.instantiationService, endpoint, GitBranchPrompt, { userRequest: firstRequest.prompt });
+		const normalizedCommand = firstRequest.command?.trim().replace(/^\/+/, '') ?? '';
+		const command = normalizedCommand ? `/${normalizedCommand} ` : '';
+		const userRequest = `${command}${firstRequest.prompt}`;
+		const { messages } = await renderPromptElement(this.instantiationService, endpoint, GitBranchPrompt, { userRequest });
 
 		const capturingToken = new CapturingToken(
 			'git-branch',
@@ -62,6 +65,7 @@ export class GitBranchNameGenerator {
 				location: ChatLocation.Panel,
 				userInitiatedRequest: false,
 				isConversationRequest: false,
+				interactionTypeOverride: 'conversation-background',
 			}, token);
 			return response;
 		};

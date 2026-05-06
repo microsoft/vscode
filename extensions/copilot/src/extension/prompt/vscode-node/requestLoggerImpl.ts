@@ -372,20 +372,6 @@ export class RequestLogger extends AbstractRequestLogger {
 		));
 	}
 
-	public override logServerToolCall(id: string, name: string, args: unknown, result: LanguageModelToolResult2): void {
-		this._addEntry(new LoggedToolCall(
-			id,
-			`${name} [server]`,
-			args,
-			result,
-			this.currentRequest,
-			Date.now(),
-			undefined, // thinking
-			undefined, // edits
-			undefined  // toolMetadata
-		));
-	}
-
 	/** Start tracking edits made to the workspace for every tool call. */
 	public override enableWorkspaceEditTracing(): void {
 		if (!this._workspaceEditRecorder) {
@@ -681,7 +667,15 @@ export class RequestLogger extends AbstractRequestLogger {
 			result.push(`serverRequestId  : ${entry.result.serverRequestId}`);
 		}
 		if (entry.chatParams.body?.tools) {
-			const toolNames = entry.chatParams.body.tools.map(t => isOpenAiFunctionTool(t) ? t.function.name : t.name);
+			const toolNames = entry.chatParams.body.tools.map(t => {
+				if (isOpenAiFunctionTool(t)) {
+					return t.function.name;
+				}
+				if ('name' in t) {
+					return t.name;
+				}
+				return t.type;
+			});
 			const numToolsString = `(${toolNames.length})`;
 			result.push(
 				`<details>`,

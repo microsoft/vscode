@@ -91,6 +91,14 @@ export interface IXtermTerminalOptions {
 	xtermAddonImporter?: XtermAddonImporter;
 	/** Whether to disable the overview ruler. */
 	disableOverviewRuler?: boolean;
+	/**
+	 * When true, skips registering listeners on global singleton services
+	 * (configuration, theme, log level) to avoid accumulating listeners when
+	 * many detached terminals are created concurrently. The caller should use
+	 * {@link XtermTerminal.updateConfig}, {@link XtermTerminal.updateTheme},
+	 * and {@link XtermTerminal.updateLogLevel} to apply those changes externally.
+	 */
+	detached?: boolean;
 }
 
 /**
@@ -271,23 +279,27 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		}
 		this._core = (this.raw as ITerminalWithCore)._core as IXtermCore;
 
-		this._register(this._configurationService.onDidChangeConfiguration(async e => {
-			if (e.affectsConfiguration(TerminalSettingId.GpuAcceleration)) {
-				XtermTerminal._suggestedRendererType = undefined;
-			}
-			if (e.affectsConfiguration('terminal.integrated') || e.affectsConfiguration('editor.fastScrollSensitivity') || e.affectsConfiguration('editor.mouseWheelScrollSensitivity') || e.affectsConfiguration('editor.multiCursorModifier')) {
-				this.updateConfig();
-			}
-			if (e.affectsConfiguration(TerminalSettingId.UnicodeVersion)) {
-				this._updateUnicodeVersion();
-			}
-			if (e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationsEnabled)) {
-				this._updateTheme();
-			}
-		}));
+		// Skip global service listeners for detached terminals to avoid
+		// accumulating listeners when many detached instances exist concurrently.
+		if (!options.detached) {
+			this._register(this._configurationService.onDidChangeConfiguration(async e => {
+				if (e.affectsConfiguration(TerminalSettingId.GpuAcceleration)) {
+					XtermTerminal._suggestedRendererType = undefined;
+				}
+				if (e.affectsConfiguration('terminal.integrated') || e.affectsConfiguration('editor.fastScrollSensitivity') || e.affectsConfiguration('editor.mouseWheelScrollSensitivity') || e.affectsConfiguration('editor.multiCursorModifier')) {
+					this.updateConfig();
+				}
+				if (e.affectsConfiguration(TerminalSettingId.UnicodeVersion)) {
+					this._updateUnicodeVersion();
+				}
+				if (e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationsEnabled)) {
+					this._updateTheme();
+				}
+			}));
 
-		this._register(this._themeService.onDidColorThemeChange(theme => this._updateTheme(theme)));
-		this._register(this._logService.onDidChangeLogLevel(e => this.raw.options.logLevel = vscodeToXtermLogLevel(e)));
+			this._register(this._themeService.onDidColorThemeChange(theme => this._updateTheme(theme)));
+			this._register(this._logService.onDidChangeLogLevel(e => this.raw.options.logLevel = vscodeToXtermLogLevel(e)));
+		}
 
 		// Refire events
 		this._register(this.raw.onSelectionChange(() => {
@@ -530,6 +542,10 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	resize(columns: number, rows: number): void {
 		this._logService.debug('resizing', columns, rows);
 		this.raw.resize(columns, rows);
+	}
+
+	updateLogLevel(): void {
+		this.raw.options.logLevel = vscodeToXtermLogLevel(this._logService.getLevel());
 	}
 
 	updateConfig(): void {
@@ -1035,6 +1051,14 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 
 	private _updateTheme(theme?: IColorTheme): void {
 		this.raw.options.theme = this.getXtermTheme(theme);
+	}
+
+	/**
+	 * Updates the terminal theme. Use this to externally trigger a theme
+	 * refresh for detached terminals that skip global service listeners.
+	 */
+	updateTheme(): void {
+		this._updateTheme();
 	}
 
 	refresh() {

@@ -7,14 +7,15 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { arrayEqualsC, structuralEquals } from '../../../../base/common/equals.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { derived, derivedOpts, IObservable, IObservableWithChange, ISettableObservable, runOnChange, observableValue, observableSignalFromEvent, constObservable, ObservablePromise, derivedObservableWithCache } from '../../../../base/common/observable.js';
+import { derived, derivedOpts, IObservable, IObservableWithChange, ISettableObservable, observableValue, observableSignalFromEvent, constObservable, ObservablePromise, derivedObservableWithCache, autorun } from '../../../../base/common/observable.js';
+import { isWeb } from '../../../../base/common/platform.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
-import { IChatSessionFileChange, IChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { IChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { GitDiffChange, IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
-import { COPILOT_CLOUD_SESSION_TYPE } from '../../../services/sessions/common/session.js';
+import { COPILOT_CLOUD_SESSION_TYPE, ISessionFileChange } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { IAgentFeedbackService } from '../../agentFeedback/browser/agentFeedbackService.js';
 import { CodeReviewStateKind, getCodeReviewFilesFromSessionChanges, getCodeReviewVersion, ICodeReviewService, PRReviewStateKind } from '../../codeReview/browser/codeReviewService.js';
@@ -40,6 +41,25 @@ function toIChatSessionFileChange2(changes: GitDiffChange[], originalRef: string
 	} satisfies IChatSessionFileChange2));
 }
 
+function sortDateDesc(dateA: Date | undefined, dateB: Date | undefined): number {
+	const chatALastTurnEnd = dateA?.getTime();
+	const chatBLastTurnEnd = dateB?.getTime();
+
+	if (!chatALastTurnEnd && !chatBLastTurnEnd) {
+		return 0;
+	}
+
+	if (!chatALastTurnEnd) {
+		return 1;
+	}
+
+	if (!chatBLastTurnEnd) {
+		return -1;
+	}
+
+	return chatBLastTurnEnd - chatALastTurnEnd;
+}
+
 export interface ActiveSessionState {
 	readonly isolationMode: IsolationMode;
 	readonly hasGitRepository: boolean;
@@ -58,7 +78,8 @@ export interface ActiveSessionState {
 export class ChangesViewModel extends Disposable {
 	readonly activeSessionResourceObs: IObservable<URI | undefined>;
 	readonly activeSessionTypeObs: IObservable<string | undefined>;
-	readonly activeSessionChangesObs: IObservable<readonly (IChatSessionFileChange | IChatSessionFileChange2)[]>;
+	readonly activeSessionIsArchivedObs: IObservable<boolean>;
+	readonly activeSessionChangesObs: IObservable<readonly ISessionFileChange[]>;
 	readonly activeSessionHasGitRepositoryObs: IObservable<boolean>;
 	readonly activeSessionFirstCheckpointRefObs: IObservable<string | undefined>;
 	readonly activeSessionLastCheckpointRefObs: IObservable<string | undefined>;
@@ -70,6 +91,7 @@ export class ChangesViewModel extends Disposable {
 	private _activeSessionMetadataObs!: IObservable<{ readonly [key: string]: unknown } | undefined>;
 	private _activeSessionAllChangesPromiseObs!: IObservableWithChange<IObservable<IChatSessionFileChange2[] | undefined>>;
 	private _activeSessionLastTurnChangesPromiseObs!: IObservableWithChange<IObservable<IChatSessionFileChange2[] | undefined>>;
+	private _activeSessionUncommittedChangesPromiseObs!: IObservableWithChange<IObservable<IChatSessionFileChange2[] | undefined>>;
 
 	readonly versionModeObs: ISettableObservable<ChangesVersionMode>;
 	setVersionMode(mode: ChangesVersionMode): void {
@@ -111,6 +133,11 @@ export class ChangesViewModel extends Disposable {
 			return activeSession?.sessionType;
 		});
 
+		this.activeSessionIsArchivedObs = derived(reader => {
+			const activeSession = this.sessionManagementService.activeSession.read(reader);
+			return activeSession?.isArchived.read(reader) === true;
+		});
+
 		// Active session metadata
 		this._activeSessionMetadataObs = this._getActiveSessionMetadata();
 
@@ -118,7 +145,20 @@ export class ChangesViewModel extends Disposable {
 		this.activeSessionHasGitRepositoryObs = derived(reader => {
 			const sessionType = this.activeSessionTypeObs.read(reader);
 			const metadata = this._activeSessionMetadataObs.read(reader);
-			return sessionType === COPILOT_CLOUD_SESSION_TYPE || metadata?.repositoryPath !== undefined;
+			if (sessionType === COPILOT_CLOUD_SESSION_TYPE || metadata?.repositoryPath !== undefined) {
+				return true;
+			}
+
+			// Fall back to reading details from repo on the session management service session
+			const activeSession = this.sessionManagementService.activeSession.read(reader);
+			const workspace = activeSession?.workspace.read(reader);
+			const repository = workspace?.repositories[0];
+			return repository !== undefined && (
+				repository.uncommittedChanges !== undefined ||
+				repository.incomingChanges !== undefined ||
+				repository.outgoingChanges !== undefined ||
+				repository.upstreamBranchName !== undefined
+			);
 		});
 
 		// Active session first checkpoint ref
@@ -129,8 +169,27 @@ export class ChangesViewModel extends Disposable {
 
 		// Active session last checkpoint ref
 		this.activeSessionLastCheckpointRefObs = derived(reader => {
-			const metadata = this._activeSessionMetadataObs.read(reader);
-			return metadata?.lastCheckpointRef as string | undefined;
+			const activeSessionChats = this.sessionManagementService.activeSession.read(reader)?.chats.read(reader);
+			if (!activeSessionChats || activeSessionChats.length === 0) {
+				return undefined;
+			}
+
+			// Session has only one chat
+			if (activeSessionChats.length === 1) {
+				const metadata = this._activeSessionMetadataObs.read(reader);
+				return metadata?.lastCheckpointRef as string | undefined;
+			}
+
+			// Session has multiple chats - find the last chat that completed
+			const chatsSortedByLastTurnEnd = activeSessionChats.toSorted((chatA, chatB) => {
+				const chatALastTurnEnd = chatA.lastTurnEnd.read(reader);
+				const chatBLastTurnEnd = chatB.lastTurnEnd.read(reader);
+
+				return sortDateDesc(chatALastTurnEnd, chatBLastTurnEnd);
+			});
+
+			const model = this.agentSessionsService.getSession(chatsSortedByLastTurnEnd[0].resource);
+			return model?.metadata?.lastCheckpointRef as string | undefined;
 		});
 
 		// Active session state
@@ -150,8 +209,19 @@ export class ChangesViewModel extends Disposable {
 		// Version mode
 		this.versionModeObs = observableValue<ChangesVersionMode>(this, ChangesVersionMode.BranchChanges);
 
-		this._register(runOnChange(this.activeSessionResourceObs, () => {
-			this.setVersionMode(ChangesVersionMode.BranchChanges);
+		this._register(autorun(reader => {
+			const activeSessionResource = this.activeSessionResourceObs.read(reader);
+			if (!activeSessionResource) {
+				this.setVersionMode(ChangesVersionMode.BranchChanges);
+				return;
+			}
+
+			const isArchived = this.activeSessionIsArchivedObs.read(reader);
+			const versionMode = isArchived
+				? ChangesVersionMode.AllChanges
+				: ChangesVersionMode.BranchChanges;
+
+			this.setVersionMode(versionMode);
 		}));
 
 		// View mode
@@ -187,7 +257,7 @@ export class ChangesViewModel extends Disposable {
 		});
 	}
 
-	private _getActiveSessionChanges(): IObservable<readonly (IChatSessionFileChange | IChatSessionFileChange2)[]> {
+	private _getActiveSessionChanges(): IObservable<readonly ISessionFileChange[]> {
 		// Changes
 		const activeSessionChangesObs = derived(reader => {
 			const activeSession = this.sessionManagementService.activeSession.read(reader);
@@ -203,6 +273,31 @@ export class ChangesViewModel extends Disposable {
 			const worktreePath = metadata?.worktreePath as string | undefined;
 
 			return worktreePath ?? repositoryPath;
+		});
+
+		// Uncommitted changes
+		const activeSessionUncommittedChangesCountObs = derived(reader => {
+			const sessionMetadata = this._activeSessionMetadataObs.read(reader);
+			const uncommittedChanges = sessionMetadata?.uncommittedChanges as number | undefined;
+
+			const activeSession = this.sessionManagementService.activeSession.read(reader);
+			const workspace = activeSession?.workspace.read(reader);
+			const workspaceRepository = workspace?.repositories[0];
+
+			return uncommittedChanges ?? workspaceRepository?.uncommittedChanges;
+		});
+
+		this._activeSessionUncommittedChangesPromiseObs = derived(reader => {
+			const repositoryPath = activeSessionRepositoryPathObs.read(reader);
+			if (!repositoryPath) {
+				return constObservable([]);
+			}
+
+			// Re-run when the number of uncommitted changes changes
+			activeSessionUncommittedChangesCountObs.read(reader);
+
+			const diffPromise = this._getRepositoryChanges(repositoryPath, 'HEAD', undefined);
+			return new ObservablePromise(diffPromise).resolvedValue;
 		});
 
 		// All changes
@@ -267,16 +362,24 @@ export class ChangesViewModel extends Disposable {
 		});
 
 		return derivedOpts({
-			equalsFn: arrayEqualsC<IChatSessionFileChange | IChatSessionFileChange2>()
+			equalsFn: arrayEqualsC<ISessionFileChange>()
 		}, reader => {
+			const versionMode = this.versionModeObs.read(reader);
+
+			// BranchChanges reads from the session provider's `changes`
+			// observable directly (e.g. agent-host-tracked diffs), so it
+			// works even for sessions without a git repository.
+			if (versionMode === ChangesVersionMode.BranchChanges) {
+				return activeSessionChangesObs.read(reader);
+			}
+
 			const hasGitRepository = this.activeSessionHasGitRepositoryObs.read(reader);
-			if (!hasGitRepository) {
+			if (!hasGitRepository && !isWeb) {
 				return [];
 			}
 
-			const versionMode = this.versionModeObs.read(reader);
-			if (versionMode === ChangesVersionMode.BranchChanges) {
-				return activeSessionChangesObs.read(reader);
+			if (versionMode === ChangesVersionMode.UncommittedChanges) {
+				return this._activeSessionUncommittedChangesPromiseObs.read(reader).read(reader) ?? [];
 			} else if (versionMode === ChangesVersionMode.AllChanges) {
 				return this._activeSessionAllChangesPromiseObs.read(reader).read(reader) ?? [];
 			} else if (versionMode === ChangesVersionMode.LastTurn) {
@@ -293,6 +396,12 @@ export class ChangesViewModel extends Disposable {
 			const versionMode = this.versionModeObs.read(reader);
 			if (versionMode === ChangesVersionMode.BranchChanges) {
 				return false;
+			}
+
+			// Uncommitted changes
+			if (versionMode === ChangesVersionMode.UncommittedChanges) {
+				const uncommittedChangesResult = this._activeSessionUncommittedChangesPromiseObs.read(reader).read(reader);
+				return uncommittedChangesResult === undefined;
 			}
 
 			// All changes
@@ -323,9 +432,14 @@ export class ChangesViewModel extends Disposable {
 			// Session state
 			const workspaceRepository = workspace?.repositories[0];
 			const hasGitRepository = this.activeSessionHasGitRepositoryObs.read(reader);
-			const branchName = (sessionMetadata?.branchName ?? sessionMetadata?.branch) as string | undefined;
-			const baseBranchName = (sessionMetadata?.baseBranchName ?? sessionMetadata?.baseBranch) as string | undefined;
-			const isMergeBaseBranchProtected = workspaceRepository?.baseBranchProtected;
+			const branchName = (sessionMetadata?.branchName ?? sessionMetadata?.branch) as string | undefined
+				?? workspaceRepository?.branchName;
+			const baseBranchName = (sessionMetadata?.baseBranchName ?? sessionMetadata?.baseBranch) as string | undefined
+				?? workspaceRepository?.baseBranchName;
+
+			// Fall back to reading details from repo on the session management service session
+			const isMergeBaseBranchProtected = (sessionMetadata?.baseBranchProtected as boolean | undefined)
+				?? workspaceRepository?.baseBranchProtected;
 			const isolationMode = workspaceRepository?.workingDirectory === undefined
 				? IsolationMode.Workspace
 				: IsolationMode.Worktree;
@@ -337,12 +451,12 @@ export class ChangesViewModel extends Disposable {
 				(gitHubInfo.pullRequest.icon?.id === Codicon.gitPullRequestDraft.id ||
 					gitHubInfo.pullRequest.icon?.id === Codicon.gitPullRequest.id);
 
-			// Repository state
-			const hasGitHubRemote = (sessionMetadata?.hasGitHubRemote as boolean | undefined) === true;
-			const upstreamBranchName = sessionMetadata?.upstreamBranchName as string | undefined;
-			const incomingChanges = (sessionMetadata?.incomingChanges as number | undefined) ?? 0;
-			const outgoingChanges = (sessionMetadata?.outgoingChanges as number | undefined) ?? 0;
-			const uncommittedChanges = (sessionMetadata?.uncommittedChanges as number | undefined) ?? 0;
+			// Fall back to reading details from repo on the session management service session
+			const hasGitHubRemote = (sessionMetadata?.hasGitHubRemote as boolean | undefined) ?? workspaceRepository?.hasGitHubRemote ?? false;
+			const upstreamBranchName = (sessionMetadata?.upstreamBranchName as string | undefined) ?? workspaceRepository?.upstreamBranchName;
+			const incomingChanges = (sessionMetadata?.incomingChanges as number | undefined) ?? workspaceRepository?.incomingChanges ?? 0;
+			const outgoingChanges = (sessionMetadata?.outgoingChanges as number | undefined) ?? workspaceRepository?.outgoingChanges ?? 0;
+			const uncommittedChanges = (sessionMetadata?.uncommittedChanges as number | undefined) ?? workspaceRepository?.uncommittedChanges ?? 0;
 
 			return {
 				isolationMode,
@@ -427,9 +541,13 @@ export class ChangesViewModel extends Disposable {
 		});
 	}
 
-	private async _getRepositoryChanges(repositoryPath: string, firstCheckpointRef: string, lastCheckpointRef: string): Promise<IChatSessionFileChange2[] | undefined> {
+	private async _getRepositoryChanges(repositoryPath: string, firstCheckpointRef: string, lastCheckpointRef: string | undefined): Promise<IChatSessionFileChange2[] | undefined> {
 		const repository = await this.gitService.openRepository(URI.file(repositoryPath));
-		const changes = await repository?.diffBetweenWithStats(firstCheckpointRef, lastCheckpointRef) ?? [];
+		const ref = lastCheckpointRef
+			? `${firstCheckpointRef}..${lastCheckpointRef}`
+			: firstCheckpointRef;
+
+		const changes = await repository?.diffBetweenWithStats2(ref) ?? [];
 		return toIChatSessionFileChange2(changes, firstCheckpointRef, lastCheckpointRef);
 	}
 

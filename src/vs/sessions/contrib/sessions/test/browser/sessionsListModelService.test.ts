@@ -28,6 +28,7 @@ function createSession(id: string): ISession {
 		title: observableValue(`title-${id}`, id),
 		updatedAt: observableValue(`updatedAt-${id}`, new Date()),
 		status: observableValue(`status-${id}`, SessionStatus.Completed),
+		changesets: observableValue(`changesets-${id}`, []),
 		changes: observableValue(`changes-${id}`, []),
 		modelId: observableValue(`modelId-${id}`, undefined),
 		mode: observableValue(`mode-${id}`, undefined),
@@ -39,6 +40,7 @@ function createSession(id: string): ISession {
 		gitHubInfo: observableValue(`gitHubInfo-${id}`, undefined),
 		chats: observableValue<readonly IChat[]>(`chats-${id}`, []),
 		mainChat: undefined!,
+		capabilities: { supportsMultipleChats: false },
 	};
 }
 

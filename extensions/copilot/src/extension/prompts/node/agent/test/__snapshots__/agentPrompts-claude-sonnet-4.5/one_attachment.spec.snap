@@ -179,7 +179,7 @@ line 5
 <reminderInstructions>
 Do NOT create a new markdown file to document each change or summarize your work unless specifically requested by the user.
 
-IMPORTANT: Before calling any deferred tool that was not previously returned by tool_search_tool_regex, you MUST first use tool_search_tool_regex to load it. Calling a deferred tool without first loading it will fail. Tools returned by tool_search_tool_regex are automatically expanded and immediately available - do not search for them again.
+IMPORTANT: Before calling any deferred tool that was not previously returned by tool_search, you MUST first use tool_search to load it. Calling a deferred tool without first loading it will fail. Tools returned by tool_search are automatically expanded and immediately available - do not search for them again.
 
 </reminderInstructions>
 <userRequest>

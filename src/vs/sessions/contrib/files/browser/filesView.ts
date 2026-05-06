@@ -15,7 +15,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
-import { sessionsAuxiliaryBarBackground } from '../../../common/theme.js';
+import { agentsPanelBackground } from '../../../common/theme.js';
 import { ExplorerView } from '../../../../workbench/contrib/files/browser/views/explorerView.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -31,10 +31,10 @@ export class SessionsExplorerView extends ExplorerView {
 		const colors = super.getLocationBasedColors();
 		return {
 			...colors,
-			background: sessionsAuxiliaryBarBackground,
+			background: agentsPanelBackground,
 			listOverrideStyles: {
 				...colors.listOverrideStyles,
-				listBackground: sessionsAuxiliaryBarBackground,
+				listBackground: agentsPanelBackground,
 			}
 		};
 	}
