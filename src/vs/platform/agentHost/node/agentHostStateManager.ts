@@ -345,7 +345,7 @@ export class AgentHostStateManager extends Disposable {
 				const patch = action.config;
 				const isNoOp = action.replace
 					? equals(current, patch)
-					: Object.keys(patch).every(k => equals(current[k], patch[k]));
+					: equals({ ...current, ...patch }, current);
 				if (isNoOp) {
 					return this._rootState;
 				}

@@ -138,6 +138,7 @@ suite('AgentHostStateManager', () => {
 			config: { 'my.setting': 'value-a' },
 		});
 		assert.strictEqual(envelopes.length, 1);
+		assert.strictEqual(manager.serverSeq, 1);
 
 		// Second dispatch with the same value: should be deduped and not emit.
 		manager.dispatchServerAction({
@@ -145,6 +146,7 @@ suite('AgentHostStateManager', () => {
 			config: { 'my.setting': 'value-a' },
 		});
 		assert.strictEqual(envelopes.length, 1);
+		assert.strictEqual(manager.serverSeq, 1, 'serverSeq must not advance on a no-op');
 
 		// Third dispatch with a deeply-equal but newly allocated object value:
 		// should also be deduped.
@@ -153,11 +155,13 @@ suite('AgentHostStateManager', () => {
 			config: { 'my.nested': { allow: ['x'], deny: [] } },
 		});
 		assert.strictEqual(envelopes.length, 2);
+		assert.strictEqual(manager.serverSeq, 2);
 		manager.dispatchServerAction({
 			type: ActionType.RootConfigChanged,
 			config: { 'my.nested': { allow: ['x'], deny: [] } },
 		});
 		assert.strictEqual(envelopes.length, 2);
+		assert.strictEqual(manager.serverSeq, 2, 'serverSeq must not advance on a no-op');
 
 		// Real change still emits.
 		manager.dispatchServerAction({
@@ -165,6 +169,7 @@ suite('AgentHostStateManager', () => {
 			config: { 'my.setting': 'value-b' },
 		});
 		assert.strictEqual(envelopes.length, 3);
+		assert.strictEqual(manager.serverSeq, 3);
 	});
 
 	test('removeSession clears state without notification', () => {
