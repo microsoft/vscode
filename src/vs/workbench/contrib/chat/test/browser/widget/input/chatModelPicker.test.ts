@@ -809,7 +809,9 @@ suite('buildModelPickerItems', () => {
 	});
 });
 
-describe('formatTokenCount', () => {
+suite('formatTokenCount', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('returns M for counts above 900K', () => {
 		assert.strictEqual(formatTokenCount(1_000_000), '1M');
 		assert.strictEqual(formatTokenCount(935_997), '1M');
