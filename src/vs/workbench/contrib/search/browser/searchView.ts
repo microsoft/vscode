@@ -305,6 +305,10 @@ export class SearchView extends ViewPane {
 		this._register(this.searchHistoryService.onDidClearHistory(() => this.clearHistory()));
 		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(e)));
 
+		const updateChangedFilesToggleEnabled = () => {
+			const hasRepositories = [...this.scmService.repositories].length > 0;
+			this.inputPatternIncludes?.setOnlySearchInChangedFilesEnabled(hasRepositories);
+		};
 		const registerScmRepositoryListeners = (repository: { provider: { onDidChangeResources: import('../../../../base/common/event.js').Event<void> } }) => {
 			this._register(repository.provider.onDidChangeResources(() => {
 				if (this.inputPatternIncludes?.onlySearchInChangedFiles()) {
@@ -315,7 +319,11 @@ export class SearchView extends ViewPane {
 		for (const repository of this.scmService.repositories) {
 			registerScmRepositoryListeners(repository);
 		}
-		this._register(this.scmService.onDidAddRepository(repository => registerScmRepositoryListeners(repository)));
+		this._register(this.scmService.onDidAddRepository(repository => {
+			registerScmRepositoryListeners(repository);
+			updateChangedFilesToggleEnabled();
+		}));
+		this._register(this.scmService.onDidRemoveRepository(() => updateChangedFilesToggleEnabled()));
 
 		this.delayedRefresh = this._register(new Delayer<void>(250));
 
@@ -534,6 +542,7 @@ export class SearchView extends ViewPane {
 
 		this.inputPatternIncludes.setValue(patternIncludes);
 		this.inputPatternIncludes.setOnlySearchInOpenEditors(onlyOpenEditors);
+		this.inputPatternIncludes.setOnlySearchInChangedFilesEnabled([...this.scmService.repositories].length > 0);
 
 		this._register(this.inputPatternIncludes.onCancel(() => this.cancelSearch(false)));
 		this._register(this.inputPatternIncludes.onChangeSearchInEditorsBox(() => this.triggerQueryChange()));

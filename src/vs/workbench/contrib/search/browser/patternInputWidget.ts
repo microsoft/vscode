@@ -225,6 +225,15 @@ export class IncludePatternInputWidget extends PatternInputWidget {
 		this._onChangeSearchInChangedFilesBoxEmitter.fire();
 	}
 
+	setOnlySearchInChangedFilesEnabled(enabled: boolean) {
+		if (enabled) {
+			this.useSearchInChangedFilesBox.enable();
+		} else {
+			this.useSearchInChangedFilesBox.checked = false;
+			this.useSearchInChangedFilesBox.disable();
+		}
+	}
+
 	protected override getSubcontrolsWidth(): number {
 		return super.getSubcontrolsWidth() + this.useSearchInEditorsBox.width() + this.useSearchInChangedFilesBox.width();
 	}
