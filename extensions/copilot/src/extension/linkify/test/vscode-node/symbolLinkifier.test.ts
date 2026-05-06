@@ -5,110 +5,15 @@
 
 import assert from 'assert';
 import * as vscode from 'vscode';
-import { afterEach, suite, test } from 'vitest';
+import { suite, test } from 'vitest';
 import { NullEnvService } from '../../../../platform/env/common/nullEnvService';
-import { TreeSitterExpressionInfo } from '../../../../platform/parser/node/nodes';
-import { IParserService, TreeSitterAST } from '../../../../platform/parser/node/parserService';
-import { WASMLanguage } from '../../../../platform/parser/node/treeSitterLanguages';
+import { IParserService } from '../../../../platform/parser/node/parserService';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
 import { LinkifySymbolAnchor } from '../../common/linkifiedText';
 import { ILinkifyService, LinkifyService } from '../../common/linkifyService';
 import { SymbolLinkifier } from '../../vscode-node/symbolLinkifier';
 import { assertPartsEqual, createMockFsService, createMockWorkspaceService, linkify, workspaceFile } from '../node/util';
-
-class TestParserService implements Partial<IParserService> {
-	public parseCount = 0;
-
-	constructor(
-		private readonly symbols: readonly TreeSitterExpressionInfo[] = [],
-		private readonly classDeclarations: readonly TreeSitterExpressionInfo[] = [],
-		private readonly functionDefinitions: readonly TreeSitterExpressionInfo[] = [],
-		private readonly typeDeclarations: readonly TreeSitterExpressionInfo[] = [],
-	) { }
-
-	getTreeSitterASTForWASMLanguage(_language: WASMLanguage, _source: string): TreeSitterAST {
-		this.parseCount++;
-		const symbols = this.symbols;
-		const classDeclarations = this.classDeclarations;
-		const functionDefinitions = this.functionDefinitions;
-		const typeDeclarations = this.typeDeclarations;
-		return {
-			getClassDeclarations: async () => classDeclarations,
-			getFunctionDefinitions: async () => functionDefinitions,
-			getTypeDeclarations: async () => typeDeclarations,
-			getSymbols: async () => symbols,
-		} as unknown as TreeSitterAST;
-	}
-}
-
-interface MutableTestWorkspace {
-	textDocuments: typeof vscode.workspace.textDocuments;
-	fs: {
-		readFile: typeof vscode.workspace.fs.readFile;
-	};
-}
-
-interface MutableTestCommands {
-	executeCommand: typeof vscode.commands.executeCommand;
-}
-
-interface PartialMutableTestWorkspace {
-	textDocuments?: MutableTestWorkspace['textDocuments'];
-	fs?: Partial<MutableTestWorkspace['fs']>;
-}
-
-function ensureTestWorkspace(): MutableTestWorkspace {
-	const testVscode = vscode as unknown as { workspace?: PartialMutableTestWorkspace };
-	testVscode.workspace ??= {};
-	testVscode.workspace.textDocuments ??= [];
-	testVscode.workspace.fs ??= {};
-	testVscode.workspace.fs.readFile ??= (async () => { throw new Error('workspace.fs.readFile not mocked in test'); }) as typeof vscode.workspace.fs.readFile;
-	return testVscode.workspace as MutableTestWorkspace;
-}
-
-function ensureTestCommands(): MutableTestCommands {
-	const testVscode = vscode as unknown as { commands?: Partial<MutableTestCommands> };
-	testVscode.commands ??= {};
-	testVscode.commands.executeCommand ??= (async () => undefined) as typeof vscode.commands.executeCommand;
-	return testVscode.commands as MutableTestCommands;
-}
-
-const testWorkspace = ensureTestWorkspace();
-const testCommands = ensureTestCommands();
-const originalWorkspaceReadFile = vscode.workspace.fs.readFile;
-const originalWorkspaceTextDocuments = vscode.workspace.textDocuments;
-const originalExecuteCommand = vscode.commands.executeCommand;
-
-afterEach(() => {
-	testWorkspace.textDocuments = originalWorkspaceTextDocuments;
-	testWorkspace.fs.readFile = originalWorkspaceReadFile;
-	testCommands.executeCommand = originalExecuteCommand;
-});
-
-function setWorkspaceFileContents(contentsByUri: ReadonlyMap<string, string>): void {
-	testWorkspace.textDocuments = [];
-	testWorkspace.fs.readFile = async (uri: vscode.Uri) => {
-		const contents = contentsByUri.get(uri.toString());
-		if (contents === undefined) {
-			throw new Error(`File not found: ${uri.toString()}`);
-		}
-		return new TextEncoder().encode(contents);
-	};
-}
-
-function asParserService(parserService: TestParserService): IParserService {
-	return parserService as unknown as IParserService;
-}
-
-function symbol(contents: string, identifier: string): TreeSitterExpressionInfo {
-	const startIndex = contents.indexOf(identifier);
-	return {
-		identifier,
-		text: identifier,
-		startIndex,
-		endIndex: startIndex + identifier.length,
-	};
-}
+import { asParserService, setExecuteCommand, setWorkspaceFileContents, symbol, TestParserService } from './util';
 
 function createTestLinkifierService(listOfFiles: readonly string[], parserService: IParserService = asParserService(new TestParserService())): ILinkifyService {
 	const fs = createMockFsService(listOfFiles);
@@ -334,7 +239,7 @@ suite('Symbol Linkify', () => {
 		].join('\n');
 		const uri = workspaceFile('src/file.ts');
 		setWorkspaceFileContents(new Map([[uri.toString(), contents]]));
-		testCommands.executeCommand = async <T>(command: string, resolvedUri: vscode.Uri): Promise<T> => {
+		setExecuteCommand(async <T>(command: string, resolvedUri: vscode.Uri): Promise<T> => {
 			assert.strictEqual(command, 'vscode.executeDocumentSymbolProvider');
 			assert.strictEqual(resolvedUri.toString(), uri.toString());
 			return [
@@ -347,7 +252,7 @@ suite('Symbol Linkify', () => {
 					children: [],
 				}
 			] as T;
-		};
+		});
 
 		const linkifier = createTestLinkifierService(['src/file.ts'], asParserService(new TestParserService([
 			symbol(contents, 'Foo')
