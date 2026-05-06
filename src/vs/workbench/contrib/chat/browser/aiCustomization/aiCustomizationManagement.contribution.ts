@@ -18,8 +18,9 @@ import { Categories } from '../../../../../platform/action/common/actionCommonCa
 import { Action2, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { FileSystemProviderCapabilities, IFileService } from '../../../../../platform/files/common/files.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -27,9 +28,10 @@ import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../../browser/editor.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
-import { EditorExtensions, EditorsOrder, IEditorFactoryRegistry, IEditorSerializer } from '../../../../common/editor.js';
+import { EditorExtensions, IEditorFactoryRegistry, IEditorSerializer } from '../../../../common/editor.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { IWorkbenchExtensionManagementService } from '../../../../services/extensionManagement/common/extensionManagement.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
 import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
@@ -47,7 +49,6 @@ import {
 	AI_CUSTOMIZATION_ITEM_URI_KEY,
 	AI_CUSTOMIZATION_MANAGEMENT_EDITOR_ID,
 	AI_CUSTOMIZATION_MANAGEMENT_EDITOR_INPUT_ID,
-	AI_CUSTOMIZATION_SUPPORTS_TROUBLESHOOT_KEY,
 	AICustomizationManagementCommands,
 	AICustomizationManagementItemMenuId,
 	AICustomizationManagementSection,
@@ -176,15 +177,6 @@ function extractPluginUri(context: AICustomizationContext): URI | undefined {
 	return URI.isUri(raw) ? raw : typeof raw === 'string' ? URI.parse(raw) : undefined;
 }
 
-/**
- * Extracts the item name from context.
- */
-function extractName(context: AICustomizationContext): string | undefined {
-	if (URI.isUri(context) || typeof context === 'string') {
-		return undefined;
-	}
-	return typeof context.name === 'string' ? context.name : undefined;
-}
 
 /**
  * Extracts the item ID from context (used for identifying individual hooks within a file).
@@ -256,39 +248,6 @@ registerAction2(class extends Action2 {
 	async run(accessor: ServicesAccessor, context: AICustomizationContext): Promise<void> {
 		const commandService = accessor.get(ICommandService);
 		await commandService.executeCommand('workbench.action.chat.run.prompt.current', extractURI(context));
-	}
-});
-
-// Troubleshoot customization action
-const TROUBLESHOOT_AI_CUSTOMIZATION_ID = 'aiCustomizationManagement.troubleshoot';
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: TROUBLESHOOT_AI_CUSTOMIZATION_ID,
-			title: localize2('troubleshoot', "Troubleshoot"),
-			icon: Codicon.bug,
-		});
-	}
-	async run(accessor: ServicesAccessor, context: AICustomizationContext): Promise<void> {
-		const commandService = accessor.get(ICommandService);
-		const editorService = accessor.get(IEditorService);
-		const rawName = extractName(context);
-		const displayName = rawName?.replace(/\.md$/i, '');
-		const query = displayName
-			? `/troubleshoot ${displayName}`
-			: '/troubleshoot';
-
-		// Close any open Agent Customizations editors before sending the chat.
-		const customizationEditors = editorService.getEditors(EditorsOrder.SEQUENTIAL)
-			.filter(({ editor }) => editor instanceof AICustomizationManagementEditorInput);
-		if (customizationEditors.length) {
-			await editorService.closeEditors(customizationEditors);
-		}
-
-		await commandService.executeCommand('workbench.action.chat.open', {
-			query,
-			isPartialQuery: false,
-		});
 	}
 });
 
@@ -462,6 +421,23 @@ registerAction2(class extends Action2 {
 	}
 });
 
+const INSTALL_CHAT_CUSTOMIZATION_EXTENSION_ID = 'aiCustomizationManagement.installChatCustomizationExtension';
+const CHAT_CUSTOMIZATION_EXTENSION_ID = 'ms-vscode.vscode-chat-customizations-evaluations';
+const CHAT_CUSTOMIZATION_EXTENSION_NOT_INSTALLED_CONTEXT = new RawContextKey<boolean>('chat.customizationExtensionNotInstalled', false);
+const CHAT_CUSTOMIZATION_EXTENSION_NOT_INSTALLED = CHAT_CUSTOMIZATION_EXTENSION_NOT_INSTALLED_CONTEXT.isEqualTo(true);
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: INSTALL_CHAT_CUSTOMIZATION_EXTENSION_ID,
+			title: localize2('installChatCustomizationExtension', "Install Chat Customization Extension"),
+			icon: Codicon.beaker,
+		});
+	}
+	async run(accessor: ServicesAccessor, context: AICustomizationContext): Promise<void> {
+		await accessor.get(ICommandService).executeCommand('workbench.extensions.installExtension', CHAT_CUSTOMIZATION_EXTENSION_ID, { enable: true });
+	}
+});
+
 /**
  * When clause that hides an action for read-only (extension, plugin, built-in) items.
  */
@@ -480,9 +456,22 @@ const WHEN_ITEM_IS_PLUGIN = ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_STORAGE_
 
 // Inline hover actions (shown as icon buttons on hover)
 MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
-	command: { id: COPY_AI_CUSTOMIZATION_PATH_ID, title: localize('copyPath', "Copy Path"), icon: Codicon.clippy },
+	command: { id: INSTALL_CHAT_CUSTOMIZATION_EXTENSION_ID, title: localize('Install Chat Customization Extension', "Install Chat Customization Extension"), icon: Codicon.beaker },
 	group: 'inline',
 	order: 1,
+	when: ContextKeyExpr.and(CHAT_CUSTOMIZATION_EXTENSION_NOT_INSTALLED,
+		ContextKeyExpr.or(
+			ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_TYPE_KEY, PromptsType.prompt),
+			ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_TYPE_KEY, PromptsType.instructions),
+			ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_TYPE_KEY, PromptsType.agent),
+			ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_TYPE_KEY, PromptsType.skill)
+		))
+});
+
+MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
+	command: { id: COPY_AI_CUSTOMIZATION_PATH_ID, title: localize('copyPath', "Copy Path"), icon: Codicon.clippy },
+	group: 'inline',
+	order: 2,
 });
 
 MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
@@ -490,13 +479,6 @@ MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
 	group: 'inline',
 	order: 10,
 	when: WHEN_ITEM_IS_DELETABLE,
-});
-
-MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
-	command: { id: TROUBLESHOOT_AI_CUSTOMIZATION_ID, title: localize('troubleshootInline', "Troubleshoot"), icon: Codicon.bug },
-	group: 'inline',
-	order: 2,
-	when: ContextKeyExpr.equals(AI_CUSTOMIZATION_SUPPORTS_TROUBLESHOOT_KEY, true),
 });
 
 // Context menu items (shown on right-click)
@@ -511,13 +493,6 @@ MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
 	group: '2_run',
 	order: 1,
 	when: ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_TYPE_KEY, PromptsType.prompt),
-});
-
-MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
-	command: { id: TROUBLESHOOT_AI_CUSTOMIZATION_ID, title: localize('troubleshootItem', "Troubleshoot") },
-	group: '2_run',
-	order: 2,
-	when: ContextKeyExpr.equals(AI_CUSTOMIZATION_SUPPORTS_TROUBLESHOOT_KEY, true),
 });
 
 MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
@@ -732,10 +707,32 @@ MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
 class AICustomizationManagementActionsContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.aiCustomizationManagementActions';
+	private readonly chatCustomizationExtensionNotInstalledContext: IContextKey<boolean>;
 
-	constructor() {
+	constructor(
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IWorkbenchExtensionManagementService private readonly extensionManagementService: IWorkbenchExtensionManagementService,
+	) {
 		super();
+		this.chatCustomizationExtensionNotInstalledContext = CHAT_CUSTOMIZATION_EXTENSION_NOT_INSTALLED_CONTEXT.bindTo(contextKeyService);
+
+		const refreshExtensionContext = () => this.updateChatCustomizationExtensionContext();
+		this._register(this.extensionManagementService.onProfileAwareDidInstallExtensions(refreshExtensionContext));
+		this._register(this.extensionManagementService.onProfileAwareDidUninstallExtension(refreshExtensionContext));
+		this._register(this.extensionManagementService.onDidChangeProfile(refreshExtensionContext));
+		void this.updateChatCustomizationExtensionContext();
 		this.registerActions();
+	}
+
+	private async updateChatCustomizationExtensionContext(): Promise<void> {
+		try {
+			const installedExtensions = await this.extensionManagementService.getInstalled();
+			const extensionKey = ExtensionIdentifier.toKey(CHAT_CUSTOMIZATION_EXTENSION_ID);
+			const isInstalled = installedExtensions.some(ext => ExtensionIdentifier.toKey(ext.identifier.id) === extensionKey);
+			this.chatCustomizationExtensionNotInstalledContext.set(!isInstalled);
+		} catch {
+			this.chatCustomizationExtensionNotInstalledContext.set(false);
+		}
 	}
 
 	private registerActions(): void {

@@ -146,6 +146,7 @@ export class BaseTelemetryService implements ITelemetryService {
 		this._sharedProperties['abexp.assignmentcontext'] = new TelemetryTrustedValue(value);
 	}
 
+	// __GDPR__COMMON__ "capi.assignmentcontext" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 	setSharedProperty(name: string, value: string): void {
 		/* __GDPR__
 			"query-expfeature" : {

@@ -120,11 +120,11 @@ export async function getWorkspaceSymbols(query: string, token: CancellationToke
 }
 
 export interface IWorkbenchSearchConfigurationProperties extends ISearchConfigurationProperties {
-	quickOpen: {
-		includeSymbols: boolean;
-		includeHistory: boolean;
-		history: {
-			filterSortOrder: 'default' | 'recency';
+	quickOpen?: {
+		includeSymbols?: boolean;
+		includeHistory?: boolean;
+		history?: {
+			filterSortOrder?: 'default' | 'recency';
 		};
 	};
 }

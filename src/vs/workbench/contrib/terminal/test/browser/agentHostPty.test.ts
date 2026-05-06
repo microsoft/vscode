@@ -11,8 +11,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { IAgentConnection, IAgentCreateSessionConfig, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult } from '../../../../../platform/agentHost/common/agentService.js';
 import { ActionType, StateAction } from '../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { RootState, TerminalClaimKind, type TerminalState } from '../../../../../platform/agentHost/common/state/protocol/state.js';
-import type { CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
-import type { ActionEnvelope, RootAction, SessionAction, TerminalAction, INotification } from '../../../../../platform/agentHost/common/state/sessionActions.js';
+import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
+import type { ActionEnvelope, IRootConfigChangedAction, SessionAction, TerminalAction, INotification } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import type { ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceWriteParams, ResourceWriteResult } from '../../../../../platform/agentHost/common/state/sessionProtocol.js';
 
 import { AgentHostPty } from '../../browser/agentHostPty.js';
@@ -32,7 +32,7 @@ class MockAgentConnection implements IAgentConnection {
 	private readonly _onDidNotification = new Emitter<INotification>();
 	readonly onDidNotification: Event<INotification> = this._onDidNotification.event;
 
-	readonly dispatchedActions: (RootAction | SessionAction | TerminalAction)[] = [];
+	readonly dispatchedActions: (SessionAction | TerminalAction | IRootConfigChangedAction)[] = [];
 	readonly createdTerminals: CreateTerminalParams[] = [];
 	readonly disposedTerminals: URI[] = [];
 	readonly subscribedResources: URI[] = [];
@@ -72,6 +72,7 @@ class MockAgentConnection implements IAgentConnection {
 	async createSession(_config?: IAgentCreateSessionConfig): Promise<URI> { return URI.parse('copilot:///test'); }
 	async resolveSessionConfig(_params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> { return { schema: { type: 'object', properties: {} }, values: {} }; }
 	async sessionConfigCompletions(_params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult> { return { items: [] }; }
+	async completions(_params: CompletionsParams): Promise<CompletionsResult> { return { items: [] }; }
 	async disposeSession(_session: URI): Promise<void> { }
 	async shutdown(): Promise<void> { }
 	async resourceList(_uri: URI): Promise<ResourceListResult> { return { entries: [] }; }
@@ -115,7 +116,7 @@ class MockAgentConnection implements IAgentConnection {
 	getSubscriptionUnmanaged<T>(_kind: StateComponents, _resource: URI): IAgentSubscription<T> | undefined {
 		return undefined;
 	}
-	dispatch(action: RootAction | SessionAction | TerminalAction): void {
+	dispatch(action: SessionAction | TerminalAction | IRootConfigChangedAction): void {
 		this.dispatchedActions.push(action);
 	}
 

@@ -16,6 +16,6 @@ import type { ICompletedToolCall, ToolCallState } from './sessionState.js';
  * bag. This is not part of the protocol and is injected by the agent adapter
  * (e.g. `copilotEventMapper`).
  */
-export function getToolKind(tc: ToolCallState | ICompletedToolCall): 'terminal' | 'subagent' | undefined {
-	return tc._meta?.toolKind as 'terminal' | 'subagent' | undefined;
+export function getToolKind(tc: ToolCallState | ICompletedToolCall): 'terminal' | 'subagent' | 'search' | undefined {
+	return tc._meta?.toolKind as 'terminal' | 'subagent' | 'search' | undefined;
 }

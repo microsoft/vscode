@@ -6,6 +6,7 @@
 import { coalesce } from '../../../../base/common/arrays.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { IReader, autorun, observableValue } from '../../../../base/common/observable.js';
+import { isWeb } from '../../../../base/common/platform.js';
 import { localize2 } from '../../../../nls.js';
 import { Action2, registerAction2, MenuId, MenuRegistry, isIMenuItem } from '../../../../platform/actions/common/actions.js';
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -173,8 +174,12 @@ registerAction2(class extends Action2 {
 /**
  * Wraps a standalone picker widget as a {@link BaseActionViewItem}
  * so it can be rendered by a {@link MenuWorkbenchToolBar}.
+ *
+ * Exported so the web-only `CopilotPermissionPickerWebContribution`
+ * (in `mobilePermissionPicker.contribution.ts`) can reuse the same
+ * wrapper for its `MobilePermissionPicker` registration.
  */
-class PickerActionViewItem extends BaseActionViewItem {
+export class PickerActionViewItem extends BaseActionViewItem {
 	constructor(private readonly picker: { render(container: HTMLElement): void; dispose(): void }, disposable?: IDisposable) {
 		super(undefined, { id: '', label: '', enabled: true, class: undefined, tooltip: '', run: () => { } });
 		if (disposable) {
@@ -239,14 +244,24 @@ class CopilotPickerActionViewItemContribution extends Disposable implements IWor
 				return new PickerActionViewItem(picker);
 			},
 		));
-		this._register(actionViewItemService.register(
-			Menus.NewSessionControl, 'sessions.defaultCopilot.permissionPicker',
-			() => {
-				const delegate = instantiationService.createInstance(CopilotPermissionPickerDelegate);
-				const picker = instantiationService.createInstance(PermissionPicker, delegate);
-				return new PickerActionViewItem(picker, delegate);
-			},
-		));
+		// Permission picker registration is skipped on web so the
+		// web-only `CopilotPermissionPickerWebContribution` (registered
+		// from `sessions.web.main.ts`) can install the mobile-aware
+		// {@link MobilePermissionPicker} variant instead. On Electron
+		// desktop, register the standard {@link PermissionPicker}
+		// directly — the mobile-only sheet rendering never runs there
+		// and importing the mobile picker would needlessly drag
+		// `mobilePickerSheet.ts` into the desktop bundle.
+		if (!isWeb) {
+			this._register(actionViewItemService.register(
+				Menus.NewSessionControl, 'sessions.defaultCopilot.permissionPicker',
+				() => {
+					const delegate = instantiationService.createInstance(CopilotPermissionPickerDelegate);
+					const picker = instantiationService.createInstance(PermissionPicker, delegate);
+					return new PickerActionViewItem(picker, delegate);
+				},
+			));
+		}
 		this._register(actionViewItemService.register(
 			Menus.NewSessionControl, 'sessions.defaultCopilot.claudePermissionModePicker',
 			() => {
@@ -277,6 +292,7 @@ export class SessionModelPicker extends Disposable {
 	private readonly _delegate: IModelPickerDelegate;
 	private readonly _modelPicker: ModelPickerActionItem;
 	private _lastSessionType: string | undefined;
+	private _lastPushedSessionId: string | undefined;
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -338,10 +354,28 @@ export class SessionModelPicker extends Disposable {
 
 		const models = getAvailableModels(this._languageModelsService, this._sessionsManagementService);
 		this._modelPicker.setEnabled(models.length > 0);
-		if (!this._currentModel.get() && models.length > 0) {
+		if (models.length === 0) {
+			return;
+		}
+
+		const current = this._currentModel.get();
+		if (!current) {
 			const rememberedModelId = sessionType ? this._storageService.get(modelPickerStorageKey(sessionType), StorageScope.PROFILE) : undefined;
 			const remembered = rememberedModelId ? models.find(m => m.identifier === rememberedModelId) : undefined;
 			this._delegate.setModel(remembered ?? models[0]);
+			this._lastPushedSessionId = session?.sessionId;
+		} else if (session && session.sessionId !== this._lastPushedSessionId && models.some(m => m.identifier === current.identifier)) {
+			// Active session changed (e.g. user switched repository) but the
+			// previously selected model is still available. Re-push it so the
+			// new session's provider receives setModel — otherwise the request
+			// would be sent with the default model even though the picker UI
+			// still shows the user's selection. See #313385.
+			//
+			// Gated on sessionId so unrelated re-invocations of _initModel
+			// (e.g. from onDidChangeLanguageModels) don't redundantly write
+			// storage and dispatch provider.setModel for the same session.
+			this._delegate.setModel(current);
+			this._lastPushedSessionId = session.sessionId;
 		}
 	}
 

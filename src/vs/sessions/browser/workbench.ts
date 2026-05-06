@@ -56,12 +56,12 @@ import { NotificationsCenter } from '../../workbench/browser/parts/notifications
 import { NotificationsAlerts } from '../../workbench/browser/parts/notifications/notificationsAlerts.js';
 import { NotificationsStatus } from '../../workbench/browser/parts/notifications/notificationsStatus.js';
 import { registerNotificationCommands } from '../../workbench/browser/parts/notifications/notificationsCommands.js';
+import { CommandsRegistry } from '../../platform/commands/common/commands.js';
 import { NotificationsToasts } from '../../workbench/browser/parts/notifications/notificationsToasts.js';
 import { IMarkdownRendererService } from '../../platform/markdown/browser/markdownRenderer.js';
 import { EditorMarkdownCodeBlockRenderer } from '../../editor/browser/widget/markdownRenderer/browser/editorMarkdownCodeBlockRenderer.js';
 import { SyncDescriptor } from '../../platform/instantiation/common/descriptors.js';
 import { TitleService } from './parts/titlebarPart.js';
-import { SessionsExperimentalShellGradientBackgroundSettingId } from '../common/configuration.js';
 import { IContextKeyService } from '../../platform/contextkey/common/contextkey.js';
 import { EditorMaximizedContext, IsPhoneLayoutContext, KeyboardVisibleContext } from '../common/contextkeys.js';
 import {
@@ -95,7 +95,7 @@ enum LayoutClasses {
 	AUXILIARYBAR_HIDDEN = 'noauxiliarybar',
 	CHATBAR_HIDDEN = 'nochatbar',
 	STATUSBAR_HIDDEN = 'nostatusbar',
-	EXPERIMENTAL_SHELL_GRADIENT_BACKGROUND = 'experimental-shell-gradient-background',
+	SHELL_GRADIENT_BACKGROUND = 'shell-gradient-background',
 	FULLSCREEN = 'fullscreen',
 	MAXIMIZED = 'maximized',
 	PHONE_LAYOUT = 'phone-layout'
@@ -123,6 +123,8 @@ export interface IAgentWorkbenchLayoutService extends IWorkbenchLayoutService {
 }
 
 export const IAgentWorkbenchLayoutService = refineServiceDecorator<IWorkbenchLayoutService, IAgentWorkbenchLayoutService>(IWorkbenchLayoutService);
+
+export const CLOSE_MOBILE_SIDEBAR_DRAWER_COMMAND_ID = 'sessions.closeMobileSidebarDrawer';
 
 export class Workbench extends Disposable implements IAgentWorkbenchLayoutService {
 
@@ -519,9 +521,17 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 	}
 
 	private registerListeners(lifecycleService: ILifecycleService, storageService: IStorageService, configurationService: IConfigurationService, hostService: IHostService, dialogService: IDialogService): void {
+		// Command: close the mobile sidebar drawer (no-op outside phone layout).
+		// Routes through the proper close path so the mobile nav/history stack
+		// stays in sync (avoids extra Android back-button presses).
+		this._register(CommandsRegistry.registerCommand(CLOSE_MOBILE_SIDEBAR_DRAWER_COMMAND_ID, () => {
+			if (this.layoutPolicy.viewportClass.get() === 'phone') {
+				this.closeMobileSidebarDrawer();
+			}
+		}));
+
 		// Configuration changes
 		this._register(configurationService.onDidChangeConfiguration(e => this.updateFontAliasing(e, configurationService)));
-		this._register(configurationService.onDidChangeConfiguration(e => this.updateShellGradientBackground(e, configurationService)));
 
 		// Font Info
 		if (isNative) {
@@ -605,17 +615,6 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		}
 	}
 
-	private updateShellGradientBackground(e: IConfigurationChangeEvent | undefined, configurationService: IConfigurationService): void {
-		if (e && !e.affectsConfiguration(SessionsExperimentalShellGradientBackgroundSettingId)) {
-			return;
-		}
-
-		this.mainContainer.classList.toggle(
-			LayoutClasses.EXPERIMENTAL_SHELL_GRADIENT_BACKGROUND,
-			configurationService.getValue<boolean>(SessionsExperimentalShellGradientBackgroundSettingId)
-		);
-	}
-
 	//#endregion
 
 	private renderWorkbench(instantiationService: IInstantiationService, notificationService: NotificationService, storageService: IStorageService, configurationService: IConfigurationService): void {
@@ -640,6 +639,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		const workbenchClasses = coalesce([
 			'monaco-workbench',
 			'agent-sessions-workbench',
+			LayoutClasses.SHELL_GRADIENT_BACKGROUND,
 			platformClass,
 			isWeb ? 'web' : undefined,
 			isChrome ? 'chromium' : isFirefox ? 'firefox' : isSafari ? 'safari' : undefined,
@@ -651,7 +651,6 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 
 		// Apply font aliasing
 		this.updateFontAliasing(undefined, configurationService);
-		this.updateShellGradientBackground(undefined, configurationService);
 
 		// Warm up font cache information before building up too many dom elements
 		this.restoreFontInfo(storageService, configurationService);
@@ -691,9 +690,12 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 			this.toggleMobileSidebarDrawer();
 		}));
 
-		// New session: open new chat view
+		// New session: open new chat view and dismiss the sidebar drawer
+		// so the new session view becomes visible. createMobileTitlebar() is
+		// only invoked in phone layout, so closing the drawer here is safe.
 		this.mobileTopBarDisposables.add(mobileTitlebar.onDidClickNewSession(() => {
 			this.sessionsManagementService.openNewSessionView();
+			this.closeMobileSidebarDrawer();
 		}));
 	}
 

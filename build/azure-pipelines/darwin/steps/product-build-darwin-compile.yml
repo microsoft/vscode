@@ -332,16 +332,6 @@ steps:
         BUILD_SOURCESDIRECTORY: $(Build.SourcesDirectory)
       displayName: ✍️ Codesign & Notarize
 
-    # Re-sign the app without the provisioning profile for tests.
-    # This strips the keychain-access-groups entitlement which requires a
-    # provisioning profile and is not needed for running tests. The codesign
-    # step reads from the archives packaged above which have the full entitlements.
-    - script: |
-        set -e
-        export CODESIGN_IDENTITY=$(security find-identity -v -p codesigning $(agent.tempdirectory)/buildagent.keychain | grep -oEi "([0-9A-F]{40})" | head -n 1)
-        DEBUG=electron-osx-sign* node build/darwin/sign.ts --skip-provisioning-profile $(agent.builddirectory)
-      displayName: Set Hardened Entitlements (for tests)
-
   - ${{ if or(eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true), eq(parameters.VSCODE_RUN_BROWSER_TESTS, true), eq(parameters.VSCODE_RUN_REMOTE_TESTS, true)) }}:
     - template: product-build-darwin-test.yml@self
       parameters:
@@ -363,7 +353,23 @@ steps:
         APP_NAME="`ls $APP_ROOT | head -n 1`"
         APP_PATH="$APP_ROOT/$APP_NAME"
         codesign -dv --deep --verbose=4 "$APP_PATH"
-        "$APP_PATH/Contents/Resources/app/bin/code" --export-default-configuration=.build
+        BINARY_NAME=$(node -p "require(\"$APP_PATH/Contents/Resources/app/product.json\").nameShort")
+        TIMERS_FILE="$(Build.ArtifactStagingDirectory)/startup-timers.txt"
+        "$APP_PATH/Contents/MacOS/$BINARY_NAME" \
+          --prof-append-timers "$TIMERS_FILE" \
+          --user-data-dir "$(Agent.TempDirectory)/vscode-verify" \
+          --extensions-dir "$(Agent.TempDirectory)/vscode-verify-ext" \
+          --disable-extensions --disable-telemetry --skip-welcome \
+          --skip-release-notes --disable-updates --disable-experiments \
+          --disable-workspace-trust
+        if [ ! -f "$TIMERS_FILE" ]; then
+          echo "ERROR: VS Code failed to start — startup timers were not written."
+          echo "This may indicate a binary was killed by AMFI due to restricted entitlements."
+          exit 1
+        fi
+        echo "Startup timers:"
+        cat "$TIMERS_FILE"
+      timeoutInMinutes: 3
       displayName: Verify signature
 
     - script: |

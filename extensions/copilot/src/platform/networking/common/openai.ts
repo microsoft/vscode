@@ -42,6 +42,7 @@ export interface APIUsage {
 	 */
 	prompt_tokens_details?: {
 		cached_tokens: number;
+		cache_creation_input_tokens?: number;
 	};
 	/**
 	 * Breakdown of tokens used in a completion.
