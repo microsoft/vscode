@@ -309,7 +309,12 @@ export class ProviderCustomizationItemSource implements IAICustomizationItemSour
 		private readonly pathService: IPathService,
 		private readonly itemNormalizer: AICustomizationItemNormalizer,
 	) {
-		const onDidChangeSyncableCustomizations = this.syncProvider
+		// When an itemProvider is present, it is the single source of truth (see fetchItems);
+		// the local syncable enumeration path is not used, so we must not subscribe to syncProvider
+		// or promptsService change events here either. Otherwise, providers that already forward
+		// those underlying events via their own onDidChange would cause duplicate refreshes.
+		const subscribeToSyncableEvents = !this.itemProvider && !!this.syncProvider;
+		const onDidChangeSyncableCustomizations = subscribeToSyncableEvents
 			? Event.any(
 				this.promptsService.onDidChangeCustomAgents,
 				this.promptsService.onDidChangeSlashCommands,
@@ -321,7 +326,7 @@ export class ProviderCustomizationItemSource implements IAICustomizationItemSour
 
 		this.onDidChange = Event.any(
 			this.itemProvider?.onDidChange ?? Event.None,
-			this.syncProvider?.onDidChange ?? Event.None,
+			(subscribeToSyncableEvents && this.syncProvider?.onDidChange) || Event.None,
 			onDidChangeSyncableCustomizations,
 		);
 	}
