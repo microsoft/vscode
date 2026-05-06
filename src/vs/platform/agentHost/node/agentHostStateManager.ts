@@ -237,13 +237,16 @@ export class AgentHostStateManager extends Disposable {
 	}
 
 	/**
-	 * Removes a session from in-memory state without emitting a notification.
+	 * Removes a session from in-memory state without emitting a
+	 * {@link NotificationType.SessionRemoved} notification.
 	 * Use {@link deleteSession} when the session is being permanently deleted
-	 * and clients need to be notified.
+	 * and clients need to be notified of its removal.
 	 *
 	 * Any pending summary change is flushed synchronously before the session is
-	 * torn down so clients receive the final status (e.g. Idle after a turn
+	 * torn down, so clients receive the final status (e.g. Idle after a turn
 	 * completes) even when the session is evicted before the scheduler fires.
+	 * A {@link NotificationType.SessionSummaryChanged} notification may therefore
+	 * be emitted as a side-effect of this call.
 	 */
 	removeSession(session: URI): void {
 		const state = this._sessionStates.get(session);
@@ -285,7 +288,7 @@ export class AgentHostStateManager extends Disposable {
 		// Drop any pending summary diff: the forthcoming SessionRemoved notification
 		// supersedes it and we don't want to emit spurious SessionSummaryChanged
 		// events just before the session disappears from the client's view.
-		this._dirtySummaries.delete(session as unknown as string);
+		this._dirtySummaries.delete(session);
 		this.removeSession(session);
 		if (wasAnnounced) {
 			this._onDidEmitNotification.fire({
