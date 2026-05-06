@@ -343,19 +343,19 @@ describe('ClaudeToolPermissionService', () => {
 				}
 			});
 
-			it('still bypasses when user picks Approve & Bypass with feedback (feedback is dropped)', async () => {
+			it('treats Approve & Bypass + feedback as deny so Claude revises (feedback wins over bypass intent)', async () => {
 				mockToolsService.setReviewPlanResult({
 					rejected: false,
 					actionId: 'approveBypass',
 					action: 'Approve & Bypass Permissions',
-					feedback: 'small nit, looks great',
+					feedback: 'small nit, please fix the typo first',
 				});
 
 				const result = await service.canUseTool(ClaudeToolNames.ExitPlanMode, exitPlanModeInput, createMockContext());
 
-				expect(result.behavior).toBe('allow');
-				if (result.behavior === 'allow') {
-					expect(result.updatedPermissions?.[0]).toMatchObject({ type: 'setMode', mode: 'bypassPermissions' });
+				expect(result.behavior).toBe('deny');
+				if (result.behavior === 'deny') {
+					expect(result.message).toContain('small nit, please fix the typo first');
 				}
 			});
 

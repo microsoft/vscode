@@ -112,16 +112,23 @@ export class ExitPlanModeToolHandler implements IClaudeToolPermissionHandler<Cla
 				};
 			}
 
-			// Bypass-action wins regardless of accompanying feedback: the user
-			// has explicitly opted to skip further permission prompts, so we
-			// honour that and drop any feedback (no SDK affordance to attach
-			// a message to an `allow` result). Plain Approve + feedback below
-			// is treated as deny so Claude revises the plan.
+			// Feedback alongside any approve action wins: the SDK has no
+			// affordance to attach a message to an `allow` result, so we
+			// route through `deny` with the feedback to let Claude revise
+			// the plan. The user can choose bypass again on the revised
+			// plan when they no longer have feedback to add.
 			const feedback = parsed.feedback?.trim();
-			if (parsed.actionId === APPROVE_BYPASS_ID) {
-				if (feedback) {
-					this.logService.info('[ExitPlanMode] User chose Approve & Bypass Permissions with feedback; feedback discarded.');
+			if (feedback) {
+				if (parsed.actionId === APPROVE_BYPASS_ID) {
+					this.logService.info('[ExitPlanMode] User picked Approve & Bypass Permissions with feedback; routing as deny+feedback so Claude revises the plan. Bypass intent will need to be re-selected on the revised plan.');
 				}
+				return {
+					behavior: 'deny',
+					message: `The user has feedback on the plan before proceeding:\n\n${feedback}`,
+				};
+			}
+
+			if (parsed.actionId === APPROVE_BYPASS_ID) {
 				return {
 					behavior: 'allow',
 					updatedInput: input,
@@ -130,15 +137,6 @@ export class ExitPlanModeToolHandler implements IClaudeToolPermissionHandler<Cla
 						mode: 'bypassPermissions',
 						destination: 'session',
 					}],
-				};
-			}
-
-			// Feedback alongside plain approval: treat as deny so Claude
-			// revises the plan rather than silently dropping the input.
-			if (feedback) {
-				return {
-					behavior: 'deny',
-					message: `The user has feedback on the plan before proceeding:\n\n${feedback}`,
 				};
 			}
 
