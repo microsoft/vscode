@@ -150,16 +150,16 @@
 }
 
 /* Single-entry mode: a single "Customizations" sidebar link replaces the
-   per-subtype toolbar list. Reuses .customization-link-button-container /
-   .customization-link-button styles for visual parity with the per-link rows. */
+	per-subtype toolbar list. Reuses .customization-link-button-container /
+	.customization-link-button styles for visual parity with the per-link rows. */
 .ai-customization-toolbar.single-entry {
-padding: 6px 0 10px 0;
+	padding: 6px 0 10px 0;
 }
 
 .ai-customization-toolbar.single-entry .customization-link-button-container {
-width: 100%;
+	width: 100%;
 }
 
 .ai-customization-toolbar.single-entry .customization-link-button {
-width: 100%;
+	width: 100%;
 }
