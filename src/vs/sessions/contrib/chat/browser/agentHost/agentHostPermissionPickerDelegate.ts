@@ -157,4 +157,3 @@ export function isWellKnownModeSchema(schema: SessionConfigPropertySchema): bool
 	}
 	return true;
 }
-

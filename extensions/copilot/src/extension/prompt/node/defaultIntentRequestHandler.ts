@@ -733,9 +733,7 @@ class DefaultToolCallingLoop extends ToolCallingLoop<IDefaultToolLoopOptions> {
 				parentRequestId: this.options.request.parentRequestId,
 				iterationNumber: opts.iterationNumber.toString(),
 			},
-			requestKindOptions: this.options.request.subAgentInvocationId
-				? { kind: 'subagent' }
-				: undefined,
+			interactionTypeOverride: this.options.request.subAgentInvocationId ? 'conversation-subagent' : undefined,
 			enableRetryOnFilter: true
 		}, token);
 	}
@@ -794,8 +792,9 @@ class DefaultToolCallingLoop extends ToolCallingLoop<IDefaultToolLoopOptions> {
 
 		const computePromise = this.toolGrouping.compute(this.options.request.prompt, token);		// Show progress if this takes a moment...
 		const timeout = setTimeout(() => {
-			outputStream?.progress(l10n.t('Optimizing tool selection...'), async () => {
+			outputStream?.progress(l10n.t('Optimizing tool selection'), async () => {
 				await computePromise;
+				return l10n.t('Optimized tool selection');
 			});
 		}, 1000);
 

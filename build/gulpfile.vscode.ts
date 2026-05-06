@@ -714,21 +714,6 @@ BUILD_TARGETS.forEach(buildTarget => {
 
 // #region nls
 
-const innoSetupConfig: Record<string, { codePage: string; defaultInfo?: { name: string; id: string } }> = {
-	'zh-cn': { codePage: 'CP936', defaultInfo: { name: 'Simplified Chinese', id: '$0804', } },
-	'zh-tw': { codePage: 'CP950', defaultInfo: { name: 'Traditional Chinese', id: '$0404' } },
-	'ko': { codePage: 'CP949', defaultInfo: { name: 'Korean', id: '$0412' } },
-	'ja': { codePage: 'CP932' },
-	'de': { codePage: 'CP1252' },
-	'fr': { codePage: 'CP1252' },
-	'es': { codePage: 'CP1252' },
-	'ru': { codePage: 'CP1251' },
-	'it': { codePage: 'CP1252' },
-	'pt-br': { codePage: 'CP1252' },
-	'hu': { codePage: 'CP1250' },
-	'tr': { codePage: 'CP1254' }
-};
-
 gulp.task(task.define(
 	'vscode-translations-export',
 	task.series(
@@ -758,7 +743,7 @@ gulp.task('vscode-translations-import', function () {
 	return es.merge([...i18n.defaultLanguages, ...i18n.extraLanguages].map(language => {
 		const id = language.id;
 		return gulp.src(`${options.location}/${id}/vscode-setup/messages.xlf`)
-			.pipe(i18n.prepareIslFiles(language, innoSetupConfig[language.id]))
+			.pipe(i18n.prepareIslFiles(language))
 			.pipe(vfs.dest(`./build/win32/i18n`));
 	}));
 });

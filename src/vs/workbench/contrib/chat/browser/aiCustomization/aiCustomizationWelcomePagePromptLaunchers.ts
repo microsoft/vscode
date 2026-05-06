@@ -108,7 +108,7 @@ export class PromptLaunchersAICustomizationWelcomePage extends Disposable implem
 
 		// Re-scan whenever the wrapper changes size so the scrollbar reflects
 		// the current overflow state. rebuildCards() scans after content changes.
-		const resizeObserver = this._register(new DOM.DisposableResizeObserver(() => this.scrollable.scanDomNode()));
+		const resizeObserver = this._register(new DOM.DisposableResizeObserver('AICustomizationWelcomePagePromptLaunchers.scrollable', () => this.scrollable.scanDomNode()));
 		this._register(resizeObserver.observe(scrollableNode));
 
 		const welcomeInner = DOM.append(this.container, $('.welcome-prompts-inner'));
@@ -244,6 +244,7 @@ export class PromptLaunchersAICustomizationWelcomePage extends Disposable implem
 			if (category.promptType) {
 				const generateBtn = DOM.append(footer, $('button.welcome-prompts-card-action'));
 				generateBtn.textContent = localize('new', "New...");
+				generateBtn.setAttribute('aria-label', localize('newCategoryAriaLabel', "New {0}...", category.label));
 				this.cardDisposables.add(DOM.addDisposableListener(generateBtn, 'click', e => {
 					e.stopPropagation();
 					this.callbacks.closeEditor();
@@ -257,6 +258,7 @@ export class PromptLaunchersAICustomizationWelcomePage extends Disposable implem
 			} else {
 				const browseBtn = DOM.append(footer, $('button.welcome-prompts-card-action'));
 				browseBtn.textContent = localize('browse', "Browse...");
+				browseBtn.setAttribute('aria-label', localize('browseCategoryAriaLabel', "Browse {0}...", category.label));
 				this.cardDisposables.add(DOM.addDisposableListener(browseBtn, 'click', e => {
 					e.stopPropagation();
 					this.callbacks.selectSectionWithMarketplace(category.id);
