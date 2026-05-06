@@ -19,6 +19,7 @@ import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { INativeHostService } from '../../../../../platform/native/common/native.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 import { TitleBarLeadingActionsGroup } from '../../../../browser/parts/titlebar/titlebarActions.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
@@ -49,7 +50,9 @@ export class OpenWorkspaceInAgentsWindowAction extends Action2 {
 
 	async run(accessor: ServicesAccessor) {
 		const nativeHostService = accessor.get(INativeHostService);
-		await nativeHostService.openAgentsWindow();
+		const workspaceContextService = accessor.get(IWorkspaceContextService);
+		const folderUri = workspaceContextService.getWorkspace().folders[0]?.uri;
+		await nativeHostService.openAgentsWindow({ folderUri });
 	}
 }
 

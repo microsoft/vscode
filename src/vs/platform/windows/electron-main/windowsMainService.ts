@@ -292,11 +292,18 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		this.handleChatRequest(openConfig, [window]);
 	}
 
-	async openAgentsWindow(openConfig: IOpenConfiguration): Promise<ICodeWindow[]> {
+	async openAgentsWindow(openConfig: IOpenConfiguration, folderUri?: URI): Promise<ICodeWindow[]> {
 		this.logService.trace('windowsManager#openAgentsWindow');
 
 		// Open in a new browser window with the agent sessions workspace
-		return this.open(await this.ensureAgentsWindow(openConfig));
+		const windows = await this.open(await this.ensureAgentsWindow(openConfig));
+
+		// Tell the agents window to select the given folder in the new chat workspace picker
+		if (folderUri && windows.length > 0) {
+			windows[0].sendWhenReady('vscode:selectAgentsFolder', CancellationToken.None, folderUri.toJSON());
+		}
+
+		return windows;
 	}
 
 	private async ensureAgentsWindow(openConfig: IOpenConfiguration): Promise<IOpenConfiguration> {
