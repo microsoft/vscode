@@ -1100,15 +1100,48 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		terminalInstance: ITerminalInstance,
 		outputMonitor: { onDidDetectSensitiveInputNeeded: Event<void> },
 		cancelExecution: () => void,
+		onAutoCancelled?: () => void,
 	): IDisposable {
 		const store = new DisposableStore();
 		let pending: { hide: () => void } | undefined;
+		let autoCancelled = false;
 
 		store.add(outputMonitor.onDidDetectSensitiveInputNeeded(() => {
-			if (pending) {
+			if (pending || autoCancelled) {
 				return;
 			}
+			const isAutoApproved = chatSessionResource && isSessionAutoApproveLevel(chatSessionResource, this._configurationService, this._chatWidgetService, this._chatService);
 			const chatModel = chatSessionResource && this._chatService.getSession(chatSessionResource);
+			if (isAutoApproved) {
+				// Autopilot / auto-approve: there is no human in the loop to type
+				// the secret, so we cancel the command and surface a one-shot
+				// informational note. The outer race resolves via the cancelled
+				// executionPromise; onAutoCancelled lets the caller emit a
+				// dedicated steering message in the tool result.
+				autoCancelled = true;
+				if (chatModel instanceof ChatModel) {
+					const request = chatModel.getRequests().at(-1);
+					if (request) {
+						const infoPart = new ChatElicitationRequestPart(
+							new MarkdownString(localize('runInTerminal.sensitiveInput.autoCancelTitle', "Terminal command cancelled — sensitive input required")),
+							new MarkdownString(localize('runInTerminal.sensitiveInput.autoCancelMessage', "The terminal command was prompting for a password or other secret. In auto-approve / autopilot mode there is no way for you to type it safely, so the command has been cancelled. Run the command interactively if you need to provide a secret.")),
+							'',
+							localize('runInTerminal.sensitiveInput.dismiss', "Dismiss"),
+							'',
+							async () => { infoPart.hide(); return ElicitationState.Accepted; },
+							async () => { infoPart.hide(); return ElicitationState.Rejected; },
+							undefined,
+							undefined,
+							undefined,
+							undefined,
+						);
+						chatModel.acceptResponseProgress(request, infoPart);
+					}
+				}
+				onAutoCancelled?.();
+				cancelExecution();
+				return;
+			}
 			if (!(chatModel instanceof ChatModel)) {
 				// No chat surface to attach to — fall back to focusing the
 				// terminal directly so the user is at least not left blocked.
@@ -1346,6 +1379,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		let altBufferResult: IToolResult | undefined;
 		let didTimeout = false;
 		let didInputNeeded = false;
+		let didSensitiveAutoCancelled = false;
 		// Covers both terminals that start as background (persistentSession) and
 		// foreground terminals that later move to background (timeout/continue-in-bg).
 		let isBackgroundExecution = executionOptions.persistentSession;
@@ -1529,6 +1563,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 							toolTerminal.instance,
 							outputMonitor,
 							() => executeCancellation.cancel(),
+							() => { didSensitiveAutoCancelled = true; },
 						));
 					}
 				});
@@ -1829,7 +1864,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				resultText.push(`Note: This terminal execution was moved to the background using the ID ${termId}\n`);
 			}
 		}
-		if (didInputNeeded) {
+		if (didSensitiveAutoCancelled) {
+			resultText.push(`Note: The command in terminal ID ${termId} was prompting for a password, passphrase, or other secret. Auto-approve / autopilot mode cannot safely supply secrets, so the command has been cancelled. Stop and tell the user to run the command interactively if they need to provide a secret — do NOT retry it, do NOT call ${TerminalToolId.SendToTerminal}, and do NOT call vscode_askQuestions for the secret.\n\n`);
+		} else if (didInputNeeded) {
 			resultText.push(`Note: The command is running in terminal ID ${termId} and may be waiting for input.\n${this._buildInputNeededSteeringText(chatSessionResource, termId, /*mentionTimeout*/ false)}\n\n`);
 		} else if (didTimeout && timeoutValue !== undefined && timeoutValue > 0) {
 			const notificationHint = shouldSendNotifications
