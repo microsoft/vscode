@@ -1647,6 +1647,18 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.customizations.structuredPreview.enabled', "Controls whether the Chat Customizations editor shows a structured preview for markdown customization files (agents, skills, instructions, prompts). When disabled, the editor always opens the raw markdown in the embedded code editor."),
 			default: false,
 		},
+		[ChatConfiguration.ChatCustomizationsSidebarOpensWelcome]: {
+			type: 'string',
+			tags: ['preview'],
+			enum: ['welcome', 'section', 'single'],
+			enumDescriptions: [
+				nls.localize('chat.customizations.sidebarOpensWelcome.welcome', "Show one item per customization category. Clicking a category opens the Customizations welcome page."),
+				nls.localize('chat.customizations.sidebarOpensWelcome.section', "Show one item per customization category. Clicking a category deep-links to that category's section in the Customizations editor."),
+				nls.localize('chat.customizations.sidebarOpensWelcome.single', "Show a single \"Customizations\" entry instead of one item per category. Clicking it opens the Customizations welcome page."),
+			],
+			description: nls.localize('chat.customizations.sidebarOpensWelcome', "Controls how the Customizations section in the Agents sidebar is presented and what happens when an entry is clicked."),
+			default: 'welcome',
+		},
 		[ChatConfiguration.UseChatSessionCustomizationsForCustomAgents]: {
 			type: 'boolean',
 			description: nls.localize('chat.customizations.useChatSessionCustomizationsForCustomAgents', "When enabled, custom agents shown in the chat mode picker are sourced from the customization harness service (scoped per session type) instead of the prompts service."),

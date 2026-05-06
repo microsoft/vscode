@@ -29,6 +29,8 @@ import { IEditorService } from '../../../../workbench/services/editor/common/edi
 import { AICustomizationManagementSection } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { ICustomizationHarnessService } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ChatConfiguration, ChatCustomizationsSidebarMode } from '../../../../workbench/contrib/chat/common/constants.js';
 
 export interface ICustomizationItemConfig {
 	readonly id: string;
@@ -240,6 +242,7 @@ export class CustomizationsToolbarContribution extends Disposable implements IWo
 					const editorService = accessor.get(IEditorService);
 					const harnessService = accessor.get(ICustomizationHarnessService);
 					const sessionsManagementService = accessor.get(ISessionsManagementService);
+					const configurationService = accessor.get(IConfigurationService);
 					const activeSessionType = sessionsManagementService.activeSession.get()?.sessionType;
 					if (activeSessionType && harnessService.findHarnessById(activeSessionType)) {
 						harnessService.setActiveHarness(activeSessionType);
@@ -247,7 +250,13 @@ export class CustomizationsToolbarContribution extends Disposable implements IWo
 					const input = AICustomizationManagementEditorInput.getOrCreate();
 					const pane = await editorService.openEditor(input, { pinned: true });
 					if (pane instanceof AICustomizationManagementEditor) {
-						pane.selectSectionById(config.section);
+						const mode = configurationService.getValue<string>(ChatConfiguration.ChatCustomizationsSidebarOpensWelcome);
+						if (mode === ChatCustomizationsSidebarMode.Section) {
+							pane.selectSectionById(config.section);
+						} else {
+							// 'welcome' (default) and 'single' both land on the welcome page.
+							pane.showWelcomePage();
+						}
 					}
 				}
 			}));

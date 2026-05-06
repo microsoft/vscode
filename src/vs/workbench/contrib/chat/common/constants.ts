@@ -67,6 +67,7 @@ export enum ChatConfiguration {
 
 	ChatCustomizationHarnessSelectorEnabled = 'chat.customizations.harnessSelector.enabled',
 	ChatCustomizationsStructuredPreviewEnabled = 'chat.customizations.structuredPreview.enabled',
+	ChatCustomizationsSidebarOpensWelcome = 'chat.customizations.sidebarOpensWelcome',
 	UseChatSessionCustomizationsForCustomAgents = 'chat.customizations.useChatSessionCustomizationsForCustomAgents',
 	AutopilotEnabled = 'chat.autopilot.enabled',
 	DefaultPermissionLevel = 'chat.permissions.default',
@@ -149,6 +150,19 @@ export enum ChatNotificationMode {
 	Off = 'off',
 	WindowNotFocused = 'windowNotFocused',
 	Always = 'always',
+}
+
+/**
+ * Presentation/click behavior for the Customizations section in the Agents sidebar.
+ * See {@link ChatConfiguration.ChatCustomizationsSidebarOpensWelcome}.
+ */
+export enum ChatCustomizationsSidebarMode {
+	/** One item per category; click opens the welcome page. */
+	Welcome = 'welcome',
+	/** One item per category; click deep-links to that category. */
+	Section = 'section',
+	/** A single "Customizations" entry that opens the welcome page. */
+	Single = 'single',
 }
 
 export type RawChatParticipantLocation = 'panel' | 'terminal' | 'notebook' | 'editing-session';
