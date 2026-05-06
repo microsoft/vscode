@@ -751,7 +751,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			// Strip the multiplier suffix (e.g. " · 3x" or " • 3x") to show only the model name
 			const details = element.result.details.replace(/\s*[·•]\s*\d+(\.\d+)?x\s*$/i, '');
 			const aics = computeMockTurnAICs(element.id);
-			templateData.footerDetailsContainer.textContent = `${details} · ${aics.toFixed(2)} AICs`;
+			templateData.footerDetailsContainer.textContent = `${details} · ${aics.toFixed(1)} Credits`;
 			templateData.footerDetailsContainer.classList.remove('hidden');
 		} else {
 			templateData.footerDetailsContainer.classList.add('hidden');

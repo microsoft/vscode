@@ -240,45 +240,53 @@
 .copilot-prototype-dashboard-collapsible-header {
 	display: flex;
 	align-items: center;
-	gap: 5px;
+	gap: 6px;
+	width: 100%;
 	cursor: pointer;
-	margin-top: 8px;
-	margin-left: -12px;
-	margin-right: -12px;
-	padding: 7px 12px 5px;
-	color: var(--vscode-descriptionForeground);
-	font-size: 11px;
-	font-weight: 600;
-	border-top: 1px solid var(--vscode-editorWidget-border, rgba(255,255,255,0.1));
+	padding: 6px 0;
+	border: none;
+	border-top: 1px solid var(--vscode-editorWidget-border);
+	background: none;
+	color: var(--vscode-foreground);
+	font-size: 13px;
+	font-family: inherit;
+	font-weight: 400;
 	user-select: none;
 	-webkit-user-select: none;
 }
 
-.copilot-prototype-dashboard-collapsible-header:hover {
-	color: var(--vscode-foreground);
+.copilot-prototype-dashboard-collapsible-header:focus {
+	outline: none;
+}
+
+.copilot-prototype-dashboard-collapsible-header:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
 }
 
 .copilot-prototype-dashboard-collapsible-chevron {
 	display: flex;
 	align-items: center;
 	flex-shrink: 0;
-	font-size: 11px;
-	transition: transform 0.15s ease;
-}
-
-.copilot-prototype-dashboard-collapsible-chevron.expanded {
-	transform: rotate(90deg);
+	font-size: 12px;
+	opacity: 0.7;
+	margin-top: 2px;
 }
 
 .copilot-prototype-dashboard-collapsible-label {
-	flex: 1;
+	white-space: nowrap;
+	flex-shrink: 0;
 }
 
 .copilot-prototype-dashboard-collapsible-badge {
-	font-size: 10px;
-	color: var(--vscode-descriptionForeground);
 	margin-left: auto;
-	opacity: 0.8;
+	font-size: 12px;
+	font-weight: 400;
+	color: var(--vscode-descriptionForeground);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	min-width: 0;
 }
 
 .copilot-prototype-dashboard-collapsible-content {

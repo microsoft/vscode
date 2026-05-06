@@ -10,6 +10,7 @@ import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/icon
 import { Checkbox } from '../../../../base/browser/ui/toggle/toggle.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { localize, localize2 } from '../../../../nls.js';
@@ -1919,17 +1920,20 @@ export class CopilotPrototypeShellCoinStatusBarContribution extends Disposable i
 	}
 
 	private renderCollapsibleQuickSettings(container: HTMLElement, disposables: DisposableStore): void {
-		const collapsibleHeader = append(container, $('div.copilot-prototype-dashboard-collapsible-header'));
-		const chevronEl = append(collapsibleHeader, $('span.copilot-prototype-dashboard-collapsible-chevron'));
-		chevronEl.append(...renderLabelWithIcons('$(chevron-right)'));
+		const collapsibleHeader = append(container, $('button.copilot-prototype-dashboard-collapsible-header'));
+		collapsibleHeader.setAttribute('aria-expanded', 'false');
 		append(collapsibleHeader, $('span.copilot-prototype-dashboard-collapsible-label')).textContent = localize('tab.quickSettings', "Quick Settings");
+		const chevronEl = append(collapsibleHeader, $('span.copilot-prototype-dashboard-collapsible-chevron'));
+		chevronEl.classList.add(...ThemeIcon.asClassNameArray(Codicon.chevronRight));
 
 		const collapsibleContent = append(container, $('div.copilot-prototype-dashboard-collapsible-content'));
 		this.renderInlineTab(collapsibleContent, disposables, '', '');
 
 		collapsibleHeader.addEventListener('click', () => {
 			const isExpanded = collapsibleContent.classList.toggle('expanded');
-			chevronEl.classList.toggle('expanded', isExpanded);
+			chevronEl.className = 'copilot-prototype-dashboard-collapsible-chevron';
+			chevronEl.classList.add(...ThemeIcon.asClassNameArray(isExpanded ? Codicon.chevronDown : Codicon.chevronRight));
+			collapsibleHeader.setAttribute('aria-expanded', String(isExpanded));
 		});
 	}
 
@@ -2628,17 +2632,20 @@ export class CopilotCurrentModelStatusBarContribution extends Disposable impleme
 	}
 
 	private renderCollapsibleQuickSettings(container: HTMLElement, disposables: DisposableStore): void {
-		const collapsibleHeader = append(container, $('div.copilot-prototype-dashboard-collapsible-header'));
-		const chevronEl = append(collapsibleHeader, $('span.copilot-prototype-dashboard-collapsible-chevron'));
-		chevronEl.append(...renderLabelWithIcons('$(chevron-right)'));
+		const collapsibleHeader = append(container, $('button.copilot-prototype-dashboard-collapsible-header'));
+		collapsibleHeader.setAttribute('aria-expanded', 'false');
 		append(collapsibleHeader, $('span.copilot-prototype-dashboard-collapsible-label')).textContent = localize('tab.quickSettings', "Quick Settings");
+		const chevronEl = append(collapsibleHeader, $('span.copilot-prototype-dashboard-collapsible-chevron'));
+		chevronEl.classList.add(...ThemeIcon.asClassNameArray(Codicon.chevronRight));
 
 		const collapsibleContent = append(container, $('div.copilot-prototype-dashboard-collapsible-content'));
 		this.renderInlineTab(collapsibleContent, disposables, '');
 
 		collapsibleHeader.addEventListener('click', () => {
 			const isExpanded = collapsibleContent.classList.toggle('expanded');
-			chevronEl.classList.toggle('expanded', isExpanded);
+			chevronEl.className = 'copilot-prototype-dashboard-collapsible-chevron';
+			chevronEl.classList.add(...ThemeIcon.asClassNameArray(isExpanded ? Codicon.chevronDown : Codicon.chevronRight));
+			collapsibleHeader.setAttribute('aria-expanded', String(isExpanded));
 		});
 	}
 
@@ -3292,12 +3299,13 @@ export class CopilotTBB3StatusBarContribution extends Disposable implements IWor
 	}
 
 	private renderCollapsibleWorkspaceIndex(container: HTMLElement): void {
-		const collapsibleHeader = append(container, $('div.copilot-prototype-dashboard-collapsible-header'));
+		const collapsibleHeader = append(container, $('button.copilot-prototype-dashboard-collapsible-header'));
+		collapsibleHeader.setAttribute('aria-expanded', 'false');
+		append(collapsibleHeader, $('span.copilot-prototype-dashboard-collapsible-label')).textContent = localize('wsIndexSection', "Codebase Semantic Index");
 		const chevronEl = append(collapsibleHeader, $('span.copilot-prototype-dashboard-collapsible-chevron'));
-		chevronEl.append(...renderLabelWithIcons('$(chevron-right)'));
-		append(collapsibleHeader, $('span.copilot-prototype-dashboard-collapsible-label')).textContent = localize('wsIndexSection', "Workspace Index");
+		chevronEl.classList.add(...ThemeIcon.asClassNameArray(Codicon.chevronRight));
 		const statusBadge = append(collapsibleHeader, $('span.copilot-prototype-dashboard-collapsible-badge'));
-		statusBadge.textContent = localize('wsIndexReady', "Ready");
+		statusBadge.append(...renderLabelWithIcons('$(check) ' + localize('wsIndexReady', "Index ready")));
 
 		const collapsibleContent = append(container, $('div.copilot-prototype-dashboard-collapsible-content'));
 
@@ -3309,16 +3317,18 @@ export class CopilotTBB3StatusBarContribution extends Disposable implements IWor
 
 		collapsibleHeader.addEventListener('click', () => {
 			const isExpanded = collapsibleContent.classList.toggle('expanded');
-			chevronEl.classList.toggle('expanded', isExpanded);
+			chevronEl.className = 'copilot-prototype-dashboard-collapsible-chevron';
+			chevronEl.classList.add(...ThemeIcon.asClassNameArray(isExpanded ? Codicon.chevronDown : Codicon.chevronRight));
+			collapsibleHeader.setAttribute('aria-expanded', String(isExpanded));
 		});
 	}
 
 	private renderCollapsibleQuickSettings(container: HTMLElement, disposables: DisposableStore): void {
-		const collapsibleHeader = append(container, $('div.copilot-prototype-dashboard-collapsible-header'));
+		const collapsibleHeader = append(container, $('button.copilot-prototype-dashboard-collapsible-header'));
+		collapsibleHeader.setAttribute('aria-expanded', 'false');
+		append(collapsibleHeader, $('span.copilot-prototype-dashboard-collapsible-label')).textContent = localize('tab.inlineSuggestionsSettings', "Inline Suggestions");
 		const chevronEl = append(collapsibleHeader, $('span.copilot-prototype-dashboard-collapsible-chevron'));
-		chevronEl.append(...renderLabelWithIcons('$(chevron-right)'));
-		const headerLeft = append(collapsibleHeader, $('span.copilot-prototype-dashboard-collapsible-label'));
-		headerLeft.textContent = localize('tab.inlineSuggestionsSettings', "Inline Suggestions");
+		chevronEl.classList.add(...ThemeIcon.asClassNameArray(Codicon.chevronRight));
 		const enabledBadge = append(collapsibleHeader, $('span.copilot-prototype-dashboard-collapsible-badge'));
 		enabledBadge.textContent = localize('enabled', "Enabled");
 
@@ -3366,7 +3376,9 @@ export class CopilotTBB3StatusBarContribution extends Disposable implements IWor
 
 		collapsibleHeader.addEventListener('click', () => {
 			const isExpanded = collapsibleContent.classList.toggle('expanded');
-			chevronEl.classList.toggle('expanded', isExpanded);
+			chevronEl.className = 'copilot-prototype-dashboard-collapsible-chevron';
+			chevronEl.classList.add(...ThemeIcon.asClassNameArray(isExpanded ? Codicon.chevronDown : Codicon.chevronRight));
+			collapsibleHeader.setAttribute('aria-expanded', String(isExpanded));
 		});
 	}
 
@@ -3638,11 +3650,9 @@ class CopilotPrototypeCoinViewPane extends ViewPane {
 		this.contentDisposables.clear();
 		container.textContent = '';
 
-		const tbbInstance = CopilotPrototypeShellCoinStatusBarContribution.instance;
-		const currentInstance = CopilotCurrentModelStatusBarContribution.instance;
 		const tbb3Instance = CopilotTBB3StatusBarContribution.instance;
 
-		if (!tbbInstance || !currentInstance || !tbb3Instance) {
+		if (!tbb3Instance) {
 			const msg = mainWindow.document.createElement('div');
 			msg.style.padding = '12px';
 			msg.style.color = 'var(--vscode-descriptionForeground)';
@@ -3652,56 +3662,8 @@ class CopilotPrototypeCoinViewPane extends ViewPane {
 			return;
 		}
 
-		// Top-level toggle: TBB | Current | TBB 3.0
-		const topTabs = mainWindow.document.createElement('div');
-		topTabs.className = 'copilot-prototype-coin-tabs';
-		topTabs.style.marginBottom = '4px';
-
-		const tbbTab = mainWindow.document.createElement('div');
-		tbbTab.className = 'copilot-prototype-coin-tab active';
-		tbbTab.textContent = localize('tabTBB', "Token Based Billing");
-		tbbTab.tabIndex = 0;
-		tbbTab.role = 'tab';
-
-		const currentTab = mainWindow.document.createElement('div');
-		currentTab.className = 'copilot-prototype-coin-tab';
-		currentTab.textContent = localize('tabCurrent', "Current Model");
-		currentTab.tabIndex = 0;
-		currentTab.role = 'tab';
-
-		const tbb3Tab = mainWindow.document.createElement('div');
-		tbb3Tab.className = 'copilot-prototype-coin-tab';
-		tbb3Tab.textContent = localize('tabTBB3', "Token Based Billing 3.0");
-		tbb3Tab.tabIndex = 0;
-		tbb3Tab.role = 'tab';
-
-		topTabs.append(tbbTab, currentTab, tbb3Tab);
-		container.appendChild(topTabs);
-
-		const tbbContainer = mainWindow.document.createElement('div');
-		const currentContainer = mainWindow.document.createElement('div');
-		currentContainer.style.display = 'none';
-		const tbb3Container = mainWindow.document.createElement('div');
-		tbb3Container.style.display = 'none';
-
-		tbbInstance.renderController(tbbContainer, this.contentDisposables);
-		currentInstance.renderController(currentContainer, this.contentDisposables);
-		tbb3Instance.renderController(tbb3Container, this.contentDisposables);
-
-		container.append(tbbContainer, currentContainer, tbb3Container);
-
-		const activate = (mode: 'token-based' | 'current-model' | 'tbb-3.0') => {
-			tbbTab.classList.toggle('active', mode === 'token-based');
-			currentTab.classList.toggle('active', mode === 'current-model');
-			tbb3Tab.classList.toggle('active', mode === 'tbb-3.0');
-			tbbContainer.style.display = mode === 'token-based' ? '' : 'none';
-			currentContainer.style.display = mode === 'current-model' ? '' : 'none';
-			tbb3Container.style.display = mode === 'tbb-3.0' ? '' : 'none';
-			tbbInstance.setBillingMode(mode);
-		};
-		tbbTab.addEventListener('click', () => activate('token-based'));
-		currentTab.addEventListener('click', () => activate('current-model'));
-		tbb3Tab.addEventListener('click', () => activate('tbb-3.0'));
+		tbb3Instance.renderController(container, this.contentDisposables);
+		tbb3Instance.setBillingMode('tbb-3.0');
 	}
 
 	protected override layoutBody(height: number, width: number): void {
@@ -3712,7 +3674,7 @@ class CopilotPrototypeCoinViewPane extends ViewPane {
 // Register view container in sidebar
 const coinViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
 	id: COIN_VIEW_CONTAINER_ID,
-	title: localize2('prototypeCoin', "Token Based Billing"),
+	title: localize2('prototypeCoin', "Usage Based Billing"),
 	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [COIN_VIEW_CONTAINER_ID, { mergeViewWithContainerWhenSingleView: true }]),
 	icon: Codicon.dashboard,
 	order: 100,
@@ -3721,7 +3683,7 @@ const coinViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExte
 // Register the view inside the container
 Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews([{
 	id: COIN_VIEW_ID,
-	name: localize2('prototypeCoinView', "Controller"),
+	name: localize2('prototypeCoinView', "Usage Based Billing"),
 	ctorDescriptor: new SyncDescriptor(CopilotPrototypeCoinViewPane),
 	canToggleVisibility: true,
 	canMoveView: true,

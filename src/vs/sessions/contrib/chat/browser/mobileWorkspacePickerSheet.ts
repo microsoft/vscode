@@ -129,7 +129,10 @@ function descriptionToString(value: IActionListItem<IWorkspacePickerItem>['descr
 	if (isString(value)) {
 		return value;
 	}
-	return value.value;
+	if ('value' in value) {
+		return value.value;
+	}
+	return undefined;
 }
 
 /**

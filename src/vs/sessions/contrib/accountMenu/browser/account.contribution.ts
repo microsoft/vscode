@@ -47,7 +47,6 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 // --- Account Menu Items --- //
 const AccountMenu = Menus.AccountMenu;
 const SessionsTitleBarAccountWidgetAction = 'sessions.action.titleBarAccountWidget';
-const SessionsTitleBarUpdateWidgetAction = 'sessions.action.titleBarUpdateWidget';
 const SessionsTitleBarTBBWidgetAction = 'sessions.action.titleBarTBBWidget';
 const SESSIONS_ACCOUNT_TITLEBAR_PANEL_WIDTH = 360;
 
@@ -793,11 +792,9 @@ class TitleBarTBBWidget extends BaseActionViewItem {
 		panel.style.padding = '8px';
 		panel.style.minWidth = '300px';
 
-		const tbbInstance = CopilotPrototypeShellCoinStatusBarContribution.instance;
-		const currentInstance = CopilotCurrentModelStatusBarContribution.instance;
 		const tbb3Instance = CopilotTBB3StatusBarContribution.instance;
 
-		if (!tbbInstance || !currentInstance || !tbb3Instance) {
+		if (!tbb3Instance) {
 			const msg = $('div');
 			msg.style.padding = '12px';
 			msg.style.color = 'var(--vscode-descriptionForeground)';
@@ -806,131 +803,10 @@ class TitleBarTBBWidget extends BaseActionViewItem {
 			return panel;
 		}
 
-		// Top-level toggle: TBB | Current | TBB 3.0
-		const topTabs = $('div.copilot-prototype-coin-tabs');
-		topTabs.style.marginBottom = '4px';
-
-		const tbbTab = $('div.copilot-prototype-coin-tab.active');
-		tbbTab.textContent = localize('tabTBB', "Token Based Billing");
-		tbbTab.tabIndex = 0;
-		tbbTab.role = 'tab';
-
-		const currentTab = $('div.copilot-prototype-coin-tab');
-		currentTab.textContent = localize('tabCurrent', "Current Model");
-		currentTab.tabIndex = 0;
-		currentTab.role = 'tab';
-
-		const tbb3Tab = $('div.copilot-prototype-coin-tab');
-		tbb3Tab.textContent = localize('tabTBB3', "Token Based Billing 3.0");
-		tbb3Tab.tabIndex = 0;
-		tbb3Tab.role = 'tab';
-
-		topTabs.append(tbbTab, currentTab, tbb3Tab);
-		panel.appendChild(topTabs);
-
-		const tbbContainer = $('div');
-		const currentContainer = $('div');
-		currentContainer.style.display = 'none';
-		const tbb3Container = $('div');
-		tbb3Container.style.display = 'none';
-
-		tbbInstance.renderController(tbbContainer, panelStore);
-		currentInstance.renderController(currentContainer, panelStore);
-		tbb3Instance.renderController(tbb3Container, panelStore);
-
-		panel.append(tbbContainer, currentContainer, tbb3Container);
-
-		const activate = (mode: 'token-based' | 'current-model' | 'tbb-3.0') => {
-			tbbTab.classList.toggle('active', mode === 'token-based');
-			currentTab.classList.toggle('active', mode === 'current-model');
-			tbb3Tab.classList.toggle('active', mode === 'tbb-3.0');
-			tbbContainer.style.display = mode === 'token-based' ? '' : 'none';
-			currentContainer.style.display = mode === 'current-model' ? '' : 'none';
-			tbb3Container.style.display = mode === 'tbb-3.0' ? '' : 'none';
-			tbbInstance.setBillingMode(mode);
-		};
-		tbbTab.addEventListener('click', () => activate('token-based'));
-		currentTab.addEventListener('click', () => activate('current-model'));
-		tbb3Tab.addEventListener('click', () => activate('tbb-3.0'));
+		tbb3Instance.renderController(panel, panelStore);
+		tbb3Instance.setBillingMode('tbb-3.0');
 
 		return panel;
-	}
-}
-
-class TitleBarUpdateWidget extends BaseActionViewItem {
-
-	private container: HTMLElement | undefined;
-	private labelElement: HTMLElement | undefined;
-	private readonly updateHoverWidget: UpdateHoverWidget;
-	private readonly hoverAttachment = this._register(new MutableDisposable());
-
-	constructor(
-		action: IAction,
-		options: IBaseActionViewItemOptions | undefined,
-		@IUpdateService private readonly updateService: IUpdateService,
-		@IHoverService private readonly hoverService: IHoverService,
-		@IProductService private readonly productService: IProductService,
-		@IOpenerService private readonly openerService: IOpenerService,
-		@IDialogService private readonly dialogService: IDialogService,
-		@IHostService private readonly hostService: IHostService,
-	) {
-		super(undefined, action, options);
-		this.updateHoverWidget = new UpdateHoverWidget(this.updateService, this.productService, this.hoverService);
-		this._register(this.updateService.onStateChange(() => this.renderState()));
-	}
-
-	override render(container: HTMLElement): void {
-		super.render(container);
-
-		this.container = container;
-		container.classList.add('sessions-update-titlebar-widget');
-		container.setAttribute('role', 'button');
-
-		this.labelElement = append(container, $('span.sessions-update-titlebar-widget-label'));
-		this.hoverAttachment.value = this.updateHoverWidget.attachTo(container);
-
-		this.renderState();
-	}
-
-	override onClick(): void {
-		const state = this.updateService.state;
-		if (shouldHideSessionsTitleBarUpdateWidget(state.type) || isBusySessionsTitleBarUpdateWidget(state.type)) {
-			return;
-		}
-
-		void runSessionsUpdateAction(
-			state,
-			this.updateService,
-			this.openerService,
-			this.productService,
-			this.dialogService,
-			this.hostService,
-		);
-	}
-
-	private renderState(): void {
-		if (!this.container || !this.labelElement) {
-			return;
-		}
-
-		const state = this.updateService.state;
-		const hidden = shouldHideSessionsTitleBarUpdateWidget(state.type);
-		const busy = isBusySessionsTitleBarUpdateWidget(state.type);
-		const primary = isPrimarySessionsTitleBarUpdateWidget(state.type);
-
-		this.container.classList.toggle('hidden', hidden);
-		this.container.classList.toggle('disabled', busy);
-		this.container.classList.toggle('primary-state', primary);
-		this.container.classList.toggle('busy-state', busy);
-
-		if (hidden) {
-			this.container.removeAttribute('aria-label');
-			this.labelElement.textContent = '';
-			return;
-		}
-
-		this.container.setAttribute('aria-label', getSessionsTitleBarUpdateAriaLabel(state));
-		this.labelElement.textContent = getSessionsTitleBarUpdateLabel(state);
 	}
 }
 
@@ -986,10 +862,6 @@ class AccountWidgetContribution extends Disposable implements IWorkbenchContribu
 		// TBB Simulator widget (dashboard icon, left of update and account)
 		this._register(actionViewItemService.register(Menus.TitleBarRightLayout, SessionsTitleBarTBBWidgetAction, (action, options) => {
 			return instantiationService.createInstance(TitleBarTBBWidget, action, options);
-		}, undefined));
-
-		this._register(actionViewItemService.register(Menus.TitleBarRightLayout, SessionsTitleBarUpdateWidgetAction, (action, options) => {
-			return instantiationService.createInstance(TitleBarUpdateWidget, action, options);
 		}, undefined));
 
 		this._register(actionViewItemService.register(Menus.TitleBarRightLayout, SessionsTitleBarAccountWidgetAction, (action, options) => {
