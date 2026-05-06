@@ -1177,6 +1177,54 @@ suite('ChatService', () => {
 		]);
 	});
 
+	test('sendRequest with agentIdSilent passes agent host session capabilities to the request parser', async () => {
+		const sessionType = 'agent-host-copilot';
+		const sessionResource = URI.from({ scheme: sessionType, path: '/session-silent' });
+
+		const mockSessionsService = new MockChatSessionsService();
+		mockSessionsService.setContributions([{
+			type: sessionType,
+			name: 'Agent Host',
+			displayName: 'Agent Host',
+			description: 'Agent Host',
+			capabilities: { supportsPromptAttachments: true },
+		}]);
+		testDisposables.add(mockSessionsService.registerChatSessionContentProvider(sessionType, {
+			provideChatSessionContent: resource => Promise.resolve({
+				sessionResource: resource,
+				history: [],
+				onWillDispose: Event.None,
+				dispose: () => { },
+			}),
+		}));
+		instantiationService.stub(IChatSessionsService, mockSessionsService);
+
+		const promptsService = mockObject<IPromptsService>()({ _serviceBrand: undefined });
+		promptsService.isValidSlashCommandName.callsFake((command: string) => command === 'skill');
+		instantiationService.stub(IPromptsService, promptsService);
+
+		testDisposables.add(chatAgentService.registerAgent(sessionType, { ...getAgentData(sessionType), isDefault: true }));
+		testDisposables.add(chatAgentService.registerAgentImplementation(sessionType, { async invoke() { return {}; } }));
+
+		const testService = createChatService();
+		const ref = await testService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
+		assert.ok(ref);
+		testDisposables.add(ref);
+
+		const response = await testService.sendRequest(sessionResource, '/skill plan', { agentIdSilent: sessionType });
+		ChatSendResult.assertSent(response);
+		await response.data.responseCompletePromise;
+
+		const model = testService.getSession(sessionResource) as ChatModel;
+		assert.deepStrictEqual(model.getRequests()[0].message.parts.map(part => ({
+			type: part.constructor.name,
+			text: part instanceof ChatRequestSlashPromptPart ? part.name : undefined,
+		})), [
+			{ type: 'ChatRequestSlashPromptPart', text: 'skill' },
+			{ type: 'ChatRequestTextPart', text: undefined },
+		]);
+	});
+
 	test('loadRemoteSession passes agent host session capabilities to the request parser', async () => {
 		const sessionType = 'agent-host-copilot';
 		const sessionResource = URI.from({ scheme: sessionType, path: '/session-with-history' });
