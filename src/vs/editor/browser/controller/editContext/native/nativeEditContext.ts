@@ -92,10 +92,7 @@ export class NativeEditContext extends AbstractEditContext {
 		this._imeTextArea.setAttribute('readonly', 'true');
 		this._imeTextArea.setAttribute('tabindex', '-1');
 		this._imeTextArea.setAttribute('aria-hidden', 'true');
-		this.domNode.setAttribute('autocorrect', 'off');
-		this.domNode.setAttribute('autocapitalize', 'off');
 		this.domNode.setAttribute('autocomplete', 'off');
-		this.domNode.setAttribute('spellcheck', 'false');
 
 		this._updateDomAttributes();
 
@@ -409,6 +406,10 @@ export class NativeEditContext extends AbstractEditContext {
 	private _updateDomAttributes(): void {
 		const options = this._context.configuration.options;
 		this.domNode.domNode.setAttribute('tabindex', String(options.get(EditorOption.tabIndex)));
+		const inputAids = options.get(EditorOption.inputAids);
+		this.domNode.setAttribute('autocorrect', inputAids ? 'on' : 'off');
+		this.domNode.setAttribute('autocapitalize', inputAids ? 'on' : 'off');
+		this.domNode.setAttribute('spellcheck', inputAids ? 'true' : 'false');
 	}
 
 	private _updateEditContext(): void {
