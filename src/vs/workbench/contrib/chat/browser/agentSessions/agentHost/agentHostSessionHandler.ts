@@ -345,11 +345,6 @@ export function getAgentHostBranchNameHint(message: string): string | undefined 
 	return hint.length > 0 ? hint : undefined;
 }
 
-let _optionGroupsHandleCounter = 0;
-function nextOptionGroupsHandle(): number {
-	return ++_optionGroupsHandleCounter;
-}
-
 export class AgentHostSessionHandler extends Disposable implements IChatSessionContentProvider {
 
 	private readonly _activeSessions = new ResourceMap<AgentHostChatSession>();
@@ -368,8 +363,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	/** Active session subscriptions, keyed by backend session URI string. */
 	private readonly _sessionSubscriptions = new Map<string, IReference<IAgentSubscription<SessionState>>>();
 
-	/** Stable handle paired with `setOptionGroupsForSessionType` register/clear. */
-	private readonly _optionGroupsHandle = nextOptionGroupsHandle();
 	/** Fingerprint of the last published `mode` schema, for republish dedupe. Cleared by {@link resetOptionGroupsCache}. */
 	private _lastPublishedModeSchemaFingerprint: string | undefined;
 
@@ -476,7 +469,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// input doesn't keep advertising it after the agent provider is
 		// torn down.
 		this._register(toDisposable(() => {
-			this._chatSessionsService.setOptionGroupsForSessionType(config.sessionType, this._optionGroupsHandle, undefined);
+			this._chatSessionsService.setOptionGroupsForSessionType(config.sessionType, 0, undefined);
 		}));
 
 		// When the customizations observable changes, re-dispatch
@@ -977,15 +970,16 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 * inbound listener registered in the constructor.
 	 */
 	private _watchSessionConfig(backendSession: URI, sessionResource: URI): void {
-		// Replace any prior watcher for this session so repeated calls
-		// (e.g. resolve + first request) don't accumulate listeners.
+		// Install at most once per session. Repeated calls (e.g. resolve +
+		// first request) are no-ops; the watcher is torn down with the
+		// session via `_sessionConfigWatchers.deleteAndDispose`.
 		if (this._sessionConfigWatchers.has(sessionResource)) {
 			return;
 		}
 		const sub = this._ensureSessionSubscription(backendSession.toString());
 		const clearPublishedGroup = () => {
 			if (this._lastPublishedModeSchemaFingerprint !== undefined) {
-				this._chatSessionsService.setOptionGroupsForSessionType(this._config.sessionType, this._optionGroupsHandle, undefined);
+				this._chatSessionsService.setOptionGroupsForSessionType(this._config.sessionType, 0, undefined);
 				this._lastPublishedModeSchemaFingerprint = undefined;
 			}
 		};
@@ -1003,7 +997,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			// Republish only when the schema changed (avoid event noise).
 			const fingerprint = getModeSchemaFingerprint(schema!);
 			if (fingerprint !== this._lastPublishedModeSchemaFingerprint) {
-				this._chatSessionsService.setOptionGroupsForSessionType(this._config.sessionType, this._optionGroupsHandle, [group]);
+				this._chatSessionsService.setOptionGroupsForSessionType(this._config.sessionType, 0, [group]);
 				this._lastPublishedModeSchemaFingerprint = fingerprint;
 			}
 
@@ -1046,6 +1040,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const state = this._getSessionState(backendSession.toString());
 		const schema = state?.config?.schema?.properties?.[SessionConfigKey.Mode];
 		if (!schema || schema.sessionMutable !== true || schema.readOnly === true) {
+			return;
+		}
+		// Reject values not in the schema enum so arbitrary programmatic
+		// `setSessionOption` writes can't smuggle bad input to the agent.
+		if (!Array.isArray(schema.enum) || !schema.enum.includes(newValue)) {
 			return;
 		}
 		const currentValue = state?.config?.values?.[SessionConfigKey.Mode];
