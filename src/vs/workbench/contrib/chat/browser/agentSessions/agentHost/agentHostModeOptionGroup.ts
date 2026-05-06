@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { ThemeIcon } from '../../../../../../base/common/themables.js';
+import type { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { isWellKnownModeSchema, SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
-import { SessionConfigPropertySchema } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem } from '../../../common/chatSessionsService.js';
+import type { SessionConfigPropertySchema } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
+import type { IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem } from '../../../common/chatSessionsService.js';
 
 // export { isWellKnownModeSchema };
 
