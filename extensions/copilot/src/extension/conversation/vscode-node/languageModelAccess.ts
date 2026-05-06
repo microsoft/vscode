@@ -16,7 +16,7 @@ import { IEndpointProvider } from '../../../platform/endpoint/common/endpointPro
 import { CustomDataPartMimeTypes } from '../../../platform/endpoint/common/endpointTypes';
 import { ModelAliasRegistry } from '../../../platform/endpoint/common/modelAliasRegistry';
 import { encodeStatefulMarker } from '../../../platform/endpoint/common/statefulMarkerContainer';
-import { isGeminiFamily } from '../../../platform/endpoint/common/chatModelCapabilities';
+import { isAnthropicFamily, isGeminiFamily } from '../../../platform/endpoint/common/chatModelCapabilities';
 import { AutoChatEndpoint } from '../../../platform/endpoint/node/autoChatEndpoint';
 import { IAutomodeService } from '../../../platform/endpoint/node/automodeService';
 import { IEnvService, isScenarioAutomation } from '../../../platform/env/common/envService';
@@ -55,12 +55,33 @@ const experimentalAutoModelHintMarkers = ['minimax', 'mp3yn0h7', 'yaqq2gxh'];
  * Models that support reasoning_effort get a "Thinking Effort" dropdown in the model picker UI.
  */
 /**
- * Returns true if the endpoint is an opus model with a 1M context variant
- * (e.g. claude-opus-4.6-1m).
+ * Returns the available context size options for a model, or undefined if the
+ * model does not support configurable context sizes.
+ *
+ * For opus models with a large context window (>= 900K tokens), offers a
+ * standard 200K option and the model's full context size.
  */
-function isOpus1MModel(endpoint: IChatEndpoint): boolean {
-	const model = endpoint.model.toLowerCase();
-	return model.includes('opus') && model.includes('1m');
+function getContextSizeOptions(endpoint: IChatEndpoint): { value: number; description: string; isDefault: boolean }[] | undefined {
+	const maxTokens = endpoint.modelMaxPromptTokens;
+
+	// Claude Opus models with a large context window (~1M or more) get a 200K/full toggle
+	if (isAnthropicFamily(endpoint) && endpoint.family.startsWith('claude-opus') && maxTokens >= 900_000) {
+		return [
+			{ value: 200_000, description: vscode.l10n.t('Standard context window'), isDefault: true },
+			{ value: maxTokens, description: vscode.l10n.t('Larger context window, long conversations may incur significant costs'), isDefault: false },
+		];
+	}
+
+	return undefined;
+}
+
+function formatTokenCount(count: number): string {
+	if (count >= 1_000_000) {
+		return `${(count / 1_000_000).toFixed(1)}M`;
+	} else if (count >= 1000) {
+		return `${(count / 1000).toFixed(0)}K`;
+	}
+	return count.toString();
 }
 
 function buildConfigurationSchema(endpoint: IChatEndpoint): { configurationSchema?: vscode.LanguageModelConfigurationSchema } {
@@ -77,10 +98,10 @@ function buildConfigurationSchema(endpoint: IChatEndpoint): { configurationSchem
 	const properties: Record<string, {
 		type: string;
 		title: string;
-		enum: readonly string[];
+		enum: readonly (string | number)[];
 		enumItemLabels: string[];
 		enumDescriptions: string[];
-		default?: string;
+		default?: string | number;
 		group: string;
 	}> = {};
 
@@ -114,19 +135,17 @@ function buildConfigurationSchema(endpoint: IChatEndpoint): { configurationSchem
 		};
 	}
 
-	// Context size config for opus 1M models
-	if (isOpus1MModel(endpoint)) {
-		const contextSizes = ['200000', '1000000'] as const;
+	// Context size config
+	const contextSizeOptions = getContextSizeOptions(endpoint);
+	if (contextSizeOptions) {
+		const defaultOption = contextSizeOptions.find(o => o.isDefault);
 		properties.contextSize = {
-			type: 'string',
+			type: 'number',
 			title: vscode.l10n.t('Context Size'),
-			enum: contextSizes,
-			enumItemLabels: ['200K', '1M'],
-			enumDescriptions: [
-				vscode.l10n.t('Standard context window'),
-				vscode.l10n.t('Larger context window, may increase cost'),
-			],
-			default: '200000',
+			enum: contextSizeOptions.map(o => o.value),
+			enumItemLabels: contextSizeOptions.map(o => formatTokenCount(o.value)),
+			enumDescriptions: contextSizeOptions.map(o => o.description),
+			default: defaultOption?.value,
 			group: 'tokens',
 		};
 	}
@@ -237,14 +256,9 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 			}
 			seenFamilies.add(endpoint.family);
 
-			const rawModelName = endpoint.name;
-			const sanitizedModelName = rawModelName
-				.replace(/\(1M context\)/gi, '')
+			const sanitizedModelName = endpoint.name
+				.replace(/\([^)]*\bcontext\)/gi, '')
 				.trim();
-			if (rawModelName !== sanitizedModelName) {
-				this._logService.info(`[LanguageModelAccess] Stripped 1M context from model name: "${rawModelName}" -> "${sanitizedModelName}"`);
-			}
-			this._logService.info(`[LanguageModelAccess] Model: id="${endpoint.model}", name="${rawModelName}", family="${endpoint.family}", isOpus1M=${isOpus1MModel(endpoint)}`);
 			let modelTooltip: string | undefined;
 			if (endpoint.degradationReason) {
 				modelTooltip = endpoint.degradationReason;
