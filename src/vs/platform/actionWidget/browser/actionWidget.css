@@ -55,7 +55,7 @@
 
 /** Styles for each row in the list element **/
 .action-widget .monaco-list .monaco-list-row {
-	padding: 0 12px 0 8px;
+	padding: 0 12px 0 6px;
 	white-space: nowrap;
 	cursor: pointer;
 	touch-action: none;
