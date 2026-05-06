@@ -420,12 +420,17 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		// `Options.settings.env` channel (separate from `Options.env` which
 		// is the spawn env). PATH composition uses `delimiter` (`:` or `;`)
 		// so Windows agent hosts don't corrupt PATH on subprocess fork.
+		// In packaged builds @vscode/ripgrep lives inside node_modules.asar; the
+		// rg binary itself is unpacked next door, so rewrite the path before
+		// putting it on PATH (matches `copilotAgent.ts` and the workbench
+		// search engine helpers).
+		const rgDiskPath = rgPath.replace(/\bnode_modules\.asar\b/, 'node_modules.asar.unpacked');
 		const settingsEnv: Record<string, string> = {
 			ANTHROPIC_BASE_URL: proxyHandle.baseUrl,
 			ANTHROPIC_AUTH_TOKEN: `${proxyHandle.nonce}.${sessionId}`,
 			CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
 			USE_BUILTIN_RIPGREP: '0',
-			PATH: `${dirname(rgPath)}${delimiter}${process.env.PATH ?? ''}`,
+			PATH: `${dirname(rgDiskPath)}${delimiter}${process.env.PATH ?? ''}`,
 		};
 
 		const options: Options = {
