@@ -334,20 +334,24 @@ export class AgentHostStateManager extends Disposable {
 		let resultingState: unknown = undefined;
 		// Apply to state
 		if (isRootAction(action)) {
-			const prevRoot = this._rootState;
-			const nextRoot = rootReducer(prevRoot, action as RootAction, this._log);
-			// `RootConfigChanged` is the one root action that can be a true
-			// no-op against current state (the reducer spreads values even
-			// when the patch matches), and re-emitting it would cause clients
-			// observing rootState.onDidChange to react and potentially
-			// re-dispatch in a loop. Other root actions always replace whole
-			// fields and are only dispatched on real changes, so we skip the
-			// deep-compare for them.
-			if (action.type === ActionType.RootConfigChanged && equals(prevRoot.config, nextRoot.config)) {
-				return prevRoot;
+			// `RootConfigChanged` can be a true no-op: the reducer merges/replaces
+			// values even when the patch matches the current state, and re-emitting
+			// it would cause clients observing rootState.onDidChange to react and
+			// potentially re-dispatch in a loop. Check the action's own patch
+			// against current values before running the reducer so we avoid
+			// allocating a new state object at all.
+			if (action.type === ActionType.RootConfigChanged && this._rootState.config) {
+				const current = this._rootState.config.values;
+				const patch = action.config;
+				const isNoOp = action.replace
+					? equals(current, patch)
+					: Object.keys(patch).every(k => equals(current[k], patch[k]));
+				if (isNoOp) {
+					return this._rootState;
+				}
 			}
-			this._rootState = nextRoot;
-			resultingState = nextRoot;
+			this._rootState = rootReducer(this._rootState, action as RootAction, this._log);
+			resultingState = this._rootState;
 		}
 
 		if (isSessionAction(action)) {
