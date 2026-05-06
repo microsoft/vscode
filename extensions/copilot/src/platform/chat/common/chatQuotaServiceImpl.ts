@@ -14,7 +14,7 @@ export class ChatQuotaService extends Disposable implements IChatQuotaService {
 
 	private _quotaInfo: IChatQuota | undefined;
 	private _rateLimitInfo: { session: IChatQuota | undefined; weekly: IChatQuota | undefined };
-	private _lastCreditsUsed: number | undefined;
+	private readonly _turnCredits = new Map<string, number>();
 
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange = this._onDidChange.event;
@@ -49,20 +49,20 @@ export class ChatQuotaService extends Disposable implements IChatQuotaService {
 		return this._quotaInfo.additionalUsageEnabled;
 	}
 
-	get lastCreditsUsed(): number | undefined {
-		return this._lastCreditsUsed;
+	getCreditsForTurn(turnId: string): number | undefined {
+		return this._turnCredits.get(turnId);
 	}
 
-	setLastCopilotUsage(totalNanoAiu: number): void {
+	setLastCopilotUsage(totalNanoAiu: number, turnId: string): void {
 		// Convert nano-AIUs to AIC credits: 1 AIC = 1_000_000_000 nano-AIU
 		const aic = totalNanoAiu / 1_000_000_000;
 		if (aic > 0) {
-			this._lastCreditsUsed = (this._lastCreditsUsed ?? 0) + aic;
+			this._turnCredits.set(turnId, (this._turnCredits.get(turnId) ?? 0) + aic);
 		}
 	}
 
-	resetTurnCredits(): void {
-		this._lastCreditsUsed = undefined;
+	resetTurnCredits(turnId: string): void {
+		this._turnCredits.delete(turnId);
 	}
 
 	clearQuota(): void {

@@ -355,6 +355,7 @@ export class ExecutionSubagentToolCallingLoop extends ToolCallingLoop<IExecution
 			// This loop is inside a tool called from another request, so never user initiated
 			userInitiatedRequest: false,
 			interactionTypeOverride: 'conversation-subagent',
+			turnId: this.options.request.id,
 			telemetryProperties: {
 				requestId: this.options.subAgentInvocationId,
 				messageId: randomUUID(),

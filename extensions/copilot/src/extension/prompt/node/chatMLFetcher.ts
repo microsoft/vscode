@@ -392,9 +392,10 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 
 					// Record OTel token usage metrics if available
 					if (result.type === ChatFetchResponseType.Success && result.usage) {
-						// Store copilot_usage for per-request credits display
-						if (result.usage.copilot_usage?.total_nano_aiu) {
-							this._chatQuotaService.setLastCopilotUsage(result.usage.copilot_usage.total_nano_aiu);
+						// Store copilot_usage for per-request credits display, scoped to the turn.
+						// Skip background requests — they are not part of an active user turn.
+						if (result.usage.copilot_usage?.total_nano_aiu && turnId && interactionType !== 'conversation-background') {
+							this._chatQuotaService.setLastCopilotUsage(result.usage.copilot_usage.total_nano_aiu, turnId);
 						}
 
 						const metricAttrs = {

@@ -1152,7 +1152,7 @@ export class OpenAIResponsesProcessor {
 							accepted_prediction_tokens: 0,
 							rejected_prediction_tokens: 0,
 						},
-						copilot_usage: (chunk as any).copilot_usage,
+						copilot_usage: (chunk as any).copilot_usage && typeof (chunk as any).copilot_usage.total_nano_aiu === 'number' ? (chunk as any).copilot_usage : undefined,
 					},
 					finishReason: FinishedCompletionReason.Stop,
 					message: {

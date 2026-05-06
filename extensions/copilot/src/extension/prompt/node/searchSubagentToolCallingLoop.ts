@@ -161,6 +161,7 @@ export class SearchSubagentToolCallingLoop extends ToolCallingLoop<ISearchSubage
 			},
 			// This loop is inside a tool called from another request, so never user initiated
 			userInitiatedRequest: false,
+			turnId: this.options.request.id,
 			telemetryProperties: {
 				requestId: this.options.subAgentInvocationId,
 				messageId: randomUUID(),

@@ -204,7 +204,7 @@ export class ChatParticipantRequestHandler {
 	}
 
 	async getResult(): Promise<ICopilotChatResult> {
-		this._chatQuotaService.resetTurnCredits();
+		this._chatQuotaService.resetTurnCredits(this.turn.id);
 
 		if (await this._shouldAskForPermissiveAuth()) {
 			// Return a random response
@@ -261,7 +261,7 @@ export class ChatParticipantRequestHandler {
 				const endpoint = await this._endpointProvider.getChatEndpoint(this.request);
 				let details = `${endpoint.name}`;
 				// Show per-request credits for TBB users, from copilot_usage.total_nano_aiu
-				const creditsUsed = this._chatQuotaService.lastCreditsUsed;
+				const creditsUsed = this._chatQuotaService.getCreditsForTurn(this.turn.id);
 				if (creditsUsed !== undefined) {
 					const formatted = creditsUsed % 1 === 0 ? creditsUsed.toString() : creditsUsed.toFixed(1);
 					details += ` • ${formatted} credit${creditsUsed === 1 ? '' : 's'}`;
