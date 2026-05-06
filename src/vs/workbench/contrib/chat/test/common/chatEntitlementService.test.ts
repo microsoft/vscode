@@ -184,4 +184,45 @@ suite('parseQuotas', () => {
 		assert.strictEqual(quotas.premiumChat?.percentRemaining, 0);
 		assert.strictEqual(quotas.additionalUsageEnabled, false);
 	});
+
+	test('skips quota snapshots with has_quota false', () => {
+		const data = makeEntitlementsData({
+			access_type_sku: 'free_limited_copilot',
+			copilot_plan: 'free',
+			token_based_billing: true,
+			quota_snapshots: {
+				chat: {
+					overage_count: 0,
+					overage_permitted: false,
+					percent_remaining: 97.8,
+					unlimited: false,
+					entitlement: '200',
+					has_quota: true,
+				},
+				completions: {
+					overage_count: 0,
+					overage_permitted: false,
+					percent_remaining: 100,
+					unlimited: false,
+					entitlement: '4000',
+					has_quota: true,
+				},
+				premium_interactions: {
+					overage_count: 999700,
+					overage_permitted: false,
+					percent_remaining: 0,
+					unlimited: false,
+					entitlement: '0',
+					has_quota: false,
+				},
+			},
+		});
+
+		const quotas = parseQuotas(data);
+		assert.strictEqual(quotas.chat?.percentRemaining, 97.8);
+		assert.strictEqual(quotas.chat?.entitlement, 200);
+		assert.strictEqual(quotas.completions?.percentRemaining, 100);
+		assert.strictEqual(quotas.completions?.entitlement, 4000);
+		assert.strictEqual(quotas.premiumChat, undefined);
+	});
 });

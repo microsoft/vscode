@@ -710,7 +710,7 @@ export function parseQuotas(entitlementsData: IEntitlementsData): IQuotas {
 	if (entitlementsData.quota_snapshots) {
 		for (const quotaType of ['chat', 'completions', 'premium_interactions'] as const) {
 			const rawQuotaSnapshot = entitlementsData.quota_snapshots[quotaType];
-			if (!rawQuotaSnapshot) {
+			if (!rawQuotaSnapshot || rawQuotaSnapshot.has_quota === false) {
 				continue;
 			}
 			const parsedEntitlement = rawQuotaSnapshot.entitlement !== undefined ? Number(rawQuotaSnapshot.entitlement) : undefined;
