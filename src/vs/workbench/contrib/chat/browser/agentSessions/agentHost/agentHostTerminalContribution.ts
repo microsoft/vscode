@@ -143,6 +143,16 @@ export class AgentHostTerminalContribution extends Disposable implements IWorkbe
 			return;
 		}
 
+		const currentRootState = this._agentHostService.rootState.value;
+		if (!currentRootState || currentRootState instanceof Error) {
+			return;
+		}
+
+		// Fix #314385
+		if (rootState.config.values[AgentHostConfigKey.DefaultShell] === profile.path) {
+			return;
+		}
+
 		this._agentHostService.dispatch({
 			type: ActionType.RootConfigChanged,
 			config: { [AgentHostConfigKey.DefaultShell]: profile.path },

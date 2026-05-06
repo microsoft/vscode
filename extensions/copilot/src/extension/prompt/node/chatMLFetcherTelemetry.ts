@@ -37,7 +37,9 @@ export interface IChatMLFetcherCancellationProperties {
 	model: string;
 	apiType: string | undefined;
 	transport: string;
+	conversationId?: string;
 	associatedRequestId?: string;
+	parentRequestId?: string;
 	retryAfterError?: string;
 	retryAfterErrorGitHubRequestId?: string;
 	connectivityTestError?: string;
@@ -149,7 +151,7 @@ export class ChatMLFetcherTelemetrySender {
 				"resumeEventSeen": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether a system resume event was seen during the request", "isMeasurement": true },
 				"subType": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Sub-type of the request" },
 				"modelCallId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Unique identifier for this model call" },
-				"parentRequestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "The requestId from the parent response.success event for subagent calls" },
+				"parentRequestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "For a subagent: the VS Code chat request id of the parent turn that invoked this subagent (matches panel.request.parentRequestId)." },
 				"parentModelCallId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Model call ID of the parent request for subagent calls" },
 				"iterationNumber": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Iteration number within the tool calling loop" }
 			}
@@ -166,11 +168,11 @@ export class ChatMLFetcherTelemetrySender {
 			requestId: chatCompletion.requestId.headerRequestId,
 			gitHubRequestId: chatCompletion.requestId.gitHubRequestId,
 			associatedRequestId: baseTelemetry?.properties.associatedRequestId,
+			parentRequestId: baseTelemetry?.properties.parentRequestId,
 			reasoningEffort: requestBody.reasoning?.effort ?? requestBody.output_config?.effort,
 			reasoningSummary: requestBody.reasoning?.summary,
 			modelCallId,
 			...(baseTelemetry?.properties.subType ? { subType: baseTelemetry.properties.subType } : {}),
-			...(baseTelemetry?.properties.parentHeaderRequestId ? { parentRequestId: baseTelemetry.properties.parentHeaderRequestId } : {}),
 			...(baseTelemetry?.properties.parentModelCallId ? { parentModelCallId: baseTelemetry.properties.parentModelCallId } : {}),
 			...(baseTelemetry?.properties.iterationNumber ? { iterationNumber: baseTelemetry.properties.iterationNumber } : {}),
 			...(fetcher ? { fetcher } : {}),
@@ -212,7 +214,9 @@ export class ChatMLFetcherTelemetrySender {
 			model,
 			apiType,
 			transport,
+			conversationId,
 			associatedRequestId,
+			parentRequestId,
 			retryAfterError,
 			retryAfterErrorGitHubRequestId,
 			connectivityTestError,
@@ -244,7 +248,9 @@ export class ChatMLFetcherTelemetrySender {
 				"apiType": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "API type for the response- chat completions or responses" },
 				"source": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Source for why the request was made" },
 				"requestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Id of the request" },
+				"conversationId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Id for the current chat conversation." },
 				"associatedRequestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Another request ID that this request is associated with (eg, the originating request of a summarization request)." },
+				"parentRequestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "For a subagent: the request id of the main agent request that invoked this subagent." },
 				"fetcher": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "The fetcher used for the request" },
 				"transport": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "The transport used for the request (http or websocket)" },
 				"totalTokenMax": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Maximum total token window", "isMeasurement": true },
@@ -273,7 +279,9 @@ export class ChatMLFetcherTelemetrySender {
 			source,
 			requestId,
 			model,
+			conversationId,
 			associatedRequestId,
+			parentRequestId,
 			...(fetcher ? { fetcher } : {}),
 			transport,
 			...(retryAfterError ? { retryAfterError } : {}),
@@ -330,7 +338,9 @@ export class ChatMLFetcherTelemetrySender {
 				"source": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Source for why the request was made" },
 				"requestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Id of the request" },
 				"gitHubRequestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "GitHub request id if available" },
+				"conversationId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Id for the current chat conversation." },
 				"associatedRequestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Another request ID that this request is associated with (eg, the originating request of a summarization request)." },
+				"parentRequestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "For a subagent: the request id of the main agent request that invoked this subagent." },
 				"reasoningEffort": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Reasoning effort level" },
 				"reasoningSummary": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Reasoning summary level" },
 				"fetcher": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "The fetcher used for the request" },
@@ -364,11 +374,13 @@ export class ChatMLFetcherTelemetrySender {
 			gitHubRequestId: processed.serverRequestId,
 			model: chatEndpointInfo.model,
 			apiType: chatEndpointInfo.apiType,
+			conversationId: telemetryProperties?.conversationId,
 			reasoningEffort: requestBody.reasoning?.effort ?? requestBody.output_config?.effort,
 			reasoningSummary: requestBody.reasoning?.summary,
 			...(fetcher ? { fetcher } : {}),
 			transport,
 			associatedRequestId: telemetryProperties?.associatedRequestId,
+			parentRequestId: telemetryProperties?.parentRequestId,
 			...(telemetryProperties?.retryAfterError ? { retryAfterError: telemetryProperties.retryAfterError } : {}),
 			...(telemetryProperties?.retryAfterErrorGitHubRequestId ? { retryAfterErrorGitHubRequestId: telemetryProperties.retryAfterErrorGitHubRequestId } : {}),
 			...(telemetryProperties?.connectivityTestError ? { connectivityTestError: telemetryProperties.connectivityTestError } : {}),

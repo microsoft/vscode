@@ -148,6 +148,10 @@ class MockLanguageModelsService implements ILanguageModelsService {
 		return this.modelGroups.get(vendor) || [];
 	}
 
+	hasResolvedVendor(vendor: string): boolean {
+		return this.modelGroups.has(vendor);
+	}
+
 	async removeLanguageModelsProviderGroup(vendorId: string, providerGroupName: string): Promise<void> {
 	}
 
