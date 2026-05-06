@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SessionConfigPropertySchema } from './state/protocol/commands.js';
+import type { SessionConfigPropertySchema } from './state/protocol/commands.js';
 
 /**
  * Well-known keys used in the agent-host configuration value bag.
