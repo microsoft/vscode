@@ -498,6 +498,14 @@ function resolveModelTurnContent(span: ICompletedSpanData): vscode.ChatDebugEven
 	if (inputMessages) {
 		sections.push(new vscode.ChatDebugMessageSection('Input Messages', inputMessages));
 	}
+	const requestShape = asString(span.attributes[CopilotChatAttr.REQUEST_SHAPE]);
+	if (requestShape) {
+		sections.push(new vscode.ChatDebugMessageSection('Request Shape', requestShape));
+	}
+	const toolDefinitions = asString(span.attributes[GenAiAttr.TOOL_DEFINITIONS]);
+	if (toolDefinitions) {
+		sections.push(new vscode.ChatDebugMessageSection('Tools', toolDefinitions));
+	}
 	const outputMessages = asString(span.attributes[GenAiAttr.OUTPUT_MESSAGES]);
 	if (outputMessages) {
 		sections.push(new vscode.ChatDebugMessageSection('Output Messages', outputMessages));
@@ -832,6 +840,10 @@ async function resolveModelTurnEntry(
 	const inputMessages = entry.attrs.inputMessages as string | undefined;
 	if (inputMessages) {
 		sections.push(new vscode.ChatDebugMessageSection('Input Messages', inputMessages));
+	}
+	const requestShape = entry.attrs.requestShape as string | undefined;
+	if (requestShape) {
+		sections.push(new vscode.ChatDebugMessageSection('Request Shape', requestShape));
 	}
 
 	// Read tools from companion file

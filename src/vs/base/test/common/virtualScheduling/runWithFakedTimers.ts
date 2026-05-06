@@ -8,6 +8,7 @@ import { drainMicrotasksEmbedding } from './embedding.js';
 import { pushGlobalTimeApi } from './globalTimeApi.js';
 import { realTimeApi } from './timeApi.js';
 import { untilToken, VirtualTimeProcessor } from './processor.js';
+import { createRecordingRealTimeApi, RecordedTimerEvent } from './recordingTimeApi.js';
 import { VirtualClock } from './virtualClock.js';
 import { createVirtualTimeApi } from './virtualTimeApi.js';
 
@@ -23,6 +24,14 @@ export interface RunWithFakedTimersOptions {
 	/** Maximum number of virtual events the run is allowed to execute
 	 *  before being rejected. Default 100. */
 	readonly maxTaskCount?: number;
+	/**
+	 * If set, called once `fn` resolves with the recorded timer events.
+	 * In virtual mode the events come from the {@link VirtualTimeProcessor}'s
+	 * own history; in real mode a recording wrapper around the host time
+	 * API is installed for the duration of `fn`. Useful for swimlane
+	 * diagnostics.
+	 */
+	readonly onHistory?: (history: readonly RecordedTimerEvent[]) => void;
 }
 
 /**
@@ -38,7 +47,17 @@ export async function runWithFakedTimers<T>(
 	fn: () => Promise<T>,
 ): Promise<T> {
 	const useFakeTimers = options.useFakeTimers !== false;
-	if (!useFakeTimers) { return fn(); }
+	if (!useFakeTimers) {
+		if (!options.onHistory) { return fn(); }
+		const history: RecordedTimerEvent[] = [];
+		const restore = pushGlobalTimeApi(createRecordingRealTimeApi(history));
+		try {
+			return await fn();
+		} finally {
+			restore.dispose();
+			options.onHistory(history);
+		}
+	}
 
 	const clock = new VirtualClock(options.startTime ?? 0);
 	const virtualApi = createVirtualTimeApi(clock);
@@ -76,6 +95,7 @@ export async function runWithFakedTimers<T>(
 			}
 		} finally {
 			cts.dispose();
+			options.onHistory?.(processor.history);
 			processor.dispose();
 		}
 	}

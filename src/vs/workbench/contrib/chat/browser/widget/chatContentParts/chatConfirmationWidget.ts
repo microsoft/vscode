@@ -178,7 +178,7 @@ abstract class BaseSimpleChatConfirmationWidget<T> extends Disposable {
 		}));
 		this.messageScrollable.getDomNode().classList.add('chat-confirmation-widget-message-scrollable');
 		messageParent?.insertBefore(this.messageScrollable.getDomNode(), messageNextSibling);
-		const messageResizeObserver = this._register(new dom.DisposableResizeObserver(() => this.messageScrollable.scanDomNode()));
+		const messageResizeObserver = this._register(new dom.DisposableResizeObserver('BaseSimpleChatConfirmationWidget.message', () => this.messageScrollable.scanDomNode()));
 		this._register(messageResizeObserver.observe(this.messageElement));
 		this._register(messageResizeObserver.observe(this.messageScrollable.getDomNode()));
 
@@ -244,7 +244,7 @@ abstract class BaseSimpleChatConfirmationWidget<T> extends Disposable {
 
 	protected renderMessage(element: HTMLElement): void {
 		const store = new DisposableStore();
-		const messageContentResizeObserver = store.add(new dom.DisposableResizeObserver(() => this.messageScrollable.scanDomNode()));
+		const messageContentResizeObserver = store.add(new dom.DisposableResizeObserver('BaseSimpleChatConfirmationWidget.messageContent', () => this.messageScrollable.scanDomNode()));
 		store.add(messageContentResizeObserver.observe(element));
 		this.messageContentDisposables.value = store;
 		this.messageElement.append(element);
@@ -372,7 +372,7 @@ abstract class BaseChatConfirmationWidget<T> extends Disposable {
 		}));
 		this.messageScrollable.getDomNode().classList.add('chat-confirmation-widget-message-scrollable');
 		messageParent?.insertBefore(this.messageScrollable.getDomNode(), messageNextSibling);
-		const messageResizeObserver = this._register(new dom.DisposableResizeObserver(() => this.messageScrollable.scanDomNode()));
+		const messageResizeObserver = this._register(new dom.DisposableResizeObserver('BaseChatConfirmationWidget.message', () => this.messageScrollable.scanDomNode()));
 		this._register(messageResizeObserver.observe(this.messageElement));
 		this._register(messageResizeObserver.observe(this.messageScrollable.getDomNode()));
 
@@ -471,7 +471,7 @@ abstract class BaseChatConfirmationWidget<T> extends Disposable {
 
 		dom.clearNode(this.messageElement);
 		const store = new DisposableStore();
-		const messageContentResizeObserver = store.add(new dom.DisposableResizeObserver(() => this.messageScrollable.scanDomNode()));
+		const messageContentResizeObserver = store.add(new dom.DisposableResizeObserver('BaseChatConfirmationWidget.messageContent', () => this.messageScrollable.scanDomNode()));
 		store.add(messageContentResizeObserver.observe(element));
 		if (this.markdownContentPart.value) {
 			store.add(this.markdownContentPart.value.onDidChangeHeight(() => this.messageScrollable.scanDomNode()));

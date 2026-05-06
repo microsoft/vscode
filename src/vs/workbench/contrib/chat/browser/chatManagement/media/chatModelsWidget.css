@@ -65,7 +65,7 @@
 	padding-left: 10px;
 }
 
-.models-widget .models-table-container .monaco-table-td[data-col-index="1"] {
+.models-widget .models-table-container .monaco-table-td[data-col-index="0"] {
 	padding-left: 8px;
 }
 
@@ -74,30 +74,10 @@
 	background-color: var(--vscode-keybindingTable-headerBackground);
 }
 
-.models-widget .models-table-container .monaco-table-th[data-col-index="1"] {
+.models-widget .models-table-container .monaco-table-th[data-col-index="0"] {
 	padding-left: 8px;
 }
 
-
-/** Gutter column styling **/
-
-.models-widget .models-table-container .monaco-table-tr.models-model-row.model-hidden .models-table-column.models-gutter-column {
-	opacity: 1;
-}
-
-.models-widget .models-table-container .monaco-table-td .models-gutter-column .models-twistie {
-	align-self: stretch;
-}
-
-.models-widget .models-table-container .monaco-list-row .monaco-table-tr.models-model-row .models-gutter-column .monaco-action-bar {
-	display: none;
-}
-
-.models-widget .models-table-container .monaco-list-row.focused .monaco-table-tr.models-model-row .models-gutter-column .monaco-action-bar,
-.models-widget .models-table-container .monaco-list-row.selected .monaco-table-tr.models-model-row .models-gutter-column .monaco-action-bar,
-.models-widget .models-table-container .monaco-list-row:hover .monaco-table-tr.models-model-row .models-gutter-column .monaco-action-bar {
-	display: inherit;
-}
 
 /** Model Name column styling **/
 
@@ -131,10 +111,6 @@
 }
 
 /** Actions column styling **/
-
-.models-widget .models-table-container .monaco-list-row .monaco-table-tr.models-model-row.model-hidden .models-table-column.models-actions-column {
-	opacity: 1;
-}
 
 .models-widget .models-table-container .monaco-list-row .monaco-table-tr.models-model-row .models-table-column.models-actions-column .actions-container {
 	display: none;
@@ -229,21 +205,9 @@
 
 /** Model row styling **/
 
-.models-widget .models-table-container .monaco-table-tr.models-model-row.model-hidden .models-table-column {
-	opacity: 0.6;
-}
-
 /** Row alternating colors **/
 .models-widget .models-table-container .monaco-table .monaco-list-row[data-parity=odd]:not(.focused):not(.selected):not(:hover) .monaco-table-tr:not(.models-vendor-row),
 .models-widget .models-table-container .monaco-table .monaco-list:not(:focus) .monaco-list-row[data-parity=odd].focused:not(.selected):not(:hover) .monaco-table-tr:not(.models-vendor-row),
 .models-widget .models-table-container .monaco-table .monaco-list:not(.focused) .monaco-list-row[data-parity=odd].focused:not(.selected):not(:hover) .monaco-table-tr:not(.models-vendor-row) {
 	background-color: var(--vscode-editor-background);
-}
-
-/** Provider column styling **/
-
-.models-widget .models-table-container .monaco-table-td .model-provider {
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
 }
