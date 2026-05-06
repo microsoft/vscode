@@ -52,6 +52,7 @@ import { AgentPluginItemKind, IAgentPluginItem } from '../../../../contrib/chat/
 import { ContributionEnablementState } from '../../../../contrib/chat/common/enablement.js';
 import { AICustomizationManagementEditorInput } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
 import { IConfigurationService, IConfigurationValue } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { mcpAccessConfig, McpAccessValue } from '../../../../../platform/mcp/common/mcpManagement.js';
 import { McpServerType } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { ChatConfiguration } from '../../../../contrib/chat/common/constants.js';
@@ -433,63 +434,6 @@ interface IRenderEditorOptions {
 	readonly editorDisplayMode?: 'preview' | 'raw';
 }
 
-async function waitForAnimationFrames(count: number): Promise<void> {
-	for (let i = 0; i < count; i++) {
-		await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
-	}
-}
-
-function getVisibleEditorSignature(container: HTMLElement): string {
-	const sectionCounts = [...container.querySelectorAll('.section-list-item')].map(item => item.textContent?.replace(/\s+/g, ' ').trim() ?? '').join('|');
-	const visibleContent = [...container.querySelectorAll('.prompts-content-container, .mcp-content-container, .plugin-content-container')]
-		.find(node => node instanceof HTMLElement && node.style.display !== 'none');
-	const visibleRows = visibleContent
-		? [...visibleContent.querySelectorAll('.monaco-list-row')].map(row => row.textContent?.replace(/\s+/g, ' ').trim() ?? '').join('|')
-		: '';
-
-	return `${sectionCounts}@@${visibleRows}`;
-}
-
-async function waitForEditorToSettle(container: HTMLElement): Promise<void> {
-	let previousSignature = '';
-	let stableIterations = 0;
-
-	await new Promise(resolve => setTimeout(resolve, 150));
-
-	for (let i = 0; i < 20; i++) {
-		await waitForAnimationFrames(2);
-		await new Promise(resolve => setTimeout(resolve, 25));
-
-		const signature = getVisibleEditorSignature(container);
-		if (signature && signature === previousSignature) {
-			stableIterations++;
-			if (stableIterations >= 2) {
-				return;
-			}
-		} else {
-			stableIterations = 0;
-			previousSignature = signature;
-		}
-	}
-}
-
-async function waitForVisibleScrollbarsToFade(container: HTMLElement): Promise<void> {
-	const deadline = Date.now() + 4000;
-
-	while (Date.now() < deadline) {
-		const hasVisibleScrollbar = [...container.querySelectorAll<HTMLElement>('.scrollbar.vertical')].some(scrollbar => {
-			const style = mainWindow.getComputedStyle(scrollbar);
-			return scrollbar.classList.contains('visible') && style.opacity !== '0';
-		});
-
-		if (!hasVisibleScrollbar) {
-			return;
-		}
-
-		await new Promise(resolve => setTimeout(resolve, 100));
-	}
-}
-
 function renderFixtureMarkdown(markdown: string): HTMLElement {
 	const container = DOM.$('div.fixture-rendered-markdown');
 	const lines = markdown.split(/\r?\n/);
@@ -584,6 +528,11 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			const agentFeedbackService = createMockAgentFeedbackService();
 			const codeReviewService = createMockCodeReviewService();
 			registerWorkbenchServices(reg);
+			// Enable the structured customization preview setting so the
+			// editor exercises the preview-first behavior in fixtures.
+			reg.defineInstance(IConfigurationService, new TestConfigurationService({
+				[ChatConfiguration.ChatCustomizationsStructuredPreviewEnabled]: true,
+			}));
 			reg.define(IListService, ListService);
 			reg.defineInstance(ITextModelService, new class extends mock<ITextModelService>() {
 				declare readonly _serviceBrand: undefined;
@@ -770,13 +719,8 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		editor.selectSectionById(options.selectedSection);
 	}
 
-	await waitForEditorToSettle(ctx.container);
-
 	if (options.scrollToBottom) {
 		editor.revealLastItem();
-		await waitForAnimationFrames(2);
-		await new Promise(resolve => setTimeout(resolve, 2400));
-		await waitForVisibleScrollbarsToFade(ctx.container);
 	}
 
 	if (options.openFirstItem) {
@@ -791,15 +735,10 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			rowToOpen.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
 			rowToOpen.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, button: 0 }));
 			rowToOpen.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
-			// Allow any async setInput to settle.
-			await waitForAnimationFrames(2);
-			await new Promise(resolve => setTimeout(resolve, 250));
 
 			if (options.editorDisplayMode === 'raw') {
 				const modeButton = ctx.container.querySelector('.editor-mode-button') as HTMLButtonElement | undefined;
 				modeButton?.click();
-				await waitForAnimationFrames(2);
-				await new Promise(resolve => setTimeout(resolve, 100));
 			}
 		}
 	}

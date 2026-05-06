@@ -12,6 +12,9 @@ const _allApiProposals = {
 	agentSessionsWorkspace: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.agentSessionsWorkspace.d.ts',
 	},
+	agentsWindowConfiguration: {
+		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.agentsWindowConfiguration.d.ts',
+	},
 	aiRelatedInformation: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.aiRelatedInformation.d.ts',
 	},
@@ -205,6 +208,9 @@ const _allApiProposals = {
 	},
 	css: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.css.d.ts',
+	},
+	customEditorDiffs: {
+		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.customEditorDiffs.d.ts',
 	},
 	customEditorMove: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.customEditorMove.d.ts',

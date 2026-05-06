@@ -42,6 +42,7 @@ import { LocalChatSessionUri } from '../../../../chat/common/model/chatUri.js';
 import { ChatRequestTextPart } from '../../../../chat/common/requestParser/chatParserTypes.js';
 import { ITerminalSandboxService, TerminalSandboxPrerequisiteCheck, type ITerminalSandboxPrerequisiteCheckResult } from '../../common/terminalSandboxService.js';
 import { ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocationPreparationContext, ToolDataSource, ToolSet, type ToolConfirmationAction } from '../../../../chat/common/tools/languageModelToolsService.js';
+import { IToolResultCompressor } from '../../../../chat/common/tools/toolResultCompressor.js';
 import { ITerminalChatService, ITerminalService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { ITerminalProfileResolverService } from '../../../../terminal/common/terminal.js';
 import type { ICommandLinePresenter } from '../../browser/tools/commandLinePresenter/commandLinePresenter.js';
@@ -294,7 +295,7 @@ suite('RunInTerminalTool', () => {
 	}
 
 	function confirmAutomaticUnsandboxRetry(tool: RunInTerminalTool, sessionResource: URI | undefined, command: string, shell: string, blockedDomains: string[] | undefined): Promise<boolean> {
-		return (tool as unknown as Record<string, (sessionResource: URI | undefined, command: string, shell: string, blockedDomains: string[] | undefined, token: CancellationToken) => Promise<boolean>>)['_confirmAutomaticUnsandboxRetry'](sessionResource, command, shell, blockedDomains, CancellationToken.None);
+		return (tool as unknown as Record<string, (sessionResource: URI | undefined, command: string, shell: string, blockedDomains: string[] | undefined, riskAssessment: { toolId: string; parameters: unknown } | undefined, token: CancellationToken) => Promise<boolean>>)['_confirmAutomaticUnsandboxRetry'](sessionResource, command, shell, blockedDomains, undefined, CancellationToken.None);
 	}
 
 	async function assertAutomaticUnsandboxRetryElicitation(tool: RunInTerminalTool, sessionResource: URI, command: string, shell: string, blockedDomains: string[] | undefined): Promise<void> {
@@ -2000,6 +2001,52 @@ suite('RunInTerminalTool', () => {
 		strictEqual(capturedSteeringRequests.length, 2, 'Expected a changed prompt to trigger a new notification');
 	});
 
+	test('should suppress redundant input-needed notification for output already returned via foreground inputNeeded', () => {
+		const termId = 'test-input-needed-already-notified-term';
+		const sessionResource = LocalChatSessionUri.forSession('test-input-needed-already-notified-session');
+		let output = 'package name: (test_npm_init) ';
+
+		const commandFinishedEmitter = new Emitter<{ exitCode: number | undefined }>();
+		const terminalDisposedEmitter = new Emitter<void>();
+		const inputNeededEmitter = new Emitter<void>();
+		const inputDataEmitter = new Emitter<string>();
+
+		const terminalInstance = {
+			capabilities: {
+				get: (cap: TerminalCapability) => cap === TerminalCapability.CommandDetection ? { onCommandFinished: commandFinishedEmitter.event } : undefined,
+			},
+			onDisposed: terminalDisposedEmitter.event,
+			onDidInputData: inputDataEmitter.event,
+		} as unknown as ITerminalInstance;
+
+		const outputMonitor = {
+			onDidDetectInputNeeded: inputNeededEmitter.event,
+			continueMonitoringAsync: () => { },
+			dispose: () => { },
+		} as unknown as { onDidDetectInputNeeded: Event<void>; continueMonitoringAsync: () => void; dispose: () => void };
+
+		(runInTerminalTool.constructor as unknown as { _activeExecutions: Map<string, { getOutput(): string }> })._activeExecutions.set(termId, {
+			getOutput: () => output,
+		});
+
+		// Simulate the foreground tool just returning via the `inputNeeded` race —
+		// the agent has already received `output` as the tool result, so the BG
+		// monitor's first re-detection of the same prompt must not fire a steering
+		// message that would yield the agent's in-flight `send_to_terminal` reply.
+		// eslint-disable-next-line @typescript-eslint/naming-convention
+		(runInTerminalTool as unknown as { _registerCompletionNotification: (terminal: ITerminalInstance, termId: string, session: URI, commandName: string, outputMonitor: { onDidDetectInputNeeded: Event<void>; continueMonitoringAsync: () => void; dispose: () => void }, alreadyNotifiedInputNeededOutput?: string) => void })
+			._registerCompletionNotification(terminalInstance, termId, sessionResource, 'mkdir -p foo && cd foo && npm init', outputMonitor, output);
+
+		inputNeededEmitter.fire();
+		strictEqual(capturedSteeringRequests.length, 0, 'Should not re-notify for output the agent already received via the foreground inputNeeded race');
+
+		// Once the prompt actually changes (new data has arrived), a fresh notification
+		// should be sent so the agent learns about the new prompt state.
+		output = 'version: (1.0.0) ';
+		inputNeededEmitter.fire();
+		strictEqual(capturedSteeringRequests.length, 1, 'Expected a new notification once the prompt output changes');
+	});
+
 	test('should preserve session terminal association after inputNeeded so fg terminal is reused', () => {
 		const termId = 'test-input-cleanup-term';
 		const sessionResource = LocalChatSessionUri.forSession('test-input-cleanup-session');
@@ -2474,6 +2521,12 @@ suite('ChatAgentToolsContribution - tool registration refresh', () => {
 			readToolSet: new ToolSet('read', 'read', Codicon.book, ToolDataSource.Internal, undefined, undefined, contextKeyService),
 		};
 		instantiationService.stub(ILanguageModelToolsService, mockToolsService as ILanguageModelToolsService);
+
+		instantiationService.stub(IToolResultCompressor, {
+			_serviceBrand: undefined,
+			registerFilter: () => { },
+			maybeCompress: () => undefined,
+		});
 	});
 
 	async function flushAsync(): Promise<void> {

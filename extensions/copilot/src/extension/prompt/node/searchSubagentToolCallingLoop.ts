@@ -165,7 +165,7 @@ export class SearchSubagentToolCallingLoop extends ToolCallingLoop<ISearchSubage
 				requestId: this.options.subAgentInvocationId,
 				messageId: randomUUID(),
 				messageSource: 'chat.editAgent',
-				subType: 'subagent/search',
+				subType: 'search_subagent',
 				conversationId: this.options.conversation.sessionId,
 				parentToolCallId: this.options.parentToolCallId,
 				parentHeaderRequestId: this.options.parentHeaderRequestId,
