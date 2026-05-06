@@ -1112,42 +1112,17 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			}
 			const isAutoApproved = chatSessionResource && isSessionAutoApproveLevel(chatSessionResource, this._configurationService, this._chatWidgetService, this._chatService);
 			const chatModel = chatSessionResource && this._chatService.getSession(chatSessionResource);
-			if (isAutoApproved) {
-				// Autopilot / auto-approve: there is no human in the loop to type
-				// the secret, so we cancel the command and surface a one-shot
-				// informational note. The outer race resolves via the cancelled
-				// executionPromise; onAutoCancelled lets the caller emit a
-				// dedicated steering message in the tool result.
-				autoCancelled = true;
-				if (chatModel instanceof ChatModel) {
-					const request = chatModel.getRequests().at(-1);
-					if (request) {
-						const infoPart = new ChatElicitationRequestPart(
-							new MarkdownString(localize('runInTerminal.sensitiveInput.autoCancelTitle', "Terminal command cancelled — sensitive input required")),
-							new MarkdownString(localize('runInTerminal.sensitiveInput.autoCancelMessage', "The terminal command was prompting for a password or other secret. In auto-approve / autopilot mode there is no way for you to type it safely, so the command has been cancelled. Run the command interactively if you need to provide a secret.")),
-							'',
-							localize('runInTerminal.sensitiveInput.dismiss', "Dismiss"),
-							'',
-							async () => { infoPart.hide(); return ElicitationState.Accepted; },
-							async () => { infoPart.hide(); return ElicitationState.Rejected; },
-							undefined,
-							undefined,
-							undefined,
-							undefined,
-						);
-						chatModel.acceptResponseProgress(request, infoPart);
-					}
-				}
-				onAutoCancelled?.();
-				cancelExecution();
-				return;
-			}
 			if (!(chatModel instanceof ChatModel)) {
 				// No chat surface to attach to — fall back to focusing the
 				// terminal directly so the user is at least not left blocked.
 				this._terminalService.setActiveInstance(terminalInstance);
 				this._terminalService.revealTerminal(terminalInstance, true).catch(() => { });
 				terminalInstance.focus();
+				if (isAutoApproved) {
+					autoCancelled = true;
+					onAutoCancelled?.();
+					cancelExecution();
+				}
 				return;
 			}
 			const request = chatModel.getRequests().at(-1);
@@ -1157,7 +1132,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 			const part = new ChatElicitationRequestPart(
 				new MarkdownString(localize('runInTerminal.sensitiveInput.title', "Terminal is waiting for sensitive input")),
-				new MarkdownString(localize('runInTerminal.sensitiveInput.message', "The terminal command appears to be prompting for a password or other sensitive value. Focus the terminal to type it directly — secrets must not be sent through chat.")),
+				new MarkdownString(isAutoApproved
+					? localize('runInTerminal.sensitiveInput.autoCancelMessage', "The terminal command appears to be prompting for a password or other sensitive value. Auto-approve / autopilot mode cannot safely supply secrets, so the command has been cancelled. Focus the terminal to type the value yourself if you want to continue.")
+					: localize('runInTerminal.sensitiveInput.message', "The terminal command appears to be prompting for a password or other sensitive value. Focus the terminal to type it directly — secrets must not be sent through chat.")),
 				'',
 				localize('runInTerminal.sensitiveInput.focus', "Focus Terminal"),
 				localize('runInTerminal.sensitiveInput.cancel', "Cancel Command"),
@@ -1187,6 +1164,18 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			// dispose: the elicitation must persist past the tool call returning so the
 			// user can still focus the terminal (and type their secret) after the
 			// agent has surrendered its turn. The part hides itself on accept/reject.
+
+			if (isAutoApproved) {
+				// Autopilot / auto-approve: keep the same Focus Terminal / Cancel
+				// dialog so a watching user can still grab the terminal, but
+				// also cancel execution immediately and notify the caller — the
+				// agent must not be left waiting on a secret that can never be
+				// auto-supplied. The dialog persists so the user can still take
+				// over manually if they're around.
+				autoCancelled = true;
+				onAutoCancelled?.();
+				cancelExecution();
+			}
 		}));
 
 		return store;
