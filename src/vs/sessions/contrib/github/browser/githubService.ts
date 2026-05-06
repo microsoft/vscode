@@ -53,8 +53,10 @@ export interface IGitHubService {
 	 * Find the most recently updated pull request whose head branch is
 	 * `branch` in `owner/repo`. Returns `undefined` if no PR exists.
 	 *
-	 * Results are cached per `(owner, repo, branch)` for the lifetime of
-	 * the service so concurrent observers share one in-flight request.
+	 * Successful numeric results are cached per `(owner, repo, branch)`
+	 * for the lifetime of the service (PR number is monotonic per
+	 * branch lifetime). Transient failures and `undefined` results are
+	 * not cached, so a later retry can succeed once a PR is created.
 	 */
 	findPullRequestNumberByHeadBranch(owner: string, repo: string, branch: string): Promise<number | undefined>;
 }
@@ -194,10 +196,24 @@ export class GitHubService extends Disposable implements IGitHubService {
 		const key = `${owner}/${repo}#${branch}`;
 		let promise = this._findPRByBranchCache.get(key);
 		if (!promise) {
-			promise = this._fetchPullRequestNumberByHeadBranch(owner, repo, branch).catch(() => undefined);
+			promise = this._fetchPullRequestNumberByHeadBranch(owner, repo, branch);
 			this._findPRByBranchCache.set(key, promise);
+			// Only cache successful, numeric results indefinitely; the PR number
+			// for a given (owner, repo, branch) is monotonic for that branch's
+			// lifetime so it's safe to cache forever. For transient failures and
+			// "no PR yet" results, drop the cache entry so the next call retries.
+			promise.then(
+				value => {
+					if (typeof value !== 'number') {
+						this._findPRByBranchCache.delete(key);
+					}
+				},
+				() => {
+					this._findPRByBranchCache.delete(key);
+				},
+			);
 		}
-		return promise;
+		return promise.catch(() => undefined);
 	}
 
 	private async _fetchPullRequestNumberByHeadBranch(owner: string, repo: string, branch: string): Promise<number | undefined> {

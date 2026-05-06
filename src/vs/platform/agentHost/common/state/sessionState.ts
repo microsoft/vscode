@@ -331,9 +331,9 @@ export interface ISessionGitState {
 	readonly outgoingChanges?: number;
 	/** Number of files with uncommitted changes. */
 	readonly uncommittedChanges?: number;
-	/** GitHub repository owner parsed from the `origin` remote, when the remote points at github.com. */
+	/** GitHub repository owner parsed from the working copy's GitHub remote (preferring `origin`, falling back to the first GitHub remote). */
 	readonly githubOwner?: string;
-	/** GitHub repository name parsed from the `origin` remote, when the remote points at github.com. */
+	/** GitHub repository name parsed from the working copy's GitHub remote (preferring `origin`, falling back to the first GitHub remote). */
 	readonly githubRepo?: string;
 }
 
