@@ -13,8 +13,9 @@ import {
 	IAgentHostPermissionService,
 	IPendingResourceRequest,
 } from '../../../../../../platform/agentHost/common/agentHostPermissionService.js';
-import { IRemoteAgentHostService } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { AGENT_HOST_SCHEME, agentHostAuthority } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
+import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution } from '../../../../../common/contributions.js';
 import {
@@ -61,7 +62,7 @@ export class AgentHostPermissionUiContribution extends Disposable implements IWo
 	constructor(
 		@IAgentHostPermissionService private readonly _permissionService: IAgentHostPermissionService,
 		@IChatInputNotificationService private readonly _chatInputNotificationService: IChatInputNotificationService,
-		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
+		@ILabelService private readonly _labelService: ILabelService,
 	) {
 		super();
 
@@ -147,6 +148,8 @@ export class AgentHostPermissionUiContribution extends Disposable implements IWo
 	}
 
 	private _resolveHostName(address: string): string {
-		return this._remoteAgentHostService.getEntryByAddress(address)?.name ?? address;
+		const authority = agentHostAuthority(address);
+		const label = this._labelService.getHostLabel(AGENT_HOST_SCHEME, authority);
+		return label && label !== authority ? label : address;
 	}
 }

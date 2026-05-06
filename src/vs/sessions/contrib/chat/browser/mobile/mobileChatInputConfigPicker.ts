@@ -28,7 +28,7 @@ import { ISessionsManagementService } from '../../../../services/sessions/common
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { type ISession } from '../../../../services/sessions/common/session.js';
 import { isWellKnownModeSchema } from '../agentHost/agentHostPermissionPickerDelegate.js';
-import { AGENT_HOST_MODEL_STORAGE_KEY } from '../agentHost/agentHostModelPicker.js';
+import { agentHostModelPickerStorageKey } from '../agentHost/agentHostModelPicker.js';
 
 const IsActiveSessionAgentHost = ContextKeyExpr.or(
 	ContextKeyExpr.equals(ActiveSessionProviderIdContext.key, LOCAL_AGENT_HOST_PROVIDER_ID),
@@ -36,7 +36,6 @@ const IsActiveSessionAgentHost = ContextKeyExpr.or(
 );
 
 const MOBILE_CHAT_INPUT_CONFIG_PICKER_ID = 'sessions.agentHost.mobileChatInputConfigPicker';
-const MODEL_STORAGE_KEY = AGENT_HOST_MODEL_STORAGE_KEY;
 
 function getModeIcon(value: string | undefined): ThemeIcon | undefined {
 	switch (value) {
@@ -210,7 +209,7 @@ class MobileChatInputConfigPicker extends Disposable {
 
 		// Model
 		const modelItems = getAgentHostModels(this._languageModelsService, session);
-		const currentModelId = session.modelId.get() ?? this._storageService.get(MODEL_STORAGE_KEY, StorageScope.PROFILE);
+		const currentModelId = session.modelId.get() ?? this._storageService.get(agentHostModelPickerStorageKey(session.resource.scheme), StorageScope.PROFILE);
 
 		return { provider, session, modeItems, currentMode, modelItems, currentModelId };
 	}
@@ -293,7 +292,7 @@ class MobileChatInputConfigPicker extends Disposable {
 		if (ctx.modelItems.length === 0) {
 			return undefined;
 		}
-		const remembered = this._storageService.get(MODEL_STORAGE_KEY, StorageScope.PROFILE);
+		const remembered = this._storageService.get(agentHostModelPickerStorageKey(ctx.session.resource.scheme), StorageScope.PROFILE);
 		const rememberedModel = remembered ? ctx.modelItems.find(m => m.identifier === remembered) : undefined;
 		const resolved = rememberedModel ?? ctx.modelItems[0];
 		ctx.provider.setModel(ctx.session.sessionId, resolved.identifier);

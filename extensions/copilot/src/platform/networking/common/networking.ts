@@ -294,6 +294,7 @@ export interface IChatEndpoint extends IEndpoint {
 	 * and normalizing to per-million-token rates based on batch_size.
 	 */
 	readonly tokenPricing?: IChatEndpointTokenPricing;
+	readonly priceCategory?: string;
 	readonly isFallback: boolean;
 	readonly customModel?: CustomModel;
 	readonly isExtensionContributed?: boolean;

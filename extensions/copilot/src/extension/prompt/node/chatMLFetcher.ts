@@ -32,7 +32,7 @@ import { IOTelService, ISpanHandle, SpanKind, SpanStatusCode } from '../../../pl
 import { IRequestLogger } from '../../../platform/requestLogger/common/requestLogger';
 import { getCurrentCapturingToken } from '../../../platform/requestLogger/node/requestLogger';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
-import { ITelemetryService, TelemetryProperties } from '../../../platform/telemetry/common/telemetry';
+import { ITelemetryService, TelemetryProperties, multiplexProperties } from '../../../platform/telemetry/common/telemetry';
 import { TelemetryData } from '../../../platform/telemetry/common/telemetryData';
 import { isEncryptedThinkingDelta } from '../../../platform/thinking/common/thinking';
 import { calculateLineRepetitionStats, isRepetitive } from '../../../util/common/anomalyDetection';
@@ -315,6 +315,10 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 					const requestOptions = pickCacheRelevantRequestOptions(requestBody);
 					if (requestOptions) {
 						otelInferenceSpan.setAttribute(CopilotChatAttr.REQUEST_OPTIONS, truncateForOTel(JSON.stringify(requestOptions), this._otelService.config.maxAttributeSizeChars));
+					}
+					const requestShape = pickRequestShapeMetadata(requestBody);
+					if (requestShape) {
+						otelInferenceSpan.setAttribute(CopilotChatAttr.REQUEST_SHAPE, truncateForOTel(JSON.stringify(requestShape), this._otelService.config.maxAttributeSizeChars));
 					}
 				}
 				tokenCount = await countTokens();
@@ -1153,6 +1157,14 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		}
 		this._telemetryService.sendGHTelemetryEvent('request.sent', telemetryData.properties, telemetryData.measurements);
 
+		if (request.tools) {
+			this._telemetryService.sendEnhancedGHTelemetryEvent('request.options.tools', multiplexProperties({
+				headerRequestId: ourRequestId,
+				conversationId,
+				messagesJson: JSON.stringify(request.tools),
+			}), telemetryData.measurements);
+		}
+
 		const requestStart = Date.now();
 		const handle = connection.sendRequest(request, { userInitiated: !!userInitiatedRequest, turnId, requestId: ourRequestId, model: chatEndpointInfo.model, countTokens, tokenCountMax: chatEndpointInfo.maxOutputTokens, modelMaxPromptTokens: chatEndpointInfo.modelMaxPromptTokens, summarizedAtRoundId, modeChanged }, cancellationToken);
 
@@ -1424,6 +1436,14 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		telemetryData.properties['headerRequestId'] = ourRequestId;
 
 		this._telemetryService.sendGHTelemetryEvent('request.sent', telemetryData.properties, telemetryData.measurements);
+
+		if (request.tools) {
+			this._telemetryService.sendEnhancedGHTelemetryEvent('request.options.tools', multiplexProperties({
+				headerRequestId: ourRequestId,
+				conversationId: telemetryProperties?.conversationId,
+				messagesJson: JSON.stringify(request.tools),
+			}), telemetryData.measurements);
+		}
 
 		const requestStart = Date.now();
 		const intent = locationToIntent(location);
@@ -2291,6 +2311,36 @@ function pickCacheRelevantRequestOptions(body: IEndpointBody): Record<string, un
 		if (value !== undefined) {
 			out[key] = value;
 		}
+	}
+	return Object.keys(out).length > 0 ? out : undefined;
+}
+
+/**
+ * Sanitized request-shape metadata for debug views. This intentionally omits
+ * identifiers such as `previous_response_id` itself and never includes message
+ * or tool contents; it only records whether a Responses API continuation marker
+ * was present and which top-level input item kinds were sent on the wire.
+ */
+function pickRequestShapeMetadata(body: IEndpointBody): Record<string, unknown> | undefined {
+	const out: Record<string, unknown> = {};
+	if (Array.isArray(body.input)) {
+		out.api = 'responses';
+		out.inputItemCount = body.input.length;
+		out.inputItemTypes = body.input.map(item => {
+			if (item && typeof item === 'object') {
+				const type = (item as Record<string, unknown>).type;
+				if (typeof type === 'string') {
+					return type;
+				}
+			}
+			return 'unknown';
+		});
+	} else if (Array.isArray(body.messages)) {
+		out.api = 'messages';
+		out.messageCount = body.messages.length;
+	}
+	if (typeof body.previous_response_id === 'string') {
+		out.hasPreviousResponseId = true;
 	}
 	return Object.keys(out).length > 0 ? out : undefined;
 }

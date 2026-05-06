@@ -25,9 +25,10 @@ import { IWorkbenchLayoutService } from '../../../../../workbench/services/layou
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { isAgentHostProvider } from '../../../../common/agentHostSessionsProvider.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { showMobilePickerSheet, IMobilePickerSheetItem } from '../../../../browser/parts/mobile/mobilePickerSheet.js';
-import { AGENT_HOST_MODEL_STORAGE_KEY } from '../agentHost/agentHostModelPicker.js';
+import { agentHostModelPickerStorageKey } from '../agentHost/agentHostModelPicker.js';
 import { isWellKnownModeSchema } from '../agentHost/agentHostPermissionPickerDelegate.js';
 
 function getAgentHostModeIcon(value: string | undefined): ThemeIcon | undefined {
@@ -156,7 +157,14 @@ class MobileChatPhoneInputPresenter extends Disposable implements IChatPhonePres
 					return metadata ? { metadata, identifier: id } : undefined;
 				})
 				.filter((m): m is ILanguageModelChatMetadataAndIdentifier => !!m && m.metadata.targetChatSessionType === resourceScheme);
-			const currentModelId = activeSession.modelId.get() ?? this._storageService.get(AGENT_HOST_MODEL_STORAGE_KEY, StorageScope.PROFILE);
+			// Match desktop `agentHostModelPicker.ts`: only fall back to
+			// the per-scheme storage key for untitled sessions. A saved
+			// session has its own `modelId`.
+			const isUntitled = activeSession.status.get() === SessionStatus.Untitled;
+			const storedModelId = isUntitled
+				? this._storageService.get(agentHostModelPickerStorageKey(resourceScheme), StorageScope.PROFILE)
+				: undefined;
+			const currentModelId = activeSession.modelId.get() ?? storedModelId;
 
 			agentHostModels.forEach((model, index) => {
 				sheetItems.push({
@@ -270,7 +278,7 @@ class MobileChatPhoneInputPresenter extends Disposable implements IChatPhonePres
 						// remembers the same selection across surfaces,
 						// and push to the agent-host provider so the
 						// next send goes out with the picked model.
-						this._storageService.store(AGENT_HOST_MODEL_STORAGE_KEY, action.model.identifier, StorageScope.PROFILE, StorageTarget.MACHINE);
+						this._storageService.store(agentHostModelPickerStorageKey(session.resource.scheme), action.model.identifier, StorageScope.PROFILE, StorageTarget.MACHINE);
 						ahProvider.setModel(session.sessionId, action.model.identifier);
 					}
 					break;
