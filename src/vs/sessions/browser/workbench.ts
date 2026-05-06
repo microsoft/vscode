@@ -1502,6 +1502,10 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 			return;
 		}
 
+		if (hidden) {
+			this._restoreAttachedEditorMaximizedOnShow = false;
+		}
+
 		this.partVisibility.auxiliaryBar = !hidden;
 		this.mainContainer.classList.toggle(LayoutClasses.AUXILIARYBAR_HIDDEN, hidden);
 

@@ -18,6 +18,7 @@ interface IWorkbenchTestHarness {
 	_editorMaximized: boolean;
 	_restoreAttachedEditorMaximizedOnShow: boolean;
 	setEditorMaximized(maximized: boolean): void;
+	setAuxiliaryBarHidden(hidden: boolean): void;
 }
 
 suite('Sessions - Workbench', () => {
@@ -25,6 +26,7 @@ suite('Sessions - Workbench', () => {
 
 	const rememberAttachedEditorMaximizedState = Reflect.get(Workbench.prototype, 'rememberAttachedEditorMaximizedState') as (this: IWorkbenchTestHarness) => void;
 	const restoreAttachedEditorMaximizedState = Reflect.get(Workbench.prototype, 'restoreAttachedEditorMaximizedState') as (this: IWorkbenchTestHarness) => void;
+	const setAuxiliaryBarHidden = Reflect.get(Workbench.prototype, 'setAuxiliaryBarHidden') as (this: IWorkbenchTestHarness, hidden: boolean) => void;
 
 	function createWorkbenchHarness(): IWorkbenchTestHarness {
 		return {
@@ -38,6 +40,7 @@ suite('Sessions - Workbench', () => {
 			_editorMaximized: false,
 			_restoreAttachedEditorMaximizedOnShow: false,
 			setEditorMaximized: () => { },
+			setAuxiliaryBarHidden: () => { },
 		};
 	}
 
@@ -66,6 +69,51 @@ suite('Sessions - Workbench', () => {
 
 		workbench._editorMaximized = false;
 		workbench.partVisibility.auxiliaryBar = false;
+		restoreAttachedEditorMaximizedState.call(workbench);
+
+		assert.deepStrictEqual(maximizedStates, []);
+		assert.strictEqual(workbench._restoreAttachedEditorMaximizedOnShow, false);
+	});
+
+	test('does not restore after the auxiliary bar is hidden and shown again before reopen', () => {
+		const maximizedStates: boolean[] = [];
+		const workbench = createWorkbenchHarness();
+		workbench._editorMaximized = true;
+		workbench.setEditorMaximized = maximized => maximizedStates.push(maximized);
+		workbench.setAuxiliaryBarHidden = hidden => {
+			workbench.partVisibility.auxiliaryBar = !hidden;
+		};
+		(workbench as IWorkbenchTestHarness & {
+			mainContainer: { classList: { toggle(): void } };
+			workbenchGrid: { setViewVisible(): void };
+			auxiliaryBarPartView: {};
+			paneCompositeService: { getActivePaneComposite(): undefined; hideActivePaneComposite(): void; openPaneComposite(): void; getLastActivePaneCompositeId(): undefined };
+			viewDescriptorService: { getDefaultViewContainer(): undefined };
+		}).mainContainer = { classList: { toggle: () => { } } };
+		(workbench as IWorkbenchTestHarness & {
+			workbenchGrid: { setViewVisible(): void };
+			auxiliaryBarPartView: {};
+		}).workbenchGrid = { setViewVisible: () => { } };
+		(workbench as IWorkbenchTestHarness & { auxiliaryBarPartView: {} }).auxiliaryBarPartView = {};
+		(workbench as IWorkbenchTestHarness & {
+			paneCompositeService: { getActivePaneComposite(): undefined; hideActivePaneComposite(): void; openPaneComposite(): void; getLastActivePaneCompositeId(): undefined };
+		}).paneCompositeService = {
+			getActivePaneComposite: () => undefined,
+			hideActivePaneComposite: () => { },
+			openPaneComposite: () => { },
+			getLastActivePaneCompositeId: () => undefined,
+		};
+		(workbench as IWorkbenchTestHarness & {
+			viewDescriptorService: { getDefaultViewContainer(): undefined };
+		}).viewDescriptorService = {
+			getDefaultViewContainer: () => undefined,
+		};
+
+		rememberAttachedEditorMaximizedState.call(workbench);
+		setAuxiliaryBarHidden.call(workbench, true);
+		setAuxiliaryBarHidden.call(workbench, false);
+
+		workbench._editorMaximized = false;
 		restoreAttachedEditorMaximizedState.call(workbench);
 
 		assert.deepStrictEqual(maximizedStates, []);
