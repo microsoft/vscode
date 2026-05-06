@@ -185,7 +185,49 @@ suite('parseQuotas', () => {
 		assert.strictEqual(quotas.additionalUsageEnabled, false);
 	});
 
-	test('skips quota snapshots with has_quota false', () => {
+	test('does not skip quota snapshots with has_quota false when entitlement is nonzero (TBB always sets has_quota false)', () => {
+		const data = makeEntitlementsData({
+			access_type_sku: 'monthly_subscriber_quota',
+			copilot_plan: 'individual',
+			token_based_billing: true,
+			quota_snapshots: {
+				chat: {
+					overage_count: 0,
+					overage_permitted: false,
+					percent_remaining: 100,
+					unlimited: true,
+					entitlement: '0',
+					has_quota: false,
+				},
+				completions: {
+					overage_count: 0,
+					overage_permitted: false,
+					percent_remaining: 100,
+					unlimited: true,
+					entitlement: '0',
+					has_quota: false,
+				},
+				premium_interactions: {
+					overage_count: 0,
+					overage_permitted: false,
+					percent_remaining: 5.5,
+					unlimited: false,
+					entitlement: '1000',
+					has_quota: false,
+				},
+			},
+		});
+
+		const quotas = parseQuotas(data);
+		assert.strictEqual(quotas.chat?.percentRemaining, 100);
+		assert.strictEqual(quotas.chat?.unlimited, true);
+		assert.strictEqual(quotas.completions?.percentRemaining, 100);
+		assert.strictEqual(quotas.completions?.unlimited, true);
+		assert.strictEqual(quotas.premiumChat?.percentRemaining, 5.5);
+		assert.strictEqual(quotas.premiumChat?.entitlement, 1000);
+	});
+
+	test('skips quota snapshots with zero entitlement and not unlimited (e.g. free tier premium_interactions)', () => {
 		const data = makeEntitlementsData({
 			access_type_sku: 'free_limited_copilot',
 			copilot_plan: 'free',
@@ -194,10 +236,10 @@ suite('parseQuotas', () => {
 				chat: {
 					overage_count: 0,
 					overage_permitted: false,
-					percent_remaining: 97.8,
+					percent_remaining: 98.7,
 					unlimited: false,
 					entitlement: '200',
-					has_quota: true,
+					has_quota: false,
 				},
 				completions: {
 					overage_count: 0,
@@ -205,10 +247,10 @@ suite('parseQuotas', () => {
 					percent_remaining: 100,
 					unlimited: false,
 					entitlement: '4000',
-					has_quota: true,
+					has_quota: false,
 				},
 				premium_interactions: {
-					overage_count: 999700,
+					overage_count: 0,
 					overage_permitted: false,
 					percent_remaining: 0,
 					unlimited: false,
@@ -219,7 +261,7 @@ suite('parseQuotas', () => {
 		});
 
 		const quotas = parseQuotas(data);
-		assert.strictEqual(quotas.chat?.percentRemaining, 97.8);
+		assert.strictEqual(quotas.chat?.percentRemaining, 98.7);
 		assert.strictEqual(quotas.chat?.entitlement, 200);
 		assert.strictEqual(quotas.completions?.percentRemaining, 100);
 		assert.strictEqual(quotas.completions?.entitlement, 4000);
