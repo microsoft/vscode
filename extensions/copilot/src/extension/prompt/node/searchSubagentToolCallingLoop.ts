@@ -168,11 +168,12 @@ export class SearchSubagentToolCallingLoop extends ToolCallingLoop<ISearchSubage
 				subType: 'search_subagent',
 				conversationId: this.options.conversation.sessionId,
 				parentToolCallId: this.options.parentToolCallId,
+				parentRequestId: this.options.request.id,
 				parentHeaderRequestId: this.options.parentHeaderRequestId,
 				parentModelCallId: this.options.parentModelCallId,
 				iterationNumber: iterationNumber.toString(),
 			},
-			requestKindOptions: { kind: 'subagent' }
+			interactionTypeOverride: 'conversation-subagent'
 		}, token);
 	}
 }

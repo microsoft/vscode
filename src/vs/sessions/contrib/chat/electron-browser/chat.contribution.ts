@@ -14,8 +14,10 @@ import { IViewsService } from '../../../../workbench/services/views/common/views
 import { ILifecycleService, LifecyclePhase } from '../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { NewChatViewPane, SessionsViewId } from '../browser/newChatViewPane.js';
 import { DebugAgentHostInDevToolsAction } from '../../../../workbench/contrib/chat/electron-browser/actions/debugAgentHostAction.js';
+import { CollectAgentHostDebugLogsAction } from '../../agentHost/electron-browser/collectDebugLogsAction.js';
 
 registerAction2(DebugAgentHostInDevToolsAction);
+registerAction2(CollectAgentHostDebugLogsAction);
 
 class SelectAgentsFolderContribution extends Disposable implements IWorkbenchContribution {
 
