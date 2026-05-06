@@ -13,10 +13,12 @@
 	left: 50%;
 	transform: translateX(-50%);
 	z-index: 10;
-	border: 1px solid var(--vscode-browser-border, var(--vscode-editorWidget-border, transparent));
-	border-radius: calc(var(--vscode-cornerRadius-small) + 1px);
-	background-color: var(--vscode-editor-background);
-	box-shadow: var(--vscode-shadow-lg);
+	border: 1px solid rgba(255, 255, 255, 0.3);
+	border-radius: 14px;
+	background: linear-gradient(145deg, rgba(255, 255, 255, 0.15) 0%, rgba(255, 255, 255, 0.05) 50%, rgba(255, 255, 255, 0.08) 100%);
+	backdrop-filter: blur(24px) saturate(1.8) brightness(1.05);
+	-webkit-backdrop-filter: blur(24px) saturate(1.8) brightness(1.05);
+	box-shadow: 0 4px 24px rgba(0, 0, 0, 0.1), 0 0 0 0.5px rgba(255, 255, 255, 0.15), inset 0 1px 1px rgba(255, 255, 255, 0.2), inset 0 -1px 1px rgba(0, 0, 0, 0.04);
 	cursor: default;
 	-webkit-app-region: no-drag;
 
@@ -57,30 +59,32 @@
 	width: 26px;
 	height: 26px;
 	border: none;
-	border-radius: var(--vscode-cornerRadius-small);
+	border-radius: 8px;
 	background: transparent;
-	color: var(--vscode-descriptionForeground);
+	color: rgba(255, 255, 255, 0.65);
 	cursor: pointer;
 	padding: 0;
 	outline: none !important;
+	transition: background 0.15s ease, color 0.15s ease;
 
 	&:hover:not(:disabled) {
-		background-color: var(--vscode-toolbar-hoverBackground);
-		color: var(--vscode-foreground);
+		background: rgba(255, 255, 255, 0.12);
+		color: rgba(255, 255, 255, 0.9);
 	}
 
 	&:focus-visible {
-		outline: 1px solid var(--vscode-focusBorder) !important;
+		outline: 1px solid rgba(255, 255, 255, 0.4) !important;
 		outline-offset: -1px !important;
 	}
 
 	&.active {
-		color: var(--vscode-textLink-foreground);
-		background-color: color-mix(in srgb, var(--vscode-textLink-foreground) 15%, transparent);
+		color: #fff;
+		background: rgba(255, 255, 255, 0.18);
+		text-shadow: 0 0 8px rgba(255, 255, 255, 0.3);
 	}
 
 	&:disabled {
-		opacity: 0.35;
+		opacity: 0.25;
 		cursor: default;
 	}
 
@@ -92,62 +96,16 @@
 .browser-annotation-toolbar .browser-annotation-toolbar-separator {
 	width: 1px;
 	height: 16px;
-	background-color: var(--vscode-browser-border, var(--vscode-editorWidget-border, transparent));
+	background: rgba(255, 255, 255, 0.15);
 	margin: 0 4px;
 	flex-shrink: 0;
 }
 
 .browser-annotation-toolbar .browser-annotation-toolbar-label {
 	font-size: 11px;
-	color: var(--vscode-descriptionForeground);
+	color: rgba(255, 255, 255, 0.5);
 	padding: 0 4px;
 	white-space: nowrap;
 	user-select: none;
 	-webkit-user-select: none;
-}
-
-/* Inline URL bar select button (shown when sharing with agent) */
-.browser-select-toggle-container {
-	display: flex;
-	align-items: center;
-	flex-shrink: 0;
-}
-
-.browser-select-toggle {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	width: 26px;
-	height: 22px;
-	border: none;
-	border-radius: var(--vscode-cornerRadius-small);
-	background: transparent;
-	color: var(--vscode-descriptionForeground);
-	cursor: pointer;
-	padding: 0;
-	outline: none !important;
-
-	&:hover {
-		background-color: var(--vscode-toolbar-hoverBackground);
-		color: var(--vscode-foreground);
-	}
-
-	&:focus-visible {
-		outline: 1px solid var(--vscode-focusBorder) !important;
-		outline-offset: -1px !important;
-	}
-
-	&.active {
-		color: var(--vscode-textLink-foreground);
-		background-color: color-mix(in srgb, var(--vscode-textLink-foreground) 18%, transparent);
-
-		&:hover {
-			background-color: color-mix(in srgb, var(--vscode-textLink-foreground) 28%, transparent) !important;
-			color: var(--vscode-textLink-foreground);
-		}
-	}
-
-	.codicon {
-		font-size: 16px;
-	}
 }
