@@ -15,7 +15,7 @@ import { matchesSomeScheme, Schemas } from '../../../base/common/network.js';
 import { dirname, join, posix, resolve, win32 } from '../../../base/common/path.js';
 import { isLinux, isMacintosh, isWindows } from '../../../base/common/platform.js';
 import { AddFirstParameterToFunctions } from '../../../base/common/types.js';
-import { URI } from '../../../base/common/uri.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
 import { virtualMachineHint } from '../../../base/node/id.js';
 import { Promises, SymlinkSupport } from '../../../base/node/pfs.js';
 import { launchSiblingApp } from '../node/siblingApp.js';
@@ -305,13 +305,15 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		}, options);
 	}
 
-	async openAgentsWindow(windowId: number | undefined, options?: { readonly forceNewWindow?: boolean }): Promise<void> {
-		await this.windowsMainService.openAgentsWindow({
+	async openAgentsWindow(windowId: number | undefined, options?: { folderUri?: UriComponents }): Promise<void> {
+		const windows = await this.windowsMainService.openAgentsWindow({
 			context: OpenContext.API,
 			contextWindowId: windowId,
 			cli: this.environmentMainService.args,
-			forceNewWindow: options?.forceNewWindow,
-		});
+		}, options?.folderUri ? URI.revive(options.folderUri) : undefined);
+		if (windows.length > 0) {
+			windows[0].focus();
+		}
 	}
 
 	async launchSiblingApp(_windowId: number | undefined, args?: string[]): Promise<void> {

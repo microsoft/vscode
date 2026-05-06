@@ -8,6 +8,7 @@ import { realpath } from 'fs/promises';
 import { homedir } from 'os';
 import * as path from 'path';
 import type { LanguageModelChat, PreparedToolInvocation } from 'vscode';
+import { ToolName } from '../common/toolNames';
 import { IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { ICustomInstructionsService } from '../../../platform/customInstructions/common/customInstructionsService';
 import { IDiffService } from '../../../platform/diff/common/diffService';
@@ -669,7 +670,7 @@ export async function applyEdit(
 
 			if (updatedFile === originalFile) {
 				throw new NoChangeError(
-					'Original and edited file match exactly. Failed to apply edit. Use the ${ToolName.ReadFile} tool to re-read the file and and determine the correct edit.',
+					`Original and edited file match exactly. Failed to apply edit. Use the ${ToolName.ReadFile} tool to re-read the file and determine the correct edit.`,
 					filePath
 				);
 			}

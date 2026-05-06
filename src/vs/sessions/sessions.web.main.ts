@@ -71,6 +71,7 @@ import '../platform/extensionResourceLoader/browser/extensionResourceLoaderServi
 import '../workbench/services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import '../workbench/services/power/browser/powerService.js';
 import '../platform/sandbox/browser/sandboxHelperService.js';
+import './services/vscode/browser/themeImporterService.js';
 
 import { InstantiationType, registerSingleton } from '../platform/instantiation/common/extensions.js';
 import { IAccessibilityService } from '../platform/accessibility/common/accessibility.js';
@@ -143,9 +144,6 @@ import '../workbench/contrib/welcomeBanner/browser/welcomeBanner.contribution.js
 // Web tunnel agent host — discovers tunnels via Dev Tunnels REST API and connects via relay
 import './contrib/remoteAgentHost/browser/webTunnelAgentHostService.contribution.js';
 
-// Open in VS Code — web uses protocol handler; desktop overrides in electron-browser
-import './contrib/chat/browser/openInVSCode.contribution.js';
-
 // Tunnel agent host — reconciles discovered tunnels into session providers
 import './contrib/remoteAgentHost/browser/tunnelAgentHost.contribution.js';
 
@@ -162,6 +160,19 @@ import './contrib/agentHost/browser/agentHostSkillButtons.js';
 // Host filter dropdown in the titlebar (scopes the sessions list to a host)
 import './contrib/remoteAgentHost/browser/hostFilter.contribution.js';
 
+// Mobile chat-input config picker (combined mode + model bottom sheet
+// on phone). Web-only because phones never run on the Electron desktop
+// build. The desktop mode + model pickers are gated off on phone via
+// `when: IsPhoneLayoutContext.negate()`, so the two registrations are
+// mutually exclusive at the action-menu level.
+import './contrib/chat/browser/agentHost/mobileChatInputConfigPicker.js';
+
+// Mobile-aware Copilot permission picker. Replaces the desktop
+// permission picker registration (which the shared contribution
+// skips when `isWeb`), so we get the bottom-sheet sheet on phone
+// without duplicate-registration conflicts.
+import './contrib/copilotChatSessions/browser/mobilePermissionPicker.contribution.js';
+
 // TODO: support agent feedback in web
 import './contrib/agentFeedback/browser/nullAgentFeedbackService.contribution.js';
 import '../workbench/contrib/webview/browser/webview.web.contribution.js';
@@ -176,5 +187,6 @@ import '../workbench/contrib/splash/browser/splash.contribution.js';
 import '../workbench/contrib/remote/browser/remoteStartEntry.contribution.js';
 import '../workbench/contrib/processExplorer/browser/processExplorer.web.contribution.js';
 import '../workbench/contrib/browserView/browser/browserView.contribution.js';
+import './browser/sessions.web.contribution.js';
 
 //#endregion

@@ -22,10 +22,6 @@ import { IAICustomizationItemsModel } from '../../../../workbench/contrib/chat/b
 import { ICustomizationHarnessService } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { CUSTOMIZATION_ITEMS } from './customizationsToolbar.contribution.js';
 import { Menus } from '../../../browser/menus.js';
-import { IAgentPluginService } from '../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
-import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
-import { AICustomizationManagementEditor } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditor.js';
-import { AICustomizationManagementEditorInput } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
 
 const $ = DOM.$;
 
@@ -45,10 +41,8 @@ export class AICustomizationShortcutsWidget extends Disposable {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IMcpService private readonly mcpService: IMcpService,
-		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
 		@IAICustomizationItemsModel private readonly itemsModel: IAICustomizationItemsModel,
 		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
-		@IEditorService private readonly editorService: IEditorService,
 	) {
 		super();
 
@@ -64,7 +58,7 @@ export class AICustomizationShortcutsWidget extends Disposable {
 			container.classList.add('collapsed');
 		}
 
-		// Header (clickable to toggle)
+		// Header
 		const header = DOM.append(container, $('.ai-customization-header'));
 		header.classList.toggle('collapsed', isCollapsed);
 
@@ -84,29 +78,8 @@ export class AICustomizationShortcutsWidget extends Disposable {
 		headerButton.label = localize('customizations', "Customizations");
 		this._headerButton = headerButton;
 
-		const headerActions = DOM.append(header, $('.ai-customization-header-actions'));
-		const openOverviewLabel = localize('openCustomizationsOverview', "Open Customizations Overview");
-		const openOverviewButton = this._register(new Button(headerActions, {
-			...defaultButtonStyles,
-			secondary: true,
-			title: openOverviewLabel,
-			ariaLabel: openOverviewLabel,
-			supportIcons: true,
-			buttonSecondaryBackground: 'transparent',
-			buttonSecondaryHoverBackground: undefined,
-			buttonSecondaryForeground: undefined,
-			buttonSecondaryBorder: undefined,
-		}));
-		openOverviewButton.element.classList.add('ai-customization-overview-button');
-		openOverviewButton.label = `$(${Codicon.home.id})`;
-		this._register(openOverviewButton.onDidClick(e => {
-			e?.preventDefault();
-			this._openWelcomePage();
-		}));
-
-		// Chevron at far right (outside the link button so it sits to the
-		// right of the home overview action). Clicking the chevron toggles
-		// collapse — same as clicking the header label.
+		// Chevron at far right (outside the link button). Clicking the
+		// chevron toggles collapse — same as clicking the header label.
 		const toggleCollapseLabel = localize('toggleCustomizationsCollapse', "Toggle Customizations Section");
 		const chevronContainer = DOM.append(header, $<HTMLButtonElement>('button.ai-customization-collapse-toggle'));
 		chevronContainer.type = 'button';
@@ -151,7 +124,7 @@ export class AICustomizationShortcutsWidget extends Disposable {
 				} else if (config.isMcp) {
 					total += this.mcpService.servers.read(reader).length;
 				} else if (config.isPlugins) {
-					total += this.agentPluginService.plugins.read(reader).length;
+					total += this.itemsModel.getPluginCount().read(reader);
 				}
 			}
 			return total;
@@ -186,14 +159,6 @@ export class AICustomizationShortcutsWidget extends Disposable {
 				DOM.EventHelper.stop(e, true);
 				toggleCollapse();
 			}));
-		}
-	}
-
-	private async _openWelcomePage(): Promise<void> {
-		const input = AICustomizationManagementEditorInput.getOrCreate();
-		const editor = await this.editorService.openEditor(input, { pinned: true });
-		if (editor instanceof AICustomizationManagementEditor) {
-			editor.showWelcomePage();
 		}
 	}
 

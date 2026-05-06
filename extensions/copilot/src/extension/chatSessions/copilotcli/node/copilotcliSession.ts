@@ -727,6 +727,7 @@ export interface ICopilotCLISession extends IDisposable {
 	addUserMessage(content: string): void;
 	addUserAssistantMessage(content: string): void;
 	getSelectedModelId(): Promise<string | undefined>;
+	getLastResponseModelId(): string | undefined;
 }
 
 export class CopilotCLISession extends DisposableStore implements ICopilotCLISession {
@@ -762,6 +763,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 	}
 	private _lastUsedModel: string | undefined;
 	private _permissionLevel: string | undefined;
+	private _lastResponseModelId: string | undefined;
 	private _pendingPrompt: string | undefined;
 	private _bridgeProcessor: CopilotCliBridgeSpanProcessor | undefined;
 	private readonly _todoSqlQuery = new TodoSqlQuery();
@@ -911,7 +913,6 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		this.attachments.push(...attachments);
 		const prompt = getPromptLabel(input);
 		this._pendingPrompt = prompt;
-		this.logService.info(`[CopilotCLISession] Steering session ${this.sessionId}`);
 		const disposables = new DisposableStore();
 		const logStartTime = Date.now();
 		disposables.add(token.onCancellationRequested(() => {
@@ -964,13 +965,13 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 					[CopilotChatAttr.SESSION_ID]: this.sessionId,
 					[CopilotChatAttr.CHAT_SESSION_ID]: this.sessionId,
 					...(modelId ? { [GenAiAttr.REQUEST_MODEL]: modelId } : {}),
-					[CopilotChatAttr.USER_REQUEST]: truncateForOTel(promptLabel),
+					[CopilotChatAttr.USER_REQUEST]: truncateForOTel(promptLabel, this._otelService.config.maxAttributeSizeChars),
 					...workspaceMetadataToOTelAttributes(resolveWorkspaceOTelMetadata(this._gitService)),
 				},
 			},
 			async span => {
 				// Emit user_message event so chronicle can extract turns and summary
-				span.addEvent('user_message', { content: truncateForOTel(promptLabel) });
+				span.addEvent('user_message', { content: truncateForOTel(promptLabel, this._otelService.config.maxAttributeSizeChars) });
 
 				// Register the trace context so the bridge processor can inject CHAT_SESSION_ID
 				const traceCtx = span.getSpanContext();
@@ -1008,6 +1009,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		this.attachments.push(...attachments);
 		const prompt = getPromptLabel(input);
 		this._pendingPrompt = prompt;
+		this._lastResponseModelId = undefined;
 		this.logService.info(`[CopilotCLISession] Invoking session ${this.sessionId}`);
 		const disposables = new DisposableStore();
 		const logStartTime = Date.now();
@@ -1111,8 +1113,6 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		try {
 			const shouldHandleExitPlanModeRequests = this.configurationService.getConfig(ConfigKey.Advanced.CLIPlanExitModeEnabled);
 			disposables.add(toDisposable(this._sdkSession.on('*', (event) => {
-				this.logService.trace(`[CopilotCLISession] CopilotCLI Event: ${JSON.stringify(event, null, 2)}`);
-				this.logService.info(`[CopilotCLISession] on(*) fired: ${event.type}`);
 				// Forward events to Mission Control if remote control is active
 				this._bufferMcEvent(event);
 			})));
@@ -1268,6 +1268,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 				sdkRequestId = sdkRequestId ?? event.id;
 			})));
 			disposables.add(toDisposable(this._sdkSession.on('assistant.usage', (event) => {
+				this._lastResponseModelId = event.data.model;
 				if (requestStream && typeof event.data.outputTokens === 'number' && typeof event.data.inputTokens === 'number') {
 					reportUsage(event.data.inputTokens, event.data.outputTokens);
 				}
@@ -1336,7 +1337,6 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 						}
 					}
 				}
-				this.logService.trace(`[CopilotCLISession] Start Tool ${event.data.toolName || '<unknown>'}`);
 			})));
 			disposables.add(toDisposable(this._sdkSession.on('tool.execution_complete', (event) => {
 				const toolName = toolCalls.get(event.data.toolCallId)?.toolName || '<unknown>';
@@ -1344,7 +1344,6 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 					const pullRequestUrl = extractPullRequestUrlFromToolResult(event.data.result);
 					if (pullRequestUrl) {
 						this._createdPullRequestUrl = pullRequestUrl;
-						this.logService.trace(`[CopilotCLISession] Captured pull request URL: ${pullRequestUrl}`);
 						GenAiMetrics.incrementPullRequestCount(this._otelService);
 					}
 				}
@@ -1356,7 +1355,6 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 				// Mark the end of the edit if this was an edit tool.
 				toolIdEditMap.set(event.data.toolCallId, editTracker.completeEdit(event.data.toolCallId));
 				if (editToolIds.has(event.data.toolCallId)) {
-					this.logService.trace(`[CopilotCLISession] Completed edit tracking for toolCallId ${event.data.toolCallId}`);
 					return;
 				}
 
@@ -1370,11 +1368,6 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 					wroteResponseContent = true;
 					requestStream?.push(responsePart);
 				}
-
-				const success = `success: ${event.data.success}`;
-				const error = event.data.error ? `error: ${event.data.error.code},${event.data.error.message}` : '';
-				const result = event.data.result ? `result: ${event.data.result?.content}` : '';
-				const parts = [success, error, result].filter(part => part.length > 0).join(', ');
 
 				// When a sql tool execution completes that modifies the todos table,
 				// query the session database and update the todo list widget.
@@ -1398,7 +1391,6 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 					}
 				}
 
-				this.logService.trace(`[CopilotCLISession]Complete Tool ${toolName}, ${parts}`);
 			})));
 			disposables.add(toDisposable(this._sdkSession.on('session.error', (event) => {
 				flushPendingInvocationMessages();
@@ -1416,16 +1408,12 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 				});
 			})));
 			disposables.add(toDisposable(this._sdkSession.on('subagent.started', (event) => {
-				this.logService.trace(`[CopilotCLISession] Subagent started: ${event.data.agentDisplayName} (toolCallId: ${event.data.toolCallId})`);
 				enrichToolInvocationWithSubagentMetadata(
 					event.data.toolCallId,
 					event.data.agentDisplayName,
 					event.data.agentDescription,
 					pendingToolInvocations
 				);
-			})));
-			disposables.add(toDisposable(this._sdkSession.on('subagent.completed', (event) => {
-				this.logService.trace(`[CopilotCLISession] Subagent completed: ${event.data.agentDisplayName} (toolCallId: ${event.data.toolCallId})`);
 			})));
 			disposables.add(toDisposable(this._sdkSession.on('subagent.failed', (event) => {
 				this.logService.trace(`[CopilotCLISession] Subagent failed: ${event.data.agentDisplayName} (toolCallId: ${event.data.toolCallId})`);
@@ -1436,7 +1424,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 				this.logService.trace(`[CopilotCLISession] Hook ${event.data.hookType} started (${event.data.hookInvocationId})`);
 				let input: string | undefined;
 				try {
-					input = truncateForOTel(JSON.stringify(event.data.input));
+					input = truncateForOTel(JSON.stringify(event.data.input), this._otelService.config.maxAttributeSizeChars);
 				} catch { /* swallow serialization errors */ }
 				this._bridgeProcessor?.stashHookInput(event.data.hookInvocationId, event.data.hookType, input);
 			})));
@@ -1446,7 +1434,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 				let output: string | undefined;
 				if (event.data.success) {
 					try {
-						output = truncateForOTel(JSON.stringify(event.data.output));
+						output = truncateForOTel(JSON.stringify(event.data.output), this._otelService.config.maxAttributeSizeChars);
 					} catch { /* swallow serialization errors */ }
 				}
 				this._bridgeProcessor?.stashHookEnd(
@@ -1714,7 +1702,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 
 			// Step 4: Create Mission Control session
 			const agentTaskId = `${Date.now()}-${Math.random().toString(36).substring(2, 10)}`;
-			this.logService.info('[CopilotCLISession] Creating MC session');
+			this.logService.trace('[CopilotCLISession] Creating MC session');
 
 			let mcData: McSessionCreateResult;
 			try {
@@ -1748,7 +1736,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 				mcSessionResource: SessionIdForCLI.getResource(this.sessionId),
 			};
 			mcStateBySessionId.set(this.sessionId, sharedState);
-			this.logService.info(`[CopilotCLISession] Set shared MC state for session ${this.sessionId}, mcSessionId=${mcData.id}`);
+			this.logService.trace(`[CopilotCLISession] Set shared MC state for session ${this.sessionId}, mcSessionId=${mcData.id}`);
 
 			// Step 6: Send the initial session.start event — MC requires this to
 			// transition out of "Fueling the runtime engines..." loading state.
@@ -1798,7 +1786,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 					replayed++;
 				}
 			}
-			this.logService.info(`[CopilotCLISession] Replayed ${replayed}/${existingEvents.length} existing events to MC`);
+			this.logService.trace(`[CopilotCLISession] Replayed ${replayed}/${existingEvents.length} existing events to MC`);
 
 			await this._flushMcEvents();
 
@@ -1848,7 +1836,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			// Step 8: Construct and display the frontend URL
 			const frontendUrl = `https://github.com/${nwo.owner}/${nwo.repo}/tasks/${taskId}`;
 			sharedState.mcFrontendUrl = frontendUrl;
-			this.logService.info(`[CopilotCLISession] MC session created, URL: ${frontendUrl}`);
+			this.logService.trace(`[CopilotCLISession] MC session created, URL: ${frontendUrl}`);
 
 			await this._showRemoteControlEnabled(frontendUrl);
 
@@ -2364,6 +2352,10 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 
 	public getSelectedModelId() {
 		return this._sdkSession.getSelectedModel();
+	}
+
+	public getLastResponseModelId(): string | undefined {
+		return this._lastResponseModelId;
 	}
 
 	private _logRequest(userPrompt: string, modelId: string, attachments: Attachment[], startTimeMs: number): void {

@@ -8,12 +8,17 @@ import { Event, ValueWithChangeEvent } from '../../../../../base/common/event.js
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { createTimeout, timeout } from '../../../../../base/common/async.js';
 import { MultiDiffEditorWidget } from '../../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidget.js';
 import { IDocumentDiffItem, IMultiDiffEditorModel } from '../../../../../editor/browser/widget/multiDiffEditor/model.js';
 import { IResourceLabel as IMultiDiffResourceLabel, IWorkbenchUIElementFactory } from '../../../../../editor/browser/widget/multiDiffEditor/workbenchUIElementFactory.js';
 import { RefCounted } from '../../../../../editor/browser/widget/diffEditor/utils.js';
 import { IDiffProviderFactoryService } from '../../../../../editor/browser/widget/diffEditor/diffProviderFactoryService.js';
 import { TestDiffProviderFactoryService } from '../../../../../editor/test/browser/diff/testDiffProviderFactoryService.js';
+import { IDocumentDiff, IDocumentDiffProvider, IDocumentDiffProviderOptions } from '../../../../../editor/common/diff/documentDiffProvider.js';
+import { linesDiffComputers } from '../../../../../editor/common/diff/linesDiffComputers.js';
+import { ITextModel } from '../../../../../editor/common/model.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IEditorProgressService } from '../../../../../platform/progress/common/progress.js';
 import { IWorkspaceContextService, IWorkspace } from '../../../../../platform/workspace/common/workspace.js';
@@ -22,6 +27,7 @@ import { IDecorationsService } from '../../../../services/decorations/common/dec
 import { INotebookDocumentService } from '../../../../services/notebook/common/notebookDocumentService.js';
 import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
 import { ComponentFixtureContext, createEditorServices, createTextModel, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 
 class FixtureWorkbenchUIElementFactory implements IWorkbenchUIElementFactory {
 	constructor(
@@ -110,10 +116,57 @@ function renderMultiDiffEditor({ container, disposableStore, theme }: ComponentF
 	container.style.height = '600px';
 	container.style.border = '1px solid var(--vscode-editorWidget-border)';
 
-	const instantiationService = createEditorServices(disposableStore, {
+	const instantiationService = createCommonServices(disposableStore, theme, new TestDiffProviderFactoryService());
+	const { widget, textModels } = createWidget(instantiationService, disposableStore, container);
+	const { doc1, doc2, doc3 } = createDocuments(instantiationService, textModels);
+
+	const model: IMultiDiffEditorModel = {
+		documents: ValueWithChangeEvent.const([doc1, doc2, doc3]),
+	};
+
+	const viewModel = widget.createViewModel(model);
+	widget.setViewModel(viewModel);
+	widget.layout(new Dimension(800, 600));
+}
+
+class DelayedDiffProviderFactoryService implements IDiffProviderFactoryService {
+	declare readonly _serviceBrand: undefined;
+	constructor(private readonly _delayMs: number) { }
+	createDiffProvider(): IDocumentDiffProvider {
+		return new DelayedDocumentDiffProvider(this._delayMs);
+	}
+}
+
+class DelayedDocumentDiffProvider implements IDocumentDiffProvider {
+	readonly onDidChange: Event<void> = () => toDisposable(() => { });
+	constructor(private readonly _delayMs: number) { }
+
+	async computeDiff(original: ITextModel, modified: ITextModel, options: IDocumentDiffProviderOptions, _cancellationToken: CancellationToken): Promise<IDocumentDiff> {
+		await timeout(this._delayMs);
+		if (_cancellationToken.isCancellationRequested || original.isDisposed() || modified.isDisposed()) {
+			return ({
+				changes: [],
+				quitEarly: true,
+				identical: false,
+				moves: [],
+
+			});
+		}
+		const result = linesDiffComputers.getDefault().computeDiff(original.getLinesContent(), modified.getLinesContent(), options);
+		return {
+			changes: result.changes,
+			quitEarly: result.hitTimeout,
+			identical: original.getValue() === modified.getValue(),
+			moves: result.moves,
+		};
+	}
+}
+
+function createCommonServices(disposableStore: DisposableStore, theme: ComponentFixtureContext['theme'], diffProviderFactory: IDiffProviderFactoryService) {
+	return createEditorServices(disposableStore, {
 		colorTheme: theme,
 		additionalServices: (reg) => {
-			reg.define(IDiffProviderFactoryService, TestDiffProviderFactoryService);
+			reg.defineInstance(IDiffProviderFactoryService, diffProviderFactory);
 			reg.definePartialInstance(IEditorProgressService, {
 				show: () => ({ total: () => { }, worked: () => { }, done: () => { } }),
 			});
@@ -124,52 +177,143 @@ function renderMultiDiffEditor({ container, disposableStore, theme }: ComponentF
 			registerWorkbenchServices(reg);
 		},
 	});
+}
 
+function createWidget(instantiationService: IInstantiationService, disposableStore: DisposableStore, container: HTMLElement) {
 	const uiFactory = instantiationService.createInstance(FixtureWorkbenchUIElementFactory);
-
 	const widget = disposableStore.add(instantiationService.createInstance(
 		MultiDiffEditorWidget,
 		container,
 		uiFactory,
 	));
-
-	// Text models must be disposed after the widget releases its references.
-	// DisposableStore disposes in insertion order, so we add a cleanup disposable
-	// after the widget that first clears the view model, then disposes text models.
 	const textModels = new DisposableStore();
 	disposableStore.add(toDisposable(() => {
 		widget.setViewModel(undefined);
 		textModels.dispose();
 	}));
+	return { widget, textModels };
+}
 
+function createDocuments(instantiationService: TestInstantiationService, textModels: DisposableStore) {
 	const original1 = textModels.add(createTextModel(instantiationService, ORIGINAL_CODE_1, URI.parse('inmemory://original/greet.ts'), 'typescript'));
 	const modified1 = textModels.add(createTextModel(instantiationService, MODIFIED_CODE_1, URI.parse('inmemory://modified/greet.ts'), 'typescript'));
-
 	const original2 = textModels.add(createTextModel(instantiationService, ORIGINAL_CODE_2, URI.parse('inmemory://original/config.ts'), 'typescript'));
 	const modified2 = textModels.add(createTextModel(instantiationService, MODIFIED_CODE_2, URI.parse('inmemory://modified/config.ts'), 'typescript'));
-
 	const original3 = textModels.add(createTextModel(instantiationService, ORIGINAL_CODE_3, URI.parse('inmemory://original/server.ts'), 'typescript'));
 	const modified3 = textModels.add(createTextModel(instantiationService, MODIFIED_CODE_3, URI.parse('inmemory://modified/server.ts'), 'typescript'));
-
-	const documents: RefCounted<IDocumentDiffItem>[] = [
-		RefCounted.createOfNonDisposable<IDocumentDiffItem>({ original: original1, modified: modified1 }, { dispose() { } }),
-		RefCounted.createOfNonDisposable<IDocumentDiffItem>({ original: original2, modified: modified2 }, { dispose() { } }),
-		RefCounted.createOfNonDisposable<IDocumentDiffItem>({ original: original3, modified: modified3 }, { dispose() { } }),
-	];
-
-	const model: IMultiDiffEditorModel = {
-		documents: ValueWithChangeEvent.const(documents),
+	return {
+		doc1: RefCounted.createOfNonDisposable<IDocumentDiffItem>({ original: original1, modified: modified1 }, { dispose() { } }),
+		doc2: RefCounted.createOfNonDisposable<IDocumentDiffItem>({ original: original2, modified: modified2 }, { dispose() { } }),
+		doc3: RefCounted.createOfNonDisposable<IDocumentDiffItem>({ original: original3, modified: modified3 }, { dispose() { } }),
 	};
+}
 
-	const viewModel = widget.createViewModel(model);
-	widget.setViewModel(viewModel);
+function renderMultiDiffEditorIncrementalUpdate() {
+	return ({ container, disposableStore, theme }: ComponentFixtureContext) => {
+		container.style.width = '800px';
+		container.style.height = '600px';
+		container.style.border = '1px solid var(--vscode-editorWidget-border)';
 
-	widget.layout(new Dimension(800, 600));
+		// First file: sync diffs (already resolved). Files 2+3: 800ms delay.
+		const delayedFactory = new DelayedDiffProviderFactoryService(800);
+		const instantiationService = createCommonServices(disposableStore, theme, delayedFactory);
+		const { widget, textModels } = createWidget(instantiationService, disposableStore, container);
+		const { doc1, doc2, doc3 } = createDocuments(instantiationService, textModels);
+
+		// Start with only doc1 — its diff resolves immediately (800ms virtual)
+		const documents = new ValueWithChangeEvent<readonly RefCounted<IDocumentDiffItem>[]>([doc1]);
+		const model: IMultiDiffEditorModel = { documents };
+		const viewModel = widget.createViewModel(model);
+		widget.setViewModel(viewModel);
+		widget.layout(new Dimension(800, 600));
+
+
+		// At T=900ms: add doc2 and doc3. Their diffs take 800ms (resolve at T=1700ms).
+		// The 1s gate means they appear at min(T=1700ms, T=1900ms) = T=1700ms.
+		disposableStore.add(createTimeout(900, () => {
+			documents.value = [doc1, doc2, doc3];
+		}));
+	};
+}
+
+function renderMultiDiffEditorDocumentSwap() {
+	return ({ container, disposableStore, theme }: ComponentFixtureContext) => {
+		container.style.width = '800px';
+		container.style.height = '600px';
+		container.style.border = '1px solid var(--vscode-editorWidget-border)';
+
+		const delayedFactory = new DelayedDiffProviderFactoryService(800);
+		const instantiationService = createCommonServices(disposableStore, theme, delayedFactory);
+		const { widget, textModels } = createWidget(instantiationService, disposableStore, container);
+
+		const makeDoc = (origText: string, modText: string, name: string) => {
+			const original = textModels.add(createTextModel(instantiationService, origText, URI.parse(`inmemory://original/${name}`), 'typescript'));
+			const modified = textModels.add(createTextModel(instantiationService, modText, URI.parse(`inmemory://modified/${name}`), 'typescript'));
+			return RefCounted.createOfNonDisposable<IDocumentDiffItem>({ original, modified }, { dispose() { } });
+		};
+
+		// Each document has exactly one line change.
+		const codeA_orig = 'const greeting = "hello";';
+		const codeA_mod = 'const greeting = "hi";';
+		const codeB_orig = 'const port = 3000;';
+		const codeB_mod = 'const port = 8080;';
+		const codeD_orig = 'const env = "development";';
+		const codeD_mod = 'const env = "production";';
+
+		const docA = makeDoc(codeA_orig, codeA_mod, 'greet.ts');
+		const docB = makeDoc(codeB_orig, codeB_mod, 'config.ts');
+
+		// Start with A and B
+		const documents = new ValueWithChangeEvent<readonly RefCounted<IDocumentDiffItem>[]>([docA, docB]);
+		const model: IMultiDiffEditorModel = { documents };
+		const viewModel = widget.createViewModel(model);
+		widget.setViewModel(viewModel);
+		widget.layout(new Dimension(800, 600));
+
+		// At T=900ms: replace with A, C, D.
+		// C has the same content as B but a different URI.
+		// D is a new document.
+		disposableStore.add(createTimeout(900, () => {
+			const docC = makeDoc(codeB_orig, codeB_mod, 'config-v2.ts');
+			const docD = makeDoc(codeD_orig, codeD_mod, 'server.ts');
+			documents.value = [docA, docC, docD];
+		}));
+	};
 }
 
 export default defineThemedFixtureGroup({ path: 'editor/' }, {
 	MultiDiffEditor: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: (context) => renderMultiDiffEditor(context),
+	}),
+	MultiDiffEditorIncrementalPending: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		virtualTime: { enabled: true, durationMs: 1200 },
+		render: renderMultiDiffEditorIncrementalUpdate(),
+	}),
+	MultiDiffEditorIncrementalResolved: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		virtualTime: { enabled: true, durationMs: 2000 },
+		render: renderMultiDiffEditorIncrementalUpdate(),
+	}),
+	MultiDiffEditorIncrementalResolvedRealtime: defineComponentFixture({
+		labels: { kind: 'animated' },
+		virtualTime: { enabled: false },
+		render: renderMultiDiffEditorIncrementalUpdate(),
+	}),
+	MultiDiffEditorDocumentSwapBefore: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		virtualTime: { enabled: true, durationMs: 100 },
+		render: renderMultiDiffEditorDocumentSwap(),
+	}),
+	MultiDiffEditorDocumentSwapAfter: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		virtualTime: { enabled: true, durationMs: 2000 },
+		render: renderMultiDiffEditorDocumentSwap(),
+	}),
+	MultiDiffEditorDocumentSwapRealtime: defineComponentFixture({
+		labels: { kind: 'animated' },
+		virtualTime: { enabled: false },
+		render: renderMultiDiffEditorDocumentSwap(),
 	}),
 });

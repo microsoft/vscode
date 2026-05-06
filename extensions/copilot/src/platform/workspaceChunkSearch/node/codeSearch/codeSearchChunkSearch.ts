@@ -78,6 +78,8 @@ interface AvailableFailureMetadata {
 	readonly repoStatuses: Record<string, number>;
 }
 
+type LocalDiffResult = readonly URI[] | 'unknown' | 'tooLarge';
+
 /**
  * ChunkSearch strategy that first calls the Github code search API to get a context window of files that are similar to the query.
  * Then it uses the embeddings index to find the most similar chunks in the context window.
@@ -568,11 +570,7 @@ export class CodeSearchChunkSearch extends Disposable {
 			const indexedRepos = allRepos.filter(repo => repo.status === CodeSearchRepoStatus.Ready);
 
 			const diffArray = await raceCancellationError(this.getLocalDiff(), token);
-			if (!Array.isArray(diffArray)) {
-				return;
-			}
-
-			const diffFilePattern = diffArray.map(uri => new RelativePattern(uri, '*'));
+			const diffFilePattern = Array.isArray(diffArray) ? diffArray.map(uri => new RelativePattern(uri, '*')) : undefined;
 
 			const localSearchCts = new CancellationTokenSource(token);
 
@@ -644,11 +642,11 @@ export class CodeSearchChunkSearch extends Disposable {
 			const mergedChunks: readonly FileChunkAndScore[] = [
 				// Code search results (excluding diffed files if we have local results)
 				...(codeSearchResults?.chunks ?? [])
-					.filter(x => !localResults || shouldInclude(x.chunk.file, { exclude: diffFilePattern })),
+					.filter(x => !localResults || shouldInclude(x.chunk.file, diffFilePattern ? { exclude: diffFilePattern } : undefined)),
 
 				// Local diff results
 				...(localResults?.chunks ?? [])
-					.filter(x => shouldInclude(x.chunk.file, { include: diffFilePattern })),
+					.filter(x => shouldInclude(x.chunk.file, diffFilePattern ? { include: diffFilePattern } : undefined)),
 			];
 
 			const outChunks = mergedChunks
@@ -680,7 +678,7 @@ export class CodeSearchChunkSearch extends Disposable {
 	}
 
 	@LogExecTime(self => self._logService, 'CodeSearchChunkSearch::getLocalDiff')
-	private async getLocalDiff(): Promise<readonly URI[] | 'unknown' | 'tooLarge'> {
+	private async getLocalDiff(): Promise<LocalDiffResult> {
 		await this._workspaceDiffTracker.value.initialized;
 
 		const diff = this._workspaceDiffTracker.value.getDiffFiles();
@@ -699,18 +697,24 @@ export class CodeSearchChunkSearch extends Disposable {
 		return diffArray;
 	}
 
-	private async searchLocalDiff(diffArray: readonly URI[], sizing: StrategySearchSizing, query: WorkspaceChunkQueryWithEmbeddings, options: WorkspaceChunkSearchOptions, telemetryInfo: TelemetryCorrelationId, token: CancellationToken): Promise<DiffSearchResult | undefined> {
+	private async searchLocalDiff(diffArray: LocalDiffResult, sizing: StrategySearchSizing, query: WorkspaceChunkQueryWithEmbeddings, options: WorkspaceChunkSearchOptions, telemetryInfo: TelemetryCorrelationId, token: CancellationToken): Promise<DiffSearchResult | undefined> {
 		const innerTelemetryInfo = telemetryInfo.addCaller('CodeSearchChunkSearch::searchLocalDiff');
 
 		if (!this.isExternalIngestEnabled()) {
 			return undefined;
 		}
 
-		// Force it to search the local diff too so we can override stale code-search results.
-		await raceCancellationError(this._externalIngestIndex.value.updateForceIncludeFiles(diffArray, token), token);
+		if (Array.isArray(diffArray)) {
+			// Force it to search the local diff too so we can override stale code-search results.
+			await raceCancellationError(this._externalIngestIndex.value.updateForceIncludeFiles(diffArray, token), token);
+		}
 
 		const externalResult = await this._externalIngestIndex.value.search(sizing, query, innerTelemetryInfo, token);
 		if (externalResult) {
+			if (!Array.isArray(diffArray)) {
+				return { chunks: externalResult, strategyId: 'externalIngest' };
+			}
+
 			const diffFilePattern = diffArray.map(uri => new RelativePattern(uri, '*'));
 			const filtered = externalResult.filter(x => shouldInclude(x.chunk.file, { include: diffFilePattern }));
 			return { chunks: filtered, strategyId: 'externalIngest' };

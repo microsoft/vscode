@@ -1497,8 +1497,13 @@ export class Repository implements Disposable {
 			return message;
 		}
 
+		const chatConfig = workspace.getConfiguration('chat');
+		if (chatConfig.get<boolean>('disableAIFeatures', false)) {
+			return message;
+		}
+
 		const config = workspace.getConfiguration('git', Uri.file(this.root));
-		const addAICoAuthor = config.get<'off' | 'chatAndAgent' | 'all'>('addAICoAuthor', 'chatAndAgent');
+		const addAICoAuthor = config.get<'off' | 'chatAndAgent' | 'all'>('addAICoAuthor', 'off');
 
 		if (addAICoAuthor === 'off') {
 			return message;

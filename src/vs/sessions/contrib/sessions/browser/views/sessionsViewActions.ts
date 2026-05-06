@@ -5,9 +5,10 @@
 
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { isMobile, isWeb } from '../../../../../base/common/platform.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
-import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -15,9 +16,11 @@ import { IQuickInputService } from '../../../../../platform/quickinput/common/qu
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
+import { CLOSE_MOBILE_SIDEBAR_DRAWER_COMMAND_ID } from '../../../../browser/workbench.js';
 import { EditorsVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { AUX_WINDOW_GROUP } from '../../../../../workbench/services/editor/common/editorService.js';
+import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../../common/agentHostSessionsProvider.js';
 import { SessionsCategories } from '../../../../common/categories.js';
 import { ChatSessionProviderIdContext, IsActiveSessionArchivedContext, IsNewChatSessionContext, SessionsWelcomeVisibleContext } from '../../../../common/contextkeys.js';
 import { SessionItemToolbarMenuId, SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionSectionTypeContext, IsSessionPinnedContext, IsSessionArchivedContext, IsSessionReadContext, SessionsGrouping, SessionsSorting, ISessionSection } from './sessionsList.js';
@@ -28,6 +31,7 @@ import { Menus } from '../../../../browser/menus.js';
 import { ActiveSessionSupportsMultiChatContext, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsListModelService } from './sessionsListModelService.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { ActiveSessionContextKeys } from '../../../changes/common/changes.js';
 
 //  Constants
 
@@ -345,11 +349,18 @@ registerAction2(class NewSessionForWorkspaceAction extends Action2 {
 		}
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
 		const viewsService = accessor.get(IViewsService);
+		const commandService = accessor.get(ICommandService);
 		sessionsManagementService.openNewSessionView();
 		const view = await viewsService.openView<NewChatViewPane>(NewChatViewId, true);
 		const workspace = context.sessions[0].workspace.get();
 		if (view && workspace) {
 			view.selectWorkspace({ providerId: context.sessions[0].providerId, workspace });
+		}
+		// On mobile web, the sidebar drawer covers the viewport; close it so
+		// the new session view becomes visible after creation. Routes through
+		// the drawer-close command to keep the mobile nav/history stack in sync.
+		if (isWeb && isMobile) {
+			commandService.executeCommand(CLOSE_MOBILE_SIDEBAR_DRAWER_COMMAND_ID);
 		}
 	}
 });
@@ -633,7 +644,7 @@ registerAction2(class RenameSessionAction extends Action2 {
 				id: SessionItemContextMenuId,
 				group: '1_edit',
 				order: 1,
-				when: ContextKeyExpr.regex(ChatSessionProviderIdContext.key, /^agenthost-/),
+				when: ContextKeyExpr.regex(ChatSessionProviderIdContext.key, ANY_AGENT_HOST_PROVIDER_RE),
 			}]
 		});
 	}
@@ -785,20 +796,11 @@ registerAction2(class MarkSessionAsDoneAction extends Action2 {
 				order: 1,
 				when: ContextKeyExpr.and(
 					IsSessionsWindowContext,
-					ContextKeyExpr.or(
-						ContextKeyExpr.and(
-							ContextKeyExpr.equals('sessions.hasGitRepository', true),
-							ContextKeyExpr.equals('sessions.hasPullRequest', false),
-							ContextKeyExpr.equals('sessions.hasIncomingChanges', false),
-							ContextKeyExpr.equals('sessions.hasOutgoingChanges', false),
-							ContextKeyExpr.equals('sessions.hasUncommittedChanges', false),
-						),
-						ContextKeyExpr.and(
-							ContextKeyExpr.equals('sessions.hasGitRepository', true),
-							ContextKeyExpr.equals('sessions.hasPullRequest', true),
-							ContextKeyExpr.equals('sessions.hasOpenPullRequest', false),
-						)
-					)
+					IsActiveSessionArchivedContext.negate(),
+					ActiveSessionContextKeys.HasGitRepository.isEqualTo(true),
+					ActiveSessionContextKeys.HasIncomingChanges.isEqualTo(false),
+					ActiveSessionContextKeys.HasOutgoingChanges.isEqualTo(false),
+					ActiveSessionContextKeys.HasUncommittedChanges.isEqualTo(false)
 				)
 			}]
 		});
@@ -811,6 +813,36 @@ registerAction2(class MarkSessionAsDoneAction extends Action2 {
 			return;
 		}
 		sessionsManagementService.archiveSession(activeSession);
+	}
+});
+
+registerAction2(class RestoreSessionAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'agentSession.restore',
+			title: localize2('restore', "Restore"),
+			icon: Codicon.discard,
+			menu: [{
+				id: MenuId.ChatEditingSessionChangesToolbar,
+				group: 'navigation',
+				order: 1,
+				when: ContextKeyExpr.and(
+					IsSessionsWindowContext,
+					IsActiveSessionArchivedContext
+				)
+			}]
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		const activeSession = sessionsManagementService.activeSession.get();
+		if (!activeSession || activeSession.status.get() === SessionStatus.Untitled) {
+			return;
+		}
+
+		await sessionsManagementService.unarchiveSession(activeSession);
 	}
 });
 
