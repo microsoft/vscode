@@ -11,6 +11,7 @@ export interface IQuotaSnapshotData {
 	readonly quota_reset_at?: number;
 	readonly token_based_billing?: boolean;
 	readonly entitlement?: string;
+	readonly has_quota?: boolean;
 }
 
 export interface ILegacyQuotaSnapshotData {
@@ -35,6 +36,7 @@ export interface IEntitlementsData extends ILegacyQuotaSnapshotData {
 	readonly limited_user_reset_date?: string; 	// for Copilot Free
 	readonly quota_reset_date?: string; 		// for all other Copilot SKUs
 	readonly quota_reset_date_utc?: string; 	// for all other Copilot SKUs (includes time)
+	readonly token_based_billing?: boolean;
 	readonly quota_snapshots?: {
 		chat?: IQuotaSnapshotData;
 		completions?: IQuotaSnapshotData;

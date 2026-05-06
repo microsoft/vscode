@@ -21,7 +21,7 @@ import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { localize } from '../../../../nls.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { IAquariumService } from '../../aquarium/browser/aquariumOverlay.js';
+import { IAquariumService, IMountedToggleHandle } from '../../aquarium/browser/aquariumOverlay.js';
 import { IViewDescriptorService } from '../../../../workbench/common/views.js';
 import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { IViewPaneOptions, ViewPane } from '../../../../workbench/browser/parts/views/viewPane.js';
@@ -29,7 +29,6 @@ import { WorkspacePicker, IWorkspaceSelection } from './sessionWorkspacePicker.j
 import { WebWorkspacePicker } from './webWorkspacePicker.js';
 import { NewChatInputWidget } from './newChatInput.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
-import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../common/agentHostSessionsProvider.js';
 
 // #region --- New Chat Widget ---
 
@@ -37,6 +36,7 @@ class NewChatWidget extends Disposable {
 
 	private readonly _workspacePicker: WorkspacePicker;
 	private readonly _newChatInput: NewChatInputWidget;
+	private _aquariumToggle: IMountedToggleHandle | undefined;
 
 	/** Tracks an in-flight wait for a provider's session types to become available. */
 	private readonly _pendingSessionTypeWait = new MutableDisposable<IDisposable>();
@@ -76,13 +76,6 @@ class NewChatWidget extends Disposable {
 			sendRequest: async (text: string, attachedContext?: IChatRequestVariableEntry[]) => this._send(text, attachedContext),
 			canSendRequest,
 			loading,
-			shouldExpandPromptSlashCommand: () => {
-				// Mirror what `_send()` does: it sends to the current active
-				// session, which can lag behind the workspace picker selection
-				// while trust approval or session-type discovery is in flight.
-				const providerId = this.sessionsManagementService.activeSession.get()?.providerId;
-				return !providerId || !ANY_AGENT_HOST_PROVIDER_RE.test(providerId);
-			},
 		}));
 
 		this._register(this._workspacePicker.onDidSelectWorkspace(async workspace => {
@@ -109,7 +102,7 @@ class NewChatWidget extends Disposable {
 		const chatWidgetContainer = dom.append(element, dom.$('.new-chat-widget-container'));
 		const chatWidgetContent = dom.append(chatWidgetContainer, dom.$('.new-chat-widget-content'));
 
-		this._register(this.aquariumService.mountToggle(element));
+		this._aquariumToggle = this._register(this.aquariumService.mountToggle(element));
 
 		const workspacePickerContainer = dom.append(chatWidgetContent, dom.$('.new-session-workspace-picker-container'));
 		this._register(this._renderWorkspacePicker(workspacePickerContainer));
@@ -281,6 +274,10 @@ class NewChatWidget extends Disposable {
 		this._newChatInput.prefillInput(text);
 	}
 
+	setHostVisible(visible: boolean): void {
+		this._aquariumToggle?.setHostVisible(visible);
+	}
+
 	sendQuery(text: string): void {
 		this._newChatInput.sendQuery(text);
 	}
@@ -350,6 +347,7 @@ export class NewChatViewPane extends ViewPane {
 
 	override setVisible(visible: boolean): void {
 		super.setVisible(visible);
+		this._widget?.setHostVisible(visible);
 		if (visible) {
 			this._widget?.focusInput();
 		}

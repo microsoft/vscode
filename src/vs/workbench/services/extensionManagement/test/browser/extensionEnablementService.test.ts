@@ -11,7 +11,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IWorkspace, IWorkspaceContextService, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchEnvironmentService } from '../../../environment/common/environmentService.js';
-import { IStorageService, InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
+import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IExtensionContributions, ExtensionType, IExtension, IExtensionManifest, IExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { isUndefinedOrNull } from '../../../../../base/common/types.js';
 import { areSameExtensions } from '../../../../../platform/extensionManagement/common/extensionManagementUtil.js';
@@ -42,6 +42,8 @@ import { FileService } from '../../../../../platform/files/common/fileService.js
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { AllowedExtensionsService } from '../../../../../platform/extensionManagement/common/allowedExtensionsService.js';
 import { IStringDictionary } from '../../../../../base/common/collections.js';
+import { ChatEntitlementContext, IChatEntitlementService } from '../../../chat/common/chatEntitlementService.js';
+import { Lazy } from '../../../../../base/common/lazy.js';
 
 function createStorageService(instantiationService: TestInstantiationService, disposableStore: DisposableStore): IStorageService {
 	let service = instantiationService.get(IStorageService);
@@ -59,7 +61,7 @@ function createStorageService(instantiationService: TestInstantiationService, di
 }
 
 export class TestExtensionEnablementService extends ExtensionEnablementService {
-	constructor(instantiationService: TestInstantiationService) {
+	constructor(instantiationService: TestInstantiationService, chatEntitlementService?: IChatEntitlementService) {
 		const disposables = new DisposableStore();
 		const storageService = createStorageService(instantiationService, disposables);
 		const extensionManagementServerService = instantiationService.get(IExtensionManagementServerService) ||
@@ -97,7 +99,7 @@ export class TestExtensionEnablementService extends ExtensionEnablementService {
 			workspaceTrustManagementService,
 			new class extends mock<IWorkspaceTrustRequestService>() { override requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<boolean> { return Promise.resolve(true); } },
 			instantiationService.get(IExtensionManifestPropertiesService) || instantiationService.stub(IExtensionManifestPropertiesService, disposables.add(new ExtensionManifestPropertiesService(TestProductService, new TestConfigurationService(), new TestWorkspaceTrustEnablementService(), new NullLogService()))),
-			new TestChatEntitlementService(),
+			chatEntitlementService ?? new TestChatEntitlementService(),
 			instantiationService,
 			new NullLogService(),
 			productService
@@ -1172,6 +1174,37 @@ suite('ExtensionEnablementService Test', () => {
 		assert.deepStrictEqual((<IExtension>target.args[0][0][0]).identifier, { id: 'pub.a' });
 	});
 
+	test('test chat extension is disabled on profile switch when setup is not completed', async () => {
+		const chatExtensionId = productService.defaultChatAgent!.chatExtensionId;
+		const chatExtension = aLocalExtension(chatExtensionId, undefined, ExtensionType.System);
+		installed.push(chatExtension);
+
+		// Clear migration flag set by the setup() instance so the migration runs fresh
+		let storageService = instantiationService.get(IStorageService);
+		storageService.store('builtinChatExtensionEnablementMigration', false, StorageScope.PROFILE, StorageTarget.MACHINE);
+
+		// Create a chat entitlement service with context where setup is not completed
+		const chatEntitlementService = new TestChatEntitlementService();
+		chatEntitlementService.context = new Lazy(() => ({ state: { completed: false }, onDidChange: Event.None })) as unknown as Lazy<ChatEntitlementContext>;
+
+		testObject = disposableStore.add(new TestExtensionEnablementService(instantiationService, chatEntitlementService));
+		await testObject.waitUntilInitialized();
+
+		// Chat extension should be disabled after initial setup
+		assert.strictEqual(testObject.getEnablementState(chatExtension), EnablementState.DisabledGlobally);
+
+		// Enable the chat extension to simulate it being enabled in a previous profile
+		await testObject.setEnablement([chatExtension], EnablementState.EnabledGlobally);
+		assert.strictEqual(testObject.getEnablementState(chatExtension), EnablementState.EnabledGlobally);
+
+		// Simulate switching to a fresh profile by clearing the migration flag
+		storageService = instantiationService.get(IStorageService);
+		storageService.store('builtinChatExtensionEnablementMigration', false, StorageScope.PROFILE, StorageTarget.MACHINE);
+
+		// Chat extension should be disabled again after computing enablement state
+		assert.strictEqual(testObject.getEnablementState(chatExtension), EnablementState.DisabledGlobally);
+	});
+
 	test('test extension is disabled by allowed list', async () => {
 		const target = aLocalExtension2('unallowed.extension');
 		assert.strictEqual(testObject.getEnablementState(target), EnablementState.DisabledByAllowlist);
@@ -1197,6 +1230,52 @@ suite('ExtensionEnablementService Test', () => {
 		const result = await promise;
 		assert.deepStrictEqual(result[0], local);
 		assert.strictEqual(testObject.getEnablementState(local), EnablementState.DisabledByMalicious);
+	});
+
+	test('test extensions are disabled in sessions window unless they only contribute themes', () => {
+		instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow: true });
+		testObject = disposableStore.add(new TestExtensionEnablementService(instantiationService));
+
+		const themeOnly = aLocalExtension2('pub.themeOnly', { contributes: aContributes('themes') });
+		const iconTheme = aLocalExtension2('pub.iconTheme', { contributes: aContributes('iconThemes') });
+		const productIconTheme = aLocalExtension2('pub.productIconTheme', { contributes: aContributes('productIconThemes') });
+		const grammar = aLocalExtension2('pub.grammar', { contributes: aContributes('grammars') });
+		const withMain = aLocalExtension2('pub.withMain', { main: 'main.js', contributes: aContributes('themes') });
+		const withBrowser = aLocalExtension2('pub.withBrowser', { browser: 'main.browser.js', contributes: aContributes('themes') });
+		const nonThemeContrib = aLocalExtension2('pub.nonThemeContrib', { contributes: aContributes('commands') });
+		const builtinWithMain = aLocalExtension2('pub.builtinWithMain', { main: 'main.js' }, { type: ExtensionType.System });
+
+		assert.deepStrictEqual([
+			themeOnly,
+			iconTheme,
+			productIconTheme,
+			grammar,
+			withMain,
+			withBrowser,
+			nonThemeContrib,
+			builtinWithMain,
+		].map(ext => testObject.getEnablementState(ext)), [
+			EnablementState.EnabledGlobally,
+			EnablementState.EnabledGlobally,
+			EnablementState.EnabledGlobally,
+			EnablementState.EnabledGlobally,
+			EnablementState.DisabledByEnvironment,
+			EnablementState.DisabledByEnvironment,
+			EnablementState.DisabledByEnvironment,
+			EnablementState.EnabledGlobally,
+		]);
+	});
+
+	test('test extensions are not disabled in non-sessions window', () => {
+		const withMain = aLocalExtension2('pub.withMain', { main: 'main.js' });
+		const withBrowser = aLocalExtension2('pub.withBrowser', { browser: 'main.browser.js' });
+		const commandContrib = aLocalExtension2('pub.commands', { contributes: aContributes('commands') });
+
+		assert.deepStrictEqual([withMain, withBrowser, commandContrib].map(ext => testObject.getEnablementState(ext)), [
+			EnablementState.EnabledGlobally,
+			EnablementState.EnabledGlobally,
+			EnablementState.EnabledGlobally,
+		]);
 	});
 
 });
@@ -1241,6 +1320,14 @@ export function anExtensionManagementServerService(localExtensionManagementServe
 
 function aLocalExtension(id: string, contributes?: IExtensionContributions, type?: ExtensionType): ILocalExtension {
 	return aLocalExtension2(id, contributes ? { contributes } : {}, isUndefinedOrNull(type) ? {} : { type });
+}
+
+function aContributes(...points: Array<keyof IExtensionContributions>): IExtensionContributions {
+	const result: Record<string, unknown[]> = {};
+	for (const point of points) {
+		result[point] = [];
+	}
+	return result as IExtensionContributions;
 }
 
 function aLocalExtension2(id: string, manifest: Partial<IExtensionManifest> = {}, properties: IStringDictionary<unknown> = {}): ILocalExtension {

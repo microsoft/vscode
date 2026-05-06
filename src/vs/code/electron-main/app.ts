@@ -146,6 +146,7 @@ import { NativeWebContentExtractorService } from '../../platform/webContentExtra
 import { AgentNetworkFilterService, IAgentNetworkFilterService } from '../../platform/networkFilter/common/networkFilterService.js';
 import { ITerminalSandboxService, NullTerminalSandboxService } from '../../platform/sandbox/common/terminalSandboxService.js';
 import { CrossAppIPCService, ICrossAppIPCService } from '../../platform/crossAppIpc/electron-main/crossAppIpcService.js';
+import { AgentsLastRunningTracker } from './agentsLastRunningTracker.js';
 import ErrorTelemetry from '../../platform/telemetry/electron-main/errorTelemetry.js';
 
 /**
@@ -1696,6 +1697,17 @@ export class CodeApplication extends Disposable {
 					});
 				}));
 			});
+		}
+
+		// Agents app: write a marker into the host VS Code's user-data dir so
+		// that, after a future update which removes the sub-application, the
+		// host VS Code can detect that the Agents app was running and restore
+		// the appropriate windows on next launch.
+		if ((process as INodeProcess).isEmbeddedApp) {
+			const hostUserRoamingDataHome = this.environmentMainService.parentAppUserRoamingDataHome;
+			if (hostUserRoamingDataHome) {
+				this._register(instantiationService.createInstance(AgentsLastRunningTracker, hostUserRoamingDataHome));
+			}
 		}
 	}
 

@@ -14,7 +14,7 @@ import { InMemoryStorageService, IStorageService } from '../../../../../platform
 import { IJSONEditingService, IJSONValue } from '../../../../../workbench/services/configuration/common/jsonEditing.js';
 import { IPreferencesService } from '../../../../../workbench/services/preferences/common/preferences.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
-import { INonSessionTaskEntry, ISessionsConfigurationService, SessionsConfigurationService, ITaskEntry } from '../../browser/sessionsConfigurationService.js';
+import { INonSessionTaskEntry, ISessionsTasksService, SessionsTasksService, ITaskEntry } from '../../browser/sessionsTasksService.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { Task } from '../../../../../workbench/contrib/tasks/common/tasks.js';
@@ -94,10 +94,10 @@ function tasksJsonContent(tasks: ITaskEntry[]): string {
 	return JSON.stringify({ version: '2.0.0', tasks });
 }
 
-suite('SessionsConfigurationService', () => {
+suite('SessionsTasksService', () => {
 
 	const store = new DisposableStore();
-	let service: ISessionsConfigurationService;
+	let service: ISessionsTasksService;
 	let fileContents: Map<string, string>;
 	let jsonEdits: { uri: URI; values: IJSONValue[] }[];
 	let ranTasks: { label: string }[];
@@ -106,6 +106,7 @@ suite('SessionsConfigurationService', () => {
 	let activeSessionObs: ReturnType<typeof observableValue<IActiveSession | undefined>>;
 	let tasksByLabel: Map<string, Task>;
 	let workspaceFoldersByUri: Map<string, IWorkspaceFolder>;
+	let preferencesService: IPreferencesService & { userSettingsResource: URI };
 
 	const userSettingsUri = URI.parse('file:///user/settings.json');
 	const repoUri = URI.parse('file:///repo');
@@ -141,9 +142,10 @@ suite('SessionsConfigurationService', () => {
 			}
 		});
 
-		instantiationService.stub(IPreferencesService, new class extends mock<IPreferencesService>() {
+		preferencesService = new class extends mock<IPreferencesService>() {
 			override userSettingsResource = userSettingsUri;
-		});
+		};
+		instantiationService.stub(IPreferencesService, preferencesService);
 
 		instantiationService.stub(ITaskService, new class extends mock<ITaskService>() {
 			override async getTask(_workspaceFolder: any, alias: string | any) {
@@ -171,7 +173,7 @@ suite('SessionsConfigurationService', () => {
 		storageService = store.add(new InMemoryStorageService());
 		instantiationService.stub(IStorageService, storageService);
 
-		service = store.add(instantiationService.createInstance(SessionsConfigurationService));
+		service = store.add(instantiationService.createInstance(SessionsTasksService));
 	});
 
 	teardown(() => {
@@ -251,6 +253,19 @@ suite('SessionsConfigurationService', () => {
 		assert.strictEqual(readFileCalls.length, 2, 'should read files only once (no duplicate refresh)');
 	});
 
+	test('getSessionTasks skips workspace tasks when repository URI has no path', async () => {
+		const userTasksUri = URI.from({ scheme: userSettingsUri.scheme, path: '/user/tasks.json' });
+		fileContents.set(userTasksUri.toString(), tasksJsonContent([
+			makeTask('userTask', 'npm run user', true),
+		]));
+
+		const session = makeSession({ repository: URI.parse('unknown://workspace') });
+		const obs = service.getSessionTasks(session);
+
+		await new Promise(r => setTimeout(r, 10));
+		assert.deepStrictEqual(obs.get(), [{ task: makeTask('userTask', 'npm run user', true), target: 'user' }]);
+	});
+
 	// --- getNonSessionTasks ---
 
 	test('getNonSessionTasks returns only tasks without inAgents', async () => {
@@ -303,6 +318,30 @@ suite('SessionsConfigurationService', () => {
 			{ task: { label: 'workspaceTask', type: 'shell', command: 'npm run workspace' }, target: 'workspace' },
 			{ task: { label: 'userTask', type: 'shell', command: 'npm run user' }, target: 'user' },
 		] satisfies INonSessionTaskEntry[]);
+	});
+
+	test('getNonSessionTasks skips workspace tasks when repository URI has no path', async () => {
+		const userTasksUri = URI.from({ scheme: userSettingsUri.scheme, path: '/user/tasks.json' });
+		fileContents.set(userTasksUri.toString(), tasksJsonContent([
+			makeTask('userTask', 'npm run user'),
+		]));
+
+		const session = makeSession({ repository: URI.parse('unknown://workspace') });
+		const nonSessionTasks = await service.getNonSessionTasks(session);
+
+		assert.deepStrictEqual(nonSessionTasks, [
+			{ task: { label: 'userTask', type: 'shell', command: 'npm run user' }, target: 'user' },
+		] satisfies INonSessionTaskEntry[]);
+	});
+
+	test('user task operations are skipped when user settings URI has no path', async () => {
+		preferencesService.userSettingsResource = URI.parse('test://settings');
+
+		const session = makeSession({ repository: repoUri });
+		const task = await service.createAndAddTask(undefined, 'npm run dev', session, 'user');
+		const nonSessionTasks = await service.getNonSessionTasks(session);
+
+		assert.deepStrictEqual({ task, nonSessionTasks, jsonEdits }, { task: undefined, nonSessionTasks: [], jsonEdits: [] });
 	});
 
 	// --- addTaskToSessions ---

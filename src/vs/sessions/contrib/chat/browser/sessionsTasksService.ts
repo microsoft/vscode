@@ -62,7 +62,7 @@ interface ITasksJson {
 	tasks?: ITaskEntry[];
 }
 
-export interface ISessionsConfigurationService {
+export interface ISessionsTasksService {
 	readonly _serviceBrand: undefined;
 
 	/**
@@ -116,19 +116,46 @@ export interface ISessionsConfigurationService {
 	 * Sets or clears the pinned task for the given repository.
 	 */
 	setPinnedTaskLabel(repository: URI | undefined, taskLabel: string | undefined): void;
+
+	/**
+	 * Observable URL configured for the integrated browser action for the given repository.
+	 */
+	getBrowserUrl(repository: URI | undefined): IObservable<string | undefined>;
+
+	/**
+	 * Sets or clears the configured browser URL for the given repository.
+	 */
+	setBrowserUrl(repository: URI | undefined, url: string | undefined): void;
+
+	/**
+	 * Observable indicating whether the integrated browser action is pinned as the primary action for the given repository.
+	 */
+	getPinnedBrowser(repository: URI | undefined): IObservable<boolean>;
+
+	/**
+	 * Sets or clears whether the integrated browser action is pinned as the primary action for the given repository.
+	 * Pinning the browser clears any pinned task; pinning a task clears the pinned browser.
+	 */
+	setPinnedBrowser(repository: URI | undefined, pinned: boolean): void;
 }
 
-export const ISessionsConfigurationService = createDecorator<ISessionsConfigurationService>('sessionsConfigurationService');
+export const ISessionsTasksService = createDecorator<ISessionsTasksService>('sessionsTasksService');
 
-export class SessionsConfigurationService extends Disposable implements ISessionsConfigurationService {
+export class SessionsTasksService extends Disposable implements ISessionsTasksService {
 
 	declare readonly _serviceBrand: undefined;
 
 	private static readonly _PINNED_TASK_LABELS_KEY = 'agentSessions.pinnedTaskLabels';
+	private static readonly _BROWSER_URLS_KEY = 'agentSessions.browserUrls';
+	private static readonly _PINNED_BROWSERS_KEY = 'agentSessions.pinnedBrowsers';
 	private readonly _sessionTasks = observableValue<readonly ISessionTaskWithTarget[]>(this, []);
 	private readonly _fileWatcher = this._register(new MutableDisposable());
 	private readonly _pinnedTaskLabels: Map<string, string>;
 	private readonly _pinnedTaskObservables = new Map<string, ReturnType<typeof observableValue<string | undefined>>>();
+	private readonly _browserUrls: Map<string, string>;
+	private readonly _browserUrlObservables = new Map<string, ReturnType<typeof observableValue<string | undefined>>>();
+	private readonly _pinnedBrowsers: Set<string>;
+	private readonly _pinnedBrowserObservables = new Map<string, ReturnType<typeof observableValue<boolean>>>();
 
 	private _watchedResource: URI | undefined;
 	private _lastRefreshedFolder: URI | undefined;
@@ -143,14 +170,13 @@ export class SessionsConfigurationService extends Disposable implements ISession
 	) {
 		super();
 		this._pinnedTaskLabels = this._loadPinnedTaskLabels();
+		this._browserUrls = this._loadBrowserUrls();
+		this._pinnedBrowsers = this._loadPinnedBrowsers();
 	}
 
 	getSessionTasks(session: ISession): IObservable<readonly ISessionTaskWithTarget[]> {
-		const repo = this._getSessionRepo(session);
-		const folder = repo?.workingDirectory ?? repo?.uri;
-		if (folder) {
-			this._ensureFileWatch(folder);
-		}
+		const folder = this._getSessionFolder(session);
+		this._ensureFileWatch(folder);
 		// Trigger initial read only when the folder changes; the file watcher handles subsequent updates
 		if (!isEqual(this._lastRefreshedFolder, folder)) {
 			this._lastRefreshedFolder = folder;
@@ -344,7 +370,72 @@ export class SessionsConfigurationService extends Disposable implements ISession
 			return;
 		}
 
-		this._setPinnedTaskLabelForKey(repository.toString(), taskLabel);
+		const key = repository.toString();
+		this._setPinnedTaskLabelForKey(key, taskLabel);
+		if (taskLabel !== undefined) {
+			this._setPinnedBrowserForKey(key, false);
+		}
+	}
+
+	getBrowserUrl(repository: URI | undefined): IObservable<string | undefined> {
+		if (!repository) {
+			return observableValue('browserUrl', undefined);
+		}
+
+		const key = repository.toString();
+		let obs = this._browserUrlObservables.get(key);
+		if (!obs) {
+			obs = observableValue('browserUrl', this._browserUrls.get(key));
+			this._browserUrlObservables.set(key, obs);
+		}
+		return obs;
+	}
+
+	setBrowserUrl(repository: URI | undefined, url: string | undefined): void {
+		if (!repository) {
+			return;
+		}
+
+		const key = repository.toString();
+		const trimmed = url?.trim();
+		if (!trimmed) {
+			this._browserUrls.delete(key);
+		} else {
+			this._browserUrls.set(key, trimmed);
+		}
+
+		this._saveBrowserUrls();
+
+		const obs = this._browserUrlObservables.get(key);
+		if (obs) {
+			transaction(tx => obs.set(trimmed || undefined, tx));
+		}
+	}
+
+	getPinnedBrowser(repository: URI | undefined): IObservable<boolean> {
+		if (!repository) {
+			return observableValue('pinnedBrowser', false);
+		}
+
+		const key = repository.toString();
+		let obs = this._pinnedBrowserObservables.get(key);
+		if (!obs) {
+			obs = observableValue('pinnedBrowser', this._pinnedBrowsers.has(key));
+			this._pinnedBrowserObservables.set(key, obs);
+		}
+		return obs;
+	}
+
+	setPinnedBrowser(repository: URI | undefined, pinned: boolean): void {
+		if (!repository) {
+			return;
+		}
+
+		const key = repository.toString();
+		this._setPinnedBrowserForKey(key, pinned);
+		if (pinned) {
+			this._setPinnedTaskLabelForKey(key, undefined);
+		}
 	}
 
 	// --- private helpers ---
@@ -353,13 +444,30 @@ export class SessionsConfigurationService extends Disposable implements ISession
 		return session.workspace.get()?.repositories[0];
 	}
 
+	private _getSessionFolder(session: ISession): URI | undefined {
+		const repo = this._getSessionRepo(session);
+		return repo?.workingDirectory ?? repo?.uri;
+	}
+
 	private _getTasksJsonUri(session: ISession, target: TaskStorageTarget): URI | undefined {
 		if (target === 'workspace') {
-			const repo = this._getSessionRepo(session);
-			const folder = repo?.workingDirectory ?? repo?.uri;
-			return folder ? joinPath(folder, '.vscode', 'tasks.json') : undefined;
+			return this._getWorkspaceTasksJsonUri(this._getSessionFolder(session));
 		}
-		return joinPath(dirname(this._preferencesService.userSettingsResource), 'tasks.json');
+		return this._getUserTasksJsonUri();
+	}
+
+	private _getWorkspaceTasksJsonUri(folder: URI | undefined): URI | undefined {
+		return folder?.path ? joinPath(folder, '.vscode', 'tasks.json') : undefined;
+	}
+
+	private _getUserTasksJsonUri(): URI | undefined {
+		const userSettingsResource = this._preferencesService.userSettingsResource;
+		if (!userSettingsResource.path) {
+			return undefined;
+		}
+
+		const userSettingsFolder = dirname(userSettingsResource);
+		return userSettingsFolder.path ? joinPath(userSettingsFolder, 'tasks.json') : undefined;
 	}
 
 	private async _readTasksJson(uri: URI): Promise<ITasksJson> {
@@ -375,8 +483,14 @@ export class SessionsConfigurationService extends Disposable implements ISession
 		return !!task.label;
 	}
 
-	private _ensureFileWatch(folder: URI): void {
-		const tasksUri = joinPath(folder, '.vscode', 'tasks.json');
+	private _ensureFileWatch(folder: URI | undefined): void {
+		const tasksUri = this._getWorkspaceTasksJsonUri(folder);
+		if (!tasksUri) {
+			this._watchedResource = undefined;
+			this._fileWatcher.clear();
+			return;
+		}
+
 		if (this._watchedResource && this._watchedResource.toString() === tasksUri.toString()) {
 			return;
 		}
@@ -388,11 +502,13 @@ export class SessionsConfigurationService extends Disposable implements ISession
 		disposables.add(this._fileService.watch(tasksUri));
 
 		// Also watch user-level tasks.json so that user session tasks changes refresh the observable
-		const userUri = joinPath(dirname(this._preferencesService.userSettingsResource), 'tasks.json');
-		disposables.add(this._fileService.watch(userUri));
+		const userUri = this._getUserTasksJsonUri();
+		if (userUri) {
+			disposables.add(this._fileService.watch(userUri));
+		}
 
 		disposables.add(this._fileService.onDidFilesChange(e => {
-			if (e.affects(tasksUri) || e.affects(userUri)) {
+			if (e.affects(tasksUri) || (userUri && e.affects(userUri))) {
 				this._refreshSessionTasks(folder);
 			}
 		}));
@@ -406,15 +522,15 @@ export class SessionsConfigurationService extends Disposable implements ISession
 			return;
 		}
 
-		const tasksUri = joinPath(folder, '.vscode', 'tasks.json');
-		const tasksJson = await this._readTasksJson(tasksUri);
+		const tasksUri = this._getWorkspaceTasksJsonUri(folder);
+		const tasksJson = tasksUri ? await this._readTasksJson(tasksUri) : {};
 		const sessionTasks: ISessionTaskWithTarget[] = (tasksJson.tasks ?? [])
 			.filter(t => t.inAgents && this._isSupportedTask(t))
 			.map(t => ({ task: t, target: 'workspace' as TaskStorageTarget }));
 
 		// Also include user-level session tasks
-		const userUri = joinPath(dirname(this._preferencesService.userSettingsResource), 'tasks.json');
-		const userJson = await this._readTasksJson(userUri);
+		const userUri = this._getUserTasksJsonUri();
+		const userJson = userUri ? await this._readTasksJson(userUri) : {};
 		const userSessionTasks: ISessionTaskWithTarget[] = (userJson.tasks ?? [])
 			.filter(t => t.inAgents && this._isSupportedTask(t))
 			.map(t => ({ task: t, target: 'user' as TaskStorageTarget }));
@@ -423,7 +539,7 @@ export class SessionsConfigurationService extends Disposable implements ISession
 	}
 
 	private _loadPinnedTaskLabels(): Map<string, string> {
-		const raw = this._storageService.get(SessionsConfigurationService._PINNED_TASK_LABELS_KEY, StorageScope.APPLICATION);
+		const raw = this._storageService.get(SessionsTasksService._PINNED_TASK_LABELS_KEY, StorageScope.APPLICATION);
 		if (raw) {
 			try {
 				return new Map(Object.entries(JSON.parse(raw)));
@@ -436,7 +552,7 @@ export class SessionsConfigurationService extends Disposable implements ISession
 
 	private _savePinnedTaskLabels(): void {
 		this._storageService.store(
-			SessionsConfigurationService._PINNED_TASK_LABELS_KEY,
+			SessionsTasksService._PINNED_TASK_LABELS_KEY,
 			JSON.stringify(Object.fromEntries(this._pinnedTaskLabels)),
 			StorageScope.APPLICATION,
 			StorageTarget.USER
@@ -455,6 +571,66 @@ export class SessionsConfigurationService extends Disposable implements ISession
 		const obs = this._pinnedTaskObservables.get(key);
 		if (obs) {
 			transaction(tx => obs.set(taskLabel, tx));
+		}
+	}
+
+	private _loadBrowserUrls(): Map<string, string> {
+		const raw = this._storageService.get(SessionsTasksService._BROWSER_URLS_KEY, StorageScope.APPLICATION);
+		if (raw) {
+			try {
+				return new Map(Object.entries(JSON.parse(raw)));
+			} catch {
+				// ignore corrupt data
+			}
+		}
+		return new Map();
+	}
+
+	private _saveBrowserUrls(): void {
+		this._storageService.store(
+			SessionsTasksService._BROWSER_URLS_KEY,
+			JSON.stringify(Object.fromEntries(this._browserUrls)),
+			StorageScope.APPLICATION,
+			StorageTarget.USER
+		);
+	}
+
+	private _loadPinnedBrowsers(): Set<string> {
+		const raw = this._storageService.get(SessionsTasksService._PINNED_BROWSERS_KEY, StorageScope.APPLICATION);
+		if (raw) {
+			try {
+				const arr = JSON.parse(raw);
+				if (Array.isArray(arr)) {
+					return new Set(arr);
+				}
+			} catch {
+				// ignore corrupt data
+			}
+		}
+		return new Set();
+	}
+
+	private _savePinnedBrowsers(): void {
+		this._storageService.store(
+			SessionsTasksService._PINNED_BROWSERS_KEY,
+			JSON.stringify([...this._pinnedBrowsers]),
+			StorageScope.APPLICATION,
+			StorageTarget.USER
+		);
+	}
+
+	private _setPinnedBrowserForKey(key: string, pinned: boolean): void {
+		if (pinned) {
+			this._pinnedBrowsers.add(key);
+		} else {
+			this._pinnedBrowsers.delete(key);
+		}
+
+		this._savePinnedBrowsers();
+
+		const obs = this._pinnedBrowserObservables.get(key);
+		if (obs) {
+			transaction(tx => obs.set(pinned, tx));
 		}
 	}
 }

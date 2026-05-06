@@ -90,21 +90,6 @@ interface ISerializedModelSelection {
 }
 
 /**
- * Narrow surface of {@link CopilotClient} used by this provider. The SDK class
- * has private members, so tests use this structural type to inject a fake.
- */
-export interface ICopilotClient {
-	start(): Promise<void>;
-	stop: CopilotClient['stop'];
-	listSessions: CopilotClient['listSessions'];
-	listModels: () => Promise<ICopilotModelInfo[]>;
-	createSession: CopilotClient['createSession'];
-	resumeSession: CopilotClient['resumeSession'];
-	getSessionMetadata: CopilotClient['getSessionMetadata'];
-	readonly rpc: { readonly sessions: { readonly fork: CopilotClient['rpc']['sessions']['fork'] } };
-}
-
-/**
  * Subset of the JSON-RPC `MessageConnection` we reach into via the SDK's
  * private `connection` field to wire plan mode. See {@link CopilotAgent._enablePlanModeOnClient}.
  */
@@ -136,27 +121,6 @@ export interface IExitPlanModeResponse {
 	readonly selectedAction?: string;
 	readonly autoApproveEdits?: boolean;
 	readonly feedback?: string;
-}
-
-/**
- * Corrected shape of {@link CopilotClient.listModels} entries.
- *
- * The SDK's `ModelInfo` type declares `capabilities`, `capabilities.limits`,
- * and `capabilities.limits.max_context_window_tokens` as required, but at
- * runtime synthetic entries (e.g. the `auto` router) ship with an empty
- * `capabilities: {}` object. We mirror the SDK fields we consume but mark the
- * unreliable parts as optional so callers must defensively handle them.
- */
-export interface ICopilotModelInfo {
-	readonly id: string;
-	readonly name: string;
-	readonly capabilities?: {
-		readonly supports?: { readonly vision?: boolean };
-		readonly limits?: { readonly max_context_window_tokens?: number };
-	};
-	readonly policy?: { readonly state?: string };
-	readonly supportedReasoningEfforts?: readonly string[];
-	readonly defaultReasoningEffort?: string;
 }
 
 function isReasoningEffort(value: string | undefined): value is ReasoningEffort {
@@ -240,8 +204,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private readonly _models = observableValue<readonly IAgentModelInfo[]>(this, []);
 	readonly models = this._models;
 
-	private _client: ICopilotClient | undefined;
-	private _clientStarting: Promise<ICopilotClient> | undefined;
+	private _client: CopilotClient | undefined;
+	private _clientStarting: Promise<CopilotClient> | undefined;
 	private _githubToken: string | undefined;
 	private readonly _sessions = this._register(new DisposableMap<string, CopilotAgentSession>());
 	/**
@@ -283,7 +247,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this.onDidCustomizationsChange = this._plugins.onDidChange;
 	}
 
-	protected _createCopilotClient(options: CopilotClientOptions): ICopilotClient {
+	protected _createCopilotClient(options: CopilotClientOptions): CopilotClient {
 		return new CopilotClient(options);
 	}
 
@@ -371,7 +335,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * `MessageConnection`. Once the SDK adds first-class support, this shim
 	 * should be removed.
 	 */
-	protected _enablePlanModeOnClient(client: ICopilotClient): void {
+	protected _enablePlanModeOnClient(client: CopilotClient): void {
 		// `connection` is declared private on `CopilotClient` at the type
 		// level but is a plain field at runtime — see the SDK's compiled
 		// `dist/client.js`.
@@ -414,7 +378,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	// ---- client lifecycle ---------------------------------------------------
 
-	private async _ensureClient(): Promise<ICopilotClient> {
+	private async _ensureClient(): Promise<CopilotClient> {
 		const tokenAtStartup = this._githubToken;
 		if (!tokenAtStartup) {
 			throw new ProtocolError(AHP_AUTH_REQUIRED, 'Authentication is required to use Copilot', this.getProtectedResources());
@@ -640,6 +604,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 			supportsVision: !!m.capabilities?.supports?.vision,
 			configSchema: this._createThinkingLevelConfigSchema(m.supportedReasoningEfforts, m.defaultReasoningEffort),
 			policyState: m.policy?.state as PolicyState | undefined,
+			_meta: typeof m.billing?.multiplier === 'number' ? {
+				multiplierNumeric: m.billing.multiplier,
+			} : undefined,
 		}));
 		this._logService.info(`[Copilot] Found ${result.length} models`);
 		return result;
@@ -1363,10 +1330,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * inside the {@link SessionWrapperFactory}.
 	 */
 	private _buildSessionConfig(snapshot: IActiveClientSnapshot | undefined, shellManager: ShellManager): (args: Parameters<SessionWrapperFactory>[0]) => Promise<ResumeSessionConfig> {
-		const shellTools = createShellTools(shellManager, this._terminalManager, this._logService);
 		const plugins = snapshot?.plugins ?? [];
 
 		return async (callbacks: Parameters<SessionWrapperFactory>[0]) => {
+			const shellTools = await createShellTools(shellManager, this._terminalManager, this._logService);
 			const customAgents = await toSdkCustomAgents(plugins.flatMap(p => p.agents), this._fileService);
 			return {
 				onPermissionRequest: callbacks.onPermissionRequest,
