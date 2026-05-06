@@ -1113,32 +1113,13 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			const isAutoApproved = chatSessionResource && isSessionAutoApproveLevel(chatSessionResource, this._configurationService, this._chatWidgetService, this._chatService);
 			const chatModel = chatSessionResource && this._chatService.getSession(chatSessionResource);
 			if (isAutoApproved) {
-				// Autopilot / auto-approve: there is no human in the loop to type
-				// the secret, and the terminal can't reliably be focused after the
-				// tool returns (it may be cleaned up). Cancel the command and let
-				// the caller emit a steering note that tells the agent the user
-				// is unavailable. We also surface a one-shot informational chat
-				// part so a watching user can see what happened.
+				// Autopilot / auto-approve: no human is in the loop to type the
+				// secret, and the terminal can't reliably be focused after the
+				// tool returns. Cancel the command and let the caller emit a
+				// steering note that tells the agent the user is unavailable —
+				// the agent's own response will then surface what happened, so
+				// we don't need to render a separate chat part for the user.
 				autoCancelled = true;
-				if (chatModel instanceof ChatModel) {
-					const request = chatModel.getRequests().at(-1);
-					if (request) {
-						const infoPart = new ChatElicitationRequestPart(
-							new MarkdownString(localize('runInTerminal.sensitiveInput.autoCancelTitle', "Terminal command cancelled — sensitive input required")),
-							new MarkdownString(localize('runInTerminal.sensitiveInput.autoCancelMessage', "The terminal command was prompting for a password or other secret. Auto-approve / autopilot mode cannot safely supply secrets, so the command was cancelled. Run the command interactively if you want to provide the secret.")),
-							'',
-							localize('runInTerminal.sensitiveInput.dismiss', "Dismiss"),
-							'',
-							async () => { infoPart.hide(); return ElicitationState.Accepted; },
-							async () => { infoPart.hide(); return ElicitationState.Rejected; },
-							undefined,
-							undefined,
-							undefined,
-							undefined,
-						);
-						chatModel.acceptResponseProgress(request, infoPart);
-					}
-				}
 				onAutoCancelled?.();
 				cancelExecution();
 				return;
