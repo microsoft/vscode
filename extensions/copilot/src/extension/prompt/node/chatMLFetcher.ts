@@ -387,6 +387,11 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 
 					// Record OTel token usage metrics if available
 					if (result.type === ChatFetchResponseType.Success && result.usage) {
+						// Store copilot_usage for per-request credits display
+						if (result.usage.copilot_usage?.total_nano_aiu) {
+							this._chatQuotaService.setLastCopilotUsage(result.usage.copilot_usage.total_nano_aiu);
+						}
+
 						const metricAttrs = {
 							operationName: GenAiOperationName.CHAT,
 							providerName: GenAiProviderName.GITHUB,

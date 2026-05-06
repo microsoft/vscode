@@ -14,6 +14,7 @@ export class ChatQuotaService extends Disposable implements IChatQuotaService {
 
 	private _quotaInfo: IChatQuota | undefined;
 	private _rateLimitInfo: { session: IChatQuota | undefined; weekly: IChatQuota | undefined };
+	private _lastCreditsUsed: number | undefined;
 
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange = this._onDidChange.event;
@@ -46,6 +47,16 @@ export class ChatQuotaService extends Disposable implements IChatQuotaService {
 			return false;
 		}
 		return this._quotaInfo.additionalUsageEnabled;
+	}
+
+	get lastCreditsUsed(): number | undefined {
+		return this._lastCreditsUsed;
+	}
+
+	setLastCopilotUsage(totalNanoAiu: number): void {
+		// Convert nano-AIUs to AIC credits: 1 AIC = 1_000_000_000 nano-AIU
+		const aic = totalNanoAiu / 1_000_000_000;
+		this._lastCreditsUsed = aic > 0 ? aic : undefined;
 	}
 
 	clearQuota(): void {
@@ -87,7 +98,8 @@ export class ChatQuotaService extends Disposable implements IChatQuotaService {
 				percentRemaining: snapshot.percent_remaining,
 				additionalUsageUsed: snapshot.overage_count,
 				additionalUsageEnabled: snapshot.overage_permitted,
-				resetDate
+				resetDate,
+				totalRemaining: snapshot.quota_remaining,
 			};
 			this._onDidChange.fire();
 		} catch (error) {
@@ -106,6 +118,8 @@ export class ChatQuotaService extends Disposable implements IChatQuotaService {
 			const additionalUsageEnabled = params.get('ovPerm') === 'true';
 			const percentRemaining = parseFloat(params.get('rem') || '0.0');
 			const resetDateString = params.get('rst');
+			const totRemString = params.get('totRem');
+			const totalRemaining = totRemString !== null ? parseFloat(totRemString) : undefined;
 
 			let resetDate: Date;
 			if (resetDateString) {
@@ -122,7 +136,8 @@ export class ChatQuotaService extends Disposable implements IChatQuotaService {
 				percentRemaining,
 				additionalUsageUsed,
 				additionalUsageEnabled,
-				resetDate
+				resetDate,
+				totalRemaining,
 			};
 		} catch (error) {
 			console.error('Failed to parse quota header', error);
@@ -141,6 +156,10 @@ export class ChatQuotaService extends Disposable implements IChatQuotaService {
 			quota: quotaInfo.quota_snapshots.premium_interactions.entitlement,
 			resetDate: new Date(quotaInfo.quota_reset_date),
 			percentRemaining: quotaInfo.quota_snapshots.premium_interactions.percent_remaining,
+			// Seed totalRemaining so the first request can compute a credits-used diff.
+			// For PRU users this value is also present but harmless — their response
+			// headers won't contain totRem, so no diff will be computed.
+			totalRemaining: quotaInfo.quota_snapshots.premium_interactions.remaining,
 		};
 		this._onDidChange.fire();
 	}

@@ -8,6 +8,7 @@ import type { ChatRequest, ChatRequestTurn2, ChatResponseStream, ChatResult, Loc
 import { IAuthenticationService } from '../../../platform/authentication/common/authentication';
 import { IAuthenticationChatUpgradeService } from '../../../platform/authentication/common/authenticationUpgrade';
 import { getChatParticipantNameFromId } from '../../../platform/chat/common/chatAgents';
+import { IChatQuotaService } from '../../../platform/chat/common/chatQuotaService';
 import { CanceledMessage, ChatLocation } from '../../../platform/chat/common/commonTypes';
 import { IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
 import { IIgnoreService } from '../../../platform/ignore/common/ignoreService';
@@ -82,8 +83,9 @@ export class ChatParticipantRequestHandler {
 		@IConversationStore private readonly _conversationStore: IConversationStore,
 		@ITabsAndEditorsService tabsAndEditorsService: ITabsAndEditorsService,
 		@ILogService private readonly _logService: ILogService,
-		@IAuthenticationService private readonly _authService: IAuthenticationService,
+		@IAuthenticationService _authService: IAuthenticationService,
 		@IAuthenticationChatUpgradeService private readonly _authenticationUpgradeService: IAuthenticationChatUpgradeService,
+		@IChatQuotaService private readonly _chatQuotaService: IChatQuotaService,
 	) {
 		this.location = this.getLocation(request);
 
@@ -255,9 +257,14 @@ export class ChatParticipantRequestHandler {
 
 				result = await chatResult;
 				const endpoint = await this._endpointProvider.getChatEndpoint(this.request);
-				result.details = this._authService.copilotToken?.isNoAuthUser || endpoint.multiplier === undefined ?
-					`${endpoint.name}` :
-					`${endpoint.name} • ${endpoint.multiplier}x`;
+				let details = `${endpoint.name}`;
+				// Show per-request credits for TBB users, from copilot_usage.total_nano_aiu
+				const creditsUsed = this._chatQuotaService.lastCreditsUsed;
+				if (creditsUsed !== undefined) {
+					const formatted = creditsUsed % 1 === 0 ? creditsUsed.toString() : creditsUsed.toFixed(1);
+					details += ` • ${formatted} credit${creditsUsed === 1 ? '' : 's'}`;
+				}
+				result.details = details;
 			}
 
 			this._conversationStore.addConversation(this.turn.id, this.conversation);
