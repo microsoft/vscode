@@ -54,6 +54,7 @@ describe('CopilotCLISDK Authentication', () => {
 
 	afterEach(() => {
 		disposables.clear();
+		delete process.env['COPILOT_API_URL'];
 	});
 
 	it('should skip token validation when proxy URL is configured', async () => {

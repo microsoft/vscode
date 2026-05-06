@@ -503,7 +503,6 @@ export interface ICopilotCLISDK {
 	readonly _serviceBrand: undefined;
 	getPackage(): Promise<typeof import('@github/copilot/sdk')>;
 	getAuthInfo(): Promise<NonNullable<SessionOptions['authInfo']>>;
-	resolveEffectiveCopilotApiUrl(): Promise<string | undefined>;
 	/**
 	 * @deprecated
 	 */
@@ -592,7 +591,8 @@ export class CopilotCLISDK implements ICopilotCLISDK {
 		if (authProviderId(this.configurationService) === AuthProviderId.GitHubEnterprise) {
 			const gheUri = this.configurationService.getNonExtensionConfig<string>(GITHUB_ENTERPRISE_URI_CONFIG);
 			if (gheUri) {
-				return gheUri;
+				const parsed = URI.parse(gheUri.trim());
+				return `${parsed.scheme}://${parsed.authority}`;
 			}
 		}
 		return 'https://github.com';
@@ -607,25 +607,10 @@ export class CopilotCLISDK implements ICopilotCLISDK {
 			const gheUri = this.configurationService.getNonExtensionConfig<string>(GITHUB_ENTERPRISE_URI_CONFIG);
 			if (gheUri) {
 				const url = URI.parse(gheUri);
-				return URI.from({ scheme: 'https', authority: `copilot-api.${url.authority}` }).toString(true);
+				return URI.from({ scheme: url.scheme || 'https', authority: `copilot-api.${url.authority}` }).toString(true);
 			}
 		}
 		return undefined;
-	}
-
-	public async resolveEffectiveCopilotApiUrl(): Promise<string | undefined> {
-		if (authProviderId(this.configurationService) !== AuthProviderId.GitHubEnterprise) {
-			return undefined;
-		}
-		try {
-			const copilotToken = await this.authentService.getCopilotToken();
-			if (copilotToken?.endpoints?.api) {
-				return copilotToken.endpoints.api;
-			}
-		} catch {
-			// Fall through to sync derivation
-		}
-		return this.resolveCopilotApiUrl();
 	}
 
 	public async getAuthInfo(): Promise<NonNullable<SessionOptions['authInfo']>> {
@@ -649,26 +634,28 @@ export class CopilotCLISDK implements ICopilotCLISDK {
 			};
 		}
 
+		const isGHE = authProvider === AuthProviderId.GitHubEnterprise;
+
 		// For GHE, resolve the Copilot API URL from the Copilot token's endpoints
 		// rather than guessing the URL pattern. The token exchange response contains
 		// the actual GHES-aware API URL.
 		let copilotToken: { token: string; endpoints?: { api?: string } } | undefined;
-		try {
-			copilotToken = await this.authentService.getCopilotToken();
-		} catch {
-			// Token minting failed — fall through to OAuth
-		}
-		const tokenApiUrl = copilotToken?.endpoints?.api;
-		const copilotApiUrl = tokenApiUrl || this.resolveCopilotApiUrl();
-
-		if (copilotApiUrl) {
-			process.env['COPILOT_API_URL'] = copilotApiUrl;
+		let copilotApiUrl: string | undefined;
+		if (isGHE) {
+			try {
+				copilotToken = await this.authentService.getCopilotToken();
+			} catch {
+				// Token minting failed — fall through to OAuth
+			}
+			copilotApiUrl = copilotToken?.endpoints?.api || this.resolveCopilotApiUrl();
+			process.env['COPILOT_API_URL'] = copilotApiUrl ?? '';
+		} else {
+			delete process.env['COPILOT_API_URL'];
 		}
 
 		// For GHE, the Copilot API requires the Copilot JWT token (from the token
 		// exchange) rather than the raw GitHub OAuth token. The JWT carries model
 		// entitlements that the completions endpoint validates.
-		const isGHE = authProvider === AuthProviderId.GitHubEnterprise;
 		const authToken = isGHE && copilotToken?.token
 			? copilotToken.token
 			: (await this.authentService.getGitHubSession('any', { silent: true }))?.accessToken ?? '';
