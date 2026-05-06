@@ -748,39 +748,26 @@ export class CopilotPrototypeShellCoinStatusBarContribution extends Disposable i
 		banner.className = 'copilot-prototype-chat-banner compact';
 		banner.classList.add(opts.severity);
 
-		// Top row: icon + title + dismiss
-		const topRow = mainWindow.document.createElement('div');
-		topRow.className = 'copilot-prototype-chat-banner-top';
+		// Single row: icon + title + description + actions + dismiss
+		const row = mainWindow.document.createElement('div');
+		row.className = 'copilot-prototype-chat-banner-single-row';
 		const icon = mainWindow.document.createElement('span');
 		icon.className = 'copilot-prototype-chat-banner-icon';
 		icon.append(...renderLabelWithIcons(opts.severity === 'error' ? '$(error)' : opts.severity === 'warning' ? '$(warning)' : '$(info)'));
-		topRow.appendChild(icon);
+		row.appendChild(icon);
 		const titleText = mainWindow.document.createElement('span');
 		titleText.className = 'copilot-prototype-chat-banner-title';
 		titleText.textContent = opts.title;
-		topRow.appendChild(titleText);
-		const dismiss = mainWindow.document.createElement('span');
-		dismiss.className = 'copilot-prototype-chat-banner-dismiss';
-		dismiss.append(...renderLabelWithIcons('$(close)'));
-		dismiss.tabIndex = 0;
-		dismiss.role = 'button';
-		dismiss.title = localize('dismiss', "Dismiss");
-		dismiss.addEventListener('click', () => this.clearBanner());
-		topRow.appendChild(dismiss);
-		banner.appendChild(topRow);
-
-		// Bottom row: description (left) + actions (right) — single line.
-		const bottomRow = mainWindow.document.createElement('div');
-		bottomRow.className = 'copilot-prototype-chat-banner-row';
+		row.appendChild(titleText);
 		if (opts.description) {
-			const desc = mainWindow.document.createElement('div');
-			desc.className = 'copilot-prototype-chat-banner-desc';
+			const desc = mainWindow.document.createElement('span');
+			desc.className = 'copilot-prototype-chat-banner-desc-inline';
 			desc.textContent = opts.description;
-			bottomRow.appendChild(desc);
+			row.appendChild(desc);
 		}
 		if (opts.actions && opts.actions.length > 0) {
-			const actionsRow = mainWindow.document.createElement('div');
-			actionsRow.className = 'copilot-prototype-chat-banner-actions';
+			const actionsContainer = mainWindow.document.createElement('div');
+			actionsContainer.className = 'copilot-prototype-chat-banner-actions';
 			for (const action of opts.actions) {
 				const btn = mainWindow.document.createElement('button');
 				btn.className = action.primary
@@ -788,13 +775,19 @@ export class CopilotPrototypeShellCoinStatusBarContribution extends Disposable i
 					: 'copilot-prototype-chat-banner-btn';
 				btn.textContent = action.label;
 				btn.addEventListener('click', action.onClick);
-				actionsRow.appendChild(btn);
+				actionsContainer.appendChild(btn);
 			}
-			bottomRow.appendChild(actionsRow);
+			row.appendChild(actionsContainer);
 		}
-		if (bottomRow.childNodes.length > 0) {
-			banner.appendChild(bottomRow);
-		}
+		const dismiss = mainWindow.document.createElement('span');
+		dismiss.className = 'copilot-prototype-chat-banner-dismiss';
+		dismiss.append(...renderLabelWithIcons('$(close)'));
+		dismiss.tabIndex = 0;
+		dismiss.role = 'button';
+		dismiss.title = localize('dismiss', "Dismiss");
+		dismiss.addEventListener('click', () => this.clearBanner());
+		row.appendChild(dismiss);
+		banner.appendChild(row);
 
 		this._bannerElement = banner;
 		protoContainer.appendChild(banner);
@@ -810,16 +803,31 @@ export class CopilotPrototypeShellCoinStatusBarContribution extends Disposable i
 		const banner = mainWindow.document.createElement('div');
 		banner.className = 'copilot-prototype-chat-banner info simple';
 
-		const topRow = mainWindow.document.createElement('div');
-		topRow.className = 'copilot-prototype-chat-banner-top';
+		// Single row: icon + title + description + actions + dismiss
+		const row = mainWindow.document.createElement('div');
+		row.className = 'copilot-prototype-chat-banner-single-row';
 		const icon = mainWindow.document.createElement('span');
 		icon.className = 'copilot-prototype-chat-banner-icon';
 		icon.append(...renderLabelWithIcons('$(info)'));
-		topRow.appendChild(icon);
+		row.appendChild(icon);
 		const titleText = mainWindow.document.createElement('span');
 		titleText.className = 'copilot-prototype-chat-banner-title';
 		titleText.textContent = opts.title;
-		topRow.appendChild(titleText);
+		row.appendChild(titleText);
+		if (opts.description) {
+			const descText = mainWindow.document.createElement('span');
+			descText.className = 'copilot-prototype-chat-banner-desc-inline';
+			descText.textContent = opts.description;
+			row.appendChild(descText);
+		}
+		const actionsRow = mainWindow.document.createElement('div');
+		actionsRow.className = 'copilot-prototype-chat-banner-actions';
+		const viewUsageBtn = mainWindow.document.createElement('button');
+		viewUsageBtn.className = 'copilot-prototype-chat-banner-btn';
+		viewUsageBtn.textContent = localize('viewUsage', "View Usage");
+		viewUsageBtn.addEventListener('click', () => this.openDashboard());
+		actionsRow.appendChild(viewUsageBtn);
+		row.appendChild(actionsRow);
 		const dismiss = mainWindow.document.createElement('span');
 		dismiss.className = 'copilot-prototype-chat-banner-dismiss';
 		dismiss.append(...renderLabelWithIcons('$(close)'));
@@ -827,26 +835,8 @@ export class CopilotPrototypeShellCoinStatusBarContribution extends Disposable i
 		dismiss.role = 'button';
 		dismiss.title = localize('dismiss', "Dismiss");
 		dismiss.addEventListener('click', () => this.clearBanner());
-		topRow.appendChild(dismiss);
-		banner.appendChild(topRow);
-
-		if (opts.description) {
-			const bottomRow = mainWindow.document.createElement('div');
-			bottomRow.className = 'copilot-prototype-chat-banner-row';
-			const descText = mainWindow.document.createElement('span');
-			descText.className = 'copilot-prototype-chat-banner-desc';
-			descText.textContent = opts.description;
-			bottomRow.appendChild(descText);
-			const actionsRow = mainWindow.document.createElement('div');
-			actionsRow.className = 'copilot-prototype-chat-banner-actions';
-			const viewUsageBtn = mainWindow.document.createElement('button');
-			viewUsageBtn.className = 'copilot-prototype-chat-banner-btn';
-			viewUsageBtn.textContent = localize('viewUsage', "View Usage");
-			viewUsageBtn.addEventListener('click', () => this.openDashboard());
-			actionsRow.appendChild(viewUsageBtn);
-			bottomRow.appendChild(actionsRow);
-			banner.appendChild(bottomRow);
-		}
+		row.appendChild(dismiss);
+		banner.appendChild(row);
 
 		this._bannerElement = banner;
 		protoContainer.appendChild(banner);
@@ -1029,7 +1019,7 @@ export class CopilotPrototypeShellCoinStatusBarContribution extends Disposable i
 				return {
 					title: localize('inlineSessionReachedTitle', "You've reached your Five-Hour Limit."),
 					description: localize('inlineSessionReachedDescProNoO', "Resets at 10:00 AM. Set up an additional budget to continue."),
-					buttonLabel: localize('configureBudget', "Manage Budget"),
+					buttonLabel: localize('configureBudgetBtn', "Configure Budget"),
 				};
 			}
 			return {
@@ -1058,7 +1048,7 @@ export class CopilotPrototypeShellCoinStatusBarContribution extends Disposable i
 				return {
 					title: localize('inlineWeeklyReachedTitle', "You've reached your Weekly Limit."),
 					description: localize('inlineWeeklyReachedDescProNoO', "Resets April 6 at 10:00 AM. Set up an additional budget to continue."),
-					buttonLabel: localize('configureBudget', "Manage Budget"),
+					buttonLabel: localize('configureBudgetBtn', "Configure Budget"),
 				};
 			}
 			return {
@@ -2922,6 +2912,9 @@ export class CopilotTBB3StatusBarContribution extends Disposable implements IWor
 	private _autoAdvanceStates: string[] | undefined;
 	private _autoAdvanceIndex = 0;
 
+	get activeSku(): string { return this._activeSku; }
+	get activeState(): string { return this._activeState; }
+
 	static readonly INDIVIDUAL_SKUS = ['Edu/Free', 'Pro/Pro+ No O', 'Pro/Pro+', 'Max'];
 	static readonly ENTERPRISE_SKUS = ['Ent/Bus ULB', 'Ent/Bus'];
 	static readonly STATES = ['Default', 'Monthly Approached', 'Monthly Exhausted', 'Monthly Reset', 'Overage Exhausted', 'Overage Reset'];
@@ -3022,9 +3015,9 @@ export class CopilotTBB3StatusBarContribution extends Disposable implements IWor
 		}
 
 		const monthlyReachedTitle = localize('tbb3MonthlyReached', "Credits Reached");
-		const overageReachedTitle = localize('tbb3OverageReached', "Overage Limit Reached");
+		const overageReachedTitle = localize('tbb3OverageReached', "Additional Spend Reached");
 		const viewUsageAction = { label: localize('viewUsage', "View Usage"), onClick: () => this.openDashboard() };
-		const manageBudgetAction = { label: localize('manageBudget', "Manage Budget"), primary: true, onClick: () => this.openDashboard() };
+		const manageBudgetAction = { label: isProNoO ? localize('configureBudget', "Configure Budget") : localize('manageBudget', "Manage Budget"), primary: true, onClick: () => this.openDashboard() };
 		const upgradeAction = { label: localize('upgrade', "Upgrade"), primary: true, onClick: () => this.openDashboard() };
 
 		switch (state) {
@@ -3039,7 +3032,7 @@ export class CopilotTBB3StatusBarContribution extends Disposable implements IWor
 							? localize('tbb3BannerHasOverageApproachShort', "Your additional budget is ready to keep things flowing.")
 							: isFree
 								? localize('tbb3BannerFreeApproachShort', "You're getting the most out of Copilot. Upgrade to keep going.")
-								: localize('tbb3BannerPaidApproachShort', "Manage your budget to keep building without interruption."),
+								: localize('tbb3BannerPaidApproachShort', "Configure overage spend to keep going."),
 					actions: isEntULB
 						? []
 						: isFree
@@ -3051,14 +3044,14 @@ export class CopilotTBB3StatusBarContribution extends Disposable implements IWor
 				// Pro/Pro+ + Max only — monthly hit 100%, overage now in use
 				tbb1.showCustomSimpleBanner({
 					title: monthlyReachedTitle,
-					description: localize('tbb3BannerMonthlyReachedDesc', "Your additional budget is keeping Copilot going strong."),
+					description: localize('tbb3BannerMonthlyReachedDesc', "Your additional budget will keep Copilot going."),
 				});
 				break;
 			case 'Monthly Exhausted':
 				if (hasOverage) {
 					tbb1.showCustomSimpleBanner({
 						title: monthlyReachedTitle,
-						description: localize('tbb3BannerMonthlyExhaustedOverageDesc', "Your additional budget is keeping Copilot going strong."),
+						description: localize('tbb3BannerMonthlyExhaustedOverageDesc', "Your additional budget will keep Copilot going."),
 					});
 				} else {
 					tbb1.showCustomGaugeBanner({
@@ -3070,7 +3063,7 @@ export class CopilotTBB3StatusBarContribution extends Disposable implements IWor
 							: isFree
 								? localize('tbb3BannerFreeExhaustedShort', "You've made the most of Copilot Free. Upgrade to keep going.")
 								: isProNoO
-									? localize('tbb3BannerProNoOExhaustedShort', "Manage your budget to pick up right where you left off.")
+									? localize('tbb3BannerProNoOExhaustedShort', "Configure overage spend to keep building.")
 									: localize('tbb3BannerPaidExhaustedShort', "Copilot will be back when limits reset."),
 						actions: isEntULB
 							? []
@@ -3085,7 +3078,7 @@ export class CopilotTBB3StatusBarContribution extends Disposable implements IWor
 					title: overageReachedTitle,
 					percent: 100,
 					severity: 'celebrate',
-					description: localize('tbb3BannerOverageExhaustedShort', "Increase your budget to keep building without missing a beat."),
+					description: localize('tbb3BannerOverageExhaustedShort', "Increase your budget to keep building."),
 					actions: [viewUsageAction, manageBudgetAction],
 				});
 				break;
@@ -3184,13 +3177,13 @@ export class CopilotTBB3StatusBarContribution extends Disposable implements IWor
 						: localize('tbb3PaidApproachCelebrate', "You're getting close to your included credits for Copilot. Manage your budget to keep going."));
 			} else if (monthlyExhausted && hasOverage) {
 				// Pro/Pro+ + Max: monthly limit reached, overage now in use
-				this.createCelebrateMsg(usageContent, localize('tbb3MonthlyReachedCelebrate', "You've reached your included credits. Your additional budget is keeping Copilot going until limits reset."));
+				this.createCelebrateMsg(usageContent, localize('tbb3MonthlyReachedCelebrate', "Your additional budget will keep Copilot going."));
 			} else if (monthlyExhausted) {
 				if (isFree) {
-					this.createCelebrateMsg(usageContent, localize('tbb3FreeExhaustedCelebrate', "You've reached your included credits for Copilot Free. Upgrade to keep going."));
+					this.createCelebrateMsg(usageContent, localize('tbb3FreeExhaustedCelebrate', "You're getting the most out of Copilot."));
 				} else {
 					this.createCelebrateMsg(usageContent, isProNoO
-						? localize('tbb3ProNoOExhaustedWarn', "You've reached your included credits. Manage your budget to keep going.")
+						? localize('tbb3ProNoOExhaustedWarn', "Configure overage spend to keep building.")
 						: localize('tbb3PaidExhaustedWarn2', "Copilot is paused until your included credits resets."));
 				}
 			} else if (overageExhausted) {
@@ -3263,12 +3256,12 @@ export class CopilotTBB3StatusBarContribution extends Disposable implements IWor
 					upgradeBtn.label = localize('upgrade', "Upgrade");
 					disposables.add(upgradeBtn.onDidClick(() => this.advanceState()));
 					const configBtn = disposables.add(new Button(headerCtas, { ...defaultButtonStyles }));
-					configBtn.label = localize('tbb3ConfigureOverage', "Manage Budget");
+					configBtn.label = localize('tbb3ConfigureOverage', "Configure Budget");
 					disposables.add(configBtn.onDidClick(() => this.advanceState()));
 				} else {
 					// Approaching/other non-exhausted states — secondary CTA.
 					const manageBtn = disposables.add(new Button(headerCtas, { ...defaultButtonStyles, secondary: true }));
-					manageBtn.label = localize('tbb3ConfigureOverage', "Manage Budget");
+					manageBtn.label = localize('tbb3ConfigureOverage', "Configure Budget");
 					disposables.add(manageBtn.onDidClick(() => this.advanceState()));
 				}
 			} else {
@@ -3663,7 +3656,7 @@ class CopilotPrototypeCoinViewPane extends ViewPane {
 		}
 
 		tbb3Instance.renderController(container, this.contentDisposables);
-		tbb3Instance.setBillingMode('tbb-3.0');
+		CopilotPrototypeShellCoinStatusBarContribution.instance?.setBillingMode('tbb-3.0');
 	}
 
 	protected override layoutBody(height: number, width: number): void {

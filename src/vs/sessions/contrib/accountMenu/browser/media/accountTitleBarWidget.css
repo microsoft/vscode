@@ -587,3 +587,204 @@
 	font-size: 16px;
 	color: inherit;
 }
+
+/* --- UBB Dashboard Widget --- */
+
+.agent-sessions-workbench .sessions-ubb-titlebar-widget {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	cursor: pointer;
+	border-radius: 4px;
+	padding: 2px 4px;
+}
+
+.agent-sessions-workbench .sessions-ubb-titlebar-widget:hover {
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
+.agent-sessions-workbench .sessions-ubb-titlebar-widget:active,
+.agent-sessions-workbench .sessions-ubb-titlebar-widget.menu-visible {
+	background: var(--vscode-toolbar-activeBackground);
+}
+
+.agent-sessions-workbench .sessions-ubb-titlebar-widget-icon {
+	font-size: 16px;
+	color: inherit;
+}
+
+.agent-sessions-workbench .sessions-ubb-titlebar-widget-avatar {
+	width: 20px;
+	height: 20px;
+	border-radius: 50%;
+	object-fit: cover;
+}
+
+/* UBB Header CTA Button */
+.sessions-ubb-header-cta {
+	padding: 4px 12px;
+	border: 1px solid var(--vscode-button-secondaryBorder, var(--vscode-contrastBorder, rgba(127,127,127,0.3)));
+	border-radius: 4px;
+	background: var(--vscode-button-secondaryBackground);
+	color: var(--vscode-button-secondaryForeground);
+	font-size: 12px;
+	cursor: pointer;
+	white-space: nowrap;
+}
+
+.sessions-ubb-header-cta:hover {
+	background: var(--vscode-button-secondaryHoverBackground);
+}
+
+/* UBB Callout Banner */
+.sessions-ubb-callout {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	padding: 10px 10px;
+	background: color-mix(in srgb, var(--vscode-focusBorder) 8%, var(--vscode-editorWidget-background));
+	font-size: 12px;
+	line-height: 1.4;
+	color: var(--vscode-foreground);
+}
+
+.sessions-ubb-callout-body {
+	display: flex;
+	align-items: flex-start;
+	gap: 6px;
+}
+
+.sessions-ubb-callout-icon {
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	height: 1.4em;
+	color: var(--vscode-focusBorder);
+}
+
+.sessions-ubb-callout-text {
+	flex: 1;
+}
+
+.sessions-ubb-callout-title {
+	font-weight: 600;
+}
+
+.sessions-ubb-callout-link {
+	color: var(--vscode-textLink-foreground);
+	cursor: pointer;
+	text-decoration: none;
+}
+
+.sessions-ubb-callout-link:hover {
+	text-decoration: underline;
+}
+
+/* UBB Callout Actions Row */
+.sessions-ubb-callout-actions {
+	display: flex;
+	justify-content: flex-end;
+	align-items: center;
+	gap: 8px;
+}
+
+/* UBB Secondary Upgrade Button (inside callout) */
+.sessions-ubb-callout-upgrade {
+	padding: 4px 12px;
+	border: 1px solid var(--vscode-button-secondaryBorder, var(--vscode-contrastBorder, rgba(127,127,127,0.3)));
+	border-radius: 4px;
+	background: var(--vscode-button-secondaryBackground);
+	color: var(--vscode-button-secondaryForeground);
+	font-size: 12px;
+	cursor: pointer;
+	white-space: nowrap;
+}
+
+.sessions-ubb-callout-upgrade:hover {
+	background: var(--vscode-button-secondaryHoverBackground);
+}
+
+/* UBB Quota Section */
+.sessions-ubb-quota {
+	padding: 8px 10px;
+}
+
+.sessions-ubb-quota-title {
+	font-size: 13px;
+	font-weight: 600;
+	color: var(--vscode-foreground);
+}
+
+.sessions-ubb-quota-row {
+	display: flex;
+	justify-content: space-between;
+	align-items: baseline;
+}
+
+.sessions-ubb-quota-reset {
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.sessions-ubb-quota-pct {
+	font-size: 13px;
+	font-weight: 600;
+	color: var(--vscode-foreground);
+}
+
+.sessions-ubb-quota-credits-label {
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.sessions-ubb-quota-desc {
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+	margin-top: 2px;
+}
+
+/* UBB Codebase Semantic Index */
+.sessions-ubb-index {
+	padding-top: 4px;
+}
+
+.sessions-ubb-index-header {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	width: 100%;
+	padding: 6px 10px;
+	border: none;
+	background: none;
+	cursor: pointer;
+	font-size: 13px;
+	font-weight: 400;
+	font-family: inherit;
+	color: var(--vscode-foreground);
+}
+
+.sessions-ubb-index-header:focus {
+	outline: none;
+}
+
+.sessions-ubb-index-header:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.sessions-ubb-index-label {
+	white-space: nowrap;
+	flex-shrink: 0;
+}
+
+.sessions-ubb-index-chevron {
+	font-size: 12px;
+	opacity: 0.7;
+	flex-shrink: 0;
+}
+
+.sessions-ubb-index-status {
+	margin-left: auto;
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+}

@@ -165,7 +165,7 @@ export class ChatInputNotificationContribution extends Disposable {
 			];
 		} else {
 			notification.message = vscode.l10n.t('Monthly Limit Reached');
-			notification.description = vscode.l10n.t("You've made the most of Copilot Free. Upgrade to keep going.");
+			notification.description = vscode.l10n.t("You're getting the most out of Copilot.");
 			notification.actions = [
 				{ label: vscode.l10n.t('View Usage'), commandId: 'workbench.action.chat.openCopilotStatus' },
 				{ label: vscode.l10n.t('Upgrade'), commandId: 'workbench.action.chat.upgradePlan' },
@@ -185,7 +185,7 @@ export class ChatInputNotificationContribution extends Disposable {
 		notification.dismissible = true;
 		notification.autoDismissOnMessage = true;
 		notification.message = vscode.l10n.t('Monthly Limit at {0}%', warning.percentUsed);
-		notification.description = vscode.l10n.t("You're getting the most out of Copilot \u2014 upgrade to keep going.");
+		notification.description = vscode.l10n.t("You're getting the most out of Copilot.");
 		notification.actions = [
 			{ label: vscode.l10n.t('View Usage'), commandId: 'workbench.action.chat.openCopilotStatus' },
 			{ label: vscode.l10n.t('Upgrade'), commandId: 'workbench.action.chat.upgradePlan' },

@@ -78,6 +78,12 @@ export interface IChatStatusDashboardOptions {
 	disableQuickSettingsCollapsible?: boolean;
 	/** When true, contributed sections are rendered always-expanded without a collapsible header button. */
 	disableContributedSectionsCollapsible?: boolean;
+	/** When true, completely hides the Inline Suggestions / Quick Settings section. */
+	hideQuickSettingsSection?: boolean;
+	/** When true, hides the completions (inline suggestions) quota bar. */
+	hideCompletionsQuota?: boolean;
+	/** When true, hides the setup / sign-in section at the bottom. */
+	hideSetupSection?: boolean;
 	/**
 	 * When provided, the title header (plan name + manage / CTA actions) is
 	 * rendered into this caller-owned container instead of inline at the top
@@ -135,10 +141,11 @@ export class ChatStatusDashboard extends DomWidget {
 			isAnonymousWithSentiment;
 		const contributedEntries = [...this.chatStatusItemService.getEntries()];
 		const hasQuickSettingsContent =
+			!this.options?.hideQuickSettingsSection && (
 			!this.options?.disableInlineSuggestionsSettings ||
 			!this.options?.disableModelSelection ||
 			!this.options?.disableProviderOptions ||
-			!this.options?.disableCompletionsSnooze;
+			!this.options?.disableCompletionsSnooze);
 
 		// Title header with plan name, CTA buttons, and manage action
 		let headerAdditionalSpendButton: Button | undefined;
@@ -218,7 +225,9 @@ export class ChatStatusDashboard extends DomWidget {
 		}
 
 		// New to Chat / Signed out
-		this.renderSetupSection();
+		if (!this.options?.hideSetupSection) {
+			this.renderSetupSection();
+		}
 	}
 
 	private renderUsageContent(container: HTMLElement, token: CancellationToken, headerAdditionalSpendButton: Button | undefined, updatePromise: Promise<void>): void {
@@ -251,7 +260,7 @@ export class ChatStatusDashboard extends DomWidget {
 			}
 
 			let completionsQuotaIndicator: ((quota: IQuotaSnapshot | string) => void) | undefined;
-			const showCompletions = completionsQuota && !completionsQuota.unlimited && completionsQuota.percentRemaining >= 0
+			const showCompletions = !this.options?.hideCompletionsQuota && completionsQuota && !completionsQuota.unlimited && completionsQuota.percentRemaining >= 0
 				&& (!premiumChatQuota?.usageBasedBilling || this.chatEntitlementService.entitlement === ChatEntitlement.Free);
 			if (showCompletions) {
 				completionsQuotaIndicator = this.createQuotaIndicator(container, completionsQuota, localize('completionsLabel', "Inline Suggestions"), resetLabel);
