@@ -136,7 +136,7 @@ class AgentHostModelPickerContribution extends Disposable implements IWorkbenchC
 				const action = { id: 'sessions.agentHost.modelPicker', label: '', enabled: true, class: undefined, tooltip: '', run: () => { } };
 				const modelPicker = instantiationService.createInstance(ModelPickerActionItem, action, delegate, pickerOptions);
 
-				const initModel = (session: ISession | undefined, sessionModelId: string | undefined) => {
+				const initModel = (session: ISession | undefined, sessionModelId: string | undefined, isUntitled: boolean) => {
 					const models = getAgentHostModels(languageModelsService, session);
 					modelPicker.setEnabled(models.length > 0);
 
@@ -145,18 +145,18 @@ class AgentHostModelPickerContribution extends Disposable implements IWorkbenchC
 						return;
 					}
 
-					const storedModelId = session.status.get() === SessionStatus.Untitled
+					const storedModelId = isUntitled
 						? storageService.get(agentHostModelPickerStorageKey(session.resource.scheme), StorageScope.PROFILE)
 						: undefined;
 					const resolvedModel = resolveAgentHostModel(models, sessionModelId, storedModelId);
 					currentModel.set(resolvedModel, undefined);
-					if (!sessionModelId && session.status.get() === SessionStatus.Untitled && resolvedModel) {
+					if (!sessionModelId && isUntitled && resolvedModel) {
 						delegate.setModel(resolvedModel);
 					}
 				};
 				const initModelFromActiveSession = () => {
 					const session = sessionsManagementService.activeSession.get();
-					initModel(session, session?.modelId.get());
+					initModel(session, session?.modelId.get(), session?.status.get() === SessionStatus.Untitled);
 				};
 				initModelFromActiveSession();
 
@@ -166,7 +166,8 @@ class AgentHostModelPickerContribution extends Disposable implements IWorkbenchC
 				disposableStore.add(autorun(reader => {
 					const session = sessionsManagementService.activeSession.read(reader);
 					const sessionModelId = session?.modelId.read(reader);
-					initModel(session, sessionModelId);
+					const isUntitled = session?.status.read(reader) === SessionStatus.Untitled;
+					initModel(session, sessionModelId, isUntitled);
 				}));
 
 				return new AgentHostPickerActionViewItem(modelPicker, disposableStore);
