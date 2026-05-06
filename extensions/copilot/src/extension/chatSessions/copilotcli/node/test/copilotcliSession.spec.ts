@@ -2135,7 +2135,7 @@ describe('CopilotCLISession', () => {
 		it('reports usage from assistant.usage event with per-call tokens', async () => {
 			sdkSession.send = async (options: any) => {
 				sdkSession.emit('user.message', { content: options.prompt });
-				sdkSession.emit('assistant.usage', { inputTokens: 200, outputTokens: 80 });
+				sdkSession.emit('assistant.usage', { model: 'claude-opus-4.7', inputTokens: 200, outputTokens: 80 });
 				sdkSession.emit('assistant.turn_end', {});
 			};
 
@@ -2147,6 +2147,7 @@ describe('CopilotCLISession', () => {
 
 			const usageFromEvent = stream.usages.find(u => u.promptTokens === 200 && u.completionTokens === 80);
 			expect(usageFromEvent).toBeDefined();
+			expect(session.getLastResponseModelId()).toBe('claude-opus-4.7');
 		});
 
 		it('reports usage from session.usage_info event immediately', async () => {

@@ -140,6 +140,7 @@ import '../workbench/services/dataChannel/browser/dataChannelService.js';
 import '../workbench/services/inlineCompletions/common/inlineCompletionsUnification.js';
 import '../workbench/services/chat/common/chatEntitlementService.js';
 import '../workbench/services/log/common/defaultLogLevels.js';
+import '../workbench/services/agentHost/common/agentHostPermissionService.js';
 
 import { InstantiationType, registerSingleton } from '../platform/instantiation/common/extensions.js';
 import { GlobalExtensionEnablementService } from '../platform/extensionManagement/common/extensionEnablementService.js';
@@ -226,8 +227,14 @@ import '../workbench/contrib/interactive/browser/interactive.contribution.js';
 // repl
 import '../workbench/contrib/replNotebook/browser/repl.contribution.js';
 
-// Testing
-import '../workbench/contrib/testing/browser/testing.contribution.js';
+// Testing (service)
+import { NullTestProfileService, NullTestResultService, NullTestService } from '../workbench/contrib/testing/common/nullTestingService.js';
+import { ITestProfileService } from '../workbench/contrib/testing/common/testProfileService.js';
+import { ITestResultService } from '../workbench/contrib/testing/common/testResultService.js';
+import { ITestService } from '../workbench/contrib/testing/common/testService.js';
+registerSingleton(ITestService, NullTestService, InstantiationType.Delayed);
+registerSingleton(ITestProfileService, NullTestProfileService, InstantiationType.Delayed);
+registerSingleton(ITestResultService, NullTestResultService, InstantiationType.Delayed);
 
 // Logs
 import '../workbench/contrib/logs/common/logs.contribution.js';
@@ -242,13 +249,18 @@ import '../workbench/contrib/files/browser/files.contribution.js';
 
 // Bulk Edit
 import '../workbench/contrib/bulkEdit/browser/bulkEditService.js';
-import '../workbench/contrib/bulkEdit/browser/preview/bulkEdit.contribution.js';
+// import '../workbench/contrib/bulkEdit/browser/preview/bulkEdit.contribution.js';
 
 // Rename Symbol Tracker for Inline completions.
 import '../workbench/contrib/inlineCompletions/browser/renameSymbolTrackerService.js';
 
 // Search Quick Access (file picker only, not the full search contribution)
 import '../workbench/contrib/search/browser/searchQuickAccess.contribution.js';
+
+// Search Editor
+import '../workbench/contrib/searchEditor/browser/searchEditor.contribution.js';
+import '../workbench/contrib/search/browser/search.common.contribution.js';
+import './contrib/search/browser/search.contribution.js';
 
 // Sash
 import '../workbench/contrib/sash/browser/sash.contribution.js';

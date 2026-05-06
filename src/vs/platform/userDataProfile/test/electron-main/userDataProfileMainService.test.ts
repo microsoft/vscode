@@ -10,7 +10,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { joinPath } from '../../../../base/common/resources.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
-import { AbstractNativeEnvironmentService } from '../../../environment/common/environmentService.js';
+import { AbstractNativeEnvironmentService, INativeEnvironmentPaths } from '../../../environment/common/environmentService.js';
 import product from '../../../product/common/product.js';
 import { UserDataProfilesMainService } from '../../electron-main/userDataProfile.js';
 import { SaveStrategy, StateService } from '../../../state/node/stateService.js';
@@ -22,7 +22,15 @@ const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
 
 class TestEnvironmentService extends AbstractNativeEnvironmentService {
 	constructor(private readonly _appSettingsHome: URI) {
-		super(Object.create(null), Object.create(null), { _serviceBrand: undefined, ...product });
+		const userDataDir = _appSettingsHome.fsPath.replace(/\/User$/, '');
+		const paths: INativeEnvironmentPaths = {
+			userDataDir,
+			homeDir: userDataDir,
+			tmpDir: userDataDir,
+			parentAppUserDataDir: undefined,
+			parentAppUserHomeDir: undefined
+		};
+		super(Object.create(null), paths, { _serviceBrand: undefined, ...product });
 	}
 	override get userHome() { return this._appSettingsHome; }
 	override get userRoamingDataHome() { return this._appSettingsHome.with({ scheme: Schemas.vscodeUserData }); }
@@ -104,6 +112,32 @@ suite('UserDataProfileMainService', () => {
 		testObject.setProfileForWorkspace(workspace, profile);
 
 		assert.strictEqual(testObject.getProfileForWorkspace(workspace)?.id, profile.id);
+	});
+
+	test('creating agents window profile should return profile with agent window default flags', async () => {
+		const profile = await testObject.createAgentsWindowProfile();
+
+		assert.deepStrictEqual(profile.id, 'agents');
+		assert.deepStrictEqual(profile.name, 'Agents');
+		assert.deepStrictEqual(profile.isDefault, false);
+		assert.deepStrictEqual(profile.isAgentsWindowProfile, true);
+		assert.deepStrictEqual(profile.isInternal, true);
+		assert.deepStrictEqual(profile.useDefaultFlags, {
+			settings: true,
+			keybindings: true,
+			prompts: true,
+			mcp: true,
+			snippets: true,
+			tasks: true,
+			extensions: true,
+		});
+		assert.strictEqual(profile.settingsResource.toString(), testObject.defaultProfile.settingsResource.toString());
+		assert.strictEqual(profile.keybindingsResource.toString(), testObject.defaultProfile.keybindingsResource.toString());
+		assert.strictEqual(profile.snippetsHome.toString(), testObject.defaultProfile.snippetsHome.toString());
+		assert.strictEqual(profile.tasksResource.toString(), testObject.defaultProfile.tasksResource.toString());
+		assert.strictEqual(profile.extensionsResource.toString(), testObject.defaultProfile.extensionsResource.toString());
+		assert.strictEqual(profile.promptsHome.toString(), testObject.defaultProfile.promptsHome.toString());
+		assert.strictEqual(profile.mcpResource.toString(), testObject.defaultProfile.mcpResource.toString());
 	});
 
 });

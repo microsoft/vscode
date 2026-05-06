@@ -28,7 +28,7 @@ import { ChatAgentLocation } from '../../../common/constants.js';
 import { IChatService, IChatMarkdownContent, IChatProgress, IChatTerminalToolInvocationData, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { IChatEditingService } from '../../../common/editing/chatEditingService.js';
 import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { IChatSessionsService } from '../../../common/chatSessionsService.js';
+import { IChatSessionsService, type IChatSessionRequestHistoryItem } from '../../../common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -376,6 +376,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 	instantiationService.stub(ILanguageModelsService, {
 		deltaLanguageModelChatProviderDescriptors: () => { },
 		registerLanguageModelProvider: () => toDisposable(() => { }),
+		lookupLanguageModel: () => undefined,
 	});
 	instantiationService.stub(IConfigurationService, {
 		onDidChangeConfiguration: Event.None,
@@ -1733,6 +1734,62 @@ suite('AgentHostChatContribution', () => {
 
 			assert.strictEqual(session.history.length, 0);
 		});
+
+		test('history requests get per-turn modelId from usage, with active turn falling back to session model', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+
+			const sessionUri = AgentSession.uri('copilot', 'sess-models');
+			agentHostService.sessionStates.set(sessionUri.toString(), {
+				...createSessionState({
+					resource: sessionUri.toString(), provider: 'copilot', title: 'Test',
+					status: SessionStatus.Idle, createdAt: Date.now(), modifiedAt: Date.now(),
+					model: { id: 'sonnet-4.6' },
+				}),
+				lifecycle: SessionLifecycle.Ready,
+				turns: [
+					{
+						id: 'turn-1',
+						userMessage: { text: 'Q1' },
+						responseParts: [{ kind: ResponsePartKind.Markdown, id: 'md-1', content: 'A1' }],
+						usage: { model: 'opus-4.7' },
+						state: TurnState.Complete,
+					},
+					{
+						id: 'turn-2',
+						userMessage: { text: 'Q2' },
+						responseParts: [{ kind: ResponsePartKind.Markdown, id: 'md-2', content: 'A2' }],
+						usage: undefined,
+						state: TurnState.Complete,
+					},
+				],
+				activeTurn: {
+					id: 'turn-active',
+					userMessage: { text: 'Q3' },
+					responseParts: [],
+					usage: undefined,
+				},
+			});
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/sess-models' });
+			const session = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => session.dispose()));
+
+			const requests = session.history.filter((h): h is IChatSessionRequestHistoryItem => h.type === 'request');
+			assert.deepStrictEqual(
+				requests.map(r => ({ prompt: r.prompt, modelId: r.modelId })),
+				[
+					{ prompt: 'Q1', modelId: 'agent-host-copilot:opus-4.7' },
+					{ prompt: 'Q2', modelId: 'agent-host-copilot:sonnet-4.6' },
+					{ prompt: 'Q3', modelId: 'agent-host-copilot:sonnet-4.6' },
+				],
+			);
+
+			const activeResponse = session.history[session.history.length - 1];
+			assert.strictEqual(activeResponse.type, 'response');
+			if (activeResponse.type === 'response') {
+				assert.strictEqual(activeResponse.parts.length, 0);
+			}
+		});
 	});
 
 	// ---- Tool invocation rendering -----------------------------------------
@@ -2065,7 +2122,7 @@ suite('AgentHostChatContribution', () => {
 		test('maps models with correct metadata', async () => {
 			const provider = disposables.add(new AgentHostLanguageModelProvider('agent-host-copilot', 'agent-host-copilot'));
 			provider.updateModels([
-				{ provider: 'copilot', id: 'gpt-4o', name: 'GPT-4o', maxContextWindow: 128000, supportsVision: true },
+				{ provider: 'copilot', id: 'gpt-4o', name: 'GPT-4o', maxContextWindow: 128000, supportsVision: true, _meta: { multiplierNumeric: 1.5 } },
 			]);
 
 			const models = await provider.provideLanguageModelChatInfo({}, CancellationToken.None);
@@ -2075,6 +2132,8 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(models[0].metadata.name, 'GPT-4o');
 			assert.strictEqual(models[0].metadata.maxInputTokens, 128000);
 			assert.strictEqual(models[0].metadata.capabilities?.vision, true);
+			assert.strictEqual(models[0].metadata.pricing, '1.5x');
+			assert.strictEqual(models[0].metadata.multiplierNumeric, 1.5);
 			assert.strictEqual(models[0].metadata.targetChatSessionType, 'agent-host-copilot');
 		});
 

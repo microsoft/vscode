@@ -349,6 +349,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 		const status = parseGitStatusV2(statusOutput);
 		const hasGitHubRemote = parseHasGitHubRemote(remotesOutput);
 		const baseBranchName = parseDefaultBranchRef(defaultBranchRef);
+		const githubRepo = parseGitHubRepoFromRemote(remotesOutput);
 
 		// `git status -b --porcelain=v2` only emits ahead/behind counts when the
 		// branch has an upstream tracking ref. For agent-host worktrees the
@@ -374,6 +375,8 @@ export class AgentHostGitService implements IAgentHostGitService {
 			incomingChanges: status.incomingChanges,
 			outgoingChanges,
 			uncommittedChanges: status.uncommittedChanges,
+			githubOwner: githubRepo?.owner,
+			githubRepo: githubRepo?.repo,
 		};
 		// Strip undefined fields so the resulting object is the same regardless
 		// of which probes succeeded — easier to compare in tests.
@@ -587,6 +590,64 @@ export function parseHasGitHubRemote(remotesOutput: string | undefined): boolean
 		return false;
 	}
 	return /github\.com[:\/]/i.test(remotesOutput);
+}
+
+/**
+ * Parse `owner` and `repo` from `git remote -v` output. Prefers the `origin`
+ * remote; falls back to the first GitHub remote so worktrees that renamed
+ * the remote still surface PR state. Returns `undefined` if no GitHub
+ * remote is present or the URL doesn't match a GitHub repo shape.
+ *
+ * Exported for tests.
+ */
+export function parseGitHubRepoFromRemote(remotesOutput: string | undefined): { owner: string; repo: string } | undefined {
+	if (!remotesOutput) {
+		return undefined;
+	}
+	// Each line: `<name>\t<url> (<fetch|push>)`. Take fetch URLs only so we
+	// don't double-count the same remote.
+	const candidates: { name: string; url: string }[] = [];
+	for (const rawLine of remotesOutput.split(/\r?\n/)) {
+		const line = rawLine.trim();
+		if (!line) { continue; }
+		const m = /^(\S+)\s+(\S+)\s+\(fetch\)$/.exec(line);
+		if (!m) { continue; }
+		candidates.push({ name: m[1], url: m[2] });
+	}
+	if (candidates.length === 0) {
+		return undefined;
+	}
+	// Prefer `origin`, otherwise first matching remote.
+	const ordered = [
+		...candidates.filter(c => c.name === 'origin'),
+		...candidates.filter(c => c.name !== 'origin'),
+	];
+	for (const { url } of ordered) {
+		const parsed = parseGitHubOwnerRepoFromUrl(url);
+		if (parsed) {
+			return parsed;
+		}
+	}
+	return undefined;
+}
+
+/**
+ * Extract `{owner, repo}` from a GitHub remote URL. Handles the common
+ * forms: `git@github.com:owner/repo(.git)?`, `https://github.com/owner/repo(.git)?`,
+ * `ssh://git@github.com/owner/repo(.git)?`, `git://github.com/owner/repo(.git)?`.
+ */
+function parseGitHubOwnerRepoFromUrl(url: string): { owner: string; repo: string } | undefined {
+	// SCP-like: git@github.com:owner/repo(.git)?
+	let m = /^[^@\s]+@github\.com:([^/\s]+)\/([^/\s]+?)(?:\.git)?$/i.exec(url);
+	if (m) {
+		return { owner: m[1], repo: m[2] };
+	}
+	// URL-form: <scheme>://[user@]github.com[:port]/owner/repo(.git)?
+	m = /^[a-z+]+:\/\/(?:[^@\/\s]+@)?github\.com(?::\d+)?\/([^/\s]+)\/([^/\s]+?)(?:\.git)?$/i.exec(url);
+	if (m) {
+		return { owner: m[1], repo: m[2] };
+	}
+	return undefined;
 }
 
 /** Exported for tests. */

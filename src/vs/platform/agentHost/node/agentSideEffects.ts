@@ -152,6 +152,7 @@ export class AgentSideEffects extends Disposable {
 					supportsVision: m.supportsVision,
 					policyState: m.policyState,
 					configSchema: m.configSchema,
+					_meta: m._meta,
 				})),
 				customizations: customizations?.length ? [...customizations] : undefined,
 				protectedResources: protectedResources.length > 0 ? protectedResources : undefined,

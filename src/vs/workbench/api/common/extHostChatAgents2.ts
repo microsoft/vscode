@@ -572,6 +572,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 			pluginUri: dto.pluginUri ? URI.revive(dto.pluginUri) : undefined,
 			sessionTypes: dto.sessionTypes,
 			userInvocable: dto.userInvocable,
+			disableModelInvocation: dto.disableModelInvocation,
 		});
 	}
 

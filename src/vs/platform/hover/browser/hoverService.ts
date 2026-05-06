@@ -339,13 +339,13 @@ export class HoverService extends Disposable implements IHoverService {
 			options.container = this._layoutService.getContainer(getWindow(targetElement));
 		}
 
-		if (options.persistence?.sticky) {
-			hoverDisposables.add(addDisposableListener(getWindow(options.container).document, EventType.MOUSE_DOWN, e => {
-				if (!isAncestor(e.target as HTMLElement, hover.domNode)) {
-					this._hideHoverAndDescendants(hover);
-				}
-			}));
-		} else {
+		hoverDisposables.add(addDisposableListener(getWindow(options.container).document, EventType.MOUSE_DOWN, e => {
+			if (!isAncestor(e.target as HTMLElement, hover.domNode)) {
+				this._hideHoverAndDescendants(hover);
+			}
+		}));
+
+		if (!options.persistence?.sticky) {
 			if ('targetElements' in options.target) {
 				for (const element of options.target.targetElements) {
 					hoverDisposables.add(addDisposableListener(element, EventType.CLICK, () => this._hideHoverAndDescendants(hover)));

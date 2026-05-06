@@ -21,6 +21,57 @@
 	padding-right: 4px;
 }
 
+/* --- Sidebar appearance ------------------------------------------------- */
+
+/* In sidebar mode the action item lays out as a horizontal flex row:
+ * picker button (full-width) + trailing connect button. Each is its own
+ * independent click target. */
+.monaco-action-bar .action-item.agent-host-filter-combo.sidebar {
+	display: flex;
+	align-items: center;
+	width: 100%;
+	max-width: 100%;
+	height: auto;
+	padding: 0;
+	gap: 4px;
+}
+
+.agent-host-filter-combo.sidebar .customization-link-button-container {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+/* The picker button content is laid out as:
+ *   [leading icon] [host-name span (flex:1)] [trailing chevron/refresh]
+ * The label span consumes remaining space so the trailing icon docks at
+ * the right edge with comfortable spacing from the host name. */
+.agent-host-filter-combo.sidebar .agent-host-filter-button .agent-host-filter-leading-icon {
+	flex: 0 0 auto;
+}
+
+.agent-host-filter-combo.sidebar .agent-host-filter-button .agent-host-filter-label {
+	flex: 1 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.agent-host-filter-combo.sidebar .agent-host-filter-button .agent-host-filter-trailing-icon {
+	flex: 0 0 auto;
+	opacity: 0.7;
+	font-size: 12px;
+}
+
+/* Connect indicator: independent control sitting next to the picker
+ * button. Square-ish 26px hit target aligned with the row height. */
+.agent-host-filter-combo.sidebar .agent-host-filter-connect {
+	flex: 0 0 auto;
+	margin-left: 0;
+	width: 26px;
+	height: 26px;
+}
+
 /* --- Dropdown pill ------------------------------------------------------ */
 
 .agent-host-filter-combo .agent-host-filter-dropdown {
@@ -124,6 +175,10 @@
 }
 
 .agent-host-filter-combo .agent-host-filter-connect.disconnected .codicon {
+	color: var(--vscode-descriptionForeground);
+}
+
+.agent-host-filter-combo .agent-host-filter-connect.rediscover .codicon {
 	color: var(--vscode-descriptionForeground);
 }
 

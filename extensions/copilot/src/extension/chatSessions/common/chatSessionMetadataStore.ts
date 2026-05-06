@@ -56,6 +56,14 @@ export interface RequestDetails {
 	/** Mode instructions for this request (excluding toolReferences). */
 	modeInstructions?: StoredModeInstructions;
 
+	/**
+	 * The concrete model id that produced the response for this request, as reported by the
+	 * SDK's `assistant.usage` event. Captured so that on session reload we can render the
+	 * correct model details (e.g. for `auto`, where the resolved model is not otherwise
+	 * recoverable from the persisted SDK event log).
+	 */
+	responseModelId?: string;
+
 	/** Checkpoint reference for this request (primary workspace). */
 	checkpointRef?: string;
 

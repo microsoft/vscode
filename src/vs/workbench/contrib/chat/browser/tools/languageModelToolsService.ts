@@ -50,6 +50,7 @@ import { chatSessionResourceToId, getChatSessionType } from '../../common/model/
 import { HookType } from '../../common/promptSyntax/hookTypes.js';
 import { ILanguageModelToolsConfirmationService } from '../../common/tools/languageModelToolsConfirmationService.js';
 import { CountTokensCallback, createToolSchemaUri, IBeginToolCallOptions, IExternalPreToolUseHookResult, ILanguageModelToolsService, IPreparedToolInvocation, isToolSet, IToolAndToolSetEnablementMap, IToolData, IToolImpl, IToolInvocation, IToolInvokedEvent, IToolResult, IToolResultInputOutputDetails, IToolSet, SpecedToolAliases, stringifyPromptTsxPart, ToolDataSource, ToolInvocationPresentation, toolMatchesModel, ToolSet, ToolSetForModel, VSCodeToolReference } from '../../common/tools/languageModelToolsService.js';
+import { IToolResultCompressor } from '../../common/tools/toolResultCompressor.js';
 import { getToolConfirmationAlert } from '../accessibility/chatAccessibilityProvider.js';
 import { IChatWidgetService } from '../chat.js';
 
@@ -136,6 +137,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		@ILanguageModelToolsConfirmationService private readonly _confirmationService: ILanguageModelToolsConfirmationService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
+		@IToolResultCompressor private readonly _toolResultCompressor: IToolResultCompressor,
 	) {
 		super();
 
@@ -645,6 +647,13 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				}
 			}, token);
 			invocationTimeWatch.stop();
+			// Apply post-processing compression (e.g. for run_in_terminal output)
+			// before the result reaches the model. Returns undefined when no
+			// compression applied.
+			const compressed = this._toolResultCompressor.maybeCompress(tool.data.id, dto.parameters, toolResult);
+			if (compressed) {
+				toolResult = compressed;
+			}
 			this.ensureToolDetails(dto, toolResult, tool.data, toolInvocation);
 
 			const afterExecuteState = await toolInvocation?.didExecuteTool(toolResult, undefined, () =>

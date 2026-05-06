@@ -8,6 +8,7 @@
 // higher-level API matching IAgentService.
 
 import { DeferredPromise } from '../../../base/common/async.js';
+import { CancellationError } from '../../../base/common/errors.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable, IReference } from '../../../base/common/lifecycle.js';
 import { Schemas } from '../../../base/common/network.js';
@@ -19,36 +20,25 @@ import { FileSystemProviderErrorCode, IFileService, toFileSystemProviderErrorCod
 import { AgentSession, IAgentConnection, IAgentCreateSessionConfig, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult } from '../common/agentService.js';
 import { AgentSubscriptionManager, type IAgentSubscription } from '../common/state/agentSubscription.js';
 import { agentHostAuthority, fromAgentHostUri, toAgentHostUri } from '../common/agentHostUri.js';
+import { AgentHostPermissionMode, IAgentHostPermissionService } from '../common/agentHostPermissionService.js';
 import type { ClientNotificationMap, CommandMap, JsonRpcErrorResponse, JsonRpcRequest } from '../common/state/protocol/messages.js';
-import type { ActionEnvelope, INotification, IRootConfigChangedAction, SessionAction, TerminalAction } from '../common/state/sessionActions.js';
-import { SessionSummary, SessionStatus, ROOT_STATE_URI, StateComponents, type RootState } from '../common/state/sessionState.js';
-import { PROTOCOL_VERSION } from '../common/state/sessionCapabilities.js';
-import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, type ProtocolMessage, type IStateSnapshot } from '../common/state/sessionProtocol.js';
+import { ActionType, type ActionEnvelope, type INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
+import { SessionSummary, SessionStatus, ROOT_STATE_URI, StateComponents, type CustomizationRef, type RootState } from '../common/state/sessionState.js';
+import { PROTOCOL_VERSION } from '../common/state/protocol/version/registry.js';
+import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, ProtocolError, type ProtocolMessage, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { isClientTransport, type IProtocolTransport } from '../common/state/sessionTransport.js';
 import { AhpErrorCodes } from '../common/state/protocol/errors.js';
-import { ContentEncoding, type CreateTerminalParams, type ResolveSessionConfigResult, type SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
+import { ContentEncoding, ResourceRequestParams, type CompletionsParams, type CompletionsResult, type CreateTerminalParams, type ResolveSessionConfigResult, type SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
 import { decodeBase64, encodeBase64, VSBuffer } from '../../../base/common/buffer.js';
 
 const AHP_CLIENT_CONNECTION_CLOSED = -32000;
 
-export class RemoteAgentHostProtocolError extends Error {
+function connectionClosedError(address: string): ProtocolError {
+	return new ProtocolError(AHP_CLIENT_CONNECTION_CLOSED, `Connection closed: ${address}`);
+}
 
-	readonly code: number;
-	readonly data: unknown | undefined;
-
-	constructor(error: JsonRpcErrorResponse['error']) {
-		super(error.message);
-		this.code = error.code;
-		this.data = error.data;
-	}
-
-	static connectionClosed(address: string): RemoteAgentHostProtocolError {
-		return new RemoteAgentHostProtocolError({ code: AHP_CLIENT_CONNECTION_CLOSED, message: `Connection closed: ${address}` });
-	}
-
-	static disposed(address: string): RemoteAgentHostProtocolError {
-		return new RemoteAgentHostProtocolError({ code: AHP_CLIENT_CONNECTION_CLOSED, message: `Connection disposed: ${address}` });
-	}
+function connectionDisposedError(address: string): ProtocolError {
+	return new ProtocolError(AHP_CLIENT_CONNECTION_CLOSED, `Connection disposed: ${address}`);
 }
 
 interface IRemoteAgentHostExtensionCommandMap {
@@ -89,7 +79,14 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	private readonly _pendingRequests = new Map<number, DeferredPromise<unknown>>();
 	private _nextRequestId = 1;
 	private _isClosed = false;
-	private _closeError: RemoteAgentHostProtocolError | undefined;
+	private _closeError: ProtocolError | undefined;
+
+	/**
+	 * Comparison keys of customization URIs we have already granted implicit
+	 * read access for on this connection. Dedupes repeat sends so we don't
+	 * pile up grants per dispatch. Cleared with the connection.
+	 */
+	private readonly _grantedCustomizationUris = new Set<string>();
 
 	get clientId(): string {
 		return this._clientId;
@@ -108,6 +105,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		transport: IProtocolTransport,
 		@ILogService private readonly _logService: ILogService,
 		@IFileService private readonly _fileService: IFileService,
+		@IAgentHostPermissionService private readonly _permissionService: IAgentHostPermissionService,
 	) {
 		super();
 		this._address = address;
@@ -115,7 +113,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		this._transport = transport;
 		this._register(this._transport);
 		this._register(this._transport.onMessage(msg => this._handleMessage(msg)));
-		this._register(this._transport.onClose(() => this._handleClose(RemoteAgentHostProtocolError.connectionClosed(this._address))));
+		this._register(this._transport.onClose(() => this._handleClose(connectionClosedError(this._address))));
 
 		this._subscriptionManager = this._register(new AgentSubscriptionManager(
 			this._clientId,
@@ -132,7 +130,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	}
 
 	override dispose(): void {
-		this._handleClose(RemoteAgentHostProtocolError.disposed(this._address));
+		this._handleClose(connectionDisposedError(this._address));
 		super.dispose();
 	}
 
@@ -145,7 +143,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		}
 
 		const result = await this._sendRequest('initialize', {
-			protocolVersion: PROTOCOL_VERSION,
+			protocolVersions: [PROTOCOL_VERSION],
 			clientId: this._clientId,
 			initialSubscriptions: [ROOT_STATE_URI],
 		});
@@ -206,6 +204,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	 * Dispatch a client action to the server. Returns the clientSeq used.
 	 */
 	dispatchAction(action: SessionAction | TerminalAction | IRootConfigChangedAction, _clientId: string, clientSeq: number): void {
+		this._grantImplicitReadsForOutgoingAction(action);
 		this._sendNotification('dispatchAction', { clientSeq, action });
 	}
 
@@ -218,6 +217,9 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			throw new Error('Cannot create remote agent host session without a provider.');
 		}
 		const session = config?.session ?? AgentSession.uri(provider, generateUuid());
+		if (config?.activeClient?.customizations) {
+			this._grantImplicitReadsForCustomizations(config.activeClient.customizations);
+		}
 		await this._sendRequest('createSession', {
 			session: session.toString(),
 			provider,
@@ -245,6 +247,10 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			property: params.property,
 			query: params.query,
 		});
+	}
+
+	async completions(params: CompletionsParams): Promise<CompletionsResult> {
+		return this._sendRequest('completions', params);
 	}
 
 	/**
@@ -310,6 +316,43 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 
 	private _toLocalProjectUri(uri: URI): URI {
 		return uri.scheme === Schemas.file ? toAgentHostUri(uri, this._connectionAuthority) : uri;
+	}
+
+	/**
+	 * Inspect an outgoing client-dispatched action and grant implicit reads
+	 * for any customization URIs it carries. Today this covers
+	 * `SessionActiveClientChanged`, which is the only client-dispatched
+	 * action that ships customization URIs to the host.
+	 */
+	private _grantImplicitReadsForOutgoingAction(action: SessionAction | TerminalAction | IRootConfigChangedAction): void {
+		if (action.type === ActionType.SessionActiveClientChanged && action.activeClient?.customizations) {
+			this._grantImplicitReadsForCustomizations(action.activeClient.customizations);
+		}
+	}
+
+	/**
+	 * Register implicit read grants for each customization URI that we are
+	 * about to send to the host. The host needs to read these to materialize
+	 * the customization, but should not need to write them. Grants are
+	 * deduped per connection and revoked when the connection closes.
+	 */
+	private _grantImplicitReadsForCustomizations(refs: readonly CustomizationRef[]): void {
+		for (const ref of refs) {
+			let uri: URI;
+			try {
+				uri = URI.parse(ref.uri);
+			} catch {
+				continue;
+			}
+			const key = uri.toString();
+			if (this._grantedCustomizationUris.has(key)) {
+				continue;
+			}
+			this._grantedCustomizationUris.add(key);
+			// Disposable is owned by the permission service; cleared on
+			// connectionClosed.
+			this._permissionService.grantImplicitRead(this._address, uri);
+		}
 	}
 
 	/**
@@ -382,7 +425,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		}
 	}
 
-	private _handleClose(error: RemoteAgentHostProtocolError): void {
+	private _handleClose(error: ProtocolError): void {
 		if (this._isClosed) {
 			return;
 		}
@@ -390,6 +433,8 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		this._isClosed = true;
 		this._closeError = error;
 		this._rejectPendingRequests(error);
+		this._permissionService.connectionClosed(this._address);
+		this._grantedCustomizationUris.clear();
 		this._onDidClose.fire();
 	}
 
@@ -413,6 +458,12 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	/**
 	 * Handles reverse RPC requests from the server (e.g. resourceList,
 	 * resourceRead). Reads from the local file service and sends a response.
+	 *
+	 * Filesystem-mutating reverse requests are gated through
+	 * {@link IAgentHostPermissionService} — denied operations return a typed
+	 * `PermissionDenied` error advertising a `resourceRequest` payload that,
+	 * if granted, would unlock the operation. Hosts SHOULD then issue a
+	 * `resourceRequest` and retry.
 	 */
 	private _handleReverseRequest(id: number, method: string, params: unknown): void {
 		const sendResult = (result: unknown) => {
@@ -428,28 +479,65 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			}
 			this._transport.send({ jsonrpc: '2.0', id, error: { code, message: err instanceof Error ? err.message : String(err) } });
 		};
-		const handle = (fn: () => Promise<unknown>) => {
-			fn().then(sendResult, sendError);
+		const sendPermissionDenied = (request: ResourceRequestParams | undefined) => {
+			this._transport.send({
+				jsonrpc: '2.0',
+				id,
+				error: {
+					code: AhpErrorCodes.PermissionDenied,
+					message: request
+						? `Access to ${request.uri} is not granted.`
+						: 'Access to the requested resource is not granted.',
+					data: request ? { request } : undefined,
+				},
+			});
+		};
+
+		/**
+		 * Runs `fn` if the permission service grants access for `(uri, mode)`.
+		 * Otherwise replies with `PermissionDenied` advertising the request
+		 * that, if granted, would unlock the operation. Errors thrown from
+		 * `fn` are reported via `sendError`.
+		 */
+		const gateAndHandle = async (
+			uri: URI,
+			mode: AgentHostPermissionMode,
+			deniedRequest: ResourceRequestParams,
+			fn: () => Promise<unknown>,
+		): Promise<void> => {
+			try {
+				if (!await this._permissionService.check(this._address, uri, mode)) {
+					sendPermissionDenied(deniedRequest);
+					return;
+				}
+				sendResult(await fn());
+			} catch (err) {
+				sendError(err);
+			}
 		};
 
 		const p = params as Record<string, unknown>;
 		switch (method) {
-			case 'resourceList':
+			case 'resourceList': {
 				if (!p.uri) { sendError(new Error('Missing uri')); return; }
-				return handle(async () => {
-					const stat = await this._fileService.resolve(URI.parse(p.uri as string));
+				const uri = URI.parse(p.uri as string);
+				return void gateAndHandle(uri, AgentHostPermissionMode.Read, { uri: uri.toString(), read: true }, async () => {
+					const stat = await this._fileService.resolve(uri);
 					return { entries: (stat.children ?? []).map(c => ({ name: c.name, type: c.isDirectory ? 'directory' as const : 'file' as const })) };
 				});
-			case 'resourceRead':
+			}
+			case 'resourceRead': {
 				if (!p.uri) { sendError(new Error('Missing uri')); return; }
-				return handle(async () => {
-					const content = await this._fileService.readFile(URI.parse(p.uri as string));
+				const uri = URI.parse(p.uri as string);
+				return void gateAndHandle(uri, AgentHostPermissionMode.Read, { uri: uri.toString(), read: true }, async () => {
+					const content = await this._fileService.readFile(uri);
 					return { data: encodeBase64(content.value), encoding: ContentEncoding.Base64 };
 				});
-			case 'resourceWrite':
+			}
+			case 'resourceWrite': {
 				if (!p.uri || !p.data) { sendError(new Error('Missing uri or data')); return; }
-				return handle(async () => {
-					const writeUri = URI.parse(p.uri as string);
+				const writeUri = URI.parse(p.uri as string);
+				return void gateAndHandle(writeUri, AgentHostPermissionMode.Write, { uri: writeUri.toString(), write: true }, async () => {
 					const buf = p.encoding === ContentEncoding.Base64
 						? decodeBase64(p.data as string)
 						: VSBuffer.fromString(p.data as string);
@@ -460,12 +548,51 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 					}
 					return {};
 				});
-			case 'resourceDelete':
+			}
+			case 'resourceDelete': {
 				if (!p.uri) { sendError(new Error('Missing uri')); return; }
-				return handle(() => this._fileService.del(URI.parse(p.uri as string), { recursive: !!p.recursive }).then(() => ({})));
-			case 'resourceMove':
+				const deleteUri = URI.parse(p.uri as string);
+				return void gateAndHandle(deleteUri, AgentHostPermissionMode.Write, { uri: deleteUri.toString(), write: true }, () =>
+					this._fileService.del(deleteUri, { recursive: !!p.recursive }).then(() => ({})));
+			}
+			case 'resourceMove': {
 				if (!p.source || !p.destination) { sendError(new Error('Missing source or destination')); return; }
-				return handle(() => this._fileService.move(URI.parse(p.source as string), URI.parse(p.destination as string), !p.failIfExists).then(() => ({})));
+				const sourceUri = URI.parse(p.source as string);
+				const destUri = URI.parse(p.destination as string);
+				return void (async () => {
+					try {
+						const [sourceOk, destOk] = await Promise.all([
+							this._permissionService.check(this._address, sourceUri, AgentHostPermissionMode.Write),
+							this._permissionService.check(this._address, destUri, AgentHostPermissionMode.Write),
+						]);
+						if (!sourceOk) {
+							sendPermissionDenied({ uri: sourceUri.toString(), write: true });
+							return;
+						}
+						if (!destOk) {
+							sendPermissionDenied({ uri: destUri.toString(), write: true });
+							return;
+						}
+						await this._fileService.move(sourceUri, destUri, !p.failIfExists);
+						sendResult({});
+					} catch (err) {
+						sendError(err);
+					}
+				})();
+			}
+			case 'resourceRequest': {
+				const requestParams = p as unknown as ResourceRequestParams;
+				this._permissionService.request(this._address, requestParams)
+					.then(() => sendResult({}))
+					.catch(err => {
+						if (err instanceof CancellationError) {
+							sendPermissionDenied(undefined);
+						} else {
+							sendError(err);
+						}
+					});
+				return;
+			}
 			default:
 				this._logService.warn(`[RemoteAgentHostProtocol] Unhandled reverse request: ${method}`);
 				sendError(new Error(`Unknown method: ${method}`));
@@ -508,11 +635,11 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		return deferred.p as Promise<IRemoteAgentHostExtensionCommandMap[M]['result']>;
 	}
 
-	private _toProtocolError(error: JsonRpcErrorResponse['error']): RemoteAgentHostProtocolError {
-		return new RemoteAgentHostProtocolError(error);
+	private _toProtocolError(error: JsonRpcErrorResponse['error']): ProtocolError {
+		return new ProtocolError(error.code, error.message, error.data);
 	}
 
-	private _rejectPendingRequests(error: RemoteAgentHostProtocolError): void {
+	private _rejectPendingRequests(error: ProtocolError): void {
 		for (const pending of this._pendingRequests.values()) {
 			pending.error(error);
 		}

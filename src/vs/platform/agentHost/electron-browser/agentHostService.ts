@@ -16,7 +16,7 @@ import { IConfigurationService } from '../../configuration/common/configuration.
 import { ILogService } from '../../log/common/log.js';
 import { AgentHostEnabledSettingId, AgentHostIpcChannels, IAgentCreateSessionConfig, IAgentHostInspectInfo, IAgentHostService, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IAgentHostSocketInfo, IConnectionTrackerService } from '../common/agentService.js';
 import { AgentSubscriptionManager, type IAgentSubscription } from '../common/state/agentSubscription.js';
-import type { CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
+import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
 import type { ActionEnvelope, INotification, IRootConfigChangedAction, SessionAction, TerminalAction } from '../common/state/sessionActions.js';
 import type { ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceWriteParams, ResourceWriteResult, IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { StateComponents, ROOT_STATE_URI, type RootState } from '../common/state/sessionState.js';
@@ -152,6 +152,9 @@ class AgentHostServiceClient extends Disposable implements IAgentHostService {
 	sessionConfigCompletions(params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult> {
 		return this._proxy.sessionConfigCompletions(params);
 	}
+	completions(params: CompletionsParams): Promise<CompletionsResult> {
+		return this._proxy.completions(params);
+	}
 	disposeSession(session: URI): Promise<void> {
 		return this._proxy.disposeSession(session);
 	}
@@ -164,11 +167,11 @@ class AgentHostServiceClient extends Disposable implements IAgentHostService {
 	shutdown(): Promise<void> {
 		return this._proxy.shutdown();
 	}
-	subscribe(resource: URI): Promise<IStateSnapshot> {
-		return this._proxy.subscribe(resource);
+	private subscribe(resource: URI): Promise<IStateSnapshot> {
+		return this._proxy.subscribe(resource, this.clientId);
 	}
-	unsubscribe(resource: URI): void {
-		this._proxy.unsubscribe(resource);
+	private unsubscribe(resource: URI): void {
+		this._proxy.unsubscribe(resource, this.clientId);
 	}
 	dispatchAction(action: SessionAction | TerminalAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void {
 		this._proxy.dispatchAction(action, clientId, clientSeq);

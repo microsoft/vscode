@@ -108,7 +108,7 @@ export interface IActionListItem<T> {
 	 * Optional callback invoked when the item is removed via the built-in remove button.
 	 * When set, a close button is automatically added to the item toolbar.
 	 */
-	readonly onRemove?: () => void;
+	readonly onRemove?: () => void | Promise<void>;
 }
 
 interface IActionMenuTemplateData {
@@ -197,6 +197,7 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 		private readonly _hasAnySubmenuActions: boolean,
 		private readonly _groupTitleByIndex: ReadonlyMap<number, string>,
 		private readonly _linkHandler: ((uri: URI, item: IActionListItem<T>) => void) | undefined,
+		private readonly _hideDefaultKeybindingTooltip: boolean,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 	) { }
@@ -350,6 +351,8 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 			data.container.title = element.tooltip;
 		} else if (element.disabled) {
 			data.container.title = element.label;
+		} else if (this._hideDefaultKeybindingTooltip) {
+			data.container.title = '';
 		} else if (actionTitle && previewTitle) {
 			if (this._supportsPreview && element.canPreview) {
 				data.container.title = localize({ key: 'label-preview', comment: ['placeholders are keybindings, e.g "F2 to Apply, Shift+F2 to Preview"'] }, "{0} to Apply, {1} to Preview", actionTitle, previewTitle);
@@ -368,8 +371,8 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 				id: 'actionList.remove',
 				label: localize('actionList.remove', "Remove"),
 				class: ThemeIcon.asClassName(Codicon.close),
-				run: () => {
-					element.onRemove!();
+				run: async () => {
+					await element.onRemove!();
 					this._onRemoveItem?.(element);
 				},
 			}));
@@ -492,6 +495,18 @@ export interface IActionListOptions {
 	 * Defaults to true for alignment consistency.
 	 */
 	readonly reserveSubmenuSpace?: boolean;
+
+	/**
+	 * When true, items without an explicit `tooltip` or `hover` do not get a
+	 * default "{keybinding} to Apply" tooltip. Useful for non-code-action lists
+	 * where this hint is misleading.
+	 */
+	readonly hideDefaultKeybindingTooltip?: boolean;
+
+	/**
+	 * Optional label shown on the right side of the filter row.
+	 */
+	readonly secondaryHeading?: string;
 }
 
 /**
@@ -592,7 +607,7 @@ export class ActionListWidget<T> extends Disposable {
 		const hasAnySubmenuActions = reserveSubmenuSpace && items.some(item => !!item.submenuActions?.length && !item.hover?.content);
 
 		this._list = this._register(new List(user, this.domNode, virtualDelegate, [
-			new ActionItemRenderer<T>(preview, (item) => this._removeItem(item), (item) => this._showSubmenuForItem(item), hasAnySubmenuActions, this._groupTitleByIndex, this._options?.linkHandler, this._keybindingService, this._openerService),
+			new ActionItemRenderer<T>(preview, (item) => this._removeItem(item), (item) => this._showSubmenuForItem(item), hasAnySubmenuActions, this._groupTitleByIndex, this._options?.linkHandler, this._options?.hideDefaultKeybindingTooltip ?? false, this._keybindingService, this._openerService),
 			new HeaderRenderer(),
 			new SeparatorRenderer(),
 		], {
@@ -648,30 +663,37 @@ export class ActionListWidget<T> extends Disposable {
 
 		this._allMenuItems = [...items];
 
-		// Create filter input
-		if (this._options?.showFilter) {
+		// Create filter input and/or secondary heading
+		if (this._options?.showFilter || this._options?.secondaryHeading) {
 			this._filterContainer = document.createElement('div');
 			this._filterContainer.className = 'action-list-filter';
 			const filterRow = dom.append(this._filterContainer, dom.$('.action-list-filter-row'));
 
-			this._filterInput = document.createElement('input');
-			this._filterInput.type = 'text';
-			this._filterInput.className = 'action-list-filter-input';
-			this._filterInput.placeholder = this._options?.filterPlaceholder ?? localize('actionList.filter.placeholder', "Search...");
-			this._filterInput.setAttribute('aria-label', localize('actionList.filter.ariaLabel', "Filter items"));
-			filterRow.appendChild(this._filterInput);
+			if (this._options?.showFilter) {
+				this._filterInput = document.createElement('input');
+				this._filterInput.type = 'text';
+				this._filterInput.className = 'action-list-filter-input';
+				this._filterInput.placeholder = this._options?.filterPlaceholder ?? localize('actionList.filter.placeholder', "Search...");
+				this._filterInput.setAttribute('aria-label', localize('actionList.filter.ariaLabel', "Filter items"));
+				filterRow.appendChild(this._filterInput);
 
-			const filterActions = this._options?.filterActions ?? [];
-			if (filterActions.length > 0) {
-				const filterActionsContainer = dom.append(filterRow, dom.$('.action-list-filter-actions'));
-				const filterActionBar = this._register(new ActionBar(filterActionsContainer));
-				filterActionBar.push(filterActions, { icon: true, label: false });
+				const filterActions = this._options?.filterActions ?? [];
+				if (filterActions.length > 0) {
+					const filterActionsContainer = dom.append(filterRow, dom.$('.action-list-filter-actions'));
+					const filterActionBar = this._register(new ActionBar(filterActionsContainer));
+					filterActionBar.push(filterActions, { icon: true, label: false });
+				}
+
+				this._register(dom.addDisposableListener(this._filterInput, 'input', () => {
+					this._filterText = this._filterInput!.value;
+					this._applyOrUpdateFilter();
+				}));
 			}
 
-			this._register(dom.addDisposableListener(this._filterInput, 'input', () => {
-				this._filterText = this._filterInput!.value;
-				this._applyOrUpdateFilter();
-			}));
+			if (this._options?.secondaryHeading) {
+				const filterLabelEl = dom.append(filterRow, dom.$('.action-list-filter-label'));
+				filterLabelEl.textContent = this._options.secondaryHeading;
+			}
 		}
 
 		this._applyFilter();
