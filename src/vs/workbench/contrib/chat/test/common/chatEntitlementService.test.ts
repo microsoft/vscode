@@ -185,7 +185,7 @@ suite('parseQuotas', () => {
 		assert.strictEqual(quotas.additionalUsageEnabled, false);
 	});
 
-	test('does not skip quota snapshots with has_quota false when entitlement is nonzero (TBB always sets has_quota false)', () => {
+	test('keeps TBB snapshots: unlimited with zero entitlement and finite with nonzero entitlement (has_quota is always false)', () => {
 		const data = makeEntitlementsData({
 			access_type_sku: 'monthly_subscriber_quota',
 			copilot_plan: 'individual',
@@ -225,6 +225,45 @@ suite('parseQuotas', () => {
 		assert.strictEqual(quotas.completions?.unlimited, true);
 		assert.strictEqual(quotas.premiumChat?.percentRemaining, 5.5);
 		assert.strictEqual(quotas.premiumChat?.entitlement, 1000);
+	});
+
+	test('keeps all snapshots for CB/CE users where all categories are unlimited', () => {
+		const data = makeEntitlementsData({
+			access_type_sku: 'copilot_enterprise_seat_multi_quota',
+			copilot_plan: 'enterprise',
+			token_based_billing: true,
+			quota_snapshots: {
+				chat: {
+					overage_count: 0,
+					overage_permitted: false,
+					percent_remaining: 100,
+					unlimited: true,
+					entitlement: '0',
+					has_quota: false,
+				},
+				completions: {
+					overage_count: 0,
+					overage_permitted: false,
+					percent_remaining: 100,
+					unlimited: true,
+					entitlement: '0',
+					has_quota: false,
+				},
+				premium_interactions: {
+					overage_count: 0,
+					overage_permitted: false,
+					percent_remaining: 100,
+					unlimited: true,
+					entitlement: '0',
+					has_quota: false,
+				},
+			},
+		});
+
+		const quotas = parseQuotas(data);
+		assert.strictEqual(quotas.chat?.unlimited, true);
+		assert.strictEqual(quotas.completions?.unlimited, true);
+		assert.strictEqual(quotas.premiumChat?.unlimited, true);
 	});
 
 	test('skips quota snapshots with zero entitlement and not unlimited (e.g. free tier premium_interactions)', () => {
