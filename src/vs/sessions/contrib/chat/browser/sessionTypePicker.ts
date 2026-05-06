@@ -16,6 +16,9 @@ import { ISessionsProvidersService } from '../../../services/sessions/browser/se
 import { autorun } from '../../../../base/common/observable.js';
 import { ISession, ISessionType } from '../../../services/sessions/common/session.js';
 import { Emitter } from '../../../../base/common/event.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+
+export const STORAGE_KEY_LAST_SESSION_TYPE = 'sessions.lastSelectedSessionType';
 
 export class SessionTypePicker extends Disposable {
 
@@ -33,8 +36,12 @@ export class SessionTypePicker extends Disposable {
 		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
+		@IStorageService protected readonly storageService: IStorageService,
 	) {
 		super();
+
+		// Restore the previously selected session type from storage
+		this._sessionType = this.storageService.get(STORAGE_KEY_LAST_SESSION_TYPE, StorageScope.PROFILE);
 
 		const refresh = (session: ISession | undefined) => {
 			if (session) {
@@ -50,7 +57,9 @@ export class SessionTypePicker extends Disposable {
 			} else {
 				this._supportedSessionTypes = [];
 				this._allProviderSessionTypes = [];
-				this._sessionType = undefined;
+				// Preserve the stored session type when no active session exists,
+				// so it can be used as the default for the next new session.
+				this._sessionType = this.storageService.get(STORAGE_KEY_LAST_SESSION_TYPE, StorageScope.PROFILE);
 			}
 			this._updateTriggerLabel();
 		};
@@ -132,6 +141,7 @@ export class SessionTypePicker extends Disposable {
 			onSelect: (type) => {
 				this.actionWidgetService.hide();
 				if (type.id !== this._sessionType) {
+					this.storageService.store(STORAGE_KEY_LAST_SESSION_TYPE, type.id, StorageScope.PROFILE, StorageTarget.MACHINE);
 					this._onDidSelectSessionType.fire(type.id);
 				}
 			},

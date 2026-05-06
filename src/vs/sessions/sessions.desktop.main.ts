@@ -212,6 +212,7 @@ import './contrib/remoteAgentHost/browser/remoteAgentHostTerminal.contribution.j
 import './contrib/remoteAgentHost/browser/tunnelAgentHost.contribution.js';
 
 // Chat
+import './contrib/agentFeedback/browser/agentFeedback.contribution.js';
 import './contrib/chat/electron-browser/chat.contribution.js';
 
 // Local Agent Host

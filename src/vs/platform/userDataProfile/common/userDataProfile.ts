@@ -22,6 +22,7 @@ import { escapeRegExpCharacters } from '../../../base/common/strings.js';
 import { isString, Mutable } from '../../../base/common/types.js';
 
 export const AGENTS_WINDOW_PROFILE_ID = 'agents';
+
 const AGENTS_WINDOW_PROFILE_FLAGS: UseDefaultProfileFlags = {
 	settings: true,
 	keybindings: true,
@@ -29,6 +30,7 @@ const AGENTS_WINDOW_PROFILE_FLAGS: UseDefaultProfileFlags = {
 	mcp: true,
 	snippets: true,
 	tasks: true,
+	extensions: true,
 };
 
 export const enum ProfileResourceType {
