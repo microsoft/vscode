@@ -13,7 +13,7 @@ import { TerminalSettingId } from '../../../../../platform/terminal/common/termi
 import { ITerminalSimpleLink, ITerminalLinkDetector, TerminalBuiltinLinkType } from './links.js';
 import { convertLinkRangeToBuffer, getXtermLineContent } from './terminalLinkHelpers.js';
 import { ITerminalConfiguration, TERMINAL_CONFIG_SECTION } from '../../../terminal/common/terminal.js';
-import type { IBufferLine, Terminal } from '@xterm/xterm';
+import type { IBufferLine, IBufferRange, Terminal } from '@xterm/xterm';
 
 const enum Constants {
 	/**
@@ -26,6 +26,12 @@ interface Word {
 	startIndex: number;
 	endIndex: number;
 	text: string;
+}
+
+interface XtermBufferCellLike {
+	extended?: {
+		urlId?: number;
+	};
 }
 
 export class TerminalWordLinkDetector extends Disposable implements ITerminalLinkDetector {
@@ -61,6 +67,10 @@ export class TerminalWordLinkDetector extends Disposable implements ITerminalLin
 			return [];
 		}
 
+		if (this._hasOscLinkInWrappedLine(startLine, endLine)) {
+			return [];
+		}
+
 		// Parse out all words from the wrapped line
 		const words: Word[] = this._parseWords(text);
 
@@ -84,6 +94,10 @@ export class TerminalWordLinkDetector extends Disposable implements ITerminalLin
 				},
 				startLine
 			);
+
+			if (this._hasOscLinkInRange(bufferRange)) {
+				continue;
+			}
 
 			// Support this product's URL protocol
 			if (matchesScheme(word.text, this._productService.urlProtocol)) {
@@ -133,5 +147,39 @@ export class TerminalWordLinkDetector extends Disposable implements ITerminalLin
 			powerlineSymbols += String.fromCharCode(i);
 		}
 		this._separatorRegex = new RegExp(`[${escapeRegExpCharacters(separators)}${powerlineSymbols}]`, 'g');
+	}
+
+	private _hasOscLinkInRange(bufferRange: IBufferRange): boolean {
+		for (let y = bufferRange.start.y; y <= bufferRange.end.y; y++) {
+			const line = this.xterm.buffer.active.getLine(y - 1);
+			if (!line) {
+				continue;
+			}
+			const startX = y === bufferRange.start.y ? bufferRange.start.x - 1 : 0;
+			const endX = y === bufferRange.end.y ? bufferRange.end.x - 1 : this.xterm.cols - 1;
+			for (let x = startX; x <= endX; x++) {
+				const cell = line.getCell(x) as XtermBufferCellLike | undefined;
+				if (cell?.extended?.urlId) {
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
+	private _hasOscLinkInWrappedLine(startLine: number, endLine: number): boolean {
+		for (let y = startLine; y <= endLine; y++) {
+			const line = this.xterm.buffer.active.getLine(y);
+			if (!line) {
+				continue;
+			}
+			for (let x = 0; x < this.xterm.cols; x++) {
+				const cell = line.getCell(x) as XtermBufferCellLike | undefined;
+				if (cell?.extended?.urlId) {
+					return true;
+				}
+			}
+		}
+		return false;
 	}
 }
