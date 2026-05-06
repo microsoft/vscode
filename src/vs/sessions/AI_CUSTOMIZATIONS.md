@@ -244,7 +244,7 @@ Provider-supplied customization rows that include an explicit storage origin are
 
 ### Sidebar Entrypoint Mode
 
-The Agents sidebar `AICustomizationShortcutsWidget` supports three entrypoint modes via `chat.customizations.sidebarOpensWelcome`: `welcome` (default) keeps the per-category sidebar rows but opens the AI Customization management editor welcome page, `section` restores per-category deep linking, and `single` replaces the per-category rows with one Customizations entry that opens the welcome page. All modes keep the active customization harness in sync with the active session before opening the editor.
+The Agents sidebar `AICustomizationShortcutsWidget` supports three entrypoint modes via `sessions.customizations.sidebarMode`: `welcome` (default) keeps the per-category sidebar rows but opens the AI Customization management editor welcome page, `section` restores per-category deep linking, and `single` replaces the per-category rows with one Customizations entry that opens the welcome page. All modes keep the active customization harness in sync with the active session before opening the editor.
 
 ### Item Badges
 

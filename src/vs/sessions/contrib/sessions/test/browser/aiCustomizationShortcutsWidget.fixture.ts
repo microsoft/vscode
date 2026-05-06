@@ -20,11 +20,10 @@ import { IAICustomizationItemsModel, ItemsModelSection } from '../../../../../wo
 import { ICustomizationHarnessService, IHarnessDescriptor } from '../../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { AICustomizationManagementSection } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { IAICustomizationListItem } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationItemSource.js';
-import { ChatConfiguration, ChatCustomizationsSidebarMode } from '../../../../../workbench/contrib/chat/common/constants.js';
+import { AICustomizationShortcutsWidget } from '../../browser/aiCustomizationShortcutsWidget.js';
+import { CUSTOMIZATION_ITEMS, CustomizationLinkViewItem, SESSIONS_CUSTOMIZATIONS_SIDEBAR_MODE_SETTING, SessionsCustomizationsSidebarMode } from '../../browser/customizationsToolbar.contribution.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
-import { AICustomizationShortcutsWidget } from '../../browser/aiCustomizationShortcutsWidget.js';
-import { CUSTOMIZATION_ITEMS, CustomizationLinkViewItem } from '../../browser/customizationsToolbar.contribution.js';
 import { Menus } from '../../../../browser/menus.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 
@@ -168,7 +167,7 @@ function createMockHarnessService(hiddenSections: readonly string[] = []): ICust
 // Render helper
 // ============================================================================
 
-function renderWidget(ctx: ComponentFixtureContext, options?: { mcpServerCount?: number; collapsed?: boolean; counts?: ICustomizationCounts; hiddenSections?: readonly string[]; mode?: ChatCustomizationsSidebarMode }): void {
+function renderWidget(ctx: ComponentFixtureContext, options?: { mcpServerCount?: number; collapsed?: boolean; counts?: ICustomizationCounts; hiddenSections?: readonly string[]; mode?: SessionsCustomizationsSidebarMode }): void {
 	ctx.container.style.width = '300px';
 	ctx.container.style.backgroundColor = 'var(--vscode-sideBar-background)';
 
@@ -176,7 +175,7 @@ function renderWidget(ctx: ComponentFixtureContext, options?: { mcpServerCount?:
 
 	const configurationService = new TestConfigurationService();
 	if (options?.mode !== undefined) {
-		configurationService.setUserConfiguration(ChatConfiguration.ChatCustomizationsSidebarOpensWelcome, options.mode);
+		configurationService.setUserConfiguration(SESSIONS_CUSTOMIZATIONS_SIDEBAR_MODE_SETTING, options.mode);
 	}
 
 	const instantiationService = createEditorServices(ctx.disposableStore, {
@@ -269,7 +268,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	ModeWelcome: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: (ctx) => renderWidget(ctx, {
-			mode: ChatCustomizationsSidebarMode.Welcome,
+			mode: SessionsCustomizationsSidebarMode.Welcome,
 			mcpServerCount: 2,
 			counts: { agents: 2, skills: 30, instructions: 16, hooks: 4 },
 		}),
@@ -278,7 +277,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	ModeSection: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: (ctx) => renderWidget(ctx, {
-			mode: ChatCustomizationsSidebarMode.Section,
+			mode: SessionsCustomizationsSidebarMode.Section,
 			mcpServerCount: 2,
 			counts: { agents: 2, skills: 30, instructions: 16, hooks: 4 },
 		}),
@@ -287,7 +286,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	ModeSingle: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: (ctx) => renderWidget(ctx, {
-			mode: ChatCustomizationsSidebarMode.Single,
+			mode: SessionsCustomizationsSidebarMode.Single,
 			mcpServerCount: 2,
 			counts: { agents: 2, skills: 30, instructions: 16, hooks: 4 },
 		}),
@@ -296,7 +295,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	ModeSingleEmpty: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: (ctx) => renderWidget(ctx, {
-			mode: ChatCustomizationsSidebarMode.Single,
+			mode: SessionsCustomizationsSidebarMode.Single,
 		}),
 	}),
 });

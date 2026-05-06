@@ -20,10 +20,9 @@ import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultS
 import { IMcpService } from '../../../../workbench/contrib/mcp/common/mcpTypes.js';
 import { IAICustomizationItemsModel } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationItemsModel.js';
 import { ICustomizationHarnessService } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
-import { CUSTOMIZATION_ITEMS } from './customizationsToolbar.contribution.js';
+import { CUSTOMIZATION_ITEMS, SESSIONS_CUSTOMIZATIONS_SIDEBAR_MODE_SETTING, SessionsCustomizationsSidebarMode } from './customizationsToolbar.contribution.js';
 import { Menus } from '../../../browser/menus.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { ChatConfiguration, ChatCustomizationsSidebarMode } from '../../../../workbench/contrib/chat/common/constants.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { AICustomizationManagementEditor } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditor.js';
 import { AICustomizationManagementEditorInput } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
@@ -45,7 +44,7 @@ export class AICustomizationShortcutsWidget extends Disposable {
 	private _root: HTMLElement | undefined;
 	private _parent: HTMLElement | undefined;
 	private _options: IAICustomizationShortcutsWidgetOptions | undefined;
-	private _currentMode: ChatCustomizationsSidebarMode | undefined;
+	private _currentMode: SessionsCustomizationsSidebarMode | undefined;
 
 	constructor(
 		container: HTMLElement,
@@ -67,7 +66,7 @@ export class AICustomizationShortcutsWidget extends Disposable {
 
 		// Re-render when the sidebar mode setting changes.
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ChatConfiguration.ChatCustomizationsSidebarOpensWelcome)) {
+			if (e.affectsConfiguration(SESSIONS_CUSTOMIZATIONS_SIDEBAR_MODE_SETTING)) {
 				const newMode = this._readMode();
 				if (newMode !== this._currentMode) {
 					this._renderForCurrentMode();
@@ -77,12 +76,12 @@ export class AICustomizationShortcutsWidget extends Disposable {
 		}));
 	}
 
-	private _readMode(): ChatCustomizationsSidebarMode {
-		const value = this.configurationService.getValue<string>(ChatConfiguration.ChatCustomizationsSidebarOpensWelcome);
-		if (value === ChatCustomizationsSidebarMode.Section || value === ChatCustomizationsSidebarMode.Single) {
+	private _readMode(): SessionsCustomizationsSidebarMode {
+		const value = this.configurationService.getValue<string>(SESSIONS_CUSTOMIZATIONS_SIDEBAR_MODE_SETTING);
+		if (value === SessionsCustomizationsSidebarMode.Section || value === SessionsCustomizationsSidebarMode.Single) {
 			return value;
 		}
-		return ChatCustomizationsSidebarMode.Welcome;
+		return SessionsCustomizationsSidebarMode.Welcome;
 	}
 
 	private _renderForCurrentMode(): void {
@@ -97,7 +96,7 @@ export class AICustomizationShortcutsWidget extends Disposable {
 
 		const mode = this._readMode();
 		this._currentMode = mode;
-		if (mode === ChatCustomizationsSidebarMode.Single) {
+		if (mode === SessionsCustomizationsSidebarMode.Single) {
 			this._renderSingleEntry(this._parent);
 		} else {
 			this._render(this._parent, this._options);
