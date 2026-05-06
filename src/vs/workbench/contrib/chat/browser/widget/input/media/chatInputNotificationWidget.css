@@ -14,7 +14,8 @@
 }
 
 .interactive-session .interactive-input-part > .chat-input-notification-container .chat-input-notification {
-	padding: 18px 16px;
+	/* Padding needs to be -6px for top to account for -10px margin in parent container and 4px for half of chat border radius. */
+	padding: 10px 16px 16px 16px;
 	box-sizing: border-box;
 	border: 1px solid var(--vscode-input-border, transparent);
 	border-bottom: none;
@@ -82,6 +83,25 @@
 }
 
 /* Body row: description + actions inline */
+/* Markdown-rendered title: keep the title inline (no block <p> margins). */
+.chat-input-notification .chat-input-notification-title-markdown {
+	display: inline;
+}
+
+.chat-input-notification .chat-input-notification-title-markdown > p {
+	display: inline;
+	margin: 0;
+}
+
+.chat-input-notification .chat-input-notification-title-markdown code {
+	font-family: var(--monaco-monospace-font);
+	font-size: 11px;
+	padding: 0 3px;
+	border-radius: 3px;
+	background: var(--vscode-textCodeBlock-background);
+}
+
+/* Body row: description + actions inline, wraps at small widths */
 .chat-input-notification .chat-input-notification-body {
 	display: flex;
 	align-items: center;
@@ -119,9 +139,18 @@
 	height: 24px;
 }
 
-/* Remove base button border from secondary (ghost) action buttons */
+/* Transparent ghost style for secondary action buttons (e.g. "View Usage") */
 .chat-input-notification .chat-input-notification-action-button.secondary {
 	border: none;
+	background: transparent;
+	color: var(--vscode-foreground);
+	padding: 4px 8px;
+	opacity: 0.8;
+}
+
+.chat-input-notification .chat-input-notification-action-button.secondary:hover {
+	background: var(--vscode-toolbar-hoverBackground);
+	opacity: 1;
 }
 
 /* Dismiss button */

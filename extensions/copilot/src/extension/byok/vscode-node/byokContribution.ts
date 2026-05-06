@@ -5,6 +5,7 @@
 import { LanguageModelChatInformation, LanguageModelChatProvider, lm } from 'vscode';
 import { IAuthenticationService } from '../../../platform/authentication/common/authentication';
 import { ICAPIClientService } from '../../../platform/endpoint/common/capiClient';
+import { isScenarioAutomation } from '../../../platform/env/common/envService';
 import { IVSCodeExtensionContext } from '../../../platform/extContext/common/extensionContext';
 import { ILogService } from '../../../platform/log/common/logService';
 import { IFetcherService } from '../../../platform/networking/common/fetcherService';
@@ -76,9 +77,14 @@ export class BYOKContrib extends Disposable implements IExtensionContribution {
 			for (const [providerName, provider] of this._providers) {
 				this._byokRegistrations.add(lm.registerLanguageModelChatProvider(providerName, provider));
 			}
+			this._logService.info(`BYOK: registered ${this._providers.size} provider(s): ${Array.from(this._providers.keys()).join(', ')}`);
+		} else if (!this._byokProvidersRegistered) {
+			const copilotToken = authService.copilotToken;
+			this._logService.debug(`BYOK: not enabling — copilotToken=${copilotToken ? 'present' : 'absent'}, isScenarioAutomation=${isScenarioAutomation}, isInternal=${copilotToken?.isInternal ?? 'n/a'}, isIndividual=${copilotToken?.isIndividual ?? 'n/a'}`);
 		}
 	}
 	private async fetchKnownModelList(fetcherService: IFetcherService): Promise<Record<string, BYOKKnownModels>> {
+		this._logService.info('BYOK: fetching known models list');
 		const data = await (await fetcherService.fetch('https://main.vscode-cdn.net/extensions/copilotChat.json', { method: 'GET', callSite: 'byok-known-models' })).json();
 		// Use this for testing with changes from a local file. Don't check in
 		// const data = JSON.parse((await this._fileSystemService.readFile(URI.file('/Users/roblou/code/vscode-engineering/chat/copilotChat.json'))).toString());

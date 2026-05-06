@@ -88,7 +88,8 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 					value: localize('autoApproveMode.description', "Controls whether to allow auto approval in the run in terminal tool."),
 				}
 			}
-		}
+		},
+		agentsWindow: { default: true },
 	},
 	[TerminalChatAgentToolsSettingId.AutoApprove]: {
 		markdownDescription: [
@@ -525,7 +526,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		enumDescriptions: [
 			localize('agentSandbox.enabledSetting.offDescription', 'Disable sandboxing for agent mode tools.'),
 			localize('agentSandbox.enabledSetting.onDescription', 'Enable sandboxing for agent mode tools.'),
-			localize('agentSandbox.enabledSetting.allowNetworkDescription', 'Enable sandboxing for agent mode tools, but do not block commands based on configured network domains.'),
+			localize('agentSandbox.enabledSetting.allowNetworkDescription', 'Enable sandboxing for agent mode tools and allow all network domains.'),
 		],
 		default: AgentSandboxEnabledValue.Off,
 		tags: ['preview'],
@@ -553,7 +554,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 					},
 					{
 						key: 'agentSandbox.enabledSetting.allowNetworkDescription',
-						value: localize('agentSandbox.enabledSetting.allowNetworkDescription', 'Enable sandboxing for agent mode tools, but do not block commands based on configured network domains.'),
+						value: localize('agentSandbox.enabledSetting.allowNetworkDescription', 'Enable sandboxing for agent mode tools and allow all network domains.'),
 					},
 				]
 			}
@@ -577,9 +578,9 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			},
 			allowWrite: {
 				type: 'array',
-				description: localize('agentSandbox.linuxFileSystemSetting.allowWrite', "Array of paths to allow write access. Leave empty to disallow all writes."),
+				description: localize('agentSandbox.linuxFileSystemSetting.allowWrite', "Array of additional paths to allow write access. Leave empty to disallow writes outside the workspace folders and sandbox temp directory."),
 				items: { type: 'string' },
-				default: ['.']
+				default: []
 			},
 			denyWrite: {
 				type: 'array',
@@ -591,7 +592,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		default: {
 			denyRead: [],
 			allowRead: [],
-			allowWrite: ['.'],
+			allowWrite: [],
 			denyWrite: []
 		},
 		tags: ['preview'],
@@ -617,7 +618,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 				type: 'array',
 				description: localize('agentSandbox.macFileSystemSetting.allowWrite', "Array of paths to allow write access. Leave empty to disallow all writes."),
 				items: { type: 'string' },
-				default: ['.']
+				default: []
 			},
 			denyWrite: {
 				type: 'array',
@@ -629,7 +630,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		default: {
 			denyRead: [],
 			allowRead: [],
-			allowWrite: ['.'],
+			allowWrite: [],
 			denyWrite: []
 		},
 		tags: ['preview'],

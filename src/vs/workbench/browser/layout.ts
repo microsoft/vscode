@@ -341,7 +341,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private registerLayoutListeners(): void {
 
 		// Restore editor if hidden and an editor is to show
-		const showEditorIfHidden = () => {
+		const showEditorIfHidden = (explicitUserAction?: boolean) => {
 			if (
 				this.isVisible(Parts.EDITOR_PART, mainWindow) ||		// already visible
 				this.mainPartEditorService.visibleEditors.length === 0	// no editor to show
@@ -350,7 +350,12 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			}
 
 			if (this.isAuxiliaryBarMaximized()) {
-				this.toggleMaximizedAuxiliaryBar();
+				// Do not unmaximize the auxiliary side bar when the editor was
+				// opened automatically (e.g. by the chat agent applying edits).
+				// Only an explicit user action should disrupt the chosen layout.
+				if (explicitUserAction !== false) {
+					this.toggleMaximizedAuxiliaryBar();
+				}
 			} else {
 				this.toggleMaximizedPanel();
 			}
@@ -375,10 +380,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.editorGroupService.whenRestored.then(() => {
 
 			// Handle visible editors changing for parts visibility
-			this._register(this.mainPartEditorService.onDidVisibleEditorsChange(() => {
+			this._register(this.mainPartEditorService.onDidVisibleEditorsChange(e => {
 				const handled = maybeMaximizeAuxiliaryBar();
 				if (!handled) {
-					showEditorIfHidden();
+					showEditorIfHidden(e.isExplicit);
 				}
 			}));
 			this._register(this.editorGroupService.mainPart.onDidActivateGroup(e => {

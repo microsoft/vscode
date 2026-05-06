@@ -458,6 +458,7 @@ export interface IChatElicitationRequest {
 	state: IObservable<ElicitationState>;
 	acceptedResult?: Record<string, unknown>;
 	moreActions?: IAction[];
+	riskAssessment?: { toolId: string; parameters: unknown };
 	accept(value: IAction | true): Promise<void>;
 	reject?: () => Promise<void>;
 	isHidden?: IObservable<boolean>;

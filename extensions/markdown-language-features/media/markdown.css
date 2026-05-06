@@ -57,6 +57,29 @@ body.showEditorSelection .code-line {
 	position: relative;
 }
 
+.code-line-diff {
+	border-radius: 2px;
+	box-shadow: -4px 0 0 transparent;
+}
+
+.code-line-diff-added {
+	background-color: var(--vscode-diffEditor-insertedTextBackground);
+	box-shadow: -4px 0 0 var(--vscode-diffEditorGutter-insertedLineBackground);
+}
+
+.code-line-diff-deleted {
+	background-color: var(--vscode-diffEditor-removedTextBackground);
+	box-shadow: -4px 0 0 var(--vscode-diffEditorGutter-removedLineBackground);
+}
+
+.vscode-high-contrast .code-line-diff-added {
+	outline: 1px solid var(--vscode-diffEditor-insertedTextBorder);
+}
+
+.vscode-high-contrast .code-line-diff-deleted {
+	outline: 1px solid var(--vscode-diffEditor-removedTextBorder);
+}
+
 body.showEditorSelection :not(tr,ul,ol).code-active-line:before,
 body.showEditorSelection :not(tr,ul,ol).code-line:hover:before {
 	content: "";
