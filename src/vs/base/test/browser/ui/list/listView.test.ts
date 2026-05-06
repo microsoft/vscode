@@ -28,7 +28,7 @@ suite('ListView', function () {
 		const renderer: IListRenderer<number, void> = {
 			templateId: 'template',
 			renderTemplate() { },
-			renderElement(el) {
+			renderElement() {
 				renderCount++;
 				// On the first render, trigger a reentrant splice that removes all items.
 				// This simulates the reentrancy path that nulls item.row mid-insertItemInDOM.
