@@ -11,6 +11,7 @@ import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
 import { IConfigurationService, type IConfigurationChangeEvent } from '../../../configuration/common/configuration.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
+import { ILabelService, type ResourceLabelFormatter } from '../../../label/common/label.js';
 import { RemoteAgentHostService } from '../../browser/remoteAgentHostServiceImpl.js';
 import { parseRemoteAgentHostInput, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, RemoteAgentHostsSettingId, entryToRawEntry, type IRawRemoteAgentHostEntry, type IRemoteAgentHostEntry } from '../../common/remoteAgentHostService.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
@@ -109,6 +110,18 @@ suite('RemoteAgentHostService', () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IConfigurationService, configService as Partial<IConfigurationService>);
+		instantiationService.stub(ILabelService, {
+			registeredFormatters: [] as ResourceLabelFormatter[],
+			registerFormatter(formatter: ResourceLabelFormatter) {
+				this.registeredFormatters.push(formatter);
+				return toDisposable(() => {
+					const idx = this.registeredFormatters.indexOf(formatter);
+					if (idx >= 0) {
+						this.registeredFormatters.splice(idx, 1);
+					}
+				});
+			},
+		} as Partial<ILabelService>);
 
 		// Mock the instantiation service to capture created protocol clients
 		const mockInstantiationService: Partial<IInstantiationService> = {
