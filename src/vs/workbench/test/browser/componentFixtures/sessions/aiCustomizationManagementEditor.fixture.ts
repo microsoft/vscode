@@ -528,11 +528,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			const agentFeedbackService = createMockAgentFeedbackService();
 			const codeReviewService = createMockCodeReviewService();
 			registerWorkbenchServices(reg);
-			// Enable the structured customization preview setting so the
-			// editor exercises the preview-first behavior in fixtures.
-			reg.defineInstance(IConfigurationService, new TestConfigurationService({
-				[ChatConfiguration.ChatCustomizationsStructuredPreviewEnabled]: true,
-			}));
+			reg.defineInstance(IConfigurationService, new TestConfigurationService({}));
 			reg.define(IListService, ListService);
 			reg.defineInstance(ITextModelService, new class extends mock<ITextModelService>() {
 				declare readonly _serviceBrand: undefined;
