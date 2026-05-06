@@ -764,6 +764,15 @@ export class AICustomizationListWidget extends Disposable {
 			itemRenderer.setFocusedIndex(e.indexes.length ? e.indexes[0] : -1);
 		}));
 
+		// When the list itself receives DOM focus (e.g. via Tab) and no row is
+		// focused yet, focus the first row so the focus indicator is visible
+		// instead of requiring the user to press an arrow key first.
+		this._register(this.list.onDidFocus(() => {
+			if (this.list.getFocus().length === 0 && this.displayEntries.length > 0) {
+				this.list.focusFirst();
+			}
+		}));
+
 		// Handle context menu
 		this._register(this.list.onContextMenu(e => this.onContextMenu(e)));
 
