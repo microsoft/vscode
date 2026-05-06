@@ -65,7 +65,7 @@ function getContextSizeOptions(endpoint: IChatEndpoint): { value: number; descri
 	const maxTokens = endpoint.modelMaxPromptTokens;
 
 	// Claude Opus models with a large context window (~1M or more) get a 200K/full toggle
-	if (isAnthropicFamily(endpoint) && endpoint.family.startsWith('claude-opus') && maxTokens >= 900_000) {
+	if (isAnthropicFamily(endpoint) && endpoint.family.startsWith('claude-opus') && maxTokens > 900_000) {
 		return [
 			{ value: 200_000, description: vscode.l10n.t('Standard context window'), isDefault: true },
 			{ value: maxTokens, description: vscode.l10n.t('Larger context window. Long conversations may incur significant costs'), isDefault: false },
@@ -76,7 +76,7 @@ function getContextSizeOptions(endpoint: IChatEndpoint): { value: number; descri
 }
 
 function formatTokenCount(count: number): string {
-	if (count >= 900_000) {
+	if (count > 900_000) {
 		const value = Math.ceil(count / 1_000_000);
 		return `${value}M`;
 	} else if (count >= 1000) {

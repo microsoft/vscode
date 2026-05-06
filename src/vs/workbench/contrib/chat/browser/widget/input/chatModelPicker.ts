@@ -1118,8 +1118,8 @@ function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentifier): M
 }
 
 
-function formatTokenCount(count: number): string {
-	if (count >= 900_000) {
+export function formatTokenCount(count: number): string {
+	if (count > 900_000) {
 		const value = Math.ceil(count / 1_000_000);
 		return `${value}M`;
 	} else if (count >= 1000) {
