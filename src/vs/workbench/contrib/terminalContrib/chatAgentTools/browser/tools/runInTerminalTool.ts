@@ -1517,14 +1517,21 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				// it from the dialog (which cancels execution and also makes
 				// executionPromise resolve). This means we never hand a secret
 				// prompt back to the model; the user is always in control.
-				if (outputMonitor) {
-					raceCleanup.add(this._registerSensitiveInputElicitation(
-						chatSessionResource,
-						toolTerminal.instance,
-						outputMonitor,
-						() => executeCancellation.cancel(),
-					));
-				}
+				//
+				// outputMonitor is created later inside `onDidCreateStartMarker`,
+				// so we must wait on `startMarkerPromise` before registering the
+				// listener — otherwise outputMonitor is still undefined here and
+				// the sensitive event never reaches us.
+				startMarkerPromise.then(() => {
+					if (outputMonitor && !raceCleanup.isDisposed) {
+						raceCleanup.add(this._registerSensitiveInputElicitation(
+							chatSessionResource,
+							toolTerminal.instance,
+							outputMonitor,
+							() => executeCancellation.cancel(),
+						));
+					}
+				});
 				const raceCandidates: Promise<{ type: 'completed'; result: ITerminalExecuteStrategyResult } | { type: 'background' } | { type: 'timeout' } | { type: 'inputNeeded' }>[] = [
 					executionPromise.then(result => ({ type: 'completed' as const, result })),
 					continueInBackgroundPromise.then(() => ({ type: 'background' as const })),
