@@ -1538,9 +1538,54 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					}),
 					new Promise<{ type: 'sensitiveInputNeeded' }>(resolve => {
 						startMarkerPromise.then(() => {
-							if (outputMonitor && !raceCleanup.isDisposed) {
-								raceCleanup.add(outputMonitor.onDidDetectSensitiveInputNeeded(() => resolve({ type: 'sensitiveInputNeeded' as const })));
+							if (!outputMonitor || raceCleanup.isDisposed) {
+								return;
 							}
+							// When a sensitive prompt is detected we don't immediately
+							// surrender the tool call to the agent — we first give the
+							// user a chance to actually engage with the terminal (focus
+							// it and type their secret). If executionPromise resolves
+							// during that window the outer Promise.race takes the
+							// 'completed' branch and we never fire here. If the user
+							// doesn't engage we fall through to 'sensitiveInputNeeded'
+							// so the agent gets control back rather than hanging
+							// forever.
+							//
+							// "Engagement" is measured as terminal data activity (user
+							// keystrokes / shell echo): every onData event resets the
+							// grace timer. This means once the user starts typing we
+							// keep waiting, but if they ignore the dialog we eventually
+							// hand control back.
+							const SENSITIVE_GRACE_MS = 45_000;
+							let pendingTimer: { dispose(): void } | undefined;
+							const armTimer = () => {
+								pendingTimer?.dispose();
+								const cancel = new CancellationTokenSource();
+								pendingTimer = {
+									dispose: () => {
+										cancel.cancel();
+										cancel.dispose();
+									},
+								};
+								timeout(SENSITIVE_GRACE_MS, cancel.token).then(() => {
+									if (!cancel.token.isCancellationRequested) {
+										resolve({ type: 'sensitiveInputNeeded' as const });
+									}
+								}).catch(() => { /* cancelled */ });
+							};
+							raceCleanup.add(outputMonitor.onDidDetectSensitiveInputNeeded(() => {
+								if (pendingTimer) {
+									return;
+								}
+								armTimer();
+								// Reset the grace timer on terminal activity so the
+								// user can take their time typing the secret.
+								raceCleanup.add(toolTerminal.instance.onData(() => armTimer()));
+								raceCleanup.add(toDisposable(() => {
+									pendingTimer?.dispose();
+									pendingTimer = undefined;
+								}));
+							}));
 						});
 					})
 				];
