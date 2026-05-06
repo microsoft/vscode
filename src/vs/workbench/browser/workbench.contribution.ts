@@ -572,7 +572,6 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'type': 'boolean',
 				'default': true,
 				'description': localize('panelShowLabels', "Controls whether activity items in the panel title are shown as label or icon."),
-				agentsWindow: { default: false },
 			},
 			'workbench.panel.defaultLocation': {
 				'type': 'string',

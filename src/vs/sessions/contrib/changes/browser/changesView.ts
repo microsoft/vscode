@@ -206,6 +206,7 @@ class ChangesButtonBarWidget extends Disposable {
 			action.id === 'github.copilot.claude.sessions.commit' ||
 			action.id === 'github.copilot.claude.sessions.commitAndSync' ||
 			action.id === 'agentSession.markAsDone' ||
+			action.id === 'agentSession.restore' ||
 			isAgentHostSkillButtonId(action.id)
 		) {
 			return { showIcon: true, showLabel: true, isSecondary: false };
@@ -1278,6 +1279,7 @@ class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem {
 							: branchName,
 						checked: viewModel.versionModeObs.get() === ChangesVersionMode.BranchChanges,
 						category: { label: 'changes', order: 1, showHeader: false },
+						enabled: viewModel.activeSessionIsArchivedObs.get() === false,
 						run: async () => {
 							viewModel.setVersionMode(ChangesVersionMode.BranchChanges);
 							logChangesViewVersionModeChange(this.telemetryService, ChangesVersionMode.BranchChanges);
@@ -1296,7 +1298,9 @@ class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem {
 						detail: localize('chatEditing.versionsUncommittedChanges.description', 'Show uncommitted changes in this session'),
 						checked: viewModel.versionModeObs.get() === ChangesVersionMode.UncommittedChanges,
 						category: { label: 'changes', order: 2, showHeader: false },
-						enabled: viewModel.activeSessionTypeObs.get() !== COPILOT_CLOUD_SESSION_TYPE,
+						enabled: viewModel.activeSessionTypeObs.get() !== COPILOT_CLOUD_SESSION_TYPE &&
+							viewModel.activeSessionFirstCheckpointRefObs.get() !== undefined &&
+							viewModel.activeSessionIsArchivedObs.get() === false,
 						run: async () => {
 							viewModel.setVersionMode(ChangesVersionMode.UncommittedChanges);
 							logChangesViewVersionModeChange(this.telemetryService, ChangesVersionMode.UncommittedChanges);
