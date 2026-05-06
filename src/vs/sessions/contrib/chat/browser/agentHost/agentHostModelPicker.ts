@@ -72,7 +72,16 @@ function getAgentHostModels(
 		.filter((m): m is ILanguageModelChatMetadataAndIdentifier => !!m && m.metadata.targetChatSessionType === resourceScheme);
 }
 
-const STORAGE_KEY = 'sessions.agentHostModelPicker.selectedModelId';
+/**
+ * Storage key under which the user's last-picked agent-host model id is
+ * persisted. Shared by every surface that lets the user pick an agent-host
+ * model so the selection round-trips between them: the desktop picker
+ * here, the empty new-chat input picker (`MobileChatInputConfigPicker`),
+ * and the opened-chat phone presenter (`MobileChatPhoneInputPresenter`).
+ */
+export const AGENT_HOST_MODEL_STORAGE_KEY = 'sessions.agentHostModelPicker.selectedModelId';
+
+const STORAGE_KEY = AGENT_HOST_MODEL_STORAGE_KEY;
 
 class AgentHostModelPickerContribution extends Disposable implements IWorkbenchContribution {
 

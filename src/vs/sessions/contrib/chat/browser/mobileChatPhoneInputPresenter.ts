@@ -27,13 +27,8 @@ import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.j
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { showMobilePickerSheet, IMobilePickerSheetItem } from '../../../browser/parts/mobile/mobilePickerSheet.js';
+import { AGENT_HOST_MODEL_STORAGE_KEY } from './agentHost/agentHostModelPicker.js';
 import { isWellKnownModeSchema } from './agentHost/agentHostPermissionPickerDelegate.js';
-
-// Must match {@link MODEL_STORAGE_KEY} in `mobileChatInputConfigPicker.ts`
-// and the desktop `agentHostModelPicker.ts` so the user's last-picked
-// model round-trips between the empty new-chat input and the opened
-// chat input.
-const AGENT_HOST_MODEL_STORAGE_KEY = 'sessions.agentHostModelPicker.selectedModelId';
 
 function getAgentHostModeIcon(value: string | undefined): ThemeIcon | undefined {
 	switch (value) {
@@ -217,6 +212,16 @@ class MobileChatPhoneInputPresenter extends Disposable implements IChatPhonePres
 		}
 
 		const performAction = (action: ChatPhonePickerAction): void => {
+			// Re-resolve the active session and its provider on every
+			// tap. The sheet stays open across multiple selections via
+			// `stayOpenOnSelect`, and the active session can change
+			// while it's open (e.g. background switch). Capturing once
+			// at sheet-open would silently apply later writes to the
+			// stale session.
+			const session = this._sessionsManagementService.activeSession.get();
+			const provider = session ? this._sessionsProvidersService.getProvider(session.providerId) : undefined;
+			const ahProvider = provider && isAgentHostProvider(provider) ? provider : undefined;
+
 			switch (action.kind) {
 				case 'mode':
 					// Same dispatch the desktop mode picker uses (see
@@ -236,8 +241,8 @@ class MobileChatPhoneInputPresenter extends Disposable implements IChatPhonePres
 				case 'agentHostMode':
 					// Same write path as `MobileChatInputConfigPicker` and
 					// `AgentHostModePicker._showPicker`'s `onSelect`.
-					if (activeSession && agentHostProvider) {
-						agentHostProvider.setSessionConfigValue(activeSession.sessionId, SessionConfigKey.Mode, action.value)
+					if (session && ahProvider) {
+						ahProvider.setSessionConfigValue(session.sessionId, SessionConfigKey.Mode, action.value)
 							.catch(() => { /* best-effort */ });
 					}
 					break;
@@ -247,22 +252,26 @@ class MobileChatPhoneInputPresenter extends Disposable implements IChatPhonePres
 					// and the input toolbar repaints.
 					if (modelDelegate) {
 						modelDelegate.setModel(action.model);
-					} else {
+					} else if (session) {
 						// Caller (e.g. the agent-host mode pill) didn't
-						// pass a delegate. The currently-focused chat
-						// input still owns a `_currentLanguageModel`
-						// observable that the workbench chip reads — sync
-						// it directly so the chip's label updates.
-						this._chatWidgetService.lastFocusedWidget?.input.setCurrentLanguageModel(action.model);
+						// pass a delegate. Look up the chat widget by
+						// the active session's resource — this is the
+						// input that owns the `_currentLanguageModel`
+						// observable the workbench chip reads. Using
+						// `lastFocusedWidget` would be a global focus
+						// tracker and could push the chip update into a
+						// different input than the model write.
+						this._chatWidgetService.getWidgetBySessionResource(session.resource)
+							?.input.setCurrentLanguageModel(action.model);
 					}
-					if (activeSession && agentHostProvider) {
+					if (session && ahProvider) {
 						// Persist to the shared storage key so the empty
 						// new-chat picker (`MobileChatInputConfigPicker`)
 						// remembers the same selection across surfaces,
 						// and push to the agent-host provider so the
 						// next send goes out with the picked model.
 						this._storageService.store(AGENT_HOST_MODEL_STORAGE_KEY, action.model.identifier, StorageScope.PROFILE, StorageTarget.MACHINE);
-						agentHostProvider.setModel(activeSession.sessionId, action.model.identifier);
+						ahProvider.setModel(session.sessionId, action.model.identifier);
 					}
 					break;
 			}

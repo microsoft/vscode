@@ -28,6 +28,7 @@ import { ISessionsManagementService } from '../../../../services/sessions/common
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { type ISession } from '../../../../services/sessions/common/session.js';
 import { isWellKnownModeSchema } from './agentHostPermissionPickerDelegate.js';
+import { AGENT_HOST_MODEL_STORAGE_KEY } from './agentHostModelPicker.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 
 const IsActiveSessionAgentHost = ContextKeyExpr.or(
@@ -36,7 +37,7 @@ const IsActiveSessionAgentHost = ContextKeyExpr.or(
 );
 
 const MOBILE_CHAT_INPUT_CONFIG_PICKER_ID = 'sessions.agentHost.mobileChatInputConfigPicker';
-const MODEL_STORAGE_KEY = 'sessions.agentHostModelPicker.selectedModelId';
+const MODEL_STORAGE_KEY = AGENT_HOST_MODEL_STORAGE_KEY;
 
 function getModeIcon(value: string | undefined): ThemeIcon | undefined {
 	switch (value) {
