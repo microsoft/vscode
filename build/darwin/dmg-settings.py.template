@@ -7,7 +7,11 @@ badge_icon = {{BADGE_ICON}}
 background = {{BACKGROUND}}
 
 # Volume size
-size = '1g'
+# 2g (was 1g) accommodates the universal app, which carries both x64 and arm64
+# copies of @github/copilot-darwin-* (~128MB each) and @anthropic-ai/claude-agent-sdk-darwin-*
+# (~207MB each). The output DMG is LZMA-compressed (format = 'ULMO') so this only sets
+# the source filesystem size, not the shipped artifact size.
+size = '2g'
 shrink = False
 
 # Files and symlinks
