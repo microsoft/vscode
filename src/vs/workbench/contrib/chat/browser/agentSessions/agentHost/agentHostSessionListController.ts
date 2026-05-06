@@ -11,10 +11,12 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentSession, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { ISessionFileDiff, SessionStatus, type SessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
-import { ChatSessionStatus, IChatNewSessionRequest, IChatSessionFileChange2, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta } from '../../../common/chatSessionsService.js';
+import { ChatSessionStatus, IChatNewSessionRequest, IChatSessionFileChange2, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionProviderOptionGroup } from '../../../common/chatSessionsService.js';
 import { getAgentHostIcon } from '../agentSessions.js';
+import { buildModeOptionGroup, getSelectedModeOptionItem } from './agentHostModeOptionGroup.js';
 
 type ICompactSessionFileDiff = { readonly uri: string; readonly added?: number; readonly removed?: number };
 
@@ -181,6 +183,39 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			modifiedAt: now,
 		});
 		return item;
+	}
+
+	/**
+	 * Seeds the chat-input option groups for an untitled agent-host session
+	 * before the first turn is sent. Today only the well-known mutable
+	 * `mode` enum is exposed; everything else falls through to the
+	 * running-session bridge in `AgentHostSessionHandler` once the backend
+	 * session is created. Returns `undefined` when the agent doesn't
+	 * advertise a usable `mode` schema.
+	 */
+	async getNewChatSessionInputState(_sessionResource: URI, token: CancellationToken): Promise<readonly IChatSessionProviderOptionGroup[] | undefined> {
+		if (token.isCancellationRequested) {
+			return undefined;
+		}
+		let result;
+		try {
+			result = await this._connection.resolveSessionConfig({ provider: this._provider });
+		} catch {
+			return undefined;
+		}
+		if (token.isCancellationRequested) {
+			return undefined;
+		}
+		const schema = result?.schema?.properties?.[SessionConfigKey.Mode];
+		if (!schema) {
+			return undefined;
+		}
+		const group = buildModeOptionGroup(schema);
+		if (!group) {
+			return undefined;
+		}
+		const selected = getSelectedModeOptionItem(group, result.values?.[SessionConfigKey.Mode], schema);
+		return [{ ...group, selected }];
 	}
 
 	async refresh(_token: CancellationToken): Promise<void> {

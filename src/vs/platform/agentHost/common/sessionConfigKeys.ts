@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { SessionConfigPropertySchema } from './state/protocol/commands.js';
+
 /**
  * Well-known keys used in the agent-host configuration value bag.
  *
@@ -38,3 +40,24 @@ export const enum SessionConfigKey {
  * are optional (an agent may choose to advertise a subset).
  */
 export const KNOWN_AUTO_APPROVE_VALUES: ReadonlySet<string> = new Set(['default', 'autoApprove', 'autopilot']);
+
+const REQUIRED_MODE_VALUE = 'interactive';
+
+/**
+ * Returns `true` when a `mode` session-config property uses the shape the
+ * dedicated agent-host mode picker expects: a string enum that contains
+ * at least `interactive`.
+ *
+ * Callers use this to decide whether to render the dedicated mode picker
+ * (with mode-specific icons and behavior) or fall back to the generic
+ * per-property picker.
+ */
+export function isWellKnownModeSchema(schema: SessionConfigPropertySchema): boolean {
+	if (schema.type !== 'string' || !Array.isArray(schema.enum) || schema.enum.length === 0) {
+		return false;
+	}
+	if (!schema.enum.includes(REQUIRED_MODE_VALUE)) {
+		return false;
+	}
+	return true;
+}

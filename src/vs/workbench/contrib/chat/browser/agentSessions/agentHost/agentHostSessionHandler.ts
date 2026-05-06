@@ -33,7 +33,7 @@ import { IAgentHostTerminalService } from '../../../../terminal/browser/agentHos
 import { ITerminalChatService } from '../../../../terminal/browser/terminal.js';
 import { IChatWidgetService } from '../../chat.js';
 import { ChatRequestQueueKind, ConfirmedReason, IChatProgress, IChatQuestion, IChatQuestionAnswers, IChatService, IChatToolInvocation, ToolConfirmKind, type IChatMultiSelectAnswer, type IChatQuestionAnswerValue, type IChatSingleSelectAnswer, type IChatTerminalToolInvocationData } from '../../../common/chatService/chatService.js';
-import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionRequestHistoryItem } from '../../../common/chatSessionsService.js';
+import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionProviderOptionItem, IChatSessionRequestHistoryItem, IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../../common/model/chatUri.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
 import { IChatEditingService } from '../../../common/editing/chatEditingService.js';
@@ -44,6 +44,7 @@ import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { ILanguageModelToolsService, IToolData, IToolInvocation, IToolResult, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { getAgentHostIcon } from '../agentSessions.js';
 import { AgentHostEditingSession } from './agentHostEditingSession.js';
+import { buildModeOptionGroup, getModeSchemaFingerprint, getSelectedModeOptionItem } from './agentHostModeOptionGroup.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWorkingDirectoryResolver.js';
 import { activeTurnToProgress, completedToolCallToEditParts, completedToolCallToSerialized, finalizeToolInvocation, getTerminalContentUri, isSubagentTool, makeAhpTerminalToolSessionId, parseAhpTerminalToolSessionId, rawMarkdownToString, stringOrMarkdownToString, toolCallStateToInvocation, turnsToHistory, updateRunningToolSpecificData, type IToolCallFileEdit, type TurnModelLookup } from './stateToProgressAdapter.js';
 
@@ -344,6 +345,11 @@ export function getAgentHostBranchNameHint(message: string): string | undefined 
 	return hint.length > 0 ? hint : undefined;
 }
 
+let _optionGroupsHandleCounter = 0;
+function nextOptionGroupsHandle(): number {
+	return ++_optionGroupsHandleCounter;
+}
+
 export class AgentHostSessionHandler extends Disposable implements IChatSessionContentProvider {
 
 	private readonly _activeSessions = new ResourceMap<AgentHostChatSession>();
@@ -359,6 +365,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 	/** Active session subscriptions, keyed by backend session URI string. */
 	private readonly _sessionSubscriptions = new Map<string, IReference<IAgentSubscription<SessionState>>>();
+
+	/** Stable handle paired with `setOptionGroupsForSessionType` register/clear. */
+	private readonly _optionGroupsHandle = nextOptionGroupsHandle();
+	/** Fingerprint of the last published `mode` schema, for republish dedupe. Cleared by {@link resetOptionGroupsCache}. */
+	private _lastPublishedModeSchemaFingerprint: string | undefined;
 
 	/** Observable of client-provided tools filtered by the allowlist and `when` clauses. */
 	private readonly _clientToolsObs: IObservable<readonly IToolData[]>;
@@ -379,6 +390,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
+		@IChatSessionsService private readonly _chatSessionsService: IChatSessionsService,
 	) {
 		super();
 		this._config = config;
@@ -447,6 +459,23 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				},
 			},
 		));
+
+		// Round-trip user picks from the chat-input `mode` option group back
+		// to the agent host as a `SessionConfigChanged` action. Inbound
+		// updates that already match the cached agent-host value are
+		// short-circuited by {@link _bridgeModeOptionPick} to break the
+		// echo loop with the outbound `setSessionOption` in
+		// {@link _watchSessionConfig}.
+		this._register(this._chatSessionsService.onDidChangeSessionOptions(e => {
+			this._bridgeModeOptionPick(e.sessionResource, e.updates);
+		}));
+
+		// Clear the published mode option group on disposal so the chat
+		// input doesn't keep advertising it after the agent provider is
+		// torn down.
+		this._register(toDisposable(() => {
+			this._chatSessionsService.setOptionGroupsForSessionType(config.sessionType, this._optionGroupsHandle, undefined);
+		}));
 
 		// When the customizations observable changes, re-dispatch
 		// activeClientChanged for sessions where this client is already
@@ -603,6 +632,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			// For existing sessions, start watching for server-initiated turns
 			// immediately. For new sessions, this is deferred to _createAndSubscribe.
 			this._watchForServerInitiatedTurns(resolvedSession, sessionResource);
+			this._watchSessionConfig(resolvedSession, sessionResource);
 		}
 
 		return session;
@@ -671,6 +701,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			this._ensureSessionSubscription(sessionKey);
 			this._ensurePendingMessageSubscription(request.sessionResource, resolvedSession);
 			this._watchForServerInitiatedTurns(resolvedSession, request.sessionResource);
+			this._watchSessionConfig(resolvedSession, request.sessionResource);
 
 			// Push the user-selected session config (e.g. isolation = worktree)
 			// to the agent so its provisional record materializes with the
@@ -912,6 +943,106 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}));
 
 		this._serverTurnWatchers.set(sessionResource, disposables);
+	}
+
+	// ---- Mode option-group sync --------------------------------------------
+
+	/**
+	 * Reset the per-handler "last-published mode schema" fingerprint so the
+	 * next state hydration republishes the option group. Called from
+	 * {@link AgentHostContribution} when the agent host process restarts —
+	 * the schema may legitimately change across restarts and the dedupe
+	 * cache would otherwise skip the new publish.
+	 */
+	resetOptionGroupsCache(): void {
+		this._lastPublishedModeSchemaFingerprint = undefined;
+	}
+
+	/**
+	 * Bridges the AHP `SessionState.config` for `mode` onto the workbench
+	 * chat-input option-groups infrastructure (`IChatSessionsService`).
+	 *
+	 * Subscribed alongside {@link _watchForServerInitiatedTurns} on the same
+	 * per-session subscription. On every state arrival:
+	 *  1. (Re)publish the `mode` option group for this session type when
+	 *     the schema fingerprint changes (well-known + mutable + static).
+	 *  2. Seed/refresh the per-session option so `chatInputPart.ts` shows
+	 *     the chip — option groups are only rendered for a session that
+	 *     has a configured value.
+	 *
+	 * Both sides short-circuit on value-equality to avoid loops with the
+	 * inbound listener registered in the constructor.
+	 */
+	private _watchSessionConfig(backendSession: URI, sessionResource: URI): void {
+		const sub = this._ensureSessionSubscription(backendSession.toString());
+		const apply = (state: SessionState | undefined) => {
+			const schema = state?.config?.schema?.properties?.[SessionConfigKey.Mode];
+			if (!schema) {
+				return;
+			}
+			const group = buildModeOptionGroup(schema);
+			if (!group) {
+				// Not well-known, not mutable, or dynamic — never advertise it.
+				return;
+			}
+
+			// Republish only when the schema changed (avoid event noise).
+			const fingerprint = getModeSchemaFingerprint(schema);
+			if (fingerprint !== this._lastPublishedModeSchemaFingerprint) {
+				this._chatSessionsService.setOptionGroupsForSessionType(this._config.sessionType, this._optionGroupsHandle, [group]);
+				this._lastPublishedModeSchemaFingerprint = fingerprint;
+			}
+
+			// Seed/refresh the per-session selection.
+			const currentValue = state?.config?.values?.[SessionConfigKey.Mode];
+			const item = getSelectedModeOptionItem(group, currentValue, schema);
+			if (!item) {
+				return;
+			}
+			const existing = this._chatSessionsService.getSessionOption(sessionResource, SessionConfigKey.Mode);
+			const existingId = typeof existing === 'string' ? existing : existing?.id;
+			if (existingId !== item.id) {
+				this._chatSessionsService.setSessionOption(sessionResource, SessionConfigKey.Mode, item);
+			}
+		};
+		// Apply once from the current state (may already be hydrated by the time we wire up).
+		apply(this._getSessionState(backendSession.toString()));
+		this._register(sub.onDidChange(state => apply(state)));
+	}
+
+	/**
+	 * Forward a chat-input `mode` selection to the agent host when the value
+	 * actually changed. Drops events that originated from our own
+	 * {@link _watchSessionConfig} write (value-equality short-circuit).
+	 */
+	private _bridgeModeOptionPick(sessionResource: URI, updates: ReadonlyMap<string, string | IChatSessionProviderOptionItem | undefined>): void {
+		if (!updates.has(SessionConfigKey.Mode)) {
+			return;
+		}
+		// Resolve the chat session type from the resource and only handle our own.
+		if (getChatSessionType(sessionResource) !== this._config.sessionType) {
+			return;
+		}
+		const update = updates.get(SessionConfigKey.Mode);
+		if (update === undefined) {
+			return;
+		}
+		const newValue = typeof update === 'string' ? update : update.id;
+		const backendSession = this._resolveSessionUri(sessionResource);
+		const state = this._getSessionState(backendSession.toString());
+		const schema = state?.config?.schema?.properties?.[SessionConfigKey.Mode];
+		if (!schema || schema.sessionMutable !== true || schema.readOnly === true) {
+			return;
+		}
+		const currentValue = state?.config?.values?.[SessionConfigKey.Mode];
+		if (currentValue === newValue) {
+			return;
+		}
+		this._dispatchAction({
+			type: ActionType.SessionConfigChanged,
+			session: backendSession.toString(),
+			config: { [SessionConfigKey.Mode]: newValue },
+		});
 	}
 
 	/**
@@ -2280,6 +2411,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 		// Start watching for server-initiated turns on this session
 		this._watchForServerInitiatedTurns(session, sessionResource);
+		this._watchSessionConfig(session, sessionResource);
 
 		return session;
 	}
