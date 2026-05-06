@@ -385,7 +385,7 @@ The Agent Sessions workbench uses specialized part implementations that extend t
 |---------|----------------|---------------------|
 | Activity Bar integration | Full support | No activity bar; account widget in the titlebar |
 | Composite bar position | Configurable (top/bottom/title/hidden) | Fixed: Title |
-| Composite bar visibility | Configurable | Sidebar: hidden (`shouldShowCompositeBar()` returns `false`); ChatBar: hidden; Auxiliary Bar & Panel: visible. Separately, the internal chat tab strip shown inside the Chat Bar preserves each chat title's original casing instead of forcing per-word capitalization via CSS. |
+| Composite bar visibility | Configurable | Sidebar: hidden (`shouldShowCompositeBar()` returns `false`); ChatBar: hidden; Auxiliary Bar & Panel: visible. The Auxiliary Bar and Panel title tabs share the same pill treatment: sentence-case labels, 500 font weight, compact horizontal padding, checked-state background, and no persistent active underline outside keyboard focus. Separately, the internal chat tab strip shown inside the Chat Bar preserves each chat title's original casing instead of forcing per-word capitalization via CSS. |
 | Auto-hide support | Configurable | Disabled |
 | Configuration listening | Many settings | Minimal |
 | Context menu actions | Full set | Simplified |
@@ -665,6 +665,7 @@ interface IPartVisibilityState {
 
 | Date | Change |
 |------|--------|
+| 2026-05-06 | Updated the sessions panel title tabs to reuse the same styling as the auxiliary bar's Changes/Files tabs: sentence-case labels, 500 font weight, tighter pill padding, and checked-state background without a persistent active underline. |
 | 2026-04-28 | Updated the sessions "Open in VS Code" titlebar widget to match the core "Open in Agents" affordance more closely: the product icon is greyscale by default, animates back to full color on hover/focus when motion is enabled, uses secondary-button hover chrome instead of quality-tinted backgrounds, and draws a separator before the Run split button. |
 | 2026-04-27 | Made the sessions shell gradient background the default treatment by removing the `sessions.experimental.shellGradientBackground` opt-in, always applying the root shell gradient layer, and renaming the workbench CSS hook to `shell-gradient-background`. |
 | 2026-04-23 | Updated mobile layout policy platform detection to use shared `platform.isMobile`, and reduced phone-layout CSS `!important` usage where selector specificity already provides stable overrides. |
