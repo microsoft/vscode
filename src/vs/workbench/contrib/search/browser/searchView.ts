@@ -74,6 +74,7 @@ import { SemanticSearchBehavior, IPatternInfo, ISearchComplete, ISearchConfigura
 import { AISearchKeyword, TextSearchCompleteMessage } from '../../../services/search/common/searchExtTypes.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { INotebookService } from '../../notebook/common/notebookService.js';
+import { ISCMService } from '../../scm/common/scm.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
@@ -237,6 +238,7 @@ export class SearchView extends ViewPane {
 		@ILogService private readonly logService: ILogService,
 		@IAccessibilitySignalService private readonly accessibilitySignalService: IAccessibilitySignalService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@ISCMService private readonly scmService: ISCMService,
 	) {
 
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
@@ -302,6 +304,18 @@ export class SearchView extends ViewPane {
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.onDidChangeWorkbenchState()));
 		this._register(this.searchHistoryService.onDidClearHistory(() => this.clearHistory()));
 		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(e)));
+
+		const registerScmRepositoryListeners = (repository: { provider: { onDidChangeResources: import('../../../../base/common/event.js').Event<void> } }) => {
+			this._register(repository.provider.onDidChangeResources(() => {
+				if (this.inputPatternIncludes?.onlySearchInChangedFiles()) {
+					this.triggerQueryChange();
+				}
+			}));
+		};
+		for (const repository of this.scmService.repositories) {
+			registerScmRepositoryListeners(repository);
+		}
+		this._register(this.scmService.onDidAddRepository(repository => registerScmRepositoryListeners(repository)));
 
 		this.delayedRefresh = this._register(new Delayer<void>(250));
 
@@ -523,6 +537,7 @@ export class SearchView extends ViewPane {
 
 		this._register(this.inputPatternIncludes.onCancel(() => this.cancelSearch(false)));
 		this._register(this.inputPatternIncludes.onChangeSearchInEditorsBox(() => this.triggerQueryChange()));
+		this._register(this.inputPatternIncludes.onChangeSearchInChangedFilesBox(() => this.triggerQueryChange()));
 
 		this.trackInputBox(this.inputPatternIncludes.inputFocusTracker, this.inputPatternIncludesFocused);
 
@@ -1593,6 +1608,7 @@ export class SearchView extends ViewPane {
 		const includePatternText = this._getIncludePattern();
 		const useExcludesAndIgnoreFiles = this.inputPatternExcludes.useExcludesAndIgnoreFiles();
 		const onlySearchInOpenEditors = this.inputPatternIncludes.onlySearchInOpenEditors();
+		const onlySearchInChangedFiles = this.inputPatternIncludes.onlySearchInChangedFiles();
 
 		if (contentPattern.length === 0) {
 			this.clearSearchResults(false);
@@ -1617,6 +1633,18 @@ export class SearchView extends ViewPane {
 		const excludePattern = [{ pattern: this.inputPatternExcludes.getValue() }];
 		const includePattern = this.inputPatternIncludes.getValue();
 
+		let changedFileUris: URI[] | undefined;
+		if (onlySearchInChangedFiles) {
+			changedFileUris = [];
+			for (const repository of this.scmService.repositories) {
+				for (const group of repository.provider.groups) {
+					for (const resource of group.resources) {
+						changedFileUris.push(resource.sourceUri);
+					}
+				}
+			}
+		}
+
 		// Need the full match line to correctly calculate replace text, if this is a search/replace with regex group references ($1, $2, ...).
 		// 10000 chars is enough to avoid sending huge amounts of text around, if you do a replace with a longer match, it may or may not resolve the group refs correctly.
 		// https://github.com/microsoft/vscode/issues/58374
@@ -1630,6 +1658,7 @@ export class SearchView extends ViewPane {
 			disregardExcludeSettings: !useExcludesAndIgnoreFiles || undefined,
 			ignoreGlobCase: !isLinux || undefined,
 			onlyOpenEditors: onlySearchInOpenEditors,
+			changedFileUris,
 			excludePattern,
 			includePattern,
 			previewOptions: {
@@ -1996,6 +2025,7 @@ export class SearchView extends ViewPane {
 		this.inputPatternExcludes.setValue('');
 		this.inputPatternIncludes.setValue('');
 		this.inputPatternIncludes.setOnlySearchInOpenEditors(false);
+		this.inputPatternIncludes.setOnlySearchInChangedFiles(false);
 
 		this.triggerQueryChange({ preserveFocus: false });
 	}
