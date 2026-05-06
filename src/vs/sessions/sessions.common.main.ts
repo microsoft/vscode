@@ -309,9 +309,6 @@ registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService, Insta
 import '../workbench/contrib/output/browser/output.contribution.js';
 import '../workbench/contrib/output/browser/outputView.js';
 
-// Problems View
-import '../workbench/contrib/markers/browser/markers.contribution.js';
-
 // Terminal
 import '../workbench/contrib/terminal/terminal.all.js';
 
