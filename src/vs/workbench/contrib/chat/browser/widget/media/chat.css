@@ -217,19 +217,22 @@
 	gap: 4px;
 }
 
-.interactive-item-container .chat-footer-toolbar .menu-entry.chat-copy-action .action-label {
+.interactive-item-container .chat-footer-toolbar .menu-entry.chat-copy-action .action-label,
+.interactive-result-code-block .interactive-result-code-block-toolbar .menu-entry.chat-copy-action .action-label {
 	position: relative;
 	overflow: hidden;
 }
 
-.interactive-item-container .chat-footer-toolbar .menu-entry.chat-copy-action .chat-copy-action-icons {
+.interactive-item-container .chat-footer-toolbar .menu-entry.chat-copy-action .chat-copy-action-icons,
+.interactive-result-code-block .interactive-result-code-block-toolbar .menu-entry.chat-copy-action .chat-copy-action-icons {
 	display: grid;
 	place-items: center;
 	width: 16px;
 	height: 16px;
 }
 
-.interactive-item-container .chat-footer-toolbar .menu-entry.chat-copy-action .chat-copy-action-icon {
+.interactive-item-container .chat-footer-toolbar .menu-entry.chat-copy-action .chat-copy-action-icon,
+.interactive-result-code-block .interactive-result-code-block-toolbar .menu-entry.chat-copy-action .chat-copy-action-icon {
 	grid-area: 1 / 1;
 	display: flex;
 	align-items: center;
@@ -244,12 +247,15 @@
 }
 
 .interactive-item-container .chat-footer-toolbar .menu-entry.chat-copy-action:not(.copied) .chat-copy-action-icon-copy,
-.interactive-item-container .chat-footer-toolbar .menu-entry.chat-copy-action.copied .chat-copy-action-icon-copied {
+.interactive-result-code-block .interactive-result-code-block-toolbar .menu-entry.chat-copy-action:not(.copied) .chat-copy-action-icon-copy,
+.interactive-item-container .chat-footer-toolbar .menu-entry.chat-copy-action.copied .chat-copy-action-icon-copied,
+.interactive-result-code-block .interactive-result-code-block-toolbar .menu-entry.chat-copy-action.copied .chat-copy-action-icon-copied {
 	opacity: 1;
 	transform: scale(1);
 }
 
 @media (prefers-reduced-motion: reduce) {
+	.interactive-result-code-block .interactive-result-code-block-toolbar .menu-entry.chat-copy-action .chat-copy-action-icon,
 	.interactive-item-container .chat-footer-toolbar .menu-entry.chat-copy-action .chat-copy-action-icon {
 		transform: none;
 		transition: none;
