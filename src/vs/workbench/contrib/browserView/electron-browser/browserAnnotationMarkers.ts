@@ -79,29 +79,25 @@ const MARKER_INJECTION_SCRIPT = `
 			}
 			.\${CONTAINER_ID}-marker {
 				position: absolute;
-				width: 24px;
-				height: 24px;
+				width: 22px;
+				height: 22px;
 				border-radius: 50%;
-				background: linear-gradient(145deg, rgba(255,255,255,0.35) 0%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.15) 100%);
-				backdrop-filter: blur(16px) saturate(1.8) brightness(1.1);
-				-webkit-backdrop-filter: blur(16px) saturate(1.8) brightness(1.1);
-				color: #fff;
+				background: var(--ann-accent, #0078d4);
+				color: var(--ann-accent-fg, #fff);
 				font-size: 12px;
-				font-weight: 700;
+				font-weight: 600;
 				font-family: var(--ann-font, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif);
 				display: flex;
 				align-items: center;
 				justify-content: center;
-				border: 1px solid rgba(255,255,255,0.4);
-				box-shadow: 0 2px 12px rgba(0,0,0,0.15), 0 0 0 0.5px rgba(255,255,255,0.2), inset 0 1px 1px rgba(255,255,255,0.4), inset 0 -1px 1px rgba(0,0,0,0.08);
+				box-shadow: 0 2px 6px rgba(0,0,0,0.2), inset 0 0 0 1px rgba(0,0,0,0.04);
 				pointer-events: auto;
 				cursor: pointer;
 				transform: translate(-50%, -50%);
-				transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease;
+				transition: transform 0.15s ease;
 				user-select: none;
 				-webkit-user-select: none;
 				z-index: 1;
-				text-shadow: 0 1px 2px rgba(0,0,0,0.3);
 			}
 			.\${CONTAINER_ID}-marker.enter {
 				animation: __am_in 0.25s cubic-bezier(0.22, 1, 0.36, 1) both;
@@ -119,21 +115,17 @@ const MARKER_INJECTION_SCRIPT = `
 				100% { opacity: 0; transform: translate(-50%, -50%) scale(0); }
 			}
 			.\${CONTAINER_ID}-marker:hover {
-				transform: translate(-50%, -50%) scale(1.15);
+				transform: translate(-50%, -50%) scale(1.1);
 				z-index: 2;
-				box-shadow: 0 4px 20px rgba(0,0,0,0.2), 0 0 0 0.5px rgba(255,255,255,0.3), inset 0 1px 2px rgba(255,255,255,0.5), inset 0 -1px 1px rgba(0,0,0,0.08);
 			}
 			.\${CONTAINER_ID}-highlight {
 				position: absolute;
-				border: 1.5px solid rgba(255,255,255,0.35);
-				background: linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.02) 100%);
-				backdrop-filter: blur(2px) saturate(1.2);
-				-webkit-backdrop-filter: blur(2px) saturate(1.2);
-				border-radius: 8px;
+				border: 2px solid color-mix(in srgb, var(--ann-accent, #0078d4) 60%, transparent);
+				background: color-mix(in srgb, var(--ann-accent, #0078d4) 5%, transparent);
+				border-radius: 4px;
 				pointer-events: none;
 				opacity: 0;
-				transition: opacity 0.2s ease;
-				box-shadow: 0 0 0 0.5px rgba(255,255,255,0.15), inset 0 1px 0 rgba(255,255,255,0.1);
+				transition: opacity 0.15s ease;
 			}
 			.\${CONTAINER_ID}-highlight.vis {
 				opacity: 1;
@@ -143,31 +135,27 @@ const MARKER_INJECTION_SCRIPT = `
 				animation: __am_flash 0.8s ease-out;
 			}
 			@keyframes __am_flash {
-				0% { opacity: 1; border-color: rgba(255,255,255,0.6); background: rgba(255,255,255,0.15); }
-				100% { opacity: 1; border-color: rgba(255,255,255,0.35); background: rgba(255,255,255,0.04); }
+				0% { opacity: 1; border-color: var(--ann-accent, #0078d4); background: color-mix(in srgb, var(--ann-accent, #0078d4) 20%, transparent); }
+				100% { opacity: 1; border-color: color-mix(in srgb, var(--ann-accent, #0078d4) 60%, transparent); background: color-mix(in srgb, var(--ann-accent, #0078d4) 5%, transparent); }
 			}
 			.\${CONTAINER_ID}-pending {
 				position: absolute;
-				width: 24px;
-				height: 24px;
+				width: 22px;
+				height: 22px;
 				border-radius: 50%;
-				background: linear-gradient(145deg, rgba(255,255,255,0.4) 0%, rgba(255,255,255,0.1) 50%, rgba(255,255,255,0.2) 100%);
-				backdrop-filter: blur(16px) saturate(1.8) brightness(1.1);
-				-webkit-backdrop-filter: blur(16px) saturate(1.8) brightness(1.1);
-				color: #fff;
+				background: var(--ann-accent, #0078d4);
+				color: var(--ann-accent-fg, #fff);
 				font-size: 14px;
 				font-weight: 600;
 				font-family: var(--ann-font, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif);
 				display: flex;
 				align-items: center;
 				justify-content: center;
-				border: 1px solid rgba(255,255,255,0.4);
-				box-shadow: 0 2px 12px rgba(0,0,0,0.15), inset 0 1px 1px rgba(255,255,255,0.4), inset 0 -1px 1px rgba(0,0,0,0.08);
+				box-shadow: 0 2px 6px rgba(0,0,0,0.2);
 				pointer-events: none;
 				transform: translate(-50%, -50%);
 				animation: __am_in 0.25s cubic-bezier(0.22, 1, 0.36, 1) both;
 				z-index: 3;
-				text-shadow: 0 1px 2px rgba(0,0,0,0.3);
 			}
 		\`;
 		document.head.appendChild(style);
@@ -424,30 +412,21 @@ if (document.getElementById(STYLE_ID)) return;
 const s = document.createElement('style');
 s.id = STYLE_ID;
 s.textContent = [
-'.' + HOVER_ID + '-hl { position:fixed; border:1.5px solid rgba(255,255,255,0.35); border-radius:8px;',
-'  background:linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.02) 100%);',
-'  backdrop-filter:blur(2px) saturate(1.2); -webkit-backdrop-filter:blur(2px) saturate(1.2);',
-'  pointer-events:none; box-sizing:border-box; z-index:2147483645;',
-'  box-shadow:0 0 0 0.5px rgba(255,255,255,0.15), inset 0 1px 0 rgba(255,255,255,0.1);',
+'.' + HOVER_ID + '-hl { position:fixed; border:2px solid color-mix(in srgb, var(--ann-accent, #0078d4) 50%, transparent); border-radius:4px;',
+'  background:color-mix(in srgb, var(--ann-accent, #0078d4) 4%, transparent); pointer-events:none; box-sizing:border-box; z-index:2147483645;',
 '  display:none; transition:top .06s ease-out,left .06s ease-out,width .06s ease-out,height .06s ease-out; }',
 '.' + HOVER_ID + '-hl.vis { display:block; animation:__ah_in .12s ease-out forwards; }',
 '@keyframes __ah_in { from{opacity:0;transform:scale(.98)} to{opacity:1;transform:scale(1)} }',
 '.' + HOVER_ID + '-tt { position:fixed; font:500 11px/1.3 var(--ann-font, -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif);',
-'  color:#fff; background:rgba(0,0,0,0.45); backdrop-filter:blur(20px) saturate(1.6);',
-'  -webkit-backdrop-filter:blur(20px) saturate(1.6); padding:4px 10px; border-radius:8px; pointer-events:none;',
-'  border:1px solid rgba(255,255,255,0.15); box-shadow:0 2px 12px rgba(0,0,0,0.1), inset 0 1px 0 rgba(255,255,255,0.1);',
+'  color:#fff; background:rgba(0,0,0,.85); padding:4px 8px; border-radius:6px; pointer-events:none;',
 '  white-space:nowrap; max-width:280px; overflow:hidden; text-overflow:ellipsis; z-index:2147483645; display:none; }',
 '.' + HOVER_ID + '-tt.vis { display:block; animation:__ah_tt .1s ease-out forwards; }',
 '@keyframes __ah_tt { from{opacity:0;transform:scale(.95) translateY(4px)} to{opacity:1;transform:scale(1) translateY(0)} }',
-'.' + HOVER_ID + '-drag { position:fixed; border:1.5px dashed rgba(255,255,255,0.4); border-radius:8px;',
-'  background:linear-gradient(135deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 100%);',
-'  backdrop-filter:blur(2px); -webkit-backdrop-filter:blur(2px);',
-'  pointer-events:none; z-index:2147483645; display:none; }',
+'.' + HOVER_ID + '-drag { position:fixed; border:2px dashed color-mix(in srgb, var(--ann-accent, #0078d4) 80%, transparent); border-radius:4px;',
+'  background:color-mix(in srgb, var(--ann-accent, #0078d4) 10%, transparent); pointer-events:none; z-index:2147483645; display:none; }',
 '.' + HOVER_ID + '-drag.vis { display:block; }',
-'.' + HOVER_ID + '-ghl { position:fixed; border:1.5px solid rgba(255,255,255,0.3); border-radius:6px;',
-'  background:linear-gradient(135deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 100%);',
-'  backdrop-filter:blur(1px); -webkit-backdrop-filter:blur(1px);',
-'  pointer-events:none; z-index:2147483644; }',
+'.' + HOVER_ID + '-ghl { position:fixed; border:2px solid color-mix(in srgb, var(--ann-accent, #0078d4) 70%, transparent); border-radius:3px;',
+'  background:color-mix(in srgb, var(--ann-accent, #0078d4) 12%, transparent); pointer-events:none; z-index:2147483644; }',
 '@keyframes __ah_pop { from{opacity:0;transform:translateX(-50%) scale(.95) translateY(4px)}',
 '  to{opacity:1;transform:translateX(-50%) scale(1) translateY(0)} }',
 '@keyframes __ah_shake { 0%,100%{transform:translateX(-50%)} 25%{transform:translateX(calc(-50% + 3px))}',
@@ -755,34 +734,29 @@ return '<div><span style="color:#9cdcfe;">' + prop + '</span>:<span style="color
 
 popupEl.innerHTML = [
 '<div style="position:relative;">',
-'  <textarea id="' + HOVER_ID + '-ta" rows="2" aria-label="Annotation comment" placeholder="What should change?" style="',
-'    width:100%;box-sizing:border-box;padding:6px 32px 6px 8px;font-size:13px;line-height:1.4;font-family:inherit;',
-'    background:rgba(255,255,255,0.08);color:#fff;border:1px solid rgba(255,255,255,0.2);',
-'    border-radius:8px;resize:none;outline:none;',
-'    text-shadow:0 0.5px 1px rgba(0,0,0,0.2);"></textarea>',
+'  <textarea id="' + HOVER_ID + '-ta" rows="1" aria-label="Annotation comment" placeholder="What should change?" style="',
+'    width:100%;box-sizing:border-box;padding:6px 28px 6px 8px;font-size:13px;line-height:1.4;font-family:inherit;',
+'    background:var(--ann-input-bg, #3c3c3c);color:var(--ann-fg, #ccc);border:1px solid var(--ann-input-border, #3c3c3c);',
+'    border-radius:6px;resize:none;outline:none;"></textarea>',
 '  <button id="'+HOVER_ID+'-submit" aria-label="Add annotation" style="',
-'    position:absolute;right:6px;top:50%;transform:translateY(-50%);',
-'    width:22px;height:22px;border:none;background:none;',
-'    color:rgba(255,255,255,0.4);',
+'    position:absolute;right:4px;bottom:4px;',
+'    width:20px;height:20px;border-radius:4px;border:none;',
+'    background:transparent;color:var(--ann-desc-fg, rgba(204,204,204,0.4));',
 '    cursor:pointer;display:flex;align-items:center;justify-content:center;',
-'    opacity:0.35;transition:opacity 0.15s, color 0.15s;padding:0;">',
+'    transition:color 0.15s;padding:0;">',
 '    <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M1 8.5L1 7.5L11.5 7.5L7 3L7.7 2.3L13.4 8L7.7 13.7L7 13L11.5 8.5L1 8.5Z"/></svg>',
 '  </button>',
 '</div>',
-quoteHtml,
-stylesHtml ? stylesHtml : '<div style="margin-top:4px;"><div id="'+HOVER_ID+'-path-toggle" style="cursor:pointer;font-size:11px;color:var(--ann-desc-fg, rgba(204,204,204,0.6));user-select:none;display:flex;align-items:center;gap:4px;"><span id="'+HOVER_ID+'-path-arrow" style="font-size:9px;transition:transform 0.15s;">&#9654;</span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+headerText+'</span></div></div>',
+quoteHtml ? '<div style="margin-top:4px;">' + quoteHtml + '</div>' : '',
+stylesHtml ? '<div style="margin-top:4px;">' + stylesHtml + '</div>' : '<div style="margin-top:4px;"><span style="font-size:11px;color:var(--ann-desc-fg, rgba(204,204,204,0.4));overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;">'+headerText+'</span></div>',
 ].join('');
 
 Object.assign(popupEl.style, {
 position:'fixed', left:Math.max(140,Math.min(x,window.innerWidth-140))+'px',
 top:Math.min(y,window.innerHeight-180)+'px', transform:'translateX(-50%)',
-width:'264px', padding:'10px',
-background:'linear-gradient(145deg, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0.06) 50%, rgba(255,255,255,0.1) 100%)',
-backdropFilter:'blur(24px) saturate(1.8) brightness(1.05)',
-WebkitBackdropFilter:'blur(24px) saturate(1.8) brightness(1.05)',
-borderRadius:'14px',
-border:'1px solid rgba(255,255,255,0.3)',
-boxShadow:'0 8px 40px rgba(0,0,0,0.12), 0 0 0 0.5px rgba(255,255,255,0.15), inset 0 1px 1px rgba(255,255,255,0.25), inset 0 -1px 1px rgba(0,0,0,0.05)',
+width:'264px', padding:'8px', background:'var(--ann-editor-bg, #252526)', borderRadius:'8px',
+border:'1px solid var(--ann-widget-border, #454545)',
+boxShadow:'0 0 20px rgba(0,0,0,0.15)',
 zIndex:'2147483647',
 fontFamily:'var(--ann-font, -apple-system,BlinkMacSystemFont,"Segoe WPC","Segoe UI",system-ui,"Ubuntu","Droid Sans",sans-serif)',
 fontSize:'13px', lineHeight:'1.4em',
@@ -805,18 +779,14 @@ stArrow.style.transform = open ? '' : 'rotate(90deg)';
 var ta = document.getElementById(HOVER_ID+'-ta');
 var sub = document.getElementById(HOVER_ID+'-submit');
 setTimeout(function() { if(ta) ta.focus(); }, 50);
-if(ta) ta.addEventListener('input', function() { if (sub) { sub.style.opacity = ta.value.trim() ? '1' : '0.35'; sub.style.color = ta.value.trim() ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.4)'; } });
-if(ta) ta.addEventListener('focus', function() { ta.style.borderColor = 'rgba(255,255,255,0.45)'; ta.style.background = 'rgba(255,255,255,0.12)'; });
-if(ta) ta.addEventListener('blur', function() { ta.style.borderColor = 'rgba(255,255,255,0.2)'; ta.style.background = 'rgba(255,255,255,0.08)'; });
-
-// Path toggle (when no styles accordion)
-var pathToggle = document.getElementById(HOVER_ID+'-path-toggle');
-var pathArrow = document.getElementById(HOVER_ID+'-path-arrow');
-if (pathToggle && stBody && stArrow) {
-// styles accordion exists — already handled above
-} else if (pathToggle && pathArrow) {
-// no-op for now — path is just a label, no expandable content
-}
+if(ta) ta.addEventListener('input', function() {
+if (sub) sub.style.color = ta.value.trim() ? 'var(--ann-accent, #0078d4)' : 'var(--ann-desc-fg, rgba(204,204,204,0.4))';
+// Auto-resize textarea
+ta.style.height = 'auto';
+ta.style.height = Math.min(ta.scrollHeight, 120) + 'px';
+});
+if(ta) ta.addEventListener('focus', function() { ta.style.borderColor = 'var(--ann-focus-border, #007acc)'; });
+if(ta) ta.addEventListener('blur', function() { ta.style.borderColor = 'var(--ann-input-border, #3c3c3c)'; });
 
 if(sub) sub.addEventListener('click', function() {
 var comment = ta ? ta.value.trim() : '';
@@ -978,18 +948,26 @@ return '<div><span style="color:#9cdcfe;">' + prop + '</span>:<span style="color
 }
 
 popupEl.innerHTML = [
-stylesHtml ? '' : '<div style="display:flex;align-items:center;margin-bottom:6px;"><span style="font-size:11px;line-height:1.4;color:rgba(255,255,255,0.5);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:248px;">' + headerText + '</span></div>',
-stylesHtml,
-'<textarea id="' + HOVER_ID + '-ta" rows="3" aria-label="Annotation comment" style="',
-'  width:100%;box-sizing:border-box;padding:6px 8px;font-size:13px;line-height:1.4;font-family:inherit;',
-'  background:rgba(255,255,255,0.08);color:#fff;border:1px solid rgba(255,255,255,0.2);',
-'  border-radius:8px;resize:none;outline:none;text-shadow:0 0.5px 1px rgba(0,0,0,0.2);"></textarea>',
-'<div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;">',
-'  <button id="' + HOVER_ID + '-delete" aria-label="Delete annotation" title="Delete" style="padding:3px 5px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.06);color:rgba(255,255,255,0.7);cursor:pointer;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);">' + trashSvg + '</button>',
-'  <div style="display:flex;gap:4px;">',
-'    <button id="' + HOVER_ID + '-cancel" aria-label="Cancel" style="padding:4px 8px;font-size:12px;line-height:16px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.06);color:rgba(255,255,255,0.7);cursor:pointer;font-family:inherit;">Cancel</button>',
-'    <button id="' + HOVER_ID + '-submit" aria-label="Save" style="padding:4px 8px;font-size:12px;line-height:16px;border-radius:6px;border:1px solid rgba(255,255,255,0.2);background:rgba(255,255,255,0.12);color:rgba(255,255,255,0.9);cursor:pointer;opacity:0.4;font-family:inherit;">Save</button>',
-'  </div>',
+'<div style="position:relative;">',
+'  <textarea id="' + HOVER_ID + '-ta" rows="1" aria-label="Annotation comment" style="',
+'    width:100%;box-sizing:border-box;padding:6px 28px 6px 8px;font-size:13px;line-height:1.4;font-family:inherit;',
+'    background:var(--ann-input-bg, #3c3c3c);color:var(--ann-fg, #ccc);border:1px solid var(--ann-input-border, #3c3c3c);',
+'    border-radius:6px;resize:none;outline:none;"></textarea>',
+'  <button id="'+HOVER_ID+'-submit" aria-label="Save" style="',
+'    position:absolute;right:4px;bottom:4px;',
+'    width:20px;height:20px;border-radius:4px;border:none;',
+'    background:transparent;color:var(--ann-desc-fg, rgba(204,204,204,0.4));',
+'    cursor:pointer;display:flex;align-items:center;justify-content:center;',
+'    transition:color 0.15s;padding:0;">',
+'    <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M1 8.5L1 7.5L11.5 7.5L7 3L7.7 2.3L13.4 8L7.7 13.7L7 13L11.5 8.5L1 8.5Z"/></svg>',
+'  </button>',
+'</div>',
+'<div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px;">',
+stylesHtml ? stylesHtml : '<span style="font-size:11px;color:var(--ann-desc-fg, rgba(204,204,204,0.4));overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;">'+headerText+'</span>',
+'  <button id="' + HOVER_ID + '-delete" aria-label="Delete annotation" title="Delete" style="',
+'    width:20px;height:20px;border-radius:4px;border:none;background:transparent;',
+'    color:var(--ann-desc-fg, rgba(204,204,204,0.4));cursor:pointer;display:flex;align-items:center;justify-content:center;',
+'    flex-shrink:0;transition:color 0.15s;padding:0;">'+trashSvg+'</button>',
 '</div>',
 ].join('');
 
@@ -1001,13 +979,11 @@ position: 'fixed',
 left: Math.max(140, Math.min(px, window.innerWidth - 140)) + 'px',
 top: Math.min(py, window.innerHeight - 180) + 'px',
 transform: 'translateX(-50%)',
-width: '264px', padding: '10px',
-background: 'linear-gradient(145deg, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0.06) 50%, rgba(255,255,255,0.1) 100%)',
-backdropFilter: 'blur(24px) saturate(1.8) brightness(1.05)',
-WebkitBackdropFilter: 'blur(24px) saturate(1.8) brightness(1.05)',
-borderRadius: '14px',
-border: '1px solid rgba(255,255,255,0.3)',
-boxShadow: '0 8px 40px rgba(0,0,0,0.12), 0 0 0 0.5px rgba(255,255,255,0.15), inset 0 1px 1px rgba(255,255,255,0.25), inset 0 -1px 1px rgba(0,0,0,0.05)',
+width: '264px', padding: '8px',
+background: 'var(--ann-editor-bg, #252526)',
+borderRadius: '8px',
+border: '1px solid var(--ann-widget-border, #454545)',
+boxShadow: '0 0 20px rgba(0,0,0,0.15)',
 zIndex: '2147483647',
 fontFamily: 'var(--ann-font, -apple-system,BlinkMacSystemFont,"Segoe WPC","Segoe UI",system-ui,"Ubuntu","Droid Sans",sans-serif)',
 fontSize: '13px', lineHeight: '1.4em',
@@ -1029,33 +1005,48 @@ stArrow.style.transform = open ? '' : 'rotate(90deg)';
 
 var ta = document.getElementById(HOVER_ID + '-ta');
 var sub = document.getElementById(HOVER_ID + '-submit');
-var can = document.getElementById(HOVER_ID + '-cancel');
 var del = document.getElementById(HOVER_ID + '-delete');
 
 if (ta) { ta.value = originalComment; }
 setTimeout(function() { if (ta) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); } }, 50);
 
+// Auto-resize to fit content
+if (ta) {
+ta.style.height = 'auto';
+ta.style.height = Math.min(ta.scrollHeight, 120) + 'px';
+}
+
 if (ta) ta.addEventListener('input', function() {
 var changed = ta.value.trim() !== originalComment && ta.value.trim().length > 0;
-if (sub) sub.style.opacity = changed ? '1' : '0.4';
+if (sub) sub.style.color = changed ? 'var(--ann-accent, #0078d4)' : 'var(--ann-desc-fg, rgba(204,204,204,0.4))';
+ta.style.height = 'auto';
+ta.style.height = Math.min(ta.scrollHeight, 120) + 'px';
 });
 if (ta) ta.addEventListener('focus', function() { ta.style.borderColor = 'var(--ann-focus-border, #007acc)'; });
 if (ta) ta.addEventListener('blur', function() { ta.style.borderColor = 'var(--ann-input-border, #3c3c3c)'; });
+
+if (del) del.addEventListener('mouseenter', function() { del.style.color = 'var(--ann-fg, #ccc)'; });
+if (del) del.addEventListener('mouseleave', function() { del.style.color = 'var(--ann-desc-fg, rgba(204,204,204,0.4))'; });
 
 if (sub) sub.addEventListener('click', function() {
 var comment = ta ? ta.value.trim() : '';
 if (!comment || comment === originalComment) return;
 resolveEdit({ action: 'save', comment: comment });
 });
-if (can) can.addEventListener('click', function() {
-resolveEdit({ action: 'cancel', comment: '' });
-});
 if (del) del.addEventListener('click', function() {
 resolveEdit({ action: 'delete', comment: '' });
 });
+// Click away to cancel
+var _editClickAway = function(e) {
+if (popupEl && !popupEl.contains(e.target)) {
+document.removeEventListener('mousedown', _editClickAway, true);
+resolveEdit({ action: 'cancel', comment: '' });
+}
+};
+setTimeout(function() { document.addEventListener('mousedown', _editClickAway, true); }, 100);
 if (ta) ta.addEventListener('keydown', function(e) {
 if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); if (sub) sub.click(); }
-if (e.key === 'Escape') { e.preventDefault(); if (can) can.click(); }
+if (e.key === 'Escape') { e.preventDefault(); document.removeEventListener('mousedown', _editClickAway, true); resolveEdit({ action: 'cancel', comment: '' }); }
 });
 }
 
