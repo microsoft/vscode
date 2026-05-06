@@ -62,6 +62,10 @@
 	background: var(--vscode-agentsPanel-background) !important;
 }
 
+.agent-sessions-workbench .part.panel > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .badge.compact .badge-content {
+	top: 11px;
+}
+
 /* Terminal body background */
 .agent-sessions-workbench .part.panel .terminal-wrapper {
 	background-color: var(--vscode-agentsPanel-background);

@@ -63,6 +63,10 @@ export class NullLanguageModelsService implements ILanguageModelsService {
 		return [];
 	}
 
+	hasResolvedVendor(vendor: string): boolean {
+		return false;
+	}
+
 	async selectLanguageModels(selector: ILanguageModelChatSelector): Promise<string[]> {
 		return [];
 	}

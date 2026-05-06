@@ -14,8 +14,7 @@ import { IModelService } from '../../editor/common/services/model.js';
 import { Schemas } from '../../base/common/network.js';
 import { EditorInput } from './editor/editorInput.js';
 import { IEditorResolverService } from '../services/editor/common/editorResolverService.js';
-import { DEFAULT_EDITOR_ASSOCIATION } from './editor.js';
-import { DiffEditorInput } from './editor/diffEditorInput.js';
+import { DEFAULT_EDITOR_ASSOCIATION, isDiffEditorInput } from './editor.js';
 
 //#region < --- Workbench --- >
 
@@ -76,6 +75,8 @@ export const ActiveEditorAvailableEditorIdsContext = new RawContextKey<string>('
 export const TextCompareEditorVisibleContext = new RawContextKey<boolean>('textCompareEditorVisible', false, localize('textCompareEditorVisible', "Whether a text compare editor is visible"));
 export const TextCompareEditorActiveContext = new RawContextKey<boolean>('textCompareEditorActive', false, localize('textCompareEditorActive', "Whether a text compare editor is active"));
 export const SideBySideEditorActiveContext = new RawContextKey<boolean>('sideBySideEditorActive', false, localize('sideBySideEditorActive', "Whether a side by side editor is active"));
+export const ActiveCustomEditorDiffCanToggleLayoutContext = new RawContextKey<boolean>('activeCustomEditorDiffCanToggleLayout', false, localize('activeCustomEditorDiffCanToggleLayout', "Whether the active custom editor diff can toggle between inline and side by side layout"));
+export const ActiveCustomEditorTextDiffContext = new RawContextKey<boolean>('activeCustomEditorTextDiff', false, localize('activeCustomEditorTextDiff', "Whether the active custom editor diff is backed by text documents"));
 
 // Editor Group Context Keys
 export const EditorGroupEditorsCountContext = new RawContextKey<number>('groupEditorsCount', 0, localize('groupEditorsCount', "The number of opened editor groups"));
@@ -344,7 +345,7 @@ function getAvailableEditorIds(editor: EditorInput, editorResolverService: IEdit
 
 	// Diff editors. The original and modified resources of a diff editor
 	// *should* be the same, but calculate the set intersection just to be safe.
-	if (editor instanceof DiffEditorInput) {
+	if (isDiffEditorInput(editor)) {
 		const original = getAvailableEditorIds(editor.original, editorResolverService);
 		const modified = new Set(getAvailableEditorIds(editor.modified, editorResolverService));
 		return original.filter(editor => modified.has(editor));

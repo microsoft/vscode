@@ -5,6 +5,7 @@
 
 import '../media/sessionsList.css';
 import * as DOM from '../../../../../base/browser/dom.js';
+import { Gesture } from '../../../../../base/browser/touch.js';
 import { IListVirtualDelegate } from '../../../../../base/browser/ui/list/list.js';
 import { IListStyles } from '../../../../../base/browser/ui/list/listWidget.js';
 import { IObjectTreeElement, ITreeNode, ITreeRenderer, ITreeContextMenuEvent, ObjectTreeElementCollapseState } from '../../../../../base/browser/ui/tree/tree.js';
@@ -23,7 +24,7 @@ import { localize } from '../../../../../nls.js';
 import { MenuId, IMenuService } from '../../../../../platform/actions/common/actions.js';
 import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
-import { ChatSessionProviderIdContext } from '../../../../common/contextkeys.js';
+import { ChatSessionProviderIdContext, IsPhoneLayoutContext } from '../../../../common/contextkeys.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
@@ -96,10 +97,21 @@ function isSessionShowMore(item: SessionListItem): item is ISessionShowMore {
 
 class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 	private static readonly ITEM_HEIGHT = 54;
+	/**
+	 * Phone layout uses a taller row so the inline action toolbar can
+	 * meet the 44px minimum touch target without overflowing. Sized to
+	 * fit a 44px toolbar centered between the title and details rows.
+	 * Keep in sync with the `.phone-layout .session-item` rules in
+	 * `sessionsList.css`.
+	 */
+	private static readonly ITEM_HEIGHT_PHONE = 76;
 	private static readonly SECTION_HEIGHT = 26;
 	private static readonly SHOW_MORE_HEIGHT = 26;
 
-	constructor(private readonly _approvalModel?: AgentSessionApprovalModel) { }
+	constructor(
+		private readonly _approvalModel: AgentSessionApprovalModel | undefined,
+		private readonly _isPhone: () => boolean,
+	) { }
 
 	getHeight(element: SessionListItem): number {
 		if (isSessionSection(element)) {
@@ -109,7 +121,7 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 			return SessionsTreeDelegate.SHOW_MORE_HEIGHT;
 		}
 
-		let height = SessionsTreeDelegate.ITEM_HEIGHT;
+		let height = this._isPhone() ? SessionsTreeDelegate.ITEM_HEIGHT_PHONE : SessionsTreeDelegate.ITEM_HEIGHT;
 		if (this._approvalModel) {
 			const approval = getFirstApprovalAcrossChats(this._approvalModel, element as ISession, undefined);
 			if (approval) {
@@ -196,6 +208,16 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		const titleRow = DOM.append(mainCol, $('.session-title-row'));
 		const title = disposables.add(new HighlightedLabel(DOM.append(titleRow, $('.session-title'))));
 		const titleToolbarContainer = DOM.append(titleRow, $('.session-title-toolbar'));
+		// The list opens a session on click and on Gesture `tap` (touch).
+		// DOM event propagation stops only cover mouse/pointer events; the
+		// list's tap handler reads from `Gesture` directly, bypassing
+		// bubbling. Combine both: stop pointer/click for mouse, and
+		// register the toolbar with `Gesture.ignoreTarget` so synthesized
+		// tap events on touch never reach the list either.
+		for (const eventType of ['pointerdown', 'pointerup', 'click', 'dblclick'] as const) {
+			disposables.add(DOM.addDisposableListener(titleToolbarContainer, eventType, e => e.stopPropagation()));
+		}
+		disposables.add(Gesture.ignoreTarget(titleToolbarContainer));
 		const detailsRow = DOM.append(mainCol, $('.session-details-row'));
 
 		// Approval row
@@ -775,7 +797,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		const showMoreRenderer = new SessionShowMoreRenderer();
 
-		const delegate = new SessionsTreeDelegate(approvalModel);
+		// Read (don't bind) `IsPhoneLayoutContext` from the parent context so we
+		// observe the workbench's value rather than shadowing it with a fresh
+		// scoped default of `false`. The reactive height refresh below listens
+		// on the same scoped service for changes.
+		const delegate = new SessionsTreeDelegate(approvalModel, () => !!IsPhoneLayoutContext.getValue(contextKeyService));
 
 		this.tree = this._register(instantiationService.createInstance(
 			WorkbenchObjectTree<SessionListItem, FuzzyScore>,
@@ -849,6 +875,25 @@ export class SessionsList extends Disposable implements ISessionsList {
 		this._register(sessionRenderer.onDidChangeItemHeight(session => {
 			if (this.tree.hasElement(session)) {
 				this.tree.updateElementHeight(session, delegate.getHeight(session));
+			}
+		}));
+
+		// React to phone <-> desktop viewport transitions: refresh heights
+		// for all known sessions so the virtual list reserves the correct
+		// space for the new layout. Iterates `this.sessions` (all known
+		// sessions) — a phone/desktop transition is a rare event so the
+		// extra work over filtered-out sessions is negligible. Relies on
+		// the `IsPhoneLayoutContext` reactive signal already maintained by
+		// the agents workbench.
+		const phoneKeys = new Set<string>([IsPhoneLayoutContext.key]);
+		this._register(this.contextKeyService.onDidChangeContext(e => {
+			if (!e.affectsSome(phoneKeys)) {
+				return;
+			}
+			for (const session of this.sessions) {
+				if (this.tree.hasElement(session)) {
+					this.tree.updateElementHeight(session, delegate.getHeight(session));
+				}
 			}
 		}));
 
