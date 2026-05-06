@@ -6,7 +6,7 @@
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { IElementData, IElementAncestor } from '../common/browserView.js';
-import { collapseToShorthands, formatAuthorStyles, keyComputedProperties, type IMatchedStyles } from '../common/cssHelpers.js';
+import { collapseToShorthands, formatMatchedStyles, keyComputedProperties, type IMatchedStyles } from '../common/cssHelpers.js';
 import { ICDPConnection } from '../common/cdp/types.js';
 import type { BrowserView } from './browserView.js';
 
@@ -239,7 +239,7 @@ async function extractNodeData(connection: ICDPConnection, id: { backendNodeId?:
 		throw new Error('Failed to get matched css.');
 	}
 
-	const { rulesText, referencedVars, authorPropertyNames } = formatAuthorStyles(matched as IMatchedStyles);
+	const { rulesText, referencedVars, authorPropertyNames, userAgentPropertyNames } = formatMatchedStyles(matched as IMatchedStyles);
 	const { outerHTML } = await connection.sendCommand('DOM.getOuterHTML', { nodeId }) as { outerHTML: string };
 	if (!outerHTML) {
 		throw new Error('Failed to get outerHTML.');
@@ -281,9 +281,11 @@ async function extractNodeData(connection: ICDPConnection, id: { backendNodeId?:
 					computedStyles[prop.name] = prop.value;
 				}
 
-				// Include in resolved values: any property explicitly set by author rules
+				// Include in resolved values: any property explicitly set by stylesheets
 				if (authorPropertyNames.has(prop.name)) {
 					resolvedMap.set(prop.name, prop.value);
+				} else if (userAgentPropertyNames.has(prop.name)) {
+					resolvedMap.set(prop.name, `${prop.value} /*UA*/`); // Mark it as coming from User Agent styles.
 				}
 
 				// Include referenced CSS variable values
