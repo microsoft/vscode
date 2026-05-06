@@ -1025,6 +1025,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.welcomePage?.reset();
 		this.updateContentVisibility();
 		this.ensureSectionsListReflectsActiveSection(undefined);
+		// Move focus into the welcome page so screen readers and keyboard users land on
+		// the new content rather than remaining on the Home button they just activated.
+		this.welcomePage?.focus();
 	}
 
 	private selectSection(section: AICustomizationManagementSection, options?: { showMarketplace?: boolean }): void {

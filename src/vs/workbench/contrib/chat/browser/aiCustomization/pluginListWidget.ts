@@ -518,12 +518,14 @@ export class PluginListWidget extends Disposable {
 		this.buttonContainer = DOM.append(this.searchAndButtonContainer, $('.list-button-group'));
 
 		const browseButtonContainer = DOM.append(this.buttonContainer, $('.list-add-button-container'));
-		this.browseButton = this._register(new Button(browseButtonContainer, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
+		const browseMarketplaceLabel = localize('browseMarketplace', "Browse Marketplace");
+		this.browseButton = this._register(new Button(browseButtonContainer, { ...defaultButtonStyles, secondary: true, supportIcons: true, title: browseMarketplaceLabel, ariaLabel: browseMarketplaceLabel }));
 		this.browseButton.element.classList.add('list-add-button');
 		this._register(this.browseButton.onDidClick(() => this.runPrimaryButtonAction()));
 
 		this.addButtonContainer = DOM.append(this.buttonContainer, $('.list-add-button-container'));
-		this.addButtonSimple = this._register(new Button(this.addButtonContainer, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
+		const addPluginLabel = localize('addPlugin', "Add Plugin");
+		this.addButtonSimple = this._register(new Button(this.addButtonContainer, { ...defaultButtonStyles, secondary: true, supportIcons: true, title: addPluginLabel, ariaLabel: addPluginLabel }));
 		this.addButtonSimple.element.classList.add('list-add-button');
 		this._register(this.addButtonSimple.onDidClick(() => this.runPrimaryAddAction()));
 
@@ -534,6 +536,8 @@ export class PluginListWidget extends Disposable {
 			contextMenuProvider: this.contextMenuService,
 			addPrimaryActionToDropdown: false,
 			actions: { getActions: () => this.getAddDropdownActions() },
+			title: addPluginLabel,
+			ariaLabel: addPluginLabel,
 		}));
 		this.addButton.element.classList.add('list-add-button');
 		this._register(this.addButton.onDidClick(() => this.runPrimaryAddAction()));
@@ -602,12 +606,22 @@ export class PluginListWidget extends Disposable {
 							return localize('pluginGroupAriaLabel', "{0}, {1} items, {2}", element.label, element.count, element.collapsed ? localize('collapsed', "collapsed") : localize('expanded', "expanded"));
 						}
 						if (element.type === 'marketplace-item') {
-							return element.item.name;
+							return element.item.description
+								? localize('pluginMarketplaceItemAriaLabel', "{0}. {1}", element.item.name, element.item.description)
+								: element.item.name;
 						}
 						if (element.type === 'remote-item') {
-							return element.item.name;
+							return element.item.description
+								? localize('pluginRemoteItemAriaLabel', "{0}. {1}", element.item.name, element.item.description)
+								: element.item.name;
 						}
-						return element.item.name;
+						const nameAndDesc = element.item.description
+							? localize('pluginInstalledItemAriaLabel', "{0}. {1}", element.item.name, element.item.description)
+							: element.item.name;
+						const enabled = isContributionEnabled(element.item.plugin.enablement.get());
+						return enabled
+							? localize('pluginInstalledItemAriaLabelEnabled', "{0}. Enabled", nameAndDesc)
+							: localize('pluginInstalledItemAriaLabelDisabled', "{0}. Disabled", nameAndDesc);
 					},
 					getWidgetAriaLabel() {
 						return localize('pluginsListAriaLabel', "Plugins");
@@ -757,9 +771,11 @@ export class PluginListWidget extends Disposable {
 		this.browseButton.element.parentElement!.style.display = this.browseMode ? 'none' : '';
 		this.browseButton.label = `$(${Codicon.library.id}) ${localize('browseMarketplace', "Browse Marketplace")}`;
 		this.browseButton.enabled = browseMarketplaceAvailable;
-		this.browseButton.setTitle(browseMarketplaceAvailable
+		const browseTitle = browseMarketplaceAvailable
 			? localize('browseMarketplace', "Browse Marketplace")
-			: localize('browseMarketplaceUnsupportedWeb', "Browse Marketplace is not available in VS Code for the Web."));
+			: localize('browseMarketplaceUnsupportedWeb', "Browse Marketplace is not available in VS Code for the Web.");
+		this.browseButton.setTitle(browseTitle);
+		this.browseButton.element.setAttribute('aria-label', browseTitle);
 
 		this.updateAddButton();
 		this.createPluginButton.enabled = true;
@@ -786,12 +802,18 @@ export class PluginListWidget extends Disposable {
 		if (hasDropdown) {
 			this.addButton.label = this.formatActionLabel(primary);
 			this.addButton.enabled = primary.enabled !== false;
-			this.addButton.primaryButton.setTitle(primary.tooltip ?? primary.label);
-			this.addButton.dropdownButton.setTitle(localize('morePluginAddActions', "More Plugin Add Actions..."));
+			const addPrimaryTitle = primary.tooltip ?? primary.label;
+			this.addButton.primaryButton.setTitle(addPrimaryTitle);
+			this.addButton.primaryButton.element.setAttribute('aria-label', addPrimaryTitle);
+			const moreLabel = localize('morePluginAddActions', "More Plugin Add Actions...");
+			this.addButton.dropdownButton.setTitle(moreLabel);
+			this.addButton.dropdownButton.element.setAttribute('aria-label', moreLabel);
 		} else {
 			this.addButtonSimple.label = this.formatActionLabel(primary);
 			this.addButtonSimple.enabled = primary.enabled !== false;
-			this.addButtonSimple.setTitle(primary.tooltip ?? primary.label);
+			const addSimpleTitle = primary.tooltip ?? primary.label;
+			this.addButtonSimple.setTitle(addSimpleTitle);
+			this.addButtonSimple.element.setAttribute('aria-label', addSimpleTitle);
 		}
 	}
 
