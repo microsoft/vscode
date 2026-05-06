@@ -22,6 +22,8 @@ import { IEditorGroupsContainer } from '../../../workbench/services/editor/commo
 import { CodeWindow, mainWindow } from '../../../base/browser/window.js';
 import { TitlebarPart, TitleService } from '../../browser/parts/titlebarPart.js';
 import { isMacintosh } from '../../../base/common/platform.js';
+import { agentsBackground } from '../../common/theme.js';
+import { WORKBENCH_BACKGROUND } from '../../../workbench/common/theme.js';
 
 export class NativeTitlebarPart extends TitlebarPart {
 
@@ -82,19 +84,30 @@ export class NativeTitlebarPart extends TitlebarPart {
 
 		if (this.element) {
 			if (useWindowControlsOverlay(this.configurationService)) {
+				// The sessions titlebar background is transparent (it inherits the
+				// shell gradient via CSS), so `this.element.style.backgroundColor`
+				// is empty. The Window Controls Overlay needs an opaque solid color
+				// so we resolve `agentsBackground` from the theme directly. Without
+				// this, the WCO keeps Electron's default color and does not change
+				// when the color theme changes (issue #312914).
+				const bgColor = this.getColor(agentsBackground, (color, theme) => {
+					return color.isOpaque() ? color : color.makeOpaque(WORKBENCH_BACKGROUND(theme));
+				}) || '';
+				const fgColor = this.element.style.color;
+
 				if (
 					!this.cachedWindowControlStyles ||
-					this.cachedWindowControlStyles.bgColor !== this.element.style.backgroundColor ||
-					this.cachedWindowControlStyles.fgColor !== this.element.style.color
+					this.cachedWindowControlStyles.bgColor !== bgColor ||
+					this.cachedWindowControlStyles.fgColor !== fgColor
 				) {
 					this.cachedWindowControlStyles = {
-						bgColor: this.element.style.backgroundColor,
-						fgColor: this.element.style.color
+						bgColor,
+						fgColor
 					};
 					this.nativeHostService.updateWindowControls({
 						targetWindowId: getWindowId(getWindow(this.element)),
-						backgroundColor: this.element.style.backgroundColor,
-						foregroundColor: this.element.style.color
+						backgroundColor: bgColor,
+						foregroundColor: fgColor
 					});
 				}
 			}
