@@ -16,7 +16,7 @@ import { IEndpointProvider } from '../../../platform/endpoint/common/endpointPro
 import { CustomDataPartMimeTypes } from '../../../platform/endpoint/common/endpointTypes';
 import { ModelAliasRegistry } from '../../../platform/endpoint/common/modelAliasRegistry';
 import { encodeStatefulMarker } from '../../../platform/endpoint/common/statefulMarkerContainer';
-import { isGeminiFamily } from '../../../platform/endpoint/common/chatModelCapabilities';
+import { isAnthropicFamily, isGeminiFamily } from '../../../platform/endpoint/common/chatModelCapabilities';
 import { AutoChatEndpoint } from '../../../platform/endpoint/node/autoChatEndpoint';
 import { IAutomodeService } from '../../../platform/endpoint/node/automodeService';
 import { IEnvService, isScenarioAutomation } from '../../../platform/env/common/envService';
@@ -54,13 +54,39 @@ const experimentalAutoModelHintMarkers = ['minimax', 'mp3yn0h7', 'yaqq2gxh'];
  * Builds a configurationSchema for the model picker based on the endpoint's supported capabilities.
  * Models that support reasoning_effort get a "Thinking Effort" dropdown in the model picker UI.
  */
-function buildConfigurationSchema(endpoint: IChatEndpoint): { configurationSchema?: vscode.LanguageModelConfigurationSchema } {
-	const effortLevels = endpoint.supportsReasoningEffort;
-	if (!effortLevels || effortLevels.length <= 1) {
-		return {};
+/**
+ * Returns the available context size options for a model, or undefined if the
+ * model does not support configurable context sizes.
+ *
+ * For opus models with a large context window (>= 900K tokens), offers a
+ * standard 200K option and the model's full context size.
+ */
+function getContextSizeOptions(endpoint: IChatEndpoint): { value: number; description: string; isDefault: boolean }[] | undefined {
+	const maxTokens = endpoint.modelMaxPromptTokens;
+
+	// Claude Opus models with a large context window (~1M or more) get a 200K/full toggle
+	if (isAnthropicFamily(endpoint) && endpoint.family.startsWith('claude-opus') && maxTokens > 900_000) {
+		return [
+			{ value: 200_000, description: vscode.l10n.t('Standard context window'), isDefault: true },
+			{ value: maxTokens, description: vscode.l10n.t('Larger context window. Long conversations may incur significant costs'), isDefault: false },
+		];
 	}
 
-	// Auto model delegates to different backends, so don't expose effort picker
+	return undefined;
+}
+
+function formatTokenCount(count: number): string {
+	if (count > 900_000) {
+		const value = Math.ceil(count / 1_000_000);
+		return `${value}M`;
+	} else if (count >= 1000) {
+		return `${Math.round(count / 1000)}K`;
+	}
+	return count.toString();
+}
+
+// Auto model delegates to different backends, so don't expose config pickers
+function buildConfigurationSchema(endpoint: IChatEndpoint): { configurationSchema?: vscode.LanguageModelConfigurationSchema } {
 	if (endpoint instanceof AutoChatEndpoint) {
 		return {};
 	}
@@ -70,37 +96,66 @@ function buildConfigurationSchema(endpoint: IChatEndpoint): { configurationSchem
 		return {};
 	}
 
-	let defaultEffort: string | undefined;
-	if (family.startsWith('claude')) {
-		defaultEffort = effortLevels.includes('high') ? 'high' : undefined;
-	} else if (family.startsWith('gpt-')) {
-		defaultEffort = effortLevels.includes('medium') ? 'medium' : undefined;
+	const properties: Record<string, {
+		type: string;
+		title: string;
+		enum: readonly (string | number)[];
+		enumItemLabels: string[];
+		enumDescriptions: string[];
+		default?: string | number;
+		group: string;
+	}> = {};
+
+	// Reasoning effort config
+	const effortLevels = endpoint.supportsReasoningEffort;
+	if (effortLevels && effortLevels.length > 1) {
+		let defaultEffort: string | undefined;
+		if (family.startsWith('claude')) {
+			defaultEffort = effortLevels.includes('high') ? 'high' : undefined;
+		} else if (family.startsWith('gpt-')) {
+			defaultEffort = effortLevels.includes('medium') ? 'medium' : undefined;
+		}
+
+		properties.reasoningEffort = {
+			type: 'string',
+			title: vscode.l10n.t('Thinking Effort'),
+			enum: effortLevels,
+			enumItemLabels: effortLevels.map(level => level.charAt(0).toUpperCase() + level.slice(1)),
+			enumDescriptions: effortLevels.map(level => {
+				switch (level) {
+					case 'none': return vscode.l10n.t('No reasoning applied');
+					case 'low': return vscode.l10n.t('Faster responses with less reasoning');
+					case 'medium': return vscode.l10n.t('Balanced reasoning and speed');
+					case 'high': return vscode.l10n.t('Greater reasoning depth but slower');
+					case 'xhigh': return vscode.l10n.t('Highest reasoning depth but slowest');
+					default: return level;
+				}
+			}),
+			default: defaultEffort,
+			group: 'navigation',
+		};
 	}
 
-	return {
-		configurationSchema: {
-			properties: {
-				reasoningEffort: {
-					type: 'string',
-					title: vscode.l10n.t('Thinking Effort'),
-					enum: effortLevels,
-					enumItemLabels: effortLevels.map(level => level.charAt(0).toUpperCase() + level.slice(1)),
-					enumDescriptions: effortLevels.map(level => {
-						switch (level) {
-							case 'none': return vscode.l10n.t('No reasoning applied');
-							case 'low': return vscode.l10n.t('Faster responses with less reasoning');
-							case 'medium': return vscode.l10n.t('Balanced reasoning and speed');
-							case 'high': return vscode.l10n.t('Greater reasoning depth but slower');
-							case 'xhigh': return vscode.l10n.t('Maximum reasoning depth but slower');
-							default: return level;
-						}
-					}),
-					default: defaultEffort,
-					group: 'navigation',
-				}
-			}
-		}
-	};
+	// Context size config
+	const contextSizeOptions = getContextSizeOptions(endpoint);
+	if (contextSizeOptions) {
+		const defaultOption = contextSizeOptions.find(o => o.isDefault);
+		properties.contextSize = {
+			type: 'number',
+			title: vscode.l10n.t('Context Size'),
+			enum: contextSizeOptions.map(o => o.value),
+			enumItemLabels: contextSizeOptions.map(o => formatTokenCount(o.value)),
+			enumDescriptions: contextSizeOptions.map(o => o.description),
+			default: defaultOption?.value,
+			group: 'tokens',
+		};
+	}
+
+	if (Object.keys(properties).length === 0) {
+		return {};
+	}
+
+	return { configurationSchema: { properties } };
 }
 
 export class LanguageModelAccess extends Disposable implements IExtensionContribution {
@@ -202,7 +257,9 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 			}
 			seenFamilies.add(endpoint.family);
 
-			const sanitizedModelName = endpoint.name.replace(/\(Preview\)/g, '').trim();
+			const sanitizedModelName = endpoint.name
+				.replace(/\([^)]*\bcontext\)/gi, '')
+				.trim();
 			let modelTooltip: string | undefined;
 			if (endpoint.degradationReason) {
 				modelTooltip = endpoint.degradationReason;
@@ -255,7 +312,7 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 
 			const model: vscode.LanguageModelChatInformation = {
 				id: endpoint instanceof AutoChatEndpoint ? AutoChatEndpoint.pseudoModelId : endpoint.model,
-				name: endpoint instanceof AutoChatEndpoint ? 'Auto' : endpoint.name,
+				name: endpoint instanceof AutoChatEndpoint ? 'Auto' : sanitizedModelName,
 				family: endpoint.family,
 				tooltip: modelTooltip,
 				pricing: endpoint instanceof AutoChatEndpoint ? undefined : (multiplier ?? (endpoint.tokenPricing ? formatPricingLabel(endpoint.tokenPricing) : undefined)),
@@ -319,9 +376,15 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 		progress: vscode.Progress<vscode.LanguageModelResponsePart2>,
 		token: vscode.CancellationToken
 	): Promise<void> {
-		const endpoint = await this._getEndpointForModel(model);
+		let endpoint = await this._getEndpointForModel(model);
 		if (!endpoint) {
 			throw new Error(`Endpoint not found for model ${model.id}`);
+		}
+
+		// Apply context size override if configured
+		const contextSize = options.modelConfiguration?.contextSize;
+		if (typeof contextSize === 'number' && contextSize < endpoint.modelMaxPromptTokens) {
+			endpoint = endpoint.cloneWithTokenOverride(contextSize);
 		}
 
 		return this._lmWrapper.provideLanguageModelResponse(endpoint, messages, {

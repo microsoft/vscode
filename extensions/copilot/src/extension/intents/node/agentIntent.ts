@@ -505,9 +505,15 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 			throw new Error(`Setting github.copilot.${ConfigKey.Advanced.SummarizeAgentConversationHistoryThreshold.id} is too low`);
 		}
 
+		// Apply context size override if configured by the user in the model picker
+		const configuredContextSize = this.request.modelConfiguration?.contextSize;
+		const effectiveMaxTokens = typeof configuredContextSize === 'number' && configuredContextSize < this.endpoint.modelMaxPromptTokens
+			? configuredContextSize
+			: this.endpoint.modelMaxPromptTokens;
+
 		const baseBudget = Math.min(
-			this.configurationService.getConfig<number | undefined>(ConfigKey.Advanced.SummarizeAgentConversationHistoryThreshold) ?? this.endpoint.modelMaxPromptTokens,
-			this.endpoint.modelMaxPromptTokens
+			this.configurationService.getConfig<number | undefined>(ConfigKey.Advanced.SummarizeAgentConversationHistoryThreshold) ?? effectiveMaxTokens,
+			effectiveMaxTokens
 		);
 		const useTruncation = this.endpoint.apiType === 'responses' && this.configurationService.getConfig(ConfigKey.Advanced.UseResponsesApiTruncation);
 		const responsesCompactionContextManagementEnabled = isResponsesCompactionContextManagementEnabled(this.endpoint, this.configurationService, this.expService);

@@ -259,6 +259,7 @@ setPartHidden(hidden: boolean, part: Parts): void
     - The main editor part is hidden by default but can be shown for explicit editor workflows that target the main editor part
     - Modal editor opens do not change the current main editor visibility state
     - The sessions **Maximize Editor** action temporarily hides the panel when the visible panel is the terminal view, and the matching **Restore Editor** action reopens that terminal panel if maximize hid it
+    - When a maximized main editor attached to the auxiliary bar closes, the next attached-editor reopen restores that maximized state only if the auxiliary bar is visible at reopen time; hiding and later re-showing the auxiliary bar does not by itself clear this pending restore state. Modal editor flows do not participate in this restore behavior
   - All editors open via `MODAL_GROUP` into the `ModalEditorPart` overlay, which manages its own lifecycle
 
 ### 6.2 Part Sizing
@@ -666,6 +667,7 @@ interface IPartVisibilityState {
 | Date | Change |
 |------|--------|
 | 2026-05-06 | Updated the sessions panel title tabs to reuse the same styling as the auxiliary bar's Changes/Files tabs: title-case labels, 500 font weight, tighter pill padding, and checked-state background without a persistent active underline. |
+| 2026-05-01 | Updated the sessions main-editor lifecycle so maximized editors attached to the auxiliary bar remember their maximized state across close/reopen, while modal editor flows continue to ignore that remembered state. |
 | 2026-04-28 | Updated the sessions "Open in VS Code" titlebar widget to match the core "Open in Agents" affordance more closely: the product icon is greyscale by default, animates back to full color on hover/focus when motion is enabled, uses secondary-button hover chrome instead of quality-tinted backgrounds, and draws a separator before the Run split button. |
 | 2026-04-27 | Made the sessions shell gradient background the default treatment by removing the `sessions.experimental.shellGradientBackground` opt-in, always applying the root shell gradient layer, and renaming the workbench CSS hook to `shell-gradient-background`. |
 | 2026-04-23 | Updated mobile layout policy platform detection to use shared `platform.isMobile`, and reduced phone-layout CSS `!important` usage where selector specificity already provides stable overrides. |
