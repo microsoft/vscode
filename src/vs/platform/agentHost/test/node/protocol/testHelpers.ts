@@ -313,14 +313,34 @@ export async function createAndSubscribeSession(c: TestProtocolClient, clientId:
 	return realSessionUri;
 }
 
-export function dispatchTurnStarted(c: TestProtocolClient, session: string, turnId: string, text: string, clientSeq: number): void {
-	c.notify('dispatchAction', {
-		clientSeq,
-		action: {
-			type: 'session/turnStarted',
-			session,
-			turnId,
-			userMessage: { text },
-		},
-	});
+/**
+ * Start a turn via the {@link import('../../../common/state/protocol/commands.js').StartTurnParams `startTurn`}
+ * RPC. Replaces the legacy pattern of dispatching a `session/turnStarted`
+ * action directly: post-Final-Phase, that action is server-only and the
+ * protocol server rejects client `dispatchAction` notifications carrying it.
+ *
+ * Fire-and-forget by default — most callers issue this and then `await
+ * client.waitForNotification(...)` to observe the resulting broadcast. Pass
+ * `await: true` (or use {@link startTurnAndWait}) when the test needs to
+ * surface a server-side rejection (missing config, turn already in progress,
+ * etc.) instead of letting the subsequent waits time out.
+ *
+ * The `clientSeq` parameter is retained for call-site compatibility but is
+ * no longer used: `startTurn` is a request/response RPC, not an action
+ * dispatch with an envelope sequence.
+ */
+export function dispatchTurnStarted(c: TestProtocolClient, session: string, turnId: string, text: string, _clientSeq: number): void {
+	// Swallow rejections — failures surface as the subsequent
+	// `waitForNotification` timing out, which produces a clearer test failure
+	// than an unhandled-rejection warning.
+	c.call('startTurn', { session, turnId, userMessage: { text } }).catch(() => { });
+}
+
+/**
+ * Variant of {@link dispatchTurnStarted} that awaits the RPC result so
+ * callers can assert on server-side rejection codes (e.g. missing required
+ * config, turn already in progress).
+ */
+export function startTurnAndWait(c: TestProtocolClient, session: string, turnId: string, text: string): Promise<unknown> {
+	return c.call('startTurn', { session, turnId, userMessage: { text } });
 }
