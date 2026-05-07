@@ -5,6 +5,7 @@
 
 import * as vscode from 'vscode';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
+import { isGpt55 } from '../../../platform/endpoint/common/chatModelCapabilities';
 import { ILogService } from '../../../platform/log/common/logService';
 import { IChatEndpoint } from '../../../platform/networking/common/networking';
 import { CopilotChatAttr, emitToolCallEvent, GenAiAttr, GenAiMetrics, GenAiOperationName, GenAiToolType, StdAttr, truncateForOTel } from '../../../platform/otel/common/index';
@@ -281,17 +282,19 @@ export class ToolsService extends BaseToolsService {
 					return false;
 				}
 
+				//for changed_files_tool, disable experimentally for gpt-5.5.
 				if (
 					tool.name === ToolName.GetScmChanges
-					&& (endpoint.family.startsWith('gpt-5.4') || endpoint.family.startsWith('gpt-5.5'))
+					&& isGpt55(endpoint)
 					&& !this._configurationService.getExperimentBasedConfig(ConfigKey.EnableGpt54And55GetChangedFilesTool, this._experimentationService)
 				) {
 					return false;
 				}
 
+				//for read_file_tool, disable experimentally for gpt-5.5.
 				if (
 					tool.name === ToolName.ReadFile
-					&& (endpoint.family.startsWith('gpt-5.4') || endpoint.family.startsWith('gpt-5.5'))
+					&& isGpt55(endpoint)
 					&& !this._configurationService.getExperimentBasedConfig(ConfigKey.EnableGpt54And55ReadFileTool, this._experimentationService)
 				) {
 					return false;
