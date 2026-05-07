@@ -29,14 +29,17 @@ interface IQuotaWarning {
  * new threshold has been crossed, then shows the highest-priority notification:
  *
  * 1. **Quota exhausted** — info, not auto-dismissed, only dismissible via X.
- * 2. **Quota approaching** — info, auto-dismissed on next message.
- * 3. **Rate-limit warning** — info, auto-dismissed on next message.
+ * 2. **Additional spend active** — info, auto-dismissed, shown once per transition.
+ * 3. **Quota approaching** — info, auto-dismissed on next message.
+ * 4. **Rate-limit warning** — info, auto-dismissed on next message.
  */
 export class ChatInputNotificationContribution extends Disposable {
 
 	private _notification: vscode.ChatInputNotification | undefined;
 	/** Tracks whether the current notification is the quota-exhausted variant. */
 	private _showingExhausted = false;
+	/** Tracks whether we already showed the additional-spend-active notification. */
+	private _shownAdditionalSpendNotice = false;
 
 	private readonly _shownQuotaThresholds = new Set<number>();
 	private readonly _shownSessionThresholds = new Set<number>();
@@ -62,14 +65,29 @@ export class ChatInputNotificationContribution extends Disposable {
 			return;
 		}
 
-		// Priority 2: Quota approaching threshold
+		// Priority 2: Additional spend active — included quota exhausted but
+		// additional usage is enabled, so the user has silently transitioned.
+		// Show once per transition; reset when included quota is restored.
+		const info = this._chatQuotaService.quotaInfo;
+		if (info && !info.unlimited && info.percentRemaining <= 0 && info.additionalUsageEnabled) {
+			if (!this._shownAdditionalSpendNotice) {
+				this._shownAdditionalSpendNotice = true;
+				this._showAdditionalSpendNotification();
+				return;
+			}
+		} else {
+			// Included quota restored — allow re-showing on next transition
+			this._shownAdditionalSpendNotice = false;
+		}
+
+		// Priority 3: Quota approaching threshold
 		const quotaWarning = this._computeQuotaWarning();
 		if (quotaWarning) {
 			this._showQuotaApproachingWarning(quotaWarning);
 			return;
 		}
 
-		// Priority 3: Rate-limit warning (session > weekly)
+		// Priority 4: Rate-limit warning (session > weekly)
 		const rateLimitWarning = this._computeRateLimitWarning();
 		if (rateLimitWarning) {
 			this._showRateLimitWarning(rateLimitWarning);
@@ -183,6 +201,25 @@ export class ChatInputNotificationContribution extends Disposable {
 				{ label: vscode.l10n.t('Manage Budget'), commandId: 'workbench.action.chat.manageAdditionalSpend' },
 			];
 		}
+
+		notification.show();
+	}
+
+	// --- Additional spend active --------------------------------------------
+
+	private _showAdditionalSpendNotification(): void {
+		const notification = this._ensureNotification();
+		this._showingExhausted = false;
+
+		notification.severity = vscode.ChatInputNotificationSeverity.Info;
+		notification.dismissible = true;
+		notification.autoDismissOnMessage = true;
+		notification.message = vscode.l10n.t('Using Additional Budget');
+		notification.description = vscode.l10n.t('Your additional budget is now being used to power Copilot.');
+		notification.actions = [
+			{ label: vscode.l10n.t('View Usage'), commandId: 'workbench.action.chat.openCopilotStatus' },
+			{ label: vscode.l10n.t('Manage Budget'), commandId: 'workbench.action.chat.manageAdditionalSpend' },
+		];
 
 		notification.show();
 	}
