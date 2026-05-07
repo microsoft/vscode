@@ -5,7 +5,6 @@
 
 import type { MessageOptions, PermissionRequestResult, SessionConfig, Tool, ToolResultObject } from '@github/copilot-sdk';
 import { DeferredPromise } from '../../../../base/common/async.js';
-import { assertNever } from '../../../../base/common/assert.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -47,11 +46,6 @@ import { buildPendingEditContentUri } from './pendingEditContentStore.js';
  */
 export type CopilotSdkMode = 'interactive' | 'plan' | 'autopilot';
 type CopilotSdkAttachment = Required<MessageOptions>['attachments'][number];
-
-interface IAgentAttachmentSelectionRange {
-	readonly start: { readonly line: number; readonly character: number };
-	readonly end: { readonly line: number; readonly character: number };
-}
 
 const COPILOT_HOME_DIRECTORY = '.copilot';
 const SESSION_STATE_DIRECTORY = join(COPILOT_HOME_DIRECTORY, 'session-state');
@@ -518,13 +512,13 @@ export class CopilotAgentSession extends Disposable {
 		}
 		this._logService.info(`[Copilot:${this.sessionId}] sendMessage called: "${prompt.substring(0, 100)}${prompt.length > 100 ? '...' : ''}" (${attachments?.length ?? 0} attachments)`);
 
-		const sdkAttachments = await Promise.all(attachments?.map(a => this._toSdkAttachment(a)) ?? []);
-		if (sdkAttachments.length) {
-			this._logService.trace(`[Copilot:${this.sessionId}] Attachments: ${JSON.stringify(sdkAttachments.map(a => ({ type: a.type, path: this._getSdkAttachmentPathForLogging(a) })))}`);
+		const sdkAttachments = attachments ? await Promise.all(attachments.map(a => this._toSdkAttachment(a))) : undefined;
+		if (sdkAttachments?.length) {
+			this._logService.trace(`[Copilot:${this.sessionId}] Attachments: ${JSON.stringify(sdkAttachments.map(a => ({ type: a.type })))}`);
 		}
 
 		await this.applyMode(mode);
-		await this._wrapper.session.send({ prompt, attachments: sdkAttachments.length > 0 ? sdkAttachments : undefined });
+		await this._wrapper.session.send({ prompt, attachments: sdkAttachments });
 		this._logService.info(`[Copilot:${this.sessionId}] session.send() returned`);
 	}
 
@@ -544,21 +538,7 @@ export class CopilotAgentSession extends Disposable {
 		return { type: a.type, path, displayName: a.displayName };
 	}
 
-	private _getSdkAttachmentPathForLogging(a: CopilotSdkAttachment): string | undefined {
-		switch (a.type) {
-			case 'selection':
-				return a.filePath;
-			case 'file':
-			case 'directory':
-				return a.path;
-			case 'blob':
-				return undefined;
-			default:
-				return assertNever(a);
-		}
-	}
-
-	private async _readSelectedText(uri: URI, range: IAgentAttachmentSelectionRange): Promise<string> {
+	private async _readSelectedText(uri: URI, range: NonNullable<IAgentAttachment['selection']>): Promise<string> {
 		const content = await this._fileService.readFile(uri);
 		const text = content.value.toString();
 		// AHP carries the resource range; the public SDK can carry the selected text too.
