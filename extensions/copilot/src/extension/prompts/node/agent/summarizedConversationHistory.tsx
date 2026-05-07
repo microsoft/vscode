@@ -742,14 +742,15 @@ class ConversationHistorySummarizer {
 				debugName: `summarizeConversationHistory-${mode}`,
 				messages,
 				finishedCb: undefined,
-				location: ChatLocation.Other,
+				location: ChatLocation.Agent,
 				requestOptions: {
 					temperature: 0,
 					stream: false,
 					...toolOpts
 				},
 				telemetryProperties: associatedRequestId ? { associatedRequestId } : undefined,
-				enableRetryOnFilter: true
+				enableRetryOnFilter: true,
+				interactionTypeOverride: 'conversation-compaction',
 			}, this.token ?? CancellationToken.None);
 		} catch (e) {
 			this.logInfo(`Error from summarization request. ${e.message}`, mode);
@@ -778,8 +779,8 @@ class ConversationHistorySummarizer {
 	private async handleSummarizationResponse(response: ChatResponse, mode: SummaryMode, elapsedTime: number, promptTypes?: string): Promise<FetchSuccess<string>> {
 		if (response.type !== ChatFetchResponseType.Success) {
 			const outcome = response.type;
-			this.sendSummarizationTelemetry(outcome, response.requestId, this.props.endpoint.model, mode, elapsedTime, undefined, response.reason);
-			this.logInfo(`Summarization request failed. ${response.type} ${response.reason}`, mode);
+			this.sendSummarizationTelemetry(outcome, response.requestId, this.props.endpoint.model, mode, elapsedTime, undefined, response.reason ?? response.type);
+			this.logInfo(`Summarization request failed. ${response.type} ${response.reason ?? response.type}`, mode);
 			if (response.type === ChatFetchResponseType.Canceled) {
 				throw new CancellationError();
 			}
@@ -904,11 +905,10 @@ function replaceImageContentWithPlaceholders(messages: ChatMessage[]): void {
  * Bake a stable transcript pointer into a freshly-produced summary text.
  *
  * Shared by both the full/simple summarization path
- * ({@link ConversationHistorySummarizer}) and the inline background
- * summarization path in `agentIntent.ts`. The hint is appended exactly once,
- * at summary creation time, so the resulting string is frozen from then on
- * and replayed verbatim — preserving Anthropic prompt cache hits across
- * subsequent renders.
+ * ({@link ConversationHistorySummarizer}) and the background summarization
+ * path in `agentIntent.ts`. The hint is appended exactly once, at summary
+ * creation time, so the resulting string is frozen from then on and replayed
+ * verbatim — preserving Anthropic prompt cache hits across subsequent renders.
  *
  * Returns the input unchanged when there is no transcript on disk for the
  * session.
@@ -1101,17 +1101,17 @@ class SummaryMessageElement extends PromptElement<SummaryMessageProps> {
 	}
 }
 
-export interface InlineSummarizationUserMessageProps extends BasePromptElementProps {
+export interface SummarizationUserMessageProps extends BasePromptElementProps {
 	readonly endpoint: IChatEndpoint;
 }
 
 /**
- * User message appended to the agent prompt when inline summarization is triggered.
- * Instructs the model to output ONLY a summary wrapped in `<summary>` tags, with
- * no tool calls. The summary is extracted from the response and stored on the round
- * for the next iteration.
+ * User message appended to the agent prompt when background summarization is
+ * triggered. Instructs the model to output ONLY a summary wrapped in
+ * `<summary>` tags, with no tool calls. The summary is extracted from the
+ * response and stored on the round for the next iteration.
  */
-export class InlineSummarizationUserMessage extends PromptElement<InlineSummarizationUserMessageProps> {
+export class SummarizationUserMessage extends PromptElement<SummarizationUserMessageProps> {
 	override async render(state: void, sizing: PromptSizing) {
 		const isOpus = this.props.endpoint.model.startsWith('claude-opus');
 		return <UserMessage priority={1000}>
@@ -1130,7 +1130,7 @@ export class InlineSummarizationUserMessage extends PromptElement<InlineSummariz
 }
 
 /**
- * Extracts an inline summary from the model's response text.
+ * Extracts a summary from the model's response text.
  *
  * Parsing strategy (multi-level fallback):
  * 1. Clean `<summary>...</summary>` tags → extracts content between them
@@ -1139,7 +1139,7 @@ export class InlineSummarizationUserMessage extends PromptElement<InlineSummariz
  *
  * @returns The extracted summary text, or `undefined` if no summary could be found.
  */
-export function extractInlineSummary(responseText: string): string | undefined {
+export function extractSummary(responseText: string): string | undefined {
 	// 1. Try clean <summary>...</summary> extraction
 	const openTag = '<summary>';
 	const closeTag = '</summary>';

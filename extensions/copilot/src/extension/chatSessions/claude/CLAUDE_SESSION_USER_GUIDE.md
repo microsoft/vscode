@@ -512,7 +512,7 @@ Claude has access to a comprehensive set of tools for coding tasks:
 
 | Tool | Description |
 |------|-------------|
-| **Task** | Delegate work to a subagent |
+| **Agent** | Delegate work to a subagent (previously called "Task") |
 | **AskUserQuestion** | Ask the user a question with optional choices |
 
 ### IDE Integration

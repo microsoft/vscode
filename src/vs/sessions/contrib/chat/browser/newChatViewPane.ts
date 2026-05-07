@@ -5,7 +5,7 @@
 
 import './media/chatWidget.css';
 import * as dom from '../../../../base/browser/dom.js';
-import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { derived } from '../../../../base/common/observable.js';
 import { isWeb } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -21,11 +21,12 @@ import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { localize } from '../../../../nls.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
+import { IAquariumService, IMountedToggleHandle } from '../../aquarium/browser/aquariumOverlay.js';
 import { IViewDescriptorService } from '../../../../workbench/common/views.js';
 import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { IViewPaneOptions, ViewPane } from '../../../../workbench/browser/parts/views/viewPane.js';
 import { WorkspacePicker, IWorkspaceSelection } from './sessionWorkspacePicker.js';
-import { ScopedWorkspacePicker } from './scopedWorkspacePicker.js';
+import { WebWorkspacePicker } from './webWorkspacePicker.js';
 import { NewChatInputWidget } from './newChatInput.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 
@@ -35,6 +36,10 @@ class NewChatWidget extends Disposable {
 
 	private readonly _workspacePicker: WorkspacePicker;
 	private readonly _newChatInput: NewChatInputWidget;
+	private _aquariumToggle: IMountedToggleHandle | undefined;
+
+	/** Tracks an in-flight wait for a provider's session types to become available. */
+	private readonly _pendingSessionTypeWait = new MutableDisposable<IDisposable>();
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -42,9 +47,16 @@ class NewChatWidget extends Disposable {
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
+		@IAquariumService private readonly aquariumService: IAquariumService,
 	) {
 		super();
-		this._workspacePicker = this._register(this.instantiationService.createInstance(isWeb ? ScopedWorkspacePicker : WorkspacePicker));
+		// On web (vscode.dev / insiders.vscode.dev), use {@link WebWorkspacePicker}
+		// which scopes recents to the active host and renders as a bottom
+		// sheet on phone-layout viewports. On Electron desktop, the regular
+		// {@link WorkspacePicker} is fine — phones never run there.
+		const PickerCtor = isWeb ? WebWorkspacePicker : WorkspacePicker;
+		this._workspacePicker = this._register(this.instantiationService.createInstance(PickerCtor));
+		this._register(this._pendingSessionTypeWait);
 
 		const canSendRequest = derived(reader => {
 			const session = this.sessionsManagementService.activeSession.read(reader);
@@ -90,26 +102,21 @@ class NewChatWidget extends Disposable {
 		const chatWidgetContainer = dom.append(element, dom.$('.new-chat-widget-container'));
 		const chatWidgetContent = dom.append(chatWidgetContainer, dom.$('.new-chat-widget-content'));
 
+		this._aquariumToggle = this._register(this.aquariumService.mountToggle(element));
+
 		const workspacePickerContainer = dom.append(chatWidgetContent, dom.$('.new-session-workspace-picker-container'));
 		this._register(this._renderWorkspacePicker(workspacePickerContainer));
 
 		this._newChatInput.render(chatWidgetContent, parent);
 
-		// Create initial session — wait for providers if none registered yet.
+		// Create initial session for any workspace already selected at construct time.
+		// If the selection arrives later (provider registers asynchronously), the
+		// picker fires onDidSelectWorkspace and our listener handles it.
 		// Skip if an active session already exists (restored by openNewSessionView
 		// from a pending new session when navigating back from another session).
 		const restoredProject = this._workspacePicker.selectedProject;
 		if (!this._syncWorkspacePickerFromActiveSession() && restoredProject) {
-			if (this.sessionsProvidersService.getProviders().length > 0) {
-				this._createNewSession(restoredProject, this._newChatInput.sessionTypePicker.selectedType);
-			} else {
-				// Providers not yet registered (startup race) — wait for first registration
-				const sub = this.sessionsProvidersService.onDidChangeProviders(() => {
-					sub.dispose();
-					this._createNewSession(restoredProject, this._newChatInput.sessionTypePicker.selectedType);
-				});
-				this._register(sub);
-			}
+			this._createNewSession(restoredProject, this._newChatInput.sessionTypePicker.selectedType);
 		}
 
 		chatWidgetContainer.classList.add('revealed');
@@ -143,7 +150,42 @@ class NewChatWidget extends Disposable {
 	}
 
 	private _createNewSession(selection: IWorkspaceSelection, sessionTypeId: string | undefined): void {
-		this.sessionsManagementService.createNewSession(selection.providerId, selection.workspace.repositories[0].uri, sessionTypeId);
+		const provider = this.sessionsProvidersService.getProviders().find(p => p.id === selection.providerId);
+		const repoUri = selection.workspace.repositories[0].uri;
+
+		// Drop the carried-over sessionTypeId if it doesn't apply to this provider —
+		// happens when the picker upgrades to a different provider after restore and
+		// the previous active session's type (e.g. EH CLI's "agents") doesn't exist
+		// on the new provider (e.g. agent host).
+		if (sessionTypeId && provider && !provider.getSessionTypes(repoUri).some(t => t.id === sessionTypeId)) {
+			sessionTypeId = undefined;
+		}
+
+		// Session types may not be available yet (e.g., agent host still connecting).
+		// If so, wait for them before creating the session — otherwise createNewSession
+		// throws and the new chat view is left without an active session, which hides
+		// agent-host-specific UI (model picker etc.) until the user re-picks the workspace.
+		// If the connection fails, the picker fires onDidSelectWorkspace(undefined) which
+		// clears the pending wait via _onWorkspaceSelected.
+		if (provider && !sessionTypeId && provider.getSessionTypes(repoUri).length === 0 && provider.onDidChangeSessionTypes) {
+			const pendingStore = new DisposableStore();
+			this._pendingSessionTypeWait.value = pendingStore;
+
+			pendingStore.add(provider.onDidChangeSessionTypes(() => {
+				if (provider.getSessionTypes(repoUri).length > 0) {
+					this._pendingSessionTypeWait.clear();
+					this._createNewSession(selection, sessionTypeId);
+				}
+			}));
+
+			return;
+		}
+
+		try {
+			this.sessionsManagementService.createNewSession(selection.providerId, repoUri, sessionTypeId);
+		} catch (e) {
+			this.logService.error('Failed to create new session:', e);
+		}
 	}
 
 	/**
@@ -210,6 +252,9 @@ class NewChatWidget extends Disposable {
 	 * Requests folder trust if needed and creates a new session.
 	 */
 	private async _onWorkspaceSelected(selection: IWorkspaceSelection | undefined, sessionTypeId: string | undefined): Promise<void> {
+		// Cancel any in-flight wait for a previous selection.
+		this._pendingSessionTypeWait.clear();
+
 		if (!selection) {
 			this.sessionsManagementService.unsetNewSession();
 			return;
@@ -227,6 +272,10 @@ class NewChatWidget extends Disposable {
 
 	prefillInput(text: string): void {
 		this._newChatInput.prefillInput(text);
+	}
+
+	setHostVisible(visible: boolean): void {
+		this._aquariumToggle?.setHostVisible(visible);
 	}
 
 	sendQuery(text: string): void {
@@ -298,6 +347,7 @@ export class NewChatViewPane extends ViewPane {
 
 	override setVisible(visible: boolean): void {
 		super.setVisible(visible);
+		this._widget?.setHostVisible(visible);
 		if (visible) {
 			this._widget?.focusInput();
 		}

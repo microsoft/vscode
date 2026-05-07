@@ -9,7 +9,7 @@ import { ICAPIClientService } from '../../endpoint/common/capiClient';
 import { ILogService } from '../../log/common/logService';
 import { IFetcherService } from '../../networking/common/fetcherService';
 import { ITelemetryService } from '../../telemetry/common/telemetry';
-import { AssignableActor, getAssignableActorsWithAssignableUsers, getAssignableActorsWithSuggestedActors, PullRequestComment, PullRequestSearchItem, SessionInfo } from './githubAPI';
+import { AssignableActor, getAssignableActorsWithAssignableUsers, getAssignableActorsWithSuggestedActors, getErrorCode, PullRequestComment, PullRequestSearchItem, SessionInfo } from './githubAPI';
 import { AuthOptions, BaseOctoKitService, CCAEnabledResult, CustomAgentDetails, CustomAgentListItem, CustomAgentListOptions, ErrorResponseWithStatusCode, IOctoKitService, IOctoKitUser, JobInfo, PermissiveAuthRequiredError, PullRequestFile, RemoteAgentJobResponse } from './githubService';
 
 export class OctoKitService extends BaseOctoKitService implements IOctoKitService {
@@ -556,42 +556,4 @@ export class OctoKitService extends BaseOctoKitService implements IOctoKitServic
 	}
 }
 
-function isObject(value: unknown): value is Record<string, unknown> {
-	return typeof value === 'object' && value !== null;
-}
 
-export function getErrorCode(e: unknown): string | undefined {
-	if (!isObject(e)) {
-		return undefined;
-	}
-
-	if (e.status !== undefined) {
-		return String(e.status);
-	}
-
-	const networkError = e.networkError;
-	if (isObject(networkError) && networkError.statusCode !== undefined) {
-		return String(networkError.statusCode);
-	}
-
-	const graphQLErrors = e.graphQLErrors;
-	if (Array.isArray(graphQLErrors)) {
-		const firstGraphQLError = graphQLErrors[0];
-		if (isObject(firstGraphQLError)) {
-			const extensions = firstGraphQLError.extensions;
-			if (isObject(extensions) && extensions.code !== undefined) {
-				return String(extensions.code);
-			}
-		}
-	}
-
-	if (e.code !== undefined) {
-		return String(e.code);
-	}
-
-	if (typeof e.name === 'string' && e.name) {
-		return e.name;
-	}
-
-	return undefined;
-}

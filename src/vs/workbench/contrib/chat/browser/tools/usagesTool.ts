@@ -21,11 +21,13 @@ import { ITextModelService } from '../../../../../editor/common/services/resolve
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { getDefinitionsAtPosition, getImplementationsAtPosition, getReferencesAtPosition } from '../../../../../editor/contrib/gotoSymbol/browser/goToSymbol.js';
 import { localize } from '../../../../../nls.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { ISearchService, QueryType, resultIsMatch } from '../../../../services/search/common/search.js';
+import { ChatConfiguration } from '../../common/constants.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress, } from '../../common/tools/languageModelToolsService.js';
 import { createToolSimpleTextResult } from '../../common/tools/builtinTools/toolHelpers.js';
 import { errorResult, findLineNumber, findSymbolColumn, ISymbolToolInput, resolveToolUri } from './toolHelpers.js';
@@ -44,6 +46,17 @@ IMPORTANT: The file and line do NOT need to be the definition of the symbol. Any
 
 If the tool returns an error, retry with corrected input - ensure the file path is correct, the line content matches the actual file content, and the symbol name appears in that line.`;
 
+/**
+ * Static description used when the {@link ChatConfiguration.SymbolToolsCacheStable}
+ * experiment is enabled. Identical to {@link BaseModelDescription} plus a single
+ * sentence describing the unsupported-language behavior. Crucially, this string
+ * does NOT depend on the set of registered reference providers, so it stays
+ * byte-stable across requests as language extensions activate during a turn.
+ */
+const StaticModelDescription = BaseModelDescription + `
+
+If the file's language has no reference provider registered, the tool returns an error.`;
+
 export class UsagesTool extends Disposable implements IToolImpl {
 
 	private readonly _onDidUpdateToolData = this._store.add(new Emitter<void>());
@@ -56,17 +69,32 @@ export class UsagesTool extends Disposable implements IToolImpl {
 		@ISearchService private readonly _searchService: ISearchService,
 		@ITextModelService private readonly _textModelService: ITextModelService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 
-		this._store.add(Event.debounce(
-			this._languageFeaturesService.referenceProvider.onDidChange,
-			() => { },
-			2000
-		)((() => this._onDidUpdateToolData.fire())));
+		// In cache-stable mode the tool's wire bytes don't depend on the set
+		// of registered reference providers, so we don't re-fire the update
+		// event on provider changes. Skipping this subscription also avoids
+		// unnecessary tool re-registration churn.
+		if (!this._isCacheStable()) {
+			this._store.add(Event.debounce(
+				this._languageFeaturesService.referenceProvider.onDidChange,
+				() => { },
+				2000
+			)((() => this._onDidUpdateToolData.fire())));
+		}
+	}
+
+	private _isCacheStable(): boolean {
+		return this._configurationService.getValue<boolean>(ChatConfiguration.SymbolToolsCacheStable) === true;
 	}
 
 	getToolData(): IToolData | undefined {
+		if (this._isCacheStable()) {
+			return this._getStaticToolData();
+		}
+
 		const languageIds = this._languageFeaturesService.referenceProvider.registeredLanguageIds;
 
 		if (languageIds.size === 0) {
@@ -85,6 +113,17 @@ export class UsagesTool extends Disposable implements IToolImpl {
 			userDescription = localize('tool.usages.userDescriptionWithLanguages', 'Find references, definitions, and implementations of a symbol ({0})', niceNames.join(', '));
 		}
 
+		return this._buildToolData(modelDescription, userDescription);
+	}
+
+	private _getStaticToolData(): IToolData {
+		return this._buildToolData(
+			StaticModelDescription,
+			localize('tool.usages.userDescription', 'Find references, definitions, and implementations of a symbol'),
+		);
+	}
+
+	private _buildToolData(modelDescription: string, userDescription: string): IToolData {
 		return {
 			id: UsagesToolId,
 			toolReferenceName: 'usages',

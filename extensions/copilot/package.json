@@ -2,7 +2,7 @@
 	"name": "copilot-chat",
 	"displayName": "GitHub Copilot Chat",
 	"description": "AI chat features powered by Copilot",
-	"version": "0.46.0",
+	"version": "0.48.0",
 	"build": "1",
 	"internalAIKey": "1058ec22-3c95-4951-8443-f26c1f325911",
 	"completionsCoreVersion": "1.378.1799",
@@ -23,7 +23,7 @@
 	"icon": "assets/copilot.png",
 	"pricing": "Trial",
 	"engines": {
-		"vscode": "^1.118.0",
+		"vscode": "^1.120.0",
 		"npm": ">=9.0.0",
 		"node": ">=22.14.0"
 	},
@@ -89,6 +89,7 @@
 	"l10n": "./l10n",
 	"enabledApiProposals": [
 		"agentSessionsWorkspace",
+		"agentsWindowConfiguration",
 		"chatDebug",
 		"chatHooks",
 		"extensionsAny",
@@ -128,8 +129,10 @@
 		"chatReferenceBinaryData",
 		"languageModelSystem",
 		"languageModelCapabilities",
+		"languageModelPricing",
 		"inlineCompletionsAdditions",
 		"chatStatusItem",
+		"chatInputNotification",
 		"taskProblemMatcherStatus",
 		"contribLanguageModelToolSets",
 		"textDocumentChangeReason",
@@ -208,7 +211,7 @@
 				"icon": "$(search)",
 				"userDescription": "%copilot.tools.searchSubagent.description%",
 				"modelDescription": "Launch a fast agent specialized for exploring codebases. Use this when you need to quickly find files by patterns (eg. \"src/components/**/*.tsx\"), search code for keywords (eg. \"API endpoints\"), or answer questions about the codebase (eg. \"how do API endpoints work?\").\nReturns: A list of relevant files/snippet locations in the workspace.\n\nInput fields:\n- query: Natural language description of what to search for.\n- description: Short user-visible invocation message. \n- details: 2-3 sentences detailing the objective of the search agent.",
-				"when": "config.github.copilot.chat.searchSubagent.enabled",
+				"when": "config.github.copilot.chat.searchSubagent.enabled && config.github.copilot.chat.exploreAgent.enabled",
 				"tags": [
 					"vscode_codesearch"
 				],
@@ -232,6 +235,61 @@
 						"query",
 						"description",
 						"details"
+					]
+				}
+			},
+			{
+				"name": "explore_subagent",
+				"toolReferenceName": "exploreSubagent",
+				"displayName": "%copilot.tools.searchSubagent.name%",
+				"icon": "$(search)",
+				"userDescription": "%copilot.tools.searchSubagent.description%",
+				"modelDescription": "Launch a fast agent specialized for exploring codebases. Use this when you need to quickly find files by patterns (eg. \"src/components/**/*.tsx\"), search code for keywords (eg. \"API endpoints\"), or answer questions about the codebase (eg. \"how do API endpoints work?\").\nReturns: A list of relevant files/snippet locations in the workspace.\n\nInput fields:\n- query: Natural language description of what to search for.\n- description: Short user-visible invocation message. \n- details: 2-3 sentences detailing the objective of the search agent.",
+				"when": "config.github.copilot.chat.searchSubagent.enabled && !config.github.copilot.chat.exploreAgent.enabled",
+				"tags": [
+					"vscode_codesearch"
+				],
+				"inputSchema": {
+					"type": "object",
+					"properties": {
+						"query": {
+							"type": "string",
+							"description": "Natural language description of what to search for."
+						},
+						"description": {
+							"type": "string",
+							"description": "A short (3-5 word) description of the task."
+						},
+						"details": {
+							"type": "string",
+							"description": "A more detailed description of the objective for the search subagent. This helps the sub-agent remain on task and understand its purpose."
+						}
+					},
+					"required": [
+						"query",
+						"description",
+						"details"
+					]
+				}
+			},
+			{
+				"name": "skill",
+				"toolReferenceName": "skill",
+				"displayName": "%copilot.tools.skill.name%",
+				"icon": "$(book)",
+				"userDescription": "%copilot.tools.skill.description%",
+				"modelDescription": "Invoke a skill to handle a user's request with specialized instructions and workflows.\n\nSkills are domain-specific capabilities discovered from SKILL.md files. When a user's task matches an available skill, call this tool to load and apply it. If the user types a slash command (e.g. \"/deploy\", \"/test\"), treat it as a skill invocation.\n\nUsage:\n- Pass the skill name only (no arguments).\n- Examples: skill: \"docx\", skill: \"deploy\", skill: \"fix-ci-failures\"\n\nRules:\n- Available skills appear in system-reminder messages earlier in the conversation.\n- BLOCKING: When a matching skill exists, you MUST call this tool before producing any other output about the task.\n- Never reference a skill without calling this tool.\n- Do not call this tool for a skill that is already active in the current turn (indicated by a <command-name> tag).\n- Do not use this tool for built-in commands such as /help or /clear.",
+				"when": "config.github.copilot.chat.skillTool.enabled",
+				"inputSchema": {
+					"type": "object",
+					"properties": {
+						"skill": {
+							"type": "string",
+							"description": "The skill name. E.g., \"commit\", \"review-pr\", or \"pdf\""
+						}
+					},
+					"required": [
+						"skill"
 					]
 				}
 			},
@@ -485,6 +543,7 @@
 				"icon": "$(diff)",
 				"userDescription": "%copilot.tools.changes.description%",
 				"modelDescription": "Get git diffs of current file changes in a git repository. Don't forget that you can use run_in_terminal to run git commands in a terminal as well.",
+				"when": "config.github.copilot.chat.getChangedFilesTool.enabled",
 				"tags": [
 					"vscode_codesearch"
 				],
@@ -1014,15 +1073,6 @@
 				}
 			},
 			{
-				"name": "copilot_getSearchResults",
-				"toolReferenceName": "searchResults",
-				"displayName": "%github.copilot.tools.searchResults.name%",
-				"icon": "$(search)",
-				"userDescription": "%github.copilot.tools.searchResults.description%",
-				"modelDescription": "The results from the search view",
-				"when": "!config.github.copilot.chat.getSearchViewResultsSkill.enabled"
-			},
-			{
 				"name": "copilot_githubRepo",
 				"toolReferenceName": "githubRepo",
 				"legacyToolReferenceFullNames": [
@@ -1211,24 +1261,33 @@
 				"name": "copilot_sessionStoreSql",
 				"displayName": "Session Store SQL",
 				"toolReferenceName": "sessionStoreSql",
+				"when": "github.copilot.sessionSearch.enabled",
 				"userDescription": "Query your Copilot session history using SQL",
-				"modelDescription": "Execute read-only SQL queries against the global session store containing history from ALL past coding sessions. Use this proactively when the user asks about:\n- What they've worked on recently or in the past\n- Prior approaches to similar problems\n- Project history and file changes\n- Sessions linked to PRs, issues, or commits\n- Temporal queries ('what was I doing yesterday?')\n\nSupports SQLite SQL including JOINs, FTS5 MATCH queries, aggregations, and subqueries.\n\n**Only one query per call — do not combine multiple statements with semicolons.**\n\nSchema:\n- sessions — id, cwd, repository, branch, summary, created_at, updated_at\n- turns — session_id, turn_index, user_message, assistant_response, timestamp\n- session_files — session_id, file_path, tool_name (edit/create), turn_index\n- session_refs — session_id, ref_type (commit/pr/issue), ref_value, turn_index\n- search_index — FTS5 virtual table (content, session_id, source_type). Use WHERE search_index MATCH 'query' for full-text search.",
+				"modelDescription": "Query the local session store containing history from past coding sessions. Uses SQLite SQL syntax.\n\nActions: 'query' (execute SQL — supports JOINs, FTS5 MATCH, aggregations), 'standup' (pre-fetch last 24h data), 'reindex' (rebuild index from debug logs).",
 				"tags": [],
 				"canBeReferencedInPrompt": false,
 				"inputSchema": {
 					"type": "object",
 					"properties": {
+						"action": {
+							"type": "string",
+							"enum": ["query", "standup", "reindex"],
+							"description": "The action to perform. 'query' (default) executes a SQL query. 'standup' pre-fetches last 24h session data for standup reports. 'reindex' rebuilds the local session index and syncs to cloud if enabled."
+						},
 						"query": {
 							"type": "string",
-							"description": "A single read-only SQL query to execute. Supports SELECT, WITH, JOINs, aggregations, and FTS5 MATCH. Only one statement per call — do not combine multiple queries with semicolons."
+							"description": "A single read-only SQL query to execute. Required when action is 'query'. Supports SELECT, WITH, JOINs, aggregations, and FTS5 MATCH. Only one statement per call — do not combine multiple queries with semicolons."
+						},
+						"force": {
+							"type": "boolean",
+							"description": "When true with action 'reindex', re-processes all sessions including already-indexed ones. Default false (skips already-indexed sessions)."
 						},
 						"description": {
 							"type": "string",
-							"description": "A 2-5 word summary of what this query does (e.g. 'Recent sessions overview', 'Find PR sessions')."
+							"description": "A 2-5 word summary of what this call does (e.g. 'Recent sessions overview', 'Generate standup', 'Reindex sessions')."
 						}
 					},
 					"required": [
-						"query",
 						"description"
 					]
 				}
@@ -1265,7 +1324,8 @@
 					"problems",
 					"readFile",
 					"viewImage",
-					"readNotebookCellOutput"
+					"readNotebookCellOutput",
+					"skill"
 				]
 			},
 			{
@@ -1277,7 +1337,6 @@
 					"codebase",
 					"fileSearch",
 					"listDirectory",
-					"searchResults",
 					"textSearch",
 					"searchSubagent",
 					"usages"
@@ -1294,6 +1353,7 @@
 					"resolveMemoryFileUri",
 					"runCommand",
 					"switchAgent",
+					"toolSearch",
 					"vscodeAPI"
 				]
 			},
@@ -1448,64 +1508,7 @@
 				"locations": [
 					"editor"
 				],
-				"commands": [
-					{
-						"name": "generate",
-						"when": "!config.inlineChat.enableV2",
-						"description": "%copilot.workspace.generate.description%",
-						"disambiguation": [
-							{
-								"category": "generate",
-								"description": "Generate new code",
-								"examples": [
-									"Add a function that returns the sum of two numbers"
-								]
-							}
-						]
-					},
-					{
-						"name": "edit",
-						"when": "!config.inlineChat.enableV2",
-						"description": "%copilot.workspace.edit.inline.description%",
-						"disambiguation": [
-							{
-								"category": "edit",
-								"description": "Make changes to existing code",
-								"examples": [
-									"Change this method to use async/await"
-								]
-							}
-						]
-					},
-					{
-						"name": "fix",
-						"when": "!config.inlineChat.enableV2",
-						"description": "%copilot.workspace.fix.description%",
-						"disambiguation": [
-							{
-								"category": "fix",
-								"description": "Propose a fix for the problems in the selected code",
-								"examples": [
-									"There is a problem in this code. Rewrite the code to show it with the bug fixed."
-								]
-							}
-						]
-					},
-					{
-						"name": "tests",
-						"when": "!config.inlineChat.enableV2",
-						"description": "%copilot.workspace.tests.description%",
-						"disambiguation": [
-							{
-								"category": "tests",
-								"description": "Generate unit tests for the selected code. The user does not want to fix their existing tests.",
-								"examples": [
-									"Write a set of detailed unit test functions for the code above."
-								]
-							}
-						]
-					}
-				]
+				"commands": []
 			},
 			{
 				"id": "github.copilot.editsAgent",
@@ -1531,21 +1534,6 @@
 					{
 						"name": "compact",
 						"description": "%copilot.agent.compact.description%"
-					},
-					{
-						"name": "chronicle",
-						"description": "%copilot.chronicle.description%",
-						"when": "github.copilot.sessionSearch.enabled"
-					},
-					{
-						"name": "chronicle:standup",
-						"description": "%copilot.chronicle.standup.description%",
-						"when": "github.copilot.sessionSearch.enabled"
-					},
-					{
-						"name": "chronicle:tips",
-						"description": "%copilot.chronicle.tips.description%",
-						"when": "github.copilot.sessionSearch.enabled"
 					},
 					{
 						"name": "explain",
@@ -2672,6 +2660,18 @@
 				"enablement": "config.github.copilot.chat.otel.dbSpanExporter.enabled"
 			},
 			{
+				"command": "github.copilot.sessionSync.deleteSessions",
+				"title": "%github.copilot.command.sessionSync.deleteSessions%",
+				"category": "Chat",
+				"enablement": "github.copilot.sessionSearch.enabled && config.chat.sessionSync.enabled"
+			},
+			{
+				"command": "github.copilot.chronicle.reindex",
+				"title": "%github.copilot.command.chronicle.reindex%",
+				"category": "Chat",
+				"enablement": "github.copilot.sessionSearch.enabled"
+			},
+			{
 				"command": "github.copilot.nes.captureExpected.start",
 				"title": "Record Expected Edit (NES)",
 				"category": "Copilot"
@@ -3129,7 +3129,13 @@
 						"additionalProperties": {
 							"type": "boolean"
 						},
-						"markdownDescription": "Enable or disable auto triggering of Copilot completions for specified [languages](https://code.visualstudio.com/docs/languages/identifiers). You can still trigger suggestions manually using `Alt + \\`"
+						"markdownDescription": "Enable or disable auto triggering of Copilot completions for specified [languages](https://code.visualstudio.com/docs/languages/identifiers). You can still trigger suggestions manually using `Alt + \\`",
+						"agentsWindow": {
+							"default": {
+								"markdown": true,
+								"plaintext": true
+							}
+						}
 					},
 					"github.copilot.selectedCompletionModel": {
 						"type": "string",
@@ -3231,13 +3237,6 @@
 						"tags": [
 							"onExp"
 						]
-					},
-					"github.copilot.chat.anthropic.thinking.budgetTokens": {
-						"type": "number",
-						"markdownDescription": "%github.copilot.config.anthropic.thinking.budgetTokens%",
-						"minimum": 0,
-						"maximum": 32000,
-						"default": 16000
 					}
 				}
 			},
@@ -3290,22 +3289,16 @@
 			{
 				"id": "experimental",
 				"properties": {
-					"github.copilot.chat.getSearchViewResultsSkill.enabled": {
-						"type": "boolean",
-						"default": false,
-						"description": "%github.copilot.config.getSearchViewResultsSkill.enabled%",
-						"tags": [
-							"experimental",
-							"onExp"
-						]
-					},
 					"github.copilot.chat.githubMcpServer.enabled": {
 						"type": "boolean",
 						"default": false,
 						"markdownDescription": "%github.copilot.config.githubMcpServer.enabled%",
 						"tags": [
 							"experimental"
-						]
+						],
+						"agentsWindow": {
+							"default": true
+						}
 					},
 					"github.copilot.chat.githubMcpServer.toolsets": {
 						"type": "array",
@@ -3651,7 +3644,10 @@
 							"experimental",
 							"onExP"
 						],
-						"markdownDescription": "%github.copilot.chat.languageContext.typescript.enabled%"
+						"markdownDescription": "%github.copilot.chat.languageContext.typescript.enabled%",
+						"agentsWindow": {
+							"default": true
+						}
 					},
 					"github.copilot.chat.languageContext.typescript.items": {
 						"type": "string",
@@ -3792,6 +3788,15 @@
 							"clear-both"
 						]
 					},
+					"github.copilot.chat.anthropic.cacheBreakpoints.lastTwoMessages": {
+						"type": "boolean",
+						"default": false,
+						"markdownDescription": "%github.copilot.config.anthropic.cacheBreakpoints.lastTwoMessages%",
+						"tags": [
+							"experimental",
+							"onExp"
+						]
+					},
 					"github.copilot.chat.responsesApiReasoningSummary": {
 						"type": "string",
 						"default": "detailed",
@@ -3836,6 +3841,15 @@
 						"type": "boolean",
 						"default": true,
 						"markdownDescription": "%github.copilot.config.updated53CodexPrompt.enabled%",
+						"tags": [
+							"experimental",
+							"onExp"
+						]
+					},
+					"github.copilot.chat.claude47OpusPrompt.enabled": {
+						"type": "boolean",
+						"default": false,
+						"markdownDescription": "%github.copilot.config.claude47OpusPrompt.enabled%",
 						"tags": [
 							"experimental",
 							"onExp"
@@ -4018,12 +4032,33 @@
 						"tags": [
 							"experimental"
 						]
+					},
+					"github.copilot.chat.localIndex.enabled": {
+						"type": "boolean",
+						"default": false,
+						"markdownDescription": "%github.copilot.config.localIndex.enabled%",
+						"tags": [
+							"experimental",
+							"onExp"
+						]
 					}
 				}
 			},
 			{
 				"id": "advanced",
 				"properties": {
+					"github.copilot.chat.inlineEdits.xtabProvider.modelConfiguration": {
+						"type": [
+							"object",
+							"null"
+						],
+						"default": null,
+						"markdownDescription": "Advanced model configuration for the next edit suggestions xtab provider.\n\n**Note**: This is an advanced setting.",
+						"tags": [
+							"advanced",
+							"experimental"
+						]
+					},
 					"github.copilot.chat.reasoningEffortOverride": {
 						"type": [
 							"string",
@@ -4149,16 +4184,6 @@
 							"onExp"
 						]
 					},
-					"github.copilot.chat.workspace.maxDiffSizeBeforeUsingExternalIngest": {
-						"type": "number",
-						"default": 100,
-						"markdownDescription": "%github.copilot.config.workspace.maxDiffSizeBeforeUsingExternalIngest%",
-						"tags": [
-							"advanced",
-							"experimental",
-							"onExp"
-						]
-					},
 					"github.copilot.chat.workspace.preferredEmbeddingsModel": {
 						"type": "string",
 						"default": "",
@@ -4268,16 +4293,6 @@
 							"experimental"
 						]
 					},
-					"github.copilot.chat.inlineChat.selectionRatioThreshold": {
-						"type": "number",
-						"default": 0,
-						"markdownDescription": "%github.copilot.config.inlineChat.selectionRatioThreshold%",
-						"tags": [
-							"advanced",
-							"experimental",
-							"onExp"
-						]
-					},
 					"github.copilot.chat.inlineChat.reasoningEffort": {
 						"type": "string",
 						"default": "low",
@@ -4363,6 +4378,16 @@
 							"experimental"
 						]
 					},
+					"github.copilot.chat.agent.backgroundTodoAgent.enabled": {
+						"type": "boolean",
+						"default": false,
+						"markdownDescription": "%github.copilot.config.agent.backgroundTodoAgent.enabled%",
+						"tags": [
+							"advanced",
+							"experimental",
+							"onExp"
+						]
+					},
 					"github.copilot.chat.agent.largeToolResultsToDisk.enabled": {
 						"type": "boolean",
 						"default": true,
@@ -4410,6 +4435,25 @@
 						"tags": [
 							"advanced",
 							"experimental"
+						]
+					},
+					"github.copilot.chat.skillTool.enabled": {
+						"type": "boolean",
+						"default": false,
+						"markdownDescription": "%github.copilot.config.skill.enabled%",
+						"tags": [
+							"advanced",
+							"experimental"
+						]
+					},
+					"github.copilot.chat.getChangedFilesTool.enabled": {
+						"type": "boolean",
+						"default": false,
+						"markdownDescription": "%github.copilot.config.getChangedFilesTool.enabled%",
+						"tags": [
+							"advanced",
+							"experimental",
+							"onExp"
 						]
 					},
 					"github.copilot.chat.executionSubagent.enabled": {
@@ -4472,16 +4516,6 @@
 						"tags": [
 							"advanced",
 							"experimental"
-						]
-					},
-					"github.copilot.chat.agentHistorySummarizationInline": {
-						"type": "boolean",
-						"default": false,
-						"markdownDescription": "%github.copilot.config.agentHistorySummarizationInline%",
-						"tags": [
-							"advanced",
-							"experimental",
-							"onExp"
 						]
 					},
 					"github.copilot.chat.useResponsesApiTruncation": {
@@ -4619,7 +4653,10 @@
 						"tags": [
 							"advanced",
 							"experimental"
-						]
+						],
+						"agentsWindow": {
+							"default": true
+						}
 					},
 					"github.copilot.chat.cli.branchSupport.enabled": {
 						"type": "boolean",
@@ -4627,7 +4664,10 @@
 						"markdownDescription": "%github.copilot.config.cli.branchSupport.enabled%",
 						"tags": [
 							"advanced"
-						]
+						],
+						"agentsWindow": {
+							"default": true
+						}
 					},
 					"github.copilot.chat.cli.showExternalSessions": {
 						"type": "boolean",
@@ -4635,7 +4675,10 @@
 						"markdownDescription": "%github.copilot.config.cli.showExternalSessions%",
 						"tags": [
 							"advanced"
-						]
+						],
+						"agentsWindow": {
+							"default": false
+						}
 					},
 					"github.copilot.chat.cli.planExitMode.enabled": {
 						"type": "boolean",
@@ -4649,6 +4692,14 @@
 						"type": "boolean",
 						"default": true,
 						"markdownDescription": "%github.copilot.config.cli.autoModel.enabled%",
+						"tags": [
+							"advanced"
+						]
+					},
+					"github.copilot.chat.agent.modelDetails.enabled": {
+						"type": "boolean",
+						"default": true,
+						"markdownDescription": "%github.copilot.config.chat.agent.modelDetails.enabled%",
 						"tags": [
 							"advanced"
 						]
@@ -4667,7 +4718,10 @@
 						"markdownDescription": "%github.copilot.config.cli.lazyLoadSessionItem.enabled%",
 						"tags": [
 							"advanced"
-						]
+						],
+						"agentsWindow": {
+							"default": false
+						}
 					},
 					"github.copilot.chat.cli.aiGenerateBranchNames.enabled": {
 						"type": "boolean",
@@ -4691,7 +4745,10 @@
 						"markdownDescription": "%github.copilot.config.cli.isolationOption.enabled%",
 						"tags": [
 							"advanced"
-						]
+						],
+						"agentsWindow": {
+							"default": true
+						}
 					},
 					"github.copilot.chat.cli.autoCommit.enabled": {
 						"type": "boolean",
@@ -4700,7 +4757,10 @@
 						"tags": [
 							"advanced",
 							"experimental"
-						]
+						],
+						"agentsWindow": {
+							"default": false
+						}
 					},
 					"github.copilot.chat.cli.sessionController.enabled": {
 						"type": "boolean",
@@ -4708,7 +4768,11 @@
 						"markdownDescription": "%github.copilot.config.cli.sessionController.enabled%",
 						"tags": [
 							"advanced"
-						]
+						],
+						"agentsWindow": {
+							"default": false,
+							"readOnly": true
+						}
 					},
 					"github.copilot.chat.cli.thinkingEffort.enabled": {
 						"type": "boolean",
@@ -4736,12 +4800,14 @@
 					},
 					"github.copilot.chat.cli.remote.enabled": {
 						"type": "boolean",
-						"default": false,
+						"default": true,
 						"markdownDescription": "%github.copilot.config.cli.remote.enabled%",
 						"tags": [
-							"advanced",
-							"experimental"
-						]
+							"advanced"
+						],
+						"agentsWindow": {
+							"default": false
+						}
 					},
 					"github.copilot.chat.searchSubagent.enabled": {
 						"type": "boolean",
@@ -4881,6 +4947,15 @@
 							"advanced"
 						]
 					},
+					"github.copilot.chat.otel.maxAttributeSizeChars": {
+						"type": "integer",
+						"default": 0,
+						"minimum": 0,
+						"markdownDescription": "Maximum size **in characters** for free-form OTel content attributes (prompts, responses, tool arguments/results, hook input/output). `0` (the default) disables truncation so backends without per-attribute size limits receive full JSON payloads. Set to a positive value when your OTel backend caps attribute size — consult your backend's documentation for its per-attribute limit. Truncated values are suffixed with `...[truncated, original N chars]`. Env var `COPILOT_OTEL_MAX_ATTRIBUTE_SIZE_CHARS` takes precedence. Requires window reload.",
+						"tags": [
+							"advanced"
+						]
+					},
 					"github.copilot.chat.otel.outfile": {
 						"type": "string",
 						"default": "",
@@ -4895,6 +4970,15 @@
 						"markdownDescription": "Enable SQLite DB span exporter. Persists OTel spans to a local SQLite database. Automatically enables OTel when set to true. Requires window reload.",
 						"tags": [
 							"advanced"
+						]
+					},
+					"github.copilot.chat.workspace.codeSearchExternalIngest.enabled": {
+						"type": "boolean",
+						"default": false,
+						"markdownDescription": "%github.copilot.config.workspace.codeSearchExternalIngest.enabled%",
+						"tags": [
+							"advanced",
+							"onExp"
 						]
 					}
 				}
@@ -5019,48 +5103,48 @@
 			"chat/input/editing/sessionApplyActions": [
 				{
 					"command": "github.copilot.sessions.initializeRepository",
-					"when": "chatSessionType == copilotcli && isSessionsWindow && sessions.isolationMode == workspace && !sessions.hasGitRepository",
-					"group": "init@1"
-				},
-				{
-					"command": "github.copilot.sessions.commit",
-					"when": "chatSessionType == copilotcli && isSessionsWindow && sessions.isolationMode == workspace && sessions.hasGitRepository && sessions.hasUncommittedChanges",
-					"group": "commit@1"
-				},
-				{
-					"command": "github.copilot.sessions.commitAndSync",
-					"when": "chatSessionType == copilotcli && isSessionsWindow && sessions.isolationMode == workspace && sessions.hasGitRepository && sessions.hasUncommittedChanges && sessions.hasUpstream",
-					"group": "commit@2"
-				},
-				{
-					"command": "github.copilot.sessions.sync",
-					"when": "chatSessionType == copilotcli && isSessionsWindow && sessions.isolationMode == workspace && sessions.hasGitRepository && !sessions.hasUncommittedChanges && sessions.hasUpstream",
-					"group": "sync@1"
+					"when": "chatSessionType == copilotcli && isSessionsWindow && sessions.isolationMode == workspace && !sessions.hasGitRepository && !sessions.isAgentHostSession",
+					"group": "0_init@1"
 				},
 				{
 					"command": "github.copilot.chat.mergeCopilotCLIAgentSessionChanges.merge",
-					"when": "chatSessionType == copilotcli && isSessionsWindow && sessions.isolationMode == worktree && sessions.hasGitRepository && !sessions.isMergeBaseBranchProtected && !sessions.hasPullRequest && (sessions.hasUncommittedChanges || sessions.hasOutgoingChanges)",
-					"group": "merge@1"
+					"when": "chatSessionType == copilotcli && isSessionsWindow && sessions.isolationMode == worktree && sessions.hasGitRepository && !sessions.isMergeBaseBranchProtected && !sessions.hasPullRequest && (sessions.hasUncommittedChanges || sessions.hasOutgoingChanges) && !sessions.isAgentHostSession",
+					"group": "1_merge@1"
 				},
 				{
 					"command": "github.copilot.chat.mergeCopilotCLIAgentSessionChanges.mergeAndSync",
-					"when": "chatSessionType == copilotcli && isSessionsWindow && sessions.isolationMode == worktree && sessions.hasGitRepository && !sessions.isMergeBaseBranchProtected && !sessions.hasPullRequest && (sessions.hasUncommittedChanges || sessions.hasOutgoingChanges)",
-					"group": "merge@2"
+					"when": "chatSessionType == copilotcli && isSessionsWindow && sessions.isolationMode == worktree && sessions.hasGitRepository && !sessions.isMergeBaseBranchProtected && !sessions.hasPullRequest && (sessions.hasUncommittedChanges || sessions.hasOutgoingChanges) && !sessions.isAgentHostSession",
+					"group": "1_merge@2"
 				},
 				{
 					"command": "github.copilot.chat.createPullRequestCopilotCLIAgentSession.createPR",
-					"when": "chatSessionType == copilotcli && isSessionsWindow && sessions.isolationMode == worktree && sessions.hasGitRepository && sessions.hasGitHubRemote && !sessions.hasPullRequest && (sessions.hasUncommittedChanges || sessions.hasOutgoingChanges)",
-					"group": "pull_request@1"
+					"when": "chatSessionType == copilotcli && isSessionsWindow && sessions.isolationMode == worktree && sessions.hasGitRepository && sessions.hasGitHubRemote && !sessions.hasPullRequest && (sessions.hasUncommittedChanges || sessions.hasOutgoingChanges) && !sessions.isAgentHostSession",
+					"group": "2_pull_request@1"
 				},
 				{
 					"command": "github.copilot.chat.createDraftPullRequestCopilotCLIAgentSession.createDraftPR",
-					"when": "chatSessionType == copilotcli && isSessionsWindow && sessions.isolationMode == worktree && sessions.hasGitRepository && sessions.hasGitHubRemote && !sessions.hasPullRequest && (sessions.hasUncommittedChanges || sessions.hasOutgoingChanges)",
-					"group": "pull_request@2"
+					"when": "chatSessionType == copilotcli && isSessionsWindow && sessions.isolationMode == worktree && sessions.hasGitRepository && sessions.hasGitHubRemote && !sessions.hasPullRequest && (sessions.hasUncommittedChanges || sessions.hasOutgoingChanges) && !sessions.isAgentHostSession",
+					"group": "2_pull_request@2"
 				},
 				{
 					"command": "github.copilot.chat.createPullRequestCopilotCLIAgentSession.updatePR",
-					"when": "chatSessionType == copilotcli && isSessionsWindow && sessions.isolationMode == worktree && sessions.hasGitRepository && sessions.hasGitHubRemote && sessions.hasPullRequest && sessions.hasOpenPullRequest && (sessions.hasIncomingChanges || sessions.hasOutgoingChanges || sessions.hasUncommittedChanges)",
-					"group": "pull_request@1"
+					"when": "chatSessionType == copilotcli && isSessionsWindow && sessions.isolationMode == worktree && sessions.hasGitRepository && sessions.hasGitHubRemote && sessions.hasPullRequest && sessions.hasOpenPullRequest && !sessions.isAgentHostSession && (sessions.hasIncomingChanges || sessions.hasOutgoingChanges || sessions.hasUncommittedChanges)",
+					"group": "2_pull_request@3"
+				},
+				{
+					"command": "github.copilot.sessions.commit",
+					"when": "chatSessionType == copilotcli && isSessionsWindow && sessions.hasGitRepository && sessions.hasUncommittedChanges && !sessions.isAgentHostSession",
+					"group": "3_commit@1"
+				},
+				{
+					"command": "github.copilot.sessions.commitAndSync",
+					"when": "chatSessionType == copilotcli && isSessionsWindow && sessions.hasGitRepository && sessions.hasUncommittedChanges && !sessions.isAgentHostSession",
+					"group": "3_commit@2"
+				},
+				{
+					"command": "github.copilot.sessions.sync",
+					"when": "chatSessionType == copilotcli && isSessionsWindow && sessions.isolationMode == workspace && sessions.hasGitRepository && !sessions.hasUncommittedChanges && sessions.hasUpstream && !sessions.isAgentHostSession",
+					"group": "4_sync@1"
 				},
 				{
 					"command": "github.copilot.claude.sessions.initializeRepository",
@@ -5828,14 +5912,14 @@
 			"chat/input/editing/sessionTitleToolbar": [
 				{
 					"command": "github.copilot.sessions.refreshChanges",
-					"when": "chatSessionType == copilotcli && isSessionsWindow",
+					"when": "chatSessionType == copilotcli && isSessionsWindow && !sessions.isAgentHostSession",
 					"group": "9_refresh@1"
 				}
 			],
 			"chat/input/editing/sessionChangeToolbar": [
 				{
 					"command": "github.copilot.sessions.discardChanges",
-					"when": "chatSessionType == copilotcli && isSessionsWindow && sessions.hasGitRepository && sessions.changesVersionMode == branchChanges",
+					"when": "chatSessionType == copilotcli && isSessionsWindow && sessions.hasGitRepository && !sessions.isAgentHostSession && (sessions.changesVersionMode == branchChanges || sessions.changesVersionMode == uncommittedChanges)",
 					"group": "navigation@2"
 				}
 			],
@@ -6333,6 +6417,27 @@
 				"sessionTypes": [
 					"local"
 				]
+			},
+			{
+				"path": "./assets/prompts/chronicle-standup.prompt.md",
+				"when": "github.copilot.sessionSearch.enabled",
+				"sessionTypes": [
+					"local"
+				]
+			},
+			{
+				"path": "./assets/prompts/chronicle-tips.prompt.md",
+				"when": "github.copilot.sessionSearch.enabled",
+				"sessionTypes": [
+					"local"
+				]
+			},
+			{
+				"path": "./assets/prompts/chronicle-reindex.prompt.md",
+				"when": "github.copilot.sessionSearch.enabled",
+				"sessionTypes": [
+					"local"
+				]
 			}
 		],
 		"chatSkills": [
@@ -6359,7 +6464,6 @@
 			},
 			{
 				"path": "./assets/prompts/skills/get-search-view-results/SKILL.md",
-				"when": "config.github.copilot.chat.getSearchViewResultsSkill.enabled",
 				"sessionTypes": [
 					"local"
 				]
@@ -6413,6 +6517,13 @@
 				"sessionTypes": [
 					"local"
 				]
+			},
+			{
+				"path": "./assets/prompts/skills/chronicle/SKILL.md",
+				"when": "github.copilot.sessionSearch.enabled",
+				"sessionTypes": [
+					"local"
+				]
 			}
 		],
 		"terminal": {
@@ -6433,17 +6544,17 @@
 	},
 	"scripts": {
 		"postinstall": "tsx ./script/postinstall.ts",
-		"build": "node .esbuild.ts --sourcemaps",
-		"compile": "node .esbuild.ts --dev",
-		"watch": "npm-run-all -lp watch:esbuild watch:tsc",
-		"watch:esbuild": "node .esbuild.ts --watch --dev",
-		"watch:tsc": "tsc --noEmit --watch --preserveWatchOutput --project tsconfig.json",
-		"watch:tsc-extension": "tsc --noEmit --watch --project tsconfig.json",
-		"watch:tsc-extension-web": "tsc --noEmit --watch --project tsconfig.worker.json",
-		"watch:tsc-simulation-workbench": "tsc --noEmit --watch --project test/simulation/workbench/tsconfig.json",
-		"typecheck": "tsc --noEmit --project tsconfig.json && tsc --noEmit --project test/simulation/workbench/tsconfig.json && tsc --noEmit --project tsconfig.worker.json && tsc --noEmit --project src/extension/completions-core/vscode-node/extension/src/copilotPanel/webView/tsconfig.json",
-		"lint": "eslint . --max-warnings=0",
-		"lint-staged": "eslint --max-warnings=0",
+		"build": "node .esbuild.mts --sourcemaps",
+		"compile": "node .esbuild.mts --dev",
+		"watch": "npm-run-all -lp watch:esbuild watch:typecheck",
+		"watch:esbuild": "node .esbuild.mts --watch --dev",
+		"watch:typecheck": "npx tsgo --noEmit --watch --preserveWatchOutput --project tsconfig.json",
+		"watch:typecheck-extension": "npx tsgo --noEmit --watch --project tsconfig.json",
+		"watch:typecheck-extension-web": "npx tsgo --noEmit --watch --project tsconfig.worker.json",
+		"watch:typecheck-simulation-workbench": "npx tsgo --noEmit --watch --project test/simulation/workbench/tsconfig.json",
+		"typecheck": "npx tsgo --noEmit --project tsconfig.json && npx tsgo --noEmit --project test/simulation/workbench/tsconfig.json && npx tsgo --noEmit --project tsconfig.worker.json && npx tsgo --noEmit --project src/extension/completions-core/vscode-node/extension/src/copilotPanel/webView/tsconfig.json",
+		"lint": "npx eslint . --max-warnings=0",
+		"lint-staged": "npx eslint --max-warnings=0",
 		"tsfmt": "npx tsfmt -r --verify",
 		"test": "npm-run-all test:*",
 		"test:extension": "vscode-test",
@@ -6497,7 +6608,8 @@
 		"@types/source-map-support": "^0.5.10",
 		"@types/tar": "^6.1.13",
 		"@types/vinyl": "^2.0.12",
-		"@types/vscode-webview": "^1.57.4",
+		"@types/vscode-webview": "^1.57.5",
+		"@types/ws": "^8.5.3",
 		"@types/yargs": "^17.0.24",
 		"@typescript-eslint/eslint-plugin": "^8.35.0",
 		"@typescript-eslint/parser": "^8.32.0",
@@ -6512,23 +6624,15 @@
 		"@vscode/test-electron": "^2.5.2",
 		"@vscode/test-web": "^0.0.80",
 		"@vscode/vsce": "3.6.0",
-		"agent-browser": "^0.16.3",
 		"copyfiles": "^2.4.1",
 		"csv-parse": "^6.0.0",
 		"dotenv": "^17.2.0",
 		"electron": "^39.8.5",
 		"esbuild": "0.27.2",
-		"eslint": "^9.30.0",
-		"eslint-import-resolver-typescript": "^4.4.4",
-		"eslint-plugin-header": "^3.1.1",
-		"eslint-plugin-import": "^2.32.0",
-		"eslint-plugin-jsdoc": "^51.3.4",
-		"eslint-plugin-no-only-tests": "^3.3.0",
 		"fastq": "^1.19.1",
 		"glob": "^11.1.0",
 		"js-yaml": "^4.1.1",
 		"keyv": "^5.3.2",
-		"lint-staged": "15.2.9",
 		"minimist": "^1.2.8",
 		"mobx": "^6.13.7",
 		"mobx-react-lite": "^4.1.0",
@@ -6554,8 +6658,6 @@
 		"ts-dedent": "^2.2.0",
 		"tsx": "^4.20.3",
 		"typescript": "^5.8.3",
-		"typescript-eslint": "^8.36.0",
-		"typescript-formatter": "github:jrieken/typescript-formatter#497efb26bc40b5fa59a350e6eab17bce650a7e4b",
 		"vite-plugin-top-level-await": "^1.5.0",
 		"vite-plugin-wasm": "^3.5.0",
 		"vitest": "^3.0.5",
@@ -6570,7 +6672,7 @@
 		"@anthropic-ai/claude-agent-sdk": "0.2.112",
 		"@anthropic-ai/sdk": "^0.82.0",
 		"@github/blackbird-external-ingest-utils": "^0.3.0",
-		"@github/copilot": "^1.0.34",
+		"@github/copilot": "^1.0.39",
 		"@google/genai": "^1.22.0",
 		"@humanwhocodes/gitignore-to-minimatch": "1.0.2",
 		"@microsoft/tiktokenizer": "^1.0.10",
@@ -6589,7 +6691,7 @@
 		"@opentelemetry/sdk-trace-node": "^2.5.1",
 		"@opentelemetry/semantic-conventions": "^1.39.0",
 		"@sinclair/typebox": "^0.34.41",
-		"@vscode/copilot-api": "^0.2.19",
+		"@vscode/copilot-api": "^0.3.0",
 		"@vscode/extension-telemetry": "^1.5.1",
 		"@vscode/l10n": "^0.0.18",
 		"@vscode/prompt-tsx": "^0.4.0-alpha.8",
@@ -6600,7 +6702,7 @@
 		"applicationinsights": "^2.9.7",
 		"best-effort-json-parser": "^1.2.1",
 		"diff": "^8.0.3",
-		"dompurify": "^3.4.0",
+		"dompurify": "^3.4.1",
 		"express": "^5.2.1",
 		"ignore": "^7.0.5",
 		"isbinaryfile": "^5.0.4",

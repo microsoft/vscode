@@ -155,6 +155,31 @@ export function encodeString(text: string): Uint8Array {
 	return new TextEncoder().encode(text);
 }
 
+/**
+ * Returns a no-op {@link IAgentHostGitService} suitable for tests that
+ * exercise the {@link AgentService} but don't care about git state.
+ * Tests that DO care about git state should pass their own implementation.
+ */
+export function createNoopGitService(): import('../../node/agentHostGitService.js').IAgentHostGitService {
+	return {
+		_serviceBrand: undefined,
+		isInsideWorkTree: async () => false,
+		getCurrentBranch: async () => undefined,
+		getDefaultBranch: async () => undefined,
+		getBranches: async () => [],
+		getRepositoryRoot: async () => undefined,
+		getWorktreeRoots: async () => [],
+		addWorktree: async () => { },
+		addExistingWorktree: async () => { },
+		removeWorktree: async () => { },
+		branchExists: async () => false,
+		hasUncommittedChanges: async () => false,
+		getSessionGitState: async () => undefined,
+		computeSessionFileDiffs: async () => undefined,
+		showBlob: async () => undefined,
+	};
+}
+
 function createReference<T>(object: T): IReference<T> {
 	return {
 		object,

@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import type { Attachment, SessionOptions, SweCustomAgent } from '@github/copilot/sdk';
+import type { Attachment, SendOptions, SessionOptions, SweCustomAgent } from '@github/copilot/sdk';
 import * as l10n from '@vscode/l10n';
 import * as vscode from 'vscode';
 import { ChatExtendedRequestHandler, ChatRequestTurn2, Uri } from 'vscode';
@@ -35,9 +35,10 @@ import { IChatFolderMruService, IFolderRepositoryManager, IsolationMode } from '
 import { getWorkingDirectory, IWorkspaceInfo } from '../common/workspaceInfo';
 import { ICustomSessionTitleService } from '../copilotcli/common/customSessionTitleService';
 import { IChatDelegationSummaryService } from '../copilotcli/common/delegationSummaryService';
+import { clearPendingCopilotCLIRequestContext, setPendingCopilotCLIRequestContext, takePendingCopilotCLIRequestContext } from '../copilotcli/common/pendingRequestContext';
 import { SessionIdForCLI } from '../copilotcli/common/utils';
 import { getCopilotCLISessionDir } from '../copilotcli/node/cliHelpers';
-import { ICopilotCLISDK } from '../copilotcli/node/copilotCli';
+import { ICopilotCLIModels, ICopilotCLISDK } from '../copilotcli/node/copilotCli';
 import { CopilotCLIPromptResolver } from '../copilotcli/node/copilotcliPromptResolver';
 import { builtinSlashSCommands, CopilotCLICommand, copilotCLICommands, ICopilotCLISession } from '../copilotcli/node/copilotcliSession';
 import { ICopilotCLISessionItem, ICopilotCLISessionService } from '../copilotcli/node/copilotcliSessionService';
@@ -47,6 +48,7 @@ import { ICopilotCLITerminalIntegration, TerminalOpenLocation } from './copilotC
 import { CopilotCloudSessionsProvider } from './copilotCloudSessionsProvider';
 import { UNTRUSTED_FOLDER_MESSAGE } from './folderRepositoryManagerImpl';
 import { IPullRequestDetectionService } from './pullRequestDetectionService';
+import { getCopilotCLIModelDetails, persistCopilotCLIResponseModelId } from './copilotCLIModelDetails';
 import { getSelectedSessionOptions, ISessionOptionGroupBuilder, OPEN_REPOSITORY_COMMAND_ID, toRepositoryOptionItem, toWorkspaceFolderOptionItem } from './sessionOptionGroupBuilder';
 import { ISessionRequestLifecycle } from './sessionRequestLifecycle';
 import { ICopilotCLIChatSessionInitializer, SessionInitOptions } from '../copilotcli/vscode-node/copilotCLIChatSessionInitializer';
@@ -660,6 +662,8 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 		@ISessionRequestLifecycle private readonly sessionRequestLifecycle: ISessionRequestLifecycle,
 		@IPullRequestDetectionService private readonly prDetectionService: IPullRequestDetectionService,
 		@ISessionOptionGroupBuilder private readonly _optionGroupBuilder: ISessionOptionGroupBuilder,
+		@ICopilotCLIModels private readonly copilotCLIModels: ICopilotCLIModels,
+		@IChatSessionMetadataStore private readonly chatSessionMetadataStore: IChatSessionMetadataStore,
 	) {
 		super();
 
@@ -671,8 +675,6 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 	createHandler(): ChatExtendedRequestHandler {
 		return this.handleRequest.bind(this);
 	}
-
-	private readonly contextForRequest = new Map<string, { prompt: string; attachments: Attachment[] }>();
 
 	/**
 	 * Outer request handler that supports *yielding* for session steering.
@@ -755,19 +757,19 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 	 * Resolve the input and attachments for the SDK session based on request type.
 	 *
 	 * The VS Code chat API creates the session before firing the request handler,
-	 * so delegated requests pre-resolve and cache prompt/attachments in `contextForRequest`.
+	 * so delegated or remotely-steered requests pre-resolve and cache their prompt metadata
+	 * before the handler runs.
 	 */
 	private async resolveInput(
 		request: vscode.ChatRequest,
 		session: ICopilotCLISession,
 		isNewSession: boolean,
 		token: vscode.CancellationToken,
-	): Promise<{ input: { prompt: string; command?: CopilotCLICommand }; attachments: Attachment[] }> {
-		const contextForRequest = this.contextForRequest.get(session.sessionId);
-		this.contextForRequest.delete(session.sessionId);
+	): Promise<{ input: { prompt: string; command?: CopilotCLICommand; source?: SendOptions['source'] }; attachments: Attachment[] }> {
+		const contextForRequest = takePendingCopilotCLIRequestContext(session.sessionId);
 
 		if (contextForRequest) {
-			return { input: { prompt: contextForRequest.prompt }, attachments: contextForRequest.attachments };
+			return { input: { prompt: contextForRequest.prompt, source: contextForRequest.source }, attachments: contextForRequest.attachments };
 		}
 
 		if (request.command && !request.prompt && !isNewSession) {
@@ -798,6 +800,7 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 		const disposables = new DisposableStore();
 		let sdkSessionId: string | undefined = undefined;
 		let session: IReference<ICopilotCLISession> | undefined = undefined;
+		let shouldRefreshSessionItem = true;
 		try {
 			this.sendTelemetryForHandleRequest(request, context);
 
@@ -832,8 +835,10 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 			}
 
 			const selectedOptions = getSelectedSessionOptions(chatSessionContext.inputState);
+			const isRemoteCommand = request.command === 'remote';
 			const sessionResult = await this.getOrCreateSession(request, chatSessionContext.chatSessionItem.resource, { ...selectedOptions, newBranch: branchNamePromise, stream }, disposables, token);
 			({ session } = sessionResult);
+			shouldRefreshSessionItem = !(isNewSession && isRemoteCommand);
 
 
 			if (isNewSession && !sessionResult.trusted) {
@@ -856,12 +861,17 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 
 			if (request.command === 'delegate') {
 				await this.handleDelegationToCloud(session.object, request, context, stream, token);
+				return {};
 			} else {
 				const { input, attachments } = await this.resolveInput(request, session.object, isNewSession, token);
 				await session.object.handleRequest(request, input, attachments, model, authInfo, token);
 			}
 
-			return {};
+			const modelDetailsEnabled = this.configurationService.getConfig(ConfigKey.Advanced.CLIModelDetailsEnabled);
+			const { result, responseModelId } = await getCopilotCLIModelDetails(session.object, model, this.copilotCLIModels, this.logService, modelDetailsEnabled);
+			persistCopilotCLIResponseModelId(sdkSessionId, request.id, responseModelId, this.chatSessionMetadataStore, this.logService);
+
+			return result;
 		} catch (ex) {
 			if (isCancellationError(ex)) {
 				return {};
@@ -874,8 +884,10 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 					{ status: session.object.status, workspace: session.object.workspace, createdPullRequestUrl: session.object.createdPullRequestUrl },
 					token,
 				);
-				this.sessionItemProvider.refreshSession({ reason: 'update', sessionId: sdkSessionId })
-					.catch(error => this.logService.error(error, 'Failed to refresh session item after handling request'));
+				if (shouldRefreshSessionItem) {
+					this.sessionItemProvider.refreshSession({ reason: 'update', sessionId: sdkSessionId })
+						.catch(error => this.logService.error(error, 'Failed to refresh session item after handling request'));
+				}
 			}
 			disposables.dispose();
 		}
@@ -888,7 +900,7 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 			return { session: undefined, isNewSession, model, agent, trusted };
 		}
 
-		if (isNewSession) {
+		if (isNewSession && request.command !== 'remote') {
 			this.sessionItemProvider.refreshSession({ reason: 'update', sessionId: session.object.sessionId });
 		}
 
@@ -956,11 +968,14 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 			}
 		}
 
-		this.contextForRequest.set(session.object.sessionId, { prompt, attachments });
+		setPendingCopilotCLIRequestContext(session.object.sessionId, { prompt, attachments });
 		void vscode.commands.executeCommand('workbench.action.chat.openSessionWithPrompt.copilotcli', {
 			resource: SessionIdForCLI.getResource(session.object.sessionId),
 			prompt: userPrompt || request.prompt,
 			attachedContext: references.map(ref => convertReferenceToVariable(ref, attachments))
+		}).then(undefined, error => {
+			clearPendingCopilotCLIRequestContext(session.object.sessionId);
+			this.logService.error(error, '[CopilotCLIChatSessionContentProvider] Failed to open Copilot CLI session');
 		});
 
 		stream.markdown(l10n.t('A Copilot CLI session has begun working on your request. Follow its progress in the sessions list.'));

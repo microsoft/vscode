@@ -46,7 +46,6 @@ export enum ToolName {
 	Memory = 'memory',
 	FindTestFiles = 'test_search',
 	GetProjectSetupInfo = 'get_project_setup_info',
-	SearchViewResults = 'get_search_view_results',
 	GithubSemanticRepoSearch = 'github_repo',
 	GithubTextSearch = 'github_text_search',
 	CreateDirectory = 'create_directory',
@@ -69,11 +68,13 @@ export enum ToolName {
 	CoreConfirmationToolWithOptions = 'vscode_get_confirmation_with_options',
 	CoreTerminalConfirmationTool = 'vscode_get_terminal_confirmation',
 	SearchSubagent = 'search_subagent',
+	ExploreSubagent = 'explore_subagent',
 	CoreAskQuestions = 'vscode_askQuestions',
 	SwitchAgent = 'switch_agent',
 	ToolSearch = 'tool_search',
 	ResolveMemoryFileUri = 'resolve_memory_file_uri',
 	ExecutionSubagent = 'execution_subagent',
+	Skill = 'skill',
 	SessionStoreSql = 'session_store_sql',
 	CoreOpenBrowserPage = 'open_browser_page',
 	CoreClickElement = 'click_element',
@@ -132,7 +133,6 @@ export enum ContributedToolName {
 	Memory = 'copilot_memory',
 	FindTestFiles = 'copilot_findTestFiles',
 	GetProjectSetupInfo = 'copilot_getProjectSetupInfo',
-	SearchViewResults = 'copilot_getSearchResults',
 	GithubSemanticRepoSearch = 'copilot_githubRepo',
 	GithubTextSearch = 'copilot_githubTextSearch',
 	CreateAndRunTask = 'copilot_createAndRunTask',
@@ -208,6 +208,7 @@ export const toolCategories: Record<ToolName, ToolCategory> = {
 	[ToolName.ReadProjectStructure]: ToolCategory.Core,
 	[ToolName.CoreRunSubagent]: ToolCategory.Core,
 	[ToolName.SearchSubagent]: ToolCategory.Core,
+	[ToolName.ExploreSubagent]: ToolCategory.Core,
 	[ToolName.ExecutionSubagent]: ToolCategory.Core,
 
 	// already enabled only when tasks are enabled
@@ -248,7 +249,6 @@ export const toolCategories: Record<ToolName, ToolCategory> = {
 	[ToolName.GetProjectSetupInfo]: ToolCategory.VSCodeInteraction,
 	[ToolName.CoreCreateAndRunTask]: ToolCategory.VSCodeInteraction,
 	[ToolName.RunVscodeCmd]: ToolCategory.VSCodeInteraction,
-	[ToolName.SearchViewResults]: ToolCategory.VSCodeInteraction,
 	[ToolName.CoreTerminalSelection]: ToolCategory.VSCodeInteraction,
 	[ToolName.CoreTerminalLastCommand]: ToolCategory.VSCodeInteraction,
 
@@ -266,6 +266,7 @@ export const toolCategories: Record<ToolName, ToolCategory> = {
 	[ToolName.Memory]: ToolCategory.VSCodeInteraction,
 	[ToolName.ToolSearch]: ToolCategory.Core,
 	[ToolName.ResolveMemoryFileUri]: ToolCategory.Core,
+	[ToolName.Skill]: ToolCategory.Core,
 	[ToolName.SessionStoreSql]: ToolCategory.Core,
 } as const;
 

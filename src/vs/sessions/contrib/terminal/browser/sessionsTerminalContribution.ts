@@ -64,7 +64,9 @@ function getSessionTerminalInfo(session: ISession | undefined): ISessionTerminal
  * Manages terminal instances in the sessions window, ensuring:
  * - A terminal exists for the active session's worktree (or repository if no worktree).
  * - Terminals are shown/hidden based on their initial cwd matching the active path.
- * - All terminals for a worktree are closed when the session is archived.
+ * - Terminals for an archived/removed session are closed only when no other
+ *   live session still owns the same cwd (terminals are reused across sessions
+ *   at the same worktree).
  */
 export class SessionsTerminalContribution extends Disposable implements IWorkbenchContribution {
 
@@ -152,11 +154,32 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 			}
 		}));
 
-		// When a session is archived or removed, close all terminals for its cwd
+		// Close terminals for archived/removed sessions, but only when no other
+		// live session still owns that cwd. Terminals are reused across sessions
+		// at the same cwd, so a plain cwd match would kill a terminal still in use
+		// (e.g. the committed session from `onDidReplaceSession`).
+		// TODO: Consider removing the logic for trying to "delete/clean-up" terminal.
+		// Or consider tag terminals by sessionId + refcount instead of guarding here.
+
 		this._register(this._sessionsManagementService.onDidChangeSessions(e => {
-			for (const session of [...e.removed, ...e.changed.filter(s => s.isArchived.get())]) {
+			const archivedChanged = e.changed.filter(s => s.isArchived.get());
+			if (e.removed.length === 0 && archivedChanged.length === 0) {
+				return;
+			}
+			const removedIds = new Set(e.removed.map(s => s.sessionId));
+			const liveCwdKeys = new Set<string>();
+			for (const session of this._sessionsManagementService.getSessions()) {
+				if (removedIds.has(session.sessionId) || session.isArchived.get()) {
+					continue;
+				}
 				const info = getSessionTerminalInfo(session);
 				if (info) {
+					liveCwdKeys.add(info.cwd.fsPath.toLowerCase());
+				}
+			}
+			for (const session of [...e.removed, ...archivedChanged]) {
+				const info = getSessionTerminalInfo(session);
+				if (info && !liveCwdKeys.has(info.cwd.fsPath.toLowerCase())) {
 					this._closeTerminalsForPath(info.cwd.fsPath);
 				}
 			}

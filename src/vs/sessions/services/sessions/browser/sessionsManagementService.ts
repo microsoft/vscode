@@ -20,9 +20,9 @@ import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from './sess
 import { ISendRequestOptions, ISessionChangeEvent, ISessionsProvider } from '../common/sessionsProvider.js';
 import { IChat, ISession, isWorkspaceAgentSessionType, SessionStatus, ISessionType } from '../common/session.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../common/agentHostSessionsProvider.js';
 
 const ACTIVE_SESSION_STATES_KEY = 'agentSessions.activeSessionStates';
-const ACTIVE_PROVIDER_KEY = 'sessions.activeProviderId';
 
 /**
  * Persisted state for a session.
@@ -52,9 +52,6 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 
 	private readonly _activeSession = observableValue<IActiveSession | undefined>(this, undefined);
 	readonly activeSession: IObservable<IActiveSession | undefined> = this._activeSession;
-	private readonly _activeProviderId = observableValue<string | undefined>(this, undefined);
-	readonly activeProviderId: IObservable<string | undefined> = this._activeProviderId;
-
 	/** Tracks the pending new session so it can be restored by {@link openNewSessionView}. */
 	private _pendingNewSession: ISession | undefined;
 	private readonly isNewChatSessionContext: IContextKey<boolean>;
@@ -96,11 +93,9 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 		// Save on shutdown
 		this._register(this.storageService.onWillSaveState(() => this._saveSessionStates()));
 
-		// Restore or auto-select active provider
-		this._initActiveProvider();
+		// Subscribe to provider changes for session type updates
 		this._register(this.sessionsProvidersService.onDidChangeProviders(e => {
 			this._onProvidersChanged(e);
-			this._initActiveProvider();
 			this._updateSessionTypes();
 		}));
 		this._subscribeToProviders(this.sessionsProvidersService.getProviders());
@@ -129,43 +124,18 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 		}
 	}
 
-	private _initActiveProvider(): void {
-		const providers = this.sessionsProvidersService.getProviders();
-		if (providers.length === 0) {
-			return;
-		}
-
-		// If already set and still valid, keep it
-		const current = this._activeProviderId.get();
-		if (current && providers.some(p => p.id === current)) {
-			return;
-		}
-
-		// Try to restore from storage
-		const stored = this.storageService.get(ACTIVE_PROVIDER_KEY, StorageScope.PROFILE);
-		if (stored && providers.some(p => p.id === stored)) {
-			this._activeProviderId.set(stored, undefined);
-			return;
-		}
-
-		// Auto-select the first (or only) provider
-		this._activeProviderId.set(providers[0].id, undefined);
-	}
-
-	setActiveProvider(providerId: string): void {
-		this._activeProviderId.set(providerId, undefined);
-		this.storageService.store(ACTIVE_PROVIDER_KEY, providerId, StorageScope.PROFILE, StorageTarget.MACHINE);
-	}
-
 	private onDidReplaceSession(from: ISession, to: ISession): void {
 		if (this._activeSession.get()?.sessionId === from.sessionId) {
 			this.setActiveSession(to);
-			this._onDidChangeSessions.fire({
-				added: [],
-				removed: [from],
-				changed: [to],
-			});
 		}
+		// Always fire the change event so the SessionsList refreshes even when
+		// the user navigated to a different session while the new one was
+		// being created (which is how duplicate rows appeared in the list).
+		this._onDidChangeSessions.fire({
+			added: [],
+			removed: from.sessionId === to.sessionId ? [] : [from],
+			changed: [to],
+		});
 	}
 
 	private onDidChangeSessionsFromSessionsProviders(e: ISessionChangeEvent): void {
@@ -196,7 +166,7 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 		for (const provider of this.sessionsProvidersService.getProviders()) {
 			sessions.push(...provider.getSessions());
 		}
-		return sessions;
+		return deduplicateSessions(sessions);
 	}
 
 	getSession(resource: URI): ISession | undefined {
@@ -234,7 +204,8 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 	}
 
 	async openChat(session: ISession, chatUri: URI): Promise<void> {
-		this.logService.info(`[SessionsManagement] openChat: ${chatUri.toString()} provider=${session.providerId}`);
+		const t0 = Date.now();
+		this.logService.trace(`[SessionsManagement] openChat start uri=${chatUri.toString()} provider=${session.providerId}`);
 		this.isNewChatSessionContext.set(false);
 		this.setActiveSession(session);
 
@@ -253,20 +224,23 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 		// If the chat is untitled (not yet sent), show the new-chat-in-session view
 		if (chat && chat.status.get() === SessionStatus.Untitled) {
 			this._isNewChatInSessionContext.set(true);
+			this.logService.trace(`[SessionsManagement] openChat done total=${Date.now() - t0}ms uri=${chatUri.toString()} path=untitled`);
 			return;
 		}
 
 		this._isNewChatInSessionContext.set(false);
 		await this.chatWidgetService.openSession(chatUri, ChatViewPaneTarget);
+		this.logService.trace(`[SessionsManagement] openChat done total=${Date.now() - t0}ms uri=${chatUri.toString()}`);
 	}
 
 	async openSession(sessionResource: URI, options?: { preserveFocus?: boolean }): Promise<void> {
+		const t0 = Date.now();
 		const sessionData = this.getSession(sessionResource);
 		if (!sessionData) {
-			this.logService.warn(`[SessionsManagement] openSession: session not found: ${sessionResource.toString()}`);
+			this.logService.warn(`[SessionsManagement] openSession: session not found uri=${sessionResource.toString()}`);
 			throw new Error(`Session with resource ${sessionResource.toString()} not found`);
 		}
-		this.logService.info(`[SessionsManagement] openSession: ${sessionResource.toString()} provider=${sessionData.providerId}`);
+		this.logService.trace(`[SessionsManagement] openSession start uri=${sessionResource.toString()} provider=${sessionData.providerId}`);
 		this.isNewChatSessionContext.set(false);
 		this._isNewChatInSessionContext.set(false);
 		this.setActiveSession(sessionData);
@@ -275,6 +249,7 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 		const activeChat = this._activeSession.get()?.activeChat.get();
 		const openUri = activeChat?.resource ?? sessionData.resource;
 		await this.chatWidgetService.openSession(openUri, ChatViewPaneTarget, { preserveFocus: options?.preserveFocus });
+		this.logService.trace(`[SessionsManagement] openSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()}`);
 	}
 
 	unsetNewSession(): void {
@@ -553,3 +528,32 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 }
 
 registerSingleton(ISessionsManagementService, SessionsManagementService, InstantiationType.Delayed);
+
+/**
+ * Removes duplicate sessions across providers. When multiple sessions share
+ * the same {@link ISession.deduplicationKey}, the session from the local
+ * agent host provider is preferred; otherwise the first occurrence wins.
+ */
+export function deduplicateSessions(sessions: ISession[]): ISession[] {
+	const seen = new Map<string, ISession>();
+	for (const session of sessions) {
+		const key = session.deduplicationKey;
+		if (!key) {
+			continue;
+		}
+		const existing = seen.get(key);
+		if (!existing) {
+			seen.set(key, session);
+		} else if (existing.providerId !== LOCAL_AGENT_HOST_PROVIDER_ID && session.providerId === LOCAL_AGENT_HOST_PROVIDER_ID) {
+			seen.set(key, session);
+		}
+	}
+
+	return sessions.filter(s => {
+		const key = s.deduplicationKey;
+		if (!key) {
+			return true;
+		}
+		return seen.get(key) === s;
+	});
+}

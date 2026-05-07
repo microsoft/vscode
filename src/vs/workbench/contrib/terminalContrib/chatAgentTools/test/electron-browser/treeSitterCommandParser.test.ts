@@ -215,6 +215,46 @@ suite('TreeSitterCommandParser', () => {
 		});
 	});
 
+	suite('extractCommands', () => {
+		async function t(languageId: TreeSitterCommandParserLanguage, commandLine: string, expectedCommands: { keyword: string; args: string[] }[]) {
+			const result = await parser.extractCommands(languageId, commandLine);
+			deepStrictEqual(result, expectedCommands);
+		}
+
+		test('extracts bash command details for git commit', () => t(
+			TreeSitterCommandParserLanguage.Bash,
+			'git commit -S -m "Update feature"',
+			[{ keyword: 'git', args: ['commit', '-S', '-m', 'Update feature'] }]
+		));
+
+		test('preserves git global options before commit', () => t(
+			TreeSitterCommandParserLanguage.Bash,
+			'git -C repo commit -m test',
+			[{ keyword: 'git', args: ['-C', 'repo', 'commit', '-m', 'test'] }]
+		));
+
+		test('skips leading variable assignments', () => t(
+			TreeSitterCommandParserLanguage.Bash,
+			'GIT_EDITOR=true git commit -m test',
+			[{ keyword: 'git', args: ['commit', '-m', 'test'] }]
+		));
+
+		test('does not extract quoted command text as a command', () => t(
+			TreeSitterCommandParserLanguage.Bash,
+			'echo "git commit"',
+			[{ keyword: 'echo', args: ['git commit'] }]
+		));
+
+		test('extracts each command in a compound command', () => t(
+			TreeSitterCommandParserLanguage.Bash,
+			'git status && git commit -m test',
+			[
+				{ keyword: 'git', args: ['status'] },
+				{ keyword: 'git', args: ['commit', '-m', 'test'] },
+			]
+		));
+	});
+
 	suite('extractPwshDoubleAmpersandChainOperators', () => {
 		async function t(commandLine: string, expectedMatches: string[]) {
 			const result = await parser.extractPwshDoubleAmpersandChainOperators(commandLine);

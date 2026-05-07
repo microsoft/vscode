@@ -8,6 +8,7 @@ import { IObservable } from '../../base/common/observable.js';
 import { equals } from '../../base/common/objects.js';
 import { RemoteAgentHostConnectionStatus } from '../../platform/agentHost/common/remoteAgentHostService.js';
 import { ResolveSessionConfigResult, SessionConfigValueItem } from '../../platform/agentHost/common/state/protocol/commands.js';
+import { RootConfigState } from '../../platform/agentHost/common/state/protocol/state.js';
 import { ISessionsProvider } from '../services/sessions/common/sessionsProvider.js';
 
 /**
@@ -66,6 +67,27 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	getCreateSessionConfig(sessionId: string): Record<string, unknown> | undefined;
 	/** Clears dynamic configuration state for an abandoned new session. */
 	clearSessionConfig(sessionId: string): void;
+
+	// -- Root (agent host) Config --
+
+	/** Fires when the root (agent host) configuration schema or values change. */
+	readonly onDidChangeRootConfig: Event<void>;
+	/** Returns the last-known root (agent host) configuration, or `undefined` if the host has not published any. */
+	getRootConfig(): RootConfigState | undefined;
+	/**
+	 * Sets one root configuration property.
+	 *
+	 * Optimistically updates local state and dispatches a
+	 * `root/configChanged` action (non-replace) to the agent host.
+	 */
+	setRootConfigValue(property: string, value: unknown): Promise<void>;
+	/**
+	 * Replaces the full set of root configuration values atomically.
+	 *
+	 * Dispatches a single `root/configChanged` action with replace semantics.
+	 * Unknown keys (no schema entry) are ignored.
+	 */
+	replaceRootConfig(values: Record<string, unknown>): Promise<void>;
 }
 
 export const LOCAL_AGENT_HOST_PROVIDER_ID = 'local-agent-host';

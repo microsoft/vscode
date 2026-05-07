@@ -21,12 +21,20 @@ If your paths differ, check `server/` in `vscode-dev` for the source root resolu
 
 ## Start the dev server
 
+**Critical:** Run `npm run dev` from the **`vscode-dev`** folder, NOT from `vscode`. The `vscode` repo has no `dev` script and will fail with `npm error Missing script: "dev"`. Terminal tools that simplify/strip leading `cd` into separate commands will silently keep the cwd of a previous terminal — always use an absolute `pushd` or verify with `pwd` before `npm run dev`.
+
 ```bash
-cd vscode-dev
-npm run dev   # runs watch + nodemon; serves https://127.0.0.1:3000
+cd /path/to/vscode-dev     # NOT /path/to/vscode
+npm run dev                # runs watch + nodemon; serves https://127.0.0.1:3000
 ```
 
-On first start you may see one crash like `Cannot find module './indexes'` — it's the watcher racing the first build. nodemon restarts automatically once `out/` finishes compiling.
+If you're driving this through an agent/terminal tool, prefer:
+
+```bash
+pushd /absolute/path/to/vscode-dev >/dev/null && pwd && npm run dev
+```
+
+On first start you may see one crash like `Cannot find module './indexes'` — it's the watcher racing the first build. nodemon restarts automatically once `out/` finishes compiling. The server is ready when `curl -sk -o /dev/null -w "%{http_code}" https://127.0.0.1:3000/` returns `200`.
 
 ## URLs
 
@@ -97,14 +105,18 @@ For a true mobile viewport, drive a standalone Playwright script with `devices['
 
 ## Testing the Agents window against a local mock agent host
 
+If the scenario touches the Agents window (`/agents` route), you almost always need the mock agent host running. Without it, the Agents window will sit on the sign-in / tunnel-discovery screen and block any real interaction. Start it **in addition to** the dev server — it's a second terminal, not a replacement.
+
 `vscode-dev` supports a `?mock-agent-host=ws://…` URL parameter that short-circuits tunnel discovery and wires the Agents window to a raw WebSocket. Pair it with the mock agent host binary from `microsoft/vscode`:
 
 ```bash
-cd vscode
+cd /path/to/vscode
 node out/vs/platform/agentHost/node/agentHostServerMain.js \
   --enable-mock-agent --quiet --without-connection-token --port 8765
 # Listens on ws://localhost:8765
 ```
+
+Prerequisite: `out/` in the `vscode` repo must be populated by the `VS Code - Build` task (or `npm run watch`). If `out/vs/platform/agentHost/node/agentHostServerMain.js` is missing, start that task first.
 
 `--enable-mock-agent` registers the `ScriptedMockAgent` from `src/vs/platform/agentHost/test/node/mockAgent.ts` with one pre-existing session. Seed additional sessions via the `VSCODE_AGENT_HOST_MOCK_SEED_SESSIONS` env var, using a comma-separated list of session URIs (for example, `VSCODE_AGENT_HOST_MOCK_SEED_SESSIONS=mock://pre-1,mock://pre-2`). Scripted prompts include `hello`, `use-tool`, `error`, `permission`, `write-file`, `run-safe-command`, `slow`, `client-tool`, `subagent`, etc. (see `mockAgent.ts` for the full list).
 

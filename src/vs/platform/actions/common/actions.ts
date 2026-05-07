@@ -90,6 +90,7 @@ export class MenuId {
 	static readonly EditorTitle = new MenuId('EditorTitle');
 	static readonly EditorTitleLayout = new MenuId('EditorTitleLayout');
 	static readonly ModalEditorTitle = new MenuId('ModalEditorTitle');
+	static readonly ModalEditorTitleContext = new MenuId('ModalEditorTitleContext');
 	static readonly ModalEditorEditorTitle = new MenuId('ModalEditorEditorTitle');
 	static readonly CompactWindowEditorTitle = new MenuId('CompactWindowEditorTitle');
 	static readonly EditorTitleRun = new MenuId('EditorTitleRun');
@@ -269,6 +270,7 @@ export class MenuId {
 	static readonly ChatEditingSessionChangeToolbar = new MenuId('ChatEditingSessionChangeToolbar');
 	static readonly ChatEditingSessionChangesVersionsSubmenu = new MenuId('ChatEditingSessionChangesVersionsSubmenu');
 	static readonly ChatEditingSessionChangesFileHeaderToolbar = new MenuId('ChatEditingSessionChangesFileHeaderToolbar');
+	static readonly ChatEditingSessionChangesFileHeaderRightToolbar = new MenuId('ChatEditingSessionChangesFileHeaderRightToolbar');
 	static readonly ChatEditingEditorContent = new MenuId('ChatEditingEditorContent');
 	static readonly ChatEditingEditorHunk = new MenuId('ChatEditingEditorHunk');
 	static readonly ChatEditingDeletedNotebookCell = new MenuId('ChatEditingDeletedNotebookCell');

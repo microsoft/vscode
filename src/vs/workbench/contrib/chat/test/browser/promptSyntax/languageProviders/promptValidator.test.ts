@@ -142,7 +142,8 @@ suite('PromptValidator', () => {
 			agentInstructions: { content: 'Beast mode instructions', toolReferences: [] },
 			source: { storage: PromptsStorage.local },
 			target: Target.Undefined,
-			visibility: { userInvocable: true, agentInvocable: true }
+			visibility: { userInvocable: true, agentInvocable: true },
+			enabled: true
 		});
 		instaService.stub(IChatModeService, new MockChatModeService({ builtin: [ChatMode.Agent, ChatMode.Ask, ChatMode.Edit], custom: [customChatMode] }));
 
@@ -162,7 +163,8 @@ suite('PromptValidator', () => {
 			agentInstructions: { content: 'Custom mode body', toolReferences: [] },
 			source: { storage: PromptsStorage.local },
 			target: Target.Undefined,
-			visibility: { userInvocable: true, agentInvocable: true }
+			visibility: { userInvocable: true, agentInvocable: true },
+			enabled: true
 		};
 		promptsService.setCustomModes([customMode]);
 		instaService.stub(IPromptsService, promptsService);
@@ -2094,7 +2096,7 @@ suite('PromptValidator', () => {
 			assert.strictEqual(markers[0].message, `The skill name 'different-name' should match the folder name 'my-skill'.`);
 		});
 
-		test('skill without name attribute should error', async () => {
+		test('skill without name attribute should warn', async () => {
 			const content = [
 				'---',
 				'description: Test Skill',
@@ -2103,8 +2105,14 @@ suite('PromptValidator', () => {
 			].join('\n');
 			const markers = await validate(content, PromptsType.skill, URI.parse('file:///.github/skills/my-skill/SKILL.md'));
 			assert.strictEqual(markers.length, 1);
-			assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
-			assert.strictEqual(markers[0].message, `Skill must provide a name.`);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
+			assert.strictEqual(markers[0].message, 'Skill should provide a name.');
+		});
+
+		test('skill without frontmatter should not warn about missing name or description', async () => {
+			const content = 'This is a skill without any frontmatter.';
+			const markers = await validate(content, PromptsType.skill, URI.parse('file:///.github/skills/my-skill/SKILL.md'));
+			assert.deepStrictEqual(markers, []);
 		});
 
 		test('skill with empty name should error', async () => {
@@ -2121,7 +2129,7 @@ suite('PromptValidator', () => {
 			assert.strictEqual(markers[0].message, `The 'name' attribute must not be empty.`);
 		});
 
-		test('skill without description attribute should error', async () => {
+		test('skill without description attribute should warn', async () => {
 			const content = [
 				'---',
 				'name: my-skill',
@@ -2130,8 +2138,40 @@ suite('PromptValidator', () => {
 			].join('\n');
 			const markers = await validate(content, PromptsType.skill, URI.parse('file:///.github/skills/my-skill/SKILL.md'));
 			assert.strictEqual(markers.length, 1);
-			assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
-			assert.strictEqual(markers[0].message, `Skill must provide a description.`);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
+			assert.strictEqual(markers[0].message, 'Skill should provide a description.');
+		});
+
+		test('skill without description but with user-invocable false should error on that attribute', async () => {
+			const content = [
+				'---',
+				'name: my-skill',
+				'user-invocable: false',
+				'---',
+				'This is a skill.'
+			].join('\n');
+			const markers = await validate(content, PromptsType.skill, URI.parse('file:///.github/skills/my-skill/SKILL.md'));
+			assert.strictEqual(markers.length, 2);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
+			assert.strictEqual(markers[0].message, 'Skill should provide a description.');
+			assert.strictEqual(markers[1].severity, MarkerSeverity.Error);
+			assert.ok(markers[1].message.includes('description is required when user-invocable is false'));
+		});
+
+		test('skill without description but with disable-model-invocation false should error on that attribute', async () => {
+			const content = [
+				'---',
+				'name: my-skill',
+				'disable-model-invocation: false',
+				'---',
+				'This is a skill.'
+			].join('\n');
+			const markers = await validate(content, PromptsType.skill, URI.parse('file:///.github/skills/my-skill/SKILL.md'));
+			assert.strictEqual(markers.length, 2);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
+			assert.strictEqual(markers[0].message, 'Skill should provide a description.');
+			assert.strictEqual(markers[1].severity, MarkerSeverity.Error);
+			assert.ok(markers[1].message.includes('description is required when model invocation is enabled'));
 		});
 
 		test('skill with empty description should error', async () => {

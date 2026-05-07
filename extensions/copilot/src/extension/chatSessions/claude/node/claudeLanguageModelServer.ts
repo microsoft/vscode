@@ -12,6 +12,7 @@ import { ChatLocation, ChatResponse } from '../../../../platform/chat/common/com
 import { CustomModel, EndpointEditToolName } from '../../../../platform/endpoint/common/endpointProvider';
 import { AnthropicMessagesProcessor } from '../../../../platform/endpoint/node/messagesApi';
 import { ILogService } from '../../../../platform/log/common/logService';
+import { IOTelService } from '../../../../platform/otel/common/otelService';
 import { FinishedCallback, getRequestId, OptionalChatRequestParams } from '../../../../platform/networking/common/fetch';
 import { Response } from '../../../../platform/networking/common/fetcherService';
 import { IChatEndpoint, ICreateEndpointBodyOptions, IEndpointBody, IEndpointFetchOptions, IMakeChatRequestOptions } from '../../../../platform/networking/common/networking';
@@ -80,6 +81,7 @@ export class ClaudeLanguageModelServer extends Disposable {
 		@IRequestLogger private readonly requestLogger: IRequestLogger,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IClaudeCodeModels private readonly claudeCodeModels: IClaudeCodeModels,
+		@IOTelService private readonly _otelService: IOTelService,
 	) {
 		super();
 		this.config = {
@@ -229,10 +231,16 @@ export class ClaudeLanguageModelServer extends Disposable {
 				userInitiatedRequest: isUserInitiatedMessage
 			}, tokenSource.token);
 
+			// Wrap in trace context so chat spans are parented to the invoke_agent span
+			const traceContext = sessionId ? this.sessionStateService.getTraceContextForSession(sessionId) : undefined;
+			const doRequestInContext = traceContext
+				? () => this._otelService.runWithTraceContext(traceContext, doRequest)
+				: doRequest;
+
 			if (capturingToken) {
-				await this.requestLogger.captureInvocation(capturingToken, doRequest);
+				await this.requestLogger.captureInvocation(capturingToken, doRequestInContext);
 			} else {
-				await doRequest();
+				await doRequestInContext();
 			}
 
 			requestComplete = true;
@@ -531,6 +539,10 @@ class ClaudeStreamingPassThroughEndpoint implements IChatEndpoint {
 
 	public get multiplier(): number | undefined {
 		return this.base.multiplier;
+	}
+
+	public get tokenPricing() {
+		return this.base.tokenPricing;
 	}
 
 	public get restrictedToSkus(): string[] | undefined {

@@ -25,13 +25,11 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
-import { IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IRemoteAuthorityResolverService } from '../../../../platform/remote/common/remoteAuthorityResolver.js';
 import { ITunnelService } from '../../../../platform/tunnel/common/tunnel.js';
-import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { WebviewPortMappingManager } from '../../../../platform/webview/common/webviewPortMapping.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { decodeAuthority, webviewGenericCspSource, webviewRootResourceAuthority } from '../common/webview.js';
@@ -141,6 +139,7 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 	private readonly _portMappingManager: WebviewPortMappingManager;
 
 	private readonly _resourceLoadingCts = this._register(new CancellationTokenSource());
+	private readonly _activeStreamControllers = new Set<ReadableStreamDefaultController>();
 
 	private _contextKeyService: IContextKeyService | undefined;
 
@@ -172,13 +171,11 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@INotificationService notificationService: INotificationService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
-		@IFileService private readonly _fileService: IFileService,
 		@ILogService private readonly _logService: ILogService,
 		@IRemoteAuthorityResolverService private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		@ITunnelService private readonly _tunnelService: ITunnelService,
-		@IInstantiationService instantiationService: IInstantiationService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
-		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
 
@@ -336,7 +333,7 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		}));
 
 		if (initInfo.options.enableFindWidget) {
-			this._webviewFindWidget = this._register(instantiationService.createInstance(WebviewFindWidget, this));
+			this._webviewFindWidget = this._register(this._instantiationService.createInstance(WebviewFindWidget, this));
 		}
 	}
 
@@ -356,6 +353,11 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		}
 
 		this._onDidDispose.fire();
+
+		for (const controller of this._activeStreamControllers) {
+			try { controller.close(); } catch { /* already closed */ }
+		}
+		this._activeStreamControllers.clear();
 
 		this._resourceLoadingCts.dispose(true);
 
@@ -775,12 +777,20 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 	}
 
 	private async loadResource(id: number, uri: URI, options: { ifNoneMatch: string | undefined; range?: { readonly start: number; readonly end?: number } }, token: CancellationToken) {
+		if (this._disposed) {
+			return;
+		}
+
 		try {
-			const result = await loadLocalResource(uri, {
+			const result = await this._instantiationService.invokeFunction(loadLocalResource, uri, {
 				ifNoneMatch: options.ifNoneMatch,
 				roots: this._content.options.localResourceRoots || [],
 				range: options.range,
-			}, this._uriIdentityService, this._fileService, this._logService, token);
+			}, token);
+
+			if (this._disposed) {
+				return;
+			}
 
 			switch (result.type) {
 				case WebviewResourceResponse.Type.Success: {
@@ -793,15 +803,18 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 					if (WebviewElement._supportsTransferableStreams.value) {
 						const stream = new ReadableStream<Uint8Array<ArrayBuffer>>({
 							start: (controller) => {
+								// Track this controller so that the single
+								// cancellation handler in dispose() can close
+								// all active streams without per-stream listeners.
+								this._activeStreamControllers.add(controller);
 								let closed = false;
 								const close = () => {
 									if (!closed) {
 										closed = true;
+										this._activeStreamControllers.delete(controller);
 										try { controller.close(); } catch { /* already closed */ }
-										cancellationSub.dispose();
 									}
 								};
-								const cancellationSub = token.onCancellationRequested(close);
 
 								listenStream(result.stream, {
 									onData: (chunk) => {
@@ -810,15 +823,15 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 												controller.enqueue(new Uint8Array<ArrayBuffer>(chunk.buffer.buffer as ArrayBuffer, chunk.buffer.byteOffset, chunk.buffer.byteLength));
 											} catch {
 												closed = true;
-												cancellationSub.dispose();
+												this._activeStreamControllers.delete(controller);
 											}
 										}
 									},
 									onError: (err) => {
 										if (!closed) {
 											closed = true;
+											this._activeStreamControllers.delete(controller);
 											try { controller.error(err); } catch { /* already closed */ }
-											cancellationSub.dispose();
 										}
 									},
 									onEnd: () => close()
