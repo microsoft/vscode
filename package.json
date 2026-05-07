@@ -257,6 +257,8 @@
       "node-addon-api": "7.1.0"
     },
     "serialize-javascript": "^7.0.3",
+    "debug-fabulous": "^2.0.69",
+    "es5-ext": "npm:@unes/es5-ext@0.10.64-1",
     "ssh2": {
       "cpu-features": "0.0.0"
     }
