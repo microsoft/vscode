@@ -83,7 +83,7 @@ export class ChatParticipantRequestHandler {
 		@IConversationStore private readonly _conversationStore: IConversationStore,
 		@ITabsAndEditorsService tabsAndEditorsService: ITabsAndEditorsService,
 		@ILogService private readonly _logService: ILogService,
-		@IAuthenticationService _authService: IAuthenticationService,
+		@IAuthenticationService private readonly _authService: IAuthenticationService,
 		@IAuthenticationChatUpgradeService private readonly _authenticationUpgradeService: IAuthenticationChatUpgradeService,
 		@IChatQuotaService private readonly _chatQuotaService: IChatQuotaService,
 	) {
@@ -204,9 +204,6 @@ export class ChatParticipantRequestHandler {
 	}
 
 	async getResult(): Promise<ICopilotChatResult> {
-		this._chatQuotaService.resetTurnCredits(this.request.id);
-		this._chatQuotaService.resetTurnCredits(this.turn.id);
-
 		if (await this._shouldAskForPermissiveAuth()) {
 			// Return a random response
 			return {
@@ -260,20 +257,16 @@ export class ChatParticipantRequestHandler {
 
 				result = await chatResult;
 				const endpoint = await this._endpointProvider.getChatEndpoint(this.request);
-				let details = `${endpoint.name}`;
-				// Show per-request credits for TBB users, from copilot_usage.total_nano_aiu.
-				// Credits accumulate under request.id for the parent's own API calls,
-				// and under turn.id for subagent API calls (via parentTurnId).
-				const ownCredits = this._chatQuotaService.getCreditsForTurn(this.request.id);
-				const subagentCredits = this._chatQuotaService.getCreditsForTurn(this.turn.id);
-				const creditsUsed = ownCredits !== undefined || subagentCredits !== undefined
-					? (ownCredits ?? 0) + (subagentCredits ?? 0)
-					: undefined;
+				const creditsUsed = this._chatQuotaService.getCreditsForTurn(this.turn.id);
+				this._chatQuotaService.resetTurnCredits(this.turn.id);
 				if (creditsUsed !== undefined) {
 					const formatted = creditsUsed % 1 === 0 ? creditsUsed.toString() : creditsUsed.toFixed(1);
-					details += ` • ${formatted} credit${creditsUsed === 1 ? '' : 's'}`;
+					result.details = `${endpoint.name} • ${formatted} credit${creditsUsed === 1 ? '' : 's'}`;
+				} else {
+					result.details = this._authService.copilotToken?.isNoAuthUser || endpoint.multiplier === undefined
+						? `${endpoint.name}`
+						: `${endpoint.name} • ${endpoint.multiplier}x`;
 				}
-				result.details = details;
 			}
 
 			this._conversationStore.addConversation(this.turn.id, this.conversation);

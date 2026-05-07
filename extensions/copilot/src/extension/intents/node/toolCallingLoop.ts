@@ -104,7 +104,7 @@ export interface IToolCallingBuiltPromptEvent {
 	tools: LanguageModelToolInformation[];
 }
 
-export type ToolCallingLoopFetchOptions = Required<Pick<IMakeChatRequestOptions, 'messages' | 'finishedCb' | 'requestOptions' | 'userInitiatedRequest' | 'turnId'>> & Pick<IMakeChatRequestOptions, 'modelCapabilities' | 'summarizedAtRoundId' | 'parentTurnId'> & { iterationNumber: number };
+export type ToolCallingLoopFetchOptions = Required<Pick<IMakeChatRequestOptions, 'messages' | 'finishedCb' | 'requestOptions' | 'userInitiatedRequest' | 'turnId'>> & Pick<IMakeChatRequestOptions, 'modelCapabilities' | 'summarizedAtRoundId' | 'topLevelTurnId'> & { iterationNumber: number };
 
 interface StartHookResult {
 	/**
@@ -1361,7 +1361,7 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 		const fetchResult = await this.fetch({
 			messages: this.applyMessagePostProcessing(effectiveBuildPromptResult.messages, { stripOrphanedToolCalls: isGeminiFamily(endpoint) }),
 			turnId: this.options.request.id,
-			parentTurnId: (this.options.request as { parentRequestId?: string }).parentRequestId,
+			topLevelTurnId: this.options.request.parentRequestId ?? this.turn.id,
 			summarizedAtRoundId,
 			finishedCb: async (text, index, delta) => {
 				fetchStreamSource?.update(text, delta);
