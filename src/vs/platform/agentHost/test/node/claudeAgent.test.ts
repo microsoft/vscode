@@ -32,14 +32,15 @@ import { IInstantiationService } from '../../../instantiation/common/instantiati
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { FileService } from '../../../files/common/fileService.js';
-import { IAgentMaterializeSessionEvent, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../common/agentService.js';
+import { AgentAttachmentType, IAgentMaterializeSessionEvent, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../common/agentService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { ResponsePartKind, AttachmentType } from '../../common/state/sessionState.js';
+import { ResponsePartKind } from '../../common/state/sessionState.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { IAgentHostGitService } from '../../node/agentHostGitService.js';
 import { ClaudeAgent } from '../../node/claude/claudeAgent.js';
 import { ClaudeAgentSdkService, IClaudeAgentSdkService, IClaudeSdkBindings } from '../../node/claude/claudeAgentSdkService.js';
 import { IClaudeProxyHandle, IClaudeProxyService } from '../../node/claude/claudeProxyService.js';
+import { resolvePromptToContentBlocks } from '../../node/claude/claudePromptResolver.js';
 import { ICopilotApiService, type ICopilotApiServiceRequestOptions } from '../../node/shared/copilotApiService.js';
 import { AgentService } from '../../node/agentService.js';
 import { createNoopGitService, createNullSessionDataService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
@@ -1786,8 +1787,8 @@ suite('ClaudeAgent', () => {
 		const fileUri = URI.file('/work/src/foo.ts');
 		const dirUri = URI.file('/work/src/bar');
 		await agent.sendMessage(created.session, 'review please', [
-			{ type: AttachmentType.File, uri: fileUri, displayName: 'foo.ts' },
-			{ type: AttachmentType.Directory, uri: dirUri, displayName: 'bar' },
+			{ type: AgentAttachmentType.File, uri: fileUri, displayName: 'foo.ts' },
+			{ type: AgentAttachmentType.Directory, uri: dirUri, displayName: 'bar' },
 		], 'turn-1');
 
 		const drained = sdk.warmQueries[0]?.produced?.drainedPrompts ?? [];
@@ -1811,6 +1812,26 @@ suite('ClaudeAgent', () => {
 				'You should not respond to this context unless it is highly relevant to your task.\n' +
 				'</system-reminder>',
 		});
+	});
+
+	test('selection attachments become URI references with line suffixes', () => {
+		const fileUri = URI.file('/work/src/foo.ts');
+		const blocks = resolvePromptToContentBlocks('review please', [{
+			type: AgentAttachmentType.Selection,
+			uri: fileUri,
+			displayName: 'foo.ts',
+			selection: {
+				start: { line: 9, character: 1 },
+				end: { line: 11, character: 2 },
+			},
+		}]);
+
+		assert.strictEqual(blocks.length, 2);
+		assert.strictEqual(blocks[0].type, 'text');
+		assert.strictEqual(blocks[0].text, 'review please');
+		assert.strictEqual(blocks[1].type, 'text');
+		assert.ok(blocks[1].text.includes(`- ${fileUri.fsPath}:10`));
+		assert.ok(!blocks[1].text.includes('```'));
 	});
 
 	test('shutdown resolves without throwing', async () => {

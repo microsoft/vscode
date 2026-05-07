@@ -5,8 +5,7 @@
 
 import type Anthropic from '@anthropic-ai/sdk';
 import { URI } from '../../../../base/common/uri.js';
-import { IAgentAttachment } from '../../common/agentService.js';
-import { AttachmentType } from '../../common/state/sessionState.js';
+import { AgentAttachmentType, IAgentAttachment } from '../../common/agentService.js';
 
 /**
  * Build the {@link Anthropic.ContentBlockParam}[] payload for an
@@ -21,12 +20,8 @@ import { AttachmentType } from '../../common/state/sessionState.js';
  * images, inline range substitution) can port the existing branches
  * without restructuring.
  *
- * **Selection branch is dead-code in Phase 6** — `AgentSideEffects` strips
- * the `text` and `selection` fields from `IAgentAttachment` at the
- * protocol → agent boundary (`agentSideEffects.ts:699-703`, `:934-938`),
- * so the agent only ever sees `{ type, uri, displayName }`. The branch
- * exists for forward-compat; activating it requires a separate change
- * to the side-effects pipeline (out of Phase 6 scope).
+ * Selections are rendered as URI references with an optional line suffix.
+ * `IAgentAttachment` carries range metadata, but not inline selected text.
  */
 export function resolvePromptToContentBlocks(
 	prompt: string,
@@ -39,18 +34,13 @@ export function resolvePromptToContentBlocks(
 	const refLines: string[] = [];
 	for (const att of attachments) {
 		switch (att.type) {
-			case AttachmentType.File:
-			case AttachmentType.Directory:
+			case AgentAttachmentType.File:
+			case AgentAttachmentType.Directory:
 				refLines.push(`- ${uriToString(att.uri)}`);
 				break;
-			case AttachmentType.Selection: {
+			case AgentAttachmentType.Selection: {
 				const line = att.selection ? `:${att.selection.start.line + 1}` : '';
 				refLines.push(`- ${uriToString(att.uri)}${line}`);
-				if (att.text) {
-					refLines.push('```');
-					refLines.push(att.text);
-					refLines.push('```');
-				}
 				break;
 			}
 		}
