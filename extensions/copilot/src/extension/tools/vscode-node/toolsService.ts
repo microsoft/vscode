@@ -282,20 +282,20 @@ export class ToolsService extends BaseToolsService {
 					return false;
 				}
 
-				//for changed_files_tool, disable experimentally for gpt-5.5.
+				// For changed_files_tool, disable experimentally for gpt-5.5.
 				if (
 					tool.name === ToolName.GetScmChanges
 					&& isGpt55(endpoint)
-					&& !this._configurationService.getExperimentBasedConfig(ConfigKey.EnableGpt54And55GetChangedFilesTool, this._experimentationService)
+					&& !this._configurationService.getExperimentBasedConfig(ConfigKey.EnableGpt55GetChangedFilesTool, this._experimentationService)
 				) {
 					return false;
 				}
 
-				//for read_file_tool, disable experimentally for gpt-5.5.
+				// For read_file_tool, disable experimentally for gpt-5.5.
 				if (
 					tool.name === ToolName.ReadFile
 					&& isGpt55(endpoint)
-					&& !this._configurationService.getExperimentBasedConfig(ConfigKey.EnableGpt54And55ReadFileTool, this._experimentationService)
+					&& !this._configurationService.getExperimentBasedConfig(ConfigKey.EnableGpt55ReadFileTool, this._experimentationService)
 				) {
 					return false;
 				}
