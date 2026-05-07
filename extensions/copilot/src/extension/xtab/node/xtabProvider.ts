@@ -1648,6 +1648,7 @@ export function pickSystemPrompt(promptingStrategy: xtabPromptOptions.PromptingS
 		case xtabPromptOptions.PromptingStrategy.Xtab275:
 		case xtabPromptOptions.PromptingStrategy.XtabAggressiveness:
 		case xtabPromptOptions.PromptingStrategy.Xtab275Aggressiveness:
+		case xtabPromptOptions.PromptingStrategy.Xtab275AggrTagHL:
 		case xtabPromptOptions.PromptingStrategy.Xtab275EditIntent:
 		case xtabPromptOptions.PromptingStrategy.Xtab275EditIntentShort:
 			return xtab275SystemPrompt;
