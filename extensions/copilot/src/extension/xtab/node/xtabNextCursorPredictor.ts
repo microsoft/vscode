@@ -282,7 +282,9 @@ export class XtabNextCursorPredictor {
 		return DEFAULT_CURSOR_PREDICTION_LINT_OPTIONS;
 	}
 
-	public parseResponse(trimmed: string, keptRange: OffsetRange): Result<CursorJumpPrediction, Error> {
+	public parseResponse(rawResponse: string, keptRange: OffsetRange): Result<CursorJumpPrediction, Error> {
+		const trimmed = stripThinkTags(rawResponse);
+
 		// Try parsing as a plain line number (same-file jump)
 		const lineNumber = parseInt(trimmed, 10);
 		if (!isNaN(lineNumber) && String(lineNumber) === trimmed) {
@@ -319,5 +321,21 @@ export class XtabNextCursorPredictor {
 		}
 		return Result.ok({ kind: 'sameFile', lineNumber });
 	}
+}
+
+/**
+ * Strip a leading `<think>...</think>` reasoning block emitted by thinking
+ * models. Returns the input trimmed if there is no leading think block.
+ */
+export function stripThinkTags(text: string): string {
+	const leading = text.trimStart();
+	if (!leading.startsWith('<think>')) {
+		return text.trim();
+	}
+	const closeIdx = leading.indexOf('</think>');
+	if (closeIdx === -1) {
+		return text.trim();
+	}
+	return leading.substring(closeIdx + '</think>'.length).trim();
 }
 
