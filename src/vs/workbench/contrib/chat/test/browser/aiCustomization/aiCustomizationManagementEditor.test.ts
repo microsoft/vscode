@@ -9,6 +9,7 @@ import { IHoverService } from '../../../../../../platform/hover/browser/hover.js
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { AICustomizationManagementEditor } from '../../../browser/aiCustomization/aiCustomizationManagementEditor.js';
 import { BUILTIN_STORAGE } from '../../../browser/aiCustomization/aiCustomizationManagement.js';
+import { ChatConfiguration } from '../../../common/constants.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 
 suite('aiCustomizationManagementEditor', () => {
@@ -27,6 +28,7 @@ suite('aiCustomizationManagementEditor', () => {
 		configurationService: IConfigurationService;
 		getEditorModeButtonLabel(): string;
 		getEditorModeButtonTooltip(): string;
+		onMarkdownPreviewSettingChanged(): void;
 	};
 
 	function createConfigurationServiceStub(values: Record<string, unknown> = {}): IConfigurationService {
@@ -90,6 +92,37 @@ suite('aiCustomizationManagementEditor', () => {
 
 		assert.strictEqual(editor.getEditorModeButtonLabel(), 'View Raw');
 		assert.strictEqual(editor.getEditorModeButtonTooltip(), 'Show the raw markdown file');
+
+		editor.editorPreviewDisposables.dispose();
+	});
+
+	test('hides preview button when markdown preview setting is disabled', () => {
+		const editor = createTestEditor(undefined, createConfigurationServiceStub({
+			[ChatConfiguration.ChatCustomizationsMarkdownPreviewEnabled]: false,
+		}));
+		editor.currentEditingPromptType = PromptsType.agent;
+		editor.currentEditingStorage = BUILTIN_STORAGE;
+		editor.currentEditingReadOnly = false;
+		editor.editorDisplayMode = 'preview';
+
+		assert.strictEqual(editor.getEditorModeButtonLabel(), '');
+		assert.strictEqual(editor.getEditorModeButtonTooltip(), '');
+
+		editor.editorPreviewDisposables.dispose();
+	});
+
+	test('disabling the setting at runtime forces the editor back to raw mode', () => {
+		const configurationService = createConfigurationServiceStub() as IConfigurationService & { setValue(key: string, value: unknown): void };
+		const editor = createTestEditor(undefined, configurationService);
+		editor.viewMode = 'editor';
+		editor.currentEditingPromptType = PromptsType.agent;
+		editor.editorDisplayMode = 'preview';
+
+		configurationService.setValue(ChatConfiguration.ChatCustomizationsMarkdownPreviewEnabled, false);
+		editor.onMarkdownPreviewSettingChanged();
+
+		assert.strictEqual(editor.editorDisplayMode, 'raw');
+		assert.strictEqual(editor.getEditorModeButtonLabel(), '');
 
 		editor.editorPreviewDisposables.dispose();
 	});

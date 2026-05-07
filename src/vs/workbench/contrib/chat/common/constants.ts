@@ -66,6 +66,7 @@ export enum ChatConfiguration {
 	GrowthNotificationEnabled = 'chat.growthNotification.enabled',
 
 	ChatCustomizationHarnessSelectorEnabled = 'chat.customizations.harnessSelector.enabled',
+	ChatCustomizationsMarkdownPreviewEnabled = 'chat.customizations.markdownPreview.enabled',
 	UseChatSessionCustomizationsForCustomAgents = 'chat.customizations.useChatSessionCustomizationsForCustomAgents',
 	AutopilotEnabled = 'chat.autopilot.enabled',
 	DefaultPermissionLevel = 'chat.permissions.default',
