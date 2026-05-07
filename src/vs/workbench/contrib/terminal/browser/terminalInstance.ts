@@ -816,14 +816,23 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			() => this._isVisible,
 			() => xterm,
 			async (cols, rows) => {
+				if (this.isDisposed) {
+					return;
+				}
 				xterm.resize(cols, rows);
 				await this._updatePtyDimensions(xterm.raw);
 			},
 			async (cols) => {
+				if (this.isDisposed) {
+					return;
+				}
 				xterm.resize(cols, xterm.raw.rows);
 				await this._updatePtyDimensions(xterm.raw);
 			},
 			async (rows) => {
+				if (this.isDisposed) {
+					return;
+				}
 				xterm.resize(xterm.raw.cols, rows);
 				await this._updatePtyDimensions(xterm.raw);
 			}
@@ -2047,6 +2056,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	private async _updatePtyDimensions(rawXterm: XTermTerminal): Promise<void> {
+		if (this.isDisposed) {
+			return;
+		}
 		const pixelWidth = rawXterm.dimensions?.css.canvas.width;
 		const pixelHeight = rawXterm.dimensions?.css.canvas.height;
 		const roundedPixelWidth = pixelWidth ? Math.round(pixelWidth) : undefined;

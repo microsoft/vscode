@@ -154,7 +154,8 @@ export function byokKnownModelToAPIInfo(providerName: string, id: string, capabi
 		isUserSelectable: true,
 		capabilities: {
 			toolCalling: capabilities.toolCalling,
-			imageInput: capabilities.vision
+			imageInput: capabilities.vision,
+			editTools: capabilities.editTools,
 		},
 	};
 }

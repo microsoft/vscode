@@ -20,7 +20,8 @@ import { ChatInputPart, IChatInputPartOptions, IChatInputStyles } from '../../..
 import { IChatWidget, IChatWidgetService } from '../../../../contrib/chat/browser/chat.js';
 import { IChatService } from '../../../../contrib/chat/common/chatService/chatService.js';
 import { ChatToolInvocation } from '../../../../contrib/chat/common/model/chatProgressTypes/chatToolInvocation.js';
-import { IToolData, ToolDataSource } from '../../../../contrib/chat/common/tools/languageModelToolsService.js';
+import { ILanguageModelToolsService, IToolData, ToolDataSource } from '../../../../contrib/chat/common/tools/languageModelToolsService.js';
+import { IChatToolRiskAssessmentService, IToolRiskAssessment, ToolRiskLevel } from '../../../../contrib/chat/browser/tools/chatToolRiskAssessmentService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../../contrib/chat/common/constants.js';
@@ -30,18 +31,20 @@ import { FixtureMenuService, registerChatFixtureServices } from './chatFixtureUt
 
 import '../../../../contrib/chat/browser/widget/media/chat.css';
 
-interface IFixtureMessage {
+export interface IFixtureMessage {
 	readonly user: string; // user prompt text
 	readonly assistant?: ReadonlyArray<
 		| { kind: 'markdown'; text: string }
 		| { kind: 'progress'; text: string }
-		| { kind: 'terminalConfirmation'; command: string; title?: string }
+		| { kind: 'terminalConfirmation'; command: string; title?: string; riskAssessment?: { risk: ToolRiskLevel; explanation: string }; riskLoading?: boolean }
 	>;
 	readonly responseComplete?: boolean;
 }
 
-interface IChatWidgetFixtureOptions {
+export interface IChatWidgetFixtureOptions {
 	readonly messages: ReadonlyArray<IFixtureMessage>;
+	readonly width?: number;
+	readonly height?: number;
 }
 
 function makeUserMessage(text: string) {
@@ -51,10 +54,23 @@ function makeUserMessage(text: string) {
 	};
 }
 
-async function renderChatWidget(context: ComponentFixtureContext, options: IChatWidgetFixtureOptions): Promise<void> {
+export async function renderChatWidget(context: ComponentFixtureContext, options: IChatWidgetFixtureOptions): Promise<void> {
 	const { container, disposableStore } = context;
 
 	const widgetHolder: { current: IChatWidget | undefined } = { current: undefined };
+
+	const fixtureToolData: IToolData = {
+		id: 'fixture.terminalTool',
+		displayName: 'Terminal',
+		modelDescription: 'Run a command in the terminal',
+		source: ToolDataSource.Internal,
+	};
+
+	// Collect risk assessments from messages so the risk badge service can
+	// return them synchronously via getCached().
+	const hasRiskAssessment = options.messages.some(m => m.assistant?.some(p => p.kind === 'terminalConfirmation' && p.riskAssessment));
+	const hasRiskLoading = options.messages.some(m => m.assistant?.some(p => p.kind === 'terminalConfirmation' && p.riskLoading));
+	const needsRiskService = hasRiskAssessment || hasRiskLoading;
 
 	const instantiationService = createEditorServices(disposableStore, {
 		colorTheme: context.theme,
@@ -74,14 +90,39 @@ async function renderChatWidget(context: ComponentFixtureContext, options: IChat
 				override getWidgetsByLocations() { return []; }
 				override register() { return { dispose() { } }; }
 			}());
+
+			if (needsRiskService) {
+				reg.defineInstance(ILanguageModelToolsService, new class extends mock<ILanguageModelToolsService>() {
+					override onDidChangeTools = Event.None;
+					override onDidPrepareToolCallBecomeUnresponsive = Event.None;
+					override getTools() { return [fixtureToolData]; }
+					override getTool(id: string) { return id === fixtureToolData.id ? fixtureToolData : undefined; }
+				}());
+				reg.defineInstance(IChatToolRiskAssessmentService, new class extends mock<IChatToolRiskAssessmentService>() {
+					override isEnabled() { return true; }
+					override getCached() {
+						// Return the first risk assessment found in the fixture messages.
+						for (const m of options.messages) {
+							for (const p of m.assistant ?? []) {
+								if (p.kind === 'terminalConfirmation' && p.riskAssessment) {
+									return p.riskAssessment;
+								}
+							}
+						}
+						return undefined;
+					}
+					// For riskLoading: assess() never resolves, keeping the badge in loading state.
+					override async assess(): Promise<IToolRiskAssessment | undefined> { return new Promise(() => { }); }
+				}());
+			}
 		},
 	});
 
 	const configService = instantiationService.get(IConfigurationService) as TestConfigurationService;
-	await configService.setUserConfiguration('chat', {
+	configService.setUserConfiguration('chat', {
 		editor: { fontSize: 13, fontFamily: 'default', fontWeight: 'default', lineHeight: 0, wordWrap: 'off' },
 	});
-	await configService.setUserConfiguration('editor', { fontFamily: 'monospace', fontLigatures: false });
+	configService.setUserConfiguration('editor', { fontFamily: 'monospace', fontLigatures: false });
 	configService.setUserConfiguration(ChatConfiguration.ToolConfirmationCarousel, true);
 
 	// Build a real ChatModel populated with hand-crafted requests/responses, then drive a
@@ -93,13 +134,6 @@ async function renderChatWidget(context: ComponentFixtureContext, options: IChat
 		{ initialLocation: ChatAgentLocation.Chat, canUseTools: true }
 	));
 	chatService.addSession(model);
-
-	const fixtureToolData: IToolData = {
-		id: 'fixture.terminalTool',
-		displayName: 'Terminal',
-		modelDescription: 'Run a command in the terminal',
-		source: ToolDataSource.Internal,
-	};
 
 	for (const message of options.messages) {
 		const request = model.addRequest(makeUserMessage(message.user), { variables: [] }, 0);
@@ -137,8 +171,10 @@ async function renderChatWidget(context: ComponentFixtureContext, options: IChat
 
 	const viewModel = disposableStore.add(instantiationService.createInstance(ChatViewModel, model, undefined));
 
-	container.style.width = '720px';
-	container.style.height = '600px';
+	const width = options.width ?? 720;
+	const height = options.height ?? 600;
+	container.style.width = `${width}px`;
+	container.style.height = `${height}px`;
 	container.style.backgroundColor = 'var(--vscode-sideBar-background, var(--vscode-editor-background))';
 	container.classList.add('monaco-workbench');
 
@@ -198,9 +234,7 @@ async function renderChatWidget(context: ComponentFixtureContext, options: IChat
 	widgetHolder.current = fixtureWidget;
 
 	inputPart.render(session, '', fixtureWidget);
-	inputPart.layout(720);
-	await new Promise(r => setTimeout(r, 50));
-	inputPart.layout(720);
+	inputPart.layout(width);
 
 	const listContainer = dom.$('.interactive-list');
 	listContainer.style.flex = '1 1 auto';
@@ -231,11 +265,7 @@ async function renderChatWidget(context: ComponentFixtureContext, options: IChat
 	listWidget.refresh();
 
 	const listHeight = 420;
-	listWidget.layout(listHeight, 720);
-
-	// Allow the renderer to flush its async progressive rendering pass.
-	await new Promise(r => setTimeout(r, 100));
-	listWidget.layout(listHeight, 720);
+	listWidget.layout(listHeight, width);
 	listWidget.scrollTop = 0;
 }
 
@@ -252,7 +282,14 @@ const PENDING_TOOL_APPROVAL: IFixtureMessage[] = [
 	{
 		user: 'run git init',
 		assistant: [
-			{ kind: 'terminalConfirmation', command: 'git init' },
+			{
+				kind: 'terminalConfirmation',
+				command: 'git init',
+				riskAssessment: {
+					risk: ToolRiskLevel.Orange,
+					explanation: 'Initializes a new Git repository in the current directory. Reversible by removing the .git folder.',
+				},
+			},
 		],
 		responseComplete: false,
 	},

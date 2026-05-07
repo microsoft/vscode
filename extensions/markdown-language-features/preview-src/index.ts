@@ -332,6 +332,8 @@ function applyLineChanges(lineChanges: MarkdownPreviewLineChanges | undefined): 
 
 	markChangedLines(lineChanges?.added, 'code-line-diff-added');
 	markChangedLines(lineChanges?.deleted, 'code-line-diff-deleted');
+
+	applyInnerChangeHighlights(lineChanges);
 }
 
 function markChangedLines(lines: readonly number[] | undefined, className: string): void {
@@ -346,6 +348,48 @@ function markChangedLines(lines: readonly number[] | undefined, className: strin
 		if (element) {
 			element.classList.add('code-line-diff', className);
 		}
+	}
+}
+
+
+function applyInnerChangeHighlights(lineChanges: MarkdownPreviewLineChanges | undefined): void {
+	const diffHighlightAddedName = 'diff-inner-added';
+	const diffHighlightDeletedName = 'diff-inner-deleted';
+
+	// Clear previous highlights
+	CSS.highlights?.delete(diffHighlightAddedName);
+	CSS.highlights?.delete(diffHighlightDeletedName);
+
+	if (!lineChanges?.innerChanges?.length || !CSS.highlights) {
+		return;
+	}
+
+	const highlightName = lineChanges.added ? diffHighlightAddedName : diffHighlightDeletedName;
+	const ranges: Range[] = [];
+
+	// Find all marker pairs and create Range objects between them
+	const root = document.querySelector('.markdown-body');
+	if (!root) {
+		return;
+	}
+
+	let i = 0;
+	while (true) {
+		const startMarker = root.querySelector(`[data-diff-start="${i}"]`);
+		const endMarker = root.querySelector(`[data-diff-end="${i}"]`);
+		if (!startMarker || !endMarker) {
+			break;
+		}
+
+		const range = new Range();
+		range.setStartAfter(startMarker);
+		range.setEndBefore(endMarker);
+		ranges.push(range);
+		i++;
+	}
+
+	if (ranges.length > 0) {
+		CSS.highlights.set(highlightName, new Highlight(...ranges));
 	}
 }
 

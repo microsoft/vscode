@@ -11,8 +11,10 @@ import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
 import { IConfigurationService, type IConfigurationChangeEvent } from '../../../configuration/common/configuration.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
+import { ILabelService, type ResourceLabelFormatter } from '../../../label/common/label.js';
 import { RemoteAgentHostService } from '../../browser/remoteAgentHostServiceImpl.js';
 import { parseRemoteAgentHostInput, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, RemoteAgentHostsSettingId, entryToRawEntry, type IRawRemoteAgentHostEntry, type IRemoteAgentHostEntry } from '../../common/remoteAgentHostService.js';
+import { AGENT_HOST_SCHEME, agentHostAuthority } from '../../common/agentHostUri.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
 
 // ---- Mock protocol client ---------------------------------------------------
@@ -98,6 +100,7 @@ suite('RemoteAgentHostService', () => {
 	const disposables = new DisposableStore();
 	let configService: TestConfigurationService;
 	let createdClients: MockProtocolClient[];
+	let registeredFormatters: ResourceLabelFormatter[];
 	let service: RemoteAgentHostService;
 
 	setup(() => {
@@ -109,6 +112,18 @@ suite('RemoteAgentHostService', () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IConfigurationService, configService as Partial<IConfigurationService>);
+		registeredFormatters = [];
+		instantiationService.stub(ILabelService, {
+			registerFormatter(formatter: ResourceLabelFormatter) {
+				registeredFormatters.push(formatter);
+				return toDisposable(() => {
+					const idx = registeredFormatters.indexOf(formatter);
+					if (idx >= 0) {
+						registeredFormatters.splice(idx, 1);
+					}
+				});
+			},
+		} as Partial<ILabelService>);
 
 		// Mock the instantiation service to capture created protocol clients
 		const mockInstantiationService: Partial<IInstantiationService> = {
@@ -488,6 +503,49 @@ suite('RemoteAgentHostService', () => {
 			service.dispose();
 
 			assert.strictEqual(t.disposed(), true, 'transport disposable runs when service is disposed');
+		});
+	});
+
+	suite('host label formatter', () => {
+
+		function formatterFor(address: string): ResourceLabelFormatter | undefined {
+			const authority = agentHostAuthority(address);
+			return registeredFormatters.find(f => f.scheme === AGENT_HOST_SCHEME && f.authority === authority);
+		}
+
+		test('registers formatter when an entry is added', async () => {
+			configService.setEntries([{ name: 'Host 1', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'ws://host1:8080' } }]);
+
+			const formatter = formatterFor('host1:8080');
+			assert.ok(formatter, 'formatter is registered');
+			assert.strictEqual(formatter.formatting.workspaceSuffix, 'Host 1');
+		});
+
+		test('refreshes formatter when an entry name changes', async () => {
+			configService.setEntries([{ name: 'Host 1', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'ws://host1:8080' } }]);
+			configService.setEntries([{ name: 'Renamed', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'ws://host1:8080' } }]);
+
+			const matching = registeredFormatters.filter(f => f.authority === agentHostAuthority('host1:8080'));
+			assert.strictEqual(matching.length, 1, 'old formatter is replaced, not duplicated');
+			assert.strictEqual(matching[0].formatting.workspaceSuffix, 'Renamed');
+		});
+
+		test('removes formatter when an entry is removed', async () => {
+			configService.setEntries([{ name: 'Host 1', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'ws://host1:8080' } }]);
+			assert.ok(formatterFor('host1:8080'));
+
+			configService.setEntries([]);
+
+			assert.strictEqual(formatterFor('host1:8080'), undefined);
+		});
+
+		test('removes formatters when the service is disabled', async () => {
+			configService.setEntries([{ name: 'Host 1', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'ws://host1:8080' } }]);
+			assert.ok(formatterFor('host1:8080'));
+
+			configService.setEnabled(false);
+
+			assert.strictEqual(formatterFor('host1:8080'), undefined);
 		});
 	});
 });

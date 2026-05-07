@@ -210,6 +210,10 @@ export interface IMakeChatRequestOptions {
 	canRetryOnceWithoutRollback?: boolean;
 	/** Custom metadata to be displayed in the log document */
 	customMetadata?: Record<string, string | number | boolean | undefined>;
+	/** Top-level turn ID for credit accumulation. When set, copilot_usage costs
+	 *  are attributed to this ID instead of turnId. Used so that all LLM calls
+	 *  in a turn (including subagents) aggregate under one key. */
+	topLevelTurnId?: string;
 	/**
 	 * Override for the `X-Interaction-Type` header (and matching `requestKind`
 	 * telemetry value). When unset, the value is derived from {@link ChatLocation}

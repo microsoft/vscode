@@ -8,6 +8,7 @@
 import { defineFixture, defineFixtureGroup, defineFixtureVariants } from '@vscode/component-explorer';
 import { DisposableStore, DisposableTracker, IDisposable, IReference, setDisposableTracker, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
+import { ModifierKeyEmitter } from '../../../../base/browser/dom.js';
 // eslint-disable-next-line local/code-import-patterns
 import '../../../../../../build/vite/style.css';
 import '../../../browser/media/style.css';
@@ -59,6 +60,7 @@ import { TestTreeSitterLibraryService } from '../../../../editor/test/common/ser
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { TestAccessibilityService } from '../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { IActionViewItemService, NullActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
+import { IChatPhoneInputPresenter } from '../../../contrib/chat/browser/widget/input/chatPhoneInputPresenter.js';
 import { IMenuService } from '../../../../platform/actions/common/actions.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { TestClipboardService } from '../../../../platform/clipboard/test/common/testClipboardService.js';
@@ -444,6 +446,23 @@ export class FixtureLogService extends NullLogService {
 }
 
 /**
+ * `ModelService` for fixtures that disposes all owned text models when the
+ * service itself is disposed. This is safe because `TestInstantiationService`
+ * is the first item added to the fixture's `DisposableStore`, so it disposes
+ * last (LIFO) — after all widgets have already torn down.
+ */
+export class FixtureModelService extends ModelService {
+	override dispose(): void {
+		for (const model of this.getModels()) {
+			if (!model.isDisposed()) {
+				model.dispose();
+			}
+		}
+		super.dispose();
+	}
+}
+
+/**
  * `ITextModelService` for fixtures that resolves URIs against `IModelService`.
  * Models created via `createTextModel` (which uses `IModelService.createModel`)
  * are automatically resolvable. URIs without a backing model fail loudly so
@@ -523,7 +542,7 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 		define(IThemeService, TestThemeService);
 	}
 	define(ILogService, FixtureLogService);
-	define(IModelService, ModelService);
+	define(IModelService, FixtureModelService);
 	define(ICodeEditorService, TestCodeEditorService);
 	define(IContextKeyService, MockContextKeyService);
 	define(ICommandService, TestCommandService);
@@ -660,7 +679,16 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 		},
 	});
 
-	const instantiationService = disposables.add(new TestInstantiationService(services, true));
+	// Pass `_properDispose: true` so the underlying `InstantiationService`'s
+	// dispose runs, which disposes services it instantiated lazily from
+	// `SyncDescriptor`s (e.g. MenuService, ContextKeyService). Without this,
+	// production services with internal Disposables leak past the fixture.
+	//
+	// Don't add TestInstantiationService to disposables immediately — it must
+	// dispose runs, which disposes services it instantiated lazily from
+	// `SyncDescriptor`s (e.g. MenuService, ContextKeyService). Without this,
+	// production services with internal Disposables leak past the fixture.
+	const instantiationService = disposables.add(new TestInstantiationService(services, true, undefined, true));
 
 	disposables.add(toDisposable(() => {
 		for (const id of serviceIdentifiers) {
@@ -710,6 +738,18 @@ export function registerWorkbenchServices(registration: ServiceRegistration): vo
 
 	registration.define(IMenuService, TestMenuService);
 	registration.define(IActionViewItemService, NullActionViewItemService);
+
+	// No-op phone presenter so chat-input fixtures don't crash on
+	// `chatPhoneInputPresenter.enabled.get()`. The real impl is in
+	// `vs/sessions` and only attaches in the agents window — desktop
+	// fixtures see the no-op (`enabled === false`, sheet calls resolve
+	// immediately) which matches desktop runtime behavior.
+	registration.defineInstance(IChatPhoneInputPresenter, {
+		_serviceBrand: undefined,
+		enabled: constObservable(false),
+		showCombinedModeAndModelSheet: () => Promise.resolve(),
+		setImpl: () => ({ dispose: () => { } }),
+	});
 }
 
 
@@ -759,16 +799,39 @@ function resolveLabels(labels: ThemedFixtureGroupLabels | undefined): string[] {
 	return result;
 }
 
+export class DisposableStackStore implements IDisposable {
+	private readonly _items: IDisposable[] = [];
+	private _isDisposed = false;
+
+	add<T extends IDisposable>(item: T): T {
+		if (this._isDisposed) {
+			item.dispose();
+			console.warn('Adding to a disposed DisposableStackStore');
+		} else {
+			this._items.push(item);
+		}
+		return item;
+	}
+
+	dispose(): void {
+		this._isDisposed = true;
+		while (this._items.length > 0) {
+			this._items.pop()!.dispose();
+		}
+	}
+}
+
 export interface ComponentFixtureContext {
 	container: HTMLElement;
 	disposableStore: DisposableStore;
+	disposableStackStore: DisposableStackStore;
 	theme: ColorThemeData;
 }
 
 export interface ComponentFixtureOptions {
 	render: (context: ComponentFixtureContext) => void | Promise<void>;
 	labels?: ThemedFixtureGroupLabels;
-	virtualTime?: { enabled?: boolean; durationMs?: number };
+	virtualTime?: { enabled?: boolean; durationMs?: number; teardownDrainMs?: number };
 }
 
 type ThemedFixtures = ReturnType<typeof defineFixtureVariants>;
@@ -787,10 +850,6 @@ if (logOutsideTime) {
 
 let fixtureRenderCounter = 0;
 
-// See TODO in defineComponentFixture: leak errors detected during teardown are
-// stashed here and rethrown from the next fixture render.
-let pendingLeakErrorToThrow: Error | undefined;
-
 /**
  * Creates Dark and Light fixture variants from a single render function.
  * The render function receives a context with container and disposableStore.
@@ -805,60 +864,98 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 		displayMode: { type: 'component' },
 		background: theme === darkTheme ? 'dark' : 'light',
 		render: async (container: HTMLElement, context) => {
-			// TODO: component-explorer currently ignores errors thrown from the
-			// teardown disposable (where leak detection runs, after the screenshot).
-			// Until it surfaces those, we stash the leak error and rethrow it from
-			// the next fixture render so the failure still becomes visible.
-			const pendingLeakError = pendingLeakErrorToThrow;
-			pendingLeakErrorToThrow = undefined;
-			if (pendingLeakError) {
-				throw pendingLeakError;
-			}
-
 			const disposableStore = new DisposableStore();
 
 			// Do not enable virtual time in explorer ui, as multiple fixtures are rendered in parallel.
 			const virtualTimeEnabled = (options.virtualTime?.enabled ?? true) && context.host.kind !== 'explorer-ui';
-
 			// Detect disposable leaks the same way unit tests do (`ensureNoDisposablesAreLeakedInTestSuite`).
 			// The tracker is global and therefore unsafe when fixtures render in parallel,
 			// so it is only enabled outside the explorer UI (e.g. in screenshot/CI mode).
-			const leakDetectionEnabled = false && context.host.kind !== 'explorer-ui';
+			const leakDetectionEnabled = true && context.host.kind !== 'explorer-ui';
+			// Warm up the `ModifierKeyEmitter` singleton before the leak tracker
+			// starts so its long-lived `DisposableStore` (created on first
+			// `MenuEntryActionViewItem.render`) doesn't show up as a leak in
+			// the first fixture that uses a menu toolbar.
+			if (leakDetectionEnabled) {
+				ModifierKeyEmitter.getInstance();
+			}
 			const tracker = leakDetectionEnabled ? new DisposableTracker() : undefined;
 			if (tracker) {
 				setDisposableTracker(tracker);
 			}
 
-			const leakLabel = `${(options.labels ? resolveLabels(options.labels).join('/') : '<unlabeled>')}/${theme === darkTheme ? 'Dark' : 'Light'} (render#${fixtureRenderCounter + 1})`;
+			// Virtual time infrastructure lives across the whole fixture
+			// lifetime (render + dispose). This lets us advance virtual time
+			// during dispose to drain async cleanup work (e.g. `Promise.race`
+			// guards behind `timeout(1000)` that hold references until they
+			// settle) before the leak tracker checks for undisposed objects.
+			const clock = new VirtualClock(Date.now());
+			const p = new VirtualTimeProcessor(
+				clock,
+				drainMicrotasksEmbedding(realTimeApi),
+				realTimeApi,
+				{ defaultMaxEvents: 100 },
+			);
+			const virtualTimeApi = createVirtualTimeApi(clock, { fakeRequestAnimationFrame: true });
+			const teardownDrainMs = options.virtualTime?.teardownDrainMs ?? 1100;
 
-			context.addDisposable(toDisposable(() => {
-				disposableStore.dispose();
-				if (tracker) {
-					setDisposableTracker(null);
-					const result = tracker.computeLeakingDisposables();
-					if (result) {
-						console.error(result.details);
-						pendingLeakErrorToThrow = new Error(`[leak detected in previous fixture: ${leakLabel}] There are ${result.leaks.length} undisposed disposables!${result.details}`);
+			// Single async dispose orchestrates teardown order:
+			//   1. dispose user disposables (synchronous part)
+			//   2. drain virtual time (so timers scheduled during dispose
+			//      — like `Promise.race([..., timeout(1000)])` — settle and
+			//      release their captured references)
+			//   3. tear down virtual time (uninstall global API, dispose `p`)
+			//   4. stop tracker and check for leaks
+			// All on one disposable so the steps run in order.
+			context.addDisposable({
+				dispose: async () => {
+					// Re-push virtual time so any `setTimeout`/`setInterval`
+					// calls made by `dispose()` of fixture-owned objects
+					// land in `p` and can be drained below. Render unpushes
+					// virtual time when it completes (so screenshot capture
+					// etc. can use real timers), so we have to push again.
+					let teardownTimeApi: IDisposable | undefined;
+					if (virtualTimeEnabled) {
+						teardownTimeApi = pushGlobalTimeApi(virtualTimeApi);
 					}
-				}
-			}));
+
+					try {
+						disposableStore.dispose();
+					} catch (e) {
+						console.error(`[ComponentFixture] error disposing fixture: ${e instanceof Error ? e.stack : e}`);
+					}
+
+					if (virtualTimeEnabled) {
+						try {
+							await p.run({
+								until: untilTime(clock.now + teardownDrainMs),
+								maxEvents: 1000,
+								maxTraceDepth: 5,
+							});
+						} catch (e) {
+							console.error(`[ComponentFixture] error draining virtual time during teardown: ${e instanceof Error ? e.stack : e}`);
+						}
+					}
+
+					teardownTimeApi?.dispose();
+					p.dispose();
+
+					if (tracker) {
+						setDisposableTracker(null);
+						const result = tracker.computeLeakingDisposables();
+						if (result) {
+							throw new Error(`There are ${result.leaks.length} undisposed disposables!${result.details}`);
+						}
+					}
+				},
+			});
 
 			async function actualRender() {
-				const schedulerStore = disposableStore.add(new DisposableStore());
-				const clock = new VirtualClock(Date.now());
-				const p = schedulerStore.add(new VirtualTimeProcessor(
-					clock,
-					drainMicrotasksEmbedding(realTimeApi),
-					realTimeApi,
-					{ defaultMaxEvents: 100 },
-				));
-
 				await setupTheme(container, theme);
 
-				const virtualTimeApi = createVirtualTimeApi(clock, { fakeRequestAnimationFrame: true });
-
+				let renderTimeApi: IDisposable | undefined;
 				if (virtualTimeEnabled) {
-					schedulerStore.add(pushGlobalTimeApi(virtualTimeApi));
+					renderTimeApi = pushGlobalTimeApi(virtualTimeApi);
 
 					disposableStore.add(installFakeRunWhenIdle((_targetWindow, callback, _timeout?) => {
 						const stackTrace = new Error().stack;
@@ -882,7 +979,8 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 				}
 
 				try {
-					const result = options.render({ container, disposableStore, theme });
+					const disposableStackStore = disposableStore.add(new DisposableStackStore());
+					const result = options.render({ container, disposableStore, disposableStackStore, theme });
 
 					const p2 = virtualTimeEnabled
 						? p.run({
@@ -904,7 +1002,9 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 					}
 					throw e;
 				} finally {
-					schedulerStore.dispose();
+					// Unpush virtual time so the post-render flow (screenshot
+					// capture, stability checks, …) runs with real timers.
+					renderTimeApi?.dispose();
 				}
 			}
 
@@ -919,6 +1019,14 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 				// Trace-reset escapes virtual time so it actually fires.
 				afterMicrotaskClosure: cb => nextMacrotask(realTimeApi, cb),
 			});
+
+			const wantsTimeTrace = !!context.input && typeof context.input === 'object' && !!(context.input as Record<string, unknown>).outputTimeTrace;
+			if (wantsTimeTrace && virtualTimeEnabled && p.history.length > 0) {
+				const startTime = p.history[0].time;
+				const history = buildHistoryFromTasks(p.history, startTime);
+				return { output: renderSwimlanes(history) };
+			}
+			return undefined;
 		},
 	});
 

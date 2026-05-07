@@ -26,8 +26,6 @@ class TestEnvironmentService extends AbstractNativeEnvironmentService {
 			userDataDir,
 			homeDir: userDataDir,
 			tmpDir: userDataDir,
-			parentAppUserDataDir: undefined,
-			parentAppUserHomeDir: undefined
 		};
 		super(Object.create(null), paths, { _serviceBrand: undefined, ...product });
 	}

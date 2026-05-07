@@ -34,6 +34,7 @@ import { IBYOKStorageService } from './byokStorageService';
 export class AnthropicLMProvider extends AbstractLanguageModelChatProvider {
 
 	public static readonly providerName = 'Anthropic';
+	public static readonly providerId = this.providerName.toLowerCase();
 
 	constructor(
 		knownModels: BYOKKnownModels | undefined,
@@ -46,7 +47,7 @@ export class AnthropicLMProvider extends AbstractLanguageModelChatProvider {
 		@IOTelService private readonly _otelService: IOTelService,
 		@IToolDeferralService private readonly _toolDeferralService: IToolDeferralService,
 	) {
-		super(AnthropicLMProvider.providerName.toLowerCase(), AnthropicLMProvider.providerName, knownModels, byokStorageService, logService);
+		super(AnthropicLMProvider.providerId, AnthropicLMProvider.providerName, knownModels, byokStorageService, logService);
 
 	}
 
@@ -356,7 +357,7 @@ export class AnthropicLMProvider extends AbstractLanguageModelChatProvider {
 				// Record OTel metrics for this Anthropic LLM call
 				if (result.usage) {
 					const durationSec = (Date.now() - issuedTime) / 1000;
-					const metricAttrs = { operationName: GenAiOperationName.CHAT, providerName: 'anthropic', requestModel: model.id, responseModel: model.id };
+					const metricAttrs = { operationName: GenAiOperationName.CHAT, providerName: AnthropicLMProvider.providerId, requestModel: model.id, responseModel: model.id };
 					GenAiMetrics.recordOperationDuration(this._otelService, durationSec, metricAttrs);
 					if (result.usage.prompt_tokens) { GenAiMetrics.recordTokenUsage(this._otelService, result.usage.prompt_tokens, 'input', metricAttrs); }
 					if (result.usage.completion_tokens) { GenAiMetrics.recordTokenUsage(this._otelService, result.usage.completion_tokens, 'output', metricAttrs); }

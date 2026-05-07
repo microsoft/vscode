@@ -200,6 +200,7 @@ export function registerChatCodeBlockActions() {
 					presentation: 'codeBlock',
 					applyCodeBlockSuggestionId: undefined,
 					source: undefined,
+					sourceRequestId: undefined,
 				});
 			}
 		}
@@ -267,6 +268,7 @@ export function registerChatCodeBlockActions() {
 				presentation: 'codeBlock',
 				applyCodeBlockSuggestionId: undefined,
 				source: undefined,
+				sourceRequestId: undefined,
 			});
 		}
 
@@ -424,6 +426,7 @@ export function registerChatCodeBlockActions() {
 					presentation: 'codeBlock',
 					applyCodeBlockSuggestionId: undefined,
 					source: undefined,
+					sourceRequestId: undefined,
 				});
 			}
 		}

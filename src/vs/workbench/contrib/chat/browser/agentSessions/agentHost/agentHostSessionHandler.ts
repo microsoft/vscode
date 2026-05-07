@@ -12,16 +12,20 @@ import { Disposable, DisposableResourceMap, DisposableStore, IReference, Mutable
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { autorun, autorunPerKeyedItem, derived, IObservable, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { extUriBiasedIgnorePathCase, isEqual } from '../../../../../../base/common/resources.js';
+import { Mutable } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { isLocation, type Location } from '../../../../../../editor/common/languages.js';
+import { IPosition } from '../../../../../../editor/common/core/position.js';
 import { localize } from '../../../../../../nls.js';
 import { AgentProvider, AgentSession, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { IAgentSubscription, observableFromSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { SessionTruncatedAction } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
+import { CompletionItemKind as AhpCompletionItemKind, type CompletionItem as AhpCompletionItem } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ConfirmationOptionKind, CustomizationRef, TerminalClaimKind, ToolResultContentType, type ConfirmationOption, type ProtectedResourceMetadata, type ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, SessionTurnStartedAction, type ClientSessionAction, type SessionAction, type SessionInputCompletedAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
-import { AttachmentType, buildSubagentSessionUri, getToolFileEdits, getToolSubagentContent, PendingMessageKind, ResponsePartKind, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, type ICompletedToolCall, type MarkdownResponsePart, type MessageAttachment, type ModelSelection, type ReasoningResponsePart, type RootState, type SessionInputAnswer, type SessionInputRequest, type SessionState, type ToolCallResponsePart, type ToolCallState, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildSubagentSessionUri, getToolFileEdits, getToolSubagentContent, MessageAttachmentKind, PendingMessageKind, ResponsePartKind, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, type ICompletedToolCall, type MarkdownResponsePart, type MessageAttachment, type ModelSelection, type ReasoningResponsePart, type RootState, type SessionInputAnswer, type SessionInputRequest, type SessionState, type ToolCallResponsePart, type ToolCallState, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -33,7 +37,8 @@ import { IAgentHostTerminalService } from '../../../../terminal/browser/agentHos
 import { ITerminalChatService } from '../../../../terminal/browser/terminal.js';
 import { IChatWidgetService } from '../../chat.js';
 import { ChatRequestQueueKind, ConfirmedReason, IChatProgress, IChatQuestion, IChatQuestionAnswers, IChatService, IChatToolInvocation, ToolConfirmKind, type IChatMultiSelectAnswer, type IChatQuestionAnswerValue, type IChatSingleSelectAnswer, type IChatTerminalToolInvocationData } from '../../../common/chatService/chatService.js';
-import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionRequestHistoryItem } from '../../../common/chatSessionsService.js';
+import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionRequestHistoryItem, type IChatInputCompletionItem, type IChatInputCompletionsParams, type IChatInputCompletionsResult } from '../../../common/chatSessionsService.js';
+import type { IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { getChatSessionType } from '../../../common/model/chatUri.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
 import { IChatEditingService } from '../../../common/editing/chatEditingService.js';
@@ -344,6 +349,26 @@ export function getAgentHostBranchNameHint(message: string): string | undefined 
 	return hint.length > 0 ? hint : undefined;
 }
 
+/**
+ * Converts a UTF-16 code-unit offset in `text` to a 1-based Monaco
+ * `IPosition`. Used to translate AHP completion-item ranges (which use
+ * offsets) into Monaco-style positions for the chat input.
+ */
+function offsetToPosition(text: string, offset: number): IPosition {
+	let lineNumber = 1;
+	let column = 1;
+	const limit = Math.min(offset, text.length);
+	for (let i = 0; i < limit; i++) {
+		if (text.charCodeAt(i) === 10 /* \n */) {
+			lineNumber++;
+			column = 1;
+		} else {
+			column++;
+		}
+	}
+	return { lineNumber, column };
+}
+
 export class AgentHostSessionHandler extends Disposable implements IChatSessionContentProvider {
 
 	private readonly _activeSessions = new ResourceMap<AgentHostChatSession>();
@@ -466,6 +491,63 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}
 
 		this._registerAgent();
+	}
+
+	async provideChatInputCompletions(sessionResource: URI, params: IChatInputCompletionsParams, token: CancellationToken): Promise<IChatInputCompletionsResult | undefined> {
+		const backendSession = this._resolveSessionUri(sessionResource);
+		// Note: we don't forward `token` across IPC \u2014 cancellation tokens
+		// don't round-trip through the proxy channel today. The post-await
+		// `isCancellationRequested` check below is enough to drop a stale
+		// result if the user kept typing while the request was in flight.
+		const result = await this._config.connection.completions({
+			kind: AhpCompletionItemKind.UserMessage,
+			session: backendSession.toString(),
+			text: params.text,
+			offset: params.offset,
+		});
+		if (token.isCancellationRequested) {
+			return undefined;
+		}
+		const items: IChatInputCompletionItem[] = [];
+		for (const raw of result.items) {
+			const mapped = this._toChatInputCompletionItem(raw, params.text);
+			if (mapped) {
+				items.push(mapped);
+			}
+		}
+		return { items };
+	}
+
+	provideChatInputCompletionTriggerCharacters(): Promise<readonly string[]> {
+		return this._config.connection.getCompletionTriggerCharacters();
+	}
+
+	private _toChatInputCompletionItem(raw: AhpCompletionItem, text: string): IChatInputCompletionItem | undefined {
+		const attachment = raw.attachment;
+		// Currently only resource attachments are surfaced as chat-input
+		// attachments; embedded resources and simple attachments will be
+		// added when the workbench grows first-class support for them.
+		if (attachment.type !== MessageAttachmentKind.Resource) {
+			return undefined;
+		}
+		const uri = typeof attachment.uri === 'string' ? URI.parse(attachment.uri) : URI.from(attachment.uri);
+		const item: Mutable<IChatInputCompletionItem> = {
+			insertText: raw.insertText,
+			attachment: {
+				kind: 'resource',
+				uri,
+				displayName: attachment.label,
+				isDirectory: attachment.displayKind === 'directory',
+				...(attachment._meta !== undefined && { _meta: attachment._meta }),
+			},
+		};
+		if (raw.rangeStart !== undefined) {
+			item.start = offsetToPosition(text, raw.rangeStart);
+		}
+		if (raw.rangeEnd !== undefined) {
+			item.end = offsetToPosition(text, raw.rangeEnd);
+		}
+		return item;
 	}
 
 	async provideChatSessionContent(sessionResource: URI, _token: CancellationToken): Promise<IChatSession> {
@@ -951,7 +1033,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 		const turnId = request.requestId;
 		this._clientDispatchedTurnIds.add(turnId);
-		const messageAttachments = this._convertVariablesToAttachments(request);
+		const messageAttachments = await this._convertVariablesToAttachments(request);
+		if (cancellationToken.isCancellationRequested) {
+			return;
+		}
 
 		// If the user selected a different model since the session was created
 		// (or since the last turn), dispatch a model change action first so the
@@ -2399,30 +2484,65 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	private _convertVariablesToAttachments(request: IChatAgentRequest): MessageAttachment[] {
 		const attachments: MessageAttachment[] = [];
 		for (const v of request.variables.variables) {
-			if (v.kind === 'file') {
-				const uri = v.value instanceof URI ? v.value : undefined;
-				if (uri?.scheme === 'file') {
-					const attachmentUri = this._rebaseAttachmentUri(uri, request.sessionResource);
-					attachments.push({ type: AttachmentType.File, uri: attachmentUri.toString(), displayName: v.name });
-				}
-			} else if (v.kind === 'directory') {
-				const uri = v.value instanceof URI ? v.value : undefined;
-				if (uri?.scheme === 'file') {
-					const attachmentUri = this._rebaseAttachmentUri(uri, request.sessionResource);
-					attachments.push({ type: AttachmentType.Directory, uri: attachmentUri.toString(), displayName: v.name });
-				}
-			} else if (v.kind === 'implicit' && v.isSelection) {
-				const uri = v.uri;
-				if (uri?.scheme === 'file') {
-					const attachmentUri = this._rebaseAttachmentUri(uri, request.sessionResource);
-					attachments.push({ type: AttachmentType.Selection, uri: attachmentUri.toString(), displayName: v.name });
-				}
+			const attachment = this._convertVariableToAttachment(v, request.sessionResource);
+			if (attachment) {
+				attachments.push(attachment);
 			}
 		}
 		if (attachments.length > 0) {
 			this._logService.trace(`[AgentHost] Converted ${attachments.length} attachments from ${request.variables.variables.length} variables`);
 		}
 		return attachments;
+	}
+
+	private _convertVariableToAttachment(v: IChatRequestVariableEntry, sessionResource: URI): MessageAttachment | undefined {
+		if ((v.kind === 'file' || (v.kind === 'implicit' && v.isSelection)) && isLocation(v.value)) {
+			return this._toSelectionAttachment(v.value, v.name, sessionResource, v._meta);
+		}
+		if (v.kind === 'file' && v.value instanceof URI) {
+			return this._toResourceAttachment(v.value, v.name, 'document', sessionResource, v._meta);
+		}
+		if (v.kind === 'directory' && v.value instanceof URI) {
+			return this._toResourceAttachment(v.value, v.name, 'directory', sessionResource, v._meta);
+		}
+		return undefined;
+	}
+
+	private _toResourceAttachment(uri: URI, label: string, displayKind: 'document' | 'directory', sessionResource: URI, _meta: Record<string, unknown> | undefined): MessageAttachment | undefined {
+		if (uri.scheme !== 'file') {
+			return undefined;
+		}
+		const attachmentUri = this._rebaseAttachmentUri(uri, sessionResource);
+		const attachment: MessageAttachment = { type: MessageAttachmentKind.Resource, uri: attachmentUri.toString(), label, displayKind };
+		if (_meta) {
+			attachment._meta = _meta;
+		}
+		return attachment;
+	}
+
+	private _toSelectionAttachment(location: Location, label: string, sessionResource: URI, _meta: Record<string, unknown> | undefined): MessageAttachment | undefined {
+		if (location.uri.scheme !== 'file') {
+			return undefined;
+		}
+		const attachmentUri = this._rebaseAttachmentUri(location.uri, sessionResource);
+		const attachment: MessageAttachment = {
+			type: MessageAttachmentKind.Resource,
+			uri: attachmentUri.toString(),
+			label,
+			displayKind: 'selection',
+			selection: { range: this._toTextRange(location.range) },
+		};
+		if (_meta) {
+			attachment._meta = _meta;
+		}
+		return attachment;
+	}
+
+	private _toTextRange(range: { startLineNumber: number; startColumn: number; endLineNumber: number; endColumn: number }) {
+		return {
+			start: { line: range.startLineNumber - 1, character: range.startColumn - 1 },
+			end: { line: range.endLineNumber - 1, character: range.endColumn - 1 },
+		};
 	}
 
 	/**

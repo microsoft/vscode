@@ -9,7 +9,7 @@ import type { ChatRequest, ChatResponseReferencePart, ChatResponseStream, ChatRe
 import { IAuthenticationService } from '../../../platform/authentication/common/authentication';
 import { IAuthenticationChatUpgradeService } from '../../../platform/authentication/common/authenticationUpgrade';
 import { IChatHookService, UserPromptSubmitHookInput, UserPromptSubmitHookOutput } from '../../../platform/chat/common/chatHookService';
-import { CanceledResult, ChatFetchResponseType, ChatLocation, ChatResponse, getErrorDetailsFromChatFetchError } from '../../../platform/chat/common/commonTypes';
+import { CanceledResult, ChatFetchError, ChatFetchResponseType, ChatLocation, ChatResponse, getErrorDetailsFromChatFetchError } from '../../../platform/chat/common/commonTypes';
 import { IConversationOptions } from '../../../platform/chat/common/conversationOptions';
 import { ISessionTranscriptService } from '../../../platform/chat/common/sessionTranscriptService';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
@@ -484,6 +484,11 @@ export class DefaultIntentRequestHandler {
 		return {};
 	}
 
+	private async getErrorDetails(error: ChatFetchError) {
+		const status = await this._octoKitService.getGitHubOutageStatus();
+		return getErrorDetailsFromChatFetchError(error, this._authenticationService.copilotToken?.copilotPlan, status);
+	}
+
 	private async processResult(fetchResult: ChatResponse, responseMessage: string, chatResult: ChatResult | void, metadataFragment: Partial<IResultMetadata>, baseModelTelemetry: ConversationalBaseTelemetryData, rounds: IToolCallRound[]): Promise<ChatResult> {
 		switch (fetchResult.type) {
 			case ChatFetchResponseType.Success:
@@ -491,16 +496,14 @@ export class DefaultIntentRequestHandler {
 			case ChatFetchResponseType.OffTopic:
 				return this.processOffTopicFetchResult(baseModelTelemetry);
 			case ChatFetchResponseType.Canceled: {
-				const outageStatus = await this._octoKitService.getGitHubOutageStatus();
-				const errorDetails = getErrorDetailsFromChatFetchError(fetchResult, (await this._authenticationService.getCopilotToken()).copilotPlan, outageStatus);
+				const errorDetails = await this.getErrorDetails(fetchResult);
 				const chatResult = { errorDetails, metadata: metadataFragment };
 				this.turn.setResponse(TurnStatus.Cancelled, { message: errorDetails.message, type: 'user' }, baseModelTelemetry.properties.messageId, chatResult);
 				return chatResult;
 			}
 			case ChatFetchResponseType.QuotaExceeded:
 			case ChatFetchResponseType.RateLimited: {
-				const outageStatus = await this._octoKitService.getGitHubOutageStatus();
-				const errorDetails = getErrorDetailsFromChatFetchError(fetchResult, (await this._authenticationService.getCopilotToken()).copilotPlan, outageStatus);
+				const errorDetails = await this.getErrorDetails(fetchResult);
 				if (fetchResult.type === ChatFetchResponseType.RateLimited
 					&& fetchResult.capiError?.code?.startsWith('user_model_rate_limited')
 					&& !fetchResult.isAuto) {
@@ -520,22 +523,19 @@ export class DefaultIntentRequestHandler {
 			case ChatFetchResponseType.BadRequest:
 			case ChatFetchResponseType.NetworkError:
 			case ChatFetchResponseType.Failed: {
-				const outageStatus = await this._octoKitService.getGitHubOutageStatus();
-				const errorDetails = getErrorDetailsFromChatFetchError(fetchResult, (await this._authenticationService.getCopilotToken()).copilotPlan, outageStatus);
+				const errorDetails = await this.getErrorDetails(fetchResult);
 				const chatResult = { errorDetails, metadata: metadataFragment };
 				this.turn.setResponse(TurnStatus.Error, { message: errorDetails.message, type: 'server' }, baseModelTelemetry.properties.messageId, chatResult);
 				return chatResult;
 			}
 			case ChatFetchResponseType.Filtered: {
-				const outageStatus = await this._octoKitService.getGitHubOutageStatus();
-				const errorDetails = getErrorDetailsFromChatFetchError(fetchResult, (await this._authenticationService.getCopilotToken()).copilotPlan, outageStatus);
+				const errorDetails = await this.getErrorDetails(fetchResult);
 				const chatResult = { errorDetails, metadata: { ...metadataFragment, filterReason: fetchResult.category } };
 				this.turn.setResponse(TurnStatus.Filtered, undefined, baseModelTelemetry.properties.messageId, chatResult);
 				return chatResult;
 			}
 			case ChatFetchResponseType.PromptFiltered: {
-				const outageStatus = await this._octoKitService.getGitHubOutageStatus();
-				const errorDetails = getErrorDetailsFromChatFetchError(fetchResult, (await this._authenticationService.getCopilotToken()).copilotPlan, outageStatus);
+				const errorDetails = await this.getErrorDetails(fetchResult);
 				const chatResult = { errorDetails, metadata: { ...metadataFragment, filterReason: FilterReason.Prompt } };
 				this.turn.setResponse(TurnStatus.PromptFiltered, undefined, baseModelTelemetry.properties.messageId, chatResult);
 				return chatResult;
@@ -546,30 +546,26 @@ export class DefaultIntentRequestHandler {
 				return chatResult;
 			}
 			case ChatFetchResponseType.AgentFailedDependency: {
-				const outageStatus = await this._octoKitService.getGitHubOutageStatus();
-				const errorDetails = getErrorDetailsFromChatFetchError(fetchResult, (await this._authenticationService.getCopilotToken()).copilotPlan, outageStatus);
+				const errorDetails = await this.getErrorDetails(fetchResult);
 				const chatResult = { errorDetails, metadata: metadataFragment };
 				this.turn.setResponse(TurnStatus.Error, undefined, baseModelTelemetry.properties.messageId, chatResult);
 				return chatResult;
 			}
 			case ChatFetchResponseType.Length: {
-				const outageStatus = await this._octoKitService.getGitHubOutageStatus();
-				const errorDetails = getErrorDetailsFromChatFetchError(fetchResult, (await this._authenticationService.getCopilotToken()).copilotPlan, outageStatus);
+				const errorDetails = await this.getErrorDetails(fetchResult);
 				const chatResult = { errorDetails, metadata: metadataFragment };
 				this.turn.setResponse(TurnStatus.Error, undefined, baseModelTelemetry.properties.messageId, chatResult);
 				return chatResult;
 			}
 			case ChatFetchResponseType.NotFound: // before we had `NotFound`, it would fall into Unknown, so behavior should be consistent
 			case ChatFetchResponseType.Unknown: {
-				const outageStatus = await this._octoKitService.getGitHubOutageStatus();
-				const errorDetails = getErrorDetailsFromChatFetchError(fetchResult, (await this._authenticationService.getCopilotToken()).copilotPlan, outageStatus);
+				const errorDetails = await this.getErrorDetails(fetchResult);
 				const chatResult = { errorDetails, metadata: metadataFragment };
 				this.turn.setResponse(TurnStatus.Error, undefined, baseModelTelemetry.properties.messageId, chatResult);
 				return chatResult;
 			}
 			case ChatFetchResponseType.ExtensionBlocked: {
-				const outageStatus = await this._octoKitService.getGitHubOutageStatus();
-				const errorDetails = getErrorDetailsFromChatFetchError(fetchResult, (await this._authenticationService.getCopilotToken()).copilotPlan, outageStatus);
+				const errorDetails = await this.getErrorDetails(fetchResult);
 				const chatResult = { errorDetails, metadata: metadataFragment };
 				// This shouldn't happen, only 3rd party extensions should be blocked
 				this.turn.setResponse(TurnStatus.Error, undefined, baseModelTelemetry.properties.messageId, chatResult);
