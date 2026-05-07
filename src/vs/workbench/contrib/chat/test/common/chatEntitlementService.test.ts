@@ -85,6 +85,7 @@ suite('parseQuotas', () => {
 		});
 
 		const quotas = parseQuotas(data);
+		assert.strictEqual(quotas.usageBasedBilling, true);
 		assert.strictEqual(quotas.chat?.usageBasedBilling, true);
 		assert.strictEqual(quotas.completions?.usageBasedBilling, true);
 		assert.strictEqual(quotas.premiumChat?.usageBasedBilling, true);

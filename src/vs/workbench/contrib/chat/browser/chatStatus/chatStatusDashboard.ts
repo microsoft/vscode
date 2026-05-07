@@ -162,7 +162,7 @@ export class ChatStatusDashboard extends DomWidget {
 
 			const actionBarElement = header.lastElementChild;
 			const initialAdditionalUsageEnabled = this.chatEntitlementService.quotas.additionalUsageEnabled ?? false;
-			const initialIsUsageBasedBilling = this.chatEntitlementService.quotas.premiumChat?.usageBasedBilling === true;
+			const initialIsUsageBasedBilling = this.chatEntitlementService.quotas.usageBasedBilling === true;
 
 			if (canConfigureAdditionalSpend) {
 				headerAdditionalSpendButton = this._store.add(new Button(header, { ...defaultButtonStyles, hoverDelegate: nativeHoverDelegate, secondary: true }));
@@ -203,7 +203,7 @@ export class ChatStatusDashboard extends DomWidget {
 		// Premium chat included indicator (shown when premium chat is unlimited)
 		const hasPremiumUnlimited = !!premiumChat?.unlimited;
 		if (hasPremiumUnlimited) {
-			const includedTitle = premiumChat!.usageBasedBilling
+			const includedTitle = this.chatEntitlementService.quotas.usageBasedBilling
 				? localize('includedTitleTBB', "Monthly Limit")
 				: localize('includedTitle', "Premium Requests");
 			const includedContainer = this.element.appendChild($('div.quota-indicator.included'));
@@ -242,22 +242,23 @@ export class ChatStatusDashboard extends DomWidget {
 			}
 
 			let chatQuotaIndicator: ((quota: IQuotaSnapshot | string) => void) | undefined;
-			if (chatQuota && !chatQuota.unlimited && !premiumChatQuota?.usageBasedBilling) {
+			if (chatQuota && !chatQuota.unlimited && !this.chatEntitlementService.quotas.usageBasedBilling) {
 				chatQuotaIndicator = this.createQuotaIndicator(container, chatQuota, localize('chatsLabel', "Chat messages"), resetLabel);
 			}
 
 			let premiumChatQuotaIndicator: ((quota: IQuotaSnapshot | string) => void) | undefined;
 			if (premiumChatQuota && !premiumChatQuota.unlimited && premiumChatQuota.percentRemaining >= 0) {
-				const premiumChatLabel = premiumChatQuota.usageBasedBilling
+				const isUBB = this.chatEntitlementService.quotas.usageBasedBilling;
+				const premiumChatLabel = isUBB
 					? localize('monthlyLimitLabel', "Monthly Limit")
 					: this.chatEntitlementService.quotas.additionalUsageEnabled ? localize('includedPremiumChatsLabel', "Included premium requests") : localize('premiumChatsLabel', "Premium requests");
-				const premiumChatResetLabel = premiumChatQuota.usageBasedBilling ? this.formatResetAtLabel(premiumChatQuota.resetAt) ?? resetLabel : resetLabel;
+				const premiumChatResetLabel = isUBB ? this.formatResetAtLabel(premiumChatQuota.resetAt) ?? resetLabel : resetLabel;
 				premiumChatQuotaIndicator = this.createQuotaIndicator(container, premiumChatQuota, premiumChatLabel, premiumChatResetLabel);
 			}
 
 			let completionsQuotaIndicator: ((quota: IQuotaSnapshot | string) => void) | undefined;
 			const showCompletions = completionsQuota && !completionsQuota.unlimited && completionsQuota.percentRemaining >= 0
-				&& (!premiumChatQuota?.usageBasedBilling || this.chatEntitlementService.entitlement === ChatEntitlement.Free);
+				&& (!this.chatEntitlementService.quotas.usageBasedBilling || this.chatEntitlementService.entitlement === ChatEntitlement.Free);
 			if (showCompletions) {
 				completionsQuotaIndicator = this.createQuotaIndicator(container, completionsQuota, localize('completionsLabel', "Inline Suggestions"), resetLabel);
 			}
@@ -283,7 +284,7 @@ export class ChatStatusDashboard extends DomWidget {
 				const { calloutVisible, additionalUsageEnabled: isAdditionalUsageEnabled } = globalCalloutUpdater();
 				if (headerAdditionalSpendButton) {
 					headerAdditionalSpendButton.element.style.display = calloutVisible ? '' : 'none';
-					const isUBB = this.chatEntitlementService.quotas.premiumChat?.usageBasedBilling === true;
+					const isUBB = this.chatEntitlementService.quotas.usageBasedBilling === true;
 					if (isUBB) {
 						headerAdditionalSpendButton.label = isAdditionalUsageEnabled ? localize('manageAdditionalSpend', "Manage Additional Spend") : localize('configureAdditionalSpend', "Configure Additional Spend");
 					} else {
@@ -764,7 +765,7 @@ export class ChatStatusDashboard extends DomWidget {
 			const additionalUsageEnabled = quotas.additionalUsageEnabled ?? false;
 			const additionalUsageActive = additionalUsageEnabled && (quotas.additionalUsageCount ?? 0) > 0;
 			const isEnterpriseUser = this.chatEntitlementService.entitlement === ChatEntitlement.Enterprise || this.chatEntitlementService.entitlement === ChatEntitlement.Business;
-			const isUsageBasedBilling = quotas.premiumChat?.usageBasedBilling === true;
+			const isUsageBasedBilling = quotas.usageBasedBilling === true;
 
 			const allQuotas: IQuotaSnapshot[] = [];
 			if (quotas.chat && !quotas.chat.unlimited) { allQuotas.push(quotas.chat); }

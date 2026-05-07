@@ -28,6 +28,7 @@ function createEntitlementService(opts: {
 	chat?: IQuotaConfig;
 	completions?: IQuotaConfig;
 	premiumChat?: IQuotaConfig;
+	usageBasedBilling?: boolean;
 	additionalUsageEnabled?: boolean;
 	additionalUsageCount?: number;
 	entitlement?: ChatEntitlement;
@@ -44,6 +45,7 @@ function createEntitlementService(opts: {
 			chat: opts.chat,
 			completions: opts.completions,
 			premiumChat: opts.premiumChat,
+			usageBasedBilling: opts.usageBasedBilling ?? opts.premiumChat?.usageBasedBilling,
 			additionalUsageEnabled: opts.additionalUsageEnabled,
 			additionalUsageCount: opts.additionalUsageCount,
 		},
