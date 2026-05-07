@@ -295,6 +295,7 @@ export class ChatDebugOverviewView extends Disposable {
 		const totalOutputTokens = modelTurns.reduce((sum, e) => sum + (e.outputTokens ?? 0), 0);
 		const totalCachedTokens = modelTurns.reduce((sum, e) => sum + (e.cachedTokens ?? 0), 0);
 		const totalTokens = modelTurns.reduce((sum, e) => sum + (e.totalTokens ?? 0), 0);
+		const totalCopilotUsageNanoAiu = modelTurns.reduce((sum, e) => sum + (e.copilotUsageNanoAiu ?? 0), 0);
 
 		interface OverviewMetric { label: string; value: string }
 		const metrics: OverviewMetric[] = [
@@ -306,6 +307,11 @@ export class ChatDebugOverviewView extends Disposable {
 			{ label: localize('chatDebug.metric.totalTokens', "Total Tokens"), value: fmt.format(totalTokens) },
 			{ label: localize('chatDebug.metric.errors', "Errors"), value: fmt.format(errors.length) },
 		];
+
+		if (totalCopilotUsageNanoAiu > 0) {
+			const aic = totalCopilotUsageNanoAiu / 1_000_000_000;
+			metrics.push({ label: localize('chatDebug.metric.copilotUsage', "Copilot Usage (AIC)"), value: aic.toFixed(2) });
+		}
 
 		for (const metric of metrics) {
 			const card = DOM.append(container, $('.chat-debug-overview-metric-card'));
