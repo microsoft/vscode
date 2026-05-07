@@ -611,7 +611,7 @@ export class BackgroundTodoProcessor {
 				tools: normalizedTools,
 			},
 			userInitiatedRequest: false,
-			requestKindOptions: { kind: 'background' },
+			interactionTypeOverride: 'conversation-background',
 			telemetryProperties: associatedRequestId ? { associatedRequestId } : undefined,
 		}, token);
 
@@ -759,7 +759,6 @@ const CONTEXT_TOOLS: ReadonlySet<string> = new Set([
 	ToolName.SearchWorkspaceSymbols,
 	ToolName.GetNotebookSummary,
 	ToolName.ReadCellOutput,
-	ToolName.SearchViewResults,
 	ToolName.GithubSemanticRepoSearch,
 	ToolName.GithubTextSearch,
 	// Browser read-only

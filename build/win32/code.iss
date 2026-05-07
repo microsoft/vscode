@@ -1718,6 +1718,32 @@ begin
     Result := False;
 end;
 
+// Unblock inno_updater --gc when our context-menu COM surrogate keeps a
+// handle on the orphan commit folder. See https://github.com/microsoft/vscode/issues/294546.
+// No-op when FileExplorerContextMenuCLSID is not defined (e.g. OSS builds).
+procedure KillContextMenuComSurrogate();
+var
+  KillErrorCode: Integer;
+  Command: String;
+begin
+#ifdef FileExplorerContextMenuCLSID
+  Log('KillContextMenuComSurrogate: stopping COM surrogate(s) hosting context-menu DLL ({#FileExplorerContextMenuCLSID})');
+
+  Command :=
+    '-NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -Command "' +
+    'Get-CimInstance Win32_Process -Filter ""Name = ''dllhost.exe''"" | ' +
+    'Where-Object { $_.CommandLine -like ''*/Processid:{#FileExplorerContextMenuCLSID}*'' } | ' +
+    'ForEach-Object { try { Stop-Process -Id $_.ProcessId -Force -ErrorAction Stop } catch {} }"';
+
+  if not ShellExec('', 'powershell.exe', Command, '', SW_HIDE, ewWaitUntilTerminated, KillErrorCode) then
+    Log('KillContextMenuComSurrogate: ShellExec failed with error code ' + IntToStr(KillErrorCode))
+  else if KillErrorCode <> 0 then
+    Log('KillContextMenuComSurrogate: PowerShell exited with non-zero code ' + IntToStr(KillErrorCode))
+  else
+    Log('KillContextMenuComSurrogate: complete');
+#endif
+end;
+
 #ifdef AppxPackageName
 var
   AppxPackageFullname: String;
@@ -1776,6 +1802,7 @@ procedure RemoveAppxPackage();
 var
   RemoveAppxPackageResultCode: Integer;
 begin
+  KillContextMenuComSurrogate();
   // Remove the old context menu package
   // Following condition can be removed in v1.111.
   if QualityIsInsiders() and not SessionEndFileExists() and AppxPackageInstalled('Microsoft.VSCodeInsiders', RemoveAppxPackageResultCode) then begin
@@ -1860,6 +1887,7 @@ begin
         Log('inno_updater completed successfully');
         #if "system" == InstallTarget
           if IsVersionedUpdate() then begin
+            KillContextMenuComSurrogate();
             Log('Invoking inno_updater to remove previous installation folder');
             Exec(ExpandConstant('{app}\{#VersionedResourcesFolder}\tools\inno_updater.exe'), ExpandConstant('"--gc" "{app}\{#ExeBasename}.exe" "{#VersionedResourcesFolder}" "{#ExeBasename}.exe"' {#ifdef ProxyExeBasename} + ' "{#ProxyExeBasename}.exe"' {#endif}), '', SW_SHOW, ewWaitUntilTerminated, UpdateResultCode);
             Log('inno_updater completed gc successfully');
@@ -1870,6 +1898,7 @@ begin
       end;
     end else begin
       if IsVersionedUpdate() then begin
+        KillContextMenuComSurrogate();
         Log('Invoking inno_updater to remove previous installation folder');
         Exec(ExpandConstant('{app}\{#VersionedResourcesFolder}\tools\inno_updater.exe'), ExpandConstant('"--gc" "{app}\{#ExeBasename}.exe" "{#VersionedResourcesFolder}" "{#ExeBasename}.exe"' {#ifdef ProxyExeBasename} + ' "{#ProxyExeBasename}.exe"' {#endif}), '', SW_SHOW, ewWaitUntilTerminated, UpdateResultCode);
         Log('inno_updater completed gc successfully');

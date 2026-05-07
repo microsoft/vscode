@@ -43,6 +43,8 @@ export interface IExecutionSubagentToolCallingLoopOptions extends IToolCallingLo
 	parentHeaderRequestId?: string;
 	/** The modelCallId from the parent agent's model call that triggered this subagent invocation. */
 	parentModelCallId?: string;
+	/** The top-level turn ID for aggregating credits across subagent calls. */
+	topLevelTurnId?: string;
 }
 
 /** A terminal command that is no longer being awaited by the subagent — either
@@ -354,6 +356,9 @@ export class ExecutionSubagentToolCallingLoop extends ToolCallingLoop<IExecution
 			},
 			// This loop is inside a tool called from another request, so never user initiated
 			userInitiatedRequest: false,
+			interactionTypeOverride: 'conversation-subagent',
+			turnId: this.options.request.id,
+			topLevelTurnId: this.options.topLevelTurnId,
 			telemetryProperties: {
 				requestId: this.options.subAgentInvocationId,
 				messageId: randomUUID(),
