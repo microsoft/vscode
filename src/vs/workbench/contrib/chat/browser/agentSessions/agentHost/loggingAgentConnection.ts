@@ -111,7 +111,13 @@ export class LoggingAgentConnection extends Disposable implements IAgentConnecti
 	 * onDidChange logger per inner subscription and dispose it when the last
 	 * wrapper goes away.
 	 */
-	private static readonly _subscriptionLoggers = new WeakMap<IAgentSubscription<unknown>, { refCount: number; store: DisposableStore }>();
+	private static readonly _subscriptionLoggers = new WeakMap<object, { refCount: number; store: DisposableStore }>();
+
+	private static readonly _kindNames: Record<StateComponents, string> = {
+		[StateComponents.Root]: 'root',
+		[StateComponents.Session]: 'session',
+		[StateComponents.Terminal]: 'terminal',
+	};
 
 	private _outputChannel: IOutputChannel | undefined;
 	private readonly _enabled: boolean;
@@ -225,12 +231,13 @@ export class LoggingAgentConnection extends Disposable implements IAgentConnecti
 		if (!this._enabled) {
 			return innerRef;
 		}
-		this._log('>>', 'subscribe', { kind, resource });
+		const kindName = LoggingAgentConnection._kindNames[kind];
+		this._log('>>', 'subscribe', { kind: kindName, resource });
 		const sub = innerRef.object;
 		let entry = LoggingAgentConnection._subscriptionLoggers.get(sub);
 		if (!entry) {
 			const store = new DisposableStore();
-			const label = `${kind}(${resource.toString()})`;
+			const label = `${kindName}(${resource.toString()})`;
 			if (sub.value !== undefined) {
 				this._log('**', `${label}.current`, sub.value);
 			}
@@ -247,7 +254,7 @@ export class LoggingAgentConnection extends Disposable implements IAgentConnecti
 					return;
 				}
 				disposed = true;
-				this._log('>>', 'unsubscribe', { kind, resource });
+				this._log('>>', 'unsubscribe', { kind: kindName, resource });
 				const e = LoggingAgentConnection._subscriptionLoggers.get(sub);
 				if (e) {
 					e.refCount--;
