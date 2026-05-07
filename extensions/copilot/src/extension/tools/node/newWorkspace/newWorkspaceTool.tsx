@@ -40,13 +40,14 @@ export class GetNewWorkspaceTool implements ICopilotTool<INewWorkspaceToolParams
 	) { }
 
 	/**
-	 * A folder is treated as empty for workspace creation purposes if it contains
-	 * nothing other than a `.git` entry, so that newly cloned/initialized repos
-	 * can still be used as a target for scaffolding.
+	 * A folder is treated as empty for workspace creation purposes if every
+	 * top-level entry name starts with `.` (e.g. `.git`, `.gitignore`, `.vscode`,
+	 * `.editorconfig`), so that newly cloned/initialized repos and folders that
+	 * only contain dotfile config can still be used as a target for scaffolding.
 	 */
 	private async _isEffectivelyEmpty(folder: Uri): Promise<boolean> {
 		const entries = await this.fileSystemService.readDirectory(folder);
-		return entries.every(([name]) => name === '.git');
+		return entries.every(([name]) => name.startsWith('.'));
 	}
 
 	async prepareInvocation?(options: LanguageModelToolInvocationPrepareOptions<INewWorkspaceToolParams>, token: CancellationToken): Promise<PreparedToolInvocation> {
