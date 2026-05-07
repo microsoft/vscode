@@ -242,6 +242,7 @@ export interface IProductConfiguration {
 	readonly onboardingThemes?: readonly IProductOnboardingTheme[];
 
 	readonly tsCodeAuthMockEnabled?: boolean; // test-workbench_change
+	readonly defaultColorTheme?: string; // test-workbench_change
 
 	readonly embedded?: IEmbeddedProductConfiguration;
 

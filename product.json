@@ -297,9 +297,10 @@
 		"GitHub.copilot-chat"
 	],
 	"tsCodeAuthMockEnabled": false,
-	"gitVersion": "v1.0.2",
-	"commit": "b1f385d56d690093118364feacd501eae5b38501",
-	"date": "2026-05-01T23:17:53+08:00",
+	"defaultColorTheme": "Light 2026",
+	"gitVersion": "v1.0.3",
+	"commit": "d8eeaba475370bcd2d9f5ba65690ab5691bd270a",
+	"date": "2026-05-06T17:35:16+08:00",
 	"extensionsGallery": {
 		"serviceUrl": "https://tscode-vsx-registry.paasuat.cmbchina.cn/vscode/gallery",
 		"itemUrl": "https://tscode-vsx-registry.paasuat.cmbchina.cn/vscode/item",
