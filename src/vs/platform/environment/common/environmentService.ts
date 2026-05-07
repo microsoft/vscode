@@ -37,16 +37,6 @@ export interface INativeEnvironmentPaths {
 	 * OS tmp dir.
 	 */
 	tmpDir: string;
-
-	/**
-	 * The host VS Code application's user data directory.
-	 */
-	parentAppUserDataDir: string | undefined;
-
-	/**
-	 * The host VS Code application's home directory.
-	 */
-	parentAppUserHomeDir: string | undefined;
 }
 
 export abstract class AbstractNativeEnvironmentService implements INativeEnvironmentService {
@@ -309,34 +299,6 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 		this.args['continueOn'] = value;
 	}
 
-	@memoize
-	get parentAppUserRoamingDataHome(): URI | undefined {
-		return this.paths.parentAppUserDataDir ? URI.file(this.paths.parentAppUserDataDir).with({ scheme: Schemas.vscodeUserData }) : undefined;
-	}
-
-	@memoize
-	get parentAppUserHome(): URI | undefined {
-		return this.paths.parentAppUserHomeDir ? URI.file(this.paths.parentAppUserHomeDir) : undefined;
-	}
-
-	@memoize
-	get parentAppExtensionsHome(): URI | undefined {
-		if (!this.parentAppUserHome) {
-			return undefined;
-		}
-		return joinPath(this.parentAppUserHome, 'extensions');
-	}
-
-	@memoize
-	get parentAppNameShort(): string | undefined {
-		return getParentAppName(this.productService, 'short');
-	}
-
-	@memoize
-	get parentAppNameLong(): string | undefined {
-		return getParentAppName(this.productService, 'long');
-	}
-
 	get args(): NativeParsedArgs { return this._args; }
 
 	constructor(
@@ -364,17 +326,4 @@ export function parseDebugParams(debugArg: string | undefined, debugBrkArg: stri
 	}
 
 	return { port, break: brk, debugId, env };
-}
-
-
-function getParentAppName(productService: IProductService, variant: 'short' | 'long'): string | undefined {
-	const quality = productService.quality;
-	if (quality === 'stable') {
-		return variant === 'short' ? 'VS Code' : 'Visual Studio Code';
-	} else if (quality === 'insider') {
-		return variant === 'short' ? 'VS Code Insiders' : 'Visual Studio Code Insiders';
-	} else if (quality === 'exploration') {
-		return variant === 'short' ? 'VS Code Exploration' : 'Visual Studio Code Exploration';
-	}
-	return undefined;
 }
