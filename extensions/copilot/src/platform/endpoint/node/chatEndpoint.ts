@@ -214,10 +214,7 @@ export class ChatEndpoint implements IChatEndpoint {
 		const headers: Record<string, string> = { ...this.modelMetadata.requestHeaders };
 
 		if (this.useMessagesApi) {
-			const modelProviderPreference = this._configurationService.getConfig(ConfigKey.TeamInternal.ModelProviderPreference);
-			if (modelProviderPreference) {
-				headers['X-Model-Provider-Preference'] = modelProviderPreference;
-			}
+			headers['X-Model-Provider-Preference'] = 'anthropic';
 		}
 
 		Object.assign(headers, this.getAnthropicBetaHeader());
