@@ -9,8 +9,8 @@ import { mainWindow } from '../../../base/browser/window.js';
 import { Schemas } from '../../../base/common/network.js';
 import { URI } from '../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../editor/browser/editorExtensions.js';
-import { localize2 } from '../../../nls.js';
-import { Action2 } from '../../../platform/actions/common/actions.js';
+import { localize, localize2 } from '../../../nls.js';
+import { Action2, MenuId } from '../../../platform/actions/common/actions.js';
 import { AGENT_HOST_SCHEME, fromAgentHostUri } from '../../../platform/agentHost/common/agentHostUri.js';
 import { IRemoteAgentHostService } from '../../../platform/agentHost/common/remoteAgentHostService.js';
 import { KeyCode, KeyMod } from '../../../base/common/keyCodes.js';
@@ -30,6 +30,7 @@ import { IInstantiationService } from '../../../platform/instantiation/common/in
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { resolveRemoteAuthority } from '../../browser/openInVSCodeUtils.js';
 import { INativeHostService } from '../../../platform/native/common/native.js';
+import product from '../../../platform/product/common/product.js';
 
 export class OpenSessionInVSCodeAction extends Action2 {
 	static readonly ID = 'agents.openSessionInVSCode';
@@ -98,7 +99,7 @@ export class OpenVSCodeWindowAction extends Action2 {
 	constructor() {
 		super({
 			id: OpenVSCodeWindowAction.ID,
-			title: localize2('openVSCodeWindow', 'Open VS Code Window'),
+			title: localize2('openVSCodeWindow', 'Open {0} Window', product.nameLong),
 			f1: true,
 			keybinding: {
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyA,
@@ -119,6 +120,35 @@ export class OpenVSCodeWindowAction extends Action2 {
 		} else {
 			await nativeHostService.openWindow();
 		}
+	}
+}
+
+export class OpenNewVSCodeWindowAction extends Action2 {
+	static readonly ID = 'agents.openNewVSCodeWindow';
+
+	constructor() {
+		super({
+			id: OpenNewVSCodeWindowAction.ID,
+			title: {
+				...localize2('newVSCodeWindow', 'New {0} Window', product.nameLong),
+				mnemonicTitle: localize({ key: 'miNewVSCodeWindow', comment: ['&& denotes a mnemonic'] }, "New {0} &&Window", product.nameLong),
+			},
+			f1: true,
+			keybinding: {
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyN,
+				weight: KeybindingWeight.WorkbenchContrib,
+			},
+			menu: {
+				id: MenuId.MenubarFileMenu,
+				group: '1_new',
+				order: 3,
+			},
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const nativeHostService = accessor.get(INativeHostService);
+		await nativeHostService.openWindow({ remoteAuthority: null });
 	}
 }
 
