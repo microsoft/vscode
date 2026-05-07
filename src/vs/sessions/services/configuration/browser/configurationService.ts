@@ -8,7 +8,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { URI } from '../../../../base/common/uri.js';
-import { Queue } from '../../../../base/common/async.js';
+import { Promises, Queue } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { JSONPath, ParseError, parse } from '../../../../base/common/json.js';
 import { applyEdits, setProperty } from '../../../../base/common/jsonEdit.js';
@@ -158,6 +158,7 @@ export class ConfigurationService extends Disposable implements IWorkbenchConfig
 		const overrides: IConfigurationUpdateOverrides | undefined = isConfigurationUpdateOverrides(arg3) ? arg3
 			: isConfigurationOverrides(arg3) ? { resource: arg3.resource, overrideIdentifiers: arg3.overrideIdentifier ? [arg3.overrideIdentifier] : undefined } : undefined;
 		const target: ConfigurationTarget | undefined = (overrides ? arg4 : arg3) as ConfigurationTarget | undefined;
+		const targets: ConfigurationTarget[] = target ? [target] : [];
 
 		if (overrides?.overrideIdentifiers) {
 			overrides.overrideIdentifiers = distinct(overrides.overrideIdentifiers);
@@ -173,9 +174,13 @@ export class ConfigurationService extends Disposable implements IWorkbenchConfig
 			throw new Error(`Unable to write ${key} because it is read-only in the Agents window.`);
 		}
 
-		// Remove the setting, if the value is same as default value
-		if (equals(value, inspect.defaultValue)) {
-			value = undefined;
+		if (!targets.length) {
+			targets.push(...this.deriveConfigurationTargets(key, value, inspect));
+
+			// Remove the setting, if the value is same as default value and is updated only in user target
+			if (equals(value, inspect.defaultValue) && targets.length === 1 && targets[0] === ConfigurationTarget.USER) {
+				value = undefined;
+			}
 		}
 
 		if (overrides?.overrideIdentifiers?.length && overrides.overrideIdentifiers.length > 1) {
@@ -186,6 +191,10 @@ export class ConfigurationService extends Disposable implements IWorkbenchConfig
 			}
 		}
 
+		await Promises.settled(targets.map(t => this.writeConfigurationValue(key, value, t, overrides)));
+	}
+
+	private async writeConfigurationValue(key: string, value: unknown, target: ConfigurationTarget, overrides: IConfigurationUpdateOverrides | undefined): Promise<void> {
 		let path = overrides?.overrideIdentifiers?.length ? [keyFromOverrideIdentifiers(overrides.overrideIdentifiers), key] : [key];
 
 		const settingsResource = this.getSettingsResource(target, overrides?.resource ?? undefined);
@@ -197,6 +206,30 @@ export class ConfigurationService extends Disposable implements IWorkbenchConfig
 
 		await this.configurationEditing.write(settingsResource, path, value);
 		await this.reloadConfiguration();
+	}
+
+	private deriveConfigurationTargets(_key: string, value: unknown, inspect: IConfigurationValue<unknown>): ConfigurationTarget[] {
+		if (equals(value, inspect.value)) {
+			return [];
+		}
+
+		const definedTargets: ConfigurationTarget[] = [];
+		if (inspect.workspaceFolderValue !== undefined) {
+			definedTargets.push(ConfigurationTarget.WORKSPACE_FOLDER);
+		}
+		if (inspect.workspaceValue !== undefined) {
+			definedTargets.push(ConfigurationTarget.WORKSPACE);
+		}
+		if (inspect.userValue !== undefined) {
+			definedTargets.push(ConfigurationTarget.USER);
+		}
+
+		if (value === undefined) {
+			// Remove the setting in all defined targets
+			return definedTargets;
+		}
+
+		return [definedTargets[0] || ConfigurationTarget.USER];
 	}
 
 	private isWorkspaceConfigurationResource(resource: URI): boolean {

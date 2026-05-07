@@ -123,11 +123,11 @@ suite('Sessions ConfigurationService', () => {
 		assert.strictEqual(testObject.getValue('sessionsConfigurationService.testSetting'), 'workspaceValue');
 	}));
 
-	test('user settings override workspace settings', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+	test('workspace settings override user settings', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		await fileService.writeFile(workspaceConfigResource, VSBuffer.fromString(JSON.stringify({ folders: [], settings: { 'sessionsConfigurationService.testSetting': 'workspaceValue' } })));
 		await fileService.writeFile(userDataProfileService.currentProfile.settingsResource, VSBuffer.fromString('{ "sessionsConfigurationService.testSetting": "userValue" }'));
 		await testObject.reloadConfiguration();
-		assert.strictEqual(testObject.getValue('sessionsConfigurationService.testSetting'), 'userValue');
+		assert.strictEqual(testObject.getValue('sessionsConfigurationService.testSetting'), 'workspaceValue');
 	}));
 
 	test('inspect shows workspace value from workspace configuration file', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
@@ -150,8 +150,7 @@ suite('Sessions ConfigurationService', () => {
 	test('write setting to workspace target does not affect user settings', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		await testObject.updateValue('sessionsConfigurationService.testSetting', 'workspaceOnly', ConfigurationTarget.WORKSPACE);
 		assert.strictEqual(testObject.getValue('sessionsConfigurationService.testSetting'), 'workspaceOnly');
-		const userContent = (await fileService.readFile(userDataProfileService.currentProfile.settingsResource)).value.toString();
-		assert.ok(!userContent.includes('workspaceOnly'));
+		assert.strictEqual(await fileService.exists(userDataProfileService.currentProfile.settingsResource), false);
 	}));
 
 	test('agentsWindow.readOnly settings are excluded from workspace configuration', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
@@ -305,6 +304,50 @@ suite('Sessions ConfigurationService', () => {
 		const inspection = testObject.inspect('sessionsConfigurationService.testSetting');
 		assert.strictEqual(inspection.defaultValue, 'defaultValue');
 		assert.strictEqual(inspection.userValue, 'inspectedValue');
+	}));
+
+	test('updateValue without target writes to workspace when value exists in workspace', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		await fileService.writeFile(workspaceConfigResource, VSBuffer.fromString(JSON.stringify({ folders: [], settings: { 'sessionsConfigurationService.testSetting': 'workspaceValue' } })));
+		await testObject.reloadConfiguration();
+
+		await testObject.updateValue('sessionsConfigurationService.testSetting', 'updatedValue');
+
+		const content = (await fileService.readFile(workspaceConfigResource)).value.toString();
+		const parsed = JSON.parse(content);
+		assert.strictEqual(parsed.settings['sessionsConfigurationService.testSetting'], 'updatedValue');
+		assert.strictEqual(await fileService.exists(userDataProfileService.currentProfile.settingsResource), false);
+	}));
+
+	test('updateValue without target writes to user when value exists in user', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		await fileService.writeFile(userDataProfileService.currentProfile.settingsResource, VSBuffer.fromString('{ "sessionsConfigurationService.testSetting": "userValue" }'));
+		await testObject.reloadConfiguration();
+
+		await testObject.updateValue('sessionsConfigurationService.testSetting', 'updatedUser');
+
+		const content = (await fileService.readFile(userDataProfileService.currentProfile.settingsResource)).value.toString();
+		assert.ok(content.includes('updatedUser'));
+	}));
+
+	test('updateValue without target writes to user when no value exists anywhere', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		await testObject.updateValue('sessionsConfigurationService.testSetting', 'newValue');
+
+		const content = (await fileService.readFile(userDataProfileService.currentProfile.settingsResource)).value.toString();
+		assert.ok(content.includes('newValue'));
+	}));
+
+	test('updateValue without target removes from all defined targets when setting to default', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		await fileService.writeFile(workspaceConfigResource, VSBuffer.fromString(JSON.stringify({ folders: [], settings: { 'sessionsConfigurationService.testSetting': 'workspaceValue' } })));
+		await fileService.writeFile(userDataProfileService.currentProfile.settingsResource, VSBuffer.fromString('{ "sessionsConfigurationService.testSetting": "userValue" }'));
+		await testObject.reloadConfiguration();
+
+		await testObject.updateValue('sessionsConfigurationService.testSetting', undefined);
+
+		const workspaceContent = (await fileService.readFile(workspaceConfigResource)).value.toString();
+		const parsed = JSON.parse(workspaceContent);
+		assert.strictEqual(parsed.settings?.['sessionsConfigurationService.testSetting'], undefined);
+
+		const userContent = (await fileService.readFile(userDataProfileService.currentProfile.settingsResource)).value.toString();
+		assert.ok(!userContent.includes('sessionsConfigurationService.testSetting'));
 	}));
 
 	// #endregion
