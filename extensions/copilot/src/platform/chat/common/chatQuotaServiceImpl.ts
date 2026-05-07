@@ -149,6 +149,14 @@ export class ChatQuotaService extends Disposable implements IChatQuotaService {
 
 	private _processUserInfoQuotaSnapshot(quotaInfo: CopilotUserQuotaInfo | undefined) {
 		if (!quotaInfo || !quotaInfo.quota_snapshots || !quotaInfo.quota_reset_date) {
+			// Authentication changed to a state without quota info (e.g. signed
+			// out). Drop stale quota so consumers (like the chat input
+			// notification) don't continue to surface a previous user's
+			// "credit limit reached" state.
+			if (this._quotaInfo) {
+				this._quotaInfo = undefined;
+				this._onDidChange.fire();
+			}
 			return;
 		}
 		this._quotaInfo = {

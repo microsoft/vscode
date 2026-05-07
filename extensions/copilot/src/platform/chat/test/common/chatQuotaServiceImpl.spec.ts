@@ -8,11 +8,11 @@ import { Emitter } from '../../../../util/vs/base/common/event';
 import { IAuthenticationService } from '../../../authentication/common/authentication';
 import { ChatQuotaService } from '../../common/chatQuotaServiceImpl';
 
-function createMockAuthService(): IAuthenticationService {
+function createMockAuthService(emitter?: Emitter<void>): IAuthenticationService {
 	return {
 		_serviceBrand: undefined,
 		copilotToken: undefined,
-		onDidAuthenticationChange: new Emitter().event,
+		onDidAuthenticationChange: (emitter ?? new Emitter()).event,
 	} as unknown as IAuthenticationService;
 }
 
@@ -23,6 +23,60 @@ describe('ChatQuotaService', () => {
 
 	const TURN_A = 'turn-a';
 	const TURN_B = 'turn-b';
+
+	describe('authentication changes', () => {
+		test('clears stale exhausted state when auth changes to no token (sign out)', () => {
+			const authChange = new Emitter<void>();
+			let copilotToken: any = {
+				quotaInfo: {
+					quota_reset_date: new Date().toISOString(),
+					quota_snapshots: {
+						chat: { quota_id: 'c', entitlement: 100, remaining: 0, unlimited: false, overage_count: 0, overage_permitted: false, percent_remaining: 0 },
+						completions: { quota_id: 'co', entitlement: 100, remaining: 0, unlimited: false, overage_count: 0, overage_permitted: false, percent_remaining: 0 },
+						premium_interactions: { quota_id: 'p', entitlement: 100, remaining: 0, unlimited: false, overage_count: 0, overage_permitted: false, percent_remaining: 0 },
+					},
+				},
+			};
+			const auth = {
+				_serviceBrand: undefined,
+				get copilotToken() { return copilotToken; },
+				onDidAuthenticationChange: authChange.event,
+			} as unknown as IAuthenticationService;
+
+			const svc = new ChatQuotaService(auth);
+			// Simulate the initial auth resolving — exhausted state takes effect.
+			authChange.fire();
+			expect(svc.quotaExhausted).toBe(true);
+
+			let changeCount = 0;
+			svc.onDidChange(() => changeCount++);
+
+			// User signs out — token (and its quota info) goes away.
+			copilotToken = undefined;
+			authChange.fire();
+
+			expect(svc.quotaExhausted).toBe(false);
+			expect(svc.quotaInfo).toBeUndefined();
+			expect(changeCount).toBe(1);
+		});
+
+		test('does not fire change when no stale quota to clear', () => {
+			const authChange = new Emitter<void>();
+			const auth = {
+				_serviceBrand: undefined,
+				copilotToken: undefined,
+				onDidAuthenticationChange: authChange.event,
+			} as unknown as IAuthenticationService;
+
+			const svc = new ChatQuotaService(auth);
+			let changeCount = 0;
+			svc.onDidChange(() => changeCount++);
+
+			authChange.fire();
+			expect(changeCount).toBe(0);
+		});
+	});
+
 
 	describe('setLastCopilotUsage', () => {
 		test('converts nano-AIUs to AIC credits', () => {
