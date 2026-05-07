@@ -22,6 +22,19 @@ import {
 
 // ---- JSON-RPC test client ---------------------------------------------------
 
+/**
+ * Error subclass thrown by {@link TestProtocolClient.call} when the remote
+ * responds with a JSON-RPC error envelope. Exposes the typed `code` and the
+ * raw `data` payload (for parsing error-specific shapes like
+ * `StartTurnInvalidConfigErrorData`).
+ */
+export class JsonRpcCallError extends Error {
+	constructor(public readonly code: number, message: string, public readonly data?: unknown) {
+		super(message);
+		this.name = 'JsonRpcCallError';
+	}
+}
+
 interface IPendingCall {
 	resolve: (result: unknown) => void;
 	reject: (err: Error) => void;
@@ -59,7 +72,7 @@ export class TestProtocolClient {
 				this._pendingCalls.delete(msg.id);
 				const errResp = msg as JsonRpcErrorResponse;
 				if (errResp.error) {
-					pending.reject(new Error(errResp.error.message));
+					pending.reject(new JsonRpcCallError(errResp.error.code, errResp.error.message, errResp.error.data));
 				} else {
 					pending.resolve((msg as JsonRpcSuccessResponse).result);
 				}

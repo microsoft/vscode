@@ -17,14 +17,16 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { isLocation, type Location } from '../../../../../../editor/common/languages.js';
 import { IPosition } from '../../../../../../editor/common/core/position.js';
 import { localize } from '../../../../../../nls.js';
+import { IAgentHostActiveClientRegistry } from '../../../../../../platform/agentHost/common/agentHostActiveClientRegistry.js';
 import { AgentProvider, AgentSession, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { IAgentSubscription, observableFromSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { SessionTruncatedAction } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { CompletionItemKind as AhpCompletionItemKind, type CompletionItem as AhpCompletionItem } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ConfirmationOptionKind, CustomizationRef, TerminalClaimKind, ToolResultContentType, type ConfirmationOption, type ProtectedResourceMetadata, type ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { ActionType, SessionTurnStartedAction, type ClientSessionAction, type SessionAction, type SessionInputCompletedAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { AHP_AUTH_REQUIRED, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
+import { ActionType, type ClientSessionAction, type SessionAction, type SessionInputCompletedAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
+import { AHP_AUTH_REQUIRED, AHP_SESSION_NOT_FOUND, AHP_TURN_IN_PROGRESS, JsonRpcErrorCodes, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
+import type { StartTurnInvalidConfigErrorData } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { buildSubagentSessionUri, getToolFileEdits, getToolSubagentContent, MessageAttachmentKind, PendingMessageKind, ResponsePartKind, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, type ICompletedToolCall, type MarkdownResponsePart, type MessageAttachment, type ModelSelection, type ReasoningResponsePart, type RootState, type SessionInputAnswer, type SessionInputRequest, type SessionState, type ToolCallResponsePart, type ToolCallState, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
@@ -404,6 +406,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
+		@IAgentHostActiveClientRegistry private readonly _activeClientRegistry: IAgentHostActiveClientRegistry,
 	) {
 		super();
 		this._config = config;
@@ -420,6 +423,18 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			const allTools = allToolsObs.read(reader);
 			return allTools.filter(t => t.toolReferenceName !== undefined && allowlist.has(t.toolReferenceName));
 		});
+
+		// Expose the active-client bundle so the sessions provider can include
+		// it on eager `createSession` calls — sync customizations at provisional
+		// creation time instead of waiting for the chat panel to open.
+		this._register(this._activeClientRegistry.registerResolver(
+			this._config.connection.clientId,
+			this._config.provider,
+			() => ({
+				tools: this._clientToolsObs.get().map(toolDataToDefinition),
+				customizations: this._config.customizations?.get() ?? [],
+			}),
+		));
 
 		// When the client tools set changes, dispatch
 		// activeClientToolsChanged for all active sessions owned by this
@@ -777,9 +792,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			this._dispatchActiveClient(resolvedSession, this._config.customizations?.get() ?? []);
 		}
 
-		await this._handleTurn(resolvedSession, request, progress, cancellationToken);
-
-		return {};
+		return await this._handleTurn(resolvedSession, request, progress, cancellationToken);
 	}
 
 	/**
@@ -1026,16 +1039,16 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		request: IChatAgentRequest,
 		progress: (parts: IChatProgress[]) => void,
 		cancellationToken: CancellationToken,
-	): Promise<void> {
+	): Promise<IChatAgentResult> {
 		if (cancellationToken.isCancellationRequested) {
-			return;
+			return {};
 		}
 
 		const turnId = request.requestId;
 		this._clientDispatchedTurnIds.add(turnId);
 		const messageAttachments = await this._convertVariablesToAttachments(request);
 		if (cancellationToken.isCancellationRequested) {
-			return;
+			return {};
 		}
 
 		// If the user selected a different model since the session was created
@@ -1081,18 +1094,27 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			}
 		}
 
-		// Dispatch session/turnStarted — the server will call sendMessage on
-		// the provider as a side effect.
-		const turnAction: SessionTurnStartedAction = {
-			type: ActionType.SessionTurnStarted,
-			session: session.toString(),
-			turnId,
-			userMessage: {
-				text: request.message,
-				attachments: messageAttachments.length > 0 ? messageAttachments : undefined,
-			},
-		};
-		this._config.connection.dispatch(turnAction);
+		// Start the turn via the rejectable startTurn command. The server
+		// validates that the session config is complete before broadcasting
+		// the SessionTurnStartedAction; on rejection (missing required
+		// config, turn already in progress, etc.) we surface a localized
+		// error and bail without proceeding.
+		try {
+			await this._config.connection.startTurn({
+				session,
+				turnId,
+				userMessage: {
+					text: request.message,
+					attachments: messageAttachments.length > 0 ? messageAttachments : undefined,
+				},
+			});
+		} catch (err) {
+			// startTurn rejected: the server did not broadcast SessionTurnStarted,
+			// so the turn id we optimistically added above will never be matched
+			// by an inbound action. Drop it to keep the set bounded.
+			this._clientDispatchedTurnIds.delete(turnId);
+			return { errorDetails: { message: this._toStartTurnUserError(err) } };
+		}
 
 		// Ensure the editing session records a sentinel checkpoint for this
 		// request so it appears in requestDisablement even if the turn
@@ -1137,6 +1159,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				},
 			}));
 		});
+		return {};
 	}
 
 	// ---- Tool confirmation --------------------------------------------------
@@ -2479,6 +2502,47 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		return this._config.resolveWorkingDirectory?.(sessionResource)
 			?? this._workingDirectoryResolver.resolve(sessionResource)
 			?? this._workspaceContextService.getWorkspace().folders[0]?.uri;
+	}
+
+	/**
+	 * Maps a JSON-RPC error from `startTurn` into a localized message suitable
+	 * for surfacing through the chat UI. Recognises:
+	 * - `InvalidParams` with `data.missingRequired: string[]` → "Session is missing required configuration: …"
+	 * - `TurnInProgress` → "A turn is already in progress."
+	 * - `SessionNotFound` → "Session not found."
+	 * Falls back to a localized "Cannot start turn: {message}" wrapper so the
+	 * surface stays consistent for unrecognised codes.
+	 */
+	private _toStartTurnUserError(err: unknown): string {
+		const code = typeof (err as { code?: unknown })?.code === 'number' ? (err as { code: number }).code : undefined;
+		const data = (err as { data?: unknown })?.data;
+		if (code === JsonRpcErrorCodes.InvalidParams && this._isMissingRequiredErrorData(data)) {
+			const missing = data.missingRequired.join(', ');
+			return localize('startTurnMissingRequired', "Cannot start turn: the session is missing required configuration: {0}", missing);
+		}
+		if (code === AHP_TURN_IN_PROGRESS) {
+			return localize('startTurnInProgress', "Cannot start turn: a turn is already in progress.");
+		}
+		if (code === AHP_SESSION_NOT_FOUND) {
+			return localize('startTurnSessionNotFound', "Cannot start turn: session not found.");
+		}
+		const rawMessage = err instanceof Error ? err.message : String(err);
+		return localize('startTurnUnknownError', "Cannot start turn: {0}", rawMessage);
+	}
+
+	/**
+	 * Type guard for {@link StartTurnInvalidConfigErrorData}. Accepts a payload
+	 * only when `missingRequired` is an array whose entries are *all* strings —
+	 * a non-string entry would join as `[object Object]` or `null` in the
+	 * user-facing message, so reject the whole shape and fall through to the
+	 * generic "Cannot start turn: …" wrapper instead.
+	 */
+	private _isMissingRequiredErrorData(data: unknown): data is StartTurnInvalidConfigErrorData & { missingRequired: string[] } {
+		if (!data || typeof data !== 'object') {
+			return false;
+		}
+		const missing = (data as { missingRequired?: unknown }).missingRequired;
+		return Array.isArray(missing) && missing.every(entry => typeof entry === 'string');
 	}
 
 	private _convertVariablesToAttachments(request: IChatAgentRequest): MessageAttachment[] {

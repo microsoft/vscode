@@ -1817,6 +1817,151 @@ suite('AgentSideEffects', () => {
 		});
 	});
 
+	// ---- Schema-push side-effect ---------------------------------------
+
+	suite('schema-push side-effect (_reresolveAndPushSessionConfig)', () => {
+
+		test('drops a stale (out-of-order) _resolveSessionConfig response', async () => {
+			// Flow:
+			//   1. Seed state.config with an empty schema/values.
+			//   2. Mock provider's `_resolveSessionConfig` is gated by a per-call
+			//      DeferredPromise queue, so we control resolution order.
+			//   3. Dispatch SessionConfigChangedAction A (origin = client) → side-effect
+			//      kicks off resolve A (gated). Then dispatch B → kicks off resolve B (gated).
+			//   4. Release B first, then A. The seq guard must drop A's stale result so
+			//      state.config.values reflects B (with `replace: true`), NOT A.
+			setupSession();
+
+			// Pre-seed state.config so the reducer applies value changes (the
+			// reducer skips merge-only updates when state.config is undefined).
+			const seedAction = {
+				type: ActionType.SessionConfigChanged as const,
+				session: sessionUri.toString(),
+				schema: { type: 'object' as const, properties: {} },
+				config: {},
+			};
+			stateManager.dispatchServerAction(seedAction);
+
+			// Gate resolves so we can release them out of order.
+			agent.resolveSessionConfigGate = [];
+
+			// Tag each call's response so we can detect which one "won".
+			agent.resolveSessionConfigResponses.push(
+				{ schema: { type: 'object', properties: {} }, values: { tag: 'A' } },
+				{ schema: { type: 'object', properties: {} }, values: { tag: 'B' } },
+			);
+
+			// Listen for server-emitted SessionConfigChanged envelopes (origin === undefined).
+			const serverEmittedConfigChanges: SessionAction[] = [];
+			disposables.add(stateManager.onDidEmitEnvelope(envelope => {
+				if (envelope.action.type === ActionType.SessionConfigChanged && envelope.origin === undefined) {
+					serverEmittedConfigChanges.push(envelope.action as SessionAction);
+				}
+			}));
+
+			// Dispatch A and B as client actions; the side-effect listens via
+			// onDidEmitEnvelope and kicks off async resolves.
+			stateManager.dispatchClientAction({
+				type: ActionType.SessionConfigChanged,
+				session: sessionUri.toString(),
+				config: { picked: 'A' },
+			}, { clientId: 'client', clientSeq: 1 });
+			stateManager.dispatchClientAction({
+				type: ActionType.SessionConfigChanged,
+				session: sessionUri.toString(),
+				config: { picked: 'B' },
+			}, { clientId: 'client', clientSeq: 2 });
+
+			// Wait for both resolves to be queued.
+			while (agent.resolveSessionConfigGate.length < 2) {
+				await new Promise(r => setTimeout(r, 0));
+			}
+
+			// Release B first (resolve B completes before A).
+			agent.resolveSessionConfigGate[1].complete();
+			await new Promise(r => setTimeout(r, 10));
+
+			// Release A — its response is stale; the seq guard must drop it.
+			agent.resolveSessionConfigGate[0].complete();
+			await new Promise(r => setTimeout(r, 10));
+
+			// Find the server-emitted SessionConfigChanged whose values came from
+			// our tagged responses (filter out the seed and the client echoes).
+			const tagged = serverEmittedConfigChanges.filter(a =>
+				a.type === ActionType.SessionConfigChanged && a.config !== undefined && (a.config.tag === 'A' || a.config.tag === 'B')
+			);
+
+			assert.deepStrictEqual({
+				dispatchedTags: tagged.map(a => (a.type === ActionType.SessionConfigChanged ? a.config?.tag : undefined)),
+				finalStateTag: stateManager.getSessionState(sessionUri.toString())?.config?.values.tag,
+			}, {
+				// Only B's resolved values were dispatched. A's stale resolve was
+				// dropped by the per-session seq guard before reaching dispatch.
+				dispatchedTags: ['B'],
+				finalStateTag: 'B',
+			});
+		});
+
+		test('removeSession drops in-flight resolves before they reach dispatch', async () => {
+			// Flow:
+			//   1. Seed state.config and dispatch a client SessionConfigChanged to
+			//      kick off a (gated) `_resolveSessionConfig` call.
+			//   2. Call `sideEffects.removeSession(sessionUri.toString())` to
+			//      simulate session disposal/eviction. This must clear the
+			//      per-session seq entry.
+			//   3. Release the gated resolve. The seq guard inside
+			//      `_reresolveAndPushSessionConfig` reads `_configResolveSeq.get(session)`,
+			//      finds `undefined !== capturedSeq`, and bails — so no
+			//      server-emitted SessionConfigChanged action lands for the
+			//      disposed session URI.
+			setupSession();
+
+			stateManager.dispatchServerAction({
+				type: ActionType.SessionConfigChanged,
+				session: sessionUri.toString(),
+				schema: { type: 'object', properties: {} },
+				config: {},
+			});
+
+			agent.resolveSessionConfigGate = [];
+			agent.resolveSessionConfigResponses.push({
+				schema: { type: 'object', properties: {} },
+				values: { tag: 'late' },
+			});
+
+			const serverEmittedConfigChanges: SessionAction[] = [];
+			disposables.add(stateManager.onDidEmitEnvelope(envelope => {
+				if (envelope.action.type === ActionType.SessionConfigChanged && envelope.origin === undefined) {
+					serverEmittedConfigChanges.push(envelope.action as SessionAction);
+				}
+			}));
+
+			stateManager.dispatchClientAction({
+				type: ActionType.SessionConfigChanged,
+				session: sessionUri.toString(),
+				config: { picked: 'X' },
+			}, { clientId: 'client', clientSeq: 1 });
+
+			while (agent.resolveSessionConfigGate.length < 1) {
+				await new Promise(r => setTimeout(r, 0));
+			}
+
+			// Simulate disposal between the resolve being kicked off and its
+			// response landing. Without the M3 fix the per-session seq entry
+			// would survive disposal, so when the gate releases the seq guard
+			// would let the late response through.
+			sideEffects.removeSession(sessionUri.toString());
+
+			agent.resolveSessionConfigGate[0].complete();
+			await new Promise(r => setTimeout(r, 10));
+
+			const lateDispatch = serverEmittedConfigChanges.find(a =>
+				a.type === ActionType.SessionConfigChanged && a.config?.tag === 'late'
+			);
+			assert.strictEqual(lateDispatch, undefined, 'late resolve should be dropped after removeSession');
+		});
+	});
+
 	// ---- Subagent sessions ----------------------------------------------
 
 	suite('subagent sessions', () => {

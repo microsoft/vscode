@@ -25,11 +25,11 @@ import { ILogService } from '../../../log/common/log.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema } from '../../common/agentHostCustomizationConfig.js';
 import { AutoApproveLevel, ISchemaProperty, SessionMode, createSchema, platformSessionSchema, schemaProperty } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
-import { AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE, IAgent, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSessionProjectInfo } from '../../common/agentService.js';
+import { AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE, IAgent, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentSessionConfigCompletionsParams, IAgentSessionConfigParams, IAgentSessionMetadata, IAgentSessionProjectInfo } from '../../common/agentService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ISessionDataService, SESSION_DB_FILENAME } from '../../common/sessionDataService.js';
-import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
-import { ProtectedResourceMetadata, type ConfigSchema, type ModelSelection, type SessionCustomization, type ToolDefinition } from '../../common/state/protocol/state.js';
+import type { SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
+import { ProtectedResourceMetadata, type ConfigSchema, type ModelSelection, type SessionConfigState, type SessionCustomization, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { CustomizationRef, CustomizationStatus, ResponsePartKind, SessionInputResponseKind, parseSubagentSessionUri, type MessageAttachment, type PendingMessage, type PolicyState, type ResponsePart, type SessionInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
@@ -267,6 +267,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	getCustomizations(): readonly CustomizationRef[] {
 		return this._plugins.getConfiguredHostCustomizations();
+	}
+
+	/**
+	 * Test-only: resolves once any in-flight plugin sync has settled.
+	 * Production code never needs this — `getAppliedPlugins` already
+	 * awaits the same chains before returning plugin state.
+	 */
+	public _waitForCustomizationSync(): Promise<void> {
+		return this._plugins.waitForLatestSync();
 	}
 
 	async getSessionCustomizations(session: URI): Promise<readonly SessionCustomization[]> {
@@ -714,11 +723,23 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// Seed active-client snapshot if the client claimed it eagerly. This
 		// runs identically for provisional and real sessions; the SDK side
 		// of activeClient state isn't engaged until materialization.
+		//
+		// Plugin sync is intentionally fire-and-forget here so `createSession`
+		// returns fast — the workbench can subscribe to state and render the
+		// session-config picker without waiting on the ~700ms file-copy of
+		// every customization plugin. The sync still runs concurrently, and
+		// the materialization barrier in {@link PluginController.getAppliedPlugins}
+		// (called from `_materializeProvisional` → `activeClient.snapshot`)
+		// awaits `_clientSync` before the SDK session is born — so any
+		// `sendMessage` that arrives before the eager sync completes is
+		// correctly blocked until plugins are applied.
 		if (config.activeClient) {
 			const ac = this._getOrCreateActiveClient(sessionUri);
 			ac.updateTools(config.activeClient.clientId, config.activeClient.tools);
 			if (config.activeClient.customizations !== undefined) {
-				await this._plugins.sync(config.activeClient.clientId, config.activeClient.customizations);
+				this._plugins.sync(config.activeClient.clientId, config.activeClient.customizations).catch(err => {
+					this._logService.warn(`[Copilot] Eager customization sync failed for ${sessionUri.toString()}: ${err instanceof Error ? err.message : String(err)}`);
+				});
 			}
 		}
 
@@ -816,7 +837,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return agentSession;
 	}
 
-	async resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {
+	async _resolveSessionConfig(params: IAgentSessionConfigParams): Promise<SessionConfigState> {
 		const gitInfo = params.workingDirectory ? await this._getGitInfo(params.workingDirectory) : undefined;
 
 		const isolationProperty = schemaProperty<'folder' | 'worktree'>({
@@ -1686,6 +1707,17 @@ class PluginController extends Disposable {
 			...this._hostCustomizations.map(item => this._applyEnablement(item.customization)),
 			...this._clientCustomizations.map(item => this._applyEnablement(item.customization)),
 		];
+	}
+
+	/**
+	 * Test-only: resolves once the latest in-flight client + host syncs have
+	 * settled. Intended to let tests deterministically observe the
+	 * fire-and-forget plugin sync started by `createSession`. Production code
+	 * should rely on {@link getAppliedPlugins}, which already awaits the same
+	 * promises before returning plugin state.
+	 */
+	public async waitForLatestSync(): Promise<void> {
+		await Promise.allSettled([this._clientSync, this._hostSync]);
 	}
 
 	/**

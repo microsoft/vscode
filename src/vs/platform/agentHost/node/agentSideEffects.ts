@@ -104,6 +104,15 @@ export class AgentSideEffects extends Disposable {
 	 */
 	private readonly _pendingSubagentSignals = new Map<string, IPendingSubagentSignal[]>();
 
+	/**
+	 * Monotonic per-session counter for in-flight `_resolveSessionConfig`
+	 * calls in {@link _reresolveAndPushSessionConfig}. Each call captures
+	 * the latest sequence; responses whose sequence no longer matches the
+	 * latest are dropped, preventing a slow earlier resolve from clobbering
+	 * a fresher result with `replace: true`.
+	 */
+	private readonly _configResolveSeq = new Map<string, number>();
+
 	constructor(
 		private readonly _stateManager: AgentHostStateManager,
 		private readonly _options: IAgentSideEffectsOptions,
@@ -131,7 +140,68 @@ export class AgentSideEffects extends Disposable {
 				const agent = this._options.getAgent(action.session);
 				agent?.onClientToolCallComplete(URI.parse(action.session), action.toolCallId, action.result);
 			}
+			// Whenever a client mutates session config values, ask the provider
+			// to (re-)resolve the dynamic schema and push it back via a
+			// server-emitted SessionConfigChanged. Skip server-originated
+			// envelopes (no origin) to avoid an infinite re-resolve loop.
+			if (envelope.origin && envelope.action.type === ActionType.SessionConfigChanged) {
+				void this._reresolveAndPushSessionConfig(envelope.action.session);
+			}
 		}));
+	}
+
+	/**
+	 * Re-resolves the session-config schema for `session` against the current
+	 * values and, if anything changed, dispatches a server-originated
+	 * `SessionConfigChanged` carrying the refined schema (and any
+	 * server-resolved value updates). The reducer treats `schema` as a full
+	 * replacement; values are merged via `replace: true` only when they
+	 * actually differ.
+	 */
+	private async _reresolveAndPushSessionConfig(session: ProtocolURI): Promise<void> {
+		const agent = this._options.getAgent(session);
+		if (!agent) {
+			return;
+		}
+		const state = this._stateManager.getSessionState(session);
+		if (!state) {
+			return;
+		}
+		// Capture the seq for this resolve attempt. If another resolve fires
+		// before this one returns, the latest seq advances and our response
+		// is recognised as stale below.
+		const seq = (this._configResolveSeq.get(session) ?? 0) + 1;
+		this._configResolveSeq.set(session, seq);
+		try {
+			const workingDirectory = state.summary.workingDirectory ? URI.parse(state.summary.workingDirectory) : undefined;
+			const resolved = await agent._resolveSessionConfig({
+				provider: agent.id,
+				workingDirectory,
+				config: state.config?.values ?? {},
+			});
+			// Drop stale results: a newer resolve has been kicked off and
+			// already (or imminently will) reflect a more up-to-date input.
+			if (this._configResolveSeq.get(session) !== seq) {
+				return;
+			}
+			const latest = this._stateManager.getSessionState(session);
+			const currentSchema = latest?.config?.schema;
+			const currentValues = latest?.config?.values ?? {};
+			const schemaChanged = !equals(currentSchema, resolved.schema);
+			const valuesChanged = !equals(currentValues, resolved.values);
+			if (!schemaChanged && !valuesChanged) {
+				return;
+			}
+			this._stateManager.dispatchServerAction({
+				type: ActionType.SessionConfigChanged,
+				session,
+				schema: schemaChanged ? resolved.schema : undefined,
+				config: valuesChanged ? resolved.values : undefined,
+				replace: valuesChanged ? true : undefined,
+			});
+		} catch (err) {
+			this._logService.warn(`[AgentSideEffects] _resolveSessionConfig failed for ${session}: ${err instanceof Error ? err.message : String(err)}`);
+		}
 	}
 
 	/**
@@ -590,6 +660,17 @@ export class AgentSideEffects extends Disposable {
 	}
 
 	/**
+	 * Drops side-effect state scoped to a single session. Called when the
+	 * session is being torn down (disposed or evicted from the state manager).
+	 * Currently clears the per-session in-flight `_resolveSessionConfig` seq
+	 * so a stale resolve completing after eviction does not leak an entry
+	 * back into {@link _configResolveSeq}.
+	 */
+	removeSession(session: ProtocolURI): void {
+		this._configResolveSeq.delete(session);
+	}
+
+	/**
 	 * Removes all subagent sessions for a given parent session from
 	 * the state manager. Called when the parent session is disposed.
 	 */
@@ -598,6 +679,7 @@ export class AgentSideEffects extends Disposable {
 		for (const [key, subagentUri] of this._subagentSessions) {
 			if (key.startsWith(`${parentSession}:`)) {
 				this._stateManager.removeSession(subagentUri);
+				this._configResolveSeq.delete(subagentUri);
 				toRemove.push(key);
 			}
 		}
@@ -610,6 +692,7 @@ export class AgentSideEffects extends Disposable {
 		const prefix = `${parentSession}/subagent/`;
 		for (const uri of this._stateManager.getSessionUrisWithPrefix(prefix)) {
 			this._stateManager.removeSession(uri);
+			this._configResolveSeq.delete(uri);
 		}
 
 		// Drop any buffered events targeted at subagents that never started.

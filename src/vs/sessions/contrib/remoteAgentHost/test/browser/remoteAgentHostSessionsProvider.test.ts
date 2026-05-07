@@ -12,7 +12,6 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { AgentSession, type IAgentConnection, type IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agentService.js';
-import type { ResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { NotificationType } from '../../../../../platform/agentHost/common/state/protocol/notifications.js';
 import { SessionLifecycle, type AgentInfo, type ModelSelection, type RootState, type SessionConfigState, type SessionState } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type INotification } from '../../../../../platform/agentHost/common/state/sessionActions.js';
@@ -53,8 +52,7 @@ class MockAgentConnection extends mock<IAgentConnection>() {
 	private readonly _sessions = new Map<string, IAgentSessionMetadata>();
 	public disposedSessions: URI[] = [];
 	public dispatchedActions: { action: SessionAction | TerminalAction | IRootConfigChangedAction; clientId: string; clientSeq: number }[] = [];
-	public failResolveSessionConfig = false;
-	public resolveSessionConfigResult: ResolveSessionConfigResult = { schema: { type: 'object', properties: {} }, values: { isolation: 'worktree' } };
+	public createSessionConfigs: (Record<string, unknown> | undefined)[] = [];
 
 	private _nextSeq = 0;
 
@@ -85,18 +83,11 @@ class MockAgentConnection extends mock<IAgentConnection>() {
 	}
 
 	public createdSessionUris: URI[] = [];
-	override async createSession(config?: { session?: URI }): Promise<URI> {
+	override async createSession(config?: { session?: URI; config?: Record<string, unknown> }): Promise<URI> {
 		const uri = config?.session ?? URI.parse('copilotcli:///auto');
 		this.createdSessionUris.push(uri);
+		this.createSessionConfigs.push(config?.config);
 		return uri;
-	}
-
-	override async resolveSessionConfig(): Promise<ResolveSessionConfigResult> {
-		await Promise.resolve();
-		if (this.failResolveSessionConfig) {
-			throw new Error('resolveSessionConfig unavailable');
-		}
-		return this.resolveSessionConfigResult;
 	}
 
 	dispatchAction(action: SessionAction | TerminalAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void {
@@ -147,6 +138,25 @@ class MockAgentConnection extends mock<IAgentConnection>() {
 		const key = AgentSession.uri(provider, rawId).toString();
 		this._sessionStateValues.set(key, state);
 		this._sessionStateEmitters.get(key)?.fire(state);
+	}
+
+	/**
+	 * Test helper: emit a `SessionConfigChanged` action carrying schema/values.
+	 * Equivalent to the server's schema-push side-effect.
+	 */
+	publishSessionConfig(rawId: string, provider: string, config: SessionConfigState): void {
+		const sessionUri = AgentSession.uri(provider, rawId).toString();
+		this.fireAction({
+			action: {
+				type: ActionType.SessionConfigChanged,
+				session: sessionUri,
+				schema: config.schema,
+				config: config.values,
+				replace: true,
+			},
+			origin: undefined,
+			serverSeq: this._nextSeq++,
+		});
 	}
 
 	setAgents(agents: AgentInfo[]): void {
@@ -233,7 +243,7 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 	return provider;
 }
 
-async function waitForSessionConfig(provider: RemoteAgentHostSessionsProvider, sessionId: string, predicate: (config: ResolveSessionConfigResult | undefined) => boolean): Promise<void> {
+async function waitForSessionConfig(provider: RemoteAgentHostSessionsProvider, sessionId: string, predicate: (config: SessionConfigState | undefined) => boolean): Promise<void> {
 	if (predicate(provider.getSessionConfig(sessionId))) {
 		return;
 	}
@@ -569,25 +579,9 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		assert.strictEqual(session.workspace.get()?.label, 'project');
 		// sessionType should be the logical type, not the resource scheme
 		assert.strictEqual(session.sessionType, provider.sessionTypes[0].id);
-		assert.deepStrictEqual(provider.getSessionConfig(session.sessionId), { schema: { type: 'object', properties: {} }, values: {} });
-	});
-
-	test('createNewSession clears session config when resolving config is unavailable', async () => {
-		connection.failResolveSessionConfig = true;
-		const provider = createProvider(disposables, connection, { isWebPlatform: true });
-		const workspaceUri = URI.parse('vscode-agent-host://auth/home/user/project');
-		const session = provider.createNewSession(workspaceUri, provider.sessionTypes[0].id);
-		const resolved = provider.getSessionByResource(session.resource);
-
-		assert.deepStrictEqual({
-			listedSessions: provider.getSessions().length,
-			resolvedResource: resolved?.resource.toString(),
-			resolvedWorkspaceLabel: resolved?.workspace.get()?.label,
-		}, {
-			listedSessions: 0,
-			resolvedResource: session.resource.toString(),
-			resolvedWorkspaceLabel: 'project',
-		});
+		// Until the server publishes a schema via SessionConfigChanged, the
+		// running config cache is empty.
+		assert.strictEqual(provider.getSessionConfig(session.sessionId), undefined);
 	});
 
 	test('clearConnection clears pending new session config', () => {
@@ -777,12 +771,15 @@ suite('RemoteAgentHostSessionsProvider', () => {
 	// ---- Send -------
 
 	test('new session stays loading when required config is missing', async () => {
-		connection.resolveSessionConfigResult = {
-			schema: { type: 'object', required: ['branch'], properties: { branch: { type: 'string', title: 'Branch', enum: ['main'] } } },
-			values: {},
-		};
 		const provider = createProvider(disposables, connection);
 		const session = provider.createNewSession(URI.parse('vscode-agent-host://auth/home/user/project'), provider.sessionTypes[0].id);
+		await timeout(0);
+
+		const rawId = session.resource.path.substring(1);
+		connection.publishSessionConfig(rawId, 'copilotcli', {
+			schema: { type: 'object', required: ['branch'], properties: { branch: { type: 'string', title: 'Branch', enum: ['main'] } } },
+			values: {},
+		});
 		await waitForSessionConfig(provider, session.sessionId, config => config?.schema.required?.includes('branch') === true);
 
 		assert.strictEqual(session.loading.get(), true);

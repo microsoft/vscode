@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { timeout } from '../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { observableValue } from '../../../../base/common/observable.js';
 import type { IAuthorizationProtectedResourceMetadata } from '../../../../base/common/oauth.js';
 import { URI } from '../../../../base/common/uri.js';
 import { type ISyncedCustomization } from '../../common/agentPluginManager.js';
-import { AgentSession, type AgentProvider, type AgentSignal, type IAgent, type IAgentActionSignal, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentModelInfo, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type IAgentToolPendingConfirmationSignal } from '../../common/agentService.js';
+import { AgentSession, type AgentProvider, type AgentSignal, type IAgent, type IAgentActionSignal, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentModelInfo, type IAgentSessionConfigCompletionsParams, type IAgentSessionConfigParams, type IAgentSessionMetadata, type IAgentToolPendingConfirmationSignal } from '../../common/agentService.js';
 import { buildSubagentTurnsFromHistory, buildTurnsFromHistory, type IHistoryRecord } from './historyRecordFixtures.js';
-import { ProtectedResourceMetadata, type MessageAttachment, type ModelSelection } from '../../common/state/protocol/state.js';
-import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
+import { ProtectedResourceMetadata, type MessageAttachment, type ModelSelection, type SessionConfigState } from '../../common/state/protocol/state.js';
+import type { SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { CustomizationStatus, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, parseSubagentSessionUri, type CustomizationRef, type PendingMessage, type SessionCustomization, type StringOrMarkdown, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
 import { hasKey } from '../../../../base/common/types.js';
@@ -112,8 +112,41 @@ export class MockAgent implements IAgent {
 		return { session, project: mockProject(this.id), workingDirectory: this.resolvedWorkingDirectory };
 	}
 
-	async resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {
-		return { schema: { type: 'object', properties: {} }, values: params.config ?? {} };
+	/**
+	 * Test hook: per-call resolved value override. Push entries onto this
+	 * array to control what `_resolveSessionConfig` returns for the
+	 * Nth call (consumed in order). Useful for driving the schema-push
+	 * side-effect's stale-response race test.
+	 */
+	readonly resolveSessionConfigResponses: SessionConfigState[] = [];
+
+	/**
+	 * Test hook: when set, each call to `_resolveSessionConfig` waits on a
+	 * fresh {@link DeferredPromise} (pushed onto this array in call order)
+	 * before returning. Tests release them out of order to drive the
+	 * stale-response race.
+	 */
+	resolveSessionConfigGate: DeferredPromise<void>[] | undefined;
+
+	/** Records every params object passed to `_resolveSessionConfig`. */
+	readonly resolveSessionConfigCalls: IAgentSessionConfigParams[] = [];
+
+	async _resolveSessionConfig(params: IAgentSessionConfigParams): Promise<SessionConfigState> {
+		const callIndex = this.resolveSessionConfigCalls.length;
+		this.resolveSessionConfigCalls.push(params);
+		if (this.resolveSessionConfigGate) {
+			const deferred = new DeferredPromise<void>();
+			this.resolveSessionConfigGate.push(deferred);
+			await deferred.p;
+		}
+		const override = this.resolveSessionConfigResponses[callIndex];
+		if (override) {
+			return override;
+		}
+		return {
+			schema: { type: 'object', properties: {} },
+			values: params.config ?? {},
+		};
 	}
 
 	async sessionConfigCompletions(_params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult> {
@@ -315,9 +348,28 @@ export class ScriptedMockAgent implements IAgent {
 		return { session, project: mockProject(this.id) };
 	}
 
-	async resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {
+	async _resolveSessionConfig(params: IAgentSessionConfigParams): Promise<SessionConfigState> {
 		const isolation = params.config?.isolation === 'folder' || params.config?.isolation === 'worktree' ? params.config.isolation : 'worktree';
 		const branch = isolation === 'worktree' && typeof params.config?.branch === 'string' ? params.config.branch : 'main';
+		// Test hook: when MOCK_AGENT_REQUIRE_API_KEY is set in the environment
+		// (typically via the test's `startServer({ env: ... })` call), include
+		// `apiKey` as a required schema property unless the client has supplied
+		// it. Drives the `startTurn` integration test's missing-required path.
+		const requireApiKey = process.env.MOCK_AGENT_REQUIRE_API_KEY === '1';
+		const apiKeyProvided = typeof params.config?.apiKey === 'string';
+		if (requireApiKey) {
+			return {
+				schema: {
+					type: 'object',
+					properties: {
+						apiKey: { type: 'string', title: 'API Key' },
+						isolation: { type: 'string', title: 'Isolation', enum: ['folder', 'worktree'], default: 'worktree' },
+					},
+					...(apiKeyProvided ? {} : { required: ['apiKey'] }),
+				},
+				values: { isolation, ...(apiKeyProvided ? { apiKey: params.config!.apiKey } : {}) },
+			};
+		}
 		return {
 			schema: {
 				type: 'object',

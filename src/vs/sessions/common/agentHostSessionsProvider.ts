@@ -7,8 +7,8 @@ import { Event } from '../../base/common/event.js';
 import { IObservable } from '../../base/common/observable.js';
 import { equals } from '../../base/common/objects.js';
 import { RemoteAgentHostConnectionStatus } from '../../platform/agentHost/common/remoteAgentHostService.js';
-import { ResolveSessionConfigResult, SessionConfigValueItem } from '../../platform/agentHost/common/state/protocol/commands.js';
-import { RootConfigState } from '../../platform/agentHost/common/state/protocol/state.js';
+import { SessionConfigValueItem } from '../../platform/agentHost/common/state/protocol/commands.js';
+import { RootConfigState, SessionConfigState } from '../../platform/agentHost/common/state/protocol/state.js';
 import { ISessionsProvider } from '../services/sessions/common/sessionsProvider.js';
 
 /**
@@ -43,7 +43,7 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	/** Fires when dynamic configuration for a session changes. */
 	readonly onDidChangeSessionConfig: Event<string>;
 	/** Returns the last resolved dynamic configuration for a session. */
-	getSessionConfig(sessionId: string): ResolveSessionConfigResult | undefined;
+	getSessionConfig(sessionId: string): SessionConfigState | undefined;
 	/** Sets one dynamic configuration property and re-resolves the schema. */
 	setSessionConfigValue(sessionId: string, property: string, value: unknown): Promise<void>;
 	/**
@@ -106,13 +106,15 @@ export function isAgentHostProvider(provider: ISessionsProvider): provider is IA
 /**
  * Structural equality for resolved session configs. Returns true when both
  * inputs have the same value-key set with deep-equal values and the same set
- * of schema property keys with identical (by-identity) property objects.
+ * of schema property keys with identical (by-identity) property objects, AND
+ * the same top-level schema fields (notably `required`) deep-equal.
+ *
  * Schema property objects are compared by identity since they originate from
  * the same protocol snapshot in the providers that use this helper. Values
  * are deep-compared via {@link equals} so non-string entries (e.g. permission
  * objects) compare correctly.
  */
-export function resolvedConfigsEqual(a: ResolveSessionConfigResult, b: ResolveSessionConfigResult): boolean {
+export function resolvedConfigsEqual(a: SessionConfigState, b: SessionConfigState): boolean {
 	const aValueKeys = Object.keys(a.values);
 	const bValueKeys = Object.keys(b.values);
 	if (aValueKeys.length !== bValueKeys.length) {
@@ -132,6 +134,15 @@ export function resolvedConfigsEqual(a: ResolveSessionConfigResult, b: ResolveSe
 		if (a.schema.properties[key] !== b.schema.properties[key]) {
 			return false;
 		}
+	}
+	// Compare the top-level schema fields (other than `properties`, already
+	// compared above). Most importantly `required` — without this, a schema
+	// where only `required` changed would compare equal and the cache would
+	// keep stale completeness information.
+	const { properties: _aProps, ...aTop } = a.schema;
+	const { properties: _bProps, ...bTop } = b.schema;
+	if (!equals(aTop, bTop)) {
+		return false;
 	}
 	return true;
 }

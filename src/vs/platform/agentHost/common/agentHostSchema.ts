@@ -112,7 +112,8 @@ export interface ISchema<D extends SchemaDefinition> {
 	 * new session.
 	 *
 	 * Intended for sanitizing untrusted input at protocol boundaries
-	 * (e.g. `resolveSessionConfig`). Keys that fail validation are
+	 * (e.g. before publishing the schema via `SessionConfigChanged`).
+	 * Keys that fail validation are
 	 * silently replaced with their default or dropped; use
 	 * {@link values} or {@link assertValid} when you want a descriptive
 	 * {@link ProtocolError} instead.

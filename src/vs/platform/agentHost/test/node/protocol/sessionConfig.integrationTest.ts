@@ -7,7 +7,7 @@ import assert from 'assert';
 import { mkdtempSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { URI } from '../../../../../base/common/uri.js';
-import type { ResolveSessionConfigResult, SessionConfigCompletionsResult, SubscribeResult } from '../../../common/state/protocol/commands.js';
+import type { SessionConfigCompletionsResult, SubscribeResult } from '../../../common/state/protocol/commands.js';
 import { ActionType, type SessionAddedNotification } from '../../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
 import type { INotificationBroadcastParams } from '../../../common/state/sessionProtocol.js';
@@ -44,32 +44,6 @@ suite('Protocol WebSocket - Session Config', function () {
 
 	teardown(function () {
 		client.close();
-	});
-
-	test('resolveSessionConfig returns schema and re-resolves dependent read-only state', async function () {
-		this.timeout(10_000);
-
-		const workingDirectory = URI.file('/mock/workspace').toString();
-		const initial = await client.call<ResolveSessionConfigResult>('resolveSessionConfig', {
-			provider: 'mock',
-			workingDirectory,
-		});
-
-		assert.deepStrictEqual(initial.values, { isolation: 'worktree', branch: 'main' });
-		assert.deepStrictEqual(Object.keys(initial.schema.properties), ['isolation', 'branch']);
-		assert.deepStrictEqual(initial.schema.properties.branch.enum, ['main']);
-		assert.strictEqual(initial.schema.properties.branch.enumDynamic, true);
-		assert.strictEqual(initial.schema.properties.branch.readOnly, false);
-
-		const folder = await client.call<ResolveSessionConfigResult>('resolveSessionConfig', {
-			provider: 'mock',
-			workingDirectory,
-			config: { isolation: 'folder', branch: 'feature/config' },
-		});
-
-		assert.deepStrictEqual(folder.values, { isolation: 'folder', branch: 'main' });
-		assert.strictEqual(folder.schema.properties.branch.enumDynamic, false);
-		assert.strictEqual(folder.schema.properties.branch.readOnly, true);
 	});
 
 	test('sessionConfigCompletions returns dynamic branch matches', async function () {
