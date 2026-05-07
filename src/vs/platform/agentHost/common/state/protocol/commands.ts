@@ -14,6 +14,82 @@ export type { ConfigPropertySchema, ConfigSchema, SessionConfigPropertySchema, S
 // ─── initialize ──────────────────────────────────────────────────────────────
 
 /**
+ * MCP Apps support — presence (even as an empty object) signals the client
+ * can render MCP App webviews and proxy `ui/*` traffic for the
+ * [MCP Apps](https://github.com/modelcontextprotocol/ext-apps) extension
+ * (`io.modelcontextprotocol/ui`). Future feature flags can be added as
+ * optional fields without breaking the wire.
+ *
+ * @category Commands
+ */
+export interface ClientMcpAppsCapability {
+}
+
+/**
+ * Client-side MCP capabilities. Nested fields gate specific features.
+ *
+ * @category Commands
+ */
+export interface ClientMcpCapabilities {
+	/**
+	 * Client speaks the MCP Apps extension. See
+	 * {@link ClientMcpAppsCapability}.
+	 */
+	apps?: ClientMcpAppsCapability;
+}
+
+/**
+ * Capabilities advertised by the **client** during `initialize`. All fields
+ * are optional and additive; the server treats absence the same as `false` /
+ * "not supported".
+ *
+ * @category Commands
+ */
+export interface ClientCapabilities {
+	/**
+	 * Client speaks MCP-related extensions of AHP. Presence of this object
+	 * (even empty) signals nothing on its own; nested fields gate specific
+	 * features.
+	 */
+	mcp?: ClientMcpCapabilities;
+}
+
+/**
+ * Server-side MCP capabilities. Each field gates a specific surface that
+ * the host may or may not expose.
+ *
+ * @category Commands
+ */
+export interface ServerMcpCapabilities {
+	/**
+	 * Host accepts the `mcpMessage` command (client → MCP-server JSON-RPC
+	 * forwarding). Hosts that do not implement it MUST return
+	 * `MethodNotFound`.
+	 */
+	message?: boolean;
+	/**
+	 * Host exposes per-server `mcp:/<sessionId>/<serverId>` subscribable
+	 * URIs in addition to the lightweight {@link McpServerSummary} on
+	 * each session.
+	 */
+	perServerSubscriptions?: boolean;
+}
+
+/**
+ * Capabilities advertised by the **server** in the `initialize` result. All
+ * fields are optional and additive; the client treats absence the same as
+ * `false` / "not supported".
+ *
+ * @category Commands
+ */
+export interface ServerCapabilities {
+	/**
+	 * Host runs an MCP gateway and surfaces per-server state via AHP.
+	 */
+	mcp?: ServerMcpCapabilities;
+}
+
+/**
  * Establishes a new connection and negotiates the protocol version.
  * This MUST be the first message sent by the client.
  *
@@ -45,6 +121,12 @@ export interface InitializeParams {
 	 * user-facing strings such as confirmation option labels.
 	 */
 	locale?: string;
+	/**
+	 * Optional capabilities the client supports. Servers MUST treat absent
+	 * fields as "not supported" and MUST NOT initiate traffic that depends
+	 * on a capability the client did not advertise.
+	 */
+	capabilities?: ClientCapabilities;
 }
 
 /**
@@ -76,6 +158,12 @@ export interface InitializeResult {
 	 * `'@'` or `'/'`.
 	 */
 	completionTriggerCharacters?: string[];
+	/**
+	 * Optional capabilities the server supports. Clients MUST treat absent
+	 * fields as "not supported" and MUST NOT issue commands that depend on
+	 * a capability the server did not advertise.
+	 */
+	capabilities?: ServerCapabilities;
 }
 
 // ─── reconnect ───────────────────────────────────────────────────────────────
@@ -745,8 +833,13 @@ export interface ResourceMoveResult {
 
 /**
  * Pushes a Bearer token for a protected resource. The `resource` field MUST
- * match a `ProtectedResourceMetadata.resource` value declared by an agent
- * in `AgentInfo.protectedResources`.
+ * match either:
+ *
+ * - a `resource` value from {@link ProtectedResourceMetadata} declared by an
+ *   agent in {@link AgentInfo.protectedResources}, **or**
+ * - the `resource` field of a current
+ *   {@link McpServerStatusAuthRequired} on a subscribed session (when
+ *   `server` is set).
  *
  * Tokens are delivered using [RFC 6750](https://datatracker.ietf.org/doc/html/rfc6750)
  * (Bearer Token Usage) semantics. The client obtains the token from the
@@ -761,9 +854,15 @@ export interface ResourceMoveResult {
  * @see {@link /specification/authentication | Authentication}
  * @example
  * ```jsonc
- * // Client → Server
+ * // Client → Server (agent-level resource)
  * { "jsonrpc": "2.0", "id": 3, "method": "authenticate",
  *   "params": { "resource": "https://api.github.com", "token": "gho_xxxx" } }
+ *
+ * // Client → Server (per-MCP-server scoping)
+ * { "jsonrpc": "2.0", "id": 4, "method": "authenticate",
+ *   "params": { "resource": "https://api.github.com",
+ *               "token": "gho_xxxx",
+ *               "server": "mcp:/<sessionId>/github" } }
  *
  * // Server → Client (success)
  * { "jsonrpc": "2.0", "id": 3, "result": {} }
@@ -774,12 +873,29 @@ export interface ResourceMoveResult {
  */
 export interface AuthenticateParams {
 	/**
-	 * The protected resource identifier. MUST match a `resource` value from
-	 * `ProtectedResourceMetadata` declared in `AgentInfo.protectedResources`.
+	 * The protected resource identifier. MUST match either a `resource` value
+	 * from {@link ProtectedResourceMetadata} declared in
+	 * {@link AgentInfo.protectedResources}, **or** the `resource` field of a
+	 * current {@link McpServerStatusAuthRequired} on a subscribed session
+	 * (when `server` is set).
 	 */
 	resource: string;
-	/** Bearer token obtained from the resource's authorization server */
+	/** Bearer token obtained from the resource's authorization server. */
 	token: string;
+	/**
+	 * Optional MCP server URI (`mcp:/<sessionId>/<serverId>`) this token is
+	 * being presented for. When set, the token is scoped to *only* that
+	 * server — other MCP servers that share the same `resource` URL remain
+	 * in {@link McpServerStatusKind.AuthRequired}. This lets a
+	 * security-conscious client authorize only the MCP servers it trusts and
+	 * leave others in an `AuthRequired` state.
+	 *
+	 * When omitted, the token is bound to the agent-level resource as
+	 * before. Hosts that do not yet implement per-server scoping MAY ignore
+	 * `server` and treat the token as resource-wide; clients SHOULD treat
+	 * that as the worst-case fallback.
+	 */
+	server?: URI;
 }
 
 /**
@@ -933,6 +1049,80 @@ export interface SessionConfigCompletionsParams {
 export interface SessionConfigCompletionsResult {
 	/** Matching value items */
 	items: SessionConfigValueItem[];
+}
+
+// ─── mcpMessage ──────────────────────────────────────────────────────────────
+
+/**
+ * Forwards a JSON-RPC message from the client to a specific MCP server
+ * managed by the host. Used for client-initiated traffic that would
+ * otherwise be sent directly over MCP — most importantly the view-side
+ * half of the [MCP Apps](https://github.com/modelcontextprotocol/ext-apps)
+ * extension (`ui/initialize`, `ui/open-link`, `ui/message`,
+ * `ui/request-display-mode`, `ui/update-model-context`, etc.) and any
+ * client-issued `tools/call` or `resources/read` an app is allowed to make.
+ *
+ * Hosts gate this command behind {@link ServerCapabilities.mcp.message}.
+ * Hosts that do not implement it MUST return `MethodNotFound`.
+ *
+ * Hosts MUST refuse `ui/*` methods when the client did not advertise
+ * {@link ClientCapabilities.mcp.apps}. Hosts SHOULD refuse other methods
+ * the underlying gateway does not allow (for example,
+ * `sampling/createMessage` when per-session sampling consent is off).
+ *
+ * No AHP-level correlation id is required: each `mcpMessage` is a normal
+ * JSON-RPC request whose response *is* the response. Notifications are
+ * fire-and-forget and signalled via the `notification` flag.
+ *
+ * @category Commands
+ * @method mcpMessage
+ * @direction Client → Server
+ * @messageType Request
+ * @version 1
+ * @example
+ * ```jsonc
+ * // Client → Server (a UI app asks the host to open a link)
+ * { "jsonrpc": "2.0", "id": 30, "method": "mcpMessage",
+ *   "params": {
+ *     "server": "mcp:/<sessionId>/github",
+ *     "method": "ui/open-link",
+ *     "params": { "url": "https://github.com/owner/repo" }
+ *   } }
+ *
+ * // Server → Client
+ * { "jsonrpc": "2.0", "id": 30, "result": { "result": {} } }
+ * ```
+ */
+export interface McpMessageParams {
+	/**
+	 * Server URI (`mcp:/<sessionId>/<serverId>`). The host derives the
+	 * owning session from this URI; no separate `session` field is required.
+	 * Agent host implementations are free to make the server URI
+	 * self-identifying to a session in whatever scheme they choose.
+	 */
+	server: URI;
+	/**
+	 * If `true`, this is a JSON-RPC notification — `result` is unused and
+	 * the host responds with an empty {@link McpMessageResult} synchronously.
+	 * If `false` or omitted, this is a JSON-RPC request and the host's
+	 * reply carries the MCP method's result (or a JSON-RPC error).
+	 */
+	notification?: boolean;
+	/** JSON-RPC method (e.g. `ui/open-link`, `tools/call`). */
+	method: string;
+	/** Method params; opaque to AHP — typed by the MCP method. */
+	params?: unknown;
+}
+
+/**
+ * Result of the `mcpMessage` command.
+ */
+export interface McpMessageResult {
+	/**
+	 * Empty when {@link McpMessageParams.notification} is `true`. Otherwise
+	 * the result returned by the underlying MCP method, opaque to AHP.
+	 */
+	result?: unknown;
 }
 
 // ─── completions ─────────────────────────────────────────────────────────────

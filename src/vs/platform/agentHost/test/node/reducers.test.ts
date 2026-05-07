@@ -7,6 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { sessionReducer } from '../../common/state/protocol/reducers.js';
 import { ActionType } from '../../common/state/sessionActions.js';
+import { McpServerStatusKind, type McpServerStatus, type McpServerSummary } from '../../common/state/protocol/state.js';
 import { SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, type SessionState } from '../../common/state/sessionState.js';
 
 function makeSession(): SessionState {
@@ -190,5 +191,91 @@ suite('sessionReducer – summaryStatus with tool call confirmations and input r
 		});
 
 		assert.strictEqual(state.summary.status, SessionStatus.InputNeeded);
+	});
+});
+
+suite('sessionReducer – mcp lifecycle', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const SESSION_URI = 'copilot:/test';
+
+	function makeServer(overrides?: Partial<McpServerSummary>): McpServerSummary {
+		return {
+			resource: 'mcp:/sess1/server1',
+			label: 'server1',
+			status: { kind: McpServerStatusKind.Starting },
+			...overrides,
+		};
+	}
+
+	test('McpServerAdded inserts a single summary into mcpServers', () => {
+		const server = makeServer();
+		const state = sessionReducer(makeSession(), {
+			type: ActionType.McpServerAdded,
+			session: SESSION_URI,
+			server,
+		});
+
+		assert.deepStrictEqual(state.mcpServers, [server]);
+	});
+
+	test('McpServerAdded with a duplicate resource replaces the prior entry', () => {
+		let state = sessionReducer(makeSession(), {
+			type: ActionType.McpServerAdded,
+			session: SESSION_URI,
+			server: makeServer(),
+		});
+
+		const replaced = makeServer({
+			label: 'server1-renamed',
+			status: { kind: McpServerStatusKind.Ready },
+		});
+		state = sessionReducer(state, {
+			type: ActionType.McpServerAdded,
+			session: SESSION_URI,
+			server: replaced,
+		});
+
+		assert.deepStrictEqual(state.mcpServers, [replaced]);
+	});
+
+	test('McpServerRemoved drops the matching entry', () => {
+		const server = makeServer();
+		let state = sessionReducer(makeSession(), {
+			type: ActionType.McpServerAdded,
+			session: SESSION_URI,
+			server,
+		});
+		state = sessionReducer(state, {
+			type: ActionType.McpServerRemoved,
+			session: SESSION_URI,
+			mcpServer: server.resource,
+		});
+
+		assert.strictEqual(state.mcpServers, undefined);
+	});
+
+	test('McpServerStatusChanged updates only the status of the matching entry', () => {
+		const server = makeServer();
+		let state = sessionReducer(makeSession(), {
+			type: ActionType.McpServerAdded,
+			session: SESSION_URI,
+			server,
+		});
+
+		const newStatus: McpServerStatus = { kind: McpServerStatusKind.Ready };
+		state = sessionReducer(state, {
+			type: ActionType.McpServerStatusChanged,
+			session: SESSION_URI,
+			mcpServer: server.resource,
+			status: newStatus,
+		});
+
+		assert.deepStrictEqual(state.mcpServers, [{
+			resource: server.resource,
+			label: server.label,
+			status: newStatus,
+		}]);
 	});
 });

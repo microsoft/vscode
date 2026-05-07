@@ -17,6 +17,7 @@ import {
 	ToolResultContentType,
 	ToolResultFileEditContent,
 	type ActiveTurn,
+	type McpServerState,
 	type RootState,
 	type SessionState,
 	type SessionSummary,
@@ -280,12 +281,14 @@ export const enum StateComponents {
 	Root,
 	Session,
 	Terminal,
+	Mcp,
 }
 
 export type ComponentToState = {
 	[StateComponents.Root]: RootState;
 	[StateComponents.Session]: SessionState;
 	[StateComponents.Terminal]: TerminalState;
+	[StateComponents.Mcp]: McpServerState;
 };
 
 // ---- SessionMeta accessors -------------------------------------------------

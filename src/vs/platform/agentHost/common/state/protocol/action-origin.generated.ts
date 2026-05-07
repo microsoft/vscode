@@ -9,10 +9,10 @@
 // Generated from types/actions.ts — do not edit
 // Run `npm run generate` to regenerate.
 
-import { ActionType, type StateAction, type RootAgentsChangedAction, type RootActiveSessionsChangedAction, type RootTerminalsChangedAction, type RootConfigChangedAction, type SessionReadyAction, type SessionCreationFailedAction, type SessionTurnStartedAction, type SessionDeltaAction, type SessionResponsePartAction, type SessionToolCallStartAction, type SessionToolCallDeltaAction, type SessionToolCallReadyAction, type SessionToolCallConfirmedAction, type SessionToolCallCompleteAction, type SessionToolCallResultConfirmedAction, type SessionToolCallContentChangedAction, type SessionTurnCompleteAction, type SessionTurnCancelledAction, type SessionErrorAction, type SessionTitleChangedAction, type SessionUsageAction, type SessionReasoningAction, type SessionModelChangedAction, type SessionServerToolsChangedAction, type SessionActiveClientChangedAction, type SessionActiveClientToolsChangedAction, type SessionPendingMessageSetAction, type SessionPendingMessageRemovedAction, type SessionQueuedMessagesReorderedAction, type SessionInputRequestedAction, type SessionInputAnswerChangedAction, type SessionInputCompletedAction, type SessionCustomizationsChangedAction, type SessionCustomizationToggledAction, type SessionTruncatedAction, type SessionIsReadChangedAction, type SessionIsArchivedChangedAction, type SessionActivityChangedAction, type SessionDiffsChangedAction, type SessionConfigChangedAction, type SessionMetaChangedAction, type TerminalDataAction, type TerminalInputAction, type TerminalResizedAction, type TerminalClaimedAction, type TerminalTitleChangedAction, type TerminalCwdChangedAction, type TerminalExitedAction, type TerminalClearedAction, type TerminalCommandDetectionAvailableAction, type TerminalCommandExecutedAction, type TerminalCommandFinishedAction } from './actions.js';
+import { ActionType, type StateAction, type RootAgentsChangedAction, type RootActiveSessionsChangedAction, type RootTerminalsChangedAction, type RootConfigChangedAction, type SessionReadyAction, type SessionCreationFailedAction, type SessionTurnStartedAction, type SessionDeltaAction, type SessionResponsePartAction, type SessionToolCallStartAction, type SessionToolCallDeltaAction, type SessionToolCallReadyAction, type SessionToolCallConfirmedAction, type SessionToolCallCompleteAction, type SessionToolCallResultConfirmedAction, type SessionToolCallContentChangedAction, type SessionTurnCompleteAction, type SessionTurnCancelledAction, type SessionErrorAction, type SessionTitleChangedAction, type SessionUsageAction, type SessionReasoningAction, type SessionModelChangedAction, type SessionServerToolsChangedAction, type SessionActiveClientChangedAction, type SessionActiveClientToolsChangedAction, type SessionPendingMessageSetAction, type SessionPendingMessageRemovedAction, type SessionQueuedMessagesReorderedAction, type SessionInputRequestedAction, type SessionInputAnswerChangedAction, type SessionInputCompletedAction, type SessionCustomizationsChangedAction, type SessionCustomizationToggledAction, type SessionTruncatedAction, type SessionIsReadChangedAction, type SessionIsArchivedChangedAction, type SessionActivityChangedAction, type SessionDiffsChangedAction, type SessionConfigChangedAction, type SessionMetaChangedAction, type TerminalDataAction, type TerminalInputAction, type TerminalResizedAction, type TerminalClaimedAction, type TerminalTitleChangedAction, type TerminalCwdChangedAction, type TerminalExitedAction, type TerminalClearedAction, type TerminalCommandDetectionAvailableAction, type TerminalCommandExecutedAction, type TerminalCommandFinishedAction, type McpServerAddedAction, type McpServerRemovedAction, type McpServerStatusChangedAction, type McpMessageReceivedAction, type McpMessageRespondedAction, type McpMessageRemovedAction } from './actions.js';
 
 
-// ─── Root vs Session vs Terminal Action Unions ───────────────────────────────
+// ─── Root vs Session vs Terminal vs Mcp Action Unions ────────────────────────
 
 /** Union of all root-scoped actions. */
 export type RootAction =
@@ -73,6 +73,9 @@ export type SessionAction =
 	| SessionDiffsChangedAction
 	| SessionConfigChangedAction
 	| SessionMetaChangedAction
+	| McpServerAddedAction
+	| McpServerRemovedAction
+	| McpServerStatusChangedAction
 	;
 
 /** Union of session actions that clients may dispatch. */
@@ -118,6 +121,9 @@ export type ServerSessionAction =
 	| SessionActivityChangedAction
 	| SessionDiffsChangedAction
 	| SessionMetaChangedAction
+	| McpServerAddedAction
+	| McpServerRemovedAction
+	| McpServerStatusChangedAction
 	;
 
 /** Union of all terminal-scoped actions. */
@@ -152,6 +158,24 @@ export type ServerTerminalAction =
 	| TerminalCommandDetectionAvailableAction
 	| TerminalCommandExecutedAction
 	| TerminalCommandFinishedAction
+	;
+
+/** Union of all mcp-server-scoped actions. */
+export type McpAction =
+	| McpMessageReceivedAction
+	| McpMessageRespondedAction
+	| McpMessageRemovedAction
+	;
+
+/** Union of mcp actions that clients may dispatch. */
+export type ClientMcpAction =
+	| McpMessageRespondedAction
+	;
+
+/** Union of mcp actions that only the server may produce. */
+export type ServerMcpAction =
+	| McpMessageReceivedAction
+	| McpMessageRemovedAction
 	;
 
 // ─── Client-Dispatchable Map ─────────────────────────────────────────────────
@@ -213,4 +237,10 @@ export const IS_CLIENT_DISPATCHABLE: { readonly [K in StateAction['type']]: bool
 	[ActionType.TerminalCommandDetectionAvailable]: false,
 	[ActionType.TerminalCommandExecuted]: false,
 	[ActionType.TerminalCommandFinished]: false,
+	[ActionType.McpServerAdded]: false,
+	[ActionType.McpServerRemoved]: false,
+	[ActionType.McpServerStatusChanged]: false,
+	[ActionType.McpMessageReceived]: false,
+	[ActionType.McpMessageResponded]: true,
+	[ActionType.McpMessageRemoved]: false,
 };

@@ -346,6 +346,21 @@ export interface SessionState {
 	 * workingDirectory.
 	 */
 	_meta?: Record<string, unknown>;
+	/**
+	 * Lightweight summary of MCP servers running for this session.
+	 *
+	 * Each entry carries just enough state for clients to render an "MCP
+	 * servers" affordance and react to authentication challenges. Volatile
+	 * state (in-flight JSON-RPC traffic, full tool listings) lives behind
+	 * each server's own subscribable URI ({@link McpServerSummary.resource}),
+	 * which yields a {@link McpServerState} when subscribed; clients
+	 * subscribe there only when they need it (for example, to render an
+	 * MCP App).
+	 *
+	 * @see {@link McpServerSummary}
+	 * @see {@link McpServerState}
+	 */
+	mcpServers?: McpServerSummary[];
 }
 
 /**
@@ -1673,6 +1688,264 @@ export interface TerminalCommandPart {
 	durationMs?: number;
 }
 
+// ─── MCP Server State ────────────────────────────────────────────────────────
+
+/**
+ * Discriminant for the {@link McpServerStatus} union.
+ *
+ * @category MCP Server State
+ */
+export const enum McpServerStatusKind {
+	/** Server has been registered but is not yet running. */
+	Starting = 'starting',
+	/** Server is running and serving requests. */
+	Ready = 'ready',
+	/** Server is reachable but cannot serve requests until the client authenticates. */
+	AuthRequired = 'authRequired',
+	/** Server failed to start, crashed, or otherwise transitioned to a fatal error. */
+	Error = 'error',
+	/** Server has been shut down. */
+	Stopped = 'stopped',
+}
+
+/**
+ * Why an MCP server is currently in the {@link McpServerStatusKind.AuthRequired}
+ * state. Mirrors the three failure modes defined by the
+ * [MCP authorization spec](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization.md).
+ *
+ * @category MCP Server State
+ */
+export const enum McpAuthRequiredReason {
+	/** No token has been provided yet (HTTP 401, no prior token). */
+	Required = 'required',
+	/** A previously valid token expired or was revoked (HTTP 401). */
+	Expired = 'expired',
+	/**
+	 * Step-up auth: a token is present but its scopes are insufficient for
+	 * the requested operation (HTTP 403 with
+	 * `WWW-Authenticate: Bearer error="insufficient_scope"`).
+	 */
+	InsufficientScope = 'insufficientScope',
+}
+
+/**
+ * Server is registered with the host but has not yet started.
+ *
+ * @category MCP Server State
+ */
+export interface McpServerStatusStarting {
+	kind: McpServerStatusKind.Starting;
+}
+
+/**
+ * Server is running and serving requests.
+ *
+ * @category MCP Server State
+ */
+export interface McpServerStatusReady {
+	kind: McpServerStatusKind.Ready;
+}
+
+/**
+ * Server is reachable but cannot serve requests until the client
+ * authenticates. Mirrors the discovery flow defined by
+ * [RFC 9728](https://datatracker.ietf.org/doc/html/rfc9728)
+ * (Protected Resource Metadata) and the OAuth 2.1 / RFC 6750 challenge
+ * semantics required by the MCP authorization spec.
+ *
+ * Clients react to this state by calling the existing `authenticate`
+ * command with the {@link ProtectedResourceMetadata.resource | resource}
+ * carried here. There is **no** `notify/authRequired` notification for
+ * MCP servers — the action stream is the single source of truth.
+ *
+ * @category MCP Server State
+ */
+export interface McpServerStatusAuthRequired {
+	kind: McpServerStatusKind.AuthRequired;
+	/** Why authentication is required. */
+	reason: McpAuthRequiredReason;
+	/**
+	 * RFC 9728 Protected Resource Metadata. The `resource` field is the
+	 * canonical MCP server URI per RFC 8707, used as the OAuth `resource`
+	 * indicator. `authorization_servers` is REQUIRED by the MCP
+	 * authorization spec.
+	 */
+	resource: ProtectedResourceMetadata;
+	/**
+	 * Scopes required for the current challenge, parsed from the
+	 * `WWW-Authenticate: Bearer scope="…"` header (or `scopes_supported`
+	 * fallback). Authoritative for the next authorization request — clients
+	 * MUST NOT assume any subset/superset relationship to
+	 * `resource.scopes_supported`.
+	 */
+	requiredScopes?: string[];
+	/** Human-readable hint, typically from the OAuth `error_description`. */
+	description?: string;
+}
+
+/**
+ * Server failed to start, crashed, or otherwise transitioned to a
+ * non-recoverable error. Use {@link McpServerStatusKind.AuthRequired}
+ * for authentication failures.
+ *
+ * @category MCP Server State
+ */
+export interface McpServerStatusError {
+	kind: McpServerStatusKind.Error;
+	/** Error details. */
+	error: ErrorInfo;
+}
+
+/**
+ * Server has been shut down. The host MAY remove the server from the
+ * session entirely shortly after this state.
+ *
+ * @category MCP Server State
+ */
+export interface McpServerStatusStopped {
+	kind: McpServerStatusKind.Stopped;
+}
+
+/**
+ * Discriminated union of all MCP server statuses. Discriminated by `kind`.
+ *
+ * @category MCP Server State
+ */
+export type McpServerStatus =
+	| McpServerStatusStarting
+	| McpServerStatusReady
+	| McpServerStatusAuthRequired
+	| McpServerStatusError
+	| McpServerStatusStopped;
+
+/**
+ * Lightweight summary of an MCP server running for a session. Lives on
+ * {@link SessionState.mcpServers}; volatile per-server data lives behind
+ * the server's own subscribable URI.
+ *
+ * @category MCP Server State
+ */
+export interface McpServerSummary {
+	/**
+	 * Subscribable URI for this MCP server. Subscribing to it yields a
+	 * {@link McpServerState}. The exact URI scheme is host-defined.
+	 */
+	resource: URI;
+	/** Human-readable display label. */
+	label: string;
+	/** Current status. */
+	status: McpServerStatus;
+}
+
+/**
+ * Discriminant for the {@link McpRpcMessage} union.
+ *
+ * @category MCP Server State
+ */
+export const enum McpRpcMessageKind {
+	/** A JSON-RPC notification (no response expected). */
+	Notification = 'notification',
+	/** A JSON-RPC request the client is expected to satisfy. */
+	Call = 'call',
+}
+
+/**
+ * A JSON-RPC notification originating from the MCP server. The host
+ * inserts these into {@link McpServerState.messages} for clients to
+ * observe (e.g. `ui/notifications/host-context-changed`,
+ * `notifications/tools/list_changed`). The host removes the entry once
+ * delivery is no longer interesting; clients SHOULD treat any value at a
+ * given key as an immutable snapshot.
+ *
+ * @category MCP Server State
+ */
+export interface McpRpcNotification {
+	kind: McpRpcMessageKind.Notification;
+	/** JSON-RPC method (e.g. `ui/notifications/host-context-changed`). */
+	method: string;
+	/** Method params. Opaque to AHP — typed by the MCP method. */
+	params?: unknown;
+}
+
+/**
+ * A JSON-RPC request originating from the MCP server that the client is
+ * expected to satisfy (e.g. `sampling/createMessage`, `ui/resource-teardown`,
+ * `roots/list`).
+ *
+ * The host writes the entry with `request` set and `response` undefined.
+ * The client sets `response` via `mcp/messageResponded`. The host then
+ * forwards the response back over the underlying MCP transport and
+ * removes the entry via `mcp/messageRemoved`.
+ *
+ * **Cancellation contract.** Silent removal of a `Call` entry IS the
+ * cancel signal. If the host emits `mcp/messageRemoved` for an entry
+ * whose `response` is still undefined, the underlying MCP request was
+ * cancelled, timed out, or otherwise abandoned. Clients MUST treat
+ * removal-without-response as cancellation and drop any in-flight work.
+ * The converse is also a no-op: if the client dispatches
+ * `mcp/messageResponded` for an already-removed key, the host MUST log
+ * and drop (idempotent).
+ *
+ * @category MCP Server State
+ */
+export interface McpRpcCall {
+	kind: McpRpcMessageKind.Call;
+	/** JSON-RPC method (e.g. `ui/open-link`, `sampling/createMessage`). */
+	method: string;
+	/** Request params, set by the host when the entry is added. Opaque. */
+	request: unknown;
+	/**
+	 * Set by the client (via `mcp/messageResponded`) once it has produced a
+	 * result. Either a JSON-RPC success result or a JSON-RPC error.
+	 */
+	response?: McpRpcCallResponse;
+}
+
+/**
+ * Either a JSON-RPC success result or a JSON-RPC error, written by the
+ * client to satisfy a {@link McpRpcCall}.
+ *
+ * @category MCP Server State
+ */
+export type McpRpcCallResponse =
+	| { result: unknown }
+	| { error: { code: number; message: string; data?: unknown } };
+
+/**
+ * One outstanding JSON-RPC message in {@link McpServerState.messages}.
+ * Discriminated by `kind`.
+ *
+ * @category MCP Server State
+ */
+export type McpRpcMessage = McpRpcNotification | McpRpcCall;
+
+/**
+ * Full state for a single MCP server, loaded when a client subscribes to
+ * the server's {@link McpServerSummary.resource} URI.
+ *
+ * Only servers that are currently surfaced as an
+ * {@link McpServerSummary} on a parent session expose a per-server
+ * resource. The resource's lifetime is bounded by `mcp/serverAdded` and
+ * `mcp/serverRemoved` actions on the parent session.
+ *
+ * @category MCP Server State
+ */
+export interface McpServerState {
+	/** Human-readable display label (mirrored from the session-level summary). */
+	label: string;
+	/** Current status (mirrored from the session-level summary for convenience). */
+	status: McpServerStatus;
+	/**
+	 * Outstanding JSON-RPC traffic the client is expected to observe or
+	 * respond to. Keys are stable ids assigned by the host (use the JSON-RPC
+	 * `id` for {@link McpRpcCall}; a host-generated id for
+	 * {@link McpRpcNotification}). The host owns lifetime — entries appear
+	 * when the server emits them and disappear when the host has fully
+	 * processed them. Replay-safe because every mutation is a typed action.
+	 */
+	messages: Record<string, McpRpcMessage>;
+}
+
 // ─── Common Types ────────────────────────────────────────────────────────────
 
 /**
@@ -1711,7 +1984,7 @@ export interface Snapshot {
 	/** The subscribed resource URI (e.g. `agenthost:/root` or `copilot:/<uuid>`) */
 	resource: URI;
 	/** The current state of the resource */
-	state: RootState | SessionState | TerminalState;
+	state: RootState | SessionState | TerminalState | McpServerState;
 	/** The `serverSeq` at which this snapshot was taken. Subsequent actions will have `serverSeq > fromSeq`. */
 	fromSeq: number;
 }

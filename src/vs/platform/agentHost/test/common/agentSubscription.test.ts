@@ -8,9 +8,9 @@ import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ActionType, type ActionEnvelope } from '../../common/state/sessionActions.js';
-import { SessionLifecycle, SessionStatus, TerminalClaimKind, type RootState, type SessionState, type TerminalState } from '../../common/state/protocol/state.js';
+import { McpRpcMessageKind, McpServerStatusKind, SessionLifecycle, SessionStatus, TerminalClaimKind, type McpServerState, type RootState, type SessionState, type TerminalState } from '../../common/state/protocol/state.js';
 import { StateComponents } from '../../common/state/sessionState.js';
-import { AgentSubscriptionManager, RootStateSubscription, SessionStateSubscription, TerminalStateSubscription } from '../../common/state/agentSubscription.js';
+import { AgentSubscriptionManager, McpServerStateSubscription, RootStateSubscription, SessionStateSubscription, TerminalStateSubscription } from '../../common/state/agentSubscription.js';
 
 // Helpers
 
@@ -49,6 +49,15 @@ function makeTerminalState(overrides?: Partial<TerminalState>): TerminalState {
 	};
 }
 
+function makeMcpServerState(overrides?: Partial<McpServerState>): McpServerState {
+	return {
+		label: 'srv1',
+		status: { kind: McpServerStatusKind.Starting },
+		messages: {},
+		...overrides,
+	};
+}
+
 function makeEnvelope(action: ActionEnvelope['action'], serverSeq: number, origin?: ActionEnvelope['origin'], rejectionReason?: string): ActionEnvelope {
 	return { action, serverSeq, origin, rejectionReason };
 }
@@ -56,6 +65,7 @@ function makeEnvelope(action: ActionEnvelope['action'], serverSeq: number, origi
 const noop = () => { };
 const sessionUri = URI.from({ scheme: 'copilot', path: '/test-session' }).toString();
 const terminalUri = URI.from({ scheme: 'agenthost-terminal', path: '/term1' }).toString();
+const mcpServerUri = URI.parse('mcp:/sess1/srv1').toString();
 
 // RootStateSubscription
 
@@ -431,6 +441,80 @@ suite('TerminalStateSubscription', () => {
 		const state = makeTerminalState({ title: 'zsh' });
 		sub.handleSnapshot(state, 0);
 		assert.deepStrictEqual(sub.value, state);
+	});
+});
+
+// McpServerStateSubscription
+
+suite('McpServerStateSubscription', () => {
+
+	let disposables: DisposableStore;
+
+	setup(() => {
+		disposables = new DisposableStore();
+	});
+
+	teardown(() => {
+		disposables.dispose();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('accepts McpMessageReceived for matching server', () => {
+		const sub = disposables.add(new McpServerStateSubscription(mcpServerUri, 'c1', noop));
+		sub.handleSnapshot(makeMcpServerState(), 0);
+
+		sub.receiveEnvelope(makeEnvelope(
+			{
+				type: ActionType.McpMessageReceived,
+				mcpServer: mcpServerUri,
+				messageId: 'm1',
+				message: { kind: McpRpcMessageKind.Notification, method: 'notifications/tools/list_changed' },
+			},
+			1,
+		));
+
+		assert.deepStrictEqual((sub.value as McpServerState).messages, {
+			m1: { kind: McpRpcMessageKind.Notification, method: 'notifications/tools/list_changed' },
+		});
+	});
+
+	test('ignores McpMessageReceived for a different server', () => {
+		const sub = disposables.add(new McpServerStateSubscription(mcpServerUri, 'c1', noop));
+		const initial = makeMcpServerState();
+		sub.handleSnapshot(initial, 0);
+
+		sub.receiveEnvelope(makeEnvelope(
+			{
+				type: ActionType.McpMessageReceived,
+				mcpServer: 'mcp:/sess2/srvOther',
+				messageId: 'm1',
+				message: { kind: McpRpcMessageKind.Notification, method: 'x' },
+			},
+			1,
+		));
+
+		assert.deepStrictEqual(sub.value, initial);
+	});
+
+	test('removes message on McpMessageRemoved', () => {
+		const sub = disposables.add(new McpServerStateSubscription(mcpServerUri, 'c1', noop));
+		sub.handleSnapshot(makeMcpServerState({
+			messages: {
+				m1: { kind: McpRpcMessageKind.Notification, method: 'notifications/tools/list_changed' },
+			},
+		}), 0);
+
+		sub.receiveEnvelope(makeEnvelope(
+			{
+				type: ActionType.McpMessageRemoved,
+				mcpServer: mcpServerUri,
+				messageId: 'm1',
+			},
+			1,
+		));
+
+		assert.deepStrictEqual((sub.value as McpServerState).messages, {});
 	});
 });
 

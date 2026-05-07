@@ -108,6 +108,12 @@ export const ACTION_INTRODUCED_IN: { readonly [K in StateAction['type']]: string
 	[ActionType.TerminalCommandDetectionAvailable]: '0.1.0',
 	[ActionType.TerminalCommandExecuted]: '0.1.0',
 	[ActionType.TerminalCommandFinished]: '0.1.0',
+	[ActionType.McpServerAdded]: '0.2.0',
+	[ActionType.McpServerRemoved]: '0.2.0',
+	[ActionType.McpServerStatusChanged]: '0.2.0',
+	[ActionType.McpMessageReceived]: '0.2.0',
+	[ActionType.McpMessageResponded]: '0.2.0',
+	[ActionType.McpMessageRemoved]: '0.2.0',
 };
 
 /**

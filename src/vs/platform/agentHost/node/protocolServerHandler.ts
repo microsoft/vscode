@@ -13,7 +13,7 @@ import { AHPFileSystemProvider } from '../common/agentHostFileSystemProvider.js'
 import { AgentSession, type IAgentService } from '../common/agentService.js';
 import type { CommandMap } from '../common/state/protocol/messages.js';
 import type { UnsupportedProtocolVersionErrorData } from '../common/state/protocol/errors.js';
-import { ActionEnvelope, ActionType, INotification, isSessionAction, isTerminalAction, type SessionAction, type TerminalAction, type IRootConfigChangedAction } from '../common/state/sessionActions.js';
+import { ActionEnvelope, ActionType, INotification, isMcpAction, isSessionAction, isTerminalAction, type ClientMcpAction, type SessionAction, type TerminalAction, type IRootConfigChangedAction } from '../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../common/state/protocol/version/registry.js';
 import {
 	AHP_AUTH_REQUIRED,
@@ -194,8 +194,8 @@ export class ProtocolServerHandler extends Disposable {
 					case 'dispatchAction':
 						if (client) {
 							this._logService.trace(`[ProtocolServer] dispatchAction: ${JSON.stringify(msg.params.action.type)}`);
-							const action = msg.params.action as SessionAction | TerminalAction | IRootConfigChangedAction;
-							if (isSessionAction(action) || isTerminalAction(action) || action.type === ActionType.RootConfigChanged) {
+							const action = msg.params.action as SessionAction | TerminalAction | ClientMcpAction | IRootConfigChangedAction;
+							if (isSessionAction(action) || isTerminalAction(action) || isMcpAction(action) || action.type === ActionType.RootConfigChanged) {
 								this._agentService.dispatchAction(action, client.clientId, msg.params.clientSeq);
 							}
 						}
@@ -645,6 +645,10 @@ export class ProtocolServerHandler extends Disposable {
 			await this._agentService.disposeTerminal(URI.parse(params.terminal));
 			return null;
 		},
+		mcpMessage: async (_client, _params) => {
+			// Real implementation lands in Phase 2 with IMcpHostService.
+			throw new ProtocolError(JsonRpcErrorCodes.MethodNotFound, 'mcpMessage is not implemented yet');
+		},
 	};
 
 
@@ -754,6 +758,9 @@ export class ProtocolServerHandler extends Disposable {
 		}
 		if (isTerminalAction(action)) {
 			return client.subscriptions.has(action.terminal);
+		}
+		if (isMcpAction(action)) {
+			return client.subscriptions.has(action.mcpServer);
 		}
 		return false;
 	}

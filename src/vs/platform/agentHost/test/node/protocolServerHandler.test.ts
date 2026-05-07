@@ -12,10 +12,11 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import { type IAgentCreateSessionConfig, type IAgentResolveSessionConfigParams, type IAgentService, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agentService.js';
 import { CompletionsParams, CompletionsResult, ListSessionsResult, ResourceReadResult, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
-import { ActionType, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../../common/state/sessionActions.js';
+import { ActionType, type ClientMcpAction, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
-import { isJsonRpcNotification, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, ProtocolError, AHP_UNSUPPORTED_PROTOCOL_VERSION, type AhpNotification, type InitializeResult, type ProtocolMessage, type ReconnectResult, type ResourceListResult, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../../common/state/sessionProtocol.js';
+import { isJsonRpcNotification, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, JsonRpcErrorCodes, ProtocolError, AHP_UNSUPPORTED_PROTOCOL_VERSION, type AhpNotification, type InitializeResult, type ProtocolMessage, type ReconnectResult, type ResourceListResult, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../../common/state/sessionProtocol.js';
 import { ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, type SessionSummary } from '../../common/state/sessionState.js';
+import { McpRpcMessageKind, McpServerStatusKind } from '../../common/state/protocol/state.js';
 import type { IProtocolServer, IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { ProtocolServerHandler } from '../../node/protocolServerHandler.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
@@ -69,7 +70,7 @@ class MockProtocolServer implements IProtocolServer {
 
 class MockAgentService implements IAgentService {
 	declare readonly _serviceBrand: undefined;
-	readonly handledActions: (SessionAction | TerminalAction | IRootConfigChangedAction)[] = [];
+	readonly handledActions: (SessionAction | TerminalAction | ClientMcpAction | IRootConfigChangedAction)[] = [];
 	readonly browsedUris: URI[] = [];
 	readonly browseErrors = new Map<string, Error>();
 	readonly listedSessions: IAgentSessionMetadata[] = [];
@@ -87,7 +88,7 @@ class MockAgentService implements IAgentService {
 		this._stateManager = sm;
 	}
 
-	dispatchAction(action: SessionAction | TerminalAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void {
+	dispatchAction(action: SessionAction | TerminalAction | ClientMcpAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void {
 		this.handledActions.push(action);
 		const origin = { clientId, clientSeq };
 		this._stateManager.dispatchClientAction(action, origin);
@@ -983,6 +984,89 @@ suite('ProtocolServerHandler', () => {
 		// New transport closes - should decrement
 		transport2.simulateClose();
 		assert.deepStrictEqual(counts, [1, 1, 0]);
+	});
+
+	// ---- MCP routing -----------------------------------------------------
+
+	suite('MCP', () => {
+
+		const mcpServer1 = 'mcp:/sess1/srv1';
+		const mcpServer2 = 'mcp:/sess1/srv2';
+
+		function createMcpSessionWithServers(): void {
+			const summary = makeSessionSummary();
+			stateManager.createSession(summary);
+			stateManager.dispatchServerAction({ type: ActionType.SessionReady, session: sessionUri });
+			stateManager.createMcpServer(sessionUri, {
+				resource: mcpServer1,
+				label: 'srv1',
+				status: { kind: McpServerStatusKind.Ready },
+			});
+			stateManager.createMcpServer(sessionUri, {
+				resource: mcpServer2,
+				label: 'srv2',
+				status: { kind: McpServerStatusKind.Ready },
+			});
+		}
+
+		test('mcpMessage request returns MethodNotFound until Phase 2', async () => {
+			const transport = connectClient('client-mcp-msg');
+			transport.sent.length = 0;
+			const responsePromise = waitForResponse(transport, 2);
+
+			transport.simulateMessage(request(2, 'mcpMessage', {
+				mcpServer: mcpServer1,
+				message: { kind: McpRpcMessageKind.Notification, method: 'notifications/ping' },
+			}));
+			const resp = await responsePromise as { error?: { code: number; message: string } };
+
+			assert.deepStrictEqual({ code: resp.error?.code }, { code: JsonRpcErrorCodes.MethodNotFound });
+		});
+
+		test('per-server actions are scoped to subscribed mcpServer URI', async () => {
+			createMcpSessionWithServers();
+
+			const transportA = connectClient('client-a', [mcpServer1]);
+			const transportB = connectClient('client-b', [mcpServer2]);
+			transportA.sent.length = 0;
+			transportB.sent.length = 0;
+
+			stateManager.mcpMessageReceived(mcpServer1, 'm1', {
+				kind: McpRpcMessageKind.Notification,
+				method: 'notifications/tools/list_changed',
+			});
+
+			const aTypes = findNotifications(transportA.sent, 'action').map(m => (m.params as { action: { type: string } }).action.type);
+			const bTypes = findNotifications(transportB.sent, 'action').map(m => (m.params as { action: { type: string } }).action.type);
+			assert.deepStrictEqual({ a: aTypes, b: bTypes }, { a: [ActionType.McpMessageReceived], b: [] });
+		});
+
+		test('dispatchAction accepts client-dispatchable McpMessageResponded', () => {
+			createMcpSessionWithServers();
+
+			const transport = connectClient('client-mcp', [mcpServer1]);
+			transport.sent.length = 0;
+
+			// Seed an outstanding call so the responded action has a target.
+			stateManager.mcpMessageReceived(mcpServer1, 'call-1', {
+				kind: McpRpcMessageKind.Call,
+				method: 'sampling/createMessage',
+				request: {},
+			});
+
+			transport.simulateMessage(notification('dispatchAction', {
+				clientSeq: 1,
+				action: {
+					type: ActionType.McpMessageResponded,
+					mcpServer: mcpServer1,
+					messageId: 'call-1',
+					response: { result: { ok: true } },
+				},
+			}));
+
+			const handled = agentService.handledActions.map(a => a.type);
+			assert.deepStrictEqual(handled, [ActionType.McpMessageResponded]);
+		});
 	});
 
 	// ---- createSession activeClient -------------------------------------
