@@ -395,6 +395,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 						// Store copilot_usage for per-request credits display, scoped to the turn.
 						// Skip background requests — they are not part of an active user turn.
 						if (result.usage.copilot_usage?.total_nano_aiu && turnId && interactionType !== 'conversation-background') {
+							this._logService.trace(`[copilot_usage] ${debugName}: nanoAiu=${result.usage.copilot_usage.total_nano_aiu}, turnId=${turnId}, model=${result.resolvedModel}`);
 							this._chatQuotaService.setLastCopilotUsage(result.usage.copilot_usage.total_nano_aiu, turnId);
 						}
 

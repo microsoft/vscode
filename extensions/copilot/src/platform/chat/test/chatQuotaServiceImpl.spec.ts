@@ -148,4 +148,176 @@ describe('ChatQuotaService', () => {
 			expect(svc.quotaInfo?.quota).toBe(3900);
 		});
 	});
+
+	describe('realistic turn lifecycle simulation', () => {
+		/**
+		 * Simulates a single LLM API call in a turn, with a delay to model
+		 * real async timing (network latency, streaming, etc.)
+		 */
+		async function simulateApiCall(
+			svc: ChatQuotaService,
+			turnId: string,
+			nanoAiu: number,
+			delayMs: number = 0
+		): Promise<void> {
+			if (delayMs > 0) {
+				await new Promise(resolve => setTimeout(resolve, delayMs));
+			}
+			svc.setLastCopilotUsage(nanoAiu, turnId);
+		}
+
+		/**
+		 * Simulates a full agent turn:
+		 * 1. resetTurnCredits (turn start)
+		 * 2. N API calls with timing
+		 * 3. getCreditsForTurn (turn complete → display)
+		 */
+		async function simulateTurn(
+			svc: ChatQuotaService,
+			turnId: string,
+			calls: { nanoAiu: number; delayMs: number }[]
+		): Promise<number | undefined> {
+			svc.resetTurnCredits(turnId);
+			for (const call of calls) {
+				await simulateApiCall(svc, turnId, call.nanoAiu, call.delayMs);
+			}
+			return svc.getCreditsForTurn(turnId);
+		}
+
+		test('simple single-turn with tool loop (3 iterations)', async () => {
+			const svc = create();
+			const result = await simulateTurn(svc, 'turn-1', [
+				{ nanoAiu: 500_000_000, delayMs: 0 },   // initial agent call
+				{ nanoAiu: 300_000_000, delayMs: 0 },   // tool call iteration 1
+				{ nanoAiu: 200_000_000, delayMs: 0 },   // tool call iteration 2
+			]);
+			expect(result).toBe(1.0);
+		});
+
+		test('agentic turn with subagents and helper calls', async () => {
+			const svc = create();
+			const turnId = 'turn-agentic';
+			svc.resetTurnCredits(turnId);
+
+			// title generation (gpt-4o-mini)
+			svc.setLastCopilotUsage(8_640_000, turnId);
+			// prompt categorization (gpt-4o-mini)
+			svc.setLastCopilotUsage(56_160_000, turnId);
+			// progress messages x2 (gpt-4o-mini)
+			svc.setLastCopilotUsage(16_470_000, turnId);
+			svc.setLastCopilotUsage(16_350_000, turnId);
+			// main agent call (Claude Opus)
+			svc.setLastCopilotUsage(24_782_500_000, turnId);
+			// subagent call (Claude Opus)
+			svc.setLastCopilotUsage(25_580_500_000, turnId);
+			// final agent call (Claude Opus)
+			svc.setLastCopilotUsage(61_741_750_000, turnId);
+			// language model wrapper (gpt-4o-mini)
+			svc.setLastCopilotUsage(63_180_000, turnId);
+
+			const result = svc.getCreditsForTurn(turnId);
+			expect(result).toBeCloseTo(112.27, 1);
+		});
+
+		test('two parallel turns in different chat windows — fully isolated', async () => {
+			const svc = create();
+
+			// Simulate two turns running concurrently:
+			// Turn A: Claude Opus (expensive, slow)
+			// Turn B: GPT-4o-mini (cheap, fast — finishes first)
+			const [resultA, resultB] = await Promise.all([
+				simulateTurn(svc, 'window-1-turn', [
+					{ nanoAiu: 56_160_000, delayMs: 0 },      // categorization
+					{ nanoAiu: 24_782_500_000, delayMs: 10 },  // Claude main call (slow)
+					{ nanoAiu: 25_580_500_000, delayMs: 10 },  // Claude follow-up
+				]),
+				simulateTurn(svc, 'window-2-turn', [
+					{ nanoAiu: 56_160_000, delayMs: 0 },      // categorization
+					{ nanoAiu: 8_640_000, delayMs: 5 },        // fast gpt-4o-mini
+				]),
+			]);
+
+			expect(resultA).toBeCloseTo(50.42, 1);
+			expect(resultB).toBeCloseTo(0.06, 1);
+		});
+
+		test('interleaved API responses from parallel turns', async () => {
+			const svc = create();
+			// Simulate the worst case: responses arriving in interleaved order
+			// from two different turns
+			const turnX = 'panel-turn-x';
+			const turnY = 'panel-turn-y';
+
+			svc.resetTurnCredits(turnX);
+			svc.resetTurnCredits(turnY);
+
+			// Response from turn X arrives
+			svc.setLastCopilotUsage(1_000_000_000, turnX);
+			// Response from turn Y arrives (interleaved)
+			svc.setLastCopilotUsage(2_000_000_000, turnY);
+			// Another response from turn X
+			svc.setLastCopilotUsage(3_000_000_000, turnX);
+			// Another response from turn Y
+			svc.setLastCopilotUsage(4_000_000_000, turnY);
+			// Final response from turn X
+			svc.setLastCopilotUsage(500_000_000, turnX);
+
+			expect(svc.getCreditsForTurn(turnX)).toBe(4.5);  // 1 + 3 + 0.5
+			expect(svc.getCreditsForTurn(turnY)).toBe(6);     // 2 + 4
+		});
+
+		test('turn reset during a concurrent turn does not affect the other', async () => {
+			const svc = create();
+			const turnA = 'turn-a-multi';
+			const turnB = 'turn-b-multi';
+
+			svc.setLastCopilotUsage(5_000_000_000, turnA);
+			svc.setLastCopilotUsage(3_000_000_000, turnB);
+
+			// User sends a new message in window A → new turn resets A
+			svc.resetTurnCredits(turnA);
+
+			// Meanwhile, turn B is still accumulating
+			svc.setLastCopilotUsage(2_000_000_000, turnB);
+
+			// New turn A starts accumulating fresh
+			svc.setLastCopilotUsage(1_000_000_000, turnA);
+
+			expect(svc.getCreditsForTurn(turnA)).toBe(1);   // fresh after reset
+			expect(svc.getCreditsForTurn(turnB)).toBe(5);   // 3 + 2, unaffected
+		});
+
+		test('many concurrent turns (stress test)', () => {
+			const svc = create();
+			const turnCount = 20;
+			const callsPerTurn = 10;
+
+			for (let t = 0; t < turnCount; t++) {
+				const turnId = `stress-turn-${t}`;
+				svc.resetTurnCredits(turnId);
+				for (let c = 0; c < callsPerTurn; c++) {
+					svc.setLastCopilotUsage(100_000_000, turnId); // 0.1 AIC each
+				}
+			}
+
+			for (let t = 0; t < turnCount; t++) {
+				const turnId = `stress-turn-${t}`;
+				expect(svc.getCreditsForTurn(turnId)).toBeCloseTo(1.0); // 10 × 0.1
+			}
+		});
+
+		test('completed turns are cleaned up on reset', () => {
+			const svc = create();
+			svc.setLastCopilotUsage(1_000_000_000, 'old-turn');
+			expect(svc.getCreditsForTurn('old-turn')).toBe(1);
+
+			svc.resetTurnCredits('old-turn');
+			expect(svc.getCreditsForTurn('old-turn')).toBeUndefined();
+		});
+
+		test('querying a non-existent turn returns undefined', () => {
+			const svc = create();
+			expect(svc.getCreditsForTurn('never-existed')).toBeUndefined();
+		});
+	});
 });

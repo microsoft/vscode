@@ -262,6 +262,7 @@ export class ChatParticipantRequestHandler {
 				let details = `${endpoint.name}`;
 				// Show per-request credits for TBB users, from copilot_usage.total_nano_aiu
 				const creditsUsed = this._chatQuotaService.getCreditsForTurn(this.turn.id);
+				this._logService.trace(`[copilot_usage] Turn ${this.turn.id}: credits=${creditsUsed?.toFixed(2) ?? 'none'}, model=${endpoint.name}`);
 				if (creditsUsed !== undefined) {
 					const formatted = creditsUsed % 1 === 0 ? creditsUsed.toString() : creditsUsed.toFixed(1);
 					details += ` • ${formatted} credit${creditsUsed === 1 ? '' : 's'}`;
