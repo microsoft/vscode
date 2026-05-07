@@ -7,7 +7,8 @@ import * as arrays from '../../../../base/common/arrays.js';
 import { raceCancellationError } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
-import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { randomChance } from '../../../../base/common/numbers.js';
@@ -32,6 +33,8 @@ export class SearchService extends Disposable implements ISearchService {
 	private readonly fileSearchProviders = new Map<string, ISearchResultProvider>();
 	private readonly textSearchProviders = new Map<string, ISearchResultProvider>();
 	private readonly aiTextSearchProviders = new Map<string, ISearchResultProvider>();
+
+	private readonly _onDidRegisterProvider = this._register(new Emitter<{ scheme: string; type: QueryType }>());
 
 	private loggedSchemesMissingProviders = new Set<string>();
 
@@ -60,6 +63,10 @@ export class SearchService extends Disposable implements ISearchService {
 		}
 
 		list.set(scheme, provider);
+		const queryType = type === SearchProviderType.file ? QueryType.File :
+			type === SearchProviderType.text ? QueryType.Text :
+				QueryType.aiText;
+		this._onDidRegisterProvider.fire({ scheme, type: queryType });
 
 		return toDisposable(() => {
 			list.delete(scheme);
@@ -242,7 +249,14 @@ export class SearchService extends Disposable implements ISearchService {
 				return;
 			}
 			const schemeFQs = fqs.get(scheme)!;
-			const provider = this.getSearchProvider(query.type).get(scheme);
+			let provider = this.getSearchProvider(query.type).get(scheme);
+
+			if (!provider) {
+				// The extension's $registerSearchProvider RPC is fire-and-forget and may
+				// arrive after the activateByEvent promise resolves. If extension hosts
+				// are still activating for this scheme, wait for the provider to register.
+				provider = await this.waitForSearchProvider(query.type, scheme);
+			}
 
 			if (!provider) {
 				if (!this.loggedSchemesMissingProviders.has(scheme)) {
@@ -288,6 +302,40 @@ export class SearchService extends Disposable implements ISearchService {
 			this.sendTelemetry(query, endToEndTime, undefined, searchError);
 
 			throw searchError;
+		});
+	}
+
+	private waitForSearchProvider(type: QueryType, scheme: string): Promise<ISearchResultProvider | undefined> {
+		const activationEvent = `onSearch:${scheme}`;
+
+		// If activation for this scheme is already complete, the provider should
+		// have been registered by now. If it wasn't, none is coming.
+		if (this.extensionService.activationEventIsDone(activationEvent)) {
+			return Promise.resolve(undefined);
+		}
+
+		// Extension hosts are still activating (e.g. a remote host is starting).
+		// Wait for the provider to register, bounded by activation completion.
+		return new Promise(resolve => {
+			const store = new DisposableStore();
+			const done = (result: ISearchResultProvider | undefined) => {
+				store.dispose();
+				resolve(result);
+			};
+
+			// Provider registered — success
+			store.add(this._onDidRegisterProvider.event(e => {
+				if (e.scheme === scheme && e.type === type) {
+					done(this.getSearchProvider(type).get(scheme));
+				}
+			}));
+
+			// Extension status changed — check whether activation completed
+			store.add(this.extensionService.onDidChangeExtensionsStatus(() => {
+				if (this.extensionService.activationEventIsDone(activationEvent)) {
+					done(this.getSearchProvider(type).get(scheme));
+				}
+			}));
 		});
 	}
 
