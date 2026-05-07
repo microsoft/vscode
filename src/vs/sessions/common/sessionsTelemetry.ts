@@ -337,81 +337,9 @@ export function logSessionCreated(telemetryService: ITelemetryService, data: { p
 	telemetryService.publicLog2<SessionCreatedEvent, SessionCreatedClassification>('vscodeAgents.session/created', data);
 }
 
-type SessionActivatedEvent = {
-	providerId: string;
-	sessionType: string;
-};
-
-type SessionActivatedClassification = {
-	owner: 'osortega';
-	comment: 'Tracks when a session becomes the active session in the Agents window.';
-	providerId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Identifier of the sessions provider.' };
-	sessionType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Provider-defined session type identifier.' };
-};
-
-export function logSessionActivated(telemetryService: ITelemetryService, data: { providerId: string; sessionType: string }): void {
-	telemetryService.publicLog2<SessionActivatedEvent, SessionActivatedClassification>('vscodeAgents.session/activated', data);
-}
-
-type SessionLifecycleEvent = {
-	providerId: string;
-	sessionType: string;
-	ageMinutes: number;
-};
-
-type SessionArchivedClassification = {
-	owner: 'osortega';
-	comment: 'Tracks when a session is archived.';
-	providerId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Identifier of the sessions provider.' };
-	sessionType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Provider-defined session type identifier.' };
-	ageMinutes: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Age of the session at archive time, in minutes.' };
-};
-
-export function logSessionArchived(telemetryService: ITelemetryService, data: { providerId: string; sessionType: string; ageMinutes: number }): void {
-	telemetryService.publicLog2<SessionLifecycleEvent, SessionArchivedClassification>('vscodeAgents.session/archived', data);
-}
-
-type SessionDeletedClassification = {
-	owner: 'osortega';
-	comment: 'Tracks when a session is deleted.';
-	providerId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Identifier of the sessions provider.' };
-	sessionType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Provider-defined session type identifier.' };
-	ageMinutes: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Age of the session at delete time, in minutes.' };
-};
-
-export function logSessionDeleted(telemetryService: ITelemetryService, data: { providerId: string; sessionType: string; ageMinutes: number }): void {
-	telemetryService.publicLog2<SessionLifecycleEvent, SessionDeletedClassification>('vscodeAgents.session/deleted', data);
-}
-
 // --- Chat (usage + perf) ---
 
 export type ChatMode = 'agent' | 'edit' | 'ask';
-
-type ChatMessageSentEvent = {
-	providerId: string;
-	sessionType: string;
-	hasAttachments: boolean;
-	attachmentCount: number;
-	mode: string;
-	isFollowUp: boolean;
-	conversationLength: number;
-};
-
-type ChatMessageSentClassification = {
-	owner: 'osortega';
-	comment: 'Tracks chat messages sent in the Agents window. Never includes message content.';
-	providerId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Identifier of the sessions provider.' };
-	sessionType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Provider-defined session type identifier.' };
-	hasAttachments: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the message included any attachments.' };
-	attachmentCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of attachments on the message.' };
-	mode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Chat mode: agent | edit | ask.' };
-	isFollowUp: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the message is a follow-up in an existing conversation.' };
-	conversationLength: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of prior turns in the conversation when this message was sent.' };
-};
-
-export function logChatMessageSent(telemetryService: ITelemetryService, data: { providerId: string; sessionType: string; hasAttachments: boolean; attachmentCount: number; mode: ChatMode; isFollowUp: boolean; conversationLength: number }): void {
-	telemetryService.publicLog2<ChatMessageSentEvent, ChatMessageSentClassification>('vscodeAgents.chat/messageSent', data);
-}
 
 type ChatResponseReceivedEvent = {
 	providerId: string;
@@ -453,40 +381,6 @@ export function logChatResponseReceived(telemetryService: ITelemetryService, dat
 	});
 }
 
-type ChatCancelledEvent = {
-	providerId: string;
-	atToolCall: boolean;
-	durationMs: number;
-};
-
-type ChatCancelledClassification = {
-	owner: 'osortega';
-	comment: 'Tracks user-initiated chat cancellations.';
-	providerId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Identifier of the sessions provider.' };
-	atToolCall: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the cancellation occurred during a tool call.' };
-	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Wall-clock duration from request send to cancel in milliseconds.' };
-};
-
-export function logChatCancelled(telemetryService: ITelemetryService, data: { providerId: string; atToolCall: boolean; durationMs: number }): void {
-	telemetryService.publicLog2<ChatCancelledEvent, ChatCancelledClassification>('vscodeAgents.chat/cancelled', data);
-}
-
-type ChatRunScriptEvent = {
-	kind: string;
-	success: boolean;
-};
-
-type ChatRunScriptClassification = {
-	owner: 'osortega';
-	comment: 'Tracks script-run actions invoked from chat.';
-	kind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Closed-enum kind of script that was run.' };
-	success: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the run completed successfully.' };
-};
-
-export function logChatRunScript(telemetryService: ITelemetryService, data: { kind: string; success: boolean }): void {
-	telemetryService.publicLog2<ChatRunScriptEvent, ChatRunScriptClassification>('vscodeAgents.chat/runScript', data);
-}
-
 // --- Feedback and Code Review (usage) ---
 
 type AgentFeedbackSubmittedEvent = {
@@ -507,20 +401,6 @@ export function logAgentFeedbackSubmitted(telemetryService: ITelemetryService, d
 	telemetryService.publicLog2<AgentFeedbackSubmittedEvent, AgentFeedbackSubmittedClassification>('vscodeAgents.agentFeedback/submitted', data);
 }
 
-type CodeReviewStartedEvent = {
-	source: string;
-};
-
-type CodeReviewStartedClassification = {
-	owner: 'osortega';
-	comment: 'Tracks when a code review session starts in the Agents window.';
-	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How the review was started.' };
-};
-
-export function logCodeReviewStarted(telemetryService: ITelemetryService, data: { source: string }): void {
-	telemetryService.publicLog2<CodeReviewStartedEvent, CodeReviewStartedClassification>('vscodeAgents.codeReview/started', data);
-}
-
 type CodeReviewCommentAddedEvent = {
 	source: string;
 	hasSuggestion: boolean;
@@ -535,66 +415,6 @@ type CodeReviewCommentAddedClassification = {
 
 export function logCodeReviewCommentAdded(telemetryService: ITelemetryService, data: { source: string; hasSuggestion: boolean }): void {
 	telemetryService.publicLog2<CodeReviewCommentAddedEvent, CodeReviewCommentAddedClassification>('vscodeAgents.codeReview/commentAdded', data);
-}
-
-// --- Welcome ---
-
-type WelcomeShownEvent = {
-	surface: string;
-};
-
-type WelcomeShownClassification = {
-	owner: 'osortega';
-	comment: 'Tracks impressions of the Agents window welcome surface.';
-	surface: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Closed-enum welcome surface identifier.' };
-};
-
-export function logWelcomeShown(telemetryService: ITelemetryService, data: { surface: string }): void {
-	telemetryService.publicLog2<WelcomeShownEvent, WelcomeShownClassification>('vscodeAgents.welcome/shown', data);
-}
-
-type WelcomeCardClickedEvent = {
-	cardId: string;
-};
-
-type WelcomeCardClickedClassification = {
-	owner: 'osortega';
-	comment: 'Tracks user clicks on welcome cards.';
-	cardId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Closed-enum identifier of the welcome card.' };
-};
-
-export function logWelcomeCardClicked(telemetryService: ITelemetryService, data: { cardId: string }): void {
-	telemetryService.publicLog2<WelcomeCardClickedEvent, WelcomeCardClickedClassification>('vscodeAgents.welcome/cardClicked', data);
-}
-
-// --- Account menu ---
-
-type AccountMenuOpenedEvent = {
-	source: string;
-};
-
-type AccountMenuOpenedClassification = {
-	owner: 'osortega';
-	comment: 'Tracks when the Agents window account menu is opened.';
-	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How the account menu was opened (titlebar, keyboard, etc.).' };
-};
-
-export function logAccountMenuOpened(telemetryService: ITelemetryService, data: { source: string }): void {
-	telemetryService.publicLog2<AccountMenuOpenedEvent, AccountMenuOpenedClassification>('vscodeAgents.accountMenu/opened', data);
-}
-
-type AccountMenuItemSelectedEvent = {
-	itemId: string;
-};
-
-type AccountMenuItemSelectedClassification = {
-	owner: 'osortega';
-	comment: 'Tracks selection of an item from the account menu.';
-	itemId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Closed-enum identifier of the menu item.' };
-};
-
-export function logAccountMenuItemSelected(telemetryService: ITelemetryService, data: { itemId: string }): void {
-	telemetryService.publicLog2<AccountMenuItemSelectedEvent, AccountMenuItemSelectedClassification>('vscodeAgents.accountMenu/itemSelected', data);
 }
 
 // --- Browser view ---
