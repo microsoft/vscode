@@ -576,6 +576,9 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 	test('createNewSession returns session with correct fields', () => {
 		const provider = createProvider(disposables, connection, { isWebPlatform: true });
+		// Unblock `eagerCreate`'s `waitForState(authenticationPending)` so the
+		// IIFE doesn't leak its autorun past the end of the test.
+		provider.setAuthenticationPending(false);
 		const session = provider.createNewSession(URI.parse('vscode-agent-host://auth/home/user/project'), provider.sessionTypes[0].id);
 
 		assert.strictEqual(session.providerId, provider.id);
@@ -596,6 +599,9 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 	test('clearConnection clears pending new session config', () => {
 		const provider = createProvider(disposables, connection);
+		// Unblock `eagerCreate`'s `waitForState(authenticationPending)` so the
+		// IIFE doesn't leak its autorun past the end of the test.
+		provider.setAuthenticationPending(false);
 
 		const session = provider.createNewSession(URI.parse('vscode-agent-host://auth/home/user/project'), provider.sessionTypes[0].id);
 		provider.clearConnection();
