@@ -9,18 +9,20 @@ import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { IMcpServerDefinition } from '../../../agentPlugins/common/pluginParsers.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { type IAgentCreateSessionConfig, type IAgentResolveSessionConfigParams, type IAgentService, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agentService.js';
-import { CompletionsParams, CompletionsResult, ListSessionsResult, ResourceReadResult, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
-import { ActionType, type ClientMcpAction, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../../common/state/sessionActions.js';
-import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
-import { isJsonRpcNotification, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, JsonRpcErrorCodes, ProtocolError, AHP_UNSUPPORTED_PROTOCOL_VERSION, type AhpNotification, type InitializeResult, type ProtocolMessage, type ReconnectResult, type ResourceListResult, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../../common/state/sessionProtocol.js';
-import { ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, type SessionSummary } from '../../common/state/sessionState.js';
-import { McpRpcMessageKind, McpServerStatusKind } from '../../common/state/protocol/state.js';
-import type { IProtocolServer, IProtocolTransport } from '../../common/state/sessionTransport.js';
-import { ProtocolServerHandler } from '../../node/protocolServerHandler.js';
-import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostFileSystemProvider } from '../../common/agentHostFileSystemProvider.js';
+import { type AuthenticateParams, type AuthenticateResult, type IAgentCreateSessionConfig, type IAgentResolveSessionConfigParams, type IAgentService, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata } from '../../common/agentService.js';
+import { IMcpClientContext, IMcpHostService, IMcpServerHandle } from '../../common/mcpHost/mcpHostService.js';
+import { CompletionsParams, CompletionsResult, ListSessionsResult, McpMessageParams, McpMessageResult, ResolveSessionConfigResult, ResourceReadResult, ServerMcpCapabilities, SessionConfigCompletionsResult, type ClientCapabilities } from '../../common/state/protocol/commands.js';
+import { McpRpcCallResponse, McpRpcMessageKind, McpServerStatusKind } from '../../common/state/protocol/state.js';
+import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
+import { ActionType, type ClientMcpAction, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../../common/state/sessionActions.js';
+import { AHP_UNSUPPORTED_PROTOCOL_VERSION, isJsonRpcNotification, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, JsonRpcErrorCodes, ProtocolError, type AhpNotification, type InitializeResult, type IStateSnapshot, type ProtocolMessage, type ReconnectResult, type ResourceListResult, type ResourceWriteParams, type ResourceWriteResult } from '../../common/state/sessionProtocol.js';
+import { ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, type SessionSummary } from '../../common/state/sessionState.js';
+import type { IProtocolServer, IProtocolTransport } from '../../common/state/sessionTransport.js';
+import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { ProtocolServerHandler } from '../../node/protocolServerHandler.js';
 
 // ---- Mock helpers -----------------------------------------------------------
 
@@ -156,6 +158,40 @@ class MockAgentService implements IAgentService {
 
 // ---- Helpers ----------------------------------------------------------------
 
+/**
+ * Test double for {@link IMcpHostService} that records every `sendMessage`
+ * and `deliverResponse` call. Tests can swap in a custom `sendMessage` impl
+ * (e.g. throw) by reassigning {@link sendMessageImpl}.
+ */
+class RecordingMcpHostService implements IMcpHostService {
+	declare readonly _serviceBrand: undefined;
+
+	readonly serverCapabilities: ServerMcpCapabilities = {};
+
+	readonly sendMessageCalls: { params: McpMessageParams; client: IMcpClientContext }[] = [];
+	readonly deliverResponseCalls: { mcpServer: URI; messageId: string; response: McpRpcCallResponse }[] = [];
+
+	sendMessageImpl: (params: McpMessageParams, client: IMcpClientContext) => Promise<McpMessageResult> =
+		async () => ({ result: 'ok' });
+
+	setSessionServers(_session: URI, _servers: readonly IMcpServerDefinition[]): readonly IMcpServerHandle[] {
+		return [];
+	}
+
+	getServer(_resource: URI): IMcpServerHandle | undefined {
+		return undefined;
+	}
+
+	async sendMessage(params: McpMessageParams, client: IMcpClientContext): Promise<McpMessageResult> {
+		this.sendMessageCalls.push({ params, client });
+		return this.sendMessageImpl(params, client);
+	}
+
+	deliverResponse(mcpServer: URI, messageId: string, response: McpRpcCallResponse): void {
+		this.deliverResponseCalls.push({ mcpServer, messageId, response });
+	}
+}
+
 function notification(method: string, params?: unknown): ProtocolMessage {
 	return { jsonrpc: '2.0', method, params } as ProtocolMessage;
 }
@@ -185,6 +221,7 @@ suite('ProtocolServerHandler', () => {
 	let server: MockProtocolServer;
 	let agentService: MockAgentService;
 	let handler: ProtocolServerHandler;
+	let recordingMcpHostService: RecordingMcpHostService;
 
 	const sessionUri = URI.from({ scheme: 'copilot', path: '/test-session' }).toString();
 
@@ -218,12 +255,14 @@ suite('ProtocolServerHandler', () => {
 		agentService = new MockAgentService();
 		agentService.setStateManager(stateManager);
 		disposables.add(agentService);
+		recordingMcpHostService = new RecordingMcpHostService();
 		disposables.add(handler = new ProtocolServerHandler(
 			agentService,
 			stateManager,
 			server,
 			{ defaultDirectory: URI.file('/home/testuser').toString() },
 			disposables.add(new AgentHostFileSystemProvider()),
+			recordingMcpHostService,
 			new NullLogService(),
 		));
 	});
@@ -242,6 +281,30 @@ suite('ProtocolServerHandler', () => {
 		const result = (resp as { result: InitializeResult }).result;
 		assert.strictEqual(result.protocolVersion, PROTOCOL_VERSION);
 		assert.strictEqual(result.serverSeq, stateManager.serverSeq);
+	});
+
+	test('initialize response includes server capabilities', () => {
+		const transport = connectClient('client-caps-1');
+
+		const resp = findResponse(transport.sent, 1);
+		assert.ok(resp, 'should have sent initialize response');
+		const result = (resp as { result: InitializeResult }).result;
+		assert.deepStrictEqual(result.capabilities, { mcp: {} });
+	});
+
+	test('initialize captures client capabilities for later use', () => {
+		const transport = new MockProtocolTransport();
+		server.simulateConnection(transport);
+		const clientCaps: ClientCapabilities = { mcp: { apps: {} } };
+		transport.simulateMessage(request(1, 'initialize', {
+			protocolVersions: [PROTOCOL_VERSION],
+			clientId: 'client-caps-2',
+			capabilities: clientCaps,
+		}));
+
+		const resp = findResponse(transport.sent, 1);
+		assert.ok(resp, 'should have sent initialize response');
+		assert.deepStrictEqual(handler.getClientCapabilitiesForTest('client-caps-2'), clientCaps);
 	});
 
 	test('handshake rejects unsupported protocol versions', () => {
@@ -1009,18 +1072,60 @@ suite('ProtocolServerHandler', () => {
 			});
 		}
 
-		test('mcpMessage request returns MethodNotFound until Phase 2', async () => {
-			const transport = connectClient('client-mcp-msg');
+		test('mcpMessage forwards params and client context to IMcpHostService', async () => {
+			const transport = new MockProtocolTransport();
+			server.simulateConnection(transport);
+			const clientCaps: ClientCapabilities = { mcp: { apps: {} } };
+			transport.simulateMessage(request(1, 'initialize', {
+				protocolVersions: [PROTOCOL_VERSION],
+				clientId: 'client-mcp-msg',
+				capabilities: clientCaps,
+			}));
+			transport.sent.length = 0;
+
+			const params: import('../../common/state/protocol/commands.js').McpMessageParams = {
+				server: mcpServer1,
+				method: 'tools/call',
+				params: { foo: 1 },
+			};
+
+			const responsePromise = waitForResponse(transport, 2);
+			transport.simulateMessage(request(2, 'mcpMessage', params));
+			const resp = await responsePromise as { result?: { result: unknown }; error?: { code: number } };
+
+			assert.deepStrictEqual({
+				calls: recordingMcpHostService.sendMessageCalls,
+				response: resp,
+			}, {
+				calls: [{
+					params,
+					client: { clientId: 'client-mcp-msg', capabilities: clientCaps },
+				}],
+				response: { jsonrpc: '2.0', id: 2, result: { result: 'ok' } },
+			});
+
+			transport.simulateClose();
+			transport.dispose();
+		});
+
+		test('mcpMessage propagates ProtocolError as JSON-RPC error response', async () => {
+			recordingMcpHostService.sendMessageImpl = async () => {
+				throw new ProtocolError(JsonRpcErrorCodes.MethodNotFound, 'no such method');
+			};
+			const transport = connectClient('client-mcp-err');
 			transport.sent.length = 0;
 			const responsePromise = waitForResponse(transport, 2);
 
 			transport.simulateMessage(request(2, 'mcpMessage', {
-				mcpServer: mcpServer1,
-				message: { kind: McpRpcMessageKind.Notification, method: 'notifications/ping' },
+				server: mcpServer1,
+				method: 'tools/call',
 			}));
 			const resp = await responsePromise as { error?: { code: number; message: string } };
 
-			assert.deepStrictEqual({ code: resp.error?.code }, { code: JsonRpcErrorCodes.MethodNotFound });
+			assert.deepStrictEqual(
+				{ code: resp.error?.code, message: resp.error?.message },
+				{ code: JsonRpcErrorCodes.MethodNotFound, message: 'no such method' },
+			);
 		});
 
 		test('per-server actions are scoped to subscribed mcpServer URI', async () => {

@@ -55,6 +55,7 @@ import { AGENT_CLIENT_SCHEME } from '../common/agentClientUri.js';
 import { resolveServerUrls } from './serverUrls.js';
 import { AgentPluginManager } from './agentPluginManager.js';
 import { IAgentPluginManager } from '../common/agentPluginManager.js';
+import { NullMcpHostService } from '../common/mcpHost/nullMcpHostService.js';
 import { registerPendingEditContentProvider } from './copilot/pendingEditContentStore.js';
 import { AgentHostGitService, IAgentHostGitService } from './agentHostGitService.js';
 
@@ -193,7 +194,8 @@ async function main(): Promise<void> {
 	const gitService = instantiationService.createInstance(AgentHostGitService);
 
 	// Create the agent service (owns AgentHostStateManager + AgentSideEffects internally)
-	const agentService = new AgentService(logService, fileService, sessionDataService, productService, gitService, rootConfigResource);
+	const mcpHostService = new NullMcpHostService();
+	const agentService = new AgentService(logService, fileService, sessionDataService, productService, gitService, rootConfigResource, mcpHostService);
 	disposables.add(agentService);
 
 	// Register agents
@@ -256,6 +258,7 @@ async function main(): Promise<void> {
 		wsServer,
 		{ defaultDirectory: URI.file(os.homedir()).toString() },
 		clientFileSystemProvider,
+		mcpHostService,
 		logService,
 	));
 

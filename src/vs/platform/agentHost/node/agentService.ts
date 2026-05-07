@@ -34,6 +34,8 @@ import { AgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostGitService } from './agentHostGitService.js';
 import { AgentHostCompletions, IAgentHostCompletions } from './agentHostCompletions.js';
 import { AgentHostFileCompletionProvider } from './agentHostFileCompletionProvider.js';
+import { IMcpHostService } from '../common/mcpHost/mcpHostService.js';
+import { NullMcpHostService } from '../common/mcpHost/nullMcpHostService.js';
 
 /**
  * Grace period before an empty, unsubscribed session is garbage-collected
@@ -86,6 +88,9 @@ export class AgentService extends Disposable implements IAgentService {
 	/** Pluggable completion item providers (e.g. workspace file completions, agent-specific @-mentions). */
 	private readonly _completions: IAgentHostCompletions;
 
+	/** Routes MCP traffic to the per-server proxies. Defaults to {@link NullMcpHostService} for surfaces (e.g. tests) that don't host MCP. */
+	private readonly _mcpHostService: IMcpHostService;
+
 	/**
 	 * Authoritative server-side per-resource subscription refcount, keyed by
 	 * resource URI string and valued by the set of subscribed protocol
@@ -115,8 +120,10 @@ export class AgentService extends Disposable implements IAgentService {
 		private readonly _productService: IProductService,
 		private readonly _gitService: IAgentHostGitService,
 		private readonly _rootConfigResource?: URI,
+		mcpHostService?: IMcpHostService,
 	) {
 		super();
+		this._mcpHostService = mcpHostService ?? new NullMcpHostService();
 		this._logService.info('AgentService initialized');
 		this._stateManager = this._register(new AgentHostStateManager(_logService));
 		this._register(this._stateManager.onDidEmitEnvelope(e => this._onDidAction.fire(e)));
@@ -560,6 +567,12 @@ export class AgentService extends Disposable implements IAgentService {
 
 			let snapshot = this._stateManager.getSnapshot(resourceStr);
 			if (!snapshot) {
+				// `mcp:/` resources have no restore semantics: the host service
+				// owns their lifetime. If no entry exists, the server isn't
+				// registered — there is nothing to rehydrate.
+				if (resourceStr.startsWith('mcp:/')) {
+					throw new Error(`Cannot subscribe to unknown MCP server: ${resourceStr}`);
+				}
 				// Try subagent restore before regular session restore
 				const parsed = parseSubagentSessionUri(resource);
 				if (parsed) {
@@ -758,9 +771,7 @@ export class AgentService extends Disposable implements IAgentService {
 			this._configurationService.persistRootConfig();
 		}
 		if (action.type === ActionType.McpMessageResponded) {
-			// TODO(Phase 2): forward to IMcpHostService.deliverResponse so the
-			// proxy can write the response onto the upstream JSON-RPC transport.
-			this._logService.trace('[AgentService] McpMessageResponded received; host service forwarding lands in Phase 2');
+			this._mcpHostService.deliverResponse(URI.parse(action.mcpServer), action.messageId, action.response);
 		}
 		this._sideEffects.handleAction(action);
 	}

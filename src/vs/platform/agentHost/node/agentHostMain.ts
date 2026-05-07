@@ -51,6 +51,8 @@ import { AgentHostClientFileSystemProvider } from '../common/agentHostClientFile
 import { AGENT_CLIENT_SCHEME } from '../common/agentClientUri.js';
 import { AGENT_HOST_CLIENT_RESOURCE_CHANNEL, createAgentHostClientResourceConnection } from '../common/agentHostClientResourceChannel.js';
 import { IAgentPluginManager } from '../common/agentPluginManager.js';
+import { NullMcpHostService } from '../common/mcpHost/nullMcpHostService.js';
+import { IMcpHostService } from '../common/mcpHost/mcpHostService.js';
 import { AgentPluginManager } from './agentPluginManager.js';
 import { AgentHostGitService, IAgentHostGitService } from './agentHostGitService.js';
 import { registerPendingEditContentProvider } from './copilot/pendingEditContentStore.js';
@@ -97,6 +99,11 @@ function startAgentHost(): void {
 	const sessionDataService = new SessionDataService(URI.file(environmentService.userDataPath), fileService, logService);
 	const rootConfigResource = joinPath(environmentService.appSettingsHome, 'globalStorage', 'agent-host-config.json');
 
+	// Single shared MCP host service. Today this is the null implementation
+	// (no MCP traffic); it is plumbed into both `AgentService` and every
+	// `ProtocolServerHandler` so all surfaces speak to the same host.
+	const mcpHostService = new NullMcpHostService();
+
 	// Create the real service implementation that lives in this process
 	let agentService: AgentService;
 	try {
@@ -117,7 +124,7 @@ function startAgentHost(): void {
 		diServices.set(IClaudeProxyService, claudeProxyService);
 		const claudeAgentSdkService = instantiationService.createInstance(ClaudeAgentSdkService);
 		diServices.set(IClaudeAgentSdkService, claudeAgentSdkService);
-		agentService = new AgentService(logService, fileService, sessionDataService, productService, gitService, rootConfigResource);
+		agentService = new AgentService(logService, fileService, sessionDataService, productService, gitService, rootConfigResource, mcpHostService);
 		const pluginManager = new AgentPluginManager(URI.file(environmentService.userDataPath), fileService, logService);
 		diServices.set(IAgentPluginManager, pluginManager);
 		const diffComputeService = disposables.add(new NodeWorkerDiffComputeService(logService));
@@ -198,6 +205,7 @@ function startAgentHost(): void {
 				wsServer,
 				{ defaultDirectory: URI.file(os.homedir()).toString() },
 				clientFileSystemProvider,
+				mcpHostService,
 				logService,
 			));
 			disposables.add(protocolHandler.onDidChangeConnectionCount(count => connectionCountEmitter.fire(count)));
@@ -257,7 +265,7 @@ function startAgentHost(): void {
 	server.registerChannel(AgentHostIpcChannels.ConnectionTracker, connectionTrackerChannel);
 
 	// Start WebSocket server for external clients if configured (env-var flow for CLI/server)
-	startWebSocketServer(agentService, clientFileSystemProvider, logService, disposables, count => connectionCountEmitter.fire(count)).catch(err => {
+	startWebSocketServer(agentService, clientFileSystemProvider, mcpHostService, logService, disposables, count => connectionCountEmitter.fire(count)).catch(err => {
 		logService.error('Failed to start WebSocket server', err);
 	});
 
@@ -274,7 +282,7 @@ function startAgentHost(): void {
  * This reuses the same {@link AgentService} and {@link AgentHostStateManager}
  * that the IPC channel uses, so both IPC and WebSocket clients share state.
  */
-async function startWebSocketServer(agentService: AgentService, clientFileSystemProvider: AgentHostClientFileSystemProvider, logService: ILogService, disposables: DisposableStore, onConnectionCountChanged: (count: number) => void): Promise<void> {
+async function startWebSocketServer(agentService: AgentService, clientFileSystemProvider: AgentHostClientFileSystemProvider, mcpHostService: IMcpHostService, logService: ILogService, disposables: DisposableStore, onConnectionCountChanged: (count: number) => void): Promise<void> {
 	const port = process.env['VSCODE_AGENT_HOST_PORT'];
 	const socketPath = process.env['VSCODE_AGENT_HOST_SOCKET_PATH'];
 
@@ -309,6 +317,7 @@ async function startWebSocketServer(agentService: AgentService, clientFileSystem
 		wsServer,
 		{ defaultDirectory: URI.file(os.homedir()).toString() },
 		clientFileSystemProvider,
+		mcpHostService,
 		logService,
 	));
 	disposables.add(protocolHandler.onDidChangeConnectionCount(onConnectionCountChanged));

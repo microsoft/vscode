@@ -29,6 +29,8 @@ import { MockAgent, ScriptedMockAgent } from './mockAgent.js';
 import { mapSessionEventsToHistoryRecords } from './historyRecordFixtures.js';
 import { type ISessionEvent } from '../../node/copilot/mapSessionEvents.js';
 import { createNoopGitService, createSessionDataService } from '../common/sessionTestHelpers.js';
+import { IMcpHostService } from '../../common/mcpHost/mcpHostService.js';
+import { McpRpcCallResponse } from '../../common/state/protocol/state.js';
 
 /**
  * Loads a JSONL fixture of raw Copilot SDK events, runs them through
@@ -168,6 +170,58 @@ suite('AgentService (node dispatcher)', () => {
 			} finally {
 				rmSync(tempDir.fsPath, { recursive: true, force: true });
 			}
+		});
+
+		test('forwards McpMessageResponded to IMcpHostService.deliverResponse', () => {
+			const recordedDeliveries: { mcpServer: URI; messageId: string; response: McpRpcCallResponse }[] = [];
+			const mcpHostService: IMcpHostService = {
+				_serviceBrand: undefined,
+				serverCapabilities: {},
+				setSessionServers: () => [],
+				getServer: () => undefined,
+				sendMessage: async () => ({}),
+				deliverResponse: (mcpServer, messageId, response) => {
+					recordedDeliveries.push({ mcpServer, messageId, response });
+				},
+			};
+			const svc = disposables.add(new AgentService(
+				new NullLogService(), fileService, nullSessionDataService,
+				{ _serviceBrand: undefined } as IProductService,
+				createNoopGitService(), undefined, mcpHostService,
+			));
+
+			svc.dispatchAction({
+				type: ActionType.McpMessageResponded,
+				mcpServer: 'mcp:/sess1/srv1',
+				messageId: 'm1',
+				response: { result: { ok: true } },
+			}, 'client-1', 0);
+
+			assert.deepStrictEqual(recordedDeliveries, [{
+				mcpServer: URI.parse('mcp:/sess1/srv1'),
+				messageId: 'm1',
+				response: { result: { ok: true } },
+			}]);
+		});
+	});
+
+	suite('subscribe to mcp:/ resources', () => {
+
+		test('rejects unknown mcp:/ server without retaining subscription', async () => {
+			const mcpResource = URI.parse('mcp:/unknown/server');
+
+			await assert.rejects(
+				() => service.subscribe(mcpResource, 'client-1'),
+				(err: Error) => err.message.includes('mcp:/unknown/server'),
+			);
+
+			// The catch block must roll the addSubscriber registration back —
+			// a second subscribe attempt should reject the same way (not
+			// e.g. fail because the subscription already exists).
+			await assert.rejects(
+				() => service.subscribe(mcpResource, 'client-1'),
+				(err: Error) => err.message.includes('mcp:/unknown/server'),
+			);
 		});
 	});
 

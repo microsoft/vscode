@@ -11,6 +11,8 @@ import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
 import { AHPFileSystemProvider } from '../common/agentHostFileSystemProvider.js';
 import { AgentSession, type IAgentService } from '../common/agentService.js';
+import { IMcpHostService } from '../common/mcpHost/mcpHostService.js';
+import type { ClientCapabilities, ServerCapabilities } from '../common/state/protocol/commands.js';
 import type { CommandMap } from '../common/state/protocol/messages.js';
 import type { UnsupportedProtocolVersionErrorData } from '../common/state/protocol/errors.js';
 import { ActionEnvelope, ActionType, INotification, isMcpAction, isSessionAction, isTerminalAction, type ClientMcpAction, type SessionAction, type TerminalAction, type IRootConfigChangedAction } from '../common/state/sessionActions.js';
@@ -84,6 +86,8 @@ interface IConnectedClient {
 	readonly transport: IProtocolTransport;
 	readonly subscriptions: Set<string>;
 	readonly disposables: DisposableStore;
+	/** Capabilities the client advertised during initialize. Captured for use by `mcpMessage` (Phase 2c). */
+	readonly capabilities: ClientCapabilities | undefined;
 }
 
 /**
@@ -116,6 +120,7 @@ export class ProtocolServerHandler extends Disposable {
 		private readonly _server: IProtocolServer,
 		private readonly _config: IProtocolServerConfig,
 		private readonly _clientFileSystemProvider: AHPFileSystemProvider,
+		private readonly _mcpHostService: IMcpHostService,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
@@ -264,6 +269,7 @@ export class ProtocolServerHandler extends Disposable {
 			transport,
 			subscriptions: new Set(),
 			disposables,
+			capabilities: params.capabilities,
 		};
 		this._clients.set(params.clientId, client);
 		this._onDidChangeConnectionCount.fire(this._clients.size);
@@ -292,6 +298,10 @@ export class ProtocolServerHandler extends Disposable {
 			}
 		}
 
+		const serverCapabilities: ServerCapabilities = {
+			mcp: this._mcpHostService.serverCapabilities,
+		};
+
 		return {
 			client,
 			response: {
@@ -299,6 +309,7 @@ export class ProtocolServerHandler extends Disposable {
 				serverSeq: this._stateManager.serverSeq,
 				snapshots,
 				defaultDirectory: this._config.defaultDirectory,
+				capabilities: serverCapabilities,
 			},
 		};
 	}
@@ -313,12 +324,16 @@ export class ProtocolServerHandler extends Disposable {
 		// Synchronously install the client so messages arriving on this transport
 		// while we restore subscriptions can find a valid client object. The
 		// reconnect response is only sent once `responsePromise` resolves below.
+		// Reconnect doesn't carry capabilities; preserve them from the prior
+		// client record if present, otherwise treat as absent.
+		const previousClient = this._clients.get(params.clientId);
 		const client: IConnectedClient = {
 			clientId: params.clientId,
 			protocolVersion: PROTOCOL_VERSION,
 			transport,
 			subscriptions: new Set(),
 			disposables,
+			capabilities: previousClient?.capabilities,
 		};
 		this._clients.set(params.clientId, client);
 		this._onDidChangeConnectionCount.fire(this._clients.size);
@@ -645,9 +660,11 @@ export class ProtocolServerHandler extends Disposable {
 			await this._agentService.disposeTerminal(URI.parse(params.terminal));
 			return null;
 		},
-		mcpMessage: async (_client, _params) => {
-			// Real implementation lands in Phase 2 with IMcpHostService.
-			throw new ProtocolError(JsonRpcErrorCodes.MethodNotFound, 'mcpMessage is not implemented yet');
+		mcpMessage: async (client, params) => {
+			return this._mcpHostService.sendMessage(params, {
+				clientId: client.clientId,
+				capabilities: client.capabilities,
+			});
 		},
 	};
 
@@ -763,6 +780,11 @@ export class ProtocolServerHandler extends Disposable {
 			return client.subscriptions.has(action.mcpServer);
 		}
 		return false;
+	}
+
+	/** @internal Test accessor — do not call from production. */
+	getClientCapabilitiesForTest(clientId: string): ClientCapabilities | undefined {
+		return this._clients.get(clientId)?.capabilities;
 	}
 
 	override dispose(): void {
