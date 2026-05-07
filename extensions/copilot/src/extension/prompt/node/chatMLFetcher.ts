@@ -32,7 +32,7 @@ import { IOTelService, ISpanHandle, SpanKind, SpanStatusCode } from '../../../pl
 import { IRequestLogger } from '../../../platform/requestLogger/common/requestLogger';
 import { getCurrentCapturingToken } from '../../../platform/requestLogger/node/requestLogger';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
-import { ITelemetryService, TelemetryProperties } from '../../../platform/telemetry/common/telemetry';
+import { ITelemetryService, TelemetryProperties, multiplexProperties } from '../../../platform/telemetry/common/telemetry';
 import { TelemetryData } from '../../../platform/telemetry/common/telemetryData';
 import { isEncryptedThinkingDelta } from '../../../platform/thinking/common/thinking';
 import { calculateLineRepetitionStats, isRepetitive } from '../../../util/common/anomalyDetection';
@@ -136,7 +136,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 	 * Note: the returned array of strings may be less than `n` (e.g., in case there were errors during streaming)
 	 */
 	public async fetchMany(opts: IFetchMLOptions, token: CancellationToken): Promise<ChatResponses> {
-		let { debugName, endpoint: chatEndpoint, finishedCb, location, messages, requestOptions, source, telemetryProperties, userInitiatedRequest, interactionTypeOverride, conversationId, turnId, useWebSocket, ignoreStatefulMarker } = opts;
+		let { debugName, endpoint: chatEndpoint, finishedCb, location, messages, requestOptions, source, telemetryProperties, userInitiatedRequest, interactionTypeOverride, conversationId, turnId, topLevelTurnId, useWebSocket, ignoreStatefulMarker } = opts;
 		const interactionType = interactionTypeOverride ?? locationToIntent(location);
 		if (useWebSocket && this._consecutiveWebSocketRetryFallbacks >= ChatMLFetcherImpl._maxConsecutiveWebSocketFallbacks) {
 			this._logService.debug(`[ChatWebSocketManager] Disabling WebSocket for request due to ${this._consecutiveWebSocketRetryFallbacks} consecutive WebSocket failures with successful HTTP fallback.`);
@@ -316,6 +316,10 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 					if (requestOptions) {
 						otelInferenceSpan.setAttribute(CopilotChatAttr.REQUEST_OPTIONS, truncateForOTel(JSON.stringify(requestOptions), this._otelService.config.maxAttributeSizeChars));
 					}
+					const requestShape = pickRequestShapeMetadata(requestBody);
+					if (requestShape) {
+						otelInferenceSpan.setAttribute(CopilotChatAttr.REQUEST_SHAPE, truncateForOTel(JSON.stringify(requestShape), this._otelService.config.maxAttributeSizeChars));
+					}
 				}
 				tokenCount = await countTokens();
 				const extensionId = source?.extensionId ?? EXTENSION_ID;
@@ -388,6 +392,12 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 
 					// Record OTel token usage metrics if available
 					if (result.type === ChatFetchResponseType.Success && result.usage) {
+						// Store copilot_usage for per-request credits display, scoped to the turn.
+						// Skip background requests — they are not part of an active user turn.
+						if (typeof result.usage.copilot_usage?.total_nano_aiu === 'number' && turnId && interactionType !== 'conversation-background') {
+							this._chatQuotaService.setLastCopilotUsage(result.usage.copilot_usage.total_nano_aiu, topLevelTurnId ?? turnId);
+						}
+
 						const metricAttrs = {
 							operationName: GenAiOperationName.CHAT,
 							providerName: GenAiProviderName.GITHUB,
@@ -1153,6 +1163,14 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		}
 		this._telemetryService.sendGHTelemetryEvent('request.sent', telemetryData.properties, telemetryData.measurements);
 
+		if (request.tools) {
+			this._telemetryService.sendEnhancedGHTelemetryEvent('request.options.tools', multiplexProperties({
+				headerRequestId: ourRequestId,
+				conversationId,
+				messagesJson: JSON.stringify(request.tools),
+			}), telemetryData.measurements);
+		}
+
 		const requestStart = Date.now();
 		const handle = connection.sendRequest(request, { userInitiated: !!userInitiatedRequest, turnId, requestId: ourRequestId, model: chatEndpointInfo.model, countTokens, tokenCountMax: chatEndpointInfo.maxOutputTokens, modelMaxPromptTokens: chatEndpointInfo.modelMaxPromptTokens, summarizedAtRoundId, modeChanged }, cancellationToken);
 
@@ -1424,6 +1442,14 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		telemetryData.properties['headerRequestId'] = ourRequestId;
 
 		this._telemetryService.sendGHTelemetryEvent('request.sent', telemetryData.properties, telemetryData.measurements);
+
+		if (request.tools) {
+			this._telemetryService.sendEnhancedGHTelemetryEvent('request.options.tools', multiplexProperties({
+				headerRequestId: ourRequestId,
+				conversationId: telemetryProperties?.conversationId,
+				messagesJson: JSON.stringify(request.tools),
+			}), telemetryData.measurements);
+		}
 
 		const requestStart = Date.now();
 		const intent = locationToIntent(location);
@@ -2291,6 +2317,36 @@ function pickCacheRelevantRequestOptions(body: IEndpointBody): Record<string, un
 		if (value !== undefined) {
 			out[key] = value;
 		}
+	}
+	return Object.keys(out).length > 0 ? out : undefined;
+}
+
+/**
+ * Sanitized request-shape metadata for debug views. This intentionally omits
+ * identifiers such as `previous_response_id` itself and never includes message
+ * or tool contents; it only records whether a Responses API continuation marker
+ * was present and which top-level input item kinds were sent on the wire.
+ */
+function pickRequestShapeMetadata(body: IEndpointBody): Record<string, unknown> | undefined {
+	const out: Record<string, unknown> = {};
+	if (Array.isArray(body.input)) {
+		out.api = 'responses';
+		out.inputItemCount = body.input.length;
+		out.inputItemTypes = body.input.map(item => {
+			if (item && typeof item === 'object') {
+				const type = (item as Record<string, unknown>).type;
+				if (typeof type === 'string') {
+					return type;
+				}
+			}
+			return 'unknown';
+		});
+	} else if (Array.isArray(body.messages)) {
+		out.api = 'messages';
+		out.messageCount = body.messages.length;
+	}
+	if (typeof body.previous_response_id === 'string') {
+		out.hasPreviousResponseId = true;
 	}
 	return Object.keys(out).length > 0 ? out : undefined;
 }

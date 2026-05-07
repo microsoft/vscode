@@ -59,6 +59,7 @@ import { TestTreeSitterLibraryService } from '../../../../editor/test/common/ser
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { TestAccessibilityService } from '../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { IActionViewItemService, NullActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
+import { IChatPhoneInputPresenter } from '../../../contrib/chat/browser/widget/input/chatPhoneInputPresenter.js';
 import { IMenuService } from '../../../../platform/actions/common/actions.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { TestClipboardService } from '../../../../platform/clipboard/test/common/testClipboardService.js';
@@ -710,6 +711,18 @@ export function registerWorkbenchServices(registration: ServiceRegistration): vo
 
 	registration.define(IMenuService, TestMenuService);
 	registration.define(IActionViewItemService, NullActionViewItemService);
+
+	// No-op phone presenter so chat-input fixtures don't crash on
+	// `chatPhoneInputPresenter.enabled.get()`. The real impl is in
+	// `vs/sessions` and only attaches in the agents window — desktop
+	// fixtures see the no-op (`enabled === false`, sheet calls resolve
+	// immediately) which matches desktop runtime behavior.
+	registration.defineInstance(IChatPhoneInputPresenter, {
+		_serviceBrand: undefined,
+		enabled: constObservable(false),
+		showCombinedModeAndModelSheet: () => Promise.resolve(),
+		setImpl: () => ({ dispose: () => { } }),
+	});
 }
 
 

@@ -41,6 +41,7 @@ import { MobilePermissionPicker } from '../../../copilotChatSessions/browser/mob
 import { isPhoneLayout } from '../../../../browser/parts/mobile/mobileLayout.js';
 import { showMobilePickerSheet, IMobilePickerSheetItem, IMobilePickerSheetSearchSource } from '../../../../browser/parts/mobile/mobilePickerSheet.js';
 import { AgentHostModePicker } from './agentHostModePicker.js';
+import { MobileAgentHostModePicker } from '../mobile/mobileAgentHostModePicker.js';
 import { AgentHostPermissionPickerActionItem } from './agentHostPermissionPickerActionItem.js';
 import { AgentHostPermissionPickerDelegate, isWellKnownAutoApproveSchema, isWellKnownModeSchema } from './agentHostPermissionPickerDelegate.js';
 import { SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
@@ -73,7 +74,7 @@ export interface IConfigPickerItem {
 }
 
 export function getConfigIcon(property: string, value: unknown | undefined): ThemeIcon | undefined {
-	if (property === 'isolation') {
+	if (property === SessionConfigKey.Isolation) {
 		if (value === 'folder') {
 			return Codicon.folder;
 		}
@@ -81,10 +82,10 @@ export function getConfigIcon(property: string, value: unknown | undefined): The
 			return Codicon.worktree;
 		}
 	}
-	if (property === 'branch') {
+	if (property === SessionConfigKey.Branch) {
 		return Codicon.gitBranch;
 	}
-	if (property === 'autoApprove') {
+	if (property === SessionConfigKey.AutoApprove) {
 		if (value === 'autopilot') {
 			return Codicon.rocket;
 		}
@@ -346,12 +347,25 @@ export class AgentHostSessionConfigPicker extends Disposable {
 
 	/**
 	 * Order the schema properties for rendering. The base implementation
-	 * preserves the schema-declared order; subclasses can override to
-	 * impose a deterministic visual sequence (e.g. the mobile chip row
-	 * groups Approvals | Branch | Worktree).
+	 * enforces a stable visual sequence for well-known properties:
+	 * Isolation (worktree/folder) first, then Branch. Any other properties
+	 * keep their original schema order after these two. Subclasses can
+	 * override to impose a different deterministic visual sequence
+	 * (e.g. the mobile chip row groups Approvals | Branch | Worktree).
 	 */
 	protected _orderProperties(properties: ReadonlyArray<[string, SessionConfigPropertySchema]>): ReadonlyArray<[string, SessionConfigPropertySchema]> {
-		return properties;
+		const order = new Map<string, number>([
+			[SessionConfigKey.Isolation, 0],
+			[SessionConfigKey.Branch, 1],
+		]);
+		return properties
+			.map(([key, schema], index) => ({ key, schema, index }))
+			.sort((a, b) => {
+				const aRank = order.get(a.key) ?? Number.MAX_SAFE_INTEGER;
+				const bRank = order.get(b.key) ?? Number.MAX_SAFE_INTEGER;
+				return aRank - bRank || a.index - b.index;
+			})
+			.map(({ key, schema }) => [key, schema] as [string, SessionConfigPropertySchema]);
 	}
 
 	/**
@@ -688,15 +702,20 @@ class AgentHostSessionConfigPickerContribution extends Disposable implements IWo
 	constructor(
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 	) {
 		super();
-		// Always use the mobile-aware subclass. Its `_showPicker`
-		// override falls back to `super._showPicker()` when the viewport
-		// is not phone, so desktop behavior is preserved. The static
-		// import creates a circular dependency (mobile → base → mobile),
-		// but ESM handles it because the class is only accessed inside
-		// this factory callback, which runs at `AfterRestored` — well
-		// after both modules have finished evaluating.
+		// The mode-picker factories below pick the mobile subclass at
+		// view-item construction time when the viewport is phone, and
+		// the desktop class otherwise. The session-config picker
+		// always uses the mobile-aware subclass because its
+		// `_showPicker` override falls back to `super._showPicker()`
+		// on desktop. The static import of `MobileAgentHostModePicker`
+		// / `MobileAgentHostSessionConfigPicker` creates a circular
+		// dependency (mobile → base → mobile), but ESM handles it
+		// because the classes are only accessed inside these factory
+		// callbacks, which run at `AfterRestored` — well after both
+		// modules have finished evaluating.
 		this._register(actionViewItemService.register(
 			Menus.NewSessionRepositoryConfig,
 			'sessions.agentHost.sessionConfigPicker',
@@ -705,12 +724,16 @@ class AgentHostSessionConfigPickerContribution extends Disposable implements IWo
 		this._register(actionViewItemService.register(
 			Menus.NewSessionConfig,
 			NEW_SESSION_MODE_PICKER_ID,
-			() => new PickerActionViewItem(this._instantiationService.createInstance(AgentHostModePicker)),
+			() => new PickerActionViewItem(this._instantiationService.createInstance(
+				isPhoneLayout(this._layoutService) ? MobileAgentHostModePicker : AgentHostModePicker,
+			)),
 		));
 		this._register(actionViewItemService.register(
 			MenuId.ChatInput,
 			RUNNING_SESSION_MODE_PICKER_ID,
-			() => new PickerActionViewItem(this._instantiationService.createInstance(AgentHostModePicker)),
+			() => new PickerActionViewItem(this._instantiationService.createInstance(
+				isPhoneLayout(this._layoutService) ? MobileAgentHostModePicker : AgentHostModePicker,
+			)),
 		));
 		this._register(actionViewItemService.register(
 			Menus.NewSessionControl,

@@ -358,6 +358,13 @@
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
+.action-widget .action-list-filter-label {
+	color: var(--vscode-descriptionForeground);
+	font-size: 12px;
+	flex-shrink: 0;
+	margin-right: 2px;
+}
+
 /* Anchor for the absolutely-positioned submenu panel */
 .action-widget .actionList {
 	position: relative;

@@ -17,7 +17,7 @@ import { Emitter } from '../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../base/common/htmlContent.js';
 import { ResolvedKeybinding } from '../../../base/common/keybindings.js';
 import { AnchorPosition } from '../../../base/common/layout.js';
-import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { OS } from '../../../base/common/platform.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { URI } from '../../../base/common/uri.js';
@@ -47,9 +47,13 @@ export interface IActionListDelegate<T> {
  */
 export interface IActionListItemHover {
 	/**
-	 * Content to display in the hover.
+	 * Content to display in the hover. Can be a markdown string or an HTMLElement for full DOM control.
 	 */
-	readonly content?: string | MarkdownString;
+	readonly content?: string | MarkdownString | HTMLElement;
+	/**
+	 * Optional disposable associated with the hover content (e.g. from rendered markdown).
+	 */
+	readonly disposable?: IDisposable;
 }
 
 export interface IActionListItem<T> {
@@ -502,6 +506,11 @@ export interface IActionListOptions {
 	 * where this hint is misleading.
 	 */
 	readonly hideDefaultKeybindingTooltip?: boolean;
+
+	/**
+	 * Optional label shown on the right side of the filter row.
+	 */
+	readonly secondaryHeading?: string;
 }
 
 /**
@@ -658,30 +667,37 @@ export class ActionListWidget<T> extends Disposable {
 
 		this._allMenuItems = [...items];
 
-		// Create filter input
-		if (this._options?.showFilter) {
+		// Create filter input and/or secondary heading
+		if (this._options?.showFilter || this._options?.secondaryHeading) {
 			this._filterContainer = document.createElement('div');
 			this._filterContainer.className = 'action-list-filter';
 			const filterRow = dom.append(this._filterContainer, dom.$('.action-list-filter-row'));
 
-			this._filterInput = document.createElement('input');
-			this._filterInput.type = 'text';
-			this._filterInput.className = 'action-list-filter-input';
-			this._filterInput.placeholder = this._options?.filterPlaceholder ?? localize('actionList.filter.placeholder', "Search...");
-			this._filterInput.setAttribute('aria-label', localize('actionList.filter.ariaLabel', "Filter items"));
-			filterRow.appendChild(this._filterInput);
+			if (this._options?.showFilter) {
+				this._filterInput = document.createElement('input');
+				this._filterInput.type = 'text';
+				this._filterInput.className = 'action-list-filter-input';
+				this._filterInput.placeholder = this._options?.filterPlaceholder ?? localize('actionList.filter.placeholder', "Search...");
+				this._filterInput.setAttribute('aria-label', localize('actionList.filter.ariaLabel', "Filter items"));
+				filterRow.appendChild(this._filterInput);
 
-			const filterActions = this._options?.filterActions ?? [];
-			if (filterActions.length > 0) {
-				const filterActionsContainer = dom.append(filterRow, dom.$('.action-list-filter-actions'));
-				const filterActionBar = this._register(new ActionBar(filterActionsContainer));
-				filterActionBar.push(filterActions, { icon: true, label: false });
+				const filterActions = this._options?.filterActions ?? [];
+				if (filterActions.length > 0) {
+					const filterActionsContainer = dom.append(filterRow, dom.$('.action-list-filter-actions'));
+					const filterActionBar = this._register(new ActionBar(filterActionsContainer));
+					filterActionBar.push(filterActions, { icon: true, label: false });
+				}
+
+				this._register(dom.addDisposableListener(this._filterInput, 'input', () => {
+					this._filterText = this._filterInput!.value;
+					this._applyOrUpdateFilter();
+				}));
 			}
 
-			this._register(dom.addDisposableListener(this._filterInput, 'input', () => {
-				this._filterText = this._filterInput!.value;
-				this._applyOrUpdateFilter();
-			}));
+			if (this._options?.secondaryHeading) {
+				const filterLabelEl = dom.append(filterRow, dom.$('.action-list-filter-label'));
+				filterLabelEl.textContent = this._options.secondaryHeading;
+			}
 		}
 
 		this._applyFilter();
@@ -1338,20 +1354,27 @@ export class ActionListWidget<T> extends Disposable {
 		let hoverHeader: HTMLElement | undefined;
 		const hoverContent = element.hover?.content;
 		if (hoverContent) {
-			const markdown = typeof hoverContent === 'string' ? new MarkdownString(hoverContent) : hoverContent;
-			const linkHandler = this._options?.linkHandler;
-			const rendered = renderMarkdown(markdown, {
-				actionHandler: (url: string) => {
-					const uri = URI.parse(url);
-					if (linkHandler) {
-						linkHandler(uri, element);
-					} else {
-						this._openerService.open(uri, { allowCommands: true });
-					}
-				},
-			});
-			this._submenuDisposables.add(rendered);
-			hoverHeader = rendered.element;
+			if (dom.isHTMLElement(hoverContent)) {
+				hoverHeader = hoverContent;
+				if (element.hover?.disposable) {
+					this._submenuDisposables.add(element.hover.disposable);
+				}
+			} else {
+				const markdown = typeof hoverContent === 'string' ? new MarkdownString(hoverContent) : hoverContent;
+				const linkHandler = this._options?.linkHandler;
+				const rendered = renderMarkdown(markdown, {
+					actionHandler: (url: string) => {
+						const uri = URI.parse(url);
+						if (linkHandler) {
+							linkHandler(uri, element);
+						} else {
+							this._openerService.open(uri, { allowCommands: true });
+						}
+					},
+				});
+				this._submenuDisposables.add(rendered);
+				hoverHeader = rendered.element;
+			}
 			hoverHeader.classList.add('action-list-submenu-hover-header');
 			if (element.submenuActions?.length) {
 				hoverHeader.classList.add('has-submenu');

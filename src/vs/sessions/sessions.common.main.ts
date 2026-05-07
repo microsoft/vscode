@@ -227,8 +227,14 @@ import '../workbench/contrib/interactive/browser/interactive.contribution.js';
 // repl
 import '../workbench/contrib/replNotebook/browser/repl.contribution.js';
 
-// Testing
-import '../workbench/contrib/testing/browser/testing.contribution.js';
+// Testing (service)
+import { NullTestProfileService, NullTestResultService, NullTestService } from '../workbench/contrib/testing/common/nullTestingService.js';
+import { ITestProfileService } from '../workbench/contrib/testing/common/testProfileService.js';
+import { ITestResultService } from '../workbench/contrib/testing/common/testResultService.js';
+import { ITestService } from '../workbench/contrib/testing/common/testService.js';
+registerSingleton(ITestService, NullTestService, InstantiationType.Delayed);
+registerSingleton(ITestProfileService, NullTestProfileService, InstantiationType.Delayed);
+registerSingleton(ITestResultService, NullTestResultService, InstantiationType.Delayed);
 
 // Logs
 import '../workbench/contrib/logs/common/logs.contribution.js';
@@ -243,7 +249,7 @@ import '../workbench/contrib/files/browser/files.contribution.js';
 
 // Bulk Edit
 import '../workbench/contrib/bulkEdit/browser/bulkEditService.js';
-import '../workbench/contrib/bulkEdit/browser/preview/bulkEdit.contribution.js';
+// import '../workbench/contrib/bulkEdit/browser/preview/bulkEdit.contribution.js';
 
 // Rename Symbol Tracker for Inline completions.
 import '../workbench/contrib/inlineCompletions/browser/renameSymbolTrackerService.js';

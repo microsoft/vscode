@@ -79,6 +79,7 @@ export interface IProductConfiguration {
 	readonly win32RegValueName?: string;
 	readonly win32NameVersion?: string;
 	readonly win32VersionedUpdate?: boolean;
+	readonly win32ContextMenu?: { readonly [arch: string]: { readonly clsid: string } };
 	readonly applicationName: string;
 	readonly embedderIdentifier?: string;
 	readonly telemetryAppName?: string;

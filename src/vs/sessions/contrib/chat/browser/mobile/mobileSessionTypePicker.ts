@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from '../../../../nls.js';
-import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { SessionTypePicker, STORAGE_KEY_LAST_SESSION_TYPE } from './sessionTypePicker.js';
-import { isPhoneLayout } from '../../../browser/parts/mobile/mobileLayout.js';
-import { IMobilePickerSheetItem, showMobilePickerSheet } from '../../../browser/parts/mobile/mobilePickerSheet.js';
+import { localize } from '../../../../../nls.js';
+import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
+import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
+import { SessionTypePicker, STORAGE_KEY_LAST_SESSION_TYPE } from '../sessionTypePicker.js';
+import { isPhoneLayout } from '../../../../browser/parts/mobile/mobileLayout.js';
+import { IMobilePickerSheetItem, showMobilePickerSheet } from '../../../../browser/parts/mobile/mobilePickerSheet.js';
 
 /**
  * Phone variant of {@link SessionTypePicker} that renders the picker as
