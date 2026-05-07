@@ -202,7 +202,7 @@ async function readRemoteAgentHostLog(
 	fileService: IFileService,
 ): Promise<string | undefined> {
 	const homePath = connection.defaultDirectory;
-	if (!homePath || !serverDataFolderName) {
+	if (!homePath) {
 		return undefined;
 	}
 	const trimmedHome = homePath.endsWith('/') ? homePath.slice(0, -1) : homePath;
@@ -210,9 +210,22 @@ async function readRemoteAgentHostLog(
 
 	const toRemote = (posixPath: string): URI => toAgentHostUri(URI.from({ scheme: 'file', path: posixPath }), authority);
 
-	// Possible server data folder candidates. The CLI may install either the
-	// quality-tagged folder (e.g. `.vscode-server-insiders`) or the stable one.
-	const candidates = new Set<string>([serverDataFolderName, '.vscode-server', '.vscode-server-insiders']);
+	// Possible server data folder candidates. The renderer's own
+	// `serverDataFolderName` (which the user is running) is the most likely
+	// match, but the remote agent host may have been launched by a different
+	// quality of CLI. Dev builds also append `-dev`, which won't exist on
+	// any real built remote, so we strip that suffix as well.
+	const candidates = new Set<string>();
+	if (serverDataFolderName) {
+		candidates.add(serverDataFolderName);
+		if (serverDataFolderName.endsWith('-dev')) {
+			candidates.add(serverDataFolderName.slice(0, -'-dev'.length));
+		}
+	}
+	candidates.add('.vscode-server');
+	candidates.add('.vscode-server-insiders');
+	candidates.add('.vscode-server-oss');
+	candidates.add('.vscode-server-exploration');
 
 	for (const folderName of candidates) {
 		const logsDirUri = toRemote(`${trimmedHome}/${folderName}/data/logs`);
