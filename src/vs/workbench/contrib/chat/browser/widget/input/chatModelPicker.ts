@@ -5,6 +5,7 @@
 
 import * as dom from '../../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../../base/browser/keyboardEvent.js';
+import { renderMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
 import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { getBaseLayerHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegate2.js';
 import { getDefaultHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
@@ -14,7 +15,7 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
-import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -103,8 +104,9 @@ function createModelItem(
 	action: IActionWidgetDropdownAction & { section?: string },
 	model?: ILanguageModelChatMetadataAndIdentifier,
 	descriptionOverride?: string | MarkdownString,
+	openerService?: IOpenerService,
 ): IActionListItem<IActionWidgetDropdownAction> {
-	const hoverContent = model ? getModelHoverContent(model) : undefined;
+	const hover = model && openerService ? getModelHoverContent(model, openerService) : undefined;
 	return {
 		item: action,
 		kind: ActionListItemKind.Action,
@@ -113,7 +115,7 @@ function createModelItem(
 		group: { title: '', icon: action.icon ?? ThemeIcon.fromId(action.checked ? Codicon.check.id : Codicon.blank.id) },
 		hideIcon: false,
 		section: action.section,
-		hover: hoverContent ? { content: hoverContent } : undefined,
+		hover: hover ? { content: hover.element, disposable: hover.disposable } : undefined,
 		tooltip: action.tooltip,
 		submenuActions: action.toolbarActions?.length ? action.toolbarActions : undefined,
 	};
@@ -252,6 +254,7 @@ export function buildModelPickerItems(
 	showUnavailableFeatured: boolean,
 	showFeatured: boolean,
 	languageModelsService?: ILanguageModelsService,
+	openerService?: IOpenerService,
 ): IActionListItem<IActionWidgetDropdownAction>[] {
 	const items: IActionListItem<IActionWidgetDropdownAction>[] = [];
 	if (models.length === 0) {
@@ -304,7 +307,7 @@ export function buildModelPickerItems(
 			if (autoModel) {
 				markPlaced(autoModel.identifier, autoModel.metadata.id);
 				const { action: autoAction, descriptionOverride: autoDesc } = createModelAction(autoModel, selectedModelId, onSelect, languageModelsService!);
-				items.push(createModelItem(autoAction, autoModel, autoDesc));
+				items.push(createModelItem(autoAction, autoModel, autoDesc, openerService));
 			}
 
 			// --- 2. Promoted section (selected + recently used + featured) ---
@@ -393,7 +396,7 @@ export function buildModelPickerItems(
 				for (const item of promotedItems) {
 					if (item.kind === 'available') {
 						const { action: promotedAction, descriptionOverride: promotedDesc } = createModelAction(item.model, selectedModelId, onSelect, languageModelsService!);
-						items.push(createModelItem(promotedAction, item.model, promotedDesc));
+						items.push(createModelItem(promotedAction, item.model, promotedDesc, openerService));
 					} else {
 						items.push(createUnavailableModelItem(item.id, item.entry, item.reason, manageSettingsUrl, updateStateType, chatEntitlementService));
 					}
@@ -452,7 +455,7 @@ export function buildModelPickerItems(
 						items.push(createUnavailableModelItem(model.metadata.id, entry, 'update', manageSettingsUrl, updateStateType, chatEntitlementService, ModelPickerSection.Other));
 					} else {
 						const { action: otherAction, descriptionOverride: otherDesc } = createModelAction(model, selectedModelId, onSelect, languageModelsService!, ModelPickerSection.Other);
-						items.push(createModelItem(otherAction, model, otherDesc));
+						items.push(createModelItem(otherAction, model, otherDesc, openerService));
 					}
 				}
 			}
@@ -475,7 +478,7 @@ export function buildModelPickerItems(
 		const autoModel = models.find(m => isAutoModel(m));
 		if (autoModel) {
 			const { action: flatAutoAction, descriptionOverride: flatAutoDesc } = createModelAction(autoModel, selectedModelId, onSelect, languageModelsService!);
-			items.push(createModelItem(flatAutoAction, autoModel, flatAutoDesc));
+			items.push(createModelItem(flatAutoAction, autoModel, flatAutoDesc, openerService));
 		}
 		const sortedModels = models
 			.filter(m => m !== autoModel)
@@ -485,7 +488,7 @@ export function buildModelPickerItems(
 			});
 		for (const model of sortedModels) {
 			const { action: flatAction, descriptionOverride: flatDesc } = createModelAction(model, selectedModelId, onSelect, languageModelsService!);
-			items.push(createModelItem(flatAction, model, flatDesc));
+			items.push(createModelItem(flatAction, model, flatDesc, openerService));
 		}
 	}
 
@@ -683,10 +686,12 @@ export class ModelPickerWidget extends Disposable {
 		this._effortButton.setAttribute('aria-expanded', 'false');
 		this._effortButton.style.display = 'none';
 
-		// Max tokens toggle button (conditionally visible)
+		// Context size button (conditionally visible)
 		this._tokensButton = dom.append(this._domNode, dom.$('a.model-picker-section.model-picker-tokens'));
 		this._tokensButton.tabIndex = 0;
 		this._tokensButton.setAttribute('role', 'button');
+		this._tokensButton.setAttribute('aria-haspopup', 'true');
+		this._tokensButton.setAttribute('aria-expanded', 'false');
 		this._tokensButton.style.display = 'none';
 
 		this._badgeIcon = dom.$('span.model-picker-badge');
@@ -696,7 +701,7 @@ export class ModelPickerWidget extends Disposable {
 
 		this._registerButtonAction(this._nameButton, () => this.show());
 		this._registerButtonAction(this._effortButton, () => this._showEffortPicker());
-		this._registerButtonAction(this._tokensButton, () => this._cycleTokens());
+		this._registerButtonAction(this._tokensButton, () => this._showTokensPicker());
 
 		// Managed hovers for effort and tokens buttons
 		this._register(getBaseLayerHoverDelegate().setupManagedHover(
@@ -775,6 +780,7 @@ export class ModelPickerWidget extends Disposable {
 			this._delegate.showUnavailableFeatured(),
 			this._delegate.showFeatured(),
 			this._languageModelsService,
+			this._openerService,
 		);
 
 		const hasPriceCategories = models.some(m => !!m.metadata.priceCategory);
@@ -893,7 +899,7 @@ export class ModelPickerWidget extends Disposable {
 				: formatTokenCount(Number(tokensConfig.value));
 			dom.reset(this._tokensButton, dom.$('span.chat-input-picker-label', undefined, tokensLabel));
 			this._tokensButton.style.display = '';
-			this._tokensButton.ariaLabel = localize('chat.modelPicker.tokensAriaLabel', "Max Tokens: {0}", tokensLabel);
+			this._tokensButton.ariaLabel = localize('chat.modelPicker.tokensAriaLabel', "Context Size: {0}", tokensLabel);
 		} else if (this._tokensButton) {
 			this._tokensButton.style.display = 'none';
 		}
@@ -921,13 +927,22 @@ export class ModelPickerWidget extends Disposable {
 		const modelIdentifier = this._selectedModel.identifier;
 		const enumValues = config.schema.enum ?? [];
 		const enumItemLabels = config.schema.enumItemLabels;
-		const items: IActionListItem<IActionWidgetDropdownAction>[] = enumValues.map((value: unknown, index: number) => {
+
+		const items: IActionListItem<IActionWidgetDropdownAction>[] = [
+			{
+				kind: ActionListItemKind.Header,
+				label: localize('chat.effort.header', "Thinking Effort"),
+			}
+		];
+
+		for (let index = 0; index < enumValues.length; index++) {
+			const value = enumValues[index];
 			const label = enumItemLabels?.[index] ?? String(value);
 			const isDefault = value === config.schema.default;
 			const displayLabel = isDefault
 				? localize('models.effortDefault', "{0} (default)", label)
 				: label;
-			return {
+			items.push({
 				item: {
 					id: `effort.${value}`,
 					enabled: true,
@@ -944,10 +959,11 @@ export class ModelPickerWidget extends Disposable {
 				},
 				kind: ActionListItemKind.Action,
 				label: displayLabel,
+				description: config.schema.enumDescriptions?.[index],
 				group: { title: '', icon: ThemeIcon.fromId(config.value === value ? Codicon.check.id : Codicon.blank.id) },
 				hideIcon: false,
-			};
-		});
+			});
+		}
 
 		const previouslyFocusedElement = dom.getActiveElement();
 		const delegate = {
@@ -983,66 +999,206 @@ export class ModelPickerWidget extends Disposable {
 		);
 	}
 
-	private _cycleTokens(): void {
+	private _showTokensPicker(): void {
 		if (this._domNode?.classList.contains('disabled')) {
 			return;
 		}
 		const config = this._getConfigProperty('tokens');
-		if (!config || !this._selectedModel) {
+		if (!config || !this._tokensButton || !this._selectedModel) {
 			return;
 		}
+
+		const modelIdentifier = this._selectedModel.identifier;
 		const enumValues = config.schema.enum ?? [];
-		const currentIndex = enumValues.indexOf(config.value);
-		const nextIndex = (currentIndex + 1) % enumValues.length;
-		this._languageModelsService.setModelConfiguration(
-			this._selectedModel.identifier,
-			{ [config.key]: enumValues[nextIndex] }
+		const enumItemLabels = config.schema.enumItemLabels;
+
+		const items: IActionListItem<IActionWidgetDropdownAction>[] = [
+			{
+				kind: ActionListItemKind.Header,
+				label: localize('chat.tokens.header', "Context Size"),
+			}
+		];
+
+		for (let index = 0; index < enumValues.length; index++) {
+			const value = enumValues[index];
+			const label = enumItemLabels?.[index] ?? formatTokenCount(Number(value));
+			const isDefault = value === config.schema.default;
+			const displayLabel = isDefault
+				? localize('models.tokensDefault', "{0} (default)", label)
+				: label;
+			const description = config.schema.enumDescriptions?.[index];
+			items.push({
+				item: {
+					id: `tokens.${value}`,
+					enabled: true,
+					checked: config.value === value,
+					class: undefined,
+					tooltip: description ?? '',
+					label: displayLabel,
+					run: () => {
+						this._languageModelsService.setModelConfiguration(
+							modelIdentifier,
+							{ [config.key]: value }
+						);
+					}
+				},
+				kind: ActionListItemKind.Action,
+				label: displayLabel,
+				description,
+				group: { title: '', icon: ThemeIcon.fromId(config.value === value ? Codicon.check.id : Codicon.blank.id) },
+				hideIcon: false,
+			});
+		}
+
+		const previouslyFocusedElement = dom.getActiveElement();
+		const delegate = {
+			onSelect: (action: IActionWidgetDropdownAction) => {
+				this._actionWidgetService.hide();
+				action.run();
+			},
+			onHide: () => {
+				this._tokensButton?.setAttribute('aria-expanded', 'false');
+				if (dom.isHTMLElement(previouslyFocusedElement)) {
+					previouslyFocusedElement.focus();
+				}
+			}
+		};
+
+		this._tokensButton.setAttribute('aria-expanded', 'true');
+
+		this._actionWidgetService.show(
+			'ChatModelTokensPicker',
+			false,
+			items,
+			delegate,
+			this._tokensButton,
+			undefined,
+			[],
+			{
+				isChecked(element: IActionListItem<IActionWidgetDropdownAction>) {
+					return element.kind === ActionListItemKind.Action ? !!element?.item?.checked : undefined;
+				},
+				getRole: () => 'menuitemradio' as const,
+				getWidgetRole: () => 'menu' as const,
+			}
 		);
 	}
 }
 
 
-function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentifier): MarkdownString | undefined {
+function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentifier, openerService: IOpenerService): { element: HTMLElement; disposable: DisposableStore } | undefined {
 	const isAuto = isAutoModel(model);
-	const markdown = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
-	let hasContent = false;
+	const container = dom.$('.chat-model-hover');
+	const disposables = new DisposableStore();
 
+	// --- Model name header ---
+	container.appendChild(dom.$('.chat-model-hover-name', undefined, model.metadata.name));
+
+	// --- Description (tooltip as markdown) ---
 	if (model.metadata.tooltip) {
+		container.appendChild(dom.$('.chat-model-hover-separator'));
+		const descriptionContainer = dom.$('.chat-model-hover-description');
+		const md = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
 		if (model.metadata.statusIcon) {
-			markdown.appendMarkdown(`$(${model.metadata.statusIcon.id})&nbsp;`);
+			md.appendMarkdown(`$(${model.metadata.statusIcon.id})&nbsp;`);
 		}
-		markdown.appendMarkdown(`${model.metadata.tooltip}`);
-		hasContent = true;
+		md.appendMarkdown(model.metadata.tooltip);
+		const rendered = renderMarkdown(md, {
+			actionHandler: (url: string) => {
+				openerService.open(URI.parse(url), { allowCommands: true });
+			},
+		});
+		disposables.add(rendered);
+		descriptionContainer.appendChild(rendered.element);
+		container.appendChild(descriptionContainer);
 	}
 
-	// Show non-multiplier (UBB/AIC) pricing in hover
-	if (!isAuto && model.metadata.pricing && !isMultiplierPricing(model)) {
-		if (hasContent) {
-			markdown.appendMarkdown(`\n\n`);
+	// --- Cost info ---
+	if (!isAuto) {
+		const costLines: { label: string; value: string }[] = [];
+		if (model.metadata.inputCost !== undefined) {
+			costLines.push({
+				label: localize('models.inputCostLabel', "Input"),
+				value: model.metadata.inputCost === 1
+					? localize('models.costValueSingular', "{0} credit / 1M tokens", model.metadata.inputCost)
+					: localize('models.costValuePlural', "{0} credits / 1M tokens", model.metadata.inputCost),
+			});
 		}
-		markdown.appendMarkdown(`${localize('models.cost', 'Cost: {0}', model.metadata.pricing)}`);
-		hasContent = true;
+		if (model.metadata.cacheCost !== undefined) {
+			costLines.push({
+				label: localize('models.cacheCostLabel', "Cached input"),
+				value: model.metadata.cacheCost === 1
+					? localize('models.costValueSingular', "{0} credit / 1M tokens", model.metadata.cacheCost)
+					: localize('models.costValuePlural', "{0} credits / 1M tokens", model.metadata.cacheCost),
+			});
+		}
+		if (model.metadata.outputCost !== undefined) {
+			costLines.push({
+				label: localize('models.outputCostLabel', "Output"),
+				value: model.metadata.outputCost === 1
+					? localize('models.costValueSingular', "{0} credit / 1M tokens", model.metadata.outputCost)
+					: localize('models.costValuePlural', "{0} credits / 1M tokens", model.metadata.outputCost),
+			});
+		}
+
+		if (costLines.length > 0) {
+			const costSection = dom.$('.chat-model-hover-cost');
+			costSection.appendChild(dom.$('.chat-model-hover-cost-title', undefined, localize('models.priceTitle', "Price")));
+			for (const line of costLines) {
+				costSection.appendChild(dom.$('.chat-model-hover-cost-line', undefined,
+					dom.$('span.chat-model-hover-cost-line-label', undefined, `${line.label}: `),
+					dom.$('span', undefined, line.value),
+				));
+			}
+			container.appendChild(costSection);
+		} else if (model.metadata.pricing && !isMultiplierPricing(model)) {
+			const costSection = dom.$('.chat-model-hover-cost');
+			costSection.appendChild(dom.$('span', undefined, localize('models.cost', 'Cost: {0}', model.metadata.pricing)));
+			container.appendChild(costSection);
+		}
 	}
 
+	// --- Context size ---
 	if (!isAuto && (model.metadata.maxInputTokens || model.metadata.maxOutputTokens)) {
-		if (hasContent) {
-			markdown.appendMarkdown(`\n\n`);
-		}
 		const totalTokens = (model.metadata.maxInputTokens ?? 0) + (model.metadata.maxOutputTokens ?? 0);
-		markdown.appendMarkdown(`${localize('models.contextSize', 'Context Size')}: `);
-		markdown.appendMarkdown(`${formatTokenCount(totalTokens)}`);
-		hasContent = true;
+		const contextSection = dom.$('.chat-model-hover-context');
+		contextSection.appendChild(dom.$('.chat-model-hover-context-label', undefined, localize('models.contextSize', "Max context")));
+		contextSection.appendChild(dom.$('.chat-model-hover-context-value', undefined, formatTokenCount(totalTokens)));
+		container.appendChild(contextSection);
 	}
 
-	return hasContent ? markdown : undefined;
+	// --- Configurable properties ---
+	if (!isAuto && model.metadata.configurationSchema?.properties) {
+		const configurableLabels: string[] = [];
+		for (const [, propSchema] of Object.entries(model.metadata.configurationSchema.properties)) {
+			if (propSchema.enum && propSchema.enum.length >= 2) {
+				const label = propSchema.title ?? propSchema.description;
+				if (label) {
+					configurableLabels.push(label);
+				}
+			}
+		}
+		if (configurableLabels.length > 0) {
+			container.appendChild(dom.$('.chat-model-hover-separator'));
+			const configRow = dom.$('.chat-model-hover-configurable');
+			configRow.appendChild(dom.$('span.chat-model-hover-configurable-label', undefined, localize('models.configurable', "Configurable:")));
+			for (const label of configurableLabels) {
+				configRow.appendChild(dom.$('span.chat-model-hover-configurable-tag', undefined, label));
+			}
+			container.appendChild(configRow);
+		}
+	}
+
+	return container.children.length > 0 ? { element: container, disposable: disposables } : undefined;
 }
 
 
-function formatTokenCount(count: number): string {
-	if (count >= 1000000) {
-		return `${(count / 1000000).toFixed(1)}M`;
+export function formatTokenCount(count: number): string {
+	if (count > 900_000) {
+		const value = Math.ceil(count / 1_000_000);
+		return `${value}M`;
 	} else if (count >= 1000) {
-		return `${(count / 1000).toFixed(0)}K`;
+		return `${Math.round(count / 1000)}K`;
 	}
 	return count.toString();
 }

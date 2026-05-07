@@ -164,6 +164,9 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 				const innoUpdater = path.join(exeDir, versionedResourcesFolder, 'tools', 'inno_updater.exe');
 				const exeName = basename(exePath);
 				const siblingExeName = this.productService.win32SiblingExeBasename ? `${this.productService.win32SiblingExeBasename}.exe` : '';
+				// Unblock inno_updater --gc when our context-menu COM surrogate keeps a
+				// handle on the orphan commit folder. See https://github.com/microsoft/vscode/issues/294546.
+				await this.killContextMenuComSurrogate();
 				await new Promise<void>(resolve => {
 					const child = spawn(innoUpdater, ['--gc', exePath, versionedResourcesFolder, exeName, siblingExeName], {
 						stdio: ['ignore', 'ignore', 'ignore'],
@@ -174,6 +177,42 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 				});
 			}
 		}
+	}
+
+	private async killContextMenuComSurrogate(): Promise<void> {
+		const clsid = this.productService.win32ContextMenu?.[process.arch]?.clsid;
+		if (!clsid) {
+			return;
+		}
+
+		const command =
+			`Get-CimInstance Win32_Process -Filter "Name = 'dllhost.exe'" | ` +
+			`Where-Object { $_.CommandLine -like '*/Processid:${clsid}*' } | ` +
+			`ForEach-Object { try { Stop-Process -Id $_.ProcessId -Force -ErrorAction Stop } catch {} }`;
+
+		await new Promise<void>(resolve => {
+			try {
+				spawn('powershell.exe', [
+					'-NoLogo', '-NoProfile', '-NonInteractive',
+					'-WindowStyle', 'Hidden',
+					'-ExecutionPolicy', 'Bypass',
+					'-Command', command
+				], {
+					stdio: ['ignore', 'ignore', 'ignore'],
+					windowsHide: true,
+					timeout: 5 * 1000
+				}).once('exit', code => {
+					this.logService.info(`update#killContextMenuComSurrogate: powershell exited with code ${code}`);
+					resolve();
+				}).once('error', err => {
+					this.logService.warn(`update#killContextMenuComSurrogate: failed to spawn powershell: ${err}`);
+					resolve();
+				});
+			} catch (err) {
+				this.logService.warn(`update#killContextMenuComSurrogate: spawn threw: ${err}`);
+				resolve();
+			}
+		});
 	}
 
 	protected buildUpdateFeedUrl(quality: string, commit: string, options?: IUpdateURLOptions): string | undefined {
