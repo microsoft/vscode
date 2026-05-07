@@ -1401,12 +1401,18 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				if (this._newSession === newSession) {
 					this._newSession = undefined;
 				}
+				// Clear the pending session before firing the replace event so
+				// that any synchronous listener calling getSessions() sees only
+				// the committed session and not both.
+				this._pendingSession = undefined;
 				this._onDidReplaceSession.fire({ from: skeleton, to: committedSession });
 				return committedSession;
 			}
 		} catch {
 			// Connection lost or timeout — fall through to the failure cleanup.
 		} finally {
+			// Defensive clear: covers the failure path where the try block
+			// never reached the explicit clear above.
 			this._pendingSession = undefined;
 		}
 
