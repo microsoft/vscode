@@ -210,6 +210,10 @@ export interface IMakeChatRequestOptions {
 	canRetryOnceWithoutRollback?: boolean;
 	/** Custom metadata to be displayed in the log document */
 	customMetadata?: Record<string, string | number | boolean | undefined>;
+	/** Parent turn ID for credit accumulation. When set, copilot_usage costs
+	 *  are attributed to this ID instead of turnId. Used by subagents to
+	 *  aggregate credits under the parent turn. */
+	parentTurnId?: string;
 	/**
 	 * Override for the `X-Interaction-Type` header (and matching `requestKind`
 	 * telemetry value). When unset, the value is derived from {@link ChatLocation}

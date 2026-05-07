@@ -205,6 +205,7 @@ export class ChatParticipantRequestHandler {
 
 	async getResult(): Promise<ICopilotChatResult> {
 		this._chatQuotaService.resetTurnCredits(this.request.id);
+		this._chatQuotaService.resetTurnCredits(this.turn.id);
 
 		if (await this._shouldAskForPermissiveAuth()) {
 			// Return a random response
@@ -260,8 +261,14 @@ export class ChatParticipantRequestHandler {
 				result = await chatResult;
 				const endpoint = await this._endpointProvider.getChatEndpoint(this.request);
 				let details = `${endpoint.name}`;
-				// Show per-request credits for TBB users, from copilot_usage.total_nano_aiu
-				const creditsUsed = this._chatQuotaService.getCreditsForTurn(this.request.id);
+				// Show per-request credits for TBB users, from copilot_usage.total_nano_aiu.
+				// Credits accumulate under request.id for the parent's own API calls,
+				// and under turn.id for subagent API calls (via parentTurnId).
+				const ownCredits = this._chatQuotaService.getCreditsForTurn(this.request.id);
+				const subagentCredits = this._chatQuotaService.getCreditsForTurn(this.turn.id);
+				const creditsUsed = ownCredits !== undefined || subagentCredits !== undefined
+					? (ownCredits ?? 0) + (subagentCredits ?? 0)
+					: undefined;
 				if (creditsUsed !== undefined) {
 					const formatted = creditsUsed % 1 === 0 ? creditsUsed.toString() : creditsUsed.toFixed(1);
 					details += ` • ${formatted} credit${creditsUsed === 1 ? '' : 's'}`;

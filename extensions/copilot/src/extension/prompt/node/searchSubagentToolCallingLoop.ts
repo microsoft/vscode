@@ -41,6 +41,8 @@ export interface ISearchSubagentToolCallingLoopOptions extends IToolCallingLoopO
 	parentHeaderRequestId?: string;
 	/** The modelCallId from the parent agent's model call that triggered this subagent invocation. */
 	parentModelCallId?: string;
+	/** The parent turn's request.id for aggregating credits across subagent calls. */
+	parentTurnId?: string;
 	/** Thoroughness level for the search, passed through to the prompt when thoroughnessEnabled config is on. */
 	thoroughness?: 'normal' | 'deep';
 }
@@ -162,6 +164,7 @@ export class SearchSubagentToolCallingLoop extends ToolCallingLoop<ISearchSubage
 			// This loop is inside a tool called from another request, so never user initiated
 			userInitiatedRequest: false,
 			turnId: this.options.request.id,
+			parentTurnId: this.options.parentTurnId,
 			telemetryProperties: {
 				requestId: this.options.subAgentInvocationId,
 				messageId: randomUUID(),
