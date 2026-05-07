@@ -5,25 +5,25 @@
 
 import * as dom from '../../../../base/browser/dom.js';
 import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
+import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../../base/common/observable.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
-import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem, IActionListOptions } from '../../../../platform/actionWidget/browser/actionList.js';
+import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
-import { ChatConfiguration, ChatPermissionLevel, isChatPermissionLevel } from '../../../../workbench/contrib/chat/common/constants.js';
-import Severity from '../../../../base/common/severity.js';
-import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { URI } from '../../../../base/common/uri.js';
-import { CopilotChatSessionsProvider } from '../../copilotChatSessions/browser/copilotChatSessionsProvider.js';
+import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { maybeConfirmElevatedPermissionLevel } from '../../../../workbench/contrib/chat/common/chatPermissionWarnings.js';
 import { IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { ChatConfiguration, ChatPermissionLevel, isChatPermissionLevel } from '../../../../workbench/contrib/chat/common/constants.js';
+import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { CopilotChatSessionsProvider } from '../../copilotChatSessions/browser/copilotChatSessionsProvider.js';
 
 const PERMISSION_LEVEL_OPTION_ID = 'permissionLevel';
 
@@ -64,21 +64,19 @@ interface IPermissionItem {
 	readonly checked: boolean;
 }
 
-// Track whether warnings have been shown this VS Code session
-const shownWarnings = new Set<ChatPermissionLevel>();
-
 export class PermissionPicker extends Disposable {
 
-	private _currentLevel: ChatPermissionLevel = ChatPermissionLevel.Default;
-	private _triggerElement: HTMLElement | undefined;
-	private readonly _renderDisposables = this._register(new DisposableStore());
+	protected _currentLevel: ChatPermissionLevel = ChatPermissionLevel.Default;
+	protected _triggerElement: HTMLElement | undefined;
+	protected readonly _renderDisposables = this._register(new DisposableStore());
 
 	constructor(
-		private readonly _delegate: IPermissionPickerDelegate,
-		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IDialogService private readonly dialogService: IDialogService,
-		@IOpenerService private readonly openerService: IOpenerService,
+		protected readonly _delegate: IPermissionPickerDelegate,
+		@IActionWidgetService protected readonly actionWidgetService: IActionWidgetService,
+		@IConfigurationService protected readonly configurationService: IConfigurationService,
+		@IDialogService protected readonly dialogService: IDialogService,
+		@IOpenerService protected readonly openerService: IOpenerService,
+		@IStorageService protected readonly storageService: IStorageService,
 	) {
 		super();
 	}
@@ -238,65 +236,9 @@ export class PermissionPicker extends Disposable {
 		);
 	}
 
-	private async _selectLevel(level: ChatPermissionLevel): Promise<void> {
-		if (level === ChatPermissionLevel.AutoApprove && !shownWarnings.has(ChatPermissionLevel.AutoApprove)) {
-			const result = await this.dialogService.prompt({
-				type: Severity.Warning,
-				message: localize('permissions.autoApprove.warning.title', "Enable Bypass Approvals?"),
-				buttons: [
-					{
-						label: localize('permissions.autoApprove.warning.confirm', "Enable"),
-						run: () => true
-					},
-					{
-						label: localize('permissions.autoApprove.warning.cancel', "Cancel"),
-						run: () => false
-					},
-				],
-				custom: {
-					icon: Codicon.warning,
-					markdownDetails: [{
-						markdown: new MarkdownString(
-							localize('permissions.autoApprove.warning.detail', "Bypass Approvals will auto-approve all tool calls without asking for confirmation. This includes file edits, terminal commands, and external tool calls.\n\nTo make this the starting permission level for new chat sessions, change the [{0}](command:workbench.action.openSettings?%5B%22{0}%22%5D) setting.", ChatConfiguration.DefaultPermissionLevel),
-							{ isTrusted: { enabledCommands: ['workbench.action.openSettings'] } },
-						),
-					}],
-				},
-			});
-			if (result.result !== true) {
-				return;
-			}
-			shownWarnings.add(ChatPermissionLevel.AutoApprove);
-		}
-
-		if (level === ChatPermissionLevel.Autopilot && !shownWarnings.has(ChatPermissionLevel.Autopilot)) {
-			const result = await this.dialogService.prompt({
-				type: Severity.Warning,
-				message: localize('permissions.autopilot.warning.title', "Enable Autopilot?"),
-				buttons: [
-					{
-						label: localize('permissions.autopilot.warning.confirm', "Enable"),
-						run: () => true
-					},
-					{
-						label: localize('permissions.autopilot.warning.cancel', "Cancel"),
-						run: () => false
-					},
-				],
-				custom: {
-					icon: Codicon.rocket,
-					markdownDetails: [{
-						markdown: new MarkdownString(
-							localize('permissions.autopilot.warning.detail', "Autopilot will auto-approve all tool calls and continue working autonomously until the task is complete. The agent will make decisions on your behalf without asking for confirmation.\n\nYou can stop the agent at any time by clicking the stop button. This applies to the current session only.\n\nTo make this the starting permission level for new chat sessions, change the [{0}](command:workbench.action.openSettings?%5B%22{0}%22%5D) setting.", ChatConfiguration.DefaultPermissionLevel),
-							{ isTrusted: { enabledCommands: ['workbench.action.openSettings'] } },
-						),
-					}],
-				},
-			});
-			if (result.result !== true) {
-				return;
-			}
-			shownWarnings.add(ChatPermissionLevel.Autopilot);
+	protected async _selectLevel(level: ChatPermissionLevel): Promise<void> {
+		if (!await maybeConfirmElevatedPermissionLevel(level, this.dialogService, this.storageService)) {
+			return;
 		}
 
 		this._currentLevel = level;

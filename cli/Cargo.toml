@@ -33,8 +33,7 @@ jiff = { version = "0.2", default-features = false, features = ["std", "serde"] 
 http = "1"
 gethostname = "0.4.3"
 libc = "0.2.144"
-# temporary fork pending https://github.com/microsoft/dev-tunnels/pull/626
-tunnels = { git = "https://github.com/connor4312/dev-tunnels", rev = "4be50b3cc5ade8cb6beec4038c53ea4f2cdac5a2", default-features = false, features = ["connections"] }
+tunnels = { git = "https://github.com/microsoft/dev-tunnels", rev = "64048c1409ff56cb958b879de7ea069ec71edc8b", default-features = false, features = ["connections"] }
 keyring = { version = "2.0.3", default-features = false, features = ["linux-secret-service-rt-tokio-crypto-openssl", "platform-windows", "platform-macos", "linux-keyutils"] }
 dialoguer = "0.10.4"
 hyper = { version = "1", features = ["server", "http1", "client"] }

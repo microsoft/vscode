@@ -90,6 +90,7 @@ registerAction2(class extends Action2 {
 			menu: {
 				id: MenuId.ViewTitle,
 				group: 'navigation',
+				order: 10,
 				when: ContextKeyExpr.equals('view', SESSIONS_FILES_VIEW_ID),
 			},
 		});
