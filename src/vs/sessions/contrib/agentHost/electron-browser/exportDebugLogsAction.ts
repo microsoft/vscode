@@ -205,10 +205,8 @@ async function readRemoteAgentHostLog(
 	if (!homePath) {
 		return undefined;
 	}
-	const trimmedHome = homePath.endsWith('/') ? homePath.slice(0, -1) : homePath;
 	const authority = agentHostAuthority(connection.address);
-
-	const toRemote = (posixPath: string): URI => toAgentHostUri(URI.from({ scheme: 'file', path: posixPath }), authority);
+	const homeUri = toAgentHostUri(URI.from({ scheme: 'file', path: homePath }), authority);
 
 	// Possible server data folder candidates. The renderer's own
 	// `serverDataFolderName` (which the user is running) is the most likely
@@ -228,7 +226,7 @@ async function readRemoteAgentHostLog(
 	candidates.add('.vscode-server-exploration');
 
 	for (const folderName of candidates) {
-		const logsDirUri = toRemote(`${trimmedHome}/${folderName}/data/logs`);
+		const logsDirUri = joinPath(homeUri, folderName, 'data', 'logs');
 		let entries;
 		try {
 			const stat = await fileService.resolve(logsDirUri, { resolveMetadata: true });
@@ -244,7 +242,7 @@ async function readRemoteAgentHostLog(
 			.filter(e => e.isDirectory)
 			.sort((a, b) => (b.mtime ?? 0) - (a.mtime ?? 0));
 		for (const dir of dateDirs) {
-			const logUri = toRemote(`${dir.resource.path}/agenthost.log`);
+			const logUri = joinPath(dir.resource, 'agenthost.log');
 			try {
 				const content = await fileService.readFile(logUri);
 				return content.value.toString();
