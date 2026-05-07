@@ -5100,7 +5100,7 @@
 					"group": "navigation@0"
 				}
 			],
-			"chat/input/editing/sessionApplyActions": [
+			"agents/changes/actions/primary": [
 				{
 					"command": "github.copilot.sessions.initializeRepository",
 					"when": "chatSessionType == copilotcli && isSessionsWindow && sessions.isolationMode == workspace && !sessions.hasGitRepository && !sessions.isAgentHostSession",

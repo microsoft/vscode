@@ -158,7 +158,7 @@ class ChangesButtonBarWidget extends Disposable {
 
 			reader.store.add(new MenuWorkbenchButtonBar(
 				container,
-				MenuId.ChatEditingSessionChangesToolbar,
+				MenuId.AgentsChangesToolbar,
 				{
 					telemetrySource: 'changesView',
 					menuOptions: sessionResource

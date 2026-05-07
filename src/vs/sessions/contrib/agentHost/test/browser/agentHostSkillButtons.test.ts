@@ -209,9 +209,9 @@ suite('agentHostSkillButtons - menu registration', () => {
 	});
 
 	test('the apply submenu is contributed to the changes toolbar in the navigation group', () => {
-		const toolbarItems = MenuRegistry.getMenuItems(MenuId.ChatEditingSessionChangesToolbar);
+		const toolbarItems = MenuRegistry.getMenuItems(MenuId.AgentsChangesToolbar);
 		const submenuEntry = toolbarItems.find(item => isISubmenuItem(item) && item.submenu === MenuId.ChatEditingSessionApplySubmenu);
-		assert.ok(submenuEntry, 'expected ChatEditingSessionApplySubmenu to be registered on ChatEditingSessionChangesToolbar');
+		assert.ok(submenuEntry, 'expected ChatEditingSessionApplySubmenu to be registered on AgentsChangesToolbar');
 		assert.strictEqual((submenuEntry as { group?: string }).group, 'navigation');
 	});
 

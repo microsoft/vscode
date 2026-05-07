@@ -165,8 +165,8 @@ registerAction2(ApplyChangesToParentRepoAction);
 registerWorkbenchContribution2(ApplyChangesToParentRepoContribution.ID, ApplyChangesToParentRepoContribution, WorkbenchPhase.AfterRestored);
 
 // Register the apply submenu in the session changes toolbar
-MenuRegistry.appendMenuItem(MenuId.ChatEditingSessionChangesToolbar, {
-	submenu: MenuId.ChatEditingSessionApplySubmenu,
+MenuRegistry.appendMenuItem(MenuId.AgentsChangesToolbar, {
+	submenu: MenuId.AgentsChangesPrimaryActionSubMenu,
 	title: localize2('applyActions', 'Apply Actions'),
 	group: 'navigation',
 	order: 1,
