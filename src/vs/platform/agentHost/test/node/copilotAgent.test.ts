@@ -699,7 +699,16 @@ suite('CopilotAgent', () => {
 				await agent.sendMessage(result.session, 'hello');
 
 				assert.ok(capturedConfig, 'SDK createSession should be called during provisional materialization');
-				assert.deepStrictEqual(capturedConfig.systemMessage, COPILOT_AGENT_HOST_SYSTEM_MESSAGE);
+				const systemMessage = capturedConfig.systemMessage;
+				assert.deepStrictEqual(systemMessage, COPILOT_AGENT_HOST_SYSTEM_MESSAGE);
+				if (!systemMessage || systemMessage.mode !== 'customize') {
+					assert.fail('Expected customize-mode system message');
+				}
+				assert.strictEqual(systemMessage.sections?.identity?.action, 'replace');
+				assert.strictEqual(
+					systemMessage.sections?.identity?.content,
+					'You are an AI assistant using Copilot CLI runtime in VS Code. When referring to yourself or this integration, do not describe yourself as a terminal assistant. When asked about your identity, you must state that you are an AI assistant using Copilot CLI runtime in VS Code.'
+				);
 			} finally {
 				await disposeAgent(agent);
 			}

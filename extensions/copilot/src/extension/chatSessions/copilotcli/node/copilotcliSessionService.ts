@@ -891,10 +891,16 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		]);
 		const customAgents = agentInfos.map(i => i.agent);
 		const variablesContext = this._promptVariablesService.buildTemplateVariablesContext(options.sessionId, options.debugTargetSessionIds);
-		const systemMessageContent = variablesContext
-			? `${variablesContext}\n\n${COPILOT_CLI_CHAT_PANEL_SYSTEM_MESSAGE}`
-			: COPILOT_CLI_CHAT_PANEL_SYSTEM_MESSAGE;
-		const systemMessage = { mode: 'append' as const, content: systemMessageContent };
+		const systemMessage = {
+			mode: 'customize' as const,
+			sections: {
+				identity: {
+					action: 'replace' as const,
+					content: COPILOT_CLI_CHAT_PANEL_SYSTEM_MESSAGE,
+				},
+			},
+			...(variablesContext ? { content: variablesContext } : undefined),
+		};
 
 		const allOptions: SessionOptions = {
 			clientName: 'vscode',

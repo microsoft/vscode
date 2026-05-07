@@ -256,21 +256,35 @@ describe('CopilotCLISessionService', () => {
 
 			const callArgs = createSessionSpy.mock.calls[0][0];
 			expect(callArgs.systemMessage).toEqual({
-				mode: 'append',
-				content: COPILOT_CLI_CHAT_PANEL_SYSTEM_MESSAGE,
+				mode: 'customize',
+				sections: {
+					identity: {
+						action: 'replace',
+						content: COPILOT_CLI_CHAT_PANEL_SYSTEM_MESSAGE,
+					},
+				},
 			});
 		});
 
-		it('preserves prompt variable context before the VS Code Copilot CLI identity system message', async () => {
+		it('preserves prompt variable context separately from the VS Code Copilot CLI identity system message', async () => {
 			const variableContext = 'Resolved template variables are available here.';
 			vi.spyOn(NullPromptVariablesService.prototype, 'buildTemplateVariablesContext').mockReturnValue(variableContext);
 			const createSessionSpy = vi.spyOn(manager, 'createSession');
 			await service.createSession({ model: 'gpt-test', ...sessionOptionsFor(URI.file('/tmp')) }, CancellationToken.None);
 
-			const content = createSessionSpy.mock.calls[0][0].systemMessage?.content;
-			expect(content).toContain(variableContext);
-			expect(content).toContain(COPILOT_CLI_CHAT_PANEL_SYSTEM_MESSAGE);
-			expect(content!.indexOf(variableContext)).toBeLessThan(content!.indexOf(COPILOT_CLI_CHAT_PANEL_SYSTEM_MESSAGE));
+			const systemMessage = createSessionSpy.mock.calls[0][0].systemMessage;
+			expect(systemMessage?.mode).toBe('customize');
+			if (systemMessage?.mode !== 'customize') {
+				throw new Error('Expected customize-mode system message');
+			}
+			const identity = systemMessage.sections?.identity;
+			expect(identity?.action).toBe('replace');
+			if (identity?.action !== 'replace') {
+				throw new Error('Expected replace identity section override');
+			}
+			expect(systemMessage.content).toBe(variableContext);
+			expect(identity.content).toBe(COPILOT_CLI_CHAT_PANEL_SYSTEM_MESSAGE);
+			expect(identity.content).not.toContain(variableContext);
 		});
 
 		it('passes reasoningEffort to session manager when provided', async () => {
@@ -314,8 +328,13 @@ describe('CopilotCLISessionService', () => {
 
 			expect(getSessionSpy).toHaveBeenCalledWith(expect.objectContaining({
 				systemMessage: {
-					mode: 'append',
-					content: COPILOT_CLI_CHAT_PANEL_SYSTEM_MESSAGE,
+					mode: 'customize',
+					sections: {
+						identity: {
+							action: 'replace',
+							content: COPILOT_CLI_CHAT_PANEL_SYSTEM_MESSAGE,
+						},
+					},
 				},
 			}), true);
 		});
