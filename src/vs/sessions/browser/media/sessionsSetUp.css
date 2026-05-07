@@ -40,7 +40,7 @@
 
 /* ---- Welcome Dialog ---- */
 
-.chat-setup-dialog.sessions-welcome-dialog {
+.chat-setup-dialog.sessions-main-welcome-dialog {
 
 	/* Icon spacing in vertical layout */
 	&.align-vertical .dialog-message-row > .dialog-icon.codicon {

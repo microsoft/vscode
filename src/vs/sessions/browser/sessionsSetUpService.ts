@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import './media/sessionsWelcome.css';
+import './media/sessionsSetUp.css';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../base/common/lifecycle.js';
 import { DeferredPromise, disposableTimeout } from '../../base/common/async.js';
 import { createDecorator, IInstantiationService } from '../../platform/instantiation/common/instantiation.js';
@@ -27,6 +27,7 @@ import { IMarkdownRendererService } from '../../platform/markdown/browser/markdo
 import { WELCOME_COMPLETE_KEY } from '../common/welcome.js';
 import { SessionsWelcomeVisibleContext } from '../common/contextkeys.js';
 
+import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
 import { Codicon } from '../../base/common/codicons.js';
 import { $, append } from '../../base/browser/dom.js';
 import { Dialog, DialogContentsAlignment } from '../../base/browser/ui/dialog/dialog.js';
@@ -34,9 +35,11 @@ import { createWorkbenchDialogOptions } from '../../workbench/browser/parts/dial
 import { MarkdownString } from '../../base/common/htmlContent.js';
 import { localize } from '../../nls.js';
 
-export const ISessionsWelcomeService = createDecorator<ISessionsWelcomeService>('sessionsWelcomeService');
+const AIDisabledConfig = 'chat.disableAIFeatures';
 
-export interface ISessionsWelcomeService {
+export const ISessionsSetUpService = createDecorator<ISessionsSetUpService>('sessionsSetUpService');
+
+export interface ISessionsSetUpService {
 	readonly _serviceBrand: undefined;
 	/**
 	 * Resolves when the welcome/setup flow has completed (or immediately
@@ -59,7 +62,7 @@ function shouldSkipSessionsWelcome(environmentService: IWorkbenchEnvironmentServ
 	return typeof globalThis.location !== 'undefined' && new URLSearchParams(globalThis.location.search).has('skip-sessions-welcome');
 }
 
-class SessionsWelcomeWidget extends Disposable {
+class SessionsSetUpWidget extends Disposable {
 
 	private readonly dialogRef = this._register(new MutableDisposable<DisposableStore>());
 	private readonly watcherRef = this._register(new MutableDisposable());
@@ -77,6 +80,7 @@ class SessionsWelcomeWidget extends Disposable {
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
 		@ILogService private readonly logService: ILogService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IHostService private readonly hostService: IHostService,
@@ -155,16 +159,82 @@ class SessionsWelcomeWidget extends Disposable {
 			this._showWelcome(false);
 			return;
 		}
+		await this._ensureAIFeaturesEnabled();
 		this.onCompleted();
-		let signedIn = true;
-		this.watcherRef.value = this.defaultAccountService.onDidChangeDefaultAccount(account => {
+		this.watcherRef.value = this._watchActiveState(true);
+	}
+
+	private _watchActiveState(signedIn: boolean): IDisposable {
+		const disposables = new DisposableStore();
+
+		disposables.add(this.defaultAccountService.onDidChangeDefaultAccount(account => {
 			const nowSignedIn = account !== null;
 			if (signedIn && !nowSignedIn) {
 				this.storageService.remove(WELCOME_COMPLETE_KEY, StorageScope.APPLICATION);
 				this._showWelcome(false);
 			}
 			signedIn = nowSignedIn;
-		});
+		}));
+
+		disposables.add(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(AIDisabledConfig)) {
+				if (this.configurationService.getValue<boolean>(AIDisabledConfig)) {
+					this._showAIDisabledDialog();
+				} else {
+					// AI features re-enabled — dismiss any AI disabled dialog
+					this.dialogRef.clear();
+				}
+			}
+		}));
+
+		return disposables;
+	}
+
+	private async _ensureAIFeaturesEnabled(): Promise<void> {
+		if (this.configurationService.getValue<boolean>(AIDisabledConfig)) {
+			this.logService.info('[sessions welcome] AI features disabled, enabling');
+			await this.configurationService.updateValue(AIDisabledConfig, false);
+		}
+	}
+
+	private async _showAIDisabledDialog(): Promise<void> {
+		if (this.dialogRef.value) {
+			return;
+		}
+
+		this.logService.info('[sessions welcome] AI features disabled, showing enable dialog');
+
+		const disposables = new DisposableStore();
+		this.dialogRef.value = disposables;
+
+		const welcomeVisibleKey = SessionsWelcomeVisibleContext.bindTo(this.contextKeyService);
+		welcomeVisibleKey.set(true);
+		disposables.add(toDisposable(() => welcomeVisibleKey.reset()));
+
+		const dialog = disposables.add(new Dialog(
+			this.layoutService.activeContainer,
+			'',
+			[localize('sessions.aiDisabled.enable', "Enable AI Features")],
+			createWorkbenchDialogOptions({
+				type: 'none',
+				extraClasses: ['chat-setup-dialog', 'sessions-welcome-dialog'],
+				detail: localize('sessions.aiDisabled.detail', "Enable AI features to continue using Agents."),
+				icon: Codicon.agent,
+				alignment: DialogContentsAlignment.Vertical,
+				cancelId: 1,
+				disableCloseButton: true,
+				disableCloseAction: true,
+			}, this.keybindingService, this.layoutService, this.hostService)
+		));
+
+		const { button } = await dialog.show();
+		disposables.dispose();
+		this.dialogRef.clear();
+
+		if (button === 0) {
+			this.logService.info('[sessions welcome] User chose to enable AI features');
+			await this.configurationService.updateValue(AIDisabledConfig, false);
+		}
 	}
 
 	private async _showWelcome(isFirstLaunch: boolean): Promise<void> {
@@ -213,6 +283,7 @@ class SessionsWelcomeWidget extends Disposable {
 		}
 
 		this.dialogRef.clear();
+		await this._ensureAIFeaturesEnabled();
 		this._watchSignInState();
 	}
 
@@ -280,7 +351,7 @@ class SessionsWelcomeWidget extends Disposable {
 			[localize('sessions.welcome.getStarted', "Get Started")],
 			createWorkbenchDialogOptions({
 				type: 'none',
-				extraClasses: ['chat-setup-dialog', 'sessions-welcome-dialog'],
+				extraClasses: ['chat-setup-dialog', 'sessions-welcome-dialog', 'sessions-main-welcome-dialog'],
 				detail: localize('sessions.welcome.detail', "Your AI-powered coding experience where agents explore, build, and iterate with you."),
 				icon: Codicon.agent,
 				alignment: DialogContentsAlignment.Vertical,
@@ -321,7 +392,7 @@ class SessionsWelcomeWidget extends Disposable {
 // Service
 // ---------------------------------------------------------------------------
 
-export class SessionsWelcomeService extends Disposable implements ISessionsWelcomeService {
+export class SessionsSetUpService extends Disposable implements ISessionsSetUpService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -340,7 +411,7 @@ export class SessionsWelcomeService extends Disposable implements ISessionsWelco
 		this._initPromise = this.initialize();
 
 		this._register(this.instantiationService.createInstance(
-			SessionsWelcomeWidget,
+			SessionsSetUpWidget,
 			() => this._welcomeDoneDeferred.complete(),
 			() => this.whenSetupDone(),
 			() => this.markDone()
