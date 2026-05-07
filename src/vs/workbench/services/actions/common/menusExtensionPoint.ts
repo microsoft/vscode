@@ -337,6 +337,18 @@ const apiMenus: IAPIMenu[] = [
 		description: localize('interactive.cell.title', "The contributed interactive cell title menu"),
 	},
 	{
+		key: 'customEditor/outline/toolbar',
+		id: MenuId.CustomEditorOutlineActionMenu,
+		description: localize('customEditor.outline.toolbar', "The contributed custom editor outline toolbar actions"),
+		proposed: 'customEditorOutline',
+	},
+	{
+		key: 'customEditor/outline/context',
+		id: MenuId.CustomEditorOutlineContext,
+		description: localize('customEditor.outline.context', "The contributed custom editor outline context menu"),
+		proposed: 'customEditorOutline',
+	},
+	{
 		key: 'issue/reporter',
 		id: MenuId.IssueReporter,
 		description: localize('issue.reporter', "The contributed issue reporter menu")

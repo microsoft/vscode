@@ -74,6 +74,7 @@ import './mainThreadPower.js';
 import './mainThreadWebviewManager.js';
 import './mainThreadWorkspace.js';
 import './mainThreadComments.js';
+import './mainThreadCustomEditorOutline.js';
 import './mainThreadNotebook.js';
 import './mainThreadNotebookKernels.js';
 import './mainThreadNotebookDocumentsAndEditors.js';
