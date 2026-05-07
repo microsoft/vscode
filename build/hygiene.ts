@@ -65,7 +65,9 @@ export function hygiene(some: NodeJS.ReadWriteStream | string[] | undefined, run
 	const unicode = es.through(function (file: VinylFileWithLines) {
 		const lines = file.contents!.toString('utf8').split(/\r\n|\r|\n/);
 		file.__lines = lines;
-		const allowInComments = lines.some(line => /allow-any-unicode-comment-file/.test(line));
+		// test-workbench_change start - Allow Unicode in all comments by default
+		const allowInComments = true; // Always allow Unicode in comments
+		// test-workbench_change end
 		let skipNext = false;
 		lines.forEach((line, i) => {
 			if (/allow-any-unicode-next-line/.test(line)) {
@@ -76,15 +78,33 @@ export function hygiene(some: NodeJS.ReadWriteStream | string[] | undefined, run
 				skipNext = false;
 				return;
 			}
+			// test-workbench_change start - Support XML/HTML comments in addition to JS comments
 			// If unicode is allowed in comments, trim the comment from the line
 			if (allowInComments) {
+				// Check for multi-line comment (/* */ or <!-- -->)
 				if (line.match(/\s+(\*)/)) { // Naive multi-line comment check
 					line = '';
 				} else {
-					const index = line.indexOf('//');
-					line = index === -1 ? line : line.substring(0, index);
+					// Remove single-line comments (//)
+					const jsCommentIndex = line.indexOf('//');
+					if (jsCommentIndex !== -1) {
+						line = line.substring(0, jsCommentIndex);
+					}
+					// Remove XML/HTML comments (<!-- -->)
+					const xmlCommentStart = line.indexOf('<!--');
+					if (xmlCommentStart !== -1) {
+						const xmlCommentEnd = line.indexOf('-->', xmlCommentStart);
+						if (xmlCommentEnd !== -1) {
+							// Comment starts and ends on same line
+							line = line.substring(0, xmlCommentStart) + line.substring(xmlCommentEnd + 3);
+						} else {
+							// Comment starts but doesn't end on this line
+							line = line.substring(0, xmlCommentStart);
+						}
+					}
 				}
 			}
+			// test-workbench_change end
 			// Please do not add symbols that resemble ASCII letters!
 			// eslint-disable-next-line no-misleading-character-class
 			const m = /([^\t\n\r\x20-\x7E⊃⊇✔︎✓🎯🧪✍️⚠️🛑🔴🚗🚙🚕🎉✨❗⇧⌥⌘×÷¦⋯…↑↓￫→←↔⟷—·•●◆▼⟪⟫┌└├⏎↩√φ]+)/g.exec(line);
