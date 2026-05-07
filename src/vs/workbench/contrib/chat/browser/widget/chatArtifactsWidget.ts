@@ -116,7 +116,7 @@ export class ChatArtifactsWidget extends Disposable {
 		this.domNode = dom.$('.chat-artifacts-widget');
 		this.domNode.style.display = 'none';
 
-		this._register(autorun(reader => {
+		autorun(reader => {
 			const artifacts = this._currentArtifacts.read(reader);
 
 			dom.clearNode(this.domNode);
@@ -201,7 +201,7 @@ export class ChatArtifactsWidget extends Disposable {
 				tree.getHTMLElement().style.height = `${data.treeHeight}px`;
 				tree.setChildren(null, data.treeElements);
 			}));
-		}));
+		});
 	}
 
 	setSessionResource(sessionResource: URI | undefined): void {
