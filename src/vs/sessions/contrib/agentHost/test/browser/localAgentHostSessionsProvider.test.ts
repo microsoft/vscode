@@ -32,6 +32,7 @@ import { SessionStatus } from '../../../../services/sessions/common/session.js';
 import { LocalAgentHostSessionsProvider } from '../../browser/localAgentHostSessionsProvider.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
+import { IGitHubService } from '../../../github/browser/githubService.js';
 
 // ---- Mock IAgentHostService -------------------------------------------------
 
@@ -247,6 +248,9 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 		getUriLabel: (uri: URI) => uri.path,
 	});
 	instantiationService.stub(ILogService, new NullLogService());
+	instantiationService.stub(IGitHubService, new class extends mock<IGitHubService>() {
+		override findPullRequestNumberByHeadBranch = async () => undefined;
+	}());
 
 	return disposables.add(instantiationService.createInstance(LocalAgentHostSessionsProvider));
 }
@@ -367,6 +371,25 @@ suite('LocalAgentHostSessionsProvider', () => {
 		agentHost.setRootStateError();
 
 		assert.deepStrictEqual(provider.sessionTypes, []);
+	});
+
+	test('session type icons use per-agent codicons', () => {
+		agentHost.setAgents([
+			{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [] } as AgentInfo,
+			{ provider: 'claude-code', displayName: 'Claude', description: '', models: [] } as AgentInfo,
+			{ provider: 'openai', displayName: 'OpenAI', description: '', models: [] } as AgentInfo,
+			{ provider: 'unknown-agent', displayName: 'Unknown', description: '', models: [] } as AgentInfo,
+		]);
+		const provider = createProvider(disposables, agentHost);
+		assert.deepStrictEqual(
+			provider.sessionTypes.map(t => ({ id: t.id, icon: t.icon.id })),
+			[
+				{ id: 'copilotcli', icon: 'copilot' },
+				{ id: 'claude-code', icon: 'claude' },
+				{ id: 'openai', icon: 'openai' },
+				{ id: 'unknown-agent', icon: 'vm' },
+			],
+		);
 	});
 
 	// ---- Workspace resolution -------

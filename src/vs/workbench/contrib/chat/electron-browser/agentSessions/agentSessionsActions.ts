@@ -15,18 +15,23 @@ import { Action2, MenuId } from '../../../../../platform/actions/common/actions.
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { INativeHostService } from '../../../../../platform/native/common/native.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 import { TitleBarLeadingActionsGroup } from '../../../../browser/parts/titlebar/titlebarActions.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { CHAT_CATEGORY } from '../../browser/actions/chatActions.js';
-import { OPEN_AGENTS_WINDOW_COMMAND_ID, OPEN_AGENTS_WINDOW_PRECONDITION } from '../../common/constants.js';
+import { OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, OPEN_AGENTS_WINDOW_PRECONDITION, OPEN_AGENTS_WINDOW_COMMAND_ID } from '../../common/constants.js';
 
-export class OpenAgentsWindowAction extends Action2 {
+export class OpenWorkspaceInAgentsWindowAction extends Action2 {
 	constructor() {
 		super({
-			id: OPEN_AGENTS_WINDOW_COMMAND_ID,
-			title: localize2('openAgentsWindow', "Open Agents Application"),
+			id: OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID,
+			title: localize2('openWorkspaceInAgentsWindow', "Open in Agents Window"),
 			category: CHAT_CATEGORY,
 			precondition: OPEN_AGENTS_WINDOW_PRECONDITION,
 			f1: true,
@@ -46,6 +51,30 @@ export class OpenAgentsWindowAction extends Action2 {
 
 	async run(accessor: ServicesAccessor) {
 		const nativeHostService = accessor.get(INativeHostService);
+		const workspaceContextService = accessor.get(IWorkspaceContextService);
+		const folderUri = workspaceContextService.getWorkspace().folders[0]?.uri;
+		await nativeHostService.openAgentsWindow({ folderUri: folderUri?.scheme === Schemas.file ? folderUri : undefined });
+	}
+}
+
+export class OpenAgentsWindowAction extends Action2 {
+	constructor() {
+		super({
+			id: OPEN_AGENTS_WINDOW_COMMAND_ID,
+			title: localize2('openAgentsWindow', "Open Agents Window"),
+			category: CHAT_CATEGORY,
+			precondition: OPEN_AGENTS_WINDOW_PRECONDITION,
+			f1: true,
+			keybinding: {
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyA,
+				weight: KeybindingWeight.WorkbenchContrib,
+				when: IsSessionsWindowContext.toNegated(),
+			},
+		});
+	}
+
+	async run(accessor: ServicesAccessor) {
+		const nativeHostService = accessor.get(INativeHostService);
 		await nativeHostService.openAgentsWindow();
 	}
 }
@@ -54,7 +83,7 @@ export class OpenAgentsWindowAction extends Action2 {
  * Renders the "Open in Agents" titlebar entry as an icon-only button that
  * expands to reveal a label on hover / keyboard focus.
  */
-class OpenInAgentsTitleBarWidget extends BaseActionViewItem {
+class OpenWorkspaceInAgentsTitleBarWidget extends BaseActionViewItem {
 
 	constructor(
 		action: IAction,
@@ -82,9 +111,9 @@ class OpenInAgentsTitleBarWidget extends BaseActionViewItem {
 	}
 }
 
-export class OpenInAgentsContribution extends Disposable implements IWorkbenchContribution {
+export class OpenWorkspaceInAgentsContribution extends Disposable implements IWorkbenchContribution {
 
-	static readonly ID = 'workbench.contrib.openInAgents.desktop';
+	static readonly ID = 'workbench.contrib.openWorkspaceInAgents.desktop';
 
 	constructor(
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
@@ -93,8 +122,8 @@ export class OpenInAgentsContribution extends Disposable implements IWorkbenchCo
 		@IProductService productService: IProductService,
 	) {
 		super();
-		this._register(actionViewItemService.register(MenuId.TitleBar, OPEN_AGENTS_WINDOW_COMMAND_ID, (action, options) => {
-			return instantiationService.createInstance(OpenInAgentsTitleBarWidget, action, options);
+		this._register(actionViewItemService.register(MenuId.TitleBar, OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, (action, options) => {
+			return instantiationService.createInstance(OpenWorkspaceInAgentsTitleBarWidget, action, options);
 		}, undefined));
 	}
 }

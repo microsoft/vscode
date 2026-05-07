@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { IObservable } from '../../../../base/common/observable.js';
@@ -313,4 +314,15 @@ export interface ISessionWorkspaceBrowseAction {
 	readonly providerId: string;
 	/** Execute the browse action and return the selected workspace, or undefined if cancelled. */
 	run(): Promise<ISessionWorkspace | undefined>;
+	/**
+	 * Optional method to enumerate folders inline (e.g. for a phone-friendly
+	 * picker that shows a folder list with search-as-you-type instead of
+	 * opening a separate file dialog). Implementations should respect the
+	 * cancellation token so stale queries can be aborted as the user types.
+	 *
+	 * @param query Case-insensitive substring filter (empty string returns the default set).
+	 * @param token Cancellation token; the implementation should resolve with
+	 * a partial result or empty array once cancelled.
+	 */
+	listFolders?(query: string, token: CancellationToken): Promise<readonly ISessionWorkspace[]>;
 }

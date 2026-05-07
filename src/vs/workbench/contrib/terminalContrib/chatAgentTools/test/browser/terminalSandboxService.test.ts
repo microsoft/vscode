@@ -443,6 +443,7 @@ suite('TerminalSandboxService - network domains', () => {
 		ok(config.filesystem.allowRead.includes('/workspace-one'), 'Sandbox config should re-allow reads from workspace folders');
 		ok(config.filesystem.allowRead.includes('/configured/path'), 'Sandbox config should re-allow reads from configured allowWrite paths');
 		ok(config.filesystem.allowRead.includes('/configured/readable/path'), 'Sandbox config should preserve configured allowRead paths');
+		ok(!config.filesystem.allowWrite.includes('/home/user/.volta/'), 'Sandbox config should not include command-specific node write allow-list paths before a command is parsed');
 		ok(!config.filesystem.allowRead.includes('/home/user/.gitconfig'), 'Sandbox config should not include command-specific git read allow-list paths before a command is parsed');
 		ok(!config.filesystem.allowRead.includes('/home/user/.nvm/versions'), 'Sandbox config should not include command-specific node read allow-list paths before a command is parsed');
 		ok(!config.filesystem.allowRead.includes('/home/user/.cache/pip'), 'Sandbox config should not include command-specific common dev read allow-list paths before a command is parsed');
@@ -450,6 +451,26 @@ suite('TerminalSandboxService - network domains', () => {
 		ok(!config.filesystem.allowRead.includes('/app/node'), 'Sandbox config should not redundantly include app root child paths');
 		ok(!config.filesystem.allowRead.includes('/app/node_modules'), 'Sandbox config should not redundantly include app root child paths');
 		ok(!config.filesystem.allowRead.includes('/app/node_modules/@vscode/ripgrep'), 'Sandbox config should not redundantly include app root child paths');
+	});
+
+	test('should reallow reads from workspace storage', async () => {
+		remoteAgentService.remoteEnvironment = {
+			...remoteAgentService.remoteEnvironment!,
+			workspaceStorageHome: URI.file('/home/user/.vscode-server/data/User/workspaceStorage')
+		};
+
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		const configPath = await sandboxService.getSandboxConfigPath();
+
+		ok(configPath, 'Config path should be defined');
+		const configContent = createdFiles.get(configPath);
+		ok(configContent, 'Config file should be created');
+
+		const config = JSON.parse(configContent);
+		const expectedWorkspaceStoragePath = URI.joinPath(remoteAgentService.remoteEnvironment.workspaceStorageHome, workspaceContextService.getWorkspace().id).path;
+
+		ok(config.filesystem.denyRead.includes('/home/user'), 'Sandbox config should deny arbitrary reads from the user home');
+		ok(config.filesystem.allowRead.includes(expectedWorkspaceStoragePath), 'Sandbox config should re-allow reads from workspace storage');
 	});
 
 	test('should only add command-specific allowRead paths for the current command keywords', async () => {
@@ -463,6 +484,7 @@ suite('TerminalSandboxService - network domains', () => {
 
 		const nodeConfig = JSON.parse(nodeConfigContent);
 		ok(nodeConfig.filesystem.allowRead.includes('/home/user/.nvm/versions'), 'Node commands should include node-specific read allow-list paths');
+		ok(nodeConfig.filesystem.allowWrite.includes('/home/user/.volta/'), 'Node commands should include node-specific write allow-list paths');
 		ok(!nodeConfig.filesystem.allowRead.includes('/home/user/.gitconfig'), 'Node commands should not include git-specific read allow-list paths');
 
 		await sandboxService.wrapCommand('git status', false, 'bash', ['git']);
@@ -472,6 +494,7 @@ suite('TerminalSandboxService - network domains', () => {
 		const gitConfig = JSON.parse(gitConfigContent);
 		ok(gitConfig.filesystem.allowRead.includes('/home/user/.gitconfig'), 'Git commands should include git-specific read allow-list paths');
 		ok(!gitConfig.filesystem.allowRead.includes('/home/user/.nvm/versions'), 'Refreshing for a new command should start allowRead from the current command keywords');
+		ok(!gitConfig.filesystem.allowWrite.includes('/home/user/.volta/'), 'Refreshing for a new command should start allowWrite from the current command keywords');
 	});
 
 	test('should not rewrite sandbox config when the parsed command keywords are unchanged', async () => {

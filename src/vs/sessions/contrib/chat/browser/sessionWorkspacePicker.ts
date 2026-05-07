@@ -126,7 +126,7 @@ export class WorkspacePicker extends Disposable {
 	/** Provider ID chosen during the last local folder browse. */
 	private _selectedLocalProviderId: string | undefined;
 
-	private _triggerElement: HTMLElement | undefined;
+	protected _triggerElement: HTMLElement | undefined;
 	private readonly _renderDisposables = this._register(new DisposableStore());
 	private readonly _tabbedWidget: TabbedActionListWidget;
 	private readonly _pickerGroupContext: IContextKey<string>;
@@ -345,9 +345,7 @@ export class WorkspacePicker extends Disposable {
 		return {
 			onSelect: (item) => {
 				hide();
-				if (item.run) {
-					item.run();
-				} else if (item.commandId) {
+				if (item.commandId) {
 					this.commandService.executeCommand(item.commandId);
 				} else if (item.selection && this._isProviderUnavailable(item.selection.providerId)) {
 					// Workspace belongs to an unavailable remote — ignore selection
@@ -439,6 +437,28 @@ export class WorkspacePicker extends Disposable {
 			width: TABBED_PICKER_WIDTH,
 			tabBarClassName: 'sessions-workspace-picker-tabbar',
 		});
+	}
+
+	/**
+	 * Dispatch logic for a picker item once the user picks it. Shared
+	 * between the desktop action-widget delegate and any mobile sheet
+	 * subclass that opts to render a different UI but reuse the
+	 * selection semantics. Treats unavailable workspaces as a no-op.
+	 */
+	protected _dispatchPickerItem(item: IWorkspacePickerItem): void {
+		if (item.run) {
+			item.run();
+		} else if (item.commandId) {
+			this.commandService.executeCommand(item.commandId);
+		} else if (item.selection && this._isProviderUnavailable(item.selection.providerId)) {
+			// Workspace belongs to an unavailable remote — ignore selection
+			return;
+		}
+		if (item.browseActionIndex !== undefined) {
+			this._executeBrowseAction(item.browseActionIndex);
+		} else if (item.selection) {
+			this._selectProject(item.selection);
+		}
 	}
 
 	/**

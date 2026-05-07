@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotSession, SessionEventPayload, SessionEventType, TypedSessionEventHandler } from '@github/copilot-sdk';
+import type { CopilotClient, CopilotSession, ModelInfo, SessionEventPayload, SessionEventType, TypedSessionEventHandler } from '@github/copilot-sdk';
 import assert from 'assert';
 import * as fs from 'fs/promises';
 import * as os from 'os';
 import { Disposable, type DisposableStore, type IDisposable, type IReference } from '../../../../base/common/lifecycle.js';
+import { waitForState } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
@@ -28,7 +29,7 @@ import { AgentConfigurationService, IAgentConfigurationService } from '../../nod
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { IAgentHostGitService } from '../../node/agentHostGitService.js';
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
-import { CopilotAgent, getCopilotWorktreeBranchName, getCopilotWorktreeName, getCopilotWorktreesRoot, type ICopilotClient } from '../../node/copilot/copilotAgent.js';
+import { CopilotAgent, getCopilotWorktreeBranchName, getCopilotWorktreeName, getCopilotWorktreesRoot } from '../../node/copilot/copilotAgent.js';
 import { CopilotAgentSession, type SessionWrapperFactory } from '../../node/copilot/copilotAgentSession.js';
 import { CopilotSessionWrapper } from '../../node/copilot/copilotSessionWrapper.js';
 import { ShellManager } from '../../node/copilot/copilotShellTools.js';
@@ -97,6 +98,7 @@ class TestAgentHostTerminalManager implements IAgentHostTerminalManager {
 	disposeTerminal(): void { }
 	getTerminalInfos(): [] { return []; }
 	getTerminalState(): undefined { return undefined; }
+	async getDefaultShell(): Promise<string> { return '/bin/bash'; }
 }
 
 class TestSessionDataService extends Disposable implements ISessionDataService {
@@ -129,28 +131,66 @@ class TestSessionDataService extends Disposable implements ISessionDataService {
 	whenIdle(): Promise<void> { return Promise.resolve(); }
 }
 
-class TestCopilotClient implements ICopilotClient {
-	readonly rpc: ICopilotClient['rpc'] = { sessions: { fork: async () => ({ sessionId: 'forked-session' }) } };
+interface ITestCopilotModelInfo {
+	readonly id: string;
+	readonly name: string;
+	readonly capabilities?: {
+		readonly supports?: { readonly vision?: boolean };
+		readonly limits?: { readonly max_context_window_tokens?: number };
+	};
+	readonly policy?: { readonly state?: NonNullable<ModelInfo['policy']>['state'] };
+	readonly billing?: ModelInfo['billing'];
+	readonly supportedReasoningEfforts?: ModelInfo['supportedReasoningEfforts'];
+	readonly defaultReasoningEffort?: ModelInfo['defaultReasoningEffort'];
+}
+
+interface ITestCopilotClient extends Pick<CopilotClient, 'start' | 'stop' | 'listSessions' | 'listModels' | 'createSession' | 'resumeSession' | 'getSessionMetadata'> {
+	readonly rpc: { readonly sessions: { readonly fork: CopilotClient['rpc']['sessions']['fork'] } };
+}
+
+function toSdkModelInfo(model: ITestCopilotModelInfo): ModelInfo {
+	return {
+		id: model.id,
+		name: model.name,
+		capabilities: {
+			supports: {
+				vision: model.capabilities?.supports?.vision ?? false,
+				reasoningEffort: !!model.supportedReasoningEfforts?.length,
+			},
+			limits: {
+				max_context_window_tokens: model.capabilities?.limits?.max_context_window_tokens ?? 0,
+			},
+		},
+		...(model.policy ? { policy: { state: model.policy.state ?? 'enabled', terms: '' } } : {}),
+		...(model.billing ? { billing: model.billing } : {}),
+		...(model.supportedReasoningEfforts ? { supportedReasoningEfforts: model.supportedReasoningEfforts } : {}),
+		...(model.defaultReasoningEffort ? { defaultReasoningEffort: model.defaultReasoningEffort } : {}),
+	};
+}
+
+class TestCopilotClient implements ITestCopilotClient {
+	readonly rpc: ITestCopilotClient['rpc'] = { sessions: { fork: async () => ({ sessionId: 'forked-session' }) } };
 	listSessionCallCount = 0;
 	readonly getSessionMetadataCalls: string[] = [];
 
 	constructor(
-		private readonly _sessions: Awaited<ReturnType<ICopilotClient['listSessions']>>,
+		private readonly _sessions: Awaited<ReturnType<ITestCopilotClient['listSessions']>>,
+		private readonly _models: readonly ITestCopilotModelInfo[] = [],
 	) { }
 
 	async start(): Promise<void> { }
-	async stop(): ReturnType<ICopilotClient['stop']> { return []; }
-	async listSessions(): ReturnType<ICopilotClient['listSessions']> {
+	async stop(): ReturnType<ITestCopilotClient['stop']> { return []; }
+	async listSessions(): ReturnType<ITestCopilotClient['listSessions']> {
 		this.listSessionCallCount++;
 		return this._sessions;
 	}
-	async listModels(): ReturnType<ICopilotClient['listModels']> { return []; }
-	async getSessionMetadata(sessionId: string): ReturnType<ICopilotClient['getSessionMetadata']> {
+	async listModels(): ReturnType<ITestCopilotClient['listModels']> { return this._models.map(toSdkModelInfo); }
+	async getSessionMetadata(sessionId: string): ReturnType<ITestCopilotClient['getSessionMetadata']> {
 		this.getSessionMetadataCalls.push(sessionId);
 		return this._sessions.find(s => s.sessionId === sessionId);
 	}
-	createSession: ICopilotClient['createSession'] = async () => { throw new Error('not implemented'); };
-	resumeSession: ICopilotClient['resumeSession'] = async () => { throw new Error('not implemented'); };
+	createSession: ITestCopilotClient['createSession'] = async () => { throw new Error('not implemented'); };
+	resumeSession: ITestCopilotClient['resumeSession'] = async () => { throw new Error('not implemented'); };
 }
 
 interface IFakeAgentSession {
@@ -178,7 +218,7 @@ class TestableCopilotAgent extends CopilotAgent {
 	readonly resumeCalls: string[] = [];
 
 	constructor(
-		private readonly _copilotClient: ICopilotClient,
+		private readonly _copilotClient: ITestCopilotClient,
 		@ILogService logService: ILogService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IFileService fileService: IFileService,
@@ -188,11 +228,11 @@ class TestableCopilotAgent extends CopilotAgent {
 		@IAgentConfigurationService configurationService: IAgentConfigurationService,
 	) {
 		super(logService, instantiationService, fileService, sessionDataService, gitService, terminalManager, configurationService);
-		this._enablePlanModeOnClient(this._copilotClient);
+		this._enablePlanModeOnClient(this._copilotClient as CopilotClient);
 	}
 
-	protected override _createCopilotClient(): ICopilotClient {
-		return this._copilotClient;
+	protected override _createCopilotClient(): CopilotClient {
+		return this._copilotClient as CopilotClient;
 	}
 
 	registerFakeSession(sessionId: string, fake: IFakeAgentSession): void {
@@ -238,7 +278,7 @@ class TestableCopilotAgent extends CopilotAgent {
 	}
 }
 
-function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, options?: { sessionDataService?: ISessionDataService; copilotClient?: ICopilotClient; gitService?: TestAgentHostGitService; environmentServiceRegistration?: 'native' | 'none'; pluginManager?: IAgentPluginManager }): { agent: CopilotAgent; instantiationService: IInstantiationService } {
+function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, options?: { sessionDataService?: ISessionDataService; copilotClient?: ITestCopilotClient; gitService?: TestAgentHostGitService; environmentServiceRegistration?: 'native' | 'none'; pluginManager?: IAgentPluginManager }): { agent: CopilotAgent; instantiationService: IInstantiationService } {
 	const services = new ServiceCollection();
 	const logService = new NullLogService();
 	const fileService = disposables.add(new FileService(logService));
@@ -266,7 +306,7 @@ function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, optio
 	return { agent, instantiationService };
 }
 
-function createTestAgent(disposables: Pick<DisposableStore, 'add'>, options?: { sessionDataService?: ISessionDataService; copilotClient?: ICopilotClient; gitService?: TestAgentHostGitService; environmentServiceRegistration?: 'native' | 'none'; pluginManager?: IAgentPluginManager }): CopilotAgent {
+function createTestAgent(disposables: Pick<DisposableStore, 'add'>, options?: { sessionDataService?: ISessionDataService; copilotClient?: ITestCopilotClient; gitService?: TestAgentHostGitService; environmentServiceRegistration?: 'native' | 'none'; pluginManager?: IAgentPluginManager }): CopilotAgent {
 	return createTestAgentContext(disposables, options).agent;
 }
 
@@ -289,7 +329,7 @@ function withoutUndefinedProperties(metadata: IAgentSessionMetadata): Record<str
 	return result;
 }
 
-function sdkSession(sessionId: string, cwd?: string): Awaited<ReturnType<ICopilotClient['listSessions']>>[number] {
+function sdkSession(sessionId: string, cwd?: string): Awaited<ReturnType<ITestCopilotClient['listSessions']>>[number] {
 	return {
 		sessionId,
 		startTime: new Date(1000),
@@ -352,6 +392,34 @@ suite('CopilotAgent', () => {
 				() => agent.createSession({ workingDirectory: URI.file('/workspace') }),
 				(error: Error) => error instanceof ProtocolError && error.code === AHP_AUTH_REQUIRED,
 			);
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('models include billing multiplier metadata when SDK provides it', async () => {
+		const agent = createTestAgent(disposables, {
+			copilotClient: new TestCopilotClient([], [{
+				id: 'gpt-4o',
+				name: 'GPT-4o',
+				billing: { multiplier: 1.5 },
+				capabilities: { limits: { max_context_window_tokens: 128000 }, supports: { vision: true } },
+			}]),
+		});
+		try {
+			await agent.authenticate('https://api.github.com', 'token');
+			const models = await waitForState(agent.models, models => models.length > 0);
+
+			assert.deepStrictEqual(models, [{
+				provider: 'copilotcli',
+				id: 'gpt-4o',
+				name: 'GPT-4o',
+				maxContextWindow: 128000,
+				supportsVision: true,
+				configSchema: undefined,
+				policyState: undefined,
+				_meta: { multiplierNumeric: 1.5 },
+			}]);
 		} finally {
 			await disposeAgent(agent);
 		}

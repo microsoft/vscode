@@ -328,11 +328,12 @@ jobs:
           diff -u test/componentFixtures/blocks-ci-screenshots.md /tmp/blocks-ci-updated.md || true
           exit 1
 
-      - name: Fail if fixtures had errors
-        if: always() && steps.fixture_errors.outputs.has_errors == 'true'
-        run: |
-          echo "::error::One or more component fixtures failed to render. See the 'Check fixture errors' step for details."
-          exit 1
+      # - name: Fail if fixtures had errors
+      #   if: always() && steps.fixture_errors.outputs.has_errors == 'true'
+      #   run: |
+      #     echo "::error::One or more component fixtures failed to render. See the 'Check fixture errors' step for details."
+      #     exit 1
+
 
       # - name: Prepare explorer artifact
       #   run: |

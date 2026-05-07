@@ -36,6 +36,7 @@ import { ChatCopyKind, IChatService } from '../../common/chatService/chatService
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { IChatCodeBlockContextProviderService, IChatWidgetService } from '../chat.js';
+import { ChatCopyActionViewItem } from './chatCopyActions.js';
 import { DefaultChatTextEditor, ICodeBlockActionContext, ICodeCompareBlockActionContext } from '../widget/chatContentParts/codeBlockPart.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 import { ApplyCodeBlockOperation, InsertCodeBlockOperation } from './codeBlockOperations.js';
@@ -102,6 +103,14 @@ export class CodeBlockActionRendering extends Disposable implements IWorkbenchCo
 	) {
 		super();
 
+		const copyCodeBlockActionRendering = this._register(actionViewItemService.register(MenuId.ChatCodeBlock, 'workbench.action.chat.copyCodeBlock', (action, options) => {
+			if (!(action instanceof MenuItemAction)) {
+				return undefined;
+			}
+
+			return instantiationService.createInstance(ChatCopyActionViewItem, action, options);
+		}));
+
 		const disposable = actionViewItemService.register(MenuId.ChatCodeBlock, APPLY_IN_EDITOR_ID, (action, options) => {
 			if (!(action instanceof MenuItemAction)) {
 				return undefined;
@@ -123,6 +132,7 @@ export class CodeBlockActionRendering extends Disposable implements IWorkbenchCo
 		});
 
 		// Reduces flicker a bit on reload/restart
+		markAsSingleton(copyCodeBlockActionRendering);
 		markAsSingleton(disposable);
 	}
 }

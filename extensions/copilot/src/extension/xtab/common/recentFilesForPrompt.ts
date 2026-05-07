@@ -37,7 +37,7 @@ export function getRecentCodeSnippets(
 		recentlyViewedCodeSnippets = grouped.map(g => historyEntriesToCodeSnippet(g.entries));
 	} else {
 		const docsBesidesActiveDoc = collectRecentDocuments(xtabHistory, activeDoc.id, includeViewedFiles, nDocuments);
-		recentlyViewedCodeSnippets = docsBesidesActiveDoc.map(d => historyEntryToCodeSnippet(d, clippingStrategy));
+		recentlyViewedCodeSnippets = docsBesidesActiveDoc.map(d => historyEntryToCodeSnippet(d));
 	}
 
 	const { snippets, docsInPrompt } = buildCodeSnippetsUsingPagedClipping(recentlyViewedCodeSnippets, computeTokens, opts);
@@ -222,17 +222,16 @@ export function selectFocalRangesWithinSpanCap(
 
 /**
  * Convert a single history entry to a code snippet.
- * When `clippingStrategy` is `AroundEditRange` or `Proportional`, edit entries get `focalRanges`
- * derived from the edit's replacement ranges in the post-edit document.
+ * Edit entries get `focalRanges` derived from the edit's replacement ranges in
+ * the post-edit document.
  */
-function historyEntryToCodeSnippet(d: IXtabHistoryEntry, clippingStrategy: RecentFileClippingStrategy): RecentCodeSnippet {
+function historyEntryToCodeSnippet(d: IXtabHistoryEntry): RecentCodeSnippet {
 	if (d.kind === 'edit') {
 		const content = d.edit.edit.applyOnText(d.edit.base); // FIXME@ulugbekna: I don't like this being computed afresh
-		const useFocalRanges = clippingStrategy !== RecentFileClippingStrategy.TopToBottom;
 		return {
 			id: d.docId,
 			content,
-			focalRanges: useFocalRanges ? d.edit.edit.getNewRanges() : undefined,
+			focalRanges: d.edit.edit.getNewRanges(),
 			editEntryCount: 1,
 		};
 	}
@@ -565,18 +564,17 @@ export function buildCodeSnippetsUsingPagedClipping(
 		return buildCodeSnippetsWithProportionalBudget(recentlyViewedCodeSnippets, computeTokens, opts, pageSize);
 	}
 
-	return buildCodeSnippetsGreedy(recentlyViewedCodeSnippets, computeTokens, opts, pageSize, clippingStrategy);
+	return buildCodeSnippetsGreedy(recentlyViewedCodeSnippets, computeTokens, opts, pageSize);
 }
 
 /**
- * Greedy (most-recent-first) code snippet building. Used for `TopToBottom` and `AroundEditRange` strategies.
+ * Greedy (most-recent-first) code snippet building. Used for the `AroundEditRange` strategy.
  */
 function buildCodeSnippetsGreedy(
 	recentlyViewedCodeSnippets: RecentCodeSnippet[],
 	computeTokens: (s: string) => number,
 	opts: PromptOptions,
 	pageSize: number,
-	clippingStrategy: RecentFileClippingStrategy,
 ): { snippets: string[]; docsInPrompt: Set<DocumentId> } {
 
 	const result: { snippets: string[]; docsInPrompt: Set<DocumentId> } = {
@@ -590,11 +588,9 @@ function buildCodeSnippetsGreedy(
 	for (const file of recentlyViewedCodeSnippets) {
 		const lines = file.content.getLines();
 
-		// When strategy is AroundEditRange and we have focalRanges (from edits or visible ranges),
+		// When we have focalRanges (from edits or visible ranges),
 		// center the clip around those ranges instead of truncating from top.
-		const useFocalRanges = clippingStrategy !== RecentFileClippingStrategy.TopToBottom && file.focalRanges !== undefined;
-
-		if (useFocalRanges) {
+		if (file.focalRanges !== undefined) {
 			const budgetLeft = clipAroundFocalRanges(
 				file as { id: DocumentId; content: StringText; focalRanges: readonly OffsetRange[] },
 				pageSize, lines.length, maxTokenBudget, computeTokens, includeLineNumbers, result

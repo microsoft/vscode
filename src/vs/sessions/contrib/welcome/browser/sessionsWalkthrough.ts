@@ -7,14 +7,9 @@ import './media/sessionsWalkthrough.css';
 import { disposableTimeout } from '../../../../base/common/async.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { $, addDisposableGenericMouseDownListener, append, EventType, addDisposableListener, getActiveElement, isHTMLElement } from '../../../../base/browser/dom.js';
-import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
 import { localize } from '../../../../nls.js';
-import { FileAccess } from '../../../../base/common/network.js';
-import { IProductOnboardingTheme } from '../../../../base/common/product.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { isWeb } from '../../../../base/common/platform.js';
@@ -24,8 +19,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { ChatSetupStrategy } from '../../../../workbench/contrib/chat/browser/chatSetup/chatSetup.js';
 import { IExtensionService } from '../../../../workbench/services/extensions/common/extensions.js';
-import { IWorkbenchThemeService } from '../../../../workbench/services/themes/common/workbenchThemeService.js';
-import { IThemeImporterService, IThemePreviewResult } from '../../../services/vscode/common/themeImporter.js';
+
 
 export type WalkthroughOutcome = 'completed' | 'dismissed';
 
@@ -58,8 +52,6 @@ export class SessionsWalkthroughOverlay extends Disposable {
 	private _outcomeResolved = false;
 	private _isShowingWelcome = false;
 	private _isShowingSignIn = false;
-	private _isShowingThemeStep = false;
-
 	/**
 	 * Whether the overlay is currently displaying the signed-in welcome
 	 * greeting (as opposed to the sign-in provider buttons). When `true`,
@@ -77,17 +69,6 @@ export class SessionsWalkthroughOverlay extends Disposable {
 	 */
 	get isShowingSignIn(): boolean { return this._isShowingSignIn; }
 
-	/**
-	 * Transition to the theme selection step. Called by external code
-	 * (e.g. the contribution) when the user signs in while the sign-in
-	 * screen is visible, so the user still gets to pick a theme before
-	 * the overlay dismisses.
-	 */
-	showThemeStep(): void {
-		this._isShowingSignIn = false;
-		this._renderThemeStep();
-	}
-
 	/** Resolves when the user completes or dismisses the walkthrough. */
 	readonly outcome: Promise<WalkthroughOutcome> = new Promise(resolve => { this._resolveOutcome = resolve; });
 
@@ -97,12 +78,9 @@ export class SessionsWalkthroughOverlay extends Disposable {
 		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
 		@ICommandService private readonly commandService: ICommandService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IProductService private readonly productService: IProductService,
-		@IThemeImporterService private readonly themeImporterService: IThemeImporterService,
-		@IWorkbenchThemeService private readonly themeService: IWorkbenchThemeService,
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
@@ -117,13 +95,6 @@ export class SessionsWalkthroughOverlay extends Disposable {
 		this._register(toDisposable(() => this.overlay.remove()));
 		this._register(addDisposableListener(this.overlay, EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			if (e.key === 'Escape') {
-				if (this._isShowingThemeStep) {
-					// Remove the theme setting to reset to default
-					this.themeService.setColorTheme(undefined, ConfigurationTarget.USER);
-					this._isShowingWelcome = false;
-					this._isShowingThemeStep = false;
-					this.complete();
-				}
 				e.preventDefault();
 				e.stopPropagation();
 				return;
@@ -206,7 +177,7 @@ export class SessionsWalkthroughOverlay extends Disposable {
 		this.footerContainer.textContent = '';
 		this.disclaimerElement.classList.toggle('hidden', this.disclaimerLinks.length === 0);
 
-		const productName = this.productService.nameLong;
+		const productName = localize('walkthrough.productName', "{0} - Agents", this.productService.nameLong);
 
 		// Horizontal layout: icon left, text + buttons right
 		const layout = append(this.contentContainer, $('.sessions-walkthrough-hero'));
@@ -224,7 +195,7 @@ export class SessionsWalkthroughOverlay extends Disposable {
 		// Always show the welcome title/subtitle with sign-in buttons,
 		// whether it's the first launch or a returning user who is signed out.
 		const titleEl = append(right, $('h2', undefined, localize('walkthrough.welcome.title', "Welcome to {0}", productName)));
-		const subtitleEl = append(right, $('p', undefined, localize('walkthrough.welcome.subtitle', "Your AI-powered application where agents explore, build, and iterate with you.")));
+		const subtitleEl = append(right, $('p', undefined, localize('walkthrough.welcome.subtitle', "Your AI-powered coding experience where agents explore, build, and iterate with you.")));
 		const taglineEl = append(right, $('p.sessions-walkthrough-tagline', undefined, localize('walkthrough.welcome.tagline', "Happy Agentic Coding!")));
 
 		this._renderSignInButtons(stepDisposables, right, titleEl, subtitleEl, taglineEl);
@@ -314,7 +285,7 @@ export class SessionsWalkthroughOverlay extends Disposable {
 		this.disclaimerElement.classList.toggle('hidden', this.disclaimerLinks.length === 0);
 
 		append(right, $('h2', undefined, localize('walkthrough.welcome.title', "Welcome to {0}", productName)));
-		append(right, $('p', undefined, localize('walkthrough.welcome.subtitle', "Your AI-powered application where agents explore, build, and iterate with you.")));
+		append(right, $('p', undefined, localize('walkthrough.welcome.subtitle', "Your AI-powered coding experience where agents explore, build, and iterate with you.")));
 		append(right, $('p.sessions-walkthrough-tagline', undefined, localize('walkthrough.welcome.tagline', "Happy Agentic Coding!")));
 
 		const actions = append(right, $('.sessions-walkthrough-welcome-actions'));
@@ -322,7 +293,7 @@ export class SessionsWalkthroughOverlay extends Disposable {
 		getStartedBtn.textContent = localize('walkthrough.welcome.getStarted', "Get Started");
 		stepDisposables.add(addDisposableListener(getStartedBtn, EventType.CLICK, () => {
 			this._isShowingWelcome = false;
-			this._renderThemeStep();
+			this.complete();
 		}));
 
 		this.currentFocusableElements = [getStartedBtn, ...this.disclaimerLinks];
@@ -336,199 +307,6 @@ export class SessionsWalkthroughOverlay extends Disposable {
 
 	private _isSignedIn(): boolean {
 		return this.defaultAccountService.currentDefaultAccount !== null;
-	}
-
-	// ------------------------------------------------------------------
-	// Theme Step
-
-	private _renderThemeStep(): void {
-		const stepDisposables = this.stepDisposables.value = new DisposableStore();
-		this._isShowingWelcome = true;
-		this._isShowingThemeStep = true;
-
-		// Start resolving the parent VS Code theme during the fade-out
-		const parentThemePromise = !isWeb
-			? this.themeImporterService.getVSCodeTheme()
-			: Promise.resolve(undefined);
-
-		// Fade out current content, then render theme step
-		this.contentContainer.classList.add('sessions-walkthrough-fade-out');
-		stepDisposables.add(disposableTimeout(async () => {
-			if (!this.overlay.isConnected) {
-				return;
-			}
-			const parentTheme = await parentThemePromise;
-			if (!this.overlay.isConnected) {
-				return;
-			}
-			// Only show the VS Code theme option if the parent theme is different from the 4 onboarding themes
-			const allOnboardingThemes = this.productService.onboardingThemes ?? [];
-			const shownThemes = allOnboardingThemes.filter(t => !t.id.startsWith('solarized'));
-			const parentThemeSettingsId = shownThemes.some(t => t.themeId === parentTheme) ? undefined : parentTheme;
-			this.contentContainer.classList.remove('sessions-walkthrough-fade-out');
-			this._renderThemeStepContent(stepDisposables, parentThemeSettingsId);
-		}, fadeDuration));
-	}
-
-	private _renderThemeStepContent(stepDisposables: DisposableStore, parentThemeSettingsId: string | undefined): void {
-		this.contentContainer.textContent = '';
-		this.footerContainer.textContent = '';
-		this.disclaimerElement.classList.add('hidden');
-
-		// Header
-		const header = append(this.contentContainer, $('.sessions-walkthrough-theme-header'));
-		append(header, $('h2', undefined, localize('walkthrough.theme.title', "Choose Your Theme")));
-		append(header, $('p', undefined, localize('walkthrough.theme.subtitle', "Pick a color theme to make it yours. You can always change it later.")));
-
-		// Build theme list — exclude solarized variants for the base set
-		const allOnboardingThemes = this.productService.onboardingThemes ?? [];
-		const themes = allOnboardingThemes.filter(t => !t.id.startsWith('solarized'));
-
-		const themeGrid = append(this.contentContainer, $('.sessions-walkthrough-theme-grid'));
-		themeGrid.setAttribute('role', 'radiogroup');
-		themeGrid.setAttribute('aria-label', localize('walkthrough.theme.ariaLabel', "Choose a color theme"));
-
-		// Pre-select the onboarding theme matching the current theme, or fall back to first
-		const currentTheme = this.themeService.getColorTheme();
-		let selectedThemeId = themes.find(t => t.themeId === currentTheme.settingsId)?.id ?? themes[0]?.id;
-
-		const themeCards: HTMLElement[] = [];
-		let vscodeThemeBtn: HTMLElement | undefined;
-		let isVSCodeThemeSelected = false;
-		let previewResult: IThemePreviewResult | undefined;
-		const disposePreview = () => {
-			previewResult?.dispose();
-			previewResult = undefined;
-		};
-		for (const theme of themes) {
-			const card = this._createThemeCard(stepDisposables, themeGrid, theme, themeCards, selectedThemeId, id => {
-				selectedThemeId = id;
-				isVSCodeThemeSelected = false;
-				disposePreview();
-				if (vscodeThemeBtn) {
-					vscodeThemeBtn.classList.remove('selected');
-					vscodeThemeBtn.setAttribute('aria-checked', 'false');
-				}
-			});
-			themeCards.push(card);
-		}
-
-		// Show a VS Code theme option as a radio-style button inside the radiogroup
-		if (parentThemeSettingsId) {
-			const parentName = this.environmentService.parentAppNameShort ?? 'VS Code';
-			const option = append(themeGrid, $('.sessions-walkthrough-vscode-theme-option'));
-			vscodeThemeBtn = append(option, $('div.sessions-walkthrough-vscode-theme-radio'));
-			vscodeThemeBtn.setAttribute('role', 'radio');
-			vscodeThemeBtn.setAttribute('aria-checked', 'false');
-			vscodeThemeBtn.setAttribute('tabindex', '0');
-			const labelText = localize(
-				'walkthrough.theme.useVSCodeTheme',
-				"Use My {0} Theme \u00b7 {1}",
-				parentName,
-				parentThemeSettingsId,
-			);
-			vscodeThemeBtn.textContent = labelText;
-			const selectVSCodeTheme = async () => {
-				for (const c of themeCards) {
-					c.classList.remove('selected');
-					c.setAttribute('aria-checked', 'false');
-				}
-				vscodeThemeBtn!.classList.add('selected');
-				vscodeThemeBtn!.setAttribute('aria-checked', 'true');
-				isVSCodeThemeSelected = true;
-
-				// Preview the theme (temporary install from host location)
-				previewResult = await this.themeImporterService.previewVSCodeTheme();
-				vscodeThemeBtn!.textContent = labelText;
-			};
-			// Dispose preview on step teardown (escape)
-			stepDisposables.add(toDisposable(disposePreview));
-			stepDisposables.add(Gesture.addTarget(vscodeThemeBtn));
-			for (const eventType of [EventType.CLICK, TouchEventType.Tap]) {
-				stepDisposables.add(addDisposableListener(vscodeThemeBtn, eventType, selectVSCodeTheme));
-			}
-			stepDisposables.add(addDisposableListener(vscodeThemeBtn, EventType.KEY_DOWN, (e: KeyboardEvent) => {
-				if (e.key === 'Enter' || e.key === ' ') {
-					e.preventDefault();
-					vscodeThemeBtn!.click();
-				}
-			}));
-		}
-
-		// Footer with Continue button
-		const actions = append(this.footerContainer, $('.sessions-walkthrough-theme-footer'));
-		const continueBtn = append(actions, $('button.sessions-walkthrough-get-started-btn')) as HTMLButtonElement;
-		continueBtn.textContent = localize('walkthrough.theme.continue', "Continue");
-		stepDisposables.add(addDisposableListener(continueBtn, EventType.CLICK, async () => {
-			if (isVSCodeThemeSelected) {
-				await previewResult?.apply();
-			}
-			this._isShowingWelcome = false;
-			this._isShowingThemeStep = false;
-			this.complete();
-		}));
-
-		this.currentFocusableElements = [...themeCards, ...(vscodeThemeBtn ? [vscodeThemeBtn] : []), continueBtn];
-
-		stepDisposables.add(disposableTimeout(() => {
-			if (this.overlay.isConnected) {
-				continueBtn.focus();
-			}
-		}, 0));
-	}
-
-	private _createThemeCard(stepDisposables: DisposableStore, parent: HTMLElement, theme: IProductOnboardingTheme, allCards: HTMLElement[], selectedThemeId: string, onSelect: (id: string) => void): HTMLElement {
-		const card = append(parent, $('div.sessions-walkthrough-theme-card'));
-		card.setAttribute('role', 'radio');
-		card.setAttribute('aria-checked', theme.id === selectedThemeId ? 'true' : 'false');
-		card.setAttribute('aria-label', theme.label);
-		card.setAttribute('tabindex', '0');
-
-		if (theme.id === selectedThemeId) {
-			card.classList.add('selected');
-		}
-
-		// SVG preview image
-		const preview = append(card, $('div.sessions-walkthrough-theme-preview'));
-		const img = append(preview, $<HTMLImageElement>('img.sessions-walkthrough-theme-preview-img'));
-		img.alt = '';
-		img.src = FileAccess.asBrowserUri(`vs/sessions/contrib/welcome/browser/media/themePreviews/theme-preview-${theme.id}.svg`).toString(true);
-
-		// Label
-		const label = append(card, $('div.sessions-walkthrough-theme-label'));
-		label.textContent = theme.label;
-
-		const selectCard = () => {
-			onSelect(theme.id);
-			this._applyTheme(theme);
-			for (const c of allCards) {
-				c.classList.remove('selected');
-				c.setAttribute('aria-checked', 'false');
-			}
-			card.classList.add('selected');
-			card.setAttribute('aria-checked', 'true');
-		};
-		stepDisposables.add(Gesture.addTarget(card));
-		for (const eventType of [EventType.CLICK, TouchEventType.Tap]) {
-			stepDisposables.add(addDisposableListener(card, eventType, selectCard));
-		}
-
-		stepDisposables.add(addDisposableListener(card, EventType.KEY_DOWN, (e: KeyboardEvent) => {
-			if (e.key === 'Enter' || e.key === ' ') {
-				e.preventDefault();
-				card.click();
-			}
-		}));
-
-		return card;
-	}
-
-	private async _applyTheme(theme: IProductOnboardingTheme): Promise<void> {
-		const allThemes = await this.themeService.getColorThemes();
-		const match = allThemes.find(t => t.settingsId === theme.themeId);
-		if (match) {
-			this.themeService.setColorTheme(match.id, ConfigurationTarget.USER);
-		}
 	}
 
 	private async _runSignIn(providerButtons: HTMLButtonElement[], error: HTMLElement, strategy: ChatSetupStrategy, titleEl: HTMLElement, subtitleEl: HTMLElement, taglineEl: HTMLElement, signInActions: HTMLElement): Promise<void> {
@@ -563,7 +341,7 @@ export class SessionsWalkthroughOverlay extends Disposable {
 						return;
 					}
 				}
-				this._renderThemeStep();
+				this.complete();
 			} else {
 				await this._showErrorAndReset(error, localize('walkthrough.canceledError', "Sign-in was canceled. Please try again."));
 			}
@@ -589,7 +367,7 @@ export class SessionsWalkthroughOverlay extends Disposable {
 			const scopes = this.productService.defaultChatAgent?.providerScopes?.[0]
 				?? ['read:user', 'user:email', 'repo', 'workflow'];
 			await this.authenticationService.createSession('github', scopes, { activateImmediate: true });
-			this._renderThemeStep();
+			this.complete();
 		} catch (err) {
 			this.logService.error('[sessions walkthrough] Web sign-in failed:', err);
 			await this._showErrorAndReset(error, localize('walkthrough.signInError', "Something went wrong. Please try again."));
