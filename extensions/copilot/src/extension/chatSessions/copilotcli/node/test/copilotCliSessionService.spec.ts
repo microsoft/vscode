@@ -39,7 +39,7 @@ import { IChatDelegationSummaryService } from '../../common/delegationSummarySer
 import { getCopilotCLISessionDir } from '../cliHelpers';
 import { ICopilotCLISDK } from '../copilotCli';
 import { CopilotCLISession, ICopilotCLISession } from '../copilotcliSession';
-import { CopilotCLISessionService, CopilotCLISessionWorkspaceTracker, ICopilotCLISessionItem } from '../copilotcliSessionService';
+import { COPILOT_CLI_CHAT_PANEL_SYSTEM_MESSAGE, CopilotCLISessionService, CopilotCLISessionWorkspaceTracker, ICopilotCLISessionItem } from '../copilotcliSessionService';
 import { CopilotCLIMCPHandler } from '../mcpHandler';
 import { MissionControlApiClient } from '../missionControlApiClient';
 import { IQuestion, IQuestionAnswer, IUserQuestionHandler } from '../userInputHelpers';
@@ -250,6 +250,29 @@ describe('CopilotCLISessionService', () => {
 			}));
 		});
 
+		it('passes the VS Code Copilot CLI identity system message to session manager', async () => {
+			const createSessionSpy = vi.spyOn(manager, 'createSession');
+			await service.createSession({ model: 'gpt-test', ...sessionOptionsFor(URI.file('/tmp')) }, CancellationToken.None);
+
+			const callArgs = createSessionSpy.mock.calls[0][0];
+			expect(callArgs.systemMessage).toEqual({
+				mode: 'append',
+				content: COPILOT_CLI_CHAT_PANEL_SYSTEM_MESSAGE,
+			});
+		});
+
+		it('preserves prompt variable context before the VS Code Copilot CLI identity system message', async () => {
+			const variableContext = 'Resolved template variables are available here.';
+			vi.spyOn(NullPromptVariablesService.prototype, 'buildTemplateVariablesContext').mockReturnValue(variableContext);
+			const createSessionSpy = vi.spyOn(manager, 'createSession');
+			await service.createSession({ model: 'gpt-test', ...sessionOptionsFor(URI.file('/tmp')) }, CancellationToken.None);
+
+			const content = createSessionSpy.mock.calls[0][0].systemMessage?.content;
+			expect(content).toContain(variableContext);
+			expect(content).toContain(COPILOT_CLI_CHAT_PANEL_SYSTEM_MESSAGE);
+			expect(content!.indexOf(variableContext)).toBeLessThan(content!.indexOf(COPILOT_CLI_CHAT_PANEL_SYSTEM_MESSAGE));
+		});
+
 		it('passes reasoningEffort to session manager when provided', async () => {
 			const createSessionSpy = vi.spyOn(manager, 'createSession');
 			await service.createSession({ model: 'gpt-test', reasoningEffort: 'high', ...sessionOptionsFor(URI.file('/tmp')) }, CancellationToken.None);
@@ -280,6 +303,20 @@ describe('CopilotCLISessionService', () => {
 
 			expect(getSessionSpy).toHaveBeenCalledWith(expect.objectContaining({
 				model: 'gpt-test',
+			}), true);
+		});
+
+		it('passes the VS Code Copilot CLI identity system message when getting an existing session', async () => {
+			const targetId = 'system-message-get';
+			manager.sessions.set(targetId, new MockCliSdkSession(targetId, new Date()));
+			const getSessionSpy = vi.spyOn(manager, 'getSession');
+			await service.getSession({ sessionId: targetId, model: 'gpt-test', ...sessionOptionsFor(URI.file('/tmp')) }, CancellationToken.None);
+
+			expect(getSessionSpy).toHaveBeenCalledWith(expect.objectContaining({
+				systemMessage: {
+					mode: 'append',
+					content: COPILOT_CLI_CHAT_PANEL_SYSTEM_MESSAGE,
+				},
 			}), true);
 		});
 

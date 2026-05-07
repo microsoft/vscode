@@ -54,6 +54,7 @@ import { INTEGRATION_ID } from '../../../../platform/endpoint/common/licenseAgre
 
 const COPILOT_CLI_WORKSPACE_JSON_FILE_KEY = 'github.copilot.cli.workspaceSessionFile';
 const AUTO_MODE_REFRESH_LEAD_TIME_MS = 300 * 1000;
+export const COPILOT_CLI_CHAT_PANEL_SYSTEM_MESSAGE = 'You are Copilot, an AI assistant using the Copilot CLI runtime inside VS Code. When referring to yourself or this integration, do not describe yourself as a terminal assistant.';
 
 type SDKPackage = Awaited<ReturnType<ICopilotCLISDK['getPackage']>>;
 type AutoModeResolveArgs = Parameters<SDKAutoModeSessionManager['resolve']>[0];
@@ -890,7 +891,10 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		]);
 		const customAgents = agentInfos.map(i => i.agent);
 		const variablesContext = this._promptVariablesService.buildTemplateVariablesContext(options.sessionId, options.debugTargetSessionIds);
-		const systemMessage = variablesContext ? { mode: 'append' as const, content: variablesContext } : undefined;
+		const systemMessageContent = variablesContext
+			? `${variablesContext}\n\n${COPILOT_CLI_CHAT_PANEL_SYSTEM_MESSAGE}`
+			: COPILOT_CLI_CHAT_PANEL_SYSTEM_MESSAGE;
+		const systemMessage = { mode: 'append' as const, content: systemMessageContent };
 
 		const allOptions: SessionOptions = {
 			clientName: 'vscode',
@@ -924,9 +928,7 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		if (copilotUrl) {
 			allOptions.copilotUrl = copilotUrl;
 		}
-		if (systemMessage) {
-			allOptions.systemMessage = systemMessage;
-		}
+		allOptions.systemMessage = systemMessage;
 		allOptions.sessionCapabilities = new Set(['plan-mode', 'memory', 'cli-documentation', 'ask-user', 'interactive-mode', 'system-notifications']);
 		if (options.reasoningEffort && this.configurationService.getConfig(ConfigKey.Advanced.CLIThinkingEffortEnabled)) {
 			allOptions.reasoningEffort = options.reasoningEffort;

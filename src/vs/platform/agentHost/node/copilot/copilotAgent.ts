@@ -84,6 +84,11 @@ const ThinkingLevelConfigKey = 'thinkingLevel';
 const ReasoningEfforts = ['low', 'medium', 'high', 'xhigh'] as const;
 type ReasoningEffort = NonNullable<SessionConfig['reasoningEffort']>;
 
+export const COPILOT_AGENT_HOST_SYSTEM_MESSAGE = {
+	mode: 'append',
+	content: 'You are an AI assistant using Copilot CLI runtime in VS Code. When referring to yourself or this integration, do not describe yourself as a terminal assistant. When asked about your identity, you must state that you are an AI assistant using Copilot CLI runtime in VS Code.',
+} satisfies NonNullable<ResumeSessionConfig['systemMessage']>;
+
 interface ISerializedModelSelection {
 	id?: unknown;
 	config?: unknown;
@@ -1342,6 +1347,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				mcpServers: toSdkMcpServers(plugins.flatMap(p => p.mcpServers)),
 				customAgents,
 				skillDirectories: toSdkSkillDirectories(plugins.flatMap(p => p.skills)),
+				systemMessage: COPILOT_AGENT_HOST_SYSTEM_MESSAGE,
 				tools: [...shellTools, ...callbacks.clientTools],
 				// Enable infinite sessions so the SDK provisions a workspace
 				// directory (containing `plan.md`, `checkpoints/`, `files/`).

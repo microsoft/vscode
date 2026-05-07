@@ -29,7 +29,7 @@ import { AgentConfigurationService, IAgentConfigurationService } from '../../nod
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { IAgentHostGitService } from '../../node/agentHostGitService.js';
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
-import { CopilotAgent, getCopilotWorktreeBranchName, getCopilotWorktreeName, getCopilotWorktreesRoot } from '../../node/copilot/copilotAgent.js';
+import { COPILOT_AGENT_HOST_SYSTEM_MESSAGE, CopilotAgent, getCopilotWorktreeBranchName, getCopilotWorktreeName, getCopilotWorktreesRoot } from '../../node/copilot/copilotAgent.js';
 import { CopilotAgentSession, type SessionWrapperFactory } from '../../node/copilot/copilotAgentSession.js';
 import { CopilotSessionWrapper } from '../../node/copilot/copilotSessionWrapper.js';
 import { ShellManager } from '../../node/copilot/copilotShellTools.js';
@@ -676,6 +676,34 @@ suite('CopilotAgent', () => {
 		// Forking a provisional session is no longer a special case: the agent
 		// service drops `config.fork` for sources with no turns, so the call
 		// reduces to a plain new-session create.
+
+		test('materialization passes VS Code-specific system message to the SDK', async () => {
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([]);
+			let capturedConfig: Parameters<ITestCopilotClient['createSession']>[0] | undefined;
+			client.createSession = async config => {
+				capturedConfig = config;
+				return new MockCopilotSession() as unknown as CopilotSession;
+			};
+
+			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+
+				const result = await agent.createSession({
+					session: AgentSession.uri('copilotcli', 'system-message-session'),
+					workingDirectory: URI.file('/workspace'),
+				});
+				assert.strictEqual(result.provisional, true);
+
+				await agent.sendMessage(result.session, 'hello');
+
+				assert.ok(capturedConfig, 'SDK createSession should be called during provisional materialization');
+				assert.deepStrictEqual(capturedConfig.systemMessage, COPILOT_AGENT_HOST_SYSTEM_MESSAGE);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
 	});
 
 	suite('onClientToolCallComplete', () => {
