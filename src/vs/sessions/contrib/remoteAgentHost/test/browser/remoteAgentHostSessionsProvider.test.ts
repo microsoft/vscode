@@ -584,9 +584,14 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		assert.strictEqual(session.workspace.get()?.label, 'project');
 		// sessionType should be the logical type, not the resource scheme
 		assert.strictEqual(session.sessionType, provider.sessionTypes[0].id);
-		// Until the server publishes a schema via SessionConfigChanged, the
-		// running config cache is empty.
-		assert.strictEqual(provider.getSessionConfig(session.sessionId), undefined);
+		// `createNewSession` synchronously seeds an empty placeholder so that
+		// picker clicks landing before the server-pushed schema arrives are
+		// not silently dropped. The schema gets replaced once the eager
+		// snapshot lands.
+		assert.deepStrictEqual(provider.getSessionConfig(session.sessionId), {
+			schema: { type: 'object', properties: {} },
+			values: {},
+		});
 	});
 
 	test('clearConnection clears pending new session config', () => {
@@ -595,13 +600,11 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		const session = provider.createNewSession(URI.parse('vscode-agent-host://auth/home/user/project'), provider.sessionTypes[0].id);
 		provider.clearConnection();
 
-		assert.deepStrictEqual({
-			resolved: provider.getSessionByResource(session.resource),
-			config: provider.getSessionConfig(session.sessionId),
-		}, {
-			resolved: undefined,
-			config: undefined,
-		});
+		// `clearConnection` disposes the in-flight new session so subsequent
+		// resource lookups fail. The placeholder running config is keyed by
+		// sessionId; it persists in the cache but cannot be associated with a
+		// new session anymore.
+		assert.strictEqual(provider.getSessionByResource(session.resource), undefined);
 	});
 
 	// ---- Session actions -------
@@ -777,13 +780,27 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 	test('new session stays loading when required config is missing', async () => {
 		const provider = createProvider(disposables, connection);
+		// Unblock `eagerCreate` (which awaits `authenticationPending` before
+		// hitting `createSession`) so the state subscription opens and our
+		// `setSessionState` below is observable.
+		provider.setAuthenticationPending(false);
 		const session = provider.createNewSession(URI.parse('vscode-agent-host://auth/home/user/project'), provider.sessionTypes[0].id);
 		await timeout(0);
 
 		const rawId = session.resource.path.substring(1);
-		connection.publishSessionConfig(rawId, 'copilotcli', {
-			schema: { type: 'object', required: ['branch'], properties: { branch: { type: 'string', title: 'Branch', enum: ['main'] } } },
-			values: {},
+		// New sessions live in `_newSession`, not `_sessionCache`, so a
+		// `SessionConfigChanged` action would just buffer. Push the config
+		// through the state subscription instead — that path runs through
+		// `_seedRunningConfigFromState`, which updates the running-config
+		// cache for the new session.
+		connection.setSessionState(rawId, 'copilotcli', {
+			summary: { resource: AgentSession.uri('copilotcli', rawId).toString(), provider: 'copilotcli', title: '', status: ProtocolSessionStatus.Idle, createdAt: 0, modifiedAt: 0 },
+			lifecycle: SessionLifecycle.Ready,
+			turns: [],
+			config: {
+				schema: { type: 'object', required: ['branch'], properties: { branch: { type: 'string', title: 'Branch', enum: ['main'] } } },
+				values: {},
+			},
 		});
 		await waitForSessionConfig(provider, session.sessionId, config => config?.schema.required?.includes('branch') === true);
 
@@ -883,8 +900,25 @@ suite('RemoteAgentHostSessionsProvider', () => {
 				return { kind: 'sent' as const, data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never };
 			},
 		});
+		// Unblock `eagerCreate` so the state subscription opens.
+		provider.setAuthenticationPending(false);
 		const session = provider.createNewSession(URI.parse('vscode-agent-host://auth/home/user/project'), provider.sessionTypes[0].id);
 		await timeout(0);
+
+		// Push the resolved config through the state subscription so the
+		// running-config cache picks up `isolation: 'worktree'` before
+		// `sendAndCreateChat` reads it.
+		const rawId = session.resource.path.substring(1);
+		connection.setSessionState(rawId, 'copilotcli', {
+			summary: { resource: AgentSession.uri('copilotcli', rawId).toString(), provider: 'copilotcli', title: '', status: ProtocolSessionStatus.Idle, createdAt: 0, modifiedAt: 0 },
+			lifecycle: SessionLifecycle.Ready,
+			turns: [],
+			config: {
+				schema: { type: 'object', properties: { isolation: { type: 'string', title: 'Isolation', enum: ['folder', 'worktree'] } } },
+				values: { isolation: 'worktree' },
+			},
+		});
+		await waitForSessionConfig(provider, session.sessionId, config => config?.values.isolation === 'worktree');
 
 		await provider.sendAndCreateChat(session.sessionId, { query: 'hello' });
 
@@ -1096,6 +1130,9 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 	test('non-web: createNewSession workspace label includes [host] suffix', () => {
 		const provider = createProvider(disposables, connection, { isWebPlatform: false });
+		// Unblock `eagerCreate`'s `waitForState(authenticationPending)` so the
+		// IIFE doesn't leak its autorun past the end of the test.
+		provider.setAuthenticationPending(false);
 		const session = provider.createNewSession(URI.parse('vscode-agent-host://auth/home/user/project'), provider.sessionTypes[0].id);
 
 		assert.strictEqual(session.workspace.get()?.label, 'project [Test Host]');
