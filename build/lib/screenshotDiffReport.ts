@@ -194,13 +194,21 @@ async function computePixelDiffs(
 	return results;
 }
 
+interface ManifestEvent {
+	readonly type?: string;
+	readonly message?: string;
+	readonly stack?: string;
+	readonly phase?: string;
+	readonly isError?: boolean;
+}
+
 interface LocalManifestFixture {
 	readonly fixtureId: string;
 	readonly imageHash?: string;
 	readonly imagePath?: string;
 	readonly labels?: readonly string[];
 	readonly hasError?: boolean;
-	readonly error?: { readonly message?: string; readonly stack?: string } | string;
+	readonly events?: readonly ManifestEvent[];
 }
 
 interface LocalManifest {
@@ -271,11 +279,10 @@ function diffManifests(local: LocalManifest, base: BaseCommitResponse): DiffResu
 
 	for (const cur of local.fixtures) {
 		if (cur.hasError || !cur.imageHash || !cur.imagePath) {
-			const rawError = cur.error;
-			const errorMessage = typeof rawError === 'string'
-				? rawError
-				: rawError?.message ?? 'unknown error (no image hash produced)';
-			const errorStack = typeof rawError === 'object' ? rawError?.stack : undefined;
+			const errorEvents = (cur.events ?? []).filter(e => e.isError);
+			const errorMessage = errorEvents.map(e => e.message).filter(Boolean).join('; ')
+				|| 'unknown error (no image hash produced)';
+			const errorStack = errorEvents.map(e => e.stack).find(s => s !== undefined);
 			errored.push({
 				fixtureId: cur.fixtureId,
 				labels: cur.labels,
