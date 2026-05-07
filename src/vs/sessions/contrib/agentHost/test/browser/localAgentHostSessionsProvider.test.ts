@@ -1444,17 +1444,20 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.strictEqual(session!.loading.get(), false);
 	});
 
-	test.skip('new session loading reflects authenticationPending until config resolves', async () => {
+	test('new session loading reflects authenticationPending until config resolves', async () => {
 		agentHost.setAuthenticationPending(true);
 		const provider = createProvider(disposables, agentHost);
 		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
 		await timeout(0);
 
-		// Drive the schema through the eager-subscription path. For a brand-
-		// new session the action stream's `_handleConfigChanged` would buffer
-		// (H4) until `notify/sessionAdded` fires, which it never does in this
-		// test — use the snapshot path instead, matching the production seed.
+		// With auth pending, eagerCreate hasn't sent createSession yet so
+		// the eager-subscription path that normally seeds state.config is
+		// not open. Drive the schema in via the sessionAdded → snapshot
+		// flow: sessionAdded populates `_sessionCache` and opens a
+		// keep-alive subscription via `_keepSessionStateAlive`, through
+		// which `setSessionState` then delivers the snapshot.
 		const rawId = session.resource.path.substring(1);
+		fireSessionAdded(agentHost, rawId);
 		agentHost.setSessionState(rawId, 'copilotcli', {
 			summary: { resource: AgentSession.uri('copilotcli', rawId).toString(), provider: 'copilotcli', title: '', status: ProtocolSessionStatus.Idle, createdAt: Date.now(), modifiedAt: Date.now() },
 			lifecycle: SessionLifecycle.Ready,
