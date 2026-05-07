@@ -9,12 +9,12 @@ import { VSBuffer, decodeHex, encodeHex } from '../../../../../base/common/buffe
 import { BugIndicatingError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString, isMarkdownString } from '../../../../../base/common/htmlContent.js';
-import { Disposable, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { revive } from '../../../../../base/common/marshalling.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { equals } from '../../../../../base/common/objects.js';
-import { IObservable, autorun, autorunSelfDisposable, constObservable, derived, observableFromEvent, observableSignalFromEvent, observableValue, observableValueOpts } from '../../../../../base/common/observable.js';
+import { IObservable, autorun, constObservable, derived, observableFromEvent, observableSignalFromEvent, observableValue, observableValueOpts, registerAutorunSelfDisposable } from '../../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../../base/common/resources.js';
 import { hasKey, WithDefinedProps } from '../../../../../base/common/types.js';
 import { URI, UriDto } from '../../../../../base/common/uri.js';
@@ -33,6 +33,8 @@ import { ChatPerfMark, markChat } from '../chatPerf.js';
 import { ChatAgentVoteDirection, ChatRequestQueueKind, ChatResponseClearToPreviousToolInvocationReason, ElicitationState, IChatAgentMarkdownContentWithVulnerability, IChatClearToPreviousToolInvocation, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatDisabledClaudeHooksPart, IChatEditingSessionAction, IChatElicitationRequest, IChatElicitationRequestSerialized, IChatExternalToolInvocationUpdate, IChatExtensionsContent, IChatFollowup, IChatHookPart, IChatLocationData, IChatMarkdownContent, IChatMcpServersStarting, IChatMcpServersStartingSerialized, IChatModelReference, IChatMultiDiffData, IChatMultiDiffDataSerialized, IChatNotebookEdit, IChatProgress, IChatPlanReview, IChatProgressMessage, IChatPullRequestContent, IChatQuestionCarousel, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatSendRequestOptions, IChatService, IChatSessionTiming, IChatTask, IChatTaskSerialized, IChatTextEdit, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsage, IChatUsedContext, IChatWarningMessage, IChatInfoMessage, IChatWorkspaceEdit, ResponseModelState, ToolConfirmKind, isIUsedContext } from '../chatService/chatService.js';
 import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../constants.js';
 import { ChatToolInvocation } from './chatProgressTypes/chatToolInvocation.js';
+import { ChatPlanReviewData } from './chatProgressTypes/chatPlanReviewData.js';
+import { ChatQuestionCarouselData } from './chatProgressTypes/chatQuestionCarouselData.js';
 import { ToolDataSource, IToolData } from '../tools/languageModelToolsService.js';
 import { IChatEditingService, IChatEditingSession, ModifiedFileEntryState } from '../editing/chatEditingService.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../languageModels.js';
@@ -759,7 +761,8 @@ class ResponseView extends AbstractResponse {
 }
 
 export class Response extends AbstractResponse implements IDisposable {
-	private _onDidChangeValue = new Emitter<void>();
+	private readonly _store = new DisposableStore();
+	private _onDidChangeValue = this._store.add(new Emitter<void>());
 	public get onDidChangeValue() {
 		return this._onDidChangeValue.event;
 	}
@@ -776,7 +779,7 @@ export class Response extends AbstractResponse implements IDisposable {
 	}
 
 	dispose(): void {
-		this._onDidChangeValue.dispose();
+		this._store.dispose();
 	}
 
 
@@ -900,7 +903,7 @@ export class Response extends AbstractResponse implements IDisposable {
 			});
 
 		} else if (progress.kind === 'toolInvocation') {
-			autorunSelfDisposable(reader => {
+			registerAutorunSelfDisposable(this._store, reader => {
 				progress.state.read(reader); // update repr when state changes
 				this._contentChanged(false);
 
@@ -1447,6 +1450,10 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		for (const part of this._response.value) {
 			if (part.kind === 'toolInvocation' && part instanceof ChatToolInvocation) {
 				part.cancelFromStreaming(ToolConfirmKind.Skipped);
+			} else if (part instanceof ChatPlanReviewData) {
+				part.dismiss();
+			} else if (part instanceof ChatQuestionCarouselData) {
+				part.dismiss(undefined);
 			}
 		}
 

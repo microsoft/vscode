@@ -475,7 +475,7 @@ export class ComputeAutomaticInstructions {
 					skillEntry.push(`<file>${filePath(skill.uri)}</file>`);
 					skillEntry.push(`</skill>`);
 					const entryLength = skillEntry.join('\n').length + 1; // +1 for joining newline
-					if (skillCharCount + entryLength > SKILL_DESCRIPTION_CHAR_BUDGET) {
+					if (skillTool && skillCharCount + entryLength > SKILL_DESCRIPTION_CHAR_BUDGET) {
 						truncatedAtIndex = i;
 						break;
 					}
@@ -516,7 +516,7 @@ export class ComputeAutomaticInstructions {
 					return (agent: ICustomAgent) => subagents.includes(agent.name) && matchesSessionType(agent.sessionTypes, currentSessionType);
 				}
 			})();
-			const agents = await this._promptsService.getCustomAgents(token);
+			const agents = (await this._promptsService.getCustomAgents(token)).filter(a => a.enabled);
 
 			if (generalPurposeAgentEnabled || agents.length > 0) {
 				entries.push('<agents>');

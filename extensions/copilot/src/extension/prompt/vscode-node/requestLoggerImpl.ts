@@ -205,6 +205,8 @@ class LoggedRequestInfo implements ILoggedRequestInfo {
 			serverRequestId: this.entry.type === LoggedRequestKind.ChatMLSuccess || this.entry.type === LoggedRequestKind.ChatMLFailure ? this.entry.result.serverRequestId : undefined,
 			timeToFirstToken: this.entry.type === LoggedRequestKind.ChatMLSuccess ? this.entry.timeToFirstToken : undefined,
 			usage: this.entry.type === LoggedRequestKind.ChatMLSuccess ? this.entry.usage : undefined,
+			copilotUsageAic: this.entry.type === LoggedRequestKind.ChatMLSuccess && typeof this.entry.usage?.copilot_usage?.total_nano_aiu === 'number'
+				? this.entry.usage.copilot_usage.total_nano_aiu / 1_000_000_000 : undefined,
 			tools: this.entry.chatParams.body?.tools,
 		};
 
@@ -662,6 +664,10 @@ export class RequestLogger extends AbstractRequestLogger {
 			result.push(`timeToFirstToken : ${entry.timeToFirstToken}ms`);
 			result.push(`resolved model   : ${entry.result.resolvedModel}`);
 			result.push(`usage            : ${JSON.stringify(entry.usage)}`);
+			if (typeof entry.usage?.copilot_usage?.total_nano_aiu === 'number') {
+				const aic = entry.usage.copilot_usage.total_nano_aiu / 1_000_000_000;
+				result.push(`copilotUsage    : ${aic.toFixed(2)} AIC (${entry.usage.copilot_usage.total_nano_aiu} nano-AIU)`);
+			}
 		} else if (entry.type === LoggedRequestKind.ChatMLFailure) {
 			result.push(`requestId        : ${entry.result.requestId}`);
 			result.push(`serverRequestId  : ${entry.result.serverRequestId}`);

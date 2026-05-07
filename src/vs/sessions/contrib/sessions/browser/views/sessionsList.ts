@@ -5,6 +5,7 @@
 
 import '../media/sessionsList.css';
 import * as DOM from '../../../../../base/browser/dom.js';
+import { Gesture } from '../../../../../base/browser/touch.js';
 import { IListVirtualDelegate } from '../../../../../base/browser/ui/list/list.js';
 import { IListStyles } from '../../../../../base/browser/ui/list/listWidget.js';
 import { IObjectTreeElement, ITreeNode, ITreeRenderer, ITreeContextMenuEvent, ObjectTreeElementCollapseState } from '../../../../../base/browser/ui/tree/tree.js';
@@ -23,7 +24,7 @@ import { localize } from '../../../../../nls.js';
 import { MenuId, IMenuService } from '../../../../../platform/actions/common/actions.js';
 import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
-import { ChatSessionProviderIdContext } from '../../../../common/contextkeys.js';
+import { ChatSessionProviderIdContext, IsPhoneLayoutContext } from '../../../../common/contextkeys.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
@@ -76,6 +77,8 @@ export interface ISessionSection {
 
 export interface ISessionShowMore {
 	readonly showMore: true;
+	readonly kind: 'sessions' | 'folders';
+	readonly mode: 'more' | 'less';
 	readonly sectionLabel: string;
 	readonly remainingCount: number;
 }
@@ -90,16 +93,30 @@ function isSessionShowMore(item: SessionListItem): item is ISessionShowMore {
 	return 'showMore' in item && (item as ISessionShowMore).showMore === true;
 }
 
+const SHOW_MORE_FOLDERS_LABEL = '__more_folders__';
+const FOUR_DAYS_MS = 4 * 24 * 60 * 60 * 1000;
+
 //#endregion
 
 //#region Tree Delegate
 
 class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 	private static readonly ITEM_HEIGHT = 54;
+	/**
+	 * Phone layout uses a taller row so the inline action toolbar can
+	 * meet the 44px minimum touch target without overflowing. Sized to
+	 * fit a 44px toolbar centered between the title and details rows.
+	 * Keep in sync with the `.phone-layout .session-item` rules in
+	 * `sessionsList.css`.
+	 */
+	private static readonly ITEM_HEIGHT_PHONE = 76;
 	private static readonly SECTION_HEIGHT = 26;
 	private static readonly SHOW_MORE_HEIGHT = 26;
 
-	constructor(private readonly _approvalModel?: AgentSessionApprovalModel) { }
+	constructor(
+		private readonly _approvalModel: AgentSessionApprovalModel | undefined,
+		private readonly _isPhone: () => boolean,
+	) { }
 
 	getHeight(element: SessionListItem): number {
 		if (isSessionSection(element)) {
@@ -109,7 +126,7 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 			return SessionsTreeDelegate.SHOW_MORE_HEIGHT;
 		}
 
-		let height = SessionsTreeDelegate.ITEM_HEIGHT;
+		let height = this._isPhone() ? SessionsTreeDelegate.ITEM_HEIGHT_PHONE : SessionsTreeDelegate.ITEM_HEIGHT;
 		if (this._approvalModel) {
 			const approval = getFirstApprovalAcrossChats(this._approvalModel, element as ISession, undefined);
 			if (approval) {
@@ -196,6 +213,16 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		const titleRow = DOM.append(mainCol, $('.session-title-row'));
 		const title = disposables.add(new HighlightedLabel(DOM.append(titleRow, $('.session-title'))));
 		const titleToolbarContainer = DOM.append(titleRow, $('.session-title-toolbar'));
+		// The list opens a session on click and on Gesture `tap` (touch).
+		// DOM event propagation stops only cover mouse/pointer events; the
+		// list's tap handler reads from `Gesture` directly, bypassing
+		// bubbling. Combine both: stop pointer/click for mouse, and
+		// register the toolbar with `Gesture.ignoreTarget` so synthesized
+		// tap events on touch never reach the list either.
+		for (const eventType of ['pointerdown', 'pointerup', 'click', 'dblclick'] as const) {
+			disposables.add(DOM.addDisposableListener(titleToolbarContainer, eventType, e => e.stopPropagation()));
+		}
+		disposables.add(Gesture.ignoreTarget(titleToolbarContainer));
 		const detailsRow = DOM.append(mainCol, $('.session-details-row'));
 
 		// Approval row
@@ -316,11 +343,11 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 				parts.push(typeIconEl);
 			} else if (
 				element.sessionType === CopilotCLISessionType.id &&
-				sessionStatus !== SessionStatus.InProgress &&
-				isWorkspaceSession
+				sessionStatus !== SessionStatus.InProgress
 			) {
+				const icon = isWorkspaceSession ? Codicon.folder : Codicon.worktree;
 				const typeIconEl = DOM.append(template.detailsRow, $('span.session-details-icon'));
-				DOM.append(typeIconEl, $(`span${ThemeIcon.asCSSSelector(Codicon.folder)}`));
+				DOM.append(typeIconEl, $(`span${ThemeIcon.asCSSSelector(icon)}`));
 				parts.push(typeIconEl);
 			}
 
@@ -618,7 +645,17 @@ class SessionShowMoreRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 		if (!isSessionShowMore(element)) {
 			return;
 		}
-		template.textContent = localize('showMoreCompact', "+{0} more", element.remainingCount);
+		const container = template.parentElement;
+		container?.classList.toggle('session-show-more-folders', element.kind === 'folders');
+		if (element.mode === 'less') {
+			template.textContent = element.kind === 'folders'
+				? localize('showLessWorkspacesCompact', "Show less workspaces")
+				: localize('showLessCompact', "Show less");
+		} else {
+			template.textContent = element.kind === 'folders'
+				? localize('showMoreWorkspacesCompact', "+{0} more workspaces", element.remainingCount)
+				: localize('showMoreCompact', "+{0} more", element.remainingCount);
+		}
 	}
 
 	disposeTemplate(_template: HTMLElement): void { }
@@ -636,7 +673,14 @@ class SessionsAccessibilityProvider {
 			return `${element.label}, ${element.sessions.length}`;
 		}
 		if (isSessionShowMore(element)) {
-			return localize('showMoreAria', "Show {0} more sessions", element.remainingCount);
+			if (element.mode === 'less') {
+				return element.kind === 'folders'
+					? localize('showLessWorkspacesAria', "Show less workspaces")
+					: localize('showLessAria', "Show less sessions");
+			}
+			return element.kind === 'folders'
+				? localize('showMoreWorkspacesAria', "Show {0} more workspaces", element.remainingCount)
+				: localize('showMoreAria', "Show {0} more sessions", element.remainingCount);
 		}
 		const title = element.title.get();
 		const created = fromNow(element.createdAt, true);
@@ -695,6 +739,7 @@ export interface ISessionsList {
 	resetFilters(): void;
 	setWorkspaceGroupCapped(capped: boolean): void;
 	isWorkspaceGroupCapped(): boolean;
+	setOpenWindowSourceFolder(folder: URI | undefined): void;
 	collapseAllSections(): void;
 }
 
@@ -718,6 +763,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private _excludeRead: boolean;
 	private workspaceGroupCapped: boolean;
 	private readonly expandedWorkspaceGroups = new Set<string>();
+	private expandedMoreFolders = false;
+	private openWindowSourceFolder: URI | undefined;
 	private findOpen = false;
 	private suspendCollapseStatePersistence = false;
 
@@ -775,7 +822,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		const showMoreRenderer = new SessionShowMoreRenderer();
 
-		const delegate = new SessionsTreeDelegate(approvalModel);
+		// Read (don't bind) `IsPhoneLayoutContext` from the parent context so we
+		// observe the workbench's value rather than shadowing it with a fresh
+		// scoped default of `false`. The reactive height refresh below listens
+		// on the same scoped service for changes.
+		const delegate = new SessionsTreeDelegate(approvalModel, () => !!IsPhoneLayoutContext.getValue(contextKeyService));
 
 		this.tree = this._register(instantiationService.createInstance(
 			WorkbenchObjectTree<SessionListItem, FuzzyScore>,
@@ -795,7 +846,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 							return `section:${element.id}`;
 						}
 						if (isSessionShowMore(element)) {
-							return `show-more:${element.sectionLabel}`;
+							return `show-more:${element.kind}:${element.mode}:${element.sectionLabel}`;
 						}
 						return element.resource.toString();
 					}
@@ -836,7 +887,15 @@ export class SessionsList extends Disposable implements ISessionsList {
 				return;
 			}
 			if (isSessionShowMore(element)) {
-				this.expandedWorkspaceGroups.add(element.sectionLabel);
+				if (element.kind === 'folders') {
+					this.expandedMoreFolders = element.mode === 'more';
+				} else {
+					if (element.mode === 'more') {
+						this.expandedWorkspaceGroups.add(element.sectionLabel);
+					} else {
+						this.expandedWorkspaceGroups.delete(element.sectionLabel);
+					}
+				}
 				this.update();
 				return;
 			}
@@ -849,6 +908,25 @@ export class SessionsList extends Disposable implements ISessionsList {
 		this._register(sessionRenderer.onDidChangeItemHeight(session => {
 			if (this.tree.hasElement(session)) {
 				this.tree.updateElementHeight(session, delegate.getHeight(session));
+			}
+		}));
+
+		// React to phone <-> desktop viewport transitions: refresh heights
+		// for all known sessions so the virtual list reserves the correct
+		// space for the new layout. Iterates `this.sessions` (all known
+		// sessions) — a phone/desktop transition is a rare event so the
+		// extra work over filtered-out sessions is negligible. Relies on
+		// the `IsPhoneLayoutContext` reactive signal already maintained by
+		// the agents workbench.
+		const phoneKeys = new Set<string>([IsPhoneLayoutContext.key]);
+		this._register(this.contextKeyService.onDidChangeContext(e => {
+			if (!e.affectsSome(phoneKeys)) {
+				return;
+			}
+			for (const session of this.sessions) {
+				if (this.tree.hasElement(session)) {
+					this.tree.updateElementHeight(session, delegate.getHeight(session));
+				}
 			}
 		}));
 
@@ -945,15 +1023,61 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		const hasTodaySessions = sections.some(s => s.id === 'today' && s.sessions.length > 0);
 
+		// Partition workspace sections into "primary" (meets criteria) and "more"
+		// when grouping by workspace. Find widget bypasses partitioning.
+		const partitionFolders = grouping === SessionsGrouping.Workspace && !this.findOpen;
+		const moreFolderSectionIds = new Set<string>();
+		if (partitionFolders) {
+			const workspaceSections = sections.filter(s => s.id.startsWith('workspace:'));
+			if (workspaceSections.length > 0) {
+				const now = Date.now();
+				const isRecent = (section: ISessionSection) =>
+					section.sessions.some(s => s.updatedAt.get().getTime() >= now - FOUR_DAYS_MS);
+				const isOpenWindow = (section: ISessionSection) =>
+					!!this.openWindowSourceFolder && section.sessions.some(s => sessionMatchesFolder(s, this.openWindowSourceFolder!));
+				const meetsCriteria = (section: ISessionSection) => isRecent(section) || isOpenWindow(section);
+
+				let anyMeets = false;
+				for (const section of workspaceSections) {
+					if (meetsCriteria(section)) {
+						anyMeets = true;
+						break;
+					}
+				}
+
+				let fallbackId: string | undefined;
+				if (!anyMeets) {
+					// Criterion 3: pick the folder with the most recently updated session.
+					let bestTime = -Infinity;
+					for (const section of workspaceSections) {
+						for (const s of section.sessions) {
+							const t = s.updatedAt.get().getTime();
+							if (t > bestTime) {
+								bestTime = t;
+								fallbackId = section.id;
+							}
+						}
+					}
+				}
+
+				for (const section of workspaceSections) {
+					if (!meetsCriteria(section) && section.id !== fallbackId) {
+						moreFolderSectionIds.add(section.id);
+					}
+				}
+			}
+		}
+
 		const children: IObjectTreeElement<SessionListItem>[] = [];
 
-		children.push(...sections.map(section => {
+		const renderSection = (section: ISessionSection): IObjectTreeElement<SessionListItem> => {
 			const isWorkspaceGroup = grouping === SessionsGrouping.Workspace
 				&& section.id.startsWith('workspace:');
-			const isCapped = isWorkspaceGroup && this.workspaceGroupCapped
+			const exceedsLimit = isWorkspaceGroup
 				&& !this.findOpen
-				&& !this.expandedWorkspaceGroups.has(section.label)
 				&& section.sessions.length > SessionsList.WORKSPACE_GROUP_LIMIT;
+			const isExpanded = exceedsLimit && (this.expandedWorkspaceGroups.has(section.label) || !this.workspaceGroupCapped);
+			const isCapped = exceedsLimit && !isExpanded;
 
 			let sectionChildren: IObjectTreeElement<SessionListItem>[];
 			if (isCapped) {
@@ -961,7 +1085,12 @@ export class SessionsList extends Disposable implements ISessionsList {
 				const remainingCount = section.sessions.length - SessionsList.WORKSPACE_GROUP_LIMIT;
 				sectionChildren = [
 					...visible.map(session => ({ element: session as SessionListItem })),
-					{ element: { showMore: true as const, sectionLabel: section.label, remainingCount } },
+					{ element: { showMore: true as const, kind: 'sessions' as const, mode: 'more' as const, sectionLabel: section.label, remainingCount } },
+				];
+			} else if (isExpanded && this.expandedWorkspaceGroups.has(section.label)) {
+				sectionChildren = [
+					...section.sessions.map(session => ({ element: session as SessionListItem })),
+					{ element: { showMore: true as const, kind: 'sessions' as const, mode: 'less' as const, sectionLabel: section.label, remainingCount: 0 } },
 				];
 			} else {
 				sectionChildren = section.sessions.map(session => ({ element: session as SessionListItem }));
@@ -985,7 +1114,31 @@ export class SessionsList extends Disposable implements ISessionsList {
 				collapsed: this.getSavedCollapseState(section.id) ?? defaultCollapsed,
 				children: sectionChildren,
 			};
-		}));
+		};
+
+		const moreFolderSections: ISessionSection[] = [];
+		for (const section of sections) {
+			if (moreFolderSectionIds.has(section.id)) {
+				moreFolderSections.push(section);
+			} else {
+				children.push(renderSection(section));
+			}
+		}
+
+		if (moreFolderSections.length > 0) {
+			if (this.expandedMoreFolders) {
+				for (const section of moreFolderSections) {
+					children.push(renderSection(section));
+				}
+				children.push({
+					element: { showMore: true as const, kind: 'folders' as const, mode: 'less' as const, sectionLabel: SHOW_MORE_FOLDERS_LABEL, remainingCount: 0 },
+				});
+			} else {
+				children.push({
+					element: { showMore: true as const, kind: 'folders' as const, mode: 'more' as const, sectionLabel: SHOW_MORE_FOLDERS_LABEL, remainingCount: moreFolderSections.length },
+				});
+			}
+		}
 
 		this.tree.setChildren(null, children);
 		this._onDidUpdate.fire();
@@ -1251,6 +1404,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		this.workspaceGroupCapped = true;
 		this.storageService.store(SessionsList.WORKSPACE_GROUP_CAPPED_KEY, true, StorageScope.PROFILE, StorageTarget.USER);
 		this.expandedWorkspaceGroups.clear();
+		this.expandedMoreFolders = false;
 		this.update();
 	}
 
@@ -1267,6 +1421,16 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	isWorkspaceGroupCapped(): boolean {
 		return this.workspaceGroupCapped;
+	}
+
+	setOpenWindowSourceFolder(folder: URI | undefined): void {
+		const before = this.openWindowSourceFolder?.toString();
+		const after = folder?.toString();
+		if (before === after) {
+			return;
+		}
+		this.openWindowSourceFolder = folder;
+		this.update();
 	}
 
 	collapseAllSections(): void {
@@ -1338,6 +1502,24 @@ function getFirstApprovalAcrossChats(approvalModel: AgentSessionApprovalModel, s
 		}
 	}
 	return oldest;
+}
+
+//#endregion
+
+//#region Folder Matching
+
+function sessionMatchesFolder(session: ISession, folder: URI): boolean {
+	const workspace = session.workspace.get();
+	if (!workspace) {
+		return false;
+	}
+	const folderStr = folder.toString();
+	for (const repo of workspace.repositories) {
+		if (repo.workingDirectory?.toString() === folderStr || repo.uri.toString() === folderStr) {
+			return true;
+		}
+	}
+	return false;
 }
 
 //#endregion

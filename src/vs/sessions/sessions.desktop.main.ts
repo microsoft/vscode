@@ -182,10 +182,6 @@ import '../workbench/contrib/multiDiffEditor/browser/multiDiffEditor.contributio
 // Remote Tunnel
 import '../workbench/contrib/remoteTunnel/electron-browser/remoteTunnel.contribution.js';
 
-// Chat
-import './contrib/agentFeedback/browser/agentFeedback.contribution.js';
-import './contrib/chat/electron-browser/openInVSCode.contribution.js';
-
 // Encryption
 import '../workbench/contrib/encryption/electron-browser/encryption.contribution.js';
 
@@ -203,6 +199,8 @@ import '../workbench/contrib/policyExport/electron-browser/policyExport.contribu
 
 //#region --- sessions contributions
 
+import './electron-browser/sessions.desktop.contribution.js';
+
 // Remote Agent Host
 import '../platform/agentHost/electron-browser/agentHostService.js';
 import '../platform/agentHost/electron-browser/remoteAgentHostService.js';
@@ -212,10 +210,15 @@ import './contrib/remoteAgentHost/browser/remoteAgentHost.contribution.js';
 import './contrib/remoteAgentHost/browser/remoteAgentHostTerminal.contribution.js';
 import './contrib/remoteAgentHost/browser/tunnelAgentHost.contribution.js';
 
+// Chat
+import './contrib/agentFeedback/browser/agentFeedback.contribution.js';
+import './contrib/chat/electron-browser/chat.contribution.js';
+
 // Local Agent Host
 import './contrib/agentHost/browser/localAgentHost.contribution.js';
 import './contrib/agentHost/browser/agentSessionSettings.contribution.js';
 import './contrib/agentHost/browser/agentHostSettings.contribution.js';
+import './contrib/agentHost/browser/agentHostSkillButtons.js';
 
 // Tunnel Host (allow remote connections to local agent host)
 import './contrib/tunnelHost/electron-browser/tunnelHost.contribution.js';

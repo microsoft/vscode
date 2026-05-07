@@ -15,7 +15,6 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { Event } from '../../../../../base/common/event.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
@@ -27,7 +26,7 @@ import { IChatWidgetService } from '../../../chat/browser/chat.js';
 import { IChatRequestVariableEntry } from '../../../chat/common/attachments/chatVariableEntries.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { IElementData, IElementAncestor, BrowserViewCommandId } from '../../../../../platform/browserView/common/browserView.js';
-import { IBrowserViewModel } from '../../../browserView/common/browserView.js';
+import { IBrowserViewModel, BrowserViewSharingState } from '../../../browserView/common/browserView.js';
 import { BrowserEditorInput } from '../../common/browserEditorInput.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { WorkbenchHoverDelegate } from '../../../../../platform/hover/browser/hover.js';
@@ -36,12 +35,15 @@ import { BrowserEditor, BrowserEditorContribution, IBrowserEditorWidgetContribut
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { PolicyCategory } from '../../../../../base/common/policy.js';
+import product from '../../../../../platform/product/common/product.js';
+import { AgentHostEnabledSettingId } from '../../../../../platform/agentHost/common/agentService.js';
 import { workbenchConfigurationNodeBase } from '../../../../common/configuration.js';
 import { safeSetInnerHtml } from '../../../../../base/browser/domSanitize.js';
 import { BrowserActionCategory } from '../browserViewActions.js';
+import { AgentHostChatToolsEnabledSettingId } from '../browserViewWorkbenchService.js';
 
 // Register tools
-import { canShareBrowserWithAgentContext } from '../tools/browserTools.contribution.js';
+import '../tools/browserTools.contribution.js';
 
 /**
  * Format an array of element ancestors into a CSS-selector-like path string.
@@ -60,55 +62,7 @@ function formatElementPath(ancestors: readonly IElementAncestor[] | undefined): 
 		.join(' > ');
 }
 
-function createBoxShorthand(entries: Map<string, string>, propertyName: 'margin' | 'padding'): string | undefined {
-	const topKey = `${propertyName}-top`;
-	const rightKey = `${propertyName}-right`;
-	const bottomKey = `${propertyName}-bottom`;
-	const leftKey = `${propertyName}-left`;
-
-	const top = entries.get(topKey);
-	const right = entries.get(rightKey);
-	const bottom = entries.get(bottomKey);
-	const left = entries.get(leftKey);
-
-	if (top === undefined || right === undefined || bottom === undefined || left === undefined) {
-		return undefined;
-	}
-
-	entries.delete(topKey);
-	entries.delete(rightKey);
-	entries.delete(bottomKey);
-	entries.delete(leftKey);
-
-	return `${top} ${right} ${bottom} ${left}`;
-}
-
-function formatElementMap(entries: Readonly<Record<string, string>> | undefined): string | undefined {
-	if (!entries || Object.keys(entries).length === 0) {
-		return undefined;
-	}
-
-	const normalizedEntries = new Map(Object.entries(entries));
-	const lines: string[] = [];
-
-	const marginShorthand = createBoxShorthand(normalizedEntries, 'margin');
-	if (marginShorthand) {
-		lines.push(`- margin: ${marginShorthand}`);
-	}
-
-	const paddingShorthand = createBoxShorthand(normalizedEntries, 'padding');
-	if (paddingShorthand) {
-		lines.push(`- padding: ${paddingShorthand}`);
-	}
-
-	for (const [name, value] of Array.from(normalizedEntries.entries()).sort(([a], [b]) => a.localeCompare(b))) {
-		lines.push(`- ${name}: ${value}`);
-	}
-
-	return lines.join('\n');
-}
-
-function createElementContextValue(elementData: IElementData, displayName: string, attachCss: boolean): string {
+function createElementContextValue(elementData: IElementData, displayName: string): string {
 	const sections: string[] = [];
 	sections.push('Attached Element Context from Integrated Browser');
 	sections.push(`Element: ${displayName}`);
@@ -119,18 +73,10 @@ function createElementContextValue(elementData: IElementData, displayName: strin
 
 	const htmlPath = formatElementPath(elementData.ancestors);
 	if (htmlPath) {
-		sections.push(`HTML Path:\n${htmlPath}`);
+		sections.push(`HTML Path: ${htmlPath}`);
 	}
 
-	const attributeTable = formatElementMap(elementData.attributes);
-	if (attributeTable) {
-		sections.push(`Attributes:\n${attributeTable}`);
-	}
-
-	const innerText = elementData.innerText?.trim();
-	if (innerText) {
-		sections.push(`Inner Text:\n\`\`\`text\n${innerText}\n\`\`\``);
-	}
+	sections.push(`Outer HTML:\n\`\`\`html\n${elementData.outerHTML}\n\`\`\``);
 
 	if (elementData.dimensions) {
 		const { top, left, width, height } = elementData.dimensions;
@@ -139,15 +85,7 @@ function createElementContextValue(elementData: IElementData, displayName: strin
 		);
 	}
 
-	sections.push(`Outer HTML:\n\`\`\`html\n${elementData.outerHTML}\n\`\`\``);
-
-	if (attachCss) {
-		const computedStyleTable = formatElementMap(elementData.computedStyles);
-		if (computedStyleTable) {
-			sections.push(`Computed Styles:\n${computedStyleTable}`);
-		}
-		sections.push(`Full Computed CSS:\n\`\`\`css\n${elementData.computedStyle}\n\`\`\``);
-	}
+	sections.push(`CSS:\n\`\`\`css\n${elementData.computedStyle}\n\`\`\``);
 
 	return sections.join('\n\n');
 }
@@ -173,7 +111,7 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 
 	constructor(
 		editor: BrowserEditor,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILogService private readonly logService: ILogService,
@@ -202,20 +140,10 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 			hoverDelegate
 		}));
 		this._shareButton.element.classList.add('browser-share-toggle');
-		this._shareButton.label = '$(agent)';
+		this._shareButton.label = '$(share-window)';
 
 		this._register(this._shareButton.onDidClick(() => {
 			this._toggleShareWithAgent();
-		}));
-
-		// Show share button only when chat is enabled and browser tools are enabled
-		const updateShareButtonVisibility = () => {
-			this._shareButtonContainer.style.display = contextKeyService.contextMatchesRules(canShareBrowserWithAgentContext) ? '' : 'none';
-		};
-		updateShareButtonVisibility();
-		const agentSharingKeys = new Set(canShareBrowserWithAgentContext.keys());
-		this._register(Event.filter(contextKeyService.onDidChangeContext, e => e.affectsSome(agentSharingKeys))(() => {
-			updateShareButtonVisibility();
 		}));
 	}
 
@@ -226,10 +154,7 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 	protected override subscribeToModel(model: IBrowserViewModel, store: DisposableStore): void {
 		// Manage sharing state
 		this._updateSharingState(true);
-		store.add(model.onDidChangeSharedWithAgent(() => {
-			this._updateSharingState(false);
-		}));
-		store.add(Event.filter(this.contextKeyService.onDidChangeContext, e => e.affectsSome(new Set(canShareBrowserWithAgentContext.keys())))(() => {
+		store.add(model.onDidChangeSharingState(() => {
 			this._updateSharingState(false);
 		}));
 	}
@@ -249,24 +174,28 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 		if (!model) {
 			return;
 		}
-		model.setSharedWithAgent(!model.sharedWithAgent);
+		model.setSharedWithAgent(model.sharingState !== BrowserViewSharingState.Shared);
 	}
 
 	private _updateSharingState(isInitialState: boolean): void {
 		const model = this.editor.model;
-		const sharingEnabled = this.contextKeyService.contextMatchesRules(canShareBrowserWithAgentContext);
-		const isShared = sharingEnabled && !!model && model.sharedWithAgent;
+		const isShared = model?.sharingState === BrowserViewSharingState.Shared;
+		const isUnavailable = !model || model.sharingState === BrowserViewSharingState.Unavailable;
 
 		this.editor.browserContainer.classList.toggle('animate', !isInitialState);
 		this.editor.browserContainer.classList.toggle('shared', isShared);
 
+		this._shareButtonContainer.style.display = isUnavailable ? 'none' : '';
 		this._shareButton.checked = isShared;
 		this._shareButton.label = isShared
-			? localize('browser.sharingWithAgent', "Sharing with Agent") + ' $(agent)'
-			: '$(agent)';
-		this._shareButton.setTitle(isShared
+			? localize('browser.sharingWithAgent', "Sharing with Agent") + ' $(share-window)'
+			: '$(share-window)';
+
+		const title = isShared
 			? localize('browser.unshareWithAgent', "Stop Sharing with Agent")
-			: localize('browser.shareWithAgent', "Share with Agent"));
+			: localize('browser.shareWithAgent', "Share with Agent");
+		this._shareButton.setTitle(title);
+		this._shareButton.element.setAttribute('aria-label', title);
 	}
 
 	private static readonly SHARING_CONTENT_WARNING_DONT_ASK_KEY = 'browserView.agentSharingContentWarning.dontAskAgain';
@@ -419,22 +348,19 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 			displayNameFull = `${last.tagName.toLowerCase()}${last.id ? `#${last.id}` : ''}${last.classNames && last.classNames.length ? `.${last.classNames.join('.')}` : ''}${pseudo}`;
 		}
 
-		const attachCss = this.configurationService.getValue<boolean>('chat.sendElementsToChat.attachCSS');
-		const value = createElementContextValue(elementData, displayNameFull, attachCss);
+		const value = createElementContextValue(elementData, displayNameFull);
 
 		toAttach.push({
 			id: 'element-' + Date.now(),
 			name: displayNameShort,
 			fullName: displayNameFull,
 			value: value,
-			modelDescription: attachCss
-				? 'Structured browser element context with HTML path, attributes, and computed styles.'
-				: 'Structured browser element context with HTML path and attributes.',
+			modelDescription: 'Structured browser element context with HTML path, outer HTML, dimensions, and computed styles.',
 			kind: 'element',
 			icon: ThemeIcon.fromId(Codicon.layout.id),
 			ancestors: elementData.ancestors,
 			attributes: elementData.attributes,
-			computedStyles: attachCss ? elementData.computedStyles : undefined,
+			computedStyles: elementData.computedStyles,
 			dimensions: elementData.dimensions,
 			innerText,
 		});
@@ -463,19 +389,16 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 		widget?.attachmentModel?.addContext(...toAttach);
 
 		type IntegratedBrowserAddElementToChatAddedEvent = {
-			attachCss: boolean;
 			attachImages: boolean;
 		};
 
 		type IntegratedBrowserAddElementToChatAddedClassification = {
-			attachCss: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether chat.sendElementsToChat.attachCSS was enabled.' };
 			attachImages: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether chat.sendElementsToChat.attachImages was enabled.' };
 			owner: 'jruales';
 			comment: 'An element was successfully added to chat from Integrated Browser.';
 		};
 
 		this.telemetryService.publicLog2<IntegratedBrowserAddElementToChatAddedEvent, IntegratedBrowserAddElementToChatAddedClassification>('integratedBrowser.addElementToChat.added', {
-			attachCss,
 			attachImages
 		});
 	}
@@ -639,7 +562,16 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 						value: localize('browser.enableChatTools', 'When enabled, chat agents can use browser tools to open and interact with pages in the Integrated Browser.')
 					}
 				},
-			}
+			},
+			agentsWindow: { default: true },
+		},
+		[AgentHostChatToolsEnabledSettingId]: {
+			type: 'boolean',
+			markdownDescription: localize('workbench.browser.agentHostChatToolsEnabled', "When enabled, integrated browser tools are exposed as client-provided tools to agent host sessions in the Sessions window. Requires {0} and {1}.", `\`#${AgentHostEnabledSettingId}#\``, '`#workbench.browser.enableChatTools#`'),
+			default: false,
+			experiment: { mode: 'startup' },
+			tags: ['experimental', 'advanced'],
+			included: product.quality !== 'stable',
 		}
 	}
 });

@@ -10,7 +10,7 @@ import { IInstantiationService } from '../../../../util/vs/platform/instantiatio
 import { ChatLocation } from '../../../chat/common/commonTypes';
 import { ConfigKey, IConfigurationService } from '../../../configuration/common/configurationService';
 import { InMemoryConfigurationService } from '../../../configuration/test/common/inMemoryConfigurationService';
-import { IResponseDelta } from '../../../networking/common/fetch';
+import { IResponseDelta, OpenAiFunctionTool } from '../../../networking/common/fetch';
 import { IChatEndpoint, ICreateEndpointBodyOptions } from '../../../networking/common/networking';
 import { IToolDeferralService } from '../../../networking/common/toolDeferralService';
 import { TelemetryData } from '../../../telemetry/common/telemetryData';
@@ -64,6 +64,17 @@ function createMockOptions(overrides: Partial<ICreateEndpointBodyOptions> = {}):
 	} as ICreateEndpointBodyOptions;
 }
 
+function createFunctionTool(name: string, description: string, properties: Record<string, object>, required: string[] = []): OpenAiFunctionTool {
+	return {
+		type: 'function',
+		function: {
+			name,
+			description,
+			parameters: { type: 'object', properties, ...(required.length ? { required } : {}) }
+		}
+	};
+}
+
 describe('createResponsesRequestBody tools', () => {
 	let disposables: DisposableStore;
 	let services: ReturnType<typeof createPlatformServices>;
@@ -80,8 +91,30 @@ describe('createResponsesRequestBody tools', () => {
 		accessor = services.createTestingAccessor();
 	});
 
+	function createToolSearchScenario(messages: Raw.ChatMessage[]) {
+		const endpoint = createMockEndpoint('gpt-5.4');
+		const configService = accessor.get(IConfigurationService) as InMemoryConfigurationService;
+		configService.setConfig(ConfigKey.ResponsesApiToolSearchEnabled, true);
+
+		const options = createMockOptions({
+			messages,
+			requestOptions: {
+				tools: [
+					createFunctionTool('file_search', 'Find files', { query: { type: 'string' } }, ['query']),
+					createFunctionTool('read_file', 'Read a file', { path: { type: 'string' } }, ['path']),
+					createFunctionTool('some_mcp_tool', 'An MCP tool', { input: { type: 'string' } }, ['input']),
+					createFunctionTool('tool_search', 'Search tools', { query: { type: 'string' } }, ['query']),
+				]
+			}
+		});
+
+		return accessor.get(IInstantiationService).invokeFunction(
+			createResponsesRequestBody, options, endpoint.model, endpoint
+		);
+	}
+
 	it('passes tools through without defer_loading when tool search disabled', () => {
-		const endpoint = createMockEndpoint('gpt-5.4-preview');
+		const endpoint = createMockEndpoint('gpt-5.4');
 		const configService = accessor.get(IConfigurationService) as InMemoryConfigurationService;
 		configService.setConfig(ConfigKey.ResponsesApiToolSearchEnabled, false);
 
@@ -96,7 +129,7 @@ describe('createResponsesRequestBody tools', () => {
 	});
 
 	it('adds client tool_search and defer_loading when enabled', () => {
-		const endpoint = createMockEndpoint('gpt-5.4-preview');
+		const endpoint = createMockEndpoint('gpt-5.4');
 		const configService = accessor.get(IConfigurationService) as InMemoryConfigurationService;
 		configService.setConfig(ConfigKey.ResponsesApiToolSearchEnabled, true);
 
@@ -136,7 +169,7 @@ describe('createResponsesRequestBody tools', () => {
 	});
 
 	it('does not defer tools for non-Agent locations', () => {
-		const endpoint = createMockEndpoint('gpt-5.4-preview');
+		const endpoint = createMockEndpoint('gpt-5.4');
 		const configService = accessor.get(IConfigurationService) as InMemoryConfigurationService;
 		configService.setConfig(ConfigKey.ResponsesApiToolSearchEnabled, true);
 
@@ -155,7 +188,7 @@ describe('createResponsesRequestBody tools', () => {
 		// `tools: ['my-mcp-server/*']` filters out tool_search. Without this gate, every
 		// MCP tool would be marked deferred and stripped from the request, leaving the
 		// agent with nothing to call.
-		const endpoint = createMockEndpoint('gpt-5.4-preview');
+		const endpoint = createMockEndpoint('gpt-5.4');
 		const configService = accessor.get(IConfigurationService) as InMemoryConfigurationService;
 		configService.setConfig(ConfigKey.ResponsesApiToolSearchEnabled, true);
 
@@ -180,7 +213,7 @@ describe('createResponsesRequestBody tools', () => {
 	});
 
 	it('always filters tool_search function tool from tools array', () => {
-		const endpoint = createMockEndpoint('gpt-5.4-preview');
+		const endpoint = createMockEndpoint('gpt-5.4');
 		const configService = accessor.get(IConfigurationService) as InMemoryConfigurationService;
 		configService.setConfig(ConfigKey.ResponsesApiToolSearchEnabled, false);
 
@@ -202,7 +235,7 @@ describe('createResponsesRequestBody tools', () => {
 	});
 
 	it('converts tool_search history even when feature flag is off', () => {
-		const endpoint = createMockEndpoint('gpt-5.4-preview');
+		const endpoint = createMockEndpoint('gpt-5.4');
 		const configService = accessor.get(IConfigurationService) as InMemoryConfigurationService;
 		configService.setConfig(ConfigKey.ResponsesApiToolSearchEnabled, false);
 
@@ -238,9 +271,9 @@ describe('createResponsesRequestBody tools', () => {
 		expect(toolSearchOutput.execution).toBe('client');
 		expect(toolSearchOutput.call_id).toBe('call_ts1');
 
-		// tool_search_output should not include tool_search itself in loaded tools
+		// No tools are currently deferred, so historical tool_search_output should not redeclare them.
 		const loadedToolNames = (toolSearchOutput.tools as any[]).map((t: any) => t.name);
-		expect(loadedToolNames).not.toContain('tool_search');
+		expect(loadedToolNames).toEqual([]);
 
 		// Should not have any function_call with name tool_search
 		const badFunctionCall = input.find(i => i.type === 'function_call' && i.name === 'tool_search');
@@ -248,7 +281,7 @@ describe('createResponsesRequestBody tools', () => {
 	});
 
 	it('converts tool_search history when current request has no tools', () => {
-		const endpoint = createMockEndpoint('gpt-5.4-preview');
+		const endpoint = createMockEndpoint('gpt-5.4');
 		const messages: Raw.ChatMessage[] = [
 			{ role: Raw.ChatRole.User, content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Hello' }] },
 			{
@@ -281,6 +314,130 @@ describe('createResponsesRequestBody tools', () => {
 			tools: [],
 		});
 		expect(input.find(i => i.type === 'function_call' && i.name === 'tool_search')).toBeUndefined();
+	});
+
+	it('excludes non-deferred tools from tool_search_output history', () => {
+		const messages: Raw.ChatMessage[] = [
+			{ role: Raw.ChatRole.User, content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Find file tools' }] },
+			{
+				role: Raw.ChatRole.Assistant,
+				content: [],
+				toolCalls: [{ id: 'call_ts_file', type: 'function', function: { name: 'tool_search', arguments: '{"query":"file tools"}' } }],
+			},
+			{
+				role: Raw.ChatRole.Tool,
+				toolCallId: 'call_ts_file',
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: '["file_search","some_mcp_tool"]' }],
+			},
+			{
+				role: Raw.ChatRole.Assistant,
+				content: [],
+				toolCalls: [
+					{ id: 'call_file', type: 'function', function: { name: 'file_search', arguments: '{"query":"*.ts"}' } },
+					{ id: 'call_mcp', type: 'function', function: { name: 'some_mcp_tool', arguments: '{"input":"x"}' } },
+				],
+			},
+		];
+
+		const body = createToolSearchScenario(messages);
+
+		const input = body.input as Array<{ type?: string; name?: string; namespace?: string; tools?: Array<{ name: string }> }>;
+		const toolSearchOutput = input.find(i => i.type === 'tool_search_output');
+		const fileSearchCall = input.find(i => i.type === 'function_call' && i.name === 'file_search');
+		const mcpToolCall = input.find(i => i.type === 'function_call' && i.name === 'some_mcp_tool');
+
+		expect({
+			loadedToolNames: toolSearchOutput?.tools?.map(t => t.name),
+			fileSearchNamespace: fileSearchCall?.namespace,
+			mcpToolNamespace: mcpToolCall?.namespace,
+		}).toEqual({
+			loadedToolNames: ['some_mcp_tool'],
+			fileSearchNamespace: undefined,
+			mcpToolNamespace: 'some_mcp_tool',
+		});
+	});
+
+	it('does not load tools from tool_search_output when only non-deferred tools are returned', () => {
+		const messages: Raw.ChatMessage[] = [
+			{ role: Raw.ChatRole.User, content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Find core tools' }] },
+			{
+				role: Raw.ChatRole.Assistant,
+				content: [],
+				toolCalls: [{ id: 'call_ts_core', type: 'function', function: { name: 'tool_search', arguments: '{"query":"core tools"}' } }],
+			},
+			{
+				role: Raw.ChatRole.Tool,
+				toolCallId: 'call_ts_core',
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: '["file_search","read_file"]' }],
+			},
+		];
+
+		const body = createToolSearchScenario(messages);
+
+		const input = body.input as Array<{ type?: string; tools?: Array<{ name: string }> }>;
+		const toolSearchOutput = input.find(i => i.type === 'tool_search_output');
+
+		expect(toolSearchOutput?.tools?.map(t => t.name)).toEqual([]);
+	});
+
+	it('still emits tool_search_output and namespaces deferred-tool calls when the stateful marker drops the tool_search_call from the post-marker slice (issue #313899)', () => {
+		// Repro for https://github.com/microsoft/vscode/issues/313899: when the Responses API
+		// resumes from a previous_response_id, the assistant message carrying the marker (and
+		// the tool_search_call it emitted) is sliced out of the input. Without scanning the
+		// full history first, the tool_search bookkeeping would be empty and the subsequent
+		// tool result would be incorrectly serialized as `function_call_output` instead of
+		// `tool_search_output`, leaving the deferred MCP tool definitions unloaded on the
+		// server and the model unable to invoke the tool it just discovered.
+		const modelId = 'gpt-5.4';
+		const statefulMarker = 'marker-abc';
+		const messages: Raw.ChatMessage[] = [
+			{ role: Raw.ChatRole.User, content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Use the MCP tool' }] },
+			{
+				role: Raw.ChatRole.Assistant,
+				// Marker lives on the same assistant turn that emitted the tool_search call.
+				content: [{
+					type: Raw.ChatCompletionContentPartKind.Opaque,
+					value: { type: 'stateful_marker', value: { modelId, marker: statefulMarker } },
+				}],
+				toolCalls: [{ id: 'call_ts_resume', type: 'function', function: { name: 'tool_search', arguments: '{"query":"mcp"}' } }],
+			},
+			{
+				role: Raw.ChatRole.Tool,
+				toolCallId: 'call_ts_resume',
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: '["some_mcp_tool"]' }],
+			},
+			{
+				role: Raw.ChatRole.Assistant,
+				content: [],
+				toolCalls: [{ id: 'call_mcp_resume', type: 'function', function: { name: 'some_mcp_tool', arguments: '{"input":"x"}' } }],
+			},
+		];
+
+		const body = createToolSearchScenario(messages);
+
+		const input = body.input as Array<{ type?: string; name?: string; namespace?: string; call_id?: string; tools?: Array<{ name: string }> }>;
+
+		expect({
+			previous_response_id: body.previous_response_id,
+			// The tool result must round-trip as a tool_search_output (not function_call_output)
+			toolSearchOutput: input.find(i => i.type === 'tool_search_output'),
+			// Any function_call_output for the tool_search call_id would be the bug
+			badFunctionCallOutput: input.find((i: any) => i.type === 'function_call_output' && i.call_id === 'call_ts_resume'),
+			// The follow-up MCP tool call must carry the namespace so the server can match
+			// it against the deferred tool loaded via tool_search_output.
+			mcpToolNamespace: input.find(i => i.type === 'function_call' && i.name === 'some_mcp_tool')?.namespace,
+		}).toEqual({
+			previous_response_id: statefulMarker,
+			toolSearchOutput: {
+				type: 'tool_search_output',
+				execution: 'client',
+				call_id: 'call_ts_resume',
+				status: 'completed',
+				tools: [expect.objectContaining({ name: 'some_mcp_tool', defer_loading: true })],
+			},
+			badFunctionCallOutput: undefined,
+			mcpToolNamespace: 'some_mcp_tool',
+		});
 	});
 });
 

@@ -7,7 +7,7 @@ use serde::Deserialize;
 use std::{collections::HashMap, io::IsTerminal};
 
 use const_format::concatcp;
-use lazy_static::lazy_static;
+use std::sync::LazyLock;
 
 use crate::options::Quality;
 
@@ -107,27 +107,31 @@ pub struct ServerQualityInfo {
 	pub server_application_name: String,
 }
 
-lazy_static! {
-	pub static ref TUNNEL_SERVICE_USER_AGENT: String =
-		match std::env::var(TUNNEL_SERVICE_USER_AGENT_ENV_VAR) {
-			Ok(ua) if !ua.is_empty() => format!("{} {}", ua, get_default_user_agent()),
-			_ => get_default_user_agent(),
-		};
+pub static TUNNEL_SERVICE_USER_AGENT: LazyLock<String> =
+	LazyLock::new(|| match std::env::var(TUNNEL_SERVICE_USER_AGENT_ENV_VAR) {
+		Ok(ua) if !ua.is_empty() => format!("{} {}", ua, get_default_user_agent()),
+		_ => get_default_user_agent(),
+	});
 
-	/// Map of qualities to the server name
-	pub static ref SERVER_NAME_MAP: Option<HashMap<Quality, ServerQualityInfo>> =
-		option_env!("VSCODE_CLI_TUNNEL_SERVER_QUALITIES").and_then(|s| serde_json::from_str(s).unwrap());
+/// Map of qualities to the server name
+pub static SERVER_NAME_MAP: LazyLock<Option<HashMap<Quality, ServerQualityInfo>>> =
+	LazyLock::new(|| {
+		option_env!("VSCODE_CLI_TUNNEL_SERVER_QUALITIES")
+			.and_then(|s| serde_json::from_str(s).unwrap())
+	});
 
-	/// Whether i/o interactions are allowed in the current CLI.
-	pub static ref IS_A_TTY: bool = std::io::stdin().is_terminal();
+/// Whether i/o interactions are allowed in the current CLI.
+pub static IS_A_TTY: LazyLock<bool> = LazyLock::new(|| std::io::stdin().is_terminal());
 
-	/// Whether i/o interactions are allowed in the current CLI.
-	pub static ref COLORS_ENABLED: bool = *IS_A_TTY && std::env::var(NO_COLOR_ENV).is_err();
+/// Whether i/o interactions are allowed in the current CLI.
+pub static COLORS_ENABLED: LazyLock<bool> =
+	LazyLock::new(|| *IS_A_TTY && std::env::var(NO_COLOR_ENV).is_err());
 
-	/// Whether i/o interactions are allowed in the current CLI.
-	pub static ref IS_INTERACTIVE_CLI: bool = *IS_A_TTY && std::env::var(NONINTERACTIVE_VAR).is_err();
+/// Whether i/o interactions are allowed in the current CLI.
+pub static IS_INTERACTIVE_CLI: LazyLock<bool> =
+	LazyLock::new(|| *IS_A_TTY && std::env::var(NONINTERACTIVE_VAR).is_err());
 
-	/// Map of quality names to arrays of app IDs used for them, for example, `{"stable":["ABC123"]}`
-	pub static ref WIN32_APP_IDS: Option<Vec<String>> =
-		option_env!("VSCODE_CLI_WIN32_APP_IDS").map(|s| s.split(',').map(|s| s.to_string()).collect());
-}
+/// Map of quality names to arrays of app IDs used for them, for example, `{"stable":["ABC123"]}`
+pub static WIN32_APP_IDS: LazyLock<Option<Vec<String>>> = LazyLock::new(|| {
+	option_env!("VSCODE_CLI_WIN32_APP_IDS").map(|s| s.split(',').map(|s| s.to_string()).collect())
+});

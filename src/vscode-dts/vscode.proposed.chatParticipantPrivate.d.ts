@@ -256,6 +256,15 @@ declare module 'vscode' {
 
 		isRateLimited?: boolean;
 
+		/**
+		 * If true, the error is an expected operational condition (e.g. user-actionable
+		 * configuration, network connectivity, missing dependency) and should not be
+		 * logged as a `chatAgentError` telemetry event. The error is still surfaced to
+		 * the user. Throwing an `Error` whose `name` is `'ChatExpectedError'` from a
+		 * chat participant handler will set this flag automatically.
+		 */
+		isExpectedError?: boolean;
+
 		level?: ChatErrorLevel;
 
 		code?: string;
@@ -294,6 +303,17 @@ declare module 'vscode' {
 		 * Unique ID for the subagent invocation, used to group tool calls from the same subagent run together.
 		 */
 		subAgentInvocationId?: string;
+		/**
+		 * W3C trace context `traceparent` header value identifying the active distributed
+		 * tracing span. When provided to a tool implementation backed by an MCP server, this
+		 * value is forwarded as `_meta.traceparent` on the JSON-RPC `tools/call` request so
+		 * downstream servers can correlate their spans (MCP SEP-414).
+		 */
+		traceparent?: string;
+		/**
+		 * Optional W3C trace context `tracestate` header value paired with `traceparent`.
+		 */
+		tracestate?: string;
 		/**
 		 * Pre-tool-use hook result, if the hook was already executed by the caller.
 		 * When provided, the tools service will skip executing its own preToolUse hook

@@ -13,8 +13,6 @@ export enum IncludeLineNumbersOption {
 }
 
 export enum RecentFileClippingStrategy {
-	/** Current behavior: clip from top of file (greedy, most-recent-first). */
-	TopToBottom = 'topToBottom',
 	/** Center clipping around the edit location in each file (greedy budget). */
 	AroundEditRange = 'aroundEditRange',
 	/** Proportionally allocate budget across files, centered on edit locations. */
@@ -22,7 +20,7 @@ export enum RecentFileClippingStrategy {
 }
 
 export namespace RecentFileClippingStrategy {
-	export const VALIDATOR = vEnum(RecentFileClippingStrategy.TopToBottom, RecentFileClippingStrategy.AroundEditRange, RecentFileClippingStrategy.Proportional);
+	export const VALIDATOR = vEnum(RecentFileClippingStrategy.AroundEditRange, RecentFileClippingStrategy.Proportional);
 }
 
 export type RecentlyViewedDocumentsOptions = {
@@ -39,7 +37,7 @@ export namespace RecentlyViewedDocumentsOptions {
 		'maxTokens': vNumber(),
 		'includeViewedFiles': vBoolean(),
 		'includeLineNumbers': vEnum(IncludeLineNumbersOption.WithSpaceAfter, IncludeLineNumbersOption.WithoutSpace, IncludeLineNumbersOption.None),
-		'clippingStrategy': vEnum(RecentFileClippingStrategy.TopToBottom, RecentFileClippingStrategy.AroundEditRange, RecentFileClippingStrategy.Proportional),
+		'clippingStrategy': vEnum(RecentFileClippingStrategy.AroundEditRange, RecentFileClippingStrategy.Proportional),
 	});
 }
 
@@ -50,6 +48,22 @@ export type LanguageContextOptions = {
 	readonly maxTokens: number;
 	readonly traitPosition: 'before' | 'after';
 };
+
+/**
+ * Options for including Completions-style neighbor file snippets (Jaccard-ranked)
+ * into the recently_viewed_code_snippets section of the prompt.
+ */
+export type NeighborFilesOptions = {
+	readonly enabled: boolean;
+	readonly maxTokens: number;
+};
+
+export namespace NeighborFilesOptions {
+	export const VALIDATOR: IValidator<Partial<NeighborFilesOptions>> = vObj({
+		'enabled': vBoolean(),
+		'maxTokens': vNumber(),
+	});
+}
 
 export type DiffHistoryOptions = {
 	readonly nEntries: number;
@@ -238,6 +252,7 @@ export type PromptOptions = {
 	readonly pagedClipping: PagedClipping;
 	readonly recentlyViewedDocuments: RecentlyViewedDocumentsOptions;
 	readonly languageContext: LanguageContextOptions;
+	readonly neighborFiles: NeighborFilesOptions;
 	readonly diffHistory: DiffHistoryOptions;
 	readonly includePostScript: boolean;
 	readonly lintOptions: LintOptions | undefined;
@@ -350,6 +365,10 @@ export const DEFAULT_OPTIONS: PromptOptions = {
 		enabled: false,
 		maxTokens: 2000,
 		traitPosition: 'after',
+	},
+	neighborFiles: {
+		enabled: false,
+		maxTokens: 1000,
 	},
 	diffHistory: {
 		nEntries: 25,

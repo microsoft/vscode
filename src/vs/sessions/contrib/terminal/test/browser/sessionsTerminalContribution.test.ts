@@ -50,6 +50,7 @@ function makeAgentSession(opts: {
 	worktree?: URI;
 	providerType?: string;
 	isArchived?: boolean;
+	sessionId?: string;
 }): IActiveSession {
 	const repo = opts.repository || opts.worktree ? {
 		uri: opts.repository ?? opts.worktree!,
@@ -63,6 +64,7 @@ function makeAgentSession(opts: {
 		title: observableValue('test.title', 'Test Session'),
 		updatedAt: observableValue('test.updatedAt', new Date()),
 		status: observableValue('test.status', 0),
+		changesets: observableValue('test.changesets', []),
 		changes: observableValue('test.changes', []),
 		modelId: observableValue('test.modelId', undefined),
 		mode: observableValue('test.mode', undefined),
@@ -72,7 +74,7 @@ function makeAgentSession(opts: {
 		description: observableValue('test.description', undefined),
 	};
 	const session: IActiveSession = {
-		sessionId: 'test:session',
+		sessionId: opts.sessionId ?? 'test:session',
 		resource: chat.resource,
 		providerId: 'test',
 		sessionType: opts.providerType ?? AgentSessionProviders.Local,
@@ -82,6 +84,7 @@ function makeAgentSession(opts: {
 		title: chat.title,
 		updatedAt: chat.updatedAt,
 		status: chat.status,
+		changesets: chat.changesets,
 		changes: chat.changes,
 		modelId: chat.modelId,
 		mode: chat.mode,
@@ -112,6 +115,7 @@ function makeNonAgentSession(opts: { repository?: URI; worktree?: URI; providerT
 		title: observableValue('test.title', 'Test Session'),
 		updatedAt: observableValue('test.updatedAt', new Date()),
 		status: observableValue('test.status', 0),
+		changesets: observableValue('test.changesets', []),
 		changes: observableValue('test.changes', []),
 		modelId: observableValue('test.modelId', undefined),
 		mode: observableValue('test.mode', undefined),
@@ -131,6 +135,7 @@ function makeNonAgentSession(opts: { repository?: URI; worktree?: URI; providerT
 		title: chat.title,
 		updatedAt: chat.updatedAt,
 		status: chat.status,
+		changesets: chat.changesets,
 		changes: chat.changes,
 		modelId: chat.modelId,
 		mode: chat.mode,
@@ -198,6 +203,7 @@ suite('SessionsTerminalContribution', () => {
 	let showBackgroundCalls: number[];
 	let disposeOnCreatePaths: Set<string>;
 	let logService: TestLogService;
+	let allSessions: ISession[];
 
 	setup(() => {
 		createdTerminals = [];
@@ -211,6 +217,7 @@ suite('SessionsTerminalContribution', () => {
 		showBackgroundCalls = [];
 		disposeOnCreatePaths = new Set();
 		logService = new TestLogService();
+		allSessions = [];
 
 		const instantiationService = store.add(new TestInstantiationService());
 
@@ -223,6 +230,7 @@ suite('SessionsTerminalContribution', () => {
 		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 			override activeSession = activeSessionObs;
 			override readonly onDidChangeSessions = onDidChangeSessions.event;
+			override getSessions(): ISession[] { return [...allSessions]; }
 		});
 
 		instantiationService.stub(ITerminalService, new class extends mock<ITerminalService>() {
@@ -551,6 +559,50 @@ suite('SessionsTerminalContribution', () => {
 		await tick();
 
 		assert.strictEqual(disposedInstances.length, 1);
+	});
+
+	test('does not close terminal when another live session still owns the cwd (replace case)', async () => {
+		const worktreeUri = URI.file('/worktree');
+		await contribution.ensureTerminal(worktreeUri, false);
+
+		// Simulate the onDidReplaceSession flow: `from` (untitled) is reported as
+		// removed while `to` (committed) is still live at the same cwd.
+		const fromSession = makeAgentSession({ sessionId: 'test:untitled', worktree: worktreeUri, providerType: AgentSessionProviders.Background });
+		const toSession = makeAgentSession({ sessionId: 'test:committed', worktree: worktreeUri, providerType: AgentSessionProviders.Background });
+		allSessions = [toSession];
+
+		onDidChangeSessions.fire({ added: [], removed: [fromSession], changed: [toSession] });
+		await tick();
+
+		assert.strictEqual(disposedInstances.length, 0, 'terminal should be kept alive for the surviving session');
+	});
+
+	test('does not close terminal when archiving one of two sessions sharing a cwd', async () => {
+		const worktreeUri = URI.file('/worktree');
+		await contribution.ensureTerminal(worktreeUri, false);
+
+		const liveSession = makeAgentSession({ sessionId: 'test:live', worktree: worktreeUri, providerType: AgentSessionProviders.Background });
+		const archivedSession = makeAgentSession({ sessionId: 'test:archived', worktree: worktreeUri, providerType: AgentSessionProviders.Background, isArchived: true });
+		allSessions = [liveSession, archivedSession];
+
+		onDidChangeSessions.fire({ added: [], removed: [], changed: [archivedSession] });
+		await tick();
+
+		assert.strictEqual(disposedInstances.length, 0, 'terminal should be kept for the still-live session');
+	});
+
+	test('closes terminal when the only session at a cwd is removed even if other live sessions exist elsewhere', async () => {
+		const worktreeUri = URI.file('/worktree');
+		await contribution.ensureTerminal(worktreeUri, false);
+
+		const otherLive = makeAgentSession({ sessionId: 'test:other', worktree: URI.file('/other'), providerType: AgentSessionProviders.Background });
+		const removedSession = makeAgentSession({ sessionId: 'test:gone', worktree: worktreeUri, providerType: AgentSessionProviders.Background });
+		allSessions = [otherLive];
+
+		onDidChangeSessions.fire({ added: [], removed: [removedSession], changed: [] });
+		await tick();
+
+		assert.strictEqual(disposedInstances.length, 1, 'no live session owns this cwd, terminal should be closed');
 	});
 
 	// --- switching back to previously used path reuses terminal ---

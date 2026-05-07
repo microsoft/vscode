@@ -12,11 +12,10 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { AgentSession, type IAgentConnection, type IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agentService.js';
-import type { RootAction, SessionAction, TerminalAction } from '../../../../../platform/agentHost/common/state/protocol/action-origin.generated.js';
 import type { ResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { NotificationType } from '../../../../../platform/agentHost/common/state/protocol/notifications.js';
 import { SessionLifecycle, type AgentInfo, type ModelSelection, type RootState, type SessionConfigState, type SessionState } from '../../../../../platform/agentHost/common/state/protocol/state.js';
-import { ActionType, type ActionEnvelope, type INotification } from '../../../../../platform/agentHost/common/state/sessionActions.js';
+import { ActionType, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type INotification } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { SessionStatus as ProtocolSessionStatus, StateComponents } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import type { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -33,6 +32,8 @@ import { ISessionChangeEvent } from '../../../../services/sessions/common/sessio
 import { SessionStatus, COPILOT_CLI_SESSION_TYPE } from '../../../../services/sessions/common/session.js';
 import { RemoteAgentHostSessionsProvider, type IRemoteAgentHostSessionsProviderConfig } from '../../browser/remoteAgentHostSessionsProvider.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
+import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
+import { IGitHubService } from '../../../github/browser/githubService.js';
 
 // ---- Mock connection --------------------------------------------------------
 
@@ -51,7 +52,7 @@ class MockAgentConnection extends mock<IAgentConnection>() {
 	override readonly clientId = 'test-client-1';
 	private readonly _sessions = new Map<string, IAgentSessionMetadata>();
 	public disposedSessions: URI[] = [];
-	public dispatchedActions: { action: RootAction | SessionAction | TerminalAction; clientId: string; clientSeq: number }[] = [];
+	public dispatchedActions: { action: SessionAction | TerminalAction | IRootConfigChangedAction; clientId: string; clientSeq: number }[] = [];
 	public failResolveSessionConfig = false;
 	public resolveSessionConfigResult: ResolveSessionConfigResult = { schema: { type: 'object', properties: {} }, values: { isolation: 'worktree' } };
 
@@ -83,6 +84,13 @@ class MockAgentConnection extends mock<IAgentConnection>() {
 		this._sessions.delete(rawId);
 	}
 
+	public createdSessionUris: URI[] = [];
+	override async createSession(config?: { session?: URI }): Promise<URI> {
+		const uri = config?.session ?? URI.parse('copilotcli:///auto');
+		this.createdSessionUris.push(uri);
+		return uri;
+	}
+
 	override async resolveSessionConfig(): Promise<ResolveSessionConfigResult> {
 		await Promise.resolve();
 		if (this.failResolveSessionConfig) {
@@ -91,11 +99,11 @@ class MockAgentConnection extends mock<IAgentConnection>() {
 		return this.resolveSessionConfigResult;
 	}
 
-	dispatchAction(action: RootAction | SessionAction | TerminalAction, clientId: string, clientSeq: number): void {
+	dispatchAction(action: SessionAction | TerminalAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void {
 		this.dispatchedActions.push({ action, clientId, clientSeq });
 	}
 
-	override dispatch(action: RootAction | SessionAction | TerminalAction): void {
+	override dispatch(action: SessionAction | TerminalAction | IRootConfigChangedAction): void {
 		this.dispatchedActions.push({ action, clientId: this.clientId, clientSeq: this._nextSeq++ });
 	}
 
@@ -203,6 +211,10 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 	instantiationService.stub(ILabelService, {
 		getUriLabel: (uri: URI) => uri.path,
 	});
+	instantiationService.stub(ILogService, new NullLogService());
+	instantiationService.stub(IGitHubService, new class extends mock<IGitHubService>() {
+		override findPullRequestNumberByHeadBranch = async () => undefined;
+	}());
 
 	const config: IRemoteAgentHostSessionsProviderConfig = {
 		address: overrides?.address ?? 'localhost:4321',
@@ -315,6 +327,25 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		const provider = createProvider(disposables, connection, { connectionName: undefined, address: 'myhost:9999' });
 
 		assert.strictEqual(provider.label, 'myhost:9999');
+	});
+
+	test('session type icons use per-agent codicons', () => {
+		connection.setAgents([
+			{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [] } as AgentInfo,
+			{ provider: 'claude-code', displayName: 'Claude', description: '', models: [] } as AgentInfo,
+			{ provider: 'openai', displayName: 'OpenAI', description: '', models: [] } as AgentInfo,
+			{ provider: 'unknown-agent', displayName: 'Unknown', description: '', models: [] } as AgentInfo,
+		]);
+		const provider = createProvider(disposables, connection, { address: '10.0.0.1:8080', connectionName: 'My Host' });
+		assert.deepStrictEqual(
+			provider.sessionTypes.map(t => ({ id: t.id, icon: t.icon.id })),
+			[
+				{ id: COPILOT_CLI_SESSION_TYPE, icon: 'copilot' },
+				{ id: 'claude-code', icon: 'claude' },
+				{ id: 'openai', icon: 'openai' },
+				{ id: 'unknown-agent', icon: 'remote' },
+			],
+		);
 	});
 
 	// ---- Workspace resolution -------

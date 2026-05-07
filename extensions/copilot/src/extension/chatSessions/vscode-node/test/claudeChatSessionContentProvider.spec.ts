@@ -876,7 +876,7 @@ describe('ChatSessionContentProvider', () => {
 			const handleRequestMock = vi.mocked(mockAgentManager.handleRequest);
 			expect(handleRequestMock).toHaveBeenCalledOnce();
 
-			const [sessionId, , , , , isNewSession] = handleRequestMock.mock.calls[0];
+			const [sessionId, , , , isNewSession] = handleRequestMock.mock.calls[0];
 			expect(sessionId).toBe('real-uuid-123');
 			expect(isNewSession).toBe(true);
 		});
@@ -898,7 +898,7 @@ describe('ChatSessionContentProvider', () => {
 			const handleRequestMock = vi.mocked(mockAgentManager.handleRequest);
 			expect(handleRequestMock).toHaveBeenCalledOnce();
 
-			const [sessionId, , , , , isNewSession] = handleRequestMock.mock.calls[0];
+			const [sessionId, , , , isNewSession] = handleRequestMock.mock.calls[0];
 			expect(sessionId).toBe('real-uuid-123');
 			expect(isNewSession).toBe(false);
 		});
@@ -923,7 +923,7 @@ describe('ChatSessionContentProvider', () => {
 			await handler(createTestRequest('second'), secondContext, stream, CancellationToken.None);
 
 			const handleRequestMock = vi.mocked(mockAgentManager.handleRequest);
-			const [, , , , , secondIsNew] = handleRequestMock.mock.calls[1];
+			const [, , , , secondIsNew] = handleRequestMock.mock.calls[1];
 			expect(secondIsNew).toBe(false);
 		});
 	});
@@ -1102,6 +1102,20 @@ describe('ChatSessionContentProvider', () => {
 
 			sessionStateService.setPermissionModeForSession('external-session', 'default');
 			expect(getGroup(state, 'permissionMode')!.selected?.id).toBe('default');
+		});
+
+		it('live permission option changes update session state', async () => {
+			const mocks = createDefaultMocks();
+			const { provider, accessor: localAccessor } = createProviderWithServices(store, [workspaceFolderUri], mocks);
+			const sessionStateService = localAccessor.get(IClaudeSessionStateService);
+			const setPermissionSpy = vi.spyOn(sessionStateService, 'setPermissionModeForSession');
+
+			provider.provideHandleOptionsChange(createClaudeSessionUri('live-session'), [
+				{ optionId: 'permissionMode', value: 'plan' }
+			], CancellationToken.None);
+
+			expect(setPermissionSpy).toHaveBeenCalledWith('live-session', 'plan');
+			expect(sessionStateService.getPermissionModeForSession('live-session')).toBe('plan');
 		});
 
 		it('external permission change syncs into a previousInputState-restored pipeline', async () => {

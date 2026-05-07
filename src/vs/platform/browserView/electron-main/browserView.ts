@@ -11,7 +11,7 @@ import { CancellationToken } from '../../../base/common/cancellation.js';
 import { IBrowserViewBounds, IBrowserViewDevToolsStateEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, IBrowserViewFindInPageResult, IBrowserViewVisibilityEvent, browserViewIsolatedWorldId, browserZoomFactors, browserZoomDefaultIndex, IElementData, IBrowserViewOwner, IBrowserViewOpenOptions } from '../common/browserView.js';
 import { BrowserViewElementInspector } from './browserViewElementInspector.js';
 import { IWindowsMainService } from '../../windows/electron-main/windows.js';
-import { ICodeWindow } from '../../window/electron-main/window.js';
+import { ICodeWindow, LoadReason } from '../../window/electron-main/window.js';
 import { IAuxiliaryWindowsMainService } from '../../auxiliaryWindow/electron-main/auxiliaryWindows.js';
 import { BrowserViewDebugger } from './browserViewDebugger.js';
 import { ILogService } from '../../log/common/log.js';
@@ -123,6 +123,13 @@ export class BrowserView extends Disposable {
 			throw new Error(`Window with ID ${owner.mainWindowId} not found`);
 		}
 		this._register(this._ownerWindow.onDidClose(() => this.dispose()));
+		this._register(this._ownerWindow.onWillLoad((e) => {
+			if (e.reason === LoadReason.LOAD) {
+				this.dispose(); // Dispose when switching workspaces.
+			} else if (e.reason === LoadReason.RELOAD) {
+				this.setVisible(false); // Hide when reloading.
+			}
+		}));
 
 		this._view.setVisible(false);
 		this._ownerWindow.win?.contentView.addChildView(this._view);
@@ -719,8 +726,11 @@ export class BrowserView extends Disposable {
 		// Dispose debugger. This detaches debug sessions first.
 		this.debugger.dispose();
 
-		// Remove from parent window
-		this._currentWindow?.win?.contentView.removeChildView(this._view);
+		// Remove from parent window (guard against already-destroyed window)
+		const currentWin = this._currentWindow?.win;
+		if (currentWin && !currentWin.isDestroyed()) {
+			currentWin.contentView.removeChildView(this._view);
+		}
 
 		// Fire close event BEFORE disposing emitters. This signals the view has been destroyed.
 		this._onDidClose.fire();

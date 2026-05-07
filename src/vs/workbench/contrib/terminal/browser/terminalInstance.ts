@@ -816,14 +816,23 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			() => this._isVisible,
 			() => xterm,
 			async (cols, rows) => {
+				if (this.isDisposed) {
+					return;
+				}
 				xterm.resize(cols, rows);
 				await this._updatePtyDimensions(xterm.raw);
 			},
 			async (cols) => {
+				if (this.isDisposed) {
+					return;
+				}
 				xterm.resize(cols, xterm.raw.rows);
 				await this._updatePtyDimensions(xterm.raw);
 			},
 			async (rows) => {
+				if (this.isDisposed) {
+					return;
+				}
 				xterm.resize(xterm.raw.cols, rows);
 				await this._updatePtyDimensions(xterm.raw);
 			}
@@ -1694,6 +1703,16 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		this._logService.debug('Terminal process exit', 'instanceId', this.instanceId, 'code', this._exitCode, 'processState', this._processManager.processState);
 
+		// Fire onExit BEFORE running any disposition logic (in particular before
+		// `dispose()` below, which fires `onDisposed`). Consumers racing
+		// `onExit` against `onDisposed` (e.g. the chat agent run-in-terminal
+		// execute strategies) need to see the exit code event first so they can
+		// return the captured exit code. Otherwise `onDisposed` wins the race
+		// and the strategy treats the exit as the terminal having been closed
+		// without an exit code, leaving commands like `exit 42` stuck in a
+		// "Running" state.
+		this._onExit.fire(exitCodeOrError);
+
 		// Only trigger wait on exit when the exit was *not* triggered by the
 		// user (via the `workbench.action.terminal.kill` command).
 		const waitOnExit = this.waitOnExit;
@@ -1739,9 +1758,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 			this.dispose(TerminalExitReason.Process);
 		}
-
-		// First onExit to consumers, this can happen after the terminal has already been disposed.
-		this._onExit.fire(exitCodeOrError);
 
 		// Dispose of the onExit event if the terminal will not be reused again
 		if (this.isDisposed) {
@@ -2040,8 +2056,22 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	private async _updatePtyDimensions(rawXterm: XTermTerminal): Promise<void> {
-		const pixelWidth = rawXterm.dimensions?.css.canvas.width;
-		const pixelHeight = rawXterm.dimensions?.css.canvas.height;
+		if (this.isDisposed) {
+			return;
+		}
+		// `rawXterm.dimensions` proxies to xterm.js' RenderService which throws
+		// `Cannot read properties of undefined (reading 'dimensions')` if the
+		// renderer was disposed between scheduling and invocation (debounced or
+		// idle resize callbacks racing with terminal teardown). Guard against
+		// that here so the optional chaining short-circuits to undefined.
+		let pixelWidth: number | undefined;
+		let pixelHeight: number | undefined;
+		try {
+			pixelWidth = rawXterm.dimensions?.css.canvas.width;
+			pixelHeight = rawXterm.dimensions?.css.canvas.height;
+		} catch {
+			// Renderer disposed mid-flight; fall through with undefined dimensions.
+		}
 		const roundedPixelWidth = pixelWidth ? Math.round(pixelWidth) : undefined;
 		const roundedPixelHeight = pixelHeight ? Math.round(pixelHeight) : undefined;
 		await this._processManager.setDimensions(rawXterm.cols, rawXterm.rows, undefined, roundedPixelWidth, roundedPixelHeight);

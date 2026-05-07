@@ -573,6 +573,14 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 			this._activeEditingCommentThread = thread as MainThreadCommentThread<IRange | ICellRange>;
 			controller.activeEditingCommentThread = this._activeEditingCommentThread;
 		}));
+
+		this._register(this._commentService.onResourceHasCommentingRanges(() => {
+			this.registerView();
+		}));
+
+		this._register(this._commentService.onDidUpdateCommentThreads(() => {
+			this.registerView();
+		}));
 	}
 
 	$registerCommentController(handle: number, id: string, label: string, extensionId: string): void {
@@ -582,14 +590,6 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		const provider = new MainThreadCommentController(this._proxy, this._commentService, handle, providerId, id, label, {});
 		this._commentService.registerCommentController(providerId, provider);
 		this._commentControllers.set(handle, provider);
-
-		this._register(this._commentService.onResourceHasCommentingRanges(e => {
-			this.registerView();
-		}));
-
-		this._register(this._commentService.onDidUpdateCommentThreads(e => {
-			this.registerView();
-		}));
 
 		this._commentService.setWorkspaceComments(String(handle), []);
 	}

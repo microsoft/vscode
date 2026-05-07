@@ -28,12 +28,11 @@ function executeEditTest(
 	}
 }
 
-function forInlineAndInlineChatIntent(callback: (strategy: EditTestStrategy, location: 'inline' | 'panel', variant: string | undefined, configurations?: NonExtensionConfiguration[]) => void): void {
-	callback(EditTestStrategy.Inline, 'inline', '', undefined);
-	callback(EditTestStrategy.InlineChatIntent, 'inline', '-InlineChatIntent', [['inlineChat.enableV2', true], ['chat.agent.autoFix', false]]);
+function forInlineChatIntent(callback: (strategy: EditTestStrategy, location: 'inline' | 'panel', variant: string | undefined, configurations?: NonExtensionConfiguration[]) => void): void {
+	callback(EditTestStrategy.InlineChatIntent, 'inline', '-InlineChatIntent', [['chat.agent.autoFix', false]]);
 }
 
-forInlineAndInlineChatIntent((strategy, location, variant, nonExtensionConfigurations) => {
+forInlineChatIntent((strategy, location, variant, nonExtensionConfigurations) => {
 
 	ssuite({ title: `edit${variant}`, location }, () => {
 		stest({ description: 'Context Outline: TypeScript between methods', language: 'typescript', nonExtensionConfigurations }, (testingServiceCollection) => {

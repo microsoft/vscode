@@ -13,7 +13,7 @@ import { ChatAgentVoteDirection, ChatCopyKind, IChatSendRequestOptions, IChatUse
 import { isImageVariableEntry } from '../attachments/chatVariableEntries.js';
 import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../constants.js';
 import { ILanguageModelsService } from '../languageModels.js';
-import { chatSessionResourceToId } from '../model/chatUri.js';
+import { chatSessionResourceToId, getChatSessionType } from '../model/chatUri.js';
 
 type ChatVoteEvent = {
 	direction: 'up' | 'down';
@@ -120,6 +120,9 @@ type ChatEditHunkEvent = {
 	outcome: 'accepted' | 'rejected';
 	lineCount: number;
 	hasRemainingEdits: boolean;
+	requestId: string;
+	modelId: string;
+	modeId: string;
 };
 
 type ChatEditHunkClassification = {
@@ -127,6 +130,9 @@ type ChatEditHunkClassification = {
 	outcome: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The outcome of the edit hunk action.' };
 	lineCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of lines in the relevant change.' };
 	hasRemainingEdits: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether there are remaining edits in the file after this action.' };
+	requestId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the chat request that produced the edit.' };
+	modelId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The AI model used to generate the edit.' };
+	modeId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The chat mode used for the request (e.g. ask, edit, agent).' };
 	owner: 'roblourens';
 	comment: 'Provides insight into the usage of Chat features.';
 };
@@ -224,6 +230,9 @@ export class ChatServiceTelemetry {
 				outcome: action.action.outcome,
 				lineCount: action.action.lineCount,
 				hasRemainingEdits: action.action.hasRemainingEdits,
+				requestId: action.requestId,
+				modelId: action.modelId ?? '',
+				modeId: action.modeId ?? '',
 			});
 		}
 	}
@@ -308,7 +317,7 @@ export class ChatRequestTelemetry {
 			model: this.resolveModelId(this.opts.options?.userSelectedModelId),
 			permissionLevel: this.opts.options?.modeInfo?.kind === ChatModeKind.Ask ? undefined : this.opts.options?.modeInfo?.permissionLevel,
 			chatMode: this.opts.options?.modeInfo?.modeName ?? this.opts.options?.modeInfo?.modeId,
-			sessionType: this.opts.sessionResource.scheme,
+			sessionType: getChatSessionType(this.opts.sessionResource),
 		});
 	}
 

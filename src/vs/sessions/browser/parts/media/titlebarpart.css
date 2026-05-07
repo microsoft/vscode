@@ -63,9 +63,17 @@
 	align-items: center;
 }
 
+.monaco-workbench .part.titlebar > .titlebar-container.sessions-titlebar-container .monaco-toolbar .actions-container {
+	gap: 1px;
+}
+
+.agent-sessions-workbench.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-session-actions-container .monaco-toolbar .actions-container > .action-item.open-in-vscode-titlebar-widget + .action-item {
+	margin-left: 5px;
+}
+
 /* Add spacing between the session action group and the right layout actions. */
 .monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-session-actions-container:not(.has-no-actions) + .titlebar-right-layout-container:not(.has-no-actions) {
-	margin-left: 8px;
+	margin-left: 4px;
 }
 
 /* Toggled action buttons in session actions toolbar */

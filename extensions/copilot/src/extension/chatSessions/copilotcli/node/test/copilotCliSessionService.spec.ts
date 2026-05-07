@@ -424,6 +424,21 @@ describe('CopilotCLISessionService', () => {
 			expect(await service.getSessionTitle(sessionId, CancellationToken.None)).toBe('Staged Session Title');
 			session.dispose();
 		});
+
+		it('keeps an established session list title stable while a new request is pending', async () => {
+			const sessionId = 'stable-while-pending';
+			const sdkSession = new MockCliSdkSession(sessionId, new Date());
+			sdkSession.summary = 'Original Session Title';
+			manager.sessions.set(sessionId, sdkSession);
+
+			const session = await service.getSession({ sessionId, ...sessionOptionsFor(URI.file('/tmp')) }, CancellationToken.None);
+			(session!.object as unknown as { _pendingPrompt: string | undefined })._pendingPrompt = 'Latest in-flight request';
+
+			const sessions = await service.getAllSessions(CancellationToken.None);
+			expect(sessions.find(item => item.id === sessionId)?.label).toBe('Original Session Title');
+
+			session!.dispose();
+		});
 	});
 
 	describe('CopilotCLISessionService.tryGetPartialSesionHistory', () => {

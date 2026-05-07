@@ -5,6 +5,7 @@
 
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { ISharedProcessService } from '../../ipc/electron-browser/services.js';
@@ -89,6 +90,14 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 
 	async listSSHConfigHosts(): Promise<string[]> {
 		return this._mainService.listSSHConfigHosts();
+	}
+
+	async ensureUserSSHConfig(): Promise<URI> {
+		return this._mainService.ensureUserSSHConfig();
+	}
+
+	async listSSHConfigFiles(): Promise<URI[]> {
+		return this._mainService.listSSHConfigFiles();
 	}
 
 	async resolveSSHConfig(host: string): Promise<ISSHResolvedConfig> {
