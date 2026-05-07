@@ -173,13 +173,13 @@ class ChangesButtonBarWidget extends Disposable {
 
 	private _getButtonConfiguration(action: IAction, outgoingChanges: number, reviewState: { isLoading: boolean; commentCount: number | undefined }): { showIcon: boolean; showLabel: boolean; isSecondary?: boolean; customLabel?: string; customClass?: string } | undefined {
 		if (action.id === 'github.copilot.sessions.commit') {
-			return { showIcon: false, showLabel: true, isSecondary: false, customLabel: `$(git-commit) ${action.label}` };
+			return { showIcon: true, showLabel: true, isSecondary: false };
 		}
 		if (action.id === 'github.copilot.sessions.sync') {
 			const customLabel = outgoingChanges > 0
-				? `$(sync) ${action.label} ${outgoingChanges}↑`
-				: `$(sync) ${action.label}`;
-			return { showIcon: false, showLabel: true, isSecondary: false, customLabel };
+				? `${action.label} ${outgoingChanges}↑`
+				: `${action.label}`;
+			return { showIcon: true, showLabel: true, isSecondary: false, customLabel };
 		}
 		if (
 			action.id === 'github.copilot.claude.sessions.sync' ||
@@ -557,7 +557,9 @@ export class ChangesViewPane extends ViewPane {
 		// Loading
 		this.renderDisposables.add(autorun(reader => {
 			const isLoading = this.viewModel.activeSessionIsLoadingObs.read(reader);
-			if (isLoading) {
+			const hasGitOperationInProgress = this.hasGitOperationInProgressObs.read(reader);
+
+			if (isLoading || hasGitOperationInProgress) {
 				this.changesProgressBar.infinite().show(200);
 			} else {
 				this.changesProgressBar.stop().hide();
