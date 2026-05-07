@@ -125,6 +125,7 @@
 		background-color: var(--vscode-inlineChat-background);
 	}
 
+	/* Counteract the -4px margin from .interactive-session .chat-editing-session */
 	.interactive-input-part > .chat-input-notification-container {
 		margin-bottom: 12px;
 	}
