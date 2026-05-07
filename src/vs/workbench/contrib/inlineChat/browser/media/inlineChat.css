@@ -124,6 +124,10 @@
 	.chat-editor-container .interactive-input-editor .monaco-editor .monaco-editor-background {
 		background-color: var(--vscode-inlineChat-background);
 	}
+
+	.interactive-input-part > .chat-input-notification-container {
+		margin-bottom: 12px;
+	}
 }
 
 
