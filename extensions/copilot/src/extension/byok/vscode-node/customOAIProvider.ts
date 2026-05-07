@@ -163,8 +163,8 @@ export abstract class AbstractCustomOAIBYOKModelProvider extends AbstractOpenAIC
 
 export class CustomOAIBYOKModelProvider extends AbstractCustomOAIBYOKModelProvider {
 
-	static readonly providerName: string = 'CustomOAI';
-	private providerName: string = CustomOAIBYOKModelProvider.providerName;
+	public static readonly providerName = 'CustomOAI';
+	public static readonly providerId = this.providerName.toLowerCase();
 
 	constructor(
 		_byokStorageService: IBYOKStorageService,
@@ -175,13 +175,13 @@ export class CustomOAIBYOKModelProvider extends AbstractCustomOAIBYOKModelProvid
 		@IExperimentationService expService: IExperimentationService,
 		@IVSCodeExtensionContext extensionContext: IVSCodeExtensionContext
 	) {
-		super(CustomOAIBYOKModelProvider.providerName.toLowerCase(), CustomOAIBYOKModelProvider.providerName, _byokStorageService, logService, fetcherService, instantiationService, configurationService, expService, extensionContext);
+		super(CustomOAIBYOKModelProvider.providerId, CustomOAIBYOKModelProvider.providerName, _byokStorageService, logService, fetcherService, instantiationService, configurationService, expService, extensionContext);
 		this.migrateExistingConfigs();
 	}
 
 	// TODO: Remove this after 6 months
 	private async migrateExistingConfigs(): Promise<void> {
-		await this.migrateConfig(ConfigKey.Deprecated.CustomOAIModels, this.providerName, this.providerName);
+		await this.migrateConfig(ConfigKey.Deprecated.CustomOAIModels, CustomOAIBYOKModelProvider.providerName, CustomOAIBYOKModelProvider.providerName);
 	}
 
 	protected resolveUrl(modelId: string, url: string): string {

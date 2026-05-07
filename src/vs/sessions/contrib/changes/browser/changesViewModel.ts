@@ -73,6 +73,7 @@ export interface ActiveSessionState {
 	readonly hasGitHubRemote: boolean | undefined;
 	readonly hasPullRequest: boolean | undefined;
 	readonly hasOpenPullRequest: boolean | undefined;
+	readonly hasGitOperationInProgress: boolean | undefined;
 }
 
 export class ChangesViewModel extends Disposable {
@@ -457,6 +458,7 @@ export class ChangesViewModel extends Disposable {
 			const incomingChanges = (sessionMetadata?.incomingChanges as number | undefined) ?? workspaceRepository?.incomingChanges ?? 0;
 			const outgoingChanges = (sessionMetadata?.outgoingChanges as number | undefined) ?? workspaceRepository?.outgoingChanges ?? 0;
 			const uncommittedChanges = (sessionMetadata?.uncommittedChanges as number | undefined) ?? workspaceRepository?.uncommittedChanges ?? 0;
+			const hasGitOperationInProgress = (sessionMetadata?.hasGitOperationInProgress as boolean | undefined) ?? false;
 
 			return {
 				isolationMode,
@@ -470,7 +472,8 @@ export class ChangesViewModel extends Disposable {
 				uncommittedChanges,
 				hasGitHubRemote,
 				hasPullRequest,
-				hasOpenPullRequest
+				hasOpenPullRequest,
+				hasGitOperationInProgress
 			} satisfies ActiveSessionState;
 		});
 
