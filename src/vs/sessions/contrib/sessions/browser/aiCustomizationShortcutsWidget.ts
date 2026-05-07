@@ -19,7 +19,7 @@ import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultS
 import { IMcpService } from '../../../../workbench/contrib/mcp/common/mcpTypes.js';
 import { IAICustomizationItemsModel } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationItemsModel.js';
 import { ICustomizationHarnessService } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
-import { CUSTOMIZATION_ITEMS, SESSIONS_CUSTOMIZATIONS_SIDEBAR_MODE_SETTING, SessionsCustomizationsSidebarMode } from './customizationsToolbar.contribution.js';
+import { CUSTOMIZATION_ITEMS, findHarnessIdForSession, SESSIONS_CUSTOMIZATIONS_SIDEBAR_MODE_SETTING, SessionsCustomizationsSidebarMode } from './customizationsToolbar.contribution.js';
 import { Menus } from '../../../browser/menus.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
@@ -167,9 +167,9 @@ export class AICustomizationShortcutsWidget extends Disposable {
 	}
 
 	private async _openWelcomePage(): Promise<void> {
-		const activeSessionType = this.sessionsManagementService.activeSession.get()?.sessionType;
-		if (activeSessionType && this.harnessService.findHarnessById(activeSessionType)) {
-			this.harnessService.setActiveHarness(activeSessionType);
+		const harnessId = findHarnessIdForSession(this.sessionsManagementService.activeSession.get(), this.harnessService);
+		if (harnessId) {
+			this.harnessService.setActiveHarness(harnessId);
 		}
 
 		const input = AICustomizationManagementEditorInput.getOrCreate();

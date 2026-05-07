@@ -12,6 +12,7 @@ import throttle = require('lodash.throttle');
 import morphdom from 'morphdom';
 import type { MarkdownPreviewLineChanges, ToWebviewMessage } from '../types/previewMessaging';
 import { isOfScheme, Schemes } from '../src/util/schemes';
+import { DiffScrollSyncManager } from './diffScrollSync';
 
 let scrollDisabledCount = 0;
 let scrollDisabledTimer: number | undefined;
@@ -24,6 +25,18 @@ let documentResource = settings.settings.source;
 let lineChanges = settings.settings.lineChanges;
 
 const vscode = acquireVsCodeApi();
+
+const onDiffScroll = (mappedLine: number) => {
+	scrollDisabledCount = 1;
+	if (scrollDisabledTimer) {
+		clearTimeout(scrollDisabledTimer);
+	}
+	scrollDisabledTimer = window.setTimeout(() => { scrollDisabledCount = 0; }, 100);
+	doAfterImagesLoaded(() => scrollToRevealSourceLine(mappedLine, documentVersion, settings));
+};
+const diffScrollSyncManager = settings.settings.diffScrollSync
+	? new DiffScrollSyncManager(settings.settings.diffScrollSync, onDiffScroll)
+	: undefined;
 
 interface State {
 	scrollProgress?: number;
@@ -248,6 +261,9 @@ window.addEventListener('message', async event => {
 
 		case 'updateContent': {
 			lineChanges = data.lineChanges;
+			if (data.diffScrollSync) {
+				diffScrollSyncManager?.update(data.diffScrollSync);
+			}
 			const root = document.querySelector('.markdown-body')!;
 
 			const parser = new DOMParser();
@@ -468,6 +484,7 @@ window.addEventListener('scroll', throttle(() => {
 		state.line = line;
 		vscode.setState(state);
 		messaging.postMessage('revealLine', { line });
+		diffScrollSyncManager?.broadcastScroll(line);
 	}
 }, 50));
 
