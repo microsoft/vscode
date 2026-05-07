@@ -377,7 +377,7 @@ suite('CopilotAgent', () => {
 		assert.strictEqual(getCopilotBranchNameHintFromMessage('  Fix: the bug!! '), 'fix-the-bug');
 		assert.strictEqual(getCopilotBranchNameHintFromMessage('Refactor café ☕ rendering'), 'refactor-cafe-rendering');
 		assert.strictEqual(getCopilotBranchNameHintFromMessage('one two three four five six seven eight nine ten'), 'one-two-three-four-five-six-seven-eight');
-		assert.strictEqual(getCopilotBranchNameHintFromMessage('a'.repeat(100)).length, 48);
+		assert.strictEqual(getCopilotBranchNameHintFromMessage('a'.repeat(100))?.length, 48);
 		assert.strictEqual(getCopilotBranchNameHintFromMessage('!!! ??? ...'), undefined);
 		assert.strictEqual(getCopilotBranchNameHintFromMessage(''), undefined);
 	});
