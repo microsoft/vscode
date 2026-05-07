@@ -370,44 +370,41 @@
 	}
 }
 
-/* Shimmer effect for in-progress session titles when not selected */
+/* Shimmer effect for in-progress session titles when not selected. */
+/* Gated behind @supports because some environments apply */
+/* `-webkit-text-fill-color: transparent` without honoring */
+/* `background-clip: text`, which renders gradient-filled blocks */
+/* instead of clipped text. Also disabled under reduced motion. */
 
-.monaco-list-row:not(.selected) .session-item.in-progress .session-title {
-	background: linear-gradient(
-		90deg,
-		var(--vscode-strongForeground) 0%,
-		var(--vscode-strongForeground) 30%,
-		var(--vscode-chat-thinkingShimmer) 50%,
-		var(--vscode-strongForeground) 70%,
-		var(--vscode-strongForeground) 100%
-	);
-	background-size: 400% 100%;
-	background-clip: text;
-	-webkit-background-clip: text;
-	-webkit-text-fill-color: transparent;
-	animation: session-title-shimmer 3s linear infinite;
-}
+@supports ((background-clip: text) or (-webkit-background-clip: text)) {
+	@media not (prefers-reduced-motion: reduce) {
+		.monaco-list-row:not(.selected) .session-item.in-progress .session-title {
+			background: linear-gradient(
+				90deg,
+				var(--vscode-strongForeground) 0%,
+				var(--vscode-strongForeground) 30%,
+				var(--vscode-chat-thinkingShimmer) 50%,
+				var(--vscode-strongForeground) 70%,
+				var(--vscode-strongForeground) 100%
+			);
+			background-size: 400% 100%;
+			background-clip: text;
+			-webkit-background-clip: text;
+			-webkit-text-fill-color: transparent;
+			animation: session-title-shimmer 3s linear infinite;
+		}
 
-.vs-dark .monaco-list-row:not(.selected) .session-item.in-progress .session-title,
-.hc-black .monaco-list-row:not(.selected) .session-item.in-progress .session-title {
-	background-image: linear-gradient(
-		90deg,
-		var(--vscode-strongForeground) 0%,
-		var(--vscode-strongForeground) 30%,
-		var(--vscode-descriptionForeground) 50%,
-		var(--vscode-strongForeground) 70%,
-		var(--vscode-strongForeground) 100%
-	);
-}
-
-@media (prefers-reduced-motion: reduce) {
-	.monaco-list-row:not(.selected) .session-item.in-progress .session-title {
-		animation: none;
-		background: none;
-		background-clip: border-box;
-		-webkit-background-clip: border-box;
-		color: var(--vscode-strongForeground);
-		-webkit-text-fill-color: var(--vscode-strongForeground);
+		.vs-dark .monaco-list-row:not(.selected) .session-item.in-progress .session-title,
+		.hc-black .monaco-list-row:not(.selected) .session-item.in-progress .session-title {
+			background-image: linear-gradient(
+				90deg,
+				var(--vscode-strongForeground) 0%,
+				var(--vscode-strongForeground) 30%,
+				var(--vscode-descriptionForeground) 50%,
+				var(--vscode-strongForeground) 70%,
+				var(--vscode-strongForeground) 100%
+			);
+		}
 	}
 }
 
