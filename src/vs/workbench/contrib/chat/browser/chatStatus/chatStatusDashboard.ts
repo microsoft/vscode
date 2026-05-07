@@ -52,6 +52,21 @@ interface ISettingsAccessor {
 	readSetting: () => boolean;
 	writeSetting: (value: boolean) => Promise<void>;
 }
+
+interface IQuotaIndicator {
+	readonly quotaBit: HTMLElement;
+	readonly quotaValue: HTMLElement;
+	readonly quotaValueSuffix: HTMLElement;
+	currentQuota: IQuotaSnapshot | string;
+	isHovered: boolean;
+}
+
+interface IGlobalQuotaCallout {
+	readonly calloutIcon: HTMLElement;
+	readonly calloutText: HTMLElement;
+	readonly quotaCallout: HTMLElement;
+}
+
 type ChatSettingChangedClassification = {
 	owner: 'bpasero';
 	comment: 'Provides insight into chat settings changed from the chat status entry.';
@@ -193,11 +208,11 @@ export class ChatStatusDashboard extends DomWidget {
 		}
 
 		// Always trigger a fresh quota fetch when the dashboard opens
-		const updatePromise = this.chatEntitlementService.update(token);
+		void this.chatEntitlementService.update(token);
 
 		// Usage section — always shown inline
 		if (hasVisibleUsageContent) {
-			this.renderUsageContent(this.element, token, headerAdditionalSpendButton, updatePromise);
+			this.renderUsageContent(this.element, headerAdditionalSpendButton);
 		}
 
 		// Premium chat included indicator (shown when premium chat is unlimited)
@@ -226,62 +241,58 @@ export class ChatStatusDashboard extends DomWidget {
 		this.renderSetupSection();
 	}
 
-	private renderUsageContent(container: HTMLElement, token: CancellationToken, headerAdditionalSpendButton: Button | undefined, updatePromise: Promise<void>): void {
+	private renderUsageContent(container: HTMLElement, headerAdditionalSpendButton: Button | undefined): void {
 		const { chat: chatQuota, completions: completionsQuota, premiumChat: premiumChatQuota, resetDate, resetDateHasTime } = this.chatEntitlementService.quotas;
 
 		if (chatQuota || premiumChatQuota || completionsQuota) {
+			const usageDisposables = this._store.add(new DisposableStore());
 			const resetLabel = resetDate ? (resetDateHasTime ? localize('quotaResetsAt', "Resets {0} at {1}", this.dateFormatter.value.format(new Date(resetDate)), this.timeFormatter.value.format(new Date(resetDate))) : localize('quotaResets', "Resets {0}", this.dateFormatter.value.format(new Date(resetDate)))) : undefined;
 
 			// Global quota callout (shown at the top, before quota indicators)
-			const globalCalloutUpdater = this.createGlobalQuotaCallout(container);
-			const { calloutVisible: initialCalloutVisible } = globalCalloutUpdater();
+			const globalQuotaCallout = this.createGlobalQuotaCallout(container);
+			const { calloutVisible: initialCalloutVisible } = this.updateGlobalQuotaCallout(globalQuotaCallout);
 
 			// Update header additional spend button visibility based on callout
 			if (headerAdditionalSpendButton) {
 				headerAdditionalSpendButton.element.style.display = initialCalloutVisible ? '' : 'none';
 			}
 
-			let chatQuotaIndicator: ((quota: IQuotaSnapshot | string) => void) | undefined;
+			let chatQuotaIndicator: IQuotaIndicator | undefined;
 			if (chatQuota && !chatQuota.unlimited && !this.chatEntitlementService.quotas.usageBasedBilling) {
-				chatQuotaIndicator = this.createQuotaIndicator(container, chatQuota, localize('chatsLabel', "Chat messages"), resetLabel);
+				chatQuotaIndicator = this.createQuotaIndicator(container, usageDisposables, chatQuota, localize('chatsLabel', "Chat messages"), resetLabel);
 			}
 
-			let premiumChatQuotaIndicator: ((quota: IQuotaSnapshot | string) => void) | undefined;
+			let premiumChatQuotaIndicator: IQuotaIndicator | undefined;
 			if (premiumChatQuota && !premiumChatQuota.unlimited && premiumChatQuota.percentRemaining >= 0) {
 				const isUBB = this.chatEntitlementService.quotas.usageBasedBilling;
 				const premiumChatLabel = isUBB
 					? localize('monthlyLimitLabel', "Monthly Limit")
 					: this.chatEntitlementService.quotas.additionalUsageEnabled ? localize('includedPremiumChatsLabel', "Included premium requests") : localize('premiumChatsLabel', "Premium requests");
 				const premiumChatResetLabel = isUBB ? this.formatResetAtLabel(premiumChatQuota.resetAt) ?? resetLabel : resetLabel;
-				premiumChatQuotaIndicator = this.createQuotaIndicator(container, premiumChatQuota, premiumChatLabel, premiumChatResetLabel);
+				premiumChatQuotaIndicator = this.createQuotaIndicator(container, usageDisposables, premiumChatQuota, premiumChatLabel, premiumChatResetLabel);
 			}
 
-			let completionsQuotaIndicator: ((quota: IQuotaSnapshot | string) => void) | undefined;
+			let completionsQuotaIndicator: IQuotaIndicator | undefined;
 			const showCompletions = completionsQuota && !completionsQuota.unlimited && completionsQuota.percentRemaining >= 0
 				&& (!this.chatEntitlementService.quotas.usageBasedBilling || this.chatEntitlementService.entitlement === ChatEntitlement.Free);
 			if (showCompletions) {
-				completionsQuotaIndicator = this.createQuotaIndicator(container, completionsQuota, localize('completionsLabel', "Inline Suggestions"), resetLabel);
+				completionsQuotaIndicator = this.createQuotaIndicator(container, usageDisposables, completionsQuota, localize('completionsLabel', "Inline Suggestions"), resetLabel);
 			}
 
 			// Global quota callout and header button are updated in the async block below
 
-			(async () => {
-				await updatePromise;
-				if (token.isCancellationRequested) {
-					return;
+			const updateUsageContent = () => {
+				const { chat: updatedChatQuota, premiumChat: updatedPremiumChatQuota, completions: updatedCompletionsQuota } = this.chatEntitlementService.quotas;
+				if (updatedChatQuota && chatQuotaIndicator) {
+					this.updateQuotaIndicator(chatQuotaIndicator, updatedChatQuota);
 				}
-
-				const { chat: chatQuota, premiumChat: premiumChatQuota, completions: completionsQuota } = this.chatEntitlementService.quotas;
-				if (chatQuota) {
-					chatQuotaIndicator?.(chatQuota);
+				if (updatedPremiumChatQuota && premiumChatQuotaIndicator) {
+					this.updateQuotaIndicator(premiumChatQuotaIndicator, updatedPremiumChatQuota);
 				}
-				if (premiumChatQuota) {
-					premiumChatQuotaIndicator?.(premiumChatQuota);
+				if (updatedCompletionsQuota && completionsQuotaIndicator) {
+					this.updateQuotaIndicator(completionsQuotaIndicator, updatedCompletionsQuota);
 				}
-				if (completionsQuota) {
-					completionsQuotaIndicator?.(completionsQuota);
-				}
-				const { calloutVisible, additionalUsageEnabled: isAdditionalUsageEnabled } = globalCalloutUpdater();
+				const { calloutVisible, additionalUsageEnabled: isAdditionalUsageEnabled } = this.updateGlobalQuotaCallout(globalQuotaCallout);
 				if (headerAdditionalSpendButton) {
 					headerAdditionalSpendButton.element.style.display = calloutVisible ? '' : 'none';
 					const isUBB = this.chatEntitlementService.quotas.usageBasedBilling === true;
@@ -291,12 +302,16 @@ export class ChatStatusDashboard extends DomWidget {
 						headerAdditionalSpendButton.label = isAdditionalUsageEnabled ? localize('manageBudget', "Manage Budget") : localize('configureBudget', "Configure Budget");
 					}
 				}
-			})();
+			};
+
+			usageDisposables.add(this.chatEntitlementService.onDidChangeQuotaExceeded(updateUsageContent));
+			usageDisposables.add(this.chatEntitlementService.onDidChangeQuotaRemaining(updateUsageContent));
+			usageDisposables.add(this.chatEntitlementService.onDidChangeEntitlement(updateUsageContent));
 		}
 
 		// Anonymous Indicator
 		else if (this.chatEntitlementService.anonymous && this.chatEntitlementService.sentiment.completed) {
-			this.createQuotaIndicator(container, localize('quotaLimited', "Limited"), localize('chatsLabel', "Chat messages"));
+			this.createQuotaIndicator(container, this._store, localize('quotaLimited', "Limited"), localize('chatsLabel', "Chat messages"));
 		}
 	}
 
@@ -674,7 +689,7 @@ export class ChatStatusDashboard extends DomWidget {
 		return localize('quotaResetsAt', "Resets {0} at {1}", this.dateFormatter.value.format(resetDate), this.timeFormatter.value.format(resetDate));
 	}
 
-	private createQuotaIndicator(container: HTMLElement, quota: IQuotaSnapshot | string, label: string, resetLabel?: string): (quota: IQuotaSnapshot | string) => void {
+	private createQuotaIndicator(container: HTMLElement, store: DisposableStore, quota: IQuotaSnapshot | string, label: string, resetLabel?: string): IQuotaIndicator {
 		const quotaValue = $('span.quota-value');
 		const quotaValueSuffix = $('span.quota-value-suffix');
 		const quotaBit = $('div.quota-bit');
@@ -701,66 +716,82 @@ export class ChatStatusDashboard extends DomWidget {
 			)
 		));
 
-		let currentQuota: IQuotaSnapshot | string = quota;
-		let isHovered = false;
-
-		const showPercentage = () => {
-			if (typeof currentQuota === 'string') {
-				quotaValue.textContent = currentQuota;
-				quotaValueSuffix.textContent = '';
-			} else {
-				const usedPercentage = Math.max(0, 100 - currentQuota.percentRemaining);
-				quotaValue.textContent = localize('quotaDisplay', "{0}%", this.quotaPercentageFormatter.value.format(Math.floor(usedPercentage)));
-				quotaValueSuffix.textContent = ` ${localize('quotaUsed', "used")}`;
-			}
+		const indicator: IQuotaIndicator = {
+			quotaBit,
+			quotaValue,
+			quotaValueSuffix,
+			currentQuota: quota,
+			isHovered: false,
 		};
 
-		const showCredits = () => {
-			if (typeof currentQuota !== 'string' && currentQuota.entitlement) {
-				const total = currentQuota.entitlement;
-				const used = total * (100 - currentQuota.percentRemaining) / 100;
-				const usedFormatted = this.quotaCreditsFormatter.value.format(used);
-				const totalFormatted = this.quotaCreditsFormatter.value.format(total);
-				quotaValue.textContent = localize('quotaCreditsDisplay', "{0} / {1}", usedFormatted, totalFormatted);
-				quotaValueSuffix.textContent = ` ${localize('quotaUsed', "used")}`;
-			}
-		};
+		store.add(addDisposableListener(quotaPercentage, EventType.MOUSE_ENTER, () => {
+			indicator.isHovered = true;
+			this.renderQuotaIndicatorValue(indicator);
+		}));
+		store.add(addDisposableListener(quotaPercentage, EventType.MOUSE_LEAVE, () => {
+			indicator.isHovered = false;
+			this.renderQuotaIndicatorValue(indicator);
+		}));
+		store.add(addDisposableListener(quotaPercentage, EventType.FOCUS, () => {
+			indicator.isHovered = true;
+			this.renderQuotaIndicatorValue(indicator);
+		}));
+		store.add(addDisposableListener(quotaPercentage, EventType.BLUR, () => {
+			indicator.isHovered = false;
+			this.renderQuotaIndicatorValue(indicator);
+		}));
 
-		this._store.add(addDisposableListener(quotaPercentage, EventType.MOUSE_ENTER, () => { isHovered = true; showCredits(); }));
-		this._store.add(addDisposableListener(quotaPercentage, EventType.MOUSE_LEAVE, () => { isHovered = false; showPercentage(); }));
-		this._store.add(addDisposableListener(quotaPercentage, EventType.FOCUS, () => { isHovered = true; showCredits(); }));
-		this._store.add(addDisposableListener(quotaPercentage, EventType.BLUR, () => { isHovered = false; showPercentage(); }));
+		this.updateQuotaIndicator(indicator, quota);
 
-		const update = (quota: IQuotaSnapshot | string) => {
-			currentQuota = quota;
-
-			let usedPercentage: number;
-			if (typeof quota === 'string') {
-				usedPercentage = 0;
-			} else {
-				usedPercentage = Math.max(0, 100 - quota.percentRemaining);
-			}
-
-			if (isHovered) {
-				showCredits();
-			} else {
-				showPercentage();
-			}
-			quotaBit.style.width = `${usedPercentage}%`;
-		};
-
-		update(quota);
-
-		return update;
+		return indicator;
 	}
 
-	private createGlobalQuotaCallout(container: HTMLElement): () => { calloutVisible: boolean; additionalUsageEnabled: boolean } {
+	private renderQuotaIndicatorValue(indicator: IQuotaIndicator): void {
+		if (indicator.isHovered && typeof indicator.currentQuota !== 'string' && indicator.currentQuota.entitlement) {
+			const total = indicator.currentQuota.entitlement;
+			const used = total * (100 - indicator.currentQuota.percentRemaining) / 100;
+			const usedFormatted = this.quotaCreditsFormatter.value.format(used);
+			const totalFormatted = this.quotaCreditsFormatter.value.format(total);
+			indicator.quotaValue.textContent = localize('quotaCreditsDisplay', "{0} / {1}", usedFormatted, totalFormatted);
+			indicator.quotaValueSuffix.textContent = ` ${localize('quotaUsed', "used")}`;
+			return;
+		}
+
+		if (typeof indicator.currentQuota === 'string') {
+			indicator.quotaValue.textContent = indicator.currentQuota;
+			indicator.quotaValueSuffix.textContent = '';
+			return;
+		}
+
+		const usedPercentage = Math.max(0, 100 - indicator.currentQuota.percentRemaining);
+		indicator.quotaValue.textContent = localize('quotaDisplay', "{0}%", this.quotaPercentageFormatter.value.format(Math.floor(usedPercentage)));
+		indicator.quotaValueSuffix.textContent = ` ${localize('quotaUsed', "used")}`;
+	}
+
+	private updateQuotaIndicator(indicator: IQuotaIndicator, quota: IQuotaSnapshot | string): void {
+		indicator.currentQuota = quota;
+
+		let usedPercentage: number;
+		if (typeof quota === 'string') {
+			usedPercentage = 0;
+		} else {
+			usedPercentage = Math.max(0, 100 - quota.percentRemaining);
+		}
+
+		this.renderQuotaIndicatorValue(indicator);
+		indicator.quotaBit.style.width = `${usedPercentage}%`;
+	}
+
+	private createGlobalQuotaCallout(container: HTMLElement): IGlobalQuotaCallout {
 		const calloutIcon = $('span.callout-icon');
 		const calloutText = $('span.callout-text');
 		const quotaCallout = container.appendChild($('div.quota-callout', undefined, calloutIcon, calloutText));
 		quotaCallout.style.display = 'none';
 
-		const update = () => {
+		return { calloutIcon, calloutText, quotaCallout };
+	}
+
+	private updateGlobalQuotaCallout(callout: IGlobalQuotaCallout): { calloutVisible: boolean; additionalUsageEnabled: boolean } {
 			const quotas = this.chatEntitlementService.quotas;
 			const additionalUsageEnabled = quotas.additionalUsageEnabled ?? false;
 			const additionalUsageActive = additionalUsageEnabled && (quotas.additionalUsageCount ?? 0) > 0;
@@ -775,43 +806,38 @@ export class ChatStatusDashboard extends DomWidget {
 			const maxUsedPercentage = allQuotas.length > 0 ? Math.max(...allQuotas.map(q => Math.max(0, 100 - q.percentRemaining))) : 0;
 
 			if (maxUsedPercentage >= 100 && additionalUsageActive) {
-				quotaCallout.style.display = '';
-				quotaCallout.className = 'quota-callout info';
-				calloutIcon.className = `callout-icon ${ThemeIcon.asClassName(Codicon.info)}`;
-				calloutText.textContent = isUsageBasedBilling
+				callout.quotaCallout.style.display = '';
+				callout.quotaCallout.className = 'quota-callout info';
+				callout.calloutIcon.className = `callout-icon ${ThemeIcon.asClassName(Codicon.info)}`;
+				callout.calloutText.textContent = isUsageBasedBilling
 					? localize('quotaAdditionalUsageActive', "Additional spend is configured. Usage will continue until limits reset.")
 					: localize('quotaBudgetActive', "Premium request budget is configured. Usage will continue until limits reset.");
 			} else if (maxUsedPercentage >= 75 && maxUsedPercentage < 100 && additionalUsageEnabled) {
-				quotaCallout.style.display = '';
-				quotaCallout.className = 'quota-callout info';
-				calloutIcon.className = `callout-icon ${ThemeIcon.asClassName(Codicon.info)}`;
-				calloutText.textContent = isUsageBasedBilling
+				callout.quotaCallout.style.display = '';
+				callout.quotaCallout.className = 'quota-callout info';
+				callout.calloutIcon.className = `callout-icon ${ThemeIcon.asClassName(Codicon.info)}`;
+				callout.calloutText.textContent = isUsageBasedBilling
 					? localize('quotaAdditionalUsageApproaching', "Once the limit is reached, additional spend will be used.")
 					: localize('quotaBudgetApproaching', "Once the limit is reached, premium request budget will be used.");
 			} else if (maxUsedPercentage >= 100 && !additionalUsageActive) {
-				quotaCallout.style.display = '';
-				quotaCallout.className = 'quota-callout info';
-				calloutIcon.className = `callout-icon ${ThemeIcon.asClassName(Codicon.info)}`;
-				calloutText.textContent = isEnterpriseUser
+				callout.quotaCallout.style.display = '';
+				callout.quotaCallout.className = 'quota-callout info';
+				callout.calloutIcon.className = `callout-icon ${ThemeIcon.asClassName(Codicon.info)}`;
+				callout.calloutText.textContent = isEnterpriseUser
 					? localize('quotaPausedEnterprise', "Copilot is paused until the limit resets. Contact your administrator for more information.")
 					: localize('quotaPaused', "Copilot is paused until the limit resets.");
 			} else if (maxUsedPercentage >= 75 && !additionalUsageEnabled) {
-				quotaCallout.style.display = '';
-				quotaCallout.className = 'quota-callout info';
-				calloutIcon.className = `callout-icon ${ThemeIcon.asClassName(Codicon.info)}`;
-				calloutText.textContent = isEnterpriseUser
+				callout.quotaCallout.style.display = '';
+				callout.quotaCallout.className = 'quota-callout info';
+				callout.calloutIcon.className = `callout-icon ${ThemeIcon.asClassName(Codicon.info)}`;
+				callout.calloutText.textContent = isEnterpriseUser
 					? localize('quotaWarningEnterprise', "Copilot will pause when the limit is reached. Contact your administrator for more information.")
 					: localize('quotaWarning', "Copilot will pause when the limit is reached.");
 			} else {
-				quotaCallout.style.display = 'none';
+				callout.quotaCallout.style.display = 'none';
 			}
 
-			return { calloutVisible: quotaCallout.style.display !== 'none', additionalUsageEnabled };
-		};
-
-		update();
-
-		return update;
+			return { calloutVisible: callout.quotaCallout.style.display !== 'none', additionalUsageEnabled };
 	}
 
 	private createSettings(container: HTMLElement): void {
