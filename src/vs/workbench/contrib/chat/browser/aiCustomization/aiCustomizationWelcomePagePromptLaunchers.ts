@@ -108,7 +108,7 @@ export class PromptLaunchersAICustomizationWelcomePage extends Disposable implem
 
 		// Re-scan whenever the wrapper changes size so the scrollbar reflects
 		// the current overflow state. rebuildCards() scans after content changes.
-		const resizeObserver = this._register(new DOM.DisposableResizeObserver(() => this.scrollable.scanDomNode()));
+		const resizeObserver = this._register(new DOM.DisposableResizeObserver('AICustomizationWelcomePagePromptLaunchers.scrollable', () => this.scrollable.scanDomNode()));
 		this._register(resizeObserver.observe(scrollableNode));
 
 		const welcomeInner = DOM.append(this.container, $('.welcome-prompts-inner'));

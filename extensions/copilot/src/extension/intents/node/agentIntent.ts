@@ -154,6 +154,9 @@ export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.
 	const skillToolEnabled = configurationService.getExperimentBasedConfig(ConfigKey.Advanced.SkillToolEnabled, experimentationService);
 	allowTools[ToolName.Skill] = skillToolEnabled;
 
+	const getSCMChangesEnabled = configurationService.getExperimentBasedConfig(ConfigKey.Advanced.GetChangedFilesToolEnabled, experimentationService);
+	allowTools[ToolName.GetScmChanges] = getSCMChangesEnabled;
+
 	allowTools[ToolName.SessionStoreSql] = true;
 
 	allowTools[CUSTOM_TOOL_SEARCH_NAME] = !!model.supportsToolSearch;
@@ -505,9 +508,15 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 			throw new Error(`Setting github.copilot.${ConfigKey.Advanced.SummarizeAgentConversationHistoryThreshold.id} is too low`);
 		}
 
+		// Apply context size override if configured by the user in the model picker
+		const configuredContextSize = this.request.modelConfiguration?.contextSize;
+		const effectiveMaxTokens = typeof configuredContextSize === 'number' && configuredContextSize < this.endpoint.modelMaxPromptTokens
+			? configuredContextSize
+			: this.endpoint.modelMaxPromptTokens;
+
 		const baseBudget = Math.min(
-			this.configurationService.getConfig<number | undefined>(ConfigKey.Advanced.SummarizeAgentConversationHistoryThreshold) ?? this.endpoint.modelMaxPromptTokens,
-			this.endpoint.modelMaxPromptTokens
+			this.configurationService.getConfig<number | undefined>(ConfigKey.Advanced.SummarizeAgentConversationHistoryThreshold) ?? effectiveMaxTokens,
+			effectiveMaxTokens
 		);
 		const useTruncation = this.endpoint.apiType === 'responses' && this.configurationService.getConfig(ConfigKey.Advanced.UseResponsesApiTruncation);
 		const responsesCompactionContextManagementEnabled = isResponsesCompactionContextManagementEnabled(this.endpoint, this.configurationService, this.expService);
@@ -959,6 +968,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 					modelCapabilities,
 					telemetryProperties: associatedRequestId ? { associatedRequestId } : undefined,
 					enableRetryOnFilter: true,
+					interactionTypeOverride: 'conversation-compaction',
 				}, bgToken);
 				if (response.type !== ChatFetchResponseType.Success) {
 					throw new Error(`Background summarization request failed: ${response.type}`);

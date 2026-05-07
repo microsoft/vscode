@@ -36,7 +36,22 @@ jobs:
         with:
           node-version-file: .nvmrc
 
+      - name: Prepare node_modules cache key
+        run: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.ts compile $(node -p process.arch) > .build/packagelockhash
+
+      - name: Restore node_modules cache
+        id: cache-node-modules
+        uses: actions/cache@v5
+        with:
+          path: .build/node_modules_cache
+          key: "node_modules-compile-${{ hashFiles('.build/packagelockhash') }}"
+
+      - name: Extract node_modules cache
+        if: steps.cache-node-modules.outputs.cache-hit == 'true'
+        run: tar -xzf .build/node_modules_cache/cache.tgz
+
       - name: Install dependencies
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
         run: npm ci --ignore-scripts
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
@@ -44,12 +59,22 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install build dependencies
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
         run: npm ci
         working-directory: build
 
       - name: Install rspack dependencies
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
         run: npm ci
         working-directory: build/rspack
+
+      - name: Create node_modules archive
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: |
+          set -e
+          node build/azure-pipelines/common/listNodeModules.ts .build/node_modules_list.txt
+          mkdir -p .build/node_modules_cache
+          tar -czf .build/node_modules_cache/cache.tgz --files-from .build/node_modules_list.txt
 
       - name: Copy codicons
         run: cp node_modules/@vscode/codicons/dist/codicon.ttf src/vs/base/browser/ui/codicons/codicon/codicon.ttf
@@ -328,11 +353,11 @@ jobs:
           diff -u test/componentFixtures/blocks-ci-screenshots.md /tmp/blocks-ci-updated.md || true
           exit 1
 
-      # - name: Fail if fixtures had errors
-      #   if: always() && steps.fixture_errors.outputs.has_errors == 'true'
-      #   run: |
-      #     echo "::error::One or more component fixtures failed to render. See the 'Check fixture errors' step for details."
-      #     exit 1
+      - name: Fail if fixtures had errors
+        if: always() && steps.fixture_errors.outputs.has_errors == 'true'
+        run: |
+          echo "::error::One or more component fixtures failed to render. See the 'Check fixture errors' step for details."
+          exit 1
 
 
       # - name: Prepare explorer artifact

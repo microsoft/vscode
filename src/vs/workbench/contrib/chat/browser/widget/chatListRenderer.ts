@@ -636,7 +636,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}
 		}));
 
-		const resizeObserver = templateDisposables.add(new dom.DisposableResizeObserver((entries) => {
+		const resizeObserver = templateDisposables.add(new dom.DisposableResizeObserver('ChatListItemRenderer.itemHeight', (entries) => {
 			const entry = entries[0];
 			if (entry) {
 				this.fireItemHeightChange(template, entry.borderBoxSize.at(0)?.blockSize);

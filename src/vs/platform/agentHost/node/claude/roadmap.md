@@ -339,7 +339,11 @@ Phase 4, (b) the deferred-concerns map for later phases, and (c) the one
 remaining open question (byte-equivalence) with a concrete plan to close it
 in Phase 4. No throw-away code committed.
 
-### Phase 4 — `ClaudeAgent` skeleton implementing `IAgent`
+### Phase 4 — `ClaudeAgent` skeleton implementing `IAgent` ✅ **DONE**
+
+Landed in [#313780](https://github.com/microsoft/vscode/pull/313780)
+(commit `7211c0f3746`). Live-system smoke completed 2026-05-01 — see
+[phase4-plan.md](./phase4-plan.md) §7.8.
 
 > **Implementation contract: [phase4-plan.md](./phase4-plan.md).** That file
 > is the source of truth for the Phase 4 PR — code skeleton, registration

@@ -80,7 +80,7 @@ export class ChatCompositeBar extends Disposable {
 		}));
 
 		// Scroll active tab into view on resize
-		const resizeObserver = this._register(new DisposableResizeObserver(() => this._revealActiveTab()));
+		const resizeObserver = this._register(new DisposableResizeObserver('ChatCompositeBar.activeTabReveal', () => this._revealActiveTab()));
 		this._register(resizeObserver.observe(this._tabsContainer));
 
 

@@ -138,6 +138,11 @@ const AGENT_HOST_SKILL_BUTTONS: readonly IAgentHostSkillButtonSpec[] = [
 			ActiveSessionContextKeys.HasGitHubRemote,
 			ActiveSessionContextKeys.HasPullRequest,
 			ActiveSessionContextKeys.HasOpenPullRequest,
+			ContextKeyExpr.or(
+				ActiveSessionContextKeys.HasIncomingChanges,
+				ActiveSessionContextKeys.HasOutgoingChanges,
+				ActiveSessionContextKeys.HasUncommittedChanges,
+			),
 		),
 	},
 ];

@@ -397,7 +397,7 @@ function renderInlineChatZoneWidget({ container, disposableStore, theme }: Compo
 
 	zoneWidget.show(new Position(10, 1));
 
-	const dummyModel = instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.EditorInline, canUseTools: false });
+	const dummyModel = disposableStore.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.EditorInline, canUseTools: false }));
 	zoneWidget.widget.chatWidget.setModel(dummyModel);
 	zoneWidget.widget.chatWidget.setInputPlaceholder('Ask Copilot...');
 
