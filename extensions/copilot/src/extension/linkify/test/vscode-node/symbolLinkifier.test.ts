@@ -5,19 +5,36 @@
 
 import assert from 'assert';
 import * as vscode from 'vscode';
-import { suite, test } from 'vitest';
 import { NullEnvService } from '../../../../platform/env/common/nullEnvService';
 import { IParserService } from '../../../../platform/parser/node/parserService';
+import { IWorkspaceService } from '../../../../platform/workspace/common/workspaceService';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
+import { URI } from '../../../../util/vs/base/common/uri';
 import { LinkifySymbolAnchor } from '../../common/linkifiedText';
 import { ILinkifyService, LinkifyService } from '../../common/linkifyService';
 import { SymbolLinkifier } from '../../vscode-node/symbolLinkifier';
 import { assertPartsEqual, createMockFsService, createMockWorkspaceService, linkify, workspaceFile } from '../node/util';
-import { asParserService, setExecuteCommand, setWorkspaceFileContents, symbol, TestParserService } from './util';
+import { asParserService, createTestFile, symbol, TestParserService } from './util';
 
-function createTestLinkifierService(listOfFiles: readonly string[], parserService: IParserService = asParserService(new TestParserService())): ILinkifyService {
-	const fs = createMockFsService(listOfFiles);
-	const workspaceService = createMockWorkspaceService();
+function createWorkspaceService(workspace: URI): IWorkspaceService {
+	return new class implements Partial<IWorkspaceService> {
+		getWorkspaceFolders(): URI[] {
+			return [workspace];
+		}
+
+		getWorkspaceFolder(): URI | undefined {
+			return workspace;
+		}
+
+		getWorkspaceFolderName(): string {
+			return 'workspace';
+		}
+	} as unknown as IWorkspaceService;
+}
+
+function createTestLinkifierService(listOfFiles: readonly string[], parserService: IParserService = asParserService(new TestParserService()), workspace?: URI): ILinkifyService {
+	const fs = createMockFsService(workspace ? listOfFiles.map(file => URI.joinPath(workspace, file)) : listOfFiles);
+	const workspaceService = workspace ? createWorkspaceService(workspace) : createMockWorkspaceService();
 	const linkifier = new LinkifyService(fs, workspaceService, NullEnvService.Instance);
 	linkifier.registerGlobalLinkifier({ create: () => new SymbolLinkifier(fs, parserService, workspaceService) });
 	return linkifier;
@@ -152,14 +169,13 @@ suite('Symbol Linkify', () => {
 			'class Foo {',
 			'}',
 		].join('\n');
-		const uri = workspaceFile('src/file.ts');
-		setWorkspaceFileContents(new Map([[uri.toString(), contents]]));
+		const { workspace, uri } = await createTestFile('src/file.ts', contents);
 
 		const testParserService = new TestParserService([
 			symbol(contents, 'Foo')
 		]);
 		const parserService = asParserService(testParserService);
-		const linkifier = createTestLinkifierService(['src/file.ts'], parserService);
+		const linkifier = createTestLinkifierService(['src/file.ts'], parserService, workspace);
 
 		const parts = (await linkify(linkifier, '[`Foo`](src/file.ts)')).parts;
 
@@ -177,14 +193,13 @@ suite('Symbol Linkify', () => {
 			'class Bar {',
 			'}',
 		].join('\n');
-		const uri = workspaceFile('src/file.ts');
-		setWorkspaceFileContents(new Map([[uri.toString(), contents]]));
+		const { workspace, uri } = await createTestFile('src/file.ts', contents);
 
 		const testParserService = new TestParserService([
 			symbol(contents, 'Bar')
 		]);
 		const parserService = asParserService(testParserService);
-		const linkifier = createTestLinkifierService(['src/file.ts'], parserService);
+		const linkifier = createTestLinkifierService(['src/file.ts'], parserService, workspace);
 
 		const parts = (await linkify(linkifier, '[`Foo`](src/file.ts)')).parts;
 
@@ -203,15 +218,14 @@ suite('Symbol Linkify', () => {
 			'class Bar {',
 			'}',
 		].join('\n');
-		const uri = workspaceFile('src/file.ts');
-		setWorkspaceFileContents(new Map([[uri.toString(), contents]]));
+		const { workspace } = await createTestFile('src/file.ts', contents);
 
 		const testParserService = new TestParserService([
 			symbol(contents, 'Foo'),
 			symbol(contents, 'Bar'),
 		]);
-		const fs = createMockFsService(['src/file.ts']);
-		const linkifier = new SymbolLinkifier(fs, asParserService(testParserService), createMockWorkspaceService());
+		const fs = createMockFsService([URI.joinPath(workspace, 'src/file.ts')]);
+		const linkifier = new SymbolLinkifier(fs, asParserService(testParserService), createWorkspaceService(workspace));
 
 		const result = await linkifier.linkify('[`Foo`](src/file.ts) [`Bar`](src/file.ts)', { requestId: undefined, references: [] }, CancellationToken.None);
 
@@ -237,39 +251,40 @@ suite('Symbol Linkify', () => {
 			'class Foo {',
 			'}',
 		].join('\n');
-		const uri = workspaceFile('src/file.ts');
-		setWorkspaceFileContents(new Map([[uri.toString(), contents]]));
-		setExecuteCommand(async <T>(command: string, resolvedUri: vscode.Uri): Promise<T> => {
-			assert.strictEqual(command, 'vscode.executeDocumentSymbolProvider');
-			assert.strictEqual(resolvedUri.toString(), uri.toString());
-			return [
-				{
-					name: 'Foo',
-					detail: '',
-					kind: vscode.SymbolKind.Class,
-					range: new vscode.Range(5, 0, 6, 1),
-					selectionRange: new vscode.Range(5, 6, 5, 9),
-					children: [],
-				}
-			] as T;
+		const { workspace, uri } = await createTestFile('src/file.txt', contents);
+		const symbolProvider = vscode.languages.registerDocumentSymbolProvider({ scheme: 'file', language: 'plaintext' }, {
+			provideDocumentSymbols(document) {
+				assert.strictEqual(document.uri.toString(), uri.toString());
+				return [
+					new vscode.DocumentSymbol(
+						'Foo',
+						'',
+						vscode.SymbolKind.Class,
+						new vscode.Range(5, 0, 6, 1),
+						new vscode.Range(5, 6, 5, 9)
+					)
+				];
+			}
 		});
 
-		const linkifier = createTestLinkifierService(['src/file.ts'], asParserService(new TestParserService([
-			symbol(contents, 'Foo')
-		])));
-		const parts = (await linkify(linkifier, '[`Foo`](src/file.ts)')).parts;
+		try {
+			const linkifier = createTestLinkifierService(['src/file.txt'], asParserService(new TestParserService()), workspace);
+			const parts = (await linkify(linkifier, '[`Foo`](src/file.txt)')).parts;
 
-		assert.strictEqual(parts.length, 1);
-		assert(parts[0] instanceof LinkifySymbolAnchor);
-		assert.strictEqual(parts[0].symbolInformation.kind, vscode.SymbolKind.Variable);
-		assert.strictEqual(parts[0].symbolInformation.location.range.start.line, 2);
-		assert(parts[0].resolve);
+			assert.strictEqual(parts.length, 1);
+			assert(parts[0] instanceof LinkifySymbolAnchor);
+			assert.strictEqual(parts[0].symbolInformation.kind, vscode.SymbolKind.Variable);
+			assert.strictEqual(parts[0].symbolInformation.location.range.start.line, 0);
+			assert(parts[0].resolve);
 
-		const resolved = await parts[0].resolve(CancellationToken.None);
+			const resolved = await parts[0].resolve(CancellationToken.None);
 
-		assert.strictEqual(resolved.kind, vscode.SymbolKind.Class);
-		assert.strictEqual(resolved.location.uri.toString(), uri.toString());
-		assert.strictEqual(resolved.location.range.start.line, 5);
-		assert.strictEqual(resolved.location.range.start.character, 6);
+			assert.strictEqual(resolved.kind, vscode.SymbolKind.Class);
+			assert.strictEqual(resolved.location.uri.toString(), uri.toString());
+			assert.strictEqual(resolved.location.range.start.line, 5);
+			assert.strictEqual(resolved.location.range.start.character, 6);
+		} finally {
+			symbolProvider.dispose();
+		}
 	});
 });

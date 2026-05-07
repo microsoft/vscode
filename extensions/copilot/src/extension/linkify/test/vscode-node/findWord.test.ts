@@ -4,11 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { suite, test } from 'vitest';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { findSymbolLocationInFile, SymbolFileCache } from '../../vscode-node/findWord';
-import { asParserService, declaration, setWorkspaceFileContents, symbol, TestParserService } from './util';
+import { asParserService, createTestFile, declaration, symbol, TestParserService } from './util';
 
 suite('Find symbol location in file', () => {
 
@@ -19,8 +18,7 @@ suite('Find symbol location in file', () => {
 			'class Foo {',
 			'}',
 		].join('\n');
-		const uri = URI.file('/workspace/src/file.ts');
-		setWorkspaceFileContents(new Map([[uri.toString(), contents]]));
+		const { uri } = await createTestFile('src/file.ts', contents);
 
 		const location = await findSymbolLocationInFile(
 			asParserService(new TestParserService([symbol(contents, 'Foo')])),
@@ -43,8 +41,7 @@ suite('Find symbol location in file', () => {
 			declarationText,
 			'\tpass',
 		].join('\n');
-		const uri = URI.file('/workspace/src/file.py');
-		setWorkspaceFileContents(new Map([[uri.toString(), contents]]));
+		const { uri } = await createTestFile('src/file.py', contents);
 
 		const parserService = new TestParserService(
 			[symbol(contents, 'Foo')],
@@ -72,8 +69,7 @@ suite('Find symbol location in file', () => {
 			declarationText,
 			'\tpass',
 		].join('\n');
-		const uri = URI.file('/workspace/src/file.py');
-		setWorkspaceFileContents(new Map([[uri.toString(), contents]]));
+		const { uri } = await createTestFile('src/file.py', contents);
 
 		const parserService = new TestParserService(
 			[symbol(contents, 'bar')],
@@ -99,8 +95,7 @@ suite('Find symbol location in file', () => {
 			'\t}',
 			'}',
 		].join('\n');
-		const uri = URI.file('/workspace/src/file.ts');
-		setWorkspaceFileContents(new Map([[uri.toString(), contents]]));
+		const { uri } = await createTestFile('src/file.ts', contents);
 
 		const location = await findSymbolLocationInFile(
 			asParserService(new TestParserService([
@@ -119,9 +114,8 @@ suite('Find symbol location in file', () => {
 
 	test('Should return undefined for unsupported, missing, or unmatched files', async () => {
 		const contents = 'class Foo {}';
-		const tsUri = URI.file('/workspace/src/file.ts');
-		const txtUri = URI.file('/workspace/src/file.txt');
-		setWorkspaceFileContents(new Map([[tsUri.toString(), contents]]));
+		const { workspace, uri: tsUri } = await createTestFile('src/file.ts', contents);
+		const txtUri = URI.joinPath(workspace, 'src/file.txt');
 
 		const parserService = asParserService(new TestParserService([symbol(contents, 'Foo')]));
 
@@ -137,8 +131,7 @@ suite('Find symbol location in file', () => {
 			'\t}',
 			'}',
 		].join('\n');
-		const uri = URI.file('/workspace/src/file.ts');
-		setWorkspaceFileContents(new Map([[uri.toString(), contents]]));
+		const { uri } = await createTestFile('src/file.ts', contents);
 
 		const parserService = new TestParserService([
 			symbol(contents, 'Foo'),
