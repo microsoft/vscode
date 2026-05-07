@@ -149,6 +149,7 @@
     "yazl": "^2.4.3"
   },
   "devDependencies": {
+    "@anthropic-ai/claude-agent-sdk": "0.2.128",
     "@playwright/cli": "^0.1.9",
     "@playwright/test": "^1.56.1",
     "@stylistic/eslint-plugin-ts": "^2.8.0",

@@ -37,20 +37,26 @@ export const AgentHostEnabledSettingId = 'chat.agentHost.enabled';
 export const AgentHostIpcLoggingSettingId = 'chat.agentHost.ipcLoggingEnabled';
 
 /**
- * Configuration key that controls whether the Claude agent provider is registered
- * inside the agent host. Read on the workbench side and forwarded to the agent host
- * process via the `VSCODE_AGENT_HOST_ENABLE_CLAUDE` environment variable; the agent
- * host process must be restarted for changes to take effect.
+ * Configuration key that holds the absolute path to a locally-installed
+ * `@anthropic-ai/claude-agent-sdk` package. When non-empty, the Claude agent
+ * provider is registered inside the agent host and the SDK module is loaded
+ * via dynamic `import()` from this path. When empty (the default), the
+ * Claude provider is not registered. The SDK is intentionally not bundled
+ * with VS Code; users opting into the Claude agent install the SDK
+ * themselves and point this setting at it. The agent host process must be
+ * restarted for changes to take effect.
  */
-export const AgentHostClaudeAgentEnabledSettingId = 'chat.agentHost.claudeAgent.enabled';
+export const AgentHostClaudeAgentSdkPathSettingId = 'chat.agentHost.claudeAgent.path';
 
 /**
- * Environment variable that, when set to `'1'`, causes the agent host process to
- * register the Claude agent provider. Set by the agent host starters when
- * {@link AgentHostClaudeAgentEnabledSettingId} is enabled, and may also be set
- * directly by developers as an override.
+ * Environment variable that holds the absolute path to a locally-installed
+ * `@anthropic-ai/claude-agent-sdk` package. When set to a non-empty value,
+ * the agent host process registers the Claude agent provider and loads the
+ * SDK module from this path. Set by the agent host starters from
+ * {@link AgentHostClaudeAgentSdkPathSettingId}, and may also be set directly
+ * by developers as an override.
  */
-export const AgentHostEnableClaudeEnvVar = 'VSCODE_AGENT_HOST_ENABLE_CLAUDE';
+export const AgentHostClaudeSdkPathEnvVar = 'VSCODE_AGENT_HOST_CLAUDE_SDK_PATH';
 
 /** Result of starting the agent host WebSocket server on-demand. */
 export interface IAgentHostSocketInfo {
