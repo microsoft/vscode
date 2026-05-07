@@ -30,7 +30,7 @@ import { IHostService } from '../../../host/browser/host.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { IExtensionBisectService } from '../../browser/extensionBisect.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, WorkspaceTrustRequestOptions } from '../../../../../platform/workspace/common/workspaceTrust.js';
-import { ExtensionManifestPropertiesService, IExtensionManifestPropertiesService } from '../../../extensions/common/extensionManifestPropertiesService.js';
+import { EXTENSIONS_SUPPORT_SESSIONS_WINDOW, ExtensionManifestPropertiesService, IExtensionManifestPropertiesService } from '../../../extensions/common/extensionManifestPropertiesService.js';
 import { TestChatEntitlementService, TestContextService, TestProductService, TestWorkspaceTrustEnablementService, TestWorkspaceTrustManagementService } from '../../../../test/common/workbenchTestServices.js';
 import { TestWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
 import { ExtensionManagementService } from '../../common/extensionManagementService.js';
@@ -98,7 +98,7 @@ export class TestExtensionEnablementService extends ExtensionEnablementService {
 			instantiationService.stub(IAllowedExtensionsService, disposables.add(new AllowedExtensionsService(instantiationService.get(IProductService), instantiationService.get(IConfigurationService)))),
 			workspaceTrustManagementService,
 			new class extends mock<IWorkspaceTrustRequestService>() { override requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<boolean> { return Promise.resolve(true); } },
-			instantiationService.get(IExtensionManifestPropertiesService) || instantiationService.stub(IExtensionManifestPropertiesService, disposables.add(new ExtensionManifestPropertiesService(TestProductService, new TestConfigurationService(), new TestWorkspaceTrustEnablementService(), new NullLogService()))),
+			instantiationService.get(IExtensionManifestPropertiesService) || instantiationService.stub(IExtensionManifestPropertiesService, disposables.add(new ExtensionManifestPropertiesService(TestProductService, instantiationService.get(IConfigurationService), new TestWorkspaceTrustEnablementService(), new NullLogService()))),
 			chatEntitlementService ?? new TestChatEntitlementService(),
 			instantiationService,
 			new NullLogService(),
@@ -1263,6 +1263,22 @@ suite('ExtensionEnablementService Test', () => {
 			EnablementState.DisabledByEnvironment,
 			EnablementState.DisabledByEnvironment,
 			EnablementState.EnabledGlobally,
+		]);
+	});
+
+	test('test configured extensions are enabled in sessions window', async () => {
+		await (instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(EXTENSIONS_SUPPORT_SESSIONS_WINDOW, { 'pub.withMain': true, 'pub.nonThemeContrib': true });
+		instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow: true });
+		testObject = disposableStore.add(new TestExtensionEnablementService(instantiationService));
+
+		const withMain = aLocalExtension2('pub.withMain', { main: 'main.js', contributes: aContributes('themes') });
+		const nonThemeContrib = aLocalExtension2('pub.nonThemeContrib', { contributes: aContributes('commands') });
+		const withBrowser = aLocalExtension2('pub.withBrowser', { browser: 'main.browser.js', contributes: aContributes('themes') });
+
+		assert.deepStrictEqual([withMain, nonThemeContrib, withBrowser].map(ext => testObject.getEnablementState(ext)), [
+			EnablementState.EnabledGlobally,
+			EnablementState.EnabledGlobally,
+			EnablementState.DisabledByEnvironment,
 		]);
 	});
 

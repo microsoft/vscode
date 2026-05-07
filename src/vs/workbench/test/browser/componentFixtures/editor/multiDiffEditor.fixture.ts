@@ -124,7 +124,7 @@ function renderMultiDiffEditor({ container, disposableStore, theme }: ComponentF
 		documents: ValueWithChangeEvent.const([doc1, doc2, doc3]),
 	};
 
-	const viewModel = widget.createViewModel(model);
+	const viewModel = disposableStore.add(widget.createViewModel(model));
 	widget.setViewModel(viewModel);
 	widget.layout(new Dimension(800, 600));
 }
@@ -141,9 +141,9 @@ class DelayedDocumentDiffProvider implements IDocumentDiffProvider {
 	readonly onDidChange: Event<void> = () => toDisposable(() => { });
 	constructor(private readonly _delayMs: number) { }
 
-	async computeDiff(original: ITextModel, modified: ITextModel, options: IDocumentDiffProviderOptions, _cancellationToken: CancellationToken): Promise<IDocumentDiff> {
-		await timeout(this._delayMs);
-		if (_cancellationToken.isCancellationRequested || original.isDisposed() || modified.isDisposed()) {
+	async computeDiff(original: ITextModel, modified: ITextModel, options: IDocumentDiffProviderOptions, cancellationToken: CancellationToken): Promise<IDocumentDiff> {
+		await timeout(this._delayMs, cancellationToken);
+		if (cancellationToken.isCancellationRequested || original.isDisposed() || modified.isDisposed()) {
 			return ({
 				changes: [],
 				quitEarly: true,
@@ -223,7 +223,7 @@ function renderMultiDiffEditorIncrementalUpdate() {
 		// Start with only doc1 — its diff resolves immediately (800ms virtual)
 		const documents = new ValueWithChangeEvent<readonly RefCounted<IDocumentDiffItem>[]>([doc1]);
 		const model: IMultiDiffEditorModel = { documents };
-		const viewModel = widget.createViewModel(model);
+		const viewModel = disposableStore.add(widget.createViewModel(model));
 		widget.setViewModel(viewModel);
 		widget.layout(new Dimension(800, 600));
 
@@ -266,7 +266,7 @@ function renderMultiDiffEditorDocumentSwap() {
 		// Start with A and B
 		const documents = new ValueWithChangeEvent<readonly RefCounted<IDocumentDiffItem>[]>([docA, docB]);
 		const model: IMultiDiffEditorModel = { documents };
-		const viewModel = widget.createViewModel(model);
+		const viewModel = disposableStore.add(widget.createViewModel(model));
 		widget.setViewModel(viewModel);
 		widget.layout(new Dimension(800, 600));
 

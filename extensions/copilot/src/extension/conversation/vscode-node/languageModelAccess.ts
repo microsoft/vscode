@@ -439,6 +439,9 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 	}
 
 	private async _getToken(): Promise<CopilotToken | undefined> {
+		if (!this._authenticationService.anyGitHubSession) {
+			return undefined;
+		}
 		try {
 			const copilotToken = await this._authenticationService.getCopilotToken();
 			return copilotToken;
@@ -654,7 +657,7 @@ export class CopilotLanguageModelWrapper extends Disposable {
 				throw vscode.LanguageModelError.Blocked(blockedExtensionMessage);
 			} else if (result.type === ChatFetchResponseType.QuotaExceeded) {
 				const outageStatus = await this._octoKitService.getGitHubOutageStatus();
-				const details = getErrorDetailsFromChatFetchError(result, (await this._authenticationService.getCopilotToken()).copilotPlan, outageStatus);
+				const details = getErrorDetailsFromChatFetchError(result, this._authenticationService.copilotToken?.copilotPlan, outageStatus);
 				const err = new vscode.LanguageModelError(details.message);
 				err.name = 'ChatQuotaExceeded';
 				throw err;
