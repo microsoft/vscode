@@ -10,9 +10,11 @@ import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
 
 import { runTests } from '@vscode/test-electron';
+import { cleanupTestDirectory } from './testDirCleanup';
 
 async function main() {
 	const tempdir = await fs.mkdtemp(os.tmpdir() + '/copilot-extension-test-');
+	let workspaceFolder: string | undefined;
 
 	let exitCode;
 	try {
@@ -50,7 +52,7 @@ async function main() {
 		if (argv.grep) { extensionTestsEnv.MOCHA_GREP = argv.grep; }
 		if (argv._.length > 0) { extensionTestsEnv.MOCHA_FILES = argv._.join('\n'); }
 		if (!process.stdout.isTTY) { extensionTestsEnv.NO_COLOR = 'true'; }
-		const workspaceFolder = await fs.mkdtemp(path.join(os.tmpdir(), 'copilot-extension-test-'));
+		workspaceFolder = await fs.mkdtemp(path.join(os.tmpdir(), 'copilot-extension-test-'));
 		launchArgs.push(workspaceFolder);
 
 		extensionTestsEnv.CORETEST = 'true';
@@ -77,7 +79,10 @@ async function main() {
 		console.error('Failed to run tests', err);
 		exitCode = 1;
 	} finally {
-		await fs.rm(tempdir, { recursive: true });
+		await Promise.all([
+			cleanupTestDirectory(tempdir),
+			workspaceFolder ? cleanupTestDirectory(workspaceFolder) : Promise.resolve(),
+		]);
 	}
 	process.exit(exitCode);
 }
