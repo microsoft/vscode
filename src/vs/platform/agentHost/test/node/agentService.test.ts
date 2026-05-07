@@ -194,13 +194,13 @@ suite('AgentService (node dispatcher)', () => {
 				type: ActionType.McpMessageResponded,
 				mcpServer: 'mcp:/sess1/srv1',
 				messageId: 'm1',
-				response: { result: { ok: true } },
+				response: { jsonrpc: '2.0', id: 1, result: { ok: true } },
 			}, 'client-1', 0);
 
 			assert.deepStrictEqual(recordedDeliveries, [{
 				mcpServer: URI.parse('mcp:/sess1/srv1'),
 				messageId: 'm1',
-				response: { result: { ok: true } },
+				response: { jsonrpc: '2.0', id: 1, result: { ok: true } },
 			}]);
 		});
 	});

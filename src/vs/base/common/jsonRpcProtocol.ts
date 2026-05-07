@@ -290,7 +290,15 @@ export function isJsonRpcRequest(message: JsonRpcMessage): message is IJsonRpcRe
 }
 
 export function isJsonRpcResponse(message: JsonRpcMessage): message is IJsonRpcSuccessResponse | IJsonRpcErrorResponse {
-	return hasKey(message, { id: true, result: true }) || hasKey(message, { id: true, error: true });
+	return isJsonRpcSuccessResponse(message) || isJsonRpcErrorResponse(message);
+}
+
+export function isJsonRpcSuccessResponse(message: JsonRpcMessage): message is IJsonRpcSuccessResponse {
+	return hasKey(message, { id: true, result: true });
+}
+
+export function isJsonRpcErrorResponse(message: JsonRpcMessage): message is IJsonRpcErrorResponse {
+	return hasKey(message, { id: true, error: true });
 }
 
 export function isJsonRpcNotification(message: JsonRpcMessage): message is IJsonRpcNotification {

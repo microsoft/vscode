@@ -56,7 +56,7 @@ suite('NullMcpHostService', () => {
 
 	test('deliverResponse is a no-op and returns nothing', () => {
 		const service = new NullMcpHostService();
-		const response: McpRpcCallResponse = { result: {} };
+		const response: McpRpcCallResponse = { jsonrpc: '2.0', id: 1, result: {} };
 		const result = service.deliverResponse(URI.parse('mcp:/session-1/test-server'), 'msg-1', response);
 		assert.strictEqual(result, undefined);
 	});
