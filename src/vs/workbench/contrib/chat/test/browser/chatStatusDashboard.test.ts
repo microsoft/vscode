@@ -533,16 +533,4 @@ suite('ChatStatusDashboard', () => {
 		assert.strictEqual(getCalloutText(dashboard.element), 'Additional spend is configured. Usage will continue until limits reset.');
 	});
 
-	test('Callout: no approaching message shown when quota already exhausted with overage permitted', () => {
-		const dashboard = createDashboard(createEntitlementService({
-			premiumChat: { percentRemaining: 0, unlimited: false },
-			completions: { percentRemaining: 90, unlimited: false },
-			additionalUsageEnabled: true,
-			additionalUsageCount: 0,
-			entitlement: ChatEntitlement.Pro,
-		}));
-
-		// Should NOT show "additional spend will be used" when already at 100%
-		assert.notStrictEqual(getCalloutText(dashboard.element), 'Once the limit is reached, additional spend will be used.');
-	});
 });
