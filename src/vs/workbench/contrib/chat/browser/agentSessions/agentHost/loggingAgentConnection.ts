@@ -104,6 +104,14 @@ export class LoggingAgentConnection extends Disposable implements IAgentConnecti
 	 * terminal); we only want each event to appear once in the channel.
 	 */
 	private static readonly _sharedEventLog = new Map<string, IDisposable>();
+	/**
+	 * Per-inner-subscription log refcount. The inner connection refcounts
+	 * subscriptions internally (multiple `getSubscription` calls for the same
+	 * resource share an `IAgentSubscription` instance), so we attach a single
+	 * onDidChange logger per inner subscription and dispose it when the last
+	 * wrapper goes away.
+	 */
+	private static readonly _subscriptionLoggers = new WeakMap<IAgentSubscription<unknown>, { refCount: number; store: DisposableStore }>();
 
 	private _outputChannel: IOutputChannel | undefined;
 	private readonly _enabled: boolean;
@@ -213,7 +221,44 @@ export class LoggingAgentConnection extends Disposable implements IAgentConnecti
 	}
 
 	getSubscription<T extends StateComponents>(kind: T, resource: URI): IReference<IAgentSubscription<ComponentToState[T]>> {
-		return this._inner.getSubscription(kind, resource);
+		const innerRef = this._inner.getSubscription(kind, resource);
+		if (!this._enabled) {
+			return innerRef;
+		}
+		this._log('>>', 'subscribe', { kind, resource });
+		const sub = innerRef.object;
+		let entry = LoggingAgentConnection._subscriptionLoggers.get(sub);
+		if (!entry) {
+			const store = new DisposableStore();
+			const label = `${kind}(${resource.toString()})`;
+			if (sub.value !== undefined) {
+				this._log('**', `${label}.current`, sub.value);
+			}
+			store.add(sub.onDidChange(value => this._log('**', `${label}.onDidChange`, value)));
+			entry = { refCount: 0, store };
+			LoggingAgentConnection._subscriptionLoggers.set(sub, entry);
+		}
+		entry.refCount++;
+		let disposed = false;
+		return {
+			object: sub,
+			dispose: () => {
+				if (disposed) {
+					return;
+				}
+				disposed = true;
+				this._log('>>', 'unsubscribe', { kind, resource });
+				const e = LoggingAgentConnection._subscriptionLoggers.get(sub);
+				if (e) {
+					e.refCount--;
+					if (e.refCount <= 0) {
+						e.store.dispose();
+						LoggingAgentConnection._subscriptionLoggers.delete(sub);
+					}
+				}
+				innerRef.dispose();
+			},
+		};
 	}
 
 	getSubscriptionUnmanaged<T extends StateComponents>(kind: T, resource: URI): IAgentSubscription<ComponentToState[T]> | undefined {
