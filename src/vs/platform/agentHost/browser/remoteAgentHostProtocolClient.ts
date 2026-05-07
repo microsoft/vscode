@@ -247,7 +247,6 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 				// iteration; the integration test agent will surface gaps.
 				attachments: undefined,
 			},
-			queuedMessageId: params.queuedMessageId,
 		});
 	}
 

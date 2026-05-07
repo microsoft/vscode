@@ -266,7 +266,6 @@ export interface IAgentStartTurnParams {
 	readonly session: URI;
 	readonly turnId: string;
 	readonly userMessage: { readonly text: string; readonly attachments?: readonly IAgentAttachment[] };
-	readonly queuedMessageId?: string;
 }
 
 /**

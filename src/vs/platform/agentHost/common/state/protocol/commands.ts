@@ -999,22 +999,19 @@ export interface CompletionsResult {
  * introduced a new required property and the user pressed Enter before the
  * client had a chance to refine its values).
  *
- * On success the server returns `null` and broadcasts a single
+ * On success the server returns `{}` and broadcasts a single
  * {@link import('./actions.js').SessionTurnStartedAction} to all subscribers
  * of the session — exactly as it would for the legacy action-dispatch path.
  *
  * On failure the server returns a JSON-RPC error:
  *
- * - `-32602` `InvalidParams` with `data: { missingRequired?: string[]; invalidValues?: { key: string; reason: string }[] }`
+ * - `-32602` `InvalidParams` with `data: { missingRequired: string[] }`
  *   when the current `state.config.values` does not satisfy
- *   `state.config.schema`.
+ *   `state.config.schema` (required fields missing). Other config validation
+ *   errors (wrong type, not in enum, etc.) are logic errors on the client
+ *   and are also rejected with plain `InvalidParams` without structured data.
  * - `-32004` `TurnInProgress` when the session already has an active turn.
  * - `-32001` `SessionNotFound` when the `session` URI is unknown.
- *
- * The legacy `@clientDispatchable` path on
- * {@link import('./actions.js').SessionTurnStartedAction} is retained for
- * backwards compatibility but is now `@deprecated`. Clients SHOULD migrate
- * to this command.
  *
  * @category Commands
  * @method startTurn
@@ -1029,7 +1026,7 @@ export interface CompletionsResult {
  *               "userMessage": { "text": "Refactor this function" } } }
  *
  * // Server → Client (success)
- * { "jsonrpc": "2.0", "id": 11, "result": null }
+ * { "jsonrpc": "2.0", "id": 11, "result": {} }
  *
  * // Server → Client (rejected — missing required config)
  * { "jsonrpc": "2.0", "id": 11,
@@ -1044,33 +1041,22 @@ export interface StartTurnParams {
 	turnId: string;
 	/** User's message */
 	userMessage: UserMessage;
-	/**
-	 * If this turn is auto-started from a queued message, the ID of that
-	 * message. Mirrors the same field on the legacy
-	 * {@link import('./actions.js').SessionTurnStartedAction}.
-	 */
-	queuedMessageId?: string;
 }
 
 /**
- * Result of the `startTurn` command. `null` on success; failures surface as
- * JSON-RPC errors (see {@link StartTurnParams}).
+ * Result of the `startTurn` command. Empty object on success; failures
+ * surface as JSON-RPC errors (see {@link StartTurnParams}).
  */
-export type StartTurnResult = null;
+export interface StartTurnResult { }
 
 /**
  * Error data accompanying a `-32602` `InvalidParams` error from `startTurn`
- * when the session's config does not satisfy the current schema. Helps
- * clients route the user back to the offending fields in the config picker.
+ * when the session's config is missing required fields. Helps clients route
+ * the user back to the offending fields in the config picker.
  *
  * @category Errors
  */
 export interface StartTurnInvalidConfigErrorData {
 	/** Required schema property ids that are missing from `state.config.values`. */
-	missingRequired?: string[];
-	/**
-	 * Property ids whose values failed schema validation, with a short
-	 * machine-readable reason (e.g. `"wrong-type"`, `"not-in-enum"`).
-	 */
-	invalidValues?: { key: string; reason: string }[];
+	missingRequired: string[];
 }

@@ -209,12 +209,15 @@ export interface SessionCreationFailedAction {
  * @version 1
 <<<<<<< Updated upstream
  * @clientDispatchable
+<<<<<<< HEAD
  * @deprecated Prefer the rejectable `startTurn` command (since v0.1.0
  * additive). The action remains client-dispatchable for backwards
  * compatibility; the server still emits this action to subscribers when a
  * turn begins, regardless of which path triggered it.
 =======
 >>>>>>> Stashed changes
+=======
+>>>>>>> 102f0cbd39c (fix: apply PR #110 review feedback to VS Code layer)
  */
 export interface SessionTurnStartedAction {
 	type: ActionType.SessionTurnStarted;

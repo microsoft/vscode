@@ -559,7 +559,6 @@ export class AgentService extends Disposable implements IAgentService {
 			session: sessionKey,
 			turnId: params.turnId,
 			userMessage: { text: params.userMessage.text, attachments } as SessionTurnStartedAction['userMessage'],
-			queuedMessageId: params.queuedMessageId,
 		});
 	}
 

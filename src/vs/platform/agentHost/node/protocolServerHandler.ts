@@ -587,9 +587,8 @@ export class ProtocolServerHandler extends Disposable {
 				session: URI.parse(params.session),
 				turnId: params.turnId,
 				userMessage: params.userMessage as unknown as { text: string },
-				queuedMessageId: params.queuedMessageId,
 			});
-			return null;
+			return {};
 		},
 		completions: async (_client, params) => {
 			return this._agentService.completions(params);

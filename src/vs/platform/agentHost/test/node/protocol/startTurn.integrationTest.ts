@@ -72,7 +72,7 @@ suite('Protocol WebSocket - startTurn', function () {
 			turnId: 'turn-1',
 			userMessage: { text: 'hello' },
 		});
-		assert.strictEqual(result, null);
+		assert.deepStrictEqual(result, {});
 
 		const notif = await client.waitForNotification(n => isActionNotification(n, ActionType.SessionTurnStarted));
 		const envelope = getActionEnvelope(notif);
