@@ -140,6 +140,28 @@ export function getCopilotWorktreeBranchName(sessionId: string, branchNameHint: 
 }
 
 /**
+ * Derive a slug-style branch-name hint from the user's first message. Used
+ * by the worktree isolation flow so the generated branch name reflects the
+ * intent of the session instead of being just a session id.
+ *
+ * Returns `undefined` if the message has no slug-able content (e.g. only
+ * punctuation), in which case the caller falls back to a session-id-only
+ * branch name.
+ */
+export function getCopilotBranchNameHintFromMessage(message: string): string | undefined {
+	const words = message
+		.toLowerCase()
+		.normalize('NFKD')
+		.replace(/[^a-z0-9]+/g, '-')
+		.replace(/^-+|-+$/g, '')
+		.split('-')
+		.filter(word => word.length > 0)
+		.slice(0, 8);
+	const hint = words.join('-').slice(0, 48).replace(/-+$/g, '');
+	return hint.length > 0 ? hint : undefined;
+}
+
+/**
  * Builds the localized "Created isolated worktree for branch X" markdown
  * shown at the top of the first response in worktree-isolated sessions.
  * The branch name is wrapped as inline code so the localized template
@@ -761,7 +783,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * `SessionConfigChanged` actions that arrived after `createSession` are
 	 * honoured without bespoke forwarding.
 	 */
-	private async _materializeProvisional(sessionId: string): Promise<CopilotAgentSession> {
+	private async _materializeProvisional(sessionId: string, prompt: string): Promise<CopilotAgentSession> {
 		const provisional = this._provisionalSessions.get(sessionId);
 		if (!provisional) {
 			throw new Error(`Cannot materialize unknown provisional session: ${sessionId}`);
@@ -781,7 +803,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const customizationDirectory = provisional.workingDirectory;
 		const activeClient = this._activeClients.get(sessionUri);
 		const snapshot = activeClient ? await activeClient.snapshot(customizationDirectory) : undefined;
-		const workingDirectory = await this._resolveSessionWorkingDirectory(materializedConfig, sessionId);
+		const workingDirectory = await this._resolveSessionWorkingDirectory(materializedConfig, sessionId, prompt);
 		const shellManager = this._instantiationService.createInstance(ShellManager, sessionUri, workingDirectory);
 		const sessionConfigBuilder = this._buildSessionConfig(snapshot, shellManager);
 
@@ -920,10 +942,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 		await this._sessionSequencer.queue(sessionId, async () => {
 
 			// First message on a provisional session: materialize the SDK
-			// session, worktree, and on-disk metadata before continuing.
+			// session, worktree, and on-disk metadata before continuing. The
+			// prompt is forwarded so a worktree-isolated session can derive
+			// its branch-name hint from the user's first message.
 			let entry: CopilotAgentSession | undefined;
 			if (this._provisionalSessions.has(sessionId)) {
-				entry = await this._materializeProvisional(sessionId);
+				entry = await this._materializeProvisional(sessionId, prompt);
 			} else {
 				entry = this._sessions.get(sessionId);
 			}
@@ -1430,7 +1454,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return this._gitService.getBranches(workingDirectory, { query, limit: CopilotAgent._BRANCH_COMPLETION_LIMIT });
 	}
 
-	protected async _resolveSessionWorkingDirectory(config: IAgentCreateSessionConfig | undefined, sessionId: string): Promise<URI | undefined> {
+	protected async _resolveSessionWorkingDirectory(config: IAgentCreateSessionConfig | undefined, sessionId: string, prompt?: string): Promise<URI | undefined> {
 		if (config?.config?.isolation !== 'worktree' || !config.workingDirectory || typeof config.config.branch !== 'string') {
 			return config?.workingDirectory;
 		}
@@ -1441,8 +1465,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 
 		const worktreesRoot = getCopilotWorktreesRoot(repositoryRoot);
-		const branchNameHintRaw = config.config[SessionConfigKey.BranchNameHint];
-		const branchNameHint = typeof branchNameHintRaw === 'string' ? branchNameHintRaw : undefined;
+		const branchNameHint = prompt ? getCopilotBranchNameHintFromMessage(prompt) : undefined;
 		const branchName = getCopilotWorktreeBranchName(sessionId, branchNameHint);
 		const worktree = URI.joinPath(worktreesRoot, getCopilotWorktreeName(branchName));
 		await fs.mkdir(worktreesRoot.fsPath, { recursive: true });

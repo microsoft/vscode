@@ -273,8 +273,8 @@ class TestableCopilotAgent extends CopilotAgent {
 		return stub;
 	}
 
-	resolveWorktreeForTest(config: Parameters<CopilotAgent['createSession']>[0], sessionId: string): Promise<URI | undefined> {
-		return this._resolveSessionWorkingDirectory(config, sessionId);
+	resolveWorktreeForTest(config: Parameters<CopilotAgent['createSession']>[0], sessionId: string, prompt?: string): Promise<URI | undefined> {
+		return this._resolveSessionWorkingDirectory(config, sessionId, prompt);
 	}
 }
 
@@ -824,8 +824,8 @@ suite('CopilotAgent', () => {
 				const expectedBranchName = getCopilotWorktreeBranchName(sessionId, branchHint);
 				const workingDir = await agent.resolveWorktreeForTest({
 					workingDirectory: repositoryRoot,
-					config: { isolation: 'worktree', branch: 'main', branchNameHint: branchHint },
-				}, sessionId);
+					config: { isolation: 'worktree', branch: 'main' },
+				}, sessionId, 'Add feature');
 				assert.ok(workingDir, 'resolveWorktreeForTest must return a worktree URI');
 				assert.deepStrictEqual(gitService.addedWorktrees.length, 1, 'addWorktree must be called once');
 				assert.strictEqual(gitService.addedWorktrees[0].branchName, expectedBranchName);
@@ -950,7 +950,7 @@ suite('CopilotAgent', () => {
 				await agent.authenticate('https://api.github.com', 'token');
 				const workingDir = await agent.resolveWorktreeForTest({
 					workingDirectory: repositoryRoot,
-					config: { isolation: 'worktree', branch: 'main', branchNameHint: 'feat' },
+					config: { isolation: 'worktree', branch: 'main' },
 				}, sessionId);
 				assert.ok(workingDir, 'worktree must be created');
 				// Simulate the worktree directory existing on disk so the archive
@@ -997,7 +997,7 @@ suite('CopilotAgent', () => {
 				await agent.authenticate('https://api.github.com', 'token');
 				const workingDir = await agent.resolveWorktreeForTest({
 					workingDirectory: repositoryRoot,
-					config: { isolation: 'worktree', branch: 'main', branchNameHint: 'feat' },
+					config: { isolation: 'worktree', branch: 'main' },
 				}, sessionId);
 				await fs.mkdir(workingDir!.fsPath, { recursive: true });
 				gitService.dirtyWorkingDirectories.add(workingDir!.fsPath);
@@ -1028,7 +1028,7 @@ suite('CopilotAgent', () => {
 				await agent.authenticate('https://api.github.com', 'token');
 				const workingDir = await agent.resolveWorktreeForTest({
 					workingDirectory: repositoryRoot,
-					config: { isolation: 'worktree', branch: 'main', branchNameHint: 'feat' },
+					config: { isolation: 'worktree', branch: 'main' },
 				}, sessionId);
 				await fs.mkdir(workingDir!.fsPath, { recursive: true });
 				// Drop the branch so cleanup must skip.
@@ -1083,7 +1083,7 @@ suite('CopilotAgent', () => {
 				await agent.authenticate('https://api.github.com', 'token');
 				const workingDir = await agent.resolveWorktreeForTest({
 					workingDirectory: repositoryRoot,
-					config: { isolation: 'worktree', branch: 'main', branchNameHint: 'feat' },
+					config: { isolation: 'worktree', branch: 'main' },
 				}, sessionId);
 				await fs.mkdir(workingDir!.fsPath, { recursive: true });
 

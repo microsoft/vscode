@@ -15,7 +15,6 @@ import { extUriBiasedIgnorePathCase, isEqual } from '../../../../../../base/comm
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { AgentProvider, AgentSession, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
-import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { IAgentSubscription, observableFromSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { SessionTruncatedAction } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { ConfirmationOptionKind, CustomizationRef, TerminalClaimKind, ToolResultContentType, type ConfirmationOption, type ProtectedResourceMetadata, type ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -329,19 +328,6 @@ export interface IAgentHostSessionHandlerConfig {
 	 * client set. When the value changes, active sessions are updated.
 	 */
 	readonly customizations?: IObservable<CustomizationRef[]>;
-}
-
-export function getAgentHostBranchNameHint(message: string): string | undefined {
-	const words = message
-		.toLowerCase()
-		.normalize('NFKD')
-		.replace(/[^a-z0-9]+/g, '-')
-		.replace(/^-+|-+$/g, '')
-		.split('-')
-		.filter(word => word.length > 0)
-		.slice(0, 8);
-	const hint = words.join('-').slice(0, 48).replace(/-+$/g, '');
-	return hint.length > 0 ? hint : undefined;
 }
 
 export class AgentHostSessionHandler extends Disposable implements IChatSessionContentProvider {
@@ -662,7 +648,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			// folder-pick time, or this session was created via a legacy/
 			// test path). Fall back to the original create-then-subscribe
 			// flow.
-			await this._createAndSubscribe(request.sessionResource, this._createModelSelection(request.userSelectedModelId, request.modelConfiguration), undefined, request.agentHostSessionConfig, getAgentHostBranchNameHint(request.message));
+			await this._createAndSubscribe(request.sessionResource, this._createModelSelection(request.userSelectedModelId, request.modelConfiguration), undefined, request.agentHostSessionConfig);
 		} else {
 			// Eager-created session: take a refcounted subscription so the
 			// handler observes state changes for the duration of the chat
@@ -2200,8 +2186,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	/** Creates a new backend session and subscribes to its state. */
-	private async _createAndSubscribe(sessionResource: URI, model: ModelSelection | undefined, fork?: { session: URI; turnIndex: number; turnId: string }, sessionConfig?: Record<string, unknown>, branchNameHint?: string): Promise<URI> {
-		const config = branchNameHint ? { ...sessionConfig, [SessionConfigKey.BranchNameHint]: branchNameHint } : sessionConfig;
+	private async _createAndSubscribe(sessionResource: URI, model: ModelSelection | undefined, fork?: { session: URI; turnIndex: number; turnId: string }, config?: Record<string, unknown>): Promise<URI> {
 		const workingDirectory = this._resolveRequestedWorkingDirectory(sessionResource);
 		const requestedSession = fork ? undefined : this._resolveSessionUri(sessionResource);
 
