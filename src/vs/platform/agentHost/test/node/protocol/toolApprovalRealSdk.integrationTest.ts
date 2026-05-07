@@ -1038,18 +1038,35 @@ function startBackgroundApprovalLoop(c: TestProtocolClient, options: IBackground
 		}
 
 		// Drive any further confirmations to completion so teardown is clean.
+		// Track which toolCallReady notifications we've already handled by
+		// serverSeq — without this, `waitForNotification` keeps finding the
+		// same already-processed notification synchronously every iteration
+		// and the loop spins at 100% CPU.
+		const seenSeqs = new Set<number>();
+		seenSeqs.add(getActionEnvelope(toolReadyNotif).serverSeq);
+		let teardownSeq = 3;
 		while (true) {
 			const next = await client.waitForNotification(
-				n => isActionNotification(n, 'session/toolCallReady') || isActionNotification(n, 'session/turnComplete') || isActionNotification(n, 'session/error'),
+				n => {
+					if (isActionNotification(n, 'session/turnComplete') || isActionNotification(n, 'session/error')) {
+						return true;
+					}
+					if (!isActionNotification(n, 'session/toolCallReady')) {
+						return false;
+					}
+					return !seenSeqs.has(getActionEnvelope(n).serverSeq);
+				},
 				90_000,
 			);
 			if (isActionNotification(next, 'session/turnComplete') || isActionNotification(next, 'session/error')) {
 				break;
 			}
-			const action = getActionEnvelope(next).action as { session: string; turnId: string; toolCallId: string; confirmed?: string };
+			const envelope = getActionEnvelope(next);
+			seenSeqs.add(envelope.serverSeq);
+			const action = envelope.action as { session: string; turnId: string; toolCallId: string; confirmed?: string };
 			if (!action.confirmed) {
 				client.notify('dispatchAction', {
-					clientSeq: 3,
+					clientSeq: ++teardownSeq,
 					action: {
 						type: 'session/toolCallConfirmed',
 						session: action.session,
