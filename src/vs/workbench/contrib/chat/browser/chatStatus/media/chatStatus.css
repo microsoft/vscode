@@ -57,6 +57,16 @@
 	margin-top: 2px;
 }
 
+.chat-status-bar-entry-tooltip .contributed-info-icon {
+	font-size: 12px;
+	display: flex;
+	align-items: center;
+	flex-shrink: 0;
+	opacity: 0.7;
+	cursor: help;
+	color: var(--vscode-descriptionForeground);
+}
+
 .chat-status-bar-entry-tooltip .collapsible-label {
 	white-space: nowrap;
 	flex-shrink: 0;
@@ -87,6 +97,17 @@
 	font-size: 12px;
 	line-height: 16px;
 	color: var(--vscode-descriptionForeground);
+}
+
+.chat-status-bar-entry-tooltip .contributed-detail {
+	font-size: 12px;
+	font-weight: 400;
+	color: var(--vscode-descriptionForeground);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	min-width: 0;
+	flex-shrink: 1;
 }
 
 .chat-status-bar-entry-tooltip .collapsible-content {
