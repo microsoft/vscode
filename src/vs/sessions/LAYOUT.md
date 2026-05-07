@@ -90,6 +90,7 @@ The widget:
 - On click, opens the `AgentSessionsPicker` quick pick to switch between sessions
 - Gets the active session label from `IActiveSessionService.getActiveSession()` and the live model title from `IChatService`, falling back to "New Session" if no active session is found
 - Re-renders automatically when the active session changes via `autorun` on `IActiveSessionService.activeSession`, and when session data changes via `IAgentSessionsService.model.onDidChangeSessions`
+- Hides its session-title UI while `isNewChatSession` is true so the command center only shows session title chrome for existing or newly created chat threads; the hide/show state uses a subtle fade only when entering or leaving the new chat view, not when switching between existing chat threads
 - Is registered via `SessionsTitleBarContribution` (an `IWorkbenchContribution` in `contrib/sessions/browser/sessionsTitleBarWidget.ts`) that calls `IActionViewItemService.register()` to intercept the submenu rendering
 - Uses `padding-left: 0` while the sidebar is visible, and restores `padding-left: 16px` when the sidebar is hidden via the `nosidebar` workbench class
 
@@ -666,6 +667,8 @@ interface IPartVisibilityState {
 
 | Date | Change |
 |------|--------|
+| 2026-05-06 | Polished the sessions command-center title widget hide/show behavior: command-center menu refreshes now run synchronously with new-chat context changes so adjacent actions disappear together, and the title widget uses a reduced-motion-aware subtle fade only when entering or leaving the new chat view. |
+| 2026-05-06 | Hid the sessions command-center title widget while the new chat view is visible (`isNewChatSession`), so titlebar session chrome only appears for existing or newly created chat threads. |
 | 2026-05-06 | Updated the sessions panel title tabs to reuse the same styling as the auxiliary bar's Changes/Files tabs: title-case labels, 500 font weight, tighter pill padding, and checked-state background without a persistent active underline. |
 | 2026-05-01 | Updated the sessions main-editor lifecycle so maximized editors attached to the auxiliary bar remember their maximized state across close/reopen, while modal editor flows continue to ignore that remembered state. |
 | 2026-04-28 | Updated the sessions "Open in VS Code" titlebar widget to match the core "Open in Agents" affordance more closely: the product icon is greyscale by default, animates back to full color on hover/focus when motion is enabled, uses secondary-button hover chrome instead of quality-tinted backgrounds, and draws a separator before the Run split button. |

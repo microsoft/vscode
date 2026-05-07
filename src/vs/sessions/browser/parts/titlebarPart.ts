@@ -215,6 +215,7 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 		const centerToolbarContainer = append(windowTitle, $('div.command-center'));
 		this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, centerToolbarContainer, Menus.CommandCenter, {
 			contextMenu: Menus.TitleBarContext,
+			eventDebounceDelay: 0,
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			telemetrySource: 'commandCenter',
 			toolbarOptions: { primaryGroup: () => true },
