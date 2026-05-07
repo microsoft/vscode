@@ -16,7 +16,7 @@ import { timeout } from '../../../../../../base/common/async.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { IAgentCreateSessionConfig, IAgentHostService, IAgentSessionMetadata, AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IAgentCreateSessionConfig, IAgentHostService, IAgentSessionMetadata, IAgentStartTurnParams, AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
 import { ActionType, isSessionAction, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type INotification, type IToolCallConfirmedAction, type ITurnStartedAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import type { IStateSnapshot } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import type { CustomizationRef } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -136,6 +136,25 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	override async disposeSession(session: URI): Promise<void> { this.disposedSessions.push(session); }
 	async shutdown(): Promise<void> { }
 	override async restartAgentHost(): Promise<void> { }
+
+	/**
+	 * Mock implementation of the `startTurn` RPC. The real server validates
+	 * session config, then dispatches a `session/turnStarted` action via its
+	 * state manager which is broadcast back to all clients. Here we mirror
+	 * that by recording the action into {@link dispatchedActions} so tests
+	 * which inspect dispatched actions (e.g. {@link turnActions}) continue to
+	 * work, while the test helper drives state propagation via
+	 * {@link fireAction}.
+	 */
+	override async startTurn(params: IAgentStartTurnParams): Promise<void> {
+		const turnAction: ITurnStartedAction = {
+			type: ActionType.SessionTurnStarted,
+			session: params.session.toString(),
+			turnId: params.turnId,
+			userMessage: params.userMessage,
+		};
+		this.dispatchedActions.push({ action: turnAction, clientId: this.clientId, clientSeq: this._nextSeq++ });
+	}
 
 	// Protocol methods
 	public override readonly clientId = 'test-window-1';
