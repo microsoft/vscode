@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { describe, expect, test } from 'vitest';
-import { Emitter } from '../../../util/vs/base/common/event';
-import { IAuthenticationService } from '../../authentication/common/authentication';
-import { ChatQuotaService } from '../common/chatQuotaServiceImpl';
+import { Emitter } from '../../../../util/vs/base/common/event';
+import { IAuthenticationService } from '../../../authentication/common/authentication';
+import { ChatQuotaService } from '../../common/chatQuotaServiceImpl';
 
 function createMockAuthService(): IAuthenticationService {
 	return {

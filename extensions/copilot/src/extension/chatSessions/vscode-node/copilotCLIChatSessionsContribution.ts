@@ -13,6 +13,7 @@ import { INativeEnvService } from '../../../platform/env/common/envService';
 import { IVSCodeExtensionContext } from '../../../platform/extContext/common/extensionContext';
 import { IFileSystemService } from '../../../platform/filesystem/common/fileSystemService';
 import { IGitExtensionService } from '../../../platform/git/common/gitExtensionService';
+import { IGitCommitMessageService } from '../../../platform/git/common/gitCommitMessageService';
 import { getGitHubRepoInfoFromContext, IGitService, RepoContext } from '../../../platform/git/common/gitService';
 import { toGitUri } from '../../../platform/git/common/utils';
 import { derivePullRequestState } from '../../../platform/github/common/githubAPI';
@@ -390,6 +391,9 @@ export class CopilotCLIChatSessionItemProvider extends Disposable implements vsc
 					: undefined,
 				uncommittedChanges: worktreeProperties.version === 2
 					? worktreeProperties.uncommittedChanges
+					: undefined,
+				hasGitOperationInProgress: worktreeProperties.version === 2
+					? worktreeProperties.hasGitOperationInProgress
 					: undefined
 			} satisfies { readonly [key: string]: unknown };
 		} else {
@@ -422,6 +426,7 @@ export class CopilotCLIChatSessionItemProvider extends Disposable implements vsc
 				incomingChanges: repositoryProperties?.incomingChanges,
 				outgoingChanges: repositoryProperties?.outgoingChanges,
 				uncommittedChanges: repositoryProperties?.uncommittedChanges,
+				hasGitOperationInProgress: repositoryProperties?.hasGitOperationInProgress,
 				firstCheckpointRef,
 				lastCheckpointRef
 			} satisfies { readonly [key: string]: unknown };
@@ -2112,6 +2117,7 @@ export function registerCLIChatCommands(
 	copilotCLISessionService: ICopilotCLISessionService,
 	copilotCLIWorktreeManagerService: IChatSessionWorktreeService,
 	gitService: IGitService,
+	gitCommitMessageService: IGitCommitMessageService,
 	gitExtensionService: IGitExtensionService,
 	toolsService: IToolsService,
 	copilotCliWorkspaceSession: IChatSessionWorkspaceFolderService,
@@ -2608,6 +2614,65 @@ export function registerCLIChatCommands(
 		copilotcliSessionItemProvider.notifySessionsChange();
 	}));
 
+	const setHasGitOperationInProgress = async (sessionId: string, inProgress: boolean) => {
+		// Set the global context key to immediately enable/disable the action
+		await vscode.commands.executeCommand('setContext', 'sessions.hasGitOperationInProgress', inProgress);
+
+		const worktreeProperties = await copilotCLIWorktreeManagerService.getWorktreeProperties(sessionId);
+		const workspaceFolder = await copilotCliWorkspaceSession.getSessionWorkspaceFolder(sessionId);
+		const repositoryProperties = await copilotCliWorkspaceSession.getRepositoryProperties(sessionId);
+
+		if (worktreeProperties && worktreeProperties.version === 2) {
+			await copilotCLIWorktreeManagerService.setWorktreeProperties(sessionId, {
+				...worktreeProperties,
+				hasGitOperationInProgress: inProgress
+			});
+		} else if (workspaceFolder && repositoryProperties) {
+			// Workspace (refresh the changes in the cache)
+			await copilotCliWorkspaceSession.setRepositoryProperties(sessionId, {
+				...repositoryProperties,
+				hasGitOperationInProgress: inProgress
+			});
+		} else {
+			return;
+		}
+
+		await copilotcliSessionItemProvider.refreshSession({ reason: 'update', sessionId });
+	};
+
+	const commit = async (sessionId: string, sync: boolean) => {
+		const worktreeProperties = await copilotCLIWorktreeManagerService.getWorktreeProperties(sessionId);
+		const workspaceFolder = await copilotCliWorkspaceSession.getSessionWorkspaceFolder(sessionId);
+
+		const repositoryUri = worktreeProperties ? Uri.file(worktreeProperties.worktreePath) : workspaceFolder;
+		const repository = repositoryUri ? await gitCommitMessageService.getRepository(repositoryUri) : undefined;
+		if (!repository) {
+			return;
+		}
+
+		if (repository.state.workingTreeChanges.length === 0 && repository.state.indexChanges.length === 0 && repository.state.untrackedChanges.length === 0) {
+			return;
+		}
+
+		let message: string | undefined;
+		try {
+			message = await gitCommitMessageService.generateCommitMessage(repository, CancellationToken.None);
+		} catch (error) {
+			logService.error(`[CopilotCLI] Failed to generate commit message for session ${sessionId}: ${error instanceof Error ? error.message : String(error)}`);
+		}
+
+		if (!message) {
+			message = `Copilot CLI session ${sessionId} changes`;
+		}
+
+		await gitService.commit(repository.rootUri, message, { all: true, noVerify: true, signCommit: false });
+
+		if (sync) {
+			await repository.pull();
+			await repository.push();
+		}
+	};
+
 	disposableStore.add(vscode.commands.registerCommand('github.copilot.sessions.commit', async (sessionItemOrResource?: vscode.ChatSessionItem | vscode.Uri) => {
 		const resource = sessionItemOrResource instanceof vscode.Uri
 			? sessionItemOrResource
@@ -2617,10 +2682,14 @@ export function registerCLIChatCommands(
 			return;
 		}
 
-		await vscode.commands.executeCommand('workbench.action.chat.openSessionWithPrompt.copilotcli', {
-			resource,
-			prompt: builtinSlashSCommands.commit,
-		});
+		const sessionId = SessionIdForCLI.parse(resource);
+
+		try {
+			await setHasGitOperationInProgress(sessionId, true);
+			await commit(sessionId, false);
+		} finally {
+			await setHasGitOperationInProgress(sessionId, false);
+		}
 	}));
 
 	disposableStore.add(vscode.commands.registerCommand('github.copilot.sessions.commitAndSync', async (sessionItemOrResource?: vscode.ChatSessionItem | vscode.Uri) => {
@@ -2632,10 +2701,14 @@ export function registerCLIChatCommands(
 			return;
 		}
 
-		await vscode.commands.executeCommand('workbench.action.chat.openSessionWithPrompt.copilotcli', {
-			resource,
-			prompt: `${builtinSlashSCommands.commit} and ${builtinSlashSCommands.sync}`,
-		});
+		const sessionId = SessionIdForCLI.parse(resource);
+
+		try {
+			await setHasGitOperationInProgress(sessionId, true);
+			await commit(sessionId, true);
+		} finally {
+			await setHasGitOperationInProgress(sessionId, false);
+		}
 	}));
 
 	disposableStore.add(vscode.commands.registerCommand('github.copilot.sessions.sync', async (sessionItemOrResource?: vscode.ChatSessionItem | vscode.Uri) => {
@@ -2647,10 +2720,25 @@ export function registerCLIChatCommands(
 			return;
 		}
 
-		await vscode.commands.executeCommand('workbench.action.chat.openSessionWithPrompt.copilotcli', {
-			resource,
-			prompt: builtinSlashSCommands.sync,
-		});
+		const sessionId = SessionIdForCLI.parse(resource);
+
+		try {
+			await setHasGitOperationInProgress(sessionId, true);
+
+			const worktreeProperties = await copilotCLIWorktreeManagerService.getWorktreeProperties(sessionId);
+			const workspaceFolder = await copilotCliWorkspaceSession.getSessionWorkspaceFolder(sessionId);
+
+			const repositoryUri = worktreeProperties ? Uri.file(worktreeProperties.worktreePath) : workspaceFolder;
+			const repository = repositoryUri ? await gitCommitMessageService.getRepository(repositoryUri) : undefined;
+			if (!repository) {
+				return;
+			}
+
+			await repository.pull();
+			await repository.push();
+		} finally {
+			await setHasGitOperationInProgress(sessionId, false);
+		}
 	}));
 
 	disposableStore.add(vscode.commands.registerCommand('github.copilot.sessions.discardChanges', async (sessionResource: vscode.Uri, ref: string, ...resources: vscode.Uri[]) => {

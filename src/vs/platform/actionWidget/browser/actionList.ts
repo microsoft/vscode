@@ -484,6 +484,12 @@ export interface IActionListOptions {
 	readonly inlineDescription?: boolean;
 
 	/**
+	 * Height (in px) used for action items that have a `detail` line.
+	 * Defaults to 48.
+	 */
+	readonly detailItemHeight?: number;
+
+	/**
 	 * When true, the group title is shown on the first item of each group
 	 * in the description area (aligned to the right).
 	 */
@@ -999,7 +1005,7 @@ export class ActionListWidget<T> extends Disposable {
 			case ActionListItemKind.Separator:
 				return this._separatorLineHeight;
 			default:
-				return item.detail ? 48 : this._actionLineHeight;
+				return item.detail ? (this._options?.detailItemHeight ?? 48) : this._actionLineHeight;
 		}
 	}
 

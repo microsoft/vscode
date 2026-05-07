@@ -171,7 +171,7 @@ function registerAgentHostSkillButton(spec: IAgentHostSkillButtonSpec): void {
 				icon: spec.icon,
 				f1: false,
 				menu: {
-					id: MenuId.ChatEditingSessionApplySubmenu,
+					id: MenuId.AgentsChangesPrimaryActionSubMenu,
 					group: spec.group,
 					order: spec.order,
 					when: ContextKeyExpr.and(
