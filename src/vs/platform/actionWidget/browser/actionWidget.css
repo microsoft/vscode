@@ -103,6 +103,14 @@
 	margin-top: 0;
 }
 
+/* Separators with text labels (titled section headers) */
+.action-widget .monaco-list-row.separator > span:not(:empty) {
+	display: flex;
+	align-items: center;
+	height: 100%;
+	padding-left: 10px;
+}
+
 .action-widget .monaco-list .group-header,
 .action-widget .monaco-list .option-disabled,
 .action-widget .monaco-list .option-disabled:before,
@@ -362,6 +370,14 @@
 	font-size: 12px;
 	flex-shrink: 0;
 	margin-right: 2px;
+}
+
+/* Footer text */
+.action-widget .action-list-footer {
+	color: var(--vscode-descriptionForeground);
+	font-size: 11px;
+	padding: 4px 10px 2px 10px;
+	border-top: 1px solid var(--vscode-editorHoverWidget-border);
 }
 
 /* Anchor for the absolutely-positioned submenu panel */

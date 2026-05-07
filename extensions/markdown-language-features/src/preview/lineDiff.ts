@@ -4,13 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import type { MarkdownPreviewLineChanges } from '../../types/previewMessaging';
+import type { MarkdownPreviewInnerChange, MarkdownPreviewLineChanges } from '../../types/previewMessaging';
 
 interface LineChanges {
 	readonly added: readonly number[];
 	readonly deleted: readonly number[];
 	readonly originalToModified: readonly number[];
 	readonly modifiedToOriginal: readonly number[];
+	readonly originalInnerChanges: readonly MarkdownPreviewInnerChange[];
+	readonly modifiedInnerChanges: readonly MarkdownPreviewInnerChange[];
 }
 
 interface LineMappings {
@@ -36,13 +38,17 @@ export class MarkdownPreviewLineDiffProvider {
 	}
 
 	public async getOriginalLineChanges(): Promise<MarkdownPreviewLineChanges | undefined> {
-		const deleted = (await this.#getLineChanges()).deleted;
-		return deleted.length ? { deleted } : undefined;
+		const changes = await this.#getLineChanges();
+		const deleted = changes.deleted;
+		const innerChanges = changes.originalInnerChanges;
+		return deleted.length || innerChanges.length ? { deleted, innerChanges } : undefined;
 	}
 
 	public async getModifiedLineChanges(): Promise<MarkdownPreviewLineChanges | undefined> {
-		const added = (await this.#getLineChanges()).added;
-		return added.length ? { added } : undefined;
+		const changes = await this.#getLineChanges();
+		const added = changes.added;
+		const innerChanges = changes.modifiedInnerChanges;
+		return added.length || innerChanges.length ? { added, innerChanges } : undefined;
 	}
 
 	public async translateOriginalLineToModified(line: number): Promise<number> {
@@ -74,6 +80,8 @@ async function computeLineChanges(originalDocument: vscode.TextDocument, modifie
 	const modifiedLineCount = modifiedDocument.lineCount;
 	const added: number[] = [];
 	const deleted: number[] = [];
+	const originalInnerChanges: MarkdownPreviewInnerChange[] = [];
+	const modifiedInnerChanges: MarkdownPreviewInnerChange[] = [];
 	const mappings = createEmptyLineMappings(originalLineCount, modifiedLineCount);
 
 	let lastOriginalEnd = 0;
@@ -98,6 +106,14 @@ async function computeLineChanges(originalDocument: vscode.TextDocument, modifie
 			mappings.modifiedToOriginal[i] = clampLine(origStart, originalLineCount);
 		}
 
+		// Collect inner changes (character-level changes within modified lines)
+		if (change.innerChanges) {
+			for (const inner of change.innerChanges) {
+				collectInnerChangesForSide(inner.originalRange, originalInnerChanges);
+				collectInnerChangesForSide(inner.modifiedRange, modifiedInnerChanges);
+			}
+		}
+
 		lastOriginalEnd = origEnd;
 		lastModifiedEnd = modEnd;
 	}
@@ -106,7 +122,34 @@ async function computeLineChanges(originalDocument: vscode.TextDocument, modifie
 	fillUnchangedLineMappings(mappings, lastOriginalEnd, originalLineCount, lastModifiedEnd, modifiedLineCount);
 	fillMissingLineMappings(mappings);
 
-	return { added, deleted, ...mappings };
+	return { added, deleted, originalInnerChanges, modifiedInnerChanges, ...mappings };
+}
+
+/**
+ * Splits a Range into per-line inner change entries.
+ * For single-line ranges, emits one entry. For multi-line ranges,
+ * the first line goes from startColumn to end-of-line (maxColumn),
+ * middle lines are full-line, and the last line goes from column 0
+ * to endColumn.
+ */
+function collectInnerChangesForSide(range: vscode.Range, out: MarkdownPreviewInnerChange[]): void {
+	if (range.isEmpty) {
+		return;
+	}
+	if (range.isSingleLine) {
+		out.push({ line: range.start.line, startColumn: range.start.character, endColumn: range.end.character });
+	} else {
+		// First line: from start column to end-of-line
+		out.push({ line: range.start.line, startColumn: range.start.character, endColumn: Number.MAX_SAFE_INTEGER });
+		// Middle lines: entire line
+		for (let line = range.start.line + 1; line < range.end.line; ++line) {
+			out.push({ line, startColumn: 0, endColumn: Number.MAX_SAFE_INTEGER });
+		}
+		// Last line: from start to end column (skip if endColumn is 0, meaning the range ended at the line boundary)
+		if (range.end.character > 0) {
+			out.push({ line: range.end.line, startColumn: 0, endColumn: range.end.character });
+		}
+	}
 }
 
 function createEmptyLineMappings(originalLineCount: number, modifiedLineCount: number): LineMappings {
