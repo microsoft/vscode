@@ -662,6 +662,180 @@ export class MarketplaceAgentPluginDiscovery extends AbstractAgentPluginDiscover
 }
 
 // ---------------------------------------------------------------------------
+// Copilot CLI plugin discovery
+// ---------------------------------------------------------------------------
+
+/**
+ * Directory under the Copilot CLI home where installed plugins are cached.
+ * Layout is two levels deep: `<marketplace>/<plugin>/`. Direct (non-marketplace)
+ * installs use the reserved marketplace segment `_direct`.
+ *
+ * See `src/plugins/manager.ts` in the copilot-agent-runtime repo.
+ */
+const COPILOT_CLI_INSTALLED_PLUGINS_DIR = '.copilot/installed-plugins';
+
+/**
+ * Discovers plugins installed by the Copilot CLI under
+ * `~/.copilot/installed-plugins/<marketplace>/<plugin>/`. Each leaf directory
+ * is treated as a plugin root, allowing CLI-installed plugins (both
+ * marketplace and direct) to surface in VS Code without a separate install.
+ */
+export class CopilotCliAgentPluginDiscovery extends AbstractAgentPluginDiscovery {
+
+	constructor(
+		@IFileService fileService: IFileService,
+		@IPathService pathService: IPathService,
+		@ILogService logService: ILogService,
+		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
+		@IDialogService private readonly _dialogService: IDialogService,
+	) {
+		super(fileService, pathService, logService, workspaceContextService);
+	}
+
+	public override start(enablementModel: IEnablementModel): void {
+		this._enablementModel = enablementModel;
+		const scheduler = this._register(new RunOnceScheduler(() => this._refreshPlugins(), 0));
+
+		const watcherStore = this._register(new DisposableStore());
+		const setupWatchers = async () => {
+			watcherStore.clear();
+			if (this._store.isDisposed) {
+				return;
+			}
+
+			const root = await this._getInstalledPluginsDir();
+
+			// Walk up to the deepest existing ancestor and watch each directory
+			// from there down. Non-recursive watchers fail if the target doesn't
+			// exist, so we need to watch an existing parent (e.g. ~/.copilot or
+			// userHome) to detect the first-ever plugin install.
+			const dirsToWatch: URI[] = [];
+			let candidate: URI | undefined = root;
+			while (candidate) {
+				dirsToWatch.unshift(candidate);
+				const parent = joinPath(candidate, '..');
+				if (parent.toString() === candidate.toString()) {
+					break;
+				}
+				if (await this._pathExists(parent)) {
+					dirsToWatch.unshift(parent);
+					break;
+				}
+				candidate = parent;
+			}
+
+			for (const dir of dirsToWatch) {
+				if (!(await this._pathExists(dir))) {
+					continue;
+				}
+				const watcher = this._fileService.createWatcher(dir, { recursive: false, excludes: [] });
+				watcherStore.add(watcher);
+				watcherStore.add(watcher.onDidChange(() => {
+					scheduler.schedule();
+					// Re-attach watchers in case directories appeared/disappeared.
+					setupWatchers().catch(() => { /* watchers are best-effort */ });
+				}));
+			}
+
+			// Watch each marketplace bucket non-recursively for plugin
+			// install/uninstall events.
+			let rootStat;
+			try {
+				rootStat = await this._fileService.resolve(root);
+			} catch {
+				return;
+			}
+			if (!rootStat.children) {
+				return;
+			}
+			for (const marketplaceDir of rootStat.children) {
+				if (!marketplaceDir.isDirectory) {
+					continue;
+				}
+				const watcher = this._fileService.createWatcher(marketplaceDir.resource, { recursive: false, excludes: [] });
+				watcherStore.add(watcher);
+				watcherStore.add(watcher.onDidChange(() => scheduler.schedule()));
+			}
+		};
+
+		setupWatchers().catch(() => { /* watchers are best-effort */ });
+		scheduler.schedule();
+	}
+
+	private async _getInstalledPluginsDir(): Promise<URI> {
+		const userHome = await this._pathService.userHome();
+		return joinPath(userHome, COPILOT_CLI_INSTALLED_PLUGINS_DIR);
+	}
+
+	protected override async _discoverPluginSources(): Promise<readonly IPluginSource[]> {
+		const root = await this._getInstalledPluginsDir();
+
+		let rootStat;
+		try {
+			rootStat = await this._fileService.resolve(root);
+		} catch {
+			// Directory doesn't exist — Copilot CLI hasn't installed any plugins.
+			return [];
+		}
+
+		if (!rootStat.isDirectory || !rootStat.children) {
+			return [];
+		}
+
+		const sources: IPluginSource[] = [];
+		// Each immediate child is a marketplace bucket (e.g. `_direct`,
+		// `<marketplace-name>`); each grandchild is a plugin root.
+		for (const marketplaceDir of rootStat.children) {
+			if (!marketplaceDir.isDirectory) {
+				continue;
+			}
+
+			let marketplaceStat;
+			try {
+				marketplaceStat = await this._fileService.resolve(marketplaceDir.resource);
+			} catch {
+				continue;
+			}
+
+			if (!marketplaceStat.children) {
+				continue;
+			}
+
+			for (const pluginDir of marketplaceStat.children) {
+				if (!pluginDir.isDirectory) {
+					continue;
+				}
+				sources.push({
+					uri: pluginDir.resource,
+					fromMarketplace: undefined,
+					remove: () => this._promptRemove(pluginDir.resource),
+				});
+			}
+		}
+
+		return sources;
+	}
+
+	private async _promptRemove(resource: URI): Promise<void> {
+		const { confirmed } = await this._dialogService.confirm({
+			message: localize('copilotCliPlugin.remove.confirm', "This plugin was installed by the Copilot CLI. Remove it from disk?"),
+			detail: localize('copilotCliPlugin.remove.detail', "The plugin directory '{0}' will be moved to the trash. You can reinstall it later via the Copilot CLI.", resource.fsPath),
+			primaryButton: localize('copilotCliPlugin.remove.primary', "Remove"),
+		});
+		if (!confirmed) {
+			return;
+		}
+
+		try {
+			await this._fileService.del(resource, { recursive: true, useTrash: true });
+			this._enablementModel.remove(resource.toString());
+		} catch (error) {
+			this._logService.error('[CopilotCliAgentPluginDiscovery] Failed to remove plugin', error);
+		}
+	}
+}
+
+// ---------------------------------------------------------------------------
 // Extension-contributed plugin discovery
 // ---------------------------------------------------------------------------
 

@@ -662,6 +662,8 @@ export namespace ConfigKey {
 
 		export const ExecutionSubagentToolEnabled = defineSetting<boolean>('chat.executionSubagent.enabled', ConfigType.ExperimentBased, false);
 		export const SkillToolEnabled = defineSetting<boolean>('chat.skillTool.enabled', ConfigType.ExperimentBased, false);
+		/** When enabled, the get_changed_files tool is available to the agent. */
+		export const GetChangedFilesToolEnabled = defineSetting<boolean>('chat.getChangedFilesTool.enabled', ConfigType.ExperimentBased, false);
 		/** Model to use for the execution subagent */
 		/** Use the agentic proxy for the execution subagent */
 		export const ExecutionSubagentUseAgenticProxy = defineSetting<boolean>('chat.executionSubagent.useAgenticProxy', ConfigType.ExperimentBased, false);
@@ -1018,8 +1020,6 @@ export namespace ConfigKey {
 	export const GitHubMcpLockdown = defineSetting<boolean>('chat.githubMcpServer.lockdown', ConfigType.Simple, false);
 	export type GitHubMcpChannelValue = 'stable' | 'insiders';
 	export const GitHubMcpChannel = defineSetting<GitHubMcpChannelValue>('chat.githubMcpServer.channel', ConfigType.Simple, 'stable');
-
-	export const GetSearchResultsViewSkill = defineSetting<boolean>('chat.getSearchViewResultsSkill.enabled', ConfigType.ExperimentBased, false);
 
 	export const BackgroundAgentEnabled = defineSetting<boolean>('chat.backgroundAgent.enabled', ConfigType.Simple, true);
 	export const CloudAgentEnabled = defineSetting<boolean>('chat.cloudAgent.enabled', ConfigType.Simple, true);

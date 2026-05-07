@@ -32,7 +32,6 @@ import { compileBuildWithoutManglingTask, compileBuildWithManglingTask } from '.
 import { compileNonNativeExtensionsBuildTask, compileNativeExtensionsBuildTask, compileAllExtensionsBuildTask, compileExtensionMediaBuildTask, cleanExtensionsBuildTask, compileCopilotExtensionBuildTask } from './gulpfile.extensions.ts';
 import { copyCodiconsTask } from './lib/compilation.ts';
 import { getCopilotExcludeFilter, prepareBuiltInCopilotRipgrepShim } from './lib/copilot.ts';
-import type { EmbeddedProductInfo } from './lib/embeddedType.ts';
 import { useEsbuildTranspile } from './buildConfig.ts';
 import { promisify } from 'util';
 import globCallback from 'glob';
@@ -288,10 +287,6 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 
 		const name = product.nameShort;
 		const packageJsonUpdates: Record<string, unknown> = { name, version };
-		const isInsiderOrExploration = quality === 'insider' || quality === 'exploration';
-		const embedded = isInsiderOrExploration
-			? (product as typeof product & { embedded?: EmbeddedProductInfo }).embedded
-			: undefined;
 
 		if (platform === 'linux') {
 			packageJsonUpdates.desktopName = `${product.applicationName}.desktop`;
@@ -312,43 +307,12 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 				json.date = readISODate(out);
 				json.checksums = checksums;
 				json.version = version;
-				if (embedded) {
-					json['darwinSiblingBundleIdentifier'] = embedded.darwinBundleIdentifier;
-					const embeddedObj = json['embedded'] as EmbeddedProductInfo;
-					embeddedObj['darwinSiblingBundleIdentifier'] = json['darwinBundleIdentifier'] as string;
-				}
 				return json;
 			}))
 			.pipe(es.through(function (file) {
 				productJsonContents = file.contents.toString();
 				this.emit('data', file);
 			}));
-
-		const packageSubJsonStream = embedded
-			? gulp.src(['package.json'], { base: '.' })
-				.pipe(jsonEditor((json: Record<string, unknown>) => {
-					json.name = embedded.nameShort;
-					return json;
-				}))
-				.pipe(rename('package.sub.json'))
-			: undefined;
-
-		const productSubJsonStream = embedded
-			? gulp.src(['product.json'], { base: '.' })
-				.pipe(jsonEditor((json: Record<string, unknown>) => {
-					// Preserve the host's mutex name before overlaying embedded properties,
-					// so the embedded app can poll for the correct InnoSetup -ready mutex.
-					const hostMutexName = json['win32MutexName'];
-					Object.keys(embedded).forEach(key => {
-						json[key] = embedded[key as keyof EmbeddedProductInfo];
-					});
-					if (hostMutexName) {
-						json['win32SetupMutexName'] = hostMutexName;
-					}
-					return json;
-				}))
-				.pipe(rename('product.sub.json'))
-			: undefined;
 
 		const license = gulp.src([product.licenseFileName, 'ThirdPartyNotices.txt', 'licenses/**'], { base: '.', allowEmpty: true });
 
@@ -401,12 +365,6 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 			sources,
 			deps
 		];
-		if (packageSubJsonStream) {
-			mergeStreams.push(packageSubJsonStream);
-		}
-		if (productSubJsonStream) {
-			mergeStreams.push(productSubJsonStream);
-		}
 		let all = es.merge(...mergeStreams);
 
 		if (platform === 'win32') {
@@ -442,9 +400,6 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 				'resources/win32/code_70x70.png',
 				'resources/win32/code_150x150.png'
 			], { base: '.' }));
-			if (embedded) {
-				all = es.merge(all, gulp.src('resources/win32/sessions.ico', { base: '.' }));
-			}
 		} else if (platform === 'linux') {
 			const policyDest = gulp.src('.build/policies/linux/**', { base: '.build/policies/linux' })
 				.pipe(rename(f => f.dirname = `policies/${f.dirname}`));
@@ -463,21 +418,7 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 			...config,
 			platform,
 			arch: arch === 'armhf' ? 'arm' : arch,
-			ffmpegChromium: false,
-			...(embedded ? {
-				darwinMiniAppName: embedded.nameShort,
-				darwinMiniAppDisplayName: embedded.nameLong,
-				darwinMiniAppBundleIdentifier: embedded.darwinBundleIdentifier,
-				darwinMiniAppIcon: 'resources/darwin/agents.icns',
-				darwinMiniAppAssetsCar: 'resources/darwin/agents.car',
-				darwinMiniAppBundleURLTypes: [{
-					role: 'Viewer',
-					name: embedded.nameLong,
-					urlSchemes: [embedded.urlProtocol]
-				}],
-				win32ProxyAppName: embedded.nameShort,
-				win32ProxyIcon: 'resources/win32/sessions.ico',
-			} : {})
+			ffmpegChromium: false
 		};
 
 		let result: NodeJS.ReadWriteStream = all
@@ -489,8 +430,8 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 				'**',
 				'!LICENSE',
 				'!version',
-				...(platform === 'darwin' && !isInsiderOrExploration ? ['!**/Contents/Applications', '!**/Contents/Applications/**'] : []),
-				...(platform === 'win32' && !isInsiderOrExploration ? ['!**/electron_proxy.exe'] : []),
+				...(platform === 'darwin' ? ['!**/Contents/Applications', '!**/Contents/Applications/**'] : []),
+				...(platform === 'win32' ? ['!**/electron_proxy.exe'] : []),
 			], { dot: true }));
 
 		if (platform === 'linux') {
@@ -714,21 +655,6 @@ BUILD_TARGETS.forEach(buildTarget => {
 
 // #region nls
 
-const innoSetupConfig: Record<string, { codePage: string; defaultInfo?: { name: string; id: string } }> = {
-	'zh-cn': { codePage: 'CP936', defaultInfo: { name: 'Simplified Chinese', id: '$0804', } },
-	'zh-tw': { codePage: 'CP950', defaultInfo: { name: 'Traditional Chinese', id: '$0404' } },
-	'ko': { codePage: 'CP949', defaultInfo: { name: 'Korean', id: '$0412' } },
-	'ja': { codePage: 'CP932' },
-	'de': { codePage: 'CP1252' },
-	'fr': { codePage: 'CP1252' },
-	'es': { codePage: 'CP1252' },
-	'ru': { codePage: 'CP1251' },
-	'it': { codePage: 'CP1252' },
-	'pt-br': { codePage: 'CP1252' },
-	'hu': { codePage: 'CP1250' },
-	'tr': { codePage: 'CP1254' }
-};
-
 gulp.task(task.define(
 	'vscode-translations-export',
 	task.series(
@@ -758,7 +684,7 @@ gulp.task('vscode-translations-import', function () {
 	return es.merge([...i18n.defaultLanguages, ...i18n.extraLanguages].map(language => {
 		const id = language.id;
 		return gulp.src(`${options.location}/${id}/vscode-setup/messages.xlf`)
-			.pipe(i18n.prepareIslFiles(language, innoSetupConfig[language.id]))
+			.pipe(i18n.prepareIslFiles(language))
 			.pipe(vfs.dest(`./build/win32/i18n`));
 	}));
 });

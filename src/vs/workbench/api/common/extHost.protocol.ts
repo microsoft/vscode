@@ -2149,6 +2149,29 @@ export interface MainThreadQuickDiffShape extends IDisposable {
 	$unregisterQuickDiffProvider(handle: number): Promise<void>;
 }
 
+export interface IDocumentDiffLineChangeDto {
+	originalRange: IRange;
+	modifiedRange: IRange;
+	innerChanges: { originalRange: IRange; modifiedRange: IRange }[] | undefined;
+}
+
+export interface IDocumentDiffMoveDto {
+	originalRange: IRange;
+	modifiedRange: IRange;
+	changes: IDocumentDiffLineChangeDto[];
+}
+
+export interface IDocumentDiffResultDto {
+	identical: boolean;
+	quitEarly: boolean;
+	changes: IDocumentDiffLineChangeDto[];
+	moves: IDocumentDiffMoveDto[];
+}
+
+export interface MainThreadDocumentDiffShape extends IDisposable {
+	$computeDocumentDiff(originalUri: UriComponents, modifiedUri: UriComponents, ignoreTrimWhitespace: boolean, maxComputationTimeMs: number, computeMoves: boolean): Promise<IDocumentDiffResultDto | null>;
+}
+
 export type DebugSessionUUID = string;
 
 export interface IDebugConfiguration {
@@ -3920,6 +3943,7 @@ export const MainContext = {
 	MainThreadOutputService: createProxyIdentifier<MainThreadOutputServiceShape>('MainThreadOutputService'),
 	MainThreadProgress: createProxyIdentifier<MainThreadProgressShape>('MainThreadProgress'),
 	MainThreadQuickDiff: createProxyIdentifier<MainThreadQuickDiffShape>('MainThreadQuickDiff'),
+	MainThreadDocumentDiff: createProxyIdentifier<MainThreadDocumentDiffShape>('MainThreadDocumentDiff'),
 	MainThreadQuickOpen: createProxyIdentifier<MainThreadQuickOpenShape>('MainThreadQuickOpen'),
 	MainThreadStatusBar: createProxyIdentifier<MainThreadStatusBarShape>('MainThreadStatusBar'),
 	MainThreadSecretState: createProxyIdentifier<MainThreadSecretStateShape>('MainThreadSecretState'),

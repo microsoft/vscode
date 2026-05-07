@@ -85,6 +85,7 @@ const detectColorSchemeSettingSchema: IConfigurationPropertySchema = {
 	type: 'boolean',
 	markdownDescription: nls.localize({ key: 'detectColorScheme', comment: ['{0} and {1} will become links to other settings.'] }, 'If enabled, will automatically select a color theme based on the system color mode. If the system color mode is dark, {0} is used, else {1}.', formatSettingAsLink(ThemeSettings.PREFERRED_DARK_THEME), formatSettingAsLink(ThemeSettings.PREFERRED_LIGHT_THEME)),
 	default: false,
+	...(isWeb ? { agentsWindow: { default: true } } : {}),
 	tags: [COLOR_THEME_CONFIGURATION_SETTINGS_TAG],
 };
 

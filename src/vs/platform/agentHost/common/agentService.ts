@@ -15,7 +15,7 @@ import type { CompletionsParams, CompletionsResult, CreateTerminalParams, Resolv
 import { ProtectedResourceMetadata, type ConfigSchema, type FileEdit, type ModelSelection, type SessionActiveClient, type ToolCallPendingConfirmationState, type ToolDefinition } from './state/protocol/state.js';
 import type { ActionEnvelope, INotification, IRootConfigChangedAction, SessionAction, TerminalAction } from './state/sessionActions.js';
 import type { ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceWriteParams, ResourceWriteResult, IStateSnapshot } from './state/sessionProtocol.js';
-import { AttachmentType, ComponentToState, SessionInputResponseKind, SessionStatus, StateComponents, type CustomizationRef, type PendingMessage, type RootState, type SessionCustomization, type SessionInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState } from './state/sessionState.js';
+import { ComponentToState, SessionInputResponseKind, SessionStatus, StateComponents, type CustomizationRef, type PendingMessage, type RootState, type SessionCustomization, type SessionInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState } from './state/sessionState.js';
 
 // IPC contract between the renderer and the agent host utility process.
 // Defines all serializable event types, the IAgent provider interface,
@@ -37,20 +37,26 @@ export const AgentHostEnabledSettingId = 'chat.agentHost.enabled';
 export const AgentHostIpcLoggingSettingId = 'chat.agentHost.ipcLoggingEnabled';
 
 /**
- * Configuration key that controls whether the Claude agent provider is registered
- * inside the agent host. Read on the workbench side and forwarded to the agent host
- * process via the `VSCODE_AGENT_HOST_ENABLE_CLAUDE` environment variable; the agent
- * host process must be restarted for changes to take effect.
+ * Configuration key that holds the absolute path to a locally-installed
+ * `@anthropic-ai/claude-agent-sdk` package. When non-empty, the Claude agent
+ * provider is registered inside the agent host and the SDK module is loaded
+ * via dynamic `import()` from this path. When empty (the default), the
+ * Claude provider is not registered. The SDK is intentionally not bundled
+ * with VS Code; users opting into the Claude agent install the SDK
+ * themselves and point this setting at it. The agent host process must be
+ * restarted for changes to take effect.
  */
-export const AgentHostClaudeAgentEnabledSettingId = 'chat.agentHost.claudeAgent.enabled';
+export const AgentHostClaudeAgentSdkPathSettingId = 'chat.agentHost.claudeAgent.path';
 
 /**
- * Environment variable that, when set to `'1'`, causes the agent host process to
- * register the Claude agent provider. Set by the agent host starters when
- * {@link AgentHostClaudeAgentEnabledSettingId} is enabled, and may also be set
- * directly by developers as an override.
+ * Environment variable that holds the absolute path to a locally-installed
+ * `@anthropic-ai/claude-agent-sdk` package. When set to a non-empty value,
+ * the agent host process registers the Claude agent provider and loads the
+ * SDK module from this path. Set by the agent host starters from
+ * {@link AgentHostClaudeAgentSdkPathSettingId}, and may also be set directly
+ * by developers as an override.
  */
-export const AgentHostEnableClaudeEnvVar = 'VSCODE_AGENT_HOST_ENABLE_CLAUDE';
+export const AgentHostClaudeSdkPathEnvVar = 'VSCODE_AGENT_HOST_CLAUDE_SDK_PATH';
 
 /** Result of starting the agent host WebSocket server on-demand. */
 export interface IAgentHostSocketInfo {
@@ -239,13 +245,17 @@ export interface IAgentSessionConfigCompletionsParams extends IAgentResolveSessi
 	readonly query?: string;
 }
 
+export const enum AgentAttachmentType {
+	File = 'file',
+	Directory = 'directory',
+	Selection = 'selection',
+}
+
 /** Serializable attachment passed alongside a message to the agent host. */
 export interface IAgentAttachment {
-	readonly type: AttachmentType;
+	readonly type: AgentAttachmentType;
 	readonly uri: URI;
 	readonly displayName?: string;
-	/** For selections: the selected text. */
-	readonly text?: string;
 	/** For selections: line/character range. */
 	readonly selection?: {
 		readonly start: { readonly line: number; readonly character: number };
