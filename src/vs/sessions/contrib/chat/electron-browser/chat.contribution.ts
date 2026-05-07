@@ -13,6 +13,7 @@ import { ISessionsProvidersService } from '../../../services/sessions/browser/se
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { ILifecycleService, LifecyclePhase } from '../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { NewChatViewPane, SessionsViewId } from '../browser/newChatViewPane.js';
+import { SessionsView, SessionsViewId as SessionsListViewId } from '../../sessions/browser/views/sessionsView.js';
 import { DebugAgentHostInDevToolsAction } from '../../../../workbench/contrib/chat/electron-browser/actions/debugAgentHostAction.js';
 import { CollectAgentHostDebugLogsAction } from '../../agentHost/electron-browser/collectDebugLogsAction.js';
 
@@ -38,6 +39,12 @@ class SelectAgentsFolderContribution extends Disposable implements IWorkbenchCon
 
 	private async selectFolder(folderUri: URI): Promise<void> {
 		this.sessionsManagementService.openNewSessionView();
+
+		// Tell the sessions list this folder is the open-window source folder
+		// so it ranks the matching folder section first. Get the view if it
+		// already exists — do not open it just for this side-effect.
+		const sessionsView = this.viewsService.getViewWithId<SessionsView>(SessionsListViewId);
+		sessionsView?.sessionsControl?.setOpenWindowSourceFolder(folderUri);
 
 		if (this.tryResolveAndSelect(folderUri)) {
 			return;
