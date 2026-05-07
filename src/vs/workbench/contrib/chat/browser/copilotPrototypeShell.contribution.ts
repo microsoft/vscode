@@ -3332,7 +3332,7 @@ export class CopilotTBB3StatusBarContribution extends Disposable implements IWor
 		const statusEl = append(rowInner, $('span.copilot-prototype-dashboard-indicator-status'));
 		switch (this._csiState) {
 			case 'ready':
-				statusEl.append(...renderLabelWithIcons('$(check) ' + localize('wsIndexReady', "Index ready")));
+				statusEl.append(...renderLabelWithIcons('$(check) ' + localize('csiReady', "Ready")));
 				break;
 			case 'outOfDate': {
 				statusEl.textContent = localize('csiOutOfDate', "Out of date.");
@@ -3348,7 +3348,32 @@ export class CopilotTBB3StatusBarContribution extends Disposable implements IWor
 				break;
 			}
 			case 'indexing':
-				statusEl.textContent = localize('csiIndexing', "Indexing...");
+				statusEl.append(...renderLabelWithIcons('$(sync~spin) ' + localize('csiIndexing', "Indexing...")));
+				break;
+			case 'notIndexed': {
+				statusEl.textContent = localize('csiNotIndexed', "Not indexed.");
+				const indexLink = append(statusEl, $('a.copilot-prototype-dashboard-indicator-action'));
+				indexLink.textContent = ' ' + localize('csiIndex', "Index?");
+				indexLink.tabIndex = 0;
+				indexLink.role = 'button';
+				indexLink.addEventListener('click', (e) => {
+					e.stopPropagation();
+					this._csiState = 'indexing';
+					this.updateSharedDashboard();
+				});
+				break;
+			}
+			case 'notIndexable':
+				statusEl.append(...renderLabelWithIcons('$(warning) ' + localize('csiNotIndexable', "Not available")));
+				break;
+			case 'notAuthorized':
+				statusEl.append(...renderLabelWithIcons('$(lock) ' + localize('csiNotAuthorized', "Not authorized")));
+				break;
+			case 'checking':
+				statusEl.append(...renderLabelWithIcons('$(loading~spin) ' + localize('csiChecking', "Checking...")));
+				break;
+			case 'resolving':
+				statusEl.append(...renderLabelWithIcons('$(loading~spin) ' + localize('csiResolving', "Resolving...")));
 				break;
 		}
 	}
@@ -3363,19 +3388,42 @@ export class CopilotTBB3StatusBarContribution extends Disposable implements IWor
 		infoIcon.dataset.tooltip = localize('syncTooltip', "Syncs session data to your GitHub.com account.");
 
 		const statusEl = append(rowInner, $('span.copilot-prototype-dashboard-indicator-status'));
-		if (this._syncState === 'enabled') {
-			statusEl.textContent = localize('enabled', "Enabled");
-		} else {
-			statusEl.textContent = localize('syncDisabled', "Not enabled.");
-			const enableLink = append(statusEl, $('a.copilot-prototype-dashboard-indicator-action'));
-			enableLink.textContent = ' ' + localize('syncEnable', "Enable?");
-			enableLink.tabIndex = 0;
-			enableLink.role = 'button';
-			enableLink.addEventListener('click', (e) => {
-				e.stopPropagation();
-				this._syncState = 'enabled';
-				this.updateSharedDashboard();
-			});
+		switch (this._syncState) {
+			case 'enabled':
+				statusEl.append(...renderLabelWithIcons('$(check) ' + localize('syncEnabled', "Enabled")));
+				break;
+			case 'disabled': {
+				statusEl.textContent = localize('syncDisabled', "Not enabled.");
+				const enableLink = append(statusEl, $('a.copilot-prototype-dashboard-indicator-action'));
+				enableLink.textContent = ' ' + localize('syncEnable', "Enable?");
+				enableLink.tabIndex = 0;
+				enableLink.role = 'button';
+				enableLink.addEventListener('click', (e) => {
+					e.stopPropagation();
+					this._syncState = 'enabled';
+					this.updateSharedDashboard();
+				});
+				break;
+			}
+			case 'syncing':
+				statusEl.append(...renderLabelWithIcons('$(sync~spin) ' + localize('syncSyncing', "Syncing...")));
+				break;
+			case 'error':
+				statusEl.append(...renderLabelWithIcons('$(error) ' + localize('syncError', "Sync error")));
+				break;
+			case 'paused': {
+				statusEl.append(...renderLabelWithIcons('$(debug-pause) ' + localize('syncPaused', "Paused.")));
+				const resumeLink = append(statusEl, $('a.copilot-prototype-dashboard-indicator-action'));
+				resumeLink.textContent = ' ' + localize('syncResume', "Resume?");
+				resumeLink.tabIndex = 0;
+				resumeLink.role = 'button';
+				resumeLink.addEventListener('click', (e) => {
+					e.stopPropagation();
+					this._syncState = 'syncing';
+					this.updateSharedDashboard();
+				});
+				break;
+			}
 		}
 	}
 
@@ -3572,8 +3620,8 @@ export class CopilotTBB3StatusBarContribution extends Disposable implements IWor
 	// ---- Dashboard V2 (redesigned) ----
 
 	private _previewUpdateCallback: (() => void) | undefined;
-	private _csiState: 'ready' | 'outOfDate' | 'indexing' = 'ready';
-	private _syncState: 'enabled' | 'disabled' = 'enabled';
+	private _csiState: 'ready' | 'outOfDate' | 'indexing' | 'notIndexed' | 'notIndexable' | 'notAuthorized' | 'checking' | 'resolving' = 'ready';
+	private _syncState: 'enabled' | 'disabled' | 'syncing' | 'error' | 'paused' = 'enabled';
 
 	private renderDashboardV2(container: HTMLElement, disposables: DisposableStore): HTMLElement {
 		const sku = this._activeSku;
@@ -3847,7 +3895,7 @@ export class CopilotTBB3StatusBarContribution extends Disposable implements IWor
 		// === CSI & Sync State Controls ===
 		const subStateControls = append(container, $('div.copilot-prototype-coin-substate-controls'));
 		append(subStateControls, $('span.copilot-prototype-coin-substate-label')).textContent = localize('v2CsiStateLabel', "CSI:");
-		const csiLinks = ['ready', 'outOfDate', 'indexing'] as const;
+		const csiLinks = ['ready', 'outOfDate', 'indexing', 'notIndexed', 'notIndexable', 'notAuthorized', 'checking', 'resolving'] as const;
 		for (const csiVal of csiLinks) {
 			const link = append(subStateControls, $('a.copilot-prototype-coin-grid-link'));
 			link.textContent = csiVal;
@@ -3859,7 +3907,7 @@ export class CopilotTBB3StatusBarContribution extends Disposable implements IWor
 			});
 		}
 		append(subStateControls, $('span.copilot-prototype-coin-substate-label')).textContent = localize('v2SyncStateLabel', "Sync:");
-		const syncLinks = ['enabled', 'disabled'] as const;
+		const syncLinks = ['enabled', 'disabled', 'syncing', 'error', 'paused'] as const;
 		for (const syncVal of syncLinks) {
 			const link = append(subStateControls, $('a.copilot-prototype-coin-grid-link'));
 			link.textContent = syncVal;
