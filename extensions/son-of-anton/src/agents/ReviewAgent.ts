@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Son of Anton Contributors. All rights reserved.
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
@@ -54,6 +54,7 @@ export class ReviewAgent extends BaseAgent {
 				this.defaultModel,
 				systemPrompt,
 				userMessage,
+				context.onToken,
 			);
 
 			tokenUsage.naiveInputTokens = context.scopeFiles.length * 5000;

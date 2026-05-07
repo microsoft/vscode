@@ -1,17 +1,15 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Son of Anton Contributors. All rights reserved.
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { AgentEvent } from './agentEvents';
 import { BaseAgent, AgentContext } from './BaseAgent';
 import { ReviewAgent } from './ReviewAgent';
-import { MetricsTracker } from './MetricsTracker';
-import { ProjectMemory } from './ProjectMemory';
 import {
 	AgentHandle,
 	ExecutionPlan,
-	ScopeDeclaration,
 	ScopeEntry,
 	Subtask,
 	SubtaskResult,
@@ -82,11 +80,12 @@ export class OrchestratorAgent extends BaseAgent {
 	 * Handle a direct chat request from @anton.
 	 * This is the main entry point for the orchestrator.
 	 */
-	async handleChatRequest(
+	override async handleChatRequest(
 		request: vscode.ChatRequest,
-		chatContext: vscode.ChatContext,
+		_chatContext: vscode.ChatContext,
 		stream: vscode.ChatResponseStream,
 		token: vscode.CancellationToken,
+		structuredEmit?: (event: AgentEvent) => void,
 	): Promise<void> {
 		const task = this.agentManager.createTask('Orchestrator', request.prompt);
 		this.agentManager.startTask(task.id);
@@ -94,16 +93,16 @@ export class OrchestratorAgent extends BaseAgent {
 		try {
 			// Handle slash commands
 			if (request.command === 'plan') {
-				await this.handlePlanCommand(request, stream, task.id, token);
+				await this.handlePlanCommand(request, stream, task.id, token, structuredEmit);
 			} else if (request.command === 'approve') {
-				await this.handleApproveCommand(stream, task.id, token);
+				await this.handleApproveCommand(stream, task.id, token, structuredEmit);
 			} else if (request.command === 'status') {
 				await this.handleStatusCommand(stream);
 			} else if (request.command === 'metrics') {
 				await this.handleMetricsCommand(stream);
 			} else {
 				// Default: create a plan from the request
-				await this.handlePlanCommand(request, stream, task.id, token);
+				await this.handlePlanCommand(request, stream, task.id, token, structuredEmit);
 			}
 
 			this.agentManager.completeTask(task.id);
@@ -122,13 +121,22 @@ export class OrchestratorAgent extends BaseAgent {
 		stream: vscode.ChatResponseStream,
 		taskId: string,
 		token: vscode.CancellationToken,
+		structuredEmit?: (event: AgentEvent) => void,
 	): Promise<void> {
 		stream.markdown('**Analyzing request and querying code graph...**\n\n');
 
-		// Step 1: Gather context from the code graph
+		if (token.isCancellationRequested) {
+			stream.markdown('\n**Cancelled.**\n');
+			return;
+		}
+
 		const graphContext = await this.gatherGraphContext(taskId, request.prompt);
 
-		// Step 2: Ask the LLM to decompose the request
+		if (token.isCancellationRequested) {
+			stream.markdown('\n**Cancelled.**\n');
+			return;
+		}
+
 		const systemPrompt = this.buildSystemPrompt(this.getRoleDescription());
 		const planPrompt = [
 			'Decompose the following developer request into subtasks.',
@@ -149,9 +157,25 @@ export class OrchestratorAgent extends BaseAgent {
 			planPrompt,
 		);
 
-		// Step 3: Parse the plan
+		if (token.isCancellationRequested) {
+			stream.markdown('\n**Cancelled.**\n');
+			return;
+		}
+
 		const plan = this.parsePlan(planResponse, request.prompt);
 		this.activePlan = plan;
+
+		structuredEmit?.({
+			type: 'plan-proposed',
+			plan: {
+				subtasks: plan.subtasks.map(subtask => ({
+					instruction: subtask.instruction,
+					assignee: subtask.assignee,
+					scopeFiles: subtask.scopeFiles,
+					dependencies: subtask.dependencies,
+				})),
+			},
+		});
 
 		// Step 4: Present the plan
 		stream.markdown('## Execution Plan\n\n');
@@ -183,6 +207,7 @@ export class OrchestratorAgent extends BaseAgent {
 		stream: vscode.ChatResponseStream,
 		taskId: string,
 		token: vscode.CancellationToken,
+		structuredEmit?: (event: AgentEvent) => void,
 	): Promise<void> {
 		if (!this.activePlan) {
 			stream.markdown('No active plan to approve. Use `@anton` to create a plan first.\n');
@@ -210,18 +235,50 @@ export class OrchestratorAgent extends BaseAgent {
 			if (!depsOk) {
 				subtask.status = 'failed';
 				stream.markdown(`**Skipping** ${subtask.instruction} — dependency failed.\n\n`);
+				structuredEmit?.({
+					type: 'subtask-failed',
+					subtaskId: subtask.id,
+					assignee: subtask.assignee,
+					error: 'Dependency failed.',
+				});
 				continue;
 			}
 
 			stream.markdown(`### Executing: ${subtask.instruction}\n`);
 			stream.markdown(`Agent: @${subtask.assignee} | Files: ${subtask.scopeFiles.join(', ')}\n\n`);
 
-			const result = await this.executeSubtask(subtask, taskId, stream);
+			structuredEmit?.({
+				type: 'subtask-started',
+				subtaskId: subtask.id,
+				assignee: subtask.assignee,
+				instruction: subtask.instruction,
+			});
+
+			let result: SubtaskResult;
+			try {
+				result = await this.executeSubtask(subtask, taskId, stream, structuredEmit);
+			} catch (err) {
+				const message = err instanceof Error ? err.message : String(err);
+				subtask.status = 'failed';
+				structuredEmit?.({
+					type: 'subtask-failed',
+					subtaskId: subtask.id,
+					assignee: subtask.assignee,
+					error: message,
+				});
+				throw err;
+			}
 			results.set(subtask.id, result);
 
 			if (result.success) {
 				subtask.status = 'completed';
 				stream.markdown(`**Completed.** ${result.summary}\n\n`);
+				structuredEmit?.({
+					type: 'subtask-completed',
+					subtaskId: subtask.id,
+					assignee: subtask.assignee,
+					summary: result.summary,
+				});
 			} else {
 				subtask.status = 'failed';
 				stream.markdown(`**Failed.** ${result.summary}\n\n`);
@@ -230,6 +287,12 @@ export class OrchestratorAgent extends BaseAgent {
 				stream.markdown(
 					'Options: retry this step, try an alternative approach, or skip.\n\n'
 				);
+				structuredEmit?.({
+					type: 'subtask-failed',
+					subtaskId: subtask.id,
+					assignee: subtask.assignee,
+					error: result.summary,
+				});
 			}
 		}
 
@@ -255,6 +318,7 @@ export class OrchestratorAgent extends BaseAgent {
 		subtask: Subtask,
 		parentTaskId: string,
 		stream: vscode.ChatResponseStream,
+		structuredEmit?: (event: AgentEvent) => void,
 	): Promise<SubtaskResult> {
 		const specialist = this.specialists.get(subtask.assignee);
 		if (!specialist) {
@@ -276,11 +340,16 @@ export class OrchestratorAgent extends BaseAgent {
 			graphContext += `### ${file}\n${summary}\n\n`;
 		}
 
+		// `onToken` is omitted when no structured channel is wired (native chat
+		// participant flow), keeping the cheaper non-streaming LLM path.
 		const context: AgentContext = {
 			instruction: subtask.instruction,
 			scopeFiles: subtask.scopeFiles,
 			graphContext,
 			parentTaskId,
+			onToken: structuredEmit
+				? (token) => structuredEmit({ type: 'subtask-token', subtaskId: subtask.id, token })
+				: undefined,
 		};
 
 		// Execute with retry loop
@@ -524,7 +593,7 @@ export class OrchestratorAgent extends BaseAgent {
 	/**
 	 * Not used directly — orchestrator overrides handleChatRequest.
 	 */
-	async execute(context: AgentContext): Promise<SubtaskResult> {
+	async execute(_context: AgentContext): Promise<SubtaskResult> {
 		return {
 			success: true,
 			changes: [],

@@ -1,9 +1,8 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Son of Anton Contributors. All rights reserved.
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
 import { BaseAgent, AgentContext } from './BaseAgent';
 import { SubtaskResult } from './types';
 import {
@@ -63,6 +62,7 @@ export class RequirementsAgent extends BaseAgent {
 				'opus',
 				systemPrompt,
 				userMessage,
+				context.onToken,
 			);
 
 			this.agentManager.completeTask(task.id);
@@ -138,12 +138,14 @@ export class RequirementsAgent extends BaseAgent {
 				);
 			}
 
+			const startedAt = Date.now();
 			const { text, tokenUsage } = await this.callLlm(
 				task.id,
 				'opus',
 				systemPrompt,
 				promptParts.join('\n'),
 			);
+			this.metricsTracker.recordInvocation(this.handle, Date.now() - startedAt, tokenUsage);
 
 			const clarifyingQuestions = this.extractClarifyingQuestions(text);
 			const requirementsContent = this.extractRequirementsContent(text);

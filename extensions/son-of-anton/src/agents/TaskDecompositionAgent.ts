@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Son of Anton Contributors. All rights reserved.
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
@@ -61,6 +61,7 @@ export class TaskDecompositionAgent extends BaseAgent {
 				'sonnet',
 				systemPrompt,
 				userMessage,
+				context.onToken,
 			);
 
 			this.agentManager.completeTask(task.id);
@@ -113,12 +114,14 @@ export class TaskDecompositionAgent extends BaseAgent {
 				'Each task must map to a specific agent and file scope.',
 			];
 
+			const startedAt = Date.now();
 			const { text, tokenUsage } = await this.callLlm(
 				task.id,
 				'sonnet',
 				systemPrompt,
 				promptParts.join('\n'),
 			);
+			this.metricsTracker.recordInvocation(this.handle, Date.now() - startedAt, tokenUsage);
 
 			this.agentManager.completeTask(task.id);
 

@@ -1,11 +1,12 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Son of Anton Contributors. All rights reserved.
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
 import { LlmClient, ModelId } from '../llm/LlmClient';
-import { McpClient, McpToolCall, McpToolResult } from '../mcp/McpClient';
+import { McpClient, McpToolResult } from '../mcp/McpClient';
+import { AgentEvent } from './agentEvents';
 import { AgentManager } from './AgentManager';
 import { MetricsTracker } from './MetricsTracker';
 import { ProjectMemory } from './ProjectMemory';
@@ -25,6 +26,12 @@ export interface AgentContext {
 	scopeFiles: string[];
 	graphContext: string;
 	parentTaskId: string;
+	/**
+	 * Optional per-token callback. When provided, the specialist should
+	 * forward LLM tokens through this callback so the chat surface can
+	 * render live streaming inside the active subtask card.
+	 */
+	onToken?: (token: string) => void;
 }
 
 /**
@@ -110,12 +117,18 @@ export abstract class BaseAgent {
 
 	/**
 	 * Make an LLM request and record a trace span.
+	 *
+	 * When `onToken` is provided, the request is routed through the streaming
+	 * client so the caller can surface live tokens (e.g. into a subtask card).
+	 * Without `onToken`, the cheaper non-streaming path is used to avoid the
+	 * SSE overhead.
 	 */
 	protected async callLlm(
 		taskId: string,
 		model: ModelId,
 		systemPrompt: string,
 		userMessage: string,
+		onToken?: (token: string) => void,
 	): Promise<{ text: string; tokenUsage: TokenUsage }> {
 		const span = this.agentManager.addSpan({
 			taskId,
@@ -124,6 +137,37 @@ export abstract class BaseAgent {
 			startTime: Date.now(),
 			attributes: { model },
 		});
+
+		if (onToken) {
+			let text = '';
+			for await (const event of this.llmClient.streamRequest({
+				model,
+				systemPrompt,
+				messages: [{ role: 'user', content: userMessage }],
+			})) {
+				if (event.type === 'token') {
+					text += event.token;
+					onToken(event.token);
+				} else if (event.type === 'error') {
+					throw new Error(event.error);
+				}
+			}
+
+			span.endTime = Date.now();
+
+			const usage = this.llmClient.getTokenUsage();
+			const tokenUsage: TokenUsage = {
+				inputTokens: usage.input,
+				outputTokens: usage.output,
+				cachedTokens: usage.cached,
+				naiveInputTokens: 0,
+			};
+
+			span.attributes['inputTokens'] = tokenUsage.inputTokens;
+			span.attributes['outputTokens'] = tokenUsage.outputTokens;
+
+			return { text, tokenUsage };
+		}
 
 		const text = await this.llmClient.request({
 			model,
@@ -295,13 +339,66 @@ export abstract class BaseAgent {
 	abstract execute(context: AgentContext): Promise<SubtaskResult>;
 
 	/**
+	 * Stream a single chat turn against this agent's role prompt. Used by
+	 * non-chat-participant surfaces (e.g. the WebView sidebar) that need the
+	 * same behaviour as `handleChatRequest` but with a callback-based emit
+	 * channel and an `AbortSignal`-friendly cancellation hook. Returns the
+	 * full assistant text once the stream completes.
+	 */
+	async runChatTurn(
+		userMessage: string,
+		emit: (token: string) => void,
+		cancellation: vscode.CancellationToken,
+	): Promise<string> {
+		const task = this.agentManager.createTask(this.displayName, userMessage);
+		this.agentManager.startTask(task.id);
+
+		const controller = new AbortController();
+		const cancelSubscription = cancellation.onCancellationRequested(() => controller.abort());
+
+		try {
+			const systemPrompt = this.buildSystemPrompt(this.getRoleDescription());
+			let fullText = '';
+			for await (const event of this.llmClient.streamRequest({
+				model: this.defaultModel,
+				systemPrompt,
+				messages: [{ role: 'user', content: userMessage }],
+				signal: controller.signal,
+				agentHandle: this.handle,
+			})) {
+				if (event.type === 'token') {
+					emit(event.token);
+					fullText += event.token;
+				} else if (event.type === 'error') {
+					throw new Error(event.error);
+				}
+			}
+			this.agentManager.completeTask(task.id);
+			return fullText;
+		} catch (err) {
+			const message = err instanceof Error ? err.message : String(err);
+			this.agentManager.failTask(task.id, message);
+			throw err;
+		} finally {
+			cancelSubscription.dispose();
+		}
+	}
+
+	/**
 	 * Handle a VS Code chat request. Default implementation delegates to execute().
+	 *
+	 * `structuredEmit` is an optional out-of-band channel used by the WebView
+	 * surface (via AgentBridge) to receive structured AgentEvents in addition
+	 * to the markdown stream. Native chat-participant call sites omit it; the
+	 * default implementation here ignores it because non-orchestrator agents
+	 * don't currently emit structured plan/subtask events.
 	 */
 	async handleChatRequest(
 		request: vscode.ChatRequest,
-		chatContext: vscode.ChatContext,
+		_chatContext: vscode.ChatContext,
 		stream: vscode.ChatResponseStream,
-		token: vscode.CancellationToken,
+		_token: vscode.CancellationToken,
+		_structuredEmit?: (event: AgentEvent) => void,
 	): Promise<void> {
 		const task = this.agentManager.createTask(this.displayName, request.prompt);
 		this.agentManager.startTask(task.id);

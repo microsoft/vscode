@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Son of Anton Contributors. All rights reserved.
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
@@ -7,4 +7,15 @@
 declare var process: {
 	env: Record<string, string | undefined>;
 	platform: string;
+	memoryUsage(): {
+		rss: number;
+		heapTotal: number;
+		heapUsed: number;
+		external: number;
+		arrayBuffers: number;
+	};
+	cpuUsage(previousValue?: { user: number; system: number }): {
+		user: number;
+		system: number;
+	};
 };

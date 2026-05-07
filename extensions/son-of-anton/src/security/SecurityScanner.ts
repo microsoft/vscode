@@ -1,10 +1,23 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Son of Anton Contributors. All rights reserved.
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { SandboxManager, SandboxResult } from '../sandbox/SandboxManager';
+import { SandboxManager } from '../sandbox/SandboxManager';
+
+/**
+ * Single-quote a string for safe inclusion in a POSIX shell command. Any
+ * embedded single quote is closed, escaped, and reopened (`'\''`).
+ */
+function shEscape(s: string): string {
+	return `'${s.replace(/'/g, `'\\''`)}'`;
+}
+
+/**
+ * Empty SARIF document used when there is nothing to scan.
+ */
+const EMPTY_SARIF_JSON = '{"version":"2.1.0","runs":[]}';
 
 /**
  * SARIF result as parsed from Semgrep/Trivy output.
@@ -134,7 +147,15 @@ export class SecurityScanner {
 	 * Returns the parsed SARIF report.
 	 */
 	async runSemgrep(filePaths: string[]): Promise<SarifReport> {
-        const targets = filePaths.map(f => "'/workspace/${f}'").join(' ');
+		if (filePaths.length === 0) {
+			return parseSarif(EMPTY_SARIF_JSON, 'Semgrep');
+		}
+
+		const targets = filePaths.map(f => shEscape(`/workspace/${f}`)).join(' ');
+		const command = [
+			'cd /workspace',
+			`semgrep --config=auto --sarif ${targets} 2>/dev/null`,
+		].join(' && ');
 
 		const result = await this.sandbox.execute(command);
 		const report = parseSarif(result.stdout, 'Semgrep');

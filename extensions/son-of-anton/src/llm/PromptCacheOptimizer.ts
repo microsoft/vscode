@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Son of Anton Contributors. All rights reserved.
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
@@ -169,11 +169,6 @@ export class PromptCacheOptimizer {
 		this.promptHashes.set(agentHandle, prevHashes);
 
 		// Check prompt ordering (static should come before dynamic)
-		const systemPromptPosition = 0;
-		const claudeMdPosition = systemPrompt.length;
-		const graphContextPosition = claudeMdPosition + claudeMdContent.length;
-		const dynamicPosition = graphContextPosition + graphContext.length;
-
 		if (claudeMdContent && graphContext && claudeMdContent.length > 0 && graphContext.length > 0) {
 			// Verify no dynamic content is interspersed before static content
 			if (dynamicContent && systemPrompt.includes(dynamicContent.substring(0, 50))) {

@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Son of Anton Contributors. All rights reserved.
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
@@ -12,8 +12,6 @@ import { SubtaskResult, FileChange } from './types';
  * and validate them. Supports visual regression testing with baseline management.
  */
 export class E2eTestAgent extends BaseAgent {
-	private static readonly MAX_FIX_ATTEMPTS = 3;
-
 	protected getRoleDescription(): string {
 		return [
 			'You are an E2E test generation specialist for Son of Anton.',
@@ -52,6 +50,7 @@ export class E2eTestAgent extends BaseAgent {
 				this.defaultModel,
 				systemPrompt,
 				userMessage,
+				context.onToken,
 			);
 
 			tokenUsage.naiveInputTokens = context.scopeFiles.length * 8000;
@@ -103,7 +102,7 @@ export class E2eTestAgent extends BaseAgent {
 			sections.push(`### Accessibility Tree\n${treeResult.content}`);
 
 			// Take a screenshot for context
-			const screenshotResult = await this.callMcpTool(taskId, 'playwright', 'screenshot', {
+			await this.callMcpTool(taskId, 'playwright', 'screenshot', {
 				fullPage: true,
 			});
 			sections.push(`### Screenshot captured for reference`);
@@ -132,14 +131,14 @@ export class E2eTestAgent extends BaseAgent {
 	 * Validate generated tests by attempting to run them.
 	 * On failure, use error output + screenshots to diagnose and fix (max 3 attempts).
 	 */
-	private async validateTests(taskId: string, changes: FileChange[]): Promise<FileChange[]> {
+	private async validateTests(_taskId: string, changes: FileChange[]): Promise<FileChange[]> {
 		// For now, return the changes as-is.
 		// When the sandbox environment is available, this will:
 		// 1. Write test files to a temp directory
 		// 2. Run them with Playwright
 		// 3. On failure, capture screenshot + error
 		// 4. Feed error back to LLM for fix
-		// 5. Repeat up to MAX_FIX_ATTEMPTS times
+		// 5. Repeat up to a fixed retry limit
 		return changes;
 	}
 
@@ -161,14 +160,14 @@ export class E2eTestAgent extends BaseAgent {
 			'',
 			'## Test File Template',
 			'```typescript',
-			"import { test, expect } from '@playwright/test';",
+			'import { test, expect } from \'@playwright/test\';',
 			'',
-			"test.describe('Feature Name', () => {",
-			"  test('user flow description', async ({ page }) => {",
-			"    await page.goto('http://localhost:3000/path');",
+			'test.describe(\'Feature Name\', () => {',
+			'  test(\'user flow description\', async ({ page }) => {',
+			'    await page.goto(\'http://localhost:3000/path\');',
 			'    // Use accessibility locators',
-			"    await page.getByRole('button', { name: 'Action' }).click();",
-			"    await expect(page.getByRole('heading', { name: 'Result' })).toBeVisible();",
+			'    await page.getByRole(\'button\', { name: \'Action\' }).click();',
+			'    await expect(page.getByRole(\'heading\', { name: \'Result\' })).toBeVisible();',
 			'  });',
 			'});',
 			'```',

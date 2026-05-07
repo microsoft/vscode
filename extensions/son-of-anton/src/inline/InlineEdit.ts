@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Son of Anton Contributors. All rights reserved.
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as vscode from 'vscode';
@@ -112,9 +112,10 @@ export class InlineEditProvider {
 		const document = editor.document;
 		const position = editor.selection.active;
 		const line = position.line;
+		const tabSize = typeof editor.options.tabSize === 'number' ? editor.options.tabSize : 4;
 
 		// Try to find a function/class boundary using indentation
-		const currentIndent = this.getIndentLevel(document.lineAt(line).text);
+		const currentIndent = this.getIndentLevel(document.lineAt(line).text, tabSize);
 
 		let startLine = line;
 		let endLine = line;
@@ -129,7 +130,7 @@ export class InlineEditProvider {
 				}
 				continue;
 			}
-			const indent = this.getIndentLevel(lineText);
+			const indent = this.getIndentLevel(lineText, tabSize);
 			if (indent < currentIndent) {
 				startLine = i;
 				break;
@@ -146,7 +147,7 @@ export class InlineEditProvider {
 				}
 				continue;
 			}
-			const indent = this.getIndentLevel(lineText);
+			const indent = this.getIndentLevel(lineText, tabSize);
 			if (indent < currentIndent) {
 				break;
 			}
@@ -159,7 +160,7 @@ export class InlineEditProvider {
 		);
 	}
 
-private getIndentLevel(line: string, tabSize: number): number {
+	private getIndentLevel(line: string, tabSize: number): number {
 		let count = 0;
 		for (const ch of line) {
 			if (ch === '\t') {

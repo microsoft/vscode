@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Son of Anton Contributors. All rights reserved.
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
@@ -38,13 +38,38 @@ export interface WeeklyCostReport {
 }
 
 /**
- * Cost per 1M tokens for each model (Anthropic pricing).
+ * Cost per 1M tokens for each model (USD).
+ *
+ * Pricing reflects published list prices for each provider as of the
+ * extension's current configuration. Update alongside `ModelId` whenever a
+ * new model is added to `LlmClient`.
  */
 const MODEL_COSTS: Record<ModelId, { input: number; output: number; cachedInput: number }> = {
 	opus: { input: 15.0, output: 75.0, cachedInput: 1.5 },
 	sonnet: { input: 3.0, output: 15.0, cachedInput: 0.3 },
 	haiku: { input: 0.25, output: 1.25, cachedInput: 0.025 },
+	'gpt-4o': { input: 2.5, output: 10.0, cachedInput: 1.25 },
+	'gpt-4o-mini': { input: 0.15, output: 0.6, cachedInput: 0.075 },
+	'gpt-5-codex': { input: 1.25, output: 10.0, cachedInput: 0.125 },
+	'foundry-gpt-4o': { input: 2.5, output: 10.0, cachedInput: 1.25 },
+	'foundry-gpt-4o-mini': { input: 0.15, output: 0.6, cachedInput: 0.075 },
+	'foundry-claude-sonnet': { input: 3.0, output: 15.0, cachedInput: 0.3 },
+	'bedrock-claude-sonnet': { input: 3.0, output: 15.0, cachedInput: 0.3 },
+	'bedrock-claude-haiku': { input: 0.25, output: 1.25, cachedInput: 0.025 },
+	'gemini-1-5-pro': { input: 1.25, output: 5.0, cachedInput: 0.3125 },
+	'gemini-1-5-flash': { input: 0.075, output: 0.3, cachedInput: 0.01875 },
+	'gemini-2-0-flash': { input: 0.1, output: 0.4, cachedInput: 0.025 },
 };
+
+/**
+ * Build a fresh per-model cost accumulator initialised to zero for every
+ * known `ModelId`. Keeps the report self-updating when models are added.
+ */
+function emptyCostByModel(): Record<ModelId, number> {
+	return Object.fromEntries(
+		(Object.keys(MODEL_COSTS) as ModelId[]).map(id => [id, 0]),
+	) as Record<ModelId, number>;
+}
 
 /**
  * CostReporter — tracks and reports API spending across models and agents.
@@ -110,7 +135,7 @@ export class CostReporter {
 	 */
 	getCostByModel(sinceMs?: number): Record<ModelId, number> {
 		const cutoff = sinceMs ? Date.now() - sinceMs : 0;
-		const result: Record<ModelId, number> = { opus: 0, sonnet: 0, haiku: 0 };
+		const result = emptyCostByModel();
 
 		for (const entry of this.entries) {
 			if (entry.timestamp >= cutoff) {
@@ -145,8 +170,6 @@ export class CostReporter {
 		const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 		const twoWeeksAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
 
-		const weekMs = 7 * 24 * 60 * 60 * 1000;
-
 		// Current week entries
 		const currentWeekEntries = this.entries.filter(
 			e => e.timestamp >= weekAgo.getTime()
@@ -162,7 +185,7 @@ export class CostReporter {
 			? previousWeekEntries.reduce((sum, e) => sum + e.cost, 0)
 			: null;
 
-		const costByModel: Record<ModelId, number> = { opus: 0, sonnet: 0, haiku: 0 };
+		const costByModel = emptyCostByModel();
 		const costByAgent: Record<string, number> = {};
 		let totalInput = 0;
 		let totalOutput = 0;
@@ -225,12 +248,17 @@ export class CostReporter {
 		lines.push(`**Cache Savings:** $${r.cacheHitSavings.toFixed(4)}`);
 		lines.push('');
 
-		// Cost by model
+		// Cost by model — only emit rows for models with non-zero spend so the
+		// table stays readable when most of the 14 supported models are unused.
+		const modelRows = (Object.keys(r.costByModel) as ModelId[])
+			.map(model => ({ model, cost: r.costByModel[model] }))
+			.filter(row => row.cost > 0)
+			.sort((a, b) => b.cost - a.cost);
+
 		lines.push('### Spend by Model\n');
 		lines.push('| Model | Cost | % of Total |');
 		lines.push('|---|---|---|');
-		for (const model of ['opus', 'sonnet', 'haiku'] as ModelId[]) {
-			const cost = r.costByModel[model];
+		for (const { model, cost } of modelRows) {
 			const pct = r.totalCost > 0 ? (cost / r.totalCost * 100).toFixed(1) : '0.0';
 			lines.push(`| ${model} | $${cost.toFixed(4)} | ${pct}% |`);
 		}

@@ -131,6 +131,27 @@
 				"title": "Anton: Open Chat"
 			},
 			{
+				"command": "sota.openSetupWizard",
+				"title": "Open Setup Wizard",
+				"category": "Son of Anton"
+			},
+			{
+				"command": "sota.signInClaude",
+				"title": "Anton: Sign In to Claude"
+			},
+			{
+				"command": "sota.signInOpenAI",
+				"title": "Anton: Sign In to ChatGPT / Codex"
+			},
+			{
+				"command": "sota.signOutAll",
+				"title": "Anton: Sign Out of All Providers"
+			},
+			{
+				"command": "sota.resetFirstRunPrompt",
+				"title": "Anton: Reset First-Run Sign-In Prompt"
+			},
+			{
 				"command": "sota.inlineEdit",
 				"title": "Anton: Inline Edit"
 			},
@@ -210,6 +231,11 @@
 		"viewsContainers": {
 			"activitybar": [
 				{
+					"id": "sota-chat",
+					"title": "Son of Anton Chat",
+					"icon": "media/chat-icon.svg"
+				},
+				{
 					"id": "sota-sidebar",
 					"title": "Son of Anton",
 					"icon": "media/icon.svg"
@@ -217,6 +243,13 @@
 			]
 		},
 		"views": {
+			"sota-chat": [
+				{
+					"type": "webview",
+					"id": "sota.chatView",
+					"name": "Chat"
+				}
+			],
 			"sota-sidebar": [
 				{
 					"id": "sota.agentStatus",
@@ -241,6 +274,11 @@
 					],
 					"description": "Default model for chat interactions"
 				},
+				"sota.chat.includeWorkspaceContext": {
+					"type": "boolean",
+					"default": true,
+					"description": "Automatically include workspace context (active editor, README, recent files) in chat requests."
+				},
 				"sota.completions.enabled": {
 					"type": "boolean",
 					"default": true,
@@ -260,6 +298,112 @@
 					"type": "string",
 					"default": "",
 					"description": "Anthropic API key (prefer environment variable ANTHROPIC_API_KEY)"
+				},
+				"sota.openaiApiKey": {
+					"type": "string",
+					"default": "",
+					"scope": "application",
+					"markdownDescription": "OpenAI API key used for ChatGPT / Codex models when no OAuth provider is connected. Get one from [platform.openai.com](https://platform.openai.com/api-keys). Falls back to the `OPENAI_API_KEY` environment variable when this is empty."
+				},
+				"sota.foundryApiKey": {
+					"type": "string",
+					"default": "",
+					"scope": "application",
+					"markdownDescription": "API key for Microsoft Foundry / Azure OpenAI. Get it from the Azure portal: navigate to your Azure OpenAI resource → Keys and Endpoint. Falls back to `AZURE_OPENAI_API_KEY` or `FOUNDRY_API_KEY` env var when this is empty."
+				},
+				"sota.foundryEndpoint": {
+					"type": "string",
+					"default": "",
+					"scope": "application",
+					"markdownDescription": "Base endpoint for your Microsoft Foundry / Azure OpenAI resource, e.g. `https://my-resource.openai.azure.com` (no trailing slash). Found in the Azure portal under Keys and Endpoint."
+				},
+				"sota.foundryApiVersion": {
+					"type": "string",
+					"default": "2024-10-01-preview",
+					"scope": "application",
+					"markdownDescription": "Foundry / Azure OpenAI API version. See Microsoft's [API reference](https://learn.microsoft.com/azure/ai-services/openai/reference) for current values."
+				},
+				"sota.foundryDeployments": {
+					"type": "string",
+					"default": "{}",
+					"scope": "application",
+					"markdownDescription": "JSON object mapping Foundry model ids to deployment names. Example: `{ \"foundry-gpt-4o\": \"gpt-4o-eastus\", \"foundry-gpt-4o-mini\": \"gpt-4o-mini\", \"foundry-claude-sonnet\": \"claude-sonnet-4-5\" }`. Each deployment must already exist in your Foundry resource."
+				},
+				"sota.bedrockRegion": {
+					"type": "string",
+					"default": "us-east-1",
+					"scope": "application",
+					"markdownDescription": "AWS region for Bedrock requests (e.g. `us-east-1`, `us-west-2`, `eu-west-3`). Each region exposes a different subset of foundation models — check Bedrock's model availability page."
+				},
+				"sota.bedrockAccessKeyId": {
+					"type": "string",
+					"default": "",
+					"scope": "application",
+					"markdownDescription": "AWS access key ID. Leave blank to use the standard AWS credential chain (env vars, shared credentials file, IAM role, etc.). Falls back to `AWS_ACCESS_KEY_ID` env var. **For long-lived credentials only — do not paste production access keys here unless this user-data dir is appropriately protected.**"
+				},
+				"sota.bedrockSecretAccessKey": {
+					"type": "string",
+					"default": "",
+					"scope": "application",
+					"markdownDescription": "AWS secret access key. Leave blank to use the standard AWS credential chain. Falls back to `AWS_SECRET_ACCESS_KEY` env var."
+				},
+				"sota.bedrockSessionToken": {
+					"type": "string",
+					"default": "",
+					"scope": "application",
+					"markdownDescription": "Optional AWS session token (for temporary credentials from STS). Falls back to `AWS_SESSION_TOKEN` env var."
+				},
+				"sota.bedrockProfile": {
+					"type": "string",
+					"default": "",
+					"scope": "application",
+					"markdownDescription": "Named profile from `~/.aws/credentials` to use. Takes precedence over the access-key settings above when set. Equivalent to `AWS_PROFILE` env var."
+				},
+				"sota.bedrockModelMap": {
+					"type": "string",
+					"default": "{}",
+					"scope": "application",
+					"markdownDescription": "JSON object mapping Son of Anton's Bedrock model ids to actual Bedrock model invocation IDs. Default mapping if empty: `bedrock-claude-sonnet` → `anthropic.claude-3-5-sonnet-20241022-v2:0`, `bedrock-claude-haiku` → `anthropic.claude-3-5-haiku-20241022-v1:0`. Override here for region-specific or cross-region inference profiles."
+				},
+				"sota.googleApiKey": {
+					"type": "string",
+					"default": "",
+					"scope": "application",
+					"markdownDescription": "API key for the Google Gemini API. Get one from [aistudio.google.com](https://aistudio.google.com/app/apikey). Falls back to `GOOGLE_API_KEY` or `GEMINI_API_KEY` env var when this is empty. Note: this is the consumer Gemini API endpoint (`generativelanguage.googleapis.com`), not full Vertex AI — Vertex with ADC OAuth is a separate forthcoming integration."
+				},
+				"sota.googleModelMap": {
+					"type": "string",
+					"default": "{}",
+					"scope": "application",
+					"markdownDescription": "JSON object mapping Son of Anton's Gemini model ids to actual Google API model names. Default mapping if empty: `gemini-1-5-pro` → `gemini-1.5-pro`, `gemini-1-5-flash` → `gemini-1.5-flash`, `gemini-2-0-flash` → `gemini-2.0-flash-exp`. Override here to pin specific versions or use experimental endpoints."
+				},
+				"sota.mcp.servers": {
+					"type": "array",
+					"default": [],
+					"description": "MCP servers to connect to over stdio. Each entry spawns a child process and exposes its tools as `mcp__<server>__<tool>` in the chat.",
+					"items": {
+						"type": "object",
+						"required": ["name", "command"],
+						"properties": {
+							"name": { "type": "string", "description": "Unique server identifier (used as the prefix in tool names)." },
+							"command": { "type": "string", "description": "Executable to spawn (e.g. 'node', 'uvx', 'python')." },
+							"args": { "type": "array", "items": { "type": "string" }, "description": "Arguments passed to the command." },
+							"env": { "type": "object", "additionalProperties": { "type": "string" }, "description": "Environment variables for the spawned process." },
+							"cwd": { "type": "string", "description": "Working directory for the child process. Defaults to the workspace root." }
+						}
+					}
+				},
+				"sotaAuth.anthropic-oauth.clientId": {
+					"type": "string",
+					"default": "",
+					"scope": "application",
+					"markdownDescription": "OAuth client ID for the Claude (claude.ai) sign-in flow. **Most users should leave this blank and use an API key instead** — Anthropic does not currently offer public OAuth client registration for third-party tools. If you have been issued a client ID by Anthropic (e.g. as part of a partner program), paste it here. Otherwise set `#sota.apiKey#` to your Anthropic API key from [console.anthropic.com](https://console.anthropic.com/settings/keys)."
+				},
+				"sotaAuth.chatgpt-oauth.clientId": {
+					"type": "string",
+					"default": "",
+					"scope": "application",
+					"markdownDescription": "OAuth client ID for the ChatGPT / Codex (OpenAI) sign-in flow. **Most users should leave this blank and use an API key instead** — OpenAI does not currently offer a third-party OAuth program comparable to a developer console here. If you have been issued a client ID for OpenAI's PKCE flow, paste it here. Otherwise set `#sota.openaiApiKey#` to your OpenAI API key from [platform.openai.com](https://platform.openai.com/api-keys)."
 				}
 			}
 		}
@@ -268,6 +412,10 @@
 		"build": "npx tsx esbuild.mts",
 		"watch": "npx tsx esbuild.mts --watch",
 		"test": "node ./out/test/runTests.js"
+	},
+	"dependencies": {
+		"@aws-sdk/client-bedrock-runtime": "^3.700.0",
+		"@aws-sdk/credential-providers": "^3.700.0"
 	},
 	"devDependencies": {
 		"@types/vscode": "^1.96.0",

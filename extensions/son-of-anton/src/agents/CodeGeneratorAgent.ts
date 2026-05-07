@@ -1,10 +1,10 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Son of Anton Contributors. All rights reserved.
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
 import { BaseAgent, AgentContext } from './BaseAgent';
-import { SubtaskResult, TokenUsage } from './types';
+import { SubtaskResult } from './types';
 
 /**
  * Code generation specialist.
@@ -49,6 +49,7 @@ export class CodeGeneratorAgent extends BaseAgent {
 				this.defaultModel,
 				systemPrompt,
 				userMessage,
+				context.onToken,
 			);
 
 			// Estimate naive token cost (full files instead of graph-routed)

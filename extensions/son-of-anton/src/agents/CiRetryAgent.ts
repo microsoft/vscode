@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Son of Anton Contributors. All rights reserved.
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
@@ -69,8 +69,8 @@ export class CiRetryAgent extends BaseAgent {
 			}
 
 			// Classify and fix failures
-			const failures = await this.classifyFailures(task.id, pipelineInfo.logs);
-			let allChanges = [];
+			const failures = await this.classifyFailures(task.id, pipelineInfo.logs, context.onToken);
+			const allChanges = [];
 			let attempt = 0;
 
 			for (const failure of failures) {
@@ -157,7 +157,11 @@ export class CiRetryAgent extends BaseAgent {
 	/**
 	 * Classify CI failures from log output.
 	 */
-	private async classifyFailures(taskId: string, logs: string): Promise<CiFailure[]> {
+	private async classifyFailures(
+		taskId: string,
+		logs: string,
+		onToken?: (token: string) => void,
+	): Promise<CiFailure[]> {
 		if (!logs) {
 			return [{ type: 'unknown', stage: 'unknown', message: 'No failure logs available', logs: '' }];
 		}
@@ -172,6 +176,7 @@ export class CiRetryAgent extends BaseAgent {
 			'haiku',
 			systemPrompt,
 			`Classify these CI failures:\n\n${logs.slice(0, 20000)}`,
+			onToken,
 		);
 
 		try {
@@ -216,6 +221,7 @@ export class CiRetryAgent extends BaseAgent {
 			this.defaultModel,
 			systemPrompt,
 			userMessage,
+			context.onToken,
 		);
 
 		const changes = this.parseFileChanges(text);

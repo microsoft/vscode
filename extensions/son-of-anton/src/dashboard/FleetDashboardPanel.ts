@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Son of Anton Contributors. All rights reserved.
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
@@ -16,18 +16,16 @@ import { BackgroundTaskClient, BackgroundTask } from '../background/BackgroundTa
 export class FleetDashboardPanel {
 	private static instance: FleetDashboardPanel | undefined;
 	private readonly panel: vscode.WebviewPanel;
-	private readonly agentManager: AgentManager;
 	private readonly metricsTracker: MetricsTracker;
 	private readonly backgroundClient: BackgroundTaskClient;
 	private refreshTimer: ReturnType<typeof setInterval> | null = null;
 
 	private constructor(
-		extensionUri: vscode.Uri,
-		agentManager: AgentManager,
+		_extensionUri: vscode.Uri,
+		_agentManager: AgentManager,
 		metricsTracker: MetricsTracker,
 		backgroundClient: BackgroundTaskClient,
 	) {
-		this.agentManager = agentManager;
 		this.metricsTracker = metricsTracker;
 		this.backgroundClient = backgroundClient;
 

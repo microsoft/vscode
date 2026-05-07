@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Son of Anton Contributors. All rights reserved.
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
@@ -69,8 +69,6 @@ export interface TemporalMemoryOptions {
 	graphName?: string;
 }
 
-const DEFAULT_GRAPH_NAME = 'son-of-anton-memory';
-
 /**
  * Temporal knowledge graph for long-term agent memory.
  * Implements the Graphiti pattern with FalkorDB as the backing store.
@@ -83,10 +81,8 @@ export class TemporalMemory {
 	private readonly topicIndex = new Map<string, Set<string>>(); // topic -> entry IDs
 	private readonly typeIndex = new Map<MemoryEntityType, Set<string>>(); // type -> entry IDs
 	private nextId = 1;
-	private readonly graphName: string;
 
-	constructor(options: TemporalMemoryOptions) {
-		this.graphName = options.graphName ?? DEFAULT_GRAPH_NAME;
+	constructor(_options: TemporalMemoryOptions) {
 	}
 
 	/**
@@ -360,7 +356,7 @@ export class TemporalMemory {
 			statements.push(
 				`CREATE (:${entry.type} {` +
 				`id: '${entry.id}', ` +
-				`content: '${entry.content.replace(/'/g, "\\'")}', ` +
+				`content: '${entry.content.replace(/'/g, '\\\'')}', ` +
 				`source: '${entry.source}', ` +
 				`createdAt: ${entry.createdAt}, ` +
 				`validFrom: ${entry.validFrom}, ` +

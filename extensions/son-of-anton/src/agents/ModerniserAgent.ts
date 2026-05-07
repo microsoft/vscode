@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Son of Anton Contributors. All rights reserved.
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
@@ -68,9 +68,9 @@ export class ModerniserAgent extends BaseAgent {
 	 * Handle a chat request for the moderniser.
 	 * Supports the "modernise" command to start a new modernisation pipeline.
 	 */
-	async handleChatRequest(
+	override async handleChatRequest(
 		request: vscode.ChatRequest,
-		chatContext: vscode.ChatContext,
+		_chatContext: vscode.ChatContext,
 		stream: vscode.ChatResponseStream,
 		token: vscode.CancellationToken,
 	): Promise<void> {
@@ -103,9 +103,9 @@ export class ModerniserAgent extends BaseAgent {
 	 * Run the current phase of the modernisation pipeline.
 	 */
 	private async runPhase(
-		taskId: string,
+		_taskId: string,
 		stream: vscode.ChatResponseStream,
-		token: vscode.CancellationToken,
+		_token: vscode.CancellationToken,
 	): Promise<void> {
 		stream.markdown(`## Phase: ${PHASE_LABELS[this.currentPhase]}\n\n`);
 		stream.markdown(`Target: \`${this.targetPath || '(not set — specify a path)'}\`\n\n`);
@@ -247,6 +247,7 @@ export class ModerniserAgent extends BaseAgent {
 			this.defaultModel,
 			systemPrompt,
 			phasePrompt,
+			context.onToken,
 		);
 
 		return {

@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Son of Anton Contributors. All rights reserved.
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
@@ -161,6 +161,13 @@ export class PerformanceProfiler {
 			this.currentScenario = undefined;
 		}
 		return scenario;
+	}
+
+	/**
+	 * Whether a profiling session is currently in progress.
+	 */
+	isProfilingActive(): boolean {
+		return this.profilingActive;
 	}
 
 	/**

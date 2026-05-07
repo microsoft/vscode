@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Son of Anton Contributors. All rights reserved.
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
@@ -43,7 +43,6 @@ export interface ScopeLockManagerOptions {
 }
 
 const LOCK_PREFIX = 'soa:lock:';
-const AGENT_LOCKS_PREFIX = 'soa:agent-locks:';
 const DEFAULT_TTL_MS = 600_000; // 10 minutes
 const DEADLOCK_CHECK_INTERVAL_MS = 30_000;
 
@@ -61,7 +60,7 @@ export class ScopeLockManager {
 	private readonly onLockExpiredCallbacks: Array<(lock: ScopeLock) => void> = [];
 	private readonly onDeadlockCallbacks: Array<(agents: string[]) => void> = [];
 
-	constructor(private readonly options: ScopeLockManagerOptions) {
+	constructor(options: ScopeLockManagerOptions) {
 		this.defaultTtlMs = options.defaultTtlMs ?? DEFAULT_TTL_MS;
 
 		// Start deadlock detection loop

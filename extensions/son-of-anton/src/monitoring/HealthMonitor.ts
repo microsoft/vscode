@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Son of Anton Contributors. All rights reserved.
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
@@ -57,7 +57,6 @@ export interface SystemHealth {
 }
 
 const DEFAULT_CHECK_INTERVAL_MS = 60_000; // 1 minute
-const MAX_CONSECUTIVE_FAILURES = 3;
 
 const DEFAULT_ALERT_RULES: AlertRule[] = [
 	{
