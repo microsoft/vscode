@@ -77,6 +77,7 @@ import { ResourceTree } from '../../../../base/common/resourceTree.js';
 import { structuralEquals } from '../../../../base/common/equals.js';
 import { compareFileNames, comparePaths } from '../../../../base/common/comparers.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
+import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 
 const $ = dom.$;
 
@@ -90,6 +91,7 @@ class ChangesButtonBarWidget extends Disposable {
 	constructor(
 		container: HTMLElement,
 		viewModel: ChangesViewModel,
+		hasGitOperationInProgressObs: IObservable<boolean>,
 		@IAgentSessionsService agentSessionsService: IAgentSessionsService,
 		@IMenuService menuService: IMenuService,
 		@ICodeReviewService codeReviewService: ICodeReviewService,
@@ -100,10 +102,6 @@ class ChangesButtonBarWidget extends Disposable {
 		@IHoverService hoverService: IHoverService
 	) {
 		super();
-
-		const hasGitOperationInProgressContextObs = observableFromEvent(contextKeyService.onDidChangeContext, () => {
-			return contextKeyService.getContextKeyValue('sessions.hasGitOperationInProgress') === true;
-		});
 
 		const outgoingChangesObs = derived<number>(reader => {
 			const activeSessionState = viewModel.activeSessionStateObs.read(reader);
@@ -148,7 +146,7 @@ class ChangesButtonBarWidget extends Disposable {
 		});
 
 		this._register(autorun(reader => {
-			hasGitOperationInProgressContextObs.read(reader);
+			hasGitOperationInProgressObs.read(reader);
 			const sessionResource = viewModel.activeSessionResourceObs.read(reader);
 			const outgoingChanges = outgoingChangesObs.read(reader);
 			const reviewState = reviewStateObs.read(reader);
@@ -158,7 +156,6 @@ class ChangesButtonBarWidget extends Disposable {
 				MenuId.ChatEditingSessionChangesToolbar,
 				{
 					telemetrySource: 'changesView',
-					disableWhileRunning: true,
 					menuOptions: sessionResource
 						? { args: [sessionResource, agentSessionsService.getSession(sessionResource)?.metadata] }
 						: { shouldForwardArgs: true },
@@ -270,6 +267,9 @@ export class ChangesViewPane extends ViewPane {
 	private readonly hasUncommittedChangesContextKey: IContextKey<boolean>;
 	private readonly hasGitOperationInProgressContextKey: IContextKey<boolean>;
 
+	private readonly hasGitOperationInProgressObs: IObservable<boolean>;
+	private readonly scopedInstantiationService: IInstantiationService;
+
 	private readonly renderDisposables = this._register(new DisposableStore());
 
 	// Track current body dimensions for list layout
@@ -305,34 +305,66 @@ export class ChangesViewPane extends ViewPane {
 		this._register(changesMultiDiffSourceResolver);
 
 		// Context keys
-		this.isMergeBaseBranchProtectedContextKey = ActiveSessionContextKeys.IsMergeBaseBranchProtected.bindTo(this.contextKeyService);
-		this.isolationModeContextKey = ActiveSessionContextKeys.IsolationMode.bindTo(this.contextKeyService);
-		this.hasGitRepositoryContextKey = ActiveSessionContextKeys.HasGitRepository.bindTo(this.contextKeyService);
-		this.hasUpstreamContextKey = ActiveSessionContextKeys.HasUpstream.bindTo(this.contextKeyService);
-		this.hasIncomingChangesContextKey = ActiveSessionContextKeys.HasIncomingChanges.bindTo(this.contextKeyService);
-		this.hasOutgoingChangesContextKey = ActiveSessionContextKeys.HasOutgoingChanges.bindTo(this.contextKeyService);
-		this.hasUncommittedChangesContextKey = ActiveSessionContextKeys.HasUncommittedChanges.bindTo(this.contextKeyService);
-		this.hasGitHubRemoteContextKey = ActiveSessionContextKeys.HasGitHubRemote.bindTo(this.contextKeyService);
-		this.hasPullRequestContextKey = ActiveSessionContextKeys.HasPullRequest.bindTo(this.contextKeyService);
-		this.hasOpenPullRequestContextKey = ActiveSessionContextKeys.HasOpenPullRequest.bindTo(this.contextKeyService);
-		this.hasGitOperationInProgressContextKey = ActiveSessionContextKeys.HasGitOperationInProgress.bindTo(this.contextKeyService);
+		this.isMergeBaseBranchProtectedContextKey = ActiveSessionContextKeys.IsMergeBaseBranchProtected.bindTo(this.scopedContextKeyService);
+		this.isolationModeContextKey = ActiveSessionContextKeys.IsolationMode.bindTo(this.scopedContextKeyService);
+		this.hasGitRepositoryContextKey = ActiveSessionContextKeys.HasGitRepository.bindTo(this.scopedContextKeyService);
+		this.hasUpstreamContextKey = ActiveSessionContextKeys.HasUpstream.bindTo(this.scopedContextKeyService);
+		this.hasIncomingChangesContextKey = ActiveSessionContextKeys.HasIncomingChanges.bindTo(this.scopedContextKeyService);
+		this.hasOutgoingChangesContextKey = ActiveSessionContextKeys.HasOutgoingChanges.bindTo(this.scopedContextKeyService);
+		this.hasUncommittedChangesContextKey = ActiveSessionContextKeys.HasUncommittedChanges.bindTo(this.scopedContextKeyService);
+		this.hasGitHubRemoteContextKey = ActiveSessionContextKeys.HasGitHubRemote.bindTo(this.scopedContextKeyService);
+		this.hasPullRequestContextKey = ActiveSessionContextKeys.HasPullRequest.bindTo(this.scopedContextKeyService);
+		this.hasOpenPullRequestContextKey = ActiveSessionContextKeys.HasOpenPullRequest.bindTo(this.scopedContextKeyService);
+		this.hasGitOperationInProgressContextKey = ActiveSessionContextKeys.HasGitOperationInProgress.bindTo(this.scopedContextKeyService);
 
 		// Version mode
-		this._register(bindContextKey(ChangesContextKeys.VersionMode, this.contextKeyService, reader => {
+		this._register(bindContextKey(ChangesContextKeys.VersionMode, this.scopedContextKeyService, reader => {
 			return this.viewModel.versionModeObs.read(reader);
 		}));
 
 		// View mode
-		this._register(bindContextKey(ChangesContextKeys.ViewMode, this.contextKeyService, reader => {
+		this._register(bindContextKey(ChangesContextKeys.ViewMode, this.scopedContextKeyService, reader => {
 			return this.viewModel.viewModeObs.read(reader);
 		}));
 
 		// Set chatSessionType on the view's context key service so ViewTitle menu items
 		// can use it in their `when` clauses. Update reactively when the active session
 		// changes.
-		this._register(bindContextKey(ChatContextKeys.agentSessionType, this.contextKeyService, reader => {
+		this._register(bindContextKey(ChatContextKeys.agentSessionType, this.scopedContextKeyService, reader => {
 			return this.viewModel.activeSessionTypeObs.read(reader) ?? '';
 		}));
+
+		// Git operation in progress set in the global context key service by the extension
+		const hasGitOperationInProgressGlobalContextObs = observableFromEvent(this.contextKeyService.onDidChangeContext, () => {
+			return this.contextKeyService.getContextKeyValue('sessions.hasGitOperationInProgress') === true;
+		});
+
+		// Git operation in progress set in the session state
+		const hasGitOperationInProgressStateObs = derived(reader => {
+			const activeSessionState = this.viewModel.activeSessionStateObs.read(reader);
+			return activeSessionState?.hasGitOperationInProgress === true;
+		});
+
+		this.hasGitOperationInProgressObs = derived(reader => {
+			const hasGitOperationInProgressGlobalContext = hasGitOperationInProgressGlobalContextObs.read(reader);
+			const hasGitOperationInProgressState = hasGitOperationInProgressStateObs.read(reader);
+
+			// The global context key service is being set as soon as the command starts
+			// so we need to prefer it first before falling back to the session state.
+			const contextKeyValue = hasGitOperationInProgressGlobalContext === true
+				? hasGitOperationInProgressGlobalContext
+				: hasGitOperationInProgressState;
+
+			// Propagate global context service value to the scoped context key service
+			// as the scoped context key service is what it is being used in the view
+			this.hasGitOperationInProgressContextKey.set(contextKeyValue);
+
+			return contextKeyValue;
+		});
+
+		const scopedServiceCollection = new ServiceCollection([IContextKeyService, this.scopedContextKeyService]);
+		this.scopedInstantiationService = this.instantiationService.createChild(scopedServiceCollection);
+		this._register(this.scopedInstantiationService);
 	}
 
 	protected override renderBody(container: HTMLElement): void {
@@ -362,11 +394,11 @@ export class ChangesViewPane extends ViewPane {
 
 		// Changesets toolbar
 		const filesHeaderToolbarContainer = dom.append(this.filesHeaderNode, $('.changes-files-header-toolbar'));
-		this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, filesHeaderToolbarContainer, MenuId.ChatEditingSessionChangesFileHeaderToolbar, {
+		this._register(this.scopedInstantiationService.createInstance(MenuWorkbenchToolBar, filesHeaderToolbarContainer, MenuId.ChatEditingSessionChangesFileHeaderToolbar, {
 			menuOptions: { shouldForwardArgs: true },
 			actionViewItemProvider: (action) => {
 				if (action.id === 'chatEditing.versionsPicker' && action instanceof MenuItemAction) {
-					return this.instantiationService.createInstance(ChangesPickerActionItem, action, this.viewModel);
+					return this.scopedInstantiationService.createInstance(ChangesPickerActionItem, action, this.viewModel);
 				}
 				return undefined;
 			},
@@ -374,11 +406,11 @@ export class ChangesViewPane extends ViewPane {
 
 		// File header right-aligned toolbar
 		this.fileHeaderToolbarContainer = dom.append(this.filesHeaderNode, $('.changes-files-header-right-toolbar'));
-		this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, this.fileHeaderToolbarContainer, MenuId.ChatEditingSessionChangesFileHeaderRightToolbar, {
+		this._register(this.scopedInstantiationService.createInstance(MenuWorkbenchToolBar, this.fileHeaderToolbarContainer, MenuId.ChatEditingSessionChangesFileHeaderRightToolbar, {
 			menuOptions: { shouldForwardArgs: true },
 			actionViewItemProvider: (action, options) => {
 				if (action.id === ChangesDiffStatsAction.ID && action instanceof MenuItemAction) {
-					return this.instantiationService.createInstance(ChangesDiffStatsActionItem, action, this.viewModel, options);
+					return this.scopedInstantiationService.createInstance(ChangesDiffStatsActionItem, action, this.viewModel, options);
 				}
 				return undefined;
 			},
@@ -406,7 +438,7 @@ export class ChangesViewPane extends ViewPane {
 		welcomeMessage.textContent = localize('changesView.noChanges', "Changed files and other session artifacts will appear here.");
 
 		// CI Status widget — bottom pane
-		this.ciStatusWidget = this._register(this.instantiationService.createInstance(CIStatusWidget, this.splitViewContainer));
+		this.ciStatusWidget = this._register(this.scopedInstantiationService.createInstance(CIStatusWidget, this.splitViewContainer));
 
 		// Create SplitView
 		this.splitView = this._register(new SplitView(this.splitViewContainer, {
@@ -554,8 +586,8 @@ export class ChangesViewPane extends ViewPane {
 			// Bind context keys
 			this._bindContextKeys(topLevelStats);
 
-			this.renderDisposables.add(this.instantiationService.createInstance(
-				ChangesButtonBarWidget, this.actionsContainer, this.viewModel));
+			this.renderDisposables.add(this.scopedInstantiationService.createInstance(
+				ChangesButtonBarWidget, this.actionsContainer, this.viewModel, this.hasGitOperationInProgressObs));
 		}
 
 		const activeSessionStatusObs = derived(reader => {
@@ -651,7 +683,7 @@ export class ChangesViewPane extends ViewPane {
 
 		// Checks
 		if (this.ciStatusWidget) {
-			const checksViewModel = this.instantiationService.createInstance(ChecksViewModel);
+			const checksViewModel = this.scopedInstantiationService.createInstance(ChecksViewModel);
 			this.renderDisposables.add(checksViewModel);
 
 			this.renderDisposables.add(this.ciStatusWidget.setInput(checksViewModel));
@@ -693,13 +725,13 @@ export class ChangesViewPane extends ViewPane {
 
 	private _bindContextKeys(topLevelStats: IObservable<{ files: number }>): void {
 		// Request in progress (can be updated independently since it only affects action enablement, and not visibility)
-		this.renderDisposables.add(bindContextKey(ChatContextKeys.requestInProgress, this.contextKeyService, reader => {
+		this.renderDisposables.add(bindContextKey(ChatContextKeys.requestInProgress, this.scopedContextKeyService, reader => {
 			const activeSessionStatus = this.sessionManagementService.activeSession.read(reader)?.status.read(reader);
 			return activeSessionStatus !== SessionStatus.Completed && activeSessionStatus !== SessionStatus.Error;
 		}));
 
 		// Has changes (can be updated independently since it only affects action enablement, and not visibility)
-		this.renderDisposables.add(bindContextKey(ChatContextKeys.hasAgentSessionChanges, this.contextKeyService, reader => {
+		this.renderDisposables.add(bindContextKey(ChatContextKeys.hasAgentSessionChanges, this.scopedContextKeyService, reader => {
 			const { files } = topLevelStats.read(reader);
 			return files > 0;
 		}));
@@ -713,7 +745,7 @@ export class ChangesViewPane extends ViewPane {
 
 			this.logService.info(`[ChangesViewPane][_bindContextKeys] Context keys: ${JSON.stringify(state)}`);
 
-			this.contextKeyService.bufferChangeEvents(() => {
+			this.scopedContextKeyService.bufferChangeEvents(() => {
 				this.isolationModeContextKey.set(state.isolationMode);
 				this.hasGitRepositoryContextKey.set(state.hasGitRepository);
 				this.isMergeBaseBranchProtectedContextKey.set(state.isMergeBaseBranchProtected === true);

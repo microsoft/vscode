@@ -1544,11 +1544,8 @@ export function registerCLIChatCommands(
 	}));
 
 	const setHasGitOperationInProgress = async (sessionId: string, inProgress: boolean) => {
-		if (inProgress) {
-			// Set context key to immediately disable the action. The context key value will be
-			// reset to false when the changes are recalculated after the git operation completes.
-			await vscode.commands.executeCommand('setContext', 'sessions.hasGitOperationInProgress', true);
-		}
+		// Set the global context key to immediately enable/disable the action
+		await vscode.commands.executeCommand('setContext', 'sessions.hasGitOperationInProgress', inProgress);
 
 		const worktreeProperties = await copilotCLIWorktreeManagerService.getWorktreeProperties(sessionId);
 		const workspaceFolder = await copilotCliWorkspaceSession.getSessionWorkspaceFolder(sessionId);
