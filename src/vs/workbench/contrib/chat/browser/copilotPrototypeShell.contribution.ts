@@ -369,6 +369,20 @@ export class CopilotPrototypeShellCoinStatusBarContribution extends Disposable i
 		setTimeout(() => cts.dispose(true), 30000);
 	}
 
+	private _getMonthlyResetLabel(): string {
+		const d = new Date();
+		d.setMonth(d.getMonth() + 1);
+		const month = d.toLocaleString('en-US', { month: 'short' });
+		return `Resets ${month} ${d.getDate()} at 10:00 AM`;
+	}
+
+	private _getWeeklyResetLabel(): string {
+		const d = new Date();
+		d.setDate(d.getDate() + 7);
+		const month = d.toLocaleString('en-US', { month: 'short' });
+		return `Resets ${month} ${d.getDate()} at 10:00 AM`;
+	}
+
 	private getBannerMessage(state: string): string | undefined {
 		const isEnterprise = this._activeSku === 'Ent/Bus' || this._activeSku === 'Ent/Bus ULB';
 		const hasOverage = this._activeSku === 'Pro/Pro+' || this._activeSku === 'Max';
@@ -376,7 +390,7 @@ export class CopilotPrototypeShellCoinStatusBarContribution extends Disposable i
 		if (isEnterprise) {
 			switch (state) {
 				case 'Overage Approached':
-					return localize('bannerEntMonthlyApproach', "You've used most of your included credits. It resets May 1 at 10:00 AM. Contact your administrator for more information.");
+					return `You've used most of your included credits. It ${this._getMonthlyResetLabel().toLowerCase()}. Contact your administrator for more information.`;
 				default:
 					return undefined;
 			}
@@ -406,7 +420,7 @@ export class CopilotPrototypeShellCoinStatusBarContribution extends Disposable i
 					}
 					return localize('bannerWeeklyApproachOverageInfo', "You're approaching your Weekly Limit. Additional budget will be used once it's reached.");
 				}
-				return localize('bannerWeeklyApproach', "You've used most of your Weekly Limit. It resets April 6 at 10:00 AM.");
+				return `You've used most of your Weekly Limit. It ${this._getWeeklyResetLabel().toLowerCase()}.`;
 			case 'Weekly Reached':
 				if (hasOverage) {
 					if (this._limitedOverageView) {
@@ -641,13 +655,13 @@ export class CopilotPrototypeShellCoinStatusBarContribution extends Disposable i
 	} {
 		const plan: Record<string, { monthly: number; overage: number }> = {
 			'Edu/Free': { monthly: 300, overage: 0 },
-			'Pro/Pro+ No O': { monthly: 1000, overage: 0 },
-			'Pro/Pro+': { monthly: 1500, overage: 500 },
-			'Max': { monthly: 5000, overage: 1000 },
-			'Ent/Bus ULB': { monthly: 2000, overage: 0 },
+			'Pro/Pro+ No O': { monthly: 1500, overage: 0 },
+			'Pro/Pro+': { monthly: 7000, overage: 2000 },
+			'Max': { monthly: 20000, overage: 5000 },
+			'Ent/Bus ULB': { monthly: 5000, overage: 0 },
 			'Ent/Bus': { monthly: 0, overage: 0 },
 		};
-		const entry = plan[sku] ?? { monthly: 1000, overage: 0 };
+		const entry = plan[sku] ?? { monthly: 1500, overage: 0 };
 		let monthlyPct = 42;
 		let overageUsed = 0;
 		switch (state) {
@@ -679,7 +693,7 @@ export class CopilotPrototypeShellCoinStatusBarContribution extends Disposable i
 		const hasOverage = this._activeSku === 'Pro/Pro+' || this._activeSku === 'Max';
 
 		if (isEnterprise && state === 'Overage Approached') {
-			return { label: localize('gaugeMonthlyLimit', "Credits"), percentLabel: localize('gaugeUsed75Lc', "75% used"), percent: 75, severity: 'warning', resetLabel: localize('resetsOnMay1', "Resets May 1 at 10:00 AM") };
+			return { label: localize('gaugeMonthlyLimit', "Credits"), percentLabel: localize('gaugeUsed75Lc', "75% used"), percent: 75, severity: 'warning', resetLabel: this._getMonthlyResetLabel() };
 		}
 
 		// For SKUs with overage, approached = info with hint, reached = info with "using additional budget"
@@ -690,7 +704,7 @@ export class CopilotPrototypeShellCoinStatusBarContribution extends Disposable i
 				case 'Session Reached':
 					return { label: localize('gaugeFiveHourLimit', "Five-Hour Limit"), percentLabel: localize('gaugeUsed100Lc', "100% used"), percent: 100, severity: 'info', resetLabel: localize('nowUsingOverageBudget', "Now using additional budget") };
 				case 'Weekly Approached':
-					return { label: localize('gaugeWeeklyLimit', "Weekly Limit"), percentLabel: localize('gaugeUsed75Lc', "75% used"), percent: 75, severity: 'info', resetLabel: localize('resetsOnApr6', "Resets April 6 at 10:00 AM") };
+					return { label: localize('gaugeWeeklyLimit', "Weekly Limit"), percentLabel: localize('gaugeUsed75Lc', "75% used"), percent: 75, severity: 'info', resetLabel: this._getWeeklyResetLabel() };
 				case 'Weekly Reached':
 					return { label: localize('gaugeWeeklyLimit', "Weekly Limit"), percentLabel: localize('gaugeUsed100Lc', "100% used"), percent: 100, severity: 'info', resetLabel: localize('nowUsingOverageBudget', "Now using additional budget") };
 			}
@@ -702,9 +716,9 @@ export class CopilotPrototypeShellCoinStatusBarContribution extends Disposable i
 			case 'Session Reached':
 				return { label: localize('gaugeFiveHourLimit', "Five-Hour Limit"), percentLabel: localize('gaugeUsed100Lc', "100% used"), percent: 100, severity: 'error', resetLabel: localize('resetsAt10am', "Resets at 10:00 AM") };
 			case 'Weekly Approached':
-				return { label: localize('gaugeWeeklyLimit', "Weekly Limit"), percentLabel: localize('gaugeUsed75Lc', "75% used"), percent: 75, severity: 'warning', resetLabel: localize('resetsOnApr6', "Resets April 6 at 10:00 AM") };
+				return { label: localize('gaugeWeeklyLimit', "Weekly Limit"), percentLabel: localize('gaugeUsed75Lc', "75% used"), percent: 75, severity: 'warning', resetLabel: this._getWeeklyResetLabel() };
 			case 'Weekly Reached':
-				return { label: localize('gaugeWeeklyLimit', "Weekly Limit"), percentLabel: localize('gaugeUsed100Lc', "100% used"), percent: 100, severity: 'error', resetLabel: localize('resetsOnApr6', "Resets April 6 at 10:00 AM") };
+				return { label: localize('gaugeWeeklyLimit', "Weekly Limit"), percentLabel: localize('gaugeUsed100Lc', "100% used"), percent: 100, severity: 'error', resetLabel: this._getWeeklyResetLabel() };
 			case 'Overage Approached':
 				if (this._limitedOverageView) {
 					return undefined; // No overage % available in limited view
@@ -995,7 +1009,7 @@ export class CopilotPrototypeShellCoinStatusBarContribution extends Disposable i
 		if (isEnterprise && state === 'Overage Reached') {
 			return {
 				title: localize('inlineEntMonthlyReachedTitle', "You've reached your included credits."),
-				description: localize('inlineEntMonthlyReachedDesc', "Copilot is paused until your limit resets May 1 at 10:00 AM."),
+				description: `Copilot is paused until your limit ${this._getMonthlyResetLabel().toLowerCase()}.`,
 				buttonLabel: localize('requestMoreUsage', "Request More Usage"),
 			};
 		}
@@ -1033,7 +1047,7 @@ export class CopilotPrototypeShellCoinStatusBarContribution extends Disposable i
 			if (sku === 'Edu/Free') {
 				return {
 					title: localize('inlineWeeklyReachedTitle', "You've reached your Weekly Limit."),
-					description: localize('inlineWeeklyReachedDescFree', "Resets April 6 at 10:00 AM, or upgrade to increase your limits."),
+					description: `${this._getWeeklyResetLabel()}, or upgrade to increase your limits.`,
 					buttonLabel: localize('upgrade', "Upgrade"),
 				};
 			}
@@ -1047,13 +1061,13 @@ export class CopilotPrototypeShellCoinStatusBarContribution extends Disposable i
 				}
 				return {
 					title: localize('inlineWeeklyReachedTitle', "You've reached your Weekly Limit."),
-					description: localize('inlineWeeklyReachedDescProNoO', "Resets April 6 at 10:00 AM. Set up an additional budget to continue."),
+					description: `${this._getWeeklyResetLabel()}. Set up an additional budget to continue.`,
 					buttonLabel: localize('configureBudgetBtn', "Configure Budget"),
 				};
 			}
 			return {
 				title: localize('inlineWeeklyReachedTitle', "You've reached your Weekly Limit."),
-				description: localize('inlineWeeklyReachedDescPro', "Resets April 6 at 10:00 AM. Increase your budget to continue using premium models."),
+				description: `${this._getWeeklyResetLabel()}. Increase your budget to continue using premium models.`,
 				buttonLabel: localize('increaseBudget', "Increase Budget"),
 			};
 		}
@@ -1580,7 +1594,7 @@ export class CopilotPrototypeShellCoinStatusBarContribution extends Disposable i
 		const weeklyPct = weeklyApproached ? 75 : (weeklyReached || state === 'Session Reached') ? 100 : (state === 'Weekly Reset') ? 0 : 56;
 		this.createCard(cards, {
 			name: localize('cardWeekly', "Weekly Limit"),
-			resetLabel: localize('cardResetApr6', "Resets April 6 at 10:00 AM"),
+			resetLabel: this._getWeeklyResetLabel(),
 			percent: weeklyPct,
 			severity: weeklyApproached ? 'warning' : undefined,
 			highlight: weeklyApproached,
@@ -1682,7 +1696,7 @@ export class CopilotPrototypeShellCoinStatusBarContribution extends Disposable i
 		const weeklyHighlight = state === 'Weekly Approached';
 		this.createCard(cards, {
 			name: localize('cardWeekly', "Weekly Limit"),
-			resetLabel: localize('cardResetApr6', "Resets April 6 at 10:00 AM"),
+			resetLabel: this._getWeeklyResetLabel(),
 			percent: weeklyPct,
 			severity: weeklyHighlight ? 'info' : undefined,
 			highlight: weeklyHighlight,
@@ -1697,7 +1711,7 @@ export class CopilotPrototypeShellCoinStatusBarContribution extends Disposable i
 		const overageStatusBadge = isOverageInUse ? localize('badgeInUse', "In use") : localize('badgeNotInUse', "Not in use");
 		this.createCard(cards, {
 			name: localize('cardRunover', "Additional Budget"),
-			resetLabel: localize('cardResetMay1', "Resets May 1 at 10:00 AM"),
+			resetLabel: this._getMonthlyResetLabel(),
 			percent: overagePct,
 			severity: overageSev,
 			disabled: !isOverageInUse && !isResetState,
@@ -1801,7 +1815,7 @@ export class CopilotPrototypeShellCoinStatusBarContribution extends Disposable i
 		const weeklyDisabled = state === 'Weekly Reached' || state === 'Session Reached' || isOverageState;
 		this.createCard(cards, {
 			name: localize('cardWeekly', "Weekly Limit"),
-			resetLabel: localize('cardResetApr6', "Resets April 6 at 10:00 AM"),
+			resetLabel: this._getWeeklyResetLabel(),
 			percent: weeklyPct,
 			severity: weeklyHighlight ? 'info' : undefined,
 			highlight: weeklyHighlight,
@@ -1938,7 +1952,7 @@ export class CopilotPrototypeShellCoinStatusBarContribution extends Disposable i
 			const monthlyPct = monthlyApproached ? 75 : monthlyReached ? 100 : (_state === 'Overage Reset') ? 0 : 56;
 			this.createCard(cards, {
 				name: localize('cardMonthlyLimit', "Credits"),
-				resetLabel: localize('cardResetMay1Monthly', "Resets May 1 at 10:00 AM"),
+				resetLabel: this._getMonthlyResetLabel(),
 				percent: monthlyPct,
 				severity: monthlyApproached ? 'warning' as const : undefined,
 				highlight: monthlyApproached,
@@ -2210,9 +2224,9 @@ export class CopilotCurrentModelStatusBarContribution extends Disposable impleme
 	private getBannerMessage(state: string): string | undefined {
 		switch (state) {
 			case 'Premium Approached':
-				return localize('cmBannerPremiumApproach', "You've used most of your premium request allowance. It resets May 1 at 10:00 AM.");
+				return `You've used most of your premium request allowance. It ${this._getMonthlyResetLabel().toLowerCase()}.`;
 			case 'Chat Approached':
-				return localize('cmBannerChatApproach', "You've used most of your chat message allowance. It resets May 1 at 10:00 AM.");
+				return `You've used most of your chat message allowance. It ${this._getMonthlyResetLabel().toLowerCase()}.`;
 			default:
 				return undefined;
 		}
@@ -2221,13 +2235,13 @@ export class CopilotCurrentModelStatusBarContribution extends Disposable impleme
 	private getBannerGaugeInfo(state: string): { label: string; percentLabel: string; percent: number; severity: string; resetLabel: string } | undefined {
 		switch (state) {
 			case 'Premium Approached':
-				return { label: localize('cmGaugePremium', "Premium Requests"), percentLabel: localize('gaugeUsed75Lc', "75% used"), percent: 75, severity: 'warning', resetLabel: localize('resetsOnMay1', "Resets May 1 at 10:00 AM") };
+				return { label: localize('cmGaugePremium', "Premium Requests"), percentLabel: localize('gaugeUsed75Lc', "75% used"), percent: 75, severity: 'warning', resetLabel: this._getMonthlyResetLabel() };
 			case 'Premium Exhausted':
-				return { label: localize('cmGaugePremium', "Premium Requests"), percentLabel: localize('gaugeUsed100Lc', "100% used"), percent: 100, severity: 'error', resetLabel: localize('resetsOnMay1', "Resets May 1 at 10:00 AM") };
+				return { label: localize('cmGaugePremium', "Premium Requests"), percentLabel: localize('gaugeUsed100Lc', "100% used"), percent: 100, severity: 'error', resetLabel: this._getMonthlyResetLabel() };
 			case 'Chat Approached':
-				return { label: localize('cmGaugeChat', "Chat Messages"), percentLabel: localize('gaugeUsed75Lc', "75% used"), percent: 75, severity: 'warning', resetLabel: localize('resetsOnMay1', "Resets May 1 at 10:00 AM") };
+				return { label: localize('cmGaugeChat', "Chat Messages"), percentLabel: localize('gaugeUsed75Lc', "75% used"), percent: 75, severity: 'warning', resetLabel: this._getMonthlyResetLabel() };
 			case 'Chat Exhausted':
-				return { label: localize('cmGaugeChat', "Chat Messages"), percentLabel: localize('gaugeUsed100Lc', "100% used"), percent: 100, severity: 'error', resetLabel: localize('resetsOnMay1', "Resets May 1 at 10:00 AM") };
+				return { label: localize('cmGaugeChat', "Chat Messages"), percentLabel: localize('gaugeUsed100Lc', "100% used"), percent: 100, severity: 'error', resetLabel: this._getMonthlyResetLabel() };
 			default:
 				return undefined;
 		}
@@ -2424,20 +2438,20 @@ export class CopilotCurrentModelStatusBarContribution extends Disposable impleme
 			if (sku === 'Free') {
 				return {
 					title: localize('cmWarnPremiumTitle', "You've reached your premium request limit."),
-					description: localize('cmWarnPremiumDescFree', "Resets May 1 at 10:00 AM, or upgrade to increase your limits."),
+					description: `${this._getMonthlyResetLabel()}, or upgrade to increase your limits.`,
 					buttonLabel: localize('upgrade', "Upgrade"),
 				};
 			}
 			return {
 				title: localize('cmWarnPremiumTitle', "You've reached your premium request limit."),
-				description: localize('cmWarnPremiumDescPro', "Resets May 1 at 10:00 AM, or purchase additional premium requests."),
+				description: `${this._getMonthlyResetLabel()}, or purchase additional premium requests.`,
 				buttonLabel: localize('managePremium', "Manage paid premium requests"),
 			};
 		}
 		if (state === 'Chat Exhausted') {
 			return {
 				title: localize('cmWarnChatTitle', "You've reached your chat message limit."),
-				description: localize('cmWarnChatDescFree', "Resets May 1 at 10:00 AM, or upgrade to increase your limits."),
+				description: `${this._getMonthlyResetLabel()}, or upgrade to increase your limits.`,
 				buttonLabel: localize('upgrade', "Upgrade"),
 			};
 		}
@@ -2527,7 +2541,7 @@ export class CopilotCurrentModelStatusBarContribution extends Disposable impleme
 		const premiumSev = premiumApproached ? 'warning' as const : premiumExhausted ? 'error' as const : undefined;
 		this.createCard(cards, {
 			name: localize('cmCardPremium', "Premium Requests"),
-			resetLabel: localize('cmResetMay1', "Resets May 1 at 10:00 AM"),
+			resetLabel: this._getMonthlyResetLabel(),
 			percent: premiumPct,
 			severity: premiumSev,
 			highlight: premiumApproached || premiumExhausted,
@@ -2543,7 +2557,7 @@ export class CopilotCurrentModelStatusBarContribution extends Disposable impleme
 			const chatSev = chatApproached ? 'warning' as const : chatExhausted ? 'error' as const : undefined;
 			this.createCard(cards, {
 				name: localize('cmCardChat', "Chat Messages"),
-				resetLabel: localize('cmResetMay1', "Resets May 1 at 10:00 AM"),
+				resetLabel: this._getMonthlyResetLabel(),
 				percent: chatPct,
 				severity: chatSev,
 				highlight: chatApproached || chatExhausted,
@@ -2939,6 +2953,20 @@ export class CopilotTBB3StatusBarContribution extends Disposable implements IWor
 		CopilotTBB3StatusBarContribution.instance = this;
 	}
 
+	private _getMonthlyResetLabel(): string {
+		const d = new Date();
+		d.setMonth(d.getMonth() + 1);
+		const month = d.toLocaleString('en-US', { month: 'short' });
+		return `Resets ${month} ${d.getDate()} at 10:00 AM`;
+	}
+
+	private _getWeeklyResetLabel(): string {
+		const d = new Date();
+		d.setDate(d.getDate() + 7);
+		const month = d.toLocaleString('en-US', { month: 'short' });
+		return `Resets ${month} ${d.getDate()} at 10:00 AM`;
+	}
+
 	private openDashboard(): void {
 		const container = this.layoutService.getContainer(mainWindow);
 		const el = container.querySelector(`#${CSS.escape(CopilotPrototypeShellCoinStatusBarContribution.getDashboardEntryId())} .statusbar-item-label`) as HTMLElement | null; // eslint-disable-line no-restricted-syntax
@@ -3219,7 +3247,7 @@ export class CopilotTBB3StatusBarContribution extends Disposable implements IWor
 			const monthlyDisabled = false;
 			this.createCard(cards, {
 				name: monthlyName,
-				resetLabel: localize('tbb3ResetMay1', "Resets May 1 at 10:00 AM"),
+				resetLabel: this._getMonthlyResetLabel(),
 				percent: monthlyPct,
 				severity: monthlySev,
 				highlight: false,
@@ -3233,7 +3261,7 @@ export class CopilotTBB3StatusBarContribution extends Disposable implements IWor
 				const inlineTotal = 2000;
 				this.createCard(cards, {
 					name: localize('tbb3CardInline', "Inline Suggestions"),
-					resetLabel: localize('tbb3ResetMay1', "Resets May 1 at 10:00 AM"),
+					resetLabel: this._getMonthlyResetLabel(),
 					percent: 18,
 					usedLabel: localize('tbb3InlineFraction', "{0} / {1}", inlineUsed.toLocaleString(), inlineTotal.toLocaleString()),
 				});
