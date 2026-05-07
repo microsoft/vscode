@@ -22,6 +22,7 @@ import { IViewPaneOptions, IViewPaneLocationColors, ViewPane } from '../../../..
 import { IViewDescriptorService } from '../../../../../workbench/common/views.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { localize } from '../../../../../nls.js';
 import { SessionsList, SessionsGrouping, SessionsSorting } from './sessionsList.js';
 import { SessionStatus } from '../../../../services/sessions/common/session.js';
@@ -332,6 +333,16 @@ export class SessionsView extends ViewPane {
 			return primaryKeybinding ?? resolvedKeybindings[0];
 		};
 
+		const getTooltipLabel = (keybindingLabel: string | undefined) => keybindingLabel
+			? localize('newSessionButtonTitle', "New Session ({0})", keybindingLabel)
+			: localize('newSessionButtonTitleWithoutKeybinding', "New Session");
+
+		const newSessionButtonHover = this._register(this.hoverService.setupManagedHover(
+			getDefaultHoverDelegate('mouse'),
+			newSessionButton.element,
+			getTooltipLabel(getNewSessionKeybinding()?.getLabel() ?? undefined),
+		));
+
 		let lastRenderedKeybindingLabel: string | undefined | null = null;
 		let lastRenderedKeybindingAriaLabel: string | undefined | null = null;
 		const updateNewSessionButton = () => {
@@ -354,9 +365,7 @@ export class SessionsView extends ViewPane {
 				keybindingHint.remove();
 			}
 
-			newSessionButton.element.title = keybindingLabel
-				? localize('newSessionButtonTitle', "New Session ({0})", keybindingLabel)
-				: localize('newSessionButtonTitleWithoutKeybinding', "New Session");
+			newSessionButtonHover.update(getTooltipLabel(keybindingLabel));
 			newSessionButton.element.setAttribute('aria-label', keybindingAriaLabel
 				? localize('newSessionButtonAriaLabel', "New Session ({0})", keybindingAriaLabel)
 				: localize('newSessionButtonAriaLabelWithoutKeybinding', "New Session"));
