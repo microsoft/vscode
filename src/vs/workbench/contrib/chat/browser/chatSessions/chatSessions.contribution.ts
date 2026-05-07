@@ -14,7 +14,6 @@ import { Schemas } from '../../../../../base/common/network.js';
 import * as resources from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI, UriComponents } from '../../../../../base/common/uri.js';
-import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, IMenuService, MenuId, MenuItemAction, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -44,15 +43,16 @@ import { ChatViewPane } from '../widgetHosts/viewPane/chatViewPane.js';
 import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderName } from '../agentSessions/agentSessions.js';
 import { BugIndicatingError, isCancellationError } from '../../../../../base/common/errors.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
-import { isUntitledChatSession, LocalChatSessionUri } from '../../common/model/chatUri.js';
+import { getChatSessionType, isUntitledChatSession, LocalChatSessionUri } from '../../common/model/chatUri.js';
 import { assertNever } from '../../../../../base/common/assert.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { Target } from '../../common/promptSyntax/promptTypes.js';
 import { slashReg } from '../../common/requestParser/chatRequestParser.js';
-import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
 import { ILanguageModelToolsService } from '../../common/tools/languageModelToolsService.js';
 import { IChatModel } from '../../common/model/chatModel.js';
+import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
 
 const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsExtensionPoint[]>({
 	extensionPoint: 'chatSessions',
@@ -402,6 +402,15 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		return Array.from(this.inProgressMap.entries()).map(([chatSessionType, count]) => ({ chatSessionType, count }));
 	}
 
+	public async resolveChatSessionItem(chatSessionType: string, resource: URI, token: CancellationToken): Promise<IChatSessionItem | undefined> {
+		const entry = this._itemControllers.get(chatSessionType);
+		if (!entry?.controller.resolveChatSessionItem) {
+			return undefined;
+		}
+
+		return entry.controller.resolveChatSessionItem(resource, token);
+	}
+
 	private async updateInProgressStatus(chatSessionType: string): Promise<void> {
 		try {
 			const items: IChatSessionItem[] = [];
@@ -548,7 +557,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 				async run(accessor: ServicesAccessor, chatOptions?: { resource: UriComponents; prompt: string; attachedContext?: IChatRequestVariableEntry[] }): Promise<void> {
 					const chatService = accessor.get(IChatService);
-					const promptsService = accessor.get(IPromptsService);
+					const customizationHarnessService = accessor.get(ICustomizationHarnessService);
 					const toolsService = accessor.get(ILanguageModelToolsService);
 					const { type } = contribution;
 
@@ -558,7 +567,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 						const resource = URI.revive(chatOptions.resource);
 						const ref = await chatService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None, 'ChatSessionsContribution#sendPrompt');
 						try {
-							const promptFile = await resolvePromptSlashCommand(chatOptions.prompt, promptsService, toolsService);
+							const promptFile = await resolvePromptSlashCommand(chatOptions.prompt, contribution.type, customizationHarnessService, toolsService);
 							if (promptFile) {
 								attachedContext = [promptFile, ...(attachedContext ?? [])];
 							}
@@ -801,10 +810,19 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		}
 
 		this._contributions.set(contribution.type, { contribution, extension: undefined });
+		// Programmatically-registered contributions are always considered
+		// available; mark them as such so the autorun in the constructor
+		// registers the in-place "New {0} Session" action for them. Without
+		// this, types like `agent-host-copilotcli` (registered by the local
+		// agent host) have no `openNewChatSessionInPlace.<type>` command.
+		this._contributionDisposables.set(contribution.type, new DisposableStore());
+		this._updateHasCanDelegateProvidersContextKey();
 		this._onDidChangeAvailability.fire();
 
 		return toDisposable(() => {
 			this._contributions.delete(contribution.type);
+			this._contributionDisposables.deleteAndDispose(contribution.type);
+			this._updateHasCanDelegateProvidersContextKey();
 			this._onDidChangeAvailability.fire();
 		});
 	}
@@ -1017,7 +1035,8 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			}
 		}
 
-		if (!(await raceCancellationError(this.canResolveChatSession(sessionResource.scheme), token))) {
+		const sessionType = getChatSessionType(sessionResource);
+		if (!(await raceCancellationError(this.canResolveChatSession(sessionType), token))) {
 			throw Error(`Can not find provider for ${sessionResource}`);
 		}
 
@@ -1029,17 +1048,17 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			}
 		}
 
-		const resolvedType = this._resolveToPrimaryType(sessionResource.scheme) || sessionResource.scheme;
+		const resolvedType = this._resolveToPrimaryType(sessionType) || sessionType;
 		const provider = this._contentProviders.get(resolvedType);
 		if (!provider) {
 			throw Error(`Can not find provider for ${sessionResource}`);
 		}
 
 		let session: IChatSession;
-		const newSessionOptionGroups = await this.getNewChatSessionInputState(resolvedType);
-		if (isUntitledChatSession(sessionResource) && newSessionOptionGroups) {
+		const newSessionOptionGroups = isUntitledChatSession(sessionResource) ? await this.getNewChatSessionInputState(resolvedType, sessionResource) : undefined;
+		if (isUntitledChatSession(sessionResource) && (newSessionOptionGroups || resolvedType.startsWith('agent-host-'))) {
 			const options: ChatSessionOptionsMap = new Map();
-			for (const group of newSessionOptionGroups) {
+			for (const group of newSessionOptionGroups ?? []) {
 				const selected = group.selected ?? group.items.find(item => item.default) ?? group.items[0];
 				if (selected) {
 					options.set(group.id, selected);
@@ -1071,7 +1090,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			}
 		}
 
-		const sessionData = new ContributedChatSessionData(session, sessionResource.scheme, sessionResource, session.options, resource => {
+		const sessionData = new ContributedChatSessionData(session, sessionType, sessionResource, session.options, resource => {
 			sessionData.dispose();
 			this._sessions.delete(resource);
 		});
@@ -1169,10 +1188,10 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		return this._sessionTypeOptions.get(chatSessionType);
 	}
 
-	public async getNewChatSessionInputState(chatSessionType: string): Promise<readonly IChatSessionProviderOptionGroup[] | undefined> {
+	public async getNewChatSessionInputState(chatSessionType: string, sessionResource: URI): Promise<readonly IChatSessionProviderOptionGroup[] | undefined> {
 		const controllerData = this._itemControllers.get(chatSessionType);
 		if (controllerData?.controller.getNewChatSessionInputState) {
-			const groups = await controllerData.controller.getNewChatSessionInputState(CancellationToken.None);
+			const groups = await controllerData.controller.getNewChatSessionInputState(sessionResource, CancellationToken.None);
 			if (groups?.length) {
 				this._sessionTypeOptions.set(chatSessionType, [...groups]);
 				this._onDidChangeOptionGroups.fire(chatSessionType);
@@ -1238,8 +1257,6 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 registerSingleton(IChatSessionsService, ChatSessionsService, InstantiationType.Delayed);
 
-
-
 function registerNewSessionInPlaceAction(type: string, displayName: string): IDisposable {
 	return registerAction2(class NewChatSessionInPlaceAction extends Action2 {
 		constructor() {
@@ -1304,14 +1321,14 @@ export type NewChatSessionOpenOptions = {
 	readonly replaceEditor?: boolean;
 };
 
-async function openChatSession(accessor: ServicesAccessor, openOptions: NewChatSessionOpenOptions, chatSendOptions?: NewChatSessionSendOptions): Promise<void> {
+export async function openChatSession(accessor: ServicesAccessor, openOptions: NewChatSessionOpenOptions, chatSendOptions?: NewChatSessionSendOptions): Promise<void> {
 	const viewsService = accessor.get(IViewsService);
 	const chatService = accessor.get(IChatService);
 	const chatSessionService = accessor.get(IChatSessionsService);
 	const logService = accessor.get(ILogService);
 	const editorGroupService = accessor.get(IEditorGroupsService);
 	const editorService = accessor.get(IEditorService);
-	const promptsService = accessor.get(IPromptsService);
+	const customizationHarnessService = accessor.get(ICustomizationHarnessService);
 	const toolsService = accessor.get(ILanguageModelToolsService);
 
 	// Determine resource to open
@@ -1367,7 +1384,7 @@ async function openChatSession(accessor: ServicesAccessor, openOptions: NewChatS
 			}
 
 			let attachedContext = chatSendOptions.attachedContext;
-			const promptFile = await resolvePromptSlashCommand(chatSendOptions.prompt, promptsService, toolsService);
+			const promptFile = await resolvePromptSlashCommand(chatSendOptions.prompt, openOptions.type, customizationHarnessService, toolsService);
 			if (promptFile) {
 				attachedContext = [promptFile, ...(attachedContext ?? [])];
 			}
@@ -1403,12 +1420,12 @@ function normalizeSessionOptions(options: ReadonlyChatSessionOptionsMap | Readon
 /**
  * Returns the variable entry for a slash command if the prompt starts with a slash command that can be resolved to a prompt file, otherwise returns undefined.
  */
-async function resolvePromptSlashCommand(prompt: string, promptsService: IPromptsService, toolsService: ILanguageModelToolsService): Promise<IChatRequestVariableEntry | undefined> {
+async function resolvePromptSlashCommand(prompt: string, sessionType: string, customizationHarnessService: ICustomizationHarnessService, toolsService: ILanguageModelToolsService): Promise<IChatRequestVariableEntry | undefined> {
 	const slashMatch = prompt.match(slashReg);
 	// starts with a slash command, add the corresponding prompt file to the context if it exists
 	if (slashMatch) {
 		// need to resolve the slash command to get the prompt file
-		const slashCommand = await promptsService.resolvePromptSlashCommand(slashMatch[1], CancellationToken.None);
+		const slashCommand = await customizationHarnessService.resolvePromptSlashCommand(slashMatch[1], sessionType, CancellationToken.None);
 		if (slashCommand) {
 			const parseResult = slashCommand.parsedPromptFile;
 			// add the prompt file to the context

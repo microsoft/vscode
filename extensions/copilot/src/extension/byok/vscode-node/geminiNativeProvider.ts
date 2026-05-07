@@ -9,9 +9,10 @@ import { ChatFetchResponseType, ChatLocation } from '../../../platform/chat/comm
 import { ILogService } from '../../../platform/log/common/logService';
 import { IResponseDelta, OpenAiFunctionTool } from '../../../platform/networking/common/fetch';
 import { APIUsage } from '../../../platform/networking/common/openai';
-import { CopilotChatAttr, emitInferenceDetailsEvent, GenAiAttr, GenAiMetrics, GenAiOperationName, type OTelModelOptions, StdAttr, truncateForOTel } from '../../../platform/otel/common/index';
+import { CopilotChatAttr, emitInferenceDetailsEvent, GenAiAttr, GenAiMetrics, GenAiOperationName, GenAiProviderName, type OTelModelOptions, StdAttr, toToolDefinitions, truncateForOTel } from '../../../platform/otel/common/index';
 import { IOTelService, SpanKind, SpanStatusCode } from '../../../platform/otel/common/otelService';
-import { IRequestLogger, retrieveCapturingTokenByCorrelation, runWithCapturingToken } from '../../../platform/requestLogger/node/requestLogger';
+import { IRequestLogger } from '../../../platform/requestLogger/common/requestLogger';
+import { retrieveCapturingTokenByCorrelation, runWithCapturingToken } from '../../../platform/requestLogger/node/requestLogger';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
 import { toErrorMessage } from '../../../util/common/errorMessage';
 import { RecordedProgress } from '../../../util/common/progressRecorder';
@@ -25,6 +26,7 @@ import { IBYOKStorageService } from './byokStorageService';
 export class GeminiNativeBYOKLMProvider extends AbstractLanguageModelChatProvider {
 
 	public static readonly providerName = 'Gemini';
+	public static readonly providerId = this.providerName.toLowerCase();
 
 	constructor(
 		knownModels: BYOKKnownModels | undefined,
@@ -34,7 +36,7 @@ export class GeminiNativeBYOKLMProvider extends AbstractLanguageModelChatProvide
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IOTelService private readonly _otelService: IOTelService,
 	) {
-		super(GeminiNativeBYOKLMProvider.providerName.toLowerCase(), GeminiNativeBYOKLMProvider.providerName, knownModels, byokStorageService, logService);
+		super(GeminiNativeBYOKLMProvider.providerId, GeminiNativeBYOKLMProvider.providerName, knownModels, byokStorageService, logService);
 	}
 
 	protected async getAllModels(silent: boolean, apiKey: string | undefined): Promise<ExtendedLanguageModelChatInformation<LanguageModelChatConfiguration>[]> {
@@ -216,7 +218,7 @@ export class GeminiNativeBYOKLMProvider extends AbstractLanguageModelChatProvide
 						if (responseText) { parts.push({ type: 'text', content: responseText }); }
 						parts.push(...toolCalls);
 						if (parts.length > 0) {
-							otelSpan.setAttribute(GenAiAttr.OUTPUT_MESSAGES, truncateForOTel(JSON.stringify([{ role: 'assistant', parts }])));
+							otelSpan.setAttribute(GenAiAttr.OUTPUT_MESSAGES, truncateForOTel(JSON.stringify([{ role: 'assistant', parts }]), this._otelService.config.maxAttributeSizeChars));
 						}
 					}
 				}
@@ -336,30 +338,42 @@ export class GeminiNativeBYOKLMProvider extends AbstractLanguageModelChatProvide
 				kind: SpanKind.CLIENT,
 				attributes: {
 					[GenAiAttr.OPERATION_NAME]: GenAiOperationName.CHAT,
-					[GenAiAttr.PROVIDER_NAME]: 'gemini',
+					[GenAiAttr.PROVIDER_NAME]: GenAiProviderName.GEMINI,
 					[GenAiAttr.REQUEST_MODEL]: model.id,
 					[GenAiAttr.AGENT_NAME]: 'GeminiBYOK',
 					[CopilotChatAttr.MAX_PROMPT_TOKENS]: model.maxInputTokens,
 					[StdAttr.SERVER_ADDRESS]: 'generativelanguage.googleapis.com',
 				},
 			});
-			// Opt-in: capture input messages
+			// Opt-in: capture input messages in OTel GenAI format
 			if (this._otelService.config.captureContent) {
+				// Tool definitions on the chat span (issue #299934) with `parameters`
+				// per OTel GenAI semantic conventions (issue #300318).
+				const toolDefs = toToolDefinitions(options.tools);
+				if (toolDefs) {
+					otelSpan.setAttribute(GenAiAttr.TOOL_DEFINITIONS, truncateForOTel(JSON.stringify(toolDefs), this._otelService.config.maxAttributeSizeChars));
+				}
 				try {
 					const roleNames: Record<number, string> = { 1: 'user', 2: 'assistant', 3: 'system' };
 					const inputMsgs = messages.map(m => {
 						const msg = m as LanguageModelChatMessage;
 						const role = roleNames[msg.role] ?? String(msg.role);
-						const textParts: string[] = [];
+						const parts: Array<{ type: string; content?: string; id?: string; name?: string; arguments?: unknown }> = [];
 						if (Array.isArray(msg.content)) {
 							for (const p of msg.content) {
-								if (p instanceof LanguageModelTextPart) { textParts.push(p.value); }
+								if (p instanceof LanguageModelTextPart) {
+									parts.push({ type: 'text', content: p.value });
+								} else if (p instanceof LanguageModelToolCallPart) {
+									parts.push({ type: 'tool_call', id: p.callId, name: p.name, arguments: p.input });
+								}
 							}
 						}
-						const content = textParts.length > 0 ? textParts.join('') : '[non-text content]';
-						return { role, parts: [{ type: 'text', content }] };
+						if (parts.length === 0) {
+							parts.push({ type: 'text', content: '[non-text content]' });
+						}
+						return { role, parts };
 					});
-					otelSpan.setAttribute(GenAiAttr.INPUT_MESSAGES, truncateForOTel(JSON.stringify(inputMsgs)));
+					otelSpan.setAttribute(GenAiAttr.INPUT_MESSAGES, truncateForOTel(JSON.stringify(inputMsgs), this._otelService.config.maxAttributeSizeChars));
 				} catch { /* swallow */ }
 			}
 			try {

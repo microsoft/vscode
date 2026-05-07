@@ -13,10 +13,13 @@ import { IViewsService } from '../../../../workbench/services/views/common/views
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
-import { ActiveSessionContextKeys, CHANGES_VIEW_ID } from '../common/changes.js';
+import { ActiveSessionContextKeys, CHANGES_VIEW_ID, ChangesContextKeys } from '../common/changes.js';
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { ChangesViewPane } from './changesView.js';
+import { URI } from '../../../../base/common/uri.js';
+import { isEqual } from '../../../../base/common/resources.js';
+import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 
 const openChangesViewActionOptions: IAction2Options = {
 	id: 'workbench.action.agentSessions.openChangesView',
@@ -74,9 +77,8 @@ class OpenPullRequestAction extends Action2 {
 			title: localize2('openPullRequest', "Open Pull Request"),
 			icon: Codicon.gitPullRequest,
 			f1: false,
-			precondition: ChatContextKeys.requestInProgress.negate(),
 			menu: {
-				id: MenuId.ChatEditingSessionChangesToolbar,
+				id: MenuId.AgentsChangesToolbar,
 				group: 'navigation',
 				order: 9,
 				when: ContextKeyExpr.and(
@@ -104,3 +106,68 @@ class OpenPullRequestAction extends Action2 {
 }
 
 registerAction2(OpenPullRequestAction);
+
+class OpenFileAction extends Action2 {
+	static readonly ID = 'workbench.action.agentSessions.openFile';
+
+	constructor() {
+		super({
+			id: OpenFileAction.ID,
+			title: localize2('openFile', "Open File"),
+			icon: Codicon.goToFile,
+			f1: false,
+			menu: {
+				id: MenuId.ChatEditingSessionChangeToolbar,
+				group: 'navigation',
+				order: 1,
+				alt: {
+					id: 'workbench.action.agentSessions.openChanges',
+					title: localize2('openChanges', "Open Changes"),
+					icon: Codicon.gitCompare,
+				},
+				when: ContextKeyExpr.and(
+					IsSessionsWindowContext,
+					ChangesContextKeys.ChangeKind.isEqualTo('file'))
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor, _sessionResource: URI, _ref: string, ...resources: URI[]): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		await Promise.all(resources.map(resource => editorService.openEditor({ resource })));
+	}
+}
+
+registerAction2(OpenFileAction);
+
+class OpenChangesAction extends Action2 {
+	static readonly ID = 'workbench.action.agentSessions.openChanges';
+
+	constructor() {
+		super({
+			id: OpenChangesAction.ID,
+			title: localize2('openChanges', "Open Changes"),
+			icon: Codicon.gitCompare,
+			f1: false
+		});
+	}
+
+	async run(accessor: ServicesAccessor, _sessionResource: URI, _ref: string, ...resources: URI[]): Promise<void> {
+		const viewsService = accessor.get(IViewsService);
+		const editorService = accessor.get(IEditorService);
+
+		const view = viewsService.getViewWithId<ChangesViewPane>(CHANGES_VIEW_ID);
+		const sessionChanges = view?.viewModel.activeSessionChangesObs.get();
+
+		const changes = sessionChanges?.filter(change =>
+			resources.some(resource => isEqual(change.modifiedUri ?? change.originalUri, resource))
+		) ?? [];
+
+		await Promise.all(changes.map(change => editorService.openEditor({
+			original: { resource: change.originalUri },
+			modified: { resource: change.modifiedUri }
+		})));
+	}
+}
+
+registerAction2(OpenChangesAction);

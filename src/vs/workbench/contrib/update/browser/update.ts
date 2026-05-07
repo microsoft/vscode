@@ -176,10 +176,11 @@ export class ProductContribution implements IWorkbenchContribution {
 			const lastVersion = tryParseVersion(storageService.get(ProductContribution.KEY, StorageScope.APPLICATION, ''));
 			const currentVersion = tryParseVersion(productService.version);
 			const shouldShowReleaseNotes = configurationService.getValue<boolean>('update.showReleaseNotes');
+			const shouldShowPostInstallInfo = configurationService.getValue<boolean>('update.showPostInstallInfo');
 			const releaseNotesUrl = productService.releaseNotesUrl;
 
-			// was there a major/minor update? if so, open release notes
-			if (shouldShowReleaseNotes && !environmentService.skipReleaseNotes && releaseNotesUrl && lastVersion && currentVersion && isMajorMinorUpdate(lastVersion, currentVersion)) {
+			// was there a major/minor update? if so, open release notes (unless post-install info is enabled, which takes over)
+			if (shouldShowReleaseNotes && !shouldShowPostInstallInfo && !environmentService.skipReleaseNotes && releaseNotesUrl && lastVersion && currentVersion && isMajorMinorUpdate(lastVersion, currentVersion)) {
 				showReleaseNotesInEditor(instantiationService, productService.version, false)
 					.then(undefined, () => {
 						notificationService.prompt(
@@ -212,12 +213,10 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 	constructor(
 		@IStorageService storageService: IStorageService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IDialogService private readonly dialogService: IDialogService,
 		@IUpdateService private readonly updateService: IUpdateService,
 		@IActivityService private readonly activityService: IActivityService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IProductService private readonly productService: IProductService,
-		@IHostService private readonly hostService: IHostService,
 	) {
 		super();
 		this.state = updateService.state;
@@ -251,12 +250,6 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 		this.updateStateContextKey.set(state.type);
 
 		switch (state.type) {
-			case StateType.Idle:
-				if (this.state.type === StateType.CheckingForUpdates && this.state.explicit && !state.error && await this.hostService.hadLastFocus()) {
-					this.onUpdateNotAvailable();
-				}
-				break;
-
 			case StateType.Ready: {
 				const productVersion = state.update.productVersion;
 				if (productVersion) {
@@ -287,10 +280,6 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 		}
 
 		this.state = state;
-	}
-
-	private onUpdateNotAvailable(): void {
-		this.dialogService.info(nls.localize('noUpdatesAvailable', "There are currently no updates available."));
 	}
 
 	private registerGlobalActivityActions(): void {

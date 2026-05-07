@@ -45,13 +45,16 @@
 				"owner": "typescript",
 				"applyTo": "closedDocuments",
 				"fileLocation": [
-					"absolute"
+					"relative",
+					"${workspaceFolder}"
 				],
+				"source": "ts",
 				"pattern": {
-					"regexp": "Error: ([^(]+)\\((\\d+|\\d+,\\d+|\\d+,\\d+,\\d+,\\d+)\\): (.*)$",
+					"regexp": "\\] (.+)\\(([\\d,]+)\\): error TS(\\d+): (.*)$",
 					"file": 1,
 					"location": 2,
-					"message": 3
+					"code": 3,
+					"message": 4
 				},
 				"background": {
 					"beginsPattern": "Starting compilation\\.\\.\\.",
@@ -275,16 +278,22 @@
 		},
 		{
 			"label": "Run and Compile Agents - OSS",
-			"dependsOn": ["Transpile Client", "Run Dev Agents"],
+			"dependsOn": [
+				"Transpile Client",
+				"Run Dev Agents"
+			],
 			"dependsOrder": "sequence",
-			"inSessions": true,
+			"inAgents": true,
 			"problemMatcher": []
 		},
 		{
 			"label": "Run and Compile Code - OSS",
-			"dependsOn": ["Transpile Client", "Run Dev"],
+			"dependsOn": [
+				"Transpile Client",
+				"Run Dev"
+			],
 			"dependsOrder": "sequence",
-			"inSessions": true,
+			"inAgents": true,
 			"problemMatcher": []
 		},
 		{
@@ -423,7 +432,7 @@
 			"type": "shell",
 			"command": "npx component-explorer serve -p ./test/componentFixtures/component-explorer.json -vv --kill-if-running",
 			"isBackground": true,
-			"inSessions": true,
+			"inAgents": true,
 			"problemMatcher": {
 				"owner": "component-explorer",
 				"fileLocation": "absolute",
@@ -447,7 +456,7 @@
 			"windows": {
 				"command": "cmd /c \"npm ci && npm run watch\""
 			},
-			"inSessions": true,
+			"inAgents": true,
 			"runOptions": {
 				"runOn": "worktreeCreated"
 			},

@@ -32,7 +32,8 @@ import { TestWorkspace } from '../../../platform/workspace/test/common/testWorks
 import { GroupIdentifier, IRevertOptions, ISaveOptions, SaveReason } from '../../common/editor.js';
 import { EditorInput } from '../../common/editor/editorInput.js';
 import { IActivity, IActivityService } from '../../services/activity/common/activity.js';
-import { ChatEntitlement, IChatEntitlementService } from '../../services/chat/common/chatEntitlementService.js';
+import { ChatEntitlement, ChatEntitlementContext, IChatEntitlementService } from '../../services/chat/common/chatEntitlementService.js';
+import { Lazy } from '../../../base/common/lazy.js';
 import { NullExtensionService } from '../../services/extensions/common/extensions.js';
 import { IAutoSaveConfiguration, IAutoSaveMode, IFilesConfigurationService } from '../../services/filesConfiguration/common/filesConfigurationService.js';
 import { IHistoryService } from '../../services/history/common/history.js';
@@ -352,7 +353,7 @@ export const NullFilesConfigurationService = new class implements IFilesConfigur
 	enableAutoSaveAfterShortDelay(resourceOrEditor: URI | EditorInput): IDisposable { throw new Error('Method not implemented.'); }
 	disableAutoSave(resourceOrEditor: URI | EditorInput): IDisposable { throw new Error('Method not implemented.'); }
 	isReadonly(resource: URI, stat?: IBaseFileStat | undefined): boolean { return false; }
-	async updateReadonly(resource: URI, readonly: boolean | 'toggle' | 'reset'): Promise<void> { }
+	async updateReadonly(_resource: URI | URI[], _readonly: boolean | 'toggle' | 'reset'): Promise<void> { }
 	preventSaveConflicts(resource: URI, language?: string | undefined): boolean { throw new Error('Method not implemented.'); }
 };
 
@@ -786,6 +787,8 @@ export class TestChatEntitlementService implements IChatEntitlementService {
 
 	_serviceBrand: undefined;
 
+	context: Lazy<ChatEntitlementContext> | undefined;
+
 	readonly organisations: undefined;
 	readonly isInternal = false;
 	readonly sku = undefined;
@@ -812,8 +815,10 @@ export class TestChatEntitlementService implements IChatEntitlementService {
 	readonly anonymousObs = observableValue({}, false);
 
 	markAnonymousRateLimited(): void { }
+	setForceHidden(_hidden: boolean): void { }
 
 	readonly previewFeaturesDisabled = false;
+	readonly clientByokEnabled = false;
 }
 
 export class TestLifecycleService extends Disposable implements ILifecycleService {

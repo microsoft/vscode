@@ -17,7 +17,7 @@ import { ConfigKey, IConfigurationService } from '../../../platform/configuratio
 import { ICAPIClientService } from '../../../platform/endpoint/common/capiClient';
 import { IEnvService, isScenarioAutomation } from '../../../platform/env/common/envService';
 import { IVSCodeExtensionContext } from '../../../platform/extContext/common/extensionContext';
-import { collectErrorMessages, collectSingleLineErrorMessage, ILogService } from '../../../platform/log/common/logService';
+import { collectErrorMessages, collectSingleLineErrorMessage, ILogService, sanitizeNetworkErrorForTelemetry } from '../../../platform/log/common/logService';
 import { outputChannel } from '../../../platform/log/vscode/outputChannelLogTarget';
 import { FetchEvent, IFetcherService } from '../../../platform/networking/common/fetcherService';
 import { IFetcher, userAgentLibraryHeader } from '../../../platform/networking/common/networking';
@@ -250,46 +250,6 @@ In corporate networks: [Troubleshooting firewall settings for GitHub Copilot](ht
 		// Internal command is not declared in package.json so it can be used from the welcome views while the extension is being activated.
 		this._context.subscriptions.push(vscode.commands.registerCommand('github.copilot.debug.collectDiagnostics.internal', collectDiagnostics));
 		this._context.subscriptions.push(vscode.commands.registerCommand('github.copilot.debug.showOutputChannel.internal', () => outputChannel.show()));
-		this._context.subscriptions.push(vscode.commands.registerCommand('github.copilot.debug.showNodeSystemCertificatesErrors', async () => {
-			const result: Record<string, unknown> = {};
-			try {
-				const certs = tls.getCACertificates('system');
-				result.certificateCount = Array.isArray(certs) ? certs.length : 'unavailable';
-			} catch (err: any) {
-				result.certificateCount = `Error: ${err?.message}`;
-			}
-			if (typeof (tls as any).getSystemCACertificatesErrors === 'function') {
-				try {
-					const errors = (tls as any).getSystemCACertificatesErrors();
-					if (errors && typeof errors === 'object') {
-						const counts = new Map<string, { error: string; count: number; code: number | string }>();
-						for (const [category, entries] of Object.entries(errors)) {
-							if (Array.isArray(entries)) {
-								for (const entry of entries as { errorMessage?: string; errorCode?: number }[]) {
-									const code = entry.errorCode ?? 'missing code';
-									const error = `${category}: ${entry.errorMessage ?? 'missing message'}`;
-									const key = `${error} (${code})`;
-									const existing = counts.get(key);
-									if (existing) {
-										existing.count++;
-									} else {
-										counts.set(key, { error, code, count: 1 });
-									}
-								}
-							}
-						}
-						result.errorSummary = [...counts.values()].sort((a, b) => b.count - a.count);
-					}
-					result.errors = errors;
-				} catch (err: any) {
-					result.errors = `Error: ${err?.message}`;
-				}
-			} else {
-				result.errors = 'tls.getSystemCACertificatesErrors is not available';
-			}
-			const document = await vscode.workspace.openTextDocument({ language: 'json', content: JSON.stringify(result, null, 2) });
-			await vscode.window.showTextDocument(document);
-		}));
 		this._context.subscriptions.push(new NetworkStatus(this.fetcherService, this.configurationService, this.experimentationService));
 	}
 
@@ -520,7 +480,7 @@ function collectFetcherTelemetry(accessor: ServicesAccessor): void {
 				probeResults[key] = `Status: ${response.status}`;
 				logService.debug(`Fetcher telemetry probe: ${library} ${probeResults[key]} (${Date.now() - requestStartTime}ms)`);
 			} catch (e) {
-				probeResults[key] = `Error: ${collectSingleLineErrorMessage(e, true)}`;
+				probeResults[key] = `Error: ${sanitizeNetworkErrorForTelemetry(collectSingleLineErrorMessage(e, true))}`;
 				logService.debug(`Fetcher telemetry probe: ${library} ${probeResults[key]} (${Date.now() - requestStartTime}ms)`);
 			}
 		}

@@ -9,7 +9,7 @@ import type { ChatRequest, ChatResponseReferencePart, ChatResponseStream, ChatRe
 import { IAuthenticationService } from '../../../platform/authentication/common/authentication';
 import { IAuthenticationChatUpgradeService } from '../../../platform/authentication/common/authenticationUpgrade';
 import { IChatHookService, UserPromptSubmitHookInput, UserPromptSubmitHookOutput } from '../../../platform/chat/common/chatHookService';
-import { CanceledResult, ChatFetchResponseType, ChatLocation, ChatResponse, getErrorDetailsFromChatFetchError } from '../../../platform/chat/common/commonTypes';
+import { CanceledResult, ChatFetchError, ChatFetchResponseType, ChatLocation, ChatResponse, getErrorDetailsFromChatFetchError } from '../../../platform/chat/common/commonTypes';
 import { IConversationOptions } from '../../../platform/chat/common/conversationOptions';
 import { ISessionTranscriptService } from '../../../platform/chat/common/sessionTranscriptService';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
@@ -21,11 +21,11 @@ import { IGitService } from '../../../platform/git/common/gitService';
 import { IOctoKitService } from '../../../platform/github/common/githubService';
 import { HAS_IGNORED_FILES_MESSAGE } from '../../../platform/ignore/common/ignoreService';
 import { ILogService } from '../../../platform/log/common/logService';
-import { isAnthropicToolSearchEnabled } from '../../../platform/networking/common/anthropic';
+import { isAnthropicContextEditingEnabled } from '../../../platform/networking/common/anthropic';
 import { FilterReason } from '../../../platform/networking/common/openai';
 import { IOTelService } from '../../../platform/otel/common/otelService';
 import { CapturingToken } from '../../../platform/requestLogger/common/capturingToken';
-import { IRequestLogger } from '../../../platform/requestLogger/node/requestLogger';
+import { IRequestLogger } from '../../../platform/requestLogger/common/requestLogger';
 import { ISurveyService } from '../../../platform/survey/common/surveyService';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
@@ -484,6 +484,11 @@ export class DefaultIntentRequestHandler {
 		return {};
 	}
 
+	private async getErrorDetails(error: ChatFetchError) {
+		const status = await this._octoKitService.getGitHubOutageStatus();
+		return getErrorDetailsFromChatFetchError(error, this._authenticationService.copilotToken?.copilotPlan, status);
+	}
+
 	private async processResult(fetchResult: ChatResponse, responseMessage: string, chatResult: ChatResult | void, metadataFragment: Partial<IResultMetadata>, baseModelTelemetry: ConversationalBaseTelemetryData, rounds: IToolCallRound[]): Promise<ChatResult> {
 		switch (fetchResult.type) {
 			case ChatFetchResponseType.Success:
@@ -491,16 +496,14 @@ export class DefaultIntentRequestHandler {
 			case ChatFetchResponseType.OffTopic:
 				return this.processOffTopicFetchResult(baseModelTelemetry);
 			case ChatFetchResponseType.Canceled: {
-				const outageStatus = await this._octoKitService.getGitHubOutageStatus();
-				const errorDetails = getErrorDetailsFromChatFetchError(fetchResult, (await this._authenticationService.getCopilotToken()).copilotPlan, outageStatus);
+				const errorDetails = await this.getErrorDetails(fetchResult);
 				const chatResult = { errorDetails, metadata: metadataFragment };
 				this.turn.setResponse(TurnStatus.Cancelled, { message: errorDetails.message, type: 'user' }, baseModelTelemetry.properties.messageId, chatResult);
 				return chatResult;
 			}
 			case ChatFetchResponseType.QuotaExceeded:
 			case ChatFetchResponseType.RateLimited: {
-				const outageStatus = await this._octoKitService.getGitHubOutageStatus();
-				const errorDetails = getErrorDetailsFromChatFetchError(fetchResult, (await this._authenticationService.getCopilotToken()).copilotPlan, outageStatus);
+				const errorDetails = await this.getErrorDetails(fetchResult);
 				if (fetchResult.type === ChatFetchResponseType.RateLimited
 					&& fetchResult.capiError?.code?.startsWith('user_model_rate_limited')
 					&& !fetchResult.isAuto) {
@@ -520,22 +523,19 @@ export class DefaultIntentRequestHandler {
 			case ChatFetchResponseType.BadRequest:
 			case ChatFetchResponseType.NetworkError:
 			case ChatFetchResponseType.Failed: {
-				const outageStatus = await this._octoKitService.getGitHubOutageStatus();
-				const errorDetails = getErrorDetailsFromChatFetchError(fetchResult, (await this._authenticationService.getCopilotToken()).copilotPlan, outageStatus);
+				const errorDetails = await this.getErrorDetails(fetchResult);
 				const chatResult = { errorDetails, metadata: metadataFragment };
 				this.turn.setResponse(TurnStatus.Error, { message: errorDetails.message, type: 'server' }, baseModelTelemetry.properties.messageId, chatResult);
 				return chatResult;
 			}
 			case ChatFetchResponseType.Filtered: {
-				const outageStatus = await this._octoKitService.getGitHubOutageStatus();
-				const errorDetails = getErrorDetailsFromChatFetchError(fetchResult, (await this._authenticationService.getCopilotToken()).copilotPlan, outageStatus);
+				const errorDetails = await this.getErrorDetails(fetchResult);
 				const chatResult = { errorDetails, metadata: { ...metadataFragment, filterReason: fetchResult.category } };
 				this.turn.setResponse(TurnStatus.Filtered, undefined, baseModelTelemetry.properties.messageId, chatResult);
 				return chatResult;
 			}
 			case ChatFetchResponseType.PromptFiltered: {
-				const outageStatus = await this._octoKitService.getGitHubOutageStatus();
-				const errorDetails = getErrorDetailsFromChatFetchError(fetchResult, (await this._authenticationService.getCopilotToken()).copilotPlan, outageStatus);
+				const errorDetails = await this.getErrorDetails(fetchResult);
 				const chatResult = { errorDetails, metadata: { ...metadataFragment, filterReason: FilterReason.Prompt } };
 				this.turn.setResponse(TurnStatus.PromptFiltered, undefined, baseModelTelemetry.properties.messageId, chatResult);
 				return chatResult;
@@ -546,30 +546,26 @@ export class DefaultIntentRequestHandler {
 				return chatResult;
 			}
 			case ChatFetchResponseType.AgentFailedDependency: {
-				const outageStatus = await this._octoKitService.getGitHubOutageStatus();
-				const errorDetails = getErrorDetailsFromChatFetchError(fetchResult, (await this._authenticationService.getCopilotToken()).copilotPlan, outageStatus);
+				const errorDetails = await this.getErrorDetails(fetchResult);
 				const chatResult = { errorDetails, metadata: metadataFragment };
 				this.turn.setResponse(TurnStatus.Error, undefined, baseModelTelemetry.properties.messageId, chatResult);
 				return chatResult;
 			}
 			case ChatFetchResponseType.Length: {
-				const outageStatus = await this._octoKitService.getGitHubOutageStatus();
-				const errorDetails = getErrorDetailsFromChatFetchError(fetchResult, (await this._authenticationService.getCopilotToken()).copilotPlan, outageStatus);
+				const errorDetails = await this.getErrorDetails(fetchResult);
 				const chatResult = { errorDetails, metadata: metadataFragment };
 				this.turn.setResponse(TurnStatus.Error, undefined, baseModelTelemetry.properties.messageId, chatResult);
 				return chatResult;
 			}
 			case ChatFetchResponseType.NotFound: // before we had `NotFound`, it would fall into Unknown, so behavior should be consistent
 			case ChatFetchResponseType.Unknown: {
-				const outageStatus = await this._octoKitService.getGitHubOutageStatus();
-				const errorDetails = getErrorDetailsFromChatFetchError(fetchResult, (await this._authenticationService.getCopilotToken()).copilotPlan, outageStatus);
+				const errorDetails = await this.getErrorDetails(fetchResult);
 				const chatResult = { errorDetails, metadata: metadataFragment };
 				this.turn.setResponse(TurnStatus.Error, undefined, baseModelTelemetry.properties.messageId, chatResult);
 				return chatResult;
 			}
 			case ChatFetchResponseType.ExtensionBlocked: {
-				const outageStatus = await this._octoKitService.getGitHubOutageStatus();
-				const errorDetails = getErrorDetailsFromChatFetchError(fetchResult, (await this._authenticationService.getCopilotToken()).copilotPlan, outageStatus);
+				const errorDetails = await this.getErrorDetails(fetchResult);
 				const chatResult = { errorDetails, metadata: metadataFragment };
 				// This shouldn't happen, only 3rd party extensions should be blocked
 				this.turn.setResponse(TurnStatus.Error, undefined, baseModelTelemetry.properties.messageId, chatResult);
@@ -687,15 +683,25 @@ class DefaultToolCallingLoop extends ToolCallingLoop<IDefaultToolLoopOptions> {
 
 	protected override async fetch(opts: ToolCallingLoopFetchOptions, token: CancellationToken): Promise<ChatResponse> {
 		const messageSourcePrefix = this.options.location === ChatLocation.Editor ? 'inline' : 'chat';
-		const baseDebugName = this.options.request.subAgentInvocationId ?
+		const debugName = this.options.request.subAgentInvocationId ?
 			`tool/runSubagent${this.options.request.subAgentName ? `-${this.options.request.subAgentName}` : ''}` :
 			`${ChatLocation.toStringShorter(this.options.location)}/${this.options.intent?.id}`;
-		const debugName = this._isInlineSummarizationRequest ? 'inlineSummarizeConversationHistory-full' : baseDebugName;
 		const location = this.options.overrideRequestLocation ?? this.options.location;
 		const isThinkingLocation = location === ChatLocation.Agent || location === ChatLocation.MessagesProxy;
+		const rawEffort = this.options.request.modelConfiguration?.reasoningEffort;
+		const reasoningEffort = typeof rawEffort === 'string' ? rawEffort : undefined;
+		const isSubagent = !!this.options.request.subAgentInvocationId;
+		const modeChanged = this.didModeChangeSincePreviousRequest();
 		return this.options.invocation.endpoint.makeChatRequest2({
 			...opts,
-			enableThinking: isThinkingLocation && opts.enableThinking,
+			modeChanged,
+			modelCapabilities: {
+				...opts.modelCapabilities,
+				enableThinking: isThinkingLocation && opts.modelCapabilities?.enableThinking,
+				reasoningEffort,
+				enableToolSearch: !isSubagent && !!this.options.invocation.endpoint.supportsToolSearch,
+				enableContextEditing: !isSubagent && isAnthropicContextEditingEnabled(this.options.invocation.endpoint, this._configurationService, this._experimentationService),
+			},
 			debugName,
 			conversationId: this.options.conversation.sessionId,
 			turnId: opts.turnId,
@@ -721,19 +727,53 @@ class DefaultToolCallingLoop extends ToolCallingLoop<IDefaultToolLoopOptions> {
 				messageSource: this.options.intent?.id && this.options.intent.id !== UnknownIntent.ID ? `${messageSourcePrefix}.${this.options.intent.id}` : `${messageSourcePrefix}.user`,
 				subType: this.options.request.subAgentInvocationId ? `subagent` : this.options.request.isSystemInitiated ? 'system-initiated' : undefined,
 				parentRequestId: this.options.request.parentRequestId,
+				iterationNumber: opts.iterationNumber.toString(),
 			},
-			requestKindOptions: this.options.request.subAgentInvocationId
-				? { kind: 'subagent' }
-				: undefined,
+			interactionTypeOverride: this.options.request.subAgentInvocationId ? 'conversation-subagent' : undefined,
 			enableRetryOnFilter: true
 		}, token);
+	}
+
+	private didModeChangeSincePreviousRequest(): boolean {
+		if (this.options.invocation.endpoint.apiType !== 'responses') {
+			return false;
+		}
+
+		const previousTurn = this.options.conversation.turns.at(-2);
+		if (!previousTurn) {
+			return false;
+		}
+
+		// Once a mode-switched turn has successfully produced a fresh responses-api
+		// stateful marker, later requests in the same turn should resume from that
+		// new chain instead of continuing to invalidate previous_response_id.
+		// This is especially important for websocket follow-up requests after tool
+		// calls: keeping modeChanged=true for the entire turn would force the full
+		// pre-switch history back into every follow-up request, which can pull the
+		// model back toward the prior mode (for example implementation after
+		// switching into Plan mode).
+		if (this.currentToolCallRounds.some(round => !!round.statefulMarker)) {
+			return false;
+		}
+
+		const previousModeInstructions = previousTurn.modeInstructions;
+		if (!previousModeInstructions && !this.options.request.modeInstructions2) {
+			return false;
+		}
+
+		const modeChanged = !areModeInstructionsEqual(previousModeInstructions, this.options.request.modeInstructions2);
+		if (modeChanged) {
+			this._logService.trace('[DefaultIntentRequestHandler] Detected mode instructions changed between requests');
+		}
+
+		return modeChanged;
 	}
 
 	protected override async getAvailableTools(outputStream: ChatResponseStream | undefined, token: CancellationToken): Promise<LanguageModelToolInformation[]> {
 		const tools = await this.options.invocation.getAvailableTools?.() ?? [];
 
 		// Skip tool grouping when Anthropic tool search is enabled
-		if (isAnthropicFamily(this.options.invocation.endpoint) && isAnthropicToolSearchEnabled(this.options.invocation.endpoint, this._configurationService)) {
+		if (isAnthropicFamily(this.options.invocation.endpoint) && this.options.invocation.endpoint.supportsToolSearch) {
 			return tools;
 		}
 
@@ -748,8 +788,9 @@ class DefaultToolCallingLoop extends ToolCallingLoop<IDefaultToolLoopOptions> {
 
 		const computePromise = this.toolGrouping.compute(this.options.request.prompt, token);		// Show progress if this takes a moment...
 		const timeout = setTimeout(() => {
-			outputStream?.progress(l10n.t('Optimizing tool selection...'), async () => {
+			outputStream?.progress(l10n.t('Optimizing tool selection'), async () => {
 				await computePromise;
+				return l10n.t('Optimized tool selection');
 			});
 		}, 1000);
 
@@ -784,4 +825,40 @@ class DefaultToolCallingLoop extends ToolCallingLoop<IDefaultToolLoopOptions> {
 
 interface IInternalRequestResult extends IToolCallLoopResult {
 	lastRequestTelemetry: ChatTelemetry;
+}
+
+type ModeInstructions = NonNullable<ChatRequest['modeInstructions2']>;
+type ModeInstructionMetadata = ModeInstructions['metadata'];
+
+function areModeInstructionsEqual(a: ChatRequest['modeInstructions2'], b: ChatRequest['modeInstructions2']): boolean {
+	if (!a || !b) {
+		return a === b;
+	}
+
+	return a.uri?.toString() === b.uri?.toString()
+		&& a.name === b.name
+		&& a.content === b.content
+		&& a.isBuiltin === b.isBuiltin
+		&& serializeModeInstructionMetadata(a.metadata) === serializeModeInstructionMetadata(b.metadata);
+}
+
+function normalizeModeInstructionMetadata(metadata: ModeInstructionMetadata): Record<string, boolean | string | number> | undefined {
+	if (!metadata) {
+		return undefined;
+	}
+
+	const entries = Object.entries(metadata).sort(([left], [right]) => left.localeCompare(right));
+	if (entries.length === 0) {
+		return undefined;
+	}
+
+	return entries.reduce<Record<string, boolean | string | number>>((result, [key, value]) => {
+		result[key] = value;
+		return result;
+	}, {});
+}
+
+function serializeModeInstructionMetadata(metadata: ModeInstructionMetadata): string | undefined {
+	const normalizedMetadata = normalizeModeInstructionMetadata(metadata);
+	return normalizedMetadata ? JSON.stringify(normalizedMetadata) : undefined;
 }

@@ -78,8 +78,10 @@ const responsePartSchema = Adapt.v<IChatProgressResponseContent, SerializedChatR
 				case 'progressMessage':
 				case 'pullRequest':
 				case 'questionCarousel':
+				case 'planReview':
 				case 'undoStop':
 				case 'warning':
+				case 'info':
 				case 'treeData':
 				case 'workspaceEdit':
 				case 'disabledClaudeHooks':
@@ -150,9 +152,12 @@ const requestSchema = Adapt.object<IChatRequestModel, ISerializableChatRequestDa
 	contentReferences: Adapt.v(m => m.response?.contentReferences, objectsEqual),
 	codeCitations: Adapt.v(m => m.response?.codeCitations, objectsEqual),
 	timeSpentWaiting: Adapt.v(m => m.response?.timestamp), // based on response timestamp
+	completionTokens: Adapt.v(m => m.response?.completionTokenCount),
+	elapsedMs: Adapt.v(m => m.response?.elapsedMs ?? (m.response?.completedAt ? Math.max(0, m.response.completedAt - m.response.confirmationAdjustedTimestamp.get()) : undefined)),
 	modeInfo: Adapt.v(m => m.modeInfo, objectsEqual),
 	isSystemInitiated: Adapt.v(m => m.isSystemInitiated),
 	systemInitiatedLabel: Adapt.v(m => m.systemInitiatedLabel),
+	terminalExecutionId: Adapt.v(m => m.terminalExecutionId),
 }, {
 	sealed: (o) => o.modelState?.value === ResponseModelState.Cancelled || o.modelState?.value === ResponseModelState.Failed || o.modelState?.value === ResponseModelState.Complete,
 });

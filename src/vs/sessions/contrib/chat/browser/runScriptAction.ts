@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, addDisposableListener, append, EventType } from '../../../../base/browser/dom.js';
+import { $, addDisposableGenericMouseDownListener, addDisposableListener, append, EventType } from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { ActionViewItem, BaseActionViewItem, IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { Action, IAction } from '../../../../base/common/actions.js';
@@ -32,11 +32,11 @@ import { SessionsCategories } from '../../../common/categories.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { IsActiveSessionBackgroundProviderContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { ISession } from '../../../services/sessions/common/session.js';
+import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { Menus } from '../../../browser/menus.js';
-import { INonSessionTaskEntry, ISessionsConfigurationService, ISessionTaskWithTarget, ITaskEntry, TaskStorageTarget } from './sessionsConfigurationService.js';
+import { INonSessionTaskEntry, ISessionsTasksService, ISessionTaskWithTarget, ITaskEntry, TaskStorageTarget } from './sessionsTasksService.js';
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { IRunScriptCustomTaskWidgetResult, RunScriptCustomTaskWidget } from './runScriptCustomTaskWidget.js';
-import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 
 
 // Menu IDs - exported for use in auxiliary bar part
@@ -82,6 +82,17 @@ function getTaskCommandPreview(task: ITaskEntry): string {
 	return getTaskDisplayLabel(task);
 }
 
+function formatBrowserUrlDescription(url: string | undefined, maxLength: number): string | undefined {
+	if (!url) {
+		return undefined;
+	}
+	const stripped = url.replace(/^https?:\/\//i, '').replace(/^www\./i, '');
+	if (stripped.length <= maxLength) {
+		return stripped;
+	}
+	return `${stripped.substring(0, maxLength - 3)}...`;
+}
+
 function getPrimaryTask(tasks: readonly ISessionTaskWithTarget[], pinnedTaskLabel: string | undefined): ISessionTaskWithTarget | undefined {
 	if (tasks.length === 0) {
 		return undefined;
@@ -101,6 +112,8 @@ interface IRunScriptActionContext {
 	readonly session: ISession;
 	readonly tasks: readonly ISessionTaskWithTarget[];
 	readonly pinnedTaskLabel: string | undefined;
+	readonly browserUrl: string | undefined;
+	readonly pinnedBrowser: boolean;
 }
 
 type TaskConfigurationMode = 'add' | 'configure';
@@ -119,10 +132,12 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 		@ISessionsManagementService private readonly _sessionManagementService: ISessionsManagementService,
 		@IKeybindingService _keybindingService: IKeybindingService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
-		@ISessionsConfigurationService private readonly _sessionsConfigService: ISessionsConfigurationService,
+		@ISessionsTasksService private readonly _sessionsConfigService: ISessionsTasksService,
 		@IActionViewItemService private readonly _actionViewItemService: IActionViewItemService,
 		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
+		@ICommandService private readonly _commandService: ICommandService,
 	) {
 		super();
 
@@ -133,6 +148,8 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 				if (!a || !b) { return false; }
 				return a.session === b.session
 					&& a.pinnedTaskLabel === b.pinnedTaskLabel
+					&& a.browserUrl === b.browserUrl
+					&& a.pinnedBrowser === b.pinnedBrowser
 					&& equals(a.tasks, b.tasks, (t1, t2) =>
 						t1.task.label === t2.task.label
 						&& t1.task.command === t2.task.command
@@ -148,7 +165,9 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 			const tasks = this._sessionsConfigService.getSessionTasks(activeSession).read(reader);
 			const repo = activeSession.workspace.read(reader)?.repositories[0];
 			const pinnedTaskLabel = this._sessionsConfigService.getPinnedTaskLabel(repo?.uri).read(reader);
-			return { session: activeSession, tasks, pinnedTaskLabel };
+			const browserUrl = this._sessionsConfigService.getBrowserUrl(repo?.uri).read(reader);
+			const pinnedBrowser = this._sessionsConfigService.getPinnedBrowser(repo?.uri).read(reader);
+			return { session: activeSession, tasks, pinnedTaskLabel, browserUrl, pinnedBrowser };
 		}).recomputeInitiallyAndOnChange(this._store);
 
 		this._registerActionViewItemProvider();
@@ -171,6 +190,8 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 					that._activeRunState,
 					(session: ISession) => that._showConfigureQuickPick(session),
 					(session: ISession, existingTask: INonSessionTaskEntry, mode?: TaskConfigurationMode) => that._showCustomCommandInput(session, existingTask, mode),
+					(session: ISession) => that._generateNewTask(session),
+					(session: ISession) => that._configureBrowserUrl(session),
 				);
 			},
 		));
@@ -198,7 +219,12 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 
 				logSessionsInteraction(that._telemetryService, 'runPrimaryTask');
 
-				const { tasks, session } = activeState;
+				const { tasks, session, pinnedBrowser, browserUrl } = activeState;
+				if (pinnedBrowser) {
+					await that._commandService.executeCommand('simpleBrowser.show', browserUrl);
+					return;
+				}
+
 				if (tasks.length === 0) {
 					const task = await that._showConfigureQuickPick(session);
 					if (task) {
@@ -242,6 +268,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 				}
 
 				async run(): Promise<void> {
+					logSessionsInteraction(that._telemetryService, 'addTask', 'menu');
 					const task = await that._showConfigureQuickPick(session);
 					if (task) {
 						await that._sessionsConfigService.runTask(task, session);
@@ -265,10 +292,42 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 				}
 
 				async run(): Promise<void> {
-					await that._sessionManagementService.sendAndCreateChat(session, { query: '/generate-run-commands' });
+					logSessionsInteraction(that._telemetryService, 'generateNewTask', 'menu');
+					await that._generateNewTask(session);
 				}
 			}));
 		}));
+	}
+
+	private async _generateNewTask(session: ISession): Promise<void> {
+		const query = '/generate-run-commands';
+		// Prefer sending to the already-open chat widget for the session;
+		// fall back to sendAndCreateChat for untitled sessions or when no widget is loaded.
+		const widget = this._chatWidgetService.getWidgetBySessionResource(session.mainChat.resource);
+		if (widget) {
+			await widget.acceptInput(query);
+		} else {
+			await this._sessionManagementService.sendAndCreateChat(session, { query });
+		}
+	}
+
+	private async _configureBrowserUrl(session: ISession): Promise<void> {
+		const repo = session.workspace.get()?.repositories[0];
+		if (!repo?.uri) {
+			return;
+		}
+		const currentUrl = this._sessionsConfigService.getBrowserUrl(repo.uri).get();
+		const url = await this._quickInputService.input({
+			title: localize('configureBrowserUrlTitle', "Configure Browser URL"),
+			prompt: localize('configureBrowserUrlPrompt', "Enter the URL to open in the integrated browser. Leave empty to clear."),
+			placeHolder: 'https://example.com',
+			value: currentUrl ?? '',
+			ignoreFocusLost: true,
+		});
+		if (url === undefined) {
+			return;
+		}
+		this._sessionsConfigService.setBrowserUrl(repo.uri, url);
 	}
 
 	private async _showConfigureQuickPick(session: ISession): Promise<ITaskEntry | undefined> {
@@ -336,7 +395,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 				let updatedTask: ITaskEntry = {
 					...existingTask.task,
 					label: newLabel,
-					inSessions: true,
+					inAgents: true,
 				};
 
 				if (taskConfiguration.command && existingTask.task.command !== undefined) {
@@ -363,7 +422,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 			await this._sessionsConfigService.addTaskToSessions(existingTask.task, session, existingTask.target, { runOn: taskConfiguration.runOn ?? 'default' });
 			return {
 				...existingTask.task,
-				inSessions: true,
+				inAgents: true,
 				...(taskConfiguration.runOn ? { runOptions: { runOn: taskConfiguration.runOn } } : {}),
 			};
 		}
@@ -416,7 +475,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 			quickWidget.widget = widget.domNode;
 			this._layoutService.mainContainer.classList.add(RUN_SCRIPT_ACTION_MODAL_VISIBLE_CLASS);
 			const backdrop = append(this._layoutService.mainContainer, $('.run-script-action-modal-backdrop'));
-			disposables.add(addDisposableListener(backdrop, EventType.MOUSE_DOWN, e => {
+			disposables.add(addDisposableGenericMouseDownListener(backdrop, e => {
 				e.preventDefault();
 				e.stopPropagation();
 				complete(undefined);
@@ -478,25 +537,26 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 		private readonly _activeRunState: IObservable<IRunScriptActionContext | undefined>,
 		private readonly _showConfigureQuickPick: (session: ISession) => Promise<ITaskEntry | undefined>,
 		private readonly _showCustomCommandInput: (session: ISession, existingTask: INonSessionTaskEntry, mode?: TaskConfigurationMode) => Promise<ITaskEntry | undefined>,
+		private readonly _generateNewTask: (session: ISession) => Promise<void>,
+		private readonly _configureBrowserUrl: (session: ISession) => Promise<void>,
 		@ICommandService private readonly _commandService: ICommandService,
-		@ISessionsConfigurationService private readonly _sessionsConfigService: ISessionsConfigurationService,
+		@ISessionsTasksService private readonly _sessionsConfigService: ISessionsTasksService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IActionWidgetService private readonly _actionWidgetService: IActionWidgetService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
-		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 	) {
 		super(undefined, action);
 
 		const state = this._activeRunState.get();
-		const hasTasks = state && state.tasks.length > 0;
+		const isPrimaryEnabled = !!state && (state.tasks.length > 0 || state.pinnedBrowser);
 
 		// Primary action button - runs the pinned task (or first task when none is pinned)
 		this._primaryActionAction = this._register(new Action(
 			'agentSessions.runScriptPrimary',
 			this._getPrimaryActionTooltip(state),
 			ThemeIcon.asClassName(Codicon.play),
-			hasTasks,
+			isPrimaryEnabled,
 			() => this._commandService.executeCommand(RUN_SCRIPT_ACTION_PRIMARY_ID)
 		));
 		this._primaryAction = this._register(new ActionViewItem(undefined, this._primaryActionAction, { icon: true, label: false }));
@@ -504,7 +564,7 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 		// Update enabled state when tasks change
 		this._register(autorun(reader => {
 			const runState = this._activeRunState.read(reader);
-			this._primaryActionAction.enabled = !!runState && runState.tasks.length > 0;
+			this._primaryActionAction.enabled = !!runState && (runState.tasks.length > 0 || runState.pinnedBrowser);
 			this._primaryActionAction.label = this._getPrimaryActionTooltip(runState);
 		}));
 
@@ -567,10 +627,21 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 
 	override setFocusable(focusable: boolean): void {
 		this._primaryAction.setFocusable(focusable);
-		this._dropdown.setFocusable(focusable);
+		if (!focusable) {
+			this._dropdown.setFocusable(false);
+		}
 	}
 
 	private _getPrimaryActionTooltip(state: IRunScriptActionContext | undefined): string {
+		const keybindingLabel = this._keybindingService.lookupKeybinding(RUN_SCRIPT_ACTION_PRIMARY_ID)?.getLabel();
+		const withKeybinding = (label: string) => keybindingLabel
+			? localize('runActionTooltipKeybinding', "{0} ({1})", label, keybindingLabel)
+			: label;
+
+		if (state?.pinnedBrowser) {
+			return withKeybinding(localize('openBrowserAction', "Open Browser"));
+		}
+
 		if (!state || state.tasks.length === 0) {
 			return localize('runPrimaryTaskTooltip', "Run Primary Task");
 		}
@@ -580,10 +651,7 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 			return localize('runPrimaryTaskTooltip', "Run Primary Task");
 		}
 
-		const keybindingLabel = this._keybindingService.lookupKeybinding(RUN_SCRIPT_ACTION_PRIMARY_ID)?.getLabel();
-		return keybindingLabel
-			? localize('runActionTooltipKeybinding', "{0} ({1})", getTaskDisplayLabel(primaryTask), keybindingLabel)
-			: getTaskDisplayLabel(primaryTask);
+		return withKeybinding(getTaskDisplayLabel(primaryTask));
 	}
 
 	private _getDropdownActions(): IActionWidgetDropdownAction[] {
@@ -651,7 +719,6 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 				tooltip: '',
 				hover: {
 					content: localize('runActionTooltip', "Run '{0}' in terminal", getTaskDisplayLabel(task)),
-					position: { hoverPosition: HoverPosition.LEFT }
 				},
 				icon: Codicon.play,
 				enabled: true,
@@ -674,14 +741,13 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 				content: canConfigure
 					? localize('addActionTooltip', "Add a new task")
 					: localize('addActionTooltipDisabled', "Cannot add tasks to this session because workspace storage is unavailable"),
-				position: { hoverPosition: HoverPosition.LEFT }
 			},
 			icon: Codicon.add,
 			enabled: canConfigure,
 			class: undefined,
 			category: tasksCategory,
 			run: async () => {
-				logSessionsInteraction(this._telemetryService, 'addTask');
+				logSessionsInteraction(this._telemetryService, 'addTask', 'actionWidget');
 				const task = await this._showConfigureQuickPick(session);
 				if (task) {
 					await this._sessionsConfigService.runTask(task, session);
@@ -696,15 +762,63 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 			tooltip: '',
 			hover: {
 				content: localize('generateRunActionTooltip', "Generate a new workspace task"),
-				position: { hoverPosition: HoverPosition.LEFT },
 			},
 			icon: Codicon.sparkle,
 			enabled: true,
 			class: undefined,
 			category: tasksCategory,
 			run: async () => {
-				logSessionsInteraction(this._telemetryService, 'generateNewTask');
-				await this._sessionsManagementService.sendAndCreateChat(session, { query: '/generate-run-commands' });
+				logSessionsInteraction(this._telemetryService, 'generateNewTask', 'actionWidget');
+				await this._generateNewTask(session);
+			},
+		});
+
+		// Browser category - Open Browser action
+		const browserCategory = { label: localize('browserActionsCategory', "Browser"), order: 3, showHeader: true };
+		const browserUrl = state.browserUrl;
+		const browserUrlDescription = formatBrowserUrlDescription(browserUrl, 20);
+		const canConfigureBrowser = !!repo?.uri;
+		const isBrowserPinned = state.pinnedBrowser;
+		actions.push({
+			id: 'runScript.openBrowser',
+			label: localize('openBrowserAction', "Open Browser"),
+			tooltip: '',
+			description: browserUrlDescription,
+			hover: {
+				content: browserUrl
+					? localize('openBrowserActionTooltip', "Open '{0}' in the integrated browser", browserUrl)
+					: localize('openBrowserActionTooltipUnconfigured', "Open the integrated browser"),
+			},
+			icon: Codicon.browser,
+			enabled: true,
+			class: undefined,
+			category: browserCategory,
+			toolbarActions: [
+				{
+					id: 'runScript.pinBrowser',
+					label: isBrowserPinned ? localize('unpinBrowser', "Unpin") : localize('pinBrowser', "Pin"),
+					tooltip: isBrowserPinned ? localize('unpinBrowserTooltip', "Unpin") : localize('pinBrowserTooltip', "Pin"),
+					class: ThemeIcon.asClassName(isBrowserPinned ? Codicon.pinned : Codicon.pin),
+					enabled: !!repo?.uri,
+					run: async () => {
+						this._actionWidgetService.hide();
+						this._sessionsConfigService.setPinnedBrowser(repo?.uri, !isBrowserPinned);
+					}
+				},
+				{
+					id: 'runScript.configureBrowser',
+					label: localize('configureBrowserUrl', "Configure URL"),
+					tooltip: localize('configureBrowserUrl', "Configure URL"),
+					class: ThemeIcon.asClassName(Codicon.gear),
+					enabled: canConfigureBrowser,
+					run: async () => {
+						this._actionWidgetService.hide();
+						await this._configureBrowserUrl(session);
+					}
+				}
+			],
+			run: async () => {
+				await this._commandService.executeCommand('simpleBrowser.show', browserUrl);
 			},
 		});
 

@@ -19,7 +19,7 @@ import { ILogService } from '../../log/common/logService';
 import { ITelemetryService, TelemetryProperties } from '../../telemetry/common/telemetry';
 import { TelemetryData } from '../../telemetry/common/telemetryData';
 import { AnthropicMessagesTool, ContextManagement } from './anthropic';
-import { FinishedCallback, OpenAiFunctionTool, OpenAiResponsesFunctionTool, OptionalChatRequestParams, Prediction } from './fetch';
+import { FinishedCallback, OpenAiFunctionTool, OpenAiResponsesFunctionTool, OpenAiToolSearchTool, OptionalChatRequestParams, Prediction } from './fetch';
 import { FetcherId, FetchOptions, IAbortController, IFetcherService, PaginationOptions, Response } from './fetcherService';
 import { ChatCompletion, OpenAIContextManagement, RawMessageConversionCallback, rawMessageToCAPI } from './openai';
 
@@ -62,7 +62,7 @@ const requestTimeoutMs = 30 * 1000; // 30 seconds
  */
 export interface IEndpointBody {
 	/** General or completions: */
-	tools?: (OpenAiFunctionTool | OpenAiResponsesFunctionTool | AnthropicMessagesTool)[];
+	tools?: (OpenAiFunctionTool | OpenAiResponsesFunctionTool | AnthropicMessagesTool | OpenAiToolSearchTool)[];
 	model?: string;
 	previous_response_id?: string;
 	max_tokens?: number;
@@ -152,6 +152,18 @@ export interface IEmbeddingsEndpoint extends IEndpoint {
 	readonly maxBatchSize: number;
 }
 
+/** Per-request model capability opt-ins. All off by default. */
+export interface IModelCapabilityOptions {
+	/** Explicitly enable thinking for this request. */
+	enableThinking?: boolean;
+	/** Reasoning effort level (e.g. 'low', 'medium', 'high'). Only used when enableThinking is true or when the model supports reasoning effort. */
+	reasoningEffort?: string;
+	/** Enable the tool search tool for this request. */
+	enableToolSearch?: boolean;
+	/** Enable context editing for this request. */
+	enableContextEditing?: boolean;
+}
+
 export interface IMakeChatRequestOptions {
 	/** The debug name for this request */
 	debugName: string;
@@ -159,7 +171,10 @@ export interface IMakeChatRequestOptions {
 	messages: Raw.ChatMessage[];
 	/** Enable WebSocket transport for this request when supported. */
 	useWebSocket?: boolean;
+	/** Disable Responses API stateful marker reuse, preventing previous_response_id-based history slicing. */
 	ignoreStatefulMarker?: boolean;
+	/** Indicates whether the request's mode instructions changed from the previous turn. */
+	modeChanged?: boolean;
 	/** Streaming callback for each response part. */
 	finishedCb: FinishedCallback | undefined;
 	/** Location where the chat message is being sent. */
@@ -184,19 +199,33 @@ export interface IMakeChatRequestOptions {
 	enableRetryOnError?: boolean;
 	/** Which fetcher to use, overrides the default. */
 	useFetcher?: FetcherId;
-	/** Explicitly enable thinking for this request. When not set, thinking is disabled. */
-	enableThinking?: boolean;
-	/** Reasoning effort level for this request (e.g. 'low', 'medium', 'high'). Only used when enableThinking is true or when the model supports reasoning effort. */
-	reasoningEffort?: string;
+	/** Per-request model capability opt-ins (thinking, tool search, context editing). */
+	modelCapabilities?: IModelCapabilityOptions;
+	/**
+	 * The round ID at which the most recent client-side summarization occurred.
+	 * Used to detect when the WebSocket stateful marker predates a summary.
+	 */
+	summarizedAtRoundId?: string;
 	/** Enable retrying once on simple network errors like ECONNRESET. */
 	canRetryOnceWithoutRollback?: boolean;
 	/** Custom metadata to be displayed in the log document */
 	customMetadata?: Record<string, string | number | boolean | undefined>;
+	/** Top-level turn ID for credit accumulation. When set, copilot_usage costs
+	 *  are attributed to this ID instead of turnId. Used so that all LLM calls
+	 *  in a turn (including subagents) aggregate under one key. */
+	topLevelTurnId?: string;
 	/**
-	 * Options for the kind of request being made (e.g. subagent). Controls the X-Interaction-Type header.
-	 * See notes on each interface.
+	 * Override for the `X-Interaction-Type` header (and matching `requestKind`
+	 * telemetry value). When unset, the value is derived from {@link ChatLocation}
+	 * via `locationToIntent` (e.g. panel → `conversation-panel`).
+	 *
+	 * Set this for callers whose surface isn't captured by the location alone:
+	 * - `'conversation-subagent'` — search/exec subagents inside an agent turn.
+	 * - `'conversation-background'` — utility calls not tied to an active user
+	 *   turn (e.g. chat title generation, conversation summarization, branch
+	 *   name suggestion, prompt categorization).
 	 */
-	requestKindOptions?: IBackgroundRequestOptions | ISubagentRequestOptions;
+	interactionTypeOverride?: InteractionTypeOverride;
 }
 
 export type IChatRequestTelemetryProperties = {
@@ -216,11 +245,29 @@ export type IChatRequestTelemetryProperties = {
 	parentRequestId?: string;
 	/** For a subagent: The tool_call_id from the parent agent's LLM response that triggered this subagent invocation. */
 	parentToolCallId?: string;
-}
+	/** For a subagent: The headerRequestId from the parent agent's fetch response that triggered this subagent invocation. */
+	parentHeaderRequestId?: string;
+	/** For a subagent: The modelCallId from the parent agent's model call that triggered this subagent invocation. */
+	parentModelCallId?: string;
+	/** The 0-based iteration number of the tool-calling loop that produced this request. */
+	iterationNumber?: string;
+};
 
 export interface ICreateEndpointBodyOptions extends IMakeChatRequestOptions {
 	requestId: string;
 	postOptions: OptionalChatRequestParams;
+}
+
+/**
+ * Normalized token pricing in AICs per million tokens.
+ */
+export interface IChatEndpointTokenPricing {
+	/** Cost in AICs per million input tokens */
+	readonly inputPrice: number;
+	/** Cost in AICs per million output tokens */
+	readonly outputPrice: number;
+	/** Cost in AICs per million cached (read) tokens */
+	readonly cacheReadTokenPrice: number;
 }
 
 export interface IChatEndpoint extends IEndpoint {
@@ -234,6 +281,8 @@ export interface IChatEndpoint extends IEndpoint {
 	readonly minThinkingBudget?: number;
 	readonly maxThinkingBudget?: number;
 	readonly supportsReasoningEffort?: string[];
+	readonly supportsToolSearch?: boolean;
+	readonly supportsContextEditing?: boolean;
 	readonly supportsToolCalls: boolean;
 	readonly supportsVision: boolean;
 	readonly supportsPrediction: boolean;
@@ -243,6 +292,13 @@ export interface IChatEndpoint extends IEndpoint {
 	readonly degradationReason?: string;
 	readonly multiplier?: number;
 	readonly restrictedToSkus?: string[];
+	/**
+	 * Normalized token pricing in AICs per million tokens.
+	 * Computed from the raw billing token_prices by dividing by 1_000_000_000
+	 * and normalizing to per-million-token rates based on batch_size.
+	 */
+	readonly tokenPricing?: IChatEndpointTokenPricing;
+	readonly priceCategory?: string;
 	readonly isFallback: boolean;
 	readonly customModel?: CustomModel;
 	readonly isExtensionContributed?: boolean;
@@ -334,22 +390,24 @@ export interface INetworkRequestOptions {
 	readonly useFetcher?: FetcherId;
 	readonly canRetryOnce?: boolean;
 	readonly location?: ChatLocation;
-	readonly requestKindOptions?: IBackgroundRequestOptions | ISubagentRequestOptions;
+	readonly interactionTypeOverride?: InteractionTypeOverride;
 }
 
 /**
- * A background request is one that is not associated with a user request.
+ * Override values for the `X-Interaction-Type` header (and matching `requestKind`
+ * telemetry value). Mirrors the server's documented vocabulary; only used when the
+ * location-derived intent isn't accurate.
+ *
+ * - `'conversation-subagent'` — nested LLM calls made by a subagent inside an
+ *   agent turn (search/exec subagents).
+ * - `'conversation-compaction'` — mid-agent-turn history compaction (user is
+ *   waiting; runs on the same model as the agent loop). Distinct from background
+ *   summarization, which uses a cheap model and is not tied to an active turn.
+ * - `'conversation-background'` — utility calls not tied to an active user turn
+ *   (e.g. chat title generation, conversation summarization, prompt categorization,
+ *   branch name suggestion, background todo processing).
  */
-export interface IBackgroundRequestOptions {
-	readonly kind: 'background';
-}
-
-/**
- * A subagent request is a request made by a subagent, indicated with a subAgentInvocationId included in the request from VS Code.
- */
-export interface ISubagentRequestOptions {
-	readonly kind: 'subagent';
-}
+export type InteractionTypeOverride = 'conversation-subagent' | 'conversation-compaction' | 'conversation-background';
 
 function networkRequest(
 	accessor: ServicesAccessor,
@@ -372,18 +430,13 @@ function networkRequest(
 		name: '',
 		version: '',
 	} satisfies IEndpoint : endpointOrUrl;
-	const agentInteractionType = options.requestKindOptions?.kind === 'subagent' ?
-		'conversation-subagent' :
-		options.requestKindOptions?.kind === 'background' ?
-			'conversation-background' :
-			intent === 'conversation-agent' ? intent :
-				intent;
+	const agentInteractionType = options.interactionTypeOverride ?? intent;
 
 	const headers: ReqHeaders = {
 		Authorization: `Bearer ${secretKey}`,
 		'X-Request-Id': requestId,
 		'OpenAI-Intent': intent, // Tells CAPI who flighted this request. Helps find buggy features
-		'X-GitHub-Api-Version': '2025-05-01',
+		'X-GitHub-Api-Version': '2026-01-09',
 		...additionalHeaders,
 		...(endpoint.getExtraHeaders ? endpoint.getExtraHeaders(location) : {}),
 	};

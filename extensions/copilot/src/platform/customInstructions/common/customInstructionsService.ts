@@ -439,9 +439,6 @@ export class CustomInstructionsService extends Disposable implements ICustomInst
 	}
 
 	public async isExternalInstructionsFile(uri: URI): Promise<boolean> {
-		if (uri.scheme === 'vscode-chat-internal') {
-			return true;
-		}
 		if (uri.scheme === Schemas.vscodeUserData && uri.path.endsWith(INSTRUCTION_FILE_EXTENSION)) {
 			return true;
 		}
@@ -465,8 +462,7 @@ export class CustomInstructionsService extends Disposable implements ICustomInst
 	}
 
 	public isSkillFile(uri: URI): boolean {
-		return this._matchInstructionLocationsFromSkills.get()(uri) !== undefined
-			|| this.getChatInternalSkillInfo(uri) !== undefined;
+		return this._matchInstructionLocationsFromSkills.get()(uri) !== undefined;
 	}
 
 	public isSkillMdFile(uri: URI): boolean {
@@ -474,7 +470,7 @@ export class CustomInstructionsService extends Disposable implements ICustomInst
 	}
 
 	public getSkillDirectory(uri: URI): URI | undefined {
-		const skillInfo = this._matchInstructionLocationsFromSkills.get()(uri) || this.getChatInternalSkillInfo(uri);
+		const skillInfo = this._matchInstructionLocationsFromSkills.get()(uri);
 		if (!skillInfo) {
 			return undefined;
 		}
@@ -482,7 +478,7 @@ export class CustomInstructionsService extends Disposable implements ICustomInst
 	}
 
 	public getSkillName(uri: URI): string | undefined {
-		const skillInfo = this._matchInstructionLocationsFromSkills.get()(uri) || this.getChatInternalSkillInfo(uri);
+		const skillInfo = this._matchInstructionLocationsFromSkills.get()(uri);
 		if (!skillInfo) {
 			return undefined;
 		}
@@ -490,19 +486,7 @@ export class CustomInstructionsService extends Disposable implements ICustomInst
 	}
 
 	public getSkillInfo(uri: URI): ISkillInfo | undefined {
-		return this._matchInstructionLocationsFromSkills.get()(uri) || this.getChatInternalSkillInfo(uri);
-	}
-
-	private getChatInternalSkillInfo(uri: URI): ISkillInfo | undefined {
-		if (uri.scheme !== 'vscode-chat-internal') {
-			return undefined;
-		}
-		if (extUriBiasedIgnorePathCase.basename(uri).toLowerCase() !== 'skill.md') {
-			return undefined;
-		}
-		const skillFolderUri = extUriBiasedIgnorePathCase.dirname(uri);
-		const skillName = extUriBiasedIgnorePathCase.basename(skillFolderUri);
-		return { skillName, skillFolderUri, storage: SkillStorage.Internal };
+		return this._matchInstructionLocationsFromSkills.get()(uri);
 	}
 }
 

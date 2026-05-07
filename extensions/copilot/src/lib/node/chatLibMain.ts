@@ -55,7 +55,7 @@ import { LlmNESTelemetryBuilder, NextEditProviderTelemetryBuilder, TelemetrySend
 import { INextEditResult } from '../../extension/inlineEdits/node/nextEditResult';
 import { IPowerService, NullPowerService } from '../../extension/power/common/powerService';
 import { ChatMLFetcherImpl } from '../../extension/prompt/node/chatMLFetcher';
-import { ISimilarFilesContextService } from '../../extension/xtab/common/similarFilesContextService';
+import { ISimilarFilesContextService, NullSimilarFilesContextService } from '../../extension/xtab/common/similarFilesContextService';
 import { XtabProvider } from '../../extension/xtab/node/xtabProvider';
 import { IAuthenticationService } from '../../platform/authentication/common/authentication';
 import { ICopilotTokenManager } from '../../platform/authentication/common/copilotTokenManager';
@@ -67,7 +67,7 @@ import { IChatQuotaService } from '../../platform/chat/common/chatQuotaService';
 import { ChatQuotaService } from '../../platform/chat/common/chatQuotaServiceImpl';
 import { IConversationOptions } from '../../platform/chat/common/conversationOptions';
 import { IInteractionService, InteractionService } from '../../platform/chat/common/interactionService';
-import { BaseConfig, Config, ConfigKey, ExperimentBasedConfig, ExperimentBasedConfigType, IConfigurationService } from '../../platform/configuration/common/configurationService';
+import { BaseConfig, Config, ConfigKey, CopilotConfigPrefix, ExperimentBasedConfig, ExperimentBasedConfigType, globalConfigRegistry, IConfigurationService } from '../../platform/configuration/common/configurationService';
 import { DefaultsOnlyConfigurationService } from '../../platform/configuration/common/defaultsOnlyConfigurationService';
 import { IDiffService } from '../../platform/diff/common/diffService';
 import { DiffServiceImpl } from '../../platform/diff/node/diffServiceImpl';
@@ -104,8 +104,8 @@ import { resolveOTelConfig } from '../../platform/otel/common/otelConfig';
 import { IOTelService } from '../../platform/otel/common/otelService';
 import { IProxyModelsService } from '../../platform/proxyModels/common/proxyModelsService';
 import { ProxyModelsService } from '../../platform/proxyModels/node/proxyModelsService';
+import { IRequestLogger } from '../../platform/requestLogger/common/requestLogger';
 import { NullRequestLogger } from '../../platform/requestLogger/node/nullRequestLogger';
-import { IRequestLogger } from '../../platform/requestLogger/node/requestLogger';
 import { ISimulationTestContext, NulSimulationTestContext } from '../../platform/simulationTestContext/common/simulationTestContext';
 import { ISnippyService, NullSnippyService } from '../../platform/snippy/common/snippyService';
 import { IExperimentationService, TreatmentsChangeEvent } from '../../platform/telemetry/common/nullExperimentationService';
@@ -208,6 +208,7 @@ export interface INESProvider<T extends INESResult = INESResult> {
 	handleRejection(suggestion: T): void;
 	handleIgnored(suggestion: T, supersededByRequestUuid: T | undefined): void;
 	updateTreatmentVariables(variables: Record<string, boolean | number | string>): void;
+	setConfigs(overrides: Map<string, unknown>): Promise<void>;
 	dispose(): void;
 }
 
@@ -348,6 +349,15 @@ class NESProvider extends Disposable implements INESProvider<NESResult> {
 		}
 	}
 
+	async setConfigs(overrides: Map<string, unknown>) {
+		for (const [key, value] of overrides) {
+			const config = globalConfigRegistry.configs.get(`${CopilotConfigPrefix}.${key}`);
+			if (config) {
+				await this._configurationService.setConfig(config, value);
+			}
+		}
+	}
+
 }
 
 function setupServices(options: INESProviderOptions) {
@@ -402,8 +412,30 @@ function setupServices(options: INESProviderOptions) {
 }
 
 class OverridableConfigurationService extends DefaultsOnlyConfigurationService {
-	constructor(private readonly _overrides: Map<string, unknown>) {
+	private _overrides: Map<string, unknown>;
+
+	constructor(overrides: Map<string, unknown>) {
 		super();
+		this._overrides = overrides;
+	}
+
+	override async setConfig<T>(key: BaseConfig<T>, value: T): Promise<void> {
+		const existing = this._overrides.get(key.id);
+		if (existing === value) {
+			return;
+		}
+		if (value === undefined) {
+			this._overrides.delete(key.id);
+		} else {
+			this._overrides.set(key.id, value);
+		}
+		const fullyQualifiedKey = key.fullyQualifiedId;
+		this._onDidChangeConfiguration.fire({
+			affectsConfiguration: (section) => {
+				return fullyQualifiedKey === section || fullyQualifiedKey.startsWith(section + '.') || section.startsWith(fullyQualifiedKey + '.');
+			}
+		});
+		return;
 	}
 
 	override getConfig<T>(key: Config<T>): T {
@@ -449,14 +481,6 @@ class OverridableConfigurationService extends DefaultsOnlyConfigurationService {
 			return { defaultValue: overriddenValue as T };
 		}
 		return super.inspectConfig(key);
-	}
-}
-
-class NullSimilarFilesContextService implements ISimilarFilesContextService {
-	declare readonly _serviceBrand: undefined;
-
-	async compute(): Promise<undefined> {
-		return undefined;
 	}
 }
 
@@ -552,7 +576,7 @@ class SingleFetcherService implements IFetcherService {
 		return this._fetcher.fetch(url, options);
 	}
 	createWebSocket(url: string, options?: WebSocketConnectOptions): WebSocketConnection {
-		return { webSocket: new WebSocket(url, options), responseHeaders: new HeadersImpl({}), responseStatusCode: undefined, responseStatusText: undefined };
+		return { webSocket: new WebSocket(url, options), responseHeaders: new HeadersImpl({}), responseStatusCode: undefined, responseStatusText: undefined, networkError: undefined };
 	}
 	disconnectAll(): Promise<unknown> {
 		return this._fetcher.disconnectAll();
@@ -684,7 +708,7 @@ export interface IEditorSession {
 	readonly uiKind?: string;
 }
 
-export type IActionItem = ActionItem
+export type IActionItem = ActionItem;
 export interface INotificationSender {
 	showWarningMessage(message: string, ...actions: IActionItem[]): Promise<IActionItem | undefined>;
 }
@@ -727,6 +751,7 @@ export type IGetInlineCompletionsOptions = Exclude<Partial<GetGhostTextOptions>,
 
 export interface IInlineCompletionsProvider {
 	updateTreatmentVariables(variables: Record<string, boolean | number | string>): void;
+	setConfigs(overrides: Map<string, unknown>): Promise<void>;
 	getInlineCompletions(textDocument: ITextDocument, position: Position, token?: CancellationToken, options?: IGetInlineCompletionsOptions): Promise<CopilotCompletion[] | undefined>;
 	inlineCompletionShown(completionId: string): Promise<void>;
 	dispose(): void;
@@ -746,6 +771,8 @@ class InlineCompletionsProvider extends Disposable implements IInlineCompletions
 		@IExperimentationService private readonly _expService: IExperimentationService,
 		@ICompletionsSpeculativeRequestCache private readonly _speculativeRequestCache: ICompletionsSpeculativeRequestCache,
 		@ILogService private readonly _logService: ILogService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ICompletionsConfigProvider private readonly _completionsConfigProvider: ICompletionsConfigProvider,
 	) {
 		super();
 		this._register(_insta);
@@ -755,6 +782,18 @@ class InlineCompletionsProvider extends Disposable implements IInlineCompletions
 	updateTreatmentVariables(variables: Record<string, boolean | number | string>) {
 		if (this._expService instanceof SimpleExperimentationService) {
 			this._expService.updateTreatmentVariables(variables);
+		}
+	}
+
+	async setConfigs(overrides: Map<string, unknown>) {
+		for (const [key, value] of overrides) {
+			const config = globalConfigRegistry.configs.get(`${CopilotConfigPrefix}.${key}`);
+			if (config) {
+				await this._configurationService.setConfig(config, value);
+			}
+		}
+		if (this._completionsConfigProvider instanceof InMemoryConfigProvider) {
+			this._completionsConfigProvider.setCopilotSettings(Object.fromEntries(overrides));
 		}
 	}
 

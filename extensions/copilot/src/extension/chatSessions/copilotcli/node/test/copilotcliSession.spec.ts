@@ -9,16 +9,16 @@ import type { ChatParticipantToolToken } from 'vscode';
 import { ConfigKey, IConfigurationService } from '../../../../../platform/configuration/common/configurationService';
 import { ILogService } from '../../../../../platform/log/common/logService';
 import { NoopOTelService, resolveOTelConfig } from '../../../../../platform/otel/common/index';
+import { IRequestLogger } from '../../../../../platform/requestLogger/common/requestLogger';
 import { NullRequestLogger } from '../../../../../platform/requestLogger/node/nullRequestLogger';
-import { IRequestLogger } from '../../../../../platform/requestLogger/node/requestLogger';
 import { TestWorkspaceService } from '../../../../../platform/test/node/testWorkspaceService';
 import { IWorkspaceService } from '../../../../../platform/workspace/common/workspaceService';
-import { CancellationToken } from '../../../../../util/vs/base/common/cancellation';
+import { CancellationToken, CancellationTokenSource } from '../../../../../util/vs/base/common/cancellation';
 import { DisposableStore } from '../../../../../util/vs/base/common/lifecycle';
 import * as path from '../../../../../util/vs/base/common/path';
 import { URI } from '../../../../../util/vs/base/common/uri';
 import { IInstantiationService } from '../../../../../util/vs/platform/instantiation/common/instantiation';
-import { ChatSessionStatus, ChatToolInvocationPart, Uri } from '../../../../../vscodeTypes';
+import { ChatSessionStatus, ChatToolInvocationPart, LanguageModelTextPart, Uri } from '../../../../../vscodeTypes';
 import { createExtensionUnitTestingServices } from '../../../../test/node/services';
 import { MockChatResponseStream } from '../../../../test/node/testHelpers';
 import { ExternalEditTracker } from '../../../common/externalEditTracker';
@@ -27,8 +27,9 @@ import { IWorkspaceInfo } from '../../../common/workspaceInfo';
 import { FakeToolsService, ToolCall } from '../../common/copilotCLITools';
 import { CopilotCLISession } from '../copilotcliSession';
 import { PermissionRequest } from '../permissionHelpers';
-import { IQuestion, IQuestionAnswer, IUserQuestionHandler } from '../userInputHelpers';
+import { IQuestion, IQuestionAnswer, IUserQuestionHandler, UserInputResponse } from '../userInputHelpers';
 import { NullICopilotCLIImageSupport } from './testHelpers';
+import { MockGitService } from '../../../../../platform/ignore/node/test/mockGitService';
 
 vi.mock('../cliHelpers', async (importOriginal) => ({
 	...(await importOriginal<typeof import('../cliHelpers')>()),
@@ -46,8 +47,11 @@ class MockSdkSession {
 	public authInfo: unknown;
 	private _pendingPermissions = new Map<string, { resolve: (result: unknown) => void }>();
 	private _permissionCounter = 0;
+	private _pendingUserInputs = new Map<string, { resolve: (result: unknown) => void }>();
+	private _userInputCounter = 0;
 	private _pendingExitPlanMode = new Map<string, { resolve: (result: unknown) => void }>();
 	private _exitPlanModeCounter = 0;
+	public aborted = false;
 
 	on(event: string, handler: MockSdkEventHandler) {
 		if (!this.onHandlers.has(event)) {
@@ -81,6 +85,14 @@ class MockSdkSession {
 		}
 	}
 
+	async emitUserInputRequest(request: { question: string; choices?: string[]; allowFreeform?: boolean; toolCallId?: string }): Promise<unknown> {
+		const requestId = `user-input-${++this._userInputCounter}`;
+		return new Promise(resolve => {
+			this._pendingUserInputs.set(requestId, { resolve });
+			this.emit('user_input.requested', { requestId, ...request });
+		});
+	}
+
 	/**
 	 * Simulate the SDK emitting an exit_plan_mode.requested event and await the response.
 	 * The session's event handler will call respondToExitPlanMode() which resolves the returned promise.
@@ -101,14 +113,18 @@ class MockSdkSession {
 		}
 	}
 
-	respondToUserInput(_requestId: string, _response: unknown) {
-		// placeholder for user input responses
+	respondToUserInput(requestId: string, response: unknown) {
+		const pending = this._pendingUserInputs.get(requestId);
+		if (pending) {
+			pending.resolve(response);
+			this._pendingUserInputs.delete(requestId);
+		}
 	}
 
-	public lastSendOptions: { prompt: string; mode?: string } | undefined;
+	public lastSendOptions: { prompt: string; mode?: string; source?: string; agentMode?: string } | undefined;
 	public currentMode: string | undefined;
 
-	async send(options: { prompt: string; mode?: string }) {
+	async send(options: { prompt: string; mode?: string; source?: string; agentMode?: string }) {
 		this.lastSendOptions = options;
 		// Simulate a normal successful turn with a message
 		this.emit('user.message', { content: options.prompt });
@@ -119,7 +135,9 @@ class MockSdkSession {
 
 	async compactHistory() { return { success: true }; }
 
-	async abort() { }
+	async abort() {
+		this.aborted = true;
+	}
 
 	isAbortable(): boolean { return true; }
 
@@ -130,8 +148,23 @@ class MockSdkSession {
 
 	setAuthInfo(info: any) { this.authInfo = info; }
 	async getSelectedModel() { return this._selectedModel; }
-	async setSelectedModel(model: string) { this._selectedModel = model; }
+	async setSelectedModel(model: string, _reasoningEffort?: string) { this._selectedModel = model; }
 	async getEvents() { return []; }
+	getPlanPath(): string | null { return null; }
+
+	usage = {
+		getMetrics: async () => ({
+			lastCallInputTokens: 100,
+			lastCallOutputTokens: 50,
+			totalPremiumRequestCost: 0,
+			totalUserRequests: 1,
+			totalApiDurationMs: 1000,
+			sessionStartTime: Date.now(),
+			codeChanges: { linesAdded: 0, linesRemoved: 0, filesModifiedCount: 0 },
+			modelMetrics: {},
+			currentModel: this._selectedModel,
+		}),
+	};
 }
 
 function createWorkspaceService(root: string): IWorkspaceService {
@@ -157,6 +190,15 @@ function workspaceInfoFor(workingDirectory: Uri | undefined): IWorkspaceInfo {
 	};
 }
 
+class UsageCapturingStream extends MockChatResponseStream {
+	public readonly usages: import('vscode').ChatResultUsage[] = [];
+	constructor() {
+		super();
+	}
+	override usage(u: import('vscode').ChatResultUsage): void {
+		this.usages.push(u);
+	}
+}
 
 describe('CopilotCLISession', () => {
 	const disposables = new DisposableStore();
@@ -203,7 +245,7 @@ describe('CopilotCLISession', () => {
 	async function createSession(): Promise<CopilotCLISession> {
 		class FakeUserQuestionHandler implements IUserQuestionHandler {
 			_serviceBrand: undefined;
-			async askUserQuestion(question: IQuestion, toolInvocationToken: ChatParticipantToolToken, token: CancellationToken): Promise<IQuestionAnswer | undefined> {
+			async askUserQuestion(question: IQuestion, toolInvocationToken: ChatParticipantToolToken, token: CancellationToken, toolCallId?: string): Promise<IQuestionAnswer | undefined> {
 				return userQuestionAnswer;
 			}
 		}
@@ -222,6 +264,8 @@ describe('CopilotCLISession', () => {
 			new FakeUserQuestionHandler(),
 			configurationService,
 			new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'test' })),
+			new MockGitService(),
+			{ _serviceBrand: undefined } as any
 		));
 	}
 
@@ -242,7 +286,7 @@ describe('CopilotCLISession', () => {
 		const session = await createSession();
 		const stream = new MockChatResponseStream();
 		session.attachStream(stream);
-		await session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt: 'Hi' }, [], 'modelB', authInfo, CancellationToken.None);
+		await session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt: 'Hi' }, [], { model: 'modelB' }, authInfo, CancellationToken.None);
 
 		expect(sdkSession._selectedModel).toBe('modelB');
 	});
@@ -265,7 +309,7 @@ describe('CopilotCLISession', () => {
 		const listener = disposables.add(session.onDidChangeStatus(s => statuses.push(s)));
 		const stream = new MockChatResponseStream();
 		session.attachStream(stream);
-		await session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt: 'Status OK' }, [], 'modelA', authInfo, CancellationToken.None);
+		await session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt: 'Status OK' }, [], { model: 'modelA' }, authInfo, CancellationToken.None);
 		listener.dispose?.();
 
 		expect(statuses).toEqual([ChatSessionStatus.InProgress, ChatSessionStatus.Completed]);
@@ -300,7 +344,7 @@ describe('CopilotCLISession', () => {
 
 		// Path must be absolute within workspace, should auto-approve
 		await session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt: 'Test' }, [], undefined, authInfo, CancellationToken.None);
-		expect(result).toEqual({ kind: 'approved' });
+		expect(result).toEqual({ kind: 'approve-once' });
 	});
 
 	it('auto-approves read permission for files in session state directory', async () => {
@@ -316,7 +360,7 @@ describe('CopilotCLISession', () => {
 		const stream = new MockChatResponseStream();
 		session.attachStream(stream);
 		await session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt: 'Test' }, [], undefined, authInfo, CancellationToken.None);
-		expect(result).toEqual({ kind: 'approved' });
+		expect(result).toEqual({ kind: 'approve-once' });
 	});
 
 	it('auto-approves write permission for files in session state directory', async () => {
@@ -325,14 +369,14 @@ describe('CopilotCLISession', () => {
 		sdkSession.send = async ({ prompt }: any) => {
 			sdkSession.emit('assistant.turn_start', {});
 			sdkSession.emit('assistant.message', { content: `Echo: ${prompt}` });
-			result = await sdkSession.emitPermissionRequest({ kind: 'write', fileName: sessionFilePath, intention: 'Write plan', diff: '' });
+			result = await sdkSession.emitPermissionRequest({ kind: 'write', fileName: sessionFilePath, intention: 'Write plan', diff: '', canOfferSessionApproval: false });
 			sdkSession.emit('assistant.turn_end', {});
 		};
 		const session = await createSession();
 		const stream = new MockChatResponseStream();
 		session.attachStream(stream);
 		await session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt: 'Test' }, [], undefined, authInfo, CancellationToken.None);
-		expect(result).toEqual({ kind: 'approved' });
+		expect(result).toEqual({ kind: 'approve-once' });
 	});
 
 	it('auto-approves read permission for attached files outside workspace', async () => {
@@ -350,7 +394,7 @@ describe('CopilotCLISession', () => {
 
 		const attachments = [{ type: 'file' as const, path: attachedFilePath, displayName: 'attached-file.ts' }];
 		await session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt: 'Test' }, attachments as any, undefined, authInfo, CancellationToken.None);
-		expect(result).toEqual({ kind: 'approved' });
+		expect(result).toEqual({ kind: 'approve-once' });
 	});
 
 	it('does not auto-approve read permission for non-attached files outside workspace', async () => {
@@ -371,7 +415,7 @@ describe('CopilotCLISession', () => {
 		const attachments = [{ type: 'file' as const, path: attachedFilePath, displayName: 'attached-file.ts' }];
 		await session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt: 'Test' }, attachments as any, undefined, authInfo, CancellationToken.None);
 		expect(result).toEqual({ kind: 'denied-interactively-by-user' });
-		expect(toolsService.invokeToolCalls).toHaveLength(1);
+		expect(toolsService.invokeToolCalls).toHaveLength(2);
 	});
 
 	it('auto-approves read permission inside working directory without external handler', async () => {
@@ -390,7 +434,7 @@ describe('CopilotCLISession', () => {
 
 		// Path must be absolute within workspace, should auto-approve
 		await session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt: 'Test' }, [], undefined, authInfo, CancellationToken.None);
-		expect(result).toEqual({ kind: 'approved' });
+		expect(result).toEqual({ kind: 'approve-once' });
 	});
 
 	it('auto-approves read permission for files in workspace folder when worktree is the working directory', async () => {
@@ -415,7 +459,7 @@ describe('CopilotCLISession', () => {
 		session.attachStream(stream);
 
 		await session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt: 'Test' }, [], undefined, authInfo, CancellationToken.None);
-		expect(result).toEqual({ kind: 'approved' });
+		expect(result).toEqual({ kind: 'approve-once' });
 	});
 
 	it('auto-approves read permission for files in the worktree when workspace has both worktree and repository', async () => {
@@ -440,7 +484,7 @@ describe('CopilotCLISession', () => {
 		session.attachStream(stream);
 
 		await session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt: 'Test' }, [], undefined, authInfo, CancellationToken.None);
-		expect(result).toEqual({ kind: 'approved' });
+		expect(result).toEqual({ kind: 'approve-once' });
 	});
 
 	it('requires read permission outside workspace and working directory', async () => {
@@ -461,8 +505,8 @@ describe('CopilotCLISession', () => {
 		// Path must be absolute within workspace, should auto-approve
 		await session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt: 'Test' }, [], undefined, authInfo, CancellationToken.None);
 		expect(result).toEqual({ kind: 'denied-interactively-by-user' });
-		expect(toolsService.invokeToolCalls).toHaveLength(1);
-		expect(toolsService.invokeToolCalls[0].input).toMatchObject({
+		expect(toolsService.invokeToolCalls).toHaveLength(2);
+		expect(toolsService.invokeToolCalls[1].input).toMatchObject({
 			title: 'Read file(s)',
 			message: 'Read file'
 		});
@@ -476,7 +520,7 @@ describe('CopilotCLISession', () => {
 			sdkSession.emit('assistant.turn_start', {});
 			sdkSession.emit('assistant.message', { content: `Echo: ${prompt}` });
 			// Mid way through, make it look like the sdk requested permission while emitting other messages.
-			result = await sdkSession.emitPermissionRequest({ kind: 'write', fileName: 'a.ts', intention: 'Update file', diff: '' });
+			result = await sdkSession.emitPermissionRequest({ kind: 'write', fileName: 'a.ts', intention: 'Update file', diff: '', canOfferSessionApproval: false });
 			sdkSession.emit('assistant.turn_end', {});
 		};
 		const stream = new MockChatResponseStream();
@@ -484,7 +528,7 @@ describe('CopilotCLISession', () => {
 
 		await session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt: 'Write' }, [], undefined, authInfo, CancellationToken.None);
 
-		expect(result).toEqual({ kind: 'approved' });
+		expect(result).toEqual({ kind: 'approve-once' });
 	});
 
 	it('denies write permission when handler returns false', async () => {
@@ -495,7 +539,7 @@ describe('CopilotCLISession', () => {
 			sdkSession.emit('assistant.turn_start', {});
 			sdkSession.emit('assistant.message', { content: `Echo: ${prompt}` });
 			// Mid way through, make it look like the sdk requested permission while emitting other messages.
-			result = await sdkSession.emitPermissionRequest({ kind: 'write', fileName: 'b.ts', intention: 'Update file', diff: '' });
+			result = await sdkSession.emitPermissionRequest({ kind: 'write', fileName: 'b.ts', intention: 'Update file', diff: '', canOfferSessionApproval: false });
 			sdkSession.emit('assistant.turn_end', {});
 		};
 		const stream = new MockChatResponseStream();
@@ -515,7 +559,7 @@ describe('CopilotCLISession', () => {
 			sdkSession.emit('assistant.turn_start', {});
 			sdkSession.emit('assistant.message', { content: `Echo: ${prompt}` });
 			// Mid way through, make it look like the sdk requested permission while emitting other messages.
-			result = await sdkSession.emitPermissionRequest({ kind: 'write', fileName: 'err.ts', intention: 'Update file', diff: '' });
+			result = await sdkSession.emitPermissionRequest({ kind: 'write', fileName: 'err.ts', intention: 'Update file', diff: '', canOfferSessionApproval: false });
 			sdkSession.emit('assistant.turn_end', {});
 		};
 		const stream = new MockChatResponseStream();
@@ -567,7 +611,8 @@ describe('CopilotCLISession', () => {
 				fileName: filePath,
 				intention: 'Apply edit',
 				diff: '',
-				toolCallId: String(i)
+				toolCallId: String(i),
+				canOfferSessionApproval: false
 			});
 			permissionResults.push(result);
 			// Complete the edit so the tracker (if it were real) would finish; emit completion event
@@ -586,7 +631,7 @@ describe('CopilotCLISession', () => {
 
 		// Assert ordering of trackEdit invocations exactly matches toolCallIds 1..10
 		expect(trackedOrder).toEqual(Array.from({ length: 10 }, (_, i) => String(i + 1)));
-		expect(permissionResults.every(r => r.kind === 'approved')).toBe(true);
+		expect(permissionResults.every(r => r.kind === 'approve-once')).toBe(true);
 		expect(trackSpy).toHaveBeenCalledTimes(10);
 
 		trackSpy.mockRestore();
@@ -632,6 +677,823 @@ describe('CopilotCLISession', () => {
 		sdkSession.emit('tool.execution_complete', { toolCallId: 'bash-delay-1', toolName: 'bash', success: true, result: { content: 'hi' } });
 		resolveSend!();
 		await requestPromise;
+	});
+
+	it('uses remote permission responses when Mission Control is active', async () => {
+		let permissionResult: unknown;
+		sdkSession.send = async () => {
+			permissionResult = await sdkSession.emitPermissionRequest({
+				kind: 'shell',
+				toolCallId: 'remote-permission-tool',
+				commands: [{ identifier: 'echo "Hello world"', readOnly: false }],
+				intention: 'Run command',
+				fullCommandText: 'echo "Hello world"',
+				possiblePaths: [],
+				possibleUrls: [],
+				hasWriteFileRedirection: false,
+				canOfferSessionApproval: false
+			});
+		};
+		const session = await createSession();
+		let localPromptToken: CancellationToken | undefined;
+		const invokeToolSpy = vi.spyOn(toolsService, 'invokeTool').mockImplementation((async (name: string, options: unknown, token?: CancellationToken) => {
+			if (name === 'vscode_get_confirmation' || name === 'vscode_get_terminal_confirmation') {
+				localPromptToken = token;
+				return await new Promise(resolve => {
+					token?.onCancellationRequested(() => resolve({ content: [new LanguageModelTextPart('no')] }));
+				});
+			}
+			return { content: [] };
+		}) as typeof toolsService.invokeTool);
+		const remoteState = {
+			mcSessionId: 'mc-session',
+			mcMode: undefined as string | undefined,
+			mcEventBuffer: [],
+			mcCompletedCommandIds: [],
+			mcPendingPermissionRequests: new Map(),
+			mcFlushInterval: undefined,
+			mcPollInterval: undefined,
+			mcLastEventId: null,
+			mcLastSubmitAttemptTimeMs: Date.now(),
+			mcProcessedCommandIds: new Set<string>(),
+			mcSdkSession: sdkSession as unknown as Session,
+			mcEventListenerDispose: undefined,
+			mcSessionResource: Uri.file('/workspace') as unknown as import('vscode').Uri,
+		};
+		Object.defineProperty(session, '_mcState', { value: remoteState, configurable: true });
+
+		const requestPromise = session.handleRequest(
+			{ id: '', toolInvocationToken: undefined as never },
+			{ prompt: 'Run bash' },
+			[],
+			undefined,
+			authInfo,
+			CancellationToken.None
+		);
+		await new Promise(r => setTimeout(r, 0));
+
+		await (CopilotCLISession as any)._pollMcCommandsStatic(
+			session.sessionId,
+			remoteState,
+			{
+				getPendingCommands: async () => [{
+					id: 'mc-command-1',
+					content: JSON.stringify({ promptId: 'remote-permission-tool', approved: true, scope: 'once' }),
+					state: 'in_progress',
+					type: 'permission_response',
+				}],
+			},
+			logger,
+		);
+
+		await requestPromise;
+
+		expect(permissionResult).toEqual({ kind: 'approve-once' });
+		const confirmationToolCalls = invokeToolSpy.mock.calls.filter(call =>
+			call[0] === 'vscode_get_confirmation' || call[0] === 'vscode_get_terminal_confirmation'
+		);
+		expect(confirmationToolCalls).toHaveLength(1);
+		expect(localPromptToken?.isCancellationRequested).toBe(true);
+		expect(remoteState.mcCompletedCommandIds).toEqual(['mc-command-1']);
+	});
+
+	it('uses local permission responses when Mission Control is active', async () => {
+		let permissionResult: unknown;
+		sdkSession.send = async () => {
+			permissionResult = await sdkSession.emitPermissionRequest({
+				kind: 'shell',
+				toolCallId: 'local-permission-tool',
+				commands: [{ identifier: 'echo "Hello world"', readOnly: false }],
+				intention: 'Run command',
+				fullCommandText: 'echo "Hello world"',
+				possiblePaths: [],
+				possibleUrls: [],
+				hasWriteFileRedirection: false,
+				canOfferSessionApproval: false
+			});
+		};
+		toolsService.setConfirmationResult('yes');
+		const session = await createSession();
+		const invokeToolSpy = vi.spyOn(toolsService, 'invokeTool');
+		const remoteState = {
+			mcSessionId: 'mc-session',
+			mcMode: undefined as string | undefined,
+			mcEventBuffer: [],
+			mcCompletedCommandIds: [],
+			mcPendingPermissionRequests: new Map(),
+			mcFlushInterval: undefined,
+			mcPollInterval: undefined,
+			mcLastEventId: null,
+			mcLastSubmitAttemptTimeMs: Date.now(),
+			mcProcessedCommandIds: new Set<string>(),
+			mcSdkSession: sdkSession as unknown as Session,
+			mcEventListenerDispose: undefined,
+			mcSessionResource: Uri.file('/workspace') as unknown as import('vscode').Uri,
+		};
+		Object.defineProperty(session, '_mcState', { value: remoteState, configurable: true });
+
+		await session.handleRequest(
+			{ id: '', toolInvocationToken: undefined as never },
+			{ prompt: 'Run bash' },
+			[],
+			undefined,
+			authInfo,
+			CancellationToken.None
+		);
+
+		expect(permissionResult).toEqual({ kind: 'approve-once' });
+		const confirmationToolCalls = invokeToolSpy.mock.calls.filter(call =>
+			call[0] === 'vscode_get_confirmation' || call[0] === 'vscode_get_terminal_confirmation'
+		);
+		expect(confirmationToolCalls).toHaveLength(1);
+		expect(remoteState.mcPendingPermissionRequests.size).toBe(0);
+	});
+
+	it('uses remote ask user responses when Mission Control is active', async () => {
+		let userInputResult: unknown;
+		const notifiedAnswers: Array<{ toolCallId: string; question: IQuestion; response: UserInputResponse }> = [];
+		sdkSession.send = async () => {
+			userInputResult = await sdkSession.emitUserInputRequest({
+				question: 'What is your favorite VS Code feature or extension?',
+				allowFreeform: true,
+				toolCallId: 'ask-user-tool',
+			});
+		};
+		const session = await createSession();
+		let localPromptToken: CancellationToken | undefined;
+		Object.defineProperty(session, '_userQuestionHandler', {
+			value: {
+				_serviceBrand: undefined,
+				async askUserQuestion(_question: IQuestion, _toolInvocationToken: ChatParticipantToolToken, token: CancellationToken, _toolCallId?: string): Promise<IQuestionAnswer | undefined> {
+					localPromptToken = token;
+					return await new Promise<IQuestionAnswer | undefined>(resolve => {
+						token.onCancellationRequested(() => resolve(undefined));
+					});
+				},
+				async notifyQuestionCarouselAnswer(toolCallId: string, question: IQuestion, response: UserInputResponse): Promise<void> {
+					notifiedAnswers.push({ toolCallId, question, response });
+				},
+			} satisfies IUserQuestionHandler,
+			configurable: true,
+		});
+		const remoteState = {
+			mcSessionId: 'mc-session',
+			mcEventBuffer: [],
+			mcCompletedCommandIds: [],
+			mcPendingPermissionRequests: new Map(),
+			mcFlushInterval: undefined,
+			mcPollInterval: undefined,
+			mcLastEventId: null,
+			mcLastSubmitAttemptTimeMs: Date.now(),
+			mcProcessedCommandIds: new Set<string>(),
+			mcSdkSession: sdkSession as unknown as Session,
+			mcEventListenerDispose: undefined,
+			mcSessionResource: Uri.file('/workspace') as unknown as import('vscode').Uri,
+		};
+		Object.defineProperty(session, '_mcState', { value: remoteState, configurable: true });
+
+		const requestPromise = session.handleRequest(
+			{ id: '', toolInvocationToken: {} as never },
+			{ prompt: 'Ask me about VS Code' },
+			[],
+			undefined,
+			authInfo,
+			CancellationToken.None
+		);
+		await new Promise(r => setTimeout(r, 0));
+
+		await (CopilotCLISession as any)._pollMcCommandsStatic(
+			session.sessionId,
+			remoteState,
+			{
+				getPendingCommands: async () => [{
+					id: 'mc-command-ask-user',
+					content: JSON.stringify({ requestId: 'user-input-1', answer: 'none', wasFreeform: true }),
+					state: 'in_progress',
+					type: 'ask_user_response',
+				}],
+			},
+			logger,
+		);
+
+		await requestPromise;
+
+		expect(userInputResult).toEqual({ answer: 'none', wasFreeform: true });
+		expect(notifiedAnswers).toEqual([{
+			toolCallId: 'ask-user-tool',
+			question: {
+				question: 'What is your favorite VS Code feature or extension?',
+				options: [],
+				allowFreeformInput: true,
+				header: 'What is your favorite VS Code feature or extension?',
+			},
+			response: { answer: 'none', wasFreeform: true },
+		}]);
+		expect(localPromptToken?.isCancellationRequested).toBe(true);
+		expect(remoteState.mcCompletedCommandIds).toEqual(['mc-command-ask-user']);
+	});
+
+	it('aborts pending remote ask user requests when Mission Control stop is requested', async () => {
+		let userInputResult: unknown;
+		sdkSession.send = async () => {
+			userInputResult = await sdkSession.emitUserInputRequest({
+				question: 'What is your favorite VS Code feature or extension?',
+				allowFreeform: true,
+				toolCallId: 'ask-user-tool',
+			});
+			if (sdkSession.aborted) {
+				return;
+			}
+			sdkSession.emit('assistant.turn_start', {});
+			sdkSession.emit('assistant.turn_end', {});
+		};
+		const session = await createSession();
+		let localPromptToken: CancellationToken | undefined;
+		Object.defineProperty(session, '_userQuestionHandler', {
+			value: {
+				_serviceBrand: undefined,
+				async askUserQuestion(_question: IQuestion, _toolInvocationToken: ChatParticipantToolToken, token: CancellationToken): Promise<IQuestionAnswer | undefined> {
+					localPromptToken = token;
+					return await new Promise<IQuestionAnswer | undefined>(resolve => {
+						token.onCancellationRequested(() => resolve(undefined));
+					});
+				},
+			} satisfies IUserQuestionHandler,
+			configurable: true,
+		});
+		const remoteState = {
+			mcSessionId: 'mc-session',
+			mcEventBuffer: [],
+			mcCompletedCommandIds: [],
+			mcPendingPermissionRequests: new Map(),
+			mcFlushInterval: undefined,
+			mcPollInterval: undefined,
+			mcLastEventId: null,
+			mcLastSubmitAttemptTimeMs: Date.now(),
+			mcProcessedCommandIds: new Set<string>(),
+			mcSdkSession: sdkSession as unknown as Session,
+			mcEventListenerDispose: undefined,
+			mcSessionResource: Uri.file('/workspace') as unknown as import('vscode').Uri,
+		};
+		Object.defineProperty(session, '_mcState', { value: remoteState, configurable: true });
+
+		const requestPromise = session.handleRequest(
+			{ id: '', toolInvocationToken: {} as never },
+			{ prompt: 'Ask me about VS Code' },
+			[],
+			undefined,
+			authInfo,
+			CancellationToken.None
+		);
+		await new Promise(r => setTimeout(r, 0));
+
+		await (CopilotCLISession as any)._pollMcCommandsStatic(
+			session.sessionId,
+			remoteState,
+			{
+				getPendingCommands: async () => [{
+					id: 'mc-command-abort',
+					content: '',
+					state: 'in_progress',
+					type: 'abort',
+				}],
+			},
+			logger,
+		);
+
+		await requestPromise;
+
+		expect(sdkSession.aborted).toBe(true);
+		expect(userInputResult).toEqual({ answer: '', wasFreeform: false });
+		expect(localPromptToken?.isCancellationRequested).toBe(true);
+		expect(remoteState.mcCompletedCommandIds).toEqual(['mc-command-abort']);
+	});
+
+	it('reports remote control status when /remote is invoked without arguments', async () => {
+		await configurationService.setConfig(ConfigKey.Advanced.CLIRemoteEnabled, true);
+		const session = await createSession();
+		const stream = new MockChatResponseStream();
+		session.attachStream(stream);
+
+		await session.handleRequest(
+			{ id: '', toolInvocationToken: undefined as never },
+			{ command: 'remote', prompt: '' },
+			[],
+			undefined,
+			authInfo,
+			CancellationToken.None
+		);
+
+		expect(stream.output.join('\n')).toContain('Remote control is disabled. Use /remote on to enable it.');
+	});
+
+	it('reports enabled remote control status when /remote is invoked without arguments', async () => {
+		await configurationService.setConfig(ConfigKey.Advanced.CLIRemoteEnabled, true);
+		const session = await createSession();
+		const stream = new MockChatResponseStream();
+		session.attachStream(stream);
+		const remoteState = {
+			mcSessionId: 'mc-session',
+			mcFrontendUrl: 'https://github.com/microsoft/vscode/tasks/123',
+			mcEventBuffer: [],
+			mcCompletedCommandIds: [],
+			mcPendingPermissionRequests: new Map(),
+			mcFlushInterval: undefined,
+			mcPollInterval: undefined,
+			mcLastEventId: null,
+			mcLastSubmitAttemptTimeMs: Date.now(),
+			mcProcessedCommandIds: new Set<string>(),
+			mcSdkSession: sdkSession as unknown as Session,
+			mcEventListenerDispose: undefined,
+			mcSessionResource: Uri.file('/workspace') as unknown as import('vscode').Uri,
+		};
+		Object.defineProperty(session, '_mcState', { value: remoteState, configurable: true });
+
+		await session.handleRequest(
+			{ id: '', toolInvocationToken: undefined as never },
+			{ command: 'remote', prompt: '' },
+			[],
+			undefined,
+			authInfo,
+			CancellationToken.None
+		);
+
+		const output = stream.output.join('\n');
+		expect(output).toContain('Remote control is enabled.');
+		expect(output).toContain('Use the button below to open in your browser, or scan to steer from the GitHub mobile app.');
+		expect(output).not.toContain('Scan with GitHub mobile:');
+		expect(output).toContain('QR code to open this remote session in GitHub mobile');
+		expect(output).toContain('data:image/svg+xml;base64,');
+		expect(output).not.toContain('```');
+	});
+
+	it('shows /remote usage for unsupported arguments', async () => {
+		await configurationService.setConfig(ConfigKey.Advanced.CLIRemoteEnabled, true);
+		const session = await createSession();
+		const stream = new MockChatResponseStream();
+		session.attachStream(stream);
+
+		await session.handleRequest(
+			{ id: '', toolInvocationToken: undefined as never },
+			{ command: 'remote', prompt: 'wat' },
+			[],
+			undefined,
+			authInfo,
+			CancellationToken.None
+		);
+
+		expect(stream.output.join('\n')).toContain('Usage: /remote, /remote on, /remote off');
+	});
+
+	it('accepts /remote arguments when the prompt includes the slash command text', async () => {
+		await configurationService.setConfig(ConfigKey.Advanced.CLIRemoteEnabled, true);
+		const session = await createSession();
+		const stream = new MockChatResponseStream();
+		session.attachStream(stream);
+		const remoteState = {
+			mcSessionId: 'mc-session',
+			mcEventBuffer: [],
+			mcCompletedCommandIds: [],
+			mcPendingPermissionRequests: new Map(),
+			mcFlushInterval: undefined,
+			mcPollInterval: undefined,
+			mcLastEventId: null,
+			mcLastSubmitAttemptTimeMs: Date.now(),
+			mcProcessedCommandIds: new Set<string>(),
+			mcSdkSession: sdkSession as unknown as Session,
+			mcEventListenerDispose: undefined,
+			mcSessionResource: Uri.file('/workspace') as unknown as import('vscode').Uri,
+		};
+		Object.defineProperty(session, '_mcState', { value: remoteState, configurable: true });
+		Object.defineProperty(session, '_missionControlApiClient', {
+			value: { submitEvents: vi.fn(async () => true), deleteSession: vi.fn(async () => undefined) },
+			configurable: true,
+		});
+
+		await session.handleRequest(
+			{ id: '', toolInvocationToken: undefined as never },
+			{ command: 'remote', prompt: '/remote off' },
+			[],
+			undefined,
+			authInfo,
+			CancellationToken.None
+		);
+
+		expect(stream.output.join('\n')).toContain('Remote control disabled.');
+	});
+
+	it('forwards session.idle to Mission Control so remote running state clears', async () => {
+		const session = await createSession();
+		const remoteState = {
+			mcSessionId: 'mc-session',
+			mcEventBuffer: [],
+			mcCompletedCommandIds: [],
+			mcPendingPermissionRequests: new Map(),
+			mcFlushInterval: undefined,
+			mcPollInterval: undefined,
+			mcLastEventId: null,
+			mcLastSubmitAttemptTimeMs: Date.now(),
+			mcProcessedCommandIds: new Set<string>(),
+			mcSdkSession: sdkSession as unknown as Session,
+			mcEventListenerDispose: undefined,
+			mcSessionResource: Uri.file('/workspace') as unknown as import('vscode').Uri,
+		};
+		Object.defineProperty(session, '_mcState', { value: remoteState, configurable: true });
+
+		(session as any)._bufferMcEvent({ type: 'session.idle', data: {} });
+
+		expect(remoteState.mcEventBuffer).toHaveLength(1);
+		expect((remoteState.mcEventBuffer[0] as { type: string }).type).toBe('session.idle');
+	});
+
+	it('forwards session.title_changed to Mission Control as an ephemeral event', async () => {
+		const session = await createSession();
+		const remoteState = {
+			mcSessionId: 'mc-session',
+			mcEventBuffer: [],
+			mcCompletedCommandIds: [],
+			mcPendingPermissionRequests: new Map(),
+			mcFlushInterval: undefined,
+			mcPollInterval: undefined,
+			mcLastEventId: null,
+			mcLastSubmitAttemptTimeMs: Date.now(),
+			mcProcessedCommandIds: new Set<string>(),
+			mcSdkSession: sdkSession as unknown as Session,
+			mcEventListenerDispose: undefined,
+			mcSessionResource: Uri.file('/workspace') as unknown as import('vscode').Uri,
+		};
+		Object.defineProperty(session, '_mcState', { value: remoteState, configurable: true });
+
+		(session as any)._bufferMcEvent({
+			type: 'session.title_changed',
+			id: 'title-change-1',
+			timestamp: '2026-01-01T00:00:00.000Z',
+			parentId: 'visible-root-message',
+			ephemeral: true,
+			data: { title: 'Remote Session Title' },
+		});
+
+		expect(remoteState.mcEventBuffer).toHaveLength(1);
+		expect((remoteState.mcEventBuffer[0] as { type: string; ephemeral?: true }).type).toBe('session.title_changed');
+		expect((remoteState.mcEventBuffer[0] as { ephemeral?: true }).ephemeral).toBe(true);
+		expect((remoteState.mcEventBuffer[0] as { data: { title: string } }).data.title).toBe('Remote Session Title');
+	});
+
+	it('prefers existing session history over the current /remote prompt when deriving the Mission Control title', async () => {
+		const session = await createSession();
+		vi.spyOn(sdkSession, 'getEvents').mockReturnValue([
+			{ type: 'user.message', data: { content: 'hey' } },
+		] as any);
+		(session as any)._pendingPrompt = '/remote';
+
+		await expect((session as any)._getMissionControlSessionTitle()).resolves.toBe('hey');
+	});
+
+	it('sanitizes hidden prompt markup when deriving the Mission Control title', async () => {
+		const session = await createSession();
+		vi.spyOn(sdkSession, 'getEvents').mockReturnValue([
+			{
+				type: 'user.message',
+				data: {
+					content: '/remote <reminder>IMPORTANT: hidden context</reminder><attachments><attachment id="microsoft/vscode-tools">repo</attachment></attachments><userRequest></userRequest>',
+				}
+			},
+		] as any);
+
+		await expect((session as any)._getMissionControlSessionTitle()).resolves.toBe('/remote');
+	});
+
+	it('sanitizes hidden prompt markup before forwarding user messages to Mission Control', async () => {
+		const session = await createSession();
+		const remoteState = {
+			mcSessionId: 'mc-session',
+			mcEventBuffer: [],
+			mcCompletedCommandIds: [],
+			mcPendingPermissionRequests: new Map(),
+			mcFlushInterval: undefined,
+			mcPollInterval: undefined,
+			mcLastEventId: null,
+			mcLastSubmitAttemptTimeMs: Date.now(),
+			mcProcessedCommandIds: new Set<string>(),
+			mcSdkSession: sdkSession as unknown as Session,
+			mcEventListenerDispose: undefined,
+			mcSessionResource: Uri.file('/workspace') as unknown as import('vscode').Uri,
+		};
+		Object.defineProperty(session, '_mcState', { value: remoteState, configurable: true });
+
+		(session as any)._bufferMcEvent({
+			type: 'user.message',
+			id: 'remote-command-message',
+			timestamp: '2026-01-01T00:00:00.000Z',
+			data: {
+				content: '/remote <reminder>IMPORTANT: hidden context</reminder><attachments><attachment id="microsoft/vscode-tools">repo</attachment></attachments><userRequest></userRequest>',
+			},
+		});
+
+		expect(remoteState.mcEventBuffer).toHaveLength(1);
+		expect((remoteState.mcEventBuffer[0] as { data: { content: string } }).data.content).toBe('/remote');
+	});
+
+	it('strips shell tool descriptions before forwarding tool starts to Mission Control', async () => {
+		const session = await createSession();
+		const remoteState = {
+			mcSessionId: 'mc-session',
+			mcEventBuffer: [],
+			mcCompletedCommandIds: [],
+			mcPendingPermissionRequests: new Map(),
+			mcFlushInterval: undefined,
+			mcPollInterval: undefined,
+			mcLastEventId: null,
+			mcLastSubmitAttemptTimeMs: Date.now(),
+			mcProcessedCommandIds: new Set<string>(),
+			mcSdkSession: sdkSession as unknown as Session,
+			mcEventListenerDispose: undefined,
+			mcSessionResource: Uri.file('/workspace') as unknown as import('vscode').Uri,
+		};
+		Object.defineProperty(session, '_mcState', { value: remoteState, configurable: true });
+
+		(session as any)._bufferMcEvent({
+			type: 'tool.execution_start',
+			data: {
+				toolCallId: 'bash-1',
+				toolName: 'bash',
+				arguments: { command: 'echo hello', description: 'Simple echo command.' },
+			},
+		});
+
+		expect(remoteState.mcEventBuffer).toHaveLength(1);
+		expect((remoteState.mcEventBuffer[0] as {
+			data: { arguments: { command: string; description?: string } };
+		}).data.arguments).toEqual({ command: 'echo hello' });
+	});
+
+	it('strips task descriptions before forwarding tool starts to Mission Control', async () => {
+		const session = await createSession();
+		const remoteState = {
+			mcSessionId: 'mc-session',
+			mcEventBuffer: [],
+			mcCompletedCommandIds: [],
+			mcPendingPermissionRequests: new Map(),
+			mcFlushInterval: undefined,
+			mcPollInterval: undefined,
+			mcLastEventId: null,
+			mcLastSubmitAttemptTimeMs: Date.now(),
+			mcProcessedCommandIds: new Set<string>(),
+			mcSdkSession: sdkSession as unknown as Session,
+			mcEventListenerDispose: undefined,
+			mcSessionResource: Uri.file('/workspace') as unknown as import('vscode').Uri,
+		};
+		Object.defineProperty(session, '_mcState', { value: remoteState, configurable: true });
+
+		(session as any)._bufferMcEvent({
+			type: 'tool.execution_start',
+			data: {
+				toolCallId: 'task-1',
+				toolName: 'task',
+				arguments: { description: 'Simple task.', prompt: 'Run echo', agent_type: 'task' },
+			},
+		});
+
+		expect(remoteState.mcEventBuffer).toHaveLength(1);
+		expect((remoteState.mcEventBuffer[0] as {
+			data: { arguments: { prompt: string; agent_type: string; description?: string } };
+		}).data.arguments).toEqual({ prompt: 'Run echo', agent_type: 'task' });
+	});
+
+	it('does not forward report_intent tool events to Mission Control', async () => {
+		const session = await createSession();
+		const remoteState = {
+			mcSessionId: 'mc-session',
+			mcEventBuffer: [],
+			mcCompletedCommandIds: [],
+			mcPendingPermissionRequests: new Map(),
+			mcFlushInterval: undefined,
+			mcPollInterval: undefined,
+			mcLastEventId: null,
+			mcLastSubmitAttemptTimeMs: Date.now(),
+			mcProcessedCommandIds: new Set<string>(),
+			mcSdkSession: sdkSession as unknown as Session,
+			mcEventListenerDispose: undefined,
+			mcSessionResource: Uri.file('/workspace') as unknown as import('vscode').Uri,
+		};
+		Object.defineProperty(session, '_mcState', { value: remoteState, configurable: true });
+
+		(session as any)._bufferMcEvent({
+			type: 'tool.execution_start',
+			data: { toolCallId: 'ri-1', toolName: 'report_intent', arguments: { intent: 'Running echo command' } },
+		});
+		(session as any)._bufferMcEvent({
+			type: 'tool.execution_complete',
+			data: { toolCallId: 'ri-1', toolName: 'report_intent', success: true },
+		});
+		(session as any)._bufferMcEvent({
+			type: 'tool.execution_start',
+			data: { toolCallId: 'bash-1', toolName: 'bash', arguments: { command: 'echo hello' } },
+		});
+
+		expect(remoteState.mcEventBuffer).toHaveLength(1);
+		expect((remoteState.mcEventBuffer[0] as { type: string }).type).toBe('tool.execution_start');
+		expect((remoteState.mcEventBuffer[0] as { data: { toolName: string } }).data.toolName).toBe('bash');
+	});
+
+	it('forwards command-sourced user messages and acknowledges the command with the echoed turn', async () => {
+		const session = await createSession();
+		const remoteState = {
+			mcSessionId: 'mc-session',
+			mcEventBuffer: [],
+			mcCompletedCommandIds: [],
+			mcPendingPermissionRequests: new Map(),
+			mcFlushInterval: undefined,
+			mcPollInterval: undefined,
+			mcLastEventId: null,
+			mcLastSubmitAttemptTimeMs: Date.now(),
+			mcProcessedCommandIds: new Set<string>(),
+			mcPendingCommandCompletionIds: new Set<string>(['mc-command-1']),
+			mcSdkSession: sdkSession as unknown as Session,
+			mcEventListenerDispose: undefined,
+			mcSessionResource: Uri.file('/workspace') as unknown as import('vscode').Uri,
+		};
+		Object.defineProperty(session, '_mcState', { value: remoteState, configurable: true });
+
+		(session as any)._bufferMcEvent({
+			type: 'user.message',
+			id: 'remote-command-message',
+			timestamp: '2026-01-01T00:00:00.000Z',
+			parentId: 'visible-root-message',
+			data: { content: 'hey', source: 'command-mc-command-1' },
+		});
+		expect(remoteState.mcCompletedCommandIds).toEqual(['mc-command-1']);
+
+		(session as any)._bufferMcEvent({
+			type: 'assistant.message',
+			id: 'assistant-reply',
+			timestamp: '2026-01-01T00:00:01.000Z',
+			parentId: 'remote-command-message',
+			data: { content: 'Hello! How can I help you today?' },
+		});
+
+		expect(remoteState.mcEventBuffer).toHaveLength(2);
+		expect((remoteState.mcEventBuffer[0] as { type: string }).type).toBe('user.message');
+		expect((remoteState.mcEventBuffer[0] as { data: { content: string } }).data.content).toBe('hey');
+		expect((remoteState.mcEventBuffer[1] as { type: string; parentId: string | null }).type).toBe('assistant.message');
+		expect((remoteState.mcEventBuffer[1] as { parentId: string | null }).parentId).toBe('remote-command-message');
+	});
+
+	it('forwards remote command source to the SDK send options', async () => {
+		const session = await createSession();
+		const stream = new MockChatResponseStream();
+		session.attachStream(stream);
+
+		await session.handleRequest(
+			{ id: '', toolInvocationToken: undefined as never },
+			{ prompt: 'hey', source: 'command-mc-command-1' },
+			[],
+			undefined,
+			authInfo,
+			CancellationToken.None
+		);
+
+		expect(sdkSession.lastSendOptions?.source).toBe('command-mc-command-1');
+	});
+
+	it('handles Mission Control mode commands without routing them as prompts', async () => {
+		const session = await createSession();
+		const remoteState = {
+			mcSessionId: 'mc-session',
+			mcMode: undefined as string | undefined,
+			mcEventBuffer: [],
+			mcCompletedCommandIds: [],
+			mcPendingPermissionRequests: new Map(),
+			mcFlushInterval: undefined,
+			mcPollInterval: undefined,
+			mcLastEventId: null,
+			mcLastSubmitAttemptTimeMs: Date.now(),
+			mcProcessedCommandIds: new Set<string>(),
+			mcSdkSession: sdkSession as unknown as Session,
+			mcEventListenerDispose: undefined,
+			mcSessionResource: Uri.file('/workspace') as unknown as import('vscode').Uri,
+		};
+		Object.defineProperty(session, '_mcState', { value: remoteState, configurable: true });
+
+		await (CopilotCLISession as any)._pollMcCommandsStatic(
+			session.sessionId,
+			remoteState,
+			{
+				getPendingCommands: async () => [{
+					id: 'mc-mode-command-1',
+					content: JSON.stringify({ mode: 'plan' }),
+					state: 'in_progress',
+					type: 'user_message',
+				}],
+			},
+			logger,
+		);
+
+		expect(remoteState.mcMode).toBe('plan');
+		expect(remoteState.mcCompletedCommandIds).toEqual(['mc-mode-command-1']);
+	});
+
+	it('applies Mission Control mode to remote user messages', async () => {
+		const session = await createSession();
+		const remoteState = {
+			mcSessionId: 'mc-session',
+			mcMode: 'plan',
+			mcEventBuffer: [],
+			mcCompletedCommandIds: [],
+			mcPendingPermissionRequests: new Map(),
+			mcFlushInterval: undefined,
+			mcPollInterval: undefined,
+			mcLastEventId: null,
+			mcLastSubmitAttemptTimeMs: Date.now(),
+			mcProcessedCommandIds: new Set<string>(),
+			mcSdkSession: sdkSession as unknown as Session,
+			mcEventListenerDispose: undefined,
+			mcSessionResource: Uri.file('/workspace') as unknown as import('vscode').Uri,
+		};
+		Object.defineProperty(session, '_mcState', { value: remoteState, configurable: true });
+		const stream = new MockChatResponseStream();
+		session.attachStream(stream);
+
+		await session.handleRequest(
+			{ id: '', toolInvocationToken: undefined as never },
+			{ prompt: 'create a plan', source: 'command-mc-command-1' },
+			[],
+			undefined,
+			authInfo,
+			CancellationToken.None
+		);
+
+		expect(sdkSession.lastSendOptions?.agentMode).toBe('plan');
+	});
+
+	it('flushes completed Mission Control command ids even when there are no buffered events', async () => {
+		const session = await createSession();
+		const submitEvents = vi.fn(async () => true);
+		const remoteState = {
+			mcSessionId: 'mc-session',
+			mcEventBuffer: [],
+			mcCompletedCommandIds: ['mc-command-1'],
+			mcPendingPermissionRequests: new Map(),
+			mcFlushInterval: undefined,
+			mcPollInterval: undefined,
+			mcLastEventId: null,
+			mcLastSubmitAttemptTimeMs: Date.now(),
+			mcProcessedCommandIds: new Set<string>(),
+			mcSdkSession: sdkSession as unknown as Session,
+			mcEventListenerDispose: undefined,
+			mcSessionResource: Uri.file('/workspace') as unknown as import('vscode').Uri,
+		};
+		Object.defineProperty(session, '_mcState', { value: remoteState, configurable: true });
+		Object.defineProperty(session, '_missionControlApiClient', {
+			value: { submitEvents },
+			configurable: true,
+		});
+
+		await (session as any)._flushMcEvents();
+
+		expect(submitEvents).toHaveBeenCalledWith('mc-session', [], ['mc-command-1']);
+		expect(remoteState.mcCompletedCommandIds).toEqual([]);
+	});
+
+	it('announces remote control disabled to Mission Control before detaching locally', async () => {
+		const session = await createSession();
+		const submitEvents = vi.fn(async () => true);
+		const deleteSession = vi.fn(async () => undefined);
+		const pendingRequest = vi.fn();
+		const mcEventListenerDispose = vi.fn();
+		const remoteState = {
+			mcSessionId: 'mc-session',
+			mcEventBuffer: [],
+			mcCompletedCommandIds: [],
+			mcPendingPermissionRequests: new Map([['prompt-1', { resolve: pendingRequest }]]),
+			mcFlushInterval: undefined,
+			mcPollInterval: undefined,
+			mcLastEventId: null,
+			mcLastSubmitAttemptTimeMs: Date.now(),
+			mcProcessedCommandIds: new Set<string>(),
+			mcSdkSession: sdkSession as unknown as Session,
+			mcEventListenerDispose,
+			mcSessionResource: Uri.file('/workspace') as unknown as import('vscode').Uri,
+		};
+		Object.defineProperty(session, '_mcState', { value: remoteState, configurable: true });
+		Object.defineProperty(session, '_missionControlApiClient', {
+			value: { submitEvents, deleteSession },
+			configurable: true,
+		});
+
+		await (session as any)._teardownRemoteControl();
+
+		expect(pendingRequest).toHaveBeenCalledWith({ kind: 'denied-interactively-by-user' });
+		expect(mcEventListenerDispose).toHaveBeenCalledTimes(1);
+		expect(submitEvents).toHaveBeenCalledWith(
+			'mc-session',
+			expect.arrayContaining([
+				expect.objectContaining({ type: 'session.remote_steerable_changed', data: { remoteSteerable: false } }),
+				expect.objectContaining({ type: 'session.idle', data: {} }),
+			]),
+			[],
+		);
+		expect(deleteSession).not.toHaveBeenCalled();
 	});
 
 	it('immediately pushes invocation messages for non-permission-requiring tools like MCP', async () => {
@@ -795,6 +1657,48 @@ describe('CopilotCLISession', () => {
 			expect(session.status).toBe(ChatSessionStatus.Completed);
 		});
 
+		it('lets interrupted output finish before running a local /remote command', async () => {
+			let resolveFirstSend: () => void = () => { };
+			sdkSession.send = async (options: any) => {
+				sdkSession.lastSendOptions = options;
+				await new Promise<void>(resolve => { resolveFirstSend = resolve; });
+				sdkSession.emit('assistant.turn_start', {});
+				sdkSession.emit('assistant.message', { content: `Echo: ${options.prompt}` });
+				sdkSession.emit('assistant.turn_end', {});
+			};
+
+			const session = await createSession();
+			const firstStream = new MockChatResponseStream();
+			session.attachStream(firstStream);
+			const firstTokenSource = new CancellationTokenSource();
+
+			const firstRequest = session.handleRequest(
+				{ id: 'req-1', toolInvocationToken: undefined as never },
+				{ prompt: 'First prompt' }, [], undefined, authInfo, firstTokenSource.token
+			);
+			await new Promise(resolve => setTimeout(resolve, 10));
+			expect(session.status).toBe(ChatSessionStatus.InProgress);
+
+			const remoteStream = new MockChatResponseStream();
+			firstTokenSource.cancel();
+			session.attachStream(remoteStream);
+			const remoteRequest = session.handleRequest(
+				{ id: 'req-2', toolInvocationToken: undefined as never },
+				{ command: 'remote', prompt: '' }, [], undefined, authInfo, CancellationToken.None
+			);
+			await new Promise(resolve => setTimeout(resolve, 10));
+			expect(remoteStream.output).toEqual([]);
+
+			resolveFirstSend();
+			await Promise.all([firstRequest, remoteRequest]);
+
+			firstTokenSource.dispose(true);
+			expect(firstStream.output.join('')).toContain('Echo: First prompt');
+			const output = remoteStream.output.join('');
+			expect(output).not.toContain('Echo: First prompt');
+			expect(output).toContain('Remote control is disabled. Use /remote on to enable it.');
+		});
+
 		it('does not set mode to immediate for the first (non-steering) request', async () => {
 			const session = await createSession();
 			const stream = new MockChatResponseStream();
@@ -860,7 +1764,7 @@ describe('CopilotCLISession', () => {
 			await Promise.all([firstRequest, steeringRequest]);
 
 			// The file was attached in the steering request, so it should be auto-approved
-			expect(permissionResult).toEqual({ kind: 'approved' });
+			expect(permissionResult).toEqual({ kind: 'approve-once' });
 		});
 
 		it('updates the pending prompt to the latest steering message', async () => {
@@ -1224,6 +2128,168 @@ describe('CopilotCLISession', () => {
 			await session.handleRequest({ id: '', toolInvocationToken: mockToken }, { prompt: 'Plan' }, [], undefined, authInfo, CancellationToken.None);
 
 			expect(result.value).toEqual({ approved: false });
+		});
+	});
+
+	describe('usage reporting', () => {
+		it('reports usage from assistant.usage event with per-call tokens', async () => {
+			sdkSession.send = async (options: any) => {
+				sdkSession.emit('user.message', { content: options.prompt });
+				sdkSession.emit('assistant.usage', { model: 'claude-opus-4.7', inputTokens: 200, outputTokens: 80 });
+				sdkSession.emit('assistant.turn_end', {});
+			};
+
+			const session = await createSession();
+			const stream = new UsageCapturingStream();
+			session.attachStream(stream);
+
+			await session.handleRequest({ id: 'req-1', toolInvocationToken: undefined as never }, { prompt: 'Hello' }, [], undefined, authInfo, CancellationToken.None);
+
+			const usageFromEvent = stream.usages.find(u => u.promptTokens === 200 && u.completionTokens === 80);
+			expect(usageFromEvent).toBeDefined();
+			expect(session.getLastResponseModelId()).toBe('claude-opus-4.7');
+		});
+
+		it('reports usage from session.usage_info event immediately', async () => {
+			sdkSession.send = async (options: any) => {
+				sdkSession.emit('user.message', { content: options.prompt });
+				sdkSession.emit('session.usage_info', {
+					currentTokens: 500,
+					tokenLimit: 8000,
+					messagesLength: 5,
+					systemTokens: 100,
+					conversationTokens: 350,
+					toolDefinitionsTokens: 50,
+				});
+				sdkSession.emit('assistant.turn_end', {});
+			};
+
+			const session = await createSession();
+			const stream = new UsageCapturingStream();
+			session.attachStream(stream);
+
+			await session.handleRequest({ id: 'req-1', toolInvocationToken: undefined as never }, { prompt: 'Hello' }, [], undefined, authInfo, CancellationToken.None);
+
+			const usageFromInfo = stream.usages.find(u => u.promptTokens === 500);
+			expect(usageFromInfo).toBeDefined();
+			expect(usageFromInfo!.completionTokens).toBe(0);
+		});
+
+		it('includes promptTokenDetails breakdown in usage from session.usage_info', async () => {
+			sdkSession.send = async (options: any) => {
+				sdkSession.emit('user.message', { content: options.prompt });
+				sdkSession.emit('session.usage_info', {
+					currentTokens: 500,
+					tokenLimit: 8000,
+					messagesLength: 5,
+					systemTokens: 100,
+					conversationTokens: 350,
+					toolDefinitionsTokens: 50,
+				});
+				sdkSession.emit('assistant.turn_end', {});
+			};
+
+			const session = await createSession();
+			const stream = new UsageCapturingStream();
+			session.attachStream(stream);
+
+			await session.handleRequest({ id: 'req-1', toolInvocationToken: undefined as never }, { prompt: 'Hello' }, [], undefined, authInfo, CancellationToken.None);
+
+			const usageFromInfo = stream.usages.find(u => u.promptTokens === 500);
+			expect(usageFromInfo?.promptTokenDetails).toBeDefined();
+			expect(usageFromInfo!.promptTokenDetails).toEqual([
+				{ category: 'System', label: 'System Instructions', percentageOfPrompt: 20 },
+				{ category: 'System', label: 'Tool Definitions', percentageOfPrompt: 10 },
+				{ category: 'User Context', label: 'Messages', percentageOfPrompt: 70 },
+			]);
+		});
+
+		it('populates promptTokenDetails in assistant.usage event when usage_info was previously received', async () => {
+			sdkSession.send = async (options: any) => {
+				sdkSession.emit('user.message', { content: options.prompt });
+				sdkSession.emit('session.usage_info', {
+					currentTokens: 400,
+					tokenLimit: 8000,
+					messagesLength: 4,
+					systemTokens: 80,
+					conversationTokens: 280,
+					toolDefinitionsTokens: 40,
+				});
+				sdkSession.emit('assistant.usage', { inputTokens: 400, outputTokens: 60 });
+				sdkSession.emit('assistant.turn_end', {});
+			};
+
+			const session = await createSession();
+			const stream = new UsageCapturingStream();
+			session.attachStream(stream);
+
+			await session.handleRequest({ id: 'req-1', toolInvocationToken: undefined as never }, { prompt: 'Hello' }, [], undefined, authInfo, CancellationToken.None);
+
+			const assistantUsage = stream.usages.find(u => u.promptTokens === 400 && u.completionTokens === 60);
+			expect(assistantUsage).toBeDefined();
+			expect(assistantUsage!.promptTokenDetails).toBeDefined();
+			expect(assistantUsage!.promptTokenDetails!.length).toBeGreaterThan(0);
+		});
+
+		it('reports final usage from getMetrics() after session completes', async () => {
+			sdkSession.usage.getMetrics = async () => ({
+				lastCallInputTokens: 350,
+				lastCallOutputTokens: 90,
+				totalPremiumRequestCost: 0,
+				totalUserRequests: 1,
+				totalApiDurationMs: 500,
+				sessionStartTime: Date.now(),
+				codeChanges: { linesAdded: 0, linesRemoved: 0, filesModifiedCount: 0 },
+				modelMetrics: {},
+				currentModel: 'modelA',
+			});
+
+			const session = await createSession();
+			const stream = new UsageCapturingStream();
+			session.attachStream(stream);
+
+			await session.handleRequest({ id: 'req-1', toolInvocationToken: undefined as never }, { prompt: 'Hello' }, [], undefined, authInfo, CancellationToken.None);
+
+			const finalUsage = stream.usages.at(-1);
+			expect(finalUsage).toBeDefined();
+			expect(finalUsage!.completionTokens).toBe(90);
+		});
+
+		it('uses currentTokens from session.usage_info as promptTokens in final usage report (non-zero after compaction)', async () => {
+			sdkSession.send = async (options: any) => {
+				sdkSession.emit('user.message', { content: options.prompt });
+				// Simulate post-compaction: usage_info fires with reduced token count, no assistant.usage follows
+				sdkSession.emit('session.usage_info', {
+					currentTokens: 120,
+					tokenLimit: 8000,
+					messagesLength: 2,
+					systemTokens: 80,
+					conversationTokens: 40,
+					toolDefinitionsTokens: 0,
+				});
+				sdkSession.emit('assistant.turn_end', {});
+			};
+			sdkSession.usage.getMetrics = async () => ({
+				lastCallInputTokens: 0,  // stale / no new call made
+				lastCallOutputTokens: 0,
+				totalPremiumRequestCost: 0,
+				totalUserRequests: 1,
+				totalApiDurationMs: 0,
+				sessionStartTime: Date.now(),
+				codeChanges: { linesAdded: 0, linesRemoved: 0, filesModifiedCount: 0 },
+				modelMetrics: {},
+				currentModel: 'modelA',
+			});
+
+			const session = await createSession();
+			const stream = new UsageCapturingStream();
+			session.attachStream(stream);
+
+			await session.handleRequest({ id: 'req-1', toolInvocationToken: undefined as never }, { prompt: 'Hello' }, [], undefined, authInfo, CancellationToken.None);
+
+			// Final usage should use currentTokens (120) not the stale lastCallInputTokens (0)
+			const finalUsage = stream.usages.at(-1);
+			expect(finalUsage!.promptTokens).toBe(120);
 		});
 	});
 });

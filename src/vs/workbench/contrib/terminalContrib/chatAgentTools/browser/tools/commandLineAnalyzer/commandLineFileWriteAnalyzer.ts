@@ -157,6 +157,11 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 								(fileUri.path.startsWith(folder.uri.path + '/') || fileUri.path === folder.uri.path)
 							);
 							if (!isInsideWorkspace) {
+								// Allow writes to OS temp locations when the user has opted into
+								// "Allow All Commands in this Session" via the confirmation.
+								if (options.hasSessionAutoApproval && this._isInTempDirectory(fileUri.path, options.os)) {
+									continue;
+								}
 								isAutoApproveAllowed = false;
 								this._log('File write blocked outside workspace', fileUri.toString());
 								break;
@@ -192,5 +197,22 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 			isAutoApproveAllowed,
 			disclaimers,
 		};
+	}
+
+	/**
+	 * Returns true if the given URI path points inside an OS temporary directory.
+	 * On posix systems this matches `/tmp/`. On Windows this matches any `temp`
+	 * or `tmp` directory segment (case-insensitive), which covers the canonical
+	 * user temp (`...\AppData\Local\Temp\`), system temp (`C:\Windows\Temp\`),
+	 * and common dev conventions like `C:\Temp\` and `C:\tmp\`.
+	 */
+	private _isInTempDirectory(uriPath: string, os: OperatingSystem | undefined): boolean {
+		if (os === OperatingSystem.Windows) {
+			// Windows paths from URI.with({path}) keep their original backslashes,
+			// so accept either separator. Require content after the segment so the
+			// directory itself is not matched.
+			return /[\\/]te?mp[\\/].+/i.test(uriPath);
+		}
+		return uriPath.startsWith('/tmp/');
 	}
 }

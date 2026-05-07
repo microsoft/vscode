@@ -17,7 +17,9 @@ const HIDDEN_MODEL_A_HASHES = [
 
 
 const HIDDEN_MODEL_B_HASHES = [
-	'1f48b3271e760c69ab2b17dcae5f5c661fa5b644c5976a8a99b23e05ae3cb6d6'
+	'1f48b3271e760c69ab2b17dcae5f5c661fa5b644c5976a8a99b23e05ae3cb6d6',
+	'ffc50c70661c227edf8daae6f8dbed2dd0645386c12d43bc7fc44da166e043bd',
+	'257c934076307881132be702a901618969591f0e11e1df51b22b1d4010f0a0d0',
 ];
 
 const VSC_MODEL_HASHES_A = [
@@ -65,6 +67,8 @@ const HIDDEN_MODEL_J_HASHES: string[] = [
 	'5a81e6aa7556585ba7c569881d1103683adc9e0124ff7952df423afba2f167b5',
 ];
 
+const HIDDEN_MODEL_K_HASH = 'a62e299160a1075d9973c28a7aa77f446c21c09887c7aa65c11022918cf83eda';
+
 const HIDDEN_FAMILY_H_HASHES: string[] = [
 	'70fcded3f255d368e868cc807d8838a62108bfa5c86ce7d37966f58cda229e33',
 ];
@@ -94,14 +98,19 @@ export function isHiddenModelF(model: LanguageModelChat | IChatEndpoint) {
 	return HIDDEN_MODEL_F_HASHES.includes(h);
 }
 
-export function isHiddenModelG(model: LanguageModelChat | IChatEndpoint) {
-	const family_hash = getCachedSha256Hash(model.family);
-	return family_hash === '0d90e0e579352b8502fc2a46b40961ee941adc26ce67c2b1438f0e4ea97d932f';
+export function isHiddenModelG(model: LanguageModelChat | IChatEndpoint | string) {
+	const family_hash = getCachedSha256Hash(typeof model === 'string' ? model : model.family);
+	return family_hash === '3ae755cc6122a54cc873e3ba2bd8703883b4a711d1af2707ef00f2c2c963ee8d';
 }
 
 export function isHiddenFamilyH(model: LanguageModelChat | IChatEndpoint) {
 	const family_hash = getCachedSha256Hash(model.family);
 	return HIDDEN_FAMILY_H_HASHES.includes(family_hash);
+}
+
+export function isHiddenModelK(model: LanguageModelChat | IChatEndpoint) {
+	const h = getCachedSha256Hash(model.family);
+	return h === HIDDEN_MODEL_K_HASH;
 }
 
 
@@ -228,7 +237,7 @@ export function modelPrefersJsonNotebookRepresentation(model: LanguageModelChat 
  * Model supports replace_string_in_file as an edit tool.
  */
 export function modelSupportsReplaceString(model: LanguageModelChat | IChatEndpoint): boolean {
-	return model.family.toLowerCase().includes('gemini') || model.family.includes('grok-code') || modelSupportsMultiReplaceString(model) || isHiddenModelF(model) || isMinimaxFamily(model) || isHiddenFamilyH(model);
+	return isGeminiFamily(model) || model.family.includes('grok-code') || modelSupportsMultiReplaceString(model) || isHiddenModelF(model) || isMinimaxFamily(model) || isHiddenFamilyH(model);
 }
 
 /**
@@ -293,7 +302,7 @@ export function modelCanUseApplyPatchExclusively(model: LanguageModelChat | ICha
  * replace_string.
  */
 export function modelNeedsStrongReplaceStringHint(model: LanguageModelChat | IChatEndpoint): boolean {
-	return model.family.toLowerCase().includes('gemini') || isHiddenModelF(model);
+	return isGeminiFamily(model) || isHiddenModelF(model);
 }
 
 /**
@@ -307,8 +316,9 @@ export function isAnthropicFamily(model: LanguageModelChat | IChatEndpoint): boo
 	return model.family.startsWith('claude') || model.family.startsWith('Anthropic') || isHiddenModelG(model);
 }
 
-export function isGeminiFamily(model: LanguageModelChat | IChatEndpoint): boolean {
-	return model.family.toLowerCase().startsWith('gemini');
+export function isGeminiFamily(model: LanguageModelChat | IChatEndpoint | string): boolean {
+	const family = typeof model === 'string' ? model : model.family;
+	return family.toLowerCase().startsWith('gemini') || getCachedSha256Hash(family) === HIDDEN_MODEL_K_HASH;
 }
 
 export function isMinimaxFamily(model: LanguageModelChat | IChatEndpoint): boolean {
@@ -378,4 +388,69 @@ export function getVerbosityForModelSync(model: IChatEndpoint): 'low' | 'medium'
 	}
 
 	return undefined;
+}
+
+/**
+ * Tool search is supported by:
+ * - Claude Sonnet 4.5 (claude-sonnet-4-5-* or claude-sonnet-4.5-*)
+ * - Claude Sonnet 4.6 (claude-sonnet-4-6-* or claude-sonnet-4.6-*)
+ * - Claude Opus 4.5 (claude-opus-4-5-* or claude-opus-4.5-*)
+ * - Claude Opus 4.6 (claude-opus-4-6-* or claude-opus-4.6-*)
+ * - Claude Opus 4.7 (claude-opus-4-7-* or claude-opus-4.7-*)
+ * - OpenAI gpt-5.4/gpt-5.5, but only when the `ResponsesApiToolSearchEnabled` setting is enabled
+ */
+export function modelSupportsToolSearch(modelId: string, configurationService?: IConfigurationService, experimentationService?: IExperimentationService): boolean {
+	const normalized = modelId.toLowerCase().replace(/\./g, '-');
+	if (isResponsesApiToolSearchModelId(normalized)) {
+		return !!configurationService && !!experimentationService && isResponsesApiToolSearchEnabled(modelId, configurationService, experimentationService);
+	}
+
+	return normalized.startsWith('claude-sonnet-4-5') ||
+		normalized.startsWith('claude-sonnet-4-6') ||
+		normalized.startsWith('claude-opus-4-5') ||
+		normalized.startsWith('claude-opus-4-6') ||
+		normalized.startsWith('claude-opus-4-7') ||
+		isHiddenModelG(modelId);
+}
+
+function isResponsesApiToolSearchModelId(normalizedModelId: string): boolean {
+	return normalizedModelId === 'gpt-5-4' || normalizedModelId === 'gpt-5-5';
+}
+
+export function isResponsesApiToolSearchEnabled(
+	endpoint: IChatEndpoint | string,
+	configurationService: IConfigurationService,
+	experimentationService: IExperimentationService,
+): boolean {
+	const modelId = typeof endpoint === 'string' ? endpoint : endpoint.model;
+	const normalized = modelId.toLowerCase().replace(/\./g, '-');
+	return isResponsesApiToolSearchModelId(normalized) && configurationService.getExperimentBasedConfig(ConfigKey.ResponsesApiToolSearchEnabled, experimentationService);
+}
+
+/**
+ * Context editing is supported by:
+ * - Claude Haiku 4.5 (claude-haiku-4-5-* or claude-haiku-4.5-*)
+ * - Claude Sonnet 4.6 (claude-sonnet-4-6-* or claude-sonnet-4.6-*)
+ * - Claude Sonnet 4.5 (claude-sonnet-4-5-* or claude-sonnet-4.5-*)
+ * - Claude Sonnet 4 (claude-sonnet-4-*)
+ * - Claude Opus 4.6 (claude-opus-4-6-* or claude-opus-4.6-*)
+ * - Claude Opus 4.5 (claude-opus-4-5-* or claude-opus-4.5-*)
+ * - Claude Opus 4.1 (claude-opus-4-1-* or claude-opus-4.1-*)
+ * - Claude Opus 4 (claude-opus-4-*)
+ * Provider-agnostic: add additional model prefixes here as other providers adopt context editing.
+ */
+export function modelSupportsContextEditing(modelId: string): boolean {
+	const normalized = modelId.toLowerCase().replace(/\./g, '-');
+	// The 1M context variant doesn't need context editing
+	if (normalized.includes('1m')) {
+		return false;
+	}
+	return normalized.startsWith('claude-haiku-4-5') ||
+		normalized.startsWith('claude-sonnet-4-6') ||
+		normalized.startsWith('claude-sonnet-4-5') ||
+		normalized.startsWith('claude-sonnet-4') ||
+		normalized.startsWith('claude-opus-4-6') ||
+		normalized.startsWith('claude-opus-4-5') ||
+		normalized.startsWith('claude-opus-4-1') ||
+		normalized.startsWith('claude-opus-4');
 }

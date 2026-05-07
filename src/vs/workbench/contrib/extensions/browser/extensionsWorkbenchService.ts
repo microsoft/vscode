@@ -1611,10 +1611,14 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		await this.editorService.openEditor(this.instantiationService.createInstance(ExtensionsInput, extension), options, options?.sideByside ? SIDE_GROUP : useModal ? MODAL_GROUP : ACTIVE_GROUP);
 	}
 
-	async openSearch(searchValue: string, preserveFoucs?: boolean): Promise<void> {
-		const viewPaneContainer = (await this.viewsService.openViewContainer(VIEWLET_ID, true))?.getViewPaneContainer() as IExtensionsViewPaneContainer;
+	async openSearch(searchValue: string, preserveFocus?: boolean): Promise<void> {
+		const viewPaneContainer = (await this.viewsService.openViewContainer(VIEWLET_ID, true))?.getViewPaneContainer() as IExtensionsViewPaneContainer | undefined;
+		if (!viewPaneContainer) {
+			this.logService.trace('ExtensionsWorkbenchService#openSearch: extension view pane container was not available');
+			return;
+		}
 		viewPaneContainer.search(searchValue);
-		if (!preserveFoucs) {
+		if (!preserveFocus) {
 			viewPaneContainer.focus();
 		}
 	}
@@ -1966,7 +1970,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			if (installed.local?.source === 'resource') {
 				continue;
 			}
-			infos.push({ ...installed.identifier, preRelease: !!installed.local?.preRelease });
+			infos.push({ ...installed.identifier, preRelease: !!installed.local?.preRelease, currentVersion: installed.isBuiltin ? installed.version : undefined });
 		}
 		if (infos.length) {
 			const targetPlatform = await extensions[0].server.extensionManagementService.getTargetPlatform();

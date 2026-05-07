@@ -17,7 +17,8 @@ import { ContextManagementResponse } from '../../../platform/networking/common/a
 import { IResponseDelta, isOpenAiFunctionTool } from '../../../platform/networking/common/fetch';
 import { IEndpointBody } from '../../../platform/networking/common/networking';
 import { CapturingToken } from '../../../platform/requestLogger/common/capturingToken';
-import { AbstractRequestLogger, ChatRequestScheme, ILoggedElementInfo, ILoggedRequestInfo, ILoggedToolCall, LoggedInfo, LoggedInfoKind, LoggedRequest, LoggedRequestKind, resolveMarkdownContent } from '../../../platform/requestLogger/node/requestLogger';
+import { ChatRequestScheme, ILoggedElementInfo, ILoggedRequestInfo, ILoggedToolCall, LoggedInfo, LoggedInfoKind, LoggedRequest, LoggedRequestKind, resolveMarkdownContent } from '../../../platform/requestLogger/common/requestLogger';
+import { AbstractRequestLogger } from '../../../platform/requestLogger/node/requestLogger';
 import { ThinkingData } from '../../../platform/thinking/common/thinking';
 import { createFencedCodeBlock } from '../../../util/common/markdown';
 import { assertNever } from '../../../util/vs/base/common/assert';
@@ -204,6 +205,8 @@ class LoggedRequestInfo implements ILoggedRequestInfo {
 			serverRequestId: this.entry.type === LoggedRequestKind.ChatMLSuccess || this.entry.type === LoggedRequestKind.ChatMLFailure ? this.entry.result.serverRequestId : undefined,
 			timeToFirstToken: this.entry.type === LoggedRequestKind.ChatMLSuccess ? this.entry.timeToFirstToken : undefined,
 			usage: this.entry.type === LoggedRequestKind.ChatMLSuccess ? this.entry.usage : undefined,
+			copilotUsageAic: this.entry.type === LoggedRequestKind.ChatMLSuccess && typeof this.entry.usage?.copilot_usage?.total_nano_aiu === 'number'
+				? this.entry.usage.copilot_usage.total_nano_aiu / 1_000_000_000 : undefined,
 			tools: this.entry.chatParams.body?.tools,
 		};
 
@@ -368,20 +371,6 @@ export class RequestLogger extends AbstractRequestLogger {
 			thinking,
 			edits,
 			toolMetadata
-		));
-	}
-
-	public override logServerToolCall(id: string, name: string, args: unknown, result: LanguageModelToolResult2): void {
-		this._addEntry(new LoggedToolCall(
-			id,
-			`${name} [server]`,
-			args,
-			result,
-			this.currentRequest,
-			Date.now(),
-			undefined, // thinking
-			undefined, // edits
-			undefined  // toolMetadata
 		));
 	}
 
@@ -675,12 +664,24 @@ export class RequestLogger extends AbstractRequestLogger {
 			result.push(`timeToFirstToken : ${entry.timeToFirstToken}ms`);
 			result.push(`resolved model   : ${entry.result.resolvedModel}`);
 			result.push(`usage            : ${JSON.stringify(entry.usage)}`);
+			if (typeof entry.usage?.copilot_usage?.total_nano_aiu === 'number') {
+				const aic = entry.usage.copilot_usage.total_nano_aiu / 1_000_000_000;
+				result.push(`copilotUsage    : ${aic.toFixed(2)} AIC (${entry.usage.copilot_usage.total_nano_aiu} nano-AIU)`);
+			}
 		} else if (entry.type === LoggedRequestKind.ChatMLFailure) {
 			result.push(`requestId        : ${entry.result.requestId}`);
 			result.push(`serverRequestId  : ${entry.result.serverRequestId}`);
 		}
 		if (entry.chatParams.body?.tools) {
-			const toolNames = entry.chatParams.body.tools.map(t => isOpenAiFunctionTool(t) ? t.function.name : t.name);
+			const toolNames = entry.chatParams.body.tools.map(t => {
+				if (isOpenAiFunctionTool(t)) {
+					return t.function.name;
+				}
+				if ('name' in t) {
+					return t.name;
+				}
+				return t.type;
+			});
 			const numToolsString = `(${toolNames.length})`;
 			result.push(
 				`<details>`,

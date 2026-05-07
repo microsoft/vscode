@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../base/browser/dom.js';
+import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -58,7 +59,8 @@ export class CloudModelPicker extends Disposable {
 
 		this._register(autorun(reader => {
 			const session = sessionsManagementService.activeSession.read(reader);
-			const providerSession = session ? sessionsProvidersService.getProvider<CopilotChatSessionsProvider>(session.providerId)?.getSession(session.sessionId) : undefined;
+			const provider = session ? sessionsProvidersService.getProvider(session.providerId) : undefined;
+			const providerSession = provider instanceof CopilotChatSessionsProvider ? provider.getSession(session!.sessionId) : undefined;
 			if (providerSession instanceof RemoteNewSession) {
 				this._setSession(providerSession);
 			}
@@ -107,10 +109,13 @@ export class CloudModelPicker extends Disposable {
 
 		this._updateTriggerLabel();
 
-		this._renderDisposables.add(dom.addDisposableListener(trigger, dom.EventType.CLICK, (e) => {
-			dom.EventHelper.stop(e, true);
-			this._showPicker();
-		}));
+		this._renderDisposables.add(Gesture.addTarget(trigger));
+		for (const eventType of [dom.EventType.CLICK, TouchEventType.Tap]) {
+			this._renderDisposables.add(dom.addDisposableListener(trigger, eventType, (e) => {
+				dom.EventHelper.stop(e, true);
+				this._showPicker();
+			}));
+		}
 
 		this._renderDisposables.add(dom.addDisposableListener(trigger, dom.EventType.KEY_DOWN, (e) => {
 			if (e.key === 'Enter' || e.key === ' ') {
@@ -208,6 +213,8 @@ export class CloudModelPicker extends Disposable {
 		const labelSpan = dom.append(this._triggerElement, dom.$('span.sessions-chat-dropdown-label'));
 		labelSpan.textContent = label;
 		dom.append(this._triggerElement, renderIcon(Codicon.chevronDown));
+
+		this._triggerElement.ariaLabel = localize('modelPicker.triggerAriaLabel', "Pick Model, {0}", label);
 
 		this._slotElement?.classList.toggle('disabled', this._models.length === 0);
 		this._triggerElement.setAttribute('aria-disabled', String(this._models.length === 0));

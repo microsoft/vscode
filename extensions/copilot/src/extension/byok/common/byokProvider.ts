@@ -143,13 +143,19 @@ export function byokKnownModelToAPIInfo(providerName: string, id: string, capabi
 		version: '1.0.0',
 		maxOutputTokens: capabilities.maxOutputTokens,
 		maxInputTokens: capabilities.maxInputTokens,
-		detail: providerName,
+		// `detail` is intentionally omitted: when this model is resolved
+		// via a configured provider group, `LanguageModelsService` will
+		// fall back to the group name so multiple instances of the same
+		// vendor (e.g. multiple Ollama servers) are distinguishable in
+		// the model picker.
 		family: id,
 		tooltip: `${capabilities.name} is contributed via the ${providerName} provider.`,
 		multiplierNumeric: 0,
+		isUserSelectable: true,
 		capabilities: {
 			toolCalling: capabilities.toolCalling,
-			imageInput: capabilities.vision
+			imageInput: capabilities.vision,
+			editTools: capabilities.editTools,
 		},
 	};
 }
@@ -160,7 +166,7 @@ export function isBYOKEnabled(copilotToken: Omit<CopilotToken, 'token'>, capiCli
 	}
 
 	const isGHE = capiClientService.dotcomAPIURL !== 'https://api.github.com';
-	const byokAllowed = (copilotToken.isInternal || copilotToken.isIndividual) && !isGHE;
+	const byokAllowed = (copilotToken.isInternal || copilotToken.isIndividual || copilotToken.isClientBYOKEnabled()) && !isGHE;
 	return byokAllowed;
 }
 

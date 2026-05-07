@@ -10,6 +10,7 @@ import { ResourceMap } from '../../../../../base/common/map.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ReadonlyChatSessionOptionsMap, IChatNewSessionRequest, IChatSession, IChatSessionCommitEvent, IChatSessionContentProvider, IChatSessionCustomizationItemGroup, IChatSessionCustomizationsProvider, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionOptionsChangeEvent, IChatSessionProviderOptionGroup, IChatSessionRequestHistoryItem, IChatSessionsExtensionPoint, IChatSessionsService, ResolvedChatSessionsExtensionPoint, ChatSessionOptionsMap } from '../../common/chatSessionsService.js';
+import { getChatSessionType } from '../../common/model/chatUri.js';
 import { IChatAgentAttachmentCapabilities } from '../../common/participants/chatAgents.js';
 import { Target } from '../../common/promptSyntax/promptTypes.js';
 
@@ -131,6 +132,10 @@ export class MockChatSessionsService implements IChatSessionsService {
 		return Array.from(this.inProgress.entries()).map(([chatSessionType, count]) => ({ chatSessionType, count }));
 	}
 
+	async resolveChatSessionItem(_chatSessionType: string, _resource: URI, _token: CancellationToken): Promise<IChatSessionItem | undefined> {
+		return undefined;
+	}
+
 	registerChatSessionContentProvider(chatSessionType: string, provider: IChatSessionContentProvider): IDisposable {
 		this.contentProviders.set(chatSessionType, provider);
 		this._onDidChangeContentProviderSchemes.fire({ added: [chatSessionType], removed: [] });
@@ -146,9 +151,10 @@ export class MockChatSessionsService implements IChatSessionsService {
 	}
 
 	async getOrCreateChatSession(sessionResource: URI, token: CancellationToken): Promise<IChatSession> {
-		const provider = this.contentProviders.get(sessionResource.scheme);
+		const sessionType = getChatSessionType(sessionResource);
+		const provider = this.contentProviders.get(sessionType);
 		if (!provider) {
-			throw new Error(`No content provider for ${sessionResource.scheme}`);
+			throw new Error(`No content provider for ${sessionType}`);
 		}
 		return provider.provideChatSessionContent(sessionResource, token);
 	}
@@ -169,7 +175,7 @@ export class MockChatSessionsService implements IChatSessionsService {
 		}
 	}
 
-	async getNewChatSessionInputState(_chatSessionType: string): Promise<readonly IChatSessionProviderOptionGroup[] | undefined> {
+	async getNewChatSessionInputState(_chatSessionType: string, _sessionResource: URI): Promise<readonly IChatSessionProviderOptionGroup[] | undefined> {
 		return undefined;
 	}
 

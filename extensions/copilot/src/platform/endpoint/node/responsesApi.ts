@@ -14,37 +14,125 @@ import { SSEParser } from '../../../util/vs/base/common/sseParser';
 import { isDefined } from '../../../util/vs/base/common/types';
 import { generateUuid } from '../../../util/vs/base/common/uuid';
 import { IInstantiationService, ServicesAccessor } from '../../../util/vs/platform/instantiation/common/instantiation';
+import { ChatLocation } from '../../chat/common/commonTypes';
 import { ConfigKey, IConfigurationService } from '../../configuration/common/configurationService';
 import { ILogService } from '../../log/common/logService';
-import { FinishedCallback, IResponseDelta, OpenAiResponsesFunctionTool } from '../../networking/common/fetch';
+import { CUSTOM_TOOL_SEARCH_NAME } from '../../networking/common/anthropic';
+import { FinishedCallback, getRequestId, IResponseDelta, OpenAiFunctionTool, OpenAiResponsesFunctionTool, OpenAiToolSearchTool } from '../../networking/common/fetch';
 import { IChatEndpoint, ICreateEndpointBodyOptions, IEndpointBody } from '../../networking/common/networking';
 import { ChatCompletion, FinishedCompletionReason, modelsWithoutResponsesContextManagement, openAIContextManagementCompactionType, OpenAIContextManagementResponse, rawMessageToCAPI, TokenLogProb } from '../../networking/common/openai';
-import { sendEngineMessagesTelemetry } from '../../networking/node/chatStream';
+import { IToolDeferralService } from '../../networking/common/toolDeferralService';
+import { sendEngineMessagesTelemetry, sendResponsesApiCompactionTelemetry } from '../../networking/node/chatStream';
+import { IChatWebSocketManager } from '../../networking/node/chatWebSocketManager';
 import { IExperimentationService } from '../../telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../telemetry/common/telemetry';
 import { TelemetryData } from '../../telemetry/common/telemetryData';
-import { getVerbosityForModelSync } from '../common/chatModelCapabilities';
+import { getVerbosityForModelSync, isResponsesApiToolSearchEnabled } from '../common/chatModelCapabilities';
 import { rawPartAsCompactionData } from '../common/compactionDataContainer';
 import { rawPartAsPhaseData } from '../common/phaseDataContainer';
-import { getStatefulMarkerAndIndex } from '../common/statefulMarkerContainer';
+import { getIndexOfStatefulMarker, getStatefulMarkerAndIndex } from '../common/statefulMarkerContainer';
 import { rawPartAsThinkingData } from '../common/thinkingDataContainer';
+import { createResponsesStreamDumper } from './responsesApiDebugDump';
+
+export function getResponsesApiCompactionThreshold(configService: IConfigurationService, expService: IExperimentationService, endpoint: IChatEndpoint): number | undefined {
+	const contextManagementEnabled = configService.getExperimentBasedConfig(ConfigKey.ResponsesApiContextManagementEnabled, expService) && !modelsWithoutResponsesContextManagement.has(endpoint.family);
+	if (!contextManagementEnabled) {
+		return undefined;
+	}
+
+	return endpoint.modelMaxPromptTokens > 0
+		? Math.floor(endpoint.modelMaxPromptTokens * 0.9)
+		: 50000;
+}
 
 export function createResponsesRequestBody(accessor: ServicesAccessor, options: ICreateEndpointBodyOptions, model: string, endpoint: IChatEndpoint): IEndpointBody {
 	const configService = accessor.get(IConfigurationService);
 	const expService = accessor.get(IExperimentationService);
 	const verbosity = getVerbosityForModelSync(endpoint);
+	const compactThreshold = getResponsesApiCompactionThreshold(configService, expService, endpoint);
 	// compaction supported for all the models but works well for codex models and any future models after 5.3
+
+	const webSocketStatefulMarker = resolveWebSocketStatefulMarker(accessor, options);
+	// When WebSocket is in use, always defer to the WebSocket marker (which may be
+	// undefined if the connection is new or the summary state changed). Never fall
+	// back to the HTTP marker lookup in that case.
+	const ignoreStatefulMarker = !!options.ignoreStatefulMarker || !!options.useWebSocket;
+	const modeChanged = !!options.modeChanged;
+
+	// Tool search: when enabled, split tools into non-deferred (included in the request) and deferred
+	// (excluded from the request entirely). Uses OpenAI's client-executed tool search protocol: we add
+	// { type: 'tool_search', execution: 'client' }. The model emits tool_search_call, which we handle via
+	// our ToolSearchTool embeddings search, then round-trip as tool_search_output in the next request.
+	const toolSearchEnabled = isResponsesApiToolSearchEnabled(endpoint, configService, expService);
+	const isAllowedConversationAgent = options.location === ChatLocation.Agent || options.location === ChatLocation.MessagesProxy;
+	const isSubagent = options.telemetryProperties?.subType?.startsWith('subagent') ?? false;
+	const toolSearchInRequest = !!options.requestOptions?.tools?.some(t => t.function.name === CUSTOM_TOOL_SEARCH_NAME);
+	const shouldDeferTools = toolSearchEnabled && isAllowedConversationAgent && !isSubagent && toolSearchInRequest;
+	const toolDeferralService = shouldDeferTools ? accessor.get(IToolDeferralService) : undefined;
+
+	type ResponsesFunctionTool = OpenAI.Responses.FunctionTool & OpenAiResponsesFunctionTool;
+	const functionTools: ResponsesFunctionTool[] = [];
+	if (options.requestOptions?.tools) {
+		for (const tool of options.requestOptions.tools) {
+			if (!tool.function.name || tool.function.name.length === 0) {
+				continue;
+			}
+			// Always skip the tool_search function tool — 'tool_search' is a reserved namespace in the
+			// Responses API. Client-executed tool search uses { type: 'tool_search', execution: 'client' } instead.
+			if (tool.function.name === CUSTOM_TOOL_SEARCH_NAME) {
+				continue;
+			}
+			const isDeferred = shouldDeferTools && !toolDeferralService!.isNonDeferredTool(tool.function.name);
+			// Client-executed tool search: deferred tools are NOT sent in the request.
+			// They are returned via tool_search_output when the model searches for them.
+			if (isDeferred) {
+				continue;
+			}
+			functionTools.push({
+				...tool.function,
+				type: 'function',
+				strict: false,
+				parameters: (tool.function.parameters || {}) as Record<string, unknown>,
+			});
+		}
+	}
+
+	// Build final tools array
+	const finalTools: Array<ResponsesFunctionTool | OpenAiToolSearchTool | ClientToolSearchTool> = [...functionTools];
+	if (shouldDeferTools) {
+		// Client-executed tool search: the model emits tool_search_call, our ToolSearchTool
+		// handles the embeddings search, and we return tool_search_output with full definitions.
+		finalTools.unshift({
+			type: 'tool_search',
+			execution: 'client',
+			description: 'Search for relevant tools by describing what you need. Returns tool definitions for tools matching your query.',
+			parameters: {
+				type: 'object',
+				properties: {
+					query: {
+						type: 'string',
+						description: 'Natural language description of what tool capability you are looking for.',
+					},
+				},
+				required: ['query'],
+			},
+		} as ClientToolSearchTool);
+	}
+
+	const toolsMap = options.requestOptions?.tools
+		? new Map(options.requestOptions.tools.map(t => [t.function.name, t]))
+		: undefined;
+	const shouldLoadToolFromToolSearch = shouldDeferTools ? (name: string) => !toolDeferralService!.isNonDeferredTool(name) : undefined;
 
 	const body: IEndpointBody = {
 		model,
-		...rawMessagesToResponseAPI(model, options.messages, !!options.ignoreStatefulMarker),
+		...rawMessagesToResponseAPI(model, options.messages, ignoreStatefulMarker, webSocketStatefulMarker, {
+			toolsMap,
+			shouldLoadToolFromToolSearch,
+			modeChanged,
+		}),
 		stream: true,
-		tools: options.requestOptions?.tools?.map((tool): OpenAI.Responses.FunctionTool & OpenAiResponsesFunctionTool => ({
-			...tool.function,
-			type: 'function',
-			strict: false,
-			parameters: (tool.function.parameters || {}) as Record<string, unknown>,
-		})),
+		tools: finalTools.length > 0 ? finalTools : undefined,
 		// Only a subset of completion post options are supported, and some
 		// are renamed. Handle them manually:
 		max_output_tokens: options.postOptions.max_tokens,
@@ -56,11 +144,7 @@ export function createResponsesRequestBody(accessor: ServicesAccessor, options: 
 		text: verbosity ? { verbosity } : undefined,
 	};
 
-	const contextManagementEnabled = configService.getExperimentBasedConfig(ConfigKey.ResponsesApiContextManagementEnabled, expService) && !modelsWithoutResponsesContextManagement.has(endpoint.family);
-	if (contextManagementEnabled) {
-		const compactThreshold = endpoint.modelMaxPromptTokens > 0
-			? Math.floor(endpoint.modelMaxPromptTokens * 0.9)
-			: 50000;
+	if (compactThreshold !== undefined) {
 		body.context_management = [{
 			'type': openAIContextManagementCompactionType,
 			// Trigger compaction at 90% of the model max prompt context to keep headroom for active turns.
@@ -71,11 +155,12 @@ export function createResponsesRequestBody(accessor: ServicesAccessor, options: 
 	body.truncation = configService.getConfig(ConfigKey.Advanced.UseResponsesApiTruncation) ?
 		'auto' :
 		'disabled';
+	const thinkingExplicitlyDisabled = options.modelCapabilities?.enableThinking === false;
 	const summaryConfig = configService.getExperimentBasedConfig(ConfigKey.ResponsesApiReasoningSummary, expService);
-	const shouldDisableReasoningSummary = endpoint.family === 'gpt-5.3-codex-spark-preview';
-	const effortFromSetting = configService.getConfig(ConfigKey.TeamInternal.ResponsesApiReasoningEffort);
+	const shouldDisableReasoningSummary = endpoint.family === 'gpt-5.3-codex-spark-preview' || thinkingExplicitlyDisabled;
+	const effortFromSetting = configService.getConfig(ConfigKey.Advanced.ReasoningEffortOverride);
 	const effort = endpoint.supportsReasoningEffort?.length
-		? (effortFromSetting || options.reasoningEffort || 'medium')
+		? (effortFromSetting || options.modelCapabilities?.reasoningEffort || 'medium')
 		: undefined;
 	const summary = summaryConfig === 'off' || shouldDisableReasoningSummary ? undefined : summaryConfig;
 	if (effort || summary) {
@@ -95,25 +180,196 @@ export function createResponsesRequestBody(accessor: ServicesAccessor, options: 
 	return body;
 }
 
-type ResponseOutputMessageWithPhase = OpenAI.Responses.ResponseOutputMessage & {
+export function getResponsesApiCompactionThresholdFromBody(body: Pick<IEndpointBody, 'context_management'>): number | undefined {
+	const contextManagement = body.context_management;
+	if (!Array.isArray(contextManagement)) {
+		return undefined;
+	}
+
+	for (const item of contextManagement) {
+		if (item.type === openAIContextManagementCompactionType && typeof item.compact_threshold === 'number') {
+			return item.compact_threshold;
+		}
+	}
+
+	return undefined;
+}
+
+interface ResponseInputAssistantTextContentPart {
+	type: 'output_text';
+	text: string;
+}
+
+interface ResponseInputAssistantMessageWithPhase {
+	type: 'message';
+	role: 'assistant';
+	content: ResponseInputAssistantTextContentPart[];
 	phase?: string;
-};
+}
 
 interface ResponseOutputItemWithPhase {
 	phase?: string;
 }
 
-function rawMessagesToResponseAPI(modelId: string, messages: readonly Raw.ChatMessage[], ignoreStatefulMarker: boolean): { input: OpenAI.Responses.ResponseInputItem[]; previous_response_id?: string } {
+// ── Responses API tool search types ──────────────────────────────────
+// These match the shapes from https://developers.openai.com/api/docs/guides/tools-tool-search
+
+/** Client-executed tool_search tool definition for the Responses API */
+interface ClientToolSearchTool {
+	type: 'tool_search';
+	execution: 'client';
+	description: string;
+	parameters: Record<string, unknown>;
+}
+
+interface ResponsesToolSearchCall {
+	type: 'tool_search_call';
+	id: string;
+	execution: 'client';
+	call_id: string | null;
+	status: string;
+	arguments?: Record<string, unknown>;
+}
+
+/** Input item shape for a client-executed tool_search_call in conversation history */
+interface ResponsesToolSearchCallInput {
+	type: 'tool_search_call';
+	execution: 'client';
+	call_id: string;
+	status: string;
+	arguments: Record<string, unknown>;
+}
+
+/** Input item shape for a client-executed tool_search_output in conversation history */
+interface ResponsesToolSearchOutputInput {
+	type: 'tool_search_output';
+	execution: 'client';
+	call_id: string;
+	status: string;
+	tools: ToolSearchLoadedTool[];
+}
+
+/** A tool definition returned in tool_search_output */
+interface ToolSearchLoadedTool {
+	type: 'function';
+	name: string;
+	description: string;
+	defer_loading: true;
+	parameters: object;
+}
+
+interface LatestCompactionOutput {
+	readonly item: OpenAIContextManagementResponse;
+	readonly outputIndex: number;
+}
+
+type CompactionResponseOutputItem = OpenAI.Responses.ResponseOutputItem & OpenAIContextManagementResponse;
+
+interface CompactionItemInChunk {
+	readonly item: OpenAIContextManagementResponse;
+	readonly outputIndex: number | undefined;
+}
+
+interface ResponseStreamEventWithOutputItem {
+	readonly item: unknown;
+	readonly output_index: number;
+}
+
+interface ResponseStreamEventWithResponseOutput {
+	readonly response: {
+		readonly output: OpenAI.Responses.ResponseOutputItem[];
+	};
+}
+
+function resolveWebSocketStatefulMarker(accessor: ServicesAccessor, options: ICreateEndpointBodyOptions): string | undefined {
+	if (options.ignoreStatefulMarker || !options.useWebSocket || !options.conversationId) {
+		return undefined;
+	}
+	const wsManager = accessor.get(IChatWebSocketManager);
+	// If client-side summarization state changed since the stateful marker
+	// was stored (new summary, or rollback removing a summary), the server's
+	// state no longer matches. Skip the marker so the full history is sent.
+	const connSummarizedAt = wsManager.getSummarizedAtRoundId(options.conversationId);
+	if (options.summarizedAtRoundId !== connSummarizedAt) {
+		return undefined;
+	}
+	return wsManager.getStatefulMarker(options.conversationId);
+}
+
+interface RawMessagesToResponseAPIOptions {
+	readonly toolsMap?: Map<string, OpenAiFunctionTool>;
+	readonly shouldLoadToolFromToolSearch?: (name: string) => boolean;
+	readonly modeChanged?: boolean;
+}
+
+function rawMessagesToResponseAPI(modelId: string, messages: readonly Raw.ChatMessage[], ignoreStatefulMarker: boolean, webSocketStatefulMarker: string | undefined, options: RawMessagesToResponseAPIOptions = {}): { input: OpenAI.Responses.ResponseInputItem[]; previous_response_id?: string } {
+	const { toolsMap, shouldLoadToolFromToolSearch, modeChanged = false } = options;
 	const latestCompactionMessageIndex = getLatestCompactionMessageIndex(messages);
-	if (latestCompactionMessageIndex !== undefined) {
-		messages = messages.slice(latestCompactionMessageIndex);
+	const latestCompactionMessage = latestCompactionMessageIndex !== undefined ? createCompactionRoundTripMessage(messages[latestCompactionMessageIndex]) : undefined;
+
+	let previousResponseId: string | undefined;
+	let markerIndex: number | undefined;
+
+	if (webSocketStatefulMarker) {
+		// WebSocket path: use the connection's current stateful marker if present in messages
+		markerIndex = getIndexOfStatefulMarker(webSocketStatefulMarker, messages);
+		if (markerIndex !== undefined) {
+			previousResponseId = webSocketStatefulMarker;
+		}
+	} else if (!ignoreStatefulMarker) {
+		// HTTP path: look up the latest marker for this model from messages
+		const statefulMarkerAndIndex = getStatefulMarkerAndIndex(modelId, messages);
+		if (statefulMarkerAndIndex) {
+			previousResponseId = statefulMarkerAndIndex.statefulMarker;
+			markerIndex = statefulMarkerAndIndex.index;
+		}
 	}
 
-	const statefulMarkerAndIndex = !ignoreStatefulMarker && getStatefulMarkerAndIndex(modelId, messages);
-	let previousResponseId: string | undefined;
-	if (latestCompactionMessageIndex === undefined && statefulMarkerAndIndex) {
-		previousResponseId = statefulMarkerAndIndex.statefulMarker;
-		messages = messages.slice(statefulMarkerAndIndex.index + 1);
+	if (modeChanged) {
+		previousResponseId = undefined;
+		markerIndex = undefined;
+	}
+
+	const toolSearchCallIds = new Set<string>();
+	const toolSearchLoadedTools = new Set<string>();
+	// Only pre-scan when history will be sliced (matches the slicing block below);
+	// otherwise the serialization loop visits each tool_search_call before its
+	// result and populates these sets in order on its own.
+	const willSliceHistory = markerIndex !== undefined || latestCompactionMessageIndex !== undefined;
+	if (willSliceHistory) {
+		for (const message of messages) {
+			if (message.role === Raw.ChatRole.Assistant && message.toolCalls) {
+				for (const toolCall of message.toolCalls) {
+					if (toolCall.function.name === CUSTOM_TOOL_SEARCH_NAME) {
+						toolSearchCallIds.add(toolCall.id);
+					}
+				}
+			} else if (message.role === Raw.ChatRole.Tool && message.toolCallId && toolSearchCallIds.has(message.toolCallId) && toolsMap) {
+				const resultText = message.content
+					.filter(c => c.type === Raw.ChatCompletionContentPartKind.Text)
+					.map(c => c.text)
+					.join('');
+				for (const t of buildToolSearchOutputTools(resultText, toolsMap, shouldLoadToolFromToolSearch)) {
+					toolSearchLoadedTools.add(t.name);
+				}
+			}
+		}
+	}
+
+	if (markerIndex !== undefined) {
+		// Requests that resume from previous_response_id send only post-marker history,
+		// but they still need the latest compaction item even when that item predates
+		// the marker. This keeps both websocket and non-websocket traffic aligned.
+		messages = messages.slice(markerIndex + 1);
+		if (latestCompactionMessageIndex !== undefined) {
+			if (latestCompactionMessageIndex > markerIndex) {
+				messages = messages.slice(latestCompactionMessageIndex - (markerIndex + 1));
+			} else if (latestCompactionMessage) {
+				messages = [latestCompactionMessage, ...messages];
+			}
+		}
+	} else if (latestCompactionMessageIndex !== undefined) {
+		messages = messages.slice(latestCompactionMessageIndex);
 	}
 
 	const input: OpenAI.Responses.ResponseInputItem[] = [];
@@ -123,44 +379,78 @@ function rawMessagesToResponseAPI(modelId: string, messages: readonly Raw.ChatMe
 				if (message.content.length) {
 					input.push(...extractCompactionData(message.content));
 					input.push(...extractThinkingData(message.content));
-					const asstContent = message.content.map(rawContentToResponsesOutputContent).filter(isDefined);
+					const asstContent = message.content.map(rawContentToResponsesAssistantContent).filter(isDefined);
 					if (asstContent.length) {
-						const assistantMessage: ResponseOutputMessageWithPhase = {
+						const assistantMessage: ResponseInputAssistantMessageWithPhase = {
 							role: 'assistant',
 							content: asstContent,
-							// I don't think this needs to be round-tripped.
-							id: 'msg_123',
-							status: 'completed',
 							type: 'message',
 							phase: extractPhaseData(message.content),
 						};
-						input.push(assistantMessage);
+						// The Responses API expects previous assistant message content as output_text/refusal,
+						// but the SDK's ResponseOutputMessage type requires response-only id/status fields.
+						input.push(assistantMessage as OpenAI.Responses.ResponseInputItem);
 					}
 				}
 				if (message.toolCalls) {
 					for (const toolCall of message.toolCalls) {
-						input.push({ type: 'function_call', name: toolCall.function.name, arguments: toolCall.function.arguments, call_id: toolCall.id });
+						if (toolCall.function.name === CUSTOM_TOOL_SEARCH_NAME) {
+							// Client-executed tool search: emit as tool_search_call instead of function_call
+							toolSearchCallIds.add(toolCall.id);
+							let parsedArgs: Record<string, unknown> = {};
+							try { parsedArgs = JSON.parse(toolCall.function.arguments || '{}'); } catch { }
+							input.push({
+								type: 'tool_search_call',
+								execution: 'client',
+								call_id: toolCall.id,
+								status: 'completed',
+								arguments: parsedArgs,
+							} satisfies ResponsesToolSearchCallInput as unknown as OpenAI.Responses.ResponseInputItem);
+						} else {
+							// Tools loaded via tool_search need a namespace field to round-trip correctly
+							const namespace = toolSearchLoadedTools.has(toolCall.function.name) ? toolCall.function.name : undefined;
+							input.push({ type: 'function_call', name: toolCall.function.name, arguments: toolCall.function.arguments, call_id: toolCall.id, ...(namespace ? { namespace } : {}) });
+						}
 					}
 				}
 				break;
 			case Raw.ChatRole.Tool:
 				if (message.toolCallId) {
-					const asText = message.content
-						.filter(c => c.type === Raw.ChatCompletionContentPartKind.Text)
-						.map(c => c.text)
-						.join('');
-					const asImages = message.content
-						.filter(c => c.type === Raw.ChatCompletionContentPartKind.Image)
-						.map((c): OpenAI.Responses.ResponseInputImage => ({
-							type: 'input_image',
-							detail: c.imageUrl.detail || 'auto',
-							image_url: c.imageUrl.url,
-						}));
+					if (toolSearchCallIds.has(message.toolCallId)) {
+						// Client-executed tool search result: convert tool names to tool_search_output with full definitions
+						const resultText = message.content
+							.filter(c => c.type === Raw.ChatCompletionContentPartKind.Text)
+							.map(c => c.text)
+							.join('');
+						const loadedTools = toolsMap ? buildToolSearchOutputTools(resultText, toolsMap, shouldLoadToolFromToolSearch) : [];
+						for (const t of loadedTools) {
+							toolSearchLoadedTools.add(t.name);
+						}
+						input.push({
+							type: 'tool_search_output',
+							execution: 'client',
+							call_id: message.toolCallId,
+							status: 'completed',
+							tools: loadedTools,
+						} satisfies ResponsesToolSearchOutputInput as unknown as OpenAI.Responses.ResponseInputItem);
+					} else {
+						const asText = message.content
+							.filter(c => c.type === Raw.ChatCompletionContentPartKind.Text)
+							.map(c => c.text)
+							.join('');
+						const asImages = message.content
+							.filter(c => c.type === Raw.ChatCompletionContentPartKind.Image)
+							.map((c): OpenAI.Responses.ResponseInputImage => ({
+								type: 'input_image',
+								detail: c.imageUrl.detail || 'auto',
+								image_url: c.imageUrl.url,
+							}));
 
-					// todod@connor4312: hack while responses API only supports text output from tools
-					input.push({ type: 'function_call_output', call_id: message.toolCallId, output: asText });
-					if (asImages.length) {
-						input.push({ role: 'user', content: [{ type: 'input_text', text: 'Image associated with the above tool call:' }, ...asImages] });
+						// todod@connor4312: hack while responses API only supports text output from tools
+						input.push({ type: 'function_call_output', call_id: message.toolCallId, output: asText });
+						if (asImages.length) {
+							input.push({ role: 'user', content: [{ type: 'input_text', text: 'Image associated with the above tool call:' }, ...asImages] });
+						}
 					}
 				}
 				break;
@@ -174,6 +464,45 @@ function rawMessagesToResponseAPI(modelId: string, messages: readonly Raw.ChatMe
 	}
 
 	return { input, previous_response_id: previousResponseId };
+}
+
+/**
+ * Converts a JSON array of tool names (from ToolSearchTool) into full tool definitions
+ * for the tool_search_output. Falls back to an empty array on parse failure.
+ */
+function buildToolSearchOutputTools(resultText: string, toolsMap: Map<string, OpenAiFunctionTool>, shouldLoadToolFromToolSearch: ((name: string) => boolean) | undefined): ToolSearchLoadedTool[] {
+	let toolNames: unknown;
+	try { toolNames = JSON.parse(resultText); } catch { return []; }
+	if (!Array.isArray(toolNames)) { return []; }
+
+	return toolNames
+		.filter((name): name is string => typeof name === 'string' && name !== CUSTOM_TOOL_SEARCH_NAME && toolsMap.has(name) && shouldLoadToolFromToolSearch?.(name) === true)
+		.map(name => {
+			const tool = toolsMap.get(name)!;
+			return {
+				type: 'function' as const,
+				name: tool.function.name,
+				description: tool.function.description || '',
+				defer_loading: true as const,
+				parameters: tool.function.parameters || { type: 'object', properties: {} },
+			};
+		});
+}
+
+function createCompactionRoundTripMessage(message: Raw.ChatMessage): Raw.ChatMessage | undefined {
+	if (message.role !== Raw.ChatRole.Assistant) {
+		return undefined;
+	}
+
+	const content = message.content.filter(part => part.type === Raw.ChatCompletionContentPartKind.Opaque && rawPartAsCompactionData(part));
+	if (!content.length) {
+		return undefined;
+	}
+
+	return {
+		role: Raw.ChatRole.Assistant,
+		content,
+	};
 }
 
 function getLatestCompactionMessageIndex(messages: readonly Raw.ChatMessage[]): number | undefined {
@@ -204,11 +533,11 @@ function rawContentToResponsesContent(part: Raw.ChatCompletionContentPart): Open
 	}
 }
 
-function rawContentToResponsesOutputContent(part: Raw.ChatCompletionContentPart): OpenAI.Responses.ResponseOutputText | OpenAI.Responses.ResponseOutputRefusal | undefined {
+function rawContentToResponsesAssistantContent(part: Raw.ChatCompletionContentPart): Pick<OpenAI.Responses.ResponseOutputText, 'type' | 'text'> | undefined {
 	switch (part.type) {
 		case Raw.ChatCompletionContentPartKind.Text:
 			if (part.text.trim()) {
-				return { type: 'output_text', text: part.text, annotations: [] };
+				return { type: 'output_text', text: part.text };
 			}
 	}
 }
@@ -358,6 +687,32 @@ export function responseApiInputToRawMessagesForLogging(body: OpenAI.Responses.R
 						}]
 					});
 					break;
+				default: {
+					// Client-executed tool search items (tool_search_call / tool_search_output)
+					const tsItem = item as unknown as ResponsesToolSearchCallInput | ResponsesToolSearchOutputInput;
+					if (tsItem.type === 'tool_search_call') {
+						pendingFunctionCalls.push({
+							id: tsItem.call_id,
+							type: 'function',
+							function: {
+								name: CUSTOM_TOOL_SEARCH_NAME,
+								arguments: JSON.stringify(tsItem.arguments ?? {}),
+							}
+						});
+					} else if (tsItem.type === 'tool_search_output') {
+						flushPendingFunctionCalls();
+						const toolNames = tsItem.tools.map(t => t.name);
+						messages.push({
+							role: Raw.ChatRole.Tool,
+							content: [{
+								type: Raw.ChatCompletionContentPartKind.Text,
+								text: JSON.stringify(toolNames),
+							}],
+							toolCallId: tsItem.call_id,
+						});
+					}
+					break;
+				}
 			}
 		}
 	}
@@ -428,15 +783,69 @@ function responseFunctionOutputToRawContents(output: string | OpenAI.Responses.R
 	return coalesce(output.map(responseContentToRawContent));
 }
 
-export async function processResponseFromChatEndpoint(instantiationService: IInstantiationService, telemetryService: ITelemetryService, logService: ILogService, response: Response, expectedNumChoices: number, finishCallback: FinishedCallback, telemetryData: TelemetryData): Promise<AsyncIterableObject<ChatCompletion>> {
+function isCompactionItem(value: unknown): value is OpenAIContextManagementResponse {
+	return typeof value === 'object' && value !== null && 'type' in value && String(value.type) === openAIContextManagementCompactionType;
+}
+
+function hasOutputItem(chunk: OpenAI.Responses.ResponseStreamEvent): chunk is OpenAI.Responses.ResponseStreamEvent & ResponseStreamEventWithOutputItem {
+	return 'item' in chunk && 'output_index' in chunk && typeof chunk.output_index === 'number';
+}
+
+function hasResponseOutput(chunk: OpenAI.Responses.ResponseStreamEvent): chunk is OpenAI.Responses.ResponseStreamEvent & ResponseStreamEventWithResponseOutput {
+	return 'response' in chunk && Array.isArray(chunk.response.output);
+}
+
+function getOutputItemIndex(chunk: ResponseStreamEventWithOutputItem): number {
+	return chunk.output_index;
+}
+
+function isCompactionOutputItem(item: OpenAI.Responses.ResponseOutputItem): item is CompactionResponseOutputItem {
+	return isCompactionItem(item);
+}
+
+function getLatestCompactionOutput(output: OpenAI.Responses.ResponseOutputItem[], preferredOutputIndex: number | undefined): LatestCompactionOutput | undefined {
+	let latestCompactionOutput: LatestCompactionOutput | undefined;
+	for (let idx = output.length - 1; idx >= 0; idx--) {
+		const item = output[idx];
+		if (isCompactionOutputItem(item)) {
+			latestCompactionOutput = { item, outputIndex: idx };
+			break;
+		}
+	}
+
+	if (preferredOutputIndex !== undefined) {
+		const preferredItem = output[preferredOutputIndex];
+		if (preferredItem && isCompactionOutputItem(preferredItem) && (!latestCompactionOutput || preferredOutputIndex >= latestCompactionOutput.outputIndex)) {
+			return { item: preferredItem, outputIndex: preferredOutputIndex };
+		}
+	}
+
+	return latestCompactionOutput;
+}
+
+function keepLatestCompactionOutput(output: OpenAI.Responses.ResponseOutputItem[], preferredOutputIndex: number | undefined): OpenAI.Responses.ResponseOutputItem[] {
+	const latestCompactionOutput = getLatestCompactionOutput(output, preferredOutputIndex);
+	if (!latestCompactionOutput) {
+		return output;
+	}
+
+	return output.filter((item, idx) => !isCompactionOutputItem(item) || idx === latestCompactionOutput.outputIndex);
+}
+
+export async function processResponseFromChatEndpoint(instantiationService: IInstantiationService, telemetryService: ITelemetryService, logService: ILogService, response: Response, expectedNumChoices: number, finishCallback: FinishedCallback, telemetryData: TelemetryData, compactionThreshold?: number): Promise<AsyncIterableObject<ChatCompletion>> {
 	return new AsyncIterableObject<ChatCompletion>(async feed => {
 		const requestId = response.headers.get('X-Request-ID') ?? generateUuid();
 		const ghRequestId = response.headers.get('x-github-request-id') ?? '';
-		const processor = instantiationService.createInstance(OpenAIResponsesProcessor, telemetryData, requestId, ghRequestId);
+		const { serverExperiments } = getRequestId(response.headers);
+		const processor = instantiationService.createInstance(OpenAIResponsesProcessor, telemetryData, telemetryService, requestId, ghRequestId, serverExperiments, compactionThreshold);
+		const dumper = createResponsesStreamDumper(requestId, logService);
 		const parser = new SSEParser((ev) => {
 			try {
 				logService.trace(`SSE: ${ev.data}`);
-				const completion = processor.push({ type: ev.type, ...JSON.parse(ev.data) }, finishCallback);
+				const parsedData = JSON.parse(ev.data);
+				const responseStreamEvent: OpenAI.Responses.ResponseStreamEvent = { type: ev.type, ...parsedData };
+				dumper.logEvent(responseStreamEvent);
+				const completion = processor.push(responseStreamEvent, finishCallback);
 				if (completion) {
 					sendCompletionOutputTelemetry(telemetryService, logService, completion, telemetryData);
 					feed.emitOne(completion);
@@ -462,6 +871,12 @@ export function sendCompletionOutputTelemetry(telemetryService: ITelemetryServic
 			promptTokens: completion.usage.prompt_tokens,
 			completionTokens: completion.usage.completion_tokens,
 			totalTokens: completion.usage.total_tokens,
+			...(completion.usage.prompt_tokens_details && { cachedTokens: completion.usage.prompt_tokens_details.cached_tokens }),
+			...(completion.usage.completion_tokens_details && {
+				reasoningTokens: completion.usage.completion_tokens_details.reasoning_tokens,
+				acceptedPredictionTokens: completion.usage.completion_tokens_details.accepted_prediction_tokens,
+				rejectedPredictionTokens: completion.usage.completion_tokens_details.rejected_prediction_tokens,
+			}),
 		});
 	}
 	sendEngineMessagesTelemetry(telemetryService, [telemetryMessage], telemetryDataWithUsage, true, logService);
@@ -471,29 +886,100 @@ interface CapiResponsesTextDeltaEvent extends Omit<OpenAI.Responses.ResponseText
 	logprobs: Array<OpenAI.Responses.ResponseTextDeltaEvent.Logprob> | undefined;
 }
 
+interface CapiResponseCompletedEvent extends OpenAI.Responses.ResponseCompletedEvent {
+	copilot_usage?: {
+		total_nano_aiu: number;
+	};
+}
+
 export class OpenAIResponsesProcessor {
 	private textAccumulator: string = '';
 	private hasReceivedReasoningSummary = false;
+	private sawCompactionMessage = false;
+	private latestCompactionOutputIndex: number | undefined;
+	private latestCompactionItem: OpenAIContextManagementResponse | undefined;
+	/** Tracks the output_index of the last text delta to detect output item boundaries */
+	private lastTextDeltaOutputIndex: number | undefined;
 	/** Maps output_index to { name, callId, arguments } for streaming tool call updates */
 	private readonly toolCallInfo = new Map<number, { name: string; callId: string; arguments: string }>();
 
 	constructor(
 		private readonly telemetryData: TelemetryData,
+		private readonly telemetryService: ITelemetryService,
 		private readonly requestId: string,
 		private readonly ghRequestId: string,
+		private readonly serverExperiments: string,
+		private readonly compactionThreshold: number | undefined,
+		@ILogService private readonly logService: ILogService,
 	) { }
+
+	private getCompactionItemsInChunk(chunk: OpenAI.Responses.ResponseStreamEvent): CompactionItemInChunk[] {
+		const compactionItems: CompactionItemInChunk[] = [];
+
+		if (hasOutputItem(chunk) && isCompactionItem(chunk.item)) {
+			const outputIndex = getOutputItemIndex(chunk);
+			compactionItems.push({ item: chunk.item, outputIndex });
+		}
+
+		if (hasResponseOutput(chunk)) {
+			for (let idx = 0; idx < chunk.response.output.length; idx++) {
+				const item = chunk.response.output[idx];
+				if (isCompactionItem(item)) {
+					compactionItems.push({ item, outputIndex: idx });
+				}
+			}
+		}
+
+		return compactionItems;
+	}
+
+	private captureCompactionItem(item: OpenAIContextManagementResponse, outputIndex: number | undefined, onProgress: (delta: IResponseDelta) => undefined): void {
+		if (outputIndex !== undefined && this.latestCompactionOutputIndex !== undefined && outputIndex < this.latestCompactionOutputIndex) {
+			return;
+		}
+
+		const previousCompactionItem = this.latestCompactionItem;
+		this.sawCompactionMessage = true;
+		this.latestCompactionOutputIndex = outputIndex ?? this.latestCompactionOutputIndex;
+		this.latestCompactionItem = item;
+
+		if (previousCompactionItem?.id === item.id && previousCompactionItem.encrypted_content === item.encrypted_content) {
+			return;
+		}
+
+		onProgress({
+			text: '',
+			contextManagement: {
+				type: openAIContextManagementCompactionType,
+				id: item.id,
+				encrypted_content: item.encrypted_content,
+			}
+		});
+	}
 
 	public push(chunk: OpenAI.Responses.ResponseStreamEvent, _onProgress: FinishedCallback): ChatCompletion | undefined {
 		const onProgress = (delta: IResponseDelta): undefined => {
 			this.textAccumulator += delta.text;
 			_onProgress(this.textAccumulator, 0, delta);
 		};
+		const compactionItems = this.getCompactionItemsInChunk(chunk);
+		if (chunk.type !== 'response.completed') {
+			for (const { item, outputIndex } of compactionItems) {
+				this.captureCompactionItem(item, outputIndex, onProgress);
+			}
+		}
 
 		switch (chunk.type) {
 			case 'error':
 				return onProgress({ text: '', copilotErrors: [{ agent: 'openai', code: chunk.code || 'unknown', message: chunk.message, type: 'error', identifier: chunk.param || undefined }] });
 			case 'response.output_text.delta': {
 				const capiChunk: CapiResponsesTextDeltaEvent = chunk;
+				// When text arrives from a new output item, emit a paragraph
+				// separator so that e.g. commentary and final text don't fuse.
+				if (this.lastTextDeltaOutputIndex !== undefined && capiChunk.output_index !== this.lastTextDeltaOutputIndex) {
+					onProgress({ text: '\n\n' });
+				}
+				this.lastTextDeltaOutputIndex = capiChunk.output_index;
 				const haystack = new Lazy(() => new TextEncoder().encode(capiChunk.delta));
 				return onProgress({
 					text: capiChunk.delta,
@@ -512,6 +998,16 @@ export class OpenAIResponsesProcessor {
 						text: '',
 						beginToolCalls: [{ name: chunk.item.name, id: chunk.item.call_id }]
 					});
+				} else if (chunk.item.type.toString() === 'tool_search_call') {
+					const tsItem = chunk.item as unknown as ResponsesToolSearchCall;
+					if (tsItem.execution === 'client' && tsItem.call_id) {
+						// Client-executed tool search: treat as a regular tool call so our ToolSearchTool handles it.
+						this.toolCallInfo.set(chunk.output_index, { name: CUSTOM_TOOL_SEARCH_NAME, callId: tsItem.call_id, arguments: '' });
+						onProgress({
+							text: '',
+							beginToolCalls: [{ name: CUSTOM_TOOL_SEARCH_NAME, id: tsItem.call_id }]
+						});
+					}
 				}
 				return;
 			case 'response.function_call_arguments.delta': {
@@ -530,17 +1026,6 @@ export class OpenAIResponsesProcessor {
 				return;
 			}
 			case 'response.output_item.done':
-				if (chunk.item.type.toString() === openAIContextManagementCompactionType) {
-					const compactionItem = chunk.item as unknown as OpenAIContextManagementResponse;
-					return onProgress({
-						text: '',
-						contextManagement: {
-							type: openAIContextManagementCompactionType,
-							id: compactionItem.id,
-							encrypted_content: compactionItem.encrypted_content,
-						}
-					});
-				}
 				if (chunk.item.type === 'function_call') {
 					this.toolCallInfo.delete(chunk.output_index);
 					onProgress({
@@ -552,6 +1037,20 @@ export class OpenAIResponsesProcessor {
 						}],
 						phase: (chunk.item as ResponseOutputItemWithPhase).phase
 					});
+				} else if (chunk.item.type.toString() === 'tool_search_call') {
+					const tsCall = chunk.item as unknown as ResponsesToolSearchCall;
+					if (tsCall.execution === 'client' && tsCall.call_id) {
+						// Client-executed tool search completed: emit as a completed copilotToolCall
+						this.toolCallInfo.delete(chunk.output_index);
+						onProgress({
+							text: '',
+							copilotToolCalls: [{
+								id: tsCall.call_id,
+								name: CUSTOM_TOOL_SEARCH_NAME,
+								arguments: JSON.stringify(tsCall.arguments ?? {}),
+							}],
+						});
+					}
 				} else if (chunk.item.type === 'reasoning') {
 					onProgress({
 						text: '',
@@ -588,15 +1087,66 @@ export class OpenAIResponsesProcessor {
 						id: chunk.item_id
 					}
 				});
-			case 'response.completed':
-				onProgress({ text: '', statefulMarker: chunk.response.id });
+			case 'response.completed': {
+				const capiChunk = chunk as CapiResponseCompletedEvent;
+				const normalizedOutput = keepLatestCompactionOutput(capiChunk.response.output, this.latestCompactionOutputIndex);
+				const latestCompactionOutput = getLatestCompactionOutput(normalizedOutput, this.latestCompactionOutputIndex);
+				const latestCompactionItem = latestCompactionOutput?.item;
+				const previousCompactionItem = this.latestCompactionItem;
+				if (latestCompactionItem) {
+					this.sawCompactionMessage = true;
+					this.latestCompactionOutputIndex = latestCompactionOutput.outputIndex;
+				}
+
+				const shouldEmitResolvedCompaction = latestCompactionItem && (
+					!previousCompactionItem ||
+					previousCompactionItem.id !== latestCompactionItem.id ||
+					previousCompactionItem.encrypted_content !== latestCompactionItem.encrypted_content
+				);
+				if (latestCompactionItem) {
+					this.latestCompactionItem = latestCompactionItem;
+				}
+				if (this.compactionThreshold !== undefined && this.sawCompactionMessage) {
+					const promptTokens = chunk.response.usage?.input_tokens ?? 0;
+					const totalTokens = chunk.response.usage?.total_tokens ?? 0;
+					sendResponsesApiCompactionTelemetry(this.telemetryService, {
+						outcome: 'compaction_returned',
+						headerRequestId: this.requestId,
+						gitHubRequestId: this.ghRequestId,
+						model: chunk.response.model,
+					}, {
+						compactThreshold: this.compactionThreshold,
+						promptTokens,
+						totalTokens,
+					});
+					this.logService.debug(`[responsesAPI_compaction] Compaction enabled. headerRequestId=${this.requestId}`);
+				} else if (this.compactionThreshold !== undefined && (chunk.response.usage?.input_tokens ?? 0) >= this.compactionThreshold) {
+					const promptTokens = chunk.response.usage?.input_tokens ?? 0;
+					const totalTokens = chunk.response.usage?.total_tokens ?? 0;
+					sendResponsesApiCompactionTelemetry(this.telemetryService, {
+						outcome: 'threshold_met_no_compaction',
+						headerRequestId: this.requestId,
+						gitHubRequestId: this.ghRequestId,
+						model: chunk.response.model,
+					}, {
+						compactThreshold: this.compactionThreshold,
+						promptTokens,
+						totalTokens,
+					});
+					this.logService.debug(`[responsesAPI_compaction] Compaction enabled but context not compacted after threshold was met. headerRequestId=${this.requestId}, gitHubRequestId=${this.ghRequestId}, promptTokens=${promptTokens}, totalTokens=${totalTokens}`);
+				}
+				onProgress({
+					text: '',
+					statefulMarker: chunk.response.id,
+					contextManagement: shouldEmitResolvedCompaction ? latestCompactionItem : undefined,
+				});
 				return {
 					blockFinished: true,
 					choiceIndex: 0,
 					model: chunk.response.model,
 					tokens: [],
 					telemetryData: this.telemetryData,
-					requestId: { headerRequestId: this.requestId, gitHubRequestId: this.ghRequestId, completionId: chunk.response.id, created: chunk.response.created_at, deploymentId: '', serverExperiments: '' },
+					requestId: { headerRequestId: this.requestId, gitHubRequestId: this.ghRequestId, completionId: chunk.response.id, created: chunk.response.created_at, deploymentId: '', serverExperiments: this.serverExperiments },
 					usage: {
 						prompt_tokens: chunk.response.usage?.input_tokens ?? 0,
 						completion_tokens: chunk.response.usage?.output_tokens ?? 0,
@@ -609,11 +1159,12 @@ export class OpenAIResponsesProcessor {
 							accepted_prediction_tokens: 0,
 							rejected_prediction_tokens: 0,
 						},
+						copilot_usage: capiChunk.copilot_usage?.total_nano_aiu !== undefined ? capiChunk.copilot_usage : undefined,
 					},
 					finishReason: FinishedCompletionReason.Stop,
 					message: {
 						role: Raw.ChatRole.Assistant,
-						content: chunk.response.output.map((item): Raw.ChatCompletionContentPart | undefined => {
+						content: normalizedOutput.map((item): Raw.ChatCompletionContentPart | undefined => {
 							if (item.type === 'message') {
 								return { type: Raw.ChatCompletionContentPartKind.Text, text: item.content.map(c => c.type === 'output_text' ? c.text : c.refusal).join('') };
 							} else if (item.type === 'image_generation_call' && item.result) {
@@ -622,6 +1173,7 @@ export class OpenAIResponsesProcessor {
 						}).filter(isDefined),
 					}
 				};
+			}
 		}
 	}
 }

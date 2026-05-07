@@ -10,7 +10,7 @@ import { ChatLocation } from '../../../platform/chat/common/commonTypes';
 import { getTextPart, roleToString } from '../../../platform/chat/common/globalStringUtils';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { IEditLogService } from '../../../platform/multiFileEdit/common/editLogService';
-import { ILoggedPendingRequest, IRequestLogger, LoggedInfoKind, LoggedRequestKind } from '../../../platform/requestLogger/node/requestLogger';
+import { ILoggedPendingRequest, IRequestLogger, LoggedInfoKind, LoggedRequestKind } from '../../../platform/requestLogger/common/requestLogger';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
 import { Disposable } from '../../../util/vs/base/common/lifecycle';
 import { IObservable } from '../../../util/vs/base/common/observableInternal';

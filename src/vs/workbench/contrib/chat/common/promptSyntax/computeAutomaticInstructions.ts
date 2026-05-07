@@ -12,7 +12,6 @@ import { basename, dirname } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -24,15 +23,26 @@ import { ILanguageModelToolsService, IToolData, VSCodeToolReference } from '../t
 import { PromptsConfig } from './config/config.js';
 import { isInClaudeAgentsFolder, isInClaudeRulesFolder, isPromptOrInstructionsFile } from './config/promptFileLocations.js';
 import { ParsedPromptFile } from './promptFileParser.js';
-import { AgentInstructionFileType, IAgentSkill, ICustomAgent, IInstructionFile, IPromptsService, newInstructionsCollectionEvent, type InstructionsCollectionEvent } from './service/promptsService.js';
-export type { InstructionsCollectionEvent } from './service/promptsService.js';
-export { newInstructionsCollectionEvent } from './service/promptsService.js';
+import { AgentInstructionFileType, IAgentSkill, ICustomAgent, IInstructionFile, IPromptsService, matchesSessionType, newInstructionsCollectionEvent, newInstructionsCollectionDebugInfo, type InstructionsCollectionEvent, type InstructionsCollectionDebugInfo } from './service/promptsService.js';
+export type { InstructionsCollectionEvent, InstructionsCollectionDebugInfo } from './service/promptsService.js';
+export { newInstructionsCollectionEvent, newInstructionsCollectionDebugInfo } from './service/promptsService.js';
 import { AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING, TROUBLESHOOT_SKILL_PATH } from './promptTypes.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
 import { ChatConfiguration, ChatModeKind, GeneralPurposeAgentName } from '../constants.js';
 import { UserSelectedTools } from '../participants/chatAgents.js';
 import { hash } from '../../../../../base/common/hash.js';
 import { IAgentPlugin, IAgentPluginService } from '../plugins/agentPluginService.js';
+
+export interface InstructionsCollectionResult {
+	readonly telemetryEvent: InstructionsCollectionEvent;
+	readonly debugInfo: InstructionsCollectionDebugInfo;
+}
+
+/**
+ * The result of the most recent {@link ComputeAutomaticInstructions.collect} call.
+ * Consumed by debug contributions for logging; not sent as telemetry.
+ */
+export let lastInstructionsCollectionResult: InstructionsCollectionResult | undefined;
 
 type InstructionsCollectionClassification = {
 	applyingInstructionsCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of instructions added via pattern matching.' };
@@ -55,11 +65,11 @@ export class ComputeAutomaticInstructions {
 		private readonly _modeKind: ChatModeKind,
 		private readonly _enabledTools: UserSelectedTools | undefined,
 		private readonly _enabledSubagents: (readonly string[]) | undefined,
+		private readonly _currentSessionType: string,
 		@IPromptsService private readonly _promptsService: IPromptsService,
 		@ILogService public readonly _logService: ILogService,
 		@ILabelService private readonly _labelService: ILabelService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IWorkspaceContextService private readonly _workspaceService: IWorkspaceContextService,
 		@IFileService private readonly _fileService: IFileService,
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
@@ -92,33 +102,33 @@ export class ComputeAutomaticInstructions {
 		this._logService.trace(`[InstructionsContextComputer] ${instructionFiles.length} instruction files available.`);
 
 		const telemetryEvent: InstructionsCollectionEvent = newInstructionsCollectionEvent();
+		const debugInfo: InstructionsCollectionDebugInfo = newInstructionsCollectionDebugInfo();
 		const context = this._getContext(variables);
 
 		// find instructions where the `applyTo` matches the attached context
-		await this.addApplyingInstructions(instructionFiles, context, variables, telemetryEvent, token);
+		await this.addApplyingInstructions(instructionFiles, context, variables, telemetryEvent, debugInfo, token);
 
 		// add all instructions referenced by all instruction files that are in the context
-		await this._addReferencedInstructions(variables, telemetryEvent, token);
+		await this._addReferencedInstructions(variables, telemetryEvent, debugInfo, token);
 
 		// get copilot instructions
-		await this._addAgentInstructions(variables, telemetryEvent, token);
+		await this._addAgentInstructions(variables, telemetryEvent, debugInfo, token);
 
-		const customizationsIndexVariable = await this._getCustomizationsIndex(instructionFiles, variables, telemetryEvent, token);
+		const customizationsIndexVariable = await this._getCustomizationsIndex(instructionFiles, variables, telemetryEvent, debugInfo, token);
 		if (customizationsIndexVariable) {
 			variables.add(customizationsIndexVariable);
 			telemetryEvent.listedInstructionsCount++;
 		}
 
-		telemetryEvent.durationInMillis = performance.now() - startTime;
+		debugInfo.durationInMillis = performance.now() - startTime;
 		this.sendTelemetry(telemetryEvent);
-		this._promptsService.lastInstructionsCollectionEvent = telemetryEvent;
+		lastInstructionsCollectionResult = { telemetryEvent, debugInfo };
 	}
 
 	private sendTelemetry(telemetryEvent: InstructionsCollectionEvent): void {
 		// Emit telemetry
 		telemetryEvent.totalInstructionsCount = telemetryEvent.agentInstructionsCount + telemetryEvent.referencedInstructionsCount + telemetryEvent.applyingInstructionsCount + telemetryEvent.listedInstructionsCount;
-		const { debugDetails: _d, durationInMillis: _dur, ...telemetryData } = telemetryEvent;
-		this._telemetryService.publicLog2<Omit<InstructionsCollectionEvent, 'debugDetails' | 'durationInMillis'>, InstructionsCollectionClassification>('instructionsCollected', telemetryData);
+		this._telemetryService.publicLog2<InstructionsCollectionEvent, InstructionsCollectionClassification>('instructionsCollected', telemetryEvent);
 	}
 
 	private async _logSkillLoadedTelemetry(skills: readonly IAgentSkill[]): Promise<void> {
@@ -171,28 +181,29 @@ export class ComputeAutomaticInstructions {
 	}
 
 	/** public for testing */
-	public async addApplyingInstructions(instructionFiles: readonly IInstructionFile[], context: { files: ResourceSet; instructions: ResourceSet }, variables: ChatRequestVariableSet, telemetryEvent: InstructionsCollectionEvent, token: CancellationToken): Promise<void> {
+	public async addApplyingInstructions(instructionFiles: readonly IInstructionFile[], context: { files: ResourceSet; instructions: ResourceSet }, variables: ChatRequestVariableSet, telemetryEvent: InstructionsCollectionEvent, debugInfo: InstructionsCollectionDebugInfo, token: CancellationToken): Promise<void> {
 		const includeApplyingInstructions = this._configurationService.getValue(PromptsConfig.INCLUDE_APPLYING_INSTRUCTIONS);
 		if (!includeApplyingInstructions && this._modeKind !== ChatModeKind.Edit) {
 			this._logService.trace(`[InstructionsContextComputer] includeApplyingInstructions is disabled and agent kind is not Edit. No applying instructions will be added.`);
 			return;
 		}
 
+		const currentSessionType = this._currentSessionType;
+
 		for (const instructionFile of instructionFiles) {
 			if (token.isCancellationRequested) {
 				return;
 			}
 
-			const { uri, pattern, when } = instructionFile;
+			const { uri, pattern } = instructionFile;
 
-			// If a `when` clause is present, evaluate it; otherwise always include.
-			if (when && !this._contextKeyService.contextMatchesRules(when)) {
+			if (!matchesSessionType(instructionFile.sessionTypes, currentSessionType)) {
 				continue;
 			}
 
 			if (!pattern) {
 				this._logService.trace(`[InstructionsContextComputer] No pattern (applyTo / paths) found: ${uri}`);
-				telemetryEvent.debugDetails.push({ category: 'skipped', name: basename(uri).toString(), uri, reason: localize('debugDetail.noPattern', 'no applyTo pattern') });
+				debugInfo.debugDetails.push({ category: 'skipped', name: basename(uri).toString(), uri, reason: localize('debugDetail.noPattern', 'no applyTo pattern') });
 				continue;
 			}
 
@@ -201,7 +212,7 @@ export class ComputeAutomaticInstructions {
 			if (context.instructions.has(uri)) {
 				// the instruction file is already part of the input or has already been processed
 				this._logService.trace(`[InstructionsContextComputer] Skipping already processed instruction file: ${uri}`);
-				telemetryEvent.debugDetails.push({ category: 'skipped', name: basename(uri).toString(), uri, reason: localize('debugDetail.alreadyProcessed', 'already processed') });
+				debugInfo.debugDetails.push({ category: 'skipped', name: basename(uri).toString(), uri, reason: localize('debugDetail.alreadyProcessed', 'already processed') });
 				continue;
 			}
 
@@ -210,18 +221,18 @@ export class ComputeAutomaticInstructions {
 				this._logService.trace(`[InstructionsContextComputer] Match for ${uri} with ${match.pattern}${match.file ? ` for file ${match.file}` : ''}`);
 
 				const reason = !match.file ?
-					localize('instruction.file.reason.allFiles', 'Automatically attached as pattern is **') :
-					localize('instruction.file.reason.specificFile', 'Automatically attached as pattern {0} matches {1}', pattern, this._labelService.getUriLabel(match.file, { relative: true }));
+					localize('instruction.file.reason.allFiles', 'automatically attached as pattern is **') :
+					localize('instruction.file.reason.specificFile', 'automatically attached as pattern {0} matches {1}', pattern, this._labelService.getUriLabel(match.file, { relative: true }));
 
 				variables.add(toPromptFileVariableEntry(uri, PromptFileVariableKind.Instruction, reason, true));
 				telemetryEvent.applyingInstructionsCount++;
-				telemetryEvent.debugDetails.push({ category: 'applying', name: basename(uri).toString(), uri, reason });
+				debugInfo.debugDetails.push({ category: 'applying', name: basename(uri).toString(), uri, reason });
 				if (isClaudeRules) {
 					telemetryEvent.claudeRulesCount++;
 				}
 			} else {
 				this._logService.trace(`[InstructionsContextComputer] No match for ${uri} with ${pattern}`);
-				telemetryEvent.debugDetails.push({ category: 'skipped', name: basename(uri).toString(), uri, reason: localize('debugDetail.noMatch', "applyTo '{0}' did not match any attached files", pattern) });
+				debugInfo.debugDetails.push({ category: 'skipped', name: basename(uri).toString(), uri, reason: localize('debugDetail.noMatch', "applyTo '{0}' did not match any attached files", pattern) });
 			}
 		}
 	}
@@ -243,7 +254,7 @@ export class ComputeAutomaticInstructions {
 		return { files, instructions };
 	}
 
-	private async _addAgentInstructions(variables: ChatRequestVariableSet, telemetryEvent: InstructionsCollectionEvent, token: CancellationToken): Promise<void> {
+	private async _addAgentInstructions(variables: ChatRequestVariableSet, telemetryEvent: InstructionsCollectionEvent, debugInfo: InstructionsCollectionDebugInfo, token: CancellationToken): Promise<void> {
 		const logger = {
 			logInfo: (message: string) => this._logService.trace(`[InstructionsContextComputer] ${message}`)
 		};
@@ -263,13 +274,13 @@ export class ComputeAutomaticInstructions {
 			if (type === AgentInstructionFileType.claudeMd) {
 				telemetryEvent.claudeMdCount++;
 			}
-			telemetryEvent.debugDetails.push({ category: 'applying', name: basename(uri).toString(), uri, reason: localize('debugDetail.agentInstruction', 'always added') });
+			debugInfo.debugDetails.push({ category: 'applying', name: basename(uri).toString(), uri, reason: localize('debugDetail.agentInstruction', 'always added') });
 			logger.logInfo(`Agent instruction file added: ${uri.toString()}`);
 		}
 
 		// Process referenced instructions from copilot files (maintaining original behavior)
 		if (copilotEntries.length > 0) {
-			await this._addReferencedInstructions(copilotEntries, telemetryEvent, token);
+			await this._addReferencedInstructions(copilotEntries, telemetryEvent, debugInfo, token);
 			for (const entry of copilotEntries.asArray()) {
 				variables.add(entry);
 			}
@@ -328,9 +339,11 @@ export class ComputeAutomaticInstructions {
 		return undefined;
 	}
 
-	private async _getCustomizationsIndex(instructionFiles: readonly IInstructionFile[], _existingVariables: ChatRequestVariableSet, telemetryEvent: InstructionsCollectionEvent, token: CancellationToken): Promise<IPromptTextVariableEntry | undefined> {
+	private async _getCustomizationsIndex(instructionFiles: readonly IInstructionFile[], _existingVariables: ChatRequestVariableSet, telemetryEvent: InstructionsCollectionEvent, debugInfo: InstructionsCollectionDebugInfo, token: CancellationToken): Promise<IPromptTextVariableEntry | undefined> {
 		const readTool = this._getTool('readFile');
 		const runSubagentTool = this._getTool(VSCodeToolReference.runSubagent);
+		const skillTool = this._getTool('skill');
+		const currentSessionType = this._currentSessionType;
 
 		const remoteEnv = await this._remoteAgentService.getEnvironment();
 		const remoteOS = remoteEnv?.os;
@@ -345,19 +358,20 @@ export class ComputeAutomaticInstructions {
 			entries.push('<instructions>');
 			entries.push('Here is a list of instruction files that contain rules for working with this codebase.');
 			entries.push('These files are important for understanding the codebase structure, conventions, and best practices.');
-			entries.push('Please make sure to follow the rules specified in these files when working with the codebase.');
-			entries.push(`If the file is not already available as attachment, use the ${readTool.variable} tool to acquire it.`);
-			entries.push('Make sure to acquire the instructions before working with the codebase.');
+			entries.push('When an instruction file applies to your task (based on its description or applyTo pattern), follow the rules specified in it.');
+			entries.push(`If the file content is not already included in the context, use the ${readTool.variable} tool to read it before proceeding. Use the exact value from the <file> element as-is with the tool; do not add or remove prefixes or otherwise modify it.`);
+			entries.push('Only load instruction files when they are relevant to the current task. Do not eagerly load all instructions upfront.');
+			entries.push('When modifying or creating files, check for instructions whose applyTo pattern matches the file path and follow them.');
 			let hasContent = false;
 			for (const instruction of instructionFiles) {
-				if (instruction.when && !this._contextKeyService.contextMatchesRules(instruction.when)) {
+				if (!matchesSessionType(instruction.sessionTypes, currentSessionType)) {
 					continue;
 				}
 				entries.push('<instruction>');
+				entries.push(`<file>${filePath(instruction.uri)}</file>`);
 				if (instruction.description) {
 					entries.push(`<description>${instruction.description}</description>`);
 				}
-				entries.push(`<file>${filePath(instruction.uri)}</file>`);
 				if (instruction.pattern) {
 					entries.push(`<applyTo>${instruction.pattern}</applyTo>`);
 				}
@@ -370,8 +384,8 @@ export class ComputeAutomaticInstructions {
 				const folderName = this._labelService.getUriLabel(dirname(uri), { relative: true });
 				const description = folderName.trim().length === 0 ? localize('instruction.file.description.agentsmd.root', 'Instructions for the workspace') : localize('instruction.file.description.agentsmd.folder', 'Instructions for folder \'{0}\'', folderName);
 				entries.push('<instruction>');
-				entries.push(`<description>${description}</description>`);
 				entries.push(`<file>${filePath(uri)}</file>`);
+				entries.push(`<description>${description}</description>`);
 				entries.push('</instruction>');
 				hasContent = true;
 
@@ -385,20 +399,24 @@ export class ComputeAutomaticInstructions {
 
 			const agentSkills = await this._promptsService.findAgentSkills(token);
 			// Filter out skills with disableModelInvocation=true (they can only be triggered manually via /name)
-			// Also filter by `when` clause using the scoped context key service
+			// Also filter by session type in consumers outside the prompts service
 			// Also filter out the troubleshoot skill when  agent debug log file logging setting is disabled
 			const isFileLoggingEnabled = this._configurationService.getValue<boolean>(AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING);
 			const modelInvocableSkills = agentSkills?.filter(skill => {
-				if (skill.disableModelInvocation) {
-					telemetryEvent.debugDetails.push({ category: 'skipped', name: skill.name, uri: skill.uri, reason: localize('debugDetail.skillNotModelInvocable', 'model invocation disabled') });
+				if (!skill.description) {
+					debugInfo.debugDetails.push({ category: 'skipped', name: skill.name, uri: skill.uri, reason: localize('debugDetail.skillNoDescription', 'no description for model invocation') });
 					return false;
 				}
-				if (skill.when && !this._contextKeyService.contextMatchesRules(skill.when)) {
-					telemetryEvent.debugDetails.push({ category: 'skipped', name: skill.name, uri: skill.uri, reason: localize('debugDetail.skillWhenClause', "when clause not satisfied") });
+				if (skill.disableModelInvocation) {
+					debugInfo.debugDetails.push({ category: 'skipped', name: skill.name, uri: skill.uri, reason: localize('debugDetail.skillNotModelInvocable', 'model invocation disabled') });
+					return false;
+				}
+				if (!matchesSessionType(skill.sessionTypes, currentSessionType)) {
+					debugInfo.debugDetails.push({ category: 'skipped', name: skill.name, uri: skill.uri, reason: localize('debugDetail.skillSessionType', 'session type not matched') });
 					return false;
 				}
 				if (!isFileLoggingEnabled && skill.uri.path.includes(TROUBLESHOOT_SKILL_PATH)) {
-					telemetryEvent.debugDetails.push({ category: 'skipped', name: skill.name, uri: skill.uri, reason: localize('debugDetail.skillDebugDisabled', 'debug logging disabled') });
+					debugInfo.debugDetails.push({ category: 'skipped', name: skill.name, uri: skill.uri, reason: localize('debugDetail.skillDebugDisabled', 'debug logging disabled') });
 					return false;
 				}
 				return true;
@@ -407,38 +425,82 @@ export class ComputeAutomaticInstructions {
 				// Log per-skill telemetry for each skill loaded into context
 				this._logSkillLoadedTelemetry(modelInvocableSkills);
 				for (const skill of modelInvocableSkills) {
-					telemetryEvent.debugDetails.push({ category: 'skill', name: skill.name, uri: skill.uri, reason: skill.storage });
+					debugInfo.debugDetails.push({ category: 'skill', name: skill.name, uri: skill.uri, reason: skill.storage });
 				}
 
 				const useSkillAdherencePrompt = this._configurationService.getValue(PromptsConfig.USE_SKILL_ADHERENCE_PROMPT);
+				// When the skill tool is available, direct the model to use it by name
+				// instead of reading SKILL.md files directly. This keeps file paths out of
+				// the listing and routes through the proper skill loading pipeline.
+				const skillLoadTool = skillTool ?? readTool;
 				entries.push('<skills>');
 				if (useSkillAdherencePrompt) {
 					// Stronger skill adherence prompt for experimental feature
 					entries.push('Skills provide specialized capabilities, domain knowledge, and refined workflows for producing high-quality outputs. Each skill folder contains tested instructions for specific domains like testing strategies, API design, or performance optimization. Multiple skills can be combined when a task spans different domains.');
-					entries.push(`BLOCKING REQUIREMENT: When a skill applies to the user's request, you MUST load and read the SKILL.md file IMMEDIATELY as your first action, BEFORE generating any other response or taking action on the task. Use ${readTool.variable} to load the relevant skill(s).`);
-					entries.push('NEVER just mention or reference a skill in your response without actually reading it first. If a skill is relevant, load it before proceeding.');
+					if (skillTool) {
+						entries.push(`BLOCKING REQUIREMENT: When a skill applies to the user's request, you MUST invoke it IMMEDIATELY as your first action, BEFORE generating any other response or taking action on the task. Use ${skillTool.variable} with the skill name to load the relevant skill(s).`);
+					} else {
+						entries.push(`BLOCKING REQUIREMENT: When a skill applies to the user's request, you MUST load and read the SKILL.md file IMMEDIATELY as your first action, BEFORE generating any other response or taking action on the task. Use ${readTool.variable} to load the relevant skill(s).`);
+					}
+					entries.push('NEVER just mention or reference a skill in your response without actually loading it first. If a skill is relevant, load it before proceeding.');
 					entries.push('How to determine if a skill applies:');
 					entries.push('1. Review the available skills below and match their descriptions against the user\'s request');
 					entries.push('2. If any skill\'s domain overlaps with the task, load that skill immediately');
 					entries.push('3. When multiple skills apply (e.g., a flowchart in documentation), load all relevant skills');
 					entries.push('Examples:');
-					entries.push(`- "Help me write unit tests for this module" -> Load the testing skill via ${readTool.variable} FIRST, then proceed`);
-					entries.push(`- "Optimize this slow function" -> Load the performance-profiling skill via ${readTool.variable} FIRST, then proceed`);
+					entries.push(`- "Help me write unit tests for this module" -> Load the testing skill via ${skillLoadTool.variable} FIRST, then proceed`);
+					entries.push(`- "Optimize this slow function" -> Load the performance-profiling skill via ${skillLoadTool.variable} FIRST, then proceed`);
 					entries.push(`- "Add a discount code field to checkout" -> Load both the checkout-flow and form-validation skills FIRST`);
 					entries.push('Available skills:');
 				} else {
-					entries.push('Here is a list of skills that contain domain specific knowledge on a variety of topics.');
-					entries.push('Each skill comes with a description of the topic and a file path that contains the detailed instructions.');
-					entries.push(`When a user asks you to perform a task that falls within the domain of a skill, use the ${readTool.variable} tool to acquire the full instructions from the file URI.`);
-				}
-				for (const skill of modelInvocableSkills) {
-					entries.push('<skill>');
-					entries.push(`<name>${skill.name}</name>`);
-					if (skill.description) {
-						entries.push(`<description>${skill.description}</description>`);
+					if (skillTool) {
+						entries.push('Here is a list of skills that contain domain specific knowledge on a variety of topics.');
+						entries.push(`When a user asks you to perform a task that falls within the domain of a skill, use the ${skillTool.variable} tool with the skill name to load it.`);
+					} else {
+						entries.push('Here is a list of skills that contain domain specific knowledge on a variety of topics.');
+						entries.push('Each skill comes with a description of the topic and a file path that contains the detailed instructions.');
+						entries.push(`When a user asks you to perform a task that falls within the domain of a skill, use the ${readTool.variable} tool to acquire the full instructions from the file URI.`);
 					}
-					entries.push(`<file>${filePath(skill.uri)}</file>`);
-					entries.push('</skill>');
+				}
+				const SKILL_DESCRIPTION_CHAR_BUDGET = 15000;
+				const TRUNCATED_NAMES_CHAR_BUDGET = 5000;
+				let skillCharCount = 0;
+				let truncatedAtIndex = modelInvocableSkills.length;
+				for (let i = 0; i < modelInvocableSkills.length; i++) {
+					const skill = modelInvocableSkills[i];
+					const skillEntry = [`<skill>`, `<name>${skill.name}</name>`];
+					if (skill.description) {
+						skillEntry.push(`<description>${skill.description}</description>`);
+					}
+					skillEntry.push(`<file>${filePath(skill.uri)}</file>`);
+					skillEntry.push(`</skill>`);
+					const entryLength = skillEntry.join('\n').length + 1; // +1 for joining newline
+					if (skillTool && skillCharCount + entryLength > SKILL_DESCRIPTION_CHAR_BUDGET) {
+						truncatedAtIndex = i;
+						break;
+					}
+					skillCharCount += entryLength;
+					entries.push(...skillEntry);
+				}
+				// When skills are truncated by the character budget, include remaining
+				// skill names so the model can still discover and invoke them.
+				if (truncatedAtIndex < modelInvocableSkills.length) {
+					const truncatedSkills = modelInvocableSkills.slice(truncatedAtIndex);
+					const names: string[] = [];
+					let nameListLength = 0;
+					for (const skill of truncatedSkills) {
+						const addition = (names.length > 0 ? 2 : 0) + skill.name.length;
+						if (nameListLength + addition > TRUNCATED_NAMES_CHAR_BUDGET) {
+							break;
+						}
+						nameListLength += addition;
+						names.push(skill.name);
+					}
+					const remaining = truncatedSkills.length - names.length;
+					const nameList = names.join(', ');
+					entries.push(remaining > 0
+						? `Additional skills available (invoke by name): ${nameList}... and ${remaining} more`
+						: `Additional skills available (invoke by name): ${nameList}`);
 				}
 				entries.push('</skills>', '', ''); // add trailing newline
 			}
@@ -446,16 +508,15 @@ export class ComputeAutomaticInstructions {
 		if (runSubagentTool) {
 			const generalPurposeAgentEnabled = !!this._configurationService.getValue<boolean>(ChatConfiguration.GeneralPurposeAgentEnabled);
 
-			const customAgentsEnabled = !!this._configurationService.getValue(ChatConfiguration.SubagentToolCustomAgents);
 			const canUseAgent = (() => {
 				if (!this._enabledSubagents || this._enabledSubagents.includes('*')) {
-					return (agent: ICustomAgent) => agent.visibility.agentInvocable && (!agent.when || this._contextKeyService.contextMatchesRules(agent.when));
+					return (agent: ICustomAgent) => agent.visibility.agentInvocable && matchesSessionType(agent.sessionTypes, currentSessionType);
 				} else {
 					const subagents = this._enabledSubagents;
-					return (agent: ICustomAgent) => subagents.includes(agent.name) && (!agent.when || this._contextKeyService.contextMatchesRules(agent.when));
+					return (agent: ICustomAgent) => subagents.includes(agent.name) && matchesSessionType(agent.sessionTypes, currentSessionType);
 				}
 			})();
-			const agents = customAgentsEnabled ? await this._promptsService.getCustomAgents(token) : [];
+			const agents = (await this._promptsService.getCustomAgents(token)).filter(a => a.enabled);
 
 			if (generalPurposeAgentEnabled || agents.length > 0) {
 				entries.push('<agents>');
@@ -482,12 +543,12 @@ export class ComputeAutomaticInstructions {
 							entries.push(`<argumentHint>${agent.argumentHint}</argumentHint>`);
 						}
 						entries.push('</agent>');
-						telemetryEvent.debugDetails.push({ category: 'custom-agent', name: agent.name, uri: agent.uri });
+						debugInfo.debugDetails.push({ category: 'custom-agent', name: agent.name, uri: agent.uri });
 						if (isInClaudeAgentsFolder(agent.uri)) {
 							telemetryEvent.claudeAgentsCount++;
 						}
 					} else {
-						telemetryEvent.debugDetails.push({ category: 'skipped', name: agent.name, uri: agent.uri, reason: localize('debugDetail.agentNotInvocable', 'not invocable by model') });
+						debugInfo.debugDetails.push({ category: 'skipped', name: agent.name, uri: agent.uri, reason: localize('debugDetail.agentNotInvocable', 'not invocable by model') });
 					}
 				}
 				entries.push('</agents>', '', ''); // add trailing newline
@@ -510,10 +571,11 @@ export class ComputeAutomaticInstructions {
 		};
 		collectToolReference(readTool);
 		collectToolReference(runSubagentTool);
+		collectToolReference(skillTool);
 		return toPromptTextVariableEntry(content, true, toolReferences);
 	}
 
-	private async _addReferencedInstructions(attachedContext: ChatRequestVariableSet, telemetryEvent: InstructionsCollectionEvent, token: CancellationToken): Promise<void> {
+	private async _addReferencedInstructions(attachedContext: ChatRequestVariableSet, telemetryEvent: InstructionsCollectionEvent, debugInfo: InstructionsCollectionDebugInfo, token: CancellationToken): Promise<void> {
 		const includeReferencedInstructions = this._configurationService.getValue(PromptsConfig.INCLUDE_REFERENCED_INSTRUCTIONS);
 		if (!includeReferencedInstructions && this._modeKind !== ChatModeKind.Edit) {
 			this._logService.trace(`[InstructionsContextComputer] includeReferencedInstructions is disabled and agent kind is not Edit. No referenced instructions will be added.`);
@@ -556,7 +618,7 @@ export class ComputeAutomaticInstructions {
 							const reason = localize('instruction.file.reason.referenced', 'Referenced by {0}', basename(next));
 							attachedContext.add(toPromptFileVariableEntry(uri, PromptFileVariableKind.InstructionReference, reason, true));
 							telemetryEvent.referencedInstructionsCount++;
-							telemetryEvent.debugDetails.push({ category: 'referenced', name: basename(uri).toString(), uri, reason });
+							debugInfo.debugDetails.push({ category: 'referenced', name: basename(uri).toString(), uri, reason });
 							this._logService.trace(`[InstructionsContextComputer] ${uri.toString()} added, referenced by ${next.toString()}`);
 						}
 					}

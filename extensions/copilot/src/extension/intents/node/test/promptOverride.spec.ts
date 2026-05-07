@@ -9,7 +9,7 @@ import type { LanguageModelToolInformation } from 'vscode';
 import { MockFileSystemService } from '../../../../platform/filesystem/node/test/mockFileSystemService';
 import { TestLogService } from '../../../../platform/testing/common/testLogService';
 import { URI } from '../../../../util/vs/base/common/uri';
-import { applyPromptOverrides, resetPromptOverrideWarnings } from '../promptOverride';
+import { applyConfiguredPromptOverrides, applyPromptOverrides, applyPromptOverridesFromString, resetPromptOverrideWarnings } from '../promptOverride';
 
 function makeMessages(...specs: Array<{ role: Raw.ChatRole; content: string }>): Raw.ChatMessage[] {
 	return specs.map(s => ({
@@ -108,6 +108,43 @@ describe('applyPromptOverrides', () => {
 		expect(result.tools[1].description).toBe('Default description for tool_b');
 	});
 
+	test('applies inline system prompt override', () => {
+		const result = applyPromptOverridesFromString(
+			'systemPrompt: "Inline system prompt"',
+			makeMessages(
+				{ role: Raw.ChatRole.System, content: 'Old system' },
+				{ role: Raw.ChatRole.User, content: 'Hello' },
+			),
+			makeTools('tool_a'),
+			logService,
+		);
+
+		expect(result.messages[0]).toEqual({
+			role: Raw.ChatRole.System,
+			content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Inline system prompt' }],
+		});
+		expect(result.messages[1]).toEqual({
+			role: Raw.ChatRole.User,
+			content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Hello' }],
+		});
+	});
+
+	test('applies inline tool description overrides', () => {
+		const result = applyPromptOverridesFromString(
+			[
+				'toolDescriptions:',
+				'  tool_a:',
+				'    description: "Inline description"',
+			].join('\n'),
+			makeMessages(),
+			makeTools('tool_a', 'tool_b'),
+			logService,
+		);
+
+		expect(result.tools[0].description).toBe('Inline description');
+		expect(result.tools[1].description).toBe('Default description for tool_b');
+	});
+
 	test('applies both system prompt and tool description overrides', async () => {
 		const fileUri = URI.file('/override.yaml');
 		fileSystemService.mockFile(fileUri, [
@@ -147,6 +184,18 @@ describe('applyPromptOverrides', () => {
 
 		expect(result.messages).toEqual(messages);
 		expect(result.tools).toEqual(tools);
+	});
+
+	test('returns unchanged and logs warning on invalid inline YAML', () => {
+		const warnSpy = vi.spyOn(logService, 'warn');
+		const messages = makeMessages({ role: Raw.ChatRole.System, content: 'original' });
+		const tools = makeTools('tool_a');
+
+		const result = applyPromptOverridesFromString('{{{{not valid yaml', messages, tools, logService);
+
+		expect(result.messages).toEqual(messages);
+		expect(result.tools).toEqual(tools);
+		expect(warnSpy).toHaveBeenCalledOnce();
 	});
 
 	test('silently ignores tool names not found in available tools', async () => {
@@ -201,5 +250,29 @@ describe('applyPromptOverrides', () => {
 		fileSystemService.mockError(fileUri, new Error('ENOENT'));
 		await applyPromptOverrides(fileUri, messages, tools, fileSystemService, logService);
 		expect(warnSpy).toHaveBeenCalledTimes(2);
+	});
+
+	test('prefers inline prompt override text over prompt override file', async () => {
+		const fileUri = URI.file('/override.yaml');
+		fileSystemService.mockFile(fileUri, 'systemPrompt: "From file"');
+		const traceSpy = vi.spyOn(logService, 'trace');
+
+		const result = await applyConfiguredPromptOverrides(
+			'systemPrompt: "From inline"',
+			fileUri.fsPath,
+			makeMessages(
+				{ role: Raw.ChatRole.System, content: 'Old system' },
+				{ role: Raw.ChatRole.User, content: 'Hello' },
+			),
+			makeTools('tool_a'),
+			fileSystemService,
+			logService,
+		);
+
+		expect(result.messages[0]).toEqual({
+			role: Raw.ChatRole.System,
+			content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'From inline' }],
+		});
+		expect(traceSpy).toHaveBeenCalledWith('[PromptOverride] Both inline prompt override text and prompt override file are configured; using inline prompt override text');
 	});
 });

@@ -843,7 +843,7 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 		}
 		const markdown = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
 
-		markdown.appendMarkdown(`**${this.extension.displayName}**`);
+		markdown.appendMarkdown(`**`).appendText(this.extension.displayName).appendMarkdown(`**`);
 		if (semver.valid(this.extension.version)) {
 			markdown.appendMarkdown(`&nbsp;<span style="background-color:#8080802B;">**&nbsp;_v${this.extension.version}${(this.extension.isPreReleaseVersion ? ' (pre-release)' : '')}_**&nbsp;</span>`);
 		}
@@ -894,7 +894,7 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 		}
 
 		if (this.extension.description) {
-			markdown.appendMarkdown(`${this.extension.description}`);
+			markdown.appendText(this.extension.description);
 			markdown.appendText(`\n`);
 		}
 

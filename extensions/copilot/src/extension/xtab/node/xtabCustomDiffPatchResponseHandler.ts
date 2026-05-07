@@ -12,6 +12,7 @@ import { URI } from '../../../util/vs/base/common/uri';
 import { LineReplacement } from '../../../util/vs/editor/common/core/edits/lineEdit';
 import { LineRange } from '../../../util/vs/editor/common/core/ranges/lineRange';
 import { OffsetRange } from '../../../util/vs/editor/common/core/ranges/offsetRange';
+import { FetchStreamError } from '../common/fetchStreamError';
 import { toUniquePath } from '../common/promptCraftingUtils';
 import { ResponseTags } from '../common/tags';
 import { CurrentDocument } from '../common/xtabCurrentDocument';
@@ -70,16 +71,11 @@ export class XtabCustomDiffPatchResponseHandler {
 		workspaceRoot: URI | undefined,
 		window: OffsetRange | undefined,
 		parentTracer: ILogger,
-		getFetchFailure?: () => NoNextEditReason | undefined,
 	): AsyncGenerator<StreamedEdit, NoNextEditReason, void> {
 		const tracer = parentTracer.createSubLogger(['XtabCustomDiffPatchResponseHandler', 'handleResponse']);
 		const activeDocRelativePath = toUniquePath(activeDocumentId, workspaceRoot?.path);
 		try {
 			for await (const edit of XtabCustomDiffPatchResponseHandler.extractEdits(linesStream)) {
-				const fetchFailure = getFetchFailure?.();
-				if (fetchFailure) {
-					return fetchFailure;
-				}
 				const targetDocument = edit.filePath === activeDocRelativePath
 					? activeDocumentId
 					: XtabCustomDiffPatchResponseHandler.resolveTargetDocument(edit.filePath, workspaceRoot);
@@ -95,6 +91,9 @@ export class XtabCustomDiffPatchResponseHandler {
 				} satisfies StreamedEdit;
 			}
 		} catch (e: unknown) {
+			if (e instanceof FetchStreamError) {
+				return e.reason;
+			}
 			const err = ErrorUtils.fromUnknown(e);
 			return new NoNextEditReason.Unexpected(err);
 		}

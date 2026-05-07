@@ -10,7 +10,8 @@ import { ChatFetchResponseType } from '../../../platform/chat/common/commonTypes
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { TextDocumentSnapshot } from '../../../platform/editing/common/textDocumentSnapshot';
 import { CapturingToken } from '../../../platform/requestLogger/common/capturingToken';
-import { getCurrentCapturingToken, IRequestLogger } from '../../../platform/requestLogger/node/requestLogger';
+import { IRequestLogger } from '../../../platform/requestLogger/common/requestLogger';
+import { getCurrentCapturingToken } from '../../../platform/requestLogger/node/requestLogger';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { IWorkspaceService } from '../../../platform/workspace/common/workspaceService';
 import { ChatResponseStreamImpl } from '../../../util/common/chatResponseStreamImpl';
@@ -22,7 +23,7 @@ import { Conversation, Turn } from '../../prompt/common/conversation';
 import { IBuildPromptContext } from '../../prompt/common/intents';
 import { SearchSubagentToolCallingLoop } from '../../prompt/node/searchSubagentToolCallingLoop';
 import { ToolName } from '../common/toolNames';
-import { CopilotToolMode, ICopilotTool, ToolRegistry } from '../common/toolsRegistry';
+import { CopilotToolMode, ICopilotTool, ICopilotToolCtor, ToolRegistry } from '../common/toolsRegistry';
 
 export interface ISearchSubagentParams {
 
@@ -32,6 +33,22 @@ export interface ISearchSubagentParams {
 	description: string;
 	/** Detailed instructions regarding the search subagent's objective */
 	details: string;
+	/**
+	 * Optional thoroughness level that controls how many tool-call turns the subagent is allowed.
+	 * - 'normal' → base limit × 1    (quick & balanced; sufficient for most cases)
+	 * - 'deep'   → base limit × 2    (broader exploration; only use when normal is not enough)
+	 * Only active when config.github.copilot.chat.searchSubagent.thoroughnessEnabled is true.
+	 */
+	thoroughness?: 'normal' | 'deep';
+}
+
+const THOROUGHNESS_MULTIPLIERS: Record<NonNullable<ISearchSubagentParams['thoroughness']>, number> = {
+	normal: 1,
+	deep: 2,
+};
+
+function computeToolCallLimitForThoroughness(baseLimit: number, thoroughness: NonNullable<ISearchSubagentParams['thoroughness']>): number {
+	return Math.max(1, Math.round(baseLimit * THOROUGHNESS_MULTIPLIERS[thoroughness]));
 }
 
 class SearchSubagentTool implements ICopilotTool<ISearchSubagentParams> {
@@ -46,6 +63,30 @@ class SearchSubagentTool implements ICopilotTool<ISearchSubagentParams> {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IExperimentationService private readonly experimentationService: IExperimentationService
 	) { }
+
+	alternativeDefinition(tool: vscode.LanguageModelToolInformation): vscode.LanguageModelToolInformation {
+		const thoroughnessEnabled = this.configurationService.getExperimentBasedConfig(ConfigKey.Advanced.SearchSubagentThoroughnessEnabled, this.experimentationService);
+		if (!thoroughnessEnabled) {
+			return tool;
+		}
+
+		return {
+			...tool,
+			description: tool.description
+				+ '\n- thoroughness (optional): Search thoroughness — \'normal\' (balanced and quick, sufficient for most cases) or \'deep\' (more turns, broader exploration; only use when normal is clearly not enough).',
+			inputSchema: {
+				...tool.inputSchema as Record<string, unknown>,
+				properties: {
+					...(tool.inputSchema as { properties: Record<string, unknown> }).properties,
+					thoroughness: {
+						type: 'string',
+						enum: ['normal', 'deep'],
+						description: 'Controls the search thoroughness and turn limit. \'normal\' is balanced and quick, sufficient for most searches. Only use \'deep\' when the task clearly requires broader exploration across many files.',
+					},
+				},
+			},
+		};
+	}
 	async invoke(options: vscode.LanguageModelToolInvocationOptions<ISearchSubagentParams>, token: vscode.CancellationToken) {
 		// Get the current working directory from workspace folders
 		const workspaceFolders = this.workspaceService.getWorkspaceFolders();
@@ -69,15 +110,24 @@ class SearchSubagentTool implements ICopilotTool<ISearchSubagentParams> {
 		const subAgentInvocationId = generateUuid();
 
 		const toolCallLimit = this.configurationService.getExperimentBasedConfig(ConfigKey.Advanced.SearchSubagentToolCallLimit, this.experimentationService);
+		const thoroughnessEnabled = this.configurationService.getExperimentBasedConfig(ConfigKey.Advanced.SearchSubagentThoroughnessEnabled, this.experimentationService);
+
+		const effectiveToolCallLimit = thoroughnessEnabled && options.input.thoroughness
+			? computeToolCallLimitForThoroughness(toolCallLimit, options.input.thoroughness)
+			: toolCallLimit;
 
 		const loop = this.instantiationService.createInstance(SearchSubagentToolCallingLoop, {
-			toolCallLimit,
+			toolCallLimit: effectiveToolCallLimit,
 			conversation: new Conversation(parentSessionId, [new Turn(generateUuid(), { type: 'user', message: searchInstruction })]),
 			request: request,
 			location: request.location,
 			promptText: options.input.query,
 			subAgentInvocationId: subAgentInvocationId,
 			parentToolCallId: options.chatStreamToolCallId,
+			parentHeaderRequestId: this._inputContext?.parentHeaderRequestId,
+			parentModelCallId: this._inputContext?.parentModelCallId,
+			topLevelTurnId: this._inputContext?.requestId,
+			thoroughness: thoroughnessEnabled ? options.input.thoroughness : undefined,
 		});
 
 		const stream = this._inputContext?.stream && ChatResponseStreamImpl.filter(
@@ -204,4 +254,14 @@ class SearchSubagentTool implements ICopilotTool<ISearchSubagentParams> {
 	}
 }
 
+/**
+ * Identical to SearchSubagentTool but registered under the `explore_subagent` name.
+ * Conditionally enabled via package.json `when` clause when the Explore agent is disabled.
+ */
+class ExploreSubagentTool extends (SearchSubagentTool as new (...args: never[]) => SearchSubagentTool) {
+	public static readonly toolName = ToolName.ExploreSubagent;
+	public static readonly nonDeferred = true;
+}
+
 ToolRegistry.registerTool(SearchSubagentTool);
+ToolRegistry.registerTool(ExploreSubagentTool as unknown as ICopilotToolCtor);

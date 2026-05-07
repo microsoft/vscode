@@ -148,9 +148,10 @@ steps:
     continueOnError: true
     condition: succeededOrFailed()
 
-  - template: ../../copilot/test-integration-steps.yml@self
-    parameters:
-      OS: win32
+  - ${{ if eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true) }}:
+    - template: ../../copilot/test-integration-steps.yml@self
+      parameters:
+        OS: win32
 
   - task: PublishTestResults@2
     displayName: Publish Tests Results

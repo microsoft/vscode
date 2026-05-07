@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { IObservable } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
-import { IChatSessionFileChange } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { IChatSessionFileChange, IChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 
 export interface ISessionType {
 	/** Unique identifier (e.g., 'copilot-cli', 'copilot-cloud', 'claude-code'). */
@@ -40,7 +41,26 @@ export const CopilotCloudSessionType: ISessionType = {
 	icon: Codicon.cloud,
 };
 
-export const GITHUB_PR_FILE_SCHEME = 'copilot-pr';
+/** Session type ID for Claude Code sessions. */
+export const CLAUDE_CODE_SESSION_TYPE = 'claude-code';
+
+/** Claude Code session type — local agent powered by Claude. */
+export const ClaudeCodeSessionType: ISessionType = {
+	id: CLAUDE_CODE_SESSION_TYPE,
+	label: localize('claudeCode', "Claude"),
+	icon: Codicon.claude,
+};
+
+/**
+ * Returns whether the given session type represents a workspace-backed
+ * agent (e.g. Copilot CLI, Claude Code) that operates on a worktree or
+ * repository — regardless of whether the agent runs locally or remotely.
+ * TODO: Somehow make this contributable so we don't have to hardcode session types here.
+ */
+export function isWorkspaceAgentSessionType(sessionType: string | undefined): boolean {
+	return sessionType === COPILOT_CLI_SESSION_TYPE || sessionType === CLAUDE_CODE_SESSION_TYPE;
+}
+
 export const GITHUB_REMOTE_FILE_SCHEME = 'github-remote-file';
 
 /**
@@ -69,10 +89,22 @@ export interface ISessionRepository {
 	readonly workingDirectory: URI | undefined;
 	/** Provider-chosen display detail (e.g., branch name, host name). */
 	readonly detail: string | undefined;
+	/** Current branch name. */
+	readonly branchName?: string;
 	/** Name of the base branch. */
 	readonly baseBranchName: string | undefined;
 	/** Whether the base branch is protected (drives PR vs merge workflow). */
-	readonly baseBranchProtected: boolean | undefined;
+	readonly baseBranchProtected?: boolean;
+	/** Whether the repository has a github.com remote. */
+	readonly hasGitHubRemote?: boolean;
+	/** Upstream tracking branch name (e.g. `origin/feature`). */
+	readonly upstreamBranchName?: string;
+	/** Number of commits the upstream branch is ahead of the local branch. */
+	readonly incomingChanges?: number;
+	/** Number of commits the local branch is ahead of the upstream branch. */
+	readonly outgoingChanges?: number;
+	/** Number of files with uncommitted changes. */
+	readonly uncommittedChanges?: number;
 }
 
 /**
@@ -81,6 +113,15 @@ export interface ISessionRepository {
 export interface ISessionWorkspace {
 	/** Display label for the workspace (e.g., "my-app", "org/repo", "host:/path"). */
 	readonly label: string;
+	/** Optional description shown alongside the label (e.g., parent folder path "~/work"). */
+	readonly description?: string;
+	/**
+	 * Optional group label for categorizing this workspace in pickers. The
+	 * workspace picker uses this to bucket entries into top-level tabs
+	 * (e.g. `"Local"`, `"Cloud"`, `"Remote"`). Providers contribute the
+	 * label — the picker just renders whatever values are present.
+	 */
+	readonly group?: string;
 	/** Icon for the workspace. */
 	readonly icon: ThemeIcon;
 	/** Repositories in this workspace. */
@@ -108,6 +149,21 @@ export interface IGitHubInfo {
 	};
 }
 
+export type ISessionFileChange = IChatSessionFileChange | IChatSessionFileChange2;
+
+export interface ISessionChangeset {
+	/** Unique identifier for the changeset. */
+	readonly id: string;
+	/** Display label for the changeset. */
+	readonly label: string;
+	/** Optional description for the changeset. */
+	readonly description?: string;
+	/** Whether the changeset is enabled. */
+	readonly enabled: IObservable<boolean>;
+	/** File changes associated with this changeset. */
+	readonly changes: IObservable<readonly ISessionFileChange[]>;
+}
+
 /**
  * A single chat within a session, produced by the sessions management layer.
  */
@@ -126,7 +182,9 @@ export interface IChat {
 	/** Current chat status. */
 	readonly status: IObservable<SessionStatus>;
 	/** File changes produced by the chat. */
-	readonly changes: IObservable<readonly IChatSessionFileChange[]>;
+	readonly changes: IObservable<readonly ISessionFileChange[]>;
+	/** Changesets produced by the chat. */
+	readonly changesets: IObservable<readonly ISessionChangeset[]>;
 	/** Currently selected model identifier. */
 	readonly modelId: IObservable<string | undefined>;
 	/** Currently selected mode identifier and kind. */
@@ -170,7 +228,9 @@ export interface ISession {
 	/** Current session status. */
 	readonly status: IObservable<SessionStatus>;
 	/** File changes produced by the session. */
-	readonly changes: IObservable<readonly IChatSessionFileChange[]>;
+	readonly changes: IObservable<readonly ISessionFileChange[]>;
+	/** Changesets produced by the session. */
+	readonly changesets: IObservable<readonly ISessionChangeset[]>;
 	/** Currently selected model identifier. */
 	readonly modelId: IObservable<string | undefined>;
 	/** Currently selected mode identifier and kind. */
@@ -191,15 +251,78 @@ export interface ISession {
 	readonly chats: IObservable<readonly IChat[]>;
 	/** The main (first) chat of this session. */
 	readonly mainChat: IChat;
+	/** Capabilities of this session. */
+	readonly capabilities: ISessionCapabilities;
+	/**
+	 * Optional key used to deduplicate sessions across providers. When
+	 * multiple sessions share the same key, only one is kept by
+	 * {@link ISessionsManagementService.getSessions}. Local providers are
+	 * preferred over remote ones.
+	 */
+	readonly deduplicationKey?: string;
 }
+
+/**
+ * Build the canonical {@link ISession.sessionId} from a provider id and
+ * session resource URI.
+ *
+ * This is the single source of truth for the `providerId:resourceUri`
+ * string format used by every sessions provider (agent-host and
+ * Copilot chat sessions). Consumers that only have a provider id and a
+ * resource URI (e.g. a filesystem provider reconstructing a sessionId
+ * from a synthetic URI) should call this rather than rebuilding the
+ * string inline.
+ */
+export function toSessionId(providerId: string, resource: URI): string {
+	return `${providerId}:${resource.toString()}`;
+}
+
+/**
+ * Capabilities declared per session.
+ * Consumers check these before surfacing session-specific features in the UI.
+ */
+export interface ISessionCapabilities {
+	/** Whether this session supports multiple chats. */
+	readonly supportsMultipleChats: boolean;
+}
+
+/**
+ * Well-known workspace group labels used by the workspace picker to bucket
+ * recents and browse actions into top-level tabs. Providers contribute one
+ * of these (or any custom string) on each `ISessionWorkspace` and
+ * `ISessionWorkspaceBrowseAction`; the picker discovers tabs from the union
+ * of contributed values.
+ */
+export const SESSION_WORKSPACE_GROUP_LOCAL = localize('sessionWorkspaceGroup.local', "Local");
+export const SESSION_WORKSPACE_GROUP_REMOTE = localize('sessionWorkspaceGroup.remote', "Remote");
 
 export interface ISessionWorkspaceBrowseAction {
 	/** Display label for the browse action. */
 	readonly label: string;
+	/** Optional description shown alongside the label in the workspace picker. */
+	readonly description?: string;
+	/**
+	 * Optional group label used by the workspace picker to bucket browse
+	 * actions into top-level tabs (e.g. `"Local"`, `"Cloud"`, `"Remote"`).
+	 * Providers contribute the label — the picker dynamically renders tabs
+	 * for whichever values are present and filters items accordingly.
+	 */
+	readonly group?: string;
 	/** Icon for the browse action. */
 	readonly icon: ThemeIcon;
 	/** The provider that owns this action. */
 	readonly providerId: string;
 	/** Execute the browse action and return the selected workspace, or undefined if cancelled. */
 	run(): Promise<ISessionWorkspace | undefined>;
+	/**
+	 * Optional method to enumerate folders inline (e.g. for a phone-friendly
+	 * picker that shows a folder list with search-as-you-type instead of
+	 * opening a separate file dialog). Implementations should respect the
+	 * cancellation token so stale queries can be aborted as the user types.
+	 *
+	 * @param query Case-insensitive substring filter (empty string returns the default set).
+	 * @param token Cancellation token; the implementation should resolve with
+	 * a partial result or empty array once cancelled.
+	 */
+	listFolders?(query: string, token: CancellationToken): Promise<readonly ISessionWorkspace[]>;
 }

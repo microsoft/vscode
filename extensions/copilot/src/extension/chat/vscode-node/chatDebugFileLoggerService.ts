@@ -205,6 +205,18 @@ export class ChatDebugFileLoggerService extends Disposable implements IChatDebug
 		}
 	}
 
+	registerSpanSession(spanId: string, sessionId: string): void {
+		this._spanSessionIndex.set(spanId, sessionId);
+		// Apply same eviction cap as _onSpanCompleted
+		if (this._spanSessionIndex.size > MAX_SPAN_SESSION_INDEX) {
+			const excess = this._spanSessionIndex.size - MAX_SPAN_SESSION_INDEX;
+			const iter = this._spanSessionIndex.keys();
+			for (let i = 0; i < excess; i++) {
+				this._spanSessionIndex.delete(iter.next().value!);
+			}
+		}
+	}
+
 	/**
 	 * Synchronously ensure a session exists for buffering. Directory creation
 	 * and old-log cleanup are deferred to the first flush.
@@ -903,6 +915,8 @@ export class ChatDebugFileLoggerService extends Disposable implements IChatDebug
 				const model = asString(span.attributes[GenAiAttr.REQUEST_MODEL])
 					?? asString(span.attributes[GenAiAttr.RESPONSE_MODEL])
 					?? 'unknown';
+				const debugName = asString(span.attributes[CopilotChatAttr.DEBUG_NAME])
+					?? asString(span.attributes[GenAiAttr.AGENT_NAME]);
 				return {
 					ts: span.startTime,
 					dur: duration,
@@ -914,14 +928,21 @@ export class ChatDebugFileLoggerService extends Disposable implements IChatDebug
 					status: isError ? 'error' : 'ok',
 					attrs: {
 						model,
+						...(debugName ? { debugName } : {}),
 						...(span.attributes[GenAiAttr.USAGE_INPUT_TOKENS] !== undefined
 							? { inputTokens: asNumber(span.attributes[GenAiAttr.USAGE_INPUT_TOKENS]) }
 							: {}),
 						...(span.attributes[GenAiAttr.USAGE_OUTPUT_TOKENS] !== undefined
 							? { outputTokens: asNumber(span.attributes[GenAiAttr.USAGE_OUTPUT_TOKENS]) }
 							: {}),
+						...(span.attributes[GenAiAttr.USAGE_CACHE_READ_INPUT_TOKENS] !== undefined
+							? { cachedTokens: asNumber(span.attributes[GenAiAttr.USAGE_CACHE_READ_INPUT_TOKENS]) }
+							: {}),
 						...(span.attributes[CopilotChatAttr.TIME_TO_FIRST_TOKEN] !== undefined
 							? { ttft: asNumber(span.attributes[CopilotChatAttr.TIME_TO_FIRST_TOKEN]) }
+							: {}),
+						...(span.attributes[GenAiAttr.RESPONSE_ID] !== undefined
+							? { responseId: asString(span.attributes[GenAiAttr.RESPONSE_ID]) }
 							: {}),
 						...(span.attributes[CopilotChatAttr.USER_REQUEST] !== undefined
 							? { userRequest: String(span.attributes[CopilotChatAttr.USER_REQUEST]) }
@@ -937,6 +958,12 @@ export class ChatDebugFileLoggerService extends Disposable implements IChatDebug
 							: {}),
 						...(span.attributes[GenAiAttr.REQUEST_TOP_P] !== undefined
 							? { topP: asNumber(span.attributes[GenAiAttr.REQUEST_TOP_P]) }
+							: {}),
+						...(span.attributes[CopilotChatAttr.REQUEST_OPTIONS] !== undefined
+							? { requestOptions: String(span.attributes[CopilotChatAttr.REQUEST_OPTIONS]) }
+							: {}),
+						...(span.attributes[CopilotChatAttr.REQUEST_SHAPE] !== undefined
+							? { requestShape: String(span.attributes[CopilotChatAttr.REQUEST_SHAPE]) }
 							: {}),
 						...(isError && span.status.message ? { error: span.status.message } : {}),
 					},
@@ -991,7 +1018,7 @@ export class ChatDebugFileLoggerService extends Disposable implements IChatDebug
 			}
 
 			case GenAiOperationName.EXECUTE_HOOK: {
-				const hookType = asString(span.attributes['copilot_chat.hook_type']) ?? span.name;
+				const hookType = asString(span.attributes[CopilotChatAttr.HOOK_TYPE]) ?? span.name;
 				return {
 					ts: span.startTime,
 					dur: duration,
@@ -1005,14 +1032,14 @@ export class ChatDebugFileLoggerService extends Disposable implements IChatDebug
 						...(span.attributes['copilot_chat.hook_command'] !== undefined
 							? { command: truncate(String(span.attributes['copilot_chat.hook_command']), MAX_ATTR_VALUE_LENGTH) }
 							: {}),
-						...(span.attributes['copilot_chat.hook_input'] !== undefined
-							? { input: truncate(String(span.attributes['copilot_chat.hook_input']), MAX_ATTR_VALUE_LENGTH) }
+						...(span.attributes[CopilotChatAttr.HOOK_INPUT] !== undefined
+							? { input: truncate(String(span.attributes[CopilotChatAttr.HOOK_INPUT]), MAX_ATTR_VALUE_LENGTH) }
 							: {}),
-						...(span.attributes['copilot_chat.hook_output'] !== undefined
-							? { output: truncate(String(span.attributes['copilot_chat.hook_output']), MAX_ATTR_VALUE_LENGTH) }
+						...(span.attributes[CopilotChatAttr.HOOK_OUTPUT] !== undefined
+							? { output: truncate(String(span.attributes[CopilotChatAttr.HOOK_OUTPUT]), MAX_ATTR_VALUE_LENGTH) }
 							: {}),
-						...(span.attributes['copilot_chat.hook_result_kind'] !== undefined
-							? { resultKind: String(span.attributes['copilot_chat.hook_result_kind']) }
+						...(span.attributes[CopilotChatAttr.HOOK_RESULT_KIND] !== undefined
+							? { resultKind: String(span.attributes[CopilotChatAttr.HOOK_RESULT_KIND]) }
 							: {}),
 						...(isError && span.status.message ? { error: span.status.message } : {}),
 					},
@@ -1044,8 +1071,20 @@ export class ChatDebugFileLoggerService extends Disposable implements IChatDebug
 	}
 
 	private _extractSessionId(span: ICompletedSpanData): string | undefined {
-		return asString(span.attributes[CopilotChatAttr.CHAT_SESSION_ID])
-			?? asString(span.attributes[GenAiAttr.CONVERSATION_ID])
+		const directSessionId = asString(span.attributes[CopilotChatAttr.CHAT_SESSION_ID])
+			?? asString(span.attributes[GenAiAttr.CONVERSATION_ID]);
+
+		// If the span's parentSpanId maps to a known child session, prefer that.
+		// This handles hook spans that carry the parent's CHAT_SESSION_ID but
+		// whose parent span belongs to a child subagent session.
+		if (span.parentSpanId) {
+			const childSessionId = this._spanSessionIndex.get(span.parentSpanId);
+			if (childSessionId && this._childSessionMap.has(childSessionId)) {
+				return childSessionId;
+			}
+		}
+
+		return directSessionId
 			?? (span.parentSpanId ? this._spanSessionIndex.get(span.parentSpanId) : undefined);
 	}
 
@@ -1278,6 +1317,31 @@ export class ChatDebugFileLoggerService extends Disposable implements IChatDebug
 		}
 		if (this._activeSessions.size > 0) {
 			this._autoFlushTimer = setInterval(() => this._autoFlushAll(), this._autoFlushIntervalMs);
+		}
+	}
+
+	async listSessionIds(): Promise<string[]> {
+		const dir = this._getDebugLogsDir();
+		if (!dir) {
+			return [];
+		}
+		try {
+			const entries = await this._fileSystemService.readDirectory(dir);
+			const dirs = entries.filter(([, type]) => type === 2 /* FileType.Directory */);
+
+			// Stat each directory in parallel to sort by most recently modified.
+			const withMtime = await Promise.all(dirs.map(async ([name]) => {
+				try {
+					const stat = await this._fileSystemService.stat(URI.joinPath(dir, name));
+					return { name, mtime: stat.mtime };
+				} catch {
+					return { name, mtime: 0 };
+				}
+			}));
+			withMtime.sort((a, b) => b.mtime - a.mtime);
+			return withMtime.map(e => e.name);
+		} catch {
+			return [];
 		}
 	}
 

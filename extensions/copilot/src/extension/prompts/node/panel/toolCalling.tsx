@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RequestMetadata, RequestType } from '@vscode/copilot-api';
-import { AssistantMessage, BasePromptElementProps, PromptRenderer as BasePromptRenderer, Chunk, IfEmpty, Image, JSONTree, PromptElement, PromptElementProps, PromptMetadata, PromptPiece, PromptSizing, TokenLimit, ToolCall, ToolMessage, useKeepWith, UserMessage } from '@vscode/prompt-tsx';
+import { AssistantMessage, BasePromptElementProps, Chunk, IfEmpty, Image, JSONTree, PromptElement, PromptElementProps, PromptMetadata, PromptPiece, PromptSizing, TokenLimit, ToolCall, ToolMessage, useKeepWith, UserMessage } from '@vscode/prompt-tsx';
 import type { ChatParticipantToolToken, LanguageModelToolInvocationOptions, LanguageModelToolResult2, LanguageModelToolTokenizationOptions } from 'vscode';
 import { IAuthenticationService } from '../../../../platform/authentication/common/authentication';
 import { IChatHookService, IPreToolUseHookResult } from '../../../../platform/chat/common/chatHookService';
@@ -21,13 +21,14 @@ import { IFileSystemService } from '../../../../platform/filesystem/common/fileS
 import { IIgnoreService } from '../../../../platform/ignore/common/ignoreService';
 import { IImageService } from '../../../../platform/image/common/imageService';
 import { ILogService } from '../../../../platform/log/common/logService';
+import { IChatEndpoint } from '../../../../platform/networking/common/networking';
 import { IOTelService } from '../../../../platform/otel/common/otelService';
 import { IExperimentationService } from '../../../../platform/telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
 import { toErrorMessage } from '../../../../util/common/errorMessage';
-import { ITokenizer } from '../../../../util/common/tokenizer';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
 import { isCancellationError } from '../../../../util/vs/base/common/errors';
+import { getExtensionForMimeType } from '../../../../util/vs/base/common/mime';
 import { URI, UriComponents } from '../../../../util/vs/base/common/uri';
 import { IInstantiationService, ServicesAccessor } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from '../../../../util/vs/platform/instantiation/common/serviceCollection';
@@ -40,7 +41,7 @@ import { ToolName } from '../../../tools/common/toolNames';
 import { CopilotToolMode } from '../../../tools/common/toolsRegistry';
 import { IToolsService } from '../../../tools/common/toolsService';
 import { IChatDiskSessionResources } from '../../common/chatDiskSessionResources';
-import { IPromptEndpoint } from '../base/promptRenderer';
+import { IPromptEndpoint, PromptRenderer } from '../base/promptRenderer';
 import { Tag } from '../base/tag';
 
 export interface ChatToolCallsProps extends BasePromptElementProps {
@@ -79,8 +80,12 @@ export class ChatToolCalls extends PromptElement<ChatToolCallsProps, void> {
 			new ServiceCollection([IBuildPromptContext, this.props.promptContext])
 		);
 
+		// Shared budget to limit total image data across all tool results in this turn.
+		// Prevents 413 errors when many image-returning tools run in parallel.
+		const sharedImageBudget: SharedImageBudget = { remaining: CAPI_IMAGE_BUDGET_BYTES };
+
 		const toolCallRounds = this.props.toolCallRounds.flatMap((round, i) => {
-			return this.renderOneToolCallRound(round, i, this.props.toolCallRounds!.length, hydratedInstantiationService, token);
+			return this.renderOneToolCallRound(round, i, this.props.toolCallRounds!.length, hydratedInstantiationService, sharedImageBudget, token);
 		});
 		if (!toolCallRounds.length) {
 			return;
@@ -97,7 +102,7 @@ export class ChatToolCalls extends PromptElement<ChatToolCallsProps, void> {
 	/**
 	 * Render one round of tool calling: the assistant message text, its tool calls, and the results of those tool calls.
 	 */
-	private renderOneToolCallRound(round: IToolCallRound, index: number, total: number, hydratedInstantiationService: IInstantiationService, token?: CancellationToken): PromptElement[] {
+	private renderOneToolCallRound(round: IToolCallRound, index: number, total: number, hydratedInstantiationService: IInstantiationService, sharedImageBudget: SharedImageBudget, token?: CancellationToken): PromptElement[] {
 		let fixedNameToolCalls = round.toolCalls.map(tc => ({ ...tc, name: this.toolsService.validateToolName(tc.name) ?? tc.name }));
 		if (this.props.isHistorical) {
 			fixedNameToolCalls = fixedNameToolCalls.filter(tc => tc.id && this.props.toolCallResults?.[tc.id]);
@@ -117,8 +122,11 @@ export class ChatToolCalls extends PromptElement<ChatToolCallsProps, void> {
 
 		// Don't include this when rendering and triggering summarization
 		const statefulMarker = round.statefulMarker && <StatefulMarkerContainer statefulMarker={{ modelId: this.promptEndpoint.model, marker: round.statefulMarker }} />;
-		const thinking = (!this.props.isHistorical) && round.thinking && <ThinkingDataContainer thinking={round.thinking} />;
-		const phase = (round.phase && round.phaseModelId === this.promptEndpoint.model) ? <PhaseDataContainer phase={round.phase} /> : undefined;
+		// Backward compat: older persisted rounds use `phaseModelId` instead of `modelId`. Read both.
+		const roundModelId = round.modelId ?? (round as IToolCallRound & { phaseModelId?: string }).phaseModelId;
+		const includeThinking = !this.props.isHistorical || (this.promptEndpoint.apiType === 'responses' && roundModelId === this.promptEndpoint.model);
+		const thinking = includeThinking && round.thinking && <ThinkingDataContainer thinking={round.thinking} />;
+		const phase = (round.phase && roundModelId === this.promptEndpoint.model) ? <PhaseDataContainer phase={round.phase} /> : undefined;
 		const compaction = round.compaction && <CompactionDataContainer compaction={round.compaction} />;
 		children.push(
 			<AssistantMessage toolCalls={assistantToolCalls}>
@@ -150,6 +158,9 @@ export class ChatToolCalls extends PromptElement<ChatToolCallsProps, void> {
 						enableCacheBreakpoints: this.props.enableCacheBreakpoints ?? false,
 						truncateAt: this.props.truncateAt,
 						sessionId: this.props.promptContext.request?.sessionId,
+						// Strip images from historical turns to avoid 413 errors
+						stripImages: !!this.props.isHistorical,
+						sharedImageBudget,
 						token: token ?? CancellationToken.None,
 					})}
 				</KeepWith>,
@@ -165,6 +176,21 @@ export class ChatToolCalls extends PromptElement<ChatToolCallsProps, void> {
 	}
 }
 
+/**
+ * Half the CAPI body-size limit (5 MB), used to cap image data so the rest
+ * of the prompt still fits.  Shared by both the per-tool and cross-tool budgets.
+ */
+const CAPI_IMAGE_BUDGET_BYTES = (5 * 1024 * 1024) / 2;
+
+/**
+ * Shared mutable counter that limits the total image data rendered across
+ * all tool results within a turn, preventing 413 (request too large) errors
+ * when many image-returning tools (e.g. view_image) run in parallel.
+ */
+interface SharedImageBudget {
+	remaining: number;
+}
+
 interface ToolResultOpts {
 	readonly toolCall: IToolCall;
 	readonly toolInvocationToken: ChatParticipantToolToken | undefined;
@@ -177,6 +203,8 @@ interface ToolResultOpts {
 	readonly enableCacheBreakpoints: boolean;
 	readonly truncateAt?: number;
 	readonly sessionId: string | undefined;
+	readonly stripImages?: boolean;
+	readonly sharedImageBudget?: SharedImageBudget;
 	readonly token: CancellationToken;
 }
 
@@ -197,6 +225,7 @@ function buildToolResultElement(accessor: ServicesAccessor, props: ToolResultOpt
 	const sessionTranscriptService = accessor.get(ISessionTranscriptService);
 	const chatHookService = accessor.get(IChatHookService);
 	const otelService = accessor.get(IOTelService);
+	const instantiationService = accessor.get(IInstantiationService);
 	const tool = toolsService.getTool(props.toolCall.name);
 
 	async function getToolResult(sizing: PromptSizing) {
@@ -286,7 +315,7 @@ function buildToolResultElement(accessor: ServicesAccessor, props: ToolResultOpt
 					}
 
 					toolResult = await toolsService.invokeToolWithEndpoint(props.toolCall.name, invocationOptions, promptEndpoint, props.token);
-					sendInvokedToolTelemetry(promptEndpoint.acquireTokenizer(), telemetryService, props.toolCall.name, toolResult);
+					sendInvokedToolTelemetry(instantiationService, promptEndpoint, telemetryService, props.toolCall.name, toolResult);
 
 					// Run hook context handling after tool execution
 					appendHookContext(toolResult, hookResult, chatHookService, props, inputObj, promptContext);
@@ -332,6 +361,8 @@ function buildToolResultElement(accessor: ServicesAccessor, props: ToolResultOpt
 		toolCall={props.toolCall}
 		isLast={props.isLast}
 		sessionId={props.sessionId}
+		stripImages={props.stripImages}
+		sharedImageBudget={props.sharedImageBudget}
 	/>;
 }
 
@@ -389,6 +420,39 @@ interface IToolResultElementActualProps {
 	toolCall: IToolCall;
 	sessionId: string | undefined;
 	isLast: boolean;
+	stripImages?: boolean;
+	sharedImageBudget?: SharedImageBudget;
+}
+
+function buildImageUri(sessionId: string | undefined, toolCallId: string | undefined, imageIndex: number | undefined, mimeType: string): string | undefined {
+	if (!sessionId || !toolCallId || imageIndex === undefined) {
+		return undefined;
+	}
+	const coreToolCallId = toolCallId.split('__vscode')[0];
+	return buildToolImageResourceUri(sessionId, coreToolCallId, imageIndex, getExtensionForMimeType(mimeType) ?? '.bin');
+}
+
+/**
+ * Replaces image data parts with text placeholders in tool results.
+ * Used for historical turns to prevent large base64 image data from
+ * accumulating and causing 413 (request too large) errors from the API.
+ */
+function replaceImagesWithPlaceholders(
+	content: LanguageModelToolResult2['content'],
+	toolCallId: string | undefined,
+	sessionId: string | undefined,
+): LanguageModelToolResult2['content'] {
+	if (!content.some(part => isImageDataPart(part))) {
+		return content;
+	}
+	return content.map((part, index) => {
+		if (!isImageDataPart(part)) {
+			return part;
+		}
+		const uri = buildImageUri(sessionId, toolCallId, index, part.mimeType);
+		const uriRef = uri ? ` Image URI: ${uri}` : '';
+		return new LanguageModelTextPart(`[Image was previously shown to you.${uriRef}]`);
+	});
 }
 
 /**
@@ -397,13 +461,20 @@ interface IToolResultElementActualProps {
 class ToolResultElement extends PromptElement<IToolResultElementActualProps & BasePromptElementProps, void> {
 	async render(state: void, sizing: PromptSizing) {
 		const { extraMetadata, toolResult, isCancelled } = await this.props.call(sizing);
+
+		// For historical turns, replace image data with text placeholders
+		// to avoid accumulating large base64 payloads across conversation turns (413 errors)
+		const content = this.props.stripImages
+			? replaceImagesWithPlaceholders(toolResult.content, this.props.toolCall.id, this.props.sessionId)
+			: toolResult.content;
+
 		const toolResultElement = this.props.enableCacheBreakpoints ?
 			<>
 				<Chunk>
-					<ToolResult content={toolResult.content} truncate={this.props.truncateAt} toolCallId={this.props.toolCall.id} sessionId={this.props.sessionId} toolName={this.props.toolCall.name} />
+					<ToolResult content={content} truncate={this.props.truncateAt} toolCallId={this.props.toolCall.id} sessionId={this.props.sessionId} toolName={this.props.toolCall.name} sharedImageBudget={this.props.sharedImageBudget} />
 				</Chunk>
 			</> :
-			<ToolResult content={toolResult.content} truncate={this.props.truncateAt} toolCallId={this.props.toolCall.id} sessionId={this.props.sessionId} toolName={this.props.toolCall.name} />;
+			<ToolResult content={content} truncate={this.props.truncateAt} toolCallId={this.props.toolCall.id} sessionId={this.props.sessionId} toolName={this.props.toolCall.name} sharedImageBudget={this.props.sharedImageBudget} />;
 
 		return (
 			<ToolMessage toolCallId={this.props.toolCall.id!}>
@@ -416,16 +487,23 @@ class ToolResultElement extends PromptElement<IToolResultElementActualProps & Ba
 	}
 }
 
-export function sendInvokedToolTelemetry(tokenizer: ITokenizer, telemetry: ITelemetryService, toolName: string, toolResult: LanguageModelToolResult2) {
-	new BasePromptRenderer(
-		{ modelMaxPromptTokens: Infinity },
+export function sendInvokedToolTelemetry(instantiationService: IInstantiationService, endpoint: IChatEndpoint, telemetry: ITelemetryService, toolName: string, toolResult: LanguageModelToolResult2) {
+	// Override the token budget to Infinity for telemetry counting to avoid truncation,
+	// matching the prior behavior with modelMaxPromptTokens: Infinity
+	const endpointWithUnlimitedBudget: IChatEndpoint = {
+		...endpoint,
+		modelMaxPromptTokens: Infinity,
+	};
+
+	PromptRenderer.create(
+		instantiationService,
+		endpointWithUnlimitedBudget,
 		class extends PromptElement {
 			render() {
 				return <UserMessage><PrimitiveToolResult content={toolResult.content} /></UserMessage>;
 			}
 		},
 		{},
-		tokenizer,
 	).render().then(({ tokenCount }) => {
 		/* __GDPR__
 			"agent.tool.responseLength" : {
@@ -470,7 +548,10 @@ export async function imageDataPartToTSX(part: LanguageModelDataPart, githubToke
 
 		const base64 = Buffer.from(imageData).toString('base64');
 		let imageSource = `data:${mimeType};base64,${base64}`;
-		const isChatRequest = typeof urlOrRequestMetadata !== 'string' && (urlOrRequestMetadata?.type === RequestType.ChatCompletions || urlOrRequestMetadata?.type === RequestType.ChatMessages);
+		const isChatRequest = typeof urlOrRequestMetadata !== 'string' && (
+			urlOrRequestMetadata?.type === RequestType.ChatCompletions ||
+			urlOrRequestMetadata?.type === RequestType.ChatResponses ||
+			urlOrRequestMetadata?.type === RequestType.ChatMessages);
 		if (githubToken && isChatRequest && imageService) {
 			try {
 				const uri = await imageService.uploadChatImageAttachment(imageData, 'tool-result-image', mimeType ?? 'image/png', githubToken);
@@ -625,6 +706,10 @@ class McpLinkedResourceToolResult extends PromptElement<{ resourceUri: URI; mime
 
 interface IPrimitiveToolResultProps extends BasePromptElementProps {
 	content: LanguageModelToolResult2['content'];
+	/**
+	 * Shared budget limiting total image data across all tool results in a turn.
+	 */
+	sharedImageBudget?: SharedImageBudget;
 }
 
 class PrimitiveToolResult<T extends IPrimitiveToolResultProps> extends PromptElement<T> {
@@ -633,10 +718,9 @@ class PrimitiveToolResult<T extends IPrimitiveToolResultProps> extends PromptEle
 	/**
 	 * Some models do not yet support CAPI image uploads. For these cases,
 	 * track the number of images bytes we're sending and truncate any images
-	 * that would exceed that budget. Current CAPI default is 5MB, so allow
-	 * images to use half of that.
+	 * that would exceed that budget.
 	 */
-	private imageSizeBudgetLeft = (5 * 1024 * 1024) / 2; // 5MB
+	private imageSizeBudgetLeft = CAPI_IMAGE_BUDGET_BYTES;
 
 	constructor(
 		props: T,
@@ -696,15 +780,29 @@ class PrimitiveToolResult<T extends IPrimitiveToolResultProps> extends PromptEle
 			return '[Image content is not available because vision is not supported by the current model or is disabled by your organization.]';
 		}
 
-		const githubToken = (await this.authService.getGitHubSession('any', { silent: true }))?.accessToken;
 		const uploadsEnabled = this.configurationService && this.experimentationService
 			? this.configurationService.getExperimentBasedConfig(ConfigKey.EnableChatImageUpload, this.experimentationService)
 			: false;
 
 		// Anthropic (from CAPI) currently does not support image uploads from tool calls.
-		const uploadToken = uploadsEnabled && modelCanUseMcpResultImageURL(this.endpoint) ? githubToken : undefined;
+		const canUpload = uploadsEnabled && modelCanUseMcpResultImageURL(this.endpoint);
 
-		if (!uploadToken) {
+		// Enforce image budgets only when images will be inlined as base64.
+		// When uploads are available, the request body stays small (URL reference).
+		if (!canUpload) {
+			// Enforce shared cross-tool budget (prevents 413s when many tools return images)
+			const sharedBudget = this.props.sharedImageBudget;
+			if (sharedBudget) {
+				if (sharedBudget.remaining < 0) {
+					return this.sharedBudgetPlaceholder();
+				} else if (part.data.length > sharedBudget.remaining) {
+					sharedBudget.remaining = -1;
+					return this.sharedBudgetPlaceholder();
+				}
+				sharedBudget.remaining -= part.data.length;
+			}
+
+			// Enforce per-tool budget
 			if (this.imageSizeBudgetLeft < 0) {
 				return ''; // already exceeded and messages about it
 			} else if (part.data.length > this.imageSizeBudgetLeft) {
@@ -713,6 +811,12 @@ class PrimitiveToolResult<T extends IPrimitiveToolResultProps> extends PromptEle
 			} else {
 				this.imageSizeBudgetLeft -= part.data.length; // bookkeep
 			}
+		}
+
+		// Only call getGitHubSession when uploads are potentially available
+		let uploadToken: string | undefined;
+		if (canUpload) {
+			uploadToken = (await this.authService.getGitHubSession('any', { silent: true }))?.accessToken;
 		}
 
 		return Promise.resolve(imageDataPartToTSX(part, uploadToken, this.endpoint.urlOrRequestMetadata, this.logService, this.imageService));
@@ -728,6 +832,10 @@ class PrimitiveToolResult<T extends IPrimitiveToolResultProps> extends PromptEle
 
 	protected onResourceLink(data: string) {
 		return '';
+	}
+
+	protected sharedBudgetPlaceholder(): string {
+		return '[Image omitted — context image budget exceeded. Try viewing fewer images at once.]';
 	}
 }
 
@@ -782,10 +890,12 @@ export class ToolResult extends PrimitiveToolResult<IToolResultProps> {
 		if (!image || imageIndex === undefined || !this.props.toolCallId || !this.props.sessionId) {
 			return image;
 		}
-		const coreToolCallId = this.props.toolCallId.split('__vscode')[0];
-		const ext = part.mimeType === 'image/png' ? '.png' : part.mimeType === 'image/jpeg' ? '.jpg' : part.mimeType === 'image/gif' ? '.gif' : part.mimeType === 'image/webp' ? '.webp' : '.bin';
-		const uri = buildToolImageResourceUri(this.props.sessionId, coreToolCallId, imageIndex, ext);
-		return <>{image}{`\n[Image URI: ${uri}]`}</>;
+		const uri = buildImageUri(this.props.sessionId, this.props.toolCallId, imageIndex, part.mimeType);
+		return <>{image}{uri && `\n[Image URI: ${uri}]`}</>;
+	}
+
+	protected override sharedBudgetPlaceholder(): string {
+		return '[Image omitted — context image budget exceeded. Try viewing fewer images at once or reference this image by URI.]';
 	}
 
 	protected override async onText(content: string): Promise<string> {
@@ -794,7 +904,7 @@ export class ToolResult extends PrimitiveToolResult<IToolResultProps> {
 			this._experimentationService
 		);
 		// Exempt the search and execution subagents and memory tool from disk caching as their results are often ignored if not written directly to the conversation
-		if (isDiskCachingEnabled && this.diskSessionResources && this.props.toolCallId && this.props.sessionId && this.props.toolName !== ToolName.SearchSubagent && this.props.toolName !== ToolName.ExecutionSubagent && this.props.toolName !== ToolName.Memory) {
+		if (isDiskCachingEnabled && this.diskSessionResources && this.props.toolCallId && this.props.sessionId && this.props.toolName !== ToolName.SearchSubagent && this.props.toolName !== ToolName.ExploreSubagent && this.props.toolName !== ToolName.ExecutionSubagent && this.props.toolName !== ToolName.Memory) {
 			const thresholdBytes = this._configurationService.getExperimentBasedConfig(
 				ConfigKey.Advanced.LargeToolResultsToDiskThreshold,
 				this._experimentationService

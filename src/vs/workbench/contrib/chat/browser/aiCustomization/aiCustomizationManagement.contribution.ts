@@ -18,8 +18,9 @@ import { Categories } from '../../../../../platform/action/common/actionCommonCa
 import { Action2, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { FileSystemProviderCapabilities, IFileService } from '../../../../../platform/files/common/files.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -30,12 +31,16 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { EditorExtensions, IEditorFactoryRegistry, IEditorSerializer } from '../../../../common/editor.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { IWorkbenchExtensionManagementService } from '../../../../services/extensionManagement/common/extensionManagement.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
+import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
+import { getChatSessionType } from '../../common/model/chatUri.js';
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
+import { IChatWidgetService } from '../chat.js';
 import { AgentPluginItemKind } from '../agentPluginEditor/agentPluginItems.js';
 import {
 	AI_CUSTOMIZATION_ITEM_DISABLED_KEY,
@@ -63,7 +68,7 @@ type CustomizationEditorDeleteItemClassification = {
 	promptType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of customization being deleted.' };
 	storage: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The storage location of the deleted item.' };
 	owner: 'joshspicer';
-	comment: 'Tracks item deletion in the Chat Customizations editor.';
+	comment: 'Tracks item deletion in the Agent Customizations editor.';
 };
 
 //#endregion
@@ -74,7 +79,7 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 	EditorPaneDescriptor.create(
 		AICustomizationManagementEditor,
 		AI_CUSTOMIZATION_MANAGEMENT_EDITOR_ID,
-		localize('aiCustomizationManagementEditor', "Chat Customizations Editor")
+		localize('aiCustomizationManagementEditor', "Agent Customizations Editor")
 	),
 	[
 		// Note: Using the class directly since we use a singleton pattern
@@ -171,6 +176,7 @@ function extractPluginUri(context: AICustomizationContext): URI | undefined {
 	}
 	return URI.isUri(raw) ? raw : typeof raw === 'string' ? URI.parse(raw) : undefined;
 }
+
 
 /**
  * Extracts the item ID from context (used for identifying individual hooks within a file).
@@ -415,6 +421,23 @@ registerAction2(class extends Action2 {
 	}
 });
 
+const INSTALL_CHAT_CUSTOMIZATION_EXTENSION_ID = 'aiCustomizationManagement.installChatCustomizationExtension';
+const CHAT_CUSTOMIZATION_EXTENSION_ID = 'ms-vscode.vscode-chat-customizations-evaluations';
+const CHAT_CUSTOMIZATION_EXTENSION_NOT_INSTALLED_CONTEXT = new RawContextKey<boolean>('chat.customizationExtensionNotInstalled', false);
+const CHAT_CUSTOMIZATION_EXTENSION_NOT_INSTALLED = CHAT_CUSTOMIZATION_EXTENSION_NOT_INSTALLED_CONTEXT.isEqualTo(true);
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: INSTALL_CHAT_CUSTOMIZATION_EXTENSION_ID,
+			title: localize2('installChatCustomizationExtension', "Install Chat Customization Extension"),
+			icon: Codicon.beaker,
+		});
+	}
+	async run(accessor: ServicesAccessor, context: AICustomizationContext): Promise<void> {
+		await accessor.get(ICommandService).executeCommand('workbench.extensions.installExtension', CHAT_CUSTOMIZATION_EXTENSION_ID, { enable: true });
+	}
+});
+
 /**
  * When clause that hides an action for read-only (extension, plugin, built-in) items.
  */
@@ -433,9 +456,22 @@ const WHEN_ITEM_IS_PLUGIN = ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_STORAGE_
 
 // Inline hover actions (shown as icon buttons on hover)
 MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
-	command: { id: COPY_AI_CUSTOMIZATION_PATH_ID, title: localize('copyPath', "Copy Path"), icon: Codicon.clippy },
+	command: { id: INSTALL_CHAT_CUSTOMIZATION_EXTENSION_ID, title: localize('Install Chat Customization Extension', "Install Chat Customization Extension"), icon: Codicon.beaker },
 	group: 'inline',
 	order: 1,
+	when: ContextKeyExpr.and(CHAT_CUSTOMIZATION_EXTENSION_NOT_INSTALLED,
+		ContextKeyExpr.or(
+			ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_TYPE_KEY, PromptsType.prompt),
+			ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_TYPE_KEY, PromptsType.instructions),
+			ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_TYPE_KEY, PromptsType.agent),
+			ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_TYPE_KEY, PromptsType.skill)
+		))
+});
+
+MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
+	command: { id: COPY_AI_CUSTOMIZATION_PATH_ID, title: localize('copyPath', "Copy Path"), icon: Codicon.clippy },
+	group: 'inline',
+	order: 2,
 });
 
 MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
@@ -671,10 +707,32 @@ MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
 class AICustomizationManagementActionsContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.aiCustomizationManagementActions';
+	private readonly chatCustomizationExtensionNotInstalledContext: IContextKey<boolean>;
 
-	constructor() {
+	constructor(
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IWorkbenchExtensionManagementService private readonly extensionManagementService: IWorkbenchExtensionManagementService,
+	) {
 		super();
+		this.chatCustomizationExtensionNotInstalledContext = CHAT_CUSTOMIZATION_EXTENSION_NOT_INSTALLED_CONTEXT.bindTo(contextKeyService);
+
+		const refreshExtensionContext = () => this.updateChatCustomizationExtensionContext();
+		this._register(this.extensionManagementService.onProfileAwareDidInstallExtensions(refreshExtensionContext));
+		this._register(this.extensionManagementService.onProfileAwareDidUninstallExtension(refreshExtensionContext));
+		this._register(this.extensionManagementService.onDidChangeProfile(refreshExtensionContext));
+		void this.updateChatCustomizationExtensionContext();
 		this.registerActions();
+	}
+
+	private async updateChatCustomizationExtensionContext(): Promise<void> {
+		try {
+			const installedExtensions = await this.extensionManagementService.getInstalled();
+			const extensionKey = ExtensionIdentifier.toKey(CHAT_CUSTOMIZATION_EXTENSION_ID);
+			const isInstalled = installedExtensions.some(ext => ExtensionIdentifier.toKey(ext.identifier.id) === extensionKey);
+			this.chatCustomizationExtensionNotInstalledContext.set(!isInstalled);
+		} catch {
+			this.chatCustomizationExtensionNotInstalledContext.set(false);
+		}
 	}
 
 	private registerActions(): void {
@@ -693,10 +751,46 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 
 			async run(accessor: ServicesAccessor, section?: AICustomizationManagementSection): Promise<void> {
 				const editorService = accessor.get(IEditorService);
+				const chatWidgetService = accessor.get(IChatWidgetService);
+				const harnessService = accessor.get(ICustomizationHarnessService);
+
+				// Detect the active chat session type and switch the harness
+				// so the customization editor opens in the matching context.
+				const sessionResource = chatWidgetService.lastFocusedWidget?.viewModel?.sessionResource;
+				if (sessionResource) {
+					const sessionType = getChatSessionType(sessionResource);
+					const harness = harnessService.findHarnessById(sessionType);
+					if (harness) {
+						harnessService.setActiveHarness(sessionType);
+					}
+				}
+
 				const input = AICustomizationManagementEditorInput.getOrCreate();
 				const pane = await editorService.openEditor(input, { pinned: true });
 				if (section && pane instanceof AICustomizationManagementEditor) {
 					pane.selectSectionById(section);
+				}
+			}
+		}));
+
+		// Open Marketplace (hidden command for deep-linking into browse mode)
+		this._register(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: AICustomizationManagementCommands.OpenMarketplace,
+					title: localize2('openMarketplace', "Open Marketplace"),
+					category: CHAT_CATEGORY,
+					precondition: ChatContextKeys.enabled,
+				});
+			}
+
+			async run(accessor: ServicesAccessor, section?: AICustomizationManagementSection): Promise<void> {
+				const editorService = accessor.get(IEditorService);
+				const input = AICustomizationManagementEditorInput.getOrCreate();
+				const pane = await editorService.openEditor(input, { pinned: true });
+				if (pane instanceof AICustomizationManagementEditor) {
+					const targetSection = section ?? AICustomizationManagementSection.McpServers;
+					pane.selectSectionById(targetSection, { showMarketplace: true });
 				}
 			}
 		}));

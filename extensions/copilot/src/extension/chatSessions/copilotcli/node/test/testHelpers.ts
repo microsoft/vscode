@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { SessionOptions, SweCustomAgent } from '@github/copilot/sdk';
-import type { Uri } from 'vscode';
+import type { CancellationToken, Uri } from 'vscode';
 import { Event } from '../../../../../util/vs/base/common/event';
 import { Disposable, IDisposable } from '../../../../../util/vs/base/common/lifecycle';
 import { URI } from '../../../../../util/vs/base/common/uri';
 import { generateUuid } from '../../../../../util/vs/base/common/uuid';
-import { CLIAgentInfo, ICopilotCLIAgents } from '../copilotCli';
+import { CLIAgentInfo, CopilotCLIModelInfo, ICopilotCLIAgents, ICopilotCLIModels } from '../copilotCli';
 import { ICopilotCLIImageSupport } from '../copilotCLIImageSupport';
 import { ICopilotCLISkills } from '../copilotCLISkills';
 import { ICopilotCLIMCPHandler } from '../mcpHandler';
@@ -19,6 +19,19 @@ export class MockCliSdkSession {
 	public aborted = false;
 	public messages: {}[] = [];
 	public events: {}[] = [];
+	public title: string | undefined;
+	public name: string | undefined;
+	public readonly renameSession = async (name: string): Promise<void> => {
+		this.title = name;
+		this.name = name;
+		this.summary = name;
+	};
+	public readonly updateSessionSummary = async (summary: string): Promise<void> => {
+		if (!this.name) {
+			this.title = summary;
+		}
+		this.summary = summary;
+	};
 	public summary?: string;
 	constructor(public readonly sessionId: string, public readonly startTime: Date) { }
 	getChatContextMessages(): Promise<{}[]> { return Promise.resolve(this.messages); }
@@ -35,6 +48,9 @@ export class MockCliSdkSession {
 	clearCustomAgent() {
 		return;
 	}
+	setPermissionsRequired(_required: boolean): void {
+		// no-op in tests
+	}
 }
 
 export class MockSkillLocations implements ICopilotCLISkills {
@@ -43,14 +59,14 @@ export class MockSkillLocations implements ICopilotCLISkills {
 	constructor(locations: Uri[] = []) {
 		this.locations = locations;
 	}
-	getSkillsLocations(): Uri[] {
+	async getSkillsLocations(_token: CancellationToken): Promise<Uri[]> {
 		return this.locations;
 	}
 }
 
 export class MockCliSdkSessionManager {
 	public sessions = new Map<string, MockCliSdkSession>();
-	constructor(_opts: {}) { }
+	constructor(public readonly opts: {}) { }
 	createSession(_options: SessionOptions & { sessionId?: string }) {
 		const id = _options.sessionId ?? `sess_${generateUuid()}`;
 		const s = new MockCliSdkSession(id, new Date());
@@ -64,10 +80,24 @@ export class MockCliSdkSessionManager {
 		return Promise.resolve(undefined);
 	}
 	listSessions() {
-		return Promise.resolve(Array.from(this.sessions.values()).map(s => ({ sessionId: s.sessionId, startTime: s.startTime, modifiedTime: s.startTime, summary: s.summary })));
+		return Promise.resolve(Array.from(this.sessions.values()).map(s => ({ sessionId: s.sessionId, startTime: s.startTime, modifiedTime: s.startTime, summary: s.summary, name: s.name })));
+	}
+	getSessionMetadata({ sessionId }: { sessionId: string }) {
+		const session = this.sessions.get(sessionId);
+		return Promise.resolve(session ? { sessionId: session.sessionId, startTime: session.startTime, modifiedTime: session.startTime, summary: session.summary, name: session.name, isRemote: false } : undefined);
 	}
 	deleteSession(id: string) { this.sessions.delete(id); return Promise.resolve(); }
 	closeSession(_id: string) { return Promise.resolve(); }
+	forkSession(sourceId: string, _toEventId?: string): Promise<{ sessionId: string }> {
+		const newId = `${sourceId}-fork-${generateUuid()}`;
+		const source = this.sessions.get(sourceId);
+		const s = new MockCliSdkSession(newId, source?.startTime ?? new Date());
+		this.sessions.set(newId, s);
+		return Promise.resolve({ sessionId: newId });
+	}
+	async loadDeferredRepoHooks(session: unknown) {
+		//
+	}
 }
 
 export class NullCopilotCLIAgents implements ICopilotCLIAgents {
@@ -96,7 +126,16 @@ export class NullICopilotCLIImageSupport implements ICopilotCLIImageSupport {
 
 export class NullCopilotCLIMCPHandler implements ICopilotCLIMCPHandler {
 	_serviceBrand: undefined;
-	async loadMcpConfig(): Promise<{ mcpConfig: Record<string, NonNullable<SessionOptions['mcpServers']>[string]> | undefined; disposable: IDisposable }> {
+	async loadMcpConfig(_resource: URI): Promise<{ mcpConfig: Record<string, NonNullable<SessionOptions['mcpServers']>[string]> | undefined; disposable: IDisposable }> {
 		return { mcpConfig: undefined, disposable: Disposable.None };
 	}
+}
+
+export class NullCopilotCLIModels implements ICopilotCLIModels {
+	_serviceBrand: undefined;
+	async resolveModel(_modelId: string): Promise<string | undefined> { return undefined; }
+	async getDefaultModel(): Promise<string | undefined> { return undefined; }
+	async setDefaultModel(_modelId: string | undefined): Promise<void> { return; }
+	async getModels(): Promise<CopilotCLIModelInfo[]> { return []; }
+	registerLanguageModelChatProvider(): void { return; }
 }

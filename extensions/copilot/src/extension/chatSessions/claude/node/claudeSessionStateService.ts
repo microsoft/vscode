@@ -3,98 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { PermissionMode } from '@anthropic-ai/claude-agent-sdk';
-import type * as vscode from 'vscode';
+import { EffortLevel, PermissionMode } from '@anthropic-ai/claude-agent-sdk';
 import { CapturingToken } from '../../../../platform/requestLogger/common/capturingToken';
-import { createServiceIdentifier } from '../../../../util/common/services';
+import type { TraceContext } from '../../../../platform/otel/common/otelService';
 import { arrayEquals } from '../../../../util/vs/base/common/equals';
-import { Emitter, Event } from '../../../../util/vs/base/common/event';
+import { Emitter } from '../../../../util/vs/base/common/event';
 import { Disposable } from '../../../../util/vs/base/common/lifecycle';
 import type { ClaudeFolderInfo } from '../common/claudeFolderInfo';
-
-/**
- * Usage handler function type for reporting token usage to stream.
- */
-export type UsageHandler = (usage: vscode.ChatResultUsage) => void;
-
-export interface SessionState {
-	modelId: string | undefined;
-	permissionMode: PermissionMode;
-	capturingToken: CapturingToken | undefined;
-	folderInfo: ClaudeFolderInfo | undefined;
-	usageHandler: UsageHandler | undefined;
-}
-
-/**
- * Event fired when session state changes.
- */
-export interface SessionStateChangeEvent {
-	readonly sessionId: string;
-	readonly modelId?: string;
-	readonly permissionMode?: PermissionMode;
-	readonly folderInfo?: ClaudeFolderInfo;
-}
-
-export interface IClaudeSessionStateService {
-	readonly _serviceBrand: undefined;
-
-	/**
-	 * Event fired when session state (model or permission mode) changes.
-	 */
-	readonly onDidChangeSessionState: Event<SessionStateChangeEvent>;
-
-	/**
-	 * Gets the stored model ID for a session (does not apply fallback logic).
-	 */
-	getModelIdForSession(sessionId: string): string | undefined;
-
-	/**
-	 * Sets the model ID for a session.
-	 */
-	setModelIdForSession(sessionId: string, modelId: string | undefined): void;
-
-	/**
-	 * Gets the permission mode for a session.
-	 */
-	getPermissionModeForSession(sessionId: string): PermissionMode;
-
-	/**
-	 * Sets the permission mode for a session.
-	 */
-	setPermissionModeForSession(sessionId: string, mode: PermissionMode): void;
-
-	/**
-	 * Gets the capturing token for a session (used for request logging grouping).
-	 */
-	getCapturingTokenForSession(sessionId: string): CapturingToken | undefined;
-
-	/**
-	 * Sets the capturing token for a session.
-	 */
-	setCapturingTokenForSession(sessionId: string, token: CapturingToken | undefined): void;
-
-	/**
-	 * Gets the folder info for a session.
-	 */
-	getFolderInfoForSession(sessionId: string): ClaudeFolderInfo | undefined;
-
-	/**
-	 * Sets the folder info for a session.
-	 */
-	setFolderInfoForSession(sessionId: string, folderInfo: ClaudeFolderInfo): void;
-
-	/**
-	 * Gets the usage handler for a session.
-	 */
-	getUsageHandlerForSession(sessionId: string): UsageHandler | undefined;
-
-	/**
-	 * Sets the usage handler for a session.
-	 */
-	setUsageHandlerForSession(sessionId: string, handler: UsageHandler | undefined): void;
-}
-
-export const IClaudeSessionStateService = createServiceIdentifier<IClaudeSessionStateService>('IClaudeSessionStateService');
+import type { ParsedClaudeModelId } from '../common/claudeModelId';
+import type { IClaudeSessionStateService, SessionState, SessionStateChangeEvent, UsageHandler } from '../common/claudeSessionStateService';
 
 export class ClaudeSessionStateService extends Disposable implements IClaudeSessionStateService {
 	declare _serviceBrand: undefined;
@@ -104,18 +21,21 @@ export class ClaudeSessionStateService extends Disposable implements IClaudeSess
 
 	// State for sessions (model and permission mode selections)
 	// TODO: What about expiration of state for old sessions?
+	// TODO: Refactor setters to use a single `updateSession(id, patch)` method or spread
+	// pattern (`{ ...existing, field: value }`) so that adding a new field to SessionState
+	// doesn't require touching every existing setter.
 	private readonly _sessionState = new Map<string, SessionState>();
 
 	constructor() {
 		super();
 	}
 
-	getModelIdForSession(sessionId: string): string | undefined {
+	getModelIdForSession(sessionId: string): ParsedClaudeModelId | undefined {
 		const state = this._sessionState.get(sessionId);
 		return state?.modelId;
 	}
 
-	setModelIdForSession(sessionId: string, modelId: string | undefined): void {
+	setModelIdForSession(sessionId: string, modelId: ParsedClaudeModelId | undefined): void {
 		const existing = this._sessionState.get(sessionId);
 		if (existing?.modelId === modelId) {
 			return;
@@ -126,6 +46,8 @@ export class ClaudeSessionStateService extends Disposable implements IClaudeSess
 			capturingToken: existing?.capturingToken,
 			folderInfo: existing?.folderInfo,
 			usageHandler: existing?.usageHandler,
+			reasoningEffort: existing?.reasoningEffort,
+			traceContext: existing?.traceContext,
 		});
 		this._onDidChangeSessionState.fire({ sessionId, modelId });
 	}
@@ -145,6 +67,8 @@ export class ClaudeSessionStateService extends Disposable implements IClaudeSess
 			capturingToken: existing?.capturingToken,
 			folderInfo: existing?.folderInfo,
 			usageHandler: existing?.usageHandler,
+			reasoningEffort: existing?.reasoningEffort,
+			traceContext: existing?.traceContext,
 		});
 		this._onDidChangeSessionState.fire({ sessionId, permissionMode: mode });
 	}
@@ -161,6 +85,8 @@ export class ClaudeSessionStateService extends Disposable implements IClaudeSess
 			capturingToken: token,
 			folderInfo: existing?.folderInfo,
 			usageHandler: existing?.usageHandler,
+			reasoningEffort: existing?.reasoningEffort,
+			traceContext: existing?.traceContext,
 		});
 	}
 
@@ -179,6 +105,8 @@ export class ClaudeSessionStateService extends Disposable implements IClaudeSess
 			capturingToken: existing?.capturingToken,
 			folderInfo,
 			usageHandler: existing?.usageHandler,
+			reasoningEffort: existing?.reasoningEffort,
+			traceContext: existing?.traceContext,
 		});
 		this._onDidChangeSessionState.fire({ sessionId, folderInfo });
 	}
@@ -195,6 +123,45 @@ export class ClaudeSessionStateService extends Disposable implements IClaudeSess
 			capturingToken: existing?.capturingToken,
 			folderInfo: existing?.folderInfo,
 			usageHandler: handler,
+			reasoningEffort: existing?.reasoningEffort,
+			traceContext: existing?.traceContext,
+		});
+	}
+
+	getReasoningEffortForSession(sessionId: string): EffortLevel | undefined {
+		return this._sessionState.get(sessionId)?.reasoningEffort;
+	}
+
+	setReasoningEffortForSession(sessionId: string, effort: EffortLevel | undefined): void {
+		const existing = this._sessionState.get(sessionId);
+		if (existing?.reasoningEffort === effort) {
+			return;
+		}
+		this._sessionState.set(sessionId, {
+			modelId: existing?.modelId,
+			permissionMode: existing?.permissionMode ?? 'acceptEdits',
+			capturingToken: existing?.capturingToken,
+			folderInfo: existing?.folderInfo,
+			usageHandler: existing?.usageHandler,
+			reasoningEffort: effort,
+			traceContext: existing?.traceContext,
+		});
+	}
+
+	getTraceContextForSession(sessionId: string): TraceContext | undefined {
+		return this._sessionState.get(sessionId)?.traceContext;
+	}
+
+	setTraceContextForSession(sessionId: string, traceContext: TraceContext | undefined): void {
+		const existing = this._sessionState.get(sessionId);
+		this._sessionState.set(sessionId, {
+			modelId: existing?.modelId,
+			permissionMode: existing?.permissionMode ?? 'acceptEdits',
+			capturingToken: existing?.capturingToken,
+			folderInfo: existing?.folderInfo,
+			usageHandler: existing?.usageHandler,
+			reasoningEffort: existing?.reasoningEffort,
+			traceContext,
 		});
 	}
 

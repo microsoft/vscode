@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ConfigKey, IConfigurationService } from '../../configuration/common/configurationService';
+import { modelSupportsContextEditing } from '../../endpoint/common/chatModelCapabilities';
 import { IExperimentationService } from '../../telemetry/common/nullExperimentationService';
 import { IChatEndpoint } from './networking';
 
@@ -28,60 +29,8 @@ export interface AnthropicMessagesTool {
 	cache_control?: { type: 'ephemeral' };
 }
 
-export interface ToolReference {
-	type: 'tool_reference';
-	tool_name: string;
-}
-
-export interface ToolSearchToolSearchResult {
-	type: 'tool_search_tool_search_result';
-	tool_references: ToolReference[];
-}
-
-export interface ToolSearchToolResultError {
-	type: 'tool_search_tool_result_error';
-	error_code: 'too_many_requests' | 'invalid_pattern' | 'pattern_too_long' | 'unavailable';
-}
-
-export interface ServerToolUse {
-	type: 'server_tool_use';
-	id: string;
-	name: string;
-	input: {
-		query: string;
-	};
-}
-
-export interface ToolSearchToolResult {
-	type: 'tool_search_tool_result';
-	tool_use_id: string;
-	content: ToolSearchToolSearchResult | ToolSearchToolResultError;
-}
-
-export interface ToolSearchUsage {
-	tool_search_requests: number;
-}
-
-/**
- * Tools that should not use deferred loading when tool search is enabled.
- * These are frequently used tools that benefit from being immediately available.
- *
- * TODO: @bhavyaus Replace these hardcoded strings with constants from ToolName enum
- */
-
-export const TOOL_SEARCH_TOOL_NAME = 'tool_search_tool_regex';
-export const TOOL_SEARCH_TOOL_TYPE = 'tool_search_tool_regex_20251119';
-
 /** Name for the custom client-side embeddings-based tool search tool. Must not use copilot_/vscode_ prefix — those are reserved for static package.json declarations and will be rejected by vscode.lm.registerToolDefinition. */
 export const CUSTOM_TOOL_SEARCH_NAME = 'tool_search';
-
-/** Model ID prefixes that support tool search tools. Used by isAnthropicToolSearchEnabled() and the tool registration's model selector. */
-export const TOOL_SEARCH_SUPPORTED_MODELS = [
-	'claude-sonnet-4.5',
-	'claude-sonnet-4.6',
-	'claude-opus-4.5',
-	'claude-opus-4.6',
-] as const;
 
 /**
  * Context management types for Anthropic Messages API
@@ -133,36 +82,6 @@ export interface ContextManagementResponse {
 }
 
 /**
- * Context editing is supported by:
- * - Claude Haiku 4.5 (claude-haiku-4-5-* or claude-haiku-4.5-*)
- * - Claude Sonnet 4.6 (claude-sonnet-4-6-* or claude-sonnet-4.6-*)
- * - Claude Sonnet 4.5 (claude-sonnet-4-5-* or claude-sonnet-4.5-*)
- * - Claude Sonnet 4 (claude-sonnet-4-*)
- * - Claude Opus 4.6 (claude-opus-4-6-* or claude-opus-4.6-*)
- * - Claude Opus 4.5 (claude-opus-4-5-* or claude-opus-4.5-*)
- * - Claude Opus 4.1 (claude-opus-4-1-* or claude-opus-4.1-*)
- * - Claude Opus 4 (claude-opus-4-*)
- * @param modelId The model ID to check
- * @returns true if the model supports context editing
- */
-export function modelSupportsContextEditing(modelId: string): boolean {
-	// Normalize: lowercase and replace dots with dashes so "4.5" matches "4-5"
-	const normalized = modelId.toLowerCase().replace(/\./g, '-');
-	// The 1M context variant doesn't need context editing
-	if (normalized.includes('1m')) {
-		return false;
-	}
-	return normalized.startsWith('claude-haiku-4-5') ||
-		normalized.startsWith('claude-sonnet-4-6') ||
-		normalized.startsWith('claude-sonnet-4-5') ||
-		normalized.startsWith('claude-sonnet-4') ||
-		normalized.startsWith('claude-opus-4-6') ||
-		normalized.startsWith('claude-opus-4-5') ||
-		normalized.startsWith('claude-opus-4-1') ||
-		normalized.startsWith('claude-opus-4');
-}
-
-/**
  * Interleaved thinking is supported by:
  * - Claude Sonnet 4.5 (claude-sonnet-4-5-* or claude-sonnet-4.5-*)
  * - Claude Sonnet 4 (claude-sonnet-4-*)
@@ -205,43 +124,15 @@ export function modelSupportsMemory(modelId: string): boolean {
 		normalized.startsWith('claude-opus-4');
 }
 
-export function isAnthropicToolSearchEnabled(
-	endpoint: IChatEndpoint | string,
-	configurationService: IConfigurationService
-): boolean {
-
-	const effectiveModelId = typeof endpoint === 'string' ? endpoint : endpoint.model;
-	if (!TOOL_SEARCH_SUPPORTED_MODELS.some(prefix => effectiveModelId.toLowerCase().startsWith(prefix))) {
-		return false;
-	}
-
-	return configurationService.getConfig(ConfigKey.AnthropicToolSearchEnabled);
-}
-
-/**
- * Returns true when custom client-side embeddings-based tool search should be used
- * instead of the server-side regex tool search.
- */
-export function isAnthropicCustomToolSearchEnabled(
-	endpoint: IChatEndpoint | string,
-	configurationService: IConfigurationService,
-	experimentationService: IExperimentationService,
-): boolean {
-	if (!isAnthropicToolSearchEnabled(endpoint, configurationService)) {
-		return false;
-	}
-
-	return configurationService.getExperimentBasedConfig(ConfigKey.AnthropicToolSearchMode, experimentationService) === 'client';
-}
-
 export function isAnthropicContextEditingEnabled(
 	endpoint: IChatEndpoint | string,
 	configurationService: IConfigurationService,
 	experimentationService: IExperimentationService,
 ): boolean {
-
-	const effectiveModelId = typeof endpoint === 'string' ? endpoint : endpoint.model;
-	if (!modelSupportsContextEditing(effectiveModelId)) {
+	const supportsIt = typeof endpoint === 'string'
+		? modelSupportsContextEditing(endpoint)
+		: endpoint.supportsContextEditing ?? modelSupportsContextEditing(endpoint.model);
+	if (!supportsIt) {
 		return false;
 	}
 	const mode = configurationService.getExperimentBasedConfig(ConfigKey.AnthropicContextEditingMode, experimentationService);

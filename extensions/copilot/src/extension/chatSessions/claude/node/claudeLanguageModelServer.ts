@@ -12,11 +12,12 @@ import { ChatLocation, ChatResponse } from '../../../../platform/chat/common/com
 import { CustomModel, EndpointEditToolName } from '../../../../platform/endpoint/common/endpointProvider';
 import { AnthropicMessagesProcessor } from '../../../../platform/endpoint/node/messagesApi';
 import { ILogService } from '../../../../platform/log/common/logService';
-import { FinishedCallback, OptionalChatRequestParams } from '../../../../platform/networking/common/fetch';
+import { IOTelService } from '../../../../platform/otel/common/otelService';
+import { FinishedCallback, getRequestId, OptionalChatRequestParams } from '../../../../platform/networking/common/fetch';
 import { Response } from '../../../../platform/networking/common/fetcherService';
 import { IChatEndpoint, ICreateEndpointBodyOptions, IEndpointBody, IEndpointFetchOptions, IMakeChatRequestOptions } from '../../../../platform/networking/common/networking';
 import { ChatCompletion } from '../../../../platform/networking/common/openai';
-import { IRequestLogger } from '../../../../platform/requestLogger/node/requestLogger';
+import { IRequestLogger } from '../../../../platform/requestLogger/common/requestLogger';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
 import { TelemetryData } from '../../../../platform/telemetry/common/telemetryData';
 import { ITokenizer, TokenizerType } from '../../../../util/common/tokenizer';
@@ -27,7 +28,7 @@ import { SSEParser } from '../../../../util/vs/base/common/sseParser';
 import { generateUuid } from '../../../../util/vs/base/common/uuid';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { IClaudeCodeModels } from './claudeCodeModels';
-import { IClaudeSessionStateService } from './claudeSessionStateService';
+import { IClaudeSessionStateService } from '../common/claudeSessionStateService';
 
 /**
  * A list of known Anthropic betas supported by CAPI. Used to filter incoming `anthropic-beta` header values
@@ -80,6 +81,7 @@ export class ClaudeLanguageModelServer extends Disposable {
 		@IRequestLogger private readonly requestLogger: IRequestLogger,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IClaudeCodeModels private readonly claudeCodeModels: IClaudeCodeModels,
+		@IOTelService private readonly _otelService: IOTelService,
 	) {
 		super();
 		this.config = {
@@ -156,16 +158,8 @@ export class ClaudeLanguageModelServer extends Disposable {
 		try {
 			const requestBody: AnthropicMessagesRequest = JSON.parse(bodyString);
 
-			const endpoints = await this.claudeCodeModels.getEndpoints();
-			if (endpoints.length === 0) {
-				this.error('No Claude models with Messages API available');
-				this.sendErrorResponse(res, 404, 'not_found_error', 'No Claude models with Messages API available');
-				return;
-			}
-
-			const endpointModel = sessionId ? this.sessionStateService.getModelIdForSession(sessionId) : undefined;
-			let selectedEndpoint = endpoints.find(e => e.model === endpointModel);
-			selectedEndpoint ??= this.selectEndpoint(endpoints, requestBody.model);
+			const fallbackModelId = sessionId ? this.sessionStateService.getModelIdForSession(sessionId) : undefined;
+			const selectedEndpoint = await this.claudeCodeModels.resolveEndpoint(requestBody.model, fallbackModelId);
 			if (!selectedEndpoint) {
 				this.error('No model found matching criteria');
 				this.sendErrorResponse(res, 404, 'not_found_error', 'No model found matching criteria');
@@ -223,20 +217,30 @@ export class ClaudeLanguageModelServer extends Disposable {
 			}
 
 			const capturingToken = sessionId ? this.sessionStateService.getCapturingTokenForSession(sessionId) : undefined;
+			const sessionReasoningEffort = sessionId ? this.sessionStateService.getReasoningEffortForSession(sessionId) : undefined;
+			const reasoningEffort = sessionReasoningEffort && selectedEndpoint.supportsReasoningEffort?.includes(sessionReasoningEffort)
+				? sessionReasoningEffort
+				: undefined;
 
 			const doRequest = () => streamingEndpoint.makeChatRequest2({
 				debugName: 'Claude Copilot Proxy',
 				messages: messagesForLogging,
 				finishedCb: async () => undefined,
 				location: ChatLocation.MessagesProxy,
-				enableThinking: true,
+				modelCapabilities: { enableThinking: true, reasoningEffort },
 				userInitiatedRequest: isUserInitiatedMessage
 			}, tokenSource.token);
 
+			// Wrap in trace context so chat spans are parented to the invoke_agent span
+			const traceContext = sessionId ? this.sessionStateService.getTraceContextForSession(sessionId) : undefined;
+			const doRequestInContext = traceContext
+				? () => this._otelService.runWithTraceContext(traceContext, doRequest)
+				: doRequest;
+
 			if (capturingToken) {
-				await this.requestLogger.captureInvocation(capturingToken, doRequest);
+				await this.requestLogger.captureInvocation(capturingToken, doRequestInContext);
 			} else {
-				await doRequest();
+				await doRequestInContext();
 			}
 
 			requestComplete = true;
@@ -247,40 +251,6 @@ export class ClaudeLanguageModelServer extends Disposable {
 		} finally {
 			tokenSource.dispose();
 		}
-	}
-
-	private selectEndpoint(endpoints: readonly IChatEndpoint[], requestedModel?: string): IChatEndpoint | undefined {
-		if (requestedModel) {
-			// Handle Claude model name mapping
-			// e.g. claude-sonnet-4-20250514 -> claude-sonnet-4.20250514
-			let mappedModel = requestedModel;
-			if (requestedModel.startsWith('claude-')) {
-				const parts = requestedModel.split('-');
-				if (parts.length >= 4) {
-					// claude-sonnet-4-20250514 -> ['claude', 'sonnet', '4', '20250514']
-					const [claude, model, major, minor] = parts;
-					mappedModel = `${claude}-${model}-${major}.${minor}`;
-				}
-			}
-
-			// Try to find exact match first by family or model
-			let selectedEndpoint = endpoints.find(e => e.family === mappedModel || e.model === mappedModel);
-
-			// If not found, try partial match for common Claude model patterns
-			if (!selectedEndpoint && requestedModel.startsWith('claude-sonnet-4')) {
-				selectedEndpoint = endpoints.find(e => e.model.includes('claude-sonnet-4')) ?? endpoints.find(e => e.model.includes('claude'));
-			} else if (!selectedEndpoint && requestedModel.startsWith('claude-3-5-haiku')) {
-				selectedEndpoint = endpoints.find(e => e.model.includes('gpt-4o-mini')) ?? endpoints.find(e => e.model.includes('mini'));
-			} else if (!selectedEndpoint && requestedModel.startsWith('claude-')) {
-				// Generic Claude fallback
-				selectedEndpoint = endpoints.find(e => e.model.includes('claude') || e.family?.includes('claude'));
-			}
-
-			return selectedEndpoint;
-		}
-
-		// Use first available model if no criteria specified
-		return endpoints[0];
 	}
 
 	private sendErrorResponse(
@@ -494,17 +464,7 @@ class ClaudeStreamingPassThroughEndpoint implements IChatEndpoint {
 		if (typeof this.requestHeaders['anthropic-beta'] === 'string') {
 			const filtered = filterSupportedBetas(this.requestHeaders['anthropic-beta']);
 			if (filtered) {
-				if (headers['anthropic-beta']) {
-					// Merge SDK's filtered betas with base endpoint's betas (e.g. config-driven
-					// context-management) instead of overwriting, deduplicating exact matches.
-					const allBetas = new Set([
-						...headers['anthropic-beta'].split(',').map(b => b.trim()),
-						...filtered.split(',').map(b => b.trim()),
-					]);
-					headers['anthropic-beta'] = [...allBetas].join(',');
-				} else {
-					headers['anthropic-beta'] = filtered;
-				}
+				headers['anthropic-beta'] = filtered;
 			}
 		}
 		return headers;
@@ -581,6 +541,10 @@ class ClaudeStreamingPassThroughEndpoint implements IChatEndpoint {
 		return this.base.multiplier;
 	}
 
+	public get tokenPricing() {
+		return this.base.tokenPricing;
+	}
+
 	public get restrictedToSkus(): string[] | undefined {
 		return this.base.restrictedToSkus;
 	}
@@ -651,7 +615,8 @@ class ClaudeStreamingPassThroughEndpoint implements IChatEndpoint {
 			// We parse the stream just to return a correct ChatCompletion for logging the response and token usage details.
 			const requestId = response.headers.get('X-Request-ID') ?? generateUuid();
 			const ghRequestId = response.headers.get('x-github-request-id') ?? '';
-			const processor = this.instantiationService.createInstance(AnthropicMessagesProcessor, telemetryData, requestId, ghRequestId);
+			const { serverExperiments } = getRequestId(response.headers);
+			const processor = this.instantiationService.createInstance(AnthropicMessagesProcessor, telemetryData, requestId, ghRequestId, serverExperiments);
 			const parser = new SSEParser((ev) => {
 				try {
 					const trimmed = ev.data?.trim();

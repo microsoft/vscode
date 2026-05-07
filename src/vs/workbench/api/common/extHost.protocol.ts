@@ -1020,8 +1020,27 @@ export interface IWebviewPanelOptions {
 	readonly retainContextWhenHidden?: boolean;
 }
 
-export interface CustomTextEditorCapabilities {
+export interface CustomEditorProviderCapabilities {
 	readonly supportsMove?: boolean;
+	readonly supportsInlineDiff?: boolean;
+	readonly supportsSideBySideDiff?: boolean;
+}
+
+export interface CustomEditorDiffInitData {
+	readonly title: string;
+	readonly contentOptions: IWebviewContentOptions;
+	readonly options: IWebviewPanelOptions;
+	readonly active: boolean;
+}
+
+export interface CustomEditorSideBySideDiffWebviewHandles {
+	readonly original: WebviewHandle;
+	readonly modified: WebviewHandle;
+}
+
+export interface CustomEditorSideBySideDiffInitData {
+	readonly original: CustomEditorDiffInitData;
+	readonly modified: CustomEditorDiffInitData;
 }
 
 export const enum WebviewMessageArrayBufferViewType {
@@ -1089,8 +1108,8 @@ export interface MainThreadWebviewPanelsShape extends IDisposable {
 }
 
 export interface MainThreadCustomEditorsShape extends IDisposable {
-	$registerTextEditorProvider(extension: WebviewExtensionDescription, viewType: string, options: IWebviewPanelOptions, capabilities: CustomTextEditorCapabilities, serializeBuffersForPostMessage: boolean): void;
-	$registerCustomEditorProvider(extension: WebviewExtensionDescription, viewType: string, options: IWebviewPanelOptions, supportsMultipleEditorsPerDocument: boolean, serializeBuffersForPostMessage: boolean): void;
+	$registerTextEditorProvider(extension: WebviewExtensionDescription, viewType: string, options: IWebviewPanelOptions, capabilities: CustomEditorProviderCapabilities, serializeBuffersForPostMessage: boolean): void;
+	$registerCustomEditorProvider(extension: WebviewExtensionDescription, viewType: string, options: IWebviewPanelOptions, capabilities: CustomEditorProviderCapabilities, supportsMultipleEditorsPerDocument: boolean, serializeBuffersForPostMessage: boolean): void;
 	$unregisterEditorProvider(viewType: string): void;
 
 	$onDidEdit(resource: UriComponents, viewType: string, editId: number, label: string | undefined): void;
@@ -1149,6 +1168,24 @@ export interface ExtHostCustomEditorsShape {
 			options: IWebviewPanelOptions;
 			active: boolean;
 		},
+		position: EditorGroupColumn,
+		cancellation: CancellationToken
+	): Promise<void>;
+	$resolveCustomEditorInlineDiff(
+		originalResource: UriComponents,
+		modifiedResource: UriComponents,
+		newWebviewHandle: WebviewHandle,
+		viewType: string,
+		initData: CustomEditorDiffInitData,
+		position: EditorGroupColumn,
+		cancellation: CancellationToken
+	): Promise<void>;
+	$resolveCustomEditorSideBySideDiff(
+		originalResource: UriComponents,
+		modifiedResource: UriComponents,
+		webviewHandles: CustomEditorSideBySideDiffWebviewHandles,
+		viewType: string,
+		initData: CustomEditorSideBySideDiffInitData,
 		position: EditorGroupColumn,
 		cancellation: CancellationToken
 	): Promise<void>;
@@ -1444,6 +1481,7 @@ export interface IChatDebugModelTurnEventDto extends IChatDebugEventCommonDto {
 	readonly requestName?: string;
 	readonly inputTokens?: number;
 	readonly outputTokens?: number;
+	readonly cachedTokens?: number;
 	readonly totalTokens?: number;
 	readonly durationInMillis?: number;
 }
@@ -1513,12 +1551,14 @@ export interface IChatDebugEventModelTurnContentDto {
 	readonly status?: string;
 	readonly durationInMillis?: number;
 	readonly timeToFirstTokenInMillis?: number;
+	readonly requestId?: string;
 	readonly maxInputTokens?: number;
 	readonly maxOutputTokens?: number;
 	readonly inputTokens?: number;
 	readonly outputTokens?: number;
 	readonly cachedTokens?: number;
 	readonly totalTokens?: number;
+	readonly requestOptions?: string;
 	readonly errorMessage?: string;
 	readonly sections?: readonly IChatDebugMessageSectionDto[];
 }
@@ -1542,6 +1582,7 @@ export interface ExtHostChatDebugShape {
 	$resolveChatDebugLogEvent(handle: number, eventId: string, token: CancellationToken): Promise<IChatDebugResolvedEventContentDto | undefined>;
 	$exportChatDebugLog(handle: number, sessionResource: UriComponents, coreEvents: IChatDebugEventDto[], sessionTitle: string | undefined, token: CancellationToken): Promise<VSBuffer | undefined>;
 	$importChatDebugLog(handle: number, data: VSBuffer, token: CancellationToken): Promise<{ uri: UriComponents; sessionTitle?: string } | undefined>;
+	$getAvailableDebugSessionResources(handle: number, token: CancellationToken): Promise<{ uri: UriComponents; title?: string }[]>;
 	$onCoreDebugEvent(event: IChatDebugEventDto): void;
 }
 
@@ -1596,6 +1637,12 @@ export interface MainThreadChatAgentsShape2 extends IChatAgentProgressShape, IDi
 	$unregisterAgent(handle: number): void;
 
 	$transferActiveChatSession(toWorkspace: UriComponents): Promise<void>;
+	$provideCustomAgents(token: CancellationToken): Promise<ICustomAgentDto[]>;
+	$provideInstructions(token: CancellationToken): Promise<IInstructionDto[]>;
+	$provideSkills(token: CancellationToken): Promise<ISkillDto[]>;
+	$provideSlashCommands(token: CancellationToken): Promise<ISlashCommandDto[]>;
+	$provideHooks(token: CancellationToken): Promise<IHookDto[]>;
+	$providePlugins(token: CancellationToken): Promise<IPluginDto[]>;
 }
 
 export interface ICodeMapperTextEdit {
@@ -1668,31 +1715,59 @@ export interface ExtHostChatAgentsShape2 {
 	$setRequestTools(requestId: string, tools: UserSelectedTools): void;
 	$setYieldRequested(requestId: string, value: boolean): void;
 	$acceptActiveChatSession(sessionResource: UriComponents | undefined): void;
-	$acceptCustomAgents(agents: ICustomAgentDto[]): void;
-	$acceptInstructions(instructions: IInstructionDto[]): void;
-	$acceptSkills(skills: ISkillDto[]): void;
-	$acceptHooks(hooks: IHookDto[]): void;
-	$acceptPlugins(plugins: IPluginDto[]): void;
+	$onDidChangeCustomAgents(): void;
+	$onDidChangeInstructions(): void;
+	$onDidChangeSkills(): void;
+	$onDidChangeSlashCommands(): void;
+	$onDidChangeHooks(): void;
+	$onDidChangePlugins(): void;
 }
 
-export interface ICustomAgentDto {
-	uri: UriComponents;
+export type IChatResourceSourceDto = 'local' | 'user' | 'extension' | 'plugin';
+
+export interface IChatResourceDto {
+	readonly uri: UriComponents;
+	readonly name: string;
+	readonly description?: string;
+	readonly source: IChatResourceSourceDto;
+	readonly extensionId?: string;
+	readonly pluginUri?: UriComponents;
+	readonly sessionTypes?: readonly string[];
 }
 
-export interface IInstructionDto {
-	uri: UriComponents;
+export interface ICustomAgentDto extends IChatResourceDto {
+	readonly argumentHint?: string;
+	readonly tools?: readonly string[];
+	readonly model?: readonly string[];
+	readonly userInvocable: boolean;
+	readonly disableModelInvocation: boolean;
+	readonly enabled: boolean;
 }
 
-export interface ISkillDto {
-	uri: UriComponents;
+export interface IInstructionDto extends IChatResourceDto {
+	readonly pattern?: string;
+}
+
+export interface ISkillDto extends IChatResourceDto {
+	readonly userInvocable: boolean;
+	readonly disableModelInvocation: boolean;
+}
+
+export interface ISlashCommandDto extends IChatResourceDto {
+	readonly argumentHint?: string;
+	readonly userInvocable: boolean;
 }
 
 export interface IHookDto {
-	uri: UriComponents;
+	readonly uri: UriComponents;
+	readonly sessionTypes?: readonly string[];
+	readonly source: IChatResourceSourceDto;
+	readonly extensionId?: string;
+	readonly pluginUri?: UriComponents;
 }
 
 export interface IPluginDto {
-	uri: UriComponents;
+	readonly uri: UriComponents;
 }
 
 export interface IChatSessionCustomizationProviderMetadataDto {
@@ -1708,7 +1783,10 @@ export interface IChatSessionCustomizationItemDto {
 	readonly description?: string;
 	readonly groupKey?: string;
 	readonly badge?: string;
+	readonly extensionId?: string;
+	readonly pluginUri?: UriComponents;
 	readonly badgeTooltip?: string;
+	readonly userInvocable?: boolean;
 }
 export interface IChatParticipantMetadata {
 	participant: string;
@@ -2071,6 +2149,29 @@ export interface MainThreadQuickDiffShape extends IDisposable {
 	$unregisterQuickDiffProvider(handle: number): Promise<void>;
 }
 
+export interface IDocumentDiffLineChangeDto {
+	originalRange: IRange;
+	modifiedRange: IRange;
+	innerChanges: { originalRange: IRange; modifiedRange: IRange }[] | undefined;
+}
+
+export interface IDocumentDiffMoveDto {
+	originalRange: IRange;
+	modifiedRange: IRange;
+	changes: IDocumentDiffLineChangeDto[];
+}
+
+export interface IDocumentDiffResultDto {
+	identical: boolean;
+	quitEarly: boolean;
+	changes: IDocumentDiffLineChangeDto[];
+	moves: IDocumentDiffMoveDto[];
+}
+
+export interface MainThreadDocumentDiffShape extends IDisposable {
+	$computeDocumentDiff(originalUri: UriComponents, modifiedUri: UriComponents, ignoreTrimWhitespace: boolean, maxComputationTimeMs: number, computeMoves: boolean): Promise<IDocumentDiffResultDto | null>;
+}
+
 export type DebugSessionUUID = string;
 
 export interface IDebugConfiguration {
@@ -2320,7 +2421,7 @@ export interface ExtHostTreeViewsShape {
 	 * for [x,y] returns
 	 * [[1,z]], where the inner array is [original index, ...children]
 	 */
-	$getChildren(treeViewId: string, treeItemHandles?: string[]): Promise<(number | ITreeItem)[][] | undefined>;
+	$getChildren(treeViewId: string, treeItemHandles?: string[]): Promise<(readonly (number | ITreeItem)[])[] | undefined>;
 	$handleDrop(destinationViewId: string, requestId: number, treeDataTransfer: DataTransferDTO, targetHandle: string | undefined, token: CancellationToken, operationUuid?: string, sourceViewId?: string, sourceTreeItemHandles?: string[]): Promise<void>;
 	$handleDrag(sourceViewId: string, sourceTreeItemHandles: string[], operationUuid: string, token: CancellationToken): Promise<DataTransferDTO | undefined>;
 	$setExpanded(treeViewId: string, treeItemHandle: string, expanded: boolean): void;
@@ -3483,11 +3584,13 @@ export interface IMcpAuthenticationDetails {
 	authorizationServerMetadata: IAuthorizationServerMetadata;
 	resourceMetadata: IAuthorizationProtectedResourceMetadata | undefined;
 	scopes: string[] | undefined;
+	clientId?: string;
 }
 
 export interface IMcpAuthenticationOptions {
 	errorOnUserInteraction?: boolean;
 	forceNewRegistration?: boolean;
+	clientId?: string;
 }
 
 export const enum IAuthResourceMetadataSource {
@@ -3604,7 +3707,7 @@ export interface MainThreadTestingShape {
 
 export type ChatStatusItemDto = {
 	id: string;
-	title: string | { label: string; link: string };
+	title: string | { label: string; link: string; helpText?: string };
 	description: string;
 	detail: string | undefined;
 };
@@ -3612,6 +3715,33 @@ export type ChatStatusItemDto = {
 export interface MainThreadChatStatusShape {
 	$setEntry(id: string, entry: ChatStatusItemDto): void;
 	$disposeEntry(id: string): void;
+}
+
+export const enum ChatInputNotificationSeverityDto {
+	Info = 0,
+	Warning = 1,
+	Error = 2,
+}
+
+export type ChatInputNotificationActionDto = {
+	label: string;
+	commandId: string;
+	commandArgs?: unknown[];
+};
+
+export type ChatInputNotificationDto = {
+	id: string;
+	severity: ChatInputNotificationSeverityDto;
+	message: string;
+	description: string | undefined;
+	actions: ChatInputNotificationActionDto[];
+	dismissible: boolean;
+	autoDismissOnMessage: boolean;
+};
+
+export interface MainThreadChatInputNotificationShape {
+	$setNotification(notification: ChatInputNotificationDto): void;
+	$disposeNotification(id: string): void;
 }
 
 export type IChatSessionHistoryItemDto = {
@@ -3627,6 +3757,7 @@ export type IChatSessionHistoryItemDto = {
 	type: 'response';
 	parts: IChatProgressDto[];
 	participant: string;
+	details?: string;
 };
 
 export type IChatSessionRequestHistoryItemDto = Extract<IChatSessionHistoryItemDto, { type: 'request' }>;
@@ -3666,7 +3797,8 @@ export interface IChatSessionItemsChange {
 }
 
 export interface MainThreadChatSessionsShape extends IDisposable {
-	$registerChatSessionItemController(controllerHandle: number, chatSessionType: string): void;
+	$registerChatSessionItemController(controllerHandle: number, chatSessionType: string, supportsResolve: boolean): void;
+	$updateChatSessionItemControllerCapabilities(controllerHandle: number, supportsResolve: boolean): void;
 	$unregisterChatSessionItemController(controllerHandle: number): void;
 	$updateChatSessionItems(controllerHandle: number, change: IChatSessionItemsChange): Promise<void>;
 	$addOrUpdateChatSessionItem(controllerHandle: number, item: Dto<IChatSessionItem>): Promise<void>;
@@ -3676,7 +3808,7 @@ export interface MainThreadChatSessionsShape extends IDisposable {
 	$onDidChangeChatSessionOptions(handle: number, sessionResource: UriComponents, updates: Record<string, string | IChatSessionProviderOptionItem>): void;
 	$onDidChangeChatSessionProviderOptions(handle: number): void;
 
-	$updateChatSessionInputState(controllerHandle: number, optionGroups: readonly IChatSessionProviderOptionGroup[]): void;
+	$updateChatSessionInputState(controllerHandle: number, sessionResource: UriComponents, optionGroups: readonly IChatSessionProviderOptionGroup[]): void;
 
 	$handleProgressChunk(handle: number, sessionResource: UriComponents, requestId: string, chunks: (IChatProgressDto | [IChatProgressDto, number])[]): Promise<void>;
 	$handleAnchorResolve(handle: number, sessionResource: UriComponents, requestId: string, requestHandle: string, anchor: Dto<IChatContentInlineReference>): void;
@@ -3695,6 +3827,7 @@ export interface ExtHostChatSessionsShape {
 	$provideChatSessionProviderOptions(providerHandle: number, token: CancellationToken): Promise<IChatSessionProviderOptions | undefined>;
 	$provideHandleOptionsChange(providerHandle: number, sessionResource: UriComponents, updates: Record<string, string | IChatSessionProviderOptionItem | undefined>, token: CancellationToken): Promise<void>;
 	$forkChatSession(providerHandle: number, sessionResource: UriComponents, request: IChatSessionRequestHistoryItemDto | undefined, token: CancellationToken): Promise<Dto<IChatSessionItem>>;
+	$resolveChatSessionItem(providerHandle: number, sessionResource: UriComponents, token: CancellationToken): Promise<Dto<IChatSessionItem> | undefined>;
 	$provideChatSessionInputState(controllerHandle: number, sessionResource: UriComponents | undefined, token: CancellationToken): Promise<IChatSessionProviderOptionGroup[] | undefined>;
 }
 
@@ -3729,8 +3862,16 @@ export interface GitDiffChangeDto extends GitChangeDto {
 	readonly deletions: number;
 }
 
+export interface GitRemoteDto {
+	readonly name: string;
+	readonly fetchUrl?: string;
+	readonly pushUrl?: string;
+	readonly isReadOnly: boolean;
+}
+
 export interface GitRepositoryStateDto {
 	readonly HEAD?: GitBranchDto;
+	readonly remotes: readonly GitRemoteDto[];
 	readonly mergeChanges: readonly GitChangeDto[];
 	readonly indexChanges: readonly GitChangeDto[];
 	readonly workingTreeChanges: readonly GitChangeDto[];
@@ -3802,6 +3943,7 @@ export const MainContext = {
 	MainThreadOutputService: createProxyIdentifier<MainThreadOutputServiceShape>('MainThreadOutputService'),
 	MainThreadProgress: createProxyIdentifier<MainThreadProgressShape>('MainThreadProgress'),
 	MainThreadQuickDiff: createProxyIdentifier<MainThreadQuickDiffShape>('MainThreadQuickDiff'),
+	MainThreadDocumentDiff: createProxyIdentifier<MainThreadDocumentDiffShape>('MainThreadDocumentDiff'),
 	MainThreadQuickOpen: createProxyIdentifier<MainThreadQuickOpenShape>('MainThreadQuickOpen'),
 	MainThreadStatusBar: createProxyIdentifier<MainThreadStatusBarShape>('MainThreadStatusBar'),
 	MainThreadSecretState: createProxyIdentifier<MainThreadSecretStateShape>('MainThreadSecretState'),
@@ -3845,6 +3987,7 @@ export const MainContext = {
 	MainThreadAiRelatedInformation: createProxyIdentifier<MainThreadAiRelatedInformationShape>('MainThreadAiRelatedInformation'),
 	MainThreadAiEmbeddingVector: createProxyIdentifier<MainThreadAiEmbeddingVectorShape>('MainThreadAiEmbeddingVector'),
 	MainThreadChatStatus: createProxyIdentifier<MainThreadChatStatusShape>('MainThreadChatStatus'),
+	MainThreadChatInputNotification: createProxyIdentifier<MainThreadChatInputNotificationShape>('MainThreadChatInputNotification'),
 	MainThreadAiSettingsSearch: createProxyIdentifier<MainThreadAiSettingsSearchShape>('MainThreadAiSettingsSearch'),
 	MainThreadDataChannels: createProxyIdentifier<MainThreadDataChannelsShape>('MainThreadDataChannels'),
 	MainThreadChatSessions: createProxyIdentifier<MainThreadChatSessionsShape>('MainThreadChatSessions'),

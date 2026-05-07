@@ -150,6 +150,52 @@ export class ToolsContribution extends Disposable {
 			}
 		}));
 
+		// Needed by the artifact feature to resolve memory file URIs to open them, since they use a custom URI scheme that vscode doesn't know about
+		this._register(vscode.commands.registerCommand('github.copilot.chat.tools.memory.resolveMemoryFileUri', (memoryPath: string, sessionResource?: string): string | undefined => {
+			if (!memoryPath || !memoryPath.startsWith('/memories/')) {
+				return undefined;
+			}
+			if (memoryPath.includes('..')) {
+				return undefined;
+			}
+
+			const MEMORY_BASE_DIR = 'memory-tool/memories';
+			const segments = memoryPath.split('/').filter(s => s.length > 0);
+
+			let resolved: URI;
+
+			if (memoryPath.startsWith('/memories/session/') || memoryPath === '/memories/session') {
+				const storageUri = this.extensionContext.storageUri;
+				if (!storageUri) {
+					return undefined;
+				}
+				const relativeSegments = segments.slice(2);
+				const baseUri = URI.from(storageUri);
+				if (sessionResource) {
+					const sessionId = extractSessionId(sessionResource);
+					resolved = URI.joinPath(baseUri, MEMORY_BASE_DIR, sessionId, ...relativeSegments);
+				} else {
+					resolved = URI.joinPath(baseUri, MEMORY_BASE_DIR, ...relativeSegments);
+				}
+			} else if (memoryPath.startsWith('/memories/repo/') || memoryPath === '/memories/repo') {
+				const storageUri = this.extensionContext.storageUri;
+				if (!storageUri) {
+					return undefined;
+				}
+				const relativeSegments = segments.slice(2);
+				resolved = URI.joinPath(URI.from(storageUri), MEMORY_BASE_DIR, 'repo', ...relativeSegments);
+			} else {
+				const globalStorageUri = this.extensionContext.globalStorageUri;
+				if (!globalStorageUri) {
+					return undefined;
+				}
+				const relativeSegments = segments.slice(1);
+				resolved = URI.joinPath(globalStorageUri, MEMORY_BASE_DIR, ...relativeSegments);
+			}
+
+			return resolved.toString();
+		}));
+
 		this._register(vscode.commands.registerCommand('github.copilot.chat.tools.memory.clearMemories', async () => {
 			const confirm = await vscode.window.showWarningMessage(
 				l10n.t('Are you sure you want to clear all memories? This cannot be undone.'),

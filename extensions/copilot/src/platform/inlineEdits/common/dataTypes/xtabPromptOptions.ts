@@ -13,8 +13,6 @@ export enum IncludeLineNumbersOption {
 }
 
 export enum RecentFileClippingStrategy {
-	/** Current behavior: clip from top of file (greedy, most-recent-first). */
-	TopToBottom = 'topToBottom',
 	/** Center clipping around the edit location in each file (greedy budget). */
 	AroundEditRange = 'aroundEditRange',
 	/** Proportionally allocate budget across files, centered on edit locations. */
@@ -22,7 +20,7 @@ export enum RecentFileClippingStrategy {
 }
 
 export namespace RecentFileClippingStrategy {
-	export const VALIDATOR = vEnum(RecentFileClippingStrategy.TopToBottom, RecentFileClippingStrategy.AroundEditRange, RecentFileClippingStrategy.Proportional);
+	export const VALIDATOR = vEnum(RecentFileClippingStrategy.AroundEditRange, RecentFileClippingStrategy.Proportional);
 }
 
 export type RecentlyViewedDocumentsOptions = {
@@ -31,7 +29,7 @@ export type RecentlyViewedDocumentsOptions = {
 	readonly includeViewedFiles: boolean;
 	readonly includeLineNumbers: IncludeLineNumbersOption;
 	readonly clippingStrategy: RecentFileClippingStrategy;
-}
+};
 
 export namespace RecentlyViewedDocumentsOptions {
 	export const VALIDATOR: IValidator<Partial<RecentlyViewedDocumentsOptions>> = vObj({
@@ -39,7 +37,7 @@ export namespace RecentlyViewedDocumentsOptions {
 		'maxTokens': vNumber(),
 		'includeViewedFiles': vBoolean(),
 		'includeLineNumbers': vEnum(IncludeLineNumbersOption.WithSpaceAfter, IncludeLineNumbersOption.WithoutSpace, IncludeLineNumbersOption.None),
-		'clippingStrategy': vEnum(RecentFileClippingStrategy.TopToBottom, RecentFileClippingStrategy.AroundEditRange, RecentFileClippingStrategy.Proportional),
+		'clippingStrategy': vEnum(RecentFileClippingStrategy.AroundEditRange, RecentFileClippingStrategy.Proportional),
 	});
 }
 
@@ -49,6 +47,22 @@ export type LanguageContextOptions = {
 	readonly enabled: boolean;
 	readonly maxTokens: number;
 	readonly traitPosition: 'before' | 'after';
+};
+
+/**
+ * Options for including Completions-style neighbor file snippets (Jaccard-ranked)
+ * into the recently_viewed_code_snippets section of the prompt.
+ */
+export type NeighborFilesOptions = {
+	readonly enabled: boolean;
+	readonly maxTokens: number;
+};
+
+export namespace NeighborFilesOptions {
+	export const VALIDATOR: IValidator<Partial<NeighborFilesOptions>> = vObj({
+		'enabled': vBoolean(),
+		'maxTokens': vNumber(),
+	});
 }
 
 export type DiffHistoryOptions = {
@@ -56,7 +70,7 @@ export type DiffHistoryOptions = {
 	readonly maxTokens: number;
 	readonly onlyForDocsInPrompt: boolean;
 	readonly useRelativePaths: boolean;
-}
+};
 
 export type PagedClipping = { pageSize: number };
 
@@ -66,7 +80,7 @@ export type CurrentFileOptions = {
 	readonly includeLineNumbers: IncludeLineNumbersOption;
 	readonly includeCursorTag: boolean;
 	readonly prioritizeAboveCursor: boolean;
-}
+};
 
 export namespace CurrentFileOptions {
 	export const VALIDATOR: IValidator<Partial<CurrentFileOptions>> = vObj({
@@ -96,7 +110,7 @@ export type LintOptions = {
 	maxLineDistance: number;
 	/** When set to a value > 0, also include linter diagnostics from the N most recently edited/viewed files. */
 	nRecentFiles: number;
-}
+};
 
 /**
  * The raw user-facing aggressiveness setting. Includes `Default` to distinguish
@@ -117,6 +131,23 @@ export enum AggressivenessLevel {
 	Low = 'low',
 	Medium = 'medium',
 	High = 'high',
+}
+
+/**
+ * Controls the scope of the early divergence cancellation check.
+ *
+ * - `Off`: disable early divergence cancellation checks.
+ * - `Cursor`: only check the cursor line for divergence (original behavior).
+ * - `EditWindow`: check every line in the edit window for divergence.
+ */
+export enum EarlyDivergenceCancellationMode {
+	Cursor = 'cursor',
+	EditWindow = 'editWindow',
+	Off = 'off',
+}
+
+export namespace EarlyDivergenceCancellationMode {
+	export const VALIDATOR = vEnum(EarlyDivergenceCancellationMode.Cursor, EarlyDivergenceCancellationMode.EditWindow, EarlyDivergenceCancellationMode.Off);
 }
 
 export namespace AggressivenessSetting {
@@ -221,10 +252,11 @@ export type PromptOptions = {
 	readonly pagedClipping: PagedClipping;
 	readonly recentlyViewedDocuments: RecentlyViewedDocumentsOptions;
 	readonly languageContext: LanguageContextOptions;
+	readonly neighborFiles: NeighborFilesOptions;
 	readonly diffHistory: DiffHistoryOptions;
 	readonly includePostScript: boolean;
 	readonly lintOptions: LintOptions | undefined;
-}
+};
 
 /**
  * Prompt strategies that tweak prompt in a way that's different from current prod prompting strategy.
@@ -327,12 +359,16 @@ export const DEFAULT_OPTIONS: PromptOptions = {
 		maxTokens: 2000,
 		includeViewedFiles: false,
 		includeLineNumbers: IncludeLineNumbersOption.None,
-		clippingStrategy: RecentFileClippingStrategy.TopToBottom,
+		clippingStrategy: RecentFileClippingStrategy.AroundEditRange,
 	},
 	languageContext: {
 		enabled: false,
 		maxTokens: 2000,
 		traitPosition: 'after',
+	},
+	neighborFiles: {
+		enabled: false,
+		maxTokens: 1000,
 	},
 	diffHistory: {
 		nEntries: 25,

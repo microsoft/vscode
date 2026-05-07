@@ -9,12 +9,12 @@ import { VSBuffer, decodeHex, encodeHex } from '../../../../../base/common/buffe
 import { BugIndicatingError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString, isMarkdownString } from '../../../../../base/common/htmlContent.js';
-import { Disposable, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { revive } from '../../../../../base/common/marshalling.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { equals } from '../../../../../base/common/objects.js';
-import { IObservable, autorun, autorunSelfDisposable, constObservable, derived, observableFromEvent, observableSignalFromEvent, observableValue, observableValueOpts } from '../../../../../base/common/observable.js';
+import { IObservable, autorun, constObservable, derived, observableFromEvent, observableSignalFromEvent, observableValue, observableValueOpts, registerAutorunSelfDisposable } from '../../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../../base/common/resources.js';
 import { hasKey, WithDefinedProps } from '../../../../../base/common/types.js';
 import { URI, UriDto } from '../../../../../base/common/uri.js';
@@ -30,9 +30,11 @@ import { CellUri, ICellEditOperation } from '../../../notebook/common/notebookCo
 import { ChatRequestToolReferenceEntry, IChatRequestVariableEntry, isImplicitVariableEntry, isStringImplicitContextValue, isStringVariableEntry } from '../attachments/chatVariableEntries.js';
 import { migrateLegacyTerminalToolSpecificData } from '../chat.js';
 import { ChatPerfMark, markChat } from '../chatPerf.js';
-import { ChatAgentVoteDirection, ChatRequestQueueKind, ChatResponseClearToPreviousToolInvocationReason, ElicitationState, IChatAgentMarkdownContentWithVulnerability, IChatClearToPreviousToolInvocation, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatDisabledClaudeHooksPart, IChatEditingSessionAction, IChatElicitationRequest, IChatElicitationRequestSerialized, IChatExternalToolInvocationUpdate, IChatExtensionsContent, IChatFollowup, IChatHookPart, IChatLocationData, IChatMarkdownContent, IChatMcpServersStarting, IChatMcpServersStartingSerialized, IChatModelReference, IChatMultiDiffData, IChatMultiDiffDataSerialized, IChatNotebookEdit, IChatProgress, IChatProgressMessage, IChatPullRequestContent, IChatQuestionCarousel, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatSendRequestOptions, IChatService, IChatSessionTiming, IChatTask, IChatTaskSerialized, IChatTextEdit, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsage, IChatUsedContext, IChatWarningMessage, IChatWorkspaceEdit, ResponseModelState, isIUsedContext } from '../chatService/chatService.js';
+import { ChatAgentVoteDirection, ChatRequestQueueKind, ChatResponseClearToPreviousToolInvocationReason, ElicitationState, IChatAgentMarkdownContentWithVulnerability, IChatClearToPreviousToolInvocation, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatDisabledClaudeHooksPart, IChatEditingSessionAction, IChatElicitationRequest, IChatElicitationRequestSerialized, IChatExternalToolInvocationUpdate, IChatExtensionsContent, IChatFollowup, IChatHookPart, IChatLocationData, IChatMarkdownContent, IChatMcpServersStarting, IChatMcpServersStartingSerialized, IChatModelReference, IChatMultiDiffData, IChatMultiDiffDataSerialized, IChatNotebookEdit, IChatProgress, IChatPlanReview, IChatProgressMessage, IChatPullRequestContent, IChatQuestionCarousel, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatSendRequestOptions, IChatService, IChatSessionTiming, IChatTask, IChatTaskSerialized, IChatTextEdit, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsage, IChatUsedContext, IChatWarningMessage, IChatInfoMessage, IChatWorkspaceEdit, ResponseModelState, ToolConfirmKind, isIUsedContext } from '../chatService/chatService.js';
 import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../constants.js';
 import { ChatToolInvocation } from './chatProgressTypes/chatToolInvocation.js';
+import { ChatPlanReviewData } from './chatProgressTypes/chatPlanReviewData.js';
+import { ChatQuestionCarouselData } from './chatProgressTypes/chatQuestionCarouselData.js';
 import { ToolDataSource, IToolData } from '../tools/languageModelToolsService.js';
 import { IChatEditingService, IChatEditingSession, ModifiedFileEntryState } from '../editing/chatEditingService.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../languageModels.js';
@@ -72,6 +74,9 @@ export interface ISerializableSendOptions {
 	agentIdSilent?: string;
 	slashCommand?: string;
 	confirmation?: string;
+	isSystemInitiated?: boolean;
+	systemInitiatedLabel?: string;
+	terminalExecutionId?: string;
 }
 
 /**
@@ -128,6 +133,7 @@ export interface IChatRequestModel {
 	readonly userSelectedTools?: UserSelectedTools;
 	readonly isSystemInitiated?: boolean;
 	readonly systemInitiatedLabel?: string;
+	readonly terminalExecutionId?: string;
 }
 
 export interface ICodeBlockInfo {
@@ -185,12 +191,14 @@ export type IChatProgressHistoryResponseContent =
 	| IChatProgressMessage
 	| IChatCommandButton
 	| IChatWarningMessage
+	| IChatInfoMessage
 	| IChatTask
 	| IChatTaskSerialized
 	| IChatTextEditGroup
 	| IChatNotebookEditGroup
 	| IChatConfirmation
 	| IChatQuestionCarousel
+	| IChatPlanReview
 	| IChatExtensionsContent
 	| IChatThinkingPart
 	| IChatHookPart
@@ -292,6 +300,11 @@ export interface IChatResponseModel {
 	readonly followups?: IChatFollowup[] | undefined;
 	readonly result?: IChatAgentResult;
 	readonly usage?: IChatUsage;
+	readonly usageObs: IObservable<IChatUsage | undefined>;
+	readonly completionTokenCount: number | undefined;
+	readonly completionTokenCountObs: IObservable<number | undefined>;
+	/** Elapsed generation time in ms (excluding confirmation waits). Set on completion and serialized. */
+	readonly elapsedMs: number | undefined;
 	readonly codeBlockInfos: ICodeBlockInfo[] | undefined;
 
 	initializeCodeBlockInfos(codeBlockInfo: ICodeBlockInfo[]): void;
@@ -352,6 +365,7 @@ export interface IChatRequestModelParameters {
 	userSelectedTools?: UserSelectedTools;
 	isSystemInitiated?: boolean;
 	systemInitiatedLabel?: string;
+	terminalExecutionId?: string;
 }
 
 export class ChatRequestModel implements IChatRequestModel {
@@ -366,6 +380,7 @@ export class ChatRequestModel implements IChatRequestModel {
 	public readonly userSelectedTools?: UserSelectedTools;
 	public readonly isSystemInitiated?: boolean;
 	public readonly systemInitiatedLabel?: string;
+	public readonly terminalExecutionId?: string;
 
 	private readonly _shouldBeBlocked = observableValue<boolean>(this, false);
 	public get shouldBeBlocked(): IObservable<boolean> {
@@ -439,6 +454,7 @@ export class ChatRequestModel implements IChatRequestModel {
 		this.userSelectedTools = params.userSelectedTools;
 		this.isSystemInitiated = params.isSystemInitiated;
 		this.systemInitiatedLabel = params.systemInitiatedLabel;
+		this.terminalExecutionId = params.terminalExecutionId;
 	}
 
 	adoptTo(session: ChatModel) {
@@ -591,6 +607,7 @@ class AbstractResponse implements IResponse {
 				case 'multiDiffData':
 				case 'mcpServersStarting':
 				case 'questionCarousel':
+				case 'planReview':
 				case 'disabledClaudeHooks':
 					// Ignore
 					continue;
@@ -623,6 +640,7 @@ class AbstractResponse implements IResponse {
 				case 'progressTask':
 				case 'progressTaskSerialized':
 				case 'warning':
+				case 'info':
 					segment = { text: part.content.value };
 					break;
 				default:
@@ -743,7 +761,8 @@ class ResponseView extends AbstractResponse {
 }
 
 export class Response extends AbstractResponse implements IDisposable {
-	private _onDidChangeValue = new Emitter<void>();
+	private readonly _store = new DisposableStore();
+	private _onDidChangeValue = this._store.add(new Emitter<void>());
 	public get onDidChangeValue() {
 		return this._onDidChangeValue.event;
 	}
@@ -760,7 +779,7 @@ export class Response extends AbstractResponse implements IDisposable {
 	}
 
 	dispose(): void {
-		this._onDidChangeValue.dispose();
+		this._store.dispose();
 	}
 
 
@@ -884,7 +903,7 @@ export class Response extends AbstractResponse implements IDisposable {
 			});
 
 		} else if (progress.kind === 'toolInvocation') {
-			autorunSelfDisposable(reader => {
+			registerAutorunSelfDisposable(this._store, reader => {
 				progress.state.read(reader); // update repr when state changes
 				this._contentChanged(false);
 
@@ -1021,6 +1040,7 @@ export interface IChatResponseModelParameters {
 	restoredId?: string;
 	modelState?: ResponseModelStateT;
 	timeSpentWaiting?: number;
+	elapsedMs?: number;
 	/**
 	 * undefined means it will be set later.
 	*/
@@ -1044,12 +1064,14 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	private _modelState = observableValue<ResponseModelStateT>(this, { value: ResponseModelState.Pending });
 	private _vote?: ChatAgentVoteDirection;
 	private _result?: IChatAgentResult;
-	private _usage?: IChatUsage;
+	private readonly _usageObs = observableValue<IChatUsage | undefined>(this, undefined);
+	private readonly _completionTokenCountObs = observableValue<number | undefined>(this, undefined);
 	private _shouldBeRemovedOnSend: IChatRequestDisablement | undefined;
 	public readonly isCompleteAddedRequest: boolean;
 	private readonly _shouldBeBlocked = observableValue<boolean>(this, false);
 	private readonly _timestamp: number;
 	private _timeSpentWaitingAccumulator: number;
+	private _elapsedMs: number | undefined;
 
 	public confirmationAdjustedTimestamp: IObservable<number>;
 
@@ -1131,7 +1153,23 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	}
 
 	public get usage(): IChatUsage | undefined {
-		return this._usage;
+		return this._usageObs.get();
+	}
+
+	public get usageObs(): IObservable<IChatUsage | undefined> {
+		return this._usageObs;
+	}
+
+	public get completionTokenCount(): number | undefined {
+		return this._completionTokenCountObs.get();
+	}
+
+	public get completionTokenCountObs(): IObservable<number | undefined> {
+		return this._completionTokenCountObs;
+	}
+
+	public get elapsedMs(): number | undefined {
+		return this._elapsedMs;
 	}
 
 	public get username(): string {
@@ -1222,6 +1260,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 			this._modelState.set(params.modelState, undefined);
 		}
 		this._timeSpentWaitingAccumulator = params.timeSpentWaiting || 0;
+		this._elapsedMs = params.elapsedMs;
 		this._vote = params.vote;
 		this._result = params.result;
 		this._followups = params.followups ? [...params.followups] : undefined;
@@ -1256,6 +1295,9 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 				}
 				if (part.kind === 'questionCarousel' && !part.isUsed) {
 					return localize('waitingAnswer', "Answer questions to continue...");
+				}
+				if (part.kind === 'planReview' && !part.isUsed) {
+					return localize('waitingPlanReview', "Review the plan to continue...");
 				}
 				if (part.kind === 'elicitation2' && part.state.read(r) === ElicitationState.Pending) {
 					const title = part.title;
@@ -1363,8 +1405,23 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	}
 
 	setUsage(usage: IChatUsage): void {
-		this._usage = usage;
+		if (this.isSameUsage(usage)) {
+			return;
+		}
+
+		this._usageObs.set(usage, undefined);
+		const previousCompletionTokens = this._completionTokenCountObs.get() ?? 0;
+		this._completionTokenCountObs.set(previousCompletionTokens + usage.completionTokens, undefined);
 		this._onDidChange.fire(defaultChatResponseModelChangeReason);
+	}
+
+	private isSameUsage(usage: IChatUsage): boolean {
+		const currentUsage = this._usageObs.get();
+		return !!currentUsage
+			&& currentUsage.promptTokens === usage.promptTokens
+			&& currentUsage.completionTokens === usage.completionTokens
+			&& currentUsage.outputBuffer === usage.outputBuffer
+			&& equals(currentUsage.promptTokenDetails, usage.promptTokenDetails);
 	}
 
 	complete(): void {
@@ -1376,6 +1433,9 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 			this._response.clear();
 		}
 
+		// Compute elapsed generation time before setting terminal state
+		this._elapsedMs = Math.max(0, Date.now() - this.confirmationAdjustedTimestamp.get());
+
 		// Canceled sessions can be considered 'Complete'
 		const state = !!this._result?.errorDetails && this._result.errorDetails.code !== 'canceled' ? ResponseModelState.Failed : ResponseModelState.Complete;
 		this._modelState.set({ value: state, completedAt: Date.now() }, undefined);
@@ -1383,6 +1443,20 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	}
 
 	cancel(): void {
+		// Transition any tool invocations that are still streaming partial
+		// input from the LM into the Cancelled state so that UI consumers
+		// (e.g. the thinking content part) stop showing their in-progress
+		// spinner/"Editing files" label. See https://github.com/microsoft/vscode/issues/288701.
+		for (const part of this._response.value) {
+			if (part.kind === 'toolInvocation' && part instanceof ChatToolInvocation) {
+				part.cancelFromStreaming(ToolConfirmKind.Skipped);
+			} else if (part instanceof ChatPlanReviewData) {
+				part.dismiss();
+			} else if (part instanceof ChatQuestionCarouselData) {
+				part.dismiss(undefined);
+			}
+		}
+
 		this._modelState.set({ value: ResponseModelState.Cancelled, completedAt: Date.now() }, undefined);
 		this._onDidChange.fire({ reason: 'completedRequest' });
 	}
@@ -1421,6 +1495,14 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		this._shouldBeRemovedOnSend = undefined;
 	}
 
+	override dispose(): void {
+		super.dispose();
+		this._response.clear();
+		if (this._codeBlockInfos) {
+			this._codeBlockInfos.length = 0;
+		}
+	}
+
 	toJSON(): ISerializableChatResponseData {
 		const modelState = this._modelState.get();
 		const pendingConfirmation = this.isPendingConfirmation.get();
@@ -1438,6 +1520,8 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 			codeCitations: this.codeCitations,
 			timestamp: this._timestamp,
 			timeSpentWaiting: (pendingConfirmation ? Date.now() - pendingConfirmation.startedWaitingAt : 0) + this._timeSpentWaitingAccumulator,
+			completionTokens: this.completionTokenCount,
+			elapsedMs: this.elapsedMs ?? (this.completedAt ? Math.max(0, this.completedAt - this.confirmationAdjustedTimestamp.get()) : undefined),
 		} satisfies WithDefinedProps<ISerializableChatResponseData>;
 	}
 }
@@ -1524,9 +1608,11 @@ interface ISerializableChatResponseData {
 	contentReferences?: ReadonlyArray<IChatContentReference>;
 	codeCitations?: ReadonlyArray<IChatCodeCitation>;
 	timeSpentWaiting?: number;
+	completionTokens?: number;
+	elapsedMs?: number;
 }
 
-export type SerializedChatResponsePart = IMarkdownString | IChatResponseProgressFileTreeData | IChatContentInlineReference | IChatAgentMarkdownContentWithVulnerability | IChatThinkingPart | IChatProgressResponseContentSerialized | IChatQuestionCarousel | IChatDisabledClaudeHooksPart;
+export type SerializedChatResponsePart = IMarkdownString | IChatResponseProgressFileTreeData | IChatContentInlineReference | IChatAgentMarkdownContentWithVulnerability | IChatThinkingPart | IChatProgressResponseContentSerialized | IChatQuestionCarousel | IChatPlanReview | IChatDisabledClaudeHooksPart;
 
 export interface ISerializableChatRequestData extends ISerializableChatResponseData {
 	requestId: string;
@@ -1549,6 +1635,7 @@ export interface ISerializableChatRequestData extends ISerializableChatResponseD
 	modeInfo?: IChatRequestModeInfo;
 	isSystemInitiated?: boolean;
 	systemInitiatedLabel?: string;
+	terminalExecutionId?: string;
 }
 
 export interface ISerializableMarkdownInfo {
@@ -2418,6 +2505,7 @@ export class ChatModel extends Disposable implements IChatModel {
 			modeInfo: raw.modeInfo,
 			isSystemInitiated: raw.isSystemInitiated,
 			systemInitiatedLabel: raw.systemInitiatedLabel,
+			terminalExecutionId: raw.terminalExecutionId,
 		});
 		request.shouldBeRemovedOnSend = raw.isHidden ? { requestId: raw.requestId } : raw.shouldBeRemovedOnSend;
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any, local/code-no-any-casts
@@ -2439,7 +2527,7 @@ export class ChatModel extends Disposable implements IChatModel {
 			// their responses, so they cannot be interacted with.
 			if (raw.response) {
 				for (const part of raw.response) {
-					if (hasKey(part, { kind: true }) && (part.kind === 'questionCarousel')) {
+					if (hasKey(part, { kind: true }) && (part.kind === 'questionCarousel' || part.kind === 'planReview')) {
 						part.isUsed = true;
 					}
 				}
@@ -2458,10 +2546,14 @@ export class ChatModel extends Disposable implements IChatModel {
 				followups: raw.followups,
 				restoredId: raw.responseId,
 				timeSpentWaiting: raw.timeSpentWaiting,
+				elapsedMs: raw.elapsedMs,
 				shouldBeBlocked: request.shouldBeBlocked.get(),
 				codeBlockInfos: raw.responseMarkdownInfo?.map<ICodeBlockInfo>(info => ({ suggestionId: info.suggestionId })),
 			});
 			request.response.shouldBeRemovedOnSend = raw.isHidden ? { requestId: raw.requestId } : raw.shouldBeRemovedOnSend;
+			if (typeof raw.completionTokens === 'number') {
+				request.response.setUsage({ kind: 'usage', promptTokens: 0, completionTokens: raw.completionTokens });
+			}
 			if (raw.usedContext) { // @ulugbekna: if this's a new vscode sessions, doc versions are incorrect anyway?
 				request.response.applyReference(revive(raw.usedContext));
 			}
@@ -2586,7 +2678,24 @@ export class ChatModel extends Disposable implements IChatModel {
 		this._onDidChange.fire({ kind: 'setHidden' });
 	}
 
-	addRequest(message: IParsedChatRequest, variableData: IChatRequestVariableData, attempt: number, modeInfo?: IChatRequestModeInfo, chatAgent?: IChatAgentData, slashCommand?: IChatAgentCommand, confirmation?: string, locationData?: IChatLocationData, attachments?: IChatRequestVariableEntry[], isCompleteAddedRequest?: boolean, modelId?: string, userSelectedTools?: UserSelectedTools, id?: string, isSystemInitiated?: boolean, systemInitiatedLabel?: string): ChatRequestModel {
+	addRequest(
+		message: IParsedChatRequest,
+		variableData: IChatRequestVariableData,
+		attempt: number,
+		modeInfo?: IChatRequestModeInfo,
+		chatAgent?: IChatAgentData,
+		slashCommand?: IChatAgentCommand,
+		confirmation?: string,
+		locationData?: IChatLocationData,
+		attachments?: IChatRequestVariableEntry[],
+		isCompleteAddedRequest?: boolean,
+		modelId?: string,
+		userSelectedTools?: UserSelectedTools,
+		id?: string,
+		isSystemInitiated?: boolean,
+		systemInitiatedLabel?: string,
+		terminalExecutionId?: string
+	): ChatRequestModel {
 		const editedFileEvents = [...this.currentEditedFileEvents.values()];
 		this.currentEditedFileEvents.clear();
 		const request = new ChatRequestModel({
@@ -2606,6 +2715,7 @@ export class ChatModel extends Disposable implements IChatModel {
 			userSelectedTools,
 			isSystemInitiated,
 			systemInitiatedLabel,
+			terminalExecutionId,
 		});
 		request.response = new ChatResponseModel({
 			responseContent: [],
@@ -2765,6 +2875,7 @@ export class ChatModel extends Disposable implements IChatModel {
 					modeInfo: r.modeInfo,
 					isSystemInitiated: r.isSystemInitiated || undefined,
 					systemInitiatedLabel: r.systemInitiatedLabel,
+					terminalExecutionId: r.terminalExecutionId,
 					...r.response?.toJSON(),
 				};
 			}),
@@ -2787,6 +2898,15 @@ export class ChatModel extends Disposable implements IChatModel {
 		this._onDidDispose.fire();
 
 		super.dispose();
+
+		// Null out heavy fields to break retention chains. Even after disposal,
+		// stale references (closures, cached templates, etc.) may prevent GC
+		// from collecting this object. Clearing these fields ensures the
+		// conversation data, serialization snapshot, and editing session are
+		// freed regardless.
+		this._requests.length = 0;
+		this.dataSerializer = undefined;
+		this._editingSession = undefined;
 	}
 }
 
@@ -2861,6 +2981,9 @@ export function serializeSendOptions(options: IChatSendRequestOptions): ISeriali
 		agentIdSilent: options.agentIdSilent,
 		slashCommand: options.slashCommand,
 		confirmation: options.confirmation,
+		isSystemInitiated: options.isSystemInitiated,
+		systemInitiatedLabel: options.systemInitiatedLabel,
+		terminalExecutionId: options.terminalExecutionId,
 	};
 }
 

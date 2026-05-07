@@ -4,11 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { decodeHex, encodeHex, VSBuffer } from '../../../../base/common/buffer.js';
+import { basename } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IFileService } from '../../../files/common/files.js';
 import { ILogService } from '../../../log/common/log.js';
+import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { ISessionDatabase } from '../../common/sessionDataService.js';
-import { FileEditKind, ToolResultContentType, type IToolResultFileEditContent } from '../../common/state/sessionState.js';
+import { FileEditKind, ToolResultContentType, type ToolResultFileEditContent } from '../../common/state/sessionState.js';
 
 const SESSION_DB_SCHEME = 'session-db';
 
@@ -20,7 +22,7 @@ export function buildSessionDbUri(sessionUri: string, toolCallId: string, filePa
 	return URI.from({
 		scheme: SESSION_DB_SCHEME,
 		authority: encodeHex(VSBuffer.fromString(sessionUri)).toString(),
-		path: `/${encodeURIComponent(toolCallId)}/${encodeHex(VSBuffer.fromString(filePath))}/${part}`,
+		path: `/${encodeURIComponent(toolCallId)}/${encodeHex(VSBuffer.fromString(filePath))}/${part}/${basename(filePath)}`,
 	}).toString();
 }
 
@@ -80,8 +82,9 @@ export class FileEditTracker {
 	constructor(
 		private readonly _sessionUri: string,
 		private readonly _db: ISessionDatabase,
-		private readonly _fileService: IFileService,
-		private readonly _logService: ILogService,
+		@IFileService private readonly _fileService: IFileService,
+		@ILogService private readonly _logService: ILogService,
+		@IDiffComputeService private readonly _diffComputeService: IDiffComputeService,
 	) { }
 
 	/**
@@ -124,13 +127,14 @@ export class FileEditTracker {
 
 	/**
 	 * Retrieves and removes a completed edit for the given file path,
-	 * persists it to the session database, and returns the result as an
-	 * {@link IToolResultFileEditContent} for inclusion in the tool result.
+	 * persists it to the session database with computed diff counts,
+	 * and returns the result as an {@link ToolResultFileEditContent}
+	 * for inclusion in the tool result.
 	 *
 	 * @param toolCallId - The tool call that produced this edit.
 	 * @param filePath - Absolute path of the edited file.
 	 */
-	takeCompletedEdit(turnId: string, toolCallId: string, filePath: string): IToolResultFileEditContent | undefined {
+	async takeCompletedEdit(turnId: string, toolCallId: string, filePath: string): Promise<ToolResultFileEditContent | undefined> {
 		const edit = this._completedEdits.get(filePath);
 		if (!edit) {
 			return undefined;
@@ -139,17 +143,33 @@ export class FileEditTracker {
 
 		const beforeBytes = edit.beforeContent.buffer;
 		const afterBytes = edit.afterContent.buffer;
+		const beforeText = edit.beforeContent.toString();
+		const afterText = edit.afterContent.toString();
 
-		this._db.storeFileEdit({
-			turnId,
-			toolCallId,
-			filePath,
-			kind: FileEditKind.Edit,
-			beforeContent: beforeBytes,
-			afterContent: afterBytes,
-			addedLines: undefined,
-			removedLines: undefined,
-		}).catch(err => this._logService.warn(`[FileEditTracker] Failed to persist file edit to database: ${filePath}`, err));
+		let addedLines: number | undefined;
+		let removedLines: number | undefined;
+		try {
+			const counts = await this._diffComputeService.computeDiffCounts(beforeText, afterText);
+			addedLines = counts.added;
+			removedLines = counts.removed;
+		} catch (err) {
+			this._logService.warn(`[FileEditTracker] Failed to compute diff counts: ${filePath}`, err);
+		}
+
+		try {
+			await this._db.storeFileEdit({
+				turnId,
+				toolCallId,
+				filePath,
+				kind: FileEditKind.Edit,
+				beforeContent: beforeBytes,
+				afterContent: afterBytes,
+				addedLines,
+				removedLines,
+			});
+		} catch (err) {
+			this._logService.warn(`[FileEditTracker] Failed to persist file edit to database: ${filePath}`, err);
+		}
 
 		return {
 			type: ToolResultContentType.FileEdit,
@@ -161,6 +181,7 @@ export class FileEditTracker {
 				uri: URI.file(filePath).toString(),
 				content: { uri: buildSessionDbUri(this._sessionUri, toolCallId, filePath, 'after') },
 			},
+			diff: addedLines !== undefined ? { added: addedLines, removed: removedLines } : undefined,
 		};
 	}
 

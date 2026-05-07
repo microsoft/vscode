@@ -40,11 +40,18 @@ export interface ChatSessionWorktreePropertiesV2 extends ChatSessionWorktreeBase
 	readonly autoCommit?: boolean;
 	readonly baseBranchName: string;
 	readonly baseBranchProtected?: boolean;
+	readonly upstreamBranchName?: string;
+	readonly mergeBaseCommit?: string;
 	readonly pullRequestUrl?: string;
 	readonly pullRequestState?: string;
 	readonly firstCheckpointRef?: string;
 	readonly baseCheckpointRef?: string;
 	readonly lastCheckpointRef?: string;
+	readonly hasGitHubRemote?: boolean;
+	readonly incomingChanges?: number;
+	readonly outgoingChanges?: number;
+	readonly uncommittedChanges?: number;
+	readonly hasGitOperationInProgress?: boolean;
 }
 
 export type ChatSessionWorktreeProperties = ChatSessionWorktreePropertiesV1 | ChatSessionWorktreePropertiesV2;
@@ -53,22 +60,27 @@ export const IChatSessionWorktreeService = createServiceIdentifier<IChatSessionW
 
 export interface IChatSessionWorktreeService {
 	readonly _serviceBrand: undefined;
+	/**
+	 * Triggered when cached worktree changes for a session are invalidated and should be refreshed.
+	 *
+	 * This event does not guarantee that the underlying set of changes was updated directly; callers
+	 * should re-query {@link getWorktreeChanges} when it fires.
+	 */
+	onDidChangeWorktreeChanges: vscode.Event<{ sessionId: string }>;
 
 	createWorktree(repositoryPath: vscode.Uri, stream?: vscode.ChatResponseStream, baseBranch?: string, branchName?: string): Promise<ChatSessionWorktreeProperties | undefined>;
 
 	getWorktreeProperties(sessionId: string): Promise<ChatSessionWorktreeProperties | undefined>;
-	getWorktreeProperties(folder: vscode.Uri): Promise<ChatSessionWorktreeProperties | undefined>;
 	setWorktreeProperties(sessionId: string, properties: string | ChatSessionWorktreeProperties): Promise<void>;
 
 	getWorktreeRepository(sessionId: string): Promise<RepoContext | undefined>;
 	getWorktreePath(sessionId: string): Promise<vscode.Uri | undefined>;
 
 	applyWorktreeChanges(sessionId: string): Promise<void>;
-	updateWorktreeBranch(sessionId: string): Promise<void>;
 
-	getSessionIdForWorktree(folder: vscode.Uri): Promise<string | undefined>;
+	getWorktreeChanges(sessionId: string): Promise<readonly vscode.ChatSessionChangedFile[] | undefined>;
 
-	getWorktreeChanges(sessionId: string): Promise<readonly vscode.ChatSessionChangedFile2[] | undefined>;
+	hasCachedChanges(sessionId: string): Promise<boolean>;
 
 	handleRequestCompleted(sessionId: string): Promise<void>;
 

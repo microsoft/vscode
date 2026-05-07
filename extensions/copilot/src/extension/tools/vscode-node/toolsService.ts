@@ -143,7 +143,7 @@ export class ToolsService extends BaseToolsService {
 		// Always capture tool call arguments for the debug panel
 		if (options.input !== undefined) {
 			try {
-				span.setAttribute(GenAiAttr.TOOL_CALL_ARGUMENTS, truncateForOTel(JSON.stringify(options.input)));
+				span.setAttribute(GenAiAttr.TOOL_CALL_ARGUMENTS, truncateForOTel(JSON.stringify(options.input), this._otelService.config.maxAttributeSizeChars));
 			} catch { /* swallow serialization errors */ }
 		}
 
@@ -157,6 +157,10 @@ export class ToolsService extends BaseToolsService {
 			if (traceCtx) {
 				if (chatStreamToolCallId) {
 					this._otelService.storeTraceContext(`subagent:toolcall:${chatStreamToolCallId}`, traceCtx);
+					// VS Code core uses the chatStreamToolCallId (LLM tool_use id) as
+					// the child's subAgentInvocationId, so store under the invocation
+					// prefix too for the child's lookup in toolCallingLoop.
+					this._otelService.storeTraceContext(`subagent:invocation:${chatStreamToolCallId}`, traceCtx);
 				}
 				if (subAgentInvocationId) {
 					this._otelService.storeTraceContext(`subagent:invocation:${subAgentInvocationId}`, traceCtx);
@@ -170,6 +174,25 @@ export class ToolsService extends BaseToolsService {
 		}
 
 		const startTime = Date.now();
+
+		// Propagate W3C trace context to tool invocations so downstream spans can be
+		// correlated with this `execute_tool` span. MCP tools forward this onto
+		// `_meta.traceparent`/`_meta.tracestate` of the JSON-RPC `tools/call` payload
+		// (MCP SEP-414, see #302301). Only set if not already supplied by the caller.
+		const optionsWithTrace = options as vscode.LanguageModelToolInvocationOptions<Object> & { traceparent?: string; tracestate?: string };
+		const ctx = span.getSpanContext();
+		if (ctx) {
+			if (!optionsWithTrace.traceparent) {
+				// Preserve the upstream W3C trace flags when available. Fall back to `01`
+				// (sampled) so downstream MCP servers continue to participate in the trace
+				// when the abstraction does not surface flags (e.g. tests, in-memory impl).
+				const flags = (ctx.traceFlags ?? 0x01).toString(16).padStart(2, '0');
+				optionsWithTrace.traceparent = `00-${ctx.traceId}-${ctx.spanId}-${flags}`;
+			}
+			if (!optionsWithTrace.tracestate && ctx.traceState) {
+				optionsWithTrace.tracestate = ctx.traceState;
+			}
+		}
 
 		return vscode.lm.invokeTool(getContributedToolName(name), options, token).then(
 			result => {
@@ -187,7 +210,7 @@ export class ToolsService extends BaseToolsService {
 						}
 					}
 					if (parts.length > 0) {
-						span.setAttribute(GenAiAttr.TOOL_CALL_RESULT, truncateForOTel(parts.join('')));
+						span.setAttribute(GenAiAttr.TOOL_CALL_RESULT, truncateForOTel(parts.join(''), this._otelService.config.maxAttributeSizeChars));
 					}
 				} catch { /* swallow */ }
 				span.end();
@@ -200,7 +223,7 @@ export class ToolsService extends BaseToolsService {
 			err => {
 				span.setStatus(SpanStatusCode.ERROR, err instanceof Error ? err.message : String(err));
 				span.setAttribute(StdAttr.ERROR_TYPE, err instanceof Error ? err.constructor.name : 'Error');
-				span.setAttribute(GenAiAttr.TOOL_CALL_RESULT, truncateForOTel(`ERROR: ${err instanceof Error ? err.message : String(err)}`));
+				span.setAttribute(GenAiAttr.TOOL_CALL_RESULT, truncateForOTel(`ERROR: ${err instanceof Error ? err.message : String(err)}`, this._otelService.config.maxAttributeSizeChars));
 				span.recordException(err);
 				span.end();
 				const durationMs = Date.now() - startTime;
