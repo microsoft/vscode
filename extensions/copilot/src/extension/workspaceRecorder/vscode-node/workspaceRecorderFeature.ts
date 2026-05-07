@@ -51,7 +51,7 @@ export class WorkspaceRecorderFeature extends Disposable {
 	async init(store: DisposableStore) {
 		const gitApi = await waitForState(this._gitApi);
 
-		const repos = observableFromEvent(this, (e) => gitApi.onDidOpenRepository(e), () => gitApi.repositories);
+		const repos = observableFromEvent(this, (e) => gitApi.onDidOpenRepository(e), () => Array.isArray(gitApi.repositories) ? gitApi.repositories : []);
 		await waitForState(repos, (repos) => repos.length > 0, undefined, cancelOnDispose(store));
 
 		const recordingDirPath = join(this._vscodeExtensionContext.globalStorageUri.fsPath, 'workspaceRecordings');
