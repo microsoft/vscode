@@ -693,13 +693,13 @@ export class ChangesViewPane extends ViewPane {
 
 	private _bindContextKeys(topLevelStats: IObservable<{ files: number }>): void {
 		// Request in progress (can be updated independently since it only affects action enablement, and not visibility)
-		this.renderDisposables.add(bindContextKey(ChatContextKeys.requestInProgress, this.scopedContextKeyService, reader => {
+		this.renderDisposables.add(bindContextKey(ChatContextKeys.requestInProgress, this.contextKeyService, reader => {
 			const activeSessionStatus = this.sessionManagementService.activeSession.read(reader)?.status.read(reader);
 			return activeSessionStatus !== SessionStatus.Completed && activeSessionStatus !== SessionStatus.Error;
 		}));
 
 		// Has changes (can be updated independently since it only affects action enablement, and not visibility)
-		this.renderDisposables.add(bindContextKey(ChatContextKeys.hasAgentSessionChanges, this.scopedContextKeyService, reader => {
+		this.renderDisposables.add(bindContextKey(ChatContextKeys.hasAgentSessionChanges, this.contextKeyService, reader => {
 			const { files } = topLevelStats.read(reader);
 			return files > 0;
 		}));
@@ -713,7 +713,7 @@ export class ChangesViewPane extends ViewPane {
 
 			this.logService.info(`[ChangesViewPane][_bindContextKeys] Context keys: ${JSON.stringify(state)}`);
 
-			this.scopedContextKeyService.bufferChangeEvents(() => {
+			this.contextKeyService.bufferChangeEvents(() => {
 				this.isolationModeContextKey.set(state.isolationMode);
 				this.hasGitRepositoryContextKey.set(state.hasGitRepository);
 				this.isMergeBaseBranchProtectedContextKey.set(state.isMergeBaseBranchProtected === true);
