@@ -3,13 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { PermissionRequestResult, SessionConfig, Tool, ToolResultObject } from '@github/copilot-sdk';
+import type { MessageOptions, PermissionRequestResult, SessionConfig, Tool, ToolResultObject } from '@github/copilot-sdk';
 import { DeferredPromise } from '../../../../base/common/async.js';
+import { assertNever } from '../../../../base/common/assert.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
 import { join } from '../../../../base/common/path.js';
 import { extUriBiasedIgnorePathCase, normalizePath } from '../../../../base/common/resources.js';
+import { splitLinesIncludeSeparators } from '../../../../base/common/strings.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
@@ -44,6 +46,12 @@ import { buildPendingEditContentUri } from './pendingEditContentStore.js';
  * and the `session.mode_changed` listener.
  */
 export type CopilotSdkMode = 'interactive' | 'plan' | 'autopilot';
+type CopilotSdkAttachment = Required<MessageOptions>['attachments'][number];
+
+interface IAgentAttachmentSelectionRange {
+	readonly start: { readonly line: number; readonly character: number };
+	readonly end: { readonly line: number; readonly character: number };
+}
 
 const COPILOT_HOME_DIRECTORY = '.copilot';
 const SESSION_STATE_DIRECTORY = join(COPILOT_HOME_DIRECTORY, 'session-state');
@@ -510,20 +518,66 @@ export class CopilotAgentSession extends Disposable {
 		}
 		this._logService.info(`[Copilot:${this.sessionId}] sendMessage called: "${prompt.substring(0, 100)}${prompt.length > 100 ? '...' : ''}" (${attachments?.length ?? 0} attachments)`);
 
-		const sdkAttachments = attachments?.map(a => {
-			const path = a.uri.scheme === 'file' ? a.uri.fsPath : a.uri.toString();
-			if (a.type === AgentAttachmentType.Selection) {
-				return { type: 'selection' as const, filePath: path, displayName: a.displayName ?? path, text: a.text, selection: a.selection };
-			}
-			return { type: a.type, path, displayName: a.displayName };
-		});
-		if (sdkAttachments?.length) {
-			this._logService.trace(`[Copilot:${this.sessionId}] Attachments: ${JSON.stringify(sdkAttachments.map(a => ({ type: a.type, path: a.type === 'selection' ? a.filePath : a.path })))}`);
+		const sdkAttachments = await Promise.all(attachments?.map(a => this._toSdkAttachment(a)) ?? []);
+		if (sdkAttachments.length) {
+			this._logService.trace(`[Copilot:${this.sessionId}] Attachments: ${JSON.stringify(sdkAttachments.map(a => ({ type: a.type, path: this._getSdkAttachmentPathForLogging(a) })))}`);
 		}
 
 		await this.applyMode(mode);
-		await this._wrapper.session.send({ prompt, attachments: sdkAttachments });
+		await this._wrapper.session.send({ prompt, attachments: sdkAttachments.length > 0 ? sdkAttachments : undefined });
 		this._logService.info(`[Copilot:${this.sessionId}] session.send() returned`);
+	}
+
+	private async _toSdkAttachment(a: IAgentAttachment): Promise<CopilotSdkAttachment> {
+		const path = a.uri.scheme === 'file' ? a.uri.fsPath : a.uri.toString();
+		if (a.type === AgentAttachmentType.Selection && a.selection) {
+			try {
+				return { type: 'selection' as const, filePath: path, displayName: a.displayName ?? path, text: await this._readSelectedText(a.uri, a.selection), selection: a.selection };
+			} catch (err) {
+				this._logService.warn(`[Copilot:${this.sessionId}] Failed to read selected text for ${a.uri.toString()}: ${err}`);
+				return { type: 'file' as const, path, displayName: a.displayName };
+			}
+		}
+		if (a.type === AgentAttachmentType.Selection) {
+			return { type: 'file' as const, path, displayName: a.displayName };
+		}
+		return { type: a.type, path, displayName: a.displayName };
+	}
+
+	private _getSdkAttachmentPathForLogging(a: CopilotSdkAttachment): string | undefined {
+		switch (a.type) {
+			case 'selection':
+				return a.filePath;
+			case 'file':
+			case 'directory':
+				return a.path;
+			case 'blob':
+				return undefined;
+			default:
+				return assertNever(a);
+		}
+	}
+
+	private async _readSelectedText(uri: URI, range: IAgentAttachmentSelectionRange): Promise<string> {
+		const content = await this._fileService.readFile(uri);
+		const text = content.value.toString();
+		// AHP carries the resource range; the public SDK can carry the selected text too.
+		// Derive it here at the SDK boundary to preserve Copilot CLI chat parity. This
+		// reads the resource URI, so unsaved editor changes are not included.
+		const lines = splitLinesIncludeSeparators(text);
+		const start = this._getOffsetAt(lines, range.start);
+		const end = this._getOffsetAt(lines, range.end);
+		return text.substring(start, Math.max(start, end));
+	}
+
+	private _getOffsetAt(lines: readonly string[], position: { readonly line: number; readonly character: number }): number {
+		const line = Math.max(0, Math.min(position.line, lines.length - 1));
+		let offset = 0;
+		for (let i = 0; i < line; i++) {
+			offset += lines[i].length;
+		}
+		const lineText = lines[line].replace(/\r\n|\r|\n$/, '');
+		return offset + Math.max(0, Math.min(position.character, lineText.length));
 	}
 
 	/**

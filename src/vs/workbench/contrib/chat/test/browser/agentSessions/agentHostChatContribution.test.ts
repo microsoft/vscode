@@ -12,13 +12,11 @@ import { ISettableObservable, observableValue, type IObservable } from '../../..
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
-import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
+import { timeout } from '../../../../../../base/common/async.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
-import type { ITextModel } from '../../../../../../editor/common/model.js';
-import { ITextModelService, type IResolvedTextEditorModel } from '../../../../../../editor/common/services/resolverService.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { AGENT_ATTACHMENT_SELECTION_META_KEY, IAgentCreateSessionConfig, IAgentHostService, IAgentSessionMetadata, AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IAgentCreateSessionConfig, IAgentHostService, IAgentSessionMetadata, AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
 import { ActionType, isSessionAction, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type INotification, type IToolCallConfirmedAction, type ITurnStartedAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import type { IStateSnapshot } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import type { CustomizationRef } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -353,7 +351,7 @@ class MockChatWidgetService extends mock<IChatWidgetService>() {
 
 // ---- Helpers ----------------------------------------------------------------
 
-function createTestServices(disposables: DisposableStore, workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean }, authServiceOverride?: Partial<IAuthenticationService>, textModelServiceOverride?: Partial<ITextModelService>) {
+function createTestServices(disposables: DisposableStore, workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean }, authServiceOverride?: Partial<IAuthenticationService>) {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	const agentHostService = new MockAgentHostService();
@@ -368,19 +366,6 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 	instantiationService.stub(IChatAgentService, chatAgentService);
 	instantiationService.stub(IChatWidgetService, chatWidgetService);
 	instantiationService.stub(IFileService, TestFileService);
-	instantiationService.stub(ITextModelService, {
-		createModelReference: async (_resource: URI) => {
-			return upcastPartial({
-				object: {
-					textEditorModel: {
-						getValueInRange: () => 'selected text',
-					},
-				},
-				dispose: () => { },
-			});
-		},
-		...textModelServiceOverride,
-	} as unknown as ITextModelService);
 	instantiationService.stub(ILabelService, MockLabelService);
 	instantiationService.stub(IChatSessionsService, {
 		registerChatSessionItemController: () => toDisposable(() => { }),
@@ -461,8 +446,8 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 	return { instantiationService, agentHostService, chatAgentService, chatWidgetService, chatService };
 }
 
-function createContribution(disposables: DisposableStore, opts?: { authServiceOverride?: Partial<IAuthenticationService>; workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean }; textModelServiceOverride?: Partial<ITextModelService> }) {
-	const { instantiationService, agentHostService, chatAgentService, chatWidgetService, chatService } = createTestServices(disposables, opts?.workingDirectoryResolver, opts?.authServiceOverride, opts?.textModelServiceOverride);
+function createContribution(disposables: DisposableStore, opts?: { authServiceOverride?: Partial<IAuthenticationService>; workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean } }) {
+	const { instantiationService, agentHostService, chatAgentService, chatWidgetService, chatService } = createTestServices(disposables, opts?.workingDirectoryResolver, opts?.authServiceOverride);
 
 	const listController = disposables.add(instantiationService.createInstance(AgentHostSessionListController, 'agent-host-copilot', 'copilot', agentHostService, undefined, 'local'));
 	const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
@@ -1312,48 +1297,6 @@ suite('AgentHostChatContribution', () => {
 			await turnPromise;
 
 			assert.ok(agentHostService.dispatchedActions.some(a => a.action.type === 'session/turnCancelled'));
-		}));
-
-		test('cancellation while resolving selection attachments skips turn dispatch', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const modelReference = new DeferredPromise<IReference<IResolvedTextEditorModel>>();
-			let createModelReferenceCalls = 0;
-			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, {
-				textModelServiceOverride: {
-					createModelReference: async () => {
-						createModelReferenceCalls++;
-						return modelReference.p;
-					},
-				},
-			});
-
-			const cts = new CancellationTokenSource();
-			disposables.add(cts);
-
-			const { turnPromise } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
-				cancellationToken: cts.token,
-				variables: {
-					variables: [
-						upcastPartial({ kind: 'implicit', id: 'v-implicit', name: 'selection', isFile: true as const, isSelection: true, uri: URI.file('/workspace/foo.ts'), enabled: true, value: { uri: URI.file('/workspace/foo.ts'), range: new Range(2, 3, 4, 5) } }),
-					],
-				},
-			});
-
-			assert.strictEqual(createModelReferenceCalls, 1);
-			assert.strictEqual(agentHostService.turnActions.length, 0);
-
-			cts.cancel();
-			const resolvedModel = upcastPartial<IResolvedTextEditorModel>({
-				textEditorModel: upcastPartial<ITextModel>({
-					getValueInRange: () => 'selected text',
-				}),
-			});
-			modelReference.complete(upcastPartial<IReference<IResolvedTextEditorModel>>({
-				object: resolvedModel,
-				dispose: () => { },
-			}));
-			await turnPromise;
-
-			assert.strictEqual(agentHostService.turnActions.length, 0);
 		}));
 
 		test('cancellation force-completes outstanding tool invocations', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -2328,13 +2271,10 @@ suite('AgentHostChatContribution', () => {
 					uri: URI.file('/workspace/foo.ts').toString(),
 					label: 'selection',
 					displayKind: 'selection',
-					_meta: {
-						[AGENT_ATTACHMENT_SELECTION_META_KEY]: {
-							text: 'selected text',
-							selection: {
-								start: { line: 2, character: 3 },
-								end: { line: 4, character: 5 },
-							},
+					selection: {
+						range: {
+							start: { line: 1, character: 2 },
+							end: { line: 3, character: 4 },
 						},
 					},
 				},
@@ -2368,13 +2308,10 @@ suite('AgentHostChatContribution', () => {
 					uri: URI.file('/workspace/foo.ts').toString(),
 					label: 'foo.ts:2-4',
 					displayKind: 'selection',
-					_meta: {
-						[AGENT_ATTACHMENT_SELECTION_META_KEY]: {
-							text: 'selected text',
-							selection: {
-								start: { line: 2, character: 3 },
-								end: { line: 4, character: 5 },
-							},
+					selection: {
+						range: {
+							start: { line: 1, character: 2 },
+							end: { line: 3, character: 4 },
 						},
 					},
 				},
@@ -2498,23 +2435,8 @@ suite('AgentHostChatContribution', () => {
 			const requestedDir = URI.file('/source');
 			const resolvedDir = URI.file('/worktree');
 			const expectedSelectionUri = URI.file('/worktree/sub/foo.ts');
-			const openedModelReferences: URI[] = [];
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, {
 				workingDirectoryResolver: { resolve: () => requestedDir },
-				textModelServiceOverride: {
-					createModelReference: async (resource: URI): Promise<IReference<IResolvedTextEditorModel>> => {
-						openedModelReferences.push(resource);
-						const resolvedModel = upcastPartial<IResolvedTextEditorModel>({
-							textEditorModel: upcastPartial<ITextModel>({
-								getValueInRange: () => resource.toString() === expectedSelectionUri.toString() ? 'worktree selected text' : 'source selected text',
-							}),
-						});
-						return upcastPartial<IReference<IResolvedTextEditorModel>>({
-							object: resolvedModel,
-							dispose: () => { },
-						});
-					},
-				},
 			});
 			agentHostService.nextResolvedWorkingDirectory = resolvedDir;
 
@@ -2550,18 +2472,14 @@ suite('AgentHostChatContribution', () => {
 					uri: expectedSelectionUri.toString(),
 					label: 'selection',
 					displayKind: 'selection',
-					_meta: {
-						[AGENT_ATTACHMENT_SELECTION_META_KEY]: {
-							text: 'worktree selected text',
-							selection: {
-								start: { line: 2, character: 3 },
-								end: { line: 4, character: 5 },
-							},
+					selection: {
+						range: {
+							start: { line: 1, character: 2 },
+							end: { line: 3, character: 4 },
 						},
 					},
 				},
 			]);
-			assert.deepStrictEqual(openedModelReferences.map(uri => uri.toString()), [expectedSelectionUri.toString()]);
 		}));
 
 		test('does not rebase when requested and resolved working dirs match', () => runWithFakedTimers({ useFakeTimers: true }, async () => {

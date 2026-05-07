@@ -14,9 +14,8 @@ import { autorun, autorunPerKeyedItem, derived, IObservable, observableValue, tr
 import { extUriBiasedIgnorePathCase, isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { isLocation } from '../../../../../../editor/common/languages.js';
-import { ITextModelService } from '../../../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../../../nls.js';
-import { AGENT_ATTACHMENT_SELECTION_META_KEY, AgentProvider, AgentSession, type IAgentAttachmentSelectionMetadata, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AgentProvider, AgentSession, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { IAgentSubscription, observableFromSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { SessionTruncatedAction } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
@@ -381,7 +380,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
-		@ITextModelService private readonly _textModelService: ITextModelService,
 	) {
 		super();
 		this._config = config;
@@ -2402,54 +2400,31 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			?? this._workspaceContextService.getWorkspace().folders[0]?.uri;
 	}
 
-	private async _readSelectionAttachmentMetadata(uri: URI, range: { startLineNumber: number; startColumn: number; endLineNumber: number; endColumn: number }): Promise<IAgentAttachmentSelectionMetadata | undefined> {
-		try {
-			const ref = await this._textModelService.createModelReference(uri);
-			try {
-				const text = ref.object.textEditorModel.getValueInRange(range);
-				return {
-					text,
-					selection: {
-						start: { line: range.startLineNumber, character: range.startColumn },
-						end: { line: range.endLineNumber, character: range.endColumn },
-					},
-				};
-			} finally {
-				ref.dispose();
-			}
-		} catch (err) {
-			this._logService.warn(`[AgentHost] Failed to read selected text for ${uri.toString()}: ${err}`);
-			return undefined;
-		}
-	}
-
-	private async _convertVariablesToAttachments(request: IChatAgentRequest): Promise<MessageAttachment[]> {
+	private _convertVariablesToAttachments(request: IChatAgentRequest): MessageAttachment[] {
 		const attachments: MessageAttachment[] = [];
 		for (const v of request.variables.variables) {
 			if (v.kind === 'file' && isLocation(v.value)) {
 				const uri = v.value.uri;
 				if (uri.scheme === 'file') {
 					const attachmentUri = this._rebaseAttachmentUri(uri, request.sessionResource);
-					const selectionMetadata = await this._readSelectionAttachmentMetadata(attachmentUri, v.value.range);
 					attachments.push({
 						type: MessageAttachmentKind.Resource,
 						uri: attachmentUri.toString(),
 						label: v.name,
 						displayKind: 'selection',
-						...(selectionMetadata ? { _meta: { [AGENT_ATTACHMENT_SELECTION_META_KEY]: selectionMetadata } } : {}),
+						selection: { range: this._toTextRange(v.value.range) },
 					});
 				}
 			} else if (v.kind === 'implicit' && v.isSelection && isLocation(v.value)) {
 				const uri = v.value.uri;
 				if (uri.scheme === 'file') {
 					const attachmentUri = this._rebaseAttachmentUri(uri, request.sessionResource);
-					const selectionMetadata = await this._readSelectionAttachmentMetadata(attachmentUri, v.value.range);
 					attachments.push({
 						type: MessageAttachmentKind.Resource,
 						uri: attachmentUri.toString(),
 						label: v.name,
 						displayKind: 'selection',
-						...(selectionMetadata ? { _meta: { [AGENT_ATTACHMENT_SELECTION_META_KEY]: selectionMetadata } } : {}),
+						selection: { range: this._toTextRange(v.value.range) },
 					});
 				}
 			} else if (v.kind === 'file') {
@@ -2470,6 +2445,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			this._logService.trace(`[AgentHost] Converted ${attachments.length} attachments from ${request.variables.variables.length} variables`);
 		}
 		return attachments;
+	}
+
+	private _toTextRange(range: { startLineNumber: number; startColumn: number; endLineNumber: number; endColumn: number }) {
+		return {
+			start: { line: range.startLineNumber - 1, character: range.startColumn - 1 },
+			end: { line: range.endLineNumber - 1, character: range.endColumn - 1 },
+		};
 	}
 
 	/**

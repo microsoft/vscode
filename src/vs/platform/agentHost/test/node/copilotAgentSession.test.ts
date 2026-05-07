@@ -6,6 +6,7 @@
 import type { CopilotSession, SessionEvent, SessionEventPayload, SessionEventType, Tool, ToolResultObject, TypedSessionEventHandler } from '@github/copilot-sdk';
 import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { join, sep } from '../../../../base/common/path.js';
@@ -87,10 +88,16 @@ class MockCopilotSession {
 
 class CapturingLogService extends NullLogService {
 	readonly errors: Array<{ first: string | Error; args: unknown[] }> = [];
+	readonly warnings: Array<{ message: string; args: unknown[] }> = [];
 
 	override error(message: string | Error, ...args: unknown[]): void {
 		this.errors.push({ first: message, args });
 		super.error(message, ...args);
+	}
+
+	override warn(message: string, ...args: unknown[]): void {
+		this.warnings.push({ message, args });
+		super.warn(message, ...args);
 	}
 }
 
@@ -143,6 +150,8 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	workingDirectory?: URI;
 	/** Per-key effective config values returned by the fake configuration service. */
 	configValues?: Record<string, unknown>;
+	fileContents?: Record<string, string>;
+	fileReadErrors?: readonly string[];
 }): Promise<{
 	session: CopilotAgentSession;
 	mockSession: MockCopilotSession;
@@ -187,7 +196,15 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 
 	const services = new ServiceCollection();
 	services.set(ILogService, options?.logService ?? new NullLogService());
-	services.set(IFileService, { _serviceBrand: undefined } as IFileService);
+	services.set(IFileService, {
+		_serviceBrand: undefined,
+		readFile: async (resource: URI) => {
+			if (options?.fileReadErrors?.includes(resource.toString()) || options?.fileReadErrors?.includes(resource.fsPath)) {
+				throw new Error('read failed');
+			}
+			return { value: VSBuffer.fromString(options?.fileContents?.[resource.toString()] ?? options?.fileContents?.[resource.fsPath] ?? '') };
+		},
+	} as Partial<IFileService> as IFileService);
 	services.set(ISessionDataService, createSessionDataService());
 	services.set(IDiffComputeService, createZeroDiffComputeService());
 	const sessionConfigUpdates: Array<{ session: string; patch: Record<string, unknown> }> = [];
@@ -246,9 +263,13 @@ suite('CopilotAgentSession', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('maps internal attachment URIs to Copilot SDK path fields', async () => {
-		const { session, mockSession } = await createAgentSession(disposables);
 		const fileUri = URI.file('/workspace/file.ts');
 		const selectionUri = URI.file('/workspace/selection.ts');
+		const { session, mockSession } = await createAgentSession(disposables, {
+			fileContents: {
+				[selectionUri.toString()]: 'alpha\nbeta\n012selected text345\nomega',
+			},
+		});
 
 		await session.send('hello', [
 			{ type: AgentAttachmentType.File, uri: fileUri, displayName: 'file.ts' },
@@ -256,10 +277,9 @@ suite('CopilotAgentSession', () => {
 				type: AgentAttachmentType.Selection,
 				uri: selectionUri,
 				displayName: 'selection.ts',
-				text: 'selected text',
 				selection: {
 					start: { line: 2, character: 3 },
-					end: { line: 4, character: 5 },
+					end: { line: 2, character: 16 },
 				},
 			},
 		]);
@@ -275,11 +295,104 @@ suite('CopilotAgentSession', () => {
 					text: 'selected text',
 					selection: {
 						start: { line: 2, character: 3 },
-						end: { line: 4, character: 5 },
+						end: { line: 2, character: 16 },
 					},
 				},
 			],
 		}]);
+	});
+
+	test('extracts selected text from file contents for different line endings and bounds', async () => {
+		const testCases = [
+			{
+				name: 'lf multiline',
+				contents: 'zero\none\ntwo\nthree',
+				selection: { start: { line: 1, character: 1 }, end: { line: 2, character: 2 } },
+				expectedText: 'ne\ntw',
+			},
+			{
+				name: 'crlf multiline',
+				contents: 'zero\r\none\r\ntwo\r\nthree',
+				selection: { start: { line: 1, character: 1 }, end: { line: 2, character: 2 } },
+				expectedText: 'ne\r\ntw',
+			},
+			{
+				name: 'clamps past eof',
+				contents: 'zero\none',
+				selection: { start: { line: 1, character: 1 }, end: { line: 42, character: 99 } },
+				expectedText: 'ne',
+			},
+			{
+				name: 'empty when end is before start',
+				contents: 'zero\none',
+				selection: { start: { line: 1, character: 3 }, end: { line: 1, character: 1 } },
+				expectedText: '',
+			},
+		] satisfies ReadonlyArray<{
+			name: string;
+			contents: string;
+			selection: {
+				start: { line: number; character: number };
+				end: { line: number; character: number };
+			};
+			expectedText: string;
+		}>;
+
+		for (const testCase of testCases) {
+			const selectionUri = URI.file(`/workspace/${testCase.name}.ts`);
+			const { session, mockSession } = await createAgentSession(disposables, {
+				fileContents: {
+					[selectionUri.toString()]: testCase.contents,
+				},
+			});
+
+			await session.send('hello', [{
+				type: AgentAttachmentType.Selection,
+				uri: selectionUri,
+				displayName: `${testCase.name}.ts`,
+				selection: testCase.selection,
+			}]);
+
+			assert.deepStrictEqual(mockSession.sendRequests, [{
+				prompt: 'hello',
+				attachments: [{
+					type: 'selection',
+					filePath: selectionUri.fsPath,
+					displayName: `${testCase.name}.ts`,
+					text: testCase.expectedText,
+					selection: testCase.selection,
+				}],
+			}], testCase.name);
+			disposables.clear();
+		}
+	});
+
+	test('falls back to file attachment when selection text cannot be read', async () => {
+		const selectionUri = URI.file('/workspace/missing.ts');
+		const logService = new CapturingLogService();
+		const { session, mockSession } = await createAgentSession(disposables, {
+			fileReadErrors: [selectionUri.toString()],
+			logService,
+		});
+
+		await session.send('hello', [{
+			type: AgentAttachmentType.Selection,
+			uri: selectionUri,
+			displayName: 'missing.ts',
+			selection: {
+				start: { line: 0, character: 0 },
+				end: { line: 0, character: 5 },
+			},
+		}]);
+
+		assert.deepStrictEqual(mockSession.sendRequests, [{
+			prompt: 'hello',
+			attachments: [
+				{ type: 'file', path: selectionUri.fsPath, displayName: 'missing.ts' },
+			],
+		}]);
+		assert.strictEqual(logService.warnings.length, 1);
+		assert.match(logService.warnings[0].message, /Failed to read selected text/);
 	});
 
 	// ---- permission handling ----

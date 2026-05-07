@@ -12,7 +12,7 @@ import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { ILogService } from '../../log/common/log.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
-import { AGENT_ATTACHMENT_SELECTION_META_KEY, AgentAttachmentType, AgentSignal, IAgent, IAgentAttachment, IAgentAttachmentSelectionMetadata, IAgentToolPendingConfirmationSignal } from '../common/agentService.js';
+import { AgentAttachmentType, AgentSignal, IAgent, IAgentAttachment, IAgentToolPendingConfirmationSignal } from '../common/agentService.js';
 import { IDiffComputeService } from '../common/diffComputeService.js';
 import { ISessionDatabase, ISessionDataService } from '../common/sessionDataService.js';
 import type { AgentInfo } from '../common/state/protocol/state.js';
@@ -62,27 +62,6 @@ interface IPendingSubagentSignal {
 	readonly agent: IAgent;
 }
 
-function readSelectionMetadata(meta: Record<string, unknown> | undefined): IAgentAttachmentSelectionMetadata | undefined {
-	const value = meta?.[AGENT_ATTACHMENT_SELECTION_META_KEY];
-	if (!value || typeof value !== 'object') {
-		return undefined;
-	}
-	const candidate = value as IAgentAttachmentSelectionMetadata;
-	const selection = candidate.selection;
-	if (selection && (
-		typeof selection.start?.line !== 'number'
-		|| typeof selection.start?.character !== 'number'
-		|| typeof selection.end?.line !== 'number'
-		|| typeof selection.end?.character !== 'number'
-	)) {
-		return undefined;
-	}
-	return {
-		text: typeof candidate.text === 'string' ? candidate.text : undefined,
-		selection,
-	};
-}
-
 function toAgentAttachment(attachment: MessageAttachment): IAgentAttachment | undefined {
 	if (attachment.type !== MessageAttachmentKind.Resource) {
 		return undefined;
@@ -93,13 +72,11 @@ function toAgentAttachment(attachment: MessageAttachment): IAgentAttachment | un
 		return { type: AgentAttachmentType.Directory, uri, displayName };
 	}
 	if (attachment.displayKind === 'selection') {
-		const selectionMetadata = readSelectionMetadata(attachment._meta);
 		return {
 			type: AgentAttachmentType.Selection,
 			uri,
 			displayName,
-			text: selectionMetadata?.text,
-			selection: selectionMetadata?.selection,
+			selection: attachment.selection?.range,
 		};
 	}
 	return { type: AgentAttachmentType.File, uri, displayName };

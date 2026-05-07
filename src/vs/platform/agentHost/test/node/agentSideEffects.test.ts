@@ -17,7 +17,7 @@ import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesy
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
-import { AGENT_ATTACHMENT_SELECTION_META_KEY, AgentAttachmentType, AgentSession, IAgent } from '../../common/agentService.js';
+import { AgentAttachmentType, AgentSession, IAgent } from '../../common/agentService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import type { RootConfigChangedAction } from '../../common/state/protocol/actions.js';
 import { CustomizationStatus } from '../../common/state/protocol/state.js';
@@ -149,7 +149,7 @@ suite('AgentSideEffects', () => {
 			}]);
 		});
 
-		test('maps protocol selection attachment metadata before passing it to the agent', () => {
+		test('maps protocol selection attachment range before passing it to the agent', () => {
 			setupSession();
 			const fileUri = URI.file('/workspace/selection.ts');
 			const action: SessionAction = {
@@ -163,13 +163,10 @@ suite('AgentSideEffects', () => {
 						uri: fileUri.toString(),
 						label: 'selection.ts',
 						displayKind: 'selection',
-						_meta: {
-							[AGENT_ATTACHMENT_SELECTION_META_KEY]: {
-								text: 'selected text',
-								selection: {
-									start: { line: 2, character: 3 },
-									end: { line: 4, character: 5 },
-								},
+						selection: {
+							range: {
+								start: { line: 2, character: 3 },
+								end: { line: 4, character: 5 },
 							},
 						},
 					}],
@@ -185,7 +182,6 @@ suite('AgentSideEffects', () => {
 					type: AgentAttachmentType.Selection,
 					uri: URI.parse(fileUri.toString()),
 					displayName: 'selection.ts',
-					text: 'selected text',
 					selection: {
 						start: { line: 2, character: 3 },
 						end: { line: 4, character: 5 },

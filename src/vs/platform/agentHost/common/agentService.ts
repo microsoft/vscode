@@ -239,20 +239,10 @@ export interface IAgentSessionConfigCompletionsParams extends IAgentResolveSessi
 	readonly query?: string;
 }
 
-export const AGENT_ATTACHMENT_SELECTION_META_KEY = 'vscode.selection';
-
 export const enum AgentAttachmentType {
 	File = 'file',
 	Directory = 'directory',
 	Selection = 'selection',
-}
-
-export interface IAgentAttachmentSelectionMetadata {
-	readonly text?: string;
-	readonly selection?: {
-		readonly start: { readonly line: number; readonly character: number };
-		readonly end: { readonly line: number; readonly character: number };
-	};
 }
 
 /** Serializable attachment passed alongside a message to the agent host. */
@@ -260,8 +250,6 @@ export interface IAgentAttachment {
 	readonly type: AgentAttachmentType;
 	readonly uri: URI;
 	readonly displayName?: string;
-	/** For selections: the selected text. */
-	readonly text?: string;
 	/** For selections: line/character range. */
 	readonly selection?: {
 		readonly start: { readonly line: number; readonly character: number };

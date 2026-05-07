@@ -843,9 +843,9 @@ export interface ActiveTurn {
  * A user message and its associated attachments.
  *
  * Attachments MAY be referenced inside {@link UserMessage.text} via their
- * {@link MessageAttachmentBase.rangeStart}/{@link MessageAttachmentBase.rangeEnd}
- * fields. Attachments without a range are still associated with the message
- * but do not correspond to a specific span in the text.
+ * {@link MessageAttachmentBase.range} field. Attachments without a range are
+ * still associated with the message but do not correspond to a specific span
+ * in the text.
  *
  * @category Turn Types
  */
@@ -869,21 +869,10 @@ export interface MessageAttachmentBase {
 	label: string;
 
 	/**
-	 * If defined, the start of the range in {@link UserMessage.text} that
-	 * references this attachment. The range is the half-open interval
-	 * `[rangeStart, rangeEnd)` of character offsets, measured in UTF-16 code
-	 * units.
-	 *
-	 * When present, `rangeEnd` MUST also be present and MUST be greater than or
-	 * equal to `rangeStart`.
+	 * If defined, the range in {@link UserMessage.text} that references this
+	 * attachment. This is a text range, not a byte range.
 	 */
-	rangeStart?: number;
-
-	/**
-	 * The end of the range in {@link UserMessage.text} that references this
-	 * attachment. See {@link rangeStart}.
-	 */
-	rangeEnd?: number;
+	range?: TextRange;
 
 	/**
 	 * Advisory display hint for clients rendering this attachment. Recognized
@@ -908,6 +897,44 @@ export interface MessageAttachmentBase {
 	 * host when sending the user message containing the accepted completion.
 	 */
 	_meta?: Record<string, unknown>;
+}
+
+/**
+ * A zero-based position within a textual document.
+ *
+ * @category Turn Types
+ */
+export interface TextPosition {
+	/** Zero-based line number. */
+	line: number;
+	/** Zero-based character offset within the line. */
+	character: number;
+}
+
+/**
+ * A range within a textual document.
+ *
+ * @category Turn Types
+ */
+export interface TextRange {
+	/** Start position of the range. */
+	start: TextPosition;
+	/** End position of the range. */
+	end: TextPosition;
+}
+
+/**
+ * A selection within a textual resource.
+ *
+ * This is only meaningful for textual resources. Binary resources may still
+ * use resource or embedded resource attachments, but they should not use this
+ * text selection field.
+ *
+ * @category Turn Types
+ */
+export interface TextSelection {
+	/** The range covered by the selection. */
+	range: TextRange;
 }
 
 /**
@@ -946,6 +973,12 @@ export interface MessageEmbeddedResourceAttachment extends MessageAttachmentBase
 	data: string;
 	/** Content MIME type (e.g. `"image/png"`, `"application/pdf"`) */
 	contentType: string;
+	/**
+	 * Optional selection within the attached textual resource.
+	 *
+	 * Only meaningful for textual resources.
+	 */
+	selection?: TextSelection;
 }
 
 /**
@@ -957,6 +990,12 @@ export interface MessageEmbeddedResourceAttachment extends MessageAttachmentBase
 export interface MessageResourceAttachment extends MessageAttachmentBase, ContentRef {
 	/** Discriminant */
 	type: MessageAttachmentKind.Resource;
+	/**
+	 * Optional selection within the referenced textual resource.
+	 *
+	 * Only meaningful for textual resources.
+	 */
+	selection?: TextSelection;
 }
 
 /**
