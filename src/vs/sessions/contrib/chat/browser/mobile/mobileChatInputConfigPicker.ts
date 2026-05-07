@@ -16,19 +16,19 @@ import { IActionViewItemService } from '../../../../../platform/actions/browser/
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
 import { type ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
+import { IChatPhoneInputPresenter } from '../../../../../workbench/contrib/chat/browser/widget/input/chatPhoneInputPresenter.js';
 import { Menus } from '../../../../browser/menus.js';
 import { ActiveSessionProviderIdContext, IsPhoneLayoutContext } from '../../../../common/contextkeys.js';
-import { showMobilePickerSheet, IMobilePickerSheetItem } from '../../../../browser/parts/mobile/mobilePickerSheet.js';
 import { type IAgentHostSessionsProvider, isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_HOST_PROVIDER_RE } from '../../../../common/agentHostSessionsProvider.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { type ISession } from '../../../../services/sessions/common/session.js';
-import { isWellKnownModeSchema } from './agentHostPermissionPickerDelegate.js';
-import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
+import { isWellKnownModeSchema } from '../agentHost/agentHostPermissionPickerDelegate.js';
+import { agentHostModelPickerStorageKey } from '../agentHost/agentHostModelPicker.js';
 
 const IsActiveSessionAgentHost = ContextKeyExpr.or(
 	ContextKeyExpr.equals(ActiveSessionProviderIdContext.key, LOCAL_AGENT_HOST_PROVIDER_ID),
@@ -36,7 +36,6 @@ const IsActiveSessionAgentHost = ContextKeyExpr.or(
 );
 
 const MOBILE_CHAT_INPUT_CONFIG_PICKER_ID = 'sessions.agentHost.mobileChatInputConfigPicker';
-const MODEL_STORAGE_KEY = 'sessions.agentHostModelPicker.selectedModelId';
 
 function getModeIcon(value: string | undefined): ThemeIcon | undefined {
 	switch (value) {
@@ -107,7 +106,7 @@ class MobileChatInputConfigPicker extends Disposable {
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@IStorageService private readonly _storageService: IStorageService,
-		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
+		@IChatPhoneInputPresenter private readonly _phonePresenter: IChatPhoneInputPresenter,
 	) {
 		super();
 
@@ -210,7 +209,7 @@ class MobileChatInputConfigPicker extends Disposable {
 
 		// Model
 		const modelItems = getAgentHostModels(this._languageModelsService, session);
-		const currentModelId = session.modelId.get() ?? this._storageService.get(MODEL_STORAGE_KEY, StorageScope.PROFILE);
+		const currentModelId = session.modelId.get() ?? this._storageService.get(agentHostModelPickerStorageKey(session.resource.scheme), StorageScope.PROFILE);
 
 		return { provider, session, modeItems, currentMode, modelItems, currentModelId };
 	}
@@ -293,7 +292,7 @@ class MobileChatInputConfigPicker extends Disposable {
 		if (ctx.modelItems.length === 0) {
 			return undefined;
 		}
-		const remembered = this._storageService.get(MODEL_STORAGE_KEY, StorageScope.PROFILE);
+		const remembered = this._storageService.get(agentHostModelPickerStorageKey(ctx.session.resource.scheme), StorageScope.PROFILE);
 		const rememberedModel = remembered ? ctx.modelItems.find(m => m.identifier === remembered) : undefined;
 		const resolved = rememberedModel ?? ctx.modelItems[0];
 		ctx.provider.setModel(ctx.session.sessionId, resolved.identifier);
@@ -304,78 +303,18 @@ class MobileChatInputConfigPicker extends Disposable {
 		if (!this._triggerElement) {
 			return;
 		}
-		const ctx = this._getContext();
-		if (!ctx) {
-			return;
-		}
-
-		// Side table from opaque sheet-row id back to the action it
-		// represents. Mirrors the pattern used by
-		// `MobileAgentHostSessionConfigPicker._showUnifiedRepoSheet` so
-		// values containing `:` or other separator-unsafe characters
-		// (e.g. model identifiers like `copilot:gpt-4o`) round-trip
-		// safely.
-		const idToAction = new Map<string, { kind: 'mode'; value: string } | { kind: 'model'; model: ILanguageModelChatMetadataAndIdentifier }>();
-		const registerAction = (action: { kind: 'mode'; value: string } | { kind: 'model'; model: ILanguageModelChatMetadataAndIdentifier }): string => {
-			const id = `chat-config-row-${idToAction.size}`;
-			idToAction.set(id, action);
-			return id;
-		};
-
-		const sheetItems: IMobilePickerSheetItem[] = [];
-
-		ctx.modeItems.forEach((item, index) => {
-			sheetItems.push({
-				id: registerAction({ kind: 'mode', value: item.value }),
-				label: item.label,
-				description: item.description,
-				icon: getModeIcon(item.value),
-				checked: item.value === ctx.currentMode,
-				sectionTitle: index === 0 ? localize('mobileChatInputConfigPicker.modeSection', "Agent Mode") : undefined,
-			});
-		});
-
-		ctx.modelItems.forEach((model, index) => {
-			sheetItems.push({
-				id: registerAction({ kind: 'model', model }),
-				label: model.metadata.name,
-				checked: model.identifier === ctx.currentModelId,
-				sectionTitle: index === 0 ? localize('mobileChatInputConfigPicker.modelSection', "Model") : undefined,
-			});
-		});
-
-		if (sheetItems.length === 0) {
-			return;
-		}
-
+		// Delegate sheet construction to the shared phone presenter so
+		// the new-session chip and the opened-chat chip render the exact
+		// same Mode + Model rows. The presenter's agent-host branch
+		// reads the active session's config + filtered models and
+		// handles the writes (provider mode/model + shared storage key).
 		const trigger = this._triggerElement;
 		trigger.setAttribute('aria-expanded', 'true');
-		const id = await showMobilePickerSheet(
-			this._layoutService.mainContainer,
-			localize('mobileChatInputConfigPicker.title', "Configure Session"),
-			sheetItems,
-		);
-		trigger.setAttribute('aria-expanded', 'false');
-		trigger.focus();
-
-		if (!id) {
-			return;
-		}
-		const action = idToAction.get(id);
-		if (!action) {
-			return;
-		}
-
-		if (action.kind === 'mode') {
-			ctx.provider.setSessionConfigValue(ctx.session.sessionId, SessionConfigKey.Mode, action.value)
-				.catch(() => { /* best-effort */ });
-		} else {
-			// Mirror the writes done by `IModelPickerDelegate.setModel`
-			// in the desktop model-picker contribution: persist the
-			// selection to profile storage AND push to the active
-			// session's provider.
-			this._storageService.store(MODEL_STORAGE_KEY, action.model.identifier, StorageScope.PROFILE, StorageTarget.MACHINE);
-			ctx.provider.setModel(ctx.session.sessionId, action.model.identifier);
+		try {
+			await this._phonePresenter.showCombinedModeAndModelSheet(trigger, undefined, undefined);
+		} finally {
+			trigger.setAttribute('aria-expanded', 'false');
+			trigger.focus();
 		}
 	}
 }
