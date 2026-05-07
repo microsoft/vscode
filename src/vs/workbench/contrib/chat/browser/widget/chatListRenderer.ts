@@ -657,10 +657,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				return;
 			}
 			const blockSize = entry.borderBoxSize.at(0)?.blockSize;
-			if (typeof blockSize !== 'number') {
-				return;
+			// Track the latest measured size so we can coalesce bursts. If
+			// blockSize is unavailable in the current environment we still
+			// schedule a dispatch so `fireItemHeightChange` falls back to
+			// `getBoundingClientRect()` (preserving prior behavior).
+			if (typeof blockSize === 'number') {
+				pendingBlockSize = blockSize;
 			}
-			pendingBlockSize = blockSize;
 			if (pendingDispatchHandle !== undefined) {
 				return;
 			}
@@ -668,9 +671,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				pendingDispatchHandle = undefined;
 				const size = pendingBlockSize;
 				pendingBlockSize = undefined;
-				if (size !== undefined) {
-					this.fireItemHeightChange(template, size);
-				}
+				this.fireItemHeightChange(template, size);
 			}, 0);
 		}));
 		templateDisposables.add(resizeObserver.observe(rowContainer));
