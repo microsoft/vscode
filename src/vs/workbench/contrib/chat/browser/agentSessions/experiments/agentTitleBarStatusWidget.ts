@@ -869,7 +869,6 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 			if (chatQuotaExceeded && free) {
 				primaryActionId = OPEN_CHAT_QUOTA_EXCEEDED_DIALOG;
 				primaryActionTitle = localize('chatQuotaExceededButton', "GitHub Copilot Free plan chat messages quota reached. Click for details.");
-				primaryActionIcon = Codicon.chatSparkleWarning;
 			}
 		}
 
