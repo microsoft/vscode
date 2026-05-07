@@ -12,11 +12,11 @@ import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { ISyncedCustomization } from './agentPluginManager.js';
 import type { IAgentSubscription } from './state/agentSubscription.js';
-import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
-import { ProtectedResourceMetadata, type ConfigSchema, type FileEdit, type MessageAttachment, type ModelSelection, type SessionActiveClient, type ToolCallPendingConfirmationState, type ToolDefinition } from './state/protocol/state.js';
+import type { CompletionsParams, CompletionsResult, CreateTerminalParams, SessionConfigCompletionsResult, StartTurnInvalidConfigErrorData } from './state/protocol/commands.js';
+import { ProtectedResourceMetadata, type ConfigSchema, type FileEdit, type ModelSelection, type SessionActiveClient, type SessionConfigState, type ToolCallPendingConfirmationState, type ToolDefinition, type UserMessage } from './state/protocol/state.js';
 import type { ActionEnvelope, INotification, IRootConfigChangedAction, SessionAction, TerminalAction } from './state/sessionActions.js';
 import type { ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceWriteParams, ResourceWriteResult, IStateSnapshot } from './state/sessionProtocol.js';
-import { ComponentToState, SessionInputResponseKind, SessionStatus, StateComponents, type CustomizationRef, type PendingMessage, type RootState, type SessionCustomization, type SessionInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState } from './state/sessionState.js';
+import { ComponentToState, SessionInputResponseKind, SessionStatus, StateComponents, type CustomizationRef, type PendingMessage, type RootState, type SessionCustomization, type SessionInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState, MessageAttachment } from './state/sessionState.js';
 
 // IPC contract between the renderer and the agent host utility process.
 // Defines all serializable event types, the IAgent provider interface,
@@ -235,16 +235,24 @@ export interface IAgentCreateSessionConfig {
 	};
 }
 
-export interface IAgentResolveSessionConfigParams {
+export interface IAgentSessionConfigParams {
 	readonly provider?: AgentProvider;
 	readonly workingDirectory?: URI;
 	readonly config?: Record<string, unknown>;
 }
 
-export interface IAgentSessionConfigCompletionsParams extends IAgentResolveSessionConfigParams {
+export interface IAgentSessionConfigCompletionsParams extends IAgentSessionConfigParams {
 	readonly property: string;
 	readonly query?: string;
 }
+
+export interface IAgentStartTurnParams {
+	readonly session: URI;
+	readonly turnId: string;
+	readonly userMessage: UserMessage;
+}
+
+export type IAgentStartTurnInvalidConfigErrorData = StartTurnInvalidConfigErrorData;
 
 /** Serializable model information from the agent host. */
 export interface IAgentModelInfo {
@@ -408,8 +416,14 @@ export interface IAgent {
 	/** Create a new session. Returns server-owned session metadata. */
 	createSession(config?: IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult>;
 
-	/** Resolve the dynamic configuration schema for creating a session. */
-	resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult>;
+	/**
+	 * Internal hook. Returns the current session-config schema and any
+	 * server-resolved values for the given partial config. Called by the
+	 * agent host on createSession and after every client SessionConfigChanged.
+	 * Result is broadcast to subscribers via SessionConfigChangedAction.schema.
+	 * Not exposed on the wire — clients read schema from session state.
+	 */
+	_resolveSessionConfig(params: IAgentSessionConfigParams): Promise<SessionConfigState>;
 
 	/** Return dynamic completions for a session configuration property. */
 	sessionConfigCompletions(params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult>;
@@ -580,8 +594,13 @@ export interface IAgentService {
 	/** Create a new session. Returns the session URI. */
 	createSession(config?: IAgentCreateSessionConfig): Promise<URI>;
 
-	/** Resolve the dynamic configuration schema for creating a session. */
-	resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult>;
+	/**
+	 * Start a new turn on an existing session. Replaces the legacy pattern of
+	 * dispatching a `session/turnStarted` action directly. May reject when the
+	 * session config is incomplete relative to the latest schema, when a turn
+	 * is already in progress, or when the session does not exist.
+	 */
+	startTurn(params: IAgentStartTurnParams): Promise<void>;
 
 	/** Return dynamic completions for a session configuration property. */
 	sessionConfigCompletions(params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult>;
@@ -728,7 +747,7 @@ export interface IAgentConnection {
 	authenticate(params: AuthenticateParams): Promise<AuthenticateResult>;
 	listSessions(): Promise<IAgentSessionMetadata[]>;
 	createSession(config?: IAgentCreateSessionConfig): Promise<URI>;
-	resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult>;
+	startTurn(params: IAgentStartTurnParams): Promise<void>;
 	sessionConfigCompletions(params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult>;
 	completions(params: CompletionsParams): Promise<CompletionsResult>;
 

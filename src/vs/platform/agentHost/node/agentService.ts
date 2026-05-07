@@ -18,12 +18,12 @@ import { FileSystemProviderErrorCode, IFileService, toFileSystemProviderErrorCod
 import { InstantiationService } from '../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentProvider, AgentSession, IAgent, IAgentCreateSessionConfig, IAgentMaterializeSessionEvent, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult } from '../common/agentService.js';
+import { AgentProvider, AgentSession, IAgent, IAgentCreateSessionConfig, IAgentMaterializeSessionEvent, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentStartTurnInvalidConfigErrorData, IAgentStartTurnParams, AuthenticateParams, AuthenticateResult } from '../common/agentService.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
-import { ActionType, ActionEnvelope, INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
-import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
-import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
-import { ResponsePartKind, SessionStatus, ToolCallStatus, ToolResultContentType, buildSubagentSessionUriPrefix, parseSubagentSessionUri, readSessionGitState, withSessionGitState, type SessionConfigState, type ISessionFileDiff, type SessionSummary, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
+import { ActionType, ActionEnvelope, INotification, type IRootConfigChangedAction, type SessionAction, type SessionTurnStartedAction, type TerminalAction } from '../common/state/sessionActions.js';
+import type { CompletionsParams, CompletionsResult, CreateTerminalParams, SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
+import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, AHP_TURN_IN_PROGRESS, ContentEncoding, JSON_RPC_INTERNAL_ERROR, JsonRpcErrorCodes, ProtocolError, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
+import { ResponsePartKind, SessionStatus, ToolCallStatus, ToolResultContentType, buildSubagentSessionUriPrefix, parseSubagentSessionUri, readSessionGitState, withSessionGitState, type ConfigPropertySchema, type SessionConfigState, type ISessionFileDiff, type SessionSummary, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
 import { IProductService } from '../../product/common/productService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from './agentConfigurationService.js';
 import { AgentSideEffects } from './agentSideEffects.js';
@@ -43,6 +43,34 @@ import { AgentHostWorkspaceFiles } from './agentHostWorkspaceFiles.js';
  * provider-side session, worktree, and on-disk state.
  */
 const SESSION_GC_GRACE_MS = 30_000;
+
+/**
+ * Validate `value` against a single property's schema. Returns an error
+ * message when the value violates `type` or `enum`, otherwise undefined.
+ * Used by `startTurn` to surface invalid client config as `InvalidParams`
+ * (matching the spec at `state/protocol/commands.ts` startTurn). Required
+ * checks are handled separately so the typed `missingRequired` error can
+ * be returned.
+ */
+function validateAgainstPropertySchema(schema: ConfigPropertySchema, value: unknown): string | undefined {
+	const expected = schema.type;
+	const actual = Array.isArray(value) ? 'array' : typeof value;
+	if (expected === 'array') {
+		if (actual !== 'array') {
+			return `expected array, got ${actual}`;
+		}
+	} else if (expected === 'object') {
+		if (actual !== 'object' || value === null) {
+			return `expected object, got ${actual}`;
+		}
+	} else if (actual !== expected) {
+		return `expected ${expected}, got ${actual}`;
+	}
+	if (schema.enum && schema.enum.length > 0 && typeof value === 'string' && !schema.enum.includes(value)) {
+		return `value '${value}' is not one of [${schema.enum.join(', ')}]`;
+	}
+	return undefined;
+}
 
 /**
  * The agent service implementation that runs inside the agent-host utility
@@ -491,29 +519,104 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	private async _resolveCreatedSessionConfig(provider: IAgent, config: IAgentCreateSessionConfig | undefined): Promise<SessionConfigState | undefined> {
-		if (!config?.config && !config?.workingDirectory) {
-			return undefined;
-		}
+		// Always resolve at least once so `state.config.schema` is published
+		// before subscribers see the session. Without this, sessions created
+		// with neither `config` nor `workingDirectory` would land with no
+		// schema — startTurn's `missingRequired` validation could not detect
+		// missing keys, and `sendMessage` would surface a less actionable
+		// error later.
 		try {
-			const resolved = await provider.resolveSessionConfig({
+			const resolved = await provider._resolveSessionConfig({
 				provider: provider.id,
-				workingDirectory: config.workingDirectory,
-				config: config.config,
+				workingDirectory: config?.workingDirectory,
+				config: config?.config,
 			});
 			return { schema: resolved.schema, values: resolved.values };
 		} catch (error) {
 			this._logService.error(`[AgentService] Failed to resolve created session config for provider ${provider.id}`, error);
-			return config.config ? { schema: { type: 'object', properties: {} }, values: config.config } : undefined;
+			return config?.config ? { schema: { type: 'object', properties: {} }, values: config.config } : undefined;
 		}
 	}
 
-	async resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {
-		const providerId = params.provider ?? this._defaultProvider;
-		const provider = providerId ? this._providers.get(providerId) : undefined;
+	async startTurn(params: IAgentStartTurnParams): Promise<void> {
+		const sessionStr = params.session.toString();
+		const provider = this._findProviderForSession(params.session);
 		if (!provider) {
-			throw new Error(`No agent provider registered for: ${providerId ?? '(none)'}`);
+			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found: ${sessionStr}`);
 		}
-		return provider.resolveSessionConfig(params);
+		const state = this._stateManager.getSessionState(sessionStr);
+		if (!state) {
+			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found: ${sessionStr}`);
+		}
+
+		// Inline re-resolve: a preceding client `SessionConfigChanged` may
+		// have arrived with values that have not yet been schema-pushed by
+		// the side-effect (which is fire-and-forget). Resolve synchronously
+		// here so we validate against the *current* schema for the *current* values
+		try {
+			const workingDirectory = state.summary.workingDirectory ? URI.parse(state.summary.workingDirectory) : undefined;
+			const resolved = await provider._resolveSessionConfig({
+				provider: provider.id,
+				workingDirectory,
+				config: state.config?.values ?? {},
+			});
+			const currentSchema = state.config?.schema;
+			const currentValues = state.config?.values ?? {};
+			const schemaChanged = !objectEquals(currentSchema, resolved.schema);
+			const valuesChanged = !objectEquals(currentValues, resolved.values);
+			if (schemaChanged || valuesChanged) {
+				this._stateManager.dispatchServerAction({
+					type: ActionType.SessionConfigChanged,
+					session: sessionStr,
+					schema: schemaChanged ? resolved.schema : undefined,
+					config: valuesChanged ? resolved.values : undefined,
+					replace: valuesChanged ? true : undefined,
+				});
+			}
+		} catch (err) {
+			this._logService.warn(`[AgentService] startTurn inline _resolveSessionConfig failed for ${sessionStr}: ${err instanceof Error ? err.message : String(err)}`);
+		}
+
+		// Re-read state after the inline resolve may have applied an update.
+		const validatedState = this._stateManager.getSessionState(sessionStr) ?? state;
+		const schema = validatedState.config?.schema;
+		const values = validatedState.config?.values ?? {};
+		const required = schema?.required ?? [];
+		const missingRequired = required.filter(key => values[key] === undefined);
+		if (missingRequired.length > 0) {
+			const data: IAgentStartTurnInvalidConfigErrorData = { missingRequired };
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Session config is incomplete', data);
+		}
+		// Type/enum validation: surface any other config errors as
+		// InvalidParams (without structured `data`), matching the spec at
+		// `state/protocol/commands.ts` startTurn.
+		if (schema) {
+			for (const [key, value] of Object.entries(values)) {
+				const propSchema = schema.properties[key];
+				if (!propSchema) {
+					continue;
+				}
+				const error = validateAgainstPropertySchema(propSchema, value);
+				if (error) {
+					throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Session config invalid for '${key}': ${error}`);
+				}
+			}
+		}
+		if (validatedState.activeTurn !== undefined) {
+			throw new ProtocolError(AHP_TURN_IN_PROGRESS, 'A turn is already in progress');
+		}
+		// Server-originated dispatch. The state manager applies the action and
+		// emits the envelope to subscribers; we also invoke the side-effect so
+		// the provider's `sendMessage` runs (the public `dispatchAction` path
+		// invokes side effects automatically; `dispatchServerAction` does not).
+		const turnAction: SessionTurnStartedAction = {
+			type: ActionType.SessionTurnStarted,
+			session: sessionStr,
+			turnId: params.turnId,
+			userMessage: params.userMessage,
+		};
+		this._stateManager.dispatchServerAction(turnAction);
+		this._sideEffects.handleAction(turnAction);
 	}
 
 	async sessionConfigCompletions(params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult> {
@@ -542,6 +645,7 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		// Remove all subagent sessions for this parent
 		this._sideEffects.removeSubagentSessions(session.toString());
+		this._sideEffects.removeSession(session.toString());
 		this._stateManager.deleteSession(session.toString());
 	}
 
@@ -746,8 +850,10 @@ export class AgentService extends Disposable implements IAgentService {
 		const subagentPrefix = buildSubagentSessionUriPrefix(evictionTarget);
 		for (const cachedKey of this._stateManager.getSessionUrisWithPrefix(subagentPrefix)) {
 			this._stateManager.removeSession(cachedKey);
+			this._sideEffects.removeSession(cachedKey);
 		}
 		this._stateManager.removeSession(evictionTargetKey);
+		this._sideEffects.removeSession(evictionTargetKey);
 	}
 
 	private _isSubagentDescendantOf(resource: URI, parent: URI): boolean {
@@ -763,6 +869,14 @@ export class AgentService extends Disposable implements IAgentService {
 
 	dispatchAction(action: SessionAction | TerminalAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void {
 		this._logService.trace(`[AgentService] dispatchAction: type=${action.type}, clientId=${clientId}, clientSeq=${clientSeq}`, action);
+
+		// The server is the only authority for `SessionConfigChanged.schema`.
+		// Drop a client-supplied schema before applying or echoing so a
+		// malicious or buggy client cannot rewrite the schema in state.
+		if (action.type === ActionType.SessionConfigChanged && action.schema !== undefined) {
+			const { schema: _ignored, ...rest } = action;
+			action = rest as SessionAction;
+		}
 
 		const origin = { clientId, clientSeq };
 		this._stateManager.dispatchClientAction(action, origin);

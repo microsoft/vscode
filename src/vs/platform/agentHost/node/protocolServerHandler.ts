@@ -14,6 +14,7 @@ import { AgentSession, type IAgentService } from '../common/agentService.js';
 import type { CommandMap } from '../common/state/protocol/messages.js';
 import type { UnsupportedProtocolVersionErrorData } from '../common/state/protocol/errors.js';
 import { ActionEnvelope, ActionType, INotification, isSessionAction, isTerminalAction, type SessionAction, type TerminalAction, type IRootConfigChangedAction } from '../common/state/sessionActions.js';
+import { isClientDispatchable } from '../common/state/protocol/reducers.js';
 import { PROTOCOL_VERSION } from '../common/state/protocol/version/registry.js';
 import {
 	AHP_AUTH_REQUIRED,
@@ -201,9 +202,20 @@ export class ProtocolServerHandler extends Disposable {
 						if (client) {
 							this._logService.trace(`[ProtocolServer] dispatchAction: ${JSON.stringify(msg.params.action.type)}`);
 							const action = msg.params.action as SessionAction | TerminalAction | IRootConfigChangedAction;
-							if (isSessionAction(action) || isTerminalAction(action) || action.type === ActionType.RootConfigChanged) {
-								this._agentService.dispatchAction(action, client.clientId, msg.params.clientSeq);
+							if (!isSessionAction(action) && !isTerminalAction(action) && action.type !== ActionType.RootConfigChanged) {
+								// Unknown / unrouteable action — silently drop.
+								break;
 							}
+							// Enforce action-origin: actions marked server-only
+							// (e.g. `SessionTurnStarted` post-Final-Phase) must
+							// not be acceptable from clients. A client that
+							// dispatches one would otherwise bypass the
+							// `startTurn` command's schema/turn validation.
+							if (!isClientDispatchable(action as Parameters<typeof isClientDispatchable>[0])) {
+								this._logService.warn(`[ProtocolServer] dispatchAction rejected: action ${action.type} is not client-dispatchable`);
+								break;
+							}
+							this._agentService.dispatchAction(action, client.clientId, msg.params.clientSeq);
 						}
 						break;
 				}
@@ -575,12 +587,13 @@ export class ProtocolServerHandler extends Disposable {
 			});
 			return { items };
 		},
-		resolveSessionConfig: async (_client, params) => {
-			return this._agentService.resolveSessionConfig({
-				provider: params.provider,
-				workingDirectory: params.workingDirectory ? URI.parse(params.workingDirectory) : undefined,
-				config: params.config,
+		startTurn: async (_client, params) => {
+			await this._agentService.startTurn({
+				session: URI.parse(params.session),
+				turnId: params.turnId,
+				userMessage: params.userMessage,
 			});
+			return {};
 		},
 		sessionConfigCompletions: async (_client, params) => {
 			return this._agentService.sessionConfigCompletions({

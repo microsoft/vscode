@@ -8,8 +8,7 @@ import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { ResolveSessionConfigResult } from '../../../../platform/agentHost/common/state/protocol/commands.js';
-import { SessionConfigPropertySchema } from '../../../../platform/agentHost/common/state/protocol/state.js';
+import { SessionConfigPropertySchema, SessionConfigState } from '../../../../platform/agentHost/common/state/protocol/state.js';
 import { IAgentHostSessionsProvider } from '../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISession, toSessionId } from '../../../services/sessions/common/session.js';
@@ -110,7 +109,7 @@ export function serializeSessionSettings(provider: IAgentHostSessionsProvider, s
  * used by {@link serializeSessionSettings} so validation matches the file
  * contents produced by this provider.
  */
-export function buildSessionSettingsJsonSchema(config: ResolveSessionConfigResult): IJSONSchema {
+export function buildSessionSettingsJsonSchema(config: SessionConfigState): IJSONSchema {
 	return buildAgentHostConfigJsonSchema(config, sessionSettingsPropertyFilter);
 }
 

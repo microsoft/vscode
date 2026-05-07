@@ -1208,7 +1208,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			const state = localService.stateManager.getSessionState(sessionResource.toString());
 			assert.ok(state);
-			// MockAgent.resolveSessionConfig echoes params.config back as values, so the
+			// MockAgent._resolveSessionConfig echoes params.config back as values, so the
 			// persisted values are forwarded through and end up on state.config.values.
 			assert.deepStrictEqual(state!.config?.values, { autoApprove: 'autoApprove' });
 		});
@@ -1267,10 +1267,13 @@ suite('AgentService (node dispatcher)', () => {
 
 			const state = localService.stateManager.getSessionState(sessionResource.toString());
 			assert.ok(state);
-			// MockAgent has a workingDirectory? No — but the metadata supplies it as undefined.
-			// _resolveCreatedSessionConfig bails when both .config and .workingDirectory are
-			// missing, so state.config is undefined here. The key point is: no throw.
-			assert.strictEqual(state!.config, undefined);
+			// `_resolveCreatedSessionConfig` always resolves at least once so the
+			// schema is published before subscribers see the session. With the
+			// persisted JSON malformed, `persistedConfigValues` is undefined, so
+			// the resolve runs with no values — MockAgent echoes that back as
+			// empty. The key point is: malformed JSON is dropped without throwing
+			// and without leaking partial values.
+			assert.deepStrictEqual(state!.config?.values, {});
 		});
 	});
 

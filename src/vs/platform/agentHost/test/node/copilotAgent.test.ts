@@ -563,13 +563,16 @@ suite('CopilotAgent', () => {
 			}
 		}
 
-		test('createSession seeds activeClient tools and syncs customizations', async () => {
+		test('createSession seeds activeClient tools and starts customization sync', async () => {
 			const sessionDataService = disposables.add(new TestSessionDataService());
 			const client = new TestCopilotClient([]);
 			const pluginManager = new SpyingPluginManager();
-			// `createSession` now creates a provisional record without
-			// touching the SDK; activeClient seeding and plugin sync happen
-			// inline before the provisional record is stored.
+			// `createSession` creates a provisional record without touching the
+			// SDK; activeClient tools are seeded inline. Customization sync is
+			// fire-and-forget (so the workbench's session-config picker can
+			// render without paying for the file copy) — `_waitForCustomizationSync`
+			// is the test hook that lets us deterministically observe the
+			// eventual sync call.
 			client.createSession = async () => { throw new Error('SDK should not be touched on provisional create'); };
 
 			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client, pluginManager });
@@ -588,8 +591,60 @@ suite('CopilotAgent', () => {
 				});
 
 				assert.strictEqual(result.provisional, true);
+				await agent._waitForCustomizationSync();
 				assert.deepStrictEqual(pluginManager.calls, [{ clientId: 'client-1', customizations }]);
 			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('createSession does not block on customization sync (fire-and-forget)', async () => {
+			// Regression: pre-fix, `createSession` `await`ed `_plugins.sync(...)`,
+			// putting a ~700ms file-copy on the picker-render critical path. The
+			// fix is fire-and-forget: createSession returns while plugin sync is
+			// still in flight, and the materialization barrier in
+			// `getAppliedPlugins` keeps `sendMessage` correct.
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([]);
+
+			let releaseSync: (() => void) | undefined;
+			class StallingPluginManager extends SpyingPluginManager {
+				override async syncCustomizations(clientId: string, customizations: CustomizationRef[]): Promise<ISyncedCustomization[]> {
+					this.calls.push({ clientId, customizations: [...customizations] });
+					await new Promise<void>(r => { releaseSync = r; });
+					return [];
+				}
+			}
+			const pluginManager = new StallingPluginManager();
+			client.createSession = async () => { throw new Error('SDK should not be touched on provisional create'); };
+
+			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client, pluginManager });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+
+				// createSession must resolve while plugin sync is still pending.
+				const result = await agent.createSession({
+					session: AgentSession.uri('copilotcli', 'test-session-fnf'),
+					workingDirectory: URI.file('/workspace'),
+					activeClient: {
+						clientId: 'client-fnf',
+						tools: [],
+						customizations: [{ uri: 'file:///plugin-slow', displayName: 'Slow' }],
+					},
+				});
+				assert.strictEqual(result.provisional, true);
+
+				// Yield once so the .then() chain inside PluginController.sync
+				// gets a chance to invoke pluginManager.syncCustomizations.
+				await Promise.resolve();
+				assert.strictEqual(pluginManager.calls.length, 1, 'sync started inline');
+				assert.ok(releaseSync, 'sync is awaiting our gate (i.e. did not complete before createSession returned)');
+
+				// Release the sync so the test cleans up.
+				releaseSync!();
+				await agent._waitForCustomizationSync();
+			} finally {
+				releaseSync?.();
 				await disposeAgent(agent);
 			}
 		});

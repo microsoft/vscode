@@ -5,7 +5,7 @@
 
 /**
  * Well-known session-config keys advertised by the agent-host Claude
- * provider in its `resolveSessionConfig` schema.
+ * provider in the schema it publishes via `SessionConfigChanged`.
  *
  * Claude collapses the platform's two-axis approval model
  * (`autoApprove` × `mode`) onto a single `permissionMode` axis matching

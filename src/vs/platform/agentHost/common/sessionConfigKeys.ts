@@ -13,7 +13,7 @@
  * (e.g. {@link SessionConfigKey.Branch}, {@link SessionConfigKey.Isolation}).
  *
  * Agents that opt into the corresponding behavior should use these exact
- * property names in their `resolveSessionConfig` response.
+ * property names in the schema they publish via `SessionConfigChanged`.
  */
 export const enum SessionConfigKey {
 	/** `'autoApprove'` — tool auto-approval level. */

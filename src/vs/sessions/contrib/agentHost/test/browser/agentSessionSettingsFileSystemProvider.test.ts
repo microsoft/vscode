@@ -9,7 +9,7 @@ import { Emitter } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import type { ResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
+import type { SessionConfigState } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { NullLogService, ILogService } from '../../../../../platform/log/common/log.js';
@@ -46,14 +46,14 @@ suite('AgentSessionSettingsFileSystemProvider', () => {
 	}
 
 	interface IMockAgentHostSessionsProvider extends IAgentHostSessionsProvider {
-		config: ResolveSessionConfigResult | undefined;
+		config: SessionConfigState | undefined;
 		readonly onDidChangeSessionConfigEmitter: Emitter<string>;
 		readonly onDidChangeSessionsEmitter: Emitter<{ added: readonly ISession[]; removed: readonly ISession[]; changed: readonly ISession[] }>;
 		readonly replaceCalls: Array<{ sessionId: string; values: Record<string, unknown> }>;
 	}
 
 	function createHarness(
-		initialConfig: ResolveSessionConfigResult | undefined,
+		initialConfig: SessionConfigState | undefined,
 		registerProvider = true,
 	): ITestHarness {
 		const session = createSession();

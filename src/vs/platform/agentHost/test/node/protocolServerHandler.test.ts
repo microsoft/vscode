@@ -10,8 +10,8 @@ import { URI } from '../../../../base/common/uri.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { type IAgentCreateSessionConfig, type IAgentResolveSessionConfigParams, type IAgentService, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agentService.js';
-import { CompletionsParams, CompletionsResult, ListSessionsResult, ResourceReadResult, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
+import { type IAgentCreateSessionConfig, type IAgentService, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type IAgentStartTurnParams, type AuthenticateParams, type AuthenticateResult } from '../../common/agentService.js';
+import { CompletionsParams, CompletionsResult, ListSessionsResult, ResourceReadResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import { ActionType, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
 import { isJsonRpcNotification, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, ProtocolError, AHP_UNSUPPORTED_PROTOCOL_VERSION, type AhpNotification, type InitializeResult, type ProtocolMessage, type ReconnectResult, type ResourceListResult, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../../common/state/sessionProtocol.js';
@@ -108,7 +108,7 @@ class MockAgentService implements IAgentService {
 		return session;
 	}
 
-	async resolveSessionConfig(_params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> { return { schema: { type: 'object', properties: {} }, values: {} }; }
+	async startTurn(_params: IAgentStartTurnParams): Promise<void> { }
 	async sessionConfigCompletions(_params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult> { return { items: [] }; }
 	async completions(_params: CompletionsParams): Promise<CompletionsResult> { return { items: [] }; }
 	async getCompletionTriggerCharacters(): Promise<readonly string[]> { return []; }
@@ -299,23 +299,25 @@ suite('ProtocolServerHandler', () => {
 		const transport = connectClient('client-1', [sessionUri]);
 		transport.sent.length = 0;
 
+		// Use a client-dispatchable action. SessionTurnStarted is server-only
+		// post-Final-Phase; clients now go through the `startTurn` command for
+		// turn dispatching.
 		transport.simulateMessage(notification('dispatchAction', {
 			clientSeq: 1,
 			action: {
-				type: ActionType.SessionTurnStarted,
+				type: ActionType.SessionTitleChanged,
 				session: sessionUri,
-				turnId: 'turn-1',
-				userMessage: { text: 'hello' },
+				title: 'New Title',
 			},
 		}));
 
 		const actionMsgs = findNotifications(transport.sent, 'action');
-		const turnStarted = actionMsgs.find(m => {
+		const titleChanged = actionMsgs.find(m => {
 			const envelope = m.params as unknown as { action: { type: string } };
-			return envelope.action.type === ActionType.SessionTurnStarted;
+			return envelope.action.type === ActionType.SessionTitleChanged;
 		});
-		assert.ok(turnStarted, 'should have echoed turnStarted');
-		const envelope = turnStarted!.params as unknown as { origin: { clientId: string; clientSeq: number } };
+		assert.ok(titleChanged, 'should have echoed titleChanged');
+		const envelope = titleChanged!.params as unknown as { origin: { clientId: string; clientSeq: number } };
 		assert.strictEqual(envelope.origin.clientId, 'client-1');
 		assert.strictEqual(envelope.origin.clientSeq, 1);
 	});

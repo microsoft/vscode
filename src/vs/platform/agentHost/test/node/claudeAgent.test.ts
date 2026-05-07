@@ -2174,7 +2174,7 @@ suite('ClaudeAgent', () => {
 		});
 	});
 
-	test('resolveSessionConfig returns Claude-native permissionMode + reused Permissions schema', async () => {
+	test('_resolveSessionConfig returns Claude-native permissionMode + reused Permissions schema', async () => {
 		// Plan section 3.3.5 / decision B5 — Claude collapses the platform's
 		// two-axis approval model (`autoApprove` × `mode`) onto a single
 		// `permissionMode` axis matching the SDK's native
@@ -2188,7 +2188,7 @@ suite('ClaudeAgent', () => {
 		// to decide what to render, and accidentally re-introducing
 		// `mode` would drop the wrong picker into the Claude UI.
 		const { agent } = createTestContext(disposables);
-		const result = await agent.resolveSessionConfig({});
+		const result = await agent._resolveSessionConfig({});
 		const properties = result.schema.properties;
 		const permissionMode = properties['permissionMode'];
 
