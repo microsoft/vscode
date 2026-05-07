@@ -128,27 +128,6 @@ describe('ChatQuotaService', () => {
 		});
 	});
 
-	describe('processQuotaHeaders with totRem', () => {
-		test('parses totalRemaining from header', () => {
-			const svc = create();
-			const mockAuthService = createMockAuthService();
-			(mockAuthService as any).copilotToken = { isFreeUser: false };
-			(svc as any)._authService = mockAuthService;
-
-			const headers = {
-				get: (name: string) => {
-					if (name === 'x-quota-snapshot-premium_models') {
-						return 'ent=3900&rem=97.4&ovPerm=true&ov=0.0&totRem=3800.0';
-					}
-					return null;
-				}
-			};
-			svc.processQuotaHeaders(headers as any);
-			expect(svc.quotaInfo?.totalRemaining).toBe(3800.0);
-			expect(svc.quotaInfo?.quota).toBe(3900);
-		});
-	});
-
 	describe('realistic turn lifecycle simulation', () => {
 		/**
 		 * Simulates a single LLM API call in a turn, with a delay to model

@@ -51,7 +51,6 @@ export interface IChatQuota {
 	additionalUsageUsed: number;
 	additionalUsageEnabled: boolean;
 	resetDate: Date;
-	totalRemaining?: number;
 }
 
 export interface QuotaSnapshot {
@@ -65,8 +64,6 @@ export interface QuotaSnapshot {
 	readonly overage_count: number;
 	/** ISO 8601 date when the quota resets, if applicable. */
 	readonly reset_date?: string;
-	/** Absolute remaining quota, if available. */
-	readonly quota_remaining?: number;
 }
 
 export type QuotaSnapshots = Record<string, QuotaSnapshot>;
@@ -84,7 +81,7 @@ export interface IChatQuotaService {
 	processQuotaSnapshots(snapshots: QuotaSnapshots): void;
 	/** Accumulate per-request cost from copilot_usage.total_nano_aiu (in nano-AIUs), scoped to a turn. */
 	setLastCopilotUsage(totalNanoAiu: number, turnId: string): void;
-	/** Reset accumulated turn credits. Call at the start of each turn. */
+	/** Reset accumulated credits for the given turn. */
 	resetTurnCredits(turnId: string): void;
 	clearQuota(): void;
 }

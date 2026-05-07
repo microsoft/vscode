@@ -258,10 +258,11 @@ export class ChatParticipantRequestHandler {
 				result = await chatResult;
 				const endpoint = await this._endpointProvider.getChatEndpoint(this.request);
 				const creditsUsed = this._chatQuotaService.getCreditsForTurn(this.turn.id);
-				this._chatQuotaService.resetTurnCredits(this.turn.id);
 				if (creditsUsed !== undefined) {
 					const formatted = creditsUsed % 1 === 0 ? creditsUsed.toString() : creditsUsed.toFixed(1);
-					result.details = `${endpoint.name} • ${formatted} credit${creditsUsed === 1 ? '' : 's'}`;
+					result.details = creditsUsed === 1
+						? l10n.t('{0} • {1} credit', endpoint.name, formatted)
+						: l10n.t('{0} • {1} credits', endpoint.name, formatted);
 				} else {
 					result.details = this._authService.copilotToken?.isNoAuthUser || endpoint.multiplier === undefined
 						? `${endpoint.name}`
@@ -289,6 +290,8 @@ export class ChatParticipantRequestHandler {
 		} catch (err) {
 			// TODO This method should not throw at all, but return a result with errorDetails, and call the IConversationStore
 			throw err;
+		} finally {
+			this._chatQuotaService.resetTurnCredits(this.turn.id);
 		}
 	}
 

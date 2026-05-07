@@ -394,7 +394,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 					if (result.type === ChatFetchResponseType.Success && result.usage) {
 						// Store copilot_usage for per-request credits display, scoped to the turn.
 						// Skip background requests — they are not part of an active user turn.
-						if (result.usage.copilot_usage?.total_nano_aiu && turnId && interactionType !== 'conversation-background') {
+						if (typeof result.usage.copilot_usage?.total_nano_aiu === 'number' && turnId && interactionType !== 'conversation-background') {
 							this._chatQuotaService.setLastCopilotUsage(result.usage.copilot_usage.total_nano_aiu, topLevelTurnId ?? turnId);
 						}
 
