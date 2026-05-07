@@ -48,7 +48,8 @@ export type CopilotSdkMode = 'interactive' | 'plan' | 'autopilot';
 type CopilotSdkAttachment = Required<MessageOptions>['attachments'][number];
 
 const COPILOT_HOME_DIRECTORY = '.copilot';
-const SESSION_STATE_DIRECTORY = join(COPILOT_HOME_DIRECTORY, 'session-state');
+const SESSION_STATE_DIRECTORY = 'session-state';
+const DEFAULT_SESSION_STATE_DIRECTORY = join(COPILOT_HOME_DIRECTORY, SESSION_STATE_DIRECTORY);
 
 /**
  * Display labels and descriptions for the SDK's `exit_plan_mode` action ids.
@@ -89,8 +90,13 @@ type PreToolUseHookInput = Parameters<NonNullable<SessionHooks['onPreToolUse']>>
 type PostToolUseHookInput = Parameters<NonNullable<SessionHooks['onPostToolUse']>>[0];
 
 function getCopilotCLISessionStateDir(userHome: string): string {
+	const copilotHome = process.env['COPILOT_HOME'];
+	if (copilotHome) {
+		return join(copilotHome, SESSION_STATE_DIRECTORY);
+	}
+
 	const xdgHome = process.env['XDG_STATE_HOME'];
-	return xdgHome ? join(xdgHome, SESSION_STATE_DIRECTORY) : join(userHome, SESSION_STATE_DIRECTORY);
+	return xdgHome ? join(xdgHome, DEFAULT_SESSION_STATE_DIRECTORY) : join(userHome, DEFAULT_SESSION_STATE_DIRECTORY);
 }
 
 /**
