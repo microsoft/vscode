@@ -65,7 +65,7 @@ class ApplyChangesToParentRepoAction extends Action2 {
 			),
 			menu: [
 				{
-					id: MenuId.ChatEditingSessionApplySubmenu,
+					id: MenuId.AgentsChangesPrimaryActionSubMenu,
 					group: 'navigation',
 					order: 2,
 					when: ContextKeyExpr.and(
