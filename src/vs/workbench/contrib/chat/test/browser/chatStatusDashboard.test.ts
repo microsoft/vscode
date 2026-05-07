@@ -65,8 +65,8 @@ function createEntitlementService(opts: {
 }
 
 function getCalloutText(element: HTMLElement): string | null {
-	const callout = element.querySelector('.quota-callout:not([style*="display: none"])');
-	if (!callout) {
+	const callout = element.querySelector('.quota-callout') as HTMLElement | null;
+	if (!callout || callout.style.display === 'none') {
 		return null;
 	}
 	const text = callout.querySelector('.callout-text');
