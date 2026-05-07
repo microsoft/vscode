@@ -363,9 +363,12 @@ describe('XtabNextCursorPredictor', () => {
 			}
 		});
 
-		it('should treat unterminated leading think tag as empty output', () => {
+		it('should not strip an unterminated leading think tag and should fail to parse', () => {
 			const result = predictor.parseResponse('<think>truncated reasoning never closed', keptRange);
 			expect(result.isError()).toBe(true);
+			if (result.isError()) {
+				expect(result.err.message).toContain('gotNaN');
+			}
 		});
 	});
 

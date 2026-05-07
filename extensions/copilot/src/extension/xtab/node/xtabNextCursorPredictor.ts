@@ -324,18 +324,16 @@ export class XtabNextCursorPredictor {
 }
 
 /**
- * Strip a leading `<think>...</think>` reasoning block emitted by thinking
- * models. Returns the input trimmed if there is no leading think block.
+ * Strip `<think>...</think>` reasoning blocks emitted by thinking models.
+ * Mirrors the post-processing logic specified by the model owners: remove
+ * any complete think blocks, and drop any unterminated leading `<think>`
+ * (which can happen when generation hits the max tokens limit).
  */
-export function stripThinkTags(text: string): string {
-	const leading = text.trimStart();
-	if (!leading.startsWith('<think>')) {
-		return text.trim();
+function stripThinkTags(text: string): string {
+	let result = text.replace(/<think>[\s\S]*?<\/think>\s*/g, '');
+	if (result.trimStart().startsWith('<think>')) {
+		result = '';
 	}
-	const closeIdx = leading.indexOf('</think>');
-	if (closeIdx === -1) {
-		return text.trim();
-	}
-	return leading.substring(closeIdx + '</think>'.length).trim();
+	return result.trim();
 }
 
