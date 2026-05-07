@@ -112,7 +112,7 @@ suite('sessionFileChangesEqual', () => {
 		), false);
 	});
 
-	test('returns true when entries are reference-equal but unequal in content (short-circuit)', () => {
+	test('returns true when entries are the same reference (short-circuit)', () => {
 		const shared = v1(fileA);
 		assert.strictEqual(sessionFileChangesEqual([shared], [shared]), true);
 	});
