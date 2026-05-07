@@ -1134,6 +1134,23 @@ function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentifier): M
 		}
 	}
 
+	// Cost and context window info
+	const costInfo = getModelCostInfo(model);
+	if (costInfo) {
+		markdown.appendMarkdown('\n\n---\n\n');
+		markdown.appendMarkdown(`**${localize('chat.modelPicker.costPer1M', "Cost (per 1M tokens)")}**\n\n`);
+		markdown.appendMarkdown(`${localize('chat.modelPicker.input', "Input")}: ${costInfo.input} ${localize('chat.modelPicker.credits', "credits")}\n\n`);
+		markdown.appendMarkdown(`${localize('chat.modelPicker.cachedInput', "Cached input")}: ${costInfo.cachedInput} ${localize('chat.modelPicker.credits2', "credits")}\n\n`);
+		markdown.appendMarkdown(`${localize('chat.modelPicker.output', "Output")}: ${costInfo.output} ${localize('chat.modelPicker.credits3', "credits")}`);
+	}
+
+	// Max context
+	if (model.metadata.maxInputTokens) {
+		markdown.appendMarkdown('\n\n');
+		markdown.appendMarkdown(`**${localize('chat.modelPicker.maxContext', "Max context")}**\n\n`);
+		markdown.appendMarkdown(formatContextLabel(model.metadata.maxInputTokens));
+	}
+
 	// Configurable tags — only for models with configurable thinking
 	const schema = model.metadata.configurationSchema;
 	const hasThinking = schema?.properties?.['thinkingLevel'] || schema?.properties?.['reasoningEffort'];
@@ -1146,6 +1163,43 @@ function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentifier): M
 	}
 
 	return hasContent ? markdown : undefined;
+}
+
+interface ModelCostInfo {
+	input: number;
+	cachedInput: number;
+	output: number;
+}
+
+function getModelCostInfo(model: ILanguageModelChatMetadataAndIdentifier): ModelCostInfo | undefined {
+	const name = model.metadata.name.toLowerCase();
+
+	// Claude models
+	if (name.includes('opus')) {
+		return { input: 500, cachedInput: 50, output: 2500 };
+	}
+	if (name.includes('sonnet')) {
+		return { input: 120, cachedInput: 12, output: 600 };
+	}
+	if (name.includes('haiku')) {
+		return { input: 30, cachedInput: 3, output: 150 };
+	}
+
+	// GPT models
+	if (name.includes('codex')) {
+		return { input: 100, cachedInput: 25, output: 400 };
+	}
+	if (name.includes('5.4 mini') || name.includes('gpt-5.4 mini')) {
+		return { input: 25, cachedInput: 5, output: 120 };
+	}
+	if (name.includes('5.4') || name.includes('gpt-5.4')) {
+		return { input: 200, cachedInput: 40, output: 800 };
+	}
+	if (name.includes('4o')) {
+		return { input: 80, cachedInput: 16, output: 320 };
+	}
+
+	return undefined;
 }
 
 
