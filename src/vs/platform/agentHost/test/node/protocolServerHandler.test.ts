@@ -299,23 +299,25 @@ suite('ProtocolServerHandler', () => {
 		const transport = connectClient('client-1', [sessionUri]);
 		transport.sent.length = 0;
 
+		// Use a client-dispatchable action. SessionTurnStarted is server-only
+		// post-Final-Phase; clients now go through the `startTurn` command for
+		// turn dispatching.
 		transport.simulateMessage(notification('dispatchAction', {
 			clientSeq: 1,
 			action: {
-				type: ActionType.SessionTurnStarted,
+				type: ActionType.SessionTitleChanged,
 				session: sessionUri,
-				turnId: 'turn-1',
-				userMessage: { text: 'hello' },
+				title: 'New Title',
 			},
 		}));
 
 		const actionMsgs = findNotifications(transport.sent, 'action');
-		const turnStarted = actionMsgs.find(m => {
+		const titleChanged = actionMsgs.find(m => {
 			const envelope = m.params as unknown as { action: { type: string } };
-			return envelope.action.type === ActionType.SessionTurnStarted;
+			return envelope.action.type === ActionType.SessionTitleChanged;
 		});
-		assert.ok(turnStarted, 'should have echoed turnStarted');
-		const envelope = turnStarted!.params as unknown as { origin: { clientId: string; clientSeq: number } };
+		assert.ok(titleChanged, 'should have echoed titleChanged');
+		const envelope = titleChanged!.params as unknown as { origin: { clientId: string; clientSeq: number } };
 		assert.strictEqual(envelope.origin.clientId, 'client-1');
 		assert.strictEqual(envelope.origin.clientSeq, 1);
 	});
