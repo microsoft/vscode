@@ -52,10 +52,12 @@ export function hygiene(some: NodeJS.ReadWriteStream | string[] | undefined, run
 	const productJson = es.through(function (file: VinylFile) {
 		const product = JSON.parse(file.contents!.toString('utf8'));
 
-		if (product.extensionsGallery) {
-			console.error(`product.json: Contains 'extensionsGallery'`);
-			errorCount++;
-		}
+		// test-workbench_change start - Allow extensionsGallery in product.json for fork
+		// if (product.extensionsGallery) {
+		// 	console.error(`product.json: Contains 'extensionsGallery'`);
+		// 	errorCount++;
+		// }
+		// test-workbench_change end
 
 		this.emit('data', file);
 	});
