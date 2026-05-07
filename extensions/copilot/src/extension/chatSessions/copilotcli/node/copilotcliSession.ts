@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Attachment, SendOptions, Session, SessionOptions } from '@github/copilot/sdk';
+import type { Attachment, LocalSession, SendOptions, Session, SessionOptions } from '@github/copilot/sdk';
 import * as l10n from '@vscode/l10n';
 import * as cp from 'child_process';
 import * as crypto from 'crypto';
@@ -1603,6 +1603,18 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 				sendOptions.source = input.source;
 			}
 			await this._sdkSession.send(sendOptions);
+
+			try {
+				const localSession = this._sdkSession as LocalSession;
+				if (localSession.waitForPendingBackgroundTasks) {
+					await localSession.waitForPendingBackgroundTasks();
+				}
+			}
+			catch (error) {
+				this.logService.error(error, '[CopilotCLISession] Error while waiting for pending background tasks');
+				// Don't fail the whole request if waiting for background tasks fails, as it's not critical to the main flow.
+				// Just log the error and continue.
+			}
 		}
 	}
 
