@@ -103,9 +103,14 @@ class ChangesButtonBarWidget extends Disposable {
 	) {
 		super();
 
-		const outgoingChangesObs = derived<number>(reader => {
+		const outgoingChangesObs = derivedObservableWithCache<number | undefined>(this, (reader, lastValue) => {
 			const activeSessionState = viewModel.activeSessionStateObs.read(reader);
-			return activeSessionState?.outgoingChanges ?? 0;
+			const hasGitOperationInProgress = hasGitOperationInProgressObs.read(reader);
+			if (hasGitOperationInProgress) {
+				return lastValue;
+			}
+
+			return activeSessionState?.outgoingChanges;
 		});
 
 		const reviewStateObs = derivedOpts<{ isLoading: boolean; commentCount: number | undefined }>({ equalsFn: structuralEquals }, reader => {
@@ -148,7 +153,7 @@ class ChangesButtonBarWidget extends Disposable {
 		this._register(autorun(reader => {
 			hasGitOperationInProgressObs.read(reader);
 			const sessionResource = viewModel.activeSessionResourceObs.read(reader);
-			const outgoingChanges = outgoingChangesObs.read(reader);
+			const outgoingChanges = outgoingChangesObs.read(reader) ?? 0;
 			const reviewState = reviewStateObs.read(reader);
 
 			reader.store.add(new MenuWorkbenchButtonBar(
