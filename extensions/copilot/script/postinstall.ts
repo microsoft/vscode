@@ -114,9 +114,9 @@ async function copyCopilotCliPrebuildFiles() {
 	await fs.promises.cp(sourceDir, targetDir, {
 		recursive: true, force: true, filter: (src) => {
 			try {
-				// Only copy computer.node and win32.node files
+				// Only copy computer.node and win32_native.dll files
 				if (fs.statSync(src).isFile()) {
-					return src.endsWith('computer.node') || src.endsWith('win32.node');
+					return src.endsWith('computer.node') || src.endsWith('win32_native.dll');
 				}
 				return true;
 			} catch {
