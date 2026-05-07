@@ -867,7 +867,7 @@ configurationRegistry.registerConfiguration({
 			additionalProperties: { type: 'boolean' },
 			restricted: true,
 			markdownDescription: nls.localize('chat.pluginLocations', "Plugin directories to discover. Each key is a path that points directly to a plugin folder, and the value enables (`true`) or disables (`false`) it. Paths can be absolute, relative to the workspace root, or start with `~/` for the user's home directory."),
-			scope: ConfigurationScope.MACHINE,
+			scope: ConfigurationScope.WINDOW,
 			tags: ['experimental'],
 		},
 		[ChatConfiguration.PluginMarketplaces]: {
