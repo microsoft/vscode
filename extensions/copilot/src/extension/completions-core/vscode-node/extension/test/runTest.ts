@@ -10,7 +10,14 @@ import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
 
 import { runTests } from '@vscode/test-electron';
-import { cleanupTestDirectory } from './testDirCleanup';
+
+async function cleanupTestDirectory(dir: string): Promise<void> {
+	try {
+		await fs.rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+	} catch (error) {
+		console.warn(`Failed to clean up temporary test directory ${dir}`, error);
+	}
+}
 
 async function main() {
 	const tempdir = await fs.mkdtemp(os.tmpdir() + '/copilot-extension-test-');
