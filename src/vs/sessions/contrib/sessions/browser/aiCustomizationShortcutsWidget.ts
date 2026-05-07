@@ -41,8 +41,7 @@ export class AICustomizationShortcutsWidget extends Disposable {
 	private _headerButton: Button | undefined;
 	private _singleButton: Button | undefined;
 	private _renderDisposables = this._register(new DisposableStore());
-	private _root: HTMLElement | undefined;
-	private _parent: HTMLElement | undefined;
+	private _wrapper: HTMLElement | undefined;
 	private _options: IAICustomizationShortcutsWidgetOptions | undefined;
 	private _currentMode: SessionsCustomizationsSidebarMode | undefined;
 
@@ -60,7 +59,12 @@ export class AICustomizationShortcutsWidget extends Disposable {
 	) {
 		super();
 
-		this._parent = container;
+		// Stable wrapper appended once to the parent. Re-renders replace the
+		// wrapper's children only, so the widget keeps its position relative
+		// to sibling parts (e.g. the agent-host-toolbar below it). Without
+		// this, removing+re-appending the rendered root would move it to the
+		// end of the parent on every re-render, stacking adjacent border-tops.
+		this._wrapper = DOM.append(container, $('.ai-customization-shortcuts-widget'));
 		this._options = options;
 		this._renderForCurrentMode();
 
@@ -85,27 +89,25 @@ export class AICustomizationShortcutsWidget extends Disposable {
 	}
 
 	private _renderForCurrentMode(): void {
-		if (!this._parent) {
+		if (!this._wrapper) {
 			return;
 		}
 		this._renderDisposables.clear();
 		this._headerButton = undefined;
 		this._singleButton = undefined;
-		this._root?.remove();
-		this._root = undefined;
+		DOM.clearNode(this._wrapper);
 
 		const mode = this._readMode();
 		this._currentMode = mode;
 		if (mode === SessionsCustomizationsSidebarMode.Single) {
-			this._renderSingleEntry(this._parent);
+			this._renderSingleEntry(this._wrapper);
 		} else {
-			this._render(this._parent, this._options);
+			this._render(this._wrapper, this._options);
 		}
 	}
 
 	private _renderSingleEntry(parent: HTMLElement): void {
 		const container = DOM.append(parent, $('.ai-customization-toolbar.single-entry'));
-		this._root = container;
 
 		const buttonContainer = DOM.append(container, $('.customization-link-button-container'));
 		const button = this._renderDisposables.add(new Button(buttonContainer, {
@@ -179,7 +181,6 @@ export class AICustomizationShortcutsWidget extends Disposable {
 		const isCollapsed = this.storageService.getBoolean(CUSTOMIZATIONS_COLLAPSED_KEY, StorageScope.PROFILE, false);
 
 		const container = DOM.append(parent, $('.ai-customization-toolbar'));
-		this._root = container;
 		if (isCollapsed) {
 			container.classList.add('collapsed');
 		}
