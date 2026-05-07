@@ -79,10 +79,13 @@ export class SessionTypePicker extends Disposable {
 		return this._sessionType;
 	}
 
-	render(container: HTMLElement): void {
+	render(container: HTMLElement, options?: { className?: string }): void {
 		this._renderDisposables.clear();
 
 		const slot = dom.append(container, dom.$('.sessions-chat-picker-slot'));
+		if (options?.className) {
+			slot.classList.add(...options.className.split(' '));
+		}
 		this._renderDisposables.add({ dispose: () => slot.remove() });
 
 		const trigger = dom.append(slot, dom.$('a.action-label'));
@@ -184,7 +187,8 @@ export class SessionTypePicker extends Disposable {
 		const labelSpan = dom.append(this._triggerElement, dom.$('span.sessions-chat-dropdown-label'));
 		labelSpan.textContent = modeLabel;
 
-		dom.append(this._triggerElement, renderIcon(Codicon.chevronDown));
+		const chevron = dom.append(this._triggerElement, renderIcon(Codicon.chevronDown));
+		chevron.classList.add('sessions-chat-dropdown-chevron');
 
 		this._triggerElement.ariaLabel = localize('sessionTypePicker.triggerAriaLabel', "Pick Session Type, {0}", modeLabel);
 	}
