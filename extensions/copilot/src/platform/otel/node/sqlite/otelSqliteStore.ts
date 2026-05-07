@@ -359,7 +359,8 @@ export class OTelSqliteStore {
 		const db = this._db!;
 		const currentVersion = (() => {
 			try {
-				return (db.prepare('SELECT version FROM schema_version LIMIT 1').get() as { version: number } | undefined)?.version ?? 0;
+				// Use MAX(version) to ensure we always read the latest version row
+				return (db.prepare('SELECT MAX(version) AS version FROM schema_version').get() as { version: number | null } | undefined)?.version ?? 0;
 			} catch { return 0; }
 		})();
 
@@ -367,101 +368,121 @@ export class OTelSqliteStore {
 
 		// ── v1: baseline schema ─────────────────────────────────────────────
 		if (currentVersion < 1) {
-			db.exec(`
-					CREATE TABLE IF NOT EXISTS schema_version (version INTEGER PRIMARY KEY);
-					CREATE TABLE IF NOT EXISTS spans (
-						span_id TEXT PRIMARY KEY, trace_id TEXT NOT NULL, parent_span_id TEXT,
-						name TEXT NOT NULL, start_time_ms INTEGER NOT NULL, end_time_ms INTEGER NOT NULL,
-						status_code INTEGER NOT NULL DEFAULT 0, status_message TEXT,
-						operation_name TEXT, provider_name TEXT, agent_name TEXT, conversation_id TEXT,
-						request_model TEXT, response_model TEXT,
-						input_tokens INTEGER, output_tokens INTEGER, cached_tokens INTEGER, reasoning_tokens INTEGER,
-						tool_name TEXT, tool_call_id TEXT, tool_type TEXT,
-						chat_session_id TEXT, turn_index INTEGER, ttft_ms REAL
-					);
-					CREATE TABLE IF NOT EXISTS span_attributes (
-						span_id TEXT NOT NULL REFERENCES spans(span_id) ON DELETE CASCADE,
-						key TEXT NOT NULL, value TEXT,
-						PRIMARY KEY (span_id, key)
-					);
-					CREATE TABLE IF NOT EXISTS span_events (
-						id INTEGER PRIMARY KEY AUTOINCREMENT,
-						span_id TEXT NOT NULL REFERENCES spans(span_id) ON DELETE CASCADE,
-						name TEXT NOT NULL, timestamp_ms INTEGER NOT NULL, attributes TEXT
-					);
-					CREATE INDEX IF NOT EXISTS idx_spans_trace ON spans(trace_id);
-					CREATE INDEX IF NOT EXISTS idx_spans_conversation ON spans(conversation_id);
-					CREATE INDEX IF NOT EXISTS idx_spans_chat_session ON spans(chat_session_id);
-					CREATE INDEX IF NOT EXISTS idx_spans_operation ON spans(operation_name);
-					CREATE INDEX IF NOT EXISTS idx_spans_start_time ON spans(start_time_ms);
-					CREATE INDEX IF NOT EXISTS idx_span_events_span ON span_events(span_id);
-				`);
+			db.exec('BEGIN IMMEDIATE;');
+			try {
+				db.exec(`
+						CREATE TABLE IF NOT EXISTS schema_version (version INTEGER PRIMARY KEY);
+						CREATE TABLE IF NOT EXISTS spans (
+							span_id TEXT PRIMARY KEY, trace_id TEXT NOT NULL, parent_span_id TEXT,
+							name TEXT NOT NULL, start_time_ms INTEGER NOT NULL, end_time_ms INTEGER NOT NULL,
+							status_code INTEGER NOT NULL DEFAULT 0, status_message TEXT,
+							operation_name TEXT, provider_name TEXT, agent_name TEXT, conversation_id TEXT,
+							request_model TEXT, response_model TEXT,
+							input_tokens INTEGER, output_tokens INTEGER, cached_tokens INTEGER, reasoning_tokens INTEGER,
+							tool_name TEXT, tool_call_id TEXT, tool_type TEXT,
+							chat_session_id TEXT, turn_index INTEGER, ttft_ms REAL
+						);
+						CREATE TABLE IF NOT EXISTS span_attributes (
+							span_id TEXT NOT NULL REFERENCES spans(span_id) ON DELETE CASCADE,
+							key TEXT NOT NULL, value TEXT,
+							PRIMARY KEY (span_id, key)
+						);
+						CREATE TABLE IF NOT EXISTS span_events (
+							id INTEGER PRIMARY KEY AUTOINCREMENT,
+							span_id TEXT NOT NULL REFERENCES spans(span_id) ON DELETE CASCADE,
+							name TEXT NOT NULL, timestamp_ms INTEGER NOT NULL, attributes TEXT
+						);
+						CREATE INDEX IF NOT EXISTS idx_spans_trace ON spans(trace_id);
+						CREATE INDEX IF NOT EXISTS idx_spans_conversation ON spans(conversation_id);
+						CREATE INDEX IF NOT EXISTS idx_spans_chat_session ON spans(chat_session_id);
+						CREATE INDEX IF NOT EXISTS idx_spans_operation ON spans(operation_name);
+						CREATE INDEX IF NOT EXISTS idx_spans_start_time ON spans(start_time_ms);
+						CREATE INDEX IF NOT EXISTS idx_span_events_span ON span_events(span_id);
+					`);
+				db.exec('COMMIT;');
+			} catch (err) {
+				db.exec('ROLLBACK;');
+				throw err;
+			}
 		}
 
 		// ── v2: stored session_id column + composite index + view rewrite ───
 		if (currentVersion < 2) {
-			db.exec(`
-					PRAGMA foreign_keys = OFF;
-					ALTER TABLE spans RENAME TO spans_v1;
-					CREATE TABLE spans (
-						span_id TEXT PRIMARY KEY, trace_id TEXT NOT NULL, parent_span_id TEXT,
-						name TEXT NOT NULL, start_time_ms INTEGER NOT NULL, end_time_ms INTEGER NOT NULL,
-						status_code INTEGER NOT NULL DEFAULT 0, status_message TEXT,
-						operation_name TEXT, provider_name TEXT, agent_name TEXT, conversation_id TEXT,
-						request_model TEXT, response_model TEXT,
-						input_tokens INTEGER, output_tokens INTEGER, cached_tokens INTEGER, reasoning_tokens INTEGER,
-						tool_name TEXT, tool_call_id TEXT, tool_type TEXT,
-						chat_session_id TEXT, turn_index INTEGER, ttft_ms REAL,
-						session_id TEXT GENERATED ALWAYS AS (COALESCE(conversation_id, chat_session_id)) STORED
-					);
-					INSERT INTO spans (
-						span_id, trace_id, parent_span_id, name,
-						start_time_ms, end_time_ms, status_code, status_message,
-						operation_name, provider_name, agent_name, conversation_id,
-						request_model, response_model,
-						input_tokens, output_tokens, cached_tokens, reasoning_tokens,
-						tool_name, tool_call_id, tool_type,
-						chat_session_id, turn_index, ttft_ms
-					)
-					SELECT
-						span_id, trace_id, parent_span_id, name,
-						start_time_ms, end_time_ms, status_code, status_message,
-						operation_name, provider_name, agent_name, conversation_id,
-						request_model, response_model,
-						input_tokens, output_tokens, cached_tokens, reasoning_tokens,
-						tool_name, tool_call_id, tool_type,
-						chat_session_id, turn_index, ttft_ms
-					FROM spans_v1;
-					DROP TABLE spans_v1;
-					CREATE INDEX IF NOT EXISTS idx_spans_trace ON spans(trace_id);
-					CREATE INDEX IF NOT EXISTS idx_spans_conversation ON spans(conversation_id);
-					CREATE INDEX IF NOT EXISTS idx_spans_chat_session ON spans(chat_session_id);
-					CREATE INDEX IF NOT EXISTS idx_spans_operation ON spans(operation_name);
-					CREATE INDEX IF NOT EXISTS idx_spans_start_time ON spans(start_time_ms);
-					CREATE INDEX IF NOT EXISTS idx_spans_session ON spans(session_id, start_time_ms);
-					DROP VIEW IF EXISTS sessions;
-					CREATE VIEW sessions AS
-					SELECT
-						session_id,
-						agent_name,
-						response_model AS model,
-						MIN(start_time_ms) AS started_at,
-						MAX(end_time_ms) AS ended_at,
-						MAX(end_time_ms) - MIN(start_time_ms) AS duration_ms,
-						COUNT(*) AS span_count,
-						SUM(CASE WHEN operation_name = 'chat' THEN 1 ELSE 0 END) AS llm_calls,
-						SUM(CASE WHEN operation_name = 'execute_tool' THEN 1 ELSE 0 END) AS tool_calls,
-						SUM(CASE WHEN operation_name = 'chat' THEN input_tokens ELSE 0 END) AS total_input_tokens,
-						SUM(CASE WHEN operation_name = 'chat' THEN output_tokens ELSE 0 END) AS total_output_tokens,
-						SUM(CASE WHEN operation_name = 'chat' THEN cached_tokens ELSE 0 END) AS total_cached_tokens
-					FROM spans
-					WHERE session_id IS NOT NULL
-					GROUP BY session_id;
-					PRAGMA foreign_keys = ON;
-				`);
+			db.exec('PRAGMA foreign_keys = OFF;');
+			db.exec('BEGIN IMMEDIATE;');
+			try {
+				// Use spans_new swap pattern to protect Foreign Keys
+				db.exec(`
+						CREATE TABLE spans_new (
+							span_id TEXT PRIMARY KEY, trace_id TEXT NOT NULL, parent_span_id TEXT,
+							name TEXT NOT NULL, start_time_ms INTEGER NOT NULL, end_time_ms INTEGER NOT NULL,
+							status_code INTEGER NOT NULL DEFAULT 0, status_message TEXT,
+							operation_name TEXT, provider_name TEXT, agent_name TEXT, conversation_id TEXT,
+							request_model TEXT, response_model TEXT,
+							input_tokens INTEGER, output_tokens INTEGER, cached_tokens INTEGER, reasoning_tokens INTEGER,
+							tool_name TEXT, tool_call_id TEXT, tool_type TEXT,
+							chat_session_id TEXT, turn_index INTEGER, ttft_ms REAL,
+							session_id TEXT GENERATED ALWAYS AS (COALESCE(conversation_id, chat_session_id)) STORED
+						);
+						INSERT INTO spans_new (
+							span_id, trace_id, parent_span_id, name,
+							start_time_ms, end_time_ms, status_code, status_message,
+							operation_name, provider_name, agent_name, conversation_id,
+							request_model, response_model,
+							input_tokens, output_tokens, cached_tokens, reasoning_tokens,
+							tool_name, tool_call_id, tool_type,
+							chat_session_id, turn_index, ttft_ms
+						)
+						SELECT
+							span_id, trace_id, parent_span_id, name,
+							start_time_ms, end_time_ms, status_code, status_message,
+							operation_name, provider_name, agent_name, conversation_id,
+							request_model, response_model,
+							input_tokens, output_tokens, cached_tokens, reasoning_tokens,
+							tool_name, tool_call_id, tool_type,
+							chat_session_id, turn_index, ttft_ms
+						FROM spans;
+						DROP TABLE spans;
+						ALTER TABLE spans_new RENAME TO spans;
+
+						CREATE INDEX IF NOT EXISTS idx_spans_trace ON spans(trace_id);
+						CREATE INDEX IF NOT EXISTS idx_spans_conversation ON spans(conversation_id);
+						CREATE INDEX IF NOT EXISTS idx_spans_chat_session ON spans(chat_session_id);
+						CREATE INDEX IF NOT EXISTS idx_spans_operation ON spans(operation_name);
+						CREATE INDEX IF NOT EXISTS idx_spans_start_time ON spans(start_time_ms);
+						CREATE INDEX IF NOT EXISTS idx_spans_session ON spans(session_id, start_time_ms);
+
+						DROP VIEW IF EXISTS sessions;
+						CREATE VIEW sessions AS
+						SELECT
+							session_id,
+							agent_name,
+							response_model AS model,
+							MIN(start_time_ms) AS started_at,
+							MAX(end_time_ms) AS ended_at,
+							MAX(end_time_ms) - MIN(start_time_ms) AS duration_ms,
+							COUNT(*) AS span_count,
+							SUM(CASE WHEN operation_name = 'chat' THEN 1 ELSE 0 END) AS llm_calls,
+							SUM(CASE WHEN operation_name = 'execute_tool' THEN 1 ELSE 0 END) AS tool_calls,
+							SUM(CASE WHEN operation_name = 'chat' THEN input_tokens ELSE 0 END) AS total_input_tokens,
+							SUM(CASE WHEN operation_name = 'chat' THEN output_tokens ELSE 0 END) AS total_output_tokens,
+							SUM(CASE WHEN operation_name = 'chat' THEN cached_tokens ELSE 0 END) AS total_cached_tokens
+						FROM spans
+						WHERE session_id IS NOT NULL
+						GROUP BY session_id;
+					`);
+				db.exec('COMMIT;');
+			} catch (err) {
+				db.exec('ROLLBACK;');
+				throw err;
+			} finally {
+				db.exec('PRAGMA foreign_keys = ON;');
+			}
 		}
 
-		db.prepare('INSERT OR REPLACE INTO schema_version (version) VALUES (?)').run(SCHEMA_VERSION);
+		// Ensure only 1 row ever exists in schema_version
+		db.prepare('DELETE FROM schema_version').run();
+		db.prepare('INSERT INTO schema_version (version) VALUES (?)').run(SCHEMA_VERSION);
 	}
 
 	private _cleanupOnStartup(db: DatabaseSync): void {
