@@ -17,7 +17,7 @@ describe('cleanupTestDirectory', () => {
 		vi.clearAllMocks();
 	});
 
-	it('retries recursive temp directory cleanup with force enabled', async () => {
+	it('calls fs.rm with retry options', async () => {
 		vi.mocked(fsPromises.rm).mockResolvedValue(undefined);
 
 		await cleanupTestDirectory('/tmp/copilot-extension-test');
@@ -32,7 +32,7 @@ describe('cleanupTestDirectory', () => {
 
 	it('logs and suppresses cleanup errors', async () => {
 		const error = new Error('EBUSY');
-		const warn = vi.spyOn(console, 'warn').mockImplementation(() => { });
+		const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
 		vi.mocked(fsPromises.rm).mockRejectedValue(error);
 
 		await cleanupTestDirectory('/tmp/copilot-extension-test');
