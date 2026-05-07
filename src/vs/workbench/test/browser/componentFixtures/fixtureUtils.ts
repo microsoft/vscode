@@ -799,9 +799,32 @@ function resolveLabels(labels: ThemedFixtureGroupLabels | undefined): string[] {
 	return result;
 }
 
+export class DisposableStackStore implements IDisposable {
+	private readonly _items: IDisposable[] = [];
+	private _isDisposed = false;
+
+	add<T extends IDisposable>(item: T): T {
+		if (this._isDisposed) {
+			item.dispose();
+			console.warn('Adding to a disposed DisposableStackStore');
+		} else {
+			this._items.push(item);
+		}
+		return item;
+	}
+
+	dispose(): void {
+		this._isDisposed = true;
+		while (this._items.length > 0) {
+			this._items.pop()!.dispose();
+		}
+	}
+}
+
 export interface ComponentFixtureContext {
 	container: HTMLElement;
 	disposableStore: DisposableStore;
+	disposableStackStore: DisposableStackStore;
 	theme: ColorThemeData;
 }
 
@@ -956,7 +979,8 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 				}
 
 				try {
-					const result = options.render({ container, disposableStore, theme });
+					const disposableStackStore = disposableStore.add(new DisposableStackStore());
+					const result = options.render({ container, disposableStore, disposableStackStore, theme });
 
 					const p2 = virtualTimeEnabled
 						? p.run({

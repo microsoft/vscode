@@ -19,6 +19,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { ChatSetupStrategy } from '../../../../workbench/contrib/chat/browser/chatSetup/chatSetup.js';
 import { IExtensionService } from '../../../../workbench/services/extensions/common/extensions.js';
+import { ISessionsChatSetupStateService } from '../../../common/sessionsChatSetupState.js';
 
 
 export type WalkthroughOutcome = 'completed' | 'dismissed';
@@ -82,6 +83,7 @@ export class SessionsWalkthroughOverlay extends Disposable {
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IProductService private readonly productService: IProductService,
 		@ILogService private readonly logService: ILogService,
+		@ISessionsChatSetupStateService private readonly chatSetupStateService: ISessionsChatSetupStateService,
 	) {
 		super();
 
@@ -164,7 +166,7 @@ export class SessionsWalkthroughOverlay extends Disposable {
 		loadingIndicator.setAttribute('role', 'status');
 		loadingIndicator.setAttribute('aria-busy', 'true');
 		loadingIndicator.setAttribute('aria-label', localize('walkthrough.loading', "Loading"));
-		append(loadingIndicator, $('div.sessions-walkthrough-logo.sessions-walkthrough-loading-icon'));
+		append(loadingIndicator, $('div.sessions-walkthrough-loading-icon.codicon.codicon-agent'));
 	}
 
 	// ------------------------------------------------------------------
@@ -175,7 +177,7 @@ export class SessionsWalkthroughOverlay extends Disposable {
 
 		this.contentContainer.textContent = '';
 		this.footerContainer.textContent = '';
-		this.disclaimerElement.classList.toggle('hidden', this.disclaimerLinks.length === 0);
+		this._updateDisclaimerVisibility();
 
 		const productName = localize('walkthrough.productName', "{0} - Agents", this.productService.nameLong);
 
@@ -196,12 +198,11 @@ export class SessionsWalkthroughOverlay extends Disposable {
 		// whether it's the first launch or a returning user who is signed out.
 		const titleEl = append(right, $('h2', undefined, localize('walkthrough.welcome.title', "Welcome to {0}", productName)));
 		const subtitleEl = append(right, $('p', undefined, localize('walkthrough.welcome.subtitle', "Your AI-powered coding experience where agents explore, build, and iterate with you.")));
-		const taglineEl = append(right, $('p.sessions-walkthrough-tagline', undefined, localize('walkthrough.welcome.tagline', "Happy Agentic Coding!")));
 
-		this._renderSignInButtons(stepDisposables, right, titleEl, subtitleEl, taglineEl);
+		this._renderSignInButtons(stepDisposables, right, titleEl, subtitleEl);
 	}
 
-	private _renderSignInButtons(stepDisposables: DisposableStore, right: HTMLElement, titleEl: HTMLElement, subtitleEl: HTMLElement, taglineEl: HTMLElement): void {
+	private _renderSignInButtons(stepDisposables: DisposableStore, right: HTMLElement, titleEl: HTMLElement, subtitleEl: HTMLElement): void {
 		this._isShowingSignIn = true;
 		const signInActions = append(right, $('.sessions-walkthrough-sign-in-actions'));
 		const providerRow = append(signInActions, $('.sessions-walkthrough-providers-row'));
@@ -251,7 +252,6 @@ export class SessionsWalkthroughOverlay extends Disposable {
 				errorContainer,
 				titleEl,
 				subtitleEl,
-				taglineEl,
 				signInActions
 			)));
 		} else {
@@ -270,7 +270,6 @@ export class SessionsWalkthroughOverlay extends Disposable {
 					strategy,
 					titleEl,
 					subtitleEl,
-					taglineEl,
 					signInActions
 				)));
 			}
@@ -282,11 +281,10 @@ export class SessionsWalkthroughOverlay extends Disposable {
 
 	private _renderWelcome(stepDisposables: DisposableStore, right: HTMLElement, productName: string): void {
 		this._isShowingWelcome = true;
-		this.disclaimerElement.classList.toggle('hidden', this.disclaimerLinks.length === 0);
+		this._updateDisclaimerVisibility();
 
 		append(right, $('h2', undefined, localize('walkthrough.welcome.title', "Welcome to {0}", productName)));
 		append(right, $('p', undefined, localize('walkthrough.welcome.subtitle', "Your AI-powered coding experience where agents explore, build, and iterate with you.")));
-		append(right, $('p.sessions-walkthrough-tagline', undefined, localize('walkthrough.welcome.tagline', "Happy Agentic Coding!")));
 
 		const actions = append(right, $('.sessions-walkthrough-welcome-actions'));
 		const getStartedBtn = append(actions, $('button.sessions-walkthrough-get-started-btn')) as HTMLButtonElement;
@@ -309,8 +307,8 @@ export class SessionsWalkthroughOverlay extends Disposable {
 		return this.defaultAccountService.currentDefaultAccount !== null;
 	}
 
-	private async _runSignIn(providerButtons: HTMLButtonElement[], error: HTMLElement, strategy: ChatSetupStrategy, titleEl: HTMLElement, subtitleEl: HTMLElement, taglineEl: HTMLElement, signInActions: HTMLElement): Promise<void> {
-		await this._fadeToProgress(providerButtons, error, titleEl, subtitleEl, taglineEl, signInActions);
+	private async _runSignIn(providerButtons: HTMLButtonElement[], error: HTMLElement, strategy: ChatSetupStrategy, titleEl: HTMLElement, subtitleEl: HTMLElement, signInActions: HTMLElement): Promise<void> {
+		await this._fadeToProgress(providerButtons, error, titleEl, subtitleEl, signInActions);
 		if (this._shouldAbortUpdate(titleEl, subtitleEl)) {
 			return;
 		}
@@ -357,8 +355,8 @@ export class SessionsWalkthroughOverlay extends Disposable {
 	 * this triggers an OAuth popup. On localhost the embedder's
 	 * env-contributed auth provider handles the flow (e.g. device code).
 	 */
-	private async _runSignInWeb(providerButtons: HTMLButtonElement[], error: HTMLElement, titleEl: HTMLElement, subtitleEl: HTMLElement, taglineEl: HTMLElement, signInActions: HTMLElement): Promise<void> {
-		await this._fadeToProgress(providerButtons, error, titleEl, subtitleEl, taglineEl, signInActions);
+	private async _runSignInWeb(providerButtons: HTMLButtonElement[], error: HTMLElement, titleEl: HTMLElement, subtitleEl: HTMLElement, signInActions: HTMLElement): Promise<void> {
+		await this._fadeToProgress(providerButtons, error, titleEl, subtitleEl, signInActions);
 		if (this._shouldAbortUpdate(titleEl, subtitleEl)) {
 			return;
 		}
@@ -374,7 +372,7 @@ export class SessionsWalkthroughOverlay extends Disposable {
 		}
 	}
 
-	private async _fadeToProgress(providerButtons: HTMLButtonElement[], error: HTMLElement, titleEl: HTMLElement, subtitleEl: HTMLElement, taglineEl: HTMLElement, signInActions: HTMLElement): Promise<void> {
+	private async _fadeToProgress(providerButtons: HTMLButtonElement[], error: HTMLElement, titleEl: HTMLElement, subtitleEl: HTMLElement, signInActions: HTMLElement): Promise<void> {
 		// Disable all provider buttons
 		for (const btn of providerButtons) {
 			btn.disabled = true;
@@ -394,7 +392,6 @@ export class SessionsWalkthroughOverlay extends Disposable {
 		// Swap title and subtitle in-place
 		titleEl.textContent = localize('walkthrough.settingUp', "Signing in\u2026");
 		subtitleEl.textContent = localize('walkthrough.poweredBy', "Complete authorization in your browser.");
-		taglineEl.remove();
 
 		// Replace sign-in actions with progress bar
 		const heroText = signInActions.parentElement;
@@ -516,6 +513,18 @@ export class SessionsWalkthroughOverlay extends Disposable {
 
 	private _shouldAbortUpdate(...elements: HTMLElement[]): boolean {
 		return !this.overlay.isConnected || elements.some(element => !element.isConnected);
+	}
+
+	private _updateDisclaimerVisibility(): void {
+		const hidden = this.disclaimerLinks.length === 0;
+		this.disclaimerElement.classList.toggle('hidden', hidden);
+		if (!hidden) {
+			this.chatSetupStateService.whenSetupDone().then(done => {
+				if (done) {
+					this.disclaimerElement.classList.add('hidden');
+				}
+			});
+		}
 	}
 
 	private _createDisclaimer(): { element: HTMLElement; links: readonly HTMLAnchorElement[] } {

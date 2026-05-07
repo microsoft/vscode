@@ -60,6 +60,7 @@ function createEntitlementService(opts: {
 		onDidChangeAnonymous: Event.None,
 		anonymousObs: observableValue({}, false),
 		markAnonymousRateLimited: () => { },
+		markSetupCompleted: () => { },
 		setForceHidden: () => { },
 		previewFeaturesDisabled: false,
 		clientByokEnabled: false,

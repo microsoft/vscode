@@ -307,6 +307,12 @@
 	color: var(--vscode-foreground);
 }
 
+/* Folders show-more/show-less: match the folder section header style */
+.session-show-more.session-show-more-folders {
+	font-weight: 500;
+	text-transform: uppercase;
+}
+
 /* Section Header */
 
 .session-section {

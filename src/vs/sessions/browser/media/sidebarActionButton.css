@@ -3,10 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.sidebar-action-list .actions-container {
-	gap: 4px;
-}
-
 .sidebar-action > .action-label {
 	/* Hide the default action-label rendered by ActionViewItem */
 	display: none;
