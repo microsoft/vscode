@@ -26,6 +26,7 @@ import { IBYOKStorageService } from './byokStorageService';
 export class GeminiNativeBYOKLMProvider extends AbstractLanguageModelChatProvider {
 
 	public static readonly providerName = 'Gemini';
+	public static readonly providerId = this.providerName.toLowerCase();
 
 	constructor(
 		knownModels: BYOKKnownModels | undefined,
@@ -35,7 +36,7 @@ export class GeminiNativeBYOKLMProvider extends AbstractLanguageModelChatProvide
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IOTelService private readonly _otelService: IOTelService,
 	) {
-		super(GeminiNativeBYOKLMProvider.providerName.toLowerCase(), GeminiNativeBYOKLMProvider.providerName, knownModels, byokStorageService, logService);
+		super(GeminiNativeBYOKLMProvider.providerId, GeminiNativeBYOKLMProvider.providerName, knownModels, byokStorageService, logService);
 	}
 
 	protected async getAllModels(silent: boolean, apiKey: string | undefined): Promise<ExtendedLanguageModelChatInformation<LanguageModelChatConfiguration>[]> {

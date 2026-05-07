@@ -562,7 +562,8 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 						value: localize('browser.enableChatTools', 'When enabled, chat agents can use browser tools to open and interact with pages in the Integrated Browser.')
 					}
 				},
-			}
+			},
+			agentsWindow: { default: true },
 		},
 		[AgentHostChatToolsEnabledSettingId]: {
 			type: 'boolean',

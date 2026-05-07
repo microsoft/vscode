@@ -200,7 +200,6 @@ import '../workbench/contrib/policyExport/electron-browser/policyExport.contribu
 //#region --- sessions contributions
 
 import './electron-browser/sessions.desktop.contribution.js';
-import './services/vscode/electron-browser/themeImporterService.js';
 
 // Remote Agent Host
 import '../platform/agentHost/electron-browser/agentHostService.js';
@@ -212,6 +211,7 @@ import './contrib/remoteAgentHost/browser/remoteAgentHostTerminal.contribution.j
 import './contrib/remoteAgentHost/browser/tunnelAgentHost.contribution.js';
 
 // Chat
+import './contrib/agentFeedback/browser/agentFeedback.contribution.js';
 import './contrib/chat/electron-browser/chat.contribution.js';
 
 // Local Agent Host

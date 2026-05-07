@@ -48,6 +48,8 @@ export interface IFormattedStyles {
 	referencedVars: Set<string>;
 	/** Set of CSS property names that were explicitly set by author rules. */
 	authorPropertyNames: Set<string>;
+	/** Set of CSS property names that were set by user-agent rules. */
+	userAgentPropertyNames: Set<string>;
 }
 
 // -- Constants --
@@ -97,7 +99,7 @@ function collectVarReferences(value: string, into: Set<string>): void {
  * Collects longhand property names from the `cssProperties` array of a matched rule.
  * Skips variable definitions and disabled properties.
  */
-function collectAuthorPropertyNames(cssProperties: Array<{ name: string; value: string; disabled?: boolean }>, into: Set<string>, inheritableOnly?: boolean): void {
+function collectPropertyNames(cssProperties: Array<{ name: string; value: string; disabled?: boolean }>, into: Set<string>, inheritableOnly?: boolean): void {
 	for (const prop of cssProperties) {
 		if (!prop.name || !prop.value || prop.disabled || prop.name.startsWith('--')) {
 			continue;
@@ -138,9 +140,10 @@ export function filterInheritableDeclarations(cssText: string): string | undefin
  * which computed properties are author-affected, matching Chrome DevTools'
  * `computePropertyTraces` approach.
  */
-export function formatAuthorStyles(matched: IMatchedStyles): IFormattedStyles {
+export function formatMatchedStyles(matched: IMatchedStyles): IFormattedStyles {
 	const referencedVars = new Set<string>();
 	const authorPropertyNames = new Set<string>();
+	const userAgentPropertyNames = new Set<string>();
 	const seenCssTexts = new Set<string>();
 	const lines: string[] = [];
 
@@ -148,13 +151,14 @@ export function formatAuthorStyles(matched: IMatchedStyles): IFormattedStyles {
 	if (matched.inlineStyle?.cssText?.trim()) {
 		const cssText = matched.inlineStyle.cssText.trim();
 		collectVarReferences(cssText, referencedVars);
-		collectAuthorPropertyNames(matched.inlineStyle.cssProperties, authorPropertyNames);
+		collectPropertyNames(matched.inlineStyle.cssProperties, authorPropertyNames);
 		lines.push(`element { ${cssText} }`);
 	}
 
 	// Direct author rules: use cssText for display, cssProperties for property tracking
 	for (const ruleEntry of matched.matchedCSSRules ?? []) {
 		if (ruleEntry.rule.origin === 'user-agent') {
+			collectPropertyNames(ruleEntry.rule.style.cssProperties, userAgentPropertyNames);
 			continue;
 		}
 		const cssText = ruleEntry.rule.style.cssText?.trim();
@@ -163,7 +167,7 @@ export function formatAuthorStyles(matched: IMatchedStyles): IFormattedStyles {
 		}
 		seenCssTexts.add(cssText);
 		collectVarReferences(cssText, referencedVars);
-		collectAuthorPropertyNames(ruleEntry.rule.style.cssProperties, authorPropertyNames);
+		collectPropertyNames(ruleEntry.rule.style.cssProperties, authorPropertyNames);
 		const selectors = ruleEntry.rule.selectorList.selectors.map(s => s.text).join(', ');
 		lines.push(`${selectors} { ${cssText} }`);
 	}
@@ -174,6 +178,7 @@ export function formatAuthorStyles(matched: IMatchedStyles): IFormattedStyles {
 		for (const pseudo of matched.pseudoElements) {
 			for (const ruleEntry of pseudo.matches ?? []) {
 				if (ruleEntry.rule.origin === 'user-agent') {
+					collectPropertyNames(ruleEntry.rule.style.cssProperties, userAgentPropertyNames);
 					continue;
 				}
 				const cssText = ruleEntry.rule.style.cssText?.trim();
@@ -182,7 +187,7 @@ export function formatAuthorStyles(matched: IMatchedStyles): IFormattedStyles {
 				}
 				seenCssTexts.add(cssText);
 				collectVarReferences(cssText, referencedVars);
-				collectAuthorPropertyNames(ruleEntry.rule.style.cssProperties, authorPropertyNames);
+				collectPropertyNames(ruleEntry.rule.style.cssProperties, authorPropertyNames);
 				const selectors = ruleEntry.rule.selectorList.selectors.map(s => s.text).join(', ');
 				pseudoLines.push(`${selectors} { ${cssText} }`);
 			}
@@ -199,6 +204,7 @@ export function formatAuthorStyles(matched: IMatchedStyles): IFormattedStyles {
 	for (const entry of matched.inherited ?? []) {
 		for (const ruleEntry of entry.matchedCSSRules ?? []) {
 			if (ruleEntry.rule.origin === 'user-agent') {
+				collectPropertyNames(ruleEntry.rule.style.cssProperties, userAgentPropertyNames, true);
 				continue;
 			}
 			const cssText = ruleEntry.rule.style.cssText?.trim();
@@ -213,7 +219,7 @@ export function formatAuthorStyles(matched: IMatchedStyles): IFormattedStyles {
 			seenCssTexts.add(filtered);
 			// Track: use cssProperties longhands, inheritable only
 			collectVarReferences(filtered, referencedVars);
-			collectAuthorPropertyNames(ruleEntry.rule.style.cssProperties, authorPropertyNames, true);
+			collectPropertyNames(ruleEntry.rule.style.cssProperties, authorPropertyNames, true);
 			const selectors = ruleEntry.rule.selectorList.selectors.map(s => s.text).join(', ');
 			inheritedLines.push(`${selectors} { ${filtered} }`);
 		}
@@ -230,7 +236,7 @@ export function formatAuthorStyles(matched: IMatchedStyles): IFormattedStyles {
 		authorPropertyNames.add(prop);
 	}
 
-	return { rulesText: lines.join('\n'), referencedVars, authorPropertyNames };
+	return { rulesText: lines.join('\n'), referencedVars, authorPropertyNames, userAgentPropertyNames };
 }
 
 /**

@@ -176,7 +176,7 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 	reg.defineInstance(IChatSessionsService, new class extends mock<IChatSessionsService>() { override getAllChatSessionContributions() { return []; } override readonly onDidChangeSessionOptions = Event.None; override readonly onDidChangeOptionGroups = Event.None; override readonly onDidChangeAvailability = Event.None; override getCustomAgentTargetForSessionType() { return Target.Undefined; } override requiresCustomModelsForSessionType() { return false; } override getOptionGroupsForSessionType() { return []; } }());
 	reg.defineInstance(IChatEntitlementService, new class extends mock<IChatEntitlementService>() { }());
 	reg.defineInstance(IChatModeService, new MockChatModeService());
-	reg.defineInstance(ILanguageModelsService, new class extends mock<ILanguageModelsService>() { override onDidChangeLanguageModels = Event.None; override getLanguageModelIds() { return []; } }());
+	reg.defineInstance(ILanguageModelsService, new class extends mock<ILanguageModelsService>() { override onDidChangeLanguageModels = Event.None; override getLanguageModelIds() { return []; } override getVendors() { return []; } override hasResolvedVendor() { return false; } }());
 	reg.defineInstance(ILanguageModelToolsService, new class extends mock<ILanguageModelToolsService>() { override onDidChangeTools = Event.None; override onDidPrepareToolCallBecomeUnresponsive = Event.None; override getTools() { return []; } }());
 	reg.defineInstance(IChatToolRiskAssessmentService, new class extends mock<IChatToolRiskAssessmentService>() {
 		override isEnabled() { return false; }

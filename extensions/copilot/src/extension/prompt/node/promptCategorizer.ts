@@ -214,6 +214,7 @@ export class PromptCategorizerService implements IPromptCategorizerService {
 				location: ChatLocation.Panel,
 				userInitiatedRequest: false,
 				isConversationRequest: false,
+				interactionTypeOverride: 'conversation-background',
 				requestOptions: {
 					tools: [{
 						type: 'function',

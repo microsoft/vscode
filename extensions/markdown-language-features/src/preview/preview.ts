@@ -537,7 +537,7 @@ export class StaticMarkdownPreview extends Disposable implements IManagedMarkdow
 		this.#webviewPanel = webviewPanel;
 		this.#previewConfigurations = previewConfigurations;
 
-		const topScrollLocation = scrollLine ? new StartingScrollLine(scrollLine) : undefined;
+		const topScrollLocation = typeof scrollLine === 'number' ? new StartingScrollLine(scrollLine) : undefined;
 		this.#preview = this._register(new MarkdownPreview(this.#webviewPanel, resource, topScrollLocation, {
 			getAdditionalState: () => { return {}; },
 			getLineChanges,

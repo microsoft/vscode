@@ -31,35 +31,35 @@
 @supports (background: color-mix(in srgb, black 0%, white)) {
 	.agent-sessions-workbench.shell-gradient-background::before {
 		background:
-			linear-gradient(
-				to bottom right,
-				transparent 0%,
-				color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 5%, transparent) 58%,
-				color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 7%, transparent) 82%,
-				color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 9%, transparent) 100%
+			radial-gradient(
+				ellipse 128% 102% at 100% 100%,
+				color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 9%, transparent) 0%,
+				color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 7%, transparent) 16%,
+				color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 5%, transparent) 30%,
+				transparent 60%
 			),
 			var(--vscode-agents-background);
 	}
 
 	.monaco-workbench.vs.agent-sessions-workbench.shell-gradient-background::before {
 		background:
-			linear-gradient(
-				to bottom right,
-				transparent 0%,
-				color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 1%, transparent) 45%,
-				color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 6%, transparent) 75%,
-				color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 12%, transparent) 100%
+			radial-gradient(
+				ellipse 128% 102% at 100% 100%,
+				color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 12%, transparent) 0%,
+				color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 6%, transparent) 18%,
+				color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 1%, transparent) 32%,
+				transparent 58%
 			),
 			var(--vscode-agents-background);
 	}
 
 	.monaco-workbench.vs-dark.agent-sessions-workbench.shell-gradient-background::before {
-		background: linear-gradient(
-			to bottom right,
-			var(--vscode-agents-background) 0%,
-			color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 7%, var(--vscode-agents-background)) 56%,
-			color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 10%, var(--vscode-agents-background)) 82%,
-			color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 13%, var(--vscode-agents-background)) 100%
+		background: radial-gradient(
+			ellipse 128% 102% at 100% 100%,
+			color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 13%, var(--vscode-agents-background)) 0%,
+			color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 10%, var(--vscode-agents-background)) 17%,
+			color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 7%, var(--vscode-agents-background)) 31%,
+			var(--vscode-agents-background) 60%
 		);
 	}
 }

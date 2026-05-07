@@ -29,6 +29,52 @@ import { IEditorService } from '../../../../workbench/services/editor/common/edi
 import { AICustomizationManagementSection } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { ICustomizationHarnessService } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+
+/**
+ * Setting key that controls how the Customizations section in the Agents
+ * sidebar is presented and what happens when an entry is clicked.
+ *
+ * This setting is registered (and only meaningful) in the Agents app.
+ */
+export const SESSIONS_CUSTOMIZATIONS_SIDEBAR_MODE_SETTING = 'sessions.customizations.sidebarMode';
+
+/**
+ * Presentation/click behavior for the Customizations section in the Agents sidebar.
+ * See {@link SESSIONS_CUSTOMIZATIONS_SIDEBAR_MODE_SETTING}.
+ */
+export enum SessionsCustomizationsSidebarMode {
+	/** One item per category; click opens the welcome page. */
+	Welcome = 'welcome',
+	/** One item per category; click deep-links to that category. */
+	Section = 'section',
+	/** A single "Customizations" entry that opens the welcome page. */
+	Single = 'single',
+}
+
+Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
+	id: 'sessions',
+	properties: {
+		[SESSIONS_CUSTOMIZATIONS_SIDEBAR_MODE_SETTING]: {
+			type: 'string',
+			tags: ['preview'],
+			enum: [
+				SessionsCustomizationsSidebarMode.Welcome,
+				SessionsCustomizationsSidebarMode.Section,
+				SessionsCustomizationsSidebarMode.Single,
+			],
+			enumDescriptions: [
+				localize('sessions.customizations.sidebarMode.welcome', "Show one item per customization category. Clicking a category opens the Customizations welcome page."),
+				localize('sessions.customizations.sidebarMode.section', "Show one item per customization category. Clicking a category deep-links to that category's section in the Customizations editor."),
+				localize('sessions.customizations.sidebarMode.single', "Show a single \"Customizations\" entry instead of one item per category. Clicking it opens the Customizations welcome page."),
+			],
+			description: localize('sessions.customizations.sidebarMode', "Controls how the Customizations section in the Agents sidebar is presented and what happens when an entry is clicked."),
+			default: SessionsCustomizationsSidebarMode.Welcome,
+		},
+	},
+});
 
 export interface ICustomizationItemConfig {
 	readonly id: string;
@@ -240,6 +286,7 @@ export class CustomizationsToolbarContribution extends Disposable implements IWo
 					const editorService = accessor.get(IEditorService);
 					const harnessService = accessor.get(ICustomizationHarnessService);
 					const sessionsManagementService = accessor.get(ISessionsManagementService);
+					const configurationService = accessor.get(IConfigurationService);
 					const activeSessionType = sessionsManagementService.activeSession.get()?.sessionType;
 					if (activeSessionType && harnessService.findHarnessById(activeSessionType)) {
 						harnessService.setActiveHarness(activeSessionType);
@@ -247,7 +294,13 @@ export class CustomizationsToolbarContribution extends Disposable implements IWo
 					const input = AICustomizationManagementEditorInput.getOrCreate();
 					const pane = await editorService.openEditor(input, { pinned: true });
 					if (pane instanceof AICustomizationManagementEditor) {
-						pane.selectSectionById(config.section);
+						const mode = configurationService.getValue<string>(SESSIONS_CUSTOMIZATIONS_SIDEBAR_MODE_SETTING);
+						if (mode === SessionsCustomizationsSidebarMode.Section) {
+							pane.selectSectionById(config.section);
+						} else {
+							// 'welcome' (default) and 'single' both land on the welcome page.
+							pane.showWelcomePage();
+						}
 					}
 				}
 			}));

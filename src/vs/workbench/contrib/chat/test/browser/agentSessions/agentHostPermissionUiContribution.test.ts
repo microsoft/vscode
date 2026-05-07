@@ -14,14 +14,11 @@ import {
 	IAgentHostPermissionService,
 	IPendingResourceRequest,
 } from '../../../../../../platform/agentHost/common/agentHostPermissionService.js';
-import {
-	IRemoteAgentHostConnectionInfo,
-	IRemoteAgentHostEntry,
-	IRemoteAgentHostService,
-	RemoteAgentHostEntryType,
-} from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { AGENT_HOST_SCHEME, agentHostAuthority } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { Event } from '../../../../../../base/common/event.js';
+import { MockLabelService } from '../../../../../services/label/test/common/mockLabelService.js';
 import { AgentHostPermissionUiContribution } from '../../../browser/agentSessions/agentHost/agentHostPermissionUiContribution.js';
 import {
 	IChatInputNotification,
@@ -58,25 +55,24 @@ class FakeNotificationService implements IChatInputNotificationService {
 	handleMessageSent(): void { /* */ }
 }
 
-class FakeRemoteAgentHostService implements IRemoteAgentHostService {
-	declare readonly _serviceBrand: undefined;
-	readonly onDidChangeConnections: Event<void> = Event.None;
-	readonly connections: readonly IRemoteAgentHostConnectionInfo[] = [];
-	readonly configuredEntries: readonly IRemoteAgentHostEntry[] = [];
+/**
+ * Mock label service that resolves host labels for the {@link AGENT_HOST_SCHEME}
+ * by mapping authorities encoded via {@link agentHostAuthority} to the
+ * friendly name registered through {@link StubLabelService.setHostName}.
+ * Unknown authorities are returned unchanged.
+ */
+class StubLabelService extends MockLabelService {
+	private readonly _hostLabels = new Map<string, string>();
 
-	private readonly _entries = new Map<string, IRemoteAgentHostEntry>();
-
-	setEntry(address: string, name: string): void {
-		this._entries.set(address, { name, connection: { type: RemoteAgentHostEntryType.WebSocket, address } });
+	setHostName(address: string, name: string): void {
+		this._hostLabels.set(agentHostAuthority(address), name);
 	}
 
-	getConnection() { return undefined; }
-	async addRemoteAgentHost(): Promise<IRemoteAgentHostConnectionInfo> { throw new Error('not used'); }
-	async removeRemoteAgentHost(): Promise<void> { /* */ }
-	reconnect(): void { /* */ }
-	async addManagedConnection(): Promise<IRemoteAgentHostConnectionInfo> { throw new Error('not used'); }
-	getEntryByAddress(address: string): IRemoteAgentHostEntry | undefined {
-		return this._entries.get(address);
+	override getHostLabel(scheme: string, authority?: string): string {
+		if (scheme === AGENT_HOST_SCHEME && authority && this._hostLabels.has(authority)) {
+			return this._hostLabels.get(authority)!;
+		}
+		return authority ?? '';
 	}
 }
 
@@ -101,20 +97,20 @@ suite('AgentHostPermissionUiContribution', () => {
 
 	let permissionService: FakePermissionService;
 	let notificationService: FakeNotificationService;
-	let remoteAgentHostService: FakeRemoteAgentHostService;
+	let labelService: StubLabelService;
 
 	setup(() => {
 		permissionService = disposables.add(new FakePermissionService());
 		notificationService = new FakeNotificationService();
-		remoteAgentHostService = new FakeRemoteAgentHostService();
-		remoteAgentHostService.setEntry('host:1234', 'My Host');
+		labelService = new StubLabelService();
+		labelService.setHostName('host:1234', 'My Host');
 	});
 
 	function createContribution(): AgentHostPermissionUiContribution {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IAgentHostPermissionService, permissionService);
 		instantiationService.stub(IChatInputNotificationService, notificationService);
-		instantiationService.stub(IRemoteAgentHostService, remoteAgentHostService);
+		instantiationService.stub(ILabelService, labelService);
 		const contribution = instantiationService.createInstance(AgentHostPermissionUiContribution);
 		disposables.add(contribution as unknown as IDisposable);
 		return contribution;
