@@ -6,10 +6,10 @@
 import { IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { InstantiationType, registerSingleton } from '../../instantiation/common/extensions.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
-import { CustomizationRef, SessionActiveClient, ToolDefinition } from './state/protocol/state.js';
+import { CustomizationRef, ToolDefinition } from './state/protocol/state.js';
 
 /**
- * The workbench-owned slice of {@link SessionActiveClient} — everything the
+ * The workbench-owned slice of {@link import('./state/protocol/state.js').SessionActiveClient} — everything the
  * workbench can produce without knowing the session's `clientId` (which is
  * supplied by the consumer at the call site).
  */
