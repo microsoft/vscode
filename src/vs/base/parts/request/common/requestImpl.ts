@@ -48,6 +48,9 @@ export async function request(options: IRequestOptions, token: CancellationToken
 		if (err?.name === 'TimeoutError') {
 			throw new Error(`Fetch timeout: ${options.timeout}ms`);
 		}
+		if (err instanceof TypeError && err.message === 'Failed to fetch') {
+			throw new OfflineError();
+		}
 		throw err;
 	} finally {
 		disposable.dispose();
