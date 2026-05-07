@@ -524,7 +524,7 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 			this._onDidChangeQuotaExceeded.fire();
 		}
 
-		if (chatChanged.remaining || completionsChanged.remaining || premiumChatChanged.remaining) {
+		if (chatChanged.remaining || completionsChanged.remaining || premiumChatChanged.remaining || oldQuota.usageBasedBilling !== quotas.usageBasedBilling) {
 			this._onDidChangeQuotaRemaining.fire();
 		}
 
@@ -678,6 +678,8 @@ interface IQuotas {
 	readonly resetDate?: string;
 	readonly resetDateHasTime?: boolean;
 
+	readonly usageBasedBilling?: boolean;
+
 	readonly chat?: IQuotaSnapshot;
 	readonly completions?: IQuotaSnapshot;
 	readonly premiumChat?: IQuotaSnapshot;
@@ -689,6 +691,7 @@ export function parseQuotas(entitlementsData: IEntitlementsData): IQuotas {
 	const quotas: Mutable<IQuotas> = {
 		resetDate: entitlementsData.quota_reset_date_utc ?? entitlementsData.quota_reset_date ?? entitlementsData.limited_user_reset_date,
 		resetDateHasTime: typeof entitlementsData.quota_reset_date_utc === 'string',
+		usageBasedBilling: entitlementsData.token_based_billing,
 	};
 
 	// Legacy Free SKU Quota
@@ -878,7 +881,7 @@ export class ChatEntitlementRequests extends Disposable {
 			quotaPremiumChat: entitlements.quotas?.premiumChat?.percentRemaining,
 			quotaCompletions: entitlements.quotas?.completions?.percentRemaining,
 			quotaResetDate: entitlements.quotas?.resetDate,
-			usageBasedBilling: entitlements.quotas?.premiumChat?.usageBasedBilling,
+			usageBasedBilling: entitlements.quotas?.usageBasedBilling,
 			additionalUsageEnabled: entitlements.quotas?.additionalUsageEnabled,
 			additionalUsageCount: entitlements.quotas?.additionalUsageCount
 		});

@@ -41,6 +41,7 @@ import { MobilePermissionPicker } from '../../../copilotChatSessions/browser/mob
 import { isPhoneLayout } from '../../../../browser/parts/mobile/mobileLayout.js';
 import { showMobilePickerSheet, IMobilePickerSheetItem, IMobilePickerSheetSearchSource } from '../../../../browser/parts/mobile/mobilePickerSheet.js';
 import { AgentHostModePicker } from './agentHostModePicker.js';
+import { MobileAgentHostModePicker } from '../mobile/mobileAgentHostModePicker.js';
 import { AgentHostPermissionPickerActionItem } from './agentHostPermissionPickerActionItem.js';
 import { AgentHostPermissionPickerDelegate, isWellKnownAutoApproveSchema, isWellKnownModeSchema } from './agentHostPermissionPickerDelegate.js';
 import { SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
@@ -701,15 +702,20 @@ class AgentHostSessionConfigPickerContribution extends Disposable implements IWo
 	constructor(
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 	) {
 		super();
-		// Always use the mobile-aware subclass. Its `_showPicker`
-		// override falls back to `super._showPicker()` when the viewport
-		// is not phone, so desktop behavior is preserved. The static
-		// import creates a circular dependency (mobile → base → mobile),
-		// but ESM handles it because the class is only accessed inside
-		// this factory callback, which runs at `AfterRestored` — well
-		// after both modules have finished evaluating.
+		// The mode-picker factories below pick the mobile subclass at
+		// view-item construction time when the viewport is phone, and
+		// the desktop class otherwise. The session-config picker
+		// always uses the mobile-aware subclass because its
+		// `_showPicker` override falls back to `super._showPicker()`
+		// on desktop. The static import of `MobileAgentHostModePicker`
+		// / `MobileAgentHostSessionConfigPicker` creates a circular
+		// dependency (mobile → base → mobile), but ESM handles it
+		// because the classes are only accessed inside these factory
+		// callbacks, which run at `AfterRestored` — well after both
+		// modules have finished evaluating.
 		this._register(actionViewItemService.register(
 			Menus.NewSessionRepositoryConfig,
 			'sessions.agentHost.sessionConfigPicker',
@@ -718,12 +724,16 @@ class AgentHostSessionConfigPickerContribution extends Disposable implements IWo
 		this._register(actionViewItemService.register(
 			Menus.NewSessionConfig,
 			NEW_SESSION_MODE_PICKER_ID,
-			() => new PickerActionViewItem(this._instantiationService.createInstance(AgentHostModePicker)),
+			() => new PickerActionViewItem(this._instantiationService.createInstance(
+				isPhoneLayout(this._layoutService) ? MobileAgentHostModePicker : AgentHostModePicker,
+			)),
 		));
 		this._register(actionViewItemService.register(
 			MenuId.ChatInput,
 			RUNNING_SESSION_MODE_PICKER_ID,
-			() => new PickerActionViewItem(this._instantiationService.createInstance(AgentHostModePicker)),
+			() => new PickerActionViewItem(this._instantiationService.createInstance(
+				isPhoneLayout(this._layoutService) ? MobileAgentHostModePicker : AgentHostModePicker,
+			)),
 		));
 		this._register(actionViewItemService.register(
 			Menus.NewSessionControl,

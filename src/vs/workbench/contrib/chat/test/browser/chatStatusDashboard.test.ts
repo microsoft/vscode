@@ -28,7 +28,9 @@ function createEntitlementService(opts: {
 	chat?: IQuotaConfig;
 	completions?: IQuotaConfig;
 	premiumChat?: IQuotaConfig;
+	usageBasedBilling?: boolean;
 	additionalUsageEnabled?: boolean;
+	additionalUsageCount?: number;
 	entitlement?: ChatEntitlement;
 }): IChatEntitlementService {
 	return {
@@ -43,7 +45,9 @@ function createEntitlementService(opts: {
 			chat: opts.chat,
 			completions: opts.completions,
 			premiumChat: opts.premiumChat,
+			usageBasedBilling: opts.usageBasedBilling ?? opts.premiumChat?.usageBasedBilling,
 			additionalUsageEnabled: opts.additionalUsageEnabled,
+			additionalUsageCount: opts.additionalUsageCount,
 		},
 		update: (_token: CancellationToken) => Promise.resolve(),
 		onDidChangeSentiment: Event.None,
@@ -60,6 +64,15 @@ function createEntitlementService(opts: {
 		previewFeaturesDisabled: false,
 		clientByokEnabled: false,
 	} as IChatEntitlementService;
+}
+
+function getCalloutText(element: HTMLElement): string | null {
+	const callout = element.querySelector('.quota-callout') as HTMLElement | null;
+	if (!callout || callout.style.display === 'none') {
+		return null;
+	}
+	const text = callout.querySelector('.callout-text');
+	return text?.textContent ?? null;
 }
 
 function getQuotaLabels(element: HTMLElement): string[] {
@@ -394,4 +407,130 @@ suite('ChatStatusDashboard', () => {
 		assert.ok(quotaPercentage);
 		assert.strictEqual(quotaPercentage.tabIndex, 0);
 	});
+
+	// --- CALLOUT MESSAGES ---
+
+	test('Callout: no callout when quota is not approaching limit', () => {
+		const dashboard = createDashboard(createEntitlementService({
+			premiumChat: { percentRemaining: 50, unlimited: false },
+			completions: { percentRemaining: 90, unlimited: false },
+			additionalUsageEnabled: true,
+			entitlement: ChatEntitlement.Pro,
+		}));
+
+		assert.strictEqual(getCalloutText(dashboard.element), null);
+	});
+
+	test('Callout: PRU — shows approaching message with budget wording', () => {
+		const dashboard = createDashboard(createEntitlementService({
+			premiumChat: { percentRemaining: 20, unlimited: false },
+			completions: { percentRemaining: 90, unlimited: false },
+			additionalUsageEnabled: true,
+			entitlement: ChatEntitlement.Pro,
+		}));
+
+		assert.strictEqual(getCalloutText(dashboard.element), 'Once the limit is reached, premium request budget will be used.');
+	});
+
+	test('Callout: UBB — shows approaching message with additional spend wording', () => {
+		const dashboard = createDashboard(createEntitlementService({
+			premiumChat: { percentRemaining: 20, unlimited: false, usageBasedBilling: true },
+			completions: { percentRemaining: 90, unlimited: false },
+			additionalUsageEnabled: true,
+			entitlement: ChatEntitlement.Pro,
+		}));
+
+		assert.strictEqual(getCalloutText(dashboard.element), 'Once the limit is reached, additional spend will be used.');
+	});
+
+	test('Callout: shows paused when quota exhausted and overage not permitted', () => {
+		const dashboard = createDashboard(createEntitlementService({
+			premiumChat: { percentRemaining: 0, unlimited: false },
+			completions: { percentRemaining: 90, unlimited: false },
+			additionalUsageEnabled: false,
+			entitlement: ChatEntitlement.Pro,
+		}));
+
+		assert.strictEqual(getCalloutText(dashboard.element), 'Copilot is paused until the limit resets.');
+	});
+
+	test('Callout: shows paused when quota exhausted and overage permitted but no overage used', () => {
+		const dashboard = createDashboard(createEntitlementService({
+			premiumChat: { percentRemaining: 0, unlimited: false },
+			completions: { percentRemaining: 90, unlimited: false },
+			additionalUsageEnabled: true,
+			additionalUsageCount: 0,
+			entitlement: ChatEntitlement.Pro,
+		}));
+
+		assert.strictEqual(getCalloutText(dashboard.element), 'Copilot is paused until the limit resets.');
+	});
+
+	test('Callout: PRU — shows budget active when quota exhausted and overage count > 0', () => {
+		const dashboard = createDashboard(createEntitlementService({
+			premiumChat: { percentRemaining: 0, unlimited: false },
+			completions: { percentRemaining: 90, unlimited: false },
+			additionalUsageEnabled: true,
+			additionalUsageCount: 5,
+			entitlement: ChatEntitlement.Pro,
+		}));
+
+		assert.strictEqual(getCalloutText(dashboard.element), 'Premium request budget is configured. Usage will continue until limits reset.');
+	});
+
+	test('Callout: UBB — shows additional spend active when quota exhausted and overage count > 0', () => {
+		const dashboard = createDashboard(createEntitlementService({
+			premiumChat: { percentRemaining: 0, unlimited: false, usageBasedBilling: true },
+			completions: { percentRemaining: 90, unlimited: false },
+			additionalUsageEnabled: true,
+			additionalUsageCount: 5,
+			entitlement: ChatEntitlement.Pro,
+		}));
+
+		assert.strictEqual(getCalloutText(dashboard.element), 'Additional spend is configured. Usage will continue until limits reset.');
+	});
+
+	test('Callout: shows warning when quota >= 75% used and overage not permitted', () => {
+		const dashboard = createDashboard(createEntitlementService({
+			premiumChat: { percentRemaining: 20, unlimited: false },
+			completions: { percentRemaining: 90, unlimited: false },
+			additionalUsageEnabled: false,
+			entitlement: ChatEntitlement.Pro,
+		}));
+
+		assert.strictEqual(getCalloutText(dashboard.element), 'Copilot will pause when the limit is reached.');
+	});
+
+	test('Callout: shows paused for enterprise when quota exhausted', () => {
+		const dashboard = createDashboard(createEntitlementService({
+			premiumChat: { percentRemaining: 0, unlimited: false },
+			additionalUsageEnabled: false,
+			entitlement: ChatEntitlement.Enterprise,
+		}));
+
+		assert.strictEqual(getCalloutText(dashboard.element), 'Copilot is paused until the limit resets. Contact your administrator for more information.');
+	});
+
+	test('Callout: TBB — shows paused when exhausted with overage permitted but no usage (PRU bug fix)', () => {
+		const dashboard = createDashboard(createEntitlementService({
+			premiumChat: { percentRemaining: 0, unlimited: false, usageBasedBilling: true },
+			additionalUsageEnabled: true,
+			additionalUsageCount: 0,
+			entitlement: ChatEntitlement.Pro,
+		}));
+
+		assert.strictEqual(getCalloutText(dashboard.element), 'Copilot is paused until the limit resets.');
+	});
+
+	test('Callout: TBB — shows additional spend wording when overage count > 0', () => {
+		const dashboard = createDashboard(createEntitlementService({
+			premiumChat: { percentRemaining: 0, unlimited: false, usageBasedBilling: true },
+			additionalUsageEnabled: true,
+			additionalUsageCount: 3,
+			entitlement: ChatEntitlement.Pro,
+		}));
+
+		assert.strictEqual(getCalloutText(dashboard.element), 'Additional spend is configured. Usage will continue until limits reset.');
+	});
+
 });
