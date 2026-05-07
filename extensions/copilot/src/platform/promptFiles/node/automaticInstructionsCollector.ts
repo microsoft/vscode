@@ -5,13 +5,13 @@
 
 import * as l10n from '@vscode/l10n';
 import type * as vscode from 'vscode';
-import { IConfigurationService } from '../../../platform/configuration/common/configurationService';
+import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { IExtensionsService } from '../../../platform/extensions/common/extensionsService';
 import { IFileSystemService } from '../../../platform/filesystem/common/fileSystemService';
 import { FileType } from '../../../platform/filesystem/common/fileTypes';
 import { ILogService } from '../../../platform/log/common/logService';
 import { IPromptPathRepresentationService } from '../../../platform/prompts/common/promptPathRepresentationService';
-import { AgentInstructionFileType, IAgentInstructionFile, IPromptsService } from '../../../platform/promptFiles/common/promptsService';
+import { AgentInstructionFileType, IAgentInstructionFile, IPromptsService, PromptConfig } from '../../../platform/promptFiles/common/promptsService';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
 import { IWorkspaceService } from '../../../platform/workspace/common/workspaceService';
 import { createServiceIdentifier } from '../../../util/common/services';
@@ -24,19 +24,10 @@ import { URI } from '../../../util/vs/base/common/uri';
 import { ParsedPromptFile } from '../../../util/vs/workbench/contrib/chat/common/promptSyntax/promptFileParser';
 import { isLocation } from '../../../util/common/types';
 import { ToolName } from '../../../extension/tools/common/toolNames';
-import { ChatVariablesCollection, CustomizationsIndexId, InstructionFileIdPrefix, isInstructionFile } from '../../../extension/prompt/common/chatVariablesCollection';
+import { ChatVariablesCollection, isInstructionFile, toCustomizationsIndexReference, toInstructionFileReference } from '../../../extension/prompt/common/chatVariablesCollection';
+import { getToolReferencePromptContent } from '../../../extension/prompt/vscode-node/promptVariablesService';
+import { IExperimentationService } from '../../telemetry/common/nullExperimentationService';
 
-/**
- * Tells {@link IAutomaticInstructionsCollector.collect} which mode the
- * current request is running in. Used for the same toggle as in core: when
- * the mode is `Edit`, applying / referenced instructions are always
- * included regardless of the corresponding `chat.include*Instructions`
- * settings.
- */
-export const enum AgentModeKind {
-	Agent = 'agent',
-	Edit = 'edit',
-}
 
 /**
  * Telemetry payload (parity with core's `instructionsCollected` event).
@@ -65,7 +56,6 @@ export interface AutomaticInstructionsResult {
 export interface IAutomaticInstructionsCollector {
 	readonly _serviceBrand: undefined;
 	collect(
-		modeKind: AgentModeKind,
 		availableTools: readonly vscode.LanguageModelToolInformation[] | undefined,
 		enabledSubagents: readonly string[] | undefined,
 		sessionType: string | undefined,
@@ -76,13 +66,6 @@ export interface IAutomaticInstructionsCollector {
 
 export const IAutomaticInstructionsCollector = createServiceIdentifier<IAutomaticInstructionsCollector>('IAutomaticInstructionsCollector');
 
-// ─── Configuration keys (mirror of core's PromptsConfig) ──────────────────
-const INCLUDE_APPLYING_INSTRUCTIONS_KEY = 'chat.includeApplyingInstructions';
-const INCLUDE_REFERENCED_INSTRUCTIONS_KEY = 'chat.includeReferencedInstructions';
-const USE_NESTED_AGENT_MD_KEY = 'chat.useNestedAgentsMdFiles';
-const USE_SKILL_ADHERENCE_PROMPT_KEY = 'chat.experimental.useSkillAdherencePrompt';
-const GENERAL_PURPOSE_AGENT_ENABLED_KEY = 'chat.generalPurposeAgent.enabled';
-const AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_KEY = 'github.copilot.chat.agentDebugLog.fileLogging.enabled';
 
 // Mirror of `GeneralPurposeAgentName` in core. Kept in sync manually since
 // the constant lives in the workbench layer that the extension does not
@@ -98,13 +81,6 @@ const TROUBLESHOOT_SKILL_PATH = 'troubleshoot/SKILL.md';
 const CLAUDE_AGENTS_FOLDER_PATH = '/.claude/agents';
 const CLAUDE_RULES_FOLDER_PATH = '/.claude/rules/';
 
-/**
- * Returns whether a customization is offered in the provided session type.
- * Mirrors core's `matchesSessionType`.
- */
-function matchesSessionType(sessionTypes: readonly string[] | undefined, currentSessionType: string | undefined): boolean {
-	return sessionTypes === undefined || currentSessionType === undefined || sessionTypes.includes(currentSessionType);
-}
 
 function isInClaudeAgentsFolder(uri: URI): boolean {
 	return dirname(uri).path.endsWith(CLAUDE_AGENTS_FOLDER_PATH);
@@ -113,6 +89,16 @@ function isInClaudeAgentsFolder(uri: URI): boolean {
 function isInClaudeRulesFolder(uri: URI): boolean {
 	return uri.path.includes(CLAUDE_RULES_FOLDER_PATH);
 }
+
+/**
+ * Returns whether a customization is offered in the provided session type.
+ * Mirrors core's `matchesSessionType`.
+ */
+function matchesSessionType(sessionTypes: readonly string[] | undefined, currentSessionType: string | undefined): boolean {
+	return sessionTypes === undefined || currentSessionType === undefined || sessionTypes.includes(currentSessionType);
+}
+
+
 
 /** Recognizes the file extensions that core treats as instruction/prompt files. */
 function isPromptOrInstructionsFile(uri: URI): boolean {
@@ -131,12 +117,6 @@ function isPromptOrInstructionsFile(uri: URI): boolean {
 		return true;
 	}
 	return false;
-}
-
-interface IResolvedTool {
-	readonly information: vscode.LanguageModelToolInformation;
-	/** Stable placeholder embedded in the index text (e.g. `#tool:readFile`). */
-	readonly placeholder: string;
 }
 
 /**
@@ -169,10 +149,10 @@ export class AutomaticInstructionsCollector implements IAutomaticInstructionsCol
 		@IExtensionsService private readonly _extensionsService: IExtensionsService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ILogService private readonly _logService: ILogService,
+		@IExperimentationService private readonly _experimentationService: IExperimentationService,
 	) { }
 
 	public async collect(
-		modeKind: AgentModeKind,
 		availableTools: readonly vscode.LanguageModelToolInformation[] | undefined,
 		enabledSubagents: readonly string[] | undefined,
 		sessionType: string | undefined,
@@ -197,21 +177,21 @@ export class AutomaticInstructionsCollector implements IAutomaticInstructionsCol
 		}
 
 		// Step 1: applying instructions (applyTo glob match).
-		await this._addApplyingInstructions(instructionFiles, context.files, seenInstructionUris, modeKind, sessionType, telemetry, newEntries, token);
+		await this._addApplyingInstructions(instructionFiles, context.files, seenInstructionUris, sessionType, telemetry, newEntries, token);
 		if (token.isCancellationRequested) {
 			return { entries: newEntries, telemetry: finalizeTelemetry(telemetry) };
 		}
 
 		// Step 3 (run before agent instructions to match core ordering).
 		// Follow references from anything currently attached as instruction.
-		await this._addReferencedInstructions(seenInstructionUris, modeKind, telemetry, newEntries, token);
+		await this._addReferencedInstructions(seenInstructionUris, telemetry, newEntries, token);
 		if (token.isCancellationRequested) {
 			return { entries: newEntries, telemetry: finalizeTelemetry(telemetry) };
 		}
 
 		// Step 2: workspace-level agent instructions, plus referenced
 		// instructions starting from copilot-instructions.md only.
-		await this._addAgentInstructions(seenInstructionUris, modeKind, telemetry, newEntries, token);
+		await this._addAgentInstructions(seenInstructionUris, telemetry, newEntries, token);
 		if (token.isCancellationRequested) {
 			return { entries: newEntries, telemetry: finalizeTelemetry(telemetry) };
 		}
@@ -231,15 +211,14 @@ export class AutomaticInstructionsCollector implements IAutomaticInstructionsCol
 		instructionFiles: readonly vscode.ChatInstruction[],
 		attachedFiles: ResourceSet,
 		seenInstructionUris: ResourceSet,
-		modeKind: AgentModeKind,
 		sessionType: string | undefined,
 		telemetry: InstructionsCollectionEvent,
 		newEntries: vscode.ChatPromptReference[],
 		token: CancellationToken,
 	): Promise<void> {
-		const includeApplyingInstructions = this._configurationService.getNonExtensionConfig<boolean>(INCLUDE_APPLYING_INSTRUCTIONS_KEY) === true;
-		if (!includeApplyingInstructions && modeKind !== AgentModeKind.Edit) {
-			this._logService.trace(`[AutomaticInstructionsCollector] includeApplyingInstructions is disabled and mode is not Edit. Skipping applying instructions.`);
+		const includeApplyingInstructions = this._configurationService.getNonExtensionConfig<boolean>(PromptConfig.INCLUDE_APPLYING_INSTRUCTIONS) === true;
+		if (!includeApplyingInstructions) {
+			this._logService.trace(`[AutomaticInstructionsCollector] includeApplyingInstructions is disabled. Skipping applying instructions.`);
 			return;
 		}
 
@@ -278,7 +257,6 @@ export class AutomaticInstructionsCollector implements IAutomaticInstructionsCol
 	// ─── Step 2: workspace agent instructions ────────────────────────────
 	private async _addAgentInstructions(
 		seenInstructionUris: ResourceSet,
-		modeKind: AgentModeKind,
 		telemetry: InstructionsCollectionEvent,
 		newEntries: vscode.ChatPromptReference[],
 		token: CancellationToken,
@@ -310,22 +288,21 @@ export class AutomaticInstructionsCollector implements IAutomaticInstructionsCol
 		}
 
 		if (copilotUris.size > 0) {
-			await this._addReferencedInstructions(copilotUris, modeKind, telemetry, newEntries, token, /* additionalSeen */ seenInstructionUris);
+			await this._addReferencedInstructions(copilotUris, telemetry, newEntries, token, /* additionalSeen */ seenInstructionUris);
 		}
 	}
 
 	// ─── Step 3: transitive instruction-file references ───────────────────
 	private async _addReferencedInstructions(
 		startingFrom: ResourceSet,
-		modeKind: AgentModeKind,
 		telemetry: InstructionsCollectionEvent,
 		newEntries: vscode.ChatPromptReference[],
 		token: CancellationToken,
 		additionalSeen?: ResourceSet,
 	): Promise<void> {
-		const includeReferencedInstructions = this._configurationService.getNonExtensionConfig<boolean>(INCLUDE_REFERENCED_INSTRUCTIONS_KEY) === true;
-		if (!includeReferencedInstructions && modeKind !== AgentModeKind.Edit) {
-			this._logService.trace(`[AutomaticInstructionsCollector] includeReferencedInstructions is disabled and mode is not Edit. Skipping referenced instructions.`);
+		const includeReferencedInstructions = this._configurationService.getNonExtensionConfig<boolean>(PromptConfig.INCLUDE_REFERENCED_INSTRUCTIONS) === true;
+		if (!includeReferencedInstructions) {
+			this._logService.trace(`[AutomaticInstructionsCollector] includeReferencedInstructions is disabled. Skipping referenced instructions.`);
 			return;
 		}
 
@@ -408,23 +385,23 @@ export class AutomaticInstructionsCollector implements IAutomaticInstructionsCol
 		telemetry: InstructionsCollectionEvent,
 		token: CancellationToken,
 	): Promise<vscode.ChatPromptReference | undefined> {
-		const readTool = this._resolveTool(availableTools, ToolName.ReadFile, 'readFile');
-		const runSubagentTool = this._resolveTool(availableTools, ToolName.CoreRunSubagent, 'runSubagent');
-		const skillTool = this._resolveTool(availableTools, ToolName.Skill, 'skill');
+		const readTool = availableTools?.find(tool => tool.name === ToolName.ReadFile);
+		const runSubagentTool = availableTools?.find(tool => tool.name === ToolName.CoreRunSubagent);
+		const skillTool = availableTools?.find(tool => tool.name === ToolName.Skill);
 
 		const filePath = (uri: URI) => this._promptPathRepresentationService.getFilePath(uri);
 		const lines: string[] = [];
 
 		// ── <instructions> section ──────────────────────────────────────
 		if (readTool) {
-			const useNestedAgentMd = this._configurationService.getNonExtensionConfig<boolean>(USE_NESTED_AGENT_MD_KEY) === true;
+			const useNestedAgentMd = this._configurationService.getNonExtensionConfig<boolean>(PromptConfig.USE_NESTED_AGENT_MD) === true;
 			const nestedAgentsMdPromise = useNestedAgentMd ? this._promptsService.listNestedAgentMDs(token) : Promise.resolve([] as IAgentInstructionFile[]);
 
 			lines.push('<instructions>');
 			lines.push('Here is a list of instruction files that contain rules for working with this codebase.');
 			lines.push('These files are important for understanding the codebase structure, conventions, and best practices.');
 			lines.push('When an instruction file applies to your task (based on its description or applyTo pattern), follow the rules specified in it.');
-			lines.push(`If the file content is not already included in the context, use the ${readTool.placeholder} tool to read it before proceeding. Use the exact value from the <file> element as-is with the tool; do not add or remove prefixes or otherwise modify it.`);
+			lines.push(`If the file content is not already included in the context, use the ${getToolReferencePromptContent(readTool)} tool to read it before proceeding. Use the exact value from the <file> element as-is with the tool; do not add or remove prefixes or otherwise modify it.`);
 			lines.push('Only load instruction files when they are relevant to the current task. Do not eagerly load all instructions upfront.');
 			lines.push('When modifying or creating files, check for instructions whose applyTo pattern matches the file path and follow them.');
 
@@ -466,7 +443,7 @@ export class AutomaticInstructionsCollector implements IAutomaticInstructionsCol
 
 			// ── <skills> section (lives inside the readTool branch) ───────
 			const allSkills = await this._promptsService.getSkills(token);
-			const isFileLoggingEnabled = this._configurationService.getNonExtensionConfig<boolean>(AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_KEY) === true;
+			const isFileLoggingEnabled = this._configurationService.getExperimentBasedConfig<boolean>(ConfigKey.Advanced.ChatDebugFileLogging, this._experimentationService) === true;
 			const modelInvocableSkills = allSkills.filter(skill => {
 				if (!skill.description) {
 					return false;
@@ -485,7 +462,7 @@ export class AutomaticInstructionsCollector implements IAutomaticInstructionsCol
 			if (modelInvocableSkills.length > 0) {
 				this._logSkillLoadedTelemetry(modelInvocableSkills);
 
-				const useSkillAdherencePrompt = this._configurationService.getNonExtensionConfig<boolean>(USE_SKILL_ADHERENCE_PROMPT_KEY) === true;
+				const useSkillAdherencePrompt = this._configurationService.getNonExtensionConfig<boolean>(PromptConfig.USE_SKILL_ADHERENCE_PROMPT) === true;
 				// Direct the model to invoke skills via the dedicated skill
 				// tool when available, falling back to readFile otherwise.
 				const skillLoadTool = skillTool ?? readTool;
@@ -493,9 +470,9 @@ export class AutomaticInstructionsCollector implements IAutomaticInstructionsCol
 				if (useSkillAdherencePrompt) {
 					lines.push('Skills provide specialized capabilities, domain knowledge, and refined workflows for producing high-quality outputs. Each skill folder contains tested instructions for specific domains like testing strategies, API design, or performance optimization. Multiple skills can be combined when a task spans different domains.');
 					if (skillTool) {
-						lines.push(`BLOCKING REQUIREMENT: When a skill applies to the user's request, you MUST invoke it IMMEDIATELY as your first action, BEFORE generating any other response or taking action on the task. Use ${skillTool.placeholder} with the skill name to load the relevant skill(s).`);
+						lines.push(`BLOCKING REQUIREMENT: When a skill applies to the user's request, you MUST invoke it IMMEDIATELY as your first action, BEFORE generating any other response or taking action on the task. Use ${getToolReferencePromptContent(skillLoadTool)} with the skill name to load the relevant skill(s).`);
 					} else {
-						lines.push(`BLOCKING REQUIREMENT: When a skill applies to the user's request, you MUST load and read the SKILL.md file IMMEDIATELY as your first action, BEFORE generating any other response or taking action on the task. Use ${readTool.placeholder} to load the relevant skill(s).`);
+						lines.push(`BLOCKING REQUIREMENT: When a skill applies to the user's request, you MUST load and read the SKILL.md file IMMEDIATELY as your first action, BEFORE generating any other response or taking action on the task. Use ${getToolReferencePromptContent(readTool)} to load the relevant skill(s).`);
 					}
 					lines.push('NEVER just mention or reference a skill in your response without actually loading it first. If a skill is relevant, load it before proceeding.');
 					lines.push('How to determine if a skill applies:');
@@ -503,18 +480,18 @@ export class AutomaticInstructionsCollector implements IAutomaticInstructionsCol
 					lines.push('2. If any skill\'s domain overlaps with the task, load that skill immediately');
 					lines.push('3. When multiple skills apply (e.g., a flowchart in documentation), load all relevant skills');
 					lines.push('Examples:');
-					lines.push(`- "Help me write unit tests for this module" -> Load the testing skill via ${skillLoadTool.placeholder} FIRST, then proceed`);
-					lines.push(`- "Optimize this slow function" -> Load the performance-profiling skill via ${skillLoadTool.placeholder} FIRST, then proceed`);
+					lines.push(`- "Help me write unit tests for this module" -> Load the testing skill via ${getToolReferencePromptContent(skillLoadTool)} FIRST, then proceed`);
+					lines.push(`- "Optimize this slow function" -> Load the performance-profiling skill via ${getToolReferencePromptContent(skillLoadTool)} FIRST, then proceed`);
 					lines.push(`- "Add a discount code field to checkout" -> Load both the checkout-flow and form-validation skills FIRST`);
 					lines.push('Available skills:');
 				} else {
 					if (skillTool) {
 						lines.push('Here is a list of skills that contain domain specific knowledge on a variety of topics.');
-						lines.push(`When a user asks you to perform a task that falls within the domain of a skill, use the ${skillTool.placeholder} tool with the skill name to load it.`);
+						lines.push(`When a user asks you to perform a task that falls within the domain of a skill, use the ${getToolReferencePromptContent(skillTool)} tool with the skill name to load it.`);
 					} else {
 						lines.push('Here is a list of skills that contain domain specific knowledge on a variety of topics.');
 						lines.push('Each skill comes with a description of the topic and a file path that contains the detailed instructions.');
-						lines.push(`When a user asks you to perform a task that falls within the domain of a skill, use the ${readTool.placeholder} tool to acquire the full instructions from the file URI.`);
+						lines.push(`When a user asks you to perform a task that falls within the domain of a skill, use the ${getToolReferencePromptContent(readTool)} tool to acquire the full instructions from the file URI.`);
 					}
 				}
 
@@ -562,7 +539,7 @@ export class AutomaticInstructionsCollector implements IAutomaticInstructionsCol
 
 		// ── <agents> section ────────────────────────────────────────────
 		if (runSubagentTool) {
-			const generalPurposeAgentEnabled = this._configurationService.getNonExtensionConfig<boolean>(GENERAL_PURPOSE_AGENT_ENABLED_KEY) === true;
+			const generalPurposeAgentEnabled = this._configurationService.getNonExtensionConfig<boolean>(PromptConfig.GENERAL_PURPOSE_AGENT_ENABLED) === true;
 			const customAgents = (await this._promptsService.getCustomAgents(token)).filter(a => a.enabled);
 
 			const canInvokeAgent = (agent: vscode.ChatCustomAgent): boolean => {
@@ -580,7 +557,7 @@ export class AutomaticInstructionsCollector implements IAutomaticInstructionsCol
 				lines.push('<agents>');
 				lines.push('Here is a list of agents that can be used when running a subagent.');
 				lines.push('Each agent has optionally a description with the agent\'s purpose and expertise. When asked to run a subagent, choose the most appropriate agent from this list.');
-				lines.push(`Use the ${runSubagentTool.placeholder} tool with the agent name to run the subagent.`);
+				lines.push(`Use the ${getToolReferencePromptContent(runSubagentTool)} tool with the agent name to run the subagent.`);
 
 				if (generalPurposeAgentEnabled) {
 					lines.push('<agent>');
@@ -614,44 +591,8 @@ export class AutomaticInstructionsCollector implements IAutomaticInstructionsCol
 			return undefined;
 		}
 
-		const content = lines.join('\n');
-		// Build tool reference ranges so prompt-tsx can substitute each
-		// `#tool:<name>` placeholder with the resolved tool name at render
-		// time (see PromptVariablesService.resolveToolReferencesInPrompt).
-		const toolReferences: vscode.ChatLanguageModelToolReference[] = [];
-		const collectRanges = (resolved: IResolvedTool | undefined) => {
-			if (!resolved) {
-				return;
-			}
-			let offset = content.indexOf(resolved.placeholder);
-			while (offset >= 0) {
-				toolReferences.push({
-					name: resolved.information.name,
-					range: [offset, offset + resolved.placeholder.length],
-				});
-				offset = content.indexOf(resolved.placeholder, offset + resolved.placeholder.length);
-			}
-		};
-		collectRanges(readTool);
-		collectRanges(runSubagentTool);
-		collectRanges(skillTool);
 
-		return toCustomizationsIndexReference(content, toolReferences);
-	}
-
-	private _resolveTool(
-		availableTools: readonly vscode.LanguageModelToolInformation[] | undefined,
-		toolName: ToolName,
-		referenceName: string,
-	): IResolvedTool | undefined {
-		if (!availableTools) {
-			return undefined;
-		}
-		const information = availableTools.find(t => t.name === toolName);
-		if (!information) {
-			return undefined;
-		}
-		return { information, placeholder: `#tool:${referenceName}` };
+		return toCustomizationsIndexReference(lines.join('\n'));
 	}
 
 	private async _parseInstructionsFile(uri: URI, token: CancellationToken): Promise<ParsedPromptFile | undefined> {
@@ -721,12 +662,13 @@ function collectAttachedContext(variables: ChatVariablesCollection): { files: Re
 	const files = new ResourceSet();
 	const instructions = new ResourceSet();
 	for (const variable of variables) {
-		if (isInstructionFile(variable)) {
-			instructions.add(variable.value);
-		} else if (URI.isUri(variable.value)) {
-			files.add(variable.value);
-		} else if (isLocation(variable.value)) {
-			files.add(variable.value.uri);
+		const reference = variable.reference;
+		if (isInstructionFile(reference)) {
+			instructions.add(reference.value);
+		} else if (URI.isUri(reference.value)) {
+			files.add(reference.value);
+		} else if (isLocation(reference.value)) {
+			files.add(reference.value.uri);
 		}
 	}
 	return { files, instructions };
@@ -760,31 +702,4 @@ function matchesAttachedFiles(attachedFiles: ResourceSet, applyToPattern: string
 	return undefined;
 }
 
-/**
- * Builds a `vscode.ChatPromptReference` whose shape is recognised by
- * `isInstructionFile` (see `chatVariablesCollection.ts`). Mirrors core's
- * `toPromptFileVariableEntry`.
- */
-function toInstructionFileReference(uri: URI, isRoot: boolean, originLabel: string | undefined): vscode.ChatPromptReference {
-	const idSuffix = isRoot ? 'root' : 'reference';
-	return {
-		id: `${InstructionFileIdPrefix}.${idSuffix}__${uri.toString()}`,
-		name: `prompt:${basename(uri)}`,
-		value: uri,
-		modelDescription: originLabel ?? 'Prompt instructions file',
-	};
-}
 
-/**
- * Builds a `vscode.ChatPromptReference` for the customizations index text.
- * Recognised by `isCustomizationsIndex` on the consumer side.
- */
-function toCustomizationsIndexReference(content: string, toolReferences: vscode.ChatLanguageModelToolReference[]): vscode.ChatPromptReference {
-	return {
-		id: CustomizationsIndexId,
-		name: 'prompt:customizationsIndex',
-		value: content,
-		modelDescription: 'Chat customizations index',
-		toolReferences,
-	};
-}

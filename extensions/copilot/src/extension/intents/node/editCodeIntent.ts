@@ -472,7 +472,7 @@ export class EditCodeIntentInvocation implements IIntentInvocation {
 			return true;
 		}
 		const PROMPT_INSTRUCTION_ROOT_PREFIX = `${InstructionFileIdPrefix}.root`;
-		const promptInstruction = chatVariables.find((variable) => isInstructionFile(variable) && URI.isUri(variable.value) && isEqual(variable.value, uri));
+		const promptInstruction = chatVariables.find((variable) => isInstructionFile(variable.reference) && URI.isUri(variable.value) && isEqual(variable.value, uri));
 		if (promptInstruction) {
 			// Report references for root prompt instruction files and not their children
 			return promptInstruction.reference.id.startsWith(PROMPT_INSTRUCTION_ROOT_PREFIX);

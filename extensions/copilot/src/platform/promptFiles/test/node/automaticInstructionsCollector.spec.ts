@@ -11,7 +11,7 @@ import { TestExtensionsService } from '../../../../platform/test/common/testExte
 import { MockFileSystemService } from '../../../../platform/filesystem/node/test/mockFileSystemService';
 import { LogServiceImpl } from '../../../../platform/log/common/logService';
 import { TestPromptPathRepresentationService } from '../../../../platform/prompts/common/promptPathRepresentationService';
-import { AgentInstructionFileType, IAgentInstructionFile } from '../../../../platform/promptFiles/common/promptsService';
+import { AgentInstructionFileType, IAgentInstructionFile, PromptConfig } from '../../../../platform/promptFiles/common/promptsService';
 import { mockFiles } from '../../../../platform/promptFiles/test/node/mockFiles';
 import { MockPromptsService } from '../../../../platform/promptFiles/test/common/mockPromptsService';
 import { TelemetryEventMeasurements, TelemetryEventProperties } from '../../../../platform/telemetry/common/telemetry';
@@ -20,16 +20,11 @@ import { TestWorkspaceService } from '../../../../platform/test/node/testWorkspa
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
 import { Event } from '../../../../util/vs/base/common/event';
 import { URI } from '../../../../util/vs/base/common/uri';
-import { AgentModeKind, AutomaticInstructionsCollector, InstructionsCollectionEvent } from '../../node/automaticInstructionsCollector';
-import { ChatVariablesCollection, CustomizationsIndexId, InstructionFileIdPrefix, isCustomizationsIndex, isInstructionFile } from '../../../../extension/prompt/common/chatVariablesCollection';
+import { AutomaticInstructionsCollector, InstructionsCollectionEvent } from '../../node/automaticInstructionsCollector';
+import { ChatVariablesCollection, InstructionFileIdPrefix, isCustomizationsIndex, isInstructionFile } from '../../../../extension/prompt/common/chatVariablesCollection';
 import { ToolName } from '../../../../extension/tools/common/toolNames';
+import { NullExperimentationService } from '../../../telemetry/common/nullExperimentationService';
 
-// ─── Configuration keys mirrored from the collector ───────────────────────
-const INCLUDE_APPLYING_INSTRUCTIONS_KEY = 'chat.includeApplyingInstructions';
-const INCLUDE_REFERENCED_INSTRUCTIONS_KEY = 'chat.includeReferencedInstructions';
-const USE_NESTED_AGENT_MD_KEY = 'chat.useNestedAgentsMdFiles';
-const USE_SKILL_ADHERENCE_PROMPT_KEY = 'chat.experimental.useSkillAdherencePrompt';
-const GENERAL_PURPOSE_AGENT_ENABLED_KEY = 'chat.generalPurposeAgent.enabled';
 
 const localSessionType = 'local';
 
@@ -100,8 +95,8 @@ suite('AutomaticInstructionsCollector', () => {
 		telemetry = new RecordingTelemetryService();
 
 		// Defaults that mirror what the migrated `chatServiceImpl` would set.
-		configService.setNonExtensionConfig(INCLUDE_APPLYING_INSTRUCTIONS_KEY, true);
-		configService.setNonExtensionConfig(INCLUDE_REFERENCED_INSTRUCTIONS_KEY, true);
+		configService.setNonExtensionConfig(PromptConfig.INCLUDE_APPLYING_INSTRUCTIONS, true);
+		configService.setNonExtensionConfig(PromptConfig.INCLUDE_REFERENCED_INSTRUCTIONS, true);
 
 		collector = new AutomaticInstructionsCollector(
 			promptsService,
@@ -112,6 +107,7 @@ suite('AutomaticInstructionsCollector', () => {
 			extensionsService,
 			telemetry,
 			new LogServiceImpl([]),
+			new NullExperimentationService()
 		);
 	});
 
@@ -128,7 +124,6 @@ suite('AutomaticInstructionsCollector', () => {
 			]);
 
 			const result = await collector.collect(
-				AgentModeKind.Agent,
 				undefined,
 				undefined,
 				localSessionType,
@@ -136,9 +131,7 @@ suite('AutomaticInstructionsCollector', () => {
 				CancellationToken.None,
 			);
 
-			const paths = result.entries
-				.filter(e => e.id.startsWith(InstructionFileIdPrefix))
-				.map(e => (e.value as URI).path);
+			const paths = result.entries.filter(isInstructionFile).map(e => e.value.path);
 			expect(paths).toContain(instructionUri.path);
 			expect(result.telemetry.applyingInstructionsCount).toBe(1);
 		});
@@ -153,7 +146,6 @@ suite('AutomaticInstructionsCollector', () => {
 			]);
 
 			const result = await collector.collect(
-				AgentModeKind.Agent,
 				undefined,
 				undefined,
 				localSessionType,
@@ -161,9 +153,7 @@ suite('AutomaticInstructionsCollector', () => {
 				CancellationToken.None,
 			);
 
-			const paths = result.entries
-				.filter(e => e.id.startsWith(InstructionFileIdPrefix))
-				.map(e => (e.value as URI).path);
+			const paths = result.entries.filter(isInstructionFile).map(e => e.value.path);
 			expect(paths).toContain(tsInstruction.path);
 			expect(paths).not.toContain(jsInstruction.path);
 		});
@@ -176,7 +166,6 @@ suite('AutomaticInstructionsCollector', () => {
 			]);
 
 			const result = await collector.collect(
-				AgentModeKind.Agent,
 				undefined,
 				undefined,
 				localSessionType,
@@ -184,7 +173,7 @@ suite('AutomaticInstructionsCollector', () => {
 				CancellationToken.None,
 			);
 
-			expect(result.entries.filter(e => e.id.startsWith(InstructionFileIdPrefix))).toHaveLength(1);
+			expect(result.entries.filter(isInstructionFile)).toHaveLength(1);
 		});
 
 		test('matches relative glob patterns', async () => {
@@ -195,7 +184,6 @@ suite('AutomaticInstructionsCollector', () => {
 			]);
 
 			const result = await collector.collect(
-				AgentModeKind.Agent,
 				undefined,
 				undefined,
 				localSessionType,
@@ -203,7 +191,7 @@ suite('AutomaticInstructionsCollector', () => {
 				CancellationToken.None,
 			);
 
-			expect(result.entries.filter(e => e.id.startsWith(InstructionFileIdPrefix))).toHaveLength(1);
+			expect(result.entries.filter(isInstructionFile)).toHaveLength(1);
 		});
 
 		test('does not duplicate instructions for multiple matching files', async () => {
@@ -215,7 +203,6 @@ suite('AutomaticInstructionsCollector', () => {
 			]);
 
 			const result = await collector.collect(
-				AgentModeKind.Agent,
 				undefined,
 				undefined,
 				localSessionType,
@@ -223,11 +210,11 @@ suite('AutomaticInstructionsCollector', () => {
 				CancellationToken.None,
 			);
 
-			expect(result.entries.filter(e => e.id.startsWith(InstructionFileIdPrefix))).toHaveLength(1);
+			expect(result.entries.filter(isInstructionFile)).toHaveLength(1);
 		});
 
 		test('skips applying instructions when setting is disabled (Agent mode)', async () => {
-			await configService.setNonExtensionConfig(INCLUDE_APPLYING_INSTRUCTIONS_KEY, false);
+			await configService.setNonExtensionConfig(PromptConfig.INCLUDE_APPLYING_INSTRUCTIONS, false);
 			const attached = URI.joinPath(rootFolderUri, 'src/file.ts');
 			const instructionUri = URI.joinPath(rootFolderUri, '.github/instructions/typescript.instructions.md');
 			promptsService.setInstructions([
@@ -235,7 +222,6 @@ suite('AutomaticInstructionsCollector', () => {
 			]);
 
 			const result = await collector.collect(
-				AgentModeKind.Agent,
 				undefined,
 				undefined,
 				localSessionType,
@@ -243,27 +229,7 @@ suite('AutomaticInstructionsCollector', () => {
 				CancellationToken.None,
 			);
 
-			expect(result.entries.filter(e => e.id.startsWith(InstructionFileIdPrefix))).toHaveLength(0);
-		});
-
-		test('still applies instructions in Edit mode even when setting is disabled', async () => {
-			await configService.setNonExtensionConfig(INCLUDE_APPLYING_INSTRUCTIONS_KEY, false);
-			const attached = URI.joinPath(rootFolderUri, 'src/file.ts');
-			const instructionUri = URI.joinPath(rootFolderUri, '.github/instructions/typescript.instructions.md');
-			promptsService.setInstructions([
-				{ uri: instructionUri, name: 'ts', source: 'local', pattern: '**/*.ts' } as ChatInstruction,
-			]);
-
-			const result = await collector.collect(
-				AgentModeKind.Edit,
-				undefined,
-				undefined,
-				localSessionType,
-				new ChatVariablesCollection([toAttachedFileReference(attached)]),
-				CancellationToken.None,
-			);
-
-			expect(result.entries.filter(e => e.id.startsWith(InstructionFileIdPrefix))).toHaveLength(1);
+			expect(result.entries.filter(isInstructionFile)).toHaveLength(0);
 		});
 
 		test('honors sessionTypes when filtering instructions', async () => {
@@ -276,7 +242,6 @@ suite('AutomaticInstructionsCollector', () => {
 			]);
 
 			const result = await collector.collect(
-				AgentModeKind.Agent,
 				undefined,
 				undefined,
 				'local',
@@ -284,9 +249,7 @@ suite('AutomaticInstructionsCollector', () => {
 				CancellationToken.None,
 			);
 
-			const paths = result.entries
-				.filter(e => e.id.startsWith(InstructionFileIdPrefix))
-				.map(e => (e.value as URI).path);
+			const paths = result.entries.filter(isInstructionFile).map(e => e.value.path);
 			expect(paths).toContain(localOnly.path);
 			expect(paths).not.toContain(remoteOnly.path);
 		});
@@ -300,7 +263,6 @@ suite('AutomaticInstructionsCollector', () => {
 			promptsService.setAgentInstructions([copilot, agentsMd, claudeMd]);
 
 			const result = await collector.collect(
-				AgentModeKind.Agent,
 				undefined,
 				undefined,
 				localSessionType,
@@ -308,9 +270,7 @@ suite('AutomaticInstructionsCollector', () => {
 				CancellationToken.None,
 			);
 
-			const paths = result.entries
-				.filter(e => e.id.startsWith(InstructionFileIdPrefix))
-				.map(e => (e.value as URI).path);
+			const paths = result.entries.filter(e => isInstructionFile(e)).map(e => e.value.path);
 			expect(paths).toContain(copilot.uri.path);
 			expect(paths).toContain(agentsMd.uri.path);
 			expect(paths).toContain(claudeMd.uri.path);
@@ -330,7 +290,6 @@ suite('AutomaticInstructionsCollector', () => {
 			};
 
 			const result = await collector.collect(
-				AgentModeKind.Agent,
 				undefined,
 				undefined,
 				localSessionType,
@@ -338,7 +297,7 @@ suite('AutomaticInstructionsCollector', () => {
 				CancellationToken.None,
 			);
 
-			expect(result.entries.filter(e => e.id.startsWith(InstructionFileIdPrefix))).toHaveLength(0);
+			expect(result.entries.filter(e => isInstructionFile(e))).toHaveLength(0);
 			expect(result.telemetry.agentInstructionsCount).toBe(0);
 		});
 	});
@@ -360,7 +319,6 @@ suite('AutomaticInstructionsCollector', () => {
 			]);
 
 			const result = await collector.collect(
-				AgentModeKind.Agent,
 				undefined,
 				undefined,
 				localSessionType,
@@ -368,9 +326,7 @@ suite('AutomaticInstructionsCollector', () => {
 				CancellationToken.None,
 			);
 
-			const paths = result.entries
-				.filter(e => e.id.startsWith(InstructionFileIdPrefix))
-				.map(e => (e.value as URI).path);
+			const paths = result.entries.filter(e => isInstructionFile(e)).map(e => e.value.path);
 			expect(paths).toContain(copilotUri.path);
 			expect(paths).toContain(referencedUri.path);
 			expect(result.telemetry.referencedInstructionsCount).toBe(1);
@@ -394,7 +350,6 @@ suite('AutomaticInstructionsCollector', () => {
 			]);
 
 			const result = await collector.collect(
-				AgentModeKind.Agent,
 				undefined,
 				undefined,
 				localSessionType,
@@ -402,9 +357,7 @@ suite('AutomaticInstructionsCollector', () => {
 				CancellationToken.None,
 			);
 
-			const paths = result.entries
-				.filter(e => e.id.startsWith(InstructionFileIdPrefix))
-				.map(e => (e.value as URI).path);
+			const paths = result.entries.filter(e => isInstructionFile(e)).map(e => e.value.path);
 			expect(paths).toContain(copilotUri.path);
 			expect(paths).toContain(level2Uri.path);
 			expect(paths).toContain(level3Uri.path);
@@ -418,7 +371,6 @@ suite('AutomaticInstructionsCollector', () => {
 			promptsService.setFileContent(copilotUri, 'See #file:/tmp/external.md');
 
 			const result = await collector.collect(
-				AgentModeKind.Agent,
 				undefined,
 				undefined,
 				localSessionType,
@@ -426,15 +378,13 @@ suite('AutomaticInstructionsCollector', () => {
 				CancellationToken.None,
 			);
 
-			const paths = result.entries
-				.filter(e => e.id.startsWith(InstructionFileIdPrefix))
-				.map(e => (e.value as URI).path);
+			const paths = result.entries.filter(e => isInstructionFile(e)).map(e => e.value.path);
 			expect(paths).toContain(copilotUri.path);
 			expect(paths).not.toContain('/tmp/external.md');
 		});
 
 		test('skips reference following when setting is disabled (Agent mode)', async () => {
-			await configService.setNonExtensionConfig(INCLUDE_REFERENCED_INSTRUCTIONS_KEY, false);
+			await configService.setNonExtensionConfig(PromptConfig.INCLUDE_REFERENCED_INSTRUCTIONS, false);
 
 			const copilotUri = URI.joinPath(rootFolderUri, '.github/copilot-instructions.md');
 			const referencedUri = URI.joinPath(rootFolderUri, '.github/referenced.instructions.md');
@@ -447,7 +397,6 @@ suite('AutomaticInstructionsCollector', () => {
 			]);
 
 			const result = await collector.collect(
-				AgentModeKind.Agent,
 				undefined,
 				undefined,
 				localSessionType,
@@ -455,9 +404,7 @@ suite('AutomaticInstructionsCollector', () => {
 				CancellationToken.None,
 			);
 
-			const paths = result.entries
-				.filter(e => e.id.startsWith(InstructionFileIdPrefix))
-				.map(e => (e.value as URI).path);
+			const paths = result.entries.filter(e => isInstructionFile(e)).map(e => e.value.path);
 			expect(paths).not.toContain(referencedUri.path);
 			expect(result.telemetry.referencedInstructionsCount).toBe(0);
 		});
@@ -471,7 +418,6 @@ suite('AutomaticInstructionsCollector', () => {
 			]);
 
 			const result = await collector.collect(
-				AgentModeKind.Agent,
 				[tool(ToolName.ReadFile)],
 				undefined,
 				localSessionType,
@@ -479,9 +425,9 @@ suite('AutomaticInstructionsCollector', () => {
 				CancellationToken.None,
 			);
 
-			const indexEntry = result.entries.find(e => e.id === CustomizationsIndexId);
+			const indexEntry = result.entries.find(isCustomizationsIndex);
 			expect(indexEntry).toBeDefined();
-			const content = indexEntry!.value as string;
+			const content = indexEntry!.value;
 			const sections = xmlContents(content, 'instructions');
 			expect(sections).toHaveLength(1);
 			const items = xmlContents(sections[0], 'instruction');
@@ -498,7 +444,6 @@ suite('AutomaticInstructionsCollector', () => {
 			]);
 
 			const result = await collector.collect(
-				AgentModeKind.Agent,
 				undefined, // no tools
 				undefined,
 				localSessionType,
@@ -506,7 +451,7 @@ suite('AutomaticInstructionsCollector', () => {
 				CancellationToken.None,
 			);
 
-			expect(result.entries.find(e => e.id === CustomizationsIndexId)).toBeUndefined();
+			expect(result.entries.find(isCustomizationsIndex)).toBeUndefined();
 		});
 
 		test('emits a <skills> section listing model-invocable skills', async () => {
@@ -518,7 +463,6 @@ suite('AutomaticInstructionsCollector', () => {
 			]);
 
 			const result = await collector.collect(
-				AgentModeKind.Agent,
 				[tool(ToolName.ReadFile)],
 				undefined,
 				localSessionType,
@@ -526,8 +470,8 @@ suite('AutomaticInstructionsCollector', () => {
 				CancellationToken.None,
 			);
 
-			const indexEntry = result.entries.find(e => e.id === CustomizationsIndexId)!;
-			const skills = xmlContents(xmlContents(indexEntry.value as string, 'skills')[0], 'skill');
+			const indexEntry = result.entries.find(isCustomizationsIndex)!;
+			const skills = xmlContents(xmlContents(indexEntry.value, 'skills')[0], 'skill');
 			expect(skills).toHaveLength(2);
 			expect(xmlContents(skills[0], 'name')[0]).toBe('javascript');
 			expect(xmlContents(skills[0], 'description')[0]).toBe('JavaScript best practices');
@@ -543,7 +487,6 @@ suite('AutomaticInstructionsCollector', () => {
 			]);
 
 			const result = await collector.collect(
-				AgentModeKind.Agent,
 				[tool(ToolName.ReadFile)],
 				undefined,
 				localSessionType,
@@ -551,8 +494,8 @@ suite('AutomaticInstructionsCollector', () => {
 				CancellationToken.None,
 			);
 
-			const indexEntry = result.entries.find(e => e.id === CustomizationsIndexId)!;
-			const skills = xmlContents(xmlContents(indexEntry.value as string, 'skills')[0], 'skill');
+			const indexEntry = result.entries.find(isCustomizationsIndex)!;
+			const skills = xmlContents(xmlContents(indexEntry.value, 'skills')[0], 'skill');
 			expect(skills).toHaveLength(1);
 			expect(xmlContents(skills[0], 'name')[0]).toBe('auto');
 		});
@@ -566,7 +509,6 @@ suite('AutomaticInstructionsCollector', () => {
 			]);
 
 			const result = await collector.collect(
-				AgentModeKind.Agent,
 				[tool(ToolName.ReadFile)],
 				undefined,
 				localSessionType,
@@ -574,8 +516,8 @@ suite('AutomaticInstructionsCollector', () => {
 				CancellationToken.None,
 			);
 
-			const indexEntry = result.entries.find(e => e.id === CustomizationsIndexId)!;
-			const skills = xmlContents(xmlContents(indexEntry.value as string, 'skills')[0], 'skill');
+			const indexEntry = result.entries.find(isCustomizationsIndex)!;
+			const skills = xmlContents(xmlContents(indexEntry.value, 'skills')[0], 'skill');
 			expect(skills).toHaveLength(1);
 			expect(xmlContents(skills[0], 'name')[0]).toBe('with-desc');
 		});
@@ -589,7 +531,6 @@ suite('AutomaticInstructionsCollector', () => {
 			]);
 
 			const result = await collector.collect(
-				AgentModeKind.Agent,
 				[tool(ToolName.ReadFile)],
 				undefined,
 				'remote',
@@ -597,8 +538,8 @@ suite('AutomaticInstructionsCollector', () => {
 				CancellationToken.None,
 			);
 
-			const indexEntry = result.entries.find(e => e.id === CustomizationsIndexId)!;
-			const skills = xmlContents(xmlContents(indexEntry.value as string, 'skills')[0], 'skill');
+			const indexEntry = result.entries.find(isCustomizationsIndex)!;
+			const skills = xmlContents(xmlContents(indexEntry.value, 'skills')[0], 'skill');
 			expect(skills).toHaveLength(1);
 			expect(xmlContents(skills[0], 'name')[0]).toBe('match');
 		});
@@ -616,7 +557,6 @@ suite('AutomaticInstructionsCollector', () => {
 			]);
 
 			const result = await collector.collect(
-				AgentModeKind.Agent,
 				[tool(ToolName.CoreRunSubagent)],
 				['*'],
 				localSessionType,
@@ -624,8 +564,8 @@ suite('AutomaticInstructionsCollector', () => {
 				CancellationToken.None,
 			);
 
-			const indexEntry = result.entries.find(e => e.id === CustomizationsIndexId)!;
-			const agents = xmlContents(xmlContents(indexEntry.value as string, 'agents')[0], 'agent');
+			const indexEntry = result.entries.find(isCustomizationsIndex)!;
+			const agents = xmlContents(xmlContents(indexEntry.value, 'agents')[0], 'agent');
 			// `disableModelInvocation` excludes an agent regardless of `enabledSubagents`.
 			expect(agents).toHaveLength(2);
 			expect(xmlContents(agents[0], 'name')[0]).toBe('test-agent-1');
@@ -641,7 +581,6 @@ suite('AutomaticInstructionsCollector', () => {
 			]);
 
 			const result = await collector.collect(
-				AgentModeKind.Agent,
 				[tool(ToolName.CoreRunSubagent)],
 				['agent1'],
 				localSessionType,
@@ -649,21 +588,20 @@ suite('AutomaticInstructionsCollector', () => {
 				CancellationToken.None,
 			);
 
-			const indexEntry = result.entries.find(e => e.id === CustomizationsIndexId)!;
-			const agents = xmlContents(xmlContents(indexEntry.value as string, 'agents')[0], 'agent');
+			const indexEntry = result.entries.find(isCustomizationsIndex)!;
+			const agents = xmlContents(xmlContents(indexEntry.value, 'agents')[0], 'agent');
 			expect(agents).toHaveLength(1);
 			expect(xmlContents(agents[0], 'name')[0]).toBe('agent1');
 		});
 
 		test('General Purpose agent appears first when the experiment is enabled', async () => {
-			await configService.setNonExtensionConfig(GENERAL_PURPOSE_AGENT_ENABLED_KEY, true);
+			await configService.setNonExtensionConfig(PromptConfig.GENERAL_PURPOSE_AGENT_ENABLED, true);
 			const agentUri = URI.joinPath(rootFolderUri, '.github/agents/test.agent.md');
 			promptsService.setCustomAgents([
 				{ uri: agentUri, name: 'custom', source: 'local', description: 'Custom', userInvocable: true, disableModelInvocation: false, enabled: true } as ChatCustomAgent,
 			]);
 
 			const result = await collector.collect(
-				AgentModeKind.Agent,
 				[tool(ToolName.CoreRunSubagent)],
 				['*'],
 				localSessionType,
@@ -671,22 +609,21 @@ suite('AutomaticInstructionsCollector', () => {
 				CancellationToken.None,
 			);
 
-			const indexEntry = result.entries.find(e => e.id === CustomizationsIndexId)!;
-			const agents = xmlContents(xmlContents(indexEntry.value as string, 'agents')[0], 'agent');
+			const indexEntry = result.entries.find(isCustomizationsIndex)!;
+			const agents = xmlContents(xmlContents(indexEntry.value, 'agents')[0], 'agent');
 			expect(agents).toHaveLength(2);
 			expect(xmlContents(agents[0], 'name')[0]).toBe('General Purpose');
 			expect(xmlContents(agents[1], 'name')[0]).toBe('custom');
 		});
 
 		test('includes nested AGENTS.md as instruction items when enabled', async () => {
-			await configService.setNonExtensionConfig(USE_NESTED_AGENT_MD_KEY, true);
+			await configService.setNonExtensionConfig(PromptConfig.USE_NESTED_AGENT_MD, true);
 			const nestedUri = URI.joinPath(rootFolderUri, 'packages/foo/AGENTS.md');
 			promptsService.setNestedAgentMDs([
 				{ uri: nestedUri, type: AgentInstructionFileType.agentsMd },
 			]);
 
 			const result = await collector.collect(
-				AgentModeKind.Agent,
 				[tool(ToolName.ReadFile)],
 				undefined,
 				localSessionType,
@@ -694,21 +631,20 @@ suite('AutomaticInstructionsCollector', () => {
 				CancellationToken.None,
 			);
 
-			const indexEntry = result.entries.find(e => e.id === CustomizationsIndexId)!;
-			const items = xmlContents(xmlContents(indexEntry.value as string, 'instructions')[0], 'instruction');
+			const indexEntry = result.entries.find(isCustomizationsIndex)!;
+			const items = xmlContents(xmlContents(indexEntry.value, 'instructions')[0], 'instruction');
 			expect(items).toHaveLength(1);
 			expect(xmlContents(items[0], 'file')[0]).toBe(nestedUri.path);
 		});
 
 		test('uses skill adherence prompt when experiment is enabled', async () => {
-			await configService.setNonExtensionConfig(USE_SKILL_ADHERENCE_PROMPT_KEY, true);
+			await configService.setNonExtensionConfig(PromptConfig.USE_SKILL_ADHERENCE_PROMPT, true);
 			const skillUri = URI.joinPath(rootFolderUri, '.claude/skills/test/SKILL.md');
 			promptsService.setSkills([
 				{ uri: skillUri, name: 'test', source: 'local', description: 'Test skill', disableModelInvocation: false } as ChatSkill,
 			]);
 
 			const result = await collector.collect(
-				AgentModeKind.Agent,
 				[tool(ToolName.ReadFile), tool(ToolName.Skill)],
 				undefined,
 				localSessionType,
@@ -716,8 +652,8 @@ suite('AutomaticInstructionsCollector', () => {
 				CancellationToken.None,
 			);
 
-			const indexEntry = result.entries.find(e => e.id === CustomizationsIndexId)!;
-			const content = indexEntry.value as string;
+			const indexEntry = result.entries.find(isCustomizationsIndex)!;
+			const content = indexEntry.value;
 			expect(content).toContain('BLOCKING REQUIREMENT');
 		});
 	});
@@ -735,7 +671,6 @@ suite('AutomaticInstructionsCollector', () => {
 			promptsService.setAgentInstructions([copilot, agentsMd]);
 
 			const result = await collector.collect(
-				AgentModeKind.Agent,
 				undefined,
 				undefined,
 				localSessionType,
@@ -767,7 +702,6 @@ suite('AutomaticInstructionsCollector', () => {
 			promptsService.setAgentInstructions([claudeMd]);
 
 			const result = await collector.collect(
-				AgentModeKind.Agent,
 				undefined,
 				undefined,
 				localSessionType,
@@ -788,7 +722,6 @@ suite('AutomaticInstructionsCollector', () => {
 			]);
 
 			await collector.collect(
-				AgentModeKind.Agent,
 				[tool(ToolName.ReadFile)],
 				undefined,
 				localSessionType,
@@ -812,7 +745,6 @@ suite('AutomaticInstructionsCollector', () => {
 			]);
 
 			await collector.collect(
-				AgentModeKind.Agent,
 				[tool(ToolName.ReadFile)],
 				undefined,
 				localSessionType,
@@ -828,7 +760,6 @@ suite('AutomaticInstructionsCollector', () => {
 	suite('edge cases', () => {
 		test('handles an empty workspace gracefully', async () => {
 			const result = await collector.collect(
-				AgentModeKind.Agent,
 				undefined,
 				undefined,
 				localSessionType,
@@ -853,7 +784,6 @@ suite('AutomaticInstructionsCollector', () => {
 			]);
 
 			const result = await collector.collect(
-				AgentModeKind.Agent,
 				[tool(ToolName.ReadFile)],
 				undefined,
 				localSessionType,
@@ -874,7 +804,6 @@ suite('AutomaticInstructionsCollector', () => {
 		]);
 
 		const result = await collector.collect(
-			AgentModeKind.Agent,
 			[tool(ToolName.ReadFile)],
 			undefined,
 			localSessionType,
@@ -882,13 +811,7 @@ suite('AutomaticInstructionsCollector', () => {
 			CancellationToken.None,
 		);
 
-		const indexEntries = result.entries.filter(e => isCustomizationsIndex({
-			reference: e,
-			originalName: e.name,
-			uniqueName: e.name,
-			value: e.value,
-			isMarkedReadonly: undefined,
-		}));
+		const indexEntries = result.entries.filter(e => isCustomizationsIndex(e));
 		expect(indexEntries).toHaveLength(1);
 		expect(typeof indexEntries[0].value).toBe('string');
 	});
