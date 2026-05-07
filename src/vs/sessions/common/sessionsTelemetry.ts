@@ -133,7 +133,6 @@ type TunnelConnectAttemptEvent = {
 	durationMs: number;
 	success: boolean;
 	errorCategory: string;
-	tunnelSessionId: string;
 };
 
 type TunnelConnectAttemptClassification = {
@@ -144,7 +143,6 @@ type TunnelConnectAttemptClassification = {
 	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Duration of this individual attempt in milliseconds.' };
 	success: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether this individual attempt succeeded.' };
 	errorCategory: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Category of error when the attempt failed (relayConnectionFailed, auth, authExpired, network, other); empty on success.' };
-	tunnelSessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Stable identifier for the tunnel session, generated browser-side; used to join with vscode-dev tunnelRelay events. Empty when unavailable.' };
 };
 
 export function logTunnelConnectAttempt(telemetryService: ITelemetryService, data: { isReconnect: boolean; attempt: number; durationMs: number; success: boolean; errorCategory?: TunnelConnectErrorCategory; tunnelSessionId?: string }): void {
@@ -154,7 +152,6 @@ export function logTunnelConnectAttempt(telemetryService: ITelemetryService, dat
 		durationMs: data.durationMs,
 		success: data.success,
 		errorCategory: data.errorCategory ?? '',
-		tunnelSessionId: data.tunnelSessionId ?? '',
 	});
 }
 
@@ -164,7 +161,6 @@ type TunnelConnectResolvedEvent = {
 	totalDurationMs: number;
 	success: boolean;
 	failureReason: string;
-	tunnelSessionId: string;
 };
 
 type TunnelConnectResolvedClassification = {
@@ -175,65 +171,15 @@ type TunnelConnectResolvedClassification = {
 	totalDurationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Total elapsed time from session start to resolution in milliseconds.' };
 	success: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the connect session ultimately succeeded.' };
 	failureReason: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Reason the session terminated without connecting (hostOffline, maxAttemptsReached, auth, authExpired); empty on success.' };
-	tunnelSessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Stable identifier for the tunnel session, generated browser-side; used to join with vscode-dev tunnelRelay events. Empty when unavailable.' };
 };
 
-export function logTunnelConnectResolved(telemetryService: ITelemetryService, data: { isReconnect: boolean; totalAttempts: number; totalDurationMs: number; success: boolean; failureReason?: TunnelConnectFailureReason; tunnelSessionId?: string }): void {
+export function logTunnelConnectResolved(telemetryService: ITelemetryService, data: { isReconnect: boolean; totalAttempts: number; totalDurationMs: number; success: boolean; failureReason?: TunnelConnectFailureReason }): void {
 	telemetryService.publicLog2<TunnelConnectResolvedEvent, TunnelConnectResolvedClassification>('vscodeAgents.tunnelConnect/resolved', {
 		isReconnect: data.isReconnect,
 		totalAttempts: data.totalAttempts,
 		totalDurationMs: data.totalDurationMs,
 		success: data.success,
 		failureReason: data.failureReason ?? '',
-		tunnelSessionId: data.tunnelSessionId ?? '',
-	});
-}
-
-// --- Socket lifecycle telemetry ---
-
-export type SocketCloseTrigger =
-	| 'server'
-	| 'sendOnDeadSocket'
-	| 'visibility'
-	| 'offline'
-	| 'malformedFrames'
-	| 'disposed'
-	| 'error';
-
-type SocketCloseEvent = {
-	closeCode: number;
-	wasClean: boolean;
-	lifetimeMs: number;
-	messagesSent: number;
-	messagesReceived: number;
-	messagesDropped: number;
-	trigger: string;
-	tunnelSessionId: string;
-};
-
-type SocketCloseClassification = {
-	owner: 'osortega';
-	comment: 'Tracks WebSocket close events for agent host connections to measure connection reliability.';
-	closeCode: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'WebSocket close code.' };
-	wasClean: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the close was clean.' };
-	lifetimeMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'How long the socket was alive in milliseconds.' };
-	messagesSent: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Total messages sent.' };
-	messagesReceived: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Total messages received.' };
-	messagesDropped: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Total messages dropped due to non-OPEN socket.' };
-	trigger: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'What triggered the close (server, sendOnDeadSocket, visibility, offline, malformedFrames, disposed, error).' };
-	tunnelSessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Stable identifier for the tunnel session, generated browser-side; used to join with vscode-dev tunnelRelay events. Empty when unavailable.' };
-};
-
-export function logSocketClose(telemetryService: ITelemetryService, data: { closeCode: number; wasClean: boolean; lifetimeMs: number; messagesSent: number; messagesReceived: number; messagesDropped: number; trigger: SocketCloseTrigger; tunnelSessionId?: string }): void {
-	telemetryService.publicLog2<SocketCloseEvent, SocketCloseClassification>('vscodeAgents.socket/close', {
-		closeCode: data.closeCode,
-		wasClean: data.wasClean,
-		lifetimeMs: data.lifetimeMs,
-		messagesSent: data.messagesSent,
-		messagesReceived: data.messagesReceived,
-		messagesDropped: data.messagesDropped,
-		trigger: data.trigger,
-		tunnelSessionId: data.tunnelSessionId ?? '',
 	});
 }
 
@@ -243,7 +189,6 @@ type SendDroppedEvent = {
 	readyState: number;
 	timeSinceLastReceiveMs: number;
 	timeSinceLastSendMs: number;
-	tunnelSessionId: string;
 };
 
 type SendDroppedClassification = {
@@ -252,7 +197,6 @@ type SendDroppedClassification = {
 	readyState: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'WebSocket readyState at drop time (0=CONNECTING, 1=OPEN, 2=CLOSING, 3=CLOSED).' };
 	timeSinceLastReceiveMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Milliseconds since last received message.' };
 	timeSinceLastSendMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Milliseconds since last sent message.' };
-	tunnelSessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Stable identifier for the tunnel session, generated browser-side; used to join with vscode-dev tunnelRelay events. Empty when unavailable.' };
 };
 
 export function logSendDropped(telemetryService: ITelemetryService, data: { readyState: number; timeSinceLastReceiveMs: number; timeSinceLastSendMs: number; tunnelSessionId?: string }): void {
@@ -260,7 +204,6 @@ export function logSendDropped(telemetryService: ITelemetryService, data: { read
 		readyState: data.readyState,
 		timeSinceLastReceiveMs: data.timeSinceLastReceiveMs,
 		timeSinceLastSendMs: data.timeSinceLastSendMs,
-		tunnelSessionId: data.tunnelSessionId ?? '',
 	});
 }
 
@@ -270,7 +213,6 @@ type VisibilityResumedEvent = {
 	hiddenDurationMs: number;
 	socketAlive: boolean;
 	forceClosed: boolean;
-	tunnelSessionId: string;
 };
 
 type VisibilityResumedClassification = {
@@ -279,7 +221,6 @@ type VisibilityResumedClassification = {
 	hiddenDurationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'How long the tab was hidden in milliseconds.' };
 	socketAlive: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the socket was alive after zombie detection check.' };
 	forceClosed: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the socket was force-closed on resume.' };
-	tunnelSessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Stable identifier for the tunnel session, generated browser-side; used to join with vscode-dev tunnelRelay events. Empty when unavailable.' };
 };
 
 export function logVisibilityResumed(telemetryService: ITelemetryService, data: { hiddenDurationMs: number; socketAlive: boolean; forceClosed: boolean; tunnelSessionId?: string }): void {
@@ -287,7 +228,6 @@ export function logVisibilityResumed(telemetryService: ITelemetryService, data: 
 		hiddenDurationMs: data.hiddenDurationMs,
 		socketAlive: data.socketAlive,
 		forceClosed: data.forceClosed,
-		tunnelSessionId: data.tunnelSessionId ?? '',
 	});
 }
 
@@ -296,7 +236,6 @@ export function logVisibilityResumed(telemetryService: ITelemetryService, data: 
 type TerminalRecoveryEvent = {
 	recoveredCount: number;
 	totalCount: number;
-	tunnelSessionId: string;
 };
 
 type TerminalRecoveryClassification = {
@@ -304,14 +243,12 @@ type TerminalRecoveryClassification = {
 	comment: 'Tracks terminal reconnection outcomes after agent host disconnect.';
 	recoveredCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Number of terminals successfully reconnected.' };
 	totalCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Total number of active terminals at reconnect time.' };
-	tunnelSessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Stable identifier for the tunnel session, generated browser-side; used to join with vscode-dev tunnelRelay events. Empty when unavailable.' };
 };
 
 export function logTerminalRecovery(telemetryService: ITelemetryService, data: { recoveredCount: number; totalCount: number; tunnelSessionId?: string }): void {
 	telemetryService.publicLog2<TerminalRecoveryEvent, TerminalRecoveryClassification>('vscodeAgents.terminal/recovery', {
 		recoveredCount: data.recoveredCount,
 		totalCount: data.totalCount,
-		tunnelSessionId: data.tunnelSessionId ?? '',
 	});
 }
 
@@ -346,11 +283,8 @@ type ChatResponseReceivedEvent = {
 	durationMs: number;
 	success: boolean;
 	errorCategory: string;
-	toolCallCount: number;
-	hadConfirmation: boolean;
 	streamFirstChunkMs: number;
 	streamTotalMs: number;
-	toolRoundTripMs: number;
 };
 
 type ChatResponseReceivedClassification = {
@@ -360,24 +294,18 @@ type ChatResponseReceivedClassification = {
 	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Total wall-clock duration from request send to final response in milliseconds.' };
 	success: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the response completed successfully.' };
 	errorCategory: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Closed-enum error category when success is false; empty string on success.' };
-	toolCallCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of tool calls executed during the response.' };
-	hadConfirmation: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the response required a user confirmation step.' };
 	streamFirstChunkMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Milliseconds from request send to first streamed chunk.' };
 	streamTotalMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Total streaming duration in milliseconds.' };
-	toolRoundTripMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Total milliseconds spent waiting on tool calls during the response.' };
 };
 
-export function logChatResponseReceived(telemetryService: ITelemetryService, data: { providerId: string; durationMs: number; success: boolean; errorCategory?: string; toolCallCount: number; hadConfirmation: boolean; streamFirstChunkMs?: number; streamTotalMs?: number; toolRoundTripMs?: number }): void {
+export function logChatResponseReceived(telemetryService: ITelemetryService, data: { providerId: string; durationMs: number; success: boolean; errorCategory?: string; streamFirstChunkMs?: number; streamTotalMs?: number }): void {
 	telemetryService.publicLog2<ChatResponseReceivedEvent, ChatResponseReceivedClassification>('vscodeAgents.chat/responseReceived', {
 		providerId: data.providerId,
 		durationMs: data.durationMs,
 		success: data.success,
 		errorCategory: data.errorCategory ?? '',
-		toolCallCount: data.toolCallCount,
-		hadConfirmation: data.hadConfirmation,
 		streamFirstChunkMs: data.streamFirstChunkMs ?? 0,
 		streamTotalMs: data.streamTotalMs ?? 0,
-		toolRoundTripMs: data.toolRoundTripMs ?? 0,
 	});
 }
 
@@ -433,167 +361,6 @@ type BrowserViewOpenedClassification = {
 
 export function logBrowserViewOpened(telemetryService: ITelemetryService, data: { source: string; isInternal: boolean }): void {
 	telemetryService.publicLog2<BrowserViewEvent, BrowserViewOpenedClassification>('vscodeAgents.browserView/opened', data);
-}
-
-type BrowserViewNavigatedClassification = {
-	owner: 'osortega';
-	comment: 'Tracks navigation events inside the Agents browser view. Never includes the URL.';
-	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How the navigation was triggered.' };
-	isInternal: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the destination is internal (e.g. tunnel-hosted).' };
-};
-
-export function logBrowserViewNavigated(telemetryService: ITelemetryService, data: { source: string; isInternal: boolean }): void {
-	telemetryService.publicLog2<BrowserViewEvent, BrowserViewNavigatedClassification>('vscodeAgents.browserView/navigated', data);
-}
-
-// --- File tree, working set, AI customization ---
-
-type FileTreeViewOpenedEvent = {
-	source: string;
-};
-
-type FileTreeViewOpenedClassification = {
-	owner: 'osortega';
-	comment: 'Tracks when the Agents file tree view is opened.';
-	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How the file tree view was opened.' };
-};
-
-export function logFileTreeViewOpened(telemetryService: ITelemetryService, data: { source: string }): void {
-	telemetryService.publicLog2<FileTreeViewOpenedEvent, FileTreeViewOpenedClassification>('vscodeAgents.fileTreeView/opened', data);
-}
-
-type WorkingSetItemAddedEvent = {
-	kind: string;
-	source: string;
-};
-
-type WorkingSetItemAddedClassification = {
-	owner: 'osortega';
-	comment: 'Tracks items added to the working set. Never includes the resource path.';
-	kind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Closed-enum kind of working set item (file, symbol, selection, etc.).' };
-	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How the item was added.' };
-};
-
-export function logWorkingSetItemAdded(telemetryService: ITelemetryService, data: { kind: string; source: string }): void {
-	telemetryService.publicLog2<WorkingSetItemAddedEvent, WorkingSetItemAddedClassification>('vscodeAgents.workingSet/itemAdded', data);
-}
-
-type AiCustomizationTreeActionEvent = {
-	action: string;
-	kind: string;
-};
-
-type AiCustomizationTreeActionClassification = {
-	owner: 'osortega';
-	comment: 'Tracks user actions on the AI Customization tree view.';
-	action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Closed-enum action identifier (open, edit, delete, refresh, etc.).' };
-	kind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Closed-enum kind of customization (instruction, prompt, agent, skill, hook, mcp, etc.).' };
-};
-
-export function logAiCustomizationTreeAction(telemetryService: ITelemetryService, data: { action: string; kind: string }): void {
-	telemetryService.publicLog2<AiCustomizationTreeActionEvent, AiCustomizationTreeActionClassification>('vscodeAgents.aiCustomization/treeAction', data);
-}
-
-// --- Policy blocked ---
-
-type PolicyBlockedShownEvent = {
-	policyId: string;
-	surface: string;
-};
-
-type PolicyBlockedShownClassification = {
-	owner: 'osortega';
-	comment: 'Tracks impressions of policy-blocked UI in the Agents window.';
-	policyId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Identifier of the policy that blocked the action.' };
-	surface: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Closed-enum surface where the block was shown.' };
-};
-
-export function logPolicyBlockedShown(telemetryService: ITelemetryService, data: { policyId: string; surface: string }): void {
-	telemetryService.publicLog2<PolicyBlockedShownEvent, PolicyBlockedShownClassification>('vscodeAgents.policyBlocked/shown', data);
-}
-
-// --- Apply commits to parent repo ---
-
-type ApplyCommitsStartedEvent = {
-	commitCount: number;
-};
-
-type ApplyCommitsStartedClassification = {
-	owner: 'osortega';
-	comment: 'Tracks when a user starts applying commits to the parent repo.';
-	commitCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of commits to apply.' };
-};
-
-export function logApplyCommitsStarted(telemetryService: ITelemetryService, data: { commitCount: number }): void {
-	telemetryService.publicLog2<ApplyCommitsStartedEvent, ApplyCommitsStartedClassification>('vscodeAgents.applyCommits/started', data);
-}
-
-type ApplyCommitsResolvedEvent = {
-	commitCount: number;
-	success: boolean;
-	errorCategory: string;
-};
-
-type ApplyCommitsResolvedClassification = {
-	owner: 'osortega';
-	comment: 'Tracks the outcome of applying commits to the parent repo.';
-	commitCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of commits in the operation.' };
-	success: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the operation completed successfully.' };
-	errorCategory: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Closed-enum error category on failure; empty on success.' };
-};
-
-export function logApplyCommitsResolved(telemetryService: ITelemetryService, data: { commitCount: number; success: boolean; errorCategory?: string }): void {
-	telemetryService.publicLog2<ApplyCommitsResolvedEvent, ApplyCommitsResolvedClassification>('vscodeAgents.applyCommits/resolved', {
-		commitCount: data.commitCount,
-		success: data.success,
-		errorCategory: data.errorCategory ?? '',
-	});
-}
-
-// --- GitHub integration, layout, openInVSCode ---
-
-type GithubPRActionEvent = {
-	action: string;
-};
-
-type GithubPRActionClassification = {
-	owner: 'osortega';
-	comment: 'Tracks GitHub pull request actions invoked from the Agents window.';
-	action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Closed-enum action: open | review | merge | close.' };
-};
-
-export function logGithubPRAction(telemetryService: ITelemetryService, data: { action: 'open' | 'review' | 'merge' | 'close' }): void {
-	telemetryService.publicLog2<GithubPRActionEvent, GithubPRActionClassification>('vscodeAgents.github/prAction', data);
-}
-
-type LayoutModeChangeEvent = {
-	mode: string;
-	trigger: string;
-};
-
-type LayoutModeChangeClassification = {
-	owner: 'osortega';
-	comment: 'Tracks Agents window layout mode changes.';
-	mode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Closed-enum layout mode: desktop | mobile | modal.' };
-	trigger: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Closed-enum trigger that caused the layout change.' };
-};
-
-export function logLayoutModeChange(telemetryService: ITelemetryService, data: { mode: 'desktop' | 'mobile' | 'modal'; trigger: string }): void {
-	telemetryService.publicLog2<LayoutModeChangeEvent, LayoutModeChangeClassification>('vscodeAgents.layout/modeChange', data);
-}
-
-type OpenInVSCodeOutcomeEvent = {
-	outcome: string;
-};
-
-type OpenInVSCodeOutcomeClassification = {
-	owner: 'osortega';
-	comment: 'Tracks the outcome of "Open in VS Code" actions from the Agents window.';
-	outcome: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Closed-enum outcome: launched | fallback | failed.' };
-};
-
-export function logOpenInVSCodeOutcome(telemetryService: ITelemetryService, data: { outcome: 'launched' | 'fallback' | 'failed' }): void {
-	telemetryService.publicLog2<OpenInVSCodeOutcomeEvent, OpenInVSCodeOutcomeClassification>('vscodeAgents.openInVSCode/outcome', data);
 }
 
 // --- Reliability (errors) ---
