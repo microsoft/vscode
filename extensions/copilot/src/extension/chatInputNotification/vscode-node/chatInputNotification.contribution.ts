@@ -151,7 +151,7 @@ export class ChatInputNotificationContribution extends Disposable {
 		notification.severity = vscode.ChatInputNotificationSeverity.Info;
 		notification.dismissible = true;
 		notification.autoDismissOnMessage = false;
-		notification.message = vscode.l10n.t('Monthly Limit Reached');
+		notification.message = vscode.l10n.t('Credit Limit Reached');
 
 		const isAnonymous = !!this._authService.copilotToken?.isNoAuthUser;
 		const isFree = !!this._authService.copilotToken?.isFreeUser;
@@ -196,7 +196,7 @@ export class ChatInputNotificationContribution extends Disposable {
 		notification.severity = vscode.ChatInputNotificationSeverity.Info;
 		notification.dismissible = true;
 		notification.autoDismissOnMessage = true;
-		notification.message = vscode.l10n.t('Monthly Limit at {0}%', warning.percentUsed);
+		notification.message = vscode.l10n.t('Credits at {0}%', warning.percentUsed);
 
 		const isAnonymous = !!this._authService.copilotToken?.isNoAuthUser;
 		const isFree = !!this._authService.copilotToken?.isFreeUser;

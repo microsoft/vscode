@@ -74,6 +74,7 @@ import { MobileNavigationStack } from './mobileNavigationStack.js';
 import { MobileTitlebarPart } from './parts/mobile/mobileTitlebarPart.js';
 import { autorun } from '../../base/common/observable.js';
 import { ISessionsManagementService } from '../services/sessions/common/sessionsManagement.js';
+import { ISessionsSetUpService } from './sessionsSetUpService.js';
 
 //#region Workbench Options
 
@@ -1055,8 +1056,10 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		}));
 	}
 
-	createWorkbenchManagement(_instantiationService: IInstantiationService): void {
-		// No floating toolbars in this layout
+	createWorkbenchManagement(instantiationService: IInstantiationService): void {
+		// Welcome — must be created early in layout so the widget can gate
+		// other UI until sign-in / chat setup is complete.
+		instantiationService.invokeFunction(accessor => accessor.get(ISessionsSetUpService));
 	}
 
 	/**

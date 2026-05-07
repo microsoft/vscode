@@ -43,6 +43,7 @@ export {
 	type ProjectInfo,
 	type MarkdownResponsePart,
 	type MessageAttachment,
+	type MessageResourceAttachment,
 	type ReasoningResponsePart,
 	type ResponsePart,
 	type RootState,

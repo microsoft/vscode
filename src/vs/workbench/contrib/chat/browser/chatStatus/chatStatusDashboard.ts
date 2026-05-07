@@ -204,7 +204,7 @@ export class ChatStatusDashboard extends DomWidget {
 		const hasPremiumUnlimited = !!premiumChat?.unlimited;
 		if (hasPremiumUnlimited) {
 			const includedTitle = this.chatEntitlementService.quotas.usageBasedBilling
-				? localize('includedTitleTBB', "Monthly Limit")
+				? localize('includedTitleTBB', "Credits")
 				: localize('includedTitle', "Premium Requests");
 			const includedContainer = this.element.appendChild($('div.quota-indicator.included'));
 			includedContainer.appendChild($('div.quota-title', undefined, includedTitle));
@@ -250,7 +250,7 @@ export class ChatStatusDashboard extends DomWidget {
 			if (premiumChatQuota && !premiumChatQuota.unlimited && premiumChatQuota.percentRemaining >= 0) {
 				const isUBB = this.chatEntitlementService.quotas.usageBasedBilling;
 				const premiumChatLabel = isUBB
-					? localize('monthlyLimitLabel', "Monthly Limit")
+					? localize('creditsLabel', "Credits")
 					: this.chatEntitlementService.quotas.additionalUsageEnabled ? localize('includedPremiumChatsLabel', "Included premium requests") : localize('premiumChatsLabel', "Premium requests");
 				const premiumChatResetLabel = isUBB ? this.formatResetAtLabel(premiumChatQuota.resetAt) ?? resetLabel : resetLabel;
 				premiumChatQuotaIndicator = this.createQuotaIndicator(container, premiumChatQuota, premiumChatLabel, premiumChatResetLabel);
