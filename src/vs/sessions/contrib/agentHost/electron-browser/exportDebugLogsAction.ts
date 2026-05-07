@@ -225,6 +225,11 @@ async function readRemoteAgentHostLog(
 	candidates.add('.vscode-server-oss');
 	candidates.add('.vscode-server-exploration');
 
+	// Enumerate every `<home>/<candidate>/data/logs/<datestamp>/agenthost.log`
+	// across all candidates and pick the one with the newest mtime. This avoids
+	// picking up a stale stable-quality folder when an insiders folder has a
+	// more recent log (or vice versa).
+	let best: { uri: URI; mtime: number } | undefined;
 	for (const folderName of candidates) {
 		const logsDirUri = joinPath(homeUri, folderName, 'data', 'logs');
 		let entries;
@@ -234,22 +239,30 @@ async function readRemoteAgentHostLog(
 		} catch {
 			continue;
 		}
-		if (!entries || entries.length === 0) {
+		if (!entries) {
 			continue;
 		}
-		// Pick the most recent date-stamped subdirectory by mtime.
-		const dateDirs = entries
-			.filter(e => e.isDirectory)
-			.sort((a, b) => (b.mtime ?? 0) - (a.mtime ?? 0));
-		for (const dir of dateDirs) {
+		for (const dir of entries) {
+			if (!dir.isDirectory) {
+				continue;
+			}
 			const logUri = joinPath(dir.resource, 'agenthost.log');
+			let logStat;
 			try {
-				const content = await fileService.readFile(logUri);
-				return content.value.toString();
+				logStat = await fileService.resolve(logUri, { resolveMetadata: true });
 			} catch {
-				// Try the next dated folder if this one has no agenthost.log
+				continue;
+			}
+			const mtime = logStat.mtime ?? 0;
+			if (!best || mtime > best.mtime) {
+				best = { uri: logUri, mtime };
 			}
 		}
 	}
-	return undefined;
+
+	if (!best) {
+		return undefined;
+	}
+	const content = await fileService.readFile(best.uri);
+	return content.value.toString();
 }
