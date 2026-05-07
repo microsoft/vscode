@@ -8,7 +8,6 @@
 	flex-direction: column;
 	flex-shrink: 0;
 	position: relative;
-	/* margin: 0 10px; */
 	padding: 6px 0 10px 0;
 }
 
@@ -50,7 +49,6 @@
 	align-items: center;
 	-webkit-user-select: none;
 	user-select: none;
-	/* gap: 4px; */
 }
 
 .ai-customization-toolbar .ai-customization-chevron {
@@ -100,19 +98,30 @@
 }
 
 /* Customizations header label uses heavier weight and lays out
-	label on the left with chevron/count pushed to the right. */
+	label on the left with chevron pushed to the right.
+	The header button container is full-width (margin: 0) so the hover
+	background spans the panel; per-item buttons sit inside a container
+	with `margin: 0 10px` and their counts are absolutely positioned at
+	`right: 8px`. To make the header chevron line up with the per-item
+	counts we therefore need 10 + 8 = 18px of right padding. The left
+	padding (10px) matches the per-item container's left margin so the
+	"Customizations" label aligns with the per-item icons. */
 .ai-customization-toolbar .ai-customization-header .customization-link-button {
 	font-weight: 500;
 	justify-content: space-between;
 	gap: 0;
-	padding: 6px 16px 6px 10px;
+	padding: 6px 20px 6px 10px;
 	border-radius: 0;
 }
 
-/* Counts - floating right inside the per-item link button */
+/* Counts - floating right inside the per-item link button.
+	The per-item button container has `margin: 0 10px`; the header
+	button is full-width with 20px right padding (chevron sits ~20px
+	from the panel edge). To align the count numbers with the chevron
+	we need `right: 10px` here (10px container margin + 10px = 20px). */
 .ai-customization-toolbar .customization-link-counts {
 	position: absolute;
-	right: 8px;
+	right: 14px;
 	top: 50%;
 	transform: translateY(-50%);
 	display: flex;
