@@ -9,7 +9,8 @@
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { connectionTokenQueryName } from '../../../base/common/network.js';
-import type { AhpServerNotification, JsonRpcResponse, ProtocolMessage } from '../common/state/sessionProtocol.js';
+import { AhpJsonlLogger, getAhpLogByteLength } from '../common/ahpJsonlLogger.js';
+import type { AhpServerNotification, JsonRpcNotification, JsonRpcRequest, JsonRpcResponse, ProtocolMessage } from '../common/state/sessionProtocol.js';
 import type { IClientTransport } from '../common/state/sessionTransport.js';
 import { MALFORMED_FRAMES_FORCE_CLOSE_THRESHOLD, MALFORMED_FRAMES_LOG_CAP } from '../common/transportConstants.js';
 
@@ -44,9 +45,13 @@ export class WebSocketClientTransport extends Disposable implements IClientTrans
 	constructor(
 		private readonly _address: string,
 		private readonly _connectionToken?: string,
+		private readonly _ahpLogger?: AhpJsonlLogger,
 	) {
 		// TODO: @osortega remove console.logs
 		super();
+		if (this._ahpLogger) {
+			this._register(this._ahpLogger);
+		}
 	}
 
 	/**
@@ -138,6 +143,7 @@ export class WebSocketClientTransport extends Disposable implements IClientTrans
 					}
 					return;
 				}
+				this._ahpLogger?.log(message, 's2c', getAhpLogByteLength(text));
 				this._onMessage.fire(message);
 			});
 
@@ -165,9 +171,11 @@ export class WebSocketClientTransport extends Disposable implements IClientTrans
 	 * transport is force-closed so reconnection is triggered immediately
 	 * rather than silently losing messages.
 	 */
-	send(message: ProtocolMessage | AhpServerNotification | JsonRpcResponse): boolean {
+	send(message: ProtocolMessage | AhpServerNotification | JsonRpcNotification | JsonRpcResponse | JsonRpcRequest): boolean {
 		if (this._ws?.readyState === WebSocket.OPEN) {
-			this._ws.send(JSON.stringify(message));
+			const text = JSON.stringify(message);
+			this._ahpLogger?.log(message, 'c2s', getAhpLogByteLength(text));
+			this._ws.send(text);
 			return true;
 		}
 		console.warn(

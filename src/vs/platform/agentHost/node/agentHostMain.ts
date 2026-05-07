@@ -190,6 +190,7 @@ function startAgentHost(): void {
 			const wsServer = disposables.add(await WebSocketProtocolServer.create(
 				{ socketPath },
 				logService,
+				{ fileService, logsHome: environmentService.logsHome },
 			));
 
 			const protocolHandler = disposables.add(new ProtocolServerHandler(
@@ -257,7 +258,15 @@ function startAgentHost(): void {
 	server.registerChannel(AgentHostIpcChannels.ConnectionTracker, connectionTrackerChannel);
 
 	// Start WebSocket server for external clients if configured (env-var flow for CLI/server)
-	startWebSocketServer(agentService, clientFileSystemProvider, logService, disposables, count => connectionCountEmitter.fire(count)).catch(err => {
+	startWebSocketServer(
+		agentService,
+		clientFileSystemProvider,
+		fileService,
+		environmentService.logsHome,
+		logService,
+		disposables,
+		count => connectionCountEmitter.fire(count),
+	).catch(err => {
 		logService.error('Failed to start WebSocket server', err);
 	});
 
@@ -274,7 +283,15 @@ function startAgentHost(): void {
  * This reuses the same {@link AgentService} and {@link AgentHostStateManager}
  * that the IPC channel uses, so both IPC and WebSocket clients share state.
  */
-async function startWebSocketServer(agentService: AgentService, clientFileSystemProvider: AgentHostClientFileSystemProvider, logService: ILogService, disposables: DisposableStore, onConnectionCountChanged: (count: number) => void): Promise<void> {
+async function startWebSocketServer(
+	agentService: AgentService,
+	clientFileSystemProvider: AgentHostClientFileSystemProvider,
+	fileService: IFileService,
+	logsHome: URI,
+	logService: ILogService,
+	disposables: DisposableStore,
+	onConnectionCountChanged: (count: number) => void,
+): Promise<void> {
 	const port = process.env['VSCODE_AGENT_HOST_PORT'];
 	const socketPath = process.env['VSCODE_AGENT_HOST_SOCKET_PATH'];
 
@@ -301,6 +318,7 @@ async function startWebSocketServer(agentService: AgentService, clientFileSystem
 					: undefined,
 			},
 		logService,
+		{ fileService, logsHome },
 	));
 
 	const protocolHandler = disposables.add(new ProtocolServerHandler(
