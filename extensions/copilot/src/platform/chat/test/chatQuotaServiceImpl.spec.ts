@@ -320,4 +320,129 @@ describe('ChatQuotaService', () => {
 			expect(svc.getCreditsForTurn('never-existed')).toBeUndefined();
 		});
 	});
+
+	describe('runSubagent dual-key aggregation', () => {
+		// The parent handler reads credits from two keys:
+		//   - request.id (parent's own API calls via turnId)
+		//   - turn.id (subagent API calls via parentTurnId)
+		// This simulates the flow in chatParticipantRequestHandler.getResult()
+
+		function getTotalCredits(svc: ChatQuotaService, requestId: string, turnId: string): number | undefined {
+			const ownCredits = svc.getCreditsForTurn(requestId);
+			const subagentCredits = svc.getCreditsForTurn(turnId);
+			return ownCredits !== undefined || subagentCredits !== undefined
+				? (ownCredits ?? 0) + (subagentCredits ?? 0)
+				: undefined;
+		}
+
+		test('parent-only turn (no subagents) uses request.id key', () => {
+			const svc = create();
+			const requestId = 'request_abc-123';
+			const turnId = 'turn-xyz-456';
+
+			svc.resetTurnCredits(requestId);
+			svc.resetTurnCredits(turnId);
+
+			// Parent API calls accumulate under request.id (parentTurnId is undefined)
+			svc.setLastCopilotUsage(24_000_000_000, requestId);
+			svc.setLastCopilotUsage(2_000_000_000, requestId);
+
+			expect(getTotalCredits(svc, requestId, turnId)).toBe(26);
+		});
+
+		test('subagent credits accumulate under parent turn.id', () => {
+			const svc = create();
+			const parentRequestId = 'request_parent-111';
+			const parentTurnId = 'turn-parent-222';
+
+			svc.resetTurnCredits(parentRequestId);
+			svc.resetTurnCredits(parentTurnId);
+
+			// Parent's own call (creditKey = parentRequestId since parentTurnId is undefined)
+			svc.setLastCopilotUsage(24_000_000_000, parentRequestId);
+
+			// Subagent calls (creditKey = parentTurnId, routed via chatRequestId)
+			svc.setLastCopilotUsage(33_000_000_000, parentTurnId);
+			svc.setLastCopilotUsage(33_000_000_000, parentTurnId);
+
+			expect(getTotalCredits(svc, parentRequestId, parentTurnId)).toBe(90);
+		});
+
+		test('two subagent turns do not interfere', () => {
+			const svc = create();
+			const reqA = 'request_a';
+			const turnA = 'turn-a';
+			const reqB = 'request_b';
+			const turnB = 'turn-b';
+
+			svc.resetTurnCredits(reqA);
+			svc.resetTurnCredits(turnA);
+			svc.resetTurnCredits(reqB);
+			svc.resetTurnCredits(turnB);
+
+			// Turn A: parent + 2 subagents
+			svc.setLastCopilotUsage(24_000_000_000, reqA);
+			svc.setLastCopilotUsage(33_000_000_000, turnA);
+			svc.setLastCopilotUsage(33_000_000_000, turnA);
+
+			// Turn B: parent + 5 subagents
+			svc.setLastCopilotUsage(25_000_000_000, reqB);
+			for (let i = 0; i < 5; i++) {
+				svc.setLastCopilotUsage(33_000_000_000, turnB);
+			}
+
+			expect(getTotalCredits(svc, reqA, turnA)).toBe(90);
+			expect(getTotalCredits(svc, reqB, turnB)).toBe(190);
+		});
+
+		test('subagent handler does not corrupt parent credits', () => {
+			const svc = create();
+			const parentReqId = 'request_parent';
+			const parentTurnId = 'turn-parent';
+			const subagentReqId = 'subagent-call-id';
+			const subagentTurnId = 'turn-subagent';
+
+			// Parent starts
+			svc.resetTurnCredits(parentReqId);
+			svc.resetTurnCredits(parentTurnId);
+			svc.setLastCopilotUsage(24_000_000_000, parentReqId);
+
+			// Subagent handler starts — resets its OWN keys (not parent's)
+			svc.resetTurnCredits(subagentReqId);
+			svc.resetTurnCredits(subagentTurnId);
+
+			// Subagent's API call accumulates under parent's turnId
+			svc.setLastCopilotUsage(33_000_000_000, parentTurnId);
+
+			// Subagent reads its own credits (should be undefined — it accumulated under parent)
+			expect(svc.getCreditsForTurn(subagentReqId)).toBeUndefined();
+
+			// Parent reads combined credits
+			expect(getTotalCredits(svc, parentReqId, parentTurnId)).toBe(57);
+		});
+
+		test('overhead calls (title, categorization) are separate from turn credits', () => {
+			const svc = create();
+			const parentReqId = 'request_main';
+			const parentTurnId = 'turn-main';
+			const titleTurnId = 'title-turn';
+			const categorizationTurnId = 'categorization-turn';
+
+			svc.resetTurnCredits(parentReqId);
+			svc.resetTurnCredits(parentTurnId);
+
+			// Title and categorization use their own turnIds
+			svc.setLastCopilotUsage(8_000_000, titleTurnId);
+			svc.setLastCopilotUsage(56_000_000, categorizationTurnId);
+
+			// Main agent call
+			svc.setLastCopilotUsage(24_000_000_000, parentReqId);
+
+			// Subagent call
+			svc.setLastCopilotUsage(33_000_000_000, parentTurnId);
+
+			// Parent sees only its own + subagent, not title/categorization
+			expect(getTotalCredits(svc, parentReqId, parentTurnId)).toBe(57);
+		});
+	});
 });
