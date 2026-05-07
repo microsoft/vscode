@@ -26,7 +26,7 @@ import { IPolicyService, NullPolicyService } from '../../../../platform/policy/c
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkspaceContextService, IWorkspaceFoldersChangeEvent, IWorkspaceFolder, WorkbenchState, Workspace } from '../../../../platform/workspace/common/workspace.js';
-import { FolderConfiguration, UserConfiguration } from '../../../../workbench/services/configuration/browser/configuration.js';
+import { FolderConfiguration, UserConfiguration, WorkspaceConfiguration } from '../../../../workbench/services/configuration/browser/configuration.js';
 import { APPLICATION_SCOPES, APPLY_ALL_PROFILES_SETTING, FOLDER_CONFIG_FOLDER_NAME, FOLDER_SETTINGS_PATH, IWorkbenchConfigurationService, RestrictedSettings } from '../../../../workbench/services/configuration/common/configuration.js';
 import { Configuration } from '../../../../workbench/services/configuration/common/configurationModels.js';
 import { IUserDataProfileService } from '../../../../workbench/services/userDataProfile/common/userDataProfile.js';
@@ -53,6 +53,7 @@ export class ConfigurationService extends Disposable implements IWorkbenchConfig
 	private readonly defaultConfiguration: DefaultConfiguration;
 	private readonly policyConfiguration: IPolicyConfiguration;
 	private readonly userConfiguration: UserConfiguration;
+	private readonly workspaceConfiguration: WorkspaceConfiguration;
 	private readonly cachedFolderConfigs = this._register(new DisposableMap<URI, FolderConfiguration>(new ResourceMap()));
 	private readonly agentsWindowReadOnlyKeys = new Set<string>();
 
@@ -82,6 +83,7 @@ export class ConfigurationService extends Disposable implements IWorkbenchConfig
 		this.policyConfiguration = policyService instanceof NullPolicyService ? new NullPolicyConfiguration() : this._register(new PolicyConfiguration(this.defaultConfiguration, policyService, logService));
 		this.initAgentsWindowReadOnlyKeys();
 		this.userConfiguration = this._register(new UserConfiguration(userDataProfileService.currentProfile.settingsResource, userDataProfileService.currentProfile.tasksResource, userDataProfileService.currentProfile.mcpResource, { exclude: [...this.agentsWindowReadOnlyKeys] }, fileService, uriIdentityService, logService));
+		this.workspaceConfiguration = this._register(new WorkspaceConfiguration({ needsCaching: () => false, read: async () => '', write: async () => { }, remove: async () => { } }, fileService, uriIdentityService, logService));
 		this.configurationEditing = new ConfigurationEditing(fileService, this);
 
 		this._configuration = new Configuration(
@@ -101,24 +103,28 @@ export class ConfigurationService extends Disposable implements IWorkbenchConfig
 		this._register(this.defaultConfiguration.onDidChangeConfiguration(({ defaults, properties }) => this.onDefaultConfigurationChanged(defaults, properties)));
 		this._register(this.policyConfiguration.onDidChangeConfiguration(configurationModel => this.onPolicyConfigurationChanged(configurationModel)));
 		this._register(this.userConfiguration.onDidChangeConfiguration(userConfiguration => this.onUserConfigurationChanged(userConfiguration)));
+		this._register(this.workspaceConfiguration.onDidUpdateConfiguration(() => this.onWorkspaceConfigurationChanged()));
 		this._register(this.workspaceService.onWillChangeWorkspaceFolders(e => e.join(this.loadFolderConfigurations(e.changes.added))));
 		this._register(this.workspaceService.onDidChangeWorkspaceFolders(e => this.onWorkspaceFoldersChanged(e)));
 	}
 
 	async initialize(): Promise<void> {
+		const workspace = this.workspaceService.getWorkspace() as Workspace;
+		const workspaceIdentifier = { id: workspace.id, configPath: workspace.configuration! };
 		const [defaultModel, policyModel, userModel] = await Promise.all([
 			this.defaultConfiguration.initialize(),
 			this.policyConfiguration.initialize(),
-			this.userConfiguration.initialize()
+			this.userConfiguration.initialize(),
+			this.workspaceConfiguration.initialize(workspaceIdentifier, true),
 		]);
-		const workspace = this.workspaceService.getWorkspace() as Workspace;
+		this.workspaceConfiguration.reparseWorkspaceSettings({ exclude: [...this.agentsWindowReadOnlyKeys] });
 		this._configuration = new Configuration(
 			defaultModel,
 			policyModel,
 			ConfigurationModel.createEmptyModel(this.logService),
 			userModel,
 			ConfigurationModel.createEmptyModel(this.logService),
-			ConfigurationModel.createEmptyModel(this.logService),
+			this.workspaceConfiguration.getConfiguration(),
 			new ResourceMap(),
 			ConfigurationModel.createEmptyModel(this.logService),
 			new ResourceMap<ConfigurationModel>(),
@@ -180,20 +186,37 @@ export class ConfigurationService extends Disposable implements IWorkbenchConfig
 			}
 		}
 
-		const path = overrides?.overrideIdentifiers?.length ? [keyFromOverrideIdentifiers(overrides.overrideIdentifiers), key] : [key];
+		let path = overrides?.overrideIdentifiers?.length ? [keyFromOverrideIdentifiers(overrides.overrideIdentifiers), key] : [key];
 
 		const settingsResource = this.getSettingsResource(target, overrides?.resource ?? undefined);
+
+		// When writing to the workspace configuration file, settings go under the "settings" key
+		if (this.isWorkspaceConfigurationResource(settingsResource)) {
+			path = ['settings', ...path];
+		}
+
 		await this.configurationEditing.write(settingsResource, path, value);
 		await this.reloadConfiguration();
 	}
 
+	private isWorkspaceConfigurationResource(resource: URI): boolean {
+		const workspace = this.workspaceService.getWorkspace();
+		return !!(workspace.configuration && this.uriIdentityService.extUri.isEqual(workspace.configuration, resource));
+	}
+
 	private getSettingsResource(target: ConfigurationTarget | undefined, resource: URI | undefined): URI {
-		if (target === ConfigurationTarget.WORKSPACE_FOLDER || target === ConfigurationTarget.WORKSPACE) {
+		if (target === ConfigurationTarget.WORKSPACE_FOLDER) {
 			if (resource) {
 				const folder = this.workspaceService.getWorkspaceFolder(resource);
 				if (folder) {
 					return this.uriIdentityService.extUri.joinPath(folder.uri, FOLDER_SETTINGS_PATH);
 				}
+			}
+		}
+		if (target === ConfigurationTarget.WORKSPACE) {
+			const workspace = this.workspaceService.getWorkspace();
+			if (workspace.configuration) {
+				return workspace.configuration;
 			}
 		}
 		return this.settingsResource;
@@ -211,6 +234,11 @@ export class ConfigurationService extends Disposable implements IWorkbenchConfig
 		const userModel = await this.userConfiguration.initialize();
 		const previousData = this._configuration.toData();
 		const change = this._configuration.compareAndUpdateLocalUserConfiguration(userModel);
+
+		// Reload workspace configuration
+		const workspaceChange = await this.loadWorkspaceConfiguration();
+		change.keys.push(...workspaceChange.keys);
+		change.overrides.push(...workspaceChange.overrides);
 
 		// Reload folder configurations
 		for (const folder of this.workspaceService.getWorkspace().folders) {
@@ -272,6 +300,7 @@ export class ConfigurationService extends Disposable implements IWorkbenchConfig
 		const previousData = this._configuration.toData();
 		const change = this._configuration.compareAndUpdateDefaultConfiguration(defaults, properties);
 		this._configuration.updateLocalUserConfiguration(this.userConfiguration.reparse({ exclude: [...this.agentsWindowReadOnlyKeys] }));
+		this._configuration.updateWorkspaceConfiguration(this.workspaceConfiguration.reparseWorkspaceSettings({ exclude: [...this.agentsWindowReadOnlyKeys] }));
 		for (const folder of this.workspaceService.getWorkspace().folders) {
 			const folderConfiguration = this.cachedFolderConfigs.get(folder.uri);
 			if (folderConfiguration) {
@@ -291,6 +320,18 @@ export class ConfigurationService extends Disposable implements IWorkbenchConfig
 		const previousData = this._configuration.toData();
 		const change = this._configuration.compareAndUpdateLocalUserConfiguration(userConfiguration);
 		this.triggerConfigurationChange(change, previousData, ConfigurationTarget.USER);
+	}
+
+	private async onWorkspaceConfigurationChanged(): Promise<void> {
+		const previousData = this._configuration.toData();
+		const change = await this.loadWorkspaceConfiguration();
+		this.triggerConfigurationChange(change, previousData, ConfigurationTarget.WORKSPACE);
+	}
+
+	private async loadWorkspaceConfiguration(): Promise<IConfigurationChange> {
+		await this.workspaceConfiguration.reload();
+		this.workspaceConfiguration.reparseWorkspaceSettings({ exclude: [...this.agentsWindowReadOnlyKeys] });
+		return this._configuration.compareAndUpdateWorkspaceConfiguration(this.workspaceConfiguration.getConfiguration());
 	}
 
 	private onWorkspaceFoldersChanged(e: IWorkspaceFoldersChangeEvent): void {
