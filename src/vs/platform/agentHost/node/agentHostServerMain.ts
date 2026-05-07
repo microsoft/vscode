@@ -254,7 +254,10 @@ async function main(): Promise<void> {
 		agentService,
 		agentService.stateManager,
 		wsServer,
-		{ defaultDirectory: URI.file(os.homedir()).toString() },
+		{
+			defaultDirectory: URI.file(os.homedir()).toString(),
+			completionTriggerCharacters: agentService.completionTriggerCharacters,
+		},
 		clientFileSystemProvider,
 		logService,
 	));
