@@ -13,7 +13,7 @@ import { ResourceMap } from '../../../../../../base/common/map.js';
 import { autorun, autorunPerKeyedItem, derived, IObservable, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { extUriBiasedIgnorePathCase, isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { isLocation } from '../../../../../../editor/common/languages.js';
+import { isLocation, type Location } from '../../../../../../editor/common/languages.js';
 import { localize } from '../../../../../../nls.js';
 import { AgentProvider, AgentSession, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
@@ -35,6 +35,7 @@ import { ITerminalChatService } from '../../../../terminal/browser/terminal.js';
 import { IChatWidgetService } from '../../chat.js';
 import { ChatRequestQueueKind, ConfirmedReason, IChatProgress, IChatQuestion, IChatQuestionAnswers, IChatService, IChatToolInvocation, ToolConfirmKind, type IChatMultiSelectAnswer, type IChatQuestionAnswerValue, type IChatSingleSelectAnswer, type IChatTerminalToolInvocationData } from '../../../common/chatService/chatService.js';
 import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionRequestHistoryItem } from '../../../common/chatSessionsService.js';
+import type { IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { getChatSessionType } from '../../../common/model/chatUri.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
 import { IChatEditingService } from '../../../common/editing/chatEditingService.js';
@@ -2403,48 +2404,50 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	private _convertVariablesToAttachments(request: IChatAgentRequest): MessageAttachment[] {
 		const attachments: MessageAttachment[] = [];
 		for (const v of request.variables.variables) {
-			if (v.kind === 'file' && isLocation(v.value)) {
-				const uri = v.value.uri;
-				if (uri.scheme === 'file') {
-					const attachmentUri = this._rebaseAttachmentUri(uri, request.sessionResource);
-					attachments.push({
-						type: MessageAttachmentKind.Resource,
-						uri: attachmentUri.toString(),
-						label: v.name,
-						displayKind: 'selection',
-						selection: { range: this._toTextRange(v.value.range) },
-					});
-				}
-			} else if (v.kind === 'implicit' && v.isSelection && isLocation(v.value)) {
-				const uri = v.value.uri;
-				if (uri.scheme === 'file') {
-					const attachmentUri = this._rebaseAttachmentUri(uri, request.sessionResource);
-					attachments.push({
-						type: MessageAttachmentKind.Resource,
-						uri: attachmentUri.toString(),
-						label: v.name,
-						displayKind: 'selection',
-						selection: { range: this._toTextRange(v.value.range) },
-					});
-				}
-			} else if (v.kind === 'file') {
-				const uri = v.value instanceof URI ? v.value : undefined;
-				if (uri?.scheme === 'file') {
-					const attachmentUri = this._rebaseAttachmentUri(uri, request.sessionResource);
-					attachments.push({ type: MessageAttachmentKind.Resource, uri: attachmentUri.toString(), label: v.name, displayKind: 'document' });
-				}
-			} else if (v.kind === 'directory') {
-				const uri = v.value instanceof URI ? v.value : undefined;
-				if (uri?.scheme === 'file') {
-					const attachmentUri = this._rebaseAttachmentUri(uri, request.sessionResource);
-					attachments.push({ type: MessageAttachmentKind.Resource, uri: attachmentUri.toString(), label: v.name, displayKind: 'directory' });
-				}
+			const attachment = this._convertVariableToAttachment(v, request.sessionResource);
+			if (attachment) {
+				attachments.push(attachment);
 			}
 		}
 		if (attachments.length > 0) {
 			this._logService.trace(`[AgentHost] Converted ${attachments.length} attachments from ${request.variables.variables.length} variables`);
 		}
 		return attachments;
+	}
+
+	private _convertVariableToAttachment(v: IChatRequestVariableEntry, sessionResource: URI): MessageAttachment | undefined {
+		if ((v.kind === 'file' || (v.kind === 'implicit' && v.isSelection)) && isLocation(v.value)) {
+			return this._toSelectionAttachment(v.value, v.name, sessionResource);
+		}
+		if (v.kind === 'file' && v.value instanceof URI) {
+			return this._toResourceAttachment(v.value, v.name, 'document', sessionResource);
+		}
+		if (v.kind === 'directory' && v.value instanceof URI) {
+			return this._toResourceAttachment(v.value, v.name, 'directory', sessionResource);
+		}
+		return undefined;
+	}
+
+	private _toResourceAttachment(uri: URI, label: string, displayKind: 'document' | 'directory', sessionResource: URI): MessageAttachment | undefined {
+		if (uri.scheme !== 'file') {
+			return undefined;
+		}
+		const attachmentUri = this._rebaseAttachmentUri(uri, sessionResource);
+		return { type: MessageAttachmentKind.Resource, uri: attachmentUri.toString(), label, displayKind };
+	}
+
+	private _toSelectionAttachment(location: Location, label: string, sessionResource: URI): MessageAttachment | undefined {
+		if (location.uri.scheme !== 'file') {
+			return undefined;
+		}
+		const attachmentUri = this._rebaseAttachmentUri(location.uri, sessionResource);
+		return {
+			type: MessageAttachmentKind.Resource,
+			uri: attachmentUri.toString(),
+			label,
+			displayKind: 'selection',
+			selection: { range: this._toTextRange(location.range) },
+		};
 	}
 
 	private _toTextRange(range: { startLineNumber: number; startColumn: number; endLineNumber: number; endColumn: number }) {
