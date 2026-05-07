@@ -43,7 +43,7 @@ export class AICustomizationShortcutsWidget extends Disposable {
 	private _renderDisposables = this._register(new DisposableStore());
 	private _wrapper: HTMLElement | undefined;
 	private _options: IAICustomizationShortcutsWidgetOptions | undefined;
-	private _currentMode: SessionsCustomizationsSidebarMode | undefined;
+	private _renderedSingle: boolean | undefined;
 
 	constructor(
 		container: HTMLElement,
@@ -68,11 +68,14 @@ export class AICustomizationShortcutsWidget extends Disposable {
 		this._options = options;
 		this._renderForCurrentMode();
 
-		// Re-render when the sidebar mode setting changes.
+		// Re-render only when crossing the single<->non-single boundary. The
+		// `welcome` and `section` modes produce identical DOM (only click
+		// behavior differs, resolved at click-time in the contribution), so
+		// toggling between them needs no re-render.
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(SESSIONS_CUSTOMIZATIONS_SIDEBAR_MODE_SETTING)) {
-				const newMode = this._readMode();
-				if (newMode !== this._currentMode) {
+				const isSingle = this._readMode() === SessionsCustomizationsSidebarMode.Single;
+				if (isSingle !== this._renderedSingle) {
 					this._renderForCurrentMode();
 					this._options?.onDidChangeLayout?.();
 				}
@@ -98,8 +101,9 @@ export class AICustomizationShortcutsWidget extends Disposable {
 		DOM.clearNode(this._wrapper);
 
 		const mode = this._readMode();
-		this._currentMode = mode;
-		if (mode === SessionsCustomizationsSidebarMode.Single) {
+		const isSingle = mode === SessionsCustomizationsSidebarMode.Single;
+		this._renderedSingle = isSingle;
+		if (isSingle) {
 			this._renderSingleEntry(this._wrapper);
 		} else {
 			this._render(this._wrapper, this._options);
@@ -237,25 +241,7 @@ export class AICustomizationShortcutsWidget extends Disposable {
 		// not surface, plus any sections the active harness hides via
 		// `hiddenSections` (e.g. Claude doesn't show Prompts; AHP doesn't
 		// show MCP Servers).
-		const totalCount = derived(reader => {
-			this.harnessService.activeHarness.read(reader);
-			this.harnessService.availableHarnesses.read(reader);
-			const hidden = new Set(this.harnessService.getActiveDescriptor().hiddenSections ?? []);
-			let total = 0;
-			for (const config of CUSTOMIZATION_ITEMS) {
-				if (hidden.has(config.section)) {
-					continue;
-				}
-				if (config.modelSection) {
-					total += this.itemsModel.getCount(config.modelSection).read(reader);
-				} else if (config.isMcp) {
-					total += this.mcpService.servers.read(reader).length;
-				} else if (config.isPlugins) {
-					total += this.itemsModel.getPluginCount().read(reader);
-				}
-			}
-			return total;
-		});
+		const totalCount = this._totalCount();
 		this._renderDisposables.add(autorun(reader => {
 			const value = totalCount.read(reader);
 			headerTotalCount.classList.toggle('hidden', value === 0);
