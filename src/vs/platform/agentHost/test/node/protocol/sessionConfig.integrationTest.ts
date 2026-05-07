@@ -88,10 +88,15 @@ suite('Protocol WebSocket - Session Config', function () {
 	test('session/configChanged merges config values into session state', async function () {
 		this.timeout(10_000);
 
+		// Use `worktree` isolation so the mock agent's `_resolveSessionConfig`
+		// honors the client-supplied `branch` value. With `folder` isolation
+		// the mock marks `branch` as read-only and resets it to `main`, which
+		// the side-effect re-resolve then dispatches back as a `replace: true`
+		// `SessionConfigChanged` — masking the merge we want to observe.
 		await client.call('createSession', {
 			session: nextSessionUri(),
 			provider: 'mock',
-			config: { isolation: 'folder', branch: 'main' },
+			config: { isolation: 'worktree', branch: 'main' },
 		});
 
 		const notif = await client.waitForNotification(n =>
@@ -115,7 +120,7 @@ suite('Protocol WebSocket - Session Config', function () {
 
 		const snapshot = await client.call<SubscribeResult>('subscribe', { resource: session });
 		const state = snapshot.snapshot.state as SessionState;
-		assert.deepStrictEqual(state.config?.values, { isolation: 'folder', branch: 'release' });
+		assert.deepStrictEqual(state.config?.values, { isolation: 'worktree', branch: 'release' });
 	});
 });
 

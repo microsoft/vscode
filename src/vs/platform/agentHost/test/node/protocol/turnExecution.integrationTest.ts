@@ -15,6 +15,7 @@ import {
 	IServerHandle,
 	isActionNotification,
 	startServer,
+	startTurnAndWait,
 	TestProtocolClient,
 } from './testHelpers.js';
 
@@ -90,7 +91,13 @@ suite('Protocol WebSocket — Turn Execution', function () {
 		this.timeout(10_000);
 
 		const sessionUri = await createAndSubscribeSession(client, 'test-cancel');
-		dispatchTurnStarted(client, sessionUri, 'turn-cancel', 'slow', 1);
+		// Await `startTurn` so the server has finished its async config
+		// re-resolve and broadcast `SessionTurnStarted` before we send the
+		// cancel. Otherwise the notification races the request handler — the
+		// reducer applies `SessionTurnCancelled` against a state with no
+		// `activeTurn`, silently drops it (per `endTurn`), and the assertion
+		// on `state.turns.length` fails.
+		await startTurnAndWait(client, sessionUri, 'turn-cancel', 'slow');
 
 		client.notify('dispatchAction', {
 			clientSeq: 2,
