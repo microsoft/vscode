@@ -323,7 +323,7 @@ function getRateLimitMessage(fetchResult: ChatFetchError, copilotPlan: string | 
 	});
 }
 
-function getQuotaHitMessage(fetchResult: ChatFetchError, copilotPlan: string | undefined): string {
+function getQuotaHitMessage(fetchResult: ChatFetchError, copilotPlan: string | undefined, tokenBasedBilling?: boolean, quotaResetDate?: string): string {
 	if (fetchResult.type !== ChatFetchResponseType.QuotaExceeded) {
 		throw new Error('Expected QuotaExceeded error');
 	}
@@ -333,6 +333,14 @@ function getQuotaHitMessage(fetchResult: ChatFetchError, copilotPlan: string | u
 	if (fetchResult.capiError?.code === 'quota_exceeded') {
 		switch (copilotPlan) {
 			case 'free':
+				if (tokenBasedBilling && quotaResetDate) {
+					const resetDateString = new Date(quotaResetDate).toLocaleString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+					return l10n.t({
+						message: `You've reached your monthly credit limit. Upgrade to Copilot Pro or wait until your credits reset on {0}.`,
+						args: [resetDateString],
+						comment: ['{0} is the date when credits reset']
+					});
+				}
 				return l10n.t(`You've reached your monthly chat messages quota. Upgrade to Copilot Pro or wait for your allowance to renew.`);
 			case 'individual':
 				return l10n.t(`You've exhausted your premium model quota. Please enable additional paid premium requests, upgrade to Copilot Pro+, or wait for your allowance to renew.`);
@@ -358,11 +366,11 @@ function getQuotaHitMessage(fetchResult: ChatFetchError, copilotPlan: string | u
 	}
 }
 
-export function getErrorDetailsFromChatFetchError(fetchResult: ChatFetchError, copilotPlan: string | undefined, gitHubOutageStatus: GitHubOutageStatus): ChatErrorDetails {
-	return { code: fetchResult.type, ...getErrorDetailsFromChatFetchErrorInner(fetchResult, copilotPlan, gitHubOutageStatus) };
+export function getErrorDetailsFromChatFetchError(fetchResult: ChatFetchError, copilotPlan: string | undefined, gitHubOutageStatus: GitHubOutageStatus, tokenBasedBilling?: boolean, quotaResetDate?: string): ChatErrorDetails {
+	return { code: fetchResult.type, ...getErrorDetailsFromChatFetchErrorInner(fetchResult, copilotPlan, gitHubOutageStatus, tokenBasedBilling, quotaResetDate) };
 }
 
-function getErrorDetailsFromChatFetchErrorInner(fetchResult: ChatFetchError, copilotPlan: string | undefined, gitHubOutageStatus: GitHubOutageStatus): ChatErrorDetails {
+function getErrorDetailsFromChatFetchErrorInner(fetchResult: ChatFetchError, copilotPlan: string | undefined, gitHubOutageStatus: GitHubOutageStatus, tokenBasedBilling?: boolean, quotaResetDate?: string): ChatErrorDetails {
 	let details: ChatErrorDetails;
 	switch (fetchResult.type) {
 		case ChatFetchResponseType.OffTopic:
@@ -380,7 +388,7 @@ function getErrorDetailsFromChatFetchErrorInner(fetchResult: ChatFetchError, cop
 			break;
 		case ChatFetchResponseType.QuotaExceeded:
 			details = {
-				message: getQuotaHitMessage(fetchResult, copilotPlan),
+				message: getQuotaHitMessage(fetchResult, copilotPlan, tokenBasedBilling, quotaResetDate),
 				isQuotaExceeded: true
 			};
 			break;

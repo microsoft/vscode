@@ -191,6 +191,10 @@ export class CopilotToken {
 		return { quota_snapshots: this._info.quota_snapshots, quota_reset_date: this._info.quota_reset_date };
 	}
 
+	get tokenBasedBilling(): boolean | undefined {
+		return this._info.token_based_billing;
+	}
+
 	get username(): string {
 		return this._info.username;
 	}
@@ -525,6 +529,7 @@ export interface CopilotUserInfo extends CopilotUserQuotaInfo {
 		name: string | null;
 	}>;
 	codex_agent_enabled?: boolean;
+	token_based_billing?: boolean;
 }
 
 /**
@@ -535,7 +540,7 @@ export type ExtendedTokenInfo = TokenEnvelope & {
 	// Extended fields added by client
 	username: string;
 	isVscodeTeamMember: boolean;
-} & Pick<CopilotUserInfo, 'copilot_plan' | 'quota_snapshots' | 'quota_reset_date' | 'codex_agent_enabled' | 'organization_login_list'>;
+} & Pick<CopilotUserInfo, 'copilot_plan' | 'quota_snapshots' | 'quota_reset_date' | 'codex_agent_enabled' | 'organization_login_list' | 'token_based_billing'>;
 
 /**
  * Creates a minimal ExtendedTokenInfo for testing purposes.
