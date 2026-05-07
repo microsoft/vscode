@@ -997,7 +997,7 @@ export class ModelPickerWidget extends Disposable {
 				getWidgetRole: () => 'menu' as const,
 			},
 			{
-				footerText: localize('chat.effort.costHint', "Higher levels of thinking effort will increase thinking cost"),
+				footerText: localize('chat.effort.costHint', "Higher levels of thinking may increase costs"),
 			}
 		);
 	}
@@ -1085,7 +1085,7 @@ export class ModelPickerWidget extends Disposable {
 				getWidgetRole: () => 'menu' as const,
 			},
 			{
-				footerText: localize('chat.tokens.costHint', "Larger context size may cause higher cost per message in longer sessions"),
+				footerText: localize('chat.tokens.costHint', "Larger size may increase cost in longer sessions"),
 			}
 		);
 	}
