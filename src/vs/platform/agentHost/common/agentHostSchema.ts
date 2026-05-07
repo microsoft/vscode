@@ -112,10 +112,11 @@ export interface ISchema<D extends SchemaDefinition> {
 	 * new session.
 	 *
 	 * Intended for sanitizing untrusted input at protocol boundaries
-	 * (e.g. `resolveSessionConfig`). Keys that fail validation are
-	 * silently replaced with their default or dropped; use
-	 * {@link values} or {@link assertValid} when you want a descriptive
-	 * {@link ProtocolError} instead.
+	 * (e.g. config values supplied by clients via `SessionConfigChanged`,
+	 * which the server then re-resolves and broadcasts back as a fresh
+	 * schema). Keys that fail validation are silently replaced with their
+	 * default or dropped; use {@link values} or {@link assertValid} when
+	 * you want a descriptive {@link ProtocolError} instead.
 	 */
 	validateOrDefault<T extends Partial<{ [K in keyof D]: SchemaValue<D[K]> }>>(values: { [K in keyof T]?: unknown } | undefined, defaults: T): T;
 }

@@ -1208,8 +1208,9 @@ suite('AgentService (node dispatcher)', () => {
 
 			const state = localService.stateManager.getSessionState(sessionResource.toString());
 			assert.ok(state);
-			// MockAgent.resolveSessionConfig echoes params.config back as values, so the
-			// persisted values are forwarded through and end up on state.config.values.
+			// MockAgent's `_resolveSessionConfig` hook echoes params.config back as
+			// values, so the persisted values are forwarded through and end up on
+			// state.config.values via the server-side schema-push.
 			assert.deepStrictEqual(state!.config?.values, { autoApprove: 'autoApprove' });
 		});
 

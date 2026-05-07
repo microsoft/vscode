@@ -10,7 +10,8 @@ import { observableValue } from '../../../../../../base/common/observable.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { ResolveSessionConfigResult, SessionConfigPropertySchema } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
+import { SessionConfigPropertySchema } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
+import type { SessionConfigState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ChatPermissionLevel } from '../../../../../../workbench/contrib/chat/common/constants.js';
 import { AgentHostPermissionPickerDelegate, isWellKnownAutoApproveSchema, isWellKnownModeSchema } from '../../../browser/agentHost/agentHostPermissionPickerDelegate.js';
 import { IAgentHostSessionsProvider } from '../../../../../common/agentHostSessionsProvider.js';
@@ -21,7 +22,7 @@ import { IActiveSession, ISessionsManagementService } from '../../../../../servi
 const PROVIDER_ID = 'local-agent-host';
 const SESSION_ID = 'local-agent-host:s1';
 
-function makeWellKnownConfig(value: string | undefined): ResolveSessionConfigResult {
+function makeWellKnownConfig(value: string | undefined): SessionConfigState {
 	return {
 		schema: {
 			type: 'object',
@@ -36,7 +37,7 @@ function makeWellKnownConfig(value: string | undefined): ResolveSessionConfigRes
 			},
 		},
 		values: value === undefined ? {} : { autoApprove: value },
-	} as ResolveSessionConfigResult;
+	} as SessionConfigState;
 }
 
 class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChangeSessionConfig' | 'getSessionConfig' | 'setSessionConfigValue'> {
@@ -44,10 +45,10 @@ class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChan
 	private readonly _onDidChange = new Emitter<string>();
 	readonly onDidChangeSessionConfig: Event<string> = this._onDidChange.event;
 
-	config: ResolveSessionConfigResult | undefined;
+	config: SessionConfigState | undefined;
 	readonly setCalls: Array<[string, string, string]> = [];
 
-	getSessionConfig(_sessionId: string): ResolveSessionConfigResult | undefined {
+	getSessionConfig(_sessionId: string): SessionConfigState | undefined {
 		return this.config;
 	}
 	async setSessionConfigValue(sessionId: string, property: string, value: string): Promise<void> {

@@ -18,10 +18,10 @@ import { FileSystemProviderErrorCode, IFileService, toFileSystemProviderErrorCod
 import { InstantiationService } from '../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentProvider, AgentSession, IAgent, IAgentCreateSessionConfig, IAgentMaterializeSessionEvent, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentStartTurnInvalidConfigErrorData, IAgentStartTurnParams, AuthenticateParams, AuthenticateResult } from '../common/agentService.js';
+import { AgentProvider, AgentSession, IAgent, IAgentCreateSessionConfig, IAgentMaterializeSessionEvent, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentStartTurnInvalidConfigErrorData, IAgentStartTurnParams, AuthenticateParams, AuthenticateResult } from '../common/agentService.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { ActionType, ActionEnvelope, INotification, type IRootConfigChangedAction, type SessionAction, type SessionTurnStartedAction, type TerminalAction } from '../common/state/sessionActions.js';
-import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
+import type { CompletionsParams, CompletionsResult, CreateTerminalParams, SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, AHP_TURN_IN_PROGRESS, ContentEncoding, JSON_RPC_INTERNAL_ERROR, JsonRpcErrorCodes, ProtocolError, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { ResponsePartKind, SessionStatus, ToolCallStatus, ToolResultContentType, buildSubagentSessionUriPrefix, parseSubagentSessionUri, readSessionGitState, withSessionGitState, type SessionConfigState, type ISessionFileDiff, type SessionSummary, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
 import { IProductService } from '../../product/common/productService.js';
@@ -487,7 +487,7 @@ export class AgentService extends Disposable implements IAgentService {
 			return undefined;
 		}
 		try {
-			const resolved = await provider.resolveSessionConfig({
+			const resolved = await provider._resolveSessionConfig({
 				provider: provider.id,
 				workingDirectory: config.workingDirectory,
 				config: config.config,
@@ -497,15 +497,6 @@ export class AgentService extends Disposable implements IAgentService {
 			this._logService.error(`[AgentService] Failed to resolve created session config for provider ${provider.id}`, error);
 			return config.config ? { schema: { type: 'object', properties: {} }, values: config.config } : undefined;
 		}
-	}
-
-	async resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {
-		const providerId = params.provider ?? this._defaultProvider;
-		const provider = providerId ? this._providers.get(providerId) : undefined;
-		if (!provider) {
-			throw new Error(`No agent provider registered for: ${providerId ?? '(none)'}`);
-		}
-		return provider.resolveSessionConfig(params);
 	}
 
 	async sessionConfigCompletions(params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult> {
@@ -567,7 +558,7 @@ export class AgentService extends Disposable implements IAgentService {
 			type: ActionType.SessionTurnStarted,
 			session: sessionKey,
 			turnId: params.turnId,
-			userMessage: { text: params.userMessage.text, attachments } as unknown as SessionTurnStartedAction['userMessage'],
+			userMessage: { text: params.userMessage.text, attachments } as SessionTurnStartedAction['userMessage'],
 			queuedMessageId: params.queuedMessageId,
 		});
 	}

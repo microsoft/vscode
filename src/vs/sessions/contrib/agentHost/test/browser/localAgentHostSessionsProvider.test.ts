@@ -14,7 +14,6 @@ import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelSc
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { AgentSession, IAgentHostService, type IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agentService.js';
 import type { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
-import type { ResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { NotificationType } from '../../../../../platform/agentHost/common/state/protocol/notifications.js';
 import { SessionLifecycle, type AgentInfo, type ModelSelection, type RootState, type SessionConfigState, type SessionState } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { SessionStatus as ProtocolSessionStatus, StateComponents } from '../../../../../platform/agentHost/common/state/sessionState.js';
@@ -51,9 +50,6 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	private readonly _sessions = new Map<string, IAgentSessionMetadata>();
 	public disposedSessions: URI[] = [];
 	public dispatchedActions: { action: SessionAction | TerminalAction | IRootConfigChangedAction; clientId: string; clientSeq: number }[] = [];
-	public failResolveSessionConfig = false;
-	public resolveSessionConfigResult: ResolveSessionConfigResult = { schema: { type: 'object', properties: {} }, values: { isolation: 'worktree' } };
-	public resolveSessionConfigRequests: { config?: Record<string, unknown> }[] = [];
 
 	private readonly _authenticationPending: ISettableObservable<boolean> = observableValue('authenticationPending', false);
 	override readonly authenticationPending: IObservable<boolean> = this._authenticationPending;
@@ -91,6 +87,15 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 
 	public createdSessionUris: URI[] = [];
 	/**
+	 * Initial configs passed into `createSession({ config })`. Used by tests
+	 * that exercise the seeding path (e.g. autoApprove from
+	 * `chat.permissions.default`) — the provider forwards user intent to the
+	 * agent host via this `config` payload at session creation time, and the
+	 * server-side schema (and any defaulted values) come back via a
+	 * subsequent `SessionConfigChangedAction({ schema })` push.
+	 */
+	public createSessionConfigs: (Record<string, unknown> | undefined)[] = [];
+	/**
 	 * Per-call hook used by tests to interleave operations across the
 	 * `createSession` await — e.g. to verify that no subscription is opened
 	 * before the create completes, or to simulate a workspace switch landing
@@ -103,25 +108,17 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	 * Each entry is `${op}:${uri}`.
 	 */
 	public wireOps: string[] = [];
-	override async createSession(config?: { session?: URI }): Promise<URI> {
+	override async createSession(config?: { session?: URI; config?: Record<string, unknown> }): Promise<URI> {
 		const uri = config?.session ?? URI.parse('copilotcli:///auto-' + this._nextSeq);
 		this.wireOps.push(`createSession:${uri.toString()}`);
 		this.createdSessionUris.push(uri);
+		this.createSessionConfigs.push(config?.config);
 		const hook = this.onCreateSession;
 		this.onCreateSession = undefined;
 		if (hook) {
 			await hook(uri);
 		}
 		return uri;
-	}
-
-	override async resolveSessionConfig(request: { config?: Record<string, unknown> }): Promise<ResolveSessionConfigResult> {
-		this.resolveSessionConfigRequests.push(request);
-		await Promise.resolve();
-		if (this.failResolveSessionConfig) {
-			throw new Error('resolveSessionConfig unavailable');
-		}
-		return this.resolveSessionConfigResult;
 	}
 
 	dispatchAction(action: SessionAction | TerminalAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void {
@@ -255,7 +252,7 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 	return disposables.add(instantiationService.createInstance(LocalAgentHostSessionsProvider));
 }
 
-async function waitForSessionConfig(provider: LocalAgentHostSessionsProvider, sessionId: string, predicate: (config: ResolveSessionConfigResult | undefined) => boolean): Promise<void> {
+async function waitForSessionConfig(provider: LocalAgentHostSessionsProvider, sessionId: string, predicate: (config: SessionConfigState | undefined) => boolean): Promise<void> {
 	if (predicate(provider.getSessionConfig(sessionId))) {
 		return;
 	}
@@ -646,42 +643,30 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.deepStrictEqual(provider.getSessionConfig(session.sessionId), { schema: { type: 'object', properties: {} }, values: {} });
 	});
 
-	test('createNewSession clears session config when resolving config is unavailable', async () => {
-		agentHost.failResolveSessionConfig = true;
-		const provider = createProvider(disposables, agentHost);
-		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
-		await waitForSessionConfig(provider, session.sessionId, config => config === undefined);
-
-		assert.strictEqual(provider.getSessionConfig(session.sessionId), undefined);
-	});
-
-	test('createNewSession seeds autoApprove from chat.permissions.default and forwards it to resolveSessionConfig', async () => {
+	test('createNewSession seeds autoApprove from chat.permissions.default and forwards it via createSession', async () => {
 		const config = new TestConfigurationService();
 		await config.setUserConfiguration('chat.permissions.default', 'autoApprove');
-		agentHost.resolveSessionConfigResult = {
-			schema: { type: 'object', properties: { autoApprove: { type: 'string', enum: ['default', 'autoApprove', 'autopilot'], title: 'Auto-approve' } } },
-			values: { autoApprove: 'autoApprove' },
-		};
 		const provider = createProvider(disposables, agentHost, undefined, { configurationService: config });
 		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
-		await waitForSessionConfig(provider, session.sessionId, c => c?.values.autoApprove === 'autoApprove');
+		await timeout(0); // let the eager createSession promise resolve
 
 		assert.deepStrictEqual({
 			seededImmediately: provider.getSessionConfig(session.sessionId)?.values.autoApprove,
-			forwardedToAgentHost: agentHost.resolveSessionConfigRequests.at(-1)?.config?.autoApprove,
+			forwardedToAgentHost: agentHost.createSessionConfigs.at(-1)?.autoApprove,
 		}, {
 			seededImmediately: 'autoApprove',
 			forwardedToAgentHost: 'autoApprove',
 		});
 	});
 
-	test('createNewSession does not seed autoApprove when chat.permissions.default is the default value', () => {
+	test('createNewSession does not seed autoApprove when chat.permissions.default is the default value', async () => {
 		const provider = createProvider(disposables, agentHost);
 		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		await timeout(0); // let the eager createSession promise resolve
 
 		assert.deepStrictEqual({
 			initialValues: provider.getSessionConfig(session.sessionId)?.values,
-			forwardedAutoApprove: agentHost.resolveSessionConfigRequests.at(-1)?.config?.autoApprove,
+			forwardedAutoApprove: agentHost.createSessionConfigs.at(-1)?.autoApprove,
 		}, {
 			initialValues: {},
 			forwardedAutoApprove: undefined,
@@ -701,10 +686,11 @@ suite('LocalAgentHostSessionsProvider', () => {
 		await config.setUserConfiguration('chat.permissions.default', 'autopilot');
 		const provider = createProvider(disposables, agentHost, undefined, { configurationService: config });
 		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		await timeout(0); // let the eager createSession promise resolve
 
 		assert.deepStrictEqual({
 			seededImmediately: provider.getSessionConfig(session.sessionId)?.values.autoApprove,
-			forwardedToAgentHost: agentHost.resolveSessionConfigRequests.at(-1)?.config?.autoApprove,
+			forwardedToAgentHost: agentHost.createSessionConfigs.at(-1)?.autoApprove,
 		}, {
 			seededImmediately: 'default',
 			forwardedToAgentHost: 'default',
@@ -1046,12 +1032,26 @@ suite('LocalAgentHostSessionsProvider', () => {
 	}));
 
 	test('new session stays loading when required config is missing', async () => {
-		agentHost.resolveSessionConfigResult = {
-			schema: { type: 'object', required: ['branch'], properties: { branch: { type: 'string', title: 'Branch', enum: ['main'] } } },
-			values: {},
-		};
 		const provider = createProvider(disposables, agentHost);
 		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		await timeout(0); // let the eager createSession promise resolve
+
+		// Server-pushed schema (via SessionConfigChangedAction) is observed
+		// through the session-state subscription. Simulate that push by
+		// setting the session state with a config whose schema requires a
+		// key that is not present in `values`.
+		const rawId = session.resource.path.substring(1);
+		const sessionUriStr = AgentSession.uri(provider.sessionTypes[0].id, rawId).toString();
+		const fakeState: SessionState = {
+			summary: { resource: sessionUriStr, provider: provider.sessionTypes[0].id, title: 'New Session', status: ProtocolSessionStatus.Idle, createdAt: 0, modifiedAt: 0 },
+			lifecycle: SessionLifecycle.Ready,
+			turns: [],
+			config: {
+				schema: { type: 'object', required: ['branch'], properties: { branch: { type: 'string', title: 'Branch', enum: ['main'] } } },
+				values: {},
+			},
+		};
+		agentHost.setSessionState(rawId, provider.sessionTypes[0].id, fakeState);
 		await waitForSessionConfig(provider, session.sessionId, config => config?.schema.required?.includes('branch') === true);
 
 		assert.strictEqual(session.loading.get(), true);
@@ -1077,8 +1077,22 @@ suite('LocalAgentHostSessionsProvider', () => {
 		agentHost.setAuthenticationPending(true);
 		const provider = createProvider(disposables, agentHost);
 		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
-		// Wait for the resolved config (the mock returns `values.isolation: 'worktree'`)
-		// so that the per-session loading flag has been turned off.
+		await timeout(0); // let the eager createSession promise resolve
+
+		// Simulate the server pushing a complete schema/values via the
+		// session-state subscription so the per-session loading flag clears.
+		const rawId = session.resource.path.substring(1);
+		const sessionUriStr = AgentSession.uri(provider.sessionTypes[0].id, rawId).toString();
+		const fakeState: SessionState = {
+			summary: { resource: sessionUriStr, provider: provider.sessionTypes[0].id, title: 'New Session', status: ProtocolSessionStatus.Idle, createdAt: 0, modifiedAt: 0 },
+			lifecycle: SessionLifecycle.Ready,
+			turns: [],
+			config: {
+				schema: { type: 'object', properties: { isolation: { type: 'string', title: 'Isolation', enum: ['worktree'] } } },
+				values: { isolation: 'worktree' },
+			},
+		};
+		agentHost.setSessionState(rawId, provider.sessionTypes[0].id, fakeState);
 		await waitForSessionConfig(provider, session.sessionId, config => config?.values.isolation === 'worktree');
 
 		// Even though config has resolved (per-session loading is false), the
@@ -1112,6 +1126,22 @@ suite('LocalAgentHostSessionsProvider', () => {
 			},
 		});
 		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		await timeout(0); // let the eager createSession promise resolve
+
+		// Simulate the server pushing schema/values via the session-state
+		// subscription, which seeds the running session config.
+		const rawId = session.resource.path.substring(1);
+		const sessionUriStr = AgentSession.uri(provider.sessionTypes[0].id, rawId).toString();
+		const fakeState: SessionState = {
+			summary: { resource: sessionUriStr, provider: provider.sessionTypes[0].id, title: 'New Session', status: ProtocolSessionStatus.Idle, createdAt: 0, modifiedAt: 0 },
+			lifecycle: SessionLifecycle.Ready,
+			turns: [],
+			config: {
+				schema: { type: 'object', properties: { isolation: { type: 'string', title: 'Isolation', enum: ['worktree'] } } },
+				values: { isolation: 'worktree' },
+			},
+		};
+		agentHost.setSessionState(rawId, provider.sessionTypes[0].id, fakeState);
 		await waitForSessionConfig(provider, session.sessionId, config => config?.values.isolation === 'worktree');
 
 		await provider.sendAndCreateChat(session.sessionId, { query: 'hello' });

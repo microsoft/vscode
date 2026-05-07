@@ -43,8 +43,8 @@ import { ISessionsProvider } from '../../../services/sessions/common/sessionsPro
 // ============================================================================
 
 /**
- * Minimal config shape shared by session ({@link ResolveSessionConfigResult})
- * and root ({@link RootConfigState}) configuration.
+ * Minimal config shape shared by session ({@link SessionConfigState}) and
+ * root ({@link RootConfigState}) configuration.
  */
 export interface IAgentHostConfigLike {
 	readonly schema: ConfigSchema;

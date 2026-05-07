@@ -7,8 +7,8 @@ import { Event } from '../../base/common/event.js';
 import { IObservable } from '../../base/common/observable.js';
 import { equals } from '../../base/common/objects.js';
 import { RemoteAgentHostConnectionStatus } from '../../platform/agentHost/common/remoteAgentHostService.js';
-import { ResolveSessionConfigResult, SessionConfigValueItem } from '../../platform/agentHost/common/state/protocol/commands.js';
-import { RootConfigState } from '../../platform/agentHost/common/state/protocol/state.js';
+import { SessionConfigValueItem } from '../../platform/agentHost/common/state/protocol/commands.js';
+import { RootConfigState, SessionConfigState } from '../../platform/agentHost/common/state/protocol/state.js';
 import { ISessionsProvider } from '../services/sessions/common/sessionsProvider.js';
 
 /**
@@ -43,7 +43,7 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	/** Fires when dynamic configuration for a session changes. */
 	readonly onDidChangeSessionConfig: Event<string>;
 	/** Returns the last resolved dynamic configuration for a session. */
-	getSessionConfig(sessionId: string): ResolveSessionConfigResult | undefined;
+	getSessionConfig(sessionId: string): SessionConfigState | undefined;
 	/** Sets one dynamic configuration property and re-resolves the schema. */
 	setSessionConfigValue(sessionId: string, property: string, value: unknown): Promise<void>;
 	/**
@@ -112,7 +112,7 @@ export function isAgentHostProvider(provider: ISessionsProvider): provider is IA
  * are deep-compared via {@link equals} so non-string entries (e.g. permission
  * objects) compare correctly.
  */
-export function resolvedConfigsEqual(a: ResolveSessionConfigResult, b: ResolveSessionConfigResult): boolean {
+export function resolvedConfigsEqual(a: SessionConfigState, b: SessionConfigState): boolean {
 	const aValueKeys = Object.keys(a.values);
 	const bValueKeys = Object.keys(b.values);
 	if (aValueKeys.length !== bValueKeys.length) {

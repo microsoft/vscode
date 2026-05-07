@@ -18,9 +18,8 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { AgentSession, IAgentConnection, IAgentSessionMetadata } from '../../../../platform/agentHost/common/agentService.js';
 import { KNOWN_AUTO_APPROVE_VALUES, SessionConfigKey } from '../../../../platform/agentHost/common/sessionConfigKeys.js';
-import { ResolveSessionConfigResult } from '../../../../platform/agentHost/common/state/protocol/commands.js';
 import { NotificationType } from '../../../../platform/agentHost/common/state/protocol/notifications.js';
-import { FileEdit, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, SessionState, SessionSummary } from '../../../../platform/agentHost/common/state/protocol/state.js';
+import { FileEdit, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, SessionConfigSchema, SessionConfigState, SessionState, SessionSummary } from '../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, isSessionAction } from '../../../../platform/agentHost/common/state/sessionActions.js';
 import { readSessionGitState, SessionMeta, StateComponents, type ISessionGitState } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -32,7 +31,6 @@ import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../../
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { buildMutableConfigSchema, IAgentHostSessionsProvider, resolvedConfigsEqual } from '../../../common/agentHostSessionsProvider.js';
 import { agentHostSessionWorkspaceKey } from '../../../common/agentHostSessionWorkspace.js';
-import { isSessionConfigComplete } from '../../../common/sessionConfig.js';
 import { CopilotCLISessionType, IChat, IGitHubInfo, ISession, ISessionChangeset, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, SessionStatus, toSessionId } from '../../../services/sessions/common/session.js';
 import { ISendRequestOptions, ISessionChangeEvent } from '../../../services/sessions/common/sessionsProvider.js';
 import { computePullRequestIcon } from '../../github/common/types.js';
@@ -375,8 +373,8 @@ interface INewSessionConstructionContext {
 	readonly authenticationPending: IObservable<boolean>;
 	readonly logService: ILogService;
 	/**
-	 * Optional initial config values to seed into the new session before its
-	 * first {@link NewSession.resolveConfig} round-trip. Used to forward
+	 * Optional initial config values to seed into the new session before
+	 * its backend `createSession` round-trip. Used to forward
 	 * `chat.permissions.default` into the agent host's `autoApprove` slot so
 	 * the picker reflects the user's preference immediately.
 	 */
@@ -390,7 +388,7 @@ interface INewSessionConstructionContext {
  * Encapsulates:
  *  - the `ISession` skeleton + its observables (status, modelId, loading)
  *  - the user's selected model (read by `sendAndCreateChat`)
- *  - the resolved session config + a stale-request guard
+ *  - the seeded initial config values (forwarded to `createSession({config})`)
  *  - the eagerly created backend session (URI + subscription) that lets the
  *    chat handler skip its legacy `createSession`-on-first-message round-trip
  *
@@ -417,19 +415,13 @@ class NewSession extends Disposable {
 	private _selectedModelId: string | undefined;
 
 	/**
-	 * Latest resolved config. Replaces what used to live in `_newSessionConfigs`.
-	 * `undefined` indicates the most recent {@link resolveConfig} failed and no
-	 * cached values are usable.
+	 * Initial session-config values seeded at construction time (e.g. from
+	 * `chat.permissions.default`). These are forwarded to the agent host on
+	 * the eager `createSession` call so the server's initial `state.config`
+	 * reflects them. After eagerCreate, all reads/writes flow through the
+	 * live session subscription's `state.config` rather than a local cache.
 	 */
-	private _config: ResolveSessionConfigResult | undefined = { schema: { type: 'object', properties: {} }, values: {} };
-
-	/**
-	 * Monotonic counter for in-flight {@link resolveConfig} calls. Each call
-	 * increments the counter and only writes its result back if its sequence
-	 * is still the latest one. Bumped on dispose so any pending resolve
-	 * discards itself.
-	 */
-	private _configRequestSeq = 0;
+	private readonly _initialConfigValues: Record<string, unknown> | undefined;
 
 	/** Backend session URI, set the moment {@link eagerCreate} starts. */
 	private _backendUri: URI | undefined;
@@ -504,9 +496,7 @@ class NewSession extends Disposable {
 		};
 		this.sessionId = this.session.sessionId;
 
-		if (ctx.initialConfigValues) {
-			this._config = { schema: { type: 'object', properties: {} }, values: { ...ctx.initialConfigValues } };
-		}
+		this._initialConfigValues = ctx.initialConfigValues ? { ...ctx.initialConfigValues } : undefined;
 	}
 
 	// -- Picker mutations ----------------------------------------------------
@@ -524,60 +514,19 @@ class NewSession extends Disposable {
 
 	// -- Config --------------------------------------------------------------
 
-	getConfig(): ResolveSessionConfigResult | undefined { return this._config; }
-	getConfigValues(): Record<string, unknown> | undefined { return this._config?.values; }
-
 	/**
-	 * Optimistically merges a single property into the cached config. Used by
-	 * the picker to update local state before the next {@link resolveConfig}
-	 * round-trip completes.
+	 * Initial seed values for the session config (e.g. derived from
+	 * `chat.permissions.default`). Forwarded to `createSession({config})` and
+	 * used as a fallback when the live subscription has not yet hydrated
+	 * `state.config`.
 	 */
-	setConfigValue(property: string, value: unknown): void {
-		const current = this._config?.values ?? {};
-		this._config = { schema: { type: 'object', properties: {} }, values: { ...current, [property]: value } };
-	}
+	get initialConfigValues(): Record<string, unknown> | undefined { return this._initialConfigValues; }
 
-	/**
-	 * Re-resolves the session config against the agent host using the
-	 * currently cached values. Ignores its own response if a newer call
-	 * superseded it. Returns `true` if the config was applied (i.e. this
-	 * call was not stale by the time the response arrived). On failure, the
-	 * cached config is cleared so {@link getConfig} returns `undefined`.
-	 *
-	 * TODO(connor-config): migrate to schema-push. Once the workbench bridge
-	 * subscribes to the running session and reads `state.config.schema`
-	 * directly, this method (and the `resolveSessionConfig` command it calls)
-	 * can be removed in favour of a single dispatch of
-	 * `SessionConfigChanged({ config })` and reading the server-pushed
-	 * follow-up via the same subscription.
-	 */
-	async resolveConfig(connection: IAgentConnection): Promise<boolean> {
-		const seq = ++this._configRequestSeq;
-		try {
-			const result = await connection.resolveSessionConfig({
-				provider: this.agentProvider,
-				workingDirectory: this.workspaceUri,
-				config: this._config?.values,
-			});
-			if (seq !== this._configRequestSeq) {
-				return false;
-			}
-			this._config = result;
-			return true;
-		} catch {
-			if (seq !== this._configRequestSeq) {
-				return false;
-			}
-			this._config = undefined;
-			return true;
-		}
-	}
-
-	getConfigCompletions(connection: IAgentConnection, property: string, query: string | undefined) {
+	getConfigCompletions(connection: IAgentConnection, property: string, query: string | undefined, configValues: Record<string, unknown> | undefined) {
 		return connection.sessionConfigCompletions({
 			provider: this.agentProvider,
 			workingDirectory: this.workspaceUri,
-			config: this._config?.values,
+			config: configValues,
 			property,
 			query,
 		});
@@ -617,6 +566,7 @@ class NewSession extends Disposable {
 					provider: this.agentProvider,
 					session: backendUri,
 					workingDirectory: this.workspaceUri,
+					config: this._initialConfigValues,
 				});
 			} catch (err) {
 				this._logService.warn(`[${this._providerId}] Eager createSession failed for ${backendUri.toString()}: ${err}`);
@@ -657,13 +607,9 @@ class NewSession extends Disposable {
 		this._subscription = undefined;
 		this._backendUri = undefined;
 		this._connection = undefined;
-		this._configRequestSeq++;
 	}
 
 	override dispose(): void {
-		// Bump the seq so any in-flight resolveConfig discards itself.
-		this._configRequestSeq++;
-
 		this._subscription?.dispose();
 		this._subscription = undefined;
 
@@ -683,6 +629,15 @@ class NewSession extends Disposable {
 // ============================================================================
 // BaseAgentHostSessionsProvider — shared base for local and remote providers
 // ============================================================================
+
+/**
+ * Cached resolved session config (schema + values) the provider hangs onto
+ * for running sessions. Structurally identical to {@link SessionConfigState}
+ * — kept as a local alias to flag this is a denormalised cache (kept fresh
+ * via `_handleConfigChanged` and `_seedRunningConfigFromState`) rather than
+ * the live wire snapshot.
+ */
+type RunningSessionConfig = SessionConfigState;
 
 /**
  * Shared base class for the local and remote agent host sessions providers.
@@ -751,7 +706,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	protected set _newSession(value: NewSession | undefined) { this._newSessionRef.value = value; }
 
 	/** Full resolved config (schema + values) for running sessions, keyed by session ID. */
-	protected readonly _runningSessionConfigs = new Map<string, ResolveSessionConfigResult>();
+	protected readonly _runningSessionConfigs = new Map<string, RunningSessionConfig>();
 
 	/**
 	 * Lazy session-state subscriptions used to seed {@link _runningSessionConfigs}
@@ -986,39 +941,18 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		this._newSession = newSession;
 		this._onDidChangeSessionConfig.fire(newSession.sessionId);
 
-		// Kick off the initial config resolve and the eager backend session
-		// in parallel. Both are non-blocking; failures are surfaced through
-		// the session's loading observable.
+		// Eagerly create the backend session so the chat handler can skip its
+		// legacy `createSession`-on-first-message round-trip. The server will
+		// push the resolved schema as a `SessionConfigChanged` action shortly
+		// after `createSession` returns; the action handler installed on the
+		// connection populates `_runningSessionConfigs` and pulses
+		// `onDidChangeSessionConfig` so the picker re-renders.
 		const connection = this.connection;
 		if (connection) {
-			void this._refreshNewSessionConfig(newSession);
 			newSession.eagerCreate(connection);
-		} else {
-			newSession.setLoading(false);
 		}
+		newSession.setLoading(false);
 		return newSession.session;
-	}
-
-	/**
-	 * Re-resolve the session config against the agent host and pulse
-	 * {@link _onDidChangeSessionConfig}. The {@link NewSession} owns its own
-	 * stale-request guard so back-to-back calls are safe.
-	 */
-	private async _refreshNewSessionConfig(session: NewSession): Promise<void> {
-		const connection = this.connection;
-		if (!connection) {
-			session.setLoading(false);
-			return;
-		}
-		session.setLoading(true);
-		const applied = await session.resolveConfig(connection);
-		// Bail if a newer call superseded us — its own pulse will take over.
-		if (!applied || this._newSession !== session) {
-			return;
-		}
-		const config = session.getConfig();
-		session.setLoading(config !== undefined && !isSessionConfigComplete(config));
-		this._onDidChangeSessionConfig.fire(session.sessionId);
 	}
 
 	/** Subclass hook for additional pre-create checks (e.g. remote requires connection). */
@@ -1034,8 +968,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * before its schema is resolved. The user-facing `chat.permissions.default`
 	 * setting seeds the `autoApprove` property so that agents which advertise
 	 * the well-known auto-approve enum (`default | autoApprove | autopilot`)
-	 * pick it up on their first `resolveSessionConfig` round-trip. Agents that
-	 * do not advertise `autoApprove` simply ignore the unknown key.
+	 * pick it up when the server first resolves and pushes the schema. Agents
+	 * that do not advertise `autoApprove` simply ignore the unknown key.
 	 *
 	 * If enterprise policy disables global auto-approval
 	 * (`chat.tools.global.autoApprove` policy value `false`), the seed is
@@ -1054,55 +988,78 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	// -- Dynamic session config ----------------------------------------------
 
-	getSessionConfig(sessionId: string): ResolveSessionConfigResult | undefined {
-		// New-session config wins (during pre-creation flow). Otherwise lazily
-		// subscribe to the session's state so the running picker can seed its
+	getSessionConfig(sessionId: string): SessionConfigState | undefined {
+		// Lazily subscribe to the session's state so the picker can read its
 		// schema/values from the AHP `SessionState.config` snapshot for sessions
 		// that weren't created in this window. Each query bumps the idle timer
 		// so the subscription stays alive while the picker (or any other UI
 		// surface) is repeatedly reading the running config.
-		if (this._newSession?.sessionId === sessionId) {
-			return this._newSession.getConfig();
-		}
+		//
+		// Both the new-session and running-session paths read from the same
+		// cache: once `eagerCreate` succeeds and the server pushes the initial
+		// `SessionConfigChanged` schema action, `_handleConfigChanged`
+		// populates `_runningSessionConfigs` for the new session's id too.
 		this._keepSessionStateAlive(sessionId);
 		return this._runningSessionConfigs.get(sessionId);
 	}
 
 	async setSessionConfigValue(sessionId: string, property: string, value: unknown): Promise<void> {
-		// New session (pre-creation): re-resolve the full config schema
-		const newSession = this._newSession?.sessionId === sessionId ? this._newSession : undefined;
-		if (newSession) {
-			newSession.setConfigValue(property, value);
-			this._onDidChangeSessionConfig.fire(sessionId);
-			await this._refreshNewSessionConfig(newSession);
-			return;
-		}
-
-		// Running session: dispatch SessionConfigChanged for sessionMutable properties
-		const runningConfig = this._runningSessionConfigs.get(sessionId);
 		const connection = this.connection;
-		if (!runningConfig || !connection) {
-			return;
-		}
-		const schema = runningConfig.schema.properties[property];
-		if (!schema?.sessionMutable) {
+		if (!connection) {
 			return;
 		}
 
-		// Update local cache optimistically
-		this._runningSessionConfigs.set(sessionId, {
-			...runningConfig,
-			values: { ...runningConfig.values, [property]: value },
-		});
-		this._onDidChangeSessionConfig.fire(sessionId);
+		// Gate writes on `sessionMutable` for running sessions only — in the
+		// pre-creation new-session flow any property is editable because the
+		// server is still resolving the initial schema and immutable-after-
+		// create properties (`isolation`, `branch`, …) are still in play.
+		const isNewSession = this._newSession?.sessionId === sessionId;
+		if (!isNewSession) {
+			const runningConfig = this._runningSessionConfigs.get(sessionId);
+			const schema = runningConfig?.schema.properties[property];
+			if (!schema?.sessionMutable) {
+				return;
+			}
+		}
 
-		// Dispatch to the agent host
+		const sessionUri = this._backendSessionUri(sessionId);
+		if (!sessionUri) {
+			return;
+		}
+
+		// Optimistically update the local cache so the picker re-renders
+		// immediately. The server's schema-push side effect re-emits a
+		// follow-up `SessionConfigChanged` carrying the refined schema, which
+		// `_handleConfigChanged` applies on top of this optimistic value.
+		const existing = this._runningSessionConfigs.get(sessionId);
+		if (existing) {
+			this._runningSessionConfigs.set(sessionId, {
+				...existing,
+				values: { ...existing.values, [property]: value },
+			});
+			this._onDidChangeSessionConfig.fire(sessionId);
+		}
+
+		const action = { type: ActionType.SessionConfigChanged as const, session: sessionUri, config: { [property]: value } };
+		connection.dispatch(action);
+	}
+
+	/**
+	 * Resolve the backend session URI for a session id. Handles both the
+	 * pre-creation new-session (which holds its own `agentProvider` and
+	 * resource path) and committed running sessions (which live in
+	 * `_sessionCache`).
+	 */
+	private _backendSessionUri(sessionId: string): string | undefined {
+		if (this._newSession?.sessionId === sessionId) {
+			return AgentSession.uri(this._newSession.agentProvider, this._newSession.session.resource.path.substring(1)).toString();
+		}
 		const rawId = this._rawIdFromChatId(sessionId);
 		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
-		if (cached && rawId) {
-			const action = { type: ActionType.SessionConfigChanged as const, session: AgentSession.uri(cached.agentProvider, rawId).toString(), config: { [property]: value } };
-			connection.dispatch(action);
+		if (!cached || !rawId) {
+			return undefined;
 		}
+		return AgentSession.uri(cached.agentProvider, rawId).toString();
 	}
 
 	async replaceSessionConfig(sessionId: string, values: Record<string, unknown>): Promise<void> {
@@ -1160,12 +1117,23 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (!newSession || !connection) {
 			return [];
 		}
-		const result = await newSession.getConfigCompletions(connection, property, query);
+		// Pass the latest known config values (from the live cache, falling
+		// back to the seeded initial values) so the server can resolve
+		// completions in context.
+		const configValues = this._runningSessionConfigs.get(sessionId)?.values ?? newSession.initialConfigValues;
+		const result = await newSession.getConfigCompletions(connection, property, query, configValues);
 		return result.items;
 	}
 
 	getCreateSessionConfig(sessionId: string): Record<string, unknown> | undefined {
-		return this._newSession?.sessionId === sessionId ? this._newSession.getConfigValues() : undefined;
+		if (this._newSession?.sessionId !== sessionId) {
+			return undefined;
+		}
+		// Prefer the live cache (populated by the server's schema-push after
+		// `eagerCreate`) so any user edits made through the picker round-trip
+		// into the chat handler's fallback `createSession` payload. Fall back
+		// to the seeded initial values when the cache hasn't hydrated yet.
+		return this._runningSessionConfigs.get(sessionId)?.values ?? this._newSession.initialConfigValues;
 	}
 
 	clearSessionConfig(sessionId: string): void {
@@ -1443,7 +1411,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * behavior is still driven off the per-property `sessionMutable` flag.
 	 */
 	private _preserveNewSessionConfig(newSession: NewSession, committedSessionId: string): void {
-		const config = newSession.getConfig();
+		const config = this._runningSessionConfigs.get(newSession.sessionId);
 		if (config && Object.keys(config.schema.properties).length > 0) {
 			this._runningSessionConfigs.set(committedSessionId, {
 				schema: { type: 'object', properties: { ...config.schema.properties } },
@@ -1576,7 +1544,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (Object.keys(stateConfig.schema.properties).length === 0) {
 			return;
 		}
-		const seeded: ResolveSessionConfigResult = {
+		const seeded: RunningSessionConfig = {
 			schema: { type: 'object', properties: { ...stateConfig.schema.properties } },
 			values: { ...stateConfig.values },
 		};
@@ -1847,7 +1815,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 	}
 
-	private _handleConfigChanged(session: string, config: Record<string, unknown> | undefined, replace: boolean, schema?: ResolveSessionConfigResult['schema']): void {
+	private _handleConfigChanged(session: string, config: Record<string, unknown> | undefined, replace: boolean, schema?: SessionConfigSchema): void {
 		const rawId = AgentSession.id(session);
 		const cached = this._sessionCache.get(rawId);
 		if (!cached) {

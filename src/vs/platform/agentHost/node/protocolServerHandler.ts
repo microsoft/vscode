@@ -568,13 +568,6 @@ export class ProtocolServerHandler extends Disposable {
 			});
 			return { items };
 		},
-		resolveSessionConfig: async (_client, params) => {
-			return this._agentService.resolveSessionConfig({
-				provider: params.provider,
-				workingDirectory: params.workingDirectory ? URI.parse(params.workingDirectory) : undefined,
-				config: params.config,
-			});
-		},
 		sessionConfigCompletions: async (_client, params) => {
 			return this._agentService.sessionConfigCompletions({
 				provider: params.provider,

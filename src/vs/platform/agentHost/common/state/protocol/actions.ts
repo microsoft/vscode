@@ -207,11 +207,14 @@ export interface SessionCreationFailedAction {
  *
  * @category Session Actions
  * @version 1
+<<<<<<< Updated upstream
  * @clientDispatchable
  * @deprecated Prefer the rejectable `startTurn` command (since v0.1.0
  * additive). The action remains client-dispatchable for backwards
  * compatibility; the server still emits this action to subscribers when a
  * turn begins, regardless of which path triggered it.
+=======
+>>>>>>> Stashed changes
  */
 export interface SessionTurnStartedAction {
 	type: ActionType.SessionTurnStarted;

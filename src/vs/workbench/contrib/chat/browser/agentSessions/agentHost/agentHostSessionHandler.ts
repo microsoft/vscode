@@ -14,12 +14,14 @@ import { autorun, autorunPerKeyedItem, derived, IObservable, observableValue, tr
 import { extUriBiasedIgnorePathCase, isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
-import { AgentProvider, AgentSession, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AgentProvider, AgentSession, type IAgentAttachment, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { IAgentSubscription, observableFromSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { SessionTruncatedAction } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { ConfirmationOptionKind, CustomizationRef, TerminalClaimKind, ToolResultContentType, type ConfirmationOption, type ProtectedResourceMetadata, type ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { ActionType, SessionTurnStartedAction, type ClientSessionAction, type SessionAction, type SessionInputCompletedAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
+import { ActionType, type ClientSessionAction, type SessionAction, type SessionInputCompletedAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
+import { JsonRpcErrorCodes } from '../../../../../../platform/agentHost/common/state/protocol/errors.js';
+import type { StartTurnInvalidConfigErrorData } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { AttachmentType, buildSubagentSessionUri, getToolFileEdits, getToolSubagentContent, PendingMessageKind, ResponsePartKind, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, type ICompletedToolCall, type MarkdownResponsePart, type MessageAttachment, type ModelSelection, type ReasoningResponsePart, type RootState, type SessionInputAnswer, type SessionInputRequest, type SessionState, type ToolCallResponsePart, type ToolCallState, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -996,25 +998,34 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			}
 		}
 
-		// Dispatch session/turnStarted — the server will call sendMessage on
-		// the provider as a side effect.
+		// Start the turn — the server validates the session config against the
+		// latest schema and rejects with `InvalidParams`
+		// (`StartTurnInvalidConfigErrorData`) when required fields are
+		// missing. On success the server still emits `SessionTurnStarted`
+		// (broadcast to all subscribers) so the per-turn observer below sees
+		// the same stream as if we had dispatched the action ourselves.
 		//
-		// TODO(connor-config): migrate to the rejectable `startTurn` command
-		// (`this._config.connection.startTurn({...})`). The command form lets
-		// the server reject the turn when the session config is incomplete
-		// relative to the latest schema; the legacy action dispatch below
-		// cannot be rejected. On success the server still emits the same
-		// `session/turnStarted` action, so subscribers see the same stream.
-		const turnAction: SessionTurnStartedAction = {
-			type: ActionType.SessionTurnStarted,
-			session: session.toString(),
-			turnId,
-			userMessage: {
-				text: request.message,
-				attachments: messageAttachments.length > 0 ? messageAttachments : undefined,
-			},
-		};
-		this._config.connection.dispatch(turnAction);
+		// `_convertVariablesToAttachments` produces protocol-shaped
+		// `MessageAttachment` values (string URIs); the in-process
+		// `IAgentStartTurnParams` contract uses real URI objects, so we
+		// convert at the boundary.
+		const startTurnAttachments: IAgentAttachment[] | undefined = messageAttachments.length > 0
+			? messageAttachments.map(a => ({ type: a.type, uri: URI.parse(a.uri), displayName: a.displayName }))
+			: undefined;
+		try {
+			await this._config.connection.startTurn({
+				session,
+				turnId,
+				userMessage: {
+					text: request.message,
+					attachments: startTurnAttachments,
+				},
+			});
+		} catch (err) {
+			this._clientDispatchedTurnIds.delete(turnId);
+			this._logService.warn(`[AgentHost] startTurn rejected for ${session.toString()} turnId=${turnId}: ${err}`);
+			throw this._toStartTurnUserError(err);
+		}
 
 		// Ensure the editing session records a sentinel checkpoint for this
 		// request so it appears in requestDisablement even if the turn
@@ -2321,6 +2332,33 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			return true;
 		}
 		return false;
+	}
+
+	/**
+	 * Translate a `startTurn` rejection into a user-facing `Error` for the
+	 * chat agent invoke path. The localized message includes any
+	 * `missingRequired` config keys from {@link StartTurnInvalidConfigErrorData}
+	 * so the user can route back to the offending fields in the picker.
+	 * Non-protocol errors fall through to a generic message wrapping the
+	 * original cause.
+	 */
+	private _toStartTurnUserError(err: unknown): Error {
+		if (err instanceof ProtocolError) {
+			if (err.code === JsonRpcErrorCodes.InvalidParams) {
+				const data = err.data as StartTurnInvalidConfigErrorData | undefined;
+				const missing = data?.missingRequired;
+				if (missing && missing.length > 0) {
+					return new Error(localize(
+						'agentHost.startTurn.missingConfig',
+						"Cannot start turn: the session configuration is missing required fields: {0}. Please update the configuration and try again.",
+						missing.join(', '),
+					));
+				}
+				return new Error(localize('agentHost.startTurn.invalidConfig', "Cannot start turn: the session configuration is invalid. {0}", err.message));
+			}
+			return new Error(localize('agentHost.startTurn.protocolFailure', "Failed to start turn: {0}", err.message));
+		}
+		return new Error(localize('agentHost.startTurn.unknownFailure', "Failed to start turn: {0}", err instanceof Error ? err.message : String(err)));
 	}
 
 	private _createModelSelection(languageModelIdentifier: string | undefined, modelConfiguration: Record<string, unknown> | undefined): ModelSelection | undefined {

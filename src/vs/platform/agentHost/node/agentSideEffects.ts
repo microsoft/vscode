@@ -843,7 +843,7 @@ export class AgentSideEffects extends Disposable {
 				// Re-resolve via the provider so dependent schema fields (e.g.
 				// `enum`/`readOnly` that depend on other values) and any
 				// server-resolved default values are pushed back to clients
-				// without each client having to call `resolveSessionConfig`.
+				// without each client having to round-trip through the wire.
 				void this._reresolveAndPushSessionConfig(action.session);
 				break;
 			}
@@ -879,8 +879,9 @@ export class AgentSideEffects extends Disposable {
 	 * {@link AgentHostStateManager.dispatchServerAction} and do NOT route
 	 * through `handleAction`, so this loop terminates after one round.
 	 *
-	 * Errors from `resolveSessionConfig` (e.g. providers that don't implement
-	 * it) are swallowed: the previously-applied values stay in state.
+	 * Errors from the provider's `_resolveSessionConfig` hook (e.g. providers
+	 * that don't implement it) are swallowed: the previously-applied values
+	 * stay in state.
 	 */
 	private async _reresolveAndPushSessionConfig(session: ProtocolURI): Promise<void> {
 		const agent = this._options.getAgent(session);
@@ -894,13 +895,13 @@ export class AgentSideEffects extends Disposable {
 		const workingDirectory = before.summary.workingDirectory ? URI.parse(before.summary.workingDirectory) : undefined;
 		let resolved;
 		try {
-			resolved = await agent.resolveSessionConfig({
+			resolved = await agent._resolveSessionConfig({
 				provider: agent.id,
 				workingDirectory,
 				config: before.config.values,
 			});
 		} catch (err) {
-			this._logService.warn(`[AgentSideEffects] resolveSessionConfig failed for ${session}`, err);
+			this._logService.warn(`[AgentSideEffects] _resolveSessionConfig failed for ${session}`, err);
 			return;
 		}
 		// Session may have been disposed while the provider was resolving.

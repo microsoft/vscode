@@ -77,7 +77,6 @@ export type SessionAction =
 
 /** Union of session actions that clients may dispatch. */
 export type ClientSessionAction =
-	| SessionTurnStartedAction
 	| SessionToolCallConfirmedAction
 	| SessionToolCallCompleteAction
 	| SessionToolCallResultConfirmedAction
@@ -103,6 +102,7 @@ export type ClientSessionAction =
 export type ServerSessionAction =
 	| SessionReadyAction
 	| SessionCreationFailedAction
+	| SessionTurnStartedAction
 	| SessionDeltaAction
 	| SessionResponsePartAction
 	| SessionToolCallStartAction
@@ -167,7 +167,7 @@ export const IS_CLIENT_DISPATCHABLE: { readonly [K in StateAction['type']]: bool
 	[ActionType.RootConfigChanged]: true,
 	[ActionType.SessionReady]: false,
 	[ActionType.SessionCreationFailed]: false,
-	[ActionType.SessionTurnStarted]: true,
+	[ActionType.SessionTurnStarted]: false,
 	[ActionType.SessionDelta]: false,
 	[ActionType.SessionResponsePart]: false,
 	[ActionType.SessionToolCallStart]: false,
