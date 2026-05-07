@@ -278,6 +278,11 @@
 	pointer-events: none;
 }
 
+/* Reserve a stable right lane for the scrollbar without forcing visibility. */
+.xterm.always-show-scrollbar .xterm-viewport {
+	right: 14px;
+}
+
 .xterm .xterm-scrollable-element > .xterm-invisible.xterm-fade {
 	transition: opacity 800ms linear;
 }
