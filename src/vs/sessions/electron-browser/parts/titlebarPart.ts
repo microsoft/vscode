@@ -5,6 +5,7 @@
 
 import { getZoomFactor } from '../../../base/browser/browser.js';
 import { getWindow, getWindowId } from '../../../base/browser/dom.js';
+import { Color } from '../../../base/common/color.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../platform/contextview/browser/contextView.js';
@@ -12,7 +13,8 @@ import { IInstantiationService } from '../../../platform/instantiation/common/in
 import { INativeHostService } from '../../../platform/native/common/native.js';
 import { IProductService } from '../../../platform/product/common/productService.js';
 import { IStorageService } from '../../../platform/storage/common/storage.js';
-import { IThemeService } from '../../../platform/theme/common/themeService.js';
+import { ColorScheme, isHighContrast } from '../../../platform/theme/common/theme.js';
+import { IColorTheme, IThemeService } from '../../../platform/theme/common/themeService.js';
 import { useWindowControlsOverlay } from '../../../platform/window/common/window.js';
 import { IsWindowAlwaysOnTopContext } from '../../../workbench/common/contextkeys.js';
 import { IHostService } from '../../../workbench/services/host/browser/host.js';
@@ -21,8 +23,8 @@ import { IAuxiliaryTitlebarPart } from '../../../workbench/browser/parts/titleba
 import { IEditorGroupsContainer } from '../../../workbench/services/editor/common/editorGroupsService.js';
 import { CodeWindow, mainWindow } from '../../../base/browser/window.js';
 import { TitlebarPart, TitleService } from '../../browser/parts/titlebarPart.js';
-import { isMacintosh } from '../../../base/common/platform.js';
-import { agentsBackground } from '../../common/theme.js';
+import { isLinux, isMacintosh, isWindows } from '../../../base/common/platform.js';
+import { agentsBackground, agentsGradientTintColor } from '../../common/theme.js';
 import { WORKBENCH_BACKGROUND } from '../../../workbench/common/theme.js';
 
 export class NativeTitlebarPart extends TitlebarPart {
@@ -79,19 +81,36 @@ export class NativeTitlebarPart extends TitlebarPart {
 		isWindowAlwaysOnTopContext.set(await this.nativeHostService.isWindowAlwaysOnTop({ targetWindowId }));
 	}
 
+	private getWindowControlsBackgroundColor(color: Color, theme: IColorTheme): Color {
+		const backgroundColor = color.isOpaque() ? color : color.makeOpaque(WORKBENCH_BACKGROUND(theme));
+		if ((!isWindows && !isLinux) || isHighContrast(theme.type)) {
+			return backgroundColor;
+		}
+
+		const tintColor = theme.getColor(agentsGradientTintColor);
+		if (!tintColor) {
+			return backgroundColor;
+		}
+
+		if (theme.type === ColorScheme.DARK) {
+			return backgroundColor.mix(tintColor, 0.13).makeOpaque(backgroundColor);
+		}
+
+		return tintColor.transparent(0.12).makeOpaque(backgroundColor);
+	}
+
 	override updateStyles(): void {
 		super.updateStyles();
 
 		if (this.element) {
 			if (useWindowControlsOverlay(this.configurationService)) {
 				// The sessions titlebar background is transparent (it inherits the
-				// shell gradient via CSS), so `this.element.style.backgroundColor`
-				// is empty. The Window Controls Overlay needs an opaque solid color
-				// so we resolve `agentsBackground` from the theme directly. Without
-				// this, the WCO keeps Electron's default color and does not change
-				// when the color theme changes (issue #312914).
+				// shell gradient via CSS), so `this.element.style.backgroundColor` is empty.
+				// The Window Controls Overlay needs an opaque solid color that matches the
+				// visible titlebar corner: the shell base on macOS, and the gradient end
+				// color on Windows/Linux.
 				const bgColor = this.getColor(agentsBackground, (color, theme) => {
-					return color.isOpaque() ? color : color.makeOpaque(WORKBENCH_BACKGROUND(theme));
+					return this.getWindowControlsBackgroundColor(color, theme);
 				}) || '';
 				const fgColor = this.element.style.color;
 

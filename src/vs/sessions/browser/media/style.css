@@ -14,9 +14,15 @@
 }
 
 .agent-sessions-workbench.shell-gradient-background {
+	--agents-shell-gradient-direction: to bottom right;
 	position: relative;
 	isolation: isolate;
 	background: var(--vscode-agents-background);
+}
+
+.monaco-workbench.windows.agent-sessions-workbench.shell-gradient-background,
+.monaco-workbench.linux.agent-sessions-workbench.shell-gradient-background {
+	--agents-shell-gradient-direction: to top right;
 }
 
 .agent-sessions-workbench.shell-gradient-background::before {
@@ -28,11 +34,14 @@
 	background: var(--vscode-agents-background);
 }
 
+/*	Changes in the gradient color or direction will require src\vs\sessions\electron-browser\parts\titlebarPart.ts to be updated accordingly.
+	Changes must be tested on all platforms as the gradient direction and WCO position differs between platforms. */
+
 @supports (background: color-mix(in srgb, black 0%, white)) {
 	.agent-sessions-workbench.shell-gradient-background::before {
 		background:
 			linear-gradient(
-				to bottom right,
+				var(--agents-shell-gradient-direction),
 				transparent 0%,
 				color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 5%, transparent) 58%,
 				color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 7%, transparent) 82%,
@@ -44,7 +53,7 @@
 	.monaco-workbench.vs.agent-sessions-workbench.shell-gradient-background::before {
 		background:
 			linear-gradient(
-				to bottom right,
+				var(--agents-shell-gradient-direction),
 				transparent 0%,
 				color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 1%, transparent) 45%,
 				color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 6%, transparent) 75%,
@@ -55,7 +64,7 @@
 
 	.monaco-workbench.vs-dark.agent-sessions-workbench.shell-gradient-background::before {
 		background: linear-gradient(
-			to bottom right,
+			var(--agents-shell-gradient-direction),
 			var(--vscode-agents-background) 0%,
 			color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 7%, var(--vscode-agents-background)) 56%,
 			color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 10%, var(--vscode-agents-background)) 82%,
