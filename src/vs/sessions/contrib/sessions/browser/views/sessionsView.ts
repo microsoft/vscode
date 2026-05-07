@@ -231,7 +231,7 @@ export class SessionsView extends ViewPane {
 		// Refresh sessions when window gets focus to compensate for missing events
 		this._register(this.hostService.onDidChangeFocus(hasFocus => {
 			if (hasFocus) {
-				sessionsControl.refresh();
+				// sessionsControl.refresh();
 			}
 		}));
 
