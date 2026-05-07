@@ -11,7 +11,7 @@ import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ILogService } from '../../../log/common/log.js';
 import { AgentSignal } from '../../common/agentService.js';
-import { IClaudeMapperState, mapSDKMessageToAgentSignals } from './claudeMapSessionEvents.js';
+import { mapSDKMessageToAgentSignals } from './claudeMapSessionEvents.js';
 
 /**
  * One in-flight {@link send} request. Length of {@link ClaudeAgentSession._inFlightRequests}
@@ -79,13 +79,6 @@ export class ClaudeAgentSession extends Disposable {
 	 * pops from the in-flight list.
 	 */
 	private _queuedPrompts: SDKUserMessage[] = [];
-
-	/**
-	 * Mutable state threaded into {@link mapSDKMessageToAgentSignals}.
-	 * Lives on the session (not the mapper module) so that concurrent
-	 * sessions don't cross-contaminate part-id allocations.
-	 */
-	private readonly _mapperState: IClaudeMapperState = { currentBlockParts: new Map<number, string>() };
 
 	/**
 	 * Flips to `true` on the first `system:init` SDK message. Phase 7+
@@ -229,7 +222,6 @@ export class ClaudeAgentSession extends Disposable {
 							message,
 							this.sessionUri,
 							turnId,
-							this._mapperState,
 							this._logService,
 						);
 						for (const signal of signals) {
