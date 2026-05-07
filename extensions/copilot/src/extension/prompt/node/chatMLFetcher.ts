@@ -136,7 +136,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 	 * Note: the returned array of strings may be less than `n` (e.g., in case there were errors during streaming)
 	 */
 	public async fetchMany(opts: IFetchMLOptions, token: CancellationToken): Promise<ChatResponses> {
-		let { debugName, endpoint: chatEndpoint, finishedCb, location, messages, requestOptions, source, telemetryProperties, userInitiatedRequest, interactionTypeOverride, conversationId, turnId, useWebSocket, ignoreStatefulMarker } = opts;
+		let { debugName, endpoint: chatEndpoint, finishedCb, location, messages, requestOptions, source, telemetryProperties, userInitiatedRequest, interactionTypeOverride, conversationId, turnId, topLevelTurnId, useWebSocket, ignoreStatefulMarker } = opts;
 		const interactionType = interactionTypeOverride ?? locationToIntent(location);
 		if (useWebSocket && this._consecutiveWebSocketRetryFallbacks >= ChatMLFetcherImpl._maxConsecutiveWebSocketFallbacks) {
 			this._logService.debug(`[ChatWebSocketManager] Disabling WebSocket for request due to ${this._consecutiveWebSocketRetryFallbacks} consecutive WebSocket failures with successful HTTP fallback.`);
@@ -392,6 +392,12 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 
 					// Record OTel token usage metrics if available
 					if (result.type === ChatFetchResponseType.Success && result.usage) {
+						// Store copilot_usage for per-request credits display, scoped to the turn.
+						// Skip background requests — they are not part of an active user turn.
+						if (typeof result.usage.copilot_usage?.total_nano_aiu === 'number' && turnId && interactionType !== 'conversation-background') {
+							this._chatQuotaService.setLastCopilotUsage(result.usage.copilot_usage.total_nano_aiu, topLevelTurnId ?? turnId);
+						}
+
 						const metricAttrs = {
 							operationName: GenAiOperationName.CHAT,
 							providerName: GenAiProviderName.GITHUB,

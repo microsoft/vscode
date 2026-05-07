@@ -543,6 +543,7 @@
 				"icon": "$(diff)",
 				"userDescription": "%copilot.tools.changes.description%",
 				"modelDescription": "Get git diffs of current file changes in a git repository. Don't forget that you can use run_in_terminal to run git commands in a terminal as well.",
+				"when": "config.github.copilot.chat.getChangedFilesTool.enabled",
 				"tags": [
 					"vscode_codesearch"
 				],
@@ -2807,21 +2808,21 @@
 			{
 				"command": "github.copilot.sessions.commit",
 				"title": "%github.copilot.command.sessions.commit%",
-				"enablement": "!chatSessionRequestInProgress",
+				"enablement": "!sessions.hasGitOperationInProgress",
 				"icon": "$(git-commit)",
 				"category": "GitHub Copilot"
 			},
 			{
 				"command": "github.copilot.sessions.commitAndSync",
 				"title": "%github.copilot.command.sessions.commitAndSync%",
-				"enablement": "!chatSessionRequestInProgress",
+				"enablement": "!sessions.hasGitOperationInProgress",
 				"icon": "$(sync)",
 				"category": "GitHub Copilot"
 			},
 			{
 				"command": "github.copilot.sessions.sync",
 				"title": "%github.copilot.command.sessions.sync%",
-				"enablement": "!chatSessionRequestInProgress",
+				"enablement": "!sessions.hasGitOperationInProgress",
 				"icon": "$(sync)",
 				"category": "GitHub Copilot"
 			},
@@ -4445,6 +4446,16 @@
 							"experimental"
 						]
 					},
+					"github.copilot.chat.getChangedFilesTool.enabled": {
+						"type": "boolean",
+						"default": false,
+						"markdownDescription": "%github.copilot.config.getChangedFilesTool.enabled%",
+						"tags": [
+							"advanced",
+							"experimental",
+							"onExp"
+						]
+					},
 					"github.copilot.chat.executionSubagent.enabled": {
 						"type": "boolean",
 						"default": false,
@@ -4679,7 +4690,7 @@
 					},
 					"github.copilot.chat.cli.autoModel.enabled": {
 						"type": "boolean",
-						"default": true,
+						"default": false,
 						"markdownDescription": "%github.copilot.config.cli.autoModel.enabled%",
 						"tags": [
 							"advanced"
@@ -5089,7 +5100,7 @@
 					"group": "navigation@0"
 				}
 			],
-			"chat/input/editing/sessionApplyActions": [
+			"agents/changes/actions/primary": [
 				{
 					"command": "github.copilot.sessions.initializeRepository",
 					"when": "chatSessionType == copilotcli && isSessionsWindow && sessions.isolationMode == workspace && !sessions.hasGitRepository && !sessions.isAgentHostSession",
@@ -5132,7 +5143,7 @@
 				},
 				{
 					"command": "github.copilot.sessions.sync",
-					"when": "chatSessionType == copilotcli && isSessionsWindow && sessions.isolationMode == workspace && sessions.hasGitRepository && !sessions.hasUncommittedChanges && sessions.hasUpstream && !sessions.isAgentHostSession",
+					"when": "chatSessionType == copilotcli && isSessionsWindow && sessions.isolationMode == workspace && sessions.hasGitRepository && sessions.hasUpstream && !sessions.hasUncommittedChanges && (sessions.hasIncomingChanges || sessions.hasOutgoingChanges) && !sessions.isAgentHostSession",
 					"group": "4_sync@1"
 				},
 				{

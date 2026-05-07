@@ -21,7 +21,7 @@ import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/b
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { IAgentHostFilterService } from '../../remoteAgentHost/common/agentHostFilter.js';
 import { IWorkspacePickerItem, IWorkspaceSelection, WorkspacePicker } from './sessionWorkspacePicker.js';
-import { showMobileWorkspacePickerSheet, shouldUseMobileWorkspacePickerSheet } from './mobileWorkspacePickerSheet.js';
+import { showMobileWorkspacePickerSheet, shouldUseMobileWorkspacePickerSheet } from './mobile/mobileWorkspacePickerSheet.js';
 import { IWorkspacesService } from '../../../../platform/workspaces/common/workspaces.js';
 
 /**

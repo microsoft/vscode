@@ -358,11 +358,11 @@ function getQuotaHitMessage(fetchResult: ChatFetchError, copilotPlan: string | u
 	}
 }
 
-export function getErrorDetailsFromChatFetchError(fetchResult: ChatFetchError, copilotPlan: string, gitHubOutageStatus: GitHubOutageStatus): ChatErrorDetails {
+export function getErrorDetailsFromChatFetchError(fetchResult: ChatFetchError, copilotPlan: string | undefined, gitHubOutageStatus: GitHubOutageStatus): ChatErrorDetails {
 	return { code: fetchResult.type, ...getErrorDetailsFromChatFetchErrorInner(fetchResult, copilotPlan, gitHubOutageStatus) };
 }
 
-function getErrorDetailsFromChatFetchErrorInner(fetchResult: ChatFetchError, copilotPlan: string, gitHubOutageStatus: GitHubOutageStatus): ChatErrorDetails {
+function getErrorDetailsFromChatFetchErrorInner(fetchResult: ChatFetchError, copilotPlan: string | undefined, gitHubOutageStatus: GitHubOutageStatus): ChatErrorDetails {
 	let details: ChatErrorDetails;
 	switch (fetchResult.type) {
 		case ChatFetchResponseType.OffTopic:

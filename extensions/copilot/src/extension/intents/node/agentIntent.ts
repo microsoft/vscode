@@ -154,6 +154,9 @@ export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.
 	const skillToolEnabled = configurationService.getExperimentBasedConfig(ConfigKey.Advanced.SkillToolEnabled, experimentationService);
 	allowTools[ToolName.Skill] = skillToolEnabled;
 
+	const getSCMChangesEnabled = configurationService.getExperimentBasedConfig(ConfigKey.Advanced.GetChangedFilesToolEnabled, experimentationService);
+	allowTools[ToolName.GetScmChanges] = getSCMChangesEnabled;
+
 	allowTools[ToolName.SessionStoreSql] = true;
 
 	allowTools[CUSTOM_TOOL_SEARCH_NAME] = !!model.supportsToolSearch;
