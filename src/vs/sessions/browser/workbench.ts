@@ -282,6 +282,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 
 	private _editorMaximized = false;
 	private _editorLastNonMaximizedVisibility: IPartVisibilityState | undefined;
+	private _restoreAttachedEditorMaximizedOnShow = false;
 
 	private readonly restoredPromise = new DeferredPromise<void>();
 	readonly whenRestored = this.restoredPromise.p;
@@ -903,12 +904,14 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 
 			if (!this.partVisibility.editor) {
 				this.setEditorHidden(false);
+				this.restoreAttachedEditorMaximizedState();
 			}
 		}));
 
 		// Hide editor part when last editor closes
 		this._register(this.editorService.onDidCloseEditor(() => {
 			if (this.partVisibility.editor && this.areAllGroupsEmpty()) {
+				this.rememberAttachedEditorMaximizedState();
 				this.setEditorHidden(true);
 			}
 		}));
@@ -933,6 +936,19 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 			}
 		}
 		return true;
+	}
+
+	private rememberAttachedEditorMaximizedState(): void {
+		this._restoreAttachedEditorMaximizedOnShow = this._editorMaximized && this.partVisibility.auxiliaryBar;
+	}
+
+	private restoreAttachedEditorMaximizedState(): void {
+		const shouldRestore = this._restoreAttachedEditorMaximizedOnShow && this.partVisibility.auxiliaryBar;
+		this._restoreAttachedEditorMaximizedOnShow = false;
+
+		if (shouldRestore) {
+			this.setEditorMaximized(true);
+		}
 	}
 
 	private registerLayoutListeners(): void {
@@ -1484,6 +1500,10 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 	private setAuxiliaryBarHidden(hidden: boolean): void {
 		if (this.partVisibility.auxiliaryBar === !hidden) {
 			return;
+		}
+
+		if (hidden) {
+			this._restoreAttachedEditorMaximizedOnShow = false;
 		}
 
 		this.partVisibility.auxiliaryBar = !hidden;
