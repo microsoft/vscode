@@ -288,9 +288,7 @@ export interface IWorkspace {
 	readonly configuration?: URI | null;
 
 	/**
-	 * Optional display name for the workspace. When set, this
-	 * name is used by the label service instead of deriving a
-	 * name from the configuration path.
+	 * Optional display name for the workspace.
 	 */
 	readonly name?: string;
 
