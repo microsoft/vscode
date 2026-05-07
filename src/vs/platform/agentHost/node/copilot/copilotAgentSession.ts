@@ -542,8 +542,7 @@ export class CopilotAgentSession extends Disposable {
 		const content = await this._fileService.readFile(uri);
 		const text = content.value.toString();
 		// AHP carries the resource range; the public SDK can carry the selected text too.
-		// Derive it here at the SDK boundary to preserve Copilot CLI chat parity. This
-		// reads the resource URI, so unsaved editor changes are not included.
+		// This reads the resource URI, so unsaved editor changes are not included.
 		const lines = splitLinesIncludeSeparators(text);
 		const start = this._getOffsetAt(lines, range.start);
 		const end = this._getOffsetAt(lines, range.end);
