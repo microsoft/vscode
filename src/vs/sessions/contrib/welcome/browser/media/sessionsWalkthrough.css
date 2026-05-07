@@ -246,12 +246,13 @@
 	display: none;
 }
 
-/* ---- Hero layout (icon left, text right) ---- */
+/* ---- Hero layout (image top, text bottom) ---- */
 
 .sessions-walkthrough-hero {
 	display: flex;
-	align-items: stretch;
-	gap: 24px;
+	flex-direction: column;
+	align-items: center;
+	gap: 40px;
 }
 
 .sessions-walkthrough-hero .sessions-walkthrough-icon {
@@ -262,7 +263,7 @@
 .sessions-walkthrough-hero-text {
 	display: flex;
 	flex-direction: column;
-	justify-content: center;
+	align-items: center;
 	gap: 6px;
 }
 
@@ -289,16 +290,28 @@
 	font-size: 112px;
 }
 
-/* Sessions logo for sign-in screen */
+/* Sessions logo for sign-in screen — theme-aware editor preview */
 .sessions-walkthrough-logo {
-	width: 112px;
-	height: 112px;
-	background-image: url('../../../../browser/media/sessions-icon.svg');
+	width: 280px;
+	height: 182px;
+	background-image: url('./themePreviews/theme-preview-dark-2026.svg');
 	background-size: contain;
 	background-repeat: no-repeat;
 	background-position: center;
 	flex-shrink: 0;
 	align-self: center;
+}
+
+.vs .sessions-walkthrough-logo {
+	background-image: url('./themePreviews/theme-preview-light-2026.svg');
+}
+
+.hc-black .sessions-walkthrough-logo {
+	background-image: url('./themePreviews/theme-preview-hc-dark.svg');
+}
+
+.hc-light .sessions-walkthrough-logo {
+	background-image: url('./themePreviews/theme-preview-hc-light.svg');
 }
 
 /* ---- Action area (used inside content for sign-in step spinner) ---- */
@@ -402,7 +415,9 @@
 	min-height: 200px;
 }
 
-.sessions-walkthrough-loading-icon {
+.sessions-walkthrough-loading-indicator .sessions-walkthrough-loading-icon.codicon {
+	font-size: 112px;
+	color: var(--vscode-foreground);
 	animation: sessions-walkthrough-pulse 1.4s ease-in-out infinite;
 }
 
@@ -415,12 +430,6 @@
 .agent-sessions-workbench.monaco-reduce-motion .sessions-walkthrough-loading-icon {
 	animation: none;
 	opacity: 0.7;
-}
-
-.sessions-walkthrough-tagline {
-	font-style: italic;
-	opacity: 0.85;
-	margin-top: 4px;
 }
 
 /* ---- Theme step ---- */

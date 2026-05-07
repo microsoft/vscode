@@ -21,6 +21,7 @@ import { IWorkbenchEnvironmentService } from '../../../../workbench/services/env
 import { IAuthenticationService } from '../../../../workbench/services/authentication/common/authentication.js';
 import { SessionsWalkthroughOverlay, WalkthroughOutcome } from './sessionsWalkthrough.js';
 import { WELCOME_COMPLETE_KEY } from '../../../common/welcome.js';
+import { ISessionsChatSetupStateService } from '../../../common/sessionsChatSetupState.js';
 
 function shouldSkipSessionsWelcome(environmentService: IWorkbenchEnvironmentService): boolean {
 	const envArgs = (environmentService as IWorkbenchEnvironmentService & { args?: Record<string, unknown> }).args;
@@ -99,6 +100,7 @@ export class SessionsWelcomeContribution extends Disposable implements IWorkbenc
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
 		@ILogService private readonly logService: ILogService,
+		@ISessionsChatSetupStateService private readonly chatSetupStateService: ISessionsChatSetupStateService,
 	) {
 		super();
 
@@ -239,6 +241,7 @@ export class SessionsWelcomeContribution extends Disposable implements IWorkbenc
 			if (!welcomeCompletionStored && !walkthrough.isShowingWelcome && walkthrough.isShowingSignIn && account !== null) {
 				welcomeCompletionStored = true;
 				this.storageService.store(WELCOME_COMPLETE_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
+				this.chatSetupStateService.markDone();
 				walkthrough.complete();
 			}
 		}));
@@ -252,6 +255,7 @@ export class SessionsWelcomeContribution extends Disposable implements IWorkbenc
 			if (!welcomeCompletionStored && shouldPersistWelcomeCompletion(outcome, this.defaultAccountService)) {
 				welcomeCompletionStored = true;
 				this.storageService.store(WELCOME_COMPLETE_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
+				this.chatSetupStateService.markDone();
 			}
 			this.overlayRef.clear();
 			this.watchSignInState();
