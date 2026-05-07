@@ -2107,20 +2107,19 @@
 	opacity: 0.8;
 }
 
-.copilot-prototype-dashboard-indicator-info[data-tooltip]:hover::after {
-	content: attr(data-tooltip);
-	position: absolute;
-	top: calc(100% + 4px);
-	left: 50%;
-	transform: translateX(-50%);
+.copilot-prototype-dashboard-indicator-tooltip {
+	position: fixed;
 	background: var(--vscode-editorHoverWidget-background, #2d2d2d);
 	color: var(--vscode-editorHoverWidget-foreground, #cccccc);
 	border: 1px solid var(--vscode-editorHoverWidget-border, #454545);
 	border-radius: 3px;
-	padding: 4px 8px;
+	padding: 6px 10px;
 	font-size: 12px;
-	white-space: nowrap;
-	z-index: 1000;
+	white-space: normal;
+	width: max-content;
+	max-width: 280px;
+	line-height: 1.4;
+	z-index: 10000;
 	pointer-events: none;
 	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.36);
 }

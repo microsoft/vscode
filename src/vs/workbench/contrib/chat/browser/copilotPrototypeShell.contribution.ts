@@ -3327,7 +3327,39 @@ export class CopilotTBB3StatusBarContribution extends Disposable implements IWor
 
 		const infoIcon = append(rowInner, $('span.copilot-prototype-dashboard-indicator-info'));
 		infoIcon.append(...renderLabelWithIcons('$(info)'));
-		infoIcon.dataset.tooltip = localize('csiTooltip', "Indexes your codebase for more relevant AI results.");
+		const csiTooltips: Record<typeof this._csiState, string> = {
+			ready: localize('csiTooltipReady', "Indexes your codebase for more relevant AI results. Your index is up to date and being used to improve suggestions."),
+			outOfDate: localize('csiTooltipOutOfDate', "Indexes your codebase for more relevant AI results. Your index is out of date — recent changes haven't been indexed yet."),
+			indexing: localize('csiTooltipIndexing', "Indexes your codebase for more relevant AI results. Your codebase is currently being indexed. This may take a few minutes."),
+			notIndexed: localize('csiTooltipNotIndexed', "Indexes your codebase for more relevant AI results. This repository hasn't been indexed yet. Trigger indexing to enable semantic search."),
+			notIndexable: localize('csiTooltipNotIndexable', "Indexes your codebase for more relevant AI results. This repository can't be indexed — it may be too large or not supported."),
+			notAuthorized: localize('csiTooltipNotAuthorized', "Indexes your codebase for more relevant AI results. You don't have permission to access the index for this repository."),
+			checking: localize('csiTooltipChecking', "Indexes your codebase for more relevant AI results. Checking the current index status..."),
+			resolving: localize('csiTooltipResolving', "Indexes your codebase for more relevant AI results. Resolving repository information..."),
+		};
+		infoIcon.dataset.tooltip = csiTooltips[this._csiState];
+		const csiTip = $('span.copilot-prototype-dashboard-indicator-tooltip');
+		csiTip.textContent = csiTooltips[this._csiState];
+		infoIcon.addEventListener('mouseenter', () => {
+			const rect = infoIcon.getBoundingClientRect();
+			const cs = getComputedStyle(infoIcon);
+			csiTip.style.background = cs.getPropertyValue('--vscode-editorHoverWidget-background') || '#2d2d2d';
+			csiTip.style.color = cs.getPropertyValue('--vscode-editorHoverWidget-foreground') || '#cccccc';
+			csiTip.style.borderColor = cs.getPropertyValue('--vscode-editorHoverWidget-border') || '#454545';
+			csiTip.style.fontFamily = cs.fontFamily;
+			infoIcon.ownerDocument.body.appendChild(csiTip);
+			const tipRect = csiTip.getBoundingClientRect();
+			const viewportWidth = infoIcon.ownerDocument.documentElement.clientWidth;
+			let left = rect.left;
+			if (left + tipRect.width > viewportWidth - 8) {
+				left = viewportWidth - tipRect.width - 8;
+			}
+			csiTip.style.top = `${rect.bottom + 4}px`;
+			csiTip.style.left = `${left}px`;
+		});
+		infoIcon.addEventListener('mouseleave', () => {
+			csiTip.remove();
+		});
 
 		const statusEl = append(rowInner, $('span.copilot-prototype-dashboard-indicator-status'));
 		switch (this._csiState) {
@@ -3385,7 +3417,36 @@ export class CopilotTBB3StatusBarContribution extends Disposable implements IWor
 
 		const infoIcon = append(rowInner, $('span.copilot-prototype-dashboard-indicator-info'));
 		infoIcon.append(...renderLabelWithIcons('$(info)'));
-		infoIcon.dataset.tooltip = localize('syncTooltip', "Syncs session data to your GitHub.com account.");
+		const syncTooltips: Record<typeof this._syncState, string> = {
+			enabled: localize('syncTooltipEnabled', "Syncs session data to your GitHub.com account. Your sessions are being synced and available across devices."),
+			disabled: localize('syncTooltipDisabled', "Syncs session data to your GitHub.com account. Session sync is not enabled — your data stays local to this device."),
+			syncing: localize('syncTooltipSyncing', "Syncs session data to your GitHub.com account. A sync is currently in progress..."),
+			error: localize('syncTooltipError', "Syncs session data to your GitHub.com account. Something went wrong during the last sync. Try again later."),
+			paused: localize('syncTooltipPaused', "Syncs session data to your GitHub.com account. Sync is paused — no data is being uploaded until resumed."),
+		};
+		infoIcon.dataset.tooltip = syncTooltips[this._syncState];
+		const syncTip = $('span.copilot-prototype-dashboard-indicator-tooltip');
+		syncTip.textContent = syncTooltips[this._syncState];
+		infoIcon.addEventListener('mouseenter', () => {
+			const rect = infoIcon.getBoundingClientRect();
+			const cs = getComputedStyle(infoIcon);
+			syncTip.style.background = cs.getPropertyValue('--vscode-editorHoverWidget-background') || '#2d2d2d';
+			syncTip.style.color = cs.getPropertyValue('--vscode-editorHoverWidget-foreground') || '#cccccc';
+			syncTip.style.borderColor = cs.getPropertyValue('--vscode-editorHoverWidget-border') || '#454545';
+			syncTip.style.fontFamily = cs.fontFamily;
+			infoIcon.ownerDocument.body.appendChild(syncTip);
+			const tipRect = syncTip.getBoundingClientRect();
+			const viewportWidth = infoIcon.ownerDocument.documentElement.clientWidth;
+			let left = rect.left;
+			if (left + tipRect.width > viewportWidth - 8) {
+				left = viewportWidth - tipRect.width - 8;
+			}
+			syncTip.style.top = `${rect.bottom + 4}px`;
+			syncTip.style.left = `${left}px`;
+		});
+		infoIcon.addEventListener('mouseleave', () => {
+			syncTip.remove();
+		});
 
 		const statusEl = append(rowInner, $('span.copilot-prototype-dashboard-indicator-status'));
 		switch (this._syncState) {
