@@ -10,7 +10,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { type IAgentCreateSessionConfig, type IAgentResolveSessionConfigParams, type IAgentService, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agentService.js';
+import { type IAgentCreateSessionConfig, type IAgentResolveSessionConfigParams, type IAgentService, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type IAgentStartTurnParams, type AuthenticateParams, type AuthenticateResult } from '../../common/agentService.js';
 import { CompletionsParams, CompletionsResult, ListSessionsResult, ResourceReadResult, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import { ActionType, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
@@ -109,6 +109,7 @@ class MockAgentService implements IAgentService {
 	}
 
 	async resolveSessionConfig(_params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> { return { schema: { type: 'object', properties: {} }, values: {} }; }
+	async startTurn(_params: IAgentStartTurnParams): Promise<void> { }
 	async sessionConfigCompletions(_params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult> { return { items: [] }; }
 	async completions(_params: CompletionsParams): Promise<CompletionsResult> { return { items: [] }; }
 	async disposeSession(_session: URI): Promise<void> { }

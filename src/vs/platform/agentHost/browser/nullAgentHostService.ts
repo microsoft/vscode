@@ -7,7 +7,7 @@ import { Event } from '../../../base/common/event.js';
 import { IReference } from '../../../base/common/lifecycle.js';
 import { constObservable, IObservable } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
-import type { IAgentCreateSessionConfig, IAgentHostInspectInfo, IAgentHostService, IAgentHostSocketInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult } from '../common/agentService.js';
+import type { IAgentCreateSessionConfig, IAgentHostInspectInfo, IAgentHostService, IAgentHostSocketInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentStartTurnParams, AuthenticateParams, AuthenticateResult } from '../common/agentService.js';
 import type { IAgentSubscription } from '../common/state/agentSubscription.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
 import type { ActionEnvelope, INotification, IRootConfigChangedAction, SessionAction, TerminalAction } from '../common/state/sessionActions.js';
@@ -43,6 +43,7 @@ export class NullAgentHostService implements IAgentHostService {
 	async listSessions(): Promise<IAgentSessionMetadata[]> { return []; }
 	async createSession(_config?: IAgentCreateSessionConfig): Promise<URI> { return notSupported(); }
 	async resolveSessionConfig(_params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> { return notSupported(); }
+	async startTurn(_params: IAgentStartTurnParams): Promise<void> { return notSupported(); }
 	async sessionConfigCompletions(_params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult> { return notSupported(); }
 	async completions(_params: CompletionsParams): Promise<CompletionsResult> { return { items: [] }; }
 	async startWebSocketServer(): Promise<IAgentHostSocketInfo> { return notSupported(); }

@@ -998,6 +998,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 		// Dispatch session/turnStarted — the server will call sendMessage on
 		// the provider as a side effect.
+		//
+		// TODO(connor-config): migrate to the rejectable `startTurn` command
+		// (`this._config.connection.startTurn({...})`). The command form lets
+		// the server reject the turn when the session config is incomplete
+		// relative to the latest schema; the legacy action dispatch below
+		// cannot be rejected. On success the server still emits the same
+		// `session/turnStarted` action, so subscribers see the same stream.
 		const turnAction: SessionTurnStartedAction = {
 			type: ActionType.SessionTurnStarted,
 			session: session.toString(),

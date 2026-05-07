@@ -584,6 +584,20 @@ export class ProtocolServerHandler extends Disposable {
 				query: params.query,
 			});
 		},
+		startTurn: async (_client, params) => {
+			// The wire-form `userMessage.attachments` use the protocol's
+			// `MessageAttachment` shape, whereas `IAgentStartTurnParams`
+			// expects `IAgentAttachment` (URI-typed). Pass the wire form
+			// through verbatim — the existing `dispatchAction` path stores
+			// it as-is, and side-effect consumers tolerate the looser shape.
+			await this._agentService.startTurn({
+				session: URI.parse(params.session),
+				turnId: params.turnId,
+				userMessage: params.userMessage as unknown as { text: string },
+				queuedMessageId: params.queuedMessageId,
+			});
+			return null;
+		},
 		completions: async (_client, params) => {
 			return this._agentService.completions(params);
 		},

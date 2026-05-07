@@ -590,21 +590,46 @@ export function sessionReducer(state: SessionState, action: SessionAction, log?:
 				summary: { ...state.summary, diffs: action.diffs },
 			};
 
-		case ActionType.SessionConfigChanged:
+		case ActionType.SessionConfigChanged: {
+			// Three shapes:
+			//   1. Pure values update (legacy and most common): config present.
+			//   2. Pure schema push: schema present, config omitted.
+			//   3. Atomic schema + values: both present (e.g. server re-resolved
+			//      defaults after a value change, or initial seeding on createSession).
+			// If state.config is undefined, schema is what creates it; pure value
+			// updates against a missing config are still dropped.
 			if (!state.config) {
-				return state;
+				if (!action.schema) {
+					return state;
+				}
+				return {
+					...state,
+					config: {
+						schema: action.schema,
+						values: action.config ? { ...action.config } : {},
+					},
+					summary: {
+						...state.summary,
+						modifiedAt: Date.now(),
+					},
+				};
 			}
+			const nextValues = action.config !== undefined
+				? (action.replace ? { ...action.config } : { ...state.config.values, ...action.config })
+				: state.config.values;
+			const nextSchema = action.schema ?? state.config.schema;
 			return {
 				...state,
 				config: {
-					...state.config,
-					values: action.replace ? { ...action.config } : { ...state.config.values, ...action.config },
+					schema: nextSchema,
+					values: nextValues,
 				},
 				summary: {
 					...state.summary,
 					modifiedAt: Date.now(),
 				},
 			};
+		}
 
 		case ActionType.SessionMetaChanged:
 			return { ...state, _meta: action._meta };

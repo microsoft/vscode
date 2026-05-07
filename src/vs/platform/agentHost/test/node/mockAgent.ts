@@ -9,7 +9,7 @@ import { observableValue } from '../../../../base/common/observable.js';
 import type { IAuthorizationProtectedResourceMetadata } from '../../../../base/common/oauth.js';
 import { URI } from '../../../../base/common/uri.js';
 import { type ISyncedCustomization } from '../../common/agentPluginManager.js';
-import { AgentSession, type AgentProvider, type AgentSignal, type IAgent, type IAgentActionSignal, type IAgentAttachment, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentModelInfo, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type IAgentToolPendingConfirmationSignal } from '../../common/agentService.js';
+import { AgentSession, type AgentProvider, type AgentSignal, type IAgent, type IAgentActionSignal, type IAgentAttachment, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentModelInfo, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type IAgentStartTurnParams, type IAgentToolPendingConfirmationSignal } from '../../common/agentService.js';
 import { buildSubagentTurnsFromHistory, buildTurnsFromHistory, type IHistoryRecord } from './historyRecordFixtures.js';
 import { ProtectedResourceMetadata, type ModelSelection } from '../../common/state/protocol/state.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
@@ -49,6 +49,7 @@ export class MockAgent implements IAgent {
 
 
 	readonly sendMessageCalls: { session: URI; prompt: string; attachments?: readonly IAgentAttachment[] }[] = [];
+	readonly startTurnCalls: IAgentStartTurnParams[] = [];
 	readonly setPendingMessagesCalls: { session: URI; steeringMessage: PendingMessage | undefined; queuedMessages: readonly PendingMessage[] }[] = [];
 	readonly disposeSessionCalls: URI[] = [];
 	readonly abortSessionCalls: URI[] = [];
@@ -125,6 +126,12 @@ export class MockAgent implements IAgent {
 		if (turnId) {
 			this._activeTurnIds.set(uriKey(session), turnId);
 		}
+	}
+
+	async startTurn(params: IAgentStartTurnParams): Promise<void> {
+		this.startTurnCalls.push(params);
+		const attachments = params.userMessage.attachments ? [...params.userMessage.attachments] : undefined;
+		await this.sendMessage(params.session, params.userMessage.text, attachments, params.turnId);
 	}
 
 	setPendingMessages(session: URI, steeringMessage: PendingMessage | undefined, queuedMessages: readonly PendingMessage[]): void {
@@ -318,6 +325,12 @@ export class ScriptedMockAgent implements IAgent {
 	async resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {
 		const isolation = params.config?.isolation === 'folder' || params.config?.isolation === 'worktree' ? params.config.isolation : 'worktree';
 		const branch = isolation === 'worktree' && typeof params.config?.branch === 'string' ? params.config.branch : 'main';
+		// Test hook: when `requireApiKey: true` is in the incoming config,
+		// the returned schema marks `apiKey` as required (and the resolver
+		// does NOT auto-fill it). Used by startTurn integration tests to
+		// drive the missing-required-config rejection path.
+		const requireApiKey = params.config?.requireApiKey === true;
+		const apiKey = typeof params.config?.apiKey === 'string' ? params.config.apiKey : undefined;
 		return {
 			schema: {
 				type: 'object',
@@ -340,9 +353,25 @@ export class ScriptedMockAgent implements IAgent {
 						enumDynamic: isolation === 'worktree',
 						readOnly: isolation === 'folder',
 					},
+					requireApiKey: {
+						type: 'boolean',
+						title: 'Require API Key',
+						description: 'Test hook — when true, marks `apiKey` as required',
+					},
+					apiKey: {
+						type: 'string',
+						title: 'API Key',
+						description: 'Test-only credential; required when `requireApiKey` is true',
+					},
 				},
+				...(requireApiKey ? { required: ['apiKey'] } : {}),
 			},
-			values: { isolation, branch },
+			values: {
+				isolation,
+				branch,
+				...(requireApiKey ? { requireApiKey: true } : {}),
+				...(apiKey !== undefined ? { apiKey } : {}),
+			},
 		};
 	}
 
@@ -353,6 +382,11 @@ export class ScriptedMockAgent implements IAgent {
 		const query = params.query?.toLowerCase() ?? '';
 		const branches = ['main', 'feature/config', 'release'].filter(branch => branch.toLowerCase().includes(query));
 		return { items: branches.map(branch => ({ value: branch, label: branch })) };
+	}
+
+	async startTurn(params: IAgentStartTurnParams): Promise<void> {
+		const attachments = params.userMessage.attachments ? [...params.userMessage.attachments] : undefined;
+		await this.sendMessage(params.session, params.userMessage.text, attachments, params.turnId);
 	}
 
 	async sendMessage(session: URI, prompt: string, _attachments?: IAgentAttachment[], turnId?: string): Promise<void> {

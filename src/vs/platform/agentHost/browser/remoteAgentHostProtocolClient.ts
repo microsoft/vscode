@@ -17,7 +17,7 @@ import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { ILogService } from '../../log/common/log.js';
 import { FileSystemProviderErrorCode, IFileService, toFileSystemProviderErrorCode } from '../../files/common/files.js';
-import { AgentSession, IAgentConnection, IAgentCreateSessionConfig, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult } from '../common/agentService.js';
+import { AgentSession, IAgentConnection, IAgentCreateSessionConfig, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentStartTurnParams, AuthenticateParams, AuthenticateResult } from '../common/agentService.js';
 import { AgentSubscriptionManager, type IAgentSubscription } from '../common/state/agentSubscription.js';
 import { agentHostAuthority, fromAgentHostUri, toAgentHostUri } from '../common/agentHostUri.js';
 import { AgentHostPermissionMode, IAgentHostPermissionService } from '../common/agentHostPermissionService.js';
@@ -236,6 +236,26 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			provider: params.provider,
 			workingDirectory: params.workingDirectory ? fromAgentHostUri(params.workingDirectory).toString() : undefined,
 			config: params.config,
+		});
+	}
+
+	async startTurn(params: IAgentStartTurnParams): Promise<void> {
+		// Note: `provider` from IAgentStartTurnParams is not part of the wire
+		// `StartTurnParams` — the service uses it to route to the right
+		// provider, but the agent-host server infers it from the session.
+		await this._sendRequest('startTurn', {
+			session: params.session.toString(),
+			turnId: params.turnId,
+			userMessage: {
+				text: params.userMessage.text,
+				// TODO: convert IAgentAttachment[] -> MessageAttachment[] (the
+				// wire-side attachment shape requires a `label` field and uses
+				// a tagged union the in-process IAgentAttachment does not yet
+				// match). Drop attachments on the wire for the initial
+				// iteration; the integration test agent will surface gaps.
+				attachments: undefined,
+			},
+			queuedMessageId: params.queuedMessageId,
 		});
 	}
 

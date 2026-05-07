@@ -840,6 +840,11 @@ export class AgentSideEffects extends Disposable {
 				if (values) {
 					this._persistSessionFlag(action.session, 'configValues', JSON.stringify(values));
 				}
+				// Re-resolve via the provider so dependent schema fields (e.g.
+				// `enum`/`readOnly` that depend on other values) and any
+				// server-resolved default values are pushed back to clients
+				// without each client having to call `resolveSessionConfig`.
+				void this._reresolveAndPushSessionConfig(action.session);
 				break;
 			}
 			case ActionType.SessionToolCallComplete: {
@@ -861,6 +866,58 @@ export class AgentSideEffects extends Disposable {
 			this._logService.warn(`[AgentSideEffects] Failed to persist ${key}`, err);
 		}).finally(() => {
 			ref.dispose();
+		});
+	}
+
+	/**
+	 * Asks the provider to re-resolve `state.config` after a client mutated
+	 * its values, then broadcasts a server-originated `SessionConfigChanged`
+	 * action carrying the new schema (and, when the provider normalized the
+	 * values, the corrected values with `replace: true`).
+	 *
+	 * Server-emitted `SessionConfigChanged` actions are dispatched via
+	 * {@link AgentHostStateManager.dispatchServerAction} and do NOT route
+	 * through `handleAction`, so this loop terminates after one round.
+	 *
+	 * Errors from `resolveSessionConfig` (e.g. providers that don't implement
+	 * it) are swallowed: the previously-applied values stay in state.
+	 */
+	private async _reresolveAndPushSessionConfig(session: ProtocolURI): Promise<void> {
+		const agent = this._options.getAgent(session);
+		if (!agent) {
+			return;
+		}
+		const before = this._stateManager.getSessionState(session);
+		if (!before?.config) {
+			return;
+		}
+		const workingDirectory = before.summary.workingDirectory ? URI.parse(before.summary.workingDirectory) : undefined;
+		let resolved;
+		try {
+			resolved = await agent.resolveSessionConfig({
+				provider: agent.id,
+				workingDirectory,
+				config: before.config.values,
+			});
+		} catch (err) {
+			this._logService.warn(`[AgentSideEffects] resolveSessionConfig failed for ${session}`, err);
+			return;
+		}
+		// Session may have been disposed while the provider was resolving.
+		const after = this._stateManager.getSessionState(session);
+		if (!after?.config) {
+			return;
+		}
+		const schemaChanged = !equals(after.config.schema, resolved.schema);
+		const valuesChanged = !equals(after.config.values, resolved.values);
+		if (!schemaChanged && !valuesChanged) {
+			return;
+		}
+		this._stateManager.dispatchServerAction({
+			type: ActionType.SessionConfigChanged,
+			session,
+			...(valuesChanged ? { config: resolved.values, replace: true } : {}),
+			...(schemaChanged ? { schema: resolved.schema } : {}),
 		});
 	}
 

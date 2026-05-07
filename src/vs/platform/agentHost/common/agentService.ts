@@ -11,7 +11,7 @@ import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { ISyncedCustomization } from './agentPluginManager.js';
 import type { IAgentSubscription } from './state/agentSubscription.js';
-import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
+import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult, StartTurnInvalidConfigErrorData, StartTurnParams } from './state/protocol/commands.js';
 import { ProtectedResourceMetadata, type ConfigSchema, type FileEdit, type ModelSelection, type SessionActiveClient, type ToolCallPendingConfirmationState, type ToolDefinition } from './state/protocol/state.js';
 import type { ActionEnvelope, INotification, IRootConfigChangedAction, SessionAction, TerminalAction } from './state/sessionActions.js';
 import type { ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceWriteParams, ResourceWriteResult, IStateSnapshot } from './state/sessionProtocol.js';
@@ -245,6 +245,27 @@ export interface IAgentSessionConfigCompletionsParams extends IAgentResolveSessi
 	readonly query?: string;
 }
 
+/**
+ * Parameters for {@link IAgent.startTurn} / {@link IAgentService.startTurn}.
+ *
+ * Mirrors the wire-level {@link StartTurnParams} but uses {@link URI} for the
+ * `session` field (the wire form uses a string URI).
+ */
+export interface IAgentStartTurnParams {
+	readonly provider?: AgentProvider;
+	readonly session: URI;
+	readonly turnId: string;
+	readonly userMessage: { readonly text: string; readonly attachments?: readonly IAgentAttachment[] };
+	readonly queuedMessageId?: string;
+}
+
+/**
+ * Reasons why a {@link IAgent.startTurn} call may be rejected. Surfaces as
+ * the `data` field of an `InvalidParams` JSON-RPC error on the wire and
+ * lets the picker UI route the user back to the offending fields.
+ */
+export type IAgentStartTurnInvalidConfigErrorData = StartTurnInvalidConfigErrorData;
+
 /** Serializable attachment passed alongside a message to the agent host. */
 export interface IAgentAttachment {
 	readonly type: AttachmentType;
@@ -427,6 +448,18 @@ export interface IAgent {
 	/** Return dynamic completions for a session configuration property. */
 	sessionConfigCompletions(params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult>;
 
+	/**
+	 * Start a new turn on an existing session.
+	 *
+	 * Optional. When implemented, the agent provider is responsible for
+	 * validating the current session config against its schema and rejecting
+	 * (by throwing) when required keys are missing. The
+	 * {@link IAgentService} layer falls back to the legacy
+	 * {@link sendMessage} path for providers that do not implement this
+	 * method.
+	 */
+	startTurn?(params: IAgentStartTurnParams): Promise<void>;
+
 	/** Send a user message into an existing session. */
 	sendMessage(session: URI, prompt: string, attachments?: IAgentAttachment[], turnId?: string): Promise<void>;
 
@@ -600,6 +633,15 @@ export interface IAgentService {
 	sessionConfigCompletions(params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult>;
 
 	/**
+	 * Start a new turn on an existing session. Replaces the legacy pattern of
+	 * dispatching a `session/turnStarted` action directly. The server may
+	 * reject (by throwing) when the session config is incomplete relative to
+	 * the latest schema; the rejection's `data` field is shaped as
+	 * {@link IAgentStartTurnInvalidConfigErrorData}.
+	 */
+	startTurn(params: IAgentStartTurnParams): Promise<void>;
+
+	/**
 	 * Return completion items for a partially-typed input (e.g. an `@`-mention
 	 * inside a user message the user is composing). Delegates to a pluggable
 	 * set of {@link IAgentHostCompletionItemProvider}s registered with the
@@ -730,6 +772,12 @@ export interface IAgentConnection {
 	createSession(config?: IAgentCreateSessionConfig): Promise<URI>;
 	resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult>;
 	sessionConfigCompletions(params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult>;
+	/**
+	 * Start a new turn on an existing session. Replaces the legacy pattern of
+	 * dispatching a `session/turnStarted` action directly. May reject when the
+	 * session's config is incomplete relative to the latest schema.
+	 */
+	startTurn(params: IAgentStartTurnParams): Promise<void>;
 	completions(params: CompletionsParams): Promise<CompletionsResult>;
 	disposeSession(session: URI): Promise<void>;
 

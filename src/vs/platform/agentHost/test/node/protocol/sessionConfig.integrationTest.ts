@@ -117,7 +117,7 @@ suite('Protocol WebSocket - Session Config', function () {
 		await client.call('createSession', {
 			session: nextSessionUri(),
 			provider: 'mock',
-			config: { isolation: 'folder', branch: 'main' },
+			config: { isolation: 'worktree', branch: 'main' },
 		});
 
 		const notif = await client.waitForNotification(n =>
@@ -141,7 +141,10 @@ suite('Protocol WebSocket - Session Config', function () {
 
 		const snapshot = await client.call<SubscribeResult>('subscribe', { resource: session });
 		const state = snapshot.snapshot.state as SessionState;
-		assert.deepStrictEqual(state.config?.values, { isolation: 'folder', branch: 'release' });
+		// With `isolation: 'worktree'`, the mock provider preserves the user's
+		// `branch` value so the server-side re-resolve produces no follow-up
+		// action and the merged value remains in state.
+		assert.deepStrictEqual(state.config?.values, { isolation: 'worktree', branch: 'release' });
 	});
 });
 

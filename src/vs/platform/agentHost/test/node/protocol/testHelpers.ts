@@ -27,6 +27,13 @@ interface IPendingCall {
 	reject: (err: Error) => void;
 }
 
+/** A JSON-RPC error surfaced from {@link TestProtocolClient.call}. */
+export class JsonRpcCallError extends Error {
+	constructor(readonly code: number, message: string, readonly data?: unknown) {
+		super(message);
+	}
+}
+
 export class TestProtocolClient {
 	private readonly _ws: WebSocket;
 	private _nextId = 1;
@@ -59,7 +66,7 @@ export class TestProtocolClient {
 				this._pendingCalls.delete(msg.id);
 				const errResp = msg as JsonRpcErrorResponse;
 				if (errResp.error) {
-					pending.reject(new Error(errResp.error.message));
+					pending.reject(new JsonRpcCallError(errResp.error.code, errResp.error.message, errResp.error.data));
 				} else {
 					pending.resolve((msg as JsonRpcSuccessResponse).result);
 				}

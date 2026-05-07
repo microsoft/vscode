@@ -20,7 +20,7 @@ import { ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { createSchema, platformSessionSchema, schemaProperty } from '../../common/agentHostSchema.js';
 import { ClaudePermissionMode, ClaudeSessionConfigKey } from '../../common/claudeSessionConfigKeys.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
-import { AgentProvider, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE, IAgent, IAgentAttachment, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSessionProjectInfo } from '../../common/agentService.js';
+import { AgentProvider, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE, IAgent, IAgentAttachment, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentStartTurnParams, IAgentSessionProjectInfo } from '../../common/agentService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import { ProtectedResourceMetadata, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
@@ -785,6 +785,14 @@ export class ClaudeAgent extends Disposable implements IAgent {
 
 			await entry.send(sdkPrompt, effectiveTurnId);
 		});
+	}
+
+	async startTurn(params: IAgentStartTurnParams): Promise<void> {
+		if (typeof params.userMessage.text !== 'string') {
+			throw new Error('startTurn: userMessage.text must be a string');
+		}
+		const attachments = params.userMessage.attachments ? [...params.userMessage.attachments] : undefined;
+		await this.sendMessage(params.session, params.userMessage.text, attachments, params.turnId);
 	}
 
 	respondToPermissionRequest(_requestId: string, _approved: boolean): void {

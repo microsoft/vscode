@@ -543,6 +543,13 @@ class NewSession extends Disposable {
 	 * superseded it. Returns `true` if the config was applied (i.e. this
 	 * call was not stale by the time the response arrived). On failure, the
 	 * cached config is cleared so {@link getConfig} returns `undefined`.
+	 *
+	 * TODO(connor-config): migrate to schema-push. Once the workbench bridge
+	 * subscribes to the running session and reads `state.config.schema`
+	 * directly, this method (and the `resolveSessionConfig` command it calls)
+	 * can be removed in favour of a single dispatch of
+	 * `SessionConfigChanged({ config })` and reading the server-pushed
+	 * follow-up via the same subscription.
 	 */
 	async resolveConfig(connection: IAgentConnection): Promise<boolean> {
 		const seq = ++this._configRequestSeq;
@@ -1693,7 +1700,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			} else if (e.action.type === ActionType.SessionIsArchivedChanged && isSessionAction(e.action)) {
 				this._handleIsArchivedChanged(e.action.session, e.action.isArchived);
 			} else if (e.action.type === ActionType.SessionConfigChanged && isSessionAction(e.action)) {
-				this._handleConfigChanged(e.action.session, e.action.config, e.action.replace === true);
+				this._handleConfigChanged(e.action.session, e.action.config, e.action.replace === true, e.action.schema);
 			} else if (e.action.type === ActionType.SessionDiffsChanged && isSessionAction(e.action)) {
 				this._handleDiffsChanged(e.action.session, e.action.diffs);
 			}
@@ -1840,7 +1847,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 	}
 
-	private _handleConfigChanged(session: string, config: Record<string, unknown>, replace: boolean): void {
+	private _handleConfigChanged(session: string, config: Record<string, unknown> | undefined, replace: boolean, schema?: ResolveSessionConfigResult['schema']): void {
 		const rawId = AgentSession.id(session);
 		const cached = this._sessionCache.get(rawId);
 		if (!cached) {
@@ -1849,11 +1856,22 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const sessionId = cached.sessionId;
 		const existing = this._runningSessionConfigs.get(sessionId);
 		if (existing) {
+			const nextValues = config !== undefined
+				? (replace ? { ...config } : { ...existing.values, ...config })
+				: existing.values;
 			this._runningSessionConfigs.set(sessionId, {
-				...existing,
-				values: replace ? { ...config } : { ...existing.values, ...config },
+				schema: schema ?? existing.schema,
+				values: nextValues,
 			});
-		} else {
+		} else if (schema) {
+			// Server pushed a schema before any local config snapshot — seed
+			// the cache from it so the picker can render. Values default to
+			// whatever the action carried (or `{}`).
+			this._runningSessionConfigs.set(sessionId, {
+				schema,
+				values: config ? { ...config } : {},
+			});
+		} else if (config) {
 			// Session was restored (e.g. after reload) — create a minimal
 			// config entry from the changed values so the picker can render.
 			// `replace` vs merge is moot here (no existing values to merge with).
@@ -1861,6 +1879,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				schema: { type: 'object', properties: buildMutableConfigSchema(config) },
 				values: config,
 			});
+		} else {
+			return;
 		}
 		this._onDidChangeSessionConfig.fire(sessionId);
 	}

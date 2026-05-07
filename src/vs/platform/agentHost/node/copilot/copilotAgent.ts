@@ -25,7 +25,7 @@ import { ILogService } from '../../../log/common/log.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema } from '../../common/agentHostCustomizationConfig.js';
 import { AutoApproveLevel, ISchemaProperty, SessionMode, createSchema, platformSessionSchema, schemaProperty } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
-import { AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE, IAgent, IAgentAttachment, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSessionProjectInfo } from '../../common/agentService.js';
+import { AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE, IAgent, IAgentAttachment, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSessionProjectInfo, IAgentStartTurnParams } from '../../common/agentService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ISessionDataService, SESSION_DB_FILENAME } from '../../common/sessionDataService.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
@@ -913,6 +913,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	setCustomizationEnabled(uri: string, enabled: boolean): void {
 		this._plugins.setEnabled(uri, enabled);
+	}
+
+	async startTurn(params: IAgentStartTurnParams): Promise<void> {
+		if (typeof params.userMessage.text !== 'string') {
+			throw new Error('startTurn: userMessage.text must be a string');
+		}
+		const attachments = params.userMessage.attachments ? [...params.userMessage.attachments] : undefined;
+		await this.sendMessage(params.session, params.userMessage.text, attachments, params.turnId);
 	}
 
 	async sendMessage(session: URI, prompt: string, attachments?: IAgentAttachment[], turnId?: string): Promise<void> {
