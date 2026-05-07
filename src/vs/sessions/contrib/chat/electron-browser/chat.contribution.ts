@@ -16,6 +16,7 @@ import { NewChatViewPane, SessionsViewId } from '../browser/newChatViewPane.js';
 import { SessionsView, SessionsViewId as SessionsListViewId } from '../../sessions/browser/views/sessionsView.js';
 import { DebugAgentHostInDevToolsAction } from '../../../../workbench/contrib/chat/electron-browser/actions/debugAgentHostAction.js';
 import { CollectAgentHostDebugLogsAction } from '../../agentHost/electron-browser/collectDebugLogsAction.js';
+import { ISessionsSetUpService } from '../../../browser/sessionsSetUpService.js';
 
 registerAction2(DebugAgentHostInDevToolsAction);
 registerAction2(CollectAgentHostDebugLogsAction);
@@ -29,6 +30,7 @@ class SelectAgentsFolderContribution extends Disposable implements IWorkbenchCon
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@IViewsService private readonly viewsService: IViewsService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
+		@ISessionsSetUpService private readonly sessionsSetUpService: ISessionsSetUpService,
 	) {
 		super();
 		ipcRenderer.on('vscode:selectAgentsFolder', (_: unknown, ...args: unknown[]) => {
@@ -38,6 +40,9 @@ class SelectAgentsFolderContribution extends Disposable implements IWorkbenchCon
 	}
 
 	private async selectFolder(folderUri: URI): Promise<void> {
+		// Wait for the welcome/setup flow to complete before selecting the folder
+		await this.sessionsSetUpService.whenWelcomeDone();
+
 		this.sessionsManagementService.openNewSessionView();
 
 		// Tell the sessions list this folder is the open-window source folder

@@ -32,9 +32,9 @@ import { IInstantiationService } from '../../../instantiation/common/instantiati
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { FileService } from '../../../files/common/fileService.js';
-import { AgentAttachmentType, IAgentMaterializeSessionEvent, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../common/agentService.js';
+import { IAgentMaterializeSessionEvent, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../common/agentService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { ResponsePartKind } from '../../common/state/sessionState.js';
+import { MessageAttachmentKind, ResponsePartKind } from '../../common/state/sessionState.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { IAgentHostGitService } from '../../node/agentHostGitService.js';
 import { ClaudeAgent } from '../../node/claude/claudeAgent.js';
@@ -1787,8 +1787,8 @@ suite('ClaudeAgent', () => {
 		const fileUri = URI.file('/work/src/foo.ts');
 		const dirUri = URI.file('/work/src/bar');
 		await agent.sendMessage(created.session, 'review please', [
-			{ type: AgentAttachmentType.File, uri: fileUri, displayName: 'foo.ts' },
-			{ type: AgentAttachmentType.Directory, uri: dirUri, displayName: 'bar' },
+			{ type: MessageAttachmentKind.Resource, uri: fileUri.toString(), label: 'foo.ts', displayKind: 'document' },
+			{ type: MessageAttachmentKind.Resource, uri: dirUri.toString(), label: 'bar', displayKind: 'directory' },
 		], 'turn-1');
 
 		const drained = sdk.warmQueries[0]?.produced?.drainedPrompts ?? [];
@@ -1817,12 +1817,15 @@ suite('ClaudeAgent', () => {
 	test('selection attachments become URI references with line suffixes', () => {
 		const fileUri = URI.file('/work/src/foo.ts');
 		const blocks = resolvePromptToContentBlocks('review please', [{
-			type: AgentAttachmentType.Selection,
-			uri: fileUri,
-			displayName: 'foo.ts',
+			type: MessageAttachmentKind.Resource,
+			uri: fileUri.toString(),
+			label: 'foo.ts',
+			displayKind: 'selection',
 			selection: {
-				start: { line: 9, character: 1 },
-				end: { line: 11, character: 2 },
+				range: {
+					start: { line: 9, character: 1 },
+					end: { line: 11, character: 2 },
+				},
 			},
 		}]);
 

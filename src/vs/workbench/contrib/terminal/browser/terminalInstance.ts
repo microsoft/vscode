@@ -2059,19 +2059,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (this.isDisposed) {
 			return;
 		}
-		// `rawXterm.dimensions` proxies to xterm.js' RenderService which throws
-		// `Cannot read properties of undefined (reading 'dimensions')` if the
-		// renderer was disposed between scheduling and invocation (debounced or
-		// idle resize callbacks racing with terminal teardown). Guard against
-		// that here so the optional chaining short-circuits to undefined.
-		let pixelWidth: number | undefined;
-		let pixelHeight: number | undefined;
-		try {
-			pixelWidth = rawXterm.dimensions?.css.canvas.width;
-			pixelHeight = rawXterm.dimensions?.css.canvas.height;
-		} catch {
-			// Renderer disposed mid-flight; fall through with undefined dimensions.
-		}
+		const pixelWidth = rawXterm.dimensions?.css.canvas.width;
+		const pixelHeight = rawXterm.dimensions?.css.canvas.height;
 		const roundedPixelWidth = pixelWidth ? Math.round(pixelWidth) : undefined;
 		const roundedPixelHeight = pixelHeight ? Math.round(pixelHeight) : undefined;
 		await this._processManager.setDimensions(rawXterm.cols, rawXterm.rows, undefined, roundedPixelWidth, roundedPixelHeight);

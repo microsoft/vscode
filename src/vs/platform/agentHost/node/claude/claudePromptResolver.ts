@@ -5,27 +5,31 @@
 
 import type Anthropic from '@anthropic-ai/sdk';
 import { URI } from '../../../../base/common/uri.js';
-import { AgentAttachmentType, IAgentAttachment } from '../../common/agentService.js';
+import { MessageAttachmentKind, type MessageAttachment } from '../../common/state/protocol/state.js';
 
 /**
  * Build the {@link Anthropic.ContentBlockParam}[] payload for an
- * {@link SDKUserMessage} from a plain text prompt and the agent host's
- * normalized attachment list.
+ * {@link SDKUserMessage} from a plain text prompt and the protocol
+ * attachments accompanying the user message.
  *
  * Phase 6 keeps the resolver pure and minimal: a single `text` block
  * carrying the prompt, plus (when attachments are present) a second
  * `text` block wrapped in `<system-reminder>` tags listing the
  * referenced URIs. This mirrors the production extension's resolver
- * shape so a future phase that expands `IAgentAttachment` (binary
- * images, inline range substitution) can port the existing branches
- * without restructuring.
+ * shape so a future phase that adds image rendering or inline range
+ * substitution can extend without restructuring.
  *
- * Selections are rendered as URI references with an optional line suffix.
- * `IAgentAttachment` carries range metadata, but not inline selected text.
+ * Selections are rendered as URI references with an optional line
+ * suffix. The protocol's {@link TextSelection} carries range metadata
+ * only; the selected text is not included inline.
+ *
+ * Only resource attachments are honoured today — simple and embedded
+ * resources are dropped because the current Claude path does not have
+ * a place to consume them.
  */
 export function resolvePromptToContentBlocks(
 	prompt: string,
-	attachments?: readonly IAgentAttachment[],
+	attachments?: readonly MessageAttachment[],
 ): Anthropic.ContentBlockParam[] {
 	const blocks: Anthropic.ContentBlockParam[] = [{ type: 'text', text: prompt }];
 	if (!attachments?.length) {
@@ -33,16 +37,15 @@ export function resolvePromptToContentBlocks(
 	}
 	const refLines: string[] = [];
 	for (const att of attachments) {
-		switch (att.type) {
-			case AgentAttachmentType.File:
-			case AgentAttachmentType.Directory:
-				refLines.push(`- ${uriToString(att.uri)}`);
-				break;
-			case AgentAttachmentType.Selection: {
-				const line = att.selection ? `:${att.selection.start.line + 1}` : '';
-				refLines.push(`- ${uriToString(att.uri)}${line}`);
-				break;
-			}
+		if (att.type !== MessageAttachmentKind.Resource) {
+			continue;
+		}
+		const uri = URI.parse(att.uri);
+		if (att.displayKind === 'selection') {
+			const startLine = att.selection ? `:${att.selection.range.start.line + 1}` : '';
+			refLines.push(`- ${uriToString(uri)}${startLine}`);
+		} else {
+			refLines.push(`- ${uriToString(uri)}`);
 		}
 	}
 	if (refLines.length === 0) {
