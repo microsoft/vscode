@@ -12,6 +12,7 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { AgentSession, type IAgentConnection, type IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agentService.js';
+import { IAgentHostActiveClientRegistry } from '../../../../../platform/agentHost/common/agentHostActiveClientRegistry.js';
 import { NotificationType } from '../../../../../platform/agentHost/common/state/protocol/notifications.js';
 import { SessionLifecycle, type AgentInfo, type ModelSelection, type RootState, type SessionConfigState, type SessionState } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type INotification } from '../../../../../platform/agentHost/common/state/sessionActions.js';
@@ -225,6 +226,10 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 	instantiationService.stub(IGitHubService, new class extends mock<IGitHubService>() {
 		override findPullRequestNumberByHeadBranch = async () => undefined;
 	}());
+	instantiationService.stub(IAgentHostActiveClientRegistry, {
+		registerResolver: () => toDisposable(() => { }),
+		resolve: () => undefined,
+	});
 
 	const config: IRemoteAgentHostSessionsProviderConfig = {
 		address: overrides?.address ?? 'localhost:4321',
