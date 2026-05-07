@@ -54,7 +54,7 @@ import { INTEGRATION_ID } from '../../../../platform/endpoint/common/licenseAgre
 
 const COPILOT_CLI_WORKSPACE_JSON_FILE_KEY = 'github.copilot.cli.workspaceSessionFile';
 const AUTO_MODE_REFRESH_LEAD_TIME_MS = 300 * 1000;
-export const COPILOT_CLI_CHAT_PANEL_SYSTEM_MESSAGE = 'You are Copilot, an AI assistant using the Copilot CLI runtime inside VS Code. When referring to yourself or this integration, do not describe yourself as a terminal assistant.';
+export const COPILOT_CLI_CHAT_PANEL_SYSTEM_MESSAGE = 'You are an AI assistant using Copilot CLI runtime in VS Code. When referring to yourself or this integration, do not describe yourself as a terminal assistant. When asked about your identity, you must state that you are an AI assistant using Copilot CLI runtime in VS Code.';
 
 type SDKPackage = Awaited<ReturnType<ICopilotCLISDK['getPackage']>>;
 type AutoModeResolveArgs = Parameters<SDKAutoModeSessionManager['resolve']>[0];
