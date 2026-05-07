@@ -364,6 +364,14 @@
 	margin-right: 2px;
 }
 
+/* Footer text */
+.action-widget .action-list-footer {
+	color: var(--vscode-descriptionForeground);
+	font-size: 11px;
+	padding: 4px 10px 2px 10px;
+	border-top: 1px solid var(--vscode-editorHoverWidget-border);
+}
+
 /* Anchor for the absolutely-positioned submenu panel */
 .action-widget .actionList {
 	position: relative;

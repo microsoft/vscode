@@ -995,6 +995,9 @@ export class ModelPickerWidget extends Disposable {
 				},
 				getRole: () => 'menuitemradio' as const,
 				getWidgetRole: () => 'menu' as const,
+			},
+			{
+				footerText: localize('chat.effort.costHint', "Higher levels of thinking effort will increase thinking cost"),
 			}
 		);
 	}
@@ -1080,6 +1083,9 @@ export class ModelPickerWidget extends Disposable {
 				},
 				getRole: () => 'menuitemradio' as const,
 				getWidgetRole: () => 'menu' as const,
+			},
+			{
+				footerText: localize('chat.tokens.costHint', "Larger context size may cause higher cost per message in longer sessions"),
 			}
 		);
 	}
@@ -1120,30 +1126,30 @@ function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentifier, op
 			costLines.push({
 				label: localize('models.inputCostLabel', "Input"),
 				value: model.metadata.inputCost === 1
-					? localize('models.costValueSingular', "{0} credit / 1M tokens", model.metadata.inputCost)
-					: localize('models.costValuePlural', "{0} credits / 1M tokens", model.metadata.inputCost),
+					? localize('models.costValueSingular', "{0} credit", model.metadata.inputCost)
+					: localize('models.costValuePlural', "{0} credits", model.metadata.inputCost),
 			});
 		}
 		if (model.metadata.cacheCost !== undefined) {
 			costLines.push({
 				label: localize('models.cacheCostLabel', "Cached input"),
 				value: model.metadata.cacheCost === 1
-					? localize('models.costValueSingular', "{0} credit / 1M tokens", model.metadata.cacheCost)
-					: localize('models.costValuePlural', "{0} credits / 1M tokens", model.metadata.cacheCost),
+					? localize('models.costValueSingular', "{0} credit", model.metadata.cacheCost)
+					: localize('models.costValuePlural', "{0} credits", model.metadata.cacheCost),
 			});
 		}
 		if (model.metadata.outputCost !== undefined) {
 			costLines.push({
 				label: localize('models.outputCostLabel', "Output"),
 				value: model.metadata.outputCost === 1
-					? localize('models.costValueSingular', "{0} credit / 1M tokens", model.metadata.outputCost)
-					: localize('models.costValuePlural', "{0} credits / 1M tokens", model.metadata.outputCost),
+					? localize('models.costValueSingular', "{0} credit", model.metadata.outputCost)
+					: localize('models.costValuePlural', "{0} credits", model.metadata.outputCost),
 			});
 		}
 
 		if (costLines.length > 0) {
 			const costSection = dom.$('.chat-model-hover-cost');
-			costSection.appendChild(dom.$('.chat-model-hover-cost-title', undefined, localize('models.priceTitle', "Price")));
+			costSection.appendChild(dom.$('.chat-model-hover-cost-title', undefined, localize('models.priceTitle', "Cost (per 1M tokens)")));
 			for (const line of costLines) {
 				costSection.appendChild(dom.$('.chat-model-hover-cost-line', undefined,
 					dom.$('span.chat-model-hover-cost-line-label', undefined, `${line.label}: `),

@@ -517,6 +517,11 @@ export interface IActionListOptions {
 	 * Optional label shown on the right side of the filter row.
 	 */
 	readonly secondaryHeading?: string;
+
+	/**
+	 * Optional text shown below the action list as a footer.
+	 */
+	readonly footerText?: string;
 }
 
 /**
@@ -551,6 +556,7 @@ export class ActionListWidget<T> extends Disposable {
 	private _hasLaidOut = false;
 	private readonly _filterInput: HTMLInputElement | undefined;
 	private readonly _filterContainer: HTMLElement | undefined;
+	private readonly _footerContainer: HTMLElement | undefined;
 	private readonly _filterCts = this._register(new MutableDisposable<CancellationTokenSource>());
 	private readonly _groupTitleByIndex = new Map<number, string>();
 
@@ -704,6 +710,13 @@ export class ActionListWidget<T> extends Disposable {
 				const filterLabelEl = dom.append(filterRow, dom.$('.action-list-filter-label'));
 				filterLabelEl.textContent = this._options.secondaryHeading;
 			}
+		}
+
+		// Create footer text
+		if (this._options?.footerText) {
+			this._footerContainer = document.createElement('div');
+			this._footerContainer.className = 'action-list-footer';
+			this._footerContainer.textContent = this._options.footerText;
 		}
 
 		this._applyFilter();
@@ -903,6 +916,10 @@ export class ActionListWidget<T> extends Disposable {
 	 */
 	get filterContainer(): HTMLElement | undefined {
 		return this._filterContainer;
+	}
+
+	get footerContainer(): HTMLElement | undefined {
+		return this._footerContainer;
 	}
 
 	get filterInput(): HTMLInputElement | undefined {
@@ -1686,6 +1703,10 @@ export class ActionList<T> extends Disposable {
 		return this._widget.filterContainer;
 	}
 
+	get footerContainer(): HTMLElement | undefined {
+		return this._widget.footerContainer;
+	}
+
 	get filterInput(): HTMLInputElement | undefined {
 		return this._widget.filterInput;
 	}
@@ -1779,6 +1800,8 @@ export class ActionList<T> extends Disposable {
 		const listHeight = this._widget.computeListHeight();
 
 		const filterHeight = this._widget.filterContainer ? 36 : 0;
+		const footerHeight = this._widget.footerContainer ? 32 : 0;
+		const chromeHeight = filterHeight + footerHeight;
 		const targetWindow = dom.getWindow(this.domNode);
 		let availableHeight;
 
@@ -1794,7 +1817,7 @@ export class ActionList<T> extends Disposable {
 			// unconstrained list fits below. Once decided, the dropdown stays
 			// in the same position even when the visible item count changes.
 			if (this._showAbove === undefined) {
-				const fullHeight = filterHeight + this._widget.computeFullHeight();
+				const fullHeight = chromeHeight + this._widget.computeFullHeight();
 				this._showAbove = fullHeight > spaceBelow && spaceAbove > spaceBelow;
 			}
 			availableHeight = this._showAbove ? spaceAbove : spaceBelow;
@@ -1807,9 +1830,9 @@ export class ActionList<T> extends Disposable {
 
 		const viewportMaxHeight = Math.floor(targetWindow.innerHeight * 0.6);
 		const actionLineHeight = this._widget.lineHeight;
-		const maxHeight = Math.min(Math.max(availableHeight, actionLineHeight * 3 + filterHeight), viewportMaxHeight);
-		const height = Math.min(listHeight + filterHeight, maxHeight);
-		return height - filterHeight;
+		const maxHeight = Math.min(Math.max(availableHeight, actionLineHeight * 3 + chromeHeight), viewportMaxHeight);
+		const height = Math.min(listHeight + chromeHeight, maxHeight);
+		return height - chromeHeight;
 	}
 
 	layout(minWidth: number): number {
