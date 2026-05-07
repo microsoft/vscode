@@ -138,6 +138,11 @@ const AGENT_HOST_SKILL_BUTTONS: readonly IAgentHostSkillButtonSpec[] = [
 			ActiveSessionContextKeys.HasGitHubRemote,
 			ActiveSessionContextKeys.HasPullRequest,
 			ActiveSessionContextKeys.HasOpenPullRequest,
+			ContextKeyExpr.or(
+				ActiveSessionContextKeys.HasIncomingChanges,
+				ActiveSessionContextKeys.HasOutgoingChanges,
+				ActiveSessionContextKeys.HasUncommittedChanges,
+			),
 		),
 	},
 ];
@@ -166,7 +171,7 @@ function registerAgentHostSkillButton(spec: IAgentHostSkillButtonSpec): void {
 				icon: spec.icon,
 				f1: false,
 				menu: {
-					id: MenuId.ChatEditingSessionApplySubmenu,
+					id: MenuId.AgentsChangesPrimaryActionSubMenu,
 					group: spec.group,
 					order: spec.order,
 					when: ContextKeyExpr.and(

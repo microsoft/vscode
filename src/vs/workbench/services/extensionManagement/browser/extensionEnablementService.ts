@@ -638,8 +638,17 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 			return false;
 		}
 
-		// Built-in extensions are always enabled in the sessions window.
+		// Built-in extensions are enabled in sessions window except the chat extension and extensions that contribute not supported features.
 		if (extension.isBuiltin) {
+			if (extension.identifier.id.toLowerCase() === this._chatExtensionId) {
+				return false;
+			}
+
+			const contributes = extension.manifest.contributes;
+			if (contributes?.debuggers || contributes?.views || contributes?.viewsContainers || contributes?.walkthroughs) {
+				return true;
+			}
+
 			return false;
 		}
 

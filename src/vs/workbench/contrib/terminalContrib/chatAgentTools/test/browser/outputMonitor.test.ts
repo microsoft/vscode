@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { detectsGenericPressAnyKeyPattern, detectsHighConfidenceInputPattern, detectsInputRequiredPattern, detectsNonInteractiveHelpPattern, detectsVSCodeTaskFinishMessage, getLastLine, matchTerminalPromptOption, OutputMonitor } from '../../browser/tools/monitoring/outputMonitor.js';
+import { detectsGenericPressAnyKeyPattern, detectsHighConfidenceInputPattern, detectsInputRequiredPattern, detectsNonInteractiveHelpPattern, detectsSensitiveInputPrompt, detectsVSCodeTaskFinishMessage, getLastLine, matchTerminalPromptOption, OutputMonitor } from '../../browser/tools/monitoring/outputMonitor.js';
 import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IExecution, IPollingResult, OutputMonitorState } from '../../browser/tools/monitoring/types.js';
@@ -231,6 +231,41 @@ suite('OutputMonitor', () => {
 			await Event.toPromise(monitor.onDidFinishCommand);
 			assert.strictEqual(inputNeededFired, false, 'onDidDetectInputNeeded should not fire for non-input output');
 		});
+	});
+
+	test('sensitive prompt fires onDidDetectSensitiveInputNeeded and not onDidDetectInputNeeded', async () => {
+		return runWithFakedTimers({}, async () => {
+			execution.getOutput = () => 'Password: ';
+			monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined, createTestContext('1'), cts.token, 'test command'));
+
+			let inputNeededFired = false;
+			let sensitiveFired = false;
+			store.add(monitor.onDidDetectInputNeeded(() => { inputNeededFired = true; }));
+			store.add(monitor.onDidDetectSensitiveInputNeeded(() => { sensitiveFired = true; }));
+
+			await Event.toPromise(monitor.onDidFinishCommand);
+
+			assert.strictEqual(sensitiveFired, true, 'onDidDetectSensitiveInputNeeded should fire for sensitive prompts');
+			assert.strictEqual(inputNeededFired, false, 'onDidDetectInputNeeded must not fire for sensitive prompts so the secret is not routed to the agent');
+		});
+	});
+
+	test('detectsSensitiveInputPrompt matches common secret prompts', () => {
+		assert.strictEqual(detectsSensitiveInputPrompt('Password: '), true);
+		assert.strictEqual(detectsSensitiveInputPrompt('[sudo] password for jdoe: '), true);
+		assert.strictEqual(detectsSensitiveInputPrompt('Passphrase for key /Users/foo/.ssh/id_rsa: '), true);
+		assert.strictEqual(detectsSensitiveInputPrompt('Enter your API key: '), true);
+		assert.strictEqual(detectsSensitiveInputPrompt('Token: '), true);
+		assert.strictEqual(detectsSensitiveInputPrompt('Verification code: '), true);
+		assert.strictEqual(detectsSensitiveInputPrompt('Enter OTP: '), true);
+		assert.strictEqual(detectsSensitiveInputPrompt('One-time code: '), true);
+		assert.strictEqual(detectsSensitiveInputPrompt('Enter your 2FA code: '), true);
+		assert.strictEqual(detectsSensitiveInputPrompt('Enter MFA code: '), true);
+
+		assert.strictEqual(detectsSensitiveInputPrompt('Continue? (y/n) '), false);
+		assert.strictEqual(detectsSensitiveInputPrompt('Press any key to continue...'), false);
+		assert.strictEqual(detectsSensitiveInputPrompt('Enter your name: '), false);
+		assert.strictEqual(detectsSensitiveInputPrompt('package name: (test_npm_init) '), false);
 	});
 
 	test('extended timeout with isActive fires onDidDetectInputNeeded', async () => {
