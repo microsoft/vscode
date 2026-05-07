@@ -97,6 +97,31 @@ kerberos/src/**
 kerberos/node_modules/**
 !kerberos/**/*.node
 
+cpu-features/**
+
+# utf-8-validate and bufferutil are native modules pulled in by the websocket
+# package. They include prebuilds for multiple platforms which break cross-platform
+# bundling (rcedit fails on non-PE .node files). Both modules have pure JS fallbacks
+# that are sufficient for Node.js >= 18.14.0, so we strip all native artifacts.
+utf-8-validate/binding.gyp
+utf-8-validate/build/**
+utf-8-validate/prebuilds/**
+utf-8-validate/src/**
+
+bufferutil/binding.gyp
+bufferutil/build/**
+bufferutil/prebuilds/**
+bufferutil/src/**
+
+ssh2/lib/protocol/crypto/binding.gyp
+ssh2/lib/protocol/crypto/build/**
+ssh2/lib/protocol/crypto/src/**
+ssh2/util/**
+ssh2/install.js
+ssh2/.github/**
+ssh2/.eslint*
+ssh2/SFTP.md
+
 node-pty/binding.gyp
 node-pty/build/**
 node-pty/src/**

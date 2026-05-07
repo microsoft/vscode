@@ -158,6 +158,8 @@ export function setup(context: TestContext) {
 			const window = await context.getPage(app.firstWindow());
 
 			try {
+				await test.dismissWelcomeDialog(window);
+
 				context.log('Installing WSL extension');
 				await window.getByRole('button', { name: 'Install and Reload' }).click();
 

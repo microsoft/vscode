@@ -1,0 +1,58 @@
+### User
+~~~md
+When generating code, please follow these user provided coding instructions. You can ignore an instruction if it contradicts a system message.
+<instructions>
+This is a test custom instruction file
+</instructions>
+
+
+[copilot_cache_control: { type: 'ephemeral' }]
+~~~
+
+
+### User
+~~~md
+<environment_info>
+The user's current OS is: Linux
+</environment_info>
+<workspace_info>
+I am working in a workspace with the following folders:
+- /workspace 
+</workspace_info>
+<userMemory>
+No user preferences or notes saved yet. Use the memory tool to store persistent notes under /memories/.
+</userMemory>
+<sessionMemory>
+Session memory (/memories/session/) is empty. No session notes have been created yet.
+</sessionMemory>
+<repoMemory>
+Repository memory (/memories/repo/) is empty. No workspace-scoped notes have been created yet.
+</repoMemory>
+
+
+[copilot_cache_control: { type: 'ephemeral' }]
+~~~
+
+
+### User
+~~~md
+<context>
+(Date removed from snapshot)
+There have been some changes between the last request and now.
+The user undid your edits to:
+- /workspace/file.ts
+Some edits were made, by the user or possibly by a formatter or another automated tool, to:
+- /workspace/other.ts
+So be sure to check the current file contents before making any new edits.
+</context>
+<reminderInstructions>
+Do NOT create a new markdown file to document each change or summarize your work unless specifically requested by the user.
+
+</reminderInstructions>
+<userRequest>
+hello
+</userRequest>
+
+
+[copilot_cache_control: { type: 'ephemeral' }]
+~~~

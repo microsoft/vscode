@@ -16,7 +16,7 @@ import { ImageInfo, MdDocumentRenderer } from './documentRenderer';
 import { MarkdownPreviewConfigurationManager } from './previewConfig';
 import { scrollEditorToLine, StartingScrollFragment, StartingScrollLine, StartingScrollLocation } from './scrolling';
 import { getVisibleLine, LastScrollLocation, TopmostLineMonitor } from './topmostLineMonitor';
-import type { FromWebviewMessage, ToWebviewMessage } from '../../types/previewMessaging';
+import type { FromWebviewMessage, MarkdownPreviewLineChanges, ToWebviewMessage } from '../../types/previewMessaging';
 
 export class PreviewDocumentVersion {
 
@@ -37,6 +37,7 @@ export class PreviewDocumentVersion {
 interface MarkdownPreviewDelegate {
 	getTitle?(resource: vscode.Uri): string;
 	getAdditionalState(): {};
+	getLineChanges?(): MarkdownPreviewLineChanges | Promise<MarkdownPreviewLineChanges | undefined> | undefined;
 	openPreviewLinkToMarkdownFile(markdownLink: vscode.Uri, fragment: string | undefined): void;
 }
 
@@ -235,7 +236,6 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 		}
 
 		if (this.#isScrolling) {
-			this.#isScrolling = false;
 			return;
 		}
 
@@ -246,6 +246,10 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 			line: topLine,
 			source: this.#resource.toString()
 		});
+	}
+
+	public get isScrolling(): boolean {
+		return this.#isScrolling;
 	}
 
 	async #updatePreview(forceUpdate?: boolean): Promise<void> {
@@ -289,14 +293,15 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 			}
 		}
 
+		const lineChanges = await this.#delegate.getLineChanges?.();
 		const content = await (shouldReloadPage
-			? this.#contentProvider.renderDocument(document, this, this.#previewConfigurations, this.#line, selectedLine, this.state, this.#imageInfo, this.#disposeCts.token)
+			? this.#contentProvider.renderDocument(document, this, this.#previewConfigurations, this.#line, selectedLine, this.state, this.#imageInfo, lineChanges, this.#disposeCts.token)
 			: this.#contentProvider.renderBody(document, this));
 
 		// Another call to `doUpdate` may have happened.
 		// Make sure we are still updating for the correct document
 		if (this.#currentVersion?.equals(pendingVersion)) {
-			this.#updateWebviewContent(content.html, shouldReloadPage);
+			this.#updateWebviewContent(content.html, shouldReloadPage, lineChanges);
 			this.#updateImageWatchers(content.containingImages);
 		}
 	}
@@ -357,7 +362,7 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 		this.#webviewPanel.webview.html = this.#contentProvider.renderFileNotFoundDocument(this.#resource);
 	}
 
-	#updateWebviewContent(html: string, reloadPage: boolean): void {
+	#updateWebviewContent(html: string, reloadPage: boolean, lineChanges: MarkdownPreviewLineChanges | undefined): void {
 		if (this.#disposed) {
 			return;
 		}
@@ -373,6 +378,7 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 			this.postMessage({
 				type: 'updateContent',
 				content: html,
+				lineChanges,
 				source: this.#resource.toString(),
 			});
 		}
@@ -502,8 +508,11 @@ export class StaticMarkdownPreview extends Disposable implements IManagedMarkdow
 		contributionProvider: MarkdownContributionProvider,
 		opener: MdLinkOpener,
 		scrollLine?: number,
+		getLineChanges?: () => MarkdownPreviewLineChanges | Promise<MarkdownPreviewLineChanges | undefined> | undefined,
 	): StaticMarkdownPreview {
-		return new StaticMarkdownPreview(webview, resource, contentProvider, previewConfigurations, topmostLineMonitor, logger, contributionProvider, opener, scrollLine);
+		webview.iconPath = contentProvider.iconPath;
+
+		return new StaticMarkdownPreview(webview, resource, contentProvider, previewConfigurations, topmostLineMonitor, logger, contributionProvider, opener, scrollLine, getLineChanges);
 	}
 
 	readonly #preview: MarkdownPreview;
@@ -521,15 +530,17 @@ export class StaticMarkdownPreview extends Disposable implements IManagedMarkdow
 		contributionProvider: MarkdownContributionProvider,
 		opener: MdLinkOpener,
 		scrollLine?: number,
+		getLineChanges?: () => MarkdownPreviewLineChanges | Promise<MarkdownPreviewLineChanges | undefined> | undefined,
 	) {
 		super();
 
 		this.#webviewPanel = webviewPanel;
 		this.#previewConfigurations = previewConfigurations;
 
-		const topScrollLocation = scrollLine ? new StartingScrollLine(scrollLine) : undefined;
+		const topScrollLocation = typeof scrollLine === 'number' ? new StartingScrollLine(scrollLine) : undefined;
 		this.#preview = this._register(new MarkdownPreview(this.#webviewPanel, resource, topScrollLocation, {
 			getAdditionalState: () => { return {}; },
+			getLineChanges,
 			openPreviewLinkToMarkdownFile: (markdownLink, fragment) => {
 				return vscode.commands.executeCommand('vscode.openWith', markdownLink.with({
 					fragment
@@ -551,7 +562,9 @@ export class StaticMarkdownPreview extends Disposable implements IManagedMarkdow
 
 		this._register(topmostLineMonitor.onDidChanged(event => {
 			if (this.#preview.isPreviewOf(event.resource)) {
-				this.#preview.scrollTo(event.line);
+				if (!this.#preview.isScrolling) {
+					this.#preview.scrollTo(event.line);
+				}
 			}
 		}));
 	}
@@ -586,6 +599,14 @@ export class StaticMarkdownPreview extends Disposable implements IManagedMarkdow
 
 	public refresh() {
 		this.#preview.refresh(true);
+	}
+
+	public scrollTo(line: number): void {
+		this.#preview.scrollTo(line);
+	}
+
+	public get onScroll(): vscode.Event<LastScrollLocation> {
+		return this.#preview.onScroll;
 	}
 
 	public updateConfiguration() {
@@ -698,7 +719,9 @@ export class DynamicMarkdownPreview extends Disposable implements IManagedMarkdo
 
 		this._register(this.#topmostLineMonitor.onDidChanged(event => {
 			if (this.#preview.isPreviewOf(event.resource)) {
-				this.#preview.scrollTo(event.line);
+				if (!this.#preview.isScrolling) {
+					this.#preview.scrollTo(event.line);
+				}
 			}
 		}));
 

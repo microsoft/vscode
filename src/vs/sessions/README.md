@@ -75,7 +75,7 @@ src/vs/sessions/
 │   ├── sessions.html
 │   └── sessions-dev.html
 ├── contrib/                            ← Feature contributions
-│   ├── accountMenu/browser/            ← Account menu widget and sidebar footer
+│   ├── accountMenu/browser/            ← Account menu and titlebar account widget
 │   │   └── account.contribution.ts
 │   ├── aiCustomizationManagement/      ← AI customization management editor
 │   │   └── browser/
@@ -107,14 +107,13 @@ The Agentic Window (`Workbench`) provides a simplified, fixed-layout workbench t
 - **Simplified chrome** — No activity bar, no status bar, no banner
 - **Chat-first UX** — Chat bar is a primary part alongside sidebar and auxiliary bar
 - **Modal editor** — Editors appear as modal overlays rather than in the main grid
-- **Session-aware titlebar** — Titlebar shows active session with a session picker
-- **Sidebar footer** — Account widget and sign-in live in the sidebar footer
+- **Session-aware titlebar** — Titlebar shows the active session, session picker, and signed-in account widget
 
 See [LAYOUT.md](LAYOUT.md) for the detailed layout specification.
 
 ## Sessions Provider Architecture
 
-The sessions window uses an extensible provider model to manage sessions. Instead of hardcoding session type logic (CLI, Cloud, Agent Host) throughout the codebase, all session behavior is encapsulated in **sessions providers** that register with a central registry.
+The agent sessions window uses an extensible provider model to manage sessions. Instead of hardcoding session type logic (CLI, Cloud, Agent Host) throughout the codebase, all session behavior is encapsulated in **sessions providers** that register with a central registry.
 
 ### Overview Diagram
 
@@ -295,6 +294,12 @@ RemoteAgentHostSessionsProvider
 └── createNewSession(workspace)
     └── Creates session on the remote agent host
 ```
+
+Agent-host session metadata may include a server-owned project. When present,
+providers map that project to the session workspace's source repository URI and
+label, while keeping the working directory as the repository working directory.
+This lets the sessions view group agent-host sessions by project/source repo
+instead of by the isolated worktree or checkout folder.
 
 ### Data Flow
 

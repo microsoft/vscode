@@ -54,19 +54,13 @@ import { IDynamicVariable } from '../../../../common/attachments/chatVariables.j
 import { ChatAgentLocation, ChatModeKind, isSupportedChatFileScheme } from '../../../../common/constants.js';
 import { isToolSet } from '../../../../common/tools/languageModelToolsService.js';
 import { IChatSessionsService } from '../../../../common/chatSessionsService.js';
-import { IPromptsService } from '../../../../common/promptSyntax/service/promptsService.js';
-import {
-	PromptsType,
-	Target
-} from '../../../../common/promptSyntax/promptTypes.js';
+import { ICustomizationHarnessService } from '../../../../common/customizationHarnessService.js';
+import { matchesSessionType } from '../../../../common/promptSyntax/service/promptsService.js';
 import { ChatSubmitAction, IChatExecuteActionContext } from '../../../actions/chatExecuteActions.js';
 import { IChatWidget, IChatWidgetService } from '../../../chat.js';
 import { resizeImage } from '../../../chatImageUtils.js';
 import { ChatDynamicVariableModel } from '../../../attachments/chatDynamicVariables.js';
 import { IChatService } from '../../../../common/chatService/chatService.js';
-import { IChatDebugService } from '../../../../common/chatDebugService.js';
-import { createDebugEventsAttachment } from '../../../chatDebug/chatDebugAttachment.js';
-import { getPromptFileType } from '../../../../common/promptSyntax/config/promptFileLocations.js';
 import { getChatSessionType } from '../../../../common/model/chatUri.js';
 import { computeCompletionRanges, escapeForCharClass, IChatCompletionRangeResult, isEmptyUpToCompletionWord } from './chatInputCompletionUtils.js';
 import { getAgentSessionProviderIcon, AgentSessionProviders } from '../../../agentSessions/agentSessions.js';
@@ -87,7 +81,7 @@ class SlashCommandCompletions extends Disposable {
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IChatSlashCommandService private readonly chatSlashCommandService: IChatSlashCommandService,
-		@IPromptsService private readonly promptsService: IPromptsService,
+		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
 		@IChatService chatService: IChatService,
 		@IChatSessionsService chatSessionsService: IChatSessionsService,
 		@IMcpService mcpService: IMcpService,
@@ -101,14 +95,6 @@ class SlashCommandCompletions extends Disposable {
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
 				if (!widget || !widget.viewModel) {
 					return null;
-				}
-
-
-				let customAgentTarget: Target | undefined = undefined;
-				if (widget.lockedAgentId) {
-					const sessionResource = widget.viewModel.model.sessionResource;
-					const ctx = sessionResource && chatService.getChatSessionFromInternalUri(sessionResource);
-					customAgentTarget = (ctx ? chatSessionsService.getCustomAgentTargetForSessionType(getChatSessionType(sessionResource)) : undefined) ?? Target.Undefined;
 				}
 
 				const range = computeCompletionRanges(model, position, SlashCommandWord);
@@ -133,6 +119,8 @@ class SlashCommandCompletions extends Disposable {
 					return null;
 				}
 
+				const sessionType = getChatSessionType(widget.viewModel.model.sessionResource);
+
 				return {
 					suggestions: slashCommands
 						.filter(c => {
@@ -145,13 +133,13 @@ class SlashCommandCompletions extends Disposable {
 							if (c.when && !widget.scopedContextKeyService.contextMatchesRules(c.when)) {
 								return false;
 							}
+							if (!matchesSessionType(c.sessionTypes, sessionType)) {
+								return false;
+							}
 							if (!widget.lockedAgentId) {
 								return true;
 							}
 							if (c.modes && c.modes.length && !c.modes.includes(ChatModeKind.Agent)) {
-								return false;
-							}
-							if (c.targets && customAgentTarget && !c.targets.includes(customAgentTarget)) {
 								return false;
 							}
 							return true;
@@ -199,9 +187,12 @@ class SlashCommandCompletions extends Disposable {
 					return null;
 				}
 
+				const currentSessionType = getChatSessionType(widget.viewModel.model.sessionResource);
+
 				return {
 					suggestions: slashCommands
 						.filter(c => !c.when || widget.scopedContextKeyService.contextMatchesRules(c.when))
+						.filter(c => matchesSessionType(c.sessionTypes, currentSessionType))
 						.map((c, i): CompletionItem => {
 							const withSlash = `${chatSubcommandLeader}${c.command}`;
 							return {
@@ -244,7 +235,8 @@ class SlashCommandCompletions extends Disposable {
 					return;
 				}
 
-				const promptCommands = await this.promptsService.getPromptSlashCommands(token);
+				const currentSessionType = getChatSessionType(widget.viewModel.model.sessionResource);
+				const promptCommands = await this.harnessService.getSlashCommands(currentSessionType, token);
 				if (promptCommands.length === 0) {
 					return null;
 				}
@@ -253,24 +245,9 @@ class SlashCommandCompletions extends Disposable {
 					return null;
 				}
 
-				// Filter out commands that are not user-invocable (hidden from / menu)
 				const userInvocableCommands = promptCommands
-					.filter(c => {
-						if (widget.lockedAgentId) {
-							// Exclude hooks as those don't work in locked agent scenarios.
-							try {
-								const promptType = getPromptFileType(c.promptPath.uri);
-								if (promptType && promptType === PromptsType.hook) {
-									return false;
-								}
-							} catch {
-
-							}
-						}
-						return true;
-					})
-					.filter(c => c.parsedPromptFile?.header?.userInvocable !== false)
-					.filter(c => !c.when || widget.scopedContextKeyService.contextMatchesRules(c.when));
+					.filter(c => c.userInvocable)
+					.filter(c => matchesSessionType(c.sessionTypes, currentSessionType));
 				if (userInvocableCommands.length === 0) {
 					return null;
 				}
@@ -858,7 +835,6 @@ interface IVariableCompletionsDetails {
 
 class BuiltinDynamicCompletions extends Disposable {
 	private static readonly addReferenceCommand = '_addReferenceCmd';
-	private static readonly addDebugEventsSnapshotCommand = '_addDebugEventsSnapshotCmd';
 	private static readonly VariableNameDef = new RegExp(`[${escapeForCharClass(chatVariableLeader)}${escapeForCharClass(chatAgentLeader)}][\\w:-]*`, 'g'); // MUST be using `g`-flag
 
 
@@ -875,7 +851,6 @@ class BuiltinDynamicCompletions extends Disposable {
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IChatDebugService private readonly chatDebugService: IChatDebugService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 	) {
 		super();
@@ -1034,45 +1009,9 @@ class BuiltinDynamicCompletions extends Disposable {
 			return result;
 		}, sessionWordPattern);
 
-		// Debug Events Snapshot completion
-		this.registerVariableCompletions('debugEventsSnapshot', ({ widget, range }) => {
-			if (widget.location !== ChatAgentLocation.Chat) {
-				return;
-			}
-
-			const sessionResource = widget.viewModel?.sessionResource;
-			if (!sessionResource || this.chatDebugService.getEvents(sessionResource).length === 0) {
-				return;
-			}
-
-			const text = `${chatVariableLeader}debugEventsSnapshot`;
-			const result: CompletionList = { suggestions: [] };
-			result.suggestions.push({
-				label: { label: text, description: localize('debugEventsSnapshot.description', 'Attach debug events snapshot') },
-				filterText: text,
-				insertText: '',
-				range,
-				kind: CompletionItemKind.Text,
-				sortText: 'z',
-				command: {
-					id: BuiltinDynamicCompletions.addDebugEventsSnapshotCommand, title: '', arguments: [widget]
-				}
-			});
-			return result;
-		});
-
 		this._register(CommandsRegistry.registerCommand(BuiltinDynamicCompletions.addReferenceCommand, (_services, arg) => {
 			assertType(arg instanceof ReferenceArgument);
 			return this.cmdAddReference(arg);
-		}));
-
-		this._register(CommandsRegistry.registerCommand(BuiltinDynamicCompletions.addDebugEventsSnapshotCommand, async (_services, widget: IChatWidget) => {
-			const sessionResource = widget.viewModel?.sessionResource;
-			if (!sessionResource) {
-				return;
-			}
-			const attachment = await createDebugEventsAttachment(sessionResource, this.chatDebugService);
-			widget.attachmentModel.addContext(attachment);
 		}));
 	}
 

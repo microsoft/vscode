@@ -84,6 +84,7 @@ export namespace PromptHeaderAttributes {
 	export const userInvocable = 'user-invocable';
 	export const disableModelInvocation = 'disable-model-invocation';
 	export const hooks = 'hooks';
+	export const context = 'context';
 }
 
 export class PromptHeader {
@@ -314,6 +315,10 @@ export class PromptHeader {
 
 	public get disableModelInvocation(): boolean | undefined {
 		return this.getBooleanAttribute(PromptHeaderAttributes.disableModelInvocation);
+	}
+
+	public get context(): string | undefined {
+		return this.getStringAttribute(PromptHeaderAttributes.context);
 	}
 
 	/**
@@ -620,4 +625,13 @@ export function parseCommaSeparatedList(stringValue: IScalarValue): ISequenceVal
 	return { type: 'sequence', items: result, range: stringValue.range };
 }
 
-
+/**
+ * Returns the effective `applyTo` pattern for an instruction file.
+ * Claude rules use `paths` (defaulting to `**`), while regular instructions use `applyTo`.
+ */
+export function evaluateApplyToPattern(header: PromptHeader | undefined, isClaudeRules: boolean): string | undefined {
+	if (isClaudeRules) {
+		return header?.paths?.join(', ') ?? '**';
+	}
+	return header?.applyTo;
+}

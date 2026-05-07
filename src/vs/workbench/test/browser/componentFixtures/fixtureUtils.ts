@@ -6,21 +6,27 @@
 // This should be the only place that is allowed to import from @vscode/component-explorer
 // eslint-disable-next-line local/code-import-patterns
 import { defineFixture, defineFixtureGroup, defineFixtureVariants } from '@vscode/component-explorer';
-import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, DisposableTracker, IDisposable, IReference, setDisposableTracker, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 // eslint-disable-next-line local/code-import-patterns
 import '../../../../../../build/vite/style.css';
 import '../../../browser/media/style.css';
+// Import auxiliaryBarPart.css here (before any contrib/chat CSS) so the cascade
+// matches the product: chat.css loads later and overrides the auxiliarybar
+// rules where applicable. Fixtures that wrap content in `.part.auxiliarybar`
+// rely on these rules to recolor inline editors with `--vscode-sideBar-background`.
+import '../../../browser/parts/auxiliarybar/media/auxiliaryBarPart.css';
 
 // Theme
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
+import { IExtensionResourceLoaderService } from '../../../../platform/extensionResourceLoader/common/extensionResourceLoader.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { getIconsStyleSheet } from '../../../../platform/theme/browser/iconsStyleSheet.js';
-import { ColorScheme } from '../../../../platform/theme/common/theme.js';
+import { ColorScheme, ThemeTypeSelector } from '../../../../platform/theme/common/theme.js';
 import { IColorTheme, IThemeService, IThemingRegistry, Extensions as ThemingExtensions } from '../../../../platform/theme/common/themeService.js';
 import { generateColorThemeCSS } from '../../../services/themes/browser/colorThemeCss.js';
 import { ColorThemeData } from '../../../services/themes/common/colorThemeData.js';
-import { COLOR_THEME_DARK_INITIAL_COLORS, COLOR_THEME_LIGHT_INITIAL_COLORS } from '../../../services/themes/common/workbenchThemeService.js';
+import { ExtensionData } from '../../../services/themes/common/workbenchThemeService.js';
 
 // Instantiation
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
@@ -53,6 +59,7 @@ import { TestTreeSitterLibraryService } from '../../../../editor/test/common/ser
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { TestAccessibilityService } from '../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { IActionViewItemService, NullActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
+import { IChatPhoneInputPresenter } from '../../../contrib/chat/browser/widget/input/chatPhoneInputPresenter.js';
 import { IMenuService } from '../../../../platform/actions/common/actions.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { TestClipboardService } from '../../../../platform/clipboard/test/common/testClipboardService.js';
@@ -74,7 +81,7 @@ import { INotificationService } from '../../../../platform/notification/common/n
 import { TestNotificationService } from '../../../../platform/notification/test/common/testNotificationService.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { NullOpenerService } from '../../../../platform/opener/test/common/nullOpenerService.js';
-import { IApplicationStorageValueChangeEvent, IProfileStorageValueChangeEvent, IStorageEntry, IStorageService, IStorageTargetChangeEvent, IStorageValueChangeEvent, IWillSaveStateEvent, IWorkspaceStorageValueChangeEvent, StorageScope, StorageTarget, WillSaveStateReason } from '../../../../platform/storage/common/storage.js';
+import { IApplicationSharedStorageValueChangeEvent, IApplicationStorageValueChangeEvent, IProfileStorageValueChangeEvent, IStorageEntry, IStorageService, IStorageTargetChangeEvent, IStorageValueChangeEvent, IWillSaveStateEvent, IWorkspaceStorageValueChangeEvent, StorageScope, StorageTarget, WillSaveStateReason } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryServiceShape } from '../../../../platform/telemetry/common/telemetryUtils.js';
 import { TestThemeService } from '../../../../platform/theme/test/common/testThemeService.js';
@@ -82,21 +89,65 @@ import { IUndoRedoService } from '../../../../platform/undoRedo/common/undoRedo.
 import { UndoRedoService } from '../../../../platform/undoRedo/common/undoRedoService.js';
 import { IUserDataProfile } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IUserInteractionService, MockUserInteractionService } from '../../../../platform/userInteraction/browser/userInteractionService.js';
+import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { IAnyWorkspaceIdentifier } from '../../../../platform/workspace/common/workspace.js';
 import { TestMenuService } from '../workbenchTestServices.js';
+import { IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
+import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/common/services/resolverService.js';
+// eslint-disable-next-line local/code-import-patterns
+import { IAgentFeedbackService } from '../../../../sessions/contrib/agentFeedback/browser/agentFeedbackService.js';
+import { IChatEditingService } from '../../../contrib/chat/common/editing/chatEditingService.js';
+// eslint-disable-next-line local/code-import-patterns
+import { ISessionsManagementService } from '../../../../sessions/services/sessions/common/sessionsManagement.js';
+// eslint-disable-next-line local/code-import-patterns
+import { ICodeReviewService, CodeReviewStateKind, PRReviewStateKind } from '../../../../sessions/contrib/codeReview/browser/codeReviewService.js';
+import { constObservable } from '../../../../base/common/observable.js';
 
 // Editor
 import { ITextModel } from '../../../../editor/common/model.js';
 
-
+import './fixtures.css';
 
 // Import color registrations to ensure colors are available
-import { isThenable } from '../../../../base/common/async.js';
+import { IdleDeadline, installFakeRunWhenIdle } from '../../../../base/common/async.js';
+import { buildHistoryFromTasks, renderSwimlanes } from '../../../../base/test/common/executionGraph.js';
+import {
+	captureGlobalTimeApi,
+	createLoggingTimeApi,
+	createTraceRoot,
+	createVirtualTimeApi,
+	drainMicrotasksEmbedding,
+	nextMacrotask,
+	pushGlobalTimeApi,
+	TraceContext,
+	untilTime,
+	VirtualClock,
+	VirtualTimeProcessor,
+} from '../../../../base/test/common/virtualScheduling/index.js';
 import '../../../../platform/theme/common/colors/baseColors.js';
 import '../../../../platform/theme/common/colors/editorColors.js';
 import '../../../../platform/theme/common/colors/listColors.js';
 import '../../../../platform/theme/common/colors/miscColors.js';
 import '../../../common/theme.js';
+
+// eslint-disable-next-line local/code-import-patterns
+import sourceMapSupport from 'source-map-support';
+sourceMapSupport.install({
+	environment: 'browser',
+	handleUncaughtExceptions: false,
+	retrieveSourceMap: (source: string) => {
+		const mapUrl = source + '.map';
+		try {
+			const xhr = new XMLHttpRequest();
+			xhr.open('GET', mapUrl, false);
+			xhr.send();
+			if (xhr.status === 200) {
+				return { url: null as never, map: xhr.responseText };
+			}
+		} catch { }
+		return null;
+	},
+});
 
 /**
  * A storage service that never stores anything and always returns the default/fallback value.
@@ -110,6 +161,7 @@ class NullStorageService implements IStorageService {
 	onDidChangeValue(scope: StorageScope.WORKSPACE, key: string | undefined, disposable: DisposableStore): Event<IWorkspaceStorageValueChangeEvent>;
 	onDidChangeValue(scope: StorageScope.PROFILE, key: string | undefined, disposable: DisposableStore): Event<IProfileStorageValueChangeEvent>;
 	onDidChangeValue(scope: StorageScope.APPLICATION, key: string | undefined, disposable: DisposableStore): Event<IApplicationStorageValueChangeEvent>;
+	onDidChangeValue(scope: StorageScope.APPLICATION_SHARED, key: string | undefined, disposable: DisposableStore): Event<IApplicationSharedStorageValueChangeEvent>;
 	onDidChangeValue(scope: StorageScope, key: string | undefined, disposable: DisposableStore): Event<IStorageValueChangeEvent> {
 		return Event.filter(this._onDidChangeValue.event, e => e.scope === scope && (key === undefined || e.key === key), disposable);
 	}
@@ -193,15 +245,54 @@ class NullStorageService implements IStorageService {
 const themingRegistry = Registry.as<IThemingRegistry>(ThemingExtensions.ThemingContribution);
 const mockEnvironmentService: IEnvironmentService = Object.create(null);
 
-export const darkTheme = ColorThemeData.createUnloadedThemeForThemeType(
-	ColorScheme.DARK,
-	COLOR_THEME_DARK_INITIAL_COLORS
-);
+// Eagerly bundle all built-in theme JSON files so they can be served to
+// `_loadColorTheme` via the IExtensionResourceLoaderService code path. The
+// rspack config maps these JSON files to `asset/source`, so they are imported
+// as raw text (not parsed JSON) — this lets VS Code's JSONC parser handle
+// comments and trailing commas the way it does in the real product.
+/* eslint-disable local/code-import-patterns */
+import dark_modern from '../../../../../../extensions/theme-defaults/themes/dark_modern.json' with { type: 'json' };
+import dark_plus from '../../../../../../extensions/theme-defaults/themes/dark_plus.json' with { type: 'json' };
+import dark_vs from '../../../../../../extensions/theme-defaults/themes/dark_vs.json' with { type: 'json' };
+import light_modern from '../../../../../../extensions/theme-defaults/themes/light_modern.json' with { type: 'json' };
+import light_plus from '../../../../../../extensions/theme-defaults/themes/light_plus.json' with { type: 'json' };
+import light_vs from '../../../../../../extensions/theme-defaults/themes/light_vs.json' with { type: 'json' };
+/* eslint-enable local/code-import-patterns */
 
-export const lightTheme = ColorThemeData.createUnloadedThemeForThemeType(
-	ColorScheme.LIGHT,
-	COLOR_THEME_LIGHT_INITIAL_COLORS
-);
+const themeJsonModules: Record<string, string> = {
+	'/extensions/theme-defaults/themes/dark_modern.json': dark_modern as unknown as string,
+	'/extensions/theme-defaults/themes/dark_plus.json': dark_plus as unknown as string,
+	'/extensions/theme-defaults/themes/dark_vs.json': dark_vs as unknown as string,
+	'/extensions/theme-defaults/themes/light_modern.json': light_modern as unknown as string,
+	'/extensions/theme-defaults/themes/light_plus.json': light_plus as unknown as string,
+	'/extensions/theme-defaults/themes/light_vs.json': light_vs as unknown as string,
+};
+
+const fixtureExtensionResourceLoaderService = new class implements IExtensionResourceLoaderService {
+	declare readonly _serviceBrand: undefined;
+	async readExtensionResource(uri: URI): Promise<string> {
+		const content = themeJsonModules[uri.path];
+		if (content === undefined) {
+			throw new Error(`Fixture extension resource not found: ${uri.toString()}`);
+		}
+		return content;
+	}
+	supportsExtensionGalleryResources(): Promise<boolean> { return Promise.resolve(false); }
+	isExtensionGalleryResource(): Promise<boolean> { return Promise.resolve(false); }
+	getExtensionGalleryResourceURL(): Promise<URI | undefined> { return Promise.resolve(undefined); }
+};
+
+function createBuiltInTheme(themePath: string, uiTheme: ThemeTypeSelector): ColorThemeData {
+	const location = URI.parse(`file://${themePath}`);
+	return ColorThemeData.fromExtensionTheme(
+		{ id: themePath, path: themePath, uiTheme, _watch: false },
+		location,
+		ExtensionData.fromName('vscode', 'theme-defaults', true)
+	);
+}
+
+export const darkTheme = createBuiltInTheme('/extensions/theme-defaults/themes/dark_modern.json', ThemeTypeSelector.VS_DARK);
+export const lightTheme = createBuiltInTheme('/extensions/theme-defaults/themes/light_modern.json', ThemeTypeSelector.VS);
 
 let globalStyleSheet: CSSStyleSheet | undefined;
 let iconsStyleSheetCache: CSSStyleSheet | undefined;
@@ -265,6 +356,17 @@ function getThemeStyleSheet(theme: ColorThemeData): CSSStyleSheet {
 
 let globalStylesInstalled = false;
 
+let themesLoadedPromise: Promise<void> | undefined;
+function ensureThemesLoaded(): Promise<void> {
+	if (!themesLoadedPromise) {
+		themesLoadedPromise = Promise.all([
+			darkTheme.ensureLoaded(fixtureExtensionResourceLoaderService),
+			lightTheme.ensureLoaded(fixtureExtensionResourceLoaderService),
+		]).then(() => undefined);
+	}
+	return themesLoadedPromise;
+}
+
 function installGlobalStyles(): void {
 	if (globalStylesInstalled) {
 		return;
@@ -279,9 +381,10 @@ function installGlobalStyles(): void {
 	];
 }
 
-export function setupTheme(container: HTMLElement, theme: ColorThemeData): void {
+export async function setupTheme(container: HTMLElement, theme: ColorThemeData): Promise<void> {
+	await ensureThemesLoaded();
 	installGlobalStyles();
-	container.classList.add('monaco-workbench', getPlatformClass(), ...theme.classNames);
+	container.classList.add('monaco-workbench', getPlatformClass(), 'disable-animations', ...theme.classNames);
 }
 
 function getPlatformClass(): string {
@@ -308,6 +411,8 @@ function getPlatformClass(): string {
 export interface ServiceRegistration {
 	define<T>(id: ServiceIdentifier<T>, ctor: new (...args: never[]) => T): void;
 	defineInstance<T>(id: ServiceIdentifier<T>, instance: T): void;
+	/** Like defineInstance but accepts a partial mock - provides type checking on provided properties */
+	definePartialInstance<T>(id: ServiceIdentifier<T>, instance: Partial<T>): void;
 }
 
 export interface CreateServicesOptions {
@@ -319,6 +424,56 @@ export interface CreateServicesOptions {
 	 * Additional services to register after the base editor services.
 	 */
 	additionalServices?: (registration: ServiceRegistration) => void;
+}
+
+/**
+ * `ILogService` for fixtures that forwards `warn`, `error`, and `critical`
+ * to the browser console so that errors logged during render (e.g. from
+ * `try/catch` blocks that swallow errors into the log) become visible in
+ * the component-explorer console panel.
+ */
+export class FixtureLogService extends NullLogService {
+	override warn(message: string, ...args: unknown[]): void {
+		console.warn(message, ...args);
+	}
+	override error(message: string | Error, ...args: unknown[]): void {
+		console.error(message, ...args);
+	}
+	override critical(message: string | Error, ...args: unknown[]): void {
+		console.error(message, ...args);
+	}
+}
+
+/**
+ * `ITextModelService` for fixtures that resolves URIs against `IModelService`.
+ * Models created via `createTextModel` (which uses `IModelService.createModel`)
+ * are automatically resolvable. URIs without a backing model fail loudly so
+ * that callers don't silently receive a null `textEditorModel`.
+ */
+export class FixtureTextModelService extends mock<ITextModelService>() {
+	constructor(@IModelService private readonly _modelService: IModelService) {
+		super();
+	}
+
+	override async createModelReference(resource: URI): Promise<IReference<IResolvedTextEditorModel>> {
+		const model = this._modelService.getModel(resource);
+		if (!model) {
+			throw new Error(`FixtureTextModelService: no model registered for ${resource.toString()}`);
+		}
+		return {
+			// eslint-disable-next-line local/code-no-dangerous-type-assertions
+			object: { textEditorModel: model } as IResolvedTextEditorModel,
+			dispose() { },
+		};
+	}
+
+	override registerTextModelContentProvider(): IDisposable {
+		return { dispose() { } };
+	}
+
+	override canHandleResource(): boolean {
+		return false;
+	}
 }
 
 /**
@@ -345,6 +500,10 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 		serviceIdentifiers.push(id);
 	};
 
+	const definePartialInstance = <T>(id: ServiceIdentifier<T>, instance: Partial<T>) => {
+		defineInstance(id, instance as T);
+	};
+
 	// Base editor services
 	define(IAccessibilityService, TestAccessibilityService);
 	define(IKeybindingService, MockKeybindingService);
@@ -364,7 +523,7 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 	} else {
 		define(IThemeService, TestThemeService);
 	}
-	define(ILogService, NullLogService);
+	define(ILogService, FixtureLogService);
 	define(IModelService, ModelService);
 	define(ICodeEditorService, TestCodeEditorService);
 	define(IContextKeyService, MockContextKeyService);
@@ -403,6 +562,7 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 		onDidChangeDefaultAccount: new Emitter<null>().event,
 		onDidChangePolicyData: new Emitter<null>().event,
 		policyData: null,
+		currentDefaultAccount: null,
 		copilotTokenInfo: null,
 		onDidChangeCopilotTokenInfo: new Emitter<null>().event,
 		getDefaultAccount: async () => null,
@@ -416,8 +576,90 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 	// User interaction service with focus simulation enabled (all elements appear focused in fixtures)
 	defineInstance(IUserInteractionService, new MockUserInteractionService(true, false));
 
-	// Allow additional services to be registered
-	options?.additionalServices?.({ define, defineInstance });
+	definePartialInstance(IActionWidgetService, {
+		_serviceBrand: undefined,
+		show: () => { },
+		hide: () => { },
+		get isVisible() { return false; },
+	});
+
+	defineInstance(IAccessibilitySignalService, {
+		_serviceBrand: undefined,
+		playSignal: async () => { },
+		playSignals: async () => { },
+		playSignalLoop: () => ({ dispose: () => { } }),
+		getEnabledState: () => ({ value: false, onDidChange: Event.None, onChange: () => ({ dispose: () => { } }) }),
+		getDelayMs: () => 0,
+		playSound: async () => { },
+		isSoundEnabled: () => false,
+		isAnnouncementEnabled: () => false,
+		onSoundEnabledChanged: () => Event.None,
+	});
+
+	define(ITextModelService, FixtureTextModelService);
+
+	defineInstance(IAgentFeedbackService, {
+		_serviceBrand: undefined,
+		onDidChangeFeedback: Event.None,
+		onDidChangeNavigation: Event.None,
+		addFeedback: () => undefined!,
+		removeFeedback: () => { },
+		updateFeedback: () => { },
+		getFeedback: () => [],
+		getMostRecentSessionForResource: () => undefined,
+		revealFeedback: async () => { },
+		revealSessionComment: async () => { },
+		getNextFeedback: () => undefined,
+		getNextNavigableItem: () => undefined,
+		setNavigationAnchor: () => { },
+		getNavigationBearing: () => ({ activeIdx: -1, totalCount: 0 }),
+		clearFeedback: () => { },
+		addFeedbackAndSubmit: async () => { },
+	});
+
+	definePartialInstance(IChatEditingService, {
+		_serviceBrand: undefined,
+		editingSessionsObs: constObservable([]),
+		startOrContinueGlobalEditingSession: () => undefined!,
+		getEditingSession: () => undefined,
+	});
+
+	definePartialInstance(ISessionsManagementService, {
+		_serviceBrand: undefined,
+		activeSession: constObservable(undefined),
+		getSession: () => undefined,
+		getSessions: () => [],
+	});
+
+	definePartialInstance(ICodeReviewService, {
+		_serviceBrand: undefined,
+		getReviewState: () => constObservable({ kind: CodeReviewStateKind.Idle }),
+		getPRReviewState: () => constObservable({ kind: PRReviewStateKind.None }),
+		hasReview: () => false,
+		requestReview: () => { },
+		removeComment: () => { },
+		updateComment: () => { },
+		dismissReview: () => { },
+		resolvePRReviewThread: async () => { },
+		markPRReviewCommentConverted: () => { },
+	});
+
+	// Allow additional services to override defaults
+	options?.additionalServices?.({
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		define: <T>(id: ServiceIdentifier<T>, ctor: new (...args: any[]) => T) => {
+			services.set(id, new SyncDescriptor(ctor));
+			serviceIdentifiers.push(id);
+		},
+		defineInstance: <T>(id: ServiceIdentifier<T>, instance: T) => {
+			services.set(id, instance);
+			serviceIdentifiers.push(id);
+		},
+		definePartialInstance: <T>(id: ServiceIdentifier<T>, instance: Partial<T>) => {
+			services.set(id, instance as T);
+			serviceIdentifiers.push(id);
+		},
+	});
 
 	const instantiationService = disposables.add(new TestInstantiationService(services, true));
 
@@ -469,6 +711,18 @@ export function registerWorkbenchServices(registration: ServiceRegistration): vo
 
 	registration.define(IMenuService, TestMenuService);
 	registration.define(IActionViewItemService, NullActionViewItemService);
+
+	// No-op phone presenter so chat-input fixtures don't crash on
+	// `chatPhoneInputPresenter.enabled.get()`. The real impl is in
+	// `vs/sessions` and only attaches in the agents window — desktop
+	// fixtures see the no-op (`enabled === false`, sheet calls resolve
+	// immediately) which matches desktop runtime behavior.
+	registration.defineInstance(IChatPhoneInputPresenter, {
+		_serviceBrand: undefined,
+		enabled: constObservable(false),
+		showCombinedModeAndModelSheet: () => Promise.resolve(),
+		setImpl: () => ({ dispose: () => { } }),
+	});
 }
 
 
@@ -499,6 +753,7 @@ export function createTextModel(
 export interface ThemedFixtureGroupLabels {
 	readonly kind?: 'screenshot' | 'animated';
 	readonly blocksCi?: true;
+	readonly flaky?: true;
 }
 
 function resolveLabels(labels: ThemedFixtureGroupLabels | undefined): string[] {
@@ -510,6 +765,9 @@ function resolveLabels(labels: ThemedFixtureGroupLabels | undefined): string[] {
 	}
 	if (labels?.blocksCi) {
 		result.push('blocks-ci');
+	}
+	if (labels?.flaky) {
+		result.push('flaky');
 	}
 	return result;
 }
@@ -523,9 +781,28 @@ export interface ComponentFixtureContext {
 export interface ComponentFixtureOptions {
 	render: (context: ComponentFixtureContext) => void | Promise<void>;
 	labels?: ThemedFixtureGroupLabels;
+	virtualTime?: { enabled?: boolean; durationMs?: number };
 }
 
 type ThemedFixtures = ReturnType<typeof defineFixtureVariants>;
+
+// Permanent logging layer that detects real timer API usage.
+// Includes handler source for identification since bundled stack traces are not useful.
+const realTimeApi = captureGlobalTimeApi();
+const logOutsideTime = false;
+if (logOutsideTime) {
+	const loggingTimeApi = createLoggingTimeApi(realTimeApi, (name, stack, handler) => {
+		const handlerStr = typeof handler === 'function' ? handler.toString().slice(0, 500) : String(handler);
+		console.warn(`[ComponentFixture] Real ${name} called outside of virtual time.\nHandler: ${handlerStr}\nStack: ${stack}`);
+	});
+	pushGlobalTimeApi(loggingTimeApi);
+}
+
+let fixtureRenderCounter = 0;
+
+// See TODO in defineComponentFixture: leak errors detected during teardown are
+// stashed here and rethrown from the next fixture render.
+let pendingLeakErrorToThrow: Error | undefined;
 
 /**
  * Creates Dark and Light fixture variants from a single render function.
@@ -539,14 +816,122 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 	const createFixture = (theme: typeof darkTheme | typeof lightTheme) => defineFixture({
 		isolation: 'none',
 		displayMode: { type: 'component' },
-		properties: [],
 		background: theme === darkTheme ? 'dark' : 'light',
-		render: (container: HTMLElement) => {
+		render: async (container: HTMLElement, context) => {
+			// TODO: component-explorer currently ignores errors thrown from the
+			// teardown disposable (where leak detection runs, after the screenshot).
+			// Until it surfaces those, we stash the leak error and rethrow it from
+			// the next fixture render so the failure still becomes visible.
+			const pendingLeakError = pendingLeakErrorToThrow;
+			pendingLeakErrorToThrow = undefined;
+			if (pendingLeakError) {
+				throw pendingLeakError;
+			}
+
 			const disposableStore = new DisposableStore();
-			setupTheme(container, theme);
-			// Start render (may be async) - component-explorer will wait 2 rAF after this returns
-			const result = options.render({ container, disposableStore, theme });
-			return isThenable(result) ? result.then(() => disposableStore) : disposableStore;
+
+			// Do not enable virtual time in explorer ui, as multiple fixtures are rendered in parallel.
+			const virtualTimeEnabled = (options.virtualTime?.enabled ?? true) && context.host.kind !== 'explorer-ui';
+
+			// Detect disposable leaks the same way unit tests do (`ensureNoDisposablesAreLeakedInTestSuite`).
+			// The tracker is global and therefore unsafe when fixtures render in parallel,
+			// so it is only enabled outside the explorer UI (e.g. in screenshot/CI mode).
+			const leakDetectionEnabled = false && context.host.kind !== 'explorer-ui';
+			const tracker = leakDetectionEnabled ? new DisposableTracker() : undefined;
+			if (tracker) {
+				setDisposableTracker(tracker);
+			}
+
+			const leakLabel = `${(options.labels ? resolveLabels(options.labels).join('/') : '<unlabeled>')}/${theme === darkTheme ? 'Dark' : 'Light'} (render#${fixtureRenderCounter + 1})`;
+
+			context.addDisposable(toDisposable(() => {
+				disposableStore.dispose();
+				if (tracker) {
+					setDisposableTracker(null);
+					const result = tracker.computeLeakingDisposables();
+					if (result) {
+						console.error(result.details);
+						pendingLeakErrorToThrow = new Error(`[leak detected in previous fixture: ${leakLabel}] There are ${result.leaks.length} undisposed disposables!${result.details}`);
+					}
+				}
+			}));
+
+			async function actualRender() {
+				const schedulerStore = disposableStore.add(new DisposableStore());
+				const clock = new VirtualClock(Date.now());
+				const p = schedulerStore.add(new VirtualTimeProcessor(
+					clock,
+					drainMicrotasksEmbedding(realTimeApi),
+					realTimeApi,
+					{ defaultMaxEvents: 100 },
+				));
+
+				await setupTheme(container, theme);
+
+				const virtualTimeApi = createVirtualTimeApi(clock, { fakeRequestAnimationFrame: true });
+
+				if (virtualTimeEnabled) {
+					schedulerStore.add(pushGlobalTimeApi(virtualTimeApi));
+
+					disposableStore.add(installFakeRunWhenIdle((_targetWindow, callback, _timeout?) => {
+						const stackTrace = new Error().stack;
+						const trace = TraceContext.instance.currentTrace().child('runWhenIdle', stackTrace);
+						return clock.schedule({
+							time: clock.now,
+							run: () => {
+								const deadline: IdleDeadline = {
+									didTimeout: true,
+									timeRemaining: () => 50,
+								};
+								callback(deadline);
+							},
+							source: {
+								toString() { return 'runWhenIdle'; },
+								stackTrace,
+							},
+							trace,
+						});
+					}));
+				}
+
+				try {
+					const result = options.render({ container, disposableStore, theme });
+
+					const p2 = virtualTimeEnabled
+						? p.run({
+							until: untilTime(clock.now + (options.virtualTime?.durationMs ?? 1000)),
+							maxEvents: 200,
+							maxTraceDepth: 5,
+						})
+						: Promise.resolve();
+
+					await Promise.all([
+						result instanceof Promise ? result : Promise.resolve(),
+						p2,
+					]);
+				} catch (e) {
+					if (virtualTimeEnabled && p.history.length > 0) {
+						const startTime = p.history[0].time;
+						const history = buildHistoryFromTasks(p.history, startTime);
+						console.error(`[ComponentFixture] ${theme === darkTheme ? 'Dark' : 'Light'} virtual-time history (${p.history.length} tasks):\n${renderSwimlanes(history)}`);
+					}
+					throw e;
+				} finally {
+					schedulerStore.dispose();
+				}
+			}
+
+			// Every render gets its own trace root so that any diagnostics
+			// output by the scheduler / processor shows exactly which fixture
+			// caused each queued or historical timer, plus the full chain of
+			// setTimeout/rAF calls that led to it.
+			const themeLabel = theme === darkTheme ? 'Dark' : 'Light';
+			const fixtureRoot = createTraceRoot(`render#${++fixtureRenderCounter}(${themeLabel})`);
+
+			await TraceContext.instance.runAsHandler(fixtureRoot, actualRender, {
+				// Trace-reset escapes virtual time so it actually fires.
+				afterMicrotaskClosure: cb => nextMacrotask(realTimeApi, cb),
+			});
 		},
 	});
 

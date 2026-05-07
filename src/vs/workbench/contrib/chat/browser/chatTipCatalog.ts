@@ -8,9 +8,8 @@ import { localize } from '../../../../nls.js';
 import { ContextKeyExpr, ContextKeyExpression } from '../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { MenuRegistry } from '../../../../platform/actions/common/actions.js';
-import { ProductQualityContext } from '../../../../platform/contextkey/common/contextkeys.js';
+import { OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, OPEN_AGENTS_WINDOW_PRECONDITION, ChatConfiguration, ChatModeKind } from '../common/constants.js';
 import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
-import { ChatConfiguration, ChatModeKind } from '../common/constants.js';
 import { IsSessionsWindowContext } from '../../../common/contextkeys.js';
 import { localChatSessionType } from '../common/chatSessionsService.js';
 import { ITipExclusionConfig } from './chatTipEligibilityTracker.js';
@@ -413,22 +412,61 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 		excludeWhenToolsInvoked: ['listDebugEvents'],
 	},
 	{
-		id: 'tip.openSessionsWindow',
+		id: 'tip.openAgentsWindow',
 		tier: ChatTipTier.Qol,
 		buildMessage() {
 			return new MarkdownString(
 				localize(
-					'tip.openSessionsWindow',
-					"Try the [Sessions Window](command:workbench.action.openSessionsWindow \"Open Sessions Window\") to run multiple agents simultaneously and manage your coding sessions."
+					'tip.openAgentsWindow',
+					"Try the [Agents Application](command:{0} \"Open Agents Window\") to run multiple agents simultaneously and manage your coding sessions.",
+					OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID
 				)
 			);
 		},
 		when: ContextKeyExpr.and(
-			ProductQualityContext.notEqualsTo('stable'),
-			IsSessionsWindowContext.negate(),
+			OPEN_AGENTS_WINDOW_PRECONDITION,
 			ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
 		),
-		excludeWhenCommandsExecuted: ['workbench.action.openSessionsWindow'],
-		dismissWhenCommandsClicked: ['workbench.action.openSessionsWindow'],
+		excludeWhenCommandsExecuted: [OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID],
+		dismissWhenCommandsClicked: [OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID],
+	},
+	{
+		id: 'tip.copilotCli',
+		tier: ChatTipTier.Qol,
+		buildMessage() {
+			return new MarkdownString(
+				localize(
+					'tip.copilotCli',
+					"Run agents in parallel with [Copilot CLI](command:workbench.action.chat.openNewChatSessionInPlace.copilotcli?%5B%22sidebar%22%5D \"Switch to Copilot CLI\")."
+				)
+			);
+		},
+		when: ContextKeyExpr.and(
+			IsSessionsWindowContext.negate(),
+			ChatContextKeys.chatSessionType.isEqualTo(localChatSessionType),
+			ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
+			ChatContextKeys.hasCanDelegateProviders,
+		),
+		excludeWhenCommandsExecuted: ['workbench.action.chat.openNewChatSessionInPlace.copilotcli'],
+	},
+	{
+		id: 'tip.defaultPermissions',
+		tier: ChatTipTier.Qol,
+		buildMessage() {
+			return new MarkdownString(
+				localize(
+					'tip.defaultPermissions',
+					"Configure [{0}](command:workbench.action.openSettings?%5B%22{1}%22%5D \"Open Settings\") to start new sessions in Bypass Approvals or Autopilot mode.",
+					'default permissions',
+					ChatConfiguration.DefaultPermissionLevel
+				)
+			);
+		},
+		when: ContextKeyExpr.or(
+			ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
+			ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Edit),
+		),
+		excludeWhenSettingsChanged: [ChatConfiguration.DefaultPermissionLevel],
+		dismissWhenCommandsClicked: ['workbench.action.openSettings'],
 	},
 ];

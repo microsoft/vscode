@@ -302,18 +302,23 @@ export abstract class AbstractExtensionManagementService extends CommontExtensio
 						this.logService.info('Waiting for already requested installing extension', identifier.id, root.identifier.id, options.profileLocation.toString());
 						existingInstallingExtension.waitingTasks.push(root);
 						// add promise that waits until the extension is completely installed, ie., onDidInstallExtensions event is triggered for this extension
-						alreadyRequestedInstallations.push(
-							Event.toPromise(
-								Event.filter(this.onDidInstallExtensions, results => results.some(result => areSameExtensions(result.identifier, identifier)))
-							).then(results => {
-								this.logService.info('Finished waiting for already requested installing extension', identifier.id, root.identifier.id, options.profileLocation.toString());
-								const result = results.find(result => areSameExtensions(result.identifier, identifier));
-								if (!result?.local) {
-									// Extension failed to install
-									throw new Error(`Extension ${identifier.id} is not installed`);
-								}
-								return result.local;
-							}));
+						const waitForInstallation = Event.toPromise(
+							Event.filter(this.onDidInstallExtensions, results => results.some(result => areSameExtensions(result.identifier, identifier)))
+						).then(results => {
+							this.logService.info('Finished waiting for already requested installing extension', identifier.id, root.identifier.id, options.profileLocation.toString());
+							const result = results.find(result => areSameExtensions(result.identifier, identifier));
+							if (!result?.local) {
+								// Extension failed to install
+								throw new Error(`Extension ${identifier.id} is not installed`);
+							}
+							return result.local;
+						});
+						alreadyRequestedInstallations.push(waitForInstallation);
+						// Attach a no-op rejection handler to prevent an unhandledRejection if the
+						// outer try throws before `alreadyRequestedInstallations` is awaited below.
+						// The original promise is still observed via `joinAllSettled` on the happy path,
+						// and the underlying install failure is already reported by the primary task.
+						waitForInstallation.catch(() => { });
 					}
 					return;
 				}
@@ -331,11 +336,16 @@ export abstract class AbstractExtensionManagementService extends CommontExtensio
 		};
 
 		try {
+			const systemExtensions = await this.getInstalled(ExtensionType.System);
 			// Start installing extensions
 			for (const { manifest, extension, options } of extensions) {
-				const isApplicationScoped = options.isApplicationScoped || options.isBuiltin || isApplicationScopedExtension(manifest);
+				const extensionId = getGalleryExtensionId(manifest.publisher, manifest.name);
+				const isSystemExtension = systemExtensions.some(e => areSameExtensions(e.identifier, { id: extensionId }));
+				const isBuiltin = options.isBuiltin || isSystemExtension;
+				const isApplicationScoped = options.isApplicationScoped || isBuiltin || isApplicationScopedExtension(manifest);
 				const installExtensionTaskOptions: InstallExtensionTaskOptions = {
 					...options,
+					isBuiltin,
 					isApplicationScoped,
 					profileLocation: isApplicationScoped ? this.userDataProfilesService.defaultProfile.extensionsResource : options.profileLocation ?? this.getCurrentExtensionsManifestLocation(),
 					productVersion: options.productVersion ?? { version: this.productService.version, date: this.productService.date }

@@ -39,7 +39,7 @@ import { getRemoteAuthority } from '../../remote/common/remoteHosts.js';
 import { IStateService } from '../../state/node/state.js';
 import { IAddRemoveFoldersRequest, INativeOpenFileRequest, INativeWindowConfiguration, IOpenEmptyWindowOptions, IPath, IPathsToWaitFor, isFileToOpen, isFolderToOpen, isWorkspaceToOpen, IWindowOpenable, IWindowSettings } from '../../window/common/window.js';
 import { CodeWindow } from './windowImpl.js';
-import { IBaseOpenConfiguration, IOpenConfiguration, IOpenEmptyConfiguration, IWindowsCountChangedEvent, IWindowsMainService, OpenContext, getLastFocused } from './windows.js';
+import { IOpenConfiguration, IOpenEmptyConfiguration, IWindowsCountChangedEvent, IWindowsMainService, OpenContext, getLastFocused } from './windows.js';
 import { findWindowOnExtensionDevelopmentPath, findWindowOnFile, findWindowOnWorkspaceOrFolder } from './windowsFinder.js';
 import { IWindowState, WindowsStateHandler } from './windowsStateHandler.js';
 import { IRecent } from '../../workspaces/common/workspaces.js';
@@ -292,12 +292,24 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		this.handleChatRequest(openConfig, [window]);
 	}
 
-	async openSessionsWindow(openConfig: IBaseOpenConfiguration): Promise<ICodeWindow[]> {
-		this.logService.trace('windowsManager#openSessionsWindow');
+	async openAgentsWindow(openConfig: IOpenConfiguration, folderUri?: URI): Promise<ICodeWindow[]> {
+		this.logService.trace('windowsManager#openAgentsWindow');
 
+		// Open in a new browser window with the agent sessions workspace
+		const windows = await this.open(await this.ensureAgentsWindow(openConfig));
+
+		// Tell the agents window to select the given folder in the new chat workspace picker
+		if (folderUri && windows.length > 0) {
+			windows[0].sendWhenReady('vscode:selectAgentsFolder', CancellationToken.None, folderUri.toJSON());
+		}
+
+		return windows;
+	}
+
+	private async ensureAgentsWindow(openConfig: IOpenConfiguration): Promise<IOpenConfiguration> {
 		const agentSessionsWorkspaceUri = this.environmentMainService.agentSessionsWorkspace;
 		if (!agentSessionsWorkspaceUri) {
-			throw new Error('Sessions workspace is not configured');
+			throw new Error('Agents workspace is not configured');
 		}
 
 		// Ensure the workspace file exists
@@ -307,14 +319,16 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			await this.fileService.writeFile(agentSessionsWorkspaceUri, VSBuffer.fromString(emptyWorkspaceContent));
 		}
 
-		// Open in a new browser window with the agent sessions workspace
-		return this.open({
-			...openConfig,
+		return {
 			urisToOpen: [{ workspaceUri: agentSessionsWorkspaceUri }],
-			cli: this.environmentMainService.args,
-			forceNewWindow: true,
+			userEnv: openConfig.userEnv,
+			cli: openConfig.cli,
 			noRecentEntry: true,
-		});
+			context: openConfig.context,
+			contextWindowId: openConfig.contextWindowId,
+			initialStartup: openConfig.initialStartup,
+			forceNewWindow: true,
+		};
 	}
 
 	async open(openConfig: IOpenConfiguration): Promise<ICodeWindow[]> {
@@ -1488,7 +1502,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		const lastActiveWindow = this.getLastActiveWindow();
 		const newWindowProfile = windowConfig?.newWindowProfile
 			? this.userDataProfilesMainService.profiles.find(profile => profile.name === windowConfig.newWindowProfile) : undefined;
-		const defaultProfile = newWindowProfile ?? lastActiveWindow?.profile ?? this.userDataProfilesMainService.defaultProfile;
+		const defaultProfile = newWindowProfile ?? (lastActiveWindow?.profile?.isAgentsWindowProfile ? undefined : lastActiveWindow?.profile) ?? this.userDataProfilesMainService.defaultProfile;
 
 		let window: ICodeWindow | undefined;
 		if (!options.forceNewWindow && !options.forceNewTabbedWindow) {
@@ -1561,7 +1575,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			os: { release: release(), hostname: hostname(), arch: arch() },
 
 			autoDetectHighContrast: windowConfig?.autoDetectHighContrast ?? true,
-			autoDetectColorScheme: windowConfig?.autoDetectColorScheme ?? this.themeMainService.isAutoDetectColorScheme(),
+			autoDetectColorScheme: windowConfig?.autoDetectColorScheme ?? false,
 			accessibilitySupport: app.accessibilitySupportEnabled,
 			colorScheme: this.themeMainService.getColorScheme(),
 			policiesData: this.policyService.serialize(),
@@ -1581,7 +1595,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			const createdWindow = window = this.instantiationService.createInstance(CodeWindow, {
 				state,
 				extensionDevelopmentPath: configuration.extensionDevelopmentPath,
-				isExtensionTestHost: !!configuration.extensionTestsPath
+				isExtensionTestHost: !!configuration.extensionTestsPath,
+				isSessionsWindow: configuration.isSessionsWindow
 			});
 			mark('code/didCreateCodeWindow');
 
@@ -1694,15 +1709,20 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		}
 
 		const workspace = configuration.workspace ?? toWorkspaceIdentifier(configuration.backupPath, false);
-		const profilePromise = this.resolveProfileForBrowserWindow(options, workspace, defaultProfile);
-		const profile = profilePromise instanceof Promise ? await profilePromise : profilePromise;
-		configuration.profiles.profile = profile;
 
-		if (!configuration.extensionDevelopmentPath) {
-			// Associate the configured profile to the workspace
-			// unless the window is for extension development,
-			// where we do not persist the associations
-			await this.userDataProfilesMainService.setProfileForWorkspace(workspace, profile);
+		if (configuration.isSessionsWindow) {
+			configuration.profiles.profile = this.userDataProfilesMainService.profiles.find(p => p.isAgentsWindowProfile) ?? await this.userDataProfilesMainService.createAgentsWindowProfile();
+		} else {
+			const profilePromise = this.resolveProfileForBrowserWindow(options, workspace, defaultProfile);
+			const profile = profilePromise instanceof Promise ? await profilePromise : profilePromise;
+			configuration.profiles.profile = profile;
+
+			if (!configuration.extensionDevelopmentPath) {
+				// Associate the configured profile to the workspace
+				// unless the window is for extension development,
+				// where we do not persist the associations
+				await this.userDataProfilesMainService.setProfileForWorkspace(workspace, profile);
+			}
 		}
 
 		// Load it

@@ -267,4 +267,83 @@ suite('ChatMarkdownContentPart', () => {
 		assert.ok(!renderedCodeBlocks[0].text.includes('<vscode_codeblock_uri'));
 		assert.strictEqual(renderedCodeBlocks[0].codemapperUri?.toString(), 'file:///test.ts');
 	});
+
+	test('code block toolbar context is set correctly with code text', () => {
+		// Simulates the scenario in #255290: the copy button should have
+		// valid code text during streaming even as code blocks are re-rendered.
+		createMarkdownPart('```js\nconsole.log("hello");\n```');
+
+		assert.strictEqual(renderedCodeBlocks.length, 1);
+		assert.strictEqual(renderedCodeBlocks[0].text, 'console.log("hello");');
+		assert.strictEqual(renderedCodeBlocks[0].languageId, 'js');
+		assert.strictEqual(renderedCodeBlocks[0].codeBlockIndex, 0);
+	});
+
+	test('code block maintains content when markdown is re-rendered during streaming', () => {
+		// Simulates progressive rendering: first tick shows partial code, second tick adds more.
+		// Each render creates a new ChatMarkdownContentPart (as happens during streaming).
+		// The code block should get the updated text each time.
+		const ctx = createRenderContext(false /* isComplete = false, simulating streaming */);
+
+		// First render with partial code
+		const part1 = createMarkdownPart('```js\nconsole\n```', ctx);
+		assert.strictEqual(renderedCodeBlocks.length, 1);
+		assert.strictEqual(renderedCodeBlocks[0].text, 'console');
+		assert.strictEqual(part1.codeblocks.length, 1);
+
+		// Second render with more code (simulating streaming progress)
+		renderedCodeBlocks.length = 0;
+		const part2 = createMarkdownPart('```js\nconsole.log("hello");\n```', ctx);
+		assert.strictEqual(renderedCodeBlocks.length, 1);
+		assert.strictEqual(renderedCodeBlocks[0].text, 'console.log("hello");');
+		assert.strictEqual(part2.codeblocks.length, 1);
+		assert.strictEqual(part2.codeblocks[0].codeBlockIndex, 0);
+	});
+
+	test('code block part element is reused from pool across streaming renders', () => {
+		// Verify the same CodeBlockPart element is returned from the pool for the same key
+		const elements: HTMLElement[] = [];
+		const poolWithTracking = {
+			get(): IDisposableReference<CodeBlockPart> {
+				const element = mainWindow.document.createElement('div');
+				elements.push(element);
+				const mockPart = {
+					element,
+					get uri() { return undefined; },
+					render(data: ICodeBlockData, _width: number) {
+						renderedCodeBlocks.push(data);
+					},
+					layout() { },
+					focus() { },
+					reset() { },
+					onDidRemount() { },
+				} as unknown as CodeBlockPart;
+				return {
+					object: mockPart,
+					isStale: () => false,
+					dispose: () => { },
+				};
+			},
+			inUse: () => [],
+			dispose: () => { },
+		} as unknown as EditorPool;
+
+		const ctx = createRenderContext(false);
+		store.add(instantiationService.createInstance(
+			ChatMarkdownContentPart,
+			{ kind: 'markdownContent', content: new MarkdownString('```js\nconsole\n```') },
+			ctx, poolWithTracking, false, 0, renderer, undefined, 500, {},
+		));
+
+		store.add(instantiationService.createInstance(
+			ChatMarkdownContentPart,
+			{ kind: 'markdownContent', content: new MarkdownString('```js\nconsole.log("hello");\n```') },
+			ctx, poolWithTracking, false, 0, renderer, undefined, 500, {},
+		));
+
+		// Both renders should have created code blocks with the correct text
+		assert.strictEqual(renderedCodeBlocks.length, 2);
+		assert.strictEqual(renderedCodeBlocks[0].text, 'console');
+		assert.strictEqual(renderedCodeBlocks[1].text, 'console.log("hello");');
+	});
 });

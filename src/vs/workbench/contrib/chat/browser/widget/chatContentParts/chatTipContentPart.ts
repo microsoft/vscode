@@ -152,7 +152,7 @@ export class ChatTipContentPart extends Disposable {
 
 	private _shouldTriggerSetup(): boolean {
 		const sentiment = this._chatEntitlementService.sentiment;
-		if (!sentiment?.installed) {
+		if (!sentiment?.completed) {
 			return true;
 		}
 

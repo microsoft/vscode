@@ -7,9 +7,13 @@ import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { FileAccess, Schemas } from '../../../base/common/network.js';
 import { Client, IIPCOptions } from '../../../base/parts/ipc/node/ipc.cp.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IEnvironmentService, INativeEnvironmentService } from '../../environment/common/environment.js';
 import { parseAgentHostDebugPort } from '../../environment/node/environmentService.js';
+import { ILogService } from '../../log/common/log.js';
+import { getResolvedShellEnv } from '../../shell/node/shellEnv.js';
 import { IAgentHostConnection, IAgentHostStarter } from '../common/agent.js';
+import { AgentHostClaudeAgentSdkPathSettingId, AgentHostClaudeSdkPathEnvVar } from '../common/agentService.js';
 
 /**
  * Options for configuring the agent host WebSocket server in the child process.
@@ -38,7 +42,9 @@ export class NodeAgentHostStarter extends Disposable implements IAgentHostStarte
 	readonly onRequestConnection = this._onRequestConnection.event;
 
 	constructor(
-		@IEnvironmentService private readonly _environmentService: INativeEnvironmentService
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IEnvironmentService private readonly _environmentService: INativeEnvironmentService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 	}
@@ -55,12 +61,29 @@ export class NodeAgentHostStarter extends Disposable implements IAgentHostStarte
 		this._onRequestConnection.fire();
 	}
 
-	start(): IAgentHostConnection {
+	async start(): Promise<IAgentHostConnection> {
+		// Resolve user shell environment so spawned tools/terminals inherit
+		// PATH and other vars from the user's login shell (macOS/Linux).
+		const shellEnv = await this._resolveShellEnv();
+
 		const env: Record<string, string> = {
+			...shellEnv as Record<string, string>,
 			VSCODE_ESM_ENTRYPOINT: 'vs/platform/agentHost/node/agentHostMain',
 			VSCODE_PIPE_LOGGING: 'true',
 			VSCODE_VERBOSE_LOGGING: 'true',
 		};
+
+		// Gate optional providers via env vars consumed by `agentHostMain.ts`.
+		// The Claude agent is opt-in: enabled when the user points the SDK path
+		// setting at a locally-installed `@anthropic-ai/claude-agent-sdk` package,
+		// or when the env var is already set on the parent process (developer
+		// override). The SDK itself is intentionally not bundled with VS Code.
+		const claudeSdkPath = this._configurationService.getValue<string>(AgentHostClaudeAgentSdkPathSettingId)
+			|| process.env[AgentHostClaudeSdkPathEnvVar]
+			|| '';
+		if (claudeSdkPath) {
+			env[AgentHostClaudeSdkPathEnvVar] = claudeSdkPath;
+		}
 
 		// Forward WebSocket server configuration to the child process via env vars
 		if (this._wsConfig) {
@@ -80,7 +103,11 @@ export class NodeAgentHostStarter extends Disposable implements IAgentHostStarte
 
 		const opts: IIPCOptions = {
 			serverName: 'Agent Host',
-			args: ['--type=agentHost', '--logsPath', this._environmentService.logsHome.with({ scheme: Schemas.file }).fsPath],
+			args: [
+				'--type=agentHost',
+				'--logsPath', this._environmentService.logsHome.with({ scheme: Schemas.file }).fsPath,
+				'--user-data-dir', this._environmentService.userDataPath,
+			],
 			env,
 		};
 
@@ -103,5 +130,14 @@ export class NodeAgentHostStarter extends Disposable implements IAgentHostStarte
 			store,
 			onDidProcessExit: client.onDidProcessExit
 		};
+	}
+
+	private async _resolveShellEnv(): Promise<typeof process.env> {
+		try {
+			return await getResolvedShellEnv(this._configurationService, this._logService, this._environmentService.args, process.env);
+		} catch (error) {
+			this._logService.error('AgentHostStarter was unable to resolve shell environment', error);
+			return {};
+		}
 	}
 }

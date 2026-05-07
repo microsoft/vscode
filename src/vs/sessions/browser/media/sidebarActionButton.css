@@ -25,7 +25,7 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	background: transparent;
-	color: var(--vscode-sideBar-foreground);
+	color: var(--vscode-agentsPanel-foreground, var(--vscode-foreground));
 	width: 100%;
 	text-align: left;
 	justify-content: flex-start;

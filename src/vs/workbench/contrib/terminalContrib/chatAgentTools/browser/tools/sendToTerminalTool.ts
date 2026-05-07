@@ -1,0 +1,420 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { timeout } from '../../../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../../../base/common/codicons.js';
+import { appendEscapedMarkdownInlineCode, createCommandUri, isMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { localize } from '../../../../../../nls.js';
+import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { hasKey } from '../../../../../../base/common/types.js';
+import { IChatWidgetService } from '../../../../chat/browser/chat.js';
+import { IChatService, IChatMultiSelectAnswer, IChatQuestionAnswerValue, IChatQuestionCarousel, IChatSingleSelectAnswer } from '../../../../chat/common/chatService/chatService.js';
+import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../../chat/common/tools/languageModelToolsService.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { ITerminalChatService, ITerminalInstance, ITerminalService } from '../../../../terminal/browser/terminal.js';
+import { getOutput } from '../outputHelpers.js';
+import { buildCommandDisplayText, isMultilineCommand, normalizeCommandForExecution } from '../runInTerminalHelpers.js';
+import { RunInTerminalTool } from './runInTerminalTool.js';
+import { isSessionAutoApproveLevel } from './terminalToolAutoApprove.js';
+import { TerminalToolId } from './toolIds.js';
+
+export const SendToTerminalToolData: IToolData = {
+	id: TerminalToolId.SendToTerminal,
+	toolReferenceName: 'sendToTerminal',
+	displayName: localize('sendToTerminalTool.displayName', 'Send to Terminal'),
+	modelDescription: `Send input text to an active terminal execution (identified by the \`id\` returned from ${TerminalToolId.RunInTerminal}). The 'command' field may be empty or whitespace to press Enter (useful for interactive prompts). By default, returns the last 20 lines of terminal output captured shortly after sending. Set 'waitForOutput' to true for interactive programs (games, REPLs, etc.) to wait until the terminal becomes idle before returning output — this gives you the program's response to your input.`,
+	icon: Codicon.terminal,
+	source: ToolDataSource.Internal,
+	inputSchema: {
+		type: 'object',
+		properties: {
+			id: {
+				type: 'string',
+				description: `The ID of an active terminal execution to send a command to (returned by ${TerminalToolId.RunInTerminal} for async executions, or for sync executions that timed out and were moved to the background).`,
+				pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$'
+			},
+			command: {
+				type: 'string',
+				description: 'The input text to send to the terminal. The text is sent followed by Enter. Provide an empty or whitespace string to send just Enter (for interactive prompts).'
+			},
+			waitForOutput: {
+				type: 'boolean',
+				description: 'When true, waits for the terminal to become idle (no new output for a short period) before returning, instead of returning immediately. Use this for interactive programs where you need to see the full response to your input. Defaults to false.'
+			},
+		},
+		required: [
+			'id',
+			'command',
+		]
+	}
+};
+
+export interface ISendToTerminalInputParams {
+	id: string;
+	command: string;
+	waitForOutput?: boolean;
+}
+
+const FocusTerminalByIdCommandId = 'workbench.action.terminal.chat.focusTerminalById';
+CommandsRegistry.registerCommand(FocusTerminalByIdCommandId, async (accessor, instanceId: number) => {
+	const terminalService = accessor.get(ITerminalService);
+	const instance = terminalService.getInstanceFromId(instanceId);
+	if (instance) {
+		terminalService.setActiveInstance(instance);
+		await terminalService.revealActiveTerminal();
+		instance.focus();
+	}
+});
+
+const FocusTerminalByExecutionIdCommandId = 'workbench.action.terminal.chat.focusTerminalByExecutionId';
+CommandsRegistry.registerCommand(FocusTerminalByExecutionIdCommandId, async (accessor, executionId: string) => {
+	const execution = RunInTerminalTool.getExecution(executionId);
+	if (execution) {
+		const terminalService = accessor.get(ITerminalService);
+		terminalService.setActiveInstance(execution.instance);
+		await terminalService.revealActiveTerminal();
+		execution.instance.focus();
+	}
+});
+
+export class SendToTerminalTool extends Disposable implements IToolImpl {
+
+	constructor(
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IChatService private readonly _chatService: IChatService,
+		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
+		@ITerminalChatService private readonly _terminalChatService: ITerminalChatService,
+	) {
+		super();
+	}
+
+	async prepareToolInvocation(context: IToolInvocationPreparationContext, _token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
+		const args = context.parameters as ISendToTerminalInputParams;
+		const isEmptyInput = !args.command || !args.command.trim();
+
+		// Resolve a human-friendly terminal label from the instance title
+		const terminalLabel = this._getTerminalLabel(args);
+
+		const invocationMessage = new MarkdownString();
+		const pastTenseMessage = new MarkdownString();
+
+		// Look for the question that prompted this send_to_terminal call
+		const questionText = this._getQuestionContextForTerminal(context.chatSessionResource, args);
+
+		if (isEmptyInput) {
+			invocationMessage.appendMarkdown(localize('send.progressive.enter', "Pressing `Enter` in terminal"));
+			pastTenseMessage.appendMarkdown(localize('send.past.enter', "Pressed `Enter` in terminal"));
+		} else {
+			const displayCommand = buildCommandDisplayText(args.command);
+			const safeInlineCode = appendEscapedMarkdownInlineCode(displayCommand);
+			invocationMessage.appendMarkdown(localize('send.progressive', "Sending {0} to terminal", safeInlineCode));
+			pastTenseMessage.appendMarkdown(localize('send.past', "Sent {0} to terminal", safeInlineCode));
+		}
+
+		if (questionText) {
+			const replyPrefix = ` (${localize('send.replyingTo', "replying to: ")}`;
+			invocationMessage.appendMarkdown(replyPrefix);
+			invocationMessage.appendText(questionText);
+			invocationMessage.appendMarkdown(')');
+			pastTenseMessage.appendMarkdown(replyPrefix);
+			pastTenseMessage.appendText(questionText);
+			pastTenseMessage.appendMarkdown(')');
+		}
+
+		// Build the confirmation message with a "Focus Terminal" command link
+		const instanceId = this._getTerminalInstanceId(args);
+		const confirmationMessage = new MarkdownString('', { isTrusted: { enabledCommands: [FocusTerminalByIdCommandId] } });
+		const safeTerminalLabel = appendEscapedMarkdownInlineCode(terminalLabel);
+		const baseMessage = isEmptyInput
+			? localize('send.confirm.message.enter', "Press `Enter` in terminal {0}", safeTerminalLabel)
+			: localize('send.confirm.message', "Run {0} in terminal {1}", appendEscapedMarkdownInlineCode(buildCommandDisplayText(args.command)), safeTerminalLabel);
+		if (instanceId !== undefined) {
+			const focusUri = createCommandUri(FocusTerminalByIdCommandId, instanceId);
+			confirmationMessage.appendMarkdown(`${baseMessage} — [${localize('focusTerminal', "Focus Terminal")}](${focusUri})`);
+		} else {
+			confirmationMessage.appendMarkdown(baseMessage);
+		}
+
+		// Determine auto-approval, aligned with runInTerminal
+		const chatSessionResource = context.chatSessionResource;
+		const isSessionAutoApproved = chatSessionResource && (
+			isSessionAutoApproveLevel(chatSessionResource, this._configurationService, this._chatWidgetService, this._chatService) ||
+			this._terminalChatService.hasChatSessionAutoApproval(chatSessionResource)
+		);
+
+		// send_to_terminal normally requires confirmation in default approvals mode
+		// because the text may be arbitrary input (passwords, confirmations, etc.)
+		// that the command-line auto-approve analyzer cannot assess. However, when
+		// the text being sent was just collected via askQuestions for the same
+		// terminal, the user already explicitly provided the answer so a second
+		// confirmation is redundant.
+		const isAnsweringQuestion = questionText !== undefined;
+		const shouldShowConfirmation = (!isSessionAutoApproved && !isAnsweringQuestion) || context.forceConfirmationReason !== undefined;
+		const confirmationMessages = shouldShowConfirmation ? {
+			title: localize('send.confirm.title', "Send to Terminal"),
+			message: confirmationMessage,
+			allowAutoConfirm: undefined,
+		} : undefined;
+
+		return {
+			invocationMessage,
+			pastTenseMessage,
+			confirmationMessages,
+		};
+	}
+
+	/**
+	 * Returns a human-friendly label for the target terminal, using the
+	 * terminal instance title (which reflects the running process) instead
+	 * of the raw UUID or numeric id.
+	 */
+	private _getTerminalLabel(args: ISendToTerminalInputParams): string {
+		if (args.id) {
+			const execution = RunInTerminalTool.getExecution(args.id);
+			if (execution) {
+				return execution.instance.title;
+			}
+		}
+		return args.id ?? '';
+	}
+
+	/**
+	 * Returns the numeric terminal instanceId for the target terminal, used
+	 * to build command URIs for the "Focus Terminal" link.
+	 */
+	private _getTerminalInstanceId(args: ISendToTerminalInputParams): number | undefined {
+		if (args.id) {
+			const execution = RunInTerminalTool.getExecution(args.id);
+			if (execution) {
+				return execution.instance.instanceId;
+			}
+		}
+		return undefined;
+	}
+
+	/**
+	 * Searches the current session's responses for the most recent question
+	 * carousel associated with the target terminal, then uses positional
+	 * matching to return the specific question that this send_to_terminal
+	 * call is answering.
+	 *
+	 * When a carousel contains multiple questions, the model calls
+	 * send_to_terminal once per answer in order. This method counts prior
+	 * send_to_terminal invocations since the carousel to determine the
+	 * current question index, then verifies the command matches the answer
+	 * at that position.
+	 */
+	private _getQuestionContextForTerminal(chatSessionResource: URI | undefined, args: ISendToTerminalInputParams): string | undefined {
+		if (!chatSessionResource) {
+			return undefined;
+		}
+
+		const model = this._chatService.getSession(chatSessionResource);
+		if (!model) {
+			return undefined;
+		}
+
+		// Resolve the terminal ID that will match the carousel's terminalId
+		if (!args.id) {
+			return undefined;
+		}
+
+		const commandText = args.command?.trim();
+
+		// Walk requests in reverse to find the most recent carousel for this terminal
+		const requests = model.getRequests();
+		for (let i = requests.length - 1; i >= 0; i--) {
+			const response = requests[i].response;
+			if (!response) {
+				continue;
+			}
+			const parts = response.response.value;
+
+			// First, find the carousel for this terminal (searching backwards)
+			let carouselIndex = -1;
+			let carousel: IChatQuestionCarousel | undefined;
+			for (let j = parts.length - 1; j >= 0; j--) {
+				const part = parts[j];
+				if (part.kind === 'questionCarousel') {
+					const candidate = part as IChatQuestionCarousel;
+					if (!candidate.terminalId || candidate.questions.length === 0) {
+						continue;
+					}
+					if (candidate.terminalId === args.id) {
+						carouselIndex = j;
+						carousel = candidate;
+						break;
+					}
+				}
+			}
+
+			if (!carousel || carouselIndex === -1) {
+				continue;
+			}
+
+			// Count send_to_terminal tool invocations after the carousel to
+			// determine which question this call corresponds to (positional).
+			let sendCount = 0;
+			for (let j = carouselIndex + 1; j < parts.length; j++) {
+				if (parts[j].kind === 'toolInvocation' && (parts[j] as { toolId?: string }).toolId === TerminalToolId.SendToTerminal) {
+					sendCount++;
+				}
+			}
+
+			const questionIndex = sendCount;
+			if (questionIndex >= carousel.questions.length) {
+				return undefined;
+			}
+
+			const question = carousel.questions[questionIndex];
+
+			// Verify the command matches the answer at this position so that
+			// unrelated send_to_terminal calls don't skip confirmation.
+			if (carousel.data) {
+				const answer = carousel.data[question.id];
+				if (this._answerMatchesCommand(answer, commandText)) {
+					return this._getQuestionText(question);
+				}
+			}
+
+			return undefined;
+		}
+		return undefined;
+	}
+
+	private _getQuestionText(question: IChatQuestionCarousel['questions'][0]): string {
+		const text = question.message ?? question.title;
+		return isMarkdownString(text) ? text.value : text;
+	}
+
+	/**
+	 * Checks whether a carousel answer value matches the command text being sent.
+	 * An empty/unprovided answer matches an empty command (i.e. pressing Enter to
+	 * accept the default), since that is the expected way to skip a question.
+	 */
+	private _answerMatchesCommand(answer: IChatQuestionAnswerValue | undefined, commandText: string): boolean {
+		if (answer === undefined) {
+			return commandText === '';
+		}
+		if (typeof answer === 'string') {
+			return answer.trim() === commandText;
+		}
+		// answer is now IChatSingleSelectAnswer | IChatMultiSelectAnswer
+		if (hasKey(answer, { selectedValues: true })) {
+			const multi = answer as IChatMultiSelectAnswer;
+			if (multi.selectedValues.some(v => v.trim() === commandText)) {
+				return true;
+			}
+			if (multi.freeformValue?.trim() === commandText) {
+				return true;
+			}
+			return commandText === '' && multi.selectedValues.length === 0 && !multi.freeformValue?.trim();
+		}
+		if (hasKey(answer, { selectedValue: true })) {
+			const single = answer as IChatSingleSelectAnswer;
+			if (single.selectedValue?.trim() === commandText || single.freeformValue?.trim() === commandText) {
+				return true;
+			}
+			return commandText === '' && !single.selectedValue?.trim() && !single.freeformValue?.trim();
+		}
+		return false;
+	}
+
+	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
+		const args = invocation.parameters as ISendToTerminalInputParams;
+
+		if (!args.id) {
+			return {
+				content: [{
+					kind: 'text',
+					value: `Error: 'id' (the active terminal execution UUID returned by ${TerminalToolId.RunInTerminal}) must be provided.`
+				}]
+			};
+		}
+
+		const execution = RunInTerminalTool.getExecution(args.id);
+		if (!execution) {
+			return {
+				content: [{
+					kind: 'text',
+					value: `Error: No active terminal execution found with ID ${args.id}. The terminal may have already been killed or the ID is invalid. The ID must be the exact value returned by ${TerminalToolId.RunInTerminal}.`
+				}]
+			};
+		}
+
+		// Register a marker before sending so we can scope output to just the response
+		const startMarker = execution.instance.registerMarker?.();
+
+		if (isMultilineCommand(args.command)) {
+			// Multiline commands (e.g. heredocs) must preserve newlines and use
+			// bracketed paste mode so the shell treats the input as a single paste
+			// rather than executing each line independently. Intentionally skip
+			// normalizeCommandForExecution here so neither newlines nor the
+			// trailing/leading whitespace `.trim()` it performs are stripped.
+			await execution.instance.sendText(args.command, true, true);
+		} else {
+			await execution.instance.sendText(normalizeCommandForExecution(args.command), true);
+		}
+
+		let recentOutput: string;
+		if (args.waitForOutput) {
+			// Wait for the terminal to become idle (no new data) before returning.
+			// This is critical for interactive programs (games, REPLs, etc.) where
+			// the response arrives asynchronously after the input.
+			recentOutput = await this._waitForIdleOutput(execution, startMarker, token);
+		} else {
+			await timeout(2000, token);
+			recentOutput = getOutput(execution.instance, startMarker ?? undefined, { lastNLines: 20 });
+		}
+
+		return {
+			content: [{
+				kind: 'text',
+				value: `Successfully sent command to terminal ${args.id}.${recentOutput ? `\n\nTerminal output:\n${recentOutput}` : ''}`
+			}]
+		};
+	}
+
+	/**
+	 * Waits for the terminal to become idle (no new output for a sustained period)
+	 * and returns the output produced since the given marker.
+	 */
+	private async _waitForIdleOutput(
+		execution: ReturnType<typeof RunInTerminalTool.getExecution> & {},
+		startMarker: ReturnType<ITerminalInstance['registerMarker']> | undefined,
+		token: CancellationToken,
+	): Promise<string> {
+		const maxWaitMs = 30_000; // 30 seconds maximum wait
+		const idleThresholdMs = 2_000; // Consider idle after 2s of no data
+		const pollIntervalMs = 500;
+		let waited = 0;
+		let lastDataTime = Date.now();
+
+		const cts = new CancellationTokenSource(token);
+		const dataListener = execution.instance.onData(() => {
+			lastDataTime = Date.now();
+		});
+
+		try {
+			while (!cts.token.isCancellationRequested && waited < maxWaitMs) {
+				await timeout(pollIntervalMs, cts.token);
+				waited += pollIntervalMs;
+
+				const timeSinceLastData = Date.now() - lastDataTime;
+				if (timeSinceLastData >= idleThresholdMs) {
+					break;
+				}
+			}
+		} finally {
+			dataListener.dispose();
+			cts.dispose();
+		}
+
+		return getOutput(execution.instance, startMarker ?? undefined);
+	}
+}
