@@ -58,6 +58,8 @@ import { TaskBoardSidebarView } from './board/TaskBoardSidebarView';
 import { AgentEvent, AgentPlan } from './chat/agentEvents';
 import { CodeGraphController } from './services/CodeGraphController';
 import { CodeGraphStatusBarItem } from './sidebar/CodeGraphStatusBarItem';
+import { CliStatusBarItem } from './cli/CliStatusBarItem';
+import { registerOpenCliInTerminalCommand } from './cli/openCliInTerminal';
 import * as cp from 'node:child_process';
 
 export function activate(context: vscode.ExtensionContext): void {
@@ -1202,6 +1204,14 @@ export function activate(context: vscode.ExtensionContext): void {
 	context.subscriptions.push(codeGraphController);
 	const codeGraphStatusItem = new CodeGraphStatusBarItem(codeGraphController);
 	context.subscriptions.push(codeGraphStatusItem);
+
+	// CLI integration (Phase CLI7 partial). The status bar item shows whether
+	// the bundled `sota` CLI is on PATH and the palette command launches it
+	// in the integrated terminal — sharing workspace cwd and the file-backed
+	// secret + conversation stores already mirrored from the IDE.
+	const cliStatusItem = new CliStatusBarItem();
+	context.subscriptions.push(cliStatusItem);
+	registerOpenCliInTerminalCommand(context);
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand('sota.enableCodeGraph', async () => {

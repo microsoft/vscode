@@ -209,6 +209,16 @@
 				"title": "Anton: Open Chat"
 			},
 			{
+				"command": "sota.openCliHere",
+				"title": "Open sota CLI in Terminal",
+				"category": "Son of Anton"
+			},
+			{
+				"command": "sota.cli.openMenu",
+				"title": "Show sota CLI Menu",
+				"category": "Son of Anton"
+			},
+			{
 				"command": "sota.openTaskBoard",
 				"title": "Open Task Board",
 				"category": "Son of Anton"
