@@ -1711,19 +1711,21 @@ export function registerCLIChatCommands(
 
 		await gitService.restore(repository.rootUri, resources.map(r => r.fsPath), { ref });
 
-		// Refresh the last checkpoint to reflect the now-restored worktree state so subsequent
-		// turns continue to diff against an accurate baseline.
+		// Refresh the last checkpoint to reflect the now-restored worktree state
 		await copilotCLIWorktreeCheckpointService.updateLastCheckpoint(sessionId);
 
-		// For v2 worktree sessions, also clear any pending change tracking on the worktree
-		// properties (mirrors what handleRequestCompleted does after a fresh checkpoint).
-		const refreshedWorktreeProperties = await copilotCLIWorktreeManagerService.getWorktreeProperties(sessionId);
-		if (refreshedWorktreeProperties && refreshedWorktreeProperties.version === 2) {
+		if (worktreeProperties) {
+			// Worktree
 			await copilotCLIWorktreeManagerService.setWorktreeProperties(sessionId, {
-				...refreshedWorktreeProperties,
+				...worktreeProperties,
 				changes: undefined
 			});
+		} else if (workspaceFolder) {
+			// Workspace
+			copilotCliWorkspaceSession.clearWorkspaceChanges(sessionId);
 		}
+
+		await contentProvider.refreshSession({ reason: 'update', sessionId });
 	}));
 
 	const createPullRequest = async (sessionItemOrResource: vscode.ChatSessionItem | vscode.Uri | undefined, isDraft: boolean) => {
