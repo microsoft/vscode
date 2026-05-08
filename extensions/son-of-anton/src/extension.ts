@@ -728,6 +728,34 @@ export function activate(context: vscode.ExtensionContext): void {
 		}),
 	);
 
+	// CLI bridge (Phase CLI7). Clicking a CLI session in the History tree
+	// imports it into the IDE store as a fresh editable conversation and
+	// surfaces it in the chat view. The CLI file is left untouched so
+	// future CLI writes don't disturb the imported copy.
+	context.subscriptions.push(
+		vscode.commands.registerCommand('sota.openCliConversation', async (id: string) => {
+			if (typeof id !== 'string' || !id) {
+				return;
+			}
+			await vscode.commands.executeCommand(`${ChatViewProvider.VIEW_ID}.focus`);
+			const imported = await ChatPanel.openCliConversation(id, conversationStore);
+			if (!imported) {
+				void vscode.window.showWarningMessage(
+					'Could not load the selected CLI conversation. The file may have been moved or is malformed.',
+				);
+				return;
+			}
+			// `ChatPanel.openCliConversation` mints the fresh IDE
+			// conversation and broadcasts the switch via the static
+			// `switchConversation` helper; the sidebar webview view also
+			// needs a nudge so its single-session surface re-renders.
+			const newest = conversationStore.list();
+			if (newest.length > 0) {
+				chatViewProvider.openConversation(newest[0].id);
+			}
+		}),
+	);
+
 	context.subscriptions.push(
 		vscode.commands.registerCommand('sota.newConversation', async () => {
 			const fresh = conversationStore.create();

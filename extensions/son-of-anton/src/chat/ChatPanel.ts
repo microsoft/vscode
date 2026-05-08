@@ -19,6 +19,7 @@ import { WorkspaceContextProvider, isSensitivePath } from './WorkspaceContextPro
 import { CostReporter } from '../monitoring/CostReporter';
 import { SpendGuard, readSpendLimits } from '../monitoring/SpendGuard';
 import { ConversationStore, ChatTab } from './ConversationStore';
+import { loadCliConversation } from './CliConversationReader';
 import { CheckpointManager } from 'son-of-anton-core/checkpoint/CheckpointManager';
 import { CredentialBroker } from 'son-of-anton-core/auth/CredentialBroker';
 import { TaskBoardModel, BoardSnapshot, BoardTask, SubtaskState } from '../board/TaskBoardModel';
@@ -4660,5 +4661,41 @@ export class ChatPanel {
 			}
 		}
 		return posted;
+	}
+
+	/**
+	 * Import a CLI-authored conversation (read from
+	 * `~/.son-of-anton/data/conversations/cli-<id>.json`) into the IDE's
+	 * {@link ConversationStore} as a fresh editable conversation, then
+	 * broadcast the switch to every active chat session so the new entry
+	 * is surfaced immediately.
+	 *
+	 * The bridge is intentionally one-way: future writes to the same CLI
+	 * file do *not* propagate to the imported IDE record, and edits in
+	 * the IDE do *not* mirror back to the CLI. This keeps the cross-
+	 * surface contract simple — read CLI, write IDE — and avoids the
+	 * conflict-resolution rabbit hole that two-way sync would open.
+	 *
+	 * Returns `true` on success and `false` if the file was missing,
+	 * malformed, or otherwise unreadable. The caller is responsible for
+	 * surfacing user-visible feedback when this happens.
+	 */
+	static async openCliConversation(
+		cliId: string,
+		conversationStore: ConversationStore,
+	): Promise<boolean> {
+		if (typeof cliId !== 'string' || !cliId) {
+			return false;
+		}
+		const cliRecord = await loadCliConversation(cliId);
+		if (!cliRecord) {
+			return false;
+		}
+		const fresh = conversationStore.create(cliRecord.messages);
+		ChatPanel.switchConversation(fresh.summary.id);
+		void vscode.window.showInformationMessage(
+			'Imported CLI session into a new IDE conversation.',
+		);
+		return true;
 	}
 }
