@@ -1676,6 +1676,183 @@ function isModalEditorPart(obj: unknown): obj is IModalEditorPart {
 		&& part.windowId === mainWindow.vscodeWindowId;
 }
 
+// Tab Group Commands
+export const ADD_TO_NEW_TAB_GROUP_COMMAND_ID = 'workbench.action.addToNewTabGroup';
+export const REMOVE_FROM_TAB_GROUP_COMMAND_ID = 'workbench.action.removeFromTabGroup';
+export const DISSOLVE_TAB_GROUP_COMMAND_ID = 'workbench.action.dissolveTabGroup';
+export const COLLAPSE_TAB_GROUP_COMMAND_ID = 'workbench.action.collapseTabGroup';
+export const EXPAND_TAB_GROUP_COMMAND_ID = 'workbench.action.expandTabGroup';
+export const RENAME_TAB_GROUP_COMMAND_ID = 'workbench.action.renameTabGroup';
+export const RECOLOR_TAB_GROUP_COMMAND_ID = 'workbench.action.recolorTabGroup';
+
+function registerTabGroupCommands(): void {
+
+	CommandsRegistry.registerCommand({
+		id: ADD_TO_NEW_TAB_GROUP_COMMAND_ID,
+		handler: async (accessor, ...args: unknown[]) => {
+			const editorGroupsService = accessor.get(IEditorGroupsService);
+			const quickInputService = accessor.get(IQuickInputService);
+
+			const group = editorGroupsService.activeGroup;
+			const selectedEditors = group.selectedEditors;
+			if (selectedEditors.length === 0) {
+				return;
+			}
+
+			const name = await quickInputService.input({
+				placeHolder: localize('tabGroupName', "Tab group name (optional)"),
+				prompt: localize('tabGroupNamePrompt', "Enter a name for the new tab group")
+			});
+
+			const model = (group as any).model;
+			if (model?.createTabGroup) {
+				model.createTabGroup(selectedEditors, name || undefined);
+			}
+		}
+	});
+
+	CommandsRegistry.registerCommand({
+		id: REMOVE_FROM_TAB_GROUP_COMMAND_ID,
+		handler: async (accessor, ...args: unknown[]) => {
+			const editorGroupsService = accessor.get(IEditorGroupsService);
+
+			const group = editorGroupsService.activeGroup;
+			const editor = group.activeEditor;
+			if (!editor) {
+				return;
+			}
+
+			const model = (group as any).model;
+			if (model?.getTabGroupForEditor && model?.removeFromTabGroup) {
+				const tabGroup = model.getTabGroupForEditor(editor);
+				if (tabGroup) {
+					model.removeFromTabGroup(tabGroup.id, editor);
+				}
+			}
+		}
+	});
+
+	CommandsRegistry.registerCommand({
+		id: DISSOLVE_TAB_GROUP_COMMAND_ID,
+		handler: async (accessor, ...args: unknown[]) => {
+			const editorGroupsService = accessor.get(IEditorGroupsService);
+
+			const group = editorGroupsService.activeGroup;
+			const editor = group.activeEditor;
+			if (!editor) {
+				return;
+			}
+
+			const model = (group as any).model;
+			if (model?.getTabGroupForEditor && model?.dissolveTabGroup) {
+				const tabGroup = model.getTabGroupForEditor(editor);
+				if (tabGroup) {
+					model.dissolveTabGroup(tabGroup.id);
+				}
+			}
+		}
+	});
+
+	CommandsRegistry.registerCommand({
+		id: COLLAPSE_TAB_GROUP_COMMAND_ID,
+		handler: async (accessor, ...args: unknown[]) => {
+			const editorGroupsService = accessor.get(IEditorGroupsService);
+
+			const group = editorGroupsService.activeGroup;
+			const editor = group.activeEditor;
+			if (!editor) {
+				return;
+			}
+
+			const model = (group as any).model;
+			if (model?.getTabGroupForEditor && model?.collapseTabGroup) {
+				const tabGroup = model.getTabGroupForEditor(editor);
+				if (tabGroup) {
+					model.collapseTabGroup(tabGroup.id);
+				}
+			}
+		}
+	});
+
+	CommandsRegistry.registerCommand({
+		id: EXPAND_TAB_GROUP_COMMAND_ID,
+		handler: async (accessor, ...args: unknown[]) => {
+			const editorGroupsService = accessor.get(IEditorGroupsService);
+
+			const group = editorGroupsService.activeGroup;
+			const editor = group.activeEditor;
+			if (!editor) {
+				return;
+			}
+
+			const model = (group as any).model;
+			if (model?.getTabGroupForEditor && model?.expandTabGroup) {
+				const tabGroup = model.getTabGroupForEditor(editor);
+				if (tabGroup) {
+					model.expandTabGroup(tabGroup.id);
+				}
+			}
+		}
+	});
+
+	CommandsRegistry.registerCommand({
+		id: RENAME_TAB_GROUP_COMMAND_ID,
+		handler: async (accessor, ...args: unknown[]) => {
+			const editorGroupsService = accessor.get(IEditorGroupsService);
+			const quickInputService = accessor.get(IQuickInputService);
+
+			const group = editorGroupsService.activeGroup;
+			const editor = group.activeEditor;
+			if (!editor) {
+				return;
+			}
+
+			const model = (group as any).model;
+			if (model?.getTabGroupForEditor && model?.renameTabGroup) {
+				const tabGroup = model.getTabGroupForEditor(editor);
+				if (tabGroup) {
+					const name = await quickInputService.input({
+						placeHolder: localize('tabGroupRename', "New name for the tab group"),
+						value: tabGroup.name
+					});
+					if (name !== undefined) {
+						model.renameTabGroup(tabGroup.id, name);
+					}
+				}
+			}
+		}
+	});
+
+	CommandsRegistry.registerCommand({
+		id: RECOLOR_TAB_GROUP_COMMAND_ID,
+		handler: async (accessor, ...args: unknown[]) => {
+			const editorGroupsService = accessor.get(IEditorGroupsService);
+			const quickInputService = accessor.get(IQuickInputService);
+
+			const group = editorGroupsService.activeGroup;
+			const editor = group.activeEditor;
+			if (!editor) {
+				return;
+			}
+
+			const model = (group as any).model;
+			if (model?.getTabGroupForEditor && model?.recolorTabGroup) {
+				const tabGroup = model.getTabGroupForEditor(editor);
+				if (tabGroup) {
+					const colors = ['red', 'blue', 'green', 'yellow', 'purple', 'orange', 'pink', 'gray'];
+					const picked = await quickInputService.pick(
+						colors.map(c => ({ label: c, picked: c === tabGroup.color })),
+						{ placeHolder: localize('tabGroupColor', "Choose a color for the tab group") }
+					);
+					if (picked) {
+						model.recolorTabGroup(tabGroup.id, picked.label);
+					}
+				}
+			}
+		}
+	});
+}
+
 export function setup(): void {
 	registerEditorMoveCopyCommand();
 	registerEditorGroupsLayoutCommands();
@@ -1690,4 +1867,5 @@ export function setup(): void {
 	registerSplitEditorCommands();
 	registerFocusEditorGroupWihoutWrapCommands();
 	registerModalEditorCommands();
+	registerTabGroupCommands();
 }
