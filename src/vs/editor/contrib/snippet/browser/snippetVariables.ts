@@ -169,52 +169,61 @@ export class ModelBasedVariableResolver implements VariableResolver {
 
 		const { name } = variable;
 
-		if (name === 'TM_FILENAME') {
-			return path.basename(this._model.uri.fsPath);
+		switch (name) {
+			case 'TM_FILENAME':
+				return path.basename(this._model.uri.fsPath);
 
-		} else if (name === 'TM_FILENAME_BASE') {
-			const name = path.basename(this._model.uri.fsPath);
-			const idx = name.lastIndexOf('.');
-			if (idx <= 0) {
-				return name;
-			} else {
-				return name.slice(0, idx);
+			case 'TM_FILENAME_BASE': {
+				const name = path.basename(this._model.uri.fsPath);
+				const idx = name.lastIndexOf('.');
+				if (idx <= 0) {
+					return name;
+				} else {
+					return name.slice(0, idx);
+				}
 			}
 
-		} else if (name === 'TM_DIRECTORY') {
-			if (path.dirname(this._model.uri.fsPath) === '.') {
-				return '';
-			}
-			return this._labelService.getUriLabel(dirname(this._model.uri));
+			case 'TM_DIRECTORY':
+				if (path.dirname(this._model.uri.fsPath) === '.') {
+					return '';
+				}
+				return this._labelService.getUriLabel(dirname(this._model.uri));
 
-		} else if (name === 'TM_DIRECTORY_BASE') {
-			if (path.dirname(this._model.uri.fsPath) === '.') {
-				return '';
-			}
-			return path.basename(path.dirname(this._model.uri.fsPath));
+			case 'TM_DIRECTORY_BASE':
+				if (path.dirname(this._model.uri.fsPath) === '.') {
+					return '';
+				}
+				return path.basename(path.dirname(this._model.uri.fsPath));
 
-		} else if (name === 'TM_FILEPATH') {
-			return this._labelService.getUriLabel(this._model.uri);
-		} else if (name === 'RELATIVE_FILEPATH') {
-			return this._labelService.getUriLabel(this._model.uri, { relative: true, noPrefix: true });
-		} else if (name === 'REVERSE_RELATIVE_FILEPATH') {
-			const relativeFilepath = this._labelService.getUriLabel(this._model.uri, { relative: true, noPrefix: true });
-			const absoluteFilepath = this._labelService.getUriLabel(this._model.uri, { noPrefix: true });
+			case 'TM_FILEPATH':
+				return this._labelService.getUriLabel(this._model.uri);
 
-			if (relativeFilepath === absoluteFilepath) {
+			case 'RELATIVE_FILEPATH':
+				return this._labelService.getUriLabel(this._model.uri, { relative: true, noPrefix: true });
+
+			case 'REVERSE_RELATIVE_FILEPATH':
+				return this._resolveReverseRelativeFilepath();
+
+			default:
 				return undefined;
-			}
+		}
+	}
 
-			const depth = relativeFilepath.split(/[\\/]/).length - 1;
-			if (depth === 0) {
-				return '.';
-			}
+	private _resolveReverseRelativeFilepath(): string | undefined {
+		const relativeFilepath = this._labelService.getUriLabel(this._model.uri, { relative: true, noPrefix: true });
+		const absoluteFilepath = this._labelService.getUriLabel(this._model.uri, { noPrefix: true });
 
-			const separator = relativeFilepath.includes('\\') ? '\\' : '/';
-			return Array.from({ length: depth }, () => '..').join(separator);
+		if (relativeFilepath === absoluteFilepath) {
+			return undefined;
 		}
 
-		return undefined;
+		const depth = relativeFilepath.split(/[\\/]/).length - 1;
+		if (depth === 0) {
+			return '.';
+		}
+
+		const separator = relativeFilepath.includes('\\') ? '\\' : '/';
+		return Array.from({ length: depth }, () => '..').join(separator);
 	}
 }
 

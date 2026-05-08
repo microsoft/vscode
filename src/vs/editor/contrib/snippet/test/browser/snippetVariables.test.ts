@@ -456,4 +456,41 @@ suite('Snippet Variables Resolver', function () {
 
 		model.dispose();
 	});
+
+	test('Add REVERSE_RELATIVE_FILEPATH snippet variable with nested paths and custom separators', function () {
+
+		const workspaceLabelService = new class extends mock<ILabelService>() {
+			override getUriLabel(uri: URI, options: { relative?: boolean } = {}) {
+				const rootFsPath = URI.file('/foo').fsPath + sep;
+				const fsPath = uri.fsPath;
+				if (options.relative && fsPath.startsWith(rootFsPath)) {
+					return fsPath.substring(rootFsPath.length);
+				}
+				return fsPath;
+			}
+		};
+
+		const deepModel = createTextModel('', undefined, undefined, URI.parse('file:///foo/dir/sub/text.txt'));
+		let resolver: VariableResolver = new ModelBasedVariableResolver(workspaceLabelService, deepModel);
+		if (!isWindows) {
+			assertVariableResolve(resolver, 'REVERSE_RELATIVE_FILEPATH', '../..');
+		} else {
+			assertVariableResolve(resolver, 'REVERSE_RELATIVE_FILEPATH', '..\\..');
+		}
+		deepModel.dispose();
+
+		const windowsStyleLabelService = new class extends mock<ILabelService>() {
+			override getUriLabel(_uri: URI, options: { relative?: boolean } = {}) {
+				if (options.relative) {
+					return 'dir\\sub\\text.txt';
+				}
+				return '\\foo\\dir\\sub\\text.txt';
+			}
+		};
+
+		const windowsModel = createTextModel('', undefined, undefined, URI.parse('file:///foo/dir/sub/text.txt'));
+		resolver = new ModelBasedVariableResolver(windowsStyleLabelService, windowsModel);
+		assertVariableResolve(resolver, 'REVERSE_RELATIVE_FILEPATH', '..\\..');
+		windowsModel.dispose();
+	});
 });
