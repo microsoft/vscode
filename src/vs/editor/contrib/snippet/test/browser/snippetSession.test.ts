@@ -469,6 +469,18 @@ suite('SnippetSession', function () {
 		assertSelections(editor, new Selection(1, 6, 1, 25));
 	});
 
+	test('snippets, merge with collapsed selections does not throw', function () {
+		editor.getModel()!.setValue('');
+		editor.setSelection(new Selection(1, 1, 1, 1));
+		const session = new SnippetSession(editor, '${1:foo}${1:foo}$0', undefined, languageConfigurationService);
+		session.insert();
+		assertSelections(editor, new Selection(1, 1, 1, 4), new Selection(1, 4, 1, 7));
+
+		editor.setSelection(new Selection(1, 1, 1, 4));
+		assert.doesNotThrow(() => session.merge('${1:bar}$0'));
+		assert.strictEqual(editor.getModel()!.getValue(), 'barfoo');
+	});
+
 	test('snippets, transform', function () {
 		editor.getModel()!.setValue('');
 		editor.setSelection(new Selection(1, 1, 1, 1));

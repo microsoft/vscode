@@ -287,6 +287,13 @@ export class OneSnippet {
 		return result;
 	}
 
+	get activePlaceholderCount(): number {
+		if (this._placeholderGroupsIdx < 0) {
+			return 0;
+		}
+		return this._placeholderGroups[this._placeholderGroupsIdx].length;
+	}
+
 	merge(others: OneSnippet[]): void {
 
 		const model = this._editor.getModel();
@@ -676,14 +683,15 @@ export class SnippetSession {
 			// are just text insertions and we don't need to merge the nested snippet into the existing
 			// snippet
 			const isTrivialSnippet = snippets[0].isTrivialSnippet;
-			if (!isTrivialSnippet) {
+			const canMergeSnippets = snippets.length === this._snippets.reduce((count, snippet) => count + snippet.activePlaceholderCount, 0);
+			if (!isTrivialSnippet && canMergeSnippets) {
 				for (const snippet of this._snippets) {
 					snippet.merge(snippets);
 				}
 				console.assert(snippets.length === 0);
 			}
 
-			if (this._snippets[0].hasPlaceholder && !isTrivialSnippet) {
+			if (this._snippets[0].hasPlaceholder && !isTrivialSnippet && canMergeSnippets) {
 				return this._move(undefined);
 			} else {
 				return undoEdits.map(edit => Selection.fromPositions(edit.range.getEndPosition()));
