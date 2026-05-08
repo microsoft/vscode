@@ -84,6 +84,7 @@ function callBuild(
 		anonymous?: boolean;
 		showUnavailableFeatured?: boolean;
 		showFeatured?: boolean;
+		isUBB?: boolean;
 	} = {},
 ): IActionListItem<IActionWidgetDropdownAction>[] {
 	const onSelect = () => { };
@@ -106,6 +107,8 @@ function callBuild(
 		opts.showUnavailableFeatured ?? true,
 		opts.showFeatured ?? true,
 		stubLanguageModelsService,
+		undefined,
+		opts.isUBB,
 	);
 }
 
@@ -810,7 +813,7 @@ suite('buildModelPickerItems', () => {
 		const auto = createAutoModel();
 		const modelA = createModel('gpt-4o', 'GPT-4o');
 		modelA.metadata = { ...modelA.metadata, priceCategory: 'medium' } as ILanguageModelChatMetadata;
-		const items = callBuild([auto, modelA]);
+		const items = callBuild([auto, modelA], { isUBB: true });
 		const gptItem = getActionItems(items).find(a => a.label === 'GPT-4o');
 		assert.ok(gptItem);
 		// When priceCategory is set, the action's plain description should be undefined
