@@ -10,6 +10,9 @@ import { filterCommands, type SlashCommand } from './slashCommands';
 interface ComposerProps {
 	disabled: boolean;
 	history: ReadonlyArray<string>;
+	suggestions?: ReadonlyArray<string>;
+	suggestionHighlight?: number;
+	onCycleSuggestion?(): void;
 	onSubmit(value: string): void;
 }
 
@@ -26,7 +29,7 @@ interface ComposerProps {
  * needs more thought than a simple timer.
  */
 export function Composer(props: ComposerProps): JSX.Element {
-	const { disabled, history, onSubmit } = props;
+	const { disabled, history, onSubmit, suggestions, suggestionHighlight, onCycleSuggestion } = props;
 	const [buffer, setBuffer] = React.useState('');
 	const [cursor, setCursor] = React.useState(0);
 	const [historyIndex, setHistoryIndex] = React.useState<number | null>(null);
@@ -64,6 +67,16 @@ export function Composer(props: ComposerProps): JSX.Element {
 				setBuffer(buffer.slice(0, -1) + '\n');
 				setCursor(buffer.length);
 				return;
+			}
+			// If the buffer is empty and a suggestion is highlighted, send it.
+			// This is the keyboard-only path users walking suggestions expect.
+			if (!buffer && suggestions && suggestions.length > 0 && typeof suggestionHighlight === 'number') {
+				const picked = suggestions[suggestionHighlight];
+				if (picked) {
+					reset();
+					onSubmit(picked);
+					return;
+				}
 			}
 			submit();
 			return;
@@ -107,6 +120,14 @@ export function Composer(props: ComposerProps): JSX.Element {
 				setBuffer(next);
 				setCursor(next.length);
 			}
+			return;
+		}
+
+		// Tab on an empty buffer cycles through follow-up suggestions when
+		// the parent has supplied any. The keyboard contract: Tab walks
+		// suggestions, Enter sends the highlighted one.
+		if (key.tab && !buffer && suggestions && suggestions.length > 0) {
+			onCycleSuggestion?.();
 			return;
 		}
 

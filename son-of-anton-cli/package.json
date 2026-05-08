@@ -14,8 +14,11 @@
 		"@aws-sdk/client-bedrock-runtime": "^3.700.0",
 		"@aws-sdk/credential-providers": "^3.700.0",
 		"commander": "^9.5.0",
+		"cli-highlight": "^2.1.11",
 		"ink": "^3.2.0",
 		"ink-spinner": "^4.0.3",
+		"marked": "^4.3.0",
+		"marked-terminal": "^5.2.0",
 		"react": "^17.0.2",
 		"son-of-anton-core": "file:../son-of-anton-core"
 	},

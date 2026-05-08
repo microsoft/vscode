@@ -18,8 +18,10 @@ import { ResumePicker } from './ResumePicker';
 import { appendHistory, loadHistory } from './replHistory';
 import { findCommand, type SlashCommandContext } from './slashCommands';
 import { StatusBar } from './StatusBar';
+import { Suggestions, extractSuggestionsFromAssistantText, stripSuggestionsSentinel } from './Suggestions';
 import { Transcript } from './Transcript';
 import { loadSessionInfo } from './sessionInfo';
+import type { UiBlockResponse } from './uiBlocks/types';
 import type { TuiMessage } from './types';
 import { useAgentStream } from './useAgentStream';
 
@@ -50,6 +52,44 @@ export function ChatApp(props: ChatAppProps): JSX.Element {
 	const [history, setHistory] = React.useState<ReadonlyArray<string>>(() => loadHistory());
 	const conversationIdRef = React.useRef<string | undefined>(resumeFrom?.id);
 	const [resumePickerOpen, setResumePickerOpen] = React.useState(false);
+	const [uiBlockState, setUiBlockState] = React.useState<Map<string, { settled: boolean; value?: UiBlockResponse }>>(() => new Map());
+	const [suggestionHighlight, setSuggestionHighlight] = React.useState(0);
+
+	// Strip the sentinel block from the rendered transcript so users don't
+	// see the raw protocol while keeping the data available for `Suggestions`.
+	// Only mutates assistant messages; user/system rows pass through.
+	const renderedMessages = React.useMemo<ReadonlyArray<TuiMessage>>(
+		() =>
+			messages.map((m) =>
+				m.role === 'assistant'
+					? { ...m, text: stripSuggestionsSentinel(m.text) }
+					: m,
+			),
+		[messages],
+	);
+
+	const lastAssistantText = React.useMemo(() => {
+		for (let i = messages.length - 1; i >= 0; i--) {
+			const msg = messages[i];
+			if (msg.role === 'assistant' && !msg.streaming && msg.text) {
+				return msg.text;
+			}
+		}
+		return '';
+	}, [messages]);
+
+	const suggestions = React.useMemo(() => {
+		if (!lastAssistantText) {
+			return [] as ReadonlyArray<string>;
+		}
+		return extractSuggestionsFromAssistantText(lastAssistantText);
+	}, [lastAssistantText]);
+
+	React.useEffect(() => {
+		// Reset the highlight every time the suggestion set changes so a new
+		// turn always starts from the first follow-up.
+		setSuggestionHighlight(0);
+	}, [suggestions.join('\n')]);
 
 	// Hydrate the transcript from the resume payload exactly once on mount.
 	const hasHydratedRef = React.useRef(false);
@@ -215,8 +255,36 @@ export function ChatApp(props: ChatAppProps): JSX.Element {
 				<ResumePicker conversations={listConversations()} onSelect={handleResumeSelect} onCancel={() => setResumePickerOpen(false)} />
 			) : (
 				<>
-					<Transcript messages={messages} />
-					<Composer disabled={busy} history={history} onSubmit={handleSubmit} />
+					<Transcript
+						messages={renderedMessages}
+						uiBlockState={uiBlockState}
+						onUiBlockResponse={(blockId, response) => {
+							setUiBlockState((prev) => {
+								const next = new Map(prev);
+								next.set(blockId, { settled: true, value: response });
+								return next;
+							});
+							const summary = response.kind === 'confirm'
+								? JSON.stringify({ confirmed: response.value })
+								: JSON.stringify(response.values);
+							handleSubmit(`UI block response (${blockId}): ${summary}`);
+						}}
+					/>
+					{!busy ? (
+						<Suggestions suggestions={suggestions} highlight={suggestionHighlight} />
+					) : null}
+					<Composer
+						disabled={busy}
+						history={history}
+						suggestions={busy ? [] : suggestions}
+						suggestionHighlight={suggestionHighlight}
+						onCycleSuggestion={() => {
+							if (suggestions.length > 0) {
+								setSuggestionHighlight((h) => (h + 1) % suggestions.length);
+							}
+						}}
+						onSubmit={handleSubmit}
+					/>
 				</>
 			)}
 		</Box>
