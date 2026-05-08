@@ -5,19 +5,19 @@
 
 /* Tab Group Header - standalone element in the tab bar (Chrome-style) */
 .tab-group-header {
-	display: inline-flex;
-	align-items: center;
+	display: inline-block;
+	vertical-align: top;
 	height: 100%;
 	padding: 0 10px;
 	cursor: pointer;
 	flex-shrink: 0;
 	font-size: 11px;
 	font-weight: 600;
-	line-height: 1;
+	line-height: 35px;
 	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;
-	max-width: 120px;
+	max-width: 150px;
 	min-width: 24px;
 	user-select: none;
 	border-radius: 4px 4px 0 0;

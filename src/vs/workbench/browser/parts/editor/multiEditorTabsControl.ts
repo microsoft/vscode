@@ -1749,7 +1749,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		if (isCustomColor) {
 			const colorVal = this.getTabGroupColorValue(group.color);
 			header.style.backgroundColor = `color-mix(in srgb, ${colorVal} 20%, transparent)`;
-			header.style.color = colorVal;
+			header.style.color = `color-mix(in srgb, ${colorVal} 70%, white)`;
 		} else {
 			header.style.backgroundColor = '';
 			header.style.color = '';
