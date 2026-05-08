@@ -382,6 +382,7 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 			assert.ok(stat.isFile(), 'worktree should start from origin/main, not stale local main');
 		} finally {
 			try { await svc!.removeWorktree(URI.file(dir), URI.file(wtPath)); } catch { /* best-effort cleanup */ }
+			rmSync(wtPath, { recursive: true, force: true });
 			try { cp.execFileSync('git', ['branch', '-D', 'agents/test-origin-start-point'], { cwd: dir, env, stdio: 'ignore' }); } catch { /* best-effort cleanup */ }
 		}
 	});
