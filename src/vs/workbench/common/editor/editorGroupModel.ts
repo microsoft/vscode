@@ -194,18 +194,22 @@ export interface IReadonlyEditorGroupModel {
 	findEditor(editor: EditorInput | null, options?: IMatchEditorOptions): [EditorInput, number /* index */] | undefined;
 	contains(editor: EditorInput | IUntypedEditorInput, options?: IMatchEditorOptions): boolean;
 	getTabGroupForEditor(editorOrIndex: EditorInput | number): IEditorTabGroup | undefined;
-
-	collapseTabGroup?(groupId: string): void;
-	expandTabGroup?(groupId: string): void;
-	addToTabGroup?(groupId: string, editor: EditorInput): void;
-	includeInTabGroup?(groupId: string, editor: EditorInput): void;
-	renameTabGroup?(groupId: string, name: string): void;
-	recolorTabGroup?(groupId: string, color: string): void;
-	dissolveTabGroup?(groupId: string): void;
-	moveTabGroup?(groupId: string, toIndex: number): void;
 }
 
-interface IEditorGroupModel extends IReadonlyEditorGroupModel {
+export interface ITabGroupMutations {
+	createTabGroup(editors: EditorInput[], name?: string, color?: string): IEditorTabGroup;
+	collapseTabGroup(groupId: string): void;
+	expandTabGroup(groupId: string): void;
+	addToTabGroup(groupId: string, editor: EditorInput): void;
+	includeInTabGroup(groupId: string, editor: EditorInput): void;
+	removeFromTabGroup(groupId: string, editor: EditorInput): void;
+	renameTabGroup(groupId: string, name: string): void;
+	recolorTabGroup(groupId: string, color: string): void;
+	dissolveTabGroup(groupId: string): void;
+	moveTabGroup(groupId: string, toIndex: number): void;
+}
+
+interface IEditorGroupModel extends IReadonlyEditorGroupModel, ITabGroupMutations {
 	openEditor(editor: EditorInput, options?: IEditorOpenOptions): IEditorOpenResult;
 	closeEditor(editor: EditorInput, context?: EditorCloseContext, openNext?: boolean): IEditorCloseResult | undefined;
 	moveEditor(editor: EditorInput, toIndex: number): EditorInput | undefined;
@@ -1210,6 +1214,16 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 			throw new Error('Cannot create tab group: no valid non-sticky editors provided');
 		}
 
+		// Remove editors from any existing groups to prevent overlap
+		for (const entry of editorEntries) {
+			this.removeFromTabGroupByIndex(entry.index);
+		}
+		// Re-derive indices after potential group removals
+		for (const entry of editorEntries) {
+			entry.index = this.indexOf(entry.editor);
+		}
+		editorEntries.sort((a, b) => a.index - b.index);
+
 		// Move editors to be contiguous starting at the first editor's position
 		const targetStart = editorEntries[0].index;
 		for (let i = 1; i < editorEntries.length; i++) {
@@ -1464,6 +1478,9 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 			tg.startIndex = this.editors.indexOf(firstEditor);
 		}
 
+		// Maintain sorted invariant
+		this._tabGroups.sort((a, b) => a.startIndex - b.startIndex);
+
 		this._onDidModelChange.fire({ kind: GroupModelChangeKind.TAB_GROUP_CHANGED });
 	}
 
@@ -1489,7 +1506,7 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 		for (const group of this._tabGroups) {
 			if (insertIndex <= group.startIndex) {
 				group.startIndex++;
-			} else if (insertIndex > group.startIndex && insertIndex <= group.startIndex + group.count) {
+			} else if (insertIndex > group.startIndex && insertIndex < group.startIndex + group.count) {
 				group.count++;
 			}
 		}

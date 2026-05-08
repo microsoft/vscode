@@ -6,13 +6,15 @@
 import { IUntypedEditorInput, IMatchEditorOptions, EditorsOrder, GroupIdentifier } from '../editor.js';
 import { EditorInput } from './editorInput.js';
 import { Emitter } from '../../../base/common/event.js';
-import { IEditorTabGroup, IGroupModelChangeEvent, IReadonlyEditorGroupModel } from './editorGroupModel.js';
+import { IEditorTabGroup, IGroupModelChangeEvent, IReadonlyEditorGroupModel, ITabGroupMutations } from './editorGroupModel.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 
-abstract class FilteredEditorGroupModel extends Disposable implements IReadonlyEditorGroupModel {
+abstract class FilteredEditorGroupModel extends Disposable implements IReadonlyEditorGroupModel, ITabGroupMutations {
 
 	private readonly _onDidModelChange = this._register(new Emitter<IGroupModelChangeEvent>());
 	readonly onDidModelChange = this._onDidModelChange.event;
+
+	protected get mutations(): ITabGroupMutations { return this.model as unknown as ITabGroupMutations; }
 
 	constructor(
 		protected readonly model: IReadonlyEditorGroupModel
@@ -35,14 +37,18 @@ abstract class FilteredEditorGroupModel extends Disposable implements IReadonlyE
 	get stickyCount(): number { return this.model.stickyCount; }
 	get tabGroups(): readonly IEditorTabGroup[] { return this.model.tabGroups; }
 	getTabGroupForEditor(editorOrIndex: EditorInput | number): IEditorTabGroup | undefined { return this.model.getTabGroupForEditor(editorOrIndex); }
-	collapseTabGroup(groupId: string): void { this.model.collapseTabGroup?.(groupId); }
-	expandTabGroup(groupId: string): void { this.model.expandTabGroup?.(groupId); }
-	addToTabGroup(groupId: string, editor: EditorInput): void { this.model.addToTabGroup?.(groupId, editor); }
-	includeInTabGroup(groupId: string, editor: EditorInput): void { this.model.includeInTabGroup?.(groupId, editor); }
-	renameTabGroup(groupId: string, name: string): void { this.model.renameTabGroup?.(groupId, name); }
-	recolorTabGroup(groupId: string, color: string): void { this.model.recolorTabGroup?.(groupId, color); }
-	dissolveTabGroup(groupId: string): void { this.model.dissolveTabGroup?.(groupId); }
-	moveTabGroup(groupId: string, toIndex: number): void { this.model.moveTabGroup?.(groupId, toIndex); }
+
+	// ITabGroupMutations delegation
+	createTabGroup(editors: EditorInput[], name?: string, color?: string): IEditorTabGroup { return this.mutations.createTabGroup(editors, name, color); }
+	collapseTabGroup(groupId: string): void { this.mutations.collapseTabGroup(groupId); }
+	expandTabGroup(groupId: string): void { this.mutations.expandTabGroup(groupId); }
+	addToTabGroup(groupId: string, editor: EditorInput): void { this.mutations.addToTabGroup(groupId, editor); }
+	includeInTabGroup(groupId: string, editor: EditorInput): void { this.mutations.includeInTabGroup(groupId, editor); }
+	removeFromTabGroup(groupId: string, editor: EditorInput): void { this.mutations.removeFromTabGroup(groupId, editor); }
+	renameTabGroup(groupId: string, name: string): void { this.mutations.renameTabGroup(groupId, name); }
+	recolorTabGroup(groupId: string, color: string): void { this.mutations.recolorTabGroup(groupId, color); }
+	dissolveTabGroup(groupId: string): void { this.mutations.dissolveTabGroup(groupId); }
+	moveTabGroup(groupId: string, toIndex: number): void { this.mutations.moveTabGroup(groupId, toIndex); }
 
 	get activeEditor(): EditorInput | null { return this.model.activeEditor && this.filter(this.model.activeEditor) ? this.model.activeEditor : null; }
 	get previewEditor(): EditorInput | null { return this.model.previewEditor && this.filter(this.model.previewEditor) ? this.model.previewEditor : null; }
@@ -85,6 +91,9 @@ abstract class FilteredEditorGroupModel extends Disposable implements IReadonlyE
 }
 
 export class StickyEditorGroupModel extends FilteredEditorGroupModel {
+	override get tabGroups(): readonly IEditorTabGroup[] { return []; }
+	override getTabGroupForEditor(): IEditorTabGroup | undefined { return undefined; }
+
 	get count(): number { return this.model.stickyCount; }
 
 	override getEditors(order: EditorsOrder, options?: { excludeSticky?: boolean }): EditorInput[] {
@@ -124,6 +133,22 @@ export class StickyEditorGroupModel extends FilteredEditorGroupModel {
 }
 
 export class UnstickyEditorGroupModel extends FilteredEditorGroupModel {
+	override get tabGroups(): readonly IEditorTabGroup[] {
+		return this.model.tabGroups.map(g => ({
+			...g,
+			startIndex: g.startIndex - this.model.stickyCount
+		}));
+	}
+
+	override getTabGroupForEditor(editorOrIndex: EditorInput | number): IEditorTabGroup | undefined {
+		const absoluteIndex = typeof editorOrIndex === 'number' ? editorOrIndex + this.model.stickyCount : editorOrIndex;
+		const group = this.model.getTabGroupForEditor(absoluteIndex);
+		if (!group) {
+			return undefined;
+		}
+		return { ...group, startIndex: group.startIndex - this.model.stickyCount };
+	}
+
 	get count(): number { return this.model.count - this.model.stickyCount; }
 	override get stickyCount(): number { return 0; }
 

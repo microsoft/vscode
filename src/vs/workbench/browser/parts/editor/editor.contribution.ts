@@ -409,12 +409,13 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: COPY_EDI
 MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { submenu: MenuId.EditorTitleContextShare, title: localize('share', "Share"), group: '11_share', order: -1, when: MultipleEditorsSelectedInGroupContext.negate() });
 
 // Editor Title Context Menu: Tab Groups
-MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: ADD_TO_NEW_TAB_GROUP_COMMAND_ID, title: localize('addToNewTabGroup', "Add to New Tab Group...") }, group: '4_tabgroup', order: 10, when: ActiveEditorStickyContext.toNegated() });
-MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: REMOVE_FROM_TAB_GROUP_COMMAND_ID, title: localize('removeFromTabGroup', "Remove from Tab Group") }, group: '4_tabgroup', order: 20, when: ActiveEditorStickyContext.toNegated() });
-MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: DISSOLVE_TAB_GROUP_COMMAND_ID, title: localize('dissolveTabGroup', "Ungroup All in Tab Group") }, group: '4_tabgroup', order: 30, when: ActiveEditorStickyContext.toNegated() });
-MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: RENAME_TAB_GROUP_COMMAND_ID, title: localize('renameTabGroup', "Rename Tab Group...") }, group: '4_tabgroup', order: 40, when: ActiveEditorStickyContext.toNegated() });
-MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: RECOLOR_TAB_GROUP_COMMAND_ID, title: localize('recolorTabGroup', "Change Tab Group Color...") }, group: '4_tabgroup', order: 50, when: ActiveEditorStickyContext.toNegated() });
-MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: MOVE_TO_TAB_GROUP_COMMAND_ID, title: localize('moveToTabGroup', "Move to Tab Group...") }, group: '4_tabgroup', order: 15, when: ActiveEditorStickyContext.toNegated() });
+const tabGroupsEnabledWhen = ContextKeyExpr.and(ActiveEditorStickyContext.toNegated(), ContextKeyExpr.equals('config.workbench.editor.tabGroups.enabled', true));
+MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: ADD_TO_NEW_TAB_GROUP_COMMAND_ID, title: localize('addToNewTabGroup', "Add to New Tab Group...") }, group: '4_tabgroup', order: 10, when: tabGroupsEnabledWhen });
+MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: REMOVE_FROM_TAB_GROUP_COMMAND_ID, title: localize('removeFromTabGroup', "Remove from Tab Group") }, group: '4_tabgroup', order: 20, when: tabGroupsEnabledWhen });
+MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: DISSOLVE_TAB_GROUP_COMMAND_ID, title: localize('dissolveTabGroup', "Ungroup All in Tab Group") }, group: '4_tabgroup', order: 30, when: tabGroupsEnabledWhen });
+MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: RENAME_TAB_GROUP_COMMAND_ID, title: localize('renameTabGroup', "Rename Tab Group...") }, group: '4_tabgroup', order: 40, when: tabGroupsEnabledWhen });
+MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: RECOLOR_TAB_GROUP_COMMAND_ID, title: localize('recolorTabGroup', "Change Tab Group Color...") }, group: '4_tabgroup', order: 50, when: tabGroupsEnabledWhen });
+MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: MOVE_TO_TAB_GROUP_COMMAND_ID, title: localize('moveToTabGroup', "Move to Tab Group...") }, group: '4_tabgroup', order: 15, when: tabGroupsEnabledWhen });
 
 // Editor Title Context Menu: Split & Move Editor Submenu
 MenuRegistry.appendMenuItem(MenuId.EditorSplitMoveSubmenu, { command: { id: SPLIT_EDITOR_UP, title: localize('splitUp', "Split Up") }, group: '1_split', order: 10 });

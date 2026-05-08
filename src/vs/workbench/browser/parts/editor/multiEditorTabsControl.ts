@@ -56,7 +56,7 @@ import { DraggedTreeItemsIdentifier } from '../../../../editor/common/services/t
 import { IEditorResolverService } from '../../../services/editor/common/editorResolverService.js';
 import { IEditorTitleControlDimensions } from './editorTitleControl.js';
 import { StickyEditorGroupModel, UnstickyEditorGroupModel } from '../../../common/editor/filteredEditorGroupModel.js';
-import { IReadonlyEditorGroupModel, IEditorTabGroup } from '../../../common/editor/editorGroupModel.js';
+import { IReadonlyEditorGroupModel, IEditorTabGroup, ITabGroupMutations } from '../../../common/editor/editorGroupModel.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { applyDragImage } from '../../../../base/browser/ui/dnd/dnd.js';
@@ -125,6 +125,11 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 	private tabGroupHeaders: Map<string, HTMLElement> = new Map();
 	private draggedTabGroupId: string | undefined;
+	private tabElementsCache: HTMLElement[] = [];
+
+	private get tabGroupMutations(): ITabGroupMutations {
+		return this.tabsModel as unknown as ITabGroupMutations;
+	}
 
 	private dimensions: IEditorTitleControlDimensions & { used?: Dimension } = {
 		container: Dimension.None,
@@ -170,6 +175,9 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 		// React to tab group model changes (collapse/expand, rename, recolor, move)
 		this._register(this.tabsModel.onDidModelChange(e => {
+			if (!this.groupsView.partOptions.tabGroups?.enabled) {
+				return;
+			}
 			if (e.kind === GroupModelChangeKind.TAB_GROUP_CHANGED ||
 				e.kind === GroupModelChangeKind.TAB_GROUP_CREATED ||
 				e.kind === GroupModelChangeKind.TAB_GROUP_REMOVED ||
@@ -430,7 +438,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 					// Handle tab group reorder: move group to the end
 					if (this.draggedTabGroupId) {
 						e.preventDefault();
-						this.tabsModel.moveTabGroup?.(this.draggedTabGroupId, this.tabsModel.count + this.groupView.stickyCount);
+						this.tabGroupMutations.moveTabGroup(this.draggedTabGroupId, this.tabsModel.count + this.groupView.stickyCount);
 						this.draggedTabGroupId = undefined;
 						return;
 					}
@@ -1259,7 +1267,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 					}
 					// Convert from tab-relative index to absolute editor index
 					const absoluteIndex = this.tabsModel instanceof UnstickyEditorGroupModel ? targetIndex + this.groupView.stickyCount : targetIndex;
-					this.tabsModel.moveTabGroup?.(this.draggedTabGroupId, absoluteIndex);
+					this.tabGroupMutations.moveTabGroup(this.draggedTabGroupId, absoluteIndex);
 					this.draggedTabGroupId = undefined;
 					return;
 				}
@@ -1594,6 +1602,9 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 	private redraw(options?: IMultiEditorTabsControlLayoutOptions): void {
 
+		// Invalidate cached tab elements (rebuilt in redrawTabGroups)
+		this.tabElementsCache = [];
+
 		// Border below tabs if any with explicit high contrast support
 		if (this.tabsAndActionsContainer) {
 			let tabsContainerBorderColor = this.getColor(EDITOR_GROUP_HEADER_TABS_BORDER);
@@ -1629,6 +1640,19 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		const tabsContainer = this.tabsContainer;
 		if (!tabsContainer) {
 			return;
+		}
+
+		if (!this.groupsView.partOptions.tabGroups?.enabled) {
+			return;
+		}
+
+		// Rebuild the tab elements cache for O(1) index lookup
+		this.tabElementsCache = [];
+		for (let i = 0; i < tabsContainer.children.length; i++) {
+			const child = tabsContainer.children[i] as HTMLElement;
+			if (child.classList.contains('tab')) {
+				this.tabElementsCache.push(child);
+			}
 		}
 
 		const tabGroups = this.tabsModel.tabGroups;
@@ -1670,13 +1694,27 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			header.classList.add('tab-group-header');
 			header.dataset.groupId = group.id;
 			header.draggable = true;
+			header.setAttribute('role', 'button');
+			header.tabIndex = 0;
+
+			const toggleCollapse = () => {
+				if (group.collapsed) {
+					this.tabGroupMutations.expandTabGroup(group.id);
+				} else {
+					this.tabGroupMutations.collapseTabGroup(group.id);
+				}
+			};
 
 			header.addEventListener('click', (e) => {
 				e.stopPropagation();
-				if (group.collapsed) {
-					this.tabsModel.expandTabGroup?.(group.id);
-				} else {
-					this.tabsModel.collapseTabGroup?.(group.id);
+				toggleCollapse();
+			});
+
+			header.addEventListener('keydown', (e: KeyboardEvent) => {
+				if (e.key === 'Enter' || e.key === ' ') {
+					e.preventDefault();
+					e.stopPropagation();
+					toggleCollapse();
 				}
 			});
 
@@ -1719,7 +1757,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				// Dropping a group onto another group: reorder
 				if (this.draggedTabGroupId && this.draggedTabGroupId !== group.id) {
 					e.preventDefault();
-					this.tabsModel.moveTabGroup?.(this.draggedTabGroupId, group.startIndex);
+					this.tabGroupMutations.moveTabGroup(this.draggedTabGroupId, group.startIndex);
 					this.draggedTabGroupId = undefined;
 					return;
 				}
@@ -1729,7 +1767,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				if (draggedEditors && draggedEditors.length > 0) {
 					e.preventDefault();
 					for (const dragged of draggedEditors) {
-						this.tabsModel.addToTabGroup?.(group.id, dragged.identifier.editor);
+						this.tabGroupMutations.addToTabGroup(group.id, dragged.identifier.editor);
 					}
 				}
 			});
@@ -1755,8 +1793,13 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			header.style.color = '';
 		}
 		header.classList.toggle('collapsed', group.collapsed);
+		header.setAttribute('aria-expanded', String(!group.collapsed));
 		header.textContent = group.name || '\u2022';
-		header.title = group.name ? `Tab Group: ${group.name} (click to ${group.collapsed ? 'expand' : 'collapse'})` : `Tab Group (click to ${group.collapsed ? 'expand' : 'collapse'})`;
+		const action = group.collapsed ? localize('expand', "expand") : localize('collapse', "collapse");
+		header.title = group.name
+			? localize('tabGroupHeaderTooltipNamed', "Tab Group: {0} (click to {1})", group.name, action)
+			: localize('tabGroupHeaderTooltip', "Tab Group (click to {0})", action);
+		header.setAttribute('aria-label', header.title);
 
 		// Position the header directly before the first tab of the group
 		tabsContainer.insertBefore(header, firstTab);
@@ -1801,11 +1844,11 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 		if (group.collapsed) {
 			actions.push(new Action('tabGroup.expand', localize('expandTabGroup', "Expand Group"), '', true, () => {
-				this.tabsModel.expandTabGroup?.(group.id);
+				this.tabGroupMutations.expandTabGroup(group.id);
 			}));
 		} else {
 			actions.push(new Action('tabGroup.collapse', localize('collapseTabGroup', "Collapse Group"), '', true, () => {
-				this.tabsModel.collapseTabGroup?.(group.id);
+				this.tabGroupMutations.collapseTabGroup(group.id);
 			}));
 		}
 
@@ -1817,7 +1860,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				value: group.name
 			});
 			if (name !== undefined) {
-				this.tabsModel.renameTabGroup?.(group.id, name);
+				this.tabGroupMutations.renameTabGroup(group.id, name);
 			}
 		}));
 
@@ -1838,10 +1881,10 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 						value: group.color.startsWith('#') || group.color.startsWith('rgb') ? group.color : ''
 					});
 					if (custom) {
-						this.tabsModel.recolorTabGroup?.(group.id, custom);
+						this.tabGroupMutations.recolorTabGroup(group.id, custom);
 					}
 				} else {
-					this.tabsModel.recolorTabGroup?.(group.id, picked.label);
+					this.tabGroupMutations.recolorTabGroup(group.id, picked.label);
 				}
 			}
 		}));
@@ -1849,7 +1892,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		actions.push(new Separator());
 
 		actions.push(new Action('tabGroup.dissolve', localize('dissolveTabGroup', "Ungroup Tabs"), '', true, () => {
-			this.tabsModel.dissolveTabGroup?.(group.id);
+			this.tabGroupMutations.dissolveTabGroup(group.id);
 		}));
 
 		actions.push(new Action('tabGroup.close', localize('closeTabGroup', "Close Group"), '', true, () => {
@@ -1860,7 +1903,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 					editors.push(editor);
 				}
 			}
-			this.tabsModel.dissolveTabGroup?.(group.id);
+			this.tabGroupMutations.dissolveTabGroup(group.id);
 			for (const editor of editors) {
 				this.groupView.closeEditor(editor);
 			}
@@ -2535,41 +2578,34 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		return undefined;
 	}
 
-	private getTabElementCount(tabsContainer: HTMLElement): number {
-		let count = 0;
-		for (let i = 0; i < tabsContainer.children.length; i++) {
-			if (tabsContainer.children[i].classList.contains('tab')) {
-				count++;
-			}
-		}
-		return count;
+	private getTabElementCount(_tabsContainer: HTMLElement): number {
+		return this.tabElementsCache.length;
 	}
 
-	private getLastTabElement(tabsContainer: HTMLElement): HTMLElement | undefined {
-		for (let i = tabsContainer.children.length - 1; i >= 0; i--) {
-			const child = tabsContainer.children[i] as HTMLElement;
-			if (child.classList.contains('tab')) {
-				return child;
-			}
-		}
-		return undefined;
+	private getLastTabElement(_tabsContainer: HTMLElement): HTMLElement | undefined {
+		return this.tabElementsCache.length > 0 ? this.tabElementsCache[this.tabElementsCache.length - 1] : undefined;
 	}
 
 	private getTabAtIndex(tabIndex: number): HTMLElement | undefined {
-		if (tabIndex >= 0) {
-			const tabsContainer = assertReturnsDefined(this.tabsContainer);
+		if (tabIndex < 0) {
+			return undefined;
+		}
 
-			// Skip non-tab elements (e.g. .tab-group-header) when resolving index
-			let tabCount = 0;
+		if (this.tabElementsCache.length > 0) {
+			return tabIndex < this.tabElementsCache.length ? this.tabElementsCache[tabIndex] : undefined;
+		}
+
+		// Fallback: build cache on demand if not yet populated
+		const tabsContainer = this.tabsContainer;
+		if (tabsContainer) {
+			this.tabElementsCache = [];
 			for (let i = 0; i < tabsContainer.children.length; i++) {
 				const child = tabsContainer.children[i] as HTMLElement;
 				if (child.classList.contains('tab')) {
-					if (tabCount === tabIndex) {
-						return child;
-					}
-					tabCount++;
+					this.tabElementsCache.push(child);
 				}
 			}
+			return tabIndex < this.tabElementsCache.length ? this.tabElementsCache[tabIndex] : undefined;
 		}
 
 		return undefined;
@@ -2673,7 +2709,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 							if (editorIdx >= 0 && !this.tabsModel.getTabGroupForEditor(editorIdx)) {
 								const tg = targetGroupBeforeMove;
 								if (editorIdx === tg.startIndex - 1 || editorIdx === tg.startIndex + tg.count) {
-									this.tabsModel.includeInTabGroup?.(tg.id, editor);
+									this.tabGroupMutations.includeInTabGroup(tg.id, editor);
 								}
 							}
 						}
