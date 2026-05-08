@@ -636,43 +636,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}
 		}));
 
-		// Chat rows can drive a `ResizeObserver loop completed with undelivered
-		// notifications` warning because dispatching a height change re-enters
-		// layout synchronously inside the observer callback, which causes the
-		// observer to fire again in the same animation frame. Defer the
-		// dispatch onto the next task with setTimeout(0) so the observer
-		// callback returns cleanly before the layout mutation runs. Coalesce
-		// repeated observations into a single dispatch using the latest size.
-		let pendingBlockSize: number | undefined;
-		let pendingDispatchHandle: ReturnType<typeof setTimeout> | undefined;
-		templateDisposables.add(toDisposable(() => {
-			if (pendingDispatchHandle !== undefined) {
-				clearTimeout(pendingDispatchHandle);
-				pendingDispatchHandle = undefined;
-			}
-		}));
 		const resizeObserver = templateDisposables.add(new dom.DisposableResizeObserver('ChatListItemRenderer.itemHeight', (entries) => {
 			const entry = entries[0];
-			if (!entry) {
-				return;
+			if (entry) {
+				this.fireItemHeightChange(template, entry.borderBoxSize.at(0)?.blockSize);
 			}
-			const blockSize = entry.borderBoxSize.at(0)?.blockSize;
-			// Track the latest measured size so we can coalesce bursts. If
-			// blockSize is unavailable in the current environment we still
-			// schedule a dispatch so `fireItemHeightChange` falls back to
-			// `getBoundingClientRect()` (preserving prior behavior).
-			if (typeof blockSize === 'number') {
-				pendingBlockSize = blockSize;
-			}
-			if (pendingDispatchHandle !== undefined) {
-				return;
-			}
-			pendingDispatchHandle = setTimeout(() => {
-				pendingDispatchHandle = undefined;
-				const size = pendingBlockSize;
-				pendingBlockSize = undefined;
-				this.fireItemHeightChange(template, size);
-			}, 0);
 		}));
 		templateDisposables.add(resizeObserver.observe(rowContainer));
 
@@ -683,6 +651,16 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		this._elementBeingRendered = node.element;
 		try {
 			this.renderChatTreeItem(node.element, index, templateData);
+
+			// Seed `currentRenderedHeight` from the row's mounted box now, while
+			// `_elementBeingRendered` is still set so `fireItemHeightChange`
+			// won't dispatch (it can't safely re-enter the in-flight tree splice).
+			// The ResizeObserver's first post-mount delivery will then hit the
+			// same-height guard and return without firing, avoiding
+			// `ResizeObserver loop completed with undelivered notifications`
+			// caused by the downstream `updateLastItemMinHeight` chain resizing
+			// a sibling row inside the observer callback.
+			this.fireItemHeightChange(templateData);
 		} finally {
 			this._elementBeingRendered = undefined;
 		}
