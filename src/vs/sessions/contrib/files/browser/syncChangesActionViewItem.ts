@@ -30,7 +30,7 @@ export class SyncChangesActionViewItem extends ActionViewItem {
 	}
 
 	protected override getTooltip(): string | undefined {
-		return this._tooltip;
+		return this._tooltip ?? super.getTooltip();
 	}
 
 	protected override updateLabel(): void {
