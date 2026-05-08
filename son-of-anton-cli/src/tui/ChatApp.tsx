@@ -5,7 +5,11 @@
 
 import { Box, Text, useApp, useInput } from 'ink';
 import * as React from 'react';
+import { SpecialistMemory } from 'son-of-anton-core/dist/agents/SpecialistMemory';
+import type { AgentHandle } from 'son-of-anton-core/dist/agents/types';
+import type { CoreHost } from 'son-of-anton-core/dist/host';
 import type { LlmClient, ModelId } from 'son-of-anton-core/dist/llm/LlmClient';
+import { BUILTIN_TOOLS } from 'son-of-anton-core/dist/tools/registry';
 import {
 	listConversations,
 	loadConversation,
@@ -27,6 +31,7 @@ import { useAgentStream } from './useAgentStream';
 
 export interface ChatAppProps {
 	llm: LlmClient;
+	host: CoreHost;
 	model: ModelId;
 	specialist: string;
 	resumeFrom?: CliConversation;
@@ -39,12 +44,17 @@ export interface ChatAppProps {
  * the agent-stream helpers and the live model / specialist state.
  */
 export function ChatApp(props: ChatAppProps): JSX.Element {
-	const { llm, resumeFrom } = props;
+	const { llm, host, resumeFrom } = props;
 	const { exit } = useApp();
 	const [model, setModel] = React.useState<ModelId>((resumeFrom?.model as ModelId) ?? props.model);
 	const [specialist, setSpecialist] = React.useState<string>(resumeFrom?.specialist ?? props.specialist);
 	const [planMode, setPlanMode] = React.useState(false);
 	const session = React.useMemo(() => loadSessionInfo(specialist, model), [specialist, model]);
+	// One SpecialistMemory per session, backed by the host's globalState.
+	// Shares the same store the IDE uses, so memories written here surface
+	// in the IDE's specialist roster panel.
+	const specialistMemory = React.useMemo(() => new SpecialistMemory(host.globalState), [host.globalState]);
+	React.useEffect(() => () => specialistMemory.dispose(), [specialistMemory]);
 
 	const stream = useAgentStream({ llm, model, specialist });
 	const { messages, busy, send, addSystemMessage, clearTranscript, resetConversation, replaceMessages } = stream;
@@ -146,7 +156,22 @@ export function ChatApp(props: ChatAppProps): JSX.Element {
 					return next;
 				});
 			},
-			listTools: async () => [],
+			listTools: async () => {
+				const builtins = BUILTIN_TOOLS.map((t) => ({
+					name: t.definition.name,
+					description: t.definition.description,
+					category: t.definition.category,
+				}));
+				const mcpServers = (host.config.get<unknown>('sota.mcp.servers') ?? []) as ReadonlyArray<{ name?: string }>;
+				const mcpEntries = mcpServers
+					.filter((s): s is { name: string } => typeof s.name === 'string')
+					.map((s) => ({
+						name: `${s.name}/*`,
+						description: 'MCP server (run /mcp doctor to list its tools)',
+						category: 'mcp',
+					}));
+				return [...builtins, ...mcpEntries];
+			},
 			saveSnapshot: async (name) => {
 				if (messages.length === 0) {
 					return { ok: false, error: 'Nothing to save yet.' };
@@ -169,15 +194,30 @@ export function ChatApp(props: ChatAppProps): JSX.Element {
 				setResumePickerOpen(true);
 				return { ok: true, messages: [] };
 			},
-			getConfigValue: () => undefined,
-			setConfigValue: () => {
-				addSystemMessage('Config writes from the REPL arrive in CLI4.');
+			getConfigValue: (key: string) => host.config.get<unknown>(key),
+			setConfigValue: async (key: string, value: unknown) => {
+				if (!host.config.update) {
+					addSystemMessage('This host\'s config store is read-only.');
+					return;
+				}
+				await host.config.update(key, value);
 			},
+			listMemory: (handle: string) => {
+				const entries = specialistMemory.list(handle as AgentHandle);
+				return entries.map((e) => ({ key: e.key, value: e.value, updatedAt: e.updatedAt }));
+			},
+			writeMemory: (handle: string, key: string, value: string) => {
+				specialistMemory.set(handle as AgentHandle, key, value);
+			},
+			clearMemory: (handle: string) => {
+				specialistMemory.clear(handle as AgentHandle);
+			},
+			getActiveSpecialist: () => specialist,
 			requestExit: () => {
 				exit();
 			},
 		}),
-		[addSystemMessage, clearTranscript, resetConversation, exit, messages, model, specialist],
+		[addSystemMessage, clearTranscript, resetConversation, exit, host, messages, model, specialist, specialistMemory],
 	);
 
 	const handleSubmit = React.useCallback(

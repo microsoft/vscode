@@ -135,7 +135,7 @@ export async function runChat(opts: ChatOptions): Promise<void> {
 	const llm = new LlmClient(host.secrets, host.config);
 
 	if (shouldUseTui(opts)) {
-		await runChatTui({ llm, model, specialist: opts.specialist, resumeFrom: opts.resumeFrom });
+		await runChatTui({ llm, host, model, specialist: opts.specialist, resumeFrom: opts.resumeFrom });
 		return;
 	}
 
@@ -197,6 +197,7 @@ export async function runChat(opts: ChatOptions): Promise<void> {
 
 interface ChatTuiArgs {
 	llm: LlmClient;
+	host: ReturnType<typeof buildCliHost>;
 	model: ModelId;
 	specialist: string;
 	resumeFrom?: CliConversation;
@@ -219,6 +220,7 @@ async function runChatTui(args: ChatTuiArgs): Promise<void> {
 	const { waitUntilExit } = ink.render(
 		React.createElement(ChatApp, {
 			llm: args.llm,
+			host: args.host,
 			model: args.model,
 			specialist: args.specialist,
 			resumeFrom: args.resumeFrom,

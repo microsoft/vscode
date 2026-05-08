@@ -23,11 +23,15 @@ export interface SlashCommandContext {
 	setModel(model: string): void;
 	setSpecialist(handle: string): void;
 	togglePlanMode(): void;
-	listTools(): Promise<ReadonlyArray<{ name: string; description?: string }>>;
+	listTools(): Promise<ReadonlyArray<{ name: string; description?: string; category?: string }>>;
 	saveSnapshot(name?: string): Promise<{ ok: true; id: string } | { ok: false; error: string }>;
 	resumeSnapshot(): Promise<{ ok: true; messages: ReadonlyArray<TuiMessage> } | { ok: false; error: string }>;
 	getConfigValue(key: string): unknown;
-	setConfigValue(key: string, value: unknown): void;
+	setConfigValue(key: string, value: unknown): Promise<void>;
+	listMemory(handle: string): ReadonlyArray<{ key: string; value: string; updatedAt: number }>;
+	writeMemory(handle: string, key: string, value: string): void;
+	clearMemory(handle: string): void;
+	getActiveSpecialist(): string;
 	requestExit(): void;
 }
 
@@ -112,10 +116,23 @@ export const BUILT_IN_SLASH_COMMANDS: ReadonlyArray<SlashCommand> = [
 				ctx.addSystemMessage('No tools registered.');
 				return;
 			}
-			const body = tools
-				.map((t) => `  ${t.name}${t.description ? ` — ${t.description}` : ''}`)
-				.join('\n');
-			ctx.addSystemMessage(`Tools:\n${body}`);
+			const grouped = new Map<string, Array<{ name: string; description?: string }>>();
+			for (const tool of tools) {
+				const bucket = tool.category ?? 'misc';
+				if (!grouped.has(bucket)) {
+					grouped.set(bucket, []);
+				}
+				grouped.get(bucket)!.push({ name: tool.name, description: tool.description });
+			}
+			const sections: string[] = [];
+			for (const [category, members] of grouped) {
+				sections.push(
+					`${category}:\n${members
+						.map((m) => `  ${m.name}${m.description ? ` — ${m.description}` : ''}`)
+						.join('\n')}`,
+				);
+			}
+			ctx.addSystemMessage(`Tools (${tools.length}):\n\n${sections.join('\n\n')}`);
 		},
 	},
 	{
@@ -147,7 +164,7 @@ export const BUILT_IN_SLASH_COMMANDS: ReadonlyArray<SlashCommand> = [
 		name: '/config',
 		description: 'Read or set a config value. Usage: /config get sota.model · /config set sota.model sonnet',
 		usage: '/config get|set <key> [value]',
-		run(args, ctx) {
+		async run(args, ctx) {
 			if (args.length === 0 || (args[0] !== 'get' && args[0] !== 'set')) {
 				ctx.addSystemMessage('Usage: /config get <key>  ·  /config set <key> <value>');
 				return;
@@ -173,8 +190,53 @@ export const BUILT_IN_SLASH_COMMANDS: ReadonlyArray<SlashCommand> = [
 			} catch {
 				// Fall back to the raw string when the value isn't JSON.
 			}
-			ctx.setConfigValue(key, parsed);
+			await ctx.setConfigValue(key, parsed);
 			ctx.addSystemMessage(`${key} = ${JSON.stringify(parsed)}`);
+		},
+	},
+	{
+		name: '/memory',
+		description: 'Inspect or write the active specialist\'s memory. /memory · /memory list · /memory write <key> <value> · /memory clear',
+		usage: '/memory [list|write <key> <value>|clear]',
+		run(args, ctx) {
+			const handle = ctx.getActiveSpecialist();
+			const verb = args[0] ?? 'list';
+
+			if (verb === 'list' || args.length === 0) {
+				const entries = ctx.listMemory(handle);
+				if (entries.length === 0) {
+					ctx.addSystemMessage(`No memories saved for @${handle}.`);
+					return;
+				}
+				const formatted = entries
+					.map((e) => {
+						const ago = relativeAgo(e.updatedAt);
+						return `  ${e.key.padEnd(24)} ${e.value} ${ago}`;
+					})
+					.join('\n');
+				ctx.addSystemMessage(`Memories for @${handle} (${entries.length}):\n${formatted}`);
+				return;
+			}
+
+			if (verb === 'clear') {
+				ctx.clearMemory(handle);
+				ctx.addSystemMessage(`Cleared memory for @${handle}.`);
+				return;
+			}
+
+			if (verb === 'write') {
+				if (args.length < 3) {
+					ctx.addSystemMessage('Usage: /memory write <key> <value>');
+					return;
+				}
+				const [, key, ...rest] = args;
+				const value = rest.join(' ');
+				ctx.writeMemory(handle, key, value);
+				ctx.addSystemMessage(`Saved memory ${key} for @${handle}.`);
+				return;
+			}
+
+			ctx.addSystemMessage('Usage: /memory list  ·  /memory write <key> <value>  ·  /memory clear');
 		},
 	},
 	{
@@ -224,6 +286,32 @@ export function findCommand(name: string): SlashCommand | null | 'ambiguous' {
 		return 'ambiguous';
 	}
 	return null;
+}
+
+/**
+ * Render a friendly relative timestamp ("2m ago" / "3h ago" / "yesterday")
+ * for slash commands that surface a list of timestamped entries (memory,
+ * resume picker peers). The fallback for very old entries is an ISO date
+ * so the user can still tell roughly when something was written.
+ */
+function relativeAgo(timestamp: number): string {
+	const diff = Date.now() - timestamp;
+	const minutes = Math.floor(diff / 60_000);
+	if (minutes < 1) {
+		return 'just now';
+	}
+	if (minutes < 60) {
+		return `${minutes}m ago`;
+	}
+	const hours = Math.floor(minutes / 60);
+	if (hours < 24) {
+		return `${hours}h ago`;
+	}
+	const days = Math.floor(hours / 24);
+	if (days < 30) {
+		return `${days}d ago`;
+	}
+	return new Date(timestamp).toISOString().slice(0, 10);
 }
 
 /**

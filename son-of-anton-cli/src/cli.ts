@@ -8,6 +8,7 @@ import { Command, Option } from 'commander';
 import { runAcpServer } from './acp/server';
 import { runChat } from './commands/chat';
 import { configCommand } from './commands/config';
+import { hooksCommand } from './commands/hooks';
 import { runInit } from './commands/init';
 import { mcpCommand } from './commands/mcp';
 import { runPlan } from './commands/plan';
@@ -83,6 +84,7 @@ program
 program.addCommand(toolsCommand());
 program.addCommand(mcpCommand());
 program.addCommand(configCommand());
+program.addCommand(hooksCommand());
 
 program.parseAsync(process.argv).catch(err => {
 	process.stderr.write('error: ' + (err instanceof Error ? err.message : String(err)) + '\n');
