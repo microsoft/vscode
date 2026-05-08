@@ -625,18 +625,31 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 		};
 
 		const restorePromise = doRestore();
-		if (!this.isNewChatSessionContext.get()) {
-			// Race against new-session navigation so progress stops immediately
-			// when the user opens the new session view, but not when they open
-			// another existing session (which should show its own progress).
-			// Use Event.toPromise so the one-shot listener is auto-disposed.
-			const progressPromise = Promise.race([
-				restorePromise,
-				Event.toPromise(this._onDidOpenNewSessionView.event)
-			]);
-			this.progressService.withProgress({ location: ChatViewId, delay: 200 }, () => progressPromise);
+		let onDidOpenNewSessionViewListener: IDisposable | undefined;
+		try {
+			if (!this.isNewChatSessionContext.get()) {
+				// Race against new-session navigation so progress stops immediately
+				// when the user opens the new session view, but not when they open
+				// another existing session (which should show its own progress).
+				// Create the listener explicitly so it can be disposed if restore
+				// completes before the event ever fires.
+				const openNewSessionViewPromise = new Promise<void>(resolve => {
+					onDidOpenNewSessionViewListener = this._onDidOpenNewSessionView.event(() => {
+						onDidOpenNewSessionViewListener?.dispose();
+						onDidOpenNewSessionViewListener = undefined;
+						resolve();
+					});
+				});
+				const progressPromise = Promise.race([
+					restorePromise,
+					openNewSessionViewPromise
+				]);
+				this.progressService.withProgress({ location: ChatViewId, delay: 200 }, () => progressPromise);
+			}
+			await restorePromise;
+		} finally {
+			onDidOpenNewSessionViewListener?.dispose();
 		}
-		await restorePromise;
 	}
 
 	// -- Session Actions --
