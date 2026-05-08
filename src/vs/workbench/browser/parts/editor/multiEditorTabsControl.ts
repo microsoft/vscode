@@ -430,7 +430,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 					// Handle tab group reorder: move group to the end
 					if (this.draggedTabGroupId) {
 						e.preventDefault();
-						this.tabsModel.moveTabGroup?.(this.draggedTabGroupId, this.tabsModel.count);
+						this.tabsModel.moveTabGroup?.(this.draggedTabGroupId, this.tabsModel.count + this.groupView.stickyCount);
 						this.draggedTabGroupId = undefined;
 						return;
 					}
@@ -1169,6 +1169,15 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 			onDragEnter: e => {
 
+				// Allow tab group header drags onto tabs
+				if (this.draggedTabGroupId) {
+					if (e.dataTransfer) {
+						e.dataTransfer.dropEffect = 'move';
+					}
+					this.updateDropFeedback(tab, true, e, tabIndex);
+					return;
+				}
+
 				// Return if transfer is unsupported
 				if (!this.isSupportedDropTransfer(e)) {
 					if (e.dataTransfer) {
@@ -1190,6 +1199,14 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			},
 
 			onDragOver: (e, dragDuration) => {
+				if (this.draggedTabGroupId) {
+					if (e.dataTransfer) {
+						e.dataTransfer.dropEffect = 'move';
+					}
+					this.updateDropFeedback(tab, true, e, tabIndex);
+					return;
+				}
+
 				if (dragDuration >= MultiEditorTabsControl.DRAG_OVER_OPEN_TAB_THRESHOLD) {
 					const draggedOverTab = this.tabsModel.getEditorByIndex(tabIndex);
 					if (draggedOverTab && this.tabsModel.activeEditor !== draggedOverTab) {
@@ -1232,6 +1249,20 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 			onDrop: e => {
 				this.updateDropFeedback(tab, false, e, tabIndex);
+
+				// Handle tab group reorder when dropping a group header onto a tab
+				if (this.draggedTabGroupId) {
+					e.preventDefault();
+					let targetIndex = tabIndex;
+					if (this.getTabDragOverLocation(e, tab) === 'right') {
+						targetIndex++;
+					}
+					// Convert from tab-relative index to absolute editor index
+					const absoluteIndex = this.tabsModel instanceof UnstickyEditorGroupModel ? targetIndex + this.groupView.stickyCount : targetIndex;
+					this.tabsModel.moveTabGroup?.(this.draggedTabGroupId, absoluteIndex);
+					this.draggedTabGroupId = undefined;
+					return;
+				}
 
 				// compute the target index
 				let targetIndex = tabIndex;

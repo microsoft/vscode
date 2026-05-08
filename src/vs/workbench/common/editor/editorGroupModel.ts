@@ -1415,43 +1415,35 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 			return;
 		}
 
-		// Clamp target index
-		toIndex = Math.max(this.sticky + 1, Math.min(toIndex, this.editors.length - group.count));
-		if (toIndex === group.startIndex) {
-			return;
-		}
-
 		const oldStart = group.startIndex;
 		const count = group.count;
 
-		// Extract the editors belonging to this group
+		// Clamp target index to valid range (after sticky tabs, within array)
+		toIndex = Math.max(this.sticky + 1, Math.min(toIndex, this.editors.length));
+		if (toIndex === oldStart) {
+			return;
+		}
+
+		// Step 1: Snapshot each group's first editor before any mutation
+		const groupFirstEditors = new Map<string, EditorInput>();
+		for (const tg of this._tabGroups) {
+			groupFirstEditors.set(tg.id, this.editors[tg.startIndex]);
+		}
+
+		// Step 2: Extract editors belonging to this group
 		const groupEditors = this.editors.splice(oldStart, count);
 
-		// After removal, adjust target if it was after the original position
-		const adjustedTarget = toIndex > oldStart ? toIndex - count : toIndex;
+		// Step 3: Compute insertion point (adjusted for removal)
+		const insertAt = toIndex > oldStart ? toIndex - count : toIndex;
 
-		// Re-insert editors at the adjusted position
-		this.editors.splice(adjustedTarget, 0, ...groupEditors);
+		// Step 4: Re-insert at the computed position
+		this.editors.splice(insertAt, 0, ...groupEditors);
 
-		// Update the moved group's startIndex
-		group.startIndex = adjustedTarget;
-
-		// Adjust other groups' startIndex values
-		for (const other of this._tabGroups) {
-			if (other.id === groupId) {
-				continue;
-			}
-			if (oldStart < toIndex) {
-				// Group moved forward: groups between oldStart and toIndex shift left
-				if (other.startIndex >= oldStart + count && other.startIndex < toIndex) {
-					other.startIndex -= count;
-				}
-			} else {
-				// Group moved backward: groups between toIndex and oldStart shift right
-				if (other.startIndex >= toIndex && other.startIndex < oldStart) {
-					other.startIndex += count;
-				}
-			}
+		// Step 5: Rebuild all startIndex values by finding each group's
+		// first editor in the new array. Groups remain contiguous.
+		for (const tg of this._tabGroups) {
+			const firstEditor = groupFirstEditors.get(tg.id)!;
+			tg.startIndex = this.editors.indexOf(firstEditor);
 		}
 
 		this._onDidModelChange.fire({ kind: GroupModelChangeKind.TAB_GROUP_CHANGED });
