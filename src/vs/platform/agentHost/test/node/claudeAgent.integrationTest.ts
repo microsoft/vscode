@@ -277,6 +277,10 @@ class ProxyRoundTripSdkService implements IClaudeAgentSdkService {
 		return [];
 	}
 
+	async getSessionInfo(_sessionId: string): Promise<SDKSessionInfo | undefined> {
+		return undefined;
+	}
+
 	async startup(params: { options: Options; initializeTimeoutMs?: number }): Promise<WarmQuery> {
 		this.capturedStartupOptions.push(params.options);
 

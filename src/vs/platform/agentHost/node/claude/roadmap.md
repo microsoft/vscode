@@ -407,29 +407,56 @@ a Claude model, but can't yet send a message.
 ### Phase 5 — Session lifecycle: create / dispose / list / shutdown
 
 Implement the lifecycle methods that don't require live LLM traffic.
+**Provisional / materialize is the load-bearing model in this phase**
+(CONTEXT M9): `createSession` returns a session URI synchronously **without**
+spawning an SDK subprocess and **without** writing the on-disk session
+file (the JSONL sidecar). `IAgentCreateSessionResult.provisional: true`
+tells `AgentService` to defer the `sessionAdded` notification and the
+`SessionReady` lifecycle dispatch. The session materializes on first
+`sendMessage` (Phase 6); `IAgent.onDidMaterializeSession` then fires and
+`AgentService` flushes the deferred notifications. Provisional records
+are therefore **invisible to other workbench clients** until materialised.
 
 - `createSession(config)` — allocate a fresh UUID `sessionId`, construct the
   URI via `AgentSession.uri(this.id, sessionId)`, construct a
   `ClaudeAgentSession` (new file `node/claude/claudeAgentSession.ts`).
-  Persist minimal session metadata via `ISessionDataService`. Do **not**
-  start the SDK yet — that happens lazily on first `sendMessage`.
-- **Honor `IAgentCreateSessionConfig.fork`**
-  (`agentService.ts:161–173`): when `config.fork` is set, route through the
-  SDK's `forkSession(sourceSessionId, options)` (top-level SDK function from
-  `claudeCodeSdkService.ts:57, 121–124`) to mint a new session ID, build the
-  URI from the new ID, and persist the `turnIdMapping`.
+  Return `{ session, workingDirectory, provisional: true }`. **Do not**
+  write the JSONL sidecar yet — the session-data DB row is the only
+  pre-materialise persistence (Phase 5's `_provisionalSessions` map carries
+  the in-memory state). The SDK starts lazily on first `sendMessage`
+  (Phase 6).
+- **`createSession({ fork })` — deferred.** The fork branch throws
+  `TODO: Phase 6.5` with no side effects. See "Phase 6.5 — Fork (deferred)"
+  below for the structural reason, the reverted attempt, and the deferred
+  plan that lands alongside Phase 13's result-message mapper.
 - `disposeSession(session)` — tear down the session's `Query` (if alive),
-  MCP gateway, in-flight aborts.
+  MCP gateway, in-flight aborts. Provisional sessions dispose by removing
+  the in-memory record (no SDK / sidecar to clean up).
 - `listSessions()` — `IAgent.listSessions()` returns
   `Promise<IAgentSessionMetadata[]>` (`agentService.ts:394`). Call SDK
   `listSessions()` with `dir` undefined (across all projects), map each
-  `SDKSessionInfo` → `IAgentSessionMetadata`.
+  `SDKSessionInfo` → `IAgentSessionMetadata`. **Sidecar policy:** the
+  per-session `.session.json` sidecar (when present) is a *best-effort
+  enrichment* layer — it is read to fill in `customizationDirectory` and
+  similar host-only fields, but **not used as a filter** (CONTEXT M12).
+  Sessions without a sidecar are still listed; sessions whose sidecar is
+  malformed are still listed with the host-only fields cleared. Provisional
+  sessions are intentionally absent until materialised.
 - `getSessionMessages(session)` — empty stub for now; full implementation
   in Phase 13.
+- `getSessionMetadata?(session)` (optional `IAgent` method) — returns the
+  enriched metadata for a single session, including sidecar fields. Phase
+  5 implements the read path; Phase 11 wires writes (
+  `setMetadata('claude.customizationDirectory', …)`).
 - `resolveSessionConfig` / `sessionConfigCompletions` — schema for
-  Claude-specific session knobs (model, working directory).
+  Claude-specific session knobs (model, working directory). Per-field
+  metadata flags (`sessionMutable`, etc.) come from CONTEXT M12; today the
+  IAgent protocol exposes no generic live-edit setter, so `sessionMutable`
+  fields whose values change mid-session round-trip as a fresh
+  `createSession` (a restart) until the protocol grows that surface.
 - **`shutdown()`** — gracefully close every active `Query`, dispose the
-  proxy, drain in-flight requests.
+  proxy, drain in-flight requests. Provisional sessions are dropped from
+  the in-memory map (no I/O).
 
 **Read-through cache for the transcript** lands here as a seam:
 
@@ -441,13 +468,17 @@ Implement the lifecycle methods that don't require live LLM traffic.
   swapped in without touching `ClaudeAgentSession`.
 
 Tests: create a session, list it (including externally-created), get its
-(empty) messages, dispose it, verify it's gone from `listSessions`. Fork
-via `createSession({ fork })` produces a new URI with the right
-`turnIdMapping`. `shutdown()` is idempotent and cancels in-flight work.
+(empty) messages, dispose it, verify it's gone from `listSessions`.
+`shutdown()` is idempotent and cancels in-flight work.
+`createSession({ fork })` throws `TODO: Phase 6.5` with no side effects.
+A provisional session is **not** visible to a second `listSessions` caller
+until materialised.
 
-Exit criteria: sessions can be created (including via fork) and persisted;
-restarts find them; externally-created Claude Code sessions appear; agent
-host can shut down cleanly.
+Exit criteria: sessions can be created (non-fork) provisionally and
+materialised on first `sendMessage` (Phase 6 owns the materialise edge);
+restarts find materialised sessions; externally-created Claude Code
+sessions appear; agent host can shut down cleanly. Fork is deferred to
+Phase 6.5.
 
 ### Phase 6 — `sendMessage` + streaming progress events (single-turn, no tools)
 
@@ -534,6 +565,109 @@ canned Anthropic stream → verify the resulting `AgentSignal` sequence.
 Exit criteria: a workbench client sends "hi" and sees a streamed assistant
 response in the UI.
 
+### Phase 6.5 — Fork (deferred — depends on Phase 13's result-message mapper)
+
+> **Status:** attempted, fully reverted, deferred. `createSession({ fork })`
+> currently throws `TODO: Phase 6.5` at
+> [`claudeAgent.ts:303`](./claudeAgent.ts) with no side effects.
+>
+> **Sequencing note:** numbered 6.5 to stay consistent with the throw
+> message and `phase6-plan.md` §8.1, but **executes after Phase 13** because
+> the clean fix shares Phase 13's result-message mapper.
+
+**Why deferred — structural mismatch.** Copilot's fork path
+([`copilotAgent.ts:660-714`](../copilot/copilotAgent.ts)) calls
+`sourceEntry.getNextTurnEventId(turnId) → toEventId`, an O(1) primitive the
+Copilot SDK provides natively. The Claude SDK has no equivalent: `forkSession`
+takes `upToMessageId` — an SDK message UUID, INCLUSIVE per
+[`sdk.d.ts:558`](../../../../../../node_modules/@anthropic-ai/claude-agent-sdk/sdk.d.ts) —
+not a protocol turn id, and offers no helper to translate one to the other.
+
+The agent-host needs that translation. Workbench's
+[`agentHostSessionHandler.ts:2167`](../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostSessionHandler.ts)
+passes `turnId` for the **last KEPT turn N** ("keep `[0..N]` INCLUSIVE"); the
+SDK wants the *uuid of the last SDK message of turn N*. The Claude
+extension's
+[`claudeChatSessionContentProvider.ts:341`](../../../../../../extensions/copilot/src/extension/chatSessions/vscode-node/claudeChatSessionContentProvider.ts)
+sidesteps this because its UI semantic is "fork BEFORE request X" (EXCLUSIVE)
+and it uses request-id directly as the SDK uuid via `messageIndex - 1`. The
+agent-host can't do that — its inputs are *protocol turn ids*, not message
+uuids — and no on-disk primitive exists for the mapping in either the SDK's
+JSONL transcript or our session-data DB.
+
+**What was attempted and reverted (do-not-redo).** An in-fork heuristic that
+forward-scanned the SDK's JSONL transcript past `type:'user'` tool-result
+frames (an `_isGenuineUserRequest` predicate skipped mid-turn tool replies)
+until the next genuine user request, then took the last `type:'assistant'`
+before that as the fork anchor. The attempt also threaded protocol
+`turnId → SDKUserMessage.uuid` (mirroring
+[`claudeCodeAgent.ts:569`](../../../../../../extensions/copilot/src/extension/chatSessions/claude/node/claudeCodeAgent.ts))
+and routed the new session id through `Options.resume`. The heuristic worked
+today but is non-contractual: it relies on the SDK packing tool-results into
+`type:'user'` with pure tool_result content arrays, on the absence of
+turn-ending mid-tool states, and on subagents living in separate
+`agent-*.jsonl` files. Any of those could change in an SDK version bump and
+silently break fork. **Decision:** revert and ship the contract-based
+solution backed by Phase 13's mapper.
+
+**Chosen approach (when this phase lands):**
+
+- **Persist `protocolTurnId → lastSdkMessageUuid`** on result-message ingest
+  inside the same handler Phase 13 builds for transcript reconstruction.
+  That mapper sees every SDK message in order and observes `type:'result'`
+  (the only contract-level turn-end signal); it is the right place to
+  capture the mapping without inference.
+- Store the mapping in the session-data DB alongside the existing
+  per-session metadata. Fork becomes O(1) DB lookup, no JSONL walk.
+- `createSession({ fork })` then calls
+  `sdk.forkSession(srcId, { upToMessageId: <looked-up-uuid> })` and routes
+  the new session id through `Options.resume` so the SDK loads the forked
+  transcript.
+- Persist the customization-directory metadata via `setMetadata` on the
+  forked session (mirrors
+  [`copilotAgent.ts`](../copilot/copilotAgent.ts)).
+- Pre-existing on-disk sessions need a one-time backfill (best-effort, the
+  reverted heuristic is acceptable here since it's a one-shot operation
+  on archived data).
+
+**Dependencies:**
+
+- **Hard:** Phase 13 (transcript reconstruction + result-message mapper).
+  Cannot land until the mapper has a stable hook for
+  `turnId → lastSdkMessageUuid` capture on every result-message ingest,
+  including replay during session restoration so pre-existing on-disk
+  sessions get the mapping backfilled.
+- **Soft:** Phase 13's `IClaudeSessionTranscriptStore` (the Phase-5 seam) is
+  the natural place to surface the mapping to `ClaudeAgent`.
+
+**Architectural model:** Copilot's `getNextTurnEventId(turnId)`. Phase 6.5
+is the Claude-side polyfill of that primitive — persisted by us because the
+Claude SDK doesn't provide it.
+
+**Materialisation note.** Unlike non-fork `createSession` (Phase 5/6's
+provisional path), `forkSession` writes the forked SDK transcript file
+synchronously. Fork therefore *eagerly* fires `onDidMaterializeSession`
+from inside `createSession`, before returning — there is no provisional
+state to defer. The host's contract for fork is "materialise immediately,
+no separate sendMessage edge" (CONTEXT M9).
+
+**Workbench client behavior in the interim.** The agent-host contract today
+is "fork rejects, no side effects" — any client invocation surfaces the
+throw as a session-creation error. Whether the workbench should hide or
+disable the fork affordance for Claude sessions until this phase lands is
+TBD with the workbench owners.
+
+Tests (when this phase lands): unit tests for the mapping ingest (turn end
+→ persisted row), unit tests for `createSession({ fork })` looking up the
+mapping and calling `forkSession` with the right uuid, integration test
+parallel to Copilot's fork tests (create → N turns → fork at N-1 →
+new turn on fork → verify prefix turns intact).
+
+Exit criteria: fork is contract-based (no JSONL shape inference), works
+with restored sessions, and honors the workbench's "keep `[0..N]`
+INCLUSIVE" semantic. The reverted heuristic is **not** retained behind a
+flag.
+
 ### Phase 7 — Tool calls + permission + user input
 
 Wire the SDK's tool-use loop through to the agent host's tool infrastructure.
@@ -541,17 +675,37 @@ Wire the SDK's tool-use loop through to the agent host's tool infrastructure.
 
 - Map Claude's tool-use events → `AgentSignal` tool-call request parts.
 - Map tool-result events → tool-result response parts.
-- **`respondToPermissionRequest`** — gate tool execution like the Copilot
-  agent does. Wire through SDK's permission callback / `canUseTool`.
-- **`respondToUserInputRequest`** (`agentService.ts:384–385`) — handle the
-  SDK's user-input / `ask_user` flow. Forward client-provided answers back
-  to the SDK.
+- **Tool-call → turn attribution.** Maintain a per-session
+  `Map<tool_use_id, turnId>` populated when the assistant message
+  carrying the `tool_use` block streams in. The map is consulted from
+  every Phase-7 tool-related callback (`canUseTool`, elicitation
+  handlers, tool-result emission, file-edit tracking in Phase 8) so each
+  signal carries the protocol turn id of the request that scheduled it.
+  Mirrors CONTEXT M2 / M3 / M7 — the SDK never re-states the turn id on
+  per-block events, so the host owns the binding.
+- **`respondToPermissionRequest` — dual-routing in `canUseTool`.** The
+  SDK's `canUseTool(name, input)` callback fires for every tool, but only
+  *some* tools should round-trip through the workbench client; the rest
+  are auto-allowed (or denied) by the host without an elicitation. Maintain
+  an `INTERACTIVE_CLAUDE_TOOLS` set (read, write, edit, bash, etc.) and
+  branch:
+  - Interactive tool → emit `AgentSignal` permission-request part keyed
+    on the tool_use_id (lookup turn id via the attribution map), wait
+    for the client's `respondToPermissionRequest`, return the matching
+    SDK verdict.
+  - Non-interactive tool → immediate auto-allow (or deny per policy);
+    no client round-trip, no signal emitted.
+  Mirror the routing with `respondToUserInputRequest` for the SDK's
+  `ask_user` / elicitation flow (`agentService.ts:384–385`) — same
+  attribution-map lookup.
 - Mirror per-tool annotations (`Read`, `Write`, `Edit`, `Bash`, etc.) so
   the client can render them.
 
 Tests: a session that asks for `Read`, gets prompted, approves, sees the
 tool output streamed back. A session that triggers an `ask_user` request,
-client responds, SDK continues.
+client responds, SDK continues. A session that fires a non-interactive tool
+emits no permission signal. Each emitted signal carries the correct turn
+id via the attribution map.
 
 Exit criteria: a real "read this file" prompt completes end-to-end.
 
@@ -583,35 +737,94 @@ works.
 
 ### Phase 9 — Abort + steering + model change + shutdown polish
 
+Every runtime mutation in this phase classifies into one of M11's three
+buckets — **hot-swap**, **defer-and-coalesce**, or **restart-required**
+(see [CONTEXT.md M11](./CONTEXT.md) "Hot-swap / defer-and-coalesce /
+restart-required taxonomy"). The prompt iterable's yield boundary is the
+only mutation barrier; agents synchronise all three buckets at that point.
+
 - **`abortSession`** — cancel the underlying SDK turn via
   `_abortController.abort()`, matching the production reference. Phase 9
   may experiment with `Query.interrupt()` if the abort path turns out to
   orphan the subprocess, but the default plan is the AbortController route
   the extension already proves works. Propagates through SDK → proxy →
   `ICopilotApiService`.
-- **Steering / `setPendingMessages`** — use `Query.streamInput()` to push
-  additional `SDKUserMessage`s mid-turn.
-- `changeModel` — `Query.setModel()` on the live `Query`. Resolve the new
-  model ID through the proxy's resolver first.
-- `setPermissionMode` (internal SDK concern, not a protocol method) —
-  `Query.setPermissionMode()` on the live `Query`. Permission mode changes
-  are driven by SDK events (`EnterPlanMode`/`ExitPlanMode` tools), not
-  by direct `IAgent` method calls. Wire accordingly
-  (see `claudeCodeAgent.ts:174–181` for the reference).
+- **Steering / `setPendingMessages`** — yield an `SDKUserMessage` with
+  `priority: 'now'` into the *existing* prompt iterable that was passed to
+  `query()`. The SDK's `'now'`-priority watcher aborts the in-flight turn
+  and dequeues the steering message next. **Do NOT use
+  `Query.streamInput()`** — the production reference has zero callers; the
+  prompt iterable absorbs that role (CONTEXT M10). `sendMessage`-originated
+  messages stay on `priority: 'next'` (or unset — `'next'` is the SDK
+  default); steering is the one path that escalates to `'now'`. Emit
+  `IAgentSteeringConsumedSignal` only when the SDK echoes the
+  `'now'`-priority message on the event stream (model has *seen* it), not
+  when the iterable's `yield` resolves (queue acceptance).
+- **`changeModel` — bundle-atomic hot-swap.** A single call carries
+  `ModelSelection.id` *and* the model's per-model config bag (today:
+  `config.effort`). Apply the diff at the next yield boundary by fanning
+  out to one or more SDK runtime setters:
+  - `id` changed → `Query.setModel(sdkId)`.
+  - `config.effort` changed → `Query.applyFlagSettings({ effortLevel })`.
+    **Clamp** at the seam: `Options.effort` allows `'max'` but the
+    runtime setter does not (CONTEXT M11 effort-clamp table). Mid-session
+    `'max'` selections silently degrade to `'xhigh'` on the runtime path.
+    Genuine `'max'` mid-session requires the **restart-required** path
+    (close the `Query`, spawn a new one with `Options.effort: 'max'`).
+  - Both changed → both setters at the same yield boundary, in
+    agent-defined order.
+  Restart preserves bijective state: when the agent restarts the `Query`
+  for any reason (yield-restart, customization-tools-diverge, etc.), it
+  re-applies the stored bijective values (`_currentModel`,
+  `_currentPermissionMode`, `_currentEffort`) so the user-visible config
+  stays continuous.
+- **`Query.setPermissionMode()` is reachable but not protocol-exposed.**
+  Permission mode is `sessionMutable: true` in the M12 schema and
+  bijective in M11, but the IAgent protocol has **no generic live-edit
+  setter** today (CONTEXT M12: "protocol surface for routing an arbitrary
+  live config edit back into the running session is **TBD**"). Until the
+  generic setter lands, a client mid-session edit of `permissionMode`
+  round-trips as a fresh `createSession` with the new bag (a restart) —
+  not as a `setPermissionMode` RPC. The SDK-internal driver
+  (`EnterPlanMode` / `ExitPlanMode` tools — see `claudeCodeAgent.ts:174–181`
+  for the reference) is wired regardless because it does not require an
+  IAgent surface.
 - **Yield-restart** mechanism (port from `claudeCodeAgent.ts`): when
   settings files change or tool set changes mid-turn, drain the current
-  generator and restart via `resume: sessionId`.
+  generator and restart via `resume: sessionId`. This is the
+  **restart-required** bucket; bijective state is re-applied on the new
+  `Query` to keep the user-visible config continuous (see `changeModel`
+  above).
 - **Subprocess crash recovery** — if the SDK subprocess dies mid-turn,
   surface to the client as a turn error and mark the session ready for a
   fresh `_startSession` on the next `sendMessage`.
 
-Tests: abort mid-stream releases the proxy's HTTP connection, steering lands
-in the next turn, model swap takes effect, killed subprocess triggers
-recovery.
+Tests: abort mid-stream releases the proxy's HTTP connection, steering
+(`priority: 'now'` yield) preempts the in-flight turn and emits
+`steering_consumed` after model visibility, model+effort swap fires both
+SDK setters at the same yield boundary, `'max'` mid-session demotes to
+`'xhigh'` on the runtime path (and reaches genuine `'max'` only via
+restart), killed subprocess triggers recovery.
 
 Exit criteria: parity with Copilot agent on stop / steer / switch model.
 
 ### Phase 10 — Client-provided tools (in-process MCP)
+
+The Claude SDK exposes **two distinct MCP entry points** that classify into
+different M11 buckets — do not conflate them:
+
+1. **In-process tools → `createSdkMcpServer` + `Options.mcpServers`** —
+   defined at `query()` start, **immutable for the life of the `Query`**
+   (CONTEXT M11). Any change to the in-process tool list is
+   **restart-required**: yield-restart via `resume: sessionId` so the next
+   `Query` is started with the new `mcpServers` bag. This is the path
+   client-provided tools take.
+2. **External MCP servers → `Query.setMcpServers(...)`** — a runtime SDK
+   setter, in M11's **hot-swap** bucket (bijective; no restart). External
+   server additions / removals (when we surface them) flow through here,
+   not through restart.
+
+The restart-required path:
 
 - `setClientTools(session, clientId, tools)` — convert the protocol's
   `ToolDefinition[]` into SDK MCP tool definitions via SDK's `tool(name,
@@ -621,14 +834,18 @@ Exit criteria: parity with Copilot agent on stop / steer / switch model.
   (uses `tool()` / `createSdkMcpServer`). **Not** `claudeCodeAgent.ts`.
 - The handler is a deferred promise that the host resolves when
   `onClientToolCallComplete` delivers the result.
-- **Per-query MCP server recreation** — recreate from current tool list on
+- **Per-query MCP server recreation** — because in-process `mcpServers`
+  are immutable on a live `Query`, recreate from the current tool list on
   each `_startSession` / yield-restart. Tools changing between turns
   triggers a yield-restart (mirror `_toolsMatch` from `claudeCodeAgent.ts`).
+  Phase 11's `reloadPlugins` does **not** help here — plugins are
+  orthogonal to client-provided tool servers.
 - **MCP gateway lifecycle** — port the `_gateway` + `_gatewayIdleTimeout`
   pattern: gateway disposed after N seconds of idle to release resources.
 
 Tests: a client registers a custom tool, the agent invokes it via a Claude
-prompt, result returns to the client and is fed back into the SDK.
+prompt, result returns to the client and is fed back into the SDK; tool
+list diff between turns triggers yield-restart, not in-place mutation.
 
 Exit criteria: client tools callable from a Claude session.
 
@@ -649,10 +866,17 @@ Exit criteria: client tools callable from a Claude session.
   (`agentService.ts:439`) for progressive loading UI.
 - Pass the local paths as `options.plugins: [{ type: 'local', path }, ...]`
   on the next `query()` call.
-- **Restart-on-toggle** flag (`_pendingRestart` from `claudeCodeAgent.ts`):
-  customization toggles mark the session for restart before the next
-  `sendMessage`.
-- `setCustomizationEnabled(uri, enabled)` — flips the flag.
+- **`setCustomizationEnabled(uri, enabled)` — defer-and-coalesce, NOT
+  restart.** Set `_pendingPluginReload`; at the next yield boundary, call
+  `Query.reloadPlugins()` (a cheap runtime SDK setter — bijective per
+  M11). `reloadPlugins` is in M11's **defer-and-coalesce** bucket, not
+  restart-required: the running subprocess stays up. Only when the *tool
+  set* implied by the new plugin list diverges from the live one do we
+  fall back to the **restart-required** path (yield-restart via
+  `resume: sessionId`); that's the narrow `_toolsMatch` case from
+  `claudeCodeAgent.ts`, not the default. The misnamed `_pendingRestart`
+  flag from the reference impl is a historical artifact — the canonical
+  taxonomy treats plugin reload as cheap.
 
 **Outbound (SDK → host) — required for Copilot parity
 (`agentService.ts:399–417`):**
@@ -664,10 +888,13 @@ Exit criteria: client tools callable from a Claude session.
 
 Tests: client provides a customization → agent syncs it → next `query()`
 includes the local path → SDK init message confirms the plugin loaded;
-customization toggle triggers restart; published events fire correctly.
+customization toggle drains via `reloadPlugins` at the next yield (no
+subprocess restart) and the new plugin appears in `available_plugins`; a
+tool-set diff *does* trigger yield-restart; published events fire correctly.
 
-Exit criteria: customization round-trip works; workbench renders Claude
-customizations like Copilot's.
+Exit criteria: customization round-trip works; toggle is defer-and-coalesce
+by default and restart-required only when tool sets diverge; workbench
+renders Claude customizations like Copilot's.
 
 ### Phase 12 — Subagents
 
@@ -713,19 +940,27 @@ Exit criteria: subagent sessions are first-class for clients.
   (`agentService.ts:430`), so we omit it and document:
   - Clients wanting truncate-like behavior use
     `createSession({ fork: { session, turnIndex, turnId, turnIdMapping } })`
-    (Phase 5), which legitimately mints a new session URI.
+    (Phase 6.5 — currently deferred; until that lands, the fork branch
+    throws and the workbench surfaces a session-creation error).
   - The workbench should follow the new URI, just like for any other fork.
   - Adding in-place truncate later would require a URI→sessionId mapping
     layer; we'd revisit when there's user demand.
-- Session forking via `createSession({ fork })` is already covered in
-  Phase 5; this phase verifies the round-trip with persisted state.
+- **`turnId → lastSdkMessageUuid` ingest** lands here as the prerequisite
+  for Phase 6.5. The result-message mapper persists a
+  `(turnId, lastAssistantMessageUuid)` pair in session metadata on every
+  completed turn; replay during session restoration backfills pre-existing
+  on-disk sessions. This is the contract-level primitive that Phase 6.5
+  consumes for fork — see "Phase 6.5 — Fork (deferred)" above.
 
 Tests: persist a session, restart the agent host, reload the session,
-verify turns are intact and a new turn appends correctly. Fork via
-`createSession({ fork })` produces a new URI with the prefix turns intact.
+verify turns are intact and a new turn appends correctly. Verify
+`turnId → lastSdkMessageUuid` rows are persisted for each completed turn
+on live ingest, and that session restoration replays the mapper to
+backfill them.
 
-Exit criteria: agent-host restart is invisible; fork works; truncate is
-documented as fork-by-another-name.
+Exit criteria: agent-host restart is invisible; the turn-mapping ingest
+is validated; truncate is documented as fork-by-another-name. Fork
+end-to-end ships in Phase 6.5 (deferred to land alongside this phase).
 
 ### Phase 14 — Hardening + telemetry
 
@@ -812,8 +1047,9 @@ native dependency is packaged in all production builds.
   Claude Agent SDK and proxy beneath it; we re-use `@anthropic-ai/sdk`
   types.
 - **In-place `truncateSession`.** SDK's `forkSession` always mints a new
-  session ID. Clients use `createSession({ fork })` for truncate-like
-  effect; we revisit if there's demand.
+  session ID. Clients will use `createSession({ fork })` for truncate-like
+  effect once Phase 6.5 lands; we revisit in-place truncate if there's
+  demand.
 - **File rewind as part of `truncateSession`.** Per-file undo is exposed
   via `resourceRead` / `resourceWrite` URIs (Phase 8).
 - **Custom subprocess sandboxing** via `spawnClaudeCodeProcess`. The Agent

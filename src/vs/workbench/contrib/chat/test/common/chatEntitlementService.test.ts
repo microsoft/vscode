@@ -85,6 +85,7 @@ suite('parseQuotas', () => {
 		});
 
 		const quotas = parseQuotas(data);
+		assert.strictEqual(quotas.usageBasedBilling, true);
 		assert.strictEqual(quotas.chat?.usageBasedBilling, true);
 		assert.strictEqual(quotas.completions?.usageBasedBilling, true);
 		assert.strictEqual(quotas.premiumChat?.usageBasedBilling, true);
@@ -124,6 +125,7 @@ suite('parseQuotas', () => {
 		assert.deepStrictEqual(quotas, {
 			resetDate: '2026-06-01T00:00:00.000Z',
 			resetDateHasTime: true,
+			usageBasedBilling: true,
 			chat: {
 				percentRemaining: 100,
 				unlimited: true,

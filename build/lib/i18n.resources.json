@@ -291,6 +291,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/agentsAppMergedBanner",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/welcomeGettingStarted",
 			"project": "vscode-workbench"
 		},

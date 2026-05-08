@@ -38,7 +38,6 @@
 	background-repeat: no-repeat;
 	background-position: center center;
 	background-size: contain;
-	/* Keep desaturated for legibility against light/dark titlebar backgrounds; brighten on hover/focus. */
 	filter: grayscale(1);
 }
 
@@ -47,10 +46,16 @@
 	transition: filter 160ms ease;
 }
 
+.monaco-reduce-motion .monaco-workbench .open-in-agents-titlebar-widget > .open-in-agents-titlebar-widget-icon,
+.monaco-workbench.monaco-reduce-motion .open-in-agents-titlebar-widget > .open-in-agents-titlebar-widget-icon {
+	transition-duration: 0ms !important;
+}
+
 .monaco-workbench .open-in-agents-titlebar-widget:hover > .open-in-agents-titlebar-widget-icon,
 .monaco-workbench .open-in-agents-titlebar-widget:focus-visible > .open-in-agents-titlebar-widget-icon {
 	filter: none;
 }
+
 
 .monaco-workbench .open-in-agents-titlebar-widget > .open-in-agents-titlebar-widget-label {
 	display: inline-block;

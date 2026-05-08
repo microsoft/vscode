@@ -96,6 +96,12 @@ interface IConnectedClient {
 export interface IProtocolServerConfig {
 	/** Default directory returned to clients during the initialize handshake. */
 	readonly defaultDirectory?: string;
+	/**
+	 * Characters that, when typed in a {@link UserMessage} input, SHOULD
+	 * cause the client to issue a `completions` request. Announced to
+	 * clients in the `initialize` response.
+	 */
+	readonly completionTriggerCharacters?: readonly string[];
 }
 
 /**
@@ -310,6 +316,7 @@ export class ProtocolServerHandler extends Disposable {
 				snapshots,
 				defaultDirectory: this._config.defaultDirectory,
 				capabilities: serverCapabilities,
+				completionTriggerCharacters: this._config.completionTriggerCharacters,
 			},
 		};
 	}
