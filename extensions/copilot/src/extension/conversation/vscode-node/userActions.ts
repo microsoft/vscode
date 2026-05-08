@@ -32,6 +32,30 @@ import { IFeedbackReporter } from '../../prompt/node/feedbackReporter';
 import { sendUserActionTelemetry } from '../../prompt/node/telemetry';
 import { resolveModelIdForTelemetry } from './resolveModelId';
 
+type ChatEditingSessionActionOutcomeEnum = {
+	Accepted: vscode.ChatEditingSessionActionOutcome;
+	Rejected: vscode.ChatEditingSessionActionOutcome;
+	Saved: vscode.ChatEditingSessionActionOutcome;
+};
+
+const chatEditingSessionActionOutcome = (vscode as unknown as { ChatEditingSessionActionOutcome?: ChatEditingSessionActionOutcomeEnum }).ChatEditingSessionActionOutcome;
+
+function getChatEditingSessionActionOutcomeValue(key: keyof ChatEditingSessionActionOutcomeEnum): vscode.ChatEditingSessionActionOutcome | undefined {
+	if (!chatEditingSessionActionOutcome || typeof chatEditingSessionActionOutcome !== 'object') {
+		return undefined;
+	}
+
+	return (chatEditingSessionActionOutcome as Record<string, vscode.ChatEditingSessionActionOutcome | undefined>)[key];
+}
+
+const acceptedChatEditingOutcome = getChatEditingSessionActionOutcomeValue('Accepted');
+const rejectedChatEditingOutcome = getChatEditingSessionActionOutcomeValue('Rejected');
+const savedChatEditingOutcome = getChatEditingSessionActionOutcomeValue('Saved');
+
+function isAcceptedOrRejectedChatEditingOutcome(outcome: vscode.ChatEditingSessionActionOutcome): boolean {
+	return outcome === acceptedChatEditingOutcome || outcome === rejectedChatEditingOutcome;
+}
+
 export const IUserFeedbackService = createServiceIdentifier<IUserFeedbackService>('IUserFeedbackService');
 export interface IUserFeedbackService {
 	_serviceBrand: undefined;
@@ -152,10 +176,9 @@ export class UserFeedbackService implements IUserFeedbackService {
 			case 'chatEditingSessionAction':
 				if (conversation instanceof Conversation) {
 					const editCodeStep = conversation.getLatestTurn().getMetadata(EditCodeStepTurnMetaData)?.value;
-					if (editCodeStep && (e.action.outcome === vscode.ChatEditingSessionActionOutcome.Accepted || e.action.outcome === vscode.ChatEditingSessionActionOutcome.Rejected)
-					) {
+					if (editCodeStep && isAcceptedOrRejectedChatEditingOutcome(e.action.outcome)) {
 						editCodeStep.setWorkingSetEntryState(e.action.uri, {
-							accepted: e.action.outcome === vscode.ChatEditingSessionActionOutcome.Accepted,
+							accepted: e.action.outcome === acceptedChatEditingOutcome,
 							hasRemainingEdits: e.action.hasRemainingEdits
 						});
 					}
@@ -215,18 +238,16 @@ export class UserFeedbackService implements IUserFeedbackService {
 						const otelOutcome = outcomes.get(e.action.outcome) ?? 'unknown';
 						const workspace = resolveWorkspaceOTelMetadata(this.gitService, e.action.uri);
 						emitEditFeedbackEvent(this.otelService, otelOutcome, document?.languageId ?? '', agentId, result.metadata?.responseId ?? '', 'agent', e.action.hasRemainingEdits, this.notebookService.hasSupportedNotebooks(e.action.uri), workspace);
-						if (e.action.outcome === vscode.ChatEditingSessionActionOutcome.Accepted
-							|| e.action.outcome === vscode.ChatEditingSessionActionOutcome.Rejected) {
+						if (isAcceptedOrRejectedChatEditingOutcome(e.action.outcome)) {
 							GenAiMetrics.recordEditAcceptance(this.otelService, 'chat_editing', otelOutcome, document?.languageId);
 						}
 						GenAiMetrics.recordChatEditOutcome(this.otelService, 'chat_editing', otelOutcome, document?.languageId, e.action.hasRemainingEdits);
 					}
 
 					if (result.metadata?.responseId
-						&& (e.action.outcome === vscode.ChatEditingSessionActionOutcome.Accepted
-							|| e.action.outcome === vscode.ChatEditingSessionActionOutcome.Rejected)
+						&& isAcceptedOrRejectedChatEditingOutcome(e.action.outcome)
 					) {
-						const outcome = e.action.outcome === vscode.ChatEditingSessionActionOutcome.Accepted ? 'accept' : 'reject';
+						const outcome = e.action.outcome === acceptedChatEditingOutcome ? 'accept' : 'reject';
 						this.multiFileEditTelemetryService.sendEditPromptAndResult({ chatRequestId: result.metadata.responseId }, e.action.uri, outcome);
 					}
 				}
@@ -592,8 +613,13 @@ function reportInlineEditSurvivalEvent(res: EditSurvivalResult, sharedProps: Tel
 	GenAiMetrics.recordEditSurvivalNoRevert(otelService, 'inline_chat', res.noRevert, res.timeDelayMs);
 }
 
-const outcomes = new Map<vscode.ChatEditingSessionActionOutcome, EditOutcome>([
-	[vscode.ChatEditingSessionActionOutcome.Accepted, 'accepted'],
-	[vscode.ChatEditingSessionActionOutcome.Rejected, 'rejected'],
-	[vscode.ChatEditingSessionActionOutcome.Saved, 'saved']
-]);
+const outcomes = new Map<vscode.ChatEditingSessionActionOutcome, EditOutcome>();
+if (acceptedChatEditingOutcome !== undefined) {
+	outcomes.set(acceptedChatEditingOutcome, 'accepted');
+}
+if (rejectedChatEditingOutcome !== undefined) {
+	outcomes.set(rejectedChatEditingOutcome, 'rejected');
+}
+if (savedChatEditingOutcome !== undefined) {
+	outcomes.set(savedChatEditingOutcome, 'saved');
+}
