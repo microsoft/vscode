@@ -86,6 +86,13 @@ export interface ISessionsManagementService {
 	openChat(session: ISession, chatUri: URI): Promise<void>;
 
 	/**
+	 * Restore the last active session from persisted state.
+	 * Waits until the session provider is available and then opens the session.
+	 * Falls back to the new-session view if the session is not found.
+	 */
+	restoreLastActiveSession(): Promise<void>;
+
+	/**
 	 * Switch to the new-session view.
 	 * No-op if the current session is already a new session.
 	 */

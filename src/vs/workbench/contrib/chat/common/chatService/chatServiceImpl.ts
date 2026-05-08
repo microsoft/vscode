@@ -785,7 +785,7 @@ export class ChatService extends Disposable implements IChatService {
 
 			// Handle server-initiated requests (e.g. consumed queued messages).
 			if (providedSession.onDidStartServerRequest) {
-				disposables.add(providedSession.onDidStartServerRequest(({ prompt }) => {
+				disposables.add(providedSession.onDidStartServerRequest(({ prompt, variableData }) => {
 					// Complete any in-flight request
 					if (lastRequest?.response && !lastRequest.response.isComplete) {
 						lastRequest.response.complete();
@@ -794,7 +794,7 @@ export class ChatService extends Disposable implements IChatService {
 					// Create a new request in the model
 					const agent = this.chatAgentService.getAgent(chatSessionType);
 					const parsedRequest = parseAgentHostHistoryPrompt(prompt, agent);
-					lastRequest = model.addRequest(parsedRequest, { variables: [] }, 0, undefined, agent);
+					lastRequest = model.addRequest(parsedRequest, variableData ?? { variables: [] }, 0, undefined, agent);
 
 					// Reset progress tracking for the new turn
 					lastProgressLength = 0;

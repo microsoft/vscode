@@ -248,7 +248,7 @@ export interface IChatSession extends IDisposable {
 	 * queued message). The consumer should create a new request+response pair in
 	 * the model and prepare to receive progress via {@link progressObs}.
 	 */
-	readonly onDidStartServerRequest?: Event<{ prompt: string }>;
+	readonly onDidStartServerRequest?: Event<{ prompt: string; variableData?: IChatRequestVariableData }>;
 
 	/**
 	 * Editing session transferred from a previously-untitled chat session in `onDidCommitChatSessionItem`.

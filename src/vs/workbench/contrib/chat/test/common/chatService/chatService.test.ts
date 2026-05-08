@@ -47,7 +47,7 @@ import { ChatRequestQueueKind, ChatSendResult, IChatFollowup, IChatModelReferenc
 import { ChatService } from '../../../common/chatService/chatServiceImpl.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { ChatEditingSessionState, IChatEditingService, IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
-import { ChatModel, IChatModel, ISerializableChatData } from '../../../common/model/chatModel.js';
+import { ChatModel, IChatModel, IChatRequestVariableData, ISerializableChatData } from '../../../common/model/chatModel.js';
 import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
 import { ChatAgentService, IChatAgent, IChatAgentData, IChatAgentImplementation, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatSlashCommandService, IChatSlashCommandService } from '../../../common/participants/chatSlashCommands.js';
@@ -1562,7 +1562,7 @@ suite('ChatService', () => {
 			readonly progressObs?: ISettableObservable<IChatProgress[]>;
 			readonly isCompleteObs?: ISettableObservable<boolean>;
 			readonly interruptActiveResponseCallback?: () => Promise<boolean>;
-			readonly onDidStartServerRequest?: Event<{ prompt: string }>;
+			readonly onDidStartServerRequest?: Event<{ prompt: string; variableData?: IChatRequestVariableData }>;
 			readonly history?: readonly IChatSessionHistoryItem[];
 		}
 
