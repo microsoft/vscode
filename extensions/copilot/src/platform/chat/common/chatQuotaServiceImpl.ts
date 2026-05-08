@@ -151,13 +151,16 @@ export class ChatQuotaService extends Disposable implements IChatQuotaService {
 		if (!quotaInfo || !quotaInfo.quota_snapshots || !quotaInfo.quota_reset_date) {
 			return;
 		}
+		const snapshot = this._authService.copilotToken?.isFreeUser
+			? quotaInfo.quota_snapshots.chat
+			: quotaInfo.quota_snapshots.premium_interactions;
 		this._quotaInfo = {
-			unlimited: quotaInfo.quota_snapshots.premium_interactions.unlimited,
-			additionalUsageEnabled: quotaInfo.quota_snapshots.premium_interactions.overage_permitted,
-			additionalUsageUsed: quotaInfo.quota_snapshots.premium_interactions.overage_count,
-			quota: quotaInfo.quota_snapshots.premium_interactions.entitlement,
+			unlimited: snapshot.unlimited,
+			additionalUsageEnabled: snapshot.overage_permitted,
+			additionalUsageUsed: snapshot.overage_count,
+			quota: snapshot.entitlement,
 			resetDate: new Date(quotaInfo.quota_reset_date),
-			percentRemaining: quotaInfo.quota_snapshots.premium_interactions.percent_remaining,
+			percentRemaining: snapshot.percent_remaining,
 		};
 		this._onDidChange.fire();
 	}

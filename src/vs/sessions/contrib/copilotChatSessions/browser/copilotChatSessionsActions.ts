@@ -515,7 +515,10 @@ registerAction2(class DeleteSessionAction extends Action2 {
 				id: SessionItemContextMenuId,
 				group: '1_edit',
 				order: 4,
-				when: ContextKeyExpr.equals(ChatSessionProviderIdContext.key, COPILOT_PROVIDER_ID),
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.equals(ChatSessionProviderIdContext.key, COPILOT_PROVIDER_ID),
+					ContextKeyExpr.notEquals('chatSessionType', CLAUDE_CODE_SESSION_TYPE),
+				),
 			}]
 		});
 	}
