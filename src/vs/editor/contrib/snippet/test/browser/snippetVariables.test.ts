@@ -320,6 +320,18 @@ suite('Snippet Variables Resolver', function () {
 		assertVariableResolve3(resolver, 'CURRENT_TIMEZONE_NAME');
 	});
 
+	test('Time-based snippet variables have deterministic millisecond and unix values', function () {
+		const now = Date.UTC(2024, 3, 15, 12, 34, 56, 7);
+		const clock = sinon.useFakeTimers({ now });
+		try {
+			const resolver = new TimeBasedVariableResolver;
+			assertVariableResolve(resolver, 'CURRENT_MILLISECOND', '007');
+			assertVariableResolve(resolver, 'CURRENT_MILLISECONDS_UNIX', String(now));
+		} finally {
+			clock.restore();
+		}
+	});
+
 	test('Time-based snippet variables resolve to the same values even as time progresses', async function () {
 		const snippetText = `
 			$CURRENT_YEAR
