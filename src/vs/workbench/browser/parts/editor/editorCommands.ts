@@ -1749,7 +1749,14 @@ function registerTabGroupCommands(): void {
 				if (!model?.getTabGroupForEditor || !model?.removeFromTabGroup) {
 					continue;
 				}
-				for (const editor of editors) {
+
+				// Include selected editors from this group as well
+				const allEditors = new Set(editors);
+				for (const sel of group.selectedEditors) {
+					allEditors.add(sel);
+				}
+
+				for (const editor of allEditors) {
 					const tabGroup = model.getTabGroupForEditor(editor);
 					if (tabGroup) {
 						model.removeFromTabGroup(tabGroup.id, editor);
