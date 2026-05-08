@@ -216,7 +216,7 @@ export class DocumentSymbolRenderer implements ITreeRenderer<OutlineElement, Fuz
 			matches: createMatches(node.filterData),
 			labelEscapeNewLines: true,
 			extraClasses,
-			title: localize('title.template', "{0} ({1})", element.symbol.name, symbolKindNames[element.symbol.kind])
+			title: element.symbol.tooltip ?? localize('title.template', "{0} ({1})", element.symbol.name, symbolKindNames[element.symbol.kind])
 		};
 		if (this._configurationService.getValue(OutlineConfigKeys.icons)) {
 			// add styles for the icons

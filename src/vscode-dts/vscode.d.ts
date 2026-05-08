@@ -3594,6 +3594,11 @@ declare module 'vscode' {
 		detail: string;
 
 		/**
+		 * Additional information for this symbol that can be shown on hover.
+		 */
+		tooltip?: string;
+
+		/**
 		 * The kind of this symbol.
 		 */
 		kind: SymbolKind;
