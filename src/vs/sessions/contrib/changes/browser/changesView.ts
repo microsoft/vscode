@@ -15,7 +15,7 @@ import { ActionRunner, IAction } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { Event } from '../../../../base/common/event.js';
-import { autorun, derived, derivedObservableWithCache, derivedOpts, IObservable, observableFromEvent } from '../../../../base/common/observable.js';
+import { autorun, derived, derivedObservableWithCache, derivedOpts, IObservable, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { CountBadge } from '../../../../base/browser/ui/countBadge/countBadge.js';
 import { ProgressBar } from '../../../../base/browser/ui/progressbar/progressbar.js';
 import { basename, isEqual } from '../../../../base/common/resources.js';
@@ -78,6 +78,7 @@ import { structuralEquals } from '../../../../base/common/equals.js';
 import { compareFileNames, comparePaths } from '../../../../base/common/comparers.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
+import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 
 const $ = dom.$;
 
@@ -150,13 +151,22 @@ class ChangesButtonBarWidget extends Disposable {
 			return { isLoading, commentCount };
 		});
 
+		const runningLabelObs = observableValue<string | IMarkdownString | undefined>(this, undefined);
+
+		// Clear the running label override
 		this._register(autorun(reader => {
-			hasGitOperationInProgressObs.read(reader);
+			if (!hasGitOperationInProgressObs.read(reader)) {
+				runningLabelObs.set(undefined, undefined);
+			}
+		}));
+
+		this._register(autorun(reader => {
+			const hasGitOperationInProgress = hasGitOperationInProgressObs.read(reader);
 			const sessionResource = viewModel.activeSessionResourceObs.read(reader);
 			const outgoingChanges = outgoingChangesObs.read(reader) ?? 0;
 			const reviewState = reviewStateObs.read(reader);
 
-			reader.store.add(new MenuWorkbenchButtonBar(
+			const buttonBar = new MenuWorkbenchButtonBar(
 				container,
 				MenuId.AgentsChangesToolbar,
 				{
@@ -164,22 +174,44 @@ class ChangesButtonBarWidget extends Disposable {
 					menuOptions: sessionResource
 						? { args: [sessionResource, agentSessionsService.getSession(sessionResource)?.metadata] }
 						: { shouldForwardArgs: true },
-					buttonConfigProvider: (action) => this._getButtonConfiguration(action, outgoingChanges, reviewState)
+					buttonConfigProvider: (action) => this._getButtonConfiguration(action, outgoingChanges, reviewState, hasGitOperationInProgress, runningLabelObs)
 				},
 				menuService, contextKeyService, contextMenuService, keybindingService, telemetryService, hoverService
-			));
+			);
+
+			// Set the running label override
+			reader.store.add(buttonBar.onWillRun(e => runningLabelObs.set(e.action.label, undefined)));
+
+			reader.store.add(buttonBar);
 		}));
 	}
 
-	private _getButtonConfiguration(action: IAction, outgoingChanges: number, reviewState: { isLoading: boolean; commentCount: number | undefined }): { showIcon: boolean; showLabel: boolean; isSecondary?: boolean; customLabel?: string; customClass?: string } | undefined {
-		if (action.id === 'github.copilot.sessions.commit') {
-			return { showIcon: true, showLabel: true, isSecondary: false };
+	private _getButtonConfiguration(action: IAction, outgoingChanges: number, reviewState: { isLoading: boolean; commentCount: number | undefined }, hasGitOperationInProgress: boolean, runningLabelObs: IObservable<string | IMarkdownString | undefined>): { showIcon: boolean; showLabel: boolean; isSecondary?: boolean; customLabel?: string | IMarkdownString; customLabelObs?: IObservable<string | IMarkdownString | undefined>; customClass?: string } | undefined {
+		if (
+			action.id === 'github.copilot.sessions.commit' ||
+			action.id === 'github.copilot.sessions.commitAndSync'
+		) {
+			if (!hasGitOperationInProgress) {
+				return { showIcon: true, showLabel: true, isSecondary: false };
+			}
+			const customLabelObs = derived(reader => {
+				const running = runningLabelObs.read(reader);
+				return `$(loading) ${running ?? action.label}`;
+			});
+			return { showIcon: false, showLabel: true, isSecondary: false, customLabelObs };
 		}
 		if (action.id === 'github.copilot.sessions.sync') {
-			const customLabel = outgoingChanges > 0
+			const labelWithCount = outgoingChanges > 0
 				? `${action.label} ${outgoingChanges}↑`
 				: `${action.label}`;
-			return { showIcon: true, showLabel: true, isSecondary: false, customLabel };
+			if (!hasGitOperationInProgress) {
+				return { showIcon: true, showLabel: true, isSecondary: false, customLabel: labelWithCount };
+			}
+			const customLabelObs = derived(reader => {
+				const running = runningLabelObs.read(reader);
+				return `$(loading) ${running ?? labelWithCount}`;
+			});
+			return { showIcon: false, showLabel: true, isSecondary: false, customLabelObs };
 		}
 		if (
 			action.id === 'github.copilot.claude.sessions.sync' ||
@@ -557,9 +589,7 @@ export class ChangesViewPane extends ViewPane {
 		// Loading
 		this.renderDisposables.add(autorun(reader => {
 			const isLoading = this.viewModel.activeSessionIsLoadingObs.read(reader);
-			const hasGitOperationInProgress = this.hasGitOperationInProgressObs.read(reader);
-
-			if (isLoading || hasGitOperationInProgress) {
+			if (isLoading) {
 				this.changesProgressBar.infinite().show(200);
 			} else {
 				this.changesProgressBar.stop().hide();
