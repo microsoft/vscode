@@ -1,4 +1,4 @@
-name: Component Fixture Screenshots & Tests
+name: Component Fixtures
 
 on:
   push:
@@ -20,7 +20,7 @@ concurrency:
 
 jobs:
   screenshots:
-    name: Component Fixture Screenshots & Tests
+    name: Screenshots & Tests
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -87,6 +87,10 @@ jobs:
 
       - name: Install Playwright test dependencies
         run: npm ci
+        working-directory: test/componentFixtures/playwright
+
+      - name: Install Playwright Chromium (tests)
+        run: npx playwright install chromium
         working-directory: test/componentFixtures/playwright
 
       - name: Run Playwright fixture tests
