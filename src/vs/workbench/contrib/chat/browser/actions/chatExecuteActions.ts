@@ -1173,7 +1173,10 @@ class ExecuteHandoffAction extends Action2 {
 			return { success: false, error: `No handoff with identifier '${identifier}' found for mode '${sourceMode?.name.get()}'` };
 		}
 
-		await widget.executeHandoff(matchedHandoff);
+		const result = await widget.executeHandoff(matchedHandoff);
+		if (!result.success) {
+			return { success: false, targetMode: matchedHandoff.agent, error: result.error };
+		}
 		return { success: true, targetMode: matchedHandoff.agent };
 	}
 }

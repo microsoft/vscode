@@ -674,6 +674,42 @@ export function getModeNameForTelemetry(mode: IChatMode): string {
 }
 
 /**
+ * Resolves the custom-agent/mode target for handoff metadata.
+ *
+ * Handoff files historically reference targets by agent name, while custom
+ * agents are most stable by URI/id. Prefer exact matches to preserve existing
+ * behavior, then fall back to a case-insensitive match only when it is
+ * unambiguous.
+ */
+export function resolveHandoffTargetMode(chatModes: IChatModes, target: string): IChatMode | undefined {
+	const normalizedTarget = target.trim();
+	if (!normalizedTarget) {
+		return undefined;
+	}
+
+	const modeByName = chatModes.findModeByName(normalizedTarget);
+	if (modeByName) {
+		return modeByName;
+	}
+
+	const modeById = chatModes.findModeById(normalizedTarget);
+	if (modeById) {
+		return modeById;
+	}
+
+	const normalizedTargetLowercase = normalizedTarget.toLowerCase();
+	const { builtin, custom } = chatModes;
+	const matches = new Set<IChatMode>();
+	for (const mode of [...builtin, ...custom]) {
+		if (mode.name.get().toLowerCase() === normalizedTargetLowercase || mode.id.toLowerCase() === normalizedTargetLowercase) {
+			matches.add(mode);
+		}
+	}
+
+	return matches.size === 1 ? matches.values().next().value : undefined;
+}
+
+/**
  * Generates a stable identifier for a handoff by combining the target agent
  * name with a slugified version of the display label.
  *

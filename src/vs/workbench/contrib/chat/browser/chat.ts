@@ -27,6 +27,7 @@ import { ChatAttachmentModel } from './attachments/chatAttachmentModel.js';
 import { IChatEditorOptions } from './widgetHosts/editor/chatEditor.js';
 import { ChatInputPart } from './widget/input/chatInputPart.js';
 import { ChatWidget, IChatWidgetContrib } from './widget/chatWidget.js';
+import type { IChatHandoffExecutionResult } from './widget/chatHandoffExecution.js';
 import { ICodeBlockActionContext } from './widget/chatContentParts/codeBlockPart.js';
 import { AgentSessionTarget } from './agentSessions/agentSessions.js';
 
@@ -335,6 +336,12 @@ export interface IChatAcceptInputOptions {
 	 * If Steering, also sets yieldRequested on any active request to signal it should wrap up.
 	 */
 	queue?: ChatRequestQueueKind;
+	/**
+	 * Expected mode id for handoff submissions. When set, the widget verifies the
+	 * mode immediately before sending so async pre-send work cannot submit the
+	 * handoff prompt under the source mode.
+	 */
+	handoffTargetModeId?: string;
 }
 
 export interface IChatWidgetViewModelChangeEvent {
@@ -445,7 +452,7 @@ export interface IChatWidget {
 	lockToCodingAgent(name: string, displayName: string, agentId?: string): void;
 	unlockFromCodingAgent(): void;
 	handleDelegationExitIfNeeded(sourceAgent: Pick<IChatAgentData, 'id' | 'name'> | undefined, targetAgent: IChatAgentData | undefined): Promise<void>;
-	executeHandoff(handoff: IHandOff, agentId?: string): Promise<void>;
+	executeHandoff(handoff: IHandOff, agentId?: string): Promise<IChatHandoffExecutionResult>;
 
 	delegateScrollFromMouseWheelEvent(event: IMouseWheelEvent): void;
 }
