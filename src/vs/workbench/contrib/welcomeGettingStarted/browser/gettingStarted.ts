@@ -901,38 +901,23 @@ export class GettingStartedPage extends EditorPane {
 	private buildSotaWelcomeHero(): HTMLElement {
 		const content = getSotaWelcomeHeroContent();
 
-		// Animated CSS-3D "Son of Anton skyline" — replaces the previous
+		// Animated CSS-3D "Son of Anton" wordmark — replaces the previous
 		// inline-SVG flute. The scene is built from plain `<div>`s; all 3D
-		// effects (extruded letters, building front/side/top faces, build-up
-		// rise, hover tilt) are produced by transforms and pseudo-elements
-		// declared in `gettingStarted.css`. No 3D framework dependency. The
-		// ASCII art is retained as a visually-hidden screen-reader fallback.
+		// effects (extruded letters, build-up rise, hover tilt) come from
+		// transforms and pseudo-elements declared in `gettingStarted.css`.
+		// No 3D framework dependency. The ASCII art is retained as a
+		// visually-hidden screen-reader fallback. The persona-coloured
+		// "buildings" idea was tried and pulled — flat coloured rectangles
+		// fought the wordmark for attention rather than reading as a skyline.
+		// What remains is the wordmark plus a subtle persona-tinted radial
+		// halo behind it (CSS-only; see `.sota-welcome-skyline-halo`).
 		const art = $('.sota-welcome-skyline', { 'aria-hidden': 'true' });
 		const sceneInner = $('.sota-welcome-skyline-inner', {});
-		// Persona buildings — one extruded block per specialist. The `--*`
-		// custom properties are read by the CSS to position and size each
-		// block; per-element `--delay` drives the staggered rise.
-		for (const building of content.skylineBuildings) {
-			const block = $('.sota-welcome-skyline-building', {
-				'data-persona': building.id,
-				'style': [
-					`--accent:${building.accent}`,
-					`--x:${building.x}px`,
-					`--y:${building.y}px`,
-					`--z:${building.z}px`,
-					`--w:${building.w}px`,
-					`--h:${building.h}px`,
-					`--d:${building.d}px`,
-					`--delay:${building.delayMs}ms`,
-				].join(';'),
-			});
-			// Front, side, and top faces are explicit child divs so the
-			// browser can composite each face on its own layer.
-			block.appendChild($('.sota-welcome-skyline-face.face-front', {}));
-			block.appendChild($('.sota-welcome-skyline-face.face-side', {}));
-			block.appendChild($('.sota-welcome-skyline-face.face-top', {}));
-			sceneInner.appendChild(block);
-		}
+		// Halo: a soft conic-gradient backlight that sits behind the wordmark
+		// at low opacity, slowly rotating. Provides a hint of persona colour
+		// without committing to literal building shapes.
+		const halo = $('.sota-welcome-skyline-halo', {});
+		sceneInner.appendChild(halo);
 		// Wordmark — two centred lines stacked along Z so the second line
 		// reads as resting in front of the first. The 3D look comes from a
 		// text-shadow extrusion chain plus a darker pseudo-element offset.
