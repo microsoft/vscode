@@ -43,7 +43,7 @@ const PIED_PIPER_ART: string = [
  * Path / shape primitives used to build the welcome hero's inline SVG. The
  * actual SVG nodes are constructed by `gettingStarted.ts` from this data so
  * we never have to hand untrusted markup to `innerHTML`. Coordinates assume
- * a 0–200 viewBox; the host CSS scales the rendered SVG to taste.
+ * a 0-200 viewBox; the host CSS scales the rendered SVG to taste.
  *
  * Each entry's `cls` carries an extra modifier class so the CSS animation
  * delays can be staggered (spiral first, then flute, then breath line).

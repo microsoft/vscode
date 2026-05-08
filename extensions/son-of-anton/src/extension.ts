@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as vscode from 'vscode';
+import * as path from 'node:path';
 import { globalScopedConfig, liveConfig } from './chat/globalScopedConfig';
 import { ChatPanel } from './chat/ChatPanel';
 import { ChatViewProvider } from './chat/ChatViewProvider';
@@ -1177,8 +1178,15 @@ export function activate(context: vscode.ExtensionContext): void {
 	// --- Code Graph (bundled docker stack) ---
 	const codeGraphChannel = vscode.window.createOutputChannel('Son of Anton Code Graph');
 	context.subscriptions.push(codeGraphChannel);
+	// `services/code-graph/` lives in the Son of Anton repo (alongside the
+	// `extensions/` dir), NOT in the user's open workspace. The extension at
+	// `<repo>/extensions/son-of-anton/` resolves the repo root as
+	// `<extensionPath>/../..`; that's where the bundled compose stack lives.
+	// Fall back to the workspace root only if the resolved path doesn't exist
+	// (e.g. when the extension ships from a packaged location in the future).
 	const codeGraphController = new CodeGraphController({
 		workspaceRoot: workspacePath || undefined,
+		repoRoot: path.resolve(context.extensionPath, '..', '..'),
 		output: codeGraphChannel,
 	});
 	context.subscriptions.push(codeGraphController);
@@ -1288,12 +1296,18 @@ async function runEnableCodeGraph(
 ): Promise<void> {
 	if (!(await controller.isDockerAvailable())) {
 		const choice = await vscode.window.showErrorMessage(
-			'Docker is required to run the Son of Anton code graph. Install Docker Desktop and try again.',
-			{ modal: true },
+			"Son of Anton's code graph backend uses Docker (FalkorDB + Qdrant). Docker isn't installed on this machine.",
+			{
+				modal: true,
+				detail: "Install Docker Desktop, restart this window, then try Enable Code Graph again. An embedded mode that doesn't need Docker is planned for the next release — chat works fine without the code graph in the meantime.",
+			},
 			'Install Docker Desktop',
+			'Open release notes',
 		);
 		if (choice === 'Install Docker Desktop') {
 			void vscode.env.openExternal(vscode.Uri.parse('https://www.docker.com/products/docker-desktop/'));
+		} else if (choice === 'Open release notes') {
+			void vscode.env.openExternal(vscode.Uri.parse('https://github.com/CodeHalwell/Son-Of-Anton/blob/main/CHANGELOG.md'));
 		}
 		return;
 	}
@@ -1392,7 +1406,8 @@ async function maybePromptCodeGraphFirstRun(
 		return;
 	}
 	const choice = await vscode.window.showInformationMessage(
-		"Enable Son of Anton's code graph for richer context?",
+		"Enable Son of Anton's code graph for richer context? Requires Docker Desktop. " +
+		"(An embedded mode that doesn't need Docker is planned for the next release.)",
 		'Yes',
 		'Not now',
 		"Don't ask again",

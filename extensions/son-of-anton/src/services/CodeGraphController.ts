@@ -45,17 +45,23 @@ export class CodeGraphController implements vscode.Disposable {
 	 * if no workspace root is configured or the directory is missing.
 	 */
 	getStackRoot(): string | undefined {
-		const root = this.deps.repoRoot ?? this.deps.workspaceRoot;
-		if (!root) {
-			return undefined;
+		// Try the repo root first (where the bundled `services/code-graph/`
+		// actually lives), fall back to the user's workspace root (covers the
+		// case where the user has cloned the Son of Anton repo as their
+		// workspace and didn't pass a separate repoRoot).
+		const candidates = [this.deps.repoRoot, this.deps.workspaceRoot].filter((c): c is string => Boolean(c));
+		for (const root of candidates) {
+			const stack = path.join(root, 'services', 'code-graph');
+			try {
+				const stat = fs.statSync(stack);
+				if (stat.isDirectory()) {
+					return stack;
+				}
+			} catch {
+				// not in this candidate, try next
+			}
 		}
-		const stack = path.join(root, 'services', 'code-graph');
-		try {
-			const stat = fs.statSync(stack);
-			return stat.isDirectory() ? stack : undefined;
-		} catch {
-			return undefined;
-		}
+		return undefined;
 	}
 
 	/** Check whether `docker` is on PATH. */
@@ -74,7 +80,7 @@ export class CodeGraphController implements vscode.Disposable {
 	async start(): Promise<{ ok: true } | { ok: false; reason: string }> {
 		const stack = this.getStackRoot();
 		if (!stack) {
-			return { ok: false, reason: 'services/code-graph/ not found in workspace root' };
+			return { ok: false, reason: 'services/code-graph/ not found in the Son of Anton repo. The bundled stack lives alongside the extensions/ dir; if you forked the repo, ensure the services/ folder is present.' };
 		}
 		if (!(await this.isDockerAvailable())) {
 			this.setState('unavailable');
