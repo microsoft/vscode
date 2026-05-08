@@ -185,5 +185,29 @@ suite('claudeInteractiveTools', () => {
 
 			assert.deepStrictEqual(answers, {});
 		});
+
+		test('keys empty-header questions by positional q-{idx} id (round-trips with buildAskUserSessionInputQuestions)', () => {
+			const blankHeaderInput: ParsedAskUserQuestionInput = {
+				questions: [
+					{ question: 'first?', header: '', options: [] },
+					{ question: 'second?', header: 'named', options: [] },
+				],
+			};
+			const answers = flattenAskUserAnswers(blankHeaderInput, {
+				'q-0': {
+					state: SessionInputAnswerState.Submitted,
+					value: { kind: SessionInputAnswerValueKind.Text, value: 'one' },
+				},
+				named: {
+					state: SessionInputAnswerState.Submitted,
+					value: { kind: SessionInputAnswerValueKind.Text, value: 'two' },
+				},
+			});
+
+			assert.deepStrictEqual(answers, {
+				'first?': 'one',
+				'second?': 'two',
+			});
+		});
 	});
 });

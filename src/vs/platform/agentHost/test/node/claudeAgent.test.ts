@@ -1210,6 +1210,13 @@ suite('ClaudeAgent', () => {
 
 		// Second turn — pushes onto the existing Query.
 		const p2 = agent.sendMessage(created.session, 'turn-2', undefined, 'turn-id-2');
+		// Drain microtasks so `await entry.setPermissionMode(...)` resolves
+		// and `entry.send(...)` synchronously pushes the second prompt onto
+		// the in-flight queue BEFORE we release the iterator gate. Otherwise
+		// the parked iterator yields the second `result` with no in-flight
+		// request to match it and `_processMessages` falls into
+		// "stream ended without result".
+		await tick();
 		// Release the parked iterator so result(idx=2) flows through.
 		advance.complete();
 		await p2;
@@ -2896,6 +2903,49 @@ suite('ClaudeAgent (Phase 7 §3.4 — _handleCanUseTool)', () => {
 		assert.deepStrictEqual(result, { behavior: 'allow', updatedInput: { file_path: '/tmp/race.txt' } });
 	});
 
+	test('SDK abort signal unparks a pending canUseTool with deny instead of waiting on the user', async () => {
+		// The SDK can cancel an in-flight `canUseTool` request mid-flight
+		// (subprocess teardown, upstream abort). When that happens, a
+		// host parked on `requestPermission` would otherwise wait for a
+		// user answer that will never come, leaving an orphaned pending
+		// entry. Asserts the abort listener resolves the parked promise
+		// with `deny` and clears the entry.
+		const { ctx, canUseTool, sessionUri } = await materialize();
+
+		const session = ctx.agent['_sessions'].get(AgentSession.id(sessionUri));
+		assert.ok(session, 'session is materialized');
+
+		const ac = new AbortController();
+		const options: Parameters<NonNullable<Options['canUseTool']>>[2] = {
+			signal: ac.signal,
+			toolUseID: 'tu_aborted',
+		};
+
+		const promise = canUseTool('Read', { file_path: '/tmp/x' }, options);
+		await tick();
+
+		ac.abort();
+		const result = await promise;
+
+		assert.deepStrictEqual(result, { behavior: 'deny', message: 'User declined' });
+		// The entry must be cleared so a late `respondToPermissionRequest`
+		// is a no-op on the session and does not double-resolve.
+		assert.strictEqual(session.respondToPermissionRequest('tu_aborted', true), false);
+	});
+
+	test('SDK abort signal already aborted on entry returns deny without parking', async () => {
+		const { canUseTool } = await materialize();
+
+		const ac = new AbortController();
+		ac.abort();
+		const result = await canUseTool('Read', { file_path: '/tmp/y' }, {
+			signal: ac.signal,
+			toolUseID: 'tu_pre_aborted',
+		});
+
+		assert.deepStrictEqual(result, { behavior: 'deny', message: 'SDK aborted the tool request' });
+	});
+
 	test('respondToPermissionRequest unknown id is silent', () => {
 		const ctx = createTestContext(disposables);
 		// Should not throw despite no matching session.
@@ -3165,6 +3215,11 @@ suite('ClaudeAgent (Phase 7 §3.6 / §3.8 — permissionMode propagation)', () =
 		await ctx.agent.sendMessage(created.session, 'hi', undefined, 'turn-1');
 		ctx.configService.updateSessionConfig(created.session.toString(), { permissionMode: 'acceptEdits' });
 		const p2 = ctx.agent.sendMessage(created.session, 'hi-2', undefined, 'turn-2');
+		// Drain microtasks so `await entry.setPermissionMode('acceptEdits')`
+		// resolves and the second prompt lands in the in-flight queue before
+		// the iterator yields its `result(idx=2)` (see the multi-turn reuse
+		// test above for the same gate-pattern explanation).
+		await tick();
 		advance.complete();
 		await p2;
 

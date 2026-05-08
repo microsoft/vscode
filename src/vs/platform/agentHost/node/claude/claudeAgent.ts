@@ -690,6 +690,33 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			return { behavior: 'deny', message: 'Session is no longer active' };
 		}
 
+		// Observe the SDK's per-request abort signal so a host parked on
+		// `requestPermission` / `requestUserInput` unwinds promptly when
+		// the SDK cancels the canUseTool call (subprocess teardown,
+		// upstream abort). Both `respondTo*` methods are no-ops if the
+		// id is not pending, so it is safe to fire both regardless of
+		// which channel this tool happens to use.
+		if (options.signal.aborted) {
+			return { behavior: 'deny', message: 'SDK aborted the tool request' };
+		}
+		const abortHandler = () => {
+			session.respondToPermissionRequest(options.toolUseID, false);
+			session.respondToUserInputRequest(options.toolUseID, SessionInputResponseKind.Cancel);
+		};
+		options.signal.addEventListener('abort', abortHandler);
+		try {
+			return await this._dispatchCanUseTool(session, toolName, input, options);
+		} finally {
+			options.signal.removeEventListener('abort', abortHandler);
+		}
+	}
+
+	private async _dispatchCanUseTool(
+		session: ClaudeAgentSession,
+		toolName: string,
+		input: Record<string, unknown>,
+		options: { suggestions?: PermissionUpdate[]; signal: AbortSignal; blockedPath?: string; toolUseID: string },
+	): Promise<PermissionResult> {
 		// Interactive tools (`AskUserQuestion`, `ExitPlanMode`) are
 		// exempt from SDK `permissionMode` auto-approval, so they reach
 		// `canUseTool` even under `bypassPermissions`. Routing then
@@ -1176,8 +1203,9 @@ export class ClaudeAgent extends Disposable implements IAgent {
 				// Plan S3.6: forward live `permissionMode` to the bound
 				// `Query` immediately before yielding the next user message
 				// so a `SessionConfigChanged` action that arrived between
-				// turns wins.
-				entry.setPermissionMode(this._readSessionPermissionMode(session) ?? 'default');
+				// turns wins. Awaited so the SDK has acknowledged the mode
+				// change before `entry.send(...)` yields the next prompt.
+				await entry.setPermissionMode(this._readSessionPermissionMode(session) ?? 'default');
 			}
 
 			const contentBlocks = resolvePromptToContentBlocks(prompt, attachments);

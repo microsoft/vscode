@@ -5,7 +5,7 @@
 
 import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 import type { URI } from '../../../../base/common/uri.js';
-import type { ILogService } from '../../../log/common/log.js';
+import { LogLevel, type ILogService } from '../../../log/common/log.js';
 import type { AgentSignal } from '../../common/agentService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { ResponsePartKind, ToolResultContentType } from '../../common/state/sessionState.js';
@@ -156,11 +156,13 @@ export function mapSDKMessageToAgentSignals(
 	state: ClaudeMapperState,
 	logService: ILogService,
 ): AgentSignal[] {
-	try {
-		const snippet = JSON.stringify(message, (k, v) => typeof v === 'string' && v.length > 200 ? v.slice(0, 200) + '…' : v);
-		logService.trace(`[claudeMapSessionEvents] SDK message type=${message.type}: ${snippet?.slice(0, 2000) ?? '<unserializable>'}`);
-	} catch {
-		logService.trace(`[claudeMapSessionEvents] SDK message type=${message.type} (unserializable)`);
+	if (logService.getLevel() <= LogLevel.Trace) {
+		try {
+			const snippet = JSON.stringify(message, (k, v) => typeof v === 'string' && v.length > 200 ? v.slice(0, 200) + '…' : v);
+			logService.trace(`[claudeMapSessionEvents] SDK message type=${message.type}: ${snippet?.slice(0, 2000) ?? '<unserializable>'}`);
+		} catch {
+			logService.trace(`[claudeMapSessionEvents] SDK message type=${message.type} (unserializable)`);
+		}
 	}
 	switch (message.type) {
 		case 'stream_event':

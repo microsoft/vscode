@@ -79,6 +79,18 @@ export function parseAskUserQuestionInput(input: Record<string, unknown>): Parse
 }
 
 /**
+ * Derive the workbench question id for the `idx`-th SDK question.
+ * Both {@link buildAskUserSessionInputQuestions} and
+ * {@link flattenAskUserAnswers} key into the answers map by this id, so
+ * keep the two callers in sync via this helper. Empty-header questions
+ * fall back to a positional id so they round-trip; they would
+ * otherwise collide on `''`.
+ */
+function askUserQuestionId(header: string, idx: number): string {
+	return header || `q-${idx}`;
+}
+
+/**
  * Project the parsed SDK questions into the workbench's
  * {@link SessionInputQuestion} shape. `multiSelect` flips the question
  * kind; the rest of the fields map 1:1.
@@ -90,7 +102,7 @@ export function buildAskUserSessionInputQuestions(askInput: ParsedAskUserQuestio
 			label: opt.label,
 			...(opt.description !== undefined ? { description: opt.description } : {}),
 		}));
-		const id = q.header || `q-${idx}`;
+		const id = askUserQuestionId(q.header, idx);
 		return q.multiSelect
 			? {
 				id,
@@ -121,8 +133,9 @@ export function buildAskUserSessionInputQuestions(askInput: ParsedAskUserQuestio
  */
 export function flattenAskUserAnswers(askInput: ParsedAskUserQuestionInput, answers: Record<string, SessionInputAnswer>): Record<string, string> {
 	const result: Record<string, string> = {};
-	for (const q of askInput.questions) {
-		const a = answers[q.header];
+	for (let idx = 0; idx < askInput.questions.length; idx++) {
+		const q = askInput.questions[idx];
+		const a = answers[askUserQuestionId(q.header, idx)];
 		if (!a || a.state === SessionInputAnswerState.Skipped) {
 			continue;
 		}

@@ -36,41 +36,45 @@ export type ClaudePermissionKind =
 
 interface ClaudeToolDisplayEntry {
 	readonly permissionKind: ClaudePermissionKind;
-	readonly displayName: string;
 }
 
 /**
  * Source-of-truth mapping for Phase 7 S4. Add a row here when the SDK
  * adds a new built-in; the snapshot test will fail until both this map
  * and the snapshot are updated together.
+ *
+ * `displayName` is intentionally NOT stored here — it is user-facing
+ * and must be `localize()`-d, which we cannot do at module-init time
+ * without freezing the bundle's locale. Lookup lives in
+ * {@link getClaudeToolDisplayName}.
  */
 const TOOL_DISPLAY: { readonly [toolName: string]: ClaudeToolDisplayEntry } = {
 	// shell tools
-	Bash: { permissionKind: 'shell', displayName: 'Run shell command' },
-	BashOutput: { permissionKind: 'shell', displayName: 'Read shell output' },
-	KillBash: { permissionKind: 'shell', displayName: 'Kill shell command' },
+	Bash: { permissionKind: 'shell' },
+	BashOutput: { permissionKind: 'shell' },
+	KillBash: { permissionKind: 'shell' },
 
 	// read tools
-	Read: { permissionKind: 'read', displayName: 'Read file' },
-	Glob: { permissionKind: 'read', displayName: 'Find files' },
-	Grep: { permissionKind: 'read', displayName: 'Search files' },
-	LS: { permissionKind: 'read', displayName: 'List directory' },
-	NotebookRead: { permissionKind: 'read', displayName: 'Read notebook' },
+	Read: { permissionKind: 'read' },
+	Glob: { permissionKind: 'read' },
+	Grep: { permissionKind: 'read' },
+	LS: { permissionKind: 'read' },
+	NotebookRead: { permissionKind: 'read' },
 
 	// write tools
-	Write: { permissionKind: 'write', displayName: 'Write file' },
-	Edit: { permissionKind: 'write', displayName: 'Edit file' },
-	MultiEdit: { permissionKind: 'write', displayName: 'Edit file' },
-	NotebookEdit: { permissionKind: 'write', displayName: 'Edit notebook' },
-	TodoWrite: { permissionKind: 'write', displayName: 'Update todo list' },
+	Write: { permissionKind: 'write' },
+	Edit: { permissionKind: 'write' },
+	MultiEdit: { permissionKind: 'write' },
+	NotebookEdit: { permissionKind: 'write' },
+	TodoWrite: { permissionKind: 'write' },
 
 	// network tools
-	WebFetch: { permissionKind: 'url', displayName: 'Fetch URL' },
+	WebFetch: { permissionKind: 'url' },
 
 	// host-routed / custom
-	Task: { permissionKind: 'custom-tool', displayName: 'Run subagent task' },
-	ExitPlanMode: { permissionKind: 'custom-tool', displayName: 'Ready to code?' },
-	AskUserQuestion: { permissionKind: 'custom-tool', displayName: 'Ask user a question' },
+	Task: { permissionKind: 'custom-tool' },
+	ExitPlanMode: { permissionKind: 'custom-tool' },
+	AskUserQuestion: { permissionKind: 'custom-tool' },
 };
 
 const MCP_TOOL_PREFIX = 'mcp__';
@@ -91,17 +95,33 @@ export function getClaudePermissionKind(toolName: string): ClaudePermissionKind 
 }
 
 /**
- * S4 row lookup. Falls back to the raw tool name so unknown tools still
- * render something sensible. For `mcp__server__tool` the prefix is
- * stripped to surface the server/tool pair.
+ * Localized display name for the SDK's built-in tools (S4). Falls back
+ * to the raw tool name so unknown tools still render something
+ * sensible. For `mcp__server__tool` the prefix is stripped to surface
+ * the server/tool pair.
  */
 export function getClaudeToolDisplayName(toolName: string): string {
-	const entry = TOOL_DISPLAY[toolName];
-	if (entry) {
-		return entry.displayName;
+	switch (toolName) {
+		case 'Bash': return localize('claude.tool.bash', "Run shell command");
+		case 'BashOutput': return localize('claude.tool.bashOutput', "Read shell output");
+		case 'KillBash': return localize('claude.tool.killBash', "Kill shell command");
+		case 'Read': return localize('claude.tool.read', "Read file");
+		case 'Glob': return localize('claude.tool.glob', "Find files");
+		case 'Grep': return localize('claude.tool.grep', "Search files");
+		case 'LS': return localize('claude.tool.ls', "List directory");
+		case 'NotebookRead': return localize('claude.tool.notebookRead', "Read notebook");
+		case 'Write': return localize('claude.tool.write', "Write file");
+		case 'Edit': return localize('claude.tool.edit', "Edit file");
+		case 'MultiEdit': return localize('claude.tool.multiEdit', "Edit file");
+		case 'NotebookEdit': return localize('claude.tool.notebookEdit', "Edit notebook");
+		case 'TodoWrite': return localize('claude.tool.todoWrite', "Update todo list");
+		case 'WebFetch': return localize('claude.tool.webFetch', "Fetch URL");
+		case 'Task': return localize('claude.tool.task', "Run subagent task");
+		case 'ExitPlanMode': return localize('claude.tool.exitPlanMode', "Ready to code?");
+		case 'AskUserQuestion': return localize('claude.tool.askUserQuestion', "Ask user a question");
 	}
 	if (toolName.startsWith(MCP_TOOL_PREFIX)) {
-		return `Run MCP tool ${toolName.slice(MCP_TOOL_PREFIX.length)}`;
+		return localize('claude.tool.mcp', "Run MCP tool {0}", toolName.slice(MCP_TOOL_PREFIX.length));
 	}
 	return toolName;
 }

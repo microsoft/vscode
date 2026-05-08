@@ -303,9 +303,13 @@ export class ClaudeAgentSession extends Disposable {
 	 * bound. Pre-bind, this is a no-op — the next materialize seeds the
 	 * mode via `Options.permissionMode`. Phase 9 (yield-restart) will
 	 * re-seed via the same `Options.permissionMode` path.
+	 *
+	 * Awaited so the SDK has acknowledged the mode change before the
+	 * caller yields the next user message; otherwise a control-channel
+	 * race could let `send` deliver a prompt under the previous mode.
 	 */
-	setPermissionMode(mode: PermissionMode): void {
-		this._query?.setPermissionMode(mode);
+	async setPermissionMode(mode: PermissionMode): Promise<void> {
+		await this._query?.setPermissionMode(mode);
 	}
 
 	/**
