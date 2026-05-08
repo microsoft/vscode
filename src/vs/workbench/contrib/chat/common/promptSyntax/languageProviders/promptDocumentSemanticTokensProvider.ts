@@ -34,7 +34,7 @@ export class PromptDocumentSemanticTokensProvider implements DocumentSemanticTok
 		}
 		const target = getTarget(promptType, promptAST.header ?? model.uri);
 		if (!isSonOfAntonOrDefaultTarget(target)) {
-			// variables syntax is only support for VS Code and default targets, not for GitHub Copilot or Claude custom agents
+			// Variables syntax is only supported for VS Code / default targets — not for the github-copilot or claude custom-agent targets.
 			return undefined;
 		}
 

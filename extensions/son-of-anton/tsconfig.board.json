@@ -1,0 +1,24 @@
+{
+	"extends": "../tsconfig.base.json",
+	"compilerOptions": {
+		"rootDir": "./src/board/webview",
+		"outDir": "./out-board",
+		"lib": [
+			"ES2024",
+			"DOM",
+			"DOM.Iterable"
+		],
+		"jsx": "react-jsx",
+		"module": "ESNext",
+		"moduleResolution": "bundler",
+		"esModuleInterop": true,
+		"resolveJsonModule": true,
+		"skipLibCheck": true,
+		"noEmit": true,
+		"isolatedModules": true,
+		"allowSyntheticDefaultImports": true
+	},
+	"include": [
+		"src/board/webview/**/*"
+	]
+}

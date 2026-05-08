@@ -6,6 +6,7 @@
 import './media/authWizard.css';
 import { $, append, clearNode } from '../../../../base/browser/dom.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
@@ -26,7 +27,7 @@ export interface ProviderEntry {
 	readonly id: ProviderId;
 	readonly title: string;
 	readonly description: string;
-	readonly icon: Codicon;
+	readonly icon: ThemeIcon;
 	readonly status: ProviderStatus;
 	readonly recommended?: boolean;
 	readonly cta: string;
@@ -53,15 +54,7 @@ const DEFAULT_ENTRIES: ReadonlyArray<ProviderEntry> = [
 		title: localize('authWizard.chatgpt.title', "Connect ChatGPT / Codex"),
 		description: localize('authWizard.chatgpt.description', "Use your ChatGPT Plus subscription for Codex models."),
 		icon: Codicon.commentDiscussion,
-		status: { kind: 'unavailable', message: localize('authWizard.comingSoon', "Coming soon") },
-		cta: localize('authWizard.connect', "Connect"),
-	},
-	{
-		id: 'copilot',
-		title: localize('authWizard.copilot.title', "Connect GitHub Copilot"),
-		description: localize('authWizard.copilot.description', "Use your Copilot subscription to access hosted Claude, GPT, and Gemini models."),
-		icon: Codicon.githubAlt,
-		status: { kind: 'unavailable', message: localize('authWizard.comingSoon', "Coming soon") },
+		status: { kind: 'idle' },
 		cta: localize('authWizard.connect', "Connect"),
 	},
 	{
@@ -181,6 +174,7 @@ export class AuthWizard extends Disposable {
 			return;
 		}
 		const status = this.statuses.get(providerId) ?? { kind: 'idle' };
+		// eslint-disable-next-line no-restricted-syntax
 		const statusEl = row.querySelector<HTMLElement>('.sessions-auth-wizard-row-status');
 
 		row.classList.toggle('connecting', status.kind === 'connecting');

@@ -34,8 +34,6 @@ export const enum TerminalChatAgentToolsSettingId {
 	DeprecatedAutoApproveCompatible = 'chat.agent.terminal.autoApprove',
 	DeprecatedAutoApprove1 = 'chat.agent.terminal.allowList',
 	DeprecatedAutoApprove2 = 'chat.agent.terminal.denyList',
-	DeprecatedAutoApprove3 = 'github.copilot.chat.agent.terminal.allowList',
-	DeprecatedAutoApprove4 = 'github.copilot.chat.agent.terminal.denyList',
 }
 
 export interface ITerminalChatAgentToolsConfiguration {
@@ -638,8 +636,6 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 for (const id of [
 	TerminalChatAgentToolsSettingId.DeprecatedAutoApprove1,
 	TerminalChatAgentToolsSettingId.DeprecatedAutoApprove2,
-	TerminalChatAgentToolsSettingId.DeprecatedAutoApprove3,
-	TerminalChatAgentToolsSettingId.DeprecatedAutoApprove4,
 	TerminalChatAgentToolsSettingId.DeprecatedAutoApproveCompatible,
 ]) {
 	terminalChatAgentToolsConfiguration[id] = {

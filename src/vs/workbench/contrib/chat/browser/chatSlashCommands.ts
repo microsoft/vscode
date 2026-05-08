@@ -117,7 +117,7 @@ export class ChatSlashCommandsContribution extends Disposable {
 				silent: true,
 				locations: [ChatAgentLocation.Chat],
 			}, async () => {
-				await commandService.executeCommand('github.copilot.debug.showChatLogView');
+				await commandService.executeCommand('workbench.action.toggleDevTools');
 			}));
 		}
 		this._store.add(slashCommandService.registerSlashCommand({

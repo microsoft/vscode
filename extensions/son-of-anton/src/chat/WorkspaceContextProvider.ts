@@ -4,6 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 import * as vscode from 'vscode';
 import * as path from 'path';
+import { fetchUrlAsText } from 'son-of-anton-core/util/urlFetch';
+import { AgentsMdLoader, ProjectContext } from '../agents/AgentsMdLoader';
+import { TerminalCaptureBuffer } from './TerminalCaptureBuffer';
 
 export interface WorkspaceContext {
 	/** Markdown-formatted context block, ready to prepend. Empty string if nothing useful. */
@@ -22,9 +25,20 @@ const MRU_CAPACITY = 20;
 const RECENT_FILES_LIMIT = 5;
 
 const SMALL_FILE_LINE_LIMIT = 200;
+const SHRUNK_FILE_LINE_LIMIT = 100;
 const SELECTION_INLINE_LINE_LIMIT = 200;
 const README_LINE_LIMIT = 50;
+const SHRUNK_README_LINE_LIMIT = 30;
 const MAX_FILE_BYTES = 50 * 1024;
+
+/**
+ * The project-context excerpt embedded in the chat turn is capped here. The
+ * full file (up to the loader's 8KB cap) is still available; this trims the
+ * inline preview so very large CLAUDE.md / AGENTS.md files do not crowd out
+ * the rest of the workspace context. Roughly ~1000 tokens.
+ */
+const PROJECT_CONTEXT_INLINE_BYTE_CAP = 4 * 1024;
+const PROJECT_CONTEXT_INLINE_LINE_LIMIT = 50;
 
 const SOFT_CHAR_BUDGET = 6000;
 const HARD_CHAR_BUDGET = 12_000;
@@ -63,8 +77,15 @@ interface GitExtensionApiShim {
 export class WorkspaceContextProvider implements vscode.Disposable {
 	private readonly disposables: vscode.Disposable[] = [];
 	private readonly mru: string[] = [];
+	private readonly agentsMdLoader: AgentsMdLoader;
+	private readonly terminalCapture: TerminalCaptureBuffer;
 
 	constructor() {
+		this.agentsMdLoader = new AgentsMdLoader();
+		this.disposables.push(this.agentsMdLoader);
+		this.terminalCapture = new TerminalCaptureBuffer();
+		this.disposables.push(this.terminalCapture);
+
 		this.disposables.push(
 			vscode.workspace.onDidOpenTextDocument(doc => this.recordOpened(doc.uri)),
 		);
@@ -89,6 +110,72 @@ export class WorkspaceContextProvider implements vscode.Disposable {
 		this.disposables.length = 0;
 	}
 
+	/**
+	 * Snapshot the current workspace diagnostics as a markdown section,
+	 * suitable for prepending to a chat turn when the user `@problems`-mentions
+	 * the workspace. Caps the output at 8KB so a noisy build doesn't drown
+	 * the prompt budget. Severity filter: errors and warnings only —
+	 * info/hint diagnostics are skipped.
+	 *
+	 * Output shape:
+	 * ```
+	 * ## Diagnostics
+	 *
+	 * ### <relative file path>
+	 * - [error] line 42, col 5: <message>
+	 * - [warning] line 102, col 1: <message>
+	 *
+	 * ### <other file>
+	 * - [error] line 12, col 1: <message>
+	 * ```
+	 */
+	async getProblems(): Promise<string> {
+		return resolveProblemsMention();
+	}
+
+	/**
+	 * Resolve a `@url <link>` mention into a markdown block containing the
+	 * fetched page's plain-text content. Delegates to the shared
+	 * {@link fetchUrlAsText} helper so the LLM-initiated `fetch_url` tool and
+	 * the user-initiated chip use identical capping and HTML stripping.
+	 */
+	async resolveUrlMention(url: string): Promise<string> {
+		const result = await fetchUrlAsText(url);
+		if (!result.ok) {
+			return `## URL: ${url}\n\n[fetch failed: ${result.error ?? 'unknown error'}]\n`;
+		}
+		return `## URL: ${url}\n\n${result.text ?? ''}\n`;
+	}
+
+	/**
+	 * Resolve `@terminal` into a markdown block containing the active
+	 * terminal's most recently completed command and output. Requires shell
+	 * integration to be enabled — without it, VS Code's stable API exposes no
+	 * way to read terminal scrollback, and we surface a placeholder so the
+	 * LLM understands why the context is missing.
+	 */
+	async resolveTerminalMention(): Promise<string> {
+		const terminal = vscode.window.activeTerminal;
+		if (!terminal) {
+			return '## Terminal\n\n[no active terminal]\n';
+		}
+		const integration = terminal.shellIntegration;
+		if (!integration) {
+			return '## Terminal\n\n[shell integration disabled — enable terminal.integrated.shellIntegration.enabled in settings to capture terminal output]\n';
+		}
+		const captured = this.terminalCapture.lastOutputFor(terminal);
+		if (!captured) {
+			return '## Terminal\n\n[no command has run in this terminal yet — once you run something, @terminal will surface its output]\n';
+		}
+		const header = captured.commandLine
+			? `## Terminal: ${captured.commandLine}`
+			: '## Terminal';
+		const body = captured.output.trim().length > 0
+			? captured.output
+			: '[command produced no output]';
+		return `${header}\n\n${body}\n`;
+	}
+
 	async collect(opts?: CollectOptions): Promise<WorkspaceContext> {
 		const enabled = vscode.workspace
 			.getConfiguration('sota.chat')
@@ -99,20 +186,38 @@ export class WorkspaceContextProvider implements vscode.Disposable {
 
 		const includeSelection = opts?.includeActiveSelection !== false;
 
+		const projectContext = await this.agentsMdLoader.load();
+		const hasProjectContext = projectContext.source !== 'none' && projectContext.contents.trim().length > 0;
+		const readmeLineLimit = hasProjectContext ? SHRUNK_README_LINE_LIMIT : README_LINE_LIMIT;
+		const activeFileLineLimit = hasProjectContext ? SHRUNK_FILE_LINE_LIMIT : SMALL_FILE_LINE_LIMIT;
+
 		const meta = await this.getWorkspaceMeta();
-		const active = await this.getActiveEditorContext(includeSelection);
-		const readme = await this.getReadmeOverview();
+		const active = await this.getActiveEditorContext(includeSelection, activeFileLineLimit);
+		const readme = await this.getReadmeOverview(readmeLineLimit);
 		const recent = this.getRecentFiles();
 
+		// Order matches the prompt-readability we want: orient the model
+		// before showing it the active editor.
+		//   1. Workspace meta (project name, branch)
+		//   2. Project Overview (README excerpt)
+		//   3. Project Context (CLAUDE.md / AGENTS.md excerpt) — between the
+		//      README and the active file so the LLM has the project rules
+		//      loaded before it inspects code.
+		//   4. Active File
+		//   5. Recently Open
 		const sections: string[] = ['## Workspace Context'];
 		if (meta) {
 			sections.push(meta);
 		}
-		if (active) {
-			sections.push(active);
-		}
 		if (readme) {
 			sections.push(readme);
+		}
+		const projectContextSection = formatProjectContextSection(projectContext);
+		if (projectContextSection) {
+			sections.push(projectContextSection);
+		}
+		if (active) {
+			sections.push(active);
 		}
 		if (recent.length > 0) {
 			const list = recent.map(p => `\`${p}\``).join(', ');
@@ -125,8 +230,12 @@ export class WorkspaceContextProvider implements vscode.Disposable {
 
 		let markdown = sections.join('\n\n');
 
-		// Budget enforcement: drop the README first (largest non-active
-		// section), then trim the active-file fenced body if still over.
+		// Budget enforcement, in increasing order of severity:
+		//   1. Drop the README first (lowest-value when project context is
+		//      present, since CLAUDE.md / AGENTS.md is more direct guidance).
+		//   2. If still over hard budget, trim the active-file fenced body —
+		//      project context is the highest-value chunk for LLM grounding
+		//      and is preserved as long as possible.
 		if (markdown.length > SOFT_CHAR_BUDGET) {
 			if (readme) {
 				const without = sections.filter(s => s !== readme).join('\n\n');
@@ -158,7 +267,10 @@ export class WorkspaceContextProvider implements vscode.Disposable {
 		}
 	}
 
-	private async getActiveEditorContext(includeSelection: boolean): Promise<string> {
+	private async getActiveEditorContext(
+		includeSelection: boolean,
+		smallFileLineLimit: number = SMALL_FILE_LINE_LIMIT,
+	): Promise<string> {
 		const editor = vscode.window.activeTextEditor;
 		if (!editor) {
 			return '';
@@ -198,7 +310,7 @@ export class WorkspaceContextProvider implements vscode.Disposable {
 			if (selLines <= SELECTION_INLINE_LINE_LIMIT) {
 				body = doc.getText(selection);
 			}
-		} else if (totalLines <= SMALL_FILE_LINE_LIMIT) {
+		} else if (totalLines <= smallFileLineLimit) {
 			body = doc.getText();
 		}
 
@@ -214,7 +326,7 @@ export class WorkspaceContextProvider implements vscode.Disposable {
 		return `${header}\n\n\`\`\`${fenceLang}\n${body}\n\`\`\``;
 	}
 
-	private async getReadmeOverview(): Promise<string> {
+	private async getReadmeOverview(lineLimit: number = README_LINE_LIMIT): Promise<string> {
 		const folder = vscode.workspace.workspaceFolders?.[0];
 		if (!folder) {
 			return '';
@@ -230,7 +342,7 @@ export class WorkspaceContextProvider implements vscode.Disposable {
 				}
 				const bytes = await vscode.workspace.fs.readFile(uri);
 				const text = new TextDecoder('utf-8').decode(bytes);
-				const overview = extractOverview(text);
+				const overview = extractOverview(text, lineLimit);
 				if (!overview) {
 					return '';
 				}
@@ -286,6 +398,65 @@ export class WorkspaceContextProvider implements vscode.Disposable {
 	}
 }
 
+/**
+ * Walk every workspace diagnostic, emit a `## Diagnostics` section grouped
+ * by file, and cap at 8KB. Errors and warnings only — info/hint are
+ * skipped. Each entry is `- [<sev>] line N, col M: <message>`.
+ *
+ * Exported as a free function so the resolver layer can call it without
+ * needing a `WorkspaceContextProvider` instance (e.g. in unit tests).
+ */
+export async function resolveProblemsMention(): Promise<string> {
+	const allDiagnostics: Array<[vscode.Uri, vscode.Diagnostic[]]> = vscode.languages.getDiagnostics();
+	const sections: string[] = [];
+	let totalCount = 0;
+	for (const [uri, diags] of allDiagnostics) {
+		const filtered = diags.filter(d =>
+			d.severity === vscode.DiagnosticSeverity.Error
+			|| d.severity === vscode.DiagnosticSeverity.Warning,
+		);
+		if (filtered.length === 0) {
+			continue;
+		}
+		const relPath = vscode.workspace.asRelativePath(uri, false);
+		const lines = filtered.map(d => {
+			const sev = d.severity === vscode.DiagnosticSeverity.Error ? 'error' : 'warning';
+			const message = (d.message || '').split(/\r?\n/)[0];
+			return `- [${sev}] line ${d.range.start.line + 1}, col ${d.range.start.character + 1}: ${message}`;
+		});
+		sections.push(`### ${relPath}\n${lines.join('\n')}`);
+		totalCount += filtered.length;
+	}
+	if (sections.length === 0) {
+		return '## Diagnostics\n\n(no errors or warnings)\n';
+	}
+
+	const PROBLEMS_BYTE_CAP = 8 * 1024;
+	const full = `## Diagnostics\n\n${sections.join('\n\n')}\n`;
+	if (Buffer.byteLength(full, 'utf8') <= PROBLEMS_BYTE_CAP) {
+		return full;
+	}
+	// Truncate by walking sections in order and stopping once we'd exceed
+	// the budget; tally the remaining diagnostics so the LLM knows how
+	// many were dropped.
+	const kept: string[] = [];
+	let bytes = Buffer.byteLength('## Diagnostics\n\n', 'utf8');
+	let keptCount = 0;
+	for (const section of sections) {
+		const segment = (kept.length === 0 ? section : '\n\n' + section);
+		const segmentBytes = Buffer.byteLength(segment, 'utf8');
+		if (bytes + segmentBytes > PROBLEMS_BYTE_CAP) {
+			break;
+		}
+		kept.push(section);
+		bytes += segmentBytes;
+		keptCount += section.split('\n').length - 1;
+	}
+	const remaining = totalCount - keptCount;
+	const body = kept.length > 0 ? kept.join('\n\n') : sections[0].slice(0, PROBLEMS_BYTE_CAP);
+	return `## Diagnostics\n\n${body}\n\n[truncated — ${remaining} more diagnostics]\n`;
+}
+
 /** @internal exported for unit tests; treat as private to this module. */
 export function isSensitivePath(p: string): boolean {
 	const normalised = p.replace(/\\/g, '/');
@@ -294,11 +465,11 @@ export function isSensitivePath(p: string): boolean {
 
 /**
  * Prefer the body of an `## Overview` or `## Description` section if present,
- * otherwise return the first ~50 non-blank lines as a blockquote.
+ * otherwise return the first `lineLimit` non-blank lines as a blockquote.
  *
  * @internal exported for unit tests; treat as private to this module.
  */
-export function extractOverview(readme: string): string {
+export function extractOverview(readme: string, lineLimit: number = README_LINE_LIMIT): string {
 	const lines = readme.split(/\r?\n/);
 	const sectionRx = /^##+\s+(overview|description)\b/i;
 	const anySectionRx = /^##+\s+/;
@@ -306,7 +477,7 @@ export function extractOverview(readme: string): string {
 	for (let i = 0; i < lines.length; i++) {
 		if (sectionRx.test(lines[i])) {
 			const body: string[] = [];
-			for (let j = i + 1; j < lines.length && body.length < README_LINE_LIMIT; j++) {
+			for (let j = i + 1; j < lines.length && body.length < lineLimit; j++) {
 				if (anySectionRx.test(lines[j])) {
 					break;
 				}
@@ -319,7 +490,7 @@ export function extractOverview(readme: string): string {
 		}
 	}
 
-	const head = lines.slice(0, README_LINE_LIMIT).join('\n').trim();
+	const head = lines.slice(0, lineLimit).join('\n').trim();
 	return head ? blockquote(head) : '';
 }
 
@@ -328,6 +499,50 @@ function blockquote(text: string): string {
 		.split(/\r?\n/)
 		.map(line => `> ${line}`)
 		.join('\n');
+}
+
+/**
+ * Render a `**Project Context** (from <source>): …` section from a loaded
+ * `ProjectContext`. Returns the empty string when no context file was found
+ * — callers should drop the section in that case rather than emit a "no
+ * project context" line.
+ *
+ * The body is capped further than the loader's 8KB ceiling: the inline
+ * preview is at most {@link PROJECT_CONTEXT_INLINE_BYTE_CAP} bytes / the
+ * first {@link PROJECT_CONTEXT_INLINE_LINE_LIMIT} lines so a long context
+ * file doesn't crowd out the rest of the workspace context. A pointer to
+ * the absolute path is appended when truncation occurs.
+ *
+ * @internal exported for unit tests; treat as private to this module.
+ */
+export function formatProjectContextSection(ctx: ProjectContext): string {
+	if (ctx.source === 'none') {
+		return '';
+	}
+	const body = (ctx.contents ?? '').trim();
+	if (!body) {
+		return '';
+	}
+
+	const allLines = body.split(/\r?\n/);
+	const previewLines = allLines.slice(0, PROJECT_CONTEXT_INLINE_LINE_LIMIT);
+	let preview = previewLines.join('\n');
+	let inlineTruncated = previewLines.length < allLines.length;
+	if (preview.length > PROJECT_CONTEXT_INLINE_BYTE_CAP) {
+		preview = preview.slice(0, PROJECT_CONTEXT_INLINE_BYTE_CAP);
+		inlineTruncated = true;
+	}
+
+	const header = `**Project Context** (from ${ctx.source}):`;
+	const quoted = blockquote(preview);
+	const truncated = ctx.truncated || inlineTruncated;
+	if (!truncated) {
+		return `${header}\n${quoted}`;
+	}
+	const pointer = ctx.path
+		? `_(truncated to 8KB; full file at ${ctx.path})_`
+		: '_(truncated)_';
+	return `${header}\n${quoted}\n${pointer}`;
 }
 
 /**

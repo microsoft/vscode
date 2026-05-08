@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Son of Anton contributors. All rights reserved.
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
@@ -10,7 +10,7 @@
 	font-weight: 400;
 	font-style: normal;
 	font-display: swap;
-	src: url('./fonts/DM_Sans-Regular.woff2') format('woff2');
+	src: url('./DM_Sans-Regular.woff2') format('woff2');
 }
 
 @font-face {
@@ -18,7 +18,7 @@
 	font-weight: 500;
 	font-style: normal;
 	font-display: swap;
-	src: url('./fonts/DM_Sans-Medium.woff2') format('woff2');
+	src: url('./DM_Sans-Medium.woff2') format('woff2');
 }
 
 @font-face {
@@ -26,7 +26,7 @@
 	font-weight: 600;
 	font-style: normal;
 	font-display: swap;
-	src: url('./fonts/DM_Sans-SemiBold.woff2') format('woff2');
+	src: url('./DM_Sans-SemiBold.woff2') format('woff2');
 }
 
 @font-face {
@@ -34,5 +34,5 @@
 	font-weight: 700;
 	font-style: normal;
 	font-display: swap;
-	src: url('./fonts/DM_Sans-Bold.woff2') format('woff2');
+	src: url('./DM_Sans-Bold.woff2') format('woff2');
 }

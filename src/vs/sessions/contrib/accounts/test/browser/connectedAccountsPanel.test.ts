@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Son of Anton Contributors. All rights reserved.
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
@@ -23,7 +23,7 @@ const PROVIDER_A: AccountRow = {
 
 const PROVIDER_B: AccountRow = {
 	id: 'copilot',
-	displayName: 'GitHub Copilot',
+	displayName: 'Test Copilot Provider',
 	icon: Codicon.githubAlt,
 	status: { kind: 'connected' },
 	expiresAt: Date.now() + 30 * 60_000,

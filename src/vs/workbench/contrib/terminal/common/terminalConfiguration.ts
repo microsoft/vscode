@@ -314,7 +314,7 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 		default: 1000
 	},
 	[TerminalSettingId.DetectLocale]: {
-		markdownDescription: localize('terminal.integrated.detectLocale', "Controls whether to detect and set the `$LANG` environment variable to a UTF-8 compliant option since VS Code's terminal only supports UTF-8 encoded data coming from the shell."),
+		markdownDescription: localize('terminal.integrated.detectLocale', "Controls whether to detect and set the `$LANG` environment variable to a UTF-8 compliant option since Son of Anton's terminal only supports UTF-8 encoded data coming from the shell."),
 		type: 'string',
 		enum: ['auto', 'off', 'on'],
 		markdownEnumDescriptions: [
@@ -328,7 +328,7 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 		type: 'string',
 		enum: ['auto', 'on', 'off'],
 		markdownEnumDescriptions: [
-			localize('terminal.integrated.gpuAcceleration.auto', "Let VS Code detect which renderer will give the best experience."),
+			localize('terminal.integrated.gpuAcceleration.auto', "Let Son of Anton detect which renderer will give the best experience."),
 			localize('terminal.integrated.gpuAcceleration.on', "Enable GPU acceleration within the terminal."),
 			localize('terminal.integrated.gpuAcceleration.off', "Disable GPU acceleration within the terminal. The terminal will render much slower when GPU acceleration is off but it should reliably work on all systems."),
 		],
@@ -428,7 +428,7 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 		default: []
 	},
 	[TerminalSettingId.AllowChords]: {
-		markdownDescription: localize('terminal.integrated.allowChords', "Whether or not to allow chord keybindings in the terminal. Note that when this is true and the keystroke results in a chord it will bypass {0}, setting this to false is particularly useful when you want ctrl+k to go to your shell (not VS Code).", '`#terminal.integrated.commandsToSkipShell#`'),
+		markdownDescription: localize('terminal.integrated.allowChords', "Whether or not to allow chord keybindings in the terminal. Note that when this is true and the keystroke results in a chord it will bypass {0}, setting this to false is particularly useful when you want ctrl+k to go to your shell (not Son of Anton).", '`#terminal.integrated.commandsToSkipShell#`'),
 		type: 'boolean',
 		default: true
 	},
@@ -439,7 +439,7 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 	},
 	[TerminalSettingId.EnvMacOs]: {
 		restricted: true,
-		markdownDescription: localize('terminal.integrated.env.osx', "Object with environment variables that will be added to the VS Code process to be used by the terminal on macOS. Set to `null` to delete the environment variable."),
+		markdownDescription: localize('terminal.integrated.env.osx', "Object with environment variables that will be added to the Son of Anton process to be used by the terminal on macOS. Set to `null` to delete the environment variable."),
 		type: 'object',
 		additionalProperties: {
 			type: ['string', 'null']
@@ -448,7 +448,7 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 	},
 	[TerminalSettingId.EnvLinux]: {
 		restricted: true,
-		markdownDescription: localize('terminal.integrated.env.linux', "Object with environment variables that will be added to the VS Code process to be used by the terminal on Linux. Set to `null` to delete the environment variable."),
+		markdownDescription: localize('terminal.integrated.env.linux', "Object with environment variables that will be added to the Son of Anton process to be used by the terminal on Linux. Set to `null` to delete the environment variable."),
 		type: 'object',
 		additionalProperties: {
 			type: ['string', 'null']
@@ -457,7 +457,7 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 	},
 	[TerminalSettingId.EnvWindows]: {
 		restricted: true,
-		markdownDescription: localize('terminal.integrated.env.windows', "Object with environment variables that will be added to the VS Code process to be used by the terminal on Windows. Set to `null` to delete the environment variable."),
+		markdownDescription: localize('terminal.integrated.env.windows', "Object with environment variables that will be added to the Son of Anton process to be used by the terminal on Windows. Set to `null` to delete the environment variable."),
 		type: 'object',
 		additionalProperties: {
 			type: ['string', 'null']
@@ -476,7 +476,7 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 	},
 	[TerminalSettingId.WindowsUseConptyDll]: {
 		restricted: true,
-		markdownDescription: localize('terminal.integrated.windowsUseConptyDll', "Whether to use the experimental conpty.dll (v1.23.251008001) shipped with VS Code, instead of the one bundled with Windows."),
+		markdownDescription: localize('terminal.integrated.windowsUseConptyDll', "Whether to use the experimental conpty.dll (v1.23.251008001) shipped with Son of Anton, instead of the one bundled with Windows."),
 		type: 'boolean',
 		tags: ['preview'],
 		default: false,
@@ -615,7 +615,7 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 	},
 	[TerminalSettingId.ShellIntegrationEnabled]: {
 		restricted: true,
-		markdownDescription: localize('terminal.integrated.shellIntegration.enabled', "Determines whether or not shell integration is auto-injected to support features like enhanced command tracking and current working directory detection. \n\nShell integration works by injecting the shell with a startup script. The script gives VS Code insight into what is happening within the terminal.\n\nSupported shells:\n\n- Linux/macOS: bash, fish, pwsh, zsh\n - Windows: pwsh, git bash\n\nThis setting applies only when terminals are created, so you will need to restart your terminals for it to take effect.\n\n Note that the script injection may not work if you have custom arguments defined in the terminal profile, have enabled {1}, have a [complex bash `PROMPT_COMMAND`](https://code.visualstudio.com/docs/editor/integrated-terminal#_complex-bash-promptcommand), or other unsupported setup. To disable decorations, see {0}", '`#terminal.integrated.shellIntegration.decorationsEnabled#`', '`#editor.accessibilitySupport#`'),
+		markdownDescription: localize('terminal.integrated.shellIntegration.enabled', "Determines whether or not shell integration is auto-injected to support features like enhanced command tracking and current working directory detection. \n\nShell integration works by injecting the shell with a startup script. The script gives Son of Anton insight into what is happening within the terminal.\n\nSupported shells:\n\n- Linux/macOS: bash, fish, pwsh, zsh\n - Windows: pwsh, git bash\n\nThis setting applies only when terminals are created, so you will need to restart your terminals for it to take effect.\n\n Note that the script injection may not work if you have custom arguments defined in the terminal profile, have enabled {1}, have a [complex bash `PROMPT_COMMAND`](https://code.visualstudio.com/docs/editor/integrated-terminal#_complex-bash-promptcommand), or other unsupported setup. To disable decorations, see {0}", '`#terminal.integrated.shellIntegration.decorationsEnabled#`', '`#editor.accessibilitySupport#`'),
 		type: 'boolean',
 		default: true
 	},

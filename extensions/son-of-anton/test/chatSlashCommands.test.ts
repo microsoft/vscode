@@ -4,17 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import { parseAndDispatch, type SlashCommandContext } from '../src/chat/ChatSlashCommands';
-import type { ModelId } from '../src/llm/LlmClient';
+import type { ModelId } from 'son-of-anton-core/llm/LlmClient';
+import type { ChatMode } from 'son-of-anton-core/agents/agentEvents';
 
 // ── Fakes ─────────────────────────────────────────────────────────────────────
 
 interface SpyContext extends SlashCommandContext {
 	specialistId: string;
 	model: ModelId;
+	mode: ChatMode;
 	clearedCount: number;
 	providerStatus: { name: string; connected: boolean }[];
 	setSpecialistCalls: string[];
 	setModelCalls: ModelId[];
+	setModeCalls: ChatMode[];
 	failProviderStatus: boolean;
 }
 
@@ -22,10 +25,12 @@ function makeContext(overrides: Partial<SpyContext> = {}): SpyContext {
 	const ctx: SpyContext = {
 		specialistId: 'anton',
 		model: 'sonnet',
+		mode: 'act',
 		clearedCount: 0,
 		providerStatus: [],
 		setSpecialistCalls: [],
 		setModelCalls: [],
+		setModeCalls: [],
 		failProviderStatus: false,
 		getSpecialistId() { return ctx.specialistId; },
 		setSpecialistId(id: string) {
@@ -36,6 +41,11 @@ function makeContext(overrides: Partial<SpyContext> = {}): SpyContext {
 		setModel(id: ModelId) {
 			ctx.setModelCalls.push(id);
 			ctx.model = id;
+		},
+		getMode() { return ctx.mode; },
+		setMode(mode: ChatMode) {
+			ctx.setModeCalls.push(mode);
+			ctx.mode = mode;
 		},
 		async clearConversation() { ctx.clearedCount += 1; },
 		async getProviderStatus() {
@@ -68,17 +78,57 @@ suite('ChatSlashCommands', () => {
 		);
 	});
 
-	test('/help lists all six commands', async () => {
+	test('/help lists every registered command', async () => {
 		const ctx = makeContext();
 		const result = await parseAndDispatch('/help', ctx);
 
-		const expected = ['/help', '/clear', '/specialist', '/model', '/agents', '/status'];
+		const expected = ['/help', '/clear', '/specialist', '/model', '/agents', '/status', '/plan', '/act'];
 		assert.deepStrictEqual(
 			{
 				handled: result.handled,
 				containsAll: expected.every(c => result.output.includes(c)),
 			},
 			{ handled: true, containsAll: true },
+		);
+	});
+
+	test('/plan switches mode to plan and reports the change', async () => {
+		const ctx = makeContext();
+		const result = await parseAndDispatch('/plan', ctx);
+
+		assert.deepStrictEqual(
+			{
+				handled: result.handled,
+				calls: ctx.setModeCalls,
+				mode: ctx.mode,
+				outputMentionsPlan: result.output.toLowerCase().includes('plan'),
+			},
+			{ handled: true, calls: ['plan' as ChatMode], mode: 'plan', outputMentionsPlan: true },
+		);
+	});
+
+	test('/act switches mode to act and reports the change', async () => {
+		const ctx = makeContext({ mode: 'plan' });
+		const result = await parseAndDispatch('/act', ctx);
+
+		assert.deepStrictEqual(
+			{
+				handled: result.handled,
+				calls: ctx.setModeCalls,
+				mode: ctx.mode,
+				outputMentionsAct: result.output.toLowerCase().includes('act'),
+			},
+			{ handled: true, calls: ['act' as ChatMode], mode: 'act', outputMentionsAct: true },
+		);
+	});
+
+	test('/plan is a no-op when already in plan mode', async () => {
+		const ctx = makeContext({ mode: 'plan' });
+		const result = await parseAndDispatch('/plan', ctx);
+
+		assert.deepStrictEqual(
+			{ handled: result.handled, calls: ctx.setModeCalls, mode: ctx.mode },
+			{ handled: true, calls: [], mode: 'plan' },
 		);
 	});
 

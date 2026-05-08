@@ -519,7 +519,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 	private _sentClientIdUsageEvents = new Set<string>();
 	private sendClientIdUsageTelemetry(extensionId: string, providerId: string, scopes: readonly string[]): void {
 		const containsSonOfAntonClientIdScope = scopes.some(scope => scope.startsWith('VSCODE_CLIENT_ID:'));
-		const key = `${extensionId}|${providerId}|${containsSon of AntonClientIdScope}`;
+		const key = `${extensionId}|${providerId}|${containsSonOfAntonClientIdScope}`;
 		if (this._sentClientIdUsageEvents.has(key)) {
 			return;
 		}

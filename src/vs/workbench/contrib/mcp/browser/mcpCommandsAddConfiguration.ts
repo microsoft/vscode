@@ -78,15 +78,22 @@ export const AssistedTypes = {
 	},
 };
 
-const enum AddConfigurationCopilotCommand {
+/**
+ * Command ids the MCP "add configuration" flow consults to know whether the
+ * host environment provides an enhanced AI-driven setup. The command names
+ * are intentionally fork-namespaced and currently unregistered — until a
+ * native enhanced-setup path lands, `executeCommand` returns `undefined` and
+ * the standard MCP setup flow is used instead.
+ */
+const enum AddConfigurationAiCommand {
 	/** Returns whether MCP enhanced setup is enabled. */
-	IsSupported = 'github.copilot.chat.mcp.setup.check',
+	IsSupported = 'sota.chat.mcp.setup.check',
 
 	/** Takes an npm/pip package name, validates its owner. */
-	ValidatePackage = 'github.copilot.chat.mcp.setup.validatePackage',
+	ValidatePackage = 'sota.chat.mcp.setup.validatePackage',
 
 	/** Returns the resolved MCP configuration. */
-	StartFlow = 'github.copilot.chat.mcp.setup.flow',
+	StartFlow = 'sota.chat.mcp.setup.flow',
 }
 
 type ValidatePackageResult =
@@ -155,7 +162,7 @@ export class McpAddConfigurationCommand {
 
 		let aiSupported: boolean | undefined;
 		try {
-			aiSupported = await this._commandService.executeCommand<boolean>(AddConfigurationCopilotCommand.IsSupported);
+			aiSupported = await this._commandService.executeCommand<boolean>(AddConfigurationAiCommand.IsSupported);
 		} catch {
 			// ignored
 		}
@@ -332,7 +339,7 @@ export class McpAddConfigurationCommand {
 		});
 
 		this._commandService.executeCommand<ValidatePackageResult>(
-			AddConfigurationCopilotCommand.ValidatePackage,
+			AddConfigurationAiCommand.ValidatePackage,
 			{
 				type: packageType,
 				name: packageName,
@@ -402,7 +409,7 @@ export class McpAddConfigurationCommand {
 		}
 
 		const config = await this._commandService.executeCommand<AssistedServerConfiguration>(
-			AddConfigurationCopilotCommand.StartFlow,
+			AddConfigurationAiCommand.StartFlow,
 			{
 				name: packageName,
 				type: packageType

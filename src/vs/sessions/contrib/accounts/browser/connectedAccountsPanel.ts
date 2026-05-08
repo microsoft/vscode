@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Son of Anton Contributors. All rights reserved.
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
@@ -7,6 +7,7 @@ import './media/connectedAccountsPanel.css';
 import { $, append, clearNode } from '../../../../base/browser/dom.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
@@ -23,7 +24,7 @@ export type AccountRowStatus =
 export interface AccountRow {
 	readonly id: string;
 	readonly displayName: string;
-	readonly icon: Codicon;
+	readonly icon: ThemeIcon;
 	readonly status: AccountRowStatus;
 	/** Unix timestamp (ms) when the current token expires. */
 	readonly expiresAt?: number;
@@ -193,6 +194,7 @@ export class ConnectedAccountsPanel extends Disposable {
 	}
 
 	private refreshMeta(el: HTMLElement, row: AccountRow): void {
+		// eslint-disable-next-line no-restricted-syntax
 		const meta = el.querySelector<HTMLElement>('[data-meta]');
 		if (!meta) {
 			return;
@@ -276,5 +278,4 @@ export class ConnectedAccountsPanel extends Disposable {
 export const KNOWN_PROVIDERS: ReadonlyArray<Pick<AccountRow, 'id' | 'displayName' | 'icon'>> = [
 	{ id: 'anthropic-oauth', displayName: localize('accounts.provider.claude', "Claude (Anthropic)"), icon: Codicon.sparkle },
 	{ id: 'chatgpt-oauth', displayName: localize('accounts.provider.chatgpt', "ChatGPT / Codex"), icon: Codicon.commentDiscussion },
-	{ id: 'copilot', displayName: localize('accounts.provider.copilot', "GitHub Copilot"), icon: Codicon.githubAlt },
 ];

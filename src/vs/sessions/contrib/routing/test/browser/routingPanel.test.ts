@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Son of Anton Contributors. All rights reserved.
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
@@ -39,7 +39,7 @@ const CATALOGUE: ReadonlyArray<ProviderCatalogueEntry> = [
 	},
 	{
 		id: 'copilot',
-		displayName: 'GitHub Copilot',
+		displayName: 'Test Copilot Provider',
 		models: [
 			{ id: 'claude-opus', displayName: 'Claude Opus (via Copilot)' },
 			{ id: 'gpt-4o', displayName: 'GPT-4o (via Copilot)' },
@@ -151,7 +151,7 @@ suite('RoutingPanel', () => {
 				modelOptions: ['claude-opus', 'gpt-4o'],
 				selectedProvider: 'copilot',
 				selectedModel: 'gpt-4o',
-				badge: 'GPT-4o (via Copilot) · GitHub Copilot',
+				badge: 'GPT-4o (via Copilot) · Test Copilot Provider',
 			},
 		});
 	});
@@ -300,7 +300,7 @@ suite('RoutingPanel', () => {
 		}, {
 			provider: 'copilot',
 			model: 'gpt-4o',
-			badge: 'GPT-4o (via Copilot) · GitHub Copilot',
+			badge: 'GPT-4o (via Copilot) · Test Copilot Provider',
 			updateCalls: 0,
 		});
 	});

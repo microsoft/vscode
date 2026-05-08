@@ -872,7 +872,7 @@ function splitContributedProfiles(contributedProfiles: readonly IExtensionTermin
 
 function isAiContributedProfile(profile: IExtensionTerminalProfile): boolean {
 	const extensionIdentifier = profile.extensionIdentifier.toLowerCase();
-	if (extensionIdentifier === 'github.copilot-chat' || extensionIdentifier === 'anthropic.claude-code') {
+	if (extensionIdentifier === 'anthropic.claude-code' || extensionIdentifier === 'son-of-anton.son-of-anton') {
 		return true;
 	}
 
@@ -881,7 +881,7 @@ function isAiContributedProfile(profile: IExtensionTerminalProfile): boolean {
 
 function isAiProfileName(name: string): boolean {
 	const lowerCaseName = name.toLowerCase();
-	return lowerCaseName.includes('copilot') || lowerCaseName.includes('claude');
+	return lowerCaseName.includes('claude') || lowerCaseName.includes('anton');
 }
 
 function addProfileActions(

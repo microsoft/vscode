@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as vscode from 'vscode';
-import { LlmClient, ModelId } from '../llm/LlmClient';
-import { CredentialBroker } from '../auth/CredentialBroker';
-import { SECRET_KEYS, detectCredentials } from './credentialDetection';
+import { LlmClient } from 'son-of-anton-core/llm/LlmClient';
+import { CredentialBroker } from 'son-of-anton-core/auth/CredentialBroker';
+import { detectCredentials } from 'son-of-anton-core/credentials/credentialDetection';
+import { ProviderId, saveProviderCredentials } from 'son-of-anton-core/credentials/providerCredentialSaver';
 
 export const SETUP_WIZARD_SKIPPED_KEY = 'sotaOnboarding.setupWizardSkipped';
 
@@ -15,8 +16,6 @@ export interface SetupWizardDeps {
 	readonly secrets: vscode.SecretStorage;
 	readonly config: vscode.WorkspaceConfiguration;
 }
-
-type ProviderId = 'anthropic' | 'openai' | 'foundry' | 'bedrock' | 'google';
 
 interface SaveCredentialsMessage {
 	type: 'save-credentials';
@@ -41,12 +40,6 @@ type IncomingMessage = SaveCredentialsMessage | SkipMessage | OpenLinkMessage | 
 
 /** Webview-side typing is opaque; this is the unavoidable shim for postMessage. */
 type WebviewMessage = unknown;
-
-interface ValidationOutcome {
-	ok: boolean;
-	message: string;
-	deferred?: boolean;
-}
 
 export class SetupWizardPanel {
 	static readonly VIEW_TYPE = 'sota.setupWizard';
@@ -128,167 +121,20 @@ export class SetupWizardPanel {
 
 	private async handleSave(message: SaveCredentialsMessage): Promise<void> {
 		const { provider, fields } = message;
-		try {
-			await this.persist(provider, fields);
-			const validation = await this.validate(provider, fields);
-			this.panel.webview.postMessage({
-				type: 'save-result',
-				provider,
-				ok: validation.ok,
-				message: validation.message,
-				deferred: validation.deferred ?? false,
-			});
+		const result = await saveProviderCredentials(provider, fields, {
+			llmClient: this.deps.llmClient,
+			secrets: this.deps.secrets,
+			config: this.deps.config,
+		});
+		this.panel.webview.postMessage({
+			type: 'save-result',
+			provider,
+			ok: result.ok,
+			message: result.message,
+			deferred: result.deferred ?? false,
+		});
+		if (result.ok) {
 			await this.pushStatus();
-		} catch (err) {
-			const detail = err instanceof Error ? err.message : String(err);
-			this.panel.webview.postMessage({
-				type: 'save-result',
-				provider,
-				ok: false,
-				message: `Failed to save credentials: ${detail}`,
-				deferred: false,
-			});
-		}
-	}
-
-	private async persist(provider: ProviderId, fields: Record<string, string>): Promise<void> {
-		const config = this.deps.config;
-		const secrets = this.deps.secrets;
-		const trimmed = (key: string): string => (typeof fields[key] === 'string' ? fields[key].trim() : '');
-
-		switch (provider) {
-			case 'anthropic': {
-				const key = trimmed('apiKey');
-				if (!key) { throw new Error('API key is required.'); }
-				await secrets.store(SECRET_KEYS.anthropic, key);
-				// Mirror to settings so LlmClient's existing readers see the value
-				// without needing changes — the secret store is the canonical
-				// location and the setting is the read-through cache.
-				await config.update('apiKey', key, vscode.ConfigurationTarget.Global);
-				return;
-			}
-			case 'openai': {
-				const key = trimmed('apiKey');
-				if (!key) { throw new Error('API key is required.'); }
-				await secrets.store(SECRET_KEYS.openai, key);
-				await config.update('openaiApiKey', key, vscode.ConfigurationTarget.Global);
-				return;
-			}
-			case 'foundry': {
-				const key = trimmed('apiKey');
-				const endpoint = trimmed('endpoint');
-				const deployment = trimmed('deployment');
-				if (!endpoint) { throw new Error('Endpoint is required.'); }
-				if (!key) { throw new Error('API key is required.'); }
-				if (!deployment) { throw new Error('Deployment name is required.'); }
-				await secrets.store(SECRET_KEYS.foundry, key);
-				await config.update('foundryApiKey', key, vscode.ConfigurationTarget.Global);
-				await config.update('foundryEndpoint', endpoint, vscode.ConfigurationTarget.Global);
-				const existing = (config.get<string>('foundryDeployments') ?? '{}').trim() || '{}';
-				let parsed: Record<string, string> = {};
-				try {
-					const candidate = JSON.parse(existing);
-					if (candidate && typeof candidate === 'object' && !Array.isArray(candidate)) {
-						parsed = candidate as Record<string, string>;
-					}
-				} catch {
-					parsed = {};
-				}
-				const FOUNDRY_MODEL_IDS = ['foundry-gpt-4o-mini', 'foundry-gpt-4o', 'foundry-claude-sonnet'];
-				for (const modelId of FOUNDRY_MODEL_IDS) {
-					if (!parsed[modelId]) {
-						parsed[modelId] = deployment;
-					}
-				}
-				await config.update('foundryDeployments', JSON.stringify(parsed), vscode.ConfigurationTarget.Global);
-				return;
-			}
-			case 'bedrock': {
-				const region = trimmed('region') || 'us-east-1';
-				const profile = trimmed('profile');
-				const accessKeyId = trimmed('accessKeyId');
-				const secretAccessKey = trimmed('secretAccessKey');
-				const sessionToken = trimmed('sessionToken');
-				await config.update('bedrockRegion', region, vscode.ConfigurationTarget.Global);
-				if (profile) {
-					// Profile takes precedence in LlmClient's resolution order, so
-					// clear the static-credential settings to avoid ambiguity for
-					// users who later inspect their settings.json.
-					await config.update('bedrockProfile', profile, vscode.ConfigurationTarget.Global);
-					await config.update('bedrockAccessKeyId', '', vscode.ConfigurationTarget.Global);
-					await config.update('bedrockSecretAccessKey', '', vscode.ConfigurationTarget.Global);
-					await config.update('bedrockSessionToken', '', vscode.ConfigurationTarget.Global);
-					return;
-				}
-				if (!accessKeyId || !secretAccessKey) {
-					throw new Error('Either an AWS profile or both Access Key ID and Secret Access Key are required.');
-				}
-				await secrets.store(SECRET_KEYS.bedrockAccessKeyId, accessKeyId);
-				await secrets.store(SECRET_KEYS.bedrockSecretAccessKey, secretAccessKey);
-				await config.update('bedrockAccessKeyId', accessKeyId, vscode.ConfigurationTarget.Global);
-				await config.update('bedrockSecretAccessKey', secretAccessKey, vscode.ConfigurationTarget.Global);
-				if (sessionToken) {
-					await secrets.store(SECRET_KEYS.bedrockSessionToken, sessionToken);
-					await config.update('bedrockSessionToken', sessionToken, vscode.ConfigurationTarget.Global);
-				}
-				await config.update('bedrockProfile', '', vscode.ConfigurationTarget.Global);
-				return;
-			}
-			case 'google': {
-				const key = trimmed('apiKey');
-				if (!key) { throw new Error('API key is required.'); }
-				await secrets.store(SECRET_KEYS.google, key);
-				await config.update('googleApiKey', key, vscode.ConfigurationTarget.Global);
-				return;
-			}
-		}
-	}
-
-	private async validate(provider: ProviderId, fields: Record<string, string>): Promise<ValidationOutcome> {
-		// Bedrock with a profile and Foundry with no endpoint resolve credentials
-		// at request time via the AWS / Azure SDK chains — those flows can succeed
-		// without anything to ping right now, so defer validation rather than
-		// fabricate a probe that hits the real model.
-		if (provider === 'bedrock' && (fields['profile'] ?? '').trim().length > 0) {
-			return { ok: true, message: 'Saved. AWS profile credentials will be validated on the first request.', deferred: true };
-		}
-
-		const model = this.modelForProvider(provider);
-		try {
-			const stream = this.deps.llmClient.streamRequest({
-				model,
-				messages: [{ role: 'user', content: 'Reply with: ok' }],
-				maxTokens: 5,
-				systemPrompt: 'You are a connectivity probe. Reply with the single word ok.',
-			});
-			for await (const event of stream) {
-				if (event.type === 'token') {
-					return { ok: true, message: 'Credentials verified.' };
-				}
-				if (event.type === 'complete') {
-					// Some providers emit a single completion event without an
-					// intermediate token (e.g. when output is empty). A successful
-					// completion still proves the credentials and endpoint work.
-					return { ok: true, message: 'Credentials verified.' };
-				}
-				if (event.type === 'error') {
-					return { ok: false, message: event.error };
-				}
-			}
-			return { ok: false, message: 'Validation request returned no events.' };
-		} catch (err) {
-			const detail = err instanceof Error ? err.message : String(err);
-			return { ok: false, message: detail };
-		}
-	}
-
-	private modelForProvider(provider: ProviderId): ModelId {
-		switch (provider) {
-			case 'anthropic': return 'haiku';
-			case 'openai': return 'gpt-4o-mini';
-			case 'foundry': return 'foundry-gpt-4o-mini';
-			case 'bedrock': return 'bedrock-claude-haiku';
-			case 'google': return 'gemini-1-5-flash';
 		}
 	}
 

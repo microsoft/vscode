@@ -72,17 +72,15 @@ else {
 			licenseUrl: 'https://github.com/microsoft/vscode/blob/main/LICENSE.txt',
 			serverLicenseUrl: 'https://github.com/microsoft/vscode/blob/main/LICENSE.txt',
 			defaultChatAgent: {
-				extensionId: 'GitHub.copilot',
-				chatExtensionId: 'GitHub.copilot-chat',
+				// Empty in the dev fallback to match the fork's stubbed
+				// `product.json` shape; the IDE doesn't ship a default chat
+				// agent extension and downstream code already tolerates the
+				// empty values.
+				extensionId: '',
+				chatExtensionId: '',
 				provider: {
-					default: {
-						id: 'github',
-						name: 'GitHub',
-					},
-					enterprise: {
-						id: 'github-enterprise',
-						name: 'GitHub Enterprise',
-					}
+					default: { id: '', name: '' },
+					enterprise: { id: '', name: '' }
 				},
 				providerScopes: []
 			}

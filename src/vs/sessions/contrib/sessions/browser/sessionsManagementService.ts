@@ -20,7 +20,6 @@ import { IChatService, IChatSendRequestOptions } from '../../../../workbench/con
 import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
 import { IAgentSession, isAgentSession } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { INewSession, LocalNewSession, RemoteNewSession } from '../../chat/browser/newSession.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -145,7 +144,6 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILogService private readonly logService: ILogService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@ICommandService private readonly commandService: ICommandService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 	) {
 		super();
@@ -533,17 +531,16 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		);
 	}
 
-	async commitWorktreeFiles(session: IActiveSessionItem, fileUris: URI[]): Promise<void> {
+	async commitWorktreeFiles(session: IActiveSessionItem, _fileUris: URI[]): Promise<void> {
 		const worktreeUri = session.worktree;
 		if (!worktreeUri) {
 			throw new Error('Cannot commit worktree files: active session has no associated worktree');
 		}
-		for (const fileUri of fileUris) {
-			await this.commandService.executeCommand(
-				'github.copilot.cli.sessions.commitToWorktree',
-				{ worktreeUri, fileUri }
-			);
-		}
+		// Auto-commit is currently a no-op in the fork. The previous
+		// implementation dispatched a sibling-AI CLI command per file; that
+		// command is no longer available and a native git replacement has
+		// not yet landed. Files remain modified-but-uncommitted in the
+		// worktree until the user (or a follow-up integration) commits.
 		await this.agentSessionsService.model.resolve(AgentSessionProviders.Background);
 	}
 

@@ -1,10 +1,10 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Son of Anton Contributors. All rights reserved.
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import { activateAuth, AuthActivationDeps } from '../src/auth/activation';
-import type { SecretStore } from '../src/auth/types';
+import type { SecretStore } from 'son-of-anton-core/auth/types';
 
 class FakeSecretStore implements SecretStore {
 	private readonly data = new Map<string, string>();

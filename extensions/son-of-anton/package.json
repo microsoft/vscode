@@ -24,10 +24,22 @@
 				"description": "AI orchestrator — routes requests to specialist agents",
 				"isSticky": true,
 				"commands": [
-					{ "name": "plan", "description": "Create an execution plan for a request" },
-					{ "name": "approve", "description": "Approve and execute the current plan" },
-					{ "name": "status", "description": "Show status of active agents" },
-					{ "name": "metrics", "description": "Show agent performance metrics" }
+					{
+						"name": "plan",
+						"description": "Create an execution plan for a request"
+					},
+					{
+						"name": "approve",
+						"description": "Approve and execute the current plan"
+					},
+					{
+						"name": "status",
+						"description": "Show status of active agents"
+					},
+					{
+						"name": "metrics",
+						"description": "Show agent performance metrics"
+					}
 				]
 			},
 			{
@@ -36,8 +48,14 @@
 				"fullName": "Anton Code",
 				"description": "Code generation specialist — writes and modifies code",
 				"commands": [
-					{ "name": "generate", "description": "Generate code for a specific task" },
-					{ "name": "refactor", "description": "Refactor existing code" }
+					{
+						"name": "generate",
+						"description": "Generate code for a specific task"
+					},
+					{
+						"name": "refactor",
+						"description": "Refactor existing code"
+					}
 				]
 			},
 			{
@@ -46,8 +64,14 @@
 				"fullName": "Anton Test",
 				"description": "Test writing specialist — generates comprehensive tests",
 				"commands": [
-					{ "name": "test", "description": "Generate tests for specified code" },
-					{ "name": "coverage", "description": "Analyse test coverage gaps" }
+					{
+						"name": "test",
+						"description": "Generate tests for specified code"
+					},
+					{
+						"name": "coverage",
+						"description": "Analyse test coverage gaps"
+					}
 				]
 			},
 			{
@@ -56,8 +80,14 @@
 				"fullName": "Anton Security",
 				"description": "Security analysis specialist — scans for vulnerabilities",
 				"commands": [
-					{ "name": "scan", "description": "Scan code for security vulnerabilities" },
-					{ "name": "audit", "description": "Full security audit of changed files" }
+					{
+						"name": "scan",
+						"description": "Scan code for security vulnerabilities"
+					},
+					{
+						"name": "audit",
+						"description": "Full security audit of changed files"
+					}
 				]
 			},
 			{
@@ -66,8 +96,14 @@
 				"fullName": "Anton Docs",
 				"description": "Documentation specialist — generates and updates docs",
 				"commands": [
-					{ "name": "document", "description": "Generate documentation for code" },
-					{ "name": "changelog", "description": "Generate a changelog entry" }
+					{
+						"name": "document",
+						"description": "Generate documentation for code"
+					},
+					{
+						"name": "changelog",
+						"description": "Generate a changelog entry"
+					}
 				]
 			},
 			{
@@ -76,8 +112,14 @@
 				"fullName": "Anton E2E",
 				"description": "E2E test specialist — generates browser-based end-to-end tests",
 				"commands": [
-					{ "name": "e2e", "description": "Generate E2E tests for user flows" },
-					{ "name": "visual", "description": "Run visual regression tests" }
+					{
+						"name": "e2e",
+						"description": "Generate E2E tests for user flows"
+					},
+					{
+						"name": "visual",
+						"description": "Run visual regression tests"
+					}
 				]
 			},
 			{
@@ -86,8 +128,14 @@
 				"fullName": "Anton CI",
 				"description": "CI/CD specialist — monitors pipelines and fixes failures",
 				"commands": [
-					{ "name": "ci-status", "description": "Check CI pipeline status" },
-					{ "name": "ci-fix", "description": "Analyse and fix CI failures" }
+					{
+						"name": "ci-status",
+						"description": "Check CI pipeline status"
+					},
+					{
+						"name": "ci-fix",
+						"description": "Analyse and fix CI failures"
+					}
 				]
 			},
 			{
@@ -96,7 +144,10 @@
 				"fullName": "Anton PR",
 				"description": "PR generation specialist — creates merge-ready pull requests",
 				"commands": [
-					{ "name": "pr", "description": "Generate a pull request for changes" }
+					{
+						"name": "pr",
+						"description": "Generate a pull request for changes"
+					}
 				]
 			},
 			{
@@ -105,10 +156,22 @@
 				"fullName": "Anton Moderniser",
 				"description": "Legacy code modernisation specialist — systematically brings old code up to standard",
 				"commands": [
-					{ "name": "modernise", "description": "Start modernising a legacy module" },
-					{ "name": "modernize", "description": "Start modernising a legacy module (US spelling)" },
-					{ "name": "next-phase", "description": "Advance to the next modernisation phase" },
-					{ "name": "phase-status", "description": "Show modernisation progress" }
+					{
+						"name": "modernise",
+						"description": "Start modernising a legacy module"
+					},
+					{
+						"name": "modernize",
+						"description": "Start modernising a legacy module (US spelling)"
+					},
+					{
+						"name": "next-phase",
+						"description": "Advance to the next modernisation phase"
+					},
+					{
+						"name": "phase-status",
+						"description": "Show modernisation progress"
+					}
 				]
 			},
 			{
@@ -117,11 +180,26 @@
 				"fullName": "Anton Spec",
 				"description": "Spec pipeline specialist — generates requirements, designs, and tasks from natural language",
 				"commands": [
-					{ "name": "spec", "description": "Start a new spec pipeline from a feature description" },
-					{ "name": "requirements", "description": "Generate EARS requirements from a description" },
-					{ "name": "design", "description": "Generate technical design from approved requirements" },
-					{ "name": "tasks", "description": "Generate implementation tasks from approved design" },
-					{ "name": "properties", "description": "Generate property-based tests from requirements" }
+					{
+						"name": "spec",
+						"description": "Start a new spec pipeline from a feature description"
+					},
+					{
+						"name": "requirements",
+						"description": "Generate EARS requirements from a description"
+					},
+					{
+						"name": "design",
+						"description": "Generate technical design from approved requirements"
+					},
+					{
+						"name": "tasks",
+						"description": "Generate implementation tasks from approved design"
+					},
+					{
+						"name": "properties",
+						"description": "Generate property-based tests from requirements"
+					}
 				]
 			}
 		],
@@ -129,6 +207,11 @@
 			{
 				"command": "sota.openChat",
 				"title": "Anton: Open Chat"
+			},
+			{
+				"command": "sota.openTaskBoard",
+				"title": "Open Task Board",
+				"category": "Son of Anton"
 			},
 			{
 				"command": "sota.openSetupWizard",
@@ -162,6 +245,32 @@
 			{
 				"command": "sota.clearChat",
 				"title": "Anton: Clear Chat"
+			},
+			{
+				"command": "sota.newConversation",
+				"title": "New Conversation",
+				"category": "Son of Anton",
+				"icon": "$(add)"
+			},
+			{
+				"command": "sota.openConversation",
+				"title": "Open Conversation",
+				"category": "Son of Anton"
+			},
+			{
+				"command": "sota.renameConversation",
+				"title": "Rename Conversation",
+				"category": "Son of Anton"
+			},
+			{
+				"command": "sota.deleteConversation",
+				"title": "Delete Conversation",
+				"category": "Son of Anton"
+			},
+			{
+				"command": "sota.exportConversation",
+				"title": "Export Conversation",
+				"category": "Son of Anton"
 			},
 			{
 				"command": "sota.exportTraces",
@@ -200,8 +309,19 @@
 				"title": "Anton: Show Fleet Dashboard"
 			},
 			{
+				"command": "sota.captureCheckpoint",
+				"title": "Capture Checkpoint",
+				"category": "Son of Anton: Checkpoints"
+			},
+			{
+				"command": "sota.listCheckpoints",
+				"title": "List Checkpoints",
+				"category": "Son of Anton: Checkpoints"
+			},
+			{
 				"command": "sota.restoreCheckpoint",
-				"title": "Anton: Restore Checkpoint"
+				"title": "Restore Checkpoint",
+				"category": "Son of Anton: Checkpoints"
 			},
 			{
 				"command": "sota.showImpactAnalysis",
@@ -218,6 +338,56 @@
 			{
 				"command": "sota.konami",
 				"title": "Anton: Konami Code"
+			},
+			{
+				"command": "sota.showSiliconValleyQuote",
+				"title": "Show Silicon Valley Quote",
+				"category": "Son of Anton: Easter Eggs"
+			},
+			{
+				"command": "sota.showPiedPiperLogo",
+				"title": "Show Pied Piper Logo",
+				"category": "Son of Anton: Easter Eggs"
+			},
+			{
+				"command": "sota.celebrate",
+				"title": "Celebrate (Compression Animation)",
+				"category": "Son of Anton: Easter Eggs"
+			},
+			{
+				"command": "sota.grantWorkspaceTrust",
+				"title": "Grant Workspace Trust",
+				"category": "Son of Anton: Trust"
+			},
+			{
+				"command": "sota.revokeWorkspaceTrust",
+				"title": "Revoke Workspace Trust",
+				"category": "Son of Anton: Trust"
+			},
+			{
+				"command": "sota.manageTrustedFolders",
+				"title": "Manage Trusted Folders",
+				"category": "Son of Anton: Trust"
+			},
+			{
+				"command": "sota.specialistRoster.startThread",
+				"title": "Start a Thread",
+				"category": "Anton Roster"
+			},
+			{
+				"command": "sota.specialistRoster.viewMemory",
+				"title": "View Memory",
+				"category": "Anton Roster"
+			},
+			{
+				"command": "sota.specialistRoster.clearThread",
+				"title": "Clear Thread",
+				"category": "Anton Roster"
+			},
+			{
+				"command": "sota.specialistRoster.showLastTrace",
+				"title": "Show Last Trace",
+				"category": "Anton Roster"
 			}
 		],
 		"keybindings": [
@@ -236,6 +406,11 @@
 					"icon": "media/chat-icon.svg"
 				},
 				{
+					"id": "sota-board",
+					"title": "Son of Anton Board",
+					"icon": "media/board-icon.svg"
+				},
+				{
 					"id": "sota-sidebar",
 					"title": "Son of Anton",
 					"icon": "media/icon.svg"
@@ -248,6 +423,25 @@
 					"type": "webview",
 					"id": "sota.chatView",
 					"name": "Chat"
+				},
+				{
+					"id": "sota.conversationList",
+					"name": "History",
+					"icon": "$(history)",
+					"contextualTitle": "Son of Anton"
+				},
+				{
+					"id": "sota.specialistRoster",
+					"name": "Anton Roster",
+					"icon": "$(organization)",
+					"contextualTitle": "Son of Anton"
+				}
+			],
+			"sota-board": [
+				{
+					"type": "webview",
+					"id": "sota.boardSidebar",
+					"name": "Tasks"
 				}
 			],
 			"sota-sidebar": [
@@ -261,9 +455,55 @@
 				}
 			]
 		},
+		"menus": {
+			"view/title": [
+				{
+					"command": "sota.newConversation",
+					"when": "view == sota.conversationList",
+					"group": "navigation"
+				}
+			],
+			"view/item/context": [
+				{
+					"command": "sota.renameConversation",
+					"when": "view == sota.conversationList && viewItem == sotaConversation",
+					"group": "1_modify@1"
+				},
+				{
+					"command": "sota.deleteConversation",
+					"when": "view == sota.conversationList && viewItem == sotaConversation",
+					"group": "1_modify@2"
+				},
+				{
+					"command": "sota.specialistRoster.startThread",
+					"when": "view == sota.specialistRoster && viewItem == sotaSpecialist",
+					"group": "navigation@1"
+				},
+				{
+					"command": "sota.specialistRoster.viewMemory",
+					"when": "view == sota.specialistRoster && viewItem == sotaSpecialist",
+					"group": "navigation@2"
+				},
+				{
+					"command": "sota.specialistRoster.showLastTrace",
+					"when": "view == sota.specialistRoster && viewItem == sotaSpecialist",
+					"group": "1_inspect@1"
+				},
+				{
+					"command": "sota.specialistRoster.clearThread",
+					"when": "view == sota.specialistRoster && viewItem == sotaSpecialist",
+					"group": "9_destructive@1"
+				}
+			]
+		},
 		"configuration": {
 			"title": "Son of Anton",
 			"properties": {
+				"sota.personality.enabled": {
+					"type": "boolean",
+					"default": true,
+					"description": "Enable Son of Anton personality surfaces (Silicon Valley quotes, ASCII art, easter eggs). Disable to silence all flavour text and animations."
+				},
 				"sota.defaultModel": {
 					"type": "string",
 					"default": "sonnet",
@@ -278,6 +518,145 @@
 					"type": "boolean",
 					"default": true,
 					"description": "Automatically include workspace context (active editor, README, recent files) in chat requests."
+				},
+				"sota.chat.autoApproveSafeOperations": {
+					"type": "boolean",
+					"default": false,
+					"deprecationMessage": "Replaced by the per-category auto-approval flags (`sota.autoApprove.read`, `sota.autoApprove.write`, `sota.autoApprove.shell`, `sota.autoApprove.mcp`). The legacy value is mirrored into `sota.autoApprove.read` on first run; please migrate when convenient.",
+					"markdownDescription": "Legacy single-toggle auto-approval — kept for backward compatibility. The Phase 86 governance panel under Settings → Features replaces this with per-category toggles. **Use `sota.autoApprove.*` for new configuration.**"
+				},
+				"sota.autoApprove.read": {
+					"type": "boolean",
+					"default": true,
+					"markdownDescription": "Auto-approve **read-only** tool calls (`read_file`, `list_directory`, `search_workspace`, `fetch_url`). On by default — these tools cannot mutate your workspace. Disable to require explicit approval for every read."
+				},
+				"sota.autoApprove.write": {
+					"type": "boolean",
+					"default": false,
+					"markdownDescription": "Auto-approve **file-write** tool calls (`write_file`, `edit_file`). **Off by default.** When enabled, Anton may overwrite or create files without asking. Pair with workspace trust + version control before turning this on."
+				},
+				"sota.autoApprove.shell": {
+					"type": "boolean",
+					"default": false,
+					"markdownDescription": "Auto-approve **shell command** tool calls (`run_command`). **Off by default.** Even when enabled, commands matching `sota.commandDenylist` still require explicit approval."
+				},
+				"sota.autoApprove.mcp": {
+					"type": "boolean",
+					"default": false,
+					"markdownDescription": "Auto-approve tool calls exposed by **Model Context Protocol** servers. **Off by default.** Per-server fine-grained toggles live separately in the MCP sub-tab."
+				},
+				"sota.commandDenylist": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"default": [
+						"rm -rf",
+						"mkfs",
+						"dd if=",
+						":(){:|:&};:"
+					],
+					"markdownDescription": "Regex patterns (one per entry) that force explicit approval for `run_command` calls even when `sota.autoApprove.shell` is enabled. Anton matches the full reconstructed command line (executable + args, joined by spaces) against each pattern; a hit blocks auto-approval."
+				},
+				"sota.spendLimit.session": {
+					"type": "number",
+					"default": 5.0,
+					"minimum": 0,
+					"markdownDescription": "Per-session USD spend cap. When the session's cumulative cost exceeds this number, the next chat turn is blocked with a modal. Increase the cap or start a new conversation to reset. Advisory unless `sota.spendLimit.enabled` is `true`."
+				},
+				"sota.spendLimit.task": {
+					"type": "number",
+					"default": 1.0,
+					"minimum": 0,
+					"markdownDescription": "Per-task USD spend cap. When a single user turn (one message → all subtasks → all tool calls) exceeds this cost, Anton aborts mid-turn. Use `/continue` to retry once the cap is raised. Advisory unless `sota.spendLimit.enabled` is `true`."
+				},
+				"sota.spendLimit.enabled": {
+					"type": "boolean",
+					"default": true,
+					"markdownDescription": "Enforce session and per-task spend caps. When `false`, the meters still surface in the UI but never block."
+				},
+				"sota.chat.focusChainEnabled": {
+					"type": "boolean",
+					"default": true,
+					"markdownDescription": "Show a focus-chain checklist beside long agent runs. Advisory — runtime wiring is in flight."
+				},
+				"sota.chat.perMessageHoverDetails": {
+					"type": "boolean",
+					"default": true,
+					"markdownDescription": "Surface a hover popover on each chat message with token / model / latency details. Advisory."
+				},
+				"sota.chat.personaAccents": {
+					"type": "boolean",
+					"default": true,
+					"markdownDescription": "Tint message bubbles with the assigned persona's accent colour. Advisory — disable for a neutral colour scheme."
+				},
+				"sota.personality.voiceIntensity": {
+					"type": "number",
+					"default": 5,
+					"minimum": 0,
+					"maximum": 10,
+					"markdownDescription": "How strongly Anton's deadpan voice colours its responses. 0 = strictly utilitarian. 10 = full Silicon Valley. Advisory."
+				},
+				"sota.personality.asciiArt": {
+					"type": "boolean",
+					"default": true,
+					"markdownDescription": "Show ASCII art on idle / loading screens. Advisory."
+				},
+				"sota.personality.easterEggs": {
+					"type": "boolean",
+					"default": true,
+					"markdownDescription": "Surface easter eggs (e.g. the git-blame command jokes). Advisory."
+				},
+				"sota.terminal.outputLineCap": {
+					"type": "number",
+					"default": 100,
+					"minimum": 20,
+					"maximum": 500,
+					"markdownDescription": "Maximum lines of terminal output Anton ingests per attachment. Advisory — the runtime cap is enforced separately."
+				},
+				"sota.terminal.shellIntegration": {
+					"type": "boolean",
+					"default": true,
+					"markdownDescription": "Enable VS Code shell integration when capturing terminal output. Advisory."
+				},
+				"sota.reasoningEffort": {
+					"type": "string",
+					"default": "medium",
+					"enum": [
+						"low",
+						"medium",
+						"high",
+						"auto"
+					],
+					"markdownDescription": "Reasoning effort sent to gpt-5 / o-series reasoning models. Ignored for capability-incompatible models."
+				},
+				"sota.thinkingBudgetTokens": {
+					"type": "number",
+					"default": 0,
+					"minimum": 0,
+					"maximum": 24000,
+					"markdownDescription": "Extended thinking budget (tokens) for Claude 4.x models. 0 disables thinking. Ignored for non-Anthropic models."
+				},
+				"sota.checkpoints.enabled": {
+					"type": "boolean",
+					"default": true,
+					"markdownDescription": "Capture a workspace checkpoint (via `git stash create`) on every chat turn so you can roll the working tree back to any prior state. Disable to opt out of the per-turn capture overhead — existing checkpoints remain restorable."
+				},
+				"sota.checkpoints.maxCount": {
+					"type": "number",
+					"default": 100,
+					"minimum": 1,
+					"maximum": 1000,
+					"markdownDescription": "Maximum number of checkpoints retained across all conversations. Once exceeded, the oldest checkpoints are pruned. Note: the underlying git stash commits become dangling references that git's reachability GC reaps after 30 days."
+				},
+				"sota.trustedFolders": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"default": [],
+					"scope": "application",
+					"markdownDescription": "Workspaces where Son of Anton has been granted trust to run tools and modify code. Edit via the **Son of Anton: Manage Trusted Folders** command, or hand-edit this list to audit / pre-bless folders. Paths added here are merged with entries persisted via the in-product trust prompt; removing a path here does **not** implicitly revoke trust — use **Son of Anton: Revoke Workspace Trust** for that."
 				},
 				"sota.completions.enabled": {
 					"type": "boolean",
@@ -329,6 +708,24 @@
 					"scope": "application",
 					"markdownDescription": "JSON object mapping Foundry model ids to deployment names. Example: `{ \"foundry-gpt-4o\": \"gpt-4o-eastus\", \"foundry-gpt-4o-mini\": \"gpt-4o-mini\", \"foundry-claude-sonnet\": \"claude-sonnet-4-5\" }`. Each deployment must already exist in your Foundry resource."
 				},
+				"sota.foundryProfiles": {
+					"type": "string",
+					"default": "{}",
+					"scope": "application",
+					"markdownDescription": "JSON object mapping a custom display name to a Foundry deployment profile: `{ \"<name>\": { \"endpoint\": \"https://...\", \"deployment\": \"...\", \"apiVersion\": \"...\" } }`. Surfaces in the model picker as `Foundry · <name>`. The legacy `sota.foundryDeployments` model→deployment map continues to work for the default profile."
+				},
+				"sota.bedrockProfiles": {
+					"type": "string",
+					"default": "{}",
+					"scope": "application",
+					"markdownDescription": "JSON object mapping a custom display name to a Bedrock credential profile: `{ \"<name>\": { \"region\": \"us-east-1\", \"profile\": \"...\", \"accessKeyId\": \"...\", \"secretAccessKey\": \"...\" } }`. Surfaces in the model picker as `Bedrock · <name>`. Use this to switch between regions or accounts mid-session."
+				},
+				"sota.googleProfiles": {
+					"type": "string",
+					"default": "{}",
+					"scope": "application",
+					"markdownDescription": "JSON object mapping a custom display name to a Google Gemini API key: `{ \"<name>\": { \"apiKey\": \"...\", \"project\": \"...\" } }`. Use this when juggling personal vs work Gemini quotas."
+				},
 				"sota.bedrockRegion": {
 					"type": "string",
 					"default": "us-east-1",
@@ -377,19 +774,97 @@
 					"scope": "application",
 					"markdownDescription": "JSON object mapping Son of Anton's Gemini model ids to actual Google API model names. Default mapping if empty: `gemini-1-5-pro` → `gemini-1.5-pro`, `gemini-1-5-flash` → `gemini-1.5-flash`, `gemini-2-0-flash` → `gemini-2.0-flash-exp`. Override here to pin specific versions or use experimental endpoints."
 				},
+				"sota.anthropicBaseUrl": {
+					"type": "string",
+					"default": "",
+					"scope": "application",
+					"markdownDescription": "Override for the Anthropic API base URL. Empty falls back to `https://api.anthropic.com`. Useful for proxies, on-prem Helix, or regional endpoints."
+				},
+				"sota.anthropicCustomHeaders": {
+					"type": "string",
+					"default": "",
+					"scope": "application",
+					"markdownDescription": "JSON object of additional headers sent on every Anthropic request (e.g. `{ \"Helix-Tenant\": \"...\" }`). Auth + version headers always win on conflict."
+				},
+				"sota.openaiBaseUrl": {
+					"type": "string",
+					"default": "",
+					"scope": "application",
+					"markdownDescription": "Override for the OpenAI base URL. Empty falls back to `https://api.openai.com/v1`. Useful for OpenAI-compatible APIs (e.g. Together, Anyscale)."
+				},
+				"sota.openaiOrgId": {
+					"type": "string",
+					"default": "",
+					"scope": "application",
+					"markdownDescription": "Optional OpenAI organisation id sent as the `OpenAI-Organization` header."
+				},
+				"sota.openaiCustomHeaders": {
+					"type": "string",
+					"default": "",
+					"scope": "application",
+					"markdownDescription": "JSON object of additional headers sent on every OpenAI request. Auth header always wins on conflict."
+				},
+				"sota.foundryCustomHeaders": {
+					"type": "string",
+					"default": "",
+					"scope": "application",
+					"markdownDescription": "JSON object of additional headers sent on every Foundry / Azure OpenAI request."
+				},
+				"sota.bedrockEndpointUrl": {
+					"type": "string",
+					"default": "",
+					"scope": "application",
+					"markdownDescription": "Optional Bedrock endpoint URL override (e.g. for VPC interface endpoints). Empty uses the default `bedrock-runtime.<region>.amazonaws.com`."
+				},
+				"sota.geminiProjectId": {
+					"type": "string",
+					"default": "",
+					"scope": "application",
+					"markdownDescription": "Optional GCP project id, used by future Vertex-AI endpoints. Today's consumer Gemini path ignores this."
+				},
+				"sota.geminiLocation": {
+					"type": "string",
+					"default": "",
+					"scope": "application",
+					"markdownDescription": "Optional GCP location/region for Vertex AI (e.g. `us-central1`). Today's consumer Gemini path ignores this."
+				},
 				"sota.mcp.servers": {
 					"type": "array",
 					"default": [],
 					"description": "MCP servers to connect to over stdio. Each entry spawns a child process and exposes its tools as `mcp__<server>__<tool>` in the chat.",
 					"items": {
 						"type": "object",
-						"required": ["name", "command"],
+						"required": [
+							"name",
+							"command"
+						],
 						"properties": {
-							"name": { "type": "string", "description": "Unique server identifier (used as the prefix in tool names)." },
-							"command": { "type": "string", "description": "Executable to spawn (e.g. 'node', 'uvx', 'python')." },
-							"args": { "type": "array", "items": { "type": "string" }, "description": "Arguments passed to the command." },
-							"env": { "type": "object", "additionalProperties": { "type": "string" }, "description": "Environment variables for the spawned process." },
-							"cwd": { "type": "string", "description": "Working directory for the child process. Defaults to the workspace root." }
+							"name": {
+								"type": "string",
+								"description": "Unique server identifier (used as the prefix in tool names)."
+							},
+							"command": {
+								"type": "string",
+								"description": "Executable to spawn (e.g. 'node', 'uvx', 'python')."
+							},
+							"args": {
+								"type": "array",
+								"items": {
+									"type": "string"
+								},
+								"description": "Arguments passed to the command."
+							},
+							"env": {
+								"type": "object",
+								"additionalProperties": {
+									"type": "string"
+								},
+								"description": "Environment variables for the spawned process."
+							},
+							"cwd": {
+								"type": "string",
+								"description": "Working directory for the child process. Defaults to the workspace root."
+							}
 						}
 					}
 				},
@@ -418,7 +893,13 @@
 		"@aws-sdk/credential-providers": "^3.700.0"
 	},
 	"devDependencies": {
+		"@copilotkit/react-core": "^1.57.1",
+		"@copilotkit/react-ui": "^1.57.1",
+		"@types/react": "^18.3.28",
+		"@types/react-dom": "^18.3.7",
 		"@types/vscode": "^1.96.0",
-		"esbuild": "^0.24.0"
+		"esbuild": "^0.24.0",
+		"react": "^18.3.1",
+		"react-dom": "^18.3.1"
 	}
 }

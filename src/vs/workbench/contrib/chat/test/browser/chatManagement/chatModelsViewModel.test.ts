@@ -156,7 +156,7 @@ suite('ChatModelsViewModel', () => {
 		// Setup test data
 		languageModelsService.addVendor({
 			vendor: 'copilot',
-			displayName: 'GitHub Copilot',
+			displayName: 'Test Copilot Provider',
 			managementCommand: undefined,
 			when: undefined,
 			configuration: undefined
@@ -171,7 +171,7 @@ suite('ChatModelsViewModel', () => {
 		});
 
 		languageModelsService.addModel('copilot', 'copilot-gpt-4', {
-			extension: new ExtensionIdentifier('github.copilot'),
+			extension: new ExtensionIdentifier('test.copilot-extension'),
 			id: 'gpt-4',
 			name: 'GPT-4',
 			family: 'gpt-4',
@@ -192,7 +192,7 @@ suite('ChatModelsViewModel', () => {
 		});
 
 		languageModelsService.addModel('copilot', 'copilot-gpt-4o', {
-			extension: new ExtensionIdentifier('github.copilot'),
+			extension: new ExtensionIdentifier('test.copilot-extension'),
 			id: 'gpt-4o',
 			name: 'GPT-4o',
 			family: 'gpt-4',
@@ -411,7 +411,7 @@ suite('ChatModelsViewModel', () => {
 
 		const models = results.filter(r => !isLanguageModelProviderEntry(r) && !isLanguageModelGroupEntry(r)) as ILanguageModelEntry[];
 		assert.strictEqual(models.length, 2);
-		assert.ok(models.every(m => m.model.provider.group.name === 'GitHub Copilot'));
+		assert.ok(models.every(m => m.model.provider.group.name === 'Test Copilot Provider'));
 	});
 
 	test('should combine text search with capability filter', () => {
@@ -544,14 +544,14 @@ suite('ChatModelsViewModel', () => {
 		const service = new MockLanguageModelsService();
 		service.addVendor({
 			vendor: 'copilot',
-			displayName: 'GitHub Copilot',
+			displayName: 'Test Copilot Provider',
 			managementCommand: undefined,
 			when: undefined,
 			configuration: undefined
 		});
 
 		service.addModel('copilot', 'copilot-gpt-4', {
-			extension: new ExtensionIdentifier('github.copilot'),
+			extension: new ExtensionIdentifier('test.copilot-extension'),
 			id: 'gpt-4',
 			name: 'GPT-4',
 			family: 'gpt-4',
@@ -573,7 +573,7 @@ suite('ChatModelsViewModel', () => {
 
 		if (includeSecondModel) {
 			service.addModel('copilot', 'copilot-gpt-4o', {
-				extension: new ExtensionIdentifier('github.copilot'),
+				extension: new ExtensionIdentifier('test.copilot-extension'),
 				id: 'gpt-4o',
 				name: 'GPT-4o',
 				family: 'gpt-4',

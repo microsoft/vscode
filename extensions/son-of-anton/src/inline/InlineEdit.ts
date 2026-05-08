@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as vscode from 'vscode';
-import { LlmClient } from '../llm/LlmClient';
+import { LlmClient } from 'son-of-anton-core/llm/LlmClient';
 
 /**
  * Provides inline edit functionality triggered by Cmd+K / Ctrl+K.

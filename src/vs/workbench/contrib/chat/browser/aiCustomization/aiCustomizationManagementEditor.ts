@@ -623,7 +623,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 		if (type === PromptsType.hook) {
 			if (this.workspaceService.isSessionsWindow) {
-				// Sessions: show hooks filtered to Copilot CLI (GitHub Copilot) hook types
+				// Sessions: filter hooks to the JSON hook format used by agent CLIs
 				await this.instantiationService.invokeFunction(showConfigureHooksQuickPick, {
 					openEditor: async (resource) => {
 						await this.showEmbeddedEditor(resource, basename(resource), true);

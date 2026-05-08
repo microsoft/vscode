@@ -552,7 +552,7 @@ suite('PromptValidator', () => {
 			assert.deepStrictEqual(
 				markers.map(m => ({ severity: m.severity, message: m.message })),
 				[
-					{ severity: MarkerSeverity.Warning, message: `Attribute 'applyTo' is not supported in VS Code agent files. Supported: agents, argument-hint, description, disable-model-invocation, github, handoffs, hooks, model, name, target, tools, user-invocable.` },
+					{ severity: MarkerSeverity.Warning, message: `Attribute 'applyTo' is not supported in Son of Anton agent files. Supported: agents, argument-hint, description, disable-model-invocation, github, handoffs, hooks, model, name, target, tools, user-invocable.` },
 				]
 			);
 		});
@@ -635,7 +635,7 @@ suite('PromptValidator', () => {
 			const content = [
 				'---',
 				'name: "GitHub_Copilot_Custom_Agent"',
-				'description: "GitHub Copilot agent"',
+				'description: "github-copilot agent"',
 				'target: github-copilot',
 				`tools: ['shell', 'edit', 'search', 'custom-agent']`,
 				'mcp-servers: []',
@@ -650,7 +650,7 @@ suite('PromptValidator', () => {
 			const content = [
 				'---',
 				'name: "GitHubAgent"',
-				'description: "GitHub Copilot agent"',
+				'description: "github-copilot agent"',
 				'target: github-copilot',
 				'model: MAE 4.1',
 				`tools: ['shell', 'edit']`,
@@ -664,8 +664,8 @@ suite('PromptValidator', () => {
 			const markers = await validate(content, PromptsType.agent);
 			const messages = markers.map(m => m.message);
 			assert.deepStrictEqual(messages, [
-				'Attribute \'model\' is not supported in custom GitHub Copilot agent files. Supported: description, github, infer, mcp-servers, name, target, tools.',
-				'Attribute \'handoffs\' is not supported in custom GitHub Copilot agent files. Supported: description, github, infer, mcp-servers, name, target, tools.',
+				'Attribute \'model\' is not supported in custom github-copilot agent files. Supported: description, github, infer, mcp-servers, name, target, tools.',
+				'Attribute \'handoffs\' is not supported in custom github-copilot agent files. Supported: description, github, infer, mcp-servers, name, target, tools.',
 			], 'Model and handoffs are not validated for github-copilot target');
 		});
 
@@ -673,7 +673,7 @@ suite('PromptValidator', () => {
 			const content = [
 				'---',
 				'name: "GitHubAgent"',
-				'description: "GitHub Copilot agent"',
+				'description: "github-copilot agent"',
 				'target: github-copilot',
 				`tools: ['shell', 'edit']`,
 				'---',
@@ -688,7 +688,7 @@ suite('PromptValidator', () => {
 			const content = [
 				'---',
 				'name: "GitHubAgent"',
-				'description: "GitHub Copilot agent"',
+				'description: "github-copilot agent"',
 				'target: github-copilot',
 				'argument-hint: "test hint"',
 				`tools: ['shell']`,
@@ -896,7 +896,7 @@ suite('PromptValidator', () => {
 			const markers = await validate(content, PromptsType.agent);
 			const messages = markers.map(m => m.message);
 			assert.deepStrictEqual(messages, [
-				'Attribute \'mcp-servers\' is ignored when running locally in VS Code.',
+				'Attribute \'mcp-servers\' is ignored when running locally in Son of Anton.',
 				'Unknown tool \'edit\'.',
 			]);
 		});
@@ -913,7 +913,7 @@ suite('PromptValidator', () => {
 			const markers = await validate(content, PromptsType.agent);
 			const messages = markers.map(m => m.message);
 			assert.deepStrictEqual(messages, [
-				'Attribute \'mcp-servers\' is ignored when running locally in VS Code.',
+				'Attribute \'mcp-servers\' is ignored when running locally in Son of Anton.',
 			]);
 		});
 
@@ -999,7 +999,7 @@ suite('PromptValidator', () => {
 			{
 				const content = [
 					'---',
-					'description: "GitHub Copilot agent"',
+					'description: "github-copilot agent"',
 					'target: github-copilot',
 					`tools: ['shell']`,
 					'---',
@@ -1014,7 +1014,7 @@ suite('PromptValidator', () => {
 				const content = [
 					'---',
 					'name: "GitHubAgent"',
-					'description: "GitHub Copilot agent"',
+					'description: "github-copilot agent"',
 					'target: github-copilot',
 					`tools: ['shell']`,
 					'---',

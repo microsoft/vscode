@@ -9,9 +9,9 @@ import {
 	hasAnyProvider,
 	SECRET_KEYS,
 	type CredentialState,
-} from '../src/onboarding/credentialDetection';
-import type { CredentialBroker } from '../src/auth/CredentialBroker';
-import type { ProviderStatus } from '../src/auth/types';
+} from 'son-of-anton-core/credentials/credentialDetection';
+import type { CredentialBroker } from 'son-of-anton-core/auth/CredentialBroker';
+import type { ProviderStatus } from 'son-of-anton-core/auth/types';
 
 // ── Fakes ─────────────────────────────────────────────────────────────────────
 

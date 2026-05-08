@@ -6,6 +6,8 @@
 import themePickerContent from './media/theme_picker.js';
 import themePickerSmallContent from './media/theme_picker_small.js';
 import notebookProfileContent from './media/notebookProfile.js';
+import sotaWelcomeArtContent from './media/sotaWelcomeArt.js';
+import { sotaWalkthroughs } from './sotaWelcomeContent.js';
 import { localize } from '../../../../nls.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -67,6 +69,8 @@ gettingStartedContentRegistry.registerProvider('vs/workbench/contrib/welcomeGett
 gettingStartedContentRegistry.registerProvider('vs/workbench/contrib/welcomeGettingStarted/common/media/notebookProfile', notebookProfileContent);
 // Register empty media for accessibility walkthrough
 gettingStartedContentRegistry.registerProvider('vs/workbench/contrib/welcomeGettingStarted/common/media/empty', () => '');
+// Son of Anton walkthrough banner (Pied Piper ASCII art + Silicon Valley quote).
+gettingStartedContentRegistry.registerProvider('vs/workbench/contrib/welcomeGettingStarted/common/media/sotaWelcomeArt', sotaWelcomeArtContent);
 
 const setupIcon = registerIcon('getting-started-setup', Codicon.zap, localize('getting-started-setup-icon', "Icon used for the setup category of welcome page"));
 const beginnerIcon = registerIcon('getting-started-beginner', Codicon.lightbulb, localize('getting-started-beginner-icon', "Icon used for the beginner category of welcome page"));
@@ -224,47 +228,39 @@ export const startEntries: GettingStartedStartEntryContent = [
 
 const Button = (title: string, href: string) => `[${title}](${href})`;
 
-const CopilotStepTitle = localize('gettingStarted.copilotSetup.title', "Use AI features with Copilot for free");
-const CopilotDescription = localize({ key: 'gettingStarted.copilotSetup.description', comment: ['{Locked="["}', '{Locked="]({0})"}'] }, "You can use [Copilot]({0}) to generate code across multiple files, fix errors, ask questions about your code, and much more using natural language.", defaultChat.documentationUrl ?? '');
-const CopilotTermsString = localize({ key: 'gettingStarted.copilotSetup.terms', comment: ['{Locked="]({2})"}', '{Locked="]({3})"}'] }, "By continuing with {0} Copilot, you agree to {1}'s [Terms]({2}) and [Privacy Statement]({3})", defaultChat.provider.default.name, defaultChat.provider.default.name, defaultChat.termsStatementUrl, defaultChat.privacyStatementUrl);
-const CopilotAnonymousButton = Button(localize('setupCopilotButton.setup', "Use AI Features"), `command:workbench.action.chat.triggerSetupAnonymousWithoutDialog`);
-const CopilotSignedOutButton = Button(localize('setupCopilotButton.setup', "Use AI Features"), `command:workbench.action.chat.triggerSetup`);
-const CopilotSignedInButton = Button(localize('setupCopilotButton.setup', "Use AI Features"), `command:workbench.action.chat.triggerSetup`);
-const CopilotCompleteButton = Button(localize('setupCopilotButton.chatWithCopilot', "Start to Chat"), 'command:workbench.action.chat.open');
-
-function createCopilotSetupStep(id: string, button: string, when: string, includeTerms: boolean): BuiltinGettingStartedStep {
-	const description = includeTerms ?
-		`${CopilotDescription}\n${CopilotTermsString}\n${button}` :
-		`${CopilotDescription}\n${button}`;
-
-	return {
-		id,
-		title: CopilotStepTitle,
-		description,
-		when: `${when} && !chatSetupHidden`,
-		media: {
-			type: 'svg', altText: 'Son of Anton Copilot multi file edits', path: 'multi-file-edits.svg'
-		},
-	};
-}
+// REMOVED FROM FORK: upstream Copilot setup steps and helpers. The fork ships
+// its own AI setup wizard via the SotaWelcome walkthrough below; the Copilot-
+// branded onboarding is incompatible with the Son of Anton experience.
+//
+// const CopilotStepTitle = ...
+// const CopilotDescription = ...
+// const CopilotTermsString = ...
+// const CopilotAnonymousButton = ...
+// const CopilotSignedOutButton = ...
+// const CopilotSignedInButton = ...
+// const CopilotCompleteButton = ...
+// function createCopilotSetupStep(...) { ... }
 
 export const walkthroughs: GettingStartedWalkthroughContent = [
+	// Son of Anton fork-specific walkthroughs go first so the SotaWelcome card
+	// claims the featured slot on the welcome page on first launch.
+	...sotaWalkthroughs,
 	{
+		// REASON: demoted from `isFeatured: true` so the SotaWelcome walkthrough wins
+		// the hero position. Copilot setup steps are removed; the remaining steps
+		// (theme picker + docs link) are kept as a generic editor onboarding card.
 		id: 'Setup',
-		title: localize('gettingStarted.setup.title', "Get started with Son of Anton"),
-		description: localize('gettingStarted.setup.description', "Customize your editor, learn the basics, and start coding"),
-		isFeatured: true,
+		title: localize('gettingStarted.setup.title', "Customize Son of Anton"),
+		description: localize('gettingStarted.setup.description', "Pick a theme and explore the editor basics."),
+		isFeatured: false,
 		icon: setupIcon,
 		when: '!isWeb',
-		walkthroughPageTitle: localize('gettingStarted.setup.walkthroughPageTitle', 'Setup Son of Anton'),
+		walkthroughPageTitle: localize('gettingStarted.setup.walkthroughPageTitle', 'Customize Son of Anton'),
 		next: 'Beginner',
 		content: {
 			type: 'steps',
 			steps: [
-				createCopilotSetupStep('CopilotSetupAnonymous', CopilotAnonymousButton, 'chatAnonymous && !chatSetupInstalled', true),
-				createCopilotSetupStep('CopilotSetupSignedOut', CopilotSignedOutButton, 'chatEntitlementSignedOut && !chatAnonymous', false),
-				createCopilotSetupStep('CopilotSetupComplete', CopilotCompleteButton, 'chatSetupInstalled && !chatSetupDisabled && (chatAnonymous || chatPlanPro || chatPlanProPlus || chatPlanBusiness || chatPlanEnterprise || chatPlanFree)', false),
-				createCopilotSetupStep('CopilotSetupSignedIn', CopilotSignedInButton, '!chatEntitlementSignedOut && (!chatSetupInstalled || chatSetupDisabled || chatPlanCanSignUp)', false),
+				// REMOVED FROM FORK: createCopilotSetupStep('CopilotSetupAnonymous', ...) and three sibling Copilot setup steps.
 				{
 					id: 'pickColorTheme',
 					title: localize('gettingStarted.pickColor.title', "Choose your theme"),
@@ -277,7 +273,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 				},
 				{
 					id: 'videoTutorial',
-					title: localize('gettingStarted.videoTutorial.title', "Watch video tutorials"),
+					title: localize('gettingStarted.videoTutorial.title', "Read the documentation"),
 					description: localize('gettingStarted.videoTutorial.description.interpolated', "Explore Son of Anton's key features and get productive quickly.\n{0}", Button(localize('watch', "Open Documentation"), 'https://github.com/CodeHalwell/Son-Of-Anton')),
 					media: { type: 'svg', altText: 'Son of Anton Settings', path: 'learn.svg' },
 				}
@@ -286,14 +282,18 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 	},
 
 	{
+		// REASON: demoted from `isFeatured: true` so SotaWelcome owns the hero
+		// slot on the web build too. Steps below are stock VS Code editor
+		// onboarding (theme, command palette, etc) and remain useful as
+		// secondary content.
 		id: 'SetupWeb',
-		title: localize('gettingStarted.setupWeb.title', "Get Started with Son of Anton for the Web"),
-		description: localize('gettingStarted.setupWeb.description', "Customize your editor, learn the basics, and start coding"),
-		isFeatured: true,
+		title: localize('gettingStarted.setupWeb.title', "Customize Son of Anton for the Web"),
+		description: localize('gettingStarted.setupWeb.description', "Pick a theme and explore the editor basics."),
+		isFeatured: false,
 		icon: setupIcon,
 		when: 'isWeb',
 		next: 'Beginner',
-		walkthroughPageTitle: localize('gettingStarted.setupWeb.walkthroughPageTitle', 'Setup Son of Anton Web'),
+		walkthroughPageTitle: localize('gettingStarted.setupWeb.walkthroughPageTitle', 'Customize Son of Anton Web'),
 		content: {
 			type: 'steps',
 			steps: [

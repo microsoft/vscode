@@ -1,0 +1,19 @@
+{
+	"name": "son-of-anton-core",
+	"version": "0.1.0",
+	"private": true,
+	"main": "dist/index.js",
+	"types": "dist/index.d.ts",
+	"scripts": {
+		"build": "tsc -p tsconfig.json",
+		"watch": "tsc -p tsconfig.json --watch"
+	},
+	"dependencies": {
+		"@aws-sdk/client-bedrock-runtime": "^3.700.0",
+		"@aws-sdk/credential-providers": "^3.700.0"
+	},
+	"devDependencies": {
+		"@smithy/types": "^3.0.0",
+		"typescript": "^6.0.0-dev"
+	}
+}

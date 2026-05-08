@@ -1108,3 +1108,261 @@
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide .getting-started-checkbox {
 	border-color: var(--vscode-checkbox-border) !important;
 }
+
+/* ----------------------------------------------------------------------
+ * Son of Anton welcome hero (Tier 3 customisation)
+ *
+ * The hero sits above the upstream Start / Recent / Walkthroughs grid on
+ * the welcome page. The CSS lives in this file rather than a sibling
+ * stylesheet so the existing `import './media/gettingStarted.css'` in
+ * `gettingStarted.ts` remains the single import point and rebases stay
+ * mechanical.
+ * ---------------------------------------------------------------------- */
+
+/* Make the slide itself a column flexbox so the hero can stretch to fill
+ * the available editor height. The categories container is hidden below,
+ * so the hero is the only flex child and claims the full height. */
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories.has-sota-welcome-hero {
+	padding: 0;
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	min-height: 100%;
+	overflow: hidden;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .sota-welcome-hero {
+	padding: 48px 48px 32px;
+	margin: 0;
+	border-bottom: none;
+	display: flex;
+	flex: 1 1 auto;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 16px;
+	text-align: center;
+	background: linear-gradient(
+		180deg,
+		var(--vscode-editor-background) 0%,
+		color-mix(in srgb, var(--vscode-textBlockQuote-background) 30%, var(--vscode-editor-background)) 100%
+	);
+	animation: sota-hero-fade-in 600ms ease-out;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .sota-welcome-hero .sota-welcome-art {
+	font-family: var(--monaco-monospace-font, 'SF Mono', Menlo, Consolas, 'Courier New', monospace);
+	font-size: 11px;
+	line-height: 1.2;
+	color: var(--vscode-textPreformat-foreground, var(--vscode-foreground));
+	margin: 0;
+	user-select: none;
+	white-space: pre;
+	overflow-x: auto;
+	max-width: 100%;
+	background: linear-gradient(
+		90deg,
+		var(--vscode-textPreformat-foreground, var(--vscode-foreground)) 0%,
+		var(--vscode-textPreformat-foreground, var(--vscode-foreground)) 42%,
+		color-mix(in srgb, var(--vscode-button-background) 55%, var(--vscode-textPreformat-foreground, var(--vscode-foreground))) 50%,
+		var(--vscode-textPreformat-foreground, var(--vscode-foreground)) 58%,
+		var(--vscode-textPreformat-foreground, var(--vscode-foreground)) 100%
+	);
+	background-size: 300% 100%;
+	background-clip: text;
+	-webkit-background-clip: text;
+	color: transparent;
+	-webkit-text-fill-color: transparent;
+	animation: sota-art-shimmer 10s linear infinite;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .sota-welcome-hero .sota-welcome-title {
+	font-size: 24px;
+	font-weight: 600;
+	letter-spacing: 0.3px;
+	margin: 8px 0 0;
+	color: var(--vscode-foreground);
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .sota-welcome-hero .sota-welcome-tagline {
+	color: var(--vscode-descriptionForeground);
+	font-size: 13px;
+	margin: 0;
+	font-style: italic;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .sota-welcome-hero .sota-welcome-quote {
+	position: relative;
+	max-width: 720px;
+	padding: 12px 16px;
+	margin: 8px 0 0;
+	border-left: 3px solid transparent;
+	background: color-mix(in srgb, var(--vscode-textBlockQuote-background) 60%, transparent);
+	color: var(--vscode-foreground);
+	font-style: italic;
+	border-radius: 0 4px 4px 0;
+	text-align: left;
+	font-size: 13px;
+	line-height: 1.5;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .sota-welcome-hero .sota-welcome-quote::before {
+	content: '';
+	position: absolute;
+	left: -3px;
+	top: 0;
+	bottom: 0;
+	width: 3px;
+	background: var(--vscode-button-background, var(--vscode-focusBorder));
+	animation: sota-quote-pulse 4s ease-in-out infinite;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .sota-welcome-hero .sota-welcome-quote-cite {
+	display: block;
+	margin-top: 6px;
+	font-style: normal;
+	color: var(--vscode-descriptionForeground);
+	font-size: 12px;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .sota-welcome-hero .sota-welcome-actions {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: center;
+	gap: 10px;
+	margin-top: 4px;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .sota-welcome-hero .sota-welcome-cta {
+	padding: 8px 18px;
+	border: 1px solid var(--vscode-panel-border, transparent);
+	border-radius: 999px;
+	background: transparent;
+	color: var(--vscode-foreground);
+	font-family: inherit;
+	font-size: 13px;
+	cursor: pointer;
+	box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+	transition: transform 0.18s ease, background-color 0.12s ease, border-color 0.12s ease, box-shadow 0.18s ease;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .sota-welcome-hero .sota-welcome-cta:hover {
+	background: var(--vscode-toolbar-hoverBackground);
+	border-color: var(--vscode-focusBorder);
+	transform: translateY(-2px);
+	box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .sota-welcome-hero .sota-welcome-cta:active {
+	transform: translateY(0);
+	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .sota-welcome-hero .sota-welcome-cta:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 2px;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .sota-welcome-hero .sota-welcome-cta.primary {
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+	border-color: var(--vscode-button-background);
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .sota-welcome-hero .sota-welcome-cta.primary:hover {
+	background: var(--vscode-button-hoverBackground);
+	border-color: var(--vscode-button-hoverBackground);
+}
+
+/* When the SOTA hero is present, suppress every upstream slide region: the
+ * Start rail, product header, Recent list, and Walkthroughs panel are all
+ * redundant — the hero's CTAs cover SOTA-specific equivalents and the rest is
+ * reachable via the command palette. The hero alone is the welcome page. */
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories.has-sota-welcome-hero .index-list.start-container,
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories.has-sota-welcome-hero > .gettingStartedCategoriesContainer > .header,
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories.has-sota-welcome-hero > .gettingStartedCategoriesContainer > .categories-column-left,
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories.has-sota-welcome-hero > .gettingStartedCategoriesContainer > .categories-column-right,
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories.has-sota-welcome-hero > .gettingStartedCategoriesContainer > .footer {
+	display: none;
+}
+
+/* Hide the entire categories container so the hero claims 100% of the slide. */
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories.has-sota-welcome-hero > .gettingStartedCategoriesContainer {
+	display: none;
+}
+
+/* On narrow welcome panes, drop the side padding so the ASCII art stays
+ * legible without forcing a horizontal scrollbar. */
+@media (max-width: 640px) {
+	.monaco-workbench .part.editor > .content .gettingStartedContainer .sota-welcome-hero {
+		padding: 20px 16px 16px;
+	}
+
+	.monaco-workbench .part.editor > .content .gettingStartedContainer .sota-welcome-hero .sota-welcome-art {
+		font-size: 9px;
+	}
+}
+
+/* Subtle motion keyframes for the SOTA welcome hero (Phase 70).
+ * Animations are decoration only — the hero's resting state stays static. */
+@keyframes sota-hero-fade-in {
+	from {
+		opacity: 0;
+		transform: translateY(8px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+@keyframes sota-quote-pulse {
+	0%, 100% {
+		opacity: 0.7;
+	}
+	50% {
+		opacity: 1;
+	}
+}
+
+@keyframes sota-art-shimmer {
+	0% {
+		background-position: 200% 0;
+	}
+	100% {
+		background-position: -100% 0;
+	}
+}
+
+/* Respect users who prefer reduced motion: disable every hero animation and
+ * fall back to the static resting appearance. */
+@media (prefers-reduced-motion: reduce) {
+	.monaco-workbench .part.editor > .content .gettingStartedContainer .sota-welcome-hero {
+		animation: none;
+	}
+
+	.monaco-workbench .part.editor > .content .gettingStartedContainer .sota-welcome-hero .sota-welcome-art {
+		animation: none;
+		background: none;
+		background-clip: border-box;
+		-webkit-background-clip: border-box;
+		color: var(--vscode-textPreformat-foreground, var(--vscode-foreground));
+		-webkit-text-fill-color: var(--vscode-textPreformat-foreground, var(--vscode-foreground));
+	}
+
+	.monaco-workbench .part.editor > .content .gettingStartedContainer .sota-welcome-hero .sota-welcome-quote::before {
+		animation: none;
+		opacity: 1;
+	}
+
+	.monaco-workbench .part.editor > .content .gettingStartedContainer .sota-welcome-hero .sota-welcome-cta {
+		transition: background-color 0.12s ease, border-color 0.12s ease;
+	}
+
+	.monaco-workbench .part.editor > .content .gettingStartedContainer .sota-welcome-hero .sota-welcome-cta:hover,
+	.monaco-workbench .part.editor > .content .gettingStartedContainer .sota-welcome-hero .sota-welcome-cta:active {
+		transform: none;
+		box-shadow: none;
+	}
+}
+

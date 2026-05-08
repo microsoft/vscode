@@ -318,9 +318,6 @@ class TrackedDocumentInfo extends Disposable {
 		const getEditCategory = (source: EditSource) => {
 			if (source.category === 'ai' && source.kind === 'nes') { return 'nes'; }
 
-			if (source.category === 'ai' && source.kind === 'completion' && source.extensionId === 'github.copilot') { return 'inlineCompletionsCopilot'; }
-			if (source.category === 'ai' && source.kind === 'completion' && source.extensionId === 'github.copilot-chat' && source.providerId === 'completions') { return 'inlineCompletionsCopilot'; }
-			if (source.category === 'ai' && source.kind === 'completion' && source.extensionId === 'github.copilot-chat' && source.providerId === 'nes') { return 'inlineCompletionsNES'; }
 			if (source.category === 'ai' && source.kind === 'completion') { return 'inlineCompletionsOther'; }
 
 			if (source.category === 'ai') { return 'otherAI'; }
@@ -337,8 +334,12 @@ class TrackedDocumentInfo extends Disposable {
 
 		return {
 			nesModifiedCount: sums.nes ?? 0,
-			inlineCompletionsCopilotModifiedCount: sums.inlineCompletionsCopilot ?? 0,
-			inlineCompletionsNESModifiedCount: sums.inlineCompletionsNES ?? 0,
+			// These categories were previously populated when a sibling-AI
+			// completions extension was detected; the fork no longer
+			// attributes edits to that source, so the counters are always
+			// reported as 0.
+			inlineCompletionsCopilotModifiedCount: 0,
+			inlineCompletionsNESModifiedCount: 0,
 			otherAIModifiedCount: sums.otherAI ?? 0,
 			userModifiedCount: sums.user ?? 0,
 			ideModifiedCount: sums.ide ?? 0,

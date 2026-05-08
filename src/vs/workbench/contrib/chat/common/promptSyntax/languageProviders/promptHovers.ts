@@ -158,7 +158,7 @@ export class PromptHoverProvider implements HoverProvider {
 
 	private getModelHover(node: IHeaderAttribute, position: Position, baseMessage: string, target: Target): Hover | undefined {
 		if (target === Target.GitHubCopilot) {
-			return this.createHover(baseMessage + '\n\n' + localize('promptHeader.agent.model.githubCopilot', 'Note: This attribute is not used when target is github-copilot.'), node.range);
+			return this.createHover(baseMessage + '\n\n' + localize('promptHeader.agent.model.githubCopilot', 'Note: This attribute is not used when target is the github-copilot prompt format.'), node.range);
 		}
 		const modelHoverContent = (modelName: string): Hover | undefined => {
 			const lines: string[] = [];
@@ -301,7 +301,7 @@ export class PromptHoverProvider implements HoverProvider {
 	private getHandsOffHover(attribute: IHeaderAttribute, position: Position, target: Target): Hover | undefined {
 		const handoffsBaseMessage = getAttributeDefinition(PromptHeaderAttributes.handOffs, PromptsType.agent, target)?.description!;
 		if (!isSonOfAntonOrDefaultTarget(target)) {
-			return this.createHover(handoffsBaseMessage + '\n\n' + localize('promptHeader.agent.handoffs.githubCopilot', 'Note: This attribute is not used in GitHub Copilot or Claude targets.'), attribute.range);
+			return this.createHover(handoffsBaseMessage + '\n\n' + localize('promptHeader.agent.handoffs.githubCopilot', 'Note: This attribute is not used in github-copilot or claude targets.'), attribute.range);
 		}
 		return this.createHover(handoffsBaseMessage, attribute.range);
 

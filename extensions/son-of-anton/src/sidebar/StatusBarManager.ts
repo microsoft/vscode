@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as vscode from 'vscode';
-import { AgentManager } from '../agents/AgentManager';
-import { CredentialBroker } from '../auth/CredentialBroker';
-import type { ProviderStatus } from '../auth/types';
+import { AgentManager } from 'son-of-anton-core/agents/AgentManager';
+import { CredentialBroker } from 'son-of-anton-core/auth/CredentialBroker';
+import type { ProviderStatus } from 'son-of-anton-core/auth/types';
 
 /**
  * Manages the status bar items for Son of Anton.

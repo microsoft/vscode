@@ -3,14 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ModelId } from '../llm/LlmClient';
-import { SPECIALIST_ROLES, getSpecialist } from './specialistRegistry';
+import { ModelId } from 'son-of-anton-core/llm/LlmClient';
+import { SPECIALIST_ROLES, getSpecialist } from 'son-of-anton-core/chat/specialistRegistry';
+import { ChatMode } from 'son-of-anton-core/agents/agentEvents';
 
 export interface SlashCommandContext {
 	getSpecialistId(): string;
 	setSpecialistId(id: string): void;
 	getModel(): ModelId;
 	setModel(id: ModelId): void;
+	getMode(): ChatMode;
+	setMode(mode: ChatMode): void;
 	clearConversation(): Promise<void>;
 	getProviderStatus(): Promise<{ name: string; connected: boolean }[]>;
 }
@@ -25,25 +28,39 @@ export interface SlashCommandResult {
 // `/model` can validate user input. If the union grows, this list must grow
 // with it; the `satisfies ReadonlyArray<ModelId>` check keeps them in sync.
 const ALL_MODELS = [
-	'opus',
-	'sonnet',
-	'haiku',
-	'gpt-4o',
-	'gpt-4o-mini',
-	'gpt-5-codex',
-	'foundry-gpt-4o',
-	'foundry-gpt-4o-mini',
-	'foundry-claude-sonnet',
-	'bedrock-claude-sonnet',
-	'bedrock-claude-haiku',
-	'gemini-1-5-pro',
-	'gemini-1-5-flash',
-	'gemini-2-0-flash',
+	'opus', 'sonnet', 'haiku',
+	'claude-opus-4-7', 'claude-sonnet-4-7', 'claude-haiku-4-7',
+	'claude-opus-4-6', 'claude-sonnet-4-6', 'claude-haiku-4-6',
+	'claude-opus-4-5', 'claude-sonnet-4-5', 'claude-haiku-4-5',
+	'claude-opus-4-1', 'claude-sonnet-4-1', 'claude-opus-4', 'claude-sonnet-4',
+	'claude-3-7-sonnet', 'claude-3-5-sonnet', 'claude-3-5-haiku',
+	'claude-3-opus', 'claude-3-sonnet', 'claude-3-haiku',
+	'gpt-4o', 'gpt-4o-mini',
+	'gpt-5', 'gpt-5-mini', 'gpt-5-nano', 'gpt-5-codex',
+	'gpt-4-1', 'gpt-4-1-mini', 'gpt-4-1-nano',
+	'gpt-4-turbo', 'gpt-3-5-turbo',
+	'o1', 'o1-mini', 'o1-pro', 'o3', 'o3-mini', 'o4-mini',
+	'foundry-gpt-4', 'foundry-gpt-4o', 'foundry-gpt-4o-mini',
+	'foundry-gpt-4-1', 'foundry-gpt-4-1-mini', 'foundry-gpt-4-1-nano',
+	'foundry-gpt-5', 'foundry-gpt-5-mini', 'foundry-gpt-5-nano',
+	'foundry-o1', 'foundry-o1-mini', 'foundry-o3', 'foundry-o3-mini', 'foundry-o4-mini',
+	'foundry-claude-sonnet', 'foundry-mistral-large',
+	'foundry-llama-3-70b', 'foundry-phi-4', 'foundry-custom',
+	'bedrock-claude-opus-4', 'bedrock-claude-sonnet-4', 'bedrock-claude-haiku-4',
+	'bedrock-claude-3-7-sonnet',
+	'bedrock-claude-sonnet', 'bedrock-claude-haiku',
+	'bedrock-llama-3-1-70b', 'bedrock-llama-3-1-8b', 'bedrock-llama-3-70b',
+	'bedrock-mistral-large', 'bedrock-titan-text-express',
+	'bedrock-cohere-command-r-plus',
+	'bedrock-nova-pro', 'bedrock-nova-lite', 'bedrock-nova-micro',
+	'gemini-2-5-pro', 'gemini-2-5-flash',
+	'gemini-2-0-pro', 'gemini-2-0-flash', 'gemini-2-0-flash-lite',
+	'gemini-1-5-pro', 'gemini-1-5-flash',
 ] as const satisfies ReadonlyArray<ModelId>;
 
 const MODEL_SET: ReadonlySet<string> = new Set(ALL_MODELS);
 
-interface CommandDescriptor {
+export interface CommandDescriptor {
 	readonly name: string;
 	readonly args: string;
 	readonly description: string;
@@ -52,14 +69,26 @@ interface CommandDescriptor {
 // Single source of truth that drives both `/help` output AND the dispatch
 // switch below. Keep names lowercase — the parser lowercases the input
 // command before lookup.
-const COMMANDS: ReadonlyArray<CommandDescriptor> = [
+export const COMMANDS: ReadonlyArray<CommandDescriptor> = [
 	{ name: '/help', args: '', description: 'Show this list of commands' },
 	{ name: '/clear', args: '', description: 'Clear the current conversation' },
 	{ name: '/specialist', args: '<id>', description: 'Switch the active specialist (e.g. /specialist anton-code)' },
 	{ name: '/model', args: '<id>', description: 'Switch the active model (e.g. /model sonnet)' },
 	{ name: '/agents', args: '', description: 'List registered specialists with handles and descriptions' },
 	{ name: '/status', args: '', description: 'Show current specialist, model, and provider connection state' },
+	{ name: '/plan', args: '', description: 'Switch to Plan mode — Anton drafts a plan without executing tools' },
+	{ name: '/act', args: '', description: 'Switch to Act mode — plan and execute (default)' },
 ];
+
+/**
+ * Pure helper exposing the slash-command catalogue so the webview can render
+ * an autocomplete popup without duplicating the list. Callers receive a
+ * defensive shallow copy — mutation is safe even though the source is
+ * `ReadonlyArray<CommandDescriptor>`.
+ */
+export function getCommandList(): CommandDescriptor[] {
+	return COMMANDS.map(c => ({ name: c.name, args: c.args, description: c.description }));
+}
 
 export async function parseAndDispatch(
 	rawInput: string,
@@ -91,9 +120,26 @@ export async function parseAndDispatch(
 			return { handled: true, output: renderAgents() };
 		case '/status':
 			return { handled: true, output: await renderStatus(ctx) };
+		case '/plan':
+			return { handled: true, output: handleMode('plan', ctx) };
+		case '/act':
+			return { handled: true, output: handleMode('act', ctx) };
 		default:
 			return { handled: false, output: '' };
 	}
+}
+
+function handleMode(mode: ChatMode, ctx: SlashCommandContext): string {
+	const current = ctx.getMode();
+	if (current === mode) {
+		return mode === 'plan'
+			? 'Already in **Plan** mode. Anton will draft a plan without running any tools.'
+			: 'Already in **Act** mode. Anton will plan and execute as needed.';
+	}
+	ctx.setMode(mode);
+	return mode === 'plan'
+		? 'Switched to **Plan** mode. Anton will draft a plan but won\'t run any tools until you switch back to Act.'
+		: 'Switched to **Act** mode. Anton will plan and execute as needed.';
 }
 
 function renderHelp(): string {

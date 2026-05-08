@@ -4,15 +4,60 @@
  *--------------------------------------------------------------------------------------------*/
 /* Son of Anton chat sidebar webview styles. Native at narrow widths (~280-400px). */
 
+/*--------------------------------------------------------------------
+ *  Tokens
+ *
+ *  We keep a small `--sota-*` palette that maps onto VS Code theme
+ *  variables so the chat reads correctly in light, dark and high-
+ *  contrast themes. Tokens that don't have a meaningful theme
+ *  equivalent (bubble backgrounds, accent stripes) fall back to a
+ *  derived value via color-mix so authors don't need to hand-tune
+ *  per theme.
+ *-------------------------------------------------------------------*/
+
 :root {
 	--sota-pad: 12px;
 	--sota-pad-tight: 8px;
 	--sota-pad-loose: 16px;
 	--sota-radius: 6px;
 	--sota-radius-sm: 4px;
+	--sota-radius-bubble: 12px;
+	--sota-radius-pill: 999px;
 	--sota-gap: 8px;
 	--sota-fg-muted: var(--vscode-descriptionForeground);
 	--sota-border: var(--vscode-panel-border, var(--vscode-editorWidget-border, transparent));
+
+	/* Typography. Using fixed pixel sizes matches the spec — VS Code
+	 * itself doesn't drive a base font-size for webviews. */
+	--sota-font-size-body: 14px;
+	--sota-font-size-meta: 13px;
+	--sota-font-size-label: 11px;
+	--sota-line-height: 1.55;
+
+	/* Accent + stripe. The accent stripe sits on the left of assistant
+	 * messages; the bubble accent sits behind user messages. Both are
+	 * derived from the button background so they feel native. */
+	--sota-accent: var(--vscode-button-background, var(--vscode-focusBorder, #0078d4));
+	--sota-accent-stripe: color-mix(in srgb, var(--sota-accent) 70%, transparent);
+
+	/* Bubble tokens. */
+	--sota-bubble-user-bg: var(--vscode-button-background);
+	--sota-bubble-user-fg: var(--vscode-button-foreground);
+	--sota-bubble-max-width: 70%;
+
+	/* Card surfaces. Slightly differentiated from the panel surface so
+	 * tool/plan/subtask cards read as enclosed regions without being
+	 * heavy. */
+	--sota-card-bg: var(--vscode-input-background);
+	--sota-card-border: var(--sota-border);
+	--sota-code-bg: var(--vscode-textCodeBlock-background, var(--vscode-editor-background));
+	--sota-pre-bg: color-mix(in srgb, var(--vscode-editor-background) 92%, var(--vscode-foreground) 8%);
+
+	/* Status colors for plan/subtask/tool stripes. */
+	--sota-status-running: var(--vscode-charts-blue, #3b82f6);
+	--sota-status-ok: var(--vscode-charts-green, #16a34a);
+	--sota-status-error: var(--vscode-errorForeground, #dc2626);
+	--sota-status-grey: var(--sota-fg-muted);
 }
 
 * {
@@ -24,7 +69,8 @@ html, body {
 	padding: 0;
 	height: 100%;
 	font-family: var(--vscode-font-family);
-	font-size: var(--vscode-font-size);
+	font-size: var(--sota-font-size-body);
+	line-height: var(--sota-line-height);
 	color: var(--vscode-foreground);
 	background-color: var(--vscode-sideBar-background, var(--vscode-editor-background));
 }
@@ -50,51 +96,48 @@ button {
 	display: flex;
 	align-items: center;
 	gap: var(--sota-gap);
-	padding: var(--sota-pad-tight) var(--sota-pad);
+	padding: 10px var(--sota-pad);
 	border-bottom: 1px solid var(--sota-border);
-	background-color: var(--vscode-sideBarSectionHeader-background, transparent);
+	background-color: var(--vscode-sideBar-background, var(--vscode-editor-background));
 	flex-shrink: 0;
 }
 
-.hdr-title {
+.hdr-titles {
 	flex: 1;
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	min-width: 0;
+}
+
+.hdr-title {
 	font-weight: 600;
-	font-size: 0.85em;
-	letter-spacing: 0.4px;
-	text-transform: uppercase;
-	color: var(--sota-fg-muted);
-}
-
-.hdr-btn {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	width: 22px;
-	height: 22px;
-	padding: 0;
-	background: transparent;
-	border: none;
-	border-radius: var(--sota-radius-sm);
-	cursor: pointer;
-	color: var(--sota-fg-muted);
-}
-
-.hdr-btn:hover {
-	background-color: var(--vscode-toolbar-hoverBackground);
+	font-size: 14px;
+	letter-spacing: 0.1px;
 	color: var(--vscode-foreground);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
-.hdr-btn svg {
-	width: 14px;
-	height: 14px;
+.hdr-subtitle {
+	font-size: var(--sota-font-size-label);
+	color: var(--sota-fg-muted);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.hdr-subtitle[hidden] {
+	display: none;
 }
 
 .hdr-conn {
 	display: inline-flex;
 	align-items: center;
 	gap: 6px;
-	padding: 0 8px;
-	font-size: 0.75em;
+	padding: 0 6px;
+	font-size: var(--sota-font-size-label);
 	color: var(--sota-fg-muted);
 }
 
@@ -103,15 +146,190 @@ button {
 }
 
 .hdr-conn-dot {
-	width: 6px;
-	height: 6px;
+	width: 8px;
+	height: 8px;
 	border-radius: 50%;
-	background-color: var(--vscode-input-border, var(--sota-border));
+	background-color: var(--sota-status-grey);
+	box-shadow: 0 0 0 2px color-mix(in srgb, var(--sota-status-grey) 25%, transparent);
 }
 
 .hdr-conn-dot.connected {
-	background-color: var(--vscode-charts-green, #16a34a);
-	box-shadow: 0 0 0 2px color-mix(in srgb, var(--vscode-charts-green, #16a34a) 25%, transparent);
+	background-color: var(--sota-status-ok);
+	box-shadow: 0 0 0 2px color-mix(in srgb, var(--sota-status-ok) 25%, transparent);
+}
+
+.hdr-conn-dot.error {
+	background-color: var(--sota-status-error);
+	box-shadow: 0 0 0 2px color-mix(in srgb, var(--sota-status-error) 25%, transparent);
+}
+
+/* New-chat: a small pill button at the top-right. */
+.hdr-btn {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	height: 24px;
+	padding: 0 10px;
+	background: transparent;
+	border: 1px solid var(--sota-border);
+	border-radius: var(--sota-radius-pill);
+	cursor: pointer;
+	color: var(--sota-fg-muted);
+	font-size: 12px;
+	font-weight: 500;
+	transition: background-color 0.12s, color 0.12s, border-color 0.12s;
+}
+
+.hdr-btn:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	color: var(--vscode-foreground);
+	border-color: var(--vscode-focusBorder, var(--sota-border));
+}
+
+.hdr-btn svg {
+	width: 12px;
+	height: 12px;
+}
+
+/* Cost meter — pill-shaped chip in the header. Hidden until the first
+ * request lands so an empty state never paints "$0.00". Click to open
+ * the breakdown popover. */
+.hdr-cost {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	height: 20px;
+	padding: 0 8px;
+	background-color: color-mix(in srgb, var(--sota-fg-muted) 12%, transparent);
+	border: none;
+	border-radius: var(--sota-radius-pill);
+	cursor: pointer;
+	color: var(--sota-fg-muted);
+	font-size: 11px;
+	font-family: var(--vscode-font-family);
+	line-height: 1;
+	transition: background-color 0.12s, color 0.12s;
+}
+
+.hdr-cost[hidden] {
+	display: none;
+}
+
+.hdr-cost:hover {
+	background-color: color-mix(in srgb, var(--sota-fg-muted) 20%, transparent);
+	color: var(--vscode-foreground);
+}
+
+.hdr-cost-tokens {
+	font-variant-numeric: tabular-nums;
+}
+
+.hdr-cost-divider {
+	opacity: 0.5;
+}
+
+.hdr-cost-dollars {
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+}
+
+/* Per-request indicator. The dot animates while a stream is in flight
+ * so the user has a visual confirmation that tokens are accruing. */
+.hdr-cost-pulse {
+	width: 6px;
+	height: 6px;
+	border-radius: 50%;
+	background-color: var(--sota-accent, var(--vscode-progressBar-background));
+	animation: cost-pulse 1.2s infinite;
+}
+
+.hdr-cost-pulse[hidden] {
+	display: none;
+}
+
+@keyframes cost-pulse {
+	0%, 100% { opacity: 0.35; transform: scale(0.8); }
+	50%      { opacity: 1;    transform: scale(1.1); }
+}
+
+/* Breakdown popover anchored under the cost chip. Reuses the .popover
+ * styles from the model/agent menus and adds a row layout for the
+ * per-model tokens and dollars values. */
+.hdr-cost-popover {
+	min-width: 220px;
+	right: 8px;
+}
+
+.hdr-cost-popover-body {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	padding: 4px 4px 6px;
+}
+
+.hdr-cost-popover-row {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	gap: 12px;
+	padding: 4px 8px;
+	font-size: 12px;
+	color: var(--vscode-menu-foreground, var(--vscode-foreground));
+}
+
+.hdr-cost-popover-label {
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.hdr-cost-popover-value {
+	font-variant-numeric: tabular-nums;
+	color: var(--sota-fg-muted);
+	white-space: nowrap;
+}
+
+.hdr-cost-popover-total {
+	margin-top: 4px;
+	padding-top: 6px;
+	border-top: 1px solid var(--sota-border);
+	font-weight: 600;
+}
+
+.hdr-cost-popover-total .hdr-cost-popover-value {
+	color: var(--vscode-foreground);
+}
+
+.hdr-cost-popover-empty {
+	padding: 6px 8px;
+	font-size: 12px;
+	color: var(--sota-fg-muted);
+	text-align: center;
+}
+
+.hdr-cost-popover-footer {
+	display: flex;
+	justify-content: flex-end;
+	padding: 4px 4px 2px;
+	border-top: 1px solid var(--sota-border);
+}
+
+.hdr-cost-popover-reset {
+	height: 22px;
+	padding: 0 10px;
+	background: transparent;
+	border: 1px solid var(--sota-border);
+	border-radius: var(--sota-radius-sm);
+	color: var(--sota-fg-muted);
+	font-size: 11px;
+	cursor: pointer;
+	transition: background-color 0.12s, color 0.12s, border-color 0.12s;
+}
+
+.hdr-cost-popover-reset:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	color: var(--vscode-foreground);
+	border-color: var(--vscode-focusBorder, var(--sota-border));
 }
 
 /*--------------------------------------------------------------------
@@ -124,7 +342,13 @@ button {
 	padding: var(--sota-pad);
 	display: flex;
 	flex-direction: column;
-	gap: var(--sota-pad-loose);
+	gap: 16px;
+}
+
+/* Tighten the gap between consecutive same-sender messages. The JS
+ * tags follow-on bubbles with `.msg-follow-on` to opt in. */
+.message-list > .msg-follow-on {
+	margin-top: -8px;
 }
 
 .message-list::-webkit-scrollbar { width: 8px; }
@@ -151,14 +375,15 @@ button {
 }
 
 .empty-title {
-	font-size: 1.4em;
-	font-weight: 500;
+	font-size: 18px;
+	font-weight: 600;
 	text-align: center;
-	margin-bottom: var(--sota-pad-tight);
+	margin-bottom: 4px;
+	color: var(--vscode-foreground);
 }
 
 .empty-subtitle {
-	font-size: 0.9em;
+	font-size: 13px;
 	color: var(--sota-fg-muted);
 	text-align: center;
 	margin-bottom: var(--sota-pad);
@@ -171,22 +396,55 @@ button {
 }
 
 .prompt-card {
-	display: block;
+	display: flex;
+	align-items: center;
+	gap: 10px;
 	width: 100%;
-	padding: var(--sota-pad-tight) var(--sota-pad);
+	min-height: 64px;
+	padding: 12px 14px;
 	text-align: left;
-	background-color: var(--vscode-input-background);
+	background-color: var(--sota-card-bg);
 	border: 1px solid var(--vscode-input-border, transparent);
 	border-radius: var(--sota-radius);
 	cursor: pointer;
 	color: var(--vscode-foreground);
-	font-size: 0.9em;
-	transition: background-color 0.1s, border-color 0.1s;
+	font-size: 13px;
+	line-height: 1.4;
+	transition: background-color 0.12s, border-color 0.12s, transform 0.12s, box-shadow 0.12s;
 }
 
 .prompt-card:hover {
 	background-color: var(--vscode-list-hoverBackground);
 	border-color: var(--vscode-focusBorder);
+	transform: translateY(-1px);
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+}
+
+.prompt-card:active {
+	transform: translateY(0);
+	box-shadow: none;
+}
+
+.prompt-card-icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+	width: 28px;
+	height: 28px;
+	border-radius: var(--sota-radius-sm);
+	background-color: color-mix(in srgb, var(--sota-accent) 15%, transparent);
+	color: var(--sota-accent);
+}
+
+.prompt-card-icon svg {
+	width: 16px;
+	height: 16px;
+}
+
+.prompt-card-text {
+	flex: 1;
+	min-width: 0;
 }
 
 .auth-cta {
@@ -195,20 +453,21 @@ button {
 	align-items: flex-start;
 	gap: 4px;
 	width: 100%;
-	padding: 10px 14px;
+	padding: 12px 14px;
 	text-align: left;
-	background-color: var(--vscode-input-background);
+	background-color: var(--sota-card-bg);
 	border: 1px solid var(--vscode-input-border, transparent);
 	border-radius: var(--sota-radius);
 	cursor: pointer;
 	color: var(--vscode-foreground);
-	font-size: 0.9em;
-	transition: background-color 0.1s, border-color 0.1s;
+	font-size: 13px;
+	transition: background-color 0.12s, border-color 0.12s, transform 0.12s;
 }
 
 .auth-cta:hover {
 	background-color: var(--vscode-list-hoverBackground);
 	border-color: var(--vscode-focusBorder);
+	transform: translateY(-1px);
 }
 
 .auth-cta-title {
@@ -216,75 +475,1094 @@ button {
 }
 
 .auth-cta-sub {
-	font-size: 0.85em;
+	font-size: 12px;
 	color: var(--sota-fg-muted);
 }
 
 /*--------------------------------------------------------------------
- *  Messages
+ *  Provider picker — Cline-style 5-card empty-state. Each card opens an
+ *  inline form in place so the user feels they never left the chat.
+ *-------------------------------------------------------------------*/
+
+.empty-state-providers {
+	display: flex;
+	flex-direction: column;
+	gap: var(--sota-pad-tight);
+	padding: var(--sota-pad-loose) 0;
+}
+
+.provider-list-title {
+	font-size: 18px;
+	font-weight: 600;
+	text-align: center;
+	margin-bottom: 4px;
+	color: var(--vscode-foreground);
+}
+
+.provider-list-subtitle {
+	font-size: 13px;
+	color: var(--sota-fg-muted);
+	text-align: center;
+	margin-bottom: var(--sota-pad);
+}
+
+.provider-cards {
+	display: flex;
+	flex-direction: column;
+	gap: var(--sota-pad-tight);
+}
+
+.provider-card {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	width: 100%;
+	padding: 12px 14px;
+	text-align: left;
+	background-color: var(--sota-card-bg);
+	border: 1px solid var(--vscode-input-border, transparent);
+	border-radius: var(--sota-radius);
+	cursor: pointer;
+	color: var(--vscode-foreground);
+	font: inherit;
+	font-size: 13px;
+	transition: background-color 0.12s, border-color 0.12s, transform 0.12s, box-shadow 0.12s;
+}
+
+.provider-card:hover {
+	background-color: var(--vscode-list-hoverBackground);
+	border-color: var(--vscode-focusBorder);
+	transform: translateY(-1px);
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+}
+
+.provider-card:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 2px;
+}
+
+.provider-card.is-connected {
+	border-color: color-mix(in srgb, var(--sota-status-ok) 60%, transparent);
+}
+
+.provider-card-header {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+}
+
+.provider-card-icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+	width: 28px;
+	height: 28px;
+	border-radius: var(--sota-radius-sm);
+	background-color: color-mix(in srgb, var(--sota-accent) 15%, transparent);
+	color: var(--sota-accent);
+	font-weight: 700;
+	font-size: 12px;
+	letter-spacing: -0.02em;
+}
+
+.provider-card-icon-anthropic { background-color: rgba(196, 122, 90, 0.18); color: #c47a5a; }
+.provider-card-icon-openai { background-color: rgba(16, 163, 127, 0.18); color: #10a37f; }
+.provider-card-icon-foundry { background-color: rgba(0, 120, 212, 0.18); color: #0078d4; }
+.provider-card-icon-bedrock { background-color: rgba(255, 153, 0, 0.18); color: #ff9900; font-size: 10px; }
+.provider-card-icon-google { background-color: rgba(66, 133, 244, 0.18); color: #4285f4; }
+
+.provider-card-name {
+	flex: 1;
+	font-weight: 600;
+	min-width: 0;
+}
+
+.provider-card-status {
+	font-size: 11px;
+	padding: 2px 8px;
+	border-radius: 999px;
+	white-space: nowrap;
+	background-color: color-mix(in srgb, var(--sota-status-grey) 15%, transparent);
+	color: var(--sota-fg-muted);
+}
+
+.provider-card-status.connected {
+	background-color: color-mix(in srgb, var(--sota-status-ok) 18%, transparent);
+	color: var(--sota-status-ok);
+}
+
+.provider-card-status.not-configured {
+	background-color: color-mix(in srgb, var(--sota-status-grey) 15%, transparent);
+	color: var(--sota-fg-muted);
+}
+
+.provider-card-status.error {
+	background-color: color-mix(in srgb, var(--sota-status-error) 18%, transparent);
+	color: var(--sota-status-error);
+}
+
+.provider-card-desc {
+	font-size: 12px;
+	color: var(--sota-fg-muted);
+	padding-left: 38px;
+}
+
+.provider-list-footer {
+	display: flex;
+	justify-content: center;
+	margin-top: var(--sota-pad);
+}
+
+.provider-list-settings-link {
+	background: transparent;
+	border: none;
+	color: var(--sota-fg-muted);
+	cursor: pointer;
+	font: inherit;
+	font-size: 12px;
+	text-decoration: underline;
+	padding: 4px 8px;
+}
+
+.provider-list-settings-link:hover {
+	color: var(--vscode-foreground);
+}
+
+/*--------------------------------------------------------------------
+ *  Inline provider form — replaces the card grid in place.
+ *-------------------------------------------------------------------*/
+
+.provider-form-host {
+	display: contents;
+}
+
+.provider-form {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	padding: var(--sota-pad-loose) 0;
+}
+
+.provider-form-back {
+	align-self: flex-start;
+	background: transparent;
+	border: none;
+	color: var(--sota-fg-muted);
+	cursor: pointer;
+	font: inherit;
+	padding: 4px 0;
+	margin-bottom: 4px;
+}
+
+.provider-form-back:hover { color: var(--vscode-foreground); }
+
+.provider-form-title {
+	margin: 0;
+	font-size: 16px;
+	font-weight: 600;
+}
+
+.provider-form-help {
+	margin: 0 0 8px;
+	font-size: 12px;
+	color: var(--sota-fg-muted);
+}
+
+.provider-form-help a {
+	color: var(--vscode-textLink-foreground);
+}
+
+/* Two-option layout for the Anthropic form: subscription path on top
+ * (the recommended one), API key path below, with an "or" divider in
+ * between. Generic so other providers can adopt the pattern later. */
+.provider-form-option-group {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+	margin-top: 4px;
+}
+
+.provider-form-option {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	padding: 12px;
+	border: 1px solid var(--sota-border);
+	border-radius: var(--sota-radius);
+	background: var(--vscode-input-background);
+}
+
+.provider-form-option-recommended {
+	border-color: color-mix(in srgb, var(--sota-accent) 50%, transparent);
+	background: color-mix(in srgb, var(--sota-accent) 6%, var(--vscode-input-background));
+}
+
+.provider-form-option-head {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.provider-form-option-title {
+	font-size: 13px;
+	font-weight: 600;
+	color: var(--vscode-foreground);
+}
+
+.provider-form-option-tag {
+	font-size: 10px;
+	font-weight: 600;
+	letter-spacing: 0.5px;
+	text-transform: uppercase;
+	padding: 2px 6px;
+	border-radius: var(--sota-radius-pill);
+	background: var(--sota-accent);
+	color: var(--vscode-button-foreground, #fff);
+}
+
+.provider-form-option-body {
+	margin: 0;
+	font-size: 12px;
+	line-height: 1.5;
+	color: var(--sota-fg-muted);
+}
+
+.provider-form-option-body code {
+	font-family: var(--vscode-editor-font-family);
+	font-size: 11px;
+	background: var(--vscode-textCodeBlock-background, transparent);
+	padding: 1px 4px;
+	border-radius: 3px;
+}
+
+.provider-form-option-body a {
+	color: var(--vscode-textLink-foreground);
+}
+
+.provider-form-option-action {
+	align-self: flex-start;
+	height: 30px;
+	padding: 0 14px;
+	background: var(--sota-accent);
+	color: var(--vscode-button-foreground, #fff);
+	border: none;
+	border-radius: var(--sota-radius);
+	cursor: pointer;
+	font: inherit;
+	font-size: 12px;
+	font-weight: 500;
+	margin-top: 4px;
+}
+
+.provider-form-option-action:hover {
+	filter: brightness(1.1);
+}
+
+.provider-form-option-divider {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	color: var(--sota-fg-muted);
+	font-size: 11px;
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+}
+
+.provider-form-option-divider::before,
+.provider-form-option-divider::after {
+	content: '';
+	flex: 1;
+	height: 1px;
+	background: var(--sota-border);
+}
+
+.provider-form-label {
+	font-size: 12px;
+	color: var(--sota-fg-muted);
+	margin-top: 4px;
+}
+
+.provider-form-input {
+	width: 100%;
+	padding: 6px 8px;
+	border-radius: 4px;
+	border: 1px solid var(--vscode-input-border, transparent);
+	background: var(--vscode-input-background);
+	color: var(--vscode-input-foreground);
+	font: inherit;
+}
+
+.provider-form-input:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+}
+
+.provider-form-actions {
+	display: flex;
+	gap: 8px;
+	margin-top: 12px;
+}
+
+.provider-form-save {
+	padding: 6px 14px;
+	border-radius: 4px;
+	border: none;
+	cursor: pointer;
+	font: inherit;
+	font-weight: 600;
+	background-color: var(--sota-bubble-user-bg);
+	color: var(--sota-bubble-user-fg);
+	transition: opacity 0.12s, transform 0.12s;
+}
+
+.provider-form-save:hover { opacity: 0.9; transform: translateY(-1px); }
+.provider-form-save:active { transform: translateY(0); }
+.provider-form-save[disabled] { opacity: 0.5; cursor: progress; }
+
+.provider-form-skip {
+	padding: 6px 14px;
+	border-radius: 4px;
+	border: 1px solid var(--vscode-input-border, transparent);
+	background: transparent;
+	color: var(--vscode-foreground);
+	cursor: pointer;
+	font: inherit;
+}
+
+.provider-form-skip:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.provider-form-status {
+	margin-top: 8px;
+	padding: 8px 10px;
+	border-radius: 4px;
+	font-size: 12px;
+}
+
+.provider-profile-list {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	margin-top: 8px;
+}
+
+.provider-profile-row {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 8px 10px;
+	background-color: var(--sota-card-bg);
+	border: 1px solid var(--vscode-input-border, transparent);
+	border-radius: var(--sota-radius-sm);
+	transition: background-color 0.12s, border-color 0.12s;
+}
+
+.provider-profile-row:hover {
+	background-color: var(--vscode-list-hoverBackground);
+	border-color: var(--vscode-focusBorder);
+}
+
+.provider-profile-row-body {
+	flex: 1;
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+.provider-profile-row-name {
+	font-weight: 600;
+	font-size: 12px;
+}
+
+.provider-profile-row-summary {
+	font-size: 11px;
+	color: var(--sota-fg-muted, var(--vscode-descriptionForeground));
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.provider-profile-row-actions {
+	display: flex;
+	gap: 4px;
+	flex-shrink: 0;
+}
+
+.provider-profile-row-edit,
+.provider-profile-row-delete {
+	padding: 4px 10px;
+	border-radius: 3px;
+	border: 1px solid var(--vscode-input-border, transparent);
+	background: transparent;
+	color: var(--vscode-foreground);
+	cursor: pointer;
+	font: inherit;
+	font-size: 11px;
+}
+
+.provider-profile-row-edit:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.provider-profile-row-delete {
+	color: var(--vscode-errorForeground, #f48771);
+}
+
+.provider-profile-row-delete:hover {
+	background-color: color-mix(in srgb, var(--vscode-errorForeground, #f48771) 14%, transparent);
+}
+
+.provider-form-status.pending {
+	background-color: color-mix(in srgb, var(--sota-status-running) 12%, transparent);
+	color: var(--vscode-foreground);
+}
+
+.provider-form-status.ok {
+	background-color: color-mix(in srgb, var(--sota-status-ok) 14%, transparent);
+	color: var(--sota-status-ok);
+}
+
+.provider-form-status.deferred {
+	background-color: color-mix(in srgb, var(--sota-status-grey) 14%, transparent);
+	color: var(--sota-fg-muted);
+}
+
+.provider-form-status.err {
+	background-color: color-mix(in srgb, var(--sota-status-error) 14%, transparent);
+	color: var(--sota-status-error);
+}
+
+/*--------------------------------------------------------------------
+ *  Inline settings view — opened by the gear button in the chat header.
+ *  Replaces the message list inside the same surface.
+ *-------------------------------------------------------------------*/
+
+.chat-settings-view {
+	display: flex;
+	flex-direction: column;
+	gap: var(--sota-pad);
+	padding: var(--sota-pad-loose) 0;
+}
+
+/* Phase 2 — sub-tab nav layout. The wrapper switches to a 2-column grid
+   when populated with the new structure (a sidebar nav + a content pane). */
+.chat-settings-view-tabbed {
+	display: grid;
+	grid-template-columns: 180px minmax(0, 1fr);
+	gap: var(--sota-pad-loose);
+	padding: var(--sota-pad-loose) 0;
+}
+.settings-subtab-nav {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	padding-right: 4px;
+	border-right: 1px solid color-mix(in srgb, var(--vscode-foreground) 8%, transparent);
+}
+.settings-subtab {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 8px 10px;
+	font: inherit;
+	font-size: 12px;
+	color: var(--sota-fg-muted, var(--vscode-descriptionForeground));
+	background: transparent;
+	border: none;
+	border-left: 2px solid transparent;
+	border-radius: 4px;
+	cursor: pointer;
+	text-align: left;
+	transition: background-color 0.12s, color 0.12s, border-color 0.12s;
+}
+.settings-subtab:hover {
+	background: var(--vscode-list-hoverBackground);
+	color: var(--vscode-foreground);
+}
+.settings-subtab-active {
+	color: var(--vscode-foreground);
+	border-left-color: var(--sota-accent);
+	background: color-mix(in srgb, var(--sota-accent) 8%, transparent);
+}
+.settings-subtab-content {
+	display: flex;
+	flex-direction: column;
+	gap: var(--sota-pad);
+	min-width: 0;
+}
+.settings-field {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	font-size: 12px;
+}
+.settings-field-label {
+	color: var(--sota-fg-muted, var(--vscode-descriptionForeground));
+}
+.settings-input {
+	font: inherit;
+	color: var(--vscode-foreground);
+	background: var(--vscode-input-background, var(--sota-card-bg));
+	border: 1px solid var(--vscode-input-border, transparent);
+	border-radius: 4px;
+	padding: 4px 6px;
+}
+.settings-slider {
+	padding: 0;
+	background: transparent;
+}
+.settings-slider-value {
+	color: var(--vscode-foreground);
+	font-variant-numeric: tabular-nums;
+}
+.settings-link-danger {
+	color: var(--vscode-errorForeground, #e06c75);
+	border-color: color-mix(in srgb, var(--vscode-errorForeground, #e06c75) 30%, transparent);
+}
+
+.chat-settings-back {
+	align-self: flex-start;
+	background: transparent;
+	border: none;
+	color: var(--sota-fg-muted);
+	cursor: pointer;
+	font: inherit;
+	padding: 4px 0;
+}
+
+.chat-settings-back:hover { color: var(--vscode-foreground); }
+
+.chat-settings-title {
+	margin: 0 0 8px;
+	font-size: 17px;
+	font-weight: 600;
+}
+
+.settings-section {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	padding: var(--sota-pad) 0;
+	border-top: 1px solid color-mix(in srgb, var(--vscode-foreground) 8%, transparent);
+}
+
+.settings-section h4 {
+	margin: 0 0 4px;
+	font-size: 13px;
+	font-weight: 600;
+	color: var(--vscode-foreground);
+}
+
+.settings-providers {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.settings-provider-mini {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	padding: 10px 12px;
+	background-color: var(--sota-card-bg);
+	border: 1px solid var(--vscode-input-border, transparent);
+	border-radius: var(--sota-radius-sm);
+	cursor: pointer;
+	color: var(--vscode-foreground);
+	font: inherit;
+	font-size: 12px;
+	text-align: left;
+	transition: background-color 0.12s, border-color 0.12s, transform 0.12s;
+}
+
+.settings-provider-mini:hover {
+	background-color: var(--vscode-list-hoverBackground);
+	border-color: var(--vscode-focusBorder);
+	transform: translateY(-1px);
+}
+
+.settings-provider-mini-glyph {
+	flex-shrink: 0;
+	width: 28px;
+	height: 28px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border-radius: 6px;
+	font-size: 13px;
+	font-weight: 600;
+	letter-spacing: -0.5px;
+}
+
+.settings-provider-mini-body {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	flex: 1;
+	min-width: 0;
+}
+
+.settings-provider-mini-name {
+	font-weight: 600;
+	font-size: 12px;
+	line-height: 1.3;
+}
+
+.settings-provider-mini-tagline {
+	font-size: 11px;
+	color: var(--sota-fg-muted, var(--vscode-descriptionForeground));
+	line-height: 1.3;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.settings-provider-mini-status {
+	font-size: 10px;
+	padding: 2px 7px;
+	border-radius: 999px;
+	flex-shrink: 0;
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.settings-provider-mini-status.connected {
+	background-color: color-mix(in srgb, var(--sota-status-ok) 18%, transparent);
+	color: var(--sota-status-ok);
+}
+
+.settings-provider-mini-status.configured {
+	background-color: color-mix(in srgb, var(--sota-status-ok) 14%, transparent);
+	color: var(--sota-status-ok);
+}
+
+.settings-provider-mini-status.not-configured {
+	background-color: color-mix(in srgb, var(--sota-status-grey) 14%, transparent);
+	color: var(--sota-fg-muted);
+}
+
+.settings-provider-mini-chevron {
+	flex-shrink: 0;
+	color: var(--sota-fg-muted, var(--vscode-descriptionForeground));
+	opacity: 0.6;
+}
+
+.settings-section-head {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin-bottom: 6px;
+}
+
+.settings-section-icon {
+	flex-shrink: 0;
+	width: 18px;
+	height: 18px;
+	color: var(--sota-fg-muted, var(--vscode-descriptionForeground));
+}
+
+.settings-section-blurb {
+	font-size: 11px;
+	color: var(--sota-fg-muted, var(--vscode-descriptionForeground));
+	margin: 0 0 8px;
+	line-height: 1.4;
+}
+
+.settings-toggle-example {
+	font-size: 11px;
+	color: var(--sota-fg-muted, var(--vscode-descriptionForeground));
+	font-style: italic;
+	margin: 0 0 0 24px;
+	line-height: 1.4;
+}
+
+.settings-toggle {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	font-size: 12px;
+	cursor: pointer;
+}
+
+.settings-toggle input { margin: 0; }
+
+.settings-link-button {
+	align-self: flex-start;
+	padding: 6px 12px;
+	border-radius: 4px;
+	border: 1px solid var(--vscode-input-border, transparent);
+	background: transparent;
+	color: var(--vscode-foreground);
+	cursor: pointer;
+	font: inherit;
+	font-size: 12px;
+}
+
+.settings-link-button:hover {
+	background-color: var(--vscode-list-hoverBackground);
+	border-color: var(--vscode-focusBorder);
+}
+
+/*--------------------------------------------------------------------
+ *  MCP servers — list + inline add/edit form inside the chat settings
+ *  view. Phase 55 replaces the "Edit in settings.json" button with a
+ *  proper UI; the link-button below the list is kept as a deep-link
+ *  for power users.
+ *-------------------------------------------------------------------*/
+
+.mcp-servers {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+.mcp-servers-list {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.mcp-servers-empty {
+	padding: 6px 0;
+	font-size: 12px;
+	color: var(--sota-fg-muted);
+}
+
+.mcp-servers-empty p {
+	margin: 0;
+}
+
+.mcp-server-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	padding: 8px 10px;
+	background-color: var(--sota-card-bg);
+	border: 1px solid var(--vscode-input-border, transparent);
+	border-radius: var(--sota-radius-sm);
+	transition: background-color 0.12s, border-color 0.12s, transform 0.12s;
+}
+
+.mcp-server-row:hover {
+	background-color: var(--vscode-list-hoverBackground);
+	border-color: var(--vscode-focusBorder);
+	transform: translateY(-1px);
+}
+
+.mcp-server-info {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	min-width: 0;
+	flex: 1;
+}
+
+.mcp-server-name {
+	font-size: 12px;
+	font-weight: 600;
+	color: var(--vscode-foreground);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.mcp-server-command {
+	font-size: 11px;
+	color: var(--sota-fg-muted);
+	font-family: var(--vscode-editor-font-family, monospace);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.mcp-server-actions {
+	display: flex;
+	gap: 4px;
+	flex-shrink: 0;
+}
+
+.mcp-server-edit,
+.mcp-server-delete {
+	width: auto;
+	padding: 3px 8px;
+	font-size: 11px;
+}
+
+.mcp-server-add {
+	align-self: flex-start;
+	margin-top: 4px;
+	padding: 6px 14px;
+	border-radius: 4px;
+	border: 1px solid var(--vscode-input-border, transparent);
+	background: transparent;
+	color: var(--vscode-foreground);
+	cursor: pointer;
+	font: inherit;
+	font-size: 12px;
+	font-weight: 600;
+	transition: background-color 0.12s, border-color 0.12s, transform 0.12s;
+}
+
+.mcp-server-add:hover {
+	background-color: var(--vscode-list-hoverBackground);
+	border-color: var(--vscode-focusBorder);
+	transform: translateY(-1px);
+}
+
+.mcp-server-form-host[hidden] {
+	display: none;
+}
+
+.mcp-server-form {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	padding: var(--sota-pad) 10px;
+	background-color: var(--sota-card-bg);
+	border: 1px solid var(--vscode-input-border, transparent);
+	border-radius: var(--sota-radius-sm);
+}
+
+.mcp-server-form h4 {
+	margin: 0 0 4px;
+	font-size: 13px;
+	font-weight: 600;
+}
+
+.mcp-server-form .form-hint {
+	margin: 0 0 4px;
+	font-size: 11px;
+	color: var(--sota-fg-muted);
+}
+
+.mcp-server-form-back {
+	align-self: flex-start;
+	background: transparent;
+	border: none;
+	color: var(--sota-fg-muted);
+	cursor: pointer;
+	font: inherit;
+	font-size: 12px;
+	padding: 2px 0;
+}
+
+.mcp-server-form-back:hover { color: var(--vscode-foreground); }
+
+.mcp-server-form textarea.provider-form-input {
+	font-family: var(--vscode-editor-font-family, monospace);
+	font-size: 12px;
+	resize: vertical;
+}
+
+.mcp-server-form-actions {
+	display: flex;
+	gap: 8px;
+	margin-top: 8px;
+}
+
+.mcp-server-form-actions button {
+	padding: 6px 14px;
+	border-radius: 4px;
+	border: 1px solid var(--vscode-input-border, transparent);
+	background: transparent;
+	color: var(--vscode-foreground);
+	cursor: pointer;
+	font: inherit;
+	font-size: 12px;
+	transition: background-color 0.12s, transform 0.12s, opacity 0.12s;
+}
+
+.mcp-server-form-actions button.primary {
+	background-color: var(--sota-bubble-user-bg);
+	color: var(--sota-bubble-user-fg);
+	border-color: transparent;
+	font-weight: 600;
+}
+
+.mcp-server-form-actions button:hover {
+	background-color: var(--vscode-list-hoverBackground);
+	transform: translateY(-1px);
+}
+
+.mcp-server-form-actions button.primary:hover {
+	background-color: var(--sota-bubble-user-bg);
+	opacity: 0.9;
+}
+
+.mcp-server-form-actions button[disabled] {
+	opacity: 0.5;
+	cursor: progress;
+}
+
+.mcp-server-form-status {
+	margin-top: 6px;
+	padding: 6px 10px;
+	border-radius: 4px;
+	font-size: 12px;
+}
+
+.mcp-server-form-status.pending {
+	background-color: color-mix(in srgb, var(--sota-status-running) 12%, transparent);
+	color: var(--vscode-foreground);
+}
+
+.mcp-server-form-status.ok {
+	background-color: color-mix(in srgb, var(--sota-status-ok) 14%, transparent);
+	color: var(--sota-status-ok);
+}
+
+.mcp-server-form-status.err {
+	background-color: color-mix(in srgb, var(--sota-status-error) 14%, transparent);
+	color: var(--sota-status-error);
+}
+
+/*--------------------------------------------------------------------
+ *  Header settings gear button. Sized to match the existing hdr-btn but
+ *  icon-only so it stays tucked next to the cost meter.
+ *-------------------------------------------------------------------*/
+
+.hdr-btn-settings {
+	width: 28px;
+	padding: 4px;
+}
+
+.hdr-btn-settings svg {
+	width: 14px;
+	height: 14px;
+}
+
+/* Header export button — same compact footprint as the settings gear so the
+ * three icon-only buttons (settings, export, new) sit on a consistent
+ * baseline next to the cost meter. */
+.hdr-btn-export {
+	width: 28px;
+	padding: 4px;
+}
+
+.hdr-btn-export svg {
+	width: 14px;
+	height: 14px;
+}
+
+/*--------------------------------------------------------------------
+ *  Messages — bubbles, sender labels, and inline actions.
+ *
+ *  User messages get an accent-coloured bubble on the right; assistant
+ *  messages render as plain text with a subtle accent stripe on the
+ *  left so they breathe in the column.
  *-------------------------------------------------------------------*/
 
 .msg {
 	display: flex;
 	flex-direction: column;
-	gap: var(--sota-pad-tight);
-	line-height: 1.55;
+	gap: 4px;
+	line-height: var(--sota-line-height);
 	word-wrap: break-word;
+	font-size: var(--sota-font-size-body);
+	animation: sota-msg-fade-in 200ms ease-out;
 }
 
+@keyframes sota-msg-fade-in {
+	from { opacity: 0; transform: translateY(2px); }
+	to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Sender attribution label sits above the body in a muted treatment.
+ * Repeated when a different specialist starts speaking; suppressed
+ * when the same specialist sends consecutive turns. */
 .msg-meta {
 	display: flex;
 	align-items: center;
-	gap: var(--sota-pad-tight);
-	font-size: 0.78em;
-	font-weight: 600;
-	letter-spacing: 0.4px;
-	text-transform: uppercase;
+	gap: 6px;
+	font-size: var(--sota-font-size-label);
 	color: var(--sota-fg-muted);
+	letter-spacing: 0.1px;
 }
 
+.msg-meta[hidden] {
+	display: none;
+}
+
+.msg-name {
+	font-weight: 600;
+}
+
+/* Persona avatar — small monogram circle that visually identifies the
+ * specialist speaking. Sits to the LEFT of the name in the meta row.
+ * Background colour is set inline by the renderer from the persona's
+ * accent; the var here is a defensive fallback that keeps the avatar
+ * visible if the inline style is ever stripped (e.g. by a theme or CSP
+ * mutation). */
 .msg-avatar {
+	flex-shrink: 0;
+	width: 24px;
+	height: 24px;
+	border-radius: 50%;
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
-	width: 18px;
-	height: 18px;
-	border-radius: 50%;
-	font-size: 0.75em;
+	font-size: 11px;
 	font-weight: 700;
-	background-color: var(--vscode-button-background);
-	color: var(--vscode-button-foreground);
-	text-transform: none;
+	color: white;
+	background: var(--persona-accent, var(--sota-fg-muted));
+	user-select: none;
+	letter-spacing: 0.5px;
 }
 
-.msg-user .msg-avatar {
-	background-color: var(--vscode-input-background);
-	color: var(--vscode-foreground);
-	border: 1px solid var(--vscode-input-border, var(--sota-border));
+/* Specialist name is colour-coded with the persona accent so the eye can
+ * track the current speaker without reading the label every time. The
+ * inline style on the element wins; this rule provides the fallback when
+ * persona data is absent. */
+.msg-meta .msg-specialist-name {
+	color: var(--persona-accent, var(--sota-fg-muted));
+	font-weight: 600;
 }
 
-/* System messages — output from slash commands. Rendered without a header,
- * with a subtle accent so they read as IDE chrome rather than assistant
- * prose. The italic styling cues that the content originates from the
- * editor, not the LLM. */
-.msg-system {
-	font-size: 0.92em;
-	font-style: italic;
-	color: var(--sota-fg-muted);
-	border-left: 3px solid var(--vscode-textBlockQuote-border, var(--sota-border));
-	background-color: var(--vscode-textBlockQuote-background, transparent);
-	padding: 0.4em 0.8em;
-	border-radius: 3px;
+/* Hover-only timestamp. We keep the element in flow so layout doesn't
+ * shift when the user mouses over a message. */
+.msg-time {
+	font-variant-numeric: tabular-nums;
+	opacity: 0;
+	transition: opacity 120ms;
 }
 
-.msg-system .msg-body {
-	white-space: pre-wrap;
+.msg:hover .msg-time {
+	opacity: 1;
 }
 
-.msg-system .msg-body code {
-	font-style: normal;
+/* Streaming dots — sit next to the meta label so they don't move
+ * around as text wraps. */
+.streaming-dots {
+	display: inline-flex;
+	gap: 3px;
+	margin-left: 2px;
+	vertical-align: middle;
+	align-items: center;
 }
 
+.streaming-dots span {
+	width: 4px;
+	height: 4px;
+	border-radius: 50%;
+	background-color: var(--vscode-progressBar-background, var(--sota-accent));
+	animation: sota-pulse 1.2s infinite;
+}
+
+.streaming-dots span:nth-child(2) { animation-delay: 0.15s; }
+.streaming-dots span:nth-child(3) { animation-delay: 0.3s; }
+
+@keyframes sota-pulse {
+	0%, 60%, 100% { opacity: 0.3; transform: translateY(0); }
+	30%           { opacity: 1;   transform: translateY(-2px); }
+}
+
+/* Body wrapper. For assistant messages this hosts the accent stripe
+ * via padding + border-left. For user messages the body is itself the
+ * bubble. */
 .msg-body {
 	white-space: pre-wrap;
 }
@@ -328,8 +1606,141 @@ button {
 	font-family: var(--vscode-editor-font-family);
 	font-size: 0.9em;
 	padding: 1px 5px;
-	background-color: var(--vscode-textCodeBlock-background);
+	background-color: var(--sota-code-bg);
 	border-radius: 3px;
+}
+
+/* --- Assistant: plain text with a thin accent stripe. ----------- */
+
+.msg-assistant {
+	align-items: stretch;
+}
+
+.msg-assistant .msg-meta {
+	padding-left: 12px;
+}
+
+.msg-assistant .msg-body {
+	position: relative;
+	padding: 2px 0 2px 12px;
+	/* The accent stripe takes its colour from the active persona when one
+	 * is known, falling back to the Phase 39 default when persona data is
+	 * unavailable. The wrapper element receives \`--persona-accent\` as an
+	 * inline custom property at render time. */
+	border-left: 3px solid var(--persona-accent, var(--sota-accent-stripe));
+}
+
+/* Inline action toolbar — top-right of an assistant message body,
+ * fades in on hover. Visual only for now (handlers postMessage but
+ * the host-side wiring lives in a future phase). */
+.msg-actions {
+	position: absolute;
+	top: -2px;
+	right: 0;
+	display: inline-flex;
+	gap: 2px;
+	padding: 2px;
+	background-color: var(--vscode-sideBar-background, var(--vscode-editor-background));
+	border: 1px solid var(--sota-border);
+	border-radius: var(--sota-radius-sm);
+	opacity: 0;
+	pointer-events: none;
+	transition: opacity 100ms ease-in;
+	box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+}
+
+.msg-assistant:hover .msg-actions,
+.msg-actions:focus-within {
+	opacity: 1;
+	pointer-events: auto;
+}
+
+.msg-action {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 22px;
+	height: 22px;
+	padding: 0;
+	background: transparent;
+	border: none;
+	border-radius: 3px;
+	cursor: pointer;
+	color: var(--sota-fg-muted);
+	transition: background-color 0.1s, color 0.1s;
+}
+
+.msg-action:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	color: var(--vscode-foreground);
+}
+
+.msg-action svg {
+	width: 13px;
+	height: 13px;
+}
+
+.msg-action.is-active {
+	color: var(--sota-accent);
+}
+
+.msg-action[hidden] {
+	display: none;
+}
+
+/* --- User: right-aligned accent bubble. ------------------------- */
+
+.msg-user {
+	align-items: flex-end;
+}
+
+.msg-user .msg-body {
+	display: inline-block;
+	max-width: var(--sota-bubble-max-width);
+	padding: 12px 14px;
+	background-color: var(--sota-bubble-user-bg);
+	color: var(--sota-bubble-user-fg);
+	border-radius: var(--sota-radius-bubble);
+	border-bottom-right-radius: 4px;
+}
+
+.msg-user .msg-body code {
+	background-color: color-mix(in srgb, var(--sota-bubble-user-fg) 15%, transparent);
+	color: var(--sota-bubble-user-fg);
+}
+
+.msg-user .msg-body a {
+	color: var(--sota-bubble-user-fg);
+	text-decoration: underline;
+}
+
+.msg-user .msg-meta {
+	display: none;
+}
+
+/* --- System: centred, italic, muted. ---------------------------- */
+
+.msg-system {
+	align-items: center;
+	text-align: center;
+	font-style: italic;
+	font-size: 12px;
+	color: var(--sota-fg-muted);
+}
+
+.msg-system .msg-body {
+	max-width: 80%;
+	padding: 6px 10px;
+	border-radius: var(--sota-radius-sm);
+	background-color: color-mix(in srgb, var(--vscode-foreground) 4%, transparent);
+}
+
+.msg-system .msg-body code {
+	font-style: normal;
+}
+
+.msg-system .msg-meta {
+	display: none;
 }
 
 /*--------------------------------------------------------------------
@@ -338,7 +1749,7 @@ button {
 
 .code-block {
 	margin: 0.6em 0;
-	background-color: var(--vscode-textCodeBlock-background);
+	background-color: var(--sota-code-bg);
 	border: 1px solid var(--sota-border);
 	border-radius: var(--sota-radius);
 	overflow: hidden;
@@ -349,7 +1760,7 @@ button {
 	align-items: center;
 	justify-content: space-between;
 	padding: 4px 8px;
-	font-size: 0.78em;
+	font-size: 11px;
 	color: var(--sota-fg-muted);
 	background-color: var(--vscode-editor-background);
 	border-bottom: 1px solid var(--sota-border);
@@ -366,54 +1777,9 @@ button {
 	gap: 4px;
 }
 
-.code-copy {
-	padding: 2px 8px;
-	background-color: transparent;
-	color: var(--sota-fg-muted);
-	border: 1px solid transparent;
-	border-radius: 3px;
-	cursor: pointer;
-	font-size: 0.95em;
-}
-
-.code-copy:hover {
-	color: var(--vscode-foreground);
-	border-color: var(--sota-border);
-	background-color: var(--vscode-toolbar-hoverBackground);
-}
-
-.code-open {
-	padding: 2px 8px;
-	background-color: transparent;
-	color: var(--sota-fg-muted);
-	border: 1px solid transparent;
-	border-radius: 3px;
-	cursor: pointer;
-	font-size: 0.95em;
-}
-
-.code-open:hover {
-	color: var(--vscode-foreground);
-	border-color: var(--sota-border);
-	background-color: var(--vscode-toolbar-hoverBackground);
-}
-
-.code-save {
-	padding: 2px 8px;
-	background-color: transparent;
-	color: var(--sota-fg-muted);
-	border: 1px solid transparent;
-	border-radius: 3px;
-	cursor: pointer;
-	font-size: 0.95em;
-}
-
-.code-save:hover {
-	color: var(--vscode-foreground);
-	border-color: var(--sota-border);
-	background-color: var(--vscode-toolbar-hoverBackground);
-}
-
+.code-copy,
+.code-open,
+.code-save,
 .code-diff {
 	padding: 2px 8px;
 	background-color: transparent;
@@ -421,9 +1787,13 @@ button {
 	border: 1px solid transparent;
 	border-radius: 3px;
 	cursor: pointer;
-	font-size: 0.95em;
+	font-size: 11px;
+	line-height: 1.4;
 }
 
+.code-copy:hover,
+.code-open:hover,
+.code-save:hover,
 .code-diff:hover {
 	color: var(--vscode-foreground);
 	border-color: var(--sota-border);
@@ -432,10 +1802,11 @@ button {
 
 .code-block pre {
 	margin: 0;
-	padding: 10px;
+	padding: 10px 12px;
 	overflow-x: auto;
 	font-family: var(--vscode-editor-font-family);
 	font-size: var(--vscode-editor-font-size);
+	line-height: 1.5;
 }
 
 .code-block pre code {
@@ -446,22 +1817,26 @@ button {
 
 /*--------------------------------------------------------------------
  *  Tool-call cards
+ *
+ *  Cards keep their existing markup; we simply tighten the header,
+ *  add a status pill in the top-right, and dial up the contrast on
+ *  the captured output.
  *-------------------------------------------------------------------*/
 
 .tool-card {
-	margin: 0.6em 0;
+	margin: 8px 0;
 	padding: 8px 10px;
-	border: 1px solid var(--sota-border);
+	border: 1px solid var(--sota-card-border);
 	border-radius: var(--sota-radius);
-	background-color: var(--vscode-input-background);
-	font-size: 0.88em;
+	background-color: var(--sota-card-bg);
+	font-size: 13px;
 }
 
 .tool-card-header {
 	display: flex;
 	align-items: center;
 	gap: 6px;
-	flex-wrap: wrap;
+	flex-wrap: nowrap;
 }
 
 .tool-card-icon {
@@ -472,19 +1847,25 @@ button {
 	justify-content: center;
 	color: var(--sota-fg-muted);
 	font-family: var(--vscode-editor-font-family);
+	flex-shrink: 0;
+}
+
+.tool-card[data-tool-status="running"] .tool-card-icon {
+	color: var(--sota-status-running);
 }
 
 .tool-card[data-tool-status="ok"] .tool-card-icon {
-	color: var(--vscode-charts-green, #16a34a);
+	color: var(--sota-status-ok);
 }
 
 .tool-card[data-tool-status="error"] .tool-card-icon {
-	color: var(--vscode-errorForeground, #dc2626);
+	color: var(--sota-status-error);
 }
 
 .tool-card-name {
 	font-family: var(--vscode-editor-font-family);
 	font-weight: 600;
+	flex-shrink: 0;
 }
 
 .tool-card-args {
@@ -493,7 +1874,36 @@ button {
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
-	max-width: 200px;
+	flex: 1;
+	min-width: 0;
+}
+
+/* Status pill — sits at the right of the header, colour-coded. */
+.tool-card-status {
+	flex-shrink: 0;
+	padding: 1px 8px;
+	font-size: 10px;
+	font-weight: 600;
+	letter-spacing: 0.4px;
+	text-transform: uppercase;
+	border-radius: var(--sota-radius-pill);
+	color: var(--sota-fg-muted);
+	background-color: color-mix(in srgb, var(--sota-fg-muted) 12%, transparent);
+}
+
+.tool-card[data-tool-status="running"] .tool-card-status {
+	color: var(--sota-status-running);
+	background-color: color-mix(in srgb, var(--sota-status-running) 18%, transparent);
+}
+
+.tool-card[data-tool-status="ok"] .tool-card-status {
+	color: var(--sota-status-ok);
+	background-color: color-mix(in srgb, var(--sota-status-ok) 18%, transparent);
+}
+
+.tool-card[data-tool-status="error"] .tool-card-status {
+	color: var(--sota-status-error);
+	background-color: color-mix(in srgb, var(--sota-status-error) 18%, transparent);
 }
 
 .tool-card-output {
@@ -507,41 +1917,595 @@ button {
 .tool-card-output summary {
 	cursor: pointer;
 	color: var(--sota-fg-muted);
-	font-size: 0.92em;
+	font-size: 12px;
 	padding: 2px 0;
+}
+
+.tool-card-output summary:hover {
+	color: var(--vscode-foreground);
 }
 
 .tool-card-output pre {
 	margin: 4px 0 0 0;
-	padding: 6px 8px;
-	background-color: var(--vscode-textCodeBlock-background);
+	padding: 8px 10px;
+	background-color: var(--sota-pre-bg);
+	border: 1px solid var(--sota-border);
 	border-radius: var(--sota-radius-sm);
 	overflow-x: auto;
-	font-size: 0.92em;
+	font-family: var(--vscode-editor-font-family);
+	font-size: 12px;
+	line-height: 1.5;
 	max-height: 240px;
 	overflow-y: auto;
+	color: var(--vscode-foreground);
+}
+
+/*--------------------------------------------------------------------
+ *  Inline tool-result review
+ *
+ *  Lets the user replace a tool's output before the next LLM turn
+ *  reads it. The "Edit result" button sits at the bottom of an
+ *  active tool card; once the assistant starts streaming its
+ *  post-tool response the card flips to data-active="false" and
+ *  the button is hidden — editing is too late at that point. The
+ *  inline form is a textarea + Save / Revert / Cancel cluster,
+ *  rendered in place of the body. Edited cards display a small
+ *  "Edited" pill in the header that survives reload.
+ *-------------------------------------------------------------------*/
+
+.tool-card-edit {
+	margin-top: 4px;
+	padding: 2px 8px;
+	background: transparent;
+	border: 1px solid var(--sota-border);
+	border-radius: 4px;
+	color: var(--sota-fg-muted);
+	font-size: 11px;
+	cursor: pointer;
+	transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+
+.tool-card-edit:hover {
+	background: var(--sota-card-bg);
+	color: var(--vscode-foreground);
+	border-color: var(--vscode-focusBorder);
+}
+
+.tool-card[data-active="false"] .tool-card-edit {
+	display: none;
+}
+
+/*-------------------------------------------------------------------*
+ *  Phase 63 — "View diff" button on write_file tool cards.
+ *
+ *  Visually mirrors the Edit result button so the row of trailing
+ *  actions reads as a coherent toolbar. Stays visible after the card
+ *  is marked inactive (unlike Edit result) — viewing the diff is
+ *  meaningful for as long as the captured snapshot is alive in the
+ *  host's WriteSnapshotStore.
+ *-------------------------------------------------------------------*/
+
+.tool-card-view-diff {
+	margin-top: 4px;
+	margin-left: 6px;
+	padding: 2px 8px;
+	background: transparent;
+	border: 1px solid var(--sota-border);
+	border-radius: 4px;
+	color: var(--sota-fg-muted);
+	font-size: 11px;
+	cursor: pointer;
+	transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+
+.tool-card-view-diff:hover {
+	background: var(--sota-card-bg);
+	color: var(--vscode-foreground);
+	border-color: var(--vscode-focusBorder);
+}
+
+.tool-card-edit-form {
+	padding: 8px;
+}
+
+.tool-card-edit-help {
+	margin: 0 0 6px;
+	color: var(--sota-fg-muted);
+	font-size: 11px;
+}
+
+.tool-card-edit-textarea {
+	width: 100%;
+	min-height: 200px;
+	padding: 8px;
+	font-family: var(--vscode-editor-font-family, monospace);
+	font-size: 12px;
+	background: var(--vscode-textBlockQuote-background);
+	color: var(--vscode-foreground);
+	border: 1px solid var(--sota-border);
+	border-radius: 4px;
+	resize: vertical;
+	box-sizing: border-box;
+}
+
+.tool-card-edit-actions {
+	margin-top: 8px;
+	display: flex;
+	gap: 8px;
+	justify-content: flex-end;
+}
+
+.tool-card-edit-actions button {
+	padding: 4px 12px;
+	font-size: 12px;
+	border-radius: 4px;
+	border: 1px solid var(--sota-border);
+	background: transparent;
+	color: var(--vscode-foreground);
+	cursor: pointer;
+}
+
+.tool-card-edit-actions button.primary {
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+	border-color: var(--vscode-button-background);
+}
+
+.tool-card-edit-actions button:hover {
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
+.tool-card-edit-actions button.primary:hover {
+	background: var(--vscode-button-hoverBackground);
+}
+
+.tool-card-edited-pill {
+	margin-left: 6px;
+	padding: 1px 6px;
+	background: color-mix(in srgb, var(--vscode-button-background) 18%, transparent);
+	color: var(--vscode-button-background);
+	font-size: 10px;
+	font-style: italic;
+	border-radius: 999px;
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+}
+
+/*--------------------------------------------------------------------
+ *  Terminal block (Phase 45 — Cline-style run_command output)
+ *
+ *  Renders inside a `.tool-card` for `run_command` results. The block
+ *  has a dark header bar (prompt + command + cwd + exit pill) and a
+ *  terminal-flavoured body where stdout is the default foreground and
+ *  stderr is a muted red. Long output collapses to a head + tail view
+ *  with a Show more toggle.
+ *-------------------------------------------------------------------*/
+
+.terminal-block {
+	margin-top: 6px;
+	border: 1px solid var(--sota-border);
+	border-radius: var(--sota-radius-sm);
+	background-color: var(--vscode-terminal-background, #0a0a0a);
+	overflow: hidden;
+}
+
+.terminal-block-header {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 6px 10px;
+	background-color: color-mix(in srgb, var(--vscode-terminal-background, #0a0a0a) 90%, var(--vscode-foreground) 10%);
+	color: var(--vscode-terminal-foreground, var(--vscode-foreground));
+	font-family: var(--vscode-editor-font-family);
+	font-size: 12px;
+	border-bottom: 1px solid color-mix(in srgb, var(--vscode-foreground) 14%, transparent);
+}
+
+.terminal-prompt {
+	color: var(--vscode-terminal-ansiGreen, #16a34a);
+	font-weight: 700;
+	flex-shrink: 0;
+}
+
+.terminal-cmd {
+	color: var(--vscode-terminal-foreground, var(--vscode-foreground));
+	font-family: var(--vscode-editor-font-family);
+	font-size: 13px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	flex: 1;
+	min-width: 0;
+}
+
+.terminal-cwd {
+	color: var(--sota-fg-muted);
+	font-size: 11px;
+	font-family: var(--vscode-editor-font-family);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	max-width: 40%;
+	flex-shrink: 1;
+	text-align: right;
+}
+
+.terminal-exit {
+	flex-shrink: 0;
+	padding: 1px 8px;
+	font-size: 10px;
+	font-weight: 600;
+	letter-spacing: 0.4px;
+	text-transform: uppercase;
+	border-radius: var(--sota-radius-pill);
+	font-family: var(--vscode-editor-font-family);
+}
+
+.terminal-exit-ok {
+	color: var(--vscode-terminal-ansiGreen, var(--sota-status-ok));
+	background-color: color-mix(in srgb, var(--vscode-terminal-ansiGreen, #16a34a) 18%, transparent);
+}
+
+.terminal-exit-error {
+	color: var(--vscode-terminal-ansiRed, var(--sota-status-error));
+	background-color: color-mix(in srgb, var(--vscode-terminal-ansiRed, #dc2626) 18%, transparent);
+}
+
+.terminal-cancelled {
+	flex-shrink: 0;
+	padding: 1px 8px;
+	font-size: 10px;
+	font-weight: 600;
+	letter-spacing: 0.4px;
+	text-transform: uppercase;
+	border-radius: var(--sota-radius-pill);
+	font-family: var(--vscode-editor-font-family);
+	color: var(--vscode-editorWarning-foreground, #f59e0b);
+	background-color: color-mix(in srgb, var(--vscode-editorWarning-foreground, #f59e0b) 18%, transparent);
+}
+
+.terminal-block-body {
+	margin: 0;
+	padding: 8px 10px;
+	background-color: var(--vscode-terminal-background, #0a0a0a);
+	color: var(--vscode-terminal-foreground, var(--vscode-foreground));
+	font-family: var(--vscode-editor-font-family);
+	font-size: 12px;
+	line-height: 1.4;
+	overflow-x: auto;
+	max-height: 360px;
+	overflow-y: auto;
+	white-space: pre;
+}
+
+.terminal-stdout {
+	color: var(--vscode-terminal-foreground, var(--vscode-foreground));
+}
+
+.terminal-stderr {
+	color: var(--vscode-terminal-ansiRed, #dc2626);
+}
+
+.terminal-show-more {
+	display: inline-block;
+	margin: 4px 0;
+	padding: 2px 8px;
+	font-family: inherit;
+	font-size: 11px;
+	color: var(--vscode-textLink-foreground, var(--vscode-foreground));
+	background: transparent;
+	border: 1px solid color-mix(in srgb, var(--vscode-foreground) 18%, transparent);
+	border-radius: var(--sota-radius-pill);
+	cursor: pointer;
+}
+
+.terminal-show-more:hover {
+	color: var(--vscode-textLink-activeForeground, var(--vscode-foreground));
+	border-color: color-mix(in srgb, var(--vscode-foreground) 28%, transparent);
+}
+
+/*--------------------------------------------------------------------
+ *  Approval cards (Phase 41 — risky-tool gating)
+ *-------------------------------------------------------------------*/
+
+/* Pending approval — yellow/amber accent stripe and a faint warning tint
+ * to distinguish from normal tool-call cards. The stripe matches the
+ * Phase 39 accent-stripe pattern (left border) so the card reads as a
+ * cousin of those instead of a foreign object. */
+.approval-card {
+	margin: 8px 0;
+	padding: 10px 12px;
+	border: 1px solid var(--sota-card-border);
+	border-left: 3px solid var(--vscode-editorWarning-foreground, #f59e0b);
+	border-radius: var(--sota-radius);
+	background-color: var(--vscode-inputValidation-warningBackground, color-mix(in srgb, var(--vscode-editorWarning-foreground, #f59e0b) 12%, var(--sota-card-bg)));
+	font-size: 13px;
+}
+
+.approval-card[data-approval-state="approved"] {
+	border-left-color: var(--sota-status-ok);
+	background-color: color-mix(in srgb, var(--sota-status-ok) 8%, var(--sota-card-bg));
+	opacity: 0.85;
+}
+
+.approval-card[data-approval-state="rejected"],
+.approval-card[data-approval-state="cancelled"] {
+	border-left-color: var(--sota-status-error);
+	background-color: color-mix(in srgb, var(--sota-status-error) 8%, var(--sota-card-bg));
+	opacity: 0.85;
+}
+
+.approval-card[data-approval-state="auto-approved"] {
+	border-left-color: var(--sota-fg-muted);
+	background-color: var(--sota-card-bg);
+}
+
+.approval-header {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin-bottom: 6px;
+}
+
+.approval-icon {
+	display: inline-flex;
+	width: 16px;
+	height: 16px;
+	align-items: center;
+	justify-content: center;
+	color: var(--vscode-editorWarning-foreground, #f59e0b);
+	flex-shrink: 0;
+}
+
+.approval-card[data-approval-state="approved"] .approval-icon {
+	color: var(--sota-status-ok);
+}
+
+.approval-card[data-approval-state="rejected"] .approval-icon,
+.approval-card[data-approval-state="cancelled"] .approval-icon {
+	color: var(--sota-status-error);
+}
+
+.approval-icon svg {
+	width: 14px;
+	height: 14px;
+	display: block;
+}
+
+.approval-title {
+	font-weight: 600;
+	flex: 1;
+	min-width: 0;
+}
+
+.approval-pill {
+	flex-shrink: 0;
+	padding: 1px 8px;
+	font-size: 10px;
+	font-weight: 600;
+	letter-spacing: 0.4px;
+	text-transform: uppercase;
+	border-radius: var(--sota-radius-pill);
+	color: var(--sota-fg-muted);
+	background-color: color-mix(in srgb, var(--sota-fg-muted) 12%, transparent);
+}
+
+.approval-card[data-approval-state="approved"] .approval-pill {
+	color: var(--sota-status-ok);
+	background-color: color-mix(in srgb, var(--sota-status-ok) 18%, transparent);
+}
+
+.approval-card[data-approval-state="rejected"] .approval-pill,
+.approval-card[data-approval-state="cancelled"] .approval-pill {
+	color: var(--sota-status-error);
+	background-color: color-mix(in srgb, var(--sota-status-error) 18%, transparent);
+}
+
+.approval-card[data-approval-state="auto-approved"] .approval-pill {
+	color: var(--sota-fg-muted);
+	background-color: color-mix(in srgb, var(--sota-fg-muted) 18%, transparent);
+}
+
+.approval-body {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	margin-bottom: 8px;
+}
+
+.approval-tool-name {
+	font-family: var(--vscode-editor-font-family);
+	font-size: 11px;
+	font-weight: 600;
+	letter-spacing: 0.3px;
+	text-transform: uppercase;
+	color: var(--sota-fg-muted);
+}
+
+.approval-target,
+.approval-command {
+	font-family: var(--vscode-editor-font-family);
+	font-size: 12px;
+}
+
+.approval-target code,
+.approval-command code {
+	padding: 2px 6px;
+	background-color: var(--sota-pre-bg);
+	border: 1px solid var(--sota-border);
+	border-radius: var(--sota-radius-sm);
+	color: var(--vscode-foreground);
+	overflow-wrap: anywhere;
+}
+
+.approval-cwd,
+.approval-args {
+	font-family: var(--vscode-editor-font-family);
+	font-size: 11px;
+	color: var(--sota-fg-muted);
+}
+
+.approval-preview {
+	margin-top: 4px;
+}
+
+.approval-preview pre {
+	margin: 0;
+	padding: 8px 10px;
+	background-color: var(--sota-pre-bg);
+	border: 1px solid var(--sota-border);
+	border-radius: var(--sota-radius-sm);
+	overflow-x: auto;
+	font-family: var(--vscode-editor-font-family);
+	font-size: 12px;
+	line-height: 1.5;
+	max-height: 240px;
+	overflow-y: auto;
+	color: var(--vscode-foreground);
+}
+
+.approval-preview-more {
+	margin-top: 4px;
+	font-size: 11px;
+	color: var(--sota-fg-muted);
+}
+
+.approval-actions {
+	display: flex;
+	gap: 8px;
+	justify-content: flex-end;
+}
+
+.approval-btn {
+	padding: 4px 12px;
+	font-size: 12px;
+	font-weight: 600;
+	border-radius: var(--sota-radius);
+	cursor: pointer;
+	transition: background-color 0.12s, opacity 0.12s;
+}
+
+.approval-btn:focus-visible {
+	outline: 2px solid var(--sota-accent);
+	outline-offset: 2px;
+}
+
+.approval-btn-primary {
+	background-color: var(--sota-accent);
+	color: var(--vscode-button-foreground);
+	border: 1px solid var(--sota-accent);
+}
+
+.approval-btn-primary:hover:not(:disabled) {
+	background-color: var(--vscode-button-hoverBackground, var(--sota-accent));
+}
+
+.approval-btn-secondary {
+	background-color: transparent;
+	color: var(--sota-fg-muted);
+	border: 1px solid var(--sota-card-border);
+}
+
+.approval-btn-secondary:hover:not(:disabled) {
+	color: var(--vscode-foreground);
+	background-color: color-mix(in srgb, var(--sota-fg-muted) 12%, transparent);
+}
+
+.approval-btn-preview {
+	background-color: transparent;
+	color: var(--vscode-textLink-foreground, var(--vscode-foreground));
+	border: 1px solid var(--sota-border);
+}
+
+.approval-btn-preview:hover:not(:disabled) {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	border-color: var(--vscode-focusBorder);
+}
+
+.approval-btn:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+
+.approval-outcome {
+	font-size: 12px;
+	color: var(--sota-fg-muted);
+	font-style: italic;
 }
 
 /*--------------------------------------------------------------------
  *  Agent plan and subtask cards
  *-------------------------------------------------------------------*/
 
+/* Plan card heading: bigger, with a small "Plan" tag chip above. */
+.sota-plan-card {
+	padding: 12px;
+}
+
+.sota-plan-card .tool-card-header {
+	margin-bottom: 8px;
+}
+
+.sota-plan-tag {
+	display: inline-block;
+	padding: 1px 8px;
+	margin-bottom: 6px;
+	font-size: 10px;
+	font-weight: 600;
+	letter-spacing: 0.6px;
+	text-transform: uppercase;
+	color: var(--sota-accent);
+	background-color: color-mix(in srgb, var(--sota-accent) 15%, transparent);
+	border-radius: var(--sota-radius-pill);
+}
+
+.sota-plan-card .tool-card-name {
+	font-family: var(--vscode-font-family);
+	font-size: 15px;
+	font-weight: 600;
+}
+
 .sota-plan-list {
 	margin: 6px 0 2px 0;
-	padding-left: 22px;
+	padding: 0;
+	list-style: none;
 	display: flex;
 	flex-direction: column;
-	gap: 4px;
+	gap: 8px;
+	counter-reset: sota-plan;
 }
 
 .sota-plan-list li {
-	font-size: 0.92em;
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	padding-left: 30px;
+	position: relative;
+	font-size: 13px;
+	counter-increment: sota-plan;
+}
+
+.sota-plan-list li::before {
+	content: counter(sota-plan);
+	position: absolute;
+	left: 0;
+	top: 0;
+	width: 22px;
+	height: 22px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 11px;
+	font-weight: 700;
+	color: var(--sota-accent);
+	background-color: color-mix(in srgb, var(--sota-accent) 15%, transparent);
+	border-radius: 50%;
 }
 
 .sota-plan-assignee {
 	font-family: var(--vscode-editor-font-family);
 	font-weight: 600;
-	color: var(--sota-fg-muted);
+	color: var(--vscode-foreground);
 }
 
 .sota-plan-instruction {
@@ -550,9 +2514,72 @@ button {
 
 .sota-plan-files {
 	font-family: var(--vscode-editor-font-family);
-	font-size: 0.85em;
+	font-size: 12px;
 	color: var(--sota-fg-muted);
 	margin-top: 2px;
+}
+
+/* Subtask cards: a left-edge stripe encodes status. The stripe is drawn
+ * with an inset box-shadow so the ::before / ::after pseudo-elements
+ * remain available for the Phase 81 dependency-tree connectors. */
+.sota-subtask-card {
+	margin: 12px 0;
+	padding: 10px 10px 10px 14px;
+	position: relative;
+	overflow: visible;
+	box-shadow: inset 3px 0 0 0 var(--sota-status-grey);
+}
+
+.sota-subtask-card[data-tool-status="running"] {
+	box-shadow: inset 3px 0 0 0 var(--sota-status-running);
+}
+
+.sota-subtask-card[data-tool-status="ok"] {
+	box-shadow: inset 3px 0 0 0 var(--sota-status-ok);
+}
+
+.sota-subtask-card[data-tool-status="error"] {
+	box-shadow: inset 3px 0 0 0 var(--sota-status-error);
+}
+
+/* Phase 81 — dependency-tree visualisation. Each subtask card is
+ * indented in 24px increments based on its depth in the dependency
+ * graph (capped at 4). Indented cards draw a vertical connector line
+ * back to the parent and a small horizontal stub branching off at the
+ * card's vertical centre. Depth-0 cards stay flush-left and render
+ * without any connectors so plans with no dependencies degrade
+ * gracefully to the existing flat list. */
+.sota-subtask-card[data-tree-depth] {
+	position: relative;
+}
+
+.sota-subtask-card.tree-depth-1 { margin-left: 24px; }
+.sota-subtask-card.tree-depth-2 { margin-left: 48px; }
+.sota-subtask-card.tree-depth-3 { margin-left: 72px; }
+.sota-subtask-card.tree-depth-4 { margin-left: 96px; }
+
+/* Vertical connector line on indented children. */
+.sota-subtask-card[data-tree-depth]:not(.tree-depth-0)::before {
+	content: '';
+	position: absolute;
+	left: -12px;
+	top: 0;
+	bottom: 0;
+	width: 1px;
+	background: var(--sota-border);
+	opacity: 0.5;
+}
+
+/* Horizontal stub connector on indented children. */
+.sota-subtask-card[data-tree-depth]:not(.tree-depth-0)::after {
+	content: '';
+	position: absolute;
+	left: -12px;
+	top: 16px;
+	width: 12px;
+	height: 1px;
+	background: var(--sota-border);
+	opacity: 0.5;
 }
 
 .sota-subtask-card .tool-card-args {
@@ -560,9 +2587,27 @@ button {
 	white-space: normal;
 }
 
+/* Numbered badge before the assignee handle. The badge is rendered
+ * inline by the JS and keyed off `data-subtask-index` so order is
+ * stable across status updates. */
+.sota-subtask-badge {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 20px;
+	height: 20px;
+	margin-right: 6px;
+	font-size: 11px;
+	font-weight: 700;
+	color: var(--sota-accent);
+	background-color: color-mix(in srgb, var(--sota-accent) 15%, transparent);
+	border-radius: 50%;
+	flex-shrink: 0;
+}
+
 .sota-subtask-body {
 	margin-top: 6px;
-	font-size: 0.9em;
+	font-size: 12px;
 	color: var(--sota-fg-muted);
 	white-space: pre-wrap;
 }
@@ -571,31 +2616,180 @@ button {
 	display: none;
 }
 
+/* Phase 81 — tree-shaped indentation under the orchestrator's message
+ * body. Each `.sota-subtask-card` is wrapped in a `.subtask-tree-row`
+ * that places the Unicode tree-connector glyph (`├─` for non-last,
+ * `└─` for last sibling) flush against the left padding. The
+ * connector text is set imperatively in `updateSubtaskTreeConnectors`
+ * so non-last children automatically flip when a new sibling is
+ * appended. */
+.subtask-tree-row {
+	display: flex;
+	align-items: flex-start;
+	gap: 6px;
+	padding-left: 28px;
+	margin-top: 4px;
+	margin-bottom: 4px;
+	position: relative;
+}
+
+.subtask-tree-connector {
+	color: var(--sota-fg-muted);
+	font-family: var(--vscode-editor-font-family);
+	font-size: 12px;
+	line-height: 1.6;
+	user-select: none;
+	flex-shrink: 0;
+	margin-top: 14px;
+}
+
+/* The card is the flex child that carries the persona accent stripe.
+ * `min-width: 0` lets the inner `.tool-card-args` ellipsis kick in even
+ * when the row has a tight container. The existing `.sota-subtask-card`
+ * already paints the status stripe via `box-shadow`; we layer the
+ * persona accent as a left border on the depth-0 cards so the
+ * orchestrator's hand-off is immediately visible. */
+.subtask-tree-row > .sota-subtask-card {
+	flex: 1;
+	min-width: 0;
+	margin-top: 0;
+	margin-bottom: 0;
+	border-left: 2px solid var(--persona-accent, transparent);
+}
+
+/* Persona glyph in the card header (e.g. monogram coloured by accent).
+ * Sits between the numbered badge and the display-name. */
+.sota-subtask-persona-glyph {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	font-family: var(--vscode-editor-font-family);
+	font-size: 12px;
+	font-weight: 700;
+	color: var(--persona-accent, var(--sota-accent));
+	flex-shrink: 0;
+}
+
+/* Semantic status chip — `[waiting]` / `[running]` / `[done]` /
+ * `[failed]`. Distinct from the existing `.tool-card-status` pill so
+ * we keep the running/ok/error pill as-is for backwards compatibility
+ * while exposing the spec-mandated chip text alongside it. */
+.subtask-status {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	margin-left: 8px;
+	font-size: 11px;
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+	color: var(--sota-fg-muted);
+	padding: 1px 6px;
+	border-radius: 8px;
+	border: 1px solid currentColor;
+	flex-shrink: 0;
+}
+
+.subtask-status[data-status="running"] {
+	color: var(--persona-accent, var(--vscode-textLink-foreground));
+	animation: subtask-status-pulse 1.4s ease-in-out infinite;
+}
+
+.subtask-status[data-status="done"] {
+	color: var(--vscode-testing-iconPassed, #6a9955);
+}
+
+.subtask-status[data-status="failed"] {
+	color: var(--vscode-testing-iconFailed, #f48771);
+}
+
+@keyframes subtask-status-pulse {
+	0%, 100% { opacity: 1; }
+	50% { opacity: 0.55; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.subtask-status[data-status="running"] {
+		animation: none;
+	}
+}
+
 /*--------------------------------------------------------------------
- *  Streaming indicator
+ *  Handoff banner (Phase 69)
+ *
+ *  Inline strip rendered above each `.subtask-tree-row` when the
+ *  orchestrator dispatches to a new specialist (or a specialist hands
+ *  off to another). Shows both personas with their accents plus a
+ *  one-line character beat per side. De-duplicated per (from, to) per
+ *  turn so repeated alternations don't spam the transcript. Lives in
+ *  the message body; not persisted across reloads.
  *-------------------------------------------------------------------*/
 
-.streaming-dots {
-	display: inline-flex;
-	gap: 3px;
-	margin-left: 6px;
-	vertical-align: middle;
+.handoff-banner {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	padding: 6px 12px;
+	margin: 8px 28px 4px 28px; /* match `.subtask-tree-row` indent */
+	border-radius: 6px;
+	font-size: 11px;
+	background: linear-gradient(
+		90deg,
+		color-mix(in srgb, var(--from-accent, var(--sota-accent)) 8%, transparent),
+		color-mix(in srgb, var(--to-accent, var(--sota-accent)) 8%, transparent)
+	);
+	border: 1px solid var(--vscode-input-border, transparent);
+	animation: handoff-fade-in 300ms ease-out;
 }
 
-.streaming-dots span {
-	width: 4px;
-	height: 4px;
-	border-radius: 50%;
-	background-color: var(--vscode-progressBar-background);
-	animation: sota-pulse 1.2s infinite;
+@supports not (background: color-mix(in srgb, red 8%, transparent)) {
+	.handoff-banner {
+		background: var(--vscode-list-hoverBackground, var(--sota-card-bg));
+	}
 }
 
-.streaming-dots span:nth-child(2) { animation-delay: 0.15s; }
-.streaming-dots span:nth-child(3) { animation-delay: 0.3s; }
+@keyframes handoff-fade-in {
+	from { opacity: 0; transform: translateY(4px); }
+	to { opacity: 1; transform: translateY(0); }
+}
 
-@keyframes sota-pulse {
-	0%, 60%, 100% { opacity: 0.3; transform: translateY(0); }
-	30%           { opacity: 1;   transform: translateY(-2px); }
+.handoff-from,
+.handoff-to {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	min-width: 0;
+}
+
+.handoff-glyph {
+	font-family: var(--vscode-editor-font-family);
+	font-weight: 700;
+	flex-shrink: 0;
+}
+
+.handoff-name {
+	font-weight: 600;
+	flex-shrink: 0;
+}
+
+.handoff-verb {
+	color: var(--sota-fg-muted, var(--vscode-descriptionForeground));
+	font-style: italic;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.handoff-arrow {
+	color: var(--sota-fg-muted, var(--vscode-descriptionForeground));
+	font-size: 14px;
+	flex-shrink: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.handoff-banner {
+		animation: none;
+		background: var(--vscode-list-hoverBackground, var(--sota-card-bg));
+	}
 }
 
 /*--------------------------------------------------------------------
@@ -604,7 +2798,7 @@ button {
 
 .composer {
 	flex-shrink: 0;
-	padding: var(--sota-pad-tight) var(--sota-pad);
+	padding: 10px var(--sota-pad) 12px;
 	border-top: 1px solid var(--sota-border);
 	background-color: var(--vscode-sideBar-background, var(--vscode-editor-background));
 }
@@ -624,11 +2818,11 @@ button {
 	display: inline-flex;
 	align-items: center;
 	gap: 4px;
-	padding: 2px 4px 2px 8px;
+	padding: 2px 4px 2px 10px;
 	background-color: var(--vscode-input-background);
 	border: 1px solid var(--vscode-input-border, var(--sota-border));
-	border-radius: 12px;
-	font-size: 0.78em;
+	border-radius: var(--sota-radius-pill);
+	font-size: 12px;
 	color: var(--vscode-foreground);
 }
 
@@ -644,7 +2838,7 @@ button {
 	border-radius: 50%;
 	cursor: pointer;
 	color: var(--sota-fg-muted);
-	font-size: 1em;
+	font-size: 14px;
 	line-height: 1;
 }
 
@@ -659,25 +2853,27 @@ button {
 	border: 1px solid var(--vscode-input-border, var(--sota-border));
 	border-radius: var(--sota-radius);
 	background-color: var(--vscode-input-background);
-	transition: border-color 0.1s;
+	transition: border-color 0.12s, box-shadow 0.12s;
 }
 
 .composer-shell:focus-within {
-	border-color: var(--vscode-focusBorder);
+	border-color: var(--sota-accent);
+	box-shadow: 0 0 0 1px var(--sota-accent);
 }
 
 .composer-input {
 	display: block;
 	width: 100%;
-	padding: var(--sota-pad-tight) var(--sota-pad);
+	padding: 12px 14px;
 	background: transparent;
 	color: var(--vscode-input-foreground);
 	border: none;
 	font-family: var(--vscode-font-family);
-	font-size: var(--vscode-font-size);
+	font-size: var(--sota-font-size-body);
+	line-height: 1.5;
 	resize: none;
-	min-height: 36px;
-	max-height: 200px;
+	min-height: 64px;
+	max-height: 240px;
 	outline: none;
 }
 
@@ -690,7 +2886,7 @@ button {
 	display: flex;
 	align-items: center;
 	gap: 4px;
-	padding: 4px;
+	padding: 6px 6px 6px 8px;
 	border-top: 1px solid var(--sota-border);
 }
 
@@ -698,23 +2894,26 @@ button {
 	flex: 1;
 }
 
+/* Pill-shaped toolbar chips. */
 .toolbar-chip {
 	display: inline-flex;
 	align-items: center;
 	gap: 4px;
-	padding: 2px 8px;
+	height: 24px;
+	padding: 0 10px;
 	background: transparent;
-	border: 1px solid transparent;
-	border-radius: 4px;
+	border: 1px solid var(--sota-border);
+	border-radius: var(--sota-radius-pill);
 	cursor: pointer;
-	font-size: 0.85em;
+	font-size: 12px;
 	color: var(--sota-fg-muted);
-	transition: background-color 0.1s, color 0.1s, border-color 0.1s;
+	transition: background-color 0.12s, color 0.12s, border-color 0.12s;
 }
 
 .toolbar-chip:hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
 	color: var(--vscode-foreground);
+	border-color: var(--vscode-focusBorder, var(--sota-border));
 }
 
 .toolbar-chip svg {
@@ -725,6 +2924,19 @@ button {
 .toolbar-chip-active {
 	background-color: var(--vscode-list-activeSelectionBackground);
 	color: var(--vscode-list-activeSelectionForeground);
+	border-color: transparent;
+}
+
+/* Phase 4 — reasoning chips share the toolbar-chip pill styling but
+   surface a small "Effort:" / "Think:" prefix in muted weight. */
+.toolbar-chip-prefix {
+	font-size: 11px;
+	opacity: 0.7;
+	margin-right: 2px;
+}
+.toolbar-chip-reasoning,
+.toolbar-chip-thinking {
+	border-style: dashed;
 }
 
 /* Keep the agent chip's label compact so it doesn't push the rest of the
@@ -748,41 +2960,151 @@ button {
 	white-space: nowrap;
 }
 
+/* Plan/Act two-button pill (Phase 58). Sits in the composer toolbar to
+ * the LEFT of the model selector. Same height and border radius as
+ * `.toolbar-chip` so the row reads as one unified strip. The wrapper
+ * paints the border; each button paints its own background when active.
+ * When the toggle's `data-mode` flips to `plan`, a faint accent border
+ * picks up `--persona-accent` so users see at a glance that they've
+ * pinned the orchestrator into design-only mode. */
+.plan-act-toggle {
+	display: inline-flex;
+	align-items: stretch;
+	flex-shrink: 0;
+	height: 24px;
+	border: 1px solid var(--sota-border);
+	border-radius: var(--sota-radius-pill);
+	overflow: hidden;
+	transition: border-color 150ms;
+}
+
+.plan-act-toggle[data-mode="plan"] {
+	border-color: color-mix(in srgb, var(--persona-accent, var(--sota-accent)) 60%, transparent);
+}
+
+.plan-act-btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+	min-width: 44px;
+	padding: 0 12px;
+	background: transparent;
+	border: none;
+	color: var(--sota-fg-muted);
+	cursor: pointer;
+	font-family: inherit;
+	font-size: 12px;
+	font-weight: 500;
+	line-height: 1;
+	white-space: nowrap;
+	transition: background-color 150ms, color 150ms;
+}
+
+/* At narrow widths the composer toolbar is dense; keep the pill compact
+ * but do NOT clip labels — sufficient padding + flex-shrink:0 prevents
+ * the "Act" label from rendering as a single letter. */
+@media (max-width: 360px) {
+	.plan-act-btn {
+		min-width: 36px;
+		padding: 0 8px;
+		font-size: 11px;
+	}
+}
+
+.plan-act-btn:hover:not(.active) {
+	background-color: var(--vscode-toolbar-hoverBackground, var(--vscode-list-hoverBackground));
+	color: var(--vscode-foreground);
+}
+
+.plan-act-btn.active {
+	background-color: var(--vscode-button-background, var(--sota-accent));
+	color: var(--vscode-button-foreground, var(--vscode-foreground));
+}
+
+.plan-act-toggle[data-mode="plan"] .plan-act-btn.active {
+	background-color: var(--persona-accent, var(--sota-accent));
+	color: var(--vscode-button-foreground, var(--vscode-foreground));
+}
+
+.plan-act-btn:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder, var(--sota-accent));
+	outline-offset: -1px;
+}
+
+/* Tiny advisory line shown beneath the composer when Plan mode is active.
+ * Uses the persona accent so it visually pairs with the chip border. */
+.composer-mode-note {
+	margin-top: 6px;
+	padding: 4px 10px;
+	font-size: 11px;
+	font-style: italic;
+	color: var(--persona-accent, var(--sota-accent));
+	border-left: 2px solid color-mix(in srgb, var(--persona-accent, var(--sota-accent)) 50%, transparent);
+	background-color: color-mix(in srgb, var(--persona-accent, var(--sota-accent)) 6%, transparent);
+	border-radius: 2px;
+}
+
+.composer-mode-note[hidden] {
+	display: none;
+}
+
+/* Send / Stop button. We toggle `.is-streaming` to switch the icon
+ * shape; both share the same square footprint. */
 .send-button {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
-	width: 26px;
-	height: 26px;
+	width: 32px;
+	height: 32px;
 	padding: 0;
-	background-color: var(--vscode-button-background);
+	background-color: var(--sota-accent);
 	color: var(--vscode-button-foreground);
 	border: none;
-	border-radius: var(--sota-radius-sm);
+	border-radius: var(--sota-radius);
 	cursor: pointer;
+	transition: background-color 0.12s, opacity 0.12s, transform 0.12s;
 }
 
 .send-button:hover:not(:disabled) {
-	background-color: var(--vscode-button-hoverBackground);
+	background-color: var(--vscode-button-hoverBackground, var(--sota-accent));
 }
 
-.send-button:disabled {
-	opacity: 0.4;
+.send-button:disabled,
+.send-button.is-empty {
+	background-color: color-mix(in srgb, var(--sota-fg-muted) 30%, transparent);
+	color: var(--sota-fg-muted);
 	cursor: not-allowed;
+}
+
+.send-button.is-empty:hover {
+	background-color: color-mix(in srgb, var(--sota-fg-muted) 30%, transparent);
 }
 
 .send-button svg {
 	width: 14px;
 	height: 14px;
+	transition: transform 0.18s, opacity 0.18s;
 }
 
+/* Streaming → stop. We tint the button red and bump its size slightly so
+ * the affordance to bail out of a long generation is unmistakable, while
+ * keeping the morph (icon swap) intact. */
 .send-button.is-streaming {
-	background-color: var(--vscode-button-secondaryBackground);
-	color: var(--vscode-button-secondaryForeground);
+	background-color: color-mix(in srgb, var(--sota-status-error) 80%, transparent);
+	color: #ffffff;
+	cursor: pointer;
+	box-shadow: 0 0 0 1px color-mix(in srgb, var(--sota-status-error) 60%, transparent);
 }
 
 .send-button.is-streaming:hover {
-	background-color: var(--vscode-button-secondaryHoverBackground);
+	background-color: var(--sota-status-error);
+}
+
+.send-button.is-streaming svg {
+	width: 16px;
+	height: 16px;
+	transform: rotate(0deg);
 }
 
 /*--------------------------------------------------------------------
@@ -799,7 +3121,7 @@ button {
 	color: var(--vscode-menu-foreground, var(--vscode-foreground));
 	border: 1px solid var(--vscode-menu-border, var(--sota-border));
 	border-radius: var(--sota-radius);
-	box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+	box-shadow: 0 6px 20px rgba(0, 0, 0, 0.32);
 	z-index: 100;
 }
 
@@ -810,13 +3132,13 @@ button {
 	align-items: center;
 	gap: 8px;
 	width: 100%;
-	padding: 4px 8px;
+	padding: 5px 8px;
 	background: transparent;
 	border: none;
 	border-radius: var(--sota-radius-sm);
 	cursor: pointer;
 	color: inherit;
-	font-size: 0.9em;
+	font-size: 13px;
 	text-align: left;
 }
 
@@ -827,7 +3149,7 @@ button {
 
 .popover-item .item-key {
 	margin-left: auto;
-	font-size: 0.8em;
+	font-size: 11px;
 	color: var(--sota-fg-muted);
 }
 
@@ -839,7 +3161,7 @@ button {
 
 .popover-section-label {
 	padding: 6px 8px 2px;
-	font-size: 0.7em;
+	font-size: 10px;
 	font-weight: 600;
 	text-transform: uppercase;
 	letter-spacing: 0.06em;
@@ -859,7 +3181,7 @@ button {
 	justify-content: space-between;
 	gap: var(--sota-gap);
 	padding: 4px var(--sota-pad);
-	font-size: 0.75em;
+	font-size: 11px;
 	color: var(--sota-fg-muted);
 	border-top: 1px solid var(--sota-border);
 	background-color: var(--vscode-sideBar-background, var(--vscode-editor-background));
@@ -884,7 +3206,7 @@ button {
 	padding: 4px 8px;
 	background-color: var(--vscode-editor-background);
 	border-bottom: 1px solid var(--vscode-panel-border);
-	font-size: 0.85em;
+	font-size: 12px;
 }
 
 .diff-block .diff-content {
@@ -914,15 +3236,2053 @@ button {
 	border: none;
 	border-radius: 3px;
 	cursor: pointer;
-	font-size: 0.85em;
+	font-size: 12px;
 }
 
 .diff-actions .accept-btn {
-	background-color: var(--vscode-button-background);
+	background-color: var(--sota-accent);
 	color: var(--vscode-button-foreground);
 }
 
 .diff-actions .reject-btn {
 	background-color: var(--vscode-button-secondaryBackground);
 	color: var(--vscode-button-secondaryForeground);
+}
+
+/*--------------------------------------------------------------------
+ *  Composer popups (slash commands, @-mentions)
+ *
+ *  Both popups float above the composer-shell using the relative-positioned
+ *  `.composer-stack` ancestor. They share styling and only differ in the
+ *  set of items they render.
+ *-------------------------------------------------------------------*/
+
+.composer-stack {
+	position: relative;
+}
+
+.popup {
+	position: absolute;
+	left: 0;
+	right: 0;
+	bottom: calc(100% + 4px);
+	max-height: 200px;
+	overflow-y: auto;
+	padding: 4px;
+	background-color: var(--sota-card-bg);
+	color: var(--vscode-foreground);
+	border: 1px solid var(--sota-border);
+	border-radius: var(--sota-radius);
+	box-shadow: 0 6px 20px rgba(0, 0, 0, 0.32);
+	z-index: 110;
+}
+
+.popup[hidden] {
+	display: none;
+}
+
+.popup-item {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	width: 100%;
+	padding: var(--sota-pad-tight) 10px;
+	background: transparent;
+	border: none;
+	border-radius: var(--sota-radius-sm);
+	cursor: pointer;
+	color: inherit;
+	font-size: 13px;
+	text-align: left;
+	font-family: inherit;
+}
+
+.popup-item:hover {
+	background-color: color-mix(in srgb, var(--sota-accent) 12%, transparent);
+}
+
+.popup-item.is-active {
+	background-color: color-mix(in srgb, var(--sota-accent) 22%, transparent);
+	color: var(--vscode-foreground);
+}
+
+.popup-item-icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 16px;
+	color: var(--sota-fg-muted);
+}
+
+.popup-item-name {
+	font-weight: 500;
+	white-space: nowrap;
+}
+
+.popup-item-desc {
+	color: var(--sota-fg-muted);
+	font-size: 11px;
+	margin-left: auto;
+	max-width: 60%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.popup-empty {
+	padding: var(--sota-pad-tight) 10px;
+	font-size: 12px;
+	color: var(--sota-fg-muted);
+	font-style: italic;
+}
+
+/*--------------------------------------------------------------------
+ *  Mention chips
+ *-------------------------------------------------------------------*/
+
+.context-chip-mention {
+	background-color: color-mix(in srgb, var(--sota-accent) 14%, transparent);
+	border-color: color-mix(in srgb, var(--sota-accent) 35%, transparent);
+}
+
+.context-chip-icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 12px;
+	color: var(--sota-accent);
+	font-size: 11px;
+}
+
+.context-chip-label {
+	max-width: 200px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/*--------------------------------------------------------------------
+ *  Floating stop pill
+ *
+ *  A second affordance to cancel an in-flight generation. Sits centered
+ *  above the composer so the user can hit it without aiming for the
+ *  small send-button cap.
+ *-------------------------------------------------------------------*/
+
+.floating-stop {
+	position: absolute;
+	left: 50%;
+	transform: translateX(-50%);
+	bottom: calc(100% + 4px);
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	padding: 4px 12px;
+	background-color: color-mix(in srgb, var(--sota-status-error) 85%, transparent);
+	color: #ffffff;
+	border: none;
+	border-radius: var(--sota-radius-pill);
+	cursor: pointer;
+	font-size: 12px;
+	font-weight: 500;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.32);
+	z-index: 120;
+}
+
+.floating-stop:hover {
+	background-color: var(--sota-status-error);
+}
+
+.floating-stop[hidden] {
+	display: none;
+}
+
+.floating-stop svg {
+	width: 12px;
+	height: 12px;
+}
+
+/* The composer container hosts the floating-stop pill via absolute
+ * positioning. Make it the positioning context. */
+.composer {
+	position: relative;
+}
+
+/*--------------------------------------------------------------------
+ *  Image attachment chips
+ *
+ *  Pill-shaped chips with a 16x16 thumbnail and a truncated label.
+ *  Shares the .context-chip base for layout but extends with a thumb
+ *  slot and a tighter padding-left to keep the image flush with the
+ *  pill edge.
+ *-------------------------------------------------------------------*/
+
+.attachment-chip {
+	padding-left: 2px;
+	border-radius: var(--sota-radius-pill);
+	background-color: var(--sota-card-bg);
+	max-width: 200px;
+}
+
+.attachment-thumb {
+	width: 16px;
+	height: 16px;
+	object-fit: cover;
+	border-radius: 3px;
+	margin-right: 4px;
+	flex-shrink: 0;
+}
+
+.attachment-label {
+	max-width: 140px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.attachment-remove {
+	margin-left: 2px;
+}
+
+/* Drop-target accent — applied to .composer-shell while a drag carrying
+ * Files is hovering over it. The accent border + faint glow gives the
+ * user a clear "drop here" affordance without rearranging layout. */
+.composer-shell.is-drop-target {
+	border-color: var(--sota-accent);
+	box-shadow: 0 0 0 1px var(--sota-accent), inset 0 0 0 9999px color-mix(in srgb, var(--sota-accent) 6%, transparent);
+}
+
+/*--------------------------------------------------------------------
+ *  Image bubble (message body)
+ *
+ *  When a user message carries images, they render BEFORE the prose
+ *  inside the bubble. Cap the rendered size so a single screenshot
+ *  doesn't dominate the scrollback.
+ *-------------------------------------------------------------------*/
+
+.msg-image {
+	display: block;
+	max-width: 320px;
+	max-height: 240px;
+	margin-bottom: var(--sota-pad-tight);
+	border-radius: var(--sota-radius);
+	border: 1px solid var(--sota-border);
+}
+
+.msg-text {
+	display: block;
+}
+
+/*--------------------------------------------------------------------
+ *  Composer toast
+ *
+ *  Transient single-line message above the composer for cap warnings
+ *  ("max 10 images per message", "5MB limit"). Auto-hides after a few
+ *  seconds via a JS timer; the CSS handles the visual transition only.
+ *-------------------------------------------------------------------*/
+
+.composer-toast {
+	display: none;
+	margin-bottom: var(--sota-pad-tight);
+	padding: 6px 10px;
+	background-color: var(--vscode-inputValidation-warningBackground, color-mix(in srgb, var(--sota-status-error) 18%, var(--sota-card-bg)));
+	border: 1px solid color-mix(in srgb, var(--sota-status-error) 50%, transparent);
+	border-radius: var(--sota-radius);
+	color: var(--vscode-foreground);
+	font-size: 12px;
+}
+
+.composer-toast.is-visible {
+	display: block;
+}
+
+/* ------------------------------------------------------------------
+ *  Checkpoint stripes (Phase 59 horizontal between-turn marker)
+ *
+ *  Replaces the per-message Cline-style pill. The stripe is a 1px
+ *  horizontal line spanning the message-list width with a clickable
+ *  pill-shaped label sitting on top. It renders as a sibling of the
+ *  user message wrapper, between the user turn and the assistant
+ *  turn that follows. Click opens a popover with the three
+ *  roll-back actions.
+ *
+ *  Visual weight is intentionally low when not hovered — turning
+ *  points should feel like turning points without screaming for
+ *  attention while the user is reading the transcript.
+ *------------------------------------------------------------------*/
+
+.checkpoint-stripe {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	margin: 12px 0;
+	position: relative;
+}
+
+.checkpoint-stripe-line {
+	flex: 1;
+	height: 1px;
+	background: linear-gradient(
+		90deg,
+		transparent 0%,
+		var(--sota-fg-muted) 30%,
+		var(--sota-fg-muted) 70%,
+		transparent 100%
+	);
+	opacity: 0.4;
+}
+
+.checkpoint-stripe-label {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	padding: 4px 10px;
+	background: var(--sota-card-bg);
+	border: 1px solid var(--sota-border);
+	border-radius: 999px;
+	font-family: var(--vscode-font-family);
+	font-size: 11px;
+	line-height: 1.4;
+	color: var(--sota-fg-muted);
+	cursor: pointer;
+	transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+
+.checkpoint-stripe-label:hover,
+.checkpoint-stripe-label:focus-visible,
+.checkpoint-stripe-label[aria-expanded="true"] {
+	background: color-mix(in srgb, var(--sota-fg-muted) 12%, var(--sota-card-bg));
+	color: var(--vscode-foreground);
+	border-color: var(--vscode-focusBorder, var(--sota-border));
+	outline: none;
+}
+
+.checkpoint-stripe-label svg {
+	width: 11px;
+	height: 11px;
+	flex-shrink: 0;
+	opacity: 0.7;
+}
+
+.checkpoint-stripe-time {
+	color: var(--sota-fg-muted);
+}
+
+.checkpoint-stripe-summary {
+	color: var(--sota-fg-muted);
+	opacity: 0.8;
+	max-width: 220px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* Stack consecutive stripes back-to-back (rare case where two
+ * checkpoints share a turn) without doubling up the vertical gap. */
+.checkpoint-stripe + .checkpoint-stripe {
+	margin-top: 0;
+}
+
+.checkpoint-stripe-popover {
+	min-width: 240px;
+	max-width: 320px;
+	z-index: 1000;
+}
+
+.checkpoint-popover-meta {
+	padding: 4px 8px 6px;
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	font-size: 11px;
+	color: var(--sota-fg-muted);
+}
+
+.checkpoint-popover-meta[hidden] {
+	display: none;
+}
+
+.checkpoint-popover-meta-row {
+	display: flex;
+	gap: 6px;
+	align-items: baseline;
+}
+
+.checkpoint-popover-meta-label {
+	flex-shrink: 0;
+	font-weight: 600;
+	color: var(--sota-fg-muted);
+	min-width: 80px;
+}
+
+.checkpoint-popover-meta-value {
+	color: var(--vscode-foreground);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	flex: 1;
+}
+
+/*--------------------------------------------------------------------
+ *  Chat sidebar tab bar (Phase 83.5)
+ *
+ *  The tab bar replaces the prior "swap-the-content" pattern. Five
+ *  panes (Chat / Tasks / History / Settings / Roster) sit side-by-side
+ *  in the DOM; only the active one has its `hidden` attribute removed.
+ *-------------------------------------------------------------------*/
+
+.chat-tabs {
+	display: flex;
+	flex-shrink: 0;
+	gap: 2px;
+	padding: 4px 6px;
+	background-color: var(--sota-card-bg);
+	border-bottom: 1px solid var(--sota-border);
+	overflow-x: auto;
+	scrollbar-width: none;
+}
+
+.chat-tabs::-webkit-scrollbar { display: none; }
+
+.chat-tab {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	flex-shrink: 0;
+	height: 24px;
+	padding: 0 10px;
+	background: transparent;
+	border: none;
+	border-radius: var(--sota-radius-pill);
+	cursor: pointer;
+	color: var(--sota-fg-muted);
+	font-family: var(--vscode-font-family);
+	font-size: 12px;
+	font-weight: 500;
+	position: relative;
+	transition: color 100ms ease, background-color 100ms ease;
+}
+
+.chat-tab:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	color: var(--vscode-foreground);
+}
+
+.chat-tab:focus-visible {
+	outline: 2px solid var(--vscode-focusBorder);
+	outline-offset: 2px;
+}
+
+.chat-tab svg {
+	width: 14px;
+	height: 14px;
+	stroke-width: 1.6;
+}
+
+.chat-tab-label {
+	white-space: nowrap;
+}
+
+/* Active state: bold label + 2px underline using the persona accent
+ * (set when a specialist is active) or the default sota accent. */
+.chat-tab-active {
+	color: var(--vscode-foreground);
+	font-weight: 600;
+}
+
+.chat-tab-active::after {
+	content: '';
+	position: absolute;
+	left: 8px;
+	right: 8px;
+	bottom: -5px;
+	height: 2px;
+	background-color: var(--persona-accent, var(--sota-accent));
+	border-radius: 1px;
+	transition: background-color 100ms ease;
+}
+
+/* Narrow sidebar (≤320px) — drop the labels, keep the icons. The
+ * `title` attribute on each button surfaces the name in a tooltip. */
+@media (max-width: 320px) {
+	.chat-tab-label {
+		display: none;
+	}
+	.chat-tab {
+		padding: 0 8px;
+	}
+}
+
+/*--------------------------------------------------------------------
+ *  Chat panes — one wrapper per tab, only the active one is visible.
+ *-------------------------------------------------------------------*/
+
+.chat-pane {
+	flex: 1;
+	min-height: 0;
+	display: flex;
+	flex-direction: column;
+	overflow: hidden;
+}
+
+.chat-pane[hidden] {
+	display: none;
+}
+
+/* The composer host wraps the composer + status bar so we can hide
+ * the entire input surface in one place when the user is on a tab
+ * other than Chat. */
+.composer-host[hidden] {
+	display: none;
+}
+
+/*--------------------------------------------------------------------
+ *  Tasks tab pane
+ *-------------------------------------------------------------------*/
+
+.tasks-pane-shell {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	padding: var(--sota-pad);
+	overflow-y: auto;
+	flex: 1;
+	min-height: 0;
+}
+
+.tasks-pane-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+}
+
+.tasks-pane-title {
+	font-size: 13px;
+	font-weight: 600;
+}
+
+.tasks-pane-open-board {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	height: 24px;
+	padding: 0 10px;
+	background: transparent;
+	border: 1px solid var(--sota-border);
+	border-radius: var(--sota-radius-pill);
+	cursor: pointer;
+	color: var(--sota-fg-muted);
+	font: inherit;
+	font-size: 12px;
+}
+
+.tasks-pane-open-board:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	color: var(--vscode-foreground);
+	border-color: var(--vscode-focusBorder, var(--sota-border));
+}
+
+.tasks-pane-open-board svg {
+	width: 12px;
+	height: 12px;
+}
+
+.tasks-pane-counts {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+}
+
+.tasks-pane-counts[hidden] {
+	display: none;
+}
+
+.tasks-pane-count {
+	display: inline-flex;
+	align-items: center;
+	padding: 2px 8px;
+	font-size: 11px;
+	border-radius: var(--sota-radius-pill);
+	background-color: color-mix(in srgb, var(--sota-fg-muted) 14%, transparent);
+	color: var(--sota-fg-muted);
+}
+
+.tasks-pane-count-ready { color: var(--vscode-charts-blue, #3b82f6); }
+.tasks-pane-count-in-progress { color: var(--vscode-charts-yellow, #f59e0b); }
+.tasks-pane-count-review { color: var(--vscode-charts-purple, #a855f7); }
+.tasks-pane-count-done { color: var(--vscode-charts-green, #16a34a); }
+.tasks-pane-count-failed { color: var(--vscode-errorForeground, #dc2626); }
+
+.tasks-pane-list {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+.tasks-pane-list[hidden] {
+	display: none;
+}
+
+.tasks-pane-card {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	padding: 8px 10px;
+	background-color: var(--sota-card-bg);
+	border: 1px solid var(--vscode-input-border, transparent);
+	border-radius: var(--sota-radius-sm);
+}
+
+.tasks-pane-card-head {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.tasks-pane-state {
+	display: inline-flex;
+	align-items: center;
+	height: 18px;
+	padding: 0 8px;
+	font-size: 10px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	border-radius: var(--sota-radius-pill);
+	background-color: color-mix(in srgb, var(--sota-fg-muted) 12%, transparent);
+	color: var(--sota-fg-muted);
+}
+
+.tasks-pane-state-ready { color: var(--vscode-charts-blue, #3b82f6); background-color: color-mix(in srgb, var(--vscode-charts-blue, #3b82f6) 14%, transparent); }
+.tasks-pane-state-in-progress { color: var(--vscode-charts-yellow, #f59e0b); background-color: color-mix(in srgb, var(--vscode-charts-yellow, #f59e0b) 14%, transparent); }
+.tasks-pane-state-review { color: var(--vscode-charts-purple, #a855f7); background-color: color-mix(in srgb, var(--vscode-charts-purple, #a855f7) 14%, transparent); }
+.tasks-pane-state-done { color: var(--vscode-charts-green, #16a34a); background-color: color-mix(in srgb, var(--vscode-charts-green, #16a34a) 14%, transparent); }
+.tasks-pane-state-failed { color: var(--vscode-errorForeground, #dc2626); background-color: color-mix(in srgb, var(--vscode-errorForeground, #dc2626) 14%, transparent); }
+
+.tasks-pane-card-instruction {
+	font-size: 12px;
+	line-height: 1.4;
+	color: var(--vscode-foreground);
+}
+
+.tasks-pane-card-deps {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+}
+
+.tasks-pane-dep {
+	display: inline-flex;
+	align-items: center;
+	padding: 1px 6px;
+	background-color: color-mix(in srgb, var(--sota-fg-muted) 12%, transparent);
+	border-radius: var(--sota-radius-pill);
+	font-size: 10px;
+	font-family: var(--vscode-editor-font-family, monospace);
+	color: var(--sota-fg-muted);
+}
+
+.tasks-pane-empty {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	padding: 16px 0;
+	color: var(--sota-fg-muted);
+	font-size: 12px;
+	line-height: 1.5;
+}
+
+.tasks-pane-empty[hidden] { display: none; }
+
+.tasks-pane-empty p { margin: 0; }
+
+.tasks-pane-empty code {
+	font-family: var(--vscode-editor-font-family, monospace);
+	font-size: 11px;
+	padding: 1px 4px;
+	border-radius: 3px;
+	background: color-mix(in srgb, var(--sota-fg-muted) 18%, transparent);
+}
+
+.tasks-pane-empty-cta {
+	align-self: flex-start;
+	height: 24px;
+	padding: 0 12px;
+	background-color: var(--sota-accent);
+	color: var(--vscode-button-foreground);
+	border: none;
+	border-radius: var(--sota-radius-sm);
+	cursor: pointer;
+	font: inherit;
+	font-size: 12px;
+}
+
+.tasks-pane-empty-cta:hover {
+	background-color: var(--vscode-button-hoverBackground, var(--sota-accent));
+}
+
+/*--------------------------------------------------------------------
+ *  History tab pane
+ *-------------------------------------------------------------------*/
+
+.history-pane-shell {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	padding: var(--sota-pad);
+	overflow-y: auto;
+	flex: 1;
+	min-height: 0;
+}
+
+.history-pane-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+}
+
+.history-pane-title {
+	font-size: 13px;
+	font-weight: 600;
+}
+
+.history-pane-new {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	height: 24px;
+	padding: 0 10px;
+	background: transparent;
+	border: 1px solid var(--sota-border);
+	border-radius: var(--sota-radius-pill);
+	cursor: pointer;
+	color: var(--sota-fg-muted);
+	font: inherit;
+	font-size: 12px;
+}
+
+.history-pane-new:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	color: var(--vscode-foreground);
+	border-color: var(--vscode-focusBorder, var(--sota-border));
+}
+
+.history-pane-new svg {
+	width: 12px;
+	height: 12px;
+}
+
+.history-pane-list {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+.history-pane-list[hidden] {
+	display: none;
+}
+
+.history-pane-row {
+	display: flex;
+	align-items: stretch;
+	gap: 4px;
+	border-radius: var(--sota-radius-sm);
+	transition: background-color 100ms ease;
+}
+
+.history-pane-row:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.history-pane-row-active {
+	background-color: color-mix(in srgb, var(--sota-accent) 14%, transparent);
+}
+
+.history-pane-row-active:hover {
+	background-color: color-mix(in srgb, var(--sota-accent) 20%, transparent);
+}
+
+.history-pane-row-open {
+	flex: 1;
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	padding: 6px 8px;
+	background: transparent;
+	border: none;
+	cursor: pointer;
+	color: inherit;
+	text-align: left;
+	font: inherit;
+}
+
+.history-pane-row-title {
+	font-size: 12px;
+	font-weight: 500;
+	color: var(--vscode-foreground);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.history-pane-row-meta {
+	font-size: 11px;
+	color: var(--sota-fg-muted);
+}
+
+.history-pane-row-actions {
+	display: none;
+	align-items: center;
+	gap: 4px;
+	padding: 4px 6px;
+}
+
+.history-pane-row:hover .history-pane-row-actions,
+.history-pane-row:focus-within .history-pane-row-actions {
+	display: inline-flex;
+}
+
+.history-pane-row-action {
+	height: 22px;
+	padding: 0 8px;
+	background: transparent;
+	border: 1px solid var(--sota-border);
+	border-radius: var(--sota-radius-pill);
+	cursor: pointer;
+	color: var(--sota-fg-muted);
+	font: inherit;
+	font-size: 11px;
+}
+
+.history-pane-row-action:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	color: var(--vscode-foreground);
+}
+
+.history-pane-row-action-danger:hover {
+	color: var(--vscode-errorForeground, #dc2626);
+	border-color: color-mix(in srgb, var(--vscode-errorForeground, #dc2626) 60%, transparent);
+}
+
+.history-pane-empty {
+	color: var(--sota-fg-muted);
+	font-size: 12px;
+	padding: 12px 0;
+}
+
+.history-pane-empty[hidden] { display: none; }
+
+.history-pane-empty p { margin: 0; }
+
+/*--------------------------------------------------------------------
+ *  Roster tab pane — 2-column grid of specialist cards
+ *-------------------------------------------------------------------*/
+
+.roster-pane-shell {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+	padding: var(--sota-pad);
+	overflow-y: auto;
+	flex: 1;
+	min-height: 0;
+}
+
+.roster-pane-header {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+.roster-pane-title {
+	font-size: 13px;
+	font-weight: 600;
+}
+
+.roster-pane-subtitle {
+	font-size: 11px;
+	color: var(--sota-fg-muted);
+}
+
+.roster-pane-grid {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 8px;
+}
+
+@media (max-width: 320px) {
+	.roster-pane-grid {
+		grid-template-columns: 1fr;
+	}
+}
+
+.roster-card {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	padding: 10px;
+	background-color: var(--sota-card-bg);
+	border: 1px solid var(--vscode-input-border, transparent);
+	border-radius: var(--sota-radius);
+	border-left: 2px solid var(--persona-accent, var(--sota-accent));
+}
+
+.roster-card-head {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.roster-card-info {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+}
+
+.roster-card-name {
+	font-size: 12px;
+	font-weight: 600;
+	color: var(--vscode-foreground);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.roster-card-handle {
+	font-size: 10px;
+	color: var(--sota-fg-muted);
+	font-family: var(--vscode-editor-font-family, monospace);
+}
+
+.roster-card-tagline {
+	font-size: 11px;
+	font-style: italic;
+	color: color-mix(in srgb, var(--persona-accent, var(--sota-accent)) 75%, var(--sota-fg-muted));
+	line-height: 1.4;
+}
+
+.roster-card-description {
+	font-size: 12px;
+	color: var(--vscode-foreground);
+	line-height: 1.45;
+	opacity: 0.85;
+	display: -webkit-box;
+	-webkit-line-clamp: 3;
+	-webkit-box-orient: vertical;
+	overflow: hidden;
+}
+
+/* CTA — uniform secondary-button style across all cards. The persona
+ * accent only shows up on hover, so the grid reads as a clean field of
+ * cards rather than a carnival of mismatched borders. */
+.roster-card-cta {
+	align-self: stretch;
+	height: 28px;
+	padding: 0 12px;
+	background: var(--vscode-button-secondaryBackground, transparent);
+	border: 1px solid var(--sota-border);
+	border-radius: var(--sota-radius);
+	cursor: pointer;
+	color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
+	font: inherit;
+	font-size: 12px;
+	font-weight: 500;
+	transition: background-color 150ms, border-color 150ms, color 150ms;
+}
+
+.roster-card-cta:hover {
+	background-color: color-mix(in srgb, var(--persona-accent, var(--sota-accent)) 18%, var(--vscode-button-secondaryBackground, transparent));
+	border-color: var(--persona-accent, var(--sota-accent));
+	color: var(--vscode-foreground);
+}
+
+/*--------------------------------------------------------------------
+ *  Persona avatar — used by Tasks list and Roster cards
+ *-------------------------------------------------------------------*/
+
+.persona-avatar {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+	border-radius: 50%;
+	color: #ffffff;
+	font-weight: 600;
+	font-family: var(--vscode-font-family);
+	background-color: var(--persona-accent, var(--sota-accent));
+}
+
+.persona-avatar-sm {
+	width: 18px;
+	height: 18px;
+	font-size: 10px;
+}
+
+.persona-avatar-md {
+	width: 24px;
+	height: 24px;
+	font-size: 12px;
+}
+
+.persona-avatar-lg {
+	width: 32px;
+	height: 32px;
+	font-size: 14px;
+}
+
+.persona-avatar-monogram {
+	line-height: 1;
+}
+
+/*--------------------------------------------------------------------
+ *  Settings pane — adjust spacing now that the back button is gone
+ *  (tab navigation handles dismissal).
+ *-------------------------------------------------------------------*/
+
+#pane-settings .chat-settings-view {
+	padding: var(--sota-pad);
+	overflow-y: auto;
+	flex: 1;
+	min-height: 0;
+}
+
+/*--------------------------------------------------------------------
+ *  Phase 80 — Persona-driven UX accents
+ *
+ *  When a non-default specialist is active the root `.chat` container
+ *  receives `--persona-accent` (set inline by `applyPersonaAccentToRoot`
+ *  in ChatPanel.ts) and a `data-active-specialist` attribute. The rules
+ *  below tint a small set of ambient surfaces so the active specialist's
+ *  presence is felt in the user's peripheral vision without overwhelming
+ *  the palette. Tints stay subtle by mixing the persona accent with the
+ *  default neutral colour — never a flat full-strength paint.
+ *-------------------------------------------------------------------*/
+
+.chat[data-active-specialist] .composer-shell {
+	border-color: color-mix(in srgb, var(--persona-accent, var(--sota-border)) 40%, var(--sota-border));
+	box-shadow: 0 0 0 1px color-mix(in srgb, var(--persona-accent, transparent) 25%, transparent);
+}
+
+.chat[data-active-specialist] .composer-shell:focus-within {
+	border-color: var(--persona-accent, var(--vscode-focusBorder));
+	box-shadow: 0 0 0 2px color-mix(in srgb, var(--persona-accent, var(--vscode-focusBorder)) 30%, transparent);
+}
+
+.chat[data-active-specialist] .send-button:not(.is-empty):not(.is-streaming):not(:disabled) {
+	background-color: var(--persona-accent, var(--sota-accent));
+}
+
+.chat[data-active-specialist] .toolbar-chip-mode-plan {
+	border-color: var(--persona-accent, var(--sota-accent));
+}
+
+/* Subtle 2px underline below the panel title in the persona's accent.
+ * 32px wide so it reads as a marker, not a full underline. */
+.chat[data-active-specialist] .hdr-title::after {
+	content: '';
+	display: block;
+	height: 2px;
+	margin-top: 2px;
+	width: 32px;
+	background: var(--persona-accent, transparent);
+	border-radius: 1px;
+	opacity: 0.6;
+}
+
+/* The active sidebar tab's underline picks up the persona accent too. */
+.chat[data-active-specialist] .chat-tabs .chat-tab-active::after {
+	background-color: var(--persona-accent, var(--sota-accent));
+}
+
+.chat[data-active-specialist] .empty-state-providers .provider-list-title {
+	color: var(--persona-accent, var(--vscode-foreground));
+}
+
+/* Faint vertical accent line on the left edge of the message list to
+ * suggest "in the room with this specialist". 0.4 opacity so it sits in
+ * the periphery rather than competing with the per-message stripe. */
+.chat[data-active-specialist] .message-list {
+	position: relative;
+}
+
+.chat[data-active-specialist] .message-list::before {
+	content: '';
+	position: absolute;
+	left: 0;
+	top: 0;
+	bottom: 0;
+	width: 2px;
+	background: var(--persona-accent, transparent);
+	opacity: 0.4;
+	pointer-events: none;
+}
+
+/* High-contrast accessibility override — force the persona accent back
+ * to the standard focus colour so the tints can't clash with the
+ * mandated high-contrast palette. Matches both the workbench host
+ * selectors (when the webview runs inline) and the standard webview
+ * body classes (`vscode-high-contrast` / `vscode-high-contrast-light`). */
+.monaco-workbench.hc-black .chat[data-active-specialist],
+.monaco-workbench.hc-light .chat[data-active-specialist],
+body.vscode-high-contrast .chat[data-active-specialist],
+body.vscode-high-contrast-light .chat[data-active-specialist] {
+	--persona-accent: var(--vscode-focusBorder);
+}
+
+/* 1px persona-accent stripe down the LEFT side of the composer when a
+ * specialist is pinned. Rendered as a ::before pseudo so it doesn't
+ * shift the composer's contents like a `border-left` would. The
+ * `position: relative` on `.composer` already establishes the
+ * positioning context. The stripe fades to nothing when no specialist
+ * is pinned (default `@anton` orchestrator) — see Phase 80. */
+.composer[data-specialist-pinned="true"]::before {
+	content: '';
+	position: absolute;
+	left: 0;
+	top: 0;
+	bottom: 0;
+	width: 1px;
+	background: var(--persona-accent, transparent);
+	pointer-events: none;
+}
+
+/* Subtle red pulse on the chat panel header while @anton-security is
+ * actively running a tool/subtask. Webview-side header pulse stand-in
+ * for the (impossible without a contribution-point change) activity-bar
+ * icon pulse — see Phase 80 implementation notes. The animation stops
+ * automatically when the class is removed on subtask completion or
+ * failure. The colour matches the persona's accent (#dc2626) so the
+ * cue reads as "Anton Security is working" without needing a label. */
+@keyframes sota-security-pulse {
+	0%   { box-shadow: inset 0 0 0 0 rgba(220, 38, 38, 0.55); }
+	70%  { box-shadow: inset 0 0 0 6px rgba(220, 38, 38, 0); }
+	100% { box-shadow: inset 0 0 0 0 rgba(220, 38, 38, 0); }
+}
+
+.chat-header.security-pulsing {
+	animation: sota-security-pulse 2s ease-in-out infinite;
+}
+
+/* Respect the user's reduced-motion preference — fall back to a flat
+ * red glow instead of pulsing. The cue is still present, just static. */
+@media (prefers-reduced-motion: reduce) {
+	.chat-header.security-pulsing {
+		animation: none;
+		box-shadow: inset 0 0 0 2px rgba(220, 38, 38, 0.45);
+	}
+}
+
+/*--------------------------------------------------------------------
+ *  Mention chip tints by kind
+ *
+ *  Phase 62 introduced @problems / @url / @terminal mention chips. Each
+ *  kind gets a distinct background/border tint so the user can scan the
+ *  composer and tell at a glance which non-file context is queued for
+ *  the next send. File/folder/workspace chips keep the default accent
+ *  styling defined further up in the file.
+ *-------------------------------------------------------------------*/
+
+.context-chip-mention[data-mention-kind="problems"] {
+	background: color-mix(in srgb, var(--vscode-editorWarning-foreground) 14%, var(--sota-card-bg));
+	border-color: color-mix(in srgb, var(--vscode-editorWarning-foreground) 30%, var(--sota-border));
+}
+
+.context-chip-mention[data-mention-kind="url"] {
+	background: color-mix(in srgb, var(--vscode-charts-blue) 14%, var(--sota-card-bg));
+	border-color: color-mix(in srgb, var(--vscode-charts-blue) 30%, var(--sota-border));
+}
+
+.context-chip-mention[data-mention-kind="terminal"] {
+	background: color-mix(in srgb, var(--vscode-terminal-ansiGreen) 14%, var(--sota-card-bg));
+	border-color: color-mix(in srgb, var(--vscode-terminal-ansiGreen) 30%, var(--sota-border));
+}
+
+/* ---- Active-task header (Phase 66) ----------------------------------- */
+/* Pinned summary that sticks above the message list while a turn is
+   streaming. Carries the persona avatar, the truncated user prompt, an
+   elapsed-time ticker, and a Stop button. The pulse animation flags
+   "working" without grabbing focus; reduced-motion strips it. */
+.active-task-header {
+	position: sticky;
+	top: 0;
+	z-index: 5;
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	padding: 10px 14px;
+	margin: 0 0 12px;
+	background: color-mix(in srgb, var(--persona-accent, var(--sota-fg-muted)) 8%, var(--vscode-sideBar-background, var(--vscode-editor-background)));
+	border: 1px solid color-mix(in srgb, var(--persona-accent, var(--sota-border)) 40%, var(--sota-border));
+	border-radius: 8px;
+	backdrop-filter: blur(6px);
+	-webkit-backdrop-filter: blur(6px);
+	animation: active-task-pulse 2s ease-in-out infinite;
+}
+
+@keyframes active-task-pulse {
+	0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--persona-accent, var(--sota-fg-muted)) 30%, transparent); }
+	50% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--persona-accent, var(--sota-fg-muted)) 0%, transparent); }
+}
+
+.active-task-avatar {
+	flex-shrink: 0;
+	width: 24px;
+	height: 24px;
+	border-radius: 50%;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 11px;
+	font-weight: 700;
+	color: white;
+	user-select: none;
+}
+
+.active-task-meta {
+	flex: 1;
+	min-width: 0;
+}
+
+.active-task-name {
+	font-size: 12px;
+	font-weight: 600;
+	color: var(--persona-accent, var(--vscode-foreground));
+}
+
+.active-task-message {
+	font-size: 11px;
+	color: var(--sota-fg-muted);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.active-task-elapsed {
+	flex-shrink: 0;
+	font-size: 11px;
+	color: var(--sota-fg-muted);
+	font-variant-numeric: tabular-nums;
+}
+
+.active-task-stop {
+	flex-shrink: 0;
+	width: 24px;
+	height: 24px;
+	background: color-mix(in srgb, var(--vscode-errorForeground, #dc2626) 80%, transparent);
+	color: white;
+	border: none;
+	border-radius: 50%;
+	cursor: pointer;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	transition: transform 0.12s, background-color 0.12s;
+}
+
+.active-task-stop:hover {
+	transform: scale(1.05);
+	background: var(--vscode-errorForeground, #dc2626);
+}
+
+.active-task-stop svg {
+	width: 10px;
+	height: 10px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.active-task-header {
+		animation: none;
+	}
+}
+
+/* ----------------------------------------------------------------------- */
+/* Phase 66 — sticky transcript task header.                              */
+/* A thin status row pinned to the top of the message-list scroll area.    */
+/* Left side: first line of the most recent user prompt (truncated).       */
+/* Right side: cumulative session token / cost meter. Hidden by `hidden`   */
+/* until the first user message lands. Distinct from `.active-task-header` */
+/* which is the transient streaming banner outside the message-list.       */
+/* ----------------------------------------------------------------------- */
+.transcript-task-header {
+	position: sticky;
+	top: 0;
+	z-index: 5;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	padding: 6px 12px;
+	margin: calc(-1 * var(--sota-pad)) calc(-1 * var(--sota-pad)) 8px;
+	background: var(--vscode-editor-background);
+	border-bottom: 1px solid var(--vscode-editorWidget-border, var(--sota-border, transparent));
+	font-size: 11px;
+	min-height: 24px;
+}
+
+.transcript-task-header[hidden] {
+	display: none;
+}
+
+.transcript-task-text {
+	color: var(--vscode-foreground);
+	font-weight: 500;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	flex: 1;
+	cursor: pointer;
+	min-width: 0;
+}
+
+.transcript-task-text:hover {
+	text-decoration: underline;
+}
+
+.transcript-task-text:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder, var(--sota-accent));
+	outline-offset: 2px;
+	border-radius: 2px;
+}
+
+.transcript-task-meter {
+	color: var(--vscode-descriptionForeground, var(--sota-fg-muted));
+	font-family: var(--vscode-editor-font-family, monospace);
+	font-variant-numeric: tabular-nums;
+	flex-shrink: 0;
+	white-space: nowrap;
+}
+
+/* ----------------------------------------------------------------------- */
+/* Phase 68 — per-message hover details popover.                          */
+/* Floating card anchored to the top-right of a chat bubble; flips below  */
+/* or shifts horizontally if it would overflow the viewport. Pointer      */
+/* events are disabled so the popover never steals hover from the message.*/
+/* ----------------------------------------------------------------------- */
+.sota-message-tooltip {
+	position: fixed;
+	z-index: 1000;
+	padding: 6px 10px;
+	background: var(--vscode-editorHoverWidget-background, var(--sota-card-bg));
+	color: var(--vscode-editorHoverWidget-foreground, var(--vscode-foreground));
+	border: 1px solid var(--vscode-editorHoverWidget-border, var(--sota-border));
+	border-radius: 4px;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+	font-size: 11px;
+	line-height: 1.6;
+	pointer-events: none;
+	max-width: 280px;
+	animation: sota-tooltip-fade 120ms ease-out;
+}
+
+@keyframes sota-tooltip-fade {
+	from { opacity: 0; transform: translateY(-2px); }
+	to { opacity: 1; transform: translateY(0); }
+}
+
+.sota-message-tooltip .tt-row {
+	display: block;
+	white-space: nowrap;
+}
+
+.sota-message-tooltip .tt-row b {
+	display: inline-block;
+	min-width: 60px;
+	color: var(--vscode-descriptionForeground, var(--sota-fg-muted));
+	font-weight: 500;
+}
+
+.sota-message-tooltip .tt-row span {
+	color: var(--vscode-foreground);
+	font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.sota-message-tooltip {
+		animation: none;
+	}
+}
+
+/* Phase 5 — model picker tooltip. Reuses the .sota-message-tooltip frame
+   with a slightly wider max-width so the ideal-use blurb can wrap. */
+.sota-model-tooltip {
+	max-width: 320px;
+}
+.sota-model-tooltip .tt-blurb {
+	white-space: normal;
+	margin-top: 4px;
+	color: var(--vscode-descriptionForeground);
+	font-style: italic;
+}
+.popover-item-info {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 14px;
+	height: 14px;
+	margin-left: 6px;
+	border: 1px solid var(--sota-border);
+	border-radius: 50%;
+	font-size: 9px;
+	font-weight: 700;
+	font-style: italic;
+	color: var(--sota-fg-muted);
+	cursor: help;
+	flex-shrink: 0;
+}
+.popover-item-info:hover,
+.popover-item-info:focus {
+	color: var(--vscode-foreground);
+	border-color: var(--sota-accent);
+	outline: none;
+}
+
+/* Phase 62 — Focus-chain progress checklist. Sits at the top of a plan
+ * card and ticks items off as subtask events arrive. Click an item to
+ * scroll the corresponding detailed subtask card into view. */
+.plan-checklist {
+	margin: 8px 0 12px;
+	padding: 10px 12px;
+	background: color-mix(in srgb, var(--sota-card-bg) 80%, var(--vscode-editor-background));
+	border-radius: 6px;
+	border: 1px solid var(--sota-border);
+}
+
+.plan-checklist-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: baseline;
+	margin-bottom: 6px;
+	gap: 8px;
+}
+
+.plan-checklist-title {
+	font-size: 10px;
+	font-weight: 600;
+	letter-spacing: 0.5px;
+	text-transform: uppercase;
+	color: var(--sota-fg-muted);
+}
+
+.plan-checklist-progress {
+	font-size: 10px;
+	color: var(--sota-fg-muted);
+	font-variant-numeric: tabular-nums;
+}
+
+.plan-checklist-list {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+
+.plan-checklist-item {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 4px 6px;
+	border-radius: 4px;
+	cursor: pointer;
+	transition: background 0.12s;
+	font-size: 12px;
+}
+
+.plan-checklist-item:hover {
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
+.plan-checklist-checkbox {
+	flex-shrink: 0;
+	width: 14px;
+	height: 14px;
+	border-radius: 3px;
+	border: 1.5px solid var(--sota-fg-muted);
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 10px;
+	line-height: 1;
+	background: transparent;
+	transition: all 0.12s;
+}
+
+.plan-checklist-item[data-state="in-progress"] .plan-checklist-checkbox {
+	border-color: var(--sota-status-running);
+	background: color-mix(in srgb, var(--sota-status-running) 25%, transparent);
+	animation: checklist-pulse 1.4s ease-in-out infinite;
+}
+
+.plan-checklist-item[data-state="done"] .plan-checklist-checkbox {
+	background: var(--sota-status-ok);
+	border-color: var(--sota-status-ok);
+}
+
+.plan-checklist-item[data-state="done"] .plan-checklist-checkbox::before {
+	content: '\2713';
+	color: white;
+	font-weight: 700;
+}
+
+.plan-checklist-item[data-state="failed"] .plan-checklist-checkbox {
+	background: var(--sota-status-error);
+	border-color: var(--sota-status-error);
+}
+
+.plan-checklist-item[data-state="failed"] .plan-checklist-checkbox::before {
+	content: '\2717';
+	color: white;
+	font-weight: 700;
+}
+
+.plan-checklist-item[data-state="done"] .plan-checklist-text,
+.plan-checklist-item[data-state="failed"] .plan-checklist-text,
+.plan-checklist-item[data-state="done"] .plan-checklist-desc,
+.plan-checklist-item[data-state="failed"] .plan-checklist-desc {
+	color: var(--sota-fg-muted);
+}
+
+.plan-checklist-item[data-state="done"] .plan-checklist-handle,
+.plan-checklist-item[data-state="failed"] .plan-checklist-handle {
+	color: var(--sota-fg-muted);
+}
+
+.plan-checklist-text {
+	flex: 1;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.plan-checklist-glyph {
+	flex-shrink: 0;
+	width: 14px;
+	font-weight: 700;
+	text-align: center;
+	font-size: 11px;
+}
+
+.plan-checklist-handle {
+	flex-shrink: 0;
+	font-weight: 600;
+	color: var(--sota-fg);
+}
+
+.plan-checklist-desc {
+	flex: 1;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	color: var(--sota-fg-muted);
+}
+
+@keyframes checklist-pulse {
+	0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--sota-status-running) 30%, transparent); }
+	50% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--sota-status-running) 0%, transparent); }
+}
+
+/* Subtle highlight when scrolling to a subtask card via a checklist click. */
+.subtask-flash {
+	animation: subtask-flash-anim 1.2s ease-out;
+}
+
+@keyframes subtask-flash-anim {
+	0% { box-shadow: 0 0 0 0 var(--persona-accent, var(--sota-accent)); }
+	100% { box-shadow: 0 0 0 0 transparent; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.plan-checklist-item[data-state="in-progress"] .plan-checklist-checkbox { animation: none; }
+	.subtask-flash { animation: none; }
+}
+
+/* =====================================================================
+ * Generative UI blocks — vanilla-JS analogue to CopilotKit's
+ * `useCopilotAction({ render })`. Each block is rendered inline by the
+ * webview-side renderer registry (see chat-webview.js). Styling matches
+ * the existing tool/approval-card aesthetic so blocks read as
+ * "structured assistant content" rather than chrome.
+ * ===================================================================== */
+
+.ui-block {
+	margin: 8px 0;
+	padding: 10px 12px;
+	border: 1px solid var(--sota-card-border);
+	border-radius: var(--sota-radius);
+	background-color: var(--sota-card-bg);
+	font-size: 13px;
+	color: var(--sota-fg);
+	display: block;
+}
+
+.ui-block[data-responded="true"] {
+	opacity: 0.78;
+	position: relative;
+}
+
+.ui-block[data-responded="true"]::after {
+	content: 'Responded';
+	position: absolute;
+	top: 8px;
+	right: 10px;
+	font-size: 10px;
+	letter-spacing: 0.4px;
+	text-transform: uppercase;
+	font-weight: 600;
+	color: var(--sota-fg-muted);
+	background-color: color-mix(in srgb, var(--sota-fg-muted) 12%, transparent);
+	padding: 1px 8px;
+	border-radius: var(--sota-radius-pill);
+}
+
+.ui-block-card-title {
+	font-weight: 600;
+	font-size: 14px;
+	margin-bottom: 6px;
+	color: var(--sota-fg);
+}
+
+.ui-block-card-body {
+	color: var(--sota-fg);
+	margin-bottom: 8px;
+	line-height: 1.45;
+}
+
+.ui-block-card-body :last-child {
+	margin-bottom: 0;
+}
+
+.ui-block-card-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	margin-top: 8px;
+}
+
+.ui-block-btn {
+	border: 1px solid var(--sota-card-border);
+	border-radius: var(--sota-radius);
+	padding: 4px 12px;
+	font-size: 12px;
+	font-family: var(--vscode-font-family);
+	cursor: pointer;
+	background-color: var(--sota-card-bg);
+	color: var(--sota-fg);
+	transition: background-color 120ms ease, border-color 120ms ease;
+}
+
+.ui-block-btn:hover:not(:disabled) {
+	border-color: var(--vscode-focusBorder, var(--sota-card-border));
+	background-color: color-mix(in srgb, var(--sota-fg) 6%, transparent);
+}
+
+.ui-block-btn:disabled {
+	cursor: default;
+	opacity: 0.6;
+}
+
+.ui-block-btn-primary {
+	background-color: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+	border-color: var(--vscode-button-background);
+}
+
+.ui-block-btn-primary:hover:not(:disabled) {
+	background-color: var(--vscode-button-hoverBackground, var(--vscode-button-background));
+}
+
+/* --- Form ----------------------------------------------------------- */
+
+.ui-block-form-grid {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.ui-block-form-row {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.ui-block-form-label {
+	font-size: 12px;
+	font-weight: 500;
+	color: var(--sota-fg-muted);
+}
+
+.ui-block-form-required {
+	color: var(--sota-status-error, #c62828);
+	margin-left: 3px;
+}
+
+.ui-block-form-input {
+	font-family: var(--vscode-font-family);
+	font-size: 13px;
+	padding: 5px 8px;
+	border: 1px solid var(--sota-card-border);
+	border-radius: var(--sota-radius);
+	background-color: var(--vscode-input-background, var(--sota-card-bg));
+	color: var(--vscode-input-foreground, var(--sota-fg));
+}
+
+.ui-block-form-input:focus {
+	outline: none;
+	border-color: var(--vscode-focusBorder, var(--sota-card-border));
+}
+
+.ui-block-form-input[type="checkbox"] {
+	align-self: flex-start;
+	width: 16px;
+	height: 16px;
+	padding: 0;
+}
+
+textarea.ui-block-form-input {
+	resize: vertical;
+	min-height: 60px;
+}
+
+/* --- Table ---------------------------------------------------------- */
+
+.ui-block-table-grid {
+	width: 100%;
+	border-collapse: collapse;
+	font-size: 12px;
+}
+
+.ui-block-table-grid th,
+.ui-block-table-grid td {
+	border-bottom: 1px solid var(--sota-card-border);
+	padding: 5px 8px;
+	text-align: left;
+	vertical-align: top;
+}
+
+.ui-block-table-grid th {
+	font-weight: 600;
+	color: var(--sota-fg-muted);
+	background-color: color-mix(in srgb, var(--sota-fg) 4%, transparent);
+}
+
+.ui-block-table-grid tbody tr:last-child td {
+	border-bottom: none;
+}
+
+/* --- Chart ---------------------------------------------------------- */
+
+.ui-block-chart-svg {
+	width: 100%;
+	max-width: 360px;
+	height: auto;
+	display: block;
+	margin-top: 4px;
+}
+
+.ui-block-chart-axis {
+	stroke: var(--sota-card-border);
+	stroke-width: 1;
+}
+
+.ui-block-chart-axis-label {
+	fill: var(--sota-fg-muted);
+	font-size: 9px;
+	font-family: var(--vscode-font-family);
+}
+
+.ui-block-chart-bar {
+	fill: var(--vscode-button-background, #4f8edc);
+	transition: fill 120ms ease;
+}
+
+.ui-block-chart-bar:hover {
+	fill: var(--vscode-button-hoverBackground, #6aa3eb);
+}
+
+.ui-block-chart-label {
+	fill: var(--sota-fg-muted);
+	font-size: 9px;
+	font-family: var(--vscode-font-family);
+}
+
+/* --- Progress ------------------------------------------------------- */
+
+.ui-block-progress-list {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.ui-block-progress-step {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 4px 6px;
+	border-radius: var(--sota-radius);
+	font-size: 13px;
+}
+
+.ui-block-progress-marker {
+	width: 20px;
+	height: 20px;
+	flex-shrink: 0;
+	border-radius: 50%;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 11px;
+	font-weight: 600;
+	border: 1px solid var(--sota-card-border);
+	background-color: var(--sota-card-bg);
+	color: var(--sota-fg-muted);
+}
+
+.ui-block-progress-pending .ui-block-progress-marker {
+	color: var(--sota-fg-muted);
+}
+
+.ui-block-progress-pending .ui-block-progress-label {
+	color: var(--sota-fg-muted);
+}
+
+.ui-block-progress-active .ui-block-progress-marker {
+	background-color: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+	border-color: var(--vscode-button-background);
+}
+
+.ui-block-progress-active .ui-block-progress-label {
+	color: var(--sota-fg);
+	font-weight: 500;
+}
+
+.ui-block-progress-done .ui-block-progress-marker {
+	background-color: var(--sota-status-ok, #2e7d32);
+	color: var(--vscode-editor-background, #fff);
+	border-color: var(--sota-status-ok, #2e7d32);
+}
+
+.ui-block-progress-done .ui-block-progress-label {
+	color: var(--sota-fg);
+	text-decoration: line-through;
+	text-decoration-color: var(--sota-fg-muted);
+}
+
+/* Reduced-motion: skip the bar fill transitions and pulses. */
+@media (prefers-reduced-motion: reduce) {
+	.ui-block-btn { transition: none; }
+	.ui-block-chart-bar { transition: none; }
+}
+
+/*--------------------------------------------------------------------
+ *  Phase 86 — auto-approval / spend-cap UI
+ *
+ *  Trust banner, settings sub-headers, spend meter progress bars, and
+ *  the modal dialog that appears when a session/task spend cap blocks
+ *  the next turn. Reuses the existing `.popover` token palette so the
+ *  surface reads consistently with the rest of the chat surface.
+ *-------------------------------------------------------------------*/
+
+.settings-subhead {
+	margin: 16px 0 8px;
+	font-size: 11px;
+	font-weight: 600;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+	color: var(--sota-fg-muted);
+}
+
+.settings-trust-banner {
+	display: flex;
+	align-items: flex-start;
+	gap: 8px;
+	padding: 8px 10px;
+	margin: 0 0 10px;
+	border-radius: var(--sota-radius-sm);
+	background-color: color-mix(in srgb, var(--sota-status-error) 10%, transparent);
+	border: 1px solid color-mix(in srgb, var(--sota-status-error) 35%, transparent);
+	color: var(--vscode-foreground);
+	font-size: 12px;
+	line-height: 1.4;
+}
+
+.settings-trust-banner svg {
+	width: 14px;
+	height: 14px;
+	color: var(--sota-status-error);
+	flex-shrink: 0;
+	margin-top: 1px;
+}
+
+.settings-textarea {
+	width: 100%;
+	font-family: var(--vscode-editor-font-family, monospace);
+	font-size: 12px;
+	padding: 6px 8px;
+	resize: vertical;
+}
+
+.spend-meter {
+	margin-top: 12px;
+	padding: 10px;
+	border-radius: var(--sota-radius-sm);
+	background-color: var(--sota-card-bg);
+	border: 1px solid var(--sota-card-border);
+}
+
+.spend-meter[hidden] { display: none; }
+
+.spend-meter-row {
+	display: flex;
+	justify-content: space-between;
+	align-items: baseline;
+	font-size: 12px;
+	color: var(--sota-fg-muted);
+}
+
+.spend-meter-row + .spend-meter-bar {
+	margin-bottom: 8px;
+}
+
+.spend-meter-row:not(:first-child) {
+	margin-top: 6px;
+}
+
+.spend-meter-value {
+	font-variant-numeric: tabular-nums;
+	color: var(--vscode-foreground);
+}
+
+.spend-meter-bar {
+	margin: 4px 0 0;
+	height: 6px;
+	border-radius: 3px;
+	background-color: color-mix(in srgb, var(--sota-fg-muted) 25%, transparent);
+	overflow: hidden;
+}
+
+.spend-meter-fill {
+	height: 100%;
+	width: 0%;
+	background-color: var(--vscode-charts-blue, #3b82f6);
+	transition: width 220ms ease, background-color 220ms ease;
+}
+
+.spend-meter-fill.spend-meter-warning {
+	background-color: var(--vscode-charts-yellow, #d39e00);
+}
+
+.spend-meter-fill.spend-meter-danger {
+	background-color: var(--sota-status-error);
+}
+
+/* Modal scrim + card used by the spend-cap-blocked dialog. */
+.sota-modal-scrim {
+	position: fixed;
+	inset: 0;
+	background-color: rgba(0, 0, 0, 0.45);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	z-index: 9999;
+}
+
+.sota-modal-scrim[hidden] { display: none; }
+
+.sota-modal-card {
+	min-width: 320px;
+	max-width: 480px;
+	padding: 18px 20px;
+	border-radius: 8px;
+	background-color: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+	color: var(--vscode-foreground);
+	border: 1px solid var(--sota-card-border);
+	box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+	font-size: 13px;
+	line-height: 1.5;
+}
+
+.sota-modal-title {
+	margin: 0 0 8px;
+	font-size: 14px;
+	font-weight: 600;
+}
+
+.sota-modal-body {
+	margin: 0 0 16px;
+	color: var(--sota-fg-muted);
+}
+
+.sota-modal-actions {
+	display: flex;
+	justify-content: flex-end;
+	gap: 8px;
+}
+
+.sota-modal-btn {
+	padding: 6px 14px;
+	border-radius: var(--sota-radius-sm);
+	border: 1px solid var(--sota-card-border);
+	background-color: transparent;
+	color: var(--vscode-foreground);
+	cursor: pointer;
+	font-size: 12px;
+	font-weight: 500;
+}
+
+.sota-modal-btn-primary {
+	background-color: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+	border-color: var(--vscode-button-background);
+}
+
+.sota-modal-btn:hover {
+	background-color: color-mix(in srgb, var(--vscode-button-background) 18%, transparent);
+}
+
+.sota-modal-btn-primary:hover {
+	background-color: var(--vscode-button-hoverBackground, var(--vscode-button-background));
+}
+
+/*--------------------------------------------------------------------
+ *  Phase 87 — quote-reply floating button
+ *
+ *  Appears next to a non-empty selection inside an assistant message
+ *  bubble. Click pre-fills the composer with `> <selection>` and jumps
+ *  focus into the textarea after the quote.
+ *-------------------------------------------------------------------*/
+
+.quote-reply-button {
+	position: fixed;
+	z-index: 9000;
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	padding: 4px 10px;
+	border-radius: var(--sota-radius-pill);
+	background-color: var(--vscode-button-background, #0078d4);
+	color: var(--vscode-button-foreground, #ffffff);
+	font-size: 11px;
+	font-weight: 500;
+	border: none;
+	cursor: pointer;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.32);
+	user-select: none;
+}
+
+.quote-reply-button:hover {
+	background-color: var(--vscode-button-hoverBackground, var(--vscode-button-background));
+}
+
+.quote-reply-button[hidden] {
+	display: none;
+}
+
+.quote-reply-button svg {
+	width: 11px;
+	height: 11px;
 }

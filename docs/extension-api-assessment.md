@@ -11,7 +11,7 @@ Assessment of `extensions/son-of-anton/docs/extension-api-limitations.md` for Ph
 
 **Status:** Needed
 **Tier:** Tier 2
-**Rationale:** The inline chat diff experience (introduced by Copilot) is still not exposed as a public extension API. The `InlineChatController` and related diff widgets are internal. Our agents produce code changes that need accept/reject inline — the notification dialog workaround is unacceptable UX for a production editor.
+**Rationale:** The inline chat diff experience is still not exposed as a public extension API. The `InlineChatController` and related diff widgets are internal. Our agents produce code changes that need accept/reject inline — the notification dialog workaround is unacceptable UX for a production editor.
 **Decision:** Implement as Tier 2 — add hooks into the editor diff rendering system to support agent-proposed changes as first-class diffs. See `docs/modifications/tier2-inline-diff.md`.
 
 ---

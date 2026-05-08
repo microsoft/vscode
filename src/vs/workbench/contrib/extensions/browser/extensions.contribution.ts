@@ -367,17 +367,17 @@ CommandsRegistry.registerCommand({
 					'properties': {
 						'installOnlyNewlyAddedFromExtensionPackVSIX': {
 							'type': 'boolean',
-							'description': localize('workbench.extensions.installExtension.option.installOnlyNewlyAddedFromExtensionPackVSIX', "When enabled, VS Code installs only newly added extensions from the extension pack VSIX. This option is considered only while installing a VSIX."),
+							'description': localize('workbench.extensions.installExtension.option.installOnlyNewlyAddedFromExtensionPackVSIX', "When enabled, Son of Anton installs only newly added extensions from the extension pack VSIX. This option is considered only while installing a VSIX."),
 							default: false
 						},
 						'installPreReleaseVersion': {
 							'type': 'boolean',
-							'description': localize('workbench.extensions.installExtension.option.installPreReleaseVersion', "When enabled, VS Code installs the pre-release version of the extension if available."),
+							'description': localize('workbench.extensions.installExtension.option.installPreReleaseVersion', "When enabled, Son of Anton installs the pre-release version of the extension if available."),
 							default: false
 						},
 						'donotSync': {
 							'type': 'boolean',
-							'description': localize('workbench.extensions.installExtension.option.donotSync', "When enabled, VS Code do not sync this extension when Settings Sync is on."),
+							'description': localize('workbench.extensions.installExtension.option.donotSync', "When enabled, Son of Anton does not sync this extension when Settings Sync is on."),
 							default: false
 						},
 						'justification': {

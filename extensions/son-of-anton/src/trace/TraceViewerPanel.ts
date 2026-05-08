@@ -1,9 +1,9 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Son of Anton Contributors. All rights reserved.
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as vscode from 'vscode';
-import { AgentManager } from '../agents/AgentManager';
+import { AgentManager } from 'son-of-anton-core/agents/AgentManager';
 
 /**
  * Webview panel that displays OpenTelemetry-style traces of agent activity.
@@ -14,14 +14,23 @@ export class TraceViewerPanel {
 	private readonly panel: vscode.WebviewPanel;
 	private readonly agentManager: AgentManager;
 	private readonly disposables: vscode.Disposable[] = [];
+	/**
+	 * Task id the panel was opened against. When set, the timeline filters
+	 * to spans whose `taskId` matches; clearing it restores the full session
+	 * view. Settable so a Recent Tasks click on a different task while the
+	 * panel is already open re-filters in place.
+	 */
+	private focusTaskId: string | undefined;
 
 	private constructor(
 		panel: vscode.WebviewPanel,
 		context: vscode.ExtensionContext,
 		agentManager: AgentManager,
+		focusTaskId: string | undefined,
 	) {
 		this.panel = panel;
 		this.agentManager = agentManager;
+		this.focusTaskId = focusTaskId;
 
 		this.panel.webview.html = this.getHtmlContent(context);
 		this.setupMessageHandler();
@@ -37,9 +46,11 @@ export class TraceViewerPanel {
 		this.panel.onDidDispose(() => this.dispose(), null, this.disposables);
 	}
 
-	static createOrShow(context: vscode.ExtensionContext, agentManager: AgentManager): void {
+	static createOrShow(context: vscode.ExtensionContext, agentManager: AgentManager, focusTaskId?: string): void {
 		if (TraceViewerPanel.currentPanel) {
 			TraceViewerPanel.currentPanel.panel.reveal(vscode.ViewColumn.One);
+			TraceViewerPanel.currentPanel.focusTaskId = focusTaskId;
+			TraceViewerPanel.currentPanel.sendTraceData();
 			return;
 		}
 
@@ -53,12 +64,18 @@ export class TraceViewerPanel {
 			}
 		);
 
-		TraceViewerPanel.currentPanel = new TraceViewerPanel(panel, context, agentManager);
+		TraceViewerPanel.currentPanel = new TraceViewerPanel(panel, context, agentManager, focusTaskId);
 	}
 
 	private sendTraceData(): void {
-		const spans = this.agentManager.getAllSpans();
+		const allSpans = this.agentManager.getAllSpans();
 		const tasks = this.agentManager.getAllTasks();
+		const spans = this.focusTaskId
+			? allSpans.filter(s => s.taskId === this.focusTaskId)
+			: allSpans;
+		const focusTask = this.focusTaskId
+			? tasks.find(t => t.id === this.focusTaskId)
+			: undefined;
 		const usage = this.agentManager.getLlmClient().getTokenUsage();
 		const cost = this.agentManager.getLlmClient().estimateCost();
 
@@ -68,6 +85,9 @@ export class TraceViewerPanel {
 			tasks,
 			tokenUsage: usage,
 			estimatedCost: cost.toFixed(4),
+			focusTaskId: this.focusTaskId,
+			focusTaskLabel: focusTask ? `${focusTask.agentName}: ${focusTask.description}` : undefined,
+			totalSpans: allSpans.length,
 		});
 	}
 
@@ -88,6 +108,10 @@ export class TraceViewerPanel {
 						break;
 					}
 					case 'refresh':
+						this.sendTraceData();
+						break;
+					case 'clearTaskFilter':
+						this.focusTaskId = undefined;
 						this.sendTraceData();
 						break;
 				}
@@ -257,6 +281,28 @@ export class TraceViewerPanel {
 			padding: 40px;
 			color: var(--vscode-descriptionForeground);
 		}
+
+		.task-filter-banner {
+			display: flex;
+			align-items: center;
+			gap: 12px;
+			padding: 6px 10px;
+			margin-bottom: 12px;
+			background-color: var(--vscode-editorWidget-background);
+			border: 1px solid var(--vscode-editorWidget-border);
+			border-radius: 4px;
+			font-size: 0.9em;
+		}
+
+		.link-button {
+			background: transparent;
+			border: none;
+			color: var(--vscode-textLink-foreground);
+			cursor: pointer;
+			text-decoration: underline;
+			padding: 0;
+			font-size: inherit;
+		}
 	</style>
 </head>
 <body>
@@ -272,6 +318,10 @@ export class TraceViewerPanel {
 		<button id="refreshBtn">Refresh</button>
 		<button id="exportBtn">Export JSON</button>
 	</div>
+	<div id="taskFilterBanner" class="task-filter-banner" style="display:none">
+		<span>Filtered to task: <span id="taskFilterLabel"></span></span>
+		<button id="clearTaskFilterBtn" class="link-button">Show all spans</button>
+	</div>
 
 	<div class="stats" id="stats">
 		<div><span class="stat-label">Spans:</span> <span id="spanCount">0</span></div>
@@ -281,7 +331,7 @@ export class TraceViewerPanel {
 	</div>
 
 	<div class="timeline" id="timeline">
-		<div class="empty-state">No traces yet. Agent activity will appear here.</div>
+		<div class="empty-state" id="emptyState">No traces yet. Agent activity will appear here.</div>
 	</div>
 
 	<div class="detail-panel" id="detailPanel">
@@ -305,6 +355,10 @@ export class TraceViewerPanel {
 
 		document.getElementById('exportBtn').addEventListener('click', () => {
 			vscode.postMessage({ type: 'exportTraces' });
+		});
+
+		document.getElementById('clearTaskFilterBtn').addEventListener('click', () => {
+			vscode.postMessage({ type: 'clearTaskFilter' });
 		});
 
 		filterType.addEventListener('change', () => renderTimeline());
@@ -381,7 +435,18 @@ export class TraceViewerPanel {
 			const message = event.data;
 			if (message.type === 'traceData') {
 				allSpans = message.spans || [];
-				document.getElementById('spanCount').textContent = allSpans.length;
+				const banner = document.getElementById('taskFilterBanner');
+				const label = document.getElementById('taskFilterLabel');
+				if (message.focusTaskId) {
+					banner.style.display = 'flex';
+					label.textContent = message.focusTaskLabel || message.focusTaskId;
+				} else {
+					banner.style.display = 'none';
+				}
+				const total = typeof message.totalSpans === 'number' ? message.totalSpans : allSpans.length;
+				document.getElementById('spanCount').textContent = message.focusTaskId
+					? allSpans.length + ' / ' + total
+					: allSpans.length;
 				document.getElementById('inputTokens').textContent = message.tokenUsage?.input || 0;
 				document.getElementById('outputTokens').textContent = message.tokenUsage?.output || 0;
 				document.getElementById('estCost').textContent = message.estimatedCost || '0.00';

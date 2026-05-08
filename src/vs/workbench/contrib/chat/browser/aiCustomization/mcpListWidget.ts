@@ -745,7 +745,7 @@ export class McpListWidget extends Disposable {
 				icon: extensionIcon,
 				count: builtinServers.length,
 				isFirst,
-				description: localize('builtInGroupDescription', "MCP servers built into VS Code. These are available automatically."),
+				description: localize('builtInGroupDescription', "MCP servers built into Son of Anton. These are available automatically."),
 				collapsed,
 			});
 			if (!collapsed) {

@@ -31,7 +31,7 @@ export interface IResolvedHookEntry {
  * Supported hook file formats.
  */
 export enum HookSourceFormat {
-	/** GitHub Copilot hooks .json format */
+	/** Generic JSON hook format used by agent CLIs. */
 	Copilot = 'copilot',
 	/** Claude settings.json / settings.local.json format */
 	Claude = 'claude',
@@ -196,7 +196,7 @@ export function getHookSourceFormatLabel(format: HookSourceFormat): string {
 		case HookSourceFormat.Claude:
 			return 'Claude';
 		case HookSourceFormat.Copilot:
-			return 'GitHub Copilot';
+			return 'JSON';
 	}
 }
 

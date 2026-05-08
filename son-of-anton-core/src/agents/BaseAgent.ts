@@ -1,0 +1,561 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import type { ChatRequestLike, ChatContextLike, ChatStreamLike, CancellationLike } from '../chatStream';
+import type { ConfigStore, ProjectContextProvider } from '../host';
+import { getVoice } from '../chat/personas';
+import { LlmClient, ModelId } from '../llm/LlmClient';
+import { McpClient, McpToolResult } from '../mcp/McpClient';
+import { isPersonalityEnabled } from '../personality/personalityConfig';
+import { formatSignOff, pickSignOffQuote } from '../personality/specialistQuotes';
+import { AgentEvent } from './agentEvents';
+import { AgentManager } from './AgentManager';
+import { MetricsTracker } from './MetricsTracker';
+import { ProjectMemory } from './ProjectMemory';
+import { SpecialistMemory } from './SpecialistMemory';
+import {
+	AgentConfig,
+	AgentHandle,
+	FileChange,
+	SubtaskResult,
+	TokenUsage,
+} from './types';
+
+/**
+ * Probability that a natural turn-end emits a curated sign-off quote (Phase
+ * 78). Sign-offs are flavour, not signal -- firing on every turn would get
+ * tiresome quickly. 25% lands them often enough to feel like character,
+ * rarely enough to stay charming.
+ *
+ * Math.random() is intentional: cryptographic randomness is not required for
+ * a UX gimmick, and `crypto.getRandomValues` would force a host capability
+ * the CLI doesn't currently expose.
+ */
+const SIGN_OFF_PROBABILITY = 0.25;
+
+/**
+ * Context provided to specialist agents for each subtask.
+ */
+export interface AgentContext {
+	instruction: string;
+	scopeFiles: string[];
+	graphContext: string;
+	parentTaskId: string;
+	/**
+	 * Optional per-token callback. When provided, the specialist should
+	 * forward LLM tokens through this callback so the chat surface can
+	 * render live streaming inside the active subtask card.
+	 */
+	onToken?: (token: string) => void;
+}
+
+/**
+ * Base class for all specialist agents.
+ * Provides shared infrastructure: LLM calls, MCP tool access, tracing, and metrics.
+ */
+export abstract class BaseAgent {
+	protected readonly config: AgentConfig;
+	protected readonly llmClient: LlmClient;
+	protected readonly mcpClient: McpClient;
+	protected readonly agentManager: AgentManager;
+	protected readonly metricsTracker: MetricsTracker;
+	protected readonly projectMemory: ProjectMemory;
+	protected readonly specialistMemory?: SpecialistMemory;
+	protected readonly configStore?: ConfigStore;
+	protected readonly projectContext?: ProjectContextProvider;
+
+	constructor(
+		config: AgentConfig,
+		llmClient: LlmClient,
+		mcpClient: McpClient,
+		agentManager: AgentManager,
+		metricsTracker: MetricsTracker,
+		projectMemory: ProjectMemory,
+		specialistMemory?: SpecialistMemory,
+		configStore?: ConfigStore,
+		projectContext?: ProjectContextProvider,
+	) {
+		this.config = config;
+		this.llmClient = llmClient;
+		this.mcpClient = mcpClient;
+		this.agentManager = agentManager;
+		this.metricsTracker = metricsTracker;
+		this.projectMemory = projectMemory;
+		this.specialistMemory = specialistMemory;
+		this.configStore = configStore;
+		this.projectContext = projectContext;
+	}
+
+	get handle(): AgentHandle {
+		return this.config.handle;
+	}
+
+	get displayName(): string {
+		return this.config.displayName;
+	}
+
+	get defaultModel(): ModelId {
+		return this.config.defaultModel;
+	}
+
+	/**
+	 * Build the system prompt for this agent.
+	 *
+	 * Section order is chosen for prompt-cache friendliness and specificity:
+	 * 1. Voice (Phase 78 — character paragraph from `personas.ts`, sets HOW
+	 *    before the role description sets WHAT)
+	 * 2. Role description (most static — defined per agent class)
+	 * 3. Project context (Phase 67 — `AGENTS.md` / `CLAUDE.md` from the
+	 *    workspace, supplied by `host.projectContext`)
+	 * 4. Project memory (semi-static — `.son-of-anton/memory/` entries plus
+	 *    the legacy CLAUDE.md path inside `ProjectMemory`)
+	 * 5. Specialist memory (most dynamic — per-handle KV store)
+	 *
+	 * Specialist memory sits last so it's closest to the user message and
+	 * exerts the strongest influence on the model's response. Project context
+	 * sits between the role and the memory blocks so the agent reads the
+	 * project's invariants right after learning what it is, before any
+	 * accumulated session memory.
+	 */
+	protected buildSystemPrompt(roleDescription: string, workspaceContextSnapshot?: string): string {
+		const voice = getVoice(this.handle);
+		const projectCtx = this.projectContext?.get();
+		const memoryContext = this.projectMemory.getSystemContext();
+		const specialistMem = this.specialistMemory?.formatForSystemPrompt(this.handle);
+		const sections: string[] = [];
+
+		if (voice) {
+			sections.push(`## Voice\n${voice}`);
+		}
+
+		sections.push(roleDescription);
+
+		if (projectCtx && projectCtx.trim()) {
+			sections.push(`## Project Context (from AGENTS.md)\n\n${projectCtx}`);
+		}
+
+		if (workspaceContextSnapshot && workspaceContextSnapshot.trim()) {
+			sections.push(workspaceContextSnapshot);
+		}
+
+		if (memoryContext) {
+			sections.push(memoryContext);
+		}
+
+		if (specialistMem) {
+			sections.push(specialistMem);
+		}
+
+		return sections.join('\n\n---\n\n');
+	}
+
+	/**
+	 * Call an MCP tool and record a trace span.
+	 */
+	protected async callMcpTool(
+		taskId: string,
+		server: string,
+		tool: string,
+		inputs: Record<string, unknown>,
+	): Promise<McpToolResult> {
+		const span = this.agentManager.addSpan({
+			taskId,
+			name: `${server}/${tool}`,
+			type: 'mcp_tool',
+			startTime: Date.now(),
+			attributes: { server, tool, inputs: JSON.stringify(inputs) },
+		});
+
+		const result = await this.mcpClient.callTool({ server, tool, inputs });
+
+		span.endTime = Date.now();
+		span.attributes['latencyMs'] = result.latencyMs;
+		span.attributes['isError'] = result.isError;
+
+		return result;
+	}
+
+	/**
+	 * Make an LLM request and record a trace span.
+	 *
+	 * When `onToken` is provided, the request is routed through the streaming
+	 * client so the caller can surface live tokens (e.g. into a subtask card).
+	 * Without `onToken`, the cheaper non-streaming path is used to avoid the
+	 * SSE overhead.
+	 */
+	protected async callLlm(
+		taskId: string,
+		model: ModelId,
+		systemPrompt: string,
+		userMessage: string,
+		onToken?: (token: string) => void,
+	): Promise<{ text: string; tokenUsage: TokenUsage }> {
+		const span = this.agentManager.addSpan({
+			taskId,
+			name: `llm-${model}`,
+			type: 'llm_call',
+			startTime: Date.now(),
+			attributes: { model },
+		});
+
+		if (onToken) {
+			let text = '';
+			for await (const event of this.llmClient.streamRequest({
+				model,
+				systemPrompt,
+				messages: [{ role: 'user', content: userMessage }],
+			})) {
+				if (event.type === 'token') {
+					text += event.token;
+					onToken(event.token);
+				} else if (event.type === 'error') {
+					throw new Error(event.error);
+				}
+			}
+
+			span.endTime = Date.now();
+
+			const usage = this.llmClient.getTokenUsage();
+			const tokenUsage: TokenUsage = {
+				inputTokens: usage.input,
+				outputTokens: usage.output,
+				cachedTokens: usage.cached,
+				naiveInputTokens: 0,
+			};
+
+			span.attributes['inputTokens'] = tokenUsage.inputTokens;
+			span.attributes['outputTokens'] = tokenUsage.outputTokens;
+
+			return { text, tokenUsage };
+		}
+
+		const text = await this.llmClient.request({
+			model,
+			systemPrompt,
+			messages: [{ role: 'user', content: userMessage }],
+		});
+
+		span.endTime = Date.now();
+
+		const usage = this.llmClient.getTokenUsage();
+		const tokenUsage: TokenUsage = {
+			inputTokens: usage.input,
+			outputTokens: usage.output,
+			cachedTokens: usage.cached,
+			naiveInputTokens: 0,
+		};
+
+		span.attributes['inputTokens'] = tokenUsage.inputTokens;
+		span.attributes['outputTokens'] = tokenUsage.outputTokens;
+
+		return { text, tokenUsage };
+	}
+
+	/**
+	 * Stream an LLM response to a VS Code chat response stream.
+	 */
+	protected async streamToChat(
+		stream: ChatStreamLike,
+		model: ModelId,
+		systemPrompt: string,
+		userMessage: string,
+	): Promise<string> {
+		let fullText = '';
+
+		for await (const event of this.llmClient.streamRequest({
+			model,
+			systemPrompt,
+			messages: [{ role: 'user', content: userMessage }],
+		})) {
+			if (event.type === 'token') {
+				stream.markdown(event.token);
+				fullText += event.token;
+			} else if (event.type === 'error') {
+				stream.markdown(`\n\n**Error:** ${event.error}`);
+				throw new Error(event.error);
+			}
+		}
+
+		return fullText;
+	}
+
+	/**
+	 * Query the code graph for file summary information.
+	 */
+	protected async queryFileGraph(taskId: string, filePath: string): Promise<string> {
+		const result = await this.callMcpTool(taskId, 'code-graph', 'file_summary', { filePath });
+		return result.content;
+	}
+
+	/**
+	 * Query the code graph for symbol lookup.
+	 */
+	protected async querySymbol(taskId: string, symbolName: string): Promise<string> {
+		const result = await this.callMcpTool(taskId, 'code-graph', 'symbol_lookup', { symbolName });
+		return result.content;
+	}
+
+	/**
+	 * Query the code graph for dependencies of a file.
+	 */
+	protected async queryDependencies(taskId: string, filePath: string): Promise<string> {
+		const result = await this.callMcpTool(taskId, 'code-graph', 'dependency_traversal', { filePath });
+		return result.content;
+	}
+
+	/**
+	 * Query the code graph for impact analysis.
+	 */
+	protected async queryImpact(taskId: string, filePath: string): Promise<string> {
+		const result = await this.callMcpTool(taskId, 'code-graph', 'impact_analysis', { filePath });
+		return result.content;
+	}
+
+	/**
+	 * Query references to a symbol.
+	 */
+	protected async queryReferences(taskId: string, symbolName: string): Promise<string> {
+		const result = await this.callMcpTool(taskId, 'code-graph', 'find_references', { symbolName });
+		return result.content;
+	}
+
+	/**
+	 * Parse file changes from an LLM response.
+	 * Expects the LLM to output changes in a structured format.
+	 */
+	protected parseFileChanges(llmOutput: string): FileChange[] {
+		const changes: FileChange[] = [];
+		const fileBlockRegex = /```(?:diff|patch)?\s*\n([\s\S]*?)```/g;
+
+		let match;
+		while ((match = fileBlockRegex.exec(llmOutput)) !== null) {
+			const block = match[1] ?? '';
+			const lines = block.split('\n');
+
+			let filePath = '';
+			let startIndex = 0;
+
+			for (let i = 0; i < lines.length; i++) {
+				const line = lines[i];
+
+				// Prefer +++ b/<path> when available
+				const plusMatch = line.match(/^\+\+\+\s+b\/(.+)\s*$/);
+				if (plusMatch) {
+					filePath = plusMatch[1];
+					startIndex = i + 1;
+					break;
+				}
+
+				// Support diff --git a/... b/... headers
+				const gitMatch = line.match(/^diff --git a\/.+ b\/(.+)\s*$/);
+				if (gitMatch) {
+					filePath = gitMatch[1];
+					startIndex = i + 1;
+					// Don't break yet; there may still be a +++ line later
+				}
+
+				// Fallback: use --- a/<path> if nothing else is found
+				if (!filePath) {
+					const minusMatch = line.match(/^---\s+a\/(.+)\s*$/);
+					if (minusMatch) {
+						filePath = minusMatch[1];
+						startIndex = i + 1;
+					}
+				}
+			}
+
+			// If we couldn't determine a file path, skip this block
+			if (!filePath) {
+				continue;
+			}
+
+			const diff = lines.slice(startIndex).join('\n');
+
+			if (diff.trim()) {
+				changes.push({
+					filePath,
+					changeType: 'modify',
+					diff: diff.trim(),
+				});
+			}
+		}
+
+		// Also look for full file outputs
+		const createRegex = /<!-- CREATE: (.+?) -->\n```\w*\n([\s\S]*?)```/g;
+		while ((match = createRegex.exec(llmOutput)) !== null) {
+			changes.push({
+				filePath: match[1],
+				changeType: 'create',
+				content: match[2].trim(),
+			});
+		}
+
+		return changes;
+	}
+
+	/**
+	 * Execute the agent's task. Implemented by each specialist.
+	 */
+	abstract execute(context: AgentContext): Promise<SubtaskResult>;
+
+	/**
+	 * Stream a single chat turn against this agent's role prompt. Used by
+	 * non-chat-participant surfaces (e.g. the WebView sidebar) that need the
+	 * same behaviour as `handleChatRequest` but with a callback-based emit
+	 * channel and an `AbortSignal`-friendly cancellation hook. Returns the
+	 * full assistant text once the stream completes.
+	 */
+	async runChatTurn(
+		userMessage: string,
+		emit: (token: string) => void,
+		cancellation: CancellationLike,
+		modelOverride?: ModelId,
+		workspaceContextSnapshot?: string,
+	): Promise<string> {
+		// Task descriptions surface in the trace pane and the task list, so we
+		// keep the title short. The full prompt — which may include a multi-page
+		// workspace context block — stays in the LLM call but never leaks into
+		// the tracing UI as a wall of escaped markdown.
+		const task = this.agentManager.createTask(this.displayName, truncateForTaskTitle(userMessage));
+		this.agentManager.startTask(task.id);
+
+		const controller = new AbortController();
+		const cancelSubscription = cancellation.onCancellationRequested(() => controller.abort());
+
+		try {
+			const systemPrompt = this.buildSystemPrompt(this.getRoleDescription(), workspaceContextSnapshot);
+			let fullText = '';
+			// Per-turn model override (from the chat composer's picker). Without
+			// an override we fall back to this specialist's `defaultModel`,
+			// keeping historical Anthropic-by-default behaviour intact for
+			// callers that don't surface the picker (CLI / tests).
+			const turnModel: ModelId = modelOverride ?? this.defaultModel;
+			for await (const event of this.llmClient.streamRequest({
+				model: turnModel,
+				systemPrompt,
+				messages: [{ role: 'user', content: userMessage }],
+				signal: controller.signal,
+				agentHandle: this.handle,
+			})) {
+				if (event.type === 'token') {
+					emit(event.token);
+					fullText += event.token;
+				} else if (event.type === 'error') {
+					throw new Error(event.error);
+				}
+			}
+			// Sign-off (Phase 78): only after a natural turn-end -- not error,
+			// not cancel, and only when the assistant actually emitted text.
+			const signOff = this.maybeSignOff(fullText, cancellation.isCancellationRequested);
+			if (signOff) {
+				emit(signOff);
+				fullText += signOff;
+			}
+			this.agentManager.completeTask(task.id);
+			return fullText;
+		} catch (err) {
+			const message = err instanceof Error ? err.message : String(err);
+			this.agentManager.failTask(task.id, message);
+			throw err;
+		} finally {
+			cancelSubscription.dispose();
+		}
+	}
+
+	/**
+	 * Decide whether to emit a curated sign-off quote at the end of a chat
+	 * turn (Phase 78). Returns the formatted footer string, or `undefined`
+	 * when the sign-off should be skipped.
+	 *
+	 * Conditions for firing:
+	 * - `sota.personality.enabled` is true
+	 * - the turn was not cancelled
+	 * - the assistant produced at least some non-whitespace text
+	 * - a 25% probability gate passes
+	 * - the specialist has a curated quote list (some handles -- e.g.
+	 *   `anton-pentest` -- intentionally don't, and fall back to the
+	 *   orchestrator's tone-based system instead)
+	 */
+	protected maybeSignOff(assistantText: string, cancelled: boolean): string | undefined {
+		if (cancelled) {
+			return undefined;
+		}
+		if (!assistantText.trim()) {
+			return undefined;
+		}
+		if (!this.configStore || !isPersonalityEnabled(this.configStore)) {
+			return undefined;
+		}
+		if (Math.random() >= SIGN_OFF_PROBABILITY) {
+			return undefined;
+		}
+		const quote = pickSignOffQuote(this.handle);
+		if (!quote) {
+			return undefined;
+		}
+		return formatSignOff(quote);
+	}
+
+	/**
+	 * Handle a VS Code chat request. Default implementation delegates to execute().
+	 *
+	 * `structuredEmit` is an optional out-of-band channel used by the WebView
+	 * surface (via AgentBridge) to receive structured AgentEvents in addition
+	 * to the markdown stream. Native chat-participant call sites omit it; the
+	 * default implementation here ignores it because non-orchestrator agents
+	 * don't currently emit structured plan/subtask events.
+	 */
+	async handleChatRequest(
+		request: ChatRequestLike,
+		_chatContext: ChatContextLike,
+		stream: ChatStreamLike,
+		token: CancellationLike,
+		_structuredEmit?: (event: AgentEvent) => void,
+	): Promise<void> {
+		const task = this.agentManager.createTask(this.displayName, truncateForTaskTitle(request.prompt));
+		this.agentManager.startTask(task.id);
+
+		try {
+			const systemPrompt = this.buildSystemPrompt(this.getRoleDescription(), request.workspaceContextSnapshot);
+			// Per-turn model override from the chat composer's picker. Falls
+			// back to this specialist's `defaultModel` when no override is
+			// supplied, preserving historical Anthropic-by-default behaviour
+			// for the native chat-participant + CLI surfaces.
+			const turnModel: ModelId = request.modelOverride ?? this.defaultModel;
+			const fullText = await this.streamToChat(stream, turnModel, systemPrompt, request.prompt);
+			const signOff = this.maybeSignOff(fullText, token.isCancellationRequested);
+			if (signOff) {
+				stream.markdown(signOff);
+			}
+			this.agentManager.completeTask(task.id);
+		} catch (err) {
+			const message = err instanceof Error ? err.message : String(err);
+			this.agentManager.failTask(task.id, message);
+		}
+	}
+
+	/**
+	 * Get the role description for this agent's system prompt.
+	 */
+	protected abstract getRoleDescription(): string;
+}
+
+/** Maximum characters retained for the task list / trace UI title. */
+const TASK_TITLE_MAX_CHARS = 100;
+
+/**
+ * Trim a long prompt for use as a task title. The full prompt is preserved
+ * for the LLM call; this helper keeps the trace pane and task list readable
+ * when a turn carries the workspace-context block (which can be many KB of
+ * markdown). Strips leading/trailing whitespace and collapses runs of
+ * whitespace to a single space so multi-line inputs render on one line.
+ */
+export function truncateForTaskTitle(input: string): string {
+	const flat = (input ?? '').replace(/\s+/g, ' ').trim();
+	if (flat.length <= TASK_TITLE_MAX_CHARS) {
+		return flat;
+	}
+	return flat.slice(0, TASK_TITLE_MAX_CHARS - 1) + '…';
+}

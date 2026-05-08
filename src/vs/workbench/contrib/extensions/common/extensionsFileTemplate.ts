@@ -27,7 +27,7 @@ export const ExtensionsConfigurationSchema: IJSONSchema = {
 		},
 		unwantedRecommendations: {
 			type: 'array',
-			description: localize('app.extensions.json.unwantedRecommendations', "List of extensions recommended by VS Code that should not be recommended for users of this workspace. The identifier of an extension is always '${publisher}.${name}'. For example: 'vscode.csharp'."),
+			description: localize('app.extensions.json.unwantedRecommendations', "List of extensions recommended by Son of Anton that should not be recommended for users of this workspace. The identifier of an extension is always '${publisher}.${name}'. For example: 'vscode.csharp'."),
 			items: {
 				type: 'string',
 				pattern: EXTENSION_IDENTIFIER_PATTERN,

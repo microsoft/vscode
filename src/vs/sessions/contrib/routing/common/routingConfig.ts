@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Son of Anton Contributors. All rights reserved.
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
@@ -276,16 +276,6 @@ export const DEFAULT_PROVIDER_CATALOGUE: ReadonlyArray<ProviderCatalogueEntry> =
 		models: [
 			{ id: 'gpt-5-codex', displayName: 'GPT-5 Codex' },
 			{ id: 'o4-mini', displayName: 'o4-mini' },
-		],
-	},
-	{
-		id: 'copilot',
-		displayName: 'GitHub Copilot',
-		models: [
-			{ id: 'claude-opus', displayName: 'Claude Opus (via Copilot)' },
-			{ id: 'claude-sonnet', displayName: 'Claude Sonnet (via Copilot)' },
-			{ id: 'gpt-4o', displayName: 'GPT-4o (via Copilot)' },
-			{ id: 'gemini-1.5-pro', displayName: 'Gemini 1.5 Pro (via Copilot)' },
 		],
 	},
 	{

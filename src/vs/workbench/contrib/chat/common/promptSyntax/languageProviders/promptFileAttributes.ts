@@ -271,7 +271,7 @@ export function getAttributeDefinition(attributeName: string, promptType: Prompt
 	}
 }
 
-// The list of tools known to be used by GitHub Copilot custom agents
+// Known tool set surfaced to authors targeting the `github-copilot` prompt format.
 export const knownGithubCopilotTools = [
 	{ name: SpecedToolAliases.execute, description: localize('githubCopilot.execute', 'Execute commands') },
 	{ name: SpecedToolAliases.read, description: localize('githubCopilot.read', 'Read files') },

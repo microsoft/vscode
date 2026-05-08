@@ -15,7 +15,7 @@ suite('promptsServiceUtils', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	suite('isOrganizationPromptFile', () => {
-		const CHAT_EXTENSION_ID = 'github.copilot-chat';
+		const CHAT_EXTENSION_ID = 'test.chat-extension';
 
 		function createProductService(chatExtensionId: string | undefined): IProductService {
 			return mockService<IProductService>({
@@ -73,8 +73,8 @@ suite('promptsServiceUtils', () => {
 
 		test('extension ID comparison is case-insensitive', () => {
 			const uri = URI.file('/some/github/prompt.md');
-			const extensionId = new ExtensionIdentifier('GITHUB.COPILOT-CHAT');
-			const productService = createProductService('github.copilot-chat');
+			const extensionId = new ExtensionIdentifier('TEST.CHAT-EXTENSION');
+			const productService = createProductService('test.chat-extension');
 
 			assert.strictEqual(
 				isOrganizationPromptFile(uri, extensionId, productService),

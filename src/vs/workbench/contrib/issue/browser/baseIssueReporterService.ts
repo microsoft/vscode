@@ -1102,7 +1102,7 @@ export class BaseIssueReporterService extends Disposable {
 		if (selectedExtension && this.nonGitHubIssueUrl) {
 			hide(titleTextArea);
 			hide(descriptionTextArea);
-			reset(descriptionTitle, localize('handlesIssuesElsewhere', "This extension handles issues outside of VS Code"));
+			reset(descriptionTitle, localize('handlesIssuesElsewhere', "This extension handles issues outside of Son of Anton"));
 			reset(descriptionSubtitle, localize('elsewhereDescription', "The '{0}' extension prefers to use an external issue reporter. To be taken to that issue reporting experience, click the button below.", selectedExtension.displayName));
 			this.publicGithubButton.label = localize('openIssueReporter', "Open External Issue Reporter");
 			return;

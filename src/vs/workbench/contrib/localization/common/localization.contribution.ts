@@ -56,9 +56,9 @@ export class BaseLocalizationWorkbenchContribution extends Disposable implements
 								properties: {
 									id: {
 										type: 'string',
-										description: localize('vscode.extension.contributes.localizations.translations.id', "Id of VS Code or Extension for which this translation is contributed to. Id of VS Code is always `vscode` and of extension should be in format `publisherId.extensionName`."),
+										description: localize('vscode.extension.contributes.localizations.translations.id', "Id of Son of Anton or Extension for which this translation is contributed to. The Son of Anton id is always `vscode` (preserved for compatibility); extension ids should be in the format `publisherId.extensionName`."),
 										pattern: '^((vscode)|([a-z0-9A-Z][a-z0-9A-Z-]*)\\.([a-z0-9A-Z][a-z0-9A-Z-]*))$',
-										patternErrorMessage: localize('vscode.extension.contributes.localizations.translations.id.pattern', "Id should be `vscode` or in format `publisherId.extensionName` for translating VS code or an extension respectively.")
+										patternErrorMessage: localize('vscode.extension.contributes.localizations.translations.id.pattern', "Id should be `vscode` (for translating Son of Anton itself) or in format `publisherId.extensionName` (for translating an extension).")
 									},
 									path: {
 										type: 'string',

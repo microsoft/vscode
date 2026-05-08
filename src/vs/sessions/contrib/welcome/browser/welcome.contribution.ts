@@ -23,6 +23,7 @@ const WELCOME_COMPLETE_KEY = 'workbench.agentsession.welcomeComplete';
 
 const PROVIDER_TO_COMMAND: Partial<Record<ProviderId, string>> = {
 	'anthropic-oauth': 'sotaAuth.connect',
+	'chatgpt-oauth': 'sotaAuth.connect',
 };
 
 class SessionsAuthWizardOverlay extends Disposable {
@@ -114,14 +115,13 @@ class SessionsWelcomeContribution extends Disposable implements IWorkbenchContri
 		welcomeVisibleKey.set(true);
 		store.add(toDisposable(() => welcomeVisibleKey.reset()));
 
-		let overlay: SessionsAuthWizardOverlay | undefined;
 		const onComplete = () => {
 			this.storageService.store(WELCOME_COMPLETE_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
-			overlay?.dismiss();
+			overlay.dismiss();
 			this.overlayRef.clear();
 		};
 
-		overlay = this.instantiationService.createInstance(
+		const overlay = this.instantiationService.createInstance(
 			SessionsAuthWizardOverlay,
 			this.layoutService.mainContainer,
 			onComplete,

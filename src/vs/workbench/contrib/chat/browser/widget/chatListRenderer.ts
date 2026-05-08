@@ -114,7 +114,7 @@ import { AccessibilityWorkbenchSettingId } from '../../../accessibility/browser/
 
 const $ = dom.$;
 
-const COPILOT_USERNAME = 'GitHub Copilot';
+const COPILOT_USERNAME = 'Anton';
 
 export interface IChatListItemTemplate {
 	currentElement?: ChatTreeItem;

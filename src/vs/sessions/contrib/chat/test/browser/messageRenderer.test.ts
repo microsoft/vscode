@@ -336,7 +336,7 @@ suite('MessageRenderer', () => {
 
 	test('provider badge shows display name when alternative matches', async () => {
 		const alts: AlternativeProvider[] = [
-			{ id: 'copilot', displayName: 'GitHub Copilot' },
+			{ id: 'copilot', displayName: 'Test Copilot Provider' },
 		];
 		const renderer = makeRenderer(alts);
 		await renderStream(renderer, [
@@ -345,7 +345,7 @@ suite('MessageRenderer', () => {
 		]);
 
 		const badge = container.querySelector('.message-renderer-error-provider');
-		assert.strictEqual(badge!.textContent, 'GitHub Copilot', 'badge shows display name not raw ID');
+		assert.strictEqual(badge!.textContent, 'Test Copilot Provider', 'badge shows display name not raw ID');
 	});
 
 	test('no provider badge when error arrives without provider info', async () => {
@@ -361,7 +361,7 @@ suite('MessageRenderer', () => {
 	test('shows alternative retry buttons for retryable error', async () => {
 		const alts: AlternativeProvider[] = [
 			{ id: 'anthropic-oauth', displayName: 'Claude (subscription)' },
-			{ id: 'copilot', displayName: 'GitHub Copilot' },
+			{ id: 'copilot', displayName: 'Test Copilot Provider' },
 		];
 		const renderer = makeRenderer(alts);
 		await renderStream(renderer, [
@@ -417,7 +417,7 @@ suite('MessageRenderer', () => {
 
 	test('no alt buttons when all alternatives match active provider', async () => {
 		const alts: AlternativeProvider[] = [
-			{ id: 'copilot', displayName: 'GitHub Copilot' },
+			{ id: 'copilot', displayName: 'Test Copilot Provider' },
 		];
 		const renderer = makeRenderer(alts);
 		await renderStream(renderer, [

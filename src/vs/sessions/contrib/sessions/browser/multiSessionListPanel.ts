@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Son of Anton Contributors. All rights reserved.
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
@@ -7,6 +7,7 @@ import './media/multiSessionListPanel.css';
 import { $, EventType, addDisposableListener, append, clearNode } from '../../../../base/browser/dom.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -40,7 +41,7 @@ const STATUS_LABELS: Record<MultiSessionListRowStatus, string> = {
 	[MultiSessionListRowStatus.NeedsInput]: localize('multiSession.status.needsInput', "Needs input"),
 };
 
-const STATUS_ICONS: Record<MultiSessionListRowStatus, Codicon> = {
+const STATUS_ICONS: Record<MultiSessionListRowStatus, ThemeIcon> = {
 	[MultiSessionListRowStatus.Failed]: Codicon.error,
 	[MultiSessionListRowStatus.Completed]: Codicon.check,
 	[MultiSessionListRowStatus.InProgress]: Codicon.sync,

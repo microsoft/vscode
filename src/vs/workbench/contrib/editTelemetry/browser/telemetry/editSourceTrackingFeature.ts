@@ -26,7 +26,6 @@ import { IAnnotatedDocuments } from '../helpers/annotatedDocuments.js';
 import { DataChannelForwardingTelemetryService } from '../../../../../platform/dataChannel/browser/forwardingTelemetryService.js';
 import { EDIT_TELEMETRY_DETAILS_SETTING_ID, EDIT_TELEMETRY_SHOW_DECORATIONS, EDIT_TELEMETRY_SHOW_STATUS_BAR } from '../settings.js';
 import { SonOfAntonWorkspace } from '../helpers/vscodeObservableWorkspace.js';
-import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 
 export class EditTrackingFeature extends Disposable {
 
@@ -43,7 +42,6 @@ export class EditTrackingFeature extends Disposable {
 		@IStatusbarService private readonly _statusbarService: IStatusbarService,
 
 		@IEditorService private readonly _editorService: IEditorService,
-		@IExtensionService private readonly _extensionService: IExtensionService,
 	) {
 		super();
 
@@ -51,19 +49,7 @@ export class EditTrackingFeature extends Disposable {
 		this._editSourceTrackingShowStatusBar = observableConfigValue(EDIT_TELEMETRY_SHOW_STATUS_BAR, false, this._configurationService);
 		const editSourceDetailsEnabled = observableConfigValue(EDIT_TELEMETRY_DETAILS_SETTING_ID, false, this._configurationService);
 
-		const extensions = observableFromEvent(this._extensionService.onDidChangeExtensions, () => {
-			return this._extensionService.extensions;
-		});
-		const extensionIds = derived(reader => new Set(extensions.read(reader).map(e => e.id?.toLowerCase())));
-		function getExtensionInfoObs(extensionId: string, extensionService: IExtensionService) {
-			const extIdLowerCase = extensionId.toLowerCase();
-			return derived(reader => extensionIds.read(reader).has(extIdLowerCase));
-		}
-
-		const copilotInstalled = getExtensionInfoObs('GitHub.copilot', this._extensionService);
-		const copilotChatInstalled = getExtensionInfoObs('GitHub.copilot-chat', this._extensionService);
-
-		const shouldSendDetails = derived(reader => editSourceDetailsEnabled.read(reader) || !!copilotInstalled.read(reader) || !!copilotChatInstalled.read(reader));
+		const shouldSendDetails = derived(reader => editSourceDetailsEnabled.read(reader));
 
 		const instantiationServiceWithInterceptedTelemetry = this._instantiationService.createChild(new ServiceCollection(
 			[ITelemetryService, this._instantiationService.createInstance(DataChannelForwardingTelemetryService)]

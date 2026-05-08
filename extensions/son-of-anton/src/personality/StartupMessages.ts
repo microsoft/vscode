@@ -4,15 +4,39 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { getStartupQuote, formatQuoteShort } from 'son-of-anton-core/personality/siliconValleyQuotes';
+import { getStaticArt } from 'son-of-anton-core/personality/asciiArt';
+import { isPersonalityEnabled } from './personalityConfig';
 
 /**
- * Displays a random startup message in the status bar when Son of Anton activates.
- * On Friday afternoons, includes an additional message in the rotation pool.
+ * Logs a multi-line activation banner (Pied Piper logo + tagline + the
+ * quote-of-the-day) to the dedicated "Son of Anton" output channel and
+ * keeps the legacy status-bar one-liner behaviour for backward
+ * compatibility.
+ *
+ * On first launch the channel is auto-revealed; on subsequent launches the
+ * banner is logged silently so the user is not pulled out of their flow.
  */
 export class StartupMessages {
 	private static readonly DISPLAY_DURATION_MS = 8000;
+	private static readonly FIRST_LAUNCH_KEY = 'sota.personality.startupBannerShown';
+	private static channel: vscode.OutputChannel | undefined;
 
-	static async show(extensionUri: vscode.Uri): Promise<void> {
+	/**
+	 * Displays the startup messages. `context` is optional so existing
+	 * callers (and tests) that only have an `extensionUri` keep working;
+	 * when omitted the auto-reveal-on-first-launch logic is skipped.
+	 */
+	static async show(
+		extensionUri: vscode.Uri,
+		context?: vscode.ExtensionContext,
+	): Promise<void> {
+		if (!isPersonalityEnabled()) {
+			return;
+		}
+
+		await this.logBanner(context);
+
 		const messages = await this.loadMessages(extensionUri);
 		if (messages.length === 0) {
 			return;
@@ -29,6 +53,37 @@ export class StartupMessages {
 
 		const message = messages[Math.floor(Math.random() * messages.length)];
 		vscode.window.setStatusBarMessage(`$(hubot) ${message}`, this.DISPLAY_DURATION_MS);
+	}
+
+	/**
+	 * Lazily creates and returns the dedicated output channel.
+	 */
+	static getChannel(): vscode.OutputChannel {
+		if (!this.channel) {
+			this.channel = vscode.window.createOutputChannel('Son of Anton');
+		}
+		return this.channel;
+	}
+
+	private static async logBanner(context?: vscode.ExtensionContext): Promise<void> {
+		const channel = this.getChannel();
+		const quote = getStartupQuote();
+
+		channel.appendLine('');
+		channel.appendLine(getStaticArt('piedPiperLogo'));
+		channel.appendLine('');
+		channel.appendLine('   Son of Anton -- middle out compression for your IDE');
+		channel.appendLine('');
+		channel.appendLine(`   Today's quote:  ${formatQuoteShort(quote)}`);
+		if (quote.context) {
+			channel.appendLine(`                   (${quote.context})`);
+		}
+		channel.appendLine('');
+
+		if (context && !context.globalState.get<boolean>(this.FIRST_LAUNCH_KEY)) {
+			channel.show(true);
+			await context.globalState.update(this.FIRST_LAUNCH_KEY, true);
+		}
 	}
 
 	private static async loadMessages(extensionUri: vscode.Uri): Promise<string[]> {

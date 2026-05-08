@@ -976,11 +976,11 @@ suite('PromptsService', () => {
 					path: `${rootFolder}/.github/agents/github-agent.agent.md`,
 					contents: [
 						'---',
-						'description: \'GitHub Copilot specialized agent.\'',
+						'description: \'github-copilot specialized agent.\'',
 						'target: \'github-copilot\'',
 						'tools: [ github-api, code-search ]',
 						'---',
-						'I am optimized for GitHub Copilot workflows.',
+						'I am optimized for github-copilot workflows.',
 					]
 				},
 				{
@@ -1009,11 +1009,11 @@ suite('PromptsService', () => {
 			const expected: ICustomAgent[] = [
 				{
 					name: 'github-agent',
-					description: 'GitHub Copilot specialized agent.',
+					description: 'github-copilot specialized agent.',
 					target: Target.GitHubCopilot,
 					tools: ['github-api', 'code-search'],
 					agentInstructions: {
-						content: 'I am optimized for GitHub Copilot workflows.',
+						content: 'I am optimized for github-copilot workflows.',
 						toolReferences: [],
 						metadata: undefined
 					},

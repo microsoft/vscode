@@ -1,11 +1,11 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Son of Anton Contributors. All rights reserved.
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../base/browser/dom.js';
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { localize, localize2 } from '../../../../nls.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { localize } from '../../../../nls.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
@@ -13,15 +13,11 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { ViewPane, IViewPaneOptions } from '../../../../workbench/browser/parts/views/viewPane.js';
 import { ViewPaneContainer } from '../../../../workbench/browser/parts/views/viewPaneContainer.js';
 import { IViewDescriptorService } from '../../../../workbench/common/views.js';
 import { ISpecPipelineService, ISpecFeature, SpecPhase, SpecPhaseStatus } from '../common/specPipeline.js';
-import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
-import { IExtensionService } from '../../../../workbench/services/extensions/common/extensions.js';
-import { IStorageService } from '../../../../platform/storage/common/storage.js';
 
 const $ = dom.$;
 
@@ -53,11 +49,10 @@ export class SpecPipelineViewPane extends ViewPane {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
-		@ITelemetryService telemetryService: ITelemetryService,
 		@IHoverService hoverService: IHoverService,
 		@ISpecPipelineService private readonly specPipelineService: ISpecPipelineService,
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 	}
 
 	protected override renderBody(container: HTMLElement): void {

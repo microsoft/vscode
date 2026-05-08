@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { AgentStack } from './AgentStackFactory';
+import { AgentStack } from 'son-of-anton-core/agents/AgentStackFactory';
 
 /**
  * Registers VS Code chat participants for every agent in the supplied stack.

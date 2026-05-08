@@ -1,9 +1,9 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Son of Anton Contributors. All rights reserved.
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as vscode from 'vscode';
-import { AgentManager, AgentTask } from '../agents/AgentManager';
+import { AgentManager, AgentTask } from 'son-of-anton-core/agents/AgentManager';
 
 type TreeItem = AgentStatusCategory | AgentTaskItem;
 
@@ -48,10 +48,13 @@ class AgentTaskItem extends vscode.TreeItem {
 				break;
 		}
 
-		// Click to show trace
+		// Click to show trace -- forward this task's id so the panel can filter
+		// to spans recorded against this specific run instead of showing the
+		// global mishmash for the whole session.
 		this.command = {
 			command: 'sota.showTraces',
 			title: 'Show Traces',
+			arguments: [task.id],
 		};
 	}
 

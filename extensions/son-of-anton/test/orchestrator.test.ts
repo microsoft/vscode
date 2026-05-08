@@ -1,20 +1,20 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Son of Anton Contributors. All rights reserved.
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { AgentManager } from '../src/agents/AgentManager';
-import { LlmClient } from '../src/llm/LlmClient';
-import { MetricsTracker } from '../src/agents/MetricsTracker';
-import { ProjectMemory } from '../src/agents/ProjectMemory';
-import { OrchestratorAgent } from '../src/agents/OrchestratorAgent';
-import { CodeGeneratorAgent } from '../src/agents/CodeGeneratorAgent';
-import { TestWriterAgent } from '../src/agents/TestWriterAgent';
-import { SecurityScannerAgent } from '../src/agents/SecurityScannerAgent';
-import { DocumentationAgent } from '../src/agents/DocumentationAgent';
-import { ReviewAgent } from '../src/agents/ReviewAgent';
-import { McpClient } from '../src/mcp/McpClient';
-import { AgentConfig } from '../src/agents/types';
+import { AgentManager } from 'son-of-anton-core/agents/AgentManager';
+import { LlmClient } from 'son-of-anton-core/llm/LlmClient';
+import { MetricsTracker } from 'son-of-anton-core/agents/MetricsTracker';
+import { ProjectMemory } from 'son-of-anton-core/agents/ProjectMemory';
+import { OrchestratorAgent } from 'son-of-anton-core/agents/OrchestratorAgent';
+import { CodeGeneratorAgent } from 'son-of-anton-core/agents/CodeGeneratorAgent';
+import { TestWriterAgent } from 'son-of-anton-core/agents/TestWriterAgent';
+import { SecurityScannerAgent } from 'son-of-anton-core/agents/SecurityScannerAgent';
+import { DocumentationAgent } from 'son-of-anton-core/agents/DocumentationAgent';
+import { ReviewAgent } from 'son-of-anton-core/agents/ReviewAgent';
+import { McpClient } from 'son-of-anton-core/mcp/McpClient';
+import { AgentConfig } from 'son-of-anton-core/agents/types';
 
 suite('OrchestratorAgent', () => {
 	const orchestratorConfig: AgentConfig = {

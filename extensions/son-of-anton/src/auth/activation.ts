@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as vscode from 'vscode';
-import { CredentialBroker, OpenExternalFn } from './CredentialBroker';
-import type { ProviderConfig, ProviderStatus, SecretStore } from './types';
+import { CredentialBroker, OpenExternalFn } from 'son-of-anton-core/auth/CredentialBroker';
+import type { ProviderConfig, ProviderStatus, SecretStore } from 'son-of-anton-core/auth/types';
 
 const SETTINGS_NAMESPACE = 'sotaAuth';
 

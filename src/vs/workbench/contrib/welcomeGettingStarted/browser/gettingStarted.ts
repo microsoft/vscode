@@ -64,6 +64,7 @@ import { GettingStartedEditorOptions, GettingStartedInput } from './gettingStart
 import { IResolvedWalkthrough, IResolvedWalkthroughStep, IWalkthroughsService, hiddenEntriesConfigurationKey, parseDescription } from './gettingStartedService.js';
 import { RestoreWalkthroughsConfigurationValue, restoreWalkthroughsConfigurationKey } from './startupPage.js';
 import { startEntries } from '../common/gettingStartedContent.js';
+import { getSotaWelcomeHeroContent, ISotaWelcomeHeroAction } from '../common/sotaWelcomeHero.js';
 import { GroupsOrder, IEditorGroup, IEditorGroupsService, preferredSideBySideGroupDirection } from '../../../services/editor/common/editorGroupsService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IHostService } from '../../../services/host/browser/host.js';
@@ -889,6 +890,71 @@ export class GettingStartedPage extends EditorPane {
 		parent.appendChild(this.container);
 	}
 
+	/**
+	 * Builds the Son of Anton hero banner that sits above the upstream
+	 * Start / Recent / Walkthroughs grid on the welcome page. The banner is a
+	 * Tier 3 customisation (modifies an upstream module) but is intentionally
+	 * scoped to a single self-contained method + DOM subtree so it stays easy
+	 * to rebase. Returning the disposables-free node from a helper keeps the
+	 * main render path readable.
+	 */
+	private buildSotaWelcomeHero(): HTMLElement {
+		const content = getSotaWelcomeHeroContent();
+
+		const art = $('pre.sota-welcome-art', { 'aria-hidden': 'true' });
+		art.textContent = content.art;
+
+		const title = $('h1.sota-welcome-title', {}, content.title);
+		const tagline = $('p.sota-welcome-tagline', {}, content.tagline);
+
+		const quoteText = $('span.sota-welcome-quote-text', {}, `“${content.quote.text}”`);
+		const quoteCite = $('cite.sota-welcome-quote-cite', {}, `— ${content.quote.attribution}`);
+		const quote = $('blockquote.sota-welcome-quote', {}, quoteText, quoteCite);
+
+		const actions = $('.sota-welcome-actions', {});
+		for (const action of content.actions) {
+			actions.appendChild(this.buildSotaWelcomeHeroButton(action));
+		}
+
+		return $('.sota-welcome-hero', {}, art, title, tagline, quote, actions);
+	}
+
+	private buildSotaWelcomeHeroButton(action: ISotaWelcomeHeroAction): HTMLElement {
+		const button = $('button.sota-welcome-cta', {
+			'type': 'button',
+			'data-cmd': action.command,
+		}, action.label);
+		if (action.primary) {
+			button.classList.add('primary');
+		}
+		const dispatchAction = () => {
+			this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>(
+				'gettingStarted.ActionExecuted',
+				{
+					command: 'sotaWelcomeHero:' + action.id,
+					argument: action.command,
+					walkthroughId: this.currentWalkthrough?.id,
+				},
+			);
+			const args = action.argument === undefined ? [] : [action.argument];
+			this.commandService.executeCommand(action.command, ...args).catch(onUnexpectedError);
+		};
+		this.categoriesSlideDisposables.add(addDisposableListener(button, 'click', e => {
+			e.preventDefault();
+			e.stopPropagation();
+			dispatchAction();
+		}));
+		this.categoriesSlideDisposables.add(addDisposableListener(button, 'keyup', e => {
+			const keyboardEvent = new StandardKeyboardEvent(e);
+			if (keyboardEvent.keyCode === KeyCode.Enter || keyboardEvent.keyCode === KeyCode.Space) {
+				e.preventDefault();
+				e.stopPropagation();
+				dispatchAction();
+			}
+		}));
+		return button;
+	}
+
 	private async buildCategoriesSlide(preserveFocus?: boolean) {
 
 		this.categoriesSlideDisposables.clear();
@@ -964,7 +1030,13 @@ export class GettingStartedPage extends EditorPane {
 		gettingStartedList.onDidChange(layoutLists);
 		layoutLists();
 
-		reset(this.categoriesSlide, $('.gettingStartedCategoriesContainer', {}, header, leftColumn, rightColumn, footer,));
+		const sotaHero = this.buildSotaWelcomeHero();
+		reset(
+			this.categoriesSlide,
+			sotaHero,
+			$('.gettingStartedCategoriesContainer', {}, header, leftColumn, rightColumn, footer,),
+		);
+		this.categoriesSlide.classList.add('has-sota-welcome-hero');
 		this.categoriesPageScrollbar?.scanDomNode();
 
 		this.updateCategoryProgress();
@@ -1000,7 +1072,12 @@ export class GettingStartedPage extends EditorPane {
 			const fistContentBehaviour = daysSinceFirstSession < 1 ? 'openToFirstCategory' : 'index';
 
 			if (fistContentBehaviour === 'openToFirstCategory') {
-				const first = this.gettingStartedCategories.filter(c => !c.when || this.contextService.contextMatchesRules(c.when))[0];
+				// Son of Anton: prefer a featured walkthrough on first launch so the
+				// fork's `SotaWelcome` walkthrough wins regardless of contribution
+				// insertion order. Falls back to the original `[0]` behaviour when no
+				// walkthrough is featured (matching upstream).
+				const visibleCategories = this.gettingStartedCategories.filter(c => !c.when || this.contextService.contextMatchesRules(c.when));
+				const first = visibleCategories.find(c => c.isFeatured) ?? visibleCategories[0];
 				if (first && this.editorInput) {
 					this.currentWalkthrough = first;
 					this.editorInput.selectedCategory = this.currentWalkthrough?.id;

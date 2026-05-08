@@ -104,10 +104,9 @@ export function forwardToChannelIf(value: boolean): Record<string, unknown> {
 	};
 }
 
-export function isCopilotLikeExtension(extensionId: string | undefined): boolean {
-	if (!extensionId) {
-		return false;
-	}
-	const extIdLowerCase = extensionId.toLowerCase();
-	return extIdLowerCase === 'github.copilot' || extIdLowerCase === 'github.copilot-chat';
+export function isCopilotLikeExtension(_extensionId: string | undefined): boolean {
+	// Son of Anton does not forward telemetry to a sibling AI extension. The
+	// helper is preserved (and kept exported) so call-sites that opt-in to
+	// sibling-AI telemetry forwarding compile, but it always returns false.
+	return false;
 }

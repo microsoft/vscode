@@ -543,7 +543,7 @@ configurationRegistry.registerConfiguration({
 			],
 			enumDescriptions: [
 				nls.localize('chat.mcp.access.none', "No access to MCP servers."),
-				nls.localize('chat.mcp.access.registry', "Allows access to MCP servers installed from the registry that VS Code is connected to."),
+				nls.localize('chat.mcp.access.registry', "Allows access to MCP servers installed from the registry that Son of Anton is connected to."),
 				nls.localize('chat.mcp.access.any', "Allow access to any installed MCP server.")
 			],
 			default: McpAccessValue.All,
@@ -570,7 +570,7 @@ configurationRegistry.registerConfiguration({
 							key: 'chat.mcp.access.none', value: nls.localize('chat.mcp.access.none', "No access to MCP servers."),
 						},
 						{
-							key: 'chat.mcp.access.registry', value: nls.localize('chat.mcp.access.registry', "Allows access to MCP servers installed from the registry that VS Code is connected to."),
+							key: 'chat.mcp.access.registry', value: nls.localize('chat.mcp.access.registry', "Allows access to MCP servers installed from the registry that Son of Anton is connected to."),
 						},
 						{
 							key: 'chat.mcp.access.any', value: nls.localize('chat.mcp.access.any', "Allow access to any installed MCP server.")
@@ -1202,8 +1202,8 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.AIDisabled]: {
 			type: 'boolean',
-			description: nls.localize('chat.disableAIFeatures', "Disable and hide built-in AI features provided by GitHub Copilot, including chat and inline suggestions."),
-			default: false,
+			description: nls.localize('chat.disableAIFeatures', "Disable and hide the built-in chat and inline-suggestion AI features. Son of Anton ships its own chat surface (sidebar) and routes AI separately, so the upstream features are disabled by default."),
+			default: true,
 			scope: ConfigurationScope.WINDOW
 		},
 		'chat.allowAnonymousAccess': { // TODO@bpasero remove me eventually
@@ -1217,7 +1217,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.GrowthNotificationEnabled]: {
 			type: 'boolean',
-			description: nls.localize('chat.growthNotification', "Controls whether to show a growth notification in the agent sessions view to encourage new users to try Copilot."),
+			description: nls.localize('chat.growthNotification', "Controls whether to show a growth notification in the agent sessions view to introduce chat to new users."),
 			default: false,
 			tags: ['experimental'],
 			experiment: {
@@ -1237,7 +1237,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'chat.extensionUnification.enabled': {
 			type: 'boolean',
-			description: nls.localize('chat.extensionUnification.enabled', "Enables the unification of GitHub Copilot extensions. When enabled, all GitHub Copilot functionality is served from the GitHub Copilot Chat extension. When disabled, the GitHub Copilot and GitHub Copilot Chat extensions operate independently."),
+			description: nls.localize('chat.extensionUnification.enabled', "Controls whether chat-related extensions are unified into a single chat extension."),
 			default: true,
 			tags: ['experimental'],
 			experiment: {

@@ -5,10 +5,10 @@
 import * as assert from 'assert';
 import * as vscode from 'vscode';
 import { AgentBridge } from '../src/chat/AgentBridge';
-import type { AgentStack } from '../src/agents/AgentStackFactory';
-import type { BaseAgent } from '../src/agents/BaseAgent';
-import type { OrchestratorAgent } from '../src/agents/OrchestratorAgent';
-import type { AgentHandle } from '../src/agents/types';
+import type { AgentStack } from 'son-of-anton-core/agents/AgentStackFactory';
+import type { BaseAgent } from 'son-of-anton-core/agents/BaseAgent';
+import type { OrchestratorAgent } from 'son-of-anton-core/agents/OrchestratorAgent';
+import type { AgentHandle } from 'son-of-anton-core/agents/types';
 import type { AgentEvent } from '../src/chat/agentEvents';
 
 // ── Fakes ─────────────────────────────────────────────────────────────────────
@@ -51,6 +51,7 @@ function makeFakeAgent(handle: AgentHandle, tokens: readonly string[], failWith?
 
 interface FakeOrchestrator {
 	lastPrompt?: string;
+	lastCommand?: string;
 	receivedStructuredEmit: boolean;
 	handleChatRequest(
 		request: vscode.ChatRequest,
@@ -69,6 +70,7 @@ function makeOrchestrator(opts: { fail?: string } = {}): FakeOrchestrator {
 				throw new Error(opts.fail);
 			}
 			orchestrator.lastPrompt = request.prompt;
+			orchestrator.lastCommand = request.command;
 			orchestrator.receivedStructuredEmit = typeof structuredEmit === 'function';
 			stream.markdown('Planning...');
 			structuredEmit?.({
@@ -96,6 +98,7 @@ function makeStack(specialists: ReadonlyMap<AgentHandle, FakeAgent>, orchestrato
 		registrations: [],
 		metricsTracker: {} as never,
 		projectMemory: {} as never,
+		specialistMemory: {} as never,
 		dispose: () => { /* no-op */ },
 	} as AgentStack;
 }
@@ -136,6 +139,24 @@ suite('AgentBridge', () => {
 				eventTypes: ['token', 'plan-proposed', 'subtask-started', 'subtask-completed', 'final'],
 			},
 		);
+	});
+
+	test('runOrchestrator forwards mode "plan" as the request.command so the orchestrator stays in plan-only mode', async () => {
+		const orchestrator = makeOrchestrator();
+		const bridge = new AgentBridge(makeStack(new Map(), orchestrator));
+
+		await bridge.runOrchestrator('design only', () => { /* ignore */ }, token(), { mode: 'plan' });
+
+		assert.strictEqual(orchestrator.lastCommand, 'plan');
+	});
+
+	test('runOrchestrator leaves request.command undefined for "act" mode (the default)', async () => {
+		const orchestrator = makeOrchestrator();
+		const bridge = new AgentBridge(makeStack(new Map(), orchestrator));
+
+		await bridge.runOrchestrator('execute', () => { /* ignore */ }, token(), { mode: 'act' });
+
+		assert.strictEqual(orchestrator.lastCommand, undefined);
 	});
 
 	test('runOrchestrator emits an error event when the orchestrator throws', async () => {

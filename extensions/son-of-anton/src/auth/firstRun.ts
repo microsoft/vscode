@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as vscode from 'vscode';
-import { detectCredentials, hasAnyProvider } from '../onboarding/credentialDetection';
+import { detectCredentials, hasAnyProvider } from 'son-of-anton-core/credentials/credentialDetection';
 import { SETUP_WIZARD_SKIPPED_KEY, SetupWizardPanel, SetupWizardDeps } from '../onboarding/SetupWizardPanel';
-import type { CredentialBroker } from './CredentialBroker';
-import type { LlmClient } from '../llm/LlmClient';
+import type { CredentialBroker } from 'son-of-anton-core/auth/CredentialBroker';
+import type { LlmClient } from 'son-of-anton-core/llm/LlmClient';
 
 const FIRST_RUN_DISMISSED_KEY = 'sotaAuth.firstRunPromptDismissed';
 

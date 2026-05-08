@@ -15,7 +15,6 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { CustomizationCreatorService } from '../../../../workbench/contrib/chat/browser/aiCustomization/customizationCreatorService.js';
 import { PromptsType } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
 import { IPathService } from '../../../../workbench/services/path/common/pathService.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
@@ -58,7 +57,6 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IPromptsService private readonly promptsService: IPromptsService,
 		@IPathService pathService: IPathService,
-		@ICommandService private readonly commandService: ICommandService,
 		@ILogService private readonly logService: ILogService,
 		@IFileService private readonly fileService: IFileService,
 		@INotificationService private readonly notificationService: INotificationService,
@@ -198,18 +196,18 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 
 		const repoFileUri = URI.joinPath(repositoryUri, relPath);
 
-		// 1. Always commit to main repository
+		// 1. Mirror the file to the main repository. Auto-committing the
+		// change is deferred — the previous implementation dispatched to a
+		// sibling-AI CLI command that this fork no longer ships. The file
+		// ends up modified-but-uncommitted and the user (or a future native
+		// git integration) drives the commit.
 		try {
 			if (repoFileUri.toString() !== fileUri.toString()) {
 				const content = await this.fileService.readFile(fileUri);
 				await this.fileService.writeFile(repoFileUri, content.value);
 			}
-			await this.commandService.executeCommand(
-				'github.copilot.cli.sessions.commitToRepository',
-				{ repositoryUri, fileUri: repoFileUri }
-			);
 		} catch (error) {
-			this.logService.error('[SessionsAICustomizationWorkspaceService] Failed to commit to repository:', error);
+			this.logService.error('[SessionsAICustomizationWorkspaceService] Failed to mirror file to repository:', error);
 			if (worktreeUri) {
 				this.notificationService.notify({
 					severity: Severity.Warning,
@@ -218,7 +216,7 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 			}
 		}
 
-		// 2. Also commit to the worktree if active
+		// 2. Mirror to the worktree if active. Auto-commit deferred (see #1).
 		if (worktreeUri) {
 			const worktreeFileUri = URI.joinPath(worktreeUri, relPath);
 			try {
@@ -226,12 +224,8 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 					const content = await this.fileService.readFile(fileUri);
 					await this.fileService.writeFile(worktreeFileUri, content.value);
 				}
-				await this.commandService.executeCommand(
-					'github.copilot.cli.sessions.commitToWorktree',
-					{ worktreeUri, fileUri: worktreeFileUri }
-				);
 			} catch (error) {
-				this.logService.error('[SessionsAICustomizationWorkspaceService] Failed to commit to worktree:', error);
+				this.logService.error('[SessionsAICustomizationWorkspaceService] Failed to mirror file to worktree:', error);
 			}
 		}
 	}
@@ -249,17 +243,14 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 
 		const repoFileUri = URI.joinPath(repositoryUri, relPath);
 
-		// 1. Delete from main repository if it exists there, then commit
+		// 1. Delete from the main repository if it exists there. Auto-commit
+		// of the deletion is deferred (see `commitFileToRepos`).
 		try {
 			if (await this.fileService.exists(repoFileUri)) {
 				await this.fileService.del(repoFileUri, { useTrash: true, recursive: true });
 			}
-			await this.commandService.executeCommand(
-				'github.copilot.cli.sessions.commitToRepository',
-				{ repositoryUri, fileUri: repoFileUri }
-			);
 		} catch (error) {
-			this.logService.error('[SessionsAICustomizationWorkspaceService] Failed to commit deletion to repository:', error);
+			this.logService.error('[SessionsAICustomizationWorkspaceService] Failed to remove file from repository:', error);
 			if (worktreeUri) {
 				this.notificationService.notify({
 					severity: Severity.Warning,
@@ -268,19 +259,8 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 			}
 		}
 
-		// 2. Also commit the deletion in the worktree if active
-		if (worktreeUri) {
-			const worktreeFileUri = URI.joinPath(worktreeUri, relPath);
-			try {
-				// The file may already be deleted from the worktree by the caller
-				await this.commandService.executeCommand(
-					'github.copilot.cli.sessions.commitToWorktree',
-					{ worktreeUri, fileUri: worktreeFileUri }
-				);
-			} catch (error) {
-				this.logService.error('[SessionsAICustomizationWorkspaceService] Failed to commit deletion to worktree:', error);
-			}
-		}
+		// 2. Worktree deletion is performed by the caller; nothing further
+		// to mirror here. Auto-commit deferred.
 	}
 
 	async generateCustomization(type: PromptsType): Promise<void> {

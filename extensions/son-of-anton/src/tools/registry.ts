@@ -4,37 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 import * as vscode from 'vscode';
 import { spawn } from 'node:child_process';
-import { Tool, ToolDefinition, ToolExecutionContext, ToolExecutionResult } from './types';
-import { BUILTIN_TOOLS } from './builtin';
+import { ToolExecutionContext } from 'son-of-anton-core/tools/types';
 
-export class ToolRegistry {
-	private readonly tools = new Map<string, Tool>();
+// Re-export the moved registry surface so existing relative imports
+// (`../tools/registry`) keep working without churning every call site.
+export { ToolRegistry, BUILTIN_TOOLS } from 'son-of-anton-core/tools/registry';
 
-	constructor(initial: ReadonlyArray<Tool> = BUILTIN_TOOLS) {
-		for (const t of initial) {
-			this.tools.set(t.definition.name, t);
-		}
-	}
-
-	register(tool: Tool): void { this.tools.set(tool.definition.name, tool); }
-	unregister(name: string): boolean { return this.tools.delete(name); }
-	get(name: string): Tool | undefined { return this.tools.get(name); }
-	definitions(): ReadonlyArray<ToolDefinition> { return [...this.tools.values()].map(t => t.definition); }
-
-	async execute(name: string, input: Record<string, unknown>, ctx: ToolExecutionContext): Promise<ToolExecutionResult> {
-		const tool = this.tools.get(name);
-		if (!tool) {
-			return { content: `Unknown tool: ${name}`, isError: true };
-		}
-		try {
-			return await tool.execute(input, ctx);
-		} catch (err) {
-			const msg = err instanceof Error ? err.message : String(err);
-			return { content: `Tool '${name}' threw: ${msg}`, isError: true };
-		}
-	}
-}
-
+/**
+ * Build a `ToolExecutionContext` backed by the live VS Code workspace. Stays
+ * in the extension because it depends on `vscode.workspace.fs`,
+ * `vscode.workspace.findFiles`, and the `vscode.diff` confirmation UI — all
+ * surfaces unavailable to the future CLI host. The CLI will provide its own
+ * implementation of the same `ToolExecutionContext` interface.
+ */
 export function createWorkspaceToolContext(): ToolExecutionContext {
 	const root = vscode.workspace.workspaceFolders?.[0]?.uri;
 	const resolveSafe = (relPath: string): vscode.Uri => {
@@ -114,7 +96,13 @@ export function createWorkspaceToolContext(): ToolExecutionContext {
 					} catch { /* directory may already exist — ignore */ }
 				}
 				await vscode.workspace.fs.writeFile(targetUri, new TextEncoder().encode(content));
-				return { written: true };
+				// Surface the pre-image and existence flag so the host can
+				// stash a snapshot for the side-by-side diff editor. The
+				// pre-image is the content the file held *before* this
+				// write completed — which is what the diff button needs to
+				// show "before ↔ after". For new files we still report a
+				// snapshot (empty string) so the diff is offered uniformly.
+				return { written: true, preImage: existing, existed: exists };
 			} catch (err) {
 				const msg = err instanceof Error ? err.message : String(err);
 				return { written: false, reason: msg };
@@ -239,5 +227,3 @@ export function createWorkspaceToolContext(): ToolExecutionContext {
 		},
 	};
 }
-
-export { BUILTIN_TOOLS };

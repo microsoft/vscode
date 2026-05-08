@@ -105,17 +105,17 @@ export function getAgentCanContinueIn(provider: AgentSessionProviders): boolean 
 export function getAgentSessionProviderDescription(provider: AgentSessionProviders): string {
 	switch (provider) {
 		case AgentSessionProviders.Local:
-			return localize('chat.session.providerDescription.local', "Run tasks within VS Code chat. The agent iterates via chat and works interactively to implement changes on your main workspace.");
+			return localize('chat.session.providerDescription.local', "Run tasks within Son of Anton chat. The agent iterates via chat and works interactively to implement changes on your main workspace.");
 		case AgentSessionProviders.Background:
-			return localize('chat.session.providerDescription.background', "Delegate tasks to a background agent running locally on your machine. The agent iterates via chat and works asynchronously in a Git worktree to implement changes isolated from your main workspace using the GitHub Copilot CLI.");
+			return localize('chat.session.providerDescription.background', "Delegate tasks to a background agent running locally on your machine. The agent iterates via chat and works asynchronously in a Git worktree to implement changes isolated from your main workspace.");
 		case AgentSessionProviders.Cloud:
-			return localize('chat.session.providerDescription.cloud', "Delegate tasks to the GitHub Copilot coding agent. The agent iterates via chat and works asynchronously in the cloud to implement changes and pull requests as needed.");
+			return localize('chat.session.providerDescription.cloud', "Delegate tasks to a cloud coding agent. The agent iterates via chat and works asynchronously in the cloud to implement changes and pull requests as needed.");
 		case AgentSessionProviders.Claude:
-			return localize('chat.session.providerDescription.claude', "Delegate tasks to the Claude Agent SDK using the Claude models included in your GitHub Copilot subscription. The agent iterates via chat and works interactively to implement changes on your main workspace.");
+			return localize('chat.session.providerDescription.claude', "Delegate tasks to the Claude Agent SDK. The agent iterates via chat and works interactively to implement changes on your main workspace.");
 		case AgentSessionProviders.Codex:
 			return localize('chat.session.providerDescription.codex', "Opens a new Codex session in the editor. Codex sessions can be managed from the chat sessions view.");
 		case AgentSessionProviders.Growth:
-			return localize('chat.session.providerDescription.growth', "Learn about Copilot features.");
+			return localize('chat.session.providerDescription.growth', "Learn about Son of Anton's chat features.");
 	}
 }
 

@@ -1,13 +1,13 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Son of Anton Contributors. All rights reserved.
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import * as net from 'net';
 import * as fs from 'fs';
-import { CredentialBroker } from '../src/auth/CredentialBroker';
-import { BrokerServer } from '../src/auth/BrokerServer';
-import type { SecretStore, TokenRecord, ProviderConfig } from '../src/auth/types';
+import { CredentialBroker } from 'son-of-anton-core/auth/CredentialBroker';
+import { BrokerServer } from 'son-of-anton-core/auth/BrokerServer';
+import type { SecretStore, TokenRecord, ProviderConfig } from 'son-of-anton-core/auth/types';
 
 // ── Fakes ─────────────────────────────────────────────────────────────────────
 

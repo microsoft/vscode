@@ -5,7 +5,17 @@
 
 import { Event } from '../../../base/common/event.js';
 import * as platform from '../../../base/common/platform.js';
-import type { IExperimentationFilterProvider } from 'tas-client';
+
+/**
+ * Local declaration of `tas-client`'s `IExperimentationFilterProvider`. The
+ * upstream package is not a dependency of this fork, so we replicate just the
+ * shape we rely on so consumers can implement the contract without needing to
+ * pull tas-client into the dependency graph.
+ */
+export interface IExperimentationFilterProvider {
+	getFilters(): Map<string, unknown>;
+	getFilterValue(filter: string): string | null;
+}
 
 export const ASSIGNMENT_STORAGE_KEY = 'Son of Anton.ABExp.FeatureData';
 export const ASSIGNMENT_REFETCH_INTERVAL = 60 * 60 * 1000; // 1 hour

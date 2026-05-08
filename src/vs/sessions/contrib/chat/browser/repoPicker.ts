@@ -17,7 +17,15 @@ import { INewSession } from './newSession.js';
 import { URI } from '../../../../base/common/uri.js';
 import { GITHUB_REMOTE_FILE_SCHEME } from '../../fileTreeView/browser/githubFileSystemProvider.js';
 
-const OPEN_REPO_COMMAND = 'github.copilot.chat.cloudSessions.openRepository';
+/**
+ * Command id used to launch a "browse / pick repository" UI. The fork does not
+ * register this command yet — the previous sibling-AI cloud-sessions command
+ * was removed and a native replacement is pending — so `executeCommand`
+ * returns `undefined` until that work lands. Callers must tolerate
+ * `undefined`; the rest of the picker (recents, persistence) keeps working
+ * without it.
+ */
+const OPEN_REPO_COMMAND = 'sota.repoPicker.browse';
 const STORAGE_KEY_LAST_REPO = 'agentSessions.lastPickedRepo';
 const STORAGE_KEY_RECENT_REPOS = 'agentSessions.recentlyPickedRepos';
 const MAX_RECENT_REPOS = 10;
@@ -30,8 +38,8 @@ interface IRepoItem {
 
 /**
  * A self-contained widget for selecting the repository in cloud sessions.
- * Uses the `github.copilot.chat.cloudSessions.openRepository` command for
- * browsing repositories. Manages recently used repos in storage.
+ * Manages recently used repos in storage and dispatches a fork-owned
+ * "browse" command (see `OPEN_REPO_COMMAND`) for picking a new one.
  * Behaves like FolderPicker: trigger button with dropdown, storage persistence,
  * recently used list with remove buttons.
  */

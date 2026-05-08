@@ -1,10 +1,10 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Son of Anton Contributors. All rights reserved.
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { MetricsTracker } from '../src/agents/MetricsTracker';
-import { TokenUsage } from '../src/agents/types';
+import { MetricsTracker } from 'son-of-anton-core/agents/MetricsTracker';
+import { TokenUsage } from 'son-of-anton-core/agents/types';
 
 suite('MetricsTracker', () => {
 	let tracker: MetricsTracker;

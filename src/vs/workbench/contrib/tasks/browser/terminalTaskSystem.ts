@@ -180,11 +180,11 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 
 	taskShellIntegrationStartSequence(cwd: string | URI | undefined): string {
 		return (
-			SonOfAntonSequence(SonOfAntonOscPt.Property, `${Son of AntonOscProperty.HasRichCommandDetection}=True`) +
+			SonOfAntonSequence(SonOfAntonOscPt.Property, `${SonOfAntonOscProperty.HasRichCommandDetection}=True`) +
 			SonOfAntonSequence(SonOfAntonOscPt.PromptStart) +
-			SonOfAntonSequence(SonOfAntonOscPt.Property, `${Son of AntonOscProperty.Task}=True`) +
+			SonOfAntonSequence(SonOfAntonOscPt.Property, `${SonOfAntonOscProperty.Task}=True`) +
 			(cwd
-				? SonOfAntonSequence(SonOfAntonOscPt.Property, `${Son of AntonOscProperty.Cwd}=${typeof cwd === 'string' ? cwd : cwd.fsPath}`)
+				? SonOfAntonSequence(SonOfAntonOscPt.Property, `${SonOfAntonOscProperty.Cwd}=${typeof cwd === 'string' ? cwd : cwd.fsPath}`)
 				: ''
 			) +
 			SonOfAntonSequence(SonOfAntonOscPt.CommandStart)
@@ -193,7 +193,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	getTaskShellIntegrationOutputSequence(commandLineInfo: { commandLine: string; nonce: string } | undefined): string {
 		return (
 			(commandLineInfo
-				? SonOfAntonSequence(SonOfAntonOscPt.CommandLine, `${serializeSon of AntonOscMessage(commandLineInfo.commandLine)};${commandLineInfo.nonce}`)
+				? SonOfAntonSequence(SonOfAntonOscPt.CommandLine, `${serializeSonOfAntonOscMessage(commandLineInfo.commandLine)};${commandLineInfo.nonce}`)
 				: ''
 			) +
 			SonOfAntonSequence(SonOfAntonOscPt.CommandExecuted)
@@ -1996,7 +1996,7 @@ function getWaitOnExitValue(presentationOptions: IPresentationOptions, configura
 
 function taskShellIntegrationWaitOnExitSequence(message: string): (exitCode: number) => string {
 	return (exitCode) => {
-		return `${Son of AntonSequence(Son of AntonOscPt.CommandFinished, exitCode.toString())}${message}`;
+		return `${SonOfAntonSequence(SonOfAntonOscPt.CommandFinished, exitCode.toString())}${message}`;
 	};
 }
 

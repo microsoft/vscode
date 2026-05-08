@@ -1,10 +1,10 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Son of Anton Contributors. All rights reserved.
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { AgentManager } from '../src/agents/AgentManager';
-import { LlmClient } from '../src/llm/LlmClient';
+import { AgentManager } from 'son-of-anton-core/agents/AgentManager';
+import { LlmClient } from 'son-of-anton-core/llm/LlmClient';
 
 // Minimal stub for tests — LlmClient requires vscode.ExtensionContext
 // which is only available in the extension host. These tests validate
@@ -78,9 +78,15 @@ suite('AgentManager', () => {
 			attributes: { model: 'sonnet', inputTokens: 500 },
 		});
 
+		// `createTask` emits an automatic 'lifecycle' span so the trace pane
+		// always has at least one row per task; the explicit `addSpan` adds a
+		// second one of type `'llm_call'`.
 		const spans = manager.getSpansForTask(task.id);
-		assert.strictEqual(spans.length, 1);
-		assert.strictEqual(spans[0].type, 'llm_call');
+		const llmSpans = spans.filter(s => s.type === 'llm_call');
+		const lifecycleSpans = spans.filter(s => s.type === 'lifecycle');
+		assert.strictEqual(llmSpans.length, 1);
+		assert.strictEqual(llmSpans[0].type, 'llm_call');
+		assert.ok(lifecycleSpans.length >= 1, 'createTask should emit a lifecycle span');
 	});
 
 	test('hasActiveAgents reflects running state', () => {

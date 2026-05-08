@@ -399,7 +399,11 @@ class RenameSymbolRunnable {
 
 	private async sendNesRenameRequest(textModel: ITextModel, position: Position, oldName: string, newName: string, lastSymbolRename: IRange | undefined): Promise<WorkspaceEdit & Rejection> {
 		try {
-			const result = await this._commandService.executeCommand<RenameGroup[]>('github.copilot.nes.postRename', textModel.uri, position, oldName, newName, lastSymbolRename);
+			// `sota.nes.postRename` is intentionally unregistered until a
+			// native NES rename provider lands; until then `executeCommand`
+			// returns undefined and the caller falls back to the standard
+			// rename flow (see the `result === undefined` branch below).
+			const result = await this._commandService.executeCommand<RenameGroup[]>('sota.nes.postRename', textModel.uri, position, oldName, newName, lastSymbolRename);
 			if (result === undefined) {
 				return { rejectReason: 'Rename failed', edits: [] };
 			}
@@ -541,7 +545,10 @@ export class RenameSymbolProcessor extends Disposable {
 	private async checkRenamePrecondition(suggestItem: InlineSuggestionItem, textModel: ITextModel, position: Position, oldName: string, newName: string, lastSymbolRename: IRange | undefined): Promise<PrepareNesRenameResult> {
 		const no: PrepareNesRenameResult.No = { canRename: RenameKind.no, timedOut: false };
 		try {
-			const result = await this._commandService.executeCommand<RenameKind | PrepareNesRenameResult>('github.copilot.nes.prepareRename', textModel.uri, position, oldName, newName, suggestItem.requestUuid, lastSymbolRename);
+			// See `sendNesRenameRequest` — same fork-owned, currently
+			// unregistered command id; undefined result drops back to the
+			// standard rename precondition.
+			const result = await this._commandService.executeCommand<RenameKind | PrepareNesRenameResult>('sota.nes.prepareRename', textModel.uri, position, oldName, newName, suggestItem.requestUuid, lastSymbolRename);
 			if (result === undefined) {
 				return no;
 			} else if (typeof result === 'string') {

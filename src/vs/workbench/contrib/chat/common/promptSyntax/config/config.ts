@@ -81,9 +81,12 @@ export namespace PromptsConfig {
 	export const PROMPT_FILES_SUGGEST_KEY = 'chat.promptFilesRecommendations';
 
 	/**
-	 * Configuration key for use of the copilot instructions file.
+	 * Configuration key controlling whether `.github/copilot-instructions.md`
+	 * style instruction files are picked up by the prompt-instruction loader.
+	 * The key is fork-namespaced but the file convention it gates is the
+	 * widely-used Copilot instructions file shape.
 	 */
-	export const USE_COPILOT_INSTRUCTION_FILES = 'github.copilot.chat.codeGeneration.useInstructionFiles';
+	export const USE_COPILOT_INSTRUCTION_FILES = 'sota.chat.useInstructionFiles';
 
 	/**
 	 * Configuration key for the AGENTS.md.

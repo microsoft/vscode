@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { AgentManager } from '../agents/AgentManager';
-import { MetricsTracker } from '../agents/MetricsTracker';
+import { AgentManager } from 'son-of-anton-core/agents/AgentManager';
+import { MetricsTracker } from 'son-of-anton-core/agents/MetricsTracker';
 import { BackgroundTaskClient, BackgroundTask } from '../background/BackgroundTaskClient';
 
 /**

@@ -7,11 +7,20 @@
 			"ES2024",
 			"DOM"
 		],
-		"skipLibCheck": true
+		"skipLibCheck": true,
+		"ignoreDeprecations": "6.0",
+		"baseUrl": ".",
+		"paths": {
+			"son-of-anton-core": ["../../son-of-anton-core/dist/index.d.ts"],
+			"son-of-anton-core/*": ["../../son-of-anton-core/dist/*.d.ts"]
+		}
 	},
 	"include": [
 		"src/**/*",
 		"../../src/vscode-dts/vscode.d.ts",
 		"../types/lib.textEncoder.d.ts"
+	],
+	"exclude": [
+		"src/board/webview/**/*"
 	]
 }

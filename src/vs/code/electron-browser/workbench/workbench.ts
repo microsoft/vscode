@@ -305,7 +305,7 @@
 				workbenchUrl = new URL(`vs/workbench/workbench.desktop.main.js`, baseUrl).href;
 			}
 
-			const result = await import(workbenchUrl);
+			const result = await import(/* @vite-ignore */ workbenchUrl);
 			if (developerDeveloperKeybindingsDisposable && removeDeveloperKeybindingsAfterLoad) {
 				developerDeveloperKeybindingsDisposable();
 			}

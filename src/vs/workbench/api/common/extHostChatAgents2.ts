@@ -1311,5 +1311,5 @@ function raceCancellationWithTimeout<T>(cancelWait: number, promise: Promise<T>,
 }
 
 function isBuiltinParticipant(agentId: string): boolean {
-	return agentId.startsWith('github.copilot');
+	return agentId.startsWith('son-of-anton.');
 }

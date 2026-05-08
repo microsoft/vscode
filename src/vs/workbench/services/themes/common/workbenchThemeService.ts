@@ -11,7 +11,6 @@ import { ConfigurationTarget } from '../../../../platform/configuration/common/c
 import { isBoolean, isString } from '../../../../base/common/types.js';
 import { IconContribution, IconDefinition } from '../../../../platform/theme/common/iconRegistry.js';
 import { ColorScheme, ThemeTypeSelector } from '../../../../platform/theme/common/theme.js';
-import product from '../../../../platform/product/common/product.js';
 
 export const IWorkbenchThemeService = refineServiceDecorator<IThemeService, IWorkbenchThemeService>(IThemeService);
 
@@ -38,8 +37,6 @@ export enum ThemeSettings {
 
 	SYSTEM_COLOR_THEME = 'window.systemColorTheme'
 }
-
-const isOSS = !product.quality;
 
 export namespace ThemeSettingDefaults {
 	export const COLOR_THEME_DARK = 'Son of Anton Dark';

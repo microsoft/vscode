@@ -15,7 +15,6 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultCon
 		'chat.implicitContext.suggestedContext': false,
 		'chat.implicitContext.enabled': { 'panel': 'never' },
 		'chat.tools.terminal.enableAutoApprove': true,
-		'github.copilot.chat.githubMcpServer.enabled': true,
 
 		'breadcrumbs.enabled': false,
 
@@ -29,16 +28,6 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultCon
 		'git.branchRandomName.enable': true,
 		'git.detectWorktrees': false,
 		'git.showProgress': false,
-
-		'github.copilot.enable': {
-			'markdown': true,
-			'plaintext': true,
-		},
-
-		'github.copilot.chat.claudeCode.enabled': true,
-		'github.copilot.chat.cli.branchSupport.enabled': true,
-		'github.copilot.chat.languageContext.typescript.enabled': true,
-		'github.copilot.chat.cli.mcp.enabled': true,
 
 		'inlineChat.affordance': 'editor',
 		'inlineChat.renderMode': 'hover',

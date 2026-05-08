@@ -2030,15 +2030,22 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 			}
 		}
 
-		deprecated[this.productService.defaultChatAgent.extensionId.toLowerCase()] = {
-			disallowInstall: true,
-			extension: {
-				id: this.productService.defaultChatAgent.chatExtensionId,
-				displayName: 'GitHub Copilot Chat',
-				autoMigrate: { storage: false, donotDisable: true },
-				preRelease: this.productService.quality !== 'stable'
-			}
-		};
+		const defaultChatAgentExtensionId = this.productService.defaultChatAgent.extensionId;
+		const defaultChatAgentChatExtensionId = this.productService.defaultChatAgent.chatExtensionId;
+		// Skip the deprecation marker when the fork has stubbed the default
+		// chat-agent identifiers (empty strings would otherwise add a
+		// deprecation entry keyed on the empty string).
+		if (defaultChatAgentExtensionId && defaultChatAgentChatExtensionId) {
+			deprecated[defaultChatAgentExtensionId.toLowerCase()] = {
+				disallowInstall: true,
+				extension: {
+					id: defaultChatAgentChatExtensionId,
+					displayName: defaultChatAgentChatExtensionId,
+					autoMigrate: { storage: false, donotDisable: true },
+					preRelease: this.productService.quality !== 'stable'
+				}
+			};
+		}
 
 		return { malicious, deprecated, search, autoUpdate };
 	}

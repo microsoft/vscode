@@ -1,0 +1,32 @@
+{
+	"compilerOptions": {
+		"target": "ES2022",
+		"module": "node16",
+		"moduleResolution": "node16",
+		"lib": ["ES2022", "DOM"],
+		"outDir": "./dist",
+		"rootDir": "./src",
+		"strict": true,
+		"esModuleInterop": true,
+		"skipLibCheck": true,
+		"declaration": true,
+		"declarationMap": true,
+		"sourceMap": true,
+		"forceConsistentCasingInFileNames": true,
+		"experimentalDecorators": true,
+		"noImplicitOverride": true,
+		"ignoreDeprecations": "6.0",
+		"baseUrl": ".",
+		"paths": {
+			"@aws-sdk/*": ["../extensions/son-of-anton/node_modules/@aws-sdk/*"],
+			"@smithy/*": ["../extensions/son-of-anton/node_modules/@smithy/*"]
+		},
+		"types": ["node"],
+		"typeRoots": [
+			"./node_modules/@types",
+			"../node_modules/@types"
+		]
+	},
+	"include": ["src/**/*"],
+	"exclude": ["dist", "node_modules"]
+}

@@ -3,40 +3,56 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as vscode from 'vscode';
+import { globalScopedConfig, liveConfig } from './chat/globalScopedConfig';
 import { ChatPanel } from './chat/ChatPanel';
 import { ChatViewProvider } from './chat/ChatViewProvider';
+import { WriteSnapshotStore } from './chat/WriteSnapshotStore';
+import { ConversationStore } from './chat/ConversationStore';
+import { ConversationListProvider, ConversationTreeItem } from './chat/ConversationListProvider';
 import { InlineEditProvider } from './inline/InlineEdit';
 import { CompletionProvider } from './inline/CompletionProvider';
 import { AgentStatusProvider } from './sidebar/AgentStatusProvider';
+import { AgentRosterProvider, formatLastActive } from './sidebar/AgentRosterProvider';
 import { TaskQueueProvider } from './sidebar/TaskQueueProvider';
+import { PERSONAS } from 'son-of-anton-core/chat/personas';
 import { TraceViewerPanel } from './trace/TraceViewerPanel';
 import { TraceExporter } from './trace/TraceExporter';
-import { LlmClient } from './llm/LlmClient';
+import { LlmClient } from 'son-of-anton-core/llm/LlmClient';
 import { ToolRegistry } from './tools/registry';
-import { AgentManager } from './agents/AgentManager';
-import { McpClient } from './mcp/McpClient';
-import { bridgeMcpToolsIntoRegistry } from './mcp/McpToolBridge';
+import { AgentManager } from 'son-of-anton-core/agents/AgentManager';
+import { McpClient, type McpClientDeps } from 'son-of-anton-core/mcp/McpClient';
+import { bridgeMcpToolsIntoRegistry, subscribeMcpToolBridge } from 'son-of-anton-core/mcp/McpToolBridge';
 import { StatusBarManager } from './sidebar/StatusBarManager';
 import { registerAgentParticipants } from './agents/AgentParticipants';
-import { createAgentStack } from './agents/AgentStackFactory';
+import { createAgentStack } from 'son-of-anton-core/agents/AgentStackFactory';
 import { AgentBridge } from './chat/AgentBridge';
 import { WorkspaceContextProvider } from './chat/WorkspaceContextProvider';
+import { WorkspaceAgentsMdProvider } from './agents/AgentsMdLoader';
 import { SandboxManager, defaultSandboxConfig } from './sandbox/SandboxManager';
 import { SandboxTerminal } from './sandbox/SandboxTerminal';
 import { SecurityScanner } from './security/SecurityScanner';
 import { SupplyChainGuard } from './security/SupplyChainGuard';
+import { TrustedFolders } from './security/TrustedFolders';
+import { TrustStatusBarItem } from './security/TrustStatusBarItem';
 import { HookEngine } from './hooks/HookEngine';
 import { SpecSyncWatcher } from './hooks/SpecSyncWatcher';
 import { BackgroundTaskClient } from './background/BackgroundTaskClient';
 import { FleetDashboardPanel } from './dashboard/FleetDashboardPanel';
-import { MetricsTracker } from './agents/MetricsTracker';
+import { MetricsTracker } from 'son-of-anton-core/agents/MetricsTracker';
 import { StartupMessages } from './personality/StartupMessages';
 import { TerminalBanner } from './personality/TerminalBanner';
 import { KonamiCode } from './personality/KonamiCode';
 import { GitBlameEasterEgg } from './personality/GitBlameEasterEgg';
+import { registerPersonalityCommands } from './personality/registerPersonalityCommands';
 import { activateAuth } from './auth/activation';
 import { maybeShowFirstRunSignInPrompt } from './auth/firstRun';
 import { SetupWizardPanel } from './onboarding/SetupWizardPanel';
+import { CostReporter } from './monitoring/CostReporter';
+import { CheckpointManager } from 'son-of-anton-core/checkpoint/CheckpointManager';
+import { TaskBoardModel, BoardTask, SubtaskState } from './board/TaskBoardModel';
+import { TaskBoardPanel } from './board/TaskBoardPanel';
+import { TaskBoardSidebarView } from './board/TaskBoardSidebarView';
+import { AgentEvent, AgentPlan } from './chat/agentEvents';
 
 export function activate(context: vscode.ExtensionContext): void {
 	// --- Credential broker (OAuth-based provider sign-in) ---
@@ -48,7 +64,18 @@ export function activate(context: vscode.ExtensionContext): void {
 	});
 	context.subscriptions.push(...auth.disposables);
 
-	const llmClient = new LlmClient(context, auth.broker);
+	// Cost meter for the chat surface header. Threaded into LlmClient so any
+	// streamRequest call that carries an `agentHandle` records cost; the chat
+	// view subscribes to the reporter's onDidChange to refresh its meter.
+	const costReporter = new CostReporter();
+	context.subscriptions.push({ dispose: () => costReporter.dispose() });
+
+	const llmClient = new LlmClient(
+		context.secrets,
+		liveConfig('sota'),
+		auth.broker,
+		costReporter,
+	);
 
 	// First-launch setup wizard — fires once per install, silent if any
 	// credential is already configured (OAuth, settings, env var, AWS chain).
@@ -65,7 +92,23 @@ export function activate(context: vscode.ExtensionContext): void {
 	// Single shared tool registry threaded into all chat surfaces so tool-call
 	// orchestration is consistent regardless of where the chat is hosted.
 	const toolRegistry = new ToolRegistry();
-	const mcpClient = new McpClient();
+	const mcpClientDeps: McpClientDeps = {
+		readServersSetting: () => vscode.workspace.getConfiguration().get<unknown>('sota.mcp.servers'),
+		getWorkspaceRoot: () => vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
+		onSettingChange: (listener) => vscode.workspace.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('sota.mcp.servers')) {
+				listener();
+			}
+		}),
+	};
+	const mcpClient = new McpClient(mcpClientDeps);
+	context.subscriptions.push({ dispose: () => mcpClient.dispose() });
+
+	// Subscribe the registry to live MCP tool updates so adds / edits / removes
+	// from the in-chat settings UI take effect without a chat reload. The
+	// subscription is registered before the initial bridge run so any race
+	// where the McpClient fires onDidChangeTools mid-bridge is handled.
+	context.subscriptions.push(subscribeMcpToolBridge(mcpClient, toolRegistry));
 
 	// Bridge MCP-discovered tools into the shared ToolRegistry so chat agents
 	// see them alongside built-in tools. Best-effort and non-blocking — the
@@ -151,12 +194,123 @@ export function activate(context: vscode.ExtensionContext): void {
 		})
 	);
 
+	// Phase 67: project-context provider. Loads `.son-of-anton/AGENTS.md` /
+	// `AGENTS.md` / `CLAUDE.md` from every workspace root, watches for
+	// changes, and feeds the assembled markdown into the agent system prompt
+	// via `CoreHost.projectContext`. The output channel surfaces one INFO
+	// line the first time each file is loaded so users can confirm which
+	// files the agents are seeing.
+	const agentsMdChannel = vscode.window.createOutputChannel('Son of Anton: AGENTS.md');
+	context.subscriptions.push(agentsMdChannel);
+	const projectContextProvider = new WorkspaceAgentsMdProvider(
+		vscode.workspace.workspaceFolders,
+		agentsMdChannel,
+	);
+	context.subscriptions.push(projectContextProvider);
+
 	// Build the agent stack once and share it across surfaces (chat
 	// participants, webview sidebar, command-palette commands). Disposing
 	// the stack flushes metrics so we don't drop telemetry on shutdown.
-	const agentStack = createAgentStack({ llmClient, mcpClient, agentManager });
+	const agentStack = createAgentStack({
+		llmClient,
+		mcpClient,
+		agentManager,
+		globalState: context.globalState,
+		workspaceRoot: workspacePath || undefined,
+		projectContext: projectContextProvider,
+	});
 	context.subscriptions.push({ dispose: () => agentStack.dispose() });
-	const agentBridge = new AgentBridge(agentStack);
+	// Specialist memory is owned by the stack but pushed separately so
+	// future surfaces (e.g. UI listing what `@anton-code` remembers) can
+	// resolve it from `context.subscriptions` if needed. Disposal is
+	// idempotent — `agentStack.dispose()` already calls into it.
+	context.subscriptions.push(agentStack.specialistMemory);
+
+	// Per-workspace trust gate. Threaded into the AgentBridge so every
+	// orchestrator / specialist run has to clear it before any tool call
+	// (write_file, run_command, MCP) can fire. Wired up here (rather than
+	// inside the bridge) so command handlers and the status bar item can
+	// share the same instance.
+	const trustedFolders = new TrustedFolders(context.globalState);
+	context.subscriptions.push(trustedFolders);
+
+	const agentBridge = new AgentBridge(agentStack, trustedFolders);
+	context.subscriptions.push({ dispose: () => agentBridge.dispose() });
+
+	// Status bar lock that only surfaces when platform trust is granted but
+	// Son of Anton's consent has not been given.
+	const trustStatusBarItem = new TrustStatusBarItem(trustedFolders);
+	context.subscriptions.push(trustStatusBarItem);
+
+	// Trust commands (palette + status-bar click target).
+	context.subscriptions.push(
+		vscode.commands.registerCommand('sota.grantWorkspaceTrust', async () => {
+			const folder = vscode.workspace.workspaceFolders?.[0];
+			if (!folder) {
+				vscode.window.showInformationMessage('Son of Anton: open a workspace folder before granting trust.');
+				return;
+			}
+			if (!vscode.workspace.isTrusted) {
+				vscode.window.showWarningMessage(
+					'Son of Anton: VS Code workspace trust is required first. Use "Workspaces: Manage Workspace Trust" to grant it.',
+				);
+				return;
+			}
+			const choice = await vscode.window.showWarningMessage(
+				`Trust Son of Anton in '${folder.name}'?\n\nSon of Anton agents can read your files, run shell commands, and modify code. Grant trust only if you trust this workspace.`,
+				{ modal: true },
+				'Trust Forever',
+				'Cancel',
+			);
+			if (choice === 'Trust Forever') {
+				trustedFolders.grant(folder.uri.fsPath);
+				trustStatusBarItem.refresh();
+				vscode.window.showInformationMessage(`Son of Anton: granted trust for '${folder.name}'.`);
+			}
+		}),
+	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('sota.revokeWorkspaceTrust', () => {
+			const folder = vscode.workspace.workspaceFolders?.[0];
+			if (!folder) {
+				vscode.window.showInformationMessage('Son of Anton: no workspace folder open.');
+				return;
+			}
+			if (!trustedFolders.isTrusted(folder.uri.fsPath)) {
+				vscode.window.showInformationMessage(`Son of Anton: '${folder.name}' is not currently trusted.`);
+				return;
+			}
+			trustedFolders.revoke(folder.uri.fsPath);
+			trustStatusBarItem.refresh();
+			vscode.window.showInformationMessage(`Son of Anton: revoked trust for '${folder.name}'.`);
+		}),
+	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('sota.manageTrustedFolders', async () => {
+			const entries = trustedFolders.list();
+			if (entries.length === 0) {
+				vscode.window.showInformationMessage('Son of Anton: no trusted folders yet.');
+				return;
+			}
+			const pick = await vscode.window.showQuickPick(
+				entries.map(entry => ({
+					label: `$(lock) ${entry.folderPath}`,
+					description: `granted ${new Date(entry.grantedAt).toLocaleString()} by ${entry.grantedBy}`,
+					detail: 'Select to revoke trust for this folder.',
+					folderPath: entry.folderPath,
+				})),
+				{ placeHolder: 'Select a folder to revoke Son of Anton trust' },
+			);
+			if (!pick) {
+				return;
+			}
+			trustedFolders.revoke(pick.folderPath);
+			trustStatusBarItem.refresh();
+			vscode.window.showInformationMessage(`Son of Anton: revoked trust for '${pick.folderPath}'.`);
+		}),
+	);
 
 	// Single shared WorkspaceContextProvider so MRU listeners are registered
 	// once for the whole window, not per-session — avoids duplicate event
@@ -168,19 +322,514 @@ export function activate(context: vscode.ExtensionContext): void {
 	const agentDisposables = registerAgentParticipants(context, agentStack);
 	context.subscriptions.push(...agentDisposables);
 
+	// Conversation history store (Phase 47). Persists past chat sessions in
+	// globalState so users can browse and return to them from the History
+	// sidebar view. Constructed once and shared across the chat sidebar, the
+	// editor-panel chat command, and the History tree provider.
+	const conversationStore = new ConversationStore(context);
+	context.subscriptions.push(conversationStore);
+
+	// Workspace checkpoint manager (Cline-style snapshots). Captures a
+	// `git stash create` SHA per chat turn so the user can roll the working
+	// tree back to any prior state. Capture is best-effort and silently
+	// skipped if the workspace isn't a git repo or `sota.checkpoints.enabled`
+	// is `false`.
+	const checkpointManager = new CheckpointManager(conversationStore, context.globalState, {
+		notifier: {
+			info: (msg) => { void vscode.window.showInformationMessage(msg); },
+			warn: (msg) => { void vscode.window.showWarningMessage(msg); },
+			error: (msg) => { void vscode.window.showErrorMessage(msg); },
+		},
+		config: vscode.workspace.getConfiguration('sota'),
+		getWorkspaceRoot: () => vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
+		confirmRestore: async (message) => {
+			const choice = await vscode.window.showWarningMessage(
+				message,
+				{ modal: true },
+				'Restore',
+			);
+			return choice === 'Restore';
+		},
+	});
+	context.subscriptions.push(checkpointManager);
+
+	// Task board (Phase 82). Shared model that mirrors orchestrator plan +
+	// subtask events into a per-conversation kanban state. Wired to the
+	// AgentBridge's global event tap so the model updates regardless of which
+	// chat surface initiated the run.
+	const taskBoardModel = new TaskBoardModel();
+	context.subscriptions.push(taskBoardModel);
+	context.subscriptions.push(
+		agentBridge.onDidEmitEvent(envelope => {
+			const conversationId = envelope.conversationId;
+			if (!conversationId) {
+				return;
+			}
+			applyAgentEventToBoard(taskBoardModel, conversationId, envelope.event);
+		}),
+	);
+
+	// Phase 63 — shared store for write_file pre-image snapshots. Backs the
+	// "View diff" button on tool-result cards by exposing each captured
+	// snapshot through a synthetic `son-of-anton-snapshot:` URI; clicking
+	// the button calls `vscode.diff(snapshotUri, onDiskUri, title)`.
+	const writeSnapshotStore = new WriteSnapshotStore();
+	context.subscriptions.push(
+		vscode.workspace.registerTextDocumentContentProvider(WriteSnapshotStore.scheme, writeSnapshotStore),
+		{ dispose: () => writeSnapshotStore.dispose() },
+	);
+
 	// Chat sidebar view (primary surface)
-	const chatViewProvider = new ChatViewProvider(context, llmClient, toolRegistry, agentBridge, workspaceContextProvider);
+	const chatViewProvider = new ChatViewProvider(context, conversationStore, llmClient, toolRegistry, agentBridge, workspaceContextProvider, costReporter, checkpointManager, auth.broker, taskBoardModel, writeSnapshotStore);
 	context.subscriptions.push(
 		vscode.window.registerWebviewViewProvider(ChatViewProvider.VIEW_ID, chatViewProvider, {
 			webviewOptions: { retainContextWhenHidden: true },
 		}),
 	);
 
+	// Task board sidebar (Phase 83). Compact pane in its own activity-bar
+	// container that summarises the active conversation's board and hosts
+	// the "Open Full Board" CTA which delegates to the existing
+	// `sota.openTaskBoard` command. Subscribes to `taskBoardModel` and
+	// `conversationStore` so counts repaint as plans evolve and as the user
+	// switches conversations from the chat sidebar.
+	const taskBoardSidebarView = new TaskBoardSidebarView(context, taskBoardModel, conversationStore);
+	context.subscriptions.push(taskBoardSidebarView);
+	context.subscriptions.push(
+		vscode.window.registerWebviewViewProvider(TaskBoardSidebarView.VIEW_ID, taskBoardSidebarView, {
+			webviewOptions: { retainContextWhenHidden: true },
+		}),
+	);
+
+	// History sidebar view (Phase 47). Lives below the Chat view inside the
+	// `sota-chat` view container. Backed by the shared ConversationStore so
+	// edits in either surface (clicking new-chat in the chat header,
+	// renaming via the tree) repaint both consistently.
+	const conversationListProvider = new ConversationListProvider(conversationStore);
+	context.subscriptions.push(conversationListProvider);
+	context.subscriptions.push(
+		vscode.window.registerTreeDataProvider('sota.conversationList', conversationListProvider),
+	);
+
+	// Anton Roster sidebar view (Phase 77). Lists every persona registered
+	// in `son-of-anton-core/chat/personas` with a live status chip driven
+	// by the same `AgentBridge.onDidEmitEvent` envelopes the task board
+	// observes. Sits beneath the History view in the `sota-chat`
+	// container.
+	const agentRosterProvider = new AgentRosterProvider(agentBridge);
+	context.subscriptions.push(agentRosterProvider);
+	const agentRosterView = vscode.window.createTreeView('sota.specialistRoster', {
+		treeDataProvider: agentRosterProvider,
+		showCollapseAll: false,
+	});
+	context.subscriptions.push(agentRosterView);
+
+	// Dedicated output channel surfaced by "Show Last Trace" — split from
+	// the generic agent-trace exporter so the roster's traces don't get
+	// drowned out by hook execution lines.
+	const specialistTraceChannel = vscode.window.createOutputChannel('Son of Anton: Specialists');
+	context.subscriptions.push(specialistTraceChannel);
+
+	// --- Anton Roster commands ---
+	// The action handlers receive either the tree item argument forwarded
+	// by VS Code (when invoked from the context menu) or no argument
+	// (when invoked from the palette); the helper below normalises both.
+	const resolveRosterHandle = async (arg: unknown): Promise<string | undefined> => {
+		if (typeof arg === 'string' && arg.length > 0) {
+			return arg;
+		}
+		if (arg && typeof arg === 'object' && 'id' in arg) {
+			const id = (arg as { id?: unknown }).id;
+			if (typeof id === 'string' && id.length > 0) {
+				return id;
+			}
+		}
+		// Palette fallback: ask the user which specialist to act on.
+		const items = PERSONAS.map(persona => ({
+			label: `${persona.monogram}  ${persona.id}`,
+			description: persona.tagline,
+			handle: persona.id,
+		}));
+		const pick = await vscode.window.showQuickPick(items, {
+			placeHolder: 'Select a specialist',
+		});
+		return pick?.handle;
+	};
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('sota.specialistRoster.startThread', async (arg?: unknown) => {
+			const handle = await resolveRosterHandle(arg);
+			if (!handle) {
+				return;
+			}
+			// Open a fresh conversation and surface the chat view so the
+			// user can address the specialist directly. Pre-filling the
+			// composer is a follow-up (the chat panel doesn't yet expose a
+			// programmatic compose hook), so we hint via status bar.
+			const fresh = conversationStore.create();
+			await vscode.commands.executeCommand(`${ChatViewProvider.VIEW_ID}.focus`);
+			chatViewProvider.openConversation(fresh.summary.id);
+			ChatPanel.switchConversation(fresh.summary.id);
+			vscode.window.setStatusBarMessage(
+				`Started a thread — address ${handle} with @${handle} in the composer.`,
+				5000,
+			);
+		}),
+	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('sota.specialistRoster.viewMemory', async (arg?: unknown) => {
+			const handle = await resolveRosterHandle(arg);
+			if (!handle) {
+				return;
+			}
+			const entries = agentStack.specialistMemory.list(handle as Parameters<typeof agentStack.specialistMemory.list>[0]);
+			if (entries.length === 0) {
+				vscode.window.showInformationMessage(`No memory recorded yet for ${handle}.`);
+				return;
+			}
+			const lines: string[] = [
+				`# Memory for ${handle}`,
+				'',
+				`_${entries.length} entr${entries.length === 1 ? 'y' : 'ies'} · newest first_`,
+				'',
+			];
+			for (const entry of entries) {
+				const updated = new Date(entry.updatedAt).toLocaleString();
+				lines.push(`## ${entry.key}`);
+				lines.push(`_Updated: ${updated}${entry.conversationId ? ` · conversation ${entry.conversationId}` : ''}_`);
+				lines.push('');
+				lines.push(entry.value);
+				lines.push('');
+			}
+			const doc = await vscode.workspace.openTextDocument({
+				content: lines.join('\n'),
+				language: 'markdown',
+			});
+			await vscode.window.showTextDocument(doc, { preview: true });
+		}),
+	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('sota.specialistRoster.clearThread', async (arg?: unknown) => {
+			const handle = await resolveRosterHandle(arg);
+			if (!handle) {
+				return;
+			}
+			const choice = await vscode.window.showWarningMessage(
+				`Clear ${handle}'s memory and reset roster status? This cannot be undone.`,
+				{ modal: true },
+				'Clear',
+			);
+			if (choice !== 'Clear') {
+				return;
+			}
+			agentStack.specialistMemory.clear(handle as Parameters<typeof agentStack.specialistMemory.clear>[0]);
+			agentRosterProvider.resetEntry(handle);
+			vscode.window.showInformationMessage(`Cleared memory for ${handle}.`);
+		}),
+	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('sota.specialistRoster.showLastTrace', async (arg?: unknown) => {
+			const handle = await resolveRosterHandle(arg);
+			if (!handle) {
+				return;
+			}
+			const entry = agentRosterProvider.getEntry(handle);
+			specialistTraceChannel.show(true);
+			if (!entry) {
+				specialistTraceChannel.appendLine(`[${new Date().toISOString()}] ${handle}: no roster entry.`);
+				return;
+			}
+			const stamp = new Date().toISOString();
+			specialistTraceChannel.appendLine(`[${stamp}] ${handle} · status=${entry.status} · last active=${formatLastActive(entry.lastActiveAt)}`);
+			if (entry.lastTrace) {
+				specialistTraceChannel.appendLine(entry.lastTrace);
+			} else {
+				specialistTraceChannel.appendLine('No trace recorded yet — run the specialist via chat first.');
+			}
+			specialistTraceChannel.appendLine('');
+		}),
+	);
+
 	// Open chat in editor area (legacy command, still useful for split layouts)
 	context.subscriptions.push(
 		vscode.commands.registerCommand('sota.openChat', () => {
-			ChatPanel.createOrShow(context, llmClient, toolRegistry, agentBridge, workspaceContextProvider);
+			ChatPanel.createOrShow(context, conversationStore, llmClient, toolRegistry, agentBridge, workspaceContextProvider, costReporter, checkpointManager, auth.broker, taskBoardModel, writeSnapshotStore);
 		})
+	);
+
+	// Open the task board (Phase 82) for the most recently active conversation.
+	// The board is a separate webview panel (not embedded in the chat
+	// sidebar) so it can occupy a full editor column for the kanban grid.
+	context.subscriptions.push(
+		vscode.commands.registerCommand('sota.openTaskBoard', () => {
+			const list = conversationStore.list();
+			const activeId = list.length > 0 ? list[0].id : undefined;
+
+			// Best-effort hydration: if the orchestrator already has a live plan
+			// (e.g. the user proposed a plan, then opened the board before
+			// approving), seed the model from that plan so the board renders
+			// tiles immediately rather than showing the empty state.
+			if (activeId) {
+				const existingSnapshot = taskBoardModel.getSnapshot(activeId);
+				if (!existingSnapshot) {
+					const plan = agentBridge.getActivePlan();
+					if (plan) {
+						const tasks: BoardTask[] = plan.subtasks.map(subtask => ({
+							id: subtask.id,
+							instruction: subtask.instruction,
+							assignee: subtask.assignee,
+							scopeFiles: subtask.scopeFiles,
+							dependencies: subtask.dependencies,
+							state: subtaskStatusToBoardState(subtask.status),
+						}));
+						taskBoardModel.setPlan(activeId, tasks);
+					}
+				}
+			}
+
+			TaskBoardPanel.createOrShow(
+				context,
+				taskBoardModel,
+				conversationStore,
+				{
+					revealSubtaskInChat: (taskId) => {
+						// Best-effort: surface the chat view and rely on the user
+						// to scroll to the matching subtask card. Deep-linking
+						// into the transcript is a follow-up — for now we just
+						// guarantee the chat is visible.
+						void vscode.commands.executeCommand(`${ChatViewProvider.VIEW_ID}.focus`);
+						void vscode.window.showInformationMessage(`Reveal subtask ${taskId} in chat — open the active conversation to scroll to it.`);
+					},
+					dispatchSubtask: (_taskId) => {
+						// Drag from Ready -> In Progress fans through to a fresh
+						// approve cycle. The orchestrator's concurrent dispatch
+						// loop picks up *every* ready subtask, not just the
+						// dragged one, but the UX here matches "the user signalled
+						// that work should begin".
+						void runApprove();
+					},
+					reassignSubtask: (taskId, newAssignee) => {
+						if (activeId) {
+							taskBoardModel.reassign(activeId, taskId, newAssignee);
+						}
+					},
+					rerunSubtask: (taskId) => {
+						// Re-running a single tile in v1 just resets it to ready
+						// and triggers another approve cycle. The dependency
+						// graph then re-routes any downstream tiles that were
+						// blocked on this task.
+						if (activeId) {
+							taskBoardModel.updateTask(activeId, taskId, { state: 'ready', summary: undefined, finishedAt: undefined });
+							void runApprove();
+						}
+					},
+					// Embedded "Talk to the board" chat: pump a stream from
+					// LlmClient back to the React webview. Returns a disposable
+					// the panel can dispose to cancel mid-stream (we use an
+					// AbortController to actually unwind the underlying fetch).
+					streamChat: (model, messages, onEvent, tools) => {
+						const controller = new AbortController();
+						void (async () => {
+							try {
+								// LlmClient's `LlmMessage` only accepts user / assistant
+								// roles; any system messages from the webview collapse
+								// into the systemPrompt below, prepended to the static
+								// board persona.
+								const systemFragments = messages
+									.filter(m => m.role === 'system')
+									.map(m => m.content);
+								const systemPrompt = [
+									'You are Son of Anton, an AI orchestrator embedded in the Task Board. You can move cards, reassign work, change priorities, and answer questions about the board state. Use the registered tools (moveCard, addCard, setCardStatus, setCardAssignee, setCardPriority) when the user asks for board mutations.',
+									...systemFragments,
+								].filter(Boolean).join('\n\n');
+								const turnMessages = messages
+									.filter(m => m.role === 'user' || m.role === 'assistant')
+									.map(m => ({ role: m.role as 'user' | 'assistant', content: m.content }));
+								const stream = llmClient.streamRequest({
+									model: model as Parameters<typeof llmClient.streamRequest>[0]['model'],
+									messages: turnMessages,
+									systemPrompt,
+									enableCaching: true,
+									signal: controller.signal,
+									// Forward the webview-derived tools array. Shape is
+									// already compatible with `LlmClient.ToolDefinition`.
+									tools: tools as Parameters<typeof llmClient.streamRequest>[0]['tools'],
+								});
+								for await (const event of stream) {
+									if (event.type === 'token') {
+										onEvent({ type: 'token', token: event.token });
+									} else if (event.type === 'tool-call') {
+										onEvent({ type: 'tool-call', id: event.id, name: event.name, input: event.input });
+									} else if (event.type === 'complete') {
+										onEvent({ type: 'complete', fullText: event.fullText });
+									} else if (event.type === 'error') {
+										onEvent({ type: 'error', error: event.error });
+									}
+								}
+							} catch (err) {
+								if (controller.signal.aborted) {
+									return;
+								}
+								const message = err instanceof Error ? err.message : String(err);
+								onEvent({ type: 'error', error: message });
+							}
+						})();
+						return new vscode.Disposable(() => controller.abort());
+					},
+				},
+				activeId,
+			);
+
+			async function runApprove(): Promise<void> {
+				const cancellationSource = new vscode.CancellationTokenSource();
+				try {
+					await agentBridge.approveActivePlan(activeId, () => { /* events flow via onDidEmitEvent */ }, cancellationSource.token);
+				} catch (err) {
+					const message = err instanceof Error ? err.message : String(err);
+					void vscode.window.showErrorMessage(`Task board approve failed: ${message}`);
+				} finally {
+					cancellationSource.dispose();
+				}
+			}
+		}),
+	);
+
+	// Conversation history commands (Phase 47).
+	context.subscriptions.push(
+		vscode.commands.registerCommand('sota.openConversation', async (id: string) => {
+			if (typeof id !== 'string' || !id) {
+				return;
+			}
+			// Reveal the chat sidebar so the message has somewhere to land
+			// before we forward the switch — clicking a History entry while
+			// the chat view is collapsed still surfaces the conversation.
+			await vscode.commands.executeCommand(`${ChatViewProvider.VIEW_ID}.focus`);
+			chatViewProvider.openConversation(id);
+			ChatPanel.switchConversation(id);
+		}),
+	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('sota.newConversation', async () => {
+			const fresh = conversationStore.create();
+			await vscode.commands.executeCommand(`${ChatViewProvider.VIEW_ID}.focus`);
+			chatViewProvider.openConversation(fresh.summary.id);
+			ChatPanel.switchConversation(fresh.summary.id);
+		}),
+	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('sota.renameConversation', async (item?: ConversationTreeItem) => {
+			if (!item || !item.summary) {
+				return;
+			}
+			const newTitle = await vscode.window.showInputBox({
+				prompt: 'Rename conversation',
+				value: item.summary.title,
+				validateInput: (value) => (value.trim().length === 0 ? 'Title cannot be empty.' : undefined),
+			});
+			if (newTitle === undefined) {
+				return;
+			}
+			conversationStore.rename(item.summary.id, newTitle);
+		}),
+	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('sota.deleteConversation', async (item?: ConversationTreeItem) => {
+			if (!item || !item.summary) {
+				return;
+			}
+			const confirm = await vscode.window.showWarningMessage(
+				`Delete conversation "${item.summary.title}"? This cannot be undone.`,
+				{ modal: true },
+				'Delete',
+			);
+			if (confirm !== 'Delete') {
+				return;
+			}
+			const deletedId = item.summary.id;
+			conversationStore.delete(deletedId);
+			// Drop the conversation's checkpoints alongside it so we don't
+			// leak orphaned index entries pointing at a now-defunct
+			// conversation id.
+			checkpointManager.deleteFor(deletedId);
+			// If the deleted conversation was the active one, switch to the
+			// most recent remaining (or create a fresh one when the list is
+			// now empty) so the chat view doesn't keep rendering a tombstoned
+			// conversation's scrollback.
+			const remaining = conversationStore.list();
+			const target = remaining.length > 0 ? remaining[0].id : conversationStore.create().summary.id;
+			chatViewProvider.openConversation(target);
+			ChatPanel.switchConversation(target);
+		}),
+	);
+
+	// Export the active (most recent) conversation to a Markdown file. The
+	// command is also wired to a small icon button in the chat header so
+	// users don't have to open the palette for a routine archive action.
+	context.subscriptions.push(
+		vscode.commands.registerCommand('sota.exportConversation', async () => {
+			const list = conversationStore.list();
+			if (list.length === 0) {
+				await vscode.window.showInformationMessage('No conversations to export.');
+				return;
+			}
+			// V1 exports the most recently updated conversation. A future
+			// follow-up can wire a quickpick when users push back on this.
+			const summary = list[0];
+			const record = conversationStore.load(summary.id);
+			if (!record) {
+				await vscode.window.showWarningMessage('Conversation not found.');
+				return;
+			}
+			const { exportConversationAsMarkdown, exportFilename } = await import('./chat/ConversationExporter');
+			// Capture a cost/token snapshot from the live reporter so the
+			// export carries a meaningful "Cost & Tokens" block. The
+			// reporter only retains in-memory entries for the current
+			// session, so reports for older conversations will show
+			// session-wide totals rather than per-conversation — a
+			// limitation we're explicit about in the section header.
+			const totalTokens = costReporter.getTotalTokens();
+			const totalCost = costReporter.getTotalCost();
+			const markdown = exportConversationAsMarkdown(record, {
+				includeMetadata: true,
+				includeTimestamps: true,
+				workspaceFolder: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
+				cost: {
+					inputTokens: totalTokens.input,
+					outputTokens: totalTokens.output,
+					cachedInputTokens: totalTokens.cached,
+					totalCost,
+				},
+			});
+			const filename = exportFilename(record);
+			const defaultUri = vscode.workspace.workspaceFolders?.[0]?.uri
+				? vscode.Uri.joinPath(vscode.workspace.workspaceFolders[0].uri, filename)
+				: vscode.Uri.file(filename);
+			const target = await vscode.window.showSaveDialog({
+				defaultUri,
+				filters: { Markdown: ['md'] },
+			});
+			if (!target) {
+				return;
+			}
+			await vscode.workspace.fs.writeFile(target, Buffer.from(markdown, 'utf-8'));
+			const filenameLabel = target.path.split('/').pop() ?? filename;
+			const choice = await vscode.window.showInformationMessage(
+				`Exported to ${filenameLabel}`,
+				'Open',
+				'Reveal in Explorer',
+			);
+			if (choice === 'Open') {
+				await vscode.commands.executeCommand('vscode.open', target);
+			} else if (choice === 'Reveal in Explorer') {
+				await vscode.commands.executeCommand('revealFileInOS', target);
+			}
+		}),
 	);
 
 	// --- OAuth sign-in commands (user-facing) ---
@@ -243,16 +892,116 @@ export function activate(context: vscode.ExtensionContext): void {
 				llmClient,
 				broker: auth.broker,
 				secrets: context.secrets,
-				config: vscode.workspace.getConfiguration('sota'),
+				config: globalScopedConfig('sota'),
 			});
 		})
 	);
 
-	// Clear Chat
+	// Clear Chat — starts a fresh conversation in every active chat session.
+	// The previous conversation is preserved in the ConversationStore so it
+	// remains accessible from the History sidebar.
 	context.subscriptions.push(
 		vscode.commands.registerCommand('sota.clearChat', () => {
-			ChatPanel.clearConversation(context);
+			ChatPanel.clearConversation();
 		})
+	);
+
+	// --- Workspace Checkpoints ---
+	// Manual capture from the palette so users can mint a snapshot outside
+	// the chat send loop (e.g. before running a destructive script).
+	context.subscriptions.push(
+		vscode.commands.registerCommand('sota.captureCheckpoint', async () => {
+			const summary = await vscode.window.showInputBox({
+				prompt: 'Optional label for this checkpoint',
+				placeHolder: 'e.g. Before running migration script',
+			});
+			if (summary === undefined) {
+				return;
+			}
+			const conversationList = conversationStore.list();
+			const conversationId = conversationList.length > 0 ? conversationList[0].id : conversationStore.create().summary.id;
+			const record = conversationStore.load(conversationId);
+			const turnIndex = record ? record.messages.length : 0;
+			const checkpoint = await checkpointManager.capture(
+				conversationId,
+				turnIndex,
+				summary || 'Manual checkpoint',
+			);
+			if (!checkpoint) {
+				vscode.window.showWarningMessage(
+					'Could not capture checkpoint — workspace must be a git repository and `sota.checkpoints.enabled` must be true.',
+				);
+				return;
+			}
+			vscode.window.showInformationMessage(
+				`Checkpoint captured (${checkpoint.gitSha?.slice(0, 7) ?? checkpoint.id.slice(0, 8)}).`,
+			);
+		}),
+	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('sota.listCheckpoints', async () => {
+			const all = checkpointManager.listAll();
+			if (all.length === 0) {
+				vscode.window.showInformationMessage('No checkpoints captured yet.');
+				return;
+			}
+			const items = [...all].reverse().map(cp => ({
+				label: `$(history) ${new Date(cp.capturedAt).toLocaleString()}`,
+				description: cp.summary ?? '',
+				detail: cp.userMessage,
+				checkpoint: cp,
+			}));
+			const pick = await vscode.window.showQuickPick(items, {
+				placeHolder: 'Select a checkpoint to inspect',
+			});
+			if (!pick) {
+				return;
+			}
+			vscode.window.showInformationMessage(
+				`Checkpoint ${pick.checkpoint.gitSha?.slice(0, 7) ?? pick.checkpoint.id.slice(0, 8)} · ${pick.checkpoint.summary ?? ''} · captured ${new Date(pick.checkpoint.capturedAt).toLocaleString()}.`,
+			);
+		}),
+	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('sota.restoreCheckpoint', async () => {
+			const all = checkpointManager.listAll();
+			if (all.length === 0) {
+				vscode.window.showInformationMessage('No checkpoints to restore.');
+				return;
+			}
+			const items = [...all].reverse().map(cp => ({
+				label: `$(history) ${new Date(cp.capturedAt).toLocaleString()}`,
+				description: cp.summary ?? '',
+				detail: cp.userMessage,
+				checkpoint: cp,
+			}));
+			const pick = await vscode.window.showQuickPick(items, {
+				placeHolder: 'Select a checkpoint to restore',
+			});
+			if (!pick) {
+				return;
+			}
+			const scope = await vscode.window.showQuickPick(
+				[
+					{ label: 'Restore workspace only', conversationToo: false },
+					{ label: 'Restore workspace + conversation', conversationToo: true },
+				],
+				{ placeHolder: 'How much do you want to restore?' },
+			);
+			if (!scope) {
+				return;
+			}
+			// Abort any in-flight chat stream before the workspace gets
+			// rewritten under it. The chat surface listens for its own
+			// abort and unwinds cleanly.
+			ChatPanel.abortAll();
+			await checkpointManager.restore(pick.checkpoint.id, { conversationToo: scope.conversationToo });
+			if (scope.conversationToo) {
+				ChatPanel.reloadCurrentConversations();
+			}
+		}),
 	);
 
 	// Inline Edit (Cmd+K / Ctrl+K)
@@ -282,8 +1031,8 @@ export function activate(context: vscode.ExtensionContext): void {
 
 	// Trace Viewer
 	context.subscriptions.push(
-		vscode.commands.registerCommand('sota.showTraces', () => {
-			TraceViewerPanel.createOrShow(context, agentManager);
+		vscode.commands.registerCommand('sota.showTraces', (taskId?: string) => {
+			TraceViewerPanel.createOrShow(context, agentManager, typeof taskId === 'string' ? taskId : undefined);
 		})
 	);
 
@@ -423,7 +1172,7 @@ export function activate(context: vscode.ExtensionContext): void {
 	);
 
 	// --- Personality ---
-	StartupMessages.show(context.extensionUri);
+	StartupMessages.show(context.extensionUri, context);
 
 	const terminalBanner = new TerminalBanner();
 	context.subscriptions.push(terminalBanner);
@@ -433,6 +1182,8 @@ export function activate(context: vscode.ExtensionContext): void {
 
 	const gitBlameEasterEgg = new GitBlameEasterEgg();
 	context.subscriptions.push(gitBlameEasterEgg);
+
+	context.subscriptions.push(...registerPersonalityCommands());
 
 	// Dispose sandbox, security, spec sync, and background client on deactivation
 	context.subscriptions.push({
@@ -468,4 +1219,142 @@ async function loadSupplyChainConfig(guard: SupplyChainGuard, workspacePath: str
 
 export function deactivate(): void {
 	// Cleanup handled by disposables
+}
+
+/**
+ * Translate the orchestrator's `Subtask.status` enum (used in `agents/types`)
+ * to the board's `SubtaskState` (used in `TaskBoardModel`). Both vocabs
+ * overlap but the board distinguishes `backlog` vs `ready` based on
+ * dependency satisfaction, while the orchestrator collapses both into
+ * `pending` until dispatch.
+ */
+function subtaskStatusToBoardState(status: 'pending' | 'in_progress' | 'completed' | 'failed'): SubtaskState {
+	switch (status) {
+		case 'in_progress': return 'in-progress';
+		case 'completed': return 'done';
+		case 'failed': return 'failed';
+		case 'pending':
+		default:
+			// `backlog` is the safe default; `recomputeStates` promotes to
+			// `ready` immediately if dependencies are satisfied.
+			return 'backlog';
+	}
+}
+
+/**
+ * Fold a single `AgentEvent` into the board model. Only the structured
+ * plan / subtask events advance state; token streams and the final
+ * aggregate are ignored here (the chat surface owns that rendering).
+ *
+ * The function mutates the model exclusively through `setPlan` and
+ * `updateTask`, keeping all derived state (ready promotion, dependency
+ * recompute) on the model side.
+ */
+function applyAgentEventToBoard(model: TaskBoardModel, conversationId: string, event: AgentEvent): void {
+	switch (event.type) {
+		case 'plan-proposed': {
+			const plan: AgentPlan = event.plan;
+			// Plans are emitted from the orchestrator with positional ids
+			// that match `parsePlan`'s `${planId}-subtask-${i}` scheme. We
+			// reconstruct the same id sequence here so a later subtask
+			// event keyed on `subtaskId` finds its tile.
+			const tasks: BoardTask[] = plan.subtasks.map((subtask, index) => ({
+				id: `board-${conversationId}-${index}`,
+				instruction: subtask.instruction,
+				assignee: subtask.assignee,
+				scopeFiles: subtask.scopeFiles,
+				dependencies: subtask.dependencies,
+				state: 'backlog',
+			}));
+			// Re-key tasks to use the orchestrator's actual subtask ids if we
+			// can recover them — the AgentPlan shape doesn't carry them today,
+			// so we generate stable per-conversation ids and map by index.
+			// `subtask-started` events carry the orchestrator's id; we patch
+			// it onto the board tile in the started branch below.
+			model.setPlan(conversationId, tasks);
+			return;
+		}
+		case 'subtask-ready': {
+			// The orchestrator computes ready state itself; the board's
+			// `recomputeStates` agrees with that calculation. This event is
+			// purely informational here — we still call updateTask to
+			// trigger a redraw.
+			updateBoardForSubtask(model, conversationId, event.subtaskId, event.assignee, { state: 'ready' });
+			return;
+		}
+		case 'subtask-started': {
+			updateBoardForSubtask(model, conversationId, event.subtaskId, event.assignee, {
+				state: 'in-progress',
+				startedAt: Date.now(),
+			});
+			return;
+		}
+		case 'subtask-completed': {
+			updateBoardForSubtask(model, conversationId, event.subtaskId, event.assignee, {
+				state: 'done',
+				summary: event.summary,
+				finishedAt: Date.now(),
+			});
+			return;
+		}
+		case 'subtask-failed': {
+			updateBoardForSubtask(model, conversationId, event.subtaskId, event.assignee, {
+				state: 'failed',
+				summary: event.error,
+				finishedAt: Date.now(),
+			});
+			return;
+		}
+		case 'subtask-blocked': {
+			updateBoardForSubtask(model, conversationId, event.subtaskId, event.assignee, {
+				state: 'failed',
+				summary: event.reason,
+				finishedAt: Date.now(),
+			});
+			return;
+		}
+		case 'subtask-reassigned': {
+			model.reassign(conversationId, event.subtaskId, event.to);
+			return;
+		}
+		// Token, plan-proposed already handled, final/error are chat-only.
+		default:
+			return;
+	}
+}
+
+/**
+ * Shim that bridges the orchestrator's subtask ids onto the board's
+ * positional ids. The board mints synthetic ids in `plan-proposed`; once
+ * the first event for an orchestrator subtask arrives, we look up the
+ * tile by index (orchestrator subtask ids end with `-subtask-<n>`). If
+ * lookup fails (e.g. the assignee chip is unknown), we fall back to a
+ * simple id match — the board still renders, just without persona
+ * styling.
+ */
+function updateBoardForSubtask(
+	model: TaskBoardModel,
+	conversationId: string,
+	subtaskId: string,
+	assignee: string,
+	patch: Partial<BoardTask>,
+): void {
+	const snapshot = model.getSnapshot(conversationId);
+	if (!snapshot) {
+		return;
+	}
+	// Try direct id match first (cheapest path).
+	let target = snapshot.tasks.find(t => t.id === subtaskId);
+	// Then positional match: orchestrator ids look like `plan-1-subtask-3`.
+	if (!target) {
+		const match = subtaskId.match(/-subtask-(\d+)$/);
+		if (match) {
+			const idx = Number(match[1]);
+			target = snapshot.tasks[idx];
+		}
+	}
+	if (!target) {
+		return;
+	}
+	model.updateTask(conversationId, target.id, { ...patch, assignee });
 }

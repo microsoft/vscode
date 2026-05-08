@@ -414,10 +414,7 @@ class AgentCompletions extends Disposable {
 				// When typing, filterText is used to score and sort.
 				// The same list is refiltered/ranked while typing.
 				const getFilterText = (agent: IChatAgentData, command: string) => {
-					// This is hacking the filter algorithm to make @terminal /explain match worse than @workspace /explain by making its match index later in the string.
-					// When I type `/exp`, the workspace one should be sorted over the terminal one.
-					const dummyPrefix = agent.id === 'github.copilot.terminalPanel' ? `0000` : ``;
-					return `${chatAgentLeader}${dummyPrefix}${agent.name}.${command}`;
+					return `${chatAgentLeader}${agent.name}.${command}`;
 				};
 
 				const justAgents: CompletionItem[] = agents
@@ -515,8 +512,7 @@ class AgentCompletions extends Disposable {
 
 						const { label: agentLabel, isDupe } = this.getAgentCompletionDetails(agent);
 						const withSlash = `${chatSubcommandLeader}${c.name}`;
-						const extraSortText = agent.id === 'github.copilot.terminalPanel' ? `z` : ``;
-						const sortText = `${chatSubcommandLeader}${extraSortText}${agent.name}${c.name}`;
+						const sortText = `${chatSubcommandLeader}${agent.name}${c.name}`;
 						const item: CompletionItem = {
 							label: { label: withSlash, description: agentLabel, detail: isDupe ? ` (${agent.publisherDisplayName})` : undefined },
 							commitCharacters: [' '],
