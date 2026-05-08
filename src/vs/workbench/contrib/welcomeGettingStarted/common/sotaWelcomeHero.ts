@@ -264,10 +264,205 @@ export function getSotaWelcomeHeroActions(): readonly ISotaWelcomeHeroAction[] {
 	];
 }
 
+/**
+ * Inline isometric "Son of Anton" skyline — letters built as stacked-block
+ * extruded buildings (Silicon Valley title-card energy) with a blueprint
+ * draw-in animation on the front face, ground-plane perspective grid,
+ * Pied Piper / Hooli balloons floating up, and small cars driving along
+ * the iso road. Self-contained (animations live in the SVG's own `<style>`
+ * block), so it drops into the welcome page with no external assets.
+ *
+ * Adapted from a hand-authored reference. Notable adaptations:
+ *  - Removed `@import url('https://fonts.googleapis.com/...')` (workbench
+ *    CSP blocks remote font sheets); falls back to Arial Black / Impact.
+ *  - Dropped the root `style="background-color"` so the welcome page's
+ *    own background shows through.
+ *  - Animations use unique keyframe names so they can't collide with the
+ *    existing welcome-page CSS (drawBlueprint / fadeIn / floatUp1 /
+ *    floatUp2 / drive1 / drive2).
+ */
+export const SOTA_WELCOME_HERO_SKYLINE_SVG: string = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800" width="100%" height="100%" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+	<defs>
+		<style>
+			.sota-skyline-blueprint-line {
+				fill: none;
+				stroke: #3498db;
+				stroke-width: 2;
+				stroke-dasharray: 1500;
+				stroke-dashoffset: 1500;
+				animation: sotaSkylineDrawBlueprint 1s ease-in-out forwards;
+			}
+			.sota-skyline-grid-line {
+				stroke: #222222;
+				stroke-width: 1;
+				opacity: 0;
+				animation: sotaSkylineFadeIn 1s ease-in forwards;
+			}
+			@keyframes sotaSkylineDrawBlueprint { to { stroke-dashoffset: 0; } }
+			@keyframes sotaSkylineFadeIn { to { opacity: 1; } }
+			.sota-skyline-balloon-1 { animation: sotaSkylineFloatUp1 20s linear infinite; }
+			.sota-skyline-balloon-2 { animation: sotaSkylineFloatUp2 25s linear infinite; animation-delay: 2s; }
+			@keyframes sotaSkylineFloatUp1 {
+				0% { transform: translate(0, 150px) rotate(-5deg); opacity: 0; }
+				10% { opacity: 1; }
+				90% { opacity: 1; }
+				100% { transform: translate(100px, -400px) rotate(5deg); opacity: 0; }
+			}
+			@keyframes sotaSkylineFloatUp2 {
+				0% { transform: translate(0, 200px) rotate(3deg); opacity: 0; }
+				10% { opacity: 1; }
+				90% { opacity: 1; }
+				100% { transform: translate(-150px, -500px) rotate(-3deg); opacity: 0; }
+			}
+			.sota-skyline-car-1 { animation: sotaSkylineDrive1 8s linear infinite; }
+			.sota-skyline-car-2 { animation: sotaSkylineDrive2 10s linear infinite; animation-delay: 4s; }
+			@keyframes sotaSkylineDrive1 {
+				from { transform: translate(1200px, 600px); }
+				to { transform: translate(-200px, -100px); }
+			}
+			@keyframes sotaSkylineDrive2 {
+				from { transform: translate(-200px, 400px); }
+				to { transform: translate(1200px, -300px); }
+			}
+			@media (prefers-reduced-motion: reduce) {
+				.sota-skyline-blueprint-line { animation: none; stroke-dashoffset: 0; }
+				.sota-skyline-grid-line { animation: none; opacity: 1; }
+				.sota-skyline-balloon-1, .sota-skyline-balloon-2,
+				.sota-skyline-car-1, .sota-skyline-car-2 { animation: none; }
+			}
+		</style>
+		<g id="sota-skyline-text-base" text-anchor="middle" font-family="'Anton', 'Arial Black', Impact, sans-serif" font-weight="900" font-size="140" letter-spacing="2">
+			<text x="0" y="0">SON OF</text>
+			<text x="0" y="140">ANTON</text>
+		</g>
+		<g id="sota-skyline-iso-text">
+			<g transform="matrix(0.866, 0.5, -0.866, 0.5, 600, 320)">
+				<use href="#sota-skyline-text-base" />
+			</g>
+		</g>
+		<g id="sota-skyline-tree">
+			<path d="M0,-48 L-10,-28 L-4,-28 L-12,-8 L0,-8 Z" fill="#2ecc71" />
+			<path d="M0,-48 L10,-28 L4,-28 L12,-8 L0,-8 Z" fill="#27ae60" />
+			<rect x="-2" y="-8" width="4" height="8" fill="#2c1e16" />
+		</g>
+	</defs>
+	<g>
+		<g class="sota-skyline-grid-line">
+			<path d="M-500,400 L1500,1400 M-400,350 L1600,1350 M-300,300 L1700,1300 M-200,250 L1800,1250 M-100,200 L1900,1200 M0,150 L2000,1150 M100,100 L2100,1100 M200,50 L2200,1050 M300,0 L2300,1000 M400,-50 L2400,950 M500,-100 L2500,900 M600,-150 L2600,850 M700,-200 L2700,800 M800,-250 L2800,750" />
+			<path d="M1500,-500 L-500,500 M1600,-450 L-400,550 M1700,-400 L-300,600 M1800,-350 L-200,650 M1900,-300 L-100,700 M2000,-250 L0,750 M2100,-200 L100,800 M2200,-150 L200,850 M2300,-100 L300,900 M2400,-50 L400,950 M2500,0 L500,1000 M2600,50 L600,1050 M2700,100 L700,1100 M2800,150 L800,1150" />
+		</g>
+		<path d="M-100,450 L600,800 L750,800 L1300,525 L1300,475 L650,800 L-100,425 Z" fill="#111111" />
+		<path d="M-100,437 L625,800 M1300,500 L680,800" stroke="#f1c40f" stroke-width="2" stroke-dasharray="10 10" opacity="0.4" />
+		<path d="M1300,100 L600,450 L-100,100 L-100,150 L600,500 L1300,150 Z" fill="#111111" />
+		<path d="M1300,125 L600,475 L-100,125" stroke="#f1c40f" stroke-width="2" stroke-dasharray="10 10" opacity="0.4" />
+		<use href="#sota-skyline-iso-text" y="100" fill="#1a1a1a" opacity="0">
+			<animate attributeName="opacity" to="1" dur="0.5s" begin="1s" fill="freeze" />
+		</use>
+		<use href="#sota-skyline-iso-text" y="100" class="sota-skyline-blueprint-line" />
+	</g>
+	<g class="sota-skyline-car-1">
+		<g transform="matrix(0.866, 0.5, -0.866, 0.5, 0, 0)">
+			<rect x="0" y="0" width="30" height="15" fill="#A00000" rx="2" />
+			<rect x="5" y="2" width="20" height="11" fill="#701c1c" rx="1" />
+		</g>
+	</g>
+	<g class="sota-skyline-car-2">
+		<g transform="matrix(0.866, -0.5, 0.866, 0.5, 0, 0)">
+			<rect x="0" y="0" width="25" height="12" fill="#2ecc71" rx="2" />
+			<rect x="4" y="2" width="17" height="8" fill="#1e8449" rx="1" />
+		</g>
+	</g>
+	<g>
+		<g opacity="0"><animate attributeName="opacity" to="1" dur="0.01s" begin="1.0s" fill="freeze" />
+			<g fill="#424949"><use href="#sota-skyline-iso-text" y="99"/><use href="#sota-skyline-iso-text" y="98"/><use href="#sota-skyline-iso-text" y="97"/></g>
+			<g fill="#17202A"><use href="#sota-skyline-iso-text" y="96"/><use href="#sota-skyline-iso-text" y="95"/><use href="#sota-skyline-iso-text" y="94"/><use href="#sota-skyline-iso-text" y="93"/><use href="#sota-skyline-iso-text" y="92"/><use href="#sota-skyline-iso-text" y="91"/><use href="#sota-skyline-iso-text" y="90"/></g>
+		</g>
+		<g opacity="0"><animate attributeName="opacity" to="1" dur="0.01s" begin="1.2s" fill="freeze" />
+			<g fill="#424949"><use href="#sota-skyline-iso-text" y="89"/><use href="#sota-skyline-iso-text" y="88"/><use href="#sota-skyline-iso-text" y="87"/></g>
+			<g fill="#17202A"><use href="#sota-skyline-iso-text" y="86"/><use href="#sota-skyline-iso-text" y="85"/><use href="#sota-skyline-iso-text" y="84"/><use href="#sota-skyline-iso-text" y="83"/><use href="#sota-skyline-iso-text" y="82"/><use href="#sota-skyline-iso-text" y="81"/><use href="#sota-skyline-iso-text" y="80"/></g>
+		</g>
+		<g opacity="0"><animate attributeName="opacity" to="1" dur="0.01s" begin="1.4s" fill="freeze" />
+			<g fill="#424949"><use href="#sota-skyline-iso-text" y="79"/><use href="#sota-skyline-iso-text" y="78"/><use href="#sota-skyline-iso-text" y="77"/></g>
+			<g fill="#17202A"><use href="#sota-skyline-iso-text" y="76"/><use href="#sota-skyline-iso-text" y="75"/><use href="#sota-skyline-iso-text" y="74"/><use href="#sota-skyline-iso-text" y="73"/><use href="#sota-skyline-iso-text" y="72"/><use href="#sota-skyline-iso-text" y="71"/><use href="#sota-skyline-iso-text" y="70"/></g>
+		</g>
+		<g opacity="0"><animate attributeName="opacity" to="1" dur="0.01s" begin="1.6s" fill="freeze" />
+			<g fill="#424949"><use href="#sota-skyline-iso-text" y="69"/><use href="#sota-skyline-iso-text" y="68"/><use href="#sota-skyline-iso-text" y="67"/></g>
+			<g fill="#17202A"><use href="#sota-skyline-iso-text" y="66"/><use href="#sota-skyline-iso-text" y="65"/><use href="#sota-skyline-iso-text" y="64"/><use href="#sota-skyline-iso-text" y="63"/><use href="#sota-skyline-iso-text" y="62"/><use href="#sota-skyline-iso-text" y="61"/><use href="#sota-skyline-iso-text" y="60"/></g>
+		</g>
+		<g opacity="0"><animate attributeName="opacity" to="1" dur="0.01s" begin="1.8s" fill="freeze" />
+			<g fill="#424949"><use href="#sota-skyline-iso-text" y="59"/><use href="#sota-skyline-iso-text" y="58"/><use href="#sota-skyline-iso-text" y="57"/></g>
+			<g fill="#17202A"><use href="#sota-skyline-iso-text" y="56"/><use href="#sota-skyline-iso-text" y="55"/><use href="#sota-skyline-iso-text" y="54"/><use href="#sota-skyline-iso-text" y="53"/><use href="#sota-skyline-iso-text" y="52"/><use href="#sota-skyline-iso-text" y="51"/><use href="#sota-skyline-iso-text" y="50"/></g>
+		</g>
+		<g opacity="0"><animate attributeName="opacity" to="1" dur="0.01s" begin="2.0s" fill="freeze" />
+			<g fill="#424949"><use href="#sota-skyline-iso-text" y="49"/><use href="#sota-skyline-iso-text" y="48"/><use href="#sota-skyline-iso-text" y="47"/></g>
+			<g fill="#17202A"><use href="#sota-skyline-iso-text" y="46"/><use href="#sota-skyline-iso-text" y="45"/><use href="#sota-skyline-iso-text" y="44"/><use href="#sota-skyline-iso-text" y="43"/><use href="#sota-skyline-iso-text" y="42"/><use href="#sota-skyline-iso-text" y="41"/><use href="#sota-skyline-iso-text" y="40"/></g>
+		</g>
+		<g opacity="0"><animate attributeName="opacity" to="1" dur="0.01s" begin="2.2s" fill="freeze" />
+			<g fill="#424949"><use href="#sota-skyline-iso-text" y="39"/><use href="#sota-skyline-iso-text" y="38"/><use href="#sota-skyline-iso-text" y="37"/></g>
+			<g fill="#17202A"><use href="#sota-skyline-iso-text" y="36"/><use href="#sota-skyline-iso-text" y="35"/><use href="#sota-skyline-iso-text" y="34"/><use href="#sota-skyline-iso-text" y="33"/><use href="#sota-skyline-iso-text" y="32"/><use href="#sota-skyline-iso-text" y="31"/><use href="#sota-skyline-iso-text" y="30"/></g>
+		</g>
+		<g opacity="0"><animate attributeName="opacity" to="1" dur="0.01s" begin="2.4s" fill="freeze" />
+			<g fill="#424949"><use href="#sota-skyline-iso-text" y="29"/><use href="#sota-skyline-iso-text" y="28"/><use href="#sota-skyline-iso-text" y="27"/></g>
+			<g fill="#17202A"><use href="#sota-skyline-iso-text" y="26"/><use href="#sota-skyline-iso-text" y="25"/><use href="#sota-skyline-iso-text" y="24"/><use href="#sota-skyline-iso-text" y="23"/><use href="#sota-skyline-iso-text" y="22"/><use href="#sota-skyline-iso-text" y="21"/><use href="#sota-skyline-iso-text" y="20"/></g>
+		</g>
+		<g opacity="0"><animate attributeName="opacity" to="1" dur="0.01s" begin="2.6s" fill="freeze" />
+			<g fill="#424949"><use href="#sota-skyline-iso-text" y="19"/><use href="#sota-skyline-iso-text" y="18"/><use href="#sota-skyline-iso-text" y="17"/></g>
+			<g fill="#17202A"><use href="#sota-skyline-iso-text" y="16"/><use href="#sota-skyline-iso-text" y="15"/><use href="#sota-skyline-iso-text" y="14"/><use href="#sota-skyline-iso-text" y="13"/><use href="#sota-skyline-iso-text" y="12"/><use href="#sota-skyline-iso-text" y="11"/><use href="#sota-skyline-iso-text" y="10"/></g>
+		</g>
+		<g opacity="0"><animate attributeName="opacity" to="1" dur="0.01s" begin="2.8s" fill="freeze" />
+			<g fill="#424949"><use href="#sota-skyline-iso-text" y="9"/><use href="#sota-skyline-iso-text" y="8"/><use href="#sota-skyline-iso-text" y="7"/></g>
+			<g fill="#17202A"><use href="#sota-skyline-iso-text" y="6"/><use href="#sota-skyline-iso-text" y="5"/><use href="#sota-skyline-iso-text" y="4"/><use href="#sota-skyline-iso-text" y="3"/><use href="#sota-skyline-iso-text" y="2"/><use href="#sota-skyline-iso-text" y="1"/></g>
+		</g>
+		<g fill="#8B0000" stroke="#500000" stroke-width="1.5" transform="translate(0, 99)">
+			<animateTransform attributeName="transform" type="translate" from="0 99" to="0 0" dur="2s" begin="1s" fill="freeze" />
+			<use href="#sota-skyline-iso-text" x="0" y="0" />
+		</g>
+		<g opacity="0"><animate attributeName="opacity" to="1" dur="0.5s" begin="3s" fill="freeze" />
+			<g transform="matrix(0.866, 0.5, -0.866, 0.5, 500, 290)">
+				<rect x="0" y="0" width="15" height="15" fill="#424949" />
+				<circle cx="7.5" cy="7.5" r="5" fill="#17202A" />
+			</g>
+			<g transform="matrix(0.866, 0.5, -0.866, 0.5, 650, 420)">
+				<rect x="0" y="0" width="20" height="10" fill="#424949" />
+				<rect x="2" y="2" width="16" height="6" fill="#17202A" />
+			</g>
+		</g>
+		<g transform="translate(400, 500)"><use href="#sota-skyline-tree"/></g>
+		<g transform="translate(430, 520)"><use href="#sota-skyline-tree"/></g>
+		<g transform="translate(370, 530)"><use href="#sota-skyline-tree"/></g>
+		<g transform="translate(850, 600)"><use href="#sota-skyline-tree"/></g>
+		<g transform="translate(880, 590)"><use href="#sota-skyline-tree"/></g>
+		<g transform="translate(250, 350)"><use href="#sota-skyline-tree"/></g>
+		<g transform="translate(280, 360)"><use href="#sota-skyline-tree"/></g>
+		<g transform="translate(800, 200)"><use href="#sota-skyline-tree"/></g>
+		<g transform="translate(830, 220)"><use href="#sota-skyline-tree"/></g>
+	</g>
+	<g class="sota-skyline-balloon-1">
+		<g transform="translate(300, 600)">
+			<line x1="0" y1="40" x2="-8" y2="60" stroke="#7f8c8d" stroke-width="1"/>
+			<line x1="0" y1="40" x2="8" y2="60" stroke="#7f8c8d" stroke-width="1"/>
+			<rect x="-10" y="60" width="20" height="15" fill="#701c1c" rx="2" />
+			<circle cx="0" cy="0" r="45" fill="#2ecc71" />
+			<path d="M-45,0 A45,45 0 0,0 45,0 L30,45 L-30,45 Z" fill="#27ae60" />
+			<text x="0" y="10" font-family="'Arial Black', sans-serif" font-weight="900" font-size="12" fill="#fff" text-anchor="middle">PIED PIPER</text>
+		</g>
+	</g>
+	<g class="sota-skyline-balloon-2">
+		<g transform="translate(950, 650)">
+			<line x1="0" y1="45" x2="-10" y2="65" stroke="#7f8c8d" stroke-width="1.5"/>
+			<line x1="0" y1="45" x2="10" y2="65" stroke="#7f8c8d" stroke-width="1.5"/>
+			<rect x="-12" y="65" width="24" height="18" fill="#d35400" rx="2" />
+			<circle cx="0" cy="0" r="55" fill="#3498db" />
+			<path d="M-55,0 A55,55 0 0,0 55,0 L35,50 L-35,50 Z" fill="#2980b9" />
+			<text x="0" y="15" font-family="'Arial Black', sans-serif" font-weight="900" font-size="16" fill="#fff" text-anchor="middle" letter-spacing="1">HOOLI</text>
+		</g>
+	</g>
+</svg>`;
+
 export interface ISotaWelcomeHeroContent {
 	readonly art: string;
-	readonly skylineBuildings: readonly ISotaWelcomeHeroSkylineBuilding[];
-	readonly skylineWordmark: readonly ISotaWelcomeHeroSkylineWordmarkLine[];
+	readonly skylineSvg: string;
 	readonly title: string;
 	readonly tagline: string;
 	readonly quote: ISiliconValleyQuote;
@@ -284,8 +479,7 @@ export interface ISotaWelcomeHeroContent {
 export function getSotaWelcomeHeroContent(now: Date = new Date()): ISotaWelcomeHeroContent {
 	return {
 		art: PIED_PIPER_ART,
-		skylineBuildings: getSotaWelcomeHeroSkylineBuildings(),
-		skylineWordmark: getSotaWelcomeHeroSkylineWordmark(),
+		skylineSvg: SOTA_WELCOME_HERO_SKYLINE_SVG,
 		title: localize('sota.welcome.hero.title', "Son of Anton"),
 		tagline: localize('sota.welcome.hero.tagline', "middle out compression for your IDE"),
 		quote: pickQuoteForDate(now),

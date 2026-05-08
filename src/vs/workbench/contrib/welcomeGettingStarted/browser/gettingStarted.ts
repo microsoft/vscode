@@ -901,41 +901,19 @@ export class GettingStartedPage extends EditorPane {
 	private buildSotaWelcomeHero(): HTMLElement {
 		const content = getSotaWelcomeHeroContent();
 
-		// Animated CSS-3D "Son of Anton" wordmark — replaces the previous
-		// inline-SVG flute. The scene is built from plain `<div>`s; all 3D
-		// effects (extruded letters, build-up rise, hover tilt) come from
-		// transforms and pseudo-elements declared in `gettingStarted.css`.
-		// No 3D framework dependency. The ASCII art is retained as a
-		// visually-hidden screen-reader fallback. The persona-coloured
-		// "buildings" idea was tried and pulled — flat coloured rectangles
-		// fought the wordmark for attention rather than reading as a skyline.
-		// What remains is the wordmark plus a subtle persona-tinted radial
-		// halo behind it (CSS-only; see `.sota-welcome-skyline-halo`).
+		// Inline isometric "Son of Anton" SVG skyline — letters built as
+		// stacked-block extruded buildings (Silicon Valley title-card energy)
+		// with a blueprint draw-in animation, perspective grid, balloons, and
+		// cars. The whole scene is self-contained in
+		// `SOTA_WELCOME_HERO_SKYLINE_SVG` (animations declared in the SVG's
+		// own `<style>` block, no external assets, CSP-friendly). The ASCII
+		// art is retained as a visually-hidden screen-reader fallback.
+		//
+		// `innerHTML` is acceptable here because the markup is a hardcoded
+		// constant from `sotaWelcomeHero.ts` — no user input, no remote
+		// fetches, no XSS surface.
 		const art = $('.sota-welcome-skyline', { 'aria-hidden': 'true' });
-		const sceneInner = $('.sota-welcome-skyline-inner', {});
-		// Halo: a soft conic-gradient backlight that sits behind the wordmark
-		// at low opacity, slowly rotating. Provides a hint of persona colour
-		// without committing to literal building shapes.
-		const halo = $('.sota-welcome-skyline-halo', {});
-		sceneInner.appendChild(halo);
-		// Wordmark — two centred lines stacked along Z so the second line
-		// reads as resting in front of the first. The 3D look comes from a
-		// text-shadow extrusion chain plus a darker pseudo-element offset.
-		const wordmark = $('.sota-welcome-skyline-wordmark', {});
-		for (const line of content.skylineWordmark) {
-			const lineEl = $(
-				`.sota-welcome-skyline-wordmark-line.${line.cls}`,
-				{ 'style': `--delay:${line.delayMs}ms` },
-				line.text,
-			);
-			// Inner data-text mirrors the line so the CSS pseudo-element can
-			// reproduce it as the back/top face without duplicating the node
-			// in the accessibility tree.
-			lineEl.setAttribute('data-text', line.text);
-			wordmark.appendChild(lineEl);
-		}
-		sceneInner.appendChild(wordmark);
-		art.appendChild(sceneInner);
+		art.innerHTML = content.skylineSvg;
 		const artFallback = $('pre.sota-welcome-skyline-fallback', { 'aria-hidden': 'true' });
 		artFallback.textContent = content.art;
 		art.appendChild(artFallback);

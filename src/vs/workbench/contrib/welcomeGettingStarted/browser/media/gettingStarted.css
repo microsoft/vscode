@@ -1159,140 +1159,23 @@
 .monaco-workbench .part.editor > .content .gettingStartedContainer .sota-welcome-hero .sota-welcome-skyline {
 	position: relative;
 	width: 100%;
-	max-width: 720px;
-	height: 360px;
-	margin: 0;
+	max-width: 1100px;
+	aspect-ratio: 3 / 2;
+	margin: 0 auto;
 	color: var(--vscode-foreground);
-	perspective: 1200px;
-	perspective-origin: 50% 60%;
 	user-select: none;
 }
 
-.monaco-workbench .part.editor > .content .gettingStartedContainer .sota-welcome-hero .sota-welcome-skyline-inner {
-	position: absolute;
-	inset: 0;
-	transform-style: preserve-3d;
-	transform: rotateX(25deg) rotateY(-15deg);
-	transition: transform 400ms ease;
-	will-change: transform;
+.monaco-workbench .part.editor > .content .gettingStartedContainer .sota-welcome-hero .sota-welcome-skyline > svg {
+	display: block;
+	width: 100%;
+	height: 100%;
 }
 
-.monaco-workbench .part.editor > .content .gettingStartedContainer .sota-welcome-hero .sota-welcome-skyline:hover .sota-welcome-skyline-inner {
-	transform: rotateX(23deg) rotateY(-10deg);
-}
-
-/* A persona building is an empty positioned block; its three faces are
- * explicit child divs so each face composites as its own GPU layer. The
- * `--accent`, `--x/--y/--z`, `--w/--h/--d`, and `--delay` custom properties
- * are set on the element from the renderer. */
-/* Soft persona-tinted halo behind the wordmark. Replaces the flat coloured
- * rectangles that read as Post-its rather than buildings — the conic
- * gradient gives a hint of every persona's accent without committing to
- * literal block geometry. Sits behind the wordmark on the Z axis. */
-.monaco-workbench .part.editor > .content .gettingStartedContainer .sota-welcome-hero .sota-welcome-skyline-halo {
-	position: absolute;
-	left: 50%;
-	top: 50%;
-	width: 720px;
-	height: 360px;
-	transform: translate3d(-50%, -50%, -40px);
-	background: conic-gradient(
-		from 0deg,
-		rgba(168, 85, 247, 0.18),
-		rgba(59, 130, 246, 0.14),
-		rgba(22, 163, 74, 0.12),
-		rgba(245, 158, 11, 0.16),
-		rgba(220, 38, 38, 0.14),
-		rgba(6, 182, 212, 0.12),
-		rgba(234, 179, 8, 0.14),
-		rgba(236, 72, 153, 0.16),
-		rgba(163, 163, 163, 0.10),
-		rgba(132, 204, 22, 0.14),
-		rgba(168, 85, 247, 0.18)
-	);
-	border-radius: 50%;
-	filter: blur(56px);
-	opacity: 0;
-	animation: sota-skyline-halo-fade 1600ms ease-out 200ms forwards,
-		sota-skyline-halo-rotate 60s linear infinite 200ms;
-	pointer-events: none;
-	will-change: opacity, transform;
-}
-
-/* Wordmark container sits above the buildings on the Z axis so the rising
- * letters land in front of the back-row blocks. */
-.monaco-workbench .part.editor > .content .gettingStartedContainer .sota-welcome-hero .sota-welcome-skyline-wordmark {
-	position: absolute;
-	left: 50%;
-	top: 50%;
-	transform: translate3d(-50%, -50%, 60px);
-	display: flex;
-	flex-direction: column;
-	align-items: center;
-	gap: 4px;
-	pointer-events: none;
-}
-
-/* Typography-as-3D: a single bold glyph per line, extruded by a stacked
- * text-shadow chain progressively offset toward the lower-right in a
- * darker shade of the accent. The `::before` pseudo-element provides a
- * lighter top highlight; using `data-text` keeps it out of the a11y tree. */
-.monaco-workbench .part.editor > .content .gettingStartedContainer .sota-welcome-hero .sota-welcome-skyline-wordmark-line {
-	position: relative;
-	font-family: 'Segoe UI', 'SF Pro Display', system-ui, sans-serif;
-	font-weight: 900;
-	font-size: 88px;
-	line-height: 1;
-	letter-spacing: 0.04em;
-	color: #ef4444;
-	opacity: 0;
-	transform: translateY(200px);
-	animation: sota-skyline-rise-letters 1200ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
-	animation-delay: var(--delay);
-	/* Stacked-block extrusion: 24 progressively-offset shadow layers in the
-	 * red palette so the letters read as vertical columns of stacked red
-	 * blocks (Silicon Valley title-card energy) rather than a single
-	 * extruded glyph. The progression from #ef4444 → #991b1b → #450a0a
-	 * gives the side face a darkening gradient that simulates depth. */
-	text-shadow:
-		1px 1px 0 #dc2626,
-		2px 2px 0 #dc2626,
-		3px 3px 0 #c81e1e,
-		4px 4px 0 #c81e1e,
-		5px 5px 0 #b91c1c,
-		6px 6px 0 #b91c1c,
-		7px 7px 0 #a31919,
-		8px 8px 0 #a31919,
-		9px 9px 0 #991b1b,
-		10px 10px 0 #991b1b,
-		11px 11px 0 #881717,
-		12px 12px 0 #881717,
-		13px 13px 0 #7f1d1d,
-		14px 14px 0 #7f1d1d,
-		15px 15px 0 #6b1818,
-		16px 16px 0 #6b1818,
-		17px 17px 0 #581414,
-		18px 18px 0 #581414,
-		19px 19px 0 #450a0a,
-		20px 20px 0 #450a0a,
-		21px 21px 0 #350808,
-		22px 22px 0 #350808,
-		24px 24px 32px rgba(0, 0, 0, 0.6);
-	will-change: transform, opacity;
-}
-
-/* Top face — a slightly lighter red copy nudged up so the letters look
- * like they have a bevelled top edge. */
-.monaco-workbench .part.editor > .content .gettingStartedContainer .sota-welcome-hero .sota-welcome-skyline-wordmark-line::before {
-	content: attr(data-text);
-	position: absolute;
-	left: 0;
-	top: 0;
-	color: #f87171;
-	transform: translateY(-3px);
-	pointer-events: none;
-	text-shadow: none;
-}
+/* The skyline is now rendered by an inline SVG (with self-contained
+ * animations) rather than the old CSS-3D scene. The previous wordmark / halo
+ * / building / wordmark-line rules have been removed; all motion lives in
+ * the SVG's own `<style>` block declared in `sotaWelcomeHero.ts`. */
 
 /* Visually hidden ASCII fallback — preserves the previous text silhouette
  * for assistive tech and any consumer that strips CSS. */
@@ -1431,11 +1314,7 @@
 	}
 
 	.monaco-workbench .part.editor > .content .gettingStartedContainer .sota-welcome-hero .sota-welcome-skyline {
-		height: 240px;
-	}
-
-	.monaco-workbench .part.editor > .content .gettingStartedContainer .sota-welcome-hero .sota-welcome-skyline-wordmark-line {
-		font-size: 40px;
+		max-width: 100%;
 	}
 }
 
@@ -1461,55 +1340,13 @@
 	}
 }
 
-/* Halo behind the wordmark: fades in once + slowly rotates forever. */
-@keyframes sota-skyline-halo-fade {
-	from { opacity: 0; }
-	to { opacity: 1; }
-}
-
-@keyframes sota-skyline-halo-rotate {
-	from { transform: translate3d(-50%, -50%, -40px) rotate(0deg); }
-	to { transform: translate3d(-50%, -50%, -40px) rotate(360deg); }
-}
-
-/* Build-up rise for the wordmark — same shape, but driven from a 2D
- * translation so the cubic-bezier overshoot reads as a small bounce when
- * the letters land. The wordmark wrapper handles its own Z offset. */
-@keyframes sota-skyline-rise-letters {
-	from {
-		transform: translateY(200px);
-		opacity: 0;
-	}
-	to {
-		transform: translateY(0);
-		opacity: 1;
-	}
-}
-
-/* Respect users who prefer reduced motion: disable every hero animation and
- * fall back to the static resting appearance. Buildings and letters jump
- * straight to their final transform / opacity, the hover tilt is held at
- * the resting isometric view, and CTA hover transforms are removed. */
+/* Reduced-motion guard for the welcome hero CTAs and quote pulse. The
+ * inline SVG skyline has its own `prefers-reduced-motion` block declared
+ * inside its `<style>` element (see `SOTA_WELCOME_HERO_SKYLINE_SVG` in
+ * `sotaWelcomeHero.ts`), so we don't repeat that here. */
 @media (prefers-reduced-motion: reduce) {
 	.monaco-workbench .part.editor > .content .gettingStartedContainer .sota-welcome-hero {
 		animation: none;
-	}
-
-	.monaco-workbench .part.editor > .content .gettingStartedContainer .sota-welcome-hero .sota-welcome-skyline-inner,
-	.monaco-workbench .part.editor > .content .gettingStartedContainer .sota-welcome-hero .sota-welcome-skyline:hover .sota-welcome-skyline-inner {
-		transition: none;
-		transform: rotateX(25deg) rotateY(-15deg);
-	}
-
-	.monaco-workbench .part.editor > .content .gettingStartedContainer .sota-welcome-hero .sota-welcome-skyline-halo {
-		animation: none;
-		opacity: 1;
-	}
-
-	.monaco-workbench .part.editor > .content .gettingStartedContainer .sota-welcome-hero .sota-welcome-skyline-wordmark-line {
-		animation: none;
-		opacity: 1;
-		transform: translateY(0);
 	}
 
 	.monaco-workbench .part.editor > .content .gettingStartedContainer .sota-welcome-hero .sota-welcome-quote::before {
