@@ -20,4 +20,5 @@ export const SESSIONS_WINDOW_ALLOWED_EXTENSIONS: ReadonlySet<string> = new Set<s
 	'bierner.markdown-mermaid',
 	'kisstkondoros.vscode-gutter-preview',
 	'tomoki1207.pdf',
+	'vscodevim.vim',
 ].map(id => id.toLowerCase()));
