@@ -151,7 +151,7 @@ export class ChatInputNotificationContribution extends Disposable {
 		notification.severity = vscode.ChatInputNotificationSeverity.Info;
 		notification.dismissible = true;
 		notification.autoDismissOnMessage = false;
-		notification.message = vscode.l10n.t('Monthly Limit Reached');
+		notification.message = vscode.l10n.t('Credit Limit Reached');
 
 		const isAnonymous = !!this._authService.copilotToken?.isNoAuthUser;
 		const isFree = !!this._authService.copilotToken?.isFreeUser;
@@ -196,26 +196,24 @@ export class ChatInputNotificationContribution extends Disposable {
 		notification.severity = vscode.ChatInputNotificationSeverity.Info;
 		notification.dismissible = true;
 		notification.autoDismissOnMessage = true;
-		notification.message = vscode.l10n.t('Monthly Limit at {0}%', warning.percentUsed);
+		notification.message = vscode.l10n.t('Credits at {0}%', warning.percentUsed);
 
 		const isAnonymous = !!this._authService.copilotToken?.isNoAuthUser;
 		const isFree = !!this._authService.copilotToken?.isFreeUser;
 
 		if (isAnonymous || isFree) {
-			notification.description = vscode.l10n.t("You're getting the most out of Copilot.");
+			notification.description = vscode.l10n.t('Upgrade to continue past your limit.');
 			notification.actions = [
-				{ label: vscode.l10n.t('View Usage'), commandId: 'workbench.action.chat.openCopilotStatus' },
 				{ label: vscode.l10n.t('Upgrade'), commandId: 'workbench.action.chat.upgradePlan' },
 			];
 		} else if (this._chatQuotaService.additionalUsageEnabled) {
-			notification.description = vscode.l10n.t('Your additional budget will keep Copilot going.');
+			notification.description = vscode.l10n.t('Your budget will cover usage past your limit.');
 			notification.actions = [
 				{ label: vscode.l10n.t('View Usage'), commandId: 'workbench.action.chat.openCopilotStatus' },
 			];
 		} else {
-			notification.description = vscode.l10n.t('Manage your budget to keep going.');
+			notification.description = vscode.l10n.t('Set a budget to continue past your limit.');
 			notification.actions = [
-				{ label: vscode.l10n.t('View Usage'), commandId: 'workbench.action.chat.openCopilotStatus' },
 				{ label: vscode.l10n.t('Manage Budget'), commandId: 'workbench.action.chat.manageAdditionalSpend' },
 			];
 		}

@@ -190,6 +190,11 @@ export interface IChatEntitlementService {
 	markAnonymousRateLimited(): void;
 
 	/**
+	 * Mark the chat setup flow as completed.
+	 */
+	markSetupCompleted(): void;
+
+	/**
 	 * Force the hidden state on or off, overriding the normal entitlement logic.
 	 * Used by the account policy gate to hide all AI features when the gate is
 	 * active and unsatisfied.
@@ -609,6 +614,10 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 
 		this.chatQuotaExceededContextKey.set(true);
 		this._onDidChangeQuotaExceeded.fire();
+	}
+
+	markSetupCompleted(): void {
+		this.context?.value.update({ completed: true });
 	}
 
 	setForceHidden(hidden: boolean): void {

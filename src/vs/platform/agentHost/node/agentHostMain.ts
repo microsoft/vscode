@@ -196,7 +196,10 @@ function startAgentHost(): void {
 				agentService,
 				agentService.stateManager,
 				wsServer,
-				{ defaultDirectory: URI.file(os.homedir()).toString() },
+				{
+					defaultDirectory: URI.file(os.homedir()).toString(),
+					completionTriggerCharacters: agentService.completionTriggerCharacters,
+				},
 				clientFileSystemProvider,
 				logService,
 			));
@@ -307,7 +310,10 @@ async function startWebSocketServer(agentService: AgentService, clientFileSystem
 		agentService,
 		agentService.stateManager,
 		wsServer,
-		{ defaultDirectory: URI.file(os.homedir()).toString() },
+		{
+			defaultDirectory: URI.file(os.homedir()).toString(),
+			completionTriggerCharacters: agentService.completionTriggerCharacters,
+		},
 		clientFileSystemProvider,
 		logService,
 	));

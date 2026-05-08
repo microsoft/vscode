@@ -107,12 +107,14 @@ jobs:
             if (!errs.length) { console.log('No fixture errors.'); process.exit(0); }
             console.log(errs.length + ' fixture(s) with errors:');
             for (const f of errs) {
-              const msg = f.error?.message || (typeof f.error === 'string' ? f.error : null) || 'unknown error';
+              const errorEvents = (f.events || []).filter(e => e.isError);
+              const msg = errorEvents.map(e => e.message).join('; ') || 'unknown error';
               console.log('::error::' + f.fixtureId + ': ' + msg);
-              if (f.error?.stack) { console.log('  stack: ' + f.error.stack); }
-              if (f.events?.length) {
-                for (const e of f.events) { console.log('  event: ' + JSON.stringify(e)); }
+              for (const e of errorEvents) {
+                if (e.stack) { console.log('  stack: ' + e.stack); }
               }
+              const nonErrorEvents = (f.events || []).filter(e => !e.isError);
+              for (const e of nonErrorEvents) { console.log('  event: ' + JSON.stringify(e)); }
             }
             process.exit(1);
           "; then

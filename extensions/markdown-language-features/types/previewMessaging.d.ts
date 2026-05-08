@@ -7,9 +7,28 @@ interface BaseMessage {
 	readonly source: string;
 }
 
+export interface MarkdownPreviewInnerChange {
+	/** 0-based line number */
+	readonly line: number;
+	/** 0-based start column */
+	readonly startColumn: number;
+	/** 0-based end column (exclusive). Use Number.MAX_SAFE_INTEGER for end-of-line. */
+	readonly endColumn: number;
+}
+
 export interface MarkdownPreviewLineChanges {
 	readonly added?: readonly number[];
 	readonly deleted?: readonly number[];
+	readonly innerChanges?: readonly MarkdownPreviewInnerChange[];
+}
+
+export interface DiffScrollSyncData {
+	/** Shared BroadcastChannel name for this diff pair */
+	readonly channelName: string;
+	/** Which side of the diff this preview represents */
+	readonly role: 'original' | 'modified';
+	/** Mapping from the other side's line numbers to this side's line numbers */
+	readonly lineMappings: readonly number[];
 }
 
 export namespace FromWebviewMessage {
@@ -69,6 +88,7 @@ export namespace ToWebviewMessage {
 		readonly type: 'updateContent';
 		readonly content: string;
 		readonly lineChanges?: MarkdownPreviewLineChanges;
+		readonly diffScrollSync?: DiffScrollSyncData;
 	}
 
 	export interface CopyImageContent extends BaseMessage {

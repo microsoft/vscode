@@ -119,7 +119,6 @@ interface IPluginInstalledItemTemplateData {
 	readonly typeIcon: HTMLElement;
 	readonly name: HTMLElement;
 	readonly description: HTMLElement;
-	readonly status: HTMLElement;
 	readonly disposables: DisposableStore;
 }
 
@@ -140,9 +139,8 @@ class PluginInstalledItemRenderer implements IListRenderer<IPluginInstalledItemE
 		const details = DOM.append(container, $('.mcp-server-details'));
 		const name = DOM.append(details, $('.mcp-server-name'));
 		const description = DOM.append(details, $('.mcp-server-description'));
-		const status = DOM.append(container, $('.mcp-server-status'));
 
-		return { container, syncCheckboxContainer, typeIcon, name, description, status, disposables: new DisposableStore() };
+		return { container, syncCheckboxContainer, typeIcon, name, description, disposables: new DisposableStore() };
 	}
 
 	renderElement(element: IPluginInstalledItemEntry, _index: number, templateData: IPluginInstalledItemTemplateData): void {
@@ -157,18 +155,13 @@ class PluginInstalledItemRenderer implements IListRenderer<IPluginInstalledItemE
 			templateData.description.style.display = 'none';
 		}
 
-		// Show enabled/disabled status
+		// Reflect enabled/disabled state on the container for visual styling. The
+		// inline status badge ("Enabled"/"Disabled") is intentionally omitted —
+		// items are already grouped under "Enabled Locally" / "Disabled Locally"
+		// section headers, and the row's aria-label conveys state to screen readers.
 		templateData.disposables.add(autorun(reader => {
 			const enabled = isContributionEnabled(element.item.plugin.enablement.read(reader));
 			templateData.container.classList.toggle('disabled', !enabled);
-			templateData.status.className = 'mcp-server-status';
-			if (enabled) {
-				templateData.status.textContent = localize('enabled', "Enabled");
-				templateData.status.classList.add('running');
-			} else {
-				templateData.status.textContent = localize('disabled', "Disabled");
-				templateData.status.classList.add('disabled');
-			}
 		}));
 
 		// Disable checkbox: shown when the active harness has a disable provider
