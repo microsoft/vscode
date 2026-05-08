@@ -35,6 +35,9 @@ abstract class FilteredEditorGroupModel extends Disposable implements IReadonlyE
 	get stickyCount(): number { return this.model.stickyCount; }
 	get tabGroups(): readonly IEditorTabGroup[] { return this.model.tabGroups; }
 	getTabGroupForEditor(editorOrIndex: EditorInput | number): IEditorTabGroup | undefined { return this.model.getTabGroupForEditor(editorOrIndex); }
+	collapseTabGroup(groupId: string): void { this.model.collapseTabGroup?.(groupId); }
+	expandTabGroup(groupId: string): void { this.model.expandTabGroup?.(groupId); }
+	addToTabGroup(groupId: string, editor: EditorInput): void { this.model.addToTabGroup?.(groupId, editor); }
 
 	get activeEditor(): EditorInput | null { return this.model.activeEditor && this.filter(this.model.activeEditor) ? this.model.activeEditor : null; }
 	get previewEditor(): EditorInput | null { return this.model.previewEditor && this.filter(this.model.previewEditor) ? this.model.previewEditor : null; }

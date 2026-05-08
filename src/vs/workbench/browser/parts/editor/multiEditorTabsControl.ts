@@ -7,7 +7,7 @@ import './media/multieditortabscontrol.css';
 import './media/tabgroups.css';
 import { isLinux, isMacintosh, isWindows } from '../../../../base/common/platform.js';
 import { shorten } from '../../../../base/common/labels.js';
-import { EditorResourceAccessor, Verbosity, IEditorPartOptions, SideBySideEditor, DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, IUntypedEditorInput, preventEditorClose, EditorCloseMethod, EditorsOrder, IToolbarActions } from '../../../common/editor.js';
+import { EditorResourceAccessor, Verbosity, IEditorPartOptions, SideBySideEditor, DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, IUntypedEditorInput, preventEditorClose, EditorCloseMethod, EditorsOrder, IToolbarActions, GroupModelChangeKind } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { computeEditorAriaLabel } from '../../editor.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
@@ -165,6 +165,17 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 		// React to decorations changing for our resource labels
 		this._register(this.tabResourceLabels.onDidChangeDecorations(() => this.doHandleDecorationsChange()));
+
+		// React to tab group model changes (collapse/expand, rename, recolor)
+		this._register(this.tabsModel.onDidModelChange(e => {
+			if (e.kind === GroupModelChangeKind.TAB_GROUP_CHANGED ||
+				e.kind === GroupModelChangeKind.TAB_GROUP_CREATED ||
+				e.kind === GroupModelChangeKind.TAB_GROUP_REMOVED ||
+				e.kind === GroupModelChangeKind.TAB_GROUP_EDITOR_ADDED ||
+				e.kind === GroupModelChangeKind.TAB_GROUP_EDITOR_REMOVED) {
+				this.redrawTabGroups();
+			}
+		}));
 	}
 
 	protected override create(parent: HTMLElement): HTMLElement {
