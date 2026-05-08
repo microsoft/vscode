@@ -155,27 +155,27 @@ suite('ChatStatusDashboard', () => {
 		assert.deepStrictEqual(getQuotaValues(dashboard.element), ['100%', '100%']);
 	});
 
-	test('Free — TBB: shows Chat messages and Inline Suggestions (no Credits for Free)', () => {
+	test('Free — TBB: shows Credits and Inline Suggestions, not Chat messages', () => {
 		const dashboard = createDashboard(createEntitlementService({
 			chat: { percentRemaining: 80, unlimited: false },
+			premiumChat: { percentRemaining: 60, unlimited: false, usageBasedBilling: true },
 			completions: { percentRemaining: 70, unlimited: false },
-			usageBasedBilling: true,
 			entitlement: ChatEntitlement.Free,
 		}));
 
-		assert.deepStrictEqual(getQuotaLabels(dashboard.element), ['Chat messages', 'Inline Suggestions']);
-		assert.deepStrictEqual(getQuotaValues(dashboard.element), ['20%', '30%']);
+		assert.deepStrictEqual(getQuotaLabels(dashboard.element), ['Credits', 'Inline Suggestions']);
+		assert.deepStrictEqual(getQuotaValues(dashboard.element), ['40%', '30%']);
 	});
 
-	test('Free — TBB exhausted: shows Chat messages and Inline Suggestions at 0%', () => {
+	test('Free — TBB exhausted: shows Credits and Inline Suggestions at 0%', () => {
 		const dashboard = createDashboard(createEntitlementService({
 			chat: { percentRemaining: 0, unlimited: false },
+			premiumChat: { percentRemaining: 0, unlimited: false, usageBasedBilling: true },
 			completions: { percentRemaining: 0, unlimited: false },
-			usageBasedBilling: true,
 			entitlement: ChatEntitlement.Free,
 		}));
 
-		assert.deepStrictEqual(getQuotaLabels(dashboard.element), ['Chat messages', 'Inline Suggestions']);
+		assert.deepStrictEqual(getQuotaLabels(dashboard.element), ['Credits', 'Inline Suggestions']);
 		assert.deepStrictEqual(getQuotaValues(dashboard.element), ['100%', '100%']);
 	});
 

@@ -728,10 +728,11 @@ export function parseQuotas(entitlementsData: IEntitlementsData): IQuotas {
 			const parsedEntitlement = rawQuotaSnapshot.entitlement !== undefined ? Number(rawQuotaSnapshot.entitlement) : undefined;
 
 			// Skip snapshots where the user has no allocated entitlement for this
-			// category (e.g. free tier premium_interactions with 0 credits). Under
-			// TBB, has_quota is always false at the per-snapshot level so we cannot
-			// rely on it; instead check the actual entitlement value.
-			if (!rawQuotaSnapshot.unlimited && parsedEntitlement === 0) {
+			// category. Under TBB, has_quota is always false at the per-snapshot
+			// level so we cannot rely on it; instead check the actual entitlement
+			// value. However, under TBB we always keep premium_interactions so that
+			// the "Credits" section renders for all TBB users (including Free).
+			if (!rawQuotaSnapshot.unlimited && parsedEntitlement === 0 && !(entitlementsData.token_based_billing && quotaType === 'premium_interactions')) {
 				continue;
 			}
 
