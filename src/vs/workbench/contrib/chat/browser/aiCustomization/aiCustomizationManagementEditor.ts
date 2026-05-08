@@ -34,6 +34,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { basename, dirname, isEqual, isEqualOrParent } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { parseFrontMatter } from '../../../../../base/common/yaml.js';
 import { registerColor } from '../../../../../platform/theme/common/colorRegistry.js';
 import { PANEL_BORDER } from '../../../../common/theme.js';
 import { AICustomizationManagementEditorInput } from './aiCustomizationManagementEditorInput.js';
@@ -60,7 +61,6 @@ import { agentIcon, instructionsIcon, promptIcon, skillIcon, hookIcon, pluginIco
 import { ChatModelsWidget } from '../chatManagement/chatModelsWidget.js';
 import { PromptsType, Target } from '../../common/promptSyntax/promptTypes.js';
 import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
-import { ParsedPromptFile } from '../../common/promptSyntax/promptFileParser.js';
 import { AGENT_MD_FILENAME } from '../../common/promptSyntax/config/promptFileLocations.js';
 import { INewPromptOptions, NEW_PROMPT_COMMAND_ID, NEW_INSTRUCTIONS_COMMAND_ID, NEW_AGENT_COMMAND_ID, NEW_SKILL_COMMAND_ID } from '../promptSyntax/newPromptFileActions.js';
 import { showConfigureHooksQuickPick } from '../promptSyntax/hookActions.js';
@@ -2096,16 +2096,16 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private renderCurrentEditorPreview(): void {
 		const model = this.getCurrentEditingModel();
 		const promptType = this.currentEditingPromptType;
-		if (!model || !promptType || this.editorDisplayMode !== 'preview' || !this.isStructuredPreviewSupported(promptType)) {
+		const uri = this.currentEditingUri;
+		if (!model || !promptType || !uri || this.editorDisplayMode !== 'preview' || !this.isStructuredPreviewSupported(promptType)) {
 			this.clearEditorPreview();
 			return;
 		}
 
-		const parsedPromptFile = this.promptsService.getParsedPromptFile(model);
-		this.renderEditorPreview(parsedPromptFile);
+		this.renderEditorPreview(model.getValue(), uri);
 	}
 
-	private renderEditorPreview(parsedPromptFile: ParsedPromptFile): void {
+	private renderEditorPreview(rawContent: string, uri: URI): void {
 		if (!this.editorPreviewBodyContainer) {
 			return;
 		}
@@ -2113,24 +2113,33 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.editorPreviewDisposables.clear();
 		DOM.clearNode(this.editorPreviewBodyContainer);
 
-		this.renderPreviewBody(parsedPromptFile);
-	}
-
-	private renderPreviewBody(parsedPromptFile: ParsedPromptFile): void {
-		if (!this.editorPreviewBodyContainer) {
+		const previewSource = this.buildPreviewMarkdown(rawContent);
+		if (!previewSource.trim()) {
+			DOM.append(this.editorPreviewBodyContainer, $('div.editor-preview-empty-state')).textContent = localize('previewNoBody', "No content found in this file.");
 			return;
 		}
 
-		const bodyContent = parsedPromptFile.body?.getContent() ?? '';
-		if (!bodyContent.trim()) {
-			DOM.append(this.editorPreviewBodyContainer, $('div.editor-preview-empty-state')).textContent = localize('previewNoBody', "No markdown body found in this file.");
-			return;
-		}
-
-		const markdown = new MarkdownString(bodyContent, { supportThemeIcons: true });
-		markdown.baseUri = parsedPromptFile.uri;
+		const markdown = new MarkdownString(previewSource, { supportThemeIcons: true });
+		markdown.baseUri = uri;
 		const renderedMarkdown = this.editorPreviewDisposables.add(this.markdownRendererService.render(markdown));
 		this.editorPreviewBodyContainer.appendChild(renderedMarkdown.element);
+	}
+
+	private buildPreviewMarkdown(rawContent: string): string {
+		const parsed = parseFrontMatter(rawContent);
+		if (!parsed?.header) {
+			return rawContent;
+		}
+
+		// parseFrontMatter returns the body string starting at the first byte after the
+		// closing `---` marker. The remainder of the input (front-matter delimiters
+		// included) is the original front-matter section.
+		const headerSection = rawContent.slice(0, rawContent.length - parsed.body.length);
+		const yamlOnly = headerSection
+			.replace(/^---\r?\n/, '')
+			.replace(/\r?\n---\r?\n?$/, '');
+		const body = parsed.body.replace(/^\r?\n+/, '');
+		return '```yaml\n' + yamlOnly + '\n```\n\n' + body;
 	}
 
 	private clearEditorPreview(): void {
