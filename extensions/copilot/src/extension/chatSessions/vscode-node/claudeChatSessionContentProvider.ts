@@ -161,6 +161,7 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 			this.sessionStateService.setTurnIdForSession(effectiveSessionId, request.id);
 
 			let result: vscode.ChatResult;
+			let creditsUsed: number | undefined;
 			try {
 				const prompt = request.prompt;
 				await this._controller.updateItemStatus(effectiveSessionId, vscode.ChatSessionStatus.InProgress, prompt);
@@ -170,11 +171,11 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 				// Clear usage handler and turn ID after request completes (even on error/cancellation)
 				this.sessionStateService.setUsageHandlerForSession(effectiveSessionId, undefined);
 				this.sessionStateService.setTurnIdForSession(effectiveSessionId, undefined);
+				creditsUsed = this._chatQuotaService.getCreditsForTurn(request.id);
+				this._chatQuotaService.resetTurnCredits(request.id);
 			}
 
 			const modelDetailsEnabled = this.configurationService.getConfig(ConfigKey.Advanced.CLIModelDetailsEnabled);
-			const creditsUsed = this._chatQuotaService.getCreditsForTurn(request.id);
-			this._chatQuotaService.resetTurnCredits(request.id);
 			let details: string | undefined;
 			if (modelDetailsEnabled && endpoint) {
 				if (creditsUsed !== undefined) {
