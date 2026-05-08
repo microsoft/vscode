@@ -480,4 +480,45 @@ suite('Snippet Variables Resolver', function () {
 		assertVariableResolve(resolver, 'REVERSE_RELATIVE_FILEPATH', '..\\..');
 		windowsModel.dispose();
 	});
+
+	test('REVERSE_RELATIVE_FILEPATH handles Windows drive paths and remote scenarios', function () {
+
+		const windowsDriveLabelService = new class extends mock<ILabelService>() {
+			override getUriLabel(_uri: URI, options: { relative?: boolean } = {}) {
+				if (options.relative) {
+					return 'dir\\sub\\text.txt';
+				}
+				return 'C:\\workspace\\dir\\sub\\text.txt';
+			}
+		};
+
+		const windowsDriveModel = createTextModel('', undefined, undefined, URI.parse('file:///c%3A/workspace/dir/sub/text.txt'));
+		let resolver: VariableResolver = new ModelBasedVariableResolver(windowsDriveLabelService, windowsDriveModel);
+		assertVariableResolve(resolver, 'REVERSE_RELATIVE_FILEPATH', '..\\..');
+		windowsDriveModel.dispose();
+
+		const remoteModel = createTextModel('', undefined, undefined, URI.parse('vscode-remote://ssh-remote%2Bexample/home/user/workspace/dir/file.ts'));
+		const remoteInWorkspaceLabelService = new class extends mock<ILabelService>() {
+			override getUriLabel(_uri: URI, options: { relative?: boolean } = {}) {
+				if (options.relative) {
+					return 'dir/file.ts';
+				}
+				return '/home/user/workspace/dir/file.ts';
+			}
+		};
+		resolver = new ModelBasedVariableResolver(remoteInWorkspaceLabelService, remoteModel);
+		assertVariableResolve(resolver, 'REVERSE_RELATIVE_FILEPATH', '..');
+
+		const remoteOutsideWorkspaceLabelService = new class extends mock<ILabelService>() {
+			override getUriLabel(_uri: URI, options: { relative?: boolean } = {}) {
+				if (options.relative) {
+					return '/home/user/other/place/file.ts';
+				}
+				return '/home/user/other/place/file.ts';
+			}
+		};
+		resolver = new ModelBasedVariableResolver(remoteOutsideWorkspaceLabelService, remoteModel);
+		assertVariableResolve(resolver, 'REVERSE_RELATIVE_FILEPATH', undefined);
+		remoteModel.dispose();
+	});
 });
