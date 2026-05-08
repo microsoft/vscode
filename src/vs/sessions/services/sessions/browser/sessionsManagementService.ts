@@ -23,6 +23,7 @@ import { ISendRequestOptions, ISessionChangeEvent, ISessionsProvider } from '../
 import { IChat, ISession, isWorkspaceAgentSessionType, SessionStatus, ISessionType } from '../common/session.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../common/agentHostSessionsProvider.js';
+import { SessionsNavigation } from './sessionNavigation.js';
 
 const ACTIVE_SESSION_STATES_KEY = 'agentSessions.activeSessionStates';
 
@@ -70,6 +71,7 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 	private _activeSessionDisposables = this._register(new DisposableStore());
 	private readonly _providerListeners = this._register(new DisposableMap<string, IDisposable>());
 	private readonly _sessionStates: ResourceMap<ISessionState>;
+	private readonly _navigation: SessionsNavigation;
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
@@ -105,6 +107,14 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 			this._updateSessionTypes();
 		}));
 		this._subscribeToProviders(this.sessionsProvidersService.getProviders());
+
+		// Session navigation history
+		this._navigation = this._register(new SessionsNavigation(
+			this,
+			contextKeyService,
+			this.logService,
+		));
+		this._register(this.onDidChangeSessions(e => this._navigation.onDidRemoveSessions(e)));
 	}
 
 	private _onProvidersChanged(e: ISessionsProvidersChangeEvent): void {
@@ -650,6 +660,16 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 		} finally {
 			onDidOpenNewSessionViewListener?.dispose();
 		}
+	}
+
+	// -- Session Navigation --
+
+	async openPreviousSession(): Promise<void> {
+		await this._navigation.goBack();
+	}
+
+	async openNextSession(): Promise<void> {
+		await this._navigation.goForward();
 	}
 
 	// -- Session Actions --

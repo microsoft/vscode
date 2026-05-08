@@ -3,17 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Codicon } from '../../../../base/common/codicons.js';
 import { fromNow } from '../../../../base/common/date.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
-import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
+import { IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
+import { Menus } from '../../../browser/menus.js';
 import { SessionsCategories } from '../../../common/categories.js';
+import { CanGoBackContext, CanGoForwardContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISession } from '../../../services/sessions/common/session.js';
 
@@ -103,5 +107,85 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 		disposables.add(picker.onDidHide(() => disposables.dispose()));
 
 		picker.show();
+	}
+});
+
+// -- Go Back --
+
+registerAction2(class GoBackAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessions.goBack',
+			title: {
+				...localize2('sessionsGoBack', "Go Back"),
+				mnemonicTitle: localize({ key: 'miSessionsBack', comment: ['&& denotes a mnemonic'] }, "&&Back")
+			},
+			f1: true,
+			icon: Codicon.arrowLeft,
+			category: SessionsCategories.Sessions,
+			precondition: CanGoBackContext,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				win: { primary: KeyMod.Alt | KeyCode.LeftArrow },
+				mac: { primary: KeyMod.WinCtrl | KeyCode.Minus },
+				linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Minus },
+				when: IsSessionsWindowContext,
+			},
+			menu: [{
+				id: Menus.TitleBarLeftLayout,
+				group: 'navigation',
+				order: 1,
+				when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated()),
+			}, {
+				id: Menus.GoMenu,
+				group: '1_history_nav',
+				order: 1,
+			}]
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		await sessionsManagementService.openPreviousSession();
+	}
+});
+
+// -- Go Forward --
+
+registerAction2(class GoForwardAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessions.goForward',
+			title: {
+				...localize2('sessionsGoForward', "Go Forward"),
+				mnemonicTitle: localize({ key: 'miSessionsForward', comment: ['&& denotes a mnemonic'] }, "&&Forward")
+			},
+			f1: true,
+			icon: Codicon.arrowRight,
+			category: SessionsCategories.Sessions,
+			precondition: CanGoForwardContext,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				win: { primary: KeyMod.Alt | KeyCode.RightArrow },
+				mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Minus },
+				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Minus },
+				when: IsSessionsWindowContext,
+			},
+			menu: [{
+				id: Menus.TitleBarLeftLayout,
+				group: 'navigation',
+				order: 2,
+				when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated()),
+			}, {
+				id: Menus.GoMenu,
+				group: '1_history_nav',
+				order: 2,
+			}]
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		await sessionsManagementService.openNextSession();
 	}
 });
