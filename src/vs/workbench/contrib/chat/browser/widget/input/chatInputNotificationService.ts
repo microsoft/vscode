@@ -168,12 +168,13 @@ class ChatInputNotificationService extends Disposable implements IChatInputNotif
 			this._lastAnnouncedSignature = undefined;
 			return;
 		}
-		const signature = `${active.id}\u0000${active.message}\u0000${active.description ?? ''}`;
+		const message = typeof active.message === 'string' ? active.message : active.message.value;
+		const signature = `${active.id}\u0000${message}\u0000${active.description ?? ''}`;
 		if (signature === this._lastAnnouncedSignature) {
 			return;
 		}
 		this._lastAnnouncedSignature = signature;
-		const text = active.description ? `${active.message}. ${active.description}` : active.message;
+		const text = active.description ? `${message}. ${active.description}` : message;
 		status(text);
 	}
 }
