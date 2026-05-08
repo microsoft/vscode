@@ -12,6 +12,25 @@ import { IConfigurationChangeEvent, IConfigurationService } from '../../../platf
 import { dispose, Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { Registry } from '../../../platform/registry/common/platform.js';
 import { coalesce } from '../../../base/common/arrays.js';
+import { generateUuid } from '../../../base/common/uuid.js';
+
+export interface IEditorTabGroup {
+	readonly id: string;
+	name: string;
+	color: string;
+	collapsed: boolean;
+	startIndex: number;
+	count: number;
+}
+
+export interface ISerializedEditorTabGroup {
+	readonly id: string;
+	readonly name: string;
+	readonly color: string;
+	readonly collapsed: boolean;
+	readonly startIndex: number;
+	readonly count: number;
+}
 
 const EditorOpenPositioning = {
 	LEFT: 'left',
@@ -47,6 +66,7 @@ export interface ISerializedEditorGroupModel {
 	readonly mru: number[];
 	readonly preview?: number;
 	sticky?: number;
+	readonly tabGroups?: ISerializedEditorTabGroup[];
 }
 
 export function isSerializedEditorGroupModel(group?: unknown): group is ISerializedEditorGroupModel {
@@ -159,6 +179,7 @@ export interface IReadonlyEditorGroupModel {
 	readonly activeEditor: EditorInput | null;
 	readonly previewEditor: EditorInput | null;
 	readonly selectedEditors: EditorInput[];
+	readonly tabGroups: readonly IEditorTabGroup[];
 
 	getEditors(order: EditorsOrder, options?: { excludeSticky?: boolean }): EditorInput[];
 	getEditorByIndex(index: number): EditorInput | undefined;
@@ -172,6 +193,7 @@ export interface IReadonlyEditorGroupModel {
 	isLast(editor: EditorInput, editors?: EditorInput[]): boolean;
 	findEditor(editor: EditorInput | null, options?: IMatchEditorOptions): [EditorInput, number /* index */] | undefined;
 	contains(editor: EditorInput | IUntypedEditorInput, options?: IMatchEditorOptions): boolean;
+	getTabGroupForEditor(editorOrIndex: EditorInput | number): IEditorTabGroup | undefined;
 }
 
 interface IEditorGroupModel extends IReadonlyEditorGroupModel {
@@ -212,6 +234,7 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 	private preview: EditorInput | null = null; 			// editor in preview state
 	private sticky = -1;									// index of first editor in sticky state
 	private readonly transient = new Set<EditorInput>(); 	// editors in transient state
+	private _tabGroups: IEditorTabGroup[] = [];				// tab groups (sorted by startIndex, non-overlapping)
 
 	private editorOpenPositioning: ('left' | 'right' | 'first' | 'last') | undefined;
 	private focusRecentEditorAfterClose: boolean | undefined;
@@ -1012,6 +1035,13 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 			this.sticky--;
 		}
 
+		// Adjust tab groups for insertions and removals
+		if (del && !editor) {
+			this.adjustTabGroupsForRemove(index);
+		} else if (!del && editor) {
+			this.adjustTabGroupsForInsert(index);
+		}
+
 		// Perform on editors array
 		if (editor) {
 			this.editors.splice(index, del ? 1 : 0, editor);
@@ -1142,6 +1172,197 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 		}
 	}
 
+	//#region Tab Groups
+
+	get tabGroups(): readonly IEditorTabGroup[] {
+		return this._tabGroups;
+	}
+
+	getTabGroupForEditor(editorOrIndex: EditorInput | number): IEditorTabGroup | undefined {
+		const index = typeof editorOrIndex === 'number' ? editorOrIndex : this.indexOf(editorOrIndex);
+		if (index < 0) {
+			return undefined;
+		}
+
+		return this._tabGroups.find(g => index >= g.startIndex && index < g.startIndex + g.count);
+	}
+
+	createTabGroup(editors: EditorInput[], name?: string, color?: string): IEditorTabGroup {
+		const indices = editors
+			.map(e => this.indexOf(e))
+			.filter(i => i >= 0 && !this.isSticky(i))
+			.sort((a, b) => a - b);
+
+		if (indices.length === 0) {
+			throw new Error('Cannot create tab group: no valid non-sticky editors provided');
+		}
+
+		// Move editors to be contiguous starting at the first editor's position
+		const targetStart = indices[0];
+		for (let i = 1; i < indices.length; i++) {
+			const editor = this.editors[indices[i]];
+			if (indices[i] !== targetStart + i) {
+				this.moveEditor(editor, targetStart + i);
+				// Re-derive indices after move
+				for (let j = i + 1; j < indices.length; j++) {
+					indices[j] = this.indexOf(editors[j]);
+				}
+			}
+		}
+
+		const tabGroup: IEditorTabGroup = {
+			id: generateUuid(),
+			name: name ?? '',
+			color: color ?? 'blue',
+			collapsed: false,
+			startIndex: targetStart,
+			count: indices.length
+		};
+
+		this._tabGroups.push(tabGroup);
+		this._tabGroups.sort((a, b) => a.startIndex - b.startIndex);
+
+		this._onDidModelChange.fire({ kind: GroupModelChangeKind.TAB_GROUP_CREATED });
+
+		return tabGroup;
+	}
+
+	addToTabGroup(groupId: string, editor: EditorInput): void {
+		const group = this._tabGroups.find(g => g.id === groupId);
+		if (!group) {
+			return;
+		}
+
+		const editorIndex = this.indexOf(editor);
+		if (editorIndex < 0 || this.isSticky(editorIndex)) {
+			return;
+		}
+
+		// Already in this group
+		if (editorIndex >= group.startIndex && editorIndex < group.startIndex + group.count) {
+			return;
+		}
+
+		// Remove from any other group first
+		this.removeFromTabGroupByIndex(editorIndex);
+
+		// Move editor to the end of the target group
+		const targetIndex = group.startIndex + group.count;
+		this.moveEditor(editor, targetIndex > editorIndex ? targetIndex - 1 : targetIndex);
+
+		// Recalculate after move
+		const newIndex = this.indexOf(editor);
+		if (newIndex >= group.startIndex && newIndex <= group.startIndex + group.count) {
+			group.count++;
+		}
+
+		this._onDidModelChange.fire({ kind: GroupModelChangeKind.TAB_GROUP_EDITOR_ADDED });
+	}
+
+	removeFromTabGroup(groupId: string, editor: EditorInput): void {
+		const group = this._tabGroups.find(g => g.id === groupId);
+		if (!group) {
+			return;
+		}
+
+		const editorIndex = this.indexOf(editor);
+		if (editorIndex < group.startIndex || editorIndex >= group.startIndex + group.count) {
+			return;
+		}
+
+		group.count--;
+		if (group.count <= 0) {
+			this._tabGroups = this._tabGroups.filter(g => g.id !== groupId);
+			this._onDidModelChange.fire({ kind: GroupModelChangeKind.TAB_GROUP_REMOVED });
+		} else {
+			if (editorIndex === group.startIndex) {
+				group.startIndex++;
+			}
+			this._onDidModelChange.fire({ kind: GroupModelChangeKind.TAB_GROUP_EDITOR_REMOVED });
+		}
+	}
+
+	dissolveTabGroup(groupId: string): void {
+		this._tabGroups = this._tabGroups.filter(g => g.id !== groupId);
+		this._onDidModelChange.fire({ kind: GroupModelChangeKind.TAB_GROUP_REMOVED });
+	}
+
+	collapseTabGroup(groupId: string): void {
+		const group = this._tabGroups.find(g => g.id === groupId);
+		if (group && !group.collapsed) {
+			group.collapsed = true;
+			this._onDidModelChange.fire({ kind: GroupModelChangeKind.TAB_GROUP_CHANGED });
+		}
+	}
+
+	expandTabGroup(groupId: string): void {
+		const group = this._tabGroups.find(g => g.id === groupId);
+		if (group && group.collapsed) {
+			group.collapsed = false;
+			this._onDidModelChange.fire({ kind: GroupModelChangeKind.TAB_GROUP_CHANGED });
+		}
+	}
+
+	renameTabGroup(groupId: string, name: string): void {
+		const group = this._tabGroups.find(g => g.id === groupId);
+		if (group) {
+			group.name = name;
+			this._onDidModelChange.fire({ kind: GroupModelChangeKind.TAB_GROUP_CHANGED });
+		}
+	}
+
+	recolorTabGroup(groupId: string, color: string): void {
+		const group = this._tabGroups.find(g => g.id === groupId);
+		if (group) {
+			group.color = color;
+			this._onDidModelChange.fire({ kind: GroupModelChangeKind.TAB_GROUP_CHANGED });
+		}
+	}
+
+	private removeFromTabGroupByIndex(editorIndex: number): void {
+		const group = this.getTabGroupForEditor(editorIndex);
+		if (!group) {
+			return;
+		}
+
+		group.count--;
+		if (group.count <= 0) {
+			this._tabGroups = this._tabGroups.filter(g => g.id !== group.id);
+		} else if (editorIndex === group.startIndex) {
+			group.startIndex++;
+		}
+	}
+
+	/**
+	 * Adjusts tab group indices when editors are inserted or removed.
+	 * Call after editor list mutations.
+	 */
+	private adjustTabGroupsForInsert(insertIndex: number): void {
+		for (const group of this._tabGroups) {
+			if (insertIndex <= group.startIndex) {
+				group.startIndex++;
+			} else if (insertIndex > group.startIndex && insertIndex <= group.startIndex + group.count) {
+				group.count++;
+			}
+		}
+	}
+
+	private adjustTabGroupsForRemove(removeIndex: number): void {
+		for (let i = this._tabGroups.length - 1; i >= 0; i--) {
+			const group = this._tabGroups[i];
+			if (removeIndex < group.startIndex) {
+				group.startIndex--;
+			} else if (removeIndex >= group.startIndex && removeIndex < group.startIndex + group.count) {
+				group.count--;
+				if (group.count <= 0) {
+					this._tabGroups.splice(i, 1);
+				}
+			}
+		}
+	}
+
+	//#endregion
+
 	clone(): EditorGroupModel {
 		const clone = this.instantiationService.createInstance(EditorGroupModel, undefined);
 
@@ -1151,6 +1372,7 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 		clone.preview = this.preview;
 		clone.selection = this.selection.slice(0);
 		clone.sticky = this.sticky;
+		clone._tabGroups = this._tabGroups.map(g => ({ ...g }));
 
 		// Ensure to register listeners for each editor
 		for (const editor of clone.editors) {
@@ -1211,7 +1433,15 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 			editors: serializedEditors,
 			mru: serializableMru,
 			preview: serializablePreviewIndex,
-			sticky: serializableSticky >= 0 ? serializableSticky : undefined
+			sticky: serializableSticky >= 0 ? serializableSticky : undefined,
+			tabGroups: this._tabGroups.length > 0 ? this._tabGroups.map(g => ({
+				id: g.id,
+				name: g.name,
+				color: g.color,
+				collapsed: g.collapsed,
+				startIndex: g.startIndex,
+				count: g.count
+			})) : undefined
 		};
 	}
 
@@ -1259,6 +1489,19 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 
 		if (typeof data.sticky === 'number') {
 			this.sticky = data.sticky;
+		}
+
+		if (data.tabGroups) {
+			this._tabGroups = data.tabGroups
+				.filter(g => g.startIndex >= 0 && g.count > 0 && g.startIndex + g.count <= this.editors.length)
+				.map(g => ({
+					id: g.id,
+					name: g.name,
+					color: g.color,
+					collapsed: g.collapsed,
+					startIndex: g.startIndex,
+					count: g.count
+				}));
 		}
 
 		return this._id;
