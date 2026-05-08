@@ -37,7 +37,7 @@ export interface IFixtureMessage {
 	readonly assistant?: ReadonlyArray<
 		| { kind: 'markdown'; text: string }
 		| { kind: 'progress'; text: string }
-		| { kind: 'terminalConfirmation'; command: string; title?: string; disclaimer?: string; requestUnsandboxedExecution?: boolean; requestUnsandboxedExecutionReason?: string; riskAssessment?: { risk: ToolRiskLevel; explanation: string }; riskLoading?: boolean }
+		| { kind: 'terminalConfirmation'; command: string; title?: string; disclaimer?: string; requestUnsandboxedExecution?: boolean; requestUnsandboxedExecutionReason?: string; riskAssessment?: { risk: ToolRiskLevel; explanation: string }; riskLoading?: boolean; confirmation?: { commandLine: string; cwdLabel?: string; cdPrefix?: string } }
 		| { kind: 'elicitation'; title: string; message: string; confirmation?: { commandLine: string; cwdLabel?: string; cdPrefix?: string }; riskAssessment?: { risk: ToolRiskLevel; explanation: string }; riskLoading?: boolean }
 	>;
 	readonly responseComplete?: boolean;
@@ -379,6 +379,6 @@ export default defineThemedFixtureGroup({ path: 'chat/widget/' }, {
 	PendingToolApproval: defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: PENDING_TOOL_APPROVAL }) }),
 	bugs: defineThemedFixtureGroup({
 		'issue-309796-missing-backslash': defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: ISSUE_309796_MISSING_BACKSLASH }) }),
-	}) as unknown as ReturnType<typeof defineComponentFixture>,
+	}),
 	MultiTurn: defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: MULTI_TURN }) }),
 });
