@@ -92,6 +92,12 @@ interface IConnectedClient {
 export interface IProtocolServerConfig {
 	/** Default directory returned to clients during the initialize handshake. */
 	readonly defaultDirectory?: string;
+	/**
+	 * Characters that, when typed in a {@link UserMessage} input, SHOULD
+	 * cause the client to issue a `completions` request. Announced to
+	 * clients in the `initialize` response.
+	 */
+	readonly completionTriggerCharacters?: readonly string[];
 }
 
 /**
@@ -299,6 +305,7 @@ export class ProtocolServerHandler extends Disposable {
 				serverSeq: this._stateManager.serverSeq,
 				snapshots,
 				defaultDirectory: this._config.defaultDirectory,
+				completionTriggerCharacters: this._config.completionTriggerCharacters,
 			},
 		};
 	}
@@ -583,6 +590,9 @@ export class ProtocolServerHandler extends Disposable {
 				property: params.property,
 				query: params.query,
 			});
+		},
+		completions: async (_client, params) => {
+			return this._agentService.completions(params);
 		},
 		fetchTurns: async (_client, params) => {
 			const state = this._stateManager.getSessionState(params.session);

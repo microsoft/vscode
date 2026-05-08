@@ -78,7 +78,7 @@ class OpenPullRequestAction extends Action2 {
 			icon: Codicon.gitPullRequest,
 			f1: false,
 			menu: {
-				id: MenuId.ChatEditingSessionChangesToolbar,
+				id: MenuId.AgentsChangesToolbar,
 				group: 'navigation',
 				order: 9,
 				when: ContextKeyExpr.and(

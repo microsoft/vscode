@@ -309,7 +309,12 @@ export class ProviderCustomizationItemSource implements IAICustomizationItemSour
 		private readonly pathService: IPathService,
 		private readonly itemNormalizer: AICustomizationItemNormalizer,
 	) {
-		const onDidChangeSyncableCustomizations = this.syncProvider
+		// When an itemProvider is present, it is the single source of truth (see fetchItems);
+		// the local syncable enumeration path is not used, so we must not subscribe to syncProvider
+		// or promptsService change events here either. Otherwise, providers that already forward
+		// those underlying events via their own onDidChange would cause duplicate refreshes.
+		const subscribeToSyncableEvents = !this.itemProvider && !!this.syncProvider;
+		const onDidChangeSyncableCustomizations = subscribeToSyncableEvents
 			? Event.any(
 				this.promptsService.onDidChangeCustomAgents,
 				this.promptsService.onDidChangeSlashCommands,
@@ -321,7 +326,7 @@ export class ProviderCustomizationItemSource implements IAICustomizationItemSour
 
 		this.onDidChange = Event.any(
 			this.itemProvider?.onDidChange ?? Event.None,
-			this.syncProvider?.onDidChange ?? Event.None,
+			(subscribeToSyncableEvents && this.syncProvider?.onDidChange) || Event.None,
 			onDidChangeSyncableCustomizations,
 		);
 	}
@@ -331,6 +336,12 @@ export class ProviderCustomizationItemSource implements IAICustomizationItemSour
 			? await this.fetchItemsFromProvider(this.itemProvider, promptType)
 			: [];
 		if (!this.syncProvider) {
+			return remoteItems;
+		}
+		// If there's an itemProvider, it is the single source of truth for items.
+		// The provider is responsible for enumerating all items, including synced
+		// ones, so we don't need to add local synced items separately.
+		if (this.itemProvider) {
 			return remoteItems;
 		}
 		const localItems = await this.fetchLocalSyncableItems(promptType, this.syncProvider);

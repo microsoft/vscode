@@ -17,7 +17,7 @@ import { Disposable, DisposableStore, IDisposable } from '../../../base/common/l
 import { Schemas } from '../../../base/common/network.js';
 import { basename, join, normalize, posix } from '../../../base/common/path.js';
 import { getMarks, mark } from '../../../base/common/performance.js';
-import { INodeProcess, IProcessEnvironment, isMacintosh, isWindows, OS } from '../../../base/common/platform.js';
+import { IProcessEnvironment, isMacintosh, isWindows, OS } from '../../../base/common/platform.js';
 import { cwd } from '../../../base/common/process.js';
 import { extUriBiasedIgnorePathCase, isEqual, isEqualAuthority, normalizePath, originalFSPath, removeTrailingPathSeparator } from '../../../base/common/resources.js';
 import { assertReturnsDefined } from '../../../base/common/types.js';
@@ -292,11 +292,18 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		this.handleChatRequest(openConfig, [window]);
 	}
 
-	async openAgentsWindow(openConfig: IOpenConfiguration): Promise<ICodeWindow[]> {
+	async openAgentsWindow(openConfig: IOpenConfiguration, folderUri?: URI): Promise<ICodeWindow[]> {
 		this.logService.trace('windowsManager#openAgentsWindow');
 
 		// Open in a new browser window with the agent sessions workspace
-		return this.open(await this.ensureAgentsWindow(openConfig));
+		const windows = await this.open(await this.ensureAgentsWindow(openConfig));
+
+		// Tell the agents window to select the given folder in the new chat workspace picker
+		if (folderUri && windows.length > 0) {
+			windows[0].sendWhenReady('vscode:selectAgentsFolder', CancellationToken.None, folderUri.toJSON());
+		}
+
+		return windows;
 	}
 
 	private async ensureAgentsWindow(openConfig: IOpenConfiguration): Promise<IOpenConfiguration> {
@@ -326,12 +333,6 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 	async open(openConfig: IOpenConfiguration): Promise<ICodeWindow[]> {
 		this.logService.trace('windowsManager#open');
-
-		// Take care of agents app specially
-		const isAgentsApp = (process as INodeProcess).isEmbeddedApp;
-		if (isAgentsApp) {
-			openConfig = await this.ensureAgentsWindow(openConfig);
-		}
 
 		// Make sure addMode/removeMode is only enabled if we have an active window
 		if ((openConfig.addMode || openConfig.removeMode) && (openConfig.initialStartup || !this.getLastActiveWindow())) {
@@ -401,7 +402,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		}
 
 		// These are windows to restore because of hot-exit or from previous session (only performed once on startup!)
-		if (openConfig.initialStartup && !isAgentsApp /* skipped for agents app */) {
+		if (openConfig.initialStartup) {
 
 			// Untitled workspaces are always restored
 			untitledWorkspacesToRestore.push(...this.workspacesManagementMainService.getUntitledWorkspaces());
@@ -491,9 +492,6 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		// Handle `<app> chat`
 		this.handleChatRequest(openConfig, usedWindows);
 
-		// Handle `<app> --open-chat-session`
-		this.handleOpenChatSession(openConfig, usedWindows);
-
 		return usedWindows;
 	}
 
@@ -535,17 +533,6 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			windowHandlingChatRequest.sendWhenReady('vscode:handleChatRequest', CancellationToken.None, openConfig.cli.chat);
 			windowHandlingChatRequest.focus();
 		}
-	}
-
-	private handleOpenChatSession(openConfig: IOpenConfiguration, usedWindows: ICodeWindow[]): void {
-		const sessionUri = openConfig.cli['open-chat-session'];
-		if (!sessionUri || usedWindows.length === 0) {
-			return;
-		}
-
-		const window = usedWindows[0];
-		window.sendWhenReady('vscode:openChatSession', CancellationToken.None, sessionUri);
-		window.focus();
 	}
 
 	private async doOpen(
@@ -1031,18 +1018,10 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 					lastSessionWindows.push(this.windowsStateHandler.state.lastActiveWindow);
 				}
 
-				const agentSessionsWorkspaceUri = this.environmentMainService.agentSessionsWorkspace;
-
 				const pathsToOpen = await Promise.all(lastSessionWindows.map(async lastSessionWindow => {
 
 					// Workspaces
 					if (lastSessionWindow.workspace) {
-						// Never restore the agents window from the previous session.
-						// It is only opened explicitly via `--agents`; otherwise a
-						// previously-opened agents workspace would "stick" and reopen on every launch.
-						if (agentSessionsWorkspaceUri && isEqual(lastSessionWindow.workspace.configPath, agentSessionsWorkspaceUri)) {
-							return undefined;
-						}
 						const pathToOpen = await this.resolveOpenable({ workspaceUri: lastSessionWindow.workspace.configPath }, { remoteAuthority: lastSessionWindow.remoteAuthority, rejectTransientWorkspaces: true /* https://github.com/microsoft/vscode/issues/119695 */ });
 						if (isWorkspacePathToOpen(pathToOpen)) {
 							return pathToOpen;
@@ -1523,7 +1502,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		const lastActiveWindow = this.getLastActiveWindow();
 		const newWindowProfile = windowConfig?.newWindowProfile
 			? this.userDataProfilesMainService.profiles.find(profile => profile.name === windowConfig.newWindowProfile) : undefined;
-		const defaultProfile = newWindowProfile ?? lastActiveWindow?.profile ?? this.userDataProfilesMainService.defaultProfile;
+		const defaultProfile = newWindowProfile ?? (lastActiveWindow?.profile?.isAgentsWindowProfile ? undefined : lastActiveWindow?.profile) ?? this.userDataProfilesMainService.defaultProfile;
 
 		let window: ICodeWindow | undefined;
 		if (!options.forceNewWindow && !options.forceNewTabbedWindow) {
@@ -1571,9 +1550,6 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			homeDir: this.environmentMainService.userHome.with({ scheme: Schemas.file }).fsPath,
 			tmpDir: this.environmentMainService.tmpDir.with({ scheme: Schemas.file }).fsPath,
 			userDataDir: this.environmentMainService.userDataPath,
-			isEmbeddedApp: this.environmentMainService.isEmbeddedApp,
-			parentAppUserDataDir: this.environmentMainService.parentAppUserRoamingDataHome?.with({ scheme: Schemas.file }).fsPath,
-			parentAppUserHomeDir: this.environmentMainService.parentAppUserHome?.with({ scheme: Schemas.file }).fsPath,
 
 			remoteAuthority: options.remoteAuthority,
 			workspace: options.workspace,
@@ -1619,7 +1595,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			const createdWindow = window = this.instantiationService.createInstance(CodeWindow, {
 				state,
 				extensionDevelopmentPath: configuration.extensionDevelopmentPath,
-				isExtensionTestHost: !!configuration.extensionTestsPath
+				isExtensionTestHost: !!configuration.extensionTestsPath,
+				isSessionsWindow: configuration.isSessionsWindow
 			});
 			mark('code/didCreateCodeWindow');
 

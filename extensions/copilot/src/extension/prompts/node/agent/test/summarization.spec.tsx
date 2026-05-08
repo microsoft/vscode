@@ -31,6 +31,7 @@ import { PromptRenderer } from '../../base/promptRenderer';
 import { AgentPrompt, AgentPromptProps } from '../agentPrompt';
 import { PromptRegistry } from '../promptRegistry';
 import { ISessionTranscriptService, NullSessionTranscriptService } from '../../../../../platform/chat/common/sessionTranscriptService';
+import { ITokenizerProvider } from '../../../../../platform/tokenizer/node/tokenizer';
 import { appendTranscriptHintToSummary, ConversationHistorySummarizationPrompt, extractSummary, stripToolSearchMessages, SummarizedConversationHistory, SummarizedConversationHistoryMetadata, SummarizedConversationHistoryPropsBuilder } from '../summarizedConversationHistory';
 
 suite('Agent Summarization', () => {
@@ -40,7 +41,7 @@ suite('Agent Summarization', () => {
 
 	let conversation: Conversation;
 
-	beforeAll(() => {
+	beforeAll(async () => {
 		const testDoc = createTextDocumentData(fileTsUri, 'line 1\nline 2\n\nline 4\nline 5', 'ts').document;
 
 		const services = createExtensionUnitTestingServices();
@@ -57,6 +58,12 @@ suite('Agent Summarization', () => {
 		accessor.get(IConfigurationService).setConfig(ConfigKey.CodeGenerationInstructions, [{
 			text: 'This is a test custom instruction file',
 		} satisfies CodeGenerationTextInstruction]);
+
+		// Warm up the tokenizer once so per-test timing is predictable. The first
+		// tokenizer use parses a ~3.6MB BPE file which can take seconds on slow CI
+		// machines and would otherwise be charged to whichever test runs first.
+		const endpoint = accessor.get(IInstantiationService).createInstance(MockEndpoint, undefined);
+		await accessor.get(ITokenizerProvider).acquireTokenizer(endpoint).tokenLength('warmup');
 	});
 
 	beforeEach(() => {

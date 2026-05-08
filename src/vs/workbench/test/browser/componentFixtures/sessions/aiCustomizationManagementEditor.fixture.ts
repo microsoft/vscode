@@ -52,6 +52,7 @@ import { AgentPluginItemKind, IAgentPluginItem } from '../../../../contrib/chat/
 import { ContributionEnablementState } from '../../../../contrib/chat/common/enablement.js';
 import { AICustomizationManagementEditorInput } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
 import { IConfigurationService, IConfigurationValue } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { mcpAccessConfig, McpAccessValue } from '../../../../../platform/mcp/common/mcpManagement.js';
 import { McpServerType } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { ChatConfiguration } from '../../../../contrib/chat/common/constants.js';
@@ -527,6 +528,11 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			const agentFeedbackService = createMockAgentFeedbackService();
 			const codeReviewService = createMockCodeReviewService();
 			registerWorkbenchServices(reg);
+			// Enable the structured customization preview setting so the
+			// editor exercises the preview-first behavior in fixtures.
+			reg.defineInstance(IConfigurationService, new TestConfigurationService({
+				[ChatConfiguration.ChatCustomizationsStructuredPreviewEnabled]: true,
+			}));
 			reg.define(IListService, ListService);
 			reg.defineInstance(ITextModelService, new class extends mock<ITextModelService>() {
 				declare readonly _serviceBrand: undefined;
@@ -697,7 +703,8 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	languageServiceRef.value = instantiationService.get(ILanguageService);
 	for (const [uri, content] of fileContents) {
 		if (!modelServiceRef.value.getModel(uri)) {
-			modelServiceRef.value.createModel(content, null, uri, false);
+			const model = modelServiceRef.value.createModel(content, null, uri, false);
+			ctx.disposableStore.add({ dispose: () => model.dispose() });
 		}
 	}
 
@@ -707,7 +714,8 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	editor.create(ctx.container);
 	editor.layout(new Dimension(width, height));
 
-	await editor.setInput(AICustomizationManagementEditorInput.getOrCreate(), undefined, {}, CancellationToken.None);
+	const editorInput = ctx.disposableStore.add(AICustomizationManagementEditorInput.getOrCreate());
+	await editor.setInput(editorInput, undefined, {}, CancellationToken.None);
 
 	if (options.selectedSection) {
 		editor.selectSectionById(options.selectedSection);
