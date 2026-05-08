@@ -119,8 +119,9 @@ function createModelItem(
 	descriptionOverride?: string | MarkdownString,
 	openerService?: IOpenerService,
 	vendorLabel?: string,
+	isUBB?: boolean,
 ): IActionListItem<IActionWidgetDropdownAction> {
-	const hover = model && openerService ? getModelHoverContent(model, openerService) : undefined;
+	const hover = model && openerService ? getModelHoverContent(model, openerService, isUBB) : undefined;
 	return {
 		item: action,
 		kind: ActionListItemKind.Action,
@@ -277,6 +278,7 @@ export function buildModelPickerItems(
 	showFeatured: boolean,
 	languageModelsService?: ILanguageModelsService,
 	openerService?: IOpenerService,
+	isUBB?: boolean,
 ): IActionListItem<IActionWidgetDropdownAction>[] {
 	const items: IActionListItem<IActionWidgetDropdownAction>[] = [];
 	if (models.length === 0) {
@@ -329,7 +331,7 @@ export function buildModelPickerItems(
 			if (autoModel) {
 				markPlaced(autoModel.identifier, autoModel.metadata.id);
 				const { action: autoAction, descriptionOverride: autoDesc } = createModelAction(autoModel, selectedModelId, onSelect, languageModelsService!);
-				items.push(createModelItem(autoAction, autoModel, autoDesc, openerService));
+				items.push(createModelItem(autoAction, autoModel, autoDesc, openerService, undefined, isUBB));
 			}
 
 			// --- 2. Promoted section (selected + recently used + featured) ---
@@ -423,7 +425,7 @@ export function buildModelPickerItems(
 					if (item.kind === 'available') {
 						const vendorLabel = showPromotedVendorLabel ? getVendorDisplayName(languageModelsService!, item.model.metadata.vendor) : undefined;
 						const { action: promotedAction, descriptionOverride: promotedDesc } = createModelAction(item.model, selectedModelId, onSelect, languageModelsService!, undefined, showPromotedVendorLabel);
-						items.push(createModelItem(promotedAction, item.model, promotedDesc, openerService, vendorLabel));
+						items.push(createModelItem(promotedAction, item.model, promotedDesc, openerService, vendorLabel, isUBB));
 					} else {
 						items.push(createUnavailableModelItem(item.id, item.entry, item.reason, manageSettingsUrl, updateStateType, chatEntitlementService));
 					}
@@ -510,7 +512,7 @@ export function buildModelPickerItems(
 							items.push(createUnavailableModelItem(model.metadata.id, entry, 'update', manageSettingsUrl, updateStateType, chatEntitlementService, ModelPickerSection.Other));
 						} else {
 							const { action: vendorAction, descriptionOverride: vendorDesc } = createModelAction(model, selectedModelId, onSelect, languageModelsService!, ModelPickerSection.Other, showVendorHeaders);
-							items.push(createModelItem(vendorAction, model, vendorDesc, openerService));
+							items.push(createModelItem(vendorAction, model, vendorDesc, openerService, undefined, isUBB));
 						}
 					}
 				}
@@ -534,7 +536,7 @@ export function buildModelPickerItems(
 		const autoModel = models.find(m => isAutoModel(m));
 		if (autoModel) {
 			const { action: flatAutoAction, descriptionOverride: flatAutoDesc } = createModelAction(autoModel, selectedModelId, onSelect, languageModelsService!);
-			items.push(createModelItem(flatAutoAction, autoModel, flatAutoDesc, openerService));
+			items.push(createModelItem(flatAutoAction, autoModel, flatAutoDesc, openerService, undefined, isUBB));
 		}
 		const sortedModels = models
 			.filter(m => m !== autoModel)
@@ -544,7 +546,7 @@ export function buildModelPickerItems(
 			});
 		for (const model of sortedModels) {
 			const { action: flatAction, descriptionOverride: flatDesc } = createModelAction(model, selectedModelId, onSelect, languageModelsService!);
-			items.push(createModelItem(flatAction, model, flatDesc, openerService));
+			items.push(createModelItem(flatAction, model, flatDesc, openerService, undefined, isUBB));
 		}
 	}
 
@@ -819,6 +821,7 @@ export class ModelPickerWidget extends Disposable {
 
 		const models = this._delegate.getModels();
 		const isPro = isProUser(this._entitlementService.entitlement);
+		const isUBB = !!this._entitlementService.quotas.usageBasedBilling;
 		const manifest = this._languageModelsService.getModelsControlManifest();
 		const controlModelsForTier = isPro ? manifest.paid : manifest.free;
 		const canShowManageModelsAction = this._delegate.showManageModelsAction() && shouldShowManageModelsAction(this._entitlementService);
@@ -837,12 +840,13 @@ export class ModelPickerWidget extends Disposable {
 			onSelect,
 			manageSettingsUrl,
 			this._delegate.useGroupedModelPicker(),
-			manageModelsAction,
+			isUBB ? manageModelsAction : undefined,
 			this._entitlementService,
 			this._delegate.showUnavailableFeatured(),
 			this._delegate.showFeatured(),
 			this._languageModelsService,
 			this._openerService,
+			isUBB,
 		);
 
 		const hasPriceCategories = models.some(m => !!m.metadata.priceCategory);
@@ -851,8 +855,8 @@ export class ModelPickerWidget extends Disposable {
 			// Always show the filter to allow for the secondary heading to show
 			showFilter: true,
 			filterPlaceholder: localize('chat.modelPicker.search', "Search models"),
-			filterActions: undefined,
-			secondaryHeading: hasPriceCategories ? localize('chat.modelPicker.cost', "Cost") : undefined,
+			filterActions: !isUBB && manageModelsAction ? [manageModelsAction] : undefined,
+			secondaryHeading: isUBB && hasPriceCategories ? localize('chat.modelPicker.cost', "Cost") : undefined,
 			focusFilterOnOpen: true,
 			collapsedByDefault: new Set([ModelPickerSection.Other]),
 			onDidToggleSection: (section: string, collapsed: boolean) => {
@@ -1155,7 +1159,7 @@ export class ModelPickerWidget extends Disposable {
 }
 
 
-function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentifier, openerService: IOpenerService): { element: HTMLElement; disposable: DisposableStore } | undefined {
+function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentifier, openerService: IOpenerService, isUBB?: boolean): { element: HTMLElement; disposable: DisposableStore } | undefined {
 	const isAuto = isAutoModel(model);
 	const container = dom.$('.chat-model-hover');
 	const disposables = new DisposableStore();
@@ -1182,8 +1186,8 @@ function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentifier, op
 		container.appendChild(descriptionContainer);
 	}
 
-	// --- Cost info ---
-	if (!isAuto) {
+	// --- Cost info (UBB only) ---
+	if (!isAuto && isUBB) {
 		const costLines: { label: string; value: string }[] = [];
 		if (model.metadata.inputCost !== undefined) {
 			costLines.push({
