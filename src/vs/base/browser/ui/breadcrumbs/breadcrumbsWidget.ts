@@ -47,17 +47,19 @@ export interface IBreadcrumbsItemEvent {
  */
 export function getBreadcrumbScrollLeft(scrollLeft: number, width: number, itemOffsetLeft: number, itemWidth: number, minimal: boolean): number | undefined {
 	const itemEnd = itemOffsetLeft + itemWidth;
+	let target: number | undefined;
 
 	if (!minimal) {
-		return itemOffsetLeft;
+		target = itemOffsetLeft;
+	} else if (itemOffsetLeft < scrollLeft) {
+		target = itemOffsetLeft;
+	} else if (itemEnd > scrollLeft + width) {
+		target = itemEnd - width;
 	}
-	if (itemOffsetLeft < scrollLeft) {
-		return itemOffsetLeft;
+	if (target === undefined || target === scrollLeft) {
+		return undefined;
 	}
-	if (itemEnd > scrollLeft + width) {
-		return itemEnd - width;
-	}
-	return undefined;
+	return target;
 }
 
 export class BreadcrumbsWidget {

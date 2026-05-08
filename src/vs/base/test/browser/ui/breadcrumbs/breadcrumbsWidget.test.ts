@@ -38,4 +38,9 @@ suite('BreadcrumbsWidget', () => {
 		const actual = getBreadcrumbScrollLeft(50, 100, 20, 30, false);
 		assert.strictEqual(actual, 20);
 	});
+
+	test('non-minimal reveal does not scroll when item is already aligned', () => {
+		const actual = getBreadcrumbScrollLeft(40, 100, 40, 10, false);
+		assert.strictEqual(actual, undefined);
+	});
 });
