@@ -24,6 +24,7 @@ export interface RepositoryProperties {
 	readonly incomingChanges?: number;
 	readonly outgoingChanges?: number;
 	readonly uncommittedChanges?: number;
+	readonly hasGitOperationInProgress?: boolean;
 }
 
 /**

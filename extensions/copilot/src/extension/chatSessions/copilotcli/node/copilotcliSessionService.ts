@@ -54,6 +54,7 @@ import { INTEGRATION_ID } from '../../../../platform/endpoint/common/licenseAgre
 
 const COPILOT_CLI_WORKSPACE_JSON_FILE_KEY = 'github.copilot.cli.workspaceSessionFile';
 const AUTO_MODE_REFRESH_LEAD_TIME_MS = 300 * 1000;
+export const COPILOT_CLI_CHAT_PANEL_SYSTEM_MESSAGE = 'You are an AI assistant using Copilot CLI runtime in VS Code. You help users with software engineering tasks. When asked about your identity, you must state that you are an AI assistant using Copilot CLI runtime in VS Code.';
 
 type SDKPackage = Awaited<ReturnType<ICopilotCLISDK['getPackage']>>;
 type AutoModeResolveArgs = Parameters<SDKAutoModeSessionManager['resolve']>[0];
@@ -335,6 +336,9 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 	/** Whether we've attempted to install the bridge (only try once). */
 	private _bridgeInstalled = false;
 	private showExternalSessions: boolean;
+	private _customAgentLookupChanged: boolean = false;
+	private _customAgentLookupRebuild: Promise<void> | undefined;
+	private readonly _customAgentLookup = new Map<string, [ChatCustomAgent, Lazy<Promise<string>>]>();
 	constructor(
 		@ILogService protected readonly logService: ILogService,
 		@ICopilotCLISDK private readonly copilotCLISDK: ICopilotCLISDK,
@@ -363,6 +367,12 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(ConfigKey.Advanced.CLIShowExternalSessions.fullyQualifiedId)) {
 				this.showExternalSessions = this.configurationService.getConfig(ConfigKey.Advanced.CLIShowExternalSessions);
+			}
+		}));
+		this._register(this._promptsService.onDidChangeCustomAgents(() => {
+			this._customAgentLookupChanged = true;
+			if (this._cachedSessionItems.size > 0) {
+				void this.createCustomAgentLookup();
 			}
 		}));
 		this.monitorSessionFiles();
@@ -890,7 +900,18 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		]);
 		const customAgents = agentInfos.map(i => i.agent);
 		const variablesContext = this._promptVariablesService.buildTemplateVariablesContext(options.sessionId, options.debugTargetSessionIds);
-		const systemMessage = variablesContext ? { mode: 'append' as const, content: variablesContext } : undefined;
+		const systemMessage: NonNullable<SessionOptions['systemMessage']> = {
+			mode: 'customize',
+			sections: {
+				identity: {
+					action: 'replace',
+					content: COPILOT_CLI_CHAT_PANEL_SYSTEM_MESSAGE,
+				},
+			},
+		};
+		if (variablesContext) {
+			systemMessage.content = variablesContext;
+		}
 
 		const allOptions: SessionOptions = {
 			clientName: 'vscode',
@@ -924,9 +945,7 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		if (copilotUrl) {
 			allOptions.copilotUrl = copilotUrl;
 		}
-		if (systemMessage) {
-			allOptions.systemMessage = systemMessage;
-		}
+		allOptions.systemMessage = systemMessage;
 		allOptions.sessionCapabilities = new Set(['plan-mode', 'memory', 'cli-documentation', 'ask-user', 'interactive-mode', 'system-notifications']);
 		if (options.reasoningEffort && this.configurationService.getConfig(ConfigKey.Advanced.CLIThinkingEffortEnabled)) {
 			allOptions.reasoningEffort = options.reasoningEffort;
@@ -1025,18 +1044,17 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		const [agentId, storedDetails] = await Promise.all([agentIdPromise, requestDetailsPromise]);
 
 		// Build lookup from copilotRequestId → RequestDetails for the callback
-		const customAgentLookup = await this.createCustomAgentLookup();
 		const legacyMappings: RequestDetails[] = [];
 		const detailsByCopilotId = new Map<string, RequestIdDetails>();
-		const defaultModeInstructions = agentId ? await this.resolveAgentModeInstructions(agentId, customAgentLookup) : undefined;
+		const defaultModeInstructions = agentId ? await this.resolveAgentModeInstructions(agentId) : undefined;
 
-		for (const d of storedDetails) {
+		await Promise.all(storedDetails.map(async d => {
 			if (d.copilotRequestId) {
-				const modeInstructions = d.modeInstructions ?? await this.resolveAgentModeInstructions(d.agentId, customAgentLookup) ?? defaultModeInstructions;
+				const turnAgentId = d.modeInstructions?.uri || d.agentId;
+				const modeInstructions = (d.modeInstructions ?? (turnAgentId ? await this.resolveAgentModeInstructions(turnAgentId) : defaultModeInstructions)) ?? defaultModeInstructions;
 				detailsByCopilotId.set(d.copilotRequestId, { requestId: d.vscodeRequestId, toolIdEditMap: d.toolIdEditMap, modeInstructions, responseModelId: d.responseModelId });
 			}
-		}
-
+		}));
 		const getVSCodeRequestId = (sdkRequestId: string) => {
 			const stored = detailsByCopilotId.get(sdkRequestId);
 			if (stored) {
@@ -1064,37 +1082,53 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 				this.logService.error(`[CopilotCLISession] Failed to update chat session metadata store with legacy mappings for session ${sessionId}`, error);
 			});
 		}
-
 		return { history, events };
 	}
 
-	private async createCustomAgentLookup(): Promise<Map<string, [ChatCustomAgent, Lazy<Promise<string>>]>> {
-		const agents = await this._promptsService.getCustomAgents(CancellationToken.None);
-		const lookup = new Map<string, [ChatCustomAgent, Lazy<Promise<string>>]>();
-		for (const agent of agents) {
-			if (!agent.enabled || !isEnabledForCopilotCLI(agent)) {
-				continue;
-			}
-			const lazyContent = new Lazy(() => this._promptsService.parseFile(agent.uri, CancellationToken.None).then(parsed => parsed.body?.getContent() ?? ''));
-			const keys = [
-				agent.name?.trim(),
-				agent.uri.toString(),
-				getAgentFileNameFromFilePath(agent.uri),
-			];
-			for (const key of keys) {
-				if (key && !lookup.has(key)) {
-					lookup.set(key, [agent, lazyContent]);
-				}
-			}
+	private createCustomAgentLookup(): Promise<void> {
+		if (!this._customAgentLookupChanged && this._customAgentLookup.size) {
+			return Promise.resolve();
 		}
-		return lookup;
+		if (this._customAgentLookupRebuild) {
+			return this._customAgentLookupRebuild;
+		}
+		this._customAgentLookupRebuild = (async () => {
+			this._customAgentLookupChanged = false;
+			try {
+				const agents = await this._promptsService.getCustomAgents(CancellationToken.None);
+
+				for (const agent of agents) {
+					if (!agent.enabled || !isEnabledForCopilotCLI(agent)) {
+						continue;
+					}
+					const keys = coalesce([
+						agent.name?.trim(),
+						agent.uri.toString(),
+						getAgentFileNameFromFilePath(agent.uri),
+					]);
+
+					const lazyContent = new Lazy(() => this._promptsService.parseFile(agent.uri, CancellationToken.None).then(parsed => parsed.body?.getContent() ?? ''));
+					for (const key of keys) {
+						this._customAgentLookup.set(key, [agent, lazyContent]);
+					}
+				}
+			} catch (error) {
+				this._customAgentLookupChanged = true;
+				throw error;
+			}
+		})().finally(() => { this._customAgentLookupRebuild = undefined; });
+		return this._customAgentLookupRebuild;
 	}
 
-	private async resolveAgentModeInstructions(agentId: string | undefined, customAgentLookup: Map<string, [ChatCustomAgent, Lazy<Promise<string>>]>): Promise<StoredModeInstructions | undefined> {
+	private async resolveAgentModeInstructions(agentId: string | undefined): Promise<StoredModeInstructions | undefined> {
 		if (!agentId) {
 			return undefined;
 		}
-		const agentEntry = customAgentLookup.get(agentId);
+		let agentEntry = this._customAgentLookup.get(agentId);
+		if (!agentEntry || this._customAgentLookupChanged) {
+			await this.createCustomAgentLookup();
+			agentEntry = this._customAgentLookup.get(agentId);
+		}
 		if (!agentEntry) {
 			return undefined;
 		}

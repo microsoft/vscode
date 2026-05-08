@@ -105,6 +105,7 @@ export interface IModelAPIResponse {
 	warning_messages?: { code: string; message: string }[];
 	info_messages?: { code: string; message: string }[];
 	billing?: IModelBilling;
+	model_picker_price_category?: string;
 	capabilities: IChatModelCapabilities | ICompletionModelCapabilities | IEmbeddingModelCapabilities;
 	supported_endpoints?: ModelSupportedEndpoint[];
 	custom_model?: CustomModel;
@@ -115,6 +116,12 @@ export type IChatModelInformation = IModelAPIResponse & {
 	urlOrRequestMetadata?: string | RequestMetadata;
 	requestHeaders?: Readonly<Record<string, string>>;
 	zeroDataRetentionEnabled?: boolean;
+	/**
+	 * BYOK-only override that forces the body shape used when forwarding the reasoning effort to the model.
+	 * Honored by `OpenAIEndpoint`. Unset — the body shape follows the API path (Responses API → nested `reasoning.effort`,
+	 * Chat Completions → top-level `reasoning_effort`).
+	 */
+	reasoningEffortFormat?: 'chat-completions' | 'responses';
 };
 
 export function isChatModelInformation(model: IModelAPIResponse): model is IChatModelInformation {
