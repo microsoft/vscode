@@ -36,7 +36,7 @@ import { IProductService } from '../../../../../../platform/product/common/produ
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IOutputService } from '../../../../../services/output/common/output.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
-import { AgentHostContribution, AgentHostSessionListController, AgentHostSessionHandler, getAgentHostBranchNameHint } from '../../../browser/agentSessions/agentHost/agentHostChatContribution.js';
+import { AgentHostContribution, AgentHostSessionListController, AgentHostSessionHandler } from '../../../browser/agentSessions/agentHost/agentHostChatContribution.js';
 import { AgentHostLanguageModelProvider } from '../../../browser/agentSessions/agentHost/agentHostLanguageModelProvider.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { TestFileService } from '../../../../../test/common/workbenchTestServices.js';
@@ -53,7 +53,6 @@ import { IAgentHostTerminalService } from '../../../../terminal/browser/agentHos
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { ILanguageModelToolsService } from '../../../common/tools/languageModelToolsService.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
-import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { IChatWidgetService } from '../../../browser/chat.js';
 import { ChatQuestionCarouselData } from '../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import type { IChatModel, IChatPendingRequest, IChatRequestModel } from '../../../common/model/chatModel.js';
@@ -2666,20 +2665,46 @@ suite('AgentHostChatContribution', () => {
 			await turnPromise;
 
 			assert.strictEqual(agentHostService.createSessionCalls.length, 1);
-			assert.deepStrictEqual(agentHostService.createSessionCalls[0].config, { ...config, [SessionConfigKey.BranchNameHint]: 'add-agent-host-session-configuration-flow' });
+			assert.deepStrictEqual(agentHostService.createSessionCalls[0].config, config);
 		}));
 
-		test('handler derives deterministic branch name hints from first request text', () => {
-			assert.deepStrictEqual([
-				getAgentHostBranchNameHint('Add Agent Host session configuration flow'),
-				getAgentHostBranchNameHint('  Fix: worktree picker + branch config!  '),
-				getAgentHostBranchNameHint('---'),
-			], [
-				'add-agent-host-session-configuration-flow',
-				'fix-worktree-picker-branch-config',
-				undefined,
-			]);
-		});
+		test('handler forwards request session config via SessionConfigChanged on eager-create path', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+
+			// Pre-seed an eagerly-created backend session so the handler
+			// hits the eager-create branch in `_invokeAgent` (the one that
+			// dispatches `SessionConfigChanged` instead of calling
+			// `createSession` with the config inline).
+			const sessionUri = AgentSession.uri('copilot', 'eager-config');
+			agentHostService.sessionStates.set(sessionUri.toString(), {
+				...createSessionState({ resource: sessionUri.toString(), provider: 'copilot', title: 'Test', status: SessionStatus.Idle, createdAt: Date.now(), modifiedAt: Date.now() }),
+				lifecycle: SessionLifecycle.Ready,
+				turns: [],
+			});
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/eager-config' });
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => chatSession.dispose()));
+
+			agentHostService.dispatchedActions.length = 0;
+
+			const registered = chatAgentService.registeredAgents.get('agent-host-copilot')!;
+			const config = { isolation: 'worktree', branch: 'main' };
+			const turnPromise = registered.impl.invoke(
+				makeRequest({ message: 'Fix worktree branch hint propagation', sessionResource, agentHostSessionConfig: config }),
+				() => { }, [], CancellationToken.None,
+			);
+			await timeout(10);
+			const turnDispatch = agentHostService.turnActions[0];
+			const turnAction = turnDispatch.action as ITurnStartedAction;
+			agentHostService.fireAction({ action: turnDispatch.action, serverSeq: 1, origin: { clientId: agentHostService.clientId, clientSeq: turnDispatch.clientSeq } });
+			agentHostService.fireAction({ action: { type: 'session/turnComplete', session: turnAction.session, turnId: turnAction.turnId } as SessionAction, serverSeq: 2, origin: undefined });
+			await turnPromise;
+
+			const configChanged = agentHostService.dispatchedActions.find(d => d.action.type === ActionType.SessionConfigChanged);
+			assert.ok(configChanged, 'expected a SessionConfigChanged dispatch');
+			assert.deepStrictEqual((configChanged!.action as { config: Record<string, unknown> }).config, config);
+		}));
 
 		test('handler uses registered working directory resolver', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const resolvedWorkingDirectory = URI.file('/resolved/working/dir');

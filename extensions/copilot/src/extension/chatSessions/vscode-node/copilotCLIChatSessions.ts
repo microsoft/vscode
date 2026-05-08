@@ -7,6 +7,7 @@ import * as l10n from '@vscode/l10n';
 import * as vscode from 'vscode';
 import { ChatExtendedRequestHandler, ChatRequestTurn2, Uri } from 'vscode';
 import { IRunCommandExecutionService } from '../../../platform/commands/common/runCommandExecutionService';
+import { IChatQuotaService } from '../../../platform/chat/common/chatQuotaService';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { INativeEnvService } from '../../../platform/env/common/envService';
 import { IFileSystemService } from '../../../platform/filesystem/common/fileSystemService';
@@ -669,6 +670,7 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 		@ISessionOptionGroupBuilder private readonly _optionGroupBuilder: ISessionOptionGroupBuilder,
 		@ICopilotCLIModels private readonly copilotCLIModels: ICopilotCLIModels,
 		@IChatSessionMetadataStore private readonly chatSessionMetadataStore: IChatSessionMetadataStore,
+		@IChatQuotaService private readonly _chatQuotaService: IChatQuotaService,
 	) {
 		super();
 
@@ -873,7 +875,8 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 			}
 
 			const modelDetailsEnabled = this.configurationService.getConfig(ConfigKey.Advanced.CLIModelDetailsEnabled);
-			const { result, responseModelId } = await getCopilotCLIModelDetails(session.object, model, this.copilotCLIModels, this.logService, modelDetailsEnabled);
+			const creditsUsed = this._chatQuotaService.getCreditsForTurn(request.id);
+			const { result, responseModelId } = await getCopilotCLIModelDetails(session.object, model, this.copilotCLIModels, this.logService, modelDetailsEnabled, creditsUsed);
 			persistCopilotCLIResponseModelId(sdkSessionId, request.id, responseModelId, this.chatSessionMetadataStore, this.logService);
 
 			return result;
@@ -883,6 +886,7 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 			}
 			throw ex;
 		} finally {
+			this._chatQuotaService.resetTurnCredits(request.id);
 			if (sdkSessionId && session) {
 				await this.sessionRequestLifecycle.endRequest(
 					sdkSessionId, request,
