@@ -18,7 +18,8 @@ import { ChatViewModel } from '../../../../contrib/chat/common/model/chatViewMod
 import { ChatListWidget } from '../../../../contrib/chat/browser/widget/chatListWidget.js';
 import { ChatInputPart, IChatInputPartOptions, IChatInputStyles } from '../../../../contrib/chat/browser/widget/input/chatInputPart.js';
 import { IChatWidget, IChatWidgetService } from '../../../../contrib/chat/browser/chat.js';
-import { IChatService } from '../../../../contrib/chat/common/chatService/chatService.js';
+import { ElicitationState, IChatService } from '../../../../contrib/chat/common/chatService/chatService.js';
+import { ChatElicitationRequestPart } from '../../../../contrib/chat/common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import { ChatToolInvocation } from '../../../../contrib/chat/common/model/chatProgressTypes/chatToolInvocation.js';
 import { ILanguageModelToolsService, IToolData, ToolDataSource } from '../../../../contrib/chat/common/tools/languageModelToolsService.js';
 import { IChatToolRiskAssessmentService, IToolRiskAssessment, ToolRiskLevel } from '../../../../contrib/chat/browser/tools/chatToolRiskAssessmentService.js';
@@ -36,7 +37,8 @@ export interface IFixtureMessage {
 	readonly assistant?: ReadonlyArray<
 		| { kind: 'markdown'; text: string }
 		| { kind: 'progress'; text: string }
-		| { kind: 'terminalConfirmation'; command: string; title?: string; riskAssessment?: { risk: ToolRiskLevel; explanation: string }; riskLoading?: boolean }
+		| { kind: 'terminalConfirmation'; command: string; title?: string; disclaimer?: string; requestUnsandboxedExecution?: boolean; requestUnsandboxedExecutionReason?: string; riskAssessment?: { risk: ToolRiskLevel; explanation: string }; riskLoading?: boolean }
+		| { kind: 'elicitation'; title: string; message: string; riskAssessment?: { risk: ToolRiskLevel; explanation: string }; riskLoading?: boolean }
 	>;
 	readonly responseComplete?: boolean;
 }
@@ -45,6 +47,12 @@ export interface IChatWidgetFixtureOptions {
 	readonly messages: ReadonlyArray<IFixtureMessage>;
 	readonly width?: number;
 	readonly height?: number;
+	/**
+	 * When `false`, registers a stub `IChatToolRiskAssessmentService` whose
+	 * `isEnabled()` returns `false`, exercising the "feature off" code path.
+	 * When omitted, behaves like today (auto-detected from message risk data).
+	 */
+	readonly riskAssessmentEnabled?: boolean;
 }
 
 function makeUserMessage(text: string) {
@@ -68,9 +76,10 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 
 	// Collect risk assessments from messages so the risk badge service can
 	// return them synchronously via getCached().
-	const hasRiskAssessment = options.messages.some(m => m.assistant?.some(p => p.kind === 'terminalConfirmation' && p.riskAssessment));
-	const hasRiskLoading = options.messages.some(m => m.assistant?.some(p => p.kind === 'terminalConfirmation' && p.riskLoading));
-	const needsRiskService = hasRiskAssessment || hasRiskLoading;
+	const hasRiskAssessment = options.messages.some(m => m.assistant?.some(p => (p.kind === 'terminalConfirmation' || p.kind === 'elicitation') && p.riskAssessment));
+	const hasRiskLoading = options.messages.some(m => m.assistant?.some(p => (p.kind === 'terminalConfirmation' || p.kind === 'elicitation') && p.riskLoading));
+	const riskFeatureExplicitlyDisabled = options.riskAssessmentEnabled === false;
+	const needsRiskService = hasRiskAssessment || hasRiskLoading || riskFeatureExplicitlyDisabled;
 
 	const instantiationService = createEditorServices(disposableStore, {
 		colorTheme: context.theme,
@@ -99,12 +108,12 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 					override getTool(id: string) { return id === fixtureToolData.id ? fixtureToolData : undefined; }
 				}());
 				reg.defineInstance(IChatToolRiskAssessmentService, new class extends mock<IChatToolRiskAssessmentService>() {
-					override isEnabled() { return true; }
+					override isEnabled() { return !riskFeatureExplicitlyDisabled; }
 					override getCached() {
 						// Return the first risk assessment found in the fixture messages.
 						for (const m of options.messages) {
 							for (const p of m.assistant ?? []) {
-								if (p.kind === 'terminalConfirmation' && p.riskAssessment) {
+								if ((p.kind === 'terminalConfirmation' || p.kind === 'elicitation') && p.riskAssessment) {
 									return p.riskAssessment;
 								}
 							}
@@ -143,17 +152,34 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 				model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString(part.text) });
 			} else if (part.kind === 'progress') {
 				model.acceptResponseProgress(request, { kind: 'progressMessage', content: new MarkdownString(part.text) });
+			} else if (part.kind === 'elicitation') {
+				const elicitation = new ChatElicitationRequestPart(
+					part.title,
+					part.message,
+					'',
+					'Continue',
+					'Cancel',
+					async () => ElicitationState.Accepted,
+					async () => ElicitationState.Rejected,
+					undefined,
+					undefined,
+					undefined,
+					part.riskAssessment || part.riskLoading ? { toolId: fixtureToolData.id, parameters: undefined } : undefined,
+				);
+				model.acceptResponseProgress(request, elicitation);
 			} else if (part.kind === 'terminalConfirmation') {
 				const title = part.title ?? `Run pwsh command?`;
 				const toolInvocation = new ChatToolInvocation(
 					{
 						invocationMessage: new MarkdownString(`Running \`${part.command}\``),
 						pastTenseMessage: new MarkdownString(`Ran \`${part.command}\``),
-						confirmationMessages: { title, message: new MarkdownString(`\`${part.command}\``) },
+						confirmationMessages: { title, message: new MarkdownString(`\`${part.command}\``), disclaimer: part.disclaimer ? new MarkdownString(part.disclaimer, { supportThemeIcons: true }) : undefined },
 						toolSpecificData: {
 							kind: 'terminal',
 							commandLine: { original: part.command },
 							language: 'pwsh',
+							requestUnsandboxedExecution: part.requestUnsandboxedExecution,
+							requestUnsandboxedExecutionReason: part.requestUnsandboxedExecutionReason,
 						},
 					},
 					fixtureToolData,

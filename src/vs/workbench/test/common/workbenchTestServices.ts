@@ -815,6 +815,7 @@ export class TestChatEntitlementService implements IChatEntitlementService {
 	readonly anonymousObs = observableValue({}, false);
 
 	markAnonymousRateLimited(): void { }
+	markSetupCompleted(): void { }
 	setForceHidden(_hidden: boolean): void { }
 
 	readonly previewFeaturesDisabled = false;

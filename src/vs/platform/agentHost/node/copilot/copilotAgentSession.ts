@@ -20,11 +20,11 @@ import { IFileService } from '../../../files/common/files.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
 import { platformSessionSchema } from '../../common/agentHostSchema.js';
-import { AgentAttachmentType, AgentSignal, IAgentAttachment } from '../../common/agentService.js';
+import { AgentSignal } from '../../common/agentService.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
-import type { FileEdit, ToolDefinition } from '../../common/state/protocol/state.js';
+import { MessageAttachmentKind, type FileEdit, type MessageAttachment, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { ActionType, type SessionAction } from '../../common/state/sessionActions.js';
 import { ResponsePartKind, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, type PendingMessage, type URI as ProtocolURI, type SessionInputAnswer, type SessionInputRequest, type ToolCallResult, type ToolResultContent, type Turn } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
@@ -506,13 +506,16 @@ export class CopilotAgentSession extends Disposable {
 
 	// ---- session operations -------------------------------------------------
 
-	async send(prompt: string, attachments?: IAgentAttachment[], turnId?: string, mode?: CopilotSdkMode): Promise<void> {
+	async send(prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, mode?: CopilotSdkMode): Promise<void> {
 		if (turnId) {
 			this._turnId = turnId;
 		}
 		this._logService.info(`[Copilot:${this.sessionId}] sendMessage called: "${prompt.substring(0, 100)}${prompt.length > 100 ? '...' : ''}" (${attachments?.length ?? 0} attachments)`);
 
-		const sdkAttachments = attachments ? await Promise.all(attachments.map(a => this._toSdkAttachment(a))) : undefined;
+		const sdkAttachments = attachments
+			? (await Promise.all(attachments.map(a => this._toSdkAttachment(a))))
+				.filter((a): a is NonNullable<typeof a> => a !== undefined)
+			: undefined;
 		if (sdkAttachments?.length) {
 			this._logService.trace(`[Copilot:${this.sessionId}] Attachments: ${JSON.stringify(sdkAttachments.map(a => ({ type: a.type })))}`);
 		}
@@ -522,23 +525,43 @@ export class CopilotAgentSession extends Disposable {
 		this._logService.info(`[Copilot:${this.sessionId}] session.send() returned`);
 	}
 
-	private async _toSdkAttachment(a: IAgentAttachment): Promise<CopilotSdkAttachment> {
-		const path = a.uri.scheme === 'file' ? a.uri.fsPath : a.uri.toString();
-		if (a.type === AgentAttachmentType.Selection && a.selection) {
+	/**
+	 * Translate a protocol {@link MessageAttachment} into the Copilot CLI
+	 * SDK's `attachments` payload shape. Only resource attachments are
+	 * forwarded — simple and embedded resources are dropped because the
+	 * CLI SDK does not consume them. The {@link MessageAttachmentBase.displayKind}
+	 * advisory hint controls whether a resource is treated as a file,
+	 * directory, or a selection.
+	 *
+	 * For selections we read the resource content from disk and slice it
+	 * by the carried range (the protocol's {@link TextSelection} only
+	 * carries the range, not the inline text). On read failure the
+	 * selection downgrades to a plain file reference.
+	 */
+	private async _toSdkAttachment(attachment: MessageAttachment): Promise<CopilotSdkAttachment | undefined> {
+		if (attachment.type !== MessageAttachmentKind.Resource) {
+			return undefined;
+		}
+		const uri = URI.parse(attachment.uri);
+		const path = uri.scheme === 'file' ? uri.fsPath : uri.toString();
+		const displayName = attachment.label ?? path;
+		if (attachment.displayKind === 'selection' && attachment.selection) {
 			try {
-				return { type: 'selection' as const, filePath: path, displayName: a.displayName ?? path, text: await this._readSelectedText(a.uri, a.selection), selection: a.selection };
+				const text = await this._readSelectedText(uri, attachment.selection.range);
+				return { type: 'selection' as const, filePath: path, displayName, text, selection: attachment.selection.range };
 			} catch (err) {
-				this._logService.warn(`[Copilot:${this.sessionId}] Failed to read selected text for ${a.uri.toString()}: ${err}`);
-				return { type: 'file' as const, path, displayName: a.displayName };
+				this._logService.warn(`[Copilot:${this.sessionId}] Failed to read selected text for ${uri.toString()}: ${err}`);
+				return { type: 'file' as const, path, displayName };
 			}
 		}
-		if (a.type === AgentAttachmentType.Selection) {
-			return { type: 'file' as const, path, displayName: a.displayName };
+		if (attachment.displayKind === 'selection') {
+			return { type: 'file' as const, path, displayName };
 		}
-		return { type: a.type, path, displayName: a.displayName };
+		const type = attachment.displayKind === 'directory' ? 'directory' : 'file';
+		return { type, path, displayName };
 	}
 
-	private async _readSelectedText(uri: URI, range: NonNullable<IAgentAttachment['selection']>): Promise<string> {
+	private async _readSelectedText(uri: URI, range: { readonly start: { readonly line: number; readonly character: number }; readonly end: { readonly line: number; readonly character: number } }): Promise<string> {
 		const content = await this._fileService.readFile(uri);
 		const text = content.value.toString();
 		// AHP carries the resource range; the public SDK can carry the selected text too.

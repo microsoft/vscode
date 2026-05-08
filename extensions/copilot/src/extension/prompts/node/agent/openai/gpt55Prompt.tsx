@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { PromptElement, PromptSizing } from '@vscode/prompt-tsx';
-import { isHiddenModelB } from '../../../../../platform/endpoint/common/chatModelCapabilities';
+import { isGpt55 } from '../../../../../platform/endpoint/common/chatModelCapabilities';
 import { IChatEndpoint } from '../../../../../platform/networking/common/networking';
 import { ToolName } from '../../../../tools/common/toolNames';
-import { HiddenModelBCopilotIdentityRule } from '../../base/copilotIdentity';
+import { Gpt55CopilotIdentityRule } from '../../base/copilotIdentity';
 import { InstructionMessage } from '../../base/instructionMessage';
 import { ResponseTranslationRules } from '../../base/responseTranslationRules';
 import { Gpt5SafetyRule } from '../../base/safetyRules';
@@ -17,7 +17,7 @@ import { FileLinkificationInstructionsOptimized } from '../fileLinkificationInst
 import { CopilotIdentityRulesConstructor, IAgentPrompt, PromptRegistry, ReminderInstructionsConstructor, SafetyRulesConstructor, SystemPrompt } from '../promptRegistry';
 import { CUSTOM_TOOL_SEARCH_NAME, ToolSearchToolPromptOptimized } from '../toolSearchInstructions';
 
-class HiddenModelBPrompt extends PromptElement<DefaultAgentPromptProps> {
+class Gpt55Prompt extends PromptElement<DefaultAgentPromptProps> {
 	async render(state: void, sizing: PromptSizing) {
 		const tools = detectToolCapabilities(this.props.availableTools);
 		return <InstructionMessage>
@@ -98,6 +98,13 @@ class HiddenModelBPrompt extends PromptElement<DefaultAgentPromptProps> {
 			<Tag name='autonomy_and_persistence'>
 				You stay with the work until the task is handled end to end within the current turn whenever that is feasible. Do not stop at analysis or half-finished fixes. Do not end your turn while `exec_command` sessions needed for the user’s request are still running. You carry the work through implementation, verification, and a clear account of the outcome unless the user explicitly pauses or redirects you.<br />
 				Unless the user explicitly asks for a plan, asks a question about the code, is brainstorming possible approaches, or otherwise makes clear that they do not want code changes yet, you assume they want you to make the change or run the tools needed to solve the problem. In those cases, do not stop at a proposal; implement the fix. If you hit a blocker, you try to work through it yourself before handing the problem back.<br />
+			</Tag>
+			<Tag name='economical_search_and_edit'>
+				- Start from the most concrete available anchor: a file, symbol, failing behavior, failing command, or nearby implementation surface.<br />
+				- Gather only enough nearby context to choose one plausible local hypothesis and one cheap check that could disconfirm it.<br />
+				- Prefer one targeted search or nearby read over broad repo exploration.<br />
+				- Once the cheapest discriminating check is known, act.<br />
+				- Do not re-read unchanged context unless a new result makes it relevant.<br />
 			</Tag>
 			<Tag name='working_with_the_user'>
 				You have two channels for staying in conversation with the user:<br />
@@ -183,24 +190,24 @@ class HiddenModelBPrompt extends PromptElement<DefaultAgentPromptProps> {
 	}
 }
 
-class HiddenModelBPromptResolver implements IAgentPrompt {
+class Gpt55PromptResolver implements IAgentPrompt {
 
 	static async matchesModel(endpoint: IChatEndpoint): Promise<boolean> {
-		return isHiddenModelB(endpoint);
+		return isGpt55(endpoint);
 	}
 
 	static readonly familyPrefixes = [];
 
 	resolveSystemPrompt(endpoint: IChatEndpoint): SystemPrompt | undefined {
-		return HiddenModelBPrompt;
+		return Gpt55Prompt;
 	}
 
 	resolveReminderInstructions(endpoint: IChatEndpoint): ReminderInstructionsConstructor | undefined {
-		return HiddenModelBReminderInstructions;
+		return Gpt55ReminderInstructions;
 	}
 
 	resolveCopilotIdentityRules(endpoint: IChatEndpoint): CopilotIdentityRulesConstructor | undefined {
-		return HiddenModelBCopilotIdentityRule;
+		return Gpt55CopilotIdentityRule;
 	}
 
 	resolveSafetyRules(endpoint: IChatEndpoint): SafetyRulesConstructor | undefined {
@@ -208,7 +215,7 @@ class HiddenModelBPromptResolver implements IAgentPrompt {
 	}
 }
 
-export class HiddenModelBReminderInstructions extends PromptElement<ReminderInstructionsProps> {
+export class Gpt55ReminderInstructions extends PromptElement<ReminderInstructionsProps> {
 	async render(state: void, sizing: PromptSizing) {
 		const toolSearchEnabled = !!this.props.endpoint.supportsToolSearch;
 		return <>
@@ -227,4 +234,4 @@ export class HiddenModelBReminderInstructions extends PromptElement<ReminderInst
 		</>;
 	}
 }
-PromptRegistry.registerPrompt(HiddenModelBPromptResolver);
+PromptRegistry.registerPrompt(Gpt55PromptResolver);

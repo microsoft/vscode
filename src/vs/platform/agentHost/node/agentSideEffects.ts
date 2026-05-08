@@ -7,33 +7,31 @@ import { disposableTimeout, SequencerByKey } from '../../../base/common/async.js
 import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { equals } from '../../../base/common/objects.js';
 import { autorun, IObservable, IReader } from '../../../base/common/observable.js';
-import { hasKey, isDefined } from '../../../base/common/types.js';
+import { hasKey } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
-import { ILogService } from '../../log/common/log.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
-import { AgentAttachmentType, AgentSignal, IAgent, IAgentAttachment, IAgentToolPendingConfirmationSignal } from '../common/agentService.js';
+import { ILogService } from '../../log/common/log.js';
+import { AgentSignal, IAgent, IAgentToolPendingConfirmationSignal } from '../common/agentService.js';
 import { IDiffComputeService } from '../common/diffComputeService.js';
 import { ISessionDatabase, ISessionDataService } from '../common/sessionDataService.js';
 import type { AgentInfo } from '../common/state/protocol/state.js';
 import { ActionType, isSessionAction, StateAction, type SessionToolCallCompleteAction } from '../common/state/sessionActions.js';
 import {
+	buildSubagentSessionUri,
+	getToolFileEdits,
 	PendingMessageKind,
 	ResponsePartKind,
 	SessionStatus,
 	ToolCallStatus,
 	ToolResultContentType,
-	buildSubagentSessionUri,
-	getToolFileEdits,
-	MessageAttachmentKind,
-	type MessageAttachment,
-	type SessionState,
-	type ToolResultContent,
 	type ISessionFileDiff,
 	type URI as ProtocolURI,
+	type SessionState,
+	type ToolResultContent
 } from '../common/state/sessionState.js';
-import { AgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostGitService, META_DIFF_BASE_BRANCH } from './agentHostGitService.js';
+import { AgentHostStateManager } from './agentHostStateManager.js';
 import { NodeWorkerDiffComputeService } from './diffComputeService.js';
 import { computeSessionDiffs, type IIncrementalDiffOptions } from './sessionDiffAggregator.js';
 import { SessionPermissionManager } from './sessionPermissions.js';
@@ -60,26 +58,6 @@ export interface IAgentSideEffectsOptions {
 interface IPendingSubagentSignal {
 	readonly signal: AgentSignal;
 	readonly agent: IAgent;
-}
-
-function toAgentAttachment(attachment: MessageAttachment): IAgentAttachment | undefined {
-	if (attachment.type !== MessageAttachmentKind.Resource) {
-		return undefined;
-	}
-	const displayName = attachment.label;
-	const uri = URI.parse(attachment.uri);
-	if (attachment.displayKind === 'directory') {
-		return { type: AgentAttachmentType.Directory, uri, displayName };
-	}
-	if (attachment.displayKind === 'selection') {
-		return {
-			type: AgentAttachmentType.Selection,
-			uri,
-			displayName,
-			selection: attachment.selection?.range,
-		};
-	}
-	return { type: AgentAttachmentType.File, uri, displayName };
 }
 
 /**
@@ -719,7 +697,7 @@ export class AgentSideEffects extends Disposable {
 					});
 					return;
 				}
-				const attachments = action.userMessage.attachments?.map(toAgentAttachment).filter(isDefined);
+				const attachments = action.userMessage.attachments;
 				agent.sendMessage(URI.parse(action.session), action.userMessage.text, attachments, action.turnId).catch(err => {
 					const errCode = (err as { code?: number })?.code;
 					this._logService.error(`[AgentSideEffects] sendMessage failed for session=${action.session}: code=${errCode}, message=${err instanceof Error ? err.message : String(err)}, type=${err?.constructor?.name}`, err);
@@ -950,7 +928,7 @@ export class AgentSideEffects extends Disposable {
 			});
 			return;
 		}
-		const attachments = msg.userMessage.attachments?.map(toAgentAttachment).filter(isDefined);
+		const attachments = msg.userMessage.attachments;
 		agent.sendMessage(URI.parse(session), msg.userMessage.text, attachments, turnId).catch(err => {
 			this._logService.error('[AgentSideEffects] sendMessage failed (queued)', err);
 			this._stateManager.dispatchServerAction({

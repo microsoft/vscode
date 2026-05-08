@@ -2074,6 +2074,25 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: flex;
 }
 
+/* Promoted model items: show source inline next to the model name and keep cost aligned right. */
+.action-widget .monaco-list-row.chat-model-picker-inline-source .title {
+	flex: 0 1 auto;
+}
+
+.action-widget .monaco-list-row.chat-model-picker-inline-source .action-item-badge {
+	padding: 0;
+	border-radius: 0;
+	background-color: transparent;
+	color: var(--vscode-descriptionForeground);
+	font-size: 12px;
+	line-height: normal;
+}
+
+.action-widget .monaco-list-row.chat-model-picker-inline-source .description {
+	margin-left: auto;
+	flex-shrink: 0;
+}
+
 .interactive-session .chat-input-toolbars .codicon-debug-stop {
 	color: var(--vscode-icon-foreground) !important;
 }

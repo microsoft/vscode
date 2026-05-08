@@ -67,8 +67,8 @@ function getContextSizeOptions(endpoint: IChatEndpoint): { value: number; descri
 	// Claude Opus models with a large context window (~1M or more) get a 200K/full toggle
 	if (isAnthropicFamily(endpoint) && endpoint.family.startsWith('claude-opus') && maxTokens > 900_000) {
 		return [
-			{ value: 200_000, description: vscode.l10n.t('Standard context window'), isDefault: true },
-			{ value: maxTokens, description: vscode.l10n.t('Larger context window. Long conversations may incur significant costs'), isDefault: false },
+			{ value: 200_000, description: vscode.l10n.t('Balanced default'), isDefault: true },
+			{ value: maxTokens, description: vscode.l10n.t('Longer sessions without compaction'), isDefault: false },
 		];
 	}
 
@@ -439,9 +439,6 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 	}
 
 	private async _getToken(): Promise<CopilotToken | undefined> {
-		if (!this._authenticationService.anyGitHubSession) {
-			return undefined;
-		}
 		try {
 			const copilotToken = await this._authenticationService.getCopilotToken();
 			return copilotToken;

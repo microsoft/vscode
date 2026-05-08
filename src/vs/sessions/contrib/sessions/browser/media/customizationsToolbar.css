@@ -8,7 +8,7 @@
 	flex-direction: column;
 	flex-shrink: 0;
 	position: relative;
-	padding: 6px 0 10px 0;
+	padding: 6px 0;
 }
 
 .ai-customization-toolbar::before {

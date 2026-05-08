@@ -191,19 +191,14 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 			position: { hoverPosition: HoverPosition.LEFT },
 		}));
 
-		// LLM-generated risk assessment badge — slotted between the title and the
-		// message body of the confirmation widget via the `headerBanner` option.
-		const riskBadge = this._createRiskBadge(state.parameters);
-		const messageRoot = elements.root;
-
 		const confirmWidget = this._register(this.instantiationService.createInstance(
 			ChatCustomConfirmationWidget<TerminalNewAutoApproveButtonData | boolean>,
 			this.context,
 			{
 				title,
 				icon: Codicon.terminal,
-				message: messageRoot,
-				headerBanner: riskBadge,
+				message: elements.root,
+				footerBanner: this._createRiskBadge(state.parameters),
 				buttons: this._createButtons(moreActions)
 			},
 		));

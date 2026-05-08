@@ -34,23 +34,12 @@
 	width: 16px;
 	height: 16px;
 	flex: 0 0 auto;
-	background-image: url('../../../../../../sessions/browser/media/sessions-icon.svg');
-	background-repeat: no-repeat;
-	background-position: center center;
-	background-size: contain;
-	/* Keep desaturated for legibility against light/dark titlebar backgrounds; brighten on hover/focus. */
-	filter: grayscale(1);
+	font-size: 16px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
 }
 
-.monaco-enable-motion .monaco-workbench .open-in-agents-titlebar-widget > .open-in-agents-titlebar-widget-icon,
-.monaco-workbench.monaco-enable-motion .open-in-agents-titlebar-widget > .open-in-agents-titlebar-widget-icon {
-	transition: filter 160ms ease;
-}
-
-.monaco-workbench .open-in-agents-titlebar-widget:hover > .open-in-agents-titlebar-widget-icon,
-.monaco-workbench .open-in-agents-titlebar-widget:focus-visible > .open-in-agents-titlebar-widget-icon {
-	filter: none;
-}
 
 .monaco-workbench .open-in-agents-titlebar-widget > .open-in-agents-titlebar-widget-label {
 	display: inline-block;

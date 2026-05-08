@@ -51,9 +51,8 @@ export class ToolRiskBadgeWidget extends Disposable {
 	setAssessment(assessment: IToolRiskAssessment): void {
 		switch (assessment.risk) {
 			case ToolRiskLevel.Green:
-				// Green: render the explanation neutrally — no warning icon, no color.
-				this._setVariant('neutral');
-				this._iconEl.className = 'tool-risk-icon';
+				this._setVariant('green');
+				this._setIcon(Codicon.pass);
 				break;
 			case ToolRiskLevel.Orange:
 				this._setVariant('orange');
@@ -61,7 +60,7 @@ export class ToolRiskBadgeWidget extends Disposable {
 				break;
 			case ToolRiskLevel.Red:
 				this._setVariant('red');
-				this._setIcon(Codicon.error);
+				this._setText('!');
 				break;
 		}
 		this.domNode.style.display = '';
@@ -69,13 +68,19 @@ export class ToolRiskBadgeWidget extends Disposable {
 		this._setHover(assessment.explanation);
 	}
 
-	private _setVariant(variant: 'loading' | 'neutral' | 'orange' | 'red'): void {
-		this.domNode.classList.remove('neutral', 'orange', 'red', 'loading');
+	private _setVariant(variant: 'loading' | 'green' | 'orange' | 'red'): void {
+		this.domNode.classList.remove('green', 'orange', 'red', 'loading');
 		this.domNode.classList.add(variant);
 	}
 
 	private _setIcon(icon: ThemeIcon): void {
+		this._iconEl.textContent = '';
 		this._iconEl.className = 'tool-risk-icon ' + ThemeIcon.asClassName(icon);
+	}
+
+	private _setText(text: string): void {
+		this._iconEl.className = 'tool-risk-icon';
+		this._iconEl.textContent = text;
 	}
 
 	private _setHover(content: string): void {
