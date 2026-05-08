@@ -555,7 +555,6 @@ export class SnippetSession {
 		const parser = new SnippetParser();
 		const snippet = new TextmateSnippet();
 
-		// hoist invariant resolvers so we only allocate them once
 		const modelBasedVariableResolver = editor.invokeWithinContext(accessor => new ModelBasedVariableResolver(accessor.get(ILabelService), model));
 		const timeBasedVariableResolver = new TimeBasedVariableResolver;
 		const workspaceBasedVariableResolver = new WorkspaceBasedVariableResolver(editor.invokeWithinContext(accessor => accessor.get(IWorkspaceContextService)));
@@ -563,8 +562,7 @@ export class SnippetSession {
 		const readClipboardText = () => clipboardText;
 		const clipboardSpread = editor.getOption(EditorOption.multiCursorPaste) === 'spread';
 
-		// preserve original input order so $CURSOR_INDEX/$CURSOR_NUMBER and the
-		// overtyping fallback for $TM_SELECTED_TEXT use the caller's edit index
+		// keep caller's original index so $CURSOR_INDEX/$CURSOR_NUMBER reflect input order, not range-sorted order
 		const indexedSnippetEdits = snippetEdits
 			.map((edit, idx) => ({ edit, idx }))
 			.sort((a, b) => Range.compareRangesUsingStarts(a.edit.range, b.edit.range));
@@ -583,12 +581,20 @@ export class SnippetSession {
 				offset += textNode.value.length;
 			}
 
+			// snapshot already-resolved variables so this edit's resolver only touches
+			// (a) variables in the newly parsed fragment and (b) clones backfilled by
+			// parseFragment into earlier placeholders sharing the same index (#206121)
+			const preExistingVariables = new Set<Variable>();
+			snippet.walk(marker => {
+				if (marker instanceof Variable) {
+					preExistingVariables.add(marker);
+				}
+				return true;
+			});
+
 			const newNodes = parser.parseFragment(template, snippet);
 			SnippetSession.adjustWhitespace(model, range.getStartPosition(), keepWhitespace !== undefined ? !keepWhitespace : adjustWhitespace, snippet, new Set(newNodes));
 
-			// resolve variables only within `newNodes`. walking the whole accumulated
-			// snippet would re-resolve earlier edits' variables against this edit's
-			// range and corrupt the offset accounting (#206121).
 			const editSelection = Selection.fromRange(range, SelectionDirection.LTR);
 			const editResolver = new CompositeSnippetVariableResolver([
 				modelBasedVariableResolver,
@@ -600,14 +606,12 @@ export class SnippetSession {
 				randomBasedVariableResolver,
 			]);
 
-			const stack = [...newNodes];
-			while (stack.length > 0) {
-				const candidate = stack.shift()!;
-				if (candidate instanceof Variable) {
-					candidate.resolve(editResolver);
+			snippet.walk(marker => {
+				if (marker instanceof Variable && !preExistingVariables.has(marker)) {
+					marker.resolve(editResolver);
 				}
-				stack.unshift(...candidate.children);
-			}
+				return true;
+			});
 
 			const snippetText = snippet.toString();
 			const snippetFragmentText = snippetText.slice(offset);

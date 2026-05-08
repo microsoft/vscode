@@ -744,9 +744,7 @@ suite('SnippetController2', function () {
 
 	test('$TM_SELECTED_TEXT resolves per edit, not the last selection (multi-cursor wrap snippet) #206121', function () {
 		model.setValue('aaa\nbbb\nccc');
-		// each "selection" is passed as a range to apply()
 		const ranges = [new Range(1, 1, 1, 4), new Range(2, 1, 2, 4), new Range(3, 1, 3, 4)];
-		// emulate a wrap-snippet driven from extension API: each cursor has its own selected text
 		editor.setSelections(ranges.map(r => new Selection(r.startLineNumber, r.startColumn, r.endLineNumber, r.endColumn)));
 
 		ctrl = instaService.createInstance(SnippetController2, editor);
@@ -780,8 +778,6 @@ suite('SnippetController2', function () {
 		editor.runCommand(CoreEditingCommands.Undo, null);
 
 		assert.strictEqual(model.getValue(), 'Some text and more text');
-		// selection should restore to the user's original cursor position,
-		// not the snippet edit range
 		assert.deepStrictEqual(editor.getSelections(), [new Selection(1, 1, 1, 1)]);
 	});
 });
