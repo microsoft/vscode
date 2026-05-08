@@ -35,6 +35,31 @@ export interface IBreadcrumbsItemEvent {
 	payload: unknown;
 }
 
+/**
+ * Computes a new horizontal scroll position for revealing a breadcrumb item.
+ *
+ * @param scrollLeft The current horizontal scroll position.
+ * @param width The viewport width.
+ * @param itemOffsetLeft The item's left offset in the breadcrumbs strip.
+ * @param itemWidth The item's width.
+ * @param minimal Whether to use minimal scrolling semantics.
+ * Returns `undefined` when no scrolling is required.
+ */
+export function getBreadcrumbScrollLeft(scrollLeft: number, width: number, itemOffsetLeft: number, itemWidth: number, minimal: boolean): number | undefined {
+	const itemEnd = itemOffsetLeft + itemWidth;
+
+	if (!minimal) {
+		return itemOffsetLeft;
+	}
+	if (itemOffsetLeft < scrollLeft) {
+		return itemOffsetLeft;
+	}
+	if (itemEnd > scrollLeft + width) {
+		return itemEnd - width;
+	}
+	return undefined;
+}
+
 export class BreadcrumbsWidget {
 
 	private readonly _disposables = new DisposableStore();
@@ -248,9 +273,10 @@ export class BreadcrumbsWidget {
 		}
 		const { width } = this._scrollable.getScrollDimensions();
 		const { scrollLeft } = this._scrollable.getScrollPosition();
-		if (!minimal || node.offsetLeft > scrollLeft + width || node.offsetLeft < scrollLeft) {
+		const newScrollLeft = getBreadcrumbScrollLeft(scrollLeft, width, node.offsetLeft, node.offsetWidth, minimal);
+		if (newScrollLeft !== undefined) {
 			this._scrollable.setRevealOnScroll(false);
-			this._scrollable.setScrollPosition({ scrollLeft: node.offsetLeft });
+			this._scrollable.setScrollPosition({ scrollLeft: newScrollLeft });
 			this._scrollable.setRevealOnScroll(true);
 		}
 	}
@@ -274,7 +300,7 @@ export class BreadcrumbsWidget {
 				node.classList.add('selected');
 			}
 		}
-		this._reveal(this._selectedItemIdx, false);
+		this._reveal(this._selectedItemIdx, true);
 		this._onDidSelectItem.fire({ type: 'select', item: this._items[this._selectedItemIdx], node: this._nodes[this._selectedItemIdx], payload });
 	}
 
