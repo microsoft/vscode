@@ -455,7 +455,7 @@ suite('Snippet Variables Resolver', function () {
 		model.dispose();
 	});
 
-	test('REVERSE_RELATIVE_FILEPATH handles nested paths and custom separators', function () {
+	test('REVERSE_RELATIVE_FILEPATH handles deeply nested paths and platform-specific separators', function () {
 
 		const deepModel = createTextModel('', undefined, undefined, URI.parse('file:///foo/dir/sub/text.txt'));
 		let resolver: VariableResolver = new ModelBasedVariableResolver(createMockWorkspaceLabelService('/foo'), deepModel);

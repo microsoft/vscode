@@ -217,7 +217,7 @@ export class ModelBasedVariableResolver implements VariableResolver {
 			return undefined;
 		}
 
-		// Number of parent-directory traversals from the file's folder back to the workspace root.
+		// Number of parent directories ("..") needed to traverse from the file's directory back to the workspace root.
 		const parentDirectoryDepth = relativeFilepath.split(/[\\/]/).length - 1;
 		if (parentDirectoryDepth === 0) {
 			return '.';
