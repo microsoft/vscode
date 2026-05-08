@@ -43,6 +43,9 @@ const NO_PROVIDER_MESSAGE =
  * (OAuth status), which is intentionally out of scope for the CLI v1.
  */
 export async function bootstrapCredentials(host: CoreHost): Promise<{ ok: boolean; message?: string }> {
+	// Pass 1: mirror env vars into the file-backed secret store. Highest
+	// precedence — process env always wins over previously-saved values so
+	// users can override on a per-invocation basis.
 	let mirrored = 0;
 	for (const { env, key } of ENV_TO_SECRET) {
 		const value = process.env[env];
@@ -51,8 +54,26 @@ export async function bootstrapCredentials(host: CoreHost): Promise<{ ok: boolea
 			mirrored++;
 		}
 	}
-	if (mirrored === 0) {
-		return { ok: false, message: NO_PROVIDER_MESSAGE };
+	if (mirrored > 0) {
+		return { ok: true };
 	}
-	return { ok: true };
+	// Pass 2: env vars empty — check whether the file-backed store already
+	// has any provider credential from a previous CLI run or an IDE-side
+	// mirror (the extension writes the same file at `~/.son-of-anton/
+	// secrets.json` on activation when its `vscode.SecretStorage` has any
+	// of the known keys, so users who configure the IDE first don't have
+	// to re-export env vars before running the CLI).
+	const knownKeys = ENV_TO_SECRET.map(e => e.key);
+	const seen = new Set<string>();
+	for (const key of knownKeys) {
+		if (seen.has(key)) {
+			continue;
+		}
+		seen.add(key);
+		const stored = await host.secrets.get(key);
+		if (stored && stored.trim()) {
+			return { ok: true };
+		}
+	}
+	return { ok: false, message: NO_PROVIDER_MESSAGE };
 }

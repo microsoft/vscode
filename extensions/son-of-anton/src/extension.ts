@@ -5,6 +5,7 @@
 import * as vscode from 'vscode';
 import * as path from 'node:path';
 import { globalScopedConfig, liveConfig } from './chat/globalScopedConfig';
+import { mirrorSecretsToCliStore, watchSecretsForCliMirror } from './auth/cliSecretsMirror';
 import { ChatPanel } from './chat/ChatPanel';
 import { ChatViewProvider } from './chat/ChatViewProvider';
 import { WriteSnapshotStore } from './chat/WriteSnapshotStore';
@@ -68,6 +69,14 @@ export function activate(context: vscode.ExtensionContext): void {
 		registerCommand: (id, handler) => vscode.commands.registerCommand(id, handler),
 	});
 	context.subscriptions.push(...auth.disposables);
+
+	// One-direction sync: copy the IDE's SecretStorage entries into the
+	// CLI's file-backed secret store at `~/.son-of-anton/data/secrets.json`
+	// so users who configure providers in the IDE can run `sota chat` from
+	// a terminal without re-exporting env vars. Runs once at activation
+	// plus a watcher for live updates on every credential save.
+	void mirrorSecretsToCliStore(context.secrets);
+	context.subscriptions.push(watchSecretsForCliMirror(context.secrets));
 
 	// Cost meter for the chat surface header. Threaded into LlmClient so any
 	// streamRequest call that carries an `agentHandle` records cost; the chat
@@ -1247,6 +1256,12 @@ export function activate(context: vscode.ExtensionContext): void {
 
 	const antonIsWatching = new AntonIsWatching();
 	context.subscriptions.push(antonIsWatching);
+	// Manual trigger so the user can test the surface without waiting for
+	// the random in-window timer to fire. Bound to the palette as
+	// "Son of Anton: Trigger Anton is Watching".
+	context.subscriptions.push(
+		vscode.commands.registerCommand('sota.triggerAntonIsWatching', () => antonIsWatching.triggerNow()),
+	);
 
 	context.subscriptions.push(...registerPersonalityCommands());
 

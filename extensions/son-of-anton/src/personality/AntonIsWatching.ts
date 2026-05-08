@@ -155,6 +155,29 @@ export class AntonIsWatching implements vscode.Disposable {
 		}
 	}
 
+	/**
+	 * Manually fire the surface, ignoring the once-per-session gate, the
+	 * activity-recency gate, and the time window. Used by the
+	 * `sota.triggerAntonIsWatching` palette command for testing the visual.
+	 * Settings gates (`sota.personality.enabled` /
+	 * `sota.personality.antonIsWatching`) still apply — flipping the toggle
+	 * off means the user genuinely doesn't want the surface, even on demand.
+	 */
+	public triggerNow(): void {
+		if (this.disposed) {
+			return;
+		}
+		if (!this.featureEnabled()) {
+			void vscode.window.showWarningMessage('Anton is watching is disabled in Settings → Personality. Enable it to trigger the surface.');
+			return;
+		}
+		const message = pickAntonMessage();
+		const posted = ChatPanel.broadcastAntonIsWatching(message);
+		if (!posted) {
+			void vscode.window.showInformationMessage(`◇ Anton: ${message}`);
+		}
+	}
+
 	dispose(): void {
 		this.disposed = true;
 		if (this.timer) {

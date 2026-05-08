@@ -1241,41 +1241,55 @@
 	position: relative;
 	font-family: 'Segoe UI', 'SF Pro Display', system-ui, sans-serif;
 	font-weight: 900;
-	font-size: 64px;
+	font-size: 88px;
 	line-height: 1;
-	letter-spacing: 0.08em;
-	color: var(--vscode-foreground);
+	letter-spacing: 0.04em;
+	color: #ef4444;
 	opacity: 0;
 	transform: translateY(200px);
 	animation: sota-skyline-rise-letters 1200ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
 	animation-delay: var(--delay);
+	/* Stacked-block extrusion: 24 progressively-offset shadow layers in the
+	 * red palette so the letters read as vertical columns of stacked red
+	 * blocks (Silicon Valley title-card energy) rather than a single
+	 * extruded glyph. The progression from #ef4444 → #991b1b → #450a0a
+	 * gives the side face a darkening gradient that simulates depth. */
 	text-shadow:
-		1px 1px 0 rgba(0, 0, 0, 0.55),
-		2px 2px 0 rgba(0, 0, 0, 0.5),
-		3px 3px 0 rgba(0, 0, 0, 0.45),
-		4px 4px 0 rgba(0, 0, 0, 0.4),
-		5px 5px 0 rgba(0, 0, 0, 0.36),
-		6px 6px 0 rgba(0, 0, 0, 0.32),
-		7px 7px 0 rgba(0, 0, 0, 0.28),
-		8px 8px 0 rgba(0, 0, 0, 0.24),
-		9px 9px 0 rgba(0, 0, 0, 0.2),
-		10px 10px 0 rgba(0, 0, 0, 0.18),
-		11px 11px 0 rgba(0, 0, 0, 0.16),
-		12px 12px 0 rgba(0, 0, 0, 0.14),
-		13px 13px 0 rgba(0, 0, 0, 0.12),
-		14px 14px 0 rgba(0, 0, 0, 0.1),
-		15px 15px 0 rgba(0, 0, 0, 0.08),
-		16px 16px 24px rgba(0, 0, 0, 0.45);
+		1px 1px 0 #dc2626,
+		2px 2px 0 #dc2626,
+		3px 3px 0 #c81e1e,
+		4px 4px 0 #c81e1e,
+		5px 5px 0 #b91c1c,
+		6px 6px 0 #b91c1c,
+		7px 7px 0 #a31919,
+		8px 8px 0 #a31919,
+		9px 9px 0 #991b1b,
+		10px 10px 0 #991b1b,
+		11px 11px 0 #881717,
+		12px 12px 0 #881717,
+		13px 13px 0 #7f1d1d,
+		14px 14px 0 #7f1d1d,
+		15px 15px 0 #6b1818,
+		16px 16px 0 #6b1818,
+		17px 17px 0 #581414,
+		18px 18px 0 #581414,
+		19px 19px 0 #450a0a,
+		20px 20px 0 #450a0a,
+		21px 21px 0 #350808,
+		22px 22px 0 #350808,
+		24px 24px 32px rgba(0, 0, 0, 0.6);
 	will-change: transform, opacity;
 }
 
+/* Top face — a slightly lighter red copy nudged up so the letters look
+ * like they have a bevelled top edge. */
 .monaco-workbench .part.editor > .content .gettingStartedContainer .sota-welcome-hero .sota-welcome-skyline-wordmark-line::before {
 	content: attr(data-text);
 	position: absolute;
 	left: 0;
 	top: 0;
-	color: color-mix(in srgb, var(--vscode-foreground) 80%, white);
-	transform: translateY(-2px);
+	color: #f87171;
+	transform: translateY(-3px);
 	pointer-events: none;
 	text-shadow: none;
 }

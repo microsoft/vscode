@@ -395,6 +395,11 @@
 				"category": "Son of Anton"
 			},
 			{
+				"command": "sota.triggerAntonIsWatching",
+				"title": "Trigger \"Anton is Watching\" (test)",
+				"category": "Son of Anton"
+			},
+			{
 				"command": "sota.codeGraph.menu",
 				"title": "Code Graph Actions",
 				"category": "Son of Anton"
