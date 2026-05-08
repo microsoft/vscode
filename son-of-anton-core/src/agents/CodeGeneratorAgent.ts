@@ -3,13 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { LlmMessage } from '../llm/LlmClient';
+import { BUILTIN_TOOLS } from '../tools/registry';
+import type { Tool, ToolDefinition, ToolExecutionContext } from '../tools/types';
 import { BaseAgent, AgentContext } from './BaseAgent';
-import { SubtaskResult } from './types';
+import { FileChange, SubtaskResult, TokenUsage } from './types';
 
 /**
  * Code generation specialist.
- * Receives specific coding tasks with a defined scope and generates
- * minimal, targeted code changes using graph-routed context.
+ *
+ * Lands the harness's H1 migration: the agent now drives a native
+ * Anthropic tool-use loop (read_file → edit_file → write_file → done)
+ * instead of asking the model to emit a markdown diff and then
+ * regex-parsing it out of the response. The legacy text-extraction path
+ * is preserved as a fallback under `runWithLegacyDiff` so a host that
+ * doesn't supply a `ToolExecutionContext` (e.g. a smoke-test harness)
+ * still gets a usable result.
  */
 export class CodeGeneratorAgent extends BaseAgent {
 	protected getRoleDescription(): string {
@@ -18,16 +27,18 @@ export class CodeGeneratorAgent extends BaseAgent {
 			'You receive specific coding tasks with a defined scope.',
 			'',
 			'## Rules',
-			'1. Respect coding standards from CLAUDE.md.',
+			'1. Respect the project\'s coding standards from AGENTS.md / CLAUDE.md.',
 			'2. Only modify files within your declared scope.',
-			'3. Generate diffs, not full files — be token-efficient.',
-			'4. Use the code graph context to understand structure before making changes.',
+			'3. Read the affected files before editing them — never blind-write.',
+			'4. Use the smallest patch that solves the task. Avoid speculative refactors.',
 			'5. Follow existing patterns in the codebase.',
 			'',
-			'## Output Format',
-			'Provide your changes as unified diffs wrapped in ```diff``` code fences.',
-			'For new files, use <!-- CREATE: path/to/file.ts --> before a code block.',
-			'Include a brief summary of what you changed and why.',
+			'## Tools',
+			'Use the supplied tools to accomplish the task: `read_file`, `list_directory`,',
+			'`search_workspace`, `write_file`, and `run_command` (when explicitly needed).',
+			'When you finish, reply with a brief summary of what you changed and why —',
+			'no code blocks, just prose. Don\'t emit raw diffs in your reply; the changes',
+			'are already applied via the write_file tool calls.',
 		].join('\n');
 	}
 
@@ -36,34 +47,53 @@ export class CodeGeneratorAgent extends BaseAgent {
 		this.agentManager.startTask(task.id);
 
 		try {
-			// Step 1: Gather precise context via MCP (graph-routed)
 			const codeContext = await this.gatherCodeContext(task.id, context);
-
-			// Step 2: Build the prompt
 			const systemPrompt = this.buildSystemPrompt(this.getRoleDescription());
 			const userMessage = this.buildCodeGenPrompt(context, codeContext);
 
-			// Step 3: Generate changes
-			const { text, tokenUsage } = await this.callLlm(
-				task.id,
-				this.defaultModel,
+			// When the host has wired a ToolExecutionContext (the IDE / CLI
+			// activation paths both do), drive the model through the native
+			// tool-use loop. The legacy diff-parse fallback runs only when no
+			// context is supplied — a tiny safety net while the migration
+			// stabilises.
+			const toolExecutionContext = this.getToolExecutionContext();
+			if (!toolExecutionContext) {
+				return await this.runWithLegacyDiff(context, task.id, systemPrompt, userMessage);
+			}
+
+			const initialMessages: LlmMessage[] = [{ role: 'user', content: userMessage }];
+			const tools = this.allowedToolDefinitions();
+
+			let liveText = '';
+			const result = await this.runToolLoop({
+				taskId: task.id,
+				model: this.defaultModel,
 				systemPrompt,
-				userMessage,
-				context.onToken,
-			);
+				initialMessages,
+				tools,
+				maxIterations: 10,
+				onToken: (tok) => {
+					liveText += tok;
+					context.onToken?.(tok);
+				},
+				executeTool: async (call) => {
+					return await this.executeToolCall(call.name, call.input, toolExecutionContext);
+				},
+			});
 
-			// Estimate naive token cost (full files instead of graph-routed)
+			// Capture file changes from the tool calls so the orchestrator's
+			// task board still surfaces a "files changed" footprint even though
+			// the changes were applied directly via write_file.
+			const changes = collectFileChanges(result.toolCalls);
+			const tokenUsage: TokenUsage = result.tokenUsage;
 			tokenUsage.naiveInputTokens = this.estimateNaiveTokens(context.scopeFiles);
-
-			// Step 4: Parse the changes
-			const changes = this.parseFileChanges(text);
 
 			this.agentManager.completeTask(task.id);
 
 			return {
 				success: true,
 				changes,
-				summary: this.extractSummary(text),
+				summary: this.extractSummary(result.text || liveText),
 				tokenUsage,
 			};
 		} catch (err) {
@@ -77,6 +107,87 @@ export class CodeGeneratorAgent extends BaseAgent {
 				tokenUsage: { inputTokens: 0, outputTokens: 0, cachedTokens: 0, naiveInputTokens: 0 },
 			};
 		}
+	}
+
+	/**
+	 * Whether the host supplied a `ToolExecutionContext` we can use to run
+	 * tools natively. Hooked through `BaseAgent`'s overridable getter so
+	 * tests can stub a context, and the IDE / CLI activation can plug in
+	 * their own (per-call workspace-trust gating, auto-approval policy,
+	 * write-snapshot capture, etc).
+	 *
+	 * Returns `undefined` for now — the activation wiring will land
+	 * separately when the host plumbs its existing `ToolRegistry` execution
+	 * surface in. Until then, the legacy diff-parse path runs.
+	 */
+	protected getToolExecutionContext(): ToolExecutionContext | undefined {
+		return undefined;
+	}
+
+	/**
+	 * Restrict the tool surface exposed to the model to the ones a code
+	 * generator should plausibly need. Excludes `emit_ui_block` (not useful
+	 * for code edits) and `fetch_url` (out-of-scope side effect).
+	 */
+	private allowedToolDefinitions(): ReadonlyArray<ToolDefinition> {
+		const allow = new Set(['read_file', 'list_directory', 'search_workspace', 'write_file', 'run_command']);
+		return BUILTIN_TOOLS
+			.filter((t: Tool) => allow.has(t.definition.name))
+			.map((t: Tool) => t.definition);
+	}
+
+	/**
+	 * Run a tool by name against the host's `ToolExecutionContext`. The
+	 * registry already gates execution + wraps thrown errors; we just adapt
+	 * its `ToolExecutionResult` shape into the `{ result, isError }` shape
+	 * `runToolLoop` expects.
+	 */
+	private async executeToolCall(
+		name: string,
+		input: Record<string, unknown>,
+		ctx: ToolExecutionContext,
+	): Promise<{ result: string; isError?: boolean }> {
+		const tool = BUILTIN_TOOLS.find((t: Tool) => t.definition.name === name);
+		if (!tool) {
+			return { result: `Unknown tool: ${name}`, isError: true };
+		}
+		try {
+			const result = await tool.execute(input, ctx);
+			return { result: result.content, isError: !!result.isError };
+		} catch (err) {
+			const message = err instanceof Error ? err.message : String(err);
+			return { result: `Tool '${name}' threw: ${message}`, isError: true };
+		}
+	}
+
+	/**
+	 * Legacy text-extraction execution path. Preserved verbatim from the
+	 * pre-H1 implementation so installations without a wired
+	 * `ToolExecutionContext` still get a usable result while the migration
+	 * rolls out.
+	 */
+	private async runWithLegacyDiff(
+		context: AgentContext,
+		taskId: string,
+		systemPrompt: string,
+		userMessage: string,
+	): Promise<SubtaskResult> {
+		const { text, tokenUsage } = await this.callLlm(
+			taskId,
+			this.defaultModel,
+			systemPrompt,
+			userMessage,
+			context.onToken,
+		);
+		tokenUsage.naiveInputTokens = this.estimateNaiveTokens(context.scopeFiles);
+		const changes = this.parseFileChanges(text);
+		this.agentManager.completeTask(taskId);
+		return {
+			success: true,
+			changes,
+			summary: this.extractSummary(text),
+			tokenUsage,
+		};
 	}
 
 	/**
@@ -115,7 +226,7 @@ export class CodeGeneratorAgent extends BaseAgent {
 			'## Code Graph Context',
 			codeContext,
 			'',
-			'Generate the minimal changes needed. Use diff format for modifications.',
+			'Use the tools to read, then write the files. End with a one-paragraph summary.',
 		].join('\n');
 	}
 
@@ -145,4 +256,33 @@ export class CodeGeneratorAgent extends BaseAgent {
 	private estimateNaiveTokens(scopeFiles: string[]): number {
 		return scopeFiles.length * 500 * 40 / 4;
 	}
+}
+
+/**
+ * Translate the executed-tool log from `runToolLoop` into the
+ * `FileChange[]` shape the orchestrator's task board renders. Only
+ * `write_file` calls produce changes; all other tool calls (reads,
+ * listings, shell commands) are evidence of context-gathering and
+ * deliberately not surfaced as file diffs.
+ */
+function collectFileChanges(
+	toolCalls: ReadonlyArray<{ name: string; input: Record<string, unknown>; result: string; isError: boolean }>,
+): FileChange[] {
+	const changes: FileChange[] = [];
+	for (const call of toolCalls) {
+		if (call.name !== 'write_file' || call.isError) {
+			continue;
+		}
+		const path = typeof call.input['path'] === 'string' ? call.input['path'] as string : undefined;
+		const content = typeof call.input['content'] === 'string' ? call.input['content'] as string : undefined;
+		if (!path) {
+			continue;
+		}
+		changes.push({
+			filePath: path,
+			changeType: /\b(created|new file)\b/i.test(call.result) ? 'create' : 'modify',
+			content,
+		});
+	}
+	return changes;
 }

@@ -216,7 +216,9 @@ type Provider =
  */
 export type LlmContentPart =
 	| { type: 'text'; text: string }
-	| { type: 'image'; mimeType: string; base64Data: string };
+	| { type: 'image'; mimeType: string; base64Data: string }
+	| { type: 'tool_use'; id: string; name: string; input: Record<string, unknown> }
+	| { type: 'tool_result'; tool_use_id: string; content: string; is_error?: boolean };
 
 /**
  * Either a plain string (treated as a single text part) or a structured
@@ -354,7 +356,9 @@ function applyImageCapability(content: LlmMessageContent, supportsImages: boolea
  */
 type AnthropicContentBlock =
 	| { type: 'text'; text: string }
-	| { type: 'image'; source: { type: 'base64'; media_type: string; data: string } };
+	| { type: 'image'; source: { type: 'base64'; media_type: string; data: string } }
+	| { type: 'tool_use'; id: string; name: string; input: Record<string, unknown> }
+	| { type: 'tool_result'; tool_use_id: string; content: string; is_error?: boolean };
 
 /**
  * Serialise an `LlmMessageContent` into Anthropic's content-block array.
@@ -370,15 +374,27 @@ function serialiseAnthropicContent(
 	if (typeof content === 'string') {
 		return content;
 	}
-	const parts = applyImageCapability(content, supportsImages);
+	// Image parts are stripped for non-vision models the same way the existing
+	// path always has; tool round-trip parts are forwarded verbatim regardless
+	// of model capability since they don't depend on multimodal support.
+	const visualKept = applyImageCapability(content, supportsImages);
 	const blocks: AnthropicContentBlock[] = [];
-	for (const part of parts) {
+	for (const part of visualKept) {
 		if (part.type === 'text') {
 			blocks.push({ type: 'text', text: part.text });
-		} else {
+		} else if (part.type === 'image') {
 			blocks.push({
 				type: 'image',
 				source: { type: 'base64', media_type: part.mimeType, data: part.base64Data },
+			});
+		} else if (part.type === 'tool_use') {
+			blocks.push({ type: 'tool_use', id: part.id, name: part.name, input: part.input });
+		} else if (part.type === 'tool_result') {
+			blocks.push({
+				type: 'tool_result',
+				tool_use_id: part.tool_use_id,
+				content: part.content,
+				...(part.is_error ? { is_error: true } : {}),
 			});
 		}
 	}
@@ -411,11 +427,17 @@ function serialiseOpenAIContent(
 	for (const part of parts) {
 		if (part.type === 'text') {
 			out.push({ type: 'text', text: part.text });
-		} else {
+		} else if (part.type === 'image') {
 			out.push({
 				type: 'image_url',
 				image_url: { url: `data:${part.mimeType};base64,${part.base64Data}` },
 			});
+		} else {
+			// tool_use / tool_result blocks aren't representable in OpenAI's
+			// chat-completion content-part schema. The agent harness's tool
+			// loop is currently Anthropic-only — if a tool round-trip message
+			// arrives here, the caller has misrouted it.
+			throw new Error(`OpenAI provider does not yet support content part of type "${(part as { type: string }).type}". Route tool-loop messages through an Anthropic-compatible model.`);
 		}
 	}
 	return out;
@@ -443,8 +465,13 @@ function serialiseGoogleParts(
 	for (const part of parts) {
 		if (part.type === 'text') {
 			out.push({ text: part.text });
-		} else {
+		} else if (part.type === 'image') {
 			out.push({ inline_data: { mime_type: part.mimeType, data: part.base64Data } });
+		} else {
+			// Same constraint as OpenAI — Gemini's tool-call shape isn't wired
+			// in our serialiser yet; tool-loop messages must route through an
+			// Anthropic-compatible model.
+			throw new Error(`Gemini provider does not yet support content part of type "${(part as { type: string }).type}". Route tool-loop messages through an Anthropic-compatible model.`);
 		}
 	}
 	return out;

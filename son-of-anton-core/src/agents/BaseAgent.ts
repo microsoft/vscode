@@ -6,10 +6,11 @@
 import type { ChatRequestLike, ChatContextLike, ChatStreamLike, CancellationLike } from '../chatStream';
 import type { ConfigStore, ProjectContextProvider } from '../host';
 import { getVoice } from '../chat/personas';
-import { LlmClient, ModelId } from '../llm/LlmClient';
+import { LlmClient, ModelId, type LlmContentPart, type LlmMessage } from '../llm/LlmClient';
 import { McpClient, McpToolResult } from '../mcp/McpClient';
 import { isPersonalityEnabled } from '../personality/personalityConfig';
 import { formatSignOff, pickSignOffQuote } from '../personality/specialistQuotes';
+import type { ToolDefinition } from '../tools/types';
 import { AgentEvent } from './agentEvents';
 import { AgentManager } from './AgentManager';
 import { MetricsTracker } from './MetricsTracker';
@@ -399,6 +400,161 @@ export abstract class BaseAgent {
 	 * Execute the agent's task. Implemented by each specialist.
 	 */
 	abstract execute(context: AgentContext): Promise<SubtaskResult>;
+
+	/**
+	 * Drive the model through a native tool-use loop until it stops calling
+	 * tools (or `maxIterations` is reached). This is the harness's H1
+	 * primitive — specialists used to single-shot-call the model and
+	 * regex-parse diff blocks out of the response (see `parseFileChanges`).
+	 * `runToolLoop` flips that to the cycle frontier models are actually
+	 * trained on:
+	 *
+	 *   model_call → [tool_use blocks] → execute tools → [tool_result blocks] → model_call → …
+	 *
+	 * Caller responsibilities:
+	 *   - Provide an `executeTool` callback that runs each tool against the
+	 *     host's `ToolExecutionContext` (and gates calls through the
+	 *     auto-approval policy / workspace trust).
+	 *   - Pre-build the initial conversation messages (system prompt is
+	 *     passed separately so caching breakpoints stay clean).
+	 *
+	 * Provider note: only Anthropic-compatible providers serialise
+	 * `tool_use` / `tool_result` content blocks today (see
+	 * `serialiseAnthropicContent`). Routing this method to OpenAI / Gemini
+	 * / Foundry will throw at the serialiser boundary; specialists should
+	 * pin their `model` to an Anthropic-compatible id when using the loop.
+	 *
+	 * Returns the final assistant text (last iteration's text), aggregate
+	 * token usage across all iterations, the list of tool calls executed,
+	 * and the full message history (useful for transcript rendering).
+	 */
+	protected async runToolLoop(args: {
+		taskId: string;
+		model: ModelId;
+		systemPrompt: string;
+		initialMessages: LlmMessage[];
+		tools: ReadonlyArray<ToolDefinition>;
+		maxIterations?: number;
+		signal?: AbortSignal;
+		onToken?: (token: string) => void;
+		executeTool: (call: { name: string; input: Record<string, unknown>; id: string }) => Promise<{ result: string; isError?: boolean }>;
+	}): Promise<{
+		text: string;
+		iterations: number;
+		messages: LlmMessage[];
+		toolCalls: Array<{ name: string; input: Record<string, unknown>; id: string; result: string; isError: boolean }>;
+		tokenUsage: TokenUsage;
+	}> {
+		const maxIterations = args.maxIterations ?? 10;
+		const messages: LlmMessage[] = [...args.initialMessages];
+		const executedCalls: Array<{ name: string; input: Record<string, unknown>; id: string; result: string; isError: boolean }> = [];
+		const aggregateUsage: TokenUsage = {
+			inputTokens: 0,
+			outputTokens: 0,
+			cachedTokens: 0,
+			naiveInputTokens: 0,
+		};
+		let lastText = '';
+
+		for (let iteration = 1; iteration <= maxIterations; iteration++) {
+			const span = this.agentManager.addSpan({
+				taskId: args.taskId,
+				name: `tool-loop-${iteration}`,
+				type: 'llm_call',
+				startTime: Date.now(),
+				attributes: { model: args.model, iteration },
+			});
+
+			let text = '';
+			const pendingCalls: Array<{ id: string; name: string; input: Record<string, unknown> }> = [];
+
+			for await (const event of this.llmClient.streamRequest({
+				model: args.model,
+				systemPrompt: args.systemPrompt,
+				messages,
+				tools: args.tools.map(t => ({
+					name: t.name,
+					description: t.description,
+					inputSchema: t.inputSchema as { type: 'object'; properties: Record<string, unknown>; required?: ReadonlyArray<string> },
+				})),
+				agentHandle: this.handle,
+				enableCaching: true,
+				signal: args.signal,
+			})) {
+				if (event.type === 'token') {
+					text += event.token;
+					args.onToken?.(event.token);
+				} else if (event.type === 'tool-call') {
+					pendingCalls.push({ id: event.id, name: event.name, input: event.input });
+				} else if (event.type === 'error') {
+					span.endTime = Date.now();
+					throw new Error(event.error);
+				}
+			}
+
+			span.endTime = Date.now();
+			lastText = text;
+
+			const usage = this.llmClient.getTokenUsage();
+			aggregateUsage.inputTokens += usage.input;
+			aggregateUsage.outputTokens += usage.output;
+			aggregateUsage.cachedTokens += usage.cached;
+
+			if (pendingCalls.length === 0) {
+				// Natural turn-end: model is done with tools. Return.
+				return {
+					text: lastText,
+					iterations: iteration,
+					messages,
+					toolCalls: executedCalls,
+					tokenUsage: aggregateUsage,
+				};
+			}
+
+			// Append the assistant turn (text + tool_use blocks) to the
+			// conversation. Anthropic requires tool_use blocks alongside
+			// any text the model emitted in the same assistant message.
+			const assistantContent: LlmContentPart[] = [];
+			if (text.trim()) {
+				assistantContent.push({ type: 'text', text });
+			}
+			for (const call of pendingCalls) {
+				assistantContent.push({ type: 'tool_use', id: call.id, name: call.name, input: call.input });
+			}
+			messages.push({ role: 'assistant', content: assistantContent });
+
+			// Execute each tool and append the results as a single user turn.
+			const resultParts: LlmContentPart[] = [];
+			for (const call of pendingCalls) {
+				let result: { result: string; isError?: boolean };
+				try {
+					result = await args.executeTool(call);
+				} catch (err) {
+					const message = err instanceof Error ? err.message : String(err);
+					result = { result: `Tool execution threw: ${message}`, isError: true };
+				}
+				executedCalls.push({
+					name: call.name,
+					input: call.input,
+					id: call.id,
+					result: result.result,
+					isError: !!result.isError,
+				});
+				resultParts.push({
+					type: 'tool_result',
+					tool_use_id: call.id,
+					content: result.result,
+					...(result.isError ? { is_error: true } : {}),
+				});
+			}
+			messages.push({ role: 'user', content: resultParts });
+		}
+
+		// Exhausted maxIterations without the model settling. Surface that
+		// distinctly from a tool-error so the caller can record the right
+		// kind of failure in metrics.
+		throw new Error(`Tool loop exceeded ${maxIterations} iterations without reaching end_turn — check whether a tool keeps returning errors or the model is stuck in a loop.`);
+	}
 
 	/**
 	 * Stream a single chat turn against this agent's role prompt. Used by
