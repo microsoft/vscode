@@ -47,7 +47,9 @@ For inserting the current date and time:
 * `CURRENT_HOUR` The current hour in 24-hour clock format
 * `CURRENT_MINUTE` The current minute
 * `CURRENT_SECOND` The current second
+* `CURRENT_MILLISECOND` The current millisecond as three digits
 * `CURRENT_SECONDS_UNIX` The number of seconds since the Unix epoch
+* `CURRENT_MILLISECONDS_UNIX` The number of milliseconds since the Unix epoch
 
 For inserting random values:
 

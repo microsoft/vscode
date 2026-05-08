@@ -290,6 +290,8 @@ export class TimeBasedVariableResolver implements VariableResolver {
 			return String(this._date.getMinutes().valueOf()).padStart(2, '0');
 		} else if (name === 'CURRENT_SECOND') {
 			return String(this._date.getSeconds().valueOf()).padStart(2, '0');
+		} else if (name === 'CURRENT_MILLISECOND') {
+			return String(this._date.getMilliseconds().valueOf()).padStart(3, '0');
 		} else if (name === 'CURRENT_DAY_NAME') {
 			return TimeBasedVariableResolver.dayNames[this._date.getDay()];
 		} else if (name === 'CURRENT_DAY_NAME_SHORT') {
@@ -300,6 +302,8 @@ export class TimeBasedVariableResolver implements VariableResolver {
 			return TimeBasedVariableResolver.monthNamesShort[this._date.getMonth()];
 		} else if (name === 'CURRENT_SECONDS_UNIX') {
 			return String(Math.floor(this._date.getTime() / 1000));
+		} else if (name === 'CURRENT_MILLISECONDS_UNIX') {
+			return String(this._date.getTime());
 		} else if (name === 'CURRENT_TIMEZONE_OFFSET') {
 			const rawTimeOffset = this._date.getTimezoneOffset();
 			const sign = rawTimeOffset > 0 ? '-' : '+';

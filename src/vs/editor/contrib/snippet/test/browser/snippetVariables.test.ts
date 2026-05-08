@@ -309,11 +309,13 @@ suite('Snippet Variables Resolver', function () {
 		assertVariableResolve3(resolver, 'CURRENT_HOUR');
 		assertVariableResolve3(resolver, 'CURRENT_MINUTE');
 		assertVariableResolve3(resolver, 'CURRENT_SECOND');
+		assertVariableResolve3(resolver, 'CURRENT_MILLISECOND');
 		assertVariableResolve3(resolver, 'CURRENT_DAY_NAME');
 		assertVariableResolve3(resolver, 'CURRENT_DAY_NAME_SHORT');
 		assertVariableResolve3(resolver, 'CURRENT_MONTH_NAME');
 		assertVariableResolve3(resolver, 'CURRENT_MONTH_NAME_SHORT');
 		assertVariableResolve3(resolver, 'CURRENT_SECONDS_UNIX');
+		assertVariableResolve3(resolver, 'CURRENT_MILLISECONDS_UNIX');
 		assertVariableResolve3(resolver, 'CURRENT_TIMEZONE_OFFSET');
 	});
 
@@ -326,11 +328,13 @@ suite('Snippet Variables Resolver', function () {
 			$CURRENT_HOUR
 			$CURRENT_MINUTE
 			$CURRENT_SECOND
+			$CURRENT_MILLISECOND
 			$CURRENT_DAY_NAME
 			$CURRENT_DAY_NAME_SHORT
 			$CURRENT_MONTH_NAME
 			$CURRENT_MONTH_NAME_SHORT
 			$CURRENT_SECONDS_UNIX
+			$CURRENT_MILLISECONDS_UNIX
 			$CURRENT_TIMEZONE_OFFSET
 		`;
 
