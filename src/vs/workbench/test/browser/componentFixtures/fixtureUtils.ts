@@ -1020,7 +1020,7 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 				afterMicrotaskClosure: cb => nextMacrotask(realTimeApi, cb),
 			});
 
-			const wantsTimeTrace = true || !!context.input && typeof context.input === 'object' && !!(context.input as Record<string, unknown>).outputTimeTrace;
+			const wantsTimeTrace = !!context.input && typeof context.input === 'object' && !!(context.input as Record<string, unknown>).outputTimeTrace;
 
 			if (wantsTimeTrace && virtualTimeEnabled && p.history.length > 0) {
 				const startTime = p.history[0].time;
