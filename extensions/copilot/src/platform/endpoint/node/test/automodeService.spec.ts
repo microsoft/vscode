@@ -553,8 +553,8 @@ describe('AutomodeService', () => {
 			};
 
 			const resultPromise = automodeService.resolveAutoModeEndpoint(chatRequest as ChatRequest, [claudeEndpoint, gpt4oEndpoint]);
-			// Advance past the 1-second router timeout to trigger the abort
-			await vi.advanceTimersByTimeAsync(1000);
+			// Advance past the 2.5-second router timeout to trigger the abort
+			await vi.advanceTimersByTimeAsync(2500);
 
 			const result = await resultPromise;
 			// Should fall back to first available model (claude-sonnet)
