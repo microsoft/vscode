@@ -50,7 +50,6 @@ import { ViewPane, IViewPaneOptions, ViewAction } from '../../../../workbench/br
 import { ViewPaneContainer } from '../../../../workbench/browser/parts/views/viewPaneContainer.js';
 import { IViewDescriptorService } from '../../../../workbench/common/views.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
-import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { createFileIconThemableTreeContainerScope } from '../../../../workbench/contrib/files/browser/views/explorerView.js';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../../workbench/services/editor/common/editorService.js';
@@ -93,7 +92,6 @@ class ChangesButtonBarWidget extends Disposable {
 		container: HTMLElement,
 		viewModel: ChangesViewModel,
 		hasGitOperationInProgressObs: IObservable<boolean>,
-		@IAgentSessionsService agentSessionsService: IAgentSessionsService,
 		@IMenuService menuService: IMenuService,
 		@ICodeReviewService codeReviewService: ICodeReviewService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -172,7 +170,7 @@ class ChangesButtonBarWidget extends Disposable {
 				{
 					telemetrySource: 'changesView',
 					menuOptions: sessionResource
-						? { args: [sessionResource, agentSessionsService.getSession(sessionResource)?.metadata] }
+						? { arg: sessionResource }
 						: { shouldForwardArgs: true },
 					buttonConfigProvider: (action) => this._getButtonConfiguration(action, outgoingChanges, reviewState, hasGitOperationInProgress, runningLabelObs)
 				},
