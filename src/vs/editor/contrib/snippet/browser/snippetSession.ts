@@ -96,6 +96,7 @@ export class OneSnippet {
 		}
 
 		this._initDecorations();
+		const model = this._editor.getModel();
 
 		// Transform placeholder text if necessary
 		if (this._placeholderGroupsIdx >= 0) {
@@ -105,14 +106,17 @@ export class OneSnippet {
 				// Check if the placeholder has a transformation
 				if (placeholder.transform) {
 					const id = this._placeholderDecorations!.get(placeholder)!;
-					const range = this._editor.getModel().getDecorationRange(id)!;
-					const currentValue = this._editor.getModel().getValueInRange(range);
+					const range = model.getDecorationRange(id);
+					if (!range) {
+						continue;
+					}
+					const currentValue = model.getValueInRange(range);
 					const transformedValueLines = placeholder.transform.resolve(currentValue).split(/\r\n|\r|\n/);
 					// fix indentation for transformed lines
 					for (let i = 1; i < transformedValueLines.length; i++) {
-						transformedValueLines[i] = this._editor.getModel().normalizeIndentation(this._snippetLineLeadingWhitespace + transformedValueLines[i]);
+						transformedValueLines[i] = model.normalizeIndentation(this._snippetLineLeadingWhitespace + transformedValueLines[i]);
 					}
-					operations.push(EditOperation.replace(range, transformedValueLines.join(this._editor.getModel().getEOL())));
+					operations.push(EditOperation.replace(range, transformedValueLines.join(model.getEOL())));
 				}
 			}
 			if (operations.length > 0) {
@@ -134,7 +138,7 @@ export class OneSnippet {
 			// not acurate any more -> simply restore it
 		}
 
-		const newSelections = this._editor.getModel().changeDecorations(accessor => {
+		const newSelections = model.changeDecorations(accessor => {
 
 			const activePlaceholders = new Set<Placeholder>();
 
@@ -146,7 +150,10 @@ export class OneSnippet {
 			const selections: Selection[] = [];
 			for (const placeholder of this._placeholderGroups[this._placeholderGroupsIdx]) {
 				const id = this._placeholderDecorations!.get(placeholder)!;
-				const range = this._editor.getModel().getDecorationRange(id)!;
+				const range = model.getDecorationRange(id);
+				if (!range) {
+					continue;
+				}
 				selections.push(new Selection(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn));
 
 				// consider to skip this placeholder index when the decoration
@@ -182,13 +189,20 @@ export class OneSnippet {
 		// A placeholder is empty when it wasn't empty when authored but
 		// when its tracking decoration is empty. This also applies to all
 		// potential parent placeholders
+		const model = this._editor.getModel();
 		let marker: Marker | undefined = placeholder;
 		while (marker) {
 			if (marker instanceof Placeholder) {
 				const id = this._placeholderDecorations!.get(marker)!;
-				const range = this._editor.getModel().getDecorationRange(id)!;
-				if (range.isEmpty() && marker.toString().length > 0) {
-					return true;
+				const range = model.getDecorationRange(id);
+				const isNonEmptyPlaceholder = marker.toString().length > 0;
+				if (isNonEmptyPlaceholder) {
+					if (!range) {
+						return true;
+					}
+					if (range.isEmpty()) {
+						return true;
+					}
 				}
 			}
 			marker = marker.parent;
@@ -693,12 +707,18 @@ export class SnippetSession {
 
 	next(): void {
 		const newSelections = this._move(true);
+		if (newSelections.length === 0) {
+			return;
+		}
 		this._editor.setSelections(newSelections);
 		this._editor.revealPositionInCenterIfOutsideViewport(newSelections[0].getPosition());
 	}
 
 	prev(): void {
 		const newSelections = this._move(false);
+		if (newSelections.length === 0) {
+			return;
+		}
 		this._editor.setSelections(newSelections);
 		this._editor.revealPositionInCenterIfOutsideViewport(newSelections[0].getPosition());
 	}

@@ -311,6 +311,25 @@ suite('SnippetSession', function () {
 		assertSelections(editor, new Selection(1, 4, 1, 4), new Selection(2, 8, 2, 8));
 	});
 
+	test('snippets, next after placeholder decorations are removed does not throw', function () {
+		editor.getModel().setValue('');
+		editor.setSelection(new Selection(1, 1, 1, 1));
+
+		const session = new SnippetSession(editor, '${1:foo}$0', undefined, languageConfigurationService);
+		session.insert();
+
+		const decorationIds = editor.getModel().getAllDecorations().map(decoration => decoration.id);
+
+		assert.ok(decorationIds.length > 0);
+		editor.getModel().changeDecorations(accessor => {
+			for (const decorationId of decorationIds) {
+				accessor.removeDecoration(decorationId);
+			}
+		});
+
+		assert.doesNotThrow(() => session.next());
+	});
+
 	test('snippets, overwriting nested placeholder', function () {
 		const session = new SnippetSession(editor, 'log(${1:"$2"});$0', undefined, languageConfigurationService);
 		session.insert();
