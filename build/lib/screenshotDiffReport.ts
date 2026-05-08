@@ -32,7 +32,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const COMMENT_MARKER = '<!-- screenshot-diff-report -->';
 const EXPAND_FIRST_N = 5;
 const EXCLUDED_LABELS = new Set(['animated', 'flaky']);
-const MAX_BODY_BYTES = 750 * 1024;
+const MAX_BODY_BYTES = 300 * 1024;
 
 // ---------------------------------------------------------------------------
 // Pixel-level image comparison
