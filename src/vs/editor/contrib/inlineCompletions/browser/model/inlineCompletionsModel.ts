@@ -1282,13 +1282,12 @@ class FadeoutDecoration extends Disposable {
 			}
 		})))));
 
-		const animation = new AnimatedValue(1, 0, 1000, easeOutCubic);
-		const val = new ObservableAnimatedValue(animation);
+		const val = new ObservableAnimatedValue(new AnimatedValue(1, 0, 1000, easeOutCubic));
 
 		this._register(autorun(reader => {
 			const opacity = val.getValue(reader);
 			editor.getContainerDomNode().style.setProperty('--animation-opacity', opacity.toString());
-			if (animation.isFinished()) {
+			if (val.isFinished(reader)) {
 				this.dispose();
 			}
 		}));
