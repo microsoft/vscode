@@ -8,6 +8,7 @@ import { Command, Option } from 'commander';
 import { runAcpServer } from './acp/server';
 import { runChat } from './commands/chat';
 import { configCommand } from './commands/config';
+import { runInit } from './commands/init';
 import { mcpCommand } from './commands/mcp';
 import { runPlan } from './commands/plan';
 import { runResume } from './commands/resume';
@@ -54,6 +55,15 @@ program
 	.description('List saved conversations, or resume one by id.')
 	.addOption(outputOption())
 	.action(runResume);
+
+program
+	.command('init')
+	.description('Bootstrap .son-of-anton/AGENTS.md and config.json in this workspace.')
+	.option('--description <text>', 'One-line project description for the AGENTS.md template')
+	.option('--force', 'Overwrite an existing AGENTS.md')
+	.option('--yes', 'Non-interactive mode (skip prompts; use defaults)')
+	.addOption(outputOption())
+	.action(runInit);
 
 program
 	.command('acp')
