@@ -299,8 +299,8 @@
 	"tsCodeAuthMockEnabled": false,
 	"defaultColorTheme": "Light 2026",
 	"gitVersion": "v1.0.3",
-	"commit": "d8eeaba475370bcd2d9f5ba65690ab5691bd270a",
-	"date": "2026-05-06T17:35:16+08:00",
+	"commit": "8ca744cd62f5ba11ef718be912b21978ad6e942a",
+	"date": "2026-05-07T15:54:58+08:00",
 	"extensionsGallery": {
 		"serviceUrl": "https://tscode-vsx-registry.paasuat.cmbchina.cn/vscode/gallery",
 		"itemUrl": "https://tscode-vsx-registry.paasuat.cmbchina.cn/vscode/item",
