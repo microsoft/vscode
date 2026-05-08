@@ -369,8 +369,10 @@ export class WorkspaceBasedVariableResolver implements VariableResolver {
 
 export class UserBasedVariableResolver implements VariableResolver {
 
-	private static _envBasedUserFullName: string | undefined;
-	private static _envBasedUserEmail: string | undefined;
+	private static readonly _userNameEnvVariables = ['GIT_AUTHOR_NAME', 'GIT_COMMITTER_NAME', 'USER', 'USERNAME', 'LOGNAME'];
+	private static readonly _userEmailEnvVariables = ['GIT_AUTHOR_EMAIL', 'GIT_COMMITTER_EMAIL', 'EMAIL'];
+	private static _cachedFullName: string | undefined;
+	private static _cachedEmail: string | undefined;
 
 	private readonly _fullName: string | undefined;
 	private readonly _email: string | undefined;
@@ -379,13 +381,13 @@ export class UserBasedVariableResolver implements VariableResolver {
 		private readonly _env: { [key: string]: string | undefined } = env
 	) {
 		if (this._env === env) {
-			UserBasedVariableResolver._envBasedUserFullName ??= this._resolveFromEnv('GIT_AUTHOR_NAME', 'GIT_COMMITTER_NAME', 'USER', 'USERNAME', 'LOGNAME');
-			UserBasedVariableResolver._envBasedUserEmail ??= this._resolveFromEnv('GIT_AUTHOR_EMAIL', 'GIT_COMMITTER_EMAIL', 'EMAIL');
-			this._fullName = UserBasedVariableResolver._envBasedUserFullName;
-			this._email = UserBasedVariableResolver._envBasedUserEmail;
+			UserBasedVariableResolver._cachedFullName ??= this._resolveFromEnv(...UserBasedVariableResolver._userNameEnvVariables);
+			UserBasedVariableResolver._cachedEmail ??= this._resolveFromEnv(...UserBasedVariableResolver._userEmailEnvVariables);
+			this._fullName = UserBasedVariableResolver._cachedFullName;
+			this._email = UserBasedVariableResolver._cachedEmail;
 		} else {
-			this._fullName = this._resolveFromEnv('GIT_AUTHOR_NAME', 'GIT_COMMITTER_NAME', 'USER', 'USERNAME', 'LOGNAME');
-			this._email = this._resolveFromEnv('GIT_AUTHOR_EMAIL', 'GIT_COMMITTER_EMAIL', 'EMAIL');
+			this._fullName = this._resolveFromEnv(...UserBasedVariableResolver._userNameEnvVariables);
+			this._email = this._resolveFromEnv(...UserBasedVariableResolver._userEmailEnvVariables);
 		}
 	}
 
@@ -402,9 +404,14 @@ export class UserBasedVariableResolver implements VariableResolver {
 
 	private _resolveFromEnv(...keys: string[]): string | undefined {
 		for (const key of keys) {
-			const value = this._env[key] ?? this._env[key.toLowerCase()];
-			if (!isFalsyOrWhitespace(value)) {
-				return value;
+			const exactValue = this._env[key];
+			if (!isFalsyOrWhitespace(exactValue)) {
+				return exactValue;
+			}
+
+			const lowercaseValue = this._env[key.toLowerCase()];
+			if (!isFalsyOrWhitespace(lowercaseValue)) {
+				return lowercaseValue;
 			}
 		}
 		return undefined;
