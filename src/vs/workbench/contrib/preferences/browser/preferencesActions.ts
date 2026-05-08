@@ -88,9 +88,77 @@ CommandsRegistry.registerCommand({
 	}
 });
 
+/**
+ * Schema information for a single configuration property as returned by
+ * `_developer.getConfigurationInformation`. Self-contained so it can be
+ * copied verbatim into other projects.
+ */
+export interface IConfigurationPropertyInformation {
+	type?: string | string[];
+	default?: unknown;
+	description?: string;
+	markdownDescription?: string;
+	deprecationMessage?: string;
+	markdownDeprecationMessage?: string;
+	enum?: unknown[];
+	enumDescriptions?: string[];
+	markdownEnumDescriptions?: string[];
+	enumItemLabels?: string[];
+	/** 1=APPLICATION, 2=MACHINE, 3=WINDOW, 4=RESOURCE, 5=LANGUAGE_OVERRIDABLE, 6=APPLICATION_MACHINE, 7=MACHINE_OVERRIDABLE */
+	scope?: number;
+	restricted?: boolean;
+	included?: boolean;
+	tags?: string[];
+	ignoreSync?: boolean;
+	disallowSyncIgnore?: boolean;
+	disallowConfigurationDefault?: boolean;
+	keywords?: string[];
+	editPresentation?: string;
+	order?: number;
+	policy?: {
+		name: string;
+		minimumVersion: string;
+		description?: string;
+		previewFeature?: string;
+		defaultValue?: string | number;
+	};
+	experiment?: {
+		mode: 'startup' | 'auto';
+		name?: string;
+	};
+	agentsWindow?: {
+		default?: unknown;
+		readOnly?: boolean;
+	};
+	section?: {
+		id?: string;
+		title?: string;
+		order?: number;
+		extensionInfo?: {
+			id: string;
+			displayName?: string;
+		};
+	};
+	defaultDefaultValue?: unknown;
+	source?: string | {
+		id: string;
+		displayName?: string;
+	};
+	// Additional JSON Schema fields may be present (e.g. minimum, maximum, pattern, items, properties).
+	[key: string]: unknown;
+}
+
+/**
+ * The shape of the JSON returned by `_developer.getConfigurationInformation`:
+ * a map from configuration key to its schema information.
+ */
+export interface IConfigurationInformation {
+	[settingId: string]: IConfigurationPropertyInformation;
+}
+
 CommandsRegistry.registerCommand({
 	id: '_developer.getConfigurationInformation',
-	handler: async (accessor, path?: string | URI) => {
+	handler: async (accessor, path?: string | URI): Promise<string | URI> => {
 		const configRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 		const fileService = accessor.get(IFileService);
 		const extensionService = accessor.get(IExtensionService);
@@ -114,12 +182,9 @@ CommandsRegistry.registerCommand({
 		}
 
 		const configurationProperties = configRegistry.getConfigurationProperties();
-		const configurationInformation = Object.fromEntries(Object.entries(configurationProperties).map(([key, property]) => {
-			const schema = { ...property };
-
+		const configurationInformation: IConfigurationInformation = Object.fromEntries(Object.entries(configurationProperties).map(([key, property]) => {
 			// A map is not JSON-serializable and is not needed for schema consumers.
-			delete schema.defaultValueSource;
-
+			const { defaultValueSource, ...schema } = property;
 			return [key, schema];
 		}));
 
