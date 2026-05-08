@@ -18,9 +18,14 @@ import { PromptsType } from '../../../../../workbench/contrib/chat/common/prompt
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { IAICustomizationWorkspaceService } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { CustomizationHarnessServiceBase, type IHarnessDescriptor } from '../../../../../workbench/contrib/chat/common/customizationHarnessService.js';
+import { PromptsStorage } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
+import { MockPromptsService } from '../../../../../workbench/contrib/chat/test/common/promptSyntax/service/mockPromptsService.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../workbench/services/agentHost/common/agentHostFileSystemService.js';
-import { RemoteAgentCustomizationItemProvider, RemoteAgentPluginController } from '../../browser/remoteAgentHostCustomizationHarness.js';
+import { createRemoteAgentCustomizationItemProvider, RemoteAgentPluginController } from '../../browser/remoteAgentHostCustomizationHarness.js';
 
 class MockAgentConnection extends mock<IAgentConnection>() {
 	declare readonly _serviceBrand: undefined;
@@ -140,7 +145,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			override async resolveAll() { return []; }
 		};
 
-		const provider = disposables.add(new RemoteAgentCustomizationItemProvider(
+		const provider = disposables.add(createRemoteAgentCustomizationItemProvider(
 			createAgentInfo([pluginA, pluginB]),
 			connection,
 			'test-authority',
@@ -180,7 +185,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			override async resolveAll() { return []; }
 		};
 
-		const provider = disposables.add(new RemoteAgentCustomizationItemProvider(
+		const provider = disposables.add(createRemoteAgentCustomizationItemProvider(
 			createAgentInfo([hostScoped]),
 			connection,
 			'test-authority',
@@ -231,7 +236,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			override async resolveAll() { return []; }
 		};
 
-		const provider = disposables.add(new RemoteAgentCustomizationItemProvider(
+		const provider = disposables.add(createRemoteAgentCustomizationItemProvider(
 			createAgentInfo([hostPlugin]),
 			connection,
 			'test-authority',
@@ -329,7 +334,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			}
 		};
 
-		const provider = disposables.add(new RemoteAgentCustomizationItemProvider(
+		const provider = disposables.add(createRemoteAgentCustomizationItemProvider(
 			createAgentInfo([]),
 			connection,
 			'test-authority',
@@ -383,7 +388,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			override async resolveAll() { return []; }
 		};
 
-		const provider = disposables.add(new RemoteAgentCustomizationItemProvider(
+		const provider = disposables.add(createRemoteAgentCustomizationItemProvider(
 			createAgentInfo([]),
 			connection,
 			'test-authority',
@@ -437,7 +442,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			override async resolveAll() { return []; }
 		};
 
-		const provider = disposables.add(new RemoteAgentCustomizationItemProvider(
+		const provider = disposables.add(createRemoteAgentCustomizationItemProvider(
 			createAgentInfo([pluginRef]),
 			connection,
 			'test-authority',
@@ -483,7 +488,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			override async resolveAll() { return []; }
 		};
 
-		const provider = disposables.add(new RemoteAgentCustomizationItemProvider(
+		const provider = disposables.add(createRemoteAgentCustomizationItemProvider(
 			createAgentInfo([pluginRef]),
 			connection,
 			'test-authority',
@@ -532,7 +537,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			override async resolveAll() { return []; }
 		};
 
-		const provider = disposables.add(new RemoteAgentCustomizationItemProvider(
+		const provider = disposables.add(createRemoteAgentCustomizationItemProvider(
 			createAgentInfo([hostPlugin]),
 			connection,
 			'test-authority',
@@ -620,7 +625,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			override async resolveAll() { return []; }
 		};
 
-		const provider = disposables.add(new RemoteAgentCustomizationItemProvider(
+		const provider = disposables.add(createRemoteAgentCustomizationItemProvider(
 			createAgentInfo([]),
 			connection,
 			'test-authority',
@@ -696,7 +701,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 			}
 		};
 
-		const provider = disposables.add(new RemoteAgentCustomizationItemProvider(
+		const provider = disposables.add(createRemoteAgentCustomizationItemProvider(
 			createAgentInfo([plugin]),
 			connection,
 			'test-authority',
@@ -715,5 +720,78 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 				{ name: 'legacy', description: undefined, uri: 'vscode-agent-host://test/plugins/skills-bundle/skills/legacy.skill.md' },
 			].sort((a, b) => a.name.localeCompare(b.name)),
 		);
+
+		// Each expanded (non-bundle) item must carry a `pluginUri` so that
+		// downstream slash-command resolution can build a `plugin:`-prefixed
+		// command id via `getCanonicalPluginCommandId`.
+		const expectedPluginUri = 'vscode-agent-host://test-authority/file/-/plugins/skills-bundle';
+		for (const skillItem of skillItems) {
+			assert.strictEqual(skillItem.pluginUri?.toString(), expectedPluginUri, `skill ${skillItem.name} should carry pluginUri`);
+		}
+	});
+
+	test('CustomizationHarnessService.getSlashCommands prefixes discovered skill names with the plugin id', async () => {
+		const connection = disposables.add(new MockAgentConnection());
+		const controller = disposables.add(new RemoteAgentPluginController(
+			'Test Host',
+			'test-authority',
+			connection,
+			{} as IFileDialogService,
+			createNotificationService(),
+			{} as IAICustomizationWorkspaceService,
+		));
+		const plugin: CustomizationRef = { uri: 'file:///plugins/skills-bundle', displayName: 'Skills Bundle' };
+
+		connection.setRootState({ agents: [createAgentInfo([plugin])] });
+
+		const skillsDirChildren: IFileStat[] = [
+			{ name: 'lint', resource: URI.parse('vscode-agent-host://test/plugins/skills-bundle/skills/lint'), isFile: false, isDirectory: true, isSymbolicLink: false, children: undefined },
+		];
+
+		const fileService = new class extends mock<IFileService>() {
+			override async canHandleResource() { return true; }
+			override async resolveAll(toResolve: { resource: URI }[]): Promise<IFileStatResult[]> {
+				return toResolve.map(({ resource }) => {
+					if (resource.path.endsWith('/skills')) {
+						return {
+							success: true,
+							stat: { name: 'skills', resource, isFile: false, isDirectory: true, isSymbolicLink: false, children: skillsDirChildren },
+						};
+					}
+					return { success: false };
+				});
+			}
+			override async readFile(resource: URI): Promise<IFileContent> {
+				if (resource.path.endsWith('/lint/SKILL.md')) {
+					const content = '---\nname: Lint\ndescription: A lint skill\n---\n';
+					return { resource, name: 'SKILL.md', value: VSBuffer.fromString(content), mtime: 0, ctime: 0, etag: '', size: content.length, readonly: false, locked: false, executable: false };
+				}
+				throw new Error('ENOENT');
+			}
+		};
+
+		const provider = disposables.add(createRemoteAgentCustomizationItemProvider(
+			createAgentInfo([plugin]),
+			connection,
+			'test-authority',
+			controller,
+			fileService,
+			new NullLogService(),
+		));
+
+		const harnessId = 'remote-agent-host-test';
+		const descriptor: IHarnessDescriptor = {
+			id: harnessId,
+			label: 'Remote Agent Host (test)',
+			icon: ThemeIcon.fromId(Codicon.remote.id),
+			getStorageSourceFilter: () => ({ sources: [PromptsStorage.plugin] }),
+			itemProvider: provider,
+		};
+		const harnessService = disposables.add(new CustomizationHarnessServiceBase([descriptor], harnessId, new MockPromptsService()));
+
+		const commands = await harnessService.getSlashCommands(harnessId, CancellationToken.None);
+		const skillCommand = commands.find(c => c.type === PromptsType.skill);
+		assert.ok(skillCommand, 'should have a skill slash command');
+		assert.strictEqual(skillCommand.name, 'skills-bundle:lint', 'skill command name should be plugin-prefixed');
 	});
 });

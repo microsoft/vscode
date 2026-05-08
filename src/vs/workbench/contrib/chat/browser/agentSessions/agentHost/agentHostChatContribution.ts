@@ -10,10 +10,12 @@ import { observableValue } from '../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
 import { AgentHostEnabledSettingId, IAgentHostService, type AgentProvider } from '../../../../../../platform/agentHost/common/agentService.js';
+import { ActionType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { type AgentInfo, type CustomizationRef, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { type AgentInfo, type CustomizationRef, type RootState, type SessionCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
@@ -26,8 +28,9 @@ import { ICustomizationHarnessService } from '../../../common/customizationHarne
 import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
+import { AgentCustomizationItemProvider } from './agentCustomizationItemProvider.js';
 import { AgentCustomizationSyncProvider } from './agentCustomizationSyncProvider.js';
-import { LocalAgentHostCustomizationItemProvider, resolveCustomizationRefs } from './agentHostLocalCustomizations.js';
+import { resolveCustomizationRefs } from './agentHostLocalCustomizations.js';
 import { authenticateProtectedResources, AgentHostAuthTokenCache, resolveAuthenticationInteractively } from './agentHostAuth.js';
 import { AgentHostLanguageModelProvider } from './agentHostLanguageModelProvider.js';
 import { AgentHostSessionHandler } from './agentHostSessionHandler.js';
@@ -76,6 +79,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		@IStorageService private readonly _storageService: IStorageService,
 		@IAgentPluginService private readonly _agentPluginService: IAgentPluginService,
 		@IPromptsService private readonly _promptsService: IPromptsService,
+		@IFileService private readonly _fileService: IFileService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
@@ -186,7 +190,11 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 
 		// Customization disable provider + item provider + bundler + observable
 		const syncProvider = store.add(new AgentCustomizationSyncProvider(sessionType, this._storageService));
-		const itemProvider = store.add(new LocalAgentHostCustomizationItemProvider(this._promptsService, sessionType, syncProvider));
+		const onSessionCustomizationChanged = Event.map(
+			Event.filter(this._loggedConnection!.onDidAction, envelope => envelope.action.type === ActionType.SessionCustomizationsChanged),
+			envelope => (envelope.action as { customizations?: SessionCustomization[] }).customizations
+		);
+		const itemProvider = store.add(new AgentCustomizationItemProvider(agent, this._loggedConnection!.rootState, onSessionCustomizationChanged, 'local', this._fileService, this._logService));
 		const bundler = store.add(this._instantiationService.createInstance(SyncedCustomizationBundler, sessionType));
 		// Distinguish from the extension-host Copilot CLI harness, which
 		// registers under the same `Copilot CLI` displayName via the chat
