@@ -15,7 +15,7 @@ import { AgentHostFileSystemProvider } from '../../common/agentHostFileSystemPro
 import { type AuthenticateParams, type AuthenticateResult, type IAgentCreateSessionConfig, type IAgentResolveSessionConfigParams, type IAgentService, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata } from '../../common/agentService.js';
 import { IMcpClientContext, IMcpHostService, IMcpServerHandle } from '../../common/mcpHost/mcpHostService.js';
 import { CompletionsParams, CompletionsResult, ListSessionsResult, McpMessageParams, McpMessageResult, ResolveSessionConfigResult, ResourceReadResult, ServerMcpCapabilities, SessionConfigCompletionsResult, type ClientCapabilities } from '../../common/state/protocol/commands.js';
-import { McpRpcCallResponse, McpRpcMessageKind, McpServerStatusKind } from '../../common/state/protocol/state.js';
+import { McpRpcCallResponse, McpRpcMessageKind, McpServerStatusKind, type McpServerState } from '../../common/state/protocol/state.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
 import { ActionType, type ClientMcpAction, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../../common/state/sessionActions.js';
 import { AHP_UNSUPPORTED_PROTOCOL_VERSION, isJsonRpcNotification, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, JsonRpcErrorCodes, ProtocolError, type AhpNotification, type InitializeResult, type IStateSnapshot, type ProtocolMessage, type ReconnectResult, type ResourceListResult, type ResourceWriteParams, type ResourceWriteResult } from '../../common/state/sessionProtocol.js';
@@ -1206,6 +1206,56 @@ suite('ProtocolServerHandler', () => {
 
 			const handled = agentService.handledActions.map(a => a.type);
 			assert.deepStrictEqual(handled, [ActionType.McpMessageResponded]);
+		});
+
+		test('reconnect after >REPLAY_BUFFER_CAPACITY mcp/messageReceived actions returns fresh snapshot', async () => {
+			createMcpSessionWithServers();
+
+			// Connect client A, subscribe to the per-server mcp resource.
+			const transportA = connectClient('client-A', [mcpServer1]);
+			const initResp = findResponse(transportA.sent, 1);
+			const initialServerSeq = (initResp as { result: InitializeResult }).result.serverSeq;
+			transportA.simulateClose();
+
+			// While disconnected, dispatch many messages to the per-server
+			// resource. REPLAY_BUFFER_CAPACITY is 1000 in protocolServerHandler.ts;
+			// 1500 definitively evicts the original buffered prefix.
+			const N = 1500;
+			for (let i = 0; i < N; i++) {
+				stateManager.mcpMessageReceived(mcpServer1, `m${i}`, {
+					kind: McpRpcMessageKind.Notification,
+					method: 'test/notify',
+					params: { i },
+				});
+			}
+
+			// Reconnect with `lastSeenServerSeq = initialServerSeq` — older
+			// than the oldest envelope still in the replay buffer, so the
+			// server must respond with `type: 'snapshot'` rather than `replay`.
+			const transportB = new MockProtocolTransport();
+			server.simulateConnection(transportB);
+			const reconnectRespPromise = waitForResponse(transportB, 1);
+			transportB.simulateMessage(request(1, 'reconnect', {
+				clientId: 'client-A',
+				lastSeenServerSeq: initialServerSeq,
+				subscriptions: [mcpServer1],
+			}));
+
+			const reconnectResp = await reconnectRespPromise;
+			const result = (reconnectResp as { result: ReconnectResult }).result;
+			assert.strictEqual(result.type, 'snapshot');
+			if (result.type === 'snapshot') {
+				assert.strictEqual(result.snapshots.length, 1);
+				const snap = result.snapshots[0];
+				assert.strictEqual(snap.resource.toString(), mcpServer1);
+				// The snapshot path captured fresh state: the per-server slice
+				// retains the dispatched messages because no host-service
+				// auto-removal ran in this state-manager-only test.
+				const snapState = snap.state as McpServerState;
+				assert.strictEqual(snapState.label, 'srv1');
+				assert.strictEqual(snapState.status.kind, McpServerStatusKind.Ready);
+				assert.ok(Object.keys(snapState.messages).length > 0, 'snapshot should retain pushed messages');
+			}
 		});
 	});
 

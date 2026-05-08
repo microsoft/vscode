@@ -79,6 +79,12 @@ export class McpStdioUpstream extends Disposable implements IMcpUpstream {
 		this._status.set({ kind: McpServerStatusKind.Starting }, undefined);
 
 		try {
+			// TODO(mcp/sandbox): the workbench-side McpServerLaunch path consults
+			// `IMcpSandboxConfiguration` for stdio servers (see
+			// `src/vs/platform/mcp/common/mcpPlatformTypes.ts` and the launcher in
+			// `src/vs/workbench/contrib/mcp/`). The agent-host proxy currently
+			// spawns unsandboxed; this matches the existing workbench gateway as
+			// of v1.
 			const child = this._spawn(this._config.command, this._config.args ?? [], {
 				cwd: this._config.cwd,
 				env: this._buildEnv(),
