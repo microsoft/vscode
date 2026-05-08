@@ -371,8 +371,6 @@ export class UserBasedVariableResolver implements VariableResolver {
 
 	private static readonly _userNameEnvVariables = ['GIT_AUTHOR_NAME', 'GIT_COMMITTER_NAME', 'USER', 'USERNAME', 'LOGNAME'];
 	private static readonly _userEmailEnvVariables = ['GIT_AUTHOR_EMAIL', 'GIT_COMMITTER_EMAIL', 'EMAIL'];
-	private static _cachedFullName: string | undefined;
-	private static _cachedEmail: string | undefined;
 
 	private readonly _fullName: string | undefined;
 	private readonly _email: string | undefined;
@@ -380,15 +378,8 @@ export class UserBasedVariableResolver implements VariableResolver {
 	constructor(
 		private readonly _env: { [key: string]: string | undefined } = env
 	) {
-		if (this._env === env) {
-			UserBasedVariableResolver._cachedFullName ??= this._resolveFromEnv(...UserBasedVariableResolver._userNameEnvVariables);
-			UserBasedVariableResolver._cachedEmail ??= this._resolveFromEnv(...UserBasedVariableResolver._userEmailEnvVariables);
-			this._fullName = UserBasedVariableResolver._cachedFullName;
-			this._email = UserBasedVariableResolver._cachedEmail;
-		} else {
-			this._fullName = this._resolveFromEnv(...UserBasedVariableResolver._userNameEnvVariables);
-			this._email = this._resolveFromEnv(...UserBasedVariableResolver._userEmailEnvVariables);
-		}
+		this._fullName = this._resolveFromEnv(...UserBasedVariableResolver._userNameEnvVariables);
+		this._email = this._resolveFromEnv(...UserBasedVariableResolver._userEmailEnvVariables);
 	}
 
 	resolve(variable: Variable): string | undefined {
