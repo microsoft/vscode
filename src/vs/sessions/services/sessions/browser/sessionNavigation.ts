@@ -29,6 +29,7 @@ export class SessionsNavigation extends Disposable {
 
 	private readonly _history: INavigationEntry[] = [];
 	private readonly _currentIndex = observableValue<number>(this, -1);
+	private readonly _historySize = observableValue<number>(this, 0);
 
 	/** Guard: true while we are performing a back/forward navigation. */
 	private _navigating = false;
@@ -53,7 +54,7 @@ export class SessionsNavigation extends Disposable {
 		if (this._beyondHistory.read(reader)) {
 			return false;
 		}
-		return this._currentIndex.read(reader) < this._history.length - 1;
+		return this._currentIndex.read(reader) < this._historySize.read(reader) - 1;
 	});
 
 	constructor(
@@ -156,6 +157,7 @@ export class SessionsNavigation extends Disposable {
 
 		this._history.push(entry);
 		this._currentIndex.set(this._history.length - 1, undefined);
+		this._historySize.set(this._history.length, undefined);
 
 		this._logService.trace(`[SessionNavigation] pushed entry idx=${this._history.length - 1} uri=${entry.sessionResource.toString()} historySize=${this._history.length}`);
 	}
@@ -176,8 +178,9 @@ export class SessionsNavigation extends Disposable {
 			if (session) {
 				await this._sessionsManagementService.openSession(entry.sessionResource);
 			} else {
-				// Session no longer exists, remove it and try again
+				// Session no longer exists, remove from history
 				this._history.splice(targetIdx, 1);
+				this._historySize.set(this._history.length, undefined);
 				if (targetIdx <= this._currentIndex.get()) {
 					this._currentIndex.set(Math.max(0, this._currentIndex.get() - 1), undefined);
 				}
@@ -213,5 +216,6 @@ export class SessionsNavigation extends Disposable {
 		if (newCurrentIdx !== currentIdx) {
 			this._currentIndex.set(Math.max(0, newCurrentIdx), undefined);
 		}
+		this._historySize.set(this._history.length, undefined);
 	}
 }
