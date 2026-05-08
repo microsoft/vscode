@@ -1765,12 +1765,16 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	private redrawTabGroupTabs(group: IEditorTabGroup, tabsContainer: HTMLElement): void {
 		const colorVar = this.getTabGroupColorValue(group.color);
 
+		const activeEditor = this.tabsModel.activeEditor;
 		for (let i = group.startIndex; i < group.startIndex + group.count; i++) {
 			const tabElement = this.getTabAtIndex(i);
 			if (tabElement) {
 				tabElement.classList.add('in-tab-group');
 				tabElement.style.setProperty('--tab-group-color', colorVar);
-				tabElement.classList.toggle('tab-group-collapsed', group.collapsed);
+				// Keep the active tab visible even when group is collapsed
+				const editor = this.tabsModel.getEditorByIndex(i);
+				const isActive = editor && editor === activeEditor;
+				tabElement.classList.toggle('tab-group-collapsed', group.collapsed && !isActive);
 			}
 		}
 	}
