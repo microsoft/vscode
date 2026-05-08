@@ -64,6 +64,19 @@ suite('Snippet Variables Resolver', function () {
 		}
 	}
 
+	function createMockWorkspaceLabelService(rootPath: string): ILabelService {
+		return new class extends mock<ILabelService>() {
+			override getUriLabel(uri: URI, options: { relative?: boolean } = {}) {
+				const rootFsPath = URI.file(rootPath).fsPath + sep;
+				const fsPath = uri.fsPath;
+				if (options.relative && rootPath && fsPath.startsWith(rootFsPath)) {
+					return fsPath.substring(rootFsPath.length);
+				}
+				return fsPath;
+			}
+		};
+	}
+
 	test('editor variables, basics', function () {
 		assertVariableResolve(resolver, 'TM_FILENAME', 'text.txt');
 		assertVariableResolve(resolver, 'something', undefined);
@@ -404,26 +417,11 @@ suite('Snippet Variables Resolver', function () {
 
 		let resolver: VariableResolver;
 
-		// Mock a label service (only coded for file uris)
-		const workspaceLabelService = ((rootPath: string): ILabelService => {
-			const labelService = new class extends mock<ILabelService>() {
-				override getUriLabel(uri: URI, options: { relative?: boolean } = {}) {
-					const rootFsPath = URI.file(rootPath).fsPath + sep;
-					const fsPath = uri.fsPath;
-					if (options.relative && rootPath && fsPath.startsWith(rootFsPath)) {
-						return fsPath.substring(rootFsPath.length);
-					}
-					return fsPath;
-				}
-			};
-			return labelService;
-		});
-
 		const model = createTextModel('', undefined, undefined, URI.parse('file:///foo/files/text.txt'));
 
 		// empty workspace
 		resolver = new ModelBasedVariableResolver(
-			workspaceLabelService(''),
+			createMockWorkspaceLabelService(''),
 			model
 		);
 
@@ -436,7 +434,7 @@ suite('Snippet Variables Resolver', function () {
 
 		// single folder workspace
 		resolver = new ModelBasedVariableResolver(
-			workspaceLabelService('/foo'),
+			createMockWorkspaceLabelService('/foo'),
 			model
 		);
 		if (!isWindows) {
@@ -448,7 +446,7 @@ suite('Snippet Variables Resolver', function () {
 
 		const workspaceRootModel = createTextModel('', undefined, undefined, URI.parse('file:///foo/text.txt'));
 		resolver = new ModelBasedVariableResolver(
-			workspaceLabelService('/foo'),
+			createMockWorkspaceLabelService('/foo'),
 			workspaceRootModel
 		);
 		assertVariableResolve(resolver, 'REVERSE_RELATIVE_FILEPATH', '.');
@@ -457,21 +455,10 @@ suite('Snippet Variables Resolver', function () {
 		model.dispose();
 	});
 
-	test('Add REVERSE_RELATIVE_FILEPATH snippet variable with nested paths and custom separators', function () {
-
-		const workspaceLabelService = new class extends mock<ILabelService>() {
-			override getUriLabel(uri: URI, options: { relative?: boolean } = {}) {
-				const rootFsPath = URI.file('/foo').fsPath + sep;
-				const fsPath = uri.fsPath;
-				if (options.relative && fsPath.startsWith(rootFsPath)) {
-					return fsPath.substring(rootFsPath.length);
-				}
-				return fsPath;
-			}
-		};
+	test('REVERSE_RELATIVE_FILEPATH handles nested paths and custom separators', function () {
 
 		const deepModel = createTextModel('', undefined, undefined, URI.parse('file:///foo/dir/sub/text.txt'));
-		let resolver: VariableResolver = new ModelBasedVariableResolver(workspaceLabelService, deepModel);
+		let resolver: VariableResolver = new ModelBasedVariableResolver(createMockWorkspaceLabelService('/foo'), deepModel);
 		if (!isWindows) {
 			assertVariableResolve(resolver, 'REVERSE_RELATIVE_FILEPATH', '../..');
 		} else {

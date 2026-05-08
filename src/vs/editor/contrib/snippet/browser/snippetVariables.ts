@@ -217,13 +217,14 @@ export class ModelBasedVariableResolver implements VariableResolver {
 			return undefined;
 		}
 
-		const depth = relativeFilepath.split(/[\\/]/).length - 1;
-		if (depth === 0) {
+		// Number of parent-directory traversals from the file's folder back to the workspace root.
+		const parentDirectoryDepth = relativeFilepath.split(/[\\/]/).length - 1;
+		if (parentDirectoryDepth === 0) {
 			return '.';
 		}
 
 		const separator = relativeFilepath.includes('\\') ? '\\' : '/';
-		return Array.from({ length: depth }, () => '..').join(separator);
+		return Array.from({ length: parentDirectoryDepth }, () => '..').join(separator);
 	}
 }
 
