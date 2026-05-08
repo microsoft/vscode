@@ -21,7 +21,6 @@ interface IReviewPlanAction {
 	label: string;
 	default?: boolean;
 	description?: string;
-	permissionLevel?: 'autopilot';
 }
 
 /** Input passed to the `vscode_reviewPlan` core tool. Mirrors the
@@ -105,6 +104,12 @@ export class ExitPlanModeToolHandler implements IClaudeToolPermissionHandler<Cla
 			// (see claudeMessageDispatch.handleAssistantMessage) so the
 			// review widget can surface it for inline editor comments.
 			const planUri = sessionId ? this.planFileTracker.getLastPlanFile(sessionId) : undefined;
+			if (!planUri) {
+				// Without a plan URI the review widget falls back to the
+				// inline `content` (no inline comments / Open Plan). Log so
+				// missing tracker hookups don't go unnoticed.
+				this.logService.warn(`[ExitPlanMode] No plan file recorded for session ${sessionId ?? '<unknown>'}; review widget will not offer inline plan comments.`);
+			}
 
 			const reviewInput: IReviewPlanInput = {
 				title: l10n.t("Claude's Plan"),
@@ -169,9 +174,7 @@ export class ExitPlanModeToolHandler implements IClaudeToolPermissionHandler<Cla
 			// plan when they no longer have feedback to add.
 			const feedback = parsed.feedback?.trim();
 			if (feedback) {
-				if (parsed.actionId === APPROVE_BYPASS_ID || parsed.actionId === APPROVE_ACCEPT_EDITS_ID) {
-					this.logService.info(`[ExitPlanMode] User picked ${parsed.actionId} with feedback; routing as deny+feedback so Claude revises the plan. Mode change will need to be re-selected on the revised plan.`);
-				}
+				this.logService.info(`[ExitPlanMode] User picked ${parsed.actionId ?? '<unknown>'} with feedback; routing as deny+feedback so Claude revises the plan. Mode change (if any) will need to be re-selected on the revised plan.`);
 				return {
 					behavior: 'deny',
 					message: `The user has feedback on the plan before proceeding:\n\n${feedback}`,

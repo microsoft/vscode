@@ -12,6 +12,7 @@ import { IOTelService, type ISpanHandle } from '../../../../../platform/otel/com
 import { IRequestLogger } from '../../../../../platform/requestLogger/common/requestLogger';
 import { TestLogService } from '../../../../../platform/testing/common/testLogService';
 import type { ServicesAccessor } from '../../../../../util/vs/platform/instantiation/common/instantiation';
+import { URI } from '../../../../../util/vs/base/common/uri';
 import { IToolsService } from '../../../../tools/common/toolsService';
 import {
 	ALL_KNOWN_MESSAGE_KEYS,
@@ -447,8 +448,11 @@ describe('handleAssistantMessage', () => {
 		expect(services.planFileTracker.recordIfPlanFile).toHaveBeenCalledTimes(2);
 		const calls = services.planFileTracker.recordIfPlanFile.mock.calls;
 		expect(calls[0][0]).toBe(TEST_SESSION_ID);
-		expect(calls[0][1]).toBe('/home/testuser/.claude/plans/plan.md');
-		expect(calls[1][1]).toBe('/tmp/other.md');
+		// Dispatch forwards `uri.fsPath`, which uses backslashes on Windows;
+		// compare against the same `URI.file(...).fsPath` round-trip rather
+		// than the raw posix string to keep the assertion platform-agnostic.
+		expect(calls[0][1]).toBe(URI.file('/home/testuser/.claude/plans/plan.md').fsPath);
+		expect(calls[1][1]).toBe(URI.file('/tmp/other.md').fsPath);
 	});
 
 	it('does not consult the plan file tracker for non-edit tools', () => {

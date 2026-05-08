@@ -166,6 +166,7 @@ export class AgentHostModePicker extends Disposable {
 
 		const labelSpan = dom.append(this._triggerElement, dom.$('span.sessions-chat-dropdown-label'));
 		labelSpan.textContent = label;
+		dom.append(this._triggerElement, renderIcon(Codicon.chevronDown));
 
 		this._triggerElement.ariaLabel = localize('agentHostModePicker.triggerAriaLabel', "Pick Agent Mode, {0}", label);
 	}
