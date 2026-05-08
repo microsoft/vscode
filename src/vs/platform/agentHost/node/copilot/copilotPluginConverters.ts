@@ -6,8 +6,8 @@
 import { spawn } from 'child_process';
 import type { CustomAgentConfig, MCPServerConfig, SessionConfig } from '@github/copilot-sdk';
 import { OperatingSystem, OS } from '../../../../base/common/platform.js';
+import { URI } from '../../../../base/common/uri.js';
 import { IFileService } from '../../../files/common/files.js';
-import { McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
 import type { IMcpServerDefinition, INamedPluginResource, IParsedHookCommand, IParsedHookGroup, IParsedPlugin } from '../../../agentPlugins/common/pluginParsers.js';
 import { dirname } from '../../../../base/common/path.js';
 
@@ -24,42 +24,38 @@ type ErrorOccurredHookInput = Parameters<NonNullable<SessionHooks['onErrorOccurr
 // ---------------------------------------------------------------------------
 
 /**
- * Converts parsed MCP server definitions into the SDK's `mcpServers` config.
+ * Resolves the proxy endpoint URI for an MCP server. When `undefined`,
+ * the server is omitted from the SDK config entirely — the SDK then sees
+ * a smaller initial set, and the caller is expected to retry once the
+ * endpoint is bound (typically on the next session refresh triggered by
+ * {@link IMcpHostService.onDidMcpServersChange}).
  */
-export function toSdkMcpServers(defs: readonly IMcpServerDefinition[]): Record<string, MCPServerConfig> {
-	const result: Record<string, MCPServerConfig> = {};
-	for (const def of defs) {
-		const config = def.configuration;
-		if (config.type === McpServerType.LOCAL) {
-			result[def.name] = {
-				type: 'local',
-				command: config.command,
-				args: config.args ? [...config.args] : [],
-				tools: ['*'],
-				...(config.env && { env: toStringEnv(config.env) }),
-				...(config.cwd && { cwd: config.cwd }),
-			};
-		} else {
-			result[def.name] = {
-				type: 'http',
-				url: config.url,
-				tools: ['*'],
-				...(config.headers && { headers: { ...config.headers } }),
-			};
-		}
-	}
-	return result;
-}
+export type McpEndpointResolver = (def: IMcpServerDefinition) => URI | undefined;
 
 /**
- * Ensures all env values are strings (the SDK requires `Record<string, string>`).
+ * Converts parsed MCP server definitions into the SDK's `mcpServers` config.
+ *
+ * Every server is fronted by a local HTTP proxy owned by `IMcpHostService`;
+ * `resolveEndpoint` returns the proxy URI for a given definition (or
+ * `undefined` while the proxy is still booting). Servers without a bound
+ * endpoint are skipped — they will be re-added on the next session
+ * refresh once their proxy comes up.
  */
-function toStringEnv(env: Record<string, string | number | null>): Record<string, string> {
-	const result: Record<string, string> = {};
-	for (const [key, value] of Object.entries(env)) {
-		if (value !== null) {
-			result[key] = String(value);
+export function toSdkMcpServers(
+	defs: readonly IMcpServerDefinition[],
+	resolveEndpoint: McpEndpointResolver,
+): Record<string, MCPServerConfig> {
+	const result: Record<string, MCPServerConfig> = {};
+	for (const def of defs) {
+		const endpoint = resolveEndpoint(def);
+		if (!endpoint) {
+			continue;
 		}
+		result[def.name] = {
+			type: 'http',
+			url: endpoint.toString(),
+			tools: ['*'],
+		};
 	}
 	return result;
 }

@@ -179,6 +179,13 @@ export interface AuthenticateParams {
 
 	/** The bearer token value (RFC 6750). */
 	readonly token: string;
+
+	/**
+	 * Optional: if set, scopes the token to a specific MCP server's
+	 * proxy. The host routes the call to {@link IMcpHostService.getServer}
+	 * instead of fanning out to providers.
+	 */
+	readonly server?: URI;
 }
 
 /**

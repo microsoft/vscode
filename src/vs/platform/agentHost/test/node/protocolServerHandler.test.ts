@@ -1008,6 +1008,41 @@ suite('ProtocolServerHandler', () => {
 		agentService.authenticate = origHandler;
 	});
 
+	test('authenticate forwards params.server as a parsed URI to the agent service', async () => {
+		const origHandler = agentService.authenticate;
+		const seen: AuthenticateParams[] = [];
+		agentService.authenticate = async (params: AuthenticateParams): Promise<AuthenticateResult> => {
+			seen.push(params);
+			return { authenticated: true };
+		};
+
+		const transport = connectClient('client-auth-mcp');
+		transport.sent.length = 0;
+
+		const responsePromise = waitForResponse(transport, 2);
+		transport.simulateMessage(request(2, 'authenticate', {
+			resource: 'https://api.github.com',
+			token: 'tok',
+			server: 'mcp:/sess1/srv1',
+		}));
+		const resp = await responsePromise as { result?: Record<string, unknown>; error?: { code: number; message: string } };
+
+		assert.ok(!resp.error, `unexpected error: ${resp.error?.message}`);
+		assert.strictEqual(seen.length, 1);
+		assert.ok(URI.isUri(seen[0].server), 'server must be a URI instance');
+		assert.deepStrictEqual({
+			resource: seen[0].resource,
+			token: seen[0].token,
+			server: seen[0].server!.toString(),
+		}, {
+			resource: 'https://api.github.com',
+			token: 'tok',
+			server: 'mcp:/sess1/srv1',
+		});
+
+		agentService.authenticate = origHandler;
+	});
+
 	// ---- Connection count event -----------------------------------------
 
 	test('onDidChangeConnectionCount fires on connect and disconnect', () => {

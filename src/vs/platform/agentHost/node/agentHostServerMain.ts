@@ -55,7 +55,9 @@ import { AGENT_CLIENT_SCHEME } from '../common/agentClientUri.js';
 import { resolveServerUrls } from './serverUrls.js';
 import { AgentPluginManager } from './agentPluginManager.js';
 import { IAgentPluginManager } from '../common/agentPluginManager.js';
-import { NullMcpHostService } from '../common/mcpHost/nullMcpHostService.js';
+import { IMcpHostService } from '../common/mcpHost/mcpHostService.js';
+import { McpHostServiceImpl } from './mcpHost/mcpHostServiceImpl.js';
+import { McpProxyFactory } from './mcpHost/mcpProxy.js';
 import { registerPendingEditContentProvider } from './copilot/pendingEditContentStore.js';
 import { AgentHostGitService, IAgentHostGitService } from './agentHostGitService.js';
 
@@ -194,9 +196,16 @@ async function main(): Promise<void> {
 	const gitService = instantiationService.createInstance(AgentHostGitService);
 
 	// Create the agent service (owns AgentHostStateManager + AgentSideEffects internally)
-	const mcpHostService = new NullMcpHostService();
-	const agentService = new AgentService(logService, fileService, sessionDataService, productService, gitService, rootConfigResource, mcpHostService);
+	const agentService = new AgentService(logService, fileService, sessionDataService, productService, gitService, rootConfigResource);
 	disposables.add(agentService);
+
+	// Single shared MCP host service backed by the per-server proxy factory.
+	// Constructed after `agentService` because it consumes the agent service's
+	// `AgentHostStateManager`.
+	const proxyFactory = disposables.add(new McpProxyFactory(logService));
+	const mcpHostService: IMcpHostService = disposables.add(new McpHostServiceImpl(agentService.stateManager, proxyFactory, logService));
+	agentService.setMcpHostService(mcpHostService);
+	diServices.set(IMcpHostService, mcpHostService);
 
 	// Register agents
 	if (!options.quiet) {

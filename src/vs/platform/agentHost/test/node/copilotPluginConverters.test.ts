@@ -35,7 +35,10 @@ suite('copilotPluginConverters', () => {
 
 	suite('toSdkMcpServers', () => {
 
-		test('converts local server definitions', () => {
+		const proxyEndpoint = (name: string) => URI.parse(`http://127.0.0.1:1/mcp/${name}`);
+		const resolveAll = (def: IMcpServerDefinition) => proxyEndpoint(def.name);
+
+		test('emits an http entry pointing at the proxy endpoint for each resolved server', () => {
 			const defs: IMcpServerDefinition[] = [{
 				name: 'test-server',
 				uri: URI.file('/plugin'),
@@ -48,20 +51,17 @@ suite('copilotPluginConverters', () => {
 				},
 			}];
 
-			const result = toSdkMcpServers(defs);
+			const result = toSdkMcpServers(defs, resolveAll);
 			assert.deepStrictEqual(result, {
 				'test-server': {
-					type: 'local',
-					command: 'node',
-					args: ['server.js', '--port', '3000'],
+					type: 'http',
+					url: 'http://127.0.0.1:1/mcp/test-server',
 					tools: ['*'],
-					env: { NODE_ENV: 'production', PORT: '3000' },
-					cwd: '/workspace',
 				},
 			});
 		});
 
-		test('converts remote/http server definitions', () => {
+		test('emits the same http shape regardless of upstream transport', () => {
 			const defs: IMcpServerDefinition[] = [{
 				name: 'remote-server',
 				uri: URI.file('/plugin'),
@@ -72,53 +72,44 @@ suite('copilotPluginConverters', () => {
 				},
 			}];
 
-			const result = toSdkMcpServers(defs);
+			const result = toSdkMcpServers(defs, resolveAll);
 			assert.deepStrictEqual(result, {
 				'remote-server': {
 					type: 'http',
-					url: 'https://example.com/mcp',
+					url: 'http://127.0.0.1:1/mcp/remote-server',
 					tools: ['*'],
-					headers: { 'Authorization': 'Bearer token' },
 				},
 			});
 		});
 
 		test('handles empty definitions', () => {
-			const result = toSdkMcpServers([]);
+			const result = toSdkMcpServers([], resolveAll);
 			assert.deepStrictEqual(result, {});
 		});
 
-		test('omits optional fields when undefined', () => {
+		test('skips servers whose proxy endpoint is unresolved', () => {
 			const defs: IMcpServerDefinition[] = [{
-				name: 'minimal',
+				name: 'pending',
 				uri: URI.file('/plugin'),
-				configuration: {
-					type: McpServerType.LOCAL,
-					command: 'echo',
-				},
+				configuration: { type: McpServerType.LOCAL, command: 'echo' },
 			}];
 
-			const result = toSdkMcpServers(defs);
-			assert.strictEqual(result['minimal'].type, 'local');
-			assert.deepStrictEqual((result['minimal'] as { args?: string[] }).args, []);
-			assert.strictEqual(Object.hasOwn(result['minimal'], 'env'), false);
-			assert.strictEqual(Object.hasOwn(result['minimal'], 'cwd'), false);
+			const result = toSdkMcpServers(defs, () => undefined);
+			assert.deepStrictEqual(result, {});
 		});
 
-		test('filters null values from env', () => {
-			const defs: IMcpServerDefinition[] = [{
-				name: 'with-null-env',
-				uri: URI.file('/plugin'),
-				configuration: {
-					type: McpServerType.LOCAL,
-					command: 'test',
-					env: { KEEP: 'value', DROP: null as unknown as string },
-				},
-			}];
+		test('only includes resolved entries when some endpoints are pending', () => {
+			const defs: IMcpServerDefinition[] = [
+				{ name: 'ready', uri: URI.file('/p1'), configuration: { type: McpServerType.LOCAL, command: 'a' } },
+				{ name: 'pending', uri: URI.file('/p2'), configuration: { type: McpServerType.LOCAL, command: 'b' } },
+				{ name: 'also-ready', uri: URI.file('/p3'), configuration: { type: McpServerType.REMOTE, url: 'https://x' } },
+			];
 
-			const result = toSdkMcpServers(defs);
-			const env = (result['with-null-env'] as { env?: Record<string, string> }).env;
-			assert.deepStrictEqual(env, { KEEP: 'value' });
+			const result = toSdkMcpServers(defs, def => def.name === 'pending' ? undefined : proxyEndpoint(def.name));
+			assert.deepStrictEqual(result, {
+				'ready': { type: 'http', url: 'http://127.0.0.1:1/mcp/ready', tools: ['*'] },
+				'also-ready': { type: 'http', url: 'http://127.0.0.1:1/mcp/also-ready', tools: ['*'] },
+			});
 		});
 	});
 

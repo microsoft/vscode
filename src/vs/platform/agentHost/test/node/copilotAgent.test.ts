@@ -8,7 +8,7 @@ import assert from 'assert';
 import * as fs from 'fs/promises';
 import * as os from 'os';
 import { Disposable, type DisposableStore, type IDisposable, type IReference } from '../../../../base/common/lifecycle.js';
-import { waitForState } from '../../../../base/common/observable.js';
+import { observableValue, waitForState, type IObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
@@ -20,10 +20,17 @@ import { ServiceCollection } from '../../../instantiation/common/serviceCollecti
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { AgentSession, type AgentSignal, type IAgentActionSignal, type IAgentSessionMetadata } from '../../common/agentService.js';
+import { IMcpHostService, type IMcpServerHandle } from '../../common/mcpHost/mcpHostService.js';
+import { NullMcpHostService } from '../../common/mcpHost/nullMcpHostService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { buildSubagentSessionUri, ResponsePartKind, SessionCustomization, TurnState, type CustomizationRef, type MarkdownResponsePart, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
 import { ActionType, type IDeltaAction } from '../../common/state/sessionActions.js';
+import type { IMcpServerDefinition, IParsedPlugin } from '../../../agentPlugins/common/pluginParsers.js';
+import { McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
+import { McpServerStatusKind, type McpServerSummary } from '../../common/state/protocol/state.js';
+import type { McpMessageResult, ServerMcpCapabilities } from '../../common/state/protocol/commands.js';
+import { buildMcpServerUri } from '../../common/state/mcpServerUri.js';
 
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
@@ -226,8 +233,9 @@ class TestableCopilotAgent extends CopilotAgent {
 		@IAgentHostGitService gitService: IAgentHostGitService,
 		@IAgentHostTerminalManager terminalManager: IAgentHostTerminalManager,
 		@IAgentConfigurationService configurationService: IAgentConfigurationService,
+		@IMcpHostService mcpHostService: IMcpHostService,
 	) {
-		super(logService, instantiationService, fileService, sessionDataService, gitService, terminalManager, configurationService);
+		super(logService, instantiationService, fileService, sessionDataService, gitService, terminalManager, configurationService, mcpHostService);
 		this._enablePlanModeOnClient(this._copilotClient as CopilotClient);
 	}
 
@@ -278,7 +286,7 @@ class TestableCopilotAgent extends CopilotAgent {
 	}
 }
 
-function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, options?: { sessionDataService?: ISessionDataService; copilotClient?: ITestCopilotClient; gitService?: TestAgentHostGitService; environmentServiceRegistration?: 'native' | 'none'; pluginManager?: IAgentPluginManager }): { agent: CopilotAgent; instantiationService: IInstantiationService } {
+function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, options?: { sessionDataService?: ISessionDataService; copilotClient?: ITestCopilotClient; gitService?: TestAgentHostGitService; environmentServiceRegistration?: 'native' | 'none'; pluginManager?: IAgentPluginManager; mcpHostService?: IMcpHostService }): { agent: CopilotAgent; instantiationService: IInstantiationService } {
 	const services = new ServiceCollection();
 	const logService = new NullLogService();
 	const fileService = disposables.add(new FileService(logService));
@@ -291,6 +299,7 @@ function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, optio
 	services.set(IAgentPluginManager, options?.pluginManager ?? new TestAgentPluginManager());
 	services.set(IAgentHostGitService, options?.gitService ?? new TestAgentHostGitService());
 	services.set(IAgentHostTerminalManager, new TestAgentHostTerminalManager());
+	services.set(IMcpHostService, options?.mcpHostService ?? new NullMcpHostService());
 	if (options?.environmentServiceRegistration !== 'none') {
 		const environmentService = {
 			_serviceBrand: undefined,
@@ -306,7 +315,7 @@ function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, optio
 	return { agent, instantiationService };
 }
 
-function createTestAgent(disposables: Pick<DisposableStore, 'add'>, options?: { sessionDataService?: ISessionDataService; copilotClient?: ITestCopilotClient; gitService?: TestAgentHostGitService; environmentServiceRegistration?: 'native' | 'none'; pluginManager?: IAgentPluginManager }): CopilotAgent {
+function createTestAgent(disposables: Pick<DisposableStore, 'add'>, options?: { sessionDataService?: ISessionDataService; copilotClient?: ITestCopilotClient; gitService?: TestAgentHostGitService; environmentServiceRegistration?: 'native' | 'none'; pluginManager?: IAgentPluginManager; mcpHostService?: IMcpHostService }): CopilotAgent {
 	return createTestAgentContext(disposables, options).agent;
 }
 
@@ -1095,4 +1104,156 @@ suite('CopilotAgent', () => {
 		});
 
 	});
+
+	suite('mcp servers (direct publish)', () => {
+
+		function makeServerDef(name: string, command: string): IMcpServerDefinition {
+			return { name, uri: URI.file(`/plugin/${name}`), configuration: { type: McpServerType.LOCAL, command } };
+		}
+
+		function makePluginWith(servers: readonly IMcpServerDefinition[]): IParsedPlugin {
+			return { hooks: [], skills: [], agents: [], mcpServers: servers };
+		}
+
+		interface ICopilotAgentInternals {
+			_publishMcpServers(session: URI): void;
+			_publishMcpServersForPlugins(session: URI, plugins: readonly IParsedPlugin[]): void;
+			_resolveMcpServersForSdk(sessionUri: URI, defs: readonly IMcpServerDefinition[]): Promise<Record<string, { type: 'http'; url: string; tools: readonly string[] }>>;
+		}
+
+		test('publishMcpServers re-publishes only when the resolved set changed', async () => {
+			const spy = new SpyMcpHostService();
+			const agent = createTestAgent(disposables, {
+				copilotClient: new TestCopilotClient([]),
+				mcpHostService: spy,
+			});
+			try {
+				const sessionUri = AgentSession.uri('copilotcli', 'pub-1');
+				const internals = agent as unknown as ICopilotAgentInternals;
+				const a = makeServerDef('a', 'cmdA');
+
+				internals._publishMcpServersForPlugins(sessionUri, [makePluginWith([a])]);
+				internals._publishMcpServersForPlugins(sessionUri, [makePluginWith([a])]); // unchanged
+
+				const b = makeServerDef('b', 'cmdB');
+				internals._publishMcpServersForPlugins(sessionUri, [makePluginWith([a, b])]); // changed
+
+				assert.deepStrictEqual(
+					spy.setSessionServersCalls.map(c => ({ session: c.session.toString(), serverNames: c.servers.map(s => s.name) })),
+					[
+						{ session: sessionUri.toString(), serverNames: ['a'] },
+						{ session: sessionUri.toString(), serverNames: ['a', 'b'] },
+					],
+				);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('disposeSession clears the session\'s MCP servers and the cache entry', async () => {
+			const spy = new SpyMcpHostService();
+			const agent = createTestAgent(disposables, {
+				copilotClient: new TestCopilotClient([]),
+				mcpHostService: spy,
+			});
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+
+				// Create a provisional session.
+				const session = AgentSession.uri('copilotcli', 'dispose-1');
+				const result = await agent.createSession({
+					session,
+					workingDirectory: URI.file('/workspace'),
+				});
+
+				// Seed the publish cache so we can observe the disposal clear it.
+				const internals = agent as unknown as ICopilotAgentInternals;
+				const a = makeServerDef('a', 'cmdA');
+				internals._publishMcpServersForPlugins(result.session, [makePluginWith([a])]);
+
+				const beforeDispose = spy.setSessionServersCalls.length;
+				await agent.disposeSession(result.session);
+
+				const teardown = spy.setSessionServersCalls.slice(beforeDispose);
+				assert.deepStrictEqual(
+					teardown.map(c => ({ session: c.session.toString(), serverCount: c.servers.length })),
+					[{ session: result.session.toString(), serverCount: 0 }],
+				);
+
+				// Republish after dispose should not be skipped because the
+				// cache entry was cleared.
+				internals._publishMcpServersForPlugins(result.session, [makePluginWith([a])]);
+				assert.strictEqual(spy.setSessionServersCalls.length, beforeDispose + 2,
+					'cache entry must be deleted on dispose so subsequent publishes are not no-ops');
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('_resolveMcpServersForSdk awaits an endpoint that becomes defined after a microtask', async () => {
+			const spy = new SpyMcpHostService();
+			const agent = createTestAgent(disposables, {
+				copilotClient: new TestCopilotClient([]),
+				mcpHostService: spy,
+			});
+			try {
+				const sessionUri = AgentSession.uri('copilotcli', 'wait-1');
+				const def = makeServerDef('srv', 'cmd');
+
+				const endpointObs = observableValue<URI | undefined>('endpoint', undefined);
+				spy.registerStubServer(buildMcpServerUri(sessionUri, def.name), endpointObs);
+
+				const internals = agent as unknown as ICopilotAgentInternals;
+				const promise = internals._resolveMcpServersForSdk(sessionUri, [def]);
+
+				// Resolve the endpoint asynchronously.
+				queueMicrotask(() => endpointObs.set(URI.parse('http://127.0.0.1:9999/mcp'), undefined));
+
+				const result = await promise;
+				assert.deepStrictEqual(result, {
+					srv: { type: 'http', url: 'http://127.0.0.1:9999/mcp', tools: ['*'] },
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+	});
 });
+
+class SpyMcpHostService implements IMcpHostService {
+	declare readonly _serviceBrand: undefined;
+	readonly serverCapabilities: ServerMcpCapabilities = {};
+	readonly setSessionServersCalls: { session: URI; servers: readonly IMcpServerDefinition[] }[] = [];
+
+	private readonly _stubs = new Map<string, IMcpServerHandle>();
+
+	setSessionServers(session: URI, servers: readonly IMcpServerDefinition[]): readonly IMcpServerHandle[] {
+		this.setSessionServersCalls.push({ session, servers });
+		return [];
+	}
+	getServer(resource: URI): IMcpServerHandle | undefined {
+		return this._stubs.get(resource.toString());
+	}
+	async sendMessage(): Promise<McpMessageResult> { throw new Error('not used in test'); }
+	deliverResponse(): void { /* no-op */ }
+
+	registerStubServer(resource: URI, endpoint: IObservable<URI | undefined>): IMcpServerHandle {
+		const summary: McpServerSummary = {
+			resource: resource.toString(),
+			label: 'stub',
+			status: { kind: McpServerStatusKind.Ready },
+		};
+		const summaryObs: IObservable<McpServerSummary> = observableValue<McpServerSummary>('summary', summary);
+		const handle: IMcpServerHandle = {
+			resource,
+			summary: summaryObs,
+			endpoint,
+			authenticate: async () => true,
+			sendMessage: async () => { throw new Error('not used in test'); },
+			deliverResponse: () => { /* no-op */ },
+			dispose: () => { /* no-op */ },
+		};
+		this._stubs.set(resource.toString(), handle);
+		return handle;
+	}
+}

@@ -89,7 +89,7 @@ export class AgentService extends Disposable implements IAgentService {
 	private readonly _completions: IAgentHostCompletions;
 
 	/** Routes MCP traffic to the per-server proxies. Defaults to {@link NullMcpHostService} for surfaces (e.g. tests) that don't host MCP. */
-	private readonly _mcpHostService: IMcpHostService;
+	private _mcpHostService: IMcpHostService;
 
 	/**
 	 * Authoritative server-side per-resource subscription refcount, keyed by
@@ -163,6 +163,19 @@ export class AgentService extends Disposable implements IAgentService {
 		this._terminalManager = this._register(instantiationService.createInstance(AgentHostTerminalManager, this._stateManager));
 	}
 
+	/**
+	 * Replace the MCP host service used to route MCP traffic.
+	 *
+	 * Production wires the real {@link McpHostServiceImpl} via this setter
+	 * after both the agent service and the proxy factory have been
+	 * constructed (the host service requires the agent service's
+	 * {@link AgentHostStateManager}, so circular construction is avoided
+	 * via setter-injection rather than constructor-injection).
+	 */
+	setMcpHostService(svc: IMcpHostService): void {
+		this._mcpHostService = svc;
+	}
+
 	// ---- provider registration ----------------------------------------------
 
 	registerProvider(provider: IAgent): void {
@@ -186,7 +199,26 @@ export class AgentService extends Disposable implements IAgentService {
 	// ---- auth ---------------------------------------------------------------
 
 	async authenticate(params: AuthenticateParams): Promise<AuthenticateResult> {
-		this._logService.trace(`[AgentService] authenticate called: resource=${params.resource}`);
+		this._logService.trace(`[AgentService] authenticate called: resource=${params.resource}, server=${params.server?.toString() ?? '(agent-level)'}`);
+
+		// Per-server auth path: token is scoped to one MCP server's proxy
+		// only. The host service's token vault is per-handle, so
+		// adversarial servers don't see each others' tokens.
+		if (params.server) {
+			const handle = this._mcpHostService.getServer(params.server);
+			if (!handle) {
+				this._logService.warn(`[AgentService] authenticate: no MCP server registered for ${params.server.toString()}`);
+				return { authenticated: false };
+			}
+			try {
+				const ok = await handle.authenticate(params.resource, params.token);
+				return { authenticated: ok };
+			} catch (err) {
+				this._logService.error(err, `[AgentService] authenticate failed for MCP server ${params.server.toString()}`);
+				return { authenticated: false };
+			}
+		}
+
 		// Multiple providers may share the same protected resource (e.g.
 		// both Copilot CLI and Claude consume the GitHub Copilot token).
 		// Fan out to every matching provider in parallel; the request is

@@ -51,12 +51,14 @@ import { AgentHostClientFileSystemProvider } from '../common/agentHostClientFile
 import { AGENT_CLIENT_SCHEME } from '../common/agentClientUri.js';
 import { AGENT_HOST_CLIENT_RESOURCE_CHANNEL, createAgentHostClientResourceConnection } from '../common/agentHostClientResourceChannel.js';
 import { IAgentPluginManager } from '../common/agentPluginManager.js';
-import { NullMcpHostService } from '../common/mcpHost/nullMcpHostService.js';
 import { IMcpHostService } from '../common/mcpHost/mcpHostService.js';
 import { AgentPluginManager } from './agentPluginManager.js';
 import { AgentHostGitService, IAgentHostGitService } from './agentHostGitService.js';
+import { McpHostServiceImpl } from './mcpHost/mcpHostServiceImpl.js';
+import { McpProxyFactory } from './mcpHost/mcpProxy.js';
 import { registerPendingEditContentProvider } from './copilot/pendingEditContentStore.js';
 import { join } from '../../../base/common/path.js';
+import { NullMcpHostService } from '../common/mcpHost/nullMcpHostService.js';
 
 // Entry point for the agent host utility process.
 // Sets up IPC, logging, and registers agent providers (Copilot).
@@ -99,10 +101,11 @@ function startAgentHost(): void {
 	const sessionDataService = new SessionDataService(URI.file(environmentService.userDataPath), fileService, logService);
 	const rootConfigResource = joinPath(environmentService.appSettingsHome, 'globalStorage', 'agent-host-config.json');
 
-	// Single shared MCP host service. Today this is the null implementation
-	// (no MCP traffic); it is plumbed into both `AgentService` and every
-	// `ProtocolServerHandler` so all surfaces speak to the same host.
-	const mcpHostService = new NullMcpHostService();
+	// Single shared MCP host service backed by the per-server proxy factory.
+	// The host service requires `agentService.stateManager` (constructed inside
+	// `AgentService`) so the real wiring happens via {@link AgentService.setMcpHostService}
+	// once both have been built.
+	let mcpHostService = new NullMcpHostService();
 
 	// Create the real service implementation that lives in this process
 	let agentService: AgentService;
@@ -124,7 +127,11 @@ function startAgentHost(): void {
 		diServices.set(IClaudeProxyService, claudeProxyService);
 		const claudeAgentSdkService = instantiationService.createInstance(ClaudeAgentSdkService);
 		diServices.set(IClaudeAgentSdkService, claudeAgentSdkService);
-		agentService = new AgentService(logService, fileService, sessionDataService, productService, gitService, rootConfigResource, mcpHostService);
+		agentService = new AgentService(logService, fileService, sessionDataService, productService, gitService, rootConfigResource);
+		const proxyFactory = disposables.add(new McpProxyFactory(logService));
+		mcpHostService = disposables.add(new McpHostServiceImpl(agentService.stateManager, proxyFactory, logService));
+		agentService.setMcpHostService(mcpHostService);
+		diServices.set(IMcpHostService, mcpHostService);
 		const pluginManager = new AgentPluginManager(URI.file(environmentService.userDataPath), fileService, logService);
 		diServices.set(IAgentPluginManager, pluginManager);
 		const diffComputeService = disposables.add(new NodeWorkerDiffComputeService(logService));

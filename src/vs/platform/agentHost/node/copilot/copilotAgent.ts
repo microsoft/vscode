@@ -6,19 +6,20 @@
 import { CopilotClient, ResumeSessionConfig, type CopilotClientOptions, type SessionConfig } from '@github/copilot-sdk';
 import { rgPath } from '@vscode/ripgrep';
 import * as fs from 'fs/promises';
-import { Limiter, SequencerByKey } from '../../../../base/common/async.js';
+import { Limiter, raceTimeout, SequencerByKey } from '../../../../base/common/async.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { appendEscapedMarkdownInlineCode } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { FileAccess } from '../../../../base/common/network.js';
 import { equals } from '../../../../base/common/objects.js';
-import { observableValue } from '../../../../base/common/observable.js';
+import { observableValue, waitForState } from '../../../../base/common/observable.js';
 import { basename, delimiter, dirname } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
-import { IParsedPlugin, parsePlugin } from '../../../agentPlugins/common/pluginParsers.js';
+import { IMcpServerDefinition, IParsedPlugin, parsePlugin } from '../../../agentPlugins/common/pluginParsers.js';
 import { IFileService } from '../../../files/common/files.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
@@ -26,8 +27,10 @@ import { AgentHostConfigKey, agentHostCustomizationConfigSchema } from '../../co
 import { AutoApproveLevel, ISchemaProperty, SessionMode, createSchema, platformSessionSchema, schemaProperty } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE, IAgent, IAgentAttachment, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSessionProjectInfo } from '../../common/agentService.js';
+import { IMcpHostService } from '../../common/mcpHost/mcpHostService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ISessionDataService, SESSION_DB_FILENAME } from '../../common/sessionDataService.js';
+import { buildMcpServerUri } from '../../common/state/mcpServerUri.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import { ProtectedResourceMetadata, type ConfigSchema, type ModelSelection, type SessionCustomization, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
@@ -196,6 +199,13 @@ function prependAnnouncementToFirstTurn(
 export class CopilotAgent extends Disposable implements IAgent {
 	readonly id = 'copilotcli' as const;
 	private static readonly _BRANCH_COMPLETION_LIMIT = 25;
+	/**
+	 * How long {@link _resolveMcpServersForSdk} waits for each MCP server's
+	 * proxy endpoint to bind before dropping it from the SDK config. The
+	 * server will be re-attached on the next session refresh once the proxy
+	 * comes online.
+	 */
+	private static readonly _MCP_ENDPOINT_TIMEOUT_MS = 5000;
 
 	private readonly _onDidSessionProgress = this._register(new Emitter<AgentSignal>());
 	readonly onDidSessionProgress = this._onDidSessionProgress.event;
@@ -232,6 +242,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 	readonly onDidCustomizationsChange: Event<void>;
 	/** Per-session active client state for tools + plugin snapshot tracking. */
 	private readonly _activeClients = new ResourceMap<ActiveClient>();
+	/**
+	 * Per-session cache of the most recently published MCP server definitions.
+	 * Lets `_plugins.onDidChange` skip republishing when the resolved set is
+	 * structurally unchanged.
+	 */
+	private readonly _publishedMcpServers = new ResourceMap<readonly IMcpServerDefinition[]>();
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
@@ -241,10 +257,19 @@ export class CopilotAgent extends Disposable implements IAgent {
 		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
 		@IAgentHostTerminalManager private readonly _terminalManager: IAgentHostTerminalManager,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
+		@IMcpHostService private readonly _mcpHostService: IMcpHostService,
 	) {
 		super();
 		this._plugins = this._register(this._instantiationService.createInstance(PluginController));
 		this.onDidCustomizationsChange = this._plugins.onDidChange;
+		// Republish MCP servers for every live session whenever the parsed
+		// plugin set changes. {@link _publishMcpServers} diffs against the
+		// last-published set so unchanged sessions are no-ops.
+		this._register(this._plugins.onDidChange(() => {
+			for (const sessionId of this._sessions.keys()) {
+				this._publishMcpServers(AgentSession.uri(this.id, sessionId));
+			}
+		}));
 	}
 
 	protected _createCopilotClient(options: CopilotClientOptions): CopilotClient {
@@ -781,9 +806,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const customizationDirectory = provisional.workingDirectory;
 		const activeClient = this._activeClients.get(sessionUri);
 		const snapshot = activeClient ? await activeClient.snapshot(customizationDirectory) : undefined;
+		// Publish MCP servers BEFORE building the SDK config so the proxies
+		// have a chance to bind by the time `_buildSessionConfig` resolves
+		// endpoints.
+		this._publishMcpServersForPlugins(sessionUri, snapshot?.plugins ?? []);
 		const workingDirectory = await this._resolveSessionWorkingDirectory(materializedConfig, sessionId);
 		const shellManager = this._instantiationService.createInstance(ShellManager, sessionUri, workingDirectory);
-		const sessionConfigBuilder = this._buildSessionConfig(snapshot, shellManager);
+		const sessionConfigBuilder = this._buildSessionConfig(sessionUri, snapshot, shellManager);
 
 		const factory: SessionWrapperFactory = async callbacks => {
 			const raw = await client.createSession({
@@ -1299,6 +1328,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private async _destroyAndDisposeSession(sessionId: string): Promise<void> {
+		const sessionUri = AgentSession.uri(this.id, sessionId);
+		// Clear MCP servers for this session before tearing down. Idempotent
+		// when the session never had any registered (e.g. provisional sessions
+		// disposed before materialization).
+		this._mcpHostService.setSessionServers(sessionUri, []);
+		this._publishedMcpServers.delete(sessionUri);
+
 		// Provisional sessions have no SDK session, no worktree, and no
 		// on-disk metadata — drop the in-memory record and clean up the
 		// active-client snapshot. The state-manager entry is removed by the
@@ -1328,18 +1364,27 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * Returns an async function that resolves the final config given the
 	 * session's permission/hook callbacks, so it can be called lazily
 	 * inside the {@link SessionWrapperFactory}.
+	 *
+	 * MCP servers are routed through {@link IMcpHostService}'s per-server
+	 * proxies. Servers whose proxy endpoint is not yet bound are skipped
+	 * from the SDK config; once the endpoint becomes available, the next
+	 * customization-change-driven session refresh (via
+	 * {@link ActiveClient.isOutdated}) picks them up. This means the SDK's
+	 * very first connect after materialization may see an empty
+	 * `mcpServers` set.
 	 */
-	private _buildSessionConfig(snapshot: IActiveClientSnapshot | undefined, shellManager: ShellManager): (args: Parameters<SessionWrapperFactory>[0]) => Promise<ResumeSessionConfig> {
+	private _buildSessionConfig(sessionUri: URI, snapshot: IActiveClientSnapshot | undefined, shellManager: ShellManager): (args: Parameters<SessionWrapperFactory>[0]) => Promise<ResumeSessionConfig> {
 		const plugins = snapshot?.plugins ?? [];
 
 		return async (callbacks: Parameters<SessionWrapperFactory>[0]) => {
 			const shellTools = await createShellTools(shellManager, this._terminalManager, this._logService);
 			const customAgents = await toSdkCustomAgents(plugins.flatMap(p => p.agents), this._fileService);
+			const mcpServers = await this._resolveMcpServersForSdk(sessionUri, plugins.flatMap(p => p.mcpServers));
 			return {
 				onPermissionRequest: callbacks.onPermissionRequest,
 				onUserInputRequest: callbacks.onUserInputRequest,
 				hooks: toSdkHooks(plugins.flatMap(p => p.hooks), callbacks.hooks),
-				mcpServers: toSdkMcpServers(plugins.flatMap(p => p.mcpServers)),
+				mcpServers,
 				customAgents,
 				skillDirectories: toSdkSkillDirectories(plugins.flatMap(p => p.skills)),
 				tools: [...shellTools, ...callbacks.clientTools],
@@ -1351,6 +1396,73 @@ export class CopilotAgent extends Disposable implements IAgent {
 				infiniteSessions: { enabled: true },
 			};
 		};
+	}
+
+	/**
+	 * Resolves each MCP server's local proxy endpoint and produces the SDK
+	 * `mcpServers` config. Each handle's endpoint observable is awaited
+	 * briefly (up to {@link CopilotAgent._MCP_ENDPOINT_TIMEOUT_MS}) so the
+	 * very first session connect after {@link _publishMcpServers} doesn't
+	 * race the proxy bind. Servers whose endpoint never binds in time are
+	 * dropped — they will be picked up on the next customization-change
+	 * driven session refresh.
+	 */
+	private async _resolveMcpServersForSdk(sessionUri: URI, defs: readonly IMcpServerDefinition[]): Promise<ReturnType<typeof toSdkMcpServers>> {
+		const resolved = new Map<IMcpServerDefinition, URI>();
+		await Promise.all(defs.map(async def => {
+			const handle = this._mcpHostService.getServer(buildMcpServerUri(sessionUri, def.name));
+			if (!handle) {
+				return;
+			}
+			const current = handle.endpoint.get();
+			if (current) {
+				resolved.set(def, current);
+				return;
+			}
+			try {
+				const endpoint = await raceTimeout(
+					waitForState(handle.endpoint, value => value !== undefined, undefined, CancellationToken.None),
+					CopilotAgent._MCP_ENDPOINT_TIMEOUT_MS,
+				);
+				if (endpoint) {
+					resolved.set(def, endpoint);
+				} else {
+					this._logService.warn(`[Copilot] MCP server '${def.name}' endpoint did not bind within ${CopilotAgent._MCP_ENDPOINT_TIMEOUT_MS}ms; skipping`);
+				}
+			} catch (err) {
+				this._logService.warn(`[Copilot] MCP server '${def.name}' endpoint resolution failed: ${err instanceof Error ? err.message : String(err)}`);
+			}
+		}));
+		return toSdkMcpServers(defs, def => resolved.get(def));
+	}
+
+	/**
+	 * Resolves and publishes the MCP servers for a live session into
+	 * {@link IMcpHostService}. Idempotent: re-publishes only when the
+	 * resolved definition list is structurally different from the last
+	 * published set. Pulls plugins from the live session entry's
+	 * {@link CopilotAgentSession.appliedSnapshot}.
+	 */
+	private _publishMcpServers(session: URI): void {
+		const sessionId = AgentSession.id(session);
+		const entry = this._sessions.get(sessionId);
+		const plugins = entry ? entry.appliedSnapshot.plugins : [];
+		this._publishMcpServersForPlugins(session, plugins);
+	}
+
+	/**
+	 * Same as {@link _publishMcpServers} but takes a plugin list directly,
+	 * for the publish points that fire BEFORE the session entry is in
+	 * {@link _sessions} (materialization + resume).
+	 */
+	private _publishMcpServersForPlugins(session: URI, plugins: readonly IParsedPlugin[]): void {
+		const servers = plugins.flatMap(p => p.mcpServers);
+		const previous = this._publishedMcpServers.get(session);
+		if (previous && equals(previous, servers)) {
+			return;
+		}
+		this._publishedMcpServers.set(session, servers);
+		this._mcpHostService.setSessionServers(session, servers);
 	}
 
 	protected async _resumeSession(sessionId: string): Promise<CopilotAgentSession> {
@@ -1372,7 +1484,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 
 		const shellManager = this._instantiationService.createInstance(ShellManager, sessionUri, workingDirectory);
-		const sessionConfig = this._buildSessionConfig(snapshot, shellManager);
+		// Publish MCP servers BEFORE building the SDK config so proxies have
+		// a chance to bind before `_buildSessionConfig` resolves endpoints.
+		this._publishMcpServersForPlugins(sessionUri, snapshot?.plugins ?? []);
+		const sessionConfig = this._buildSessionConfig(sessionUri, snapshot, shellManager);
 
 		const factory: SessionWrapperFactory = async callbacks => {
 			const config = await sessionConfig(callbacks);
