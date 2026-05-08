@@ -172,7 +172,7 @@ class ChangesButtonBarWidget extends Disposable {
 				{
 					telemetrySource: 'changesView',
 					menuOptions: sessionResource
-						? { args: [sessionResource, agentSessionsService.getSession(sessionResource)?.metadata] }
+						? { arg: sessionResource }
 						: { shouldForwardArgs: true },
 					buttonConfigProvider: (action) => this._getButtonConfiguration(action, outgoingChanges, reviewState, hasGitOperationInProgress, runningLabelObs)
 				},
