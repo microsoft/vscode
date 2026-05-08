@@ -38,6 +38,8 @@ program
 	.command('run <handle> <prompt>')
 	.description('Invoke a specialist for one prompt.')
 	.option('--model <id>', 'Override the default model')
+	.option('--quiet', 'Suppress everything except the final assistant text on stdout')
+	.option('--max-turns <n>', 'Bound the agent loop (advisory until orchestrator runs are exposed via run)')
 	.addOption(outputOption())
 	.action(runSpecialist);
 

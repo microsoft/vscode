@@ -9,6 +9,12 @@ import { buildCliAgentStack } from '../agentStackBuilder';
 import { bootstrapCredentials } from '../auth/bootstrap';
 import { CliCancellation } from '../cancellation';
 import { buildCliHost } from '../cliHost';
+import {
+	classifyError,
+	mergeStdinIntoPrompt,
+	readPipedStdin,
+	SOTA_EXIT_CODES,
+} from '../headless';
 import { makeRenderer } from '../render/renderer';
 
 interface PlanOptions {
@@ -41,8 +47,11 @@ export async function runPlan(prompt: string, opts: PlanOptions): Promise<void> 
 	const auth = await bootstrapCredentials(host);
 	if (!auth.ok) {
 		process.stderr.write(`error: ${auth.message}\n`);
-		process.exit(1);
+		process.exit(SOTA_EXIT_CODES.HARD_FAIL);
 	}
+
+	const piped = await readPipedStdin();
+	const mergedPrompt = mergeStdinIntoPrompt(prompt, piped);
 
 	const renderer = makeRenderer(opts.output);
 	const built = buildCliAgentStack(host);
@@ -52,7 +61,7 @@ export async function runPlan(prompt: string, opts: PlanOptions): Promise<void> 
 
 	try {
 		await built.stack.orchestrator.handleChatRequest(
-			buildRequest(prompt),
+			buildRequest(mergedPrompt),
 			EMPTY_CONTEXT,
 			SILENT_STREAM,
 			cancellation,
@@ -80,7 +89,7 @@ export async function runPlan(prompt: string, opts: PlanOptions): Promise<void> 
 			type: 'error',
 			message: err instanceof Error ? err.message : String(err),
 		});
-		process.exitCode = 1;
+		process.exitCode = classifyError(err);
 	} finally {
 		process.off('SIGINT', onSigint);
 		built.dispose();
