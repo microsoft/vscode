@@ -1093,23 +1093,28 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 			return this._customAgentLookupRebuild;
 		}
 		this._customAgentLookupRebuild = (async () => {
-			const agents = await this._promptsService.getCustomAgents(CancellationToken.None);
 			this._customAgentLookupChanged = false;
+			try {
+				const agents = await this._promptsService.getCustomAgents(CancellationToken.None);
 
-			for (const agent of agents) {
-				if (!agent.enabled || !isEnabledForCopilotCLI(agent)) {
-					continue;
-				}
-				const keys = coalesce([
-					agent.name?.trim(),
-					agent.uri.toString(),
-					getAgentFileNameFromFilePath(agent.uri),
-				]);
+				for (const agent of agents) {
+					if (!agent.enabled || !isEnabledForCopilotCLI(agent)) {
+						continue;
+					}
+					const keys = coalesce([
+						agent.name?.trim(),
+						agent.uri.toString(),
+						getAgentFileNameFromFilePath(agent.uri),
+					]);
 
-				const lazyContent = new Lazy(() => this._promptsService.parseFile(agent.uri, CancellationToken.None).then(parsed => parsed.body?.getContent() ?? ''));
-				for (const key of keys) {
-					this._customAgentLookup.set(key, [agent, lazyContent]);
+					const lazyContent = new Lazy(() => this._promptsService.parseFile(agent.uri, CancellationToken.None).then(parsed => parsed.body?.getContent() ?? ''));
+					for (const key of keys) {
+						this._customAgentLookup.set(key, [agent, lazyContent]);
+					}
 				}
+			} catch (error) {
+				this._customAgentLookupChanged = true;
+				throw error;
 			}
 		})().finally(() => { this._customAgentLookupRebuild = undefined; });
 		return this._customAgentLookupRebuild;
