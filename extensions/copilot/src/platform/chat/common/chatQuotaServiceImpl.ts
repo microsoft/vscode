@@ -14,6 +14,7 @@ export class ChatQuotaService extends Disposable implements IChatQuotaService {
 
 	private _quotaInfo: IChatQuota | undefined;
 	private _rateLimitInfo: { session: IChatQuota | undefined; weekly: IChatQuota | undefined };
+	private readonly _turnCredits = new Map<string, number>();
 
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange = this._onDidChange.event;
@@ -46,6 +47,22 @@ export class ChatQuotaService extends Disposable implements IChatQuotaService {
 			return false;
 		}
 		return this._quotaInfo.additionalUsageEnabled;
+	}
+
+	getCreditsForTurn(turnId: string): number | undefined {
+		return this._turnCredits.get(turnId);
+	}
+
+	setLastCopilotUsage(totalNanoAiu: number, turnId: string): void {
+		// Convert nano-AIUs to AIC credits: 1 AIC = 1_000_000_000 nano-AIU
+		const aic = totalNanoAiu / 1_000_000_000;
+		if (aic > 0) {
+			this._turnCredits.set(turnId, (this._turnCredits.get(turnId) ?? 0) + aic);
+		}
+	}
+
+	resetTurnCredits(turnId: string): void {
+		this._turnCredits.delete(turnId);
 	}
 
 	clearQuota(): void {
@@ -87,7 +104,7 @@ export class ChatQuotaService extends Disposable implements IChatQuotaService {
 				percentRemaining: snapshot.percent_remaining,
 				additionalUsageUsed: snapshot.overage_count,
 				additionalUsageEnabled: snapshot.overage_permitted,
-				resetDate
+				resetDate,
 			};
 			this._onDidChange.fire();
 		} catch (error) {
@@ -122,7 +139,7 @@ export class ChatQuotaService extends Disposable implements IChatQuotaService {
 				percentRemaining,
 				additionalUsageUsed,
 				additionalUsageEnabled,
-				resetDate
+				resetDate,
 			};
 		} catch (error) {
 			console.error('Failed to parse quota header', error);
@@ -134,13 +151,16 @@ export class ChatQuotaService extends Disposable implements IChatQuotaService {
 		if (!quotaInfo || !quotaInfo.quota_snapshots || !quotaInfo.quota_reset_date) {
 			return;
 		}
+		const snapshot = this._authService.copilotToken?.isFreeUser
+			? quotaInfo.quota_snapshots.chat
+			: quotaInfo.quota_snapshots.premium_interactions;
 		this._quotaInfo = {
-			unlimited: quotaInfo.quota_snapshots.premium_interactions.unlimited,
-			additionalUsageEnabled: quotaInfo.quota_snapshots.premium_interactions.overage_permitted,
-			additionalUsageUsed: quotaInfo.quota_snapshots.premium_interactions.overage_count,
-			quota: quotaInfo.quota_snapshots.premium_interactions.entitlement,
+			unlimited: snapshot.unlimited,
+			additionalUsageEnabled: snapshot.overage_permitted,
+			additionalUsageUsed: snapshot.overage_count,
+			quota: snapshot.entitlement,
 			resetDate: new Date(quotaInfo.quota_reset_date),
-			percentRemaining: quotaInfo.quota_snapshots.premium_interactions.percent_remaining,
+			percentRemaining: snapshot.percent_remaining,
 		};
 		this._onDidChange.fire();
 	}

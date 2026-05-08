@@ -15,7 +15,6 @@ import { memoize } from '../../../base/common/decorators.js';
 import { hash } from '../../../base/common/hash.js';
 import * as path from '../../../base/common/path.js';
 import { basename } from '../../../base/common/path.js';
-import { INodeProcess } from '../../../base/common/platform.js';
 import { transform } from '../../../base/common/stream.js';
 import { URI } from '../../../base/common/uri.js';
 import { checksum } from '../../../base/node/crypto.js';
@@ -163,9 +162,11 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 				const versionedResourcesFolder = this.productService.commit.substring(0, 10);
 				const innoUpdater = path.join(exeDir, versionedResourcesFolder, 'tools', 'inno_updater.exe');
 				const exeName = basename(exePath);
-				const siblingExeName = this.productService.win32SiblingExeBasename ? `${this.productService.win32SiblingExeBasename}.exe` : '';
+				// Unblock inno_updater --gc when our context-menu COM surrogate keeps a
+				// handle on the orphan commit folder. See https://github.com/microsoft/vscode/issues/294546.
+				await this.killContextMenuComSurrogate();
 				await new Promise<void>(resolve => {
-					const child = spawn(innoUpdater, ['--gc', exePath, versionedResourcesFolder, exeName, siblingExeName], {
+					const child = spawn(innoUpdater, ['--gc', exePath, versionedResourcesFolder, exeName], {
 						stdio: ['ignore', 'ignore', 'ignore'],
 						windowsHide: true,
 						timeout: 2 * 60 * 1000
@@ -174,6 +175,42 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 				});
 			}
 		}
+	}
+
+	private async killContextMenuComSurrogate(): Promise<void> {
+		const clsid = this.productService.win32ContextMenu?.[process.arch]?.clsid;
+		if (!clsid) {
+			return;
+		}
+
+		const command =
+			`Get-CimInstance Win32_Process -Filter "Name = 'dllhost.exe'" | ` +
+			`Where-Object { $_.CommandLine -like '*/Processid:${clsid}*' } | ` +
+			`ForEach-Object { try { Stop-Process -Id $_.ProcessId -Force -ErrorAction Stop } catch {} }`;
+
+		await new Promise<void>(resolve => {
+			try {
+				spawn('powershell.exe', [
+					'-NoLogo', '-NoProfile', '-NonInteractive',
+					'-WindowStyle', 'Hidden',
+					'-ExecutionPolicy', 'Bypass',
+					'-Command', command
+				], {
+					stdio: ['ignore', 'ignore', 'ignore'],
+					windowsHide: true,
+					timeout: 5 * 1000
+				}).once('exit', code => {
+					this.logService.info(`update#killContextMenuComSurrogate: powershell exited with code ${code}`);
+					resolve();
+				}).once('error', err => {
+					this.logService.warn(`update#killContextMenuComSurrogate: failed to spawn powershell: ${err}`);
+					resolve();
+				});
+			} catch (err) {
+				this.logService.warn(`update#killContextMenuComSurrogate: spawn threw: ${err}`);
+				resolve();
+			}
+		});
 	}
 
 	protected buildUpdateFeedUrl(quality: string, commit: string, options?: IUpdateURLOptions): string | undefined {
@@ -382,13 +419,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 			this.setState(State.Idle(getUpdateType()));
 		});
 
-		// The InnoSetup installer creates the -ready mutex using the host app's
-		// mutex name ({#AppMutex}). When running as the embedded app, use
-		// win32SetupMutexName (the host's mutex) to find the correct signal.
-		const setupMutexName = (process as INodeProcess).isEmbeddedApp
-			? this.productService.win32SetupMutexName
-			: this.productService.win32MutexName;
-		const readyMutexName = `${setupMutexName}-ready`;
+		const readyMutexName = `${this.productService.win32MutexName}-ready`;
 		const mutex = await import('@vscode/windows-mutex');
 
 		this.updateCancellationTokenSource?.dispose(true);

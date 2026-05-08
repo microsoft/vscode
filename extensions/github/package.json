@@ -183,7 +183,7 @@
           "when": "github.hasGitHubRepo && timelineItem =~ /git:file:commit\\b/"
         }
       ],
-      "chat/input/editing/sessionApplyActions": []
+      "agents/changes/actions/primary": []
     },
     "configuration": [
       {

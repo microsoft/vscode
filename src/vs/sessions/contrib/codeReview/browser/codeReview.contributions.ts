@@ -47,7 +47,7 @@ function registerSessionCodeReviewAction(tooltip: string, icon: ThemeIcon): Disp
 					canRunSessionCodeReviewContextKey),
 				menu: [
 					{
-						id: MenuId.ChatEditingSessionChangesToolbar,
+						id: MenuId.AgentsChangesToolbar,
 						group: 'navigation',
 						order: 7,
 						when: ContextKeyExpr.and(

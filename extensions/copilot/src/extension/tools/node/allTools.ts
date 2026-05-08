@@ -14,7 +14,6 @@ import './findTestsFilesTool';
 import './findTextInFilesTool';
 import './getErrorsTool';
 import './getNotebookCellOutputTool';
-import './getSearchViewResultsTool';
 import './githubRepoSemanticSearchTool.tsx';
 import './githubTextSearchTool';
 import './insertEditTool';

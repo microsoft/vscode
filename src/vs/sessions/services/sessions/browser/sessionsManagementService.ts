@@ -127,12 +127,15 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 	private onDidReplaceSession(from: ISession, to: ISession): void {
 		if (this._activeSession.get()?.sessionId === from.sessionId) {
 			this.setActiveSession(to);
-			this._onDidChangeSessions.fire({
-				added: [],
-				removed: from.sessionId === to.sessionId ? [] : [from],
-				changed: [to],
-			});
 		}
+		// Always fire the change event so the SessionsList refreshes even when
+		// the user navigated to a different session while the new one was
+		// being created (which is how duplicate rows appeared in the list).
+		this._onDidChangeSessions.fire({
+			added: [],
+			removed: from.sessionId === to.sessionId ? [] : [from],
+			changed: [to],
+		});
 	}
 
 	private onDidChangeSessionsFromSessionsProviders(e: ISessionChangeEvent): void {

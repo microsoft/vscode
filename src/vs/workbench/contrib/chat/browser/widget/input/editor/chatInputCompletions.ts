@@ -53,7 +53,7 @@ import { IChatRequestVariableEntry } from '../../../../common/attachments/chatVa
 import { IDynamicVariable } from '../../../../common/attachments/chatVariables.js';
 import { ChatAgentLocation, ChatModeKind, isSupportedChatFileScheme } from '../../../../common/constants.js';
 import { isToolSet } from '../../../../common/tools/languageModelToolsService.js';
-import { IChatSessionsService } from '../../../../common/chatSessionsService.js';
+import { IChatSessionsService, isAgentHostTarget } from '../../../../common/chatSessionsService.js';
 import { ICustomizationHarnessService } from '../../../../common/customizationHarnessService.js';
 import { matchesSessionType } from '../../../../common/promptSyntax/service/promptsService.js';
 import { ChatSubmitAction, IChatExecuteActionContext } from '../../../actions/chatExecuteActions.js';
@@ -75,6 +75,17 @@ const SlashCommandWord = /\/[\p{L}0-9_.:-]*/gu;
  * Regex matching an agent-or-slash command word (e.g. `@agent` or `/cmd`).
  */
 const AgentOrSlashCommandWord = /(@|\/)[\p{L}0-9_.:-]*/gu;
+
+/**
+ * Returns `true` when the widget's chat session is backed by an agent
+ * host (local or remote). For these sessions, completions are delegated
+ * to the agent host via `AgentHostInputCompletions`, and the workbench's
+ * default in-process providers (file/symbol/tool/agent) short-circuit.
+ */
+function isAgentHostBackedWidget(widget: IChatWidget): boolean {
+	const sessionResource = widget.viewModel?.model.sessionResource;
+	return !!sessionResource && isAgentHostTarget(getChatSessionType(sessionResource));
+}
 
 class SlashCommandCompletions extends Disposable {
 	constructor(
@@ -336,6 +347,10 @@ class AgentCompletions extends Disposable {
 					return;
 				}
 
+				if (isAgentHostBackedWidget(widget)) {
+					return;
+				}
+
 				const range = computeCompletionRanges(model, position, SlashCommandWord);
 				if (!range) {
 					return;
@@ -370,6 +385,10 @@ class AgentCompletions extends Disposable {
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
 				const viewModel = widget?.viewModel;
 				if (!widget || !viewModel) {
+					return;
+				}
+
+				if (isAgentHostBackedWidget(widget)) {
 					return;
 				}
 
@@ -473,6 +492,10 @@ class AgentCompletions extends Disposable {
 					return;
 				}
 
+				if (isAgentHostBackedWidget(widget)) {
+					return;
+				}
+
 				if (widget.lockedAgentId) {
 					return null;
 				}
@@ -537,6 +560,10 @@ class AgentCompletions extends Disposable {
 
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
 				if (widget?.location !== ChatAgentLocation.Chat || widget.input.currentModeKind !== ChatModeKind.Ask) {
+					return;
+				}
+
+				if (isAgentHostBackedWidget(widget)) {
 					return;
 				}
 
@@ -1051,6 +1078,12 @@ class BuiltinDynamicCompletions extends Disposable {
 					return;
 				}
 
+				if (isAgentHostBackedWidget(widget)) {
+					// Agent-host sessions delegate completions to the host
+					// process via `AgentHostInputCompletions`.
+					return;
+				}
+
 				const range = computeCompletionRanges(model, position, wordPattern, true);
 				if (range) {
 					return provider({ model, position, widget, range, context }, token);
@@ -1259,6 +1292,12 @@ class ToolCompletions extends Disposable {
 			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, _token: CancellationToken) => {
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
 				if (!widget) {
+					return null;
+				}
+
+				if (isAgentHostBackedWidget(widget)) {
+					// Agent-host sessions delegate completions to the host
+					// process via `AgentHostInputCompletions`.
 					return null;
 				}
 

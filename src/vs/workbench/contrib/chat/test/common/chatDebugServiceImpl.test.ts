@@ -105,6 +105,7 @@ suite('ChatDebugServiceImpl', () => {
 				inputTokens: 100,
 				outputTokens: 50,
 				totalTokens: 150,
+				copilotUsageNanoAiu: 5_000_000_000,
 				durationInMillis: 1200,
 			};
 
@@ -115,6 +116,7 @@ suite('ChatDebugServiceImpl', () => {
 			assert.strictEqual(events.length, 2);
 			assert.strictEqual(events[0].kind, 'toolCall');
 			assert.strictEqual(events[1].kind, 'modelTurn');
+			assert.strictEqual((events[1] as IChatDebugModelTurnEvent).copilotUsageNanoAiu, 5_000_000_000);
 		});
 	});
 

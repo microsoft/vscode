@@ -154,7 +154,7 @@ class ExtHostWorkspaceImpl extends Workspace {
 		});
 	}
 
-	get name(): string {
+	override get name(): string {
 		return this._name;
 	}
 

@@ -30,6 +30,9 @@ import { CodeWindow, mainWindow } from '../../../base/browser/window.js';
 import { safeIntl } from '../../../base/common/date.js';
 import { ITitlebarPart, ITitleProperties, ITitleVariable, IAuxiliaryTitlebarPart } from '../../../workbench/browser/parts/titlebar/titlebarPart.js';
 import { Menus } from '../menus.js';
+import { IsNewChatSessionContext } from '../../common/contextkeys.js';
+
+const commandCenterContextKeys = new Set([IsNewChatSessionContext.key]);
 
 /**
  * Simplified agent sessions titlebar part.
@@ -213,11 +216,16 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 		// Uses .window-title > .command-center nesting to match default workbench CSS selectors
 		const windowTitle = append(this.centerContent, $('div.window-title'));
 		const centerToolbarContainer = append(windowTitle, $('div.command-center'));
-		this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, centerToolbarContainer, Menus.CommandCenter, {
+		const centerToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, centerToolbarContainer, Menus.CommandCenter, {
 			contextMenu: Menus.TitleBarContext,
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			telemetrySource: 'commandCenter',
 			toolbarOptions: { primaryGroup: () => true },
+		}));
+		this._register(this.contextKeyService.onDidChangeContext(e => {
+			if (e.affectsSome(commandCenterContextKeys)) {
+				centerToolbar.refresh();
+			}
 		}));
 
 		// Right toolbar (driven by Menus.TitleBarRightLayout - includes layout actions)

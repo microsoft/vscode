@@ -40,9 +40,10 @@ export class OpenInVSCodeTitleBarWidget extends BaseActionViewItem {
 			container.setAttribute('data-product-quality', quality);
 		}
 
-		const label = this.action.label || localize('openInVSCodeLabel', "Open in VS Code");
-		container.setAttribute('aria-label', label);
-		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), container, label));
+		const label = this.action.label;
+		const hoverText = localize('openInVSCodeHover', "Open in VS Code Editor Window");
+		container.setAttribute('aria-label', hoverText);
+		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), container, hoverText));
 
 		const icon = append(container, $('span.open-in-vscode-titlebar-widget-icon'));
 		icon.setAttribute('aria-hidden', 'true');

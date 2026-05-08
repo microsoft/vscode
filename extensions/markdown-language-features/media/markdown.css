@@ -80,6 +80,20 @@ body.showEditorSelection .code-line {
 	outline: 1px solid var(--vscode-diffEditor-removedTextBorder);
 }
 
+::highlight(diff-inner-added) {
+	background-color: var(--vscode-diffEditor-insertedTextBackground);
+}
+
+::highlight(diff-inner-deleted) {
+	background-color: var(--vscode-diffEditor-removedTextBackground);
+}
+
+/* Hide the empty marker spans so they don't affect layout */
+[data-diff-start],
+[data-diff-end] {
+	display: contents;
+}
+
 body.showEditorSelection :not(tr,ul,ol).code-active-line:before,
 body.showEditorSelection :not(tr,ul,ol).code-line:hover:before {
 	content: "";

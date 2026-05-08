@@ -2048,15 +2048,76 @@ export class DragAndDropObserver extends Disposable {
 }
 
 /**
- * A wrapper around ResizeObserver that is disposable.
+ * A wrapper around `ResizeObserver` that is disposable.
+ *
+ * Behavior is intentionally identical to using `new ResizeObserver(callback)`
+ * directly: the user-supplied callback runs synchronously inside the
+ * browser's resize-observation phase, with the entries the browser delivered.
+ * The wrapper adds three things on top:
+ *
+ * 1. Lifetime management: `dispose()` disconnects the underlying observer.
+ * 2. Auxiliary-window support: pass `targetWindow` so the observer is
+ *    constructed in the realm of the element being observed.
+ * 3. Attribution for the
+ *    `ResizeObserver loop completed with undelivered notifications` warning:
+ *    each instance carries a stable `name`, and just before invoking the
+ *    user callback we publish that name to a module-level slot. The warning
+ *    is delivered as a stackless `ErrorEvent` on `window` after callbacks
+ *    run, so error telemetry can swap in the most-recently-invoked
+ *    observer's name to pinpoint the offending consumer (see
+ *    {@link getRecentDisposableResizeObserverAttributionForLoopError}).
+ *
+ * @param name Stable identifier used in attribution. Prefer something that
+ * survives minification and refactors (e.g. the consumer class + purpose)
+ * since callstacks change across releases.
+ * @param callback Invoked synchronously when the browser delivers resize
+ * notifications, with the same entries the native `ResizeObserver` would
+ * have delivered.
+ * @param targetWindow The window whose `ResizeObserver` constructor should
+ * be used. Defaults to `mainWindow`. Pass the containing window when
+ * creating an observer for elements that live in an auxiliary window.
+ * @param options Optional configuration. `resizeObserverCtor` is a test
+ * seam that defaults to `targetWindow.ResizeObserver`.
  */
 export class DisposableResizeObserver extends Disposable {
 
 	private readonly observer: ResizeObserver;
+	readonly name: string;
 
-	constructor(callback: ResizeObserverCallback) {
+	constructor(
+		name: string,
+		callback: ResizeObserverCallback,
+		targetWindow: CodeWindow = mainWindow,
+		options?: { resizeObserverCtor?: typeof ResizeObserver },
+	) {
 		super();
-		this.observer = new ResizeObserver(callback);
+		this.name = name;
+		const ctor = options?.resizeObserverCtor ?? targetWindow.ResizeObserver;
+		this.observer = new ctor((entries: ResizeObserverEntry[], observer) => {
+			_lastInvokedDisposableResizeObserver = this;
+			// Clear via a 0-ms timer (a new macrotask) rather than a
+			// microtask: microtask checkpoints run at the end of every
+			// script, i.e. after each ResizeObserver callback returns, but
+			// Chromium dispatches the synthetic `ResizeObserver loop
+			// completed with undelivered notifications` error *after* all
+			// callbacks in the observation phase finish. A microtask would
+			// clear the slot before the warning fires; a setTimeout(0)
+			// runs after the entire current task completes (callbacks +
+			// loop-error dispatch), so attribution survives long enough to
+			// be picked up by `window.onerror` while still being scoped to
+			// the same task that produced it. The equality check ensures
+			// only the *last* writer in a phase actually clears the slot.
+			setTimeout(() => {
+				if (_lastInvokedDisposableResizeObserver === this) {
+					_lastInvokedDisposableResizeObserver = undefined;
+				}
+			}, 0);
+			try {
+				callback(entries, observer);
+			} catch (e) {
+				onUnexpectedError(e);
+			}
+		});
 		this._register(toDisposable(() => this.observer.disconnect()));
 	}
 
@@ -2064,6 +2125,35 @@ export class DisposableResizeObserver extends Disposable {
 		this.observer.observe(target, options);
 		return toDisposable(() => this.observer.unobserve(target));
 	}
+}
+
+/**
+ * The most recently invoked `DisposableResizeObserver`. Set just before each
+ * user callback runs and cleared by a 0-ms timer scheduled in the same step,
+ * so the slot only carries an attribution within the same task as the
+ * `ResizeObserver loop completed with undelivered notifications` warning
+ * (which fires synchronously at the end of the resize-observation phase).
+ * A microtask would be too eager — microtask checkpoints run between each
+ * callback, before the loop-error dispatch.
+ */
+let _lastInvokedDisposableResizeObserver: DisposableResizeObserver | undefined;
+
+/**
+ * If `message` looks like the ResizeObserver loop warning, return an
+ * attribution string built from the most recently invoked
+ * `DisposableResizeObserver` so error telemetry can replace its synthetic,
+ * stackless callstack with the offending observer's `name`. Returns
+ * `undefined` for unrelated messages or when no observer has fired yet.
+ */
+export function getRecentDisposableResizeObserverAttributionForLoopError(message: string | undefined | null): string | undefined {
+	if (typeof message !== 'string' || !message.includes('ResizeObserver loop')) {
+		return undefined;
+	}
+	const observer = _lastInvokedDisposableResizeObserver;
+	if (!observer) {
+		return undefined;
+	}
+	return `[DisposableResizeObserver(${observer.name})] ${message}`;
 }
 
 type HTMLElementAttributeKeys<T> = Partial<{ [K in keyof T]: T[K] extends Function ? never : T[K] extends object ? HTMLElementAttributeKeys<T[K]> : T[K] }>;

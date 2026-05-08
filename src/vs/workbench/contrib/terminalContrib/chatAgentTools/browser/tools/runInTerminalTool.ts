@@ -10,7 +10,7 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { escapeMarkdownSyntaxTokens, MarkdownString, type IMarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { getMediaMime } from '../../../../../../base/common/mime.js';
 import { basename, posix, win32 } from '../../../../../../base/common/path.js';
@@ -1084,6 +1084,120 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			: new MarkdownString(localize('runInTerminal.unsandboxed.autoRetry', "Run `{0}` command outside the sandbox?", shellType));
 	}
 
+	/**
+	 * Surface a confirmation dialog when the terminal is detected to be waiting
+	 * for sensitive input (password, passphrase, OTP, …). Sensitive prompts must
+	 * never be routed through the model — the user types the secret directly
+	 * into the terminal. The "Focus terminal" action reveals and focuses the
+	 * terminal; the "Cancel" action cancels the running command.
+	 *
+	 * Returns a disposable that hides any pending elicitation. The handler
+	 * itself dedupes concurrent elicitations so repeated polling cycles don't
+	 * spam the chat session.
+	 */
+	private _registerSensitiveInputElicitation(
+		chatSessionResource: URI | undefined,
+		terminalInstance: ITerminalInstance,
+		outputMonitor: { onDidDetectSensitiveInputNeeded: Event<void> },
+		cancelExecution: () => void,
+		onAutoCancelled?: () => void,
+	): IDisposable {
+		const store = new DisposableStore();
+		let pending: { hide: () => void } | undefined;
+		let autoCancelled = false;
+
+		store.add(outputMonitor.onDidDetectSensitiveInputNeeded(() => {
+			if (pending || autoCancelled) {
+				return;
+			}
+			const isAutoApproved = chatSessionResource && isSessionAutoApproveLevel(chatSessionResource, this._configurationService, this._chatWidgetService, this._chatService);
+			const chatModel = chatSessionResource && this._chatService.getSession(chatSessionResource);
+			if (isAutoApproved) {
+				// Autopilot / auto-approve: no human is in the loop to type the
+				// secret, and the terminal can't reliably be focused after the
+				// tool returns. Cancel the command and let the caller emit a
+				// steering note that tells the agent the user is unavailable.
+				// We also surface a small dismiss-only chat part so the user
+				// can see what happened even if the agent doesn't follow up
+				// with a message of its own.
+				autoCancelled = true;
+				if (chatModel instanceof ChatModel) {
+					const request = chatModel.getRequests().at(-1);
+					if (request) {
+						const infoPart = new ChatElicitationRequestPart(
+							new MarkdownString(localize('runInTerminal.sensitiveInput.autoCancelTitle', "Terminal command cancelled — sensitive input required")),
+							new MarkdownString(localize('runInTerminal.sensitiveInput.autoCancelMessage', "The terminal command was prompting for a password or other secret. Auto-approve / autopilot mode cannot safely supply secrets, so the command was cancelled. Run the command interactively if you want to provide the secret.")),
+							'',
+							localize('runInTerminal.sensitiveInput.dismiss', "Dismiss"),
+							'',
+							async () => { infoPart.hide(); return ElicitationState.Accepted; },
+							async () => { infoPart.hide(); return ElicitationState.Rejected; },
+							undefined,
+							undefined,
+							undefined,
+							undefined,
+						);
+						chatModel.acceptResponseProgress(request, infoPart);
+					}
+				}
+				onAutoCancelled?.();
+				cancelExecution();
+				return;
+			}
+			if (!(chatModel instanceof ChatModel)) {
+				// No chat surface to attach to — fall back to focusing the
+				// terminal directly so the user is at least not left blocked.
+				this._terminalService.setActiveInstance(terminalInstance);
+				this._terminalService.revealTerminal(terminalInstance, true).catch(() => { });
+				terminalInstance.focus();
+				return;
+			}
+			const request = chatModel.getRequests().at(-1);
+			if (!request) {
+				return;
+			}
+
+			const part = new ChatElicitationRequestPart(
+				new MarkdownString(localize('runInTerminal.sensitiveInput.title', "Terminal is waiting for sensitive input")),
+				new MarkdownString(localize('runInTerminal.sensitiveInput.message', "The terminal command appears to be prompting for a password or other sensitive value. Focus the terminal to type it directly — secrets must not be sent through chat.")),
+				'',
+				localize('runInTerminal.sensitiveInput.focus', "Focus Terminal"),
+				localize('runInTerminal.sensitiveInput.cancel', "Cancel Command"),
+				async () => {
+					pending = undefined;
+					part.hide();
+					try {
+						this._terminalService.setActiveInstance(terminalInstance);
+						await this._terminalService.revealTerminal(terminalInstance, true);
+						terminalInstance.focus();
+					} catch (err) {
+						this._logService.warn(`RunInTerminalTool: failed to reveal terminal for sensitive input`, err);
+					}
+					return ElicitationState.Accepted;
+				},
+				async () => {
+					pending = undefined;
+					part.hide();
+					cancelExecution();
+					return ElicitationState.Rejected;
+				},
+				undefined,
+				undefined,
+				() => { pending = undefined; },
+				undefined,
+			);
+
+			pending = part;
+			chatModel.acceptResponseProgress(request, part);
+			// Intentionally do NOT register a disposable that hides the part on store
+			// dispose: the elicitation must persist past the tool call returning so the
+			// user can still focus the terminal (and type their secret) after the
+			// agent has surrendered its turn. The part hides itself on accept/reject.
+		}));
+
+		return store;
+	}
+
 	private _acceptAutomaticUnsandboxRetryToolInvocationUpdate(sessionResource: URI | undefined, toolCallId: string, toolSpecificData: IChatTerminalToolInvocationData, isComplete: boolean, toolResultMessage?: string | IMarkdownString): void {
 		const chatModel = sessionResource && this._chatService.getSession(sessionResource);
 		if (!(chatModel instanceof ChatModel)) {
@@ -1271,6 +1385,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		let altBufferResult: IToolResult | undefined;
 		let didTimeout = false;
 		let didInputNeeded = false;
+		let didSensitiveAutoCancelled = false;
 		// Covers both terminals that start as background (persistentSession) and
 		// foreground terminals that later move to background (timeout/continue-in-bg).
 		let isBackgroundExecution = executionOptions.persistentSession;
@@ -1434,6 +1549,30 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				// Also race on output monitor input-needed so that interactive prompts
 				// return output to the agent early instead of waiting for timeout.
 				const raceCleanup = new DisposableStore();
+				// Sensitive prompts (passwords, OTPs, …) must never reach the model.
+				// Show a confirmation dialog that focuses the terminal so the user
+				// types the secret directly. The race is *not* resolved by sensitive
+				// prompts — the running command keeps waiting for user input until
+				// either it completes (executionPromise wins) or the user cancels
+				// it from the dialog (which cancels execution and also makes
+				// executionPromise resolve). This means we never hand a secret
+				// prompt back to the model; the user is always in control.
+				//
+				// outputMonitor is created later inside `onDidCreateStartMarker`,
+				// so we must wait on `startMarkerPromise` before registering the
+				// listener — otherwise outputMonitor is still undefined here and
+				// the sensitive event never reaches us.
+				startMarkerPromise.then(() => {
+					if (outputMonitor && !raceCleanup.isDisposed) {
+						raceCleanup.add(this._registerSensitiveInputElicitation(
+							chatSessionResource,
+							toolTerminal.instance,
+							outputMonitor,
+							() => executeCancellation.cancel(),
+							() => { didSensitiveAutoCancelled = true; },
+						));
+					}
+				});
 				const raceCandidates: Promise<{ type: 'completed'; result: ITerminalExecuteStrategyResult } | { type: 'background' } | { type: 'timeout' } | { type: 'inputNeeded' }>[] = [
 					executionPromise.then(result => ({ type: 'completed' as const, result })),
 					continueInBackgroundPromise.then(() => ({ type: 'background' as const })),
@@ -1731,7 +1870,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				resultText.push(`Note: This terminal execution was moved to the background using the ID ${termId}\n`);
 			}
 		}
-		if (didInputNeeded) {
+		if (didSensitiveAutoCancelled) {
+			resultText.push(`Note: The command in terminal ID ${termId} was prompting for a password, passphrase, or other secret. The user is unavailable (auto-approve / autopilot mode is on, so no human can focus the terminal to type a secret) and the command has been cancelled. Stop, do NOT retry the command, do NOT call ${TerminalToolId.SendToTerminal}, and do NOT call vscode_askQuestions for the secret. Tell the user to run the command interactively when they are available.\n\n`);
+		} else if (didInputNeeded) {
 			resultText.push(`Note: The command is running in terminal ID ${termId} and may be waiting for input.\n${this._buildInputNeededSteeringText(chatSessionResource, termId, /*mentionTimeout*/ false)}\n\n`);
 		} else if (didTimeout && timeoutValue !== undefined && timeoutValue > 0) {
 			const notificationHint = shouldSendNotifications
@@ -2258,6 +2399,20 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			}));
 			store.add(outputMonitor);
 			outputMonitor.continueMonitoringAsync(bgCts.token);
+
+			// Sensitive prompts (passwords, OTPs, …) detected while the command runs
+			// in the background must not generate a steering message — the secret
+			// must never reach the model. Show a confirmation dialog that focuses
+			// the terminal so the user can type the secret directly.
+			store.add(this._registerSensitiveInputElicitation(
+				chatSessionResource,
+				terminalInstance,
+				outputMonitor,
+				() => {
+					const execution = RunInTerminalTool._activeExecutions.get(termId);
+					execution?.dispose();
+				},
+			));
 
 			// When the output monitor detects the terminal is waiting for input,
 			// send a steering message so the agent handles it via send_to_terminal.

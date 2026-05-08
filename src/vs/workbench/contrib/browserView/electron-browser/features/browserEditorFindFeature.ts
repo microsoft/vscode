@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize, localize2 } from '../../../../../nls.js';
-import { $, getWindow } from '../../../../../base/browser/dom.js';
+import { $, DisposableResizeObserver, getWindow } from '../../../../../base/browser/dom.js';
 import { IContextKey, IContextKeyService, ContextKeyExpr, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { Action2, registerAction2, MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -71,15 +71,14 @@ class BrowserFindWidget extends SimpleFindWidget {
 		container.appendChild(domNode);
 
 		let lastHeight = domNode.offsetHeight;
-		const resizeObserver = new (getWindow(container).ResizeObserver)(() => {
+		const resizeObserver = this._register(new DisposableResizeObserver('BrowserEditorFindFeature.heightChange', () => {
 			const newHeight = domNode.offsetHeight;
 			if (newHeight !== lastHeight) {
 				lastHeight = newHeight;
 				this._onDidChangeHeight.fire();
 			}
-		});
-		resizeObserver.observe(domNode);
-		this._register(toDisposable(() => resizeObserver.disconnect()));
+		}, getWindow(container)));
+		this._register(resizeObserver.observe(domNode));
 	}
 
 	/**

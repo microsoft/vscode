@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as l10n from '@vscode/l10n';
 import type * as vscode from 'vscode';
 import { ILogService } from '../../../platform/log/common/logService';
 import { IChatSessionMetadataStore } from '../common/chatSessionMetadataStore';
@@ -17,7 +18,7 @@ export interface CopilotCLIModelDetails {
 /**
  * Builds the chat result details for the model that produced the latest CLI response.
  */
-export async function getCopilotCLIModelDetails(session: ICopilotCLISession, requestModel: { model: string; reasoningEffort?: string } | undefined, copilotCLIModels: ICopilotCLIModels, logService: ILogService, enabled: boolean): Promise<CopilotCLIModelDetails> {
+export async function getCopilotCLIModelDetails(session: ICopilotCLISession, requestModel: { model: string; reasoningEffort?: string } | undefined, copilotCLIModels: ICopilotCLIModels, logService: ILogService, enabled: boolean, creditsUsed?: number): Promise<CopilotCLIModelDetails> {
 	if (!enabled) {
 		return { result: {}, responseModelId: undefined };
 	}
@@ -35,8 +36,18 @@ export async function getCopilotCLIModelDetails(session: ICopilotCLISession, req
 		.map(modelId => modelId ? models.find(model => matchesCopilotCLIModel(model, modelId)) : undefined)
 		.find(modelInfo => !!modelInfo);
 
+	let details: string | undefined;
+	if (modelInfo && creditsUsed !== undefined) {
+		const formatted = creditsUsed % 1 === 0 ? creditsUsed.toString() : creditsUsed.toFixed(1);
+		details = creditsUsed === 1
+			? l10n.t('{0} \u2022 {1} credit', modelInfo.name, formatted)
+			: l10n.t('{0} \u2022 {1} credits', modelInfo.name, formatted);
+	} else if (modelInfo) {
+		details = formatModelDetails(modelInfo);
+	}
+
 	return {
-		result: modelInfo ? { details: formatModelDetails(modelInfo) } : {},
+		result: details ? { details } : {},
 		responseModelId,
 	};
 }

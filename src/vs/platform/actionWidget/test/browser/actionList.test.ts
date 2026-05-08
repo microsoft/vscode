@@ -25,24 +25,35 @@ function action(id: string): IActionListItem<ITestActionItem> {
 	return { kind: ActionListItemKind.Action, label: id, item: { id } };
 }
 
+function separator(label?: string): IActionListItem<ITestActionItem> {
+	return { kind: ActionListItemKind.Separator, label };
+}
+
 function createActionListWidget(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, options: {
-	readonly onFilter: (filter: string, cancellationToken: CancellationToken) => Promise<readonly IActionListItem<ITestActionItem>[]>;
+	readonly items?: readonly IActionListItem<ITestActionItem>[];
+	readonly onFilter?: (filter: string, cancellationToken: CancellationToken) => Promise<readonly IActionListItem<ITestActionItem>[]>;
 }): ActionListWidget<ITestActionItem> {
 	const instantiationService = disposables.add(new TestInstantiationService());
 	instantiationService.set(IKeybindingService, new MockKeybindingService());
 	instantiationService.set(IHoverService, NullHoverService);
 	instantiationService.set(IOpenerService, NullOpenerService);
+	const delegate = options.onFilter
+		? {
+			onHide: () => { },
+			onSelect: () => { },
+			onFilter: options.onFilter,
+		}
+		: {
+			onHide: () => { },
+			onSelect: () => { },
+		};
 
 	const widget = disposables.add(instantiationService.createInstance(
 		ActionListWidget<ITestActionItem>,
 		'testActionList',
 		false,
-		[action('initial')],
-		{
-			onHide: () => { },
-			onSelect: () => { },
-			onFilter: options.onFilter,
-		},
+		options.items ?? [action('initial')],
+		delegate,
 		undefined,
 		{ showFilter: true },
 	));
@@ -62,6 +73,12 @@ function typeFilter(widget: ActionListWidget<ITestActionItem>, value: string): v
 	assert.ok(widget.filterInput);
 	widget.filterInput.value = value;
 	widget.filterInput.dispatchEvent(new Event('input'));
+}
+
+function getVisibleRowText(widget: ActionListWidget<ITestActionItem>): string[] {
+	return Array.from(widget.domNode.querySelectorAll<HTMLElement>('.monaco-list-row'))
+		.map(row => row.textContent ?? '')
+		.filter(text => text.length > 0);
 }
 
 suite('ActionListWidget', () => {
@@ -105,5 +122,37 @@ suite('ActionListWidget', () => {
 		secondResult.complete([action('ma-fresh-result')]);
 		await timeout(0);
 		assert.ok(widget.domNode.textContent?.includes('ma-fresh-result'));
+	});
+
+	test('keeps titled separator above first filtered match', () => {
+		const widget = createActionListWidget(disposables, {
+			items: [
+				separator('Provider A'),
+				action('alpha'),
+				separator('Provider B'),
+				action('beta'),
+			],
+		});
+
+		typeFilter(widget, 'alpha');
+
+		assert.deepStrictEqual(getVisibleRowText(widget), ['Provider A', 'alpha']);
+	});
+
+	test('keeps only titled separators for sections with filtered matches', () => {
+		const widget = createActionListWidget(disposables, {
+			items: [
+				separator('Provider A'),
+				action('alpha'),
+				separator('Provider B'),
+				action('beta'),
+				separator('Provider C'),
+				action('gamma'),
+			],
+		});
+
+		typeFilter(widget, 'beta');
+
+		assert.deepStrictEqual(getVisibleRowText(widget), ['Provider B', 'beta']);
 	});
 });

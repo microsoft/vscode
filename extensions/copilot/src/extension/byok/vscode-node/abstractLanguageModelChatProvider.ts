@@ -12,8 +12,9 @@ import { IExperimentationService } from '../../../platform/telemetry/common/null
 import { IStringDictionary } from '../../../util/vs/base/common/collections';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { CopilotLanguageModelWrapper } from '../../conversation/vscode-node/languageModelAccess';
-import { BYOKAuthType, BYOKKnownModels, byokKnownModelsToAPIInfo, BYOKModelCapabilities, resolveModelInfo } from '../common/byokProvider';
+import { BYOKAuthType, BYOKKnownModels, BYOKModelCapabilities, resolveModelInfo } from '../common/byokProvider';
 import { OpenAIEndpoint } from '../node/openAIEndpoint';
+import { byokKnownModelsToAPIInfoWithEffort } from './byokModelInfo';
 import { IBYOKStorageService } from './byokStorageService';
 
 export interface LanguageModelChatConfiguration {
@@ -105,7 +106,7 @@ export abstract class AbstractOpenAICompatibleLMProvider<T extends LanguageModel
 		const modelsUrl = this.getModelsBaseUrl(configuration);
 		if (modelsUrl) {
 			const models = await this.getModelsFromEndpoint(modelsUrl, silent, apiKey);
-			return byokKnownModelsToAPIInfo(this._name, models).map(model => ({
+			return byokKnownModelsToAPIInfoWithEffort(this._name, models).map(model => ({
 				...model,
 				url: modelsUrl
 			}));

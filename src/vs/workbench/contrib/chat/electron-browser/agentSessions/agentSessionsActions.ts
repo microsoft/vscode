@@ -31,7 +31,7 @@ export class OpenWorkspaceInAgentsWindowAction extends Action2 {
 	constructor() {
 		super({
 			id: OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID,
-			title: localize2('openWorkspaceInAgentsWindow', "Open in Agents Window"),
+			title: localize2('openWorkspaceInAgentsWindow', "Open in Agents"),
 			category: CHAT_CATEGORY,
 			precondition: OPEN_AGENTS_WINDOW_PRECONDITION,
 			f1: true,
@@ -99,11 +99,12 @@ class OpenWorkspaceInAgentsTitleBarWidget extends BaseActionViewItem {
 		container.classList.add('open-in-agents-titlebar-widget');
 		container.setAttribute('role', 'button');
 
-		const label = this.action.label || localize('openInAgentsLabel', "Open in Agents");
-		container.setAttribute('aria-label', label);
-		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), container, label));
+		const label = this.action.label;
+		const hoverText = localize('openInAgentsHover', "Open in Agents Window");
+		container.setAttribute('aria-label', hoverText);
+		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), container, hoverText));
 
-		const icon = append(container, $('span.open-in-agents-titlebar-widget-icon'));
+		const icon = append(container, $('span.open-in-agents-titlebar-widget-icon.codicon.codicon-agent'));
 		icon.setAttribute('aria-hidden', 'true');
 
 		const labelEl = append(container, $('span.open-in-agents-titlebar-widget-label'));

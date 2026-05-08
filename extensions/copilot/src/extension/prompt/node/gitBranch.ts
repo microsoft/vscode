@@ -65,6 +65,7 @@ export class GitBranchNameGenerator {
 				location: ChatLocation.Panel,
 				userInitiatedRequest: false,
 				isConversationRequest: false,
+				interactionTypeOverride: 'conversation-background',
 			}, token);
 			return response;
 		};

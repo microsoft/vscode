@@ -111,22 +111,26 @@ export function createServer(config: Config) {
 	return { config, url: \`\${protocol}://\${host}:\${port}\` };
 }`;
 
-function renderMultiDiffEditor({ container, disposableStore, theme }: ComponentFixtureContext): void {
+function renderMultiDiffEditor({ container, disposableStore, disposableStackStore, theme }: ComponentFixtureContext): void {
 	container.style.width = '800px';
 	container.style.height = '600px';
 	container.style.border = '1px solid var(--vscode-editorWidget-border)';
 
 	const instantiationService = createCommonServices(disposableStore, theme, new TestDiffProviderFactoryService());
-	const { widget, textModels } = createWidget(instantiationService, disposableStore, container);
+
+	const textModels = disposableStackStore.add(new DisposableStore());
 	const { doc1, doc2, doc3 } = createDocuments(instantiationService, textModels);
+	const widget = disposableStackStore.add(createWidget(instantiationService, container));
 
 	const model: IMultiDiffEditorModel = {
 		documents: ValueWithChangeEvent.const([doc1, doc2, doc3]),
 	};
 
-	const viewModel = widget.createViewModel(model);
+	const viewModel = disposableStackStore.add(widget.createViewModel(model));
 	widget.setViewModel(viewModel);
 	widget.layout(new Dimension(800, 600));
+
+	disposableStackStore.add(toDisposable(() => widget.setViewModel(undefined)));
 }
 
 class DelayedDiffProviderFactoryService implements IDiffProviderFactoryService {
@@ -141,9 +145,9 @@ class DelayedDocumentDiffProvider implements IDocumentDiffProvider {
 	readonly onDidChange: Event<void> = () => toDisposable(() => { });
 	constructor(private readonly _delayMs: number) { }
 
-	async computeDiff(original: ITextModel, modified: ITextModel, options: IDocumentDiffProviderOptions, _cancellationToken: CancellationToken): Promise<IDocumentDiff> {
-		await timeout(this._delayMs);
-		if (_cancellationToken.isCancellationRequested || original.isDisposed() || modified.isDisposed()) {
+	async computeDiff(original: ITextModel, modified: ITextModel, options: IDocumentDiffProviderOptions, cancellationToken: CancellationToken): Promise<IDocumentDiff> {
+		await timeout(this._delayMs, cancellationToken);
+		if (cancellationToken.isCancellationRequested || original.isDisposed() || modified.isDisposed()) {
 			return ({
 				changes: [],
 				quitEarly: true,
@@ -179,19 +183,13 @@ function createCommonServices(disposableStore: DisposableStore, theme: Component
 	});
 }
 
-function createWidget(instantiationService: IInstantiationService, disposableStore: DisposableStore, container: HTMLElement) {
+function createWidget(instantiationService: IInstantiationService, container: HTMLElement) {
 	const uiFactory = instantiationService.createInstance(FixtureWorkbenchUIElementFactory);
-	const widget = disposableStore.add(instantiationService.createInstance(
+	return instantiationService.createInstance(
 		MultiDiffEditorWidget,
 		container,
 		uiFactory,
-	));
-	const textModels = new DisposableStore();
-	disposableStore.add(toDisposable(() => {
-		widget.setViewModel(undefined);
-		textModels.dispose();
-	}));
-	return { widget, textModels };
+	);
 }
 
 function createDocuments(instantiationService: TestInstantiationService, textModels: DisposableStore) {
@@ -209,7 +207,7 @@ function createDocuments(instantiationService: TestInstantiationService, textMod
 }
 
 function renderMultiDiffEditorIncrementalUpdate() {
-	return ({ container, disposableStore, theme }: ComponentFixtureContext) => {
+	return ({ container, disposableStore, disposableStackStore, theme }: ComponentFixtureContext) => {
 		container.style.width = '800px';
 		container.style.height = '600px';
 		container.style.border = '1px solid var(--vscode-editorWidget-border)';
@@ -217,16 +215,19 @@ function renderMultiDiffEditorIncrementalUpdate() {
 		// First file: sync diffs (already resolved). Files 2+3: 800ms delay.
 		const delayedFactory = new DelayedDiffProviderFactoryService(800);
 		const instantiationService = createCommonServices(disposableStore, theme, delayedFactory);
-		const { widget, textModels } = createWidget(instantiationService, disposableStore, container);
+
+		const textModels = disposableStackStore.add(new DisposableStore());
 		const { doc1, doc2, doc3 } = createDocuments(instantiationService, textModels);
+		const widget = disposableStackStore.add(createWidget(instantiationService, container));
 
 		// Start with only doc1 — its diff resolves immediately (800ms virtual)
 		const documents = new ValueWithChangeEvent<readonly RefCounted<IDocumentDiffItem>[]>([doc1]);
 		const model: IMultiDiffEditorModel = { documents };
-		const viewModel = widget.createViewModel(model);
+		const viewModel = disposableStackStore.add(widget.createViewModel(model));
 		widget.setViewModel(viewModel);
-		widget.layout(new Dimension(800, 600));
+		disposableStackStore.add(toDisposable(() => widget.setViewModel(undefined)));
 
+		widget.layout(new Dimension(800, 600));
 
 		// At T=900ms: add doc2 and doc3. Their diffs take 800ms (resolve at T=1700ms).
 		// The 1s gate means they appear at min(T=1700ms, T=1900ms) = T=1700ms.
@@ -237,14 +238,16 @@ function renderMultiDiffEditorIncrementalUpdate() {
 }
 
 function renderMultiDiffEditorDocumentSwap() {
-	return ({ container, disposableStore, theme }: ComponentFixtureContext) => {
+	return ({ container, disposableStore, disposableStackStore, theme }: ComponentFixtureContext) => {
 		container.style.width = '800px';
 		container.style.height = '600px';
 		container.style.border = '1px solid var(--vscode-editorWidget-border)';
 
 		const delayedFactory = new DelayedDiffProviderFactoryService(800);
 		const instantiationService = createCommonServices(disposableStore, theme, delayedFactory);
-		const { widget, textModels } = createWidget(instantiationService, disposableStore, container);
+
+		const textModels = disposableStackStore.add(new DisposableStore());
+		const widget = disposableStackStore.add(createWidget(instantiationService, container));
 
 		const makeDoc = (origText: string, modText: string, name: string) => {
 			const original = textModels.add(createTextModel(instantiationService, origText, URI.parse(`inmemory://original/${name}`), 'typescript'));
@@ -266,7 +269,7 @@ function renderMultiDiffEditorDocumentSwap() {
 		// Start with A and B
 		const documents = new ValueWithChangeEvent<readonly RefCounted<IDocumentDiffItem>[]>([docA, docB]);
 		const model: IMultiDiffEditorModel = { documents };
-		const viewModel = widget.createViewModel(model);
+		const viewModel = disposableStackStore.add(widget.createViewModel(model));
 		widget.setViewModel(viewModel);
 		widget.layout(new Dimension(800, 600));
 
@@ -278,6 +281,8 @@ function renderMultiDiffEditorDocumentSwap() {
 			const docD = makeDoc(codeD_orig, codeD_mod, 'server.ts');
 			documents.value = [docA, docC, docD];
 		}));
+
+		disposableStackStore.add(toDisposable(() => widget.setViewModel(undefined)));
 	};
 }
 

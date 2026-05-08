@@ -71,7 +71,7 @@ export class AskAgentProvider extends Disposable implements vscode.ChatCustomAge
 		const config = this._buildCustomizedConfig();
 		const content = buildAgentMarkdown(config);
 		const fileUri = await this._writeCacheFile(content);
-		return [{ uri: fileUri }];
+		return [{ uri: fileUri, sessionTypes: ['local'] }];
 	}
 
 	private async _writeCacheFile(content: string): Promise<vscode.Uri> {

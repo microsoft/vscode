@@ -122,6 +122,7 @@ export class InlineChatProgressMessages {
 				location: ChatLocation.Editor,
 				userInitiatedRequest: false,
 				isConversationRequest: false,
+				interactionTypeOverride: 'conversation-background',
 			}, token);
 
 			if (response.type === ChatFetchResponseType.Success) {
@@ -203,6 +204,7 @@ export class InlineChatProgressMessages {
 				location: ChatLocation.Editor,
 				userInitiatedRequest: false,
 				isConversationRequest: false,
+				interactionTypeOverride: 'conversation-background',
 			}, CancellationToken.None);
 
 			if (response.type === ChatFetchResponseType.Success) {

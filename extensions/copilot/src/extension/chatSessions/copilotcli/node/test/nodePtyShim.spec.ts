@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { LogServiceImpl } from '../../../../../platform/log/common/logService';
-import { resolveNodePtySourcePath } from '../nodePtyShim';
+import { copyNodePtyFiles, resolveNodePtySourcePath } from '../nodePtyShim';
 
 describe('nodePtyShim', () => {
 	let testDir: string;
@@ -40,5 +40,19 @@ describe('nodePtyShim', () => {
 
 	it('throws when node-pty binaries are missing', async () => {
 		await expect(resolveNodePtySourcePath(testDir, logService)).rejects.toThrow('Unable to find node-pty binaries');
+	});
+
+	it('copies node-pty files into the SDK prebuilds folder', async () => {
+		const extensionPath = join(testDir, 'extension');
+		const sourceDir = join(testDir, 'source');
+		await mkdir(sourceDir, { recursive: true });
+		await writeFile(join(sourceDir, 'pty.node'), 'native-binary');
+		await writeFile(join(sourceDir, 'spawn-helper'), 'spawn-helper');
+
+		await copyNodePtyFiles(extensionPath, sourceDir, logService);
+
+		const sdkNodePtyDir = join(extensionPath, 'node_modules', '@github', 'copilot', 'sdk', 'prebuilds', process.platform + '-' + process.arch);
+		await expect(readFile(join(sdkNodePtyDir, 'pty.node'), 'utf8')).resolves.toBe('native-binary');
+		await expect(readFile(join(sdkNodePtyDir, 'spawn-helper'), 'utf8')).resolves.toBe('spawn-helper');
 	});
 });

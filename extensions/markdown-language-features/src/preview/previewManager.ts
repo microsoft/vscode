@@ -9,13 +9,14 @@ import { MarkdownContributionProvider } from '../markdownExtensions';
 import { Disposable, disposeAll } from '../util/dispose';
 import { isMarkdownFile } from '../util/file';
 import { MdLinkOpener } from '../util/openDocumentLink';
+import { generateUuid } from '../util/uuid';
 import { MdDocumentRenderer } from './documentRenderer';
 import { MarkdownPreviewLineDiffProvider } from './lineDiff';
 import { DynamicMarkdownPreview, IManagedMarkdownPreview, StaticMarkdownPreview } from './preview';
 import { MarkdownPreviewConfigurationManager } from './previewConfig';
 import { scrollEditorToLine, StartingScrollFragment, StartingScrollLine, StartingScrollLocation } from './scrolling';
 import { getVisibleLine, TopmostLineMonitor } from './topmostLineMonitor';
-import type { MarkdownPreviewLineChanges } from '../../types/previewMessaging';
+import type { DiffScrollSyncData, MarkdownPreviewLineChanges } from '../../types/previewMessaging';
 
 
 export interface DynamicPreviewSettings {
@@ -267,17 +268,32 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 		webviewPanels: vscode.CustomEditorDiffWebviewPanels
 	): Promise<void> {
 		const lineDiffProvider = new MarkdownPreviewLineDiffProvider(documents.original, documents.modified);
-		const originalPreview = this.#resolveCustomTextEditor(documents.original, webviewPanels.original, () => lineDiffProvider.getOriginalLineChanges());
-		const modifiedPreview = this.#resolveCustomTextEditor(documents.modified, webviewPanels.modified, () => lineDiffProvider.getModifiedLineChanges());
+		const channelName = `md-diff-scroll-${generateUuid()}`;
+		const originalPreview = this.#resolveCustomTextEditor(
+			documents.original, webviewPanels.original,
+			() => lineDiffProvider.getOriginalLineChanges(),
+			async () => ({
+				channelName,
+				role: 'original' as const,
+				lineMappings: [...await lineDiffProvider.getModifiedToOriginalMappings()],
+			}));
+		const modifiedPreview = this.#resolveCustomTextEditor(
+			documents.modified, webviewPanels.modified,
+			() => lineDiffProvider.getModifiedLineChanges(),
+			async () => ({
+				channelName,
+				role: 'modified' as const,
+				lineMappings: [...await lineDiffProvider.getOriginalToModifiedMappings()],
+			}));
 		this.#refreshPreviewWhenDocumentChanges(originalPreview, documents.modified);
 		this.#refreshPreviewWhenDocumentChanges(modifiedPreview, documents.original);
-		this.#syncSideBySidePreviewScrolling(originalPreview, modifiedPreview, lineDiffProvider);
 	}
 
 	#resolveCustomTextEditor(
 		document: vscode.TextDocument,
 		webview: vscode.WebviewPanel,
 		getLineChanges?: () => MarkdownPreviewLineChanges | Promise<MarkdownPreviewLineChanges | undefined> | undefined,
+		getDiffScrollSync?: () => DiffScrollSyncData | Promise<DiffScrollSyncData | undefined> | undefined,
 	): StaticMarkdownPreview {
 		const lineNumber = this.#topmostLineMonitor.getPreviousTextEditorLineByUri(document.uri);
 		const preview = StaticMarkdownPreview.revive(
@@ -290,7 +306,8 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 			this.#contributions,
 			this.#opener,
 			lineNumber,
-			getLineChanges
+			getLineChanges,
+			getDiffScrollSync
 		);
 		this.#registerStaticPreview(preview);
 		this.#activePreview = preview;
@@ -304,82 +321,6 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 			}
 		});
 		preview.onDispose(() => listener.dispose());
-	}
-
-	#syncSideBySidePreviewScrolling(originalPreview: StaticMarkdownPreview, modifiedPreview: StaticMarkdownPreview, lineDiffProvider: MarkdownPreviewLineDiffProvider): void {
-		let disposed = false;
-		let ignoreOriginalScrollUntil = 0;
-		let ignoreModifiedScrollUntil = 0;
-		let originalToModifiedRequest = 0;
-		let modifiedToOriginalRequest = 0;
-
-		const syncScroll = async (
-			line: number,
-			targetPreview: StaticMarkdownPreview,
-			translateLine: (line: number) => Promise<number>,
-			request: number,
-			shouldApply: (request: number) => boolean,
-			ignoreTargetScroll: () => void,
-		) => {
-			if (disposed) {
-				return;
-			}
-
-			let targetLine: number;
-			try {
-				targetLine = await translateLine(line);
-			} catch {
-				targetLine = line;
-			}
-
-			if (!disposed && shouldApply(request)) {
-				ignoreTargetScroll();
-				targetPreview.scrollTo(targetLine);
-			}
-		};
-
-		const disposables = [
-			originalPreview.onScroll(({ line }) => {
-				if (Date.now() < ignoreOriginalScrollUntil) {
-					return;
-				}
-				const request = ++originalToModifiedRequest;
-				void syncScroll(
-					line,
-					modifiedPreview,
-					value => lineDiffProvider.translateOriginalLineToModified(value),
-					request,
-					value => value === originalToModifiedRequest,
-					() => { ignoreModifiedScrollUntil = Date.now() + 100; },
-				);
-			}),
-			modifiedPreview.onScroll(({ line }) => {
-				if (Date.now() < ignoreModifiedScrollUntil) {
-					return;
-				}
-				const request = ++modifiedToOriginalRequest;
-				void syncScroll(
-					line,
-					originalPreview,
-					value => lineDiffProvider.translateModifiedLineToOriginal(value),
-					request,
-					value => value === modifiedToOriginalRequest,
-					() => { ignoreOriginalScrollUntil = Date.now() + 100; },
-				);
-			}),
-		];
-
-		const dispose = () => {
-			if (disposed) {
-				return;
-			}
-			disposed = true;
-			++originalToModifiedRequest;
-			++modifiedToOriginalRequest;
-			disposeAll(disposables);
-		};
-		originalPreview.onDispose(dispose);
-		modifiedPreview.onDispose(dispose);
 	}
 
 	#createNewDynamicPreview(

@@ -1725,6 +1725,37 @@ suite('ChatTipService', () => {
 		assert.strictEqual(tracker.isExcluded(tip), true, 'Should be excluded after refresh finds instruction files');
 	});
 
+	test('does not throw when submitted while stored context key service has been disposed', () => {
+		const submitRequestEmitter = testDisposables.add(new Emitter<{ readonly chatSessionResource: URI; readonly message?: IParsedChatRequest }>());
+		instantiationService.stub(IChatService, {
+			onDidSubmitRequest: submitRequestEmitter.event,
+			getSession: () => undefined,
+		} as Partial<IChatService> as IChatService);
+
+		const service = createService();
+
+		// Acquire a tip so the service stashes the (scoped) context key service.
+		const tip = service.getWelcomeTip(contextKeyService);
+		assert.ok(tip);
+
+		// Simulate the owning chat widget being torn down, which disposes its
+		// scoped context key service. Subsequent contextMatchesRules calls then
+		// throw "AbstractContextKeyService has been disposed".
+		const originalContextMatchesRules = contextKeyService.contextMatchesRules.bind(contextKeyService);
+		contextKeyService.contextMatchesRules = () => {
+			throw new Error('AbstractContextKeyService has been disposed');
+		};
+
+		try {
+			assert.doesNotThrow(() => submitRequestEmitter.fire({
+				chatSessionResource: URI.parse('chat:session-disposed'),
+				message: { text: 'hello', parts: [] },
+			}));
+		} finally {
+			contextKeyService.contextMatchesRules = originalContextMatchesRules;
+		}
+	});
+
 });
 
 suite('CreateSlashCommandsUsageTracker', () => {

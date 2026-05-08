@@ -1486,12 +1486,12 @@ function registerModalEditorCommands(): void {
 				f1: true,
 				icon: Codicon.emptyWindow,
 				precondition: EditorPartModalContext,
-				menu: {
-					id: MenuId.ModalEditorTitle,
-					group: 'navigation',
+				menu: [{
+					id: MenuId.ModalEditorTitleContext,
+					group: '1_window',
 					order: 0,
 					when: IsSessionsWindowContext
-				}
+				}]
 			});
 		}
 		async run(accessor: ServicesAccessor): Promise<void> {

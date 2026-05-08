@@ -17,7 +17,7 @@ import { Emitter } from '../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../base/common/htmlContent.js';
 import { ResolvedKeybinding } from '../../../base/common/keybindings.js';
 import { AnchorPosition } from '../../../base/common/layout.js';
-import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { OS } from '../../../base/common/platform.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { URI } from '../../../base/common/uri.js';
@@ -47,9 +47,13 @@ export interface IActionListDelegate<T> {
  */
 export interface IActionListItemHover {
 	/**
-	 * Content to display in the hover.
+	 * Content to display in the hover. Can be a markdown string or an HTMLElement for full DOM control.
 	 */
-	readonly content?: string | MarkdownString;
+	readonly content?: string | MarkdownString | HTMLElement;
+	/**
+	 * Optional disposable associated with the hover content (e.g. from rendered markdown).
+	 */
+	readonly disposable?: IDisposable;
 }
 
 export interface IActionListItem<T> {
@@ -480,6 +484,12 @@ export interface IActionListOptions {
 	readonly inlineDescription?: boolean;
 
 	/**
+	 * Height (in px) used for action items that have a `detail` line.
+	 * Defaults to 48.
+	 */
+	readonly detailItemHeight?: number;
+
+	/**
 	 * When true, the group title is shown on the first item of each group
 	 * in the description area (aligned to the right).
 	 */
@@ -502,6 +512,16 @@ export interface IActionListOptions {
 	 * where this hint is misleading.
 	 */
 	readonly hideDefaultKeybindingTooltip?: boolean;
+
+	/**
+	 * Optional label shown on the right side of the filter row.
+	 */
+	readonly secondaryHeading?: string;
+
+	/**
+	 * Optional text shown below the action list as a footer.
+	 */
+	readonly footerText?: string;
 }
 
 /**
@@ -536,6 +556,7 @@ export class ActionListWidget<T> extends Disposable {
 	private _hasLaidOut = false;
 	private readonly _filterInput: HTMLInputElement | undefined;
 	private readonly _filterContainer: HTMLElement | undefined;
+	private readonly _footerContainer: HTMLElement | undefined;
 	private readonly _filterCts = this._register(new MutableDisposable<CancellationTokenSource>());
 	private readonly _groupTitleByIndex = new Map<number, string>();
 
@@ -658,30 +679,44 @@ export class ActionListWidget<T> extends Disposable {
 
 		this._allMenuItems = [...items];
 
-		// Create filter input
-		if (this._options?.showFilter) {
+		// Create filter input and/or secondary heading
+		if (this._options?.showFilter || this._options?.secondaryHeading) {
 			this._filterContainer = document.createElement('div');
 			this._filterContainer.className = 'action-list-filter';
 			const filterRow = dom.append(this._filterContainer, dom.$('.action-list-filter-row'));
 
-			this._filterInput = document.createElement('input');
-			this._filterInput.type = 'text';
-			this._filterInput.className = 'action-list-filter-input';
-			this._filterInput.placeholder = this._options?.filterPlaceholder ?? localize('actionList.filter.placeholder', "Search...");
-			this._filterInput.setAttribute('aria-label', localize('actionList.filter.ariaLabel', "Filter items"));
-			filterRow.appendChild(this._filterInput);
+			if (this._options?.showFilter) {
+				this._filterInput = document.createElement('input');
+				this._filterInput.type = 'text';
+				this._filterInput.className = 'action-list-filter-input';
+				this._filterInput.placeholder = this._options?.filterPlaceholder ?? localize('actionList.filter.placeholder', "Search...");
+				this._filterInput.setAttribute('aria-label', localize('actionList.filter.ariaLabel', "Filter items"));
+				filterRow.appendChild(this._filterInput);
 
-			const filterActions = this._options?.filterActions ?? [];
-			if (filterActions.length > 0) {
-				const filterActionsContainer = dom.append(filterRow, dom.$('.action-list-filter-actions'));
-				const filterActionBar = this._register(new ActionBar(filterActionsContainer));
-				filterActionBar.push(filterActions, { icon: true, label: false });
+				const filterActions = this._options?.filterActions ?? [];
+				if (filterActions.length > 0) {
+					const filterActionsContainer = dom.append(filterRow, dom.$('.action-list-filter-actions'));
+					const filterActionBar = this._register(new ActionBar(filterActionsContainer));
+					filterActionBar.push(filterActions, { icon: true, label: false });
+				}
+
+				this._register(dom.addDisposableListener(this._filterInput, 'input', () => {
+					this._filterText = this._filterInput!.value;
+					this._applyOrUpdateFilter();
+				}));
 			}
 
-			this._register(dom.addDisposableListener(this._filterInput, 'input', () => {
-				this._filterText = this._filterInput!.value;
-				this._applyOrUpdateFilter();
-			}));
+			if (this._options?.secondaryHeading) {
+				const filterLabelEl = dom.append(filterRow, dom.$('.action-list-filter-label'));
+				filterLabelEl.textContent = this._options.secondaryHeading;
+			}
+		}
+
+		// Create footer text
+		if (this._options?.footerText) {
+			this._footerContainer = document.createElement('div');
+			this._footerContainer.className = 'action-list-footer';
+			this._footerContainer.textContent = this._options.footerText;
 		}
 
 		this._applyFilter();
@@ -766,46 +801,69 @@ export class ActionListWidget<T> extends Disposable {
 			focusedItem = this._list.element(focusedIndexes[0]);
 		}
 
-		for (const item of this._allMenuItems) {
-			if (item.kind === ActionListItemKind.Header) {
-				if (isFiltering) {
-					// When filtering, skip all headers
-					continue;
-				}
-				visible.push(item);
-				continue;
-			}
+		if (isFiltering) {
+			let pendingSeparator: IActionListItem<T> | undefined;
+			let filteredSectionItems: IActionListItem<T>[] = [];
+			let hasMatchingActionInSection = false;
 
-			if (item.kind === ActionListItemKind.Separator) {
-				if (isFiltering) {
-					continue;
+			const flushFilteredSection = () => {
+				if (pendingSeparator && hasMatchingActionInSection) {
+					visible.push(pendingSeparator);
 				}
-				if (item.section && this._collapsedSections.has(item.section)) {
-					continue;
-				}
-				visible.push(item);
-				continue;
-			}
+				visible.push(...filteredSectionItems);
+				pendingSeparator = undefined;
+				filteredSectionItems = [];
+				hasMatchingActionInSection = false;
+			};
 
-			// Action item
-			if (isFiltering) {
-				// Always show items tagged with showAlways
+			const matchesFilter = (item: IActionListItem<T>) => {
+				const label = (item.label ?? '').toLowerCase();
+				const descValue = typeof item.description === 'string' ? item.description : (item.description?.value ?? '');
+				return label.includes(filterLower) || descValue.toLowerCase().includes(filterLower);
+			};
+
+			for (const item of this._allMenuItems) {
+				if (item.kind === ActionListItemKind.Header) {
+					continue;
+				}
+
+				if (item.kind === ActionListItemKind.Separator) {
+					flushFilteredSection();
+					pendingSeparator = item.label ? item : undefined;
+					continue;
+				}
+
 				if (item.showAlways) {
-					visible.push(item);
+					filteredSectionItems.push(item);
 					continue;
 				}
-				// When filtering, skip section toggle items and only match content
+
 				if (item.isSectionToggle) {
 					continue;
 				}
-				// Match against label and description
-				const label = (item.label ?? '').toLowerCase();
-				const descValue = typeof item.description === 'string' ? item.description : item.description?.value ?? '';
-				const desc = descValue.toLowerCase();
-				if (label.includes(filterLower) || desc.includes(filterLower)) {
-					visible.push(item);
+
+				if (matchesFilter(item)) {
+					hasMatchingActionInSection = true;
+					filteredSectionItems.push(item);
 				}
-			} else {
+			}
+
+			flushFilteredSection();
+		} else {
+			for (const item of this._allMenuItems) {
+				if (item.kind === ActionListItemKind.Header) {
+					visible.push(item);
+					continue;
+				}
+
+				if (item.kind === ActionListItemKind.Separator) {
+					if (item.section && this._collapsedSections.has(item.section)) {
+						continue;
+					}
+					visible.push(item);
+					continue;
+				}
+
 				// Update icon for section toggle items based on collapsed state
 				if (item.isSectionToggle && item.section) {
 					const collapsed = this._collapsedSections.has(item.section);
@@ -823,15 +881,39 @@ export class ActionListWidget<T> extends Disposable {
 			}
 		}
 
-		// Remove orphaned separators (leading, trailing, or consecutive)
+		// Remove orphaned separators while keeping labeled separators that act as
+		// section headers above their following action items.
+		const hasActionBefore: boolean[] = [];
+		let seenAction = false;
+		for (let i = 0; i < visible.length; i++) {
+			hasActionBefore[i] = seenAction;
+			if (visible[i].kind === ActionListItemKind.Action) {
+				seenAction = true;
+			}
+		}
+
+		const hasActionBeforeNextSeparator: boolean[] = [];
+		let seenActionInSection = false;
 		for (let i = visible.length - 1; i >= 0; i--) {
+			if (visible[i].kind === ActionListItemKind.Action) {
+				seenActionInSection = true;
+				continue;
+			}
 			if (visible[i].kind !== ActionListItemKind.Separator) {
 				continue;
 			}
-			const isLeading = !visible.slice(0, i).some(v => v.kind === ActionListItemKind.Action);
-			const isTrailing = i === visible.length - 1;
-			const isConsecutive = i < visible.length - 1 && visible[i + 1].kind === ActionListItemKind.Separator;
-			if (isLeading || isTrailing || isConsecutive) {
+			hasActionBeforeNextSeparator[i] = seenActionInSection;
+			seenActionInSection = false;
+		}
+
+		for (let i = visible.length - 1; i >= 0; i--) {
+			const item = visible[i];
+			if (item.kind !== ActionListItemKind.Separator) {
+				continue;
+			}
+			const hasFollowingActionInSection = hasActionBeforeNextSeparator[i];
+			const isLeadingUnlabeledDivider = !item.label && !hasActionBefore[i];
+			if (!hasFollowingActionInSection || isLeadingUnlabeledDivider) {
 				visible.splice(i, 1);
 			}
 		}
@@ -881,6 +963,10 @@ export class ActionListWidget<T> extends Disposable {
 	 */
 	get filterContainer(): HTMLElement | undefined {
 		return this._filterContainer;
+	}
+
+	get footerContainer(): HTMLElement | undefined {
+		return this._footerContainer;
 	}
 
 	get filterInput(): HTMLInputElement | undefined {
@@ -981,9 +1067,9 @@ export class ActionListWidget<T> extends Disposable {
 			case ActionListItemKind.Header:
 				return this._headerLineHeight;
 			case ActionListItemKind.Separator:
-				return this._separatorLineHeight;
+				return item.label ? this._actionLineHeight : this._separatorLineHeight;
 			default:
-				return item.detail ? 48 : this._actionLineHeight;
+				return item.detail ? (this._options?.detailItemHeight ?? 48) : this._actionLineHeight;
 		}
 	}
 
@@ -1338,20 +1424,27 @@ export class ActionListWidget<T> extends Disposable {
 		let hoverHeader: HTMLElement | undefined;
 		const hoverContent = element.hover?.content;
 		if (hoverContent) {
-			const markdown = typeof hoverContent === 'string' ? new MarkdownString(hoverContent) : hoverContent;
-			const linkHandler = this._options?.linkHandler;
-			const rendered = renderMarkdown(markdown, {
-				actionHandler: (url: string) => {
-					const uri = URI.parse(url);
-					if (linkHandler) {
-						linkHandler(uri, element);
-					} else {
-						this._openerService.open(uri, { allowCommands: true });
-					}
-				},
-			});
-			this._submenuDisposables.add(rendered);
-			hoverHeader = rendered.element;
+			if (dom.isHTMLElement(hoverContent)) {
+				hoverHeader = hoverContent;
+				if (element.hover?.disposable) {
+					this._submenuDisposables.add(element.hover.disposable);
+				}
+			} else {
+				const markdown = typeof hoverContent === 'string' ? new MarkdownString(hoverContent) : hoverContent;
+				const linkHandler = this._options?.linkHandler;
+				const rendered = renderMarkdown(markdown, {
+					actionHandler: (url: string) => {
+						const uri = URI.parse(url);
+						if (linkHandler) {
+							linkHandler(uri, element);
+						} else {
+							this._openerService.open(uri, { allowCommands: true });
+						}
+					},
+				});
+				this._submenuDisposables.add(rendered);
+				hoverHeader = rendered.element;
+			}
 			hoverHeader.classList.add('action-list-submenu-hover-header');
 			if (element.submenuActions?.length) {
 				hoverHeader.classList.add('has-submenu');
@@ -1657,6 +1750,10 @@ export class ActionList<T> extends Disposable {
 		return this._widget.filterContainer;
 	}
 
+	get footerContainer(): HTMLElement | undefined {
+		return this._widget.footerContainer;
+	}
+
 	get filterInput(): HTMLInputElement | undefined {
 		return this._widget.filterInput;
 	}
@@ -1750,6 +1847,8 @@ export class ActionList<T> extends Disposable {
 		const listHeight = this._widget.computeListHeight();
 
 		const filterHeight = this._widget.filterContainer ? 36 : 0;
+		const footerHeight = this._widget.footerContainer ? 32 : 0;
+		const chromeHeight = filterHeight + footerHeight;
 		const targetWindow = dom.getWindow(this.domNode);
 		let availableHeight;
 
@@ -1765,7 +1864,7 @@ export class ActionList<T> extends Disposable {
 			// unconstrained list fits below. Once decided, the dropdown stays
 			// in the same position even when the visible item count changes.
 			if (this._showAbove === undefined) {
-				const fullHeight = filterHeight + this._widget.computeFullHeight();
+				const fullHeight = chromeHeight + this._widget.computeFullHeight();
 				this._showAbove = fullHeight > spaceBelow && spaceAbove > spaceBelow;
 			}
 			availableHeight = this._showAbove ? spaceAbove : spaceBelow;
@@ -1778,9 +1877,9 @@ export class ActionList<T> extends Disposable {
 
 		const viewportMaxHeight = Math.floor(targetWindow.innerHeight * 0.6);
 		const actionLineHeight = this._widget.lineHeight;
-		const maxHeight = Math.min(Math.max(availableHeight, actionLineHeight * 3 + filterHeight), viewportMaxHeight);
-		const height = Math.min(listHeight + filterHeight, maxHeight);
-		return height - filterHeight;
+		const maxHeight = Math.min(Math.max(availableHeight, actionLineHeight * 3 + chromeHeight), viewportMaxHeight);
+		const height = Math.min(listHeight + chromeHeight, maxHeight);
+		return height - chromeHeight;
 	}
 
 	layout(minWidth: number): number {

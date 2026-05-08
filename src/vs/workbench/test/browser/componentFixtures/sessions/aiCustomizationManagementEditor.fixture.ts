@@ -703,7 +703,8 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	languageServiceRef.value = instantiationService.get(ILanguageService);
 	for (const [uri, content] of fileContents) {
 		if (!modelServiceRef.value.getModel(uri)) {
-			modelServiceRef.value.createModel(content, null, uri, false);
+			const model = modelServiceRef.value.createModel(content, null, uri, false);
+			ctx.disposableStore.add({ dispose: () => model.dispose() });
 		}
 	}
 
@@ -713,7 +714,8 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	editor.create(ctx.container);
 	editor.layout(new Dimension(width, height));
 
-	await editor.setInput(AICustomizationManagementEditorInput.getOrCreate(), undefined, {}, CancellationToken.None);
+	const editorInput = ctx.disposableStore.add(AICustomizationManagementEditorInput.getOrCreate());
+	await editor.setInput(editorInput, undefined, {}, CancellationToken.None);
 
 	if (options.selectedSection) {
 		editor.selectSectionById(options.selectedSection);

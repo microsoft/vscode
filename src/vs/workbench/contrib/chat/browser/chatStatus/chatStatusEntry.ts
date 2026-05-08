@@ -246,6 +246,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 			command: CHAT_SETUP_ACTION_ID,
 			showInAllWindows: true,
 			kind: undefined,
+			content: this.entryAnchor,
 		};
 	}
 

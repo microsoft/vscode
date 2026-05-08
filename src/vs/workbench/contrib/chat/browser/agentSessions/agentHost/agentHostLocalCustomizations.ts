@@ -13,7 +13,7 @@ import { type URI as ProtocolURI } from '../../../../../../platform/agentHost/co
 import { type CustomizationRef } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { AICustomizationPromptsStorage, BUILTIN_STORAGE } from '../../../common/aiCustomizationWorkspaceService.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
-import { IPromptPath, IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
+import { IPromptPath, IPromptsService, matchesSessionType, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { type ICustomizationSyncProvider, type ICustomizationItem, type ICustomizationItemProvider } from '../../../common/customizationHarnessService.js';
 import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { getFriendlyName } from '../../aiCustomization/aiCustomizationItemSource.js';
@@ -71,6 +71,7 @@ export interface ILocalCustomizationFile {
 export async function enumerateLocalCustomizationsForHarness(
 	promptsService: IPromptsService,
 	syncProvider: ICustomizationSyncProvider,
+	sessionType: string,
 	token: CancellationToken,
 ): Promise<readonly ILocalCustomizationFile[]> {
 	const result: ILocalCustomizationFile[] = [];
@@ -81,14 +82,16 @@ export async function enumerateLocalCustomizationsForHarness(
 		for (let i = 0; i < lists.length; i++) {
 			const storage = SYNCABLE_STORAGE_SOURCES[i];
 			for (const file of lists[i]) {
-				result.push({
-					uri: file.uri,
-					type,
-					storage,
-					pluginUri: file.pluginUri,
-					extensionId: file.extension?.identifier.value,
-					disabled: syncProvider.isDisabled(file.uri),
-				});
+				if (matchesSessionType(file.sessionTypes, sessionType)) {
+					result.push({
+						uri: file.uri,
+						type,
+						storage,
+						pluginUri: file.pluginUri,
+						extensionId: file.extension?.identifier.value,
+						disabled: syncProvider.isDisabled(file.uri),
+					});
+				}
 			}
 		}
 	}
@@ -110,12 +113,14 @@ export async function enumerateLocalCustomizationsForHarness(
 		builtinSkills = [];
 	}
 	for (const file of builtinSkills) {
-		result.push({
-			uri: file.uri,
-			type: PromptsType.skill,
-			storage: BUILTIN_STORAGE,
-			disabled: syncProvider.isDisabled(file.uri),
-		});
+		if (matchesSessionType(file.sessionTypes, sessionType)) {
+			result.push({
+				uri: file.uri,
+				type: PromptsType.skill,
+				storage: BUILTIN_STORAGE,
+				disabled: syncProvider.isDisabled(file.uri),
+			});
+		}
 	}
 
 	return result;
@@ -136,6 +141,7 @@ export class LocalAgentHostCustomizationItemProvider extends Disposable implemen
 
 	constructor(
 		private readonly _promptsService: IPromptsService,
+		private readonly _sessionType: string,
 		private readonly _syncProvider: ICustomizationSyncProvider,
 	) {
 		super();
@@ -150,7 +156,7 @@ export class LocalAgentHostCustomizationItemProvider extends Disposable implemen
 
 	async provideChatSessionCustomizations(token: CancellationToken): Promise<ICustomizationItem[]> {
 		const [enumerated, skills] = await Promise.all([
-			enumerateLocalCustomizationsForHarness(this._promptsService, this._syncProvider, token),
+			enumerateLocalCustomizationsForHarness(this._promptsService, this._syncProvider, this._sessionType, token),
 			this._promptsService.findAgentSkills(token),
 		]);
 		if (token.isCancellationRequested) {
@@ -207,8 +213,9 @@ export async function resolveCustomizationRefs(
 	syncProvider: ICustomizationSyncProvider,
 	agentPluginService: IAgentPluginService,
 	bundler: SyncedCustomizationBundler,
+	sessionType: string,
 ): Promise<CustomizationRef[]> {
-	const enumerated = await enumerateLocalCustomizationsForHarness(promptsService, syncProvider, CancellationToken.None);
+	const enumerated = await enumerateLocalCustomizationsForHarness(promptsService, syncProvider, sessionType, CancellationToken.None);
 	const enabled = enumerated.filter(e => !e.disabled);
 	if (enabled.length === 0) {
 		return [];

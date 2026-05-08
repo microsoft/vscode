@@ -16,6 +16,7 @@ import { type ICustomizationSyncProvider } from '../../../common/customizationHa
 import { type IAgentPlugin, type IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { type IPromptPath, type IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
+import { SessionType } from '../../../common/chatSessionsService.js';
 
 function makePromptPath(uri: URI, type: PromptsType, storage: PromptsStorage): IPromptPath {
 	return { uri, type, storage } as IPromptPath;
@@ -75,6 +76,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			new FakeSyncProvider(),
 			makeAgentPluginService(),
 			bundler as unknown as SyncedCustomizationBundler,
+			SessionType.CopilotCLI,
 		);
 
 		assert.strictEqual(bundler.received.length, 1);
@@ -101,6 +103,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			new FakeSyncProvider(new Set([disabled.toString()])),
 			makeAgentPluginService(),
 			bundler as unknown as SyncedCustomizationBundler,
+			SessionType.CopilotCLI,
 		);
 
 		assert.deepStrictEqual(bundler.received[0].map(f => f.uri.toString()), [enabled.toString()]);
@@ -120,6 +123,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			new FakeSyncProvider(),
 			makeAgentPluginService(),
 			bundler as unknown as SyncedCustomizationBundler,
+			SessionType.CopilotCLI,
 		);
 
 		assert.strictEqual(bundler.received.length, 1);
@@ -144,6 +148,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			new FakeSyncProvider(new Set([builtin.toString()])),
 			makeAgentPluginService(),
 			bundler as unknown as SyncedCustomizationBundler,
+			SessionType.CopilotCLI,
 		);
 
 		assert.strictEqual(bundler.received.length, 0);
@@ -159,6 +164,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			new FakeSyncProvider(),
 			makeAgentPluginService(),
 			new FakeBundler() as unknown as SyncedCustomizationBundler,
+			SessionType.CopilotCLI,
 		);
 		assert.deepStrictEqual(refs, []);
 		// Use CancellationToken so the import isn't dead in the bundle.

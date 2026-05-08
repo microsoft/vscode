@@ -12,6 +12,7 @@ import { Disposable, DisposableStore, IDisposable } from '../../../base/common/l
 import { DeferredPromise, raceTimeout } from '../../../base/common/async.js';
 import { ConfigurationTarget, IConfigurationService } from '../../configuration/common/configuration.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
+import { ILabelService } from '../../label/common/label.js';
 import { ILogService } from '../../log/common/log.js';
 
 import type { IAgentConnection } from '../common/agentService.js';
@@ -30,7 +31,7 @@ import {
 } from '../common/remoteAgentHostService.js';
 import { RemoteAgentHostProtocolClient } from './remoteAgentHostProtocolClient.js';
 import { WebSocketClientTransport } from './webSocketClientTransport.js';
-import { normalizeRemoteAgentHostAddress } from '../common/agentHostUri.js';
+import { AGENT_HOST_LABEL_FORMATTER, AGENT_HOST_SCHEME, agentHostAuthority, normalizeRemoteAgentHostAddress } from '../common/agentHostUri.js';
 import { isDefined } from '../../../base/common/types.js';
 import { PROTOCOL_VERSION } from '../common/state/protocol/version/registry.js';
 
@@ -70,11 +71,19 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 	private readonly _reconnectTimeouts = new Map<string, ReturnType<typeof setTimeout>>();
 	/** Current reconnect attempt count per address for exponential backoff. */
 	private readonly _reconnectAttempts = new Map<string, number>();
+	/**
+	 * Per-address {@link ILabelService} formatter handles for the
+	 * {@link AGENT_HOST_SCHEME}. The formatter advertises the entry's
+	 * human-readable name as the host label so any UI looking up the host
+	 * label for an agent host URI gets the friendly name.
+	 */
+	private readonly _labelFormatters = new Map<string, IDisposable>();
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
+		@ILabelService private readonly _labelService: ILabelService,
 	) {
 		super();
 
@@ -233,6 +242,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		this._entries.set(address, connEntry);
 		this._names.set(address, entry.name);
 		this._registeredEntries.set(address, entry);
+		this._updateHostLabelFormatter(address, entry.name);
 		if (entry.connectionToken) {
 			this._tokens.set(address, entry.connectionToken);
 		}
@@ -275,6 +285,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		this._names.delete(normalized);
 		this._tokens.delete(normalized);
 		this._registeredEntries.delete(normalized);
+		this._clearHostLabelFormatter(normalized);
 		this._cancelReconnect(normalized);
 		this._reconnectAttempts.delete(normalized);
 		this._removeConnection(normalized);
@@ -300,6 +311,15 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			this._names.clear();
 			this._tokens.clear();
 			this._reconnectAttempts.clear();
+			// Drop label formatters for entries no longer represented by an
+			// active connection or a dynamically registered entry. Connections
+			// added via {@link addManagedConnection} (e.g. tunnels) live outside
+			// the configured-entries set and must keep their formatter.
+			for (const address of [...this._labelFormatters.keys()]) {
+				if (!this._registeredEntries.has(address)) {
+					this._clearHostLabelFormatter(address);
+				}
+			}
 			return;
 		}
 
@@ -317,8 +337,17 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		for (const { entry, address } of entriesWithAddress) {
 			this._names.set(address, entry.name);
 			this._tokens.set(address, entry.connectionToken);
+			this._updateHostLabelFormatter(address, entry.name);
 			if (this._entries.has(address) && oldNames.get(address) !== entry.name) {
 				namesChanged = true;
+			}
+		}
+
+		// Drop formatters for addresses that are no longer configured and
+		// not dynamically registered.
+		for (const address of [...this._labelFormatters.keys()]) {
+			if (!desired.has(address) && !this._registeredEntries.has(address)) {
+				this._clearHostLabelFormatter(address);
 			}
 		}
 
@@ -565,6 +594,34 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		void wait.error(err);
 	}
 
+	/**
+	 * Register (or re-register) the {@link AGENT_HOST_SCHEME} label formatter
+	 * for the given address so that {@link ILabelService.getHostLabel} resolves
+	 * to the entry's human-readable name. Called when an entry is added or its
+	 * name changes.
+	 */
+	private _updateHostLabelFormatter(address: string, name: string): void {
+		this._clearHostLabelFormatter(address);
+		const handle = this._labelService.registerFormatter({
+			scheme: AGENT_HOST_SCHEME,
+			authority: agentHostAuthority(address),
+			priority: true,
+			formatting: {
+				...AGENT_HOST_LABEL_FORMATTER.formatting,
+				workspaceSuffix: name,
+			},
+		});
+		this._labelFormatters.set(address, handle);
+	}
+
+	private _clearHostLabelFormatter(address: string): void {
+		const existing = this._labelFormatters.get(address);
+		if (existing) {
+			existing.dispose();
+			this._labelFormatters.delete(address);
+		}
+	}
+
 	override dispose(): void {
 		for (const timeout of this._reconnectTimeouts.values()) {
 			clearTimeout(timeout);
@@ -579,6 +636,10 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			entry.store.dispose();
 		}
 		this._entries.clear();
+		for (const handle of this._labelFormatters.values()) {
+			handle.dispose();
+		}
+		this._labelFormatters.clear();
 		super.dispose();
 	}
 }

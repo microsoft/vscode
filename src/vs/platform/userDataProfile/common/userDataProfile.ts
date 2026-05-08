@@ -412,7 +412,7 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 						this.updateEmptyWindowAssociation(workspace, profile, !!profile.isTransient);
 					}
 					this.updateProfiles([profile], [], []);
-					return profile;
+					return this.profiles.find(p => p.id === profile.id) ?? profile;
 				} finally {
 					this.profileCreationPromises.delete(name);
 				}

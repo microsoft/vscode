@@ -1048,6 +1048,10 @@
 	color: var(--vscode-foreground);
 	line-height: 1.5;
 }
+.chat-debug-cache-request-shape-note {
+	margin-top: 6px;
+	color: var(--vscode-descriptionForeground);
+}
 .chat-debug-cache-options-banner {
 	font-family: var(--monaco-monospace-font);
 	font-size: 11.5px;
@@ -1140,6 +1144,9 @@
 .chat-debug-cache-sig-swatch.role-system {
 	background: var(--vscode-charts-purple, #b292ff);
 }
+.chat-debug-cache-sig-swatch.role-tools {
+	background: var(--vscode-charts-orange, #d9822b);
+}
 .chat-debug-cache-sig-swatch.role-user {
 	background: var(--vscode-charts-blue);
 }
@@ -1148,6 +1155,9 @@
 }
 .chat-debug-cache-sig-swatch.role-tool {
 	background: var(--vscode-charts-yellow);
+}
+.chat-debug-cache-sig-swatch.role-tool-search {
+	background: var(--vscode-charts-foreground, #56b6c2);
 }
 .chat-debug-cache-sig-swatch.role-drift {
 	background: transparent;
@@ -1209,6 +1219,10 @@
 	background: var(--vscode-charts-purple, #b292ff);
 	color: #1a0e30;
 }
+.chat-debug-cache-sig-seg.role-tools {
+	background: var(--vscode-charts-orange, #d9822b);
+	color: #2a1500;
+}
 .chat-debug-cache-sig-seg.role-user {
 	background: var(--vscode-charts-blue);
 	color: #06243d;
@@ -1220,6 +1234,10 @@
 .chat-debug-cache-sig-seg.role-tool {
 	background: var(--vscode-charts-yellow);
 	color: #2a1d00;
+}
+.chat-debug-cache-sig-seg.role-tool-search {
+	background: var(--vscode-charts-foreground, #56b6c2);
+	color: #102326;
 }
 .chat-debug-cache-sig-seg.role-empty {
 	background: transparent;
@@ -1255,8 +1273,19 @@
 .chat-debug-cache-acc-item {
 	background: var(--vscode-editorWidget-background);
 	border: 1px solid var(--vscode-widget-border, var(--vscode-editorWidget-border));
+	border-left-width: 3px;
 	border-radius: 6px;
 	overflow: hidden;
+}
+.chat-debug-cache-acc-item.contentDrift,
+.chat-debug-cache-acc-item.lengthChange {
+	border-left-color: var(--vscode-charts-red);
+}
+.chat-debug-cache-acc-item.onlyInA {
+	border-left-color: var(--vscode-charts-yellow);
+}
+.chat-debug-cache-acc-item.onlyInB {
+	border-left-color: var(--vscode-charts-blue);
 }
 .chat-debug-cache-acc-head {
 	display: grid;
@@ -1333,6 +1362,23 @@
 }
 .chat-debug-cache-acc-item.open .chat-debug-cache-acc-body {
 	display: block;
+}
+.chat-debug-cache-acc-truncated {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 6px 12px;
+	font-size: 11px;
+	line-height: 1.4;
+	color: var(--vscode-notificationsWarningIcon-foreground, var(--vscode-charts-orange));
+	background: var(--vscode-inputValidation-warningBackground, transparent);
+	border-top: 1px solid var(--vscode-widget-border, var(--vscode-editorWidget-border));
+}
+.chat-debug-cache-acc-truncated::before {
+	content: "\26A0";
+	flex-shrink: 0;
+	font-size: 12px;
+	line-height: 1;
 }
 .chat-debug-cache-diff {
 	display: grid;

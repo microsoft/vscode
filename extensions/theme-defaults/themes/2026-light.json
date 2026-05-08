@@ -143,6 +143,8 @@
 		"editorSuggestWidget.foreground": "#202020",
 		"editorSuggestWidget.highlightForeground": "#0069CC",
 		"editorSuggestWidget.selectedBackground": "#0069CC26",
+		"editorSuggestWidget.selectedForeground": "#202020",
+		"editorSuggestWidget.selectedIconForeground": "#202020",
 		"editorHoverWidget.background": "#FAFAFD",
 		"editorHoverWidget.border": "#E4E5E6FF",
 		"peekView.border": "#0069CC",

@@ -120,6 +120,12 @@ export function isGpt54(model: LanguageModelChat | IChatEndpoint | string) {
 	return family.startsWith('gpt-5.4') || HIDDEN_MODEL_J_HASHES.includes(h);
 }
 
+export function isGpt55(model: LanguageModelChat | IChatEndpoint | string) {
+	const h = getCachedSha256Hash(typeof model === 'string' ? model : model.family);
+	const family = typeof model === 'string' ? model : model.family;
+	return family.startsWith('gpt-5.5') || HIDDEN_MODEL_B_HASHES.includes(h);
+}
+
 export function isGpt54ConcisePromptExp(
 	accessor: ServicesAccessor,
 	model: LanguageModelChat | IChatEndpoint | string,

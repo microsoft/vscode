@@ -12,6 +12,7 @@ import throttle = require('lodash.throttle');
 import morphdom from 'morphdom';
 import type { MarkdownPreviewLineChanges, ToWebviewMessage } from '../types/previewMessaging';
 import { isOfScheme, Schemes } from '../src/util/schemes';
+import { DiffScrollSyncManager } from './diffScrollSync';
 
 let scrollDisabledCount = 0;
 let scrollDisabledTimer: number | undefined;
@@ -24,6 +25,18 @@ let documentResource = settings.settings.source;
 let lineChanges = settings.settings.lineChanges;
 
 const vscode = acquireVsCodeApi();
+
+const onDiffScroll = (mappedLine: number) => {
+	scrollDisabledCount = 1;
+	if (scrollDisabledTimer) {
+		clearTimeout(scrollDisabledTimer);
+	}
+	scrollDisabledTimer = window.setTimeout(() => { scrollDisabledCount = 0; }, 100);
+	doAfterImagesLoaded(() => scrollToRevealSourceLine(mappedLine, documentVersion, settings));
+};
+const diffScrollSyncManager = settings.settings.diffScrollSync
+	? new DiffScrollSyncManager(settings.settings.diffScrollSync, onDiffScroll)
+	: undefined;
 
 interface State {
 	scrollProgress?: number;
@@ -248,6 +261,9 @@ window.addEventListener('message', async event => {
 
 		case 'updateContent': {
 			lineChanges = data.lineChanges;
+			if (data.diffScrollSync) {
+				diffScrollSyncManager?.update(data.diffScrollSync);
+			}
 			const root = document.querySelector('.markdown-body')!;
 
 			const parser = new DOMParser();
@@ -332,6 +348,8 @@ function applyLineChanges(lineChanges: MarkdownPreviewLineChanges | undefined): 
 
 	markChangedLines(lineChanges?.added, 'code-line-diff-added');
 	markChangedLines(lineChanges?.deleted, 'code-line-diff-deleted');
+
+	applyInnerChangeHighlights(lineChanges);
 }
 
 function markChangedLines(lines: readonly number[] | undefined, className: string): void {
@@ -346,6 +364,48 @@ function markChangedLines(lines: readonly number[] | undefined, className: strin
 		if (element) {
 			element.classList.add('code-line-diff', className);
 		}
+	}
+}
+
+
+function applyInnerChangeHighlights(lineChanges: MarkdownPreviewLineChanges | undefined): void {
+	const diffHighlightAddedName = 'diff-inner-added';
+	const diffHighlightDeletedName = 'diff-inner-deleted';
+
+	// Clear previous highlights
+	CSS.highlights?.delete(diffHighlightAddedName);
+	CSS.highlights?.delete(diffHighlightDeletedName);
+
+	if (!lineChanges?.innerChanges?.length || !CSS.highlights) {
+		return;
+	}
+
+	const highlightName = lineChanges.added ? diffHighlightAddedName : diffHighlightDeletedName;
+	const ranges: Range[] = [];
+
+	// Find all marker pairs and create Range objects between them
+	const root = document.querySelector('.markdown-body');
+	if (!root) {
+		return;
+	}
+
+	let i = 0;
+	while (true) {
+		const startMarker = root.querySelector(`[data-diff-start="${i}"]`);
+		const endMarker = root.querySelector(`[data-diff-end="${i}"]`);
+		if (!startMarker || !endMarker) {
+			break;
+		}
+
+		const range = new Range();
+		range.setStartAfter(startMarker);
+		range.setEndBefore(endMarker);
+		ranges.push(range);
+		i++;
+	}
+
+	if (ranges.length > 0) {
+		CSS.highlights.set(highlightName, new Highlight(...ranges));
 	}
 }
 
@@ -424,6 +484,7 @@ window.addEventListener('scroll', throttle(() => {
 		state.line = line;
 		vscode.setState(state);
 		messaging.postMessage('revealLine', { line });
+		diffScrollSyncManager?.broadcastScroll(line);
 	}
 }, 50));
 

@@ -14,7 +14,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IWorkspaceTrustEnablementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
-import { ExtensionManifestPropertiesService } from '../../common/extensionManifestPropertiesService.js';
+import { EXTENSIONS_SUPPORT_SESSIONS_WINDOW, ExtensionManifestPropertiesService } from '../../common/extensionManifestPropertiesService.js';
 import { TestProductService, TestWorkspaceTrustEnablementService } from '../../../../test/common/workbenchTestServices.js';
 
 suite('ExtensionManifestPropertiesService - ExtensionKind', () => {
@@ -106,6 +106,53 @@ suite('ExtensionManifestPropertiesService - ExtensionKind', () => {
 	test('extension cannot opt into web only', () => {
 		// eslint-disable-next-line local/code-no-any-casts
 		assert.deepStrictEqual(testObject.getExtensionKind(<any>{ main: 'main.js', extensionKind: ['web'] }), ['workspace']);
+	});
+});
+
+suite('ExtensionManifestPropertiesService - SessionsWindowSupport', () => {
+
+	let disposables: DisposableStore;
+	let testConfigurationService: TestConfigurationService;
+	let testObject: ExtensionManifestPropertiesService;
+
+	setup(() => {
+		disposables = new DisposableStore();
+		testConfigurationService = new TestConfigurationService();
+	});
+
+	teardown(() => {
+		testObject.dispose();
+		disposables.dispose();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function getExtensionManifest(properties: Partial<IExtensionManifest> = {}): IExtensionManifest {
+		return Object.create({ name: 'a', publisher: 'pub', version: '1.0.0', ...properties }) as IExtensionManifest;
+	}
+
+	function createTestObject(): ExtensionManifestPropertiesService {
+		return disposables.add(new ExtensionManifestPropertiesService(TestProductService, testConfigurationService, new TestWorkspaceTrustEnablementService(), new NullLogService()));
+	}
+
+	test('defaults to declarative extensions without executable code and supported contributions', () => {
+		testObject = createTestObject();
+
+		assert.deepStrictEqual([
+			testObject.canExecuteOnSessionsWindow(getExtensionManifest({ contributes: { themes: [] } })),
+			testObject.canExecuteOnSessionsWindow(getExtensionManifest({ main: './out/extension.js', contributes: { themes: [] } })),
+			testObject.canExecuteOnSessionsWindow(getExtensionManifest({ contributes: { commands: [] } })),
+		], [true, false, false]);
+	});
+
+	test('uses configured sessions window support override', async () => {
+		await testConfigurationService.setUserConfiguration(EXTENSIONS_SUPPORT_SESSIONS_WINDOW, { 'pub.a': true, 'pub.b': false });
+		testObject = createTestObject();
+
+		assert.deepStrictEqual([
+			testObject.canExecuteOnSessionsWindow(getExtensionManifest({ main: './out/extension.js', contributes: { commands: [] } })),
+			testObject.canExecuteOnSessionsWindow(getExtensionManifest({ name: 'b', contributes: { themes: [] } })),
+		], [true, false]);
 	});
 });
 

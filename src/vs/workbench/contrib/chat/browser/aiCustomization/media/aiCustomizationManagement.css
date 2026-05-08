@@ -577,7 +577,8 @@
 }
 
 .ai-customization-list-item:hover .item-right,
-.ai-customization-list-item:focus-within .item-right {
+.ai-customization-list-item:focus-within .item-right,
+.monaco-list-row.focused .item-right {
 	opacity: 1;
 }
 

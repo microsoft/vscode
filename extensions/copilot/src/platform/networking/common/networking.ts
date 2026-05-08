@@ -84,6 +84,8 @@ export interface IEndpointBody {
 	snippy?: { enabled: boolean };
 	stream_options?: { include_usage?: boolean };
 	prompt?: string;
+	/** OpenAI Chat Completions API top-level reasoning effort (BYOK chat-completions shape). Mirrors the nested `reasoning.effort` used by the Responses API. */
+	reasoning_effort?: string;
 	/** Embeddings endpoints only: */
 	dimensions?: number;
 	embed?: boolean;
@@ -210,11 +212,22 @@ export interface IMakeChatRequestOptions {
 	canRetryOnceWithoutRollback?: boolean;
 	/** Custom metadata to be displayed in the log document */
 	customMetadata?: Record<string, string | number | boolean | undefined>;
+	/** Top-level turn ID for credit accumulation. When set, copilot_usage costs
+	 *  are attributed to this ID instead of turnId. Used so that all LLM calls
+	 *  in a turn (including subagents) aggregate under one key. */
+	topLevelTurnId?: string;
 	/**
-	 * Options for the kind of request being made (e.g. subagent). Controls the X-Interaction-Type header.
-	 * See notes on each interface.
+	 * Override for the `X-Interaction-Type` header (and matching `requestKind`
+	 * telemetry value). When unset, the value is derived from {@link ChatLocation}
+	 * via `locationToIntent` (e.g. panel → `conversation-panel`).
+	 *
+	 * Set this for callers whose surface isn't captured by the location alone:
+	 * - `'conversation-subagent'` — search/exec subagents inside an agent turn.
+	 * - `'conversation-background'` — utility calls not tied to an active user
+	 *   turn (e.g. chat title generation, conversation summarization, branch
+	 *   name suggestion, prompt categorization).
 	 */
-	requestKindOptions?: IBackgroundRequestOptions | ISubagentRequestOptions;
+	interactionTypeOverride?: InteractionTypeOverride;
 }
 
 export type IChatRequestTelemetryProperties = {
@@ -287,6 +300,7 @@ export interface IChatEndpoint extends IEndpoint {
 	 * and normalizing to per-million-token rates based on batch_size.
 	 */
 	readonly tokenPricing?: IChatEndpointTokenPricing;
+	readonly priceCategory?: string;
 	readonly isFallback: boolean;
 	readonly customModel?: CustomModel;
 	readonly isExtensionContributed?: boolean;
@@ -378,22 +392,24 @@ export interface INetworkRequestOptions {
 	readonly useFetcher?: FetcherId;
 	readonly canRetryOnce?: boolean;
 	readonly location?: ChatLocation;
-	readonly requestKindOptions?: IBackgroundRequestOptions | ISubagentRequestOptions;
+	readonly interactionTypeOverride?: InteractionTypeOverride;
 }
 
 /**
- * A background request is one that is not associated with a user request.
+ * Override values for the `X-Interaction-Type` header (and matching `requestKind`
+ * telemetry value). Mirrors the server's documented vocabulary; only used when the
+ * location-derived intent isn't accurate.
+ *
+ * - `'conversation-subagent'` — nested LLM calls made by a subagent inside an
+ *   agent turn (search/exec subagents).
+ * - `'conversation-compaction'` — mid-agent-turn history compaction (user is
+ *   waiting; runs on the same model as the agent loop). Distinct from background
+ *   summarization, which uses a cheap model and is not tied to an active turn.
+ * - `'conversation-background'` — utility calls not tied to an active user turn
+ *   (e.g. chat title generation, conversation summarization, prompt categorization,
+ *   branch name suggestion, background todo processing).
  */
-export interface IBackgroundRequestOptions {
-	readonly kind: 'background';
-}
-
-/**
- * A subagent request is a request made by a subagent, indicated with a subAgentInvocationId included in the request from VS Code.
- */
-export interface ISubagentRequestOptions {
-	readonly kind: 'subagent';
-}
+export type InteractionTypeOverride = 'conversation-subagent' | 'conversation-compaction' | 'conversation-background';
 
 function networkRequest(
 	accessor: ServicesAccessor,
@@ -416,12 +432,7 @@ function networkRequest(
 		name: '',
 		version: '',
 	} satisfies IEndpoint : endpointOrUrl;
-	const agentInteractionType = options.requestKindOptions?.kind === 'subagent' ?
-		'conversation-subagent' :
-		options.requestKindOptions?.kind === 'background' ?
-			'conversation-background' :
-			intent === 'conversation-agent' ? intent :
-				intent;
+	const agentInteractionType = options.interactionTypeOverride ?? intent;
 
 	const headers: ReqHeaders = {
 		Authorization: `Bearer ${secretKey}`,

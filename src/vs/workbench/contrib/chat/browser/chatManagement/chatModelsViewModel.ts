@@ -7,7 +7,6 @@ import { distinct } from '../../../../../base/common/arrays.js';
 import { IMatch, IFilter, or, matchesCamelCase, matchesWords, matchesBaseContiguousSubString } from '../../../../../base/common/filters.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { ILanguageModelsService, ILanguageModelProviderDescriptor, ILanguageModelChatMetadataAndIdentifier } from '../../../chat/common/languageModels.js';
-import { localize } from '../../../../../nls.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ILanguageModelsProviderGroup } from '../../common/languageModelsConfiguration.js';
 import Severity from '../../../../../base/common/severity.js';
@@ -18,24 +17,18 @@ export const GROUP_ENTRY_TEMPLATE_ID = 'group.entry.template';
 
 const wordFilter = or(matchesBaseContiguousSubString, matchesWords);
 const CAPABILITY_REGEX = /@capability:\s*([^\s]+)/gi;
-const VISIBLE_REGEX = /@visible:\s*(true|false)/i;
 const PROVIDER_REGEX = /@provider:\s*((".+?")|([^\s]+))/gi;
 
 export const SEARCH_SUGGESTIONS = {
 	FILTER_TYPES: [
 		'@provider:',
 		'@capability:',
-		'@visible:'
 	],
 	CAPABILITIES: [
 		'@capability:tools',
 		'@capability:vision',
 		'@capability:agent'
 	],
-	VISIBILITY: [
-		'@visible:true',
-		'@visible:false'
-	]
 };
 
 export interface ILanguageModelProvider {
@@ -45,7 +38,6 @@ export interface ILanguageModelProvider {
 
 export interface ILanguageModel extends ILanguageModelChatMetadataAndIdentifier {
 	provider: ILanguageModelProvider;
-	visible: boolean;
 }
 
 export interface ILanguageModelEntry {
@@ -111,7 +103,6 @@ export interface IViewModelChangeEvent {
 
 export const enum ChatModelGroup {
 	Vendor = 'vendor',
-	Visibility = 'visibility'
 }
 
 export class ChatModelsViewModel extends Disposable {
@@ -212,14 +203,6 @@ export class ChatModelsViewModel extends Disposable {
 	}
 
 	private filterModels(modelEntries: ILanguageModel[], searchValue: string): IViewModelEntry[] {
-		let visible: boolean | undefined;
-
-		const visibleMatches = VISIBLE_REGEX.exec(searchValue);
-		if (visibleMatches && visibleMatches[1]) {
-			visible = visibleMatches[1].toLowerCase() === 'true';
-			searchValue = searchValue.replace(VISIBLE_REGEX, '');
-		}
-
 		const providerNames: string[] = [];
 		let providerMatch: RegExpExecArray | null;
 		PROVIDER_REGEX.lastIndex = 0;
@@ -257,12 +240,6 @@ export class ChatModelsViewModel extends Disposable {
 		const lowerProviders = providerNames.map(p => p.toLowerCase().trim());
 
 		for (const modelEntry of modelEntries) {
-			if (visible !== undefined) {
-				if (modelEntry.visible !== visible) {
-					continue;
-				}
-			}
-
 			if (lowerProviders.length > 0) {
 				const matchesProvider = lowerProviders.some(provider =>
 					modelEntry.provider.vendor.vendor.toLowerCase() === provider ||
@@ -358,37 +335,7 @@ export class ChatModelsViewModel extends Disposable {
 
 	private groupModels(languageModels: ILanguageModel[]): ILanguageModelEntriesGroup[] {
 		const result: ILanguageModelEntriesGroup[] = [];
-		if (this.groupBy === ChatModelGroup.Visibility) {
-			const visible = [], hidden = [];
-			for (const model of languageModels) {
-				if (model.visible) {
-					visible.push(model);
-				} else {
-					hidden.push(model);
-				}
-			}
-			result.push({
-				group: {
-					type: 'group',
-					id: 'visible',
-					label: localize('visible', "Visible"),
-					templateId: GROUP_ENTRY_TEMPLATE_ID,
-					collapsed: this.collapsedGroups.has('visible')
-				},
-				models: visible
-			});
-			result.push({
-				group: {
-					type: 'group',
-					id: 'hidden',
-					label: localize('hidden', "Hidden"),
-					templateId: GROUP_ENTRY_TEMPLATE_ID,
-					collapsed: this.collapsedGroups.has('hidden'),
-				},
-				models: hidden
-			});
-		}
-		else if (this.groupBy === ChatModelGroup.Vendor) {
+		if (this.groupBy === ChatModelGroup.Vendor) {
 			for (const model of languageModels) {
 				const groupId = this.getProviderGroupId(model.provider.group);
 				let group = result.find(group => group.group.id === groupId);
@@ -526,48 +473,10 @@ export class ChatModelsViewModel extends Disposable {
 					identifier,
 					metadata,
 					provider,
-					visible: metadata.isUserSelectable ?? false,
 				});
 			}
 		}
 		this.languageModels.push(...models.sort((a, b) => a.metadata.name.localeCompare(b.metadata.name)));
-	}
-
-	toggleVisibility(model: ILanguageModelEntry): void {
-		const newVisibility = !model.model.visible;
-		this.languageModelsService.updateModelPickerPreference(model.model.identifier, newVisibility);
-		const metadata = this.languageModelsService.lookupLanguageModel(model.model.identifier);
-		const index = this.viewModelEntries.indexOf(model);
-		if (metadata && index !== -1) {
-			model.model.visible = newVisibility;
-			model.model.metadata = metadata;
-			model.id = this.getModelId(model.model);
-			if (this.groupBy === ChatModelGroup.Visibility) {
-				this.modelsSorted = false;
-			}
-			this.splice(index, 1, [model]);
-		}
-	}
-
-	setModelsVisibility(models: ILanguageModelEntry[], visible: boolean): void {
-		for (const model of models) {
-			this.languageModelsService.updateModelPickerPreference(model.model.identifier, visible);
-			model.model.visible = visible;
-		}
-		// Refresh to update the UI
-		this.languageModelGroups = this.groupModels(this.languageModels);
-		this.doFilter();
-	}
-
-	setGroupVisibility(group: ILanguageModelProviderEntry | ILanguageModelGroupEntry, visible: boolean): void {
-		const models = this.getModelsForGroup(group);
-		for (const model of models) {
-			this.languageModelsService.updateModelPickerPreference(model.identifier, visible);
-			model.visible = visible;
-		}
-		// Refresh to update the UI
-		this.languageModelGroups = this.groupModels(this.languageModels);
-		this.doFilter();
 	}
 
 	getModelsForGroup(group: ILanguageModelProviderEntry | ILanguageModelGroupEntry): ILanguageModel[] {
@@ -575,17 +484,14 @@ export class ChatModelsViewModel extends Disposable {
 			return this.languageModels.filter(m =>
 				this.getProviderGroupId(m.provider.group) === group.id
 			);
-		} else {
-			// Group by visibility
-			return this.languageModels.filter(m =>
-				(group.id === 'visible' && m.visible) ||
-				(group.id === 'hidden' && !m.visible)
-			);
 		}
+
+		// return all models ungrouped
+		return this.languageModels;
 	}
 
 	private getModelId(modelEntry: ILanguageModel): string {
-		return `${modelEntry.provider.group.name}.${modelEntry.identifier}.${modelEntry.metadata.version}-visible:${modelEntry.visible}`;
+		return `${modelEntry.provider.group.name}.${modelEntry.identifier}.${modelEntry.metadata.version}`;
 	}
 
 	private getProviderGroupId(group: ILanguageModelsProviderGroup): string {

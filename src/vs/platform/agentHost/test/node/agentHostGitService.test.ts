@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { EMPTY_TREE_OBJECT, getBranchCompletions, parseDefaultBranchRef, parseGitDiffRawNumstat, parseGitStatusV2, parseHasGitHubRemote, parseUntrackedPaths } from '../../node/agentHostGitService.js';
+import { EMPTY_TREE_OBJECT, getBranchCompletions, parseDefaultBranchRef, parseGitDiffRawNumstat, parseGitHubRepoFromRemote, parseGitStatusV2, parseHasGitHubRemote, parseUntrackedPaths } from '../../node/agentHostGitService.js';
 import { buildGitBlobUri } from '../../node/gitDiffContent.js';
 import { URI } from '../../../../base/common/uri.js';
 
@@ -116,6 +116,41 @@ suite('AgentHostGitService', () => {
 		test('returns undefined for empty/missing output', () => {
 			assert.strictEqual(parseDefaultBranchRef(undefined), undefined);
 			assert.strictEqual(parseDefaultBranchRef('   '), undefined);
+		});
+	});
+
+	suite('parseGitHubRepoFromRemote', () => {
+		test('parses ssh (scp-like) origin remote', () => {
+			const out = 'origin\tgit@github.com:microsoft/vscode.git (fetch)\norigin\tgit@github.com:microsoft/vscode.git (push)\n';
+			assert.deepStrictEqual(parseGitHubRepoFromRemote(out), { owner: 'microsoft', repo: 'vscode' });
+		});
+		test('parses https origin remote without .git suffix', () => {
+			const out = 'origin\thttps://github.com/microsoft/vscode (fetch)\n';
+			assert.deepStrictEqual(parseGitHubRepoFromRemote(out), { owner: 'microsoft', repo: 'vscode' });
+		});
+		test('parses ssh:// scheme remote', () => {
+			const out = 'origin\tssh://git@github.com/microsoft/vscode.git (fetch)\n';
+			assert.deepStrictEqual(parseGitHubRepoFromRemote(out), { owner: 'microsoft', repo: 'vscode' });
+		});
+		test('prefers origin over other remotes', () => {
+			const out =
+				'fork\tgit@github.com:me/vscode.git (fetch)\n' +
+				'origin\tgit@github.com:microsoft/vscode.git (fetch)\n';
+			assert.deepStrictEqual(parseGitHubRepoFromRemote(out), { owner: 'microsoft', repo: 'vscode' });
+		});
+		test('falls back to first github remote when origin is not github', () => {
+			const out =
+				'origin\tgit@gitlab.com:foo/bar.git (fetch)\n' +
+				'upstream\thttps://github.com/microsoft/vscode.git (fetch)\n';
+			assert.deepStrictEqual(parseGitHubRepoFromRemote(out), { owner: 'microsoft', repo: 'vscode' });
+		});
+		test('returns undefined when no remotes are present', () => {
+			assert.strictEqual(parseGitHubRepoFromRemote(''), undefined);
+			assert.strictEqual(parseGitHubRepoFromRemote(undefined), undefined);
+		});
+		test('returns undefined when no GitHub remote is present', () => {
+			const out = 'origin\thttps://gitlab.com/foo/bar.git (fetch)\n';
+			assert.strictEqual(parseGitHubRepoFromRemote(out), undefined);
 		});
 	});
 

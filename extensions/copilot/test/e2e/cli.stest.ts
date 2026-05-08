@@ -202,6 +202,7 @@ async function registerChatServices(testingServiceCollection: TestingServiceColl
 		async getSessionWorkspaceFolder() { return undefined; },
 		async getSessionWorkspaceFolderEntry() { return undefined; },
 		async getRepositoryProperties() { return undefined; },
+		async setRepositoryProperties() { },
 		async handleRequestCompleted() { },
 		async getWorkspaceChanges() { return undefined; },
 		async hasCachedChanges() { return false; },

@@ -7,10 +7,11 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { IObservable } from '../../../../base/common/observable.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
-import { IChatSessionFileChange, IChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { IChatSessionFileChange, IChatSessionFileChange2, isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 
 export interface ISessionType {
 	/** Unique identifier (e.g., 'copilot-cli', 'copilot-cloud', 'claude-code'). */
@@ -325,4 +326,55 @@ export interface ISessionWorkspaceBrowseAction {
 	 * a partial result or empty array once cancelled.
 	 */
 	listFolders?(query: string, token: CancellationToken): Promise<readonly ISessionWorkspace[]>;
+}
+
+/**
+ * Structural equality for arrays of {@link ISessionFileChange}. Used as an
+ * `equalsFn` on the `changes` observables so that providers can re-publish a
+ * freshly-built array without notifying observers when the underlying file
+ * changes have not actually changed.
+ */
+export function sessionFileChangesEqual(a: readonly ISessionFileChange[], b: readonly ISessionFileChange[]): boolean {
+	if (a === b) {
+		return true;
+	}
+
+	if (a.length !== b.length) {
+		return false;
+	}
+
+	for (let i = 0; i < a.length; i++) {
+		const x = a[i], y = b[i];
+		if (x === y) {
+			continue;
+		}
+
+		if (x.insertions !== y.insertions || x.deletions !== y.deletions) {
+			return false;
+		}
+
+		const xIsIChatSessionFileChange2 = isIChatSessionFileChange2(x);
+		const yIsIChatSessionFileChange2 = isIChatSessionFileChange2(y);
+		if (xIsIChatSessionFileChange2 !== yIsIChatSessionFileChange2) {
+			return false;
+		}
+
+		const xUri = xIsIChatSessionFileChange2 ? x.uri : x.modifiedUri;
+		const yUri = yIsIChatSessionFileChange2 ? y.uri : y.modifiedUri;
+		if (!isEqual(xUri, yUri)) {
+			return false;
+		}
+
+		const xModified = xIsIChatSessionFileChange2 ? x.modifiedUri : undefined;
+		const yModified = yIsIChatSessionFileChange2 ? y.modifiedUri : undefined;
+		if (!isEqual(xModified, yModified)) {
+			return false;
+		}
+
+		if (!isEqual(x.originalUri, y.originalUri)) {
+			return false;
+		}
+	}
+
+	return true;
 }

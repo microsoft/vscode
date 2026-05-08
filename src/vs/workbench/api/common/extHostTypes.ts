@@ -3640,6 +3640,7 @@ export class ChatDebugModelTurnEvent {
 	cachedTokens?: number;
 	totalTokens?: number;
 	cost?: number;
+	copilotUsageNanoAiu?: number;
 	durationInMillis?: number;
 
 	constructor(created: Date) {

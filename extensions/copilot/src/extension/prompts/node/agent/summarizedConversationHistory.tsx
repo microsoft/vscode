@@ -742,14 +742,15 @@ class ConversationHistorySummarizer {
 				debugName: `summarizeConversationHistory-${mode}`,
 				messages,
 				finishedCb: undefined,
-				location: ChatLocation.Other,
+				location: ChatLocation.Agent,
 				requestOptions: {
 					temperature: 0,
 					stream: false,
 					...toolOpts
 				},
 				telemetryProperties: associatedRequestId ? { associatedRequestId } : undefined,
-				enableRetryOnFilter: true
+				enableRetryOnFilter: true,
+				interactionTypeOverride: 'conversation-compaction',
 			}, this.token ?? CancellationToken.None);
 		} catch (e) {
 			this.logInfo(`Error from summarization request. ${e.message}`, mode);

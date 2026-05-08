@@ -7,6 +7,7 @@ import * as dom from '../../../../../base/browser/dom.js';
 import { ToolRiskBadgeWidget } from '../../../../contrib/chat/browser/widget/chatContentParts/toolInvocationParts/toolRiskBadgeWidget.js';
 import { IToolRiskAssessment, ToolRiskLevel } from '../../../../contrib/chat/browser/tools/chatToolRiskAssessmentService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
+import { IFixtureMessage, renderChatWidget } from './chatWidget.fixture.js';
 
 import '../../../../contrib/chat/browser/widget/media/chat.css';
 
@@ -42,6 +43,21 @@ function renderBadge(context: ComponentFixtureContext, state: RenderState): void
 	container.appendChild(itemContainer);
 }
 
+function makeInContextMessage(assessment?: IToolRiskAssessment): IFixtureMessage[] {
+	return [{
+		user: '',
+		assistant: [{
+			kind: 'terminalConfirmation',
+			command: 'git init',
+			riskAssessment: assessment,
+			riskLoading: !assessment,
+		}],
+		responseComplete: false,
+	}];
+}
+
+const inContextOptions = { width: 720, height: 400 };
+
 const greenAssessment: IToolRiskAssessment = {
 	risk: ToolRiskLevel.Green,
 	explanation: 'Reads workspace files and returns matches; no side effects.',
@@ -76,5 +92,25 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 	Red: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: (ctx) => renderBadge(ctx, { kind: 'assessment', assessment: redAssessment }),
+	}),
+
+	GreenInContext: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: (ctx) => renderChatWidget(ctx, { messages: makeInContextMessage(greenAssessment), ...inContextOptions }),
+	}),
+
+	OrangeInContext: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: (ctx) => renderChatWidget(ctx, { messages: makeInContextMessage(orangeAssessment), ...inContextOptions }),
+	}),
+
+	RedInContext: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: (ctx) => renderChatWidget(ctx, { messages: makeInContextMessage(redAssessment), ...inContextOptions }),
+	}),
+
+	LoadingInContext: defineComponentFixture({
+		labels: { kind: 'animated' },
+		render: (ctx) => renderChatWidget(ctx, { messages: makeInContextMessage(), ...inContextOptions }),
 	}),
 });

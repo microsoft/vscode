@@ -46,7 +46,6 @@ export enum ToolName {
 	Memory = 'memory',
 	FindTestFiles = 'test_search',
 	GetProjectSetupInfo = 'get_project_setup_info',
-	SearchViewResults = 'get_search_view_results',
 	GithubSemanticRepoSearch = 'github_repo',
 	GithubTextSearch = 'github_text_search',
 	CreateDirectory = 'create_directory',
@@ -134,7 +133,6 @@ export enum ContributedToolName {
 	Memory = 'copilot_memory',
 	FindTestFiles = 'copilot_findTestFiles',
 	GetProjectSetupInfo = 'copilot_getProjectSetupInfo',
-	SearchViewResults = 'copilot_getSearchResults',
 	GithubSemanticRepoSearch = 'copilot_githubRepo',
 	GithubTextSearch = 'copilot_githubTextSearch',
 	CreateAndRunTask = 'copilot_createAndRunTask',
@@ -251,7 +249,6 @@ export const toolCategories: Record<ToolName, ToolCategory> = {
 	[ToolName.GetProjectSetupInfo]: ToolCategory.VSCodeInteraction,
 	[ToolName.CoreCreateAndRunTask]: ToolCategory.VSCodeInteraction,
 	[ToolName.RunVscodeCmd]: ToolCategory.VSCodeInteraction,
-	[ToolName.SearchViewResults]: ToolCategory.VSCodeInteraction,
 	[ToolName.CoreTerminalSelection]: ToolCategory.VSCodeInteraction,
 	[ToolName.CoreTerminalLastCommand]: ToolCategory.VSCodeInteraction,
 

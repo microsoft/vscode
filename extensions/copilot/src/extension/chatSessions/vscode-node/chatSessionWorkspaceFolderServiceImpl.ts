@@ -100,6 +100,11 @@ export class ChatSessionWorkspaceFolderService extends Disposable implements ICh
 		return await this.metadataStore.getRepositoryProperties(sessionId);
 	}
 
+	async setRepositoryProperties(sessionId: string, repositoryProperties: RepositoryProperties): Promise<void> {
+		this.sessionsWithNoRepoProperties.delete(sessionId);
+		await this.metadataStore.storeRepositoryProperties(sessionId, repositoryProperties);
+	}
+
 	async handleRequestCompleted(sessionId: string): Promise<void> {
 		// Clear changes cache
 		this.invalidateSessionCache(sessionId);

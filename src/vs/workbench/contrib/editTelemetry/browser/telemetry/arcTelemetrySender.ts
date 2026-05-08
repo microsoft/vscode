@@ -145,6 +145,7 @@ export class CreateSuggestionIdForChatOrInlineChatCaller extends Disposable {
 				// eslint-disable-next-line local/code-no-any-casts
 				modeId: data.props.$$mode as any,
 				editDeltaInfo: EditDeltaInfo.fromEdit(edit, _prev),
+				sourceRequestId: undefined,
 			});
 		}));
 	}

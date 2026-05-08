@@ -55,7 +55,7 @@
 
 /** Styles for each row in the list element **/
 .action-widget .monaco-list .monaco-list-row {
-	padding: 0 12px 0 8px;
+	padding: 0 12px 0 6px;
 	white-space: nowrap;
 	cursor: pointer;
 	touch-action: none;
@@ -101,6 +101,14 @@
 .action-widget .monaco-list-row.separator:first-of-type {
 	border-top: none;
 	margin-top: 0;
+}
+
+/* Separators with text labels (titled section headers) */
+.action-widget .monaco-list-row.separator > span:not(:empty) {
+	display: flex;
+	align-items: center;
+	height: 100%;
+	padding-left: 10px;
 }
 
 .action-widget .monaco-list .group-header,
@@ -151,7 +159,7 @@
 .action-widget .monaco-list-row.action .detail {
 	order: 99;
 	width: 100%;
-	padding-left: 20px;
+	padding-left: 18px;
 	font-size: 11px;
 	line-height: 14px;
 	color: var(--vscode-descriptionForeground);
@@ -242,8 +250,7 @@
 	&:has(.detail:not([style*="display: none"])) {
 		flex-wrap: wrap;
 		align-content: center;
-		padding-top: 6px;
-		padding-right: 2px;
+		padding-right: 6px;
 
 		.title {
 			line-height: 14px;
@@ -356,6 +363,21 @@
 
 .action-widget .action-list-filter-actions .action-label:hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.action-widget .action-list-filter-label {
+	color: var(--vscode-descriptionForeground);
+	font-size: 12px;
+	flex-shrink: 0;
+	margin-right: 2px;
+}
+
+/* Footer text */
+.action-widget .action-list-footer {
+	color: var(--vscode-descriptionForeground);
+	font-size: 11px;
+	padding: 4px 10px 2px 10px;
+	border-top: 1px solid var(--vscode-editorHoverWidget-border);
 }
 
 /* Anchor for the absolutely-positioned submenu panel */

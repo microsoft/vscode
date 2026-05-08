@@ -6,11 +6,12 @@
 import { disposableTimeout, raceTimeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { structuralEquals } from '../../../../base/common/equals.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, IReference, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { equals } from '../../../../base/common/objects.js';
-import { constObservable, derived, IObservable, ISettableObservable, observableValue, transaction } from '../../../../base/common/observable.js';
+import { constObservable, derived, derivedOpts, IObservable, ISettableObservable, observableFromPromise, observableValue, observableValueOpts, transaction } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -21,7 +22,7 @@ import { ResolveSessionConfigResult } from '../../../../platform/agentHost/commo
 import { NotificationType } from '../../../../platform/agentHost/common/state/protocol/notifications.js';
 import { FileEdit, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, SessionState, SessionSummary } from '../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, isSessionAction } from '../../../../platform/agentHost/common/state/sessionActions.js';
-import { readSessionGitState, StateComponents, type ISessionGitState } from '../../../../platform/agentHost/common/state/sessionState.js';
+import { readSessionGitState, SessionMeta, StateComponents, type ISessionGitState } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ChatViewPaneTarget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
@@ -32,8 +33,10 @@ import { ILanguageModelsService } from '../../../../workbench/contrib/chat/commo
 import { buildMutableConfigSchema, IAgentHostSessionsProvider, resolvedConfigsEqual } from '../../../common/agentHostSessionsProvider.js';
 import { agentHostSessionWorkspaceKey } from '../../../common/agentHostSessionWorkspace.js';
 import { isSessionConfigComplete } from '../../../common/sessionConfig.js';
-import { CopilotCLISessionType, IChat, IGitHubInfo, ISession, ISessionChangeset, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, SessionStatus, toSessionId } from '../../../services/sessions/common/session.js';
+import { CopilotCLISessionType, IChat, IGitHubInfo, ISession, ISessionChangeset, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, sessionFileChangesEqual, SessionStatus, toSessionId } from '../../../services/sessions/common/session.js';
 import { ISendRequestOptions, ISessionChangeEvent } from '../../../services/sessions/common/sessionsProvider.js';
+import { computePullRequestIcon } from '../../github/common/types.js';
+import { IGitHubService } from '../../github/browser/githubService.js';
 import { diffsEqual, diffsToChanges, mapProtocolStatus } from './agentHostDiffs.js';
 
 // ============================================================================
@@ -55,6 +58,13 @@ export interface IAgentHostAdapterOptions {
 	readonly buildWorkspace: (project: IAgentSessionMetadata['project'], workingDirectory: URI | undefined, gitState: ISessionGitState | undefined) => ISessionWorkspace | undefined;
 	/** Optional URI mapping for diff entries (remote uses `toAgentHostUri`; local uses identity). */
 	readonly mapDiffUri?: (uri: URI) => URI;
+	/**
+	 * GitHub service used to resolve the pull request that targets the
+	 * session's branch and refresh its live state. Optional so tests / hosts
+	 * without a workbench GitHub service still construct adapters; PR
+	 * affordances simply stay dormant when absent.
+	 */
+	readonly gitHubService?: IGitHubService;
 }
 
 /**
@@ -74,7 +84,7 @@ export class AgentHostSessionAdapter implements ISession {
 	readonly title: ISettableObservable<string>;
 	readonly updatedAt: ISettableObservable<Date>;
 	readonly status: ISettableObservable<SessionStatus>;
-	readonly changes = observableValue<readonly (IChatSessionFileChange | IChatSessionFileChange2)[]>('changes', []);
+	readonly changes = observableValueOpts<readonly (IChatSessionFileChange | IChatSessionFileChange2)[]>({ debugName: 'changes', equalsFn: sessionFileChangesEqual }, []);
 	readonly changesets = observableValue<readonly ISessionChangeset[]>('changesets', []);
 	readonly modelId: ISettableObservable<string | undefined>;
 	modelSelection: ModelSelection | undefined;
@@ -84,7 +94,7 @@ export class AgentHostSessionAdapter implements ISession {
 	readonly isRead = observableValue('isRead', true);
 	readonly description: IObservable<IMarkdownString | undefined>;
 	readonly lastTurnEnd: ISettableObservable<Date | undefined>;
-	readonly gitHubInfo = observableValue<IGitHubInfo | undefined>('gitHubInfo', undefined);
+	readonly gitHubInfo: IObservable<IGitHubInfo | undefined>;
 
 	readonly mainChat: IChat;
 	readonly chats: IObservable<readonly IChat[]>;
@@ -99,6 +109,12 @@ export class AgentHostSessionAdapter implements ISession {
 	private _project: IAgentSessionMetadata['project'];
 	private _workingDirectory: URI | undefined;
 	private _meta: IAgentSessionMetadata['_meta'];
+	/**
+	 * Observable mirror of {@link _meta}, kept in sync with every write to
+	 * `_meta` so reactive derivations (notably {@link gitHubInfo}) re-fire
+	 * when git state arrives (or changes).
+	 */
+	private readonly _metaObs: ISettableObservable<SessionMeta | undefined>;
 	private _activity: ISettableObservable<string | undefined>;
 
 	constructor(
@@ -131,6 +147,7 @@ export class AgentHostSessionAdapter implements ISession {
 		this._project = metadata.project;
 		this._workingDirectory = metadata.workingDirectory;
 		this._meta = metadata._meta;
+		this._metaObs = observableValue<SessionMeta | undefined>('agentHostSessionMeta', this._meta);
 		const initialGitState = readSessionGitState(this._meta);
 		const initialWorkspace = _options.buildWorkspace(this._project, this._workingDirectory, initialGitState);
 		this.workspace = observableValue('workspace', initialWorkspace);
@@ -145,6 +162,57 @@ export class AgentHostSessionAdapter implements ISession {
 			}
 
 			return this._options.description;
+		});
+
+		// gitHubInfo is reactively derived from `_meta.git`. Owner/repo come
+		// from the agent host's git state; the PR number is resolved by the
+		// workbench-side GitHub service and the PR's live state (open/closed/
+		// merged/draft) is observed so the icon stays current.
+		const gitHubService = _options.gitHubService;
+		const gitHubCoords = derivedOpts<{ readonly owner: string; readonly repo: string; readonly branch: string } | undefined>(
+			{ owner: this, equalsFn: structuralEquals },
+			reader => {
+				const git = readSessionGitState(this._metaObs.read(reader));
+				if (git?.githubOwner && git?.githubRepo && git?.branchName) {
+					return { owner: git.githubOwner, repo: git.githubRepo, branch: git.branchName };
+				}
+				return undefined;
+			});
+		const pullRequestNumberObs = derived<IObservable<{ readonly value?: number | undefined }> | undefined>(
+			this,
+			reader => {
+				const coords = gitHubCoords.read(reader);
+				if (!coords || !gitHubService) {
+					return undefined;
+				}
+				return observableFromPromise(
+					gitHubService.findPullRequestNumberByHeadBranch(coords.owner, coords.repo, coords.branch)
+				);
+			});
+		this.gitHubInfo = derived<IGitHubInfo | undefined>(this, reader => {
+			const coords = gitHubCoords.read(reader);
+			if (!coords) {
+				return undefined;
+			}
+			const innerObs = pullRequestNumberObs.read(reader);
+			const prNumber = innerObs?.read(reader)?.value;
+			if (prNumber === undefined) {
+				return { owner: coords.owner, repo: coords.repo };
+			}
+			const uri = URI.parse(`https://github.com/${coords.owner}/${coords.repo}/pull/${prNumber}`);
+			let icon: ThemeIcon | undefined;
+			if (gitHubService) {
+				const ref = reader.store.add(gitHubService.createPullRequestModelReference(coords.owner, coords.repo, prNumber));
+				const livePR = ref.object.pullRequest.read(reader);
+				if (livePR) {
+					icon = computePullRequestIcon(livePR.isDraft ? 'draft' : livePR.state);
+				}
+			}
+			return {
+				owner: coords.owner,
+				repo: coords.repo,
+				pullRequest: { number: prNumber, uri, icon },
+			};
 		});
 
 		if (metadata.isRead === false) {
@@ -219,6 +287,7 @@ export class AgentHostSessionAdapter implements ISession {
 			// exclusively via `setMeta` from `SessionState` subscription updates.
 			if (metadata._meta !== undefined) {
 				this._meta = metadata._meta;
+				this._metaObs.set(this._meta, tx);
 			}
 			const workspace = this._options.buildWorkspace(this._project, this._workingDirectory, readSessionGitState(this._meta));
 			if (agentHostSessionWorkspaceKey(workspace) !== agentHostSessionWorkspaceKey(this.workspace.get())) {
@@ -279,11 +348,14 @@ export class AgentHostSessionAdapter implements ISession {
 		this._meta = meta;
 		const gitState = readSessionGitState(this._meta);
 		const workspace = this._options.buildWorkspace(this._project, this._workingDirectory, gitState);
-		if (agentHostSessionWorkspaceKey(workspace) === agentHostSessionWorkspaceKey(this.workspace.get())) {
-			return false;
-		}
-		this.workspace.set(workspace, undefined);
-		return true;
+		const workspaceChanged = agentHostSessionWorkspaceKey(workspace) !== agentHostSessionWorkspaceKey(this.workspace.get());
+		transaction(tx => {
+			this._metaObs.set(this._meta, tx);
+			if (workspaceChanged) {
+				this.workspace.set(workspace, tx);
+			}
+		});
+		return workspaceChanged;
 	}
 }
 
@@ -385,7 +457,7 @@ class NewSession extends Disposable {
 		const title = observableValue<string>(this, '');
 		const updatedAt = observableValue(this, new Date());
 		const changesets = observableValue<readonly ISessionChangeset[]>(this, []);
-		const changes = observableValue<readonly (IChatSessionFileChange | IChatSessionFileChange2)[]>(this, []);
+		const changes = observableValueOpts<readonly (IChatSessionFileChange | IChatSessionFileChange2)[]>({ owner: this, equalsFn: sessionFileChangesEqual }, []);
 		this._modelId = observableValue<string | undefined>(this, undefined);
 		const mode = observableValue<{ readonly id: string; readonly kind: string } | undefined>(this, undefined);
 		const isArchived = observableValue(this, false);
@@ -705,6 +777,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		@ILanguageModelsService protected readonly _languageModelsService: ILanguageModelsService,
 		@IConfigurationService protected readonly _baseConfigurationService: IConfigurationService,
 		@ILogService protected readonly _logService: ILogService,
+		@IGitHubService protected readonly _gitHubService: IGitHubService,
 	) {
 		super();
 	}
@@ -734,6 +807,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			icon: this.icon,
 			loading: this.authenticationPending,
 			mapDiffUri: this._diffUriMapper(),
+			gitHubService: this._gitHubService,
 			...this._adapterOptions(),
 		});
 	}
@@ -1327,12 +1401,18 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				if (this._newSession === newSession) {
 					this._newSession = undefined;
 				}
+				// Clear the pending session before firing the replace event so
+				// that any synchronous listener calling getSessions() sees only
+				// the committed session and not both.
+				this._pendingSession = undefined;
 				this._onDidReplaceSession.fire({ from: skeleton, to: committedSession });
 				return committedSession;
 			}
 		} catch {
 			// Connection lost or timeout — fall through to the failure cleanup.
 		} finally {
+			// Defensive clear: covers the failure path where the try block
+			// never reached the explicit clear above.
 			this._pendingSession = undefined;
 		}
 

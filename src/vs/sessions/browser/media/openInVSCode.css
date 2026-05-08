@@ -56,7 +56,7 @@
 
 .monaco-enable-motion .monaco-workbench .open-in-vscode-titlebar-widget > .open-in-vscode-titlebar-widget-icon,
 .monaco-workbench.monaco-enable-motion .open-in-vscode-titlebar-widget > .open-in-vscode-titlebar-widget-icon {
-	transition: filter 150ms ease;
+	transition: filter 160ms ease;
 }
 
 .monaco-reduce-motion .monaco-workbench .open-in-vscode-titlebar-widget > .open-in-vscode-titlebar-widget-icon,
@@ -82,7 +82,15 @@
 
 .monaco-enable-motion .monaco-workbench .open-in-vscode-titlebar-widget > .open-in-vscode-titlebar-widget-label,
 .monaco-workbench.monaco-enable-motion .open-in-vscode-titlebar-widget > .open-in-vscode-titlebar-widget-label {
-	transition: max-width 150ms ease, opacity 150ms ease, margin-left 150ms ease;
+	transition: max-width 160ms ease, opacity 160ms ease, margin-left 160ms ease;
+	transition-delay: 200ms;
+}
+
+.monaco-enable-motion .monaco-workbench .open-in-vscode-titlebar-widget:hover > .open-in-vscode-titlebar-widget-label,
+.monaco-enable-motion .monaco-workbench .open-in-vscode-titlebar-widget:focus-visible > .open-in-vscode-titlebar-widget-label,
+.monaco-workbench.monaco-enable-motion .open-in-vscode-titlebar-widget:hover > .open-in-vscode-titlebar-widget-label,
+.monaco-workbench.monaco-enable-motion .open-in-vscode-titlebar-widget:focus-visible > .open-in-vscode-titlebar-widget-label {
+	transition-delay: 0ms;
 }
 
 .monaco-reduce-motion .monaco-workbench .open-in-vscode-titlebar-widget > .open-in-vscode-titlebar-widget-label,

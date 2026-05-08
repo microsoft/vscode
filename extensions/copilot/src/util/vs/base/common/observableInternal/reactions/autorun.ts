@@ -5,12 +5,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IReaderWithStore, IReader, IObservable } from '../base';
+import { IReaderWithStore, IReader, IObservable, ISettableObservable } from '../base';
 import { IChangeTracker } from '../changeTracker';
 import { DisposableStore, IDisposable, toDisposable } from '../commonFacade/deps';
 import { DebugNameData, IDebugNameData } from '../debugName';
 import { AutorunObserver } from './autorunImpl';
 import { DebugLocation } from '../debugLocation';
+import { observableValue } from '../observables/observableValue';
+import { transaction } from '../transaction';
 
 /**
  * Runs immediately and whenever a transaction ends and an observed observable changed.
@@ -157,11 +159,82 @@ export function autorunIterableDelta<T>(
 	});
 }
 
+/**
+ * For each key-stable item in {@link items}, runs {@link setup} once when the
+ * key is first observed and disposes the per-key {@link DisposableStore} when
+ * the key is no longer present in the array (or when the returned disposable
+ * is disposed).
+ *
+ * The {@link IObservable} handed to {@link setup} fires whenever the array
+ * still contains an item with the same key but the item value itself has
+ * changed (e.g. because the upstream state is immutable and produced a new
+ * object with the same id). All per-key value updates triggered by a single
+ * change to {@link items} are batched into one transaction, so dependent
+ * autoruns observe a consistent snapshot.
+ *
+ * Per-key state should be stored in closures or in disposables registered
+ * against the per-key {@link DisposableStore}. {@link setup} should not call
+ * `.read()` on the outer {@link items} observable from its body (use the
+ * provided per-key value observable, or create inner autoruns).
+ */
+export function autorunPerKeyedItem<TIn, TKey>(
+	items: IObservable<readonly TIn[]>,
+	keyFn: (input: TIn) => TKey,
+	setup: (key: TKey, value: IObservable<TIn>, store: DisposableStore) => void,
+	debugLocation = DebugLocation.ofCaller()
+): IDisposable {
+	interface ICell {
+		readonly value: ISettableObservable<TIn>;
+		readonly store: DisposableStore;
+	}
+	const cells = new Map<TKey, ICell>();
+	const ar = autorunOpts({ debugReferenceFn: setup }, reader => {
+		const arr = items.read(reader);
+		const seen = new Set<TKey>();
+		const additions: { key: TKey; cell: ICell }[] = [];
+		transaction(tx => {
+			for (const item of arr) {
+				const key = keyFn(item);
+				seen.add(key);
+				const existing = cells.get(key);
+				if (existing) {
+					existing.value.set(item, tx);
+				} else {
+					const store = new DisposableStore();
+					const value = observableValue<TIn>('keyedItem', item);
+					const cell: ICell = { value, store };
+					cells.set(key, cell);
+					additions.push({ key, cell });
+				}
+			}
+			for (const [k, cell] of cells) {
+				if (!seen.has(k)) {
+					cell.store.dispose();
+					cells.delete(k);
+				}
+			}
+		});
+		// Setup runs after the transaction so per-key autoruns observe the
+		// final cell values on their first read.
+		for (const { key, cell } of additions) {
+			setup(key, cell.value, cell.store);
+		}
+	}, debugLocation);
+	return toDisposable(() => {
+		ar.dispose();
+		for (const cell of cells.values()) {
+			cell.store.dispose();
+		}
+		cells.clear();
+	});
+}
+
 export interface IReaderWithDispose extends IReaderWithStore, IDisposable { }
 
 /**
  * An autorun with a `dispose()` method on its `reader` which cancels the autorun.
  * It it safe to call `dispose()` synchronously.
+ * @deprecated Use autorunSelfDisposable2
  */
 export function autorunSelfDisposable(fn: (reader: IReaderWithDispose) => void, debugLocation = DebugLocation.ofCaller()): IDisposable {
 	let ar: IDisposable | undefined;
@@ -185,4 +258,39 @@ export function autorunSelfDisposable(fn: (reader: IReaderWithDispose) => void, 
 	}
 
 	return ar;
+}
+
+
+/**
+ * An autorun with a `dispose()` method on its `reader` which cancels the autorun.
+ * It it safe to call `dispose()` synchronously.
+ * TODO@hediet/copilot: rename to delete autorunSelfDisposable, and rename autorunSelfDisposable2 to autorunSelfDisposable.
+ */
+export function registerAutorunSelfDisposable(store: DisposableStore, fn: (reader: IReaderWithDispose) => void, debugLocation = DebugLocation.ofCaller()): void {
+	let ar: IDisposable | undefined;
+	let disposeSync = false;
+
+	// eslint-disable-next-line prefer-const
+	ar = autorun(reader => {
+		fn({
+			delayedStore: reader.delayedStore,
+			store: reader.store,
+			readObservable: reader.readObservable.bind(reader),
+			dispose: () => {
+				if (!ar) {
+					// dispose on first run, ar is not initialized yet.
+					disposeSync = true;
+				} else {
+					// dispose on reaction, ar is already registered.
+					store.delete(ar);
+				}
+			}
+		});
+	}, debugLocation);
+
+	if (disposeSync) {
+		ar.dispose();
+	} else {
+		store.add(ar);
+	}
 }

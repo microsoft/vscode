@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ComponentFixtureContext, createEditorServices, createTextModel, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from '../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
@@ -91,6 +92,7 @@ function renderRenameWidget(options: RenameFixtureOptions): void {
 		undefined,
 		cts
 	);
+	disposableStore.add(toDisposable(() => renameWidget.cancelInput(false, 'fixture-teardown')));
 }
 
 export default defineThemedFixtureGroup({ path: 'editor/' }, {

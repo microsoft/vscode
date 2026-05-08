@@ -120,6 +120,9 @@ type ChatEditHunkEvent = {
 	outcome: 'accepted' | 'rejected';
 	lineCount: number;
 	hasRemainingEdits: boolean;
+	requestId: string;
+	modelId: string;
+	modeId: string;
 };
 
 type ChatEditHunkClassification = {
@@ -127,6 +130,9 @@ type ChatEditHunkClassification = {
 	outcome: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The outcome of the edit hunk action.' };
 	lineCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of lines in the relevant change.' };
 	hasRemainingEdits: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether there are remaining edits in the file after this action.' };
+	requestId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the chat request that produced the edit.' };
+	modelId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The AI model used to generate the edit.' };
+	modeId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The chat mode used for the request (e.g. ask, edit, agent).' };
 	owner: 'roblourens';
 	comment: 'Provides insight into the usage of Chat features.';
 };
@@ -224,6 +230,9 @@ export class ChatServiceTelemetry {
 				outcome: action.action.outcome,
 				lineCount: action.action.lineCount,
 				hasRemainingEdits: action.action.hasRemainingEdits,
+				requestId: action.requestId,
+				modelId: action.modelId ?? '',
+				modeId: action.modeId ?? '',
 			});
 		}
 	}

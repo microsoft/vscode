@@ -13,7 +13,7 @@ import { parseAgentHostDebugPort } from '../../environment/node/environmentServi
 import { ILogService } from '../../log/common/log.js';
 import { getResolvedShellEnv } from '../../shell/node/shellEnv.js';
 import { IAgentHostConnection, IAgentHostStarter } from '../common/agent.js';
-import { AgentHostClaudeAgentEnabledSettingId, AgentHostEnableClaudeEnvVar } from '../common/agentService.js';
+import { AgentHostClaudeAgentSdkPathSettingId, AgentHostClaudeSdkPathEnvVar } from '../common/agentService.js';
 
 /**
  * Options for configuring the agent host WebSocket server in the child process.
@@ -74,11 +74,15 @@ export class NodeAgentHostStarter extends Disposable implements IAgentHostStarte
 		};
 
 		// Gate optional providers via env vars consumed by `agentHostMain.ts`.
-		// The Claude agent is opt-in: enabled when either the workbench setting is on
-		// or the env var is already set on the parent process (developer override).
-		if (this._configurationService.getValue<boolean>(AgentHostClaudeAgentEnabledSettingId)
-			|| process.env[AgentHostEnableClaudeEnvVar] === '1') {
-			env[AgentHostEnableClaudeEnvVar] = '1';
+		// The Claude agent is opt-in: enabled when the user points the SDK path
+		// setting at a locally-installed `@anthropic-ai/claude-agent-sdk` package,
+		// or when the env var is already set on the parent process (developer
+		// override). The SDK itself is intentionally not bundled with VS Code.
+		const claudeSdkPath = this._configurationService.getValue<string>(AgentHostClaudeAgentSdkPathSettingId)
+			|| process.env[AgentHostClaudeSdkPathEnvVar]
+			|| '';
+		if (claudeSdkPath) {
+			env[AgentHostClaudeSdkPathEnvVar] = claudeSdkPath;
 		}
 
 		// Forward WebSocket server configuration to the child process via env vars

@@ -151,10 +151,19 @@ export class AgentHostGitService implements IAgentHostGitService {
 			}
 
 			const branch = remoteRef.substring('refs/remotes/origin/'.length);
-			// Check whether a local branch exists; if not, use the remote-tracking ref
-			// so that 'git worktree add ... <startPoint>' resolves correctly.
+			// Prefer the remote-tracking ref ('origin/<branch>') over the local
+			// branch when both exist, so worktrees are based on the most
+			// up-to-date commit rather than a possibly stale local branch.
+			// This mirrors the extension-host CLI which resolves a branch's
+			// upstream and uses that as the worktree start point. Falls back
+			// to the local branch when the remote-tracking ref is missing
+			// (e.g. fresh clone with no remote-tracking refs yet).
+			const hasRemoteRef = (await this._runGit(workingDirectory, ['show-ref', '--verify', '--quiet', `refs/remotes/origin/${branch}`])) !== undefined;
+			if (hasRemoteRef) {
+				return `origin/${branch}`;
+			}
 			const hasLocalBranch = (await this._runGit(workingDirectory, ['show-ref', '--verify', '--quiet', `refs/heads/${branch}`])) !== undefined;
-			return hasLocalBranch ? branch : `origin/${branch}`;
+			return hasLocalBranch ? branch : undefined;
 		}
 		return undefined;
 	}
@@ -187,7 +196,11 @@ export class AgentHostGitService implements IAgentHostGitService {
 	}
 
 	async addWorktree(repositoryRoot: URI, worktree: URI, branchName: string, startPoint: string): Promise<void> {
-		await this._runGit(repositoryRoot, ['worktree', 'add', '-b', branchName, worktree.fsPath, startPoint], { timeout: 30_000, throwOnError: true });
+		// Pass --no-track so the new agent branch never picks up upstream
+		// tracking from the start point (e.g. when starting from
+		// 'origin/main', without --no-track git would set the new branch's
+		// upstream to origin/main, which would mis-attribute pushes/pulls).
+		await this._runGit(repositoryRoot, ['worktree', 'add', '--no-track', '-b', branchName, worktree.fsPath, startPoint], { timeout: 30_000, throwOnError: true });
 	}
 
 	async addExistingWorktree(repositoryRoot: URI, worktree: URI, branchName: string): Promise<void> {
@@ -349,6 +362,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 		const status = parseGitStatusV2(statusOutput);
 		const hasGitHubRemote = parseHasGitHubRemote(remotesOutput);
 		const baseBranchName = parseDefaultBranchRef(defaultBranchRef);
+		const githubRepo = parseGitHubRepoFromRemote(remotesOutput);
 
 		// `git status -b --porcelain=v2` only emits ahead/behind counts when the
 		// branch has an upstream tracking ref. For agent-host worktrees the
@@ -374,6 +388,8 @@ export class AgentHostGitService implements IAgentHostGitService {
 			incomingChanges: status.incomingChanges,
 			outgoingChanges,
 			uncommittedChanges: status.uncommittedChanges,
+			githubOwner: githubRepo?.owner,
+			githubRepo: githubRepo?.repo,
 		};
 		// Strip undefined fields so the resulting object is the same regardless
 		// of which probes succeeded — easier to compare in tests.
@@ -587,6 +603,64 @@ export function parseHasGitHubRemote(remotesOutput: string | undefined): boolean
 		return false;
 	}
 	return /github\.com[:\/]/i.test(remotesOutput);
+}
+
+/**
+ * Parse `owner` and `repo` from `git remote -v` output. Prefers the `origin`
+ * remote; falls back to the first GitHub remote so worktrees that renamed
+ * the remote still surface PR state. Returns `undefined` if no GitHub
+ * remote is present or the URL doesn't match a GitHub repo shape.
+ *
+ * Exported for tests.
+ */
+export function parseGitHubRepoFromRemote(remotesOutput: string | undefined): { owner: string; repo: string } | undefined {
+	if (!remotesOutput) {
+		return undefined;
+	}
+	// Each line: `<name>\t<url> (<fetch|push>)`. Take fetch URLs only so we
+	// don't double-count the same remote.
+	const candidates: { name: string; url: string }[] = [];
+	for (const rawLine of remotesOutput.split(/\r?\n/)) {
+		const line = rawLine.trim();
+		if (!line) { continue; }
+		const m = /^(\S+)\s+(\S+)\s+\(fetch\)$/.exec(line);
+		if (!m) { continue; }
+		candidates.push({ name: m[1], url: m[2] });
+	}
+	if (candidates.length === 0) {
+		return undefined;
+	}
+	// Prefer `origin`, otherwise first matching remote.
+	const ordered = [
+		...candidates.filter(c => c.name === 'origin'),
+		...candidates.filter(c => c.name !== 'origin'),
+	];
+	for (const { url } of ordered) {
+		const parsed = parseGitHubOwnerRepoFromUrl(url);
+		if (parsed) {
+			return parsed;
+		}
+	}
+	return undefined;
+}
+
+/**
+ * Extract `{owner, repo}` from a GitHub remote URL. Handles the common
+ * forms: `git@github.com:owner/repo(.git)?`, `https://github.com/owner/repo(.git)?`,
+ * `ssh://git@github.com/owner/repo(.git)?`, `git://github.com/owner/repo(.git)?`.
+ */
+function parseGitHubOwnerRepoFromUrl(url: string): { owner: string; repo: string } | undefined {
+	// SCP-like: git@github.com:owner/repo(.git)?
+	let m = /^[^@\s]+@github\.com:([^/\s]+)\/([^/\s]+?)(?:\.git)?$/i.exec(url);
+	if (m) {
+		return { owner: m[1], repo: m[2] };
+	}
+	// URL-form: <scheme>://[user@]github.com[:port]/owner/repo(.git)?
+	m = /^[a-z+]+:\/\/(?:[^@\/\s]+@)?github\.com(?::\d+)?\/([^/\s]+)\/([^/\s]+?)(?:\.git)?$/i.exec(url);
+	if (m) {
+		return { owner: m[1], repo: m[2] };
+	}
+	return undefined;
 }
 
 /** Exported for tests. */

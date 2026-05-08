@@ -65,6 +65,12 @@ export interface APIUsage {
 		 */
 		rejected_prediction_tokens: number;
 	};
+	/**
+	 * Copilot billing usage for this request, returned by CAPI.
+	 */
+	copilot_usage?: {
+		total_nano_aiu: number;
+	};
 }
 
 export function isApiUsage(obj: unknown): obj is APIUsage {

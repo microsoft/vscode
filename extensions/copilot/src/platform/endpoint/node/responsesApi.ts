@@ -886,6 +886,12 @@ interface CapiResponsesTextDeltaEvent extends Omit<OpenAI.Responses.ResponseText
 	logprobs: Array<OpenAI.Responses.ResponseTextDeltaEvent.Logprob> | undefined;
 }
 
+interface CapiResponseCompletedEvent extends OpenAI.Responses.ResponseCompletedEvent {
+	copilot_usage?: {
+		total_nano_aiu: number;
+	};
+}
+
 export class OpenAIResponsesProcessor {
 	private textAccumulator: string = '';
 	private hasReceivedReasoningSummary = false;
@@ -1082,7 +1088,8 @@ export class OpenAIResponsesProcessor {
 					}
 				});
 			case 'response.completed': {
-				const normalizedOutput = keepLatestCompactionOutput(chunk.response.output, this.latestCompactionOutputIndex);
+				const capiChunk = chunk as CapiResponseCompletedEvent;
+				const normalizedOutput = keepLatestCompactionOutput(capiChunk.response.output, this.latestCompactionOutputIndex);
 				const latestCompactionOutput = getLatestCompactionOutput(normalizedOutput, this.latestCompactionOutputIndex);
 				const latestCompactionItem = latestCompactionOutput?.item;
 				const previousCompactionItem = this.latestCompactionItem;
@@ -1152,6 +1159,7 @@ export class OpenAIResponsesProcessor {
 							accepted_prediction_tokens: 0,
 							rejected_prediction_tokens: 0,
 						},
+						copilot_usage: capiChunk.copilot_usage?.total_nano_aiu !== undefined ? capiChunk.copilot_usage : undefined,
 					},
 					finishReason: FinishedCompletionReason.Stop,
 					message: {

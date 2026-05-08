@@ -32,7 +32,8 @@ import { SubscribeResult } from '../../../common/state/protocol/commands.js';
 import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
 import { ResponsePartKind, ROOT_STATE_URI, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, ToolResultContentType, isSubagentSession, type SessionInputAnswer, type SessionInputRequest, type SessionState, type TerminalState, type ToolResultContent, type ToolResultSubagentContent } from '../../../common/state/sessionState.js';
 import type { RootState } from '../../../common/state/protocol/state.js';
-import type { RootAgentsChangedAction, SessionAddedNotification, SessionInputRequestedAction, SessionToolCallReadyAction } from '../../../common/state/sessionActions.js';
+import { type RootAgentsChangedAction, type SessionInputRequestedAction, type SessionToolCallReadyAction, type SessionAddedNotification } from '../../../common/state/sessionActions.js';
+import { NotificationType } from '../../../common/state/protocol/notifications.js';
 import type { INotificationBroadcastParams } from '../../../common/state/sessionProtocol.js';
 import {
 	getActionEnvelope,
@@ -78,19 +79,18 @@ async function createRealSessionFull(c: TestProtocolClient, clientId: string, tr
 	const sessionUri = URI.from({ scheme: 'copilotcli', path: `/real-test-${Date.now()}` }).toString();
 	await c.call('createSession', { session: sessionUri, provider: 'copilotcli', workingDirectory }, 30_000);
 
-	const notif = await c.waitForNotification(n =>
-		n.method === 'notification' && (n.params as INotificationBroadcastParams).notification.type === 'notify/sessionAdded',
-		15_000,
-	);
-	const addedNotification = (notif.params as INotificationBroadcastParams).notification as SessionAddedNotification;
-	const realSessionUri = addedNotification.summary.resource;
-	trackingList.push(realSessionUri);
+	// Sessions are created provisionally — `notify/sessionAdded` is deferred
+	// until the agent materializes on first message dispatch. The provisional
+	// state is already in the state manager and addressable by the URI we
+	// passed in, so subscribe directly without waiting for the notification.
+	trackingList.push(sessionUri);
 
-	const subscribeResult = await c.call<SubscribeResult>('subscribe', { resource: realSessionUri });
+	const subscribeResult = await c.call<SubscribeResult>('subscribe', { resource: sessionUri });
 	const subscribeSnapshot = subscribeResult.snapshot.state as SessionState;
+	const addedNotification: SessionAddedNotification = { type: NotificationType.SessionAdded, summary: subscribeSnapshot.summary };
 	c.clearReceived();
 
-	return { sessionUri: realSessionUri, addedNotification, subscribeSnapshot };
+	return { sessionUri, addedNotification, subscribeSnapshot };
 }
 
 /** Dispatch a turn with the given user message text. */
@@ -545,7 +545,9 @@ function startBackgroundApprovalLoop(c: TestProtocolClient, options: IBackground
 		assert.ok(planTurn.sawInputRequest, 'should reach the exit_plan_mode question so the test can continue the same session');
 
 		const extraSessionNotificationsAfterPlan = client.receivedNotifications(n =>
-			n.method === 'notification' && (n.params as INotificationBroadcastParams).notification.type === 'notify/sessionAdded',
+			n.method === 'notification' &&
+			(n.params as INotificationBroadcastParams).notification.type === 'notify/sessionAdded' &&
+			((n.params as INotificationBroadcastParams).notification as SessionAddedNotification).summary.resource !== sessionUri,
 		);
 		assert.strictEqual(extraSessionNotificationsAfterPlan.length, 0, 'should not create a second session while answering the plan-mode question');
 
@@ -571,7 +573,9 @@ function startBackgroundApprovalLoop(c: TestProtocolClient, options: IBackground
 		assert.match(followupTurn.responseText, /hello world/i, 'follow-up turn should retain the original plan context');
 
 		const extraSessionNotificationsAfterFollowup = client.receivedNotifications(n =>
-			n.method === 'notification' && (n.params as INotificationBroadcastParams).notification.type === 'notify/sessionAdded',
+			n.method === 'notification' &&
+			(n.params as INotificationBroadcastParams).notification.type === 'notify/sessionAdded' &&
+			((n.params as INotificationBroadcastParams).notification as SessionAddedNotification).summary.resource !== sessionUri,
 		);
 		assert.strictEqual(extraSessionNotificationsAfterFollowup.length, 0, 'sending another message should stay on the same session instead of forking');
 
@@ -628,22 +632,13 @@ function startBackgroundApprovalLoop(c: TestProtocolClient, options: IBackground
 
 		const sessionUri = URI.from({ scheme: 'copilotcli', path: `/real-test-wd-${Date.now()}` }).toString();
 		await client.call('createSession', { session: sessionUri, provider: 'copilotcli', workingDirectory: workingDirUri });
+		createdSessions.push(sessionUri);
 
-		// 1. Verify workingDirectory in the sessionAdded notification
-		const addedNotif = await client.waitForNotification(n =>
-			n.method === 'notification' && (n.params as INotificationBroadcastParams).notification.type === 'notify/sessionAdded',
-			15_000,
-		);
-		const addedSummary = ((addedNotif.params as INotificationBroadcastParams).notification as SessionAddedNotification).summary;
-		createdSessions.push(addedSummary.resource);
-		assert.strictEqual(
-			addedSummary.workingDirectory,
-			workingDirUri,
-			`sessionAdded notification should carry the requested working directory`,
-		);
-
-		// 2. Subscribe and verify workingDirectory in the session state snapshot
-		const subscribeResult = await client.call<SubscribeResult>('subscribe', { resource: addedSummary.resource });
+		// Sessions are created provisionally; the workingDirectory is recorded
+		// in the session state immediately and is unchanged by materialization
+		// for the non-worktree (folder) isolation case. Subscribe directly and
+		// verify the snapshot carries the requested working directory.
+		const subscribeResult = await client.call<SubscribeResult>('subscribe', { resource: sessionUri });
 		const sessionState = subscribeResult.snapshot.state as SessionState;
 		assert.strictEqual(
 			sessionState.summary.workingDirectory,
@@ -677,27 +672,13 @@ function startBackgroundApprovalLoop(c: TestProtocolClient, options: IBackground
 			workingDirectory: workingDirUri,
 			config: { isolation: 'worktree', branch: defaultBranch },
 		});
+		createdSessions.push(sessionUri);
 
-		const addedNotif = await client.waitForNotification(n =>
-			n.method === 'notification' && (n.params as INotificationBroadcastParams).notification.type === 'notify/sessionAdded',
-			15_000,
-		);
-		const addedSummary = ((addedNotif.params as INotificationBroadcastParams).notification as SessionAddedNotification).summary;
-		createdSessions.push(addedSummary.resource);
-
-		// Subscribe so we receive action broadcasts for this session
-		await client.call<SubscribeResult>('subscribe', { resource: addedSummary.resource });
-
-		// Verify the worktree path is in the summary
-		assert.ok(
-			addedSummary.workingDirectory,
-			'sessionAdded notification should have a workingDirectory',
-		);
-		assert.ok(
-			addedSummary.workingDirectory!.includes('.worktrees'),
-			`workingDirectory should be under the .worktrees folder, got: ${addedSummary.workingDirectory}`,
-		);
-		const resolvedWorkingDirectoryPath = URI.parse(addedSummary.workingDirectory!).fsPath;
+		// Subscribe so we receive action broadcasts for this session. The
+		// session is provisional — the worktree isn't created and the
+		// `notify/sessionAdded` isn't emitted until the agent materializes
+		// on the first sendMessage below.
+		await client.call<SubscribeResult>('subscribe', { resource: sessionUri });
 
 		// Set the active client with tools (matching real VS Code flow where
 		// activeClientChanged is dispatched AFTER createSession). When the next
@@ -709,7 +690,7 @@ function startBackgroundApprovalLoop(c: TestProtocolClient, options: IBackground
 			clientSeq: 1,
 			action: {
 				type: 'session/activeClientChanged',
-				session: addedSummary.resource,
+				session: sessionUri,
 				activeClient: {
 					clientId: 'real-sdk-worktree',
 					displayName: 'Test Client',
@@ -724,22 +705,41 @@ function startBackgroundApprovalLoop(c: TestProtocolClient, options: IBackground
 			},
 		});
 
-		// Send a turn — this triggers sendMessage, which will detect the tools
-		// changed and refresh the session (dispose + _resumeSession). The
-		// resumed session should still have the worktree as its working
-		// directory. Ask a safe, read-only question about the working directory.
+		// Send a turn — this triggers materialization (worktree creation +
+		// SDK session instantiation) followed by sendMessage. The materialized
+		// session should use the worktree as its working directory.
 		client.clearReceived();
-		dispatchTurn(client, addedSummary.resource, 'turn-wt',
+		dispatchTurn(client, sessionUri, 'turn-wt',
 			'What is your current working directory? Reply with just the absolute path and nothing else.', 2);
 
-		// Wait for the turn to complete or error
+		// Wait for the deferred sessionAdded notification — it fires when the
+		// agent materializes the provisional session into a real one.
+		const addedNotif = await client.waitForNotification(n =>
+			n.method === 'notification' && (n.params as INotificationBroadcastParams).notification.type === 'notify/sessionAdded',
+			60_000,
+		);
+		const addedSummary = ((addedNotif.params as INotificationBroadcastParams).notification as SessionAddedNotification).summary;
+
+		// Verify the worktree path is in the summary
+		assert.ok(
+			addedSummary.workingDirectory,
+			'sessionAdded notification should have a workingDirectory',
+		);
+		assert.ok(
+			addedSummary.workingDirectory!.includes('.worktrees'),
+			`workingDirectory should be under the .worktrees folder, got: ${addedSummary.workingDirectory}`,
+		);
+		const resolvedWorkingDirectoryPath = URI.parse(addedSummary.workingDirectory!).fsPath;
+
+		// Wait for the turn (which triggered materialization) to complete or
+		// error. The session refresh during materialization should succeed —
+		// if it errors with "workingDirectory is required to resume", the
+		// worktree path was lost.
 		await client.waitForNotification(
 			n => isActionNotification(n, 'session/turnComplete') || isActionNotification(n, 'session/error'),
 			90_000,
 		);
 
-		// The session refresh should succeed — if it errors with
-		// "workingDirectory is required to resume", the worktree path was lost.
 		const errors = client.receivedNotifications(n => isActionNotification(n, 'session/error'));
 		assert.strictEqual(errors.length, 0,
 			errors.length > 0
@@ -1038,18 +1038,35 @@ function startBackgroundApprovalLoop(c: TestProtocolClient, options: IBackground
 		}
 
 		// Drive any further confirmations to completion so teardown is clean.
+		// Track which toolCallReady notifications we've already handled by
+		// serverSeq — without this, `waitForNotification` keeps finding the
+		// same already-processed notification synchronously every iteration
+		// and the loop spins at 100% CPU.
+		const seenSeqs = new Set<number>();
+		seenSeqs.add(getActionEnvelope(toolReadyNotif).serverSeq);
+		let teardownSeq = 3;
 		while (true) {
 			const next = await client.waitForNotification(
-				n => isActionNotification(n, 'session/toolCallReady') || isActionNotification(n, 'session/turnComplete') || isActionNotification(n, 'session/error'),
+				n => {
+					if (isActionNotification(n, 'session/turnComplete') || isActionNotification(n, 'session/error')) {
+						return true;
+					}
+					if (!isActionNotification(n, 'session/toolCallReady')) {
+						return false;
+					}
+					return !seenSeqs.has(getActionEnvelope(n).serverSeq);
+				},
 				90_000,
 			);
 			if (isActionNotification(next, 'session/turnComplete') || isActionNotification(next, 'session/error')) {
 				break;
 			}
-			const action = getActionEnvelope(next).action as { session: string; turnId: string; toolCallId: string; confirmed?: string };
+			const envelope = getActionEnvelope(next);
+			seenSeqs.add(envelope.serverSeq);
+			const action = envelope.action as { session: string; turnId: string; toolCallId: string; confirmed?: string };
 			if (!action.confirmed) {
 				client.notify('dispatchAction', {
-					clientSeq: 3,
+					clientSeq: ++teardownSeq,
 					action: {
 						type: 'session/toolCallConfirmed',
 						session: action.session,

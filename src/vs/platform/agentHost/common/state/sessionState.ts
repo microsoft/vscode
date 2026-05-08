@@ -43,6 +43,7 @@ export {
 	type ProjectInfo,
 	type MarkdownResponsePart,
 	type MessageAttachment,
+	type MessageResourceAttachment,
 	type ReasoningResponsePart,
 	type ResponsePart,
 	type RootState,
@@ -83,8 +84,8 @@ export {
 	type SessionInputQuestion,
 	type SessionInputAnswer,
 	type SessionInputOption,
-	AttachmentType,
 	CustomizationStatus,
+	MessageAttachmentKind,
 	PendingMessageKind,
 	PolicyState,
 	ResponsePartKind,
@@ -331,6 +332,10 @@ export interface ISessionGitState {
 	readonly outgoingChanges?: number;
 	/** Number of files with uncommitted changes. */
 	readonly uncommittedChanges?: number;
+	/** GitHub repository owner parsed from the working copy's GitHub remote (preferring `origin`, falling back to the first GitHub remote). */
+	readonly githubOwner?: string;
+	/** GitHub repository name parsed from the working copy's GitHub remote (preferring `origin`, falling back to the first GitHub remote). */
+	readonly githubRepo?: string;
 }
 
 /**
@@ -354,6 +359,8 @@ export function readSessionGitState(meta: SessionMeta | undefined): ISessionGitS
 		incomingChanges?: number;
 		outgoingChanges?: number;
 		uncommittedChanges?: number;
+		githubOwner?: string;
+		githubRepo?: string;
 	} = {};
 	if (typeof raw['hasGitHubRemote'] === 'boolean') { result.hasGitHubRemote = raw['hasGitHubRemote']; }
 	if (typeof raw['branchName'] === 'string') { result.branchName = raw['branchName']; }
@@ -362,6 +369,8 @@ export function readSessionGitState(meta: SessionMeta | undefined): ISessionGitS
 	if (typeof raw['incomingChanges'] === 'number') { result.incomingChanges = raw['incomingChanges']; }
 	if (typeof raw['outgoingChanges'] === 'number') { result.outgoingChanges = raw['outgoingChanges']; }
 	if (typeof raw['uncommittedChanges'] === 'number') { result.uncommittedChanges = raw['uncommittedChanges']; }
+	if (typeof raw['githubOwner'] === 'string') { result.githubOwner = raw['githubOwner']; }
+	if (typeof raw['githubRepo'] === 'string') { result.githubRepo = raw['githubRepo']; }
 	return result;
 }
 

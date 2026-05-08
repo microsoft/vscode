@@ -191,7 +191,9 @@ describe('CopilotCLIModels', () => {
 		});
 
 		it('resolves "auto" without querying SDK models', async () => {
-			const { models } = createModels({ hasSession: false });
+			const configService = new MockConfigurationService();
+			await configService.setConfig(ConfigKey.Advanced.CLIAutoModelEnabled, true);
+			const { models } = createModels({ hasSession: false, configService });
 
 			// Even without a session, 'auto' resolves to itself
 			expect(await models.resolveModel('auto')).toBe('auto');
@@ -366,7 +368,9 @@ describe('CopilotCLIModels', () => {
 		}
 
 		it('always includes auto model in results', async () => {
-			const { models } = createModels({ hasSession: true });
+			const configService = new MockConfigurationService();
+			await configService.setConfig(ConfigKey.Advanced.CLIAutoModelEnabled, true);
+			const { models } = createModels({ hasSession: true, configService });
 			const lm = createLmMock();
 			models.registerLanguageModelChatProvider(lm.mock as any);
 
@@ -380,7 +384,9 @@ describe('CopilotCLIModels', () => {
 		});
 
 		it('returns only auto when not authenticated', async () => {
-			const { models } = createModels({ hasSession: false });
+			const configService = new MockConfigurationService();
+			await configService.setConfig(ConfigKey.Advanced.CLIAutoModelEnabled, true);
+			const { models } = createModels({ hasSession: false, configService });
 			const lm = createLmMock();
 			models.registerLanguageModelChatProvider(lm.mock as any);
 
@@ -403,7 +409,9 @@ describe('CopilotCLIModels', () => {
 				getRequestId: vi.fn(() => undefined),
 			} as unknown as ICopilotCLISDK;
 
-			const { models } = createModels({ hasSession: true, sdk });
+			const configService = new MockConfigurationService();
+			await configService.setConfig(ConfigKey.Advanced.CLIAutoModelEnabled, true);
+			const { models } = createModels({ hasSession: true, sdk, configService });
 			const lm = createLmMock();
 			models.registerLanguageModelChatProvider(lm.mock as any);
 
@@ -430,7 +438,9 @@ describe('CopilotCLIModels', () => {
 		});
 
 		it('returns full model list with auto prepended after fetch completes', async () => {
-			const { models } = createModels({ hasSession: true });
+			const configService = new MockConfigurationService();
+			await configService.setConfig(ConfigKey.Advanced.CLIAutoModelEnabled, true);
+			const { models } = createModels({ hasSession: true, configService });
 			const lm = createLmMock();
 			models.registerLanguageModelChatProvider(lm.mock as any);
 
@@ -444,7 +454,9 @@ describe('CopilotCLIModels', () => {
 		});
 
 		it('resets to auto-only after auth change, then recovers', async () => {
-			const { models, auth } = createModels({ hasSession: true });
+			const configService = new MockConfigurationService();
+			await configService.setConfig(ConfigKey.Advanced.CLIAutoModelEnabled, true);
+			const { models, auth } = createModels({ hasSession: true, configService });
 			const lm = createLmMock();
 			models.registerLanguageModelChatProvider(lm.mock as any);
 
@@ -559,8 +571,10 @@ describe('CopilotCLIModels', () => {
 			expect(await models.resolveModel('auto')).toBeUndefined();
 		});
 
-		it('includes auto model when setting is enabled (default)', async () => {
-			const { models } = createModels({ hasSession: true });
+		it('includes auto model when setting is enabled', async () => {
+			const configService = new MockConfigurationService();
+			await configService.setConfig(ConfigKey.Advanced.CLIAutoModelEnabled, true);
+			const { models } = createModels({ hasSession: true, configService });
 			const lm = createLmMock();
 			models.registerLanguageModelChatProvider(lm.mock as any);
 

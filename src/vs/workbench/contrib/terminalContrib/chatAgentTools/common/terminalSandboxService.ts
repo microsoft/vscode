@@ -34,12 +34,12 @@ import { ChatModel } from '../../../chat/common/model/chatModel.js';
 import { ElicitationState, IChatService } from '../../../chat/common/chatService/chatService.js';
 import { SANDBOX_HELPER_CHANNEL_NAME, SandboxHelperChannelClient } from '../../../../../platform/sandbox/common/sandboxHelperIpc.js';
 import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../../platform/sandbox/common/settings.js';
-import { ITerminalSandboxService, TerminalSandboxPrerequisiteCheck, type ISandboxDependencyInstallOptions, type ISandboxDependencyInstallResult, type ITerminalSandboxPrerequisiteCheckResult, type ITerminalSandboxResolvedNetworkDomains, type ITerminalSandboxWrapResult } from '../../../../../platform/sandbox/common/terminalSandboxService.js';
+import { ITerminalSandboxService, TerminalSandboxPrerequisiteCheck, type ISandboxDependencyInstallOptions, type ISandboxDependencyInstallResult, type ITerminalSandboxCommand, type ITerminalSandboxPrerequisiteCheckResult, type ITerminalSandboxResolvedNetworkDomains, type ITerminalSandboxWrapResult } from '../../../../../platform/sandbox/common/terminalSandboxService.js';
 import { getTerminalSandboxReadAllowListForCommands } from './terminalSandboxReadAllowList.js';
-import { getTerminalSandboxWriteAllowListForCommands } from './terminalSandboxWriteAllowList.js';
+import { getTerminalSandboxRuntimeConfigurationForCommands } from './terminalSandboxRuntimeConfigurationPerOperation.js';
 
 export { ITerminalSandboxService, TerminalSandboxPrerequisiteCheck } from '../../../../../platform/sandbox/common/terminalSandboxService.js';
-export type { ISandboxDependencyInstallOptions, ISandboxDependencyInstallResult, ISandboxDependencyInstallTerminal, ITerminalSandboxPrerequisiteCheckResult, ITerminalSandboxResolvedNetworkDomains, ITerminalSandboxWrapResult } from '../../../../../platform/sandbox/common/terminalSandboxService.js';
+export type { ISandboxDependencyInstallOptions, ISandboxDependencyInstallResult, ISandboxDependencyInstallTerminal, ITerminalSandboxCommand, ITerminalSandboxPrerequisiteCheckResult, ITerminalSandboxResolvedNetworkDomains, ITerminalSandboxWrapResult } from '../../../../../platform/sandbox/common/terminalSandboxService.js';
 
 /**
  * Context passed to the password prompt during dependency installation.
@@ -73,6 +73,7 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 	private _remoteEnvDetails: IRemoteAgentEnvironment | null = null;
 	private _appRoot: string;
 	private _commandAllowListKeywords: readonly string[] = [];
+	private _commandAllowListCommandDetails: readonly ITerminalSandboxCommand[] = [];
 	private _commandCwd: URI | undefined;
 	private _os: OperatingSystem = OS;
 	private _defaultWritePaths: string[] = [];
@@ -155,11 +156,22 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		return this._os;
 	}
 
-	public async wrapCommand(command: string, requestUnsandboxedExecution?: boolean, shell?: string, commandKeywords?: readonly string[], cwd?: URI): Promise<ITerminalSandboxWrapResult> {
-		const normalizedCommandKeywords = this._normalizeCommandKeywords(commandKeywords ?? []);
-		const shouldRefreshConfig = this._commandAllowListKeywords.length === 0 || this._needsForceUpdateConfigFile || !this._areCommandKeywordsEqual(this._commandAllowListKeywords, normalizedCommandKeywords) || this._commandCwd?.toString() !== cwd?.toString();
+	public async wrapCommand(command: string, requestUnsandboxedExecution?: boolean, shell?: string, cwd?: URI, commandDetails?: readonly ITerminalSandboxCommand[]): Promise<ITerminalSandboxWrapResult> {
+		const normalizedCommandDetails = this._normalizeCommandDetails(commandDetails ?? []);
+		const normalizedCommandKeywords = this._normalizeCommandKeywords(normalizedCommandDetails.map(command => command.keyword));
+		const currentReadAllowListPaths = getTerminalSandboxReadAllowListForCommands(this._os, this._commandAllowListKeywords, this._commandAllowListCommandDetails);
+		const nextReadAllowListPaths = getTerminalSandboxReadAllowListForCommands(this._os, normalizedCommandKeywords, normalizedCommandDetails);
+		const currentRuntimeConfiguration = getTerminalSandboxRuntimeConfigurationForCommands(this._os, this._commandAllowListCommandDetails);
+		const nextRuntimeConfiguration = getTerminalSandboxRuntimeConfigurationForCommands(this._os, normalizedCommandDetails);
+		const shouldRefreshConfig = this._commandAllowListKeywords.length === 0
+			|| this._needsForceUpdateConfigFile
+			|| !this._areStringArraysEqual(this._commandAllowListKeywords, normalizedCommandKeywords)
+			|| !this._areStringArraysEqual(currentReadAllowListPaths, nextReadAllowListPaths)
+			|| !this._areObjectsEqual(currentRuntimeConfiguration, nextRuntimeConfiguration)
+			|| this._commandCwd?.toString() !== cwd?.toString();
 		if (shouldRefreshConfig) {
 			this._commandAllowListKeywords = normalizedCommandKeywords;
+			this._commandAllowListCommandDetails = normalizedCommandDetails;
 			this._commandCwd = cwd;
 			await this.getSandboxConfigPath(true);
 		}
@@ -507,12 +519,38 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		}
 	}
 
+	/**
+	 * Creates a stable, case-insensitive keyword set for config refresh checks and
+	 * coarse command allow-list rules.
+	 */
 	private _normalizeCommandKeywords(commandKeywords: readonly string[]): string[] {
 		return [...new Set(commandKeywords.map(keyword => keyword.toLowerCase()))].sort();
 	}
 
-	private _areCommandKeywordsEqual(a: readonly string[], b: readonly string[]): boolean {
+	/**
+	 * Normalizes command details for deterministic comparisons while preserving
+	 * argument order within each command for argument-sensitive allow-list rules.
+	 */
+	private _normalizeCommandDetails(commandDetails: readonly ITerminalSandboxCommand[]): ITerminalSandboxCommand[] {
+		const seen = new Set<string>();
+		const result: ITerminalSandboxCommand[] = [];
+		for (const command of commandDetails) {
+			const normalizedCommand = { keyword: command.keyword.toLowerCase(), args: [...command.args] };
+			const key = JSON.stringify(normalizedCommand);
+			if (!seen.has(key)) {
+				seen.add(key);
+				result.push(normalizedCommand);
+			}
+		}
+		return result.sort((a, b) => a.keyword.localeCompare(b.keyword) || a.args.join('\0').localeCompare(b.args.join('\0')));
+	}
+
+	private _areStringArraysEqual(a: readonly string[], b: readonly string[]): boolean {
 		return a.length === b.length && a.every((keyword, index) => keyword === b[index]);
+	}
+
+	private _areObjectsEqual(a: Record<string, unknown>, b: Record<string, unknown>): boolean {
+		return JSON.stringify(a) === JSON.stringify(b);
 	}
 
 	private async _isSandboxConfiguredEnabled(): Promise<boolean> {
@@ -552,19 +590,22 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 				? this._getSettingValue<ITerminalSandboxFileSystemSetting>(TerminalChatAgentToolsSettingId.AgentSandboxMacFileSystem, TerminalChatAgentToolsSettingId.DeprecatedAgentSandboxMacFileSystem) ?? {}
 				: {};
 			const runtimeSetting = this._getSettingValue<Record<string, unknown>>(TerminalChatAgentToolsSettingId.AgentSandboxAdvancedRuntime) ?? {};
+			const commandRuntimeSetting = getTerminalSandboxRuntimeConfigurationForCommands(this._os, this._commandAllowListCommandDetails);
+			const commandRuntimeAllowReadPaths = this._getCommandRuntimeFileSystemPaths(commandRuntimeSetting, 'allowRead');
+			const commandRuntimeAllowWritePaths = this._getCommandRuntimeFileSystemPaths(commandRuntimeSetting, 'allowWrite');
 			const configFileUri = URI.joinPath(this._tempDir, `vscode-sandbox-settings-${this._sandboxSettingsId}.json`);
 			let allowWritePaths: string[] = [];
 			let allowReadPaths: string[] = [];
 			let denyReadPaths: string[] = [];
 			let denyWritePaths: string[] | undefined;
 			if (this._os === OperatingSystem.Macintosh) {
-				allowWritePaths = this._updateAllowWritePathsWithWorkspaceFolders(macFileSystemSetting.allowWrite);
-				allowReadPaths = this._updateAllowReadPathsWithAllowWrite(macFileSystemSetting.allowRead, allowWritePaths);
+				allowWritePaths = this._updateAllowWritePathsWithWorkspaceFolders(macFileSystemSetting.allowWrite, commandRuntimeAllowWritePaths);
+				allowReadPaths = this._updateAllowReadPathsWithAllowWrite(macFileSystemSetting.allowRead, allowWritePaths, commandRuntimeAllowReadPaths);
 				denyReadPaths = this._updateDenyReadPathsWithHome(macFileSystemSetting.denyRead);
 				denyWritePaths = macFileSystemSetting.denyWrite;
 			} else if (this._os === OperatingSystem.Linux) {
-				allowWritePaths = this._resolveLinuxFileSystemPaths(this._updateAllowWritePathsWithWorkspaceFolders(linuxFileSystemSetting.allowWrite));
-				allowReadPaths = this._resolveLinuxFileSystemPaths(this._updateAllowReadPathsWithAllowWrite(linuxFileSystemSetting.allowRead, allowWritePaths));
+				allowWritePaths = this._resolveLinuxFileSystemPaths(this._updateAllowWritePathsWithWorkspaceFolders(linuxFileSystemSetting.allowWrite, commandRuntimeAllowWritePaths));
+				allowReadPaths = this._resolveLinuxFileSystemPaths(this._updateAllowReadPathsWithAllowWrite(linuxFileSystemSetting.allowRead, allowWritePaths, commandRuntimeAllowReadPaths));
 				denyReadPaths = this._resolveLinuxFileSystemPaths(this._updateDenyReadPathsWithHome(linuxFileSystemSetting.denyRead));
 				denyWritePaths = this._resolveLinuxFileSystemPaths(linuxFileSystemSetting.denyWrite);
 			}
@@ -578,11 +619,26 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 				},
 			};
 			this._mergeAdditionalSandboxConfigProperties(sandboxSettings as Record<string, unknown>, allowNetwork ? this._withoutNetworkRuntimeSetting(runtimeSetting) : runtimeSetting);
+			this._mergeAdditionalSandboxConfigProperties(sandboxSettings as Record<string, unknown>, commandRuntimeSetting);
 			this._sandboxConfigPath = configFileUri.path;
 			await this._fileService.createFile(configFileUri, VSBuffer.fromString(JSON.stringify(sandboxSettings, null, '\t')), { overwrite: true });
 			return this._sandboxConfigPath;
 		}
 		return undefined;
+	}
+
+	private _getCommandRuntimeFileSystemPaths(runtimeSetting: Record<string, unknown>, key: 'allowRead' | 'allowWrite'): string[] {
+		const filesystem = runtimeSetting.filesystem;
+		if (!this._isObjectForSandboxConfigMerge(filesystem)) {
+			return [];
+		}
+
+		const paths = filesystem[key];
+		if (!Array.isArray(paths)) {
+			return [];
+		}
+
+		return paths.filter((path): path is string => typeof path === 'string');
 	}
 
 	private _withoutNetworkRuntimeSetting(runtimeSetting: Record<string, unknown>): Record<string, unknown> {
@@ -672,9 +728,9 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		};
 	}
 
-	private _updateAllowWritePathsWithWorkspaceFolders(configuredAllowWrite: string[] | undefined): string[] {
+	private _updateAllowWritePathsWithWorkspaceFolders(configuredAllowWrite: string[] | undefined, commandRuntimeAllowWrite: string[] = []): string[] {
 		const workspaceFolderPaths = this._workspaceContextService.getWorkspace().folders.map(folder => folder.uri.path);
-		return [...new Set([...workspaceFolderPaths, ...this._defaultWritePaths, ...getTerminalSandboxWriteAllowListForCommands(this._os, this._commandAllowListKeywords), ...(configuredAllowWrite ?? [])])];
+		return [...new Set([...workspaceFolderPaths, ...this._defaultWritePaths, ...(configuredAllowWrite ?? []), ...commandRuntimeAllowWrite])];
 	}
 
 	private _updateDenyReadPathsWithHome(configuredDenyRead: string[] | undefined): string[] {
@@ -682,8 +738,8 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		return [...new Set([...(configuredDenyRead ?? []), ...(userHome ? [userHome] : [])])];
 	}
 
-	private _updateAllowReadPathsWithAllowWrite(configuredAllowRead: string[] | undefined, allowWrite: string[]): string[] {
-		return [...new Set([...(configuredAllowRead ?? []), ...getTerminalSandboxReadAllowListForCommands(this._os, this._commandAllowListKeywords), ...this._getSandboxRuntimeReadPaths(), ...this._getWorkspaceStorageReadPaths(), ...allowWrite])];
+	private _updateAllowReadPathsWithAllowWrite(configuredAllowRead: string[] | undefined, allowWrite: string[], commandRuntimeAllowRead: string[] = []): string[] {
+		return [...new Set([...(configuredAllowRead ?? []), ...getTerminalSandboxReadAllowListForCommands(this._os, this._commandAllowListKeywords, this._commandAllowListCommandDetails), ...commandRuntimeAllowRead, ...this._getSandboxRuntimeReadPaths(), ...this._getWorkspaceStorageReadPaths(), ...allowWrite])];
 	}
 
 	private _resolveLinuxFileSystemPaths(paths: string[] | undefined): string[] {

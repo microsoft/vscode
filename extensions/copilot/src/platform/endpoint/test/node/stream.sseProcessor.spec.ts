@@ -1094,4 +1094,41 @@ data: [DONE]
 			expect(JSON.stringify(results, null, '\t')).toMatchSnapshot('completion results');
 		});
 	});
+
+	test('copilot_usage.total_nano_aiu is attached to usage on the completion', async function () {
+		const response = [
+			`data: {"choices":[{"delta":{"content":"hello"},"index":0,"finish_reason":null}]}\n`,
+			`data: {"choices":[{"delta":{},"index":0,"finish_reason":"stop"}],"usage":{"prompt_tokens":100,"completion_tokens":50,"total_tokens":150},"copilot_usage":{"total_nano_aiu":500000000,"token_details":[]}}\n`,
+			`data: [DONE]\n`,
+		];
+		const processor = await SSEProcessor.create(
+			logService,
+			telemetryService,
+			1,
+			createFakeStreamResponse(response),
+		);
+		const results = await getAll(processor.processSSE());
+		const completions = results.filter((r): r is FinishedCompletion => 'solution' in r);
+		expect(completions).toHaveLength(1);
+		expect(completions[0].usage).toBeDefined();
+		expect(completions[0].usage!.copilot_usage).toEqual({ total_nano_aiu: 500000000, token_details: [] });
+	});
+
+	test('copilot_usage is undefined when not present in response', async function () {
+		const response = [
+			`data: {"choices":[{"delta":{"content":"hello"},"index":0,"finish_reason":"stop"}],"usage":{"prompt_tokens":100,"completion_tokens":50,"total_tokens":150}}\n`,
+			`data: [DONE]\n`,
+		];
+		const processor = await SSEProcessor.create(
+			logService,
+			telemetryService,
+			1,
+			createFakeStreamResponse(response),
+		);
+		const results = await getAll(processor.processSSE());
+		const completions = results.filter((r): r is FinishedCompletion => 'solution' in r);
+		expect(completions).toHaveLength(1);
+		expect(completions[0].usage).toBeDefined();
+		expect(completions[0].usage!.copilot_usage).toBeUndefined();
+	});
 });

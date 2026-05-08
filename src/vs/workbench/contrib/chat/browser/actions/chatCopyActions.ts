@@ -30,7 +30,7 @@ const copyFeedbackDuration = 1200;
 const copyIconClasses = ThemeIcon.asClassNameArray(Codicon.copy);
 const copiedIconClasses = ThemeIcon.asClassNameArray(Codicon.check);
 
-class ChatCopyActionViewItem extends MenuEntryActionViewItem {
+export class ChatCopyActionViewItem extends MenuEntryActionViewItem {
 
 	private readonly copiedStateReset = this._register(new MutableDisposable());
 	private readonly actionRunnerListener = this._register(new MutableDisposable());

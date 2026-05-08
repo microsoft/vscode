@@ -34,6 +34,7 @@ import { AgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostGitService } from './agentHostGitService.js';
 import { AgentHostCompletions, IAgentHostCompletions } from './agentHostCompletions.js';
 import { AgentHostFileCompletionProvider } from './agentHostFileCompletionProvider.js';
+import { AgentHostWorkspaceFiles } from './agentHostWorkspaceFiles.js';
 
 /**
  * Grace period before an empty, unsubscribed session is garbage-collected
@@ -108,6 +109,12 @@ export class AgentService extends Disposable implements IAgentService {
 	/** Exposes the terminal manager for use by agent providers. */
 	get terminalManager(): IAgentHostTerminalManager { return this._terminalManager; }
 
+	/**
+	 * Trigger characters announced to clients via `InitializeResult.completionTriggerCharacters`.
+	 * Aggregated from all registered {@link IAgentHostCompletionItemProvider}s.
+	 */
+	get completionTriggerCharacters(): readonly string[] { return this._completions.triggerCharacters; }
+
 	constructor(
 		private readonly _logService: ILogService,
 		private readonly _fileService: IFileService,
@@ -137,8 +144,9 @@ export class AgentService extends Disposable implements IAgentService {
 
 		this._completions = this._register(instantiationService.createInstance(AgentHostCompletions));
 		// Built-in generic provider: completes files in the session's workspace folder.
+		const workspaceFiles = this._register(instantiationService.createInstance(AgentHostWorkspaceFiles));
 		this._register(this._completions.registerProvider(
-			new AgentHostFileCompletionProvider(this._stateManager),
+			new AgentHostFileCompletionProvider(this._stateManager, workspaceFiles),
 		));
 
 		this._sideEffects = this._register(instantiationService.createInstance(AgentSideEffects, this._stateManager, {
@@ -519,6 +527,10 @@ export class AgentService extends Disposable implements IAgentService {
 
 	async completions(params: CompletionsParams): Promise<CompletionsResult> {
 		return this._completions.completions(params);
+	}
+
+	async getCompletionTriggerCharacters(): Promise<readonly string[]> {
+		return this._completions.triggerCharacters;
 	}
 
 	async disposeSession(session: URI): Promise<void> {

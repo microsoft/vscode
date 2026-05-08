@@ -9,7 +9,7 @@ import { app, dialog } from 'electron';
 import { unlinkSync, promises } from 'fs';
 import { URI } from '../../base/common/uri.js';
 import { coalesce, distinct } from '../../base/common/arrays.js';
-import { Promises } from '../../base/common/async.js';
+import { Promises, retry } from '../../base/common/async.js';
 import { toErrorMessage } from '../../base/common/errorMessage.js';
 import { ExpectedError, setUnexpectedErrorHandler } from '../../base/common/errors.js';
 import { IPathWithLineAndColumn, isValidBasename, parseLineAndColumnAware, sanitizeFilePath } from '../../base/common/extpath.js';
@@ -144,8 +144,8 @@ class CodeMain {
 					evt.join('instanceLockfile', promises.unlink(environmentMainService.mainLockfile).catch(() => { /* ignored */ }));
 				});
 
-				// Check if Inno Setup is running
-				const innoSetupActive = await this.checkInnoSetupMutex(productService);
+				// Check if Inno Setup is running. Briefly wait for the updating mutex to be released before refusing to launch.
+				const innoSetupActive = await this.checkInnoSetupMutex(productService, logService);
 				if (innoSetupActive) {
 					const message = `${productService.nameShort} is currently being updated. Please wait for the update to complete before launching.`;
 					instantiationService.invokeFunction(this.quit, new Error(message));
@@ -501,7 +501,7 @@ class CodeMain {
 		lifecycleMainService.kill(exitCode);
 	}
 
-	private async checkInnoSetupMutex(productService: IProductService): Promise<boolean> {
+	private async checkInnoSetupMutex(productService: IProductService, logService: ILogService): Promise<boolean> {
 		if (!(isWindows && productService.win32MutexName && productService.win32VersionedUpdate)) {
 			return false;
 		}
@@ -509,9 +509,29 @@ class CodeMain {
 		try {
 			const updatingMutexName = `${productService.win32MutexName}-updating`;
 			const mutex = await import('@vscode/windows-mutex');
-			return mutex.isActive(updatingMutexName);
+
+			if (!mutex.isActive(updatingMutexName)) {
+				return false;
+			}
+
+			// Wait briefly for setup teardown to release the mutex; Inno's `nowait postinstall` runcode can race the setup process exit.
+			const pollIntervalMs = 250, retries = 120; // 30s total
+			logService.info(`checkInnoSetupMutex: ${updatingMutexName} is held, waiting up to ${(pollIntervalMs * retries) / 1000}s for setup to finish...`);
+			const start = Date.now();
+			try {
+				await retry(async () => {
+					if (mutex.isActive(updatingMutexName)) {
+						throw new Error('mutex still held');
+					}
+				}, pollIntervalMs, retries);
+				logService.info(`checkInnoSetupMutex: ${updatingMutexName} released after ${Date.now() - start}ms`);
+				return false;
+			} catch {
+				logService.warn(`checkInnoSetupMutex: ${updatingMutexName} still held after ${Date.now() - start}ms, giving up`);
+				return true;
+			}
 		} catch (error) {
-			console.error('Failed to check Inno Setup mutex:', error);
+			logService.error('Failed to check Inno Setup mutex:', error);
 			return false;
 		}
 	}

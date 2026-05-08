@@ -5,7 +5,7 @@
 
 import { RunOnceScheduler } from '../../../base/common/async.js';
 import { DebounceEmitter, Emitter, Event } from '../../../base/common/event.js';
-import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { DisposableStore, Disposable, IDisposable } from '../../../base/common/lifecycle.js';
 import { IMenu, IMenuActionOptions, IMenuChangeEvent, IMenuCreateOptions, IMenuItem, IMenuItemHide, IMenuService, isIMenuItem, isISubmenuItem, ISubmenuItem, MenuId, MenuItemAction, MenuRegistry, SubmenuItemAction } from './actions.js';
 import { ICommandAction, ILocalizedString } from '../../action/common/action.js';
 import { ICommandService } from '../../commands/common/commands.js';
@@ -16,7 +16,7 @@ import { removeFastWithoutKeepingOrder } from '../../../base/common/arrays.js';
 import { localize } from '../../../nls.js';
 import { IKeybindingService } from '../../keybinding/common/keybinding.js';
 
-export class MenuService implements IMenuService {
+export class MenuService extends Disposable implements IMenuService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -27,7 +27,8 @@ export class MenuService implements IMenuService {
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IStorageService storageService: IStorageService,
 	) {
-		this._hiddenStates = new PersistedMenuHideState(storageService);
+		super();
+		this._hiddenStates = this._register(new PersistedMenuHideState(storageService));
 	}
 
 	createMenu(id: MenuId, contextKeyService: IContextKeyService, options?: IMenuCreateOptions): IMenu {
@@ -51,7 +52,7 @@ export class MenuService implements IMenuService {
 	}
 }
 
-class PersistedMenuHideState {
+class PersistedMenuHideState implements IDisposable {
 
 	private static readonly _key = 'menu.hiddenCommands';
 

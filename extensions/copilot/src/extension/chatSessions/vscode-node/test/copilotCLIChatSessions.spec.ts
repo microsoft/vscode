@@ -401,6 +401,7 @@ describe('CopilotCLIChatSessionParticipant', () => {
 			new class extends mock<IChatSessionMetadataStore>() {
 				declare readonly _serviceBrand: undefined;
 			}(),
+			{ _serviceBrand: undefined, resetTurnCredits() { }, getCreditsForTurn() { return undefined; }, setLastCopilotUsage() { } } as any,
 		);
 
 		await participant.createHandler()(

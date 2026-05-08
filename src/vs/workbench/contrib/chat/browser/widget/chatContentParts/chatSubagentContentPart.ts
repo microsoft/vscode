@@ -344,7 +344,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		}
 
 		// Use ResizeObserver to trigger layout when wrapper content changes
-		const resizeObserver = this._register(new DisposableResizeObserver(() => this.layoutScheduler.schedule()));
+		const resizeObserver = this._register(new DisposableResizeObserver('ChatSubagentContentPart.layout', () => this.layoutScheduler.schedule()));
 		this._register(resizeObserver.observe(this.wrapper));
 
 		return this.wrapper;

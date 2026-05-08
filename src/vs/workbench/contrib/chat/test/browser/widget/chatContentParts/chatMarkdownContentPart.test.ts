@@ -147,6 +147,7 @@ suite('ChatMarkdownContentPart', () => {
 			_serviceBrand: undefined,
 			createSuggestionId: () => undefined!,
 			handleCodeAccepted: () => { },
+			handleCodeRejected: () => { },
 		});
 
 		// Stub view descriptor service

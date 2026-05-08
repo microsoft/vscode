@@ -793,7 +793,7 @@ export interface ITreeItem {
 
 	command?: TreeCommand;
 
-	children?: ITreeItem[];
+	children?: readonly ITreeItem[];
 
 	parent?: ITreeItem;
 
@@ -876,8 +876,8 @@ export class NoTreeViewError extends Error {
 export interface ITreeViewDataProvider {
 	readonly isTreeEmpty?: boolean;
 	readonly onDidChangeEmpty?: Event<void>;
-	getChildren(element?: ITreeItem): Promise<ITreeItem[] | undefined>;
-	getChildrenBatch?(element?: ITreeItem[]): Promise<ITreeItem[][] | undefined>;
+	getChildren(element?: ITreeItem): Promise<readonly ITreeItem[] | undefined>;
+	getChildrenBatch?(element?: ITreeItem[]): Promise<(readonly ITreeItem[])[] | undefined>;
 }
 
 export interface ITreeViewDragAndDropController {

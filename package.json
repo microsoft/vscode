@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.120.0",
-  "distro": "adf5d4ef5d36b1829d04e2a6f5255c5344cb0316",
+  "distro": "447baaa85514cc673f505d5bf399b43904f4a5a8",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -149,6 +149,7 @@
     "yazl": "^2.4.3"
   },
   "devDependencies": {
+    "@anthropic-ai/claude-agent-sdk": "0.2.128",
     "@playwright/cli": "^0.1.9",
     "@playwright/test": "^1.56.1",
     "@stylistic/eslint-plugin-ts": "^2.8.0",
@@ -176,8 +177,8 @@
     "@types/yazl": "^2.4.2",
     "@typescript-eslint/utils": "^8.45.0",
     "@typescript/native-preview": "^7.0.0-dev.20260429",
-    "@vscode/component-explorer": "^0.2.1-25",
-    "@vscode/component-explorer-cli": "^0.2.1-25",
+    "@vscode/component-explorer": "^0.2.1-27",
+    "@vscode/component-explorer-cli": "^0.2.1-27",
     "@vscode/gulp-electron": "1.41.2",
     "@vscode/l10n-dev": "0.0.35",
     "@vscode/telemetry-extractor": "^1.20.2",

@@ -33,7 +33,6 @@ function createModel(overrides: Partial<ILanguageModelChatMetadata> = {}): ILang
 			vendor: { vendor: 'copilot', displayName: 'GitHub Copilot', isDefault: true },
 			group: { name: 'GitHub Copilot' }
 		},
-		visible: true
 	} as ILanguageModel;
 }
 

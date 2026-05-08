@@ -77,6 +77,9 @@ export namespace Schemas {
 
 	export const vscodeTerminal = 'vscode-terminal';
 
+	/** Scheme used for the image carousel editor. */
+	export const vscodeImageCarousel = 'vscode-image-carousel';
+
 	/** Scheme used for code blocks in chat. */
 	export const vscodeChatCodeBlock = 'vscode-chat-code-block';
 
@@ -226,7 +229,7 @@ class RemoteAuthoritiesImpl {
 			try {
 				return this._delegate(uri);
 			} catch (err) {
-				errors.onUnexpectedError(err);
+				errors.onUnexpectedExternalError(err);
 				return uri;
 			}
 		}

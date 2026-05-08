@@ -15,7 +15,7 @@ export interface BackgroundTodoPromptProps extends BasePromptElementProps {
 	readonly history: IBackgroundTodoHistory;
 	/** When true, the prompt switches to finalize mode: the agent loop has ended and
 	 *  the bg agent should mark any in-progress items now-complete based on the full
-	 *  trajectory. See {@link BackgroundTodoProcessor.executeFinalReview}. */
+	 *  trajectory. See {@link BackgroundTodoProcessor.requestFinalReview}. */
 	readonly isFinalReview?: boolean;
 }
 

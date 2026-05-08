@@ -29,10 +29,20 @@
 	color: var(--vscode-commandCenter-foreground);
 	gap: 6px;
 	cursor: default;
+	opacity: 1;
+	transition: opacity 120ms ease-out;
 }
 
 .agent-sessions-workbench:not(.nosidebar) .command-center .agent-sessions-titlebar-container {
 	margin-left: 0;
+}
+
+.command-center .agent-sessions-titlebar-container.agent-sessions-titlebar-hidden {
+	flex: 0 1 0;
+	width: 0;
+	margin-left: 0;
+	opacity: 0;
+	pointer-events: none;
 }
 
 /* Session pill - clickable area for session picker */
@@ -155,4 +165,10 @@
 	background-color: var(--vscode-agentsUnreadBadge-background);
 	color: var(--vscode-agentsUnreadBadge-foreground);
 	pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.command-center .agent-sessions-titlebar-container {
+		transition: none;
+	}
 }

@@ -51,6 +51,7 @@ export interface ChatSessionWorktreePropertiesV2 extends ChatSessionWorktreeBase
 	readonly incomingChanges?: number;
 	readonly outgoingChanges?: number;
 	readonly uncommittedChanges?: number;
+	readonly hasGitOperationInProgress?: boolean;
 }
 
 export type ChatSessionWorktreeProperties = ChatSessionWorktreePropertiesV1 | ChatSessionWorktreePropertiesV2;

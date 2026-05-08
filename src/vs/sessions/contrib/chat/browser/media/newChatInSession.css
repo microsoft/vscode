@@ -129,7 +129,7 @@
 
 .new-chat-in-session .sub-session-tip-widget {
 	display: flex;
-	align-items: center;
+	align-items: flex-start;
 	gap: 6px;
 	width: 100%;
 	max-width: 100%;
@@ -147,6 +147,7 @@
 .new-chat-in-session .sub-session-tip-icon {
 	flex-shrink: 0;
 	color: var(--vscode-descriptionForeground);
+	transform: translateY(2px);
 }
 
 .new-chat-in-session .sub-session-tip-text {

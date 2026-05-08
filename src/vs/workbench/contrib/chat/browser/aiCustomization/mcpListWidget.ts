@@ -531,7 +531,7 @@ export class McpListWidget extends Disposable {
 						const label = element.type === 'builtin-item' ? element.label : element.server.label;
 						return derived(reader => {
 							const isBridged = this.harnessService.activeHarness.read(reader) !== SessionType.Local;
-							return isBridged ? localize('mcpServerBridgedAriaLabel', "{0}, {1}", label, localize('bridged', "Bridged")) : label;
+							return isBridged ? localize('mcpServerBridgedAriaLabel', "{0}. {1}", label, localize('bridged', "Bridged")) : label;
 						});
 					},
 					getWidgetAriaLabel() {

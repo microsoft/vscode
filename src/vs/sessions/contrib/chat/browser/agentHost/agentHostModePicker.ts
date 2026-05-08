@@ -52,7 +52,7 @@ export class AgentHostModePicker extends Disposable {
 	private readonly _renderDisposables = this._register(new DisposableStore());
 	private readonly _providerListeners = this._register(new DisposableMap<string>());
 	private _slotElement: HTMLElement | undefined;
-	private _triggerElement: HTMLElement | undefined;
+	protected _triggerElement: HTMLElement | undefined;
 
 	constructor(
 		@IActionWidgetService private readonly _actionWidgetService: IActionWidgetService,
@@ -171,7 +171,7 @@ export class AgentHostModePicker extends Disposable {
 		this._triggerElement.ariaLabel = localize('agentHostModePicker.triggerAriaLabel', "Pick Agent Mode, {0}", label);
 	}
 
-	private _showPicker(): void {
+	protected _showPicker(): void {
 		if (!this._triggerElement || this._actionWidgetService.isVisible) {
 			return;
 		}

@@ -8,6 +8,7 @@ import type { ChatRequest, ChatRequestTurn2, ChatResponseStream, ChatResult, Loc
 import { IAuthenticationService } from '../../../platform/authentication/common/authentication';
 import { IAuthenticationChatUpgradeService } from '../../../platform/authentication/common/authenticationUpgrade';
 import { getChatParticipantNameFromId } from '../../../platform/chat/common/chatAgents';
+import { IChatQuotaService } from '../../../platform/chat/common/chatQuotaService';
 import { CanceledMessage, ChatLocation } from '../../../platform/chat/common/commonTypes';
 import { IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
 import { IIgnoreService } from '../../../platform/ignore/common/ignoreService';
@@ -84,6 +85,7 @@ export class ChatParticipantRequestHandler {
 		@ILogService private readonly _logService: ILogService,
 		@IAuthenticationService private readonly _authService: IAuthenticationService,
 		@IAuthenticationChatUpgradeService private readonly _authenticationUpgradeService: IAuthenticationChatUpgradeService,
+		@IChatQuotaService private readonly _chatQuotaService: IChatQuotaService,
 	) {
 		this.location = this.getLocation(request);
 
@@ -255,9 +257,17 @@ export class ChatParticipantRequestHandler {
 
 				result = await chatResult;
 				const endpoint = await this._endpointProvider.getChatEndpoint(this.request);
-				result.details = this._authService.copilotToken?.isNoAuthUser || endpoint.multiplier === undefined ?
-					`${endpoint.name}` :
-					`${endpoint.name} • ${endpoint.multiplier}x`;
+				const creditsUsed = this._chatQuotaService.getCreditsForTurn(this.turn.id);
+				if (creditsUsed !== undefined) {
+					const formatted = creditsUsed % 1 === 0 ? creditsUsed.toString() : creditsUsed.toFixed(1);
+					result.details = creditsUsed === 1
+						? l10n.t('{0} • {1} credit', endpoint.name, formatted)
+						: l10n.t('{0} • {1} credits', endpoint.name, formatted);
+				} else {
+					result.details = this._authService.copilotToken?.isNoAuthUser || endpoint.multiplier === undefined
+						? `${endpoint.name}`
+						: `${endpoint.name} • ${endpoint.multiplier}x`;
+				}
 			}
 
 			this._conversationStore.addConversation(this.turn.id, this.conversation);
@@ -280,6 +290,8 @@ export class ChatParticipantRequestHandler {
 		} catch (err) {
 			// TODO This method should not throw at all, but return a result with errorDetails, and call the IConversationStore
 			throw err;
+		} finally {
+			this._chatQuotaService.resetTurnCredits(this.turn.id);
 		}
 	}
 

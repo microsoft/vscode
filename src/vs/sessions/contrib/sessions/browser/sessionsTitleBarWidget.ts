@@ -31,6 +31,8 @@ import { IsSessionArchivedContext, IsSessionPinnedContext, IsSessionReadContext,
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 
+const titleBarContextKeys = new Set([IsNewChatSessionContext.key]);
+
 /**
  * Sessions Title Bar Widget - renders the active chat session title
  * in the command center of the agent sessions workbench.
@@ -93,6 +95,13 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			this._lastRenderState = undefined;
 			this._render();
 		}));
+
+		this._register(this.contextKeyService.onDidChangeContext(e => {
+			if (e.affectsSome(titleBarContextKeys)) {
+				this._lastRenderState = undefined;
+				this._render();
+			}
+		}));
 	}
 
 	override render(container: HTMLElement): void {
@@ -126,6 +135,17 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 		this._isRendering = true;
 
 		try {
+			const isNewChatSession = this.contextKeyService.getContextKeyValue<boolean>(IsNewChatSessionContext.key);
+			this._container.classList.toggle('agent-sessions-titlebar-hidden', !!isNewChatSession);
+			if (isNewChatSession) {
+				this._dynamicDisposables.clear();
+				this._container.setAttribute('aria-hidden', 'true');
+				this._container.removeAttribute('role');
+				this._container.removeAttribute('aria-label');
+				this._container.tabIndex = -1;
+				return;
+			}
+
 			const label = this._getActiveSessionLabel();
 			const icon = this._getActiveSessionIcon();
 			const repoLabel = this._getRepositoryLabel();
@@ -145,6 +165,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			this._dynamicDisposables.clear();
 
 			// Set up container as the button directly
+			this._container.removeAttribute('aria-hidden');
 			this._container.setAttribute('role', 'button');
 			this._container.setAttribute('aria-label', localize('agentSessionsShowSessions', "Show Sessions"));
 			this._container.tabIndex = 0;

@@ -180,7 +180,7 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 		}));
 		this._messageScrollable.getDomNode().classList.add('chat-confirmation-widget-message-scrollable', 'chat-plan-review-body-scrollable');
 		messageParent.insertBefore(this._messageScrollable.getDomNode(), messageNextSibling);
-		const resizeObserver = this._register(new dom.DisposableResizeObserver(() => this._messageScrollable.scanDomNode()));
+		const resizeObserver = this._register(new dom.DisposableResizeObserver('ChatPlanReviewPart.messageScrollable', () => this._messageScrollable.scanDomNode()));
 		// The inner `_messageEl` is `height: 100%`, so observing only the
 		// wrapper is enough; markdown content reflow is handled by the
 		// renderer's `asyncRenderCallback`.

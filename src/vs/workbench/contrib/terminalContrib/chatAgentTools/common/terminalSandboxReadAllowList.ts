@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { OperatingSystem } from '../../../../../base/common/platform.js';
+import type { ITerminalSandboxCommand } from '../../../../../platform/sandbox/common/terminalSandboxService.js';
+import { gitGlobalOptionsWithValue, type ITerminalSandboxCommandRule, matchesTerminalSandboxCommandRule } from './terminalSandboxCommandRules.js';
 
 export const enum TerminalSandboxReadAllowListOperation {
 	Git = 'git',
@@ -18,6 +20,7 @@ export const enum TerminalSandboxReadAllowListOperation {
 	Ruby = 'ruby',
 	NativeBuild = 'nativeBuild',
 	Conan = 'conan',
+	GnuPG = 'gnupg',
 }
 
 const terminalSandboxReadAllowListKeywordMap: ReadonlyMap<string, TerminalSandboxReadAllowListOperation> = new Map([
@@ -75,9 +78,11 @@ const terminalSandboxReadAllowListKeywordMap: ReadonlyMap<string, TerminalSandbo
 
 /**
  * Paths that common developer tools typically need to read when the user's home
- * directory is broadly denied. This list intentionally avoids obvious credential
- * and key material such as ~/.ssh, ~/.gnupg, cloud credentials, package manager
- * auth files, and git credential stores.
+ * directory is broadly denied. Broad keyword-based rules intentionally avoid obvious
+ * credential and key material such as ~/.ssh, ~/.gnupg, cloud credentials,
+ * package manager auth files, and git credential stores. Sensitive operations
+ * should only be referenced by command-detail rules scoped to commands or
+ * subcommands that require them.
  */
 
 function getTerminalSandboxReadAllowListForOperation(operation: TerminalSandboxReadAllowListOperation, os: OperatingSystem): readonly string[] {
@@ -303,12 +308,56 @@ function getTerminalSandboxReadAllowListForOperation(operation: TerminalSandboxR
 						'~/.conan2/b',
 					];
 			}
+
+		case TerminalSandboxReadAllowListOperation.GnuPG:
+			switch (os) {
+				case OperatingSystem.Macintosh:
+				case OperatingSystem.Linux:
+				default:
+					return [
+						'~/.gnupg',
+					];
+			}
 	}
 }
 
-export function getTerminalSandboxReadAllowListForCommands(os: OperatingSystem, commandKeywords: readonly string[]): readonly string[] {
+function getTerminalSandboxReadAllowListForCommandDetails(os: OperatingSystem, commandDetails: readonly ITerminalSandboxCommand[]): readonly string[] {
+	const operations = new Set<TerminalSandboxReadAllowListOperation>();
+	for (const command of commandDetails) {
+		for (const rule of terminalSandboxReadAllowListCommandDetailRules) {
+			if (matchesTerminalSandboxCommandRule(command, rule, { os })) {
+				operations.add(rule.value);
+			}
+		}
+	}
+
+	const paths = [...operations].flatMap(operation => getTerminalSandboxReadAllowListForOperation(operation, os));
+	return [...new Set(paths)];
+}
+
+/**
+ * Argument-aware allow-list rules. Keyword-only rules apply to a command
+ * executable, while subcommand rules can skip global options before matching.
+ *
+ * For example, `git -C repo commit -S` matches the `git`/`commit` rule below,
+ * while `gpg --list-keys` matches the keyword-only `gpg` rule.
+ */
+const terminalSandboxReadAllowListCommandDetailRules: readonly ITerminalSandboxCommandRule<TerminalSandboxReadAllowListOperation>[] = [
+	{
+		keywords: ['gpg', 'gpg2'],
+		value: TerminalSandboxReadAllowListOperation.GnuPG,
+	},
+	{
+		keywords: ['git'],
+		value: TerminalSandboxReadAllowListOperation.GnuPG,
+		subcommands: ['commit'],
+		optionsWithValue: gitGlobalOptionsWithValue,
+	},
+];
+
+export function getTerminalSandboxReadAllowListForCommands(os: OperatingSystem, commandKeywords: readonly string[], commandDetails: readonly ITerminalSandboxCommand[] = []): readonly string[] {
 	if (commandKeywords.length === 0) {
-		return [];
+		return getTerminalSandboxReadAllowListForCommandDetails(os, commandDetails);
 	}
 
 	const operations = new Set<TerminalSandboxReadAllowListOperation>();
@@ -319,10 +368,6 @@ export function getTerminalSandboxReadAllowListForCommands(os: OperatingSystem, 
 		}
 	}
 
-	if (operations.size === 0) {
-		return [];
-	}
-
 	const paths = [...operations].flatMap(operation => getTerminalSandboxReadAllowListForOperation(operation, os));
-	return [...new Set(paths)];
+	return [...new Set([...paths, ...getTerminalSandboxReadAllowListForCommandDetails(os, commandDetails)])];
 }

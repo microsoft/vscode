@@ -154,6 +154,9 @@ export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.
 	const skillToolEnabled = configurationService.getExperimentBasedConfig(ConfigKey.Advanced.SkillToolEnabled, experimentationService);
 	allowTools[ToolName.Skill] = skillToolEnabled;
 
+	const getSCMChangesEnabled = configurationService.getExperimentBasedConfig(ConfigKey.Advanced.GetChangedFilesToolEnabled, experimentationService);
+	allowTools[ToolName.GetScmChanges] = getSCMChangesEnabled;
+
 	allowTools[ToolName.SessionStoreSql] = true;
 
 	allowTools[CUSTOM_TOOL_SEARCH_NAME] = !!model.supportsToolSearch;
@@ -304,7 +307,8 @@ export class AgentIntent extends EditCodeIntent {
 			if (isBackgroundTodoAgentEnabled(this.configurationService, this.expService, request)) {
 				const todoProcessor = this._backgroundTodoProcessors.get(conversation.sessionId);
 				if (todoProcessor) {
-					todoProcessor.executeFinalReview();
+					const turnId = conversation.getLatestTurn().id;
+					todoProcessor.requestFinalReview(turnId);
 					await todoProcessor.waitForCompletion();
 				}
 			}
@@ -504,9 +508,15 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 			throw new Error(`Setting github.copilot.${ConfigKey.Advanced.SummarizeAgentConversationHistoryThreshold.id} is too low`);
 		}
 
+		// Apply context size override if configured by the user in the model picker
+		const configuredContextSize = this.request.modelConfiguration?.contextSize;
+		const effectiveMaxTokens = typeof configuredContextSize === 'number' && configuredContextSize < this.endpoint.modelMaxPromptTokens
+			? configuredContextSize
+			: this.endpoint.modelMaxPromptTokens;
+
 		const baseBudget = Math.min(
-			this.configurationService.getConfig<number | undefined>(ConfigKey.Advanced.SummarizeAgentConversationHistoryThreshold) ?? this.endpoint.modelMaxPromptTokens,
-			this.endpoint.modelMaxPromptTokens
+			this.configurationService.getConfig<number | undefined>(ConfigKey.Advanced.SummarizeAgentConversationHistoryThreshold) ?? effectiveMaxTokens,
+			effectiveMaxTokens
 		);
 		const useTruncation = this.endpoint.apiType === 'responses' && this.configurationService.getConfig(ConfigKey.Advanced.UseResponsesApiTruncation);
 		const responsesCompactionContextManagementEnabled = isResponsesCompactionContextManagementEnabled(this.endpoint, this.configurationService, this.expService);
@@ -958,6 +968,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 					modelCapabilities,
 					telemetryProperties: associatedRequestId ? { associatedRequestId } : undefined,
 					enableRetryOnFilter: true,
+					interactionTypeOverride: 'conversation-compaction',
 				}, bgToken);
 				if (response.type !== ChatFetchResponseType.Success) {
 					throw new Error(`Background summarization request failed: ${response.type}`);
@@ -1233,17 +1244,25 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 
 		this.logService.debug(`[BackgroundTodo] policy decision: ${decision} (${reason})`);
 
-		if (decision !== BackgroundTodoDecision.Run || !delta) {
-			return;
-		}
-
-		processor.executePass(delta, {
+		const executionContext = {
 			instantiationService: this.instantiationService,
 			logService: this.logService,
 			toolsService: this.toolsService,
 			telemetryService: this.telemetryService,
 			promptContext,
-		}, token);
+		};
+
+		if (decision === BackgroundTodoDecision.Wait && reason === 'processorInProgress' && delta) {
+			// Coalesce into the queue so the latest context is not lost.
+			processor.requestRegularPass(delta, executionContext, token);
+			return;
+		}
+
+		if (decision !== BackgroundTodoDecision.Run || !delta) {
+			return;
+		}
+
+		processor.requestRegularPass(delta, executionContext, token);
 	}
 
 	override processResponse = undefined;

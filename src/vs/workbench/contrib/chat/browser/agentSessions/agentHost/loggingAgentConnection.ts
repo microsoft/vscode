@@ -196,6 +196,10 @@ export class LoggingAgentConnection extends Disposable implements IAgentConnecti
 		return this._logCall('completions', params, () => this._inner.completions(params));
 	}
 
+	async getCompletionTriggerCharacters(): Promise<readonly string[]> {
+		return this._inner.getCompletionTriggerCharacters();
+	}
+
 	async disposeSession(session: URI): Promise<void> {
 		return this._logCall('disposeSession', session, () => this._inner.disposeSession(session));
 	}

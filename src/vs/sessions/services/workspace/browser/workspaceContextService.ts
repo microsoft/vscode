@@ -13,6 +13,9 @@ import { IWorkspaceFolderCreationData } from '../../../../platform/workspaces/co
 import { getWorkspaceIdentifier } from '../../../../workbench/services/workspaces/browser/workspaces.js';
 import { IWorkspaceEditingService } from '../../../../workbench/services/workspaces/common/workspaceEditing.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+
+import { localize } from '../../../../nls.js';
+
 export class SessionsWorkspaceContextService extends Disposable implements IWorkspaceContextService, IWorkspaceEditingService {
 
 	declare readonly _serviceBrand: undefined;
@@ -35,7 +38,7 @@ export class SessionsWorkspaceContextService extends Disposable implements IWork
 		private readonly uriIdentityService: IUriIdentityService,
 	) {
 		super();
-		this.workspace = new Workspace(workspaceIdentifier.id, [], false, workspaceIdentifier.configPath, uri => uriIdentityService.extUri.ignorePathCasing(uri));
+		this.workspace = new Workspace(workspaceIdentifier.id, [], false, workspaceIdentifier.configPath, uri => uriIdentityService.extUri.ignorePathCasing(uri), localize('agentsWindow', "Agents Window"));
 	}
 
 	getCompleteWorkspace(): Promise<IWorkspace> {
@@ -156,7 +159,7 @@ export class SessionsWorkspaceContextService extends Disposable implements IWork
 
 		// Update workspace
 		const workspaceIdentifier = getWorkspaceIdentifier(this.workspace.configuration!);
-		const workspace = new Workspace(workspaceIdentifier.id, newFolders, false, workspaceIdentifier.configPath, uri => this.uriIdentityService.extUri.ignorePathCasing(uri));
+		const workspace = new Workspace(workspaceIdentifier.id, newFolders, false, workspaceIdentifier.configPath, uri => this.uriIdentityService.extUri.ignorePathCasing(uri), this.workspace.name);
 		this.workspace.update(workspace);
 
 		// Fire did change event

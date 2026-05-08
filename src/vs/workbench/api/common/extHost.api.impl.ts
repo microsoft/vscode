@@ -5,6 +5,7 @@
 
 import type * as vscode from 'vscode';
 import { CancellationTokenSource } from '../../../base/common/cancellation.js';
+import { AsyncIterableObject, raceCancellationError } from '../../../base/common/async.js';
 import * as errors from '../../../base/common/errors.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { combinedDisposable } from '../../../base/common/lifecycle.js';
@@ -29,7 +30,7 @@ import { UIKind } from '../../services/extensions/common/extensionHostProtocol.j
 import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 import { ProxyIdentifier } from '../../services/extensions/common/proxyIdentifier.js';
 import { AISearchKeyword, ExcludeSettingOptions, TextSearchCompleteMessageType, TextSearchContext2, TextSearchMatch2 } from '../../services/search/common/searchExtTypes.js';
-import { CandidatePortSource, ExtHostContext, ExtHostLogLevelServiceShape, MainContext } from './extHost.protocol.js';
+import { CandidatePortSource, ExtHostContext, ExtHostLogLevelServiceShape, IDocumentDiffLineChangeDto, MainContext } from './extHost.protocol.js';
 import { ExtHostRelatedInformation } from './extHostAiRelatedInformation.js';
 import { ExtHostAiSettingsSearch } from './extHostAiSettingsSearch.js';
 import { ExtHostApiCommands } from './extHostApiCommands.js';
@@ -1163,6 +1164,59 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'findTextInFiles2');
 				checkProposedApiEnabled(extension, 'textSearchProvider2');
 				return extHostWorkspace.findTextInFiles2(query, options, extension.identifier, token);
+			},
+			getTextDiff(originalDocument: vscode.TextDocument, modifiedDocument: vscode.TextDocument, options?: vscode.TextDiffOptions, token?: vscode.CancellationToken): vscode.TextDiffResponse {
+				checkProposedApiEnabled(extension, 'documentDiff');
+				const proxy = rpcProtocol.getProxy(MainContext.MainThreadDocumentDiff);
+				if (token?.isCancellationRequested) {
+					const error = new errors.CancellationError();
+					return {
+						changes: AsyncIterableObject.EMPTY,
+						complete: Promise.reject(error),
+					};
+				}
+				const resultPromise = proxy.$computeDocumentDiff(
+					originalDocument.uri,
+					modifiedDocument.uri,
+					options?.ignoreTrimWhitespace ?? false,
+					options?.maxComputationTimeMs ?? 5000,
+					options?.computeMoves ?? false,
+				);
+				const diffPromise = token ? raceCancellationError(resultPromise, token) : resultPromise;
+				const mappedPromise = diffPromise.then(result => {
+					if (!result) {
+						throw new Error('Could not compute diff. Make sure both documents are available.');
+					}
+					return result;
+				});
+
+				const mapChange = (c: IDocumentDiffLineChangeDto) => ({
+					originalRange: typeConverters.Range.to(c.originalRange),
+					modifiedRange: typeConverters.Range.to(c.modifiedRange),
+					innerChanges: c.innerChanges?.map(ic => ({
+						originalRange: typeConverters.Range.to(ic.originalRange),
+						modifiedRange: typeConverters.Range.to(ic.modifiedRange),
+					})),
+				});
+
+				// TODO@API currently the diff is computed in one shot and all changes are emitted at once.
+				// In the future, we may want to stream changes incrementally as they are computed
+				// (e.g. by having the worker yield partial results).
+				return {
+					changes: new AsyncIterableObject<vscode.TextDiffChange>(async emitter => {
+						const result = await mappedPromise;
+						emitter.emitMany(result.changes.map(mapChange));
+					}),
+					complete: mappedPromise.then(result => ({
+						identical: result.identical,
+						mayBeIncomplete: result.quitEarly,
+						moves: result.moves.map(m => ({
+							originalRange: typeConverters.Range.to(m.originalRange),
+							modifiedRange: typeConverters.Range.to(m.modifiedRange),
+							changes: m.changes.map(mapChange),
+						})),
+					})),
+				};
 			},
 			save: (uri) => {
 				return extHostWorkspace.save(uri);

@@ -43,7 +43,7 @@ export class GPT5CopilotIdentityRule extends PromptElement {
 	}
 }
 
-export class HiddenModelBCopilotIdentityRule extends PromptElement {
+export class Gpt55CopilotIdentityRule extends PromptElement {
 
 	render() {
 		return (
