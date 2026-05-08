@@ -198,6 +198,7 @@ export interface IReadonlyEditorGroupModel {
 	collapseTabGroup?(groupId: string): void;
 	expandTabGroup?(groupId: string): void;
 	addToTabGroup?(groupId: string, editor: EditorInput): void;
+	includeInTabGroup?(groupId: string, editor: EditorInput): void;
 	renameTabGroup?(groupId: string, name: string): void;
 	recolorTabGroup?(groupId: string, color: string): void;
 	dissolveTabGroup?(groupId: string): void;
@@ -648,6 +649,9 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 		this.editors.splice(index, 1);
 		this.editors.splice(toIndex, 0, editor);
 
+		// Adjust tab groups for the move
+		this.adjustTabGroupsForMove(index, toIndex);
+
 		// Move Event
 		const event: IGroupEditorMoveEvent = {
 			kind: GroupModelChangeKind.EDITOR_MOVE,
@@ -656,6 +660,11 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 			editorIndex: toIndex
 		};
 		this._onDidModelChange.fire(event);
+
+		// Fire group change event so tab group visuals redraw after any reorder
+		if (this._tabGroups.length > 0) {
+			this._onDidModelChange.fire({ kind: GroupModelChangeKind.TAB_GROUP_CHANGED });
+		}
 
 		// Sticky Event (if sticky changed as part of the move)
 		if (sticky !== this.sticky) {
@@ -1235,6 +1244,41 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 		return tabGroup;
 	}
 
+	includeInTabGroup(groupId: string, editor: EditorInput): void {
+		const group = this._tabGroups.find(g => g.id === groupId);
+		if (!group) {
+			return;
+		}
+
+		const editorIndex = this.indexOf(editor);
+		if (editorIndex < 0) {
+			return;
+		}
+
+		// Already in this group
+		if (editorIndex >= group.startIndex && editorIndex < group.startIndex + group.count) {
+			return;
+		}
+
+		// Remove from any other group
+		this.removeFromTabGroupByIndex(editorIndex);
+
+		// Expand the group to include the editor at its current position
+		if (editorIndex === group.startIndex + group.count) {
+			group.count++;
+		} else if (editorIndex === group.startIndex - 1) {
+			group.startIndex--;
+			group.count++;
+		} else {
+			group.count++;
+			if (editorIndex < group.startIndex) {
+				group.startIndex = editorIndex;
+			}
+		}
+
+		this._onDidModelChange.fire({ kind: GroupModelChangeKind.TAB_GROUP_EDITOR_ADDED });
+	}
+
 	addToTabGroup(groupId: string, editor: EditorInput): void {
 		const group = this._tabGroups.find(g => g.id === groupId);
 		if (!group) {
@@ -1251,18 +1295,56 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 			return;
 		}
 
-		// Remove from any other group first
+		// Remove from any other group first (adjusts source group count)
 		this.removeFromTabGroupByIndex(editorIndex);
 
-		// Move editor to the end of the target group
-		const targetIndex = group.startIndex + group.count;
-		this.moveEditor(editor, targetIndex > editorIndex ? targetIndex - 1 : targetIndex);
+		// After removing from a group, recalculate the editor's current index
+		// and the target group's position (removeFromTabGroupByIndex only adjusts
+		// the source group, not other groups or the editors array)
+		const currentIndex = this.indexOf(editor);
 
-		// Recalculate after move
-		const newIndex = this.indexOf(editor);
-		if (newIndex >= group.startIndex && newIndex <= group.startIndex + group.count) {
-			group.count++;
+		// Compute target: place at end of target group
+		// After the source group removal, if the editor was before the target
+		// group, the target group's startIndex hasn't shifted (editors array unchanged)
+		const insertAt = group.startIndex + group.count;
+
+		// Physically move the editor in the array
+		this.editors.splice(currentIndex, 1);
+		// After removal, adjust insert position
+		const adjustedInsert = insertAt > currentIndex ? insertAt - 1 : insertAt;
+		this.editors.splice(adjustedInsert, 0, editor);
+
+		// Adjust all tab group indices for the move
+		for (const other of this._tabGroups) {
+			if (other.id === groupId) {
+				continue;
+			}
+			// Editor was removed from currentIndex
+			if (currentIndex < other.startIndex) {
+				other.startIndex--;
+			}
+			// Editor was inserted at adjustedInsert
+			if (adjustedInsert <= other.startIndex) {
+				other.startIndex++;
+			}
 		}
+
+		// Adjust target group for the removal effect on its own startIndex
+		if (currentIndex < group.startIndex) {
+			group.startIndex--;
+		}
+
+		// Add to the target group
+		group.count++;
+
+		// Fire move event so UI redraws tabs
+		const moveEvent: IGroupEditorMoveEvent = {
+			kind: GroupModelChangeKind.EDITOR_MOVE,
+			editor,
+			oldEditorIndex: currentIndex,
+			editorIndex: this.indexOf(editor)
+		};
+		this._onDidModelChange.fire(moveEvent);
 
 		this._onDidModelChange.fire({ kind: GroupModelChangeKind.TAB_GROUP_EDITOR_ADDED });
 	}
@@ -1339,31 +1421,35 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 			return;
 		}
 
+		const oldStart = group.startIndex;
+		const count = group.count;
+
 		// Extract the editors belonging to this group
-		const groupEditors = this.editors.splice(group.startIndex, group.count);
+		const groupEditors = this.editors.splice(oldStart, count);
 
-		// Adjust target if it was after the original position
-		const adjustedTarget = toIndex > group.startIndex ? toIndex : toIndex;
+		// After removal, adjust target if it was after the original position
+		const adjustedTarget = toIndex > oldStart ? toIndex - count : toIndex;
 
-		// Re-insert editors at the target position
+		// Re-insert editors at the adjusted position
 		this.editors.splice(adjustedTarget, 0, ...groupEditors);
 
-		// Rebuild all tab group indices from scratch since bulk moves are complex
-		const oldStart = group.startIndex;
+		// Update the moved group's startIndex
 		group.startIndex = adjustedTarget;
+
+		// Adjust other groups' startIndex values
 		for (const other of this._tabGroups) {
 			if (other.id === groupId) {
 				continue;
 			}
-			if (oldStart < adjustedTarget) {
-				// Group moved forward: groups between old and new shift left
-				if (other.startIndex > oldStart && other.startIndex <= adjustedTarget) {
-					other.startIndex -= group.count;
+			if (oldStart < toIndex) {
+				// Group moved forward: groups between oldStart and toIndex shift left
+				if (other.startIndex >= oldStart + count && other.startIndex < toIndex) {
+					other.startIndex -= count;
 				}
 			} else {
-				// Group moved backward: groups between new and old shift right
-				if (other.startIndex >= adjustedTarget && other.startIndex < oldStart) {
-					other.startIndex += group.count;
+				// Group moved backward: groups between toIndex and oldStart shift right
+				if (other.startIndex >= toIndex && other.startIndex < oldStart) {
+					other.startIndex += count;
 				}
 			}
 		}
@@ -1411,6 +1497,14 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 				}
 			}
 		}
+	}
+
+	private adjustTabGroupsForMove(fromIndex: number, toIndex: number): void {
+		// A move is equivalent to: remove from fromIndex, then insert at toIndex.
+		// The splice calls already happened on the editors array, so we simulate
+		// the same effect on tab group indices.
+		this.adjustTabGroupsForRemove(fromIndex);
+		this.adjustTabGroupsForInsert(toIndex);
 	}
 
 	//#endregion

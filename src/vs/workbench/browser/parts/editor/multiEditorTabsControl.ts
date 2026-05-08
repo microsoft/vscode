@@ -692,6 +692,9 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			Math.max(fromTabIndex, targetTabIndex)	//   to: largest of fromTabIndex/targetTabIndex
 		);
 
+		// Re-apply tab group styling after the move (redrawTab strips group classes)
+		this.redrawTabGroups();
+
 		// Moving an editor requires a layout to keep the active editor visible
 		this.layout(this.dimensions, { forceRevealActiveTab: true });
 	}

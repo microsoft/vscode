@@ -39,9 +39,7 @@
 }
 
 .tab-group-header.collapsed::after {
-	content: '\25B6';
-	font-size: 8px;
-	margin-left: 4px;
+	content: '';
 }
 
 /* Tab Group Header Colors */

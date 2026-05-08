@@ -38,6 +38,7 @@ abstract class FilteredEditorGroupModel extends Disposable implements IReadonlyE
 	collapseTabGroup(groupId: string): void { this.model.collapseTabGroup?.(groupId); }
 	expandTabGroup(groupId: string): void { this.model.expandTabGroup?.(groupId); }
 	addToTabGroup(groupId: string, editor: EditorInput): void { this.model.addToTabGroup?.(groupId, editor); }
+	includeInTabGroup(groupId: string, editor: EditorInput): void { this.model.includeInTabGroup?.(groupId, editor); }
 	renameTabGroup(groupId: string, name: string): void { this.model.renameTabGroup?.(groupId, name); }
 	recolorTabGroup(groupId: string, color: string): void { this.model.recolorTabGroup?.(groupId, color); }
 	dissolveTabGroup(groupId: string): void { this.model.dissolveTabGroup?.(groupId); }
