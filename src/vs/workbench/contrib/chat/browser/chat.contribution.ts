@@ -879,6 +879,17 @@ configurationRegistry.registerConfiguration({
 			default: ['github/copilot-plugins', 'github/awesome-copilot'],
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental'],
+			policy: {
+				name: 'ChatPluginMarketplaces',
+				category: PolicyCategory.InteractiveSession,
+				minimumVersion: '1.NNN',
+				localization: {
+					description: {
+						key: 'chat.plugins.marketplaces.policy.description',
+						value: nls.localize('chat.plugins.marketplaces.policy.description', "Restricts the list of plugin marketplaces queried by chat. When set, the user setting `#chat.plugins.marketplaces#` is overridden and only the marketplaces specified here are used. Entries may be GitHub shorthand (`owner/repo`), direct Git repository URIs (`https://...git`, `ssh://...git`, `git@host:path.git`), or local repository URIs (`file:///...`). Use this to point an organization at a curated, internally-vetted plugin marketplace.")
+					}
+				}
+			}
 		},
 		[ChatConfiguration.AgentEnabled]: {
 			type: 'boolean',
