@@ -43,6 +43,14 @@ class NewChatWidget extends Disposable {
 	/** Tracks an in-flight wait for a provider's session types to become available. */
 	private readonly _pendingSessionTypeWait = new MutableDisposable<IDisposable>();
 
+	/**
+	 * The currently mounted no-agent-host empty state, if any. Set by
+	 * {@link _renderEmptyStateGate} while the empty state replaces the
+	 * workspace picker; consulted by {@link focusInput} to route focus to
+	 * the visible heading instead of the (hidden) chat input.
+	 */
+	private _activeEmptyState: NoAgentHostEmptyState | undefined;
+
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILogService private readonly logService: ILogService,
@@ -236,7 +244,15 @@ class NewChatWidget extends Disposable {
 	private _renderEmptyState(container: HTMLElement): IDisposable {
 		const emptyState = this.instantiationService.createInstance(NoAgentHostEmptyState);
 		emptyState.render(container);
-		return emptyState;
+		this._activeEmptyState = emptyState;
+		return {
+			dispose: () => {
+				if (this._activeEmptyState === emptyState) {
+					this._activeEmptyState = undefined;
+				}
+				emptyState.dispose();
+			},
+		};
 	}
 
 	/**
@@ -345,6 +361,14 @@ class NewChatWidget extends Disposable {
 	}
 
 	focusInput(): void {
+		// While the empty state is mounted, the chat input is hidden via
+		// CSS (`.no-agent-host` on `.new-chat-widget-content`) so focusing
+		// it would just send focus to <body>. Land on the empty state's
+		// heading instead so the user has a visible focus target.
+		if (this._activeEmptyState) {
+			this._activeEmptyState.focus();
+			return;
+		}
 		this._newChatInput.focus();
 	}
 

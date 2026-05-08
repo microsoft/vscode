@@ -54,8 +54,8 @@
 	color: var(--vscode-descriptionForeground);
 }
 
-/* Inline command (e.g. `code agent host --tunnel`). Rendered by
- * `renderFormattedText` as a <code> element when the description is built. */
+/* Inline command (e.g. `code tunnel` / `code-insiders tunnel`) rendered
+ * inside the description by `renderFormattedText` as a <code> element. */
 .no-agent-host-empty-state .no-agent-host-description code {
 	display: inline-block;
 	padding: 1px 6px;
@@ -78,70 +78,6 @@
 .no-agent-host-empty-state .no-agent-host-link:hover,
 .no-agent-host-empty-state .no-agent-host-link:focus {
 	text-decoration: underline;
-}
-
-/* Stack the connect actions as a column with consistent width — the
- * primary "Connect via …" buttons sit at the visual center of the empty
- * state and read as the main next step. */
-.no-agent-host-empty-state .no-agent-host-actions {
-	display: flex;
-	flex-direction: column;
-	align-items: stretch;
-	gap: 6px;
-	width: 100%;
-	max-width: 280px;
-	margin-top: 4px;
-}
-
-.no-agent-host-empty-state .no-agent-host-action-button {
-	width: 100%;
-}
-
-.no-agent-host-empty-state .no-agent-host-action-button .codicon {
-	margin-right: 6px;
-}
-
-/* Footer hosts the "Search again" button (or "Searching…" indicator while
- * a discovery handler is in flight). The two are mutually exclusive. */
-.no-agent-host-empty-state .no-agent-host-footer {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	gap: 8px;
-	min-height: 24px;
-	margin-top: 8px;
-}
-
-.no-agent-host-empty-state .no-agent-host-status {
-	display: inline-flex;
-	align-items: center;
-	gap: 6px;
-	font-size: 12px;
-	color: var(--vscode-descriptionForeground);
-}
-
-.no-agent-host-empty-state .no-agent-host-status.hidden,
-.no-agent-host-empty-state .no-agent-host-search-again.hidden {
-	display: none;
-}
-
-.no-agent-host-empty-state .no-agent-host-status .codicon {
-	font-size: 12px;
-}
-
-.no-agent-host-empty-state .no-agent-host-search-again {
-	font-size: 12px;
-	color: var(--vscode-descriptionForeground);
-}
-
-.no-agent-host-empty-state .no-agent-host-search-again:hover,
-.no-agent-host-empty-state .no-agent-host-search-again:focus {
-	color: var(--vscode-foreground);
-}
-
-.no-agent-host-empty-state .no-agent-host-search-again .codicon {
-	margin-right: 4px;
-	font-size: 12px;
 }
 
 /* When the empty state is mounted, hide the chat input below it — the

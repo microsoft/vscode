@@ -12,61 +12,42 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { isMobile } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
-import { SessionWorkspacePickerGroupContext } from '../../../common/contextkeys.js';
-import { SESSION_WORKSPACE_GROUP_REMOTE } from '../../../services/sessions/common/session.js';
 
 const $ = dom.$;
 
 const LEARN_MORE_URL = 'https://aka.ms/VSCode/Agents/docs';
 
 /**
- * Empty state shown in the new-session view when the agents window is open
- * on web (vscode.dev / insiders.vscode.dev) and no agent hosts have been
- * discovered yet. Replaces the workspace picker — which can't surface any
- * useful items without a host — with a clear explanation of what an agent
- * host is and call-to-action buttons that drive the user through the host
- * onboarding flows registered in {@link Menus.SessionWorkspaceManage}.
- *
- * Two visual states drive off {@link IAgentHostFilterService}:
- *
- *  - `discovering`: a small spinner + "Searching for agent hosts…" while
- *    discovery handlers are in flight. The connect actions are still
- *    rendered below so the user can pick a flow without waiting.
- *  - `idle`: the steady "no hosts" state with a heading, description,
- *    connect actions, and a "Search again" footer that re-runs discovery.
+ * Empty state shown in the new-session view when the agents window is
+ * open on web (vscode.dev / insiders.vscode.dev) and no agent hosts have
+ * been discovered. Replaces the workspace picker — which can't surface
+ * any useful items without a host — with a heading, a description that
+ * tells the user how to bring a host online with the VS Code CLI, and
+ * a "Learn more" link to the docs.
  */
 export class NoAgentHostEmptyState extends Disposable {
 
-	private readonly _scopedContextKeyService: IContextKeyService;
-
 	private _root: HTMLElement | undefined;
-	private _statusElement: HTMLElement | undefined;
 
 	constructor(
-		@IContextKeyService contextKeyService: IContextKeyService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IProductService private readonly _productService: IProductService,
 	) {
 		super();
-
-		// `Menus.SessionWorkspaceManage` actions (Connect via Tunnel / SSH)
-		// are gated by `SessionWorkspacePickerGroupContext == 'Remote'`. The
-		// real workspace picker sets this when the user clicks the Remote
-		// tab; here we surface the same actions outside the picker, so we
-		// scope a child context key service and bind the key ourselves.
-		this._scopedContextKeyService = this._register(contextKeyService.createScoped(document.createElement('div')));
-		SessionWorkspacePickerGroupContext.bindTo(this._scopedContextKeyService).set(SESSION_WORKSPACE_GROUP_REMOTE);
 	}
 
 	render(parent: HTMLElement): void {
 		this._root = dom.append(parent, $('.no-agent-host-empty-state'));
 		this._root.setAttribute('role', 'group');
 		this._root.setAttribute('aria-label', localize('noAgentHost.aria', "No agent hosts available"));
+		// Make the root programmatically focusable so screen readers land
+		// on the heading when the chat input — which would normally take
+		// focus on view mount — is hidden by the `.no-agent-host` class.
+		this._root.tabIndex = -1;
 
-		// --- Hero icon if not mobile ----------------------------------------
+		// --- Hero icon (skipped on phone-layout viewports for vertical room)
 		if (!isMobile) {
 			const iconWrap = dom.append(this._root, $('.no-agent-host-icon'));
 			iconWrap.append(...renderLabelWithIcons(`$(${Codicon.remote.id})`));
@@ -88,7 +69,7 @@ export class NoAgentHostEmptyState extends Disposable {
 		renderFormattedText(
 			localize(
 				'noAgentHost.description',
-				"Run ``{0}`` from any device, then return here to run agents tasks on it.",
+				"Run ``{0}`` from any device, then return here to run agent tasks on it.",
 				command
 			),
 			{ renderCodeSegments: true },
@@ -102,11 +83,10 @@ export class NoAgentHostEmptyState extends Disposable {
 			e.preventDefault();
 			this._openerService.open(URI.parse(LEARN_MORE_URL));
 		}));
+	}
 
-		// --- Discovery footer ----------------------------------------------
-		const footer = dom.append(this._root, $('.no-agent-host-footer'));
-		this._statusElement = dom.append(footer, $('.no-agent-host-status'));
-		this._statusElement.setAttribute('aria-live', 'polite');
+	focus(): void {
+		this._root?.focus();
 	}
 
 	override dispose(): void {
