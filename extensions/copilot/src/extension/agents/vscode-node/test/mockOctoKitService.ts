@@ -28,6 +28,7 @@ export class MockOctoKitService implements IOctoKitService {
 	addPullRequestComment = async () => null;
 	getAllOpenSessions = async () => [];
 	getAllSessions = async () => [];
+	createPullRequest = async () => ({ number: 0, url: '' });
 	getPullRequestFromGlobalId = async () => null;
 	getPullRequestFiles = async () => [];
 	closePullRequest = async () => false;
