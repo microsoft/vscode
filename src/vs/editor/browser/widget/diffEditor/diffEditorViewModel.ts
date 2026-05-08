@@ -394,6 +394,16 @@ function normalizeDocumentDiff(diff: IDocumentDiff, original: ITextModel, modifi
 function normalizeRangeMapping(rangeMapping: RangeMapping, original: ITextModel, modified: ITextModel): RangeMapping {
 	let originalRange = rangeMapping.originalRange;
 	let modifiedRange = rangeMapping.modifiedRange;
+
+	// The diff result may contain line numbers from a stale model state if the model
+	// was edited during async diff computation. Validate before calling getLineMaxColumn.
+	if (
+		originalRange.endLineNumber < 1 || originalRange.endLineNumber > original.getLineCount() ||
+		modifiedRange.endLineNumber < 1 || modifiedRange.endLineNumber > modified.getLineCount()
+	) {
+		return rangeMapping;
+	}
+
 	if (
 		originalRange.startColumn === 1 && modifiedRange.startColumn === 1 &&
 		(originalRange.endColumn !== 1 || modifiedRange.endColumn !== 1) &&
