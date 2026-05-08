@@ -617,6 +617,10 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 
 				disposables.add(this.onDidChangeSessions(() => tryRestore()));
 				disposables.add(this.sessionsProvidersService.onDidChangeProviders(() => tryRestore()));
+
+				// Call immediately in case the session became available between the
+				// initial getSession check above and the listener registration here.
+				tryRestore();
 			});
 		};
 
@@ -625,9 +629,10 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 			// Race against new-session navigation so progress stops immediately
 			// when the user opens the new session view, but not when they open
 			// another existing session (which should show its own progress).
+			// Use Event.toPromise so the one-shot listener is auto-disposed.
 			const progressPromise = Promise.race([
 				restorePromise,
-				new Promise<void>(resolve => this._onDidOpenNewSessionView.event(() => resolve()))
+				Event.toPromise(this._onDidOpenNewSessionView.event)
 			]);
 			this.progressService.withProgress({ location: ChatViewId, delay: 200 }, () => progressPromise);
 		}

@@ -845,7 +845,9 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		this.restoreParts();
 
 		// Restore the last active session (progress is shown inside the service).
-		this.sessionsManagementService.restoreLastActiveSession();
+		void this.sessionsManagementService.restoreLastActiveSession().catch(e => {
+			this.logService.error('[Workbench] restoreLastActiveSession failed', e);
+		});
 
 		// Set lifecycle phase to `Restored`
 		lifecycleService.phase = LifecyclePhase.Restored;
