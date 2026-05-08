@@ -26,7 +26,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'boolean',
 			default: true,
 			experiment: { mode: 'startup' },
-			description: localize('sessions.chat.claudeAgent.enabled', "Enable Claude Agent sessions in the Agents app. Start and resume agentic coding sessions powered by Anthropic's Claude Agent SDK directly. Uses your existing Copilot subscription."),
+			description: localize('sessions.chat.claudeAgent.enabled', "Enable Claude Agent sessions in the Agents window. Start and resume agentic coding sessions powered by Anthropic's Claude Agent SDK directly. Uses your existing Copilot subscription."),
 		},
 		[LOCAL_SESSION_ENABLED_SETTING]: {
 			type: 'boolean',

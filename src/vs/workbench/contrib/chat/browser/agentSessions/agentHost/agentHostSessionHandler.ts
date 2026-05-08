@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { encodeBase64 } from '../../../../../../base/common/buffer.js';
+import { encodeBase64, VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
@@ -37,19 +37,21 @@ import { ITerminalChatService } from '../../../../terminal/browser/terminal.js';
 import { IChatWidgetService } from '../../chat.js';
 import { ChatRequestQueueKind, ConfirmedReason, IChatProgress, IChatQuestion, IChatQuestionAnswers, IChatService, IChatToolInvocation, ToolConfirmKind, type IChatMultiSelectAnswer, type IChatQuestionAnswerValue, type IChatSingleSelectAnswer, type IChatTerminalToolInvocationData } from '../../../common/chatService/chatService.js';
 import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionRequestHistoryItem, type IChatInputCompletionItem, type IChatInputCompletionsParams, type IChatInputCompletionsResult } from '../../../common/chatSessionsService.js';
-import type { IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
+import { isImageVariableEntry, type IChatRequestVariableEntry, type IImageVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
+import { coerceImageBuffer } from '../../../common/chatImageExtraction.js';
 import { getChatSessionType } from '../../../common/model/chatUri.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
 import { IChatEditingService } from '../../../common/editing/chatEditingService.js';
 import { ChatQuestionCarouselData } from '../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
+import { type IChatRequestVariableData } from '../../../common/model/chatModel.js';
 import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { ILanguageModelToolsService, IToolData, IToolInvocation, IToolResult, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { getAgentHostIcon } from '../agentSessions.js';
 import { AgentHostEditingSession } from './agentHostEditingSession.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWorkingDirectoryResolver.js';
-import { activeTurnToProgress, completedToolCallToEditParts, completedToolCallToSerialized, finalizeToolInvocation, getTerminalContentUri, isSubagentTool, makeAhpTerminalToolSessionId, parseAhpTerminalToolSessionId, rawMarkdownToString, stringOrMarkdownToString, toolCallStateToInvocation, turnsToHistory, updateRunningToolSpecificData, type IToolCallFileEdit, type TurnModelLookup } from './stateToProgressAdapter.js';
+import { activeTurnToProgress, completedToolCallToEditParts, completedToolCallToSerialized, finalizeToolInvocation, getTerminalContentUri, isSubagentTool, makeAhpTerminalToolSessionId, parseAhpTerminalToolSessionId, rawMarkdownToString, stringOrMarkdownToString, toolCallStateToInvocation, turnsToHistory, updateRunningToolSpecificData, userMessageToVariableData, type IToolCallFileEdit, type TurnModelLookup } from './stateToProgressAdapter.js';
 
 // =============================================================================
 // AgentHostSessionHandler - renderer-side handler for a single agent host
@@ -211,7 +213,7 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 	private readonly _onWillDispose = this._register(new Emitter<void>());
 	readonly onWillDispose = this._onWillDispose.event;
 
-	private readonly _onDidStartServerRequest = this._register(new Emitter<{ prompt: string }>());
+	private readonly _onDidStartServerRequest = this._register(new Emitter<{ prompt: string; variableData?: IChatRequestVariableData }>());
 	readonly onDidStartServerRequest = this._onDidStartServerRequest.event;
 
 	readonly interruptActiveResponseCallback: IChatSession['interruptActiveResponseCallback'];
@@ -282,13 +284,13 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 	 * Resets the progress observable and signals listeners to create a new
 	 * request+response pair in the chat model.
 	 */
-	startServerRequest(prompt: string): void {
+	startServerRequest(prompt: string, variableData?: IChatRequestVariableData): void {
 		this._logService.info('[AgentHost] Server-initiated request started');
 		transaction(tx => {
 			this.progressObs.set([], tx);
 			this.isCompleteObs.set(false, tx);
 		});
-		this._onDidStartServerRequest.fire({ prompt });
+		this._onDidStartServerRequest.fire({ prompt, variableData });
 	}
 }
 
@@ -594,6 +596,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 							prompt: sessionState.activeTurn.userMessage.text,
 							participant: this._config.agentId,
 							modelId: lookup.toLanguageModelId(activeRawModelId),
+							variableData: userMessageToVariableData(sessionState.activeTurn.userMessage, this._config.connectionAuthority),
 						});
 						history.push({
 							type: 'response',
@@ -804,13 +807,18 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const prevQueued = protocolState?.queuedMessages ?? [];
 
 		// Compute current state from chat model
-		let currentSteering: { id: string; text: string } | undefined;
-		const currentQueued: { id: string; text: string }[] = [];
+		interface IPendingSnapshot { id: string; text: string; attachments?: MessageAttachment[] }
+		let currentSteering: IPendingSnapshot | undefined;
+		const currentQueued: IPendingSnapshot[] = [];
 		for (const p of pending) {
+			const variables = p.request.variableData?.variables ?? [];
+			const messageAttachments = this._variableEntriesToAttachments(variables, sessionResource);
+			const attachments = messageAttachments.length > 0 ? messageAttachments : undefined;
+			const snapshot: IPendingSnapshot = { id: p.request.id, text: p.request.message.text, attachments };
 			if (p.kind === ChatRequestQueueKind.Steering) {
-				currentSteering = { id: p.request.id, text: p.request.message.text };
+				currentSteering = snapshot;
 			} else {
-				currentQueued.push({ id: p.request.id, text: p.request.message.text });
+				currentQueued.push(snapshot);
 			}
 		}
 
@@ -822,7 +830,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					session,
 					kind: PendingMessageKind.Steering,
 					id: currentSteering.id,
-					userMessage: { text: currentSteering.text },
+					userMessage: { text: currentSteering.text, attachments: currentSteering.attachments },
 				});
 			}
 		} else if (prevSteering) {
@@ -857,7 +865,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					session,
 					kind: PendingMessageKind.Queued,
 					id: q.id,
-					userMessage: { text: q.text },
+					userMessage: { text: q.text, attachments: q.attachments },
 				});
 			}
 		}
@@ -972,7 +980,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			previousQueuedIds = currentQueuedIds;
 
 			// Signal the session to create a new request+response pair
-			chatSession.startServerRequest(activeTurn.userMessage.text);
+			chatSession.startServerRequest(
+				activeTurn.userMessage.text,
+				userMessageToVariableData(activeTurn.userMessage, this._config.connectionAuthority),
+			);
 
 			// Set up turn progress tracking — reuse the same state-to-progress
 			// translation as _handleTurn, but pipe output to progressObs/isCompleteObs
@@ -2479,33 +2490,65 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	private _convertVariablesToAttachments(request: IChatAgentRequest): MessageAttachment[] {
+		return this._variableEntriesToAttachments(request.variables.variables, request.sessionResource);
+	}
+
+	private _variableEntriesToAttachments(variables: readonly IChatRequestVariableEntry[], sessionResource: URI): MessageAttachment[] {
 		const attachments: MessageAttachment[] = [];
-		for (const v of request.variables.variables) {
-			const attachment = this._convertVariableToAttachment(v, request.sessionResource);
+		for (const v of variables) {
+			const attachment = this._convertVariableToAttachment(v, sessionResource);
 			if (attachment) {
 				attachments.push(attachment);
 			}
 		}
 		if (attachments.length > 0) {
-			this._logService.trace(`[AgentHost] Converted ${attachments.length} attachments from ${request.variables.variables.length} variables`);
+			this._logService.trace(`[AgentHost] Converted ${attachments.length} attachments from ${variables.length} variables`);
 		}
 		return attachments;
 	}
 
 	private _convertVariableToAttachment(v: IChatRequestVariableEntry, sessionResource: URI): MessageAttachment | undefined {
+		// File / implicit attachments: a Location → selection, a URI → resource.
+		// Only the selection variant of an implicit attachment becomes a
+		// `selection`; the bare visible-document case stays a plain file
+		// reference (or, when there's no value at all, gets dropped).
 		if ((v.kind === 'file' || (v.kind === 'implicit' && v.isSelection)) && isLocation(v.value)) {
-			return this._toSelectionAttachment(v.value, v.name, sessionResource, v._meta);
+			return this._toSelectionAttachment(v.value, v.name, 'selection', sessionResource, v._meta);
 		}
-		if (v.kind === 'file' && v.value instanceof URI) {
+		if ((v.kind === 'file' || v.kind === 'implicit') && v.value instanceof URI) {
 			return this._toResourceAttachment(v.value, v.name, 'document', sessionResource, v._meta);
 		}
 		if (v.kind === 'directory' && v.value instanceof URI) {
 			return this._toResourceAttachment(v.value, v.name, 'directory', sessionResource, v._meta);
 		}
+		// Symbol: a Location with a 'symbol' display hint.
+		if (v.kind === 'symbol' && isLocation(v.value)) {
+			return this._toSelectionAttachment(v.value, v.name, 'symbol', sessionResource, v._meta);
+		}
+		// Prompt files (.prompt.md) — treated as a referenced document.
+		if (v.kind === 'promptFile' && v.value instanceof URI) {
+			return this._toResourceAttachment(v.value, v.name, 'document', sessionResource, v._meta);
+		}
+		// Image: send inline as base64 when we have the bytes; otherwise fall
+		// back to a file resource reference.
+		if (isImageVariableEntry(v)) {
+			return this._toImageAttachment(v, sessionResource);
+		}
+		// Pasted code, prompt text, and free-form string entries: surface their
+		// textual representation as an opaque attachment.
+		if (v.kind === 'paste') {
+			return this._toSimpleAttachment(v.name, v.code, v._meta);
+		}
+		if (v.kind === 'promptText') {
+			return this._toSimpleAttachment(v.name, v.value, v._meta);
+		}
+		if (v.kind === 'string' && typeof v.value === 'string') {
+			return this._toSimpleAttachment(v.name, v.value, v._meta);
+		}
 		return undefined;
 	}
 
-	private _toResourceAttachment(uri: URI, label: string, displayKind: 'document' | 'directory', sessionResource: URI, _meta: Record<string, unknown> | undefined): MessageAttachment | undefined {
+	private _toResourceAttachment(uri: URI, label: string, displayKind: string, sessionResource: URI, _meta: Record<string, unknown> | undefined): MessageAttachment | undefined {
 		if (uri.scheme !== 'file') {
 			return undefined;
 		}
@@ -2517,7 +2560,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		return attachment;
 	}
 
-	private _toSelectionAttachment(location: Location, label: string, sessionResource: URI, _meta: Record<string, unknown> | undefined): MessageAttachment | undefined {
+	private _toSelectionAttachment(location: Location, label: string, displayKind: string, sessionResource: URI, _meta: Record<string, unknown> | undefined): MessageAttachment | undefined {
 		if (location.uri.scheme !== 'file') {
 			return undefined;
 		}
@@ -2526,9 +2569,41 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			type: MessageAttachmentKind.Resource,
 			uri: attachmentUri.toString(),
 			label,
-			displayKind: 'selection',
+			displayKind,
 			selection: { range: this._toTextRange(location.range) },
 		};
+		if (_meta) {
+			attachment._meta = _meta;
+		}
+		return attachment;
+	}
+
+	private _toImageAttachment(v: IImageVariableEntry, sessionResource: URI): MessageAttachment | undefined {
+		const buffer = coerceImageBuffer(v.value);
+		const contentType = v.mimeType ?? 'image/png';
+		if (buffer) {
+			const attachment: MessageAttachment = {
+				type: MessageAttachmentKind.EmbeddedResource,
+				label: v.name,
+				displayKind: 'image',
+				data: encodeBase64(VSBuffer.wrap(buffer)),
+				contentType,
+			};
+			if (v._meta) {
+				attachment._meta = v._meta;
+			}
+			return attachment;
+		}
+		// No inline bytes — fall back to a file reference if one is available.
+		const refUri = v.references?.find(r => URI.isUri(r.reference))?.reference;
+		if (URI.isUri(refUri)) {
+			return this._toResourceAttachment(refUri, v.name, 'image', sessionResource, v._meta);
+		}
+		return undefined;
+	}
+
+	private _toSimpleAttachment(label: string, modelRepresentation: string | undefined, _meta: Record<string, unknown> | undefined): MessageAttachment {
+		const attachment: MessageAttachment = { type: MessageAttachmentKind.Simple, label, modelRepresentation };
 		if (_meta) {
 			attachment._meta = _meta;
 		}

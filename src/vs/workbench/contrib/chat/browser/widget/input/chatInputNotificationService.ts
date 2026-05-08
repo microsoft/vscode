@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { status } from '../../../../../../base/browser/ui/aria/aria.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
@@ -81,25 +82,32 @@ class ChatInputNotificationService extends Disposable implements IChatInputNotif
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange = this._onDidChange.event;
 
+	/**
+	 * Signature of the last active notification we announced via ARIA, so we
+	 * don't re-announce the same content when the model fires `onDidChange`
+	 * for unrelated reasons or when the same notification is re-pushed.
+	 */
+	private _lastAnnouncedSignature: string | undefined;
+
 	setNotification(notification: IChatInputNotification): void {
 		this._notifications.set(notification.id, notification);
 		this._dismissed.delete(notification.id);
 		this._insertionOrder.set(notification.id, this._insertionCounter++);
-		this._onDidChange.fire();
+		this._fireDidChange();
 	}
 
 	deleteNotification(id: string): void {
 		if (this._notifications.delete(id)) {
 			this._dismissed.delete(id);
 			this._insertionOrder.delete(id);
-			this._onDidChange.fire();
+			this._fireDidChange();
 		}
 	}
 
 	dismissNotification(id: string): void {
 		if (this._notifications.has(id) && !this._dismissed.has(id)) {
 			this._dismissed.add(id);
-			this._onDidChange.fire();
+			this._fireDidChange();
 		}
 	}
 
@@ -135,8 +143,38 @@ class ChatInputNotificationService extends Disposable implements IChatInputNotif
 			}
 		}
 		if (changed) {
-			this._onDidChange.fire();
+			this._fireDidChange();
 		}
+	}
+
+	private _fireDidChange(): void {
+		this._announceActiveIfChanged();
+		this._onDidChange.fire();
+	}
+
+	/**
+	 * Announce the currently active notification to screen readers, but only
+	 * when its content differs from the last announced one. This prevents
+	 * the same notification from being announced repeatedly when:
+	 *  - the same notification is re-pushed by an extension (e.g. on every
+	 *    quota change tick),
+	 *  - multiple chat widgets are mounted (panel, side bar, etc.) — the
+	 *    announcement happens once at the singleton level instead of once
+	 *    per widget.
+	 */
+	private _announceActiveIfChanged(): void {
+		const active = this.getActiveNotification();
+		if (!active) {
+			this._lastAnnouncedSignature = undefined;
+			return;
+		}
+		const signature = `${active.id}\u0000${active.message}\u0000${active.description ?? ''}`;
+		if (signature === this._lastAnnouncedSignature) {
+			return;
+		}
+		this._lastAnnouncedSignature = signature;
+		const text = active.description ? `${active.message}. ${active.description}` : active.message;
+		status(text);
 	}
 }
 
