@@ -452,6 +452,19 @@ suite('Snippet Variables Resolver', function () {
 		assertVariableResolve(resolver, 'REVERSE_RELATIVE_FILEPATH', '.');
 		workspaceRootModel.dispose();
 
+		const aboveWorkspaceModel = createTextModel('', undefined, undefined, URI.parse('file:///bar/text.txt'));
+		resolver = new ModelBasedVariableResolver(
+			createMockWorkspaceLabelService('/foo'),
+			aboveWorkspaceModel
+		);
+		if (!isWindows) {
+			assertVariableResolve(resolver, 'RELATIVE_FILEPATH', '/bar/text.txt');
+		} else {
+			assertVariableResolve(resolver, 'RELATIVE_FILEPATH', '\\bar\\text.txt');
+		}
+		assertVariableResolve(resolver, 'REVERSE_RELATIVE_FILEPATH', undefined);
+		aboveWorkspaceModel.dispose();
+
 		model.dispose();
 	});
 
