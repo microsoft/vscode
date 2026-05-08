@@ -274,6 +274,7 @@ export class BreadcrumbsWidget {
 				node.classList.add('selected');
 			}
 		}
+		this._reveal(this._selectedItemIdx, false);
 		this._onDidSelectItem.fire({ type: 'select', item: this._items[this._selectedItemIdx], node: this._nodes[this._selectedItemIdx], payload });
 	}
 
