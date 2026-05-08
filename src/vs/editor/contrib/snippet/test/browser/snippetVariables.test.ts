@@ -483,7 +483,7 @@ suite('Snippet Variables Resolver', function () {
 
 	test('REVERSE_RELATIVE_FILEPATH handles Windows drive paths and remote scenarios', function () {
 
-		const windowsDriveLabelService = new class extends mock<ILabelService>() {
+		const drivePathLabelService = new class extends mock<ILabelService>() {
 			override getUriLabel(_uri: URI, options: { relative?: boolean } = {}) {
 				if (options.relative) {
 					return 'dir\\sub\\text.txt';
@@ -493,12 +493,12 @@ suite('Snippet Variables Resolver', function () {
 		};
 
 		const windowsDriveModel = createTextModel('', undefined, undefined, URI.parse('file:///c%3A/workspace/dir/sub/text.txt'));
-		let resolver: VariableResolver = new ModelBasedVariableResolver(windowsDriveLabelService, windowsDriveModel);
+		let resolver: VariableResolver = new ModelBasedVariableResolver(drivePathLabelService, windowsDriveModel);
 		assertVariableResolve(resolver, 'REVERSE_RELATIVE_FILEPATH', '..\\..');
 		windowsDriveModel.dispose();
 
 		const remoteModel = createTextModel('', undefined, undefined, URI.parse('vscode-remote://ssh-remote%2Bexample/home/user/workspace/dir/file.ts'));
-		const remoteInWorkspaceLabelService = new class extends mock<ILabelService>() {
+		const remoteWorkspaceLabelService = new class extends mock<ILabelService>() {
 			override getUriLabel(_uri: URI, options: { relative?: boolean } = {}) {
 				if (options.relative) {
 					return 'dir/file.ts';
@@ -506,10 +506,10 @@ suite('Snippet Variables Resolver', function () {
 				return '/home/user/workspace/dir/file.ts';
 			}
 		};
-		resolver = new ModelBasedVariableResolver(remoteInWorkspaceLabelService, remoteModel);
+		resolver = new ModelBasedVariableResolver(remoteWorkspaceLabelService, remoteModel);
 		assertVariableResolve(resolver, 'REVERSE_RELATIVE_FILEPATH', '..');
 
-		const remoteOutsideWorkspaceLabelService = new class extends mock<ILabelService>() {
+		const remoteExternalLabelService = new class extends mock<ILabelService>() {
 			override getUriLabel(_uri: URI, options: { relative?: boolean } = {}) {
 				if (options.relative) {
 					return '/home/user/other/place/file.ts';
@@ -517,7 +517,7 @@ suite('Snippet Variables Resolver', function () {
 				return '/home/user/other/place/file.ts';
 			}
 		};
-		resolver = new ModelBasedVariableResolver(remoteOutsideWorkspaceLabelService, remoteModel);
+		resolver = new ModelBasedVariableResolver(remoteExternalLabelService, remoteModel);
 		assertVariableResolve(resolver, 'REVERSE_RELATIVE_FILEPATH', undefined);
 		remoteModel.dispose();
 	});
