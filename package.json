@@ -76,7 +76,10 @@
     "update-build-ts-version": "npm install -D typescript@next && npm install -D @typescript/native-preview && (cd build && npm run typecheck)",
     "install-local-component-explorer": "npm install ../vscode-packages/js-component-explorer/dist/vscode-component-explorer-0.1.0.tgz ../vscode-packages/js-component-explorer/dist/vscode-component-explorer-cli-0.1.0.tgz --no-save && cd build/vite && npm install ../../../vscode-packages/js-component-explorer/dist/vscode-component-explorer-vite-plugin-0.1.0.tgz --no-save",
     "symlink-local-component-explorer": "npm install ../vscode-packages/js-component-explorer/packages/explorer ../vscode-packages/js-component-explorer/packages/cli --no-save && cd build/vite && npm install ../../../vscode-packages/js-component-explorer/packages/vite-plugin ../../../vscode-packages/js-component-explorer/packages/explorer --no-save",
-    "install-latest-component-explorer": "npm install @vscode/component-explorer@next @vscode/component-explorer-cli@next && cd build/vite && npm install @vscode/component-explorer-vite-plugin@next && npm install @vscode/component-explorer@next"
+    "install-latest-component-explorer": "npm install @vscode/component-explorer@next @vscode/component-explorer-cli@next && cd build/vite && npm install @vscode/component-explorer-vite-plugin@next && npm install @vscode/component-explorer@next",
+    "sota:graph:up": "docker compose -f services/code-graph/docker-compose.yml up -d",
+    "sota:graph:down": "docker compose -f services/code-graph/docker-compose.yml down",
+    "sota:graph:status": "docker compose -f services/code-graph/docker-compose.yml ps"
   },
   "dependencies": {
     "@anthropic-ai/sandbox-runtime": "0.0.23",

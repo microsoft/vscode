@@ -1048,6 +1048,13 @@ button {
 	border-top: 1px solid color-mix(in srgb, var(--vscode-foreground) 8%, transparent);
 }
 
+/* `[hidden]` defaults to `display: none` via UA styles, but the `.settings-section`
+ * class's `display: flex` above wins. Restore the hide on inactive panes so the
+ * sub-tab nav actually swaps content. */
+.settings-subtab-pane[hidden] {
+	display: none;
+}
+
 .settings-section h4 {
 	margin: 0 0 4px;
 	font-size: 13px;
@@ -2884,10 +2891,12 @@ button {
 
 .composer-toolbar {
 	display: flex;
+	flex-wrap: wrap;
 	align-items: center;
 	gap: 4px;
 	padding: 6px 6px 6px 8px;
 	border-top: 1px solid var(--sota-border);
+	min-width: 0;
 }
 
 .toolbar-spacer {
@@ -5285,4 +5294,223 @@ textarea.ui-block-form-input {
 .quote-reply-button svg {
 	width: 11px;
 	height: 11px;
+}
+
+/*--------------------------------------------------------------------
+ *  Phase 99 — animated SVG indicators
+ *
+ *  `.thinking-ring` is a three-arc SVG concentric ring used as the
+ *  "Anton is thinking…" indicator before any token streams. Each arc
+ *  has a `stroke-dasharray` ≈ 25% of its circumference and rotates at
+ *  a different speed in opposite directions. Tinted by `currentColor`
+ *  so it picks up the active persona's accent automatically.
+ *
+ *  All animations use `transform` only (GPU-composited) and respect
+ *  `prefers-reduced-motion: reduce`, falling back to a slow opacity
+ *  pulse instead of motion.
+ *-------------------------------------------------------------------*/
+
+.thinking-ring {
+	display: inline-block;
+	flex-shrink: 0;
+	color: var(--persona-accent, var(--vscode-textLink-foreground));
+	overflow: visible;
+	vertical-align: middle;
+}
+
+.thinking-ring-inline {
+	width: 14px;
+	height: 14px;
+}
+
+.thinking-ring-standalone {
+	width: 32px;
+	height: 32px;
+}
+
+.thinking-ring-avatar {
+	width: 100%;
+	height: 100%;
+}
+
+/* Each arc is rendered as a full circle but only ~25% of its
+ * circumference is painted, so it reads as an arc that traces around
+ * the centre as the rotation animation runs. The `pathLength="100"`
+ * SVG attribute on each `<circle>` normalises the dash math so a
+ * single unit-less dash array works for all three radii. */
+.thinking-ring .thinking-ring-arc {
+	stroke-dasharray: 25 75;
+	transform-box: fill-box;
+	transform-origin: center center;
+	will-change: transform;
+}
+
+.thinking-ring .thinking-ring-arc-outer {
+	animation: thinking-ring-spin 2.4s linear infinite;
+}
+
+.thinking-ring .thinking-ring-arc-mid {
+	animation: thinking-ring-spin-reverse 1.6s linear infinite;
+	opacity: 0.85;
+}
+
+.thinking-ring .thinking-ring-arc-inner {
+	animation: thinking-ring-spin 1s linear infinite;
+	opacity: 0.7;
+}
+
+@keyframes thinking-ring-spin {
+	from { transform: rotate(0deg); }
+	to   { transform: rotate(360deg); }
+}
+
+@keyframes thinking-ring-spin-reverse {
+	from { transform: rotate(0deg); }
+	to   { transform: rotate(-360deg); }
+}
+
+/* Reduced motion — kill rotation, keep a slow opacity pulse so users
+ * still see *something* is happening. */
+@media (prefers-reduced-motion: reduce) {
+	.thinking-ring .thinking-ring-arc {
+		animation: thinking-ring-pulse 2s ease-in-out infinite !important;
+	}
+}
+
+@keyframes thinking-ring-pulse {
+	0%, 100% { opacity: 0.4; }
+	50%      { opacity: 1; }
+}
+
+/* "Anton is thinking…" indicator container — sits inside `.msg-meta`
+ * beside the assistant name. Hidden the moment the first token streams
+ * because the existing `clearStreamingIndicator` removes the
+ * `.streaming-dots` wrapper outright. */
+.thinking-indicator {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	margin-left: 4px;
+	vertical-align: middle;
+}
+
+.thinking-indicator-label {
+	font-size: 10px;
+	letter-spacing: 0.6px;
+	text-transform: uppercase;
+	color: var(--sota-fg-muted, var(--vscode-descriptionForeground));
+	opacity: 0.78;
+}
+
+/* Subtask running chip variant of the indicator — sits flush with the
+ * surrounding text. The chip's existing border-radius and padding wrap
+ * the SVG cleanly. */
+.subtask-status[data-status="running"] .thinking-ring {
+	width: 10px;
+	height: 10px;
+	margin-right: 2px;
+}
+
+.subtask-status .subtask-status-text {
+	display: inline-block;
+}
+
+/*--------------------------------------------------------------------
+ *  Phase 99 — subtask running glow (filter: drop-shadow only,
+ *  hardware-accelerated). The persona glyph in the card header pulses
+ *  a soft accent-tinted halo while the subtask is running. Stops the
+ *  moment status flips to `done` or `failed` because the selector
+ *  scopes itself to `[data-tool-status="running"]`.
+ *-------------------------------------------------------------------*/
+
+.sota-subtask-card[data-tool-status="running"] .sota-subtask-persona-glyph {
+	animation: sota-subtask-glyph-glow 1.6s ease-in-out infinite;
+	will-change: filter;
+}
+
+@keyframes sota-subtask-glyph-glow {
+	0%, 100% {
+		filter: drop-shadow(0 0 0 transparent);
+	}
+	50% {
+		filter: drop-shadow(0 0 4px color-mix(in srgb, var(--persona-accent, var(--sota-accent)) 70%, transparent));
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.sota-subtask-card[data-tool-status="running"] .sota-subtask-persona-glyph {
+		animation: none;
+		filter: drop-shadow(0 0 2px color-mix(in srgb, var(--persona-accent, var(--sota-accent)) 50%, transparent));
+	}
+}
+
+/*--------------------------------------------------------------------
+ *  Phase 99 — Roster avatar idle hover ring
+ *
+ *  On `.roster-card:hover` the `.persona-avatar` grows a slow rotating
+ *  conic-gradient ring tinted by the persona accent. The ring lives in
+ *  a `::before` pseudo so the avatar background stays untouched.
+ *  Reduced-motion users see a static glow instead of rotation.
+ *-------------------------------------------------------------------*/
+
+.roster-card .persona-avatar {
+	position: relative;
+	z-index: 0;
+	transition: transform 180ms ease;
+}
+
+.roster-card:hover .persona-avatar {
+	transform: scale(1.04);
+}
+
+.roster-card .persona-avatar::before {
+	content: '';
+	position: absolute;
+	inset: -3px;
+	border-radius: 50%;
+	padding: 2px;
+	background: conic-gradient(
+		from 0deg,
+		transparent 0deg,
+		color-mix(in srgb, var(--persona-accent, var(--sota-accent)) 70%, transparent) 90deg,
+		transparent 180deg,
+		color-mix(in srgb, var(--persona-accent, var(--sota-accent)) 40%, transparent) 270deg,
+		transparent 360deg
+	);
+	opacity: 0;
+	pointer-events: none;
+	z-index: -1;
+	/* Mask trick to make the conic-gradient render as a hollow ring
+	 * around the avatar rather than filling the whole disc. */
+	-webkit-mask: radial-gradient(circle, transparent 58%, #000 60%);
+	mask: radial-gradient(circle, transparent 58%, #000 60%);
+	transition: opacity 200ms ease;
+}
+
+.roster-card:hover .persona-avatar::before {
+	opacity: 1;
+	animation: roster-ring-rotate 4s linear infinite;
+}
+
+@keyframes roster-ring-rotate {
+	from { transform: rotate(0deg); }
+	to   { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.roster-card:hover .persona-avatar::before {
+		animation: none;
+		opacity: 1;
+		background: radial-gradient(
+			circle,
+			transparent 58%,
+			color-mix(in srgb, var(--persona-accent, var(--sota-accent)) 60%, transparent) 60%,
+			transparent 78%
+		);
+		-webkit-mask: none;
+		mask: none;
+	}
+	.roster-card:hover .persona-avatar {
+		transform: none;
+	}
 }

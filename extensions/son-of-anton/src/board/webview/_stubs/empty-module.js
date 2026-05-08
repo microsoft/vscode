@@ -1,8 +1,3 @@
-/*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
- *--------------------------------------------------------------------------------------------*/
-
 // Auto-generated stub for heavy CopilotKit deps not used by the board.
 const noop = () => undefined;
 const handler = { get: () => noop };

@@ -7,14 +7,14 @@ import * as vscode from 'vscode';
 import { getQuoteByCharacter, formatQuoteShort } from 'son-of-anton-core/personality/siliconValleyQuotes';
 import { isPersonalityEnabled } from './personalityConfig';
 
-// 4-line Son of Anton glyph (compact -- the full glyph in asciiArt.ts is 7
-// lines, which is too tall for a terminal banner that competes with the
-// shell prompt).
+// Single-line wordmark plus a subtitle. The previous boxed ASCII banner
+// looked harsh against most shell themes; this minimalist version reads as
+// chrome rather than noise. Box-drawing glyphs render consistently across
+// Terminal.app, iTerm2, the integrated VS Code terminal, and Alacritty.
 const SON_OF_ANTON_BANNER_LINES = [
-	'  +---------------------------------------+',
-	'  |  [#]  S O N  O F  A N T O N           |',
-	'  |       sandbox terminal                |',
-	'  +---------------------------------------+',
+	'',
+	'  ◇  Son of Anton · sandbox terminal',
+	'',
 ];
 
 /**

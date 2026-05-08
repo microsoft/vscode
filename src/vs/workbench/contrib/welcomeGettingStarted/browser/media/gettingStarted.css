@@ -1150,30 +1150,72 @@
 	animation: sota-hero-fade-in 600ms ease-out;
 }
 
+/* Phase 99 — animated SVG hero. The wrapper sizes the SVG so the breath
+ * cycle never reflows the surrounding hero copy. The fallback ASCII art is
+ * visually hidden but kept in the DOM for screen readers. */
 .monaco-workbench .part.editor > .content .gettingStartedContainer .sota-welcome-hero .sota-welcome-art {
-	font-family: var(--monaco-monospace-font, 'SF Mono', Menlo, Consolas, 'Courier New', monospace);
-	font-size: 11px;
-	line-height: 1.2;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 200px;
+	height: 200px;
+	max-width: 60vw;
 	color: var(--vscode-textPreformat-foreground, var(--vscode-foreground));
 	margin: 0;
 	user-select: none;
+	transform-origin: center center;
+	animation: sota-art-breath 4s ease-in-out infinite;
+	animation-delay: 2.2s;
+	will-change: transform;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .sota-welcome-hero .sota-welcome-art .sota-welcome-art-svg {
+	width: 100%;
+	height: 100%;
+	display: block;
+	overflow: visible;
+}
+
+/* Each path / circle is rendered with `pathLength="100"` (set as an SVG
+ * attribute on the element so the keyframes can use a single unit-less
+ * dash array regardless of geometric length). The shapes are staggered
+ * so the eye reads spiral → flute → tone holes → breath. */
+.monaco-workbench .part.editor > .content .gettingStartedContainer .sota-welcome-hero .sota-welcome-art-path {
+	stroke-dasharray: 100 100;
+	stroke-dashoffset: 100;
+	animation: sota-art-draw 2s ease-out forwards;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .sota-welcome-hero .sota-welcome-art-spiral {
+	animation-delay: 0s;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .sota-welcome-hero .sota-welcome-art-flute {
+	animation-delay: 0.6s;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .sota-welcome-hero .sota-welcome-art-hole {
+	fill: currentColor;
+	animation-delay: 1.4s;
+	animation-duration: 0.6s;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .sota-welcome-hero .sota-welcome-art-breath {
+	animation-delay: 1.6s;
+}
+
+/* Visually hidden ASCII fallback — preserves the previous text silhouette
+ * for assistive tech and any consumer that strips inline SVG. */
+.monaco-workbench .part.editor > .content .gettingStartedContainer .sota-welcome-hero .sota-welcome-art-fallback {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	padding: 0;
+	margin: -1px;
+	overflow: hidden;
+	clip: rect(0, 0, 0, 0);
 	white-space: pre;
-	overflow-x: auto;
-	max-width: 100%;
-	background: linear-gradient(
-		90deg,
-		var(--vscode-textPreformat-foreground, var(--vscode-foreground)) 0%,
-		var(--vscode-textPreformat-foreground, var(--vscode-foreground)) 42%,
-		color-mix(in srgb, var(--vscode-button-background) 55%, var(--vscode-textPreformat-foreground, var(--vscode-foreground))) 50%,
-		var(--vscode-textPreformat-foreground, var(--vscode-foreground)) 58%,
-		var(--vscode-textPreformat-foreground, var(--vscode-foreground)) 100%
-	);
-	background-size: 300% 100%;
-	background-clip: text;
-	-webkit-background-clip: text;
-	color: transparent;
-	-webkit-text-fill-color: transparent;
-	animation: sota-art-shimmer 10s linear infinite;
+	border: 0;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .sota-welcome-hero .sota-welcome-title {
@@ -1299,7 +1341,8 @@
 	}
 
 	.monaco-workbench .part.editor > .content .gettingStartedContainer .sota-welcome-hero .sota-welcome-art {
-		font-size: 9px;
+		width: 140px;
+		height: 140px;
 	}
 }
 
@@ -1325,12 +1368,30 @@
 	}
 }
 
-@keyframes sota-art-shimmer {
-	0% {
-		background-position: 200% 0;
+/* Draw-in for the SVG hero — strokes start fully offset and resolve to a
+ * solid line over the keyframe duration. The `pathLength="100"` attribute
+ * on each shape normalises the unit so the same dash math works for every
+ * geometry. */
+@keyframes sota-art-draw {
+	from {
+		stroke-dashoffset: 100;
+		opacity: 0.6;
 	}
-	100% {
-		background-position: -100% 0;
+	to {
+		stroke-dashoffset: 0;
+		opacity: 1;
+	}
+}
+
+/* Slow breath cycle once the draw-in completes — a gentle 1.0 → 1.02 →
+ * 1.0 scale on the wrapper. Uses `transform` only so the GPU can
+ * composite without repainting. */
+@keyframes sota-art-breath {
+	0%, 100% {
+		transform: scale(1);
+	}
+	50% {
+		transform: scale(1.02);
 	}
 }
 
@@ -1343,11 +1404,14 @@
 
 	.monaco-workbench .part.editor > .content .gettingStartedContainer .sota-welcome-hero .sota-welcome-art {
 		animation: none;
-		background: none;
-		background-clip: border-box;
-		-webkit-background-clip: border-box;
-		color: var(--vscode-textPreformat-foreground, var(--vscode-foreground));
-		-webkit-text-fill-color: var(--vscode-textPreformat-foreground, var(--vscode-foreground));
+		transform: none;
+	}
+
+	.monaco-workbench .part.editor > .content .gettingStartedContainer .sota-welcome-hero .sota-welcome-art-path {
+		animation: none;
+		stroke-dasharray: none;
+		stroke-dashoffset: 0;
+		opacity: 1;
 	}
 
 	.monaco-workbench .part.editor > .content .gettingStartedContainer .sota-welcome-hero .sota-welcome-quote::before {

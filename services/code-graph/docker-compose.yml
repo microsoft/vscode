@@ -1,0 +1,64 @@
+# Son of Anton — Bundled Code Graph stack
+# A self-contained, opt-in docker compose stack the IDE can spin up via the
+# "Son of Anton: Enable Code Graph" command. It provisions:
+#   - FalkorDB (Redis-compatible graph DB) on :6379
+#   - Qdrant (vector DB) on :6333 (REST) and :6334 (gRPC)
+#   - A minimal indexer container (v1 stub — emits a heartbeat log line)
+#
+# The MCP server itself is NOT in this compose file. It is launched by the
+# extension as a child stdio process so the extension's MCP client can speak
+# JSON-RPC to it directly. The MCP server connects to the FalkorDB / Qdrant
+# ports exposed below.
+#
+# Data is persisted under services/code-graph/.data (gitignored). The IDE
+# manages lifecycle through `sota:graph:up` / `sota:graph:down` scripts.
+
+services:
+  falkordb:
+    image: falkordb/falkordb:latest
+    container_name: son-of-anton-falkordb
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./.data/falkordb:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "PING"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: son-of-anton-qdrant
+    restart: unless-stopped
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - ./.data/qdrant:/qdrant/storage
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:6333/readyz || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+  indexer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: son-of-anton-indexer
+    restart: unless-stopped
+    depends_on:
+      falkordb:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+    environment:
+      - FALKORDB_HOST=falkordb
+      - FALKORDB_PORT=6379
+      - QDRANT_HOST=qdrant
+      - QDRANT_REST_PORT=6333
+      - GRAPH_NAME=son-of-anton

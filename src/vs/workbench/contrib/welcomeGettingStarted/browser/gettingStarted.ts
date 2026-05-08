@@ -901,8 +901,48 @@ export class GettingStartedPage extends EditorPane {
 	private buildSotaWelcomeHero(): HTMLElement {
 		const content = getSotaWelcomeHeroContent();
 
-		const art = $('pre.sota-welcome-art', { 'aria-hidden': 'true' });
-		art.textContent = content.art;
+		// Phase 99 — animated SVG hero. The shapes are constructed
+		// programmatically (no innerHTML) and the CSS in `gettingStarted.css`
+		// drives a `stroke-dashoffset` draw-in followed by a slow breath
+		// cycle. The legacy ASCII art is retained as a hidden fallback for
+		// screen readers and any environment that nukes inline SVG.
+		const art = $('.sota-welcome-art', { 'aria-hidden': 'true' });
+		const svgNs = 'http://www.w3.org/2000/svg';
+		const svg = document.createElementNS(svgNs, 'svg');
+		svg.setAttribute('class', 'sota-welcome-art-svg');
+		svg.setAttribute('viewBox', '0 0 200 200');
+		svg.setAttribute('role', 'img');
+		svg.setAttribute('aria-hidden', 'true');
+		const svgGroup = document.createElementNS(svgNs, 'g');
+		svgGroup.setAttribute('fill', 'none');
+		svgGroup.setAttribute('stroke', 'currentColor');
+		svgGroup.setAttribute('stroke-width', '1.6');
+		svgGroup.setAttribute('stroke-linecap', 'round');
+		svgGroup.setAttribute('stroke-linejoin', 'round');
+		for (const shape of content.artShapes) {
+			if (shape.kind === 'path') {
+				const node = document.createElementNS(svgNs, 'path');
+				node.setAttribute('class', shape.cls);
+				node.setAttribute('d', shape.d);
+				// SVG `pathLength` normalises the dash array math so the same
+				// `stroke-dasharray: 100` works for any geometry.
+				node.setAttribute('pathLength', '100');
+				svgGroup.appendChild(node);
+			} else {
+				const node = document.createElementNS(svgNs, 'circle');
+				node.setAttribute('class', shape.cls);
+				node.setAttribute('cx', String(shape.cx));
+				node.setAttribute('cy', String(shape.cy));
+				node.setAttribute('r', String(shape.r));
+				node.setAttribute('pathLength', '100');
+				svgGroup.appendChild(node);
+			}
+		}
+		svg.appendChild(svgGroup);
+		art.appendChild(svg);
+		const artFallback = $('pre.sota-welcome-art-fallback', { 'aria-hidden': 'true' });
+		artFallback.textContent = content.art;
+		art.appendChild(artFallback);
 
 		const title = $('h1.sota-welcome-title', {}, content.title);
 		const tagline = $('p.sota-welcome-tagline', {}, content.tagline);

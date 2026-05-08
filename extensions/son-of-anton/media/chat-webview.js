@@ -2096,6 +2096,32 @@
 			return wrapper;
 		}
 
+		/**
+		 * Phase 99 — animated "Anton is thinking" indicator. Three concentric
+		 * rings, each with a `stroke-dasharray` ≈ 25% of the circumference,
+		 * rotate at different speeds and opposite directions (CSS-driven —
+		 * see `chat.css`'s `.thinking-ring` keyframes). Pure SVG so the GPU
+		 * can composite the rotation without repainting; honours
+		 * `prefers-reduced-motion` by falling back to a slow opacity pulse.
+		 *
+		 * Caller passes one of:
+		 *   - 'inline'   — 16px ring beside a bit of dimmed text.
+		 *   - 'standalone' — 24px ring on its own (placeholder cards).
+		 *   - 'avatar'   — 12px ring overlaid on a roster avatar.
+		 *
+		 * Returns the SVG markup as a string so callers can splice it into
+		 * a larger `innerHTML` without round-tripping through DOM creation.
+		 */
+		function renderThinkingIndicator(variant) {
+			const v = variant === 'standalone' ? 'standalone' : (variant === 'avatar' ? 'avatar' : 'inline');
+			return ''
+				+ '<svg class="thinking-ring thinking-ring-' + v + '" viewBox="0 0 32 32" aria-hidden="true">'
+				+ '<circle class="thinking-ring-arc thinking-ring-arc-outer" cx="16" cy="16" r="14" pathLength="100" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>'
+				+ '<circle class="thinking-ring-arc thinking-ring-arc-mid" cx="16" cy="16" r="10" pathLength="100" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>'
+				+ '<circle class="thinking-ring-arc thinking-ring-arc-inner" cx="16" cy="16" r="6" pathLength="100" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>'
+				+ '</svg>';
+		}
+
 		function startStreamingMessage(displayName, specialistId) {
 			const wrapper = document.createElement('div');
 			wrapper.className = 'msg msg-assistant';
@@ -2111,13 +2137,19 @@
 			applyPersonaToWrapper(wrapper, resolvedId);
 			const meta = buildAssistantMeta(displayName || getCurrentAgentDisplayName(), resolvedId, Date.now());
 			// Force the meta visible during streaming so the user sees the
-			// streaming dots indicator next to a name even on consecutive
+			// thinking indicator next to a name even on consecutive
 			// assistant turns.
 			meta.hidden = false;
-			const dots = document.createElement('span');
-			dots.className = 'streaming-dots';
-			dots.innerHTML = '<span></span><span></span><span></span>';
-			meta.appendChild(dots);
+			// Phase 99 — animated SVG thinking indicator + small-caps label.
+			// Both nodes carry the `streaming-dots` class so existing
+			// finalisation code (`clearStreamingIndicator`) removes them
+			// the instant the first token arrives. The label is styled
+			// dim + small-caps to read as ambient status, not noise.
+			const indicator = document.createElement('span');
+			indicator.className = 'streaming-dots thinking-indicator';
+			indicator.innerHTML = renderThinkingIndicator('inline')
+				+ '<span class="thinking-indicator-label">Anton is thinking…</span>';
+			meta.appendChild(indicator);
 			wrapper.appendChild(meta);
 			currentAssistantHeader = meta;
 
@@ -5422,7 +5454,15 @@
 				// produce but the shape supports for future extensions.
 				const semantic = status === 'ok' ? 'done' : status === 'error' ? 'failed' : 'running';
 				subtaskStatusEl.dataset.status = semantic;
-				subtaskStatusEl.textContent = semantic;
+				// Phase 99 \u2014 in the running state, prepend the animated
+				// thinking ring before the chip text. Other states render as
+				// plain text so 'done' / 'failed' don't carry residual motion.
+				if (semantic === 'running') {
+					subtaskStatusEl.innerHTML = renderThinkingIndicator('inline')
+						+ '<span class="subtask-status-text">running</span>';
+				} else {
+					subtaskStatusEl.textContent = semantic;
+				}
 			}
 			if (bodyEl && status === 'error' && message.error) {
 				bodyEl.textContent = message.error;

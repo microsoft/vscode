@@ -142,6 +142,12 @@ export class OrchestratorAgent extends BaseAgent {
 				await this.handleStatusCommand(stream, personalityEnabled);
 			} else if (request.command === 'metrics') {
 				await this.handleMetricsCommand(stream, personalityEnabled);
+			} else if (isTrivialPrompt(request.prompt)) {
+				// Conversational shortcut for greetings / chit-chat / clarifying
+				// questions — skip the code-graph query, the plan-generation
+				// turn, and the subtask dispatch. Stream a single LLM response
+				// directly so users get a chat-bot UX for non-task input.
+				await this.handleConversationalTurn(request, stream, task.id, token);
 			} else {
 				// Default: create a plan from the request
 				await this.handlePlanCommand(request, stream, task.id, token, personalityEnabled, structuredEmit);
@@ -285,6 +291,41 @@ export class OrchestratorAgent extends BaseAgent {
 	 * deeper than the orchestrator can reach today). The summary block is
 	 * still printed using whatever has resolved by the time the loop unwinds.
 	 */
+	/**
+	 * Conversational shortcut for greetings, small talk, and trivial
+	 * clarifying questions. Skips code-graph queries and plan generation —
+	 * which together can run for a minute on a cold-start MCP server — and
+	 * streams a single LLM response directly to the chat surface.
+	 *
+	 * The system prompt is built via `buildSystemPrompt` so the orchestrator's
+	 * voice / project context / specialist memory still apply; we just don't
+	 * frame the response as a plan.
+	 */
+	private async handleConversationalTurn(
+		request: ChatRequestLike,
+		stream: ChatStreamLike,
+		taskId: string,
+		token: CancellationLike,
+	): Promise<void> {
+		const systemPrompt = this.buildSystemPrompt(this.getRoleDescription(), request.workspaceContextSnapshot)
+			+ '\n\n## Mode\n\nYou are responding to a conversational message — a greeting, '
+			+ 'a clarifying question, or general chit-chat. Reply concisely as Anton would: '
+			+ 'one or two sentences, no plan, no JSON. If the user clearly intends to start a '
+			+ 'coding task, suggest they restate the request with the action they want taken.';
+		const turnModel: ModelId = request.modelOverride ?? this.defaultModel;
+		const onToken = (token: string): void => {
+			stream.markdown(token);
+		};
+		try {
+			await this.callLlm(taskId, turnModel, systemPrompt, request.prompt, onToken);
+		} catch (err) {
+			const message = err instanceof Error ? err.message : String(err);
+			if (!token.isCancellationRequested) {
+				stream.markdown(`\n\n**Error:** ${message}\n`);
+			}
+		}
+	}
+
 	private async handleApproveCommand(
 		stream: ChatStreamLike,
 		taskId: string,
@@ -911,3 +952,36 @@ export class OrchestratorAgent extends BaseAgent {
 		};
 	}
 }
+
+/**
+ * Heuristic: does this look like a conversational message rather than a
+ * coding task? Used by the orchestrator to bypass plan generation + code
+ * graph queries for greetings and chit-chat. False negatives are fine
+ * (the worst case is the user gets a plan instead of a chat reply); false
+ * positives are bad (a real task would skip planning).
+ */
+export function isTrivialPrompt(prompt: string): boolean {
+	const trimmed = prompt.trim();
+	if (!trimmed) return true;
+	if (trimmed.length < 8) return true;
+	const lower = trimmed.toLowerCase();
+	const greetingPatterns: ReadonlyArray<RegExp> = [
+		/^(hi|hello|hey|yo|sup|hiya|howdy|greetings)\b/,
+		/^(thanks|thank you|cheers|ta|nice|cool|ok|okay|got it)\b/,
+		/^good (morning|afternoon|evening|night)\b/,
+		/^(who are you|what are you|what is this|what can you do|what do you do|help)\??$/,
+		/^how (are you|do you work|can i)\b/,
+	];
+	for (const re of greetingPatterns) {
+		if (re.test(lower)) return true;
+	}
+	// Single-line questions under 40 chars without code-task verbs are
+	// probably conversational.
+	const codeTaskVerbs = /\b(write|implement|fix|refactor|rename|add|create|delete|remove|update|move|test|build|deploy|review|debug|trace|find|migrate)\b/;
+	const isSingleLine = trimmed.indexOf('\n') < 0;
+	if (trimmed.length < 40 && isSingleLine && !codeTaskVerbs.test(lower)) {
+		return true;
+	}
+	return false;
+}
+

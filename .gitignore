@@ -41,3 +41,8 @@ dist
 # Per-package build output (Son of Anton core + CLI)
 son-of-anton-core/dist/
 son-of-anton-cli/dist/
+
+# Bundled code-graph stack — runtime data and built MCP server output
+services/code-graph/.data/
+services/code-graph/mcp-server/dist/
+services/code-graph/mcp-server/node_modules/

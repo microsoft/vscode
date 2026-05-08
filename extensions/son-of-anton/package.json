@@ -388,6 +388,16 @@
 				"command": "sota.specialistRoster.showLastTrace",
 				"title": "Show Last Trace",
 				"category": "Anton Roster"
+			},
+			{
+				"command": "sota.enableCodeGraph",
+				"title": "Enable Code Graph",
+				"category": "Son of Anton"
+			},
+			{
+				"command": "sota.codeGraph.menu",
+				"title": "Code Graph Actions",
+				"category": "Son of Anton"
 			}
 		],
 		"keybindings": [
@@ -827,6 +837,12 @@
 					"default": "",
 					"scope": "application",
 					"markdownDescription": "Optional GCP location/region for Vertex AI (e.g. `us-central1`). Today's consumer Gemini path ignores this."
+				},
+				"sota.codeGraph.autoStart": {
+					"type": "boolean",
+					"default": false,
+					"scope": "resource",
+					"description": "Automatically start the bundled code-graph docker stack when this workspace opens. Toggled on by 'Son of Anton: Enable Code Graph'."
 				},
 				"sota.mcp.servers": {
 					"type": "array",

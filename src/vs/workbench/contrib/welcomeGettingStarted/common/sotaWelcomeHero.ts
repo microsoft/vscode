@@ -20,6 +20,10 @@ import { localize } from '../../../../nls.js';
  * The corrected Pied Piper letterform. Mirrors the version that lives in
  * `extensions/son-of-anton/src/personality/asciiArt.ts` (`piedPiperLogo`).
  * Pure ASCII so the glyphs render identically across themes and fonts.
+ *
+ * Retained for back-compat (and as the reduced-motion / no-SVG fallback the
+ * renderer can fall back to if it ever needs to). The hero now prefers the
+ * inline SVG `PIED_PIPER_SVG` below.
  */
 const PIED_PIPER_ART: string = [
 	'     ____  ___  _____  ____               ',
@@ -34,6 +38,85 @@ const PIED_PIPER_ART: string = [
 	'       |  __/ | | |  __/| |___ |  _ <     ',
 	'       |_|   |___||_|   |_____||_| \\_\\    ',
 ].join('\n');
+
+/**
+ * Path / shape primitives used to build the welcome hero's inline SVG. The
+ * actual SVG nodes are constructed by `gettingStarted.ts` from this data so
+ * we never have to hand untrusted markup to `innerHTML`. Coordinates assume
+ * a 0–200 viewBox; the host CSS scales the rendered SVG to taste.
+ *
+ * Each entry's `cls` carries an extra modifier class so the CSS animation
+ * delays can be staggered (spiral first, then flute, then breath line).
+ */
+export interface ISotaWelcomeHeroSvgPath {
+	readonly kind: 'path';
+	readonly cls: string;
+	readonly d: string;
+}
+
+export interface ISotaWelcomeHeroSvgCircle {
+	readonly kind: 'circle';
+	readonly cls: string;
+	readonly cx: number;
+	readonly cy: number;
+	readonly r: number;
+}
+
+export type SotaWelcomeHeroSvgShape = ISotaWelcomeHeroSvgPath | ISotaWelcomeHeroSvgCircle;
+
+/**
+ * Stylised "scoping flute" silhouette — an abstract spiral / chord wave
+ * deliberately not modelled on any trademarked logo. The shapes draw in via
+ * `stroke-dasharray` + `stroke-dashoffset` keyframes (see
+ * `gettingStarted.css`) and then settle into a slow breath cycle.
+ */
+const PIED_PIPER_SVG_SHAPES: readonly SotaWelcomeHeroSvgShape[] = [
+	// Outer spiral — three-turn logarithmic curve sweeping into the centre.
+	{
+		kind: 'path',
+		cls: 'sota-welcome-art-path sota-welcome-art-spiral',
+		d: 'M 175 100 '
+			+ 'C 175 60, 140 25, 100 25 '
+			+ 'C 60 25, 25 60, 25 100 '
+			+ 'C 25 140, 60 175, 100 175 '
+			+ 'C 130 175, 155 150, 155 120 '
+			+ 'C 155 95, 135 75, 110 75 '
+			+ 'C 90 75, 75 90, 75 110 '
+			+ 'C 75 125, 87 137, 102 137 '
+			+ 'C 113 137, 122 128, 122 117 '
+			+ 'C 122 109, 116 103, 108 103 '
+			+ 'C 103 103, 99 107, 99 112 '
+			+ 'C 99 115, 101 117, 104 117',
+	},
+	// Flute bore — a long sweeping curve suggesting a flute silhouette.
+	{
+		kind: 'path',
+		cls: 'sota-welcome-art-path sota-welcome-art-flute',
+		d: 'M 35 60 '
+			+ 'Q 70 40, 110 55 '
+			+ 'Q 150 70, 175 60 '
+			+ 'L 178 72 '
+			+ 'Q 150 86, 110 73 '
+			+ 'Q 70 60, 35 80 Z',
+	},
+	// Five tone-hole dots evenly spaced along the flute bore.
+	{ kind: 'circle', cls: 'sota-welcome-art-path sota-welcome-art-hole', cx: 60, cy: 62, r: 2.2 },
+	{ kind: 'circle', cls: 'sota-welcome-art-path sota-welcome-art-hole', cx: 85, cy: 60, r: 2.2 },
+	{ kind: 'circle', cls: 'sota-welcome-art-path sota-welcome-art-hole', cx: 110, cy: 63, r: 2.2 },
+	{ kind: 'circle', cls: 'sota-welcome-art-path sota-welcome-art-hole', cx: 135, cy: 66, r: 2.2 },
+	{ kind: 'circle', cls: 'sota-welcome-art-path sota-welcome-art-hole', cx: 160, cy: 65, r: 2.2 },
+	// Breath line — a sound-wave hint above the flute, three sine arcs.
+	{
+		kind: 'path',
+		cls: 'sota-welcome-art-path sota-welcome-art-breath',
+		d: 'M 40 35 Q 55 22, 70 35 T 100 35 T 130 35 T 160 35',
+	},
+];
+
+/** Returns the immutable shape list backing the hero SVG. */
+export function getSotaWelcomeHeroArtShapes(): readonly SotaWelcomeHeroSvgShape[] {
+	return PIED_PIPER_SVG_SHAPES;
+}
 
 interface ISiliconValleyQuote {
 	readonly text: string;
@@ -146,6 +229,7 @@ export function getSotaWelcomeHeroActions(): readonly ISotaWelcomeHeroAction[] {
 
 export interface ISotaWelcomeHeroContent {
 	readonly art: string;
+	readonly artShapes: readonly SotaWelcomeHeroSvgShape[];
 	readonly title: string;
 	readonly tagline: string;
 	readonly quote: ISiliconValleyQuote;
@@ -154,11 +238,15 @@ export interface ISotaWelcomeHeroContent {
 
 /**
  * Returns the full content payload the hero renderer needs. Keeping this in
- * one place makes it trivially mockable in tests.
+ * one place makes it trivially mockable in tests. `art` is the legacy ASCII
+ * silhouette retained as a fallback; `artShapes` is the structured SVG
+ * description the renderer prefers and which carries the draw-in / breath
+ * animations.
  */
 export function getSotaWelcomeHeroContent(now: Date = new Date()): ISotaWelcomeHeroContent {
 	return {
 		art: PIED_PIPER_ART,
+		artShapes: getSotaWelcomeHeroArtShapes(),
 		title: localize('sota.welcome.hero.title', "Son of Anton"),
 		tagline: localize('sota.welcome.hero.tagline', "middle out compression for your IDE"),
 		quote: pickQuoteForDate(now),

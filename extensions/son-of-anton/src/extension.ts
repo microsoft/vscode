@@ -53,6 +53,9 @@ import { TaskBoardModel, BoardTask, SubtaskState } from './board/TaskBoardModel'
 import { TaskBoardPanel } from './board/TaskBoardPanel';
 import { TaskBoardSidebarView } from './board/TaskBoardSidebarView';
 import { AgentEvent, AgentPlan } from './chat/agentEvents';
+import { CodeGraphController } from './services/CodeGraphController';
+import { CodeGraphStatusBarItem } from './sidebar/CodeGraphStatusBarItem';
+import * as cp from 'node:child_process';
 
 export function activate(context: vscode.ExtensionContext): void {
 	// --- Credential broker (OAuth-based provider sign-in) ---
@@ -1171,6 +1174,56 @@ export function activate(context: vscode.ExtensionContext): void {
 		})
 	);
 
+	// --- Code Graph (bundled docker stack) ---
+	const codeGraphChannel = vscode.window.createOutputChannel('Son of Anton Code Graph');
+	context.subscriptions.push(codeGraphChannel);
+	const codeGraphController = new CodeGraphController({
+		workspaceRoot: workspacePath || undefined,
+		output: codeGraphChannel,
+	});
+	context.subscriptions.push(codeGraphController);
+	const codeGraphStatusItem = new CodeGraphStatusBarItem(codeGraphController);
+	context.subscriptions.push(codeGraphStatusItem);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('sota.enableCodeGraph', async () => {
+			await runEnableCodeGraph(codeGraphController, codeGraphChannel, context);
+		}),
+	);
+	context.subscriptions.push(
+		vscode.commands.registerCommand('sota.codeGraph.menu', async () => {
+			const pick = await vscode.window.showQuickPick(
+				[
+					{ label: '$(debug-stop) Stop', action: 'stop' as const },
+					{ label: '$(refresh) Restart', action: 'restart' as const },
+					{ label: '$(output) Show Logs', action: 'logs' as const },
+				],
+				{ placeHolder: 'Code Graph actions' },
+			);
+			if (!pick) {
+				return;
+			}
+			if (pick.action === 'stop') {
+				const r = await codeGraphController.stop();
+				if (!r.ok) {
+					vscode.window.showErrorMessage(`Could not stop code graph: ${r.reason}`);
+				}
+			} else if (pick.action === 'restart') {
+				const r = await codeGraphController.restart();
+				if (!r.ok) {
+					vscode.window.showErrorMessage(`Could not restart code graph: ${r.reason}`);
+				}
+			} else {
+				await codeGraphController.showLogs();
+			}
+		}),
+	);
+
+	// First-run prompt — fires once per install when the workspace is large
+	// enough to plausibly benefit from a code graph. The prompt is silent for
+	// users with tiny workspaces or those who've already answered.
+	void maybePromptCodeGraphFirstRun(context, workspacePath);
+
 	// --- Personality ---
 	StartupMessages.show(context.extensionUri, context);
 
@@ -1219,6 +1272,174 @@ async function loadSupplyChainConfig(guard: SupplyChainGuard, workspacePath: str
 
 export function deactivate(): void {
 	// Cleanup handled by disposables
+}
+
+/**
+ * Drive the `sota.enableCodeGraph` palette command flow:
+ *  1. Verify Docker is on PATH (offer install link if missing).
+ *  2. Build the bundled MCP server if it hasn't been built yet.
+ *  3. Bring the docker compose stack up and poll FalkorDB until ready.
+ *  4. Register the MCP server in user-scope `sota.mcp.servers` settings.
+ */
+async function runEnableCodeGraph(
+	controller: CodeGraphController,
+	output: vscode.OutputChannel,
+	context: vscode.ExtensionContext,
+): Promise<void> {
+	if (!(await controller.isDockerAvailable())) {
+		const choice = await vscode.window.showErrorMessage(
+			'Docker is required to run the Son of Anton code graph. Install Docker Desktop and try again.',
+			{ modal: true },
+			'Install Docker Desktop',
+		);
+		if (choice === 'Install Docker Desktop') {
+			void vscode.env.openExternal(vscode.Uri.parse('https://www.docker.com/products/docker-desktop/'));
+		}
+		return;
+	}
+
+	const stack = controller.getStackRoot();
+	if (!stack) {
+		vscode.window.showErrorMessage('Could not locate services/code-graph/ in this workspace.');
+		return;
+	}
+
+	// Ensure the MCP server is built before we register it. The build is
+	// idempotent and cheap on subsequent runs because tsc only re-emits when
+	// inputs change.
+	output.show(true);
+	const buildOk = await ensureMcpServerBuilt(stack, output);
+	if (!buildOk) {
+		vscode.window.showErrorMessage('Could not build the bundled code-graph MCP server. See output for details.');
+		return;
+	}
+
+	await vscode.window.withProgress(
+		{ location: vscode.ProgressLocation.Notification, title: 'Son of Anton — starting code graph' },
+		async progress => {
+			progress.report({ message: 'Bringing docker compose stack up...' });
+			const result = await controller.start();
+			if (!result.ok) {
+				vscode.window.showErrorMessage(`Could not start code graph: ${result.reason}`);
+				return;
+			}
+			progress.report({ message: 'Registering MCP server...' });
+			await controller.registerMcpServer();
+			await context.workspaceState.update('sota.codeGraph.autoStart', true);
+			vscode.window.showInformationMessage('Son of Anton code graph is running.');
+		},
+	);
+}
+
+/**
+ * Build the bundled MCP server (`services/code-graph/mcp-server/`) so the
+ * compiled `dist/index.js` exists before `sota.mcp.servers` references it.
+ * Uses `npm install` + `npm run build` in the mcp-server directory. Returns
+ * true if the entry point exists after the build.
+ */
+async function ensureMcpServerBuilt(stackRoot: string, output: vscode.OutputChannel): Promise<boolean> {
+	const path = await import('node:path');
+	const fs = await import('node:fs');
+	const mcpDir = path.join(stackRoot, 'mcp-server');
+	const entry = path.join(mcpDir, 'dist', 'index.js');
+
+	if (fs.existsSync(entry)) {
+		return true;
+	}
+
+	const runStep = (cmd: string, args: string[]): Promise<boolean> => new Promise(resolve => {
+		output.appendLine(`> ${cmd} ${args.join(' ')} (in ${mcpDir})`);
+		const child = cp.spawn(cmd, args, { cwd: mcpDir, shell: false });
+		child.stdout.setEncoding('utf8');
+		child.stderr.setEncoding('utf8');
+		child.stdout.on('data', d => output.append(d));
+		child.stderr.on('data', d => output.append(d));
+		child.on('error', err => {
+			output.appendLine(`error: ${err.message}`);
+			resolve(false);
+		});
+		child.on('close', code => resolve(code === 0));
+	});
+
+	if (!fs.existsSync(path.join(mcpDir, 'node_modules'))) {
+		const ok = await runStep('npm', ['install', '--no-audit', '--no-fund']);
+		if (!ok) {
+			return false;
+		}
+	}
+	const buildOk = await runStep('npm', ['run', 'build']);
+	return buildOk && fs.existsSync(entry);
+}
+
+/**
+ * Show the one-time "Enable code graph?" prompt on extension activation when
+ * the workspace looks substantial (>=10 files in the top two levels). Stores
+ * the result in globalState so subsequent installs / reloads stay quiet.
+ */
+async function maybePromptCodeGraphFirstRun(
+	context: vscode.ExtensionContext,
+	workspacePath: string,
+): Promise<void> {
+	const PROMPTED_KEY = 'sota.codeGraph.firstRunPrompted';
+	if (context.globalState.get<boolean>(PROMPTED_KEY)) {
+		return;
+	}
+	if (!workspacePath) {
+		return;
+	}
+	const fileCount = await countTopLevelFiles(workspacePath);
+	if (fileCount < 10) {
+		return;
+	}
+	const choice = await vscode.window.showInformationMessage(
+		"Enable Son of Anton's code graph for richer context?",
+		'Yes',
+		'Not now',
+		"Don't ask again",
+	);
+	if (choice === 'Yes') {
+		await context.globalState.update(PROMPTED_KEY, true);
+		void vscode.commands.executeCommand('sota.enableCodeGraph');
+	} else if (choice === "Don't ask again") {
+		await context.globalState.update(PROMPTED_KEY, true);
+	}
+	// "Not now" leaves the flag unset so we ask again next session.
+}
+
+/**
+ * Count files visible in the top two levels of the workspace. We avoid a deep
+ * scan to keep activation snappy; ten visible files is a coarse heuristic
+ * that "this is more than a scratch folder."
+ */
+async function countTopLevelFiles(root: string): Promise<number> {
+	try {
+		const fs = await import('node:fs/promises');
+		const path = await import('node:path');
+		const stack: string[] = [root];
+		let visited = 0;
+		let count = 0;
+		while (stack.length > 0 && visited < 2 && count < 10) {
+			const dir = stack.shift() as string;
+			visited++;
+			const entries = await fs.readdir(dir, { withFileTypes: true });
+			for (const entry of entries) {
+				if (entry.name.startsWith('.') || entry.name === 'node_modules' || entry.name === 'out' || entry.name === 'dist') {
+					continue;
+				}
+				if (entry.isFile()) {
+					count++;
+					if (count >= 10) {
+						break;
+					}
+				} else if (entry.isDirectory() && stack.length === 0) {
+					stack.push(path.join(dir, entry.name));
+				}
+			}
+		}
+		return count;
+	} catch {
+		return 0;
+	}
 }
 
 /**

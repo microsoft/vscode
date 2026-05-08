@@ -1,0 +1,10 @@
+{
+	"name": "son-of-anton-code-graph-indexer",
+	"version": "0.1.0",
+	"description": "Son of Anton — code graph indexer (v1 stub).",
+	"private": true,
+	"main": "index.js",
+	"scripts": {
+		"start": "node index.js"
+	}
+}
