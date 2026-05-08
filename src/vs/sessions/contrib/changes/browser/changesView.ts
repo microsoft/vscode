@@ -187,7 +187,7 @@ class ChangesButtonBarWidget extends Disposable {
 	private _getButtonConfiguration(action: IAction, outgoingChanges: number, reviewState: { isLoading: boolean; commentCount: number | undefined }, hasGitOperationInProgress: boolean, runningLabelObs: IObservable<string | IMarkdownString | undefined>): { showIcon: boolean; showLabel: boolean; isSecondary?: boolean; customLabel?: string | IMarkdownString; customLabelObs?: IObservable<string | IMarkdownString | undefined>; customClass?: string } | undefined {
 		if (
 			action.id === 'github.copilot.sessions.commit' ||
-			action.id === 'github.copilot.sessions.commitAndSync'
+			action.id === 'github.copilot.chat.createPullRequestCopilotCLIAgentSession.createPR'
 		) {
 			if (!hasGitOperationInProgress) {
 				return { showIcon: true, showLabel: true, isSecondary: false };
@@ -198,7 +198,10 @@ class ChangesButtonBarWidget extends Disposable {
 			});
 			return { showIcon: false, showLabel: true, isSecondary: false, customLabelObs };
 		}
-		if (action.id === 'github.copilot.sessions.sync') {
+		if (
+			action.id === 'github.copilot.sessions.sync' ||
+			action.id === 'github.copilot.sessions.commitAndSync'
+		) {
 			const labelWithCount = outgoingChanges > 0
 				? `${action.label} ${outgoingChanges}↑`
 				: `${action.label}`;
@@ -213,7 +216,6 @@ class ChangesButtonBarWidget extends Disposable {
 		}
 		if (
 			action.id === 'github.copilot.claude.sessions.sync' ||
-			action.id === 'github.copilot.chat.createPullRequestCopilotCLIAgentSession.updatePR' ||
 			action.id === AGENT_HOST_SKILL_BUTTON_UPDATE_PR_ID
 		) {
 			const customLabel = outgoingChanges > 0
