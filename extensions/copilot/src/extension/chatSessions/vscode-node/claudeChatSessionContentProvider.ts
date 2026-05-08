@@ -160,14 +160,17 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 			this._chatQuotaService.resetTurnCredits(request.id);
 			this.sessionStateService.setTurnIdForSession(effectiveSessionId, request.id);
 
-			const prompt = request.prompt;
-			await this._controller.updateItemStatus(effectiveSessionId, vscode.ChatSessionStatus.InProgress, prompt);
-			const result = await this.claudeAgentManager.handleRequest(effectiveSessionId, request, stream, token, isNewSession, yieldRequested);
-			await this._controller.updateItemStatus(effectiveSessionId, vscode.ChatSessionStatus.Completed, prompt);
-
-			// Clear usage handler and turn ID after request completes
-			this.sessionStateService.setUsageHandlerForSession(effectiveSessionId, undefined);
-			this.sessionStateService.setTurnIdForSession(effectiveSessionId, undefined);
+			let result: vscode.ChatResult;
+			try {
+				const prompt = request.prompt;
+				await this._controller.updateItemStatus(effectiveSessionId, vscode.ChatSessionStatus.InProgress, prompt);
+				result = await this.claudeAgentManager.handleRequest(effectiveSessionId, request, stream, token, isNewSession, yieldRequested);
+				await this._controller.updateItemStatus(effectiveSessionId, vscode.ChatSessionStatus.Completed, prompt);
+			} finally {
+				// Clear usage handler and turn ID after request completes (even on error/cancellation)
+				this.sessionStateService.setUsageHandlerForSession(effectiveSessionId, undefined);
+				this.sessionStateService.setTurnIdForSession(effectiveSessionId, undefined);
+			}
 
 			const modelDetailsEnabled = this.configurationService.getConfig(ConfigKey.Advanced.CLIModelDetailsEnabled);
 			const creditsUsed = this._chatQuotaService.getCreditsForTurn(request.id);

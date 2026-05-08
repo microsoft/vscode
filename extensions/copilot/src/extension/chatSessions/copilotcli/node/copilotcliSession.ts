@@ -1276,9 +1276,12 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 					reportUsage(event.data.inputTokens, event.data.outputTokens);
 				}
 				// Accumulate per-turn credits from SDK copilotUsage data
-				const totalNanoAiu = (event.data as Record<string, unknown>).copilotUsage;
-				if (totalNanoAiu && typeof totalNanoAiu === 'object' && 'totalNanoAiu' in totalNanoAiu && typeof totalNanoAiu.totalNanoAiu === 'number') {
-					this._chatQuotaService.setLastCopilotUsage(totalNanoAiu.totalNanoAiu, request.id);
+				const copilotUsage = (event.data as Record<string, unknown>).copilotUsage;
+				if (copilotUsage && typeof copilotUsage === 'object') {
+					const { totalNanoAiu } = copilotUsage as { totalNanoAiu?: number };
+					if (typeof totalNanoAiu === 'number') {
+						this._chatQuotaService.setLastCopilotUsage(totalNanoAiu, request.id);
+					}
 				}
 			})));
 			disposables.add(toDisposable(this._sdkSession.on('session.usage_info', (event) => {
