@@ -352,14 +352,20 @@ export const SOTA_WELCOME_HERO_SKYLINE_SVG: string = `
 			<path d="M-500,400 L1500,1400 M-400,350 L1600,1350 M-300,300 L1700,1300 M-200,250 L1800,1250 M-100,200 L1900,1200 M0,150 L2000,1150 M100,100 L2100,1100 M200,50 L2200,1050 M300,0 L2300,1000 M400,-50 L2400,950 M500,-100 L2500,900 M600,-150 L2600,850 M700,-200 L2700,800 M800,-250 L2800,750" />
 			<path d="M1500,-500 L-500,500 M1600,-450 L-400,550 M1700,-400 L-300,600 M1800,-350 L-200,650 M1900,-300 L-100,700 M2000,-250 L0,750 M2100,-200 L100,800 M2200,-150 L200,850 M2300,-100 L300,900 M2400,-50 L400,950 M2500,0 L500,1000 M2600,50 L600,1050 M2700,100 L700,1100 M2800,150 L800,1150" />
 		</g>
-		<path d="M-100,450 L600,800 L750,800 L1300,525 L1300,475 L650,800 L-100,425 Z" fill="#111111" />
-		<path d="M-100,437 L625,800 M1300,500 L680,800" stroke="#f1c40f" stroke-width="2" stroke-dasharray="10 10" opacity="0.4" />
-		<path d="M1300,100 L600,450 L-100,100 L-100,150 L600,500 L1300,150 Z" fill="#111111" />
-		<path d="M1300,125 L600,475 L-100,125" stroke="#f1c40f" stroke-width="2" stroke-dasharray="10 10" opacity="0.4" />
+		<path d="M-200,200 L600,600 L1400,200" fill="none" stroke="#111111" stroke-width="60" stroke-linejoin="round" />
+		<path d="M-200,200 L600,600 L1400,200" fill="none" stroke="#f1c40f" stroke-width="2" stroke-dasharray="15 15" opacity="0.4" />
+		<path d="M-200,500 L600,900 L1400,500" fill="none" stroke="#111111" stroke-width="60" stroke-linejoin="round" />
+		<path d="M-200,500 L600,900 L1400,500" fill="none" stroke="#f1c40f" stroke-width="2" stroke-dasharray="15 15" opacity="0.4" />
 		<use href="#sota-skyline-iso-text" y="100" fill="#1a1a1a" opacity="0">
 			<animate attributeName="opacity" to="1" dur="0.5s" begin="1s" fill="freeze" />
 		</use>
 		<use href="#sota-skyline-iso-text" y="100" class="sota-skyline-blueprint-line" />
+	</g>
+	<g>
+		<g transform="translate(180, 250)"><use href="#sota-skyline-tree"/></g>
+		<g transform="translate(220, 270)"><use href="#sota-skyline-tree"/></g>
+		<g transform="translate(850, 150)"><use href="#sota-skyline-tree"/></g>
+		<g transform="translate(890, 170)"><use href="#sota-skyline-tree"/></g>
 	</g>
 	<g class="sota-skyline-car-1">
 		<g transform="matrix(0.866, 0.5, -0.866, 0.5, 0, 0)">
@@ -428,15 +434,13 @@ export const SOTA_WELCOME_HERO_SKYLINE_SVG: string = `
 				<rect x="2" y="2" width="16" height="6" fill="#17202A" />
 			</g>
 		</g>
-		<g transform="translate(400, 500)"><use href="#sota-skyline-tree"/></g>
-		<g transform="translate(430, 520)"><use href="#sota-skyline-tree"/></g>
-		<g transform="translate(370, 530)"><use href="#sota-skyline-tree"/></g>
-		<g transform="translate(850, 600)"><use href="#sota-skyline-tree"/></g>
-		<g transform="translate(880, 590)"><use href="#sota-skyline-tree"/></g>
-		<g transform="translate(250, 350)"><use href="#sota-skyline-tree"/></g>
-		<g transform="translate(280, 360)"><use href="#sota-skyline-tree"/></g>
-		<g transform="translate(800, 200)"><use href="#sota-skyline-tree"/></g>
-		<g transform="translate(830, 220)"><use href="#sota-skyline-tree"/></g>
+	</g>
+	<g>
+		<g transform="translate(250, 600)"><use href="#sota-skyline-tree"/></g>
+		<g transform="translate(290, 620)"><use href="#sota-skyline-tree"/></g>
+		<g transform="translate(210, 630)"><use href="#sota-skyline-tree"/></g>
+		<g transform="translate(900, 650)"><use href="#sota-skyline-tree"/></g>
+		<g transform="translate(940, 630)"><use href="#sota-skyline-tree"/></g>
 	</g>
 	<g class="sota-skyline-balloon-1">
 		<g transform="translate(300, 600)">
