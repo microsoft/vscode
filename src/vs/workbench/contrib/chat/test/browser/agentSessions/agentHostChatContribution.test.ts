@@ -27,7 +27,7 @@ import { IDefaultAccountService } from '../../../../../../platform/defaultAccoun
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatAgentLocation } from '../../../common/constants.js';
-import { IChatService, IChatMarkdownContent, IChatProgress, IChatTerminalToolInvocationData, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
+import { ChatRequestQueueKind, IChatService, IChatMarkdownContent, IChatProgress, IChatTerminalToolInvocationData, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { IChatEditingService } from '../../../common/editing/chatEditingService.js';
 import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { IChatSessionsService, type IChatSessionRequestHistoryItem } from '../../../common/chatSessionsService.js';
@@ -56,6 +56,7 @@ import { IPromptsService } from '../../../common/promptSyntax/service/promptsSer
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { IChatWidgetService } from '../../../browser/chat.js';
 import { ChatQuestionCarouselData } from '../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
+import type { IChatModel, IChatPendingRequest, IChatRequestModel } from '../../../common/model/chatModel.js';
 
 // ---- Mock agent host service ------------------------------------------------
 
@@ -395,9 +396,15 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 	instantiationService.stub(IChatEditingService, {
 		registerEditingSessionProvider: () => toDisposable(() => { }),
 	});
+	const chatModels = new Map<string, IChatModel>();
+	const onDidCreateModel = disposables.add(new Emitter<IChatModel>());
 	const chatService = {
-		getSession: () => undefined,
-		onDidCreateModel: Event.None,
+		getSession: (sessionResource: URI) => chatModels.get(sessionResource.toString()),
+		onDidCreateModel: onDidCreateModel.event,
+		setSession(sessionResource: URI, model: IChatModel) {
+			chatModels.set(sessionResource.toString(), model);
+			onDidCreateModel.fire(model);
+		},
 		removePendingRequestCalls: [] as { sessionResource: URI; requestId: string }[],
 		removePendingRequest(sessionResource: URI, requestId: string) {
 			this.removePendingRequestCalls.push({ sessionResource, requestId });
@@ -463,7 +470,7 @@ function createContribution(disposables: DisposableStore, opts?: { authServiceOv
 	}));
 	const contribution = disposables.add(instantiationService.createInstance(AgentHostContribution));
 
-	return { contribution, listController, sessionHandler, agentHostService, chatAgentService, chatWidgetService, chatService };
+	return { contribution, listController, sessionHandler, agentHostService, chatAgentService, chatWidgetService, chatService, instantiationService };
 }
 
 function makeRequest(overrides: Partial<{ message: string; sessionResource: URI; variables: IChatAgentRequest['variables']; userSelectedModelId: string; modelConfiguration: Record<string, unknown>; agentHostSessionConfig: Record<string, string>; agentId: string }> = {}): IChatAgentRequest {
@@ -3094,6 +3101,101 @@ suite('AgentHostChatContribution', () => {
 	// ---- Server-initiated turns -------------------------------------------
 
 	suite('server-initiated turns', () => {
+		function createPendingChatModel(sessionResource: URI, pendingRequests: IChatPendingRequest[]): { model: IChatModel; firePendingRequestsChanged(): void } {
+			const onDidChangePendingRequests = disposables.add(new Emitter<void>());
+			return {
+				model: upcastPartial<IChatModel>({
+					sessionResource,
+					onDidChangePendingRequests: onDidChangePendingRequests.event,
+					getPendingRequests: () => pendingRequests,
+				}),
+				firePendingRequestsChanged: () => onDidChangePendingRequests.fire(),
+			};
+		}
+
+		test('syncs queued messages added to restored active sessions', async () => {
+			const { sessionHandler, agentHostService, chatService } = createContribution(disposables);
+
+			const backendSession = AgentSession.uri('copilot', 'restored-pending-sync');
+			agentHostService.sessionStates.set(backendSession.toString(), {
+				...createSessionState({
+					resource: backendSession.toString(),
+					provider: 'copilot',
+					title: 'Test',
+					status: SessionStatus.InProgress,
+					createdAt: Date.now(),
+					modifiedAt: Date.now(),
+				}),
+				lifecycle: SessionLifecycle.Ready,
+				activeTurn: createActiveTurn('active-turn-1', { text: 'Working' }),
+			});
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/restored-pending-sync' });
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => chatSession.dispose()));
+
+			const pendingRequests: IChatPendingRequest[] = [];
+			const chatModel = createPendingChatModel(sessionResource, pendingRequests);
+			chatService.setSession(sessionResource, chatModel.model);
+
+			agentHostService.dispatchedActions.length = 0;
+			const text = 'Run the queued follow-up';
+			const request = upcastPartial<IChatRequestModel>({ id: 'queued-request-1', message: { text, parts: [] } });
+			pendingRequests.push({ request, kind: ChatRequestQueueKind.Queued, sendOptions: {} });
+			chatModel.firePendingRequestsChanged();
+
+			const action = agentHostService.dispatchedActions.map(d => d.action).find((action): action is Extract<SessionAction, { type: ActionType.SessionPendingMessageSet }> => action.type === ActionType.SessionPendingMessageSet);
+			assert.ok(action, 'queued message should be dispatched to the agent host');
+			assert.deepStrictEqual(action, {
+				type: ActionType.SessionPendingMessageSet,
+				session: backendSession.toString(),
+				kind: 'queued',
+				id: 'queued-request-1',
+				userMessage: { text },
+			});
+		});
+
+		test('syncs text updates for existing queued pending messages', async () => {
+			const { sessionHandler, agentHostService, chatService } = createContribution(disposables);
+
+			const backendSession = AgentSession.uri('copilot', 'pending-text-update');
+			agentHostService.sessionStates.set(backendSession.toString(), {
+				...createSessionState({
+					resource: backendSession.toString(),
+					provider: 'copilot',
+					title: 'Test',
+					status: SessionStatus.Idle,
+					createdAt: Date.now(),
+					modifiedAt: Date.now(),
+				}),
+				lifecycle: SessionLifecycle.Ready,
+				queuedMessages: [{ id: 'queued-request-1', userMessage: { text: 'old queued text' } }],
+			});
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/pending-text-update' });
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => chatSession.dispose()));
+
+			agentHostService.dispatchedActions.length = 0;
+			const text = 'new queued text';
+			const pendingRequests: IChatPendingRequest[] = [{
+				request: upcastPartial<IChatRequestModel>({ id: 'queued-request-1', message: { text, parts: [] } }),
+				kind: ChatRequestQueueKind.Queued,
+				sendOptions: {},
+			}];
+			const chatModel = createPendingChatModel(sessionResource, pendingRequests);
+			chatService.setSession(sessionResource, chatModel.model);
+
+			const action = agentHostService.dispatchedActions.map(d => d.action).find((action): action is Extract<SessionAction, { type: ActionType.SessionPendingMessageSet }> => action.type === ActionType.SessionPendingMessageSet);
+			assert.ok(action, 'queued message text update should be dispatched to the agent host');
+			assert.deepStrictEqual(action, {
+				type: ActionType.SessionPendingMessageSet,
+				session: backendSession.toString(),
+				kind: 'queued',
+				id: 'queued-request-1',
+				userMessage: { text },
+			});
+		});
 
 		test('detects server-initiated turn and fires onDidStartServerRequest', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);

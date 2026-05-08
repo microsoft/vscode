@@ -332,6 +332,15 @@ export class SessionsView extends ViewPane {
 			return primaryKeybinding ?? resolvedKeybindings[0];
 		};
 
+		this._register(this.hoverService.setupDelayedHoverAtMouse(newSessionButton.element, () => {
+			const keybindingLabel = getNewSessionKeybinding()?.getLabel() ?? undefined;
+			return {
+				content: keybindingLabel
+					? localize('newSessionButtonTitle', "New Session ({0})", keybindingLabel)
+					: localize('newSessionButtonTitleWithoutKeybinding', "New Session"),
+			};
+		}));
+
 		let lastRenderedKeybindingLabel: string | undefined | null = null;
 		let lastRenderedKeybindingAriaLabel: string | undefined | null = null;
 		const updateNewSessionButton = () => {
@@ -354,9 +363,6 @@ export class SessionsView extends ViewPane {
 				keybindingHint.remove();
 			}
 
-			newSessionButton.element.title = keybindingLabel
-				? localize('newSessionButtonTitle', "New Session ({0})", keybindingLabel)
-				: localize('newSessionButtonTitleWithoutKeybinding', "New Session");
 			newSessionButton.element.setAttribute('aria-label', keybindingAriaLabel
 				? localize('newSessionButtonAriaLabel', "New Session ({0})", keybindingAriaLabel)
 				: localize('newSessionButtonAriaLabelWithoutKeybinding', "New Session"));

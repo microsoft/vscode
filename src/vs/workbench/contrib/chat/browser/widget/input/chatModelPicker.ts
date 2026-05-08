@@ -818,7 +818,6 @@ export class ModelPickerWidget extends Disposable {
 		};
 
 		const models = this._delegate.getModels();
-		const showFilter = models.length >= 10;
 		const isPro = isProUser(this._entitlementService.entitlement);
 		const manifest = this._languageModelsService.getModelsControlManifest();
 		const controlModelsForTier = isPro ? manifest.paid : manifest.free;
@@ -849,7 +848,8 @@ export class ModelPickerWidget extends Disposable {
 		const hasPriceCategories = models.some(m => !!m.metadata.priceCategory);
 
 		const listOptions = {
-			showFilter,
+			// Always show the filter to allow for the secondary heading to show
+			showFilter: true,
 			filterPlaceholder: localize('chat.modelPicker.search', "Search models"),
 			filterActions: undefined,
 			secondaryHeading: hasPriceCategories ? localize('chat.modelPicker.cost', "Cost") : undefined,
