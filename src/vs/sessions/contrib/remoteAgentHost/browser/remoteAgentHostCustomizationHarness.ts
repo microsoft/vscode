@@ -326,11 +326,6 @@ export class RemoteAgentCustomizationItemProvider extends Disposable implements 
 		};
 	}
 
-	private toBundledItem(customization: CustomizationRef, groupKey: string): ICustomizationItem {
-		const uri = this.toRemoteUri(customization);
-		return { uri, type: 'plugin', name: '', storage: PromptsStorage.plugin, groupKey, extensionId: undefined, pluginUri: undefined };
-	}
-
 	async provideChatSessionCustomizations(token: CancellationToken): Promise<ICustomizationItem[]> {
 		const items = new Map<string, ICustomizationItem>();
 
@@ -359,7 +354,8 @@ export class RemoteAgentCustomizationItemProvider extends Disposable implements 
 				item = this.toItem(sessionCustomization.customization, sessionCustomization);
 				items.set(customizationItemKey(sessionCustomization.customization, sessionCustomization.clientId), item);
 			} else {
-				item = this.toBundledItem(sessionCustomization.customization, childGroupKey);
+				// create a dummy parent item for the synthetic bundle, it does not go into the items map, just need it to expand.
+				item = { uri: this.toRemoteUri(sessionCustomization.customization), type: 'plugin', name: '', storage: PromptsStorage.plugin, groupKey: childGroupKey, extensionId: undefined, pluginUri: undefined };
 			}
 
 			// Always expand plugin contents so individual files are visible.
