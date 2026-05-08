@@ -265,8 +265,7 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 				modelTooltip = endpoint.degradationReason;
 			} else if (endpoint instanceof AutoChatEndpoint) {
 				modelTooltip = vscode.l10n.t('Auto selects the best model for your request based on capacity and performance.');
-				const plan = this._authenticationService.copilotToken?.copilotPlan;
-				const isOrgManaged = plan === 'business' || plan === 'enterprise';
+				const isOrgManaged = !!this._authenticationService.copilotToken?.isManagedPlan;
 				const autoModeHint = this._expService.getTreatmentVariable<string>('copilotchat.autoModelHint');
 				const showExperimentalHint = !isOrgManaged && !!autoModeHint && experimentalAutoModelHintMarkers.some(marker => autoModeHint.includes(marker));
 				if (showExperimentalHint) {
