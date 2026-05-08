@@ -2563,6 +2563,13 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		tabsContainer.classList.remove('scroll');
 
 		let targetEditorIndex = this.tabsModel instanceof UnstickyEditorGroupModel ? targetTabIndex + this.groupView.stickyCount : targetTabIndex;
+
+		// Check if the drop target is within a tab group BEFORE the move.
+		// This determines whether dropped editors should be absorbed into
+		// that group at boundaries. If the target is outside any group,
+		// we should NOT absorb (the user is intentionally dragging out).
+		const targetGroupBeforeMove = this.tabsModel.getTabGroupForEditor(targetEditorIndex) ??
+			this.tabsModel.getTabGroupForEditor(Math.max(0, targetEditorIndex - 1));
 		const options: IEditorOptions = {
 			sticky: this.tabsModel instanceof StickyEditorGroupModel && this.tabsModel.stickyCount === targetEditorIndex,
 			index: targetEditorIndex
@@ -2613,15 +2620,16 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 							sourceGroup.copyEditor(editor, this.groupView, { ...options, index: targetEditorIndex });
 						}
 
-						// If the editor landed adjacent to a group boundary, absorb it
-						if (sourceGroup === this.groupView) {
+						// If the drop target was inside a group and the editor
+						// landed adjacent to that group's boundary, absorb it.
+						// Skip if the target was outside all groups (user is
+						// intentionally dragging the tab out of a group).
+						if (sourceGroup === this.groupView && targetGroupBeforeMove) {
 							const editorIdx = this.tabsModel.indexOf(editor);
 							if (editorIdx >= 0 && !this.tabsModel.getTabGroupForEditor(editorIdx)) {
-								for (const tg of this.tabsModel.tabGroups) {
-									if (editorIdx === tg.startIndex - 1 || editorIdx === tg.startIndex + tg.count) {
-										this.tabsModel.includeInTabGroup?.(tg.id, editor);
-										break;
-									}
+								const tg = targetGroupBeforeMove;
+								if (editorIdx === tg.startIndex - 1 || editorIdx === tg.startIndex + tg.count) {
+									this.tabsModel.includeInTabGroup?.(tg.id, editor);
 								}
 							}
 						}

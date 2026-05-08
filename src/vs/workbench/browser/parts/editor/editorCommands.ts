@@ -1738,19 +1738,22 @@ function registerTabGroupCommands(): void {
 	CommandsRegistry.registerCommand({
 		id: REMOVE_FROM_TAB_GROUP_COMMAND_ID,
 		handler: async (accessor, ...args: unknown[]) => {
-			const editorGroupsService = accessor.get(IEditorGroupsService);
-
-			const group = editorGroupsService.activeGroup;
-			const editor = group.activeEditor;
-			if (!editor) {
+			const resolvedContext = resolveCommandsContext(args, accessor.get(IEditorService), accessor.get(IEditorGroupsService), accessor.get(IListService));
+			const groupedEditors = resolvedContext.groupedEditors;
+			if (groupedEditors.length === 0) {
 				return;
 			}
 
-			const model = getGroupModel(group);
-			if (model?.getTabGroupForEditor && model?.removeFromTabGroup) {
-				const tabGroup = model.getTabGroupForEditor(editor);
-				if (tabGroup) {
-					model.removeFromTabGroup(tabGroup.id, editor);
+			for (const { group, editors } of groupedEditors) {
+				const model = getGroupModel(group);
+				if (!model?.getTabGroupForEditor || !model?.removeFromTabGroup) {
+					continue;
+				}
+				for (const editor of editors) {
+					const tabGroup = model.getTabGroupForEditor(editor);
+					if (tabGroup) {
+						model.removeFromTabGroup(tabGroup.id, editor);
+					}
 				}
 			}
 		}
@@ -1882,9 +1885,14 @@ function registerTabGroupCommands(): void {
 			const editorGroupsService = accessor.get(IEditorGroupsService);
 			const quickInputService = accessor.get(IQuickInputService);
 
-			const group = editorGroupsService.activeGroup;
-			const editor = group.activeEditor;
-			if (!editor) {
+			const resolvedContext = resolveCommandsContext(args, accessor.get(IEditorService), editorGroupsService, accessor.get(IListService));
+			const groupedEditors = resolvedContext.groupedEditors;
+			if (groupedEditors.length === 0) {
+				return;
+			}
+
+			const { group, editors } = groupedEditors[0];
+			if (editors.length === 0) {
 				return;
 			}
 
@@ -1893,7 +1901,7 @@ function registerTabGroupCommands(): void {
 				return;
 			}
 
-			const currentGroup = model.getTabGroupForEditor?.(editor);
+			const currentGroup = model.getTabGroupForEditor?.(editors[0]);
 			const tabGroups = model.tabGroups;
 
 			const items: { label: string; id: string; description?: string }[] = [];
@@ -1926,10 +1934,12 @@ function registerTabGroupCommands(): void {
 					prompt: localize('newGroupNamePrompt', "Enter a name for the new tab group")
 				});
 				if (name !== undefined) {
-					model.createTabGroup([editor], name || undefined);
+					model.createTabGroup(editors, name || undefined);
 				}
 			} else {
-				model.addToTabGroup(picked.id, editor);
+				for (const editor of editors) {
+					model.addToTabGroup(picked.id, editor);
+				}
 			}
 		}
 	});
