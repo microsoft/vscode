@@ -24,6 +24,7 @@ import {
 	type ITunnelInfo,
 } from '../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { AhpJsonlLogger } from '../../../../platform/agentHost/common/ahpJsonlLogger.js';
+import { AgentHostAhpJsonlLoggingSettingId } from '../../../../platform/agentHost/common/agentService.js';
 import { RemoteAgentHostProtocolClient } from '../../../../platform/agentHost/browser/remoteAgentHostProtocolClient.js';
 import { TunnelRelayTransport } from '../../../../platform/agentHost/electron-browser/tunnelRelayTransport.js';
 
@@ -102,10 +103,11 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 
 		// Create relay transport + protocol client, then register with RemoteAgentHostService
 		try {
-			const logger = this._instantiationService.createInstance(
+			const ahpLoggingEnabled = !!this._configurationService.getValue<boolean>(AgentHostAhpJsonlLoggingSettingId);
+			const logger = ahpLoggingEnabled ? this._instantiationService.createInstance(
 				AhpJsonlLogger,
 				{ logsHome: this._environmentService.logsHome, connectionId: result.connectionId, transport: 'tunnel' },
-			);
+			) : undefined;
 			const transport = new TunnelRelayTransport(result.connectionId, this._mainService, logger);
 			const protocolClient = this._instantiationService.createInstance(
 				RemoteAgentHostProtocolClient, result.address, transport,

@@ -14,6 +14,7 @@ import { ProxyChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { IRemoteAgentHostService, RemoteAgentHostEntryType } from '../common/remoteAgentHostService.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { AhpJsonlLogger } from '../common/ahpJsonlLogger.js';
+import { AgentHostAhpJsonlLoggingSettingId } from '../common/agentService.js';
 import { SSHRelayTransport } from './sshRelayTransport.js';
 import { RemoteAgentHostProtocolClient } from '../browser/remoteAgentHostProtocolClient.js';
 import {
@@ -200,10 +201,11 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 	}
 
 	private _createRelayClient(result: { connectionId: string; address: string }): RemoteAgentHostProtocolClient {
-		const logger = this._instantiationService.createInstance(
+		const ahpLoggingEnabled = !!this._configurationService.getValue<boolean>(AgentHostAhpJsonlLoggingSettingId);
+		const logger = ahpLoggingEnabled ? this._instantiationService.createInstance(
 			AhpJsonlLogger,
 			{ logsHome: this._environmentService.logsHome, connectionId: result.connectionId, transport: 'ssh' },
-		);
+		) : undefined;
 		const transport = new SSHRelayTransport(result.connectionId, this._mainService, logger);
 		return this._instantiationService.createInstance(
 			RemoteAgentHostProtocolClient, result.address, transport,

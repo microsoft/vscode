@@ -16,7 +16,7 @@ import { IInstantiationService } from '../../instantiation/common/instantiation.
 import { ILabelService } from '../../label/common/label.js';
 import { ILogService } from '../../log/common/log.js';
 
-import type { IAgentConnection } from '../common/agentService.js';
+import { AgentHostAhpJsonlLoggingSettingId, type IAgentConnection } from '../common/agentService.js';
 import {
 	IRemoteAgentHostService,
 	RemoteAgentHostConnectionStatus,
@@ -387,11 +387,14 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		}
 
 		const store = new DisposableStore();
+		const ahpLoggingEnabled = !!this._configurationService.getValue<boolean>(AgentHostAhpJsonlLoggingSettingId);
 		const transport = store.add(this._instantiationService.createInstance(
 			WebSocketClientTransport,
 			address,
 			connectionToken,
-			{ logsHome: this._environmentService.logsHome, connectionId: address, transport: 'websocket' },
+			ahpLoggingEnabled
+				? { logsHome: this._environmentService.logsHome, connectionId: address, transport: 'websocket' }
+				: undefined,
 		));
 		const client = store.add(this._instantiationService.createInstance(RemoteAgentHostProtocolClient, address, transport));
 		const entry: IConnectionEntry = { store, client, connected: false, status: RemoteAgentHostConnectionStatus.connecting };
