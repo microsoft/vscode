@@ -16,6 +16,9 @@ import { ISessionsProvidersService } from '../../../services/sessions/browser/se
 import { autorun } from '../../../../base/common/observable.js';
 import { ISession, ISessionType } from '../../../services/sessions/common/session.js';
 import { Emitter } from '../../../../base/common/event.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+
+export const STORAGE_KEY_LAST_SESSION_TYPE = 'sessions.lastSelectedSessionType';
 
 export class SessionTypePicker extends Disposable {
 
@@ -33,8 +36,12 @@ export class SessionTypePicker extends Disposable {
 		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
+		@IStorageService protected readonly storageService: IStorageService,
 	) {
 		super();
+
+		// Restore the previously selected session type from storage
+		this._sessionType = this.storageService.get(STORAGE_KEY_LAST_SESSION_TYPE, StorageScope.PROFILE);
 
 		const refresh = (session: ISession | undefined) => {
 			if (session) {
@@ -50,7 +57,9 @@ export class SessionTypePicker extends Disposable {
 			} else {
 				this._supportedSessionTypes = [];
 				this._allProviderSessionTypes = [];
-				this._sessionType = undefined;
+				// Preserve the stored session type when no active session exists,
+				// so it can be used as the default for the next new session.
+				this._sessionType = this.storageService.get(STORAGE_KEY_LAST_SESSION_TYPE, StorageScope.PROFILE);
 			}
 			this._updateTriggerLabel();
 		};
@@ -70,10 +79,16 @@ export class SessionTypePicker extends Disposable {
 		return this._sessionType;
 	}
 
-	render(container: HTMLElement): void {
+	render(container: HTMLElement, options?: { className?: string }): void {
 		this._renderDisposables.clear();
 
 		const slot = dom.append(container, dom.$('.sessions-chat-picker-slot'));
+		if (options?.className) {
+			const classNames = options.className.split(/\s+/).filter(className => className.length > 0);
+			if (classNames.length > 0) {
+				slot.classList.add(...classNames);
+			}
+		}
 		this._renderDisposables.add({ dispose: () => slot.remove() });
 
 		const trigger = dom.append(slot, dom.$('a.action-label'));
@@ -132,6 +147,7 @@ export class SessionTypePicker extends Disposable {
 			onSelect: (type) => {
 				this.actionWidgetService.hide();
 				if (type.id !== this._sessionType) {
+					this.storageService.store(STORAGE_KEY_LAST_SESSION_TYPE, type.id, StorageScope.PROFILE, StorageTarget.MACHINE);
 					this._onDidSelectSessionType.fire(type.id);
 				}
 			},
@@ -174,7 +190,8 @@ export class SessionTypePicker extends Disposable {
 		const labelSpan = dom.append(this._triggerElement, dom.$('span.sessions-chat-dropdown-label'));
 		labelSpan.textContent = modeLabel;
 
-		dom.append(this._triggerElement, renderIcon(Codicon.chevronDown));
+		const chevron = dom.append(this._triggerElement, renderIcon(Codicon.chevronDown));
+		chevron.classList.add('sessions-chat-dropdown-chevron');
 
 		this._triggerElement.ariaLabel = localize('sessionTypePicker.triggerAriaLabel', "Pick Session Type, {0}", modeLabel);
 	}

@@ -28,7 +28,7 @@ import { PROTOCOL_VERSION } from '../common/state/protocol/version/registry.js';
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, ProtocolError, type ProtocolMessage, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { isClientTransport, type IProtocolTransport } from '../common/state/sessionTransport.js';
 import { AhpErrorCodes } from '../common/state/protocol/errors.js';
-import { ContentEncoding, ResourceRequestParams, type CreateTerminalParams, type ResolveSessionConfigResult, type SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
+import { ContentEncoding, ResourceRequestParams, type CompletionsParams, type CompletionsResult, type CreateTerminalParams, type ResolveSessionConfigResult, type SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
 import { decodeBase64, encodeBase64, VSBuffer } from '../../../base/common/buffer.js';
 
 const AHP_CLIENT_CONNECTION_CLOSED = -32000;
@@ -64,6 +64,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	private _serverSeq = 0;
 	private _nextClientSeq = 1;
 	private _defaultDirectory: string | undefined;
+	private _completionTriggerCharacters: readonly string[] = [];
 	private readonly _subscriptionManager: AgentSubscriptionManager;
 
 	private readonly _onDidAction = this._register(new Emitter<ActionEnvelope>());
@@ -164,6 +165,8 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 				this._defaultDirectory = URI.revive(dir).path;
 			}
 		}
+
+		this._completionTriggerCharacters = result.completionTriggerCharacters ?? [];
 	}
 
 	// ---- IAgentConnection subscription API ----------------------------------
@@ -247,6 +250,18 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			property: params.property,
 			query: params.query,
 		});
+	}
+
+	async completions(params: CompletionsParams): Promise<CompletionsResult> {
+		return this._sendRequest('completions', params);
+	}
+
+	/**
+	 * Returns the trigger characters captured from the `initialize` handshake.
+	 * Empty when the remote host did not announce any.
+	 */
+	async getCompletionTriggerCharacters(): Promise<readonly string[]> {
+		return this._completionTriggerCharacters;
 	}
 
 	/**

@@ -50,6 +50,7 @@ import { chatSessionResourceToId, getChatSessionType } from '../../common/model/
 import { HookType } from '../../common/promptSyntax/hookTypes.js';
 import { ILanguageModelToolsConfirmationService } from '../../common/tools/languageModelToolsConfirmationService.js';
 import { CountTokensCallback, createToolSchemaUri, IBeginToolCallOptions, IExternalPreToolUseHookResult, ILanguageModelToolsService, IPreparedToolInvocation, isToolSet, IToolAndToolSetEnablementMap, IToolData, IToolImpl, IToolInvocation, IToolInvokedEvent, IToolResult, IToolResultInputOutputDetails, IToolSet, SpecedToolAliases, stringifyPromptTsxPart, ToolDataSource, ToolInvocationPresentation, toolMatchesModel, ToolSet, ToolSetForModel, VSCodeToolReference } from '../../common/tools/languageModelToolsService.js';
+import { IToolResultCompressor } from '../../common/tools/toolResultCompressor.js';
 import { getToolConfirmationAlert } from '../accessibility/chatAccessibilityProvider.js';
 import { IChatWidgetService } from '../chat.js';
 
@@ -136,6 +137,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		@ILanguageModelToolsConfirmationService private readonly _confirmationService: ILanguageModelToolsConfirmationService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
+		@IToolResultCompressor private readonly _toolResultCompressor: IToolResultCompressor,
 	) {
 		super();
 
@@ -460,6 +462,11 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				this._logService.debug(`[LanguageModelToolsService#invokeTool] Ignoring tool ${dto.toolId} for cancelled/complete request ${request.id}`);
 				throw new CancellationError();
 			}
+
+			// Enrich context with working directory from the model if available
+			if (model?.workingDirectory && !dto.context.workingDirectory) {
+				dto = { ...dto, context: { ...dto.context, workingDirectory: model.workingDirectory } };
+			}
 		}
 
 		// Check if there's an existing pending tool call from streaming phase BEFORE hook check
@@ -645,10 +652,17 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				}
 			}, token);
 			invocationTimeWatch.stop();
+			// Apply post-processing compression (e.g. for run_in_terminal output)
+			// before the result reaches the model. Returns undefined when no
+			// compression applied.
+			const compressed = this._toolResultCompressor.maybeCompress(tool.data.id, dto.parameters, toolResult);
+			if (compressed) {
+				toolResult = compressed;
+			}
 			this.ensureToolDetails(dto, toolResult, tool.data, toolInvocation);
 
 			const afterExecuteState = await toolInvocation?.didExecuteTool(toolResult, undefined, () =>
-				this.shouldAutoConfirmPostExecution(tool.data.id, tool.data.runsInWorkspace, tool.data.source, dto.parameters, dto.context?.sessionResource, dto.chatRequestId));
+				this.shouldAutoConfirmPostExecution(tool.data.id, tool.data.runsInWorkspace, tool.data.source, dto.parameters, dto.context?.sessionResource, dto.chatRequestId, dto.context?.workingDirectory));
 
 			if (toolInvocation && afterExecuteState?.type === IChatToolInvocation.StateKind.WaitingForPostApproval) {
 				const postConfirm = await IChatToolInvocation.awaitPostConfirmation(toolInvocation, token);
@@ -806,7 +820,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				key: approveCombination.key,
 			};
 		}
-		const autoConfirmed = await this.shouldAutoConfirm(tool.data.id, tool.data.runsInWorkspace, tool.data.source, dto.parameters, sessionResource, dto.chatRequestId, combination);
+		const autoConfirmed = await this.shouldAutoConfirm(tool.data.id, tool.data.runsInWorkspace, tool.data.source, dto.parameters, sessionResource, dto.chatRequestId, combination, dto.context?.workingDirectory);
 		return { autoConfirmed, preparedInvocation };
 	}
 
@@ -820,7 +834,8 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				chatSessionResource: dto.context?.sessionResource,
 				chatInteractionId: dto.chatInteractionId,
 				modelId: dto.modelId,
-				forceConfirmationReason: forceConfirmationReason
+				forceConfirmationReason: forceConfirmationReason,
+				workingDirectory: dto.context?.workingDirectory,
 			}, token);
 
 			const raceResult = await Promise.race([
@@ -1076,6 +1091,19 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		return !!widget && isAutoApproveLevel(widget.input.currentModeInfo.permissionLevel);
 	}
 
+	/**
+	 * True if the session is in an auto-approve level (Auto-Approve / Autopilot),
+	 * via either the last request's stamped level or the live picker level.
+	 */
+	private _isSessionInAutoApproveLevel(chatSessionResource: URI | undefined): boolean {
+		if (!chatSessionResource) {
+			return false;
+		}
+		const model = this._chatService.getSession(chatSessionResource);
+		const request = model?.getRequests().at(-1);
+		return isAutoApproveLevel(request?.modeInfo?.permissionLevel) || this._isSessionLiveAutoApproveLevel(chatSessionResource);
+	}
+
 	private getEligibleForAutoApprovalSpecialCase(toolData: IToolData): string | undefined {
 		if (toolData.id === 'vscode_fetchWebPage_internal') {
 			return 'fetch';
@@ -1120,25 +1148,18 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		return true;
 	}
 
-	private async shouldAutoConfirm(toolId: string, runsInWorkspace: boolean | undefined, source: ToolDataSource, parameters: unknown, chatSessionResource: URI | undefined, chatRequestId: string | undefined, combination?: { label: string; key: string }): Promise<ConfirmedReason | undefined> {
+	private async shouldAutoConfirm(toolId: string, runsInWorkspace: boolean | undefined, source: ToolDataSource, parameters: unknown, chatSessionResource: URI | undefined, chatRequestId: string | undefined, combination?: { label: string; key: string }, workingDirectory?: URI): Promise<ConfirmedReason | undefined> {
 		const tool = this._tools.get(toolId);
 		if (!tool) {
 			return undefined;
 		}
 
-		// Auto-Approve All permission level bypasses all tool confirmations,
-		// unless enterprise policy has explicitly disabled global auto-approve.
-		// Check both the request-stamped level AND the live picker level so that
-		// switching to Autopilot mid-session takes effect immediately.
-		if (chatSessionResource && !this._isAutoApprovePolicyRestricted()) {
-			const model = this._chatService.getSession(chatSessionResource);
-			const request = model?.getRequests().at(-1);
-			if (isAutoApproveLevel(request?.modeInfo?.permissionLevel) || this._isSessionLiveAutoApproveLevel(chatSessionResource)) {
-				// CLI sessions must always show their multi-option confirmation dialogs
-				// (e.g. uncommitted-changes prompt) even under Bypass Approvals
-				if (!(toolIdsThatCannotBeAutoApproved.has(tool.data.id) && getChatSessionType(chatSessionResource) !== localChatSessionType)) {
-					return { type: ToolConfirmKind.ConfirmationNotNeeded, reason: 'auto-approve-all' };
-				}
+		// Bypass confirmation under Auto-Approve / Autopilot, unless enterprise
+		// policy disables global auto-approve.
+		if (chatSessionResource && !this._isAutoApprovePolicyRestricted() && this._isSessionInAutoApproveLevel(chatSessionResource)) {
+			// CLI sessions still need their multi-option dialogs (e.g. uncommitted changes).
+			if (!(toolIdsThatCannotBeAutoApproved.has(tool.data.id) && getChatSessionType(chatSessionResource) !== localChatSessionType)) {
+				return { type: ToolConfirmKind.ConfirmationNotNeeded, reason: 'auto-approve-all' };
 			}
 		}
 
@@ -1146,7 +1167,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			return undefined;
 		}
 
-		const reason = this._confirmationService.getPreConfirmAction({ toolId, source, parameters, chatSessionResource, combination });
+		const reason = this._confirmationService.getPreConfirmAction({ toolId, source, parameters, chatSessionResource, workingDirectory, combination });
 		if (reason) {
 			return reason;
 		}
@@ -1173,25 +1194,23 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		return undefined;
 	}
 
-	private async shouldAutoConfirmPostExecution(toolId: string, runsInWorkspace: boolean | undefined, source: ToolDataSource, parameters: unknown, chatSessionResource: URI | undefined, chatRequestId: string | undefined): Promise<ConfirmedReason | undefined> {
-		// Auto-Approve All permission level bypasses all post-execution confirmations,
-		// unless enterprise policy has explicitly disabled global auto-approve.
-		// Check both the request-stamped level AND the live picker level.
-		if (chatSessionResource && !this._isAutoApprovePolicyRestricted()) {
-			const model = this._chatService.getSession(chatSessionResource);
-			const request = model?.getRequests().at(-1);
-			if (isAutoApproveLevel(request?.modeInfo?.permissionLevel) || this._isSessionLiveAutoApproveLevel(chatSessionResource)) {
-				if (!(toolIdsThatCannotBeAutoApproved.has(toolId) && getChatSessionType(chatSessionResource) !== localChatSessionType)) {
-					return { type: ToolConfirmKind.ConfirmationNotNeeded, reason: 'auto-approve-all' };
-				}
+	private async shouldAutoConfirmPostExecution(toolId: string, runsInWorkspace: boolean | undefined, source: ToolDataSource, parameters: unknown, chatSessionResource: URI | undefined, chatRequestId: string | undefined, workingDirectory?: URI): Promise<ConfirmedReason | undefined> {
+		// Bypass post-execution confirmation under Auto-Approve / Autopilot,
+		// unless enterprise policy disables global auto-approve.
+		const sessionAutoApprove = chatSessionResource && !this._isAutoApprovePolicyRestricted() && this._isSessionInAutoApproveLevel(chatSessionResource);
+		if (sessionAutoApprove) {
+			if (!(toolIdsThatCannotBeAutoApproved.has(toolId) && getChatSessionType(chatSessionResource!) !== localChatSessionType)) {
+				return { type: ToolConfirmKind.ConfirmationNotNeeded, reason: 'auto-approve-all' };
 			}
 		}
 
-		if (this._configurationService.getValue<boolean>(ChatConfiguration.GlobalAutoApprove) && await this._checkGlobalAutoApprove()) {
+		// Don't show the YOLO opt-in dialog under autopilot: this runs after the
+		// tool result is already back in the agent loop, so it can't block anything.
+		if (this._configurationService.getValue<boolean>(ChatConfiguration.GlobalAutoApprove) && !sessionAutoApprove && await this._checkGlobalAutoApprove()) {
 			return { type: ToolConfirmKind.Setting, id: ChatConfiguration.GlobalAutoApprove };
 		}
 
-		return this._confirmationService.getPostConfirmAction({ toolId, source, parameters, chatSessionResource });
+		return this._confirmationService.getPostConfirmAction({ toolId, source, parameters, chatSessionResource, workingDirectory });
 	}
 
 	private async _checkGlobalAutoApprove(): Promise<boolean> {

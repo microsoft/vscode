@@ -1363,6 +1363,11 @@ export interface IChatDetail {
 	isActive: boolean;
 	stats?: IChatSessionStats;
 	lastResponseState: ResponseModelState;
+	/**
+	 * The working directory URI associated with this session.
+	 * Only populated in the sessions/agents window context.
+	 */
+	workingDirectory?: URI;
 }
 
 export interface IChatProviderInfo {

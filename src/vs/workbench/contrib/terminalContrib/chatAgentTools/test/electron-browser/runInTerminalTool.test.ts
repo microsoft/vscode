@@ -42,6 +42,7 @@ import { LocalChatSessionUri } from '../../../../chat/common/model/chatUri.js';
 import { ChatRequestTextPart } from '../../../../chat/common/requestParser/chatParserTypes.js';
 import { ITerminalSandboxService, TerminalSandboxPrerequisiteCheck, type ITerminalSandboxPrerequisiteCheckResult } from '../../common/terminalSandboxService.js';
 import { ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocationPreparationContext, ToolDataSource, ToolSet, type ToolConfirmationAction } from '../../../../chat/common/tools/languageModelToolsService.js';
+import { IToolResultCompressor } from '../../../../chat/common/tools/toolResultCompressor.js';
 import { ITerminalChatService, ITerminalService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { ITerminalProfileResolverService } from '../../../../terminal/common/terminal.js';
 import type { ICommandLinePresenter } from '../../browser/tools/commandLinePresenter/commandLinePresenter.js';
@@ -1979,16 +1980,17 @@ suite('RunInTerminalTool', () => {
 
 		const outputMonitor = {
 			onDidDetectInputNeeded: inputNeededEmitter.event,
+			onDidDetectSensitiveInputNeeded: Event.None,
 			continueMonitoringAsync: () => { },
 			dispose: () => { },
-		} as unknown as { onDidDetectInputNeeded: Event<void>; continueMonitoringAsync: () => void; dispose: () => void };
+		} as unknown as { onDidDetectInputNeeded: Event<void>; onDidDetectSensitiveInputNeeded: Event<void>; continueMonitoringAsync: () => void; dispose: () => void };
 
 		(runInTerminalTool.constructor as unknown as { _activeExecutions: Map<string, { getOutput(): string }> })._activeExecutions.set(termId, {
 			getOutput: () => output,
 		});
 
 		// eslint-disable-next-line @typescript-eslint/naming-convention
-		(runInTerminalTool as unknown as { _registerCompletionNotification: (terminal: ITerminalInstance, termId: string, session: URI, commandName: string, outputMonitor: { onDidDetectInputNeeded: Event<void>; continueMonitoringAsync: () => void; dispose: () => void }) => void })
+		(runInTerminalTool as unknown as { _registerCompletionNotification: (terminal: ITerminalInstance, termId: string, session: URI, commandName: string, outputMonitor: { onDidDetectInputNeeded: Event<void>; onDidDetectSensitiveInputNeeded: Event<void>; continueMonitoringAsync: () => void; dispose: () => void }) => void })
 			._registerCompletionNotification(terminalInstance, termId, sessionResource, 'npm init', outputMonitor);
 
 		inputNeededEmitter.fire();
@@ -2020,9 +2022,10 @@ suite('RunInTerminalTool', () => {
 
 		const outputMonitor = {
 			onDidDetectInputNeeded: inputNeededEmitter.event,
+			onDidDetectSensitiveInputNeeded: Event.None,
 			continueMonitoringAsync: () => { },
 			dispose: () => { },
-		} as unknown as { onDidDetectInputNeeded: Event<void>; continueMonitoringAsync: () => void; dispose: () => void };
+		} as unknown as { onDidDetectInputNeeded: Event<void>; onDidDetectSensitiveInputNeeded: Event<void>; continueMonitoringAsync: () => void; dispose: () => void };
 
 		(runInTerminalTool.constructor as unknown as { _activeExecutions: Map<string, { getOutput(): string }> })._activeExecutions.set(termId, {
 			getOutput: () => output,
@@ -2033,7 +2036,7 @@ suite('RunInTerminalTool', () => {
 		// monitor's first re-detection of the same prompt must not fire a steering
 		// message that would yield the agent's in-flight `send_to_terminal` reply.
 		// eslint-disable-next-line @typescript-eslint/naming-convention
-		(runInTerminalTool as unknown as { _registerCompletionNotification: (terminal: ITerminalInstance, termId: string, session: URI, commandName: string, outputMonitor: { onDidDetectInputNeeded: Event<void>; continueMonitoringAsync: () => void; dispose: () => void }, alreadyNotifiedInputNeededOutput?: string) => void })
+		(runInTerminalTool as unknown as { _registerCompletionNotification: (terminal: ITerminalInstance, termId: string, session: URI, commandName: string, outputMonitor: { onDidDetectInputNeeded: Event<void>; onDidDetectSensitiveInputNeeded: Event<void>; continueMonitoringAsync: () => void; dispose: () => void }, alreadyNotifiedInputNeededOutput?: string) => void })
 			._registerCompletionNotification(terminalInstance, termId, sessionResource, 'mkdir -p foo && cd foo && npm init', outputMonitor, output);
 
 		inputNeededEmitter.fire();
@@ -2065,9 +2068,10 @@ suite('RunInTerminalTool', () => {
 
 		const outputMonitor = {
 			onDidDetectInputNeeded: inputNeededEmitter.event,
+			onDidDetectSensitiveInputNeeded: Event.None,
 			continueMonitoringAsync: () => { },
 			dispose: () => { },
-		} as unknown as { onDidDetectInputNeeded: Event<void>; continueMonitoringAsync: () => void; dispose: () => void };
+		} as unknown as { onDidDetectInputNeeded: Event<void>; onDidDetectSensitiveInputNeeded: Event<void>; continueMonitoringAsync: () => void; dispose: () => void };
 
 		// Set up fg terminal association and active execution
 		runInTerminalTool.sessionTerminalAssociations.set(sessionResource, {
@@ -2081,7 +2085,7 @@ suite('RunInTerminalTool', () => {
 		});
 
 		// eslint-disable-next-line @typescript-eslint/naming-convention
-		(runInTerminalTool as unknown as { _registerCompletionNotification: (terminal: ITerminalInstance, termId: string, session: URI, commandName: string, outputMonitor: { onDidDetectInputNeeded: Event<void>; continueMonitoringAsync: () => void; dispose: () => void }) => void })
+		(runInTerminalTool as unknown as { _registerCompletionNotification: (terminal: ITerminalInstance, termId: string, session: URI, commandName: string, outputMonitor: { onDidDetectInputNeeded: Event<void>; onDidDetectSensitiveInputNeeded: Event<void>; continueMonitoringAsync: () => void; dispose: () => void }) => void })
 			._registerCompletionNotification(terminalInstance, termId, sessionResource, 'ssh host', outputMonitor);
 
 		// Fire inputNeeded — this simulates the output monitor detecting a prompt
@@ -2520,6 +2524,12 @@ suite('ChatAgentToolsContribution - tool registration refresh', () => {
 			readToolSet: new ToolSet('read', 'read', Codicon.book, ToolDataSource.Internal, undefined, undefined, contextKeyService),
 		};
 		instantiationService.stub(ILanguageModelToolsService, mockToolsService as ILanguageModelToolsService);
+
+		instantiationService.stub(IToolResultCompressor, {
+			_serviceBrand: undefined,
+			registerFilter: () => { },
+			maybeCompress: () => undefined,
+		});
 	});
 
 	async function flushAsync(): Promise<void> {

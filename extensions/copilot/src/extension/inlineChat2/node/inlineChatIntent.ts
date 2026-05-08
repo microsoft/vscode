@@ -171,7 +171,7 @@ export class InlineChatIntent implements IIntent {
 
 		if (result.lastResponse.type !== ChatFetchResponseType.Success) {
 			const outageStatus = await this._octoKitService.getGitHubOutageStatus();
-			const details = getErrorDetailsFromChatFetchError(result.lastResponse, (await this._authenticationService.getCopilotToken()).copilotPlan, outageStatus);
+			const details = getErrorDetailsFromChatFetchError(result.lastResponse, this._authenticationService.copilotToken?.copilotPlan, outageStatus);
 			return {
 				errorDetails: {
 					message: details.message,

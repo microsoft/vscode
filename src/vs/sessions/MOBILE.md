@@ -36,7 +36,7 @@ Two registrations can target the same slot with opposite `when` clauses, pointin
 |---------|--------------|-----------|
 | Sessions list (sidebar) | ✅ Compatible | No gate |
 | Chat views (ChatBar) | ✅ Compatible | No gate |
-| Changes view (AuxiliaryBar) | ❌ Gated | `when: !sessionsIsPhoneLayout` on view descriptor |
+| Changes view (AuxiliaryBar) | ❌ Gated (with mobile equivalent) | `when: !sessionsIsPhoneLayout` on view descriptor; phone uses `MobileChangesView` overlay reachable from the title-bar Changes pill |
 | Files view (AuxiliaryBar) | ❌ Gated | `when: !sessionsIsPhoneLayout` on view descriptor |
 | Logs view (Panel) | ❌ Gated | `when: !sessionsIsPhoneLayout` on view descriptor |
 | Terminal actions | ❌ Gated | `when: !sessionsIsPhoneLayout` on menu item |
@@ -119,6 +119,9 @@ The workbench toggles the `phone-layout` CSS class on `layout()` and creates/des
 | `mobilePickerSheet.ts` | Reusable phone-friendly bottom sheet for picker-style choices. Promise-based overlay with backdrop, drag handle, header (title + Done button + optional header actions), sectioned listbox, and optional inline search with debounced cancellable loads. Uses `DisposableStore` for lifecycle. |
 | `media/mobilePickerSheet.css` | Styling for the bottom sheet widget (backdrop, slide-up animation, row layout, search input, section dividers, checkmarks). |
 | `mobileChipLaneScroll.ts` | Pointer-event-based horizontal scroll helper for the config chip row. Overcomes monaco's `Gesture.addTarget` eating `touchmove` by translating `pointermove` into `scrollLeft` updates. Phone-gated via `isPhoneLayout()` — no-ops on desktop. |
+| `contributions/mobileChangesView.ts` | Full-screen overlay listing every file changed in the active session (master view). Reactive over `ISessionsManagementService.activeSession.changes`. Each row uses a codicon change-type icon (`diffAdded` / `diffModified` / `diffRemoved` via `ThemeIcon.asClassNameArray`), filename, relative path, an A/M/D pill, and `+N -N` counters. Tapping a row invokes `MOBILE_OPEN_DIFF_VIEW_COMMAND_ID` with the per-file payload **plus** the full sibling list and index — the diff view uses that for prev/next chevrons. Replaces the legacy QuickPick the title-bar Changes pill used to open. |
+| `contributions/mobileDiffView.ts` | Full-screen overlay rendering a unified diff for one file (detail view). Uses `linesDiffComputers.getDefault()` for hunk computation and async `tokenizeToString` from `editor/common/languages/textToHtmlTokenizer.ts` for Monaco-quality syntax highlighting. After tokenization, a per-render `<style>` block is injected from `TokenizationRegistry.getColorMap()` so `<span class="mtkN">` token classes resolve to the active theme's colors. When no TextMate grammar is registered for the language (the agents window doesn't load language extensions), falls back to a regex tokenizer that emits `<span class="mobile-diff-tok-{kind}">` CSS-class spans; per-theme colors for those classes are defined in `mobileOverlayViews.css`. Header includes prev/next chevrons + "N / M" position when multiple siblings are passed; horizontal-swipe gesture as an alt navigation. Supports deletion-only diffs (`modifiedURI` undefined). |
+| `contributions/media/mobileOverlayViews.css` | Shared CSS for both overlays — the `mobile-overlay-*` chrome (header, back button, body, scroll wrapper), diff-specific styles (sticky hunk header, `min-width: max-content` on lines so horizontal scroll engages, 3px coloured left-edge bar on add/remove rows, prev/next nav buttons), and the master-list row styles (file-icon themable container, A/M/D pill, +/− counters). |
 
 ### Mobile Picker Subclasses
 
@@ -169,7 +172,8 @@ Mobile picker subclasses live in `contrib/` alongside their base classes (not in
 
 ## Remaining Work
 
-- **Files & Terminal access**: Should become phone-specific views gated with `when: IsPhoneLayoutContext`.
+- **Files & Terminal access**: Should become phone-specific views gated with `when: IsPhoneLayoutContext`. (The Changes view already has its phone equivalent — see `MobileChangesView`.)
 - **iOS keyboard handling**: Adjust layout when virtual keyboard appears (context key exists, but no layout response yet).
 - **Session list inline actions**: Make always-visible on touch devices (no hover-to-reveal).
 - **Customizations on mobile**: Currently hidden — needs a mobile-friendly alternative.
+- **Inline word-level diff highlighting** in `MobileDiffView`: the per-file tokenization cache is already in place to make this straightforward to layer on later.

@@ -38,13 +38,14 @@ import { ContextMenuController } from '../../../../editor/contrib/contextmenu/br
 import { getSimpleEditorOptions } from '../../../../workbench/contrib/codeEditor/browser/simpleEditorOptions.js';
 import { NewChatContextAttachments } from './newChatContextAttachments.js';
 import { SessionTypePicker } from './sessionTypePicker.js';
-import { MobileSessionTypePicker } from './mobileSessionTypePicker.js';
+import { MobileSessionTypePicker } from './mobile/mobileSessionTypePicker.js';
 import { installMobileChipLaneScroll } from '../../../browser/parts/mobile/mobileChipLaneScroll.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { Menus } from '../../../browser/menus.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { SlashCommandHandler } from './slashCommands.js';
 import { VariableCompletionHandler } from './variableCompletions.js';
+import { AgentHostInputCompletionHandler } from './agentHostInputCompletions.js';
 import { IChatModelInputState } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
@@ -147,13 +148,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			loading: IObservable<boolean>;
 			minEditorHeight?: number;
 			placeholder?: string;
-			/**
-			 * If provided and returns `false`, prompt/skill slash commands are sent
-			 * verbatim instead of being expanded into a CLI-friendly markdown
-			 * reference. Agent host sessions support slash commands natively, so
-			 * the expansion should be skipped for them.
-			 */
-			shouldExpandPromptSlashCommand?: () => boolean;
+			renderSessionTypePickerInControls?: boolean;
 		},
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IModelService private readonly modelService: IModelService,
@@ -217,7 +212,9 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 		const newChatBottomContainer = dom.append(parent, dom.$('.new-chat-bottom-container'));
 		const newChatControlsContainer = dom.append(newChatBottomContainer, dom.$('.new-chat-controls-container'));
-		this.sessionTypePicker.render(newChatControlsContainer);
+		if (this.options.renderSessionTypePickerInControls !== false) {
+			this.sessionTypePicker.render(newChatControlsContainer);
+		}
 		this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, dom.append(newChatControlsContainer, dom.$('')), Menus.NewSessionControl, {
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 		}));
@@ -403,6 +400,10 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			VariableCompletionHandler, this._editor, this._contextAttachments, () => this.options.getContextFolderUri(),
 		));
 
+		this._register(this.instantiationService.createInstance(
+			AgentHostInputCompletionHandler, this._editor, this._contextAttachments,
+		));
+
 		this._register(this._editor.onDidChangeModelContent(() => {
 			this._updateDraftState();
 			this._updateSendButtonState();
@@ -515,7 +516,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 
 	private async _send(): Promise<void> {
-		let query = this._editor.getModel()?.getValue().trim();
+		const query = this._editor.getModel()?.getValue().trim();
 		if (!query || this._sending) {
 			return;
 		}
@@ -524,15 +525,6 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		if (this._slashCommandHandler?.tryExecuteSlashCommand(query)) {
 			this._editor.getModel()?.setValue('');
 			return;
-		}
-
-		// Expand prompt/skill slash commands into a CLI-friendly reference,
-		// unless the target session natively supports slash commands.
-		if (this.options.shouldExpandPromptSlashCommand?.() ?? true) {
-			const expanded = this._slashCommandHandler?.tryExpandPromptSlashCommand(query);
-			if (expanded) {
-				query = expanded;
-			}
 		}
 
 		const attachedContext = this._contextAttachments.attachments.length > 0

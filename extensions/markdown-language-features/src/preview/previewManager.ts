@@ -9,11 +9,14 @@ import { MarkdownContributionProvider } from '../markdownExtensions';
 import { Disposable, disposeAll } from '../util/dispose';
 import { isMarkdownFile } from '../util/file';
 import { MdLinkOpener } from '../util/openDocumentLink';
+import { generateUuid } from '../util/uuid';
 import { MdDocumentRenderer } from './documentRenderer';
+import { MarkdownPreviewLineDiffProvider } from './lineDiff';
 import { DynamicMarkdownPreview, IManagedMarkdownPreview, StaticMarkdownPreview } from './preview';
 import { MarkdownPreviewConfigurationManager } from './previewConfig';
-import { scrollEditorToLine, StartingScrollFragment } from './scrolling';
-import { TopmostLineMonitor } from './topmostLineMonitor';
+import { scrollEditorToLine, StartingScrollFragment, StartingScrollLine, StartingScrollLocation } from './scrolling';
+import { getVisibleLine, TopmostLineMonitor } from './topmostLineMonitor';
+import type { DiffScrollSyncData, MarkdownPreviewLineChanges } from '../../types/previewMessaging';
 
 
 export interface DynamicPreviewSettings {
@@ -136,16 +139,17 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 		resource: vscode.Uri,
 		settings: DynamicPreviewSettings
 	): void {
+		const scrollLocation = resource.fragment ? new StartingScrollFragment(resource.fragment) : this.#getActiveTextEditorScrollLocation(resource);
 		let preview = this.#dynamicPreviews.get(resource, settings);
 		if (preview) {
 			preview.reveal(settings.previewColumn);
 		} else {
-			preview = this.#createNewDynamicPreview(resource, settings);
+			preview = this.#createNewDynamicPreview(resource, settings, scrollLocation);
 		}
 
 		preview.update(
 			resource,
-			resource.fragment ? new StartingScrollFragment(resource.fragment) : undefined
+			scrollLocation
 		);
 	}
 
@@ -247,7 +251,51 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 		document: vscode.TextDocument,
 		webview: vscode.WebviewPanel
 	): Promise<void> {
-		const lineNumber = this.#topmostLineMonitor.getPreviousStaticTextEditorLineByUri(document.uri);
+		this.#resolveCustomTextEditor(document, webview);
+	}
+
+	public async resolveCustomTextEditorInlineDiff(
+		documents: vscode.CustomEditorDiffDocuments<vscode.TextDocument>,
+		webview: vscode.WebviewPanel
+	): Promise<void> {
+		const lineDiffProvider = new MarkdownPreviewLineDiffProvider(documents.original, documents.modified);
+		const preview = this.#resolveCustomTextEditor(documents.modified, webview, () => lineDiffProvider.getModifiedLineChanges());
+		this.#refreshPreviewWhenDocumentChanges(preview, documents.original);
+	}
+
+	public async resolveCustomTextEditorSideBySideDiff(
+		documents: vscode.CustomEditorDiffDocuments<vscode.TextDocument>,
+		webviewPanels: vscode.CustomEditorDiffWebviewPanels
+	): Promise<void> {
+		const lineDiffProvider = new MarkdownPreviewLineDiffProvider(documents.original, documents.modified);
+		const channelName = `md-diff-scroll-${generateUuid()}`;
+		const originalPreview = this.#resolveCustomTextEditor(
+			documents.original, webviewPanels.original,
+			() => lineDiffProvider.getOriginalLineChanges(),
+			async () => ({
+				channelName,
+				role: 'original' as const,
+				lineMappings: [...await lineDiffProvider.getModifiedToOriginalMappings()],
+			}));
+		const modifiedPreview = this.#resolveCustomTextEditor(
+			documents.modified, webviewPanels.modified,
+			() => lineDiffProvider.getModifiedLineChanges(),
+			async () => ({
+				channelName,
+				role: 'modified' as const,
+				lineMappings: [...await lineDiffProvider.getOriginalToModifiedMappings()],
+			}));
+		this.#refreshPreviewWhenDocumentChanges(originalPreview, documents.modified);
+		this.#refreshPreviewWhenDocumentChanges(modifiedPreview, documents.original);
+	}
+
+	#resolveCustomTextEditor(
+		document: vscode.TextDocument,
+		webview: vscode.WebviewPanel,
+		getLineChanges?: () => MarkdownPreviewLineChanges | Promise<MarkdownPreviewLineChanges | undefined> | undefined,
+		getDiffScrollSync?: () => DiffScrollSyncData | Promise<DiffScrollSyncData | undefined> | undefined,
+	): StaticMarkdownPreview {
+		const lineNumber = this.#topmostLineMonitor.getPreviousTextEditorLineByUri(document.uri);
 		const preview = StaticMarkdownPreview.revive(
 			document.uri,
 			webview,
@@ -257,24 +305,35 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 			this.#logger,
 			this.#contributions,
 			this.#opener,
-			lineNumber
+			lineNumber,
+			getLineChanges,
+			getDiffScrollSync
 		);
 		this.#registerStaticPreview(preview);
 		this.#activePreview = preview;
+		return preview;
+	}
+
+	#refreshPreviewWhenDocumentChanges(preview: StaticMarkdownPreview, document: vscode.TextDocument): void {
+		const listener = vscode.workspace.onDidChangeTextDocument(event => {
+			if (event.document.uri.toString() === document.uri.toString()) {
+				preview.refresh();
+			}
+		});
+		preview.onDispose(() => listener.dispose());
 	}
 
 	#createNewDynamicPreview(
 		resource: vscode.Uri,
-		previewSettings: DynamicPreviewSettings
+		previewSettings: DynamicPreviewSettings,
+		scrollLocation: StartingScrollLocation | undefined,
 	): DynamicMarkdownPreview {
-		const activeTextEditorURI = vscode.window.activeTextEditor?.document.uri;
-		const scrollLine = (activeTextEditorURI?.toString() === resource.toString()) ? vscode.window.activeTextEditor?.visibleRanges[0].start.line : undefined;
 		const preview = DynamicMarkdownPreview.create(
 			{
 				resource,
 				resourceColumn: previewSettings.resourceColumn,
 				locked: previewSettings.locked,
-				line: scrollLine,
+				line: scrollLocation?.type === 'line' ? scrollLocation.line : undefined,
 			},
 			previewSettings.previewColumn,
 			this.#contentProvider,
@@ -286,6 +345,16 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 
 		this.#activePreview = preview;
 		return this.#registerDynamicPreview(preview);
+	}
+
+	#getActiveTextEditorScrollLocation(resource: vscode.Uri): StartingScrollLine | undefined {
+		const editor = vscode.window.activeTextEditor;
+		if (editor?.document.uri.toString() !== resource.toString()) {
+			return undefined;
+		}
+
+		const line = getVisibleLine(editor);
+		return typeof line === 'number' ? new StartingScrollLine(line) : undefined;
 	}
 
 	#registerDynamicPreview(preview: DynamicMarkdownPreview): DynamicMarkdownPreview {
