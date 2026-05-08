@@ -406,7 +406,7 @@ describe('CopilotCLIChatSessionParticipant.handleRequest', () => {
 						}
 					}();
 				}
-				const session = new TestCopilotCLISession(workspaceInfo, agentName, sdkSession, [], logService, workspaceService, new MockChatSessionMetadataStore(), instantiationService, new NullRequestLogger(), new NullICopilotCLIImageSupport(), new FakeToolsService(), new FakeUserQuestionHandler(), accessor.get(IConfigurationService), new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'test' })), new FakeGitService(), { _serviceBrand: undefined } as any);
+				const session = new TestCopilotCLISession(workspaceInfo, agentName, sdkSession, [], logService, workspaceService, new MockChatSessionMetadataStore(), instantiationService, new NullRequestLogger(), new NullICopilotCLIImageSupport(), new FakeToolsService(), new FakeUserQuestionHandler(), accessor.get(IConfigurationService), new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'test' })), new FakeGitService(), { _serviceBrand: undefined } as any, { _serviceBrand: undefined } as any);
 				cliSessions.push(session);
 				return disposables.add(session);
 			}
@@ -461,6 +461,7 @@ describe('CopilotCLIChatSessionParticipant.handleRequest', () => {
 			new MockChatSessionMetadataStore(),
 			customSessionTitleService,
 			new (mock<IOctoKitService>())(),
+			{ _serviceBrand: undefined } as any,
 		);
 	});
 
@@ -888,6 +889,8 @@ describe('CopilotCLIChatSessionParticipant.handleRequest', () => {
 			sdk,
 			new MockChatSessionMetadataStore(),
 			customSessionTitleService,
+			new (mock<IOctoKitService>())(),
+			{ _serviceBrand: undefined } as any,
 			new (mock<IOctoKitService>())(),
 		);
 		const sessionResource = vscode.Uri.from({ scheme: 'copilotcli', path: `/${sessionId}` });
@@ -2059,6 +2062,8 @@ describe('CopilotCLIChatSessionParticipant.handleRequest', () => {
 				new MockChatSessionMetadataStore(),
 				customSessionTitleService,
 				new (mock<IOctoKitService>())(),
+				{ _serviceBrand: undefined } as any,
+				new (mock<IOctoKitService>())(),
 			);
 		}
 
@@ -2192,6 +2197,7 @@ describe('CopilotCLIChatSessionParticipant.handleRequest', () => {
 				new MockChatSessionMetadataStore(),
 				customSessionTitleService,
 				octoKitService,
+				{ _serviceBrand: undefined } as any,
 			);
 		});
 
