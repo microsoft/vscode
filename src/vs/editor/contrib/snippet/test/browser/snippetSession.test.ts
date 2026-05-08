@@ -469,6 +469,20 @@ suite('SnippetSession', function () {
 		assertSelections(editor, new Selection(1, 6, 1, 25));
 	});
 
+	test('snippets, merge with stale placeholder decoration', function () {
+		editor.setSelection(new Selection(1, 1, 1, 1));
+		const session = new SnippetSession(editor, '${1:foo}$0', undefined, languageConfigurationService);
+		session.insert();
+		session.merge('${1:bar}$0');
+
+		const staleDecoration = editor.getModel()!.getAllDecorations().find(decoration => decoration.options.className === 'finish-snippet-placeholder');
+		assert.ok(staleDecoration);
+		editor.changeDecorations(accessor => accessor.removeDecoration(staleDecoration.id));
+
+		assert.doesNotThrow(() => session.next());
+		assert.strictEqual(editor.getSelections().length, 1);
+	});
+
 	test('snippets, transform', function () {
 		editor.getModel()!.setValue('');
 		editor.setSelection(new Selection(1, 1, 1, 1));

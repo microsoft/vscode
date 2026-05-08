@@ -104,8 +104,11 @@ export class OneSnippet {
 			for (const placeholder of this._placeholderGroups[this._placeholderGroupsIdx]) {
 				// Check if the placeholder has a transformation
 				if (placeholder.transform) {
-					const id = this._placeholderDecorations!.get(placeholder)!;
-					const range = this._editor.getModel().getDecorationRange(id)!;
+					const id = this._placeholderDecorations!.get(placeholder);
+					const range = id ? this._editor.getModel().getDecorationRange(id) : null;
+					if (!range) {
+						continue;
+					}
 					const currentValue = this._editor.getModel().getValueInRange(range);
 					const transformedValueLines = placeholder.transform.resolve(currentValue).split(/\r\n|\r|\n/);
 					// fix indentation for transformed lines
@@ -145,20 +148,25 @@ export class OneSnippet {
 			// Special case #2: placeholders enclosing active placeholders
 			const selections: Selection[] = [];
 			for (const placeholder of this._placeholderGroups[this._placeholderGroupsIdx]) {
-				const id = this._placeholderDecorations!.get(placeholder)!;
-				const range = this._editor.getModel().getDecorationRange(id)!;
-				selections.push(new Selection(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn));
+				const id = this._placeholderDecorations!.get(placeholder);
+				const range = id ? this._editor.getModel().getDecorationRange(id) : null;
 
 				// consider to skip this placeholder index when the decoration
 				// range is empty but when the placeholder wasn't. that's a strong
 				// hint that the placeholder has been deleted. (all placeholder must match this)
 				couldSkipThisPlaceholder = couldSkipThisPlaceholder && this._hasPlaceholderBeenCollapsed(placeholder);
-
+				if (!id || !range) {
+					continue;
+				}
+				selections.push(new Selection(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn));
 				accessor.changeDecorationOptions(id, placeholder.isFinalTabstop ? OneSnippet._decor.activeFinal : OneSnippet._decor.active);
 				activePlaceholders.add(placeholder);
 
 				for (const enclosingPlaceholder of this._snippet.enclosingPlaceholders(placeholder)) {
-					const id = this._placeholderDecorations!.get(enclosingPlaceholder)!;
+					const id = this._placeholderDecorations!.get(enclosingPlaceholder);
+					if (!id) {
+						continue;
+					}
 					accessor.changeDecorationOptions(id, enclosingPlaceholder.isFinalTabstop ? OneSnippet._decor.activeFinal : OneSnippet._decor.active);
 					activePlaceholders.add(enclosingPlaceholder);
 				}
@@ -175,7 +183,14 @@ export class OneSnippet {
 			return selections;
 		});
 
-		return !couldSkipThisPlaceholder ? newSelections ?? [] : this.move(fwd);
+		if (couldSkipThisPlaceholder) {
+			return this.move(fwd);
+		}
+		if (newSelections?.length) {
+			return newSelections;
+		}
+		const selections = this._editor.getSelections();
+		return selections.length ? selections : [];
 	}
 
 	private _hasPlaceholderBeenCollapsed(placeholder: Placeholder): boolean {
@@ -185,8 +200,11 @@ export class OneSnippet {
 		let marker: Marker | undefined = placeholder;
 		while (marker) {
 			if (marker instanceof Placeholder) {
-				const id = this._placeholderDecorations!.get(marker)!;
-				const range = this._editor.getModel().getDecorationRange(id)!;
+				const id = this._placeholderDecorations!.get(marker);
+				const range = id ? this._editor.getModel().getDecorationRange(id) : null;
+				if (!range) {
+					return true;
+				}
 				if (range.isEmpty() && marker.toString().length > 0) {
 					return true;
 				}
