@@ -107,7 +107,7 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 			const transport = new TunnelRelayTransport(result.connectionId, this._mainService, new AhpJsonlLogger(
 				this._fileService,
 				this._logService,
-				{ logsHome: this._environmentService.logsHome, connectionId: result.connectionId, transport: 'websocket' },
+				{ logsHome: this._environmentService.logsHome, connectionId: result.connectionId, transport: 'tunnel' },
 			));
 			const protocolClient = this._instantiationService.createInstance(
 				RemoteAgentHostProtocolClient, result.address, transport,

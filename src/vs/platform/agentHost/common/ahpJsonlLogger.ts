@@ -7,7 +7,7 @@ import { VSBuffer } from '../../../base/common/buffer.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { joinPath } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
-import { IFileService } from '../../files/common/files.js';
+import { IFileService, IFileStatWithMetadata } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
 
 export type AhpLogDirection = 'c2s' | 's2c';
@@ -34,6 +34,7 @@ export class AhpJsonlLogger extends Disposable {
 	private _currentSize = 0;
 	private _segment = 0;
 	private _queue = Promise.resolve();
+	private _folderCreated: Promise<IFileStatWithMetadata> | undefined;
 
 	constructor(
 		private readonly _fileService: IFileService,
@@ -42,7 +43,9 @@ export class AhpJsonlLogger extends Disposable {
 	) {
 		super();
 		this._directory = joinPath(this._options.logsHome, AHP_LOG_DIR);
-		this._baseName = `ahp-${toFileTimestamp(new Date())}-${sanitizeFilePart(this._options.connectionId)}.jsonl`;
+		// Truncate connectionId to avoid filesystem filename length limits (e.g. 255 on ext4/APFS)
+		const safeConnectionId = sanitizeFilePart(this._options.connectionId).slice(0, 64);
+		this._baseName = `ahp-${toFileTimestamp(new Date())}-${safeConnectionId}.jsonl`;
 		this._maxFileSizeBytes = this._options.maxFileSizeBytes ?? DEFAULT_MAX_FILE_SIZE_BYTES;
 		this._maxFiles = this._options.maxFiles ?? DEFAULT_MAX_FILES;
 		this._currentFile = joinPath(this._directory, this._baseName);
@@ -75,7 +78,11 @@ export class AhpJsonlLogger extends Disposable {
 	}
 
 	private async _appendLine(buffer: VSBuffer): Promise<void> {
-		await this._fileService.createFolder(this._directory);
+		// Create folder once and memoize to avoid repeated filesystem calls
+		if (!this._folderCreated) {
+			this._folderCreated = this._fileService.createFolder(this._directory);
+		}
+		await this._folderCreated;
 		if (this._currentSize === 0) {
 			this._currentSize = await this._getFileSize(this._currentFile);
 		}

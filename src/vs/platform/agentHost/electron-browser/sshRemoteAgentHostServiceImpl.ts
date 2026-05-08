@@ -205,7 +205,7 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 		const transport = new SSHRelayTransport(result.connectionId, this._mainService, new AhpJsonlLogger(
 			this._fileService,
 			this._logService,
-			{ logsHome: this._environmentService.logsHome, connectionId: result.connectionId, transport: 'socket' },
+			{ logsHome: this._environmentService.logsHome, connectionId: result.connectionId, transport: 'ssh' },
 		));
 		return this._instantiationService.createInstance(
 			RemoteAgentHostProtocolClient, result.address, transport,
