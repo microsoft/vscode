@@ -189,7 +189,8 @@ class ChangesButtonBarWidget extends Disposable {
 	private _getButtonConfiguration(action: IAction, outgoingChanges: number, reviewState: { isLoading: boolean; commentCount: number | undefined }, hasGitOperationInProgress: boolean, runningLabelObs: IObservable<string | IMarkdownString | undefined>): { showIcon: boolean; showLabel: boolean; isSecondary?: boolean; customLabel?: string | IMarkdownString; customLabelObs?: IObservable<string | IMarkdownString | undefined>; customClass?: string } | undefined {
 		if (
 			action.id === 'github.copilot.sessions.commit' ||
-			action.id === 'github.copilot.chat.createPullRequestCopilotCLIAgentSession.createPR'
+			action.id === 'github.copilot.chat.createPullRequestCopilotCLIAgentSession.createPR' ||
+			action.id === 'github.copilot.chat.createDraftPullRequestCopilotCLIAgentSession.createDraftPR'
 		) {
 			if (!hasGitOperationInProgress) {
 				return { showIcon: true, showLabel: true, isSecondary: false };
@@ -244,7 +245,6 @@ class ChangesButtonBarWidget extends Disposable {
 			return { showIcon: false, showLabel: true, isSecondary: false };
 		}
 		if (
-			action.id === 'github.copilot.chat.createPullRequestCopilotCLIAgentSession.createPR' ||
 			action.id === 'github.copilot.chat.mergeCopilotCLIAgentSessionChanges.merge' ||
 			action.id === 'github.copilot.chat.checkoutPullRequestReroute' ||
 			action.id === 'pr.checkoutFromChat' ||
