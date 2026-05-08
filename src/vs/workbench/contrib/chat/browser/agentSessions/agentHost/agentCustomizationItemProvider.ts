@@ -16,7 +16,8 @@ import { ICustomizationItem, ICustomizationItemAction, ICustomizationItemProvide
 import { PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../services/agentHost/common/agentHostFileSystemService.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
-import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
+import { type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { ActionType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { getAgentHostConfiguredCustomizations } from '../../../../../../platform/agentHost/common/agentHostCustomizationConfig.js';
 import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { SKILL_FILENAME } from '../../../common/promptSyntax/config/promptFileLocations.js';
@@ -40,17 +41,17 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 
 	constructor(
 		private readonly _agentInfo: AgentInfo,
-		private readonly _rootStateSubscription: IAgentSubscription<RootState>,
-		private readonly _onSessionCustomizationChanged: Event<SessionCustomization[] | undefined>,
+		connection: IAgentConnection,
 		private readonly _connectionAuthority: string,
 		private readonly _fileService: IFileService,
 		private readonly _logService: ILogService,
 		private readonly _getItemActions?: (customization: CustomizationRef, clientId: string | undefined) => ICustomizationItemAction[] | undefined,
 	) {
 		super();
-		this._agentCustomizations = this._readRootCustomizations(this._rootStateSubscription.value) ?? this._agentInfo.customizations ?? [];
+		const rootStateSubscription = connection.rootState;
+		this._agentCustomizations = this._readRootCustomizations(rootStateSubscription.value) ?? this._agentInfo.customizations ?? [];
 
-		this._register(this._rootStateSubscription.onDidChange(rootState => {
+		this._register(rootStateSubscription.onDidChange(rootState => {
 			const next = this._readRootCustomizations(rootState) ?? this._readAgentCustomizations(rootState) ?? this._agentCustomizations;
 			if (next !== this._agentCustomizations) {
 				this._agentCustomizations = next;
@@ -58,7 +59,9 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 			}
 		}));
 
-		this._register(this._onSessionCustomizationChanged(customizations => {
+		const onSessionCustomizationChanged = Event.filter(connection.onDidAction, envelope => envelope.action.type === ActionType.SessionCustomizationsChanged);
+		this._register(onSessionCustomizationChanged(envelope => {
+			const customizations = (envelope.action as { customizations?: SessionCustomization[] }).customizations;
 			if (customizations && customizations !== this._sessionCustomizations) {
 				this._sessionCustomizations = customizations;
 				this._onDidChange.fire();

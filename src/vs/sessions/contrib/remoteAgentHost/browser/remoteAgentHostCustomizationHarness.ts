@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../base/common/codicons.js';
-import { Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { basename } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -17,7 +16,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { AGENT_HOST_SCHEME, fromAgentHostUri } from '../../../../platform/agentHost/common/agentHostUri.js';
 import type { IAgentConnection } from '../../../../platform/agentHost/common/agentService.js';
 import { ActionType } from '../../../../platform/agentHost/common/state/sessionActions.js';
-import { type AgentInfo, type CustomizationRef, type SessionCustomization } from '../../../../platform/agentHost/common/state/sessionState.js';
+import { type AgentInfo, type CustomizationRef } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { AICustomizationManagementSection, IAICustomizationWorkspaceService, type IStorageSourceFilter } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
@@ -148,14 +147,9 @@ export function createRemoteAgentCustomizationItemProvider(
 	fileService: IFileService,
 	logService: ILogService,
 ): AgentCustomizationItemProvider {
-	const onSessionCustomizationChanged = Event.map(
-		Event.filter(connection.onDidAction, envelope => envelope.action.type === ActionType.SessionCustomizationsChanged),
-		envelope => (envelope.action as { customizations?: SessionCustomization[] }).customizations
-	);
 	return new AgentCustomizationItemProvider(
 		agentInfo,
-		connection.rootState,
-		onSessionCustomizationChanged,
+		connection,
 		connectionAuthority,
 		fileService,
 		logService,
