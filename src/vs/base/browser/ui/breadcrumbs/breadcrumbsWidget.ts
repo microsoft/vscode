@@ -235,7 +235,7 @@ export class BreadcrumbsWidget {
 	}
 
 	revealLast(): void {
-		this._reveal(this._items.length - 1, false);
+		this._reveal(this._items.length - 1, true);
 	}
 
 	private _reveal(nth: number, minimal: boolean): void {
