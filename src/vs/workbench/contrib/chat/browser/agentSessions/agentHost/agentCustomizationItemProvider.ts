@@ -247,7 +247,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 			}
 			children.sort((a, b) => `${a.type}:${a.name}`.localeCompare(`${b.type}:${b.name}`));
 		} catch (err) {
-			this._logService.trace(`[RemoteAgentCustomizationItemProvider] Failed to expand plugin ${pluginUri.toString()}: ${err}`);
+			this._logService.trace(`[AgentCustomizationItemProvider] Failed to expand plugin ${pluginUri.toString()}: ${err}`);
 			return [];
 		}
 
