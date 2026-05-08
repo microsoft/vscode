@@ -335,7 +335,7 @@ suite('Snippet Variables Resolver', function () {
 			assertVariableResolve(resolver, 'CURRENT_HOUR', pad(expectedDate.getHours(), 2));
 			assertVariableResolve(resolver, 'CURRENT_MINUTE', pad(expectedDate.getMinutes(), 2));
 			assertVariableResolve(resolver, 'CURRENT_SECOND', pad(expectedDate.getSeconds(), 2));
-			assertVariableResolve(resolver, 'CURRENT_MILLISECOND', '007');
+			assertVariableResolve(resolver, 'CURRENT_MILLISECOND', pad(expectedDate.getMilliseconds(), 3));
 			assertVariableResolve(resolver, 'CURRENT_SECONDS_UNIX', String(Math.floor(now / 1000)));
 			assertVariableResolve(resolver, 'CURRENT_MILLISECONDS_UNIX', String(now));
 		} finally {
