@@ -741,4 +741,17 @@ suite('SnippetController2', function () {
 
 		assert.strictEqual(model.getValue(), `function foo(f, x, condition) {\n    if (condition) {\n        f();\n        return x;\n    }\n}`);
 	});
+
+	test('$TM_SELECTED_TEXT returns the last selection in multi-cursor selection #206121', function () {
+		model.setValue('aaa\nbbb\nccc');
+		// each "selection" is passed as a range to apply()
+		const ranges = [new Range(1, 1, 1, 4), new Range(2, 1, 2, 4), new Range(3, 1, 3, 4)];
+		// emulate a wrap-snippet driven from extension API: each cursor has its own selected text
+		editor.setSelections(ranges.map(r => new Selection(r.startLineNumber, r.startColumn, r.endLineNumber, r.endColumn)));
+
+		ctrl = instaService.createInstance(SnippetController2, editor);
+		ctrl.apply(ranges.map(range => ({ range, template: 'if(${1:cond}) {$TM_SELECTED_TEXT}$0' })));
+
+		assert.strictEqual(model.getValue(), 'if(cond) {aaa}\nif(cond) {bbb}\nif(cond) {ccc}');
+	});
 });

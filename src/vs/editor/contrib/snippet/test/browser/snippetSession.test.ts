@@ -802,5 +802,44 @@ suite('SnippetSession', function () {
 			assert.strictEqual(result.snippets.length, 1);
 			assert.strictEqual(result.snippets[0].isTrivialSnippet, true);
 		});
+
+		test('$TM_SELECTED_TEXT resolves per edit, not the primary selection #206121', function () {
+			editor.getModel().setValue('aaa\nbbb\nccc');
+			// primary selection covers "aaa", but the edits target other lines
+			editor.setSelections([new Selection(1, 1, 1, 4)]);
+
+			const result = SnippetSession.createEditsAndSnippetsFromEdits(
+				editor,
+				[
+					{ range: new Range(2, 1, 2, 4), template: '[$TM_SELECTED_TEXT]' },
+					{ range: new Range(3, 1, 3, 4), template: '[$TM_SELECTED_TEXT]' },
+				],
+				true, true, undefined, undefined, languageConfigurationService
+			);
+
+			assert.strictEqual(result.edits.length, 2);
+			assert.deepStrictEqual(result.edits[0].range, new Range(2, 1, 2, 4));
+			assert.deepStrictEqual(result.edits[0].text, '[bbb]');
+			assert.deepStrictEqual(result.edits[1].range, new Range(3, 1, 3, 4));
+			assert.deepStrictEqual(result.edits[1].text, '[ccc]');
+		});
+
+		test('$TM_LINE_NUMBER resolves per edit', function () {
+			editor.getModel().setValue('a\nb\nc');
+			editor.setSelections([new Selection(1, 1, 1, 1)]);
+
+			const result = SnippetSession.createEditsAndSnippetsFromEdits(
+				editor,
+				[
+					{ range: new Range(1, 2, 1, 2), template: '$TM_LINE_NUMBER' },
+					{ range: new Range(3, 2, 3, 2), template: '$TM_LINE_NUMBER' },
+				],
+				true, true, undefined, undefined, languageConfigurationService
+			);
+
+			assert.strictEqual(result.edits.length, 2);
+			assert.deepStrictEqual(result.edits[0].text, '1');
+			assert.deepStrictEqual(result.edits[1].text, '3');
+		});
 	});
 });
