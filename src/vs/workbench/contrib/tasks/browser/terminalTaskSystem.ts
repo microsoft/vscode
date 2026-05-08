@@ -177,6 +177,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	private _terminalTabActions = [{ id: RerunForActiveTerminalCommandId, label: nls.localize('rerunTask', 'Rerun Task'), icon: rerunTaskIcon }];
 	private _taskTerminalActive: IContextKey<boolean>;
 	private readonly _taskStartTimes = new Map<number, number>();
+	private readonly _capturedTaskVariables = new Map<string, string>();
 
 	taskShellIntegrationStartSequence(cwd: string | URI | undefined): string {
 		return (
@@ -880,7 +881,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		let promise: Promise<ITaskSummary> | undefined = undefined;
 		if (task.configurationProperties.isBackground) {
 			const problemMatchers = await this._resolveMatchers(resolver, task.configurationProperties.problemMatchers);
-			const watchingProblemMatcher = new WatchingProblemCollector(problemMatchers, this._markerService, this._modelService, this._fileService);
+			const watchingProblemMatcher = new WatchingProblemCollector(problemMatchers, this._markerService, this._modelService, this._fileService, this._logService);
 			if ((problemMatchers.length > 0) && !watchingProblemMatcher.isWatching()) {
 				this._appendOutput(nls.localize('TerminalTaskSystem.nonWatchingMatcher', 'Task {0} is a background task but uses a problem matcher without a background pattern', task._label));
 				this._showOutput();
@@ -897,6 +898,9 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 					eventCounter--;
 					if (this._busyTasks[mapKey]) {
 						delete this._busyTasks[mapKey];
+					}
+					if (event.capturedVariables) {
+						this._registerCapturedVariables(event.capturedVariables);
 					}
 					this._fireTaskEvent(TaskEvent.inactive(task, terminal?.instanceId, this._takeTaskDuration(terminal?.instanceId)));
 					if (eventCounter === 0) {
@@ -1047,7 +1051,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			this._fireTaskEvent(TaskEvent.general(TaskEventKind.Active, task, terminal.instanceId));
 
 			const problemMatchers = await this._resolveMatchers(resolver, task.configurationProperties.problemMatchers);
-			const startStopProblemMatcher = new StartStopProblemCollector(problemMatchers, this._markerService, this._modelService, ProblemHandlingStrategy.Clean, this._fileService);
+			const startStopProblemMatcher = new StartStopProblemCollector(problemMatchers, this._markerService, this._modelService, ProblemHandlingStrategy.Clean, this._fileService, this._logService);
 			this._terminalStatusManager.addTerminal(task, terminal, startStopProblemMatcher);
 			this._taskProblemMonitor.addTerminal(terminal, startStopProblemMatcher);
 			const problemMatcherListener = startStopProblemMatcher.onDidStateChange((event) => {
@@ -1168,6 +1172,15 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		}
 		this._taskStartTimes.delete(terminalId);
 		return Date.now() - startTime;
+	}
+
+	private _registerCapturedVariables(capturedVariables: ReadonlyMap<string, string>): void {
+		for (const [name, value] of capturedVariables) {
+			this._capturedTaskVariables.set(name, value);
+			if (!this._configurationResolverService.resolvableVariables.has(`taskVar:${name}`)) {
+				this._configurationResolverService.contributeVariable(`taskVar:${name}`, async () => this._capturedTaskVariables.get(name));
+			}
+		}
 	}
 
 	private _createTerminalName(task: CustomTask | ContributedTask): string {

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, Event, EventEmitter, Uri, workspace } from 'vscode';
-import { BranchProtection, BranchProtectionProvider } from './api/git';
+import type { BranchProtection, BranchProtectionProvider } from './api/git';
 import { dispose, filterEvent } from './util';
 
 export interface IBranchProtectionProviderRegistry {
@@ -26,6 +26,10 @@ export class GitBranchProtectionProvider implements BranchProtectionProvider {
 	constructor(private readonly repositoryRoot: Uri) {
 		const onDidChangeBranchProtectionEvent = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git.branchProtection', repositoryRoot));
 		onDidChangeBranchProtectionEvent(this.updateBranchProtection, this, this.disposables);
+
+		// Update default branch protection when the workspace folders change
+		workspace.onDidChangeWorkspaceFolders(this.updateBranchProtection, this, this.disposables);
+
 		this.updateBranchProtection();
 	}
 

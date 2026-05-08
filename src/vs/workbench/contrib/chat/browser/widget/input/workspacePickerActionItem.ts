@@ -118,7 +118,9 @@ export class WorkspacePickerActionItem extends ChatInputPickerActionViewItem {
 			labelElements.push(dom.$('span.chat-input-picker-label', undefined, localize('selectWorkspace', "Workspace")));
 		}
 
-		labelElements.push(...renderLabelWithIcons(`$(chevron-down)`));
+		if (!this.pickerOptions.hideChevrons.get()) {
+			labelElements.push(...renderLabelWithIcons(`$(chevron-down)`));
+		}
 
 		dom.reset(element, ...labelElements);
 

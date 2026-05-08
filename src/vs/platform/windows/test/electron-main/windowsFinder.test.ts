@@ -73,7 +73,7 @@ suite('WindowsFinder', () => {
 			isDocumentEdited(): boolean { throw new Error('Method not implemented.'); }
 			updateTouchBar(items: UriDto<ICommandAction>[][]): void { throw new Error('Method not implemented.'); }
 			serializeWindowState(): IWindowState { throw new Error('Method not implemented'); }
-			updateWindowControls(options: { height?: number | undefined; backgroundColor?: string | undefined; foregroundColor?: string | undefined }): void { throw new Error('Method not implemented.'); }
+			updateWindowControls(options: { height?: number | undefined; backgroundColor?: string | undefined; foregroundColor?: string | undefined; dimmed?: boolean | undefined }): void { throw new Error('Method not implemented.'); }
 			notifyZoomLevel(level: number): void { throw new Error('Method not implemented.'); }
 			matches(webContents: Electron.WebContents): boolean { throw new Error('Method not implemented.'); }
 			dispose(): void { }

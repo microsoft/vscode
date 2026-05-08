@@ -10,7 +10,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { IChatEditingSession } from '../../../common/editing/chatEditingService.js';
 import { IChatChangeEvent, IChatModel, IChatPendingRequest, IChatRequestModel, IChatRequestNeedsInputInfo, IExportableChatData, IExportableRepoData, IInputModel, ISerializableChatData } from '../../../common/model/chatModel.js';
 import { ChatAgentLocation } from '../../../common/constants.js';
-import { IChatSessionTiming } from '../../../common/chatService/chatService.js';
+import { IChatSessionContext, IChatSessionTiming } from '../../../common/chatService/chatService.js';
 
 export class MockChatModel extends Disposable implements IChatModel {
 	readonly onDidDispose = this._register(new Emitter<void>()).event;
@@ -26,6 +26,7 @@ export class MockChatModel extends Disposable implements IChatModel {
 	creationDate = Date.now();
 	requests: IChatRequestModel[] = [];
 	readonly requestInProgress = observableValue('requestInProgress', false);
+	readonly hasActiveRequest = observableValue('hasActiveRequest', false);
 	readonly requestNeedsInput = observableValue<IChatRequestNeedsInputInfo | undefined>('requestNeedsInput', undefined);
 	readonly inputPlaceholder = undefined;
 	readonly editingSession = undefined;
@@ -47,6 +48,10 @@ export class MockChatModel extends Disposable implements IChatModel {
 		super();
 		this.lastRequest = undefined;
 		this.lastRequestObs = observableValue('lastRequest', undefined);
+	}
+
+	setContributedChatSession(session: IChatSessionContext | undefined): void {
+		throw new Error('Method not implemented.');
 	}
 
 	readonly hasRequests = false;

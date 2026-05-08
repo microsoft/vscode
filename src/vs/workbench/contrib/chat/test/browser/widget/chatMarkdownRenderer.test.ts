@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import assert from 'assert';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { assertSnapshot } from '../../../../../../base/test/common/snapshot.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -112,5 +113,13 @@ suite('ChatMarkdownRenderer', () => {
 		md.supportHtml = true;
 		const result = store.add(testRenderer.render(md));
 		await assertSnapshot(result.element.outerHTML);
+	});
+
+	test('code block ending at end of content does not leak body tag', async () => {
+		const md = new MarkdownString('text\n```ts\nconst x = 1;\n```');
+		md.supportHtml = true;
+		const result = store.add(testRenderer.render(md));
+		const textContent = result.element.textContent;
+		assert.ok(!textContent?.includes('</body>'), `Rendered text should not contain </body>, got: ${textContent}`);
 	});
 });

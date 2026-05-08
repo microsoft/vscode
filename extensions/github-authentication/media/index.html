@@ -30,8 +30,16 @@
 	</div>
 	<script>
 		const urlParams = new URLSearchParams(window.location.search);
+
 		const appName = urlParams.get('app_name');
 		document.querySelectorAll('.app-name').forEach(e => e.innerText = appName);
+
+		if (urlParams.get('app_is_sessions') === 'true') {
+			const iconImg = document.querySelector('.icon-container img');
+			if (iconImg) {
+				iconImg.src = 'sessions-icon.svg';
+			}
+		}
 
 		// if name contains 'insiders', update filter CSS variables
 		if (appName.toLowerCase().includes('insiders')) {

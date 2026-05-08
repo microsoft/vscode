@@ -407,6 +407,7 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 		this._logger = loggerService.createLogger(this.id, { name: `Auth: ${this.label}` });
 		this._disposable = new DisposableStore();
 		this._disposable.add(this._onDidChangeSessions);
+		this._disposable.add(this._onDidChangeClientId);
 		const scopedEvent = Event.chain(onDidDynamicAuthProviderTokensChange.event, $ => $
 			.filter(e => e.authProviderId === this.id && e.clientId === _clientId)
 			.map(e => e.tokens)

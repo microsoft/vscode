@@ -371,6 +371,7 @@ suite('Snippet Variables Resolver', function () {
 			getCompleteWorkspace = this._throw;
 			getWorkspace(): IWorkspace { return workspace; }
 			getWorkbenchState = this._throw;
+			hasWorkspaceData = this._throw;
 			getWorkspaceFolder = this._throw;
 			isCurrentWorkspace = this._throw;
 			isInsideWorkspace = this._throw;

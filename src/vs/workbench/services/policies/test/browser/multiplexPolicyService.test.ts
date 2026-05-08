@@ -4,25 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { CopilotSessionSearchPolicy, IDefaultAccount, IDefaultAccountAuthenticationProvider, IPolicyData } from '../../../../../base/common/defaultAccount.js';
 import { Event } from '../../../../../base/common/event.js';
-import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { IDefaultAccountProvider, IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
-import { DefaultAccountService } from '../../../accounts/browser/defaultAccount.js';
-import { AccountPolicyService } from '../../common/accountPolicyService.js';
+import { PolicyCategory } from '../../../../../base/common/policy.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { Extensions, IConfigurationNode, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { DefaultConfiguration, PolicyConfiguration } from '../../../../../platform/configuration/common/configurations.js';
-import { MultiplexPolicyService } from '../../common/multiplexPolicyService.js';
-import { FilePolicyService } from '../../../../../platform/policy/common/filePolicyService.js';
-import { URI } from '../../../../../base/common/uri.js';
+import { IDefaultAccountProvider, IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
-import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { FileService } from '../../../../../platform/files/common/fileService.js';
-import { VSBuffer } from '../../../../../base/common/buffer.js';
-import { IDefaultAccount, IDefaultAccountAuthenticationProvider, IPolicyData } from '../../../../../base/common/defaultAccount.js';
-import { PolicyCategory } from '../../../../../base/common/policy.js';
+import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { FilePolicyService } from '../../../../../platform/policy/common/filePolicyService.js';
+import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { TestProductService } from '../../../../test/common/workbenchTestServices.js';
+import { DefaultAccountService } from '../../../accounts/browser/defaultAccount.js';
+import { AccountPolicyService } from '../../common/accountPolicyService.js';
+import { MultiplexPolicyService } from '../../common/multiplexPolicyService.js';
 
 const BASE_DEFAULT_ACCOUNT: IDefaultAccount = {
 	authenticationProvider: {
@@ -30,6 +30,7 @@ const BASE_DEFAULT_ACCOUNT: IDefaultAccount = {
 		name: 'GitHub',
 		enterprise: false,
 	},
+	accountName: 'testuser',
 	enterprise: false,
 	sessionId: 'abc123',
 };
@@ -38,6 +39,8 @@ class DefaultAccountProvider implements IDefaultAccountProvider {
 
 	readonly onDidChangeDefaultAccount = Event.None;
 	readonly onDidChangePolicyData = Event.None;
+	readonly copilotTokenInfo = null;
+	readonly onDidChangeCopilotTokenInfo = Event.None;
 
 	constructor(
 		readonly defaultAccount: IDefaultAccount,
@@ -55,6 +58,8 @@ class DefaultAccountProvider implements IDefaultAccountProvider {
 	async signIn(): Promise<IDefaultAccount | null> {
 		return null;
 	}
+
+	async signOut(): Promise<void> { }
 }
 
 suite('MultiplexPolicyService', () => {
@@ -120,7 +125,18 @@ suite('MultiplexPolicyService', () => {
 			'setting.E': {
 				'type': 'boolean',
 				'default': true,
-			}
+			},
+			'setting.F': {
+				'type': 'boolean',
+				'default': true,
+				policy: {
+					name: 'PolicySettingF',
+					category: PolicyCategory.Extensions,
+					minimumVersion: '1.0.0',
+					localization: { description: { key: '', value: '' } },
+					value: policyData => policyData.session_search === CopilotSessionSearchPolicy.Disabled ? false : undefined,
+				}
+			},
 		}
 	};
 
@@ -305,6 +321,56 @@ suite('MultiplexPolicyService', () => {
 			assert.strictEqual(B, 'policyValueB');
 			assert.deepStrictEqual(C, ['policyValueC1', 'policyValueC2']);
 			assert.strictEqual(D, false);
+		}
+	});
+
+	test('session_search policy disabled overrides setting', async () => {
+		await clear();
+
+		const policyData: IPolicyData = { session_search: CopilotSessionSearchPolicy.Disabled };
+		defaultAccountService.setDefaultAccountProvider(new DefaultAccountProvider(BASE_DEFAULT_ACCOUNT, policyData));
+		await defaultAccountService.refresh();
+
+		await policyConfiguration.initialize();
+
+		assert.strictEqual(policyService.getPolicyValue('PolicySettingF'), false);
+		assert.strictEqual(policyConfiguration.configurationModel.getValue('setting.F'), false);
+	});
+
+	test('session_search policy enabled does not override setting', async () => {
+		await clear();
+
+		const policyData: IPolicyData = { session_search: CopilotSessionSearchPolicy.Enabled };
+		defaultAccountService.setDefaultAccountProvider(new DefaultAccountProvider(BASE_DEFAULT_ACCOUNT, policyData));
+		await defaultAccountService.refresh();
+
+		await policyConfiguration.initialize();
+
+		assert.strictEqual(policyService.getPolicyValue('PolicySettingF'), undefined);
+		assert.strictEqual(policyConfiguration.configurationModel.getValue('setting.F'), undefined);
+	});
+
+	test('session_search policy with no opinion values does not override setting', async () => {
+		await clear();
+
+		for (const value of [CopilotSessionSearchPolicy.Unknown, CopilotSessionSearchPolicy.Unconfigured, CopilotSessionSearchPolicy.NoPolicy]) {
+			const policyData: IPolicyData = { session_search: value };
+			defaultAccountService = disposables.add(new DefaultAccountService(TestProductService));
+			defaultAccountService.setDefaultAccountProvider(new DefaultAccountProvider(BASE_DEFAULT_ACCOUNT, policyData));
+			await defaultAccountService.refresh();
+
+			policyService = disposables.add(new MultiplexPolicyService([
+				disposables.add(new FilePolicyService(policyFile, fileService, new NullLogService())),
+				disposables.add(new AccountPolicyService(logService, defaultAccountService)),
+			], logService));
+			const defaultConfiguration = disposables.add(new DefaultConfiguration(new NullLogService()));
+			await defaultConfiguration.initialize();
+			policyConfiguration = disposables.add(new PolicyConfiguration(defaultConfiguration, policyService, new NullLogService()));
+
+			await policyConfiguration.initialize();
+
+			assert.strictEqual(policyService.getPolicyValue('PolicySettingF'), undefined, `Expected undefined for CopilotSessionSearchPolicy value ${value}`);
+			assert.strictEqual(policyConfiguration.configurationModel.getValue('setting.F'), undefined, `Expected undefined for CopilotSessionSearchPolicy value ${value}`);
 		}
 	});
 });

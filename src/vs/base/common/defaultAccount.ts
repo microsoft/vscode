@@ -4,12 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 export interface IQuotaSnapshotData {
-	readonly entitlement: number;
 	readonly overage_count: number;
 	readonly overage_permitted: boolean;
 	readonly percent_remaining: number;
-	readonly remaining: number;
 	readonly unlimited: boolean;
+	readonly quota_reset_at?: number;
+	readonly token_based_billing?: boolean;
+	readonly entitlement?: string;
+	readonly has_quota?: boolean;
 }
 
 export interface ILegacyQuotaSnapshotData {
@@ -25,6 +27,7 @@ export interface ILegacyQuotaSnapshotData {
 
 export interface IEntitlementsData extends ILegacyQuotaSnapshotData {
 	readonly access_type_sku: string;
+	readonly chat_enabled: boolean;
 	readonly assigned_date: string;
 	readonly can_signup_for_limited: boolean;
 	readonly copilot_plan: string;
@@ -33,6 +36,7 @@ export interface IEntitlementsData extends ILegacyQuotaSnapshotData {
 	readonly limited_user_reset_date?: string; 	// for Copilot Free
 	readonly quota_reset_date?: string; 		// for all other Copilot SKUs
 	readonly quota_reset_date_utc?: string; 	// for all other Copilot SKUs (includes time)
+	readonly token_based_billing?: boolean;
 	readonly quota_snapshots?: {
 		chat?: IQuotaSnapshotData;
 		completions?: IQuotaSnapshotData;
@@ -40,12 +44,26 @@ export interface IEntitlementsData extends ILegacyQuotaSnapshotData {
 	};
 }
 
+export const enum CopilotSessionSearchPolicy {
+	Unknown = 0,
+	Enabled = 1,
+	Disabled = 2,
+	Unconfigured = 3,
+	NoPolicy = 4,
+}
+
 export interface IPolicyData {
 	readonly mcp?: boolean;
 	readonly chat_preview_features_enabled?: boolean;
 	readonly chat_agent_enabled?: boolean;
+	readonly session_search?: CopilotSessionSearchPolicy;
 	readonly mcpRegistryUrl?: string;
 	readonly mcpAccess?: 'allow_all' | 'registry_only';
+}
+
+export interface ICopilotTokenInfo {
+	readonly sn?: string;
+	readonly fcv1?: string;
 }
 
 export interface IDefaultAccountAuthenticationProvider {
@@ -56,6 +74,7 @@ export interface IDefaultAccountAuthenticationProvider {
 
 export interface IDefaultAccount {
 	readonly authenticationProvider: IDefaultAccountAuthenticationProvider;
+	readonly accountName: string;
 	readonly sessionId: string;
 	readonly enterprise: boolean;
 	readonly entitlementsData?: IEntitlementsData | null;

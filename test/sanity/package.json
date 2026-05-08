@@ -20,5 +20,8 @@
     "@types/mocha": "^10.0.10",
     "@types/node": "22.x",
     "typescript": "^6.0.0-dev.20251110"
+  },
+  "overrides": {
+    "serialize-javascript": "^7.0.3"
   }
 }
