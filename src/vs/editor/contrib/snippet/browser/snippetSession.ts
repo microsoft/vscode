@@ -21,7 +21,7 @@ import { ModelDecorationOptions } from '../../../common/model/textModel.js';
 import { OvertypingCapturer } from '../../suggest/browser/suggestOvertypingCapturer.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
-import { Choice, Marker, Placeholder, SnippetParser, Text, TextmateSnippet } from './snippetParser.js';
+import { Choice, Marker, Placeholder, SnippetParser, Text, TextmateSnippet, Variable } from './snippetParser.js';
 import { ClipboardBasedVariableResolver, CommentBasedVariableResolver, CompositeSnippetVariableResolver, ModelBasedVariableResolver, RandomBasedVariableResolver, SelectionBasedVariableResolver, TimeBasedVariableResolver, WorkspaceBasedVariableResolver } from './snippetVariables.js';
 import { EditSources, TextModelEditSource } from '../../../common/textModelEditSource.js';
 
@@ -563,15 +563,14 @@ export class SnippetSession {
 		const readClipboardText = () => clipboardText;
 		const clipboardSpread = editor.getOption(EditorOption.multiCursorPaste) === 'spread';
 
-		// preserve the original input order so cursor-indexed variables
-		// ($CURSOR_INDEX, $CURSOR_NUMBER) and overtyping fallback for
-		// $TM_SELECTED_TEXT can use the caller-supplied edit order
+		// preserve original input order so $CURSOR_INDEX/$CURSOR_NUMBER and the
+		// overtyping fallback for $TM_SELECTED_TEXT use the caller's edit index
 		const indexedSnippetEdits = snippetEdits
 			.map((edit, idx) => ({ edit, idx }))
 			.sort((a, b) => Range.compareRangesUsingStarts(a.edit.range, b.edit.range));
+
 		let offset = 0;
 		for (let i = 0; i < indexedSnippetEdits.length; i++) {
-
 			const { edit: { range, template, keepWhitespace }, idx } = indexedSnippetEdits[i];
 
 			// gaps between snippet edits are appended as text nodes. this
@@ -587,12 +586,11 @@ export class SnippetSession {
 			const newNodes = parser.parseFragment(template, snippet);
 			SnippetSession.adjustWhitespace(model, range.getStartPosition(), keepWhitespace !== undefined ? !keepWhitespace : adjustWhitespace, snippet, new Set(newNodes));
 
-			// resolve variables against this edit's range and original index so that
-			// $TM_SELECTED_TEXT, $SELECTION, $TM_CURRENT_LINE, $TM_LINE_NUMBER,
-			// $CURSOR_INDEX/$CURSOR_NUMBER, comment markers, and clipboard spread all
-			// reflect each edit individually (#206121)
+			// resolve variables only within `newNodes`. walking the whole accumulated
+			// snippet would re-resolve earlier edits' variables against this edit's
+			// range and corrupt the offset accounting (#206121).
 			const editSelection = Selection.fromRange(range, SelectionDirection.LTR);
-			snippet.resolveVariables(new CompositeSnippetVariableResolver([
+			const editResolver = new CompositeSnippetVariableResolver([
 				modelBasedVariableResolver,
 				new ClipboardBasedVariableResolver(readClipboardText, idx, indexedSnippetEdits.length, clipboardSpread),
 				new SelectionBasedVariableResolver(model, editSelection, idx, overtypingCapturer),
@@ -600,7 +598,16 @@ export class SnippetSession {
 				timeBasedVariableResolver,
 				workspaceBasedVariableResolver,
 				randomBasedVariableResolver,
-			]));
+			]);
+
+			const stack = [...newNodes];
+			while (stack.length > 0) {
+				const candidate = stack.shift()!;
+				if (candidate instanceof Variable) {
+					candidate.resolve(editResolver);
+				}
+				stack.unshift(...candidate.children);
+			}
 
 			const snippetText = snippet.toString();
 			const snippetFragmentText = snippetText.slice(offset);

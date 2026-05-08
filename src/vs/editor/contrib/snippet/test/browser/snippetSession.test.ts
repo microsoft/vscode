@@ -842,6 +842,25 @@ suite('SnippetSession', function () {
 			assert.deepStrictEqual(result.edits[1].text, '3');
 		});
 
+		test('per-edit resolution does not corrupt earlier edits when value lengths differ', function () {
+			// 100 lines so $TM_LINE_NUMBER produces values of differing widths (1 vs 100)
+			editor.getModel().setValue(Array.from({ length: 100 }, (_, i) => `line${i + 1}`).join('\n'));
+			editor.setSelections([new Selection(1, 1, 1, 1)]);
+
+			const result = SnippetSession.createEditsAndSnippetsFromEdits(
+				editor,
+				[
+					{ range: new Range(1, 2, 1, 2), template: '$TM_LINE_NUMBER' },
+					{ range: new Range(100, 2, 100, 2), template: '$TM_LINE_NUMBER' },
+				],
+				true, true, undefined, undefined, languageConfigurationService
+			);
+
+			assert.strictEqual(result.edits.length, 2);
+			assert.deepStrictEqual(result.edits[0].text, '1');
+			assert.deepStrictEqual(result.edits[1].text, '100');
+		});
+
 		test('$CURSOR_NUMBER uses caller-supplied edit order, not range-sorted order', function () {
 			editor.getModel().setValue('xx\nyy');
 			editor.setSelections([new Selection(1, 1, 1, 1)]);
