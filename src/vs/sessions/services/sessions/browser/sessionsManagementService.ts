@@ -617,21 +617,39 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 
 				disposables.add(this.onDidChangeSessions(() => tryRestore()));
 				disposables.add(this.sessionsProvidersService.onDidChangeProviders(() => tryRestore()));
+
+				// Call immediately in case the session became available between the
+				// initial getSession check above and the listener registration here.
+				tryRestore();
 			});
 		};
 
 		const restorePromise = doRestore();
-		if (!this.isNewChatSessionContext.get()) {
-			// Race against new-session navigation so progress stops immediately
-			// when the user opens the new session view, but not when they open
-			// another existing session (which should show its own progress).
-			const progressPromise = Promise.race([
-				restorePromise,
-				new Promise<void>(resolve => this._onDidOpenNewSessionView.event(() => resolve()))
-			]);
-			this.progressService.withProgress({ location: ChatViewId, delay: 200 }, () => progressPromise);
+		let onDidOpenNewSessionViewListener: IDisposable | undefined;
+		try {
+			if (!this.isNewChatSessionContext.get()) {
+				// Race against new-session navigation so progress stops immediately
+				// when the user opens the new session view, but not when they open
+				// another existing session (which should show its own progress).
+				// Create the listener explicitly so it can be disposed if restore
+				// completes before the event ever fires.
+				const openNewSessionViewPromise = new Promise<void>(resolve => {
+					onDidOpenNewSessionViewListener = this._onDidOpenNewSessionView.event(() => {
+						onDidOpenNewSessionViewListener?.dispose();
+						onDidOpenNewSessionViewListener = undefined;
+						resolve();
+					});
+				});
+				const progressPromise = Promise.race([
+					restorePromise,
+					openNewSessionViewPromise
+				]);
+				this.progressService.withProgress({ location: ChatViewId, delay: 200 }, () => progressPromise);
+			}
+			await restorePromise;
+		} finally {
+			onDidOpenNewSessionViewListener?.dispose();
 		}
-		await restorePromise;
 	}
 
 	// -- Session Actions --

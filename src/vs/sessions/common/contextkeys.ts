@@ -15,6 +15,7 @@ export const ActiveSessionTypeContext = new RawContextKey<string>('activeSession
 export const IsActiveSessionBackgroundProviderContext = new RawContextKey<boolean>('isActiveSessionBackgroundProvider', false, localize('isActiveSessionBackgroundProvider', "Whether the active session uses the background agent provider"));
 export const IsActiveSessionArchivedContext = new RawContextKey<boolean>('isActiveSessionArchived', false, localize('isActiveSessionArchived', "Whether the active session is archived (marked as done)"));
 export const ActiveSessionHasGitRepositoryContext = new RawContextKey<boolean>('activeSessionHasGitRepository', false, localize('activeSessionHasGitRepository', "Whether the active session has an associated git repository"));
+export const ActiveSessionHasGitSyncActionRunningContext = new RawContextKey<boolean>('activeSessionHasGitSyncActionRunning', false, localize('activeSessionHasGitSyncActionRunning', "Whether the active session has a git sync action currently running"));
 export const ChatSessionProviderIdContext = new RawContextKey<string>('chatSessionProviderId', '', localize('chatSessionProviderId', "The provider ID of a session in context menu overlays"));
 
 //#endregion
