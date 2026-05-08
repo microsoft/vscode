@@ -5,7 +5,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { NullNativeEnvService } from '../../../../../platform/env/common/nullEnvService';
-import { isWindows } from '../../../../../util/vs/base/common/platform';
+import { isLinux } from '../../../../../util/vs/base/common/platform';
 import { ClaudePlanFileTracker } from '../claudePlanFileTracker';
 
 describe('ClaudePlanFileTracker', () => {
@@ -74,8 +74,10 @@ describe('ClaudePlanFileTracker', () => {
 	});
 
 	// On case-insensitive filesystems (Windows, default macOS), the SDK can
-	// hand back the plan path with different casing than `userHome`.
-	it.runIf(!isWindows /* Linux URI casing is preserved */)('matches paths case-insensitively when the platform is case-insensitive', () => {
+	// hand back the plan path with different casing than `userHome`. On
+	// Linux URI casing is preserved by `extUriBiasedIgnorePathCase`, so
+	// only assert this behavior on platforms that actually ignore case.
+	it.runIf(!isLinux)('matches paths case-insensitively when the platform is case-insensitive', () => {
 		const tracker = createTracker();
 		// `.md` extension still lower-cased so the early-exit doesn't fire.
 		tracker.recordIfPlanFile(SESSION, '/home/TestUser/.Claude/Plans/plan.md');
