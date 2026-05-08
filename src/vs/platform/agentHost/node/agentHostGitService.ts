@@ -187,7 +187,8 @@ export class AgentHostGitService implements IAgentHostGitService {
 	}
 
 	async addWorktree(repositoryRoot: URI, worktree: URI, branchName: string, startPoint: string): Promise<void> {
-		await this._runGit(repositoryRoot, ['worktree', 'add', '-b', branchName, worktree.fsPath, startPoint], { timeout: 30_000, throwOnError: true });
+		const resolvedStartPoint = await this._resolveRemoteTrackingBranch(repositoryRoot, startPoint) ?? startPoint;
+		await this._runGit(repositoryRoot, ['worktree', 'add', '-b', branchName, worktree.fsPath, resolvedStartPoint], { timeout: 30_000, throwOnError: true });
 	}
 
 	async addExistingWorktree(repositoryRoot: URI, worktree: URI, branchName: string): Promise<void> {
@@ -227,15 +228,17 @@ export class AgentHostGitService implements IAgentHostGitService {
 		}
 		const repositoryRoot = URI.file(repositoryRootPath);
 
-		// Resolve the merge-base commit. With a base branch, this is
-		// `merge-base HEAD <base>` so the diff stays anchored even when the
-		// base branch advances. Without one, fall back to HEAD itself, which
-		// surfaces uncommitted work but no committed-on-branch work — the
-		// best we can do without context. For empty repos with no HEAD, fall
-		// back to the well-known empty-tree object.
+		// Resolve the merge-base commit. With a base branch, prefer the
+		// corresponding origin/<base> remote-tracking ref when it exists so
+		// branch changes match a PR-style comparison even if the local base
+		// branch is stale. Without a usable base, fall back to HEAD itself,
+		// which surfaces uncommitted work but no committed-on-branch work -
+		// the best we can do without context. For empty repos with no HEAD,
+		// fall back to the well-known empty-tree object.
 		let mergeBaseCommit: string | undefined;
 		if (options.baseBranch) {
-			mergeBaseCommit = (await this._runGit(repositoryRoot, ['merge-base', 'HEAD', options.baseBranch]))?.trim();
+			const baseBranch = await this._resolveRemoteTrackingBranch(repositoryRoot, options.baseBranch) ?? options.baseBranch;
+			mergeBaseCommit = (await this._runGit(repositoryRoot, ['merge-base', 'HEAD', baseBranch]))?.trim();
 		}
 		if (!mergeBaseCommit) {
 			mergeBaseCommit = (await this._runGit(repositoryRoot, ['rev-parse', 'HEAD']))?.trim();
@@ -295,6 +298,12 @@ export class AgentHostGitService implements IAgentHostGitService {
 		} finally {
 			try { await this._fileService.del(tempDir, { recursive: true, useTrash: false }); } catch { /* best-effort */ }
 		}
+	}
+
+	private async _resolveRemoteTrackingBranch(repositoryRoot: URI, branch: string): Promise<string | undefined> {
+		const remoteBranch = `origin/${branch}`;
+		const output = await this._runGit(repositoryRoot, ['show-ref', '--verify', '--quiet', `refs/remotes/${remoteBranch}`]);
+		return output !== undefined ? remoteBranch : undefined;
 	}
 
 	async showBlob(workingDirectory: URI, sha: string, repoRelativePath: string): Promise<VSBuffer | undefined> {
