@@ -397,9 +397,9 @@ export class UserBasedVariableResolver implements VariableResolver {
 				return this._fullName;
 			case 'TM_EMAIL':
 				return this._email;
+			default:
+				return undefined;
 		}
-
-		return undefined;
 	}
 
 	private _resolveFromEnv(...keys: string[]): string | undefined {
