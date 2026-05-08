@@ -29,7 +29,7 @@ import { AgentConfigurationService, IAgentConfigurationService } from '../../nod
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { IAgentHostGitService } from '../../node/agentHostGitService.js';
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
-import { CopilotAgent, getCopilotBranchNameHintFromMessage, getCopilotWorktreeBranchName, getCopilotWorktreeName, getCopilotWorktreesRoot } from '../../node/copilot/copilotAgent.js';
+import { COPILOT_AGENT_HOST_SYSTEM_MESSAGE, CopilotAgent, getCopilotBranchNameHintFromMessage, getCopilotWorktreeBranchName, getCopilotWorktreeName, getCopilotWorktreesRoot } from '../../node/copilot/copilotAgent.js';
 import { CopilotAgentSession, type SessionWrapperFactory } from '../../node/copilot/copilotAgentSession.js';
 import { CopilotSessionWrapper } from '../../node/copilot/copilotSessionWrapper.js';
 import { ShellManager } from '../../node/copilot/copilotShellTools.js';
@@ -686,6 +686,43 @@ suite('CopilotAgent', () => {
 		// Forking a provisional session is no longer a special case: the agent
 		// service drops `config.fork` for sources with no turns, so the call
 		// reduces to a plain new-session create.
+
+		test('materialization passes VS Code-specific system message to the SDK', async () => {
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([]);
+			let capturedConfig: Parameters<ITestCopilotClient['createSession']>[0] | undefined;
+			client.createSession = async config => {
+				capturedConfig = config;
+				return new MockCopilotSession() as unknown as CopilotSession;
+			};
+
+			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+
+				const result = await agent.createSession({
+					session: AgentSession.uri('copilotcli', 'system-message-session'),
+					workingDirectory: URI.file('/workspace'),
+				});
+				assert.strictEqual(result.provisional, true);
+
+				await agent.sendMessage(result.session, 'hello');
+
+				assert.ok(capturedConfig, 'SDK createSession should be called during provisional materialization');
+				const systemMessage = capturedConfig.systemMessage;
+				assert.deepStrictEqual(systemMessage, COPILOT_AGENT_HOST_SYSTEM_MESSAGE);
+				if (!systemMessage || systemMessage.mode !== 'customize') {
+					assert.fail('Expected customize-mode system message');
+				}
+				assert.strictEqual(systemMessage.sections?.identity?.action, 'replace');
+				assert.strictEqual(
+					systemMessage.sections?.identity?.content,
+					'You are an AI assistant using Copilot CLI runtime in VS Code. You help users with software engineering tasks. When asked about your identity, you must state that you are an AI assistant using Copilot CLI runtime in VS Code.'
+				);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
 	});
 
 	suite('onClientToolCallComplete', () => {

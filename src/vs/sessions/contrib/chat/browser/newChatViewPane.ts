@@ -76,6 +76,7 @@ class NewChatWidget extends Disposable {
 			sendRequest: async (text: string, attachedContext?: IChatRequestVariableEntry[]) => this._send(text, attachedContext),
 			canSendRequest,
 			loading,
+			renderSessionTypePickerInControls: false,
 		}));
 
 		this._register(this._workspacePicker.onDidSelectWorkspace(async workspace => {
@@ -203,6 +204,9 @@ class NewChatWidget extends Disposable {
 			: localize('newSessionChooseWorkspace', "Start by picking a");
 
 		this._workspacePicker.render(pickersRow);
+		const withLabel = dom.append(pickersRow, dom.$('.session-workspace-picker-label.session-workspace-picker-with-label'));
+		withLabel.textContent = localize('newSessionWith', "with");
+		this._newChatInput.sessionTypePicker.render(pickersRow, { className: 'sessions-chat-session-type-picker' });
 		return this._workspacePicker.onDidSelectWorkspace(() => {
 			const workspace = this._workspacePicker.selectedProject;
 			pickersLabel.textContent = workspace ? localize('newSessionIn', "New session in") : localize('newSessionChooseWorkspace', "Start by picking a");

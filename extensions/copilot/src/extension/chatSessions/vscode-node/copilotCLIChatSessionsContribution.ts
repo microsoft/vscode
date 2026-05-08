@@ -1530,6 +1530,7 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 			requestsForSession.add(request);
 			this.pendingRequestBySession.set(session.object.sessionId, requestsForSession);
 
+			const isCopilotCLICommand = !!request.command && (copilotCLICommands as readonly string[]).includes(request.command);
 			if (request.command === 'delegate') {
 				await this.handleDelegationToCloud(session.object, request, context, stream, token);
 			} else if (contextForRequest) {
@@ -1537,11 +1538,14 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 				const { prompt, attachments } = contextForRequest;
 				await session.object.handleRequest(request, { prompt }, attachments, model, authInfo, token);
 				await this.commitWorktreeChangesIfNeeded(request, session.object, token);
+			} else if (isCopilotCLICommand && (!isUntitled || request.command === 'remote')) {
+				const { prompt, attachments } = request.prompt
+					? await this.promptResolver.resolvePrompt(request, undefined, [], session.object.workspace, [], token)
+					: { prompt: '', attachments: [] };
+				await session.object.handleRequest(request, { command: request.command as CopilotCLICommand, prompt }, attachments, model, authInfo, token);
+				await this.commitWorktreeChangesIfNeeded(request, session.object, token);
 			} else if (request.command && !request.prompt && !isUntitled) {
-				const input = (copilotCLICommands as readonly string[]).includes(request.command)
-					? { command: request.command as CopilotCLICommand, prompt: '' }
-					: { prompt: `/${request.command}` };
-				await session.object.handleRequest(request, input, [], model, authInfo, token);
+				await session.object.handleRequest(request, { prompt: `/${request.command}` }, [], model, authInfo, token);
 				await this.commitWorktreeChangesIfNeeded(request, session.object, token);
 			} else if (request.prompt && Object.values(builtinSlashSCommands).some(command => request.prompt.startsWith(command))) {
 				// Sessions app built-in slash commands
@@ -1564,7 +1568,7 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 
 			persistCopilotCLIResponseModelId(sessionId, request.id, responseModelId, this.chatSessionMetadataStore, this.logService);
 
-			if (isUntitled && !token.isCancellationRequested) {
+			if (isUntitled && request.command !== 'remote' && !token.isCancellationRequested) {
 				this.scheduleUntitledSessionSwap(id, request.id, request.prompt, session.object.sessionId, chatSessionContext.chatSessionItem);
 			}
 
