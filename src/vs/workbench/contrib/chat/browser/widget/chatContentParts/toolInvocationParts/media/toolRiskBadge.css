@@ -43,6 +43,23 @@
 	white-space: nowrap;
 }
 
+.chat-confirmation-widget2 > .tool-risk-badge .tool-risk-details-icon {
+	flex: 0 0 auto;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 13px;
+	line-height: 1;
+	color: var(--vscode-descriptionForeground);
+	cursor: pointer;
+	border-radius: 3px;
+}
+
+.chat-confirmation-widget2 > .tool-risk-badge .tool-risk-details-icon:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 1px;
+}
+
 .chat-confirmation-widget2 > .tool-risk-badge.loading {
 	opacity: 0.7;
 }
