@@ -469,6 +469,26 @@ suite('SnippetSession', function () {
 		assertSelections(editor, new Selection(1, 6, 1, 25));
 	});
 
+	test('snippets, merge when multiple placeholders at same position', function () {
+		// When a snippet has multiple occurrences of the same placeholder index that end up at
+		// the same position (e.g. $1$1 where both $1 are at position 0), the editor's cursor
+		// normalization merges them into a single cursor. This must not crash when merge is called.
+		editor.getModel()!.setValue('');
+		editor.setSelection(new Selection(1, 1, 1, 1));
+		const session = new SnippetSession(editor, '$1$1$0', undefined, languageConfigurationService);
+		session.insert();
+
+		// Both $1 placeholders are empty and at position (1,1), so the editor normalizes
+		// the two cursor positions into one. This is the condition that previously caused a crash.
+		assert.doesNotThrow(() => {
+			session.merge('${1:nested}$0');
+		});
+
+		// After the merge the selection should be inside the nested snippet's $1 placeholder
+		assertSelections(editor, new Selection(1, 1, 1, 7));
+		assert.strictEqual(editor.getModel()!.getValue(), 'nested');
+	});
+
 	test('snippets, transform', function () {
 		editor.getModel()!.setValue('');
 		editor.setSelection(new Selection(1, 1, 1, 1));

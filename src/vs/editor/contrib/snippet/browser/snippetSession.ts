@@ -299,7 +299,18 @@ export class OneSnippet {
 			// everything is sorted by editor selection we can simply remove
 			// elements from the beginning of the array
 			for (const placeholder of this._placeholderGroups[this._placeholderGroupsIdx]) {
-				const nested = others.shift()!;
+				const nested = others.shift();
+				if (!nested) {
+					// There are more placeholder occurrences than nested snippets. This can happen
+					// when multiple occurrences of the same placeholder are at the same position
+					// and the editor's cursor normalization merged them into one cursor. Remove
+					// the decoration for this placeholder without merging anything.
+					const id = this._placeholderDecorations!.get(placeholder)!;
+					accessor.removeDecoration(id);
+					this._placeholderDecorations!.delete(placeholder);
+					this._snippet.replace(placeholder, []);
+					continue;
+				}
 				console.assert(nested._offset !== -1);
 				console.assert(!nested._placeholderDecorations);
 
