@@ -32,3 +32,12 @@ dist
 
 # Son of Anton — local environment
 .env
+
+# Runtime-managed local state (not user-facing config)
+.claude/scheduled_tasks.lock
+.claude/settings.local.json
+.son-of-anton/metrics/
+
+# Per-package build output (Son of Anton core + CLI)
+son-of-anton-core/dist/
+son-of-anton-cli/dist/
