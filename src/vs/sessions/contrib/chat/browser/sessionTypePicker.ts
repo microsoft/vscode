@@ -84,7 +84,10 @@ export class SessionTypePicker extends Disposable {
 
 		const slot = dom.append(container, dom.$('.sessions-chat-picker-slot'));
 		if (options?.className) {
-			slot.classList.add(...options.className.split(' '));
+			const classNames = options.className.split(/\s+/).filter(className => className.length > 0);
+			if (classNames.length > 0) {
+				slot.classList.add(...classNames);
+			}
 		}
 		this._renderDisposables.add({ dispose: () => slot.remove() });
 
