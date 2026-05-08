@@ -183,6 +183,38 @@ function getPriceCategoryIndicator(priceCategory: string | undefined): string | 
 	return '$(circle-filled)'.repeat(filled) + '$(circle)'.repeat(total - filled);
 }
 
+/**
+ * Returns a short description summarizing the model's current configuration values
+ * for properties marked with group 'navigation' (e.g., "High", "Medium").
+ */
+function getModelConfigurationDescription(model: ILanguageModelChatMetadataAndIdentifier, languageModelsService: ILanguageModelsService): string | undefined {
+	const schema = model.metadata.configurationSchema;
+	if (!schema?.properties) {
+		return undefined;
+	}
+
+	const currentConfig = languageModelsService.getModelConfiguration(model.identifier) ?? {};
+	const parts: string[] = [];
+
+	for (const [key, propSchema] of Object.entries(schema.properties)) {
+		if (propSchema.group !== 'navigation') {
+			continue;
+		}
+		if (!propSchema.enum || propSchema.enum.length < 2) {
+			continue;
+		}
+		const value = currentConfig[key] ?? propSchema.default;
+		if (value === undefined) {
+			continue;
+		}
+		const enumIndex = propSchema.enum?.indexOf(value) ?? -1;
+		const label = propSchema.enumItemLabels?.[enumIndex] ?? String(value);
+		parts.push(label);
+	}
+
+	return parts.length > 0 ? parts.join(', ') : undefined;
+}
+
 function createModelAction(
 	model: ILanguageModelChatMetadataAndIdentifier,
 	selectedModelId: string | undefined,
@@ -195,11 +227,14 @@ function createModelAction(
 	// Only show pricing in the description line if it's a multiplier (e.g. "2x").
 	// Detailed AIC/token pricing is shown in the hover instead.
 	const pricingForDescription = isMultiplierPricing(model) ? model.metadata.pricing : undefined;
-	const priceCategoryIndicator = getPriceCategoryIndicator(model.metadata.priceCategory);
+	// Price category circles are UBB-only
+	const priceCategoryIndicator = isUBB ? getPriceCategoryIndicator(model.metadata.priceCategory) : undefined;
+	// In PRU mode, show the current configuration value (e.g. thinking effort "High") in the description
+	const configDescription = !isUBB ? getModelConfigurationDescription(model, languageModelsService) : undefined;
 	// Strip the detail when suppressVendorInDetail is set — the vendor is
 	// shown either inline (promoted) or in a section header (Other Models).
 	const detail = suppressVendorInDetail ? undefined : model.metadata.detail;
-	const textParts = [detail, pricingForDescription].filter(Boolean);
+	const textParts = [configDescription, detail, pricingForDescription].filter(Boolean);
 	const textDescription = textParts.length > 0 ? textParts.join(' · ') : undefined;
 
 	let descriptionOverride: MarkdownString | undefined;
@@ -702,6 +737,15 @@ export class ModelPickerWidget extends Disposable {
 		this._register(this._languageModelsService.onDidChangeLanguageModels(() => {
 			this._renderLabel();
 		}));
+
+		let lastIsUBB = !!this._entitlementService.quotas.usageBasedBilling;
+		this._register(this._entitlementService.onDidChangeQuotaRemaining(() => {
+			const currentIsUBB = !!this._entitlementService.quotas.usageBasedBilling;
+			if (currentIsUBB !== lastIsUBB) {
+				lastIsUBB = currentIsUBB;
+				this._renderLabel();
+			}
+		}));
 	}
 
 	setHideChevrons(hideChevrons: IObservable<boolean>): void {
@@ -941,14 +985,25 @@ export class ModelPickerWidget extends Disposable {
 			nameChildren.push(renderIcon(statusIcon));
 		}
 		const modelLabel = name ?? localize('chat.modelPicker.auto', "Auto");
-		nameChildren.push(dom.$('span.chat-input-picker-label', undefined, modelLabel));
+		// In PRU mode, append the config description (e.g. thinking effort) to the button label
+		const isUBB = !!this._entitlementService.quotas.usageBasedBilling;
+		const configDescription = !isUBB && this._selectedModel
+			? getModelConfigurationDescription(this._selectedModel, this._languageModelsService)
+			: undefined;
+		const fullLabel = configDescription
+			? `${modelLabel} · ${configDescription}`
+			: modelLabel;
+		nameChildren.push(dom.$('span.chat-input-picker-label', undefined, fullLabel));
 		if (this._badgeIcon) {
 			nameChildren.push(this._badgeIcon);
 		}
 		dom.reset(this._nameButton, ...nameChildren);
 
+		// Effort and tokens buttons are only shown in UBB mode.
+		// In PRU mode, configuration is accessed via per-model toolbar actions in the picker dropdown.
+
 		// --- Effort section (from configurationSchema group 'navigation') ---
-		const effortConfig = this._getConfigProperty('navigation');
+		const effortConfig = isUBB ? this._getConfigProperty('navigation') : undefined;
 		if (effortConfig && this._effortButton) {
 			// Use the localized enumItemLabel from the schema, falling back to the raw value
 			const enumIndex = effortConfig.schema.enum?.indexOf(effortConfig.value) ?? -1;
@@ -963,7 +1018,7 @@ export class ModelPickerWidget extends Disposable {
 		}
 
 		// --- Tokens section (from configurationSchema group 'tokens') ---
-		const tokensConfig = this._getConfigProperty('tokens');
+		const tokensConfig = isUBB ? this._getConfigProperty('tokens') : undefined;
 		if (tokensConfig && this._tokensButton) {
 			const idx = tokensConfig.schema.enum?.indexOf(tokensConfig.value) ?? -1;
 			const tokensLabel = idx >= 0 && tokensConfig.schema.enumItemLabels?.[idx]
@@ -977,7 +1032,7 @@ export class ModelPickerWidget extends Disposable {
 		}
 
 		// Aria
-		this._domNode.ariaLabel = localize('chat.modelPicker.ariaLabel', "Pick Model, {0}", modelLabel);
+		this._domNode.ariaLabel = localize('chat.modelPicker.ariaLabel', "Pick Model, {0}", fullLabel);
 	}
 
 	private _getConfigProperty(group: string) {
