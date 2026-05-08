@@ -784,6 +784,10 @@ export class ChatTeardownContribution extends Disposable implements IWorkbenchCo
 			return;
 		}
 
+		if (defaultChatExtension.local && !this.extensionEnablementService.canChangeEnablement(defaultChatExtension.local)) {
+			return;
+		}
+
 		await this.extensionsWorkbenchService.setEnablement([defaultChatExtension], state);
 		await this.extensionsWorkbenchService.updateRunningExtensions(state === EnablementState.EnabledGlobally || state === EnablementState.EnabledWorkspace ? localize('restartExtensionHost.reason.enable', "Enabling AI features") : localize('restartExtensionHost.reason.disable', "Disabling AI features"));
 	}
