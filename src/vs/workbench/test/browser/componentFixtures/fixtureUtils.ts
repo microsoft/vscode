@@ -1025,6 +1025,7 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 			});
 
 			const wantsTimeTrace = !!context.input && typeof context.input === 'object' && !!(context.input as Record<string, unknown>).outputTimeTrace;
+
 			if (wantsTimeTrace && virtualTimeEnabled && p.history.length > 0) {
 				const startTime = p.history[0].time;
 				const history = buildHistoryFromTasks(p.history, startTime);
@@ -1046,7 +1047,7 @@ interface ThemedFixtureGroupOptions {
 	readonly labels?: ThemedFixtureGroupLabels;
 }
 
-type ThemedFixtureGroupFixtures = Record<string, ThemedFixtures>;
+type ThemedFixtureGroupFixtures = Record<string, ThemedFixtures | ReturnType<typeof defineFixtureGroup>>;
 
 /**
  * Creates a nested fixture group from themed fixtures.
