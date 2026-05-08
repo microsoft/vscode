@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DocumentId } from '../../../platform/inlineEdits/common/dataTypes/documentId';
+import { DuplicateAdditionsMode } from '../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
 import { NoNextEditReason, StreamedEdit } from '../../../platform/inlineEdits/common/statelessNextEditProvider';
 import { ILogger } from '../../../platform/log/common/logService';
 import { ErrorUtils } from '../../../util/common/errors';
@@ -13,10 +14,13 @@ import { URI } from '../../../util/vs/base/common/uri';
 import { LineReplacement } from '../../../util/vs/editor/common/core/edits/lineEdit';
 import { LineRange } from '../../../util/vs/editor/common/core/ranges/lineRange';
 import { OffsetRange } from '../../../util/vs/editor/common/core/ranges/offsetRange';
+import { AbstractText } from '../../../util/vs/editor/common/core/text/abstractText';
 import { FetchStreamError } from '../common/fetchStreamError';
 import { toUniquePath } from '../common/promptCraftingUtils';
 import { ResponseTags } from '../common/tags';
 import { CurrentDocument } from '../common/xtabCurrentDocument';
+
+export { DuplicateAdditionsMode };
 
 
 class Patch {
@@ -81,6 +85,18 @@ export interface DuplicateAdditionRemoval {
 }
 
 /**
+ * Callback invoked once per duplicate-addition detection. The caller can use
+ * it to count occurrences and emit telemetry. In `Log` mode, the patch is
+ * not actually modified; the callback still fires.
+ */
+export type OnDuplicateRemovedCallback = (info: {
+	readonly removal: DuplicateAdditionRemoval;
+	readonly mode: DuplicateAdditionsMode.Log | DuplicateAdditionsMode.Remove;
+	readonly filePath: string;
+	readonly lineNumZeroBased: number;
+}) => void;
+
+/**
  * A heuristic line is "meaningful" enough to base a duplicate detection on
  * if it has more than one non-whitespace character. This guards against
  * matching common single-token lines (`}`, `;`, `)`) and blank lines, which
@@ -106,32 +122,49 @@ function isMeaningfulLine(line: string): boolean {
  *
  * Priority order:
  *   1. **Suffix** — last `k` additions match first `k` following lines (most
- *      common case: trailing `}` re-emitted). Picks the longest matching `k`
- *      that survives an extra ambiguity guard: when the match would consume
- *      the entire addition AND every matched line is non-meaningful (e.g. a
- *      single `}`), the heuristic falls through, since that case is
- *      ambiguous between a legitimate inner-scope close and a duplicate.
+ *      common case: trailing `}` re-emitted). Picks the longest matching `k`.
+ *      No additional ambiguity guard is applied: the prior heuristic
+ *      preserved single-token suffixes when they consumed the entire
+ *      addition (e.g. `addedLines = ['}']` with `following = ['}']`), but
+ *      that's the headline-bug case — applying the patch would insert a
+ *      stray closing token into already-balanced code. The trade-off is a
+ *      rare false positive when the file is mid-typing and unbalanced; the
+ *      common case (file is balanced, model is duplicating) is the one we
+ *      optimize for.
  *   2. **Prefix** — first addition matches first following line, and the line
  *      is "meaningful" (>1 non-whitespace char) to avoid dropping legitimate
  *      single-token lines (e.g. an inner-scope `}` followed by an outer `}`).
  *   3. **Middle** — a consecutive pair of additions starting at offset > 0
  *      (and not at the end) matches the first two following lines. Both
  *      following lines must be meaningful, again to avoid trivial matches.
+ *      The match is then **greedily extended**: only the verified-equal
+ *      lines are dropped; any addition lines beyond the equal range are
+ *      preserved (the model may have appended new content after the
+ *      streaming-style regenerated context).
  *
  * Returns a `DuplicateAdditionRemoval` describing what was dropped, or
  * `undefined` if no duplication was detected.
  */
 export function tryRemoveDuplicateAdditions(
-	patch: { readonly addedLines: readonly string[]; readonly removedLines: readonly string[]; readonly lineNumZeroBased: number },
-	fileLines: readonly string[],
+	replacement: LineReplacement,
+	currentText: AbstractText,
 ): DuplicateAdditionRemoval | undefined {
-	const { addedLines, removedLines, lineNumZeroBased } = patch;
+	const addedLines = replacement.newLines;
 	if (addedLines.length === 0) {
 		return undefined;
 	}
 
-	const followingStart = lineNumZeroBased + removedLines.length;
-	const following = fileLines.slice(followingStart, followingStart + addedLines.length);
+	// `lineRange` is 1-based; convert to 0-based for line array access.
+	const followingStartLine1Based = replacement.lineRange.endLineNumberExclusive;
+	const fileLineCount = currentText.lineRange.endLineNumberExclusive - 1;
+	const followingEndLine1BasedExclusive = Math.min(
+		fileLineCount + 1,
+		followingStartLine1Based + addedLines.length,
+	);
+	const following: string[] = [];
+	for (let l = followingStartLine1Based; l < followingEndLine1BasedExclusive; l++) {
+		following.push(currentText.getLineAt(l));
+	}
 	if (following.length === 0) {
 		return undefined;
 	}
@@ -140,13 +173,6 @@ export function tryRemoveDuplicateAdditions(
 	for (let k = Math.min(addedLines.length, following.length); k >= 1; k--) {
 		const tail = addedLines.slice(-k);
 		if (!arraysEqual(tail, following.slice(0, k))) {
-			continue;
-		}
-		// Skip when the suffix would consume the entire addition AND every
-		// matched line is non-meaningful: that case is genuinely ambiguous
-		// (e.g. a single `}` that may be a legitimate inner-scope close).
-		// Keep iterating to a smaller k that may still match meaningfully.
-		if (k === addedLines.length && tail.every(l => !isMeaningfulLine(l))) {
 			continue;
 		}
 		return {
@@ -168,19 +194,33 @@ export function tryRemoveDuplicateAdditions(
 	// 3. Middle (e.g. streamEdits): consecutive pair of additions at offset > 0
 	//    (and not extending to the end — that case is suffix) matches the first
 	//    two following lines. Require both to be meaningful to avoid trivial
-	//    matches such as duplicate blank lines.
+	//    matches such as duplicate blank lines. After finding the seed pair,
+	//    greedily extend `k` while addedLines and `following` continue to
+	//    match — only the verified-equal range is dropped.
 	if (addedLines.length >= 3 && following.length >= 2 &&
 		isMeaningfulLine(following[0]) && isMeaningfulLine(following[1])) {
 		const a = following[0];
 		const b = following[1];
 		for (let start = 1; start < addedLines.length - 1; start++) {
-			if (addedLines[start] === a && addedLines[start + 1] === b) {
-				return {
-					kind: 'middle',
-					newAdditions: addedLines.slice(0, start),
-					removedLines: addedLines.slice(start),
-				};
+			if (addedLines[start] !== a || addedLines[start + 1] !== b) {
+				continue;
 			}
+			let k = 2;
+			while (
+				start + k < addedLines.length &&
+				k < following.length &&
+				addedLines[start + k] === following[k]
+			) {
+				k++;
+			}
+			return {
+				kind: 'middle',
+				newAdditions: [
+					...addedLines.slice(0, start),
+					...addedLines.slice(start + k),
+				],
+				removedLines: addedLines.slice(start, start + k),
+			};
 		}
 	}
 
@@ -197,16 +237,11 @@ export class XtabCustomDiffPatchResponseHandler {
 		workspaceRoot: URI | undefined,
 		window: OffsetRange | undefined,
 		parentTracer: ILogger,
-		removeDuplicates: boolean = false,
+		duplicateAdditionsMode: DuplicateAdditionsMode = DuplicateAdditionsMode.Off,
+		onDuplicateRemoved?: OnDuplicateRemovedCallback,
 	): AsyncGenerator<StreamedEdit, NoNextEditReason, void> {
 		const tracer = parentTracer.createSubLogger(['XtabCustomDiffPatchResponseHandler', 'handleResponse']);
 		const activeDocRelativePath = toUniquePath(activeDocumentId, workspaceRoot?.path);
-
-		// Tracking for the final return value: if every received patch is
-		// dropped by the dedup filter, surface that as `FilteredOut` rather
-		// than `NoSuggestions` so callers can distinguish the two cases.
-		let yieldedEditCount = 0;
-		let droppedByDedupCount = 0;
 
 		try {
 			for await (const edit of XtabCustomDiffPatchResponseHandler.extractEdits(linesStream)) {
@@ -219,28 +254,37 @@ export class XtabCustomDiffPatchResponseHandler {
 					continue;
 				}
 
+				let lineReplacement = XtabCustomDiffPatchResponseHandler.resolveEdit(edit);
+
 				// Only attempt dedup for the active document — other files'
 				// content is not directly available here.
-				if (removeDuplicates && isActiveDoc) {
-					const removal = tryRemoveDuplicateAdditions(edit, currentDocument.lines);
+				if (duplicateAdditionsMode !== DuplicateAdditionsMode.Off && isActiveDoc) {
+					const removal = tryRemoveDuplicateAdditions(lineReplacement, currentDocument.content);
 					if (removal !== undefined) {
-						tracer.trace(`Removed ${removal.removedLines.length} duplicate addition(s) (kind=${removal.kind}) for edit at ${edit.filePath}:${edit.lineNumZeroBased}: ${JSON.stringify(removal.removedLines)}`);
-						edit.addedLines = removal.newAdditions;
-						if (edit.addedLines.length === 0 && edit.removedLines.length === 0) {
-							// No-op patch after dedup — drop it.
-							droppedByDedupCount++;
-							continue;
+						tracer.trace(`Detected ${removal.removedLines.length} duplicate addition(s) (kind=${removal.kind}, mode=${duplicateAdditionsMode}) for edit at ${edit.filePath}:${edit.lineNumZeroBased}: ${JSON.stringify(removal.removedLines)}`);
+						onDuplicateRemoved?.({
+							removal,
+							mode: duplicateAdditionsMode,
+							filePath: edit.filePath,
+							lineNumZeroBased: edit.lineNumZeroBased,
+						});
+						if (duplicateAdditionsMode === DuplicateAdditionsMode.Remove) {
+							const newAdditions = removal.newAdditions;
+							if (newAdditions.length === 0 && lineReplacement.lineRange.length === 0) {
+								// No-op patch after dedup — drop it.
+								continue;
+							}
+							lineReplacement = new LineReplacement(lineReplacement.lineRange, newAdditions);
 						}
 					}
 				}
 
 				yield {
-					edit: XtabCustomDiffPatchResponseHandler.resolveEdit(edit),
+					edit: lineReplacement,
 					isFromCursorJump: false,
 					targetDocument,
 					window,
 				} satisfies StreamedEdit;
-				yieldedEditCount++;
 			}
 		} catch (e: unknown) {
 			if (e instanceof FetchStreamError) {
@@ -248,14 +292,6 @@ export class XtabCustomDiffPatchResponseHandler {
 			}
 			const err = ErrorUtils.fromUnknown(e);
 			return new NoNextEditReason.Unexpected(err);
-		}
-
-		// If every received patch was dropped by the dedup filter, signal
-		// FilteredOut so that telemetry and downstream handling can
-		// distinguish "model produced only duplicate suggestions" from
-		// "model produced no suggestions at all".
-		if (yieldedEditCount === 0 && droppedByDedupCount > 0) {
-			return new NoNextEditReason.FilteredOut(`diffPatch:duplicateAdditions:${droppedByDedupCount}`);
 		}
 
 		return new NoNextEditReason.NoSuggestions(currentDocument.content, window, undefined);

@@ -582,6 +582,27 @@ export namespace SpeculativeRequestsEnablement {
 	export const VALIDATOR = vEnum(SpeculativeRequestsEnablement.On, SpeculativeRequestsEnablement.Off);
 }
 
+/**
+ * How `XtabCustomDiffPatchResponseHandler` should treat detected duplicate
+ * additions in diff-patch responses.
+ *
+ * - `Off`: do not run dedup at all.
+ * - `Log`: run dedup and report each detection (logs + telemetry callback)
+ *   but do **not** modify the patch. Lets us measure the heuristic's firing
+ *   rate before flipping user-visible behavior.
+ * - `Remove`: run dedup, report each detection, **and** apply the trim to
+ *   the patch's added lines.
+ */
+export enum DuplicateAdditionsMode {
+	Off = 'off',
+	Log = 'log',
+	Remove = 'remove',
+}
+
+export namespace DuplicateAdditionsMode {
+	export const VALIDATOR = vEnum(DuplicateAdditionsMode.Off, DuplicateAdditionsMode.Log, DuplicateAdditionsMode.Remove);
+}
+
 export enum SpeculativeRequestsCursorPlacement {
 	AfterEditApplied = 'afterEditApplied',
 	AfterEditWindow = 'afterEditWindow',

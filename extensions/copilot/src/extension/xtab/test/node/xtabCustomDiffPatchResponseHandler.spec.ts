@@ -5,17 +5,19 @@
 
 import { beforeEach, describe, expect, it } from 'vitest';
 import { DocumentId } from '../../../../platform/inlineEdits/common/dataTypes/documentId';
+import { DuplicateAdditionsMode } from '../../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
 import { NoNextEditReason, StreamedEdit } from '../../../../platform/inlineEdits/common/statelessNextEditProvider';
 import { TestLogService } from '../../../../platform/testing/common/testLogService';
 import { AsyncIterUtils } from '../../../../util/common/asyncIterableUtils';
 import { AsyncIterableSource } from '../../../../util/vs/base/common/async';
 import { LineReplacement } from '../../../../util/vs/editor/common/core/edits/lineEdit';
 import { Position } from '../../../../util/vs/editor/common/core/position';
+import { LineRange } from '../../../../util/vs/editor/common/core/ranges/lineRange';
 import { StringText } from '../../../../util/vs/editor/common/core/text/abstractText';
 import { ensureDependenciesAreSet } from '../../../../util/vs/editor/common/core/text/positionToOffset';
 import { FetchStreamError } from '../../common/fetchStreamError';
 import { CurrentDocument } from '../../common/xtabCurrentDocument';
-import { tryRemoveDuplicateAdditions, XtabCustomDiffPatchResponseHandler } from '../../node/xtabCustomDiffPatchResponseHandler';
+import { DuplicateAdditionRemoval, OnDuplicateRemovedCallback, tryRemoveDuplicateAdditions, XtabCustomDiffPatchResponseHandler } from '../../node/xtabCustomDiffPatchResponseHandler';
 
 async function consumeHandleResponse(
 	...args: Parameters<typeof XtabCustomDiffPatchResponseHandler.handleResponse>
@@ -29,6 +31,25 @@ async function consumeHandleResponse(
 		}
 		edits.push(result.value);
 	}
+}
+
+/**
+ * Adapts the legacy tuple-shaped patch input used in tests to the new
+ * `LineReplacement` + `AbstractText` API surface of `tryRemoveDuplicateAdditions`.
+ *
+ * Builds a `StringText` from the file lines (joined with `\n`, no synthetic
+ * trailing newline added) so `splitLines` round-trips back to the same array.
+ */
+function callDedup(
+	patch: { addedLines: string[]; removedLines: string[]; lineNumZeroBased: number },
+	fileLines: string[],
+): DuplicateAdditionRemoval | undefined {
+	const text = new StringText(fileLines.join('\n'));
+	const replacement = new LineReplacement(
+		new LineRange(patch.lineNumZeroBased + 1, patch.lineNumZeroBased + 1 + patch.removedLines.length),
+		patch.addedLines,
+	);
+	return tryRemoveDuplicateAdditions(replacement, text);
 }
 
 describe('XtabCustomDiffPatchResponseHandler', () => {
@@ -203,7 +224,7 @@ another_file.js:
 			// Patch replaces line 1 and tries to add `let y = 2;` after it,
 			// but mistakenly re-emits the closing brace.
 			const fileLines = ['function foo() {', '    let x = 1;', '}'];
-			const result = tryRemoveDuplicateAdditions(
+			const result = callDedup(
 				{
 					addedLines: ['    let x = 1;', '    let y = 2;', '}'],
 					removedLines: ['    let x = 1;'],
@@ -220,7 +241,7 @@ another_file.js:
 			const fileLines = ['a', 'b', 'c', 'd', 'e'];
 			// Patch at line 1 replaces `b`. Additions repeat `b`, `c`, `d`.
 			// `c`, `d` are the lines following the deletion and would be duplicated.
-			const result = tryRemoveDuplicateAdditions(
+			const result = callDedup(
 				{
 					addedLines: ['B', 'c', 'd'],
 					removedLines: ['b'],
@@ -239,7 +260,7 @@ another_file.js:
 			// (k=3 only because the whole following matches), but the longest
 			// match wins to remove as much duplication as possible.
 			const fileLines = ['x', 'a', 'b', 'c'];
-			const result = tryRemoveDuplicateAdditions(
+			const result = callDedup(
 				{
 					addedLines: ['new', 'a', 'b', 'c'],
 					removedLines: [],
@@ -260,7 +281,7 @@ another_file.js:
 			//
 			// Patch at line 1 with no removals tries to add `existing line`.
 			const fileLines = ['header', 'existing line', 'trailer'];
-			const result = tryRemoveDuplicateAdditions(
+			const result = callDedup(
 				{
 					addedLines: ['existing line', 'extra'],
 					removedLines: [],
@@ -273,12 +294,13 @@ another_file.js:
 			expect(result?.removedLines).toEqual(['existing line']);
 		});
 
-		it('does not drop a single-character prefix (e.g. inner-scope `}`)', () => {
-			// Model legitimately closes an inner scope with `}`, and the next
-			// line happens to be the outer scope's `}`. This must NOT be
-			// treated as a duplicate.
-			const fileLines = ['function outer() {', '  inner();', '}', '}'];
-			const result = tryRemoveDuplicateAdditions(
+		it('drops a duplicate inner `}` when the patch is purely additive (headline bug fix)', () => {
+			// Headline bug case: file ends with a `}`, model emits an extra
+			// `}` addition with no removals at the same line. Adding it would
+			// produce two adjacent `}` where one is enough — this is a
+			// duplicate of the existing closing token and must be trimmed.
+			const fileLines = ['function f() {', '  doIt();', '}'];
+			const result = callDedup(
 				{
 					addedLines: ['}'],
 					removedLines: [],
@@ -286,12 +308,36 @@ another_file.js:
 				},
 				fileLines,
 			);
-			expect(result).toBeUndefined();
+			expect(result?.kind).toBe('suffix');
+			expect(result?.newAdditions).toEqual([]);
+			expect(result?.removedLines).toEqual(['}']);
+		});
+
+		it('drops a duplicate `}` even when the patch removes content first', () => {
+			// Restructure-shape variant of the headline bug. The previous
+			// guard preserved this case (k===addedLines.length, all
+			// non-meaningful, removedLines>0) on the rationale of "legitimate
+			// inner-scope close". In practice the result still has two
+			// adjacent `}` after applying — that's a duplicate. We always
+			// trim, accepting the rare false positive of a mid-typing
+			// unbalanced file where the model is correctly closing.
+			const fileLines = ['function outer() {', '  body();', '}'];
+			const result = callDedup(
+				{
+					addedLines: ['}'],
+					removedLines: ['  body();'],
+					lineNumZeroBased: 1,
+				},
+				fileLines,
+			);
+			expect(result?.kind).toBe('suffix');
+			expect(result?.newAdditions).toEqual([]);
+			expect(result?.removedLines).toEqual(['}']);
 		});
 
 		it('does not drop a leading whitespace-only duplicate', () => {
 			const fileLines = ['', '', 'existing'];
-			const result = tryRemoveDuplicateAdditions(
+			const result = callDedup(
 				{
 					addedLines: ['', 'first new line'],
 					removedLines: [],
@@ -302,10 +348,14 @@ another_file.js:
 			expect(result).toBeUndefined();
 		});
 
-		it('removes streamEdits-style middle duplicate', () => {
-			// additions partially copy continuation starting at offset 2.
+		it('removes streamEdits-style middle duplicate but preserves new content after the matched range', () => {
+			// Additions partially copy continuation starting at offset 2
+			// ('cont1 long', 'cont2 long' match the file's following lines),
+			// but 'extra' is genuinely new and must be preserved. The middle
+			// shape only drops the verified-equal range — not everything
+			// trailing.
 			const fileLines = ['x', 'cont1 long', 'cont2 long', 'y'];
-			const result = tryRemoveDuplicateAdditions(
+			const result = callDedup(
 				{
 					addedLines: ['new1', 'new2', 'cont1 long', 'cont2 long', 'extra'],
 					removedLines: [],
@@ -314,14 +364,32 @@ another_file.js:
 				fileLines,
 			);
 			expect(result?.kind).toBe('middle');
-			expect(result?.newAdditions).toEqual(['new1', 'new2']);
-			expect(result?.removedLines).toEqual(['cont1 long', 'cont2 long', 'extra']);
+			expect(result?.newAdditions).toEqual(['new1', 'new2', 'extra']);
+			expect(result?.removedLines).toEqual(['cont1 long', 'cont2 long']);
+		});
+
+		it('greedily extends a middle match while the streamEdits regenerated context continues', () => {
+			// When more than two consecutive following lines match, the
+			// match should extend to cover all of them so we drop the
+			// entire regenerated continuation block.
+			const fileLines = ['x', 'cont1 long', 'cont2 long', 'cont3 long', 'y'];
+			const result = callDedup(
+				{
+					addedLines: ['new1', 'new2', 'cont1 long', 'cont2 long', 'cont3 long', 'tail'],
+					removedLines: [],
+					lineNumZeroBased: 1,
+				},
+				fileLines,
+			);
+			expect(result?.kind).toBe('middle');
+			expect(result?.newAdditions).toEqual(['new1', 'new2', 'tail']);
+			expect(result?.removedLines).toEqual(['cont1 long', 'cont2 long', 'cont3 long']);
 		});
 
 		it('does not match a middle pair when the following lines are not meaningful', () => {
 			// Two consecutive blank lines are too common to safely match on.
 			const fileLines = ['x', '', '', 'y'];
-			const result = tryRemoveDuplicateAdditions(
+			const result = callDedup(
 				{
 					addedLines: ['new1', 'new2', '', '', 'extra'],
 					removedLines: [],
@@ -334,7 +402,7 @@ another_file.js:
 
 		it('returns undefined when no duplicate is detected', () => {
 			const fileLines = ['unrelated1', 'unrelated2'];
-			const result = tryRemoveDuplicateAdditions(
+			const result = callDedup(
 				{
 					addedLines: ['new1', 'new2'],
 					removedLines: [],
@@ -347,7 +415,7 @@ another_file.js:
 
 		it('returns undefined when there are no following lines', () => {
 			const fileLines = ['only line'];
-			const result = tryRemoveDuplicateAdditions(
+			const result = callDedup(
 				{
 					addedLines: ['new1'],
 					removedLines: ['only line'],
@@ -360,7 +428,7 @@ another_file.js:
 
 		it('returns undefined when there are no additions', () => {
 			const fileLines = ['a', 'b'];
-			const result = tryRemoveDuplicateAdditions(
+			const result = callDedup(
 				{
 					addedLines: [],
 					removedLines: ['a'],
@@ -374,7 +442,7 @@ another_file.js:
 		it('handles patch at the very end of the file (no following lines)', () => {
 			const fileLines = ['line0', 'line1'];
 			// Replacing the last line with no extra following content.
-			const result = tryRemoveDuplicateAdditions(
+			const result = callDedup(
 				{
 					addedLines: ['new1'],
 					removedLines: ['line1'],
@@ -395,7 +463,7 @@ another_file.js:
 			// The longest-matching suffix is k=2 (matches the 2-line following
 			// `[' }', '}']`), so only those last 2 lines should be removed.
 			const fileLines = ['  }', '}', 'nextLine'];
-			const result = tryRemoveDuplicateAdditions(
+			const result = callDedup(
 				{
 					addedLines: ['  newCode();', '  }', '}', '  }', '}'],
 					removedLines: [],
@@ -412,7 +480,7 @@ another_file.js:
 			// `splitLines('a\\nb\\nc')` returns ['a','b','c'] (no trailing empty).
 			// The dedup must still work correctly against this shape.
 			const fileLines = 'function foo() {\n    let x = 1;\n}'.split('\n');
-			const result = tryRemoveDuplicateAdditions(
+			const result = callDedup(
 				{
 					addedLines: ['    let x = 1;', '    let y = 2;', '}'],
 					removedLines: ['    let x = 1;'],
@@ -429,7 +497,7 @@ another_file.js:
 			// empty string can become a "following" line and must not cause
 			// false positives via the prefix/middle checks.
 			const fileLines = 'function foo() {\n    let x = 1;\n}\n'.split('\n');
-			const result = tryRemoveDuplicateAdditions(
+			const result = callDedup(
 				{
 					addedLines: ['    let x = 1;', '    let y = 2;', '}'],
 					removedLines: ['    let x = 1;'],
@@ -443,7 +511,7 @@ another_file.js:
 
 		it('returns undefined for an out-of-range lineNumZeroBased', () => {
 			const fileLines = ['a', 'b'];
-			const result = tryRemoveDuplicateAdditions(
+			const result = callDedup(
 				{
 					addedLines: ['x'],
 					removedLines: [],
@@ -455,9 +523,9 @@ another_file.js:
 		});
 	});
 
-	describe('handleResponse with removeDuplicates', () => {
+	describe('handleResponse with duplicateAdditionsMode', () => {
 
-		it('strips trailing duplicate addition when enabled', async () => {
+		it('strips trailing duplicate addition in Remove mode', async () => {
 			const docId = DocumentId.create('file:///test.ts');
 			const docContent = 'function foo() {\n    let x = 1;\n}\n';
 			const documentBeforeEdits = new CurrentDocument(new StringText(docContent), new Position(2, 1));
@@ -477,7 +545,7 @@ another_file.js:
 				undefined,
 				undefined,
 				new TestLogService(),
-				/* removeDuplicates */ true,
+				DuplicateAdditionsMode.Remove,
 			);
 
 			expect(edits).toHaveLength(1);
@@ -485,7 +553,7 @@ another_file.js:
 			expect(lineReplacement.newLines).toEqual(['    let x = 1;', '    let y = 2;']);
 		});
 
-		it('does not strip duplicates when flag is disabled (default)', async () => {
+		it('does not strip duplicates in Off mode (default)', async () => {
 			const docId = DocumentId.create('file:///test.ts');
 			const docContent = 'function foo() {\n    let x = 1;\n}\n';
 			const documentBeforeEdits = new CurrentDocument(new StringText(docContent), new Position(2, 1));
@@ -512,7 +580,44 @@ another_file.js:
 			expect(lineReplacement.newLines).toEqual(['    let x = 1;', '    let y = 2;', '}']);
 		});
 
-		it('drops a patch that becomes empty after dedup and returns FilteredOut', async () => {
+		it('Log mode reports detection but does not modify additions', async () => {
+			const docId = DocumentId.create('file:///test.ts');
+			const docContent = 'function foo() {\n    let x = 1;\n}\n';
+			const documentBeforeEdits = new CurrentDocument(new StringText(docContent), new Position(2, 1));
+
+			async function* makeStream(): AsyncGenerator<string> {
+				yield '/test.ts:1';
+				yield '-    let x = 1;';
+				yield '+    let x = 1;';
+				yield '+    let y = 2;';
+				yield '+}';
+			}
+
+			const seen: DuplicateAdditionRemoval[] = [];
+			const onDuplicateRemoved: OnDuplicateRemovedCallback = info => seen.push(info.removal);
+
+			const { edits } = await consumeHandleResponse(
+				makeStream(),
+				documentBeforeEdits,
+				docId,
+				undefined,
+				undefined,
+				new TestLogService(),
+				DuplicateAdditionsMode.Log,
+				onDuplicateRemoved,
+			);
+
+			expect(edits).toHaveLength(1);
+			// Additions are NOT modified in Log mode — the trailing `}` is kept.
+			const lineReplacement = edits[0].edit as LineReplacement;
+			expect(lineReplacement.newLines).toEqual(['    let x = 1;', '    let y = 2;', '}']);
+			// Detection is reported via the callback.
+			expect(seen).toHaveLength(1);
+			expect(seen[0].kind).toBe('suffix');
+			expect(seen[0].removedLines).toEqual(['}']);
+		});
+
+		it('returns NoSuggestions (not FilteredOut) when every patch is dropped by Remove dedup', async () => {
 			const docId = DocumentId.create('file:///test.ts');
 			const docContent = 'function foo() {\n    let x = 1;\n    let y = 2;\n}\n';
 			const documentBeforeEdits = new CurrentDocument(new StringText(docContent), new Position(1, 1));
@@ -524,6 +629,9 @@ another_file.js:
 				yield '+    let x = 1;';
 			}
 
+			const seen: DuplicateAdditionRemoval[] = [];
+			const onDuplicateRemoved: OnDuplicateRemovedCallback = info => seen.push(info.removal);
+
 			const { edits, returnValue } = await consumeHandleResponse(
 				makeStream(),
 				documentBeforeEdits,
@@ -531,14 +639,18 @@ another_file.js:
 				undefined,
 				undefined,
 				new TestLogService(),
-				/* removeDuplicates */ true,
+				DuplicateAdditionsMode.Remove,
+				onDuplicateRemoved,
 			);
 
 			expect(edits).toHaveLength(0);
-			expect(returnValue).toBeInstanceOf(NoNextEditReason.FilteredOut);
+			// No more FilteredOut: cache and cursor-jump retry are preserved.
+			expect(returnValue).toBeInstanceOf(NoNextEditReason.NoSuggestions);
+			// The dedup signal is still observable via the callback.
+			expect(seen).toHaveLength(1);
 		});
 
-		it('returns NoSuggestions (not FilteredOut) when the model produces no edits at all', async () => {
+		it('returns NoSuggestions when the model produces no edits at all', async () => {
 			const docId = DocumentId.create('file:///test.ts');
 			const documentBeforeEdits = new CurrentDocument(new StringText('a\nb\n'), new Position(1, 1));
 
@@ -553,7 +665,7 @@ another_file.js:
 				undefined,
 				undefined,
 				new TestLogService(),
-				/* removeDuplicates */ true,
+				DuplicateAdditionsMode.Remove,
 			);
 
 			expect(edits).toHaveLength(0);
@@ -582,12 +694,10 @@ another_file.js:
 				undefined,
 				undefined,
 				new TestLogService(),
-				/* removeDuplicates */ true,
+				DuplicateAdditionsMode.Remove,
 			);
 
 			expect(edits).toHaveLength(1);
-			// Mixed: one yielded, one dropped — should still report NoSuggestions
-			// since at least one edit was produced.
 			expect(returnValue).toBeInstanceOf(NoNextEditReason.NoSuggestions);
 		});
 
@@ -612,7 +722,7 @@ another_file.js:
 				undefined,
 				undefined,
 				new TestLogService(),
-				/* removeDuplicates */ true,
+				DuplicateAdditionsMode.Remove,
 			);
 
 			expect(edits).toHaveLength(1);
