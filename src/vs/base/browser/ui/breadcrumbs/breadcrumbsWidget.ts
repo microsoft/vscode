@@ -235,7 +235,7 @@ export class BreadcrumbsWidget {
 	}
 
 	revealLast(): void {
-		this._reveal(this._items.length - 1, true);
+		this._reveal(this._items.length - 1, false);
 	}
 
 	private _reveal(nth: number, minimal: boolean): void {
@@ -248,6 +248,9 @@ export class BreadcrumbsWidget {
 		}
 		const { width } = this._scrollable.getScrollDimensions();
 		const { scrollLeft } = this._scrollable.getScrollPosition();
+		if (node.offsetLeft === scrollLeft) {
+			return;
+		}
 		if (!minimal || node.offsetLeft > scrollLeft + width || node.offsetLeft < scrollLeft) {
 			this._scrollable.setRevealOnScroll(false);
 			this._scrollable.setScrollPosition({ scrollLeft: node.offsetLeft });

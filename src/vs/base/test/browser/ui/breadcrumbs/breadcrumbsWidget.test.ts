@@ -12,7 +12,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../common/utils.j
 suite('BreadcrumbsWidget', function () {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('revealLast uses minimal reveal', function () {
+	test('revealLast avoids redundant scroll update when aligned', function () {
 		class TestBreadcrumbItem extends BreadcrumbsItem {
 			constructor(private readonly value: string) {
 				super();
@@ -47,14 +47,33 @@ suite('BreadcrumbsWidget', function () {
 
 		widget.setItems([new TestBreadcrumbItem('one'), new TestBreadcrumbItem('two')]);
 
-		let minimalParamValue: boolean | undefined;
-		const widgetWithReveal = widget as unknown as { _reveal: (nth: number, minimal: boolean) => void };
-		widgetWithReveal._reveal = (_nth: number, minimal: boolean) => {
-			minimalParamValue = minimal;
+		const widgetWithInternals = widget as unknown as {
+			_nodes: HTMLDivElement[];
+			_scrollable: {
+				getScrollDimensions: () => { width: number };
+				getScrollPosition: () => { scrollLeft: number };
+				setScrollPosition: (position: { scrollLeft: number }) => void;
+				setRevealOnScroll: (value: boolean) => void;
+			};
+		};
+		let setScrollPositionCallCount = 0;
+		let revealOnScrollCallCount = 0;
+		let scrollLeft = 40;
+		const lastNode = widgetWithInternals._nodes[widgetWithInternals._nodes.length - 1];
+		Object.defineProperty(lastNode, 'offsetLeft', { value: scrollLeft });
+		widgetWithInternals._scrollable.getScrollDimensions = () => ({ width: 100 });
+		widgetWithInternals._scrollable.getScrollPosition = () => ({ scrollLeft });
+		widgetWithInternals._scrollable.setScrollPosition = position => {
+			setScrollPositionCallCount++;
+			scrollLeft = position.scrollLeft;
+		};
+		widgetWithInternals._scrollable.setRevealOnScroll = () => {
+			revealOnScrollCallCount++;
 		};
 
 		widget.revealLast();
 
-		assert.strictEqual(minimalParamValue, true);
+		assert.strictEqual(setScrollPositionCallCount, 0);
+		assert.strictEqual(revealOnScrollCallCount, 0);
 	});
 });
