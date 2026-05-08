@@ -58,7 +58,6 @@ export class ChatInputNotificationContribution extends Disposable {
 	private _update(): void {
 		// When the user signs out, dismiss any active notification and reset thresholds.
 		if (!this._authService.anyGitHubSession) {
-			console.log('[ChatInputNotification] No GitHub session — bailing out');
 			this._shownQuotaThresholds.clear();
 			this._shownSessionThresholds.clear();
 			this._shownWeeklyThresholds.clear();
