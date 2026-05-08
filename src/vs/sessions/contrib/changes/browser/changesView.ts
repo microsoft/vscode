@@ -205,11 +205,7 @@ class ChangesButtonBarWidget extends Disposable {
 			if (!hasGitOperationInProgress) {
 				return { showIcon: true, showLabel: true, isSecondary: false, customLabel: labelWithCount };
 			}
-			const customLabelObs = derived(reader => {
-				const running = runningLabelObs.read(reader);
-				return `$(loading) ${running ?? labelWithCount}`;
-			});
-			return { showIcon: false, showLabel: true, isSecondary: false, customLabelObs };
+			return { showIcon: false, showLabel: true, isSecondary: false, customLabel: `$(loading) ${labelWithCount}` };
 		}
 		if (
 			action.id === 'github.copilot.claude.sessions.sync' ||
