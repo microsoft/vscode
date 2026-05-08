@@ -198,6 +198,9 @@ export interface IReadonlyEditorGroupModel {
 	collapseTabGroup?(groupId: string): void;
 	expandTabGroup?(groupId: string): void;
 	addToTabGroup?(groupId: string, editor: EditorInput): void;
+	renameTabGroup?(groupId: string, name: string): void;
+	recolorTabGroup?(groupId: string, color: string): void;
+	dissolveTabGroup?(groupId: string): void;
 }
 
 interface IEditorGroupModel extends IReadonlyEditorGroupModel {

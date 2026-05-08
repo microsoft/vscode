@@ -49,6 +49,7 @@ import { isSafari } from '../../../../base/browser/browser.js';
 import { equals } from '../../../../base/common/objects.js';
 import { EditorActivation, IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { UNLOCK_GROUP_COMMAND_ID } from './editorCommands.js';
+import { Action, Separator } from '../../../../base/common/actions.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { ITreeViewsDnDService } from '../../../../editor/common/services/treeViewsDndService.js';
 import { DraggedTreeItemsIdentifier } from '../../../../editor/common/services/treeViewsDnd.js';
@@ -1649,6 +1650,12 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				}
 			});
 
+			// Context menu on group header
+			header.addEventListener('contextmenu', (e: MouseEvent) => {
+				EventHelper.stop(e, true);
+				this.showTabGroupHeaderContextMenu(group, header!, e);
+			});
+
 			this.tabGroupHeaders.set(group.id, header);
 		}
 
@@ -1687,6 +1694,58 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			case 'gray': return '#757575';
 			default: return '#1e88e5';
 		}
+	}
+
+	private showTabGroupHeaderContextMenu(group: IEditorTabGroup, header: HTMLElement, e: MouseEvent): void {
+		const actions: (Action | Separator)[] = [];
+
+		if (group.collapsed) {
+			actions.push(new Action('tabGroup.expand', localize('expandTabGroup', "Expand Group"), '', true, () => {
+				this.tabsModel.expandTabGroup?.(group.id);
+			}));
+		} else {
+			actions.push(new Action('tabGroup.collapse', localize('collapseTabGroup', "Collapse Group"), '', true, () => {
+				this.tabsModel.collapseTabGroup?.(group.id);
+			}));
+		}
+
+		actions.push(new Separator());
+
+		actions.push(new Action('tabGroup.rename', localize('renameTabGroup', "Rename Group..."), '', true, async () => {
+			const name = await this.quickInputService.input({
+				placeHolder: localize('tabGroupRenamePlaceholder', "New name for the tab group"),
+				value: group.name
+			});
+			if (name !== undefined) {
+				this.tabsModel.renameTabGroup?.(group.id, name);
+			}
+		}));
+
+		const colors = ['red', 'blue', 'green', 'yellow', 'purple', 'orange', 'pink', 'gray'];
+		actions.push(new Action('tabGroup.recolor', localize('recolorTabGroup', "Change Color..."), '', true, async () => {
+			const picked = await this.quickInputService.pick(
+				colors.map(c => ({ label: c, picked: c === group.color })),
+				{ placeHolder: localize('tabGroupColorPlaceholder', "Choose a color for the tab group") }
+			);
+			if (picked) {
+				this.tabsModel.recolorTabGroup?.(group.id, picked.label);
+			}
+		}));
+
+		actions.push(new Separator());
+
+		actions.push(new Action('tabGroup.dissolve', localize('dissolveTabGroup', "Ungroup Tabs"), '', true, () => {
+			this.tabsModel.dissolveTabGroup?.(group.id);
+		}));
+
+		const anchor = new StandardMouseEvent(getWindow(header), e);
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => anchor,
+			getActions: () => actions,
+			onHide: () => {
+				dispose(actions.filter(a => a instanceof Action));
+			}
+		});
 	}
 
 	private redrawTab(editor: EditorInput, tabIndex: number, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel, tabLabel: IEditorInputLabel, tabActionBar: ActionBar): void {
