@@ -143,6 +143,7 @@ export interface IBrowserViewState {
 	certificateError: IBrowserViewCertificateError | undefined;
 	storageScope: BrowserViewStorageScope;
 	browserZoomIndex: number;
+	isElementSelectionActive: boolean;
 }
 
 export interface IBrowserViewNavigationEvent {
@@ -266,6 +267,8 @@ export interface IBrowserViewService {
 	onDynamicDidChangeFavicon(id: string): Event<IBrowserViewFaviconChangeEvent>;
 	onDynamicDidFindInPage(id: string): Event<IBrowserViewFindInPageResult>;
 	onDynamicDidClose(id: string): Event<void>;
+	onDynamicDidSelectElement(id: string): Event<IElementData>;
+	onDynamicDidChangeElementSelectionActive(id: string): Event<boolean>;
 
 	/**
 	 * Get all known browser views with their ownership and state information.
@@ -443,26 +446,14 @@ export interface IBrowserViewService {
 	getConsoleLogs(id: string): Promise<string>;
 
 	/**
-	 * Start element inspection mode in a browser view. Sets up a CDP overlay that
-	 * highlights elements on hover. When the user clicks an element, its data is
-	 * returned and the overlay is removed.
+	 * Toggle element selection mode in a browser view.
+	 * Element selections are delivered via {@link onDynamicDidSelectElement}.
+	 * State changes are delivered via {@link onDynamicDidChangeElementSelectionActive}.
+	 *
 	 * @param id The browser view identifier
-	 * @param cancellationId An identifier that can be passed to {@link cancel} to abort
-	 * @returns The inspected element data, or undefined if cancelled
+	 * @param enabled Whether to enable or disable. Omit to toggle.
 	 */
-	getElementData(id: string, cancellationId: number): Promise<IElementData | undefined>;
-
-	/**
-	 * Get element data for the currently focused element in the browser view.
-	 * @param id The browser view identifier
-	 * @returns The focused element's data, or undefined if no element is focused
-	 */
-	getFocusedElementData(id: string): Promise<IElementData | undefined>;
-
-	/**
-	 * Cancel an in-progress request.
-	 */
-	cancel(cancellationId: number): Promise<void>;
+	toggleElementSelection(id: string, enabled?: boolean): Promise<void>;
 
 	/**
 	 * Update the keybinding accelerators used in browser view context menus.

@@ -791,15 +791,30 @@ registerAction2(class MarkSessionAsDoneAction extends Action2 {
 			icon: Codicon.check,
 			precondition: ChatContextKeys.requestInProgress.negate(),
 			menu: [{
-				id: MenuId.ChatEditingSessionChangesToolbar,
+				id: MenuId.AgentsChangesToolbar,
 				group: 'navigation',
 				order: 1,
 				when: ContextKeyExpr.and(
 					IsSessionsWindowContext,
+					IsActiveSessionArchivedContext.negate(),
 					ActiveSessionContextKeys.HasGitRepository.isEqualTo(true),
-					ActiveSessionContextKeys.HasIncomingChanges.isEqualTo(false),
-					ActiveSessionContextKeys.HasOutgoingChanges.isEqualTo(false),
-					ActiveSessionContextKeys.HasUncommittedChanges.isEqualTo(false)
+					ContextKeyExpr.or(
+						// Merge scenario
+						ContextKeyExpr.and(
+							ActiveSessionContextKeys.IsMergeBaseBranchProtected.isEqualTo(false),
+							ActiveSessionContextKeys.HasIncomingChanges.isEqualTo(false),
+							ActiveSessionContextKeys.HasOutgoingChanges.isEqualTo(false),
+							ActiveSessionContextKeys.HasUncommittedChanges.isEqualTo(false)
+						),
+						// Pull-request scenario
+						ContextKeyExpr.and(
+							ActiveSessionContextKeys.IsMergeBaseBranchProtected.isEqualTo(true),
+							ActiveSessionContextKeys.HasPullRequest.isEqualTo(true),
+							ActiveSessionContextKeys.HasIncomingChanges.isEqualTo(false),
+							ActiveSessionContextKeys.HasOutgoingChanges.isEqualTo(false),
+							ActiveSessionContextKeys.HasUncommittedChanges.isEqualTo(false)
+						)
+					)
 				)
 			}]
 		});
@@ -812,6 +827,36 @@ registerAction2(class MarkSessionAsDoneAction extends Action2 {
 			return;
 		}
 		sessionsManagementService.archiveSession(activeSession);
+	}
+});
+
+registerAction2(class RestoreSessionAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'agentSession.restore',
+			title: localize2('restore', "Restore"),
+			icon: Codicon.discard,
+			menu: [{
+				id: MenuId.AgentsChangesToolbar,
+				group: 'navigation',
+				order: 1,
+				when: ContextKeyExpr.and(
+					IsSessionsWindowContext,
+					IsActiveSessionArchivedContext
+				)
+			}]
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		const activeSession = sessionsManagementService.activeSession.get();
+		if (!activeSession || activeSession.status.get() === SessionStatus.Untitled) {
+			return;
+		}
+
+		await sessionsManagementService.unarchiveSession(activeSession);
 	}
 });
 

@@ -63,17 +63,10 @@ function getSessionsWindowTrustNote(environmentService: IWorkbenchEnvironmentSer
 	if (!environmentService.isSessionsWindow) {
 		return undefined;
 	}
-	const parentAppName = productService.quality === 'stable'
-		? 'Visual Studio Code'
-		: productService.quality === 'insider'
-			? 'Visual Studio Code Insiders'
-			: productService.quality === 'exploration'
-				? 'Visual Studio Code Exploration'
-				: productService.nameLong;
 	if (isWorkspace) {
-		return localize('sessionsWindowWorkspaceTrustNote', "Trusting this workspace will also mark it as trusted in {0}.", parentAppName);
+		return localize('sessionsWindowWorkspaceTrustNote', "Trusting this workspace will also mark it as trusted in {0}.", productService.nameLong);
 	}
-	return localize('sessionsWindowFolderTrustNote', "Trusting this folder will also mark it as trusted in {0}.", parentAppName);
+	return localize('sessionsWindowFolderTrustNote', "Trusting this folder will also mark it as trusted in {0}.", productService.nameLong);
 }
 
 export class WorkspaceTrustContextKeys extends Disposable implements IWorkbenchContribution {

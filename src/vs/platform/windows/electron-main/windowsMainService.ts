@@ -17,7 +17,7 @@ import { Disposable, DisposableStore, IDisposable } from '../../../base/common/l
 import { Schemas } from '../../../base/common/network.js';
 import { basename, join, normalize, posix } from '../../../base/common/path.js';
 import { getMarks, mark } from '../../../base/common/performance.js';
-import { INodeProcess, IProcessEnvironment, isMacintosh, isWindows, OS } from '../../../base/common/platform.js';
+import { IProcessEnvironment, isMacintosh, isWindows, OS } from '../../../base/common/platform.js';
 import { cwd } from '../../../base/common/process.js';
 import { extUriBiasedIgnorePathCase, isEqual, isEqualAuthority, normalizePath, originalFSPath, removeTrailingPathSeparator } from '../../../base/common/resources.js';
 import { assertReturnsDefined } from '../../../base/common/types.js';
@@ -334,12 +334,6 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	async open(openConfig: IOpenConfiguration): Promise<ICodeWindow[]> {
 		this.logService.trace('windowsManager#open');
 
-		// Take care of agents app specially
-		const isAgentsApp = (process as INodeProcess).isEmbeddedApp;
-		if (isAgentsApp) {
-			openConfig = await this.ensureAgentsWindow(openConfig);
-		}
-
 		// Make sure addMode/removeMode is only enabled if we have an active window
 		if ((openConfig.addMode || openConfig.removeMode) && (openConfig.initialStartup || !this.getLastActiveWindow())) {
 			openConfig.addMode = false;
@@ -408,7 +402,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		}
 
 		// These are windows to restore because of hot-exit or from previous session (only performed once on startup!)
-		if (openConfig.initialStartup && !isAgentsApp /* skipped for agents app */) {
+		if (openConfig.initialStartup) {
 
 			// Untitled workspaces are always restored
 			untitledWorkspacesToRestore.push(...this.workspacesManagementMainService.getUntitledWorkspaces());
@@ -498,9 +492,6 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		// Handle `<app> chat`
 		this.handleChatRequest(openConfig, usedWindows);
 
-		// Handle `<app> --open-chat-session`
-		this.handleOpenChatSession(openConfig, usedWindows);
-
 		return usedWindows;
 	}
 
@@ -542,17 +533,6 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			windowHandlingChatRequest.sendWhenReady('vscode:handleChatRequest', CancellationToken.None, openConfig.cli.chat);
 			windowHandlingChatRequest.focus();
 		}
-	}
-
-	private handleOpenChatSession(openConfig: IOpenConfiguration, usedWindows: ICodeWindow[]): void {
-		const sessionUri = openConfig.cli['open-chat-session'];
-		if (!sessionUri || usedWindows.length === 0) {
-			return;
-		}
-
-		const window = usedWindows[0];
-		window.sendWhenReady('vscode:openChatSession', CancellationToken.None, sessionUri);
-		window.focus();
 	}
 
 	private async doOpen(
@@ -785,23 +765,31 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		return window;
 	}
 
+	private resolveContextWindow(openConfig: IOpenConfiguration, forceNewWindow: boolean): { windowToUse: ICodeWindow | undefined; forceNewWindow: boolean } {
+		if (!forceNewWindow && typeof openConfig.contextWindowId === 'number') {
+			const contextWindow = this.getWindowById(openConfig.contextWindowId);
+			if (contextWindow?.config?.isSessionsWindow) {
+				return { windowToUse: undefined, forceNewWindow: true }; // do not replace the agents window
+			}
+			return { windowToUse: contextWindow, forceNewWindow };
+		}
+		return { windowToUse: undefined, forceNewWindow };
+	}
+
 	private doOpenEmpty(openConfig: IOpenConfiguration, forceNewWindow: boolean, remoteAuthority: string | undefined, filesToOpen: IFilesToOpen | undefined, emptyWindowBackupInfo?: IEmptyWindowBackupInfo): Promise<ICodeWindow> {
 		this.logService.trace('windowsManager#doOpenEmpty', { restore: !!emptyWindowBackupInfo, remoteAuthority, filesToOpen, forceNewWindow });
 
-		let windowToUse: ICodeWindow | undefined;
-		if (!forceNewWindow && typeof openConfig.contextWindowId === 'number') {
-			windowToUse = this.getWindowById(openConfig.contextWindowId); // fix for https://github.com/microsoft/vscode/issues/97172
-		}
+		const resolved = this.resolveContextWindow(openConfig, forceNewWindow);
 
 		return this.openInBrowserWindow({
 			userEnv: openConfig.userEnv,
 			cli: openConfig.cli,
 			initialStartup: openConfig.initialStartup,
 			remoteAuthority,
-			forceNewWindow,
+			forceNewWindow: resolved.forceNewWindow,
 			forceNewTabbedWindow: openConfig.forceNewTabbedWindow,
 			filesToOpen,
-			windowToUse,
+			windowToUse: resolved.windowToUse,
 			emptyWindowBackupInfo,
 			forceProfile: openConfig.forceProfile,
 			forceTempProfile: openConfig.forceTempProfile
@@ -811,8 +799,10 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	private doOpenFolderOrWorkspace(openConfig: IOpenConfiguration, folderOrWorkspace: IWorkspacePathToOpen | ISingleFolderWorkspacePathToOpen, forceNewWindow: boolean, filesToOpen: IFilesToOpen | undefined, windowToUse?: ICodeWindow): Promise<ICodeWindow> {
 		this.logService.trace('windowsManager#doOpenFolderOrWorkspace', { folderOrWorkspace, filesToOpen });
 
-		if (!forceNewWindow && !windowToUse && typeof openConfig.contextWindowId === 'number') {
-			windowToUse = this.getWindowById(openConfig.contextWindowId); // fix for https://github.com/microsoft/vscode/issues/49587
+		if (!windowToUse) {
+			const resolved = this.resolveContextWindow(openConfig, forceNewWindow);
+			windowToUse = resolved.windowToUse;
+			forceNewWindow = resolved.forceNewWindow;
 		}
 
 		return this.openInBrowserWindow({
@@ -1526,7 +1516,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 		let window: ICodeWindow | undefined;
 		if (!options.forceNewWindow && !options.forceNewTabbedWindow) {
-			window = options.windowToUse || lastActiveWindow;
+			window = options.windowToUse || (lastActiveWindow?.config?.isSessionsWindow ? undefined : lastActiveWindow);
 			if (window) {
 				window.focus();
 			}
@@ -1570,9 +1560,6 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			homeDir: this.environmentMainService.userHome.with({ scheme: Schemas.file }).fsPath,
 			tmpDir: this.environmentMainService.tmpDir.with({ scheme: Schemas.file }).fsPath,
 			userDataDir: this.environmentMainService.userDataPath,
-			isEmbeddedApp: this.environmentMainService.isEmbeddedApp,
-			parentAppUserDataDir: this.environmentMainService.parentAppUserRoamingDataHome?.with({ scheme: Schemas.file }).fsPath,
-			parentAppUserHomeDir: this.environmentMainService.parentAppUserHome?.with({ scheme: Schemas.file }).fsPath,
 
 			remoteAuthority: options.remoteAuthority,
 			workspace: options.workspace,
@@ -1618,7 +1605,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			const createdWindow = window = this.instantiationService.createInstance(CodeWindow, {
 				state,
 				extensionDevelopmentPath: configuration.extensionDevelopmentPath,
-				isExtensionTestHost: !!configuration.extensionTestsPath
+				isExtensionTestHost: !!configuration.extensionTestsPath,
+				isSessionsWindow: configuration.isSessionsWindow
 			});
 			mark('code/didCreateCodeWindow');
 

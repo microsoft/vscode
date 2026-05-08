@@ -62,6 +62,7 @@ export class ChatTitleProvider implements vscode.ChatTitleProvider {
 				location: ChatLocation.Panel,
 				userInitiatedRequest: false,
 				isConversationRequest: false,
+				interactionTypeOverride: 'conversation-background',
 			}, token);
 			return response;
 		};

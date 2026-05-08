@@ -155,6 +155,10 @@ class AgentHostServiceClient extends Disposable implements IAgentHostService {
 	completions(params: CompletionsParams): Promise<CompletionsResult> {
 		return this._proxy.completions(params);
 	}
+	getCompletionTriggerCharacters(): Promise<readonly string[]> {
+		return this._completionTriggerCharactersOnce ??= this._proxy.getCompletionTriggerCharacters();
+	}
+	private _completionTriggerCharactersOnce: Promise<readonly string[]> | undefined;
 	disposeSession(session: URI): Promise<void> {
 		return this._proxy.disposeSession(session);
 	}
