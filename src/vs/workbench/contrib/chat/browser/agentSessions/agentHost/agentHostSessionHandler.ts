@@ -614,6 +614,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 							type: 'response',
 							parts: [],
 							participant: this._config.agentId,
+							details: lookup.toModelDisplayName(activeRawModelId),
 						});
 						initialProgress = activeTurnToProgress(resolvedSession, sessionState.activeTurn, this._config.connectionAuthority);
 						this._logService.info(`[AgentHost] Reconnecting to active turn ${activeTurnId} for session ${resolvedSession.toString()}`);
@@ -2470,7 +2471,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				if (!modelId) {
 					return undefined;
 				}
-				return this._languageModelsService.lookupLanguageModel(modelId)?.name;
+				const model = this._languageModelsService.lookupLanguageModel(modelId);
+				if (!model) {
+					return undefined;
+				}
+				return [model.name, model.pricing].filter(Boolean).join(' · ');
 			},
 		};
 	}
