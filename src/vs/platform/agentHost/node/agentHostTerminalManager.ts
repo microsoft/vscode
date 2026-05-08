@@ -22,10 +22,12 @@ import type { CreateTerminalParams } from '../common/state/protocol/commands.js'
 import { TerminalClaim, TerminalContentPart, TerminalInfo, TerminalState, TerminalClaimKind } from '../common/state/protocol/state.js';
 import { isTerminalAction } from '../common/state/sessionActions.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
+import { AgentHostHeadlessTerminal } from './agentHostHeadlessTerminal.js';
 import type { AgentHostStateManager } from './agentHostStateManager.js';
 import { Osc633Event, Osc633EventType, Osc633Parser } from './osc633Parser.js';
 
 const WAIT_FOR_PROMPT_TIMEOUT = 10_000;
+const HEADLESS_TERMINAL_SCROLLBACK = 0;
 
 export const IAgentHostTerminalManager = createDecorator<IAgentHostTerminalManager>('agentHostTerminalManager');
 
@@ -96,6 +98,7 @@ interface IManagedTerminal {
 	claim: TerminalClaim;
 	exitCode?: number;
 	commandTracker?: ICommandTracker;
+	headlessTerminal?: AgentHostHeadlessTerminal;
 }
 
 /**
@@ -287,6 +290,12 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 		const onExitEmitter = store.add(new Emitter<number>());
 		const onClaimChangedEmitter = store.add(new Emitter<TerminalClaim>());
 		const onCommandFinishedEmitter = store.add(new Emitter<ICommandFinishedEvent>());
+		const headlessTerminal = store.add(new AgentHostHeadlessTerminal({
+			cols,
+			rows,
+			scrollback: HEADLESS_TERMINAL_SCROLLBACK,
+			logService: this._logService,
+		}));
 
 		const managed: IManagedTerminal = {
 			uri,
@@ -304,9 +313,18 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 			contentSize: 0,
 			claim,
 			commandTracker,
+			headlessTerminal,
 		};
 
 		this._terminals.set(uri, managed);
+		store.add(headlessTerminal.onResponseData(data => {
+			this._logService.debug(`[TerminalManager] Writing headless terminal response for ${uri}: ${JSON.stringify(data)}`);
+			try {
+				ptyProcess.write(data);
+			} catch (err) {
+				this._logService.debug(`[TerminalManager] Failed to write headless terminal response for ${uri}: ${err instanceof Error ? err.message : String(err)}`);
+			}
+		}));
 
 		// Wire PTY events → protocol events
 		store.add(toDisposable(() => {
@@ -315,6 +333,7 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 
 		const onFirstData = new DeferredPromise<void>();
 		const dataListener = ptyProcess.onData(rawData => {
+			void managed.headlessTerminal?.writePtyData(rawData);
 			this._handlePtyData(managed, rawData);
 			onFirstData.complete();
 		});
@@ -441,6 +460,7 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 			terminal.cols = cols;
 			terminal.rows = rows;
 			terminal.pty.resize(cols, rows);
+			terminal.headlessTerminal?.resize(cols, rows);
 		}
 	}
 
@@ -469,6 +489,7 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 		if (terminal) {
 			terminal.content = [];
 			terminal.contentSize = 0;
+			terminal.headlessTerminal?.clear();
 		}
 	}
 
