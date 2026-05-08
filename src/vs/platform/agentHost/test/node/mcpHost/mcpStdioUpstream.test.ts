@@ -18,6 +18,9 @@ import { McpStdioUpstream, type StdioSpawn } from '../../../node/mcpHost/mcpStdi
 interface IFakeChild extends ChildProcessWithoutNullStreams {
 	_emitStdout(line: string): void;
 	_emitStderr(line: string): void;
+	_emitStdoutRaw(chunk: string): void;
+	_emitStderrRaw(chunk: string): void;
+	_emitError(err: Error): void;
 	_exit(code: number | null, signal?: NodeJS.Signals | null): void;
 	_killCalls: number;
 }
@@ -45,7 +48,16 @@ function createFakeChild(): IFakeChild {
 	};
 	fake._emitStdout = line => stdout.write(line + '\n');
 	fake._emitStderr = line => stderr.write(line + '\n');
-	fake._exit = (code, signal) => ee.emit('exit', code, signal ?? null);
+	fake._emitStdoutRaw = chunk => stdout.write(chunk);
+	fake._emitStderrRaw = chunk => stderr.write(chunk);
+	fake._emitError = err => ee.emit('error', err);
+	fake._exit = (code, signal) => {
+		// Real child processes close stdio on exit; the splitter pipeline
+		// only flushes a trailing partial line once its source stream ends.
+		stdout.end();
+		stderr.end();
+		ee.emit('exit', code, signal ?? null);
+	};
 	return fake;
 }
 
@@ -240,6 +252,56 @@ suite('McpStdioUpstream', () => {
 			assert.strictEqual(result.kind === McpServerStatusKind.Error && result.error.errorType, 'spawnFailed');
 			assert.ok(result.kind === McpServerStatusKind.Error && /ENOENT/.test(result.error.message));
 		} finally {
+			upstream.dispose();
+		}
+	});
+
+	test('asynchronous child error transitions status to Error', async () => {
+		const { upstream, childRef } = makeUpstream();
+		try {
+			const synchronousStart = await upstream.start();
+			assert.strictEqual(synchronousStart.kind, McpServerStatusKind.Ready);
+
+			// Fire the error asynchronously, after start() returned.
+			await new Promise<void>(resolve => setImmediate(() => {
+				childRef.current!._emitError(new Error('spawn ENOENT: bogus-mcp-server'));
+				resolve();
+			}));
+			await timeout(0);
+
+			const status = upstream.status.get();
+			assert.strictEqual(status.kind, McpServerStatusKind.Error);
+			if (status.kind === McpServerStatusKind.Error) {
+				assert.strictEqual(status.error.errorType, 'spawnFailed');
+				assert.match(status.error.message, /ENOENT/);
+			}
+			await assert.rejects(
+				upstream.send({ jsonrpc: '2.0', id: 1, method: 'ping' }),
+				/cannot send while in state 'error'/,
+			);
+		} finally {
+			upstream.dispose();
+		}
+	});
+
+	test('delivers a final unterminated stdout line on child exit', async () => {
+		const store = new DisposableStore();
+		const { upstream, childRef } = makeUpstream();
+		try {
+			const got: unknown[] = [];
+			store.add(upstream.onMessage(m => got.push(m)));
+			await upstream.start();
+			// Partial line without a trailing newline. `StreamSplitter._flush`
+			// emits it on stream end, so the consumer still sees the message
+			// even when the child crashes mid-line.
+			childRef.current!._emitStdoutRaw('{"jsonrpc":"2.0","id":1,"result":{}}');
+			childRef.current!._exit(0);
+			// Stream-end → `StreamSplitter._flush` → final `data` event takes
+			// more than one event-loop turn through the PassThrough chain.
+			await timeout(10);
+			assert.deepStrictEqual(got, [{ jsonrpc: '2.0', id: 1, result: {} }]);
+		} finally {
+			store.dispose();
 			upstream.dispose();
 		}
 	});

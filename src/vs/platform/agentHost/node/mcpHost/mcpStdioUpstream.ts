@@ -9,6 +9,7 @@ import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { observableValue, type IObservable } from '../../../../base/common/observable.js';
 import type { JsonRpcMessage } from '../../../../base/common/jsonRpcProtocol.js';
 import type { ILogger } from '../../../log/common/log.js';
+import { StreamSplitter } from '../../../../base/node/nodeStreams.js';
 import type { IMcpStdioServerConfiguration } from '../../../mcp/common/mcpPlatformTypes.js';
 import { McpServerStatusKind, type McpServerStatus } from '../../common/state/protocol/state.js';
 import { McpStdioStateHandler } from './mcpStdioStateHandler.js';
@@ -51,8 +52,6 @@ export class McpStdioUpstream extends Disposable implements IMcpUpstream {
 	private readonly _spawn: StdioSpawn;
 
 	private _stateHandler: McpStdioStateHandler | undefined;
-	private _stdoutBuffer = '';
-	private _stderrBuffer = '';
 	private _disposed = false;
 	private _stopRequested = false;
 
@@ -137,14 +136,25 @@ export class McpStdioUpstream extends Disposable implements IMcpUpstream {
 	}
 
 	private _wireChild(child: ChildProcessWithoutNullStreams): void {
-		child.stdout.setEncoding('utf8');
-		child.stderr.setEncoding('utf8');
-
-		child.stdout.on('data', (chunk: string) => this._onStdoutChunk(chunk));
-		child.stderr.on('data', (chunk: string) => this._onStderrChunk(chunk));
+		// `StreamSplitter` emits one chunk per `\n`-delimited line and also
+		// flushes any unterminated trailing chunk on stream end, so we don't
+		// have to keep our own line buffer or hand-roll an exit-time flush.
+		child.stdout.pipe(new StreamSplitter('\n')).on('data', (chunk: Buffer) => this._onStdoutLine(chunk)).resume();
+		child.stderr.pipe(new StreamSplitter('\n')).on('data', (chunk: Buffer) => this._onStderrLine(chunk)).resume();
 
 		child.on('error', (err: Error) => {
 			this._logger.error(`McpStdioUpstream: child error: ${err.message}`);
+			if (this._disposed || this._stopRequested) {
+				return;
+			}
+			const current = this._status.get();
+			if (current.kind === McpServerStatusKind.Error || current.kind === McpServerStatusKind.Stopped) {
+				return;
+			}
+			this._status.set({
+				kind: McpServerStatusKind.Error,
+				error: { errorType: 'spawnFailed', message: err.message },
+			}, undefined);
 		});
 
 		child.on('exit', (code: number | null, signal: NodeJS.Signals | null) => {
@@ -152,37 +162,26 @@ export class McpStdioUpstream extends Disposable implements IMcpUpstream {
 		});
 	}
 
-	private _onStdoutChunk(chunk: string): void {
-		this._stdoutBuffer += chunk;
-		let nlIndex: number;
-		while ((nlIndex = this._stdoutBuffer.indexOf('\n')) >= 0) {
-			const line = this._stdoutBuffer.slice(0, nlIndex);
-			this._stdoutBuffer = this._stdoutBuffer.slice(nlIndex + 1);
-			const trimmed = line.trim();
-			if (!trimmed) {
-				continue;
-			}
-			let parsed: JsonRpcMessage;
-			try {
-				parsed = JSON.parse(trimmed) as JsonRpcMessage;
-			} catch (err) {
-				const message = err instanceof Error ? err.message : String(err);
-				this._logger.error(`McpStdioUpstream: failed to parse stdout line: ${message}`);
-				continue;
-			}
-			this._onMessage.fire(parsed);
+	private _onStdoutLine(chunk: Buffer): void {
+		const trimmed = chunk.toString('utf8').trimEnd();
+		if (!trimmed) {
+			return;
 		}
+		let parsed: JsonRpcMessage;
+		try {
+			parsed = JSON.parse(trimmed) as JsonRpcMessage;
+		} catch (err) {
+			const message = err instanceof Error ? err.message : String(err);
+			this._logger.error(`McpStdioUpstream: failed to parse stdout line: ${message}`);
+			return;
+		}
+		this._onMessage.fire(parsed);
 	}
 
-	private _onStderrChunk(chunk: string): void {
-		this._stderrBuffer += chunk;
-		let nlIndex: number;
-		while ((nlIndex = this._stderrBuffer.indexOf('\n')) >= 0) {
-			const line = this._stderrBuffer.slice(0, nlIndex);
-			this._stderrBuffer = this._stderrBuffer.slice(nlIndex + 1);
-			if (line.length > 0) {
-				this._logger.info(`McpStdioUpstream[stderr]: ${line}`);
-			}
+	private _onStderrLine(chunk: Buffer): void {
+		const text = chunk.toString('utf8').trimEnd();
+		if (text.length > 0) {
+			this._logger.info(`McpStdioUpstream[stderr]: ${text}`);
 		}
 	}
 

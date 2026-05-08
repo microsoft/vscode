@@ -414,6 +414,33 @@ suite('McpHostServiceImpl', () => {
 		});
 	});
 
+	test('deliverResponse dispatches mcp/messageRemoved even when proxy delivery fails', async () => {
+		const h = setupHarness(disposables);
+		h.service.setSessionServers(h.session, [stdioDef('foo')]);
+		await waitForCreate(h.factory);
+
+		const resource = buildMcpServerUri(h.session, 'foo');
+		const proxy = h.factory.proxies[0];
+		// Make the proxy's deliverClientResponse throw (e.g. because it
+		// has been disposed, or because the upstream is gone).
+		proxy.deliverClientResponse = () => {
+			throw new Error('proxy disposed');
+		};
+
+		const call: McpRpcCall = { kind: McpRpcMessageKind.Call, method: 'sampling/createMessage', request: { messages: [] }, response: undefined };
+		const messageId = h.factory.created[0].options.onUpstreamMessage(call);
+
+		h.envelopes.length = 0;
+		const response: McpRpcCallResponse = { jsonrpc: '2.0', id: 'unused', result: { content: [] } };
+		// Should not re-throw — the failure is captured and logged.
+		assert.doesNotThrow(() => h.service.deliverResponse(resource, messageId, response));
+
+		assert.deepStrictEqual(
+			h.envelopes.map(e => e.action.type),
+			[ActionType.McpMessageRemoved],
+		);
+	});
+
 	test('upstream notification fires messageReceived then messageRemoved synchronously', async () => {
 		const h = setupHarness(disposables);
 		h.service.setSessionServers(h.session, [stdioDef('foo')]);

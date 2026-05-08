@@ -231,9 +231,7 @@ export class McpHttpUpstream extends Disposable implements IMcpUpstream {
 
 	public setBearerToken(token: string | undefined): void {
 		this._bearerToken = token;
-		if (token) {
-			this._hadPriorToken = true;
-		}
+		this._hadPriorToken = !!token;
 	}
 
 	public setUpstreamCapabilities(caps: IMcpUpstreamCapabilities | undefined): void {
@@ -260,7 +258,11 @@ export class McpHttpUpstream extends Disposable implements IMcpUpstream {
 		const challenge = parseWwwAuthenticate(response.headers.get('WWW-Authenticate') ?? undefined);
 		let resource: ProtectedResourceMetadata | undefined;
 		if (challenge.resourceMetadataUrl) {
-			resource = await this._fetchResourceMetadata(challenge.resourceMetadataUrl);
+			if (this._isSafeMetadataUrl(challenge.resourceMetadataUrl)) {
+				resource = await this._fetchResourceMetadata(challenge.resourceMetadataUrl);
+			} else {
+				this._logger.warn(`McpHttpUpstream: ignoring resource_metadata URL '${challenge.resourceMetadataUrl}' — not at the same origin/scheme as ${this._config.url}`);
+			}
 		}
 		if (!resource) {
 			this._logger.warn(`McpHttpUpstream: server returned ${httpStatus} without usable resource_metadata; synthesizing minimal metadata for ${this._config.url}`);
@@ -274,23 +276,56 @@ export class McpHttpUpstream extends Disposable implements IMcpUpstream {
 		});
 	}
 
-	private async _fetchResourceMetadata(url: string): Promise<ProtectedResourceMetadata | undefined> {
+	/**
+	 * RFC 9728 expects the protected-resource metadata to live at the same
+	 * authority as the protected resource. We enforce that strictly to
+	 * prevent a malicious or misconfigured server from steering us into
+	 * fetching arbitrary URLs (e.g. cloud-metadata endpoints, intranet
+	 * services, `file:`/`javascript:`/`data:` URIs).
+	 */
+	private _isSafeMetadataUrl(metadataUrl: string): boolean {
+		let parsed: URL;
+		let configUrl: URL;
 		try {
-			const response = await this._fetch(url, {
-				method: 'GET',
-				headers: { 'Accept': 'application/json' },
-			});
-			if (response.status < 200 || response.status >= 300) {
-				this._logger.warn(`McpHttpUpstream: resource_metadata fetch returned HTTP ${response.status}`);
+			parsed = new URL(metadataUrl, this._config.url);
+			configUrl = new URL(this._config.url);
+		} catch {
+			return false;
+		}
+		if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+			return false;
+		}
+		// `host` includes hostname + port, so this enforces same authority.
+		return parsed.protocol === configUrl.protocol && parsed.host === configUrl.host;
+	}
+
+	private async _fetchResourceMetadata(url: string): Promise<ProtectedResourceMetadata | undefined> {
+		const ac = new AbortController();
+		return this._trackRequest(ac, async () => {
+			try {
+				const response = await this._fetch(url, {
+					method: 'GET',
+					headers: { 'Accept': 'application/json' },
+					signal: ac.signal,
+				});
+				if (this._disposed || ac.signal.aborted) {
+					return undefined;
+				}
+				if (response.status < 200 || response.status >= 300) {
+					this._logger.warn(`McpHttpUpstream: resource_metadata fetch returned HTTP ${response.status}`);
+					return undefined;
+				}
+				const text = await response.text();
+				return JSON.parse(text) as ProtectedResourceMetadata;
+			} catch (err) {
+				if (ac.signal.aborted) {
+					return undefined;
+				}
+				const message = err instanceof Error ? err.message : String(err);
+				this._logger.warn(`McpHttpUpstream: failed to fetch or parse resource_metadata: ${message}`);
 				return undefined;
 			}
-			const text = await response.text();
-			return JSON.parse(text) as ProtectedResourceMetadata;
-		} catch (err) {
-			const message = err instanceof Error ? err.message : String(err);
-			this._logger.warn(`McpHttpUpstream: failed to fetch or parse resource_metadata: ${message}`);
-			return undefined;
-		}
+		});
 	}
 
 	public override dispose(): void {

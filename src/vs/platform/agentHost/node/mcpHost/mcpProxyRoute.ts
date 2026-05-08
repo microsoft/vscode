@@ -83,11 +83,13 @@ export class McpProxyRoute extends Disposable {
 	private readonly _pendingUpstreamRequests = new Map<string, JsonRpcId>();
 
 	/**
-	 * Maps SDK JSON-RPC id (as a string for safe Map keys) → resolver. The
+	 * Maps SDK JSON-RPC id (as a string for safe Map keys) → entry. The
 	 * route forwards the SDK's request to the upstream and resolves the
-	 * promise once the upstream replies.
+	 * deferred once the upstream replies. The original {@link JsonRpcId}
+	 * is retained so disposal can complete the deferred with an error
+	 * response carrying the id the SDK actually sent (not `0`).
 	 */
-	private readonly _pendingSdkRequests = new Map<string, DeferredPromise<JsonRpcMessage>>();
+	private readonly _pendingSdkRequests = new Map<string, { id: JsonRpcId; deferred: DeferredPromise<JsonRpcMessage> }>();
 
 	/**
 	 * Set of SDK JSON-RPC ids (string-keyed) that the route has forwarded
@@ -194,7 +196,7 @@ export class McpProxyRoute extends Disposable {
 	private async _dispatchSdkRequest(request: IJsonRpcRequest): Promise<JsonRpcMessage> {
 		const key = String(request.id);
 		const deferred = new DeferredPromise<JsonRpcMessage>();
-		this._pendingSdkRequests.set(key, deferred);
+		this._pendingSdkRequests.set(key, { id: request.id, deferred });
 
 		const timeoutHandle = disposableTimeout(() => {
 			this._pendingSdkRequests.delete(key);
@@ -250,13 +252,13 @@ export class McpProxyRoute extends Disposable {
 			if (this._pendingInitializeIds.delete(key) && isJsonRpcSuccessResponse(message)) {
 				this._captureUpstreamCapabilities(message.result);
 			}
-			const deferred = this._pendingSdkRequests.get(key);
-			if (!deferred) {
+			const entry = this._pendingSdkRequests.get(key);
+			if (!entry) {
 				this._options.logger.warn(`McpProxyRoute: upstream response for unknown id '${key}'`);
 				return;
 			}
 			this._pendingSdkRequests.delete(key);
-			deferred.complete(message);
+			entry.deferred.complete(message);
 			return;
 		}
 		if (isJsonRpcNotification(message)) {
@@ -276,8 +278,8 @@ export class McpProxyRoute extends Disposable {
 			return;
 		}
 		this._disposed = true;
-		for (const deferred of this._pendingSdkRequests.values()) {
-			deferred.complete(jsonRpcError(0, RPC_INTERNAL_ERROR, 'Proxy route disposed'));
+		for (const { id, deferred } of this._pendingSdkRequests.values()) {
+			deferred.complete(jsonRpcError(id, RPC_INTERNAL_ERROR, 'Proxy route disposed'));
 		}
 		this._pendingSdkRequests.clear();
 		this._pendingUpstreamRequests.clear();

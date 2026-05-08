@@ -346,6 +346,47 @@ suite('McpProxy (integration)', () => {
 		assert.strictEqual(ok, false);
 	});
 
+	test('disposing route while SDK request is in-flight returns error with the original id', async () => {
+		const harness = createHarness();
+		const proxy = await harness.factory.create(harness.makeOptions());
+		try {
+			await harness.upstream.start();
+			// upstream.onSend is unset → upstream never emits a reply, so
+			// the route's pending-deferred is still in the map when we
+			// dispose below.
+
+			const requestId = 'req-x';
+			const fetchPromise = postJson(proxy.endpoint, {
+				jsonrpc: '2.0',
+				id: requestId,
+				method: 'tools/list',
+			});
+
+			// Wait for the SDK's request to be observed by the upstream
+			// (i.e. registered as a pending SDK request on the route).
+			for (let i = 0; i < 50 && harness.upstream.sent.length === 0; i++) {
+				await new Promise(resolve => setTimeout(resolve, 0));
+			}
+			assert.strictEqual(harness.upstream.sent.length, 1, 'expected upstream to have observed the SDK request');
+
+			proxy.dispose();
+			const { status, text } = await fetchPromise;
+			const body = JSON.parse(text);
+			assert.deepStrictEqual({
+				status,
+				id: body.id,
+				hasError: !!body.error,
+			}, {
+				status: 200,
+				id: requestId,
+				hasError: true,
+			});
+		} finally {
+			harness.factory.dispose();
+			harness.upstream.dispose();
+		}
+	});
+
 	test('initialize response capabilities are captured on the upstream', async () => {
 		const harness = createHarness();
 		let proxy;

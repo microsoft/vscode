@@ -291,7 +291,13 @@ export class McpHostServiceImpl extends Disposable implements IMcpHostService {
 			this._logService.warn(`[McpHostService] deliverResponse for unknown messageId '${messageId}' on server '${mcpServer.toString()}' — dropping`);
 			return;
 		}
-		entry.deliverResponse(messageId, response);
+		try {
+			entry.deliverResponse(messageId, response);
+		} catch (err) {
+			const message = err instanceof Error ? err.message : String(err);
+			this._logService.warn(`[McpHostService] deliverResponse: forwarding to proxy threw for messageId '${messageId}' on '${mcpServer.toString()}': ${message}`);
+			// Fall through — we still need to remove the message from state to avoid an orphan.
+		}
 		entry.removeMessageId(messageId);
 		this._stateManager.mcpMessageRemoved(entry.resource.toString(), messageId);
 	}

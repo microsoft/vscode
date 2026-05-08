@@ -161,10 +161,148 @@ suite('McpHttpUpstream', () => {
 		const upstream = new McpHttpUpstream({ config: baseConfig, logger: new NullLogger(), fetch });
 		try {
 			upstream.setBearerToken('prior-token');
-			upstream.setBearerToken(undefined);
 			const status = await upstream.start();
 			assert.strictEqual(status.kind, McpServerStatusKind.AuthRequired);
 			assert.strictEqual(status.kind === McpServerStatusKind.AuthRequired && status.reason, McpAuthRequiredReason.Expired);
+		} finally {
+			upstream.dispose();
+		}
+	});
+
+	test('reclassifies as Required after token is cleared', async () => {
+		const metadata = { resource: 'https://mcp.example.com/v1', authorization_servers: ['https://auth.example.com'] };
+		const { fetch } = makeFetch([
+			// First start: token 't1' present, server replies 401 → Expired
+			{
+				status: 401,
+				headers: { 'WWW-Authenticate': 'Bearer resource_metadata="https://mcp.example.com/.well-known/m"' },
+			},
+			{ status: 200, body: JSON.stringify(metadata) },
+			// Second start (after token cleared): another 401 → Required
+			{
+				status: 401,
+				headers: { 'WWW-Authenticate': 'Bearer resource_metadata="https://mcp.example.com/.well-known/m"' },
+			},
+			{ status: 200, body: JSON.stringify(metadata) },
+		]);
+		const upstream = new McpHttpUpstream({ config: baseConfig, logger: new NullLogger(), fetch });
+		try {
+			upstream.setBearerToken('t1');
+			const first = await upstream.start();
+			assert.strictEqual(first.kind === McpServerStatusKind.AuthRequired && first.reason, McpAuthRequiredReason.Expired);
+
+			upstream.setBearerToken(undefined);
+			const second = await upstream.start();
+			assert.strictEqual(second.kind === McpServerStatusKind.AuthRequired && second.reason, McpAuthRequiredReason.Required);
+		} finally {
+			upstream.dispose();
+		}
+	});
+
+	test('rejects resource_metadata with a different origin', async () => {
+		const { fetch, calls } = makeFetch([
+			{
+				status: 401,
+				headers: { 'WWW-Authenticate': 'Bearer resource_metadata="http://169.254.169.254/latest/meta-data/"' },
+			},
+		]);
+		const logger = new RecordingLogger();
+		const upstream = new McpHttpUpstream({ config: baseConfig, logger, fetch });
+		try {
+			const status = await upstream.start();
+			assert.deepStrictEqual({
+				status,
+				callCount: calls.length,
+				warned: logger.records.some(r => r.level === 'warn' && /resource_metadata/i.test(r.message)),
+			}, {
+				status: {
+					kind: McpServerStatusKind.AuthRequired,
+					reason: McpAuthRequiredReason.Required,
+					resource: { resource: 'https://mcp.example.com/v1' },
+				},
+				callCount: 1,
+				warned: true,
+			});
+		} finally {
+			upstream.dispose();
+		}
+	});
+
+	test('rejects resource_metadata with a different scheme', async () => {
+		const { fetch, calls } = makeFetch([
+			{
+				status: 401,
+				headers: { 'WWW-Authenticate': 'Bearer resource_metadata="http://mcp.example.com/.well-known/oauth-protected-resource"' },
+			},
+		]);
+		const upstream = new McpHttpUpstream({ config: baseConfig, logger: new NullLogger(), fetch });
+		try {
+			const status = await upstream.start();
+			assert.deepStrictEqual({
+				status,
+				callCount: calls.length,
+			}, {
+				status: {
+					kind: McpServerStatusKind.AuthRequired,
+					reason: McpAuthRequiredReason.Required,
+					resource: { resource: 'https://mcp.example.com/v1' },
+				},
+				callCount: 1,
+			});
+		} finally {
+			upstream.dispose();
+		}
+	});
+
+	test('rejects file:/javascript:/data: schemes outright', async () => {
+		for (const url of ['file:///etc/passwd', 'javascript:alert(1)', 'data:application/json,{}']) {
+			const { fetch, calls } = makeFetch([
+				{
+					status: 401,
+					headers: { 'WWW-Authenticate': `Bearer resource_metadata="${url}"` },
+				},
+			]);
+			const upstream = new McpHttpUpstream({ config: baseConfig, logger: new NullLogger(), fetch });
+			try {
+				const status = await upstream.start();
+				assert.deepStrictEqual({
+					url,
+					kind: status.kind,
+					resource: status.kind === McpServerStatusKind.AuthRequired ? status.resource : undefined,
+					callCount: calls.length,
+				}, {
+					url,
+					kind: McpServerStatusKind.AuthRequired,
+					resource: { resource: 'https://mcp.example.com/v1' },
+					callCount: 1,
+				});
+			} finally {
+				upstream.dispose();
+			}
+		}
+	});
+
+	test('accepts resource_metadata at the same origin', async () => {
+		const metadata = { resource: 'https://mcp.example.com/v1', authorization_servers: ['https://auth.example.com'] };
+		const { fetch, calls } = makeFetch([
+			{
+				status: 401,
+				headers: { 'WWW-Authenticate': 'Bearer resource_metadata="https://mcp.example.com/.well-known/oauth-protected-resource"' },
+			},
+			{ status: 200, body: JSON.stringify(metadata) },
+		]);
+		const upstream = new McpHttpUpstream({ config: baseConfig, logger: new NullLogger(), fetch });
+		try {
+			const status = await upstream.start();
+			assert.deepStrictEqual({
+				kind: status.kind,
+				resource: status.kind === McpServerStatusKind.AuthRequired ? status.resource : undefined,
+				secondCallUrl: calls[1]?.url,
+			}, {
+				kind: McpServerStatusKind.AuthRequired,
+				resource: metadata,
+				secondCallUrl: 'https://mcp.example.com/.well-known/oauth-protected-resource',
+			});
 		} finally {
 			upstream.dispose();
 		}
