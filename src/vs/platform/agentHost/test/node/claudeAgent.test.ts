@@ -4,21 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type Anthropic from '@anthropic-ai/sdk';
-import type { Options, Query, SDKMessage, SDKPartialAssistantMessage, SDKResultSuccess, SDKSessionInfo, SDKSystemMessage, SDKUserMessage, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
+import type { Options, Query, SDKMessage, SDKSessionInfo, SDKUserMessage, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 
-// Beta event-stream type aliases. The Anthropic namespace re-exports these
-// from `@anthropic-ai/sdk/resources/beta/messages.js`, but importing that
-// subpath directly trips the `local/code-import-patterns` allowlist
-// (the agentHost rule only permits the bare `@anthropic-ai/sdk` specifier).
-// Local aliases via the existing `Anthropic` import keep the body of this
-// file readable without extending the allowlist.
-type BetaRawContentBlockDeltaEvent = Anthropic.Beta.BetaRawContentBlockDeltaEvent;
-type BetaRawContentBlockStartEvent = Anthropic.Beta.BetaRawContentBlockStartEvent;
-type BetaRawContentBlockStopEvent = Anthropic.Beta.BetaRawContentBlockStopEvent;
-type BetaRawMessageStartEvent = Anthropic.Beta.BetaRawMessageStartEvent;
-type BetaRawMessageStopEvent = Anthropic.Beta.BetaRawMessageStopEvent;
 import assert from 'assert';
+import {
+	makeAssistantMessage,
+	makeContentBlockStartText,
+	makeContentBlockStartThinking,
+	makeContentBlockStop,
+	makeMessageStart,
+	makeMessageStop,
+	makeResultSuccess,
+	makeStreamEvent,
+	makeSystemInitMessage,
+	makeTextDelta,
+	makeThinkingDelta,
+} from './claudeMapSessionEventsTestUtils.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
 import type { DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -36,6 +38,8 @@ import { IAgentMaterializeSessionEvent, AgentSession, AgentSignal, GITHUB_COPILO
 import { ActionType } from '../../common/state/sessionActions.js';
 import { MessageAttachmentKind, ResponsePartKind } from '../../common/state/sessionState.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
+import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
+import { ProtectedResourceMetadata } from '../../common/state/protocol/state.js';
 import { IAgentHostGitService } from '../../node/agentHostGitService.js';
 import { ClaudeAgent } from '../../node/claude/claudeAgent.js';
 import { ClaudeAgentSdkService, IClaudeAgentSdkService, IClaudeSdkBindings } from '../../node/claude/claudeAgentSdkService.js';
@@ -147,6 +151,24 @@ class FakeClaudeAgentSdkService implements IClaudeAgentSdkService {
 			throw err;
 		}
 		return this.sessionList;
+	}
+
+	/**
+	 * Fake for {@link IClaudeAgentSdkService.getSessionInfo}. Tests stage
+	 * `sessionList` and the fake searches it by id; setting
+	 * {@link getSessionInfoOverride} replaces the default lookup
+	 * wholesale (used to simulate the "session moved off disk" case).
+	 */
+	getSessionInfoOverride: ((sessionId: string) => Promise<SDKSessionInfo | undefined>) | undefined;
+
+	getSessionInfoCalls: string[] = [];
+
+	async getSessionInfo(sessionId: string): Promise<SDKSessionInfo | undefined> {
+		this.getSessionInfoCalls.push(sessionId);
+		if (this.getSessionInfoOverride) {
+			return this.getSessionInfoOverride(sessionId);
+		}
+		return this.sessionList.find(s => s.sessionId === sessionId);
 	}
 
 	async startup(params: { options: Options; initializeTimeoutMs?: number }): Promise<WarmQuery> {
@@ -288,167 +310,6 @@ class FakeQuery implements AsyncGenerator<SDKMessage, void> {
 	[Symbol.asyncDispose](): Promise<void> { return Promise.resolve(); }
 }
 
-// #region SDK message builders
-//
-// The SDK's `SDKMessage` union has many required fields that aren't
-// relevant to most agent-host tests (deep `NonNullableUsage` shape,
-// `SDKSystemMessage`'s `tools`/`mcp_servers`/etc.). These builders
-// produce fully-typed values without `as unknown` casts so tests can
-// stage transcripts ergonomically.
-
-/** Stable test UUID — reused so assertions can pin against a known value. */
-const TEST_UUID = '11111111-2222-3333-4444-555555555555';
-
-function makeNonNullableUsage(): SDKResultSuccess['usage'] {
-	return {
-		cache_creation: { ephemeral_1h_input_tokens: 0, ephemeral_5m_input_tokens: 0 },
-		cache_creation_input_tokens: 0,
-		cache_read_input_tokens: 0,
-		inference_geo: 'unknown',
-		input_tokens: 0,
-		iterations: [],
-		output_tokens: 0,
-		server_tool_use: { web_fetch_requests: 0, web_search_requests: 0 },
-		service_tier: 'standard',
-		speed: 'standard',
-	};
-}
-
-function makeSystemInitMessage(sessionId: string): SDKSystemMessage {
-	return {
-		type: 'system',
-		subtype: 'init',
-		apiKeySource: 'user',
-		claude_code_version: '0.0.0-test',
-		cwd: '/workspace',
-		tools: [],
-		mcp_servers: [],
-		model: 'claude-test',
-		permissionMode: 'default',
-		slash_commands: [],
-		output_style: 'default',
-		skills: [],
-		plugins: [],
-		uuid: TEST_UUID,
-		session_id: sessionId,
-	};
-}
-
-function makeResultSuccess(sessionId: string): SDKResultSuccess {
-	return {
-		type: 'result',
-		subtype: 'success',
-		duration_ms: 0,
-		duration_api_ms: 0,
-		is_error: false,
-		num_turns: 1,
-		result: '',
-		stop_reason: 'end_turn',
-		total_cost_usd: 0,
-		usage: makeNonNullableUsage(),
-		modelUsage: {},
-		permission_denials: [],
-		uuid: TEST_UUID,
-		session_id: sessionId,
-	};
-}
-
-// `stream_event` (SDKPartialAssistantMessage) builders. The SDK's
-// `Options.includePartialMessages: true` setting (Phase 6 §3.4) routes
-// raw `BetaRawMessageStreamEvent`s through to the agent so we can map
-// per-token. The deep `BetaMessage` shape on `message_start` carries
-// many required fields irrelevant to mapping; these helpers populate
-// only what the mapper reads, with everything else set to safe zero
-// values so the SDK type-checks pass without `as unknown` casts.
-
-function makeStreamEvent(
-	sessionId: string,
-	event: SDKPartialAssistantMessage['event'],
-): SDKPartialAssistantMessage {
-	return {
-		type: 'stream_event',
-		event,
-		parent_tool_use_id: null,
-		uuid: TEST_UUID,
-		session_id: sessionId,
-	};
-}
-
-function makeMessageStart(): BetaRawMessageStartEvent {
-	return {
-		type: 'message_start',
-		message: {
-			id: 'msg_test',
-			type: 'message',
-			role: 'assistant',
-			model: 'claude-test',
-			content: [],
-			stop_reason: null,
-			stop_sequence: null,
-			stop_details: null,
-			container: null,
-			context_management: null,
-			usage: {
-				cache_creation: { ephemeral_1h_input_tokens: 0, ephemeral_5m_input_tokens: 0 },
-				cache_creation_input_tokens: 0,
-				cache_read_input_tokens: 0,
-				inference_geo: 'unknown',
-				input_tokens: 0,
-				iterations: [],
-				output_tokens: 0,
-				server_tool_use: { web_fetch_requests: 0, web_search_requests: 0 },
-				service_tier: 'standard',
-				speed: 'standard',
-			},
-		},
-	};
-}
-
-function makeContentBlockStartText(index: number): BetaRawContentBlockStartEvent {
-	return {
-		type: 'content_block_start',
-		index,
-		content_block: { type: 'text', text: '', citations: null },
-	};
-}
-
-function makeContentBlockStartThinking(index: number): BetaRawContentBlockStartEvent {
-	return {
-		type: 'content_block_start',
-		index,
-		content_block: { type: 'thinking', thinking: '', signature: '' },
-	};
-}
-
-function makeTextDelta(index: number, text: string): BetaRawContentBlockDeltaEvent {
-	return {
-		type: 'content_block_delta',
-		index,
-		delta: { type: 'text_delta', text },
-	};
-}
-
-function makeThinkingDelta(index: number, thinking: string): BetaRawContentBlockDeltaEvent {
-	return {
-		type: 'content_block_delta',
-		index,
-		delta: { type: 'thinking_delta', thinking },
-	};
-}
-
-function makeContentBlockStop(index: number): BetaRawContentBlockStopEvent {
-	return {
-		type: 'content_block_stop',
-		index,
-	};
-}
-
-function makeMessageStop(): BetaRawMessageStopEvent {
-	return { type: 'message_stop' };
-}
-
-// #endregion
-
 /**
  * Wraps a delegate {@link ISessionDataService} and records call counts so
  * tests can assert that lifecycle methods (e.g. non-fork `createSession`)
@@ -506,6 +367,16 @@ function makeModel(overrides: Partial<CCAModel> & { readonly id: string; readonl
 	};
 }
 
+/**
+ * Build a `CCAModelSupports` with `reasoning_effort` / `adaptive_thinking`
+ * augmentations the SDK type doesn't yet declare (tracked at
+ * microsoft/vscode-capi#85). Mirrors the runtime shape `claudeAgent.ts`
+ * narrows at the read boundary.
+ */
+function makeSupports(extras: { adaptive_thinking?: boolean; reasoning_effort?: readonly string[] } = {}): CCAModel['capabilities']['supports'] {
+	return { parallel_tool_calls: true, streaming: true, tool_calls: true, vision: false, ...extras } as CCAModel['capabilities']['supports'];
+}
+
 const CLAUDE_OPUS = makeModel({ id: 'claude-opus-4.6', name: 'Claude Opus 4.6', vendor: 'Anthropic' });
 const CLAUDE_SONNET = makeModel({ id: 'claude-sonnet-4.6', name: 'Claude Sonnet 4.6', vendor: 'Anthropic' });
 const NON_ANTHROPIC = makeModel({ id: 'gpt-5', name: 'GPT-5', vendor: 'OpenAI' });
@@ -542,7 +413,26 @@ interface ITestContext {
 	readonly sessionData: RecordingSessionDataService;
 }
 
-function createTestContext(disposables: Pick<DisposableStore, 'add'>): ITestContext {
+/**
+ * {@link NullLogService} subclass that captures `warn` / `error` messages
+ * so tests can assert defense-in-depth diagnostics fired from the mapper
+ * or other internals. All other levels remain no-ops.
+ */
+class CapturingLogService extends NullLogService {
+	readonly warns: string[] = [];
+	readonly errors: string[] = [];
+	override warn(message: string, ...args: unknown[]): void {
+		this.warns.push([message, ...args.map(a => String(a))].join(' '));
+	}
+	override error(message: string | Error, ...args: unknown[]): void {
+		this.errors.push([String(message), ...args.map(a => String(a))].join(' '));
+	}
+}
+
+function createTestContext(
+	disposables: Pick<DisposableStore, 'add'>,
+	overrides?: { logService?: ILogService },
+): ITestContext {
 	const proxy = new FakeClaudeProxyService();
 	const api = new FakeCopilotApiService();
 	api.models = async () => [...ALL_MODELS];
@@ -550,7 +440,7 @@ function createTestContext(disposables: Pick<DisposableStore, 'add'>): ITestCont
 	const sessionData = new RecordingSessionDataService(createSessionDataService());
 
 	const services = new ServiceCollection(
-		[ILogService, new NullLogService()],
+		[ILogService, overrides?.logService ?? new NullLogService()],
 		[ICopilotApiService, api],
 		[IClaudeProxyService, proxy],
 		[ISessionDataService, sessionData],
@@ -598,6 +488,19 @@ suite('ClaudeAgent', () => {
 		assert.deepStrictEqual(agent.models.get(), []);
 	});
 
+	test('createSession before authenticate throws ProtocolError(AHP_AUTH_REQUIRED) with protected resources', async () => {
+		const { agent } = createTestContext(disposables);
+
+		await assert.rejects(
+			() => agent.createSession({ workingDirectory: URI.file('/workspace') }),
+			(err: Error) =>
+				err instanceof ProtocolError &&
+				err.code === AHP_AUTH_REQUIRED &&
+				Array.isArray(err.data) &&
+				(err.data as ProtectedResourceMetadata[])[0]?.resource === 'https://api.github.com',
+		);
+	});
+
 	test('authenticate populates models filtered to Claude family', async () => {
 		const { agent, proxy } = createTestContext(disposables);
 
@@ -612,9 +515,129 @@ suite('ClaudeAgent', () => {
 			accepted: true,
 			startCalls: ['tok'],
 			models: [
-				{ provider: 'claude', id: 'claude-opus-4.6', name: 'Claude Opus 4.6', maxContextWindow: 200_000, supportsVision: false },
-				{ provider: 'claude', id: 'claude-sonnet-4.6', name: 'Claude Sonnet 4.6', maxContextWindow: 200_000, supportsVision: false },
+				{ provider: 'claude', id: 'claude-opus-4.6', name: 'Claude Opus 4.6', maxContextWindow: 200_000, supportsVision: false, policyState: 'enabled', _meta: { multiplierNumeric: 1 } },
+				{ provider: 'claude', id: 'claude-sonnet-4.6', name: 'Claude Sonnet 4.6', maxContextWindow: 200_000, supportsVision: false, policyState: 'enabled', _meta: { multiplierNumeric: 1 } },
 			],
+		});
+	});
+
+	test('authenticate surfaces the CAPI chat-default model first; ties preserve insertion order', async () => {
+		// `IAgentModelInfo` carries no explicit `isDefault` bit; the
+		// picker uses `models[0]` as the de facto default at
+		// modelPicker.ts:144. So a stable sort by `is_chat_default`
+		// ensures whichever model CAPI flags as the chat default ends
+		// up at position 0, regardless of the order CAPI returned the
+		// list. Equal-priority entries fall through the comparator
+		// unchanged so insertion order wins on ties.
+		const opus = makeModel({ id: 'claude-opus-4.6', name: 'Claude Opus 4.6', vendor: 'Anthropic' });
+		const sonnetDefault = makeModel({ id: 'claude-sonnet-4.6', name: 'Claude Sonnet 4.6', vendor: 'Anthropic', is_chat_default: true });
+		const haiku = makeModel({ id: 'claude-haiku-4.6', name: 'Claude Haiku 4.6', vendor: 'Anthropic' });
+
+		const { agent, api } = createTestContext(disposables);
+		api.models = async () => [opus, sonnetDefault, haiku];
+		await agent.authenticate('https://api.github.com', 'tok');
+		await tick();
+
+		assert.deepStrictEqual(
+			agent.models.get().map(m => m.id),
+			['claude-sonnet-4.6', 'claude-opus-4.6', 'claude-haiku-4.6'],
+		);
+	});
+
+	test('authenticate sources configSchema enum from each model\'s reasoning_effort list (Phase 6.1 / Cycle D3 / I5)', async () => {
+		// Per Phase 6.1 plan D3 + CONTEXT.md M12 (line ~1802): the
+		// `configSchema.properties.thinkingLevel.enum` advertised on each
+		// Claude model must come from that model's own
+		// `capabilities.supports.reasoning_effort` list — different
+		// Claude models support different effort subsets (some
+		// `['low','medium','high']`, some `['high']`, some none at all).
+		// Mirror of the extension pattern at
+		// extensions/copilot/src/extension/chatSessions/claude/node/
+		// claudeCodeModels.ts:208-212 (`pickReasoningEffort`), which
+		// reads `endpoint.supportsReasoningEffort` per-endpoint.
+		//
+		// CAPI's `/models` JSON exposes `reasoning_effort: string[]` and
+		// `adaptive_thinking: boolean` on each model's `supports` bag,
+		// but the published `@vscode/copilot-api` types don't yet
+		// surface these fields (tracked at microsoft/vscode-capi#85);
+		// `claudeAgent.ts` narrows the bag locally at the read boundary.
+		const capsBase = {
+			family: 'test',
+			limits: { max_context_window_tokens: 200_000, max_output_tokens: 8192, max_prompt_tokens: 200_000 },
+			object: 'model_capabilities',
+			tokenizer: 'o200k_base',
+			type: 'chat',
+		} as const;
+		const fullEffortModel = makeModel({
+			id: 'claude-opus-4.6', name: 'Claude Opus 4.6', vendor: 'Anthropic',
+			capabilities: { ...capsBase, supports: makeSupports({ adaptive_thinking: true, reasoning_effort: ['low', 'medium', 'high'] }) },
+		});
+		const highOnlyModel = makeModel({
+			id: 'claude-sonnet-4.6', name: 'Claude Sonnet 4.6', vendor: 'Anthropic',
+			capabilities: { ...capsBase, supports: makeSupports({ adaptive_thinking: true, reasoning_effort: ['high'] }) },
+		});
+		const emptyEffortModel = makeModel({
+			id: 'claude-haiku-4.6', name: 'Claude Haiku 4.6', vendor: 'Anthropic',
+			capabilities: { ...capsBase, supports: makeSupports({ adaptive_thinking: false, reasoning_effort: [] }) },
+		});
+		const unknownEffortModel = makeModel({
+			id: 'claude-opus-4.5', name: 'Claude Opus 4.5', vendor: 'Anthropic',
+			capabilities: { ...capsBase, supports: makeSupports({ adaptive_thinking: true, reasoning_effort: ['low', 'bogus', 'high'] }) },
+		});
+		const noEffortFieldModel = makeModel({
+			id: 'claude-sonnet-4.5', name: 'Claude Sonnet 4.5', vendor: 'Anthropic',
+		});
+
+		const { agent, api } = createTestContext(disposables);
+		api.models = async () => [fullEffortModel, highOnlyModel, emptyEffortModel, unknownEffortModel, noEffortFieldModel];
+		await agent.authenticate('https://api.github.com', 'tok');
+		await tick();
+
+		const schemasById = Object.fromEntries(
+			agent.models.get().map(m => [m.id, m.configSchema] as const),
+		);
+		assert.deepStrictEqual(schemasById, {
+			'claude-opus-4.6': {
+				type: 'object',
+				properties: {
+					thinkingLevel: {
+						type: 'string',
+						title: 'Thinking Level',
+						description: 'Controls how much reasoning effort Claude uses.',
+						enum: ['low', 'medium', 'high'],
+						enumLabels: ['Low', 'Medium', 'High'],
+						default: 'high',
+					},
+				},
+			},
+			'claude-sonnet-4.6': {
+				type: 'object',
+				properties: {
+					thinkingLevel: {
+						type: 'string',
+						title: 'Thinking Level',
+						description: 'Controls how much reasoning effort Claude uses.',
+						enum: ['high'],
+						enumLabels: ['High'],
+						default: 'high',
+					},
+				},
+			},
+			'claude-haiku-4.6': undefined,
+			'claude-opus-4.5': {
+				type: 'object',
+				properties: {
+					thinkingLevel: {
+						type: 'string',
+						title: 'Thinking Level',
+						description: 'Controls how much reasoning effort Claude uses.',
+						enum: ['low', 'high'],
+						enumLabels: ['Low', 'High'],
+						default: 'high',
+					},
+				},
+			},
+			'claude-sonnet-4.5': undefined,
 		});
 	});
 
@@ -904,6 +927,7 @@ suite('ClaudeAgent', () => {
 		// session that's a cheap in-memory drop because nothing has
 		// been persisted yet.
 		const { agent, sdk, sessionData } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 
 		const result = await agent.createSession({ workingDirectory: URI.parse('file:///workspace') });
 
@@ -939,6 +963,7 @@ suite('ClaudeAgent', () => {
 		// the hint. Mirrors CopilotAgent's `config.session ?
 		// AgentSession.id(config.session) : generateUuid()` contract.
 		const { agent } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 		const expected = AgentSession.uri('claude', 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee');
 
 		const result = await agent.createSession({ session: expected });
@@ -960,6 +985,7 @@ suite('ClaudeAgent', () => {
 		// Locking the throw message here so a half-implementation can't
 		// land in Phase 6 without re-greening this case.
 		const { agent, sessionData, sdk } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 
 		await assert.rejects(
 			agent.createSession({
@@ -1069,6 +1095,71 @@ suite('ClaudeAgent', () => {
 			workingDirectory: cwd.toString(),
 			project: undefined,
 			keys: ['project', 'session', 'workingDirectory'],
+		});
+	});
+
+	test('createSession config.model + config.config.permissionMode flow into Options on first send (M11 / Phase 6.1 C2)', async () => {
+		// Phase 6.1 Cycle E (drift C2). M11 mandates that the
+		// `IAgentCreateSessionConfig` bag (`model` + `config.*`) survives
+		// from `createSession` → provisional record → first `query()`'s
+		// `Options.*`. The pre-fix surface dropped both: `provisional`
+		// had no `model`/`config` fields and the materialize site
+		// hardcoded `permissionMode: 'default'` with no `Options.model`
+		// at all — SDK defaults silently won.
+		// Pinned shape: `Options.model === created-time model.id`,
+		// `Options.permissionMode === created-time permissionMode`.
+		const { agent, sdk } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+
+		const created = await agent.createSession({
+			workingDirectory: URI.file('/work'),
+			model: { id: 'claude-sonnet-4.6' },
+			config: { permissionMode: 'plan' },
+		});
+		const sessionId = AgentSession.id(created.session);
+		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
+
+		await agent.sendMessage(created.session, 'hi', undefined, 'turn-1');
+
+		assert.deepStrictEqual({
+			model: sdk.capturedStartupOptions[0]?.model,
+			permissionMode: sdk.capturedStartupOptions[0]?.permissionMode,
+		}, {
+			model: 'claude-sonnet-4.6',
+			permissionMode: 'plan',
+		});
+	});
+
+	test('createSession model.config.thinkingLevel flows into Options.effort on first send (M11 / Phase 6.1 C2)', async () => {
+		// Phase 6.1 Cycle E. Per CONTEXT.md M11 + the M-portrait at
+		// CONTEXT.md:1497, `effort` is the third leg of the
+		// `IAgentCreateSessionConfig` → `Options.*` triplet (alongside
+		// model and permissionMode). Unlike the other two, effort is
+		// nested inside `ModelSelection.config.thinkingLevel` rather
+		// than living as its own session-config key — mirroring
+		// CopilotAgent's `_getReasoningEffort` pattern at
+		// copilotAgent.ts:487. The SDK's `Options.effort` accepts the
+		// full 5-value `EffortLevel` union (sdk.d.ts:443 + sdk.d.ts:1214);
+		// the 4-value clamp at sdk.d.ts:4292 only applies to the live
+		// `applyFlagSettings` hot-swap path (Phase 9).
+		const { agent, sdk } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+
+		const created = await agent.createSession({
+			workingDirectory: URI.file('/work'),
+			model: { id: 'claude-opus-4.6', config: { thinkingLevel: 'high' } },
+		});
+		const sessionId = AgentSession.id(created.session);
+		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
+
+		await agent.sendMessage(created.session, 'hi', undefined, 'turn-1');
+
+		assert.deepStrictEqual({
+			model: sdk.capturedStartupOptions[0]?.model,
+			effort: sdk.capturedStartupOptions[0]?.effort,
+		}, {
+			model: 'claude-opus-4.6',
+			effort: 'high',
 		});
 	});
 
@@ -1419,6 +1510,97 @@ suite('ClaudeAgent', () => {
 		});
 	});
 
+	test('canonical SDKAssistantMessage with tool_use content fires defense-in-depth warning (Phase 6.1 / Cycle F)', async () => {
+		// Phase 6 sets `canUseTool: deny`, so the canonical
+		// `SDKAssistantMessage` (`type: 'assistant'`) should never carry
+		// `tool_use` content blocks. If one arrives anyway (SDK race,
+		// future change) the mapper warns and drops rather than handing
+		// the reducer a part it has no handler for. Mirrors the existing
+		// `content_block_start` defense-in-depth at
+		// claudeMapSessionEvents.ts:163-167.
+		const logService = new CapturingLogService();
+		const { agent, sdk } = createTestContext(disposables, { logService });
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+
+		const created = await agent.createSession({ workingDirectory: URI.file('/work') });
+		const sessionId = AgentSession.id(created.session);
+		sdk.nextQueryMessages = [
+			makeSystemInitMessage(sessionId),
+			makeAssistantMessage(sessionId, [
+				{ type: 'tool_use', id: 'tu_1', name: 'Bash', input: {} },
+			]),
+			makeResultSuccess(sessionId),
+		];
+
+		const signals: AgentSignal[] = [];
+		disposables.add(agent.onDidSessionProgress(s => signals.push(s)));
+
+		await agent.sendMessage(created.session, 'hi', undefined, 'turn-1');
+
+		const responsePartCount = signals
+			.map(s => s.kind === 'action' ? s.action : undefined)
+			.filter(a => a?.type === ActionType.SessionResponsePart).length;
+
+		assert.deepStrictEqual({
+			responsePartCount,
+			warnedAboutToolUse: logService.warns.some(m => /tool_use/.test(m)),
+		}, {
+			responsePartCount: 0,
+			warnedAboutToolUse: true,
+		});
+	});
+
+	test('canonical SDKAssistantMessage with text content does not double-emit signals already produced by stream_event partials (Phase 6.1 / Cycle F)', async () => {
+		// CONTEXT.md M8:875 — partials are advisory, final
+		// `SDKAssistantMessage` is canonical. With `includePartialMessages:
+		// true` (Phase 6 §3.4) the `stream_event` partials already drove
+		// the response part + per-token deltas. The terminal `'assistant'`
+		// envelope MUST NOT add a second copy: the reducer is append-only
+		// (no replace path), so a double-emit would corrupt the activeTurn
+		// `responseParts` list with a duplicated block.
+		const { agent, sdk } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+
+		const created = await agent.createSession({ workingDirectory: URI.file('/work') });
+		const sessionId = AgentSession.id(created.session);
+		sdk.nextQueryMessages = [
+			makeSystemInitMessage(sessionId),
+			makeStreamEvent(sessionId, makeMessageStart()),
+			makeStreamEvent(sessionId, makeContentBlockStartText(0)),
+			makeStreamEvent(sessionId, makeTextDelta(0, 'hello')),
+			makeStreamEvent(sessionId, makeContentBlockStop(0)),
+			makeStreamEvent(sessionId, makeMessageStop()),
+			makeAssistantMessage(sessionId, [
+				{ type: 'text', text: 'hello', citations: null },
+			]),
+			makeResultSuccess(sessionId),
+		];
+
+		const signals: AgentSignal[] = [];
+		disposables.add(agent.onDidSessionProgress(s => signals.push(s)));
+
+		await agent.sendMessage(created.session, 'hi', undefined, 'turn-1');
+
+		const partActions = signals
+			.map(s => s.kind === 'action' ? s.action : undefined)
+			.filter(a => a?.type === ActionType.SessionResponsePart);
+		const deltaActions = signals
+			.map(s => s.kind === 'action' ? s.action : undefined)
+			.filter(a => a?.type === ActionType.SessionDelta);
+
+		const delta0 = deltaActions[0]?.type === ActionType.SessionDelta ? deltaActions[0] : undefined;
+
+		assert.deepStrictEqual({
+			partCount: partActions.length,
+			deltaCount: deltaActions.length,
+			deltaContent: delta0?.content,
+		}, {
+			partCount: 1,
+			deltaCount: 1,
+			deltaContent: 'hello',
+		});
+	});
+
 	test('_isResumed flips on first system:init', async () => {
 		// Phase 6 §5.1 Test 10. The SDK's `system:init` message marks
 		// the start of a session. Phase 7+ teardown+recreate uses
@@ -1765,6 +1947,35 @@ suite('ClaudeAgent', () => {
 		});
 	});
 
+	test('sendMessage tags SDKUserMessage.uuid with the effective turn id (M1 / Turn.id ↔ uuid invariant)', async () => {
+		// Phase 6.1 Cycle C / drift C1. M1 + the Glossary mandate that
+		// the outbound `SDKUserMessage.uuid` carries the agent host's
+		// `effectiveTurnId` (`turnId ?? generateUuid()`). Phase 6.5 fork
+		// (`sdk.getSessionMessages` → message-UUID lookup) and Phase 13
+		// replay (`SDKUserMessageReplay.uuid`) both depend on this id
+		// being our turn id, NOT a fresh SDK-generated uuid.
+		const { agent, sdk } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await agent.createSession({ workingDirectory: URI.file('/work') });
+		const sessionId = AgentSession.id(created.session);
+
+		sdk.nextQueryMessages = [
+			makeSystemInitMessage(sessionId),
+			makeResultSuccess(sessionId),
+		];
+
+		await agent.sendMessage(created.session, 'hi', undefined, 'turn-explicit');
+
+		const drained = sdk.warmQueries[0]?.produced?.drainedPrompts ?? [];
+		assert.deepStrictEqual({
+			drainedCount: drained.length,
+			uuid: drained[0]?.uuid,
+		}, {
+			drainedCount: 1,
+			uuid: 'turn-explicit',
+		});
+	});
+
 	test('attachments (File and Directory) become a system-reminder block on the user message', async () => {
 		// Phase 6 §5.1 Test 15. The prompt resolver must produce two
 		// content blocks for an attachment-bearing send: a `text`
@@ -1857,6 +2068,7 @@ suite('ClaudeAgent', () => {
 		// throwing, both share the `_disposeSequencer` for the same
 		// key, and the agent does not surface a double-dispose error.
 		const { agent } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 		const r1 = await agent.createSession({});
 		await agent.createSession({});
 
@@ -1884,6 +2096,7 @@ suite('ClaudeAgent', () => {
 		// cleanup work (Query.interrupt) — that work MUST NOT spill
 		// into SDK-side or DB-side deletion.
 		const { agent, sdk } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 		const created = await agent.createSession({});
 		// Make the SDK report the just-created session as if its
 		// metadata had been written by an earlier `query()` turn —
@@ -2045,6 +2258,48 @@ suite('ClaudeAgent', () => {
 		});
 	});
 
+	test('createSession.model round-trips through the per-session DB to listSessions[].model (Phase 6.1 I8 + I7 + C2)', async () => {
+		// Phase 6.1 Cycle E (drift I8). Closes the missing-metadata leak:
+		// `IAgentCreateSessionConfig.model` is supposed to be persisted
+		// per-session and surface back via `listSessions(): IAgentSessionMetadata.model`.
+		// Pre-fix, only `customizationDirectory` was overlayed; `model`
+		// was silently dropped. The CopilotAgent reference path
+		// (`copilotAgent.ts:1483-1564`, `_META_MODEL`/`_serializeModelSelection`/
+		// `_storeSessionMetadata`/`_readSessionMetadata`) shows the
+		// canonical shape: a JSON-serialised `ModelSelection` keyed by
+		// a provider-private metadata constant.
+		// Round-trip: createSession({ model }) → sendMessage materializes
+		// (writes sidecar) → SDK reports the session in its listing →
+		// listSessions surfaces the persisted `model`.
+		const { agent, sdk } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+
+		const created = await agent.createSession({
+			workingDirectory: URI.file('/work'),
+			model: { id: 'claude-opus-4.6', config: { thinking: 'extended' } },
+		});
+		const sessionId = AgentSession.id(created.session);
+
+		sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
+		await agent.sendMessage(created.session, 'hi', undefined, 'turn-1');
+
+		sdk.sessionList = [{
+			sessionId,
+			summary: 'Round trip',
+			lastModified: 1234,
+		}];
+		const list = await agent.listSessions();
+		const entry = list.find(r => AgentSession.id(r.session) === sessionId);
+
+		assert.deepStrictEqual({
+			model: entry?.model,
+			summary: entry?.summary,
+		}, {
+			model: { id: 'claude-opus-4.6', config: { thinking: 'extended' } },
+			summary: 'Round trip',
+		});
+	});
+
 	test('listSessions returns an empty list (does not reject) when the SDK fails to load', async () => {
 		// Copilot-reviewer comment: `AgentService.listSessions` fans out
 		// across providers via `Promise.all` (agentService.ts:202-204).
@@ -2070,6 +2325,100 @@ suite('ClaudeAgent', () => {
 		assert.deepStrictEqual(result, []);
 	});
 
+	test('getSessionMetadata joins SDK info with sidecar overlay, returns SDK-only fields for external sessions, and undefined for unknown ids (Phase 6.1 / Cycle D4 / I7)', async () => {
+		// Phase 6.1 plan / Cycle D4 + drift I7. CONTEXT.md M11 / agents.md
+		// section "Lazy session metadata" (~line 2125) require Claude to
+		// expose a per-session lookup that mirrors the
+		// `IAgent.getSessionMetadata` shape so AgentService can hydrate
+		// stale session URIs without enumerating the full provider
+		// catalog. The Claude shape MUST surface external CLI sessions
+		// (no sidecar) — otherwise `claude:/<id>` URIs from raw Anthropic
+		// CLI runs become un-hydrate-able once enumerated. Composes:
+		//   sdkService.getSessionInfo(id)   -> summary, cwd, timestamps
+		//   _readSessionMetadata(uri)       -> model, customizationDirectory
+		// SDK miss => undefined (caller treats as deleted/not-yet-created).
+		const dbSidecar = new TestSessionDatabase();
+		await dbSidecar.setMetadata('claude.customizationDirectory', URI.file('/cust').toString());
+		await dbSidecar.setMetadata('claude.model', JSON.stringify({ id: 'claude-opus-4.6', config: { thinkingLevel: 'high' } }));
+
+		const sessionData: ISessionDataService = {
+			...createNullSessionDataService(),
+			tryOpenDatabase: async session => {
+				if (AgentSession.id(session) === 'sidecar') {
+					return { object: dbSidecar, dispose: () => { /* no-op */ } };
+				}
+				return undefined;
+			},
+		};
+		const sdk = new FakeClaudeAgentSdkService();
+		sdk.sessionList = [
+			{ sessionId: 'sidecar', summary: 'With Sidecar', lastModified: 5000, createdAt: 4900, cwd: '/work' },
+			{ sessionId: 'external', summary: 'External', lastModified: 6000, createdAt: 5900, cwd: '/raw-cli' },
+		];
+
+		const services = new ServiceCollection(
+			[ILogService, new NullLogService()],
+			[ICopilotApiService, new FakeCopilotApiService()],
+			[IClaudeProxyService, new FakeClaudeProxyService()],
+			[ISessionDataService, sessionData],
+			[IClaudeAgentSdkService, sdk],
+		);
+		const instantiationService = disposables.add(new InstantiationService(services));
+		const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));
+
+		const sidecarUri = AgentSession.uri('claude', 'sidecar');
+		const externalUri = AgentSession.uri('claude', 'external');
+		const unknownUri = AgentSession.uri('claude', 'unknown');
+
+		const sidecar = await agent.getSessionMetadata!(sidecarUri);
+		const external = await agent.getSessionMetadata!(externalUri);
+		const unknown = await agent.getSessionMetadata!(unknownUri);
+
+		assert.deepStrictEqual({
+			sidecar: {
+				session: sidecar?.session.toString(),
+				summary: sidecar?.summary,
+				startTime: sidecar?.startTime,
+				modifiedTime: sidecar?.modifiedTime,
+				workingDirectory: sidecar?.workingDirectory?.toString(),
+				customizationDirectory: sidecar?.customizationDirectory?.toString(),
+				model: sidecar?.model,
+			},
+			external: {
+				session: external?.session.toString(),
+				summary: external?.summary,
+				startTime: external?.startTime,
+				modifiedTime: external?.modifiedTime,
+				workingDirectory: external?.workingDirectory?.toString(),
+				customizationDirectory: external?.customizationDirectory,
+				model: external?.model,
+			},
+			unknown,
+			sdkLookups: sdk.getSessionInfoCalls.slice().sort(),
+		}, {
+			sidecar: {
+				session: sidecarUri.toString(),
+				summary: 'With Sidecar',
+				startTime: 4900,
+				modifiedTime: 5000,
+				workingDirectory: URI.file('/work').toString(),
+				customizationDirectory: URI.file('/cust').toString(),
+				model: { id: 'claude-opus-4.6', config: { thinkingLevel: 'high' } },
+			},
+			external: {
+				session: externalUri.toString(),
+				summary: 'External',
+				startTime: 5900,
+				modifiedTime: 6000,
+				workingDirectory: URI.file('/raw-cli').toString(),
+				customizationDirectory: undefined,
+				model: undefined,
+			},
+			unknown: undefined,
+			sdkLookups: ['external', 'sidecar', 'unknown'],
+		});
+	});
+
 	test('shutdown is idempotent and returns the same memoized promise on concurrent calls', async () => {
 		// Phase 6+ INVARIANT: the SDK Query subprocess for each live
 		// session is aborted inside `shutdown()`. If two callers race
@@ -2080,6 +2429,7 @@ suite('ClaudeAgent', () => {
 		// is locked NOW so Phase 6 inherits the contract for free.
 		// Mirror of `CopilotAgent.shutdown()` at copilotAgent.ts:1246.
 		const { agent } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 		await agent.createSession({});
 		await agent.createSession({});
 
@@ -2145,6 +2495,7 @@ suite('ClaudeAgent', () => {
 		// Recover.
 		importBehavior = {
 			listSessions: async () => [{ sessionId: 's', summary: 's', lastModified: 1 }],
+			getSessionInfo: async () => undefined,
 			startup: async () => { throw new Error('TestableClaudeAgentSdkService: startup not modeled'); },
 		};
 		const result1 = await svc.listSessions();
@@ -2181,9 +2532,11 @@ suite('ClaudeAgent', () => {
 		// `PermissionMode` enum. `Permissions` (allow/deny tool lists)
 		// is reused unchanged from `platformSessionSchema` because the
 		// SDK accepts `allowedTools` / `disallowedTools` natively.
-		// Tested keys: presence + ordering of enum + the four-value
-		// canonical set + default. Skipped keys (AutoApprove, Mode,
-		// Isolation, Branch, BranchNameHint) MUST be absent — workbench
+		// Tested keys: presence + ordering of enum + the six-value
+		// canonical set (matching SDK `PermissionMode` typedef at
+		// `sdk.d.ts:1560`, ratified in Phase 6.1 Cycle A under I2) +
+		// default. Skipped keys (AutoApprove, Mode, Isolation, Branch,
+		// BranchNameHint) MUST be absent — workbench
 		// `AgentHostModePicker` and friends key off these property names
 		// to decide what to render, and accidentally re-introducing
 		// `mode` would drop the wrong picker into the Claude UI.
@@ -2208,7 +2561,7 @@ suite('ClaudeAgent', () => {
 			topLevelType: 'object',
 			propertyKeys: ['permissionMode', 'permissions'],
 			permissionModeType: 'string',
-			permissionModeEnum: ['default', 'acceptEdits', 'bypassPermissions', 'plan'],
+			permissionModeEnum: ['default', 'acceptEdits', 'bypassPermissions', 'plan', 'dontAsk', 'auto'],
 			permissionModeDefault: 'default',
 			permissionsType: 'object',
 			values: { permissionMode: 'default' },

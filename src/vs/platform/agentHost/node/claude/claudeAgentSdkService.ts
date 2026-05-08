@@ -36,6 +36,16 @@ export interface IClaudeAgentSdkService {
 	listSessions(): Promise<readonly SDKSessionInfo[]>;
 
 	/**
+	 * Looks up a single session's metadata by id. Resolves to `undefined`
+	 * when the SDK has no record of it (deleted from disk, never created,
+	 * or just outside the searched project tree). Used by
+	 * {@link import('./claudeAgent.js').ClaudeAgent.getSessionMetadata}
+	 * to compose SDK-supplied fields (summary, cwd, timestamps) with the
+	 * per-session DB overlay. Phase 6.1 / Cycle D4.
+	 */
+	getSessionInfo(sessionId: string): Promise<SDKSessionInfo | undefined>;
+
+	/**
 	 * Pre-warms the SDK subprocess and runs the init handshake. Returns
 	 * a {@link WarmQuery} whose `.query(promptIterable)` binds the
 	 * prompt iterable and returns a streaming `Query`. Aborting
@@ -61,6 +71,7 @@ export interface IClaudeAgentSdkService {
  */
 export interface IClaudeSdkBindings {
 	listSessions(options?: ListSessionsOptions): Promise<SDKSessionInfo[]>;
+	getSessionInfo(sessionId: string): Promise<SDKSessionInfo | undefined>;
 	startup(params: { options: Options; initializeTimeoutMs?: number }): Promise<WarmQuery>;
 }
 
@@ -99,6 +110,11 @@ export class ClaudeAgentSdkService implements IClaudeAgentSdkService {
 	async listSessions(): Promise<readonly SDKSessionInfo[]> {
 		const sdk = await this._getSdk();
 		return sdk.listSessions(undefined);
+	}
+
+	async getSessionInfo(sessionId: string): Promise<SDKSessionInfo | undefined> {
+		const sdk = await this._getSdk();
+		return sdk.getSessionInfo(sessionId);
 	}
 
 	async startup(params: { options: Options; initializeTimeoutMs?: number }): Promise<WarmQuery> {

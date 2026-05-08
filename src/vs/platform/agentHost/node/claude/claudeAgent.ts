@@ -19,11 +19,13 @@ import { ILogService } from '../../../log/common/log.js';
 import { ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { createSchema, platformSessionSchema, schemaProperty } from '../../common/agentHostSchema.js';
 import { ClaudePermissionMode, ClaudeSessionConfigKey } from '../../common/claudeSessionConfigKeys.js';
+import { createClaudeThinkingLevelSchema, isClaudeEffortLevel, resolveClaudeEffort } from '../../common/claudeModelConfig.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AgentProvider, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE, IAgent, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSessionProjectInfo } from '../../common/agentService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
-import { ProtectedResourceMetadata, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
+import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
+import { PolicyState, ProtectedResourceMetadata, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { CustomizationRef, SessionInputResponseKind, type MessageAttachment, type SessionInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
 import { IAgentHostGitService } from '../agentHostGitService.js';
 import { projectFromCopilotContext } from '../copilot/copilotGitProject.js';
@@ -54,6 +56,20 @@ function isClaudeModel(m: CCAModel): boolean {
 }
 
 /**
+ * Augments the published `@vscode/copilot-api` `CCAModelSupports` with the
+ * per-model `adaptive_thinking` / `reasoning_effort` fields the runtime
+ * CAPI `/models` payload already carries but the SDK type doesn't yet
+ * declare. Tracked at microsoft/vscode-capi#85; remove this when the SDK
+ * catches up. Mirror of the same pattern at
+ * `extensions/copilot/src/platform/endpoint/common/endpointProvider.ts`
+ * (its locally-declared `IChatModelCapabilities`).
+ */
+interface IClaudeModelSupports {
+	readonly adaptive_thinking?: boolean;
+	readonly reasoning_effort?: readonly string[];
+}
+
+/**
  * Project a {@link CCAModel} into the agent host's
  * {@link IAgentModelInfo} surface. The returned `provider` is the
  * agent's id (`'claude'`) — clients filter the root state's model list
@@ -61,12 +77,20 @@ function isClaudeModel(m: CCAModel): boolean {
  * upstream `vendor: 'Anthropic'` field.
  */
 function toAgentModelInfo(m: CCAModel, provider: AgentProvider): IAgentModelInfo {
+	const supports = m.capabilities?.supports;
+	const supportedEfforts = ((supports as IClaudeModelSupports | undefined)?.reasoning_effort ?? []).filter(isClaudeEffortLevel);
+	const configSchema = createClaudeThinkingLevelSchema(supportedEfforts);
+	const policyState = m.policy?.state as PolicyState | undefined;
+	const multiplier = m.billing?.multiplier;
 	return {
 		provider,
 		id: m.id,
 		name: m.name,
 		maxContextWindow: m.capabilities?.limits?.max_context_window_tokens,
-		supportsVision: !!m.capabilities?.supports?.vision,
+		supportsVision: !!supports?.vision,
+		...(configSchema ? { configSchema } : {}),
+		...(policyState ? { policyState } : {}),
+		...(typeof multiplier === 'number' ? { _meta: { multiplierNumeric: multiplier } } : {}),
 	};
 }
 
@@ -89,6 +113,13 @@ function toAgentModelInfo(m: CCAModel, provider: AgentProvider): IAgentModelInfo
  * - `project`: the resolved {@link IAgentSessionProjectInfo} (if any),
  *   computed once at create time so duplicate `createSession` calls
  *   for the same URI return identical project metadata.
+ * - `model` / `config`: the `IAgentCreateSessionConfig.model` and
+ *   `IAgentCreateSessionConfig.config` bag from `createSession`.
+ *   Carried verbatim through to materialize so the first `query()`'s
+ *   `Options.*` reflect the user's choices instead of SDK defaults
+ *   (M11 / Phase 6.1 C2). The bag is `Record<string, unknown>` because
+ *   schema validation already happened at `resolveSessionConfig`; this
+ *   is the post-validation runtime payload.
  */
 interface IClaudeProvisionalSession {
 	readonly sessionId: string;
@@ -96,6 +127,8 @@ interface IClaudeProvisionalSession {
 	readonly workingDirectory: URI | undefined;
 	readonly abortController: AbortController;
 	readonly project: IAgentSessionProjectInfo | undefined;
+	readonly model: ModelSelection | undefined;
+	readonly config: Record<string, unknown> | undefined;
 }
 
 /**
@@ -209,6 +242,8 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 * writes it on first turn and fork's `vacuumInto` carries it forward.
 	 */
 	private static readonly _META_CUSTOMIZATION_DIRECTORY = 'claude.customizationDirectory';
+	private static readonly _META_MODEL = 'claude.model';
+	private static readonly _META_PERMISSION_MODE = 'claude.permissionMode';
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
@@ -233,6 +268,18 @@ export class ClaudeAgent extends Disposable implements IAgent {
 
 	getProtectedResources(): ProtectedResourceMetadata[] {
 		return [GITHUB_COPILOT_PROTECTED_RESOURCE];
+	}
+
+	private _ensureAuthenticated(): IClaudeProxyHandle {
+		const handle = this._proxyHandle;
+		if (!handle) {
+			throw new ProtocolError(
+				AHP_AUTH_REQUIRED,
+				'Authentication is required to use Claude',
+				this.getProtectedResources(),
+			);
+		}
+		return handle;
 	}
 
 	async authenticate(resource: string, token: string): Promise<boolean> {
@@ -280,7 +327,16 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			if (this._githubToken !== tokenAtStart) {
 				return;
 			}
-			const filtered = all.filter(isClaudeModel).map(m => toAgentModelInfo(m, this.id));
+			// Stable sort surfaces the CAPI-flagged chat-default model
+			// first. The picker treats `models[0]` as the de facto
+			// default (modelPicker.ts:144 — `_selectedModel ?? models[0]`)
+			// since `IAgentModelInfo` carries no explicit `isDefault`
+			// bit. Stable comparator returns 0 for equal-priority models
+			// so CAPI's ordering wins on ties.
+			const filtered = all
+				.filter(isClaudeModel)
+				.sort((a, b) => Number(b.is_chat_default) - Number(a.is_chat_default))
+				.map(m => toAgentModelInfo(m, this.id));
 			this._models.set(filtered, undefined);
 		} catch (err) {
 			this._logService.error(err, '[Claude] Failed to refresh models');
@@ -295,6 +351,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	// #region Stubs — implemented in later phases
 
 	async createSession(config: IAgentCreateSessionConfig = {}): Promise<IAgentCreateSessionResult> {
+		this._ensureAuthenticated();
 		if (config.fork) {
 			// Fork moved to Phase 6.5: requires translating
 			// `config.fork.turnId` (a protocol turn ID) to an SDK message UUID
@@ -353,6 +410,8 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			workingDirectory: config.workingDirectory,
 			abortController: new AbortController(),
 			project,
+			model: config.model,
+			config: config.config,
 		});
 
 		return {
@@ -410,10 +469,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		if (!provisional.workingDirectory) {
 			throw new Error(`Cannot materialize Claude session ${sessionId}: workingDirectory is required`);
 		}
-		const proxyHandle = this._proxyHandle;
-		if (!proxyHandle) {
-			throw new Error('Claude proxy is not running; agent must be authenticated first');
-		}
+		const proxyHandle = this._ensureAuthenticated();
 
 		const subprocessEnv = this._buildSubprocessEnv();
 		// Settings env: forwarded to the Claude subprocess via the SDK's
@@ -446,7 +502,21 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			disallowedTools: ['WebSearch'],
 			includeHookEvents: true,
 			includePartialMessages: true,
-			permissionMode: 'default',
+			// M11 / Phase 6.1 C2 + I2: surface the user's createSession choices
+			// to the SDK. `Options.permissionMode` accepts the SDK's six-value
+			// `PermissionMode` union (sdk.d.ts:1560); our schema mirrors it,
+			// so the validated string flows through with no translation.
+			//
+			// The latest model lives on the provisional record (kept in
+			// sync via `changeModel` once Phase 9 ships). The latest
+			// session config bag lives there too — no sidecar re-read
+			// here because the in-memory record is already authoritative
+			// for the create-time → first-send window. Mirrors
+			// CopilotAgent's pattern at `copilotAgent.ts:777` where
+			// `provisional.model` is the source of truth at materialize.
+			model: provisional.model?.id,
+			effort: resolveClaudeEffort(provisional.model),
+			permissionMode: this._resolvePermissionMode(provisional.config),
 			sessionId,
 			settingSources: ['user', 'project', 'local'],
 			settings: { env: settingsEnv },
@@ -476,7 +546,11 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		// Persist customization-directory metadata BEFORE firing the
 		// materialize event — see plan section 3.4 ordering rationale.
 		try {
-			await this._writeCustomizationDirectory(provisional.sessionUri, provisional.workingDirectory);
+			await this._writeSessionMetadata(provisional.sessionUri, {
+				customizationDirectory: provisional.workingDirectory,
+				model: provisional.model,
+				permissionMode: this._resolvePermissionMode(provisional.config),
+			});
 		} catch (err) {
 			session.dispose();
 			this._provisionalSessions.delete(sessionId);
@@ -542,20 +616,130 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	}
 
 	/**
-	 * Persist the user's customization-directory pick to the per-session
-	 * DB so {@link listSessions} can surface it (and Phase 6+ worktree
-	 * materialization can still find the original folder). Mirrors
-	 * CopilotAgent's `_storeSessionMetadata` pattern.
+	 * Pull `permissionMode` out of the post-validation `IAgentCreateSessionConfig.config`
+	 * bag, narrowing the runtime `unknown` value to the SDK's six-value
+	 * `PermissionMode` union (sdk.d.ts:1560). Falls back to `'default'`
+	 * when the bag is absent or carries something the schema validator
+	 * shouldn't have accepted (defense-in-depth).
 	 */
-	private async _writeCustomizationDirectory(session: URI, workingDirectory: URI): Promise<void> {
+	private _resolvePermissionMode(config: Record<string, unknown> | undefined): ClaudePermissionMode {
+		const raw = config?.[ClaudeSessionConfigKey.PermissionMode];
+		switch (raw) {
+			case 'default':
+			case 'acceptEdits':
+			case 'bypassPermissions':
+			case 'plan':
+			case 'dontAsk':
+			case 'auto':
+				return raw;
+			default:
+				return 'default';
+		}
+	}
+
+	/**
+	 * Persist Claude-namespaced session metadata (customizationDirectory,
+	 * `ModelSelection`, `permissionMode`) to the per-session DB so
+	 * {@link listSessions} can surface it (and Phase 6+ worktree
+	 * materialization can find the original folder). Mirrors
+	 * CopilotAgent's `_storeSessionMetadata` pattern
+	 * (`copilotAgent.ts:1532`): single `openDatabase` ref, `Promise.all`
+	 * batching, only-write-on-defined.
+	 *
+	 * `model` is JSON-encoded via {@link _serializeModelSelection} so the
+	 * parallel `{ id, config }` shape round-trips. `permissionMode` is
+	 * stored verbatim (single string from a closed enum).
+	 */
+	private async _writeSessionMetadata(session: URI, fields: { customizationDirectory?: URI; model?: ModelSelection; permissionMode?: ClaudePermissionMode }): Promise<void> {
 		const dbRef = this._sessionDataService.openDatabase(session);
+		const db = dbRef.object;
 		try {
-			await dbRef.object.setMetadata(
-				ClaudeAgent._META_CUSTOMIZATION_DIRECTORY,
-				workingDirectory.toString(),
-			);
+			const work: Promise<void>[] = [];
+			if (fields.customizationDirectory) {
+				work.push(db.setMetadata(ClaudeAgent._META_CUSTOMIZATION_DIRECTORY, fields.customizationDirectory.toString()));
+			}
+			if (fields.model) {
+				work.push(db.setMetadata(ClaudeAgent._META_MODEL, this._serializeModelSelection(fields.model)));
+			}
+			if (fields.permissionMode) {
+				work.push(db.setMetadata(ClaudeAgent._META_PERMISSION_MODE, fields.permissionMode));
+			}
+			await Promise.all(work);
 		} finally {
 			dbRef.dispose();
+		}
+	}
+
+	/**
+	 * Read all Claude-namespaced session metadata from the per-session DB.
+	 * Returns `{}` when no DB is present (external Claude CLI session,
+	 * fresh install). Mirrors CopilotAgent's `_readSessionMetadata`
+	 * (`copilotAgent.ts:1559`) — `tryOpenDatabase` so absence is not an
+	 * error, single `Promise.all` for the parallel reads.
+	 */
+	private async _readSessionMetadata(session: URI): Promise<{ customizationDirectory?: URI; model?: ModelSelection; permissionMode?: ClaudePermissionMode }> {
+		const ref = await this._sessionDataService.tryOpenDatabase(session);
+		if (!ref) {
+			return {};
+		}
+		try {
+			const [customizationDirectoryRaw, modelRaw, permissionModeRaw] = await Promise.all([
+				ref.object.getMetadata(ClaudeAgent._META_CUSTOMIZATION_DIRECTORY),
+				ref.object.getMetadata(ClaudeAgent._META_MODEL),
+				ref.object.getMetadata(ClaudeAgent._META_PERMISSION_MODE),
+			]);
+			return {
+				customizationDirectory: customizationDirectoryRaw ? URI.parse(customizationDirectoryRaw) : undefined,
+				model: this._parseModelSelection(modelRaw),
+				permissionMode: this._narrowPermissionMode(permissionModeRaw),
+			};
+		} finally {
+			ref.dispose();
+		}
+	}
+
+	private _serializeModelSelection(model: ModelSelection): string {
+		return JSON.stringify(model);
+	}
+
+	private _parseModelSelection(raw: string | undefined): ModelSelection | undefined {
+		if (!raw) {
+			return undefined;
+		}
+		try {
+			const value: { id?: unknown; config?: unknown } | string | number | boolean | null = JSON.parse(raw);
+			if (value && typeof value === 'object' && typeof value.id === 'string') {
+				const result: ModelSelection = { id: value.id };
+				if (value.config && typeof value.config === 'object') {
+					const config: Record<string, string> = {};
+					for (const [key, configValue] of Object.entries(value.config)) {
+						if (typeof configValue === 'string') {
+							config[key] = configValue;
+						}
+					}
+					if (Object.keys(config).length > 0) {
+						result.config = config;
+					}
+				}
+				return result;
+			}
+		} catch {
+			// Older session metadata stored the raw model id as a plain string.
+		}
+		return { id: raw };
+	}
+
+	private _narrowPermissionMode(raw: string | undefined): ClaudePermissionMode | undefined {
+		switch (raw) {
+			case 'default':
+			case 'acceptEdits':
+			case 'bypassPermissions':
+			case 'plan':
+			case 'dontAsk':
+			case 'auto':
+				return raw;
+			default:
+				return undefined;
 		}
 	}
 
@@ -633,17 +817,8 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		return Promise.all(sdkEntries.map(async entry => {
 			try {
 				const sessionUri = AgentSession.uri(this.id, entry.sessionId);
-				const dbRef = await this._sessionDataService.tryOpenDatabase(sessionUri);
-				if (dbRef) {
-					try {
-						const raw = await dbRef.object.getMetadata(ClaudeAgent._META_CUSTOMIZATION_DIRECTORY);
-						return this._toAgentSessionMetadata(entry, {
-							customizationDirectory: raw ? URI.parse(raw) : undefined,
-						});
-					} finally {
-						dbRef.dispose();
-					}
-				}
+				const overlay = await this._readSessionMetadata(sessionUri);
+				return this._toAgentSessionMetadata(entry, overlay);
 			} catch (err) {
 				this._logService.warn(`[Claude] Overlay read failed for session ${entry.sessionId}`, err);
 			}
@@ -652,7 +827,35 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		}));
 	}
 
-	private _toAgentSessionMetadata(entry: SDKSessionInfo, overlay: { customizationDirectory?: URI }): IAgentSessionMetadata {
+	/**
+	 * Phase 6.1 / Cycle D4 — per-session lookup. Mirrors
+	 * {@link CopilotAgent.getSessionMetadata} but accepts the
+	 * external-CLI case: a session that exists on disk via the raw
+	 * Anthropic CLI has no per-session DB, so we MUST NOT gate on the
+	 * sidecar (the way Copilot's variant does). The SDK is the source
+	 * of truth for existence; the overlay merely decorates.
+	 *
+	 * Failures in the overlay read are swallowed — a corrupt DB on one
+	 * session must not lose the SDK-supplied summary/cwd. Failures in
+	 * the SDK lookup propagate (the caller is doing a single targeted
+	 * fetch and should learn that the SDK module is broken).
+	 */
+	async getSessionMetadata(session: URI): Promise<IAgentSessionMetadata | undefined> {
+		const sessionId = AgentSession.id(session);
+		const sdkInfo = await this._sdkService.getSessionInfo(sessionId);
+		if (!sdkInfo) {
+			return undefined;
+		}
+		let overlay: { customizationDirectory?: URI; model?: ModelSelection } = {};
+		try {
+			overlay = await this._readSessionMetadata(session);
+		} catch (err) {
+			this._logService.warn(`[Claude] Overlay read failed for session ${sessionId}`, err);
+		}
+		return this._toAgentSessionMetadata(sdkInfo, overlay);
+	}
+
+	private _toAgentSessionMetadata(entry: SDKSessionInfo, overlay: { customizationDirectory?: URI; model?: ModelSelection }): IAgentSessionMetadata {
 		return {
 			session: AgentSession.uri(this.id, entry.sessionId),
 			startTime: entry.createdAt ?? entry.lastModified,
@@ -660,6 +863,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			summary: entry.customTitle ?? entry.summary,
 			workingDirectory: entry.cwd ? URI.file(entry.cwd) : undefined,
 			customizationDirectory: overlay.customizationDirectory,
+			model: overlay.model,
 		};
 	}
 
@@ -678,18 +882,22 @@ export class ClaudeAgent extends Disposable implements IAgent {
 				type: 'string',
 				title: localize('claude.sessionConfig.permissionMode', "Approvals"),
 				description: localize('claude.sessionConfig.permissionModeDescription', "How Claude handles tool approvals."),
-				enum: ['default', 'acceptEdits', 'bypassPermissions', 'plan'],
+				enum: ['default', 'acceptEdits', 'bypassPermissions', 'plan', 'dontAsk', 'auto'],
 				enumLabels: [
 					localize('claude.sessionConfig.permissionMode.default', "Ask Each Time"),
 					localize('claude.sessionConfig.permissionMode.acceptEdits', "Auto-Approve Edits"),
 					localize('claude.sessionConfig.permissionMode.bypassPermissions', "Bypass Approvals"),
 					localize('claude.sessionConfig.permissionMode.plan', "Plan Only (Read-Only)"),
+					localize('claude.sessionConfig.permissionMode.dontAsk', "Don't Ask"),
+					localize('claude.sessionConfig.permissionMode.auto', "Auto"),
 				],
 				enumDescriptions: [
 					localize('claude.sessionConfig.permissionMode.defaultDescription', "Prompt for every tool call."),
 					localize('claude.sessionConfig.permissionMode.acceptEditsDescription', "Auto-approve file edits; prompt for shell and other tools."),
 					localize('claude.sessionConfig.permissionMode.bypassPermissionsDescription', "Auto-approve every tool call."),
 					localize('claude.sessionConfig.permissionMode.planDescription', "Read-only research mode; no tool calls executed."),
+					localize('claude.sessionConfig.permissionMode.dontAskDescription', "Auto-approve every tool call without prompting."),
+					localize('claude.sessionConfig.permissionMode.autoDescription', "Let the model classifier choose between approve and prompt per call."),
 				],
 				default: 'default',
 				sessionMutable: true,
@@ -781,6 +989,13 @@ export class ClaudeAgent extends Disposable implements IAgent {
 				message: { role: 'user', content: contentBlocks },
 				session_id: sessionId,
 				parent_tool_use_id: null,
+				// M1 / Glossary: `Turn.id ↔ SDKUserMessage.uuid`. The SDK
+				// types this as a branded `${string}-…` template-literal
+				// alias of Node's `crypto.UUID`; cast at the boundary
+				// rather than threading the brand up to every caller.
+				// Mirrors the reference extension at
+				// `extensions/copilot/src/extension/chatSessions/claude/node/claudeCodeAgent.ts:585`.
+				uuid: effectiveTurnId as `${string}-${string}-${string}-${string}-${string}`,
 			};
 
 			await entry.send(sdkPrompt, effectiveTurnId);
