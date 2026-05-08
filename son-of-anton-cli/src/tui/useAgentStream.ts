@@ -63,6 +63,8 @@ export function useAgentStream(args: UseAgentStreamArgs): UseAgentStreamResult {
 					for await (const event of llm.streamRequest({
 						model,
 						messages: historyRef.current,
+						systemPrompt: buildTuiSystemPrompt(specialist),
+						enableCaching: true,
 						agentHandle: specialist,
 					})) {
 						if (event.type === 'token') {
@@ -125,4 +127,40 @@ export function useAgentStream(args: UseAgentStreamArgs): UseAgentStreamResult {
 	}, []);
 
 	return { messages, busy, send, addSystemMessage, clearTranscript, resetConversation, replaceMessages };
+}
+
+/**
+ * Minimal system prompt for the TUI's raw streaming path. The full agent
+ * harness system prompt (voice + role + project context + memory) goes
+ * through `BaseAgent.runChatTurn`, but the TUI calls `LlmClient.streamRequest`
+ * directly to keep latency low and avoid spinning up the orchestrator. This
+ * prompt only carries the H4 follow-up-suggestion sentinel instruction so
+ * the TUI's Tab-cyclable suggestion strip pulls real LLM-driven options
+ * instead of the static fallback.
+ *
+ * When `sota chat` is migrated onto `BaseAgent.runChatTurn` (planned with
+ * the full harness wiring), this minimal prompt drops out — the harness
+ * will assemble the correct system prompt with the same flag.
+ */
+function buildTuiSystemPrompt(specialist: string): string {
+	return [
+		`You are Son of Anton's @${specialist} specialist.`,
+		'Reply concisely and helpfully.',
+		'',
+		'## Follow-up suggestions',
+		'',
+		'After your main reply, append a sentinel block listing 2-4 short follow-up',
+		'prompts the user might want to send next. The TUI uses this to show',
+		'tab-cyclable next-step buttons. Keep each suggestion under 60 characters,',
+		'phrased as something the *user* would type ("Run the tests", not "I will',
+		'run the tests"). Skip the block entirely when no useful follow-ups exist.',
+		'',
+		'Format (verbatim — sentinels matter for parsing):',
+		'',
+		'```',
+		'<<sota:suggestions>>',
+		'["Run the tests", "Show me the diff", "Explain that further"]',
+		'<<sota:end>>',
+		'```',
+	].join('\n');
 }

@@ -37,6 +37,36 @@ import {
 const SIGN_OFF_PROBABILITY = 0.25;
 
 /**
+ * H4 — system-prompt section that teaches the model to emit a structured
+ * follow-up suggestion block at the end of its reply when the host has
+ * opted in. The CLI TUI already parses + strips this sentinel; the IDE
+ * chat panel leaves the flag off (until a follow-up wires sentinel
+ * stripping into chat-webview.js).
+ *
+ * The chosen sentinel form (`<<sota:suggestions>>[...]<<sota:end>>`) is
+ * deliberately noisy so it survives round-tripping through markdown
+ * renderers — generic markdown processors can't accidentally interpret
+ * `<<` or `>>` as anything meaningful.
+ */
+const SUGGESTIONS_SENTINEL_INSTRUCTION = [
+	'## Follow-up suggestions',
+	'',
+	'After your main reply, append a sentinel block listing 2-4 short follow-up',
+	'prompts the user might want to send next. The TUI uses this to show',
+	'tab-cyclable next-step buttons. Keep each suggestion under 60 characters,',
+	'phrased as something the *user* would type ("Run the tests", not "I will',
+	'run the tests"). Skip the block entirely when no useful follow-ups exist.',
+	'',
+	'Format (verbatim — sentinels matter for parsing):',
+	'',
+	'```',
+	'<<sota:suggestions>>',
+	'["Run the tests", "Show me the diff", "Explain that further"]',
+	'<<sota:end>>',
+	'```',
+].join('\n');
+
+/**
  * Context provided to specialist agents for each subtask.
  */
 export interface AgentContext {
@@ -120,7 +150,20 @@ export abstract class BaseAgent {
 	 * project's invariants right after learning what it is, before any
 	 * accumulated session memory.
 	 */
-	protected buildSystemPrompt(roleDescription: string, workspaceContextSnapshot?: string): string {
+	protected buildSystemPrompt(
+		roleDescription: string,
+		workspaceContextSnapshotOrOptions?: string | { workspaceContextSnapshot?: string; emitFollowupSuggestions?: boolean },
+	): string {
+		// Backwards-compatibility: callers used to pass `workspaceContextSnapshot`
+		// as a positional string. New callers can pass an options bag to opt in
+		// to additional system-prompt sections (e.g. the H4 follow-up
+		// suggestions sentinel).
+		const opts = typeof workspaceContextSnapshotOrOptions === 'string'
+			? { workspaceContextSnapshot: workspaceContextSnapshotOrOptions }
+			: (workspaceContextSnapshotOrOptions ?? {});
+		const workspaceContextSnapshot = opts.workspaceContextSnapshot;
+		const emitFollowupSuggestions = !!opts.emitFollowupSuggestions;
+
 		const voice = getVoice(this.handle);
 		const projectCtx = this.projectContext?.get();
 		const memoryContext = this.projectMemory.getSystemContext();
@@ -147,6 +190,10 @@ export abstract class BaseAgent {
 
 		if (specialistMem) {
 			sections.push(specialistMem);
+		}
+
+		if (emitFollowupSuggestions) {
+			sections.push(SUGGESTIONS_SENTINEL_INSTRUCTION);
 		}
 
 		return sections.join('\n\n---\n\n');
@@ -569,6 +616,7 @@ export abstract class BaseAgent {
 		cancellation: CancellationLike,
 		modelOverride?: ModelId,
 		workspaceContextSnapshot?: string,
+		emitFollowupSuggestions?: boolean,
 	): Promise<string> {
 		// Task descriptions surface in the trace pane and the task list, so we
 		// keep the title short. The full prompt — which may include a multi-page
@@ -581,7 +629,10 @@ export abstract class BaseAgent {
 		const cancelSubscription = cancellation.onCancellationRequested(() => controller.abort());
 
 		try {
-			const systemPrompt = this.buildSystemPrompt(this.getRoleDescription(), workspaceContextSnapshot);
+			const systemPrompt = this.buildSystemPrompt(this.getRoleDescription(), {
+				workspaceContextSnapshot,
+				emitFollowupSuggestions,
+			});
 			let fullText = '';
 			// Per-turn model override (from the chat composer's picker). Without
 			// an override we fall back to this specialist's `defaultModel`,
@@ -674,7 +725,10 @@ export abstract class BaseAgent {
 		this.agentManager.startTask(task.id);
 
 		try {
-			const systemPrompt = this.buildSystemPrompt(this.getRoleDescription(), request.workspaceContextSnapshot);
+			const systemPrompt = this.buildSystemPrompt(this.getRoleDescription(), {
+				workspaceContextSnapshot: request.workspaceContextSnapshot,
+				emitFollowupSuggestions: request.emitFollowupSuggestions,
+			});
 			// Per-turn model override from the chat composer's picker. Falls
 			// back to this specialist's `defaultModel` when no override is
 			// supplied, preserving historical Anthropic-by-default behaviour

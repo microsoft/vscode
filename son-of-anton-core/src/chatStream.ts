@@ -44,6 +44,15 @@ export interface ChatRequestLike {
 	 * it as part of the user's typed message.
 	 */
 	readonly workspaceContextSnapshot?: string;
+	/**
+	 * When true, the agent's system prompt asks the model to emit a
+	 * structured `<<sota:suggestions>>[...]<<sota:end>>` block at the end
+	 * of its reply listing 2-4 follow-up prompts the user can pick. The
+	 * CLI TUI already parses + strips this sentinel; surfaces that don't
+	 * (the IDE chat panel today) leave the flag false so users never see
+	 * the raw protocol block.
+	 */
+	readonly emitFollowupSuggestions?: boolean;
 }
 
 /**
