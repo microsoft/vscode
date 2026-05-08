@@ -252,7 +252,7 @@
 	position: relative;
 	width: 22px;
 	height: 22px;
-	border-radius: 4px;
+	border-radius: 50%;
 }
 
 .sessions-chat-send-button .monaco-button {
@@ -263,7 +263,7 @@
 	height: 22px;
 	min-width: 22px;
 	padding: 0;
-	border-radius: 4px;
+	border-radius: 50%;
 	color: var(--vscode-icon-foreground);
 	background: transparent;
 	border: none;
@@ -341,7 +341,7 @@
 	content: '';
 	position: absolute;
 	inset: -2px;
-	border-radius: 6px;
+	border-radius: 50%;
 	background: conic-gradient(from 135deg,
 			var(--vscode-chat-inputWorkingBorderColor1),
 			var(--vscode-chat-inputWorkingBorderColor2),
