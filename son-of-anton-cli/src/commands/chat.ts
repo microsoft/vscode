@@ -7,12 +7,31 @@ import * as readline from 'readline';
 import { LlmClient, type LlmMessage, type ModelId } from 'son-of-anton-core/dist/llm/LlmClient';
 import { bootstrapCredentials } from '../auth/bootstrap';
 import { buildCliHost } from '../cliHost';
+import type { CliConversation } from '../persistence/ConversationStore';
 import { makeRenderer, type Renderer } from '../render/renderer';
 
 interface ChatOptions {
 	specialist: string;
 	model: string;
 	output: 'text' | 'json';
+	tui?: boolean;
+	resumeFrom?: CliConversation;
+}
+
+/**
+ * Decide whether to render the Ink TUI for this invocation. The TUI is the
+ * default when stdout is a real TTY and the user did not opt out via
+ * `--no-tui` or `--output json`. Headless / piped invocations fall back to
+ * the readline-based path so `sota chat | tee log.txt` keeps working.
+ */
+function shouldUseTui(opts: ChatOptions): boolean {
+	if (opts.tui === false) {
+		return false;
+	}
+	if (opts.output !== 'text') {
+		return false;
+	}
+	return !!process.stdout.isTTY && !!process.stdin.isTTY;
 }
 
 /**
@@ -108,8 +127,13 @@ export async function runChat(opts: ChatOptions): Promise<void> {
 
 	const model = resolveModelId(opts.model);
 	const llm = new LlmClient(host.secrets, host.config);
-	const renderer = makeRenderer(opts.output);
 
+	if (shouldUseTui(opts)) {
+		await runChatTui({ llm, model, specialist: opts.specialist, resumeFrom: opts.resumeFrom });
+		return;
+	}
+
+	const renderer = makeRenderer(opts.output);
 	const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
 
 	if (opts.output === 'text') {
@@ -163,4 +187,36 @@ export async function runChat(opts: ChatOptions): Promise<void> {
 		}
 		process.exit(0);
 	});
+}
+
+interface ChatTuiArgs {
+	llm: LlmClient;
+	model: ModelId;
+	specialist: string;
+	resumeFrom?: CliConversation;
+}
+
+/**
+ * Mount the Ink-rendered chat TUI. Loaded via `require` rather than a static
+ * import so that environments without React + Ink installed (or callers that
+ * bypass the TUI by setting `--no-tui` / piping stdout) never pay the cost of
+ * resolving the React tree.
+ */
+async function runChatTui(args: ChatTuiArgs): Promise<void> {
+	// eslint-disable-next-line @typescript-eslint/no-require-imports
+	const ink = require('ink') as typeof import('ink');
+	// eslint-disable-next-line @typescript-eslint/no-require-imports
+	const React = require('react') as typeof import('react');
+	// eslint-disable-next-line @typescript-eslint/no-require-imports
+	const { ChatApp } = require('../tui/ChatApp') as typeof import('../tui/ChatApp');
+
+	const { waitUntilExit } = ink.render(
+		React.createElement(ChatApp, {
+			llm: args.llm,
+			model: args.model,
+			specialist: args.specialist,
+			resumeFrom: args.resumeFrom,
+		}),
+	);
+	await waitUntilExit();
 }

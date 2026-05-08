@@ -4,6 +4,7 @@
 		"module": "commonjs",
 		"moduleResolution": "node",
 		"lib": ["ES2022"],
+		"jsx": "react",
 		"outDir": "./dist",
 		"rootDir": "./src",
 		"strict": true,
@@ -18,7 +19,7 @@
 			"son-of-anton-core/dist/*": ["../son-of-anton-core/dist/*"],
 			"son-of-anton-core/*": ["../son-of-anton-core/dist/*.d.ts"]
 		},
-		"types": ["node"],
+		"types": ["node", "react"],
 		"typeRoots": [
 			"./node_modules/@types",
 			"../node_modules/@types"

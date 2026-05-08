@@ -10,6 +10,7 @@ import { runChat } from './commands/chat';
 import { configCommand } from './commands/config';
 import { mcpCommand } from './commands/mcp';
 import { runPlan } from './commands/plan';
+import { runResume } from './commands/resume';
 import { runSpecialist } from './commands/run';
 import { toolsCommand } from './commands/tools';
 
@@ -29,6 +30,7 @@ program
 	.description('Start an interactive chat session.')
 	.option('--specialist <id>', 'Pin a specialist (e.g. anton-code)', 'anton')
 	.option('--model <id>', 'Pin a model (e.g. sonnet)', 'sonnet')
+	.option('--no-tui', 'Disable the Ink TUI and use a plain readline REPL')
 	.addOption(outputOption())
 	.action(runChat);
 
@@ -44,6 +46,12 @@ program
 	.description('Have the orchestrator draft a plan (no execution).')
 	.addOption(outputOption())
 	.action(runPlan);
+
+program
+	.command('resume [id]')
+	.description('List saved conversations, or resume one by id.')
+	.addOption(outputOption())
+	.action(runResume);
 
 program
 	.command('acp')
