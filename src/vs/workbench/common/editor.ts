@@ -1254,7 +1254,6 @@ export interface IEditorPartDecorationOptions extends Required<IEditorPartDecora
 
 interface IEditorPartTabGroupsConfiguration {
 	enabled?: boolean;
-	collapseOnSwitch?: boolean;
 }
 
 export interface IEditorPartTabGroupsOptions extends Required<IEditorPartTabGroupsConfiguration> { }

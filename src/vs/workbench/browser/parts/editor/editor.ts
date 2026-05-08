@@ -75,7 +75,7 @@ export const DEFAULT_EDITOR_PART_OPTIONS: IEditorPartOptions = {
 	get limit(): IEditorPartLimitOptions { return { enabled: false, value: 10, perEditorGroup: false, excludeDirty: false }; },
 	get decorations(): IEditorPartDecorationOptions { return { badges: true, colors: true }; },
 	get autoLockGroups(): Set<string> { return new Set<string>(); },
-	get tabGroups(): IEditorPartTabGroupsOptions { return { enabled: true, collapseOnSwitch: false }; }
+	get tabGroups(): IEditorPartTabGroupsOptions { return { enabled: true }; }
 };
 
 export function impactsEditorPartOptions(event: IConfigurationChangeEvent): boolean {
@@ -180,8 +180,7 @@ function validateEditorPartOptions(options: IEditorPartOptions): IEditorPartOpti
 			'colors': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['decorations']['colors'])
 		}),
 		'tabGroups': new ObjectVerifier<IEditorPartTabGroupsOptions>(DEFAULT_EDITOR_PART_OPTIONS['tabGroups'], {
-			'enabled': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['tabGroups']['enabled']),
-			'collapseOnSwitch': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['tabGroups']['collapseOnSwitch'])
+			'enabled': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['tabGroups']['enabled'])
 		}),
 	}, options);
 }

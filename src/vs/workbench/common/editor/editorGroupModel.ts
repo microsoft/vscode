@@ -661,11 +661,6 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 		};
 		this._onDidModelChange.fire(event);
 
-		// Fire group change event so tab group visuals redraw after any reorder
-		if (this._tabGroups.length > 0) {
-			this._onDidModelChange.fire({ kind: GroupModelChangeKind.TAB_GROUP_CHANGED });
-		}
-
 		// Sticky Event (if sticky changed as part of the move)
 		if (sticky !== this.sticky) {
 			const event: IGroupEditorChangeEvent = {
@@ -1205,27 +1200,30 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 	}
 
 	createTabGroup(editors: EditorInput[], name?: string, color?: string): IEditorTabGroup {
-		const indices = editors
-			.map(e => this.indexOf(e))
-			.filter(i => i >= 0 && !this.isSticky(i))
-			.sort((a, b) => a - b);
+		// Build a list of (editor, index) pairs, filter, and sort by index
+		const editorEntries = editors
+			.map(e => ({ editor: e, index: this.indexOf(e) }))
+			.filter(entry => entry.index >= 0 && !this.isSticky(entry.index))
+			.sort((a, b) => a.index - b.index);
 
-		if (indices.length === 0) {
+		if (editorEntries.length === 0) {
 			throw new Error('Cannot create tab group: no valid non-sticky editors provided');
 		}
 
 		// Move editors to be contiguous starting at the first editor's position
-		const targetStart = indices[0];
-		for (let i = 1; i < indices.length; i++) {
-			const editor = this.editors[indices[i]];
-			if (indices[i] !== targetStart + i) {
-				this.moveEditor(editor, targetStart + i);
+		const targetStart = editorEntries[0].index;
+		for (let i = 1; i < editorEntries.length; i++) {
+			const entry = editorEntries[i];
+			if (entry.index !== targetStart + i) {
+				this.moveEditor(entry.editor, targetStart + i);
 				// Re-derive indices after move
-				for (let j = i + 1; j < indices.length; j++) {
-					indices[j] = this.indexOf(editors[j]);
+				for (let j = i + 1; j < editorEntries.length; j++) {
+					editorEntries[j].index = this.indexOf(editorEntries[j].editor);
 				}
 			}
 		}
+
+		const indices = editorEntries.map(e => e.index);
 
 		const tabGroupColors = ['red', 'blue', 'green', 'yellow', 'purple', 'orange', 'pink', 'gray'];
 		const randomColor = tabGroupColors[Math.floor(Math.random() * tabGroupColors.length)];
