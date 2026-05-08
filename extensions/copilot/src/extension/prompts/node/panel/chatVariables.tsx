@@ -499,7 +499,9 @@ export class ChatToolReferences extends PromptElement<ChatToolCallProps, void> {
 			}
 		};
 		const toolTokens = await endpoint.acquireTokenizer().countToolTokens([tool]);
-		const { messages } = await PromptRenderer.create(this.instantiationService, { ...endpoint, modelMaxPromptTokens: endpoint.modelMaxPromptTokens - toolTokens }, PanelChatBasePrompt, argFetchProps).render();
+		const tokenBudget = Math.max(1, endpoint.modelMaxPromptTokens - toolTokens);
+		const promptEndpoint = endpoint.cloneWithTokenOverride(tokenBudget);
+		const { messages } = await PromptRenderer.create(this.instantiationService, promptEndpoint, PanelChatBasePrompt, argFetchProps).render();
 		let fnCall: ICopilotToolCall | undefined;
 		const fetchResult = await endpoint.makeChatRequest(
 			'fetchToolArgs',

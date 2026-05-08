@@ -104,7 +104,7 @@ class OpenWorkspaceInAgentsTitleBarWidget extends BaseActionViewItem {
 		container.setAttribute('aria-label', hoverText);
 		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), container, hoverText));
 
-		const icon = append(container, $('span.open-in-agents-titlebar-widget-icon'));
+		const icon = append(container, $('span.open-in-agents-titlebar-widget-icon.codicon.codicon-agent'));
 		icon.setAttribute('aria-hidden', 'true');
 
 		const labelEl = append(container, $('span.open-in-agents-titlebar-widget-label'));

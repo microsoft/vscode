@@ -15,6 +15,36 @@ import { CancellationToken } from '../../../../util/vs/base/common/cancellation'
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { createExtensionTestingServices } from '../../../test/vscode-node/services';
 import { CopilotLanguageModelWrapper } from '../languageModelAccess';
+import { ExtensionContributedChatEndpoint } from '../../../../platform/endpoint/vscode-node/extChatEndpoint';
+
+class MockExtensionContributedLanguageModel implements Partial<vscode.LanguageModelChat> {
+	public readonly vendor = 'mock-vendor';
+	public readonly id = 'mock-id';
+	public readonly name = 'Mock Model';
+	public readonly version = '1.0.0';
+	public readonly family = 'mock-family';
+	public readonly maxInputTokens = 4096;
+	public readonly capabilities = {
+		supportsToolCalling: false,
+		supportsImageToText: false,
+		editToolsHint: [],
+	};
+
+	countTokens(_input: string | vscode.LanguageModelChatMessage | vscode.LanguageModelChatMessage2): Thenable<number> {
+		return Promise.resolve(1);
+	}
+
+	sendRequest(
+		_messages: Parameters<vscode.LanguageModelChat['sendRequest']>[0],
+		_options: Parameters<vscode.LanguageModelChat['sendRequest']>[1],
+		_token: Parameters<vscode.LanguageModelChat['sendRequest']>[2],
+	): ReturnType<vscode.LanguageModelChat['sendRequest']> {
+		const stream = (async function* (): AsyncIterable<vscode.LanguageModelTextPart> {
+			yield new vscode.LanguageModelTextPart('ok');
+		})();
+		return Promise.resolve({ stream } as Awaited<ReturnType<vscode.LanguageModelChat['sendRequest']>>);
+	}
+}
 
 
 suite('CopilotLanguageModelWrapper', () => {
@@ -85,6 +115,20 @@ suite('CopilotLanguageModelWrapper', () => {
 
 		test('good tool name', async () => {
 			await runTest([vscode.LanguageModelChatMessage.User('hello2')], [{ name: 'hello_world', description: 'my tool' }]);
+		});
+
+		test('class-based extension endpoint does not regress when cloning prompt token limit', async () => {
+			const extensionModel = new MockExtensionContributedLanguageModel() as vscode.LanguageModelChat;
+			const extensionEndpoint = instaService.createInstance(ExtensionContributedChatEndpoint, extensionModel, undefined);
+
+			await wrapper.provideLanguageModelResponse(
+				extensionEndpoint,
+				[vscode.LanguageModelChatMessage.User('hello')],
+				{ requestInitiator: 'unknown', toolMode: vscode.LanguageModelChatToolMode.Auto },
+				vscode.extensions.all[0].id,
+				{ report: () => { } },
+				CancellationToken.None,
+			);
 		});
 	});
 });

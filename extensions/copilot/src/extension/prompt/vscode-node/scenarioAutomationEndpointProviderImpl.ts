@@ -20,7 +20,7 @@ export class ScenarioAutomationEndpointProviderImpl extends ProductionEndpointPr
 				const firstNonCopilotModel = allModels.find(m => m.vendor !== 'copilot');
 				if (firstNonCopilotModel) {
 					this._logService.trace(`Using custom contributed chat model`);
-					return this._instantiationService.createInstance(ExtensionContributedChatEndpoint, firstNonCopilotModel);
+					return this._instantiationService.createInstance(ExtensionContributedChatEndpoint, firstNonCopilotModel, undefined);
 				} else {
 					throw new Error('No custom contributed chat models found.');
 				}

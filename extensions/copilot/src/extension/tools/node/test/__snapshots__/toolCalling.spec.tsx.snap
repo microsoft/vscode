@@ -35,7 +35,8 @@ Please check your input and try again.
 I will retry the tool
 
 # TOOL
-result"
+ERROR while calling tool: Method not implemented.
+Please check your input and try again."
 `;
 
 exports[`TestFailureTool > tool does exist 1`] = `
@@ -77,5 +78,6 @@ Please check your input and try again.
 I will retry the tool
 
 # TOOL
-result"
+ERROR while calling tool: Method not implemented.
+Please check your input and try again."
 `;

@@ -33,7 +33,6 @@ import { IOpenerService } from '../../../../../platform/opener/common/opener.js'
 import product from '../../../../../platform/product/common/product.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { ToggleTitleBarConfigAction } from '../../../../browser/parts/titlebar/titlebarActions.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
 import { ChatEntitlement, ChatEntitlementContext, ChatEntitlementRequests, ChatEntitlementService, IChatEntitlementService, isProUser } from '../../../../services/chat/common/chatEntitlementService.js';
@@ -401,10 +400,10 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 						order: 0, // same position as the update button
 						when: ContextKeyExpr.and(
 							IsWebContext.negate(),
+
 							ChatContextKeys.Entitlement.signedOut,
 							ChatContextKeys.Setup.hidden.negate(),
 							ChatContextKeys.Setup.disabledInWorkspace.negate(),
-							ContextKeyExpr.equals(`config.${ChatConfiguration.TitleBarSignInEnabled}`, true),
 							ContextKeyExpr.has('updateTitleBar').negate(),
 							InEditorZenModeContext.negate(),
 						),
@@ -419,23 +418,6 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: CHAT_SETUP_ACTION_ID, from: 'titlebar' });
 
 				return commandService.executeCommand(CHAT_SETUP_ACTION_ID);
-			}
-		}
-
-		class ToggleSignInTitleBarAction extends ToggleTitleBarConfigAction {
-			constructor() {
-				super(
-					ChatConfiguration.TitleBarSignInEnabled,
-					localize('toggle.chatSignIn', 'Copilot Sign In'),
-					localize('toggle.chatSignInDescription', "Toggle visibility of the Copilot Sign In button in title bar"),
-					3,
-					ContextKeyExpr.and(
-						IsWebContext.negate(),
-						ChatContextKeys.Entitlement.signedOut,
-						ChatContextKeys.Setup.hidden.negate(),
-						ChatContextKeys.Setup.disabledInWorkspace.negate(),
-					)
-				);
 			}
 		}
 
@@ -548,7 +530,6 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 		registerAction2(ChatSetupTriggerForceSignInDialogAction);
 		registerAction2(ChatSetupFromAccountsAction);
 		registerAction2(ChatSetupSignInTitleBarAction);
-		registerAction2(ToggleSignInTitleBarAction);
 		registerAction2(ChatSetupTriggerAnonymousWithoutDialogAction);
 		registerAction2(ChatSetupTriggerSupportAnonymousAction);
 		registerAction2(UpgradePlanAction);

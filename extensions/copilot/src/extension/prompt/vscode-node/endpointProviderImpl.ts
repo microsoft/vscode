@@ -77,7 +77,7 @@ export class ProductionEndpointProvider extends Disposable implements IEndpointP
 		}
 
 		if (model.vendor !== 'copilot') {
-			return this._instantiationService.createInstance(ExtensionContributedChatEndpoint, model);
+			return this._instantiationService.createInstance(ExtensionContributedChatEndpoint, model, undefined);
 		}
 
 		if (model.id === AutoChatEndpoint.pseudoModelId) {

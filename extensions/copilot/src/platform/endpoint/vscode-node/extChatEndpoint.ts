@@ -48,11 +48,11 @@ export class ExtensionContributedChatEndpoint implements IChatEndpoint {
 
 	constructor(
 		private readonly languageModel: vscode.LanguageModelChat,
+		maxTokensOverride: number | undefined = undefined,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IOTelService private readonly _otelService: IOTelService,
 	) {
-		// Initialize with the model's max tokens
-		this._maxTokens = languageModel.maxInputTokens;
+		this._maxTokens = maxTokensOverride ?? languageModel.maxInputTokens;
 		this.supportedEditTools = languageModel.capabilities.editToolsHint?.filter(isEndpointEditToolName);
 	}
 
@@ -279,10 +279,7 @@ export class ExtensionContributedChatEndpoint implements IChatEndpoint {
 	}
 
 	cloneWithTokenOverride(modelMaxPromptTokens: number): IChatEndpoint {
-		return this._instantiationService.createInstance(ExtensionContributedChatEndpoint, {
-			...this.languageModel,
-			maxInputTokens: modelMaxPromptTokens
-		});
+		return this._instantiationService.createInstance(ExtensionContributedChatEndpoint, this.languageModel, modelMaxPromptTokens);
 	}
 }
 
