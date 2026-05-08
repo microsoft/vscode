@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { PermissionRequestResult, SessionConfig, Tool, ToolResultObject } from '@github/copilot-sdk';
+import type { MessageOptions, PermissionRequestResult, SessionConfig, Tool, ToolResultObject } from '@github/copilot-sdk';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
 import { join } from '../../../../base/common/path.js';
 import { extUriBiasedIgnorePathCase, normalizePath } from '../../../../base/common/resources.js';
+import { splitLinesIncludeSeparators } from '../../../../base/common/strings.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
@@ -19,11 +20,11 @@ import { IFileService } from '../../../files/common/files.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
 import { platformSessionSchema } from '../../common/agentHostSchema.js';
-import { AgentSignal, IAgentAttachment } from '../../common/agentService.js';
+import { AgentSignal } from '../../common/agentService.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
-import type { FileEdit, ToolDefinition } from '../../common/state/protocol/state.js';
+import { MessageAttachmentKind, type FileEdit, type MessageAttachment, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { ActionType, type SessionAction } from '../../common/state/sessionActions.js';
 import { ResponsePartKind, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, type PendingMessage, type URI as ProtocolURI, type SessionInputAnswer, type SessionInputRequest, type ToolCallResult, type ToolResultContent, type Turn } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
@@ -44,6 +45,7 @@ import { buildPendingEditContentUri } from './pendingEditContentStore.js';
  * and the `session.mode_changed` listener.
  */
 export type CopilotSdkMode = 'interactive' | 'plan' | 'autopilot';
+type CopilotSdkAttachment = Required<MessageOptions>['attachments'][number];
 
 const COPILOT_HOME_DIRECTORY = '.copilot';
 const SESSION_STATE_DIRECTORY = join(COPILOT_HOME_DIRECTORY, 'session-state');
@@ -504,26 +506,80 @@ export class CopilotAgentSession extends Disposable {
 
 	// ---- session operations -------------------------------------------------
 
-	async send(prompt: string, attachments?: IAgentAttachment[], turnId?: string, mode?: CopilotSdkMode): Promise<void> {
+	async send(prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, mode?: CopilotSdkMode): Promise<void> {
 		if (turnId) {
 			this._turnId = turnId;
 		}
 		this._logService.info(`[Copilot:${this.sessionId}] sendMessage called: "${prompt.substring(0, 100)}${prompt.length > 100 ? '...' : ''}" (${attachments?.length ?? 0} attachments)`);
 
-		const sdkAttachments = attachments?.map(a => {
-			const path = a.uri.scheme === 'file' ? a.uri.fsPath : a.uri.toString();
-			if (a.type === 'selection') {
-				return { type: 'selection' as const, filePath: path, displayName: a.displayName ?? path, text: a.text, selection: a.selection };
-			}
-			return { type: a.type, path, displayName: a.displayName };
-		});
+		const sdkAttachments = attachments
+			? (await Promise.all(attachments.map(a => this._toSdkAttachment(a))))
+				.filter((a): a is NonNullable<typeof a> => a !== undefined)
+			: undefined;
 		if (sdkAttachments?.length) {
-			this._logService.trace(`[Copilot:${this.sessionId}] Attachments: ${JSON.stringify(sdkAttachments.map(a => ({ type: a.type, path: a.type === 'selection' ? a.filePath : a.path })))}`);
+			this._logService.trace(`[Copilot:${this.sessionId}] Attachments: ${JSON.stringify(sdkAttachments.map(a => ({ type: a.type })))}`);
 		}
 
 		await this.applyMode(mode);
 		await this._wrapper.session.send({ prompt, attachments: sdkAttachments });
 		this._logService.info(`[Copilot:${this.sessionId}] session.send() returned`);
+	}
+
+	/**
+	 * Translate a protocol {@link MessageAttachment} into the Copilot CLI
+	 * SDK's `attachments` payload shape. Only resource attachments are
+	 * forwarded — simple and embedded resources are dropped because the
+	 * CLI SDK does not consume them. The {@link MessageAttachmentBase.displayKind}
+	 * advisory hint controls whether a resource is treated as a file,
+	 * directory, or a selection.
+	 *
+	 * For selections we read the resource content from disk and slice it
+	 * by the carried range (the protocol's {@link TextSelection} only
+	 * carries the range, not the inline text). On read failure the
+	 * selection downgrades to a plain file reference.
+	 */
+	private async _toSdkAttachment(attachment: MessageAttachment): Promise<CopilotSdkAttachment | undefined> {
+		if (attachment.type !== MessageAttachmentKind.Resource) {
+			return undefined;
+		}
+		const uri = URI.parse(attachment.uri);
+		const path = uri.scheme === 'file' ? uri.fsPath : uri.toString();
+		const displayName = attachment.label ?? path;
+		if (attachment.displayKind === 'selection' && attachment.selection) {
+			try {
+				const text = await this._readSelectedText(uri, attachment.selection.range);
+				return { type: 'selection' as const, filePath: path, displayName, text, selection: attachment.selection.range };
+			} catch (err) {
+				this._logService.warn(`[Copilot:${this.sessionId}] Failed to read selected text for ${uri.toString()}: ${err}`);
+				return { type: 'file' as const, path, displayName };
+			}
+		}
+		if (attachment.displayKind === 'selection') {
+			return { type: 'file' as const, path, displayName };
+		}
+		const type = attachment.displayKind === 'directory' ? 'directory' : 'file';
+		return { type, path, displayName };
+	}
+
+	private async _readSelectedText(uri: URI, range: { readonly start: { readonly line: number; readonly character: number }; readonly end: { readonly line: number; readonly character: number } }): Promise<string> {
+		const content = await this._fileService.readFile(uri);
+		const text = content.value.toString();
+		// AHP carries the resource range; the public SDK can carry the selected text too.
+		// This reads the resource URI, so unsaved editor changes are not included.
+		const lines = splitLinesIncludeSeparators(text);
+		const start = this._getOffsetAt(lines, range.start);
+		const end = this._getOffsetAt(lines, range.end);
+		return text.substring(start, Math.max(start, end));
+	}
+
+	private _getOffsetAt(lines: readonly string[], position: { readonly line: number; readonly character: number }): number {
+		const line = Math.max(0, Math.min(position.line, lines.length - 1));
+		let offset = 0;
+		for (let i = 0; i < line; i++) {
+			offset += lines[i].length;
+		}
+		const lineText = lines[line].replace(/\r\n|\r|\n$/, '');
+		return offset + Math.max(0, Math.min(position.character, lineText.length));
 	}
 
 	/**

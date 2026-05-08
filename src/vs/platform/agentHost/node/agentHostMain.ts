@@ -15,13 +15,14 @@ import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import * as os from 'os';
 import * as inspector from 'inspector';
-import { AgentHostEnableClaudeEnvVar, AgentHostIpcChannels, IAgentHostInspectInfo, IAgentHostSocketInfo, IConnectionTrackerService } from '../common/agentService.js';
+import { AgentHostClaudeSdkPathEnvVar, AgentHostIpcChannels, IAgentHostInspectInfo, IAgentHostSocketInfo, IConnectionTrackerService } from '../common/agentService.js';
 import { AgentService } from './agentService.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { IAgentHostTerminalManager } from './agentHostTerminalManager.js';
 import { CopilotAgent } from './copilot/copilotAgent.js';
 import { CopilotApiService, ICopilotApiService } from './shared/copilotApiService.js';
 import { ClaudeAgent } from './claude/claudeAgent.js';
+import { ClaudeAgentSdkService, IClaudeAgentSdkService } from './claude/claudeAgentSdkService.js';
 import { ClaudeProxyService, IClaudeProxyService } from './claude/claudeProxyService.js';
 import { ProtocolServerHandler } from './protocolServerHandler.js';
 import { WebSocketProtocolServer } from './webSocketTransport.js';
@@ -114,6 +115,8 @@ function startAgentHost(): void {
 		diServices.set(ICopilotApiService, copilotApiService);
 		const claudeProxyService = disposables.add(instantiationService.createInstance(ClaudeProxyService));
 		diServices.set(IClaudeProxyService, claudeProxyService);
+		const claudeAgentSdkService = instantiationService.createInstance(ClaudeAgentSdkService);
+		diServices.set(IClaudeAgentSdkService, claudeAgentSdkService);
 		agentService = new AgentService(logService, fileService, sessionDataService, productService, gitService, rootConfigResource);
 		const pluginManager = new AgentPluginManager(URI.file(environmentService.userDataPath), fileService, logService);
 		diServices.set(IAgentPluginManager, pluginManager);
@@ -124,9 +127,11 @@ function startAgentHost(): void {
 		diServices.set(IAgentConfigurationService, agentService.configurationService);
 		agentService.registerProvider(instantiationService.createInstance(CopilotAgent));
 		// The Claude agent provider is opt-in. Gated on the
-		// `chat.agentHost.claudeAgent.enabled` workbench setting, forwarded by the
-		// agent host starters as `VSCODE_AGENT_HOST_ENABLE_CLAUDE`.
-		if (process.env[AgentHostEnableClaudeEnvVar] === '1') {
+		// `chat.agentHost.claudeAgent.path` workbench setting being non-empty,
+		// forwarded by the agent host starters as `VSCODE_AGENT_HOST_CLAUDE_SDK_PATH`.
+		// The SDK is intentionally not bundled with VS Code; the env var holds the
+		// absolute path to a locally-installed `@anthropic-ai/claude-agent-sdk` package.
+		if (process.env[AgentHostClaudeSdkPathEnvVar]) {
 			agentService.registerProvider(instantiationService.createInstance(ClaudeAgent));
 		}
 	} catch (err) {
@@ -191,7 +196,10 @@ function startAgentHost(): void {
 				agentService,
 				agentService.stateManager,
 				wsServer,
-				{ defaultDirectory: URI.file(os.homedir()).toString() },
+				{
+					defaultDirectory: URI.file(os.homedir()).toString(),
+					completionTriggerCharacters: agentService.completionTriggerCharacters,
+				},
 				clientFileSystemProvider,
 				logService,
 			));
@@ -302,7 +310,10 @@ async function startWebSocketServer(agentService: AgentService, clientFileSystem
 		agentService,
 		agentService.stateManager,
 		wsServer,
-		{ defaultDirectory: URI.file(os.homedir()).toString() },
+		{
+			defaultDirectory: URI.file(os.homedir()).toString(),
+			completionTriggerCharacters: agentService.completionTriggerCharacters,
+		},
 		clientFileSystemProvider,
 		logService,
 	));

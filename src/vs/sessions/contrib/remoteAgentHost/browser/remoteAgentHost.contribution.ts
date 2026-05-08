@@ -483,7 +483,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		// Agent-level customizations observable
 		const customizations = observableValue<CustomizationRef[]>('agentCustomizations', []);
 		const updateCustomizations = async () => {
-			const refs = await resolveCustomizationRefs(this._promptsService, syncProvider, this._agentPluginService, bundler);
+			const refs = await resolveCustomizationRefs(this._promptsService, syncProvider, this._agentPluginService, bundler, sessionType);
 			customizations.set(refs, undefined);
 		};
 		agentStore.add(syncProvider.onDidChange(() => updateCustomizations()));

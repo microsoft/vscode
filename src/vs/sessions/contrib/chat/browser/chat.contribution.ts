@@ -68,10 +68,6 @@ class NewChatInSessionsWindowAction extends Action2 {
 
 registerAction2(NewChatInSessionsWindowAction);
 
-
-
-
-
 // --- Sessions New Chat View Registration ---
 // Registers in the same ChatBar container as the existing ChatViewPane.
 // The `when` clause ensures only the new-session pane shows when no active session exists.

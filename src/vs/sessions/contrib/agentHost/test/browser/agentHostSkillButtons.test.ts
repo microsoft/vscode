@@ -165,7 +165,7 @@ suite('agentHostSkillButtons - menu registration', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function skillButtonItems() {
-		const all = MenuRegistry.getMenuItems(MenuId.ChatEditingSessionApplySubmenu);
+		const all = MenuRegistry.getMenuItems(MenuId.AgentsChangesPrimaryActionSubMenu);
 		const menuItems: { command: { id: string }; when?: ContextKeyExpression }[] = [];
 		for (const item of all) {
 			if (!isIMenuItem(item)) {
@@ -209,9 +209,9 @@ suite('agentHostSkillButtons - menu registration', () => {
 	});
 
 	test('the apply submenu is contributed to the changes toolbar in the navigation group', () => {
-		const toolbarItems = MenuRegistry.getMenuItems(MenuId.ChatEditingSessionChangesToolbar);
-		const submenuEntry = toolbarItems.find(item => isISubmenuItem(item) && item.submenu === MenuId.ChatEditingSessionApplySubmenu);
-		assert.ok(submenuEntry, 'expected ChatEditingSessionApplySubmenu to be registered on ChatEditingSessionChangesToolbar');
+		const toolbarItems = MenuRegistry.getMenuItems(MenuId.AgentsChangesToolbar);
+		const submenuEntry = toolbarItems.find(item => isISubmenuItem(item) && item.submenu === MenuId.AgentsChangesPrimaryActionSubMenu);
+		assert.ok(submenuEntry, 'expected AgentsChangesPrimaryActionSubMenu to be registered on AgentsChangesToolbar');
 		assert.strictEqual((submenuEntry as { group?: string }).group, 'navigation');
 	});
 
