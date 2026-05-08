@@ -10,6 +10,7 @@ import * as crypto from 'crypto';
 import type * as vscode from 'vscode';
 import type { ChatParticipantToolToken } from 'vscode';
 import { IAuthenticationService } from '../../../../platform/authentication/common/authentication';
+import { IChatQuotaService } from '../../../../platform/chat/common/chatQuotaService';
 import { ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
 import { PermissiveAuthRequiredError } from '../../../../platform/github/common/githubService';
 import { ILogService } from '../../../../platform/log/common/logService';
@@ -805,6 +806,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		@IOTelService private readonly _otelService: IOTelService,
 		@IGitService private readonly _gitService: IGitService,
 		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
+		@IChatQuotaService private readonly _chatQuotaService: IChatQuotaService,
 	) {
 		super();
 		this.sessionId = _sdkSession.sessionId;
@@ -1010,6 +1012,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		const prompt = getPromptLabel(input);
 		this._pendingPrompt = prompt;
 		this._lastResponseModelId = undefined;
+		this._chatQuotaService.resetTurnCredits(request.id);
 		this.logService.info(`[CopilotCLISession] Invoking session ${this.sessionId}`);
 		const disposables = new DisposableStore();
 		const logStartTime = Date.now();
@@ -1271,6 +1274,14 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 				this._lastResponseModelId = event.data.model;
 				if (requestStream && typeof event.data.outputTokens === 'number' && typeof event.data.inputTokens === 'number') {
 					reportUsage(event.data.inputTokens, event.data.outputTokens);
+				}
+				// Accumulate per-turn credits from SDK copilotUsage data
+				const copilotUsage = (event.data as Record<string, unknown>).copilotUsage;
+				if (copilotUsage && typeof copilotUsage === 'object') {
+					const { totalNanoAiu } = copilotUsage as { totalNanoAiu?: number };
+					if (typeof totalNanoAiu === 'number') {
+						this._chatQuotaService.setLastCopilotUsage(totalNanoAiu, request.id);
+					}
 				}
 			})));
 			disposables.add(toDisposable(this._sdkSession.on('session.usage_info', (event) => {
