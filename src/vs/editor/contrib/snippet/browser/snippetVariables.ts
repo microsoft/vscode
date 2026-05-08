@@ -33,6 +33,7 @@ export const KnownSnippetVariableNames = Object.freeze<{ [key: string]: true }>(
 	'CURRENT_SECONDS_UNIX': true,
 	'CURRENT_MILLISECONDS_UNIX': true,
 	'CURRENT_TIMEZONE_OFFSET': true,
+	'CURRENT_TIMEZONE_NAME': true,
 	'SELECTION': true,
 	'CLIPBOARD': true,
 	'TM_SELECTED_TEXT': true,
@@ -316,6 +317,8 @@ export class TimeBasedVariableResolver implements VariableResolver {
 				const minutesString = (minutes < 10 ? '0' + minutes : minutes);
 				return sign + hoursString + ':' + minutesString;
 			}
+			case 'CURRENT_TIMEZONE_NAME':
+				return Intl.DateTimeFormat().resolvedOptions().timeZone;
 		}
 
 		return undefined;
