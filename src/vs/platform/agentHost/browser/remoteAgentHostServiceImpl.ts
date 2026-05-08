@@ -12,7 +12,6 @@ import { Disposable, DisposableStore, IDisposable } from '../../../base/common/l
 import { DeferredPromise, raceTimeout } from '../../../base/common/async.js';
 import { ConfigurationTarget, IConfigurationService } from '../../configuration/common/configuration.js';
 import { IEnvironmentService } from '../../environment/common/environment.js';
-import { IFileService } from '../../files/common/files.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ILabelService } from '../../label/common/label.js';
 import { ILogService } from '../../log/common/log.js';
@@ -31,7 +30,6 @@ import {
 	type IRemoteAgentHostConnectionInfo,
 	type IRemoteAgentHostEntry,
 } from '../common/remoteAgentHostService.js';
-import { AhpJsonlLogger } from '../common/ahpJsonlLogger.js';
 import { RemoteAgentHostProtocolClient } from './remoteAgentHostProtocolClient.js';
 import { WebSocketClientTransport } from './webSocketClientTransport.js';
 import { AGENT_HOST_LABEL_FORMATTER, AGENT_HOST_SCHEME, agentHostAuthority, normalizeRemoteAgentHostAddress } from '../common/agentHostUri.js';
@@ -88,7 +86,6 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		@ILogService private readonly _logService: ILogService,
 		@ILabelService private readonly _labelService: ILabelService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
-		@IFileService private readonly _fileService: IFileService,
 	) {
 		super();
 
@@ -390,11 +387,12 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		}
 
 		const store = new DisposableStore();
-		const transport = store.add(new WebSocketClientTransport(address, connectionToken, new AhpJsonlLogger(
-			this._fileService,
-			this._logService,
+		const transport = store.add(this._instantiationService.createInstance(
+			WebSocketClientTransport,
+			address,
+			connectionToken,
 			{ logsHome: this._environmentService.logsHome, connectionId: address, transport: 'websocket' },
-		)));
+		));
 		const client = store.add(this._instantiationService.createInstance(RemoteAgentHostProtocolClient, address, transport));
 		const entry: IConnectionEntry = { store, client, connected: false, status: RemoteAgentHostConnectionStatus.connecting };
 		this._entries.set(address, entry);
