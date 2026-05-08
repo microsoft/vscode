@@ -523,7 +523,8 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 		// Create tabs as needed
 		const [tabsContainer, tabsScrollbar] = assertReturnsAllDefined(this.tabsContainer, this.tabsScrollbar);
-		for (let i = tabsContainer.children.length; i < this.tabsModel.count; i++) {
+		const currentTabCount = this.getTabElementCount(tabsContainer);
+		for (let i = currentTabCount; i < this.tabsModel.count; i++) {
 			tabsContainer.appendChild(this.createTab(i, tabsContainer, tabsScrollbar));
 		}
 
@@ -610,10 +611,11 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 			// Remove tabs that got closed
 			const tabsContainer = assertReturnsDefined(this.tabsContainer);
-			while (tabsContainer.children.length > this.tabsModel.count) {
+			while (this.getTabElementCount(tabsContainer) > this.tabsModel.count) {
 
-				// Remove one tab from container (must be the last to keep indexes in order!)
-				tabsContainer.lastChild?.remove();
+				// Remove the last .tab element (must be last to keep indexes in order!)
+				const lastTab = this.getLastTabElement(tabsContainer);
+				lastTab?.remove();
 
 				// Remove associated tab label and widget
 				dispose(this.tabDisposables.pop());
@@ -637,6 +639,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			this.tabLabels = [];
 			this.activeTabLabel = undefined;
 			this.tabActionBars = [];
+			this.tabGroupHeaders.clear();
 
 			this.clearEditorActionsToolbar();
 			this.updateTabsControlVisibility();
@@ -811,8 +814,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	}
 
 	private doWithTab(tabIndex: number, editor: EditorInput, fn: (editor: EditorInput, tabIndex: number, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel, tabLabel: IEditorInputLabel, tabActionBar: ActionBar) => void): void {
-		const tabsContainer = assertReturnsDefined(this.tabsContainer);
-		const tabContainer = tabsContainer.children[tabIndex] as HTMLElement;
+		const tabContainer = this.getTabAtIndex(tabIndex);
 		const tabResourceLabel = this.tabResourceLabels.get(tabIndex);
 		const tabLabel = this.tabLabels[tabIndex];
 		const tabActionBar = this.tabActionBars[tabIndex];
@@ -1242,7 +1244,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			if (isTab) {
 				dropTarget = this.computeDropTarget(e, tabIndex, element);
 			} else {
-				dropTarget = { leftElement: element.lastElementChild as HTMLElement, rightElement: undefined };
+				dropTarget = { leftElement: this.getLastTabElement(element), rightElement: undefined };
 			}
 		} else {
 			dropTarget = undefined;
@@ -1296,11 +1298,27 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			return { leftElement: targetTab, rightElement: undefined };
 		}
 
-		// Between two tabs
-		const tabBefore = isLeftSideOfTab ? targetTab.previousElementSibling : targetTab;
-		const tabAfter = isLeftSideOfTab ? targetTab : targetTab.nextElementSibling;
+		// Between two tabs (skip .tab-group-header siblings)
+		const tabBefore = isLeftSideOfTab ? this.getPreviousTabSibling(targetTab) : targetTab;
+		const tabAfter = isLeftSideOfTab ? targetTab : this.getNextTabSibling(targetTab);
 
 		return { leftElement: tabBefore as HTMLElement, rightElement: tabAfter as HTMLElement };
+	}
+
+	private getPreviousTabSibling(element: HTMLElement): HTMLElement | null {
+		let sibling = element.previousElementSibling as HTMLElement | null;
+		while (sibling && !sibling.classList.contains('tab')) {
+			sibling = sibling.previousElementSibling as HTMLElement | null;
+		}
+		return sibling;
+	}
+
+	private getNextTabSibling(element: HTMLElement): HTMLElement | null {
+		let sibling = element.nextElementSibling as HTMLElement | null;
+		while (sibling && !sibling.classList.contains('tab')) {
+			sibling = sibling.nextElementSibling as HTMLElement | null;
+		}
+		return sibling;
 	}
 
 	private async selectEditor(editor: EditorInput): Promise<void> {
@@ -1551,99 +1569,95 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		const tabGroups = this.tabsModel.tabGroups;
 		const activeGroupIds = new Set(tabGroups.map(g => g.id));
 
-		// Remove stale group badges
-		for (const [id, badge] of this.tabGroupHeaders) {
+		// Remove stale group headers
+		for (const [id, header] of this.tabGroupHeaders) {
 			if (!activeGroupIds.has(id)) {
-				badge.remove();
+				header.remove();
 				this.tabGroupHeaders.delete(id);
 			}
 		}
 
-		// Apply group styling to all tabs and manage headers
+		// Clear all group-related classes from tabs first
+		for (let i = 0; i < tabsContainer.children.length; i++) {
+			const child = tabsContainer.children[i] as HTMLElement;
+			if (child.classList.contains('tab')) {
+				child.classList.remove('in-tab-group', 'tab-group-collapsed');
+				child.style.removeProperty('--tab-group-color');
+			}
+		}
+
+		// Apply group headers and styling to tabs
 		for (const group of tabGroups) {
 			this.redrawTabGroupHeader(group, tabsContainer);
 			this.redrawTabGroupTabs(group, tabsContainer);
 		}
-
-		// Clear group classes from tabs not in any group
-		const allChildren = tabsContainer.children;
-		for (let i = 0; i < allChildren.length; i++) {
-			const child = allChildren[i] as HTMLElement;
-			if (child.classList.contains('tab') && !child.classList.contains('in-tab-group')) {
-				child.style.removeProperty('--tab-group-color');
-				child.classList.remove('tab-group-collapsed', 'tab-group-first');
-			}
-		}
 	}
 
 	private redrawTabGroupHeader(group: IEditorTabGroup, tabsContainer: HTMLElement): void {
-		// Render group header badge inside the first tab of the group
-		const firstTabElement = tabsContainer.children[group.startIndex] as HTMLElement | undefined;
-		if (!firstTabElement) {
+		const firstTab = this.getTabAtIndex(group.startIndex);
+		if (!firstTab) {
 			return;
 		}
 
-		// Find or create the badge element within the first tab
-		let badge = firstTabElement.querySelector('.tab-group-badge') as HTMLElement | null;
-		if (!badge) {
-			badge = document.createElement('div');
-			badge.classList.add('tab-group-badge');
-			badge.addEventListener('click', (e) => {
+		let header = this.tabGroupHeaders.get(group.id);
+		if (!header) {
+			header = document.createElement('div');
+			header.classList.add('tab-group-header');
+			header.dataset.groupId = group.id;
+
+			header.addEventListener('click', (e) => {
 				e.stopPropagation();
 				if (group.collapsed) {
-					(this.tabsModel as any).expandTabGroup?.(group.id);
+					this.tabsModel.expandTabGroup?.(group.id);
 				} else {
-					(this.tabsModel as any).collapseTabGroup?.(group.id);
+					this.tabsModel.collapseTabGroup?.(group.id);
 				}
 			});
 
-			// DnD: allow dropping tabs onto group badge to add them to the group
-			badge.addEventListener('dragover', (e: DragEvent) => {
+			// DnD: allow dropping tabs onto group header to add them to the group
+			header.addEventListener('dragover', (e: DragEvent) => {
 				if (this.editorTransfer.hasData(DraggedEditorIdentifier.prototype)) {
 					e.preventDefault();
 					if (e.dataTransfer) {
 						e.dataTransfer.dropEffect = 'move';
 					}
-					badge!.style.opacity = '0.7';
+					header!.classList.add('drag-over');
 				}
 			});
-			badge.addEventListener('dragleave', () => {
-				badge!.style.opacity = '';
+			header.addEventListener('dragleave', () => {
+				header!.classList.remove('drag-over');
 			});
-			badge.addEventListener('drop', (e: DragEvent) => {
-				badge!.style.opacity = '';
+			header.addEventListener('drop', (e: DragEvent) => {
+				header!.classList.remove('drag-over');
 				const draggedEditors = this.editorTransfer.getData(DraggedEditorIdentifier.prototype);
 				if (draggedEditors && draggedEditors.length > 0) {
 					e.preventDefault();
-					const model = this.tabsModel as any;
-					if (model.addToTabGroup) {
-						for (const dragged of draggedEditors) {
-							model.addToTabGroup(group.id, dragged.identifier.editor);
-						}
+					for (const dragged of draggedEditors) {
+						this.tabsModel.addToTabGroup?.(group.id, dragged.identifier.editor);
 					}
 				}
 			});
 
-			firstTabElement.insertBefore(badge, firstTabElement.firstChild);
+			this.tabGroupHeaders.set(group.id, header);
 		}
 
-		// Update badge content
-		badge.className = `tab-group-badge color-${group.color}`;
-		badge.textContent = group.name || '\u2022';
-		badge.title = group.name ? `Tab Group: ${group.name}` : 'Tab Group';
+		// Update header content and styling
+		header.className = `tab-group-header color-${group.color}`;
+		header.classList.toggle('collapsed', group.collapsed);
+		header.textContent = group.name || '\u2022';
+		header.title = group.name ? `Tab Group: ${group.name} (click to ${group.collapsed ? 'expand' : 'collapse'})` : `Tab Group (click to ${group.collapsed ? 'expand' : 'collapse'})`;
 
-		// Track header reference for cleanup
-		this.tabGroupHeaders.set(group.id, badge);
+		// Position the header directly before the first tab of the group
+		tabsContainer.insertBefore(header, firstTab);
 	}
 
 	private redrawTabGroupTabs(group: IEditorTabGroup, tabsContainer: HTMLElement): void {
 		const colorVar = this.getTabGroupColorValue(group.color);
 
 		for (let i = group.startIndex; i < group.startIndex + group.count; i++) {
-			const tabElement = tabsContainer.children[i] as HTMLElement | undefined;
-			if (tabElement && tabElement.classList.contains('tab')) {
+			const tabElement = this.getTabAtIndex(i);
+			if (tabElement) {
 				tabElement.classList.add('in-tab-group');
-				tabElement.classList.toggle('tab-group-first', i === group.startIndex);
 				tabElement.style.setProperty('--tab-group-color', colorVar);
 				tabElement.classList.toggle('tab-group-collapsed', group.collapsed);
 			}
@@ -1669,11 +1683,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		const options = this.groupsView.partOptions;
 
 		// Clear tab group classes (will be re-applied in redrawTabGroups)
-		tabContainer.classList.remove('in-tab-group', 'tab-group-collapsed', 'tab-group-first');
-		const existingBadge = tabContainer.querySelector('.tab-group-badge');
-		if (existingBadge) {
-			existingBadge.remove();
-		}
+		tabContainer.classList.remove('in-tab-group', 'tab-group-collapsed');
 
 		// Label
 		this.redrawTabLabel(editor, tabIndex, tabContainer, tabLabelWidget, tabLabel);
@@ -2042,8 +2052,10 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			tabsAndActionsContainer.style.setProperty('--last-tab-layout-actions-width', `${layoutActionsContainer?.offsetWidth ?? 0}px`);
 
 			// Remove old css classes that are not needed anymore
-			for (const tab of tabsContainer.children) {
-				tab.classList.remove('last-in-row');
+			for (const child of tabsContainer.children) {
+				if (child.classList.contains('tab')) {
+					child.classList.remove('last-in-row');
+				}
 			}
 		}
 
@@ -2124,6 +2136,9 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			let lastTab: HTMLElement | undefined = undefined;
 			for (const child of tabsContainer.children) {
 				const tab = child as HTMLElement;
+				if (!tab.classList.contains('tab')) {
+					continue; // skip non-tab elements (e.g. .tab-group-header)
+				}
 				const tabPosY = tab.offsetTop;
 
 				// Marks a new or the first row of tabs
@@ -2322,11 +2337,41 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		return undefined;
 	}
 
+	private getTabElementCount(tabsContainer: HTMLElement): number {
+		let count = 0;
+		for (let i = 0; i < tabsContainer.children.length; i++) {
+			if (tabsContainer.children[i].classList.contains('tab')) {
+				count++;
+			}
+		}
+		return count;
+	}
+
+	private getLastTabElement(tabsContainer: HTMLElement): HTMLElement | undefined {
+		for (let i = tabsContainer.children.length - 1; i >= 0; i--) {
+			const child = tabsContainer.children[i] as HTMLElement;
+			if (child.classList.contains('tab')) {
+				return child;
+			}
+		}
+		return undefined;
+	}
+
 	private getTabAtIndex(tabIndex: number): HTMLElement | undefined {
 		if (tabIndex >= 0) {
 			const tabsContainer = assertReturnsDefined(this.tabsContainer);
 
-			return tabsContainer.children[tabIndex] as HTMLElement | undefined;
+			// Skip non-tab elements (e.g. .tab-group-header) when resolving index
+			let tabCount = 0;
+			for (let i = 0; i < tabsContainer.children.length; i++) {
+				const child = tabsContainer.children[i] as HTMLElement;
+				if (child.classList.contains('tab')) {
+					if (tabCount === tabIndex) {
+						return child;
+					}
+					tabCount++;
+				}
+			}
 		}
 
 		return undefined;

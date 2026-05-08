@@ -194,6 +194,10 @@ export interface IReadonlyEditorGroupModel {
 	findEditor(editor: EditorInput | null, options?: IMatchEditorOptions): [EditorInput, number /* index */] | undefined;
 	contains(editor: EditorInput | IUntypedEditorInput, options?: IMatchEditorOptions): boolean;
 	getTabGroupForEditor(editorOrIndex: EditorInput | number): IEditorTabGroup | undefined;
+
+	collapseTabGroup?(groupId: string): void;
+	expandTabGroup?(groupId: string): void;
+	addToTabGroup?(groupId: string, editor: EditorInput): void;
 }
 
 interface IEditorGroupModel extends IReadonlyEditorGroupModel {

@@ -6,7 +6,7 @@
 import { IUntypedEditorInput, IMatchEditorOptions, EditorsOrder, GroupIdentifier } from '../editor.js';
 import { EditorInput } from './editorInput.js';
 import { Emitter } from '../../../base/common/event.js';
-import { IGroupModelChangeEvent, IReadonlyEditorGroupModel } from './editorGroupModel.js';
+import { IEditorTabGroup, IGroupModelChangeEvent, IReadonlyEditorGroupModel } from './editorGroupModel.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 
 abstract class FilteredEditorGroupModel extends Disposable implements IReadonlyEditorGroupModel {
@@ -33,6 +33,8 @@ abstract class FilteredEditorGroupModel extends Disposable implements IReadonlyE
 	get id(): GroupIdentifier { return this.model.id; }
 	get isLocked(): boolean { return this.model.isLocked; }
 	get stickyCount(): number { return this.model.stickyCount; }
+	get tabGroups(): readonly IEditorTabGroup[] { return this.model.tabGroups; }
+	getTabGroupForEditor(editorOrIndex: EditorInput | number): IEditorTabGroup | undefined { return this.model.getTabGroupForEditor(editorOrIndex); }
 
 	get activeEditor(): EditorInput | null { return this.model.activeEditor && this.filter(this.model.activeEditor) ? this.model.activeEditor : null; }
 	get previewEditor(): EditorInput | null { return this.model.previewEditor && this.filter(this.model.previewEditor) ? this.model.previewEditor : null; }

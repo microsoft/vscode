@@ -3,40 +3,52 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* Tab Group Badge - shown on the first tab of each group */
-.tab-group-badge {
+/* Tab Group Header - standalone element in the tab bar (Chrome-style) */
+.tab-group-header {
 	display: inline-flex;
 	align-items: center;
-	height: 18px;
-	padding: 0 6px;
-	margin-right: 6px;
+	height: 100%;
+	padding: 0 10px;
 	cursor: pointer;
 	flex-shrink: 0;
-	border-radius: 9px;
-	font-size: 10px;
+	font-size: 11px;
 	font-weight: 600;
-	line-height: 18px;
+	line-height: 1;
 	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;
-	max-width: 80px;
+	max-width: 120px;
+	min-width: 24px;
 	user-select: none;
-	vertical-align: middle;
+	border-radius: 4px 4px 0 0;
+	position: relative;
+	box-sizing: border-box;
 }
 
-.tab-group-badge:hover {
-	opacity: 0.8;
+.tab-group-header:hover {
+	opacity: 0.85;
 }
 
-/* Tab Group Colors */
-.tab-group-badge.color-red { background-color: rgba(229, 57, 53, 0.25); color: #e53935; }
-.tab-group-badge.color-blue { background-color: rgba(30, 136, 229, 0.25); color: #1e88e5; }
-.tab-group-badge.color-green { background-color: rgba(67, 160, 71, 0.25); color: #43a047; }
-.tab-group-badge.color-yellow { background-color: rgba(253, 216, 53, 0.25); color: #f9a825; }
-.tab-group-badge.color-purple { background-color: rgba(142, 36, 170, 0.25); color: #8e24aa; }
-.tab-group-badge.color-orange { background-color: rgba(251, 140, 0, 0.25); color: #fb8c00; }
-.tab-group-badge.color-pink { background-color: rgba(216, 27, 96, 0.25); color: #d81b60; }
-.tab-group-badge.color-gray { background-color: rgba(117, 117, 117, 0.25); color: #757575; }
+.tab-group-header.drag-over {
+	outline: 1px dashed currentColor;
+	outline-offset: -2px;
+}
+
+.tab-group-header.collapsed::after {
+	content: '\25B6';
+	font-size: 8px;
+	margin-left: 4px;
+}
+
+/* Tab Group Header Colors */
+.tab-group-header.color-red { background-color: rgba(229, 57, 53, 0.2); color: #e53935; }
+.tab-group-header.color-blue { background-color: rgba(30, 136, 229, 0.2); color: #1e88e5; }
+.tab-group-header.color-green { background-color: rgba(67, 160, 71, 0.2); color: #43a047; }
+.tab-group-header.color-yellow { background-color: rgba(253, 216, 53, 0.2); color: #f9a825; }
+.tab-group-header.color-purple { background-color: rgba(142, 36, 170, 0.2); color: #8e24aa; }
+.tab-group-header.color-orange { background-color: rgba(251, 140, 0, 0.2); color: #fb8c00; }
+.tab-group-header.color-pink { background-color: rgba(216, 27, 96, 0.2); color: #d81b60; }
+.tab-group-header.color-gray { background-color: rgba(117, 117, 117, 0.2); color: #757575; }
 
 /* Tab Group Border - applied to tabs belonging to a group */
 .tab.in-tab-group {
@@ -46,9 +58,4 @@
 /* Collapsed group tabs are hidden */
 .tab.tab-group-collapsed {
 	display: none !important;
-}
-
-/* First tab in group has the badge, needs a bit of extra left padding */
-.tab.in-tab-group.tab-group-first {
-	padding-left: 4px;
 }
