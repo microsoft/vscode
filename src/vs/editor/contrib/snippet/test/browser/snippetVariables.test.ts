@@ -400,7 +400,7 @@ suite('Snippet Variables Resolver', function () {
 		}
 	});
 
-	test('Add RELATIVE_FILEPATH snippet variable #114208', function () {
+	test('Add RELATIVE_FILEPATH and REVERSE_RELATIVE_FILEPATH snippet variables #114208', function () {
 
 		let resolver: VariableResolver;
 
@@ -432,6 +432,7 @@ suite('Snippet Variables Resolver', function () {
 		} else {
 			assertVariableResolve(resolver, 'RELATIVE_FILEPATH', '\\foo\\files\\text.txt');
 		}
+		assertVariableResolve(resolver, 'REVERSE_RELATIVE_FILEPATH', undefined);
 
 		// single folder workspace
 		resolver = new ModelBasedVariableResolver(
@@ -443,6 +444,15 @@ suite('Snippet Variables Resolver', function () {
 		} else {
 			assertVariableResolve(resolver, 'RELATIVE_FILEPATH', 'files\\text.txt');
 		}
+		assertVariableResolve(resolver, 'REVERSE_RELATIVE_FILEPATH', '..');
+
+		const workspaceRootModel = createTextModel('', undefined, undefined, URI.parse('file:///foo/text.txt'));
+		resolver = new ModelBasedVariableResolver(
+			workspaceLabelService('/foo'),
+			workspaceRootModel
+		);
+		assertVariableResolve(resolver, 'REVERSE_RELATIVE_FILEPATH', '.');
+		workspaceRootModel.dispose();
 
 		model.dispose();
 	});

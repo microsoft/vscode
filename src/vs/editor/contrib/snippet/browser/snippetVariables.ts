@@ -46,6 +46,7 @@ export const KnownSnippetVariableNames = Object.freeze<{ [key: string]: true }>(
 	'CURSOR_INDEX': true, // 0-offset
 	'CURSOR_NUMBER': true, // 1-offset
 	'RELATIVE_FILEPATH': true,
+	'REVERSE_RELATIVE_FILEPATH': true,
 	'BLOCK_COMMENT_START': true,
 	'BLOCK_COMMENT_END': true,
 	'LINE_COMMENT': true,
@@ -196,6 +197,21 @@ export class ModelBasedVariableResolver implements VariableResolver {
 			return this._labelService.getUriLabel(this._model.uri);
 		} else if (name === 'RELATIVE_FILEPATH') {
 			return this._labelService.getUriLabel(this._model.uri, { relative: true, noPrefix: true });
+		} else if (name === 'REVERSE_RELATIVE_FILEPATH') {
+			const relativeFilepath = this._labelService.getUriLabel(this._model.uri, { relative: true, noPrefix: true });
+			const absoluteFilepath = this._labelService.getUriLabel(this._model.uri, { noPrefix: true });
+
+			if (relativeFilepath === absoluteFilepath) {
+				return undefined;
+			}
+
+			const depth = relativeFilepath.split(/[\\/]/).length - 1;
+			if (depth === 0) {
+				return '.';
+			}
+
+			const separator = relativeFilepath.includes('\\') ? '\\' : '/';
+			return Array.from({ length: depth }, () => '..').join(separator);
 		}
 
 		return undefined;
