@@ -12,7 +12,7 @@ import type { ILogger } from '../../../log/common/log.js';
 import type { IMcpStdioServerConfiguration } from '../../../mcp/common/mcpPlatformTypes.js';
 import { McpServerStatusKind, type McpServerStatus } from '../../common/state/protocol/state.js';
 import { McpStdioStateHandler } from './mcpStdioStateHandler.js';
-import type { IMcpUpstream } from './mcpUpstream.js';
+import type { IMcpUpstream, IMcpUpstreamCapabilities } from './mcpUpstream.js';
 
 /** Spawn function (injectable for tests). */
 export type StdioSpawn = (command: string, args: readonly string[], options: {
@@ -42,6 +42,9 @@ export class McpStdioUpstream extends Disposable implements IMcpUpstream {
 
 	private readonly _onMessage = this._register(new Emitter<JsonRpcMessage>());
 	public readonly onMessage: Event<JsonRpcMessage> = this._onMessage.event;
+
+	private readonly _upstreamCapabilities = observableValue<IMcpUpstreamCapabilities | undefined>(this, undefined);
+	public readonly upstreamCapabilities: IObservable<IMcpUpstreamCapabilities | undefined> = this._upstreamCapabilities;
 
 	private readonly _config: IMcpStdioServerConfiguration;
 	private readonly _logger: ILogger;
@@ -106,6 +109,10 @@ export class McpStdioUpstream extends Disposable implements IMcpUpstream {
 
 	public setBearerToken(_token: string | undefined): void {
 		// no-op for stdio; tokens are not yet plumbed through stdio MCP transports.
+	}
+
+	public setUpstreamCapabilities(caps: IMcpUpstreamCapabilities | undefined): void {
+		this._upstreamCapabilities.set(caps, undefined);
 	}
 
 	private _buildEnv(): NodeJS.ProcessEnv | undefined {
@@ -197,6 +204,7 @@ export class McpStdioUpstream extends Disposable implements IMcpUpstream {
 		}
 		this._disposed = true;
 		this._stopRequested = true;
+		this._upstreamCapabilities.set(undefined, undefined);
 		const handler = this._stateHandler;
 		this._stateHandler = undefined;
 		if (handler) {

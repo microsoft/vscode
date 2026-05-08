@@ -8,6 +8,7 @@ import {
 	isJsonRpcNotification,
 	isJsonRpcRequest,
 	isJsonRpcResponse,
+	isJsonRpcSuccessResponse,
 	type IJsonRpcErrorResponse,
 	type IJsonRpcRequest,
 	type IJsonRpcSuccessResponse,
@@ -25,7 +26,7 @@ import {
 	jsonRpcRequestToMcpCall,
 	mcpCallResponseToJsonRpc,
 } from './mcpRpcEnvelope.js';
-import type { IMcpUpstream } from './mcpUpstream.js';
+import type { IMcpUpstream, IMcpUpstreamCapabilities } from './mcpUpstream.js';
 
 /** Default timeout (ms) for an SDK→upstream request awaiting a response. */
 const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
@@ -87,6 +88,14 @@ export class McpProxyRoute extends Disposable {
 	 * promise once the upstream replies.
 	 */
 	private readonly _pendingSdkRequests = new Map<string, DeferredPromise<JsonRpcMessage>>();
+
+	/**
+	 * Set of SDK JSON-RPC ids (string-keyed) that the route has forwarded
+	 * to the upstream as `initialize` requests. When a matching response
+	 * arrives we extract `result.capabilities` and push it to
+	 * {@link IMcpUpstream.setUpstreamCapabilities}. Cleared on dispose.
+	 */
+	private readonly _pendingInitializeIds = new Set<string>();
 
 	private readonly _requestTimeoutMs: number;
 	private _disposed = false;
@@ -175,6 +184,9 @@ export class McpProxyRoute extends Disposable {
 		if (request.method === 'initialize' && this._options.initializeInjector) {
 			outbound = this._options.initializeInjector.inject(request);
 		}
+		if (request.method === 'initialize') {
+			this._pendingInitializeIds.add(String(outbound.id));
+		}
 		const reply = await this._dispatchSdkRequest(outbound);
 		return JSON.stringify(reply);
 	}
@@ -211,6 +223,16 @@ export class McpProxyRoute extends Disposable {
 		await this._options.upstream.send(message);
 	}
 
+	private _captureUpstreamCapabilities(result: unknown): void {
+		if (!result || typeof result !== 'object') {
+			return;
+		}
+		const caps = (result as { capabilities?: unknown }).capabilities;
+		if (caps && typeof caps === 'object') {
+			this._options.upstream.setUpstreamCapabilities(caps as IMcpUpstreamCapabilities);
+		}
+	}
+
 	private _onUpstreamMessage(message: JsonRpcMessage): void {
 		if (isJsonRpcRequest(message)) {
 			const mcp = jsonRpcRequestToMcpCall(message);
@@ -225,6 +247,9 @@ export class McpProxyRoute extends Disposable {
 				return;
 			}
 			const key = String(id);
+			if (this._pendingInitializeIds.delete(key) && isJsonRpcSuccessResponse(message)) {
+				this._captureUpstreamCapabilities(message.result);
+			}
 			const deferred = this._pendingSdkRequests.get(key);
 			if (!deferred) {
 				this._options.logger.warn(`McpProxyRoute: upstream response for unknown id '${key}'`);
@@ -256,6 +281,7 @@ export class McpProxyRoute extends Disposable {
 		}
 		this._pendingSdkRequests.clear();
 		this._pendingUpstreamRequests.clear();
+		this._pendingInitializeIds.clear();
 		super.dispose();
 	}
 }

@@ -38,6 +38,7 @@ import {
 import { ProtocolError } from '../../common/state/sessionProtocol.js';
 import { AgentHostStateManager } from '../agentHostStateManager.js';
 import { McpHttpUpstream } from './mcpHttpUpstream.js';
+import { McpAppsInitializeInjector } from './mcpInitializeInjector.js';
 import { McpStdioUpstream } from './mcpStdioUpstream.js';
 import { IMcpProxy, IMcpProxyFactory, IMcpProxyOptions } from './mcpProxy.js';
 import { IMcpUpstream } from './mcpUpstream.js';
@@ -277,9 +278,6 @@ export class McpHostServiceImpl extends Disposable implements IMcpHostService {
 		if (!entry) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Unknown MCP server: ${params.server}`);
 		}
-		if (params.method.startsWith('ui/') && !client.capabilities?.mcp?.apps) {
-			throw new ProtocolError(JsonRpcErrorCodes.MethodNotFound, 'ui/* methods require capabilities.mcp.apps to be advertised');
-		}
 		return entry.sendMessage(params, client);
 	}
 
@@ -350,8 +348,12 @@ export class McpHostServiceImpl extends Disposable implements IMcpHostService {
 		const options: IMcpProxyOptions = {
 			resource: entry.resource,
 			upstream,
-			// Phase 5 wires McpAppsInitializeInjector based on per-call client capabilities.
-			initializeInjector: undefined,
+			// Always inject the MCP Apps capability when the SDK initializes
+			// the upstream. Servers that don't speak Apps simply ignore the
+			// extension entry. Runtime gating in `sendMessage` (above)
+			// prevents AHP clients without `mcp.apps` from invoking ui/*
+			// methods on those servers.
+			initializeInjector: new McpAppsInitializeInjector(),
 			onUpstreamMessage: msg => this._onUpstreamMessage(entry, msg),
 			onAuthRequired: status => this._onProxyStatusChange(entry, status),
 			onStateChange: status => this._onProxyStatusChange(entry, status),

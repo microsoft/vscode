@@ -16,7 +16,7 @@ import {
 	type ProtectedResourceMetadata,
 } from '../../common/state/protocol/state.js';
 import { buildAuthRequiredStatus, parseWwwAuthenticate } from './mcpAuthChallengeParser.js';
-import type { IMcpUpstream } from './mcpUpstream.js';
+import type { IMcpUpstream, IMcpUpstreamCapabilities } from './mcpUpstream.js';
 
 /** HTTP-fetcher signature. Test seam — defaults to global `fetch`. */
 export type HttpFetch = (url: string, init: {
@@ -72,6 +72,9 @@ export class McpHttpUpstream extends Disposable implements IMcpUpstream {
 
 	private readonly _onMessage = this._register(new Emitter<JsonRpcMessage>());
 	public readonly onMessage: Event<JsonRpcMessage> = this._onMessage.event;
+
+	private readonly _upstreamCapabilities = observableValue<IMcpUpstreamCapabilities | undefined>(this, undefined);
+	public readonly upstreamCapabilities: IObservable<IMcpUpstreamCapabilities | undefined> = this._upstreamCapabilities;
 
 	private readonly _config: IMcpRemoteServerConfiguration;
 	private readonly _logger: ILogger;
@@ -233,6 +236,10 @@ export class McpHttpUpstream extends Disposable implements IMcpUpstream {
 		}
 	}
 
+	public setUpstreamCapabilities(caps: IMcpUpstreamCapabilities | undefined): void {
+		this._upstreamCapabilities.set(caps, undefined);
+	}
+
 	private _buildHeaders(): Record<string, string> {
 		const headers: Record<string, string> = {
 			'Content-Type': 'application/json',
@@ -295,6 +302,7 @@ export class McpHttpUpstream extends Disposable implements IMcpUpstream {
 			ac.abort();
 		}
 		this._pendingRequests.clear();
+		this._upstreamCapabilities.set(undefined, undefined);
 		this._status.set({ kind: McpServerStatusKind.Stopped }, undefined);
 		super.dispose();
 	}

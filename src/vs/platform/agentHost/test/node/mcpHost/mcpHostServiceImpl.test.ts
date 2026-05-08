@@ -7,6 +7,7 @@ import * as assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { JsonRpcMessage, isJsonRpcRequest } from '../../../../../base/common/jsonRpcProtocol.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { observableValue, type ISettableObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService, ILogger } from '../../../../log/common/log.js';
@@ -27,9 +28,10 @@ import {
 import { JsonRpcErrorCodes } from '../../../common/state/protocol/errors.js';
 import { ProtocolError } from '../../../common/state/sessionProtocol.js';
 import { AgentHostStateManager } from '../../../node/agentHostStateManager.js';
+import { McpAppsInitializeInjector } from '../../../node/mcpHost/mcpInitializeInjector.js';
 import { McpHostServiceImpl } from '../../../node/mcpHost/mcpHostServiceImpl.js';
 import { buildMcpServerUri } from '../../../common/state/mcpServerUri.js';
-import type { IMcpUpstream } from '../../../node/mcpHost/mcpUpstream.js';
+import type { IMcpUpstream, IMcpUpstreamCapabilities } from '../../../node/mcpHost/mcpUpstream.js';
 import type { IMcpProxy, IMcpProxyFactory, IMcpProxyOptions } from '../../../node/mcpHost/mcpProxy.js';
 
 // ----- Mocks ---------------------------------------------------------------
@@ -37,6 +39,9 @@ import type { IMcpProxy, IMcpProxyFactory, IMcpProxyOptions } from '../../../nod
 class StubUpstream implements IMcpUpstream {
 	public readonly status = { read: () => ({ kind: McpServerStatusKind.Stopped }) } as unknown as IMcpUpstream['status'];
 	public readonly onMessage = (() => () => { /* unsubscribe */ }) as unknown as IMcpUpstream['onMessage'];
+	private readonly _upstreamCapabilities: ISettableObservable<IMcpUpstreamCapabilities | undefined> =
+		observableValue<IMcpUpstreamCapabilities | undefined>('stub-caps', undefined);
+	public readonly upstreamCapabilities = this._upstreamCapabilities;
 	public startCalls = 0;
 	public disposed = false;
 
@@ -46,6 +51,9 @@ class StubUpstream implements IMcpUpstream {
 	}
 	public async send(_message: JsonRpcMessage): Promise<void> { /* noop */ }
 	public setBearerToken(_token: string | undefined): void { /* noop */ }
+	public setUpstreamCapabilities(caps: IMcpUpstreamCapabilities | undefined): void {
+		this._upstreamCapabilities.set(caps, undefined);
+	}
 	public dispose(): void { this.disposed = true; }
 }
 
@@ -357,36 +365,15 @@ suite('McpHostServiceImpl', () => {
 		});
 	});
 
-	test('sendMessage for ui/* without capabilities.mcp.apps throws MethodNotFound', async () => {
+	test('proxy is created with an McpAppsInitializeInjector', async () => {
 		const h = setupHarness(disposables);
 		h.service.setSessionServers(h.session, [stdioDef('foo')]);
 		await waitForCreate(h.factory);
 
-		await assert.rejects(
-			() => h.service.sendMessage(
-				{ server: buildMcpServerUri(h.session, 'foo').toString(), method: 'ui/open-link' },
-				{ clientId: 'c1', capabilities: undefined },
-			),
-			(err: Error) => err instanceof ProtocolError && err.code === JsonRpcErrorCodes.MethodNotFound,
+		assert.ok(
+			h.factory.created[0].options.initializeInjector instanceof McpAppsInitializeInjector,
+			'expected initializeInjector to be McpAppsInitializeInjector',
 		);
-	});
-
-	test('sendMessage for ui/* with capabilities.mcp.apps forwards to proxy', async () => {
-		const h = setupHarness(disposables);
-		h.service.setSessionServers(h.session, [stdioDef('foo')]);
-		await waitForCreate(h.factory);
-
-		const proxy = h.factory.proxies[0];
-		proxy.nextResponse = { jsonrpc: '2.0', id: 'replaced', result: {} } as JsonRpcMessage;
-		const result = await h.service.sendMessage(
-			{ server: buildMcpServerUri(h.session, 'foo').toString(), method: 'ui/open-link', params: { url: 'https://example.com' } },
-			{ clientId: 'c1', capabilities: { mcp: { apps: {} } } },
-		);
-
-		assert.deepStrictEqual({ result, methodSent: (proxy.sentMessages[0] as { method?: string }).method }, {
-			result: { result: {} },
-			methodSent: 'ui/open-link',
-		});
 	});
 
 	test('deliverResponse for unknown messageId is a silent no-op', async () => {

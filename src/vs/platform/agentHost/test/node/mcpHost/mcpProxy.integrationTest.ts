@@ -31,13 +31,16 @@ import {
 } from '../../../common/state/protocol/state.js';
 import { McpAppsInitializeInjector } from '../../../node/mcpHost/mcpInitializeInjector.js';
 import { McpProxyFactory, type IMcpProxyOptions } from '../../../node/mcpHost/mcpProxy.js';
-import type { IMcpUpstream } from '../../../node/mcpHost/mcpUpstream.js';
+import type { IMcpUpstream, IMcpUpstreamCapabilities } from '../../../node/mcpHost/mcpUpstream.js';
 
 class StubUpstream implements IMcpUpstream {
 	private readonly _status: ISettableObservable<McpServerStatus> = observableValue<McpServerStatus>('stub-upstream', { kind: McpServerStatusKind.Stopped });
 	public readonly status: IObservable<McpServerStatus> = this._status;
 	private readonly _onMessage = new Emitter<JsonRpcMessage>();
 	public readonly onMessage: Event<JsonRpcMessage> = this._onMessage.event;
+	private readonly _upstreamCapabilities: ISettableObservable<IMcpUpstreamCapabilities | undefined> =
+		observableValue<IMcpUpstreamCapabilities | undefined>('stub-upstream-caps', undefined);
+	public readonly upstreamCapabilities: IObservable<IMcpUpstreamCapabilities | undefined> = this._upstreamCapabilities;
 
 	public readonly sent: JsonRpcMessage[] = [];
 	public readonly tokens: (string | undefined)[] = [];
@@ -66,6 +69,10 @@ class StubUpstream implements IMcpUpstream {
 
 	public setBearerToken(token: string | undefined): void {
 		this.tokens.push(token);
+	}
+
+	public setUpstreamCapabilities(caps: IMcpUpstreamCapabilities | undefined): void {
+		this._upstreamCapabilities.set(caps, undefined);
 	}
 
 	public emit(message: JsonRpcMessage): void {
@@ -337,5 +344,52 @@ suite('McpProxy (integration)', () => {
 
 		const { ok } = await closed.p;
 		assert.strictEqual(ok, false);
+	});
+
+	test('initialize response capabilities are captured on the upstream', async () => {
+		const harness = createHarness();
+		let proxy;
+		try {
+			harness.upstream.onSend = msg => {
+				if (isJsonRpcRequest(msg) && msg.method === 'initialize') {
+					harness.upstream.emit({
+						jsonrpc: '2.0',
+						id: msg.id,
+						result: {
+							capabilities: {
+								extensions: {
+									'io.modelcontextprotocol/ui': { mimeTypes: ['text/html;profile=mcp-app'] },
+								},
+							},
+						},
+					});
+				}
+			};
+			proxy = await harness.factory.create(harness.makeOptions());
+			await harness.upstream.start();
+
+			const { status } = await postJson(proxy.endpoint, {
+				jsonrpc: '2.0',
+				id: 1,
+				method: 'initialize',
+				params: { capabilities: {} },
+			});
+
+			assert.deepStrictEqual({
+				status,
+				caps: harness.upstream.upstreamCapabilities.get(),
+			}, {
+				status: 200,
+				caps: {
+					extensions: {
+						'io.modelcontextprotocol/ui': { mimeTypes: ['text/html;profile=mcp-app'] },
+					},
+				},
+			});
+		} finally {
+			proxy?.dispose();
+			harness.factory.dispose();
+			harness.upstream.dispose();
+		}
 	});
 });
