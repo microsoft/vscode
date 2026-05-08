@@ -281,8 +281,8 @@ export class RemoteAgentCustomizationItemProvider extends Disposable implements 
 		return toAgentHostUri(original, this._connectionAuthority);
 	}
 
-	private toBadge(customization: CustomizationRef, clientId: string | undefined): { badge?: string; badgeTooltip?: string; groupKey?: string } {
-		if (clientId !== undefined) {
+	private toBadge(customization: CustomizationRef, fromClient: boolean): { badge?: string; badgeTooltip?: string; groupKey?: string } {
+		if (fromClient) {
 			return {
 				groupKey: REMOTE_CLIENT_GROUP,
 			};
@@ -293,19 +293,18 @@ export class RemoteAgentCustomizationItemProvider extends Disposable implements 
 		};
 	}
 
-	private toItemFromSessionCustomization(sessionCustomization: SessionCustomization): ICustomizationItem {
-		const customization = sessionCustomization.customization;
-		const clientId = sessionCustomization.clientId;
-		const badge = this.toBadge(customization, clientId);
-		const actions = clientId !== undefined
-			? undefined
-			: <const>[{
-				id: 'remoteAgentHost.removeConfiguredPlugin',
-				label: localize('remoteAgentHost.removeConfiguredPlugin', "Remove from Remote Host"),
-				icon: Codicon.trash,
-				run: () => this._controller.removeConfiguredPlugin(customization),
-			}];
+	private getRemovePluginAction(customization: CustomizationRef): ICustomizationItemAction {
+		return {
+			id: 'remoteAgentHost.removeConfiguredPlugin',
+			label: localize('remoteAgentHost.removeConfiguredPlugin', "Remove from Remote Host"),
+			icon: Codicon.trash,
+			run: () => this._controller.removeConfiguredPlugin(customization),
+		};
+	}
 
+	private toItem(customization: CustomizationRef, sessionCustomization?: SessionCustomization): ICustomizationItem {
+		const clientId = sessionCustomization?.clientId; // set if the configuration came from the client
+		const badge = this.toBadge(customization, clientId !== undefined);
 		const uri = this.toRemoteUri(customization);
 		return {
 			itemKey: customizationItemKey(customization, clientId),
@@ -314,39 +313,16 @@ export class RemoteAgentCustomizationItemProvider extends Disposable implements 
 			name: customization.displayName,
 			description: customization.description,
 			storage: PromptsStorage.plugin,
-			status: toStatusString(sessionCustomization.status),
-			statusMessage: sessionCustomization.statusMessage,
-			enabled: sessionCustomization.enabled,
+			status: toStatusString(sessionCustomization?.status),
+			statusMessage: sessionCustomization?.statusMessage,
+			enabled: sessionCustomization?.enabled ?? true,
 			badge: badge.badge,
 			badgeTooltip: badge.badgeTooltip,
 			groupKey: badge.groupKey,
 			extensionId: undefined,
 			pluginUri: uri,
 			userInvocable: undefined,
-			actions,
-		};
-	}
-
-	private toItemFromAgentCustomization(customization: CustomizationRef): ICustomizationItem {
-		const badge = this.toBadge(customization, undefined);
-		const uri = this.toRemoteUri(customization);
-		return {
-			itemKey: customizationItemKey(customization, undefined),
-			uri: uri,
-			type: 'plugin',
-			name: customization.displayName,
-			description: customization.description,
-			storage: PromptsStorage.plugin,
-			status: toStatusString(undefined),
-			statusMessage: undefined,
-			enabled: true,
-			badge: badge.badge,
-			badgeTooltip: badge.badgeTooltip,
-			groupKey: badge.groupKey,
-			extensionId: undefined,
-			pluginUri: uri,
-			userInvocable: undefined,
-			actions: undefined,
+			actions: clientId === undefined ? [this.getRemovePluginAction(customization)] : undefined,
 		};
 	}
 
@@ -363,7 +339,7 @@ export class RemoteAgentCustomizationItemProvider extends Disposable implements 
 		const plugins: PluginMeta[] = [];
 
 		for (const customization of this._agentCustomizations) {
-			const item = this.toItemFromAgentCustomization(customization);
+			const item = this.toItem(customization);
 			items.set(customizationItemKey(customization, undefined), item);
 			plugins.push({ item, nonce: customization.nonce, status: undefined, statusMessage: undefined, enabled: undefined, childGroupKey: REMOTE_HOST_GROUP, isBundleItem: false });
 		}
@@ -380,7 +356,7 @@ export class RemoteAgentCustomizationItemProvider extends Disposable implements 
 			// expanded below so individual user files appear in per-type tabs.
 			let item: ICustomizationItem;
 			if (!isBundleItem) {
-				item = this.toItemFromSessionCustomization(sessionCustomization);
+				item = this.toItem(sessionCustomization.customization, sessionCustomization);
 				items.set(customizationItemKey(sessionCustomization.customization, sessionCustomization.clientId), item);
 			} else {
 				item = this.toBundledItem(sessionCustomization.customization, childGroupKey);
