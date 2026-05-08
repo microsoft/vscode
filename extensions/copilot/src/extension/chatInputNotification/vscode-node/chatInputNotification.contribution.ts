@@ -56,6 +56,17 @@ export class ChatInputNotificationContribution extends Disposable {
 	 * to show (or whether to hide).
 	 */
 	private _update(): void {
+		// When the user signs out, dismiss any active notification and reset thresholds.
+		if (!this._authService.anyGitHubSession) {
+			console.log('[ChatInputNotification] No GitHub session — bailing out');
+			this._shownQuotaThresholds.clear();
+			this._shownSessionThresholds.clear();
+			this._shownWeeklyThresholds.clear();
+			this._hideNotification();
+			this._showingExhausted = false;
+			return;
+		}
+
 		// Priority 1: Quota exhausted — sticky info notification
 		if (this._chatQuotaService.quotaExhausted) {
 			this._showExhaustedNotification();
