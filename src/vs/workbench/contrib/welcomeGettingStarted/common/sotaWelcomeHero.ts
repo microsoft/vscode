@@ -301,8 +301,8 @@ export const SOTA_WELCOME_HERO_SKYLINE_SVG: string = `
 			}
 			@keyframes sotaSkylineDrawBlueprint { to { stroke-dashoffset: 0; } }
 			@keyframes sotaSkylineFadeIn { to { opacity: 1; } }
-			.sota-skyline-balloon-1 { animation: sotaSkylineFloatUp1 20s linear infinite; }
-			.sota-skyline-balloon-2 { animation: sotaSkylineFloatUp2 25s linear infinite; animation-delay: 2s; }
+			.sota-skyline-balloon-1 { animation: sotaSkylineFloatUp1 25s linear infinite; }
+			.sota-skyline-balloon-2 { animation: sotaSkylineFloatUp2 28s linear infinite; animation-delay: 2s; }
 			@keyframes sotaSkylineFloatUp1 {
 				0% { transform: translate(0, 150px) rotate(-5deg); opacity: 0; }
 				10% { opacity: 1; }
@@ -321,22 +321,14 @@ export const SOTA_WELCOME_HERO_SKYLINE_SVG: string = `
 			.sota-skyline-car-loop-2 { animation: sotaSkylineDriveLoop 16s linear infinite; animation-delay: -5.33s; }
 			.sota-skyline-car-loop-3 { animation: sotaSkylineDriveLoop 16s linear infinite; animation-delay: -10.66s; }
 			@keyframes sotaSkylineDriveLoop {
-				/* Top edge (+X) */
 				0%    { transform: translate(-380px, -150px) rotate(0deg); }
 				23%   { transform: translate(350px, -150px) rotate(0deg); }
-				/* Corner 1 */
 				25%   { transform: translate(380px, -120px) rotate(90deg); }
-				/* Right edge (+Y) */
 				48%   { transform: translate(380px, 200px) rotate(90deg); }
-				/* Corner 2 */
 				50%   { transform: translate(350px, 230px) rotate(180deg); }
-				/* Bottom edge (-X) */
 				73%   { transform: translate(-350px, 230px) rotate(180deg); }
-				/* Corner 3 */
 				75%   { transform: translate(-380px, 200px) rotate(270deg); }
-				/* Left edge (-Y) */
 				98%   { transform: translate(-380px, -120px) rotate(270deg); }
-				/* Corner 4 / reset */
 				100%  { transform: translate(-380px, -150px) rotate(360deg); }
 			}
 			@media (prefers-reduced-motion: reduce) {
@@ -375,16 +367,78 @@ export const SOTA_WELCOME_HERO_SKYLINE_SVG: string = `
 			<rect x="12" y="2" width="3" height="3" fill="#f1c40f" />
 		</g>
 		<g id="sota-skyline-tree">
-			<path d="M0,-48 L-10,-28 L-4,-28 L-12,-8 L0,-8 Z" fill="#2ecc71" />
-			<path d="M0,-48 L10,-28 L4,-28 L12,-8 L0,-8 Z" fill="#27ae60" />
-			<rect x="-2" y="-8" width="4" height="8" fill="#2c1e16" />
+			<path d="M0,-35 L-8,-20 L-3,-20 L-10,-5 L0,-5 Z" fill="#2ecc71" />
+			<path d="M0,-35 L8,-20 L3,-20 L10,-5 L0,-5 Z" fill="#27ae60" />
+			<rect x="-1.5" y="-5" width="3" height="6" fill="#2c1e16" />
+		</g>
+		<g id="sota-skyline-tech-tower">
+			<path d="M 0,0 L -50,-25 L -50,-150 L 0,-125 Z" fill="#17202A" />
+			<path d="M 0,-20 L -50,-45 M 0,-40 L -50,-65 M 0,-60 L -50,-85 M 0,-80 L -50,-105 M 0,-100 L -50,-125" stroke="#3498db" stroke-width="2" opacity="0.6"/>
+			<path d="M 0,0 L 50,-25 L 50,-150 L 0,-125 Z" fill="#212F3D" />
+			<path d="M 0,-20 L 50,-45 M 0,-40 L 50,-65 M 0,-60 L 50,-85 M 0,-80 L 50,-105 M 0,-100 L 50,-125" stroke="#3498db" stroke-width="2" opacity="0.3"/>
+			<path d="M 0,-125 L -50,-150 L 0,-175 L 50,-150 Z" fill="#424949" />
+			<rect x="-10" y="-155" width="20" height="10" fill="#111" />
+		</g>
+		<g id="sota-skyline-tech-campus">
+			<path d="M 0,0 L -80,-40 L -80,-90 L 0,-50 Z" fill="#17202A" />
+			<path d="M 0,-15 L -80,-55 M 0,-30 L -80,-70" stroke="#2ecc71" stroke-width="2.5" opacity="0.6"/>
+			<path d="M 0,0 L 70,-35 L 70,-85 L 0,-50 Z" fill="#212F3D" />
+			<path d="M 0,-15 L 70,-50 M 0,-30 L 70,-65" stroke="#2ecc71" stroke-width="2.5" opacity="0.3"/>
+			<path d="M 0,-50 L -80,-90 L -10,-125 L 70,-85 Z" fill="#424949" />
+			<ellipse cx="-5" cy="-90" rx="18" ry="9" fill="#111" stroke="#2ecc71" stroke-width="1.5" />
+			<text x="-5" y="-87" font-family="'Arial', sans-serif" font-weight="bold" font-size="8" fill="#2ecc71" text-anchor="middle">H</text>
+		</g>
+		<g id="sota-skyline-data-center">
+			<path d="M 0,0 L -40,-20 L -40,-70 L 0,-50 Z" fill="#0f0f0f" />
+			<path d="M 0,-10 L -40,-30 M 0,-20 L -40,-40 M 0,-30 L -40,-50 M 0,-40 L -40,-60" stroke="#e74c3c" stroke-width="1.5" opacity="0.8"/>
+			<path d="M 0,0 L 60,-30 L 60,-80 L 0,-50 Z" fill="#1a1a1a" />
+			<path d="M 0,-10 L 60,-40 M 0,-20 L 60,-50 M 0,-30 L 60,-60 M 0,-40 L 60,-70" stroke="#e74c3c" stroke-width="1.5" opacity="0.5"/>
+			<path d="M 0,-50 L -40,-70 L 20,-100 L 60,-80 Z" fill="#2c2c2c" />
+			<circle cx="10" cy="-80" r="5" fill="#111" />
+			<circle cx="25" cy="-85" r="5" fill="#111" />
+		</g>
+		<g id="sota-skyline-tech-cube">
+			<path d="M 0,0 L -45,-22.5 L -45,-82.5 L 0,-60 Z" fill="#1A252C" />
+			<path d="M 0,-15 L -45,-37.5 M 0,-30 L -45,-52.5 M 0,-45 L -45,-67.5" stroke="#9b59b6" stroke-width="2" opacity="0.6"/>
+			<path d="M 0,0 L 45,-22.5 L 45,-82.5 L 0,-60 Z" fill="#2C3E50" />
+			<path d="M 0,-15 L 45,-37.5 M 0,-30 L 45,-52.5 M 0,-45 L 45,-67.5" stroke="#9b59b6" stroke-width="2" opacity="0.3"/>
+			<path d="M 0,-60 L -45,-82.5 L 0,-105 L 45,-82.5 Z" fill="#34495E" />
+			<path d="M -22.5,-71.25 L 22.5,-93.75 M -22.5,-93.75 L 22.5,-71.25" stroke="#2C3E50" stroke-width="1"/>
 		</g>
 	</defs>
+	<g class="sota-skyline-grid-line">
+		<path d="M-500,400 L1500,1400 M-400,350 L1600,1350 M-300,300 L1700,1300 M-200,250 L1800,1250 M-100,200 L1900,1200 M0,150 L2000,1150 M100,100 L2100,1100 M200,50 L2200,1050 M300,0 L2300,1000 M400,-50 L2400,950 M500,-100 L2500,900 M600,-150 L2600,850 M700,-200 L2700,800 M800,-250 L2800,750" />
+		<path d="M1500,-500 L-500,500 M1600,-450 L-400,550 M1700,-400 L-300,600 M1800,-350 L-200,650 M1900,-300 L-100,700 M2000,-250 L0,750 M2100,-200 L100,800 M2200,-150 L200,850 M2300,-100 L300,900 M2400,-50 L400,950 M2500,0 L500,1000 M2600,50 L600,1050 M2700,100 L700,1100 M2800,150 L800,1150" />
+	</g>
 	<g>
-		<g class="sota-skyline-grid-line">
-			<path d="M-500,400 L1500,1400 M-400,350 L1600,1350 M-300,300 L1700,1300 M-200,250 L1800,1250 M-100,200 L1900,1200 M0,150 L2000,1150 M100,100 L2100,1100 M200,50 L2200,1050 M300,0 L2300,1000 M400,-50 L2400,950 M500,-100 L2500,900 M600,-150 L2600,850 M700,-200 L2700,800 M800,-250 L2800,750" />
-			<path d="M1500,-500 L-500,500 M1600,-450 L-400,550 M1700,-400 L-300,600 M1800,-350 L-200,650 M1900,-300 L-100,700 M2000,-250 L0,750 M2100,-200 L100,800 M2200,-150 L200,850 M2300,-100 L300,900 M2400,-50 L400,950 M2500,0 L500,1000 M2600,50 L600,1050 M2700,100 L700,1100 M2800,150 L800,1150" />
-		</g>
+		<g transform="translate(100, 100) scale(0.8)"><use href="#sota-skyline-tech-tower"/></g>
+		<g transform="translate(330, 80) scale(0.9)"><use href="#sota-skyline-tech-cube"/></g>
+		<g transform="translate(600, 100) scale(0.7)"><use href="#sota-skyline-tech-campus"/></g>
+		<g transform="translate(850, 130) scale(0.85)"><use href="#sota-skyline-data-center"/></g>
+		<g transform="translate(1050, 160) scale(0.75)"><use href="#sota-skyline-tech-tower"/></g>
+		<g transform="translate(70, 100)"><use href="#sota-skyline-tree"/></g>
+		<g transform="translate(130, 110)"><use href="#sota-skyline-tree"/></g>
+		<g transform="translate(290, 90)"><use href="#sota-skyline-tree"/></g>
+		<g transform="translate(550, 110)"><use href="#sota-skyline-tree"/></g>
+		<g transform="translate(800, 140)"><use href="#sota-skyline-tree"/></g>
+		<g transform="translate(1000, 170)"><use href="#sota-skyline-tree"/></g>
+	</g>
+	<g>
+		<g transform="translate(60, 280)"><use href="#sota-skyline-tech-cube"/></g>
+		<g transform="translate(220, 180)"><use href="#sota-skyline-tech-tower"/></g>
+		<g transform="translate(500, 220)"><use href="#sota-skyline-tech-campus"/></g>
+		<g transform="translate(750, 250)"><use href="#sota-skyline-tech-cube"/></g>
+		<g transform="translate(980, 280)"><use href="#sota-skyline-data-center"/></g>
+		<g transform="translate(1180, 380)"><use href="#sota-skyline-tech-campus"/></g>
+		<g transform="translate(20, 290)"><use href="#sota-skyline-tree"/></g>
+		<g transform="translate(180, 190)"><use href="#sota-skyline-tree"/></g>
+		<g transform="translate(260, 200)"><use href="#sota-skyline-tree"/></g>
+		<g transform="translate(450, 230)"><use href="#sota-skyline-tree"/></g>
+		<g transform="translate(710, 260)"><use href="#sota-skyline-tree"/></g>
+		<g transform="translate(930, 290)"><use href="#sota-skyline-tree"/></g>
+		<g transform="translate(1130, 390)"><use href="#sota-skyline-tree"/></g>
+	</g>
+	<g>
 		<g transform="matrix(0.866, 0.5, -0.866, 0.5, 600, 420)">
 			<rect x="-380" y="-150" width="760" height="380" rx="30" fill="#0a0a0a" />
 			<rect x="-380" y="-150" width="760" height="380" rx="30" fill="none" stroke="#111111" stroke-width="40" />
@@ -397,12 +451,6 @@ export const SOTA_WELCOME_HERO_SKYLINE_SVG: string = `
 			<animate attributeName="opacity" to="1" dur="0.5s" begin="1s" fill="freeze" />
 		</use>
 		<use href="#sota-skyline-iso-text" y="100" class="sota-skyline-blueprint-line" />
-	</g>
-	<g>
-		<g transform="translate(550, 150)"><use href="#sota-skyline-tree"/></g>
-		<g transform="translate(590, 170)"><use href="#sota-skyline-tree"/></g>
-		<g transform="translate(950, 250)"><use href="#sota-skyline-tree"/></g>
-		<g transform="translate(910, 230)"><use href="#sota-skyline-tree"/></g>
 	</g>
 	<g>
 		<g opacity="0"><animate attributeName="opacity" to="1" dur="0.01s" begin="1.0s" fill="freeze" />
@@ -461,13 +509,22 @@ export const SOTA_WELCOME_HERO_SKYLINE_SVG: string = `
 		</g>
 	</g>
 	<g>
-		<g transform="translate(180, 500)"><use href="#sota-skyline-tree"/></g>
-		<g transform="translate(220, 520)"><use href="#sota-skyline-tree"/></g>
-		<g transform="translate(680, 750)"><use href="#sota-skyline-tree"/></g>
-		<g transform="translate(720, 730)"><use href="#sota-skyline-tree"/></g>
+		<g transform="translate(180, 580)"><use href="#sota-skyline-data-center"/></g>
+		<g transform="translate(450, 750)"><use href="#sota-skyline-tech-campus"/></g>
+		<g transform="translate(850, 700)"><use href="#sota-skyline-tech-tower"/></g>
+		<g transform="translate(1080, 550)"><use href="#sota-skyline-tech-cube"/></g>
+		<g transform="translate(20, 680) scale(1.1)"><use href="#sota-skyline-tech-tower"/></g>
+		<g transform="translate(1120, 750) scale(1.2)"><use href="#sota-skyline-data-center"/></g>
+		<g transform="translate(140, 590)"><use href="#sota-skyline-tree"/></g>
+		<g transform="translate(410, 760)"><use href="#sota-skyline-tree"/></g>
+		<g transform="translate(530, 740)"><use href="#sota-skyline-tree"/></g>
+		<g transform="translate(810, 710)"><use href="#sota-skyline-tree"/></g>
+		<g transform="translate(1040, 560)"><use href="#sota-skyline-tree"/></g>
+		<g transform="translate(60, 690)"><use href="#sota-skyline-tree"/></g>
+		<g transform="translate(1080, 760)"><use href="#sota-skyline-tree"/></g>
 	</g>
 	<g class="sota-skyline-balloon-1">
-		<g transform="translate(300, 600)">
+		<g transform="translate(250, 600)">
 			<line x1="0" y1="40" x2="-8" y2="60" stroke="#7f8c8d" stroke-width="1"/>
 			<line x1="0" y1="40" x2="8" y2="60" stroke="#7f8c8d" stroke-width="1"/>
 			<rect x="-10" y="60" width="20" height="15" fill="#701c1c" rx="2" />
@@ -477,7 +534,7 @@ export const SOTA_WELCOME_HERO_SKYLINE_SVG: string = `
 		</g>
 	</g>
 	<g class="sota-skyline-balloon-2">
-		<g transform="translate(950, 650)">
+		<g transform="translate(1000, 600)">
 			<line x1="0" y1="45" x2="-10" y2="65" stroke="#7f8c8d" stroke-width="1.5"/>
 			<line x1="0" y1="45" x2="10" y2="65" stroke="#7f8c8d" stroke-width="1.5"/>
 			<rect x="-12" y="65" width="24" height="18" fill="#d35400" rx="2" />
