@@ -14,11 +14,17 @@ import { IPreferencesService } from '../../../services/preferences/common/prefer
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { Extensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
 import { EditorExtensionsRegistry } from '../../../../editor/browser/editorExtensions.js';
 import { MenuId, MenuRegistry, isIMenuItem } from '../../../../platform/actions/common/actions.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { isLocalizedString } from '../../../../platform/action/common/action.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { EnablementState, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from '../../../services/extensionManagement/common/extensionManagement.js';
+import { Event } from '../../../../base/common/event.js';
+import { timeout } from '../../../../base/common/async.js';
 
 export class ConfigureLanguageBasedSettingsAction extends Action {
 
@@ -79,6 +85,58 @@ CommandsRegistry.registerCommand({
 		const configRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 		const allSettings = configRegistry.getConfigurationProperties();
 		return allSettings;
+	}
+});
+
+CommandsRegistry.registerCommand({
+	id: '_developer.getConfigurationInformation',
+	handler: async (accessor, path?: string | URI) => {
+		const configRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
+		const fileService = accessor.get(IFileService);
+		const extensionService = accessor.get(IExtensionService);
+		const extensionManagementService = accessor.get(IWorkbenchExtensionManagementService);
+		const extensionEnablementService = accessor.get(IWorkbenchExtensionEnablementService);
+
+		// Ensure extension-contributed configuration has been registered before
+		// reading the registry, otherwise extension settings may be missing.
+		await extensionService.whenInstalledExtensionsRegistered();
+
+		// Some built-in extensions (e.g. Copilot when chat setup is incomplete) may be
+		// disabled and therefore not contribute their configuration. Enable any disabled
+		// built-in extensions and wait for them to register so their settings are dumped too.
+		const installed = await extensionManagementService.getInstalled();
+		const toEnable = installed.filter(e => e.isBuiltin && extensionEnablementService.canChangeEnablement(e) && !extensionEnablementService.isEnabled(e));
+		if (toEnable.length) {
+			const registered = Event.toPromise(extensionService.onDidChangeExtensions);
+			await extensionEnablementService.setEnablement(toEnable, EnablementState.EnabledGlobally);
+			await Promise.race([registered, timeout(5000)]);
+			await extensionService.whenInstalledExtensionsRegistered();
+		}
+
+		const configurationProperties = configRegistry.getConfigurationProperties();
+		const configurationInformation = Object.fromEntries(Object.entries(configurationProperties).map(([key, property]) => {
+			const schema = { ...property };
+
+			// A map is not JSON-serializable and is not needed for schema consumers.
+			delete schema.defaultValueSource;
+
+			return [key, schema];
+		}));
+
+		const content = JSON.stringify(configurationInformation);
+
+		if (!path) {
+			return content;
+		}
+
+		const targetUri = URI.isUri(path)
+			? path
+			: /^[a-zA-Z][a-zA-Z\d+.-]*:\/\//.test(path)
+				? URI.parse(path)
+				: URI.file(path);
+
+		await fileService.writeFile(targetUri, VSBuffer.fromString(content));
+		return targetUri;
 	}
 });
 
