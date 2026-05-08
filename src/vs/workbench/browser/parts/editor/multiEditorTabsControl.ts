@@ -1848,6 +1848,20 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			this.tabsModel.dissolveTabGroup?.(group.id);
 		}));
 
+		actions.push(new Action('tabGroup.close', localize('closeTabGroup', "Close Group"), '', true, () => {
+			const editors: EditorInput[] = [];
+			for (let i = group.startIndex; i < group.startIndex + group.count; i++) {
+				const editor = this.tabsModel.getEditorByIndex(i);
+				if (editor) {
+					editors.push(editor);
+				}
+			}
+			this.tabsModel.dissolveTabGroup?.(group.id);
+			for (const editor of editors) {
+				this.groupView.closeEditor(editor);
+			}
+		}));
+
 		const anchor = new StandardMouseEvent(getWindow(header), e);
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
