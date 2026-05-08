@@ -841,5 +841,28 @@ suite('SnippetSession', function () {
 			assert.deepStrictEqual(result.edits[0].text, '1');
 			assert.deepStrictEqual(result.edits[1].text, '3');
 		});
+
+		test('$CURSOR_NUMBER uses caller-supplied edit order, not range-sorted order', function () {
+			editor.getModel().setValue('xx\nyy');
+			editor.setSelections([new Selection(1, 1, 1, 1)]);
+
+			// pass edits in non-positional order so range-sort would change the index
+			const result = SnippetSession.createEditsAndSnippetsFromEdits(
+				editor,
+				[
+					{ range: new Range(2, 3, 2, 3), template: '$CURSOR_NUMBER' },
+					{ range: new Range(1, 3, 1, 3), template: '$CURSOR_NUMBER' },
+				],
+				true, true, undefined, undefined, languageConfigurationService
+			);
+
+			assert.strictEqual(result.edits.length, 2);
+			// edits are returned in range-sorted order, but the rendered $CURSOR_NUMBER
+			// reflects the original input order: first input -> '1', second input -> '2'
+			assert.deepStrictEqual(result.edits[0].range, new Range(1, 3, 1, 3));
+			assert.deepStrictEqual(result.edits[0].text, '2');
+			assert.deepStrictEqual(result.edits[1].range, new Range(2, 3, 2, 3));
+			assert.deepStrictEqual(result.edits[1].text, '1');
+		});
 	});
 });

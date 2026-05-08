@@ -555,25 +555,29 @@ export class SnippetSession {
 		const parser = new SnippetParser();
 		const snippet = new TextmateSnippet();
 
-		// hoist invariant resolvers so we only create them once and so that
-		// per-edit allocations stay minimal
+		// hoist invariant resolvers so we only allocate them once
 		const modelBasedVariableResolver = editor.invokeWithinContext(accessor => new ModelBasedVariableResolver(accessor.get(ILabelService), model));
-		const clipboardBasedVariableResolver = new ClipboardBasedVariableResolver(() => clipboardText, 0, editor.getSelections().length, editor.getOption(EditorOption.multiCursorPaste) === 'spread');
 		const timeBasedVariableResolver = new TimeBasedVariableResolver;
 		const workspaceBasedVariableResolver = new WorkspaceBasedVariableResolver(editor.invokeWithinContext(accessor => accessor.get(IWorkspaceContextService)));
 		const randomBasedVariableResolver = new RandomBasedVariableResolver;
+		const readClipboardText = () => clipboardText;
+		const clipboardSpread = editor.getOption(EditorOption.multiCursorPaste) === 'spread';
 
-		//
-		snippetEdits = snippetEdits.sort((a, b) => Range.compareRangesUsingStarts(a.range, b.range));
+		// preserve the original input order so cursor-indexed variables
+		// ($CURSOR_INDEX, $CURSOR_NUMBER) and overtyping fallback for
+		// $TM_SELECTED_TEXT can use the caller-supplied edit order
+		const indexedSnippetEdits = snippetEdits
+			.map((edit, idx) => ({ edit, idx }))
+			.sort((a, b) => Range.compareRangesUsingStarts(a.edit.range, b.edit.range));
 		let offset = 0;
-		for (let i = 0; i < snippetEdits.length; i++) {
+		for (let i = 0; i < indexedSnippetEdits.length; i++) {
 
-			const { range, template, keepWhitespace } = snippetEdits[i];
+			const { edit: { range, template, keepWhitespace }, idx } = indexedSnippetEdits[i];
 
 			// gaps between snippet edits are appended as text nodes. this
 			// ensures placeholder-offsets are later correct
 			if (i > 0) {
-				const lastRange = snippetEdits[i - 1].range;
+				const lastRange = indexedSnippetEdits[i - 1].edit.range;
 				const textRange = Range.fromPositions(lastRange.getEndPosition(), range.getStartPosition());
 				const textNode = new Text(model.getValueInRange(textRange));
 				snippet.appendChild(textNode);
@@ -583,14 +587,15 @@ export class SnippetSession {
 			const newNodes = parser.parseFragment(template, snippet);
 			SnippetSession.adjustWhitespace(model, range.getStartPosition(), keepWhitespace !== undefined ? !keepWhitespace : adjustWhitespace, snippet, new Set(newNodes));
 
-			// resolve per-edit variables ($TM_SELECTED_TEXT, $SELECTION, $TM_CURRENT_LINE,
-			// $TM_LINE_NUMBER, comment markers, ...) against this edit's range so that
-			// each edit gets its own selection context (#206121)
+			// resolve variables against this edit's range and original index so that
+			// $TM_SELECTED_TEXT, $SELECTION, $TM_CURRENT_LINE, $TM_LINE_NUMBER,
+			// $CURSOR_INDEX/$CURSOR_NUMBER, comment markers, and clipboard spread all
+			// reflect each edit individually (#206121)
 			const editSelection = Selection.fromRange(range, SelectionDirection.LTR);
 			snippet.resolveVariables(new CompositeSnippetVariableResolver([
 				modelBasedVariableResolver,
-				clipboardBasedVariableResolver,
-				new SelectionBasedVariableResolver(model, editSelection, 0, overtypingCapturer),
+				new ClipboardBasedVariableResolver(readClipboardText, idx, indexedSnippetEdits.length, clipboardSpread),
+				new SelectionBasedVariableResolver(model, editSelection, idx, overtypingCapturer),
 				new CommentBasedVariableResolver(model, editSelection, languageConfigurationService),
 				timeBasedVariableResolver,
 				workspaceBasedVariableResolver,

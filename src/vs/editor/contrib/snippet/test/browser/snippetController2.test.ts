@@ -742,7 +742,7 @@ suite('SnippetController2', function () {
 		assert.strictEqual(model.getValue(), `function foo(f, x, condition) {\n    if (condition) {\n        f();\n        return x;\n    }\n}`);
 	});
 
-	test('$TM_SELECTED_TEXT returns the last selection in multi-cursor selection #206121', function () {
+	test('$TM_SELECTED_TEXT resolves per edit, not the last selection (multi-cursor wrap snippet) #206121', function () {
 		model.setValue('aaa\nbbb\nccc');
 		// each "selection" is passed as a range to apply()
 		const ranges = [new Range(1, 1, 1, 4), new Range(2, 1, 2, 4), new Range(3, 1, 3, 4)];
@@ -753,5 +753,35 @@ suite('SnippetController2', function () {
 		ctrl.apply(ranges.map(range => ({ range, template: 'if(${1:cond}) {$TM_SELECTED_TEXT}$0' })));
 
 		assert.strictEqual(model.getValue(), 'if(cond) {aaa}\nif(cond) {bbb}\nif(cond) {ccc}');
+	});
+
+	test('apply with multiple cursors threads $CURSOR_NUMBER per edit', function () {
+		model.setValue('aa\nbb\ncc');
+
+		ctrl = instaService.createInstance(SnippetController2, editor);
+		ctrl.apply([
+			{ range: new Range(1, 3, 1, 3), template: ':$CURSOR_NUMBER' },
+			{ range: new Range(2, 3, 2, 3), template: ':$CURSOR_NUMBER' },
+			{ range: new Range(3, 3, 3, 3), template: ':$CURSOR_NUMBER' },
+		]);
+
+		assert.strictEqual(model.getValue(), 'aa:1\nbb:2\ncc:3');
+	});
+
+	test('undo restores original selection after apply (regression for #170041)', function () {
+		model.setValue('Some text and more text');
+		editor.setSelection(new Selection(1, 1, 1, 1));
+
+		ctrl = instaService.createInstance(SnippetController2, editor);
+		ctrl.apply([{ range: new Range(1, 6, 1, 10), template: '${0:hi}' }]);
+
+		assert.strictEqual(model.getValue(), 'Some hi and more text');
+
+		editor.runCommand(CoreEditingCommands.Undo, null);
+
+		assert.strictEqual(model.getValue(), 'Some text and more text');
+		// selection should restore to the user's original cursor position,
+		// not the snippet edit range
+		assert.deepStrictEqual(editor.getSelections(), [new Selection(1, 1, 1, 1)]);
 	});
 });
