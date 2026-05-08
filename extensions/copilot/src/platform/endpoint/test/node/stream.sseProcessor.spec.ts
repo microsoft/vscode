@@ -648,6 +648,46 @@ data: [DONE]
 		expect(metadata).toBeUndefined();
 	});
 
+	test('stream containing DeepSeek reasoning_content', async function () {
+		// DeepSeek thinking-mode streams emit reasoning chunks via `delta.reasoning_content`
+		// without an id/signature. See https://api-docs.deepseek.com/guides/thinking_mode
+		const response = [
+			`data: {"choices":[{"delta":{"role":"assistant","content":null,"reasoning_content":"Let "},"index":0}],"created":1751057335,"id":"chatcmpl-deepseek-1","model":"deepseek-chat","object":"chat.completion.chunk"}\n`,
+			`data: {"choices":[{"delta":{"reasoning_content":"me "},"index":0}],"created":1751057335,"id":"chatcmpl-deepseek-1","model":"deepseek-chat","object":"chat.completion.chunk"}\n`,
+			`data: {"choices":[{"delta":{"reasoning_content":"think."},"index":0}],"created":1751057335,"id":"chatcmpl-deepseek-1","model":"deepseek-chat","object":"chat.completion.chunk"}\n`,
+			`data: {"choices":[{"delta":{"content":"Hello"},"index":0}],"created":1751057336,"id":"chatcmpl-deepseek-1","model":"deepseek-chat","object":"chat.completion.chunk"}\n`,
+			`data: {"choices":[{"delta":{},"finish_reason":"stop","index":0}],"created":1751057336,"id":"chatcmpl-deepseek-1","model":"deepseek-chat","object":"chat.completion.chunk"}\n`,
+			`data: [DONE]\n`,
+		];
+		const processor = await SSEProcessor.create(
+			logService,
+			telemetryService,
+			1,
+			createFakeStreamResponse(response),
+		);
+
+		let thinkingText: string | undefined = undefined;
+		let thinkingId: string | undefined = undefined;
+
+		await getAll(processor.processSSE((text: string, index: number, delta: IResponseDelta) => {
+			if (delta.thinking && !isEncryptedThinkingDelta(delta.thinking)) {
+				if (delta.thinking.text) {
+					if (thinkingText === undefined) {
+						thinkingText = '';
+					}
+					thinkingText += Array.isArray(delta.thinking.text) ? delta.thinking.text.join('') : delta.thinking.text;
+				}
+				if (delta.thinking.id) {
+					thinkingId = delta.thinking.id;
+				}
+			}
+			return Promise.resolve(undefined);
+		}));
+
+		expect(thinkingText).toBe('Let me think.');
+		expect(thinkingId).toBeUndefined();
+	});
+
 	suite('real world snapshots', () => {
 
 		async function processResponse(response: string[], expectedNumChoices = 1) {

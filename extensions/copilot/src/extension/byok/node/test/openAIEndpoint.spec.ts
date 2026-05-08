@@ -15,17 +15,17 @@ import { createExtensionUnitTestingServices } from '../../../test/node/services'
 import { OpenAIEndpoint } from '../openAIEndpoint';
 
 // Test fixtures for thinking content
-const createThinkingMessage = (thinkingId: string, thinkingText: string): Raw.ChatMessage => ({
+const createThinkingMessage = (thinkingId: string, thinkingText: string): Raw.ChatMessage =>
+	createThinkingMessageRaw({ id: thinkingId, text: thinkingText });
+
+const createThinkingMessageRaw = (thinking: { id?: string; text?: string }): Raw.ChatMessage => ({
 	role: Raw.ChatRole.Assistant,
 	content: [
 		{
 			type: Raw.ChatCompletionContentPartKind.Opaque,
 			value: {
 				type: 'thinking',
-				thinking: {
-					id: thinkingId,
-					text: thinkingText
-				}
+				thinking
 			}
 		}
 	]
@@ -86,7 +86,7 @@ describe('OpenAIEndpoint - Reasoning Properties', () => {
 	});
 
 	describe('CAPI mode (useResponsesApi = false)', () => {
-		it('should set cot_id and cot_summary properties when processing thinking content', () => {
+		it('should set cot_id, cot_summary and reasoning_content when processing thinking content', () => {
 			const endpoint = instaService.createInstance(OpenAIEndpoint,
 				{
 					...modelMetadata,
@@ -105,6 +105,48 @@ describe('OpenAIEndpoint - Reasoning Properties', () => {
 			expect(messages).toHaveLength(1);
 			expect(messages[0].cot_id).toBe('test-thinking-123');
 			expect(messages[0].cot_summary).toBe('this is my reasoning');
+			expect(messages[0].reasoning_content).toBe('this is my reasoning');
+		});
+
+		it('should set reasoning_content but not cot_id/cot_summary when thinking has text but no id (DeepSeek-style)', () => {
+			const endpoint = instaService.createInstance(OpenAIEndpoint,
+				{
+					...modelMetadata,
+					supported_endpoints: [ModelSupportedEndpoint.ChatCompletions]
+				},
+				'test-api-key',
+				'https://api.openai.com/v1/chat/completions');
+
+			const thinkingMessage = createThinkingMessageRaw({ text: 'reasoning without id' });
+			const options = createTestOptions([thinkingMessage]);
+
+			const body = endpoint.createRequestBody(options);
+
+			const messages = body.messages as any[];
+			expect(messages).toHaveLength(1);
+			expect(messages[0].reasoning_content).toBe('reasoning without id');
+			expect(messages[0].cot_id).toBeUndefined();
+			expect(messages[0].cot_summary).toBeUndefined();
+		});
+
+		it('should not set reasoning_content when thinking text is empty', () => {
+			const endpoint = instaService.createInstance(OpenAIEndpoint,
+				{
+					...modelMetadata,
+					supported_endpoints: [ModelSupportedEndpoint.ChatCompletions]
+				},
+				'test-api-key',
+				'https://api.openai.com/v1/chat/completions');
+
+			const thinkingMessage = createThinkingMessage('id-only', '');
+			const options = createTestOptions([thinkingMessage]);
+
+			const body = endpoint.createRequestBody(options);
+
+			const messages = body.messages as any[];
+			expect(messages).toHaveLength(1);
+			expect(messages[0].cot_id).toBe('id-only');
+			expect(messages[0].reasoning_content).toBeUndefined();
 		});
 
 		it('should handle multiple messages with thinking content', () => {

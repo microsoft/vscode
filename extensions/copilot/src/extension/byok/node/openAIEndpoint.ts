@@ -257,9 +257,16 @@ export class OpenAIEndpoint extends ChatEndpoint {
 		} else {
 			// Handle CAPI: provide callback for thinking data processing
 			const callback: RawMessageConversionCallback = (out, data) => {
-				if (data && data.id) {
+				if (!data) {
+					return;
+				}
+				const text = Array.isArray(data.text) ? data.text.join('') : data.text;
+				if (data.id) {
 					out.cot_id = data.id;
-					out.cot_summary = Array.isArray(data.text) ? data.text.join('') : data.text;
+					out.cot_summary = text;
+				}
+				if (text) {
+					out.reasoning_content = text;
 				}
 			};
 			const body = createCapiRequestBody(options, this.model, callback);

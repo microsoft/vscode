@@ -11,6 +11,9 @@ export interface ThinkingDataInMessage {
 	// Copilot API fields for Completions
 	reasoning_opaque?: string;
 	reasoning_text?: string;
+
+	// DeepSeek thinking-mode field
+	reasoning_content?: string;
 }
 
 export interface RawThinkingDelta {
@@ -25,6 +28,9 @@ export interface RawThinkingDelta {
 	// Anthropic fields
 	thinking?: string;
 	signature?: string;
+
+	// DeepSeek thinking-mode field
+	reasoning_content?: string;
 }
 
 export type ThinkingDelta = {
