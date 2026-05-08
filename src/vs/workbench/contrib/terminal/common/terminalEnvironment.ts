@@ -12,7 +12,7 @@ import { URI, uriToFsPath } from '../../../../base/common/uri.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
 import { IConfigurationResolverService } from '../../../services/configurationResolver/common/configurationResolver.js';
 import { sanitizeProcessEnvironment } from '../../../../base/common/processes.js';
-import { IShellLaunchConfig, ITerminalBackend, ITerminalEnvironment, TerminalSettingId, TerminalShellType, WindowsShellType } from '../../../../platform/terminal/common/terminal.js';
+import { IShellLaunchConfig, ITerminalBackend, ITerminalEnvironment, ShellIntegrationTimeoutOverride, TerminalSettingId, TerminalShellType, WindowsShellType } from '../../../../platform/terminal/common/terminal.js';
 import { IProcessEnvironment, isWindows, isMacintosh, language, OperatingSystem } from '../../../../base/common/platform.js';
 import { escapeNonWindowsPath, sanitizeCwd } from '../../../../platform/terminal/common/terminalEnvironment.js';
 import { isNumber, isString } from '../../../../base/common/types.js';
@@ -422,9 +422,13 @@ export function getShellIntegrationTimeout(
 ): number {
 	const timeoutValue = configurationService.getValue<unknown>(TerminalSettingId.ShellIntegrationTimeout);
 	let timeoutMs: number;
-
-	if (!isNumber(timeoutValue) || timeoutValue < 0) {
+	if (isNumber(timeoutValue) && timeoutValue === ShellIntegrationTimeoutOverride.DisableForTests) {
+		// Used for tests
+		timeoutMs = 0;
+	} else if (!isNumber(timeoutValue) || timeoutValue < 0) {
 		timeoutMs = siInjectionEnabled ? 5000 : (isRemote ? 3000 : 2000);
+	} else if (timeoutValue === 0) {
+		timeoutMs = 0;
 	} else {
 		timeoutMs = Math.max(timeoutValue, 500);
 	}

@@ -10,7 +10,7 @@ import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../platfor
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IChatEditingService, IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
-import { ActionViewItem, IBaseActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { ActionViewItem, IActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IAction, IActionRunner } from '../../../../../base/common/actions.js';
 import { $, addDisposableGenericMouseMoveListener, append } from '../../../../../base/browser/dom.js';
 import { assertType } from '../../../../../base/common/types.js';
@@ -28,6 +28,8 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
+import { getCodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 
 export class ChatEditingAcceptRejectActionViewItem extends ActionViewItem {
 
@@ -35,7 +37,7 @@ export class ChatEditingAcceptRejectActionViewItem extends ActionViewItem {
 
 	constructor(
 		action: IAction,
-		options: IBaseActionViewItemOptions,
+		options: IActionViewItemOptions,
 		private readonly _entry: IObservable<IModifiedFileEntry | undefined>,
 		private readonly _editor: { focus(): void } | undefined,
 		private readonly _keybindingService: IKeybindingService,
@@ -92,7 +94,7 @@ export class ChatEditingAcceptRejectActionViewItem extends ActionViewItem {
 
 	protected override getTooltip(): string | undefined {
 		const value = super.getTooltip();
-		if (!value || this.options.keybinding) {
+		if (!value) {
 			return value;
 		}
 		return this._keybindingService.appendKeybinding(value, this._action.id);
@@ -318,6 +320,11 @@ class ChatEditingOverlayController {
 			activeEditorSignal.read(r); // signal
 
 			const editor = group.activeEditorPane;
+
+			if (!getCodeEditor(editor?.getControl())) {
+				return undefined;
+			}
+
 			const uri = EditorResourceAccessor.getOriginalUri(editor?.input, { supportSideBySide: SideBySideEditor.PRIMARY });
 
 			return uri;
@@ -394,6 +401,7 @@ export class ChatEditingEditorOverlay implements IWorkbenchContribution {
 	constructor(
 		@IEditorGroupsService editorGroupsService: IEditorGroupsService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 	) {
 
 		const editorGroups = observableFromEvent(
@@ -405,6 +413,10 @@ export class ChatEditingEditorOverlay implements IWorkbenchContribution {
 		const overlayWidgets = this._store.add(new DisposableMap<IEditorGroup>());
 
 		this._store.add(autorun(r => {
+
+			if (environmentService.isSessionsWindow) {
+				return;
+			}
 
 			const toDelete = new Set(overlayWidgets.keys());
 			const groups = editorGroups.read(r);

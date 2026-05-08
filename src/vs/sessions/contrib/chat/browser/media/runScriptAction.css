@@ -1,0 +1,186 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.run-script-action-widget {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+	padding: 16px;
+}
+
+.run-script-action-section {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.run-script-action-label {
+	font-size: 12px;
+	font-weight: 600;
+}
+
+.run-script-action-input .monaco-inputbox {
+	width: 100%;
+}
+
+.run-script-action-option-row {
+	display: flex;
+	align-items: center;
+	min-height: 22px;
+	gap: 8px;
+}
+
+.run-script-action-option-text {
+	cursor: pointer;
+	-webkit-user-select: none;
+	user-select: none;
+}
+
+.run-script-action-section .monaco-custom-radio {
+	display: inline-flex;
+	width: fit-content;
+	max-width: 100%;
+	gap: 2px;
+	padding: 2px;
+	border: 1px solid var(--vscode-widget-border, rgba(255, 255, 255, 0.06));
+	border-radius: 6px;
+	background-color: var(--vscode-input-background);
+}
+
+.run-script-action-section .monaco-custom-radio > .monaco-button {
+	width: fit-content;
+	min-width: 76px;
+	padding: 4px 8px;
+	border: 1px solid transparent;
+	border-radius: 4px;
+	background: transparent;
+	color: var(--vscode-foreground);
+	font-size: 12px;
+	font-weight: 500;
+	line-height: 14px;
+	opacity: 0.9;
+	transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease, opacity 120ms ease;
+}
+
+.run-script-action-section .monaco-custom-radio > .monaco-button:first-child,
+.run-script-action-section .monaco-custom-radio > .monaco-button:last-child {
+	border-radius: 4px;
+}
+
+.run-script-action-section .monaco-custom-radio > .monaco-button:not(.active):not(:last-child),
+.run-script-action-section .monaco-custom-radio > .monaco-button.previous-active {
+	border-right: 1px solid transparent;
+	border-left: 1px solid transparent;
+}
+
+.run-script-action-section .monaco-custom-radio > .monaco-button:hover:not(.active):not(.disabled) {
+	background-color: var(--vscode-list-hoverBackground);
+	border-color: rgba(255, 255, 255, 0.06);
+	opacity: 1;
+}
+
+.run-script-action-section .monaco-custom-radio > .monaco-button.active,
+.run-script-action-section .monaco-custom-radio > .monaco-button.active:hover {
+	background-color: var(--vscode-quickInputList-focusBackground);
+	color: var(--vscode-quickInputList-focusForeground);
+	border-color: var(--vscode-focusBorder, transparent);
+	opacity: 1;
+}
+
+.run-script-action-section .monaco-custom-radio > .monaco-button:focus {
+	outline-offset: 0 !important;
+}
+
+.run-script-action-section .monaco-custom-radio.run-script-action-radio-disabled {
+	opacity: 0.75;
+}
+
+.run-script-action-section .monaco-custom-radio.run-script-action-radio-disabled > .monaco-button,
+.run-script-action-section .monaco-custom-radio.run-script-action-radio-disabled > .monaco-button:hover:not(.active) {
+	background-color: transparent;
+	border-color: transparent;
+	color: var(--vscode-disabledForeground);
+	opacity: 1;
+	cursor: default;
+}
+
+.run-script-action-section .monaco-custom-radio.run-script-action-radio-disabled > .monaco-button.active,
+.run-script-action-section .monaco-custom-radio.run-script-action-radio-disabled > .monaco-button.active:hover {
+	background-color: var(--vscode-quickInputList-focusBackground);
+	color: var(--vscode-quickInputList-focusForeground);
+	border-color: var(--vscode-focusBorder, transparent);
+	opacity: 0.9;
+	cursor: default;
+}
+
+.run-script-action-section .monaco-custom-radio.run-script-action-radio-disabled > .monaco-button:focus,
+.run-script-action-section .monaco-custom-radio.run-script-action-radio-disabled > .monaco-button.active:focus {
+	outline: none !important;
+}
+
+.run-script-action-hint {
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.run-script-action-buttons {
+	display: flex;
+	justify-content: flex-end;
+	gap: 8px;
+	padding-top: 4px;
+}
+
+.run-script-action-buttons .monaco-text-button {
+	width: fit-content;
+	min-height: 28px;
+	padding: 5px 12px;
+	border-radius: 6px;
+}
+
+.agent-sessions-workbench.run-script-action-modal-visible .quick-input-widget .quick-input-titlebar {
+	gap: 8px;
+	height: 32px;
+	padding: 0 6px 0 0;
+	border-top-left-radius: 8px;
+	border-top-right-radius: 8px;
+	border-bottom: 1px solid var(--vscode-titleBar-border, var(--vscode-widget-border, transparent));
+	box-sizing: border-box;
+	background-color: var(--vscode-titleBar-activeBackground);
+}
+
+.agent-sessions-workbench.run-script-action-modal-visible .quick-input-widget .quick-input-right-action-bar {
+	margin-right: 0;
+}
+
+.agent-sessions-workbench.run-script-action-modal-visible .quick-input-widget .quick-input-title {
+	padding: 0;
+	text-align: left;
+	font-size: 12px;
+	font-weight: 600;
+	color: var(--vscode-titleBar-activeForeground);
+}
+
+.agent-sessions-workbench.run-script-action-modal-visible .quick-input-widget {
+	border-radius: 8px;
+	box-shadow: var(--vscode-shadow-xl);
+}
+
+.agent-sessions-workbench.run-script-action-modal-visible .quick-input-widget .quick-input-html-widget {
+	border-bottom-left-radius: 8px;
+	border-bottom-right-radius: 8px;
+	overflow: hidden;
+}
+
+.agent-sessions-workbench.run-script-action-modal-visible .quick-input-widget .quick-input-header,
+.agent-sessions-workbench.run-script-action-modal-visible .quick-input-widget .run-script-action-widget {
+	background-color: var(--vscode-editor-background);
+}
+
+.run-script-action-modal-backdrop {
+	position: fixed;
+	inset: 0;
+	background: rgba(0, 0, 0, 0.3);
+	z-index: 2549;
+}

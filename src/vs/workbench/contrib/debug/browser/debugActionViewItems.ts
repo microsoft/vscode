@@ -16,7 +16,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { selectBorder, selectBackground, asCssVariable } from '../../../../platform/theme/common/colorRegistry.js';
 import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
-import { IDisposable, dispose } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, dispose } from '../../../../base/common/lifecycle.js';
 import { ADD_CONFIGURATION_ID } from './debugCommands.js';
 import { BaseActionViewItem, IBaseActionViewItemOptions, SelectActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { debugStart } from './debugIcons.js';
@@ -198,12 +198,14 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 		const inWorkspace = this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE;
 		let lastGroup: string | undefined;
 		const disabledIdxs: number[] = [];
+		const separatorIdxs: number[] = [];
 		manager.getAllConfigurations().forEach(({ launch, name, presentation }) => {
 			if (lastGroup !== presentation?.group) {
 				lastGroup = presentation?.group;
 				if (this.debugOptions.length) {
 					this.debugOptions.push({ label: SeparatorSelectOption.text, handler: () => Promise.resolve(false) });
 					disabledIdxs.push(this.debugOptions.length - 1);
+					separatorIdxs.push(this.debugOptions.length - 1);
 				}
 			}
 			if (name === manager.selectedConfiguration.name && launch === manager.selectedConfiguration.launch) {
@@ -239,6 +241,7 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 
 		this.debugOptions.push({ label: SeparatorSelectOption.text, handler: () => Promise.resolve(false) });
 		disabledIdxs.push(this.debugOptions.length - 1);
+		separatorIdxs.push(this.debugOptions.length - 1);
 
 		this.providers.forEach(p => {
 
@@ -265,7 +268,11 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 			});
 		});
 
-		this.selectBox.setOptions(this.debugOptions.map((data, index): ISelectOptionItem => ({ text: data.label, isDisabled: disabledIdxs.indexOf(index) !== -1 })), this.selected);
+		this.selectBox.setOptions(this.debugOptions.map((data, index): ISelectOptionItem => ({
+			text: data.label,
+			isDisabled: disabledIdxs.indexOf(index) !== -1,
+			isSeparator: separatorIdxs.indexOf(index) !== -1,
+		})), this.selected);
 	}
 
 	private _setAriaLabel(title: string): void {
@@ -302,18 +309,18 @@ export class FocusSessionActionViewItem extends SelectActionViewItem<IDebugSessi
 			}
 		}));
 
+		const sessionListenersStore = this._register(new DisposableStore());
+		const registerSessionListeners = (session: IDebugSession) => {
+			const sessionListeners = sessionListenersStore.add(new DisposableStore());
+			sessionListeners.add(session.onDidChangeName(() => this.update()));
+			sessionListeners.add(session.onDidEndAdapter(() => sessionListenersStore.delete(sessionListeners)));
+		};
 		this._register(this.debugService.onDidNewSession(session => {
-			const sessionListeners: IDisposable[] = [];
-			sessionListeners.push(session.onDidChangeName(() => this.update()));
-			sessionListeners.push(session.onDidEndAdapter(() => dispose(sessionListeners)));
+			registerSessionListeners(session);
 			this.update();
 		}));
 		// Apply the same pattern to existing sessions - track listeners for cleanup
-		this.getSessions().forEach(session => {
-			const sessionListeners: IDisposable[] = [];
-			sessionListeners.push(session.onDidChangeName(() => this.update()));
-			sessionListeners.push(session.onDidEndAdapter(() => dispose(sessionListeners)));
-		});
+		this.getSessions().forEach(registerSessionListeners);
 		this._register(this.debugService.onDidEndSession(() => this.update()));
 
 		const selectedSession = session ? this.mapFocusedSessionToSelected(session) : undefined;

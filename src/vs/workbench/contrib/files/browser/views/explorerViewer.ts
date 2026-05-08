@@ -1245,6 +1245,7 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IFileService private readonly fileService: IFileService
 	) {
+		this.toDispose.push(this._onDidChange);
 		this.toDispose.push(this.contextService.onDidChangeWorkspaceFolders(() => this.updateConfiguration()));
 		this.toDispose.push(this.configurationService.onDidChangeConfiguration((e) => {
 			if (e.affectsConfiguration('files.exclude') || e.affectsConfiguration('explorer.excludeGitIgnore')) {

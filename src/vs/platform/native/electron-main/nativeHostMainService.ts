@@ -15,7 +15,7 @@ import { matchesSomeScheme, Schemas } from '../../../base/common/network.js';
 import { dirname, join, posix, resolve, win32 } from '../../../base/common/path.js';
 import { isLinux, isMacintosh, isWindows } from '../../../base/common/platform.js';
 import { AddFirstParameterToFunctions } from '../../../base/common/types.js';
-import { URI } from '../../../base/common/uri.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
 import { virtualMachineHint } from '../../../base/node/id.js';
 import { Promises, SymlinkSupport } from '../../../base/node/pfs.js';
 import { findFreePort, isPortFree } from '../../../base/node/ports.js';
@@ -304,6 +304,17 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		}, options);
 	}
 
+	async openAgentsWindow(windowId: number | undefined, options?: { folderUri?: UriComponents }): Promise<void> {
+		const windows = await this.windowsMainService.openAgentsWindow({
+			context: OpenContext.API,
+			contextWindowId: windowId,
+			cli: this.environmentMainService.args,
+		}, options?.folderUri ? URI.revive(options.folderUri) : undefined);
+		if (windows.length > 0) {
+			windows[0].focus();
+		}
+	}
+
 	async isFullScreen(windowId: number | undefined, options?: INativeHostOptions): Promise<boolean> {
 		const window = this.windowById(options?.targetWindowId, windowId);
 		return window?.isFullScreen ?? false;
@@ -374,7 +385,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		}
 	}
 
-	async updateWindowControls(windowId: number | undefined, options: INativeHostOptions & { height?: number; backgroundColor?: string; foregroundColor?: string }): Promise<void> {
+	async updateWindowControls(windowId: number | undefined, options: INativeHostOptions & { height?: number; backgroundColor?: string; foregroundColor?: string; dimmed?: boolean }): Promise<void> {
 		const window = this.windowById(options?.targetWindowId, windowId);
 		window?.updateWindowControls(options);
 	}
@@ -1151,10 +1162,28 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		}
 	}
 
-	async stopTracing(windowId: number | undefined): Promise<void> {
-		if (!this.environmentMainService.args.trace) {
-			return; // requires tracing to be on
+	private _isTracing = false;
+
+	async startTracing(windowId: number | undefined, categories: string): Promise<void> {
+		if (this._isTracing) {
+			throw new Error(localize('tracing.alreadyInProgress', 'A tracing session is already in progress. Use command `"{0}"` to stop it first.', 'workbench.action.stopTracing'));
 		}
+
+		const traceOptions = ['record-until-full', 'enable-sampling'];
+
+		await contentTracing.startRecording({
+			categoryFilter: categories,
+			traceOptions: traceOptions.join(',')
+		});
+		this._isTracing = true;
+	}
+
+	async stopTracing(windowId: number | undefined): Promise<void> {
+		if (!this._isTracing && !this.environmentMainService.args.trace) {
+			return; // no tracing in progress
+		}
+
+		this._isTracing = false;
 
 		const path = await contentTracing.stopRecording(`${randomPath(this.environmentMainService.userHome.fsPath, this.productService.applicationName)}.trace.txt`);
 

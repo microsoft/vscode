@@ -22,7 +22,7 @@ import { getMenuBarVisibility, IPath, hasNativeTitlebar, hasCustomTitlebar, Titl
 import { IHostService } from '../services/host/browser/host.js';
 import { IBrowserWorkbenchEnvironmentService } from '../services/environment/browser/environmentService.js';
 import { IEditorService } from '../services/editor/common/editorService.js';
-import { EditorGroupLayout, GroupOrientation, GroupsOrder, IEditorGroupsService } from '../services/editor/common/editorGroupsService.js';
+import { EditorGroupLayout, GroupActivationReason, GroupOrientation, GroupsOrder, IEditorGroupsService } from '../services/editor/common/editorGroupsService.js';
 import { SerializableGrid, ISerializableView, ISerializedGrid, Orientation, ISerializedNode, ISerializedLeafNode, Direction, IViewSize, Sizing } from '../../base/browser/ui/grid/grid.js';
 import { Part } from './part.js';
 import { IStatusbarService } from '../services/statusbar/browser/statusbar.js';
@@ -100,7 +100,8 @@ enum LayoutClasses {
 	STATUSBAR_HIDDEN = 'nostatusbar',
 	FULLSCREEN = 'fullscreen',
 	MAXIMIZED = 'maximized',
-	WINDOW_BORDER = 'border'
+	WINDOW_BORDER = 'border',
+	NO_SHADOWS = 'no-shadows'
 }
 
 interface IPathToOpen extends IPath {
@@ -340,7 +341,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private registerLayoutListeners(): void {
 
 		// Restore editor if hidden and an editor is to show
-		const showEditorIfHidden = () => {
+		const showEditorIfHidden = (explicitUserAction?: boolean) => {
 			if (
 				this.isVisible(Parts.EDITOR_PART, mainWindow) ||		// already visible
 				this.mainPartEditorService.visibleEditors.length === 0	// no editor to show
@@ -349,7 +350,12 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			}
 
 			if (this.isAuxiliaryBarMaximized()) {
-				this.toggleMaximizedAuxiliaryBar();
+				// Do not unmaximize the auxiliary side bar when the editor was
+				// opened automatically (e.g. by the chat agent applying edits).
+				// Only an explicit user action should disrupt the chosen layout.
+				if (explicitUserAction !== false) {
+					this.toggleMaximizedAuxiliaryBar();
+				}
 			} else {
 				this.toggleMaximizedPanel();
 			}
@@ -374,13 +380,17 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.editorGroupService.whenRestored.then(() => {
 
 			// Handle visible editors changing for parts visibility
-			this._register(this.mainPartEditorService.onDidVisibleEditorsChange(() => {
+			this._register(this.mainPartEditorService.onDidVisibleEditorsChange(e => {
 				const handled = maybeMaximizeAuxiliaryBar();
 				if (!handled) {
-					showEditorIfHidden();
+					showEditorIfHidden(e.isExplicit);
 				}
 			}));
-			this._register(this.editorGroupService.mainPart.onDidActivateGroup(showEditorIfHidden));
+			this._register(this.editorGroupService.mainPart.onDidActivateGroup(e => {
+				if (e.reason !== GroupActivationReason.PART_CLOSE) {
+					showEditorIfHidden(); // only show unless a modal/auxiliary part closes
+				}
+			}));
 
 			// Revalidate center layout when active editor changes: diff editor quits centered mode
 			this._register(this.mainPartEditorService.onDidActiveEditorChange(() => this.centerMainEditorLayout(this.stateModel.getRuntimeValue(LayoutStateKeys.MAIN_EDITOR_CENTERED))));
@@ -420,6 +430,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				}
 
 				this.doUpdateLayoutConfiguration();
+			}
+
+			// Shadows
+			if (e.affectsConfiguration(LayoutSettings.SHADOWS)) {
+				this.updateShadows();
 			}
 
 			// Auxiliary Sidebar
@@ -582,6 +597,18 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Centered Layout
 		this.editorGroupService.whenRestored.then(() => this.centerMainEditorLayout(this.stateModel.getRuntimeValue(LayoutStateKeys.MAIN_EDITOR_CENTERED), skipLayout));
+	}
+
+	private isShadowsDisabled(): boolean {
+		return this.configurationService.getValue<boolean>(LayoutSettings.SHADOWS) === false;
+	}
+
+	private updateShadows(): void {
+		const noShadows = this.isShadowsDisabled();
+
+		for (const container of Array.from(this.containers)) {
+			container.classList.toggle(LayoutClasses.NO_SHADOWS, noShadows);
+		}
 	}
 
 	private setSideBarPosition(position: Position): void {
@@ -1593,7 +1620,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.auxiliaryBarPartView = auxiliaryBarPart;
 		this.statusBarPartView = statusBar;
 
-		const viewMap = {
+		const viewMap: Record<string, ISerializableView> = {
 			[Parts.ACTIVITYBAR_PART]: this.activityBarPartView,
 			[Parts.BANNER_PART]: this.bannerPartView,
 			[Parts.TITLEBAR_PART]: this.titleBarPartView,
@@ -1853,7 +1880,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			!this.isVisible(Parts.PANEL_PART) ? LayoutClasses.PANEL_HIDDEN : undefined,
 			!this.isVisible(Parts.AUXILIARYBAR_PART) ? LayoutClasses.AUXILIARYBAR_HIDDEN : undefined,
 			!this.isVisible(Parts.STATUSBAR_PART) ? LayoutClasses.STATUSBAR_HIDDEN : undefined,
-			this.state.runtime.mainWindowFullscreen ? LayoutClasses.FULLSCREEN : undefined
+			this.state.runtime.mainWindowFullscreen ? LayoutClasses.FULLSCREEN : undefined,
+			this.isShadowsDisabled() ? LayoutClasses.NO_SHADOWS : undefined
 		]);
 	}
 
@@ -2839,6 +2867,7 @@ class LayoutStateModel extends Disposable {
 		[StorageScope.WORKSPACE]: boolean;
 		[StorageScope.PROFILE]: boolean;
 		[StorageScope.APPLICATION]: boolean;
+		[StorageScope.APPLICATION_SHARED]: boolean;
 	};
 
 	constructor(
@@ -2852,7 +2881,8 @@ class LayoutStateModel extends Disposable {
 		this.isNew = {
 			[StorageScope.WORKSPACE]: this.storageService.isNew(StorageScope.WORKSPACE),
 			[StorageScope.PROFILE]: this.storageService.isNew(StorageScope.PROFILE),
-			[StorageScope.APPLICATION]: this.storageService.isNew(StorageScope.APPLICATION)
+			[StorageScope.APPLICATION]: this.storageService.isNew(StorageScope.APPLICATION),
+			[StorageScope.APPLICATION_SHARED]: this.storageService.isNew(StorageScope.APPLICATION_SHARED)
 		};
 
 		this._register(this.configurationService.onDidChangeConfiguration(configurationChange => this.updateStateFromLegacySettings(configurationChange)));

@@ -40,7 +40,8 @@ suite('MCP Types', () => {
 				command: 'test-command',
 				args: [],
 				env: {},
-				envFile: undefined
+				envFile: undefined,
+				sandbox: undefined
 			},
 			...overrides
 		});
@@ -89,7 +90,8 @@ suite('MCP Types', () => {
 					command: 'command1',
 					args: [],
 					env: {},
-					envFile: undefined
+					envFile: undefined,
+					sandbox: undefined
 				}
 			});
 			const def2 = createBasicDefinition({
@@ -99,7 +101,8 @@ suite('MCP Types', () => {
 					command: 'command2',
 					args: [],
 					env: {},
-					envFile: undefined
+					envFile: undefined,
+					sandbox: undefined
 				}
 			});
 			assert.strictEqual(McpServerDefinition.equals(def1, def2), false);

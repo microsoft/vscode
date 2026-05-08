@@ -172,4 +172,115 @@ suite('ChatModelStore', () => {
 
 		assert.strictEqual(model.isDisposed, true);
 	});
+
+	test('tracks reference owners and creation owner', async () => {
+		const uri = URI.parse('test://session');
+		const props: IStartSessionProps = {
+			sessionResource: uri,
+			location: ChatAgentLocation.Chat,
+			canUseTools: true
+		};
+
+		const ref1 = testObject.acquireOrCreate(props, 'ChatModelStoreTest#create');
+		const ref2 = testObject.acquireExisting(uri, 'ChatModelStoreTest#existing');
+		const ref3 = testObject.acquireExisting(uri, 'ChatModelStoreTest#existing');
+
+		assert.deepStrictEqual(testObject.getReferenceDebugSnapshot(), {
+			totalModels: 1,
+			totalReferences: 3,
+			models: [{
+				sessionResource: uri,
+				title: '',
+				createdBy: 'ChatModelStoreTest#create',
+				initialLocation: ChatAgentLocation.Chat,
+				isImported: false,
+				willKeepAlive: true,
+				hasPendingEdits: false,
+				pendingDisposal: false,
+				referenceCount: 3,
+				holders: [
+					{ holder: 'ChatModelStoreTest#existing', count: 2 },
+					{ holder: 'ChatModelStoreTest#create', count: 1 }
+				]
+			}]
+		});
+
+		ref1.dispose();
+		ref2?.dispose();
+		ref3?.dispose();
+		willDisposePromises[0].complete();
+		await testObject.waitForModelDisposals();
+	});
+
+	test('reports pending disposal models without holders', async () => {
+		const uri = URI.parse('test://session');
+		const props: IStartSessionProps = {
+			sessionResource: uri,
+			location: ChatAgentLocation.Chat,
+			canUseTools: true
+		};
+
+		const ref = testObject.acquireOrCreate(props, 'ChatModelStoreTest#create');
+		ref.dispose();
+
+		assert.deepStrictEqual(testObject.getReferenceDebugSnapshot(), {
+			totalModels: 1,
+			totalReferences: 0,
+			models: [{
+				sessionResource: uri,
+				title: '',
+				createdBy: 'ChatModelStoreTest#create',
+				initialLocation: ChatAgentLocation.Chat,
+				isImported: false,
+				willKeepAlive: true,
+				hasPendingEdits: false,
+				pendingDisposal: true,
+				referenceCount: 0,
+				holders: []
+			}]
+		});
+
+		willDisposePromises[0].complete();
+		await testObject.waitForModelDisposals();
+	});
+
+	test('resurrection preserves debug tracking', async () => {
+		const uri = URI.parse('test://session');
+		const props: IStartSessionProps = {
+			sessionResource: uri,
+			location: ChatAgentLocation.Chat,
+			canUseTools: true
+		};
+
+		const ref1 = testObject.acquireOrCreate(props, 'OriginalCreator');
+		ref1.dispose();
+
+		// Model is pending disposal — re-acquire before disposal completes
+		const ref2 = testObject.acquireOrCreate(props, 'Rescuer');
+
+		// Complete the old disposal — should NOT wipe the model or tracking
+		willDisposePromises[0].complete();
+		await testObject.waitForModelDisposals();
+
+		assert.deepStrictEqual(testObject.getReferenceDebugSnapshot(), {
+			totalModels: 1,
+			totalReferences: 1,
+			models: [{
+				sessionResource: uri,
+				title: '',
+				createdBy: 'OriginalCreator',
+				initialLocation: ChatAgentLocation.Chat,
+				isImported: false,
+				willKeepAlive: true,
+				hasPendingEdits: false,
+				pendingDisposal: false,
+				referenceCount: 1,
+				holders: [{ holder: 'Rescuer', count: 1 }]
+			}]
+		});
+
+		ref2.dispose();
+		willDisposePromises[1].complete();
+		await testObject.waitForModelDisposals();
+	});
 });

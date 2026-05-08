@@ -14,7 +14,6 @@ import { DetailedLineRangeMapping, LineRangeMapping } from '../../../../../edito
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { ChatMessageRole, ILanguageModelsService } from '../../common/languageModels.js';
-import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import * as nls from '../../../../../nls.js';
 
 /**
@@ -237,18 +236,8 @@ export class ChatEditingExplanationModelManager extends Disposable implements IC
 		const totalChanges = fileChanges.reduce((sum, f) => sum + f.changes.length, 0);
 
 		try {
-			// Select a high-end model for better understanding of all changes together
-			let models = await this._languageModelsService.selectLanguageModels({ vendor: 'copilot', family: 'claude-3.5-sonnet' });
-			if (!models.length) {
-				models = await this._languageModelsService.selectLanguageModels({ vendor: 'copilot', family: 'gpt-4o' });
-			}
-			if (!models.length) {
-				models = await this._languageModelsService.selectLanguageModels({ vendor: 'copilot', family: 'gpt-4' });
-			}
-			if (!models.length) {
-				// Fallback to any available model
-				models = await this._languageModelsService.selectLanguageModels({ vendor: 'copilot' });
-			}
+			// Select a model for understanding all changes together
+			const models = await this._languageModelsService.selectLanguageModels({ vendor: 'copilot', id: 'copilot-fast' });
 			if (!models.length) {
 				for (const fileData of fileChanges) {
 					this._updateUriStatePartial(fileData.uri, {
@@ -294,7 +283,7 @@ Example response format:
 
 			const response = await this._languageModelsService.sendChatRequest(
 				models[0],
-				new ExtensionIdentifier('core'),
+				undefined,
 				[{ role: ChatMessageRole.User, content: [{ type: 'text', value: prompt }] }],
 				{},
 				cancellationToken
