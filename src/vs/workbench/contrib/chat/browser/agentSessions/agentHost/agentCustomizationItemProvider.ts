@@ -10,7 +10,7 @@ import { ResourceMap } from '../../../../../../base/common/map.js';
 import { extname } from '../../../../../../base/common/path.js';
 import { joinPath } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { CustomizationStatus, SessionCustomization, type AgentInfo, type CustomizationRef, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { CustomizationStatus, type SessionCustomization, type AgentInfo, type CustomizationRef, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { ICustomizationItem, ICustomizationItemAction, ICustomizationItemProvider } from '../../../common/customizationHarnessService.js';
 import { PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
@@ -59,12 +59,13 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 			}
 		}));
 
-		const onSessionCustomizationChanged = Event.filter(connection.onDidAction, envelope => envelope.action.type === ActionType.SessionCustomizationsChanged);
-		this._register(onSessionCustomizationChanged(envelope => {
-			const customizations = (envelope.action as { customizations?: SessionCustomization[] }).customizations;
-			if (customizations && customizations !== this._sessionCustomizations) {
-				this._sessionCustomizations = customizations;
-				this._onDidChange.fire();
+		this._register(connection.onDidAction(envelope => {
+			if (envelope.action.type === ActionType.SessionCustomizationsChanged) {
+				const customizations = envelope.action.customizations;
+				if (customizations !== this._sessionCustomizations) {
+					this._sessionCustomizations = customizations;
+					this._onDidChange.fire();
+				}
 			}
 		}));
 	}
