@@ -1618,12 +1618,12 @@ export class LlmClient {
 		}
 
 		try {
-			const response = await fetch(`${anthropicBaseUrl}/v1/messages`, {
+			const response = await retryableFetch(`${anthropicBaseUrl}/v1/messages`, {
 				method: 'POST',
 				headers,
 				body: JSON.stringify(body),
 				signal: options.signal,
-			});
+			}, { signal: options.signal });
 
 			if (!response.ok) {
 				const body = await this.readErrorBody(response);
@@ -1839,12 +1839,12 @@ export class LlmClient {
 		}
 
 		try {
-			const response = await fetch(`${openAIBaseUrl}/chat/completions`, {
+			const response = await retryableFetch(`${openAIBaseUrl}/chat/completions`, {
 				method: 'POST',
 				headers,
 				body: JSON.stringify(body),
 				signal: options.signal,
-			});
+			}, { signal: options.signal });
 
 			if (!response.ok) {
 				const body = await this.readErrorBody(response);
@@ -2082,12 +2082,12 @@ export class LlmClient {
 		}
 
 		try {
-			const response = await fetch(url, {
+			const response = await retryableFetch(url, {
 				method: 'POST',
 				headers,
 				body: JSON.stringify(body),
 				signal: options.signal,
-			});
+			}, { signal: options.signal });
 
 			if (!response.ok) {
 				const body = await this.readErrorBody(response);
@@ -2535,12 +2535,12 @@ export class LlmClient {
 		};
 
 		try {
-			const response = await fetch(url, {
+			const response = await retryableFetch(url, {
 				method: 'POST',
 				headers,
 				body: JSON.stringify(body),
 				signal: options.signal,
-			});
+			}, { signal: options.signal });
 
 			if (!response.ok) {
 				const errBody = await this.readErrorBody(response);
@@ -3326,6 +3326,192 @@ function applyAdvancedHeaders(target: Record<string, string>, raw: string | unde
 	} catch (err) {
 		console.warn('LlmClient: failed to parse custom headers JSON; ignoring.', err);
 	}
+}
+
+/**
+ * HTTP status codes considered transient and therefore worth retrying with
+ * exponential backoff. 429 is upstream rate-limiting; 500/502/503 are generic
+ * server-side faults; 529 is Anthropic's 'overloaded' status.
+ */
+const RETRYABLE_HTTP_STATUSES: ReadonlySet<number> = new Set([429, 500, 502, 503, 529]);
+
+/** Cap any honoured `Retry-After` header at 60s to avoid pathological waits. */
+const MAX_RETRY_AFTER_MS = 60_000;
+
+/**
+ * Decide whether a thrown fetch error looks like a transient network blip
+ * (DNS resolution failure, connection reset, socket hang up, generic
+ * `fetch failed` from undici). Aborts are excluded — they propagate.
+ */
+function isRetryableNetworkError(err: unknown): boolean {
+	if (!err || typeof err !== 'object') {
+		return false;
+	}
+	const name = (err as { name?: unknown }).name;
+	if (typeof name === 'string' && name === 'AbortError') {
+		return false;
+	}
+	const message = (err as { message?: unknown }).message;
+	const code = (err as { code?: unknown }).code;
+	const cause = (err as { cause?: unknown }).cause;
+	const haystack: string[] = [];
+	if (typeof message === 'string') {
+		haystack.push(message);
+	}
+	if (typeof code === 'string') {
+		haystack.push(code);
+	}
+	if (cause && typeof cause === 'object') {
+		const causeCode = (cause as { code?: unknown }).code;
+		const causeMessage = (cause as { message?: unknown }).message;
+		if (typeof causeCode === 'string') {
+			haystack.push(causeCode);
+		}
+		if (typeof causeMessage === 'string') {
+			haystack.push(causeMessage);
+		}
+	}
+	const blob = haystack.join(' ');
+	return /ECONNRESET|ECONNREFUSED|ETIMEDOUT|ENOTFOUND|EAI_AGAIN|EPIPE|UND_ERR|fetch failed|network|socket hang up/i.test(blob);
+}
+
+/**
+ * Parse a `Retry-After` HTTP header value. Supports both delta-seconds and
+ * HTTP-date forms. Returns `undefined` if the header is missing or malformed.
+ */
+function parseRetryAfterMs(response: Response): number | undefined {
+	const raw = response.headers.get('retry-after');
+	if (!raw) {
+		return undefined;
+	}
+	const trimmed = raw.trim();
+	if (/^\d+(?:\.\d+)?$/.test(trimmed)) {
+		const seconds = Number(trimmed);
+		if (Number.isFinite(seconds) && seconds >= 0) {
+			return Math.min(seconds * 1000, MAX_RETRY_AFTER_MS);
+		}
+		return undefined;
+	}
+	const dateMs = Date.parse(trimmed);
+	if (!Number.isFinite(dateMs)) {
+		return undefined;
+	}
+	const deltaMs = dateMs - Date.now();
+	if (deltaMs <= 0) {
+		return 0;
+	}
+	return Math.min(deltaMs, MAX_RETRY_AFTER_MS);
+}
+
+/**
+ * Sleep for `delayMs`, but reject with the abort reason as soon as `signal`
+ * fires. Used between retry attempts so a cancelled stream doesn't have to
+ * wait out the full backoff window.
+ */
+function sleepWithAbort(delayMs: number, signal?: AbortSignal): Promise<void> {
+	if (delayMs <= 0) {
+		if (signal?.aborted) {
+			return Promise.reject(signal.reason ?? new DOMException('Aborted', 'AbortError'));
+		}
+		return Promise.resolve();
+	}
+	return new Promise<void>((resolve, reject) => {
+		if (signal?.aborted) {
+			reject(signal.reason ?? new DOMException('Aborted', 'AbortError'));
+			return;
+		}
+		const timer = setTimeout(() => {
+			signal?.removeEventListener('abort', onAbort);
+			resolve();
+		}, delayMs);
+		const onAbort = () => {
+			clearTimeout(timer);
+			signal?.removeEventListener('abort', onAbort);
+			reject(signal?.reason ?? new DOMException('Aborted', 'AbortError'));
+		};
+		signal?.addEventListener('abort', onAbort, { once: true });
+	});
+}
+
+/**
+ * Wrap a single `fetch` call with bounded exponential-backoff retry on
+ * transient HTTP errors (429 / 500 / 502 / 503 / 529) and transient network
+ * errors (ECONNRESET, 'fetch failed', and friends). Behaviour summary:
+ *
+ *   - First attempt fires immediately. Up to `maxRetries` further attempts
+ *     follow, each spaced by `baseDelayMs * 2^attempt` (default 1s, 2s, 4s).
+ *   - A `Retry-After` header on a 429 / 503 response wins over the backoff
+ *     schedule, clamped to {@link MAX_RETRY_AFTER_MS}.
+ *   - The signal is honoured both during fetch and during the inter-attempt
+ *     sleep — aborts bubble through immediately.
+ *   - 4xx responses other than 429, and non-network exceptions, are returned
+ *     or thrown as-is without retry.
+ *   - Only the *initial* response is retried; once a body has started
+ *     streaming, mid-stream failures are the caller's problem (retrying
+ *     would lose tokens).
+ *
+ * @param url Target URL — passed through to `fetch` verbatim.
+ * @param init RequestInit — passed through to `fetch` verbatim. The signal
+ *             should normally also be supplied via `options.signal` so that
+ *             the inter-attempt sleep can observe cancellation.
+ * @param options Retry tuning knobs and an abort signal.
+ */
+async function retryableFetch(
+	url: string,
+	init: RequestInit,
+	options: { maxRetries?: number; baseDelayMs?: number; signal?: AbortSignal } = {},
+): Promise<Response> {
+	const maxRetries = options.maxRetries ?? 3;
+	const baseDelayMs = options.baseDelayMs ?? 1000;
+	const signal = options.signal;
+
+	let lastError: unknown;
+	for (let attempt = 0; attempt <= maxRetries; attempt++) {
+		if (signal?.aborted) {
+			throw signal.reason ?? new DOMException('Aborted', 'AbortError');
+		}
+
+		let response: Response | undefined;
+		try {
+			response = await fetch(url, init);
+		} catch (err) {
+			// Always let aborts propagate untouched.
+			if (signal?.aborted || (err instanceof Error && err.name === 'AbortError')) {
+				throw err;
+			}
+			if (attempt < maxRetries && isRetryableNetworkError(err)) {
+				lastError = err;
+				const delayMs = baseDelayMs * Math.pow(2, attempt);
+				await sleepWithAbort(delayMs, signal);
+				continue;
+			}
+			throw err;
+		}
+
+		if (!RETRYABLE_HTTP_STATUSES.has(response.status) || attempt >= maxRetries) {
+			return response;
+		}
+
+		// Drain and discard the body of the doomed response so the underlying
+		// connection can be reused, then sleep before the next attempt.
+		try {
+			await response.body?.cancel();
+		} catch {
+			// Best-effort; ignore.
+		}
+
+		const retryAfterMs = (response.status === 429 || response.status === 503)
+			? parseRetryAfterMs(response)
+			: undefined;
+		const backoffMs = baseDelayMs * Math.pow(2, attempt);
+		const delayMs = retryAfterMs !== undefined ? retryAfterMs : backoffMs;
+		lastError = new Error(`HTTP ${response.status}`);
+		await sleepWithAbort(delayMs, signal);
+	}
+
+	// Loop is guaranteed to either return a response or throw before falling
+	// off the end. This is here purely to satisfy TypeScript's flow analysis.
+	throw lastError ?? new Error('retryableFetch: exhausted retries with no recorded error');
 }
 
 /**

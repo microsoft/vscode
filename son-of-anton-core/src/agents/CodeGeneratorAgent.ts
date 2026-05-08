@@ -110,18 +110,17 @@ export class CodeGeneratorAgent extends BaseAgent {
 	}
 
 	/**
-	 * Whether the host supplied a `ToolExecutionContext` we can use to run
-	 * tools natively. Hooked through `BaseAgent`'s overridable getter so
-	 * tests can stub a context, and the IDE / CLI activation can plug in
-	 * their own (per-call workspace-trust gating, auto-approval policy,
-	 * write-snapshot capture, etc).
+	 * Returns the host-supplied `ToolExecutionContext` threaded through
+	 * `BaseAgent`'s constructor (10th positional argument). When this
+	 * resolves to a real context, the H1 native tool-use loop runs; when it
+	 * resolves to `undefined`, the legacy diff-parse fallback runs.
 	 *
-	 * Returns `undefined` for now — the activation wiring will land
-	 * separately when the host plumbs its existing `ToolRegistry` execution
-	 * surface in. Until then, the legacy diff-parse path runs.
+	 * Subclasses + tests can override this to stub a context independently
+	 * of the constructor wiring (useful when only one specialist needs to
+	 * run with an alternative execution surface).
 	 */
 	protected getToolExecutionContext(): ToolExecutionContext | undefined {
-		return undefined;
+		return this.toolExecutionContext;
 	}
 
 	/**

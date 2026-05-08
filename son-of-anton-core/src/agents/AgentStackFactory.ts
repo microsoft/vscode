@@ -6,6 +6,7 @@
 import type { MementoStore, ProjectContextProvider } from '../host';
 import { LlmClient } from '../llm/LlmClient';
 import { McpClient } from '../mcp/McpClient';
+import type { ToolExecutionContext } from '../tools/types';
 import { AgentManager } from './AgentManager';
 import { BaseAgent } from './BaseAgent';
 import { CiRetryAgent } from './CiRetryAgent';
@@ -177,8 +178,17 @@ export function createAgentStack(deps: {
 	 * "Project Context" section. Hosts without a workspace concept omit this.
 	 */
 	projectContext?: ProjectContextProvider;
+	/**
+	 * Optional. When supplied, specialists that opt in (currently
+	 * `CodeGeneratorAgent`) drive the H1 native tool-use loop against this
+	 * execution surface instead of falling back to the legacy text-extraction
+	 * path. The CLI host wires this through `cliHost.ts`; the IDE wires it
+	 * separately so it can layer its existing approval-gate flow over the
+	 * raw read/write/run primitives.
+	 */
+	toolExecutionContext?: ToolExecutionContext;
 }): AgentStack {
-	const { llmClient, mcpClient, agentManager, globalState, workspaceRoot, projectContext } = deps;
+	const { llmClient, mcpClient, agentManager, globalState, workspaceRoot, projectContext, toolExecutionContext } = deps;
 	const metricsTracker = new MetricsTracker();
 	const projectMemory = new ProjectMemory();
 	projectMemory.setWorkspaceRoot(workspaceRoot);
@@ -200,42 +210,42 @@ export function createAgentStack(deps: {
 
 	const codeAgent = new CodeGeneratorAgent(
 		requireConfig('anton-code'),
-		llmClient, mcpClient, agentManager, metricsTracker, projectMemory, specialistMemory, undefined, projectContext,
+		llmClient, mcpClient, agentManager, metricsTracker, projectMemory, specialistMemory, undefined, projectContext, toolExecutionContext,
 	);
 
 	const testAgent = new TestWriterAgent(
 		requireConfig('anton-test'),
-		llmClient, mcpClient, agentManager, metricsTracker, projectMemory, specialistMemory, undefined, projectContext,
+		llmClient, mcpClient, agentManager, metricsTracker, projectMemory, specialistMemory, undefined, projectContext, toolExecutionContext,
 	);
 
 	const securityAgent = new SecurityScannerAgent(
 		requireConfig('anton-security'),
-		llmClient, mcpClient, agentManager, metricsTracker, projectMemory, specialistMemory, undefined, projectContext,
+		llmClient, mcpClient, agentManager, metricsTracker, projectMemory, specialistMemory, undefined, projectContext, toolExecutionContext,
 	);
 
 	const docsAgent = new DocumentationAgent(
 		requireConfig('anton-docs'),
-		llmClient, mcpClient, agentManager, metricsTracker, projectMemory, specialistMemory, undefined, projectContext,
+		llmClient, mcpClient, agentManager, metricsTracker, projectMemory, specialistMemory, undefined, projectContext, toolExecutionContext,
 	);
 
 	const e2eTestAgent = new E2eTestAgent(
 		requireConfig('anton-e2e'),
-		llmClient, mcpClient, agentManager, metricsTracker, projectMemory, specialistMemory, undefined, projectContext,
+		llmClient, mcpClient, agentManager, metricsTracker, projectMemory, specialistMemory, undefined, projectContext, toolExecutionContext,
 	);
 
 	const ciRetryAgent = new CiRetryAgent(
 		requireConfig('anton-ci'),
-		llmClient, mcpClient, agentManager, metricsTracker, projectMemory, specialistMemory, undefined, projectContext,
+		llmClient, mcpClient, agentManager, metricsTracker, projectMemory, specialistMemory, undefined, projectContext, toolExecutionContext,
 	);
 
 	const prGenerationAgent = new PrGenerationAgent(
 		requireConfig('anton-pr'),
-		llmClient, mcpClient, agentManager, metricsTracker, projectMemory, specialistMemory, undefined, projectContext,
+		llmClient, mcpClient, agentManager, metricsTracker, projectMemory, specialistMemory, undefined, projectContext, toolExecutionContext,
 	);
 
 	const moderniserAgent = new ModerniserAgent(
 		requireConfig('anton-moderniser'),
-		llmClient, mcpClient, agentManager, metricsTracker, projectMemory, specialistMemory, undefined, projectContext,
+		llmClient, mcpClient, agentManager, metricsTracker, projectMemory, specialistMemory, undefined, projectContext, toolExecutionContext,
 	);
 
 	// The review agent has its own identity for metrics/clarity, defined inline
@@ -249,12 +259,12 @@ export function createAgentStack(deps: {
 			maxRetries: 3,
 			slashCommands: [],
 		},
-		llmClient, mcpClient, agentManager, metricsTracker, projectMemory, specialistMemory, undefined, projectContext,
+		llmClient, mcpClient, agentManager, metricsTracker, projectMemory, specialistMemory, undefined, projectContext, toolExecutionContext,
 	);
 
 	const orchestrator = new OrchestratorAgent(
 		requireConfig('anton'),
-		llmClient, mcpClient, agentManager, metricsTracker, projectMemory, specialistMemory, undefined, projectContext,
+		llmClient, mcpClient, agentManager, metricsTracker, projectMemory, specialistMemory, undefined, projectContext, toolExecutionContext,
 	);
 
 	orchestrator.registerSpecialist(codeAgent);

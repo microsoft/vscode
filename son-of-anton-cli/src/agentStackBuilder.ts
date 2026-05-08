@@ -8,6 +8,7 @@ import { createAgentStack, type AgentStack } from 'son-of-anton-core/dist/agents
 import type { CoreHost, Disposable } from 'son-of-anton-core/dist/host';
 import { LlmClient } from 'son-of-anton-core/dist/llm/LlmClient';
 import { McpClient, type McpClientDeps } from 'son-of-anton-core/dist/mcp/McpClient';
+import { buildCliToolExecutionContext } from './toolExecutionContext';
 
 /**
  * Construct the canonical agent stack for the CLI. Mirrors the extension's
@@ -33,13 +34,20 @@ export function buildCliAgentStack(host: CoreHost): { stack: AgentStack; llm: Ll
 	const mcpClient = new McpClient(mcpDeps);
 
 	const agentManager = new AgentManager(llm);
+	// Construct a real ToolExecutionContext when a workspace root is known so
+	// CodeGeneratorAgent's H1 native tool-use loop fires. CLI invocations
+	// without a workspace (rare — mostly happens in tests) skip the context
+	// and fall back to the legacy diff-parse path.
+	const workspaceRoot = host.workspace.folders[0]?.fsPath;
+	const toolExecutionContext = workspaceRoot ? buildCliToolExecutionContext(workspaceRoot) : undefined;
 	const stack = createAgentStack({
 		llmClient: llm,
 		mcpClient,
 		agentManager,
 		globalState: host.globalState,
-		workspaceRoot: host.workspace.folders[0]?.fsPath,
+		workspaceRoot,
 		projectContext: host.projectContext,
+		toolExecutionContext,
 	});
 
 	const dispose = (): void => {

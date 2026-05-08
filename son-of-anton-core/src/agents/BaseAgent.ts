@@ -10,7 +10,7 @@ import { LlmClient, ModelId, type LlmContentPart, type LlmMessage } from '../llm
 import { McpClient, McpToolResult } from '../mcp/McpClient';
 import { isPersonalityEnabled } from '../personality/personalityConfig';
 import { formatSignOff, pickSignOffQuote } from '../personality/specialistQuotes';
-import type { ToolDefinition } from '../tools/types';
+import type { ToolDefinition, ToolExecutionContext } from '../tools/types';
 import { AgentEvent } from './agentEvents';
 import { AgentManager } from './AgentManager';
 import { MetricsTracker } from './MetricsTracker';
@@ -96,6 +96,16 @@ export abstract class BaseAgent {
 	protected readonly specialistMemory?: SpecialistMemory;
 	protected readonly configStore?: ConfigStore;
 	protected readonly projectContext?: ProjectContextProvider;
+	/**
+	 * Host-supplied tool execution context. When set, specialists that opt in
+	 * (currently `CodeGeneratorAgent`) drive the H1 native tool-use loop
+	 * (`runToolLoop`) against this context for read_file / edit_file /
+	 * write_file / run_command / search_workspace / glob calls. When unset,
+	 * specialists fall back to the legacy text-extraction path
+	 * (`parseFileChanges`) so installations that don't supply a context
+	 * still get a usable result.
+	 */
+	protected readonly toolExecutionContext?: ToolExecutionContext;
 
 	constructor(
 		config: AgentConfig,
@@ -107,6 +117,7 @@ export abstract class BaseAgent {
 		specialistMemory?: SpecialistMemory,
 		configStore?: ConfigStore,
 		projectContext?: ProjectContextProvider,
+		toolExecutionContext?: ToolExecutionContext,
 	) {
 		this.config = config;
 		this.llmClient = llmClient;
@@ -117,6 +128,7 @@ export abstract class BaseAgent {
 		this.specialistMemory = specialistMemory;
 		this.configStore = configStore;
 		this.projectContext = projectContext;
+		this.toolExecutionContext = toolExecutionContext;
 	}
 
 	get handle(): AgentHandle {
