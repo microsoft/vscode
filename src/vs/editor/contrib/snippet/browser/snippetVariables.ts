@@ -275,6 +275,7 @@ export class TimeBasedVariableResolver implements VariableResolver {
 	private static readonly monthNamesShort = [nls.localize('JanuaryShort', "Jan"), nls.localize('FebruaryShort', "Feb"), nls.localize('MarchShort', "Mar"), nls.localize('AprilShort', "Apr"), nls.localize('MayShort', "May"), nls.localize('JuneShort', "Jun"), nls.localize('JulyShort', "Jul"), nls.localize('AugustShort', "Aug"), nls.localize('SeptemberShort', "Sep"), nls.localize('OctoberShort', "Oct"), nls.localize('NovemberShort', "Nov"), nls.localize('DecemberShort', "Dec")];
 
 	private readonly _date = new Date();
+	private readonly _timezoneName = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
 	resolve(variable: Variable): string | undefined {
 		const { name } = variable;
@@ -318,7 +319,7 @@ export class TimeBasedVariableResolver implements VariableResolver {
 				return sign + hoursString + ':' + minutesString;
 			}
 			case 'CURRENT_TIMEZONE_NAME':
-				return Intl.DateTimeFormat().resolvedOptions().timeZone;
+				return this._timezoneName;
 		}
 
 		return undefined;
