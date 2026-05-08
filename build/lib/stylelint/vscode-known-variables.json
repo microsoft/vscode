@@ -969,6 +969,7 @@
 		"--notebook-editor-font-weight",
 		"--outline-element-color",
 		"--agents-aquarium-strip-index",
+		"--agents-shell-gradient-direction",
 		"--separator-border",
 		"--chat-bar-background",
 		"--chat-tab-active-foreground",
