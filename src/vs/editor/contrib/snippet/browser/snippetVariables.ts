@@ -44,6 +44,8 @@ export const KnownSnippetVariableNames = Object.freeze<{ [key: string]: true }>(
 	'TM_DIRECTORY': true,
 	'TM_DIRECTORY_BASE': true,
 	'TM_FILEPATH': true,
+	'TM_FULLNAME': true,
+	'TM_EMAIL': true,
 	'CURSOR_INDEX': true, // 0-offset
 	'CURSOR_NUMBER': true, // 1-offset
 	'RELATIVE_FILEPATH': true,
@@ -52,8 +54,6 @@ export const KnownSnippetVariableNames = Object.freeze<{ [key: string]: true }>(
 	'LINE_COMMENT': true,
 	'WORKSPACE_NAME': true,
 	'WORKSPACE_FOLDER': true,
-	'TM_FULLNAME': true,
-	'TM_EMAIL': true,
 	'RANDOM': true,
 	'RANDOM_HEX': true,
 	'UUID': true
@@ -369,16 +369,32 @@ export class WorkspaceBasedVariableResolver implements VariableResolver {
 
 export class UserBasedVariableResolver implements VariableResolver {
 
+	private static _envBasedUserFullName: string | undefined;
+	private static _envBasedUserEmail: string | undefined;
+
+	private readonly _fullName: string | undefined;
+	private readonly _email: string | undefined;
+
 	constructor(
 		private readonly _env: { [key: string]: string | undefined } = env
-	) { }
+	) {
+		if (this._env === env) {
+			UserBasedVariableResolver._envBasedUserFullName ??= this._resolveFromEnv('GIT_AUTHOR_NAME', 'GIT_COMMITTER_NAME', 'USER', 'USERNAME', 'LOGNAME');
+			UserBasedVariableResolver._envBasedUserEmail ??= this._resolveFromEnv('GIT_AUTHOR_EMAIL', 'GIT_COMMITTER_EMAIL', 'EMAIL');
+			this._fullName = UserBasedVariableResolver._envBasedUserFullName;
+			this._email = UserBasedVariableResolver._envBasedUserEmail;
+		} else {
+			this._fullName = this._resolveFromEnv('GIT_AUTHOR_NAME', 'GIT_COMMITTER_NAME', 'USER', 'USERNAME', 'LOGNAME');
+			this._email = this._resolveFromEnv('GIT_AUTHOR_EMAIL', 'GIT_COMMITTER_EMAIL', 'EMAIL');
+		}
+	}
 
 	resolve(variable: Variable): string | undefined {
 		switch (variable.name) {
 			case 'TM_FULLNAME':
-				return this._resolveFromEnv('GIT_AUTHOR_NAME', 'GIT_COMMITTER_NAME', 'USER', 'USERNAME', 'LOGNAME');
+				return this._fullName;
 			case 'TM_EMAIL':
-				return this._resolveFromEnv('GIT_AUTHOR_EMAIL', 'GIT_COMMITTER_EMAIL', 'EMAIL');
+				return this._email;
 		}
 
 		return undefined;
@@ -386,7 +402,7 @@ export class UserBasedVariableResolver implements VariableResolver {
 
 	private _resolveFromEnv(...keys: string[]): string | undefined {
 		for (const key of keys) {
-			const value = this._env[key] ?? this._env[key.toLowerCase()] ?? this._env[key.toUpperCase()];
+			const value = this._env[key] ?? this._env[key.toLowerCase()];
 			if (!isFalsyOrWhitespace(value)) {
 				return value;
 			}
