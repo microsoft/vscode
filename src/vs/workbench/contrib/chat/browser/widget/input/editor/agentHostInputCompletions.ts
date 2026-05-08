@@ -37,7 +37,7 @@ import { AgentHostInputCompletionsBase } from './agentHostInputCompletionsBase.j
  * that adds an {@link IDynamicVariable} entry to the widget's variable
  * model so the resource becomes part of the outgoing user message.
  */
-export class AgentHostInputCompletions extends AgentHostInputCompletionsBase<IChatWidget> {
+export class AgentHostInputCompletions extends AgentHostInputCompletionsBase<IChatWidget, string> {
 
 	private static readonly addReferenceCommand = '_chatAgentHostAddReferenceCmd';
 
@@ -97,18 +97,22 @@ export class AgentHostInputCompletions extends AgentHostInputCompletionsBase<ICh
 			{ scheme: Schemas.vscodeChatInput, hasAccessToAllModels: true },
 			`agentHostChatInputCompletions[${scheme}]`,
 			triggerCharacters,
+			scheme,
 		));
 	}
 
-	protected override _resolveContext(model: ITextModel): { sessionResource: URI; context: IChatWidget } | undefined {
+	protected override _resolveContext(model: ITextModel, scheme: string): { sessionResource: URI; context: IChatWidget } | undefined {
 		const widget = this._chatWidgetService.getWidgetByInputUri(model.uri);
 		if (!widget?.viewModel) {
 			return undefined;
 		}
 		const sessionResource = widget.viewModel.model.sessionResource;
-		// Only respond when the active session is handled by an
-		// agent-host content provider.
-		if (!isAgentHostTarget(getChatSessionType(sessionResource))) {
+		// Only respond when the active session is handled by the same
+		// content provider that registered this Monaco provider.
+		// Without this check, two providers sharing trigger characters
+		// (e.g. both register `@`) would both fire and produce duplicate
+		// RPCs / suggestions.
+		if (getChatSessionType(sessionResource) !== scheme) {
 			return undefined;
 		}
 		return { sessionResource, context: widget };

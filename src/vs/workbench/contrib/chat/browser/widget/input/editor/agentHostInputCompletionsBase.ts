@@ -24,7 +24,10 @@ import { isAtTriggerCharacterToken } from './chatInputCompletionUtils.js';
  *
  *   - {@link _resolveContext}: how to find the session resource for a
  *     given input model, plus any subclass-specific data ({@link TContext})
- *     that needs to flow into the accept command.
+ *     that needs to flow into the accept command. Receives the per-
+ *     registration data ({@link TRegData}) the subclass passed to
+ *     {@link _registerProvider} so it can short-circuit when the model
+ *     does not belong to *this* registration (e.g. a different scheme).
  *   - {@link _buildItem}: how to produce the final Monaco
  *     {@link CompletionItem} including the command that runs when the
  *     user accepts a suggestion.
@@ -33,7 +36,7 @@ import { isAtTriggerCharacterToken } from './chatInputCompletionUtils.js';
  * characters, performing the host RPC, cancellation, and registering
  * the Monaco provider with the host-announced trigger characters.
  */
-export abstract class AgentHostInputCompletionsBase<TContext> extends Disposable {
+export abstract class AgentHostInputCompletionsBase<TContext, TRegData = void> extends Disposable {
 
 	constructor(
 		protected readonly _languageFeaturesService: ILanguageFeaturesService,
@@ -47,7 +50,7 @@ export abstract class AgentHostInputCompletionsBase<TContext> extends Disposable
 	 * for `model`, along with any subclass-specific context that should
 	 * flow into {@link _buildItem}. Return `undefined` to skip.
 	 */
-	protected abstract _resolveContext(model: ITextModel): { sessionResource: URI; context: TContext } | undefined;
+	protected abstract _resolveContext(model: ITextModel, regData: TRegData): { sessionResource: URI; context: TContext } | undefined;
 
 	/**
 	 * Build the Monaco completion item — including the accept command —
@@ -60,17 +63,20 @@ export abstract class AgentHostInputCompletionsBase<TContext> extends Disposable
 	 * instance. Subclasses call this once their lifecycle decides a
 	 * registration should exist (e.g. once a content provider becomes
 	 * available, or once the active session changes to an AHP-backed
-	 * one).
+	 * one). The opaque {@link regData} is forwarded to
+	 * {@link _resolveContext} so the subclass can identify which
+	 * registration is firing (e.g. its scheme) and ignore models that
+	 * don't belong to it.
 	 */
-	protected _registerProvider(filter: LanguageFilter, debugName: string, triggerCharacters: readonly string[]): IDisposable {
+	protected _registerProvider(filter: LanguageFilter, debugName: string, triggerCharacters: readonly string[], regData: TRegData): IDisposable {
 		return this._languageFeaturesService.completionProvider.register(filter, {
 			_debugDisplayName: debugName,
 			triggerCharacters: [...triggerCharacters],
-			provideCompletionItems: (model, position, _context, token) => this._provide(model, position, token, triggerCharacters),
+			provideCompletionItems: (model, position, _context, token) => this._provide(model, position, token, triggerCharacters, regData),
 		});
 	}
 
-	private async _provide(model: ITextModel, position: Position, token: CancellationToken, triggerCharacters: readonly string[]): Promise<CompletionList | null> {
+	private async _provide(model: ITextModel, position: Position, token: CancellationToken, triggerCharacters: readonly string[], regData: TRegData): Promise<CompletionList | null> {
 		// Only consult the agent host when the cursor sits inside a token
 		// led by one of the host-announced trigger characters. Without
 		// this gate Monaco re-invokes the provider on every keystroke
@@ -80,7 +86,7 @@ export abstract class AgentHostInputCompletionsBase<TContext> extends Disposable
 			return null;
 		}
 
-		const ctx = this._resolveContext(model);
+		const ctx = this._resolveContext(model, regData);
 		if (!ctx) {
 			return null;
 		}

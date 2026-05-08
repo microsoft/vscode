@@ -53,7 +53,7 @@ CommandsRegistry.registerCommand(ADD_REFERENCE_COMMAND, (_accessor, arg: IRefere
  * picks a different session type, the registration is torn down and
  * re-built with the new host's trigger chars.
  */
-export class AgentHostInputCompletionHandler extends AgentHostInputCompletionsBase<void> {
+export class AgentHostInputCompletionHandler extends AgentHostInputCompletionsBase<void, string> {
 
 	private static readonly _decoType = 'sessions-agent-host-reference';
 	private static _decosRegistered = false;
@@ -127,16 +127,21 @@ export class AgentHostInputCompletionHandler extends AgentHostInputCompletionsBa
 			{ scheme: editorUri.scheme, hasAccessToAllModels: true },
 			`sessionsAgentHostInputCompletions[${scheme}]`,
 			triggerCharacters,
+			scheme,
 		);
 	}
 
-	protected override _resolveContext(_model: ITextModel): { sessionResource: URI; context: void } | undefined {
+	protected override _resolveContext(_model: ITextModel, scheme: string): { sessionResource: URI; context: void } | undefined {
 		const session = this._sessionsManagementService.activeSession.get();
 		if (!session) {
 			return undefined;
 		}
 		const sessionResource = session.resource;
-		if (!isAgentHostTarget(getChatSessionType(sessionResource))) {
+		// Only respond when the currently-active session matches the
+		// scheme this registration was made for. Stale registrations
+		// (active session changed during the host RPC, etc.) are
+		// silently ignored.
+		if (getChatSessionType(sessionResource) !== scheme) {
 			return undefined;
 		}
 		return { sessionResource, context: undefined };
