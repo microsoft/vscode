@@ -21,6 +21,8 @@ import { IContextMenuService } from '../../contextview/browser/contextView.js';
 import { IHoverService } from '../../hover/browser/hover.js';
 import { IKeybindingService } from '../../keybinding/common/keybinding.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
+import { renderAsPlaintext } from '../../../base/browser/markdownRenderer.js';
+import { stripIcons } from '../../../base/common/iconLabels.js';
 
 export type IButtonConfigProvider = (action: IAction, index: number) => {
 	showIcon?: boolean;
@@ -160,6 +162,12 @@ export class WorkbenchButtonBar extends ButtonBar {
 				if (showLabel) {
 					btn.label = composeLabel(labelValue);
 				}
+
+				const labelStringValue = stripIcons(renderAsPlaintext(labelValue));
+				const ariaLabelWithKeybinding = this._keybindingService.appendKeybinding(labelStringValue, action.id);
+
+				btn.setTitle(ariaLabelWithKeybinding);
+				btn.setAriaLabel(ariaLabelWithKeybinding);
 			};
 
 			if (showLabel) {
