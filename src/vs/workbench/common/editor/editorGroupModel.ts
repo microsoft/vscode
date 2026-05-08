@@ -1360,16 +1360,33 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 			return;
 		}
 
-		group.count--;
-		if (group.count <= 0) {
+		if (group.count <= 1) {
 			this._tabGroups = this._tabGroups.filter(g => g.id !== groupId);
 			this._onDidModelChange.fire({ kind: GroupModelChangeKind.TAB_GROUP_REMOVED });
-		} else {
-			if (editorIndex === group.startIndex) {
-				group.startIndex++;
-			}
-			this._onDidModelChange.fire({ kind: GroupModelChangeKind.TAB_GROUP_EDITOR_REMOVED });
+			return;
 		}
+
+		// Move the editor to just after the group to maintain contiguity
+		const groupEnd = group.startIndex + group.count - 1;
+		if (editorIndex < groupEnd) {
+			// Move to the end of the group first, then shrink
+			this.editors.splice(editorIndex, 1);
+			this.editors.splice(groupEnd, 0, editor);
+			// Adjust other groups between editorIndex and groupEnd
+			for (const other of this._tabGroups) {
+				if (other.id === groupId) {
+					continue;
+				}
+				if (other.startIndex > editorIndex && other.startIndex <= groupEnd) {
+					other.startIndex--;
+				}
+			}
+		}
+
+		// Shrink the group from the end
+		group.count--;
+
+		this._onDidModelChange.fire({ kind: GroupModelChangeKind.TAB_GROUP_EDITOR_REMOVED });
 	}
 
 	dissolveTabGroup(groupId: string): void {
