@@ -17,7 +17,7 @@ import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesy
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
-import { AgentAttachmentType, AgentSession, IAgent } from '../../common/agentService.js';
+import { AgentSession, IAgent } from '../../common/agentService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import type { RootConfigChangedAction } from '../../common/state/protocol/actions.js';
 import { CustomizationStatus } from '../../common/state/protocol/state.js';
@@ -145,11 +145,11 @@ suite('AgentSideEffects', () => {
 			assert.deepStrictEqual(agent.sendMessageCalls, [{
 				session: URI.parse(sessionUri.toString()),
 				prompt: 'hello world',
-				attachments: [{ type: AgentAttachmentType.File, uri: URI.parse(fileUri.toString()), displayName: 'test.ts' }],
+				attachments: [{ type: MessageAttachmentKind.Resource, uri: fileUri.toString(), label: 'test.ts', displayKind: 'document' }],
 			}]);
 		});
 
-		test('maps protocol selection attachment range before passing it to the agent', () => {
+		test('passes protocol selection attachment range straight through to the agent', () => {
 			setupSession();
 			const fileUri = URI.file('/workspace/selection.ts');
 			const action: SessionAction = {
@@ -179,12 +179,15 @@ suite('AgentSideEffects', () => {
 				session: URI.parse(sessionUri.toString()),
 				prompt: 'hello world',
 				attachments: [{
-					type: AgentAttachmentType.Selection,
-					uri: URI.parse(fileUri.toString()),
-					displayName: 'selection.ts',
+					type: MessageAttachmentKind.Resource,
+					uri: fileUri.toString(),
+					label: 'selection.ts',
+					displayKind: 'selection',
 					selection: {
-						start: { line: 2, character: 3 },
-						end: { line: 4, character: 5 },
+						range: {
+							start: { line: 2, character: 3 },
+							end: { line: 4, character: 5 },
+						},
 					},
 				}],
 			}]);
@@ -570,7 +573,7 @@ suite('AgentSideEffects', () => {
 			assert.deepStrictEqual(agent.sendMessageCalls, [{
 				session: URI.parse(sessionUri.toString()),
 				prompt: 'queued message',
-				attachments: [{ type: AgentAttachmentType.File, uri: URI.parse(fileUri.toString()), displayName: 'queued.ts' }],
+				attachments: [{ type: MessageAttachmentKind.Resource, uri: fileUri.toString(), label: 'queued.ts', displayKind: 'document' }],
 			}]);
 		});
 

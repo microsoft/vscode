@@ -1951,6 +1951,21 @@
 										"default": false,
 										"markdownDescription": "Whether Zero Data Retention (ZDR) is enabled for this endpoint. When `true`, `previous_response_id` will not be sent in requests via Responses API."
 									},
+									"supportsReasoningEffort": {
+										"type": "array",
+										"markdownDescription": "Reasoning effort levels the model accepts (e.g. `[\"low\", \"medium\", \"high\"]`). When set, a `Thinking Effort` picker is shown in the model picker and the chosen value is forwarded to the model. Levels supported by mainstream OpenAI-compatible servers are `minimal`, `low`, `medium`, `high`.",
+										"items": {
+											"type": "string"
+										}
+									},
+									"reasoningEffortFormat": {
+										"type": "string",
+										"enum": [
+											"chat-completions",
+											"responses"
+										],
+										"markdownDescription": "Body shape used to forward the reasoning effort to the model. `chat-completions` sends a top-level `reasoning_effort` string. `responses` sends a nested `reasoning.effort` object. When unset the format follows the URL: `/responses` \u2192 nested, otherwise top-level."
+									},
 									"requestHeaders": {
 										"type": "object",
 										"description": "Additional HTTP headers to include with requests to this model. These reserved headers are not allowed and ignored if present: forbidden request headers (https://developer.mozilla.org/en-US/docs/Glossary/Forbidden_request_header), forwarding headers ('forwarded', 'x-forwarded-for', 'x-forwarded-host', 'x-forwarded-proto'), and others ('api-key', 'authorization', 'content-type', 'openai-intent', 'x-github-api-version', 'x-initiator', 'x-interaction-id', 'x-interaction-type', 'x-onbehalf-extension-id', 'x-request-id', 'x-vscode-user-agent-library-version'). Pattern-based forbidden headers ('proxy-*', 'sec-*', 'x-http-method*' with forbidden methods) are also blocked.",
@@ -2049,6 +2064,21 @@
 										"type": "boolean",
 										"default": false,
 										"markdownDescription": "Whether Zero Data Retention (ZDR) is enabled for this endpoint. When `true`, `previous_response_id` will not be sent in requests via Responses API."
+									},
+									"supportsReasoningEffort": {
+										"type": "array",
+										"markdownDescription": "Reasoning effort levels the model accepts (e.g. `[\"low\", \"medium\", \"high\"]`). When set, a `Thinking Effort` picker is shown in the model picker and the chosen value is forwarded to the model. Levels supported by mainstream OpenAI-compatible servers are `minimal`, `low`, `medium`, `high`.",
+										"items": {
+											"type": "string"
+										}
+									},
+									"reasoningEffortFormat": {
+										"type": "string",
+										"enum": [
+											"chat-completions",
+											"responses"
+										],
+										"markdownDescription": "Body shape used to forward the reasoning effort to the model. `chat-completions` sends a top-level `reasoning_effort` string. `responses` sends a nested `reasoning.effort` object. When unset the format follows the URL: `/responses` \u2192 nested, otherwise top-level."
 									},
 									"requestHeaders": {
 										"type": "object",
@@ -2808,22 +2838,36 @@
 			{
 				"command": "github.copilot.sessions.commit",
 				"title": "%github.copilot.command.sessions.commit%",
-				"enablement": "!sessions.hasGitOperationInProgress",
+				"enablement": "!chatSessionRequestInProgress && !sessions.hasGitOperationInProgress",
 				"icon": "$(git-commit)",
 				"category": "GitHub Copilot"
 			},
 			{
 				"command": "github.copilot.sessions.commitAndSync",
 				"title": "%github.copilot.command.sessions.commitAndSync%",
-				"enablement": "!sessions.hasGitOperationInProgress",
+				"enablement": "!chatSessionRequestInProgress && !sessions.hasGitOperationInProgress",
 				"icon": "$(sync)",
 				"category": "GitHub Copilot"
 			},
 			{
 				"command": "github.copilot.sessions.sync",
 				"title": "%github.copilot.command.sessions.sync%",
-				"enablement": "!sessions.hasGitOperationInProgress",
+				"enablement": "!chatSessionRequestInProgress && !sessions.hasGitOperationInProgress",
 				"icon": "$(sync)",
+				"category": "GitHub Copilot"
+			},
+			{
+				"command": "github.copilot.chat.createPullRequestCopilotCLIAgentSession.createPR",
+				"title": "%github.copilot.chat.createPullRequestCopilotCLIAgentSession.createPR%",
+				"enablement": "!chatSessionRequestInProgress && !sessions.hasGitOperationInProgress",
+				"icon": "$(git-pull-request-create)",
+				"category": "GitHub Copilot"
+			},
+			{
+				"command": "github.copilot.chat.createDraftPullRequestCopilotCLIAgentSession.createDraftPR",
+				"title": "%github.copilot.chat.createDraftPullRequestCopilotCLIAgentSession.createDraftPR%",
+				"enablement": "!chatSessionRequestInProgress && !sessions.hasGitOperationInProgress",
+				"icon": "$(git-pull-request-draft)",
 				"category": "GitHub Copilot"
 			},
 			{
@@ -2831,27 +2875,6 @@
 				"title": "%github.copilot.command.sessions.discardChanges%",
 				"enablement": "!chatSessionRequestInProgress",
 				"icon": "$(discard)",
-				"category": "GitHub Copilot"
-			},
-			{
-				"command": "github.copilot.chat.createPullRequestCopilotCLIAgentSession.createPR",
-				"title": "%github.copilot.chat.createPullRequestCopilotCLIAgentSession.createPR%",
-				"enablement": "!chatSessionRequestInProgress",
-				"icon": "$(git-pull-request-create)",
-				"category": "GitHub Copilot"
-			},
-			{
-				"command": "github.copilot.chat.createPullRequestCopilotCLIAgentSession.updatePR",
-				"title": "%github.copilot.chat.createPullRequestCopilotCLIAgentSession.updatePR%",
-				"enablement": "!chatSessionRequestInProgress",
-				"icon": "$(sync)",
-				"category": "GitHub Copilot"
-			},
-			{
-				"command": "github.copilot.chat.createDraftPullRequestCopilotCLIAgentSession.createDraftPR",
-				"title": "%github.copilot.chat.createDraftPullRequestCopilotCLIAgentSession.createDraftPR%",
-				"enablement": "!chatSessionRequestInProgress",
-				"icon": "$(git-pull-request-draft)",
 				"category": "GitHub Copilot"
 			},
 			{
@@ -3873,6 +3896,24 @@
 							"onExp"
 						]
 					},
+					"github.copilot.chat.gpt55GetChangedFilesTool.enabled": {
+						"type": "boolean",
+						"default": true,
+						"markdownDescription": "%github.copilot.config.gpt55GetChangedFilesTool.enabled%",
+						"tags": [
+							"experimental",
+							"onExp"
+						]
+					},
+					"github.copilot.chat.gpt55ReadFileTool.enabled": {
+						"type": "boolean",
+						"default": true,
+						"markdownDescription": "%github.copilot.config.gpt55ReadFileTool.enabled%",
+						"tags": [
+							"experimental",
+							"onExp"
+						]
+					},
 					"github.copilot.chat.anthropic.tools.websearch.enabled": {
 						"type": "boolean",
 						"default": false,
@@ -4764,7 +4805,7 @@
 					},
 					"github.copilot.chat.cli.sessionController.enabled": {
 						"type": "boolean",
-						"default": true,
+						"default": false,
 						"markdownDescription": "%github.copilot.config.cli.sessionController.enabled%",
 						"tags": [
 							"advanced"
@@ -5118,18 +5159,13 @@
 				},
 				{
 					"command": "github.copilot.chat.createPullRequestCopilotCLIAgentSession.createPR",
-					"when": "chatSessionType == copilotcli && isSessionsWindow && sessions.isolationMode == worktree && sessions.hasGitRepository && sessions.hasGitHubRemote && !sessions.hasPullRequest && (sessions.hasUncommittedChanges || sessions.hasOutgoingChanges) && !sessions.isAgentHostSession",
+					"when": "chatSessionType == copilotcli && isSessionsWindow && sessions.isolationMode == worktree && sessions.hasGitRepository && sessions.hasGitHubRemote && !sessions.hasPullRequest && !sessions.isAgentHostSession",
 					"group": "2_pull_request@1"
 				},
 				{
 					"command": "github.copilot.chat.createDraftPullRequestCopilotCLIAgentSession.createDraftPR",
-					"when": "chatSessionType == copilotcli && isSessionsWindow && sessions.isolationMode == worktree && sessions.hasGitRepository && sessions.hasGitHubRemote && !sessions.hasPullRequest && (sessions.hasUncommittedChanges || sessions.hasOutgoingChanges) && !sessions.isAgentHostSession",
+					"when": "chatSessionType == copilotcli && isSessionsWindow && sessions.isolationMode == worktree && sessions.hasGitRepository && sessions.hasGitHubRemote && !sessions.hasPullRequest && !sessions.isAgentHostSession",
 					"group": "2_pull_request@2"
-				},
-				{
-					"command": "github.copilot.chat.createPullRequestCopilotCLIAgentSession.updatePR",
-					"when": "chatSessionType == copilotcli && isSessionsWindow && sessions.isolationMode == worktree && sessions.hasGitRepository && sessions.hasGitHubRemote && sessions.hasPullRequest && sessions.hasOpenPullRequest && !sessions.isAgentHostSession && (sessions.hasIncomingChanges || sessions.hasOutgoingChanges || sessions.hasUncommittedChanges)",
-					"group": "2_pull_request@3"
 				},
 				{
 					"command": "github.copilot.sessions.commit",
@@ -5143,7 +5179,7 @@
 				},
 				{
 					"command": "github.copilot.sessions.sync",
-					"when": "chatSessionType == copilotcli && isSessionsWindow && sessions.isolationMode == workspace && sessions.hasGitRepository && sessions.hasUpstream && !sessions.hasUncommittedChanges && (sessions.hasIncomingChanges || sessions.hasOutgoingChanges) && !sessions.isAgentHostSession",
+					"when": "chatSessionType == copilotcli && isSessionsWindow && sessions.hasGitRepository && sessions.hasUpstream && !sessions.hasUncommittedChanges && (sessions.hasIncomingChanges || sessions.hasOutgoingChanges) && !sessions.isAgentHostSession",
 					"group": "4_sync@1"
 				},
 				{
@@ -5467,10 +5503,6 @@
 				},
 				{
 					"command": "github.copilot.chat.createPullRequestCopilotCLIAgentSession.createPR",
-					"when": "false"
-				},
-				{
-					"command": "github.copilot.chat.createPullRequestCopilotCLIAgentSession.updatePR",
 					"when": "false"
 				},
 				{

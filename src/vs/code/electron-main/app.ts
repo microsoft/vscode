@@ -1151,7 +1151,7 @@ export class CodeApplication extends Disposable {
 			const isInternal = isInternalTelemetry(this.productService, this.configurationService);
 			const channel = getDelayedChannel(sharedProcessReady.then(client => client.getChannel('telemetryAppender')));
 			const appender = new TelemetryAppenderClient(channel);
-			const commonProperties = resolveCommonProperties(release(), hostname(), process.arch, this.productService.commit, this.productService.version, machineId, sqmId, devDeviceId, isInternal, this.productService.date, this.productService.telemetryAppName);
+			const commonProperties = resolveCommonProperties(release(), hostname(), process.arch, this.productService.commit, this.productService.version, machineId, sqmId, devDeviceId, isInternal, this.productService.date);
 			const piiPaths = getPiiPathsFromEnvironment(this.environmentMainService);
 			const config: ITelemetryServiceConfig = { appenders: [appender], commonProperties, piiPaths, sendErrorTelemetry: true };
 
@@ -1337,7 +1337,7 @@ export class CodeApplication extends Disposable {
 		const args = this.environmentMainService.args;
 
 		// Handle agents window first based on context
-		if ((args['agents'] && this.productService.quality !== 'stable')) {
+		if (args['agents']) {
 			return windowsMainService.openAgentsWindow({
 				context,
 				cli: args,
@@ -1345,9 +1345,7 @@ export class CodeApplication extends Disposable {
 			});
 		}
 
-		const agentsLastRunning = this.productService.quality !== 'stable'
-			? await tryConsumeAgentsLastRunningMarker(this.environmentMainService.userRoamingDataHome, this.fileService, this.logService)
-			: undefined;
+		const agentsLastRunning = await tryConsumeAgentsLastRunningMarker(this.environmentMainService.userRoamingDataHome, this.fileService, this.logService);
 		if (agentsLastRunning?.agentsRunning) {
 			const agentsWindows = await windowsMainService.openAgentsWindow({
 				context,

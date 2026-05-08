@@ -25,7 +25,7 @@ import { ServiceCollection } from '../../../../../../platform/instantiation/comm
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
-import { IStorageService, StorageScope } from '../../../../../../platform/storage/common/storage.js';
+import { IStorageService, StorageScope, WillSaveStateReason } from '../../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IUserDataProfilesService, toUserDataProfile } from '../../../../../../platform/userDataProfile/common/userDataProfile.js';
@@ -1740,6 +1740,34 @@ suite('ChatService', () => {
 			const restored = model2.inputModel.state.get();
 			assert.strictEqual(restored?.inputText, 'unsent draft', 'Input text should be restored');
 		});
+	});
+
+	test('onWillSaveState persists session index synchronously so it survives reload', async () => {
+		const testService = createChatService();
+		const storageService = instantiationService.get(IStorageService) as TestStorageService;
+
+		// Create a session with a request so it qualifies for persistence
+		const ref = testService.startNewLocalSession(ChatAgentLocation.Chat);
+		const model = ref.object as ChatModel;
+		model.addRequest({ parts: [], text: 'hello world' }, { variables: [] }, 0);
+
+		// Simulate what the storage service does before shutdown:
+		// fire onWillSaveState synchronously, then flush.
+		storageService.testEmitWillSaveState(WillSaveStateReason.SHUTDOWN);
+
+		// Create a second ChatService from the same storage (simulating
+		// window reload). The session must be discoverable in history
+		// IMMEDIATELY — no async work from the first service needs to
+		// have completed.
+		const testService2 = createChatService();
+		const historyItems = await testService2.getHistorySessionItems();
+		assert.ok(
+			historyItems.some(item => item.sessionResource.toString() === model.sessionResource.toString()),
+			`Session ${model.sessionResource} should appear in history after onWillSaveState. Got: ${historyItems.map(i => i.sessionResource.toString()).join(', ')}`
+		);
+
+		// Clean up
+		ref.dispose();
 	});
 });
 

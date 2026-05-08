@@ -770,7 +770,12 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 		let windowToUse: ICodeWindow | undefined;
 		if (!forceNewWindow && typeof openConfig.contextWindowId === 'number') {
-			windowToUse = this.getWindowById(openConfig.contextWindowId); // fix for https://github.com/microsoft/vscode/issues/97172
+			const contextWindow = this.getWindowById(openConfig.contextWindowId); // fix for https://github.com/microsoft/vscode/issues/97172
+			if (contextWindow?.config?.isSessionsWindow) {
+				forceNewWindow = true; // do not replace the agents window
+			} else {
+				windowToUse = contextWindow;
+			}
 		}
 
 		return this.openInBrowserWindow({
@@ -792,7 +797,12 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		this.logService.trace('windowsManager#doOpenFolderOrWorkspace', { folderOrWorkspace, filesToOpen });
 
 		if (!forceNewWindow && !windowToUse && typeof openConfig.contextWindowId === 'number') {
-			windowToUse = this.getWindowById(openConfig.contextWindowId); // fix for https://github.com/microsoft/vscode/issues/49587
+			const contextWindow = this.getWindowById(openConfig.contextWindowId); // fix for https://github.com/microsoft/vscode/issues/49587
+			if (contextWindow?.config?.isSessionsWindow) {
+				forceNewWindow = true; // do not replace the agents window
+			} else {
+				windowToUse = contextWindow;
+			}
 		}
 
 		return this.openInBrowserWindow({
@@ -1506,7 +1516,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 		let window: ICodeWindow | undefined;
 		if (!options.forceNewWindow && !options.forceNewTabbedWindow) {
-			window = options.windowToUse || lastActiveWindow;
+			window = options.windowToUse || (lastActiveWindow?.config?.isSessionsWindow ? undefined : lastActiveWindow);
 			if (window) {
 				window.focus();
 			}

@@ -69,7 +69,7 @@ const stubManageModelsAction: IActionWidgetDropdownAction = {
 	run: () => { }
 };
 
-const stubLanguageModelsService = { getModelConfigurationActions: () => [], getModelConfiguration: () => undefined } as unknown as ILanguageModelsService;
+const stubLanguageModelsService = { getModelConfigurationActions: () => [], getModelConfiguration: () => undefined, getVendors: () => [] } as unknown as ILanguageModelsService;
 
 function callBuild(
 	models: ILanguageModelChatMetadataAndIdentifier[],
@@ -118,6 +118,16 @@ suite('buildModelPickerItems', () => {
 		assert.strictEqual(provider.getRole({ kind: ActionListItemKind.Action } as IActionListItem<IActionWidgetDropdownAction>), 'menuitemradio');
 		assert.strictEqual(provider.getRole({ kind: ActionListItemKind.Separator } as IActionListItem<IActionWidgetDropdownAction>), 'separator');
 		assert.strictEqual(provider.getWidgetRole(), 'menu');
+	});
+
+	test('accessibility provider includes inline source and right-aligned multiplier', () => {
+		const provider = getModelPickerAccessibilityProvider();
+		assert.strictEqual(provider.getAriaLabel({
+			kind: ActionListItemKind.Action,
+			label: 'Claude Opus 4.7',
+			badge: 'Copilot',
+			description: '15x',
+		} as IActionListItem<IActionWidgetDropdownAction>), 'Claude Opus 4.7, Copilot, 15x');
 	});
 
 	test('auto model always appears first', () => {
@@ -453,17 +463,32 @@ suite('buildModelPickerItems', () => {
 		assert.strictEqual(actions[0].label, 'Auto');
 	});
 
-	test('Other Models sorted by vendor then name', () => {
+	test('Other Models grouped by vendor with separator headers', () => {
 		const auto = createAutoModel();
 		const modelA = createModel('zebra', 'Zebra', 'copilot');
 		const modelB = createModel('alpha', 'Alpha', 'other-vendor');
 		const modelC = createModel('beta', 'Beta', 'copilot');
 		const items = callBuild([auto, modelA, modelB, modelC]);
+		// Vendor separators should be present with correct labels
+		const vendorSeparators = items.filter(i => i.kind === ActionListItemKind.Separator && i.label);
+		assert.strictEqual(vendorSeparators.length, 2);
+		// Vendors sorted alphabetically by display name
+		assert.strictEqual(vendorSeparators[0].label, 'Copilot');
+		assert.strictEqual(vendorSeparators[1].label, 'Other-vendor');
+		// Models within each vendor group are sorted alphabetically
 		const actions = getActionItems(items);
-		// Skip Auto and "Other Models" toggle
-		const otherModelLabels = actions.slice(2).map(a => a.label!).filter(l => !l.includes('Manage Models'));
-		// copilot models first (sorted by name), then other-vendor
+		const otherModelLabels = actions.filter(a => !a.isSectionToggle && a.section === 'other').map(a => a.label!);
 		assert.deepStrictEqual(otherModelLabels, ['Beta', 'Zebra', 'Alpha']);
+	});
+
+	test('single vendor group omits vendor separator header', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('gpt-4o', 'GPT-4o', 'copilot');
+		const modelB = createModel('claude', 'Claude', 'copilot');
+		const items = callBuild([auto, modelA, modelB]);
+		// No vendor separators when all models share the same vendor
+		const vendorSeparators = items.filter(i => i.kind === ActionListItemKind.Separator && i.label);
+		assert.strictEqual(vendorSeparators.length, 0);
 	});
 
 	test('onSelect callback is wired into action items', () => {
@@ -806,6 +831,55 @@ suite('buildModelPickerItems', () => {
 		// Unknown category should fall through to normal description (undefined since no detail)
 		assert.strictEqual(gptItem.item?.description, undefined);
 		assert.strictEqual(gptItem.description, undefined);
+	});
+
+	test('promoted models show inline vendor label when multiple vendors exist across all models', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('gpt-4o', 'GPT-4o', 'copilot');
+		modelA.metadata = { ...modelA.metadata, pricing: '15x', multiplierNumeric: 15 } as ILanguageModelChatMetadata;
+		const modelB = createModel('claude', 'Claude', 'anthropic');
+		const items = callBuild([auto, modelA, modelB], {
+			recentModelIds: [modelA.identifier],
+		});
+		const actions = getActionItems(items);
+		// GPT-4o is promoted (recent) and should show the source inline while keeping multiplier on the right.
+		const gptItem = actions.find(a => a.label === 'GPT-4o');
+		assert.ok(gptItem);
+		assert.strictEqual(gptItem.className, 'chat-model-picker-inline-source');
+		assert.strictEqual(gptItem.badge, 'Copilot');
+		assert.strictEqual(gptItem.description, '15x');
+	});
+
+	test('promoted models omit inline vendor label when only one vendor exists', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('gpt-4o', 'GPT-4o', 'copilot');
+		const modelB = createModel('claude', 'Claude', 'copilot');
+		const items = callBuild([auto, modelA, modelB], {
+			recentModelIds: [modelA.identifier],
+		});
+		const actions = getActionItems(items);
+		const gptItem = actions.find(a => a.label === 'GPT-4o');
+		assert.ok(gptItem);
+		// No vendor label since all models are from the same vendor
+		assert.strictEqual(gptItem.className, undefined);
+		assert.strictEqual(gptItem.badge, undefined);
+	});
+
+	test('vendor detail is suppressed in Other Models when multiple vendor groups shown', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('gpt-4o', 'GPT-4o', 'copilot');
+		modelA.metadata = { ...modelA.metadata, detail: 'GitHub Copilot' } as ILanguageModelChatMetadata;
+		const modelB = createModel('claude', 'Claude', 'anthropic');
+		modelB.metadata = { ...modelB.metadata, detail: 'Anthropic' } as ILanguageModelChatMetadata;
+		const items = callBuild([auto, modelA, modelB]);
+		const actions = getActionItems(items);
+		// Detail should be suppressed for models in vendor groups
+		const gptItem = actions.find(a => a.label === 'GPT-4o');
+		assert.ok(gptItem);
+		assert.strictEqual(gptItem.item?.description, undefined);
+		const claudeItem = actions.find(a => a.label === 'Claude');
+		assert.ok(claudeItem);
+		assert.strictEqual(claudeItem.item?.description, undefined);
 	});
 });
 

@@ -269,10 +269,19 @@ export class ChatService extends Disposable implements IChatService {
 		const liveLocalChats = Array.from(this._sessionModels.values())
 			.filter(session => this.shouldStoreSession(session));
 
-		this._chatSessionStore.storeSessions(liveLocalChats);
-
 		const liveNonLocalChats = Array.from(this._sessionModels.values())
 			.filter(session => !LocalChatSessionUri.parseLocalSessionId(session.sessionResource));
+
+		// Synchronously update the index for all live sessions and flush it to
+		// storage. This is critical because `onWillSaveState` is synchronous —
+		// after this handler returns the storage service flushes its databases.
+		// The async file-write work kicked off below may complete after the
+		// flush, but the index must be up-to-date before the flush happens so
+		// that sessions are discoverable after a reload.
+		this._chatSessionStore.updateAndFlushIndexSync(liveLocalChats, liveNonLocalChats);
+
+		// Kick off async file writes for session data.
+		this._chatSessionStore.storeSessions(liveLocalChats);
 		this._chatSessionStore.storeSessionsMetadataOnly(liveNonLocalChats);
 	}
 
@@ -401,10 +410,12 @@ export class ChatService extends Disposable implements IChatService {
 			.filter(entry => !this._sessionModels.has(LocalChatSessionUri.forSession(entry.sessionId)) && entry.initialLocation === ChatAgentLocation.Chat && !entry.isEmpty)
 			.map((entry): IChatDetail => {
 				const sessionResource = LocalChatSessionUri.forSession(entry.sessionId);
+				const { workingDirectory: workingDirectoryStr, ...rest } = entry;
 				return ({
-					...entry,
+					...rest,
 					sessionResource,
 					isActive: this._sessionModels.has(sessionResource),
+					workingDirectory: workingDirectoryStr ? URI.parse(workingDirectoryStr) : undefined,
 				});
 			});
 	}
@@ -413,10 +424,12 @@ export class ChatService extends Disposable implements IChatService {
 		const index = await this._chatSessionStore.getIndex();
 		const metadata: IChatSessionEntryMetadata | undefined = index[sessionResource.toString()];
 		if (metadata) {
+			const { workingDirectory: workingDirectoryStr, ...rest } = metadata;
 			return {
-				...metadata,
+				...rest,
 				sessionResource,
 				isActive: this._sessionModels.has(sessionResource),
+				workingDirectory: workingDirectoryStr ? URI.parse(workingDirectoryStr) : undefined,
 			};
 		}
 
@@ -1279,6 +1292,7 @@ export class ChatService extends Disposable implements IChatService {
 							hooks: collectedHooks,
 							hasHooksEnabled: !!collectedHooks && Object.values(collectedHooks).some(arr => arr.length > 0),
 							isSystemInitiated: options?.isSystemInitiated,
+							workingDirectory: model.workingDirectory,
 						};
 
 						let isInitialTools = true;
@@ -1922,5 +1936,6 @@ export async function chatModelToChatDetail(model: IChatModel): Promise<IChatDet
 		isActive: true,
 		stats: await awaitStatsForSession(model),
 		lastResponseState: model.lastRequest?.response?.state ?? ResponseModelState.Pending,
+		workingDirectory: model.workingDirectory,
 	};
 }
