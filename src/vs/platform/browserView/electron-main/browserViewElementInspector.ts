@@ -94,8 +94,7 @@ export class BrowserViewElementInspector extends Disposable {
 	 * Toggle element selection mode on the browser view.
 	 *
 	 * When enabled, sets up a CDP overlay that highlights elements on hover.
-	 * When the user clicks an element, its data is fired via {@link onDidSelectElement}.
-	 * In non-continuous mode, selection is automatically disabled after the first pick.
+	 * When the user picks an element, its data is fired via {@link onDidSelectElement}.
 	 *
 	 * @param enabled Whether to enable or disable selection. Omit to toggle.
 	 */
