@@ -94,6 +94,7 @@ testFamilies.forEach(family => {
 			const endpoint = family === 'default'
 				? instaService.createInstance(MockEndpoint, undefined)
 				: instaService.createInstance(MockEndpoint, family);
+			const isMessagesApi = family.startsWith('claude-');
 			if (!promptContext.conversation) {
 				promptContext = { ...promptContext, conversation };
 			}
@@ -112,7 +113,9 @@ testFamilies.forEach(family => {
 			const renderer = PromptRenderer.create(instaService, endpoint, AgentPrompt, props);
 
 			const r = await renderer.render();
-			addCacheBreakpoints(r.messages);
+			if (!isMessagesApi) {
+				addCacheBreakpoints(r.messages);
+			}
 			return r.messages
 				.map(m => messageToMarkdown(m))
 				.join('\n\n')

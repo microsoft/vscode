@@ -534,11 +534,10 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 
 		this.logService.debug(`[Agent] rendering with budget=${safeBudget} (baseBudget: ${baseBudget}, toolTokens: ${toolTokens}, totalTools: ${tools?.length ?? 0}, toolSearchEnabled: ${toolSearchEnabled}), summarizationEnabled=${summarizationEnabled}`);
 		let result: RenderPromptResult;
-		// When the "last two messages" cache breakpoint strategy is enabled,
-		// suppress prompt-tsx and heuristic cache breakpoints — messagesApi.ts
-		// will place breakpoints on the last two merged messages instead.
-		const useLastTwoMessagesCacheBPs = isAnthropicFamily(this.endpoint)
-			&& this.configurationService.getExperimentBasedConfig(ConfigKey.AnthropicCacheBreakpointsLastTwoMessages, this.expService);
+		// For the Anthropic Messages API, cache_control placement is owned
+		// entirely by messagesApi.ts (deterministic 4-slot layout). Suppress
+		// prompt-tsx breakpoints to avoid duplicating or shifting them.
+		const isMessagesApi = this.endpoint.apiType === 'messages';
 		const props: AgentPromptProps = {
 			endpoint,
 			promptContext: {
@@ -549,7 +548,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 				}
 			},
 			location: this.location,
-			enableCacheBreakpoints: summarizationEnabled && !useLastTwoMessagesCacheBPs,
+			enableCacheBreakpoints: summarizationEnabled && !isMessagesApi,
 			...this.extraPromptProps,
 			customizations: this._resolvedCustomizations
 		};
@@ -823,7 +822,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 			}
 		}
 
-		if (!useLastTwoMessagesCacheBPs) {
+		if (this.endpoint.apiType !== 'messages') {
 			addCacheBreakpoints(result.messages);
 		}
 
