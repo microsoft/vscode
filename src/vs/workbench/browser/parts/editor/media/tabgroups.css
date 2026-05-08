@@ -1,0 +1,54 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Tab Group Badge - shown on the first tab of each group */
+.tab-group-badge {
+	display: inline-flex;
+	align-items: center;
+	height: 18px;
+	padding: 0 6px;
+	margin-right: 6px;
+	cursor: pointer;
+	flex-shrink: 0;
+	border-radius: 9px;
+	font-size: 10px;
+	font-weight: 600;
+	line-height: 18px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	max-width: 80px;
+	user-select: none;
+	vertical-align: middle;
+}
+
+.tab-group-badge:hover {
+	opacity: 0.8;
+}
+
+/* Tab Group Colors */
+.tab-group-badge.color-red { background-color: rgba(229, 57, 53, 0.25); color: #e53935; }
+.tab-group-badge.color-blue { background-color: rgba(30, 136, 229, 0.25); color: #1e88e5; }
+.tab-group-badge.color-green { background-color: rgba(67, 160, 71, 0.25); color: #43a047; }
+.tab-group-badge.color-yellow { background-color: rgba(253, 216, 53, 0.25); color: #f9a825; }
+.tab-group-badge.color-purple { background-color: rgba(142, 36, 170, 0.25); color: #8e24aa; }
+.tab-group-badge.color-orange { background-color: rgba(251, 140, 0, 0.25); color: #fb8c00; }
+.tab-group-badge.color-pink { background-color: rgba(216, 27, 96, 0.25); color: #d81b60; }
+.tab-group-badge.color-gray { background-color: rgba(117, 117, 117, 0.25); color: #757575; }
+
+/* Tab Group Border - applied to tabs belonging to a group */
+.tab.in-tab-group {
+	border-bottom: 2px solid var(--tab-group-color);
+}
+
+/* Collapsed group tabs are hidden */
+.tab.tab-group-collapsed {
+	display: none !important;
+}
+
+/* First tab in group has the badge, needs a bit of extra left padding */
+.tab.in-tab-group.tab-group-first {
+	padding-left: 4px;
+}

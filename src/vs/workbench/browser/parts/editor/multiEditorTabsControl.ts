@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/multieditortabscontrol.css';
+import './media/tabgroups.css';
 import { isLinux, isMacintosh, isWindows } from '../../../../base/common/platform.js';
 import { shorten } from '../../../../base/common/labels.js';
 import { EditorResourceAccessor, Verbosity, IEditorPartOptions, SideBySideEditor, DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, IUntypedEditorInput, preventEditorClose, EditorCloseMethod, EditorsOrder, IToolbarActions } from '../../../common/editor.js';
@@ -54,7 +55,7 @@ import { DraggedTreeItemsIdentifier } from '../../../../editor/common/services/t
 import { IEditorResolverService } from '../../../services/editor/common/editorResolverService.js';
 import { IEditorTitleControlDimensions } from './editorTitleControl.js';
 import { StickyEditorGroupModel, UnstickyEditorGroupModel } from '../../../common/editor/filteredEditorGroupModel.js';
-import { IReadonlyEditorGroupModel } from '../../../common/editor/editorGroupModel.js';
+import { IReadonlyEditorGroupModel, IEditorTabGroup } from '../../../common/editor/editorGroupModel.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { applyDragImage } from '../../../../base/browser/ui/dnd/dnd.js';
@@ -120,6 +121,8 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 	private tabActionBars: ActionBar[] = [];
 	private tabDisposables: IDisposable[] = [];
+
+	private tabGroupHeaders: Map<string, HTMLElement> = new Map();
 
 	private dimensions: IEditorTitleControlDimensions & { used?: Dimension } = {
 		container: Dimension.None,
@@ -1529,6 +1532,9 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			this.redrawTab(editor, tabIndex, tabContainer, tabLabelWidget, tabLabel, tabActionBar);
 		});
 
+		// Redraw tab group headers and apply group styling to tabs
+		this.redrawTabGroups();
+
 		// Update Editor Actions Toolbar
 		this.updateEditorActionsToolbar();
 
@@ -1536,9 +1542,138 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		this.layout(this.dimensions, options);
 	}
 
+	private redrawTabGroups(): void {
+		const tabsContainer = this.tabsContainer;
+		if (!tabsContainer) {
+			return;
+		}
+
+		const tabGroups = this.tabsModel.tabGroups;
+		const activeGroupIds = new Set(tabGroups.map(g => g.id));
+
+		// Remove stale group badges
+		for (const [id, badge] of this.tabGroupHeaders) {
+			if (!activeGroupIds.has(id)) {
+				badge.remove();
+				this.tabGroupHeaders.delete(id);
+			}
+		}
+
+		// Apply group styling to all tabs and manage headers
+		for (const group of tabGroups) {
+			this.redrawTabGroupHeader(group, tabsContainer);
+			this.redrawTabGroupTabs(group, tabsContainer);
+		}
+
+		// Clear group classes from tabs not in any group
+		const allChildren = tabsContainer.children;
+		for (let i = 0; i < allChildren.length; i++) {
+			const child = allChildren[i] as HTMLElement;
+			if (child.classList.contains('tab') && !child.classList.contains('in-tab-group')) {
+				child.style.removeProperty('--tab-group-color');
+				child.classList.remove('tab-group-collapsed', 'tab-group-first');
+			}
+		}
+	}
+
+	private redrawTabGroupHeader(group: IEditorTabGroup, tabsContainer: HTMLElement): void {
+		// Render group header badge inside the first tab of the group
+		const firstTabElement = tabsContainer.children[group.startIndex] as HTMLElement | undefined;
+		if (!firstTabElement) {
+			return;
+		}
+
+		// Find or create the badge element within the first tab
+		let badge = firstTabElement.querySelector('.tab-group-badge') as HTMLElement | null;
+		if (!badge) {
+			badge = document.createElement('div');
+			badge.classList.add('tab-group-badge');
+			badge.addEventListener('click', (e) => {
+				e.stopPropagation();
+				if (group.collapsed) {
+					(this.tabsModel as any).expandTabGroup?.(group.id);
+				} else {
+					(this.tabsModel as any).collapseTabGroup?.(group.id);
+				}
+			});
+
+			// DnD: allow dropping tabs onto group badge to add them to the group
+			badge.addEventListener('dragover', (e: DragEvent) => {
+				if (this.editorTransfer.hasData(DraggedEditorIdentifier.prototype)) {
+					e.preventDefault();
+					if (e.dataTransfer) {
+						e.dataTransfer.dropEffect = 'move';
+					}
+					badge!.style.opacity = '0.7';
+				}
+			});
+			badge.addEventListener('dragleave', () => {
+				badge!.style.opacity = '';
+			});
+			badge.addEventListener('drop', (e: DragEvent) => {
+				badge!.style.opacity = '';
+				const draggedEditors = this.editorTransfer.getData(DraggedEditorIdentifier.prototype);
+				if (draggedEditors && draggedEditors.length > 0) {
+					e.preventDefault();
+					const model = this.tabsModel as any;
+					if (model.addToTabGroup) {
+						for (const dragged of draggedEditors) {
+							model.addToTabGroup(group.id, dragged.identifier.editor);
+						}
+					}
+				}
+			});
+
+			firstTabElement.insertBefore(badge, firstTabElement.firstChild);
+		}
+
+		// Update badge content
+		badge.className = `tab-group-badge color-${group.color}`;
+		badge.textContent = group.name || '\u2022';
+		badge.title = group.name ? `Tab Group: ${group.name}` : 'Tab Group';
+
+		// Track header reference for cleanup
+		this.tabGroupHeaders.set(group.id, badge);
+	}
+
+	private redrawTabGroupTabs(group: IEditorTabGroup, tabsContainer: HTMLElement): void {
+		const colorVar = this.getTabGroupColorValue(group.color);
+
+		for (let i = group.startIndex; i < group.startIndex + group.count; i++) {
+			const tabElement = tabsContainer.children[i] as HTMLElement | undefined;
+			if (tabElement && tabElement.classList.contains('tab')) {
+				tabElement.classList.add('in-tab-group');
+				tabElement.classList.toggle('tab-group-first', i === group.startIndex);
+				tabElement.style.setProperty('--tab-group-color', colorVar);
+				tabElement.classList.toggle('tab-group-collapsed', group.collapsed);
+			}
+		}
+	}
+
+	private getTabGroupColorValue(color: string): string {
+		switch (color) {
+			case 'red': return '#e53935';
+			case 'blue': return '#1e88e5';
+			case 'green': return '#43a047';
+			case 'yellow': return '#f9a825';
+			case 'purple': return '#8e24aa';
+			case 'orange': return '#fb8c00';
+			case 'pink': return '#d81b60';
+			case 'gray': return '#757575';
+			default: return '#1e88e5';
+		}
+	}
+
 	private redrawTab(editor: EditorInput, tabIndex: number, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel, tabLabel: IEditorInputLabel, tabActionBar: ActionBar): void {
 		const isTabSticky = this.tabsModel.isSticky(tabIndex);
 		const options = this.groupsView.partOptions;
+
+		// Clear tab group classes (will be re-applied in redrawTabGroups)
+		tabContainer.classList.remove('in-tab-group', 'tab-group-collapsed', 'tab-group-first');
+		const existingBadge = tabContainer.querySelector('.tab-group-badge');
+		if (existingBadge) {
+			existingBadge.remove();
+		}
 
 		// Label
 		this.redrawTabLabel(editor, tabIndex, tabContainer, tabLabelWidget, tabLabel);

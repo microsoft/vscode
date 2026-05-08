@@ -154,6 +154,24 @@ export const TAB_UNFOCUSED_HOVER_BORDER = registerColor('tab.unfocusedHoverBorde
 
 //#endregion
 
+//#region Tab Group Colors
+
+export const TAB_GROUP_HEADER_BACKGROUND = registerColor('tab.groupHeaderBackground', {
+	dark: 'rgba(255, 255, 255, 0.1)',
+	light: 'rgba(0, 0, 0, 0.06)',
+	hcDark: null,
+	hcLight: null
+}, localize('tabGroupHeaderBackground', "Background color of a tab group header. Tab groups allow organizing multiple tabs under a collapsible group."));
+
+export const TAB_GROUP_HEADER_FOREGROUND = registerColor('tab.groupHeaderForeground', {
+	dark: '#cccccc',
+	light: '#333333',
+	hcDark: null,
+	hcLight: null
+}, localize('tabGroupHeaderForeground', "Foreground color of a tab group header label."));
+
+//#endregion
+
 //#region Tab Drag and Drop Border
 
 export const TAB_DRAG_AND_DROP_BORDER = registerColor('tab.dragAndDropBorder', {
