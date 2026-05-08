@@ -242,7 +242,7 @@ export class ChatStatusDashboard extends DomWidget {
 			}
 
 			let chatQuotaIndicator: ((quota: IQuotaSnapshot | string) => void) | undefined;
-			if (chatQuota && !chatQuota.unlimited && !this.chatEntitlementService.quotas.usageBasedBilling) {
+			if (chatQuota && !chatQuota.unlimited && (!this.chatEntitlementService.quotas.usageBasedBilling || this.chatEntitlementService.entitlement === ChatEntitlement.Free)) {
 				chatQuotaIndicator = this.createQuotaIndicator(container, chatQuota, localize('chatsLabel', "Chat messages"), resetLabel);
 			}
 
