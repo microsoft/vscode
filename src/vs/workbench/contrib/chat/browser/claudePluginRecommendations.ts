@@ -46,9 +46,17 @@ export class AgentPluginRecommendations extends Disposable implements IWorkbench
 			installedKeys.add(key);
 		}
 
+		// Only count recommendations that resolve to a known marketplace
+		// plugin. Otherwise the @recommended search would land on an empty
+		// list (see microsoft/vscode#315347).
+		const knownKeys = new Set<string>();
+		for (const plugin of this._pluginMarketplaceService.lastFetchedPlugins.get()) {
+			knownKeys.add(`${plugin.name}@${plugin.marketplace}`);
+		}
+
 		let uninstalledCount = 0;
 		for (const key of recommended) {
-			if (!installedKeys.has(key)) {
+			if (!installedKeys.has(key) && knownKeys.has(key)) {
 				uninstalledCount++;
 			}
 		}
