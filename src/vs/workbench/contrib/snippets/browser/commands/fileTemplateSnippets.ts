@@ -51,7 +51,7 @@ export class ApplyFileSnippetAction extends SnippetsAction {
 		}
 
 		if (editor.hasModel()) {
-			// set language if possible
+			// set language before applying so snippet comment variables resolve against this language
 			editor.getModel().setLanguage(langService.createById(selection.langId), ApplyFileSnippetAction.Id);
 
 			// apply snippet edit -> replaces everything
