@@ -1,6 +1,1 @@
-<svg width="14px" height="14px" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-  <rect fill="#3c8746" x="0" y="0" width="100" height="100" rx="35" ry="35"/>
-  <text x="50" y="75" font-size="75" text-anchor="middle" style="font-family: Menlo, Monaco, Consolas, &quot;Droid Sans Mono&quot;, &quot;Inconsolata&quot;, &quot;Courier New&quot;, monospace, &quot;Droid Sans Fallback&quot;;" fill="white">
-    A
-  </text>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 100 100"><rect width="100" height="100" x="0" y="0" fill="#3c8746" rx="35" ry="35"/><text x="50" y="75" fill="#fff" font-size="75" text-anchor="middle" style="font-family:Menlo,Monaco,Consolas,&quot;Droid Sans Mono&quot;,&quot;Inconsolata&quot;,&quot;Courier New&quot;,monospace,&quot;Droid Sans Fallback&quot;">A</text></svg>

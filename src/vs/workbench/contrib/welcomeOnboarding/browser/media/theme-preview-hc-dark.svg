@@ -1,16 +1,1 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 82" fill="none">
-	<rect width="280" height="82" rx="4" fill="#000000"/>
-	<rect width="22" height="82" fill="#000000"/>
-	<rect x="5" y="5" width="12" height="12" rx="2" fill="#858585" opacity="0.35"/>
-	<rect x="5" y="21" width="12" height="12" rx="2" fill="#858585" opacity="0.35"/>
-	<rect x="5" y="37" width="12" height="12" rx="2" fill="#858585" opacity="0.35"/>
-	<rect x="22" y="0" width="258" height="18" fill="#000000"/>
-	<line x1="22" y1="18" x2="280" y2="18" stroke="#858585" stroke-opacity="0.25"/>
-	<text x="30" y="12" font-family="monospace" font-size="7" fill="#ffffff">index.ts</text>
-	<line x1="30" y1="16" x2="64" y2="16" stroke="#569cd6" stroke-width="1.5"/>
-	<text x="70" y="12" font-family="monospace" font-size="7" fill="#858585" opacity="0.4">app.ts</text>
-	<text x="28" y="32" font-family="monospace" font-size="9"><tspan fill="#569cd6">function </tspan><tspan fill="#dcdcaa">greet</tspan><tspan fill="#ffffff">() {</tspan></text>
-	<text x="28" y="45" font-family="monospace" font-size="9"><tspan fill="#ffffff">  </tspan><tspan fill="#7ca668">// hello</tspan></text>
-	<text x="28" y="58" font-family="monospace" font-size="9"><tspan fill="#ffffff">  </tspan><tspan fill="#569cd6">return </tspan><tspan fill="#ce9178">"Hi"</tspan></text>
-	<text x="28" y="71" font-family="monospace" font-size="9" fill="#ffffff">}</text>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 280 82"><rect width="280" height="82" fill="#000" rx="4"/><rect width="22" height="82" fill="#000"/><rect width="12" height="12" x="5" y="5" fill="#858585" opacity=".35" rx="2"/><rect width="12" height="12" x="5" y="21" fill="#858585" opacity=".35" rx="2"/><rect width="12" height="12" x="5" y="37" fill="#858585" opacity=".35" rx="2"/><rect width="258" height="18" x="22" y="0" fill="#000"/><line x1="22" x2="280" y1="18" y2="18" stroke="#858585" stroke-opacity=".25"/><text x="30" y="12" fill="#fff" font-family="monospace" font-size="7">index.ts</text><line x1="30" x2="64" y1="16" y2="16" stroke="#569cd6" stroke-width="1.5"/><text x="70" y="12" fill="#858585" font-family="monospace" font-size="7" opacity=".4">app.ts</text><text x="28" y="32" font-family="monospace" font-size="9"><tspan fill="#569cd6">function </tspan><tspan fill="#dcdcaa">greet</tspan><tspan fill="#fff">() {</tspan></text><text x="28" y="45" font-family="monospace" font-size="9"><tspan fill="#7ca668">// hello</tspan></text><text x="28" y="58" font-family="monospace" font-size="9"><tspan fill="#569cd6">return </tspan><tspan fill="#ce9178">&quot;Hi&quot;</tspan></text><text x="28" y="71" fill="#fff" font-family="monospace" font-size="9">}</text></svg>
