@@ -665,6 +665,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		this._activeSessions.set(sessionResource, session);
 
 		if (!isNewSession) {
+			this._ensurePendingMessageSubscription(sessionResource, resolvedSession);
+
 			// If there are historical turns with file edits, eagerly create
 			// the editing session once the ChatModel is available so that
 			// edit pills render with diff info on session restore.
@@ -829,7 +831,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 		// --- Steering ---
 		if (currentSteering) {
-			if (currentSteering.id !== prevSteering?.id) {
+			if (currentSteering.id !== prevSteering?.id || currentSteering.text !== prevSteering.userMessage.text) {
 				this._dispatchAction({
 					type: ActionType.SessionPendingMessageSet,
 					session,
@@ -861,9 +863,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}
 
 		// --- Queued: additions ---
-		const prevQueuedIds = new Set(prevQueued.map(q => q.id));
+		const prevQueuedById = new Map(prevQueued.map(q => [q.id, q]));
 		for (const q of currentQueued) {
-			if (!prevQueuedIds.has(q.id)) {
+			const prev = prevQueuedById.get(q.id);
+			if (!prev || q.text !== prev.userMessage.text) {
 				this._dispatchAction({
 					type: ActionType.SessionPendingMessageSet,
 					session,
@@ -2382,7 +2385,17 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			this._pendingMessageSubscriptions.set(sessionResource, chatModel.onDidChangePendingRequests(() => {
 				this._syncPendingMessages(sessionResource, backendSession);
 			}));
+			this._syncPendingMessages(sessionResource, backendSession);
+			return;
 		}
+
+		this._pendingMessageSubscriptions.set(sessionResource, this._chatService.onDidCreateModel(model => {
+			if (!isEqual(model.sessionResource, sessionResource)) {
+				return;
+			}
+			this._pendingMessageSubscriptions.deleteAndDispose(sessionResource);
+			this._ensurePendingMessageSubscription(sessionResource, backendSession);
+		}));
 	}
 
 	/**
