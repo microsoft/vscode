@@ -707,7 +707,7 @@ suite('CopilotAgent', () => {
 				assert.strictEqual(systemMessage.sections?.identity?.action, 'replace');
 				assert.strictEqual(
 					systemMessage.sections?.identity?.content,
-					'You are an AI assistant using Copilot CLI runtime in VS Code. When referring to yourself or this integration, do not describe yourself as a terminal assistant. When asked about your identity, you must state that you are an AI assistant using Copilot CLI runtime in VS Code.'
+					'You are an AI assistant using Copilot CLI runtime in VS Code. When asked about your identity, you must state that you are an AI assistant using Copilot CLI runtime in VS Code.'
 				);
 			} finally {
 				await disposeAgent(agent);
