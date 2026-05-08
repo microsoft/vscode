@@ -297,7 +297,7 @@ describe('ClaudeToolPermissionService', () => {
 		describe('ExitPlanMode handler', () => {
 			const exitPlanModeInput = { plan: 'Step 1: Do something\nStep 2: Do another thing' };
 
-			it('invokes CoreReviewPlan with Approve and Approve-and-bypass actions', async () => {
+			it('invokes CoreReviewPlan with Approve / Auto-Edit / Bypass-Approvals actions', async () => {
 				mockToolsService.setReviewPlanResult({ rejected: false, actionId: 'approve', action: 'Approve' });
 				const context = createMockContext();
 
@@ -312,8 +312,10 @@ describe('ClaudeToolPermissionService', () => {
 				};
 				expect(input.content).toContain('Step 1: Do something');
 				expect(input.canProvideFeedback).toBe(true);
-				expect(input.actions.map(a => a.id)).toEqual(['approve', 'approveBypass']);
-				expect(input.actions[1].permissionLevel).toBe('autopilot');
+				expect(input.actions.map(a => a.id)).toEqual(['approve', 'approveAcceptEdits', 'approveBypass']);
+				// Claude does not surface the workbench autopilot confirmation —
+				// none of the actions carry the danger-confirmation flag.
+				expect(input.actions.every(a => a.permissionLevel === undefined)).toBe(true);
 			});
 
 			it('allows when user picks Approve', async () => {
@@ -328,8 +330,8 @@ describe('ClaudeToolPermissionService', () => {
 				}
 			});
 
-			it('allows and switches to bypassPermissions when user picks Approve & Bypass Permissions', async () => {
-				mockToolsService.setReviewPlanResult({ rejected: false, actionId: 'approveBypass', action: 'Approve & Bypass Permissions' });
+			it('allows and switches to bypassPermissions when user picks Approve & Bypass Approvals', async () => {
+				mockToolsService.setReviewPlanResult({ rejected: false, actionId: 'approveBypass', action: 'Approve & Bypass Approvals' });
 
 				const result = await service.canUseTool(ClaudeToolNames.ExitPlanMode, exitPlanModeInput, createMockContext());
 
@@ -343,11 +345,26 @@ describe('ClaudeToolPermissionService', () => {
 				}
 			});
 
+			it('allows and switches to acceptEdits when user picks Approve & Auto-Edit', async () => {
+				mockToolsService.setReviewPlanResult({ rejected: false, actionId: 'approveAcceptEdits', action: 'Approve & Auto-Edit' });
+
+				const result = await service.canUseTool(ClaudeToolNames.ExitPlanMode, exitPlanModeInput, createMockContext());
+
+				expect(result.behavior).toBe('allow');
+				if (result.behavior === 'allow') {
+					expect(result.updatedPermissions).toEqual([{
+						type: 'setMode',
+						mode: 'acceptEdits',
+						destination: 'session',
+					}]);
+				}
+			});
+
 			it('treats Approve & Bypass + feedback as deny so Claude revises (feedback wins over bypass intent)', async () => {
 				mockToolsService.setReviewPlanResult({
 					rejected: false,
 					actionId: 'approveBypass',
-					action: 'Approve & Bypass Permissions',
+					action: 'Approve & Bypass Approvals',
 					feedback: 'small nit, please fix the typo first',
 				});
 

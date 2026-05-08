@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { INativeEnvService } from '../../../../platform/env/common/envService';
+import { extUriBiasedIgnorePathCase } from '../../../../util/vs/base/common/resources';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { createDecorator } from '../../../../util/vs/platform/instantiation/common/instantiation';
 
@@ -68,9 +69,11 @@ export class ClaudePlanFileTracker implements IClaudePlanFileTracker {
 			return;
 		}
 		const candidate = URI.file(filePath);
-		// Direct child of the plan directory only.
+		// Direct child of the plan directory only. Use a path-case-aware
+		// comparison so the SDK handing back the same path with different
+		// casing on Windows / case-insensitive macOS volumes still matches.
 		const parent = URI.joinPath(candidate, '..');
-		if (parent.toString() !== this._planDirUri.toString()) {
+		if (!extUriBiasedIgnorePathCase.isEqual(parent, this._planDirUri)) {
 			return;
 		}
 		this._lastPlanFiles.set(sessionId, candidate);

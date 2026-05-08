@@ -14,6 +14,26 @@ import { ClaudeToolPermissionContext, ClaudeToolPermissionResult, IClaudeToolPer
 import { registerToolPermissionHandler } from '../claudeToolPermissionRegistry';
 import { ClaudeToolNames, ExitPlanModeInput } from '../claudeTools';
 
+/** A single approve action shown in the plan review widget. Mirrors
+ * `IChatPlanApprovalAction` from the workbench side. */
+interface IReviewPlanAction {
+	id?: string;
+	label: string;
+	default?: boolean;
+	description?: string;
+	permissionLevel?: 'autopilot';
+}
+
+/** Input passed to the `vscode_reviewPlan` core tool. Mirrors the
+ * subset of `IChatPlanReview` the tool accepts. */
+interface IReviewPlanInput {
+	title: string;
+	content: string;
+	plan?: string;
+	actions: IReviewPlanAction[];
+	canProvideFeedback: boolean;
+}
+
 /**
  * Shape returned by the `vscode_reviewPlan` core tool. Mirrors
  * `IChatPlanReviewResult` from the workbench side.
@@ -25,16 +45,43 @@ interface IReviewPlanResult {
 	feedback?: string;
 }
 
+/**
+ * Validate that a value parsed from the tool result has the shape we
+ * expect for {@link IReviewPlanResult}. Cheap, structural — keeps a
+ * malformed payload from silently flowing into permission decisions.
+ */
+function isReviewPlanResult(value: unknown): value is IReviewPlanResult {
+	if (!value || typeof value !== 'object') {
+		return false;
+	}
+	const v = value as Record<string, unknown>;
+	if (typeof v.rejected !== 'boolean') {
+		return false;
+	}
+	if (v.action !== undefined && typeof v.action !== 'string') {
+		return false;
+	}
+	if (v.actionId !== undefined && typeof v.actionId !== 'string') {
+		return false;
+	}
+	if (v.feedback !== undefined && typeof v.feedback !== 'string') {
+		return false;
+	}
+	return true;
+}
+
 /** Stable identifiers for the approve actions. Compared programmatically
  * via `parsed.actionId` so they survive localization. */
 const APPROVE_ID = 'approve';
+const APPROVE_ACCEPT_EDITS_ID = 'approveAcceptEdits';
 const APPROVE_BYPASS_ID = 'approveBypass';
 
 /**
  * Handler for the ExitPlanMode tool. Renders the docked plan-review widget
- * with three outcomes:
+ * with these outcomes:
  *  - Approve: continue in the current permission mode
- *  - Approve & Bypass Permissions: continue and switch to bypassPermissions
+ *  - Approve & Auto-Edit: continue and switch to `acceptEdits`
+ *  - Approve & Bypass Approvals: continue and switch to `bypassPermissions`
  *  - Reject (with optional feedback): deny so Claude revises the plan
  */
 export class ExitPlanModeToolHandler implements IClaudeToolPermissionHandler<ClaudeToolNames.ExitPlanMode> {
@@ -59,22 +106,20 @@ export class ExitPlanModeToolHandler implements IClaudeToolPermissionHandler<Cla
 			// review widget can surface it for inline editor comments.
 			const planUri = sessionId ? this.planFileTracker.getLastPlanFile(sessionId) : undefined;
 
-			const reviewInput: {
-				title: string;
-				content: string;
-				plan?: string;
-				actions: Array<{ id?: string; label: string; default?: boolean; description?: string; permissionLevel?: 'autopilot' }>;
-				canProvideFeedback: boolean;
-			} = {
+			const reviewInput: IReviewPlanInput = {
 				title: l10n.t("Claude's Plan"),
 				content: input.plan ?? '',
 				actions: [
 					{ id: APPROVE_ID, label: l10n.t('Approve'), default: true },
 					{
+						id: APPROVE_ACCEPT_EDITS_ID,
+						label: l10n.t('Approve & Auto-Edit'),
+						description: l10n.t('Auto-accept file edits for the rest of this session. Other tools still prompt for approval.'),
+					},
+					{
 						id: APPROVE_BYPASS_ID,
-						label: l10n.t('Approve & Bypass Permissions'),
-						description: l10n.t('Bypass permission prompts for the rest of this session.'),
-						permissionLevel: 'autopilot',
+						label: l10n.t('Approve & Bypass Approvals'),
+						description: l10n.t('Skip approval prompts for the rest of this session.'),
 					},
 				],
 				canProvideFeedback: true,
@@ -95,7 +140,12 @@ export class ExitPlanModeToolHandler implements IClaudeToolPermissionHandler<Cla
 
 			let parsed: IReviewPlanResult;
 			try {
-				parsed = JSON.parse(firstResultPart.value) as IReviewPlanResult;
+				const raw = JSON.parse(firstResultPart.value) as unknown;
+				if (!isReviewPlanResult(raw)) {
+					this.logService.warn('[ExitPlanMode] Review result did not match the expected shape.');
+					return { behavior: 'deny', message: 'Plan review returned an invalid result.' };
+				}
+				parsed = raw;
 			} catch (e) {
 				this.logService.warn(`[ExitPlanMode] Failed to parse review result: ${e?.message ?? e}`);
 				return { behavior: 'deny', message: 'Plan review returned an invalid result.' };
@@ -119,8 +169,8 @@ export class ExitPlanModeToolHandler implements IClaudeToolPermissionHandler<Cla
 			// plan when they no longer have feedback to add.
 			const feedback = parsed.feedback?.trim();
 			if (feedback) {
-				if (parsed.actionId === APPROVE_BYPASS_ID) {
-					this.logService.info('[ExitPlanMode] User picked Approve & Bypass Permissions with feedback; routing as deny+feedback so Claude revises the plan. Bypass intent will need to be re-selected on the revised plan.');
+				if (parsed.actionId === APPROVE_BYPASS_ID || parsed.actionId === APPROVE_ACCEPT_EDITS_ID) {
+					this.logService.info(`[ExitPlanMode] User picked ${parsed.actionId} with feedback; routing as deny+feedback so Claude revises the plan. Mode change will need to be re-selected on the revised plan.`);
 				}
 				return {
 					behavior: 'deny',
@@ -135,6 +185,18 @@ export class ExitPlanModeToolHandler implements IClaudeToolPermissionHandler<Cla
 					updatedPermissions: [{
 						type: 'setMode',
 						mode: 'bypassPermissions',
+						destination: 'session',
+					}],
+				};
+			}
+
+			if (parsed.actionId === APPROVE_ACCEPT_EDITS_ID) {
+				return {
+					behavior: 'allow',
+					updatedInput: input,
+					updatedPermissions: [{
+						type: 'setMode',
+						mode: 'acceptEdits',
 						destination: 'session',
 					}],
 				};
