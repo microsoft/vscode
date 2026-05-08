@@ -34,7 +34,7 @@ import { ILanguageFeaturesService } from '../../../../common/services/languageFe
 import { IModelContentChangedEvent } from '../../../../common/textModelEvents.js';
 import { SnippetController2 } from '../../../snippet/browser/snippetController2.js';
 import { getEndPositionsAfterApplying, removeTextReplacementCommonSuffixPrefix } from '../utils.js';
-import { AnimatedValue, easeOutCubic, ObservableAnimatedValue } from './animation.js';
+import { AnimatedValue, easeOutCubic, ObservableAnimatedValue } from '../../../../../base/browser/animatedValue.js';
 import { computeGhostText } from './computeGhostText.js';
 import { GhostText, GhostTextOrReplacement, ghostTextOrReplacementEquals, ghostTextsOrReplacementsEqual } from './ghostText.js';
 import { InlineCompletionsSource } from './inlineCompletionsSource.js';
@@ -1282,7 +1282,7 @@ class FadeoutDecoration extends Disposable {
 			}
 		})))));
 
-		const val = new ObservableAnimatedValue(new AnimatedValue(1, 0, 1000, easeOutCubic));
+		const val = new ObservableAnimatedValue(AnimatedValue.startNow(1, 0, 1000, easeOutCubic));
 
 		this._register(autorun(reader => {
 			const opacity = val.getValue(reader);

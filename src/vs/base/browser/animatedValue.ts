@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getActiveWindow } from '../../../../../base/browser/dom.js';
-import { ISettableObservable, observableValue, ITransaction, IReader, observableSignal } from '../../../../../base/common/observable.js';
+import { getActiveWindow } from './dom.js';
+import { IReader, observableSignal } from '../common/observable.js';
 
 export interface IAnimatedValue {
 	/**
@@ -16,15 +16,18 @@ export interface IAnimatedValue {
 
 export class AnimatedValue implements IAnimatedValue {
 	public static const(value: number): AnimatedValue {
-		return new AnimatedValue(value, value, 0);
+		return new AnimatedValue(value, value, 0, Date.now());
 	}
 
-	public readonly startTimeMs = Date.now();
+	public static startNow(startValue: number, endValue: number, durationMs: number, interpolationFunction: InterpolationFunction = easeOutExpo): AnimatedValue {
+		return new AnimatedValue(startValue, endValue, durationMs, Date.now(), interpolationFunction);
+	}
 
 	constructor(
 		public readonly startValue: number,
 		public readonly endValue: number,
 		public readonly durationMs: number,
+		public readonly startTimeMs: number,
 		private readonly _interpolationFunction: InterpolationFunction = easeOutExpo,
 	) {
 		if (startValue === endValue) {
@@ -63,12 +66,15 @@ export function linear(passedTime: number, start: number, length: number, totalD
 }
 
 export class LoopingAnimatedValue implements IAnimatedValue {
-	private readonly _startTimeMs = Date.now();
+	public static startNow(startValue: number, endValue: number, durationMs: number, interpolationFunction: InterpolationFunction): LoopingAnimatedValue {
+		return new LoopingAnimatedValue(startValue, endValue, durationMs, Date.now(), interpolationFunction);
+	}
 
 	constructor(
 		private readonly _startValue: number,
 		private readonly _endValue: number,
 		private readonly _durationMs: number,
+		private readonly _startTimeMs: number,
 		private readonly _interpolationFunction: InterpolationFunction,
 	) { }
 
@@ -87,36 +93,21 @@ export class ObservableAnimatedValue<T extends IAnimatedValue = IAnimatedValue> 
 		return new ObservableAnimatedValue(AnimatedValue.const(value));
 	}
 
-	private readonly _value: ISettableObservable<T>;
-
 	constructor(
-		initialValue: T,
-	) {
-		this._value = observableValue(this, initialValue);
-	}
-
-	setAnimation(value: T, tx: ITransaction | undefined): void {
-		this._value.set(value, tx);
-	}
-
-	changeAnimation(fn: (prev: T) => T, tx: ITransaction | undefined): void {
-		const value = fn(this._value.get());
-		this._value.set(value, tx);
-	}
+		private readonly _value: T,
+	) { }
 
 	getValue(reader: IReader | undefined): number {
-		const value = this._value.read(reader);
 		const nowMs = Date.now();
-		if (!value.isFinished(nowMs)) {
+		if (!this._value.isFinished(nowMs)) {
 			AnimationFrameScheduler.instance.invalidateOnNextAnimationFrame(reader);
 		}
-		return value.getValue(nowMs);
+		return this._value.getValue(nowMs);
 	}
 
 	isFinished(reader: IReader | undefined): boolean {
-		const value = this._value.read(reader);
 		const nowMs = Date.now();
-		const isFinished = value.isFinished(nowMs);
+		const isFinished = this._value.isFinished(nowMs);
 		if (!isFinished) {
 			AnimationFrameScheduler.instance.invalidateOnNextAnimationFrame(reader);
 		}
