@@ -844,6 +844,9 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		// Restore parts (open default view containers)
 		this.restoreParts();
 
+		// Restore the last active session (progress is shown inside the service).
+		this.sessionsManagementService.restoreLastActiveSession();
+
 		// Set lifecycle phase to `Restored`
 		lifecycleService.phase = LifecyclePhase.Restored;
 
