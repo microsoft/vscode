@@ -68,13 +68,53 @@ export interface TokenUsage {
 }
 
 /**
- * Feedback from the review agent.
+ * Feedback from the review agent. The shape evolved with the H3 harness
+ * upgrade — the legacy `checks` / `suggestions` / `confidence` fields stay
+ * for backward compatibility while the structured `issues` /
+ * `suggestedNextStep` / `confidenceInRetrySuccess` fields drive the
+ * orchestrator's retry loop. Specialists receiving freeform retry feedback
+ * in the past would re-attempt the whole task; with structured issues the
+ * specialist can target each one (issue id round-trips into the retry
+ * prompt so the agent can cite "addressing issue #2").
  */
 export interface ReviewFeedback {
 	passed: boolean;
 	checks: ReviewCheck[];
 	suggestions: string[];
 	confidence: 'high' | 'medium' | 'low';
+	/**
+	 * Structured issue list — the most actionable surface for retries. Each
+	 * entry has a stable id, a severity, an optional location, a category,
+	 * a description, and an optional proposed fix. Unset on legacy review
+	 * outputs (the orchestrator falls back to freeform `suggestions` then).
+	 */
+	issues?: ReviewIssue[];
+	/**
+	 * One-sentence directive for what the specialist should do next on
+	 * retry. Lifted from the LLM's emitted JSON; the orchestrator surfaces
+	 * it as a "Next step:" line in the retry prompt.
+	 */
+	suggestedNextStep?: string;
+	/**
+	 * Likelihood (0..1) that a single retry will succeed given the issues
+	 * surfaced. The orchestrator may skip the retry early when this is
+	 * very low, escalating directly to the developer instead.
+	 */
+	confidenceInRetrySuccess?: number;
+}
+
+/**
+ * One actionable issue surfaced by a review pass. The id is stable across
+ * retry rounds so a specialist can cite it ("addressing #2") and the chat
+ * surface can render an "N issues fixed of M" status banner.
+ */
+export interface ReviewIssue {
+	id: string;
+	severity: 'blocker' | 'warning' | 'suggestion';
+	category: 'correctness' | 'tests' | 'style' | 'performance' | 'security' | 'integration';
+	description: string;
+	location?: { file: string; line?: number };
+	proposedFix?: string;
 }
 
 /**

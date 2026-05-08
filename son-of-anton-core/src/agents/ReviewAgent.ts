@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { BaseAgent, AgentContext } from './BaseAgent';
-import { ReviewCheck, ReviewFeedback, SubtaskResult } from './types';
+import { ReviewCheck, ReviewFeedback, ReviewIssue, SubtaskResult } from './types';
 
 /**
  * Review agent — the quality gate.
@@ -25,17 +25,41 @@ export class ReviewAgent extends BaseAgent {
 			'5. **Standards:** Does the code follow CLAUDE.md conventions?',
 			'',
 			'## Output Format',
-			'Respond with your review in JSON format wrapped in ```json``` code fences:',
+			'Respond with a single JSON document wrapped in ```json``` code fences. The',
+			'`issues` array drives the orchestrator\'s retry loop — keep entries small,',
+			'specific, and actionable. `confidenceInRetrySuccess` is your honest',
+			'estimate (0.0-1.0) of how likely a single retry is to fix all blockers;',
+			'set it low when the change is fundamentally wrong, high when the issues',
+			'are surface-level.',
+			'',
 			'```json',
 			'{',
-			'  "passed": true,',
+			'  "passed": false,',
+			'  "issues": [',
+			'    {',
+			'      "id": "I1",',
+			'      "severity": "blocker",',
+			'      "category": "correctness",',
+			'      "location": { "file": "src/foo.ts", "line": 42 },',
+			'      "description": "Off-by-one in the loop bound — last element is skipped.",',
+			'      "proposedFix": "Change `i < arr.length - 1` to `i < arr.length`."',
+			'    }',
+			'  ],',
+			'  "suggestedNextStep": "Re-read src/foo.ts:42 and fix the loop bound.",',
+			'  "confidenceInRetrySuccess": 0.85,',
 			'  "checks": [',
 			'    { "name": "syntax", "passed": true, "message": "OK", "severity": "info" }',
 			'  ],',
-			'  "suggestions": ["Consider using const instead of let"],',
+			'  "suggestions": [],',
 			'  "confidence": "high"',
 			'}',
 			'```',
+			'',
+			'Severity scale: `blocker` (must fix before merge), `warning` (should',
+			'fix), `suggestion` (nice-to-have). Categories: `correctness`, `tests`,',
+			'`style`, `performance`, `security`, `integration`. Issue ids are short',
+			'string handles ("I1", "I2", …) — they stay stable across retries so the',
+			'specialist can cite them.',
 		].join('\n');
 	}
 
@@ -137,6 +161,14 @@ export class ReviewAgent extends BaseAgent {
 				: [];
 
 			const confidence = this.validateConfidence(String(parsed.confidence ?? 'medium'));
+			const issues = this.parseIssues(parsed.issues);
+			const suggestedNextStep = typeof parsed.suggestedNextStep === 'string'
+				? parsed.suggestedNextStep.trim()
+				: undefined;
+			const rawConfidence = parsed.confidenceInRetrySuccess;
+			const confidenceInRetrySuccess = typeof rawConfidence === 'number' && Number.isFinite(rawConfidence)
+				? Math.max(0, Math.min(1, rawConfidence))
+				: undefined;
 
 			return {
 				passed: Boolean(parsed.passed),
@@ -145,6 +177,9 @@ export class ReviewAgent extends BaseAgent {
 					? parsed.suggestions.map(String)
 					: [],
 				confidence,
+				...(issues.length > 0 ? { issues } : {}),
+				...(suggestedNextStep ? { suggestedNextStep } : {}),
+				...(confidenceInRetrySuccess !== undefined ? { confidenceInRetrySuccess } : {}),
 			};
 		} catch {
 			return {
@@ -154,6 +189,52 @@ export class ReviewAgent extends BaseAgent {
 				confidence: 'low',
 			};
 		}
+	}
+
+	/**
+	 * Coerce a raw `issues` array from JSON into validated `ReviewIssue`
+	 * objects. Skips entries with missing or unrecognised severity /
+	 * category — better to drop a malformed issue than to surface
+	 * `severity: undefined` to the orchestrator's retry logic.
+	 */
+	private parseIssues(raw: unknown): ReviewIssue[] {
+		if (!Array.isArray(raw)) {
+			return [];
+		}
+		const validSeverities = new Set<ReviewIssue['severity']>(['blocker', 'warning', 'suggestion']);
+		const validCategories = new Set<ReviewIssue['category']>(['correctness', 'tests', 'style', 'performance', 'security', 'integration']);
+		const out: ReviewIssue[] = [];
+		let nextFallbackId = 1;
+		for (const item of raw as ReadonlyArray<Record<string, unknown>>) {
+			if (!item || typeof item !== 'object') {
+				continue;
+			}
+			const severity = String(item.severity ?? '') as ReviewIssue['severity'];
+			const category = String(item.category ?? '') as ReviewIssue['category'];
+			const description = typeof item.description === 'string' ? item.description.trim() : '';
+			if (!description || !validSeverities.has(severity) || !validCategories.has(category)) {
+				continue;
+			}
+			const id = typeof item.id === 'string' && item.id.trim() ? item.id.trim() : `I${nextFallbackId++}`;
+			const issue: ReviewIssue = { id, severity, category, description };
+			const rawLocation = item.location;
+			if (rawLocation && typeof rawLocation === 'object') {
+				const file = typeof (rawLocation as Record<string, unknown>).file === 'string'
+					? (rawLocation as { file: string }).file
+					: undefined;
+				const line = typeof (rawLocation as Record<string, unknown>).line === 'number'
+					? (rawLocation as { line: number }).line
+					: undefined;
+				if (file) {
+					issue.location = line !== undefined ? { file, line } : { file };
+				}
+			}
+			if (typeof item.proposedFix === 'string' && item.proposedFix.trim()) {
+				issue.proposedFix = item.proposedFix.trim();
+			}
+			out.push(issue);
+		}
+		return out;
 	}
 
 	private validateSeverity(severity: string): ReviewCheck['severity'] {
@@ -185,8 +266,28 @@ export class ReviewAgent extends BaseAgent {
 			parts.push(`Failed: ${failedChecks.map(c => `${c.name} — ${c.message}`).join('; ')}`);
 		}
 
-		if (feedback.suggestions.length > 0) {
+		// Structured issues, when present, take precedence over freeform
+		// suggestions in the summary — they're more actionable and the
+		// orchestrator's retry path consumes them directly.
+		if (feedback.issues && feedback.issues.length > 0) {
+			const issueLines = feedback.issues.map(issue => {
+				const loc = issue.location?.file
+					? ` [${issue.location.file}${issue.location.line !== undefined ? ':' + issue.location.line : ''}]`
+					: '';
+				const fix = issue.proposedFix ? ` — fix: ${issue.proposedFix}` : '';
+				return `${issue.id} (${issue.severity}/${issue.category})${loc}: ${issue.description}${fix}`;
+			});
+			parts.push(`Issues:\n  ${issueLines.join('\n  ')}`);
+		} else if (feedback.suggestions.length > 0) {
 			parts.push(`Suggestions: ${feedback.suggestions.join('; ')}`);
+		}
+
+		if (feedback.suggestedNextStep) {
+			parts.push(`Next step: ${feedback.suggestedNextStep}`);
+		}
+
+		if (feedback.confidenceInRetrySuccess !== undefined) {
+			parts.push(`Retry confidence: ${(feedback.confidenceInRetrySuccess * 100).toFixed(0)}%`);
 		}
 
 		return parts.join('. ');

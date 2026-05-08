@@ -21,6 +21,7 @@ import { ReviewAgent } from './ReviewAgent';
 import {
 	AgentHandle,
 	ExecutionPlan,
+	ReviewFeedback,
 	ScopeEntry,
 	Subtask,
 	SubtaskResult,
@@ -656,30 +657,39 @@ export class OrchestratorAgent extends BaseAgent {
 				});
 
 				if (!reviewResult.success) {
-					if (retryCount < this.config.maxRetries) {
-						// Retry with review feedback
+					const feedback = reviewResult.reviewFeedback;
+
+					// Confidence-driven escalation (H3): when the reviewer
+					// reports low confidence that a retry would actually fix
+					// the issues, skip the retry and escalate immediately.
+					// This saves a (potentially expensive) doomed turn and
+					// surfaces the issue to the user faster.
+					const lowConfidence = feedback?.confidenceInRetrySuccess !== undefined
+						&& feedback.confidenceInRetrySuccess < 0.3;
+
+					if (!lowConfidence && retryCount < this.config.maxRetries) {
 						retryCount++;
 						subtask.retryCount = retryCount;
 						this.metricsTracker.recordRetry(subtask.assignee);
 
-						context.instruction = [
-							subtask.instruction,
-							'',
-							'## Previous Attempt Feedback',
-							reviewResult.summary,
-						].join('\n');
+						context.instruction = buildRetryInstruction(subtask.instruction, reviewResult.summary, feedback);
 
-						stream.markdown(`*Retry ${retryCount}/${this.config.maxRetries}: incorporating review feedback...*\n`);
+						const confidenceTag = feedback?.confidenceInRetrySuccess !== undefined
+							? ` (retry confidence: ${(feedback.confidenceInRetrySuccess * 100).toFixed(0)}%)`
+							: '';
+						stream.markdown(`*Retry ${retryCount}/${this.config.maxRetries}${confidenceTag}: incorporating review feedback...*\n`);
 						continue;
 					}
 
-					// No retries left: mark subtask as failed according to review result
+					// No retries left (or retry deemed unlikely to help):
+					// mark the subtask failed and surface the structured
+					// feedback to the developer.
 					result.success = false;
-					result.reviewFeedback = reviewResult.reviewFeedback;
+					result.reviewFeedback = feedback;
 					result.summary = [
 						result.summary || 'Subtask failed final review.',
 						'',
-						'Final review feedback:',
+						lowConfidence ? 'Skipping retry — reviewer reported low confidence in success.' : 'Final review feedback:',
 						reviewResult.summary,
 					].join('\n');
 
@@ -985,3 +995,53 @@ export function isTrivialPrompt(prompt: string): boolean {
 	return false;
 }
 
+
+/**
+ * Build the next-retry instruction for a specialist after the review agent
+ * flagged failure. When structured `issues` are present, render them as a
+ * numbered list the model can target one-by-one ("addressing #2"). When
+ * only freeform `summary` is available (legacy review output, parse
+ * failure, etc.), fall back to the original "Previous Attempt Feedback"
+ * shape so the harness stays usable.
+ */
+function buildRetryInstruction(
+	originalInstruction: string,
+	summary: string,
+	feedback: ReviewFeedback | undefined,
+): string {
+	if (!feedback || !feedback.issues || feedback.issues.length === 0) {
+		return [
+			originalInstruction,
+			'',
+			'## Previous Attempt Feedback',
+			summary,
+		].join('\n');
+	}
+
+	const issueLines = feedback.issues.map(issue => {
+		const loc = issue.location?.file
+			? ` [${issue.location.file}${issue.location.line !== undefined ? ':' + issue.location.line : ''}]`
+			: '';
+		const fix = issue.proposedFix ? `\n     Proposed fix: ${issue.proposedFix}` : '';
+		return `- **${issue.id}** (${issue.severity}/${issue.category})${loc}: ${issue.description}${fix}`;
+	});
+
+	const sections: string[] = [
+		originalInstruction,
+		'',
+		'## Review Feedback (retry — address each blocker)',
+		'',
+		issueLines.join('\n'),
+	];
+
+	if (feedback.suggestedNextStep) {
+		sections.push('', '**Next step:** ' + feedback.suggestedNextStep);
+	}
+
+	sections.push(
+		'',
+		'When you finish, briefly note which issue ids you addressed (e.g. "Fixed I1 and I2; I3 already correct.") so the reviewer can verify.',
+	);
+
+	return sections.join('\n');
+}
