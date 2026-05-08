@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { status } from '../../../../../../base/browser/ui/aria/aria.js';
+import { renderAsPlaintext } from '../../../../../../base/browser/markdownRenderer.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
@@ -168,12 +169,16 @@ class ChatInputNotificationService extends Disposable implements IChatInputNotif
 			this._lastAnnouncedSignature = undefined;
 			return;
 		}
-		const message = typeof active.message === 'string' ? active.message : active.message.value;
-		const signature = `${active.id}\u0000${message}\u0000${active.description ?? ''}`;
+		const rawMessage = typeof active.message === 'string' ? active.message : active.message.value;
+		const signature = `${active.id}\u0000${rawMessage}\u0000${active.description ?? ''}`;
 		if (signature === this._lastAnnouncedSignature) {
 			return;
 		}
 		this._lastAnnouncedSignature = signature;
+		// Strip Markdown syntax so screen readers don't read backticks, link
+		// targets, etc. verbatim. Done after the signature check so we don't
+		// pay the parse cost on unrelated `onDidChange` fires.
+		const message = renderAsPlaintext(active.message);
 		const text = active.description ? `${message}. ${active.description}` : message;
 		status(text);
 	}
