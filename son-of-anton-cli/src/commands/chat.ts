@@ -9,6 +9,7 @@ import { bootstrapCredentials } from '../auth/bootstrap';
 import { buildCliHost } from '../cliHost';
 import type { CliConversation } from '../persistence/ConversationStore';
 import { makeRenderer, type Renderer } from '../render/renderer';
+import { maybeNagAboutUpdate } from './update';
 
 interface ChatOptions {
 	specialist: string;
@@ -118,6 +119,11 @@ async function runUserTurn(
 
 export async function runChat(opts: ChatOptions): Promise<void> {
 	const host = buildCliHost();
+
+	// Fire-and-forget version check on startup. Capped at one network call
+	// per 24h via the on-disk cache; we don't await so it never blocks the
+	// REPL even on a slow connection.
+	void maybeNagAboutUpdate();
 
 	const auth = await bootstrapCredentials(host);
 	if (!auth.ok) {

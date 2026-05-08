@@ -14,6 +14,7 @@ import { runPlan } from './commands/plan';
 import { runResume } from './commands/resume';
 import { runSpecialist } from './commands/run';
 import { toolsCommand } from './commands/tools';
+import { runUpdate } from './commands/update';
 
 const program = new Command();
 program
@@ -64,6 +65,13 @@ program
 	.option('--yes', 'Non-interactive mode (skip prompts; use defaults)')
 	.addOption(outputOption())
 	.action(runInit);
+
+program
+	.command('update')
+	.description('Check for a newer release of sota on the npm registry.')
+	.option('--check', 'Exit 0 even when an upgrade is available — only report it')
+	.addOption(outputOption())
+	.action(runUpdate);
 
 program
 	.command('acp')

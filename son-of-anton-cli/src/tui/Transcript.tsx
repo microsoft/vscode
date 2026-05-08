@@ -6,6 +6,7 @@
 import { Box, Text } from 'ink';
 import Spinner from 'ink-spinner';
 import * as React from 'react';
+import { ToolCard } from './ToolCard';
 import type { TuiMessage } from './types';
 
 interface TranscriptProps {
@@ -60,12 +61,9 @@ function MessageRow({ message }: { message: TuiMessage }): JSX.Element {
 				)}
 			</Box>
 			{message.toolCalls && message.toolCalls.length > 0 ? (
-				<Box flexDirection="column" paddingLeft={2}>
+				<Box flexDirection="column" paddingLeft={2} marginTop={0}>
 					{message.toolCalls.map((tc, i) => (
-						<Text key={i} color="gray">
-							{'└─ tool: '}
-							<Text color="yellow">{tc.name}</Text>
-						</Text>
+						<ToolCard key={i} name={tc.name} input={tc.input} />
 					))}
 				</Box>
 			) : null}
