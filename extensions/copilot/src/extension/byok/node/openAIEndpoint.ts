@@ -285,18 +285,19 @@ export class OpenAIEndpoint extends ChatEndpoint {
 		const override = this._configurationService.getConfig(ConfigKey.Advanced.ReasoningEffortOverride);
 		const requested = override || options.modelCapabilities?.reasoningEffort || body.reasoning?.effort || body.reasoning_effort;
 		const effort = requested && supports.includes(requested) ? requested : undefined;
-		if (format === 'responses') {
-			if (effort) {
+		// Scrub any pre-populated effort first so unsupported values (e.g. the hard-coded `medium` default
+		// from `createResponsesRequestBody`) cannot leak through, then write the resolved value into the
+		// expected shape.
+		if (body.reasoning) {
+			const { effort: _drop, ...rest } = body.reasoning;
+			body.reasoning = Object.keys(rest).length > 0 ? rest : undefined;
+		}
+		body.reasoning_effort = undefined;
+		if (effort) {
+			if (format === 'responses') {
 				body.reasoning = { ...body.reasoning, effort };
-			}
-			body.reasoning_effort = undefined;
-		} else {
-			if (effort) {
+			} else {
 				body.reasoning_effort = effort;
-			}
-			if (body.reasoning) {
-				const { effort: _drop, ...rest } = body.reasoning;
-				body.reasoning = Object.keys(rest).length > 0 ? rest : undefined;
 			}
 		}
 	}

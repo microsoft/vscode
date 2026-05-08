@@ -7,7 +7,7 @@ import { Raw } from '@vscode/prompt-tsx';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
 import { IChatModelInformation, ModelSupportedEndpoint } from '../../../../platform/endpoint/common/endpointProvider';
-import { ICreateEndpointBodyOptions } from '../../../../platform/networking/common/networking';
+import { ICreateEndpointBodyOptions, IEndpointBody } from '../../../../platform/networking/common/networking';
 import { ITestingServicesAccessor } from '../../../../platform/test/node/services';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
@@ -285,6 +285,73 @@ describe('OpenAIEndpoint - Reasoning Properties', () => {
 
 			expect(body.reasoning_effort).toBeUndefined();
 			expect(body.reasoning).toBeUndefined();
+		});
+
+		it('scrubs an unsupported `reasoning.effort` pre-populated by `createResponsesRequestBody` on a Responses request', () => {
+			// `createResponsesRequestBody` hard-codes a `'medium'` default. If the model only supports
+			// e.g. `['low', 'high']`, that default must not leak through to the wire.
+			const endpoint = instaService.createInstance(OpenAIEndpoint,
+				buildModel({
+					supported_endpoints: [ModelSupportedEndpoint.Responses],
+					capabilities: {
+						...modelMetadata.capabilities,
+						supports: {
+							...modelMetadata.capabilities.supports,
+							reasoning_effort: ['low', 'high'],
+						},
+					},
+				}),
+				'test-api-key',
+				'https://api.openai.com/v1/responses');
+
+			const body = endpoint.createRequestBody(buildOptions());
+
+			expect(body.reasoning?.effort).toBeUndefined();
+		});
+
+		it('scrubs an unsupported pre-populated value while preserving other reasoning fields', () => {
+			// Direct invocation via the Chat Completions path: synthesize a body that already carries an
+			// unsupported effort plus a `summary` field, and verify only the effort is dropped.
+			const endpoint = instaService.createInstance(OpenAIEndpoint,
+				buildModel({
+					reasoningEffortFormat: 'responses',
+					capabilities: {
+						...modelMetadata.capabilities,
+						supports: {
+							...modelMetadata.capabilities.supports,
+							reasoning_effort: ['low', 'high'],
+						},
+					},
+				}),
+				'test-api-key',
+				'https://api.openai.com/v1/chat/completions');
+			const apply = (endpoint as unknown as { _applyReasoningEffort: (body: IEndpointBody, options: ICreateEndpointBodyOptions) => void })._applyReasoningEffort.bind(endpoint);
+
+			const body: IEndpointBody = { reasoning: { effort: 'medium', summary: 'auto' } };
+			apply(body, buildOptions());
+
+			expect(body).toEqual({ reasoning: { summary: 'auto' }, reasoning_effort: undefined });
+		});
+
+		it('scrubs an unsupported pre-populated top-level `reasoning_effort` on Chat Completions', () => {
+			const endpoint = instaService.createInstance(OpenAIEndpoint,
+				buildModel({
+					capabilities: {
+						...modelMetadata.capabilities,
+						supports: {
+							...modelMetadata.capabilities.supports,
+							reasoning_effort: ['low', 'high'],
+						},
+					},
+				}),
+				'test-api-key',
+				'https://api.openai.com/v1/chat/completions');
+			const apply = (endpoint as unknown as { _applyReasoningEffort: (body: IEndpointBody, options: ICreateEndpointBodyOptions) => void })._applyReasoningEffort.bind(endpoint);
+
+			const body: IEndpointBody = { reasoning_effort: 'medium' };
+			apply(body, buildOptions());
+
+			expect(body.reasoning_effort).toBeUndefined();
 		});
 	});
 });
