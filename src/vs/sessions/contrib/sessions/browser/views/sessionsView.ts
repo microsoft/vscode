@@ -29,6 +29,7 @@ import { AICustomizationShortcutsWidget } from '../aiCustomizationShortcutsWidge
 import { AgentHostShortcutsWidget } from '../agentHostShortcutsWidget.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
+import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { asCssVariable } from '../../../../../platform/theme/common/colorRegistry.js';
 import { agentsNewSessionButtonBackground, agentsNewSessionButtonBorder, agentsNewSessionButtonForeground, agentsNewSessionButtonHoverBackground } from '../../../../common/theme.js';
@@ -332,12 +333,14 @@ export class SessionsView extends ViewPane {
 			return primaryKeybinding ?? resolvedKeybindings[0];
 		};
 
-		this._register(this.hoverService.setupDelayedHoverAtMouse(newSessionButton.element, () => {
+		this._register(this.hoverService.setupDelayedHover(newSessionButton.element, () => {
 			const keybindingLabel = getNewSessionKeybinding()?.getLabel() ?? undefined;
 			return {
 				content: keybindingLabel
 					? localize('newSessionButtonTitle', "New Session ({0})", keybindingLabel)
 					: localize('newSessionButtonTitleWithoutKeybinding', "New Session"),
+				appearance: { compact: true },
+				position: { hoverPosition: HoverPosition.BELOW },
 			};
 		}));
 
