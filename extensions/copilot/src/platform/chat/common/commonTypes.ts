@@ -190,7 +190,7 @@ export type ChatFetchRetriableError<T> =
 	{ type: ChatFetchResponseType.FilteredRetry; reason: string; category: FilterReason; value: T; requestId: string; serverRequestId: string | undefined };
 
 export type FetchSuccess<T> =
-	{ type: ChatFetchResponseType.Success; value: T; requestId: string; serverRequestId: string | undefined; usage: APIUsage | undefined; resolvedModel: string };
+	{ type: ChatFetchResponseType.Success; value: T; requestId: string; serverRequestId: string | undefined; usage: APIUsage | undefined; resolvedModel: string; modelCallId?: string };
 
 export type FetchResponse<T> = FetchSuccess<T> | ChatFetchError;
 
@@ -358,11 +358,11 @@ function getQuotaHitMessage(fetchResult: ChatFetchError, copilotPlan: string | u
 	}
 }
 
-export function getErrorDetailsFromChatFetchError(fetchResult: ChatFetchError, copilotPlan: string, gitHubOutageStatus: GitHubOutageStatus): ChatErrorDetails {
+export function getErrorDetailsFromChatFetchError(fetchResult: ChatFetchError, copilotPlan: string | undefined, gitHubOutageStatus: GitHubOutageStatus): ChatErrorDetails {
 	return { code: fetchResult.type, ...getErrorDetailsFromChatFetchErrorInner(fetchResult, copilotPlan, gitHubOutageStatus) };
 }
 
-function getErrorDetailsFromChatFetchErrorInner(fetchResult: ChatFetchError, copilotPlan: string, gitHubOutageStatus: GitHubOutageStatus): ChatErrorDetails {
+function getErrorDetailsFromChatFetchErrorInner(fetchResult: ChatFetchError, copilotPlan: string | undefined, gitHubOutageStatus: GitHubOutageStatus): ChatErrorDetails {
 	let details: ChatErrorDetails;
 	switch (fetchResult.type) {
 		case ChatFetchResponseType.OffTopic:

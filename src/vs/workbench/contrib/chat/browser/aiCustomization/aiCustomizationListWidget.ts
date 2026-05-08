@@ -5,6 +5,7 @@
 
 import './media/aiCustomizationManagement.css';
 import * as DOM from '../../../../../base/browser/dom.js';
+import * as aria from '../../../../../base/browser/ui/aria/aria.js';
 import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -124,6 +125,8 @@ interface IAICustomizationItemTemplateData {
 	readonly description: HighlightedLabel;
 	readonly disposables: DisposableStore;
 	readonly elementDisposables: DisposableStore;
+	/** Index of the row currently rendered into this template, or -1 when unbound. */
+	currentIndex: number;
 }
 
 interface IGroupHeaderTemplateData {
@@ -228,6 +231,15 @@ export function formatDisplayName(name: string): string {
 class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICustomizationItemTemplateData> {
 	readonly templateId = 'aiCustomizationItem';
 
+	/**
+	 * Live (non-disposed) templates. Used to keep only the focused row's
+	 * inline action bar in the document tab order so that Tab from a focused
+	 * row enters that row's actions exactly once instead of cycling through
+	 * every row's actions.
+	 */
+	private readonly templates = new Set<IAICustomizationItemTemplateData>();
+	private focusedIndex = -1;
+
 	constructor(
 		@IHoverService private readonly hoverService: IHoverService,
 		@ILabelService private readonly labelService: ILabelService,
@@ -236,6 +248,17 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
 	) { }
+
+	/**
+	 * Tell the renderer which row index is currently focused in the list.
+	 * The action bar of that row (and only that row) is made tab-focusable.
+	 */
+	setFocusedIndex(index: number): void {
+		this.focusedIndex = index;
+		for (const template of this.templates) {
+			template.actionBar.setFocusable(template.currentIndex === index);
+		}
+	}
 
 	renderTemplate(container: HTMLElement): IAICustomizationItemTemplateData {
 		const disposables = new DisposableStore();
@@ -257,8 +280,13 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 		const actionBar = disposables.add(new ActionBar(actionsContainer, {
 			actionViewItemProvider: createActionViewItem.bind(undefined, this.instantiationService),
 		}));
+		// Keep the inline actions out of the document tab order by default. Only the
+		// focused row's action bar is made tab-focusable (see `setFocusedIndex`),
+		// so Tab from a focused row enters that row's actions exactly once instead
+		// of cycling through every row's actions.
+		actionBar.setFocusable(false);
 
-		return {
+		const template: IAICustomizationItemTemplateData = {
 			container,
 			actionsContainer,
 			actionBar,
@@ -269,11 +297,16 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 			description,
 			disposables,
 			elementDisposables,
+			currentIndex: -1,
 		};
+		this.templates.add(template);
+		return template;
 	}
 
 	renderElement(entry: IFileItemEntry, index: number, templateData: IAICustomizationItemTemplateData): void {
 		templateData.elementDisposables.clear();
+		templateData.currentIndex = index;
+		templateData.actionBar.setFocusable(index === this.focusedIndex);
 		const element = entry.item;
 
 		// Type icon: use per-item override or fall back to prompt type
@@ -285,8 +318,8 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 			let content: string;
 			if (element.isBuiltin) {
 				content = `${element.name}\n${localize('builtinSource', "Built-in")}`;
-			} else if (element.extensionLabel) {
-				content = `${element.name}\n${localize('fromExtension', "Extension: {0}", element.extensionLabel)}`;
+			} else if (element.extensionId) {
+				content = `${element.name}\n${localize('fromExtension', "Extension: {0}", element.extensionId)}`;
 			} else {
 				const isWorkspaceItem = element.storage === PromptsStorage.local;
 				const uriLabel = this.labelService.getUriLabel(element.uri, { relative: isWorkspaceItem });
@@ -433,7 +466,12 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 		templateData.actionBar.context = context;
 	}
 
+	disposeElement(_entry: IFileItemEntry, _index: number, templateData: IAICustomizationItemTemplateData): void {
+		templateData.currentIndex = -1;
+	}
+
 	disposeTemplate(templateData: IAICustomizationItemTemplateData): void {
+		this.templates.delete(templateData);
 		templateData.elementDisposables.dispose();
 		templateData.disposables.dispose();
 	}
@@ -454,6 +492,61 @@ function toItemsModelSection(section: AICustomizationManagementSection): ItemsMo
 			return section;
 		default:
 			return undefined;
+	}
+}
+
+/**
+ * Returns the ARIA status announcement string for a given section, item
+ * count, and whether a search filter is active. Exported for testing.
+ */
+export function getCountAnnouncement(section: AICustomizationManagementSection, count: number, isFiltering: boolean): string {
+	switch (section) {
+		case AICustomizationManagementSection.Agents:
+			if (isFiltering) {
+				if (count === 0) { return localize('countAgentsNoResults', "No agents found"); }
+				if (count === 1) { return localize('countAgentsOneResult', "1 agent found"); }
+				return localize('countAgentsResults', "{0} agents found", count);
+			}
+			if (count === 0) { return localize('countAgentsNone', "No agents"); }
+			if (count === 1) { return localize('countAgentsOne', "1 agent"); }
+			return localize('countAgents', "{0} agents", count);
+		case AICustomizationManagementSection.Skills:
+			if (isFiltering) {
+				if (count === 0) { return localize('countSkillsNoResults', "No skills found"); }
+				if (count === 1) { return localize('countSkillsOneResult', "1 skill found"); }
+				return localize('countSkillsResults', "{0} skills found", count);
+			}
+			if (count === 0) { return localize('countSkillsNone', "No skills"); }
+			if (count === 1) { return localize('countSkillsOne', "1 skill"); }
+			return localize('countSkills', "{0} skills", count);
+		case AICustomizationManagementSection.Instructions:
+			if (isFiltering) {
+				if (count === 0) { return localize('countInstructionsNoResults', "No instructions found"); }
+				if (count === 1) { return localize('countInstructionsOneResult', "1 instruction file found"); }
+				return localize('countInstructionsResults', "{0} instruction files found", count);
+			}
+			if (count === 0) { return localize('countInstructionsNone', "No instructions"); }
+			if (count === 1) { return localize('countInstructionsOne', "1 instruction file"); }
+			return localize('countInstructions', "{0} instruction files", count);
+		case AICustomizationManagementSection.Hooks:
+			if (isFiltering) {
+				if (count === 0) { return localize('countHooksNoResults', "No hooks found"); }
+				if (count === 1) { return localize('countHooksOneResult', "1 hook found"); }
+				return localize('countHooksResults', "{0} hooks found", count);
+			}
+			if (count === 0) { return localize('countHooksNone', "No hooks"); }
+			if (count === 1) { return localize('countHooksOne', "1 hook"); }
+			return localize('countHooks', "{0} hooks", count);
+		case AICustomizationManagementSection.Prompts:
+		default:
+			if (isFiltering) {
+				if (count === 0) { return localize('countPromptsNoResults', "No prompts found"); }
+				if (count === 1) { return localize('countPromptsOneResult', "1 prompt found"); }
+				return localize('countPromptsResults', "{0} prompts found", count);
+			}
+			if (count === 0) { return localize('countPromptsNone', "No prompts"); }
+			if (count === 1) { return localize('countPromptsOne', "1 prompt"); }
+			return localize('countPrompts', "{0} prompts", count);
 	}
 }
 
@@ -497,6 +590,9 @@ export class AICustomizationListWidget extends Disposable {
 	private readonly collapsedGroups = new Set<string>();
 	private _layoutDeferred = false;
 	private readonly dropdownActionDisposables = this._register(new DisposableStore());
+
+	/** Monotonically increasing counter; guards the post-load announcement against stale calls. */
+	private _sectionLoadId = 0;
 
 	private readonly delayedFilter = new Delayer<void>(200);
 
@@ -567,6 +663,7 @@ export class AICustomizationListWidget extends Disposable {
 			this.searchQuery = this.searchInput.value;
 			this.delayedFilter.trigger(() => {
 				const matchCount = this.filterItems();
+				this.announceItemCount(matchCount);
 				if (this.searchQuery.trim()) {
 					this.telemetryService.publicLog2<CustomizationEditorSearchEvent, CustomizationEditorSearchClassification>('chatCustomizationEditor.search', {
 						section: this.currentSection,
@@ -611,6 +708,7 @@ export class AICustomizationListWidget extends Disposable {
 		this.emptyStateContainer.style.display = 'none';
 
 		// Create list
+		const itemRenderer = this.instantiationService.createInstance(AICustomizationItemRenderer);
 		this.list = this._register(this.instantiationService.createInstance(
 			WorkbenchList<IListEntry>,
 			'AICustomizationManagementList',
@@ -618,7 +716,7 @@ export class AICustomizationListWidget extends Disposable {
 			new AICustomizationListDelegate(),
 			[
 				new GroupHeaderRenderer(this.hoverService),
-				this.instantiationService.createInstance(AICustomizationItemRenderer),
+				itemRenderer,
 			],
 			{
 				identityProvider: {
@@ -629,9 +727,11 @@ export class AICustomizationListWidget extends Disposable {
 						if (entry.type === 'group-header') {
 							return localize('groupAriaLabel', "{0}, {1} items, {2}", entry.label, entry.count, entry.collapsed ? localize('collapsed', "collapsed") : localize('expanded', "expanded"));
 						}
-						const nameAndDesc = entry.item.description
-							? localize('itemAriaLabel', "{0}, {1}", entry.item.name, entry.item.description)
-							: entry.item.name;
+						const displayName = entry.item.displayName ?? formatDisplayName(entry.item.name);
+						const secondaryText = getCustomizationSecondaryText(entry.item.description, entry.item.filename, entry.item.promptType);
+						const nameAndDesc = secondaryText
+							? localize('itemAriaLabel', "{0}. {1}", displayName, secondaryText)
+							: displayName;
 						return entry.item.disabled
 							? localize('itemAriaLabelDisabled', "{0}, disabled", nameAndDesc)
 							: nameAndDesc;
@@ -654,6 +754,22 @@ export class AICustomizationListWidget extends Disposable {
 				} else {
 					this._onDidSelectItem.fire(e.element.item);
 				}
+			}
+		}));
+
+		// Keep only the focused row's inline action bar in the document tab order
+		// so Tab from a focused row enters that row's actions exactly once instead
+		// of cycling through the action bar of every rendered row.
+		this._register(this.list.onDidChangeFocus(e => {
+			itemRenderer.setFocusedIndex(e.indexes.length ? e.indexes[0] : -1);
+		}));
+
+		// When the list itself receives DOM focus (e.g. via Tab) and no row is
+		// focused yet, focus the first row so the focus indicator is visible
+		// instead of requiring the user to press an arrow key first.
+		this._register(this.list.onDidFocus(() => {
+			if (this.list.getFocus().length === 0 && this.displayEntries.length > 0) {
+				this.list.focusFirst();
 			}
 		}));
 
@@ -762,6 +878,7 @@ export class AICustomizationListWidget extends Disposable {
 	 * reflecting at least one fetch.
 	 */
 	async setSection(section: AICustomizationManagementSection): Promise<void> {
+		const loadId = ++this._sectionLoadId;
 		this.currentSection = section;
 		this.updateSectionHeader();
 
@@ -769,9 +886,10 @@ export class AICustomizationListWidget extends Disposable {
 		if (!modelSection) {
 			this.currentSectionSubscription.clear();
 			this.allItems = [];
-			this.filterItems();
+			const matchCount = this.filterItems();
 			this._onDidChangeItemCount.fire(0);
 			this.updateAddButton();
+			this.announceItemCount(matchCount);
 			return;
 		}
 
@@ -784,6 +902,12 @@ export class AICustomizationListWidget extends Disposable {
 		});
 		this.updateAddButton();
 		await this.itemsModel.whenSectionLoaded(modelSection);
+		// Only announce if this is still the most recent section change; a newer
+		// setSection() call may have already taken over and will make its own
+		// announcement once its own load resolves.
+		if (loadId === this._sectionLoadId) {
+			this.announceItemCount(this.applySearchFilter(this.allItems).length);
+		}
 	}
 
 	/**
@@ -1057,6 +1181,17 @@ export class AICustomizationListWidget extends Disposable {
 			default:
 				return localize('prompt', "Prompt");
 		}
+	}
+
+	/**
+	 * Announces the current number of items (after search filtering) to
+	 * screen readers via an aria status message. Called when the section
+	 * is loaded and after the search filter changes so assistive technology
+	 * users hear the count, including "no results".
+	 */
+	private announceItemCount(count: number): void {
+		const isFiltering = this.searchQuery.trim().length > 0;
+		aria.status(getCountAnnouncement(this.currentSection, count, isFiltering));
 	}
 
 	/**

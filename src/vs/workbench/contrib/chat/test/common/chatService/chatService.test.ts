@@ -11,6 +11,7 @@ import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { constObservable, ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { mockObject } from '../../../../../../base/test/common/mock.js';
 import { assertSnapshot } from '../../../../../../base/test/common/snapshot.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
@@ -24,7 +25,7 @@ import { ServiceCollection } from '../../../../../../platform/instantiation/comm
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
-import { IStorageService, StorageScope } from '../../../../../../platform/storage/common/storage.js';
+import { IStorageService, StorageScope, WillSaveStateReason } from '../../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IUserDataProfilesService, toUserDataProfile } from '../../../../../../platform/userDataProfile/common/userDataProfile.js';
@@ -59,6 +60,7 @@ import { MockChatService } from './mockChatService.js';
 import { ChatSessionOptionsMap, IChatSession, IChatSessionHistoryItem, IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { MockChatSessionsService } from '../mockChatSessionsService.js';
 import { AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING, COPILOT_SKILL_URI_SCHEME, TROUBLESHOOT_SKILL_PATH } from '../../../common/promptSyntax/promptTypes.js';
+import { ChatRequestSlashPromptPart } from '../../../common/requestParser/chatParserTypes.js';
 
 const chatAgentWithUsedContextId = 'ChatProviderWithUsedContext';
 const chatAgentWithUsedContext: IChatAgent = {
@@ -187,6 +189,7 @@ suite('ChatService', () => {
 		instantiationService.stub(IChatSlashCommandService, testDisposables.add(instantiationService.createInstance(ChatSlashCommandService)));
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(IChatService, new MockChatService());
+		instantiationService.stub(IChatSessionsService, new MockChatSessionsService());
 		instantiationService.stub(IEnvironmentService, { workspaceStorageHome: URI.file('/test/path/to/workspaceStorage') });
 		instantiationService.stub(ILifecycleService, { onWillShutdown: Event.None });
 		instantiationService.stub(IWorkspaceEditingService, { onDidEnterWorkspace: Event.None });
@@ -1123,6 +1126,148 @@ suite('ChatService', () => {
 			]
 		);
 	});
+
+	test('sendRequest passes agent host session capabilities to the request parser', async () => {
+		const sessionType = 'agent-host-copilot';
+		const sessionResource = URI.from({ scheme: sessionType, path: '/session' });
+
+		const mockSessionsService = new MockChatSessionsService();
+		mockSessionsService.setContributions([{
+			type: sessionType,
+			name: 'Agent Host',
+			displayName: 'Agent Host',
+			description: 'Agent Host',
+			capabilities: { supportsPromptAttachments: true },
+		}]);
+		testDisposables.add(mockSessionsService.registerChatSessionContentProvider(sessionType, {
+			provideChatSessionContent: resource => Promise.resolve({
+				sessionResource: resource,
+				history: [],
+				onWillDispose: Event.None,
+				dispose: () => { },
+			}),
+		}));
+		instantiationService.stub(IChatSessionsService, mockSessionsService);
+
+		const promptsService = mockObject<IPromptsService>()({ _serviceBrand: undefined });
+		promptsService.isValidSlashCommandName.callsFake((command: string) => command === 'skill');
+		instantiationService.stub(IPromptsService, promptsService);
+
+		testDisposables.add(chatAgentService.registerAgent(sessionType, { ...getAgentData(sessionType), isDefault: true }));
+		testDisposables.add(chatAgentService.registerAgentImplementation(sessionType, { async invoke() { return {}; } }));
+
+		const testService = createChatService();
+		const ref = await testService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
+		assert.ok(ref);
+		testDisposables.add(ref);
+
+		const response = await testService.sendRequest(sessionResource, '/skill plan', { agentId: sessionType });
+		ChatSendResult.assertSent(response);
+		await response.data.responseCompletePromise;
+
+		const model = testService.getSession(sessionResource) as ChatModel;
+		assert.deepStrictEqual(model.getRequests()[0].message.parts.map(part => ({
+			type: part.constructor.name,
+			text: part instanceof ChatRequestSlashPromptPart ? part.name : undefined,
+		})), [
+			{ type: 'ChatRequestAgentPart', text: undefined },
+			{ type: 'ChatRequestTextPart', text: undefined },
+			{ type: 'ChatRequestSlashPromptPart', text: 'skill' },
+			{ type: 'ChatRequestTextPart', text: undefined },
+		]);
+	});
+
+	test('sendRequest with agentIdSilent passes agent host session capabilities to the request parser', async () => {
+		const sessionType = 'agent-host-copilot';
+		const sessionResource = URI.from({ scheme: sessionType, path: '/session-silent' });
+
+		const mockSessionsService = new MockChatSessionsService();
+		mockSessionsService.setContributions([{
+			type: sessionType,
+			name: 'Agent Host',
+			displayName: 'Agent Host',
+			description: 'Agent Host',
+			capabilities: { supportsPromptAttachments: true },
+		}]);
+		testDisposables.add(mockSessionsService.registerChatSessionContentProvider(sessionType, {
+			provideChatSessionContent: resource => Promise.resolve({
+				sessionResource: resource,
+				history: [],
+				onWillDispose: Event.None,
+				dispose: () => { },
+			}),
+		}));
+		instantiationService.stub(IChatSessionsService, mockSessionsService);
+
+		const promptsService = mockObject<IPromptsService>()({ _serviceBrand: undefined });
+		promptsService.isValidSlashCommandName.callsFake((command: string) => command === 'skill');
+		instantiationService.stub(IPromptsService, promptsService);
+
+		testDisposables.add(chatAgentService.registerAgent(sessionType, { ...getAgentData(sessionType), isDefault: true }));
+		testDisposables.add(chatAgentService.registerAgentImplementation(sessionType, { async invoke() { return {}; } }));
+
+		const testService = createChatService();
+		const ref = await testService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
+		assert.ok(ref);
+		testDisposables.add(ref);
+
+		const response = await testService.sendRequest(sessionResource, '/skill plan', { agentIdSilent: sessionType });
+		ChatSendResult.assertSent(response);
+		await response.data.responseCompletePromise;
+
+		const model = testService.getSession(sessionResource) as ChatModel;
+		assert.deepStrictEqual(model.getRequests()[0].message.parts.map(part => ({
+			type: part.constructor.name,
+			text: part instanceof ChatRequestSlashPromptPart ? part.name : undefined,
+		})), [
+			{ type: 'ChatRequestSlashPromptPart', text: 'skill' },
+			{ type: 'ChatRequestTextPart', text: undefined },
+		]);
+	});
+
+	test('loadRemoteSession passes agent host session capabilities to the request parser', async () => {
+		const sessionType = 'agent-host-copilot';
+		const sessionResource = URI.from({ scheme: sessionType, path: '/session-with-history' });
+
+		const mockSessionsService = new MockChatSessionsService();
+		mockSessionsService.setContributions([{
+			type: sessionType,
+			name: 'Agent Host',
+			displayName: 'Agent Host',
+			description: 'Agent Host',
+			capabilities: { supportsPromptAttachments: true },
+		}]);
+		testDisposables.add(mockSessionsService.registerChatSessionContentProvider(sessionType, {
+			provideChatSessionContent: resource => Promise.resolve({
+				sessionResource: resource,
+				history: [{ type: 'request', prompt: '/skill plan', participant: sessionType }],
+				onWillDispose: Event.None,
+				dispose: () => { },
+			}),
+		}));
+		instantiationService.stub(IChatSessionsService, mockSessionsService);
+
+		const promptsService = mockObject<IPromptsService>()({ _serviceBrand: undefined });
+		promptsService.isValidSlashCommandName.callsFake((command: string) => command === 'skill');
+		instantiationService.stub(IPromptsService, promptsService);
+
+		testDisposables.add(chatAgentService.registerAgent(sessionType, { ...getAgentData(sessionType), isDefault: true }));
+		testDisposables.add(chatAgentService.registerAgentImplementation(sessionType, { async invoke() { return {}; } }));
+
+		const testService = createChatService();
+		const ref = await testService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
+		assert.ok(ref);
+		testDisposables.add(ref);
+
+		assert.deepStrictEqual(ref.object.getRequests()[0].message.parts.map(part => ({
+			type: part.constructor.name,
+			text: part instanceof ChatRequestSlashPromptPart ? part.name : undefined,
+		})), [
+			{ type: 'ChatRequestSlashPromptPart', text: 'skill' },
+			{ type: 'ChatRequestTextPart', text: undefined },
+		]);
+	});
+
 	test('troubleshoot skill via attachedContext is blocked when fileLogging.enabled is off', async () => {
 		const configService = instantiationService.get(IConfigurationService) as TestConfigurationService;
 		await configService.setUserConfiguration(AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING, false);
@@ -1595,6 +1740,34 @@ suite('ChatService', () => {
 			const restored = model2.inputModel.state.get();
 			assert.strictEqual(restored?.inputText, 'unsent draft', 'Input text should be restored');
 		});
+	});
+
+	test('onWillSaveState persists session index synchronously so it survives reload', async () => {
+		const testService = createChatService();
+		const storageService = instantiationService.get(IStorageService) as TestStorageService;
+
+		// Create a session with a request so it qualifies for persistence
+		const ref = testService.startNewLocalSession(ChatAgentLocation.Chat);
+		const model = ref.object as ChatModel;
+		model.addRequest({ parts: [], text: 'hello world' }, { variables: [] }, 0);
+
+		// Simulate what the storage service does before shutdown:
+		// fire onWillSaveState synchronously, then flush.
+		storageService.testEmitWillSaveState(WillSaveStateReason.SHUTDOWN);
+
+		// Create a second ChatService from the same storage (simulating
+		// window reload). The session must be discoverable in history
+		// IMMEDIATELY — no async work from the first service needs to
+		// have completed.
+		const testService2 = createChatService();
+		const historyItems = await testService2.getHistorySessionItems();
+		assert.ok(
+			historyItems.some(item => item.sessionResource.toString() === model.sessionResource.toString()),
+			`Session ${model.sessionResource} should appear in history after onWillSaveState. Got: ${historyItems.map(i => i.sessionResource.toString()).join(', ')}`
+		);
+
+		// Clean up
+		ref.dispose();
 	});
 });
 

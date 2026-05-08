@@ -293,6 +293,12 @@ export interface ICustomAgent {
 	 * Optional session types that describe when this agent should be offered.
 	 */
 	readonly sessionTypes?: readonly string[];
+
+	/**
+	 * Whether this agent is enabled. Disabled agents are included in the list
+	 * but should not be offered to users or used in automated flows.
+	 */
+	readonly enabled: boolean;
 }
 
 export interface IAgentInstructions {

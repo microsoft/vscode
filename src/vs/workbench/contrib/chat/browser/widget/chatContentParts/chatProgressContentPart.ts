@@ -22,14 +22,12 @@ import { IChatContentPart, IChatContentPartRenderContext } from './chatContentPa
 import { getToolApprovalMessage } from './toolInvocationParts/chatToolPartUtilities.js';
 import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
 import { AccessibilityWorkbenchSettingId } from '../../../../accessibility/browser/accessibilityConfiguration.js';
-import { ChatConfiguration } from '../../../common/constants.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { HoverStyle } from '../../../../../../base/browser/ui/hover/hover.js';
 import { ILanguageModelToolsService } from '../../../common/tools/languageModelToolsService.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
-import { buildPhrasePool, defaultThinkingMessages } from './chatThinkingContentPart.js';
+import { buildPhrasePool, defaultThinkingMessages, maybePickFunWorkingMessage } from './chatThinkingContentPart.js';
 
 export class ChatProgressContentPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
@@ -167,6 +165,41 @@ export class ChatProgressSubPart extends Disposable {
 	}
 }
 
+/**
+ * Picks a working-progress label, debounced per response so rapid
+ * re-instantiations during streaming reuse the previous label instead of
+ * flickering. Each response gets its own dwell window keyed by
+ * `element.id`; stale entries are pruned opportunistically on each call.
+ */
+const WORKING_LABEL_MIN_DWELL_MS = 1200;
+const lastPickedWorkingLabelByElement = new Map<string, { label: string; pickedAt: number }>();
+
+function pickWorkingLabel(elementId: string, configurationService: IConfigurationService): string {
+	const now = Date.now();
+
+	// Prune entries older than the dwell window. The map only holds entries
+	// for actively-streaming responses, so this stays small.
+	for (const [id, entry] of lastPickedWorkingLabelByElement) {
+		if (now - entry.pickedAt >= WORKING_LABEL_MIN_DWELL_MS) {
+			lastPickedWorkingLabelByElement.delete(id);
+		}
+	}
+
+	const existing = lastPickedWorkingLabelByElement.get(elementId);
+	if (existing && now - existing.pickedAt < WORKING_LABEL_MIN_DWELL_MS) {
+		existing.pickedAt = now;
+		return existing.label;
+	}
+
+	const fun = maybePickFunWorkingMessage();
+	const label = fun ?? (() => {
+		const pool = buildPhrasePool(defaultThinkingMessages, configurationService);
+		return pool[Math.floor(Math.random() * pool.length)];
+	})();
+	lastPickedWorkingLabelByElement.set(elementId, { label, pickedAt: now });
+	return label;
+}
+
 export class ChatWorkingProgressContentPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
 	private readonly labelElement: HTMLElement;
@@ -184,18 +217,10 @@ export class ChatWorkingProgressContentPart extends Disposable implements IChatC
 		@IChatMarkdownAnchorService chatMarkdownAnchorService: IChatMarkdownAnchorService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@ILanguageModelToolsService languageModelToolsService: ILanguageModelToolsService,
-		@IAccessibilityService accessibilityService: IAccessibilityService,
 	) {
 		super();
 		this.explicitContent = workingProgress.content;
-		const persistentProgressEnabled = configurationService.getValue<boolean>(ChatConfiguration.ChatPersistentProgressEnabled) !== false
-			&& (configurationService.getValue<boolean>(ChatConfiguration.ProgressBorder) !== true || accessibilityService.isMotionReduced());
-		if (persistentProgressEnabled) {
-			const pool = buildPhrasePool(defaultThinkingMessages, configurationService);
-			this.label = pool[Math.floor(Math.random() * pool.length)];
-		} else {
-			this.label = localize('workingMessage', "Working");
-		}
+		this.label = pickWorkingLabel(context.element.id, configurationService);
 
 		// Build the DOM
 		this.domNode = $('.progress-container');

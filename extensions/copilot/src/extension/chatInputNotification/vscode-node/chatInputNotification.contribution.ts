@@ -28,15 +28,17 @@ interface IQuotaWarning {
  * Listens to {@link IChatQuotaService.onDidChange} and determines whether a
  * new threshold has been crossed, then shows the highest-priority notification:
  *
- * 1. **Quota exhausted** — error, not auto-dismissed, only dismissible via X.
- * 2. **Quota approaching** — info/warning, auto-dismissed on next message.
- * 3. **Rate-limit warning** — info/warning, auto-dismissed on next message.
+ * 1. **Quota exhausted** — info, not auto-dismissed, only dismissible via X.
+ * 2. **Quota approaching** — info, auto-dismissed on next message.
+ * 3. **Rate-limit warning** — info, auto-dismissed on next message.
  */
 export class ChatInputNotificationContribution extends Disposable {
 
 	private _notification: vscode.ChatInputNotification | undefined;
 	/** Tracks whether the current notification is the quota-exhausted variant. */
 	private _showingExhausted = false;
+	/** Whether a copilot token was present on the last {@link _update} call. */
+	private _hadCopilotToken = false;
 
 	private readonly _shownQuotaThresholds = new Set<number>();
 	private readonly _shownSessionThresholds = new Set<number>();
@@ -56,14 +58,24 @@ export class ChatInputNotificationContribution extends Disposable {
 	 * to show (or whether to hide).
 	 */
 	private _update(): void {
-		// Priority 1: Quota exhausted — sticky error notification
+		const hasCopilotToken = !!this._authService.copilotToken;
+		const wasSignedIn = this._hadCopilotToken;
+		this._hadCopilotToken = hasCopilotToken;
+
+		// Detect signed-in → signed-out transition: clear thresholds and hide.
+		if (wasSignedIn && !hasCopilotToken) {
+			this._shownQuotaThresholds.clear();
+			this._shownSessionThresholds.clear();
+			this._shownWeeklyThresholds.clear();
+			this._hideNotification();
+			this._showingExhausted = false;
+			return;
+		}
+
+		// Priority 1: Quota exhausted — sticky info notification
 		if (this._chatQuotaService.quotaExhausted) {
-			const isAnonymous = this._authService.copilotToken?.isNoAuthUser;
-			const isFree = this._authService.copilotToken?.isFreeUser;
-			if (isAnonymous || isFree) {
-				this._showExhaustedNotification(!!isAnonymous);
-				return;
-			}
+			this._showExhaustedNotification();
+			return;
 		}
 
 		// Priority 2: Quota approaching threshold
@@ -91,7 +103,7 @@ export class ChatInputNotificationContribution extends Disposable {
 
 	private _computeQuotaWarning(): IQuotaWarning | undefined {
 		const info = this._chatQuotaService.quotaInfo;
-		if (!info || info.unlimited || info.additionalUsageEnabled) {
+		if (!info || info.unlimited) {
 			return undefined;
 		}
 		return this._checkThreshold(info, this._shownQuotaThresholds);
@@ -148,27 +160,43 @@ export class ChatInputNotificationContribution extends Disposable {
 
 	// --- Quota exhausted ---------------------------------------------------
 
-	private _showExhaustedNotification(isAnonymous: boolean): void {
+	private _showExhaustedNotification(): void {
 		const notification = this._ensureNotification();
 		this._showingExhausted = true;
 
-		notification.severity = vscode.ChatInputNotificationSeverity.Error;
+		notification.severity = vscode.ChatInputNotificationSeverity.Info;
 		notification.dismissible = true;
 		notification.autoDismissOnMessage = false;
+		notification.message = vscode.l10n.t('Credit Limit Reached');
+
+		const isAnonymous = !!this._authService.copilotToken?.isNoAuthUser;
+		const isFree = !!this._authService.copilotToken?.isFreeUser;
+		const quotaInfo = this._chatQuotaService.quotaInfo;
+		const hadOverage = quotaInfo ? quotaInfo.additionalUsageUsed > 0 : false;
 
 		if (isAnonymous) {
-			notification.message = vscode.l10n.t('Monthly Limit Reached');
-			notification.description = vscode.l10n.t("You've made the most of Copilot. Sign in to keep going.");
+			notification.description = vscode.l10n.t('Sign in to keep going.');
 			notification.actions = [
-				{ label: vscode.l10n.t('View Usage'), commandId: 'workbench.action.chat.upgradePlan' },
+				{ label: vscode.l10n.t('View Usage'), commandId: 'workbench.action.chat.openCopilotStatus' },
 				{ label: vscode.l10n.t('Sign In'), commandId: 'workbench.action.chat.triggerSetup' },
 			];
-		} else {
-			notification.message = vscode.l10n.t('Monthly Limit Reached');
-			notification.description = vscode.l10n.t("You've made the most of Copilot Free. Upgrade to keep going.");
+		} else if (isFree) {
+			notification.description = vscode.l10n.t('Upgrade to keep going.');
 			notification.actions = [
-				{ label: vscode.l10n.t('View Usage'), commandId: 'workbench.action.chat.upgradePlan' },
+				{ label: vscode.l10n.t('View Usage'), commandId: 'workbench.action.chat.openCopilotStatus' },
 				{ label: vscode.l10n.t('Upgrade'), commandId: 'workbench.action.chat.upgradePlan' },
+			];
+		} else if (hadOverage) {
+			notification.description = vscode.l10n.t('Increase your budget to keep building.');
+			notification.actions = [
+				{ label: vscode.l10n.t('View Usage'), commandId: 'workbench.action.chat.openCopilotStatus' },
+				{ label: vscode.l10n.t('Manage Budget'), commandId: 'workbench.action.chat.manageAdditionalSpend' },
+			];
+		} else {
+			notification.description = vscode.l10n.t('Manage your budget to keep building.');
+			notification.actions = [
+				{ label: vscode.l10n.t('View Usage'), commandId: 'workbench.action.chat.openCopilotStatus' },
+				{ label: vscode.l10n.t('Manage Budget'), commandId: 'workbench.action.chat.manageAdditionalSpend' },
 			];
 		}
 
@@ -181,19 +209,30 @@ export class ChatInputNotificationContribution extends Disposable {
 		const notification = this._ensureNotification();
 		this._showingExhausted = false;
 
-		const severity = warning.percentUsed >= 90
-			? vscode.ChatInputNotificationSeverity.Warning
-			: vscode.ChatInputNotificationSeverity.Info;
-
-		notification.severity = severity;
+		notification.severity = vscode.ChatInputNotificationSeverity.Info;
 		notification.dismissible = true;
 		notification.autoDismissOnMessage = true;
-		notification.message = vscode.l10n.t('Monthly Limit at {0}%', warning.percentUsed);
-		notification.description = vscode.l10n.t("You're getting the most out of Copilot \u2014 upgrade to keep going.");
-		notification.actions = [
-			{ label: vscode.l10n.t('View Usage'), commandId: 'workbench.action.chat.upgradePlan' },
-			{ label: vscode.l10n.t('Upgrade'), commandId: 'workbench.action.chat.upgradePlan' },
-		];
+		notification.message = vscode.l10n.t('Credits at {0}%', warning.percentUsed);
+
+		const isAnonymous = !!this._authService.copilotToken?.isNoAuthUser;
+		const isFree = !!this._authService.copilotToken?.isFreeUser;
+
+		if (isAnonymous || isFree) {
+			notification.description = vscode.l10n.t('Upgrade to continue past the limit.');
+			notification.actions = [
+				{ label: vscode.l10n.t('Upgrade'), commandId: 'workbench.action.chat.upgradePlan' },
+			];
+		} else if (this._chatQuotaService.additionalUsageEnabled) {
+			notification.description = vscode.l10n.t('Additional budget is covering extra usage.');
+			notification.actions = [
+				{ label: vscode.l10n.t('View Usage'), commandId: 'workbench.action.chat.openCopilotStatus' },
+			];
+		} else {
+			notification.description = vscode.l10n.t('Set additional budget to cover extra usage.');
+			notification.actions = [
+				{ label: vscode.l10n.t('Manage Budget'), commandId: 'workbench.action.chat.manageAdditionalSpend' },
+			];
+		}
 
 		notification.show();
 	}
@@ -205,11 +244,7 @@ export class ChatInputNotificationContribution extends Disposable {
 		this._showingExhausted = false;
 
 		const dateStr = this._formatResetDate(warning.resetDate);
-		const severity = warning.percentUsed >= 90
-			? vscode.ChatInputNotificationSeverity.Warning
-			: vscode.ChatInputNotificationSeverity.Info;
-
-		notification.severity = severity;
+		notification.severity = vscode.ChatInputNotificationSeverity.Info;
 		notification.dismissible = true;
 		notification.autoDismissOnMessage = true;
 

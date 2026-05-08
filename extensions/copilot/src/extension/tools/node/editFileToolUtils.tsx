@@ -6,7 +6,9 @@
 import { t } from '@vscode/l10n';
 import { realpath } from 'fs/promises';
 import { homedir } from 'os';
+import * as path from 'path';
 import type { LanguageModelChat, PreparedToolInvocation } from 'vscode';
+import { ToolName } from '../common/toolNames';
 import { IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { ICustomInstructionsService } from '../../../platform/customInstructions/common/customInstructionsService';
 import { IDiffService } from '../../../platform/diff/common/diffService';
@@ -668,7 +670,7 @@ export async function applyEdit(
 
 			if (updatedFile === originalFile) {
 				throw new NoChangeError(
-					'Original and edited file match exactly. Failed to apply edit. Use the ${ToolName.ReadFile} tool to re-read the file and and determine the correct edit.',
+					`Original and edited file match exactly. Failed to apply edit. Use the ${ToolName.ReadFile} tool to re-read the file and determine the correct edit.`,
 					filePath
 				);
 			}
@@ -892,7 +894,29 @@ export function makeUriConfirmationChecker(configuration: IConfigurationService,
 		const toCheck = [normalizePath(uri)];
 		if (uri.scheme === Schemas.file) {
 			try {
-				const linked = await realpath(uri.fsPath);
+				let linked: string;
+				try {
+					linked = await realpath(uri.fsPath);
+				} catch (e) {
+					if ((e as NodeJS.ErrnoException).code === 'ENOENT') {
+						// File doesn't exist yet (e.g. CreateFileTool case) — resolve the
+						// parent directory so symlinked parents are still checked.
+						const parentDir = path.dirname(uri.fsPath);
+						try {
+							const resolvedParent = await realpath(parentDir);
+							linked = path.join(resolvedParent, path.basename(uri.fsPath));
+						} catch (parentError) {
+							const code = (parentError as NodeJS.ErrnoException).code;
+							if (code === 'ENOENT' || code === 'ENOTDIR') {
+								linked = uri.fsPath;
+							} else {
+								throw parentError;
+							}
+						}
+					} else {
+						throw e;
+					}
+				}
 				assertPathIsSafe(linked);
 
 				if (linked !== uri.fsPath) {
@@ -902,7 +926,7 @@ export function makeUriConfirmationChecker(configuration: IConfigurationService,
 				if ((e as NodeJS.ErrnoException).code === 'EPERM') {
 					return ConfirmationCheckResult.NoPermissions;
 				}
-				// Usually EPERM or ENOENT on the linkedFile
+				// Usually EPERM on the linkedFile
 			}
 		}
 
@@ -910,7 +934,7 @@ export function makeUriConfirmationChecker(configuration: IConfigurationService,
 	};
 }
 
-export async function createEditConfirmation(accessor: ServicesAccessor, uris: readonly URI[], allowedUris: ResourceSet | undefined, detailMessage?: (urisNeedingConfirmation: readonly URI[]) => Promise<string>, forceConfirmationReason?: string, getWorkspaceFolder?: (resource: URI) => URI | undefined): Promise<PreparedToolInvocation> {
+export async function createEditConfirmation(accessor: ServicesAccessor, uris: readonly URI[], allowedUris: ResourceSet | undefined, detailMessage?: (urisNeedingConfirmation: readonly URI[]) => Promise<string>, forceConfirmationReason?: string, getWorkspaceFolder?: (resource: URI) => URI | undefined, workingDirectory?: URI): Promise<PreparedToolInvocation> {
 	// If forceConfirmationReason is provided, require confirmation for all URIs
 	if (forceConfirmationReason) {
 		const details = detailMessage ? await detailMessage(uris) : undefined;
@@ -925,7 +949,16 @@ export async function createEditConfirmation(accessor: ServicesAccessor, uris: r
 	}
 
 	const workspaceService = accessor.get(IWorkspaceService);
-	getWorkspaceFolder = getWorkspaceFolder ?? workspaceService.getWorkspaceFolder.bind(workspaceService);
+	// When workingDirectory is set (agents window), use it exclusively for determining
+	// whether a file is inside the workspace. Only fall back to workspace folders otherwise.
+	if (!getWorkspaceFolder) {
+		if (workingDirectory) {
+			getWorkspaceFolder = (resource: URI) =>
+				extUriBiasedIgnorePathCase.isEqualOrParent(resource, workingDirectory) ? workingDirectory : undefined;
+		} else {
+			getWorkspaceFolder = workspaceService.getWorkspaceFolder.bind(workspaceService);
+		}
+	}
 	const checker = makeUriConfirmationChecker(accessor.get(IConfigurationService), getWorkspaceFolder, accessor.get(ICustomInstructionsService));
 	const needsConfirmation = (await Promise.all(uris
 		.map(async uri => ({ uri, reason: await checker(uri) }))

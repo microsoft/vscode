@@ -6,6 +6,7 @@
 import * as vscode from 'vscode';
 import { ChatExtendedRequestHandler } from 'vscode';
 import { PermissionMode } from '@anthropic-ai/claude-agent-sdk';
+import { IChatQuotaService } from '../../../platform/chat/common/chatQuotaService';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { INativeEnvService } from '../../../platform/env/common/envService';
 import { getGitHubRepoInfoFromContext, IGitService } from '../../../platform/git/common/gitService';
@@ -22,12 +23,12 @@ import { IInstantiationService } from '../../../util/vs/platform/instantiation/c
 import { ClaudeFolderInfo } from '../claude/common/claudeFolderInfo';
 import { ClaudeSessionUri } from '../claude/common/claudeSessionUri';
 import { ClaudeAgentManager } from '../claude/node/claudeCodeAgent';
-import { CLAUDE_REASONING_EFFORT_PROPERTY, IClaudeCodeModels } from '../claude/node/claudeCodeModels';
+import { CLAUDE_REASONING_EFFORT_PROPERTY, formatClaudeModelDetails, IClaudeCodeModels, pickReasoningEffort } from '../claude/node/claudeCodeModels';
 import { IClaudeCodeSdkService } from '../claude/node/claudeCodeSdkService';
 import { parseClaudeModelId } from '../claude/node/claudeModelId';
 import { IClaudeSessionStateService } from '../claude/common/claudeSessionStateService';
 import { IClaudeCodeSessionService } from '../claude/node/sessionParser/claudeCodeSessionService';
-import { IClaudeCodeSessionInfo } from '../claude/node/sessionParser/claudeSessionSchema';
+import { IClaudeCodeSessionInfo, IClaudeCodeSession, SYNTHETIC_MODEL_ID } from '../claude/node/sessionParser/claudeSessionSchema';
 import { IClaudeSlashCommandService } from '../claude/vscode-node/claudeSlashCommandService';
 import { IChatFolderMruService } from '../common/folderRepositoryManager';
 import { builtinSlashCommands } from '../common/builtinSlashCommands';
@@ -81,7 +82,9 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 		@IClaudeSessionStateService private readonly sessionStateService: IClaudeSessionStateService,
 		@IClaudeSlashCommandService private readonly slashCommandService: IClaudeSlashCommandService,
 		@IClaudeCodeModels private readonly claudeModels: IClaudeCodeModels,
-		@IInstantiationService instantiationService: IInstantiationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IChatQuotaService private readonly _chatQuotaService: IChatQuotaService,
 	) {
 		super();
 		this._controller = this._register(instantiationService.createInstance(ClaudeChatSessionItemController));
@@ -139,8 +142,13 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 			this.sessionStateService.setPermissionModeForSession(effectiveSessionId, permissionMode);
 			this.sessionStateService.setFolderInfoForSession(effectiveSessionId, folderInfo);
 
+			// Resolve the endpoint once and reuse it for both reasoning effort
+			// and the response footer details — they otherwise both call
+			// `resolveEndpoint` (which hits the cached endpoint list, then
+			// re-filters), which is wasted work and risks divergence.
+			const endpoint = await this.claudeModels.resolveEndpoint(modelId.toEndpointModelId(), undefined);
 			const rawReasoningEffort = request.modelConfiguration?.[CLAUDE_REASONING_EFFORT_PROPERTY];
-			const reasoningEffort = await this.claudeModels.resolveReasoningEffort(modelId, rawReasoningEffort);
+			const reasoningEffort = pickReasoningEffort(endpoint, typeof rawReasoningEffort === 'string' ? rawReasoningEffort : undefined);
 			this.sessionStateService.setReasoningEffortForSession(effectiveSessionId, reasoningEffort);
 
 			// Set usage handler to report token usage for context window widget
@@ -148,15 +156,41 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 				stream.usage(usage);
 			});
 
-			const prompt = request.prompt;
-			await this._controller.updateItemStatus(effectiveSessionId, vscode.ChatSessionStatus.InProgress, prompt);
-			const result = await this.claudeAgentManager.handleRequest(effectiveSessionId, request, stream, token, isNewSession, yieldRequested);
-			await this._controller.updateItemStatus(effectiveSessionId, vscode.ChatSessionStatus.Completed, prompt);
+			// Set turn ID for per-turn credit tracking via chatMLFetcher
+			this._chatQuotaService.resetTurnCredits(request.id);
+			this.sessionStateService.setTurnIdForSession(effectiveSessionId, request.id);
 
-			// Clear usage handler after request completes
-			this.sessionStateService.setUsageHandlerForSession(effectiveSessionId, undefined);
+			let result: vscode.ChatResult;
+			let creditsUsed: number | undefined;
+			try {
+				const prompt = request.prompt;
+				await this._controller.updateItemStatus(effectiveSessionId, vscode.ChatSessionStatus.InProgress, prompt);
+				result = await this.claudeAgentManager.handleRequest(effectiveSessionId, request, stream, token, isNewSession, yieldRequested);
+				await this._controller.updateItemStatus(effectiveSessionId, vscode.ChatSessionStatus.Completed, prompt);
+			} finally {
+				// Clear usage handler and turn ID after request completes (even on error/cancellation)
+				this.sessionStateService.setUsageHandlerForSession(effectiveSessionId, undefined);
+				this.sessionStateService.setTurnIdForSession(effectiveSessionId, undefined);
+				creditsUsed = this._chatQuotaService.getCreditsForTurn(request.id);
+				this._chatQuotaService.resetTurnCredits(request.id);
+			}
 
-			return result.errorDetails ? { errorDetails: result.errorDetails } : {};
+			const modelDetailsEnabled = this.configurationService.getConfig(ConfigKey.Advanced.CLIModelDetailsEnabled);
+			let details: string | undefined;
+			if (modelDetailsEnabled && endpoint) {
+				if (creditsUsed !== undefined) {
+					const formatted = creditsUsed % 1 === 0 ? creditsUsed.toString() : creditsUsed.toFixed(1);
+					details = creditsUsed === 1
+						? vscode.l10n.t('{0} \u2022 {1} credit', endpoint.name, formatted)
+						: vscode.l10n.t('{0} \u2022 {1} credits', endpoint.name, formatted);
+				} else {
+					details = formatClaudeModelDetails(endpoint);
+				}
+			}
+			return {
+				...(details ? { details } : {}),
+				...(result.errorDetails ? { errorDetails: result.errorDetails } : {}),
+			};
 		};
 	}
 
@@ -164,8 +198,10 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 
 	async provideChatSessionContent(sessionResource: vscode.Uri, token: vscode.CancellationToken, context?: { readonly inputState: vscode.ChatSessionInputState }): Promise<vscode.ChatSession> {
 		const existingSession = await this.sessionService.getSession(sessionResource, token);
+		const modelDetailsEnabled = this.configurationService.getConfig(ConfigKey.Advanced.CLIModelDetailsEnabled);
+		const detailsByModelId = existingSession && modelDetailsEnabled ? await this._buildModelDetailsLookup(existingSession, token) : undefined;
 		const history = existingSession ?
-			buildChatHistory(existingSession) :
+			buildChatHistory(existingSession, detailsByModelId ? id => detailsByModelId.get(id) : undefined) :
 			[];
 
 		const options: Record<string, string | vscode.ChatSessionProviderOptionItem> = {};
@@ -187,6 +223,44 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 			requestHandler: undefined,
 			options,
 		};
+	}
+
+	/**
+	 * Resolves the display string for each unique non-synthetic model id observed in the
+	 * session's assistant messages. Returns `undefined` (not an empty map) when no model
+	 * ids are present, when the caller has cancelled, or when no ids resolve to known
+	 * endpoints — so callers can skip the per-turn details work entirely.
+	 */
+	private async _buildModelDetailsLookup(session: IClaudeCodeSession, token: vscode.CancellationToken): Promise<Map<string, string> | undefined> {
+		if (token.isCancellationRequested) {
+			return undefined;
+		}
+		const modelIds = new Set<string>();
+		for (const msg of session.messages) {
+			if (msg.type === 'assistant' && msg.message.role === 'assistant') {
+				const model = msg.message.model;
+				if (model && model !== SYNTHETIC_MODEL_ID) {
+					modelIds.add(model);
+				}
+			}
+		}
+		if (modelIds.size === 0) {
+			return undefined;
+		}
+		const detailsByModelId = new Map<string, string>();
+		await Promise.all([...modelIds].map(async modelId => {
+			if (token.isCancellationRequested) {
+				return;
+			}
+			const endpoint = await this.claudeModels.resolveEndpoint(modelId, undefined);
+			if (endpoint) {
+				detailsByModelId.set(modelId, formatClaudeModelDetails(endpoint));
+			}
+		}));
+		if (token.isCancellationRequested) {
+			return undefined;
+		}
+		return detailsByModelId.size > 0 ? detailsByModelId : undefined;
 	}
 }
 

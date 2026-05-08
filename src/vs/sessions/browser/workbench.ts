@@ -56,6 +56,7 @@ import { NotificationsCenter } from '../../workbench/browser/parts/notifications
 import { NotificationsAlerts } from '../../workbench/browser/parts/notifications/notificationsAlerts.js';
 import { NotificationsStatus } from '../../workbench/browser/parts/notifications/notificationsStatus.js';
 import { registerNotificationCommands } from '../../workbench/browser/parts/notifications/notificationsCommands.js';
+import { CommandsRegistry } from '../../platform/commands/common/commands.js';
 import { NotificationsToasts } from '../../workbench/browser/parts/notifications/notificationsToasts.js';
 import { IMarkdownRendererService } from '../../platform/markdown/browser/markdownRenderer.js';
 import { EditorMarkdownCodeBlockRenderer } from '../../editor/browser/widget/markdownRenderer/browser/editorMarkdownCodeBlockRenderer.js';
@@ -73,6 +74,7 @@ import { MobileNavigationStack } from './mobileNavigationStack.js';
 import { MobileTitlebarPart } from './parts/mobile/mobileTitlebarPart.js';
 import { autorun } from '../../base/common/observable.js';
 import { ISessionsManagementService } from '../services/sessions/common/sessionsManagement.js';
+import { ISessionsSetUpService } from './sessionsSetUpService.js';
 
 //#region Workbench Options
 
@@ -122,6 +124,8 @@ export interface IAgentWorkbenchLayoutService extends IWorkbenchLayoutService {
 }
 
 export const IAgentWorkbenchLayoutService = refineServiceDecorator<IWorkbenchLayoutService, IAgentWorkbenchLayoutService>(IWorkbenchLayoutService);
+
+export const CLOSE_MOBILE_SIDEBAR_DRAWER_COMMAND_ID = 'sessions.closeMobileSidebarDrawer';
 
 export class Workbench extends Disposable implements IAgentWorkbenchLayoutService {
 
@@ -279,6 +283,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 
 	private _editorMaximized = false;
 	private _editorLastNonMaximizedVisibility: IPartVisibilityState | undefined;
+	private _restoreAttachedEditorMaximizedOnShow = false;
 
 	private readonly restoredPromise = new DeferredPromise<void>();
 	readonly whenRestored = this.restoredPromise.p;
@@ -518,6 +523,15 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 	}
 
 	private registerListeners(lifecycleService: ILifecycleService, storageService: IStorageService, configurationService: IConfigurationService, hostService: IHostService, dialogService: IDialogService): void {
+		// Command: close the mobile sidebar drawer (no-op outside phone layout).
+		// Routes through the proper close path so the mobile nav/history stack
+		// stays in sync (avoids extra Android back-button presses).
+		this._register(CommandsRegistry.registerCommand(CLOSE_MOBILE_SIDEBAR_DRAWER_COMMAND_ID, () => {
+			if (this.layoutPolicy.viewportClass.get() === 'phone') {
+				this.closeMobileSidebarDrawer();
+			}
+		}));
+
 		// Configuration changes
 		this._register(configurationService.onDidChangeConfiguration(e => this.updateFontAliasing(e, configurationService)));
 
@@ -627,7 +641,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		const workbenchClasses = coalesce([
 			'monaco-workbench',
 			'agent-sessions-workbench',
-			LayoutClasses.SHELL_GRADIENT_BACKGROUND,
+			// LayoutClasses.SHELL_GRADIENT_BACKGROUND,
 			platformClass,
 			isWeb ? 'web' : undefined,
 			isChrome ? 'chromium' : isFirefox ? 'firefox' : isSafari ? 'safari' : undefined,
@@ -678,9 +692,12 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 			this.toggleMobileSidebarDrawer();
 		}));
 
-		// New session: open new chat view
+		// New session: open new chat view and dismiss the sidebar drawer
+		// so the new session view becomes visible. createMobileTitlebar() is
+		// only invoked in phone layout, so closing the drawer here is safe.
 		this.mobileTopBarDisposables.add(mobileTitlebar.onDidClickNewSession(() => {
 			this.sessionsManagementService.openNewSessionView();
+			this.closeMobileSidebarDrawer();
 		}));
 	}
 
@@ -888,12 +905,14 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 
 			if (!this.partVisibility.editor) {
 				this.setEditorHidden(false);
+				this.restoreAttachedEditorMaximizedState();
 			}
 		}));
 
 		// Hide editor part when last editor closes
 		this._register(this.editorService.onDidCloseEditor(() => {
 			if (this.partVisibility.editor && this.areAllGroupsEmpty()) {
+				this.rememberAttachedEditorMaximizedState();
 				this.setEditorHidden(true);
 			}
 		}));
@@ -918,6 +937,19 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 			}
 		}
 		return true;
+	}
+
+	private rememberAttachedEditorMaximizedState(): void {
+		this._restoreAttachedEditorMaximizedOnShow = this._editorMaximized && this.partVisibility.auxiliaryBar;
+	}
+
+	private restoreAttachedEditorMaximizedState(): void {
+		const shouldRestore = this._restoreAttachedEditorMaximizedOnShow && this.partVisibility.auxiliaryBar;
+		this._restoreAttachedEditorMaximizedOnShow = false;
+
+		if (shouldRestore) {
+			this.setEditorMaximized(true);
+		}
 	}
 
 	private registerLayoutListeners(): void {
@@ -1024,8 +1056,10 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		}));
 	}
 
-	createWorkbenchManagement(_instantiationService: IInstantiationService): void {
-		// No floating toolbars in this layout
+	createWorkbenchManagement(instantiationService: IInstantiationService): void {
+		// Welcome — must be created early in layout so the widget can gate
+		// other UI until sign-in / chat setup is complete.
+		instantiationService.invokeFunction(accessor => accessor.get(ISessionsSetUpService));
 	}
 
 	/**
@@ -1469,6 +1503,10 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 	private setAuxiliaryBarHidden(hidden: boolean): void {
 		if (this.partVisibility.auxiliaryBar === !hidden) {
 			return;
+		}
+
+		if (hidden) {
+			this._restoreAttachedEditorMaximizedOnShow = false;
 		}
 
 		this.partVisibility.auxiliaryBar = !hidden;

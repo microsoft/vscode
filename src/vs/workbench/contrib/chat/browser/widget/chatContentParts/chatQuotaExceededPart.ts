@@ -63,11 +63,15 @@ export class ChatQuotaExceededPart extends Disposable implements IChatContentPar
 		dom.append(messageContainer, markdownContent.element);
 
 		let primaryButtonLabel: string | undefined;
+		const isUsageBasedBilling = chatEntitlementService.quotas.usageBasedBilling === true;
 		switch (chatEntitlementService.entitlement) {
 			case ChatEntitlement.EDU:
 			case ChatEntitlement.Pro:
 			case ChatEntitlement.ProPlus:
-				primaryButtonLabel = localize('enableAdditionalUsage', "Configure Additional Spend");
+			case ChatEntitlement.Max:
+				primaryButtonLabel = isUsageBasedBilling
+					? localize('enableAdditionalUsage', "Configure Additional Spend")
+					: localize('configureBudget', "Configure Budget");
 				break;
 			case ChatEntitlement.Free:
 				primaryButtonLabel = localize('upgradeToCopilotPro', "Upgrade to GitHub Copilot Pro");

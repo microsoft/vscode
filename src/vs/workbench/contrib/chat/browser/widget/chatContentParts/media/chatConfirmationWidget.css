@@ -22,6 +22,11 @@
 	font-size: var(--vscode-chat-font-size-body-s);
 }
 
+.chat-confirmation-widget-message {
+	-webkit-user-select: text;
+	user-select: text;
+}
+
 .chat-confirmation-widget-container .chat-confirmation-widget .chat-confirmation-widget-title {
 	width: 100%;
 	border-radius: 3px;

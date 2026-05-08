@@ -35,7 +35,7 @@ import { AgentHostSessionListController } from './agentHostSessionListController
 import { LoggingAgentConnection } from './loggingAgentConnection.js';
 import { SyncedCustomizationBundler } from './syncedCustomizationBundler.js';
 
-export { AgentHostSessionHandler, getAgentHostBranchNameHint } from './agentHostSessionHandler.js';
+export { AgentHostSessionHandler } from './agentHostSessionHandler.js';
 export { AgentHostSessionListController } from './agentHostSessionListController.js';
 
 /**
@@ -174,6 +174,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			supportsDelegation: !this._isSessionsWindow,
 			capabilities: {
 				supportsCheckpoints: true,
+				supportsPromptAttachments: true,
 			},
 		}));
 
@@ -185,7 +186,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 
 		// Customization disable provider + item provider + bundler + observable
 		const syncProvider = store.add(new AgentCustomizationSyncProvider(sessionType, this._storageService));
-		const itemProvider = store.add(new LocalAgentHostCustomizationItemProvider(this._promptsService, syncProvider));
+		const itemProvider = store.add(new LocalAgentHostCustomizationItemProvider(this._promptsService, sessionType, syncProvider));
 		const bundler = store.add(this._instantiationService.createInstance(SyncedCustomizationBundler, sessionType));
 		// Distinguish from the extension-host Copilot CLI harness, which
 		// registers under the same `Copilot CLI` displayName via the chat
@@ -207,7 +208,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 
 		const customizations = observableValue<CustomizationRef[]>('agentCustomizations', []);
 		const updateCustomizations = async () => {
-			const refs = await resolveCustomizationRefs(this._promptsService, syncProvider, this._agentPluginService, bundler);
+			const refs = await resolveCustomizationRefs(this._promptsService, syncProvider, this._agentPluginService, bundler, sessionType);
 			customizations.set(refs, undefined);
 		};
 		store.add(syncProvider.onDidChange(() => updateCustomizations()));
@@ -228,6 +229,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			description: agent.description,
 			connection: this._loggedConnection!,
 			connectionAuthority: 'local',
+			isNewSession: sessionResource => listController.isNewSession(sessionResource),
 			resolveAuthentication: (resources) => this._resolveAuthenticationInteractively(resources),
 			customizations,
 		}));

@@ -6,6 +6,7 @@
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, IReference } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
+import { IObservable, observableFromEvent } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ActionEnvelope, IRootConfigChangedAction, SessionAction, StateAction, isSessionAction } from './sessionActions.js';
 import { rootReducer, sessionReducer } from './sessionReducers.js';
@@ -499,4 +500,19 @@ export class AgentSubscriptionManager extends Disposable {
 		this._subscriptions.clear();
 		super.dispose();
 	}
+}
+
+// --- Observable Adapter ------------------------------------------------------
+
+/**
+ * Adapts an {@link IAgentSubscription} into an {@link IObservable} of the
+ * subscription's value. Errors and the pre-snapshot phase are surfaced as
+ * `undefined`; consumers that need the error itself should read
+ * {@link IAgentSubscription.value} directly.
+ */
+export function observableFromSubscription<T>(owner: object | undefined, sub: IAgentSubscription<T>): IObservable<T | undefined> {
+	return observableFromEvent(owner, sub.onDidChange, () => {
+		const v = sub.value;
+		return v instanceof Error ? undefined : v;
+	});
 }

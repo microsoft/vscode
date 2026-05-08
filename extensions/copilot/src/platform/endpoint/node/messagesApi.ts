@@ -93,6 +93,9 @@ interface AnthropicStreamEvent {
 		cache_creation_input_tokens?: number;
 		cache_read_input_tokens?: number;
 	};
+	copilot_usage?: {
+		total_nano_aiu: number;
+	};
 	context_management?: ContextManagementResponse;
 }
 
@@ -654,7 +657,13 @@ export async function processResponseFromMessagesEndpoint(
 						telemetryDataWithUsage = telemetryData.extendedBy({}, {
 							promptTokens: completion.usage.prompt_tokens,
 							completionTokens: completion.usage.completion_tokens,
-							totalTokens: completion.usage.total_tokens
+							totalTokens: completion.usage.total_tokens,
+							...(completion.usage.prompt_tokens_details && { cachedTokens: completion.usage.prompt_tokens_details.cached_tokens }),
+							...(completion.usage.completion_tokens_details && {
+								reasoningTokens: completion.usage.completion_tokens_details.reasoning_tokens,
+								acceptedPredictionTokens: completion.usage.completion_tokens_details.accepted_prediction_tokens,
+								rejectedPredictionTokens: completion.usage.completion_tokens_details.rejected_prediction_tokens,
+							}),
 						});
 					}
 					sendEngineMessagesTelemetry(telemetryService, [telemetryMessage], telemetryDataWithUsage, true, logService);
@@ -685,6 +694,7 @@ export class AnthropicMessagesProcessor {
 	private outputTokens: number = 0;
 	private cacheCreationTokens: number = 0;
 	private cacheReadTokens: number = 0;
+	private copilotUsage?: { total_nano_aiu: number };
 	private contextManagementResponse?: ContextManagementResponse;
 	private stopReason: string | undefined;
 	private stopDetails?: { category?: string; explanation?: string; type?: string };
@@ -875,6 +885,9 @@ export class AnthropicMessagesProcessor {
 					this.cacheCreationTokens = chunk.usage.cache_creation_input_tokens ?? this.cacheCreationTokens;
 					this.cacheReadTokens = chunk.usage.cache_read_input_tokens ?? this.cacheReadTokens;
 				}
+				if (chunk.copilot_usage && typeof chunk.copilot_usage.total_nano_aiu === 'number') {
+					this.copilotUsage = chunk.copilot_usage;
+				}
 				if (chunk.context_management) {
 					this.contextManagementResponse = chunk.context_management;
 					// Report context management via delta so it gets logged to request logger
@@ -1000,6 +1013,7 @@ export class AnthropicMessagesProcessor {
 							accepted_prediction_tokens: 0,
 							rejected_prediction_tokens: 0,
 						},
+						copilot_usage: this.copilotUsage,
 					},
 					finishReason,
 					message: {

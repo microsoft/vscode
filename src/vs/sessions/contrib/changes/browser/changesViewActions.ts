@@ -16,7 +16,6 @@ import { bindContextKey } from '../../../../platform/observable/common/platformO
 import { ActiveSessionContextKeys, CHANGES_VIEW_ID, ChangesContextKeys } from '../common/changes.js';
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ChangesViewPane } from './changesView.js';
 import { URI } from '../../../../base/common/uri.js';
 import { isEqual } from '../../../../base/common/resources.js';
@@ -69,35 +68,6 @@ class ChangesViewActionsContribution extends Disposable implements IWorkbenchCon
 
 registerWorkbenchContribution2(ChangesViewActionsContribution.ID, ChangesViewActionsContribution, WorkbenchPhase.AfterRestored);
 
-export class ViewAllSessionChangesAction extends Action2 {
-	static readonly ID = 'chatEditing.viewAllSessionChanges';
-
-	constructor() {
-		super({
-			id: ViewAllSessionChangesAction.ID,
-			title: localize2('chatEditing.viewAllSessionChanges', 'View All Changes'),
-			icon: Codicon.diffMultiple,
-			f1: false,
-			precondition: ChatContextKeys.hasAgentSessionChanges,
-			menu: [
-				{
-					id: MenuId.ChatEditingSessionChangesToolbar,
-					group: 'navigation',
-					order: 10,
-					when: ContextKeyExpr.false()
-				}
-			],
-		});
-	}
-
-	override async run(accessor: ServicesAccessor): Promise<void> {
-		const viewsService = accessor.get(IViewsService);
-		const view = viewsService.getViewWithId<ChangesViewPane>(CHANGES_VIEW_ID);
-		await view?.openChanges();
-	}
-}
-registerAction2(ViewAllSessionChangesAction);
-
 class OpenPullRequestAction extends Action2 {
 	static readonly ID = 'workbench.action.agentSessions.openPullRequest';
 
@@ -108,7 +78,7 @@ class OpenPullRequestAction extends Action2 {
 			icon: Codicon.gitPullRequest,
 			f1: false,
 			menu: {
-				id: MenuId.ChatEditingSessionChangesToolbar,
+				id: MenuId.AgentsChangesToolbar,
 				group: 'navigation',
 				order: 9,
 				when: ContextKeyExpr.and(

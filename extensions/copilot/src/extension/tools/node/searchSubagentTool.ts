@@ -23,7 +23,7 @@ import { Conversation, Turn } from '../../prompt/common/conversation';
 import { IBuildPromptContext } from '../../prompt/common/intents';
 import { SearchSubagentToolCallingLoop } from '../../prompt/node/searchSubagentToolCallingLoop';
 import { ToolName } from '../common/toolNames';
-import { CopilotToolMode, ICopilotTool, ToolRegistry } from '../common/toolsRegistry';
+import { CopilotToolMode, ICopilotTool, ICopilotToolCtor, ToolRegistry } from '../common/toolsRegistry';
 
 export interface ISearchSubagentParams {
 
@@ -88,9 +88,11 @@ class SearchSubagentTool implements ICopilotTool<ISearchSubagentParams> {
 		};
 	}
 	async invoke(options: vscode.LanguageModelToolInvocationOptions<ISearchSubagentParams>, token: vscode.CancellationToken) {
-		// Get the current working directory from workspace folders
+		// Get the current working directory — prefer the session's working directory
+		// (agents window) over the first workspace folder.
 		const workspaceFolders = this.workspaceService.getWorkspaceFolders();
-		const cwd = workspaceFolders.length > 0 ? workspaceFolders[0].fsPath : undefined;
+		const cwd = options.workingDirectory?.fsPath
+			?? (workspaceFolders.length > 0 ? workspaceFolders[0].fsPath : undefined);
 
 		const searchInstruction = [
 			`Find relevant code snippets for: ${options.input.query}`,
@@ -124,6 +126,9 @@ class SearchSubagentTool implements ICopilotTool<ISearchSubagentParams> {
 			promptText: options.input.query,
 			subAgentInvocationId: subAgentInvocationId,
 			parentToolCallId: options.chatStreamToolCallId,
+			parentHeaderRequestId: this._inputContext?.parentHeaderRequestId,
+			parentModelCallId: this._inputContext?.parentModelCallId,
+			topLevelTurnId: this._inputContext?.requestId,
 			thoroughness: thoroughnessEnabled ? options.input.thoroughness : undefined,
 		});
 
@@ -251,4 +256,14 @@ class SearchSubagentTool implements ICopilotTool<ISearchSubagentParams> {
 	}
 }
 
+/**
+ * Identical to SearchSubagentTool but registered under the `explore_subagent` name.
+ * Conditionally enabled via package.json `when` clause when the Explore agent is disabled.
+ */
+class ExploreSubagentTool extends (SearchSubagentTool as new (...args: never[]) => SearchSubagentTool) {
+	public static readonly toolName = ToolName.ExploreSubagent;
+	public static readonly nonDeferred = true;
+}
+
 ToolRegistry.registerTool(SearchSubagentTool);
+ToolRegistry.registerTool(ExploreSubagentTool as unknown as ICopilotToolCtor);

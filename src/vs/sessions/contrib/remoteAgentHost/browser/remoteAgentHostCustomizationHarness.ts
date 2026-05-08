@@ -9,7 +9,9 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { extname } from '../../../../base/common/path.js';
-import { basename } from '../../../../base/common/resources.js';
+import { basename, joinPath } from '../../../../base/common/resources.js';
+import { SKILL_FILENAME } from '../../../../workbench/contrib/chat/common/promptSyntax/config/promptFileLocations.js';
+import { PromptFileParser } from '../../../../workbench/contrib/chat/common/promptSyntax/promptFileParser.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
@@ -128,7 +130,7 @@ export class RemoteAgentPluginController extends Disposable {
 				id: 'remoteAgentHost.addPlugin',
 				label: localize('remoteAgentHost.addPlugin', "Add Remote Plugin"),
 				tooltip: localize('remoteAgentHost.addPluginTooltip', "Add a plugin folder that already exists on this remote agent host."),
-				icon: Codicon.add,
+				icon: Codicon.remote,
 				run: () => this.addConfiguredPlugin(),
 			},
 		];
@@ -279,8 +281,8 @@ export class RemoteAgentCustomizationItemProvider extends Disposable implements 
 		return toAgentHostUri(original, this._connectionAuthority);
 	}
 
-	private toBadge(customization: CustomizationRef, clientId: string | undefined): { badge?: string; badgeTooltip?: string; groupKey?: string } {
-		if (clientId !== undefined) {
+	private toBadge(customization: CustomizationRef, fromClient: boolean): { badge?: string; badgeTooltip?: string; groupKey?: string } {
+		if (fromClient) {
 			return {
 				groupKey: REMOTE_CLIENT_GROUP,
 			};
@@ -291,21 +293,22 @@ export class RemoteAgentCustomizationItemProvider extends Disposable implements 
 		};
 	}
 
-	private toItem(customization: CustomizationRef, sessionCustomization: SessionCustomization | undefined): ICustomizationItem {
-		const clientId = sessionCustomization?.clientId;
-		const badge = this.toBadge(customization, clientId);
-		const actions = clientId !== undefined
-			? undefined
-			: <const>[{
-				id: 'remoteAgentHost.removeConfiguredPlugin',
-				label: localize('remoteAgentHost.removeConfiguredPlugin', "Remove from Remote Host"),
-				icon: Codicon.trash,
-				run: () => this._controller.removeConfiguredPlugin(customization),
-			}];
+	private getRemovePluginAction(customization: CustomizationRef): ICustomizationItemAction {
+		return {
+			id: 'remoteAgentHost.removeConfiguredPlugin',
+			label: localize('remoteAgentHost.removeConfiguredPlugin', "Remove from Remote Host"),
+			icon: Codicon.trash,
+			run: () => this._controller.removeConfiguredPlugin(customization),
+		};
+	}
 
+	private toItem(customization: CustomizationRef, sessionCustomization?: SessionCustomization): ICustomizationItem {
+		const clientId = sessionCustomization?.clientId; // set if the configuration came from the client
+		const badge = this.toBadge(customization, clientId !== undefined);
+		const uri = this.toRemoteUri(customization);
 		return {
 			itemKey: customizationItemKey(customization, clientId),
-			uri: this.toRemoteUri(customization),
+			uri: uri,
 			type: 'plugin',
 			name: customization.displayName,
 			description: customization.description,
@@ -317,8 +320,9 @@ export class RemoteAgentCustomizationItemProvider extends Disposable implements 
 			badgeTooltip: badge.badgeTooltip,
 			groupKey: badge.groupKey,
 			extensionId: undefined,
-			pluginUri: undefined,
-			actions,
+			pluginUri: uri,
+			userInvocable: undefined,
+			actions: clientId === undefined ? [this.getRemovePluginAction(customization)] : undefined,
 		};
 	}
 
@@ -326,49 +330,49 @@ export class RemoteAgentCustomizationItemProvider extends Disposable implements 
 		const items = new Map<string, ICustomizationItem>();
 
 		// Build parent plugin items keyed by customization ref
-		type PluginMeta = { item: ICustomizationItem; nonce: string | undefined; status: ReturnType<typeof toStatusString>; statusMessage: string | undefined; enabled: boolean | undefined; childGroupKey?: string };
+		type PluginMeta = { item: ICustomizationItem; nonce: string | undefined; status: ReturnType<typeof toStatusString>; statusMessage: string | undefined; enabled: boolean | undefined; childGroupKey: string; isBundleItem: boolean };
 		const plugins: PluginMeta[] = [];
 
 		for (const customization of this._agentCustomizations) {
-			const item = this.toItem(customization, undefined);
+			const item = this.toItem(customization);
 			items.set(customizationItemKey(customization, undefined), item);
-			plugins.push({ item, nonce: customization.nonce, status: undefined, statusMessage: undefined, enabled: undefined, childGroupKey: REMOTE_HOST_GROUP });
+			plugins.push({ item, nonce: customization.nonce, status: undefined, statusMessage: undefined, enabled: undefined, childGroupKey: REMOTE_HOST_GROUP, isBundleItem: false });
 		}
 
 		for (const sessionCustomization of this._sessionCustomizations ?? []) {
 			const isBundleItem = isSyntheticBundle(sessionCustomization.customization);
 			const isClientSynced = sessionCustomization.clientId !== undefined;
+			const childGroupKey = isClientSynced ? REMOTE_CLIENT_GROUP : REMOTE_HOST_GROUP;
 
 			// Always show session customizations as distinct plugin entries —
 			// client-synced items appear in the "Local" group, host-owned in
 			// the "Remote" group. The synthetic bundle is an implementation
 			// detail and is not shown as a standalone entry, but is still
 			// expanded below so individual user files appear in per-type tabs.
+			let item: ICustomizationItem;
 			if (!isBundleItem) {
-				const item = this.toItem(sessionCustomization.customization, sessionCustomization);
-				items.set(
-					customizationItemKey(sessionCustomization.customization, sessionCustomization.clientId),
-					item,
-				);
+				item = this.toItem(sessionCustomization.customization, sessionCustomization);
+				items.set(customizationItemKey(sessionCustomization.customization, sessionCustomization.clientId), item);
+			} else {
+				// create a dummy parent item for the synthetic bundle, it does not go into the items map, just need it to expand.
+				item = { uri: this.toRemoteUri(sessionCustomization.customization), type: 'plugin', name: '', storage: PromptsStorage.plugin, groupKey: childGroupKey, extensionId: undefined, pluginUri: undefined };
 			}
 
 			// Always expand plugin contents so individual files are visible.
-			const childGroupKey = isClientSynced ? REMOTE_CLIENT_GROUP : REMOTE_HOST_GROUP;
 			plugins.push({
-				item: isBundleItem
-					? { uri: this.toRemoteUri(sessionCustomization.customization), type: 'plugin', name: '', storage: PromptsStorage.plugin, groupKey: childGroupKey, extensionId: undefined, pluginUri: undefined }
-					: this.toItem(sessionCustomization.customization, sessionCustomization),
+				item,
 				nonce: sessionCustomization.customization.nonce,
 				status: toStatusString(sessionCustomization.status),
 				statusMessage: sessionCustomization.statusMessage,
 				enabled: sessionCustomization.enabled,
 				childGroupKey,
+				isBundleItem,
 			});
 		}
 
 		// Expand each plugin directory in parallel to discover individual
 		// skills, agents, instructions, and prompts inside.
-		const expansions = await Promise.all(plugins.map(p => this._expandPluginContents(p.item.uri, p.nonce, p.childGroupKey ?? REMOTE_HOST_GROUP, token)));
+		const expansions = await Promise.all(plugins.map(p => this._expandPluginContents(p.item.uri, p.nonce, p.childGroupKey, p.isBundleItem, token)));
 		if (token.isCancellationRequested) {
 			return [];
 		}
@@ -396,7 +400,7 @@ export class RemoteAgentCustomizationItemProvider extends Disposable implements 
 	 *
 	 * Cached by `(uri, nonce)`; a different nonce invalidates the entry.
 	 */
-	private async _expandPluginContents(pluginUri: URI, nonce: string | undefined, groupKey: string, token: CancellationToken): Promise<readonly ICustomizationItem[]> {
+	private async _expandPluginContents(pluginUri: URI, nonce: string | undefined, groupKey: string, isBundleItem: boolean, token: CancellationToken): Promise<readonly ICustomizationItem[]> {
 		const cached = this._expansionCache.get(pluginUri);
 		if (cached && cached.nonce === nonce) {
 			return cached.children;
@@ -431,7 +435,7 @@ export class RemoteAgentCustomizationItemProvider extends Disposable implements 
 				if (!promptType) {
 					continue;
 				}
-				children.push(...this._collectFromTypeDir(stat.stat.children, promptType, groupKey));
+				children.push(...await this._collectFromTypeDir(stat.stat.children, pluginUri, promptType, groupKey, isBundleItem, token));
 			}
 			children.sort((a, b) => `${a.type}:${a.name}`.localeCompare(`${b.type}:${b.name}`));
 		} catch (err) {
@@ -449,34 +453,95 @@ export class RemoteAgentCustomizationItemProvider extends Disposable implements 
 	 * `SKILL.md`, and synced bundles may preserve per-skill
 	 * subdirectories; flat skill files can still appear for legacy
 	 * bundles, so both layouts are accepted.
+	 *
+	 * For skills, the `SKILL.md` frontmatter is read so that the item's
+	 * description (and a frontmatter-supplied name, when present) can be
+	 * surfaced — without it the UI would only show the folder name with
+	 * no description.
 	 */
-	private _collectFromTypeDir(entries: readonly { name: string; resource: URI; isDirectory: boolean }[], promptType: PromptsType, groupKey: string): ICustomizationItem[] {
-		const items: ICustomizationItem[] = [];
+	private async _collectFromTypeDir(entries: readonly { name: string; resource: URI; isDirectory: boolean }[], pluginUri: URI, promptType: PromptsType, groupKey: string, isBundleItem: boolean, token: CancellationToken): Promise<ICustomizationItem[]> {
+		type Entry = { name: string; resource: URI; isDirectory: boolean };
+		const eligible: Entry[] = [];
 		for (const child of entries) {
 			// Skip dotfiles (e.g. .DS_Store)
 			if (child.name.startsWith('.')) {
 				continue;
 			}
+			if (promptType !== PromptsType.skill && child.isDirectory) {
+				continue;
+			}
+			eligible.push(child);
+		}
+
+		const skillMetadata = promptType === PromptsType.skill
+			? await Promise.all(eligible.map(child => this._readSkillMetadata(child, token)))
+			: undefined;
+		if (token.isCancellationRequested) {
+			return [];
+		}
+
+		const items: ICustomizationItem[] = [];
+		for (let i = 0; i < eligible.length; i++) {
+			const child = eligible[i];
 			let displayName: string;
+			let description: string | undefined;
+			let uri = child.resource;
+			let userInvocable: boolean | undefined;
 			if (promptType === PromptsType.skill) {
-				displayName = child.isDirectory ? child.name : stripPromptFileExtensions(child.name);
-			} else {
+				const meta = skillMetadata![i];
+				// For folder-style skills the canonical resource for the skill
+				// is its `SKILL.md`; downstream code (slash-command resolution,
+				// chat input decorations) calls `parseNew(item.uri)` and would
+				// otherwise try to read the directory as a file. If we couldn't
+				// read `SKILL.md`, skip the entry rather than emit a URI that
+				// will fail to parse downstream.
 				if (child.isDirectory) {
-					continue;
+					if (!meta) {
+						continue;
+					}
+					uri = joinPath(child.resource, SKILL_FILENAME);
 				}
+				const fallbackName = child.isDirectory ? child.name : stripPromptFileExtensions(child.name);
+				displayName = meta?.name ?? fallbackName;
+				description = meta?.description;
+				userInvocable = meta?.userInvocable;
+			} else {
 				displayName = stripPromptFileExtensions(child.name);
 			}
 			items.push({
-				uri: child.resource,
+				uri,
 				type: promptType,
 				name: displayName,
+				description,
 				storage: PromptsStorage.plugin,
 				groupKey,
 				extensionId: undefined,
-				pluginUri: undefined,
-			});
+				pluginUri: isBundleItem ? undefined : pluginUri,
+				userInvocable
+			} satisfies ICustomizationItem);
 		}
 		return items;
+	}
+
+	/**
+	 * Reads `SKILL.md` for a skill entry and returns its frontmatter
+	 * `name` / `description`. Returns `undefined` when the file cannot
+	 * be read or parsed — the caller falls back to the folder name and
+	 * leaves the description empty.
+	 */
+	private async _readSkillMetadata(entry: { name: string; resource: URI; isDirectory: boolean }, token: CancellationToken): Promise<{ name: string | undefined; description: string | undefined; userInvocable: boolean | undefined } | undefined> {
+		const skillFileUri = entry.isDirectory ? joinPath(entry.resource, SKILL_FILENAME) : entry.resource;
+		try {
+			const content = await this._fileService.readFile(skillFileUri);
+			if (token.isCancellationRequested) {
+				return undefined;
+			}
+			const parsed = new PromptFileParser().parse(skillFileUri, content.value.toString());
+			return { name: parsed.header?.name, description: parsed.header?.description, userInvocable: parsed.header?.userInvocable };
+		} catch (err) {
+			this._logService.trace(`[RemoteAgentCustomizationItemProvider] Failed to read skill metadata ${skillFileUri.toString()}: ${err}`);
+			return undefined;
+		}
 	}
 }
 

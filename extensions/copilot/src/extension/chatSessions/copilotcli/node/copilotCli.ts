@@ -19,10 +19,12 @@ import { createServiceIdentifier } from '../../../../util/common/services';
 import { Emitter, Event } from '../../../../util/vs/base/common/event';
 import { Lazy } from '../../../../util/vs/base/common/lazy';
 import { Disposable } from '../../../../util/vs/base/common/lifecycle';
+import { ResourceSet } from '../../../../util/vs/base/common/map';
 import { basename } from '../../../../util/vs/base/common/resources';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { getCopilotLogger } from './logger';
+import { ensureNodePtyShim } from './nodePtyShim';
 import { ensureRipgrepShim } from './ripgrepShim';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
 import { getModelCapabilitiesDescription } from '../../../conversation/common/languageModelAccess';
@@ -62,6 +64,11 @@ export interface ICopilotCLIModels {
 
 export function formatModelDetails(model: CopilotCLIModelInfo): string {
 	return `${model.name}${model.multiplier ? ` • ${model.multiplier}x` : ''}`;
+}
+
+export function matchesCopilotCLIModel(model: Pick<CopilotCLIModelInfo, 'id' | 'name'>, modelId: string): boolean {
+	const normalizedModelId = modelId.trim().toLowerCase();
+	return model.id.trim().toLowerCase() === normalizedModelId || model.name.trim().toLowerCase() === normalizedModelId;
 }
 
 export const ICopilotCLISDK = createServiceIdentifier<ICopilotCLISDK>('ICopilotCLISDK');
@@ -112,7 +119,7 @@ export class CopilotCLIModels extends Disposable implements ICopilotCLIModels {
 		}
 		const models = await this.getModels();
 		modelId = modelId.trim().toLowerCase();
-		return models.find(m => m.id.toLowerCase() === modelId || m.name.toLowerCase() === modelId)?.id;
+		return models.find(m => matchesCopilotCLIModel(m, modelId))?.id;
 	}
 	public async getDefaultModel() {
 		// First item in the list is always the default model (SDK sends the list ordered based on default preference)
@@ -121,9 +128,9 @@ export class CopilotCLIModels extends Disposable implements ICopilotCLIModels {
 			return;
 		}
 		const defaultModel = models[0];
-		const preferredModelId = this.extensionContext.globalState.get<string>(COPILOT_CLI_MODEL_MEMENTO_KEY, defaultModel.id)?.trim()?.toLowerCase();
+		const preferredModelId = this.extensionContext.globalState.get<string>(COPILOT_CLI_MODEL_MEMENTO_KEY, defaultModel.id)?.trim()?.toLowerCase() ?? defaultModel.id;
 
-		return models.find(m => m.id.toLowerCase() === preferredModelId)?.id ?? defaultModel.id;
+		return models.find(m => matchesCopilotCLIModel(m, preferredModelId))?.id ?? defaultModel.id;
 	}
 
 	public async setDefaultModel(modelId: string | undefined): Promise<void> {
@@ -348,16 +355,12 @@ export class CopilotCLIAgents extends Disposable implements ICopilotCLIAgents {
 		if (agentId === COPILOT_CLI_DEFAULT_AGENT_ID) {
 			return '';
 		}
-		if (typeof agentId === 'string') {
-			return agentId;
-		}
-		const agents = await this.getAgents();
-		return agents.find(a => a.agent.name.toLowerCase() === agentId)?.agent.name;
+		return agentId;
 	}
 
 	async resolveAgent(agentId: string): Promise<SweCustomAgent | undefined> {
 		for (const customAgent of await this.promptsService.getCustomAgents(CancellationToken.None)) {
-			if (isEnabledForCopilotCLI(customAgent) && agentId === customAgent.uri.toString()) {
+			if (customAgent.enabled && isEnabledForCopilotCLI(customAgent) && agentId === customAgent.uri.toString()) {
 				return this.toCustomAgent(customAgent)?.agent;
 			}
 		}
@@ -382,19 +385,36 @@ export class CopilotCLIAgents extends Disposable implements ICopilotCLIAgents {
 
 	async getAgentsImpl(): Promise<readonly CLIAgentInfo[]> {
 		const merged = new Map<string, CLIAgentInfo>();
-		for (const agent of await this.getSDKAgents()) {
-			merged.set(agent.name.toLowerCase(), {
-				agent: this.cloneAgent(agent),
-				sourceUri: URI.from({ scheme: 'copilotcli', path: `/agents/${agent.name}` }),
-			});
-		}
-		for (const customAgent of await this.promptsService.getCustomAgents(CancellationToken.None)) {
-			if (!isEnabledForCopilotCLI(customAgent)) {
-				continue;
+		const knownAgents = new ResourceSet();
+		const [sdkAgents, customAgents] = await Promise.all([this.getSDKAgents(), this.promptsService.getCustomAgents(CancellationToken.None)]);
+		const hiddenOrInvalidAgentUris = new ResourceSet();
+		const validCustomAgents = customAgents.filter(customAgent => {
+			if (!customAgent.enabled || !isEnabledForCopilotCLI(customAgent)) {
+				hiddenOrInvalidAgentUris.add(customAgent.uri);
+				return false;
 			}
 			// Skip legacy .chatmode.md files — they are a deprecated format
 			// and should not appear in the Copilot CLI agent list.
 			if (customAgent.uri.path.toLowerCase().endsWith('.chatmode.md')) {
+				hiddenOrInvalidAgentUris.add(customAgent.uri);
+				return false;
+			}
+			return true;
+		});
+
+		for (const agent of sdkAgents) {
+			const sourceUri = agent.path ? URI.file(agent.path) : URI.from({ scheme: 'copilotcli', path: `/agents/${agent.name}` });
+			if (hiddenOrInvalidAgentUris.has(sourceUri)) {
+				continue;
+			}
+			knownAgents.add(sourceUri);
+			merged.set(agent.name.toLowerCase(), {
+				agent: this.cloneAgent(agent),
+				sourceUri,
+			});
+		}
+		for (const customAgent of validCustomAgents) {
+			if (knownAgents.has(customAgent.uri)) {
 				continue;
 			}
 			const info = this.toCustomAgent(customAgent);
@@ -514,7 +534,7 @@ export class CopilotCLISDK implements ICopilotCLISDK {
 
 	public async getPackage(): Promise<typeof import('@github/copilot/sdk')> {
 		try {
-			// Ensure the ripgrep shim exists before importing the SDK (required for CLI sessions)
+			// Ensure the node-pty and ripgrep shims exist before importing the SDK (required for CLI sessions)
 			await this._ensureShimsPromise;
 			return await import('@github/copilot/sdk');
 		} catch (error) {
@@ -551,7 +571,10 @@ export class CopilotCLISDK implements ICopilotCLISDK {
 		if (await checkFileExists(successfulPlaceholder)) {
 			return;
 		}
-		await ensureRipgrepShim(this.extensionContext.extensionPath, this.envService.appRoot, this.logService);
+		await Promise.all([
+			ensureRipgrepShim(this.extensionContext.extensionPath, this.envService.appRoot, this.logService),
+			ensureNodePtyShim(this.extensionContext.extensionPath, this.envService.appRoot, this.logService),
+		]);
 		await fs.writeFile(successfulPlaceholder, 'Shims created successfully');
 	}
 
