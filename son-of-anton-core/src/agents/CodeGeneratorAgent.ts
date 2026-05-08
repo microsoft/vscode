@@ -130,7 +130,15 @@ export class CodeGeneratorAgent extends BaseAgent {
 	 * for code edits) and `fetch_url` (out-of-scope side effect).
 	 */
 	private allowedToolDefinitions(): ReadonlyArray<ToolDefinition> {
-		const allow = new Set(['read_file', 'list_directory', 'search_workspace', 'write_file', 'run_command']);
+		const allow = new Set([
+			'read_file',
+			'list_directory',
+			'search_workspace',
+			'glob',
+			'write_file',
+			'edit_file',
+			'run_command',
+		]);
 		return BUILTIN_TOOLS
 			.filter((t: Tool) => allow.has(t.definition.name))
 			.map((t: Tool) => t.definition);
@@ -270,19 +278,41 @@ function collectFileChanges(
 ): FileChange[] {
 	const changes: FileChange[] = [];
 	for (const call of toolCalls) {
-		if (call.name !== 'write_file' || call.isError) {
+		if (call.isError) {
 			continue;
 		}
-		const path = typeof call.input['path'] === 'string' ? call.input['path'] as string : undefined;
-		const content = typeof call.input['content'] === 'string' ? call.input['content'] as string : undefined;
-		if (!path) {
+		if (call.name === 'write_file') {
+			const path = typeof call.input['path'] === 'string' ? call.input['path'] as string : undefined;
+			const content = typeof call.input['content'] === 'string' ? call.input['content'] as string : undefined;
+			if (!path) {
+				continue;
+			}
+			changes.push({
+				filePath: path,
+				changeType: /\b(created|new file)\b/i.test(call.result) ? 'create' : 'modify',
+				content,
+			});
 			continue;
 		}
-		changes.push({
-			filePath: path,
-			changeType: /\b(created|new file)\b/i.test(call.result) ? 'create' : 'modify',
-			content,
-		});
+		if (call.name === 'edit_file') {
+			// edit_file is always a modification — it errors out when the
+			// target file doesn't exist, so a successful call always implies
+			// an existing file was patched. We don't have the post-edit
+			// content here (only the find/replace strings), so the change
+			// entry surfaces the path + diff hint without the full content.
+			const path = typeof call.input['path'] === 'string' ? call.input['path'] as string : undefined;
+			const find = typeof call.input['find'] === 'string' ? call.input['find'] as string : '';
+			const replace = typeof call.input['replace'] === 'string' ? call.input['replace'] as string : '';
+			if (!path) {
+				continue;
+			}
+			const diff = `--- a/${path}\n+++ b/${path}\n@@ surgical edit @@\n-${find.split('\n').join('\n-')}\n+${replace.split('\n').join('\n+')}`;
+			changes.push({
+				filePath: path,
+				changeType: 'modify',
+				diff,
+			});
+		}
 	}
 	return changes;
 }

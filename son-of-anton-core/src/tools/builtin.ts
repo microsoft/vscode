@@ -214,6 +214,276 @@ export const WRITE_FILE_TOOL: Tool = {
 	},
 };
 
+/**
+ * `edit_file` — surgical find-and-replace edit. Lower fragility than diff
+ * parsing and lower payload size than `write_file` for small changes; the
+ * agent picks a unique anchor string already present in the file and a
+ * replacement, the tool performs the substitution and writes the result.
+ *
+ * Match semantics:
+ *   - The `find` string MUST appear EXACTLY once in the current file
+ *     contents. Zero matches → error (model probably has stale context);
+ *     two-or-more matches → error (the model picked an ambiguous anchor).
+ *   - Whitespace and indentation are matched literally — no fuzzy match.
+ *
+ * On success the tool returns the same WriteFileMetadata shape as
+ * write_file so the chat surface can render the diff button uniformly.
+ */
+export const EDIT_FILE_TOOL: Tool = {
+	definition: {
+		name: 'edit_file',
+		description: 'Apply a surgical edit to an existing file. Provide an exact `find` string that appears EXACTLY ONCE in the current file, and a `replace` string that takes its place. Use this for small targeted edits — adding an import, fixing a typo, replacing a function body. For larger changes use write_file. The user is shown a confirmation prompt before the edit is applied. The find string must include enough surrounding context to be unique; if it matches zero or more than one location, the tool fails so the model can re-read the file and try again.',
+		inputSchema: {
+			type: 'object',
+			properties: {
+				path: {
+					type: 'string',
+					description: 'Workspace-relative path to the file to edit. The file must already exist; use write_file to create new files.',
+				},
+				find: {
+					type: 'string',
+					description: 'Exact substring that appears once in the file. Whitespace, indentation, and newlines are matched literally.',
+				},
+				replace: {
+					type: 'string',
+					description: 'Replacement text. Use an empty string to delete the matched region.',
+				},
+			},
+			required: ['path', 'find', 'replace'],
+		},
+		riskLevel: 'requiresApproval',
+		category: 'write',
+	},
+	async execute(input: Record<string, unknown>, ctx: ToolExecutionContext): Promise<ToolExecutionResult> {
+		const rawPath = input['path'];
+		const path = typeof rawPath === 'string' ? rawPath : '';
+		if (!path) {
+			return { content: 'Path is required.', isError: true };
+		}
+		if (isUnsafePath(path)) {
+			return { content: 'Path rejected: must be a workspace-relative path without traversal.', isError: true };
+		}
+		const find = input['find'];
+		const replace = input['replace'];
+		if (typeof find !== 'string' || typeof replace !== 'string') {
+			return { content: '`find` and `replace` must both be strings.', isError: true };
+		}
+		if (find.length === 0) {
+			return { content: '`find` cannot be empty.', isError: true };
+		}
+
+		let current: string;
+		try {
+			current = await ctx.readFile(path);
+		} catch (err) {
+			return { content: `Could not read ${path}: ${describeError(err)}`, isError: true };
+		}
+
+		const firstIndex = current.indexOf(find);
+		if (firstIndex === -1) {
+			return {
+				content: `edit_file: \`find\` string not found in ${path}. Re-read the file before retrying — your view of the contents may be stale.`,
+				isError: true,
+			};
+		}
+		const secondIndex = current.indexOf(find, firstIndex + 1);
+		if (secondIndex !== -1) {
+			return {
+				content: `edit_file: \`find\` string is ambiguous — it appears at least twice in ${path} (offsets ${firstIndex} and ${secondIndex}). Provide a longer anchor that includes more surrounding context.`,
+				isError: true,
+			};
+		}
+
+		const next = current.slice(0, firstIndex) + replace + current.slice(firstIndex + find.length);
+		try {
+			const result = await ctx.writeFile(path, next);
+			if (result.written) {
+				const metadata: WriteFileMetadata = {
+					kind: 'write',
+					path,
+					existed: result.existed === true,
+					preImage: typeof result.preImage === 'string' ? result.preImage : current,
+					bytesWritten: next.length,
+				};
+				const delta = next.length - current.length;
+				const deltaSign = delta > 0 ? `+${delta}` : `${delta}`;
+				return { content: `Edited ${path} (${deltaSign} bytes).`, metadata };
+			}
+			return { content: `Did not edit ${path}: ${result.reason ?? 'declined by user'}.`, isError: true };
+		} catch (err) {
+			return { content: `Failed to write ${path}: ${describeError(err)}`, isError: true };
+		}
+	},
+};
+
+const MAX_GLOB_MATCHES = 500;
+const MAX_GLOB_DEPTH = 12;
+const GLOB_DEFAULT_IGNORES: ReadonlyArray<string> = [
+	'node_modules', '.git', 'dist', 'out', 'build', '.next', '.turbo', '.cache',
+	'__pycache__', '.venv', 'venv', 'target', '.gradle', '.idea', '.vscode-test',
+];
+
+/**
+ * `glob` — fast filename enumeration. Returns paths matching a glob pattern,
+ * walking the workspace tree but skipping conventional vendored / build /
+ * VCS directories. Pattern syntax is the common subset most agents already
+ * know:
+ *   - `*` matches any sequence of characters except `/`.
+ *   - `**` matches any sequence including `/`.
+ *   - `?` matches a single non-slash character.
+ *   - `{a,b}` matches either branch.
+ *   - `[abc]` matches one of the listed characters.
+ *
+ * Compared to `search_workspace`, `glob` is much faster for "find all .ts
+ * files under src/" queries because it doesn't read file contents — only
+ * directory entries. Capped at MAX_GLOB_MATCHES results.
+ */
+export const GLOB_TOOL: Tool = {
+	definition: {
+		name: 'glob',
+		description: 'List workspace-relative file paths matching a glob pattern. Supports `*`, `**`, `?`, `{a,b}`, and character classes `[abc]`. Conventional ignored directories (node_modules, .git, dist, build, target, etc.) are skipped automatically. Much faster than search_workspace for "find all files matching pattern X" — does not read file contents. Returns at most 500 paths.',
+		inputSchema: {
+			type: 'object',
+			properties: {
+				pattern: {
+					type: 'string',
+					description: 'Glob pattern relative to the workspace root, e.g. "src/**/*.ts" or "test/{unit,integration}/*.{ts,tsx}".',
+				},
+			},
+			required: ['pattern'],
+		},
+		category: 'read',
+	},
+	async execute(input: Record<string, unknown>, ctx: ToolExecutionContext): Promise<ToolExecutionResult> {
+		const rawPattern = input['pattern'];
+		if (typeof rawPattern !== 'string' || !rawPattern.trim()) {
+			return { content: '`pattern` is required.', isError: true };
+		}
+		const pattern = rawPattern.trim();
+		if (pattern.includes('..')) {
+			return { content: 'Glob pattern rejected: contains `..` traversal.', isError: true };
+		}
+		const matcher = compileGlob(pattern);
+		const matches: string[] = [];
+		try {
+			await walkAndMatch(ctx, '', matcher, matches, 0);
+		} catch (err) {
+			return { content: `Glob walk failed: ${describeError(err)}`, isError: true };
+		}
+		matches.sort();
+		if (matches.length === 0) {
+			return { content: `No files match pattern "${pattern}".` };
+		}
+		const truncated = matches.length > MAX_GLOB_MATCHES;
+		const shown = truncated ? matches.slice(0, MAX_GLOB_MATCHES) : matches;
+		const header = truncated
+			? `${shown.length} of ${matches.length}+ matches (truncated):`
+			: `${shown.length} match${shown.length === 1 ? '' : 'es'}:`;
+		return { content: `${header}\n${shown.join('\n')}` };
+	},
+};
+
+/**
+ * Compile a glob pattern to a RegExp. Honours the documented subset:
+ *   - `**` → match across path separators (greedy non-back-tracking)
+ *   - `*`  → match within a single path segment (no `/`)
+ *   - `?`  → match exactly one non-`/` character
+ *   - `{a,b,c}` → alternation
+ *   - `[abc]` → character class (passes through to regex)
+ */
+function compileGlob(pattern: string): (relPath: string) => boolean {
+	let regex = '^';
+	let i = 0;
+	while (i < pattern.length) {
+		const ch = pattern[i];
+		if (ch === '*' && pattern[i + 1] === '*') {
+			regex += '.*';
+			i += 2;
+			if (pattern[i] === '/') {
+				i++;
+			}
+			continue;
+		}
+		if (ch === '*') {
+			regex += '[^/]*';
+			i++;
+			continue;
+		}
+		if (ch === '?') {
+			regex += '[^/]';
+			i++;
+			continue;
+		}
+		if (ch === '{') {
+			const close = pattern.indexOf('}', i);
+			if (close === -1) {
+				regex += '\\{';
+				i++;
+				continue;
+			}
+			const branches = pattern.slice(i + 1, close).split(',');
+			regex += `(?:${branches.map(b => b.replace(/[.+^$()|\\]/g, '\\$&')).join('|')})`;
+			i = close + 1;
+			continue;
+		}
+		if (ch === '[') {
+			const close = pattern.indexOf(']', i);
+			if (close === -1) {
+				regex += '\\[';
+				i++;
+				continue;
+			}
+			regex += pattern.slice(i, close + 1);
+			i = close + 1;
+			continue;
+		}
+		if (/[.+^$()|\\]/.test(ch)) {
+			regex += '\\' + ch;
+		} else {
+			regex += ch;
+		}
+		i++;
+	}
+	regex += '$';
+	const re = new RegExp(regex);
+	return (relPath: string) => re.test(relPath);
+}
+
+async function walkAndMatch(
+	ctx: ToolExecutionContext,
+	relDir: string,
+	matcher: (path: string) => boolean,
+	matches: string[],
+	depth: number,
+): Promise<void> {
+	if (matches.length >= MAX_GLOB_MATCHES) {
+		return;
+	}
+	if (depth > MAX_GLOB_DEPTH) {
+		return;
+	}
+	let entries: ReadonlyArray<{ name: string; isDirectory: boolean }>;
+	try {
+		entries = await ctx.readDir(relDir);
+	} catch {
+		return;
+	}
+	for (const entry of entries) {
+		if (matches.length >= MAX_GLOB_MATCHES) {
+			return;
+		}
+		if (GLOB_DEFAULT_IGNORES.includes(entry.name)) {
+			continue;
+		}
+		const childPath = relDir ? `${relDir}/${entry.name}` : entry.name;
+		if (entry.isDirectory) {
+			await walkAndMatch(ctx, childPath, matcher, matches, depth + 1);
+		} else if (matcher(childPath)) {
+			matches.push(childPath);
+		}
+	}
+}
+
 export const RUN_COMMAND_TOOL: Tool = {
 	definition: {
 		name: 'run_command',
@@ -387,4 +657,14 @@ export const EMIT_UI_BLOCK_TOOL: Tool = {
 	},
 };
 
-export const BUILTIN_TOOLS: ReadonlyArray<Tool> = [READ_FILE_TOOL, LIST_DIRECTORY_TOOL, SEARCH_WORKSPACE_TOOL, WRITE_FILE_TOOL, RUN_COMMAND_TOOL, URL_FETCH_TOOL, EMIT_UI_BLOCK_TOOL];
+export const BUILTIN_TOOLS: ReadonlyArray<Tool> = [
+	READ_FILE_TOOL,
+	LIST_DIRECTORY_TOOL,
+	SEARCH_WORKSPACE_TOOL,
+	GLOB_TOOL,
+	WRITE_FILE_TOOL,
+	EDIT_FILE_TOOL,
+	RUN_COMMAND_TOOL,
+	URL_FETCH_TOOL,
+	EMIT_UI_BLOCK_TOOL,
+];
