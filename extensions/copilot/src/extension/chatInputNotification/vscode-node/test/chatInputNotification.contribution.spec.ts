@@ -347,8 +347,8 @@ describe('ChatInputNotificationContribution', () => {
 		});
 	});
 
-	describe('no copilot token skips everything', () => {
-		test('does not show notification when signed out (no copilot token)', () => {
+	describe('never-signed-in user still gets notifications', () => {
+		test('shows exhausted notification even with no copilot token initially', () => {
 			setup(
 				{ copilotToken: undefined },
 				{ quotaExhausted: true, quotaInfo: makeQuota(5) },
@@ -356,7 +356,10 @@ describe('ChatInputNotificationContribution', () => {
 
 			quotaEmitter.fire();
 
-			expect(mockNotification.show).not.toHaveBeenCalled();
+			// User was never signed in, so no transition occurred —
+			// notifications should still flow through normally.
+			expect(mockNotification.show).toHaveBeenCalled();
+			expect(mockNotification.message).toBe('Credit Limit Reached');
 		});
 	});
 });

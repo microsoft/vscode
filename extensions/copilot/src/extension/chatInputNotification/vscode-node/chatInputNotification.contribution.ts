@@ -37,6 +37,8 @@ export class ChatInputNotificationContribution extends Disposable {
 	private _notification: vscode.ChatInputNotification | undefined;
 	/** Tracks whether the current notification is the quota-exhausted variant. */
 	private _showingExhausted = false;
+	/** Whether a copilot token was present on the last {@link _update} call. */
+	private _hadCopilotToken = false;
 
 	private readonly _shownQuotaThresholds = new Set<number>();
 	private readonly _shownSessionThresholds = new Set<number>();
@@ -56,10 +58,12 @@ export class ChatInputNotificationContribution extends Disposable {
 	 * to show (or whether to hide).
 	 */
 	private _update(): void {
-		// When the user signs out, dismiss any active notification and reset thresholds.
-		// Use copilotToken (not anyGitHubSession) because anonymous/no-auth users
-		// legitimately have no GitHub session but still need quota notifications.
-		if (!this._authService.copilotToken) {
+		const hasCopilotToken = !!this._authService.copilotToken;
+		const wasSignedIn = this._hadCopilotToken;
+		this._hadCopilotToken = hasCopilotToken;
+
+		// Detect signed-in → signed-out transition: clear thresholds and hide.
+		if (wasSignedIn && !hasCopilotToken) {
 			this._shownQuotaThresholds.clear();
 			this._shownSessionThresholds.clear();
 			this._shownWeeklyThresholds.clear();
