@@ -798,9 +798,23 @@ registerAction2(class MarkSessionAsDoneAction extends Action2 {
 					IsSessionsWindowContext,
 					IsActiveSessionArchivedContext.negate(),
 					ActiveSessionContextKeys.HasGitRepository.isEqualTo(true),
-					ActiveSessionContextKeys.HasIncomingChanges.isEqualTo(false),
-					ActiveSessionContextKeys.HasOutgoingChanges.isEqualTo(false),
-					ActiveSessionContextKeys.HasUncommittedChanges.isEqualTo(false)
+					ContextKeyExpr.or(
+						// Merge scenario
+						ContextKeyExpr.and(
+							ActiveSessionContextKeys.IsMergeBaseBranchProtected.isEqualTo(false),
+							ActiveSessionContextKeys.HasIncomingChanges.isEqualTo(false),
+							ActiveSessionContextKeys.HasOutgoingChanges.isEqualTo(false),
+							ActiveSessionContextKeys.HasUncommittedChanges.isEqualTo(false)
+						),
+						// Pull-request scenario
+						ContextKeyExpr.and(
+							ActiveSessionContextKeys.IsMergeBaseBranchProtected.isEqualTo(true),
+							ActiveSessionContextKeys.HasPullRequest.isEqualTo(true),
+							ActiveSessionContextKeys.HasIncomingChanges.isEqualTo(false),
+							ActiveSessionContextKeys.HasOutgoingChanges.isEqualTo(false),
+							ActiveSessionContextKeys.HasUncommittedChanges.isEqualTo(false)
+						)
+					)
 				)
 			}]
 		});

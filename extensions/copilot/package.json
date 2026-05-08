@@ -2838,22 +2838,36 @@
 			{
 				"command": "github.copilot.sessions.commit",
 				"title": "%github.copilot.command.sessions.commit%",
-				"enablement": "!sessions.hasGitOperationInProgress",
+				"enablement": "!chatSessionRequestInProgress && !sessions.hasGitOperationInProgress",
 				"icon": "$(git-commit)",
 				"category": "GitHub Copilot"
 			},
 			{
 				"command": "github.copilot.sessions.commitAndSync",
 				"title": "%github.copilot.command.sessions.commitAndSync%",
-				"enablement": "!sessions.hasGitOperationInProgress",
+				"enablement": "!chatSessionRequestInProgress && !sessions.hasGitOperationInProgress",
 				"icon": "$(sync)",
 				"category": "GitHub Copilot"
 			},
 			{
 				"command": "github.copilot.sessions.sync",
 				"title": "%github.copilot.command.sessions.sync%",
-				"enablement": "!sessions.hasGitOperationInProgress",
+				"enablement": "!chatSessionRequestInProgress && !sessions.hasGitOperationInProgress",
 				"icon": "$(sync)",
+				"category": "GitHub Copilot"
+			},
+			{
+				"command": "github.copilot.chat.createPullRequestCopilotCLIAgentSession.createPR",
+				"title": "%github.copilot.chat.createPullRequestCopilotCLIAgentSession.createPR%",
+				"enablement": "!chatSessionRequestInProgress && !sessions.hasGitOperationInProgress",
+				"icon": "$(git-pull-request-create)",
+				"category": "GitHub Copilot"
+			},
+			{
+				"command": "github.copilot.chat.createDraftPullRequestCopilotCLIAgentSession.createDraftPR",
+				"title": "%github.copilot.chat.createDraftPullRequestCopilotCLIAgentSession.createDraftPR%",
+				"enablement": "!chatSessionRequestInProgress && !sessions.hasGitOperationInProgress",
+				"icon": "$(git-pull-request-draft)",
 				"category": "GitHub Copilot"
 			},
 			{
@@ -2861,27 +2875,6 @@
 				"title": "%github.copilot.command.sessions.discardChanges%",
 				"enablement": "!chatSessionRequestInProgress",
 				"icon": "$(discard)",
-				"category": "GitHub Copilot"
-			},
-			{
-				"command": "github.copilot.chat.createPullRequestCopilotCLIAgentSession.createPR",
-				"title": "%github.copilot.chat.createPullRequestCopilotCLIAgentSession.createPR%",
-				"enablement": "!chatSessionRequestInProgress",
-				"icon": "$(git-pull-request-create)",
-				"category": "GitHub Copilot"
-			},
-			{
-				"command": "github.copilot.chat.createPullRequestCopilotCLIAgentSession.updatePR",
-				"title": "%github.copilot.chat.createPullRequestCopilotCLIAgentSession.updatePR%",
-				"enablement": "!chatSessionRequestInProgress",
-				"icon": "$(sync)",
-				"category": "GitHub Copilot"
-			},
-			{
-				"command": "github.copilot.chat.createDraftPullRequestCopilotCLIAgentSession.createDraftPR",
-				"title": "%github.copilot.chat.createDraftPullRequestCopilotCLIAgentSession.createDraftPR%",
-				"enablement": "!chatSessionRequestInProgress",
-				"icon": "$(git-pull-request-draft)",
 				"category": "GitHub Copilot"
 			},
 			{
@@ -5166,18 +5159,13 @@
 				},
 				{
 					"command": "github.copilot.chat.createPullRequestCopilotCLIAgentSession.createPR",
-					"when": "chatSessionType == copilotcli && isSessionsWindow && sessions.isolationMode == worktree && sessions.hasGitRepository && sessions.hasGitHubRemote && !sessions.hasPullRequest && (sessions.hasUncommittedChanges || sessions.hasOutgoingChanges) && !sessions.isAgentHostSession",
+					"when": "chatSessionType == copilotcli && isSessionsWindow && sessions.isolationMode == worktree && sessions.hasGitRepository && sessions.hasGitHubRemote && !sessions.hasPullRequest && !sessions.isAgentHostSession",
 					"group": "2_pull_request@1"
 				},
 				{
 					"command": "github.copilot.chat.createDraftPullRequestCopilotCLIAgentSession.createDraftPR",
-					"when": "chatSessionType == copilotcli && isSessionsWindow && sessions.isolationMode == worktree && sessions.hasGitRepository && sessions.hasGitHubRemote && !sessions.hasPullRequest && (sessions.hasUncommittedChanges || sessions.hasOutgoingChanges) && !sessions.isAgentHostSession",
+					"when": "chatSessionType == copilotcli && isSessionsWindow && sessions.isolationMode == worktree && sessions.hasGitRepository && sessions.hasGitHubRemote && !sessions.hasPullRequest && !sessions.isAgentHostSession",
 					"group": "2_pull_request@2"
-				},
-				{
-					"command": "github.copilot.chat.createPullRequestCopilotCLIAgentSession.updatePR",
-					"when": "chatSessionType == copilotcli && isSessionsWindow && sessions.isolationMode == worktree && sessions.hasGitRepository && sessions.hasGitHubRemote && sessions.hasPullRequest && sessions.hasOpenPullRequest && !sessions.isAgentHostSession && (sessions.hasIncomingChanges || sessions.hasOutgoingChanges || sessions.hasUncommittedChanges)",
-					"group": "2_pull_request@3"
 				},
 				{
 					"command": "github.copilot.sessions.commit",
@@ -5191,7 +5179,7 @@
 				},
 				{
 					"command": "github.copilot.sessions.sync",
-					"when": "chatSessionType == copilotcli && isSessionsWindow && sessions.isolationMode == workspace && sessions.hasGitRepository && sessions.hasUpstream && !sessions.hasUncommittedChanges && (sessions.hasIncomingChanges || sessions.hasOutgoingChanges) && !sessions.isAgentHostSession",
+					"when": "chatSessionType == copilotcli && isSessionsWindow && sessions.hasGitRepository && sessions.hasUpstream && !sessions.hasUncommittedChanges && (sessions.hasIncomingChanges || sessions.hasOutgoingChanges) && !sessions.isAgentHostSession",
 					"group": "4_sync@1"
 				},
 				{
@@ -5515,10 +5503,6 @@
 				},
 				{
 					"command": "github.copilot.chat.createPullRequestCopilotCLIAgentSession.createPR",
-					"when": "false"
-				},
-				{
-					"command": "github.copilot.chat.createPullRequestCopilotCLIAgentSession.updatePR",
 					"when": "false"
 				},
 				{
