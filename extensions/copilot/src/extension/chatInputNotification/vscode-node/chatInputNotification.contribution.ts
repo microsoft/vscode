@@ -218,17 +218,17 @@ export class ChatInputNotificationContribution extends Disposable {
 		const isFree = !!this._authService.copilotToken?.isFreeUser;
 
 		if (isAnonymous || isFree) {
-			notification.description = vscode.l10n.t('Upgrade to continue past your limit.');
+			notification.description = vscode.l10n.t('Upgrade to continue past the limit.');
 			notification.actions = [
 				{ label: vscode.l10n.t('Upgrade'), commandId: 'workbench.action.chat.upgradePlan' },
 			];
 		} else if (this._chatQuotaService.additionalUsageEnabled) {
-			notification.description = vscode.l10n.t('Your budget will cover usage past your limit.');
+			notification.description = vscode.l10n.t('Additional budget is covering extra usage.');
 			notification.actions = [
 				{ label: vscode.l10n.t('View Usage'), commandId: 'workbench.action.chat.openCopilotStatus' },
 			];
 		} else {
-			notification.description = vscode.l10n.t('Set a budget to continue past your limit.');
+			notification.description = vscode.l10n.t('Set additional budget to cover extra usage.');
 			notification.actions = [
 				{ label: vscode.l10n.t('Manage Budget'), commandId: 'workbench.action.chat.manageAdditionalSpend' },
 			];
