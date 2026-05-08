@@ -190,6 +190,7 @@ function createModelAction(
 	languageModelsService: ILanguageModelsService,
 	section?: string,
 	suppressVendorInDetail?: boolean,
+	isUBB?: boolean,
 ): { action: IActionWidgetDropdownAction & { section?: string }; descriptionOverride?: MarkdownString } {
 	// Only show pricing in the description line if it's a multiplier (e.g. "2x").
 	// Detailed AIC/token pricing is shown in the hover instead.
@@ -211,6 +212,9 @@ function createModelAction(
 		descriptionOverride = md;
 	}
 
+	// In PRU mode, restore per-model configuration toolbar actions (e.g. thinking effort gear)
+	const toolbarActions = !isUBB ? languageModelsService.getModelConfigurationActions(model.identifier) : undefined;
+
 	const action: IActionWidgetDropdownAction & { section?: string } = {
 		id: model.identifier,
 		enabled: true,
@@ -221,6 +225,7 @@ function createModelAction(
 		tooltip: model.metadata.name,
 		label: model.metadata.name,
 		section,
+		toolbarActions: toolbarActions && toolbarActions.length > 0 ? toolbarActions : undefined,
 		run: () => onSelect(model),
 	};
 	return { action, descriptionOverride };
@@ -330,7 +335,7 @@ export function buildModelPickerItems(
 			const autoModel = models.find(m => isAutoModel(m));
 			if (autoModel) {
 				markPlaced(autoModel.identifier, autoModel.metadata.id);
-				const { action: autoAction, descriptionOverride: autoDesc } = createModelAction(autoModel, selectedModelId, onSelect, languageModelsService!);
+				const { action: autoAction, descriptionOverride: autoDesc } = createModelAction(autoModel, selectedModelId, onSelect, languageModelsService!, undefined, undefined, isUBB);
 				items.push(createModelItem(autoAction, autoModel, autoDesc, openerService, undefined, isUBB));
 			}
 
@@ -424,7 +429,7 @@ export function buildModelPickerItems(
 				for (const item of promotedItems) {
 					if (item.kind === 'available') {
 						const vendorLabel = showPromotedVendorLabel ? getVendorDisplayName(languageModelsService!, item.model.metadata.vendor) : undefined;
-						const { action: promotedAction, descriptionOverride: promotedDesc } = createModelAction(item.model, selectedModelId, onSelect, languageModelsService!, undefined, showPromotedVendorLabel);
+						const { action: promotedAction, descriptionOverride: promotedDesc } = createModelAction(item.model, selectedModelId, onSelect, languageModelsService!, undefined, showPromotedVendorLabel, isUBB);
 						items.push(createModelItem(promotedAction, item.model, promotedDesc, openerService, vendorLabel, isUBB));
 					} else {
 						items.push(createUnavailableModelItem(item.id, item.entry, item.reason, manageSettingsUrl, updateStateType, chatEntitlementService));
@@ -511,7 +516,7 @@ export function buildModelPickerItems(
 						if (entry?.minVSCodeVersion && !isVersionAtLeast(currentVSCodeVersion, entry.minVSCodeVersion)) {
 							items.push(createUnavailableModelItem(model.metadata.id, entry, 'update', manageSettingsUrl, updateStateType, chatEntitlementService, ModelPickerSection.Other));
 						} else {
-							const { action: vendorAction, descriptionOverride: vendorDesc } = createModelAction(model, selectedModelId, onSelect, languageModelsService!, ModelPickerSection.Other, showVendorHeaders);
+							const { action: vendorAction, descriptionOverride: vendorDesc } = createModelAction(model, selectedModelId, onSelect, languageModelsService!, ModelPickerSection.Other, showVendorHeaders, isUBB);
 							items.push(createModelItem(vendorAction, model, vendorDesc, openerService, undefined, isUBB));
 						}
 					}
@@ -535,7 +540,7 @@ export function buildModelPickerItems(
 		// Flat list: auto first, then all models sorted alphabetically
 		const autoModel = models.find(m => isAutoModel(m));
 		if (autoModel) {
-			const { action: flatAutoAction, descriptionOverride: flatAutoDesc } = createModelAction(autoModel, selectedModelId, onSelect, languageModelsService!);
+			const { action: flatAutoAction, descriptionOverride: flatAutoDesc } = createModelAction(autoModel, selectedModelId, onSelect, languageModelsService!, undefined, undefined, isUBB);
 			items.push(createModelItem(flatAutoAction, autoModel, flatAutoDesc, openerService, undefined, isUBB));
 		}
 		const sortedModels = models
@@ -545,7 +550,7 @@ export function buildModelPickerItems(
 				return vendorCmp !== 0 ? vendorCmp : a.metadata.name.localeCompare(b.metadata.name);
 			});
 		for (const model of sortedModels) {
-			const { action: flatAction, descriptionOverride: flatDesc } = createModelAction(model, selectedModelId, onSelect, languageModelsService!);
+			const { action: flatAction, descriptionOverride: flatDesc } = createModelAction(model, selectedModelId, onSelect, languageModelsService!, undefined, undefined, isUBB);
 			items.push(createModelItem(flatAction, model, flatDesc, openerService, undefined, isUBB));
 		}
 	}
@@ -1240,8 +1245,8 @@ function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentifier, op
 		container.appendChild(contextSection);
 	}
 
-	// --- Configurable properties ---
-	if (!isAuto && model.metadata.configurationSchema?.properties) {
+	// --- Configurable properties (UBB only — PRU uses inline toolbar actions) ---
+	if (!isAuto && isUBB && model.metadata.configurationSchema?.properties) {
 		const configurableLabels: string[] = [];
 		for (const [, propSchema] of Object.entries(model.metadata.configurationSchema.properties)) {
 			if (propSchema.enum && propSchema.enum.length >= 2) {
