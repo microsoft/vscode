@@ -259,25 +259,6 @@ export class ChatSessionWorktreeCheckpointService extends Disposable implements 
 		}
 	}
 
-	private async _writeWorktreeTree(repository: RepoContext, checkpointIndexFile: string, pathspecFile: string): Promise<string> {
-		const repositoryUri = repository.rootUri;
-		const env = buildTempIndexEnv(repository, checkpointIndexFile);
-
-		// Create temp index file directory
-		await fs.mkdir(path.dirname(checkpointIndexFile), { recursive: true });
-
-		// Populate temp index from HEAD
-		await this.gitService.exec(repositoryUri, ['read-tree', 'HEAD'], env);
-
-		// Stage entire working directory into temp index
-		const uncommittedFilePaths = getUncommittedFilePaths(repository);
-		await fs.writeFile(pathspecFile, uncommittedFilePaths.join('\n'), 'utf8');
-		await this.gitService.exec(repositoryUri, ['add', '-A', `--pathspec-from-file=${pathspecFile}`], env);
-
-		// Write the temp index as a tree object
-		return this.gitService.exec(repositoryUri, ['write-tree'], env);
-	}
-
 	private async _createCheckpoint(sessionId: string, repository: RepoContext, turnNumber: number, parentCheckpointRef?: string): Promise<string | undefined> {
 		const repositoryUri = repository.rootUri;
 
@@ -313,5 +294,24 @@ export class ChatSessionWorktreeCheckpointService extends Disposable implements 
 				this.logService.error(`[ChatSessionWorktreeCheckpointService][_createCheckpoint] Error while cleaning up temp index file for session ${sessionId}: ${error}`);
 			}
 		}
+	}
+
+	private async _writeWorktreeTree(repository: RepoContext, checkpointIndexFile: string, pathspecFile: string): Promise<string> {
+		const repositoryUri = repository.rootUri;
+		const env = buildTempIndexEnv(repository, checkpointIndexFile);
+
+		// Create temp index file directory
+		await fs.mkdir(path.dirname(checkpointIndexFile), { recursive: true });
+
+		// Populate temp index from HEAD
+		await this.gitService.exec(repositoryUri, ['read-tree', 'HEAD'], env);
+
+		// Stage entire working directory into temp index
+		const uncommittedFilePaths = getUncommittedFilePaths(repository);
+		await fs.writeFile(pathspecFile, uncommittedFilePaths.join('\n'), 'utf8');
+		await this.gitService.exec(repositoryUri, ['add', '-A', `--pathspec-from-file=${pathspecFile}`], env);
+
+		// Write the temp index as a tree object
+		return this.gitService.exec(repositoryUri, ['write-tree'], env);
 	}
 }
