@@ -41,6 +41,7 @@ import { FileService } from '../../files/common/fileService.js';
 import { IFileService } from '../../files/common/files.js';
 import { DiskFileSystemProvider } from '../../files/node/diskFileSystemProvider.js';
 import { Schemas } from '../../../base/common/network.js';
+import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { InstantiationService } from '../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
 import { SessionDataService } from './sessionDataService.js';
@@ -99,6 +100,7 @@ function startAgentHost(): void {
 
 	// Create the real service implementation that lives in this process
 	let agentService: AgentService;
+	let instantiationService: IInstantiationService;
 	try {
 		// Build the DI container early so the git service can be created via
 		// `createInstance` (it needs IFileService + INativeEnvironmentService).
@@ -108,7 +110,7 @@ function startAgentHost(): void {
 		diServices.set(IFileService, fileService);
 		diServices.set(ISessionDataService, sessionDataService);
 		diServices.set(IProductService, productService);
-		const instantiationService = new InstantiationService(diServices);
+		instantiationService = new InstantiationService(diServices);
 		const gitService = instantiationService.createInstance(AgentHostGitService);
 		diServices.set(IAgentHostGitService, gitService);
 		const copilotApiService = instantiationService.createInstance(CopilotApiService, undefined);
@@ -190,7 +192,7 @@ function startAgentHost(): void {
 			const wsServer = disposables.add(await WebSocketProtocolServer.create(
 				{ socketPath },
 				logService,
-				{ fileService, logsHome: environmentService.logsHome },
+				{ instantiationService, logsHome: environmentService.logsHome },
 			));
 
 			const protocolHandler = disposables.add(new ProtocolServerHandler(
@@ -264,7 +266,7 @@ function startAgentHost(): void {
 	startWebSocketServer(
 		agentService,
 		clientFileSystemProvider,
-		fileService,
+		instantiationService,
 		environmentService.logsHome,
 		logService,
 		disposables,
@@ -289,7 +291,7 @@ function startAgentHost(): void {
 async function startWebSocketServer(
 	agentService: AgentService,
 	clientFileSystemProvider: AgentHostClientFileSystemProvider,
-	fileService: IFileService,
+	instantiationService: IInstantiationService,
 	logsHome: URI,
 	logService: ILogService,
 	disposables: DisposableStore,
@@ -321,7 +323,7 @@ async function startWebSocketServer(
 					: undefined,
 			},
 		logService,
-		{ fileService, logsHome },
+		{ instantiationService, logsHome },
 	));
 
 	const protocolHandler = disposables.add(new ProtocolServerHandler(

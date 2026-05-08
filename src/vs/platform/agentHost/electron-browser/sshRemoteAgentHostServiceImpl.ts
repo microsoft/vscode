@@ -9,7 +9,6 @@ import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IEnvironmentService } from '../../environment/common/environment.js';
-import { IFileService } from '../../files/common/files.js';
 import { ISharedProcessService } from '../../ipc/electron-browser/services.js';
 import { ProxyChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { IRemoteAgentHostService, RemoteAgentHostEntryType } from '../common/remoteAgentHostService.js';
@@ -52,7 +51,6 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
-		@IFileService private readonly _fileService: IFileService,
 	) {
 		super();
 
@@ -202,11 +200,11 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 	}
 
 	private _createRelayClient(result: { connectionId: string; address: string }): RemoteAgentHostProtocolClient {
-		const transport = new SSHRelayTransport(result.connectionId, this._mainService, new AhpJsonlLogger(
-			this._fileService,
-			this._logService,
+		const logger = this._instantiationService.createInstance(
+			AhpJsonlLogger,
 			{ logsHome: this._environmentService.logsHome, connectionId: result.connectionId, transport: 'ssh' },
-		));
+		);
+		const transport = new SSHRelayTransport(result.connectionId, this._mainService, logger);
 		return this._instantiationService.createInstance(
 			RemoteAgentHostProtocolClient, result.address, transport,
 		);

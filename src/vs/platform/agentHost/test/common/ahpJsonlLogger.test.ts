@@ -21,9 +21,9 @@ suite('AhpJsonlLogger', () => {
 		store.add(fileService.registerProvider('file', store.add(new InMemoryFileSystemProvider())));
 
 		const logger = store.add(new AhpJsonlLogger(
+			{ logsHome: URI.file('/logs'), connectionId: 'conn:1', transport: 'websocket' },
 			fileService,
 			new NullLogService(),
-			{ logsHome: URI.file('/logs'), connectionId: 'conn:1', transport: 'websocket' },
 		));
 
 		const requestText = '{"jsonrpc":"2.0","id":"request-1","method":"initialize","params":{"protocolVersion":1}}';
@@ -111,9 +111,9 @@ suite('AhpJsonlLogger', () => {
 		store.add(fileService.registerProvider('file', store.add(new InMemoryFileSystemProvider())));
 
 		const logger = store.add(new AhpJsonlLogger(
+			{ logsHome: URI.file('/logs'), connectionId: 'rotating', transport: 'websocket', maxFileSizeBytes: 1, maxFiles: 2 },
 			fileService,
 			new NullLogService(),
-			{ logsHome: URI.file('/logs'), connectionId: 'rotating', transport: 'websocket', maxFileSizeBytes: 1, maxFiles: 2 },
 		));
 		const firstResource = logger.resource;
 		const currentBaseName = basename(firstResource, '.jsonl');

@@ -37,9 +37,9 @@ export class AhpJsonlLogger extends Disposable {
 	private _folderCreated: Promise<IFileStatWithMetadata> | undefined;
 
 	constructor(
-		private readonly _fileService: IFileService,
-		private readonly _logService: ILogService,
 		private readonly _options: IAhpJsonlLoggerOptions,
+		@IFileService private readonly _fileService: IFileService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 		this._directory = joinPath(this._options.logsHome, AHP_LOG_DIR);

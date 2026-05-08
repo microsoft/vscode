@@ -11,7 +11,7 @@ import { Disposable } from '../../../base/common/lifecycle.js';
 import { connectionTokenQueryName } from '../../../base/common/network.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
-import { IFileService } from '../../files/common/files.js';
+import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { AhpJsonlLogger, getAhpLogByteLength } from '../common/ahpJsonlLogger.js';
 import { JSON_RPC_PARSE_ERROR, type AhpServerNotification, type JsonRpcNotification, type JsonRpcRequest, type JsonRpcResponse, type ProtocolMessage } from '../common/state/sessionProtocol.js';
@@ -131,7 +131,7 @@ export class WebSocketProtocolServer extends Disposable implements IProtocolServ
 	static async create(
 		options: IWebSocketServerOptions | number,
 		logService: ILogService,
-		ahpLogOptions?: { readonly fileService: IFileService; readonly logsHome: URI },
+		ahpLogOptions?: { readonly instantiationService: IInstantiationService; readonly logsHome: URI },
 	): Promise<WebSocketProtocolServer> {
 		const [ws, http, url] = await Promise.all([
 			import('ws'),
@@ -144,7 +144,7 @@ export class WebSocketProtocolServer extends Disposable implements IProtocolServ
 	private constructor(
 		options: IWebSocketServerOptions | number,
 		private readonly _logService: ILogService,
-		private readonly _ahpLogOptions: { readonly fileService: IFileService; readonly logsHome: URI } | undefined,
+		private readonly _ahpLogOptions: { readonly instantiationService: IInstantiationService; readonly logsHome: URI } | undefined,
 		ws: typeof wsTypes,
 		http: typeof httpTypes,
 		url: typeof urlTypes,
@@ -198,9 +198,8 @@ export class WebSocketProtocolServer extends Disposable implements IProtocolServ
 		if (!this._ahpLogOptions) {
 			return undefined;
 		}
-		return new AhpJsonlLogger(
-			this._ahpLogOptions.fileService,
-			this._logService,
+		return this._ahpLogOptions.instantiationService.createInstance(
+			AhpJsonlLogger,
 			{
 				logsHome: this._ahpLogOptions.logsHome,
 				connectionId: `agent-host-${++this._connectionCount}-${generateUuid()}`,

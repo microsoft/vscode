@@ -9,8 +9,7 @@
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { connectionTokenQueryName } from '../../../base/common/network.js';
-import { IFileService } from '../../files/common/files.js';
-import { ILogService } from '../../log/common/log.js';
+import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { AhpJsonlLogger, getAhpLogByteLength, IAhpJsonlLoggerOptions } from '../common/ahpJsonlLogger.js';
 import type { AhpServerNotification, JsonRpcNotification, JsonRpcRequest, JsonRpcResponse, ProtocolMessage } from '../common/state/sessionProtocol.js';
 import type { IClientTransport } from '../common/state/sessionTransport.js';
@@ -50,13 +49,12 @@ export class WebSocketClientTransport extends Disposable implements IClientTrans
 		private readonly _address: string,
 		private readonly _connectionToken: string | undefined,
 		ahpLogOptions: IAhpJsonlLoggerOptions | undefined,
-		@IFileService fileService: IFileService,
-		@ILogService logService: ILogService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		// TODO: @osortega remove console.logs
 		super();
 		if (ahpLogOptions) {
-			this._ahpLogger = this._register(new AhpJsonlLogger(fileService, logService, ahpLogOptions));
+			this._ahpLogger = this._register(instantiationService.createInstance(AhpJsonlLogger, ahpLogOptions));
 		}
 	}
 

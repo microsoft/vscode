@@ -9,7 +9,6 @@ import { ProxyChannel } from '../../../../base/parts/ipc/common/ipc.js';
 import { IAuthenticationService } from '../../../../workbench/services/authentication/common/authentication.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
-import { IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ISharedProcessService } from '../../../../platform/ipc/electron-browser/services.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -61,7 +60,6 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 		@IProductService private readonly _productService: IProductService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
-		@IFileService private readonly _fileService: IFileService,
 	) {
 		super();
 
@@ -104,11 +102,11 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 
 		// Create relay transport + protocol client, then register with RemoteAgentHostService
 		try {
-			const transport = new TunnelRelayTransport(result.connectionId, this._mainService, new AhpJsonlLogger(
-				this._fileService,
-				this._logService,
+			const logger = this._instantiationService.createInstance(
+				AhpJsonlLogger,
 				{ logsHome: this._environmentService.logsHome, connectionId: result.connectionId, transport: 'tunnel' },
-			));
+			);
+			const transport = new TunnelRelayTransport(result.connectionId, this._mainService, logger);
 			const protocolClient = this._instantiationService.createInstance(
 				RemoteAgentHostProtocolClient, result.address, transport,
 			);
