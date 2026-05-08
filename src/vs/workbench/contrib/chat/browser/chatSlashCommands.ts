@@ -99,7 +99,8 @@ export class ChatSlashCommandsContribution extends Disposable {
 
 			let resolvedUri: URI | undefined;
 			if (posix.isAbsolute(requestedPath) || win32.isAbsolute(requestedPath)) {
-				const normalizedUri = URI.file(requestedPath);
+				const normalizedPath = requestedPath.replace(/\\/g, '/');
+				const normalizedUri = URI.file(normalizedPath);
 				if (workspaceFolder) {
 					resolvedUri = workspaceFolder.uri.with({ path: normalizedUri.path });
 				} else {

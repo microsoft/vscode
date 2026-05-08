@@ -453,6 +453,9 @@ suite('AgentHostClientTools', () => {
 				registerResolver: () => toDisposable(() => { }),
 				resolve: () => undefined,
 				isNewSession: () => false,
+				setSessionWorkingDirectory: () => { },
+				getSessionWorkingDirectory: () => undefined,
+				clearSessionWorkingDirectory: () => { },
 			});
 			instantiationService.stub(ILanguageModelToolsService, toolsService);
 

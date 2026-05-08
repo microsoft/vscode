@@ -440,6 +440,9 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		registerResolver: () => toDisposable(() => { }),
 		resolve: sessionResource => workingDirectoryResolver?.resolve(sessionResource),
 		isNewSession: sessionResource => workingDirectoryResolver?.isNewSession?.(sessionResource) ?? sessionResource.path.substring(1).startsWith('new-'),
+		setSessionWorkingDirectory: () => { },
+		getSessionWorkingDirectory: () => undefined,
+		clearSessionWorkingDirectory: () => { },
 	});
 	instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow: false } as Partial<IWorkbenchEnvironmentService>);
 
