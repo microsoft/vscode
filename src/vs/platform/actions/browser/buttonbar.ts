@@ -5,11 +5,12 @@
 
 import { ButtonBar, IButton } from '../../../base/browser/ui/button/button.js';
 import { createInstantHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegateFactory.js';
-import { ActionRunner, IAction, IActionRunner, SubmenuAction, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../base/common/actions.js';
+import { ActionRunner, IAction, IActionRunner, IRunEvent, SubmenuAction, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../base/common/actions.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { IMarkdownString, isMarkdownString, MarkdownString } from '../../../base/common/htmlContent.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { autorun, IObservable } from '../../../base/common/observable.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { localize } from '../../../nls.js';
 import { getActionBarActions } from './menuEntryActionViewItem.js';
@@ -26,6 +27,7 @@ export type IButtonConfigProvider = (action: IAction, index: number) => {
 	showLabel?: boolean;
 	isSecondary?: boolean;
 	customLabel?: string | IMarkdownString;
+	customLabelObs?: IObservable<string | IMarkdownString | undefined>;
 	customClass?: string;
 } | undefined;
 
@@ -45,6 +47,8 @@ export class WorkbenchButtonBar extends ButtonBar {
 	private readonly _onDidChange = new Emitter<this>();
 	readonly onDidChange: Event<this> = this._onDidChange.event;
 
+	get onWillRun(): Event<IRunEvent> { return this._actionRunner.onWillRun; }
+	get onDidRun(): Event<IRunEvent> { return this._actionRunner.onDidRun; }
 
 	constructor(
 		container: HTMLElement,
@@ -127,36 +131,58 @@ export class WorkbenchButtonBar extends ButtonBar {
 			btn.enabled = action.enabled;
 			btn.checked = action.checked ?? false;
 			btn.element.classList.add('default-colors');
-			const showLabel = configProvider(action, i)?.showLabel ?? true;
-			const customClass = configProvider(action, i)?.customClass;
-			const customLabel = configProvider(action, i)?.customLabel;
+
+			const config = configProvider(action, i);
+			const showLabel = config?.showLabel ?? true;
+			const showIcon = config?.showIcon;
+			const customClass = config?.customClass;
+			const customLabel = config?.customLabel;
+			const customLabelObs = config?.customLabelObs;
 
 			if (customClass) {
 				btn.element.classList.add(customClass);
 			}
 
+			const composeLabel = (labelValue: string | IMarkdownString): string | IMarkdownString => {
+				if (showIcon && action instanceof MenuItemAction && ThemeIcon.isThemeIcon(action.item.icon) && showLabel) {
+					// this is REALLY hacky but combining a codicon and normal text is ugly because
+					// the former define a font which doesn't work for text
+					return isMarkdownString(labelValue)
+						? new MarkdownString(`$(${action.item.icon.id}) ${labelValue.value}`, {
+							isTrusted: labelValue.isTrusted, supportThemeIcons: true, supportHtml: labelValue.supportHtml
+						})
+						: `$(${action.item.icon.id}) ${labelValue}`;
+				}
+				return labelValue;
+			};
+
+			const applyLabel = (labelValue: string | IMarkdownString) => {
+				if (showLabel) {
+					btn.label = composeLabel(labelValue);
+				}
+			};
+
 			if (showLabel) {
-				btn.label = customLabel ?? action.label;
+				btn.label = composeLabel(customLabel ?? action.label);
 			} else {
 				btn.element.classList.add('monaco-text-button');
 			}
-			if (configProvider(action, i)?.showIcon) {
+
+			if (showIcon) {
 				if (action instanceof MenuItemAction && ThemeIcon.isThemeIcon(action.item.icon)) {
 					if (!showLabel) {
 						btn.icon = action.item.icon;
-					} else {
-						// this is REALLY hacky but combining a codicon and normal text is ugly because
-						// the former define a font which doesn't work for text
-						const labelValue = customLabel ?? action.label;
-						btn.label = isMarkdownString(labelValue)
-							? new MarkdownString(`$(${action.item.icon.id}) ${labelValue.value}`, {
-								isTrusted: labelValue.isTrusted, supportThemeIcons: true, supportHtml: labelValue.supportHtml
-							})
-							: `$(${action.item.icon.id}) ${labelValue}`;
 					}
 				} else if (action.class) {
 					btn.element.classList.add(...action.class.split(' '));
 				}
+			}
+
+			if (customLabelObs) {
+				this._updateStore.add(autorun(reader => {
+					const v = customLabelObs.read(reader);
+					applyLabel(v ?? customLabel ?? action.label);
+				}));
 			}
 
 			this._updateStore.add(this._hoverService.setupManagedHover(hoverDelegate, btn.element, tooltip));
