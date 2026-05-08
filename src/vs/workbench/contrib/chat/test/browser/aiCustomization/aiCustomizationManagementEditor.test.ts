@@ -7,7 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { AICustomizationManagementEditor } from '../../../browser/aiCustomization/aiCustomizationManagementEditor.js';
+import { AICustomizationManagementEditor, buildCustomizationPreviewMarkdown } from '../../../browser/aiCustomization/aiCustomizationManagementEditor.js';
 import { BUILTIN_STORAGE } from '../../../browser/aiCustomization/aiCustomizationManagement.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
@@ -125,5 +125,61 @@ suite('aiCustomizationManagementEditor', () => {
 		assert.strictEqual(editor.getEditorModeButtonLabel(), '');
 
 		editor.editorPreviewDisposables.dispose();
+	});
+
+	suite('buildCustomizationPreviewMarkdown', () => {
+		test('returns content unchanged when there is no front matter', () => {
+			const content = '# Hello\n\nNo front matter here.\n';
+			assert.strictEqual(buildCustomizationPreviewMarkdown(content), content);
+		});
+
+		test('wraps front matter in a fenced yaml block', () => {
+			const content = '---\ndescription: An agent\nmode: agent\n---\n\n# Body\n\nHello.\n';
+			const result = buildCustomizationPreviewMarkdown(content);
+			assert.strictEqual(result, '```yaml\ndescription: An agent\nmode: agent\n```\n\n# Body\n\nHello.\n');
+		});
+
+		test('handles CRLF line endings', () => {
+			const content = '---\r\ndescription: An agent\r\n---\r\n\r\n# Body\r\n';
+			const result = buildCustomizationPreviewMarkdown(content);
+			assert.strictEqual(result, '```yaml\ndescription: An agent\n```\n\n# Body\r\n');
+		});
+
+		test('uses a longer fence when YAML contains triple backticks', () => {
+			const content = '---\ndescription: "Use ```ts for code"\n---\n\n# Body\n';
+			const result = buildCustomizationPreviewMarkdown(content);
+			assert.ok(result.startsWith('````yaml\n'), `Expected 4-backtick fence, got: ${result.slice(0, 20)}`);
+			assert.ok(result.includes('\n````\n'), 'Expected matching 4-backtick closing fence');
+			assert.ok(result.includes('description: "Use ```ts for code"'), 'YAML body should be preserved verbatim');
+		});
+
+		test('uses a fence longer than the longest backtick run in YAML', () => {
+			const content = '---\nexample: "fence: ```` four ticks"\n---\n\nbody\n';
+			const result = buildCustomizationPreviewMarkdown(content);
+			assert.ok(result.startsWith('`````yaml\n'), `Expected 5-backtick fence, got: ${result.slice(0, 20)}`);
+		});
+
+		test('returns content unchanged when there is no closing front-matter delimiter', () => {
+			const content = '---\ndescription: Open frontmatter\n# typing in progress';
+			assert.strictEqual(buildCustomizationPreviewMarkdown(content), content);
+		});
+
+		test('renders empty front matter as an empty fenced yaml block', () => {
+			const content = '---\n---';
+			const result = buildCustomizationPreviewMarkdown(content);
+			assert.strictEqual(result, '```yaml\n\n```\n\n');
+		});
+
+		test('renders comment-only front matter inside the fenced yaml block', () => {
+			const content = '---\n# note\n---\nBody text here.';
+			const result = buildCustomizationPreviewMarkdown(content);
+			assert.strictEqual(result, '```yaml\n# note\n```\n\nBody text here.');
+		});
+
+		test('handles front matter with no body', () => {
+			const content = '---\ndescription: Just metadata\n---\n';
+			const result = buildCustomizationPreviewMarkdown(content);
+			assert.strictEqual(result, '```yaml\ndescription: Just metadata\n```\n\n');
+		});
 	});
 });

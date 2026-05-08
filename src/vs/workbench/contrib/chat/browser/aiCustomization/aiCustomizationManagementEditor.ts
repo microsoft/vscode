@@ -2113,7 +2113,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.editorPreviewDisposables.clear();
 		DOM.clearNode(this.editorPreviewBodyContainer);
 
-		const previewSource = this.buildPreviewMarkdown(rawContent);
+		const previewSource = buildCustomizationPreviewMarkdown(rawContent);
 		if (!previewSource.trim()) {
 			DOM.append(this.editorPreviewBodyContainer, $('div.editor-preview-empty-state')).textContent = localize('previewNoBody', "No content found in this file.");
 			return;
@@ -2123,23 +2123,6 @@ export class AICustomizationManagementEditor extends EditorPane {
 		markdown.baseUri = uri;
 		const renderedMarkdown = this.editorPreviewDisposables.add(this.markdownRendererService.render(markdown));
 		this.editorPreviewBodyContainer.appendChild(renderedMarkdown.element);
-	}
-
-	private buildPreviewMarkdown(rawContent: string): string {
-		const parsed = parseFrontMatter(rawContent);
-		if (!parsed?.header) {
-			return rawContent;
-		}
-
-		// parseFrontMatter returns the body string starting at the first byte after the
-		// closing `---` marker. The remainder of the input (front-matter delimiters
-		// included) is the original front-matter section.
-		const headerSection = rawContent.slice(0, rawContent.length - parsed.body.length);
-		const yamlOnly = headerSection
-			.replace(/^---\r?\n/, '')
-			.replace(/\r?\n---\r?\n?$/, '');
-		const body = parsed.body.replace(/^\r?\n+/, '');
-		return '```yaml\n' + yamlOnly + '\n```\n\n' + body;
 	}
 
 	private clearEditorPreview(): void {
@@ -2299,4 +2282,45 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	//#endregion
+}
+
+/**
+ * Builds the markdown source used to preview a customization file. Front matter
+ * (when present and well-formed) is preserved by wrapping it in a fenced
+ * `yaml` code block. The fence length is chosen dynamically so that backticks
+ * inside YAML values do not terminate the block early.
+ *
+ * Exported for unit testing.
+ */
+export function buildCustomizationPreviewMarkdown(rawContent: string): string {
+	const parsed = parseFrontMatter(rawContent);
+	// `parsed.body === rawContent` means parseFrontMatter found no usable front
+	// matter (no opening `---`, or no closing `---`), so render the file as-is.
+	if (!parsed || parsed.body === rawContent) {
+		return rawContent;
+	}
+
+	// parseFrontMatter returns the body string starting at the first byte after
+	// the closing `---` marker. The remainder of the input (front-matter
+	// delimiters included) is the original front-matter section.
+	const headerSection = rawContent.slice(0, rawContent.length - parsed.body.length);
+	const yamlOnly = headerSection
+		.replace(/^---\r?\n/, '')
+		.replace(/\r?\n---\r?\n?$/, '')
+		.replace(/^---$/, '');
+	const body = parsed.body.replace(/^\r?\n+/, '');
+	const fenceLength = Math.max(3, longestBacktickRun(yamlOnly) + 1);
+	const fence = '`'.repeat(fenceLength);
+	return `${fence}yaml\n${yamlOnly}\n${fence}\n\n${body}`;
+}
+
+function longestBacktickRun(text: string): number {
+	let longest = 0;
+	const matches = text.matchAll(/`+/g);
+	for (const match of matches) {
+		if (match[0].length > longest) {
+			longest = match[0].length;
+		}
+	}
+	return longest;
 }
