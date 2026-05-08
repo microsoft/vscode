@@ -315,21 +315,36 @@ export const SOTA_WELCOME_HERO_SKYLINE_SVG: string = `
 				90% { opacity: 1; }
 				100% { transform: translate(-150px, -500px) rotate(-3deg); opacity: 0; }
 			}
-			.sota-skyline-car-1 { animation: sotaSkylineDrive1 8s linear infinite; }
-			.sota-skyline-car-2 { animation: sotaSkylineDrive2 10s linear infinite; animation-delay: 4s; }
-			@keyframes sotaSkylineDrive1 {
-				from { transform: translate(1200px, 600px); }
-				to { transform: translate(-200px, -100px); }
-			}
-			@keyframes sotaSkylineDrive2 {
-				from { transform: translate(-200px, 400px); }
-				to { transform: translate(1200px, -300px); }
+			/* Continuous Isometric Ring Road Animation. Three cars share the same
+			 * 16s loop staggered by negative delay so the road always has motion. */
+			.sota-skyline-car-loop-1 { animation: sotaSkylineDriveLoop 16s linear infinite; }
+			.sota-skyline-car-loop-2 { animation: sotaSkylineDriveLoop 16s linear infinite; animation-delay: -5.33s; }
+			.sota-skyline-car-loop-3 { animation: sotaSkylineDriveLoop 16s linear infinite; animation-delay: -10.66s; }
+			@keyframes sotaSkylineDriveLoop {
+				/* Top edge (+X) */
+				0%    { transform: translate(-380px, -150px) rotate(0deg); }
+				23%   { transform: translate(350px, -150px) rotate(0deg); }
+				/* Corner 1 */
+				25%   { transform: translate(380px, -120px) rotate(90deg); }
+				/* Right edge (+Y) */
+				48%   { transform: translate(380px, 200px) rotate(90deg); }
+				/* Corner 2 */
+				50%   { transform: translate(350px, 230px) rotate(180deg); }
+				/* Bottom edge (-X) */
+				73%   { transform: translate(-350px, 230px) rotate(180deg); }
+				/* Corner 3 */
+				75%   { transform: translate(-380px, 200px) rotate(270deg); }
+				/* Left edge (-Y) */
+				98%   { transform: translate(-380px, -120px) rotate(270deg); }
+				/* Corner 4 / reset */
+				100%  { transform: translate(-380px, -150px) rotate(360deg); }
 			}
 			@media (prefers-reduced-motion: reduce) {
 				.sota-skyline-blueprint-line { animation: none; stroke-dashoffset: 0; }
 				.sota-skyline-grid-line { animation: none; opacity: 1; }
 				.sota-skyline-balloon-1, .sota-skyline-balloon-2,
-				.sota-skyline-car-1, .sota-skyline-car-2 { animation: none; }
+				.sota-skyline-car-loop-1, .sota-skyline-car-loop-2,
+				.sota-skyline-car-loop-3 { animation: none; }
 			}
 		</style>
 		<g id="sota-skyline-text-base" text-anchor="middle" font-family="'Anton', 'Arial Black', Impact, sans-serif" font-weight="900" font-size="140" letter-spacing="2">
@@ -340,6 +355,24 @@ export const SOTA_WELCOME_HERO_SKYLINE_SVG: string = `
 			<g transform="matrix(0.866, 0.5, -0.866, 0.5, 600, 320)">
 				<use href="#sota-skyline-text-base" />
 			</g>
+		</g>
+		<g id="sota-skyline-car-red">
+			<rect x="-15" y="-7.5" width="30" height="15" fill="#A00000" rx="2" />
+			<rect x="-8" y="-5.5" width="12" height="11" fill="#701c1c" rx="1" />
+			<rect x="12" y="-5" width="3" height="3" fill="#f1c40f" />
+			<rect x="12" y="2" width="3" height="3" fill="#f1c40f" />
+		</g>
+		<g id="sota-skyline-car-green">
+			<rect x="-15" y="-7.5" width="30" height="15" fill="#2ecc71" rx="2" />
+			<rect x="-8" y="-5.5" width="12" height="11" fill="#1e8449" rx="1" />
+			<rect x="12" y="-5" width="3" height="3" fill="#f1c40f" />
+			<rect x="12" y="2" width="3" height="3" fill="#f1c40f" />
+		</g>
+		<g id="sota-skyline-car-blue">
+			<rect x="-15" y="-7.5" width="30" height="15" fill="#3498db" rx="2" />
+			<rect x="-8" y="-5.5" width="12" height="11" fill="#21618c" rx="1" />
+			<rect x="12" y="-5" width="3" height="3" fill="#f1c40f" />
+			<rect x="12" y="2" width="3" height="3" fill="#f1c40f" />
 		</g>
 		<g id="sota-skyline-tree">
 			<path d="M0,-48 L-10,-28 L-4,-28 L-12,-8 L0,-8 Z" fill="#2ecc71" />
@@ -352,32 +385,24 @@ export const SOTA_WELCOME_HERO_SKYLINE_SVG: string = `
 			<path d="M-500,400 L1500,1400 M-400,350 L1600,1350 M-300,300 L1700,1300 M-200,250 L1800,1250 M-100,200 L1900,1200 M0,150 L2000,1150 M100,100 L2100,1100 M200,50 L2200,1050 M300,0 L2300,1000 M400,-50 L2400,950 M500,-100 L2500,900 M600,-150 L2600,850 M700,-200 L2700,800 M800,-250 L2800,750" />
 			<path d="M1500,-500 L-500,500 M1600,-450 L-400,550 M1700,-400 L-300,600 M1800,-350 L-200,650 M1900,-300 L-100,700 M2000,-250 L0,750 M2100,-200 L100,800 M2200,-150 L200,850 M2300,-100 L300,900 M2400,-50 L400,950 M2500,0 L500,1000 M2600,50 L600,1050 M2700,100 L700,1100 M2800,150 L800,1150" />
 		</g>
-		<path d="M-200,200 L600,600 L1400,200" fill="none" stroke="#111111" stroke-width="60" stroke-linejoin="round" />
-		<path d="M-200,200 L600,600 L1400,200" fill="none" stroke="#f1c40f" stroke-width="2" stroke-dasharray="15 15" opacity="0.4" />
-		<path d="M-200,500 L600,900 L1400,500" fill="none" stroke="#111111" stroke-width="60" stroke-linejoin="round" />
-		<path d="M-200,500 L600,900 L1400,500" fill="none" stroke="#f1c40f" stroke-width="2" stroke-dasharray="15 15" opacity="0.4" />
+		<g transform="matrix(0.866, 0.5, -0.866, 0.5, 600, 420)">
+			<rect x="-380" y="-150" width="760" height="380" rx="30" fill="#0a0a0a" />
+			<rect x="-380" y="-150" width="760" height="380" rx="30" fill="none" stroke="#111111" stroke-width="40" />
+			<rect x="-380" y="-150" width="760" height="380" rx="30" fill="none" stroke="#f1c40f" stroke-width="2" stroke-dasharray="15 15" opacity="0.4" />
+			<g class="sota-skyline-car-loop-1"><use href="#sota-skyline-car-red"/></g>
+			<g class="sota-skyline-car-loop-2"><use href="#sota-skyline-car-green"/></g>
+			<g class="sota-skyline-car-loop-3"><use href="#sota-skyline-car-blue"/></g>
+		</g>
 		<use href="#sota-skyline-iso-text" y="100" fill="#1a1a1a" opacity="0">
 			<animate attributeName="opacity" to="1" dur="0.5s" begin="1s" fill="freeze" />
 		</use>
 		<use href="#sota-skyline-iso-text" y="100" class="sota-skyline-blueprint-line" />
 	</g>
 	<g>
-		<g transform="translate(180, 250)"><use href="#sota-skyline-tree"/></g>
-		<g transform="translate(220, 270)"><use href="#sota-skyline-tree"/></g>
-		<g transform="translate(850, 150)"><use href="#sota-skyline-tree"/></g>
-		<g transform="translate(890, 170)"><use href="#sota-skyline-tree"/></g>
-	</g>
-	<g class="sota-skyline-car-1">
-		<g transform="matrix(0.866, 0.5, -0.866, 0.5, 0, 0)">
-			<rect x="0" y="0" width="30" height="15" fill="#A00000" rx="2" />
-			<rect x="5" y="2" width="20" height="11" fill="#701c1c" rx="1" />
-		</g>
-	</g>
-	<g class="sota-skyline-car-2">
-		<g transform="matrix(0.866, -0.5, 0.866, 0.5, 0, 0)">
-			<rect x="0" y="0" width="25" height="12" fill="#2ecc71" rx="2" />
-			<rect x="4" y="2" width="17" height="8" fill="#1e8449" rx="1" />
-		</g>
+		<g transform="translate(550, 150)"><use href="#sota-skyline-tree"/></g>
+		<g transform="translate(590, 170)"><use href="#sota-skyline-tree"/></g>
+		<g transform="translate(950, 250)"><use href="#sota-skyline-tree"/></g>
+		<g transform="translate(910, 230)"><use href="#sota-skyline-tree"/></g>
 	</g>
 	<g>
 		<g opacity="0"><animate attributeName="opacity" to="1" dur="0.01s" begin="1.0s" fill="freeze" />
@@ -436,11 +461,10 @@ export const SOTA_WELCOME_HERO_SKYLINE_SVG: string = `
 		</g>
 	</g>
 	<g>
-		<g transform="translate(250, 600)"><use href="#sota-skyline-tree"/></g>
-		<g transform="translate(290, 620)"><use href="#sota-skyline-tree"/></g>
-		<g transform="translate(210, 630)"><use href="#sota-skyline-tree"/></g>
-		<g transform="translate(900, 650)"><use href="#sota-skyline-tree"/></g>
-		<g transform="translate(940, 630)"><use href="#sota-skyline-tree"/></g>
+		<g transform="translate(180, 500)"><use href="#sota-skyline-tree"/></g>
+		<g transform="translate(220, 520)"><use href="#sota-skyline-tree"/></g>
+		<g transform="translate(680, 750)"><use href="#sota-skyline-tree"/></g>
+		<g transform="translate(720, 730)"><use href="#sota-skyline-tree"/></g>
 	</g>
 	<g class="sota-skyline-balloon-1">
 		<g transform="translate(300, 600)">
