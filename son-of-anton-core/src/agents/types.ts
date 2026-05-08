@@ -177,6 +177,10 @@ export interface AgentConfig {
 	defaultModel: ModelId;
 	maxRetries: number;
 	slashCommands: SlashCommandConfig[];
+	/** Optional. Maximum wall-clock time per subtask invocation. Default 5 minutes. */
+	readonly perTurnTimeoutMs?: number;
+	/** Optional. Consecutive failures for one handle that trip the breaker. Default 3. */
+	readonly consecutiveFailureCircuitBreaker?: number;
 }
 
 /**

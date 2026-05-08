@@ -358,6 +358,42 @@ export class OrchestratorAgent extends BaseAgent {
 		const remaining = new Set(plan.subtasks.map(s => s.id));
 		let dispatchPaused = false;
 
+		// Consecutive-failure circuit breaker (H9). Counter is per-handle and
+		// keyed by `subtask.assignee` — a single hung specialist can't take
+		// down the whole approve cycle, but it *will* be quarantined for the
+		// rest of this cycle once the threshold is hit. A successful subtask
+		// resets the counter for that handle.
+		const consecutiveFailureThreshold = this.config.consecutiveFailureCircuitBreaker ?? 3;
+		const consecutiveFailures = new Map<AgentHandle, number>();
+		const trippedHandles = new Set<AgentHandle>();
+
+		const tripBreaker = (handle: AgentHandle): void => {
+			if (trippedHandles.has(handle)) {
+				return;
+			}
+			trippedHandles.add(handle);
+			const reason = `Specialist @${handle} stuck — ${consecutiveFailureThreshold} consecutive failures, circuit breaker tripped.`;
+			stream.markdown(`\n**Circuit breaker tripped for @${handle}** — skipping remaining subtasks for this specialist.\n\n`);
+			// Quarantine every still-pending subtask for this handle. We
+			// match the dependency-cycle path's emission shape so the task
+			// board renders these identically.
+			for (const id of [...remaining]) {
+				const subtask = subtaskById.get(id);
+				if (!subtask || subtask.assignee !== handle) {
+					continue;
+				}
+				subtask.status = 'failed';
+				remaining.delete(id);
+				stream.markdown(`**Blocked** ${subtask.instruction} — ${reason}\n\n`);
+				structuredEmit?.({
+					type: 'subtask-blocked',
+					subtaskId: subtask.id,
+					assignee: subtask.assignee,
+					reason,
+				});
+			}
+		};
+
 		while (remaining.size > 0) {
 			if (token.isCancellationRequested) {
 				stream.markdown('\n**Execution cancelled — letting in-flight subtasks settle.**\n');
@@ -371,6 +407,9 @@ export class OrchestratorAgent extends BaseAgent {
 				}
 				const subtask = subtaskById.get(id);
 				if (!subtask) {
+					return false;
+				}
+				if (trippedHandles.has(subtask.assignee)) {
 					return false;
 				}
 				return subtask.dependencies.every(depId => results.get(depId)?.success);
@@ -440,6 +479,7 @@ export class OrchestratorAgent extends BaseAgent {
 						results.set(subtask.id, result);
 						if (result.success) {
 							subtask.status = 'completed';
+							consecutiveFailures.set(subtask.assignee, 0);
 							stream.markdown(`**Completed:** ${subtask.instruction} — ${result.summary}\n\n`);
 							structuredEmit?.({
 								type: 'subtask-completed',
@@ -449,6 +489,8 @@ export class OrchestratorAgent extends BaseAgent {
 							});
 						} else {
 							subtask.status = 'failed';
+							const next = (consecutiveFailures.get(subtask.assignee) ?? 0) + 1;
+							consecutiveFailures.set(subtask.assignee, next);
 							stream.markdown(`**Failed:** ${subtask.instruction} — ${result.summary}\n\n`);
 							structuredEmit?.({
 								type: 'subtask-failed',
@@ -456,6 +498,9 @@ export class OrchestratorAgent extends BaseAgent {
 								assignee: subtask.assignee,
 								error: result.summary,
 							});
+							if (next >= consecutiveFailureThreshold) {
+								tripBreaker(subtask.assignee);
+							}
 						}
 					})
 					.catch(err => {
@@ -467,6 +512,8 @@ export class OrchestratorAgent extends BaseAgent {
 							summary: message,
 							tokenUsage: { inputTokens: 0, outputTokens: 0, cachedTokens: 0, naiveInputTokens: 0 },
 						});
+						const next = (consecutiveFailures.get(subtask.assignee) ?? 0) + 1;
+						consecutiveFailures.set(subtask.assignee, next);
 						stream.markdown(`**Failed:** ${subtask.instruction} — ${message}\n\n`);
 						structuredEmit?.({
 							type: 'subtask-failed',
@@ -474,6 +521,9 @@ export class OrchestratorAgent extends BaseAgent {
 							assignee: subtask.assignee,
 							error: message,
 						});
+						if (next >= consecutiveFailureThreshold) {
+							tripBreaker(subtask.assignee);
+						}
 					})
 					.finally(() => {
 						inFlight.delete(subtask.id);
@@ -637,13 +687,58 @@ export class OrchestratorAgent extends BaseAgent {
 				: undefined,
 		};
 
+		// Per-turn timeout (H9). Race the specialist's execute() against a
+		// wall-clock timer; if the timer wins, surface a timed-out
+		// SubtaskResult and skip retries — a hung specialist won't unblock
+		// by re-running. The losing branch is fenced with a `settled` flag
+		// so a late-resolving execute() can't smuggle a stale result back
+		// into the orchestrator.
+		const perTurnTimeoutMs = this.config.perTurnTimeoutMs ?? 5 * 60 * 1000;
+
 		// Execute with retry loop
 		let result: SubtaskResult | undefined;
 		let retryCount = 0;
 
 		while (retryCount < this.config.maxRetries) {
-			result = await specialist.execute(context);
+			let settled = false;
+			let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+			const timeoutPromise = new Promise<SubtaskResult>(resolve => {
+				timeoutHandle = setTimeout(() => {
+					if (settled) {
+						return;
+					}
+					settled = true;
+					resolve({
+						success: false,
+						changes: [],
+						summary: `Timed out after ${perTurnTimeoutMs} ms`,
+						tokenUsage: { inputTokens: 0, outputTokens: 0, cachedTokens: 0, naiveInputTokens: 0 },
+					});
+				}, perTurnTimeoutMs);
+			});
+
+			const executePromise = specialist.execute(context).then(r => {
+				if (settled) {
+					// Timeout already won; discard this stale result so it
+					// can't leak back into `results`.
+					return undefined as unknown as SubtaskResult;
+				}
+				settled = true;
+				if (timeoutHandle !== undefined) {
+					clearTimeout(timeoutHandle);
+				}
+				return r;
+			});
+
+			const raced = await Promise.race([executePromise, timeoutPromise]);
+			result = raced;
 			const latencyMs = Date.now() - startTime;
+
+			// Timeout path: record an escalation, do NOT retry.
+			if (result && !result.success && result.summary.startsWith('Timed out after ')) {
+				this.metricsTracker.recordEscalation(subtask.assignee);
+				break;
+			}
 
 			this.metricsTracker.recordInvocation(subtask.assignee, latencyMs, result.tokenUsage);
 

@@ -47,10 +47,39 @@ export interface SpecialistMemoryChange {
  * should survive between conversations. Entries are auto-injected into the
  * specialist's system prompt by `BaseAgent.buildSystemPrompt`.
  *
+ * ## Two-tier scoping (H6)
+ *
+ * Each entry is scoped at one of two levels via the optional `conversationId`
+ * field on `SpecialistMemoryEntry`:
+ *
+ * 1. **Global (workspace-wide)** — entries written without a `conversationId`.
+ *    These behave like the legacy memory model: visible to every conversation
+ *    that addresses this specialist. Use for stable preferences ("user prefers
+ *    tabs", "project uses Pytest").
+ * 2. **Per-conversation** — entries written with a `conversationId`. These
+ *    surface in the system prompt only when the same `conversationId` is on
+ *    the read side. Use for transient context ("this thread is writing
+ *    Python") that must not leak into unrelated conversations.
+ *
+ * Read methods (`list`, `get`, `formatForSystemPrompt`) accept an optional
+ * `conversationId`. When supplied, they return globals + entries matching
+ * that conversation. When omitted, they preserve the legacy "everything for
+ * this handle" view — useful for the slash-command UI that lists all
+ * memories regardless of scope.
+ *
  * Usage:
  * ```ts
+ * // Global preference — surfaces in every conversation
  * memory.set('anton-code', 'code-style', 'Tabs over spaces.');
- * memory.formatForSystemPrompt('anton-code'); // markdown block for prompt
+ *
+ * // Per-conversation hint — only surfaces when conversationId === 'C1'
+ * memory.set('anton-code', 'language', 'Python', 'C1');
+ *
+ * // System prompt for conversation C1 sees both entries above
+ * memory.formatForSystemPrompt('anton-code', 'C1');
+ *
+ * // System prompt for conversation C2 sees only the global entry
+ * memory.formatForSystemPrompt('anton-code', 'C2');
  * ```
  */
 export class SpecialistMemory implements Disposable {
@@ -62,22 +91,44 @@ export class SpecialistMemory implements Disposable {
 	constructor(private readonly globalState: MementoStore) { }
 
 	/**
-	 * Get all entries for a specialist, ordered newest first.
+	 * Get entries for a specialist, ordered newest first.
+	 *
+	 * When `conversationId` is supplied, the result is narrowed to entries
+	 * that are either global (no `conversationId`) or scoped to the given
+	 * conversation. When `conversationId` is omitted, every entry for the
+	 * handle is returned — preserves the legacy view used by the
+	 * `/memory list` slash command.
 	 */
-	list(handle: AgentHandle | 'anton'): ReadonlyArray<SpecialistMemoryEntry> {
+	list(handle: AgentHandle | 'anton', conversationId?: string): ReadonlyArray<SpecialistMemoryEntry> {
 		const map = this.readMap();
 		const entries = map[handle] ?? [];
+		const scoped = conversationId === undefined
+			? entries
+			: entries.filter(e => e.conversationId === undefined || e.conversationId === conversationId);
 		// Newest first — entries are stored in mutation order (oldest first), so reverse.
-		return [...entries].sort((a, b) => b.updatedAt - a.updatedAt);
+		return [...scoped].sort((a, b) => b.updatedAt - a.updatedAt);
 	}
 
 	/**
 	 * Get a single entry's value by key.
+	 *
+	 * When `conversationId` is supplied, only globals and entries scoped to
+	 * that conversation are considered (per-conversation entries from other
+	 * threads are invisible). When omitted, any entry with the matching key
+	 * is returned regardless of scope (legacy behaviour).
 	 */
-	get(handle: AgentHandle | 'anton', key: string): string | undefined {
+	get(handle: AgentHandle | 'anton', key: string, conversationId?: string): string | undefined {
 		const map = this.readMap();
 		const entries = map[handle] ?? [];
-		const found = entries.find(e => e.key === key);
+		const found = entries.find(e => {
+			if (e.key !== key) {
+				return false;
+			}
+			if (conversationId === undefined) {
+				return true;
+			}
+			return e.conversationId === undefined || e.conversationId === conversationId;
+		});
 		return found?.value;
 	}
 
@@ -153,7 +204,7 @@ export class SpecialistMemory implements Disposable {
 	}
 
 	/**
-	 * Remove all entries for a specialist.
+	 * Remove all entries for a specialist (both global and per-conversation).
 	 */
 	clear(handle: AgentHandle | 'anton'): void {
 		const map = this.readMap();
@@ -166,12 +217,43 @@ export class SpecialistMemory implements Disposable {
 	}
 
 	/**
+	 * Remove only the per-conversation entries for `conversationId`. Global
+	 * entries (no `conversationId`) and entries scoped to other conversations
+	 * are preserved. Use when a conversation ends and its transient hints
+	 * shouldn't outlive it.
+	 */
+	clearConversation(handle: AgentHandle | 'anton', conversationId: string): void {
+		const map = this.readMap();
+		const list = map[handle];
+		if (!list || list.length === 0) {
+			return;
+		}
+		const filtered = list.filter(e => e.conversationId !== conversationId);
+		if (filtered.length === list.length) {
+			return;
+		}
+		if (filtered.length === 0) {
+			delete map[handle];
+		} else {
+			map[handle] = filtered;
+		}
+		void this.writeMap(map);
+		this.emitter.fire({ handle });
+	}
+
+	/**
 	 * Format the specialist's memories as a markdown block suitable for
 	 * injection into a system prompt. Returns an empty string when the
 	 * specialist has no entries.
+	 *
+	 * When `conversationId` is supplied, only globals + entries scoped to
+	 * that conversation are emitted — preventing per-conversation hints
+	 * from one thread leaking into another. When omitted, every entry for
+	 * the handle is included (legacy behaviour for callers that don't yet
+	 * track conversation identity).
 	 */
-	formatForSystemPrompt(handle: AgentHandle | 'anton'): string {
-		const entries = this.list(handle);
+	formatForSystemPrompt(handle: AgentHandle | 'anton', conversationId?: string): string {
+		const entries = this.list(handle, conversationId);
 		if (entries.length === 0) {
 			return '';
 		}

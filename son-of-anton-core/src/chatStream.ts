@@ -53,6 +53,17 @@ export interface ChatRequestLike {
 	 * the raw protocol block.
 	 */
 	readonly emitFollowupSuggestions?: boolean;
+	/**
+	 * Host-supplied opaque id used to scope per-conversation specialist
+	 * memory (H6). When present, `SpecialistMemory.formatForSystemPrompt`
+	 * surfaces only entries that are global or scoped to this conversation
+	 * — preventing transient hints from one thread (e.g. "this user is
+	 * writing Python") leaking into an unrelated thread on the same
+	 * specialist. When omitted, the legacy "all memory for this handle"
+	 * view is used. Surfaces are expected to pass a stable id for the
+	 * lifetime of a single chat session.
+	 */
+	readonly conversationId?: string;
 }
 
 /**

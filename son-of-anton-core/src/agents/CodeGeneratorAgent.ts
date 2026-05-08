@@ -48,7 +48,6 @@ export class CodeGeneratorAgent extends BaseAgent {
 
 		try {
 			const codeContext = await this.gatherCodeContext(task.id, context);
-			const systemPrompt = this.buildSystemPrompt(this.getRoleDescription());
 			const userMessage = this.buildCodeGenPrompt(context, codeContext);
 
 			// When the host has wired a ToolExecutionContext (the IDE / CLI
@@ -58,9 +57,18 @@ export class CodeGeneratorAgent extends BaseAgent {
 			// stabilises.
 			const toolExecutionContext = this.getToolExecutionContext();
 			if (!toolExecutionContext) {
+				const systemPrompt = this.buildSystemPrompt(this.getRoleDescription());
 				return await this.runWithLegacyDiff(context, task.id, systemPrompt, userMessage);
 			}
 
+			// H5 — pass cache-aware system prompt parts so the static prefix
+			// (voice + role + AGENTS.md) stays cached across turns even when
+			// specialist memory churns. `runToolLoop` accepts a single
+			// systemPrompt string today; we join the parts back for it but
+			// also expose them through the LlmRequestOptions surface — once
+			// runToolLoop learns to take parts directly, this join collapses.
+			const systemPromptParts = this.buildSystemPromptParts(this.getRoleDescription());
+			const systemPrompt = systemPromptParts.map(p => p.text).join('\n\n---\n\n');
 			const initialMessages: LlmMessage[] = [{ role: 'user', content: userMessage }];
 			const tools = this.allowedToolDefinitions();
 
@@ -69,6 +77,7 @@ export class CodeGeneratorAgent extends BaseAgent {
 				taskId: task.id,
 				model: this.defaultModel,
 				systemPrompt,
+				systemPromptParts,
 				initialMessages,
 				tools,
 				maxIterations: 10,

@@ -6,7 +6,7 @@
 import type { ChatRequestLike, ChatContextLike, ChatStreamLike, CancellationLike } from '../chatStream';
 import type { ConfigStore, ProjectContextProvider } from '../host';
 import { getVoice } from '../chat/personas';
-import { LlmClient, ModelId, type LlmContentPart, type LlmMessage } from '../llm/LlmClient';
+import { LlmClient, ModelId, type LlmContentPart, type LlmMessage, type SystemPromptPart } from '../llm/LlmClient';
 import { McpClient, McpToolResult } from '../mcp/McpClient';
 import { isPersonalityEnabled } from '../personality/personalityConfig';
 import { formatSignOff, pickSignOffQuote } from '../personality/specialistQuotes';
@@ -164,22 +164,24 @@ export abstract class BaseAgent {
 	 */
 	protected buildSystemPrompt(
 		roleDescription: string,
-		workspaceContextSnapshotOrOptions?: string | { workspaceContextSnapshot?: string; emitFollowupSuggestions?: boolean },
+		workspaceContextSnapshotOrOptions?: string | { workspaceContextSnapshot?: string; emitFollowupSuggestions?: boolean; conversationId?: string },
 	): string {
 		// Backwards-compatibility: callers used to pass `workspaceContextSnapshot`
 		// as a positional string. New callers can pass an options bag to opt in
 		// to additional system-prompt sections (e.g. the H4 follow-up
-		// suggestions sentinel).
+		// suggestions sentinel) or scope specialist memory to a conversation
+		// (H6 — `conversationId`).
 		const opts = typeof workspaceContextSnapshotOrOptions === 'string'
 			? { workspaceContextSnapshot: workspaceContextSnapshotOrOptions }
 			: (workspaceContextSnapshotOrOptions ?? {});
 		const workspaceContextSnapshot = opts.workspaceContextSnapshot;
 		const emitFollowupSuggestions = !!opts.emitFollowupSuggestions;
+		const conversationId = opts.conversationId;
 
 		const voice = getVoice(this.handle);
 		const projectCtx = this.projectContext?.get();
 		const memoryContext = this.projectMemory.getSystemContext();
-		const specialistMem = this.specialistMemory?.formatForSystemPrompt(this.handle);
+		const specialistMem = this.specialistMemory?.formatForSystemPrompt(this.handle, conversationId);
 		const sections: string[] = [];
 
 		if (voice) {
@@ -209,6 +211,82 @@ export abstract class BaseAgent {
 		}
 
 		return sections.join('\n\n---\n\n');
+	}
+
+	/**
+	 * H5 — split-system-prompt variant of `buildSystemPrompt`. Returns up to
+	 * three `SystemPromptPart`s that Anthropic-compatible providers map onto
+	 * separate cache_control blocks:
+	 *
+	 *   Part 1 — voice + role + project context (~static across many turns)
+	 *   Part 2 — workspace snapshot + project memory (~stable mid-session)
+	 *   Part 3 — specialist memory + sentinel instructions (changes per turn)
+	 *
+	 * The first two parts are marked `cache: 'ephemeral'` so the prefix
+	 * stays cached even when the third part churns. Empty parts are pruned
+	 * so a workspace without a snapshot doesn't pay the breakpoint cost
+	 * for nothing. Specialists that opt in (CodeGeneratorAgent today) pass
+	 * these to `LlmRequestOptions.systemPromptParts`; legacy callers stay
+	 * on `buildSystemPrompt` and pay the single-block cache cost they
+	 * always paid.
+	 */
+	protected buildSystemPromptParts(
+		roleDescription: string,
+		options?: { workspaceContextSnapshot?: string; emitFollowupSuggestions?: boolean; conversationId?: string },
+	): ReadonlyArray<{ text: string; cache?: 'ephemeral' }> {
+		const opts = options ?? {};
+		const voice = getVoice(this.handle);
+		const projectCtx = this.projectContext?.get();
+		const memoryContext = this.projectMemory.getSystemContext();
+		const specialistMem = this.specialistMemory?.formatForSystemPrompt(this.handle, opts.conversationId);
+
+		// Part 1 — most static. Voice + role + project context (AGENTS.md /
+		// CLAUDE.md). These don't change inside a session, so caching them
+		// gives the highest hit rate.
+		const staticSections: string[] = [];
+		if (voice) {
+			staticSections.push(`## Voice\n${voice}`);
+		}
+		staticSections.push(roleDescription);
+		if (projectCtx && projectCtx.trim()) {
+			staticSections.push(`## Project Context (from AGENTS.md)\n\n${projectCtx}`);
+		}
+
+		// Part 2 — semi-static. Workspace snapshot + project memory.
+		// Workspace snapshot updates when the user changes editors / opens
+		// new files; project memory updates when `.son-of-anton/memory/`
+		// changes. Both shift slowly enough that a separate breakpoint
+		// here is still worth caching.
+		const semiStaticSections: string[] = [];
+		if (opts.workspaceContextSnapshot && opts.workspaceContextSnapshot.trim()) {
+			semiStaticSections.push(opts.workspaceContextSnapshot);
+		}
+		if (memoryContext) {
+			semiStaticSections.push(memoryContext);
+		}
+
+		// Part 3 — most dynamic. Specialist memory updates after every turn
+		// and the suggestion sentinel instruction is per-turn opt-in. No
+		// breakpoint here — the dynamic suffix shouldn't carry a cache marker.
+		const dynamicSections: string[] = [];
+		if (specialistMem) {
+			dynamicSections.push(specialistMem);
+		}
+		if (opts.emitFollowupSuggestions) {
+			dynamicSections.push(SUGGESTIONS_SENTINEL_INSTRUCTION);
+		}
+
+		const parts: Array<{ text: string; cache?: 'ephemeral' }> = [];
+		if (staticSections.length > 0) {
+			parts.push({ text: staticSections.join('\n\n---\n\n'), cache: 'ephemeral' });
+		}
+		if (semiStaticSections.length > 0) {
+			parts.push({ text: semiStaticSections.join('\n\n---\n\n'), cache: 'ephemeral' });
+		}
+		if (dynamicSections.length > 0) {
+			parts.push({ text: dynamicSections.join('\n\n---\n\n') });
+		}
+		return parts;
 	}
 
 	/**
@@ -491,6 +569,14 @@ export abstract class BaseAgent {
 		taskId: string;
 		model: ModelId;
 		systemPrompt: string;
+		/**
+		 * Optional. When supplied, takes precedence over `systemPrompt` and
+		 * is forwarded to `LlmRequestOptions.systemPromptParts` for
+		 * cache-aware delivery (H5). Anthropic-compatible providers map
+		 * each part onto its own `cache_control` block; non-Anthropic
+		 * providers concatenate the parts back into a single string.
+		 */
+		systemPromptParts?: ReadonlyArray<SystemPromptPart>;
 		initialMessages: LlmMessage[];
 		tools: ReadonlyArray<ToolDefinition>;
 		maxIterations?: number;
@@ -530,6 +616,7 @@ export abstract class BaseAgent {
 			for await (const event of this.llmClient.streamRequest({
 				model: args.model,
 				systemPrompt: args.systemPrompt,
+				systemPromptParts: args.systemPromptParts,
 				messages,
 				tools: args.tools.map(t => ({
 					name: t.name,
@@ -629,6 +716,7 @@ export abstract class BaseAgent {
 		modelOverride?: ModelId,
 		workspaceContextSnapshot?: string,
 		emitFollowupSuggestions?: boolean,
+		conversationId?: string,
 	): Promise<string> {
 		// Task descriptions surface in the trace pane and the task list, so we
 		// keep the title short. The full prompt — which may include a multi-page
@@ -644,6 +732,7 @@ export abstract class BaseAgent {
 			const systemPrompt = this.buildSystemPrompt(this.getRoleDescription(), {
 				workspaceContextSnapshot,
 				emitFollowupSuggestions,
+				conversationId,
 			});
 			let fullText = '';
 			// Per-turn model override (from the chat composer's picker). Without
@@ -740,6 +829,7 @@ export abstract class BaseAgent {
 			const systemPrompt = this.buildSystemPrompt(this.getRoleDescription(), {
 				workspaceContextSnapshot: request.workspaceContextSnapshot,
 				emitFollowupSuggestions: request.emitFollowupSuggestions,
+				conversationId: request.conversationId,
 			});
 			// Per-turn model override from the chat composer's picker. Falls
 			// back to this specialist's `defaultModel` when no override is

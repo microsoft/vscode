@@ -367,6 +367,52 @@ type AnthropicContentBlock =
  * single-text-message shape exactly. Anything multimodal is upgraded to a
  * blocks array.
  */
+/**
+ * Anthropic's per-block cache marker. The API enforces a maximum of 4
+ * cache breakpoints per request; we silently drop trailing markers past
+ * that ceiling so a careless caller never gets a 400 (the model still
+ * sees all the text — just with fewer cache prefixes).
+ */
+const ANTHROPIC_MAX_CACHE_BREAKPOINTS = 4;
+
+interface AnthropicSystemBlock {
+	type: 'text';
+	text: string;
+	cache_control?: { type: 'ephemeral' };
+}
+
+/**
+ * Translate `LlmRequestOptions.systemPromptParts` (or the legacy single
+ * `systemPrompt` string) into Anthropic's `system` field. Honours
+ * `enableCaching` for the legacy single-string path; honours per-part
+ * `cache: 'ephemeral'` markers for the parts path.
+ */
+function buildAnthropicSystemContent(options: LlmRequestOptions): string | ReadonlyArray<AnthropicSystemBlock> {
+	if (options.systemPromptParts && options.systemPromptParts.length > 0) {
+		const blocks: AnthropicSystemBlock[] = [];
+		let breakpoints = 0;
+		for (const part of options.systemPromptParts) {
+			if (!part.text) {
+				continue;
+			}
+			const block: AnthropicSystemBlock = { type: 'text', text: part.text };
+			if (part.cache === 'ephemeral' && breakpoints < ANTHROPIC_MAX_CACHE_BREAKPOINTS) {
+				block.cache_control = { type: 'ephemeral' };
+				breakpoints++;
+			}
+			blocks.push(block);
+		}
+		if (blocks.length > 0) {
+			return blocks;
+		}
+	}
+	const text = options.systemPrompt ?? 'You are a helpful coding assistant.';
+	if (options.enableCaching) {
+		return [{ type: 'text', text, cache_control: { type: 'ephemeral' } }];
+	}
+	return text;
+}
+
 function serialiseAnthropicContent(
 	content: LlmMessageContent,
 	supportsImages: boolean,
@@ -493,11 +539,34 @@ export interface ToolDefinition {
 	};
 }
 
+/**
+ * H5 — single system-prompt segment, optionally tagged with a cache
+ * breakpoint. Anthropic-compatible providers honour `cache: 'ephemeral'`
+ * by emitting a `cache_control: { type: 'ephemeral' }` marker on the
+ * corresponding text block, which lets the cache prefix stop just before
+ * a dynamic suffix instead of invalidating the whole system prompt every
+ * turn. Non-Anthropic providers concatenate the parts back into a single
+ * string and ignore the cache markers.
+ */
+export interface SystemPromptPart {
+	readonly text: string;
+	readonly cache?: 'ephemeral';
+}
+
 export interface LlmRequestOptions {
 	model: ModelId;
 	messages: LlmMessage[];
 	maxTokens?: number;
 	systemPrompt?: string;
+	/**
+	 * H5. When set, takes precedence over `systemPrompt`. Each part may
+	 * carry a `cache: 'ephemeral'` marker that Anthropic-compatible
+	 * providers translate into a per-block `cache_control`. Up to 4
+	 * breakpoints per Anthropic's prompt-cache contract — exceeding that
+	 * silently drops the trailing markers (the model still sees all the
+	 * text, just with fewer cache prefixes).
+	 */
+	systemPromptParts?: ReadonlyArray<SystemPromptPart>;
 	signal?: AbortSignal;
 	/** Enable prompt caching for the system prompt. */
 	enableCaching?: boolean;
@@ -1559,10 +1628,15 @@ export class LlmClient {
 
 		const modelId = this.getModelId(options.model);
 
-		// Build system prompt with cache control for prompt caching
-		const systemContent = options.enableCaching
-			? [{ type: 'text', text: options.systemPrompt ?? 'You are a helpful coding assistant.', cache_control: { type: 'ephemeral' } }]
-			: options.systemPrompt ?? 'You are a helpful coding assistant.';
+		// Build system prompt with optional per-part cache breakpoints (H5).
+		// When `systemPromptParts` is supplied, each part becomes its own
+		// Anthropic text block with optional `cache_control: ephemeral`. This
+		// lets the static prefix (voice + role + project context) cache
+		// independently of the dynamic suffix (specialist memory) so the
+		// prefix stays cached across turns even when memory updates.
+		// When only the legacy `systemPrompt` string is supplied, behaviour
+		// is unchanged from pre-H5: a single block with optional caching.
+		const systemContent = buildAnthropicSystemContent(options);
 
 		const supportsImages = modelSupportsImages(options.model);
 		const body: Record<string, unknown> = {
