@@ -1227,10 +1227,13 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 			}
 		}
 
+		const tabGroupColors = ['red', 'blue', 'green', 'yellow', 'purple', 'orange', 'pink', 'gray'];
+		const randomColor = tabGroupColors[Math.floor(Math.random() * tabGroupColors.length)];
+
 		const tabGroup: IEditorTabGroup = {
 			id: generateUuid(),
 			name: name ?? '',
-			color: color ?? 'blue',
+			color: color ?? randomColor,
 			collapsed: false,
 			startIndex: targetStart,
 			count: indices.length

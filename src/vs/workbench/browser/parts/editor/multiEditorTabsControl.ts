@@ -1744,7 +1744,16 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		}
 
 		// Update header content and styling
-		header.className = `tab-group-header color-${group.color}`;
+		const isCustomColor = group.color.startsWith('#') || group.color.startsWith('rgb');
+		header.className = `tab-group-header${isCustomColor ? '' : ` color-${group.color}`}`;
+		if (isCustomColor) {
+			const colorVal = this.getTabGroupColorValue(group.color);
+			header.style.backgroundColor = `${colorVal}33`;
+			header.style.color = colorVal;
+		} else {
+			header.style.backgroundColor = '';
+			header.style.color = '';
+		}
 		header.classList.toggle('collapsed', group.collapsed);
 		header.textContent = group.name || '\u2022';
 		header.title = group.name ? `Tab Group: ${group.name} (click to ${group.collapsed ? 'expand' : 'collapse'})` : `Tab Group (click to ${group.collapsed ? 'expand' : 'collapse'})`;
@@ -1767,6 +1776,9 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	}
 
 	private getTabGroupColorValue(color: string): string {
+		if (color.startsWith('#') || color.startsWith('rgb')) {
+			return color;
+		}
 		switch (color) {
 			case 'red': return '#e53935';
 			case 'blue': return '#1e88e5';
@@ -1807,12 +1819,26 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 		const colors = ['red', 'blue', 'green', 'yellow', 'purple', 'orange', 'pink', 'gray'];
 		actions.push(new Action('tabGroup.recolor', localize('recolorTabGroup', "Change Color..."), '', true, async () => {
+			const items = [
+				...colors.map(c => ({ label: c, picked: c === group.color })),
+				{ label: localize('customColor', "Custom (#hex)..."), picked: false }
+			];
 			const picked = await this.quickInputService.pick(
-				colors.map(c => ({ label: c, picked: c === group.color })),
+				items,
 				{ placeHolder: localize('tabGroupColorPlaceholder', "Choose a color for the tab group") }
 			);
 			if (picked) {
-				this.tabsModel.recolorTabGroup?.(group.id, picked.label);
+				if (picked.label === items[items.length - 1].label) {
+					const custom = await this.quickInputService.input({
+						placeHolder: localize('tabGroupCustomColorPlaceholder', "#hex or rgb(r,g,b)"),
+						value: group.color.startsWith('#') || group.color.startsWith('rgb') ? group.color : ''
+					});
+					if (custom) {
+						this.tabsModel.recolorTabGroup?.(group.id, custom);
+					}
+				} else {
+					this.tabsModel.recolorTabGroup?.(group.id, picked.label);
+				}
 			}
 		}));
 

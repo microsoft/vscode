@@ -1874,12 +1874,26 @@ function registerTabGroupCommands(): void {
 				const tabGroup = model.getTabGroupForEditor(editor);
 				if (tabGroup) {
 					const colors = ['red', 'blue', 'green', 'yellow', 'purple', 'orange', 'pink', 'gray'];
+					const items = [
+						...colors.map(c => ({ label: c, picked: c === tabGroup.color })),
+						{ label: localize('customColor', "Custom (#hex)..."), picked: false }
+					];
 					const picked = await quickInputService.pick(
-						colors.map(c => ({ label: c, picked: c === tabGroup.color })),
+						items,
 						{ placeHolder: localize('tabGroupColor', "Choose a color for the tab group") }
 					);
 					if (picked) {
-						model.recolorTabGroup(tabGroup.id, picked.label);
+						if (picked.label === items[items.length - 1].label) {
+							const custom = await quickInputService.input({
+								placeHolder: localize('tabGroupCustomColor', "#hex or rgb(r,g,b)"),
+								value: tabGroup.color.startsWith('#') || tabGroup.color.startsWith('rgb') ? tabGroup.color : ''
+							});
+							if (custom) {
+								model.recolorTabGroup(tabGroup.id, custom);
+							}
+						} else {
+							model.recolorTabGroup(tabGroup.id, picked.label);
+						}
 					}
 				}
 			}
