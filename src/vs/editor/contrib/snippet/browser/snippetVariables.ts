@@ -52,8 +52,8 @@ export const KnownSnippetVariableNames = Object.freeze<{ [key: string]: true }>(
 	'LINE_COMMENT': true,
 	'WORKSPACE_NAME': true,
 	'WORKSPACE_FOLDER': true,
-	'CURRENT_USER': true,
-	'CURRENT_USER_EMAIL': true,
+	'TM_FULLNAME': true,
+	'TM_EMAIL': true,
 	'RANDOM': true,
 	'RANDOM_HEX': true,
 	'UUID': true
@@ -375,9 +375,9 @@ export class UserBasedVariableResolver implements VariableResolver {
 
 	resolve(variable: Variable): string | undefined {
 		switch (variable.name) {
-			case 'CURRENT_USER':
+			case 'TM_FULLNAME':
 				return this._resolveFromEnv('GIT_AUTHOR_NAME', 'GIT_COMMITTER_NAME', 'USER', 'USERNAME', 'LOGNAME');
-			case 'CURRENT_USER_EMAIL':
+			case 'TM_EMAIL':
 				return this._resolveFromEnv('GIT_AUTHOR_EMAIL', 'GIT_COMMITTER_EMAIL', 'EMAIL');
 		}
 

@@ -411,23 +411,23 @@ suite('Snippet Variables Resolver', function () {
 			GIT_COMMITTER_EMAIL: 'committer@example.com',
 			EMAIL: 'shell@example.com',
 		});
-		assertVariableResolve(resolver, 'CURRENT_USER', 'Git Author Name');
-		assertVariableResolve(resolver, 'CURRENT_USER_EMAIL', 'author@example.com');
+		assertVariableResolve(resolver, 'TM_FULLNAME', 'Git Author Name');
+		assertVariableResolve(resolver, 'TM_EMAIL', 'author@example.com');
 
 		resolver = new UserBasedVariableResolver({
 			username: 'Windows User',
 			email: 'windows@example.com',
 		});
-		assertVariableResolve(resolver, 'CURRENT_USER', 'Windows User');
-		assertVariableResolve(resolver, 'CURRENT_USER_EMAIL', 'windows@example.com');
+		assertVariableResolve(resolver, 'TM_FULLNAME', 'Windows User');
+		assertVariableResolve(resolver, 'TM_EMAIL', 'windows@example.com');
 
 		resolver = new UserBasedVariableResolver({
 			GIT_AUTHOR_NAME: '   ',
 			USER: '',
 			EMAIL: '   '
 		});
-		assertVariableResolve(resolver, 'CURRENT_USER', undefined);
-		assertVariableResolve(resolver, 'CURRENT_USER_EMAIL', undefined);
+		assertVariableResolve(resolver, 'TM_FULLNAME', undefined);
+		assertVariableResolve(resolver, 'TM_EMAIL', undefined);
 	});
 
 	test('Add RELATIVE_FILEPATH snippet variable #114208', function () {
