@@ -184,4 +184,107 @@ describe('OpenAIEndpoint - Reasoning Properties', () => {
 			expect(body.reasoning).toBeUndefined(); // Should be removed
 		});
 	});
+
+	describe('reasoning effort forwarding', () => {
+		const userMessage: Raw.ChatMessage = {
+			role: Raw.ChatRole.User,
+			content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Hello' }]
+		};
+
+		const buildOptions = (reasoningEffort?: string): ICreateEndpointBodyOptions => ({
+			...createTestOptions([userMessage]),
+			modelCapabilities: reasoningEffort ? { reasoningEffort } : undefined,
+		});
+
+		const buildModel = (overrides: Partial<IChatModelInformation>): IChatModelInformation => ({
+			...modelMetadata,
+			supported_endpoints: [ModelSupportedEndpoint.ChatCompletions],
+			capabilities: {
+				...modelMetadata.capabilities,
+				supports: {
+					...modelMetadata.capabilities.supports,
+					reasoning_effort: ['low', 'medium', 'high'],
+				},
+			},
+			...overrides,
+		});
+
+		it('places top-level `reasoning_effort` on Chat Completions when the model supports the requested level', () => {
+			const endpoint = instaService.createInstance(OpenAIEndpoint,
+				buildModel({}),
+				'test-api-key',
+				'https://api.openai.com/v1/chat/completions');
+
+			const body = endpoint.createRequestBody(buildOptions('high'));
+
+			expect(body.reasoning_effort).toBe('high');
+			expect(body.reasoning).toBeUndefined();
+		});
+
+		it('omits the field when the requested level is not in the supported list', () => {
+			const endpoint = instaService.createInstance(OpenAIEndpoint,
+				buildModel({}),
+				'test-api-key',
+				'https://api.openai.com/v1/chat/completions');
+
+			const body = endpoint.createRequestBody(buildOptions('minimal'));
+
+			expect(body.reasoning_effort).toBeUndefined();
+			expect(body.reasoning).toBeUndefined();
+		});
+
+		it('honors the `ReasoningEffortOverride` setting over the per-request value', () => {
+			accessor.get(IConfigurationService).setConfig(ConfigKey.Advanced.ReasoningEffortOverride, 'low');
+			const endpoint = instaService.createInstance(OpenAIEndpoint,
+				buildModel({}),
+				'test-api-key',
+				'https://api.openai.com/v1/chat/completions');
+
+			const body = endpoint.createRequestBody(buildOptions('high'));
+
+			expect(body.reasoning_effort).toBe('low');
+		});
+
+		it('emits nested `reasoning.effort` and scrubs top-level when `reasoningEffortFormat` is `responses` on Chat Completions URL', () => {
+			const endpoint = instaService.createInstance(OpenAIEndpoint,
+				buildModel({ reasoningEffortFormat: 'responses' }),
+				'test-api-key',
+				'https://api.openai.com/v1/chat/completions');
+
+			const body = endpoint.createRequestBody(buildOptions('medium'));
+
+			expect(body.reasoning).toEqual({ effort: 'medium' });
+			expect(body.reasoning_effort).toBeUndefined();
+		});
+
+		it('emits top-level `reasoning_effort` and scrubs nested when `reasoningEffortFormat` is `chat-completions` on a Responses URL', () => {
+			const endpoint = instaService.createInstance(OpenAIEndpoint,
+				buildModel({
+					reasoningEffortFormat: 'chat-completions',
+					supported_endpoints: [ModelSupportedEndpoint.Responses],
+				}),
+				'test-api-key',
+				'https://api.openai.com/v1/responses');
+
+			const body = endpoint.createRequestBody(buildOptions('high'));
+
+			expect(body.reasoning_effort).toBe('high');
+			expect(body.reasoning?.effort).toBeUndefined();
+		});
+
+		it('does not emit a reasoning field when the model declares no reasoning support', () => {
+			const endpoint = instaService.createInstance(OpenAIEndpoint,
+				{
+					...modelMetadata,
+					supported_endpoints: [ModelSupportedEndpoint.ChatCompletions],
+				},
+				'test-api-key',
+				'https://api.openai.com/v1/chat/completions');
+
+			const body = endpoint.createRequestBody(buildOptions('high'));
+
+			expect(body.reasoning_effort).toBeUndefined();
+			expect(body.reasoning).toBeUndefined();
+		});
+	});
 });
