@@ -33,6 +33,8 @@ With `$name` or `${name:default}` you can insert the value of a variable. When a
 * `CLIPBOARD` The contents of your clipboard
 * `WORKSPACE_NAME` The name of the opened workspace or folder
 * `WORKSPACE_FOLDER` The path of the opened workspace or folder
+* `CURRENT_USER` The current user's name based on git environment variables (`GIT_AUTHOR_NAME`, `GIT_COMMITTER_NAME`) or OS environment variables (`USER`, `USERNAME`, `LOGNAME`)
+* `CURRENT_USER_EMAIL` The current user's email based on git environment variables (`GIT_AUTHOR_EMAIL`, `GIT_COMMITTER_EMAIL`) or the `EMAIL` environment variable
 
 For inserting the current date and time:
 

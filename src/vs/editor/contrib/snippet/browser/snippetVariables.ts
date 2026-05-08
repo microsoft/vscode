@@ -5,6 +5,7 @@
 
 import { normalizeDriveLetter } from '../../../../base/common/labels.js';
 import * as path from '../../../../base/common/path.js';
+import { env } from '../../../../base/common/process.js';
 import { dirname } from '../../../../base/common/resources.js';
 import { commonPrefixLength, getLeadingWhitespace, isFalsyOrWhitespace, splitLines } from '../../../../base/common/strings.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -51,6 +52,8 @@ export const KnownSnippetVariableNames = Object.freeze<{ [key: string]: true }>(
 	'LINE_COMMENT': true,
 	'WORKSPACE_NAME': true,
 	'WORKSPACE_FOLDER': true,
+	'CURRENT_USER': true,
+	'CURRENT_USER_EMAIL': true,
 	'RANDOM': true,
 	'RANDOM_HEX': true,
 	'UUID': true
@@ -361,6 +364,41 @@ export class WorkspaceBasedVariableResolver implements VariableResolver {
 			folderpath = folderpath.substr(0, folderpath.length - filename.length - 1);
 		}
 		return (folderpath ? normalizeDriveLetter(folderpath) : '/');
+	}
+}
+
+export class UserBasedVariableResolver implements VariableResolver {
+
+	constructor(
+		private readonly _env: { [key: string]: string | undefined } = env
+	) {
+		//
+	}
+
+	resolve(variable: Variable): string | undefined {
+		if (variable.name === 'CURRENT_USER') {
+			return this._resolveFromEnv('GIT_AUTHOR_NAME', 'GIT_COMMITTER_NAME', 'USER', 'USERNAME', 'LOGNAME');
+		} else if (variable.name === 'CURRENT_USER_EMAIL') {
+			return this._resolveFromEnv('GIT_AUTHOR_EMAIL', 'GIT_COMMITTER_EMAIL', 'EMAIL');
+		}
+
+		return undefined;
+	}
+
+	private _resolveFromEnv(...keys: string[]): string | undefined {
+		for (const key of keys) {
+			const value = this._resolveEnvKey(key);
+			if (!isFalsyOrWhitespace(value)) {
+				return value;
+			}
+		}
+		return undefined;
+	}
+
+	private _resolveEnvKey(key: string): string | undefined {
+		return this._env[key]
+			?? this._env[key.toLowerCase()]
+			?? this._env[key.toUpperCase()];
 	}
 }
 
