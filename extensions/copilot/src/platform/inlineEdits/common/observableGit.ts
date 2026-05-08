@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../util/vs/base/common/lifecycle';
-import { autorunWithStore, IObservable, ISettableObservable, mapObservableArrayCached, observableFromEvent, observableValue, waitForState } from '../../../util/vs/base/common/observable';
+import { autorunWithStore, derived, IObservable, ISettableObservable, mapObservableArrayCached, observableFromEvent, observableValue, waitForState } from '../../../util/vs/base/common/observable';
 import { IGitExtensionService } from '../../git/common/gitExtensionService';
-import { API } from '../../git/vscode/git';
+import { API, Repository } from '../../git/vscode/git';
 
 export class ObservableGit extends Disposable {
 
@@ -32,7 +32,10 @@ export class ObservableGit extends Disposable {
 			return;
 		}
 
-		const repos = observableFromEvent(this, (e) => gitApi.onDidOpenRepository(e), () => gitApi.repositories ?? []);
+		const reposEvent = observableFromEvent<Repository[]>(this, (e) => gitApi.onDidOpenRepository(e), () => gitApi.repositories ?? []);
+		// Wrap in a derived to guarantee the value is always an array even if the
+		// FromEventObservable cache returns undefined during observer re-subscription.
+		const repos = derived<readonly Repository[]>(this, reader => reposEvent.read(reader) ?? []);
 
 		await waitForState(repos, (repos) => repos.length > 0, undefined);
 		if (this._store.isDisposed) {
