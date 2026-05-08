@@ -35,7 +35,7 @@ import { AgentHostSessionListController } from './agentHostSessionListController
 import { LoggingAgentConnection } from './loggingAgentConnection.js';
 import { SyncedCustomizationBundler } from './syncedCustomizationBundler.js';
 
-export { AgentHostSessionHandler, getAgentHostBranchNameHint } from './agentHostSessionHandler.js';
+export { AgentHostSessionHandler } from './agentHostSessionHandler.js';
 export { AgentHostSessionListController } from './agentHostSessionListController.js';
 
 /**

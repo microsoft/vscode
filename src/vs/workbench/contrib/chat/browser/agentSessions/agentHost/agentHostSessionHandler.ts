@@ -18,7 +18,6 @@ import { isLocation, type Location } from '../../../../../../editor/common/langu
 import { IPosition } from '../../../../../../editor/common/core/position.js';
 import { localize } from '../../../../../../nls.js';
 import { AgentProvider, AgentSession, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
-import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { IAgentSubscription, observableFromSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { SessionTruncatedAction } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { CompletionItemKind as AhpCompletionItemKind, type CompletionItem as AhpCompletionItem } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
@@ -336,19 +335,6 @@ export interface IAgentHostSessionHandlerConfig {
 	readonly customizations?: IObservable<CustomizationRef[]>;
 }
 
-export function getAgentHostBranchNameHint(message: string): string | undefined {
-	const words = message
-		.toLowerCase()
-		.normalize('NFKD')
-		.replace(/[^a-z0-9]+/g, '-')
-		.replace(/^-+|-+$/g, '')
-		.split('-')
-		.filter(word => word.length > 0)
-		.slice(0, 8);
-	const hint = words.join('-').slice(0, 48).replace(/-+$/g, '');
-	return hint.length > 0 ? hint : undefined;
-}
-
 /**
  * Converts a UTF-16 code-unit offset in `text` to a 1-based Monaco
  * `IPosition`. Used to translate AHP completion-item ranges (which use
@@ -368,7 +354,6 @@ function offsetToPosition(text: string, offset: number): IPosition {
 	}
 	return { lineNumber, column };
 }
-
 export class AgentHostSessionHandler extends Disposable implements IChatSessionContentProvider {
 
 	private readonly _activeSessions = new ResourceMap<AgentHostChatSession>();
@@ -665,6 +650,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		this._activeSessions.set(sessionResource, session);
 
 		if (!isNewSession) {
+			this._ensurePendingMessageSubscription(sessionResource, resolvedSession);
+
 			// If there are historical turns with file edits, eagerly create
 			// the editing session once the ChatModel is available so that
 			// edit pills render with diff info on session restore.
@@ -744,7 +731,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			// folder-pick time, or this session was created via a legacy/
 			// test path). Fall back to the original create-then-subscribe
 			// flow.
-			await this._createAndSubscribe(request.sessionResource, this._createModelSelection(request.userSelectedModelId, request.modelConfiguration), undefined, request.agentHostSessionConfig, getAgentHostBranchNameHint(request.message));
+			await this._createAndSubscribe(request.sessionResource, this._createModelSelection(request.userSelectedModelId, request.modelConfiguration), undefined, request.agentHostSessionConfig);
 		} else {
 			// Eager-created session: take a refcounted subscription so the
 			// handler observes state changes for the duration of the chat
@@ -829,7 +816,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 		// --- Steering ---
 		if (currentSteering) {
-			if (currentSteering.id !== prevSteering?.id) {
+			if (currentSteering.id !== prevSteering?.id || currentSteering.text !== prevSteering.userMessage.text) {
 				this._dispatchAction({
 					type: ActionType.SessionPendingMessageSet,
 					session,
@@ -861,9 +848,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}
 
 		// --- Queued: additions ---
-		const prevQueuedIds = new Set(prevQueued.map(q => q.id));
+		const prevQueuedById = new Map(prevQueued.map(q => [q.id, q]));
 		for (const q of currentQueued) {
-			if (!prevQueuedIds.has(q.id)) {
+			const prev = prevQueuedById.get(q.id);
+			if (!prev || q.text !== prev.userMessage.text) {
 				this._dispatchAction({
 					type: ActionType.SessionPendingMessageSet,
 					session,
@@ -2285,8 +2273,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	/** Creates a new backend session and subscribes to its state. */
-	private async _createAndSubscribe(sessionResource: URI, model: ModelSelection | undefined, fork?: { session: URI; turnIndex: number; turnId: string }, sessionConfig?: Record<string, unknown>, branchNameHint?: string): Promise<URI> {
-		const config = branchNameHint ? { ...sessionConfig, [SessionConfigKey.BranchNameHint]: branchNameHint } : sessionConfig;
+	private async _createAndSubscribe(sessionResource: URI, model: ModelSelection | undefined, fork?: { session: URI; turnIndex: number; turnId: string }, config?: Record<string, unknown>): Promise<URI> {
 		const workingDirectory = this._resolveRequestedWorkingDirectory(sessionResource);
 		const requestedSession = fork ? undefined : this._resolveSessionUri(sessionResource);
 
@@ -2382,7 +2369,17 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			this._pendingMessageSubscriptions.set(sessionResource, chatModel.onDidChangePendingRequests(() => {
 				this._syncPendingMessages(sessionResource, backendSession);
 			}));
+			this._syncPendingMessages(sessionResource, backendSession);
+			return;
 		}
+
+		this._pendingMessageSubscriptions.set(sessionResource, this._chatService.onDidCreateModel(model => {
+			if (!isEqual(model.sessionResource, sessionResource)) {
+				return;
+			}
+			this._pendingMessageSubscriptions.deleteAndDispose(sessionResource);
+			this._ensurePendingMessageSubscription(sessionResource, backendSession);
+		}));
 	}
 
 	/**
