@@ -40,82 +40,119 @@ const PIED_PIPER_ART: string = [
 ].join('\n');
 
 /**
- * Path / shape primitives used to build the welcome hero's inline SVG. The
- * actual SVG nodes are constructed by `gettingStarted.ts` from this data so
- * we never have to hand untrusted markup to `innerHTML`. Coordinates assume
- * a 0-200 viewBox; the host CSS scales the rendered SVG to taste.
+ * Pure data describing the CSS-3D "Son of Anton skyline" that replaces the
+ * previous flute SVG. The renderer (`gettingStarted.ts`) maps each entry to a
+ * `<div>` whose CSS variables drive position, size, and accent colour; all
+ * actual 3D effects are produced by transforms / pseudo-elements declared in
+ * `gettingStarted.css`.
  *
- * Each entry's `cls` carries an extra modifier class so the CSS animation
- * delays can be staggered (spiral first, then flute, then breath line).
+ * Two element kinds:
+ *  - `'building'`  — a persona-coloured extruded block that "rises" into the
+ *                    scene during the build-up animation.
+ *  - `'wordmark'`  — a single typographic block carrying the SON OF / ANTON
+ *                    headline rendered as 3D type via stacked text-shadows.
  */
-export interface ISotaWelcomeHeroSvgPath {
-	readonly kind: 'path';
-	readonly cls: string;
-	readonly d: string;
+export interface ISotaWelcomeHeroSkylineBuilding {
+	readonly kind: 'building';
+	/** Stable id used for the DOM `data-persona` attribute and for testing. */
+	readonly id: string;
+	/** Persona accent hex colour driving front, side, and top faces. */
+	readonly accent: string;
+	/** Horizontal offset from the centre of the scene, in CSS px. */
+	readonly x: number;
+	/** Vertical offset from the scene's resting baseline, in CSS px. */
+	readonly y: number;
+	/** Depth offset (negative = further away) for the isometric layout, in CSS px. */
+	readonly z: number;
+	/** Block width (front-face footprint), in CSS px. */
+	readonly w: number;
+	/** Block height (extrusion in the build-up direction), in CSS px. */
+	readonly h: number;
+	/** Block depth (side-face thickness), in CSS px. */
+	readonly d: number;
+	/**
+	 * Animation delay in milliseconds — buildings stagger so the skyline reads
+	 * back-to-front rather than landing all at once.
+	 */
+	readonly delayMs: number;
 }
 
-export interface ISotaWelcomeHeroSvgCircle {
-	readonly kind: 'circle';
+export interface ISotaWelcomeHeroSkylineWordmarkLine {
+	readonly kind: 'wordmark';
+	/** The text rendered on this line (e.g. "SON OF" or "ANTON"). */
+	readonly text: string;
+	/** Css class modifier — used for per-line stagger. */
 	readonly cls: string;
-	readonly cx: number;
-	readonly cy: number;
-	readonly r: number;
+	/** Animation delay in milliseconds. */
+	readonly delayMs: number;
 }
 
-export type SotaWelcomeHeroSvgShape = ISotaWelcomeHeroSvgPath | ISotaWelcomeHeroSvgCircle;
+export type SotaWelcomeHeroSkylineItem = ISotaWelcomeHeroSkylineBuilding | ISotaWelcomeHeroSkylineWordmarkLine;
 
 /**
- * Stylised "scoping flute" silhouette — an abstract spiral / chord wave
- * deliberately not modelled on any trademarked logo. The shapes draw in via
- * `stroke-dasharray` + `stroke-dashoffset` keyframes (see
- * `gettingStarted.css`) and then settle into a slow breath cycle.
+ * Persona accent palette mirroring `son-of-anton-core/src/chat/personas.ts`.
+ * Hardcoded here because the workbench layer cannot import across the
+ * extension/core package boundary; updates to either side must track each
+ * other. Order is anton, anton-code, anton-test, anton-security, anton-docs,
+ * anton-e2e, anton-ci, anton-pr, anton-moderniser, anton-spec.
  */
-const PIED_PIPER_SVG_SHAPES: readonly SotaWelcomeHeroSvgShape[] = [
-	// Outer spiral — three-turn logarithmic curve sweeping into the centre.
-	{
-		kind: 'path',
-		cls: 'sota-welcome-art-path sota-welcome-art-spiral',
-		d: 'M 175 100 '
-			+ 'C 175 60, 140 25, 100 25 '
-			+ 'C 60 25, 25 60, 25 100 '
-			+ 'C 25 140, 60 175, 100 175 '
-			+ 'C 130 175, 155 150, 155 120 '
-			+ 'C 155 95, 135 75, 110 75 '
-			+ 'C 90 75, 75 90, 75 110 '
-			+ 'C 75 125, 87 137, 102 137 '
-			+ 'C 113 137, 122 128, 122 117 '
-			+ 'C 122 109, 116 103, 108 103 '
-			+ 'C 103 103, 99 107, 99 112 '
-			+ 'C 99 115, 101 117, 104 117',
-	},
-	// Flute bore — a long sweeping curve suggesting a flute silhouette.
-	{
-		kind: 'path',
-		cls: 'sota-welcome-art-path sota-welcome-art-flute',
-		d: 'M 35 60 '
-			+ 'Q 70 40, 110 55 '
-			+ 'Q 150 70, 175 60 '
-			+ 'L 178 72 '
-			+ 'Q 150 86, 110 73 '
-			+ 'Q 70 60, 35 80 Z',
-	},
-	// Five tone-hole dots evenly spaced along the flute bore.
-	{ kind: 'circle', cls: 'sota-welcome-art-path sota-welcome-art-hole', cx: 60, cy: 62, r: 2.2 },
-	{ kind: 'circle', cls: 'sota-welcome-art-path sota-welcome-art-hole', cx: 85, cy: 60, r: 2.2 },
-	{ kind: 'circle', cls: 'sota-welcome-art-path sota-welcome-art-hole', cx: 110, cy: 63, r: 2.2 },
-	{ kind: 'circle', cls: 'sota-welcome-art-path sota-welcome-art-hole', cx: 135, cy: 66, r: 2.2 },
-	{ kind: 'circle', cls: 'sota-welcome-art-path sota-welcome-art-hole', cx: 160, cy: 65, r: 2.2 },
-	// Breath line — a sound-wave hint above the flute, three sine arcs.
-	{
-		kind: 'path',
-		cls: 'sota-welcome-art-path sota-welcome-art-breath',
-		d: 'M 40 35 Q 55 22, 70 35 T 100 35 T 130 35 T 160 35',
-	},
+const PERSONA_ACCENTS: ReadonlyArray<{ readonly id: string; readonly accent: string }> = [
+	{ id: 'anton', accent: '#a855f7' },             // purple
+	{ id: 'anton-code', accent: '#3b82f6' },        // blue
+	{ id: 'anton-test', accent: '#16a34a' },        // green
+	{ id: 'anton-security', accent: '#dc2626' },    // red
+	{ id: 'anton-docs', accent: '#0891b2' },        // cyan
+	{ id: 'anton-e2e', accent: '#f59e0b' },         // amber
+	{ id: 'anton-ci', accent: '#8b5cf6' },          // violet
+	{ id: 'anton-pr', accent: '#ec4899' },          // pink
+	{ id: 'anton-moderniser', accent: '#64748b' },  // slate
+	{ id: 'anton-spec', accent: '#10b981' },        // emerald
 ];
 
-/** Returns the immutable shape list backing the hero SVG. */
-export function getSotaWelcomeHeroArtShapes(): readonly SotaWelcomeHeroSvgShape[] {
-	return PIED_PIPER_SVG_SHAPES;
+/**
+ * Manually-tuned isometric-ish layout for the ten persona buildings. Positions
+ * are authored (not random) so the composition reads as a skyline behind the
+ * SON OF ANTON wordmark: the tallest blocks sit on the back row, shorter
+ * blocks line the front, and the orchestrator (anton, purple) stands centre.
+ *
+ * Coordinates are relative to the wrapper's centre. `x` increases rightward,
+ * `z` decreases into the page. `y` is always 0 here — the resting baseline —
+ * because the rise animation drives `translateY` from 200px to 0.
+ */
+const SKYLINE_BUILDINGS: readonly ISotaWelcomeHeroSkylineBuilding[] = [
+	// Back row — taller, further away. Reads first as silhouette.
+	{ kind: 'building', id: 'anton-security', accent: PERSONA_ACCENTS[3].accent, x: -180, y: 0, z: -90, w: 52, h: 168, d: 52, delayMs: 0 },
+	{ kind: 'building', id: 'anton-ci',       accent: PERSONA_ACCENTS[6].accent, x: -100, y: 0, z: -110, w: 46, h: 144, d: 46, delayMs: 80 },
+	{ kind: 'building', id: 'anton',          accent: PERSONA_ACCENTS[0].accent, x:    0, y: 0, z: -130, w: 64, h: 196, d: 64, delayMs: 160 },
+	{ kind: 'building', id: 'anton-pr',       accent: PERSONA_ACCENTS[7].accent, x:  100, y: 0, z: -110, w: 48, h: 152, d: 48, delayMs: 240 },
+	{ kind: 'building', id: 'anton-spec',     accent: PERSONA_ACCENTS[9].accent, x:  180, y: 0, z: -90,  w: 50, h: 132, d: 50, delayMs: 320 },
+	// Front row — shorter, closer. Frames the wordmark from below.
+	{ kind: 'building', id: 'anton-docs',      accent: PERSONA_ACCENTS[4].accent, x: -220, y: 0, z: 30, w: 44, h: 96,  d: 44, delayMs: 400 },
+	{ kind: 'building', id: 'anton-test',      accent: PERSONA_ACCENTS[2].accent, x: -130, y: 0, z: 50, w: 42, h: 84,  d: 42, delayMs: 480 },
+	{ kind: 'building', id: 'anton-code',      accent: PERSONA_ACCENTS[1].accent, x:  130, y: 0, z: 50, w: 46, h: 104, d: 46, delayMs: 560 },
+	{ kind: 'building', id: 'anton-e2e',       accent: PERSONA_ACCENTS[5].accent, x:  210, y: 0, z: 30, w: 44, h: 92,  d: 44, delayMs: 640 },
+	{ kind: 'building', id: 'anton-moderniser', accent: PERSONA_ACCENTS[8].accent, x:   40, y: 0, z: 70, w: 40, h: 76,  d: 40, delayMs: 720 },
+];
+
+/**
+ * Two-line wordmark "SON OF / ANTON". Each line animates in slightly after
+ * the back-row buildings have started rising, so the eye reads buildings
+ * first → wordmark second. The CSS uses `text-shadow` chains to fake a 3D
+ * extrusion without per-letter HTML.
+ */
+const SKYLINE_WORDMARK: readonly ISotaWelcomeHeroSkylineWordmarkLine[] = [
+	{ kind: 'wordmark', text: 'SON OF', cls: 'sota-welcome-skyline-wordmark-line-1', delayMs: 600 },
+	{ kind: 'wordmark', text: 'ANTON',  cls: 'sota-welcome-skyline-wordmark-line-2', delayMs: 800 },
+];
+
+/** Returns the building blocks (one per persona) that compose the skyline. */
+export function getSotaWelcomeHeroSkylineBuildings(): readonly ISotaWelcomeHeroSkylineBuilding[] {
+	return SKYLINE_BUILDINGS;
+}
+
+/** Returns the wordmark lines rendered at the centre of the skyline. */
+export function getSotaWelcomeHeroSkylineWordmark(): readonly ISotaWelcomeHeroSkylineWordmarkLine[] {
+	return SKYLINE_WORDMARK;
 }
 
 interface ISiliconValleyQuote {
@@ -229,7 +266,8 @@ export function getSotaWelcomeHeroActions(): readonly ISotaWelcomeHeroAction[] {
 
 export interface ISotaWelcomeHeroContent {
 	readonly art: string;
-	readonly artShapes: readonly SotaWelcomeHeroSvgShape[];
+	readonly skylineBuildings: readonly ISotaWelcomeHeroSkylineBuilding[];
+	readonly skylineWordmark: readonly ISotaWelcomeHeroSkylineWordmarkLine[];
 	readonly title: string;
 	readonly tagline: string;
 	readonly quote: ISiliconValleyQuote;
@@ -239,14 +277,15 @@ export interface ISotaWelcomeHeroContent {
 /**
  * Returns the full content payload the hero renderer needs. Keeping this in
  * one place makes it trivially mockable in tests. `art` is the legacy ASCII
- * silhouette retained as a fallback; `artShapes` is the structured SVG
- * description the renderer prefers and which carries the draw-in / breath
- * animations.
+ * silhouette retained as the screen-reader / no-CSS fallback; the
+ * `skyline*` arrays drive the CSS-3D scene that has replaced the previous
+ * inline-SVG art.
  */
 export function getSotaWelcomeHeroContent(now: Date = new Date()): ISotaWelcomeHeroContent {
 	return {
 		art: PIED_PIPER_ART,
-		artShapes: getSotaWelcomeHeroArtShapes(),
+		skylineBuildings: getSotaWelcomeHeroSkylineBuildings(),
+		skylineWordmark: getSotaWelcomeHeroSkylineWordmark(),
 		title: localize('sota.welcome.hero.title', "Son of Anton"),
 		tagline: localize('sota.welcome.hero.tagline', "middle out compression for your IDE"),
 		quote: pickQuoteForDate(now),

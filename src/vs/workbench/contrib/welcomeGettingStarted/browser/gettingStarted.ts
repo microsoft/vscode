@@ -901,46 +901,57 @@ export class GettingStartedPage extends EditorPane {
 	private buildSotaWelcomeHero(): HTMLElement {
 		const content = getSotaWelcomeHeroContent();
 
-		// Phase 99 — animated SVG hero. The shapes are constructed
-		// programmatically (no innerHTML) and the CSS in `gettingStarted.css`
-		// drives a `stroke-dashoffset` draw-in followed by a slow breath
-		// cycle. The legacy ASCII art is retained as a hidden fallback for
-		// screen readers and any environment that nukes inline SVG.
-		const art = $('.sota-welcome-art', { 'aria-hidden': 'true' });
-		const svgNs = 'http://www.w3.org/2000/svg';
-		const svg = document.createElementNS(svgNs, 'svg');
-		svg.setAttribute('class', 'sota-welcome-art-svg');
-		svg.setAttribute('viewBox', '0 0 200 200');
-		svg.setAttribute('role', 'img');
-		svg.setAttribute('aria-hidden', 'true');
-		const svgGroup = document.createElementNS(svgNs, 'g');
-		svgGroup.setAttribute('fill', 'none');
-		svgGroup.setAttribute('stroke', 'currentColor');
-		svgGroup.setAttribute('stroke-width', '1.6');
-		svgGroup.setAttribute('stroke-linecap', 'round');
-		svgGroup.setAttribute('stroke-linejoin', 'round');
-		for (const shape of content.artShapes) {
-			if (shape.kind === 'path') {
-				const node = document.createElementNS(svgNs, 'path');
-				node.setAttribute('class', shape.cls);
-				node.setAttribute('d', shape.d);
-				// SVG `pathLength` normalises the dash array math so the same
-				// `stroke-dasharray: 100` works for any geometry.
-				node.setAttribute('pathLength', '100');
-				svgGroup.appendChild(node);
-			} else {
-				const node = document.createElementNS(svgNs, 'circle');
-				node.setAttribute('class', shape.cls);
-				node.setAttribute('cx', String(shape.cx));
-				node.setAttribute('cy', String(shape.cy));
-				node.setAttribute('r', String(shape.r));
-				node.setAttribute('pathLength', '100');
-				svgGroup.appendChild(node);
-			}
+		// Animated CSS-3D "Son of Anton skyline" — replaces the previous
+		// inline-SVG flute. The scene is built from plain `<div>`s; all 3D
+		// effects (extruded letters, building front/side/top faces, build-up
+		// rise, hover tilt) are produced by transforms and pseudo-elements
+		// declared in `gettingStarted.css`. No 3D framework dependency. The
+		// ASCII art is retained as a visually-hidden screen-reader fallback.
+		const art = $('.sota-welcome-skyline', { 'aria-hidden': 'true' });
+		const sceneInner = $('.sota-welcome-skyline-inner', {});
+		// Persona buildings — one extruded block per specialist. The `--*`
+		// custom properties are read by the CSS to position and size each
+		// block; per-element `--delay` drives the staggered rise.
+		for (const building of content.skylineBuildings) {
+			const block = $('.sota-welcome-skyline-building', {
+				'data-persona': building.id,
+				'style': [
+					`--accent:${building.accent}`,
+					`--x:${building.x}px`,
+					`--y:${building.y}px`,
+					`--z:${building.z}px`,
+					`--w:${building.w}px`,
+					`--h:${building.h}px`,
+					`--d:${building.d}px`,
+					`--delay:${building.delayMs}ms`,
+				].join(';'),
+			});
+			// Front, side, and top faces are explicit child divs so the
+			// browser can composite each face on its own layer.
+			block.appendChild($('.sota-welcome-skyline-face.face-front', {}));
+			block.appendChild($('.sota-welcome-skyline-face.face-side', {}));
+			block.appendChild($('.sota-welcome-skyline-face.face-top', {}));
+			sceneInner.appendChild(block);
 		}
-		svg.appendChild(svgGroup);
-		art.appendChild(svg);
-		const artFallback = $('pre.sota-welcome-art-fallback', { 'aria-hidden': 'true' });
+		// Wordmark — two centred lines stacked along Z so the second line
+		// reads as resting in front of the first. The 3D look comes from a
+		// text-shadow extrusion chain plus a darker pseudo-element offset.
+		const wordmark = $('.sota-welcome-skyline-wordmark', {});
+		for (const line of content.skylineWordmark) {
+			const lineEl = $(
+				`.sota-welcome-skyline-wordmark-line.${line.cls}`,
+				{ 'style': `--delay:${line.delayMs}ms` },
+				line.text,
+			);
+			// Inner data-text mirrors the line so the CSS pseudo-element can
+			// reproduce it as the back/top face without duplicating the node
+			// in the accessibility tree.
+			lineEl.setAttribute('data-text', line.text);
+			wordmark.appendChild(lineEl);
+		}
+		sceneInner.appendChild(wordmark);
+		art.appendChild(sceneInner);
+		const artFallback = $('pre.sota-welcome-skyline-fallback', { 'aria-hidden': 'true' });
 		artFallback.textContent = content.art;
 		art.appendChild(artFallback);
 

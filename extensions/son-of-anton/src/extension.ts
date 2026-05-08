@@ -44,6 +44,7 @@ import { StartupMessages } from './personality/StartupMessages';
 import { TerminalBanner } from './personality/TerminalBanner';
 import { KonamiCode } from './personality/KonamiCode';
 import { GitBlameEasterEgg } from './personality/GitBlameEasterEgg';
+import { AntonIsWatching } from './personality/AntonIsWatching';
 import { registerPersonalityCommands } from './personality/registerPersonalityCommands';
 import { activateAuth } from './auth/activation';
 import { maybeShowFirstRunSignInPrompt } from './auth/firstRun';
@@ -1243,6 +1244,9 @@ export function activate(context: vscode.ExtensionContext): void {
 
 	const gitBlameEasterEgg = new GitBlameEasterEgg();
 	context.subscriptions.push(gitBlameEasterEgg);
+
+	const antonIsWatching = new AntonIsWatching();
+	context.subscriptions.push(antonIsWatching);
 
 	context.subscriptions.push(...registerPersonalityCommands());
 

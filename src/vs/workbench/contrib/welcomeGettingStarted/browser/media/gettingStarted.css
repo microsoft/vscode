@@ -1150,63 +1150,149 @@
 	animation: sota-hero-fade-in 600ms ease-out;
 }
 
-/* Phase 99 — animated SVG hero. The wrapper sizes the SVG so the breath
- * cycle never reflows the surrounding hero copy. The fallback ASCII art is
- * visually hidden but kept in the DOM for screen readers. */
-.monaco-workbench .part.editor > .content .gettingStartedContainer .sota-welcome-hero .sota-welcome-art {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	width: 200px;
-	height: 200px;
-	max-width: 60vw;
-	color: var(--vscode-textPreformat-foreground, var(--vscode-foreground));
+/* CSS-3D "Son of Anton skyline" — replaces the previous flute SVG. The
+ * outer wrapper establishes the perspective frustum; the inner scene is
+ * the actual 3D group (rotated into an isometric-ish view) and is the
+ * element that tilts on hover. Persona buildings + the SON OF / ANTON
+ * wordmark live as `position: absolute` children of the inner scene so
+ * their CSS variables can drive translate3d / face transforms directly. */
+.monaco-workbench .part.editor > .content .gettingStartedContainer .sota-welcome-hero .sota-welcome-skyline {
+	position: relative;
+	width: 100%;
+	max-width: 720px;
+	height: 360px;
 	margin: 0;
+	color: var(--vscode-foreground);
+	perspective: 1200px;
+	perspective-origin: 50% 60%;
 	user-select: none;
-	transform-origin: center center;
-	animation: sota-art-breath 4s ease-in-out infinite;
-	animation-delay: 2.2s;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .sota-welcome-hero .sota-welcome-skyline-inner {
+	position: absolute;
+	inset: 0;
+	transform-style: preserve-3d;
+	transform: rotateX(25deg) rotateY(-15deg);
+	transition: transform 400ms ease;
 	will-change: transform;
 }
 
-.monaco-workbench .part.editor > .content .gettingStartedContainer .sota-welcome-hero .sota-welcome-art .sota-welcome-art-svg {
-	width: 100%;
-	height: 100%;
-	display: block;
-	overflow: visible;
+.monaco-workbench .part.editor > .content .gettingStartedContainer .sota-welcome-hero .sota-welcome-skyline:hover .sota-welcome-skyline-inner {
+	transform: rotateX(23deg) rotateY(-10deg);
 }
 
-/* Each path / circle is rendered with `pathLength="100"` (set as an SVG
- * attribute on the element so the keyframes can use a single unit-less
- * dash array regardless of geometric length). The shapes are staggered
- * so the eye reads spiral → flute → tone holes → breath. */
-.monaco-workbench .part.editor > .content .gettingStartedContainer .sota-welcome-hero .sota-welcome-art-path {
-	stroke-dasharray: 100 100;
-	stroke-dashoffset: 100;
-	animation: sota-art-draw 2s ease-out forwards;
+/* A persona building is an empty positioned block; its three faces are
+ * explicit child divs so each face composites as its own GPU layer. The
+ * `--accent`, `--x/--y/--z`, `--w/--h/--d`, and `--delay` custom properties
+ * are set on the element from the renderer. */
+.monaco-workbench .part.editor > .content .gettingStartedContainer .sota-welcome-hero .sota-welcome-skyline-building {
+	position: absolute;
+	left: 50%;
+	bottom: 96px;
+	width: var(--w);
+	height: var(--h);
+	transform-style: preserve-3d;
+	transform: translate3d(calc(var(--x) - var(--w) / 2), 200px, var(--z));
+	opacity: 0;
+	animation: sota-skyline-rise 1100ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+	animation-delay: var(--delay);
+	will-change: transform, opacity;
 }
 
-.monaco-workbench .part.editor > .content .gettingStartedContainer .sota-welcome-hero .sota-welcome-art-spiral {
-	animation-delay: 0s;
+.monaco-workbench .part.editor > .content .gettingStartedContainer .sota-welcome-hero .sota-welcome-skyline-face {
+	position: absolute;
+	left: 0;
+	top: 0;
+	backface-visibility: hidden;
 }
 
-.monaco-workbench .part.editor > .content .gettingStartedContainer .sota-welcome-hero .sota-welcome-art-flute {
-	animation-delay: 0.6s;
+.monaco-workbench .part.editor > .content .gettingStartedContainer .sota-welcome-hero .sota-welcome-skyline-face.face-front {
+	width: var(--w);
+	height: var(--h);
+	background: var(--accent);
+	box-shadow: inset 0 -8px 16px rgba(0, 0, 0, 0.18);
 }
 
-.monaco-workbench .part.editor > .content .gettingStartedContainer .sota-welcome-hero .sota-welcome-art-hole {
-	fill: currentColor;
-	animation-delay: 1.4s;
-	animation-duration: 0.6s;
+.monaco-workbench .part.editor > .content .gettingStartedContainer .sota-welcome-hero .sota-welcome-skyline-face.face-side {
+	width: var(--d);
+	height: var(--h);
+	background: color-mix(in srgb, var(--accent) 60%, black);
+	transform-origin: 0 0;
+	transform: translateX(var(--w)) rotateY(90deg);
 }
 
-.monaco-workbench .part.editor > .content .gettingStartedContainer .sota-welcome-hero .sota-welcome-art-breath {
-	animation-delay: 1.6s;
+.monaco-workbench .part.editor > .content .gettingStartedContainer .sota-welcome-hero .sota-welcome-skyline-face.face-top {
+	width: var(--w);
+	height: var(--d);
+	background: color-mix(in srgb, var(--accent) 75%, white);
+	transform-origin: 0 0;
+	transform: rotateX(-90deg) translateY(calc(var(--d) * -1));
+}
+
+/* Wordmark container sits above the buildings on the Z axis so the rising
+ * letters land in front of the back-row blocks. */
+.monaco-workbench .part.editor > .content .gettingStartedContainer .sota-welcome-hero .sota-welcome-skyline-wordmark {
+	position: absolute;
+	left: 50%;
+	top: 50%;
+	transform: translate3d(-50%, -50%, 60px);
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 4px;
+	pointer-events: none;
+}
+
+/* Typography-as-3D: a single bold glyph per line, extruded by a stacked
+ * text-shadow chain progressively offset toward the lower-right in a
+ * darker shade of the accent. The `::before` pseudo-element provides a
+ * lighter top highlight; using `data-text` keeps it out of the a11y tree. */
+.monaco-workbench .part.editor > .content .gettingStartedContainer .sota-welcome-hero .sota-welcome-skyline-wordmark-line {
+	position: relative;
+	font-family: 'Segoe UI', 'SF Pro Display', system-ui, sans-serif;
+	font-weight: 900;
+	font-size: 64px;
+	line-height: 1;
+	letter-spacing: 0.08em;
+	color: var(--vscode-foreground);
+	opacity: 0;
+	transform: translateY(200px);
+	animation: sota-skyline-rise-letters 1200ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+	animation-delay: var(--delay);
+	text-shadow:
+		1px 1px 0 rgba(0, 0, 0, 0.55),
+		2px 2px 0 rgba(0, 0, 0, 0.5),
+		3px 3px 0 rgba(0, 0, 0, 0.45),
+		4px 4px 0 rgba(0, 0, 0, 0.4),
+		5px 5px 0 rgba(0, 0, 0, 0.36),
+		6px 6px 0 rgba(0, 0, 0, 0.32),
+		7px 7px 0 rgba(0, 0, 0, 0.28),
+		8px 8px 0 rgba(0, 0, 0, 0.24),
+		9px 9px 0 rgba(0, 0, 0, 0.2),
+		10px 10px 0 rgba(0, 0, 0, 0.18),
+		11px 11px 0 rgba(0, 0, 0, 0.16),
+		12px 12px 0 rgba(0, 0, 0, 0.14),
+		13px 13px 0 rgba(0, 0, 0, 0.12),
+		14px 14px 0 rgba(0, 0, 0, 0.1),
+		15px 15px 0 rgba(0, 0, 0, 0.08),
+		16px 16px 24px rgba(0, 0, 0, 0.45);
+	will-change: transform, opacity;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .sota-welcome-hero .sota-welcome-skyline-wordmark-line::before {
+	content: attr(data-text);
+	position: absolute;
+	left: 0;
+	top: 0;
+	color: color-mix(in srgb, var(--vscode-foreground) 80%, white);
+	transform: translateY(-2px);
+	pointer-events: none;
+	text-shadow: none;
 }
 
 /* Visually hidden ASCII fallback — preserves the previous text silhouette
- * for assistive tech and any consumer that strips inline SVG. */
-.monaco-workbench .part.editor > .content .gettingStartedContainer .sota-welcome-hero .sota-welcome-art-fallback {
+ * for assistive tech and any consumer that strips CSS. */
+.monaco-workbench .part.editor > .content .gettingStartedContainer .sota-welcome-hero .sota-welcome-skyline-fallback {
 	position: absolute;
 	width: 1px;
 	height: 1px;
@@ -1333,21 +1419,24 @@
 	display: none;
 }
 
-/* On narrow welcome panes, drop the side padding so the ASCII art stays
- * legible without forcing a horizontal scrollbar. */
+/* On narrow welcome panes, shrink the skyline so the wordmark and buildings
+ * still fit without forcing a horizontal scrollbar. */
 @media (max-width: 640px) {
 	.monaco-workbench .part.editor > .content .gettingStartedContainer .sota-welcome-hero {
 		padding: 20px 16px 16px;
 	}
 
-	.monaco-workbench .part.editor > .content .gettingStartedContainer .sota-welcome-hero .sota-welcome-art {
-		width: 140px;
-		height: 140px;
+	.monaco-workbench .part.editor > .content .gettingStartedContainer .sota-welcome-hero .sota-welcome-skyline {
+		height: 240px;
+	}
+
+	.monaco-workbench .part.editor > .content .gettingStartedContainer .sota-welcome-hero .sota-welcome-skyline-wordmark-line {
+		font-size: 40px;
 	}
 }
 
-/* Subtle motion keyframes for the SOTA welcome hero (Phase 70).
- * Animations are decoration only — the hero's resting state stays static. */
+/* Subtle motion keyframes for the SOTA welcome hero. Animations are
+ * decoration only — the hero's resting state stays static. */
 @keyframes sota-hero-fade-in {
 	from {
 		opacity: 0;
@@ -1368,50 +1457,60 @@
 	}
 }
 
-/* Draw-in for the SVG hero — strokes start fully offset and resolve to a
- * solid line over the keyframe duration. The `pathLength="100"` attribute
- * on each shape normalises the unit so the same dash math works for every
- * geometry. */
-@keyframes sota-art-draw {
+/* Build-up rise for skyline buildings: blocks start 200px below the
+ * baseline (and slightly transparent) and settle into their final
+ * position. The renderer pre-translates each block into its `--x/--z`
+ * coordinates, so the keyframe only needs to drive the vertical landing. */
+@keyframes sota-skyline-rise {
 	from {
-		stroke-dashoffset: 100;
-		opacity: 0.6;
+		transform: translate3d(calc(var(--x) - var(--w) / 2), 200px, var(--z));
+		opacity: 0;
 	}
 	to {
-		stroke-dashoffset: 0;
+		transform: translate3d(calc(var(--x) - var(--w) / 2), 0, var(--z));
 		opacity: 1;
 	}
 }
 
-/* Slow breath cycle once the draw-in completes — a gentle 1.0 → 1.02 →
- * 1.0 scale on the wrapper. Uses `transform` only so the GPU can
- * composite without repainting. */
-@keyframes sota-art-breath {
-	0%, 100% {
-		transform: scale(1);
+/* Build-up rise for the wordmark — same shape, but driven from a 2D
+ * translation so the cubic-bezier overshoot reads as a small bounce when
+ * the letters land. The wordmark wrapper handles its own Z offset. */
+@keyframes sota-skyline-rise-letters {
+	from {
+		transform: translateY(200px);
+		opacity: 0;
 	}
-	50% {
-		transform: scale(1.02);
+	to {
+		transform: translateY(0);
+		opacity: 1;
 	}
 }
 
 /* Respect users who prefer reduced motion: disable every hero animation and
- * fall back to the static resting appearance. */
+ * fall back to the static resting appearance. Buildings and letters jump
+ * straight to their final transform / opacity, the hover tilt is held at
+ * the resting isometric view, and CTA hover transforms are removed. */
 @media (prefers-reduced-motion: reduce) {
 	.monaco-workbench .part.editor > .content .gettingStartedContainer .sota-welcome-hero {
 		animation: none;
 	}
 
-	.monaco-workbench .part.editor > .content .gettingStartedContainer .sota-welcome-hero .sota-welcome-art {
-		animation: none;
-		transform: none;
+	.monaco-workbench .part.editor > .content .gettingStartedContainer .sota-welcome-hero .sota-welcome-skyline-inner,
+	.monaco-workbench .part.editor > .content .gettingStartedContainer .sota-welcome-hero .sota-welcome-skyline:hover .sota-welcome-skyline-inner {
+		transition: none;
+		transform: rotateX(25deg) rotateY(-15deg);
 	}
 
-	.monaco-workbench .part.editor > .content .gettingStartedContainer .sota-welcome-hero .sota-welcome-art-path {
+	.monaco-workbench .part.editor > .content .gettingStartedContainer .sota-welcome-hero .sota-welcome-skyline-building {
 		animation: none;
-		stroke-dasharray: none;
-		stroke-dashoffset: 0;
 		opacity: 1;
+		transform: translate3d(calc(var(--x) - var(--w) / 2), 0, var(--z));
+	}
+
+	.monaco-workbench .part.editor > .content .gettingStartedContainer .sota-welcome-hero .sota-welcome-skyline-wordmark-line {
+		animation: none;
+		opacity: 1;
+		transform: translateY(0);
 	}
 
 	.monaco-workbench .part.editor > .content .gettingStartedContainer .sota-welcome-hero .sota-welcome-quote::before {

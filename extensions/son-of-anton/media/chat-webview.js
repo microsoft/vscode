@@ -928,6 +928,76 @@
 		}
 
 		/**
+		 * Personality easter egg: render the "Anton is watching" overlay in
+		 * the bottom-right of the chat surface. The diamond outline is the
+		 * Anton glyph; over the first second it morphs into an "eye" by
+		 * fading a pupil into the centre. The pupil tracks the user's
+		 * cursor (clamped to ~3px in any direction), blinks once near the
+		 * end of the dwell, and the whole card slides in/out. Auto-removes
+		 * after ~6.4s. De-duped — if a second overlay arrives while one is
+		 * still on screen, the older one is dropped first.
+		 */
+		function showAntonIsWatchingOverlay(text) {
+			if (!document.body) return;
+			// Drop any existing overlay first so a second post (shouldn't
+			// happen, but cheap to guard) doesn't stack two cards on top of
+			// each other.
+			const stale = document.querySelector('.anton-watching-overlay');
+			if (stale && stale.parentNode) {
+				stale.parentNode.removeChild(stale);
+			}
+			const overlay = document.createElement('div');
+			overlay.className = 'anton-watching-overlay';
+			overlay.setAttribute('role', 'status');
+			overlay.setAttribute('aria-live', 'polite');
+			overlay.innerHTML =
+				'<div class="anton-watching-eye" aria-hidden="true">' +
+					'<svg viewBox="0 0 32 32">' +
+						'<path class="anton-watching-eye-lid" d="M16 4 L28 16 L16 28 L4 16 Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>' +
+						'<circle class="anton-watching-eye-pupil" cx="16" cy="16" r="3" fill="currentColor"/>' +
+					'</svg>' +
+				'</div>' +
+				'<div class="anton-watching-text">' + escapeHtml(text) + '</div>';
+			document.body.appendChild(overlay);
+
+			// Pupil tracking — translate up to 3px in either axis based on
+			// cursor position relative to the overlay's centre. Listener is
+			// detached when the overlay is removed.
+			const pupil = overlay.querySelector('.anton-watching-eye-pupil');
+			const onMove = (ev) => {
+				if (!pupil) return;
+				const rect = overlay.getBoundingClientRect();
+				const cx = rect.left + rect.width / 2;
+				const cy = rect.top + rect.height / 2;
+				const dx = Math.max(-3, Math.min(3, (ev.clientX - cx) / 80));
+				const dy = Math.max(-3, Math.min(3, (ev.clientY - cy) / 80));
+				pupil.style.transform = 'translate(' + dx.toFixed(2) + 'px, ' + dy.toFixed(2) + 'px)';
+			};
+			window.addEventListener('mousemove', onMove);
+
+			// Slide in immediately; slide out at 6s; remove at 6.4s. Adding
+			// the exit class re-triggers the slide-in keyframes in reverse
+			// via the css.
+			const exitTimer = setTimeout(() => {
+				overlay.classList.add('anton-watching-overlay-exit');
+			}, 6000);
+			const removeTimer = setTimeout(() => {
+				window.removeEventListener('mousemove', onMove);
+				if (overlay.parentNode) {
+					overlay.parentNode.removeChild(overlay);
+				}
+			}, 6400);
+
+			// Defensive cleanup in case the overlay is removed by other
+			// means (e.g. a webview reload mid-show).
+			overlay.addEventListener('animationcancel', () => {
+				clearTimeout(exitTimer);
+				clearTimeout(removeTimer);
+				window.removeEventListener('mousemove', onMove);
+			});
+		}
+
+		/**
 		 * Convert a small subset of Markdown to safe HTML. All input is
 		 * escaped before tag insertion; only the markdown shapes we recognise
 		 * become HTML, which keeps the surface narrow and predictable for
@@ -3885,6 +3955,9 @@
 					break;
 				case 'settingsState':
 					applySettingsState(message.settings);
+					break;
+				case 'showAntonIsWatching':
+					showAntonIsWatchingOverlay(message.text || '');
 					break;
 				case 'mcpServersState':
 					applyMcpServersState(Array.isArray(message.servers) ? message.servers : []);

@@ -602,6 +602,22 @@ export class ChatSession {
 		}, 100);
 	}
 
+	/**
+	 * Post the "Anton is watching" Easter-egg overlay to this session's
+	 * webview. Returns `true` if the message was forwarded — the webview
+	 * decides whether to render the overlay (only when the chat tab is
+	 * actually mounted). Used by the {@link AntonIsWatching} personality
+	 * surface via the static {@link ChatPanel.broadcastAntonIsWatching}
+	 * helper; not exposed as a postMessage from the user side.
+	 */
+	postAntonIsWatching(text: string): boolean {
+		if (this.disposed) {
+			return false;
+		}
+		this.webview.postMessage({ type: 'showAntonIsWatching', text });
+		return true;
+	}
+
 	dispose(): void {
 		this.disposed = true;
 		ACTIVE_SESSIONS.delete(this);
@@ -1847,6 +1863,11 @@ export class ChatSession {
 			'sota.chat.personaAccents': cfg.get<boolean>('chat.personaAccents', true),
 			'sota.personality.asciiArt': cfg.get<boolean>('personality.asciiArt', true),
 			'sota.personality.easterEggs': cfg.get<boolean>('personality.easterEggs', true),
+			'sota.personality.antonIsWatching': cfg.get<boolean>('personality.antonIsWatching', true),
+			'sota.personality.antonIsWatching.frequency': cfg.get<string>(
+				'personality.antonIsWatching.frequency',
+				'normal',
+			),
 			'sota.terminal.shellIntegration': cfg.get<boolean>('terminal.shellIntegration', true),
 			'sota.defaultModel': cfg.get<string>('defaultModel', 'sonnet'),
 			'sota.reasoningEffort': cfg.get<string>('reasoningEffort', 'medium'),
@@ -4136,6 +4157,19 @@ export class ChatSession {
 							<input type="checkbox" data-setting="sota.personality.easterEggs" />
 							<span>Easter eggs</span>
 						</label>
+						<label class="settings-toggle">
+							<input type="checkbox" data-setting="sota.personality.antonIsWatching" id="settingsAntonIsWatchingToggle" />
+							<span>Anton is watching</span>
+						</label>
+						<p class="settings-toggle-example">A periodic dry observation surfaced once per window — never while you're idle.</p>
+						<label class="settings-field" id="settingsAntonIsWatchingFrequencyField">
+							<span class="settings-field-label">Frequency</span>
+							<select class="settings-input" data-setting-select="sota.personality.antonIsWatching.frequency">
+								<option value="rare">Rare (2–4 hour window)</option>
+								<option value="normal">Normal (30 min – 4 hour window)</option>
+								<option value="often">Often (10 min – 2 hour window)</option>
+							</select>
+						</label>
 					</section>
 
 					<section class="settings-section settings-subtab-pane" id="settingsSubtab-mcp" data-subtab-pane="mcp" role="tabpanel" hidden aria-labelledby="settingsSubtab-mcp">
@@ -4610,5 +4644,21 @@ export class ChatPanel {
 		for (const session of ACTIVE_SESSIONS) {
 			session.reloadCurrentConversation();
 		}
+	}
+
+	/**
+	 * Fan the `showAntonIsWatching` overlay out to every active chat
+	 * session. Returns `true` if at least one session was reachable so the
+	 * caller can decide whether to fall back to a plain VS Code
+	 * notification when no chat surface is open.
+	 */
+	static broadcastAntonIsWatching(text: string): boolean {
+		let posted = false;
+		for (const session of ACTIVE_SESSIONS) {
+			if (session.postAntonIsWatching(text)) {
+				posted = true;
+			}
+		}
+		return posted;
 	}
 }

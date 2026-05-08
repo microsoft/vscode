@@ -617,6 +617,21 @@
 					"default": true,
 					"markdownDescription": "Surface easter eggs (e.g. the git-blame command jokes). Advisory."
 				},
+				"sota.personality.antonIsWatching": {
+					"type": "boolean",
+					"default": true,
+					"markdownDescription": "Anton occasionally surfaces a dry observation while you work. Fires at most once per editor window, only after recent activity, and never while you're idle."
+				},
+				"sota.personality.antonIsWatching.frequency": {
+					"type": "string",
+					"default": "normal",
+					"enum": [
+						"rare",
+						"normal",
+						"often"
+					],
+					"markdownDescription": "How often Anton's observations surface. `rare` = 2–4h window, `normal` = 30min–4h window, `often` = 10min–2h window."
+				},
 				"sota.terminal.outputLineCap": {
 					"type": "number",
 					"default": 100,
