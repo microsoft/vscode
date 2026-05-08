@@ -177,8 +177,8 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 				if (creditsUsed !== undefined) {
 					const formatted = creditsUsed % 1 === 0 ? creditsUsed.toString() : creditsUsed.toFixed(1);
 					details = creditsUsed === 1
-						? `${endpoint.name} \u2022 ${formatted} credit`
-						: `${endpoint.name} \u2022 ${formatted} credits`;
+						? vscode.l10n.t('{0} \u2022 {1} credit', endpoint.name, formatted)
+						: vscode.l10n.t('{0} \u2022 {1} credits', endpoint.name, formatted);
 				} else {
 					details = formatClaudeModelDetails(endpoint);
 				}
