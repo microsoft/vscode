@@ -605,6 +605,9 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			return;
 		}
 
+		if (!this.ptyProcessReady) {
+			return Promise.resolve();
+		}
 		return this.ptyProcessReady.then(() => this._resize(cols, rows, pixelWidth, pixelHeight));
 	}
 
