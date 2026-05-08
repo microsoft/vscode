@@ -98,13 +98,20 @@ export class ChatQuotaService extends Disposable implements IChatQuotaService {
 			const entitlement = parseInt(snapshot.entitlement, 10);
 			const resetDate = snapshot.reset_date ? new Date(snapshot.reset_date) : (() => { const d = new Date(); d.setMonth(d.getMonth() + 1); return d; })();
 
+			const quotaRemaining = typeof snapshot.quota_remaining === 'number' ? snapshot.quota_remaining : undefined;
+			// When we have the absolute remaining value, recompute percentRemaining for accuracy
+			const percentRemaining = quotaRemaining !== undefined && entitlement > 0
+				? Math.min(100, Math.max(0, (quotaRemaining / entitlement) * 100))
+				: snapshot.percent_remaining;
+
 			this._quotaInfo = {
 				quota: entitlement,
 				unlimited: entitlement === -1,
-				percentRemaining: snapshot.percent_remaining,
+				percentRemaining,
 				additionalUsageUsed: snapshot.overage_count,
 				additionalUsageEnabled: snapshot.overage_permitted,
 				resetDate,
+				quotaRemaining,
 			};
 			this._onDidChange.fire();
 		} catch (error) {
@@ -121,7 +128,12 @@ export class ChatQuotaService extends Disposable implements IChatQuotaService {
 			const entitlement = parseInt(params.get('ent') || '0', 10);
 			const additionalUsageUsed = parseFloat(params.get('ov') || '0.0');
 			const additionalUsageEnabled = params.get('ovPerm') === 'true';
-			const percentRemaining = parseFloat(params.get('rem') || '0.0');
+			const totRemStr = params.get('totRem');
+			const quotaRemaining = totRemStr !== null ? parseFloat(totRemStr) : undefined;
+			// When we have the absolute remaining value, recompute percentRemaining for accuracy
+			const percentRemaining = quotaRemaining !== undefined && !isNaN(quotaRemaining) && entitlement > 0
+				? Math.min(100, Math.max(0, (quotaRemaining / entitlement) * 100))
+				: parseFloat(params.get('rem') || '0.0');
 			const resetDateString = params.get('rst');
 
 			let resetDate: Date;
@@ -140,6 +152,7 @@ export class ChatQuotaService extends Disposable implements IChatQuotaService {
 				additionalUsageUsed,
 				additionalUsageEnabled,
 				resetDate,
+				quotaRemaining: quotaRemaining !== undefined && !isNaN(quotaRemaining) ? quotaRemaining : undefined,
 			};
 		} catch (error) {
 			console.error('Failed to parse quota header', error);

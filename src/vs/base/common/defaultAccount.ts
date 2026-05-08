@@ -12,6 +12,7 @@ export interface IQuotaSnapshotData {
 	readonly token_based_billing?: boolean;
 	readonly entitlement?: string;
 	readonly has_quota?: boolean;
+	readonly quota_remaining?: number;
 }
 
 export interface ILegacyQuotaSnapshotData {

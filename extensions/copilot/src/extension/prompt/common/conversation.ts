@@ -421,6 +421,16 @@ export interface IResultMetadata {
 	promptTokens?: number;
 	outputTokens?: number;
 	shouldAutoSwitchToAuto?: boolean;
+	/** Quota snapshot from the latest chat response, forwarded to the workbench for dashboard updates. */
+	quotaSnapshot?: {
+		percentRemaining: number;
+		unlimited: boolean;
+		entitlement: number;
+		quotaRemaining?: number;
+		additionalUsageUsed: number;
+		additionalUsageEnabled: boolean;
+		resetDate: string;
+	};
 }
 
 /** There may be no metadata for results coming from old persisted messages, or from messages that are currently in progress (TODO, try to handle this case) */

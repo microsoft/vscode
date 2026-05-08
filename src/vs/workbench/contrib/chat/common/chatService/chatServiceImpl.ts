@@ -1431,6 +1431,19 @@ export class ChatService extends Disposable implements IChatService {
 						this.chatEntitlementService.markAnonymousRateLimited();
 					}
 
+					// Forward quota snapshot from the extension to the entitlement
+					// service so the dashboard reflects the latest usage immediately.
+					const quotaSnapshot = rawResult.metadata?.quotaSnapshot;
+					if (quotaSnapshot && typeof quotaSnapshot === 'object' && typeof (quotaSnapshot as Record<string, unknown>).percentRemaining === 'number') {
+						const qs = quotaSnapshot as { percentRemaining: number; unlimited: boolean; entitlement: number; quotaRemaining?: number; additionalUsageUsed: number; additionalUsageEnabled: boolean; resetDate: string };
+						this.chatEntitlementService.updateQuotaSnapshot({
+							percentRemaining: qs.percentRemaining,
+							unlimited: qs.unlimited,
+							entitlement: qs.entitlement,
+							quotaRemaining: qs.quotaRemaining,
+						});
+					}
+
 					shouldProcessPending = !rawResult.errorDetails
 						&& !token.isCancellationRequested
 						&& !request.response?.response.value.some(v => v.kind === 'confirmation' && !v.isUsed);

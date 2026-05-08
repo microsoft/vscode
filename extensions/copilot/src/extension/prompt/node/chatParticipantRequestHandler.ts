@@ -275,13 +275,23 @@ export class ChatParticipantRequestHandler {
 			// mixin fixed metadata shape into result. Modified in place because the object is already
 			// cached in the conversation store and we want the full information when looking this up
 			// later
+			const quotaInfo = this._chatQuotaService.quotaInfo;
 			mixin(result, {
 				metadata: {
 					modelMessageId: this.turn.responseId ?? '',
 					responseId: this.turn.id,
 					sessionId: this.conversation.sessionId,
 					agentId: this.chatAgentArgs.agentId,
-					command: this.request.command
+					command: this.request.command,
+					quotaSnapshot: quotaInfo ? {
+						percentRemaining: quotaInfo.percentRemaining,
+						unlimited: quotaInfo.unlimited,
+						entitlement: quotaInfo.quota,
+						quotaRemaining: quotaInfo.quotaRemaining,
+						additionalUsageUsed: quotaInfo.additionalUsageUsed,
+						additionalUsageEnabled: quotaInfo.additionalUsageEnabled,
+						resetDate: quotaInfo.resetDate.toISOString(),
+					} : undefined,
 				}
 			} satisfies ICopilotChatResult, true);
 

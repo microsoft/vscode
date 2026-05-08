@@ -51,6 +51,8 @@ export interface IChatQuota {
 	additionalUsageUsed: number;
 	additionalUsageEnabled: boolean;
 	resetDate: Date;
+	/** Absolute AIC remaining from the server snapshot (totRem header / quota_remaining JSON). */
+	quotaRemaining?: number;
 }
 
 export interface QuotaSnapshot {
@@ -64,6 +66,8 @@ export interface QuotaSnapshot {
 	readonly overage_count: number;
 	/** ISO 8601 date when the quota resets, if applicable. */
 	readonly reset_date?: string;
+	/** Absolute AIC remaining, if available. */
+	readonly quota_remaining?: number;
 }
 
 export type QuotaSnapshots = Record<string, QuotaSnapshot>;

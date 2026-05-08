@@ -110,6 +110,7 @@ class MockChatEntitlementService implements IChatEntitlementService {
 	markAnonymousRateLimited(): void { }
 	markSetupCompleted(): void { }
 	setForceHidden(_hidden: boolean): void { }
+	updateQuotaSnapshot(): void { }
 	async update(_token: CancellationToken): Promise<void> { }
 }
 

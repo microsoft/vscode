@@ -817,6 +817,7 @@ export class TestChatEntitlementService implements IChatEntitlementService {
 	markAnonymousRateLimited(): void { }
 	markSetupCompleted(): void { }
 	setForceHidden(_hidden: boolean): void { }
+	updateQuotaSnapshot(): void { }
 
 	readonly previewFeaturesDisabled = false;
 	readonly clientByokEnabled = false;

@@ -62,6 +62,7 @@ function createEntitlementService(opts: {
 		markAnonymousRateLimited: () => { },
 		markSetupCompleted: () => { },
 		setForceHidden: () => { },
+		updateQuotaSnapshot: () => { },
 		previewFeaturesDisabled: false,
 		clientByokEnabled: false,
 	} as IChatEntitlementService;

@@ -190,6 +190,13 @@ export interface IChatEntitlementService {
 	markAnonymousRateLimited(): void;
 
 	/**
+	 * Update the premium chat quota snapshot from a per-request agent
+	 * result. This merges the snapshot into the existing quotas rather
+	 * than replacing them, so that chat / completions quotas are not lost.
+	 */
+	updateQuotaSnapshot(snapshot: IQuotaSnapshot): void;
+
+	/**
 	 * Mark the chat setup flow as completed.
 	 */
 	markSetupCompleted(): void;
@@ -565,6 +572,14 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 		this.acceptQuotas({});
 	}
 
+	updateQuotaSnapshot(snapshot: IQuotaSnapshot): void {
+		const isFree = this.entitlement === ChatEntitlement.Free || this.entitlement === ChatEntitlement.Available;
+		this.acceptQuotas({
+			...this._quotas,
+			...(isFree ? { chat: snapshot } : { premiumChat: snapshot }),
+		});
+	}
+
 	private updateContextKeys(): void {
 		this.chatQuotaExceededContextKey.set(this._quotas.chat?.percentRemaining === 0);
 		this.completionsQuotaExceededContextKey.set(this._quotas.completions?.percentRemaining === 0);
@@ -681,6 +696,8 @@ export interface IQuotaSnapshot {
 	readonly resetAt?: number;
 	readonly usageBasedBilling?: boolean;
 	readonly entitlement?: number;
+	/** Absolute AIC remaining from the server snapshot. */
+	readonly quotaRemaining?: number;
 }
 
 interface IQuotas {
@@ -735,12 +752,20 @@ export function parseQuotas(entitlementsData: IEntitlementsData): IQuotas {
 				continue;
 			}
 
+			const parsedQuotaRemaining = typeof rawQuotaSnapshot.quota_remaining === 'number' && rawQuotaSnapshot.quota_remaining >= 0 ? rawQuotaSnapshot.quota_remaining : undefined;
+
+			// When we have the absolute remaining value, recompute percentRemaining for accuracy
+			const percentRemaining = parsedQuotaRemaining !== undefined && parsedEntitlement !== undefined && parsedEntitlement > 0
+				? Math.min(100, Math.max(0, (parsedQuotaRemaining / parsedEntitlement) * 100))
+				: Math.min(100, Math.max(0, rawQuotaSnapshot.percent_remaining));
+
 			const quotaSnapshot: IQuotaSnapshot = {
-				percentRemaining: Math.min(100, Math.max(0, rawQuotaSnapshot.percent_remaining)),
+				percentRemaining,
 				unlimited: rawQuotaSnapshot.unlimited,
 				usageBasedBilling: entitlementsData.token_based_billing,
 				resetAt: rawQuotaSnapshot.quota_reset_at || undefined,
 				entitlement: parsedEntitlement !== undefined && Number.isSafeInteger(parsedEntitlement) && parsedEntitlement >= 0 ? parsedEntitlement : undefined,
+				quotaRemaining: parsedQuotaRemaining,
 			};
 
 			switch (quotaType) {
