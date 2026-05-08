@@ -778,12 +778,18 @@ suite('SnippetParser', () => {
 		transform.appendChild(new Text('bar'));
 		transform.regexp = new RegExp('foo', 'gi');
 		assert.strictEqual(transform.toTextmateString(), '/foo/bar/ig');
+	});
 
+	test('transform serialization joins children without comma', function () {
 		const transformWithFormatString = new Transform();
 		transformWithFormatString.appendChild(new FormatString(1, 'upcase'));
 		transformWithFormatString.appendChild(new Text('_'));
 		transformWithFormatString.regexp = new RegExp('foo', 'g');
-		assert.strictEqual(transformWithFormatString.toTextmateString(), '/foo/${1:/upcase}_/g');
+		const serialized = transformWithFormatString.toTextmateString();
+		assert.strictEqual(serialized, '/foo/${1:/upcase}_/g');
+
+		const snippet = new SnippetParser().parse(`\${TM_FILENAME${serialized}}`);
+		assert.strictEqual(snippet.toTextmateString(), `\${TM_FILENAME${serialized}}`);
 	});
 
 	test('Snippet parser freeze #53144', function () {
