@@ -8,7 +8,7 @@ import { mkdir, mkdtemp, rm, writeFile as writeNodeFile } from 'node:fs/promises
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ChatContext, ChatParticipantToolToken, Uri } from 'vscode';
+import type { ChatContext, ChatCustomAgent, ChatParticipantToolToken, Uri } from 'vscode';
 import { CancellationToken } from 'vscode-languageserver-protocol';
 import { IAuthenticationService } from '../../../../../platform/authentication/common/authentication';
 import { NullChatDebugFileLoggerService } from '../../../../../platform/chat/common/chatDebugFileLoggerService';
@@ -26,6 +26,7 @@ import { mock } from '../../../../../util/common/test/simpleMock';
 import { DisposableStore, IReference, toDisposable } from '../../../../../util/vs/base/common/lifecycle';
 import { URI } from '../../../../../util/vs/base/common/uri';
 import { IInstantiationService } from '../../../../../util/vs/platform/instantiation/common/instantiation';
+import { ChatRequestTurn2 } from '../../../../../vscodeTypes';
 import { NullPromptVariablesService } from '../../../../prompt/node/promptVariablesService';
 import { createExtensionUnitTestingServices } from '../../../../test/node/services';
 import { IAgentSessionsWorkspace } from '../../../common/agentSessionsWorkspace';
@@ -101,12 +102,26 @@ function sessionOptionsFor(workingDirectory?: Uri) {
 	};
 }
 
+function createCustomAgent(uri: URI, name: string): ChatCustomAgent {
+	return {
+		uri,
+		source: 'local',
+		name,
+		description: '',
+		userInvocable: true,
+		disableModelInvocation: false,
+		enabled: true,
+	};
+}
+
 describe('CopilotCLISessionService', () => {
 	const disposables = new DisposableStore();
 	let logService: ILogService;
 	let instantiationService: IInstantiationService;
 	let service: CopilotCLISessionService;
 	let manager: MockCliSdkSessionManager;
+	let metadataStore: MockChatSessionMetadataStore;
+	let promptsService: MockPromptsService;
 	let tempStateHome: string | undefined;
 	const originalXdgStateHome = process.env.XDG_STATE_HOME;
 	beforeEach(async () => {
@@ -166,7 +181,9 @@ describe('CopilotCLISessionService', () => {
 		const configurationService = accessor.get(IConfigurationService);
 		const nullMcpServer = disposables.add(new NullMcpService());
 		const titleService = new NullCustomSessionTitleService();
-		service = disposables.add(new CopilotCLISessionService(logService, sdk, instantiationService, new NullNativeEnvService(), new MockFileSystemService(), new CopilotCLIMCPHandler(logService, authService, configurationService, nullMcpServer), cliAgents, workspaceService, titleService, configurationService, new MockSkillLocations(), delegationService, new MockChatSessionMetadataStore(), new NullAgentSessionsWorkspace(), new NullChatSessionWorkspaceFolderService(), new NullChatSessionWorktreeService(), new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'test' })), new NullPromptVariablesService(), new NullChatDebugFileLoggerService(), disposables.add(new MockPromptsService()), new NullCopilotCLIModels()));
+		metadataStore = new MockChatSessionMetadataStore();
+		promptsService = disposables.add(new MockPromptsService());
+		service = disposables.add(new CopilotCLISessionService(logService, sdk, instantiationService, new NullNativeEnvService(), new MockFileSystemService(), new CopilotCLIMCPHandler(logService, authService, configurationService, nullMcpServer), cliAgents, workspaceService, titleService, configurationService, new MockSkillLocations(), delegationService, metadataStore, new NullAgentSessionsWorkspace(), new NullChatSessionWorkspaceFolderService(), new NullChatSessionWorktreeService(), new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'test' })), new NullPromptVariablesService(), new NullChatDebugFileLoggerService(), promptsService, new NullCopilotCLIModels()));
 		manager = await service.getSessionManager() as unknown as MockCliSdkSessionManager;
 	});
 
@@ -219,6 +236,90 @@ describe('CopilotCLISessionService', () => {
 			handleModelChange: expect.any(Function),
 			subscribe: expect.any(Function),
 		}));
+	});
+
+	describe('CopilotCLISessionService.getChatHistory', () => {
+		it('refreshes cached custom agent mode instructions when custom agents change', async () => {
+			const agentUri = URI.file('/workspace/.github/agents/review.agent.md');
+			promptsService.setFileContent(agentUri, '---\nname: Review\n---\nFirst instructions');
+			promptsService.setCustomAgents([createCustomAgent(agentUri, 'Review')]);
+
+			const firstSessionId = 'history-agent-first';
+			await metadataStore.updateRequestDetails(firstSessionId, [{ vscodeRequestId: 'request-1', copilotRequestId: 'sdk-request-1', agentId: 'Review', toolIdEditMap: {} }]);
+			const firstSession = new MockCliSdkSession(firstSessionId, new Date('2024-01-01T00:00:00.000Z'));
+			firstSession.events.push(
+				{ id: 'start-1', type: 'session.start', data: { selectedModel: 'gpt-test' } },
+				{ id: 'sdk-request-1', type: 'user.message', data: { content: 'Review the first change', attachments: [] } },
+			);
+			manager.sessions.set(firstSessionId, firstSession);
+
+			const firstHistory = await service.getChatHistory({ sessionId: firstSessionId, workspace: workspaceInfoFor(undefined) }, CancellationToken.None);
+			const firstRequest = firstHistory.find(turn => turn instanceof ChatRequestTurn2);
+			if (!(firstRequest instanceof ChatRequestTurn2)) {
+				throw new Error('Expected a request turn');
+			}
+			expect(firstRequest.modeInstructions2?.content).toBe('First instructions');
+
+			promptsService.setFileContent(agentUri, '---\nname: Review\n---\nUpdated instructions');
+			promptsService.setCustomAgents([createCustomAgent(agentUri, 'Review')]);
+
+			const secondSessionId = 'history-agent-second';
+			await metadataStore.updateRequestDetails(secondSessionId, [{ vscodeRequestId: 'request-2', copilotRequestId: 'sdk-request-2', agentId: 'Review', toolIdEditMap: {} }]);
+			const secondSession = new MockCliSdkSession(secondSessionId, new Date('2024-01-01T00:00:01.000Z'));
+			secondSession.events.push(
+				{ id: 'start-2', type: 'session.start', data: { selectedModel: 'gpt-test' } },
+				{ id: 'sdk-request-2', type: 'user.message', data: { content: 'Review the second change', attachments: [] } },
+			);
+			manager.sessions.set(secondSessionId, secondSession);
+
+			const secondHistory = await service.getChatHistory({ sessionId: secondSessionId, workspace: workspaceInfoFor(undefined) }, CancellationToken.None);
+			const secondRequest = secondHistory.find(turn => turn instanceof ChatRequestTurn2);
+			if (!(secondRequest instanceof ChatRequestTurn2)) {
+				throw new Error('Expected a request turn');
+			}
+
+			expect({
+				content: secondRequest.modeInstructions2?.content,
+				name: secondRequest.modeInstructions2?.name,
+				uri: secondRequest.modeInstructions2?.uri?.toString(),
+			}).toEqual({
+				content: 'Updated instructions',
+				name: 'Review',
+				uri: agentUri.toString(),
+			});
+		});
+
+		it('issues a single getCustomAgents call when multiple turns resolve in parallel after agent change', async () => {
+			const agentUri = URI.file('/workspace/.github/agents/parallel.agent.md');
+			promptsService.setFileContent(agentUri, '---\nname: Parallel\n---\nInstructions');
+			promptsService.setCustomAgents([createCustomAgent(agentUri, 'Parallel')]);
+
+			const sessionId = 'history-agent-parallel';
+			// 5 turns referencing the agent — getChatHistory resolves them via Promise.all.
+			const turns = Array.from({ length: 5 }, (_, i) => ({
+				vscodeRequestId: `request-${i}`,
+				copilotRequestId: `sdk-request-${i}`,
+				agentId: 'Parallel',
+				toolIdEditMap: {},
+			}));
+			await metadataStore.updateRequestDetails(sessionId, turns);
+			const session = new MockCliSdkSession(sessionId, new Date('2024-01-01T00:00:00.000Z'));
+			session.events.push({ id: 'start', type: 'session.start', data: { selectedModel: 'gpt-test' } });
+			for (const t of turns) {
+				session.events.push({ id: t.copilotRequestId, type: 'user.message', data: { content: 'm', attachments: [] } });
+			}
+			manager.sessions.set(sessionId, session);
+
+			// Prime + invalidate so all parallel resolves hit the rebuild path.
+			await service.getChatHistory({ sessionId, workspace: workspaceInfoFor(undefined) }, CancellationToken.None);
+			promptsService.setCustomAgents([createCustomAgent(agentUri, 'Parallel')]);
+
+			const getCustomAgentsSpy = vi.spyOn(promptsService, 'getCustomAgents');
+			await service.getChatHistory({ sessionId, workspace: workspaceInfoFor(undefined) }, CancellationToken.None);
+
+			// All N parallel resolves should share one in-flight rebuild, not N rebuilds.
+			expect(getCustomAgentsSpy).toHaveBeenCalledTimes(1);
+		});
 	});
 
 	describe('CopilotCLISessionService.createSession', () => {
