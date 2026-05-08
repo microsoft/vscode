@@ -201,6 +201,7 @@ export interface IReadonlyEditorGroupModel {
 	renameTabGroup?(groupId: string, name: string): void;
 	recolorTabGroup?(groupId: string, color: string): void;
 	dissolveTabGroup?(groupId: string): void;
+	moveTabGroup?(groupId: string, toIndex: number): void;
 }
 
 interface IEditorGroupModel extends IReadonlyEditorGroupModel {
@@ -1324,6 +1325,50 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 			group.color = color;
 			this._onDidModelChange.fire({ kind: GroupModelChangeKind.TAB_GROUP_CHANGED });
 		}
+	}
+
+	moveTabGroup(groupId: string, toIndex: number): void {
+		const group = this._tabGroups.find(g => g.id === groupId);
+		if (!group) {
+			return;
+		}
+
+		// Clamp target index
+		toIndex = Math.max(this.sticky + 1, Math.min(toIndex, this.editors.length - group.count));
+		if (toIndex === group.startIndex) {
+			return;
+		}
+
+		// Extract the editors belonging to this group
+		const groupEditors = this.editors.splice(group.startIndex, group.count);
+
+		// Adjust target if it was after the original position
+		const adjustedTarget = toIndex > group.startIndex ? toIndex : toIndex;
+
+		// Re-insert editors at the target position
+		this.editors.splice(adjustedTarget, 0, ...groupEditors);
+
+		// Rebuild all tab group indices from scratch since bulk moves are complex
+		const oldStart = group.startIndex;
+		group.startIndex = adjustedTarget;
+		for (const other of this._tabGroups) {
+			if (other.id === groupId) {
+				continue;
+			}
+			if (oldStart < adjustedTarget) {
+				// Group moved forward: groups between old and new shift left
+				if (other.startIndex > oldStart && other.startIndex <= adjustedTarget) {
+					other.startIndex -= group.count;
+				}
+			} else {
+				// Group moved backward: groups between new and old shift right
+				if (other.startIndex >= adjustedTarget && other.startIndex < oldStart) {
+					other.startIndex += group.count;
+				}
+			}
+		}
+
+		this._onDidModelChange.fire({ kind: GroupModelChangeKind.TAB_GROUP_CHANGED });
 	}
 
 	private removeFromTabGroupByIndex(editorIndex: number): void {

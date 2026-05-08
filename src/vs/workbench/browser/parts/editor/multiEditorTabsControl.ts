@@ -124,6 +124,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	private tabDisposables: IDisposable[] = [];
 
 	private tabGroupHeaders: Map<string, HTMLElement> = new Map();
+	private draggedTabGroupId: string | undefined;
 
 	private dimensions: IEditorTitleControlDimensions & { used?: Dimension } = {
 		container: Dimension.None,
@@ -167,14 +168,15 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		// React to decorations changing for our resource labels
 		this._register(this.tabResourceLabels.onDidChangeDecorations(() => this.doHandleDecorationsChange()));
 
-		// React to tab group model changes (collapse/expand, rename, recolor)
+		// React to tab group model changes (collapse/expand, rename, recolor, move)
 		this._register(this.tabsModel.onDidModelChange(e => {
 			if (e.kind === GroupModelChangeKind.TAB_GROUP_CHANGED ||
 				e.kind === GroupModelChangeKind.TAB_GROUP_CREATED ||
 				e.kind === GroupModelChangeKind.TAB_GROUP_REMOVED ||
 				e.kind === GroupModelChangeKind.TAB_GROUP_EDITOR_ADDED ||
 				e.kind === GroupModelChangeKind.TAB_GROUP_EDITOR_REMOVED) {
-				this.redrawTabGroups();
+				this.computeTabLabels();
+				this.redraw();
 			}
 		}));
 	}
@@ -379,6 +381,15 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 					return;
 				}
 
+				// Handle tab group reorder drag
+				if (this.draggedTabGroupId) {
+					e.preventDefault();
+					if (e.dataTransfer) {
+						e.dataTransfer.dropEffect = 'move';
+					}
+					return;
+				}
+
 				// Return if transfer is unsupported
 				if (!this.isSupportedDropTransfer(e)) {
 					if (e.dataTransfer) {
@@ -416,6 +427,14 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				tabsContainer.classList.remove('scroll');
 
 				if (e.target === tabsContainer) {
+					// Handle tab group reorder: move group to the end
+					if (this.draggedTabGroupId) {
+						e.preventDefault();
+						this.tabsModel.moveTabGroup?.(this.draggedTabGroupId, this.tabsModel.count);
+						this.draggedTabGroupId = undefined;
+						return;
+					}
+
 					const isGroupTransfer = this.groupTransfer.hasData(DraggedEditorGroupIdentifier.prototype);
 					this.onDrop(e, isGroupTransfer ? this.groupView.count : this.tabsModel.count, tabsContainer);
 				}
@@ -1616,6 +1635,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			header = document.createElement('div');
 			header.classList.add('tab-group-header');
 			header.dataset.groupId = group.id;
+			header.draggable = true;
 
 			header.addEventListener('click', (e) => {
 				e.stopPropagation();
@@ -1626,9 +1646,29 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				}
 			});
 
-			// DnD: allow dropping tabs onto group header to add them to the group
+			// DnD: dragging the group header to reorder groups
+			header.addEventListener('dragstart', (e: DragEvent) => {
+				this.draggedTabGroupId = group.id;
+				if (e.dataTransfer) {
+					e.dataTransfer.effectAllowed = 'move';
+					e.dataTransfer.setDragImage(header!, 0, 0);
+				}
+				header!.classList.add('dragging');
+			});
+			header.addEventListener('dragend', () => {
+				this.draggedTabGroupId = undefined;
+				header!.classList.remove('dragging');
+			});
+
+			// DnD: allow dropping tabs or groups onto this header
 			header.addEventListener('dragover', (e: DragEvent) => {
-				if (this.editorTransfer.hasData(DraggedEditorIdentifier.prototype)) {
+				if (this.draggedTabGroupId && this.draggedTabGroupId !== group.id) {
+					e.preventDefault();
+					if (e.dataTransfer) {
+						e.dataTransfer.dropEffect = 'move';
+					}
+					header!.classList.add('drag-over');
+				} else if (this.editorTransfer.hasData(DraggedEditorIdentifier.prototype)) {
 					e.preventDefault();
 					if (e.dataTransfer) {
 						e.dataTransfer.dropEffect = 'move';
@@ -1641,6 +1681,16 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			});
 			header.addEventListener('drop', (e: DragEvent) => {
 				header!.classList.remove('drag-over');
+
+				// Dropping a group onto another group: reorder
+				if (this.draggedTabGroupId && this.draggedTabGroupId !== group.id) {
+					e.preventDefault();
+					this.tabsModel.moveTabGroup?.(this.draggedTabGroupId, group.startIndex);
+					this.draggedTabGroupId = undefined;
+					return;
+				}
+
+				// Dropping individual editors onto group: add to group
 				const draggedEditors = this.editorTransfer.getData(DraggedEditorIdentifier.prototype);
 				if (draggedEditors && draggedEditors.length > 0) {
 					e.preventDefault();

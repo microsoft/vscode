@@ -34,6 +34,10 @@
 	outline-offset: -2px;
 }
 
+.tab-group-header.dragging {
+	opacity: 0.5;
+}
+
 .tab-group-header.collapsed::after {
 	content: '\25B6';
 	font-size: 8px;
