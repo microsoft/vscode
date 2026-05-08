@@ -23,7 +23,7 @@ import { AgentSessionProviders, AgentSessionTarget } from '../../../../workbench
 import { IChatService, IChatSendRequestOptions } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatResponseModel } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ChatSessionStatus, IChatSessionsService, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, SessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { ISession, IChat, ISessionRepository, ISessionWorkspace, SessionStatus, GITHUB_REMOTE_FILE_SCHEME, IGitHubInfo, CopilotCLISessionType, CopilotCloudSessionType, ClaudeCodeSessionType, ISessionType, ISessionWorkspaceBrowseAction, ISessionFileChange, sessionFileChangesEqual, toSessionId, SESSION_WORKSPACE_GROUP_LOCAL, ISessionChangeset } from '../../../services/sessions/common/session.js';
+import { ISession, IChat, ISessionRepository, ISessionWorkspace, SessionStatus, GITHUB_REMOTE_FILE_SCHEME, IGitHubInfo, COPILOT_CLI_SESSION_TYPE, COPILOT_CLOUD_SESSION_TYPE, CLAUDE_CODE_SESSION_TYPE, ISessionType, ISessionWorkspaceBrowseAction, ISessionFileChange, sessionFileChangesEqual, toSessionId, SESSION_WORKSPACE_GROUP_LOCAL, ISessionChangeset } from '../../../services/sessions/common/session.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, isChatPermissionLevel } from '../../../../workbench/contrib/chat/common/constants.js';
 import { basename, dirname, isEqual } from '../../../../base/common/resources.js';
 import { ISendRequestOptions, ISessionChangeEvent, ISessionsProvider } from '../../../services/sessions/common/sessionsProvider.js';
@@ -48,6 +48,27 @@ import { computePullRequestIcon, GitHubPullRequestState } from '../../github/com
 
 const SESSION_WORKSPACE_GROUP_GITHUB = localize('sessionWorkspaceGroup.github', "GitHub");
 const STORAGE_KEY_ISOLATION_MODE = 'sessions.isolationPicker.selectedMode';
+
+/** Copilot CLI session type — local background agent running in a Git worktree. */
+const CopilotCLISessionType: ISessionType = {
+	id: COPILOT_CLI_SESSION_TYPE,
+	label: localize('copilotCLI', "Copilot CLI"),
+	icon: Codicon.copilot,
+};
+
+/** Copilot Cloud session type - cloud-hosted agent. */
+const CopilotCloudSessionType: ISessionType = {
+	id: COPILOT_CLOUD_SESSION_TYPE,
+	label: localize('copilotCloud', "Cloud"),
+	icon: Codicon.cloud,
+};
+
+/** Claude Code session type — local agent powered by Claude. */
+const ClaudeCodeSessionType: ISessionType = {
+	id: CLAUDE_CODE_SESSION_TYPE,
+	label: localize('claudeCode', "Claude"),
+	icon: Codicon.claude,
+};
 
 export interface ICopilotChatSession {
 	/** Globally unique session ID (`providerId:localId`). */

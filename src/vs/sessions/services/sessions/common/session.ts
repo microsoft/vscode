@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { Codicon } from '../../../../base/common/codicons.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { IObservable } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
@@ -28,29 +27,8 @@ export const COPILOT_CLI_SESSION_TYPE = 'copilotcli';
 /** Session type ID for Copilot Cloud sessions. */
 export const COPILOT_CLOUD_SESSION_TYPE = 'copilot-cloud-agent';
 
-/** Copilot CLI session type — local background agent running in a Git worktree. */
-export const CopilotCLISessionType: ISessionType = {
-	id: COPILOT_CLI_SESSION_TYPE,
-	label: localize('copilotCLI', "Copilot CLI"),
-	icon: Codicon.copilot,
-};
-
-/** Copilot Cloud session type - cloud-hosted agent. */
-export const CopilotCloudSessionType: ISessionType = {
-	id: COPILOT_CLOUD_SESSION_TYPE,
-	label: localize('copilotCloud', "Cloud"),
-	icon: Codicon.cloud,
-};
-
 /** Session type ID for Claude Code sessions. */
 export const CLAUDE_CODE_SESSION_TYPE = 'claude-code';
-
-/** Claude Code session type — local agent powered by Claude. */
-export const ClaudeCodeSessionType: ISessionType = {
-	id: CLAUDE_CODE_SESSION_TYPE,
-	label: localize('claudeCode', "Claude"),
-	icon: Codicon.claude,
-};
 
 /**
  * Returns whether the given session type represents a workspace-backed

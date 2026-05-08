@@ -30,7 +30,7 @@ import { IChatResponseModel } from '../../../../../workbench/contrib/chat/common
 import { IChatAgentData } from '../../../../../workbench/contrib/chat/common/participants/chatAgents.js';
 import { IGitService } from '../../../../../workbench/contrib/git/common/gitService.js';
 import { ISessionChangeEvent } from '../../../../services/sessions/common/sessionsProvider.js';
-import { ClaudeCodeSessionType, CopilotCLISessionType, GITHUB_REMOTE_FILE_SCHEME, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { CLAUDE_CODE_SESSION_TYPE, COPILOT_CLI_SESSION_TYPE, GITHUB_REMOTE_FILE_SCHEME, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { CLAUDE_CODE_ENABLED_SETTING, CopilotChatSessionsProvider, COPILOT_PROVIDER_ID } from '../../browser/copilotChatSessionsProvider.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
@@ -285,7 +285,7 @@ suite('CopilotChatSessionsProvider', () => {
 	test('sessionTypes excludes Claude when setting is disabled', () => {
 		const provider = createProvider(disposables, model, { claudeEnabled: false });
 		assert.strictEqual(provider.sessionTypes.length, 2);
-		assert.ok(!provider.sessionTypes.some(t => t.id === ClaudeCodeSessionType.id));
+		assert.ok(!provider.sessionTypes.some(t => t.id === CLAUDE_CODE_SESSION_TYPE));
 	});
 
 	test('onDidChangeSessionTypes fires when claude setting changes', () => {
@@ -343,20 +343,20 @@ suite('CopilotChatSessionsProvider', () => {
 	test('getSessionTypes returns Claude for local workspace when enabled', () => {
 		const provider = createProvider(disposables, model, { claudeEnabled: true });
 		const types = provider.getSessionTypes(URI.file('/test/project'));
-		assert.ok(types.some(t => t.id === ClaudeCodeSessionType.id));
+		assert.ok(types.some(t => t.id === CLAUDE_CODE_SESSION_TYPE));
 	});
 
 	test('getSessionTypes does not return Claude for local workspace when disabled', () => {
 		const provider = createProvider(disposables, model, { claudeEnabled: false });
 		const types = provider.getSessionTypes(URI.file('/test/project'));
-		assert.ok(!types.some(t => t.id === ClaudeCodeSessionType.id));
+		assert.ok(!types.some(t => t.id === CLAUDE_CODE_SESSION_TYPE));
 	});
 
 	test('getSessionTypes returns only Cloud for remote workspace regardless of claude setting', () => {
 		const provider = createProvider(disposables, model, { claudeEnabled: true });
 		const types = provider.getSessionTypes(URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, path: '/owner/repo' }));
 		assert.strictEqual(types.length, 1);
-		assert.ok(!types.some(t => t.id === ClaudeCodeSessionType.id));
+		assert.ok(!types.some(t => t.id === CLAUDE_CODE_SESSION_TYPE));
 	});
 
 	// ---- Session listing -------
@@ -943,10 +943,10 @@ suite('CopilotChatSessionsProvider', () => {
 		const { provider, commitSession } = makeClaudeInFlightProvider();
 		const workspace = URI.file('/test/project');
 
-		const session = provider.createNewSession(workspace, ClaudeCodeSessionType.id);
+		const session = provider.createNewSession(workspace, CLAUDE_CODE_SESSION_TYPE);
 
 		assert.ok(session);
-		assert.strictEqual(session.sessionType, ClaudeCodeSessionType.id);
+		assert.strictEqual(session.sessionType, CLAUDE_CODE_SESSION_TYPE);
 		assert.strictEqual(session.status.get(), SessionStatus.Untitled);
 
 		// Send and commit so the session enters the cache and can be disposed
@@ -960,7 +960,7 @@ suite('CopilotChatSessionsProvider', () => {
 	test('archiveSession archives a Claude temp session', async () => {
 		const { provider, cancelRequest } = makeClaudeInFlightProvider();
 		const workspace = URI.file('/test/project');
-		const session = provider.createNewSession(workspace, ClaudeCodeSessionType.id);
+		const session = provider.createNewSession(workspace, CLAUDE_CODE_SESSION_TYPE);
 
 		const added = waitForSessionAdded(provider);
 		const sendPromise = provider.sendAndCreateChat(session.sessionId, { query: 'test' });
@@ -979,7 +979,7 @@ suite('CopilotChatSessionsProvider', () => {
 	test('unarchiveSession unarchives a Claude temp session', async () => {
 		const { provider, cancelRequest } = makeClaudeInFlightProvider();
 		const workspace = URI.file('/test/project');
-		const session = provider.createNewSession(workspace, ClaudeCodeSessionType.id);
+		const session = provider.createNewSession(workspace, CLAUDE_CODE_SESSION_TYPE);
 
 		const added = waitForSessionAdded(provider);
 		const sendPromise = provider.sendAndCreateChat(session.sessionId, { query: 'test' });
@@ -1003,7 +1003,7 @@ suite('CopilotChatSessionsProvider', () => {
 	test('sendAndCreateChat replaces temp session with committed session on success', async () => {
 		const { provider, commitSession } = makeClaudeInFlightProvider();
 		const workspace = URI.file('/test/project');
-		const session = provider.createNewSession(workspace, ClaudeCodeSessionType.id);
+		const session = provider.createNewSession(workspace, CLAUDE_CODE_SESSION_TYPE);
 
 		const replacements: { from: unknown; to: unknown }[] = [];
 		disposables.add(provider.onDidReplaceSession(e => replacements.push(e)));
@@ -1025,7 +1025,7 @@ suite('CopilotChatSessionsProvider', () => {
 	test('sendAndCreateChat uses the query as the temp session title', async () => {
 		const { provider, cancelRequest } = makeClaudeInFlightProvider();
 		const workspace = URI.file('/test/project');
-		const session = provider.createNewSession(workspace, ClaudeCodeSessionType.id);
+		const session = provider.createNewSession(workspace, CLAUDE_CODE_SESSION_TYPE);
 
 		const added = waitForSessionAdded(provider);
 		const sendPromise = provider.sendAndCreateChat(session.sessionId, { query: 'fix the login bug' });
@@ -1042,7 +1042,7 @@ suite('CopilotChatSessionsProvider', () => {
 	test('sendAndCreateChat keeps temp session on cancellation', async () => {
 		const { provider, cancelRequest } = makeClaudeInFlightProvider();
 		const workspace = URI.file('/test/project');
-		const session = provider.createNewSession(workspace, ClaudeCodeSessionType.id);
+		const session = provider.createNewSession(workspace, CLAUDE_CODE_SESSION_TYPE);
 
 		const added = waitForSessionAdded(provider);
 		const sendPromise = provider.sendAndCreateChat(session.sessionId, { query: 'test' });
@@ -1137,7 +1137,7 @@ suite('CopilotChatSessionsProvider', () => {
 		test('deleteSession removes a temp session that is awaiting commit', async () => {
 			const { provider, cancelRequest } = makeInFlightProvider();
 
-			const newSession = provider.createNewSession(workspace, CopilotCLISessionType.id);
+			const newSession = provider.createNewSession(workspace, COPILOT_CLI_SESSION_TYPE);
 			const sessionId = newSession.sessionId;
 
 			const added = waitForSessionAdded(provider);
@@ -1157,7 +1157,7 @@ suite('CopilotChatSessionsProvider', () => {
 		test('archiveSession archives a temp session that is awaiting commit', async () => {
 			const { provider, cancelRequest } = makeInFlightProvider();
 
-			const newSession = provider.createNewSession(workspace, CopilotCLISessionType.id);
+			const newSession = provider.createNewSession(workspace, COPILOT_CLI_SESSION_TYPE);
 			const sessionId = newSession.sessionId;
 
 			const added = waitForSessionAdded(provider);
@@ -1181,7 +1181,7 @@ suite('CopilotChatSessionsProvider', () => {
 		test('archiveSession archives a stopped session that was never committed', async () => {
 			const { provider, cancelRequest } = makeInFlightProvider();
 
-			const newSession = provider.createNewSession(workspace, CopilotCLISessionType.id);
+			const newSession = provider.createNewSession(workspace, COPILOT_CLI_SESSION_TYPE);
 			const sessionId = newSession.sessionId;
 
 			const added = waitForSessionAdded(provider);
@@ -1247,7 +1247,7 @@ suite('CopilotChatSessionsProvider', () => {
 		test('stopping a committed session keeps it in the list', async () => {
 			const { provider, commitSession, cancelRequest } = makeCommittableProvider();
 
-			const newSession = provider.createNewSession(workspace, CopilotCLISessionType.id);
+			const newSession = provider.createNewSession(workspace, COPILOT_CLI_SESSION_TYPE);
 			const sessionId = newSession.sessionId;
 
 			const added = waitForSessionAdded(provider);
@@ -1284,7 +1284,7 @@ suite('CopilotChatSessionsProvider', () => {
 			const changes: ISessionChangeEvent[] = [];
 			disposables.add(provider.onDidChangeSessions(e => changes.push(e)));
 
-			const newSession = provider.createNewSession(workspace, CopilotCLISessionType.id);
+			const newSession = provider.createNewSession(workspace, COPILOT_CLI_SESSION_TYPE);
 			const sessionId = newSession.sessionId;
 
 			const added = waitForSessionAdded(provider);

@@ -21,7 +21,7 @@ import { AICustomizationManagementSection } from '../../../../workbench/contrib/
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { CopilotChatSessionsProvider } from './copilotChatSessionsProvider.js';
-import { CopilotCLISessionType } from '../../../services/sessions/common/session.js';
+import { COPILOT_CLI_SESSION_TYPE } from '../../../services/sessions/common/session.js';
 
 interface IModePickerItem {
 	readonly kind: 'mode';
@@ -65,7 +65,7 @@ export class ModePicker extends Disposable {
 	) {
 		super();
 
-		this._chatModes = this.chatModeService.getModes(CopilotCLISessionType.id);
+		this._chatModes = this.chatModeService.getModes(COPILOT_CLI_SESSION_TYPE);
 
 		this._register(this._chatModes.onDidChange(() => {
 			// Refresh the trigger label when available chat modes change
@@ -118,7 +118,7 @@ export class ModePicker extends Disposable {
 	}
 
 	private _getAvailableModes(): IChatMode[] {
-		const customAgentTarget = this.chatSessionsService.getCustomAgentTargetForSessionType(CopilotCLISessionType.id);
+		const customAgentTarget = this.chatSessionsService.getCustomAgentTargetForSessionType(COPILOT_CLI_SESSION_TYPE);
 		const effectiveTarget = customAgentTarget && customAgentTarget !== Target.Undefined ? customAgentTarget : Target.GitHubCopilot;
 
 		// Always include the default Agent mode
