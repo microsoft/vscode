@@ -151,7 +151,6 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 			}
 			this._onDidChangeLabel.fire();
 		}));
-		new DisposableStore();
 	}
 
 	public serialize(): ISerializedMultiDiffEditorInput {

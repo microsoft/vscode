@@ -8,7 +8,7 @@ import { SmoothScrollableElement } from '../../../../base/browser/ui/scrollbar/s
 import { compareBy, numberComparator } from '../../../../base/common/arrays.js';
 import { findFirstMax } from '../../../../base/common/arraysFind.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
-import { Disposable, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, IReader, ITransaction, autorun, autorunWithStore, derived, disposableObservableValue, globalTransaction, observableFromEvent, observableValue, transaction } from '../../../../base/common/observable.js';
 import { Scrollable, ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -69,6 +69,8 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		@IInstantiationService private readonly _parentInstantiationService: IInstantiationService,
 	) {
 		super();
+
+		new DisposableStore();
 		this._scrollableElements = h('div.scrollContent', [
 			h('div@content', {
 				style: {
