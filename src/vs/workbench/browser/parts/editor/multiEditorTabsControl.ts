@@ -2613,6 +2613,19 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 							sourceGroup.copyEditor(editor, this.groupView, { ...options, index: targetEditorIndex });
 						}
 
+						// If the editor landed adjacent to a group boundary, absorb it
+						if (sourceGroup === this.groupView) {
+							const editorIdx = this.tabsModel.indexOf(editor);
+							if (editorIdx >= 0 && !this.tabsModel.getTabGroupForEditor(editorIdx)) {
+								for (const tg of this.tabsModel.tabGroups) {
+									if (editorIdx === tg.startIndex - 1 || editorIdx === tg.startIndex + tg.count) {
+										this.tabsModel.includeInTabGroup?.(tg.id, editor);
+										break;
+									}
+								}
+							}
+						}
+
 						targetEditorIndex++;
 					}
 				}
