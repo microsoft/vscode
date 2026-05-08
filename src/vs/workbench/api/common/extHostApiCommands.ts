@@ -60,7 +60,7 @@ const newCommands: ApiCommand[] = [
 				}
 
 				detail!: string;
-				tooltip!: string | undefined;
+				tooltip?: string;
 				range!: vscode.Range;
 				selectionRange!: vscode.Range;
 				children!: vscode.DocumentSymbol[];
