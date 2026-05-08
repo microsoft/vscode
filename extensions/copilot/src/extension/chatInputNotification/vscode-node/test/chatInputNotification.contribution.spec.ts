@@ -37,10 +37,11 @@ import { ChatInputNotificationContribution } from '../chatInputNotification.cont
 function createAuthService(opts?: { anyGitHubSession?: unknown; copilotToken?: unknown }) {
 	const emitter = new Emitter<void>();
 	const hasSession = opts && 'anyGitHubSession' in opts;
+	const hasToken = opts && 'copilotToken' in opts;
 	const authService = {
 		_serviceBrand: undefined,
 		anyGitHubSession: hasSession ? opts.anyGitHubSession : { accessToken: 'tok' },
-		copilotToken: opts?.copilotToken,
+		copilotToken: hasToken ? opts.copilotToken : { isFreeUser: false, isNoAuthUser: false },
 		onDidAuthenticationChange: emitter.event,
 	} as unknown as IAuthenticationService;
 	return { authService, emitter };
@@ -118,9 +119,9 @@ describe('ChatInputNotificationContribution', () => {
 	// --- sign-out behaviour (the PR change) ---------------------------------
 
 	describe('sign-out clears state and hides notification', () => {
-		test('hides notification when session disappears', () => {
+		test('hides notification when copilot token disappears (sign out)', () => {
 			setup(
-				{ anyGitHubSession: { accessToken: 'tok' } },
+				{},
 				{ quotaExhausted: true },
 			);
 
@@ -128,8 +129,8 @@ describe('ChatInputNotificationContribution', () => {
 			quotaEmitter.fire();
 			expect(mockNotification.show).toHaveBeenCalled();
 
-			// User signs out
-			(authService as any).anyGitHubSession = undefined;
+			// User signs out — copilot token cleared
+			(authService as any).copilotToken = undefined;
 			authEmitter.fire();
 
 			expect(mockNotification.hide).toHaveBeenCalled();
@@ -137,7 +138,7 @@ describe('ChatInputNotificationContribution', () => {
 
 		test('re-shows threshold notification after sign-out + sign-in', () => {
 			setup(
-				{ anyGitHubSession: { accessToken: 'tok' } },
+				{},
 				{ quotaInfo: makeQuota(5) }, // 95% used → crosses 95 threshold
 			);
 
@@ -150,12 +151,12 @@ describe('ChatInputNotificationContribution', () => {
 			quotaEmitter.fire();
 			expect(mockNotification.show).not.toHaveBeenCalled();
 
-			// Sign out → thresholds cleared
-			(authService as any).anyGitHubSession = undefined;
+			// Sign out → copilot token cleared → thresholds cleared
+			(authService as any).copilotToken = undefined;
 			authEmitter.fire();
 
 			// Sign back in
-			(authService as any).anyGitHubSession = { accessToken: 'tok' };
+			(authService as any).copilotToken = { isFreeUser: false, isNoAuthUser: false };
 			authEmitter.fire();
 
 			// Threshold was cleared, so it should re-show
@@ -164,7 +165,7 @@ describe('ChatInputNotificationContribution', () => {
 
 		test('sign-out resets showingExhausted flag', () => {
 			setup(
-				{ anyGitHubSession: { accessToken: 'tok' } },
+				{},
 				{ quotaExhausted: true },
 			);
 
@@ -173,12 +174,12 @@ describe('ChatInputNotificationContribution', () => {
 			expect(mockNotification.show).toHaveBeenCalled();
 			mockNotification.show.mockClear();
 
-			// Sign out
-			(authService as any).anyGitHubSession = undefined;
+			// Sign out — copilot token cleared
+			(authService as any).copilotToken = undefined;
 			authEmitter.fire();
 
 			// Sign back in, quota no longer exhausted
-			(authService as any).anyGitHubSession = { accessToken: 'tok' };
+			(authService as any).copilotToken = { isFreeUser: false, isNoAuthUser: false };
 			(quotaService as any).quotaExhausted = false;
 			(quotaService as any).quotaInfo = undefined;
 			(quotaService as any).rateLimitInfo = { session: undefined, weekly: undefined };
@@ -190,15 +191,30 @@ describe('ChatInputNotificationContribution', () => {
 		});
 
 		test('sign-out while no notification was active is harmless', () => {
-			setup({ anyGitHubSession: { accessToken: 'tok' } });
+			setup();
 
 			// No quota events fired yet → no notification created
-			(authService as any).anyGitHubSession = undefined;
+			(authService as any).copilotToken = undefined;
 			authEmitter.fire();
 
 			// hide is only called on the notification object; since none was
 			// created, this should not throw.
 			expect(mockNotification.hide).not.toHaveBeenCalled();
+		});
+
+		test('anonymous user with no GitHub session still sees quota notifications', () => {
+			setup(
+				{ anyGitHubSession: undefined, copilotToken: { isNoAuthUser: true, isFreeUser: false } },
+				{ quotaExhausted: true },
+			);
+
+			// Anonymous user has a copilotToken but no GitHub session.
+			// They should still see the exhausted notification.
+			quotaEmitter.fire();
+
+			expect(mockNotification.show).toHaveBeenCalled();
+			expect(mockNotification.message).toBe('Credit Limit Reached');
+			expect(mockNotification.description).toBe('Sign in to keep going.');
 		});
 	});
 
@@ -207,7 +223,7 @@ describe('ChatInputNotificationContribution', () => {
 	describe('quota exhausted', () => {
 		test('shows exhausted notification', () => {
 			setup(
-				{ anyGitHubSession: { accessToken: 'tok' }, copilotToken: { isFreeUser: true, isNoAuthUser: false } },
+				{ copilotToken: { isFreeUser: true, isNoAuthUser: false } },
 				{ quotaExhausted: true },
 			);
 
@@ -331,10 +347,10 @@ describe('ChatInputNotificationContribution', () => {
 		});
 	});
 
-	describe('no session skips everything', () => {
-		test('does not show notification when signed out', () => {
+	describe('no copilot token skips everything', () => {
+		test('does not show notification when signed out (no copilot token)', () => {
 			setup(
-				{ anyGitHubSession: undefined },
+				{ copilotToken: undefined },
 				{ quotaExhausted: true, quotaInfo: makeQuota(5) },
 			);
 

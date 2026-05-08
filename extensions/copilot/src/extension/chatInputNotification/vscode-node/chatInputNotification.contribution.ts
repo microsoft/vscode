@@ -57,7 +57,9 @@ export class ChatInputNotificationContribution extends Disposable {
 	 */
 	private _update(): void {
 		// When the user signs out, dismiss any active notification and reset thresholds.
-		if (!this._authService.anyGitHubSession) {
+		// Use copilotToken (not anyGitHubSession) because anonymous/no-auth users
+		// legitimately have no GitHub session but still need quota notifications.
+		if (!this._authService.copilotToken) {
 			this._shownQuotaThresholds.clear();
 			this._shownSessionThresholds.clear();
 			this._shownWeeklyThresholds.clear();
