@@ -778,6 +778,12 @@ suite('SnippetParser', () => {
 		transform.appendChild(new Text('bar'));
 		transform.regexp = new RegExp('foo', 'gi');
 		assert.strictEqual(transform.toTextmateString(), '/foo/bar/ig');
+
+		const transformWithFormatString = new Transform();
+		transformWithFormatString.appendChild(new FormatString(1, 'upcase'));
+		transformWithFormatString.appendChild(new Text('_'));
+		transformWithFormatString.regexp = new RegExp('foo', 'g');
+		assert.strictEqual(transformWithFormatString.toTextmateString(), '/foo/${1:/upcase}_/g');
 	});
 
 	test('Snippet parser freeze #53144', function () {
