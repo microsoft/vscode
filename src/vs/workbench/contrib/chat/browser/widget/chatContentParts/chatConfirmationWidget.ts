@@ -526,7 +526,7 @@ function configureAccessibilityContainer(container: HTMLElement, title: string |
 	const messageAsString = typeof message === 'string' ? message : message && 'value' in message ? message.value : message && 'textContent' in message ? message.textContent : '';
 	const bannerAsString = footerBanner?.textContent?.trim() ?? '';
 	container.setAttribute('aria-label', bannerAsString
-		? localize('chat.confirmationWidget.ariaLabelWithBanner', "Chat Confirmation Dialog {0} {1} {2}", titleAsString, messageAsString, bannerAsString)
+		? localize('chat.confirmationWidget.ariaLabelWithBannerTitleMessageBanner', "Chat Confirmation Dialog {0} {1} {2}", titleAsString, messageAsString, bannerAsString)
 		: localize('chat.confirmationWidget.ariaLabel', "Chat Confirmation Dialog {0} {1}", titleAsString, messageAsString));
 	container.classList.add('chat-confirmation-widget-container');
 }
