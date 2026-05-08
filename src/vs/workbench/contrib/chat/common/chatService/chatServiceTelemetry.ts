@@ -231,7 +231,7 @@ export class ChatServiceTelemetry {
 				lineCount: action.action.lineCount,
 				hasRemainingEdits: action.action.hasRemainingEdits,
 				requestId: action.requestId,
-				modelId: escapeModelIdForTelemetry(action.modelId),
+				modelId: escapeModelIdForTelemetry(action.modelId) ?? '',
 				modeId: action.modeId ?? '',
 			});
 		}
