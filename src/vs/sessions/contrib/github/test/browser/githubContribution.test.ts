@@ -42,10 +42,23 @@ suite('GitHubPullRequestPollingContribution', () => {
 		sessionsManagementService.fireSessionsChanged({ added: [addedSession] });
 
 		assert.deepStrictEqual(gitHubService.snapshot(), {
-			'owner/repo/1': { startPollingCalls: 1, stopPollingCalls: 0, disposeCalls: 0 },
-			'owner/repo/2': { startPollingCalls: 1, stopPollingCalls: 0, disposeCalls: 0 },
+			'owner/repo/1': { refreshPullRequestCalls: 1, startPullRequestPollingCalls: 1, stopPullRequestPollingCalls: 0, disposeCalls: 0 },
+			'owner/repo/2': { refreshPullRequestCalls: 1, startPullRequestPollingCalls: 1, stopPullRequestPollingCalls: 0, disposeCalls: 0 },
 		});
 		assert.strictEqual(existingSession.isArchived.get(), false);
+	});
+
+	test('starts polling when pull request info becomes available after session observation', () => {
+		const session = sessionsManagementService.addSession('session', undefined);
+		store.add(new GitHubPullRequestPollingContribution(gitHubService, sessionsManagementService));
+
+		assert.deepStrictEqual(gitHubService.snapshot(), {});
+
+		sessionsManagementService.setGitHubInfo(session, makeGitHubInfo(1));
+
+		assert.deepStrictEqual(gitHubService.snapshot(), {
+			'owner/repo/1': { refreshPullRequestCalls: 1, startPullRequestPollingCalls: 1, stopPullRequestPollingCalls: 0, disposeCalls: 0 },
+		});
 	});
 
 	test('stops polling when a session is archived, then resumes when unarchived', () => {
@@ -56,14 +69,14 @@ suite('GitHubPullRequestPollingContribution', () => {
 		sessionsManagementService.fireSessionsChanged({ changed: [session] });
 
 		assert.deepStrictEqual(gitHubService.snapshot(), {
-			'owner/repo/1': { startPollingCalls: 1, stopPollingCalls: 1, disposeCalls: 0 },
+			'owner/repo/1': { refreshPullRequestCalls: 1, startPullRequestPollingCalls: 1, stopPullRequestPollingCalls: 1, disposeCalls: 0 },
 		});
 
 		sessionsManagementService.setArchived(session, false);
 		sessionsManagementService.fireSessionsChanged({ changed: [session] });
 
 		assert.deepStrictEqual(gitHubService.snapshot(), {
-			'owner/repo/1': { startPollingCalls: 2, stopPollingCalls: 1, disposeCalls: 0 },
+			'owner/repo/1': { refreshPullRequestCalls: 2, startPullRequestPollingCalls: 2, stopPullRequestPollingCalls: 1, disposeCalls: 0 },
 		});
 	});
 
@@ -77,7 +90,7 @@ suite('GitHubPullRequestPollingContribution', () => {
 		sessionsManagementService.fireSessionsChanged({ changed: [session] });
 
 		assert.deepStrictEqual(gitHubService.snapshot(), {
-			'owner/repo/1': { startPollingCalls: 1, stopPollingCalls: 0, disposeCalls: 0 },
+			'owner/repo/1': { refreshPullRequestCalls: 1, startPullRequestPollingCalls: 1, stopPullRequestPollingCalls: 0, disposeCalls: 0 },
 		});
 	});
 
@@ -88,7 +101,7 @@ suite('GitHubPullRequestPollingContribution', () => {
 		contribution.dispose();
 
 		assert.deepStrictEqual(gitHubService.snapshot(), {
-			'owner/repo/1': { startPollingCalls: 1, stopPollingCalls: 1, disposeCalls: 0 },
+			'owner/repo/1': { refreshPullRequestCalls: 1, startPullRequestPollingCalls: 1, stopPullRequestPollingCalls: 1, disposeCalls: 0 },
 		});
 		assert.strictEqual(session.isArchived.get(), false);
 	});
@@ -221,10 +234,11 @@ class TestGitHubService extends mock<IGitHubService>() {
 		return new ImmortalReference(model as unknown as GitHubPullRequestModel);
 	}
 
-	snapshot(): Record<string, { startPollingCalls: number; stopPollingCalls: number; disposeCalls: number }> {
+	snapshot(): Record<string, { refreshPullRequestCalls: number; startPullRequestPollingCalls: number; stopPullRequestPollingCalls: number; disposeCalls: number }> {
 		const entries = [...this._models.entries()].map(([key, model]) => [key, {
-			startPollingCalls: model.startPollingCalls,
-			stopPollingCalls: model.stopPollingCalls,
+			refreshPullRequestCalls: model.refreshPullRequestCalls,
+			startPullRequestPollingCalls: model.startPullRequestPollingCalls,
+			stopPullRequestPollingCalls: model.stopPullRequestPollingCalls,
 			disposeCalls: model.disposeCalls,
 		}] as const);
 		return Object.fromEntries(entries);
@@ -233,16 +247,18 @@ class TestGitHubService extends mock<IGitHubService>() {
 
 class TestPullRequestModel implements IDisposable {
 
-	startPollingCalls = 0;
-	stopPollingCalls = 0;
+	refreshPullRequestCalls = 0;
+	startPullRequestPollingCalls = 0;
+	stopPullRequestPollingCalls = 0;
 	disposeCalls = 0;
 
-	startPolling(): IDisposable {
-		this.startPollingCalls++;
-		return toDisposable(() => this.stopPollingCalls++);
+	startPullRequestPolling(): IDisposable {
+		this.startPullRequestPollingCalls++;
+		return toDisposable(() => this.stopPullRequestPollingCalls++);
 	}
 
-	refresh(): Promise<void> {
+	refreshPullRequest(): Promise<void> {
+		this.refreshPullRequestCalls++;
 		return Promise.resolve();
 	}
 

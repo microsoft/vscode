@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derivedOpts } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -19,6 +19,8 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 	static readonly ID = 'sessions.contrib.githubPullRequestPolling';
 
 	private readonly _pullRequests = new DisposableMap<string>();
+	private readonly _pullRequestSessions = new Map<string, Set<string>>();
+	private readonly _sessions = new DisposableMap<string>();
 
 	constructor(
 		@IGitHubService private readonly _gitHubService: IGitHubService,
@@ -83,65 +85,111 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 	}
 
 	private _onDidChangeSessions(e: ISessionsChangeEvent): void {
-		// Added sessions
 		for (const session of e.added) {
-			// Archived
 			if (session.isArchived.get()) {
 				continue;
 			}
 
-			this._startPolling(session);
+			this._observeSession(session);
 		}
 
-		// Changes sessions
 		for (const session of e.changed) {
-			// Archived
 			if (session.isArchived.get()) {
-				this._disposePolling(session);
+				this._disposeSession(session);
 				continue;
 			}
 
-			this._startPolling(session);
+			this._observeSession(session);
 		}
 
-		// Removed sessions
 		for (const session of e.removed) {
-			this._disposePolling(session);
+			this._disposeSession(session);
 		}
 	}
 
-	private _startPolling(session: ISession): void {
-		const gitHubInfo = session.gitHubInfo.get();
-		if (!gitHubInfo || !gitHubInfo.pullRequest) {
+	private _observeSession(session: ISession): void {
+		if (this._sessions.has(session.sessionId)) {
 			return;
 		}
 
-		const key = getPullRequestKey(gitHubInfo.owner, gitHubInfo.repo, gitHubInfo.pullRequest.number);
-		if (this._pullRequests.has(key)) {
+		let pullRequestKey: string | undefined;
+		const disposables = new DisposableStore();
+		disposables.add(autorun(reader => {
+			if (session.isArchived.read(reader)) {
+				if (pullRequestKey) {
+					this._releasePullRequest(pullRequestKey, session.sessionId);
+					pullRequestKey = undefined;
+				}
+				return;
+			}
+
+			const gitHubInfo = session.gitHubInfo.read(reader);
+			const nextPullRequestKey = gitHubInfo?.pullRequest
+				? getPullRequestKey(gitHubInfo.owner, gitHubInfo.repo, gitHubInfo.pullRequest.number)
+				: undefined;
+			if (nextPullRequestKey === pullRequestKey) {
+				return;
+			}
+
+			if (pullRequestKey) {
+				this._releasePullRequest(pullRequestKey, session.sessionId);
+			}
+			pullRequestKey = nextPullRequestKey;
+
+			if (gitHubInfo?.pullRequest) {
+				this._retainPullRequest(session.sessionId, gitHubInfo.owner, gitHubInfo.repo, gitHubInfo.pullRequest.number);
+			}
+		}));
+		disposables.add(toDisposable(() => {
+			if (pullRequestKey) {
+				this._releasePullRequest(pullRequestKey, session.sessionId);
+				pullRequestKey = undefined;
+			}
+		}));
+
+		this._sessions.set(session.sessionId, disposables);
+	}
+
+	private _retainPullRequest(sessionId: string, owner: string, repo: string, prNumber: number): void {
+		const key = getPullRequestKey(owner, repo, prNumber);
+		let sessions = this._pullRequestSessions.get(key);
+		if (sessions) {
+			sessions.add(sessionId);
 			return;
 		}
+
+		sessions = new Set([sessionId]);
+		this._pullRequestSessions.set(key, sessions);
 
 		const disposables = new DisposableStore();
-		const modelRef = this._gitHubService.createPullRequestModelReference(gitHubInfo.owner, gitHubInfo.repo, gitHubInfo.pullRequest.number);
-
+		const modelRef = this._gitHubService.createPullRequestModelReference(owner, repo, prNumber);
 		disposables.add(modelRef);
-		disposables.add(modelRef.object.startPolling());
-
+		void modelRef.object.refreshPullRequest();
+		disposables.add(modelRef.object.startPullRequestPolling());
 		this._pullRequests.set(key, disposables);
 	}
 
-	private _disposePolling(session: ISession): void {
-		const gitHubInfo = session.gitHubInfo.get();
-		if (!gitHubInfo || !gitHubInfo.pullRequest) {
+	private _releasePullRequest(key: string, sessionId: string): void {
+		const sessions = this._pullRequestSessions.get(key);
+		if (!sessions) {
 			return;
 		}
 
-		const key = getPullRequestKey(gitHubInfo.owner, gitHubInfo.repo, gitHubInfo.pullRequest.number);
-		this._pullRequests.deleteAndDispose(key);
+		sessions.delete(sessionId);
+		if (sessions.size === 0) {
+			this._pullRequestSessions.delete(key);
+			this._pullRequests.deleteAndDispose(key);
+		}
+	}
+
+	private _disposeSession(session: ISession): void {
+		this._sessions.deleteAndDispose(session.sessionId);
 	}
 
 	override dispose(): void {
+		this._sessions.dispose();
 		this._pullRequests.dispose();
+		this._pullRequestSessions.clear();
 
 		super.dispose();
 	}
