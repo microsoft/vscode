@@ -80,6 +80,8 @@ export interface IChatSessionWorktreeService {
 
 	getWorktreeChanges(sessionId: string): Promise<readonly vscode.ChatSessionChangedFile[] | undefined>;
 
+	refreshWorktreeChanges(sessionId: string): Promise<void>;
+
 	hasCachedChanges(sessionId: string): Promise<boolean>;
 
 	handleRequestCompleted(sessionId: string): Promise<void>;
