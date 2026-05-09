@@ -55,6 +55,9 @@ import { IAgentHostTerminalService } from '../../../../workbench/contrib/termina
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { logTerminalRecovery } from '../../../common/sessionsTelemetry.js';
 
+const SSH_RECONNECT_INITIAL_DELAY = 1000;
+const SSH_RECONNECT_MAX_DELAY = 30_000;
+
 /** Per-connection state bundle, disposed when a connection is removed. */
 class ConnectionState extends Disposable {
 	readonly store = this._register(new DisposableStore());
@@ -96,6 +99,8 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 	private readonly _providerStores = this._register(new DisposableMap<string, DisposableStore>());
 	private readonly _providerInstances = new Map<string, RemoteAgentHostSessionsProvider>();
 	private readonly _pendingSSHReconnects = new Set<string>();
+	private readonly _sshReconnectTimeouts = new Map<string, ReturnType<typeof setTimeout>>();
+	private readonly _sshReconnectAttempts = new Map<string, number>();
 
 	constructor(
 		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
@@ -137,6 +142,14 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		// Push auth token whenever the default account or sessions change
 		this._register(this._defaultAccountService.onDidChangeDefaultAccount(() => this._authenticateAllConnections()));
 		this._register(this._authenticationService.onDidChangeSessions(() => this._authenticateAllConnections()));
+
+		this._register(toDisposable(() => {
+			for (const timeout of this._sshReconnectTimeouts.values()) {
+				clearTimeout(timeout);
+			}
+			this._sshReconnectTimeouts.clear();
+			this._sshReconnectAttempts.clear();
+		}));
 
 		// Initial setup for configured entries and connected remotes
 		this._reconcile();
@@ -208,8 +221,11 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 	private _createProvider(entry: IRemoteAgentHostEntry): void {
 		const address = getEntryAddress(entry);
 		const store = new DisposableStore();
+		const connectOnDemand = entry.connection.type === RemoteAgentHostEntryType.SSH && entry.connection.sshConfigHost
+			? () => this._connectSSHEntry(entry, { userInitiated: true })
+			: undefined;
 		const provider = this._instantiationService.createInstance(
-			RemoteAgentHostSessionsProvider, { address, name: entry.name });
+			RemoteAgentHostSessionsProvider, { address, name: entry.name, connectOnDemand });
 		store.add(provider);
 		store.add(this._sessionsProvidersService.registerProvider(provider));
 		this._providerInstances.set(address, provider);
@@ -235,34 +251,132 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 				c => c.address === address && RemoteAgentHostConnectionStatus.isConnected(c.status)
 			);
 			if (hasConnection || this._pendingSSHReconnects.has(sshConfigHost)) {
+				if (hasConnection) {
+					this._clearSSHReconnectBackoff(address);
+				}
 				continue;
 			}
 			if (!autoConnect) {
+				this._cancelSSHReconnect(address);
 				continue;
 			}
-			this._pendingSSHReconnects.add(sshConfigHost);
-			this._logService.info(`[RemoteAgentHost] Re-establishing SSH tunnel for ${sshConfigHost}`);
-			this._sshService.reconnect(sshConfigHost, entry.name).then(() => {
-				this._pendingSSHReconnects.delete(sshConfigHost);
-				this._logService.info(`[RemoteAgentHost] SSH tunnel re-established for ${sshConfigHost}`);
-			}).catch(err => {
-				this._pendingSSHReconnects.delete(sshConfigHost);
-				this._logService.error(`[RemoteAgentHost] SSH reconnect failed for ${sshConfigHost}`, err);
-				const provider = this._providerInstances.get(address);
-				// Surface protocol-version mismatches on the provider so the
-				// workspace picker can show the host's message and the user
-				// can read it. Other errors stay as the existing disconnected
-				// state.
-				const incompatible = RemoteAgentHostConnectionStatus.fromConnectError(err, [PROTOCOL_VERSION]);
-				if (incompatible) {
-					provider?.setConnectionStatus(incompatible);
-				}
-				// Host is unreachable — unpublish any cached sessions we
-				// were showing so the UI doesn't list stale entries for a
-				// host we cannot currently reach.
-				provider?.unpublishCachedSessions();
-			});
+			this._scheduleSSHReconnect(entry, true);
 		}
+	}
+
+	private async _connectSSHEntry(entry: IRemoteAgentHostEntry, options: { readonly userInitiated: boolean }): Promise<void> {
+		if (entry.connection.type !== RemoteAgentHostEntryType.SSH || !entry.connection.sshConfigHost) {
+			return;
+		}
+
+		const address = getEntryAddress(entry);
+		const sshConfigHost = entry.connection.sshConfigHost;
+		if (this._pendingSSHReconnects.has(sshConfigHost)) {
+			return;
+		}
+
+		if (options.userInitiated) {
+			this._cancelSSHReconnect(address);
+			this._clearSSHReconnectBackoff(address);
+			const provider = this._providerInstances.get(address);
+			if (provider && RemoteAgentHostConnectionStatus.isIncompatible(provider.connectionStatus.get())) {
+				provider.setConnectionStatus(RemoteAgentHostConnectionStatus.connecting);
+			}
+		}
+
+		this._pendingSSHReconnects.add(sshConfigHost);
+		this._providerInstances.get(address)?.setConnectionStatus(RemoteAgentHostConnectionStatus.connecting);
+		this._logService.info(`[RemoteAgentHost] Re-establishing SSH tunnel for ${sshConfigHost}`);
+
+		try {
+			await this._sshService.reconnect(sshConfigHost, entry.name);
+			this._clearSSHReconnectBackoff(address);
+			this._logService.info(`[RemoteAgentHost] SSH tunnel re-established for ${sshConfigHost}`);
+		} catch (err) {
+			this._pendingSSHReconnects.delete(sshConfigHost);
+			this._logService.error(`[RemoteAgentHost] SSH reconnect failed for ${sshConfigHost}`, err);
+			const provider = this._providerInstances.get(address);
+			const incompatible = RemoteAgentHostConnectionStatus.fromConnectError(err, [PROTOCOL_VERSION]);
+			if (incompatible) {
+				provider?.setConnectionStatus(incompatible);
+				this._cancelSSHReconnect(address);
+			} else {
+				provider?.setConnectionStatus(RemoteAgentHostConnectionStatus.disconnected);
+				if (this._configurationService.getValue<boolean>(RemoteAgentHostAutoConnectSettingId)) {
+					this._scheduleSSHReconnect(entry);
+				}
+			}
+			provider?.unpublishCachedSessions();
+			throw err;
+		} finally {
+			this._pendingSSHReconnects.delete(sshConfigHost);
+		}
+	}
+
+	private _scheduleSSHReconnect(entry: IRemoteAgentHostEntry, immediate = false): void {
+		if (entry.connection.type !== RemoteAgentHostEntryType.SSH || !entry.connection.sshConfigHost) {
+			return;
+		}
+		if (!this._configurationService.getValue<boolean>(RemoteAgentHostAutoConnectSettingId)) {
+			return;
+		}
+
+		const address = getEntryAddress(entry);
+		const sshConfigHost = entry.connection.sshConfigHost;
+		if (!this._isConfiguredSSHEntry(address, sshConfigHost)) {
+			return;
+		}
+		if (this._pendingSSHReconnects.has(sshConfigHost) || this._sshReconnectTimeouts.has(address)) {
+			return;
+		}
+		if (this._remoteAgentHostService.connections.some(c => c.address === address && RemoteAgentHostConnectionStatus.isConnected(c.status))) {
+			this._clearSSHReconnectBackoff(address);
+			return;
+		}
+
+		const attempt = this._sshReconnectAttempts.get(address) ?? 0;
+		const delay = immediate && attempt === 0
+			? 0
+			: Math.min(SSH_RECONNECT_INITIAL_DELAY * Math.pow(2, Math.max(0, attempt - 1)), SSH_RECONNECT_MAX_DELAY);
+		this._logService.info(`[RemoteAgentHost] Scheduling SSH reconnect for ${sshConfigHost} in ${delay}ms (attempt ${attempt + 1})`);
+
+		const timeout = setTimeout(() => {
+			this._sshReconnectTimeouts.delete(address);
+			if (!this._isConfiguredSSHEntry(address, sshConfigHost)) {
+				return;
+			}
+			if (this._pendingSSHReconnects.has(sshConfigHost)) {
+				return;
+			}
+			if (this._remoteAgentHostService.connections.some(c => c.address === address && RemoteAgentHostConnectionStatus.isConnected(c.status))) {
+				this._clearSSHReconnectBackoff(address);
+				return;
+			}
+			this._sshReconnectAttempts.set(address, attempt + 1);
+			this._connectSSHEntry(entry, { userInitiated: false }).catch(() => { /* _connectSSHEntry schedules the next retry */ });
+		}, delay);
+		this._sshReconnectTimeouts.set(address, timeout);
+	}
+
+	private _cancelSSHReconnect(address: string): void {
+		const timeout = this._sshReconnectTimeouts.get(address);
+		if (timeout !== undefined) {
+			clearTimeout(timeout);
+			this._sshReconnectTimeouts.delete(address);
+		}
+	}
+
+	private _clearSSHReconnectBackoff(address: string): void {
+		this._cancelSSHReconnect(address);
+		this._sshReconnectAttempts.delete(address);
+	}
+
+	private _isConfiguredSSHEntry(address: string, sshConfigHost: string): boolean {
+		return this._remoteAgentHostService.configuredEntries.some(entry =>
+			entry.connection.type === RemoteAgentHostEntryType.SSH
+			&& entry.connection.sshConfigHost === sshConfigHost
+			&& getEntryAddress(entry) === address
+		);
 	}
 
 	private _reconcileConnections(): void {

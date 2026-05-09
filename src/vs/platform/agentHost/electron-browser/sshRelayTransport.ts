@@ -25,6 +25,8 @@ export class SSHRelayTransport extends Disposable implements IProtocolTransport 
 	private readonly _onClose = this._register(new Emitter<void>());
 	readonly onClose = this._onClose.event;
 
+	private _closeFired = false;
+
 	constructor(
 		private readonly _connectionId: string,
 		private readonly _sshService: ISSHRemoteAgentHostMainService,
@@ -51,7 +53,7 @@ export class SSHRelayTransport extends Disposable implements IProtocolTransport 
 		// Listen for relay close
 		this._register(this._sshService.onDidRelayClose((closedId: string) => {
 			if (closedId === this._connectionId) {
-				this._onClose.fire();
+				this._fireClose();
 			}
 		}));
 	}
@@ -60,7 +62,15 @@ export class SSHRelayTransport extends Disposable implements IProtocolTransport 
 		const text = JSON.stringify(message);
 		this._ahpLogger?.log(message, 'c2s', getAhpLogByteLength(text));
 		this._sshService.relaySend(this._connectionId, text).catch(() => {
-			// Send failed — connection probably closed
+			this._fireClose();
 		});
+	}
+
+	private _fireClose(): void {
+		if (this._closeFired) {
+			return;
+		}
+		this._closeFired = true;
+		this._onClose.fire();
 	}
 }

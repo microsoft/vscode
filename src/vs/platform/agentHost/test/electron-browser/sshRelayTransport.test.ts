@@ -26,8 +26,12 @@ class MockSSHMainService {
 	readonly onDidReportConnectProgress = Event.None as Event<ISSHConnectProgress>;
 
 	readonly sentMessages: { connectionId: string; message: string }[] = [];
+	relaySendError: Error | undefined;
 
 	async relaySend(connectionId: string, message: string): Promise<void> {
+		if (this.relaySendError) {
+			throw this.relaySendError;
+		}
 		this.sentMessages.push({ connectionId, message });
 	}
 
@@ -142,6 +146,21 @@ suite('SSHRelayTransport', () => {
 		assert.strictEqual(mockService.sentMessages.length, 1);
 		assert.strictEqual(mockService.sentMessages[0].connectionId, 'conn-1');
 		assert.deepStrictEqual(JSON.parse(mockService.sentMessages[0].message), msg);
+	});
+
+	test('fires onClose when relaySend fails', async () => {
+		const transport = disposables.add(new SSHRelayTransport('conn-1', mockService as unknown as ISSHRemoteAgentHostMainService));
+		mockService.relaySendError = new Error('relay is gone');
+
+		let closeCount = 0;
+		disposables.add(transport.onClose(() => closeCount++));
+		const closed = Event.toPromise(transport.onClose);
+
+		transport.send({ jsonrpc: '2.0', method: 'test', params: {} } as never);
+		await closed;
+		mockService.fireRelayClose('conn-1');
+
+		assert.strictEqual(closeCount, 1);
 	});
 
 	test('receives multiple messages in order', () => {

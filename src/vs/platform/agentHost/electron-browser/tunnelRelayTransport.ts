@@ -27,6 +27,7 @@ export class TunnelRelayTransport extends Disposable implements IProtocolTranspo
 	readonly onClose = this._onClose.event;
 
 	private _malformedFrames = 0;
+	private _closeFired = false;
 
 	constructor(
 		private readonly _connectionId: string,
@@ -68,7 +69,7 @@ export class TunnelRelayTransport extends Disposable implements IProtocolTranspo
 		// Listen for relay close
 		this._register(this._tunnelService.onDidRelayClose((closedId: string) => {
 			if (closedId === this._connectionId) {
-				this._onClose.fire();
+				this._fireClose();
 			}
 		}));
 	}
@@ -83,7 +84,15 @@ export class TunnelRelayTransport extends Disposable implements IProtocolTranspo
 		const text = JSON.stringify(message);
 		this._ahpLogger?.log(message, 'c2s', getAhpLogByteLength(text));
 		this._tunnelService.relaySend(this._connectionId, text).catch(() => {
-			// Send failed — connection probably closed
+			this._fireClose();
 		});
+	}
+
+	private _fireClose(): void {
+		if (this._closeFired) {
+			return;
+		}
+		this._closeFired = true;
+		this._onClose.fire();
 	}
 }

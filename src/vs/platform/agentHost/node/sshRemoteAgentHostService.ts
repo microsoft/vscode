@@ -286,7 +286,9 @@ function createWebSocketRelay(
 					send: (data: string) => {
 						if (ws.readyState === ws.OPEN) {
 							ws.send(data);
+							return;
 						}
+						throw new Error(`${LOG_PREFIX} WebSocket relay is not open`);
 					},
 					close: () => ws.close(),
 				});
@@ -656,6 +658,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				return;
 			}
 		}
+		throw new Error(`${LOG_PREFIX} No SSH relay connection for ${connectionId}`);
 	}
 
 	async reconnect(sshConfigHost: string, name: string, remoteAgentHostCommand?: string, agentForward?: boolean): Promise<ISSHConnectResult> {

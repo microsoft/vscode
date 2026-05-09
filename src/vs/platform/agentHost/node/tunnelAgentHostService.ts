@@ -226,7 +226,9 @@ export class TunnelAgentHostMainService extends Disposable implements ITunnelAge
 		const conn = this._connections.get(connectionId);
 		if (conn) {
 			conn.relaySend(message);
+			return;
 		}
+		throw new Error(`${LOG_PREFIX} No tunnel relay connection for ${connectionId}`);
 	}
 
 	async disconnect(connectionId: string): Promise<void> {
@@ -299,7 +301,9 @@ export class TunnelAgentHostMainService extends Disposable implements ITunnelAge
 					send: (data: string) => {
 						if (ws.readyState === ws.OPEN) {
 							ws.send(data);
+							return;
 						}
+						throw new Error(`${LOG_PREFIX} WebSocket relay is not open`);
 					},
 					close: () => ws.close(),
 				});
