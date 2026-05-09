@@ -73,13 +73,15 @@ export class TokenizerProvider implements ITokenizerProvider {
 	 * @param endpoint The endpoint you want to acquire a tokenizer for
 	 */
 	public acquireTokenizer(endpoint: TokenizationEndpoint): ITokenizer {
-		switch (endpoint.tokenizer) {
+		const tokenizer = (endpoint as Partial<TokenizationEndpoint>).tokenizer ?? TokenizerType.O200K;
+
+		switch (tokenizer) {
 			case TokenizerType.CL100K:
 				return this._cl100kTokenizer.value;
 			case TokenizerType.O200K:
 				return this._o200kTokenizer.value;
 			default:
-				throw new Error(`Unknown tokenizer: ${endpoint.tokenizer}`);
+				throw new Error(`Unknown tokenizer: ${tokenizer}`);
 		}
 	}
 }
