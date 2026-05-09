@@ -20,7 +20,7 @@ import { PERSONAS } from 'son-of-anton-core/chat/personas';
 import { TraceViewerPanel } from './trace/TraceViewerPanel';
 import { TraceExporter } from './trace/TraceExporter';
 import { LlmClient } from 'son-of-anton-core/llm/LlmClient';
-import { ToolRegistry } from './tools/registry';
+import { ToolRegistry, createWorkspaceToolContext } from './tools/registry';
 import { AgentManager } from 'son-of-anton-core/agents/AgentManager';
 import { McpClient, type McpClientDeps } from 'son-of-anton-core/mcp/McpClient';
 import { bridgeMcpToolsIntoRegistry, subscribeMcpToolBridge } from 'son-of-anton-core/mcp/McpToolBridge';
@@ -227,6 +227,22 @@ export function activate(context: vscode.ExtensionContext): void {
 	// Build the agent stack once and share it across surfaces (chat
 	// participants, webview sidebar, command-palette commands). Disposing
 	// the stack flushes metrics so we don't drop telemetry on shutdown.
+	//
+	// H1 activation (IDE side) — supply a `ToolExecutionContext` so
+	// specialists dispatched through the orchestrator (`@anton "..."` →
+	// plan → CodeGeneratorAgent.execute) drive the native tool-use loop
+	// instead of the legacy diff-parse fallback. The context comes from
+	// the same `createWorkspaceToolContext` factory the chat panel uses,
+	// so writeFile / runCommand surface their existing modal approval
+	// dialogs (with diff preview) when specialists invoke them. The
+	// chat panel's webview-card approval flow is unaffected — that path
+	// runs its own tool loop (`runDirectTurn`) with its own context
+	// instance and its own gating, independent of `BaseAgent.runToolLoop`.
+	//
+	// Single context instance for the agent stack's lifetime: the
+	// workspace root is captured at activation. Switching workspaces
+	// requires a window reload — same constraint that already applies
+	// to `workspaceRoot` and `projectContextProvider` above.
 	const agentStack = createAgentStack({
 		llmClient,
 		mcpClient,
@@ -234,6 +250,7 @@ export function activate(context: vscode.ExtensionContext): void {
 		globalState: context.globalState,
 		workspaceRoot: workspacePath || undefined,
 		projectContext: projectContextProvider,
+		toolExecutionContext: workspacePath ? createWorkspaceToolContext() : undefined,
 	});
 	context.subscriptions.push({ dispose: () => agentStack.dispose() });
 	// Specialist memory is owned by the stack but pushed separately so
