@@ -8,7 +8,7 @@ import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Event } from '../../../base/common/event.js';
 import { IChannel, IServerChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { IHeaders, IRequestContext, IRequestOptions } from '../../../base/parts/request/common/request.js';
-import { AuthInfo, Credentials, IRequestService } from './request.js';
+import { AuthInfo, Credentials, IRequestCompleteEvent, IRequestService } from './request.js';
 
 type RequestResponse = [
 	{
@@ -45,6 +45,8 @@ export class RequestChannel implements IServerChannel {
 export class RequestChannelClient implements IRequestService {
 
 	declare readonly _serviceBrand: undefined;
+
+	readonly onDidCompleteRequest = Event.None as Event<IRequestCompleteEvent>;
 
 	constructor(private readonly channel: IChannel) { }
 

@@ -165,6 +165,10 @@ export class ChatWindowNotifier extends Disposable implements IWorkbenchContribu
 		}
 		for (const part of lastResponse.response.value) {
 			if (part.kind === 'toolInvocation' && part.toolSpecificData?.kind === 'terminal') {
+				const state = part.state.get();
+				if (state?.type !== IChatToolInvocation.StateKind.WaitingForConfirmation && state?.type !== IChatToolInvocation.StateKind.WaitingForPostApproval) {
+					continue;
+				}
 				const terminalData = migrateLegacyTerminalToolSpecificData(part.toolSpecificData);
 				return terminalData.commandLine.forDisplay ?? terminalData.commandLine.userEdited ?? terminalData.commandLine.toolEdited ?? terminalData.commandLine.original;
 			}

@@ -16,4 +16,10 @@ run({
 	},
 	srcDir,
 	outdir: outDir,
+	additionalOptions: {
+		banner: {
+			// The tunnel package uses `require` and needs this shim to work in an ESM environment
+			js: `import { createRequire } from 'module'; const require = createRequire(import.meta.url);`,
+		},
+	},
 }, process.argv);

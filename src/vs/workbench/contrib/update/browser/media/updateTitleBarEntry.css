@@ -8,8 +8,9 @@
 	align-items: center;
 	border-radius: var(--vscode-cornerRadius-medium);
 	white-space: nowrap;
-	padding: 0px 12px;
-	height: 24px;
+	padding: 0px 8px;
+	height: 22px;
+	box-sizing: border-box;
 	background-color: transparent;
 	border: 1px solid transparent;
 }
@@ -46,8 +47,8 @@
 	content: '';
 	position: absolute;
 	left: 0;
-	bottom: 0;
-	height: 2px;
+	bottom: 1px;
+	height: 1px;
 	border-radius: 1px;
 }
 

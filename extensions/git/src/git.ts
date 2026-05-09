@@ -10,7 +10,7 @@ import * as cp from 'child_process';
 import { fileURLToPath } from 'url';
 import which from 'which';
 import { EventEmitter } from 'events';
-import * as filetype from 'file-type';
+import { fileTypeFromBuffer } from 'file-type';
 import { assign, groupBy, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent, splitInChunks, Limiter, Versions, isWindows, pathEquals, isMacintosh, isDescendant, relativePathWithNoFallback, Mutable } from './util';
 import { CancellationError, CancellationToken, ConfigurationChangeEvent, LogOutputChannel, Progress, Uri, workspace } from 'vscode';
 import type { Commit as ApiCommit, Ref, Branch, Remote, LogOptions, Change, CommitOptions, RefQuery as ApiRefQuery, InitOptions, DiffChange, Worktree as ApiWorktree } from './api/git';
@@ -1691,7 +1691,7 @@ export class Repository {
 		}
 
 		if (!isText) {
-			const result = await filetype.fromBuffer(buffer);
+			const result = await fileTypeFromBuffer(buffer);
 
 			if (!result) {
 				return { mimetype: 'application/octet-stream' };
@@ -2245,11 +2245,15 @@ export class Repository {
 		await this.exec(args);
 	}
 
-	async addWorktree(options: { path: string; commitish: string; branch?: string }): Promise<void> {
+	async addWorktree(options: { path: string; commitish: string; branch?: string; noTrack?: boolean }): Promise<void> {
 		const args = ['worktree', 'add'];
 
 		if (options.branch) {
 			args.push('-b', options.branch);
+		}
+
+		if (options.noTrack) {
+			args.push('--no-track');
 		}
 
 		args.push(options.path, options.commitish);
@@ -2342,6 +2346,26 @@ export class Repository {
 			}
 
 			throw err;
+		}
+	}
+
+	async restore(paths: string[], options?: { staged?: boolean; ref?: string }): Promise<void> {
+		const args = ['restore'];
+
+		if (options?.staged) {
+			args.push('--staged');
+		}
+
+		if (options?.ref) {
+			args.push('--source', options.ref);
+		}
+
+		if (paths.length > 0) {
+			for (const chunk of splitInChunks(paths.map(p => this.sanitizeRelativePath(p)), MAX_CLI_LENGTH)) {
+				await this.exec([...args, '--', ...chunk]);
+			}
+		} else {
+			await this.exec([...args, '--', '.']);
 		}
 	}
 

@@ -10,6 +10,7 @@ import { terminalAutoRepliesConfiguration } from '../terminalContrib/autoReplies
 import { TerminalChatCommandId, TerminalChatContextKeyStrings } from '../terminalContrib/chat/browser/terminalChat.js';
 import { terminalInitialHintConfiguration } from '../terminalContrib/inlineHint/common/terminalInitialHintConfiguration.js';
 import { terminalChatAgentToolsConfiguration, TerminalChatAgentToolsSettingId } from '../terminalContrib/chatAgentTools/common/terminalChatAgentToolsConfiguration.js';
+import { AgentSandboxSettingId } from '../../../platform/sandbox/common/settings.js';
 import { terminalCommandGuideConfiguration } from '../terminalContrib/commandGuide/common/terminalCommandGuideConfiguration.js';
 import { TerminalDeveloperCommandId } from '../terminalContrib/developer/common/terminal.developer.js';
 import { defaultTerminalFindCommandToSkipShell } from '../terminalContrib/find/common/terminal.find.js';
@@ -46,6 +47,12 @@ export const enum TerminalContribSettingId {
 	EnableAutoApprove = TerminalChatAgentToolsSettingId.EnableAutoApprove,
 	ShellIntegrationTimeout = TerminalChatAgentToolsSettingId.ShellIntegrationTimeout,
 	OutputLocation = TerminalChatAgentToolsSettingId.OutputLocation,
+	AgentSandboxEnabled = AgentSandboxSettingId.AgentSandboxEnabled,
+	DeprecatedAgentSandboxEnabled = AgentSandboxSettingId.DeprecatedAgentSandboxEnabled,
+	DeprecatedAgentSandboxLinuxFileSystem = TerminalChatAgentToolsSettingId.DeprecatedAgentSandboxLinuxFileSystem,
+	DeprecatedAgentSandboxMacFileSystem = TerminalChatAgentToolsSettingId.DeprecatedAgentSandboxMacFileSystem,
+	AgentSandboxLinuxFileSystem = TerminalChatAgentToolsSettingId.AgentSandboxLinuxFileSystem,
+	AgentSandboxMacFileSystem = TerminalChatAgentToolsSettingId.AgentSandboxMacFileSystem,
 }
 
 // HACK: Export some context key strings from `terminalContrib/` that are depended upon elsewhere.

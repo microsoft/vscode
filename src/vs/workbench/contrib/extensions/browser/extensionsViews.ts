@@ -1197,11 +1197,11 @@ export class ExtensionsListView extends AbstractExtensionsListView<IExtension> {
 	}
 
 	static isInstalledExtensionsQuery(query: string): boolean {
-		return /@installed$/i.test(query);
+		return /@installed$/i.test(query) && !/@mcp/i.test(query) && !/@agentPlugins/i.test(query);
 	}
 
 	static isSearchInstalledExtensionsQuery(query: string): boolean {
-		return /@installed\s./i.test(query) || this.isFeatureExtensionsQuery(query);
+		return (/@installed\s./i.test(query) && !/@mcp/i.test(query) && !/@agentPlugins/i.test(query)) || this.isFeatureExtensionsQuery(query);
 	}
 
 	static isOutdatedExtensionsQuery(query: string): boolean {

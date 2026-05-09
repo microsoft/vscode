@@ -15,7 +15,6 @@ declare class URL {
 const openApiCommand = 'simpleBrowser.api.open';
 const showCommand = 'simpleBrowser.show';
 const integratedBrowserCommand = 'workbench.action.browser.open';
-const useIntegratedBrowserSetting = 'simpleBrowser.useIntegratedBrowser';
 
 const enabledHosts = new Set<string>([
 	'localhost',
@@ -37,12 +36,6 @@ const openerId = 'simpleBrowser.open';
  * Checks if the integrated browser should be used instead of the simple browser
  */
 async function shouldUseIntegratedBrowser(): Promise<boolean> {
-	const config = vscode.workspace.getConfiguration();
-	if (!config.get<boolean>(useIntegratedBrowserSetting, true)) {
-		return false;
-	}
-
-	// Verify that the integrated browser command is available
 	const commands = await vscode.commands.getCommands(true);
 	return commands.includes(integratedBrowserCommand);
 }

@@ -7,8 +7,8 @@ import assert from 'assert';
 import { URI } from '../../../../../base/common/uri.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { CodeReviewStateKind, ICodeReviewState, IPRReviewState, PRReviewStateKind } from '../../../codeReview/browser/codeReviewService.js';
 import { getResourceEditorComments, getSessionEditorComments, groupNearbySessionEditorComments, hasAgentFeedbackComments, SessionEditorCommentSource } from '../../browser/sessionEditorComments.js';
+import { ICodeReviewState, CodeReviewStateKind, IPRReviewState, PRReviewStateKind } from '../../../codeReview/browser/codeReviewService.js';
 
 type ICodeReviewResultState = Extract<ICodeReviewState, { kind: CodeReviewStateKind.Result }>;
 
@@ -23,7 +23,9 @@ suite('SessionEditorComments', () => {
 		return {
 			kind: CodeReviewStateKind.Result,
 			version: 'v1',
+			reviewCount: 1,
 			comments,
+			didProduceComments: comments.length > 0,
 		};
 	}
 
