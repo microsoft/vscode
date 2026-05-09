@@ -13,7 +13,7 @@ import { parseAgentHostDebugPort } from '../../environment/node/environmentServi
 import { ILogService } from '../../log/common/log.js';
 import { getResolvedShellEnv } from '../../shell/node/shellEnv.js';
 import { IAgentHostConnection, IAgentHostStarter } from '../common/agent.js';
-import { AgentHostClaudeAgentSdkPathSettingId, AgentHostClaudeSdkPathEnvVar } from '../common/agentService.js';
+import { AgentHostClaudeAgentSdkPathSettingId, AgentHostClaudeSdkPathEnvVar, AgentHostCopilotDisableCustomTerminalToolsEnvVar, AgentHostCopilotDisableCustomTerminalToolsSettingId } from '../common/agentService.js';
 
 /**
  * Options for configuring the agent host WebSocket server in the child process.
@@ -83,6 +83,9 @@ export class NodeAgentHostStarter extends Disposable implements IAgentHostStarte
 			|| '';
 		if (claudeSdkPath) {
 			env[AgentHostClaudeSdkPathEnvVar] = claudeSdkPath;
+		}
+		if (this._configurationService.getValue<boolean>(AgentHostCopilotDisableCustomTerminalToolsSettingId) || process.env[AgentHostCopilotDisableCustomTerminalToolsEnvVar] === '1') {
+			env[AgentHostCopilotDisableCustomTerminalToolsEnvVar] = '1';
 		}
 
 		// Forward WebSocket server configuration to the child process via env vars

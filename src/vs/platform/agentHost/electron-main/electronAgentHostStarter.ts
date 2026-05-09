@@ -19,7 +19,7 @@ import { getResolvedShellEnv } from '../../shell/node/shellEnv.js';
 import { NullTelemetryService } from '../../telemetry/common/telemetryUtils.js';
 import { UtilityProcess } from '../../utilityProcess/electron-main/utilityProcess.js';
 import { IAgentHostConnection, IAgentHostStarter } from '../common/agent.js';
-import { AgentHostClaudeAgentSdkPathSettingId, AgentHostClaudeSdkPathEnvVar } from '../common/agentService.js';
+import { AgentHostClaudeAgentSdkPathSettingId, AgentHostClaudeSdkPathEnvVar, AgentHostCopilotDisableCustomTerminalToolsEnvVar, AgentHostCopilotDisableCustomTerminalToolsSettingId } from '../common/agentService.js';
 import { deepClone } from '../../../base/common/objects.js';
 
 export class ElectronAgentHostStarter extends Disposable implements IAgentHostStarter {
@@ -72,6 +72,8 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 		const claudeSdkPath = this._configurationService.getValue<string>(AgentHostClaudeAgentSdkPathSettingId)
 			|| process.env[AgentHostClaudeSdkPathEnvVar]
 			|| '';
+		const disableCopilotCustomTerminalTools = this._configurationService.getValue<boolean>(AgentHostCopilotDisableCustomTerminalToolsSettingId)
+			|| process.env[AgentHostCopilotDisableCustomTerminalToolsEnvVar] === '1';
 
 		this.utilityProcess.start({
 			type: 'agentHost',
@@ -89,6 +91,7 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 				VSCODE_PIPE_LOGGING: 'true',
 				VSCODE_VERBOSE_LOGGING: 'true',
 				...(claudeSdkPath ? { [AgentHostClaudeSdkPathEnvVar]: claudeSdkPath } : {}),
+				...(disableCopilotCustomTerminalTools ? { [AgentHostCopilotDisableCustomTerminalToolsEnvVar]: '1' } : {}),
 			}
 		});
 

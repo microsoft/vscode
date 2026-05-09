@@ -53,6 +53,14 @@ export const AgentHostAhpJsonlLoggingSettingId = 'chat.agentHost.ahpJsonlLogging
 export const AgentHostClaudeAgentSdkPathSettingId = 'chat.agentHost.claudeAgent.path';
 
 /**
+ * Configuration key that disables Agent Host's Copilot-specific terminal tool
+ * override. When enabled, Copilot SDK sessions use the SDK's built-in terminal
+ * support instead of the PTY-backed tools registered by VS Code.
+ * The agent host process must be restarted for changes to take effect.
+ */
+export const AgentHostCopilotDisableCustomTerminalToolsSettingId = 'chat.agentHost.copilot.disableCustomTerminalTools';
+
+/**
  * Environment variable that holds the absolute path to a locally-installed
  * `@anthropic-ai/claude-agent-sdk` package. When set to a non-empty value,
  * the agent host process registers the Claude agent provider and loads the
@@ -61,6 +69,14 @@ export const AgentHostClaudeAgentSdkPathSettingId = 'chat.agentHost.claudeAgent.
  * by developers as an override.
  */
 export const AgentHostClaudeSdkPathEnvVar = 'VSCODE_AGENT_HOST_CLAUDE_SDK_PATH';
+
+/**
+ * Environment variable set by the agent host starters from
+ * {@link AgentHostCopilotDisableCustomTerminalToolsSettingId}. A value of `1`
+ * disables Agent Host's Copilot terminal tool override for the lifetime of the
+ * host process.
+ */
+export const AgentHostCopilotDisableCustomTerminalToolsEnvVar = 'VSCODE_AGENT_HOST_COPILOT_DISABLE_CUSTOM_TERMINAL_TOOLS';
 
 /** Result of starting the agent host WebSocket server on-demand. */
 export interface IAgentHostSocketInfo {

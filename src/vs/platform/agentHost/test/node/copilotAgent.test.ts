@@ -19,7 +19,7 @@ import { InstantiationService } from '../../../instantiation/common/instantiatio
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
-import { AgentSession, type AgentSignal, type IAgentActionSignal, type IAgentSessionMetadata } from '../../common/agentService.js';
+import { AgentHostCopilotDisableCustomTerminalToolsEnvVar, AgentSession, type AgentSignal, type IAgentActionSignal, type IAgentSessionMetadata } from '../../common/agentService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { buildSubagentSessionUri, ResponsePartKind, SessionCustomization, TurnState, type CustomizationRef, type MarkdownResponsePart, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
@@ -315,8 +315,8 @@ function createAgentSessionThroughAgent(agent: CopilotAgent, instantiationServic
 	const shellManager = instantiationService.createInstance(ShellManager, sessionUri, undefined);
 	const wrapperFactory: SessionWrapperFactory = async () => new CopilotSessionWrapper(new MockCopilotSession() as unknown as CopilotSession);
 	return (agent as unknown as {
-		_createAgentSession: (wrapperFactory: SessionWrapperFactory, sessionId: string, shellManager: ShellManager) => CopilotAgentSession;
-	})._createAgentSession(wrapperFactory, 'test-session-1', shellManager);
+		_createAgentSession: (wrapperFactory: SessionWrapperFactory, sessionId: string, shellManager: ShellManager, workingDirectory: URI | undefined, customizationDirectory: URI | undefined) => CopilotAgentSession;
+	})._createAgentSession(wrapperFactory, 'test-session-1', shellManager, undefined, undefined);
 }
 
 function withoutUndefinedProperties(metadata: IAgentSessionMetadata): Record<string, unknown> {
@@ -721,6 +721,44 @@ suite('CopilotAgent', () => {
 				);
 			} finally {
 				await disposeAgent(agent);
+			}
+		});
+
+		test('materialization omits VS Code terminal tools when custom terminal tools are disabled', async () => {
+			const previousDisableCustomTerminalTools = process.env[AgentHostCopilotDisableCustomTerminalToolsEnvVar];
+			process.env[AgentHostCopilotDisableCustomTerminalToolsEnvVar] = '1';
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([]);
+			let capturedConfig: Parameters<ITestCopilotClient['createSession']>[0] | undefined;
+			client.createSession = async config => {
+				capturedConfig = config;
+				return new MockCopilotSession() as unknown as CopilotSession;
+			};
+
+			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+
+				const result = await agent.createSession({
+					session: AgentSession.uri('copilotcli', 'sdk-terminal-session'),
+					workingDirectory: URI.file('/workspace'),
+					activeClient: {
+						clientId: 'client-1',
+						tools: [{ name: 'client_tool', description: 'Client tool', inputSchema: { type: 'object' } }],
+						customizations: [],
+					},
+				});
+
+				await agent.sendMessage(result.session, 'hello');
+
+				assert.deepStrictEqual(capturedConfig?.tools?.map(tool => tool.name), ['client_tool']);
+			} finally {
+				await disposeAgent(agent);
+				if (previousDisableCustomTerminalTools === undefined) {
+					delete process.env[AgentHostCopilotDisableCustomTerminalToolsEnvVar];
+				} else {
+					process.env[AgentHostCopilotDisableCustomTerminalToolsEnvVar] = previousDisableCustomTerminalTools;
+				}
 			}
 		});
 	});
