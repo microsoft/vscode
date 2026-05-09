@@ -53,7 +53,7 @@ export async function getBrowserChatToolDomainBlockedToolResult(
 	}
 	let url: string;
 	try {
-		url = await playwrightService.invokeFunctionRaw(sessionId, pageId, async (page: Page) => page.url());
+		url = await playwrightInvokeRaw(playwrightService, sessionId, pageId, (page) => page.url());
 	} catch {
 		return errorResult(localize('browserChatTools.domainVerifyFailed', 'Could not verify the browser page URL for domain policy.'));
 	}
