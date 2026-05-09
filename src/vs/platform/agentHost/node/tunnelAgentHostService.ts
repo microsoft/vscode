@@ -34,7 +34,7 @@ function deriveConnectionToken(tunnelId: string): string {
 	hash.update(tunnelId);
 	let result = hash.digest('base64url');
 	if (result.startsWith('-')) {
-		result = 'a' + result;
+		result = `a${result}`;
 	}
 	return result;
 }

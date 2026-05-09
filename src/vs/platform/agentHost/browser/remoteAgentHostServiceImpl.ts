@@ -150,7 +150,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		const configuredEntry = this._getConfiguredEntries().find(
 			e => normalizeRemoteAgentHostAddress(getEntryAddress(e)) === normalized
 		);
-		if (configuredEntry && configuredEntry.connection.type !== RemoteAgentHostEntryType.WebSocket) {
+		if (configuredEntry?.connection.type !== RemoteAgentHostEntryType.WebSocket) {
 			return;
 		}
 

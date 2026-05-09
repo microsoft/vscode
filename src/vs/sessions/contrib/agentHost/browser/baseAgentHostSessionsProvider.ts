@@ -882,7 +882,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			this._onDidChangeRootConfig.fire();
 			return;
 		}
-		if (prev && prev.schema === next.schema && equals(prev.values, next.values)) {
+		if (prev?.schema === next.schema && equals(prev.values, next.values)) {
 			return;
 		}
 		this._rootConfig = next;

@@ -457,7 +457,7 @@ export class AgentSubscriptionManager extends Disposable {
 	dispatchOptimistic(action: SessionAction | TerminalAction | IRootConfigChangedAction): number {
 		if (isSessionAction(action)) {
 			const entry = this._subscriptions.get(URI.parse(action.session));
-			if (entry && entry.sub instanceof SessionStateSubscription) {
+			if (entry?.sub instanceof SessionStateSubscription) {
 				return entry.sub.applyOptimistic(action);
 			}
 		}

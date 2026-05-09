@@ -797,9 +797,9 @@ export function terminalReducer(state: TerminalState, action: TerminalAction, lo
 		case ActionType.TerminalData: {
 			const content = [...state.content];
 			const tail = content.length > 0 ? content[content.length - 1] : undefined;
-			if (tail && tail.type === 'command' && !tail.isComplete) {
+			if (tail?.type === 'command' && !tail.isComplete) {
 				content[content.length - 1] = { ...tail, output: tail.output + action.data };
-			} else if (tail && tail.type === 'unclassified') {
+			} else if (tail?.type === 'unclassified') {
 				content[content.length - 1] = { ...tail, value: tail.value + action.data };
 			} else {
 				content.push({ type: 'unclassified', value: action.data });
