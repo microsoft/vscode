@@ -18,7 +18,7 @@ import { AgentEvent } from './agentEvents';
 import { AgentManager } from './AgentManager';
 import { MetricsTracker } from './MetricsTracker';
 import { ProjectMemory } from './ProjectMemory';
-import { SpecialistMemory } from './SpecialistMemory';
+import { COMPACTION_THRESHOLD, SpecialistMemory } from './SpecialistMemory';
 import {
 	AgentConfig,
 	AgentHandle,
@@ -118,6 +118,14 @@ export abstract class BaseAgent {
 	 * stateless so the lookup result doesn't change.
 	 */
 	protected readonly modelRouter?: ModelRouter;
+
+	/**
+	 * H12 — re-entry guard for `maybeCompactMemory`. Compaction is fired
+	 * after every turn so multiple in-flight turns on the same agent
+	 * could otherwise stack overlapping Haiku calls + map writes. Set
+	 * while a compaction is running, cleared in the `finally`.
+	 */
+	private compactionInProgress = false;
 
 	constructor(
 		config: AgentConfig,
@@ -876,6 +884,9 @@ export abstract class BaseAgent {
 				fullText += signOff;
 			}
 			this.agentManager.completeTask(task.id);
+			// H12 — fire-and-forget post-turn compaction check. Doesn't block
+			// the return; failures are swallowed inside maybeCompactMemory.
+			void this.maybeCompactMemory();
 			return fullText;
 		} catch (err) {
 			const message = err instanceof Error ? err.message : String(err);
@@ -918,6 +929,43 @@ export abstract class BaseAgent {
 			return undefined;
 		}
 		return formatSignOff(quote);
+	}
+
+	/**
+	 * H12 — fire-and-forget post-turn check that asks the specialist
+	 * memory store to consolidate itself when the per-handle list has
+	 * grown past `COMPACTION_THRESHOLD`. The actual LLM call (Haiku) is
+	 * fast and cheap but still a network round-trip; the caller should
+	 * `void` this method so the user-visible turn completes immediately.
+	 *
+	 * Errors are swallowed by design: compaction is a background tax,
+	 * not a hot-path operation, and a compaction failure must never
+	 * propagate up into the chat turn that just succeeded.
+	 *
+	 * The `compactionInProgress` flag prevents two concurrent turns on
+	 * the same agent from racing the LLM call + map write. A second
+	 * trigger while one is already running is silently dropped — the
+	 * next turn will pick it up.
+	 */
+	protected async maybeCompactMemory(): Promise<void> {
+		if (this.compactionInProgress || !this.specialistMemory) {
+			return;
+		}
+		const entries = this.specialistMemory.list(this.handle);
+		if (entries.length < COMPACTION_THRESHOLD) {
+			return;
+		}
+		this.compactionInProgress = true;
+		try {
+			const result = await this.specialistMemory.compact(this.handle, this.llmClient);
+			if (result.compacted) {
+				console.info(`[SpecialistMemory] Compacted @${this.handle}: ${result.before} → ${result.after}`);
+			}
+		} catch (err) {
+			console.warn(`[SpecialistMemory] Compaction failed for @${this.handle}:`, err);
+		} finally {
+			this.compactionInProgress = false;
+		}
 	}
 
 	/**
@@ -1034,6 +1082,9 @@ export abstract class BaseAgent {
 				emit({ type: 'token', token: signOff });
 			}
 			this.agentManager.completeTask(task.id);
+			// H12 — fire-and-forget post-turn compaction check. Doesn't block
+			// the return; failures are swallowed inside maybeCompactMemory.
+			void this.maybeCompactMemory();
 			return result.text || fullText;
 		} catch (err) {
 			const message = err instanceof Error ? err.message : String(err);

@@ -5,6 +5,7 @@
 
 import { TypedEventEmitter, type Event } from '../eventEmitter';
 import type { Disposable, MementoStore } from '../host';
+import type { LlmClient } from '../llm/LlmClient';
 import { AgentHandle } from './types';
 
 /**
@@ -33,6 +34,24 @@ const MAX_ENTRIES_PER_HANDLE = 30;
 
 /** Maximum length for any stored value (truncated with an ellipsis). */
 const MAX_VALUE_LENGTH = 500;
+
+/**
+ * Threshold (entry count) at which `compact()` runs the Haiku-backed
+ * consolidation pass. Below this size we leave the list alone — the LLM call
+ * is cheap on Haiku, but it's not free, so we wait until the list is dense
+ * enough that a merge actually pays off.
+ *
+ * Set comfortably below `MAX_ENTRIES_PER_HANDLE` so compaction kicks in
+ * before the legacy oldest-by-timestamp eviction starts dropping entries.
+ */
+export const COMPACTION_THRESHOLD = 25;
+
+/**
+ * Hard cap on the number of entries the compaction LLM is allowed to keep.
+ * The system prompt repeats this number so the model understands the
+ * budget; we also enforce it post-parse as a safety net.
+ */
+export const MAX_COMPACTED_ENTRIES = 10;
 
 /** Type of the broadcast payload emitted by `onDidChange`. */
 export interface SpecialistMemoryChange {
@@ -264,6 +283,112 @@ export class SpecialistMemory implements Disposable {
 		return lines.join('\n');
 	}
 
+	/**
+	 * Run a Haiku-backed consolidation pass over the entries for `handle`.
+	 *
+	 * H12 — replaces the legacy LRU eviction (which dropped the oldest
+	 * entry by timestamp whenever the per-handle cap was exceeded) with a
+	 * cheap LLM call that picks the most load-bearing items and merges
+	 * related ones. The intent is to preserve months-old preferences
+	 * ("user prefers tabs") that LRU would silently delete the moment a
+	 * fresher entry pushed the list over the cap.
+	 *
+	 * Behaviour:
+	 * - Reads `this.list(handle)` (no `conversationId` scoping — globals
+	 *   and per-conversation entries are compacted together).
+	 * - When the list is below `COMPACTION_THRESHOLD`, returns
+	 *   `{ before, after: before, compacted: false }` — no work to do.
+	 * - Otherwise prompts Haiku for a JSON array of at most
+	 *   `MAX_COMPACTED_ENTRIES` consolidated `{ key, value }` objects.
+	 * - On parse success: replaces the list via `replaceAll`. On parse
+	 *   failure: logs a warning and leaves the list untouched (fail-safe
+	 *   — compaction must never destroy data when the model misbehaves).
+	 *
+	 * @param handle The specialist whose memory should be compacted.
+	 * @param llm Used for the Haiku consolidation call.
+	 * @returns Counts before / after, plus a `compacted` flag indicating
+	 *          whether the list was actually rewritten.
+	 */
+	async compact(
+		handle: AgentHandle | 'anton',
+		llm: LlmClient,
+	): Promise<{ before: number; after: number; compacted: boolean }> {
+		const entries = this.list(handle);
+		const before = entries.length;
+		if (before < COMPACTION_THRESHOLD) {
+			return { before, after: before, compacted: false };
+		}
+
+		const systemPrompt = [
+			'You are a memory consolidator for an AI coding assistant. You receive a list of remembered facts about a developer\'s project and preferences. Your job is to produce a smaller, denser list that preserves the most load-bearing information and merges related entries.',
+			'',
+			'Rules:',
+			`1. Keep at most ${MAX_COMPACTED_ENTRIES} entries.`,
+			'2. Merge related entries when possible (e.g. "user prefers tabs" + "indent with tabs not spaces" → one entry).',
+			'3. Drop entries that are duplicative or stale.',
+			'4. Preserve specific, actionable, project-specific facts over generic preferences.',
+			'5. Return ONLY a JSON array of {"key": "...", "value": "..."} objects. No prose.',
+		].join('\n');
+
+		const serialised = JSON.stringify(entries.map(e => ({ key: e.key, value: e.value })), null, 2);
+		const userPrompt = [
+			`Compact this list of ${before} memories for the @${handle} specialist:`,
+			'',
+			serialised,
+			'',
+			`Return a JSON array of at most ${MAX_COMPACTED_ENTRIES} consolidated entries.`,
+		].join('\n');
+
+		let raw: string;
+		try {
+			raw = await llm.request({
+				model: 'haiku',
+				systemPrompt,
+				messages: [{ role: 'user', content: userPrompt }],
+			});
+		} catch (err) {
+			// Network / provider error — leave the list alone. The caller's
+			// fire-and-forget wrapper swallows the rejection, so we surface
+			// "no compaction" rather than re-throwing here.
+			console.warn(`[SpecialistMemory] Compaction LLM call failed for @${handle}:`, err);
+			return { before, after: before, compacted: false };
+		}
+
+		const parsed = parseCompactedEntries(raw);
+		if (!parsed) {
+			console.warn(`[SpecialistMemory] Compaction parse failed for @${handle}; leaving list unchanged. Raw response:`, raw);
+			return { before, after: before, compacted: false };
+		}
+
+		const capped = parsed.slice(0, MAX_COMPACTED_ENTRIES);
+		const now = Date.now();
+		const replacement: SpecialistMemoryEntry[] = capped.map(({ key, value }) => {
+			const truncated = value.length > MAX_VALUE_LENGTH
+				? value.slice(0, MAX_VALUE_LENGTH - 1) + '…'
+				: value;
+			return { key, value: truncated, updatedAt: now };
+		});
+		this.replaceAll(handle, replacement);
+
+		return { before, after: replacement.length, compacted: true };
+	}
+
+	/**
+	 * Atomically replace every entry for `handle` with `entries`. Used by
+	 * `compact` to swap in the consolidated list without leaking partial
+	 * state through repeated `set` calls. Fires `onDidChange` once.
+	 */
+	private replaceAll(handle: AgentHandle | 'anton', entries: ReadonlyArray<SpecialistMemoryEntry>): void {
+		const map = this.readMap();
+		if (entries.length === 0) {
+			delete map[handle];
+		} else {
+			map[handle] = [...entries];
+		}
+		void this.writeMap(map);
+		this.emitter.fire({ handle });
+	}
+
 	dispose(): void {
 		if (this.disposed) {
 			return;
@@ -290,4 +415,71 @@ export class SpecialistMemory implements Disposable {
 	private async writeMap(map: Record<string, SpecialistMemoryEntry[]>): Promise<void> {
 		await this.globalState.update(STORAGE_KEY, map);
 	}
+}
+
+/**
+ * Best-effort JSON-array parser for a Haiku compaction response. Models
+ * occasionally wrap the JSON in a fenced ``` block or prefix it with a
+ * sentence of prose despite the system-prompt instructions; we tolerate
+ * that by stripping fences and pulling out the first `[ … ]` slice.
+ *
+ * Returns `undefined` when no valid array of `{ key, value }` objects can
+ * be recovered — callers must treat that as a fail-safe "leave the list
+ * unchanged" signal.
+ */
+function parseCompactedEntries(raw: string): Array<{ key: string; value: string }> | undefined {
+	if (!raw || !raw.trim()) {
+		return undefined;
+	}
+
+	let body = raw.trim();
+	// Strip ```json … ``` or ``` … ``` fences if present.
+	const fenceMatch = body.match(/^```(?:json)?\s*\n?([\s\S]*?)\n?```$/);
+	if (fenceMatch) {
+		body = fenceMatch[1].trim();
+	}
+
+	// Pull out the first JSON-array slice when the model prefixed prose.
+	if (!body.startsWith('[')) {
+		const start = body.indexOf('[');
+		const end = body.lastIndexOf(']');
+		if (start === -1 || end === -1 || end <= start) {
+			return undefined;
+		}
+		body = body.slice(start, end + 1);
+	}
+
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(body);
+	} catch {
+		return undefined;
+	}
+
+	if (!Array.isArray(parsed)) {
+		return undefined;
+	}
+
+	const out: Array<{ key: string; value: string }> = [];
+	for (const item of parsed) {
+		if (!item || typeof item !== 'object') {
+			continue;
+		}
+		const key = (item as { key?: unknown }).key;
+		const value = (item as { value?: unknown }).value;
+		if (typeof key !== 'string' || typeof value !== 'string') {
+			continue;
+		}
+		const trimmedKey = key.trim();
+		if (!trimmedKey) {
+			continue;
+		}
+		out.push({ key: trimmedKey, value });
+	}
+
+	if (out.length === 0) {
+		return undefined;
+	}
+
+	return out;
 }
