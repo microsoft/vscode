@@ -179,6 +179,7 @@ export function createMessagesRequestBody(accessor: ServicesAccessor, options: I
 	const validToolNames = finalTools.length > 0 ? new Set(finalTools.map(t => t.name)) : undefined;
 	const messagesResult = rawMessagesToMessagesAPI(options.messages, toolSearchEnabled ? validToolNames : undefined);
 
+	clearAllCacheControl(messagesResult);
 	addMessagesApiCacheControl(messagesResult);
 	addToolsAndSystemCacheControl(finalTools, messagesResult);
 
@@ -468,6 +469,26 @@ function rawContentToAnthropicContent(content: readonly Raw.ChatCompletionConten
 
 function contentBlockSupportsCacheControl(block: ContentBlockParam): block is Exclude<ContentBlockParam, ThinkingBlockParam | RedactedThinkingBlockParam> {
 	return block.type !== 'thinking' && block.type !== 'redacted_thinking';
+}
+
+/** Removes any cache_control fields from system and message blocks. */
+export function clearAllCacheControl(
+	messagesResult: { messages: MessageParam[]; system?: TextBlockParam[] },
+): void {
+	if (messagesResult.system) {
+		for (const block of messagesResult.system) {
+			delete block.cache_control;
+		}
+	}
+	for (const msg of messagesResult.messages) {
+		if (Array.isArray(msg.content)) {
+			for (const block of msg.content) {
+				if (typeof block === 'object' && 'cache_control' in block) {
+					delete (block as { cache_control?: unknown }).cache_control;
+				}
+			}
+		}
+	}
 }
 
 /** Marks the last non-deferred tool and the last system block for caching. */

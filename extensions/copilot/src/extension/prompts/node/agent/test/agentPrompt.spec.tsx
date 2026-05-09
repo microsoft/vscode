@@ -216,6 +216,7 @@ testFamilies.forEach(family => {
 					query: 'edit this file',
 				},
 				{
+					enableSummarization: true,
 					enableCacheBreakpoints: true,
 				})).toMatchFileSnapshot(getSnapshotFile('cache_BPs'));
 		});
@@ -260,6 +261,7 @@ testFamilies.forEach(family => {
 					tools,
 				},
 				{
+					enableSummarization: true,
 					enableCacheBreakpoints: true,
 				})).toMatchFileSnapshot(getSnapshotFile('cache_BPs_multi_round'));
 		});

@@ -58,7 +58,15 @@ export interface AgentPromptProps extends GenericBasePromptElementProps {
 	readonly triggerSummarize?: boolean;
 
 	/**
-	 * Enables cache breakpoints and summarization
+	 * Routes history rendering through SummarizedConversationHistory (which can
+	 * compact when the budget is exceeded). Independent from cache breakpoints
+	 * — Anthropic Messages API endpoints suppress cache breakpoints but still
+	 * need summarization for long conversations.
+	 */
+	readonly enableSummarization?: boolean;
+
+	/**
+	 * Emits prompt-tsx <cacheBreakpoint> markers in the rendered prompt.
 	 */
 	readonly enableCacheBreakpoints?: boolean;
 
@@ -141,7 +149,7 @@ export class AgentPrompt extends PromptElement<AgentPromptProps> {
 		const ReminderInstructionsClass = customizations.ReminderInstructionsClass;
 		const ToolReferencesHintClass = customizations.ToolReferencesHintClass;
 
-		if (this.props.enableCacheBreakpoints) {
+		if (this.props.enableSummarization) {
 			return <>
 				{baseInstructions}
 				<SummarizedConversationHistory
