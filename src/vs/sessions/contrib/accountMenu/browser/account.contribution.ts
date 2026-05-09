@@ -110,8 +110,8 @@ registerAction2(class extends Action2 {
 		const accountLabel = defaultAccount.accountName;
 		const { confirmed } = await dialogService.confirm({
 			type: Severity.Info,
-			message: localize('agenticSignOutMessage', "Sign out of the Agents app?"),
-			detail: localize('agenticSignOutDetail', "This will sign out '{0}' from the Agents app.", accountLabel),
+			message: localize('agenticSignOutMessage', "Sign out of the Agents window?"),
+			detail: localize('agenticSignOutDetail', "This will sign out '{0}' from the Agents window.", accountLabel),
 			primaryButton: localize({ key: 'agenticSignOutButton', comment: ['&& denotes a mnemonic'] }, "&&Sign Out")
 		});
 

@@ -40,13 +40,15 @@ export class GetNewWorkspaceTool implements ICopilotTool<INewWorkspaceToolParams
 	) { }
 
 	/**
-	 * A folder is treated as empty for workspace creation purposes if it contains
-	 * nothing other than a `.git` entry, so that newly cloned/initialized repos
-	 * can still be used as a target for scaffolding.
+	 * Used as a softer "empty" check for the case where the user re-selects the
+	 * already-open workspace folder. Treats a folder as empty if every top-level
+	 * entry name starts with `.` (e.g. `.git`, `.gitignore`, `.vscode`,
+	 * `.editorconfig`), so that newly cloned/initialized repos and folders that
+	 * only contain dotfile config can be used in place without reopening.
 	 */
 	private async _isEffectivelyEmpty(folder: Uri): Promise<boolean> {
 		const entries = await this.fileSystemService.readDirectory(folder);
-		return entries.every(([name]) => name === '.git');
+		return entries.every(([name]) => name.startsWith('.'));
 	}
 
 	async prepareInvocation?(options: LanguageModelToolInvocationPrepareOptions<INewWorkspaceToolParams>, token: CancellationToken): Promise<PreparedToolInvocation> {
@@ -57,7 +59,7 @@ export class GetNewWorkspaceTool implements ICopilotTool<INewWorkspaceToolParams
 			this._shouldPromptWorkspaceOpen = true;
 		}
 		else if (workspace && workspace.length > 0) {
-			this._shouldPromptWorkspaceOpen = !await this._isEffectivelyEmpty(workspace[0]);
+			this._shouldPromptWorkspaceOpen = (await this.fileSystemService.readDirectory(workspace[0])).length > 0;
 		}
 		if (this._shouldPromptWorkspaceOpen) {
 			const confirmationMessages = {
@@ -86,9 +88,22 @@ export class GetNewWorkspaceTool implements ICopilotTool<INewWorkspaceToolParams
 
 		if (this._shouldPromptWorkspaceOpen) {
 			const newWorkspaceUri = (await this.dialogService.showOpenDialog({ canSelectFolders: true, canSelectFiles: false, canSelectMany: false, openLabel: 'Select an Empty Workspace Folder' }))?.[0];
-			if (newWorkspaceUri && !extUri.isEqual(newWorkspaceUri, workspaceUri)) {
+			if (!newWorkspaceUri) {
+				return new LanguageModelToolResult([
+					new LanguageModelTextPart('The user has not opened a valid workspace folder in VS Code. Ask them to open an empty folder before continuing.')
+				]);
+			}
 
+			if (workspaceUri && extUri.isEqual(newWorkspaceUri, workspaceUri)) {
+				// User re-selected the already-open folder: if it only contains
+				// dotfile entries, use it in place without reopening the window.
 				if (!await this._isEffectivelyEmpty(newWorkspaceUri)) {
+					return new LanguageModelToolResult([
+						new LanguageModelTextPart('The user has not opened a valid workspace folder in VS Code. Ask them to open an empty folder before continuing.')
+					]);
+				}
+			} else {
+				if ((await this.fileSystemService.readDirectory(newWorkspaceUri)).length > 0) {
 					return new LanguageModelToolResult([
 						new LanguageModelTextPart('The user has not opened a valid workspace folder in VS Code. Ask them to open an empty folder before continuing.')
 					]);
@@ -109,10 +124,6 @@ export class GetNewWorkspaceTool implements ICopilotTool<INewWorkspaceToolParams
 					new LanguageModelTextPart(`The user is opening the folder ${newWorkspaceUri.toString()}. Do not proceed with project generation till the user has confirmed opening the folder.`)
 				]);
 			}
-
-			return new LanguageModelToolResult([
-				new LanguageModelTextPart('The user has not opened a valid workspace folder in VS Code. Ask them to open an empty folder before continuing.')
-			]);
 		}
 
 		if (!workspaceUri) {

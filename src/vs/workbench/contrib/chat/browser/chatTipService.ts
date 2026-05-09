@@ -521,7 +521,18 @@ export class ChatTipService extends Disposable implements IChatTipService {
 			return;
 		}
 
-		if (this._isEligible(this._shownTip, this._contextKeyService)) {
+		let eligible: boolean;
+		try {
+			eligible = this._isEligible(this._shownTip, this._contextKeyService);
+		} catch (err) {
+			// The stored scoped context key service may have been disposed
+			// (e.g. its owning chat widget was torn down). Drop the stale
+			// reference and bail out — there is nothing meaningful to hide.
+			this._contextKeyService = undefined;
+			return;
+		}
+
+		if (eligible) {
 			return;
 		}
 

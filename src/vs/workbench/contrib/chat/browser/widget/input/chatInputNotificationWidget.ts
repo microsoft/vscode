@@ -52,8 +52,6 @@ export class ChatInputNotificationWidget extends Disposable {
 		super();
 
 		this.domNode = $('.chat-input-notification-widget');
-		this.domNode.setAttribute('role', 'status');
-		this.domNode.setAttribute('aria-live', 'polite');
 
 		this._register(this._notificationService.onDidChange(() => this._render()));
 		this._render();
@@ -135,7 +133,15 @@ export class ChatInputNotificationWidget extends Disposable {
 
 					const button = this._contentDisposables.add(new Button(actionsContainer, {
 						...defaultButtonStyles,
-						...(!isLast ? { buttonSecondaryBorder: undefined } : {}),
+						...(!isLast ? {
+							buttonBackground: undefined,
+							buttonHoverBackground: undefined,
+							buttonForeground: undefined,
+							buttonSecondaryBackground: undefined,
+							buttonSecondaryHoverBackground: undefined,
+							buttonSecondaryForeground: undefined,
+							buttonSecondaryBorder: undefined,
+						} : {}),
 						supportIcons: true,
 						secondary: !isLast,
 					}));
