@@ -63,6 +63,14 @@ export function telemetryLevelEnabled(service: ITelemetryService, level: Telemet
 	return service.telemetryLevel >= level;
 }
 
+/**
+ * Replaces `/` and `\` with `|` in model identifiers to prevent the
+ * telemetry pipeline from redacting them as file paths.
+ */
+export function escapeModelIdForTelemetry(modelId: string | undefined): string | undefined {
+	return modelId?.replace(/[\/\\]/g, '|');
+}
+
 export interface ITelemetryEndpoint {
 	id: string;
 	aiKey: string;

@@ -13,7 +13,7 @@ import { AnthropicMessagesTool, CUSTOM_TOOL_SEARCH_NAME } from '../../../network
 import { IChatEndpoint, ICreateEndpointBodyOptions } from '../../../networking/common/networking';
 import { IToolDeferralService } from '../../../networking/common/toolDeferralService';
 import { createPlatformServices } from '../../../test/node/services';
-import { addLastTwoMessagesCacheControl, addToolsAndSystemCacheControl, buildToolInputSchema, createMessagesRequestBody, rawMessagesToMessagesAPI } from '../../node/messagesApi';
+import { addMessagesApiCacheControl, addToolsAndSystemCacheControl, buildToolInputSchema, clearAllCacheControl, createMessagesRequestBody, rawMessagesToMessagesAPI } from '../../node/messagesApi';
 
 function assertContentArray(content: MessageParam['content']): ContentBlockParam[] {
 	expect(Array.isArray(content)).toBe(true);
@@ -428,32 +428,6 @@ suite('addToolsAndSystemCacheControl', function () {
 		return msgs;
 	}
 
-	function countCacheControl(tools: AnthropicMessagesTool[], system: TextBlockParam[] | undefined, messages: MessageParam[]): number {
-		let count = 0;
-		for (const tool of tools) {
-			if (tool.cache_control) {
-				count++;
-			}
-		}
-		if (system) {
-			for (const block of system) {
-				if (block.cache_control) {
-					count++;
-				}
-			}
-		}
-		for (const msg of messages) {
-			if (Array.isArray(msg.content)) {
-				for (const block of msg.content) {
-					if (typeof block === 'object' && 'cache_control' in block && block.cache_control) {
-						count++;
-					}
-				}
-			}
-		}
-		return count;
-	}
-
 	test('adds cache_control to last non-deferred tool and last system block', function () {
 		const tools = [makeTool('read_file'), makeTool('edit_file')];
 		const system: TextBlockParam[] = [makeSystemBlock('You are a helpful assistant.')];
@@ -497,93 +471,6 @@ suite('addToolsAndSystemCacheControl', function () {
 		addToolsAndSystemCacheControl(tools, messagesResult);
 
 		expect(tools).toHaveLength(0);
-	});
-
-	test('uses spare slot for tool when messages leave one slot available', function () {
-		const tools = [makeTool('read_file')];
-		const system: TextBlockParam[] = [makeSystemBlock('System prompt')];
-		const msg1Content: ContentBlockParam[] = [
-			{ type: 'text', text: 'msg1', cache_control: { type: 'ephemeral' } },
-		];
-		const msg2Content: ContentBlockParam[] = [
-			{ type: 'text', text: 'msg2', cache_control: { type: 'ephemeral' } },
-		];
-		const msg3Content: ContentBlockParam[] = [
-			{ type: 'text', text: 'msg3', cache_control: { type: 'ephemeral' } },
-		];
-		const messages = makeMessages(
-			{ role: 'user', content: msg1Content },
-			{ role: 'assistant', content: msg2Content },
-			{ role: 'user', content: msg3Content },
-		);
-		const messagesResult = { messages, system };
-
-		// 3 existing in messages, 1 spare slot → tool gets it, system does not
-		addToolsAndSystemCacheControl(tools, messagesResult);
-
-		expect(countCacheControl(tools, system, messages)).toBeLessThanOrEqual(4);
-		// Tool gets the spare slot
-		expect(tools[0].cache_control).toEqual({ type: 'ephemeral' });
-		// System does not — no spare slot left
-		expect(system[0].cache_control).toBeUndefined();
-		// Message breakpoints are preserved (no eviction)
-		expect(msg1Content[0]).toHaveProperty('cache_control');
-		expect(msg2Content[0]).toHaveProperty('cache_control');
-		expect(msg3Content[0]).toHaveProperty('cache_control');
-	});
-
-	test('skips adding breakpoints when all slots are occupied', function () {
-		// All 4 breakpoints on system blocks — no spare slots
-		const tools = [makeTool('read_file')];
-		const system: TextBlockParam[] = [
-			makeSystemBlock('block1', true),
-			makeSystemBlock('block2', true),
-			makeSystemBlock('block3', true),
-			makeSystemBlock('block4', true),
-		];
-		const messagesResult = { messages: makeMessages(), system };
-
-		addToolsAndSystemCacheControl(tools, messagesResult);
-
-		expect(tools[0].cache_control).toBeUndefined();
-		expect(countCacheControl(tools, system, messagesResult.messages)).toBeLessThanOrEqual(4);
-	});
-
-	test('skips adding breakpoints when all slots are occupied by messages', function () {
-		const tools = [makeTool('read_file')];
-		const system: TextBlockParam[] = [makeSystemBlock('System prompt')];
-		const messages = makeMessages(
-			{ role: 'user', content: [{ type: 'text', text: 'a', cache_control: { type: 'ephemeral' } }] as ContentBlockParam[] },
-			{ role: 'assistant', content: [{ type: 'text', text: 'b', cache_control: { type: 'ephemeral' } }] as ContentBlockParam[] },
-			{ role: 'user', content: [{ type: 'text', text: 'c', cache_control: { type: 'ephemeral' } }] as ContentBlockParam[] },
-			{ role: 'assistant', content: [{ type: 'text', text: 'd', cache_control: { type: 'ephemeral' } }] as ContentBlockParam[] },
-		);
-		const messagesResult = { messages, system };
-
-		addToolsAndSystemCacheControl(tools, messagesResult);
-
-		// All 4 slots occupied by messages — tool and system should not get cache_control
-		expect(tools[0].cache_control).toBeUndefined();
-		expect(system[0].cache_control).toBeUndefined();
-		expect(countCacheControl(tools, system, messages)).toBe(4);
-	});
-
-	test('prioritizes tool breakpoint over system when only one spare slot', function () {
-		const tools = [makeTool('read_file')];
-		const system: TextBlockParam[] = [makeSystemBlock('System prompt')];
-		const messages = makeMessages(
-			{ role: 'user', content: [{ type: 'text', text: 'a', cache_control: { type: 'ephemeral' } }] as ContentBlockParam[] },
-			{ role: 'assistant', content: [{ type: 'text', text: 'b', cache_control: { type: 'ephemeral' } }] as ContentBlockParam[] },
-			{ role: 'user', content: [{ type: 'text', text: 'c', cache_control: { type: 'ephemeral' } }] as ContentBlockParam[] },
-		);
-		const messagesResult = { messages, system };
-
-		// 3 existing message breakpoints, 1 spare slot → tool gets it
-		addToolsAndSystemCacheControl(tools, messagesResult);
-
-		expect(countCacheControl(tools, system, messages)).toBeLessThanOrEqual(4);
-		expect(tools[0].cache_control).toEqual({ type: 'ephemeral' });
-		expect(system[0].cache_control).toBeUndefined();
 	});
 
 	test('handles only tools, no system blocks', function () {
@@ -663,330 +550,176 @@ suite('buildToolInputSchema', function () {
 	});
 });
 
-suite('addLastTwoMessagesCacheControl', function () {
+suite('addMessagesApiCacheControl', function () {
 
-	function makeMessages(...msgs: MessageParam[]): MessageParam[] {
-		return msgs;
-	}
-
-	function makeTool(name: string, deferred = false): AnthropicMessagesTool {
-		return {
-			name,
-			description: `${name} tool`,
-			input_schema: { type: 'object', properties: {}, required: [] },
-			...(deferred ? { defer_loading: true } : {}),
-		};
-	}
-
-	function getCacheControl(block: ContentBlockParam): { type: string } | undefined {
-		return 'cache_control' in block ? (block as { cache_control?: { type: string } }).cache_control : undefined;
-	}
-
-	function countAllCacheControl(messages: MessageParam[], system?: TextBlockParam[]): number {
-		let count = 0;
-		if (system) {
-			for (const block of system) {
-				if (block.cache_control) {
-					count++;
-				}
-			}
-		}
-		for (const msg of messages) {
-			if (Array.isArray(msg.content)) {
-				for (const block of msg.content) {
-					if (typeof block === 'object' && 'cache_control' in block && block.cache_control) {
-						count++;
+	function ccPositions(args: { messages: MessageParam[]; system?: TextBlockParam[]; tools?: AnthropicMessagesTool[] }): string[] {
+		const out: string[] = [];
+		args.tools?.forEach((t, i) => { if (t.cache_control) { out.push(`tools[${i}]`); } });
+		args.system?.forEach((b, i) => { if (b.cache_control) { out.push(`system[${i}]`); } });
+		args.messages.forEach((m, i) => {
+			if (Array.isArray(m.content)) {
+				m.content.forEach((b, j) => {
+					if (typeof b === 'object' && 'cache_control' in b && b.cache_control) {
+						out.push(`messages[${i}].block[${j}]`);
 					}
-				}
+				});
 			}
-		}
-		return count;
+		});
+		return out;
 	}
 
-	test('marks last two messages in a normal agentic loop', function () {
-		const messages = makeMessages(
-			{ role: 'user', content: [{ type: 'text', text: 'edit my file' }] as ContentBlockParam[] },
-			{ role: 'assistant', content: [{ type: 'text', text: 'calling tool' }, { type: 'tool_use', id: 'toolu_1', name: 'read_file', input: {} }] as ContentBlockParam[] },
-			{ role: 'user', content: [{ type: 'tool_result', tool_use_id: 'toolu_1', content: [{ type: 'text', text: 'file contents' }] }] as ContentBlockParam[] },
-		);
-		const messagesResult = { messages };
-
-		addLastTwoMessagesCacheControl(messagesResult);
-
-		const assistantContent = messages[1].content as ContentBlockParam[];
-		expect(getCacheControl(assistantContent[assistantContent.length - 1])).toEqual({ type: 'ephemeral' });
-
-		const toolResult = (messages[2].content as ContentBlockParam[])[0] as ToolResultBlockParam;
-		expect(toolResult.cache_control).toEqual({ type: 'ephemeral' });
-
-		expect(getCacheControl((messages[0].content as ContentBlockParam[])[0])).toBeUndefined();
-		expect(countAllCacheControl(messages)).toBe(2);
-	});
-
-	test('marks last two messages in plain chat', function () {
-		const messages = makeMessages(
-			{ role: 'user', content: [{ type: 'text', text: 'hello' }] as ContentBlockParam[] },
-			{ role: 'assistant', content: [{ type: 'text', text: 'hi there' }] as ContentBlockParam[] },
-		);
-		const messagesResult = { messages };
-
-		addLastTwoMessagesCacheControl(messagesResult);
-
-		expect(getCacheControl((messages[0].content as ContentBlockParam[])[0])).toEqual({ type: 'ephemeral' });
-		expect(getCacheControl((messages[1].content as ContentBlockParam[])[0])).toEqual({ type: 'ephemeral' });
-		expect(countAllCacheControl(messages)).toBe(2);
-	});
-
-	test('handles single message', function () {
-		const messages = makeMessages(
-			{ role: 'user', content: [{ type: 'text', text: 'hello' }] as ContentBlockParam[] },
-		);
-		const messagesResult = { messages };
-
-		addLastTwoMessagesCacheControl(messagesResult);
-
-		expect(getCacheControl((messages[0].content as ContentBlockParam[])[0])).toEqual({ type: 'ephemeral' });
-		expect(countAllCacheControl(messages)).toBe(1);
-	});
-
-	test('handles empty messages array', function () {
-		const messagesResult = { messages: [] as MessageParam[] };
-
-		addLastTwoMessagesCacheControl(messagesResult);
-
-		expect(messagesResult.messages).toHaveLength(0);
-	});
-
-	test('skips thinking and redacted_thinking blocks', function () {
-		const messages = makeMessages(
-			{ role: 'user', content: [{ type: 'text', text: 'hello' }] as ContentBlockParam[] },
-			{
-				role: 'assistant', content: [
-					{ type: 'thinking', thinking: 'hmm', signature: 'sig' },
-					{ type: 'text', text: 'response' },
-				] as ContentBlockParam[]
-			},
-		);
-		const messagesResult = { messages };
-
-		addLastTwoMessagesCacheControl(messagesResult);
-
-		const assistantContent = messages[1].content as ContentBlockParam[];
-		expect(getCacheControl(assistantContent[0])).toBeUndefined();
-		expect(getCacheControl(assistantContent[1])).toEqual({ type: 'ephemeral' });
-		expect(countAllCacheControl(messages)).toBe(2);
-	});
-
-	test('respects max breakpoint count when some already exist', function () {
-		const messages = makeMessages(
-			{ role: 'user', content: [{ type: 'text', text: 'a', cache_control: { type: 'ephemeral' } }] as ContentBlockParam[] },
-			{ role: 'assistant', content: [{ type: 'text', text: 'b', cache_control: { type: 'ephemeral' } }] as ContentBlockParam[] },
-			{ role: 'user', content: [{ type: 'text', text: 'c', cache_control: { type: 'ephemeral' } }] as ContentBlockParam[] },
-			{ role: 'assistant', content: [{ type: 'text', text: 'd' }] as ContentBlockParam[] },
-			{ role: 'user', content: [{ type: 'text', text: 'e' }] as ContentBlockParam[] },
-		);
-		const messagesResult = { messages };
-
-		addLastTwoMessagesCacheControl(messagesResult);
-
-		// 3 existing + 1 new = 4 total
-		expect(countAllCacheControl(messages)).toBe(4);
-		expect(getCacheControl((messages[4].content as ContentBlockParam[])[0])).toEqual({ type: 'ephemeral' });
-		// Second-to-last should NOT get one — would exceed 4
-		expect(getCacheControl((messages[3].content as ContentBlockParam[])[0])).toBeUndefined();
-	});
-
-	test('does nothing when all 4 slots are occupied', function () {
-		const messages = makeMessages(
-			{ role: 'user', content: [{ type: 'text', text: 'a', cache_control: { type: 'ephemeral' } }] as ContentBlockParam[] },
-			{ role: 'assistant', content: [{ type: 'text', text: 'b', cache_control: { type: 'ephemeral' } }] as ContentBlockParam[] },
-			{ role: 'user', content: [{ type: 'text', text: 'c', cache_control: { type: 'ephemeral' } }] as ContentBlockParam[] },
-			{ role: 'assistant', content: [{ type: 'text', text: 'd', cache_control: { type: 'ephemeral' } }] as ContentBlockParam[] },
-			{ role: 'user', content: [{ type: 'text', text: 'e' }] as ContentBlockParam[] },
-		);
-		const messagesResult = { messages };
-
-		addLastTwoMessagesCacheControl(messagesResult);
-
-		expect(getCacheControl((messages[4].content as ContentBlockParam[])[0])).toBeUndefined();
-		expect(countAllCacheControl(messages)).toBe(4);
-	});
-
-	test('treats trailing message with existing cache_control as already marked', function () {
-		// Regression: prior code would walk past a pre-marked tail message and
-		// add two new markers to earlier messages, ending up with 3 distinct
-		// marked messages instead of 2.
-		const messages = makeMessages(
-			{ role: 'user', content: [{ type: 'text', text: 'a' }] as ContentBlockParam[] },
-			{ role: 'assistant', content: [{ type: 'text', text: 'b' }] as ContentBlockParam[] },
-			{ role: 'user', content: [{ type: 'text', text: 'c' }] as ContentBlockParam[] },
-			{ role: 'assistant', content: [{ type: 'text', text: 'd', cache_control: { type: 'ephemeral' } }] as ContentBlockParam[] },
-		);
-		const messagesResult = { messages };
-
-		const added = addLastTwoMessagesCacheControl(messagesResult);
-
-		expect(added).toBe(1);
-		expect(getCacheControl((messages[3].content as ContentBlockParam[])[0])).toEqual({ type: 'ephemeral' });
-		expect(getCacheControl((messages[2].content as ContentBlockParam[])[0])).toEqual({ type: 'ephemeral' });
-		expect(getCacheControl((messages[1].content as ContentBlockParam[])[0])).toBeUndefined();
-		expect(getCacheControl((messages[0].content as ContentBlockParam[])[0])).toBeUndefined();
-		expect(countAllCacheControl(messages)).toBe(2);
-	});
-
-	test('does not add a second marker to a message that already has one on a non-last block', function () {
-		const messages = makeMessages(
-			{ role: 'user', content: [{ type: 'text', text: 'a' }] as ContentBlockParam[] },
-			{
-				role: 'assistant', content: [
-					{ type: 'text', text: 'first', cache_control: { type: 'ephemeral' } },
-					{ type: 'text', text: 'second' },
-				] as ContentBlockParam[]
-			},
-		);
-		const messagesResult = { messages };
-
-		const added = addLastTwoMessagesCacheControl(messagesResult);
-
-		// Last message already counts as marked; only the prior message gets a new marker.
-		expect(added).toBe(1);
-		const assistantContent = messages[1].content as ContentBlockParam[];
-		expect(getCacheControl(assistantContent[0])).toEqual({ type: 'ephemeral' });
-		expect(getCacheControl(assistantContent[1])).toBeUndefined();
-		expect(getCacheControl((messages[0].content as ContentBlockParam[])[0])).toEqual({ type: 'ephemeral' });
-		expect(countAllCacheControl(messages)).toBe(2);
-	});
-
-	test('marks assistant-with-tool-calls as fork point', function () {
-		const messages = makeMessages(
-			{ role: 'user', content: [{ type: 'text', text: 'do stuff' }] as ContentBlockParam[] },
-			{
-				role: 'assistant', content: [
-					{ type: 'text', text: 'I will call tools' },
-					{ type: 'tool_use', id: 'toolu_a', name: 'tool_a', input: {} },
-					{ type: 'tool_use', id: 'toolu_b', name: 'tool_b', input: {} },
-				] as ContentBlockParam[]
-			},
-			{
-				role: 'user', content: [
-					{ type: 'tool_result', tool_use_id: 'toolu_a', content: [{ type: 'text', text: 'result a' }] },
-					{ type: 'tool_result', tool_use_id: 'toolu_b', content: [{ type: 'text', text: 'result b' }] },
-				] as ContentBlockParam[]
-			},
-		);
-		const messagesResult = { messages };
-
-		addLastTwoMessagesCacheControl(messagesResult);
-
-		const assistantContent = messages[1].content as ContentBlockParam[];
-		expect(getCacheControl(assistantContent[2])).toEqual({ type: 'ephemeral' });
-
-		const userContent = messages[2].content as ContentBlockParam[];
-		expect(getCacheControl(userContent[1])).toEqual({ type: 'ephemeral' });
-
-		expect(countAllCacheControl(messages)).toBe(2);
-	});
-
-	test('counts system block breakpoints toward the limit', function () {
-		const system: TextBlockParam[] = [
-			{ type: 'text', text: 'system', cache_control: { type: 'ephemeral' } },
+	test('marks the last cacheable block of the latest cacheable message', function () {
+		const messages: MessageParam[] = [
+			{ role: 'user', content: [{ type: 'text', text: 'do stuff' }] },
+			{ role: 'assistant', content: [{ type: 'text', text: 'calling tools' }, { type: 'tool_use', id: 'a', name: 't', input: {} }, { type: 'tool_use', id: 'b', name: 't', input: {} }] },
+			{ role: 'user', content: [{ type: 'tool_result', tool_use_id: 'a', content: 'ra' }, { type: 'tool_result', tool_use_id: 'b', content: 'rb' }] },
 		];
-		const messages = makeMessages(
-			{ role: 'user', content: [{ type: 'text', text: 'a' }] as ContentBlockParam[] },
-			{ role: 'assistant', content: [{ type: 'text', text: 'b' }] as ContentBlockParam[] },
-			{ role: 'user', content: [{ type: 'text', text: 'c' }] as ContentBlockParam[] },
-		);
-		const messagesResult = { messages, system };
-
-		addLastTwoMessagesCacheControl(messagesResult);
-
-		// 1 system + 2 message breakpoints = 3 total
-		expect(countAllCacheControl(messages, system)).toBe(3);
-		expect(getCacheControl((messages[1].content as ContentBlockParam[])[0])).toEqual({ type: 'ephemeral' });
-		expect(getCacheControl((messages[2].content as ContentBlockParam[])[0])).toEqual({ type: 'ephemeral' });
+		addMessagesApiCacheControl({ messages });
+		expect(ccPositions({ messages })).toEqual(['messages[2].block[1]']);
 	});
 
-	test('skips tail message with empty content and marks two prior', function () {
-		const messages = makeMessages(
-			{ role: 'user', content: [{ type: 'text', text: 'hello' }] as ContentBlockParam[] },
-			{ role: 'assistant', content: [{ type: 'text', text: 'response' }] as ContentBlockParam[] },
-			{ role: 'user', content: [] as ContentBlockParam[] },
-		);
-		const messagesResult = { messages };
-
-		addLastTwoMessagesCacheControl(messagesResult);
-
-		expect(getCacheControl((messages[0].content as ContentBlockParam[])[0])).toEqual({ type: 'ephemeral' });
-		expect(getCacheControl((messages[1].content as ContentBlockParam[])[0])).toEqual({ type: 'ephemeral' });
-		expect(countAllCacheControl(messages)).toBe(2);
+	test('skips thinking-only blocks within the latest message', function () {
+		const messages: MessageParam[] = [
+			{ role: 'user', content: [{ type: 'text', text: 'hello' }] },
+			{ role: 'assistant', content: [{ type: 'thinking', thinking: 'hmm', signature: 'sig' }, { type: 'text', text: 'response' }] },
+		];
+		addMessagesApiCacheControl({ messages });
+		expect(ccPositions({ messages })).toEqual(['messages[1].block[1]']);
 	});
 
-	test('skips thinking-only tail message and marks two prior', function () {
-		const messages = makeMessages(
-			{ role: 'user', content: [{ type: 'text', text: 'hello' }] as ContentBlockParam[] },
-			{ role: 'assistant', content: [{ type: 'text', text: 'first response' }] as ContentBlockParam[] },
-			{
-				role: 'assistant', content: [
-					{ type: 'thinking', thinking: 'deep thought', signature: 'sig' },
-					{ type: 'redacted_thinking', data: 'redacted' },
-				] as ContentBlockParam[]
-			},
-		);
-		const messagesResult = { messages };
-
-		addLastTwoMessagesCacheControl(messagesResult);
-
-		// Thinking-only message has no cacheable blocks — skip it
-		expect(getCacheControl((messages[0].content as ContentBlockParam[])[0])).toEqual({ type: 'ephemeral' });
-		expect(getCacheControl((messages[1].content as ContentBlockParam[])[0])).toEqual({ type: 'ephemeral' });
-		expect(countAllCacheControl(messages)).toBe(2);
+	test('walks past trailing messages with no cacheable blocks', function () {
+		const messages: MessageParam[] = [
+			{ role: 'user', content: [{ type: 'text', text: 'hello' }] },
+			{ role: 'assistant', content: [{ type: 'text', text: 'response' }] },
+			{ role: 'assistant', content: [{ type: 'thinking', thinking: 'hmm', signature: 'sig' }] },
+			{ role: 'user', content: [] },
+		];
+		addMessagesApiCacheControl({ messages });
+		expect(ccPositions({ messages })).toEqual(['messages[1].block[0]']);
 	});
 
-	test('skips empty middle message and still finds two cacheable', function () {
-		const messages = makeMessages(
-			{ role: 'user', content: [{ type: 'text', text: 'hello' }] as ContentBlockParam[] },
-			{ role: 'assistant', content: [] as ContentBlockParam[] },
-			{ role: 'user', content: [{ type: 'text', text: 'follow up' }] as ContentBlockParam[] },
-		);
-		const messagesResult = { messages };
+	test('handles single message and empty array', function () {
+		const single: MessageParam[] = [{ role: 'user', content: [{ type: 'text', text: 'hi' }] }];
+		addMessagesApiCacheControl({ messages: single });
+		expect(ccPositions({ messages: single })).toEqual(['messages[0].block[0]']);
 
-		addLastTwoMessagesCacheControl(messagesResult);
-
-		// Last message + first message (middle is empty, skipped)
-		expect(getCacheControl((messages[2].content as ContentBlockParam[])[0])).toEqual({ type: 'ephemeral' });
-		expect(getCacheControl((messages[0].content as ContentBlockParam[])[0])).toEqual({ type: 'ephemeral' });
-		expect(countAllCacheControl(messages)).toBe(2);
+		const empty: MessageParam[] = [];
+		addMessagesApiCacheControl({ messages: empty });
+		expect(empty).toHaveLength(0);
 	});
 
-	test('round-trip with addToolsAndSystemCacheControl produces exactly 4 markers', function () {
-		const tools = [makeTool('read_file'), makeTool('edit_file')];
-		const system: TextBlockParam[] = [{ type: 'text', text: 'You are a helpful assistant.' }];
-		const messages = makeMessages(
-			{ role: 'user', content: [{ type: 'text', text: 'edit my file' }] as ContentBlockParam[] },
-			{ role: 'assistant', content: [{ type: 'text', text: 'calling tool' }, { type: 'tool_use', id: 'toolu_1', name: 'read_file', input: {} }] as ContentBlockParam[] },
-			{ role: 'user', content: [{ type: 'tool_result', tool_use_id: 'toolu_1', content: [{ type: 'text', text: 'file contents' }] }] as ContentBlockParam[] },
-		);
-		const messagesResult = { messages, system };
+	test('combined with addToolsAndSystemCacheControl produces the 3-cc layout', function () {
+		const tools: AnthropicMessagesTool[] = [
+			{ name: 'read_file', description: '', input_schema: { type: 'object', properties: {}, required: [] } },
+			{ name: 'edit_file', description: '', input_schema: { type: 'object', properties: {}, required: [] } },
+		];
+		const system: TextBlockParam[] = [{ type: 'text', text: 'You are helpful.' }];
+		const messages: MessageParam[] = [
+			{ role: 'user', content: [{ type: 'text', text: 'edit my file' }] },
+			{ role: 'assistant', content: [{ type: 'tool_use', id: '1', name: 'read_file', input: {} }] },
+			{ role: 'user', content: [{ type: 'tool_result', tool_use_id: '1', content: 'contents' }] },
+		];
+		addMessagesApiCacheControl({ messages, system });
+		addToolsAndSystemCacheControl(tools, { messages, system });
+		expect(ccPositions({ messages, system, tools })).toEqual([
+			'tools[1]', 'system[0]', 'messages[2].block[0]',
+		]);
+	});
 
-		// Call both in the same order as createMessagesRequestBody
-		addLastTwoMessagesCacheControl(messagesResult);
-		addToolsAndSystemCacheControl(tools, messagesResult);
+	test('cc shifts forward each iteration of an agent loop', function () {
+		const query: ContentBlockParam = { type: 'text', text: 'do work' };
+		const r1Use: ContentBlockParam = { type: 'tool_use', id: 'a', name: 't', input: {} };
+		const r1Res: ContentBlockParam = { type: 'tool_result', tool_use_id: 'a', content: 'r1' };
+		const r2Use: ContentBlockParam = { type: 'tool_use', id: 'b', name: 't', input: {} };
+		const r2Res: ContentBlockParam = { type: 'tool_result', tool_use_id: 'b', content: 'r2' };
 
-		// 2 message breakpoints + 1 tool + 1 system = 4
-		let totalCount = countAllCacheControl(messages, system);
-		for (const tool of tools) {
-			if (tool.cache_control) {
-				totalCount++;
+		const iterA: MessageParam[] = [
+			{ role: 'user', content: [query] },
+			{ role: 'assistant', content: [r1Use] },
+			{ role: 'user', content: [r1Res] },
+		];
+		addMessagesApiCacheControl({ messages: iterA });
+		expect(ccPositions({ messages: iterA })).toEqual(['messages[2].block[0]']);
+		(r1Res as ToolResultBlockParam).cache_control = undefined;
+
+		const iterB: MessageParam[] = [
+			{ role: 'user', content: [query] },
+			{ role: 'assistant', content: [r1Use] },
+			{ role: 'user', content: [r1Res] },
+			{ role: 'assistant', content: [r2Use] },
+			{ role: 'user', content: [r2Res] },
+		];
+		addMessagesApiCacheControl({ messages: iterB });
+		expect(ccPositions({ messages: iterB })).toEqual(['messages[4].block[0]']);
+	});
+});
+
+suite('clearAllCacheControl', function () {
+
+	function ccPositions(args: { messages: MessageParam[]; system?: TextBlockParam[] }): string[] {
+		const out: string[] = [];
+		args.system?.forEach((b, i) => { if (b.cache_control) { out.push(`system[${i}]`); } });
+		args.messages.forEach((m, i) => {
+			if (Array.isArray(m.content)) {
+				m.content.forEach((b, j) => {
+					if (typeof b === 'object' && 'cache_control' in b && b.cache_control) {
+						out.push(`messages[${i}].block[${j}]`);
+					}
+				});
 			}
-		}
-		expect(totalCount).toBe(4);
+		});
+		return out;
+	}
 
-		// Verify positions
-		const assistantContent = messages[1].content as ContentBlockParam[];
-		expect(getCacheControl(assistantContent[assistantContent.length - 1])).toEqual({ type: 'ephemeral' });
-		expect(((messages[2].content as ContentBlockParam[])[0] as ToolResultBlockParam).cache_control).toEqual({ type: 'ephemeral' });
-		expect(tools[1].cache_control).toEqual({ type: 'ephemeral' });
-		expect(system[0].cache_control).toEqual({ type: 'ephemeral' });
+	test('strips cache_control from messages and system blocks', function () {
+		const messages: MessageParam[] = [
+			{ role: 'user', content: [{ type: 'text', text: 'a', cache_control: { type: 'ephemeral' } }] },
+			{ role: 'assistant', content: [{ type: 'text', text: 'b', cache_control: { type: 'ephemeral' } }] },
+		];
+		const system: TextBlockParam[] = [{ type: 'text', text: 's', cache_control: { type: 'ephemeral' } }];
+
+		clearAllCacheControl({ messages, system });
+
+		expect(ccPositions({ messages, system })).toEqual([]);
+	});
+
+	test('caps total cc count at 3 even when upstream loaded 4 markers', function () {
+		// Repro: a prompt-tsx prompt (e.g. inlineChatPrompt) emits multiple
+		// <cacheBreakpoint> parts that rawContentToAnthropicContent translates
+		// into cache_control fields. Without clearAllCacheControl we'd add
+		// 3 more on top → exceed Anthropic's 4-cc limit → 400.
+		const tools: AnthropicMessagesTool[] = [
+			{ name: 't', description: '', input_schema: { type: 'object', properties: {}, required: [] } },
+		];
+		const system: TextBlockParam[] = [{ type: 'text', text: 's', cache_control: { type: 'ephemeral' } }];
+		const messages: MessageParam[] = [
+			{ role: 'user', content: [{ type: 'text', text: 'a', cache_control: { type: 'ephemeral' } }] },
+			{ role: 'assistant', content: [{ type: 'text', text: 'b', cache_control: { type: 'ephemeral' } }] },
+			{ role: 'user', content: [{ type: 'text', text: 'c', cache_control: { type: 'ephemeral' } }] },
+		];
+
+		clearAllCacheControl({ messages, system });
+		addMessagesApiCacheControl({ messages, system });
+		addToolsAndSystemCacheControl(tools, { messages, system });
+
+		// Exactly 3 ccs, all in the deterministic positions we own.
+		expect([
+			...tools.flatMap((t, i) => t.cache_control ? [`tools[${i}]`] : []),
+			...ccPositions({ messages, system }),
+		]).toEqual([
+			'tools[0]', 'system[0]', 'messages[2].block[0]',
+		]);
+	});
+
+	test('is a no-op when no cache_control is present', function () {
+		const messages: MessageParam[] = [
+			{ role: 'user', content: [{ type: 'text', text: 'a' }] },
+		];
+		const system: TextBlockParam[] = [{ type: 'text', text: 's' }];
+
+		clearAllCacheControl({ messages, system });
+
+		expect(ccPositions({ messages, system })).toEqual([]);
 	});
 });
 

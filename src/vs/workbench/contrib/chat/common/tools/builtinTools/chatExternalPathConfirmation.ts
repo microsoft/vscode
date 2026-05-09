@@ -103,11 +103,19 @@ export class ChatExternalPathConfirmationContribution implements ILanguageModelT
 			return undefined;
 		}
 
-		// Check workspace-level allowlist
-		const workspaceFolders = this._getWorkspaceFolders();
-		for (const folderUri of workspaceFolders) {
-			if (extUriBiasedIgnorePathCase.isEqualOrParent(pathUri, folderUri)) {
+		// When a working directory is set (agents window), it is the source of truth
+		// for determining whether a path is workspace-internal. Only fall back to the
+		// workspace-level allowlist when no working directory is specified.
+		if (ref.workingDirectory) {
+			if (extUriBiasedIgnorePathCase.isEqualOrParent(pathUri, ref.workingDirectory)) {
 				return { type: ToolConfirmKind.UserAction };
+			}
+		} else {
+			const workspaceFolders = this._getWorkspaceFolders();
+			for (const folderUri of workspaceFolders) {
+				if (extUriBiasedIgnorePathCase.isEqualOrParent(pathUri, folderUri)) {
+					return { type: ToolConfirmKind.UserAction };
+				}
 			}
 		}
 

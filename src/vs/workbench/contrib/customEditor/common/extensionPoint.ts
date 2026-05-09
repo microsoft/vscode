@@ -20,6 +20,8 @@ const Fields = Object.freeze({
 	displayName: 'displayName',
 	selector: 'selector',
 	priority: 'priority',
+	diffEditorPriority: 'diffEditorPriority',
+	mergeEditorPriority: 'mergeEditorPriority',
 });
 
 const customEditorsContributionSchema = {
@@ -70,6 +72,30 @@ const customEditorsContributionSchema = {
 				nls.localize('contributes.priority.option', 'The editor is not automatically used when the user opens a resource, but a user can switch to the editor using the `Reopen With` command.'),
 			],
 			default: CustomEditorPriority.default
+		},
+		[Fields.diffEditorPriority]: {
+			type: 'string',
+			markdownDescription: nls.localize('contributes.diffEditorPriority', 'Controls if the custom editor is enabled automatically when the user opens a diff. When not specified, the value of `priority` is used.'),
+			enum: [
+				CustomEditorPriority.default,
+				CustomEditorPriority.option,
+			],
+			markdownEnumDescriptions: [
+				nls.localize('contributes.diffEditorPriority.default', 'The editor is automatically used when the user opens a diff, provided that no other default custom editors are registered for that resource.'),
+				nls.localize('contributes.diffEditorPriority.option', 'The editor is not automatically used when the user opens a diff, but a user can switch to the editor using the `Reopen With` command.'),
+			],
+		},
+		[Fields.mergeEditorPriority]: {
+			type: 'string',
+			markdownDescription: nls.localize('contributes.mergeEditorPriority', 'Controls if the custom editor is enabled automatically when the user opens a merge editor. When not specified, the value of `priority` is used.'),
+			enum: [
+				CustomEditorPriority.default,
+				CustomEditorPriority.option,
+			],
+			markdownEnumDescriptions: [
+				nls.localize('contributes.mergeEditorPriority.default', 'The editor is automatically used when the user opens a merge editor, provided that no other default custom editors are registered for that resource.'),
+				nls.localize('contributes.mergeEditorPriority.option', 'The editor is not automatically used when the user opens a merge editor, but a user can switch to the editor using the `Reopen With` command.'),
+			],
 		}
 	}
 } as const satisfies IJSONSchema;

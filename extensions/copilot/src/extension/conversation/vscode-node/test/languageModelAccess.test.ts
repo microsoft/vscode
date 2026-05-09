@@ -6,8 +6,10 @@
 import assert from 'assert';
 import * as vscode from 'vscode';
 import { IChatMLFetcher } from '../../../../platform/chat/common/chatMLFetcher';
+import { ChatFetchResponseType } from '../../../../platform/chat/common/commonTypes';
 import { MockChatMLFetcher } from '../../../../platform/chat/test/common/mockChatMLFetcher';
 import { IEndpointProvider } from '../../../../platform/endpoint/common/endpointProvider';
+import { CustomDataPartMimeTypes } from '../../../../platform/endpoint/common/endpointTypes';
 import { IVSCodeExtensionContext } from '../../../../platform/extContext/common/extensionContext';
 import { IChatEndpoint } from '../../../../platform/networking/common/networking';
 import { ITestingServicesAccessor } from '../../../../platform/test/node/services';
@@ -85,6 +87,51 @@ suite('CopilotLanguageModelWrapper', () => {
 
 		test('good tool name', async () => {
 			await runTest([vscode.LanguageModelChatMessage.User('hello2')], [{ name: 'hello_world', description: 'my tool' }]);
+		});
+	});
+
+	suite('usage emission', () => {
+		let wrapper: CopilotLanguageModelWrapper;
+		let endpoint: IChatEndpoint;
+		let fetcher: MockChatMLFetcher;
+		setup(async () => {
+			createAccessor();
+			fetcher = accessor.get(IChatMLFetcher) as MockChatMLFetcher;
+			endpoint = await accessor.get(IEndpointProvider).getChatEndpoint('copilot-base');
+			wrapper = instaService.createInstance(CopilotLanguageModelWrapper);
+		});
+
+		test('reports usage as a LanguageModelDataPart', async () => {
+			const expectedUsage = {
+				prompt_tokens: 100,
+				completion_tokens: 50,
+				total_tokens: 150,
+				prompt_tokens_details: { cached_tokens: 10 }
+			};
+			fetcher.setNextResponse({
+				type: ChatFetchResponseType.Success,
+				requestId: 'test-request-id',
+				serverRequestId: 'test-server-request-id',
+				usage: expectedUsage,
+				value: 'hello',
+				resolvedModel: 'test-model'
+			});
+
+			const reportedParts: vscode.LanguageModelResponsePart2[] = [];
+			await wrapper.provideLanguageModelResponse(
+				endpoint,
+				[vscode.LanguageModelChatMessage.User('hello')],
+				{ requestInitiator: 'unknown', toolMode: vscode.LanguageModelChatToolMode.Auto },
+				vscode.extensions.all[0].id,
+				{ report: part => reportedParts.push(part) },
+				CancellationToken.None
+			);
+
+			const usagePart = reportedParts.find((p): p is vscode.LanguageModelDataPart =>
+				p instanceof vscode.LanguageModelDataPart && p.mimeType === CustomDataPartMimeTypes.Usage);
+			assert.ok(usagePart, 'expected a usage data part to be reported');
+			const decoded = JSON.parse(new TextDecoder().decode(usagePart.data));
+			assert.deepStrictEqual(decoded, expectedUsage);
 		});
 	});
 });

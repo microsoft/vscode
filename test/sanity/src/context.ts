@@ -10,7 +10,7 @@ import { test } from 'mocha';
 import fetch, { Response } from 'node-fetch';
 import os from 'os';
 import path from 'path';
-import { Browser, chromium, Page, webkit } from 'playwright';
+import { Browser, chromium, ElectronApplication, Page, webkit } from 'playwright';
 import { Capability, detectCapabilities } from './detectors.js';
 
 /**
@@ -1121,6 +1121,40 @@ export class TestContext {
 		const page = await pagePromise;
 		page.setDefaultTimeout(3 * 60 * 1000);
 		return page;
+	}
+
+	/**
+	 * Closes a Playwright Electron application gracefully, falling back to a forced
+	 * kill of the process tree if the close hangs (for example after a renderer crash).
+	 */
+	public async closeElectronApp(app: ElectronApplication, timeoutMs = 60_000): Promise<void> {
+		this.log('Closing the application');
+		const pid = app.process().pid;
+		let timeoutHandle: NodeJS.Timeout | undefined;
+		try {
+			await Promise.race([
+				app.close(),
+				new Promise<never>((_, reject) => {
+					timeoutHandle = setTimeout(
+						() => reject(new Error(`app.close() did not complete within ${timeoutMs}ms`)),
+						timeoutMs,
+					);
+				}),
+			]);
+		} catch (error) {
+			this.warn(`Failed to close application gracefully: ${error instanceof Error ? error.message : String(error)}`);
+			if (pid) {
+				try {
+					this.killProcessTree(pid);
+				} catch (killError) {
+					this.warn(`Failed to force-kill application process tree: ${killError instanceof Error ? killError.message : String(killError)}`);
+				}
+			}
+		} finally {
+			if (timeoutHandle) {
+				clearTimeout(timeoutHandle);
+			}
+		}
 	}
 
 	/**

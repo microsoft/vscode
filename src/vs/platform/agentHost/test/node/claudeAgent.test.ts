@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type Anthropic from '@anthropic-ai/sdk';
-import type { Options, Query, SDKMessage, SDKSessionInfo, SDKUserMessage, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
+import type { Options, PermissionMode, Query, SDKMessage, SDKSessionInfo, SDKUserMessage, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 
 import assert from 'assert';
@@ -22,7 +22,7 @@ import {
 	makeThinkingDelta,
 } from './claudeMapSessionEventsTestUtils.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
-import { Event } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import type { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { isUUID } from '../../../../base/common/uuid.js';
@@ -36,12 +36,15 @@ import { IProductService } from '../../../product/common/productService.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { IAgentMaterializeSessionEvent, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../common/agentService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { MessageAttachmentKind, ResponsePartKind } from '../../common/state/sessionState.js';
+import { MessageAttachmentKind, ResponsePartKind, SessionInputResponseKind, SessionStatus } from '../../common/state/sessionState.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
-import { ProtectedResourceMetadata } from '../../common/state/protocol/state.js';
+import { ProtectedResourceMetadata, SessionInputAnswerState, SessionInputAnswerValueKind, ToolCallStatus, type SessionConfigState, type SessionInputRequest } from '../../common/state/protocol/state.js';
 import { IAgentHostGitService } from '../../node/agentHostGitService.js';
+import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
+import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { ClaudeAgent } from '../../node/claude/claudeAgent.js';
+import { ClaudeAgentSession } from '../../node/claude/claudeAgentSession.js';
 import { ClaudeAgentSdkService, IClaudeAgentSdkService, IClaudeSdkBindings } from '../../node/claude/claudeAgentSdkService.js';
 import { IClaudeProxyHandle, IClaudeProxyService } from '../../node/claude/claudeProxyService.js';
 import { resolvePromptToContentBlocks } from '../../node/claude/claudePromptResolver.js';
@@ -235,6 +238,9 @@ class FakeQuery implements AsyncGenerator<SDKMessage, void> {
 	returnCount = 0;
 	throwCount = 0;
 
+	/** Modes recorded by `setPermissionMode` calls in plan/turn order. */
+	readonly recordedPermissionModes: PermissionMode[] = [];
+
 	private _yieldIndex = 0;
 
 	constructor(prompt: AsyncIterable<SDKUserMessage>, private readonly _sdk: FakeClaudeAgentSdkService) {
@@ -286,7 +292,9 @@ class FakeQuery implements AsyncGenerator<SDKMessage, void> {
 
 	// Phase 6 doesn't exercise the rest of the Query control surface; if a
 	// test trips one of these, surface it loudly so we know to model it.
-	setPermissionMode(): never { throw new Error('FakeQuery: setPermissionMode not modeled'); }
+	async setPermissionMode(mode: PermissionMode): Promise<void> {
+		this.recordedPermissionModes.push(mode);
+	}
 	setModel(): never { throw new Error('FakeQuery: setModel not modeled'); }
 	setMaxThinkingTokens(): never { throw new Error('FakeQuery: setMaxThinkingTokens not modeled'); }
 	applyFlagSettings(): never { throw new Error('FakeQuery: applyFlagSettings not modeled'); }
@@ -411,6 +419,8 @@ interface ITestContext {
 	readonly api: FakeCopilotApiService;
 	readonly sdk: FakeClaudeAgentSdkService;
 	readonly sessionData: RecordingSessionDataService;
+	readonly stateManager: AgentHostStateManager;
+	readonly configService: AgentConfigurationService;
 }
 
 /**
@@ -419,8 +429,12 @@ interface ITestContext {
  * or other internals. All other levels remain no-ops.
  */
 class CapturingLogService extends NullLogService {
+	readonly infos: string[] = [];
 	readonly warns: string[] = [];
 	readonly errors: string[] = [];
+	override info(message: string, ...args: unknown[]): void {
+		this.infos.push([message, ...args.map(a => String(a))].join(' '));
+	}
 	override warn(message: string, ...args: unknown[]): void {
 		this.warns.push([message, ...args.map(a => String(a))].join(' '));
 	}
@@ -438,18 +452,22 @@ function createTestContext(
 	api.models = async () => [...ALL_MODELS];
 	const sdk = new FakeClaudeAgentSdkService();
 	const sessionData = new RecordingSessionDataService(createSessionDataService());
+	const logService = overrides?.logService ?? new NullLogService();
+	const stateManager = disposables.add(new AgentHostStateManager(logService));
+	const configService = disposables.add(new AgentConfigurationService(stateManager, logService));
 
 	const services = new ServiceCollection(
-		[ILogService, overrides?.logService ?? new NullLogService()],
+		[ILogService, logService],
 		[ICopilotApiService, api],
 		[IClaudeProxyService, proxy],
 		[ISessionDataService, sessionData],
 		[IClaudeAgentSdkService, sdk],
 		[IAgentHostGitService, createNoopGitService()],
+		[IAgentConfigurationService, configService],
 	);
 	const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
 	const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));
-	return { agent, proxy, api, sdk, sessionData };
+	return { agent, proxy, api, sdk, sessionData, stateManager, configService };
 }
 
 /** Drains the microtask queue so awaited refresh writes settle. */
@@ -804,21 +822,17 @@ suite('ClaudeAgent', () => {
 		// action; a synchronous throw escapes that chain and the workbench
 		// hangs forever on a turn that never finishes (the live smoke
 		// caught this in the Phase 5 walk).
-		// `respondToPermissionRequest`/`respondToUserInputRequest` are
-		// `void`-returning by interface, so they throw synchronously and we
-		// capture that via try/catch.
 		//
 		// Phase 6 update: `sendMessage` graduated from the stubbed list —
 		// it now materializes the provisional session and forwards to
 		// `ClaudeAgentSession.send`. Its negative path (unknown session
 		// id) is covered by Cycle 12; keep this test focused on stubs.
+		// Phase 7 update: `respondToPermissionRequest` graduated too — it
+		// now silently dispatches to the matching session.
 		const { agent } = createTestContext(disposables);
 		const promiseCases: Array<{ name: string; phase: number; thunk: () => Promise<unknown> }> = [
 			{ name: 'abortSession', phase: 9, thunk: () => agent.abortSession(URI.parse('claude:/x')) },
 			{ name: 'changeModel', phase: 9, thunk: () => agent.changeModel(URI.parse('claude:/x'), { id: 'claude-opus-4.5' }) },
-		];
-		const voidCases: Array<{ name: string; phase: number; thunk: () => void }> = [
-			{ name: 'respondToPermissionRequest', phase: 7, thunk: () => agent.respondToPermissionRequest('id', true) },
 		];
 
 		const observed: Array<{ name: string; message: string; sync: boolean }> = [];
@@ -827,7 +841,6 @@ suite('ClaudeAgent', () => {
 			try {
 				p = c.thunk();
 			} catch (e) {
-				// Synchronous throw — the bug we're guarding against.
 				observed.push({ name: c.name, message: e instanceof Error ? e.message : String(e), sync: true });
 				continue;
 			}
@@ -839,21 +852,12 @@ suite('ClaudeAgent', () => {
 			}
 			observed.push({ name: c.name, message, sync: false });
 		}
-		for (const c of voidCases) {
-			try {
-				c.thunk();
-				observed.push({ name: c.name, message: 'no-throw', sync: false });
-			} catch (e) {
-				observed.push({ name: c.name, message: e instanceof Error ? e.message : String(e), sync: true });
-			}
-		}
 
 		assert.deepStrictEqual(
 			observed,
 			[
 				{ name: 'abortSession', message: 'TODO: Phase 9', sync: false },
 				{ name: 'changeModel', message: 'TODO: Phase 9', sync: false },
-				{ name: 'respondToPermissionRequest', message: 'TODO: Phase 7', sync: true },
 			],
 		);
 	});
@@ -1206,6 +1210,13 @@ suite('ClaudeAgent', () => {
 
 		// Second turn — pushes onto the existing Query.
 		const p2 = agent.sendMessage(created.session, 'turn-2', undefined, 'turn-id-2');
+		// Drain microtasks so `await entry.setPermissionMode(...)` resolves
+		// and `entry.send(...)` synchronously pushes the second prompt onto
+		// the in-flight queue BEFORE we release the iterator gate. Otherwise
+		// the parked iterator yields the second `result` with no in-flight
+		// request to match it and `_processMessages` falls into
+		// "stream ended without result".
+		await tick();
 		// Release the parked iterator so result(idx=2) flows through.
 		advance.complete();
 		await p2;
@@ -1510,14 +1521,13 @@ suite('ClaudeAgent', () => {
 		});
 	});
 
-	test('canonical SDKAssistantMessage with tool_use content fires defense-in-depth warning (Phase 6.1 / Cycle F)', async () => {
-		// Phase 6 sets `canUseTool: deny`, so the canonical
-		// `SDKAssistantMessage` (`type: 'assistant'`) should never carry
-		// `tool_use` content blocks. If one arrives anyway (SDK race,
-		// future change) the mapper warns and drops rather than handing
-		// the reducer a part it has no handler for. Mirrors the existing
-		// `content_block_start` defense-in-depth at
-		// claudeMapSessionEvents.ts:163-167.
+	test('canonical SDKAssistantMessage with tool_use content drops silently (partial stream owns SessionToolCallStart)', async () => {
+		// Phase 7 §3.3: the canonical `SDKAssistantMessage` (`type:
+		// 'assistant'`) is no longer special-cased for `tool_use`. The
+		// `stream_event` partials already emitted `SessionToolCallStart`
+		// — the reducer is append-only, so re-emitting from the canonical
+		// envelope would duplicate. Drop silently. The Phase 6.1
+		// warn-and-drop is gone alongside `canUseTool: deny`.
 		const logService = new CapturingLogService();
 		const { agent, sdk } = createTestContext(disposables, { logService });
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
@@ -1546,7 +1556,7 @@ suite('ClaudeAgent', () => {
 			warnedAboutToolUse: logService.warns.some(m => /tool_use/.test(m)),
 		}, {
 			responsePartCount: 0,
-			warnedAboutToolUse: true,
+			warnedAboutToolUse: false,
 		});
 	});
 
@@ -1719,14 +1729,18 @@ suite('ClaudeAgent', () => {
 		api.models = async () => [...ALL_MODELS];
 		const sdk = new FakeClaudeAgentSdkService();
 		const sessionData = createSessionDataService(blockingDb);
+		const logService = new NullLogService();
+		const stateManager = disposables.add(new AgentHostStateManager(logService));
+		const configService = disposables.add(new AgentConfigurationService(stateManager, logService));
 
 		const services = new ServiceCollection(
-			[ILogService, new NullLogService()],
+			[ILogService, logService],
 			[ICopilotApiService, api],
 			[IClaudeProxyService, proxy],
 			[ISessionDataService, sessionData],
 			[IClaudeAgentSdkService, sdk],
 			[IAgentHostGitService, createNoopGitService()],
+			[IAgentConfigurationService, configService],
 		);
 		const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
 		const agent: ClaudeAgent = disposables.add(instantiationService.createInstance(ClaudeAgent));
@@ -2651,14 +2665,18 @@ suite('ClaudeAgent', () => {
 		api.models = async () => [...ALL_MODELS];
 		const sdk = new FakeClaudeAgentSdkService();
 		const sessionData = createSessionDataService(blockingDb);
+		const logService = new NullLogService();
+		const stateManager = disposables.add(new AgentHostStateManager(logService));
+		const configService = disposables.add(new AgentConfigurationService(stateManager, logService));
 
 		const services = new ServiceCollection(
-			[ILogService, new NullLogService()],
+			[ILogService, logService],
 			[ICopilotApiService, api],
 			[IClaudeProxyService, proxy],
 			[ISessionDataService, sessionData],
 			[IClaudeAgentSdkService, sdk],
 			[IAgentHostGitService, createNoopGitService()],
+			[IAgentConfigurationService, configService],
 		);
 		const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
 		const agent: ClaudeAgent = instantiationService.createInstance(ClaudeAgent);
@@ -2695,3 +2713,595 @@ suite('ClaudeAgent', () => {
 
 	// #endregion
 });
+
+suite('ClaudeAgentSession (Phase 7 §3.2)', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('dispose with parked permission unblocks SDK (Test 17)', async () => {
+		// Phase 7 plan Step 1 / §3.2 / Test 17: the SDK parks inside its
+		// `canUseTool` callback on the deferred returned from
+		// `requestPermission`. If the session is disposed mid-park, the
+		// deferred MUST resolve with `false` so the SDK's `for await`
+		// loop unwinds and the subprocess shuts down cleanly.
+		const sdk = new FakeClaudeAgentSdkService();
+		const warm = new FakeWarmQuery(sdk);
+		const session = disposables.add(new ClaudeAgentSession(
+			'session-id',
+			URI.parse('claude:/session-id'),
+			undefined,
+			warm,
+			new AbortController(),
+			disposables.add(new Emitter<AgentSignal>()),
+			new NullLogService(),
+		));
+
+		const permission = session.requestPermission({
+			toolUseID: 'tu_1',
+			state: {
+				status: ToolCallStatus.PendingConfirmation,
+				toolCallId: 'tu_1',
+				toolName: 'Read',
+				displayName: 'Read file',
+				invocationMessage: 'Read file',
+				toolInput: '{}',
+				confirmationTitle: 'Read file?',
+			},
+			permissionKind: 'read',
+		});
+		session.dispose();
+
+		assert.strictEqual(await permission, false);
+	});
+});
+
+suite('ClaudeAgent (Phase 7 §3.4 — _handleCanUseTool)', () => {
+
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	/**
+	 * Materialize a session and return its captured `canUseTool` closure
+	 * alongside the {@link ITestContext} pieces tests need. Drives a
+	 * minimal `system_init → result_success` turn so
+	 * {@link FakeClaudeAgentSdkService.capturedStartupOptions}[0] is
+	 * populated and the session lives in `_sessions`.
+	 *
+	 * Also seeds a {@link SessionSummary} into the
+	 * {@link AgentHostStateManager} so {@link AgentConfigurationService}
+	 * can read/write the session's `permissionMode` (the agent's
+	 * `createSession` does NOT touch state — that's the AgentService
+	 * layer's job, which we don't run here).
+	 */
+	async function materialize(seedConfig?: { permissionMode?: string }): Promise<{
+		ctx: ITestContext;
+		canUseTool: NonNullable<Options['canUseTool']>;
+		sessionUri: URI;
+		sessionId: string;
+	}> {
+		const ctx = createTestContext(disposables);
+		await ctx.agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await ctx.agent.createSession({ workingDirectory: URI.file('/work') });
+		const sessionId = AgentSession.id(created.session);
+		ctx.sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
+
+		const state = ctx.stateManager.createSession({
+			resource: created.session.toString(),
+			provider: 'claude',
+			title: 't',
+			status: SessionStatus.Idle,
+			createdAt: Date.now(),
+			modifiedAt: Date.now(),
+		});
+		// Seed an initial `config` object directly: the
+		// `SessionConfigChanged` reducer no-ops when `state.config` is
+		// undefined (reducers.ts:593), so we cannot reach the seeded
+		// values via `updateSessionConfig` alone.
+		(state as { config?: SessionConfigState }).config = {
+			schema: { type: 'object', properties: {} },
+			values: { ...(seedConfig ?? {}) },
+		};
+
+		await ctx.agent.sendMessage(created.session, 'hi', undefined, 'turn-1');
+
+		const canUseTool = ctx.sdk.capturedStartupOptions[0]?.canUseTool;
+		assert.ok(canUseTool, 'canUseTool callback was wired into Options');
+		return { ctx, canUseTool, sessionUri: created.session, sessionId };
+	}
+
+	/**
+	 * Build the SDK's `canUseTool` `options` arg with a minimal
+	 * AbortController-backed signal and a stable toolUseID.
+	 */
+	function makeOptions(toolUseID: string, overrides?: { blockedPath?: string }): Parameters<NonNullable<Options['canUseTool']>>[2] {
+		return {
+			signal: new AbortController().signal,
+			toolUseID,
+			...(overrides?.blockedPath !== undefined ? { blockedPath: overrides.blockedPath } : {}),
+		};
+	}
+
+	test('Test 1 — default mode parks, respondToPermissionRequest(true) → allow', async () => {
+		const { ctx, canUseTool } = await materialize();
+
+		const promise = canUseTool('Read', { file_path: '/tmp/foo.txt' }, makeOptions('tu_1'));
+		await tick();
+
+		ctx.agent.respondToPermissionRequest('tu_1', true);
+		const result = await promise;
+
+		assert.deepStrictEqual(result, { behavior: 'allow', updatedInput: { file_path: '/tmp/foo.txt' } });
+	});
+
+	test('Test 2 — default mode parks, respondToPermissionRequest(false) → deny', async () => {
+		const { ctx, canUseTool } = await materialize();
+
+		const promise = canUseTool('Read', { file_path: '/tmp/foo.txt' }, makeOptions('tu_2'));
+		await tick();
+
+		ctx.agent.respondToPermissionRequest('tu_2', false);
+		const result = await promise;
+
+		assert.deepStrictEqual(result, { behavior: 'deny', message: 'User declined' });
+	});
+
+	// Tests 3 and 4 (bypassPermissions / acceptEdits auto-allow) intentionally
+	// omitted: the SDK auto-approves under those modes BEFORE invoking
+	// `canUseTool`, so there is no host-side branch to exercise. See
+	// `_handleCanUseTool` JSDoc.
+	//
+	// Tests 5 and 6 (plan-mode auto-deny / live config flip) intentionally
+	// omitted: `_handleCanUseTool` is a pure UI bridge and makes no
+	// permission-mode-aware decisions; whatever the SDK delegates is
+	// surfaced to the user verbatim. Mode-driven behavior is covered by
+	// the §3.6 SDK-forwarding tests (live `setPermissionMode`).
+
+	test('Test 7 — pending_confirmation signal carries the correct shape', async () => {
+		const { ctx, canUseTool, sessionUri } = await materialize();
+
+		const signals: AgentSignal[] = [];
+		disposables.add(ctx.agent.onDidSessionProgress(s => signals.push(s)));
+
+		const promise = canUseTool('Read', { file_path: '/tmp/foo.txt' }, makeOptions('tu_shape'));
+		await tick();
+
+		const captured = signals.find(s => s.kind === 'pending_confirmation');
+		ctx.agent.respondToPermissionRequest('tu_shape', true);
+		await promise;
+
+		assert.deepStrictEqual(captured, {
+			kind: 'pending_confirmation',
+			session: sessionUri,
+			state: {
+				status: ToolCallStatus.PendingConfirmation,
+				toolCallId: 'tu_shape',
+				toolName: 'Read',
+				displayName: 'Read file',
+				invocationMessage: 'Read file',
+				toolInput: '{"file_path":"/tmp/foo.txt"}',
+				confirmationTitle: 'Read file?',
+			},
+			permissionKind: 'read',
+			permissionPath: '/tmp/foo.txt',
+		});
+	});
+
+	test('Test 8 — synchronous auto-respond inside pending_confirmation listener resolves canUseTool', async () => {
+		// Regression: the `agentSideEffects` auto-approval path responds
+		// synchronously inside `onDidSessionProgress.fire(...)`. If the
+		// permission deferred is registered AFTER the fire, that response
+		// hits an empty pending map and the SDK's `canUseTool` deadlocks.
+		// Mirror the synchronous-respond pattern here and assert the
+		// canUseTool promise resolves with `allow`.
+		const { ctx, canUseTool } = await materialize();
+
+		disposables.add(ctx.agent.onDidSessionProgress(s => {
+			if (s.kind === 'pending_confirmation') {
+				ctx.agent.respondToPermissionRequest(s.state.toolCallId, true);
+			}
+		}));
+
+		const result = await canUseTool('Read', { file_path: '/tmp/race.txt' }, makeOptions('tu_race'));
+		assert.deepStrictEqual(result, { behavior: 'allow', updatedInput: { file_path: '/tmp/race.txt' } });
+	});
+
+	test('SDK abort signal unparks a pending canUseTool with deny instead of waiting on the user', async () => {
+		// The SDK can cancel an in-flight `canUseTool` request mid-flight
+		// (subprocess teardown, upstream abort). When that happens, a
+		// host parked on `requestPermission` would otherwise wait for a
+		// user answer that will never come, leaving an orphaned pending
+		// entry. Asserts the abort listener resolves the parked promise
+		// with `deny` and clears the entry.
+		const { ctx, canUseTool, sessionUri } = await materialize();
+
+		const session = ctx.agent['_sessions'].get(AgentSession.id(sessionUri));
+		assert.ok(session, 'session is materialized');
+
+		const ac = new AbortController();
+		const options: Parameters<NonNullable<Options['canUseTool']>>[2] = {
+			signal: ac.signal,
+			toolUseID: 'tu_aborted',
+		};
+
+		const promise = canUseTool('Read', { file_path: '/tmp/x' }, options);
+		await tick();
+
+		ac.abort();
+		const result = await promise;
+
+		assert.deepStrictEqual(result, { behavior: 'deny', message: 'User declined' });
+		// The entry must be cleared so a late `respondToPermissionRequest`
+		// is a no-op on the session and does not double-resolve.
+		assert.strictEqual(session.respondToPermissionRequest('tu_aborted', true), false);
+	});
+
+	test('SDK abort signal already aborted on entry returns deny without parking', async () => {
+		const { canUseTool } = await materialize();
+
+		const ac = new AbortController();
+		ac.abort();
+		const result = await canUseTool('Read', { file_path: '/tmp/y' }, {
+			signal: ac.signal,
+			toolUseID: 'tu_pre_aborted',
+		});
+
+		assert.deepStrictEqual(result, { behavior: 'deny', message: 'SDK aborted the tool request' });
+	});
+
+	test('respondToPermissionRequest unknown id is silent', () => {
+		const ctx = createTestContext(disposables);
+		// Should not throw despite no matching session.
+		ctx.agent.respondToPermissionRequest('nope', true);
+	});
+});
+
+suite('ClaudeAgent (Phase 7 §3.5 — INTERACTIVE_CLAUDE_TOOLS)', () => {
+
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	/**
+	 * Materialize a session and return its captured `canUseTool` closure
+	 * plus the {@link SessionInputRequest} stream so the AskUserQuestion
+	 * / ExitPlanMode tests can drive question rendering and answer
+	 * dispatch directly without touching the SDK's `for await` loop.
+	 */
+	async function materialize(): Promise<{
+		ctx: ITestContext;
+		canUseTool: NonNullable<Options['canUseTool']>;
+		inputRequests: SessionInputRequest[];
+		sessionUri: URI;
+	}> {
+		const ctx = createTestContext(disposables);
+		await ctx.agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await ctx.agent.createSession({ workingDirectory: URI.file('/work') });
+		const sessionId = AgentSession.id(created.session);
+		ctx.sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
+
+		const state = ctx.stateManager.createSession({
+			resource: created.session.toString(),
+			provider: 'claude',
+			title: 't',
+			status: SessionStatus.Idle,
+			createdAt: Date.now(),
+			modifiedAt: Date.now(),
+		});
+		// Seed `state.config` so `updateSessionConfig` writes propagate
+		// (the `SessionConfigChanged` reducer no-ops when `state.config`
+		// is undefined — reducers.ts:593). Production seeds this from
+		// the AgentService schema-registration path; tests mirror.
+		(state as { config?: SessionConfigState }).config = {
+			schema: { type: 'object', properties: {} },
+			values: {},
+		};
+
+		const inputRequests: SessionInputRequest[] = [];
+		disposables.add(ctx.agent.onDidSessionProgress(s => {
+			if (s.kind === 'action' && s.action.type === ActionType.SessionInputRequested) {
+				inputRequests.push(s.action.request);
+			}
+		}));
+
+		await ctx.agent.sendMessage(created.session, 'hi', undefined, 'turn-1');
+		const canUseTool = ctx.sdk.capturedStartupOptions[0]?.canUseTool;
+		assert.ok(canUseTool, 'canUseTool callback was wired into Options');
+		return { ctx, canUseTool, inputRequests, sessionUri: created.session };
+	}
+
+	test('Test 12 — AskUserQuestion: surfaces SessionInputRequested, returns updatedInput keyed by question text', async () => {
+		const { ctx, canUseTool, inputRequests } = await materialize();
+
+		const promise = canUseTool('AskUserQuestion', {
+			questions: [{
+				header: 'q1',
+				question: 'Pick one?',
+				options: [{ label: 'Apple' }, { label: 'Banana' }],
+			}],
+		}, { signal: new AbortController().signal, toolUseID: 'tu_ask' });
+		await tick();
+
+		const inputRequest = inputRequests.at(-1)!;
+		ctx.agent.respondToUserInputRequest('tu_ask', SessionInputResponseKind.Accept, {
+			q1: {
+				state: SessionInputAnswerState.Submitted,
+				value: { kind: SessionInputAnswerValueKind.Selected, value: 'Apple' },
+			},
+		});
+		const result = await promise;
+
+		assert.deepStrictEqual({
+			requestId: inputRequest.id,
+			questions: inputRequest.questions?.map(q => ({ id: q.id, kind: q.kind, message: q.message } as const)),
+			result,
+		}, {
+			requestId: 'tu_ask',
+			questions: [{ id: 'q1', kind: 'single-select', message: 'Pick one?' }],
+			result: {
+				behavior: 'allow',
+				updatedInput: {
+					questions: [{
+						header: 'q1',
+						question: 'Pick one?',
+						options: [{ label: 'Apple' }, { label: 'Banana' }],
+					}],
+					answers: { 'Pick one?': 'Apple' },
+				},
+			},
+		});
+	});
+
+	test('Test 13 — AskUserQuestion: cancel returns deny with production wording', async () => {
+		const { ctx, canUseTool } = await materialize();
+
+		const promise = canUseTool('AskUserQuestion', {
+			questions: [{ header: 'q1', question: 'Pick one?', options: [{ label: 'Apple' }] }],
+		}, { signal: new AbortController().signal, toolUseID: 'tu_ask_cancel' });
+		await tick();
+
+		ctx.agent.respondToUserInputRequest('tu_ask_cancel', SessionInputResponseKind.Cancel);
+		const result = await promise;
+
+		assert.deepStrictEqual(result, { behavior: 'deny', message: 'The user cancelled the question' });
+	});
+
+	test('Test 12b — ExitPlanMode: Approve persists permissionMode=acceptEdits to session config and returns allow without a live SDK call', async () => {
+		// Calling `Query.setPermissionMode` synchronously inside
+		// `canUseTool` collides with the SDK's control channel (which
+		// is mid-flight delivering the canUseTool request) and leaves
+		// the turn unable to resume. Mirror production: write the new
+		// mode to `IAgentConfigurationService` and let the next
+		// `sendMessage` forward it via `entry.setPermissionMode(...)`
+		// between turns.
+		const { ctx, canUseTool, sessionUri } = await materialize();
+
+		const signals: AgentSignal[] = [];
+		disposables.add(ctx.agent.onDidSessionProgress(s => signals.push(s)));
+
+		const promise = canUseTool('ExitPlanMode', { plan: '1. Read foo\n2. Edit foo' }, {
+			signal: new AbortController().signal,
+			toolUseID: 'tu_plan_ok',
+		});
+		await tick();
+
+		const captured = signals.find(s => s.kind === 'pending_confirmation');
+		ctx.agent.respondToPermissionRequest('tu_plan_ok', true);
+		const result = await promise;
+
+		const fakeQuery = ctx.sdk.warmQueries.at(-1)?.produced;
+		const persistedMode = ctx.configService.getSessionConfigValues(sessionUri.toString())?.['permissionMode'];
+		assert.deepStrictEqual({
+			signal: captured,
+			result,
+			recordedModes: fakeQuery?.recordedPermissionModes ?? [],
+			persistedMode,
+		}, {
+			signal: {
+				kind: 'pending_confirmation',
+				session: sessionUri,
+				state: {
+					status: ToolCallStatus.PendingConfirmation,
+					toolCallId: 'tu_plan_ok',
+					toolName: 'ExitPlanMode',
+					displayName: 'Ready to code?',
+					invocationMessage: { markdown: '1. Read foo\n2. Edit foo' },
+					toolInput: '{"plan":"1. Read foo\\n2. Edit foo"}',
+					confirmationTitle: 'Ready to code?',
+					options: [
+						{ id: 'approve', label: 'Approve', kind: 'approve' },
+						{ id: 'deny', label: 'Deny', kind: 'deny' },
+					],
+				},
+				permissionKind: 'custom-tool',
+			},
+			result: { behavior: 'allow', updatedInput: { plan: '1. Read foo\n2. Edit foo' } },
+			recordedModes: [],
+			persistedMode: 'acceptEdits',
+		});
+	});
+
+	test('Test 13b — ExitPlanMode: Deny returns deny with production wording, no mode flip', async () => {
+		const { ctx, canUseTool } = await materialize();
+
+		const promise = canUseTool('ExitPlanMode', { plan: 'just plan' }, {
+			signal: new AbortController().signal,
+			toolUseID: 'tu_plan_deny',
+		});
+		await tick();
+
+		ctx.agent.respondToPermissionRequest('tu_plan_deny', false);
+		const result = await promise;
+
+		const fakeQuery = ctx.sdk.warmQueries.at(-1)?.produced;
+		assert.deepStrictEqual({
+			result,
+			recordedModes: fakeQuery?.recordedPermissionModes ?? [],
+		}, {
+			result: { behavior: 'deny', message: 'The user declined the plan, maybe ask why?' },
+			recordedModes: [],
+		});
+	});
+
+	test('Test 14 — ExitPlanMode: synchronous respond inside pending_confirmation listener resolves canUseTool', async () => {
+		// Same race as Test 8 but for the ExitPlanMode permission path
+		// (`_handleExitPlanMode`): the deferred must be registered
+		// before the `pending_confirmation` event is fired, otherwise
+		// a synchronous responder hits an empty pending map and the
+		// SDK's `canUseTool` deadlocks.
+		const { ctx, canUseTool } = await materialize();
+
+		disposables.add(ctx.agent.onDidSessionProgress(s => {
+			if (s.kind === 'pending_confirmation' && s.state.toolName === 'ExitPlanMode') {
+				ctx.agent.respondToPermissionRequest(s.state.toolCallId, true);
+			}
+		}));
+
+		const result = await canUseTool('ExitPlanMode', { plan: 'sync test' }, {
+			signal: new AbortController().signal,
+			toolUseID: 'tu_plan_race',
+		});
+		assert.deepStrictEqual(result, { behavior: 'allow', updatedInput: { plan: 'sync test' } });
+	});
+
+	test('respondToUserInputRequest unknown id is silent', () => {
+		const ctx = createTestContext(disposables);
+		ctx.agent.respondToUserInputRequest('nope', SessionInputResponseKind.Accept);
+	});
+});
+
+suite('ClaudeAgent (Phase 7 §3.6 / §3.8 — permissionMode propagation)', () => {
+
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('Test 16 — live permissionMode update forwards via Query.setPermissionMode on the next sendMessage', async () => {
+		// Plan §3.6 / §3.8: a `SessionConfigChanged` action arriving
+		// between turns must reach the SDK before the next user
+		// message yields. The agent re-reads the live state in
+		// `sendMessage` and forwards via `Query.setPermissionMode`
+		// — skipping the just-materialized first turn (already seeded
+		// via `Options.permissionMode`).
+		const ctx = createTestContext(disposables);
+		await ctx.agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await ctx.agent.createSession({ workingDirectory: URI.file('/work') });
+		const sessionId = AgentSession.id(created.session);
+
+		// Seed state.config so `updateSessionConfig` (which dispatches
+		// SessionConfigChanged) is honoured by the reducer.
+		const state = ctx.stateManager.createSession({
+			resource: created.session.toString(),
+			provider: 'claude',
+			title: 't',
+			status: SessionStatus.Idle,
+			createdAt: Date.now(),
+			modifiedAt: Date.now(),
+		});
+		(state as { config?: SessionConfigState }).config = {
+			schema: { type: 'object', properties: {} },
+			values: { permissionMode: 'default' },
+		};
+
+		// Park the FakeQuery iterator after turn 1's result so the second
+		// `sendMessage` doesn't race past idx 2 before the prompt has
+		// been pushed (mirrors the gate pattern in the multi-turn
+		// reuse test at L1188).
+		const advance = new DeferredPromise<void>();
+		ctx.sdk.queryAdvance = async (idx: number) => {
+			if (idx === 2) {
+				await advance.p;
+			}
+		};
+		ctx.sdk.nextQueryMessages = [
+			makeSystemInitMessage(sessionId),
+			makeResultSuccess(sessionId),
+			makeResultSuccess(sessionId),
+		];
+
+		await ctx.agent.sendMessage(created.session, 'hi', undefined, 'turn-1');
+		ctx.configService.updateSessionConfig(created.session.toString(), { permissionMode: 'acceptEdits' });
+		const p2 = ctx.agent.sendMessage(created.session, 'hi-2', undefined, 'turn-2');
+		// Drain microtasks so `await entry.setPermissionMode('acceptEdits')`
+		// resolves and the second prompt lands in the in-flight queue before
+		// the iterator yields its `result(idx=2)` (see the multi-turn reuse
+		// test above for the same gate-pattern explanation).
+		await tick();
+		advance.complete();
+		await p2;
+
+		const fakeQuery = ctx.sdk.warmQueries.at(-1)?.produced;
+		assert.deepStrictEqual({
+			startupPermissionMode: ctx.sdk.capturedStartupOptions[0]?.permissionMode,
+			recordedModes: fakeQuery?.recordedPermissionModes ?? [],
+		}, {
+			startupPermissionMode: 'default',
+			recordedModes: ['acceptEdits'],
+		});
+	});
+
+	test('Test 16b — live state seeded BEFORE first sendMessage flows into Options.permissionMode at materialize', async () => {
+		// Plan §3.6: `Options.permissionMode` reads live state first,
+		// falling back to `provisional.config` only when state has not
+		// been seeded. Production AgentService seeds state.config on
+		// createSession, so the live read wins there. This test
+		// exercises that path.
+		const ctx = createTestContext(disposables);
+		await ctx.agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await ctx.agent.createSession({ workingDirectory: URI.file('/work') });
+		const sessionId = AgentSession.id(created.session);
+
+		const state = ctx.stateManager.createSession({
+			resource: created.session.toString(),
+			provider: 'claude',
+			title: 't',
+			status: SessionStatus.Idle,
+			createdAt: Date.now(),
+			modifiedAt: Date.now(),
+		});
+		(state as { config?: SessionConfigState }).config = {
+			schema: { type: 'object', properties: {} },
+			values: { permissionMode: 'plan' },
+		};
+
+		ctx.sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
+		await ctx.agent.sendMessage(created.session, 'hi', undefined, 'turn-1');
+
+		const fakeQuery = ctx.sdk.warmQueries.at(-1)?.produced;
+		assert.deepStrictEqual({
+			startupPermissionMode: ctx.sdk.capturedStartupOptions[0]?.permissionMode,
+			recordedModes: fakeQuery?.recordedPermissionModes ?? [],
+		}, {
+			startupPermissionMode: 'plan',
+			recordedModes: [],
+		});
+	});
+});
+
+suite('ClaudeAgent (Phase 7 §3.7 — onElicitation cancel stub)', () => {
+
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('Test 18 — Options.onElicitation returns { action: cancel } and logs the decline', async () => {
+		// Plan §3.7: full MCP wiring is Phase 10. Until then, the agent
+		// installs a `cancel` stub so any incidental MCP elicitation
+		// gets a deterministic response (instead of the SDK's auto-
+		// decline path) and a log line surfaces for diagnostics.
+		const logService = new CapturingLogService();
+		const ctx = createTestContext(disposables, { logService });
+		await ctx.agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await ctx.agent.createSession({ workingDirectory: URI.file('/work') });
+		const sessionId = AgentSession.id(created.session);
+		ctx.sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
+		await ctx.agent.sendMessage(created.session, 'hi', undefined, 'turn-1');
+
+		const onElicitation = ctx.sdk.capturedStartupOptions[0]?.onElicitation;
+		assert.ok(onElicitation, 'onElicitation callback was wired into Options');
+		const result = await onElicitation(
+			{ serverName: 'test-mcp', message: 'Pick a side', mode: 'form' },
+			{ signal: new AbortController().signal },
+		);
+
+		assert.deepStrictEqual({
+			result,
+			logCount: logService.infos.filter(m => m.includes('declining elicitation')).length,
+		}, {
+			result: { action: 'cancel' },
+			logCount: 1,
+		});
+	});
+});
+

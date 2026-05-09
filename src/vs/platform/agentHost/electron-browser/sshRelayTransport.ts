@@ -5,7 +5,8 @@
 
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
-import type { AhpServerNotification, JsonRpcResponse, ProtocolMessage } from '../common/state/sessionProtocol.js';
+import { AhpJsonlLogger, getAhpLogByteLength } from '../common/ahpJsonlLogger.js';
+import type { AhpServerNotification, JsonRpcNotification, JsonRpcRequest, JsonRpcResponse, ProtocolMessage } from '../common/state/sessionProtocol.js';
 import type { IProtocolTransport } from '../common/state/sessionTransport.js';
 import type { ISSHRelayMessage, ISSHRemoteAgentHostMainService } from '../common/sshRemoteAgentHost.js';
 
@@ -27,14 +28,19 @@ export class SSHRelayTransport extends Disposable implements IProtocolTransport 
 	constructor(
 		private readonly _connectionId: string,
 		private readonly _sshService: ISSHRemoteAgentHostMainService,
+		private readonly _ahpLogger?: AhpJsonlLogger,
 	) {
 		super();
+		if (this._ahpLogger) {
+			this._register(this._ahpLogger);
+		}
 
 		// Listen for relay messages from the shared process
 		this._register(this._sshService.onDidRelayMessage((msg: ISSHRelayMessage) => {
 			if (msg.connectionId === this._connectionId) {
 				try {
 					const parsed = JSON.parse(msg.data) as ProtocolMessage;
+					this._ahpLogger?.log(parsed, 's2c', getAhpLogByteLength(msg.data));
 					this._onMessage.fire(parsed);
 				} catch {
 					// Malformed message — drop
@@ -50,8 +56,10 @@ export class SSHRelayTransport extends Disposable implements IProtocolTransport 
 		}));
 	}
 
-	send(message: ProtocolMessage | AhpServerNotification | JsonRpcResponse): void {
-		this._sshService.relaySend(this._connectionId, JSON.stringify(message)).catch(() => {
+	send(message: ProtocolMessage | AhpServerNotification | JsonRpcNotification | JsonRpcResponse | JsonRpcRequest): void {
+		const text = JSON.stringify(message);
+		this._ahpLogger?.log(message, 'c2s', getAhpLogByteLength(text));
+		this._sshService.relaySend(this._connectionId, text).catch(() => {
 			// Send failed — connection probably closed
 		});
 	}

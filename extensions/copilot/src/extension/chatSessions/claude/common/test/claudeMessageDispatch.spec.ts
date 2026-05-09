@@ -12,6 +12,7 @@ import { IOTelService, type ISpanHandle } from '../../../../../platform/otel/com
 import { IRequestLogger } from '../../../../../platform/requestLogger/common/requestLogger';
 import { TestLogService } from '../../../../../platform/testing/common/testLogService';
 import type { ServicesAccessor } from '../../../../../util/vs/platform/instantiation/common/instantiation';
+import { URI } from '../../../../../util/vs/base/common/uri';
 import { IToolsService } from '../../../../tools/common/toolsService';
 import {
 	ALL_KNOWN_MESSAGE_KEYS,
@@ -32,6 +33,7 @@ import {
 	SYNTHETIC_MODEL_ID,
 } from '../claudeMessageDispatch';
 import { ClaudeToolNames } from '../claudeTools';
+import { IClaudePlanFileTracker } from '../claudePlanFileTracker';
 import { IClaudeSessionStateService } from '../claudeSessionStateService';
 
 // #region Test helpers
@@ -55,6 +57,7 @@ interface TestServices {
 	readonly toolsService: IToolsService;
 	readonly requestLogger: { logToolCall: ReturnType<typeof vi.fn>; captureInvocation: ReturnType<typeof vi.fn> };
 	readonly sessionStateService: { setPermissionModeForSession: ReturnType<typeof vi.fn>; getCapturingTokenForSession: ReturnType<typeof vi.fn> };
+	readonly planFileTracker: { recordIfPlanFile: ReturnType<typeof vi.fn>; getLastPlanFile: ReturnType<typeof vi.fn>; clear: ReturnType<typeof vi.fn> };
 }
 
 function createTestServices(): TestServices {
@@ -64,6 +67,7 @@ function createTestServices(): TestServices {
 		toolsService: { invokeTool: vi.fn() } as Pick<IToolsService, 'invokeTool'> as IToolsService,
 		requestLogger: { logToolCall: vi.fn(), captureInvocation: vi.fn() },
 		sessionStateService: { setPermissionModeForSession: vi.fn(), getCapturingTokenForSession: vi.fn().mockReturnValue(undefined) },
+		planFileTracker: { recordIfPlanFile: vi.fn(), getLastPlanFile: vi.fn(), clear: vi.fn() },
 	};
 }
 
@@ -76,6 +80,7 @@ function createAccessor(services: TestServices): ServicesAccessor {
 		[IToolsService, services.toolsService],
 		[IRequestLogger, services.requestLogger],
 		[IClaudeSessionStateService, services.sessionStateService],
+		[IClaudePlanFileTracker, services.planFileTracker],
 	]);
 	return { get: <T>(id: { toString(): string }): T => serviceMap.get(id) as T };
 }
@@ -424,6 +429,40 @@ describe('handleAssistantMessage', () => {
 			accessor, TEST_SESSION_ID, request, state,
 		);
 		expect(request.stream.push).toHaveBeenCalled();
+	});
+
+	it('records plan-directory writes on the plan file tracker', () => {
+		// The plan file tracker decides whether the path actually lives in
+		// `~/.claude/plans/`; the dispatch layer's job is just to forward
+		// every affected URI for an edit tool. Two writes — one inside the
+		// plan dir and one outside — should both be forwarded so the
+		// tracker can decide.
+		handleAssistantMessage(
+			makeAssistantMessage([
+				{ type: 'tool_use', id: 'w1', name: ClaudeToolNames.Write, input: { file_path: '/home/testuser/.claude/plans/plan.md', content: '# plan' } },
+				{ type: 'tool_use', id: 'w2', name: ClaudeToolNames.Write, input: { file_path: '/tmp/other.md', content: 'x' } },
+			]),
+			accessor, TEST_SESSION_ID, request, state,
+		);
+
+		expect(services.planFileTracker.recordIfPlanFile).toHaveBeenCalledTimes(2);
+		const calls = services.planFileTracker.recordIfPlanFile.mock.calls;
+		expect(calls[0][0]).toBe(TEST_SESSION_ID);
+		// Dispatch forwards `uri.fsPath`, which uses backslashes on Windows;
+		// compare against the same `URI.file(...).fsPath` round-trip rather
+		// than the raw posix string to keep the assertion platform-agnostic.
+		expect(calls[0][1]).toBe(URI.file('/home/testuser/.claude/plans/plan.md').fsPath);
+		expect(calls[1][1]).toBe(URI.file('/tmp/other.md').fsPath);
+	});
+
+	it('does not consult the plan file tracker for non-edit tools', () => {
+		handleAssistantMessage(
+			makeAssistantMessage([{
+				type: 'tool_use', id: 'r1', name: ClaudeToolNames.Read, input: { file_path: '/home/testuser/.claude/plans/plan.md' },
+			}]),
+			accessor, TEST_SESSION_ID, request, state,
+		);
+		expect(services.planFileTracker.recordIfPlanFile).not.toHaveBeenCalled();
 	});
 });
 

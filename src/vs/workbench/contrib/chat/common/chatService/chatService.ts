@@ -33,6 +33,7 @@ import { HookTypeValue } from '../promptSyntax/hookTypes.js';
 import { IParsedChatRequest } from '../requestParser/chatParserTypes.js';
 import { IChatParserContext } from '../requestParser/chatRequestParser.js';
 import { IPreparedToolInvocation, IToolConfirmationMessages, IToolResult, IToolResultInputOutputDetails, ToolDataSource } from '../tools/languageModelToolsService.js';
+import { ConfirmationOptionKind } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 
 export interface IChatRequest {
 	message: string;
@@ -624,7 +625,7 @@ export type ConfirmedReason =
 	| { type: ToolConfirmKind.ConfirmationNotNeeded; reason?: string | IMarkdownString }
 	| { type: ToolConfirmKind.Setting; id: string }
 	| { type: ToolConfirmKind.LmServicePerTool; scope: 'session' | 'workspace' | 'profile' }
-	| { type: ToolConfirmKind.UserAction; selectedButton?: string }
+	| { type: ToolConfirmKind.UserAction; selectedButton?: string; selectedButtonKind?: ConfirmationOptionKind }
 	| { type: ToolConfirmKind.Skipped };
 
 export interface IChatToolInvocation {
@@ -1036,6 +1037,14 @@ export interface IChatDisabledClaudeHooksPart {
 
 /** A single approval option shown in the plan review dropdown button. */
 export interface IChatPlanApprovalAction {
+	/**
+	 * Stable identifier for matching the chosen action programmatically.
+	 * Unlike `label` this is not localized, so callers should compare
+	 * against `IChatPlanReviewResult.actionId` rather than `action`.
+	 * Optional for backwards-compatibility; omit for one-off actions
+	 * where the localized label is the only intended identifier.
+	 */
+	id?: string;
 	label: string;
 	description?: string;
 	default?: boolean;
@@ -1045,7 +1054,11 @@ export interface IChatPlanApprovalAction {
 
 /** The result of reviewing a plan. */
 export interface IChatPlanReviewResult {
+	/** The chosen action's localized `label`. */
 	action?: string;
+	/** The chosen action's stable `id`, if it had one. Prefer this over
+	 * `action` for programmatic comparisons. */
+	actionId?: string;
 	rejected: boolean;
 	/** Combined feedback string sent to the agent (overall comment + inline
 	 * comments, joined and formatted as markdown). */
@@ -1363,6 +1376,11 @@ export interface IChatDetail {
 	isActive: boolean;
 	stats?: IChatSessionStats;
 	lastResponseState: ResponseModelState;
+	/**
+	 * The working directory URI associated with this session.
+	 * Only populated in the sessions/agents window context.
+	 */
+	workingDirectory?: URI;
 }
 
 export interface IChatProviderInfo {

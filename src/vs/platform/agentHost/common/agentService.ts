@@ -37,6 +37,9 @@ export const AgentHostEnabledSettingId = 'chat.agentHost.enabled';
 /** Configuration key that controls whether per-host IPC traffic output channels are created. */
 export const AgentHostIpcLoggingSettingId = 'chat.agentHost.ipcLoggingEnabled';
 
+/** Configuration key that controls whether AHP transport JSONL logs are written. */
+export const AgentHostAhpJsonlLoggingSettingId = 'chat.agentHost.ahpJsonlLoggingEnabled';
+
 /**
  * Configuration key that holds the absolute path to a locally-installed
  * `@anthropic-ai/claude-agent-sdk` package. When non-empty, the Claude agent

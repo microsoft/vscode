@@ -185,7 +185,10 @@ export class SessionPermissionManager extends Disposable {
 				confirmationTitle: state.confirmationTitle,
 				edits: state.edits,
 				editable: state.editable,
-				options: CONFIRMATION_OPTIONS.slice(),
+				// Agents can supply tool-specific buttons (e.g. ExitPlanMode's
+				// `Approve`/`Deny`) by populating `state.options`. The standard
+				// `Allow Once / Allow in this Session / Skip` set is the default.
+				options: state.options ? state.options.slice() : CONFIRMATION_OPTIONS.slice(),
 			};
 		}
 		return {

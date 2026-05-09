@@ -192,6 +192,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 			options.chatRequestId = dto.chatRequestId;
 			options.chatInteractionId = dto.chatInteractionId;
 			options.chatSessionResource = URI.revive(dto.context?.sessionResource);
+			options.workingDirectory = URI.revive(dto.context?.workingDirectory);
 			options.subAgentInvocationId = dto.subAgentInvocationId;
 			options.traceparent = dto.traceparent;
 			options.tracestate = dto.tracestate;
@@ -296,6 +297,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 			chatRequestId: context.chatRequestId,
 			chatSessionResource: context.chatSessionResource,
 			chatInteractionId: context.chatInteractionId,
+			workingDirectory: URI.revive(context.workingDirectory),
 			forceConfirmationReason: context.forceConfirmationReason
 		};
 		if (context.forceConfirmationReason) {

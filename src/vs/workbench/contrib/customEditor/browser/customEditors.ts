@@ -177,6 +177,8 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 						label: contributedEditor.displayName,
 						detail: contributedEditor.providerDisplayName,
 						priority: contributedEditor.priority,
+						diffEditorPriority: contributedEditor.diffEditorPriority,
+						mergeEditorPriority: contributedEditor.mergeEditorPriority,
 					},
 					{
 						singlePerResource: () => !(this.getCustomEditorCapabilities(contributedEditor.id)?.supportsMultipleEditorsPerDocument ?? false)

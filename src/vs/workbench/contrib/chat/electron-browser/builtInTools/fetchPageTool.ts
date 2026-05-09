@@ -9,6 +9,7 @@ import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { extname } from '../../../../../base/common/path.js';
+import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
@@ -180,10 +181,14 @@ export class FetchWebPageTool implements IToolImpl {
 		const allFetchedUris = new ResourceSet([...webUris.values(), ...validFileUris]);
 		// File URIs that are inside the workspace don't need confirmation — they're already accessible
 		// and don't carry the web content risks (prompt injection, malicious redirects).
-		// File URIs outside the workspace are treated like web URIs and require confirmation.
-		const fileUrisOutsideWorkspace = validFileUris.filter(
-			uri => !this._workspaceContextService.getWorkspaceFolder(uri)
-		);
+		// When a working directory is set (agents window), it is the source of truth;
+		// only fall back to workspace folders when no working directory is specified.
+		const fileUrisOutsideWorkspace = validFileUris.filter(uri => {
+			if (context.workingDirectory) {
+				return !extUriBiasedIgnorePathCase.isEqualOrParent(uri, context.workingDirectory);
+			}
+			return !this._workspaceContextService.getWorkspaceFolder(uri);
+		});
 		const urlsNeedingConfirmation = new ResourceSet([...webUris.values(), ...fileUrisOutsideWorkspace]);
 
 		const pastTenseMessage = invalid.length

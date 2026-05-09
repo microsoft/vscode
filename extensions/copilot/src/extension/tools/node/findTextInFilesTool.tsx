@@ -9,6 +9,7 @@ import type * as vscode from 'vscode';
 import { IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { OffsetLineColumnConverter } from '../../../platform/editing/common/offsetLineColumnConverter';
 import { IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
+import { RelativePattern } from '../../../platform/filesystem/common/fileTypes';
 import { IPromptPathRepresentationService } from '../../../platform/prompts/common/promptPathRepresentationService';
 import { ISearchService } from '../../../platform/search/common/searchService';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
@@ -64,8 +65,14 @@ export class FindTextInFilesTool implements ICopilotTool<IFindTextInFilesToolPar
 		const modelFamily = endpoint?.family;
 
 		// The input _should_ be a pattern matching inside a workspace, folder, but sometimes we get absolute paths, so try to resolve them
-		const globResult = options.input.includePattern ? inputGlobToPattern(options.input.includePattern, this.workspaceService, modelFamily) : undefined;
-		const patterns = globResult?.patterns;
+		const globResult = options.input.includePattern ? inputGlobToPattern(options.input.includePattern, this.workspaceService, modelFamily, options.workingDirectory) : undefined;
+		let patterns = globResult?.patterns;
+
+		// When no include pattern is specified but a working directory is set (agents window),
+		// scope the search to the session's working directory.
+		if (!patterns && options.workingDirectory) {
+			patterns = [new RelativePattern(options.workingDirectory, '**')];
+		}
 
 		void this.sendSearchToolTelemetry(options, globResult);
 

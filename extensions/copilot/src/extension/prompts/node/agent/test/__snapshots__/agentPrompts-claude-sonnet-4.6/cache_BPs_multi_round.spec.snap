@@ -139,13 +139,6 @@ I am working in a workspace with the following folders:
 
 ### User
 ~~~md
-<context>
-(Date removed from snapshot)
-</context>
-<reminderInstructions>
-Do NOT create markdown files to document changes unless requested.
-
-</reminderInstructions>
 <userRequest>
 previous turn
 </userRequest>
@@ -258,8 +251,6 @@ success
 ~~~md
 🛠️ tooluse_5
 success
-
-[copilot_cache_control: { type: 'ephemeral' }]
 ~~~
 
 

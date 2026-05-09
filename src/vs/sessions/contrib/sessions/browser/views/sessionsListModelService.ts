@@ -8,7 +8,7 @@ import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { ISession } from '../../../../services/sessions/common/session.js';
+import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 
 export const enum SessionListModelChangeKind {
@@ -61,6 +61,7 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 
 	private readonly _pinnedSessionIds: Set<string>;
 	private readonly _readSessionIds: Set<string>;
+	private readonly _lastKnownStatus = new Map<string, SessionStatus>();
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
@@ -74,6 +75,29 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 		this._register(this.sessionsManagementService.onDidChangeSessions(e => {
 			for (const session of e.removed) {
 				this.deleteSession(session);
+			}
+
+			// When a session completes a turn in the background (transitions
+			// from InProgress to a terminal status) mark it as unread so the
+			// sessions list shows the indicator.
+			const activeSessionId = this.sessionsManagementService.activeSession.get()?.sessionId;
+			for (const session of e.changed) {
+				const previous = this._lastKnownStatus.get(session.sessionId);
+				const current = session.status.get();
+				this._lastKnownStatus.set(session.sessionId, current);
+
+				if (
+					previous === SessionStatus.InProgress &&
+					current !== SessionStatus.InProgress &&
+					current !== SessionStatus.Untitled &&
+					session.sessionId !== activeSessionId
+				) {
+					this.markUnread(session);
+				}
+			}
+
+			for (const session of e.added) {
+				this._lastKnownStatus.set(session.sessionId, session.status.get());
 			}
 		}));
 	}
@@ -143,6 +167,7 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 	// -- Cleanup --
 
 	private deleteSession(session: ISession): void {
+		this._lastKnownStatus.delete(session.sessionId);
 		const changes: { sessionId: string; kind: SessionListModelChangeKind }[] = [];
 		if (this._pinnedSessionIds.delete(session.sessionId)) {
 			this.saveSet(SessionsListModelService.PINNED_SESSIONS_KEY, this._pinnedSessionIds);

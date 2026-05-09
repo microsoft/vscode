@@ -8,7 +8,7 @@ import { localize } from '../../../../nls.js';
 import { ContextKeyExpr, ContextKeyExpression } from '../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { MenuRegistry } from '../../../../platform/actions/common/actions.js';
-import { OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, OPEN_AGENTS_WINDOW_PRECONDITION, ChatConfiguration, ChatModeKind } from '../common/constants.js';
+import { ChatConfiguration, ChatModeKind } from '../common/constants.js';
 import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
 import { IsSessionsWindowContext } from '../../../common/contextkeys.js';
 import { localChatSessionType } from '../common/chatSessionsService.js';
@@ -410,25 +410,6 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 		},
 		when: ChatContextKeys.chatSessionType.isEqualTo(localChatSessionType),
 		excludeWhenToolsInvoked: ['listDebugEvents'],
-	},
-	{
-		id: 'tip.openAgentsWindow',
-		tier: ChatTipTier.Qol,
-		buildMessage() {
-			return new MarkdownString(
-				localize(
-					'tip.openAgentsWindow',
-					"Try the [Agents Application](command:{0} \"Open Agents Window\") to run multiple agents simultaneously and manage your coding sessions.",
-					OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID
-				)
-			);
-		},
-		when: ContextKeyExpr.and(
-			OPEN_AGENTS_WINDOW_PRECONDITION,
-			ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
-		),
-		excludeWhenCommandsExecuted: [OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID],
-		dismissWhenCommandsClicked: [OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID],
 	},
 	{
 		id: 'tip.copilotCli',

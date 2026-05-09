@@ -3,14 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
-import { Disposable, DisposableMap } from '../../../../../../../base/common/lifecycle.js';
+import { DisposableMap } from '../../../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../../../base/common/network.js';
 import { assertType } from '../../../../../../../base/common/types.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { Position } from '../../../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
-import { CompletionContext, CompletionItem, CompletionItemKind, CompletionList } from '../../../../../../../editor/common/languages.js';
+import { CompletionItem, CompletionItemKind } from '../../../../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../../../../editor/common/model.js';
 import { ILanguageFeaturesService } from '../../../../../../../editor/common/services/languageFeatures.js';
 import { CommandsRegistry } from '../../../../../../../platform/commands/common/commands.js';
@@ -21,7 +20,7 @@ import { ChatDynamicVariableModel } from '../../../attachments/chatDynamicVariab
 import { IChatInputCompletionItem, IChatSessionsService, isAgentHostTarget } from '../../../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../../../common/model/chatUri.js';
 import { IChatWidget, IChatWidgetService } from '../../../chat.js';
-
+import { AgentHostInputCompletionsBase } from './agentHostInputCompletionsBase.js';
 /**
  * Completion provider that delegates `@`-mention (and other server-defined)
  * completions to the agent host for AHP-backed chat sessions.
@@ -38,7 +37,7 @@ import { IChatWidget, IChatWidgetService } from '../../../chat.js';
  * that adds an {@link IDynamicVariable} entry to the widget's variable
  * model so the resource becomes part of the outgoing user message.
  */
-export class AgentHostInputCompletions extends Disposable {
+export class AgentHostInputCompletions extends AgentHostInputCompletionsBase<IChatWidget, string> {
 
 	private static readonly addReferenceCommand = '_chatAgentHostAddReferenceCmd';
 
@@ -46,11 +45,11 @@ export class AgentHostInputCompletions extends Disposable {
 	private readonly _registrations = this._register(new DisposableMap<string>());
 
 	constructor(
-		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
+		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
-		@IChatSessionsService private readonly _chatSessionsService: IChatSessionsService,
+		@IChatSessionsService chatSessionsService: IChatSessionsService,
 	) {
-		super();
+		super(languageFeaturesService, chatSessionsService);
 
 		this._register(CommandsRegistry.registerCommand(AgentHostInputCompletions.addReferenceCommand, (_services, arg) => {
 			assertType(arg instanceof AgentHostReferenceArgument);
@@ -94,43 +93,33 @@ export class AgentHostInputCompletions extends Disposable {
 			return;
 		}
 
-		const registration = this._languageFeaturesService.completionProvider.register({ scheme: Schemas.vscodeChatInput, hasAccessToAllModels: true }, {
-			_debugDisplayName: `agentHostChatInputCompletions[${scheme}]`,
-			triggerCharacters: [...triggerCharacters],
-			provideCompletionItems: (model, position, context, token) => this._provide(model, position, context, token, scheme),
-		});
-		this._registrations.set(scheme, registration);
+		this._registrations.set(scheme, this._registerProvider(
+			{ scheme: Schemas.vscodeChatInput, hasAccessToAllModels: true },
+			`agentHostChatInputCompletions[${scheme}]`,
+			triggerCharacters,
+			scheme,
+		));
 	}
 
-	private async _provide(model: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken, scheme: string): Promise<CompletionList | null> {
+	protected override _resolveContext(model: ITextModel, scheme: string): { sessionResource: URI; context: IChatWidget } | undefined {
 		const widget = this._chatWidgetService.getWidgetByInputUri(model.uri);
 		if (!widget?.viewModel) {
-			return null;
+			return undefined;
 		}
-
 		const sessionResource = widget.viewModel.model.sessionResource;
 		// Only respond when the active session is handled by the same
 		// content provider that registered this Monaco provider.
+		// Without this check, two providers sharing trigger characters
+		// (e.g. both register `@`) would both fire and produce duplicate
+		// RPCs / suggestions.
 		if (getChatSessionType(sessionResource) !== scheme) {
-			return null;
+			return undefined;
 		}
-
-		const text = model.getValue();
-		const offset = model.getOffsetAt(position);
-		const result = await this._chatSessionsService.provideChatInputCompletions(sessionResource, { text, offset }, token);
-		if (token.isCancellationRequested || !result) {
-			return null;
-		}
-
-		const suggestions: CompletionItem[] = [];
-		for (const item of result.items) {
-			suggestions.push(this._toMonacoItem(position, widget, item));
-		}
-		return { suggestions };
+		return { sessionResource, context: widget };
 	}
 
-	private _toMonacoItem(position: Position, widget: IChatWidget, item: IChatInputCompletionItem): CompletionItem {
-		const replaceRange = this._computeRange(position, item);
+	protected override _buildItem(position: Position, item: IChatInputCompletionItem, widget: IChatWidget): CompletionItem {
+		const replaceRange = AgentHostInputCompletions.computeRange(position, item);
 		const label = item.attachment.displayName ?? item.insertText;
 		const description = item.attachment.uri.path;
 		return {
@@ -145,18 +134,6 @@ export class AgentHostInputCompletions extends Disposable {
 				arguments: [new AgentHostReferenceArgument(widget, item.attachment.uri, item.attachment.displayName, !!item.attachment.isDirectory, replaceRange.replace.setEndPosition(replaceRange.replace.startLineNumber, replaceRange.replace.startColumn + item.insertText.length), item.attachment._meta)],
 			},
 		};
-	}
-
-	private _computeRange(position: Position, item: IChatInputCompletionItem): { insert: Range; replace: Range } {
-		// Positions returned by the provider are already 1-based Monaco
-		// positions, so they can be used directly. When omitted, default
-		// to a zero-length range at the cursor (Monaco then inserts
-		// without replacing).
-		const start = item.start ?? position;
-		const end = item.end ?? position;
-		const replace = new Range(start.lineNumber, start.column, end.lineNumber, end.column);
-		const insert = new Range(start.lineNumber, start.column, position.lineNumber, position.column);
-		return { insert, replace };
 	}
 }
 

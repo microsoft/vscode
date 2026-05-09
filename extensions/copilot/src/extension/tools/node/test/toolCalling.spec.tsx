@@ -201,9 +201,18 @@ suite('ChatToolCalls thinking handling', () => {
 		expect(hasThinkingPart(result)).toBe(true);
 	});
 
-	test('historical: drops thinking on messages API even with matching modelId', async () => {
+	test('historical: includes thinking on messages API when modelId matches', async () => {
+		// Anthropic Messages API hashes thinking content as part of the prefix
+		// bytes; dropping it on subsequent turns invalidates every cache prefix
+		// from that assistant message forward.
 		const endpoint = makeEndpoint('claude-3.7-sonnet', 'messages');
 		const result = await render(endpoint, [makeThinkingRound('claude-3.7-sonnet')], true);
+		expect(hasThinkingPart(result)).toBe(true);
+	});
+
+	test('historical: drops thinking on messages API when modelId mismatches', async () => {
+		const endpoint = makeEndpoint('claude-3.7-sonnet', 'messages');
+		const result = await render(endpoint, [makeThinkingRound('gpt-5')], true);
 		expect(hasThinkingPart(result)).toBe(false);
 	});
 

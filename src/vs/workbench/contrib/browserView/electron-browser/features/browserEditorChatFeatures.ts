@@ -5,7 +5,6 @@
 
 import { localize, localize2 } from '../../../../../nls.js';
 import { $ } from '../../../../../base/browser/dom.js';
-import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { IContextKey, IContextKeyService, ContextKeyExpr, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { Action2, registerAction2, MenuId } from '../../../../../platform/actions/common/actions.js';
 import { ServicesAccessor, IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -23,6 +22,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IChatWidgetService } from '../../../chat/browser/chat.js';
+import { IChatService } from '../../../chat/common/chatService/chatService.js';
 import { IChatRequestVariableEntry } from '../../../chat/common/attachments/chatVariableEntries.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { IElementData, IElementAncestor, BrowserViewCommandId } from '../../../../../platform/browserView/common/browserView.js';
@@ -31,7 +31,7 @@ import { BrowserEditorInput } from '../../common/browserEditorInput.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { WorkbenchHoverDelegate } from '../../../../../platform/hover/browser/hover.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
-import { BrowserEditor, BrowserEditorContribution, IBrowserEditorWidgetContribution, CONTEXT_BROWSER_HAS_ERROR, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_FOCUSED } from '../browserEditor.js';
+import { BrowserEditor, BrowserEditorContribution, IBrowserEditorWidgetContribution, CONTEXT_BROWSER_HAS_ERROR, CONTEXT_BROWSER_HAS_URL } from '../browserEditor.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { PolicyCategory } from '../../../../../base/common/policy.js';
@@ -102,7 +102,6 @@ const CONTEXT_BROWSER_ELEMENT_SELECTION_ACTIVE = new RawContextKey<boolean>('bro
  * console log attachment to chat, and agent sharing.
  */
 export class BrowserEditorChatIntegration extends BrowserEditorContribution {
-	private _elementSelectionCts: CancellationTokenSource | undefined;
 	private readonly _elementSelectionActiveContext: IContextKey<boolean>;
 
 	// Share with Agent
@@ -116,6 +115,7 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILogService private readonly logService: ILogService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+		@IChatService private readonly chatService: IChatService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IStorageService private readonly storageService: IStorageService,
@@ -145,6 +145,13 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 		this._register(this._shareButton.onDidClick(() => {
 			this._toggleShareWithAgent();
 		}));
+
+		// Auto-disable element selection when the user sends a chat request.
+		this._register(this.chatService.onDidSubmitRequest(() => {
+			if (this.editor.model?.isElementSelectionActive) {
+				void this.editor.model.toggleElementSelection(false);
+			}
+		}));
 	}
 
 	override get urlBarWidgets(): readonly IBrowserEditorWidgetContribution[] {
@@ -157,13 +164,22 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 		store.add(model.onDidChangeSharingState(() => {
 			this._updateSharingState(false);
 		}));
+		store.add(model.onDidSelectElement(async data => {
+			try {
+				await this._attachElementDataToChat(data, model);
+			} catch (error) {
+				this.logService.error('BrowserEditor.addElementToChat: Failed to attach element', error);
+			}
+		}));
+
+		// Sync context key with model state
+		this._elementSelectionActiveContext.set(model.isElementSelectionActive);
+		store.add(model.onDidChangeElementSelectionActive(active => {
+			this._elementSelectionActiveContext.set(active);
+		}));
 	}
 
 	override clear(): void {
-		if (this._elementSelectionCts) {
-			this._elementSelectionCts.dispose(true);
-			this._elementSelectionCts = undefined;
-		}
 		this._elementSelectionActiveContext.reset();
 	}
 
@@ -243,88 +259,6 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 	}
 
 	// -- Element Selection ----------------------------------------------
-
-	/**
-	 * Start element selection in the browser view, wait for a user selection, and add it to chat.
-	 */
-	async addElementToChat(): Promise<void> {
-		// If selection is already active, cancel it
-		if (this._elementSelectionCts) {
-			this._elementSelectionCts.dispose(true);
-			return;
-		}
-
-		// Start new selection
-		const cts = new CancellationTokenSource();
-		this._elementSelectionCts = cts;
-		this._elementSelectionActiveContext.set(true);
-		cts.token.onCancellationRequested(() => {
-			if (this._elementSelectionCts === cts) {
-				this._elementSelectionCts = undefined;
-				this._elementSelectionActiveContext.set(false);
-			}
-		});
-
-		type IntegratedBrowserAddElementToChatStartEvent = {};
-
-		type IntegratedBrowserAddElementToChatStartClassification = {
-			owner: 'jruales';
-			comment: 'The user initiated an Add Element to Chat action in Integrated Browser.';
-		};
-
-		this.telemetryService.publicLog2<IntegratedBrowserAddElementToChatStartEvent, IntegratedBrowserAddElementToChatStartClassification>('integratedBrowser.addElementToChat.start', {});
-
-		try {
-			const model = this.editor.model;
-			if (!model) {
-				throw new Error('No browser view model found');
-			}
-
-			// Make the browser the focused view
-			this.editor.ensureBrowserFocus();
-
-			// Get element data from user selection
-			const elementData = await model.getElementData(cts.token);
-			if (!elementData) {
-				throw new Error('Element data not found');
-			}
-
-			await this._attachElementDataToChat(elementData, model);
-
-		} catch (error) {
-			if (!cts.token.isCancellationRequested) {
-				this.logService.error('BrowserEditor.addElementToChat: Failed to select element', error);
-			}
-		} finally {
-			cts.dispose(true);
-		}
-	}
-
-	/**
-	 * Accept the currently focused element during element selection and attach it to chat.
-	 */
-	async addFocusedElementToChat(): Promise<void> {
-		if (!this._elementSelectionCts) {
-			return;
-		}
-
-		const cts = this._elementSelectionCts;
-		const model = this.editor.model;
-		if (!model) {
-			return;
-		}
-
-		try {
-			const elementData = await model.getFocusedElementData();
-			if (!elementData) {
-				return;
-			}
-
-			await this._attachElementDataToChat(elementData, model);
-		} finally {
-			cts.dispose(true);
-		}
-	}
 
 	private async _attachElementDataToChat(elementData: IElementData, model: IBrowserViewModel) {
 		const bounds = elementData.bounds;
@@ -479,7 +413,8 @@ class AddElementToChatAction extends Action2 {
 
 	async run(accessor: ServicesAccessor, browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
 		if (browserEditor instanceof BrowserEditor) {
-			await browserEditor.getContribution(BrowserEditorChatIntegration)?.addElementToChat();
+			browserEditor.ensureBrowserFocus();
+			void browserEditor.model?.toggleElementSelection(undefined);
 		}
 	}
 }
@@ -511,33 +446,8 @@ class AddConsoleLogsToChatAction extends Action2 {
 	}
 }
 
-class AddFocusedElementToChatAction extends Action2 {
-	constructor() {
-		super({
-			id: 'workbench.action.browser.addFocusedElementToChat',
-			title: localize2('browser.addFocusedElementToChat', 'Add Focused Element to Chat'),
-			category: BrowserActionCategory,
-			f1: false,
-			precondition: CONTEXT_BROWSER_FOCUSED,
-			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib + 50,
-				primary: KeyMod.CtrlCmd | KeyCode.Enter,
-				when: CONTEXT_BROWSER_ELEMENT_SELECTION_ACTIVE
-			}
-		});
-	}
-
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const browserEditor = accessor.get(IEditorService).activeEditorPane;
-		if (browserEditor instanceof BrowserEditor) {
-			await browserEditor.getContribution(BrowserEditorChatIntegration)?.addFocusedElementToChat();
-		}
-	}
-}
-
 registerAction2(AddElementToChatAction);
 registerAction2(AddConsoleLogsToChatAction);
-registerAction2(AddFocusedElementToChatAction);
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	...workbenchConfigurationNodeBase,

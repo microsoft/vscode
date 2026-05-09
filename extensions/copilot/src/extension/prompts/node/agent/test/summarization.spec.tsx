@@ -95,6 +95,7 @@ suite('Agent Summarization', () => {
 			location: ChatLocation.Panel,
 			promptContext,
 			maxToolResultLength: Infinity,
+			enableSummarization: true,
 			...otherProps
 		};
 

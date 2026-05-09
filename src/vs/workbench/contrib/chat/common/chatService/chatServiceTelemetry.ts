@@ -5,7 +5,7 @@
 
 import { URI } from '../../../../../base/common/uri.js';
 import { isLocation } from '../../../../../editor/common/languages.js';
-import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { escapeModelIdForTelemetry, ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IChatAgentData } from '../participants/chatAgents.js';
 import { ChatRequestModel, IChatRequestVariableData } from '../model/chatModel.js';
 import { ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart } from '../requestParser/chatParserTypes.js';
@@ -231,7 +231,7 @@ export class ChatServiceTelemetry {
 				lineCount: action.action.lineCount,
 				hasRemainingEdits: action.action.hasRemainingEdits,
 				requestId: action.requestId,
-				modelId: action.modelId ?? '',
+				modelId: escapeModelIdForTelemetry(action.modelId) ?? '',
 				modeId: action.modeId ?? '',
 			});
 		}

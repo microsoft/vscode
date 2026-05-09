@@ -49,13 +49,16 @@ export class ContributedCustomEditors extends Disposable {
 		this._editors.clear();
 
 		for (const extension of extensions) {
+			const hasCustomEditorPriorityProposal = extension.description.enabledApiProposals?.includes('customEditorPriority') ?? false;
 			for (const webviewEditorContribution of extension.value) {
 				this.add(new CustomEditorInfo({
 					id: webviewEditorContribution.viewType,
 					displayName: webviewEditorContribution.displayName,
 					providerDisplayName: extension.description.isBuiltin ? nls.localize('builtinProviderDisplayName', "Built-in") : extension.description.displayName || extension.description.identifier.value,
 					selector: webviewEditorContribution.selector || [],
-					priority: getPriorityFromContribution(webviewEditorContribution, extension.description),
+					priority: getPriorityFromContribution(webviewEditorContribution, extension.description, 'priority') ?? RegisteredEditorPriority.default,
+					diffEditorPriority: hasCustomEditorPriorityProposal ? getPriorityFromContribution(webviewEditorContribution, extension.description, 'diffEditorPriority') : undefined,
+					mergeEditorPriority: hasCustomEditorPriorityProposal ? getPriorityFromContribution(webviewEditorContribution, extension.description, 'mergeEditorPriority') : undefined,
 				}));
 			}
 		}
@@ -92,8 +95,10 @@ export class ContributedCustomEditors extends Disposable {
 function getPriorityFromContribution(
 	contribution: ICustomEditorsExtensionPoint,
 	extension: IExtensionDescription,
-): RegisteredEditorPriority {
-	switch (contribution.priority as CustomEditorPriority | undefined) {
+	field: 'priority' | 'diffEditorPriority' | 'mergeEditorPriority',
+): RegisteredEditorPriority | undefined {
+	const value = contribution[field] as CustomEditorPriority | undefined;
+	switch (value) {
 		case CustomEditorPriority.default:
 			return RegisteredEditorPriority.default;
 
@@ -105,6 +110,6 @@ function getPriorityFromContribution(
 			return extension.isBuiltin ? RegisteredEditorPriority.builtin : RegisteredEditorPriority.default;
 
 		default:
-			return RegisteredEditorPriority.default;
+			return undefined;
 	}
 }

@@ -17,7 +17,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		[SESSIONS_DEVELOPER_JOY_ENABLED_SETTING]: {
 			type: 'boolean',
 			default: product.quality !== 'stable',
-			description: localize('sessions.developerJoy.enabled', "Adds an easter egg to the Agents application."),
+			description: localize('sessions.developerJoy.enabled', "Adds an easter egg to the Agents window."),
 			tags: ['experimental'],
 		},
 	},

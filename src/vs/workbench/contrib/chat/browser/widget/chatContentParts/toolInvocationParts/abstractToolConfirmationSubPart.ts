@@ -160,7 +160,7 @@ export abstract class AbstractToolConfirmationSubPart extends BaseChatToolInvoca
 		const makeAction = (option: ConfirmationOption): IChatConfirmationButton<(() => void)> => ({
 			label: option.label,
 			data: () => {
-				this.confirmWith(toolInvocation, { type: ToolConfirmKind.UserAction, selectedButton: option.id });
+				this.confirmWith(toolInvocation, { type: ToolConfirmKind.UserAction, selectedButton: option.id, selectedButtonKind: option.kind });
 			},
 		});
 

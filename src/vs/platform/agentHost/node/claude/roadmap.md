@@ -269,7 +269,7 @@ see why it's required.
 | `cwd` | session workspace folder | SDK validates and forwards to tools (Read/Write/Bash). | `claudeCodeAgent.ts` `_doStartSession` |
 | `executable` | `process.execPath as 'node'` | Force the SDK to fork the agent host's node process; otherwise it tries to find its own runtime. | `claudeCodeAgent.ts` line 437 |
 | `abortController` | per-session `AbortController` | The mechanism the extension actually uses to cancel a turn. `Query.interrupt()` exists but is not used in production. Phase 6 should mirror this. | `claudeCodeAgent.ts` line 138, 274, 435 |
-| `allowDangerouslySkipPermissions` | `true` | Disables the SDK's built-in approval UI so we can drive permissions ourselves via `canUseTool`. The two are a *pair* — one without the other is broken. | `claudeCodeAgent.ts` line 433 |
+| `allowDangerouslySkipPermissions` | `true` | Required to enable `permissionMode: 'bypassPermissions'` (sdk.d.ts:1291). The SDK applies its built-in auto-approval / auto-denial per `permissionMode` before invoking `canUseTool`; the host's `canUseTool` is a pure UI bridge that surfaces whatever the SDK delegates and returns the user's verdict (the `AskUserQuestion` / `ExitPlanMode` interactive built-ins are exempt from auto-approval and always reach the host). | `claudeCodeAgent.ts` line 433 |
 | `canUseTool` | callback into `IClaudeToolPermissionService`-equivalent | Real per-tool permission UX. Phase 4 may stub to `{ behavior: 'allow' }` and defer the real UX to Phase 9. | `claudeCodeAgent.ts` line 463 |
 | `model` | `<sdkModelId>` from session state | Required for any meaningful turn. Resolve the canonical Anthropic ID via the model registry. | `claudeCodeAgent.ts` line 442 |
 | `permissionMode` | session permission mode | Required (default `'acceptEdits'` in the extension). | `claudeCodeAgent.ts` line 444 |
@@ -708,6 +708,28 @@ emits no permission signal. Each emitted signal carries the correct turn
 id via the attribution map.
 
 Exit criteria: a real "read this file" prompt completes end-to-end.
+
+#### Deferred enhancements (Phase 7)
+
+- **ExitPlanMode richer response shape.** Phase 7 ships a simple 2-button
+  Approve/Deny mirror of the production extension's
+  [`exitPlanModeHandler.ts`](../../../../../extensions/copilot/src/extension/chatSessions/claude/common/toolPermissionHandlers/exitPlanModeHandler.ts):
+  on Approve the host calls `session.setPermissionMode('acceptEdits')` and
+  returns `{ behavior: 'allow', updatedInput: input }`; on Deny it returns
+  `{ behavior: 'deny', message: 'The user declined the plan, maybe ask
+  why?' }` (production extension's exact wording). CopilotAgent already has
+  a richer `IExitPlanModeResponse { approved, selectedAction?,
+  autoApproveEdits?, feedback? }` contract
+  ([copilotAgent.ts:106-123](./copilot/copilotAgent.ts#L106-L123),
+  [copilotAgentSession.ts:1439-1518](./copilot/copilotAgentSession.ts#L1439-L1518))
+  that supports multi-action plans, an `autoApproveEdits` override (so the
+  user can approve _without_ flipping `permissionMode`), and freeform
+  feedback capture on rejection. Adopting that shape for Claude requires
+  workbench rendering for multi-action plan UX plus a freeform-feedback
+  capture path, which is out of scope for Phase 7. The Phase 7 handler MUST
+  drop a `// TODO(claude-future): adopt richer IExitPlanModeResponse shape
+  — see roadmap.md` marker at the call site so the upgrade path stays
+  discoverable. Implement when Phase N introduces multi-action plan UX.
 
 ### Phase 8 — File edit tracking
 

@@ -12,6 +12,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
+import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { CLAUDE_CODE_SESSION_TYPE, COPILOT_CLI_SESSION_TYPE } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -73,6 +74,12 @@ function stubServices(
 
 	// Stub IInstantiationService so SessionModelPicker can call createInstance for ModelPickerActionItem
 	instantiationService.stub(IInstantiationService, instantiationService);
+
+	instantiationService.stub(IChatEntitlementService, {
+		quotas: {},
+		onDidChangeQuotaRemaining: Event.None,
+		onDidChangeEntitlement: Event.None,
+	} as Partial<IChatEntitlementService>);
 
 	return { instantiationService, storage, activeSession, fireLanguageModelsChanged: () => onDidChangeLanguageModelsEmitter.fire({}) };
 }

@@ -192,6 +192,11 @@ export interface PullRequestFile {
 	sha?: string;
 }
 
+export interface CreatedPullRequest {
+	number: number;
+	url: string;
+}
+
 interface GitHubContentResponse {
 	content?: string;
 	encoding?: string;
@@ -279,6 +284,19 @@ export interface IOctoKitService {
 	 * @param authOptions - Authentication options. By default, uses silent auth and throws {@link PermissiveAuthRequiredError} if not authenticated.
 	 */
 	addPullRequestComment(pullRequestId: string, commentBody: string, authOptions: AuthOptions): Promise<PullRequestComment | null>;
+
+	/**
+	 * Creates a pull request.
+	 * @param owner The repository owner
+	 * @param repo The repository name
+	 * @param title The pull request title
+	 * @param body The pull request body
+	 * @param head The source branch name
+	 * @param base The target branch name
+	 * @param draft Whether to create the PR as a draft
+	 * @param authOptions - Authentication options. By default, uses silent auth and throws {@link PermissiveAuthRequiredError} if not authenticated.
+	 */
+	createPullRequest(owner: string, repo: string, title: string, body: string, head: string, base: string, draft: boolean, authOptions: AuthOptions): Promise<CreatedPullRequest>;
 
 	/**
 	 * Gets all open Copilot sessions.
@@ -521,6 +539,25 @@ export class BaseOctoKitService {
 
 	protected async addPullRequestCommentWithToken(pullRequestId: string, commentBody: string, token: string): Promise<PullRequestComment | null> {
 		return addPullRequestCommentGraphQLRequest(this._fetcherService, this._logService, this._telemetryService, this._capiClientService.dotcomAPIURL, token, pullRequestId, commentBody);
+	}
+
+	protected async createPullRequestWithToken(owner: string, repo: string, title: string, body: string, head: string, base: string, draft: boolean, token: string): Promise<CreatedPullRequest> {
+		const response = await this._makeGHAPIRequest(`repos/${owner}/${repo}/pulls`, 'POST', token, {
+			title,
+			body,
+			head,
+			base,
+			draft,
+		});
+
+		if (!response?.html_url || typeof response.number !== 'number') {
+			throw new Error(`Failed to create pull request for ${owner}/${repo}`);
+		}
+
+		return {
+			url: response.html_url,
+			number: response.number,
+		};
 	}
 
 	protected async getPullRequestFromSessionWithToken(globalId: string, token: string): Promise<PullRequestSearchItem | null> {

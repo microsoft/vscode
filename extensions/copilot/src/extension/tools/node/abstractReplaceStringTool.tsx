@@ -585,7 +585,9 @@ export abstract class AbstractReplaceStringTool<T extends { explanation: string 
 			allUris,
 			this._promptContext?.allowedEditUris,
 			(urisNeedingConfirmation) => this.generateConfirmationDetails(replaceInputs, urisNeedingConfirmation, options, token),
-			options.forceConfirmationReason
+			options.forceConfirmationReason,
+			undefined,
+			options.workingDirectory,
 		);
 	}
 

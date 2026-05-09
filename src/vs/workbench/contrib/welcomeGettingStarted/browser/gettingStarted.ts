@@ -935,7 +935,7 @@ export class GettingStartedPage extends EditorPane {
 		const gettingStartedList = this.buildGettingStartedWalkthroughsList();
 
 		const footerChildren: HTMLElement[] = [];
-		if (canShowAgentsBanner(this.productService, this.chatEntitlementService)) {
+		if (canShowAgentsBanner(this.chatEntitlementService)) {
 			const agentsBanner = createAgentsBanner(
 				{
 					cssClass: 'getting-started-category.agents-banner',
@@ -1297,7 +1297,7 @@ export class GettingStartedPage extends EditorPane {
 		this.window.document.querySelectorAll('.category-progress').forEach(element => {
 			const categoryID = element.getAttribute('x-data-category-id');
 			const category = this.gettingStartedCategories.find(c => c.id === categoryID);
-			if (!category) { throw Error('Could not find category with ID ' + categoryID); }
+			if (!category) { return; }
 
 			const stats = this.getWalkthroughCompletionStats(category);
 

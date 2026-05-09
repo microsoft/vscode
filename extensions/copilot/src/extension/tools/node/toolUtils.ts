@@ -62,8 +62,10 @@ export interface InputGlobResult {
  * - Absolute paths within a workspace folder
  * - Patterns prefixed with a workspace folder name (e.g. `folderName/src/**`)
  * - Patterns prefixed with `** /folderName/...` in multi-root workspaces
+ * - When `workingDirectory` is provided (agents window), unscoped patterns
+ *   are scoped to it so searches target the session's folder.
  */
-export function inputGlobToPattern(query: string, workspaceService: IWorkspaceService, modelFamily: string | undefined): InputGlobResult {
+export function inputGlobToPattern(query: string, workspaceService: IWorkspaceService, modelFamily: string | undefined, workingDirectory?: URI): InputGlobResult {
 	let pattern: vscode.GlobPattern = query;
 	let folderName: string | undefined;
 	let folderRelativePattern: string | undefined;
@@ -71,21 +73,31 @@ export function inputGlobToPattern(query: string, workspaceService: IWorkspaceSe
 	if (isAbsolute(query)) {
 		try {
 			const uri = URI.file(query);
-			const workspaceFolder = workspaceService.getWorkspaceFolder(uri);
-			if (workspaceFolder) {
-				const relative = extUriBiasedIgnorePathCase.relativePath(workspaceFolder, uri) || '';
-				pattern = new RelativePattern(workspaceFolder, relative);
-				folderName = workspaceService.getWorkspaceFolderName(workspaceFolder);
-				folderRelativePattern = relative;
+			// When workingDirectory is set, resolve against it exclusively.
+			// Only fall back to workspace folders when no workingDirectory.
+			if (workingDirectory) {
+				if (extUriBiasedIgnorePathCase.isEqualOrParent(uri, workingDirectory)) {
+					const relative = extUriBiasedIgnorePathCase.relativePath(workingDirectory, uri) || '';
+					pattern = new RelativePattern(workingDirectory, relative);
+					folderRelativePattern = relative;
+				}
+			} else {
+				const workspaceFolder = workspaceService.getWorkspaceFolder(uri);
+				if (workspaceFolder) {
+					const relative = extUriBiasedIgnorePathCase.relativePath(workspaceFolder, uri) || '';
+					pattern = new RelativePattern(workspaceFolder, relative);
+					folderName = workspaceService.getWorkspaceFolderName(workspaceFolder);
+					folderRelativePattern = relative;
+				}
 			}
 		} catch (e) {
 			// ignore
 		}
 	}
 
-	// In multi-root workspaces, detect patterns like "folderName/src/**" or "**/folderName/src/**"
-	// and rewrite to a RelativePattern scoped to that folder.
-	if (typeof pattern === 'string' && workspaceService.getWorkspaceFolders().length > 1) {
+	// In multi-root workspaces (and only when no workingDirectory), detect patterns
+	// like "folderName/src/**" or "**/folderName/src/**" and rewrite to a RelativePattern.
+	if (typeof pattern === 'string' && !workingDirectory && workspaceService.getWorkspaceFolders().length > 1) {
 		let raw = pattern;
 		if (raw.startsWith('**/')) {
 			raw = raw.slice(3);
@@ -106,6 +118,13 @@ export function inputGlobToPattern(query: string, workspaceService: IWorkspaceSe
 				}
 			}
 		}
+	}
+
+	// When a working directory is set (agents window) and the pattern is still
+	// unscoped (a plain string, not a RelativePattern), scope it to the session's
+	// working directory so searches target the correct folder.
+	if (typeof pattern === 'string' && workingDirectory) {
+		pattern = new RelativePattern(workingDirectory, pattern);
 	}
 
 	const patterns = [pattern];
@@ -162,6 +181,7 @@ export async function isFileOkForTool(accessor: ServicesAccessor, uri: URI, buil
 
 export interface AssertFileOkForToolOptions {
 	readOnly?: boolean;
+	workingDirectory?: URI;
 }
 
 export async function assertFileOkForTool(accessor: ServicesAccessor, uri: URI, buildPromptContext?: IBuildPromptContext, options?: AssertFileOkForToolOptions): Promise<void> {
@@ -177,7 +197,13 @@ export async function assertFileOkForTool(accessor: ServicesAccessor, uri: URI, 
 	await assertFileNotContentExcluded(accessor, uri);
 
 	const normalizedUri = normalizePath(uri);
-	if (workspaceService.getWorkspaceFolder(normalizedUri)) {
+	// When a working directory is set (agents window), it is the source of truth.
+	// Only fall back to workspace folders when no working directory is specified.
+	if (options?.workingDirectory) {
+		if (extUriBiasedIgnorePathCase.isEqualOrParent(normalizedUri, options.workingDirectory)) {
+			return;
+		}
+	} else if (workspaceService.getWorkspaceFolder(normalizedUri)) {
 		return;
 	}
 	if (options?.readOnly && isUriUnderAdditionalReadAccessPaths(normalizedUri, configurationService)) {
@@ -269,7 +295,7 @@ export async function assertFileNotContentExcluded(accessor: ServicesAccessor, u
 	}
 }
 
-export async function isFileExternalAndNeedsConfirmation(accessor: ServicesAccessor, uri: URI, buildPromptContext?: IBuildPromptContext, options?: { readOnly?: boolean }): Promise<boolean> {
+export async function isFileExternalAndNeedsConfirmation(accessor: ServicesAccessor, uri: URI, buildPromptContext?: IBuildPromptContext, options?: { readOnly?: boolean; workingDirectory?: URI }): Promise<boolean> {
 	const workspaceService = accessor.get(IWorkspaceService);
 	const tabsAndEditorsService = accessor.get(ITabsAndEditorsService);
 	const customInstructionsService = accessor.get(ICustomInstructionsService);
@@ -281,8 +307,14 @@ export async function isFileExternalAndNeedsConfirmation(accessor: ServicesAcces
 
 	const normalizedUri = normalizePath(uri);
 
-	// Not external if: in workspace, untitled, instructions file, session resource, or open in editor
-	if (workspaceService.getWorkspaceFolder(normalizedUri)) {
+	// When a working directory is set (agents window), it is the source of truth
+	// for determining whether a file is "internal". Only fall back to workspace
+	// folders when no working directory is specified.
+	if (options?.workingDirectory) {
+		if (extUriBiasedIgnorePathCase.isEqualOrParent(normalizedUri, options.workingDirectory)) {
+			return false;
+		}
+	} else if (workspaceService.getWorkspaceFolder(normalizedUri)) {
 		return false;
 	}
 	if (options?.readOnly && isUriUnderAdditionalReadAccessPaths(normalizedUri, configurationService)) {
@@ -317,15 +349,20 @@ export async function isFileExternalAndNeedsConfirmation(accessor: ServicesAcces
 	return true;
 }
 
-export function isDirExternalAndNeedsConfirmation(accessor: ServicesAccessor, uri: URI, buildPromptContext?: IBuildPromptContext, options?: { readOnly?: boolean }): boolean {
+export function isDirExternalAndNeedsConfirmation(accessor: ServicesAccessor, uri: URI, buildPromptContext?: IBuildPromptContext, options?: { readOnly?: boolean; workingDirectory?: URI }): boolean {
 	const workspaceService = accessor.get(IWorkspaceService);
 	const customInstructionsService = accessor.get(ICustomInstructionsService);
 	const configurationService = accessor.get(IConfigurationService);
 
 	const normalizedUri = normalizePath(uri);
 
-	// Not external if: in workspace or external instructions folder
-	if (workspaceService.getWorkspaceFolder(normalizedUri)) {
+	// When a working directory is set (agents window), it is the source of truth.
+	// Only fall back to workspace folders when no working directory is specified.
+	if (options?.workingDirectory) {
+		if (extUriBiasedIgnorePathCase.isEqualOrParent(normalizedUri, options.workingDirectory)) {
+			return false;
+		}
+	} else if (workspaceService.getWorkspaceFolder(normalizedUri)) {
 		return false;
 	}
 	if (options?.readOnly && isUriUnderAdditionalReadAccessPaths(normalizedUri, configurationService)) {

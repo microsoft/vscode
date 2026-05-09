@@ -378,7 +378,7 @@ suite('CopilotChatSessionsProvider', () => {
 		assert.strictEqual(sessions.length, 2);
 	});
 
-	test('getSessions ignores non-Background/Cloud/Claude sessions', () => {
+	test('getSessions includes Background and Local sessions', () => {
 		const bgResource = URI.from({ scheme: AgentSessionProviders.Background, path: '/bg-session' });
 		const localResource = URI.from({ scheme: AgentSessionProviders.Local, path: '/local-session' });
 		model.addSession(createMockAgentSession(bgResource));
@@ -387,7 +387,7 @@ suite('CopilotChatSessionsProvider', () => {
 		const provider = createProvider(disposables, model);
 		const sessions = provider.getSessions();
 
-		assert.strictEqual(sessions.length, 1);
+		assert.strictEqual(sessions.length, 2);
 	});
 
 	test('getSessions includes Claude agent sessions when enabled', () => {

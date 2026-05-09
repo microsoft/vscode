@@ -94,6 +94,155 @@ body.showEditorSelection .code-line {
 	display: contents;
 }
 
+/* Change indicator — shown where lines were deleted or modified */
+.diff-change-indicator {
+	position: relative;
+	height: 4px;
+	overflow: visible;
+	z-index: 1;
+}
+
+/* Single visual element for the entire arrow + bar shape (avoids transparent color overlap) */
+.diff-change-indicator::before {
+	content: "";
+	position: absolute;
+	top: -4px;
+	left: -12px;
+	right: 0;
+	height: 12px;
+	background-color: var(--vscode-diffEditorGutter-removedLineBackground, var(--vscode-diffEditor-removedTextBackground));
+	clip-path: polygon(
+		0px 0px,
+		4px 4px,
+		100% 4px,
+		100% 8px,
+		4px 8px,
+		0px 12px
+	);
+	pointer-events: none;
+}
+
+/* Transparent hover target over the gutter arrow area */
+.diff-change-indicator-arrow {
+	display: block;
+	position: absolute;
+	top: -4px;
+	left: -12px;
+	width: 12px;
+	height: 12px;
+	cursor: pointer;
+	z-index: 2;
+}
+
+.diff-change-indicator-arrow:hover > .diff-change-indicator-tooltip {
+	display: block;
+}
+
+.diff-change-indicator-arrow > .diff-change-indicator-tooltip {
+	left: 8px;
+	top: 100%;
+	right: auto;
+	width: max-content;
+	max-width: 80vw;
+}
+
+/* Modified lines override the left gutter bar color */
+.code-line-diff-modified.code-line-diff-added {
+	box-shadow: none;
+}
+
+/* Modification indicator uses a subtler style placed after the changed block */
+.diff-change-indicator-modification {
+	height: 2px;
+	background: repeating-linear-gradient(
+		90deg,
+		var(--vscode-diffEditorGutter-removedLineBackground, var(--vscode-diffEditor-removedTextBackground)) 0px,
+		var(--vscode-diffEditorGutter-removedLineBackground, var(--vscode-diffEditor-removedTextBackground)) 4px,
+		transparent 4px,
+		transparent 8px
+	);
+}
+
+.diff-change-indicator-modification .diff-change-indicator-arrow {
+	background: inherit;
+}
+
+/* Left gutter bar for modification blocks */
+.diff-modification-gutter {
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	left: -12px;
+	width: 4px;
+	z-index: 5;
+	background-color: var(--vscode-editorGutter-modifiedBackground, #1b81a8);
+	cursor: pointer;
+}
+
+.diff-modification-gutter:hover > .diff-change-indicator-tooltip {
+	display: block;
+}
+
+.diff-modification-gutter > .diff-change-indicator-tooltip {
+	left: 8px;
+	top: 0;
+	right: auto;
+	width: max-content;
+	max-width: 80vw;
+}
+
+.diff-change-indicator-tooltip {
+	display: none;
+	position: absolute;
+	top: 100%;
+	left: 0;
+	right: 0;
+	z-index: 10;
+	background-color: var(--vscode-editor-background);
+	border: 1px solid var(--vscode-editorWidget-border, var(--vscode-contrastBorder, rgba(127, 127, 127, 0.35)));
+	border-radius: 3px;
+	max-height: 400px;
+	overflow: auto;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.diff-change-indicator-tooltip pre {
+	margin: 0;
+	font-size: 0.9em;
+	white-space: pre-wrap;
+	word-break: break-word;
+	color: var(--vscode-editor-foreground);
+}
+
+.diff-tooltip-deleted {
+	background-color: var(--vscode-diffEditor-removedTextBackground);
+	border-left: 4px solid var(--vscode-diffEditorGutter-removedLineBackground, var(--vscode-diffEditor-removedTextBackground));
+	padding: 4px 8px;
+}
+
+.diff-tooltip-added {
+	background-color: var(--vscode-diffEditor-insertedTextBackground);
+	border-left: 4px solid var(--vscode-diffEditorGutter-insertedLineBackground, var(--vscode-diffEditor-insertedTextBackground));
+	padding: 4px 8px;
+}
+
+.diff-tooltip-unchanged {
+	padding: 4px 8px;
+	border-left: 4px solid transparent;
+}
+
+.diff-inline-deleted {
+	background-color: var(--vscode-diffEditor-removedTextBackground);
+	text-decoration: line-through;
+	text-decoration-color: var(--vscode-editor-foreground);
+}
+
+.diff-inline-added {
+	background-color: var(--vscode-diffEditor-insertedTextBackground);
+}
+
+
+
 body.showEditorSelection :not(tr,ul,ol).code-active-line:before,
 body.showEditorSelection :not(tr,ul,ol).code-line:hover:before {
 	content: "";

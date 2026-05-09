@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from '../../../base/common/cancellation.js';
+import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { IElementData, IElementAncestor } from '../common/browserView.js';
 import { collapseToShorthands, formatMatchedStyles, keyComputedProperties, type IMatchedStyles } from '../common/cssHelpers.js';
@@ -53,6 +53,17 @@ export class BrowserViewElementInspector extends Disposable {
 
 	private readonly _connectionPromise: Promise<ICDPConnection>;
 
+	private readonly _onDidSelectElement = this._register(new Emitter<IElementData>());
+	readonly onDidSelectElement: Event<IElementData> = this._onDidSelectElement.event;
+
+	private readonly _onDidChangeElementSelectionActive = this._register(new Emitter<boolean>());
+	readonly onDidChangeElementSelectionActive: Event<boolean> = this._onDidChangeElementSelectionActive.event;
+
+	private _elementSelectionActive = false;
+	get isElementSelectionActive(): boolean { return this._elementSelectionActive; }
+
+	private _selectionStore: DisposableStore | undefined;
+
 	constructor(private readonly browser: BrowserView) {
 		super();
 
@@ -80,67 +91,93 @@ export class BrowserViewElementInspector extends Disposable {
 	}
 
 	/**
-	 * Start element inspection mode on the browser view. Sets up an
-	 * overlay that highlights elements on hover. When the user clicks, the
-	 * element data is returned and the overlay is removed.
+	 * Toggle element selection mode on the browser view.
 	 *
-	 * @param token Cancellation token to abort the inspection.
+	 * When enabled, sets up a CDP overlay that highlights elements on hover.
+	 * When the user picks an element, its data is fired via {@link onDidSelectElement}.
+	 *
+	 * @param enabled Whether to enable or disable selection. Omit to toggle.
 	 */
-	async getElementData(token: CancellationToken): Promise<IElementData | undefined> {
+	async toggleElementSelection(enabled?: boolean): Promise<void> {
+		const newEnabled = enabled ?? !this._elementSelectionActive;
+		if (newEnabled === this._elementSelectionActive) {
+			return;
+		}
+
+		if (!newEnabled) {
+			await this._stopElementSelection();
+			return;
+		}
+
+		// Start selection
 		const connection = await this._connectionPromise;
-		const store = new DisposableStore();
-		const result = new Promise<IElementData | undefined>((resolve, reject) => {
-			store.add(token.onCancellationRequested(() => {
-				resolve(undefined);
-			}));
 
-			store.add(connection.onEvent(async (event) => {
-				if (event.method !== 'Overlay.inspectNodeRequested') {
-					return;
-				}
+		// Clean up any prior selection state
+		this._selectionStore?.dispose();
+		const store = this._selectionStore = new DisposableStore();
 
-				const params = event.params as { backendNodeId: number };
-				if (!params?.backendNodeId) {
-					reject(new Error('Missing backendNodeId in inspectNodeRequested event'));
-					return;
-				}
+		store.add(connection.onEvent(async (event) => {
+			if (event.method !== 'Overlay.inspectNodeRequested') {
+				return;
+			}
 
-				try {
-					const nodeData = await extractNodeData(connection, { backendNodeId: params.backendNodeId });
-					resolve({
-						...nodeData,
-						url: this.browser.getURL()
-					});
-				} catch (err) {
-					reject(err);
-				}
-			}));
+			const params = event.params as { backendNodeId: number };
+			if (!params?.backendNodeId) {
+				return;
+			}
+
+			try {
+				const nodeData = await extractNodeData(connection, { backendNodeId: params.backendNodeId });
+				this._onDidSelectElement.fire({
+					...nodeData,
+					url: this.browser.getURL()
+				});
+				await this._stopElementSelection();
+			} catch {
+				// Best effort - selection continues
+			}
+		}));
+
+		await connection.sendCommand('Overlay.setInspectMode', {
+			mode: 'searchForNode',
+			highlightConfig: inspectHighlightConfig,
 		});
 
+		this._elementSelectionActive = true;
+		this._onDidChangeElementSelectionActive.fire(true);
+	}
+
+	private async _stopElementSelection(): Promise<void> {
+		if (!this._elementSelectionActive) {
+			return;
+		}
+
+		this._elementSelectionActive = false;
+		this._selectionStore?.dispose();
+		this._selectionStore = undefined;
+		this._onDidChangeElementSelectionActive.fire(false);
+
 		try {
+			const connection = await this._connectionPromise;
 			await connection.sendCommand('Overlay.setInspectMode', {
-				mode: 'searchForNode',
-				highlightConfig: inspectHighlightConfig,
+				mode: 'none',
+				highlightConfig: { showInfo: false, showStyles: false }
 			});
-			return await result;
-		} finally {
-			try {
-				await connection.sendCommand('Overlay.setInspectMode', {
-					mode: 'none',
-					highlightConfig: { showInfo: false, showStyles: false }
-				});
-				await connection.sendCommand('Overlay.hideHighlight');
-			} catch {
-				// Best effort cleanup
-			}
-			store.dispose();
+			await connection.sendCommand('Overlay.hideHighlight');
+		} catch {
+			// Best effort cleanup
 		}
 	}
 
 	/**
-	 * Get element data for the currently focused element.
+	 * Fire a selection event for the currently focused element.
+	 * Only effective when element selection is active.
 	 */
-	async getFocusedElementData(): Promise<IElementData | undefined> {
+	async pickFocusedElement(): Promise<void> {
+		if (!this._elementSelectionActive) {
+			return;
+		}
+
 		const connection = await this._connectionPromise;
 
 		await connection.sendCommand('Runtime.enable');
@@ -150,14 +187,14 @@ export class BrowserViewElementInspector extends Disposable {
 		}) as { result: { objectId?: string } };
 
 		if (!result?.objectId) {
-			return undefined;
+			return;
 		}
 
 		const nodeData = await extractNodeData(connection, { objectId: result.objectId });
-		return {
+		this._onDidSelectElement.fire({
 			...nodeData,
 			url: this.browser.getURL()
-		};
+		});
 	}
 
 	async getVisualViewportScale(): Promise<number> {

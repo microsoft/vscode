@@ -13,6 +13,8 @@ import { EditedFileEvents, renderedMessageToTsxChildren } from './agentPrompt';
 
 export interface AgentUserMessageInHistoryProps extends BasePromptElementProps {
 	readonly turn: Turn;
+	/** Tag name used to wrap the user query (e.g., 'userRequest' or 'user_query'). Defaults to 'userRequest'. */
+	readonly userQueryTagName?: string;
 }
 
 export class AgentUserMessageInHistory extends PromptElement<AgentUserMessageInHistoryProps> {
@@ -30,7 +32,7 @@ export class AgentUserMessageInHistory extends PromptElement<AgentUserMessageInH
 				<Tag name='context'>
 					<EditedFileEvents flexGrow={2} editedFileEvents={turn.editedFileEvents} />
 				</Tag>}
-			<Tag name='userRequest'>{turn.request.message}</Tag>
+			<Tag name={this.props.userQueryTagName ?? 'userRequest'}>{turn.request.message}</Tag>
 		</UserMessage>;
 	}
 }
@@ -38,6 +40,7 @@ export class AgentUserMessageInHistory extends PromptElement<AgentUserMessageInH
 export interface AgentConversationHistoryProps extends BasePromptElementProps {
 	readonly priority: number;
 	readonly promptContext: IBuildPromptContext;
+	readonly userQueryTagName?: string;
 }
 
 /**
@@ -53,7 +56,7 @@ export class AgentConversationHistory extends PromptElement<AgentConversationHis
 			if (metadata?.renderedUserMessage) {
 				history.push(<UserMessage><Chunk>{renderedMessageToTsxChildren(metadata.renderedUserMessage, false)}</Chunk></UserMessage>);
 			} else {
-				history.push(<AgentUserMessageInHistory turn={turn} />);
+				history.push(<AgentUserMessageInHistory turn={turn} userQueryTagName={this.props.userQueryTagName} />);
 			}
 
 			if (Array.isArray(metadata?.toolCallRounds) && metadata.toolCallRounds?.length > 0) {

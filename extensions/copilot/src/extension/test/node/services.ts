@@ -56,6 +56,7 @@ import { SyncDescriptor } from '../../../util/vs/platform/instantiation/common/d
 import { ILanguageModelServer } from '../../agents/node/langModelServer';
 import { MockLanguageModelServer } from '../../agents/node/test/mockLanguageModelServer';
 import { IClaudeRuntimeDataService } from '../../chatSessions/claude/common/claudeRuntimeDataService';
+import { ClaudePlanFileTracker, IClaudePlanFileTracker } from '../../chatSessions/claude/common/claudePlanFileTracker';
 import { IClaudeSessionStateService } from '../../chatSessions/claude/common/claudeSessionStateService';
 import { IClaudeToolPermissionService } from '../../chatSessions/claude/common/claudeToolPermissionService';
 import { ClaudeCodeModels, IClaudeCodeModels } from '../../chatSessions/claude/node/claudeCodeModels';
@@ -127,6 +128,7 @@ export function createExtensionUnitTestingServices(disposables: Pick<DisposableS
 	testingServiceCollection.define(IChatDiskSessionResources, new SyncDescriptor(ChatDiskSessionResources));
 	testingServiceCollection.define(IClaudeCodeSdkService, new SyncDescriptor(MockClaudeCodeSdkService));
 	testingServiceCollection.define(IClaudeToolPermissionService, new SyncDescriptor(MockClaudeToolPermissionService));
+	testingServiceCollection.define(IClaudePlanFileTracker, new SyncDescriptor(ClaudePlanFileTracker));
 	testingServiceCollection.define(IClaudeCodeModels, new SyncDescriptor(ClaudeCodeModels));
 	testingServiceCollection.define(IClaudeSessionStateService, new SyncDescriptor(ClaudeSessionStateService));
 	testingServiceCollection.define(IClaudeRuntimeDataService, new SyncDescriptor(ClaudeRuntimeDataService));

@@ -664,9 +664,16 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			(async () => {
 				let cwd = await instance?.getCwdResource();
 				if (!cwd) {
-					const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot();
-					const workspaceFolder = activeWorkspaceRootUri ? this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri) ?? undefined : undefined;
-					cwd = workspaceFolder?.uri;
+					// Prefer the session's working directory (agents window) over the
+					// last active workspace root, which may point to a different session's folder.
+					const sessionModel = chatSessionResource ? this._chatService.getSession(chatSessionResource) : undefined;
+					if (sessionModel?.workingDirectory) {
+						cwd = sessionModel.workingDirectory;
+					} else {
+						const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot();
+						const workspaceFolder = activeWorkspaceRootUri ? this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri) ?? undefined : undefined;
+						cwd = workspaceFolder?.uri;
+					}
 				}
 				return cwd;
 			})(),

@@ -64,6 +64,27 @@ suite('Tool Helpers', () => {
 			const result = resolveToolUri({ symbol: 'x', lineContent: 'x' }, ws);
 			assert.strictEqual(result, undefined);
 		});
+
+		test('resolves filePath against workingDirectory when provided', () => {
+			const ws = createMockWorkspaceService(URI.parse('file:///other-workspace'));
+			const workingDirectory = URI.parse('file:///session-dir');
+			const result = resolveToolUri({ symbol: 'x', lineContent: 'x', filePath: 'src/index.ts' }, ws, workingDirectory);
+			assert.strictEqual(result?.toString(), 'file:///session-dir/src/index.ts');
+		});
+
+		test('workingDirectory takes precedence over workspace folders', () => {
+			const ws = createMockWorkspaceService(URI.parse('file:///workspace'));
+			const workingDirectory = URI.parse('file:///my-project');
+			const result = resolveToolUri({ symbol: 'x', lineContent: 'x', filePath: 'file.ts' }, ws, workingDirectory);
+			assert.strictEqual(result?.toString(), 'file:///my-project/file.ts');
+		});
+
+		test('uri field ignores workingDirectory', () => {
+			const ws = createMockWorkspaceService();
+			const workingDirectory = URI.parse('file:///session-dir');
+			const result = resolveToolUri({ symbol: 'x', lineContent: 'x', uri: 'file:///absolute/path.ts' }, ws, workingDirectory);
+			assert.strictEqual(result?.toString(), 'file:///absolute/path.ts');
+		});
 	});
 
 	suite('findLineNumber', () => {

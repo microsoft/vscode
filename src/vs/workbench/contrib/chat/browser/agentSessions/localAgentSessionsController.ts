@@ -16,11 +16,12 @@ import { URI } from '../../../../../base/common/uri.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { convertLegacyChatSessionTiming, IChatDetail, IChatService, IChatSessionTiming } from '../../common/chatService/chatService.js';
 import { chatModelToChatDetail } from '../../common/chatService/chatServiceImpl.js';
-import { ChatSessionStatus, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
+import { ChatSessionStatus, IChatSessionItem, IChatSessionItemController, IChatSessionItemMetadata, IChatSessionItemsDelta, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
 import { IChatModel } from '../../common/model/chatModel.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { getInProgressSessionDescription } from '../chatSessions/chatSessionDescription.js';
 import { chatResponseStateToSessionStatus, getSessionStatusForModel } from '../chatSessions/chatSessions.contribution.js';
+import { Schemas } from '../../../../../base/common/network.js';
 
 export class LocalAgentsSessionsController extends Disposable implements IChatSessionItemController, IWorkbenchContribution {
 
@@ -177,6 +178,7 @@ class LocalChatSessionItem implements IChatSessionItem {
 	readonly status: ChatSessionStatus | undefined;
 	readonly timing: IChatSessionTiming;
 	readonly changes: IChatSessionItem['changes'];
+	readonly metadata: IChatSessionItemMetadata | undefined;
 
 	constructor(chatDetail: IChatDetail, model: IChatModel | undefined) {
 		this.resource = chatDetail.sessionResource;
@@ -189,6 +191,8 @@ class LocalChatSessionItem implements IChatSessionItem {
 			deletions: chatDetail.stats.removed,
 			files: chatDetail.stats.fileCount,
 		} : undefined;
+		const workingDirectoryPath = chatDetail.workingDirectory?.scheme === Schemas.file ? chatDetail.workingDirectory.fsPath : undefined;
+		this.metadata = workingDirectoryPath ? { workingDirectoryPath: workingDirectoryPath } : undefined;
 	}
 
 	isEqual(other: LocalChatSessionItem): boolean {

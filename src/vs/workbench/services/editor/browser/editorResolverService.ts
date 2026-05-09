@@ -3,30 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as glob from '../../../../base/common/glob.js';
 import { distinct, insert } from '../../../../base/common/arrays.js';
+import { PauseableEmitter } from '../../../../base/common/event.js';
+import * as glob from '../../../../base/common/glob.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { basename, extname, isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
+import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { EditorActivation, EditorResolution, IEditorOptions } from '../../../../platform/editor/common/editor.js';
-import { DEFAULT_EDITOR_ASSOCIATION, EditorResourceAccessor, EditorInputWithOptions, IResourceSideBySideEditorInput, isEditorInputWithOptions, isEditorInputWithOptionsAndGroup, isResourceDiffEditorInput, isResourceSideBySideEditorInput, isUntitledResourceEditorInput, isResourceMergeEditorInput, IUntypedEditorInput, SideBySideEditor, isResourceMultiDiffEditorInput } from '../../../common/editor.js';
-import { EditorInput } from '../../../common/editor/editorInput.js';
-import { IEditorGroup, IEditorGroupsService } from '../common/editorGroupsService.js';
-import { Schemas } from '../../../../base/common/network.js';
-import { RegisteredEditorInfo, RegisteredEditorPriority, RegisteredEditorOptions, EditorAssociation, EditorAssociations, diffEditorsAssociationsSettingId, editorsAssociationsSettingId, globMatchesResource, IEditorResolverService, priorityToRank, ResolvedEditor, ResolvedStatus, EditorInputFactoryObject } from '../common/editorResolverService.js';
-import { QuickPickItem, IKeyMods, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
-import { localize } from '../../../../nls.js';
-import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { IExtensionService } from '../../extensions/common/extensions.js';
-import { ILogService } from '../../../../platform/log/common/log.js';
-import { findGroup } from '../common/editorGroupFinder.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { PreferredGroup } from '../common/editorService.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
+import { IKeyMods, IQuickInputService, IQuickPickItem, IQuickPickSeparator, QuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { DEFAULT_EDITOR_ASSOCIATION, EditorInputWithOptions, EditorResourceAccessor, IResourceSideBySideEditorInput, isEditorInputWithOptions, isEditorInputWithOptionsAndGroup, isResourceDiffEditorInput, isResourceMergeEditorInput, isResourceMultiDiffEditorInput, isResourceSideBySideEditorInput, isUntitledResourceEditorInput, IUntypedEditorInput, SideBySideEditor } from '../../../common/editor.js';
+import { EditorInput } from '../../../common/editor/editorInput.js';
 import { SideBySideEditorInput } from '../../../common/editor/sideBySideEditorInput.js';
-import { PauseableEmitter } from '../../../../base/common/event.js';
+import { IExtensionService } from '../../extensions/common/extensions.js';
+import { findGroup } from '../common/editorGroupFinder.js';
+import { IEditorGroup, IEditorGroupsService } from '../common/editorGroupsService.js';
+import { diffEditorsAssociationsSettingId, EditorAssociation, EditorAssociations, EditorInputFactoryObject, editorsAssociationsSettingId, globMatchesResource, IEditorResolverService, priorityToRank, RegisteredEditorInfo, RegisteredEditorOptions, RegisteredEditorPriority, ResolvedEditor, ResolvedStatus } from '../common/editorResolverService.js';
+import { PreferredGroup } from '../common/editorService.js';
 
 interface RegisteredEditor {
 	globPattern: string | glob.IRelativePattern;
@@ -39,7 +39,8 @@ type RegisteredEditors = Array<RegisteredEditor>;
 
 const enum EditorAssociationType {
 	Editor,
-	DiffEditor
+	DiffEditor,
+	MergeEditor
 }
 
 export class EditorResolverService extends Disposable implements IEditorResolverService {
@@ -130,7 +131,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		let resource = EditorResourceAccessor.getCanonicalUri(untypedEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 
 		// If it was resolved before we await for the extensions to activate and then proceed with resolution or else the backing extensions won't be registered
-		const editorAssociationType = isResourceDiffEditorInput(untypedEditor) ? EditorAssociationType.DiffEditor : EditorAssociationType.Editor;
+		const editorAssociationType = isResourceDiffEditorInput(untypedEditor) ? EditorAssociationType.DiffEditor : isResourceMergeEditorInput(untypedEditor) ? EditorAssociationType.MergeEditor : EditorAssociationType.Editor;
 		if (this.cache && resource && (this.resourceMatchesCache(resource) || this.resourceMatchesUserAssociation(resource, editorAssociationType))) {
 			await this.extensionService.whenInstalledExtensionsRegistered();
 		}
@@ -272,12 +273,14 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 	}
 
 	private getAssociationsForResourceByType(resource: URI, associationType: EditorAssociationType): EditorAssociations {
-		if (associationType === EditorAssociationType.Editor) {
-			return this.getAssociationsForResource(resource);
+		if (associationType === EditorAssociationType.DiffEditor || associationType === EditorAssociationType.MergeEditor) {
+			const diffAssociations = this.getAssociationsForResourceFromSetting(resource, diffEditorsAssociationsSettingId);
+			if (diffAssociations.length) {
+				return diffAssociations;
+			}
 		}
 
-		const diffAssociations = this.getAssociationsForResourceFromSetting(resource, diffEditorsAssociationsSettingId);
-		return diffAssociations.length ? diffAssociations : this.getAssociationsForResource(resource);
+		return this.getAssociationsForResource(resource);
 	}
 
 	private getAssociationsForResourceFromSetting(resource: URI, settingId: string): EditorAssociations {
@@ -406,6 +409,9 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 				if (associationType === EditorAssociationType.DiffEditor && !editor.editorFactoryObject.createDiffEditorInput) {
 					continue;
 				}
+				if (associationType === EditorAssociationType.MergeEditor && !editor.editorFactoryObject.createMergeEditorInput) {
+					continue;
+				}
 
 				const foundInSettings = userSettings.find(setting => setting.viewType === editor.editorInfo.id);
 				if ((foundInSettings && editor.editorInfo.priority !== RegisteredEditorPriority.exclusive) || globMatchesResource(key, resource)) {
@@ -415,11 +421,13 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		}
 		// Return the editors sorted by their priority
 		return matchingEditors.sort((a, b) => {
+			const aPriority = this.getEffectivePriority(a.editorInfo, associationType);
+			const bPriority = this.getEffectivePriority(b.editorInfo, associationType);
 			// Very crude if priorities match longer glob wins as longer globs are normally more specific
-			if (priorityToRank(b.editorInfo.priority) === priorityToRank(a.editorInfo.priority) && typeof b.globPattern === 'string' && typeof a.globPattern === 'string') {
+			if (priorityToRank(bPriority) === priorityToRank(aPriority) && typeof b.globPattern === 'string' && typeof a.globPattern === 'string') {
 				return b.globPattern.length - a.globPattern.length;
 			}
-			return priorityToRank(b.editorInfo.priority) - priorityToRank(a.editorInfo.priority);
+			return priorityToRank(bPriority) - priorityToRank(aPriority);
 		});
 	}
 
@@ -450,6 +458,9 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 				if (associationType === EditorAssociationType.DiffEditor && !editor.editorFactoryObject.createDiffEditorInput) {
 					return false;
 				}
+				if (associationType === EditorAssociationType.MergeEditor && !editor.editorFactoryObject.createMergeEditorInput) {
+					return false;
+				}
 
 				if (editor.options?.canSupportResource !== undefined) {
 					return editor.editorInfo.id === viewType && editor.options.canSupportResource(resource);
@@ -472,7 +483,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		const associationsFromSetting = this.getAssociationsForResourceByType(resource, associationType);
 		// We only want minPriority+ if no user defined setting is found, else we won't resolve an editor
 		const minPriority = editorId === EditorResolution.EXCLUSIVE_ONLY ? RegisteredEditorPriority.exclusive : RegisteredEditorPriority.builtin;
-		let possibleEditors = editors.filter(editor => priorityToRank(editor.editorInfo.priority) >= priorityToRank(minPriority) && editor.editorInfo.id !== DEFAULT_EDITOR_ASSOCIATION.id);
+		let possibleEditors = editors.filter(editor => priorityToRank(this.getEffectivePriority(editor.editorInfo, associationType)) >= priorityToRank(minPriority) && editor.editorInfo.id !== DEFAULT_EDITOR_ASSOCIATION.id);
 		if (possibleEditors.length === 0) {
 			return {
 				editor: associationsFromSetting[0] && minPriority !== RegisteredEditorPriority.exclusive ? findMatchingEditor(editors, associationsFromSetting[0].viewType) : undefined,
@@ -480,7 +491,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 			};
 		}
 		// If the editor is exclusive we use that, else use the user setting, else we check canSupportResource, else take the viewtype of first possible editor
-		const selectedViewType = possibleEditors[0].editorInfo.priority === RegisteredEditorPriority.exclusive ?
+		const selectedViewType = this.getEffectivePriority(possibleEditors[0].editorInfo, associationType) === RegisteredEditorPriority.exclusive ?
 			possibleEditors[0].editorInfo.id :
 			associationsFromSetting[0]?.viewType ||
 			(possibleEditors.find(editor => (!editor.options?.canSupportResource || editor.options.canSupportResource(resource)))?.editorInfo.id) ||
@@ -491,7 +502,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		// Filter out exclusive before we check for conflicts as exclusive editors cannot be manually chosen
 		// similar to above, need to check canSupportResource if nothing is exclusive
 		possibleEditors = possibleEditors
-			.filter(editor => editor.editorInfo.priority !== RegisteredEditorPriority.exclusive)
+			.filter(editor => this.getEffectivePriority(editor.editorInfo, associationType) !== RegisteredEditorPriority.exclusive)
 			.filter(editor => !editor.options?.canSupportResource || editor.options.canSupportResource(resource));
 		if (associationsFromSetting.length === 0 && possibleEditors.length > 1) {
 			conflictingDefault = true;
@@ -501,6 +512,17 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 			editor: findMatchingEditor(editors, selectedViewType),
 			conflictingDefault
 		};
+	}
+
+	private getEffectivePriority(editorInfo: RegisteredEditorInfo, associationType: EditorAssociationType): RegisteredEditorPriority {
+		switch (associationType) {
+			case EditorAssociationType.DiffEditor:
+				return editorInfo.diffEditorPriority ?? editorInfo.priority;
+			case EditorAssociationType.MergeEditor:
+				return editorInfo.mergeEditorPriority ?? editorInfo.priority;
+			default:
+				return editorInfo.priority;
+		}
 	}
 
 	private async doResolveEditor(editor: IUntypedEditorInput, group: IEditorGroup, selectedEditor: RegisteredEditor): Promise<EditorInputWithOptions | undefined> {
@@ -646,7 +668,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		type StoredChoice = {
 			[key: string]: string[];
 		};
-		const associationType = isResourceDiffEditorInput(untypedInput) ? EditorAssociationType.DiffEditor : EditorAssociationType.Editor;
+		const associationType = isResourceDiffEditorInput(untypedInput) ? EditorAssociationType.DiffEditor : isResourceMergeEditorInput(untypedInput) ? EditorAssociationType.MergeEditor : EditorAssociationType.Editor;
 		const editors = this.findMatchingEditors(resource, associationType);
 		const storedChoices: StoredChoice = JSON.parse(this.storageService.get(EditorResolverService.conflictingDefaultsStorageID, StorageScope.PROFILE, '{}'));
 		const globForResource = `*${extname(resource)}`;

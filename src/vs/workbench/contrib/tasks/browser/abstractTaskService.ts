@@ -2064,7 +2064,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				return false;
 			}
 		}
-		await this._editorService.saveAll({ reason: SaveReason.AUTO });
+		await this._editorService.saveAll({ reason: SaveReason.EXPLICIT });
 		return true;
 	}
 
@@ -3234,7 +3234,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	private _reRunTaskCommand(onlyRerun?: boolean): void {
 
 		ProblemMatcherRegistry.onReady().then(() => {
-			return this._editorService.saveAll({ reason: SaveReason.AUTO }).then(() => { // make sure all dirty editors are saved
+			return this._editorService.saveAll({ reason: SaveReason.EXPLICIT }).then(() => { // make sure all dirty editors are saved
 				const executeResult = this._getTaskSystem().rerun();
 				if (executeResult) {
 					return this._handleExecuteResult(executeResult);

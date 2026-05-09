@@ -3,17 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { themeColorFromId } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { CodeEditorWidget } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { Position } from '../../../../editor/common/core/position.js';
-import { Range } from '../../../../editor/common/core/range.js';
 import { IDecorationOptions } from '../../../../editor/common/editorCommon.js';
-import { CompletionContext, CompletionItem, CompletionItemKind, CompletionList } from '../../../../editor/common/languages.js';
+import { CompletionItem, CompletionItemKind } from '../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
@@ -21,6 +19,7 @@ import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/co
 import { IChatInputCompletionItem, IChatSessionsService, isAgentHostTarget } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
 import { chatSlashCommandBackground, chatSlashCommandForeground } from '../../../../workbench/contrib/chat/common/widget/chatColors.js';
+import { AgentHostInputCompletionsBase } from '../../../../workbench/contrib/chat/browser/widget/input/editor/agentHostInputCompletionsBase.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { NewChatContextAttachments } from './newChatContextAttachments.js';
 
@@ -54,7 +53,7 @@ CommandsRegistry.registerCommand(ADD_REFERENCE_COMMAND, (_accessor, arg: IRefere
  * picks a different session type, the registration is torn down and
  * re-built with the new host's trigger chars.
  */
-export class AgentHostInputCompletionHandler extends Disposable {
+export class AgentHostInputCompletionHandler extends AgentHostInputCompletionsBase<void, string> {
 
 	private static readonly _decoType = 'sessions-agent-host-reference';
 	private static _decosRegistered = false;
@@ -72,11 +71,11 @@ export class AgentHostInputCompletionHandler extends Disposable {
 		private readonly _editor: CodeEditorWidget,
 		private readonly _contextAttachments: NewChatContextAttachments,
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
-		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
+		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
-		@IChatSessionsService private readonly _chatSessionsService: IChatSessionsService,
+		@IChatSessionsService chatSessionsService: IChatSessionsService,
 	) {
-		super();
+		super(languageFeaturesService, chatSessionsService);
 
 		this._registerDecorations();
 
@@ -124,39 +123,32 @@ export class AgentHostInputCompletionHandler extends Disposable {
 			return;
 		}
 
-		this._registration.value = this._languageFeaturesService.completionProvider.register({ scheme: editorUri.scheme, hasAccessToAllModels: true }, {
-			_debugDisplayName: `sessionsAgentHostInputCompletions[${scheme}]`,
-			triggerCharacters: [...triggerCharacters],
-			provideCompletionItems: (model, position, ctx, token) => this._provide(model, position, ctx, token),
-		});
+		this._registration.value = this._registerProvider(
+			{ scheme: editorUri.scheme, hasAccessToAllModels: true },
+			`sessionsAgentHostInputCompletions[${scheme}]`,
+			triggerCharacters,
+			scheme,
+		);
 	}
 
-	private async _provide(model: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken): Promise<CompletionList | null> {
+	protected override _resolveContext(_model: ITextModel, scheme: string): { sessionResource: URI; context: void } | undefined {
 		const session = this._sessionsManagementService.activeSession.get();
 		if (!session) {
-			return null;
+			return undefined;
 		}
 		const sessionResource = session.resource;
-		if (!isAgentHostTarget(getChatSessionType(sessionResource))) {
-			return null;
+		// Only respond when the currently-active session matches the
+		// scheme this registration was made for. Stale registrations
+		// (active session changed during the host RPC, etc.) are
+		// silently ignored.
+		if (getChatSessionType(sessionResource) !== scheme) {
+			return undefined;
 		}
-
-		const text = model.getValue();
-		const offset = model.getOffsetAt(position);
-		const result = await this._chatSessionsService.provideChatInputCompletions(sessionResource, { text, offset }, token);
-		if (token.isCancellationRequested || !result) {
-			return null;
-		}
-
-		const suggestions: CompletionItem[] = [];
-		for (const item of result.items) {
-			suggestions.push(this._toMonacoItem(position, item));
-		}
-		return { suggestions };
+		return { sessionResource, context: undefined };
 	}
 
-	private _toMonacoItem(position: Position, item: IChatInputCompletionItem): CompletionItem {
-		const replaceRange = this._computeRange(position, item);
+	protected override _buildItem(position: Position, item: IChatInputCompletionItem): CompletionItem {
+		const replaceRange = AgentHostInputCompletionHandler.computeRange(position, item);
 		const label = item.attachment.displayName ?? item.insertText;
 		const description = item.attachment.uri.path;
 		const kind = item.attachment.isDirectory ? CompletionItemKind.Folder : CompletionItemKind.File;
@@ -179,18 +171,6 @@ export class AgentHostInputCompletionHandler extends Disposable {
 				arguments: [{ handler: this, entry, insertText: item.insertText } satisfies IReferenceArg],
 			},
 		};
-	}
-
-	private _computeRange(position: Position, item: IChatInputCompletionItem): { insert: Range; replace: Range } {
-		// Positions returned by the provider are already 1-based Monaco
-		// positions, so they can be used directly. When omitted, default
-		// to a zero-length range at the cursor (Monaco then inserts
-		// without replacing).
-		const start = item.start ?? position;
-		const end = item.end ?? position;
-		const replace = new Range(start.lineNumber, start.column, end.lineNumber, end.column);
-		const insert = new Range(start.lineNumber, start.column, position.lineNumber, position.column);
-		return { insert, replace };
 	}
 
 	private _basename(uri: URI): string {

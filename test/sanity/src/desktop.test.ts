@@ -253,8 +253,7 @@ export function setup(context: TestContext) {
 			const window = await context.getPage(app.firstWindow());
 			await test.run(window);
 		} finally {
-			context.log('Closing the application');
-			await app.close();
+			await context.closeElectronApp(app);
 		}
 
 		test.validate();

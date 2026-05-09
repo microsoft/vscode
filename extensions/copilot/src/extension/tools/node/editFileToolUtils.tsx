@@ -934,7 +934,7 @@ export function makeUriConfirmationChecker(configuration: IConfigurationService,
 	};
 }
 
-export async function createEditConfirmation(accessor: ServicesAccessor, uris: readonly URI[], allowedUris: ResourceSet | undefined, detailMessage?: (urisNeedingConfirmation: readonly URI[]) => Promise<string>, forceConfirmationReason?: string, getWorkspaceFolder?: (resource: URI) => URI | undefined): Promise<PreparedToolInvocation> {
+export async function createEditConfirmation(accessor: ServicesAccessor, uris: readonly URI[], allowedUris: ResourceSet | undefined, detailMessage?: (urisNeedingConfirmation: readonly URI[]) => Promise<string>, forceConfirmationReason?: string, getWorkspaceFolder?: (resource: URI) => URI | undefined, workingDirectory?: URI): Promise<PreparedToolInvocation> {
 	// If forceConfirmationReason is provided, require confirmation for all URIs
 	if (forceConfirmationReason) {
 		const details = detailMessage ? await detailMessage(uris) : undefined;
@@ -949,7 +949,16 @@ export async function createEditConfirmation(accessor: ServicesAccessor, uris: r
 	}
 
 	const workspaceService = accessor.get(IWorkspaceService);
-	getWorkspaceFolder = getWorkspaceFolder ?? workspaceService.getWorkspaceFolder.bind(workspaceService);
+	// When workingDirectory is set (agents window), use it exclusively for determining
+	// whether a file is inside the workspace. Only fall back to workspace folders otherwise.
+	if (!getWorkspaceFolder) {
+		if (workingDirectory) {
+			getWorkspaceFolder = (resource: URI) =>
+				extUriBiasedIgnorePathCase.isEqualOrParent(resource, workingDirectory) ? workingDirectory : undefined;
+		} else {
+			getWorkspaceFolder = workspaceService.getWorkspaceFolder.bind(workspaceService);
+		}
+	}
 	const checker = makeUriConfirmationChecker(accessor.get(IConfigurationService), getWorkspaceFolder, accessor.get(ICustomInstructionsService));
 	const needsConfirmation = (await Promise.all(uris
 		.map(async uri => ({ uri, reason: await checker(uri) }))

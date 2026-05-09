@@ -675,4 +675,100 @@ suite('EditorResolverService', () => {
 		defaultEditor.dispose();
 		customEditor.dispose();
 	});
+
+	test('Diff editor Resolve - diffEditorPriority overrides priority for diffs', async () => {
+		const CUSTOM_EDITOR_INPUT_ID = 'testCustomEditorForDiffPriority';
+		const [part, service, accessor] = await createEditorResolverService();
+		const registeredEditor = service.registerEditor('*.test-diff-priority',
+			{
+				id: 'TEST_EDITOR',
+				label: 'Test Editor Label',
+				detail: 'Test Editor Details',
+				priority: RegisteredEditorPriority.default,
+				diffEditorPriority: RegisteredEditorPriority.option,
+			},
+			{},
+			{
+				createEditorInput: ({ resource, options }, group) => ({ editor: constructDisposableFileEditorInput(URI.parse(resource.toString()), CUSTOM_EDITOR_INPUT_ID, disposables) }),
+				createDiffEditorInput: ({ modified, original, options }, group) => ({
+					editor: accessor.instantiationService.createInstance(
+						DiffEditorInput,
+						'name',
+						'description',
+						constructDisposableFileEditorInput(URI.parse(original.toString()), CUSTOM_EDITOR_INPUT_ID, disposables),
+						constructDisposableFileEditorInput(URI.parse(modified.toString()), CUSTOM_EDITOR_INPUT_ID, disposables),
+						undefined)
+				})
+			}
+		);
+
+		// Regular editor should use custom editor (priority: default)
+		const editorResolution = await service.resolveEditor({ resource: URI.file('my://resource.test-diff-priority') }, part.activeGroup);
+		assert.ok(editorResolution);
+		assert.notStrictEqual(typeof editorResolution, 'number');
+		if (editorResolution !== ResolvedStatus.ABORT && editorResolution !== ResolvedStatus.NONE) {
+			assert.strictEqual(editorResolution.editor.typeId, CUSTOM_EDITOR_INPUT_ID);
+			editorResolution.editor.dispose();
+		} else {
+			assert.fail('Expected editor to resolve successfully');
+		}
+
+		// Diff editor should NOT use custom editor (diffEditorPriority: option)
+		const diffResolution = await service.resolveEditor({
+			original: { resource: URI.file('my://resource.test-diff-priority') },
+			modified: { resource: URI.file('my://resource.test-diff-priority') }
+		}, part.activeGroup);
+		assert.ok(diffResolution);
+		// With diffEditorPriority: option, the custom editor should not be selected as default
+		if (diffResolution !== ResolvedStatus.ABORT && diffResolution !== ResolvedStatus.NONE) {
+			assert.notStrictEqual(diffResolution.editor.typeId, CUSTOM_EDITOR_INPUT_ID,
+				'Custom editor with diffEditorPriority:option should not be used for diffs');
+			diffResolution.editor.dispose();
+		}
+
+		registeredEditor.dispose();
+	});
+
+	test('Diff editor Resolve - diffEditorPriority defaults to priority when not set', async () => {
+		const CUSTOM_EDITOR_INPUT_ID = 'testCustomEditorNoDiffPriority';
+		const [part, service, accessor] = await createEditorResolverService();
+		const registeredEditor = service.registerEditor('*.test-no-diff-priority',
+			{
+				id: 'TEST_EDITOR',
+				label: 'Test Editor Label',
+				detail: 'Test Editor Details',
+				priority: RegisteredEditorPriority.default,
+				// diffEditorPriority not set - should fall back to priority
+			},
+			{},
+			{
+				createEditorInput: ({ resource, options }, group) => ({ editor: constructDisposableFileEditorInput(URI.parse(resource.toString()), CUSTOM_EDITOR_INPUT_ID, disposables) }),
+				createDiffEditorInput: ({ modified, original, options }, group) => ({
+					editor: accessor.instantiationService.createInstance(
+						DiffEditorInput,
+						'name',
+						'description',
+						constructDisposableFileEditorInput(URI.parse(original.toString()), CUSTOM_EDITOR_INPUT_ID, disposables),
+						constructDisposableFileEditorInput(URI.parse(modified.toString()), CUSTOM_EDITOR_INPUT_ID, disposables),
+						undefined)
+				})
+			}
+		);
+
+		// Diff editor should use custom editor since diffEditorPriority falls back to priority: default
+		const diffResolution = await service.resolveEditor({
+			original: { resource: URI.file('my://resource.test-no-diff-priority') },
+			modified: { resource: URI.file('my://resource.test-no-diff-priority') }
+		}, part.activeGroup);
+		assert.ok(diffResolution);
+		assert.notStrictEqual(typeof diffResolution, 'number');
+		if (diffResolution !== ResolvedStatus.ABORT && diffResolution !== ResolvedStatus.NONE) {
+			assert.strictEqual(diffResolution.editor.typeId, 'workbench.editors.diffEditorInput');
+			diffResolution.editor.dispose();
+		} else {
+			assert.fail('Expected diff editor to resolve successfully');
+		}
+
+		registeredEditor.dispose();
+	});
 });

@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BasePromptElementProps, PromptElement, PromptSizing, SystemMessage, UserMessage } from '@vscode/prompt-tsx';
-import { BackgroundTodoProcessor, IBackgroundTodoHistory, renderGroupedProgress, renderLatestRound, renderToolCallRound } from './backgroundTodoProcessor';
+import { BasePromptElementProps, Chunk, PrioritizedList, PromptElement, PromptSizing, SystemMessage, UserMessage } from '@vscode/prompt-tsx';
+import { computeRoundPriority, escapeForPromptTag, IBackgroundTodoHistory, IBackgroundTodoHistoryRound, renderBackgroundTodoRound } from './backgroundTodoProcessor';
 
 export interface BackgroundTodoPromptProps extends BasePromptElementProps {
 	/** Current todo list state as rendered markdown, or undefined if no todos exist yet. */
 	readonly currentTodos: string | undefined;
 	/** The user's original request message. */
 	readonly userRequest: string;
-	/** Compressed conversation history for the background todo agent. */
+	/** Round-first conversation history for the background todo agent. */
 	readonly history: IBackgroundTodoHistory;
 	/** When true, the prompt switches to finalize mode: the agent loop has ended and
 	 *  the bg agent should mark any in-progress items now-complete based on the full
@@ -22,6 +22,12 @@ export interface BackgroundTodoPromptProps extends BasePromptElementProps {
 const BACKGROUND_TODO_SYSTEM_MESSAGE = `You are a background task tracker for the main coding agent. Your only job is to maintain a structured todo list for the user's coding request.
 
 Default to silence. Only call manage_todo_list when the resulting list would differ from the current one in items, statuses, or ordering. If nothing changed, respond with an empty message. When updating, call the tool exactly once with the complete final list. Do not write commentary.
+
+Trajectory format:
+- The agent trajectory is split into two sections:
+  - <previous-context> contains rounds from before this background pass. They provide continuity context only — do not treat them as new work.
+  - <new-activity> contains the rounds that happened since your previous background pass. Use these to decide whether the todo list should change.
+- Each <round> block may contain the agent's optional <thinking>, a <tool-calls> list (with file path or category target and an optional intent note), and a <response> with the assistant text that followed.
 
 Do NOT call tools when:
 - The proposed list is identical to the current todo list (same items, statuses, and order).
@@ -91,6 +97,10 @@ const BACKGROUND_TODO_FINAL_REVIEW_SYSTEM_MESSAGE = `You are a background task t
 
 Default to silence. Only call manage_todo_list when the resulting list would differ from the current one in items, statuses, or ordering. If nothing changed, respond with an empty message. When updating, call the tool exactly once with the complete updated list. Do not write commentary.
 
+Trajectory format:
+- The agent trajectory is presented inside a single <full-trajectory> block containing a chronological list of <round> blocks. Each round may contain the agent's optional <thinking>, a <tool-calls> list (with file path or category target and an optional intent note), and a <response> with the assistant text that followed.
+- This is a final review — reason about the entire trajectory.
+
 Do NOT call tools when:
 - No todo list exists.
 - The current list already accurately reflects the trajectory (same items, statuses, and order).
@@ -110,55 +120,46 @@ Ordering and state rules:
 - If unfinished items remain, exactly one must be 'in-progress': promote the next 'not-started' item in list order.
 - Never emit unfinished todos with zero 'in-progress' items.`;
 
+interface PreviousContextRoundChunkProps extends BasePromptElementProps {
+	readonly round: IBackgroundTodoHistoryRound;
+	readonly totalPreviousRounds: number;
+}
+
+/**
+ * Prompt element rendering a single previous-context round as its own
+ * Chunk so that prompt-tsx can drop older rounds independently under
+ * budget pressure.
+ */
+class PreviousContextRoundChunk extends PromptElement<PreviousContextRoundChunkProps> {
+	render() {
+		const priority = computeRoundPriority(this.props.round, this.props.totalPreviousRounds);
+		return (
+			<Chunk priority={priority} flexGrow={1}>
+				{renderBackgroundTodoRound(this.props.round)}
+			</Chunk>
+		);
+	}
+}
+
 /**
  * Prompt-tsx element for the background todo processor.
  *
- * Priorities ensure prompt-tsx keeps current todos, the user request, and
- * latest activity before older tool-call details and compact summaries.
+ * The trajectory is split into two blocks:
+ * - `<previous-context>` — older rounds wrapped in a PrioritizedList so
+ *   prompt-tsx can prune the oldest first under budget pressure.
+ * - `<new-activity>` — rounds new since the last background pass, rendered
+ *   at a high fixed priority so they are never pruned.
+ *
+ * For final-review passes all rounds go into a single `<full-trajectory>`
+ * block at high priority.
  */
 export class BackgroundTodoPrompt extends PromptElement<BackgroundTodoPromptProps> {
 	async render(_state: void, _sizing: PromptSizing) {
 		const { currentTodos, userRequest, history, isFinalReview } = this.props;
 
-		const groupedText = renderGroupedProgress(history.groupedProgress);
-		const latestText = history.latestRound ? renderLatestRound(history.latestRound) : undefined;
-
-		const previousRoundMessages = history.previousRounds.map((round, i) => {
-			// Newer rounds get higher priority while staying below latest activity.
-			const priority = 790 + Math.min(i, 30);
-			return (
-				<UserMessage priority={priority} flexGrow={1}>
-					Previous agent activity [{i + 1}]:{'\n'}
-					{renderToolCallRound(round)}
-				</UserMessage>
-			);
-		});
-
-		// Render each assistant context snippet as its own UserMessage with
-		// descending priority so prompt-tsx can prune the oldest snippets
-		// first when the prompt is over budget.
-		const assistantContextMessages = history.assistantContext.map((snippet, i) => {
-			// Newer snippets (higher index) get higher priority so prompt-tsx
-			// prunes the oldest snippets first when the prompt exceeds budget.
-			const total = history.assistantContext.length;
-			const priority = 820 - (total - 1 - i);
-			return (
-				<UserMessage priority={priority}>
-					Agent reasoning [{i + 1}]:{'\n'}
-					{snippet}
-				</UserMessage>
-			);
-		});
-
-		const subagentDigestMessages = history.subagentDigests.map((digest, i) => {
-			return (
-				<UserMessage priority={780} flexGrow={1}>
-					Subagent finding [{i + 1}] (reference only - do NOT mirror this structure as the todo list):{'\n'}
-					[{digest.target}]{'\n'}
-					{digest.output}
-				</UserMessage>
-			);
-		});
+		const hasPrevious = history.previousRounds.length > 0;
+		const hasNew = history.newRounds.length > 0;
+		const hasAny = hasPrevious || hasNew;
 
 		return (
 			<>
@@ -167,35 +168,60 @@ export class BackgroundTodoPrompt extends PromptElement<BackgroundTodoPromptProp
 				) : (
 					<SystemMessage priority={1000}>{BACKGROUND_TODO_SYSTEM_MESSAGE}</SystemMessage>
 				)}
-				{currentTodos && (
-					<UserMessage priority={900}>
-						Current todo list:{'\n'}
-						{currentTodos}
-					</UserMessage>
-				)}
 
 				<UserMessage priority={950}>
 					The user asked the main agent:{'\n'}
 					{userRequest}
 				</UserMessage>
 
-				{latestText && (
-					<UserMessage priority={850}>
-						Most recent agent activity:{'\n'}
-						{latestText}
+				{currentTodos && (
+					<UserMessage priority={900}>
+						Current todo list:{'\n'}
+						{escapeForPromptTag(currentTodos)}
 					</UserMessage>
 				)}
 
-				{previousRoundMessages}
+				{isFinalReview && hasAny && (
+					<UserMessage priority={880} flexGrow={1}>
+						{'<full-trajectory>\n'}
+						<PrioritizedList descending={false} passPriority={true}>
+							{[...history.previousRounds, ...history.newRounds].map(round => (
+								<PreviousContextRoundChunk
+									round={round}
+									totalPreviousRounds={history.previousRounds.length + history.newRounds.length}
+								/>
+							))}
+						</PrioritizedList>
+						{'\n</full-trajectory>'}
+					</UserMessage>
+				)}
 
-				{assistantContextMessages}
+				{!isFinalReview && hasPrevious && (
+					<UserMessage priority={850} flexGrow={1}>
+						{'<previous-context>\n'}
+						<PrioritizedList descending={false} passPriority={true}>
+							{history.previousRounds.map(round => (
+								<PreviousContextRoundChunk
+									round={round}
+									totalPreviousRounds={history.previousRounds.length}
+								/>
+							))}
+						</PrioritizedList>
+						{'\n</previous-context>'}
+					</UserMessage>
+				)}
 
-				{subagentDigestMessages}
+				{!isFinalReview && hasNew && (
+					<UserMessage priority={880}>
+						{'<new-activity>\nUse these rounds to decide whether the todo list needs updating:\n'}
+						{history.newRounds.map(round => renderBackgroundTodoRound(round)).join('\n')}
+						{'\n</new-activity>'}
+					</UserMessage>
+				)}
 
-				{groupedText.length > 0 && (
-					<UserMessage priority={800} flexGrow={1}>
-						Compact cumulative progress summary:{'\n'}
-						{groupedText}
+				{!isFinalReview && !hasNew && hasAny && (
+					<UserMessage priority={880}>
+						No new activity since your previous background pass — only call the todo tool if the existing list still does not reflect the trajectory.
 					</UserMessage>
 				)}
 			</>
