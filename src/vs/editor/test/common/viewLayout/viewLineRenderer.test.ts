@@ -86,7 +86,8 @@ const defaultRenderLineInputOptions: IRenderLineInputOptions = {
 	textDirection: null,
 	verticalScrollbarSize: 14,
 	renderNewLineWhenEmpty: false,
-	textDirectionPreset: 'default'
+	textDirectionPreset: 'default',
+	textDirectionLanguageId: undefined
 };
 
 function createRenderLineInputOptions(opts: IRelaxedRenderLineInputOptions): IRenderLineInputOptions {
@@ -121,7 +122,8 @@ function createRenderLineInput(opts: IRelaxedRenderLineInputOptions): RenderLine
 		options.textDirection,
 		options.verticalScrollbarSize,
 		options.renderNewLineWhenEmpty,
-		options.textDirectionPreset
+		options.textDirectionPreset,
+		options.textDirectionLanguageId
 	);
 }
 
@@ -273,6 +275,35 @@ suite('renderViewLine', () => {
 
 		assert.match(actual.html, /dir="rtl" class="mtk2" style="unicode-bidi:plaintext;"/);
 		assert.match(actual.html, /dir="rtl" class="mtk3" style="unicode-bidi:plaintext;"/);
+	});
+
+	test('contextual preset follows prose-like languages and keeps syntax-heavy ones stable', () => {
+		const plainText = renderViewLine(createRenderLineInput({
+			lineContent: '# سلام',
+			containsRTL: true,
+			isBasicASCII: false,
+			textDirection: TextDirection.LTR,
+			textDirectionPreset: 'contextual',
+			textDirectionLanguageId: 'plaintext',
+			lineTokens: createViewLineTokens([
+				createTypedPart(6, 1, StandardTokenType.Other),
+			])
+		}));
+
+		const python = renderViewLine(createRenderLineInput({
+			lineContent: '# سلام',
+			containsRTL: true,
+			isBasicASCII: false,
+			textDirection: TextDirection.LTR,
+			textDirectionPreset: 'contextual',
+			textDirectionLanguageId: 'python',
+			lineTokens: createViewLineTokens([
+				createTypedPart(6, 1, StandardTokenType.Comment),
+			])
+		}));
+
+		assert.match(plainText.html, /dir="rtl" class="mtk1" style="unicode-bidi:plaintext;"/);
+		assert.match(python.html, /dir="ltr" class="mtk1" style="unicode-bidi:plaintext;"/);
 	});
 
 	test('default preset keeps comment and string tokens at the original rendering behavior', () => {

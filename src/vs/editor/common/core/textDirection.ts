@@ -5,9 +5,21 @@
 
 import { TextDirection } from '../model.js';
 
-export type EditorTextDirectionPreset = 'auto' | 'auto-follow' | 'default' | 'ltr' | 'rtl';
+export type EditorTextDirectionPreset = 'contextual' | 'auto' | 'auto-follow' | 'default' | 'ltr' | 'rtl';
+
+export type ResolvedEditorTextDirectionPreset = Exclude<EditorTextDirectionPreset, 'contextual'>;
 
 export type InternalEditorTextDirectionOptions = EditorTextDirectionPreset;
+
+const proseLikeLanguageIds = new Set([
+	'plaintext',
+	'markdown',
+	'mdx',
+	'asciidoc',
+	'restructuredtext',
+	'git-commit',
+	'scminput',
+]);
 
 const STRONG_RTL_CHARACTER = /[\u0590-\u08FF\uFB1D-\uFDFD\uFE70-\uFEFC]/u;
 const STRONG_LTR_CHARACTER = /[A-Za-z\u00C0-\u02AF\u1E00-\u1EFF]/u;
@@ -63,13 +75,21 @@ function getFirstStrongCharacter(value: string): { direction: TextDirection; lea
 	return null;
 }
 
+export function resolveTextDirectionPreset(preset: EditorTextDirectionPreset, languageId?: string): ResolvedEditorTextDirectionPreset {
+	if (preset !== 'contextual') {
+		return preset;
+	}
+
+	return !languageId || proseLikeLanguageIds.has(languageId) ? 'auto-follow' : 'auto';
+}
+
 /**
  * Returns the direction for **rendering** a line (controls the `dir=` attribute on the view-line).
  * - `auto`: auto-detect, keep base direction when leading neutral characters precede the first strong character.
  * - `auto-follow`: auto-detect, let leading neutral characters follow the first strong character.
  */
-export function getConfiguredTextDirection(value: string, preset: EditorTextDirectionPreset, baseDirection: TextDirection): TextDirection {
-	switch (preset) {
+export function getConfiguredTextDirection(value: string, preset: EditorTextDirectionPreset, baseDirection: TextDirection, languageId?: string): TextDirection {
+	switch (resolveTextDirectionPreset(preset, languageId)) {
 		case 'ltr':
 			return TextDirection.LTR;
 		case 'rtl':
@@ -99,8 +119,8 @@ export function getConfiguredTextDirection(value: string, preset: EditorTextDire
  * Returns the direction for **typing** (controls the `dir=` attribute on the textarea/input).
  * `auto` preserves the base typing direction when a neutral prefix precedes the first strong character.
  */
-export function getConfiguredTypingDirection(value: string, preset: EditorTextDirectionPreset, baseDirection: TextDirection): TextDirection {
-	switch (preset) {
+export function getConfiguredTypingDirection(value: string, preset: EditorTextDirectionPreset, baseDirection: TextDirection, languageId?: string): TextDirection {
+	switch (resolveTextDirectionPreset(preset, languageId)) {
 		case 'ltr':
 			return TextDirection.LTR;
 		case 'rtl':

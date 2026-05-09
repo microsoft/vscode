@@ -9,7 +9,7 @@ import { CharCode } from '../../../base/common/charCode.js';
 import * as strings from '../../../base/common/strings.js';
 import { IViewLineTokens } from '../tokens/lineTokens.js';
 import { StringBuilder } from '../core/stringBuilder.js';
-import { EditorTextDirectionPreset, getConfiguredTextDirection, textDirectionToString } from '../core/textDirection.js';
+import { EditorTextDirectionPreset, getConfiguredTextDirection, resolveTextDirectionPreset, textDirectionToString } from '../core/textDirection.js';
 import { StandardTokenType, TokenMetadata } from '../encodedTokenAttributes.js';
 import { LineDecoration, LineDecorationsNormalizer } from './lineDecorations.js';
 import { LinePart, LinePartMetadata } from './linePart.js';
@@ -52,6 +52,7 @@ export interface IRenderLineInputOptions {
 	verticalScrollbarSize: number;
 	renderNewLineWhenEmpty: boolean;
 	textDirectionPreset?: EditorTextDirectionPreset;
+	textDirectionLanguageId?: string;
 }
 
 export class RenderLineInput {
@@ -77,6 +78,7 @@ export class RenderLineInput {
 	public readonly textDirection: TextDirection | null;
 	public readonly verticalScrollbarSize: number;
 	public readonly textDirectionPreset: EditorTextDirectionPreset;
+	public readonly textDirectionLanguageId: string | undefined;
 
 	/**
 	 * Defined only when renderWhitespace is 'selection'. Selections are non-overlapping,
@@ -116,6 +118,7 @@ export class RenderLineInput {
 		verticalScrollbarSize: number,
 		renderNewLineWhenEmpty: boolean = false,
 		textDirectionPreset: EditorTextDirectionPreset = 'default',
+		textDirectionLanguageId?: string,
 	) {
 		this.useMonospaceOptimizations = useMonospaceOptimizations;
 		this.canUseHalfwidthRightwardsArrow = canUseHalfwidthRightwardsArrow;
@@ -148,6 +151,7 @@ export class RenderLineInput {
 		this.textDirection = textDirection;
 		this.verticalScrollbarSize = verticalScrollbarSize;
 		this.textDirectionPreset = textDirectionPreset;
+		this.textDirectionLanguageId = textDirectionLanguageId;
 
 		const wsmiddotDiff = Math.abs(wsmiddotWidth - spaceWidth);
 		const middotDiff = Math.abs(middotWidth - spaceWidth);
@@ -476,6 +480,7 @@ class ResolvedRenderLineInput {
 		public readonly renderControlCharacters: boolean,
 		public readonly textDirection: TextDirection | null,
 		public readonly textDirectionPreset: EditorTextDirectionPreset,
+		public readonly textDirectionLanguageId: string | undefined,
 	) {
 		//
 	}
@@ -498,7 +503,8 @@ function shouldApplyTokenDirection(tokenMetadata: number): boolean {
 
 function getPartDirectionRenderInfo(input: ResolvedRenderLineInput): Array<ITokenDirectionRenderInfo | null> {
 	const result = Array<ITokenDirectionRenderInfo | null>(input.parts.length).fill(null);
-	if (input.textDirectionPreset !== 'auto' && input.textDirectionPreset !== 'auto-follow') {
+	const resolvedTextDirectionPreset = resolveTextDirectionPreset(input.textDirectionPreset, input.textDirectionLanguageId);
+	if (resolvedTextDirectionPreset !== 'auto' && resolvedTextDirectionPreset !== 'auto-follow') {
 		return result;
 	}
 	if (!input.containsRTL) {
@@ -527,7 +533,7 @@ function getPartDirectionRenderInfo(input: ResolvedRenderLineInput): Array<IToke
 		const runText = input.lineContent.substring(runStartOffset, runTextEndIndex);
 		if (runText.length > 0) {
 			const info: ITokenDirectionRenderInfo = {
-				direction: textDirectionToString(getConfiguredTextDirection(runText, input.textDirectionPreset, baseDirection)),
+				direction: textDirectionToString(getConfiguredTextDirection(runText, input.textDirectionPreset, baseDirection, input.textDirectionLanguageId)),
 				usePlaintext
 			};
 			for (let i = partIndex; i <= runEndPartIndex; i++) {
@@ -594,7 +600,8 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 	} else {
 		// Split the first token if it contains both leading whitespace and RTL text
 		tokens = splitLeadingWhitespaceFromRTL(lineContent, tokens);
-		if (input.textDirection === TextDirection.LTR && (input.textDirectionPreset === 'auto' || input.textDirectionPreset === 'auto-follow')) {
+		const resolvedTextDirectionPreset = resolveTextDirectionPreset(input.textDirectionPreset, input.textDirectionLanguageId);
+		if (input.textDirection === TextDirection.LTR && (resolvedTextDirectionPreset === 'auto' || resolvedTextDirectionPreset === 'auto-follow')) {
 			leadingNeutralRtlRunStartOffset = getLeadingNeutralRtlRunStartOffset(lineContent);
 			if (leadingNeutralRtlRunStartOffset !== -1) {
 				tokens = splitTokenAtOffset(tokens, leadingNeutralRtlRunStartOffset);
@@ -621,7 +628,8 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 		input.renderWhitespace,
 		input.renderControlCharacters,
 		input.textDirection,
-		input.textDirectionPreset
+		input.textDirectionPreset,
+		input.textDirectionLanguageId
 	);
 }
 

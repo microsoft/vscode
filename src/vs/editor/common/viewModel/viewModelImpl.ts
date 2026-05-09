@@ -886,7 +886,7 @@ export class ViewModel extends Disposable implements IViewModel {
 			return TextDirection.LTR;
 		}
 
-		return getConfiguredTextDirection(this.getLineContent(lineNumber), textDirectionPreset, TextDirection.LTR);
+		return getConfiguredTextDirection(this.getLineContent(lineNumber), textDirectionPreset, TextDirection.LTR, this.model.getLanguageId());
 	}
 
 	public getTextDirection(lineNumber: number): TextDirection {

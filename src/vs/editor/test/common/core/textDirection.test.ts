@@ -6,22 +6,44 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { EditorOptions } from '../../../common/config/editorOptions.js';
-import { getConfiguredTextDirection, getConfiguredTypingDirection } from '../../../common/core/textDirection.js';
+import { getConfiguredTextDirection, getConfiguredTypingDirection, resolveTextDirectionPreset } from '../../../common/core/textDirection.js';
 import { TextDirection } from '../../../common/model.js';
 
 suite('TextDirection', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('validates editor.textDirection defaults and invalid values', () => {
-		assert.strictEqual(EditorOptions.textDirection.validate(undefined), 'auto');
+		assert.strictEqual(EditorOptions.textDirection.validate(undefined), 'contextual');
+		assert.strictEqual(EditorOptions.textDirection.validate('contextual'), 'contextual');
 		assert.strictEqual(EditorOptions.textDirection.validate('auto'), 'auto');
 		assert.strictEqual(EditorOptions.textDirection.validate('auto-keep'), 'auto');
 		assert.strictEqual(EditorOptions.textDirection.validate('auto-follow'), 'auto-follow');
 		assert.strictEqual(EditorOptions.textDirection.validate('default'), 'default');
 		assert.strictEqual(EditorOptions.textDirection.validate('ltr'), 'ltr');
 		assert.strictEqual(EditorOptions.textDirection.validate('rtl'), 'rtl');
-		assert.strictEqual(EditorOptions.textDirection.validate('nope'), 'auto');
-		assert.strictEqual(EditorOptions.textDirection.validate({ mode: 'auto' }), 'auto');
+		assert.strictEqual(EditorOptions.textDirection.validate('nope'), 'contextual');
+		assert.strictEqual(EditorOptions.textDirection.validate({ mode: 'auto' }), 'contextual');
+	});
+
+	test('resolves contextual text direction by language', () => {
+		assert.strictEqual(resolveTextDirectionPreset('contextual', 'plaintext'), 'auto-follow');
+		assert.strictEqual(resolveTextDirectionPreset('contextual', 'markdown'), 'auto-follow');
+		assert.strictEqual(resolveTextDirectionPreset('contextual', 'python'), 'auto');
+		assert.strictEqual(resolveTextDirectionPreset('contextual'), 'auto-follow');
+	});
+
+	test('contextual mode lets prose-like documents follow leading neutral characters', () => {
+		assert.deepStrictEqual({
+			line: getConfiguredTextDirection('# فارسی', 'contextual', TextDirection.LTR, 'plaintext'),
+			typing: getConfiguredTypingDirection('# فارسی', 'contextual', TextDirection.LTR, 'plaintext'),
+		}, { line: TextDirection.RTL, typing: TextDirection.RTL });
+	});
+
+	test('contextual mode keeps leading neutral characters in syntax-heavy languages', () => {
+		assert.deepStrictEqual({
+			line: getConfiguredTextDirection('# فارسی', 'contextual', TextDirection.LTR, 'python'),
+			typing: getConfiguredTypingDirection('# فارسی', 'contextual', TextDirection.LTR, 'python'),
+		}, { line: TextDirection.LTR, typing: TextDirection.LTR });
 	});
 
 	test('detects rtl when content starts with a strong rtl character', () => {

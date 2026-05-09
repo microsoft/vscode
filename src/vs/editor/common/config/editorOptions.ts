@@ -4453,23 +4453,24 @@ class UnicodeHighlight extends BaseEditorOption<EditorOption.unicodeHighlighting
 
 class EditorTextDirection extends BaseEditorOption<EditorOption.textDirection, EditorTextDirectionPreset, InternalEditorTextDirectionOptions> {
 
-	private static readonly VALID_PRESETS: ReadonlySet<string> = new Set(['auto', 'auto-follow', 'default', 'ltr', 'rtl']);
+	private static readonly VALID_PRESETS: ReadonlySet<string> = new Set(['contextual', 'auto', 'auto-follow', 'default', 'ltr', 'rtl']);
 
 	constructor() {
 		super(
-			EditorOption.textDirection, 'textDirection', 'auto',
+			EditorOption.textDirection, 'textDirection', 'contextual',
 			{
 				type: 'string',
-				enum: ['auto', 'auto-follow', 'default', 'ltr', 'rtl'],
-				default: 'auto',
+				enum: ['contextual', 'auto', 'auto-follow', 'default', 'ltr', 'rtl'],
+				default: 'contextual',
 				enumDescriptions: [
+					nls.localize('editor.textDirection.contextual', "Use `auto-follow` for prose-like documents such as Plain Text and Markdown, and `auto` for syntax-heavy languages."),
 					nls.localize('editor.textDirection.auto', "Auto-detect line direction and keep leading neutral characters (such as `#`) in the base direction."),
 					nls.localize('editor.textDirection.auto-follow', "Auto-detect line direction and let leading neutral characters follow the first strong character."),
 					nls.localize('editor.textDirection.default', "Keep the default editor behavior unless an explicit text-direction decoration is applied."),
 					nls.localize('editor.textDirection.ltr', "Force all editor lines to use left-to-right direction."),
 					nls.localize('editor.textDirection.rtl', "Force all editor lines to use right-to-left direction."),
 				],
-				description: nls.localize('editor.textDirection', "Controls bidirectional text direction using a single preset.")
+				description: nls.localize('editor.textDirection', "Controls bidirectional text direction using a preset or a language-aware contextual default.")
 			}
 		);
 	}

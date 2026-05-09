@@ -10,7 +10,7 @@ import { ChatConfiguration } from './constants.js';
 
 export type ChatTextDirectionPreset = EditorTextDirectionPreset | 'inherit';
 
-const validChatTextDirectionPresets = new Set<ChatTextDirectionPreset>(['inherit', 'auto', 'auto-follow', 'default', 'ltr', 'rtl']);
+const validChatTextDirectionPresets = new Set<ChatTextDirectionPreset>(['inherit', 'contextual', 'auto', 'auto-follow', 'default', 'ltr', 'rtl']);
 
 export function getChatTextDirection(configurationService: IConfigurationService): InternalEditorTextDirectionOptions {
 	const chatTextDirection = configurationService.getValue<string | undefined>(ChatConfiguration.TextDirection);

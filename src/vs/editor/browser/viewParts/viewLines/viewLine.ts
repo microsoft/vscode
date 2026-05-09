@@ -171,7 +171,8 @@ export class ViewLine implements IVisibleLine {
 			lineData.textDirection,
 			options.verticalScrollbarSize,
 			false,
-			options.textDirectionPreset
+			options.textDirectionPreset,
+			lineData.tokens.getCount() > 0 ? lineData.tokens.getLanguageId(0) : undefined
 		);
 
 		if (this._renderedViewLine && this._renderedViewLine.input.equals(renderLineInput)) {

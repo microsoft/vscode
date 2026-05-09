@@ -234,10 +234,11 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.TextDirection]: {
 			type: 'string',
-			enum: ['inherit', 'auto', 'auto-follow', 'default', 'ltr', 'rtl'],
+			enum: ['inherit', 'contextual', 'auto', 'auto-follow', 'default', 'ltr', 'rtl'],
 			default: 'inherit',
 			enumDescriptions: [
 				nls.localize('chat.textDirection.inherit', "Use the value of #editor.textDirection# for chat surfaces."),
+				nls.localize('chat.textDirection.contextual', "Resolve bidirectional text direction contextually. For chat surfaces, this follows plain-text behavior."),
 				nls.localize('chat.textDirection.auto', "Auto-detect line direction and keep leading neutral characters (such as `#`) in the base direction."),
 				nls.localize('chat.textDirection.autoFollow', "Auto-detect line direction and let leading neutral characters follow the first strong character."),
 				nls.localize('chat.textDirection.default', "Keep the default chat behavior unless an explicit text-direction decoration is applied."),

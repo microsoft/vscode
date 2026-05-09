@@ -22,7 +22,7 @@ import { autorun, autorunSelfDisposable, derived } from '../../../../../../base/
 import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
-import { getConfiguredTextDirection, textDirectionToString } from '../../../../../../editor/common/core/textDirection.js';
+import { getConfiguredTextDirection, resolveTextDirectionPreset, textDirectionToString } from '../../../../../../editor/common/core/textDirection.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { TextDirection } from '../../../../../../editor/common/model.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
@@ -440,7 +440,8 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		}
 
 		const textDirectionPreset = getChatTextDirection(this.configurationService);
-		const applyPlainTextBidi = textDirectionPreset === 'auto' || textDirectionPreset === 'auto-follow';
+		const resolvedTextDirectionPreset = resolveTextDirectionPreset(textDirectionPreset);
+		const applyPlainTextBidi = resolvedTextDirectionPreset === 'auto' || resolvedTextDirectionPreset === 'auto-follow';
 		const blockElements = getChatTextDirectionBlockElements(this.domNode);
 
 		for (const blockElement of blockElements) {

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EditorTextDirectionPreset, getConfiguredTextDirection, textDirectionToString } from '../../editor/common/core/textDirection.js';
+import { EditorTextDirectionPreset, getConfiguredTextDirection, resolveTextDirectionPreset, textDirectionToString } from '../../editor/common/core/textDirection.js';
 import { TextDirection } from '../../editor/common/model.js';
 
 export function applyConfiguredTextDirectionToElement(element: HTMLElement, text: string, preset: EditorTextDirectionPreset): void {
@@ -16,7 +16,8 @@ export function applyConfiguredTextDirectionToElement(element: HTMLElement, text
 	const direction = textDirectionToString(getConfiguredTextDirection(text, preset, TextDirection.LTR));
 	element.setAttribute('dir', direction);
 
-	if (preset === 'auto' || preset === 'auto-follow') {
+	const resolvedPreset = resolveTextDirectionPreset(preset);
+	if (resolvedPreset === 'auto' || resolvedPreset === 'auto-follow') {
 		element.style.unicodeBidi = 'plaintext';
 	} else {
 		element.style.removeProperty('unicode-bidi');

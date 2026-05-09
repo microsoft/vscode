@@ -41,6 +41,7 @@ suite('chatTextDirection', () => {
 
 	test('validates supported chat text direction presets', () => {
 		assert.strictEqual(isChatTextDirectionPreset('inherit'), true);
+		assert.strictEqual(isChatTextDirectionPreset('contextual'), true);
 		assert.strictEqual(isChatTextDirectionPreset('auto'), true);
 		assert.strictEqual(isChatTextDirectionPreset('ltr'), true);
 		assert.strictEqual(isChatTextDirectionPreset('invalid'), false);
