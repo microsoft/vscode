@@ -552,17 +552,14 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 				policyData.session_search = tokenEntitlementsData.policyData.session_search;
 				policyData.mcp = tokenEntitlementsData.policyData.mcp;
 				if (policyData.mcp) {
-					mcpRegistryDataFetchedAt = accountPolicyData?.mcpRegistryDataFetchedAt;
-					const needsRefresh = options?.forceRefresh || !accountPolicyData?.mcpRegistryDataFetchedAt || this.isDataStale(accountPolicyData.mcpRegistryDataFetchedAt);
-					if (needsRefresh) {
-						if (options?.forceRefresh) {
-							const mcpRegistryResult = await this.getMcpRegistryProvider(sessions, accountPolicyData, options);
-							if (mcpRegistryResult) {
-								policyData.mcpRegistryUrl = mcpRegistryResult.data?.url;
-								policyData.mcpAccess = mcpRegistryResult.data?.registry_access;
-								mcpRegistryDataFetchedAt = mcpRegistryResult.fetchedAt;
-							}
-						} else {
+					if (options?.forceRefresh) {
+						const mcpRegistryResult = await this.getMcpRegistryProvider(sessions, accountPolicyData, options);
+						mcpRegistryDataFetchedAt = mcpRegistryResult?.fetchedAt;
+						policyData.mcpRegistryUrl = mcpRegistryResult?.data?.url;
+						policyData.mcpAccess = mcpRegistryResult?.data?.registry_access;
+					} else {
+						mcpRegistryDataFetchedAt = accountPolicyData?.mcpRegistryDataFetchedAt;
+						if (!accountPolicyData?.mcpRegistryDataFetchedAt || this.isDataStale(accountPolicyData.mcpRegistryDataFetchedAt)) {
 							void this.refreshMcpRegistryInBackground(sessions, accountId, accountPolicyData);
 						}
 					}
