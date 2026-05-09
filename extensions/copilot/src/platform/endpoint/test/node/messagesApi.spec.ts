@@ -428,32 +428,6 @@ suite('addToolsAndSystemCacheControl', function () {
 		return msgs;
 	}
 
-	function countCacheControl(tools: AnthropicMessagesTool[], system: TextBlockParam[] | undefined, messages: MessageParam[]): number {
-		let count = 0;
-		for (const tool of tools) {
-			if (tool.cache_control) {
-				count++;
-			}
-		}
-		if (system) {
-			for (const block of system) {
-				if (block.cache_control) {
-					count++;
-				}
-			}
-		}
-		for (const msg of messages) {
-			if (Array.isArray(msg.content)) {
-				for (const block of msg.content) {
-					if (typeof block === 'object' && 'cache_control' in block && block.cache_control) {
-						count++;
-					}
-				}
-			}
-		}
-		return count;
-	}
-
 	test('adds cache_control to last non-deferred tool and last system block', function () {
 		const tools = [makeTool('read_file'), makeTool('edit_file')];
 		const system: TextBlockParam[] = [makeSystemBlock('You are a helpful assistant.')];
