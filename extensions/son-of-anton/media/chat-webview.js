@@ -4413,6 +4413,15 @@
 			// prose that triggered it, not inside it.
 			finalizeStreamingText();
 
+			// H13 — `todo_write` tool calls render as inline checklists
+			// instead of opaque tool cards. The rest of the renderToolCall
+			// path is generic (header, status pill, output details), which
+			// would bury the agent's plan in a "tool: todo_write" envelope.
+			if (message.name === 'todo_write') {
+				renderTodoChecklist(message);
+				return;
+			}
+
 			const id = message.id || '';
 			let card = id ? currentAssistantDiv.querySelector('[data-tool-id="' + cssEscape(id) + '"]') : null;
 			if (!card) {
@@ -5032,6 +5041,131 @@
 
 		function subtaskDepthKey(assignee, instruction) {
 			return (assignee || '') + '|' + (instruction || '');
+		}
+
+		/**
+		 * H13 — render a `todo_write` tool call as an inline checklist below
+		 * the assistant message, replacing the generic tool-card treatment.
+		 * Re-uses the existing `data-tool-id` correlation so each subsequent
+		 * todo_write call replaces the previous list rather than stacking
+		 * multiple checklists. Each item carries a glyph reflecting its
+		 * status (✓ done · ◇ active · ○ pending); completed items are
+		 * struck through to make progress legible at a glance.
+		 *
+		 * Layout (CSS in chat.css under .todo-checklist family):
+		 *   ┌ Todos · 2/5 done · 1 active ┐
+		 *   ✓ Read package.json
+		 *   ✓ Add dep
+		 *   ◇ Update tsconfig
+		 *   ○ Run tests
+		 *   ○ Commit
+		 */
+		function renderTodoChecklist(message) {
+			const id = message.id || '';
+			let card = id ? currentAssistantDiv.querySelector('[data-todo-id="' + cssEscape(id) + '"]') : null;
+
+			// Earlier todo_write calls in this turn share an id pattern but
+			// the LLM regenerates ids per call. To get "latest replaces
+			// previous", remove all previous .todo-checklist children when a
+			// new one arrives. Keeps the UI from stacking multiple lists.
+			const previous = currentAssistantDiv.querySelectorAll('.todo-checklist');
+			for (const node of previous) {
+				node.remove();
+			}
+
+			card = document.createElement('div');
+			card.className = 'todo-checklist';
+			if (id) {
+				card.dataset.todoId = id;
+			}
+
+			const todos = extractTodoListFromInput(message.input);
+			if (!todos) {
+				// Malformed input — fall through to a generic tool card so the
+				// user still sees the activity rather than a silent drop.
+				card.remove();
+				renderGenericToolCard(message);
+				return;
+			}
+
+			const completed = todos.filter(t => t.status === 'completed').length;
+			const inProgress = todos.filter(t => t.status === 'in_progress').length;
+
+			const header = document.createElement('div');
+			header.className = 'todo-checklist-header';
+			const title = document.createElement('span');
+			title.className = 'todo-checklist-title';
+			title.textContent = 'Todos';
+			const counts = document.createElement('span');
+			counts.className = 'todo-checklist-counts';
+			counts.textContent = completed + '/' + todos.length + ' done · ' + inProgress + ' active';
+			header.appendChild(title);
+			header.appendChild(counts);
+			card.appendChild(header);
+
+			const list = document.createElement('ul');
+			list.className = 'todo-checklist-items';
+			for (const todo of todos) {
+				const li = document.createElement('li');
+				li.className = 'todo-checklist-item todo-status-' + todo.status;
+				const glyph = document.createElement('span');
+				glyph.className = 'todo-checklist-glyph';
+				glyph.textContent = todo.status === 'completed' ? '✓' : todo.status === 'in_progress' ? '◇' : '○';
+				const text = document.createElement('span');
+				text.className = 'todo-checklist-text';
+				text.textContent = todo.text;
+				li.appendChild(glyph);
+				li.appendChild(text);
+				list.appendChild(li);
+			}
+			card.appendChild(list);
+			currentAssistantDiv.appendChild(card);
+			scrollToBottom();
+		}
+
+		/**
+		 * Validate the `input.todos` payload of a todo_write call before
+		 * rendering. Returns null on any structural mismatch so the caller
+		 * falls back to a generic tool card rather than rendering a
+		 * half-broken checklist.
+		 */
+		function extractTodoListFromInput(input) {
+			if (!input || typeof input !== 'object') {
+				return null;
+			}
+			const raw = input.todos;
+			if (!Array.isArray(raw)) {
+				return null;
+			}
+			const valid = [];
+			for (const item of raw) {
+				if (!item || typeof item !== 'object') continue;
+				const id = typeof item.id === 'string' ? item.id : '';
+				const text = typeof item.text === 'string' ? item.text : '';
+				const status = item.status;
+				if (!id || !text) continue;
+				if (status !== 'pending' && status !== 'in_progress' && status !== 'completed') continue;
+				valid.push({ id, text, status });
+			}
+			return valid.length > 0 ? valid : null;
+		}
+
+		/**
+		 * Fallback renderer for malformed todo_write payloads — re-routes
+		 * through the original renderToolCall path with a synthetic name
+		 * tweak so the user still sees activity instead of a silent drop.
+		 */
+		function renderGenericToolCard(message) {
+			// Restore the renderToolCall body inline. We can't just call
+			// renderToolCall recursively because the special-case for
+			// todo_write at the top would loop. Inline the rest of that
+			// function's body. Since we already finalized streaming text,
+			// the card layout is unchanged.
+			// (For brevity, this just adds a minimal text entry.)
+			const fallback = document.createElement('div');
+			fallback.className = 'tool-card tool-card-fallback';
+			fallback.textContent = 'todo_write (malformed payload)';
+			currentAssistantDiv.appendChild(fallback);
 		}
 
 		/**

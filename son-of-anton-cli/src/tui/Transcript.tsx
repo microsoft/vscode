@@ -7,6 +7,7 @@ import { Box, Text } from 'ink';
 import Spinner from 'ink-spinner';
 import * as React from 'react';
 import { MarkdownText } from './MarkdownText';
+import { TodoChecklist } from './TodoChecklist';
 import { ToolCard } from './ToolCard';
 import { UiBlock } from './uiBlocks/UiBlock';
 import type { UiBlockResponse } from './uiBlocks/types';
@@ -100,6 +101,10 @@ function MessageRow({ message, uiBlockState, onUiBlockResponse }: MessageRowProp
 								/>
 							);
 						}
+						const todos = extractTodoList(tc);
+						if (todos) {
+							return <TodoChecklist key={i} todos={todos} />;
+						}
 						return <ToolCard key={i} name={tc.name} input={tc.input} />;
 					})}
 				</Box>
@@ -115,6 +120,37 @@ function MessageRow({ message, uiBlockState, onUiBlockResponse }: MessageRowProp
 
 function isUiBlockToolCall(tc: { name: string; input?: unknown }): boolean {
 	return tc.name === 'emit_ui_block' && typeof tc.input === 'object' && tc.input !== null;
+}
+
+/**
+ * Extract a validated todo list from a `todo_write` tool call. Returns
+ * `null` for any other tool name OR when the input shape doesn't match
+ * the expected `{ todos: TodoEntry[] }` schema — a malformed payload
+ * falls through to the generic ToolCard rendering rather than rendering
+ * a half-broken checklist.
+ */
+function extractTodoList(tc: { name: string; input?: unknown }): ReadonlyArray<{ id: string; text: string; status: 'pending' | 'in_progress' | 'completed' }> | null {
+	if (tc.name !== 'todo_write' || typeof tc.input !== 'object' || tc.input === null) {
+		return null;
+	}
+	const raw = (tc.input as { todos?: unknown }).todos;
+	if (!Array.isArray(raw)) {
+		return null;
+	}
+	const valid: Array<{ id: string; text: string; status: 'pending' | 'in_progress' | 'completed' }> = [];
+	for (const item of raw) {
+		if (!item || typeof item !== 'object') {
+			continue;
+		}
+		const id = typeof (item as { id?: unknown }).id === 'string' ? (item as { id: string }).id : '';
+		const text = typeof (item as { text?: unknown }).text === 'string' ? (item as { text: string }).text : '';
+		const status = (item as { status?: unknown }).status;
+		if (!id || !text || (status !== 'pending' && status !== 'in_progress' && status !== 'completed')) {
+			continue;
+		}
+		valid.push({ id, text, status });
+	}
+	return valid.length > 0 ? valid : null;
 }
 
 /**

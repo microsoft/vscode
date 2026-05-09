@@ -5718,3 +5718,89 @@ textarea.ui-block-form-input {
 		opacity: 1;
 	}
 }
+
+/* H13 — todo_write tool calls render as inline checklists below the
+ * assistant message instead of opaque tool cards. Each subsequent
+ * todo_write replaces the previous list rather than stacking. */
+.todo-checklist {
+	margin-top: 8px;
+	padding: 8px 10px;
+	border: 1px solid var(--sota-border);
+	border-radius: var(--sota-radius-sm);
+	background-color: var(--vscode-textBlockQuote-background, var(--vscode-editor-background));
+}
+
+.todo-checklist-header {
+	display: flex;
+	flex-direction: row;
+	align-items: baseline;
+	gap: 8px;
+	margin-bottom: 6px;
+	padding-bottom: 6px;
+	border-bottom: 1px dashed var(--sota-border);
+}
+
+.todo-checklist-title {
+	font-size: 12px;
+	font-weight: 600;
+	color: var(--vscode-foreground);
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+}
+
+.todo-checklist-counts {
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground, var(--sota-text-muted));
+}
+
+.todo-checklist-items {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 3px;
+}
+
+.todo-checklist-item {
+	display: flex;
+	flex-direction: row;
+	align-items: baseline;
+	gap: 8px;
+	font-size: 13px;
+	line-height: 1.4;
+}
+
+.todo-checklist-glyph {
+	display: inline-block;
+	width: 14px;
+	flex-shrink: 0;
+	font-family: var(--vscode-editor-font-family, monospace);
+	text-align: center;
+}
+
+.todo-checklist-text {
+	color: var(--vscode-foreground);
+}
+
+.todo-status-completed .todo-checklist-glyph {
+	color: var(--vscode-charts-green, #4caf50);
+}
+
+.todo-status-completed .todo-checklist-text {
+	color: var(--vscode-descriptionForeground, var(--sota-text-muted));
+	text-decoration: line-through;
+}
+
+.todo-status-in_progress .todo-checklist-glyph {
+	color: var(--vscode-charts-blue, #2196f3);
+}
+
+.todo-status-in_progress .todo-checklist-text {
+	font-weight: 600;
+}
+
+.todo-status-pending .todo-checklist-glyph,
+.todo-status-pending .todo-checklist-text {
+	color: var(--vscode-descriptionForeground, var(--sota-text-muted));
+}
