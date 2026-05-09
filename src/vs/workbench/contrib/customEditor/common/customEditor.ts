@@ -25,6 +25,9 @@ export const CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE = new RawContextKey<boole
 
 export interface CustomEditorCapabilities {
 	readonly supportsMultipleEditorsPerDocument?: boolean;
+	readonly isTextEditor?: boolean;
+	readonly supportsInlineDiff?: boolean;
+	readonly supportsSideBySideDiff?: boolean;
 }
 
 export interface ICustomEditorService {
@@ -80,6 +83,11 @@ export const enum CustomEditorPriority {
 	option = 'option',
 }
 
+export const enum CustomEditorDiffEditorLayout {
+	Inline = 'inline',
+	SideBySide = 'sideBySide',
+}
+
 export interface CustomEditorSelector {
 	readonly filenamePattern?: string;
 }
@@ -89,6 +97,8 @@ export interface CustomEditorDescriptor {
 	readonly displayName: string;
 	readonly providerDisplayName: string;
 	readonly priority: RegisteredEditorPriority;
+	readonly diffEditorPriority?: RegisteredEditorPriority;
+	readonly mergeEditorPriority?: RegisteredEditorPriority;
 	readonly selector: readonly CustomEditorSelector[];
 }
 
@@ -98,6 +108,8 @@ export class CustomEditorInfo implements CustomEditorDescriptor {
 	public readonly displayName: string;
 	public readonly providerDisplayName: string;
 	public readonly priority: RegisteredEditorPriority;
+	public readonly diffEditorPriority?: RegisteredEditorPriority;
+	public readonly mergeEditorPriority?: RegisteredEditorPriority;
 	public readonly selector: readonly CustomEditorSelector[];
 
 	constructor(descriptor: CustomEditorDescriptor) {
@@ -105,6 +117,8 @@ export class CustomEditorInfo implements CustomEditorDescriptor {
 		this.displayName = descriptor.displayName;
 		this.providerDisplayName = descriptor.providerDisplayName;
 		this.priority = descriptor.priority;
+		this.diffEditorPriority = descriptor.diffEditorPriority;
+		this.mergeEditorPriority = descriptor.mergeEditorPriority;
 		this.selector = descriptor.selector;
 	}
 

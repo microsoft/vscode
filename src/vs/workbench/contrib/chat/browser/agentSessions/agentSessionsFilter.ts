@@ -62,16 +62,18 @@ const DEFAULT_EXCLUDES: IAgentSessionsFilterExcludes = Object.freeze({
 export class AgentSessionsFilter extends Disposable implements Required<IAgentSessionsFilter> {
 
 	private readonly STORAGE_KEY = `agentSessions.filterExcludes.agentsessionsviewerfiltersubmenu`;
+	private readonly SORTING_STORAGE_KEY = `agentSessions.sorting`;
 
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange = this._onDidChange.event;
 
 	readonly limitResults = () => this.options.limitResults?.();
 	readonly groupResults = () => this.options.groupResults?.();
-	readonly sortResults = () => this.options.sortResults?.();
+	readonly sortResults = (): AgentSessionsSorting | undefined => this.options.sortResults?.() ?? this.currentSorting;
 
 	private excludes = DEFAULT_EXCLUDES;
 	private isStoringExcludes = false;
+	private currentSorting: AgentSessionsSorting = AgentSessionsSorting.Created;
 
 	private readonly actionDisposables = this._register(new DisposableStore());
 
@@ -82,6 +84,7 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 	) {
 		super();
 
+		this.restoreSorting();
 		this.updateExcludes(false);
 
 		this.registerListeners();
@@ -132,6 +135,24 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 		}
 	}
 
+	private restoreSorting(): void {
+		const storedSorting = this.storageService.get(this.SORTING_STORAGE_KEY, StorageScope.PROFILE);
+		if (storedSorting && Object.values(AgentSessionsSorting).includes(storedSorting as AgentSessionsSorting)) {
+			this.currentSorting = storedSorting as AgentSessionsSorting;
+		}
+	}
+
+	setSorting(sorting: AgentSessionsSorting): void {
+		if (this.currentSorting === sorting) {
+			return;
+		}
+
+		this.currentSorting = sorting;
+		this.storageService.store(this.SORTING_STORAGE_KEY, sorting, StorageScope.PROFILE, StorageTarget.USER);
+		this.updateFilterActions();
+		this._onDidChange.fire();
+	}
+
 	private updateFilterActions(): void {
 		this.actionDisposables.clear();
 
@@ -140,11 +161,51 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 			return;
 		}
 
+		this.registerSortActions(this.actionDisposables, menuId);
 		this.registerProviderActions(this.actionDisposables, menuId);
 		this.registerStateActions(this.actionDisposables, menuId);
 		this.registerArchivedActions(this.actionDisposables, menuId);
 		this.registerReadActions(this.actionDisposables, menuId);
 		this.registerResetAction(this.actionDisposables, menuId);
+	}
+
+	private registerSortActions(disposables: DisposableStore, menuId: MenuId): void {
+		const that = this;
+		disposables.add(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: `agentSessions.filter.sortByCreated.${menuId.id.toLowerCase()}`,
+					title: localize('agentSessions.filter.sortByCreated', 'Sort by Created'),
+					menu: {
+						id: menuId,
+						group: '0_sort',
+						order: 0,
+					},
+					toggled: that.currentSorting === AgentSessionsSorting.Created ? ContextKeyExpr.true() : ContextKeyExpr.false(),
+				});
+			}
+			run(): void {
+				that.setSorting(AgentSessionsSorting.Created);
+			}
+		}));
+
+		disposables.add(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: `agentSessions.filter.sortByUpdated.${menuId.id.toLowerCase()}`,
+					title: localize('agentSessions.filter.sortByUpdated', 'Sort by Updated'),
+					menu: {
+						id: menuId,
+						group: '0_sort',
+						order: 1,
+					},
+					toggled: that.currentSorting === AgentSessionsSorting.Updated ? ContextKeyExpr.true() : ContextKeyExpr.false(),
+				});
+			}
+			run(): void {
+				that.setSorting(AgentSessionsSorting.Updated);
+			}
+		}));
 	}
 
 	private registerProviderActions(disposables: DisposableStore, menuId: MenuId): void {
@@ -311,7 +372,7 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 	}
 
 	isDefault(): boolean {
-		return equals(this.excludes, DEFAULT_EXCLUDES);
+		return equals(this.excludes, DEFAULT_EXCLUDES) && this.currentSorting === AgentSessionsSorting.Created;
 	}
 
 	getExcludes(): IAgentSessionsFilterExcludes {
@@ -353,5 +414,8 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 
 	reset(): void {
 		this.storeExcludes({ ...DEFAULT_EXCLUDES });
+		if (this.currentSorting !== AgentSessionsSorting.Created) {
+			this.setSorting(AgentSessionsSorting.Created);
+		}
 	}
 }

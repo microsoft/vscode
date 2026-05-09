@@ -10,7 +10,7 @@ import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { autorun, ISettableObservable, observableValue } from '../../../base/common/observable.js';
 import Severity from '../../../base/common/severity.js';
-import { URI } from '../../../base/common/uri.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import * as nls from '../../../nls.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
@@ -20,7 +20,7 @@ import { LogLevel } from '../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchMcpGatewayService } from '../../contrib/mcp/common/mcpGatewayService.js';
 import { IMcpMessageTransport, IMcpRegistry } from '../../contrib/mcp/common/mcpRegistryTypes.js';
-import { extensionPrefixedIdentifier, McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerLaunch, McpServerTransportType, McpServerTrust, UserInteractionRequiredError } from '../../contrib/mcp/common/mcpTypes.js';
+import { extensionPrefixedIdentifier, McpCollectionDefinition, McpCollectionSortOrder, McpConnectionState, McpServerDefinition, McpServerLaunch, McpServerTransportType, McpServerTrust, UserInteractionRequiredError } from '../../contrib/mcp/common/mcpTypes.js';
 import { MCP } from '../../contrib/mcp/common/modelContextProtocol.js';
 import { IAuthenticationMcpAccessService } from '../../services/authentication/browser/authenticationMcpAccessService.js';
 import { IAuthenticationMcpService } from '../../services/authentication/browser/authenticationMcpService.js';
@@ -148,6 +148,7 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 				handle.value ??= this._mcpRegistry.registerCollection({
 					...collection,
 					source: extensionId,
+					order: McpCollectionSortOrder.Extension,
 					resolveServerLanch: collection.canResolveLaunch ? (async def => {
 						const r = await this._proxy.$resolveMcpLaunch(collection.id, def.label);
 						return r ? McpServerLaunch.fromSerialized(r) : undefined;
@@ -223,10 +224,10 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 		if (!server) {
 			return undefined;
 		}
-		return this._getSessionForProvider(id, server, providerId, scopes, undefined, options.errorOnUserInteraction);
+		return this._getSessionForProvider(id, server, providerId, scopes, undefined, options.errorOnUserInteraction, options.clientId);
 	}
 
-	async $getTokenFromServerMetadata(id: number, authDetails: IMcpAuthenticationDetails, { errorOnUserInteraction, forceNewRegistration }: IMcpAuthenticationOptions = {}): Promise<string | undefined> {
+	async $getTokenFromServerMetadata(id: number, authDetails: IMcpAuthenticationDetails, { errorOnUserInteraction, forceNewRegistration, clientId }: IMcpAuthenticationOptions = {}): Promise<string | undefined> {
 		const server = this._serverDefinitions.get(id);
 		if (!server) {
 			return undefined;
@@ -246,14 +247,14 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 		}
 
 		if (!providerId) {
-			const provider = await this._authenticationService.createDynamicAuthenticationProvider(authorizationServer, authDetails.authorizationServerMetadata, authDetails.resourceMetadata);
+			const provider = await this._authenticationService.createDynamicAuthenticationProvider(authorizationServer, authDetails.authorizationServerMetadata, authDetails.resourceMetadata, authDetails.clientId);
 			if (!provider) {
 				return undefined;
 			}
 			providerId = provider.id;
 		}
 
-		return this._getSessionForProvider(id, server, providerId, resolvedScopes, authorizationServer, errorOnUserInteraction);
+		return this._getSessionForProvider(id, server, providerId, resolvedScopes, authorizationServer, errorOnUserInteraction, clientId ?? authDetails.clientId);
 	}
 
 	private async _getSessionForProvider(
@@ -262,9 +263,10 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 		providerId: string,
 		scopes: string[],
 		authorizationServer?: URI,
-		errorOnUserInteraction: boolean = false
+		errorOnUserInteraction: boolean = false,
+		clientId?: string,
 	): Promise<string | undefined> {
-		const sessions = await this._authenticationService.getSessions(providerId, scopes, { authorizationServer }, true);
+		const sessions = await this._authenticationService.getSessions(providerId, scopes, { authorizationServer, clientId }, true);
 		const accountNamePreference = this.authenticationMcpServersService.getAccountPreference(server.id, providerId);
 		let matchingAccountPreferenceSession: AuthenticationSession | undefined;
 		if (accountNamePreference) {
@@ -316,7 +318,8 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 					{
 						activateImmediate: true,
 						account: accountToCreate,
-						authorizationServer
+						authorizationServer,
+						clientId
 					});
 			} while (
 				accountToCreate
@@ -401,8 +404,11 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 		this._telemetryService.publicLog2<IAuthMetadataSource, McpAuthSetupClassification>('mcp/authSetup', data);
 	}
 
-	async $startMcpGateway(): Promise<{ servers: { label: string; address: URI }[]; gatewayId: string } | undefined> {
-		const result = await this._mcpGatewayService.createGateway(this._extHostContext.extensionHostKind === ExtensionHostKind.Remote);
+	async $startMcpGateway(chatSessionResource?: UriComponents): Promise<{ servers: { label: string; address: URI }[]; gatewayId: string } | undefined> {
+		const result = await this._mcpGatewayService.createGateway(
+			this._extHostContext.extensionHostKind === ExtensionHostKind.Remote,
+			chatSessionResource ? URI.revive(chatSessionResource) : undefined,
+		);
 		if (!result) {
 			return undefined;
 		}

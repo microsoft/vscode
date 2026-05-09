@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from '../../../base/common/cancellation.js';
+import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
-import { IElementData, IElementAncestor } from '../../browserElements/common/browserElements.js';
+import { IElementData, IElementAncestor } from '../common/browserView.js';
+import { collapseToShorthands, formatMatchedStyles, keyComputedProperties, type IMatchedStyles } from '../common/cssHelpers.js';
 import { ICDPConnection } from '../common/cdp/types.js';
 import type { BrowserView } from './browserView.js';
 
@@ -20,36 +21,6 @@ interface IBoxModel {
 	height: number;
 }
 
-interface ICSSStyle {
-	cssText?: string;
-	cssProperties: Array<{ name: string; value: string }>;
-}
-
-interface ISelectorList {
-	selectors: Array<{ text: string }>;
-}
-
-interface ICSSRule {
-	selectorList: ISelectorList;
-	origin: string;
-	style: ICSSStyle;
-}
-
-interface IRuleMatch {
-	rule: ICSSRule;
-}
-
-interface IInheritedStyleEntry {
-	inlineStyle?: ICSSStyle;
-	matchedCSSRules: IRuleMatch[];
-}
-
-interface IMatchedStyles {
-	inlineStyle?: ICSSStyle;
-	matchedCSSRules?: IRuleMatch[];
-	inherited?: IInheritedStyleEntry[];
-}
-
 interface INode {
 	nodeId: number;
 	backendNodeId: number;
@@ -58,6 +29,12 @@ interface INode {
 	attributes: string[];
 	children?: INode[];
 	pseudoElements?: INode[];
+}
+
+interface ILayoutMetricsResult {
+	cssVisualViewport?: {
+		scale?: number;
+	};
 }
 
 function useScopedDisposal() {
@@ -76,10 +53,21 @@ export class BrowserViewElementInspector extends Disposable {
 
 	private readonly _connectionPromise: Promise<ICDPConnection>;
 
-	constructor(browser: BrowserView) {
+	private readonly _onDidSelectElement = this._register(new Emitter<IElementData>());
+	readonly onDidSelectElement: Event<IElementData> = this._onDidSelectElement.event;
+
+	private readonly _onDidChangeElementSelectionActive = this._register(new Emitter<boolean>());
+	readonly onDidChangeElementSelectionActive: Event<boolean> = this._onDidChangeElementSelectionActive.event;
+
+	private _elementSelectionActive = false;
+	get isElementSelectionActive(): boolean { return this._elementSelectionActive; }
+
+	private _selectionStore: DisposableStore | undefined;
+
+	constructor(private readonly browser: BrowserView) {
 		super();
 
-		this._connectionPromise = browser.attach().then(
+		this._connectionPromise = browser.debugger.attach().then(
 			async conn => {
 				try {
 					// Important: don't use `Runtime.*` commands so we can support inspection during debugging.
@@ -103,64 +91,93 @@ export class BrowserViewElementInspector extends Disposable {
 	}
 
 	/**
-	 * Start element inspection mode on the browser view. Sets up an
-	 * overlay that highlights elements on hover. When the user clicks, the
-	 * element data is returned and the overlay is removed.
+	 * Toggle element selection mode on the browser view.
 	 *
-	 * @param token Cancellation token to abort the inspection.
+	 * When enabled, sets up a CDP overlay that highlights elements on hover.
+	 * When the user picks an element, its data is fired via {@link onDidSelectElement}.
+	 *
+	 * @param enabled Whether to enable or disable selection. Omit to toggle.
 	 */
-	async getElementData(token: CancellationToken): Promise<IElementData | undefined> {
+	async toggleElementSelection(enabled?: boolean): Promise<void> {
+		const newEnabled = enabled ?? !this._elementSelectionActive;
+		if (newEnabled === this._elementSelectionActive) {
+			return;
+		}
+
+		if (!newEnabled) {
+			await this._stopElementSelection();
+			return;
+		}
+
+		// Start selection
 		const connection = await this._connectionPromise;
-		const store = new DisposableStore();
-		const result = new Promise<IElementData | undefined>((resolve, reject) => {
-			store.add(token.onCancellationRequested(() => {
-				resolve(undefined);
-			}));
 
-			store.add(connection.onEvent(async (event) => {
-				if (event.method !== 'Overlay.inspectNodeRequested') {
-					return;
-				}
+		// Clean up any prior selection state
+		this._selectionStore?.dispose();
+		const store = this._selectionStore = new DisposableStore();
 
-				const params = event.params as { backendNodeId: number };
-				if (!params?.backendNodeId) {
-					reject(new Error('Missing backendNodeId in inspectNodeRequested event'));
-					return;
-				}
+		store.add(connection.onEvent(async (event) => {
+			if (event.method !== 'Overlay.inspectNodeRequested') {
+				return;
+			}
 
-				try {
-					const nodeData = await extractNodeData(connection, { backendNodeId: params.backendNodeId });
-					resolve(nodeData);
-				} catch (err) {
-					reject(err);
-				}
-			}));
+			const params = event.params as { backendNodeId: number };
+			if (!params?.backendNodeId) {
+				return;
+			}
+
+			try {
+				const nodeData = await extractNodeData(connection, { backendNodeId: params.backendNodeId });
+				this._onDidSelectElement.fire({
+					...nodeData,
+					url: this.browser.getURL()
+				});
+				await this._stopElementSelection();
+			} catch {
+				// Best effort - selection continues
+			}
+		}));
+
+		await connection.sendCommand('Overlay.setInspectMode', {
+			mode: 'searchForNode',
+			highlightConfig: inspectHighlightConfig,
 		});
 
+		this._elementSelectionActive = true;
+		this._onDidChangeElementSelectionActive.fire(true);
+	}
+
+	private async _stopElementSelection(): Promise<void> {
+		if (!this._elementSelectionActive) {
+			return;
+		}
+
+		this._elementSelectionActive = false;
+		this._selectionStore?.dispose();
+		this._selectionStore = undefined;
+		this._onDidChangeElementSelectionActive.fire(false);
+
 		try {
+			const connection = await this._connectionPromise;
 			await connection.sendCommand('Overlay.setInspectMode', {
-				mode: 'searchForNode',
-				highlightConfig: inspectHighlightConfig,
+				mode: 'none',
+				highlightConfig: { showInfo: false, showStyles: false }
 			});
-			return await result;
-		} finally {
-			try {
-				await connection.sendCommand('Overlay.setInspectMode', {
-					mode: 'none',
-					highlightConfig: { showInfo: false, showStyles: false }
-				});
-				await connection.sendCommand('Overlay.hideHighlight');
-			} catch {
-				// Best effort cleanup
-			}
-			store.dispose();
+			await connection.sendCommand('Overlay.hideHighlight');
+		} catch {
+			// Best effort cleanup
 		}
 	}
 
 	/**
-	 * Get element data for the currently focused element.
+	 * Fire a selection event for the currently focused element.
+	 * Only effective when element selection is active.
 	 */
-	async getFocusedElementData(): Promise<IElementData | undefined> {
+	async pickFocusedElement(): Promise<void> {
+		if (!this._elementSelectionActive) {
+			return;
+		}
+
 		const connection = await this._connectionPromise;
 
 		await connection.sendCommand('Runtime.enable');
@@ -170,10 +187,31 @@ export class BrowserViewElementInspector extends Disposable {
 		}) as { result: { objectId?: string } };
 
 		if (!result?.objectId) {
-			return undefined;
+			return;
 		}
 
-		return extractNodeData(connection, { objectId: result.objectId });
+		const nodeData = await extractNodeData(connection, { objectId: result.objectId });
+		this._onDidSelectElement.fire({
+			...nodeData,
+			url: this.browser.getURL()
+		});
+	}
+
+	async getVisualViewportScale(): Promise<number> {
+		try {
+			const connection = await this._connectionPromise;
+			const result = await connection.sendCommand('Page.getLayoutMetrics') as ILayoutMetricsResult;
+			if (typeof result.cssVisualViewport?.scale === 'number') {
+				const scale = Number(result.cssVisualViewport.scale);
+				if (Number.isFinite(scale) && scale > 0) {
+					return scale;
+				}
+			}
+		} catch {
+			// Ignore execution errors while loading and use defaults.
+		}
+
+		return 1;
 	}
 }
 
@@ -238,7 +276,7 @@ async function extractNodeData(connection: ICDPConnection, id: { backendNodeId?:
 		throw new Error('Failed to get matched css.');
 	}
 
-	const computedStyle = formatMatchedStyles(matched as IMatchedStyles);
+	const { rulesText, referencedVars, authorPropertyNames, userAgentPropertyNames } = formatMatchedStyles(matched as IMatchedStyles);
 	const { outerHTML } = await connection.sendCommand('DOM.getOuterHTML', { nodeId }) as { outerHTML: string };
 	if (!outerHTML) {
 		throw new Error('Failed to get outerHTML.');
@@ -258,15 +296,47 @@ async function extractNodeData(connection: ICDPConnection, id: { backendNodeId?:
 		currentNode = currentNode.parentId ? discoveredNodesByNodeId[currentNode.parentId] : undefined;
 	}
 
+	// Build the computed style string and filtered computedStyles record
+	let computedStyle = rulesText;
 	let computedStyles: Record<string, string> | undefined;
 	try {
 		const { computedStyle: computedStyleArray } = await connection.sendCommand('CSS.getComputedStyleForNode', { nodeId }) as { computedStyle?: Array<{ name: string; value: string }> };
 		if (computedStyleArray) {
 			computedStyles = {};
+
+			// Collect resolved property values into a map for shorthand collapsing
+			const resolvedMap = new Map<string, string>();
+			const varLines: string[] = [];
+
 			for (const prop of computedStyleArray) {
-				if (prop.name && typeof prop.value === 'string') {
+				if (!prop.name || typeof prop.value !== 'string') {
+					continue;
+				}
+
+				// Include in computedStyles record: referenced vars + key UI properties
+				if (referencedVars.has(prop.name) || keyComputedProperties.has(prop.name)) {
 					computedStyles[prop.name] = prop.value;
 				}
+
+				// Include in resolved values: any property explicitly set by stylesheets
+				if (authorPropertyNames.has(prop.name)) {
+					resolvedMap.set(prop.name, prop.value);
+				} else if (userAgentPropertyNames.has(prop.name)) {
+					resolvedMap.set(prop.name, `${prop.value} /*UA*/`); // Mark it as coming from User Agent styles.
+				}
+
+				// Include referenced CSS variable values
+				if (referencedVars.has(prop.name)) {
+					varLines.push(`${prop.name}: ${prop.value};`);
+				}
+			}
+
+			if (resolvedMap.size > 0) {
+				const resolvedLines = collapseToShorthands(resolvedMap);
+				computedStyle += '\n\n/* Resolved values */\n' + resolvedLines.join('\n');
+			}
+			if (varLines.length > 0) {
+				computedStyle += '\n\n/* CSS variables */\n' + varLines.join('\n');
 			}
 		}
 	} catch { }
@@ -280,65 +350,6 @@ async function extractNodeData(connection: ICDPConnection, id: { backendNodeId?:
 		computedStyles,
 		dimensions: { top: y, left: x, width, height }
 	};
-}
-
-function formatMatchedStyles(matched: IMatchedStyles): string {
-	const lines: string[] = [];
-
-	if (matched.inlineStyle?.cssProperties?.length) {
-		lines.push('/* Inline style */');
-		lines.push('element {');
-		for (const prop of matched.inlineStyle.cssProperties) {
-			if (prop.name && prop.value) {
-				lines.push(`  ${prop.name}: ${prop.value};`);
-			}
-		}
-		lines.push('}\n');
-	}
-
-	if (matched.matchedCSSRules?.length) {
-		for (const ruleEntry of matched.matchedCSSRules) {
-			const rule = ruleEntry.rule;
-			const selectors = rule.selectorList.selectors.map((s: { text: string }) => s.text).join(', ');
-			lines.push(`/* Matched Rule from ${rule.origin} */`);
-			lines.push(`${selectors} {`);
-			for (const prop of rule.style.cssProperties) {
-				if (prop.name && prop.value) {
-					lines.push(`  ${prop.name}: ${prop.value};`);
-				}
-			}
-			lines.push('}\n');
-		}
-	}
-
-	if (matched.inherited?.length) {
-		let level = 1;
-		for (const inherited of matched.inherited) {
-			if (inherited.inlineStyle) {
-				lines.push(`/* Inherited from ancestor level ${level} (inline) */`);
-				lines.push('element {');
-				lines.push(inherited.inlineStyle.cssText || '');
-				lines.push('}\n');
-			}
-
-			const rules = inherited.matchedCSSRules || [];
-			for (const ruleEntry of rules) {
-				const rule = ruleEntry.rule;
-				const selectors = rule.selectorList.selectors.map((s: { text: string }) => s.text).join(', ');
-				lines.push(`/* Inherited from ancestor level ${level} (${rule.origin}) */`);
-				lines.push(`${selectors} {`);
-				for (const prop of rule.style.cssProperties) {
-					if (prop.name && prop.value) {
-						lines.push(`  ${prop.name}: ${prop.value};`);
-					}
-				}
-				lines.push('}\n');
-			}
-			level++;
-		}
-	}
-
-	return '\n' + lines.join('\n');
 }
 
 function attributeArrayToRecord(attributes: string[]): Record<string, string> {

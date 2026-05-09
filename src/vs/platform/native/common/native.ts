@@ -5,7 +5,7 @@
 
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { Event } from '../../../base/common/event.js';
-import { URI } from '../../../base/common/uri.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
 import { MessageBoxOptions, MessageBoxReturnValue, OpenDevToolsOptions, OpenDialogOptions, OpenDialogReturnValue, SaveDialogOptions, SaveDialogReturnValue } from '../../../base/parts/sandbox/common/electronTypes.js';
 import { ISerializableCommandAction } from '../../action/common/action.js';
 import { INativeOpenDialogOptions } from '../../dialogs/common/dialogs.js';
@@ -129,7 +129,7 @@ export interface ICommonNativeHostService {
 	openWindow(options?: IOpenEmptyWindowOptions): Promise<void>;
 	openWindow(toOpen: IWindowOpenable[], options?: IOpenWindowOptions): Promise<void>;
 
-	openAgentsWindow(): Promise<void>;
+	openAgentsWindow(options?: { folderUri?: UriComponents }): Promise<void>;
 
 	isFullScreen(options?: INativeHostOptions): Promise<boolean>;
 	toggleFullScreen(options?: INativeHostOptions): Promise<void>;
@@ -242,6 +242,7 @@ export interface ICommonNativeHostService {
 
 	// Perf Introspection
 	profileRenderer(session: string, duration: number): Promise<IV8Profile>;
+	startTracing(categories: string): Promise<void>;
 
 	// Connectivity
 	resolveProxy(url: string): Promise<string | undefined>;

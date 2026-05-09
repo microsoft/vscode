@@ -1,0 +1,50 @@
+[
+	{
+		"name": "notebook (edit) [inline] [python] - /fix notebook exection ImportError",
+		"requests": [
+			"ab4a78f48523d1f7757d31a76eab00f3af3e0ad61efe21107cae4181ddabd58b"
+		]
+	},
+	{
+		"name": "notebook (edit) [inline] [python] - data cleansing",
+		"requests": [
+			"ba6a1a6415d8288cf26f71980758b7512e3b2450a54e738f3527ead4ec9db062"
+		]
+	},
+	{
+		"name": "notebook (edit) [inline] [python] - dataframe",
+		"requests": [
+			"54046d1a1a96503fbbc07ec10acfb3349792b4401675da83ef010ca7769a96e7"
+		]
+	},
+	{
+		"name": "notebook (edit) [inline] [python] - edit notebook code should not duplicate the content",
+		"requests": [
+			"4261199378538f819fc4846c4e658aa8922ef869f8df2200b614caafbd652ecb"
+		]
+	},
+	{
+		"name": "notebook (edit) [inline] [python] - group by",
+		"requests": [
+			"25958373c651286d78639f33f3170ee0e3d628e4379ee40f940f06eacd33c03a"
+		]
+	},
+	{
+		"name": "notebook (edit) [inline] [python] - plot",
+		"requests": [
+			"664b718bf31a3bc4b79c18e403aca839ce5e193ef2ec7225bc72aef99b948deb"
+		]
+	},
+	{
+		"name": "notebook (edit) [inline] [python] - set index",
+		"requests": [
+			"277fc55bcd193079adae787d921988927ddc946113905a61c27adb809a52ada3"
+		]
+	},
+	{
+		"name": "notebook (edit) [inline] [python] - variables",
+		"requests": [
+			"ffd3d66063d37357608143ee22775d3c2b3d4b46cd9612cfaed5e7b59c554707"
+		]
+	}
+]

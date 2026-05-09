@@ -10,14 +10,26 @@
 
 /* ===== Modern action label styling for sessions panel ===== */
 
-/* Hide the underline indicator for non-focused, non-checked items; keep it for focus-visible and checked */
-.agent-sessions-workbench .part.panel > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(:focus-visible):not(.checked) .active-item-indicator:before {
+/* Base label: lowercase text + heavier weight + pill padding */
+.agent-sessions-workbench .part.panel > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.icon) .action-label {
+	text-transform: capitalize;
+	font-weight: 500;
+	border-radius: 4px;
+	padding: 0px 8px;
+	font-size: 12px;
+	line-height: 22px;
+}
+
+.agent-sessions-workbench .part.panel > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item {
+	padding-left: 0;
+	padding-right: 0;
+}
+
+/* Hide the underline indicator for non-focused items, but keep it for keyboard focus */
+.agent-sessions-workbench .part.panel > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(:focus-visible) .active-item-indicator:before {
 	display: none !important;
 }
 .agent-sessions-workbench .part.panel > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:focus-visible .active-item-indicator:before {
-	display: block !important;
-}
-.agent-sessions-workbench .part.panel > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked .active-item-indicator:before {
 	display: block !important;
 }
 
@@ -27,14 +39,14 @@
 }
 
 .agent-sessions-workbench .part.panel > .title {
-	padding-left: 6px;
-	padding-right: 6px;
-	background-color: var(--vscode-sessionsPanel-background);
+	padding-left: 4px;
+	padding-right: 2px;
+	background-color: var(--vscode-agentsPanel-background);
 }
 
 /* Active/checked state: background container instead of underline */
 .agent-sessions-workbench .part.panel > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked {
-	background-color: var(--vscode-activityBarTop-activeBackground, color-mix(in srgb, var(--vscode-sideBarTitle-foreground) 5%, transparent)) !important;
+	background-color: color-mix(in srgb, var(--vscode-agentsPanel-foreground, var(--vscode-foreground)) 5%, transparent) !important;
 	border-radius: 4px;
 }
 
@@ -42,10 +54,31 @@
 .agent-sessions-workbench .part.panel > .content .monaco-editor,
 .agent-sessions-workbench .part.panel > .content .monaco-editor .margin,
 .agent-sessions-workbench .part.panel > .content .monaco-editor .monaco-editor-background {
-	background-color: var(--vscode-sessionsPanel-background);
+	background-color: var(--vscode-agentsPanel-background);
+}
+
+.agent-sessions-workbench .part.panel > .content .pane-body,
+.agent-sessions-workbench .part.panel > .content .chat-debug-editor,
+.agent-sessions-workbench .part.panel > .content .chat-debug-home,
+.agent-sessions-workbench .part.panel > .content .chat-debug-home-content,
+.agent-sessions-workbench .part.panel > .content .chat-debug-overview,
+.agent-sessions-workbench .part.panel > .content .chat-debug-overview-content {
+	background-color: var(--vscode-agentsPanel-background);
+}
+
+.monaco-workbench.vs.agent-sessions-workbench .part.panel > .content #workbench\.sessions\.panel\.chatDebugContainer {
+	--vscode-panel-background: var(--vscode-agentsPanel-background);
+}
+
+.monaco-workbench.vs.agent-sessions-workbench .part.panel > .content #workbench\.sessions\.panel\.chatDebugContainer .monaco-list-rows {
+	background: var(--vscode-agentsPanel-background) !important;
+}
+
+.agent-sessions-workbench .part.panel > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .badge.compact .badge-content {
+	top: 11px;
 }
 
 /* Terminal body background */
 .agent-sessions-workbench .part.panel .terminal-wrapper {
-	background-color: var(--vscode-sessionsPanel-background);
+	background-color: var(--vscode-agentsPanel-background);
 }

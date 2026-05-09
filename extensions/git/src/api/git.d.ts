@@ -240,6 +240,7 @@ export interface Repository {
 	readonly state: RepositoryState;
 	readonly ui: RepositoryUIState;
 	readonly kind: RepositoryKind;
+	readonly isUsingVirtualFileSystem: boolean;
 
 	readonly onDidCommit: Event<void>;
 	readonly onDidCheckout: Event<void>;
@@ -324,7 +325,7 @@ export interface Repository {
 	popStash(index?: number): Promise<void>;
 	dropStash(index?: number): Promise<void>;
 
-	createWorktree(options?: { path?: string; commitish?: string; branch?: string }): Promise<string>;
+	createWorktree(options?: { path?: string; commitish?: string; branch?: string; noTrack?: boolean }): Promise<string>;
 	deleteWorktree(path: string, options?: { force?: boolean }): Promise<void>;
 
 	migrateChanges(sourceRepositoryPath: string, options?: { confirmation?: boolean; deleteFromSource?: boolean; untracked?: boolean }): Promise<void>;

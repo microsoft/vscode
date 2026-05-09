@@ -47,7 +47,7 @@ import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uri
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
 import { Extensions as ConfigurationMigrationExtensions, IConfigurationMigrationRegistry } from '../../../common/configuration.js';
-import { ResourceContextKey, WorkbenchStateContext } from '../../../common/contextkeys.js';
+import { IsSessionsWindowContext, ResourceContextKey, WorkbenchStateContext } from '../../../common/contextkeys.js';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, registerWorkbenchContribution2, Extensions as WorkbenchExtensions, WorkbenchPhase } from '../../../common/contributions.js';
 import { EditorExtensions } from '../../../common/editor.js';
 import { IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation } from '../../../common/views.js';
@@ -56,6 +56,7 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { EnablementState, IExtensionManagementServerService, IPublisherInfo, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { IExtensionIgnoredRecommendationsService, IExtensionRecommendationsService } from '../../../services/extensionRecommendations/common/extensionRecommendations.js';
 import { IWorkspaceExtensionsConfigService } from '../../../services/extensionRecommendations/common/workspaceExtensionsConfig.js';
+import { EXTENSIONS_SUPPORT_AGENTS_WINDOW } from '../../../services/extensions/common/extensionManifestPropertiesService.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
@@ -163,7 +164,8 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			'extensions.ignoreRecommendations': {
 				type: 'boolean',
 				description: localize('extensionsIgnoreRecommendations', "When enabled, the notifications for extension recommendations will not be shown."),
-				default: false
+				default: false,
+				agentsWindow: { default: true, readOnly: true },
 			},
 			'extensions.showRecommendationsOnlyOnDemand': {
 				type: 'boolean',
@@ -210,6 +212,24 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				defaultSnippets: [{
 					'body': {
 						'pub.name': false
+					}
+				}]
+			},
+			[EXTENSIONS_SUPPORT_AGENTS_WINDOW]: {
+				type: 'object',
+				scope: ConfigurationScope.APPLICATION,
+				markdownDescription: localize('extensions.supportAgentsWindow', "Override the Agents window support of an extension. Extensions using `true` will be enabled in the Agents window even when they would otherwise be disabled."),
+				patternProperties: {
+					'([a-z0-9A-Z][a-z0-9-A-Z]*)\\.([a-z0-9A-Z][a-z0-9-A-Z]*)$': {
+						type: 'boolean',
+						default: false
+					}
+				},
+				additionalProperties: false,
+				default: {},
+				defaultSnippets: [{
+					'body': {
+						'pub.name': true
 					}
 				}]
 			},
@@ -623,7 +643,8 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				title: localize({ key: 'miPreferencesExtensions', comment: ['&& denotes a mnemonic'] }, "&&Extensions")
 			},
 			group: '2_configuration',
-			order: 3
+			order: 3,
+			when: IsSessionsWindowContext.negate()
 		}));
 		this._register(MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
 			command: {

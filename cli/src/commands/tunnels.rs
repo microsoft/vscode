@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-use async_trait::async_trait;
 use base64::{engine::general_purpose as b64, Engine as _};
 use futures::{stream::FuturesUnordered, StreamExt};
 use serde::Serialize;
@@ -31,7 +30,8 @@ use crate::{
 	async_pipe::{get_socket_name, listen_socket_rw_stream, AsyncRWAccepter},
 	auth::Auth,
 	constants::{
-		APPLICATION_NAME, CONTROL_PORT, IS_A_TTY, TUNNEL_CLI_LOCK_NAME, TUNNEL_SERVICE_LOCK_NAME,
+		AGENT_HOST_PORT, APPLICATION_NAME, CONTROL_PORT, IS_A_TTY, TUNNEL_CLI_LOCK_NAME,
+		TUNNEL_SERVICE_LOCK_NAME,
 	},
 	log,
 	state::LauncherPaths,
@@ -75,7 +75,7 @@ impl From<AuthProvider> for crate::auth::AuthProvider {
 	}
 }
 
-fn fulfill_existing_tunnel_args(
+pub(super) fn fulfill_existing_tunnel_args(
 	d: ExistingTunnelArgs,
 	name_arg: &Option<String>,
 ) -> Option<dev_tunnels::ExistingTunnel> {
@@ -117,7 +117,6 @@ impl TunnelServiceContainer {
 	}
 }
 
-#[async_trait]
 impl ServiceContainer for TunnelServiceContainer {
 	async fn run_service(
 		&mut self,
@@ -330,7 +329,8 @@ pub async fn user(ctx: CommandContext, user_args: TunnelUserSubCommands) -> Resu
 		}
 		TunnelUserSubCommands::Show => {
 			if let Ok(Some(sc)) = auth.get_current_credential() {
-				ctx.log.result(format!("logged in with provider {}", sc.provider));
+				ctx.log
+					.result(format!("logged in with provider {}", sc.provider));
 			} else {
 				ctx.log.result("not logged in");
 				return Ok(1);
@@ -637,7 +637,7 @@ async fn serve_with_csa(
 
 	let mut server =
 		make_singleton_server(log_broadcast.clone(), log.clone(), server, shutdown.clone());
-	let platform = spanf!(log, log.span("prereq"), PreReqChecker::new().verify())?;
+	let platform = PreReqChecker::new().verify().await?;
 	let _lock = app_mutex_name.map(AppMutex::new);
 
 	let auth = Auth::new(&paths, log.clone());
@@ -649,7 +649,7 @@ async fn serve_with_csa(
 			dt.start_existing_tunnel(t).await
 		} else {
 			tokio::select! {
-				t = dt.start_new_launcher_tunnel(gateway_args.name.as_deref(), gateway_args.random_name, &[CONTROL_PORT]) => t,
+				t = dt.start_new_launcher_tunnel(gateway_args.name.as_deref(), gateway_args.random_name, &[CONTROL_PORT, AGENT_HOST_PORT]) => t,
 				_ = shutdown.wait() => return Ok(1),
 			}
 		}?;
