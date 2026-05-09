@@ -19,10 +19,10 @@ suite('LabelTextDirection', () => {
 		assert.strictEqual(element.style.unicodeBidi, 'plaintext');
 	});
 
-	test('keeps ltr direction for neutral-prefix titles in auto-keep mode', () => {
+	test('keeps ltr direction for neutral-prefix titles in auto mode', () => {
 		const element = document.createElement('span');
 
-		applyConfiguredTextDirectionToElement(element, '# سلام', 'auto-keep');
+		applyConfiguredTextDirectionToElement(element, '# سلام', 'auto');
 
 		assert.strictEqual(element.getAttribute('dir'), 'ltr');
 		assert.strictEqual(element.style.unicodeBidi, 'plaintext');

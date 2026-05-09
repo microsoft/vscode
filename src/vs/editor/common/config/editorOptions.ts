@@ -4453,18 +4453,17 @@ class UnicodeHighlight extends BaseEditorOption<EditorOption.unicodeHighlighting
 
 class EditorTextDirection extends BaseEditorOption<EditorOption.textDirection, EditorTextDirectionPreset, InternalEditorTextDirectionOptions> {
 
-	private static readonly VALID_PRESETS: ReadonlySet<string> = new Set(['auto', 'auto-keep', 'auto-follow', 'default', 'ltr', 'rtl']);
+	private static readonly VALID_PRESETS: ReadonlySet<string> = new Set(['auto', 'auto-follow', 'default', 'ltr', 'rtl']);
 
 	constructor() {
 		super(
 			EditorOption.textDirection, 'textDirection', 'auto',
 			{
 				type: 'string',
-				enum: ['auto', 'auto-keep', 'auto-follow', 'default', 'ltr', 'rtl'],
+				enum: ['auto', 'auto-follow', 'default', 'ltr', 'rtl'],
 				default: 'auto',
 				enumDescriptions: [
 					nls.localize('editor.textDirection.auto', "Auto-detect line direction and keep leading neutral characters (such as `#`) in the base direction."),
-					nls.localize('editor.textDirection.auto-keep', "Auto-detect line direction, keep leading neutral characters at the left edge, and type right-to-left when the first strong character is RTL."),
 					nls.localize('editor.textDirection.auto-follow', "Auto-detect line direction and let leading neutral characters follow the first strong character."),
 					nls.localize('editor.textDirection.default', "Keep the default editor behavior unless an explicit text-direction decoration is applied."),
 					nls.localize('editor.textDirection.ltr', "Force all editor lines to use left-to-right direction."),
@@ -4476,6 +4475,9 @@ class EditorTextDirection extends BaseEditorOption<EditorOption.textDirection, E
 	}
 
 	public validate(_input: unknown): InternalEditorTextDirectionOptions {
+		if (_input === 'auto-keep') {
+			return 'auto';
+		}
 		if (typeof _input === 'string' && EditorTextDirection.VALID_PRESETS.has(_input)) {
 			return _input as EditorTextDirectionPreset;
 		}

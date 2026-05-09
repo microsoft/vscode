@@ -505,7 +505,7 @@ function getPartDirectionRenderInfo(input: ResolvedRenderLineInput): Array<IToke
 	}
 
 	const baseDirection = input.textDirection ?? TextDirection.LTR;
-	const usePlaintext = input.textDirectionPreset === 'auto' || input.textDirectionPreset === 'auto-keep' || input.textDirectionPreset === 'auto-follow';
+	const usePlaintext = input.textDirectionPreset === 'auto' || input.textDirectionPreset === 'auto-follow';
 
 	let runStartOffset = 0;
 	for (let partIndex = 0; partIndex < input.parts.length; partIndex++) {

@@ -16,7 +16,7 @@ export function applyConfiguredTextDirectionToElement(element: HTMLElement, text
 	const direction = textDirectionToString(getConfiguredTextDirection(text, preset, TextDirection.LTR));
 	element.setAttribute('dir', direction);
 
-	if (preset === 'auto' || preset === 'auto-keep' || preset === 'auto-follow') {
+	if (preset === 'auto' || preset === 'auto-follow') {
 		element.style.unicodeBidi = 'plaintext';
 	} else {
 		element.style.removeProperty('unicode-bidi');

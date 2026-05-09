@@ -5,7 +5,7 @@
 
 import { TextDirection } from '../model.js';
 
-export type EditorTextDirectionPreset = 'auto' | 'auto-keep' | 'auto-follow' | 'default' | 'ltr' | 'rtl';
+export type EditorTextDirectionPreset = 'auto' | 'auto-follow' | 'default' | 'ltr' | 'rtl';
 
 export type InternalEditorTextDirectionOptions = EditorTextDirectionPreset;
 
@@ -66,7 +66,6 @@ function getFirstStrongCharacter(value: string): { direction: TextDirection; lea
 /**
  * Returns the direction for **rendering** a line (controls the `dir=` attribute on the view-line).
  * - `auto`: auto-detect, keep base direction when leading neutral characters precede the first strong character.
- * - `auto-keep`: auto-detect, keep neutral prefix (e.g. `#`) at the left edge; use `getConfiguredTypingDirection` for textarea direction.
  * - `auto-follow`: auto-detect, let leading neutral characters follow the first strong character.
  */
 export function getConfiguredTextDirection(value: string, preset: EditorTextDirectionPreset, baseDirection: TextDirection): TextDirection {
@@ -77,9 +76,8 @@ export function getConfiguredTextDirection(value: string, preset: EditorTextDire
 			return TextDirection.RTL;
 		case 'default':
 			return baseDirection;
-		case 'auto':
-		case 'auto-keep': {
-			// Both keep the line at base direction when a neutral prefix precedes the first strong character.
+		case 'auto': {
+			// Keep the line at base direction when a neutral prefix precedes the first strong character.
 			const firstStrong = getFirstStrongCharacter(value);
 			if (!firstStrong || firstStrong.leadingNeutralCharacters) {
 				return baseDirection;
@@ -99,8 +97,7 @@ export function getConfiguredTextDirection(value: string, preset: EditorTextDire
 
 /**
  * Returns the direction for **typing** (controls the `dir=` attribute on the textarea/input).
- * Unlike `getConfiguredTextDirection`, `auto-keep` returns RTL here so the user types
- * right-to-left after neutral prefix characters even though the line renders LTR.
+ * `auto` preserves the base typing direction when a neutral prefix precedes the first strong character.
  */
 export function getConfiguredTypingDirection(value: string, preset: EditorTextDirectionPreset, baseDirection: TextDirection): TextDirection {
 	switch (preset) {
@@ -112,14 +109,6 @@ export function getConfiguredTypingDirection(value: string, preset: EditorTextDi
 			return baseDirection;
 		case 'auto': {
 			// Keep base direction for typing when a neutral prefix is present.
-			const firstStrong = getFirstStrongCharacter(value);
-			if (!firstStrong || firstStrong.leadingNeutralCharacters) {
-				return baseDirection;
-			}
-			return firstStrong.direction;
-		}
-		case 'auto-keep': {
-			// Preserve base typing direction when a neutral prefix is present.
 			const firstStrong = getFirstStrongCharacter(value);
 			if (!firstStrong || firstStrong.leadingNeutralCharacters) {
 				return baseDirection;

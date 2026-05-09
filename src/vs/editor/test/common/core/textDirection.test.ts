@@ -15,7 +15,7 @@ suite('TextDirection', () => {
 	test('validates editor.textDirection defaults and invalid values', () => {
 		assert.strictEqual(EditorOptions.textDirection.validate(undefined), 'auto');
 		assert.strictEqual(EditorOptions.textDirection.validate('auto'), 'auto');
-		assert.strictEqual(EditorOptions.textDirection.validate('auto-keep'), 'auto-keep');
+		assert.strictEqual(EditorOptions.textDirection.validate('auto-keep'), 'auto');
 		assert.strictEqual(EditorOptions.textDirection.validate('auto-follow'), 'auto-follow');
 		assert.strictEqual(EditorOptions.textDirection.validate('default'), 'default');
 		assert.strictEqual(EditorOptions.textDirection.validate('ltr'), 'ltr');
@@ -54,48 +54,30 @@ suite('TextDirection', () => {
 		assert.strictEqual(getConfiguredTextDirection('# 123', 'auto-follow', TextDirection.LTR), TextDirection.LTR);
 	});
 
-	suite('auto-keep', () => {
-		// Line rendering: line stays LTR so neutral prefix anchors at the left edge
-		test('line direction stays LTR when neutral prefix precedes RTL content', () => {
-			assert.strictEqual(getConfiguredTextDirection('# فارسی', 'auto-keep', TextDirection.LTR), TextDirection.LTR);
-		});
+	test('auto keeps the base direction for neutral-prefix RTL content', () => {
+		assert.deepStrictEqual({
+			line: getConfiguredTextDirection('# فارسی', 'auto', TextDirection.LTR),
+			typing: getConfiguredTypingDirection('# فارسی', 'auto', TextDirection.LTR),
+		}, { line: TextDirection.LTR, typing: TextDirection.LTR });
+	});
 
-		// Typing direction: keep base direction (LTR) when neutral prefix is present
-		test('typing direction stays LTR for neutral + RTL content', () => {
-			assert.strictEqual(getConfiguredTypingDirection('# فارسی', 'auto-keep', TextDirection.LTR), TextDirection.LTR);
-		});
+	test('auto keeps the base direction for mixed RTL/LTR content after a neutral prefix', () => {
+		assert.strictEqual(getConfiguredTextDirection('. سلام kami چطوری', 'auto', TextDirection.LTR), TextDirection.LTR);
+		assert.strictEqual(getConfiguredTypingDirection('# hello', 'auto', TextDirection.LTR), TextDirection.LTR);
+	});
 
-		// When the strong character after neutral is LTR, typing stays LTR
-		test('typing direction stays LTR when first strong character after neutral is LTR', () => {
-			assert.strictEqual(getConfiguredTypingDirection('# hello', 'auto-keep', TextDirection.LTR), TextDirection.LTR);
-		});
+	test('auto and auto-follow remain the two distinct auto modes for neutral-prefix RTL content', () => {
+		const input = '# فارسی';
 
-		test('line direction stays LTR for mixed RTL/LTR content after neutral prefix', () => {
-			assert.strictEqual(getConfiguredTextDirection('. سلام kami چطوری', 'auto-keep', TextDirection.LTR), TextDirection.LTR);
-		});
+		assert.deepStrictEqual({
+			line: getConfiguredTextDirection(input, 'auto', TextDirection.LTR),
+			typing: getConfiguredTypingDirection(input, 'auto', TextDirection.LTR),
+		}, { line: TextDirection.LTR, typing: TextDirection.LTR });
 
-		// Compare all three auto modes for the same '# فارسی' input:
-		test('all three auto modes produce distinct line + typing directions for # + RTL', () => {
-			const input = '# فارسی';
-
-			// auto: line LTR, typing LTR
-			assert.deepStrictEqual({
-				line: getConfiguredTextDirection(input, 'auto', TextDirection.LTR),
-				typing: getConfiguredTypingDirection(input, 'auto', TextDirection.LTR),
-			}, { line: TextDirection.LTR, typing: TextDirection.LTR });
-
-			// auto-keep: line LTR (# stays at left), typing LTR (keep base typing direction)
-			assert.deepStrictEqual({
-				line: getConfiguredTextDirection(input, 'auto-keep', TextDirection.LTR),
-				typing: getConfiguredTypingDirection(input, 'auto-keep', TextDirection.LTR),
-			}, { line: TextDirection.LTR, typing: TextDirection.LTR });
-
-			// auto-follow: line RTL (# moves to right), typing RTL
-			assert.deepStrictEqual({
-				line: getConfiguredTextDirection(input, 'auto-follow', TextDirection.LTR),
-				typing: getConfiguredTypingDirection(input, 'auto-follow', TextDirection.LTR),
-			}, { line: TextDirection.RTL, typing: TextDirection.RTL });
-		});
+		assert.deepStrictEqual({
+			line: getConfiguredTextDirection(input, 'auto-follow', TextDirection.LTR),
+			typing: getConfiguredTypingDirection(input, 'auto-follow', TextDirection.LTR),
+		}, { line: TextDirection.RTL, typing: TextDirection.RTL });
 	});
 
 	test('auto detects direction from markdown inline code content', () => {
