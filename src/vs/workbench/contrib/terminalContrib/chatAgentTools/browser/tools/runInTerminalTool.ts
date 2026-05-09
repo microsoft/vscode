@@ -24,6 +24,7 @@ import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { IInstantiationService, type ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
+import { AgentSandboxSettingId } from '../../../../../../platform/sandbox/common/settings.js';
 import { ICommandDetectionCapability, TerminalCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ITerminalLogService, ITerminalProfile } from '../../../../../../platform/terminal/common/terminal.js';
 import { IRemoteAgentService } from '../../../../../services/remote/common/remoteAgentService.js';
@@ -396,6 +397,7 @@ interface IResolvedExecutionOptions {
 }
 
 export interface IAutomaticUnsandboxRetryOptions {
+	readonly allowUnsandboxedCommands: boolean;
 	readonly didSandboxWrapCommand: boolean;
 	readonly requestUnsandboxedExecution: boolean;
 	readonly isPersistentSession: boolean;
@@ -406,7 +408,8 @@ export interface IAutomaticUnsandboxRetryOptions {
 }
 
 export function shouldAutomaticallyRetryUnsandboxed(options: IAutomaticUnsandboxRetryOptions): boolean {
-	return options.didSandboxWrapCommand
+	return options.allowUnsandboxedCommands
+		&& options.didSandboxWrapCommand
 		&& options.requestUnsandboxedExecution !== true
 		&& !options.isPersistentSession
 		&& !options.isBackgroundExecution
@@ -543,6 +546,19 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				return { mode: 'sync', persistentSession: false, waitStrategy: 'completion' };
 		}
 	}
+
+	private get _allowUnsandboxedCommands(): boolean {
+		return this._configurationService.getValue<boolean>(AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands) === true;
+	}
+
+	private get _autoApproveUnsandboxedCommands(): boolean {
+		return this._allowUnsandboxedCommands && this._configurationService.getValue<boolean>(AgentSandboxSettingId.AgentSandboxAutoApproveUnsandboxedCommands) === true;
+	}
+
+	private get _allowSandboxAutoApprove(): boolean {
+		return this._configurationService.getValue<boolean>(AgentSandboxSettingId.AgentSandboxAllowAutoApprove) === true;
+	}
+
 	/**
 	 * Controls whether this tool wires up sandbox-specific command-line
 	 * behavior, including both the {@link CommandLineSandboxRewriter} and the
@@ -674,7 +690,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		]);
 		const language = os === OperatingSystem.Windows ? 'pwsh' : 'sh';
 		const isSandboxEnabled = sandboxPrereqs.enabled;
-		const explicitUnsandboxRequest = isSandboxEnabled && args.requestUnsandboxedExecution === true;
+		const allowUnsandboxedCommands = this._allowUnsandboxedCommands;
+		const explicitUnsandboxRequest = isSandboxEnabled && allowUnsandboxedCommands && args.requestUnsandboxedExecution === true;
 		let requiresUnsandboxConfirmation = explicitUnsandboxRequest;
 		let requestUnsandboxedExecutionReason = explicitUnsandboxRequest ? args.requestUnsandboxedExecutionReason : undefined;
 
@@ -691,7 +708,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			shell,
 			os,
 			isBackground: executionOptions.persistentSession,
-			requestUnsandboxedExecution: requiresUnsandboxConfirmation,
+			requestUnsandboxedExecution: allowUnsandboxedCommands ? requiresUnsandboxConfirmation : false,
 			requestUnsandboxedExecutionReason,
 		});
 		const rewrittenCommand: string | undefined = rewriteResult.rewrittenCommand;
@@ -813,7 +830,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			// Would be auto-approved based on rules
 			wouldBeAutoApproved
 		);
-		const isFinalAutoApproved = isAutoApprovedByRules || commandLineAnalyzerResults.some(e => e.forceAutoApproval);
+		const isUnsandboxedAutoApproved = isSandboxEnabled && requiresUnsandboxConfirmation === true && this._autoApproveUnsandboxedCommands;
+		const isSandboxAutoApproved = isSandboxEnabled && toolSpecificData.commandLine.isSandboxWrapped === true && this._allowSandboxAutoApprove;
+		const isFinalAutoApproved = isUnsandboxedAutoApproved || isSandboxAutoApproved || isAutoApprovedByRules || commandLineAnalyzerResults.some(e => e.forceAutoApproval);
 
 		// Pass auto approve info if the command:
 		// - Was auto approved
@@ -1015,6 +1034,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	}
 
 	private async _confirmAutomaticUnsandboxRetry(sessionResource: URI | undefined, command: string, shell: string, blockedDomains: string[] | undefined, riskAssessment: { toolId: string; parameters: unknown } | undefined, token: CancellationToken): Promise<boolean> {
+		if (this._autoApproveUnsandboxedCommands) {
+			return true;
+		}
+
 		const chatModel = sessionResource && this._chatService.getSession(sessionResource);
 		if (!(chatModel instanceof ChatModel)) {
 			return false;
@@ -1779,7 +1802,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			return altBufferResult;
 		}
 
+		const allowUnsandboxedCommands = this._allowUnsandboxedCommands;
 		const shouldAutoRetryUnsandboxed = shouldAutomaticallyRetryUnsandboxed({
+			allowUnsandboxedCommands,
 			didSandboxWrapCommand,
 			requestUnsandboxedExecution: args.requestUnsandboxedExecution === true,
 			isPersistentSession: executionOptions.persistentSession,
@@ -1790,6 +1815,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		});
 
 		if (shouldAutoRetryUnsandboxed) {
+			const requestUnsandboxedExecution = allowUnsandboxedCommands;
 			const [os, shell] = await Promise.all([
 				this._osBackend,
 				this._profileFetcher.getCopilotShell(),
@@ -1800,14 +1826,14 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				shell,
 				os,
 				isBackground: executionOptions.persistentSession,
-				requestUnsandboxedExecution: true,
+				requestUnsandboxedExecution,
 				requestUnsandboxedExecutionReason: retryReason,
 			});
 			const rewrittenRetryReason = retryRewriteResult.requestUnsandboxedExecutionReason ?? retryReason;
 			const retryConfirmationCommand = toolSpecificData.presentationOverrides?.commandLine ?? command;
 			const retryRiskAssessment = {
 				toolId: TerminalToolId.RunInTerminal,
-				parameters: { ...args, command: retryRewriteResult.rewrittenCommand, requestUnsandboxedExecution: true },
+				parameters: { ...args, command: retryRewriteResult.rewrittenCommand, requestUnsandboxedExecution },
 			};
 			const shouldRetry = await this._confirmAutomaticUnsandboxRetry(invocation.context.sessionResource, retryConfirmationCommand, shell, retryRewriteResult.blockedDomains, retryRiskAssessment, token);
 			if (shouldRetry) {
@@ -1820,7 +1846,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 						forDisplay: retryRewriteResult.forDisplayCommand ?? normalizeTerminalCommandForDisplay(retryRewriteResult.rewrittenCommand ?? args.command),
 						isSandboxWrapped: retryRewriteResult.isSandboxWrapped,
 					},
-					requestUnsandboxedExecution: true,
+					requestUnsandboxedExecution,
 					requestUnsandboxedExecutionReason: rewrittenRetryReason,
 					terminalCommandUri: undefined,
 					terminalCommandOutput: undefined,
@@ -1836,7 +1862,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					parameters: {
 						...args,
 						command: args.command,
-						requestUnsandboxedExecution: true,
+						requestUnsandboxedExecution,
 						requestUnsandboxedExecutionReason: rewrittenRetryReason,
 					},
 					toolSpecificData: retryToolSpecificData,
