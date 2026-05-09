@@ -109,6 +109,15 @@ export abstract class BaseAgent {
 	 * still get a usable result.
 	 */
 	protected readonly toolExecutionContext?: ToolExecutionContext;
+	/**
+	 * Host-supplied shared `ModelRouter`. When set, callers reuse this
+	 * instance for escalation lookups (and any future routing/A-B-trial
+	 * decisions) so trial state stays consistent across the session
+	 * instead of re-initialising on every callLlm. Falls back to an
+	 * ad-hoc instance when `undefined` — `selectEscalationModel` is
+	 * stateless so the lookup result doesn't change.
+	 */
+	protected readonly modelRouter?: ModelRouter;
 
 	constructor(
 		config: AgentConfig,
@@ -121,6 +130,7 @@ export abstract class BaseAgent {
 		configStore?: ConfigStore,
 		projectContext?: ProjectContextProvider,
 		toolExecutionContext?: ToolExecutionContext,
+		modelRouter?: ModelRouter,
 	) {
 		this.config = config;
 		this.llmClient = llmClient;
@@ -132,6 +142,7 @@ export abstract class BaseAgent {
 		this.configStore = configStore;
 		this.projectContext = projectContext;
 		this.toolExecutionContext = toolExecutionContext;
+		this.modelRouter = modelRouter;
 	}
 
 	get handle(): AgentHandle {
@@ -353,10 +364,12 @@ export abstract class BaseAgent {
 			return initial;
 		}
 
-		// Lazily instantiate a router solely for the escalation ladder. The
-		// router is otherwise stateless for this lookup, so a fresh instance
-		// per call avoids forcing every BaseAgent subclass to wire one in.
-		const router = new ModelRouter();
+		// Use the host-supplied shared ModelRouter when available (so trial
+		// state + future per-task routing decisions stay consistent across
+		// the session). Fall back to a fresh instance for tests / non-stack
+		// invocations — `selectEscalationModel` is stateless so the result
+		// is identical either way.
+		const router = this.modelRouter ?? new ModelRouter();
 		const escalationTarget = router.selectEscalationModel(model);
 		if (!escalationTarget) {
 			return initial;

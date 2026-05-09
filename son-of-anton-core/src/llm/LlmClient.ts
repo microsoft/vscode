@@ -6,6 +6,7 @@ import { BedrockRuntimeClient, InvokeModelWithResponseStreamCommand } from '@aws
 import { fromIni, fromNodeProviderChain } from '@aws-sdk/credential-providers';
 import type { AwsCredentialIdentity, AwsCredentialIdentityProvider } from '@smithy/types';
 import type { ConfigStore, SecretStore } from '../host';
+import type { PromptCacheOptimizer } from './PromptCacheOptimizer';
 
 /**
  * Minimal sink for per-request cost telemetry. The extension implements this
@@ -826,12 +827,33 @@ export class LlmClient {
 	private readonly secrets: SecretStore;
 	private readonly config: ConfigStore;
 	private readonly costReporter?: CostSink;
+	/**
+	 * Optional centralised cache-metrics sink. When set (typically wired by
+	 * `AgentStackFactory` so the same instance feeds the H16 trace pane),
+	 * each `complete` event passes through `recordOnComplete` and records
+	 * its cache-creation / cache-read tokens against the agent handle.
+	 * The `setCacheOptimizer` setter exists so hosts that build the
+	 * LlmClient before constructing the agent stack can attach the sink
+	 * after the fact without restructuring activation order.
+	 */
+	private cacheOptimizer?: PromptCacheOptimizer;
 
 	constructor(secrets: SecretStore, config: ConfigStore, credentialResolver?: ICredentialResolver, costReporter?: CostSink) {
 		this.secrets = secrets;
 		this.config = config;
 		this.credentialResolver = credentialResolver;
 		this.costReporter = costReporter;
+	}
+
+	/**
+	 * Attach a centralised cache-metrics sink. Calling this swaps the
+	 * client out of "no telemetry" mode — every subsequent `complete`
+	 * event in `streamRequest` records cache-creation / cache-read
+	 * tokens through the optimizer, lighting up the H16 trace panes
+	 * with real in-process numbers. Pass `undefined` to detach.
+	 */
+	setCacheOptimizer(optimizer: PromptCacheOptimizer | undefined): void {
+		this.cacheOptimizer = optimizer;
 	}
 
 	/**
@@ -1479,6 +1501,14 @@ export class LlmClient {
 	 * Returns an async iterable of normalized stream events.
 	 */
 	async *streamRequest(options: LlmRequestOptions): AsyncGenerator<LlmStreamEvent> {
+		// Intercept the provider's stream so we can record per-completion
+		// cache metrics in one place. The optimizer is set lazily via
+		// `setCacheOptimizer`; when undefined the interceptor degrades to
+		// a pure passthrough.
+		yield* this.recordOnComplete(this.dispatchProviderStream(options), options);
+	}
+
+	private async *dispatchProviderStream(options: LlmRequestOptions): AsyncGenerator<LlmStreamEvent> {
 		const provider = providerForModel(options.model);
 		switch (provider) {
 			case 'anthropic':
@@ -1529,6 +1559,35 @@ export class LlmClient {
 			case 'codex':
 				yield* this.streamCodex(options);
 				return;
+		}
+	}
+
+	/**
+	 * Wrap a provider stream so each `complete` event records cache stats
+	 * via the centralised optimizer (when one has been set). All other
+	 * events pass through untouched. Failure to record is swallowed —
+	 * telemetry must never break a chat turn.
+	 */
+	private async *recordOnComplete(
+		inner: AsyncGenerator<LlmStreamEvent>,
+		options: LlmRequestOptions,
+	): AsyncGenerator<LlmStreamEvent> {
+		for await (const event of inner) {
+			if (event.type === 'complete' && this.cacheOptimizer) {
+				try {
+					this.cacheOptimizer.recordCacheMetrics(
+						options.model,
+						options.agentHandle ?? 'unknown',
+						event.cacheCreationTokens ?? 0,
+						event.cacheReadTokens ?? 0,
+						event.inputTokens ?? 0,
+						event.outputTokens ?? 0,
+					);
+				} catch {
+					// Telemetry failures must not break the chat turn.
+				}
+			}
+			yield event;
 		}
 	}
 
