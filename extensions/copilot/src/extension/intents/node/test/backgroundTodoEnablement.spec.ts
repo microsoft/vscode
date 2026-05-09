@@ -108,14 +108,14 @@ describe('getAgentTools background todo enablement', () => {
 		return tools.some(tool => tool.name === name);
 	}
 
-	function createToolSearchEndpoint(model: string, modelProvider = 'openai'): IChatEndpoint {
+	function createToolSearchEndpoint(model: string, modelProvider = 'openai', supportsToolSearch = true): IChatEndpoint {
 		return {
 			...mockEndpoint,
 			model,
 			family: model,
 			modelProvider,
 			// Pin endpoint capability so this test isolates getAgentTools gating from endpoint capability derivation.
-			supportsToolSearch: true,
+			supportsToolSearch,
 		} as IChatEndpoint;
 	}
 
@@ -155,10 +155,20 @@ describe('getAgentTools background todo enablement', () => {
 		expect(hasTodoTool(tools)).toBe(false);
 	});
 
-	test('RED: supported Custom OAI Responses gpt-5.4 endpoints still fail to surface tool_search because static applicability is narrower than endpoint capability', async () => {
+	test('supported Custom OAI Responses gpt-5.4 and gpt-5.5 endpoints surface tool_search when endpoint capability is enabled', async () => {
 		const request = new TestChatRequest('find the right tool');
-		const tools = await instantiationService.invokeFunction(getAgentTools, request, createToolSearchEndpoint('gpt-5.4', 'CustomOAI'));
-		expect(hasTool(tools, CUSTOM_TOOL_SEARCH_NAME)).toBe(true);
+		for (const model of ['gpt-5.4', 'gpt-5.5']) {
+			const tools = await instantiationService.invokeFunction(getAgentTools, request, createToolSearchEndpoint(model, 'CustomOAI'));
+			expect(hasTool(tools, CUSTOM_TOOL_SEARCH_NAME)).toBe(true);
+		}
+	});
+
+	test('supported Custom OAI Responses endpoints omit tool_search when endpoint capability is disabled', async () => {
+		const request = new TestChatRequest('find the right tool');
+		for (const model of ['gpt-5.4', 'gpt-5.5']) {
+			const tools = await instantiationService.invokeFunction(getAgentTools, request, createToolSearchEndpoint(model, 'CustomOAI', false));
+			expect(hasTool(tools, CUSTOM_TOOL_SEARCH_NAME)).toBe(false);
+		}
 	});
 });
 
