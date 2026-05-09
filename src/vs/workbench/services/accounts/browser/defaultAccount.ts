@@ -784,9 +784,6 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 		}
 
 		this.logService.debug('[DefaultAccount] Fetching MCP registry data from:', mcpRegistryDataUrl);
-		// Don't fan out 404s across sessions: a 404 here means no registry is provisioned for this
-		// account, not a permissions/scope problem with this particular session, so retrying with
-		// other sessions just adds latency without changing the answer.
 		const response = await this.request(mcpRegistryDataUrl, 'GET', undefined, sessions, CancellationToken.None, 'defaultAccount.mcpRegistryProvider', { retryOn404: false });
 		if (!response) {
 			return undefined;
