@@ -6,8 +6,8 @@
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { DisposableStore, toDisposable, type IReference } from '../../../../../base/common/lifecycle.js';
-import { ISettableObservable, observableValue, type IObservable } from '../../../../../base/common/observable.js';
+import { DisposableStore, ImmortalReference, toDisposable, type IReference } from '../../../../../base/common/lifecycle.js';
+import { autorun, ISettableObservable, observableValue, type IObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
@@ -33,6 +33,7 @@ import { LocalAgentHostSessionsProvider } from '../../browser/localAgentHostSess
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
+import { GitHubPullRequestModel } from '../../../github/browser/models/githubPullRequestModel.js';
 
 // ---- Mock IAgentHostService -------------------------------------------------
 
@@ -221,9 +222,11 @@ function createSession(id: string, opts?: { provider?: string; summary?: string;
 	};
 }
 
-function createProvider(disposables: DisposableStore, agentHostService: MockAgentHostService, contributions = [
+const defaultContributions = [
 	{ type: 'agent-host-copilotcli', name: 'copilot', displayName: 'Copilot', description: 'test', icon: undefined },
-], options?: { sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; openSession?: boolean; configurationService?: IConfigurationService }): LocalAgentHostSessionsProvider {
+];
+
+function createProvider(disposables: DisposableStore, agentHostService: MockAgentHostService, contributions = defaultContributions, options?: { sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; openSession?: boolean; configurationService?: IConfigurationService; gitHubService?: IGitHubService }): LocalAgentHostSessionsProvider {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	instantiationService.stub(IAgentHostService, agentHostService);
@@ -248,7 +251,7 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 		getUriLabel: (uri: URI) => uri.path,
 	});
 	instantiationService.stub(ILogService, new NullLogService());
-	instantiationService.stub(IGitHubService, new class extends mock<IGitHubService>() {
+	instantiationService.stub(IGitHubService, options?.gitHubService ?? new class extends mock<IGitHubService>() {
 		override findPullRequestNumberByHeadBranch = async () => undefined;
 	}());
 
@@ -503,6 +506,64 @@ suite('LocalAgentHostSessionsProvider', () => {
 			removed: 0,
 			changed: 0,
 			cachedTitles: ['First', 'Second'],
+		});
+	}));
+
+	test('hydrates gitHubInfo for listed sessions before they are opened', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		agentHost.addSession(createSession('github-1', { summary: 'GitHub Session' }));
+		const sessionUri = AgentSession.uri('copilotcli', 'github-1');
+		agentHost.setSessionState('github-1', 'copilotcli', {
+			summary: { resource: sessionUri.toString(), provider: 'copilotcli', title: 'GitHub Session', status: ProtocolSessionStatus.Idle, createdAt: 0, modifiedAt: 0 },
+			lifecycle: SessionLifecycle.Ready,
+			turns: [],
+			config: { schema: { type: 'object', properties: {} }, values: {} },
+			_meta: {
+				git: {
+					githubOwner: 'owner',
+					githubRepo: 'repo',
+					branchName: 'feature',
+				},
+			},
+		});
+		const lookups: string[] = [];
+		const gitHubService = new class extends mock<IGitHubService>() {
+			override findPullRequestNumberByHeadBranch(owner: string, repo: string, branch: string): Promise<number | undefined> {
+				lookups.push(`${owner}/${repo}#${branch}`);
+				return Promise.resolve(123);
+			}
+
+			override createPullRequestModelReference(_owner: string, _repo: string, _prNumber: number): IReference<GitHubPullRequestModel> {
+				return new ImmortalReference({ pullRequest: observableValue('test.pullRequest', undefined) } as unknown as GitHubPullRequestModel);
+			}
+		}();
+		const provider = createProvider(disposables, agentHost, defaultContributions, { gitHubService });
+
+		await timeout(0);
+		const session = provider.getSessions().find(s => s.title.get() === 'GitHub Session');
+		assert.ok(session);
+
+		let gitHubInfo: unknown;
+		disposables.add(autorun(reader => {
+			gitHubInfo = session.gitHubInfo.read(reader);
+		}));
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			subscribeCount: agentHost.sessionSubscribeCounts.get(sessionUri.toString()),
+			lookups,
+			gitHubInfo,
+		}, {
+			subscribeCount: 1,
+			lookups: ['owner/repo#feature'],
+			gitHubInfo: {
+				owner: 'owner',
+				repo: 'repo',
+				pullRequest: {
+					number: 123,
+					uri: URI.parse('https://github.com/owner/repo/pull/123'),
+					icon: undefined,
+				},
+			},
 		});
 	}));
 

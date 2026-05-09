@@ -1496,6 +1496,12 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		);
 	}
 
+	private _keepSessionStateAliveIfUnarchived(session: AgentHostSessionAdapter): void {
+		if (!session.isArchived.get()) {
+			this._keepSessionStateAlive(session.sessionId);
+		}
+	}
+
 	/**
 	 * Lazily acquire a session-state subscription for `sessionId` so that
 	 * `_runningSessionConfigs` is seeded from the AHP `SessionState.config`
@@ -1605,7 +1611,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		try {
 			const sessions = await connection.listSessions();
 			const currentKeys = new Set<string>();
-			const added: ISession[] = [];
+			const added: AgentHostSessionAdapter[] = [];
 			const changed: ISession[] = [];
 
 			for (const meta of sessions) {
@@ -1617,6 +1623,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 					if (existing.update(meta)) {
 						changed.push(existing);
 					}
+					this._keepSessionStateAliveIfUnarchived(existing);
 				} else {
 					const cached = this.createAdapter(meta);
 					this._sessionCache.set(rawId, cached);
@@ -1635,6 +1642,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 			if (added.length > 0 || removed.length > 0 || changed.length > 0) {
 				this._onDidChangeSessions.fire({ added, removed, changed });
+			}
+			for (const session of added) {
+				this._keepSessionStateAliveIfUnarchived(session);
 			}
 		} catch {
 			// Connection may not be ready yet
@@ -1732,6 +1742,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const cached = this.createAdapter(meta);
 		this._sessionCache.set(rawId, cached);
 		this._onDidChangeSessions.fire({ added: [cached], removed: [], changed: [] });
+		this._keepSessionStateAliveIfUnarchived(cached);
 	}
 
 	private _handleSessionRemoved(session: URI | string): void {
@@ -1782,6 +1793,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const cached = this._sessionCache.get(rawId);
 		if (cached) {
 			cached.isArchived.set(isArchived, undefined);
+			if (!isArchived) {
+				this._keepSessionStateAlive(cached.sessionId);
+			}
 			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
 		}
 	}
@@ -1820,6 +1834,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			const isArchived = !!(changes.status & ProtocolSessionStatus.IsArchived);
 			if (isArchived !== cached.isArchived.get()) {
 				cached.isArchived.set(isArchived, undefined);
+				if (!isArchived) {
+					this._keepSessionStateAlive(cached.sessionId);
+				}
 				didChange = true;
 			}
 		}

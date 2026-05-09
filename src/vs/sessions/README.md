@@ -360,7 +360,7 @@ CopilotChatSessionsProvider._refreshSessionCache()
          └── Context keys updated (hasChanges, isBackground, etc.)
 ```
 
-The shared GitHub contribution observes non-archived sessions and starts pull-request metadata polling when a session exposes a pull request number. Polling uses the shared pull request model, keeps its ETag, and refreshes only pull request metadata for list icons; active-session CI and review-thread details are polled separately.
+The shared GitHub contribution observes non-archived sessions and starts pull-request metadata polling when a session exposes a pull request number. Agent Host providers briefly hydrate session state for non-archived listed sessions so `_meta.git` can flow into `gitHubInfo` before the user opens the session. Polling uses the shared pull request model, keeps its ETag, and refreshes only pull request metadata for list icons; active-session CI and review-thread details are polled separately.
 
 ### Key Files
 
