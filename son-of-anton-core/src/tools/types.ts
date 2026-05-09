@@ -111,7 +111,29 @@ export interface UiBlockMetadata {
 	readonly blockId: string;
 }
 
-export type ToolExecutionMetadata = ShellExecutionMetadata | WriteFileMetadata | UiBlockMetadata;
+/**
+ * Structured metadata attached to the result of `todo_write`. Lets the chat
+ * surface intercept the tool result and render an inline checklist below
+ * the assistant message instead of an opaque tool card. The same array
+ * shape is what the agent reads back via `todo_read`.
+ */
+export interface TodoListMetadata {
+	readonly kind: 'todo-list';
+	readonly todos: ReadonlyArray<TodoEntry>;
+}
+
+/**
+ * Single entry in the agent's per-loop todo list. `id` is stable across
+ * todo_write calls so the chat surface can animate state changes (pending
+ * → in_progress → completed) without re-keying the whole list.
+ */
+export interface TodoEntry {
+	readonly id: string;
+	readonly text: string;
+	readonly status: 'pending' | 'in_progress' | 'completed';
+}
+
+export type ToolExecutionMetadata = ShellExecutionMetadata | WriteFileMetadata | UiBlockMetadata | TodoListMetadata;
 
 export interface ToolExecutionResult {
 	readonly content: string;

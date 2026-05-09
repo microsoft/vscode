@@ -7,10 +7,13 @@ import type { ChatRequestLike, ChatContextLike, ChatStreamLike, CancellationLike
 import type { ConfigStore, ProjectContextProvider } from '../host';
 import { getVoice } from '../chat/personas';
 import { LlmClient, ModelId, type LlmContentPart, type LlmMessage, type SystemPromptPart } from '../llm/LlmClient';
+import { detectUncertainty, UNCERTAINTY_ESCALATION_THRESHOLD } from '../llm/confidence';
+import { ModelRouter } from '../llm/ModelRouter';
 import { McpClient, McpToolResult } from '../mcp/McpClient';
 import { isPersonalityEnabled } from '../personality/personalityConfig';
 import { formatSignOff, pickSignOffQuote } from '../personality/specialistQuotes';
-import type { ToolDefinition, ToolExecutionContext } from '../tools/types';
+import { buildTodoTools } from '../tools/todoTools';
+import type { TodoEntry, Tool, ToolDefinition, ToolExecutionContext } from '../tools/types';
 import { AgentEvent } from './agentEvents';
 import { AgentManager } from './AgentManager';
 import { MetricsTracker } from './MetricsTracker';
@@ -322,6 +325,18 @@ export abstract class BaseAgent {
 	 * client so the caller can surface live tokens (e.g. into a subtask card).
 	 * Without `onToken`, the cheaper non-streaming path is used to avoid the
 	 * SSE overhead.
+	 *
+	 * H7 — When `options.escalateOnUncertainty` is true, the response is run
+	 * through `detectUncertainty` and, if it scores at or above
+	 * `UNCERTAINTY_ESCALATION_THRESHOLD` and the model has a defined
+	 * escalation target (see `ModelRouter.selectEscalationModel`), the call
+	 * is retried *once* on the stronger model. The escalated call records a
+	 * separate span tagged `escalation: true` so the trace pane can show
+	 * both attempts, and the returned `tokenUsage` aggregates both legs so
+	 * cost accounting stays honest. Default is OFF — specialists must opt
+	 * in. Tool-loop turns (`runToolLoop`) deliberately don't use this path;
+	 * per-turn uncertainty detection across a multi-step loop is too
+	 * coarse to be useful.
 	 */
 	protected async callLlm(
 		taskId: string,
@@ -329,13 +344,62 @@ export abstract class BaseAgent {
 		systemPrompt: string,
 		userMessage: string,
 		onToken?: (token: string) => void,
+		options?: { escalateOnUncertainty?: boolean },
+	): Promise<{ text: string; tokenUsage: TokenUsage }> {
+		const escalateOnUncertainty = !!options?.escalateOnUncertainty;
+		const initial = await this.callLlmOnce(taskId, model, systemPrompt, userMessage, onToken, false);
+
+		if (!escalateOnUncertainty) {
+			return initial;
+		}
+
+		// Lazily instantiate a router solely for the escalation ladder. The
+		// router is otherwise stateless for this lookup, so a fresh instance
+		// per call avoids forcing every BaseAgent subclass to wire one in.
+		const router = new ModelRouter();
+		const escalationTarget = router.selectEscalationModel(model);
+		if (!escalationTarget) {
+			return initial;
+		}
+
+		const signals = detectUncertainty(initial.text);
+		if (signals.score < UNCERTAINTY_ESCALATION_THRESHOLD) {
+			return initial;
+		}
+
+		// Retry once on the stronger model. We don't recurse into a chain of
+		// escalations — sonnet → opus is the second hop and that's where the
+		// ladder ends.
+		const escalated = await this.callLlmOnce(taskId, escalationTarget, systemPrompt, userMessage, onToken, true);
+
+		const tokenUsage: TokenUsage = {
+			inputTokens: initial.tokenUsage.inputTokens + escalated.tokenUsage.inputTokens,
+			outputTokens: initial.tokenUsage.outputTokens + escalated.tokenUsage.outputTokens,
+			cachedTokens: initial.tokenUsage.cachedTokens + escalated.tokenUsage.cachedTokens,
+			naiveInputTokens: initial.tokenUsage.naiveInputTokens + escalated.tokenUsage.naiveInputTokens,
+		};
+		return { text: escalated.text, tokenUsage };
+	}
+
+	/**
+	 * Single-shot LLM call helper used by `callLlm`. Records a trace span
+	 * tagged with the model id and (when applicable) `escalation: true` so
+	 * H7's two-leg escalation shows up cleanly in the trace pane.
+	 */
+	private async callLlmOnce(
+		taskId: string,
+		model: ModelId,
+		systemPrompt: string,
+		userMessage: string,
+		onToken: ((token: string) => void) | undefined,
+		isEscalation: boolean,
 	): Promise<{ text: string; tokenUsage: TokenUsage }> {
 		const span = this.agentManager.addSpan({
 			taskId,
-			name: `llm-${model}`,
+			name: `llm-${model}${isEscalation ? '-escalated' : ''}`,
 			type: 'llm_call',
 			startTime: Date.now(),
-			attributes: { model },
+			attributes: isEscalation ? { model, escalation: true } : { model },
 		});
 
 		if (onToken) {
@@ -583,15 +647,41 @@ export abstract class BaseAgent {
 		signal?: AbortSignal;
 		onToken?: (token: string) => void;
 		executeTool: (call: { name: string; input: Record<string, unknown>; id: string }) => Promise<{ result: string; isError?: boolean }>;
+		/**
+		 * H13 — opt the agent into the focus-chain `todo_write` / `todo_read`
+		 * tools. State is per-loop: each `runToolLoop` call gets a fresh
+		 * empty list, the agent populates it, the final list is returned in
+		 * the result. Useful for multi-step work where the agent benefits
+		 * from planning + checking off items as it progresses.
+		 */
+		includeTodoTools?: boolean;
 	}): Promise<{
 		text: string;
 		iterations: number;
 		messages: LlmMessage[];
 		toolCalls: Array<{ name: string; input: Record<string, unknown>; id: string; result: string; isError: boolean }>;
 		tokenUsage: TokenUsage;
+		/** Final state of the per-loop todo list (empty when not opted in). */
+		todos: ReadonlyArray<TodoEntry>;
 	}> {
 		const maxIterations = args.maxIterations ?? 10;
 		const messages: LlmMessage[] = [...args.initialMessages];
+
+		// H13 — wire in the todo focus-chain tools when requested. The
+		// factory returns both the executable tools (so the local
+		// `executeTool` shim below can route todo calls into their
+		// closure-bound state) and a `getTodos()` accessor so the loop
+		// can surface the final list once the agent stops iterating.
+		const todoBundle = args.includeTodoTools ? buildTodoTools() : undefined;
+		const todoToolMap = new Map<string, Tool>();
+		if (todoBundle) {
+			for (const t of todoBundle.tools) {
+				todoToolMap.set(t.definition.name, t);
+			}
+		}
+		const exposedToolDefinitions: ReadonlyArray<ToolDefinition> = todoBundle
+			? [...args.tools, ...todoBundle.tools.map(t => t.definition)]
+			: args.tools;
 		const executedCalls: Array<{ name: string; input: Record<string, unknown>; id: string; result: string; isError: boolean }> = [];
 		const aggregateUsage: TokenUsage = {
 			inputTokens: 0,
@@ -618,7 +708,7 @@ export abstract class BaseAgent {
 				systemPrompt: args.systemPrompt,
 				systemPromptParts: args.systemPromptParts,
 				messages,
-				tools: args.tools.map(t => ({
+				tools: exposedToolDefinitions.map(t => ({
 					name: t.name,
 					description: t.description,
 					inputSchema: t.inputSchema as { type: 'object'; properties: Record<string, unknown>; required?: ReadonlyArray<string> },
@@ -654,6 +744,7 @@ export abstract class BaseAgent {
 					messages,
 					toolCalls: executedCalls,
 					tokenUsage: aggregateUsage,
+					todos: todoBundle ? todoBundle.getTodos() : [],
 				};
 			}
 
@@ -674,7 +765,17 @@ export abstract class BaseAgent {
 			for (const call of pendingCalls) {
 				let result: { result: string; isError?: boolean };
 				try {
-					result = await args.executeTool(call);
+					// H13 — todo_write / todo_read are bound to the in-loop
+					// state inside `todoBundle` and execute here (not via the
+					// caller's executeTool). Other tools route through the
+					// caller-supplied executeTool as before.
+					const todoTool = todoToolMap.get(call.name);
+					if (todoTool) {
+						const r = await todoTool.execute(call.input, {} as ToolExecutionContext);
+						result = { result: r.content, isError: !!r.isError };
+					} else {
+						result = await args.executeTool(call);
+					}
 				} catch (err) {
 					const message = err instanceof Error ? err.message : String(err);
 					result = { result: `Tool execution threw: ${message}`, isError: true };

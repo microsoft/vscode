@@ -482,6 +482,76 @@ export class ModelRouter {
 	}
 
 	/**
+	 * H7 — Confidence-driven escalation ladder.
+	 *
+	 * Returns the next-stronger Anthropic model in the same major version
+	 * family, or `undefined` when escalation isn't applicable:
+	 *  - haiku family → sonnet of the same major version
+	 *  - sonnet family → opus of the same major version
+	 *  - opus (already the strongest) → undefined
+	 *  - non-Anthropic models → undefined (escalation is Anthropic-only for v1
+	 *    — other providers don't share a clean haiku/sonnet/opus ladder)
+	 *
+	 * Examples:
+	 *   `claude-haiku-4-7`  → `claude-sonnet-4-7`
+	 *   `claude-sonnet-4-6` → `claude-opus-4-6`
+	 *   `claude-opus-4-7`   → undefined
+	 *   `gpt-5-mini`        → undefined
+	 *
+	 * Short aliases (`haiku`, `sonnet`, `opus`) follow the same rules.
+	 */
+	selectEscalationModel(currentModel: ModelId): ModelId | undefined {
+		// Short aliases — the legacy unscoped tier names.
+		if (currentModel === 'haiku') {
+			return 'sonnet';
+		}
+		if (currentModel === 'sonnet') {
+			return 'opus';
+		}
+		if (currentModel === 'opus') {
+			return undefined;
+		}
+
+		// Versioned 4.x ids — replace the tier segment in-place to preserve the
+		// major.minor suffix (`claude-haiku-4-7` → `claude-sonnet-4-7`).
+		const versioned = currentModel.match(/^claude-(haiku|sonnet|opus)-(.+)$/);
+		if (versioned) {
+			const tier = versioned[1];
+			const version = versioned[2];
+			if (tier === 'haiku') {
+				return `claude-sonnet-${version}` as ModelId;
+			}
+			if (tier === 'sonnet') {
+				return `claude-opus-${version}` as ModelId;
+			}
+			// opus — already at the top.
+			return undefined;
+		}
+
+		// Claude 3 / 3.5 / 3.7 ids carry the version *before* the tier
+		// (`claude-3-5-haiku`, `claude-3-7-sonnet`). Handle them explicitly.
+		const claude3Match = currentModel.match(/^claude-(3(?:-5|-7)?)-(haiku|sonnet|opus)$/);
+		if (claude3Match) {
+			const version = claude3Match[1];
+			const tier = claude3Match[2];
+			if (tier === 'haiku') {
+				return `claude-${version}-sonnet` as ModelId;
+			}
+			if (tier === 'sonnet') {
+				// 3 / 3.5 / 3.7 sonnet escalate to claude-3-opus (the only
+				// opus snapshot in the Claude 3 family). 3.5/3.7 don't have
+				// their own opus tiers.
+				return 'claude-3-opus' as ModelId;
+			}
+			return undefined;
+		}
+
+		// Anything else (OpenAI, Foundry, Bedrock, Gemini, OpenRouter, local
+		// providers, …) — no defined escalation ladder yet.
+		return undefined;
+	}
+
+	/**
 	 * Calculate the cost for a specific model and token usage.
 	 */
 	calculateCost(model: ModelId, inputTokens: number, outputTokens: number, cachedInputTokens: number = 0): number {

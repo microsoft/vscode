@@ -71,6 +71,11 @@ export class CodeGeneratorAgent extends BaseAgent {
 				initialMessages,
 				tools,
 				maxIterations: 10,
+				// H13 — surface todo_write / todo_read so the model can plan
+				// multi-step work upfront and check off items as it
+				// progresses. Each `execute` invocation gets a fresh empty
+				// list; the final state is read back via `result.todos`.
+				includeTodoTools: true,
 				onToken: (tok) => {
 					liveText += tok;
 					context.onToken?.(tok);
