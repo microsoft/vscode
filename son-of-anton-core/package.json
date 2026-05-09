@@ -5,7 +5,7 @@
 	"main": "dist/index.js",
 	"types": "dist/index.d.ts",
 	"scripts": {
-		"build": "tsc -p tsconfig.json",
+		"build": "tsc -p tsconfig.json && node -e \"require('fs').mkdirSync('dist/agents/prompts',{recursive:true}); for (const f of require('fs').readdirSync('src/agents/prompts')) { require('fs').copyFileSync('src/agents/prompts/'+f,'dist/agents/prompts/'+f); }\"",
 		"watch": "tsc -p tsconfig.json --watch"
 	},
 	"dependencies": {

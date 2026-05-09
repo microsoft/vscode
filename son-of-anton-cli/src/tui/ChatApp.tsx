@@ -57,7 +57,15 @@ export function ChatApp(props: ChatAppProps): JSX.Element {
 	React.useEffect(() => () => specialistMemory.dispose(), [specialistMemory]);
 
 	const stream = useAgentStream({ llm, model, specialist });
-	const { messages, busy, send, addSystemMessage, clearTranscript, resetConversation, replaceMessages } = stream;
+	const { messages, busy, send, addSystemMessage, clearTranscript, resetConversation, replaceMessages, usage } = stream;
+	// H11 — cumulative session cost. The model can change mid-session via
+	// /model, but tokens billed under the previous model still cost what
+	// they cost — we re-price each turn at the model active when the turn
+	// happened. Today the price snapshot uses the *current* model for
+	// simplicity; an exact per-turn ledger lands when the metrics tracker
+	// surface gets a richer hook.
+	const sessionCost = React.useMemo(() => estimateCost(model, usage), [model, usage]);
+	const totalTokens = usage.input + usage.output;
 
 	const [history, setHistory] = React.useState<ReadonlyArray<string>>(() => loadHistory());
 	const conversationIdRef = React.useRef<string | undefined>(resumeFrom?.id);
@@ -290,7 +298,7 @@ export function ChatApp(props: ChatAppProps): JSX.Element {
 					{planMode ? ' · plan mode on' : ''}
 				</Text>
 			</Box>
-			<StatusBar session={session} busy={busy} />
+			<StatusBar session={session} busy={busy} cost={sessionCost} totalTokens={totalTokens} />
 			{resumePickerOpen ? (
 				<ResumePicker conversations={listConversations()} onSelect={handleResumeSelect} onCancel={() => setResumePickerOpen(false)} />
 			) : (
@@ -339,5 +347,40 @@ function parseSlashLocal(input: string): { name: string; args: ReadonlyArray<str
 	const [name, ...args] = tokens;
 	return { name, args };
 }
+
+/**
+ * H11 — rough cost estimate for the live status-bar meter. Prices reflect
+ * Anthropic's published list rates as of Jan 2026; OpenAI / Foundry /
+ * Bedrock / Gemini fall through to the most-similar Anthropic model for
+ * a "good enough" running total. The display intentionally skips a
+ * decimal-cent precision when usage is below $0.01 (formats as "<$0.01")
+ * so users see *something* tick up on the first turn instead of a
+ * stubborn $0.00.
+ */
+function estimateCost(model: ModelId, usage: { input: number; output: number; cached: number }): number {
+	const rates = MODEL_RATES[model] ?? SONNET_RATE;
+	const nonCachedInput = Math.max(0, usage.input - usage.cached);
+	return (
+		(nonCachedInput / 1_000_000) * rates.input
+		+ (usage.cached / 1_000_000) * rates.cachedInput
+		+ (usage.output / 1_000_000) * rates.output
+	);
+}
+
+const SONNET_RATE = { input: 3.0, output: 15.0, cachedInput: 0.3 };
+const OPUS_RATE = { input: 15.0, output: 75.0, cachedInput: 1.5 };
+const HAIKU_RATE = { input: 1.0, output: 5.0, cachedInput: 0.1 };
+
+const MODEL_RATES: Partial<Record<ModelId, { input: number; output: number; cachedInput: number }>> = {
+	opus: OPUS_RATE,
+	sonnet: SONNET_RATE,
+	haiku: HAIKU_RATE,
+	'claude-opus-4-7': OPUS_RATE,
+	'claude-sonnet-4-7': SONNET_RATE,
+	'claude-haiku-4-7': HAIKU_RATE,
+	'claude-opus-4-6': OPUS_RATE,
+	'claude-sonnet-4-6': SONNET_RATE,
+	'claude-haiku-4-6': HAIKU_RATE,
+};
 
 export default ChatApp;

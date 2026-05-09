@@ -21,6 +21,8 @@ interface UseAgentStreamResult {
 	clearTranscript: () => void;
 	resetConversation: () => void;
 	replaceMessages: (next: ReadonlyArray<TuiMessage>) => void;
+	/** H11 — cumulative session token usage. Updated after each turn. */
+	usage: { input: number; output: number; cached: number };
 }
 
 /**
@@ -34,6 +36,7 @@ export function useAgentStream(args: UseAgentStreamArgs): UseAgentStreamResult {
 	const { llm, model, specialist } = args;
 	const [messages, setMessages] = React.useState<ReadonlyArray<TuiMessage>>([]);
 	const [busy, setBusy] = React.useState(false);
+	const [usage, setUsage] = React.useState<{ input: number; output: number; cached: number }>({ input: 0, output: 0, cached: 0 });
 	const historyRef = React.useRef<LlmMessage[]>([]);
 	const idCounterRef = React.useRef(0);
 
@@ -92,6 +95,17 @@ export function useAgentStream(args: UseAgentStreamArgs): UseAgentStreamResult {
 					historyRef.current.pop();
 				}
 
+				// H11 — fold the turn's token usage into the cumulative session
+				// total so the status bar can render the live cost meter.
+				// LlmClient resets its internal counter per request, so this
+				// snapshot reflects only what this turn used.
+				const turnUsage = llm.getTokenUsage();
+				setUsage((prev) => ({
+					input: prev.input + turnUsage.input,
+					output: prev.output + turnUsage.output,
+					cached: prev.cached + turnUsage.cached,
+				}));
+
 				setMessages((prev) =>
 					prev.map((m) =>
 						m.id === assistantId
@@ -126,7 +140,7 @@ export function useAgentStream(args: UseAgentStreamArgs): UseAgentStreamResult {
 			.map((m) => ({ role: m.role, content: m.text } as LlmMessage));
 	}, []);
 
-	return { messages, busy, send, addSystemMessage, clearTranscript, resetConversation, replaceMessages };
+	return { messages, busy, send, addSystemMessage, clearTranscript, resetConversation, replaceMessages, usage };
 }
 
 /**

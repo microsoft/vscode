@@ -3,11 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as fs from 'fs';
 import { AgentManager } from 'son-of-anton-core/dist/agents/AgentManager';
 import { createAgentStack, type AgentStack } from 'son-of-anton-core/dist/agents/AgentStackFactory';
 import type { CoreHost, Disposable } from 'son-of-anton-core/dist/host';
 import { LlmClient } from 'son-of-anton-core/dist/llm/LlmClient';
 import { McpClient, type McpClientDeps } from 'son-of-anton-core/dist/mcp/McpClient';
+import { HookRunner, hooksFilePath } from './persistence/HookRunner';
+import { instrumentToolExecutionContext } from './persistence/instrumentToolExecutionContext';
 import { buildCliToolExecutionContext } from './toolExecutionContext';
 
 /**
@@ -39,7 +42,17 @@ export function buildCliAgentStack(host: CoreHost): { stack: AgentStack; llm: Ll
 	// without a workspace (rare — mostly happens in tests) skip the context
 	// and fall back to the legacy diff-parse path.
 	const workspaceRoot = host.workspace.folders[0]?.fsPath;
-	const toolExecutionContext = workspaceRoot ? buildCliToolExecutionContext(workspaceRoot) : undefined;
+	const baseToolExecutionContext = workspaceRoot ? buildCliToolExecutionContext(workspaceRoot) : undefined;
+	// Wrap the tool execution context with the hooks runtime when the workspace
+	// is trusted AND `.son-of-anton/hooks.json` exists. We skip instantiation
+	// (rather than relying solely on the runner's no-op behaviour for empty
+	// configs) so untrusted or hook-less workspaces pay zero overhead.
+	const hookRunner = workspaceRoot && host.workspace.isTrusted && fs.existsSync(hooksFilePath(workspaceRoot))
+		? new HookRunner(host)
+		: undefined;
+	const toolExecutionContext = baseToolExecutionContext && hookRunner
+		? instrumentToolExecutionContext(baseToolExecutionContext, hookRunner)
+		: baseToolExecutionContext;
 	const stack = createAgentStack({
 		llmClient: llm,
 		mcpClient,
