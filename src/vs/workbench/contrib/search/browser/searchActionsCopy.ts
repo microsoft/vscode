@@ -13,6 +13,7 @@ import { KeybindingWeight } from '../../../../platform/keybinding/common/keybind
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { category, getSearchView } from './searchActionsBase.js';
 import { isWindows } from '../../../../base/common/platform.js';
+import { basename } from '../../../../base/common/resources.js';
 import { searchMatchComparer } from './searchCompare.js';
 import { RenderableMatch, ISearchTreeMatch, isSearchTreeMatch, ISearchTreeFileMatch, ISearchTreeFolderMatch, ISearchTreeFolderMatchWithResource, isSearchTreeFileMatch, isSearchTreeFolderMatch, isSearchTreeFolderMatchWithResource, isTextSearchHeading } from './searchTreeModel/searchTreeCommon.js';
 
@@ -45,6 +46,29 @@ registerAction2(class CopyMatchCommandAction extends Action2 {
 	}
 });
 
+registerAction2(class CopyFilenameCommandAction extends Action2 {
+
+	constructor(
+	) {
+		super({
+			id: Constants.SearchCommandIds.CopyFilenameCommandId,
+			title: nls.localize2('copyFilenameLabel', "Copy Filename"),
+			category,
+			menu: [{
+				id: MenuId.SearchContext,
+				when: Constants.SearchContext.FileMatchOrFolderMatchWithResourceFocusKey,
+				group: 'search_2',
+				order: 2
+			}]
+		});
+
+	}
+
+	override async run(accessor: ServicesAccessor, fileMatch: ISearchTreeFileMatch | ISearchTreeFolderMatchWithResource | undefined): Promise<any> {
+		await copyFilenameCommand(accessor, fileMatch);
+	}
+});
+
 registerAction2(class CopyPathCommandAction extends Action2 {
 
 	constructor(
@@ -65,7 +89,7 @@ registerAction2(class CopyPathCommandAction extends Action2 {
 				id: MenuId.SearchContext,
 				when: Constants.SearchContext.FileMatchOrFolderMatchWithResourceFocusKey,
 				group: 'search_2',
-				order: 2
+				order: 3
 			}]
 		});
 
@@ -88,7 +112,7 @@ registerAction2(class CopyAllCommandAction extends Action2 {
 				id: MenuId.SearchContext,
 				when: Constants.SearchContext.HasSearchResults,
 				group: 'search_2',
-				order: 3
+				order: 4
 			}]
 		});
 
@@ -132,6 +156,20 @@ registerAction2(class GetSearchResultsAction extends Action2 {
 
 //#region Helpers
 export const lineDelimiter = isWindows ? '\r\n' : '\n';
+
+async function copyFilenameCommand(accessor: ServicesAccessor, fileMatch: ISearchTreeFileMatch | ISearchTreeFolderMatchWithResource | undefined) {
+	if (!fileMatch) {
+		const selection = getSelectedRow(accessor);
+		if (!isSearchTreeFileMatch(selection) || isSearchTreeFolderMatchWithResource(selection)) {
+			return;
+		}
+
+		fileMatch = selection;
+	}
+
+	const clipboardService = accessor.get(IClipboardService);
+	await clipboardService.writeText(basename(fileMatch.resource));
+}
 
 async function copyPathCommand(accessor: ServicesAccessor, fileMatch: ISearchTreeFileMatch | ISearchTreeFolderMatchWithResource | undefined) {
 	if (!fileMatch) {
