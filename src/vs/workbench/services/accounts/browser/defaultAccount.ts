@@ -552,10 +552,6 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 				policyData.session_search = tokenEntitlementsData.policyData.session_search;
 				policyData.mcp = tokenEntitlementsData.policyData.mcp;
 				if (policyData.mcp) {
-					// Use cached MCP registry data immediately so the renderer is not blocked
-					// by the network round-trip during startup. Refresh in the background if stale.
-					policyData.mcpRegistryUrl = accountPolicyData?.policyData.mcpRegistryUrl;
-					policyData.mcpAccess = accountPolicyData?.policyData.mcpAccess;
 					mcpRegistryDataFetchedAt = accountPolicyData?.mcpRegistryDataFetchedAt;
 					if (options?.forceRefresh || !accountPolicyData?.mcpRegistryDataFetchedAt || this.isDataStale(accountPolicyData.mcpRegistryDataFetchedAt)) {
 						void this.refreshMcpRegistryInBackground(sessions, accountId, accountPolicyData, options);
