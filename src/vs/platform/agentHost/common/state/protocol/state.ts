@@ -1837,6 +1837,12 @@ export interface UsageInfo {
 	model?: string;
 	/** Tokens read from cache */
 	cacheReadTokens?: number;
+	/**
+	 * Additional provider-specific usage metadata.
+	 *
+	 * Clients MAY look for well-known keys here to provide enhanced UI.
+	 */
+	_meta?: Record<string, unknown>;
 }
 
 /**

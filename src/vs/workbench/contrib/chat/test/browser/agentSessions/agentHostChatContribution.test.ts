@@ -1757,7 +1757,7 @@ suite('AgentHostChatContribution', () => {
 						id: 'turn-1',
 						userMessage: { text: 'Q1' },
 						responseParts: [{ kind: ResponsePartKind.Markdown, id: 'md-1', content: 'A1' }],
-						usage: { model: 'opus-4.7' },
+						usage: { model: 'opus-4.7', _meta: { copilotUsage: { totalNanoAiu: 1_500_000_000 } } },
 						state: TurnState.Complete,
 					},
 					{
@@ -1772,7 +1772,7 @@ suite('AgentHostChatContribution', () => {
 					id: 'turn-active',
 					userMessage: { text: 'Q3' },
 					responseParts: [],
-					usage: undefined,
+					usage: { _meta: { copilotUsage: { totalNanoAiu: 1_000_000_000 } } },
 				},
 			});
 
@@ -1793,7 +1793,7 @@ suite('AgentHostChatContribution', () => {
 			const responses = session.history.filter(h => h.type === 'response');
 			assert.deepStrictEqual(
 				responses.map(r => r.details),
-				['Opus 4.7 · 15x', 'Sonnet 4.6 · 2x', 'Sonnet 4.6 · 2x'],
+				['Opus 4.7 • 1.5 credits', 'Sonnet 4.6 · 2x', 'Sonnet 4.6 • 1 credit'],
 			);
 
 			const activeResponse = session.history[session.history.length - 1];
