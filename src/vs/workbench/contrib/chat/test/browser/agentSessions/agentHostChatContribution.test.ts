@@ -3176,7 +3176,7 @@ suite('AgentHostChatContribution', () => {
 				session: backendSession.toString(),
 				kind: 'queued',
 				id: 'queued-request-1',
-				userMessage: { text },
+				userMessage: { text, attachments: undefined },
 			});
 		});
 
@@ -3218,7 +3218,7 @@ suite('AgentHostChatContribution', () => {
 				session: backendSession.toString(),
 				kind: 'queued',
 				id: 'queued-request-1',
-				userMessage: { text },
+				userMessage: { text, attachments: undefined },
 			});
 		});
 

@@ -4,14 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { IObservable, ISettableObservable, autorun, observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { ChatViewPaneTarget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
+import { ChatViewId, ChatViewPaneTarget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
+import { IProgressService } from '../../../../platform/progress/common/progress.js';
 import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ActiveSessionProviderIdContext, ActiveSessionTypeContext, IsActiveSessionArchivedContext, IsActiveSessionBackgroundProviderContext, IsNewChatInSessionContext, IsNewChatSessionContext } from '../../../common/contextkeys.js';
@@ -21,6 +23,7 @@ import { ISendRequestOptions, ISessionChangeEvent, ISessionsProvider } from '../
 import { IChat, ISession, isWorkspaceAgentSessionType, SessionStatus, ISessionType } from '../common/session.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../common/agentHostSessionsProvider.js';
+import { SessionsNavigation } from './sessionNavigation.js';
 
 const ACTIVE_SESSION_STATES_KEY = 'agentSessions.activeSessionStates';
 
@@ -62,9 +65,13 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 	private readonly _isActiveSessionArchived: IContextKey<boolean>;
 	private readonly _supportsMultiChat: IContextKey<boolean>;
 	private _activeChatObservable: ISettableObservable<IChat> | undefined;
+	/** Cancelled on every navigation action so in-flight async opens bail out. */
+	private readonly _openSessionCts = this._register(new MutableDisposable<CancellationTokenSource>());
+	private readonly _onDidOpenNewSessionView = this._register(new Emitter<void>());
 	private _activeSessionDisposables = this._register(new DisposableStore());
 	private readonly _providerListeners = this._register(new DisposableMap<string, IDisposable>());
 	private readonly _sessionStates: ResourceMap<ISessionState>;
+	private readonly _navigation: SessionsNavigation;
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
@@ -74,6 +81,7 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
+		@IProgressService private readonly progressService: IProgressService,
 	) {
 		super();
 
@@ -99,6 +107,14 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 			this._updateSessionTypes();
 		}));
 		this._subscribeToProviders(this.sessionsProvidersService.getProviders());
+
+		// Session navigation history
+		this._navigation = this._register(new SessionsNavigation(
+			this,
+			contextKeyService,
+			this.logService,
+		));
+		this._register(this.onDidChangeSessions(e => this._navigation.onDidRemoveSessions(e)));
 	}
 
 	private _onProvidersChanged(e: ISessionsProvidersChangeEvent): void {
@@ -203,8 +219,19 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 		}
 	}
 
+	/**
+	 * Cancel any in-flight open-session/restore and return a fresh cancellation token.
+	 */
+	private _startOpenSession() {
+		this._openSessionCts.value?.cancel();
+		const cts = new CancellationTokenSource();
+		this._openSessionCts.value = cts;
+		return cts.token;
+	}
+
 	async openChat(session: ISession, chatUri: URI): Promise<void> {
 		const t0 = Date.now();
+		const token = this._startOpenSession();
 		this.logService.trace(`[SessionsManagement] openChat start uri=${chatUri.toString()} provider=${session.providerId}`);
 		this.isNewChatSessionContext.set(false);
 		this.setActiveSession(session);
@@ -229,11 +256,24 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 		}
 
 		this._isNewChatInSessionContext.set(false);
-		await this.chatWidgetService.openSession(chatUri, ChatViewPaneTarget);
+		try {
+			await this.chatWidgetService.openSession(chatUri, ChatViewPaneTarget);
+		} catch (e) {
+			if (token.isCancellationRequested) {
+				this.logService.trace('[SessionsManagement] openChat: suppressed error because user navigated away');
+				return;
+			}
+			throw e;
+		}
 		this.logService.trace(`[SessionsManagement] openChat done total=${Date.now() - t0}ms uri=${chatUri.toString()}`);
 	}
 
 	async openSession(sessionResource: URI, options?: { preserveFocus?: boolean }): Promise<void> {
+		const token = this._startOpenSession();
+		await this._doOpenSession(sessionResource, token, options);
+	}
+
+	private async _doOpenSession(sessionResource: URI, token: CancellationToken, options?: { preserveFocus?: boolean }): Promise<void> {
 		const t0 = Date.now();
 		const sessionData = this.getSession(sessionResource);
 		if (!sessionData) {
@@ -248,7 +288,15 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 		// Open the active chat (which may have been restored to the last active chat)
 		const activeChat = this._activeSession.get()?.activeChat.get();
 		const openUri = activeChat?.resource ?? sessionData.resource;
-		await this.chatWidgetService.openSession(openUri, ChatViewPaneTarget, { preserveFocus: options?.preserveFocus });
+		try {
+			await this.chatWidgetService.openSession(openUri, ChatViewPaneTarget, { preserveFocus: options?.preserveFocus });
+		} catch (e) {
+			if (token.isCancellationRequested) {
+				this.logService.trace('[SessionsManagement] openSession: suppressed error because user navigated away');
+				return;
+			}
+			throw e;
+		}
 		this.logService.trace(`[SessionsManagement] openSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()}`);
 	}
 
@@ -258,6 +306,7 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 	}
 
 	createNewSession(providerId: string, repositoryUri: URI, sessionTypeId?: string): ISession {
+		this._startOpenSession();
 		if (!this.isNewChatSessionContext.get()) {
 			this.isNewChatSessionContext.set(true);
 		}
@@ -344,15 +393,23 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 		if (this.isNewChatSessionContext.get()) {
 			return;
 		}
+		this._startOpenSession();
 		// Restore the pending new session if one exists, so pickers
 		// re-derive their state from the still-alive session object.
 		// Otherwise clear active session (first time / after send).
 		this.setActiveSession(this._pendingNewSession ?? undefined);
 		this.isNewChatSessionContext.set(true);
 		this._isNewChatInSessionContext.set(false);
+		this._onDidOpenNewSessionView.fire();
+
+		// Clear isActive so the new-session view is restored on reload
+		for (const [, state] of this._sessionStates) {
+			state.isActive = false;
+		}
 	}
 
 	openNewChatInSession(session: ISession): void {
+		this._startOpenSession();
 		const provider = this._getProvider(session);
 		if (!provider) {
 			this.logService.warn(`[SessionsManagement] openNewChatInSession: provider '${session.providerId}' not found`);
@@ -498,6 +555,121 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 			entries.push(state);
 		}
 		this.storageService.store(ACTIVE_SESSION_STATES_KEY, JSON.stringify(entries), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+	}
+
+	private _getLastActiveSessionState(): ISessionState | undefined {
+		for (const [, state] of this._sessionStates) {
+			if (state.isActive) {
+				return state;
+			}
+		}
+		return undefined;
+	}
+
+	async restoreLastActiveSession(): Promise<void> {
+		const lastActive = this._getLastActiveSessionState();
+		if (!lastActive) {
+			return;
+		}
+
+		// Synchronously switch away from the new-session view before any await so
+		// that NewChatViewPane never renders and cannot call createNewSession()
+		// which would cancel our restore token.
+		this.isNewChatSessionContext.set(false);
+		this._isNewChatInSessionContext.set(false);
+
+		const sessionResource = URI.parse(lastActive.sessionResource);
+		const token = this._startOpenSession();
+
+		const doRestore = async () => {
+			// Session may already be available if the provider registered early
+			const existing = this.getSession(sessionResource);
+			if (existing) {
+				try {
+					await this._doOpenSession(sessionResource, token);
+				} catch {
+					if (!token.isCancellationRequested) {
+						this.openNewSessionView();
+					}
+				}
+				return;
+			}
+
+			// Wait for the session to become available via provider registration.
+			// Cancel if the user navigates while we are waiting.
+			await new Promise<void>(resolve => {
+				const disposables = new DisposableStore();
+
+				const cancel = () => {
+					disposables.dispose();
+					resolve();
+				};
+
+				disposables.add(token.onCancellationRequested(cancel));
+
+				const tryRestore = () => {
+					if (token.isCancellationRequested) {
+						cancel();
+						return;
+					}
+
+					const session = this.getSession(sessionResource);
+					if (session) {
+						disposables.dispose();
+						this._doOpenSession(sessionResource, token).then(resolve, () => {
+							if (!token.isCancellationRequested) {
+								this.openNewSessionView();
+							}
+							resolve();
+						});
+					}
+				};
+
+				disposables.add(this.onDidChangeSessions(() => tryRestore()));
+				disposables.add(this.sessionsProvidersService.onDidChangeProviders(() => tryRestore()));
+
+				// Call immediately in case the session became available between the
+				// initial getSession check above and the listener registration here.
+				tryRestore();
+			});
+		};
+
+		const restorePromise = doRestore();
+		let onDidOpenNewSessionViewListener: IDisposable | undefined;
+		try {
+			if (!this.isNewChatSessionContext.get()) {
+				// Race against new-session navigation so progress stops immediately
+				// when the user opens the new session view, but not when they open
+				// another existing session (which should show its own progress).
+				// Create the listener explicitly so it can be disposed if restore
+				// completes before the event ever fires.
+				const openNewSessionViewPromise = new Promise<void>(resolve => {
+					onDidOpenNewSessionViewListener = this._onDidOpenNewSessionView.event(() => {
+						onDidOpenNewSessionViewListener?.dispose();
+						onDidOpenNewSessionViewListener = undefined;
+						resolve();
+					});
+				});
+				const progressPromise = Promise.race([
+					restorePromise,
+					openNewSessionViewPromise
+				]);
+				this.progressService.withProgress({ location: ChatViewId, delay: 200 }, () => progressPromise);
+			}
+			await restorePromise;
+		} finally {
+			onDidOpenNewSessionViewListener?.dispose();
+		}
+	}
+
+	// -- Session Navigation --
+
+	async openPreviousSession(): Promise<void> {
+		await this._navigation.goBack();
+	}
+
+	async openNextSession(): Promise<void> {
+		await this._navigation.goForward();
 	}
 
 	// -- Session Actions --

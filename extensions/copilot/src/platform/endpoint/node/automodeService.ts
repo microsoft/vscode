@@ -368,12 +368,36 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 	private _selectDefaultModel(currentModelProvider: string | undefined, availableModels: string[], knownEndpoints: IChatEndpoint[]): IChatEndpoint {
 		const selectedModel = (currentModelProvider && this._findSameProviderModel(currentModelProvider, availableModels, knownEndpoints))
 			?? this._findFirstAvailableModel(availableModels, knownEndpoints);
-		if (!selectedModel) {
-			const errorMsg = 'Auto mode failed: no available model found in known endpoints.';
-			this._logService.error(errorMsg);
-			throw new Error(errorMsg);
+		if (selectedModel) {
+			return selectedModel;
 		}
-		return selectedModel;
+		// AutoModels (cached up to 6h in the CopilotToken) and the Models API
+		// (refreshed every 10min) are independent CAPI calls and can drift, so
+		// `available_models` may have zero overlap with `knownEndpoints` (e.g.
+		// a model was removed server-side after the token was minted). Rather
+		// than throwing "Auto mode failed: no available model found in known
+		// endpoints" and breaking the chat, fall back to the first known
+		// endpoint so the user can keep working. Emit telemetry so we can
+		// monitor how often this happens.
+		const fallbackEndpoint = knownEndpoints[0];
+		this._logService.warn(
+			`[AutomodeService] No available_models matched knownEndpoints; using fallback endpoint '${fallbackEndpoint.model}'. ` +
+			`available_models=[${availableModels.join(', ')}], knownEndpoints=[${knownEndpoints.map(e => e.model).join(', ')}]`,
+		);
+		/* __GDPR__
+			"automode.noEndpointFallback" : {
+				"owner": "aashnagarg",
+				"comment": "Reports when AutoModels available_models has no overlap with knownEndpoints and the client falls back to the first known endpoint instead of failing.",
+				"availableModelCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Number of models in the AutoModels response" },
+				"knownEndpointCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Number of known endpoints from the Models API" },
+				"fallbackModel": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "The model selected as the safe fallback" }
+			}
+		*/
+		this._telemetryService.sendMSFTTelemetryEvent('automode.noEndpointFallback',
+			{ fallbackModel: fallbackEndpoint.model },
+			{ availableModelCount: availableModels.length, knownEndpointCount: knownEndpoints.length },
+		);
+		return fallbackEndpoint;
 	}
 
 	private _isRouterEnabled(chatRequest: ChatRequest | undefined): boolean {

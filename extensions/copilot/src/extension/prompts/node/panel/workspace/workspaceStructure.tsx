@@ -8,6 +8,7 @@ import { IPromptPathRepresentationService } from '../../../../../platform/prompt
 import { IWorkspaceService } from '../../../../../platform/workspace/common/workspaceService';
 import { createFencedCodeBlock } from '../../../../../util/common/markdown';
 import { CancellationToken } from '../../../../../util/vs/base/common/cancellation';
+import { basename } from '../../../../../util/vs/base/common/resources';
 import { URI } from '../../../../../util/vs/base/common/uri';
 import { IInstantiationService } from '../../../../../util/vs/platform/instantiation/common/instantiation';
 import { ToolName } from '../../../../tools/common/toolNames';
@@ -17,6 +18,7 @@ type WorkspaceStructureProps = BasePromptElementProps & {
 	maxSize: number;
 	excludeDotFiles?: boolean;
 	readonly availableTools?: readonly vscode.LanguageModelToolInformation[];
+	readonly workingDirectory?: URI;
 };
 
 export class WorkspaceStructure extends PromptElement<WorkspaceStructureProps, IFileTreeData | undefined> {
@@ -103,9 +105,13 @@ export class MultirootWorkspaceStructure extends PromptElement<WorkspaceStructur
 	}
 
 	override async prepare(sizing: PromptSizing, progress: vscode.Progress<vscode.ChatResponseProgressPart> | undefined, token?: vscode.CancellationToken): Promise<{ label: string; tree: IFileTreeData }[]> {
-		const folders = this.workspaceService.getWorkspaceFolders();
+		// When workingDirectory is set (agents window), use it exclusively.
+		// Only fall back to workspace folders when no workingDirectory is specified.
+		const folders = this.props.workingDirectory
+			? [this.props.workingDirectory]
+			: this.workspaceService.getWorkspaceFolders();
 		return this.instantiationService.invokeFunction(accessor => Promise.all(folders.map(async folder => ({
-			label: this.workspaceService.getWorkspaceFolderName(folder),
+			label: this.props.workingDirectory ? basename(folder) : this.workspaceService.getWorkspaceFolderName(folder),
 			tree: await workspaceVisualFileTree(accessor, folder, { maxLength: this.props.maxSize / folders.length, excludeDotFiles: this.props.excludeDotFiles }, token ?? CancellationToken.None)
 		}))));
 	}

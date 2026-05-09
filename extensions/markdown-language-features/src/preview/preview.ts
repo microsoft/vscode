@@ -42,6 +42,32 @@ interface MarkdownPreviewDelegate {
 	openPreviewLinkToMarkdownFile(markdownLink: vscode.Uri, fragment: string | undefined): void;
 }
 
+function getFirstChangedLine(lineChanges: MarkdownPreviewLineChanges): number | undefined {
+	let firstLine: number | undefined;
+	if (lineChanges.added?.length) {
+		firstLine = lineChanges.added[0];
+	}
+	if (lineChanges.deleted?.length) {
+		const line = lineChanges.deleted[0];
+		if (firstLine === undefined || line < firstLine) {
+			firstLine = line;
+		}
+	}
+	if (lineChanges.innerChanges?.length) {
+		const line = lineChanges.innerChanges[0].line;
+		if (firstLine === undefined || line < firstLine) {
+			firstLine = line;
+		}
+	}
+	if (lineChanges.changeIndicators?.length) {
+		const line = lineChanges.changeIndicators[0].modifiedLine;
+		if (firstLine === undefined || line < firstLine) {
+			firstLine = line;
+		}
+	}
+	return firstLine;
+}
+
 class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 
 	static readonly #unwatchedImageSchemes = new Set(['https', 'http', 'data']);
@@ -57,6 +83,7 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 	#line: number | undefined;
 	readonly #scrollToFragment: string | undefined;
 	#firstUpdate = true;
+	#scrollToFirstDiffChange: boolean;
 	#currentVersion?: PreviewDocumentVersion;
 	#isScrolling = false;
 	#scrollingTimer?: NodeJS.Timeout;
@@ -98,6 +125,8 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 
 		this.#webviewPanel = webview;
 		this.#resource = resource;
+
+		this.#scrollToFirstDiffChange = !startingScroll && !!delegate.getLineChanges;
 
 		switch (startingScroll?.type) {
 			case 'line':
@@ -296,6 +325,15 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 
 		const lineChanges = await this.#delegate.getLineChanges?.();
 		const diffScrollSync = await this.#delegate.getDiffScrollSync?.();
+
+		if (this.#scrollToFirstDiffChange && lineChanges) {
+			this.#scrollToFirstDiffChange = false;
+			const firstLine = getFirstChangedLine(lineChanges);
+			if (firstLine !== undefined) {
+				this.#line = firstLine;
+			}
+		}
+
 		const content = await (shouldReloadPage
 			? this.#contentProvider.renderDocument(document, this, this.#previewConfigurations, this.#line, selectedLine, this.state, this.#imageInfo, lineChanges, diffScrollSync, this.#disposeCts.token)
 			: this.#contentProvider.renderBody(document, this, lineChanges));

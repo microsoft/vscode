@@ -765,23 +765,31 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		return window;
 	}
 
+	private resolveContextWindow(openConfig: IOpenConfiguration, forceNewWindow: boolean): { windowToUse: ICodeWindow | undefined; forceNewWindow: boolean } {
+		if (!forceNewWindow && typeof openConfig.contextWindowId === 'number') {
+			const contextWindow = this.getWindowById(openConfig.contextWindowId);
+			if (contextWindow?.config?.isSessionsWindow) {
+				return { windowToUse: undefined, forceNewWindow: true }; // do not replace the agents window
+			}
+			return { windowToUse: contextWindow, forceNewWindow };
+		}
+		return { windowToUse: undefined, forceNewWindow };
+	}
+
 	private doOpenEmpty(openConfig: IOpenConfiguration, forceNewWindow: boolean, remoteAuthority: string | undefined, filesToOpen: IFilesToOpen | undefined, emptyWindowBackupInfo?: IEmptyWindowBackupInfo): Promise<ICodeWindow> {
 		this.logService.trace('windowsManager#doOpenEmpty', { restore: !!emptyWindowBackupInfo, remoteAuthority, filesToOpen, forceNewWindow });
 
-		let windowToUse: ICodeWindow | undefined;
-		if (!forceNewWindow && typeof openConfig.contextWindowId === 'number') {
-			windowToUse = this.getWindowById(openConfig.contextWindowId); // fix for https://github.com/microsoft/vscode/issues/97172
-		}
+		const resolved = this.resolveContextWindow(openConfig, forceNewWindow);
 
 		return this.openInBrowserWindow({
 			userEnv: openConfig.userEnv,
 			cli: openConfig.cli,
 			initialStartup: openConfig.initialStartup,
 			remoteAuthority,
-			forceNewWindow,
+			forceNewWindow: resolved.forceNewWindow,
 			forceNewTabbedWindow: openConfig.forceNewTabbedWindow,
 			filesToOpen,
-			windowToUse,
+			windowToUse: resolved.windowToUse,
 			emptyWindowBackupInfo,
 			forceProfile: openConfig.forceProfile,
 			forceTempProfile: openConfig.forceTempProfile
@@ -791,8 +799,10 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	private doOpenFolderOrWorkspace(openConfig: IOpenConfiguration, folderOrWorkspace: IWorkspacePathToOpen | ISingleFolderWorkspacePathToOpen, forceNewWindow: boolean, filesToOpen: IFilesToOpen | undefined, windowToUse?: ICodeWindow): Promise<ICodeWindow> {
 		this.logService.trace('windowsManager#doOpenFolderOrWorkspace', { folderOrWorkspace, filesToOpen });
 
-		if (!forceNewWindow && !windowToUse && typeof openConfig.contextWindowId === 'number') {
-			windowToUse = this.getWindowById(openConfig.contextWindowId); // fix for https://github.com/microsoft/vscode/issues/49587
+		if (!windowToUse) {
+			const resolved = this.resolveContextWindow(openConfig, forceNewWindow);
+			windowToUse = resolved.windowToUse;
+			forceNewWindow = resolved.forceNewWindow;
 		}
 
 		return this.openInBrowserWindow({
@@ -1506,7 +1516,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 		let window: ICodeWindow | undefined;
 		if (!options.forceNewWindow && !options.forceNewTabbedWindow) {
-			window = options.windowToUse || lastActiveWindow;
+			window = options.windowToUse || (lastActiveWindow?.config?.isSessionsWindow ? undefined : lastActiveWindow);
 			if (window) {
 				window.focus();
 			}
