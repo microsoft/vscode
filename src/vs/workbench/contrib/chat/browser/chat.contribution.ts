@@ -232,21 +232,6 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.fontFamily', "Controls the font family in chat messages."),
 			default: 'default'
 		},
-		[ChatConfiguration.TextDirection]: {
-			type: 'string',
-			enum: ['inherit', 'contextual', 'auto', 'auto-follow', 'default', 'ltr', 'rtl'],
-			default: 'inherit',
-			enumDescriptions: [
-				nls.localize('chat.textDirection.inherit', "Use the value of #editor.textDirection# for chat surfaces."),
-				nls.localize('chat.textDirection.contextual', "Resolve bidirectional text direction contextually. For chat surfaces, this follows plain-text behavior."),
-				nls.localize('chat.textDirection.auto', "Auto-detect line direction and keep leading neutral characters (such as `#`) in the base direction."),
-				nls.localize('chat.textDirection.autoFollow', "Auto-detect line direction and let leading neutral characters follow the first strong character."),
-				nls.localize('chat.textDirection.default', "Keep the default chat behavior unless an explicit text-direction decoration is applied."),
-				nls.localize('chat.textDirection.ltr', "Force chat content to use left-to-right direction."),
-				nls.localize('chat.textDirection.rtl', "Force chat content to use right-to-left direction."),
-			],
-			description: nls.localize('chat.textDirection', "Controls bidirectional text direction for chat surfaces. Set to `inherit` to follow #editor.textDirection#.")
-		},
 		'chat.editor.fontSize': {
 			type: 'number',
 			description: nls.localize('interactiveSession.editor.fontSize', "Controls the font size in pixels in chat codeblocks."),

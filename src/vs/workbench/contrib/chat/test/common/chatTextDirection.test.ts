@@ -8,8 +8,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { getConfiguredTextDirection } from '../../../../../editor/common/core/textDirection.js';
 import { TextDirection } from '../../../../../editor/common/model.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { getChatTextDirection, isChatTextDirectionPreset } from '../../common/chatTextDirection.js';
-import { ChatConfiguration } from '../../common/constants.js';
+import { getChatTextDirection } from '../../common/chatTextDirection.js';
 
 suite('chatTextDirection', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -20,30 +19,20 @@ suite('chatTextDirection', () => {
 		assert.strictEqual(getChatTextDirection(configurationService), 'rtl');
 	});
 
-	test('inherits editor.textDirection when chat.textDirection is inherit', () => {
+	test('inherits contextual editor.textDirection values', () => {
 		const configurationService = new TestConfigurationService({
 			'editor.textDirection': 'auto-follow',
-			[ChatConfiguration.TextDirection]: 'inherit',
 		});
 
 		assert.strictEqual(getChatTextDirection(configurationService), 'auto-follow');
 	});
 
-	test('allows chat.textDirection to override editor.textDirection', () => {
+	test('uses editor.textDirection for chat surfaces', () => {
 		const configurationService = new TestConfigurationService({
-			'editor.textDirection': 'ltr',
-			[ChatConfiguration.TextDirection]: 'rtl',
+			'editor.textDirection': 'rtl',
 		});
 
 		assert.strictEqual(getChatTextDirection(configurationService), 'rtl');
 		assert.strictEqual(getConfiguredTextDirection('hello سلام', getChatTextDirection(configurationService), TextDirection.LTR), TextDirection.RTL);
-	});
-
-	test('validates supported chat text direction presets', () => {
-		assert.strictEqual(isChatTextDirectionPreset('inherit'), true);
-		assert.strictEqual(isChatTextDirectionPreset('contextual'), true);
-		assert.strictEqual(isChatTextDirectionPreset('auto'), true);
-		assert.strictEqual(isChatTextDirectionPreset('ltr'), true);
-		assert.strictEqual(isChatTextDirectionPreset('invalid'), false);
 	});
 });

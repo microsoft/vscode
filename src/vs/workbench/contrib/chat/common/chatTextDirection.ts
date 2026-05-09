@@ -4,27 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { EditorOptions } from '../../../../editor/common/config/editorOptions.js';
-import { EditorTextDirectionPreset, InternalEditorTextDirectionOptions } from '../../../../editor/common/core/textDirection.js';
+import { InternalEditorTextDirectionOptions } from '../../../../editor/common/core/textDirection.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { ChatConfiguration } from './constants.js';
-
-export type ChatTextDirectionPreset = EditorTextDirectionPreset | 'inherit';
-
-const validChatTextDirectionPresets = new Set<ChatTextDirectionPreset>(['inherit', 'contextual', 'auto', 'auto-follow', 'default', 'ltr', 'rtl']);
 
 export function getChatTextDirection(configurationService: IConfigurationService): InternalEditorTextDirectionOptions {
-	const chatTextDirection = configurationService.getValue<string | undefined>(ChatConfiguration.TextDirection);
-	const configuredValue = chatTextDirection === undefined || chatTextDirection === 'inherit'
-		? configurationService.getValue('editor.textDirection')
-		: chatTextDirection;
-
-	return EditorOptions.textDirection.validate(configuredValue);
-}
-
-export function isChatTextDirectionPreset(value: unknown): value is ChatTextDirectionPreset {
-	return typeof value === 'string' && validChatTextDirectionPresets.has(value as ChatTextDirectionPreset);
+	return EditorOptions.textDirection.validate(configurationService.getValue('editor.textDirection'));
 }
 
 export function affectsChatTextDirectionConfiguration(e: IConfigurationChangeEvent): boolean {
-	return e.affectsConfiguration(ChatConfiguration.TextDirection) || e.affectsConfiguration('editor.textDirection');
+	return e.affectsConfiguration('editor.textDirection');
 }
