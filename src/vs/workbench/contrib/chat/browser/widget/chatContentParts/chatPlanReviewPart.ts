@@ -800,7 +800,7 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 			dom.hide(this._feedbackSection);
 		}
 		this.domNode.classList.remove('chat-plan-review-feedback-mode');
-		this.unmountInlineEditor();
+		await this.unmountInlineEditor();
 		this.renderMarkdown();
 		this.renderCurrentActionButtons();
 		this._messageScrollable.scanDomNode();
