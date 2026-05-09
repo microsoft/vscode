@@ -783,9 +783,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			this._dispatchActiveClient(resolvedSession, this._config.customizations?.get() ?? []);
 		}
 
-		await this._handleTurn(resolvedSession, request, progress, cancellationToken);
+		const completedTurn = await this._handleTurn(resolvedSession, request, progress, cancellationToken);
+		const details = this._getTurnResponseDetails(request.sessionResource, resolvedSession, completedTurn);
 
-		return {};
+		return details ? { details } : {};
 	}
 
 	/**
@@ -1041,7 +1042,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		request: IChatAgentRequest,
 		progress: (parts: IChatProgress[]) => void,
 		cancellationToken: CancellationToken,
-	): Promise<void> {
+	): Promise<Turn | undefined> {
 		if (cancellationToken.isCancellationRequested) {
 			return;
 		}
@@ -1120,7 +1121,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// sink and resolves the promise from `onTurnEnded`. Cancellation is
 		// surfaced through the same path: the observer disposes itself when
 		// `cancellationToken` fires, then calls `onTurnEnded(undefined)`.
-		await new Promise<void>(resolve => {
+		return new Promise<Turn | undefined>(resolve => {
 			const store = new DisposableStore();
 			const cancelSub = store.add(cancellationToken.onCancellationRequested(() => {
 				cancelSub.dispose();
@@ -1138,11 +1139,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				turnId,
 				sink: progress,
 				cancellationToken,
-				onTurnEnded: () => {
+				onTurnEnded: (lastTurn) => {
 					store.dispose();
 					this._clientDispatchedTurnIds.delete(turnId);
 					this._activeSessions.get(request.sessionResource)?.isCompleteObs.set(true, undefined);
-					resolve();
+					resolve(lastTurn);
 				},
 				onFileEdits: (tc) => {
 					const editParts = this._hydrateFileEdits(request.sessionResource, request.requestId, tc);
@@ -2504,6 +2505,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}
 		const prefix = `${getChatSessionType(sessionResource)}:`;
 		return rawModelId.startsWith(prefix) ? rawModelId : `${prefix}${rawModelId}`;
+	}
+
+	private _getTurnResponseDetails(sessionResource: URI, backendSession: URI, turn: Turn | undefined): string | undefined {
+		const fallbackRawModelId = this._getSessionState(backendSession.toString())?.summary.model?.id;
+		return this._createTurnModelLookup(sessionResource, fallbackRawModelId).toResponseDetails(turn?.usage?.model, turn?.usage);
 	}
 
 	/**
