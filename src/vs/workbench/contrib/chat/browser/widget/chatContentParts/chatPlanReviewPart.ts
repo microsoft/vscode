@@ -139,9 +139,6 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 			registrationStore.add(this._planReviewFeedbackService.onDidChangeFeedback(uri => {
 				// Match the plan URI or the editing URI used while the editor is mounted.
 				const uriString = uri.toString();
-				if (uriString === planUriString && this._editingUri && !this._suppressFeedbackModeAutoOpen) {
-					this.migrateInlineFeedbackToEditing(planUri, this._editingUri);
-				}
 				if (uriString === planUriString || uriString === this._editingUri?.toString()) {
 					this.onInlineFeedbackChanged();
 				}
@@ -434,8 +431,8 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 		this._commentsListScrollable?.scanDomNode();
 	}
 
-	// Comments are keyed on whichever URI the editor contribution sees:
-	// the in-memory editing URI when mounted, otherwise the real plan URI.
+	// Comments can be keyed on the real plan URI or on the in-memory editing URI
+	// used by the mounted inline editor.
 	private getCommentUri(): URI | undefined {
 		if (this._editingUri) {
 			return this._editingUri;
@@ -444,8 +441,9 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 	}
 
 	private getInlineFeedbackItems(): readonly IPlanReviewFeedbackItem[] {
-		const uri = this.getCommentUri();
-		return uri ? this._planReviewFeedbackService.getFeedback(uri) : [];
+		const editingItems = this._editingUri ? this._planReviewFeedbackService.getFeedback(this._editingUri) : [];
+		const planItems = this.review.planUri ? this._planReviewFeedbackService.getFeedback(URI.revive(this.review.planUri)) : [];
+		return [...editingItems, ...planItems].sort((first, second) => first.line - second.line || first.column - second.column);
 	}
 
 	private async revealInlineComment(itemId: string, line: number, column: number): Promise<void> {
@@ -472,19 +470,13 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 		if (this._isSubmitted) {
 			return;
 		}
-		const uri = this.getCommentUri();
-		if (!uri) {
-			return;
+		for (const uri of this.getFeedbackUris()) {
+			this._planReviewFeedbackService.removeFeedback(uri, itemId);
 		}
-		this._planReviewFeedbackService.removeFeedback(uri, itemId);
 	}
 
 	private async clearAllInlineFeedback(): Promise<void> {
 		if (this._isSubmitted) {
-			return;
-		}
-		const uri = this.getCommentUri();
-		if (!uri) {
 			return;
 		}
 		const items = this.getInlineFeedbackItems();
@@ -500,7 +492,20 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 		if (!result.confirmed) {
 			return;
 		}
-		this._planReviewFeedbackService.clearFeedback(uri);
+		for (const uri of this.getFeedbackUris()) {
+			this._planReviewFeedbackService.clearFeedback(uri);
+		}
+	}
+
+	private getFeedbackUris(): URI[] {
+		const uris: URI[] = [];
+		if (this._editingUri) {
+			uris.push(this._editingUri);
+		}
+		if (this.review.planUri) {
+			uris.push(URI.revive(this.review.planUri));
+		}
+		return uris;
 	}
 
 	private onInlineFeedbackChanged(): void {
@@ -976,18 +981,6 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 		}
 	}
 
-	private migrateInlineFeedbackToEditing(planUri: URI, editingUri: URI): void {
-		const items = [...this._planReviewFeedbackService.getFeedback(planUri)];
-		if (items.length === 0) {
-			return;
-		}
-
-		for (const item of items) {
-			this._planReviewFeedbackService.addFeedback(editingUri, item.line, item.column, item.text);
-		}
-		this._planReviewFeedbackService.clearFeedback(planUri);
-	}
-
 	// Tear down the editor; if requested, write changed scratch text back to disk.
 	private async unmountInlineEditor(options?: { writeBack?: boolean }): Promise<void> {
 		this._inlineEditorMountId++;
@@ -1035,10 +1028,7 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 		}
 		const textareaFeedback = this._feedbackTextarea?.value.trim();
 
-		const commentUri = this.getCommentUri();
-		const editorFeedbackItems: readonly IPlanReviewFeedbackItem[] = commentUri
-			? [...this._planReviewFeedbackService.getFeedback(commentUri)]
-			: [];
+		const editorFeedbackItems = [...this.getInlineFeedbackItems()];
 
 		if (!textareaFeedback && editorFeedbackItems.length === 0) {
 			return;
