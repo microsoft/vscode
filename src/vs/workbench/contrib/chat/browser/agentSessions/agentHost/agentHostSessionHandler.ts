@@ -1317,19 +1317,23 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// its absence as a terminal transition.
 		let terminated = false;
 		let seenActive = false;
-		const finish = (lastTurn: Turn | undefined) => {
+		const finish = () => {
 			if (terminated) {
 				return;
 			}
 			terminated = true;
 			// Defer to a microtask so any other autoruns reacting to the
 			// same state update (e.g. tool call finalization) finish first.
+			// Re-read the turn at callback time so immediately-following
+			// state updates (notably usage attribution) are reflected in the
+			// final chat result details.
 			// Self-dispose afterwards so callers do not need to track us
 			// across the natural-completion path; cancellation paths can
 			// still call `dispose()` proactively (idempotent).
 			queueMicrotask(() => {
 				try {
-					opts.onTurnEnded?.(lastTurn);
+					const latestTurn = sessionState$.get()?.turns.find(t => t.id === opts.turnId);
+					opts.onTurnEnded?.(latestTurn);
 				} finally {
 					store.dispose();
 				}
@@ -1360,10 +1364,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			if (lastTurn?.state === TurnState.Error && lastTurn.error) {
 				opts.sink([{ kind: 'markdownContent', content: new MarkdownString(`\n\nError: (${lastTurn.error.errorType}) ${lastTurn.error.message}`) }]);
 			}
-			finish(lastTurn);
+			finish();
 		}));
 
-		store.add(opts.cancellationToken.onCancellationRequested(() => finish(undefined)));
+		store.add(opts.cancellationToken.onCancellationRequested(() => finish()));
 
 		return store;
 	}

@@ -173,6 +173,38 @@ suite('sessionReducer – summaryStatus with tool call confirmations and input r
 		assert.strictEqual(state.summary.status, SessionStatus.InProgress);
 	});
 
+	test('SessionUsage can update a just-completed turn', () => {
+		let state = sessionReducer(makeSession(), {
+			type: ActionType.SessionTurnStarted,
+			session: 'copilot:/test',
+			turnId: 'turn-1',
+			userMessage: { text: 'hello' },
+		});
+		state = sessionReducer(state, {
+			type: ActionType.SessionTurnComplete,
+			session: 'copilot:/test',
+			turnId: 'turn-1',
+		});
+		state = sessionReducer(state, {
+			type: ActionType.SessionUsage,
+			session: 'copilot:/test',
+			turnId: 'turn-1',
+			usage: {
+				model: 'opus-4.7',
+				inputTokens: 10,
+				outputTokens: 20,
+			},
+		});
+
+		assert.deepStrictEqual(state.turns.map(turn => turn.usage), [
+			{
+				model: 'opus-4.7',
+				inputTokens: 10,
+				outputTokens: 20,
+			},
+		]);
+	});
+
 	test('Tool call transition to PendingConfirmation updates summary status to InputNeeded', () => {
 		let state = withActiveTurnAndToolCall(makeSession());
 

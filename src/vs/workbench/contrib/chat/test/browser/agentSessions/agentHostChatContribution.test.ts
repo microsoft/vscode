@@ -1002,8 +1002,8 @@ suite('AgentHostChatContribution', () => {
 
 			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
 
-			fire({ type: 'session/usage', session, turnId, usage: { model: 'opus-4.7', _meta: { copilotUsage: { totalNanoAiu: 1_500_000_000 } } } } as SessionAction);
 			fire({ type: 'session/turnComplete', session, turnId } as SessionAction);
+			fire({ type: 'session/usage', session, turnId, usage: { model: 'opus-4.7', _meta: { copilotUsage: { totalNanoAiu: 1_500_000_000 } } } } as SessionAction);
 
 			const result = await turnPromise;
 

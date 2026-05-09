@@ -544,13 +544,24 @@ export function sessionReducer(state: SessionState, action: SessionAction, log?:
 			};
 
 		case ActionType.SessionUsage:
-			if (!state.activeTurn || state.activeTurn.id !== action.turnId) {
-				return state;
+			if (state.activeTurn?.id === action.turnId) {
+				return {
+					...state,
+					activeTurn: { ...state.activeTurn, usage: action.usage },
+				};
 			}
-			return {
-				...state,
-				activeTurn: { ...state.activeTurn, usage: action.usage },
-			};
+			{
+				const turnIndex = state.turns.findIndex(turn => turn.id === action.turnId);
+				if (turnIndex === -1) {
+					return state;
+				}
+				const turns = [...state.turns];
+				turns[turnIndex] = { ...turns[turnIndex], usage: action.usage };
+				return {
+					...state,
+					turns,
+				};
+			}
 
 		case ActionType.SessionReasoning:
 			return updateResponsePart(state, action.turnId, action.partId, part => {
