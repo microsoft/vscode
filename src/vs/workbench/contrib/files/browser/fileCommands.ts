@@ -249,7 +249,8 @@ const copyFilenameCommandHandler: ICommandHandler = async (accessor, resource: u
 	const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IEditorService), accessor.get(IEditorGroupsService), accessor.get(IExplorerService));
 	if (resources.length) {
 		const lineDelimiter = isWindows ? '\r\n' : '\n';
-		const text = resources.map(r => basename(r)).join(lineDelimiter);
+		const labelService = accessor.get(ILabelService);
+		const text = resources.map(resource => labelService.getUriBasenameLabel(resource)).join(lineDelimiter);
 		await accessor.get(IClipboardService).writeText(text);
 	}
 };
