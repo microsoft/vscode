@@ -320,3 +320,91 @@ testFamilies.forEach(family => {
 		});
 	});
 });
+
+suite('AgentPrompt tool search alignment', () => {
+	let accessor: ITestingServicesAccessor;
+	const fileTsUri = URI.file('/workspace/file.ts');
+
+	beforeAll(() => {
+		const testDoc = createTextDocumentData(fileTsUri, 'line 1\nline 2\n\nline 4\nline 5', 'ts').document;
+		const services = createExtensionUnitTestingServices();
+		services.define(IWorkspaceService, new SyncDescriptor(
+			TestWorkspaceService,
+			[
+				[URI.file('/workspace')],
+				[testDoc]
+			]
+		));
+		services.define(IChatMLFetcher, new StaticChatMLFetcher([]));
+		accessor = services.createTestingAccessor();
+		accessor.get(IConfigurationService).setConfig(ConfigKey.CodeGenerationInstructions, [{
+			text: 'This is a test custom instruction file',
+		} satisfies CodeGenerationTextInstruction]);
+	});
+
+	afterAll(() => {
+		accessor.dispose();
+	});
+
+	async function renderAgentPromptWithToolSearchSupport(family: 'gpt-5.4' | 'gpt-5.5', supportsToolSearch: boolean): Promise<string> {
+		const instaService = accessor.get(IInstantiationService);
+		const endpoint = instaService.createInstance(MockEndpoint, family);
+		endpoint.supportsToolSearch = supportsToolSearch;
+		const conversation = new Conversation('sessionId', [new Turn('turnId', { type: 'user', message: 'hello' })]);
+		const toolsService = accessor.get(IToolsService);
+		const customizations = await PromptRegistry.resolveAllCustomizations(instaService, endpoint);
+		const renderer = PromptRenderer.create(instaService, endpoint, AgentPrompt, {
+			priority: 1,
+			endpoint,
+			location: ChatLocation.Panel,
+			promptContext: {
+				chatVariables: new ChatVariablesCollection(),
+				history: [],
+				query: 'hello',
+				conversation,
+				tools: {
+					availableTools: toolsService.tools,
+					toolInvocationToken: null as never,
+					toolReferences: [],
+				}
+			},
+			customizations,
+		});
+
+		const rendered = await renderer.render();
+		addCacheBreakpoints(rendered.messages);
+		return rendered.messages
+			.map(m => messageToMarkdown(m))
+			.join('\n\n')
+			.replace(/\\+/g, '/');
+	}
+
+	test.each(['gpt-5.4', 'gpt-5.5'] as const)('gates deferred-tool guidance and reminders for %s on endpoint.supportsToolSearch', async family => {
+		const enabledPrompt = await renderAgentPromptWithToolSearchSupport(family, true);
+		const disabledPrompt = await renderAgentPromptWithToolSearchSupport(family, false);
+
+		expect({
+			enabled: {
+				hasToolSearchInstructions: enabledPrompt.includes('<toolSearchInstructions>'),
+				hasDeferredToolReminder: enabledPrompt.includes('IMPORTANT: Before calling any deferred tool'),
+				hasDeferredToolList: enabledPrompt.includes('<availableDeferredTools>'),
+			},
+			disabled: {
+				hasToolSearchInstructions: disabledPrompt.includes('<toolSearchInstructions>'),
+				hasDeferredToolReminder: disabledPrompt.includes('IMPORTANT: Before calling any deferred tool'),
+				hasDeferredToolList: disabledPrompt.includes('<availableDeferredTools>'),
+			},
+		}).toEqual({
+			enabled: {
+				hasToolSearchInstructions: true,
+				hasDeferredToolReminder: true,
+				hasDeferredToolList: true,
+			},
+			disabled: {
+				hasToolSearchInstructions: false,
+				hasDeferredToolReminder: false,
+				hasDeferredToolList: false,
+			},
+		});
+	});
+});

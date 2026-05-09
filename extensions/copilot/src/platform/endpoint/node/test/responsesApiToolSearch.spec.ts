@@ -165,7 +165,9 @@ describe('createResponsesRequestBody tools', () => {
 		);
 
 		const tools = body.tools as any[];
-		expect(tools.find(t => t.type === 'tool_search')).toBeDefined();
+		const toolSearchTool = tools.find(t => t.type === 'tool_search');
+		expect(toolSearchTool).toBeDefined();
+		expect(toolSearchTool.execution).toBe('client');
 	});
 
 	it('does not defer tools for unsupported models', () => {
