@@ -18,6 +18,7 @@ import { CursorChangeReason } from '../cursorEvents.js';
 import { IPosition, Position } from '../core/position.js';
 import { Range } from '../core/range.js';
 import { ISelection, Selection } from '../core/selection.js';
+import { getConfiguredTextDirection } from '../core/textDirection.js';
 import { ICommand, ICursorState, IViewState, ScrollType } from '../editorCommon.js';
 import { IEditorConfiguration } from '../config/editorConfiguration.js';
 import { EndOfLinePreference, IAttachedView, ICursorStateComputer, IGlyphMarginLanesModel, IIdentifiedSingleEditOperation, ITextModel, PositionAffinity, TextDirection, TrackedRangeStickiness } from '../model.js';
@@ -854,6 +855,14 @@ export class ViewModel extends Disposable implements IViewModel {
 	}
 
 	private _getTextDirection(lineNumber: number, decorations: ViewModelDecoration[]): TextDirection {
+		const textDirectionPreset = this._configuration.options.get(EditorOption.textDirection);
+		if (textDirectionPreset === 'ltr') {
+			return TextDirection.LTR;
+		}
+		if (textDirectionPreset === 'rtl') {
+			return TextDirection.RTL;
+		}
+
 		let rtlCount = 0;
 
 		for (const decoration of decorations) {
@@ -869,7 +878,15 @@ export class ViewModel extends Disposable implements IViewModel {
 			}
 		}
 
-		return rtlCount > 0 ? TextDirection.RTL : TextDirection.LTR;
+		if (rtlCount !== 0) {
+			return rtlCount > 0 ? TextDirection.RTL : TextDirection.LTR;
+		}
+
+		if (textDirectionPreset === 'default' || !this.model.mightContainRTL()) {
+			return TextDirection.LTR;
+		}
+
+		return getConfiguredTextDirection(this.getLineContent(lineNumber), textDirectionPreset, TextDirection.LTR);
 	}
 
 	public getTextDirection(lineNumber: number): TextDirection {
