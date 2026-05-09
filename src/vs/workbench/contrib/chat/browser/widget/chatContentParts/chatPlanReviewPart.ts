@@ -139,6 +139,9 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 			registrationStore.add(this._planReviewFeedbackService.onDidChangeFeedback(uri => {
 				// Match the plan URI or the editing URI used while the editor is mounted.
 				const uriString = uri.toString();
+				if (uriString === planUriString && this._editingUri && !this._suppressFeedbackModeAutoOpen) {
+					this.migrateInlineFeedbackToEditing(planUri, this._editingUri);
+				}
 				if (uriString === planUriString || uriString === this._editingUri?.toString()) {
 					this.onInlineFeedbackChanged();
 				}
@@ -971,6 +974,18 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 		} finally {
 			this._suppressFeedbackModeAutoOpen = false;
 		}
+	}
+
+	private migrateInlineFeedbackToEditing(planUri: URI, editingUri: URI): void {
+		const items = [...this._planReviewFeedbackService.getFeedback(planUri)];
+		if (items.length === 0) {
+			return;
+		}
+
+		for (const item of items) {
+			this._planReviewFeedbackService.addFeedback(editingUri, item.line, item.column, item.text);
+		}
+		this._planReviewFeedbackService.clearFeedback(planUri);
 	}
 
 	// Tear down the editor; if requested, write changed scratch text back to disk.
