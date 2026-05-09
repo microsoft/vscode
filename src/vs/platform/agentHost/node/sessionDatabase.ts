@@ -8,6 +8,8 @@ import { SequencerByKey } from '../../../base/common/async.js';
 import type { Database, RunResult } from '@vscode/sqlite3';
 import type { IFileEditContent, IFileEditRecord, ISessionDatabase } from '../common/sessionDataService.js';
 import { dirname } from '../../../base/common/path.js';
+import type { UsageInfo } from '../common/state/sessionState.js';
+import { isObject } from '../../../base/common/types.js';
 
 /**
  * A single numbered migration. Migrations are applied in order of
@@ -81,6 +83,10 @@ export const sessionDatabaseMigrations: readonly ISessionDatabaseMigration[] = [
 			`CREATE INDEX IF NOT EXISTS idx_turns_event_id ON turns(event_id)`,
 		].join(';\n'),
 	},
+	{
+		version: 5,
+		sql: `ALTER TABLE turns ADD COLUMN usage_json TEXT`,
+	},
 ];
 
 // ---- Promise wrappers around callback-based @vscode/sqlite3 API -----------
@@ -141,6 +147,30 @@ function dbOpen(path: string): Promise<Database> {
 			});
 		}, reject);
 	});
+}
+
+function getProperty(obj: object, key: string): unknown {
+	return Object.getOwnPropertyDescriptor(obj, key)?.value;
+}
+
+function isOptionalNumber(value: unknown): boolean {
+	return value === undefined || typeof value === 'number';
+}
+
+function isOptionalString(value: unknown): boolean {
+	return value === undefined || typeof value === 'string';
+}
+
+function isUsageInfo(value: unknown): value is UsageInfo {
+	if (!isObject(value)) {
+		return false;
+	}
+	const metadata = getProperty(value, '_meta');
+	return isOptionalNumber(getProperty(value, 'inputTokens'))
+		&& isOptionalNumber(getProperty(value, 'outputTokens'))
+		&& isOptionalString(getProperty(value, 'model'))
+		&& isOptionalNumber(getProperty(value, 'cacheReadTokens'))
+		&& (metadata === undefined || isObject(metadata));
 }
 
 /**
@@ -320,6 +350,25 @@ export class SessionDatabase implements ISessionDatabase {
 		const db = await this._ensureDb();
 		const row = await dbGet(db, 'SELECT event_id FROM turns ORDER BY rowid LIMIT 1', []);
 		return row?.event_id as string | undefined ?? undefined;
+	}
+
+	setTurnUsage(turnId: string, usage: UsageInfo): Promise<void> {
+		return this._track(async () => {
+			const db = await this._ensureDb();
+			await dbRun(db, 'INSERT OR IGNORE INTO turns (id) VALUES (?)', [turnId]);
+			await dbRun(db, 'UPDATE turns SET usage_json = ? WHERE id = ?', [JSON.stringify(usage), turnId]);
+		});
+	}
+
+	async getTurnUsage(turnId: string): Promise<UsageInfo | undefined> {
+		const db = await this._ensureDb();
+		const row = await dbGet(db, 'SELECT usage_json FROM turns WHERE id = ?', [turnId]);
+		const usageJson = row?.usage_json;
+		if (typeof usageJson !== 'string') {
+			return undefined;
+		}
+		const usage = JSON.parse(usageJson);
+		return isUsageInfo(usage) ? usage : undefined;
 	}
 
 	truncateFromTurn(turnId: string): Promise<void> {

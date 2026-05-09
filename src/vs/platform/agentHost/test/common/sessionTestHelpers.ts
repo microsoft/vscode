@@ -8,10 +8,12 @@ import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import type { IDiffComputeService, IDiffCountResult } from '../../common/diffComputeService.js';
 import type { IFileEditContent, IFileEditRecord, ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
+import type { UsageInfo } from '../../common/state/sessionState.js';
 
 export class TestSessionDatabase implements ISessionDatabase {
 	private readonly _edits: (IFileEditRecord & IFileEditContent)[] = [];
 	private readonly _metadata = new Map<string, string>();
+	private readonly _usage = new Map<string, UsageInfo>();
 
 	getAllFileEditsCalls = 0;
 	getFileEditsByTurnCalls = 0;
@@ -28,6 +30,7 @@ export class TestSessionDatabase implements ISessionDatabase {
 				this._edits.splice(i, 1);
 			}
 		}
+		this._usage.delete(turnId);
 	}
 
 	async storeFileEdit(edit: IFileEditRecord & IFileEditContent): Promise<void> {
@@ -84,11 +87,23 @@ export class TestSessionDatabase implements ISessionDatabase {
 
 	async getFirstTurnEventId(): Promise<string | undefined> { return undefined; }
 
-	async truncateFromTurn(_turnId: string): Promise<void> { }
+	async setTurnUsage(turnId: string, usage: UsageInfo): Promise<void> {
+		this._usage.set(turnId, usage);
+	}
+
+	async getTurnUsage(turnId: string): Promise<UsageInfo | undefined> {
+		return this._usage.get(turnId);
+	}
+
+	async truncateFromTurn(turnId: string): Promise<void> {
+		this._usage.delete(turnId);
+	}
 
 	async deleteTurnsAfter(_turnId: string): Promise<void> { }
 
-	async deleteAllTurns(): Promise<void> { }
+	async deleteAllTurns(): Promise<void> {
+		this._usage.clear();
+	}
 
 	async remapTurnIds(_mapping: ReadonlyMap<string, string>): Promise<void> { }
 

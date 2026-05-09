@@ -6,7 +6,7 @@
 import { IDisposable, IReference } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
-import type { FileEditKind } from './state/sessionState.js';
+import type { FileEditKind, UsageInfo } from './state/sessionState.js';
 
 export const ISessionDataService = createDecorator<ISessionDataService>('sessionDataService');
 
@@ -104,6 +104,18 @@ export interface ISessionDatabase extends IDisposable {
 	 * or `undefined` if there are no turns.
 	 */
 	getFirstTurnEventId(): Promise<string | undefined>;
+
+	/**
+	 * Stores usage information for a turn. Used for provider usage events
+	 * that are not part of the persisted session event stream.
+	 */
+	setTurnUsage(turnId: string, usage: UsageInfo): Promise<void>;
+
+	/**
+	 * Retrieves usage information previously stored for a turn.
+	 * Returns `undefined` if no usage has been stored.
+	 */
+	getTurnUsage(turnId: string): Promise<UsageInfo | undefined>;
 
 	/**
 	 * Deletes the given turn and all turns inserted after it, along

@@ -550,18 +550,7 @@ export function sessionReducer(state: SessionState, action: SessionAction, log?:
 					activeTurn: { ...state.activeTurn, usage: action.usage },
 				};
 			}
-			{
-				const turnIndex = state.turns.findIndex(turn => turn.id === action.turnId);
-				if (turnIndex === -1) {
-					return state;
-				}
-				const turns = [...state.turns];
-				turns[turnIndex] = { ...turns[turnIndex], usage: action.usage };
-				return {
-					...state,
-					turns,
-				};
-			}
+			return state;
 
 		case ActionType.SessionReasoning:
 			return updateResponsePart(state, action.turnId, action.partId, part => {

@@ -10,7 +10,7 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { IFileEditRecord, ISessionDatabase } from '../../common/sessionDataService.js';
 import { MessageAttachmentKind, type MessageAttachment } from '../../common/state/protocol/state.js';
-import { ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, type ResponsePart, type StringOrMarkdown, type ToolCallCompletedState, type ToolResultContent, type Turn, type UserMessage } from '../../common/state/sessionState.js';
+import { ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, type ResponsePart, type StringOrMarkdown, type ToolCallCompletedState, type ToolResultContent, type Turn, type UsageInfo, type UserMessage } from '../../common/state/sessionState.js';
 import { getInvocationMessage, getPastTenseMessage, getShellLanguage, getSubagentMetadata, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, synthesizeSkillToolCall } from './copilotToolDisplay.js';
 import { buildSessionDbUri } from './fileEditTracker.js';
 import { getMediaMime } from '../../../../base/common/mime.js';
@@ -101,6 +101,22 @@ export interface ISessionEventSubagentStarted {
 	};
 }
 
+export interface ISessionEventUsage {
+	type: 'assistant.usage';
+	data: {
+		inputTokens?: number;
+		outputTokens?: number;
+		model?: string;
+		cacheReadTokens?: number;
+		cost?: number;
+		copilotUsage?: {
+			totalNanoAiu?: number;
+			[k: string]: unknown;
+		};
+		parentToolCallId?: string;
+	};
+}
+
 /** Minimal event shape for session history mapping. */
 export type ISessionEvent =
 	| ISessionEventToolStart
@@ -108,6 +124,7 @@ export type ISessionEvent =
 	| ISessionEventMessage
 	| ISessionEventSubagentStarted
 	| ISessionEventSkillInvoked
+	| ISessionEventUsage
 	| { type: string; data?: unknown };
 
 /**
@@ -160,6 +177,7 @@ interface ITurnBuilder {
 	id: string;
 	userMessage: UserMessage;
 	readonly responseParts: ResponsePart[];
+	usage?: UsageInfo;
 	/** Tool starts seen but not yet completed in this turn, keyed by toolCallId. */
 	readonly pendingTools: Map<string, IToolStartInfo>;
 }
@@ -174,8 +192,25 @@ function finalizeTurn(builder: ITurnBuilder, state: TurnState): Turn {
 		id: builder.id,
 		userMessage: builder.userMessage,
 		responseParts: builder.responseParts,
-		usage: undefined,
+		usage: builder.usage,
 		state,
+	};
+}
+
+function eventUsageToProtocol(d: ISessionEventUsage['data']): UsageInfo {
+	const metadata: Record<string, unknown> = {};
+	if (typeof d.cost === 'number') {
+		metadata.cost = d.cost;
+	}
+	if (typeof d.copilotUsage?.totalNanoAiu === 'number') {
+		metadata.copilotUsage = d.copilotUsage;
+	}
+	return {
+		inputTokens: d.inputTokens,
+		outputTokens: d.outputTokens,
+		model: d.model,
+		cacheReadTokens: d.cacheReadTokens,
+		...(Object.keys(metadata).length > 0 ? { _meta: metadata } : {}),
 	};
 }
 
@@ -409,6 +444,14 @@ export async function mapSessionEvents(
 				}
 				break;
 			}
+			case 'assistant.usage': {
+				const d = (e as ISessionEventUsage).data;
+				const builder = targetBuilderFor(d.parentToolCallId);
+				if (builder) {
+					builder.usage = eventUsageToProtocol(d);
+				}
+				break;
+			}
 			case 'skill.invoked': {
 				const skill = (e as ISessionEventSkillInvoked);
 				const synth = synthesizeSkillToolCall(skill.data, skill.id);
@@ -442,7 +485,23 @@ export async function mapSessionEvents(
 		flushSubagent(parentToolCallId);
 	}
 
+	if (db) {
+		await hydratePersistedUsage(turns, db);
+	}
+
 	return { turns, subagentTurnsByToolCallId: subagentTurns };
+}
+
+async function hydratePersistedUsage(turns: Turn[], db: ISessionDatabase): Promise<void> {
+	await Promise.all(turns.map(async (turn, index) => {
+		if (turn.usage) {
+			return;
+		}
+		const usage = await db.getTurnUsage(turn.id);
+		if (usage) {
+			turns[index] = { ...turn, usage };
+		}
+	}));
 }
 
 /**
