@@ -6,6 +6,8 @@
 import assert from 'assert';
 import * as vscode from 'vscode';
 import { NullEnvService } from '../../../../platform/env/common/nullEnvService';
+import { IFileSystemService } from '../../../../platform/filesystem/common/fileSystemService';
+import { FileType } from '../../../../platform/filesystem/common/fileTypes';
 import { IParserService } from '../../../../platform/parser/node/parserService';
 import { IWorkspaceService } from '../../../../platform/workspace/common/workspaceService';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
@@ -269,6 +271,40 @@ suite('Symbol Linkify', () => {
 		assert(secondResult.parts[0] instanceof LinkifySymbolAnchor);
 		assert.strictEqual(firstResult.parts[0].symbolInformation.location.range.start.line, 0);
 		assert.strictEqual(secondResult.parts[0].symbolInformation.location.range.start.line, 3);
+	});
+
+	test(`Should resolve multiple symbol links in parallel`, async () => {
+		const workspace = URI.file('/workspace');
+		const files = [
+			URI.joinPath(workspace, 'src/foo.ts'),
+			URI.joinPath(workspace, 'src/bar.ts'),
+		];
+		let activeStats = 0;
+		let maxActiveStats = 0;
+		const fs = new class implements Partial<IFileSystemService> {
+			async stat(path: URI): Promise<vscode.FileStat> {
+				activeStats++;
+				maxActiveStats = Math.max(maxActiveStats, activeStats);
+				try {
+					await new Promise(resolve => setTimeout(resolve, 0));
+					if (!files.some(file => file.toString() === path.toString())) {
+						throw new Error(`File not found: ${path.toString()}`);
+					}
+					return { ctime: 0, mtime: 0, size: 0, type: FileType.File };
+				} finally {
+					activeStats--;
+				}
+			}
+		} as IFileSystemService;
+		const linkifier = new SymbolLinkifier(fs, asParserService(new TestParserService()), createWorkspaceService(workspace));
+
+		const result = await linkifier.linkify('[`Foo`](src/foo.ts) [`Bar`](src/bar.ts)', { requestId: undefined, references: [] }, CancellationToken.None);
+
+		assert(result);
+		assert.strictEqual(maxActiveStats, 2);
+		assert.strictEqual(result.parts.length, 3);
+		assert(result.parts[0] instanceof LinkifySymbolAnchor);
+		assert(result.parts[2] instanceof LinkifySymbolAnchor);
 	});
 
 	test(`Should not linkify symbols that resolve outside the workspace`, async () => {
