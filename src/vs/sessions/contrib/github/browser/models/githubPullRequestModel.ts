@@ -209,8 +209,16 @@ export class GitHubPullRequestModel extends Disposable {
 		try {
 			const pr = await this._fetcher.getPullRequest(this.owner, this.repo, this.prNumber, this._pullRequestEtag);
 			if (pr.statusCode === 200 && pr.data) {
-				this._pullRequestEtag = pr.etag;
-				this._pullRequest.set(pr.data, undefined);
+				const pullRequest = pr.data;
+				transaction(tx => {
+					this._pullRequestEtag = pr.etag;
+					this._pullRequest.set(pullRequest, tx);
+
+					const reviews = this._reviews.get();
+					if (reviews) {
+						this._mergeability.set(computeMergeability(pullRequest, reviews), tx);
+					}
+				});
 			}
 		} catch (err) {
 			this._logService.error(`${LOG_PREFIX} Failed to refresh PR #${this.prNumber}:`, err);

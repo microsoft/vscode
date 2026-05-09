@@ -16,7 +16,7 @@ import { GitHubRepositoryModel } from '../../browser/models/githubRepositoryMode
 import { GitHubPRFetcher } from '../../browser/fetchers/githubPRFetcher.js';
 import { GitHubPRCIFetcher } from '../../browser/fetchers/githubPRCIFetcher.js';
 import { GitHubRepositoryFetcher } from '../../browser/fetchers/githubRepositoryFetcher.js';
-import { GitHubCIOverallStatus, GitHubCheckConclusion, GitHubCheckStatus, GitHubPullRequestState, IGitHubCICheck, IGitHubPRComment, IGitHubPullRequestReview, IGitHubPullRequest, IGitHubRepository, IGitHubPullRequestReviewThread } from '../../common/types.js';
+import { GitHubCIOverallStatus, GitHubCheckConclusion, GitHubCheckStatus, GitHubPullRequestState, IGitHubCICheck, IGitHubPRComment, IGitHubPullRequestReview, IGitHubPullRequest, IGitHubRepository, IGitHubPullRequestReviewThread, MergeBlockerKind } from '../../common/types.js';
 
 //#region Mock Fetchers
 
@@ -271,6 +271,28 @@ suite('GitHubPullRequestModel', () => {
 			mergeability: undefined,
 			getPullRequestCalls: 1,
 			getReviewsCalls: 0,
+		});
+	});
+
+	test('refreshPullRequest recomputes mergeability with cached reviews', async () => {
+		const model = store.add(new GitHubPullRequestModel('owner', 'repo', 1, mockFetcher as unknown as GitHubPRFetcher, logService));
+		mockFetcher.nextPR = makePR();
+		mockFetcher.nextReviews = [makeReview('APPROVED')];
+		await model.refresh();
+
+		mockFetcher.nextPR = { ...makePR(), isDraft: true };
+		await model.refreshPullRequest();
+
+		assert.deepStrictEqual({
+			canMerge: model.mergeability.get()?.canMerge,
+			blockers: model.mergeability.get()?.blockers.map(blocker => blocker.kind),
+			getPullRequestCalls: mockFetcher.getPullRequestCalls,
+			getReviewsCalls: mockFetcher.getReviewsCalls,
+		}, {
+			canMerge: false,
+			blockers: [MergeBlockerKind.Draft],
+			getPullRequestCalls: 2,
+			getReviewsCalls: 1,
 		});
 	});
 
@@ -775,6 +797,15 @@ function makePR(): IGitHubPullRequest {
 		mergedAt: undefined,
 		mergeable: true,
 		mergeableState: 'clean',
+	};
+}
+
+function makeReview(state: string): IGitHubPullRequestReview {
+	return {
+		id: 1,
+		author: { login: 'reviewer', avatarUrl: '' },
+		state,
+		submittedAt: '2024-01-02T00:00:00Z',
 	};
 }
 
