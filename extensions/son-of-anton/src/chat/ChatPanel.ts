@@ -3239,6 +3239,28 @@ export class ChatSession {
 				});
 				break;
 			}
+			case 'tool-call': {
+				// Direct specialist tool-loop path emits tool-call events as
+				// the model invokes tools. Forward to the existing toolCall
+				// webview message so the chat surface renders the same
+				// inline tool card the chat-panel direct-tool-loop path
+				// already produces. Status maps verbatim — the webview
+				// already knows 'running' / 'done' / 'error'. Skip
+				// emit_ui_block here too so generative-UI blocks render via
+				// their dedicated `uiBlock` postMessage instead.
+				if (event.name === 'emit_ui_block') {
+					break;
+				}
+				this.webview.postMessage({
+					type: 'toolCall',
+					id: event.id,
+					name: event.name,
+					status: event.status,
+					input: event.input,
+					output: event.output,
+				});
+				break;
+			}
 			case 'final':
 			case 'error':
 				// Handled by the runViaAgentBridge caller (which has access to the

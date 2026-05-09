@@ -55,4 +55,14 @@ export type AgentEvent =
 	 * the block to a specialist subtask card; otherwise it is appended to
 	 * the orchestrator's main assistant body.
 	 */
-	| { type: 'ui-block'; component: string; props: Record<string, unknown>; blockId: string; subtaskId?: string; mode?: ChatMode };
+	| { type: 'ui-block'; component: string; props: Record<string, unknown>; blockId: string; subtaskId?: string; mode?: ChatMode }
+	/**
+	 * Tool-call event emitted from the agentic specialist path
+	 * (`BaseAgent.runAgenticTurn`). Mirrors the shape of the LlmClient's
+	 * `tool-call` stream event so chat surfaces can render an inline
+	 * tool card identical to the direct-chat-turn path. `id` is the
+	 * tool_use id from Anthropic; `status` reflects whether the tool
+	 * has run yet (`'running'`) or has returned (`'done'` / `'error'`).
+	 * `output` carries the truncated text result once the tool finishes.
+	 */
+	| { type: 'tool-call'; id: string; name: string; input: Record<string, unknown>; status: 'running' | 'done' | 'error'; output?: string; mode?: ChatMode };

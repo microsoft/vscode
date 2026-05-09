@@ -921,6 +921,130 @@ export abstract class BaseAgent {
 	}
 
 	/**
+	 * Tools the agentic chat-turn path exposes to the model. Defaults to the
+	 * full builtin set minus `emit_ui_block` (which is more useful from
+	 * within an orchestrator-dispatched specialist subtask than from a
+	 * direct user-to-specialist conversation). Subclasses can override to
+	 * narrow or expand the surface — `CodeGeneratorAgent.allowedToolDefinitions`
+	 * is a representative example.
+	 */
+	protected getAgenticToolDefinitions(): ReadonlyArray<ToolDefinition> {
+		// Lazily imported to avoid pulling tool definitions into modules that
+		// don't need them. The const re-export from son-of-anton-core's
+		// `tools/registry` is a stable surface.
+		// eslint-disable-next-line @typescript-eslint/no-require-imports
+		const { BUILTIN_TOOLS } = require('../tools/registry') as typeof import('../tools/registry');
+		return BUILTIN_TOOLS
+			.filter((t: Tool) => t.definition.name !== 'emit_ui_block')
+			.map((t: Tool) => t.definition);
+	}
+
+	/**
+	 * Agentic chat-turn entry point. Mirrors `runChatTurn` but drives the
+	 * native tool-use loop instead of single-shot streaming. The chat
+	 * surface (IDE webview, CLI TUI) sees the same `token` stream PLUS
+	 * `tool-call` AgentEvents for each tool the model invokes — so direct
+	 * `@anton-code "fix this"`-style invocations become genuinely agentic
+	 * (read files, edit, run tests) instead of single-shot prose.
+	 *
+	 * Falls back to `runChatTurn` when no `ToolExecutionContext` has been
+	 * wired into this agent, so installations that don't supply one still
+	 * get a usable single-shot result.
+	 */
+	async runAgenticTurn(
+		userMessage: string,
+		emit: (event: { type: 'token'; token: string } | { type: 'tool-call'; id: string; name: string; input: Record<string, unknown>; status: 'running' | 'done' | 'error'; output?: string }) => void,
+		cancellation: CancellationLike,
+		modelOverride?: ModelId,
+		workspaceContextSnapshot?: string,
+		emitFollowupSuggestions?: boolean,
+		conversationId?: string,
+	): Promise<string> {
+		const toolExecutionContext = this.toolExecutionContext;
+		if (!toolExecutionContext) {
+			// No tool context — fall back to single-shot streaming.
+			return this.runChatTurn(
+				userMessage,
+				token => emit({ type: 'token', token }),
+				cancellation,
+				modelOverride,
+				workspaceContextSnapshot,
+				emitFollowupSuggestions,
+				conversationId,
+			);
+		}
+
+		const task = this.agentManager.createTask(this.displayName, truncateForTaskTitle(userMessage));
+		this.agentManager.startTask(task.id);
+
+		const controller = new AbortController();
+		const cancelSubscription = cancellation.onCancellationRequested(() => controller.abort());
+
+		try {
+			const turnModel: ModelId = modelOverride ?? this.defaultModel;
+			const systemPromptParts = this.buildSystemPromptParts(this.getRoleDescription(), {
+				workspaceContextSnapshot,
+				emitFollowupSuggestions,
+				conversationId,
+			});
+			const systemPrompt = systemPromptParts.map(p => p.text).join('\n\n---\n\n');
+			const tools = this.getAgenticToolDefinitions();
+
+			let fullText = '';
+			const result = await this.runToolLoop({
+				taskId: task.id,
+				model: turnModel,
+				systemPrompt,
+				systemPromptParts,
+				initialMessages: [{ role: 'user', content: userMessage }],
+				tools,
+				maxIterations: 10,
+				signal: controller.signal,
+				includeTodoTools: true,
+				onToken: (tok) => {
+					fullText += tok;
+					emit({ type: 'token', token: tok });
+				},
+				executeTool: async (call) => {
+					emit({ type: 'tool-call', id: call.id, name: call.name, input: call.input, status: 'running' });
+					// eslint-disable-next-line @typescript-eslint/no-require-imports
+					const { BUILTIN_TOOLS } = require('../tools/registry') as typeof import('../tools/registry');
+					const tool = BUILTIN_TOOLS.find(t => t.definition.name === call.name);
+					if (!tool) {
+						const message = `Unknown tool: ${call.name}`;
+						emit({ type: 'tool-call', id: call.id, name: call.name, input: call.input, status: 'error', output: message });
+						return { result: message, isError: true };
+					}
+					try {
+						const r = await tool.execute(call.input, toolExecutionContext);
+						const status = r.isError ? 'error' : 'done';
+						emit({ type: 'tool-call', id: call.id, name: call.name, input: call.input, status, output: r.content });
+						return { result: r.content, isError: !!r.isError };
+					} catch (err) {
+						const message = err instanceof Error ? err.message : String(err);
+						emit({ type: 'tool-call', id: call.id, name: call.name, input: call.input, status: 'error', output: message });
+						return { result: `Tool '${call.name}' threw: ${message}`, isError: true };
+					}
+				},
+			});
+
+			// Sign-off (Phase 78) — same gate as runChatTurn.
+			const signOff = this.maybeSignOff(result.text || fullText, cancellation.isCancellationRequested);
+			if (signOff) {
+				emit({ type: 'token', token: signOff });
+			}
+			this.agentManager.completeTask(task.id);
+			return result.text || fullText;
+		} catch (err) {
+			const message = err instanceof Error ? err.message : String(err);
+			this.agentManager.failTask(task.id, message);
+			throw err;
+		} finally {
+			cancelSubscription.dispose();
+		}
+	}
+
+	/**
 	 * Handle a VS Code chat request. Default implementation delegates to execute().
 	 *
 	 * `structuredEmit` is an optional out-of-band channel used by the WebView
