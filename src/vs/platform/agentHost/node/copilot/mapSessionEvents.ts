@@ -216,7 +216,12 @@ export async function mapSessionEvents(
 		const rawArgs = d.arguments !== undefined ? tryStringify(d.arguments) : undefined;
 		let parameters: Record<string, unknown> | undefined;
 		if (rawArgs) {
-			try { parameters = JSON.parse(rawArgs) as Record<string, unknown>; } catch { /* ignore */ }
+			try {
+				const parsed = JSON.parse(rawArgs);
+				if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+					parameters = parsed as Record<string, unknown>;
+				}
+			} catch { /* ignore */ }
 		}
 		// stripRedundantCdPrefix mutates `parameters` and signals via its
 		// return value. We re-stringify only when it changed something so

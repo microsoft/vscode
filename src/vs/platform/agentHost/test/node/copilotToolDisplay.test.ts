@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellLanguage, getToolInputString, getToolKind, isHiddenTool, synthesizeSkillToolCall, type ITypedPermissionRequest } from '../../node/copilot/copilotToolDisplay.js';
+import { getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellLanguage, getToolInputString, getToolKind, isHiddenTool, synthesizeSkillToolCall, type ITypedPermissionRequest } from '../../node/copilot/copilotToolDisplay.js';
 
 suite('getPermissionDisplay — cd-prefix stripping', () => {
 
@@ -122,6 +122,72 @@ suite('view tool — view_range display', () => {
 		assert.ok(!invocation({ path: '/repo/file.ts', view_range: [10, 20, 30] }).includes(','));
 		// non-array
 		assert.ok(!invocation({ path: '/repo/file.ts', view_range: 'whatever' }).includes(','));
+	});
+});
+
+suite('apply_patch tool display', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const wd = URI.file('/repo/project');
+	const patch = [
+		'*** Begin Patch',
+		'*** Update File: src/foo.ts',
+		'@@',
+		'-old',
+		'+new',
+		'*** Add File: src/bar.ts',
+		'+content',
+		'*** End Patch',
+	].join('\n');
+
+	function text(msg: ReturnType<typeof getInvocationMessage>): string {
+		return typeof msg === 'string' ? msg : msg.markdown;
+	}
+
+	test('uses edit-style patch messages instead of the generic fallback', () => {
+		assert.deepStrictEqual({
+			displayNameInvocation: text(getInvocationMessage('apply_patch', 'Patch', { input: patch })),
+			displayNamePast: text(getPastTenseMessage('apply_patch', 'Patch', { input: patch }, true)),
+			gitPatchInvocation: text(getInvocationMessage('git_apply_patch', 'Patch', { patch })),
+			gitPatchPast: text(getPastTenseMessage('git_apply_patch', 'Patch', { patch }, true)),
+			toolInput: getToolInputString('apply_patch', { input: patch }, undefined),
+		}, {
+			displayNameInvocation: 'Applying patch to files',
+			displayNamePast: 'Applied patch to files',
+			gitPatchInvocation: 'Applying patch to files',
+			gitPatchPast: 'Applied patch to files',
+			toolInput: patch,
+		});
+	});
+
+	test('extracts affected files from apply_patch and git patch arguments', () => {
+		const gitPatch = [
+			'diff --git a/src/old.ts b/src/new.ts',
+			'--- a/src/old.ts',
+			'+++ b/src/new.ts',
+			'@@',
+			'-old',
+			'+new',
+		].join('\n');
+
+		assert.deepStrictEqual({
+			applyPatchInput: getEditFilePaths({ input: patch }, wd),
+			applyPatchRaw: getEditFilePaths(patch, wd),
+			gitPatch: getEditFilePaths({ patch: gitPatch }, wd),
+		}, {
+			applyPatchInput: [
+				URI.joinPath(wd, 'src/foo.ts').fsPath,
+				URI.joinPath(wd, 'src/bar.ts').fsPath,
+			],
+			applyPatchRaw: [
+				URI.joinPath(wd, 'src/foo.ts').fsPath,
+				URI.joinPath(wd, 'src/bar.ts').fsPath,
+			],
+			gitPatch: [
+				URI.joinPath(wd, 'src/new.ts').fsPath,
+			],
+		});
 	});
 });
 

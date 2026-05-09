@@ -31,7 +31,7 @@ import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import type { IExitPlanModeRequestParams, IExitPlanModeResponse } from './copilotAgent.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
 import type { ShellManager } from './copilotShellTools.js';
-import { getEditFilePath, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellLanguage, getSubagentMetadata, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, isShellTool, synthesizeSkillToolCall, tryStringify, type ITypedPermissionRequest } from './copilotToolDisplay.js';
+import { getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellLanguage, getSubagentMetadata, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, isShellTool, synthesizeSkillToolCall, tryStringify, type ITypedPermissionRequest } from './copilotToolDisplay.js';
 import { FileEditTracker } from './fileEditTracker.js';
 import { mapSessionEvents } from './mapSessionEvents.js';
 import { buildPendingEditContentUri } from './pendingEditContentStore.js';
@@ -178,7 +178,7 @@ export class CopilotAgentSession extends Disposable {
 	readonly sessionUri: URI;
 
 	/** Tracks active tool invocations so we can produce past-tense messages on completion. */
-	private readonly _activeToolCalls = new Map<string, { toolName: string; displayName: string; parameters: Record<string, unknown> | undefined; content: ToolResultContent[]; parentToolCallId: string | undefined }>();
+	private readonly _activeToolCalls = new Map<string, { toolName: string; displayName: string; parameters: Record<string, unknown> | undefined; content: ToolResultContent[]; parentToolCallId: string | undefined; editFilePaths: readonly string[] }>();
 	private readonly _parentToolCallIdsByAgentId = new Map<string, string>();
 	/** Pending permission requests awaiting a renderer-side decision. */
 	private readonly _pendingPermissions = new Map<string, DeferredPromise<boolean>>();
@@ -1074,8 +1074,7 @@ export class CopilotAgentSession extends Disposable {
 	private async _handlePreToolUse(input: PreToolUseHookInput): Promise<void> {
 		try {
 			if (isEditTool(input.toolName)) {
-				const filePath = getEditFilePath(input.toolArgs);
-				if (filePath) {
+				for (const filePath of getEditFilePaths(input.toolArgs, this._workingDirectory)) {
 					await this._editTracker.trackEditStart(filePath);
 				}
 			}
@@ -1088,8 +1087,7 @@ export class CopilotAgentSession extends Disposable {
 	private async _handlePostToolUse(input: PostToolUseHookInput): Promise<void> {
 		try {
 			if (isEditTool(input.toolName)) {
-				const filePath = getEditFilePath(input.toolArgs);
-				if (filePath) {
+				for (const filePath of getEditFilePaths(input.toolArgs, this._workingDirectory)) {
 					await this._editTracker.completeEdit(filePath);
 				}
 			}
@@ -1178,7 +1176,12 @@ export class CopilotAgentSession extends Disposable {
 			let toolArgs = e.data.arguments !== undefined ? tryStringify(e.data.arguments) : undefined;
 			let parameters: Record<string, unknown> | undefined;
 			if (toolArgs) {
-				try { parameters = JSON.parse(toolArgs) as Record<string, unknown>; } catch { /* ignore */ }
+				try {
+					const parsed = JSON.parse(toolArgs);
+					if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+						parameters = parsed as Record<string, unknown>;
+					}
+				} catch { /* ignore */ }
 			}
 			// Strip redundant `cd <workingDirectory> && …` prefixes from shell tool
 			// commands so clients see the simplified form. Mirrors the logic in
@@ -1191,7 +1194,8 @@ export class CopilotAgentSession extends Disposable {
 				return;
 			}
 			const parentToolCallId = this._parentToolCallIdForSubagentEvent(e);
-			this._activeToolCalls.set(e.data.toolCallId, { toolName: e.data.toolName, displayName, parameters, content: [], parentToolCallId });
+			const editFilePaths = isEditTool(e.data.toolName) ? getEditFilePaths(e.data.arguments, this._workingDirectory) : [];
+			this._activeToolCalls.set(e.data.toolCallId, { toolName: e.data.toolName, displayName, parameters, content: [], parentToolCallId, editFilePaths });
 			const toolKind = getToolKind(e.data.toolName);
 			const subagentMeta = toolKind === 'subagent' ? getSubagentMetadata(parameters) : undefined;
 			const toolClientId = this._clientToolNames.has(e.data.toolName) ? this._appliedSnapshot.clientId : undefined;
@@ -1271,8 +1275,7 @@ export class CopilotAgentSession extends Disposable {
 				content.push({ type: ToolResultContentType.Text, text: toolOutput });
 			}
 
-			const filePath = isEditTool(tracked.toolName) ? getEditFilePath(tracked.parameters) : undefined;
-			if (filePath) {
+			for (const filePath of tracked.editFilePaths) {
 				try {
 					const fileEdit = await this._editTracker.takeCompletedEdit(this._turnId, e.data.toolCallId, filePath);
 					if (fileEdit) {

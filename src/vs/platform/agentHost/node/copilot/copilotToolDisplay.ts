@@ -13,6 +13,7 @@ import type { IAgentToolPendingConfirmationSignal } from '../../common/agentServ
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { StringOrMarkdown } from '../../common/state/protocol/state.js';
 import { basename } from '../../../../base/common/resources.js';
+import { isAbsolute } from '../../../../base/common/path.js';
 
 // =============================================================================
 // Copilot CLI built-in tool interfaces
@@ -70,6 +71,12 @@ interface ICopilotShellToolArgs {
 /** Parameters for file tools (`view`, `edit`, `create`). */
 interface ICopilotFileToolArgs {
 	path: string;
+}
+
+/** Parameters for patch tools (`apply_patch`, `git_apply_patch`). */
+interface ICopilotPatchToolArgs {
+	input?: string;
+	patch?: string;
 }
 
 /**
@@ -169,16 +176,84 @@ export function isEditTool(toolName: string): boolean {
  * Extracts the target file path from an edit tool's parameters, if available.
  */
 export function getEditFilePath(parameters: unknown): string | undefined {
+	return getEditFilePaths(parameters)[0];
+}
+
+/**
+ * Extracts the target file paths from an edit tool's parameters, if available.
+ */
+export function getEditFilePaths(parameters: unknown, workingDirectory?: URI): string[] {
 	if (typeof parameters === 'string') {
 		try {
-			parameters = JSON.parse(parameters);
+			const parsed = JSON.parse(parameters);
+			if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+				parameters = parsed;
+			} else if (typeof parsed === 'string') {
+				return getPatchFilePaths(parsed, workingDirectory);
+			}
 		} catch {
-			return undefined;
+			return typeof parameters === 'string' ? getPatchFilePaths(parameters, workingDirectory) : [];
 		}
 	}
 
-	const args = parameters as ICopilotFileToolArgs | undefined;
-	return args?.path;
+	const args = parameters as ICopilotFileToolArgs | ICopilotPatchToolArgs | undefined;
+	if (typeof (args as ICopilotFileToolArgs | undefined)?.path === 'string') {
+		return [(args as ICopilotFileToolArgs).path];
+	}
+
+	const patch = typeof (args as ICopilotPatchToolArgs | undefined)?.input === 'string'
+		? (args as ICopilotPatchToolArgs).input
+		: typeof (args as ICopilotPatchToolArgs | undefined)?.patch === 'string'
+			? (args as ICopilotPatchToolArgs).patch
+			: undefined;
+	return getPatchFilePaths(patch, workingDirectory);
+}
+
+function getPatchFilePaths(patch: string | undefined, workingDirectory: URI | undefined): string[] {
+	if (!patch) {
+		return [];
+	}
+
+	const result: string[] = [];
+	const seen = new Set<string>();
+	const addPath = (filePath: string | undefined) => {
+		if (!filePath || filePath === '/dev/null') {
+			return;
+		}
+		const normalized = normalizePatchPath(filePath, workingDirectory);
+		if (!seen.has(normalized)) {
+			seen.add(normalized);
+			result.push(normalized);
+		}
+	};
+
+	for (const line of patch.split(/\r?\n/)) {
+		const applyPatchMatch = line.match(/^\*\*\* (?:Add|Update|Delete) File: (?<path>.+)$/) ?? line.match(/^\*\*\* Move to: (?<path>.+)$/);
+		if (applyPatchMatch?.groups?.path) {
+			addPath(applyPatchMatch.groups.path);
+			continue;
+		}
+
+		const gitDiffMatch = line.match(/^diff --git a\/(?<before>.+) b\/(?<after>.+)$/);
+		if (gitDiffMatch?.groups) {
+			addPath(gitDiffMatch.groups.after);
+			continue;
+		}
+
+		const gitFileMatch = line.match(/^\+\+\+ b\/(?<path>.+)$/);
+		if (gitFileMatch?.groups?.path) {
+			addPath(gitFileMatch.groups.path);
+		}
+	}
+
+	return result;
+}
+
+function normalizePatchPath(filePath: string, workingDirectory: URI | undefined): string {
+	if (!workingDirectory || isAbsolute(filePath)) {
+		return filePath;
+	}
+	return URI.joinPath(workingDirectory, ...filePath.split('/')).fsPath;
 }
 
 /** Set of tool names that execute shell commands (bash or powershell). */
@@ -352,6 +427,9 @@ export function getInvocationMessage(toolName: string, displayName: string, para
 			}
 			return localize('toolInvoke.create', "Creating file");
 		}
+		case CopilotToolName.ApplyPatch:
+		case CopilotToolName.GitApplyPatch:
+			return localize('toolInvoke.patch', "Applying patch to files");
 		case CopilotToolName.Grep: {
 			const args = parameters as ICopilotGrepToolArgs | undefined;
 			if (args?.pattern) {
@@ -440,6 +518,9 @@ export function getPastTenseMessage(toolName: string, displayName: string, param
 			}
 			return localize('toolComplete.create', "Created file");
 		}
+		case CopilotToolName.ApplyPatch:
+		case CopilotToolName.GitApplyPatch:
+			return localize('toolComplete.patch', "Applied patch to files");
 		case CopilotToolName.Grep: {
 			const args = parameters as ICopilotGrepToolArgs | undefined;
 			if (args?.pattern) {
@@ -581,6 +662,11 @@ export function getToolInputString(toolName: string, parameters: Record<string, 
 		case CopilotToolName.Rg: {
 			const args = parameters as ICopilotRgToolArgs | undefined;
 			return args?.pattern ?? rawArguments;
+		}
+		case CopilotToolName.ApplyPatch:
+		case CopilotToolName.GitApplyPatch: {
+			const args = parameters as ICopilotPatchToolArgs | undefined;
+			return args?.input ?? args?.patch ?? rawArguments;
 		}
 		default:
 			// For other tools, show the formatted JSON arguments
