@@ -64,6 +64,9 @@ const enum DefaultAccountStatus {
 const CONTEXT_DEFAULT_ACCOUNT_STATE = new RawContextKey<string>('defaultAccountStatus', DefaultAccountStatus.Uninitialized);
 const CACHED_POLICY_DATA_KEY = 'defaultAccount.cachedPolicyData';
 const ACCOUNT_DATA_POLL_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
+// Endpoint changes rarely for accounts that don't have an MCP registry, so use a longer
+// cache window when the previous fetch returned no registry to avoid retrying every hour.
+const MCP_REGISTRY_NEGATIVE_CACHE_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 interface ITokenEntitlementsResponse {
 	token: string;
@@ -730,7 +733,7 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 	}
 
 	private async getMcpRegistryProvider(sessions: AuthenticationSession[], accountPolicyData: IAccountPolicyData | undefined, options?: { forceRefresh?: boolean }): Promise<{ data: IMcpRegistryProvider | null; fetchedAt: number } | undefined> {
-		if (!options?.forceRefresh && accountPolicyData?.mcpRegistryDataFetchedAt && !this.isDataStale(accountPolicyData.mcpRegistryDataFetchedAt)) {
+		if (!options?.forceRefresh && accountPolicyData?.mcpRegistryDataFetchedAt && !this.isMcpRegistryDataStale(accountPolicyData)) {
 			this.logService.debug('[DefaultAccount] Using last fetched MCP registry data');
 			const data = accountPolicyData.policyData.mcpRegistryUrl && accountPolicyData.policyData.mcpAccess ? { url: accountPolicyData.policyData.mcpRegistryUrl, registry_access: accountPolicyData.policyData.mcpAccess } : null;
 			return { data, fetchedAt: accountPolicyData.mcpRegistryDataFetchedAt };
@@ -822,6 +825,16 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 
 	private isDataStale(fetchedAt: number): boolean {
 		return (Date.now() - fetchedAt) >= ACCOUNT_DATA_POLL_INTERVAL_MS;
+	}
+
+	private isMcpRegistryDataStale(accountPolicyData: IAccountPolicyData): boolean {
+		if (!accountPolicyData.mcpRegistryDataFetchedAt) {
+			return true;
+		}
+		// When the previous fetch returned no registry (e.g. 404), use a longer cache
+		// window to avoid blocking startup with repeated requests on every relaunch.
+		const interval = accountPolicyData.policyData.mcpRegistryUrl ? ACCOUNT_DATA_POLL_INTERVAL_MS : MCP_REGISTRY_NEGATIVE_CACHE_INTERVAL_MS;
+		return (Date.now() - accountPolicyData.mcpRegistryDataFetchedAt) >= interval;
 	}
 
 	private getEntitlementUrl(): string | undefined {
