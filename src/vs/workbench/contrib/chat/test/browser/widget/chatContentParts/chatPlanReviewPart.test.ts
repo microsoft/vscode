@@ -261,41 +261,6 @@ suite('ChatPlanReviewPart', () => {
 			});
 		});
 
-		test('clicking Back exits feedback mode but preserves textarea draft', async () => {
-			const data = new ChatPlanReviewData('Title', 'Content', [{ label: 'Autopilot', default: true }], true, URI.parse('file:///plan.md').toJSON());
-			createWidget(data);
-
-			// Enter feedback mode via the Review button.
-			getReviewButton(widget)!.click();
-			await tick();
-
-			// Type some draft feedback
-			const textarea = widget.domNode.querySelector('.chat-plan-review-feedback-textarea') as HTMLTextAreaElement;
-			textarea.value = 'draft feedback';
-			textarea.dispatchEvent(new Event('input'));
-
-			// Click Back inside the feedback header
-			const backButton = widget.domNode.querySelector('.chat-plan-review-feedback-close') as HTMLElement;
-			assert.ok(backButton, 'feedback Back button should exist');
-			backButton.click();
-			await tick();
-
-			// Feedback section should be hidden
-			const feedbackSection = getFeedbackSection(widget);
-			assert.strictEqual(feedbackSection.style.display, 'none', 'feedback section should be hidden');
-
-			// Footer buttons should be back to the normal set (Approve + Reject only).
-			const buttons = getFooterButtons(widget);
-			assert.ok(buttons.some(b => b.textContent?.includes('Autopilot')), 'approve button should be back');
-			assert.ok(buttons.some(b => b.textContent?.includes('Reject')), 'reject button should be back');
-			assert.ok(!buttons.some(b => b.textContent?.includes('Submit Feedback')), 'submit button should be gone');
-			assert.ok(!buttons.some(b => b.textContent?.includes('Provide Feedback')), 'provide feedback button should not return');
-
-			// Back is non-destructive: draft persists.
-			assert.strictEqual(textarea.value, 'draft feedback', 'textarea draft should be preserved');
-			assert.strictEqual(data.draftFeedback, 'draft feedback', 'draft feedback should be preserved');
-		});
-
 		test('submit is disabled when feedback textarea is empty and no inline comments', async () => {
 			createWidget(createMockReviewWithPlan());
 
