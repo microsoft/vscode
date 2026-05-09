@@ -389,6 +389,19 @@ export class ChatSession {
 	private streamStartedAt = 0;
 
 	/**
+	 * H11 — session-wide cumulative meter (chat panel only). Mirrors the live
+	 * cost/token counter the CLI TUI's StatusBar surfaces. These ticks up on
+	 * every `messageComplete` (one per assistant turn) and resets on
+	 * conversation switch / new conversation. Independent of `CostReporter`
+	 * so the meter still works in surfaces that don't wire one in. The values
+	 * are pushed to the webview as a `sessionUsage` postMessage with the
+	 * shape `{ totalCost, totalTokens, turnCount }`.
+	 */
+	private sessionTotalCost = 0;
+	private sessionTotalTokens = 0;
+	private sessionTurnCount = 0;
+
+	/**
 	 * Phase 86 — spend cap helper. Lazily wired up from the optional
 	 * {@link costReporter}: when no reporter is supplied (e.g. legacy CLI
 	 * surfaces or tests), we leave the guard undefined and every cap check
@@ -473,6 +486,10 @@ export class ChatSession {
 		this.webview.postMessage({ type: 'tabChanged', tab: this.currentTab });
 		this.postBoardSnapshot();
 		this.postHistorySnapshot();
+		// H11 — paint the session meter at zero on first load. The
+		// accumulator is per-conversation lifetime (not persisted across
+		// reloads), so the canonical initial state is always zero.
+		this.postSessionUsage();
 
 		// Replay any previously-captured checkpoints so the user can roll
 		// back to them across window reloads. Posted AFTER `loadConversation`
@@ -601,6 +618,57 @@ export class ChatSession {
 				breakdown,
 			});
 		}, 100);
+	}
+
+	/**
+	 * H11 — fold a single completed assistant turn's deltas into the running
+	 * session totals and broadcast a `sessionUsage` postMessage to the webview.
+	 * Tokens and cost arriving here are already deltas (the cumulative figures
+	 * are kept inside `LlmClient`; the per-message hooks subtract the snapshot
+	 * taken at request start). Negative deltas — which can occur if the
+	 * underlying counters reset between turns — are clamped to zero so the
+	 * meter only ever ticks forward.
+	 */
+	private recordSessionTurn(deltaTokens: number, deltaCost: number): void {
+		const safeTokens = Math.max(0, Math.floor(deltaTokens));
+		const safeCost = Math.max(0, deltaCost);
+		this.sessionTotalTokens += safeTokens;
+		this.sessionTotalCost += safeCost;
+		this.sessionTurnCount += 1;
+		this.postSessionUsage();
+	}
+
+	/**
+	 * H11 — push the current session totals to the webview. Posted on every
+	 * completed turn and on conversation reset so the meter mirrors the
+	 * accumulator without polling. Always emits the canonical zero payload
+	 * after a reset so the webview can paint `0 tok · $0.00` on a blank slate
+	 * rather than holding the previous conversation's totals.
+	 */
+	private postSessionUsage(): void {
+		if (this.disposed) {
+			return;
+		}
+		this.webview.postMessage({
+			type: 'sessionUsage',
+			totalCost: this.sessionTotalCost,
+			totalTokens: this.sessionTotalTokens,
+			turnCount: this.sessionTurnCount,
+		});
+	}
+
+	/**
+	 * H11 — clear the session meter. Used by `clearConversation` and
+	 * `switchConversation` so flipping conversations starts the meter fresh.
+	 * Always emits a `sessionUsage` postMessage with zeroes so the webview
+	 * doesn't keep painting the previous conversation's totals during the
+	 * brief window before the next turn lands.
+	 */
+	private resetSessionUsage(): void {
+		this.sessionTotalCost = 0;
+		this.sessionTotalTokens = 0;
+		this.sessionTurnCount = 0;
+		this.postSessionUsage();
 	}
 
 	/**
@@ -1013,6 +1081,9 @@ export class ChatSession {
 			this.costReporter.resetSession();
 		}
 		this.webview.postMessage({ type: 'costReset' });
+		// H11 — also zero the standalone session meter so the status-bar
+		// totals reset alongside the cost-reporter chip in the header.
+		this.resetSessionUsage();
 	}
 
 	/**
@@ -1058,6 +1129,10 @@ export class ChatSession {
 			this.costReporter.resetSession();
 		}
 		this.webview.postMessage({ type: 'costReset' });
+		// H11 — reset the standalone session meter on conversation switch.
+		// `sessionUsage` is per-conversation; switching contexts means the
+		// previous conversation's running totals no longer apply.
+		this.resetSessionUsage();
 		this.webview.postMessage({ type: 'specialistChange', specialistId: this.currentSpecialistId });
 		this.webview.postMessage({ type: 'modeChanged', chatMode: this.currentMode });
 		this.webview.postMessage({ type: 'tabChanged', tab: this.currentTab });
@@ -2600,16 +2675,24 @@ export class ChatSession {
 								// so we deliberately publish ONLY on the final
 								// turn; the delta below covers all input/output
 								// across sub-turns of this send.
+								const turnInputDelta = Math.max(0, usage.input - this.lastInputTokens);
+								const turnOutputDelta = Math.max(0, usage.output - this.lastOutputTokens);
+								const turnCachedDelta = Math.max(0, usage.cached - this.lastCachedTokens);
+								const turnCostDelta = Math.max(0, this.llmClient.estimateCost(model) - this.lastEstimatedCost);
 								this.webview.postMessage({
 									type: 'messageMetrics',
 									conversationIndex: assistantConversationIndex,
 									model,
 									latencyMs: Date.now() - this.streamStartedAt,
-									inputTokens: Math.max(0, usage.input - this.lastInputTokens),
-									outputTokens: Math.max(0, usage.output - this.lastOutputTokens),
-									cachedTokens: Math.max(0, usage.cached - this.lastCachedTokens),
-									cost: Math.max(0, this.llmClient.estimateCost(model) - this.lastEstimatedCost),
+									inputTokens: turnInputDelta,
+									outputTokens: turnOutputDelta,
+									cachedTokens: turnCachedDelta,
+									cost: turnCostDelta,
 								});
+								// H11 — fold the same per-turn deltas into the
+								// session-wide cumulative meter so the chat
+								// status bar ticks up across multiple turns.
+								this.recordSessionTurn(turnInputDelta + turnOutputDelta, turnCostDelta);
 							}
 						} else if (event.type === 'error') {
 							this.webview.postMessage({ type: 'streamError', error: event.error });
@@ -3033,16 +3116,24 @@ export class ChatSession {
 		// many sub-LLM calls under the hood; the delta below sums all of
 		// them since this send started, attributed to the user-visible
 		// assistant turn it produced.
+		const turnInputDelta = Math.max(0, usage.input - this.lastInputTokens);
+		const turnOutputDelta = Math.max(0, usage.output - this.lastOutputTokens);
+		const turnCachedDelta = Math.max(0, usage.cached - this.lastCachedTokens);
+		const turnCostDelta = Math.max(0, this.llmClient.estimateCost(model) - this.lastEstimatedCost);
 		this.webview.postMessage({
 			type: 'messageMetrics',
 			conversationIndex: assistantConversationIndex,
 			model,
 			latencyMs: Date.now() - this.streamStartedAt,
-			inputTokens: Math.max(0, usage.input - this.lastInputTokens),
-			outputTokens: Math.max(0, usage.output - this.lastOutputTokens),
-			cachedTokens: Math.max(0, usage.cached - this.lastCachedTokens),
-			cost: Math.max(0, this.llmClient.estimateCost(model) - this.lastEstimatedCost),
+			inputTokens: turnInputDelta,
+			outputTokens: turnOutputDelta,
+			cachedTokens: turnCachedDelta,
+			cost: turnCostDelta,
 		});
+		// H11 — fold the same per-turn deltas into the session-wide
+		// cumulative meter so the chat status bar ticks up across
+		// multiple turns even when no `CostReporter` is wired in.
+		this.recordSessionTurn(turnInputDelta + turnOutputDelta, turnCostDelta);
 
 		const persisted = (finalText && finalText.length > 0) ? finalText : assembled;
 		if (persisted) {
@@ -4302,6 +4393,13 @@ export class ChatSession {
 
 		<div class="status-bar">
 			<span id="tokenCount">0 tokens</span>
+			<span class="status-bar-session" id="sessionUsage" title="Session totals across this conversation. Resets when you switch or start a new chat." aria-label="Session usage totals">
+				<span class="status-bar-session-label">Session</span>
+				<span class="status-bar-session-tokens" id="sessionUsageTokens">0 tok</span>
+				<span class="status-bar-session-divider" aria-hidden="true">·</span>
+				<span class="status-bar-session-cost" id="sessionUsageCost">$0.00</span>
+				<span class="status-bar-session-turns" id="sessionUsageTurns">0 turns</span>
+			</span>
 			<span id="costEstimate">$0.00</span>
 		</div>
 		</div>

@@ -6,6 +6,7 @@
 import { spawn } from 'child_process';
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import type { CoreHost } from 'son-of-anton-core/dist/host';
 import type { ToolExecutionContext } from 'son-of-anton-core/dist/tools/types';
 
 const SEARCH_FILE_BYTE_CAP = 256 * 1024;
@@ -26,8 +27,13 @@ const SEARCH_DEFAULT_IGNORES: ReadonlyArray<string> = [
  * path stays inside `workspaceRoot`. `..` segments and absolute paths are
  * rejected at the boundary so the model can't escape the workspace via a
  * crafted argument.
+ *
+ * When a `host` is supplied, the returned context exposes a `getConfigValue`
+ * accessor wired to the host's config store so tools (e.g. `run_command`'s
+ * sandbox-mode check) can read settings at execute time. Callers without a
+ * host see the safest defaults — the `run_command` sandbox stays in `'safe'`.
  */
-export function buildCliToolExecutionContext(workspaceRoot: string): ToolExecutionContext {
+export function buildCliToolExecutionContext(workspaceRoot: string, host?: CoreHost): ToolExecutionContext {
 	const root = path.resolve(workspaceRoot);
 
 	const resolveRelative = (relPath: string): string => {
@@ -43,6 +49,10 @@ export function buildCliToolExecutionContext(workspaceRoot: string): ToolExecuti
 
 	return {
 		workspaceRoot: root,
+
+		getConfigValue: <T>(key: string): T | undefined => {
+			return host?.config.get<T>(key);
+		},
 
 		readFile: async (relPath) => {
 			const abs = resolveRelative(relPath);

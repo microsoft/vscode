@@ -27,6 +27,14 @@ export function createWorkspaceToolContext(): ToolExecutionContext {
 	};
 	return {
 		workspaceRoot: root?.fsPath,
+		getConfigValue: <T>(key: string): T | undefined => {
+			// Host-side accessor used by tools (e.g. `run_command` sandbox mode)
+			// to read user/workspace settings at execute time. Reading via the
+			// VS Code config API picks up live changes without an extension
+			// reload, and crucially is not influenced by tool input — the LLM
+			// cannot escalate its own privileges through this channel.
+			return vscode.workspace.getConfiguration().get<T>(key);
+		},
 		readFile: async (relPath: string) => {
 			const uri = resolveSafe(relPath);
 			const bytes = await vscode.workspace.fs.readFile(uri);

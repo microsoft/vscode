@@ -3231,6 +3231,7 @@ button {
 .status-bar {
 	display: flex;
 	justify-content: space-between;
+	align-items: center;
 	gap: var(--sota-gap);
 	padding: 4px var(--sota-pad);
 	font-size: 11px;
@@ -3238,6 +3239,38 @@ button {
 	border-top: 1px solid var(--sota-border);
 	background-color: var(--vscode-sideBar-background, var(--vscode-editor-background));
 	flex-shrink: 0;
+}
+
+/* H11 — session-wide cumulative meter (totalTokens · totalCost · turnCount).
+ * Sits between the per-message tokenCount/costEstimate spans so users see
+ * "this turn" on the outside and "this whole conversation" in the middle. */
+.status-bar-session {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	padding: 1px 8px;
+	border: 1px solid var(--sota-border);
+	border-radius: 999px;
+	background-color: var(--vscode-editorWidget-background, transparent);
+	color: var(--sota-fg-muted);
+	white-space: nowrap;
+}
+
+.status-bar-session-label {
+	font-weight: 600;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+	font-size: 10px;
+	opacity: 0.85;
+}
+
+.status-bar-session-divider {
+	opacity: 0.55;
+}
+
+.status-bar-session-turns {
+	margin-left: 2px;
+	opacity: 0.75;
 }
 
 /*--------------------------------------------------------------------

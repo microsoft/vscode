@@ -62,6 +62,12 @@ export function instrumentToolExecutionContext(
 	return {
 		workspaceRoot: ctx.workspaceRoot,
 
+		// Forward the host config accessor unchanged — hooks have no need to
+		// observe or mutate config reads, and dropping this would silently
+		// pin sandbox-aware tools (e.g. `run_command`) to their `'safe'`
+		// default whenever a hook runner is active.
+		getConfigValue: ctx.getConfigValue,
+
 		readFile: async (relPath) => {
 			const result = await ctx.readFile(relPath);
 			await hookRunner.fire('post-tool-call', {

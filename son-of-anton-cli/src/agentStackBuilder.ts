@@ -42,7 +42,7 @@ export function buildCliAgentStack(host: CoreHost): { stack: AgentStack; llm: Ll
 	// without a workspace (rare — mostly happens in tests) skip the context
 	// and fall back to the legacy diff-parse path.
 	const workspaceRoot = host.workspace.folders[0]?.fsPath;
-	const baseToolExecutionContext = workspaceRoot ? buildCliToolExecutionContext(workspaceRoot) : undefined;
+	const baseToolExecutionContext = workspaceRoot ? buildCliToolExecutionContext(workspaceRoot, host) : undefined;
 	// Wrap the tool execution context with the hooks runtime when the workspace
 	// is trusted AND `.son-of-anton/hooks.json` exists. We skip instantiation
 	// (rather than relying solely on the runner's no-op behaviour for empty

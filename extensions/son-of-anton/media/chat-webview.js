@@ -11,6 +11,13 @@
 		const newChatBtn = document.getElementById('newChatBtn');
 		const tokenCount = document.getElementById('tokenCount');
 		const costEstimate = document.getElementById('costEstimate');
+		// H11 — session-wide cumulative meter pinned to the status bar.
+		// Driven by the `sessionUsage` postMessage from the host; ticks up on
+		// every assistant turn and resets on conversation switch / new chat.
+		const sessionUsage = document.getElementById('sessionUsage');
+		const sessionUsageTokens = document.getElementById('sessionUsageTokens');
+		const sessionUsageCost = document.getElementById('sessionUsageCost');
+		const sessionUsageTurns = document.getElementById('sessionUsageTurns');
 		const attachBtn = document.getElementById('attachBtn');
 		const attachMenu = document.getElementById('attachMenu');
 		const modelChip = document.getElementById('modelChip');
@@ -4068,6 +4075,13 @@
 				case 'costReset':
 					applyCostReset();
 					break;
+				// H11 — session-wide cumulative meter (status bar). Independent
+				// of the header `costUpdate` chip so it still ticks even when
+				// no `CostReporter` is wired in. Payload: { totalCost,
+				// totalTokens, turnCount }.
+				case 'sessionUsage':
+					applySessionUsage(message);
+					break;
 				case 'requestStarted':
 					setCostPulseActive(true);
 					showActiveTaskHeader({
@@ -7602,6 +7616,65 @@
 				return '$' + value.toFixed(4);
 			}
 			return '$' + value.toFixed(2);
+		}
+
+		/**
+		 * H11 — format a session-wide cumulative cost. Mirrors the CLI TUI
+		 * `StatusBar` formatter so the IDE meter and the terminal one read
+		 * identically:
+		 *   - exactly zero       → `$0.00`
+		 *   - 0 < value < $0.01  → `<$0.01`
+		 *   - cents              → `$0.42`
+		 *   - dollars            → `$4.20`
+		 */
+		function formatSessionDollars(dollars) {
+			const value = Number(dollars) || 0;
+			if (value <= 0) {
+				return '$0.00';
+			}
+			if (value < 0.01) {
+				return '<$0.01';
+			}
+			return '$' + value.toFixed(2);
+		}
+
+		/**
+		 * H11 — format a session-wide cumulative token count. Matches the CLI
+		 * TUI scale so users see the same numbers in both surfaces:
+		 *   - < 1k          → `0 tok`, `42 tok`
+		 *   - 1k ≤ x < 1M   → `1.4k tok`
+		 *   - ≥ 1M          → `2.30M tok`
+		 */
+		function formatSessionTokens(total) {
+			const value = Number(total) || 0;
+			if (value >= 1_000_000) {
+				return (value / 1_000_000).toFixed(2) + 'M tok';
+			}
+			if (value >= 1000) {
+				return (value / 1000).toFixed(1) + 'k tok';
+			}
+			return Math.max(0, Math.floor(value)) + ' tok';
+		}
+
+		/**
+		 * H11 — paint the session meter from a `sessionUsage` postMessage. The
+		 * host owns the accumulator and re-emits the canonical totals on every
+		 * assistant turn plus on conversation switch (with zeroes). The meter
+		 * is always visible (unlike the header chip which auto-hides on $0)
+		 * so the user can see it climb from a fresh state.
+		 */
+		function applySessionUsage(message) {
+			if (!sessionUsage || !sessionUsageTokens || !sessionUsageCost || !sessionUsageTurns) {
+				return;
+			}
+			const totalTokens = Number(message && message.totalTokens) || 0;
+			const totalCost = Number(message && message.totalCost) || 0;
+			const turnCount = Number(message && message.turnCount) || 0;
+			sessionUsageTokens.textContent = formatSessionTokens(totalTokens);
+			sessionUsageCost.textContent = formatSessionDollars(totalCost);
+			sessionUsageTurns.textContent = turnCount === 1
+				? '1 turn'
+				: turnCount + ' turns';
 		}
 
 		function applyCostUpdate(message) {

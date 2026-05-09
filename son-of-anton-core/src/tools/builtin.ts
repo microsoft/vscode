@@ -484,10 +484,98 @@ async function walkAndMatch(
 	}
 }
 
+/**
+ * Three-tier sandbox model for the `run_command` tool. The mode is read from
+ * host config at execute time so users can flip the level without restarting
+ * the agent.
+ *
+ * - `'safe'` — only commands on the inspection allowlist run; defaults here.
+ * - `'workspace-write'` — any command runs, but the existing cwd lock keeps
+ *   the working directory inside the workspace root.
+ * - `'unrestricted'` — no allowlist check; preserved for back-compat parity
+ *   with the pre-sandbox tool behaviour.
+ */
+export type RunCommandSandboxMode = 'safe' | 'workspace-write' | 'unrestricted';
+
+/** Config key the `run_command` tool consults to pick its sandbox mode. */
+export const RUN_COMMAND_SANDBOX_CONFIG_KEY = 'sota.runCommand.sandbox';
+
+/**
+ * Allowlist of commands that may run when the sandbox mode is `'safe'`.
+ * Curated to inspection-shaped tooling: VCS read commands, language tooling
+ * that defaults to read-only operation, and common file/text inspectors.
+ * Match is case-sensitive on the executable name (no path); wrappers and
+ * shims invoked via shell are out of scope because the tool already runs
+ * via `spawn` without a shell.
+ */
+const SAFE_COMMANDS: ReadonlyArray<string> = [
+	// VCS read — `git` is gated further by `SAFE_GIT_SUBCOMMANDS` below.
+	'git',
+	// Inspection
+	'ls', 'cat', 'head', 'tail', 'wc', 'find', 'grep', 'rg', 'fd',
+	'pwd', 'whoami', 'date', 'uname', 'env',
+	// Language tooling READ paths — workspace cwd lock is the backstop for
+	// the rare case where one of these ends up writing.
+	'node', 'tsc',
+	'python3', 'python', 'pip', 'pip3',
+	'cargo', 'go', 'ruby', 'php', 'java', 'mvn', 'gradle',
+	// Package-manager READ paths
+	'npm', 'pnpm', 'yarn', 'bun',
+	'jq', 'yq', 'curl',
+	'echo', 'printf',
+];
+
+/**
+ * Subset of `git` subcommands considered read-only / inspection. Anything
+ * else (commit, push, merge, rebase, reset, checkout, restore, …) requires
+ * `'workspace-write'` mode.
+ */
+const SAFE_GIT_SUBCOMMANDS: ReadonlyArray<string> = [
+	'status', 'log', 'show', 'diff', 'blame', 'branch', 'tag',
+	'rev-parse', 'config', 'ls-files', 'ls-tree', 'remote', 'stash',
+	'reflog', 'describe', 'shortlog',
+];
+
+/**
+ * Decide whether the supplied command is permitted under the given sandbox
+ * mode. Pure function so hosts and tests can call it directly.
+ *
+ * @param command Executable name as the LLM supplied it (no path).
+ * @param args Argv passed to the command (used for git subcommand check).
+ * @param mode Sandbox mode in effect for this call.
+ * @returns `{ allowed: true }` to run the command, or `{ allowed: false, reason }` with a human-readable rejection.
+ */
+export function checkSandboxAllowsCommand(
+	command: string,
+	args: ReadonlyArray<string>,
+	mode: RunCommandSandboxMode,
+): { allowed: true } | { allowed: false; reason: string } {
+	if (mode === 'unrestricted' || mode === 'workspace-write') {
+		return { allowed: true };
+	}
+	// mode === 'safe'
+	if (!SAFE_COMMANDS.includes(command)) {
+		return {
+			allowed: false,
+			reason: `Command "${command}" is not on the safe allowlist. The current sandbox mode is 'safe' — set \`${RUN_COMMAND_SANDBOX_CONFIG_KEY} = 'workspace-write'\` to allow write or build commands.`,
+		};
+	}
+	if (command === 'git') {
+		const sub = args[0];
+		if (typeof sub !== 'string' || !SAFE_GIT_SUBCOMMANDS.includes(sub)) {
+			return {
+				allowed: false,
+				reason: `git subcommand "${sub ?? '(none)'}" is not in the safe allowlist. The current sandbox mode is 'safe' — set \`${RUN_COMMAND_SANDBOX_CONFIG_KEY} = 'workspace-write'\` to allow operations like \`git commit\` or \`git push\`.`,
+			};
+		}
+	}
+	return { allowed: true };
+}
+
 export const RUN_COMMAND_TOOL: Tool = {
 	definition: {
 		name: 'run_command',
-		description: 'Run a shell command from the workspace root (with user confirmation). Returns stdout, stderr, and exit code. Output is capped at 50KB total. Use for build, test, lint, git, package-manager, or other read-only or idempotent commands. The user is shown a confirmation modal before each run.',
+		description: `Run a shell command from the workspace root (with user confirmation). Returns stdout, stderr, and exit code. Output is capped at 50KB total. Use for build, test, lint, git, package-manager, or other read-only or idempotent commands. The user is shown a confirmation modal before each run. By default, only inspection commands run (see safe allowlist). Set \`${RUN_COMMAND_SANDBOX_CONFIG_KEY} = 'workspace-write'\` for write operations like \`git commit\`, package installs, or build steps.`,
 		inputSchema: {
 			type: 'object',
 			properties: {
@@ -522,6 +610,18 @@ export const RUN_COMMAND_TOOL: Tool = {
 		const rawTimeout = input['timeoutMs'];
 		let timeoutMs = typeof rawTimeout === 'number' && Number.isFinite(rawTimeout) ? rawTimeout : 30_000;
 		timeoutMs = Math.max(100, Math.min(timeoutMs, 120_000));
+
+		// Read sandbox mode from host config at execute time so the user can
+		// flip it between calls without restarting the agent. Hosts that don't
+		// supply `getConfigValue` get the safest default.
+		const configuredMode = ctx.getConfigValue?.<RunCommandSandboxMode>(RUN_COMMAND_SANDBOX_CONFIG_KEY);
+		const sandbox: RunCommandSandboxMode = (configuredMode === 'workspace-write' || configuredMode === 'unrestricted' || configuredMode === 'safe')
+			? configuredMode
+			: 'safe';
+		const sandboxCheck = checkSandboxAllowsCommand(command, args, sandbox);
+		if (!sandboxCheck.allowed) {
+			return { content: sandboxCheck.reason, isError: true };
+		}
 
 		const result = await ctx.runCommand(command, args, { cwd, timeoutMs });
 

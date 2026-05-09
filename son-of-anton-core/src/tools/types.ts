@@ -162,6 +162,17 @@ export interface ToolExecutionContext {
 		existed?: boolean;
 	}>;
 	readonly runCommand: (command: string, args: ReadonlyArray<string>, opts: { cwd?: string; timeoutMs?: number }) => Promise<{ ran: boolean; reason?: string; stdout?: string; stderr?: string; exitCode?: number; timedOut?: boolean }>;
+	/**
+	 * Optional accessor for host configuration. Tools that need to read
+	 * settings at execute time (e.g. the `run_command` sandbox mode) call
+	 * this to retrieve a typed value by key. Hosts that don't supply this
+	 * accessor will cause callers to fall back to the safest default —
+	 * sandbox-mode reads return `undefined` and the tool treats that as
+	 * `'safe'`. Crucially, the accessor is host-side only: the LLM cannot
+	 * influence its return value, which prevents the model from
+	 * self-escalating its own privileges via tool input.
+	 */
+	readonly getConfigValue?: <T>(key: string) => T | undefined;
 }
 
 export interface Tool {
