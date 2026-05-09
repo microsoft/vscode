@@ -538,6 +538,8 @@ export interface IAgent {
 	 * Resolves the tool handler's deferred promise so the SDK can continue.
 	 *
 	 * @param session The session the tool call belongs to.
+	 * @param toolCallId The id of the tool call being completed.
+	 * @param result The result of the tool call.
 	 */
 	onClientToolCallComplete(session: URI, toolCallId: string, result: ToolCallResult): void;
 
