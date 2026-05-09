@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { CCAModel } from '@vscode/copilot-api';
-import type { Options, SDKSessionInfo, SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
+import type { Options, PermissionMode, PermissionResult, PermissionUpdate, SDKSessionInfo, SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 import { rgPath } from '@vscode/ripgrep';
 import { SequencerByKey } from '../../../../base/common/async.js';
 import { CancellationError } from '../../../../base/common/errors.js';
@@ -25,8 +25,9 @@ import { AgentProvider, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESO
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
-import { PolicyState, ProtectedResourceMetadata, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
+import { PolicyState, ProtectedResourceMetadata, ToolCallStatus, type ModelSelection, type ToolCallPendingConfirmationState, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { CustomizationRef, SessionInputResponseKind, type MessageAttachment, type SessionInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
+import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostGitService } from '../agentHostGitService.js';
 import { projectFromCopilotContext } from '../copilot/copilotGitProject.js';
 import { ICopilotApiService } from '../shared/copilotApiService.js';
@@ -35,6 +36,8 @@ import { ClaudeAgentSession } from './claudeAgentSession.js';
 import { tryParseClaudeModelId } from './claudeModelId.js';
 import { resolvePromptToContentBlocks } from './claudePromptResolver.js';
 import { IClaudeProxyHandle, IClaudeProxyService } from './claudeProxyService.js';
+import { extractPermissionPath, getClaudeConfirmationTitle, getClaudePermissionKind, getClaudeToolDisplayName, INTERACTIVE_CLAUDE_TOOLS } from './claudeToolDisplay.js';
+import { buildAskUserSessionInputQuestions, buildExitPlanModeConfirmationState, flattenAskUserAnswers, parseAskUserQuestionInput } from './claudeInteractiveTools.js';
 
 /**
  * Returns true if `m` is a Claude-family model that should be advertised
@@ -92,6 +95,23 @@ function toAgentModelInfo(m: CCAModel, provider: AgentProvider): IAgentModelInfo
 		...(policyState ? { policyState } : {}),
 		...(typeof multiplier === 'number' ? { _meta: { multiplierNumeric: multiplier } } : {}),
 	};
+}
+
+// Single source of truth for narrowing an arbitrary runtime value to
+// the closed `ClaudePermissionMode` union. Returns `undefined` for
+// non-strings or unmatched strings; callers apply their own fallback.
+function narrowClaudePermissionMode(raw: unknown): ClaudePermissionMode | undefined {
+	switch (raw) {
+		case 'default':
+		case 'acceptEdits':
+		case 'bypassPermissions':
+		case 'plan':
+		case 'dontAsk':
+		case 'auto':
+			return raw;
+		default:
+			return undefined;
+	}
 }
 
 /**
@@ -252,6 +272,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
 		@IClaudeAgentSdkService private readonly _sdkService: IClaudeAgentSdkService,
 		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
+		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 	) {
 		super();
 	}
@@ -495,10 +516,16 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			env: subprocessEnv,
 			abortController: provisional.abortController,
 			allowDangerouslySkipPermissions: true,
-			canUseTool: async (_name, _input) => ({
-				behavior: 'deny',
-				message: 'Tools are not yet enabled for this session (Phase 6).',
-			}),
+			canUseTool: (toolName, input, options) => this._handleCanUseTool(sessionId, toolName, input, options),
+			// Plan S3.7: silence the SDK's auto-decline path for any
+			// incidental MCP elicitation request. Full MCP wiring is
+			// Phase 10; until then we explicitly cancel so the caller
+			// gets a deterministic `cancel` response and we record the
+			// event for diagnostics.
+			onElicitation: async req => {
+				this._logService.info(`[Claude] declining elicitation from MCP server (Phase 7 stub): ${req.message ?? ''}`);
+				return { action: 'cancel' };
+			},
 			disallowedTools: ['WebSearch'],
 			includeHookEvents: true,
 			includePartialMessages: true,
@@ -516,7 +543,13 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			// `provisional.model` is the source of truth at materialize.
 			model: provisional.model?.id,
 			effort: resolveClaudeEffort(provisional.model),
-			permissionMode: this._resolvePermissionMode(provisional.config),
+			// Plan S3.6: prefer the live state-manager value so a
+			// `SessionConfigChanged` arriving between createSession and
+			// the first sendMessage wins; fall back to the createSession-
+			// time intent stashed on `provisional.config` (production
+			// AgentService also seeds state.config so live wins there;
+			// fixtures that bypass AgentService rely on the fallback).
+			permissionMode: this._readSessionPermissionMode(provisional.sessionUri) ?? this._resolvePermissionMode(provisional.config),
 			sessionId,
 			settingSources: ['user', 'project', 'local'],
 			settings: { env: settingsEnv },
@@ -549,7 +582,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			await this._writeSessionMetadata(provisional.sessionUri, {
 				customizationDirectory: provisional.workingDirectory,
 				model: provisional.model,
-				permissionMode: this._resolvePermissionMode(provisional.config),
+				permissionMode: this._readSessionPermissionMode(provisional.sessionUri) ?? this._resolvePermissionMode(provisional.config),
 			});
 		} catch (err) {
 			session.dispose();
@@ -623,19 +656,217 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 * shouldn't have accepted (defense-in-depth).
 	 */
 	private _resolvePermissionMode(config: Record<string, unknown> | undefined): ClaudePermissionMode {
-		const raw = config?.[ClaudeSessionConfigKey.PermissionMode];
-		switch (raw) {
-			case 'default':
-			case 'acceptEdits':
-			case 'bypassPermissions':
-			case 'plan':
-			case 'dontAsk':
-			case 'auto':
-				return raw;
-			default:
-				return 'default';
+		return narrowClaudePermissionMode(config?.[ClaudeSessionConfigKey.PermissionMode]) ?? 'default';
+	}
+
+	// #region Phase 7 S3.4 — canUseTool flow
+
+	/**
+	 * SDK `canUseTool` callback. Fires `pending_confirmation` and parks
+	 * on {@link ClaudeAgentSession.requestPermission} until the
+	 * workbench dispatches a {@link respondToPermissionRequest}. Called
+	 * from the {@link Options.canUseTool} closure wired in
+	 * {@link _materializeProvisional}; runs on the SDK's own async
+	 * tick, NOT the session sequencer (see plan S6).
+	 *
+	 * **Pure UI bridge.** This handler does not make permission
+	 * judgement calls of its own — the SDK owns auto-approval / auto-
+	 * denial via `permissionMode` ([sdk.d.ts:1558](../../../../../../extensions/copilot/node_modules/@anthropic-ai/claude-agent-sdk/sdk.d.ts#L1558)) and only invokes
+	 * `canUseTool` for tools it has decided the host needs to surface.
+	 * The host's job is to render the UI prompt and return the user's
+	 * decision, nothing more. The interactive built-ins
+	 * (`AskUserQuestion`, `ExitPlanMode`) are exempt from auto-approval
+	 * and always reach `canUseTool` regardless of mode — their
+	 * "permission" is itself the user-facing question.
+	 */
+	private async _handleCanUseTool(
+		sessionId: string,
+		toolName: string,
+		input: Record<string, unknown>,
+		options: { suggestions?: PermissionUpdate[]; signal: AbortSignal; blockedPath?: string; toolUseID: string },
+	): Promise<PermissionResult> {
+		const session = this._sessions.get(sessionId);
+		if (!session) {
+			return { behavior: 'deny', message: 'Session is no longer active' };
+		}
+
+		// Observe the SDK's per-request abort signal so a host parked on
+		// `requestPermission` / `requestUserInput` unwinds promptly when
+		// the SDK cancels the canUseTool call (subprocess teardown,
+		// upstream abort). Both `respondTo*` methods are no-ops if the
+		// id is not pending, so it is safe to fire both regardless of
+		// which channel this tool happens to use.
+		if (options.signal.aborted) {
+			return { behavior: 'deny', message: 'SDK aborted the tool request' };
+		}
+		const abortHandler = () => {
+			session.respondToPermissionRequest(options.toolUseID, false);
+			session.respondToUserInputRequest(options.toolUseID, SessionInputResponseKind.Cancel);
+		};
+		options.signal.addEventListener('abort', abortHandler);
+		try {
+			return await this._dispatchCanUseTool(session, toolName, input, options);
+		} finally {
+			options.signal.removeEventListener('abort', abortHandler);
 		}
 	}
+
+	private async _dispatchCanUseTool(
+		session: ClaudeAgentSession,
+		toolName: string,
+		input: Record<string, unknown>,
+		options: { suggestions?: PermissionUpdate[]; signal: AbortSignal; blockedPath?: string; toolUseID: string },
+	): Promise<PermissionResult> {
+		// Interactive tools (`AskUserQuestion`, `ExitPlanMode`) are
+		// exempt from SDK `permissionMode` auto-approval, so they reach
+		// `canUseTool` even under `bypassPermissions`. Routing then
+		// splits by tool semantics rather than by the
+		// `INTERACTIVE_CLAUDE_TOOLS` flag itself: `ExitPlanMode` is a
+		// permission gate (Approve/Deny on whether to leave plan mode)
+		// so it uses the standard `pending_confirmation` channel with
+		// custom button labels; `AskUserQuestion` is structured user
+		// input (a question carousel) so it routes through
+		// `requestUserInput` / `SessionInputRequested`.
+		if (INTERACTIVE_CLAUDE_TOOLS.has(toolName)) {
+			return this._handleInteractiveTool(session, toolName, input, options.toolUseID);
+		}
+
+		const permissionKind = getClaudePermissionKind(toolName);
+		const displayName = getClaudeToolDisplayName(toolName);
+		const permissionPath = options.blockedPath ?? extractPermissionPath(toolName, input);
+		const toolInputJson = JSON.stringify(input);
+		const state: ToolCallPendingConfirmationState = {
+			status: ToolCallStatus.PendingConfirmation,
+			toolCallId: options.toolUseID,
+			toolName,
+			displayName,
+			invocationMessage: displayName,
+			toolInput: toolInputJson,
+			confirmationTitle: getClaudeConfirmationTitle(toolName),
+		};
+
+		const approved = await session.requestPermission({
+			toolUseID: options.toolUseID,
+			state,
+			permissionKind,
+			...(permissionPath !== undefined ? { permissionPath } : {}),
+		});
+		return approved
+			? { behavior: 'allow', updatedInput: input }
+			: { behavior: 'deny', message: 'User declined' };
+	}
+
+	/**
+	 * Dispatch the two interactive built-in tools (S3.5). They share a
+	 * dispatcher only because both are exempt from SDK
+	 * `permissionMode` auto-approval; routing then splits by tool
+	 * semantics. `ExitPlanMode` is a permission gate
+	 * (`requestPermission` → `pending_confirmation` with custom
+	 * Approve/Deny labels). `AskUserQuestion` is structured user input
+	 * (`requestUserInput` → `SessionInputRequested`). Caller must guard
+	 * with {@link INTERACTIVE_CLAUDE_TOOLS} — the `default` branch is
+	 * defensive and should never fire.
+	 */
+	private async _handleInteractiveTool(
+		session: ClaudeAgentSession,
+		toolName: string,
+		input: Record<string, unknown>,
+		toolUseID: string,
+	): Promise<PermissionResult> {
+		switch (toolName) {
+			case 'ExitPlanMode':
+				return this._handleExitPlanMode(session, input, toolUseID);
+			case 'AskUserQuestion':
+				return this._handleAskUserQuestion(session, input, toolUseID);
+			default:
+				return { behavior: 'deny', message: `Unsupported interactive tool: ${toolName}` };
+		}
+	}
+
+	/**
+	 * `ExitPlanMode` (S3.5b): render the plan body inside the standard
+	 * tool-confirmation card (`pending_confirmation` channel — same path
+	 * normal write tools take), persist `permissionMode = 'acceptEdits'`
+	 * on Approve (next `sendMessage` forwards via `Query.setPermissionMode`),
+	 * deny with production-mirrored wording on cancel.
+	 *
+	 * NOTE: we MUST NOT call `session.setPermissionMode` here. That issues
+	 * a live SDK control request on the same channel the SDK is using to
+	 * deliver the canUseTool request — interleaving a second control
+	 * request before returning the canUseTool response collides with the
+	 * SDK's loop and the turn never resumes. Production updates state
+	 * post-tool-result (`claudeMessageDispatch.ts:328` →
+	 * `setPermissionModeForSession`); we mirror by writing
+	 * `IAgentConfigurationService` and letting `sendMessage`'s
+	 * `entry.setPermissionMode(...)` (between turns) do the live forward.
+	 */
+	private async _handleExitPlanMode(
+		session: ClaudeAgentSession,
+		input: Record<string, unknown>,
+		toolUseID: string,
+	): Promise<PermissionResult> {
+		const approved = await session.requestPermission({
+			toolUseID,
+			state: buildExitPlanModeConfirmationState(input, toolUseID),
+			permissionKind: getClaudePermissionKind('ExitPlanMode'),
+		});
+		if (approved) {
+			this._configurationService.updateSessionConfig(session.sessionUri.toString(), {
+				[ClaudeSessionConfigKey.PermissionMode]: 'acceptEdits' satisfies ClaudePermissionMode,
+			});
+			return { behavior: 'allow', updatedInput: input };
+		}
+		return { behavior: 'deny', message: 'The user declined the plan, maybe ask why?' };
+	}
+
+	/**
+	 * `AskUserQuestion` (S3.5a): translate the SDK's question carousel
+	 * into a {@link SessionInputRequest}, await the workbench answer,
+	 * and re-key answers by question text (matching the production
+	 * extension's `Record<question, value>` contract).
+	 */
+	private async _handleAskUserQuestion(
+		session: ClaudeAgentSession,
+		input: Record<string, unknown>,
+		toolUseID: string,
+	): Promise<PermissionResult> {
+		const askInput = parseAskUserQuestionInput(input);
+		if (!askInput) {
+			return { behavior: 'deny', message: 'AskUserQuestion called without questions' };
+		}
+
+		const answer = await session.requestUserInput({
+			id: toolUseID,
+			questions: buildAskUserSessionInputQuestions(askInput),
+		});
+		if (answer.response !== SessionInputResponseKind.Accept || !answer.answers) {
+			return { behavior: 'deny', message: 'The user cancelled the question' };
+		}
+
+		const answers = flattenAskUserAnswers(askInput, answer.answers);
+		if (Object.keys(answers).length === 0) {
+			return { behavior: 'deny', message: 'The user cancelled the question' };
+		}
+		return { behavior: 'allow', updatedInput: { ...input, answers } };
+	}
+
+
+	/**
+	 * Read the live `permissionMode` for a session via
+	 * {@link IAgentConfigurationService.getSessionConfigValues}. Returns
+	 * `undefined` if the session has not been seeded — the caller picks
+	 * the fallback (createSession-time intent at materialize, `'default'`
+	 * at the canUseTool gate). Defends against malformed values that
+	 * slipped past schema validation by returning `undefined`. Called
+	 * on every `_handleCanUseTool` entry so a mid-turn
+	 * `SessionConfigChanged` action wins over the materialize-time
+	 * seed (plan S3.6).
+	 */
+	private _readSessionPermissionMode(sessionUri: URI): PermissionMode | undefined {
+		return narrowClaudePermissionMode(this._configurationService.getSessionConfigValues(sessionUri.toString())?.[ClaudeSessionConfigKey.PermissionMode]);
+	}
+
+	// #endregion
 
 	/**
 	 * Persist Claude-namespaced session metadata (customizationDirectory,
@@ -691,7 +922,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			return {
 				customizationDirectory: customizationDirectoryRaw ? URI.parse(customizationDirectoryRaw) : undefined,
 				model: this._parseModelSelection(modelRaw),
-				permissionMode: this._narrowPermissionMode(permissionModeRaw),
+				permissionMode: narrowClaudePermissionMode(permissionModeRaw),
 			};
 		} finally {
 			ref.dispose();
@@ -727,20 +958,6 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			// Older session metadata stored the raw model id as a plain string.
 		}
 		return { id: raw };
-	}
-
-	private _narrowPermissionMode(raw: string | undefined): ClaudePermissionMode | undefined {
-		switch (raw) {
-			case 'default':
-			case 'acceptEdits':
-			case 'bypassPermissions':
-			case 'plan':
-			case 'dontAsk':
-			case 'auto':
-				return raw;
-			default:
-				return undefined;
-		}
 	}
 
 	disposeSession(session: URI): Promise<void> {
@@ -976,11 +1193,19 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		return this._sessionSequencer.queue(sessionId, async () => {
 			let entry = this._sessions.get(sessionId);
 			if (!entry) {
-				if (this._provisionalSessions.has(sessionId)) {
-					entry = await this._materializeProvisional(sessionId);
-				} else {
+				if (!this._provisionalSessions.has(sessionId)) {
 					throw new Error(`Cannot send to unknown session: ${sessionId}`);
 				}
+				// Materialize seeds permissionMode via Options.permissionMode,
+				// so no setPermissionMode call needed on this turn.
+				entry = await this._materializeProvisional(sessionId);
+			} else {
+				// Plan S3.6: forward live `permissionMode` to the bound
+				// `Query` immediately before yielding the next user message
+				// so a `SessionConfigChanged` action that arrived between
+				// turns wins. Awaited so the SDK has acknowledged the mode
+				// change before `entry.send(...)` yields the next prompt.
+				await entry.setPermissionMode(this._readSessionPermissionMode(session) ?? 'default');
 			}
 
 			const contentBlocks = resolvePromptToContentBlocks(prompt, attachments);
@@ -1002,12 +1227,27 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		});
 	}
 
-	respondToPermissionRequest(_requestId: string, _approved: boolean): void {
-		throw new Error('TODO: Phase 7');
+	respondToPermissionRequest(requestId: string, approved: boolean): void {
+		// `requestId` is the SDK's `tool_use_id` — globally unique, so a
+		// single matching session is all we need. Silent on miss
+		// (workbench may have raced a session dispose).
+		for (const session of this._sessions.values()) {
+			if (session.respondToPermissionRequest(requestId, approved)) {
+				return;
+			}
+		}
 	}
 
-	respondToUserInputRequest(_requestId: string, _response: SessionInputResponseKind, _answers?: Record<string, SessionInputAnswer>): void {
-		throw new Error('TODO: Phase 7');
+	respondToUserInputRequest(requestId: string, response: SessionInputResponseKind, answers?: Record<string, SessionInputAnswer>): void {
+		// `requestId` is the SDK's `tool_use_id` (interactive tools
+		// reuse it as the {@link SessionInputRequest.id}); globally
+		// unique, so a single matching session is all we need. Silent
+		// on miss for the same reasons as `respondToPermissionRequest`.
+		for (const session of this._sessions.values()) {
+			if (session.respondToUserInputRequest(requestId, response, answers)) {
+				return;
+			}
+		}
 	}
 
 	async abortSession(_session: URI): Promise<void> {

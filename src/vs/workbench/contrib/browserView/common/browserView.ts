@@ -8,7 +8,6 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { CDPEvent, CDPRequest, CDPResponse } from '../../../../platform/browserView/common/cdp/types.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
@@ -206,6 +205,7 @@ export interface IBrowserViewModel extends IDisposable {
 	readonly zoomFactor: number;
 	readonly canZoomIn: boolean;
 	readonly canZoomOut: boolean;
+	readonly isElementSelectionActive: boolean;
 
 	readonly onDidChangeSharingState: Event<BrowserViewSharingState>;
 	readonly onDidChangeZoom: Event<void>;
@@ -220,6 +220,8 @@ export interface IBrowserViewModel extends IDisposable {
 	readonly onDidChangeVisibility: Event<IBrowserViewVisibilityEvent>;
 	readonly onDidClose: Event<void>;
 	readonly onWillDispose: Event<void>;
+	readonly onDidSelectElement: Event<IElementData>;
+	readonly onDidChangeElementSelectionActive: Event<boolean>;
 
 	layout(bounds: IBrowserViewBounds): Promise<void>;
 	setVisible(visible: boolean): Promise<void>;
@@ -241,8 +243,7 @@ export interface IBrowserViewModel extends IDisposable {
 	zoomOut(): Promise<void>;
 	resetZoom(): Promise<void>;
 	getConsoleLogs(): Promise<string>;
-	getElementData(token: CancellationToken): Promise<IElementData | undefined>;
-	getFocusedElementData(): Promise<IElementData | undefined>;
+	toggleElementSelection(enabled?: boolean): Promise<void>;
 }
 
 export class BrowserViewModel extends Disposable implements IBrowserViewModel {
@@ -263,6 +264,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	private _zoomHost: string | undefined = undefined;
 	private _sharedWithAgent: boolean = false;
 	private _browserZoomIndex: number = browserZoomDefaultIndex;
+	private _isElementSelectionActive: boolean = false;
 
 	private readonly _onDidChangeSharingState = this._register(new Emitter<BrowserViewSharingState>());
 	readonly onDidChangeSharingState: Event<BrowserViewSharingState> = this._onDidChangeSharingState.event;
@@ -304,6 +306,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		this._certificateError = initialState.certificateError;
 		this._storageScope = initialState.storageScope;
 		this._browserZoomIndex = initialState.browserZoomIndex;
+		this._isElementSelectionActive = initialState.isElementSelectionActive;
 		this._isEphemeral = this._storageScope === BrowserViewStorageScope.Ephemeral;
 		this._zoomHost = parseZoomHost(this._url);
 
@@ -375,6 +378,10 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 
 		this._register(this.onDidChangeVisibility(({ visible }) => {
 			this._visible = visible;
+		}));
+
+		this._register(this.onDidChangeElementSelectionActive(active => {
+			this._isElementSelectionActive = active;
 		}));
 
 		this._register(this.playwrightService.onDidChangeTrackedPages(ids => {
@@ -566,12 +573,20 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		return this.browserViewService.getConsoleLogs(this.id);
 	}
 
-	async getElementData(token: CancellationToken): Promise<IElementData | undefined> {
-		return this._wrapCancellable(token, (cid) => this.browserViewService.getElementData(this.id, cid));
+	get isElementSelectionActive(): boolean {
+		return this._isElementSelectionActive;
 	}
 
-	async getFocusedElementData(): Promise<IElementData | undefined> {
-		return this.browserViewService.getFocusedElementData(this.id);
+	async toggleElementSelection(enabled?: boolean): Promise<void> {
+		return this.browserViewService.toggleElementSelection(this.id, enabled);
+	}
+
+	get onDidSelectElement(): Event<IElementData> {
+		return this.browserViewService.onDynamicDidSelectElement(this.id);
+	}
+
+	get onDidChangeElementSelectionActive(): Event<boolean> {
+		return this.browserViewService.onDynamicDidChangeElementSelectionActive(this.id);
 	}
 
 	private static readonly SHARE_DONT_ASK_KEY = 'browserView.shareWithAgent.dontAskAgain';
@@ -649,19 +664,6 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		if (isShared !== this._sharedWithAgent) {
 			this._sharedWithAgent = isShared;
 			this._onDidChangeSharingState.fire(this.sharingState);
-		}
-	}
-
-	private static _cancellationIdPool = 0;
-	private async _wrapCancellable<T>(token: CancellationToken, callback: (cancellationId: number) => Promise<T>): Promise<T> {
-		const cancellationId = BrowserViewModel._cancellationIdPool++;
-		const disposable = token.onCancellationRequested(() => {
-			this.browserViewService.cancel(cancellationId);
-		});
-		try {
-			return await callback(cancellationId);
-		} finally {
-			disposable.dispose();
 		}
 	}
 

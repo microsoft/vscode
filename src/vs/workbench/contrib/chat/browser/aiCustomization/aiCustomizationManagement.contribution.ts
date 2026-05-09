@@ -30,6 +30,7 @@ import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../../browser/e
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
 import { EditorExtensions, IEditorFactoryRegistry, IEditorSerializer } from '../../../../common/editor.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
+import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../services/agentHost/common/agentHostFileSystemService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IWorkbenchExtensionManagementService } from '../../../../services/extensionManagement/common/extensionManagement.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
@@ -44,6 +45,7 @@ import { IChatWidgetService } from '../chat.js';
 import { AgentPluginItemKind } from '../agentPluginEditor/agentPluginItems.js';
 import {
 	AI_CUSTOMIZATION_ITEM_DISABLED_KEY,
+	AI_CUSTOMIZATION_ITEM_PLUGIN_URI_KEY,
 	AI_CUSTOMIZATION_ITEM_STORAGE_KEY,
 	AI_CUSTOMIZATION_ITEM_TYPE_KEY,
 	AI_CUSTOMIZATION_ITEM_URI_KEY,
@@ -449,8 +451,16 @@ const WHEN_ITEM_IS_DELETABLE = ContextKeyExpr.and(
 
 /**
  * When clause that shows an action only for plugin items.
+ *
+ * Synced customizations are bundled into a synthetic plugin (under the
+ * `vscode-synced-customization:` scheme) as an implementation detail of the
+ * sync mechanism. Their plugin identity is not user-facing, so we hide
+ * plugin-related actions ("Show Plugin", "Uninstall Plugin") for them.
  */
-const WHEN_ITEM_IS_PLUGIN = ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_STORAGE_KEY, PromptsStorage.plugin);
+const WHEN_ITEM_IS_PLUGIN = ContextKeyExpr.and(
+	ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_STORAGE_KEY, PromptsStorage.plugin),
+	ContextKeyExpr.regex(AI_CUSTOMIZATION_ITEM_PLUGIN_URI_KEY, new RegExp(`^${SYNCED_CUSTOMIZATION_SCHEME}:`)).negate(),
+);
 
 // Register context menu items
 
