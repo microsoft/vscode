@@ -29,12 +29,19 @@ export class ReviewAgent extends BaseAgent {
 			const systemPrompt = this.buildSystemPrompt(this.getRoleDescription());
 			const userMessage = this.buildReviewPrompt(context, reviewContext);
 
+			// H7 — opt into confidence-driven escalation. Hedging review
+			// verdicts ("I think this looks OK", "I'm not entirely sure")
+			// retry on a stronger model before being surfaced. Cheap to
+			// escalate (one extra Sonnet/Opus call), high signal value: a
+			// review the harness uses to decide whether to retry a
+			// specialist's work shouldn't ship if the reviewer was hedging.
 			const { text, tokenUsage } = await this.callLlm(
 				task.id,
 				this.defaultModel,
 				systemPrompt,
 				userMessage,
 				context.onToken,
+				{ escalateOnUncertainty: true },
 			);
 
 			tokenUsage.naiveInputTokens = context.scopeFiles.length * 5000;

@@ -154,12 +154,18 @@ export class CiRetryAgent extends BaseAgent {
 			'Return a JSON array of failures with: type (test|build|lint|flaky|unknown), stage, message.',
 		].join('\n'));
 
+		// H7 — Haiku classifier escalates to Sonnet on uncertainty. Ambiguous
+		// CI logs ("might be a flaky test", "could be a transient build
+		// failure") get a stronger second pass before the orchestrator acts
+		// on the classification. Cheap because escalation only fires when
+		// the score crosses 0.5 — most logs classify cleanly on Haiku.
 		const { text } = await this.callLlm(
 			taskId,
 			'haiku',
 			systemPrompt,
 			`Classify these CI failures:\n\n${logs.slice(0, 20000)}`,
 			onToken,
+			{ escalateOnUncertainty: true },
 		);
 
 		try {

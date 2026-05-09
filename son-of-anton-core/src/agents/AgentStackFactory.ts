@@ -5,6 +5,8 @@
 
 import type { MementoStore, ProjectContextProvider } from '../host';
 import { LlmClient } from '../llm/LlmClient';
+import { ModelRouter } from '../llm/ModelRouter';
+import { PromptCacheOptimizer } from '../llm/PromptCacheOptimizer';
 import { McpClient } from '../mcp/McpClient';
 import type { ToolExecutionContext } from '../tools/types';
 import { AgentManager } from './AgentManager';
@@ -156,6 +158,30 @@ export interface AgentStack {
 	readonly metricsTracker: MetricsTracker;
 	readonly projectMemory: ProjectMemory;
 	readonly specialistMemory: SpecialistMemory;
+	/**
+	 * Optional. Surfaces the per-process prompt-cache metrics collected via
+	 * `LlmClient` so hosts (CLI `sota traces`, IDE "Show Harness Stats") can
+	 * render `formatSummary()` without instantiating their own optimizer.
+	 *
+	 * Currently the factory does not wire metric ingestion into this instance —
+	 * BaseAgent records cache hits via its own collaborators today — so the
+	 * value is mostly useful as a stable "where would I read these stats" hook
+	 * for harness phase H16. A future pass should route LlmClient cache events
+	 * through this instance so the snapshot is non-empty at runtime.
+	 */
+	readonly cacheOptimizer: PromptCacheOptimizer;
+	/**
+	 * Optional. Surfaces the per-process model-router state (routing rules,
+	 * active A/B experiments, task analysis) so hosts can render
+	 * `formatSummary()` without instantiating their own router.
+	 *
+	 * Same caveat as `cacheOptimizer`: today BaseAgent's escalation ladder
+	 * uses an ad-hoc `new ModelRouter()` for stateless lookups, so the
+	 * snapshot exposed here only contains the default routing rules unless a
+	 * caller has fed trials into it. Centralising router state on the stack
+	 * is tracked for a follow-up phase.
+	 */
+	readonly modelRouter: ModelRouter;
 	dispose(): void;
 }
 
@@ -190,6 +216,13 @@ export function createAgentStack(deps: {
 }): AgentStack {
 	const { llmClient, mcpClient, agentManager, globalState, workspaceRoot, projectContext, toolExecutionContext } = deps;
 	const metricsTracker = new MetricsTracker();
+	// H16 — surface a single PromptCacheOptimizer + ModelRouter on the stack
+	// so the CLI (`sota traces`) and IDE ("Show Harness Stats" palette command)
+	// have a stable read-side handle for `formatSummary()`. Both are
+	// parameterless and cheap to instantiate; this does not change the
+	// existing call paths that record metrics into other instances.
+	const cacheOptimizer = new PromptCacheOptimizer();
+	const modelRouter = new ModelRouter();
 	const projectMemory = new ProjectMemory();
 	projectMemory.setWorkspaceRoot(workspaceRoot);
 	const specialistMemory = new SpecialistMemory(globalState);
@@ -307,6 +340,8 @@ export function createAgentStack(deps: {
 		metricsTracker,
 		projectMemory,
 		specialistMemory,
+		cacheOptimizer,
+		modelRouter,
 		dispose(): void {
 			specialistMemory.dispose();
 			metricsTracker.persistMetrics(workspaceRoot).catch(err => {
