@@ -14,7 +14,6 @@ import product from '../product.json' with { type: 'json' };
 import { getVersion } from './lib/getVersion.ts';
 import * as task from './lib/task.ts';
 import * as util from './lib/util.ts';
-import type { EmbeddedProductInfo } from './lib/embeddedType.ts';
 
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
@@ -111,25 +110,6 @@ function buildWin32Setup(arch: string, target: string): task.CallbackTask {
 			VersionedResourcesFolder: versionedResourcesFolder,
 			Quality: quality
 		};
-
-		const isInsiderOrExploration = quality === 'insider' || quality === 'exploration';
-		const embedded = isInsiderOrExploration
-			? (product as typeof product & { embedded?: EmbeddedProductInfo }).embedded
-			: undefined;
-
-		if (embedded) {
-			// VS Code's sibling is the embedded app.
-			productJson['win32SiblingExeBasename'] = embedded.nameShort;
-			// The embedded app's sibling is VS Code.
-			if (productJson['embedded']) {
-				productJson['embedded']['win32SiblingExeBasename'] = product.nameShort;
-			}
-			definitions['ProxyExeBasename'] = embedded.nameShort;
-			definitions['ProxyAppUserId'] = embedded.win32AppUserModelId;
-			definitions['ProxyNameLong'] = embedded.nameLong;
-			definitions['ProxyExeUrlProtocol'] = embedded.urlProtocol;
-			definitions['ProxyMutex'] = embedded.win32MutexName;
-		}
 
 		if (quality === 'stable' || quality === 'insider') {
 			definitions['AppxPackage'] = `${quality === 'stable' ? 'code' : 'code_insider'}_${arch}.appx`;

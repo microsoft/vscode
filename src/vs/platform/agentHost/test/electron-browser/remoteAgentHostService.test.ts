@@ -8,6 +8,8 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
+import { IEnvironmentService } from '../../../environment/common/environment.js';
+import { URI } from '../../../../base/common/uri.js';
 import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
 import { IConfigurationService, type IConfigurationChangeEvent } from '../../../configuration/common/configuration.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
@@ -16,6 +18,17 @@ import { RemoteAgentHostService } from '../../browser/remoteAgentHostServiceImpl
 import { parseRemoteAgentHostInput, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, RemoteAgentHostsSettingId, entryToRawEntry, type IRawRemoteAgentHostEntry, type IRemoteAgentHostEntry } from '../../common/remoteAgentHostService.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority } from '../../common/agentHostUri.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
+
+// ---- Mock transport ---------------------------------------------------------
+
+class MockTransport extends Disposable {
+	readonly onMessage = Event.None;
+	readonly onClose = Event.None;
+	readonly onOpen = Event.None;
+	readonly isOpen = false;
+	connect(): Promise<void> { return Promise.resolve(); }
+	send(): boolean { return true; }
+}
 
 // ---- Mock protocol client ---------------------------------------------------
 
@@ -111,6 +124,7 @@ suite('RemoteAgentHostService', () => {
 
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IEnvironmentService, { logsHome: URI.file('/logs') } as Partial<IEnvironmentService>);
 		instantiationService.stub(IConfigurationService, configService as Partial<IConfigurationService>);
 		registeredFormatters = [];
 		instantiationService.stub(ILabelService, {
@@ -125,9 +139,17 @@ suite('RemoteAgentHostService', () => {
 			},
 		} as Partial<ILabelService>);
 
-		// Mock the instantiation service to capture created protocol clients
+		// Mock the instantiation service to capture created protocol clients.
+		// `_connectTo` calls `createInstance` for both `WebSocketClientTransport` and
+		// `RemoteAgentHostProtocolClient`. We only care about tracking the protocol
+		// client; for the transport we return a no-op disposable so the test can
+		// continue to assert on `createdClients.length`.
 		const mockInstantiationService: Partial<IInstantiationService> = {
-			createInstance: (_ctor: unknown, ...args: unknown[]) => {
+			createInstance: (ctor: unknown, ...args: unknown[]) => {
+				const ctorName = (ctor as { name?: string }).name;
+				if (ctorName === 'WebSocketClientTransport') {
+					return disposables.add(new MockTransport());
+				}
 				const client = new MockProtocolClient(args[0] as string);
 				disposables.add(client);
 				createdClients.push(client);

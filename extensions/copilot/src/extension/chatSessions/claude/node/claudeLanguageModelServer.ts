@@ -228,7 +228,8 @@ export class ClaudeLanguageModelServer extends Disposable {
 				finishedCb: async () => undefined,
 				location: ChatLocation.MessagesProxy,
 				modelCapabilities: { enableThinking: true, reasoningEffort },
-				userInitiatedRequest: isUserInitiatedMessage
+				userInitiatedRequest: isUserInitiatedMessage,
+				turnId: sessionId ? this.sessionStateService.getTurnIdForSession(sessionId) : undefined,
 			}, tokenSource.token);
 
 			// Wrap in trace context so chat spans are parented to the invoke_agent span

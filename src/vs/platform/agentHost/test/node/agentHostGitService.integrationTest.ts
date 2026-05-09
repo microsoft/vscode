@@ -380,6 +380,7 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 			await svc!.addWorktree(URI.file(dir), URI.file(wtPath), 'agents/test-origin-start-point', 'main');
 			const stat = await fs.stat(join(wtPath, 'upstream.txt'));
 			assert.ok(stat.isFile(), 'worktree should start from origin/main, not stale local main');
+			assert.throws(() => cp.execFileSync('git', ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'], { cwd: wtPath, env, stdio: 'pipe' }), /fatal:/);
 		} finally {
 			try { await svc!.removeWorktree(URI.file(dir), URI.file(wtPath)); } catch { /* best-effort cleanup */ }
 			rmSync(wtPath, { recursive: true, force: true });

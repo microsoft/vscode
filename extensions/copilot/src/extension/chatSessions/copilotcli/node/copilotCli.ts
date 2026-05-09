@@ -355,11 +355,7 @@ export class CopilotCLIAgents extends Disposable implements ICopilotCLIAgents {
 		if (agentId === COPILOT_CLI_DEFAULT_AGENT_ID) {
 			return '';
 		}
-		if (typeof agentId === 'string') {
-			return agentId;
-		}
-		const agents = await this.getAgents();
-		return agents.find(a => a.agent.name.toLowerCase() === agentId)?.agent.name;
+		return agentId;
 	}
 
 	async resolveAgent(agentId: string): Promise<SweCustomAgent | undefined> {

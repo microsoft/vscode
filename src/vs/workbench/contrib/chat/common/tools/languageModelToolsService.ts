@@ -209,6 +209,12 @@ export interface IToolInvocation {
 
 export interface IToolInvocationContext {
 	readonly sessionResource: URI;
+	/**
+	 * The working directory URI associated with this session.
+	 * Only set in the agents window context where each session can
+	 * have its own working directory that differs from the workspace folders.
+	 */
+	readonly workingDirectory?: URI;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -226,6 +232,11 @@ export interface IToolInvocationPreparationContext {
 	modelId?: string;
 	/** If set, tells the tool that it should include confirmation messages. */
 	forceConfirmationReason?: string;
+	/**
+	 * The working directory URI for the session, if set.
+	 * Used by tools to resolve relative paths and check file access.
+	 */
+	workingDirectory?: URI;
 }
 
 export type ToolInputOutputBase = {

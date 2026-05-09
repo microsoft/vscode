@@ -190,7 +190,7 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 				}
 			}],
 			reporter: { id: 'ChatPermissionPicker', name: 'ChatPermissionPicker', includeOptions: true },
-			listOptions: { minWidth: 255 },
+			listOptions: { minWidth: 255, detailItemHeight: 44 },
 		}, pickerOptions, actionWidgetService, keybindingService, contextKeyService, telemetryService);
 	}
 

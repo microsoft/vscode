@@ -366,12 +366,12 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 					return this._isEmpty;
 				}
 
-				async getChildren(element?: ITreeItem): Promise<ITreeItem[] | undefined> {
+				async getChildren(element?: ITreeItem): Promise<readonly ITreeItem[] | undefined> {
 					const batches = await this.getChildrenBatch(element ? [element] : undefined);
 					return batches?.[0];
 				}
 
-				private updateEmptyState(nodes: ITreeItem[], childrenGroups: ITreeItem[][]): void {
+				private updateEmptyState(nodes: ITreeItem[], childrenGroups: (readonly ITreeItem[])[]): void {
 					if ((nodes.length === 1) && (nodes[0] instanceof Root)) {
 						const oldEmpty = this._isEmpty;
 						this._isEmpty = (childrenGroups.length === 0) || (childrenGroups[0].length === 0);
@@ -381,7 +381,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 					}
 				}
 
-				private findCheckboxesUpdated(nodes: ITreeItem[], childrenGroups: ITreeItem[][]): ITreeItem[] {
+				private findCheckboxesUpdated(nodes: ITreeItem[], childrenGroups: (readonly ITreeItem[])[]): ITreeItem[] {
 					if (childrenGroups.length === 0) {
 						return [];
 					}
@@ -401,8 +401,8 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 					return checkboxesUpdated;
 				}
 
-				async getChildrenBatch(nodes?: ITreeItem[]): Promise<ITreeItem[][]> {
-					let childrenGroups: ITreeItem[][];
+				async getChildrenBatch(nodes?: ITreeItem[]): Promise<(readonly ITreeItem[])[]> {
+					let childrenGroups: (readonly ITreeItem[])[];
 					let checkboxesUpdated: ITreeItem[] = [];
 					if (nodes?.every((node): node is Required<ITreeItem & { children: ITreeItem[] }> => !!node.children)) {
 						childrenGroups = nodes.map(node => node.children);
@@ -1172,7 +1172,7 @@ class TreeViewDelegate implements IListVirtualDelegate<ITreeItem> {
 	}
 }
 
-async function doGetChildrenOrBatch(dataProvider: ITreeViewDataProvider, nodes: ITreeItem[] | undefined): Promise<ITreeItem[][] | undefined> {
+async function doGetChildrenOrBatch(dataProvider: ITreeViewDataProvider, nodes: ITreeItem[] | undefined): Promise<(readonly ITreeItem[])[] | undefined> {
 	if (dataProvider.getChildrenBatch) {
 		return dataProvider.getChildrenBatch(nodes);
 	} else {
@@ -1197,8 +1197,8 @@ class TreeDataSource implements IAsyncDataSource<ITreeItem, ITreeItem> {
 	}
 
 	private batch: ITreeItem[] | undefined;
-	private batchPromise: Promise<ITreeItem[][] | undefined> | undefined;
-	async getChildren(element: ITreeItem): Promise<ITreeItem[]> {
+	private batchPromise: Promise<(readonly ITreeItem[])[] | undefined> | undefined;
+	async getChildren(element: ITreeItem): Promise<readonly ITreeItem[]> {
 		const dataProvider = this.treeView.dataProvider;
 		if (!dataProvider) {
 			return [];
@@ -1210,7 +1210,7 @@ class TreeDataSource implements IAsyncDataSource<ITreeItem, ITreeItem> {
 			this.batch.push(element);
 		}
 		const indexInBatch = this.batch.length - 1;
-		return new Promise<ITreeItem[]>((resolve, reject) => {
+		return new Promise<readonly ITreeItem[]>((resolve, reject) => {
 			setTimeout(async () => {
 				const batch = this.batch;
 				this.batch = undefined;

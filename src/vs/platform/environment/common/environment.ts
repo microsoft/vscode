@@ -84,7 +84,6 @@ export interface IEnvironmentService {
 	extensionLogLevel?: [string, string][];
 	verbose: boolean;
 	isBuilt: boolean;
-	isEmbeddedApp?: boolean;
 
 	// --- telemetry/exp
 	disableTelemetry: boolean;
@@ -93,43 +92,6 @@ export interface IEnvironmentService {
 
 	// --- agent sessions workspace
 	agentSessionsWorkspace?: URI;
-
-	/**
-	 * When running as the embedded app, the user roaming data home of
-	 * the host VS Code application (i.e. the default profile's settings/User
-	 * directory). `undefined` when not running as embedded.
-	 */
-	readonly parentAppUserRoamingDataHome?: URI;
-
-	/**
-	 * When running as the embedded app, the data home of the host
-	 * VS Code application (e.g. `~/.vscode-insiders`). This identifies the
-	 * host application's home/data directory and is used alongside other
-	 * host-specific paths such as `hostUserRoamingDataHome` and
-	 * `hostExtensionsHome`. `undefined` when not running as embedded.
-	 */
-	readonly parentAppUserHome?: URI;
-
-	/**
-	 * When running as the embedded app, the extensions directory of
-	 * the host VS Code application. `undefined` when not running as embedded.
-	 */
-	readonly parentAppExtensionsHome?: URI;
-
-	/**
-	 * When running as the embedded app, the short display name of the
-	 * parent VS Code application (e.g. "VS Code Insiders").
-	 * `undefined` when not running as embedded.
-	 */
-	readonly parentAppNameShort?: string;
-
-	/**
-	 * When running as the embedded app, the long display name of the
-	 * parent VS Code application (e.g. "Visual Studio Code Insiders").
-	 * `undefined` when not running as embedded.
-	 */
-	readonly parentAppNameLong?: string;
-
 	// --- Policy
 	policyFile?: URI;
 

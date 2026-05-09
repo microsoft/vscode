@@ -12,6 +12,16 @@ import type { CompletionItem, CompletionItemKind, CompletionsParams, Completions
 export const IAgentHostCompletions = createDecorator<IAgentHostCompletions>('agentHostCompletions');
 
 /**
+ * Well-known completion trigger characters announced to clients in the
+ * `initialize` handshake. Clients SHOULD issue a `completions` request when
+ * the user types one of these characters in a {@link UserMessage} input.
+ */
+export const enum CompletionTriggerCharacter {
+	/** File reference, used for `@`-mentions handled by the file completion provider. */
+	File = '@',
+}
+
+/**
  * Pluggable provider that contributes {@link CompletionItem}s for one or
  * more {@link CompletionItemKind}s.
  *
@@ -22,6 +32,13 @@ export const IAgentHostCompletions = createDecorator<IAgentHostCompletions>('age
 export interface IAgentHostCompletionItemProvider {
 	/** Completion kinds this provider handles. Providers are skipped for any other kind. */
 	readonly kinds: ReadonlySet<CompletionItemKind>;
+
+	/**
+	 * Characters that, when typed by the user, should trigger a request for
+	 * this provider's completions. Aggregated across all registered providers
+	 * and announced to clients via `InitializeResult.completionTriggerCharacters`.
+	 */
+	readonly triggerCharacters?: readonly string[];
 
 	/**
 	 * Compute completion items for the given input.
@@ -45,6 +62,12 @@ export interface IAgentHostCompletions {
 	readonly _serviceBrand: undefined;
 
 	/**
+	 * Aggregated, deduplicated trigger characters from every registered
+	 * provider. Used to populate `InitializeResult.completionTriggerCharacters`.
+	 */
+	readonly triggerCharacters: readonly string[];
+
+	/**
 	 * Register a completion provider. The returned {@link IDisposable} unregisters
 	 * the provider when disposed.
 	 */
@@ -65,6 +88,18 @@ export class AgentHostCompletions extends Disposable implements IAgentHostComple
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
+	}
+
+	get triggerCharacters(): readonly string[] {
+		const seen = new Set<string>();
+		for (const provider of this._providers) {
+			if (provider.triggerCharacters) {
+				for (const ch of provider.triggerCharacters) {
+					seen.add(ch);
+				}
+			}
+		}
+		return [...seen];
 	}
 
 	registerProvider(provider: IAgentHostCompletionItemProvider): IDisposable {
