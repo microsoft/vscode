@@ -3,20 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { decodeBase64 } from '../../../../../../base/common/buffer.js';
 import { escapeMarkdownLinkLabel, IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { marked, type Token, type Tokens, type TokensList } from '../../../../../../base/common/marked/marked.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { ToolCallStatus, TurnState, ResponsePartKind, getToolFileEdits, getToolOutputText, getToolSubagentContent, type ActiveTurn, type ICompletedToolCall, type ToolCallState, type Turn, FileEditKind, ToolResultContentType, type ToolResultContent } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { getToolKind } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { AGENT_HOST_SCHEME, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
-import { type FileEdit, type StringOrMarkdown } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { MessageAttachmentKind, type FileEdit, type MessageAttachment, type StringOrMarkdown, type TextRange, type UserMessage } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { type IChatModifiedFilesConfirmationData, type IChatProgress, type IChatSearchToolInvocationData, type IChatTerminalToolInvocationData, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { type IChatSessionHistoryItem } from '../../../common/chatSessionsService.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
+import { type IChatRequestVariableData } from '../../../common/model/chatModel.js';
+import type { IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { type IToolConfirmationMessages, type IToolData, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { basename, isEqual } from '../../../../../../base/common/resources.js';
 import { hasKey } from '../../../../../../base/common/types.js';
 import { localize } from '../../../../../../nls.js';
+import type { IRange } from '../../../../../../editor/common/core/range.js';
 
 /**
  * Constructs a terminal tool session ID from a terminal URI and backend session.
@@ -117,7 +122,7 @@ export interface TurnModelLookup {
  * The `lookup` callback is responsible for any session-level fallback (e.g.
  * `summary.model?.id` when usage hasn't reported a model yet).
  */
-export function turnsToHistory(backendSession: URI, turns: readonly Turn[], participantId: string, connectionAuthority: string | undefined, lookup?: TurnModelLookup): IChatSessionHistoryItem[] {
+export function turnsToHistory(backendSession: URI, turns: readonly Turn[], participantId: string, connectionAuthority: string, lookup?: TurnModelLookup): IChatSessionHistoryItem[] {
 	const history: IChatSessionHistoryItem[] = [];
 	for (const turn of turns) {
 		const rawModelId = turn.usage?.model;
@@ -125,7 +130,8 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 		const modelName = lookup?.toModelDisplayName(rawModelId);
 
 		// Request
-		history.push({ id: turn.id, type: 'request', prompt: turn.userMessage.text, participant: participantId, modelId });
+		const variableData = userMessageToVariableData(turn.userMessage, connectionAuthority);
+		history.push({ id: turn.id, type: 'request', prompt: turn.userMessage.text, participant: participantId, modelId, variableData });
 
 		// Response parts — iterate the unified responseParts array
 		const parts: IChatProgress[] = [];
@@ -168,6 +174,105 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 		history.push({ type: 'response', parts, participant: participantId, details: modelName });
 	}
 	return history;
+}
+
+/**
+ * Converts a turn's persisted {@link UserMessage} into the chat-layer
+ * {@link IChatRequestVariableData} shape so attachments survive a
+ * history replay (and pending/server-initiated turn synthesis). Returns
+ * `undefined` when the message has no convertible attachments.
+ */
+export function userMessageToVariableData(userMessage: UserMessage, connectionAuthority: string): IChatRequestVariableData | undefined {
+	return messageAttachmentsToVariableData(userMessage.attachments, connectionAuthority);
+}
+
+export function messageAttachmentsToVariableData(attachments: readonly MessageAttachment[] | undefined, connectionAuthority: string): IChatRequestVariableData | undefined {
+	if (!attachments?.length) {
+		return undefined;
+	}
+	const variables: IChatRequestVariableEntry[] = [];
+	for (const a of attachments) {
+		const v = messageAttachmentToVariableEntry(a, connectionAuthority);
+		if (v) {
+			variables.push(v);
+		}
+	}
+	return variables.length > 0 ? { variables } : undefined;
+}
+
+function messageAttachmentToVariableEntry(attachment: MessageAttachment, connectionAuthority: string): IChatRequestVariableEntry | undefined {
+	if (attachment.type === MessageAttachmentKind.Resource) {
+		const uri = toAgentHostUri(URI.parse(attachment.uri), connectionAuthority);
+		const name = attachment.label;
+		const id = uri.toString() + (attachment.selection
+			? `:${attachment.selection.range.start.line}-${attachment.selection.range.end.line}`
+			: '');
+		const _meta = attachment._meta;
+
+		if (attachment.displayKind === 'directory') {
+			return { kind: 'directory', id, name, value: uri, _meta };
+		}
+		if (attachment.displayKind === 'image') {
+			return {
+				kind: 'image',
+				id,
+				name,
+				value: uri,
+				isURL: true,
+				references: [{ kind: 'reference', reference: uri }],
+				_meta,
+			};
+		}
+		if (attachment.selection) {
+			return {
+				kind: 'file',
+				id,
+				name,
+				value: { uri, range: textRangeToIRange(attachment.selection.range) },
+				_meta,
+			};
+		}
+		return { kind: 'file', id, name, value: uri, _meta };
+	}
+
+	if (attachment.type === MessageAttachmentKind.EmbeddedResource) {
+		if (!attachment.contentType.startsWith('image/')) {
+			return {
+				kind: 'generic',
+				id: generateUuid(),
+				name: attachment.label,
+				value: decodeBase64(attachment.data).buffer,
+				_meta: attachment._meta,
+			};
+		}
+
+		return {
+			kind: 'image',
+			id: generateUuid(),
+			name: attachment.label || 'image',
+			value: decodeBase64(attachment.data).buffer,
+			mimeType: attachment.contentType,
+			isURL: false,
+			_meta: attachment._meta,
+		};
+	}
+
+	return {
+		kind: 'generic',
+		id: generateUuid(),
+		name: attachment.label,
+		value: attachment.modelRepresentation || attachment.label,
+		_meta: attachment._meta,
+	};
+}
+
+function textRangeToIRange(range: TextRange): IRange {
+	return {
+		startLineNumber: range.start.line + 1,
+		startColumn: range.start.character + 1,
+		endLineNumber: range.end.line + 1,
+		endColumn: range.end.character + 1,
+	};
 }
 
 /**

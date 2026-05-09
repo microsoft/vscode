@@ -479,7 +479,7 @@
 	opacity: 0.6;
 }
 
-/* Shared inline badge style — used by MCP "Bridged" badge and item badges */
+/* Shared inline badge style — used for item badges */
 .inline-badge {
 	flex-shrink: 0;
 	font-size: 10px;
@@ -510,7 +510,7 @@
 	margin-right: 4px;
 }
 
-/* MCP bridged badge — shown inline next to the server name */
+/* MCP server name row — inline layout for the server name */
 .mcp-server-item .mcp-server-name-row {
 	display: flex;
 	align-items: center;

@@ -66,12 +66,20 @@ export class OpenRouterLMProvider extends AbstractOpenAICompatibleLMProvider {
 
 	protected override resolveModelCapabilities(modelData: unknown): BYOKModelCapabilities | undefined {
 		const openRouterModelData = modelData as OpenRouterModelData;
+		const supportedParameters = openRouterModelData.supported_parameters ?? [];
+		// OpenRouter reports reasoning support per model via `supported_parameters`. The unified `reasoning` parameter and
+		// the OpenAI-style `reasoning_effort` alias both indicate the model accepts an effort level.
+		// See https://openrouter.ai/docs/use-cases/reasoning-tokens
+		const supportsReasoningEffort = supportedParameters.includes('reasoning') || supportedParameters.includes('reasoning_effort')
+			? ['low', 'medium', 'high']
+			: undefined;
 		return {
 			name: openRouterModelData.name,
-			toolCalling: openRouterModelData.supported_parameters?.includes('tools') ?? false,
+			toolCalling: supportedParameters.includes('tools'),
 			vision: openRouterModelData.architecture?.input_modalities?.includes('image') ?? false,
 			maxInputTokens: openRouterModelData.top_provider.context_length - 16000,
-			maxOutputTokens: 16000
+			maxOutputTokens: 16000,
+			supportsReasoningEffort
 		};
 	}
 

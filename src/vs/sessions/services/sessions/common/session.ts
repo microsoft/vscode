@@ -52,6 +52,16 @@ export const ClaudeCodeSessionType: ISessionType = {
 	icon: Codicon.claude,
 };
 
+/** Session type ID for local VS Code chat sessions (in-process, no worktree). */
+export const LOCAL_SESSION_TYPE = 'local';
+
+/** Local session type — in-process VS Code chat, no background agent or worktree. */
+export const LocalSessionType: ISessionType = {
+	id: LOCAL_SESSION_TYPE,
+	label: localize('localSession', "Local"),
+	icon: Codicon.vm,
+};
+
 /**
  * Returns whether the given session type represents a workspace-backed
  * agent (e.g. Copilot CLI, Claude Code) that operates on a worktree or
@@ -211,7 +221,7 @@ export interface ISession {
 	readonly resource: URI;
 	/** ID of the provider that owns this session. */
 	readonly providerId: string;
-	/** Session type ID (e.g., 'copilot-cli', 'copilot-cloud'). */
+	/** Session type ID (e.g., 'copilot-cli', 'copilot-cloud', 'local'). */
 	readonly sessionType: string;
 	/** Icon for this session. */
 	readonly icon: ThemeIcon;

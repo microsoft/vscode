@@ -3438,7 +3438,11 @@
         "git.confirmSync": {
           "type": "boolean",
           "description": "%config.confirmSync%",
-          "default": true
+          "default": true,
+          "agentsWindow": {
+            "default": false,
+            "readOnly": true
+          }
         },
         "git.confirmCommittedDelete": {
           "type": "boolean",

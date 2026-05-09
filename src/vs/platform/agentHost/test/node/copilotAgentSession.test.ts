@@ -17,11 +17,11 @@ import { IFileService } from '../../../files/common/files.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
-import { AgentAttachmentType, AgentSession, type AgentSignal, type IAgentActionSignal, type IAgentToolPendingConfirmationSignal } from '../../common/agentService.js';
+import { AgentSession, type AgentSignal, type IAgentActionSignal, type IAgentToolPendingConfirmationSignal } from '../../common/agentService.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType, type SessionDeltaAction, type SessionErrorAction, type SessionInputRequestedAction, type SessionResponsePartAction, type SessionToolCallCompleteAction, type SessionToolCallReadyAction, type SessionToolCallStartAction } from '../../common/state/sessionActions.js';
-import { ResponsePartKind, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, ToolResultContentType } from '../../common/state/sessionState.js';
+import { MessageAttachmentKind, ResponsePartKind, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, ToolResultContentType } from '../../common/state/sessionState.js';
 import { CopilotAgentSession, IActiveClientSnapshot, SessionWrapperFactory } from '../../node/copilot/copilotAgentSession.js';
 import { CopilotSessionWrapper } from '../../node/copilot/copilotSessionWrapper.js';
 import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
@@ -272,14 +272,17 @@ suite('CopilotAgentSession', () => {
 		});
 
 		await session.send('hello', [
-			{ type: AgentAttachmentType.File, uri: fileUri, displayName: 'file.ts' },
+			{ type: MessageAttachmentKind.Resource, uri: fileUri.toString(), label: 'file.ts', displayKind: 'document' },
 			{
-				type: AgentAttachmentType.Selection,
-				uri: selectionUri,
-				displayName: 'selection.ts',
+				type: MessageAttachmentKind.Resource,
+				uri: selectionUri.toString(),
+				label: 'selection.ts',
+				displayKind: 'selection',
 				selection: {
-					start: { line: 2, character: 3 },
-					end: { line: 2, character: 16 },
+					range: {
+						start: { line: 2, character: 3 },
+						end: { line: 2, character: 16 },
+					},
 				},
 			},
 		]);
@@ -347,10 +350,11 @@ suite('CopilotAgentSession', () => {
 			});
 
 			await session.send('hello', [{
-				type: AgentAttachmentType.Selection,
-				uri: selectionUri,
-				displayName: `${testCase.name}.ts`,
-				selection: testCase.selection,
+				type: MessageAttachmentKind.Resource,
+				uri: selectionUri.toString(),
+				label: `${testCase.name}.ts`,
+				displayKind: 'selection',
+				selection: { range: testCase.selection },
 			}]);
 
 			assert.deepStrictEqual(mockSession.sendRequests, [{
@@ -376,12 +380,15 @@ suite('CopilotAgentSession', () => {
 		});
 
 		await session.send('hello', [{
-			type: AgentAttachmentType.Selection,
-			uri: selectionUri,
-			displayName: 'missing.ts',
+			type: MessageAttachmentKind.Resource,
+			uri: selectionUri.toString(),
+			label: 'missing.ts',
+			displayKind: 'selection',
 			selection: {
-				start: { line: 0, character: 0 },
-				end: { line: 0, character: 5 },
+				range: {
+					start: { line: 0, character: 0 },
+					end: { line: 0, character: 5 },
+				},
 			},
 		}]);
 
