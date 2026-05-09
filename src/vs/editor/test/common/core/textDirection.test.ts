@@ -68,6 +68,20 @@ suite('TextDirection', () => {
 		assert.strictEqual(getConfiguredTextDirection('comment فارسی', 'auto-follow', TextDirection.RTL), TextDirection.LTR);
 	});
 
+	test('treats non-rtl scripts as ltr', () => {
+		assert.deepStrictEqual({
+			cyrillic: getConfiguredTextDirection('Привет', 'auto-follow', TextDirection.RTL),
+			greek: getConfiguredTextDirection('γειά', 'auto-follow', TextDirection.RTL),
+			japanese: getConfiguredTextDirection('こんにちは', 'auto-follow', TextDirection.RTL),
+			korean: getConfiguredTypingDirection('안녕하세요', 'auto-follow', TextDirection.RTL),
+		}, {
+			cyrillic: TextDirection.LTR,
+			greek: TextDirection.LTR,
+			japanese: TextDirection.LTR,
+			korean: TextDirection.LTR,
+		});
+	});
+
 	test('ignores leading whitespace during auto detection', () => {
 		assert.strictEqual(getConfiguredTextDirection('   فارسی', 'auto', TextDirection.LTR), TextDirection.RTL);
 	});
