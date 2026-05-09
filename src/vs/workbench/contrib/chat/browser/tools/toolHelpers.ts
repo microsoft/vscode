@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { joinPath } from '../../../../../base/common/resources.js';
 import { escapeRegExpCharacters } from '../../../../../base/common/strings.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
@@ -20,13 +21,19 @@ export interface ISymbolToolInput {
 
 /**
  * Resolves a URI from tool input. Accepts either a full URI string or a
- * workspace-relative file path.
+ * workspace-relative file path. When a {@link workingDirectory} is provided
+ * (agents window), relative paths are resolved against it first.
  */
-export function resolveToolUri(input: ISymbolToolInput, workspaceContextService: IWorkspaceContextService): URI | undefined {
+export function resolveToolUri(input: ISymbolToolInput, workspaceContextService: IWorkspaceContextService, workingDirectory?: URI): URI | undefined {
 	if (input.uri) {
 		return URI.parse(input.uri);
 	}
 	if (input.filePath) {
+		// Prefer the session's working directory when available (agents window)
+		if (workingDirectory) {
+			return joinPath(workingDirectory, input.filePath);
+		}
+
 		const folders = workspaceContextService.getWorkspace().folders;
 		if (folders.length === 1) {
 			return folders[0].toResource(input.filePath);

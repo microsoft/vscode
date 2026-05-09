@@ -10,6 +10,7 @@ import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
+import { IPosition } from '../../../../editor/common/core/position.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentRequest } from './participants/chatAgents.js';
 import { IChatEditingSession } from './editing/chatEditingService.js';
@@ -132,7 +133,31 @@ export interface IChatSessionItem {
 		readonly deletions: number;
 	} | readonly IChatSessionFileChange[] | readonly IChatSessionFileChange2[];
 	readonly archived?: boolean;
-	readonly metadata?: { readonly [key: string]: unknown };
+	readonly metadata?: IChatSessionItemMetadata;
+}
+
+export interface IChatSessionItemMetadata {
+	//#region Changes metadata (for sessions window)
+	readonly repositoryPath?: string;
+	readonly workingDirectoryPath?: string;
+	readonly firstCheckpointRef?: string;
+	readonly lastCheckpointRef?: string;
+	readonly worktreePath?: string;
+	readonly uncommittedChanges?: number;
+	readonly baseRefOid?: string;
+	readonly headRefOid?: string;
+	readonly branchName?: string;
+	readonly branch?: string;
+	readonly baseBranchName?: string;
+	readonly baseBranch?: string;
+	readonly baseBranchProtected?: boolean;
+	readonly hasGitHubRemote?: boolean;
+	readonly upstreamBranchName?: string;
+	readonly incomingChanges?: number;
+	readonly outgoingChanges?: number;
+	//#endregion
+
+	readonly [key: string]: unknown;
 }
 
 export interface IChatSessionFileChange {
@@ -223,7 +248,7 @@ export interface IChatSession extends IDisposable {
 	 * queued message). The consumer should create a new request+response pair in
 	 * the model and prepare to receive progress via {@link progressObs}.
 	 */
-	readonly onDidStartServerRequest?: Event<{ prompt: string }>;
+	readonly onDidStartServerRequest?: Event<{ prompt: string; variableData?: IChatRequestVariableData }>;
 
 	/**
 	 * Editing session transferred from a previously-untitled chat session in `onDidCommitChatSessionItem`.
@@ -252,6 +277,84 @@ export interface IChatSession extends IDisposable {
 
 export interface IChatSessionContentProvider {
 	provideChatSessionContent(sessionResource: URI, token: CancellationToken): Promise<IChatSession>;
+
+	/**
+	 * Optional. Compute completion items for an input being composed in this
+	 * session. Returning `undefined` lets the workbench fall back to its
+	 * default in-process completion providers.
+	 */
+	provideChatInputCompletions?(sessionResource: URI, params: IChatInputCompletionsParams, token: CancellationToken): Promise<IChatInputCompletionsResult | undefined>;
+
+	/**
+	 * Optional. Trigger characters that, when typed in the chat input,
+	 * SHOULD cause the workbench to issue a `provideChatInputCompletions`
+	 * request. Used to register a Monaco completion provider scoped to
+	 * sessions handled by this content provider.
+	 */
+	provideChatInputCompletionTriggerCharacters?(): Promise<readonly string[]>;
+}
+
+/**
+ * Inputs for {@link IChatSessionContentProvider.provideChatInputCompletions}
+ * and {@link IChatSessionsService.provideChatInputCompletions}.
+ */
+export interface IChatInputCompletionsParams {
+	/**
+	 * The complete text of the input being completed (e.g. the user message
+	 * the user is currently composing).
+	 */
+	readonly text: string;
+	/**
+	 * The character offset within {@link text} at which the completion is
+	 * requested, measured in UTF-16 code units. MUST satisfy
+	 * `0 <= offset <= text.length`.
+	 */
+	readonly offset: number;
+}
+
+/**
+ * A neutral completion-item shape returned by
+ * {@link IChatSessionContentProvider.provideChatInputCompletions}. The
+ * workbench-side completion glue maps these into Monaco completion items
+ * and the corresponding chat-input attachment.
+ */
+export interface IChatInputCompletionItem {
+	/** Text inserted into the input when this item is accepted. */
+	readonly insertText: string;
+	/**
+	 * Half-open range `[start, end)` in the *current* input text that
+	 * {@link insertText} replaces. Positions use 1-based `lineNumber` and
+	 * `column` to match Monaco. When omitted, the workbench replaces the
+	 * word at the cursor.
+	 */
+	readonly start?: IPosition;
+	readonly end?: IPosition;
+	/** Attachment associated with the item. */
+	readonly attachment: IChatInputCompletionAttachment;
+}
+
+/**
+ * Resource attachment associated with a completion item. The workbench
+ * adds it to the input's variable model when the item is accepted.
+ */
+export interface IChatInputCompletionAttachment {
+	readonly kind: 'resource';
+	readonly uri: URI;
+	readonly displayName?: string;
+	readonly isDirectory?: boolean;
+	/**
+	 * Implementation-defined metadata that MUST be preserved by the
+	 * workbench when the accepted completion is sent back as part of a
+	 * user message attachment.
+	 */
+	readonly _meta?: Record<string, unknown>;
+}
+
+/**
+ * Result of {@link IChatSessionContentProvider.provideChatInputCompletions}.
+ */
+export interface IChatInputCompletionsResult {
+	readonly items: readonly IChatInputCompletionItem[];
 }
 
 export interface IChatNewSessionRequest {
@@ -430,6 +533,25 @@ export interface IChatSessionsService {
 	registerChatSessionContentProvider(scheme: string, provider: IChatSessionContentProvider): IDisposable;
 	canResolveChatSession(sessionType: string): Promise<boolean>;
 	getOrCreateChatSession(sessionResource: URI, token: CancellationToken): Promise<IChatSession>;
+
+	/**
+	 * Compute completion items for an input being composed in the chat
+	 * session identified by `sessionResource`. Delegates to the registered
+	 * {@link IChatSessionContentProvider} for the session, if it implements
+	 * {@link IChatSessionContentProvider.provideChatInputCompletions}.
+	 * Returns `undefined` when no provider is available, in which case the
+	 * workbench's default in-process providers should be used.
+	 */
+	provideChatInputCompletions(sessionResource: URI, params: IChatInputCompletionsParams, token: CancellationToken): Promise<IChatInputCompletionsResult | undefined>;
+
+	/**
+	 * Trigger characters announced by the content provider for the given
+	 * session type. Used to dynamically register Monaco completion
+	 * providers per content-provider scheme. Returns `undefined` when the
+	 * scheme has no content provider, or `[]` when the provider does not
+	 * announce any trigger characters.
+	 */
+	getChatInputCompletionTriggerCharacters(sessionType: string): Promise<readonly string[] | undefined>;
 
 	getSessionOptions(sessionResource: URI): ReadonlyChatSessionOptionsMap | undefined;
 	getSessionOption(sessionResource: URI, optionId: string): string | IChatSessionProviderOptionItem | undefined;

@@ -10,14 +10,26 @@
 
 /* ===== Modern action label styling for sessions panel ===== */
 
-/* Hide the underline indicator for non-focused, non-checked items; keep it for focus-visible and checked */
-.agent-sessions-workbench .part.panel > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(:focus-visible):not(.checked) .active-item-indicator:before {
+/* Base label: lowercase text + heavier weight + pill padding */
+.agent-sessions-workbench .part.panel > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.icon) .action-label {
+	text-transform: capitalize;
+	font-weight: 500;
+	border-radius: 4px;
+	padding: 0px 8px;
+	font-size: 12px;
+	line-height: 22px;
+}
+
+.agent-sessions-workbench .part.panel > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item {
+	padding-left: 0;
+	padding-right: 0;
+}
+
+/* Hide the underline indicator for non-focused items, but keep it for keyboard focus */
+.agent-sessions-workbench .part.panel > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(:focus-visible) .active-item-indicator:before {
 	display: none !important;
 }
 .agent-sessions-workbench .part.panel > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:focus-visible .active-item-indicator:before {
-	display: block !important;
-}
-.agent-sessions-workbench .part.panel > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked .active-item-indicator:before {
 	display: block !important;
 }
 
@@ -27,8 +39,8 @@
 }
 
 .agent-sessions-workbench .part.panel > .title {
-	padding-left: 6px;
-	padding-right: 6px;
+	padding-left: 4px;
+	padding-right: 2px;
 	background-color: var(--vscode-agentsPanel-background);
 }
 

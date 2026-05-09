@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type * as vscode from 'vscode';
-import { LanguageModelTextPart } from '../../../../vscodeTypes';
 import { CancellationToken, CancellationTokenSource } from '../../../../util/vs/base/common/cancellation';
 import { ChatFetchResponseType, ChatLocation, ChatResponse } from '../../../../platform/chat/common/commonTypes';
 import { IEndpointProvider } from '../../../../platform/endpoint/common/endpointProvider';
@@ -100,7 +98,7 @@ export interface IBackgroundTodoExecutionContext {
 	readonly toolsService: IToolsService;
 	readonly telemetryService: ITelemetryService;
 	readonly promptContext: IBuildPromptContext;
-	/** Set on the synthetic context used by {@link BackgroundTodoProcessor.executeFinalReview}.
+	/** Set on the synthetic context used by {@link BackgroundTodoProcessor.requestFinalReview}.
 	 *  Switches the prompt into finalize mode so the bg agent can mark completions
 	 *  the regular per-round passes never had a chance to see (the last round of a
 	 *  turn has no follow-up `buildPrompt` to fire the bg agent against). */
@@ -120,8 +118,13 @@ export interface IBackgroundTodoResult {
  * Manages a single background todo processor per chat session.
  *
  * Owns a {@link BackgroundTodoDeltaTracker} for high-watermark tracking
- * and coalesces concurrent updates so at most one background pass runs
- * at a time.
+ * and a two-slot queue (regular pass + final review) so that at most one
+ * background pass runs at a time and final review always drains after
+ * regular work regardless of processor state.
+ *
+ * Drain order:
+ *   1. Pending regular pass (coalesced — only the latest survives).
+ *   2. Pending final review (at most once per turn).
  */
 export class BackgroundTodoProcessor {
 
@@ -135,19 +138,28 @@ export class BackgroundTodoProcessor {
 	private _promise: Promise<void> | undefined;
 	private _cts: CancellationTokenSource | undefined;
 	private _lastError: unknown;
-	private _pendingDelta: IBackgroundTodoDelta | undefined;
-	/** Work callback associated with {@link _pendingDelta}. Captured at queue time so a
-	 *  coalesced finalize pass keeps its finalize-mode closure (regular per-round work
-	 *  would otherwise overwrite finalize-mode behavior when the queued delta drains). */
-	private _pendingWork: ((delta: IBackgroundTodoDelta, token: CancellationToken) => Promise<IBackgroundTodoResult>) | undefined;
 	private _hasCreatedTodos: boolean = false;
 	private _passCount: number = 0;
-	/** Cached on the most recent {@link executePass} call so {@link executeFinalReview}
-	 *  can re-use the same services + most recent prompt context without a fresh build. */
+
+	// ── Two-slot queue ──────────────────────────────────────────
+	// Regular passes coalesce into one slot; final review occupies a
+	// second independent slot that drains only after all regular work.
+
+	private _pendingRegularDelta: IBackgroundTodoDelta | undefined;
+	private _pendingRegularContext: IBackgroundTodoExecutionContext | undefined;
+	private _pendingRegularToken: CancellationToken | undefined;
+
+	/** Pending final-review execution context. When set, {@link _drainQueue}
+	 *  will run a finalize pass after all regular work has drained. */
+	private _pendingFinalReview: IBackgroundTodoExecutionContext | undefined;
+	private _pendingFinalReviewToken: CancellationToken | undefined;
+	/** Turn ID for which final review has already been attempted/queued.
+	 *  Prevents duplicate finalize passes within a single turn. */
+	private _finalReviewAttemptedTurnId: string | undefined;
+	/** The most recent execution context from any {@link requestRegularPass}
+	 *  call.  Used by {@link requestFinalReview} to build the synthetic
+	 *  final-review delta when no explicit context is provided. */
 	private _lastExecutionContext: IBackgroundTodoExecutionContext | undefined;
-	/** True after a final review pass has been queued for this turn; reset on the next
-	 *  regular {@link executePass}. Prevents duplicate finalize passes. */
-	private _finalReviewQueued: boolean = false;
 
 	readonly deltaTracker = new BackgroundTodoDeltaTracker();
 
@@ -215,41 +227,224 @@ export class BackgroundTodoProcessor {
 		return { decision: BackgroundTodoDecision.Wait, reason: 'contextOnlyWaiting', delta };
 	}
 
+	// ── Public queue API ────────────────────────────────────────
+
+	/**
+	 * Enqueue or coalesce a regular background pass. If a pass is already
+	 * running, the delta is stashed and will drain when the current pass
+	 * completes.  Always updates {@link _lastExecutionContext}.
+	 */
+	requestRegularPass(
+		delta: IBackgroundTodoDelta,
+		context: IBackgroundTodoExecutionContext,
+		parentToken?: CancellationToken,
+	): void {
+		this._lastExecutionContext = context;
+		this._logService?.debug(`[BackgroundTodo] requestRegularPass — newRounds=${delta.metadata.newRoundCount}, meaningful=${delta.metadata.meaningfulToolCallCount}, state=${this._state}`);
+		this._pendingRegularDelta = delta;
+		this._pendingRegularContext = context;
+		this._pendingRegularToken = parentToken;
+		this._drainQueue();
+	}
+
+	/**
+	 * Request a single final-review pass for this turn.  The pass runs
+	 * after all pending regular work has drained, regardless of whether
+	 * the processor is currently Idle, InProgress, or Failed.
+	 *
+	 * No-op when:
+	 * - No execution context has been recorded (no prompt build happened).
+	 * - No todos have been created yet (nothing to finalize).
+	 * - Final review was already requested for the given {@link turnId}.
+	 */
+	requestFinalReview(turnId: string, parentToken?: CancellationToken): void {
+		if (!this._hasCreatedTodos || !this._lastExecutionContext) {
+			this._logService?.debug(`[BackgroundTodo] final review skipped — hasCreatedTodos=${this._hasCreatedTodos}, hasExecutionContext=${this._lastExecutionContext !== undefined}`);
+			return;
+		}
+		if (this._finalReviewAttemptedTurnId === turnId) {
+			this._logService?.debug(`[BackgroundTodo] final review skipped — already attempted for turn ${turnId}`);
+			return;
+		}
+		this._finalReviewAttemptedTurnId = turnId;
+		this._logService?.debug(`[BackgroundTodo] final review requested for turn ${turnId} — currentState=${this._state}`);
+
+		this._pendingFinalReview = { ...this._lastExecutionContext, isFinalReview: true };
+		this._pendingFinalReviewToken = parentToken;
+		this._drainQueue();
+	}
+
+	/**
+	 * Wait for any in-flight pass — and any pending queued pass that drains
+	 * from it — to settle.  Returns immediately if idle with nothing queued.
+	 */
+	async waitForCompletion(): Promise<void> {
+		while (this._promise) {
+			const current = this._promise;
+			await current;
+			// If _drainQueue started a new pass, _promise has been replaced.
+			// Loop until no new work was queued.
+			if (this._promise === current) {
+				break;
+			}
+		}
+	}
+
+	// ── Low-level start (kept for direct unit tests) ────────────
+
 	/**
 	 * Start a background pass if one is not already running.
 	 *
-	 * If a pass is in progress, the delta is stashed and will be processed
-	 * automatically when the current pass completes.
+	 * If a pass is in progress, the delta is stashed as a pending regular
+	 * pass and will drain via {@link _drainQueue} when the current pass
+	 * completes.
 	 *
 	 * @param delta The new activity to process.
 	 * @param work  An async function that performs the actual model call and
 	 *              tool invocation. It receives a cancellation token.
 	 * @param parentToken Optional parent cancellation token.
+	 * @param advanceCursor Whether to advance the delta tracker cursor on
+	 *        success.  Regular passes set this to `true`; final review sets
+	 *        it to `false` so it does not interfere with regular-pass tracking.
 	 */
 	start(
 		delta: IBackgroundTodoDelta,
 		work: (delta: IBackgroundTodoDelta, token: CancellationToken) => Promise<IBackgroundTodoResult>,
 		parentToken?: CancellationToken,
+		advanceCursor: boolean = true,
 	): void {
 		if (this._state === BackgroundTodoProcessorState.InProgress) {
-			// Coalesce: stash the latest delta AND its work callback for when the current
-			// pass finishes. Storing the callback is critical for finalize passes — they
-			// carry an `isFinalReview: true` execution context in the closure that must
-			// survive the queue. Without this, a finalize pass queued behind a regular
-			// pass would silently drain in regular mode.
-			this._logService?.debug(`[BackgroundTodo] coalescing delta (pass #${this._passCount} in progress) — newRounds=${delta.metadata.newRoundCount}, meaningful=${delta.metadata.meaningfulToolCallCount}, replacingPending=${this._pendingDelta !== undefined}`);
-			this._pendingDelta = delta;
-			this._pendingWork = work;
+			// Coalesce into the regular-pass slot so _drainQueue picks it up.
+			this._logService?.debug(`[BackgroundTodo] coalescing delta (pass #${this._passCount} in progress) — newRounds=${delta.metadata.newRoundCount}, meaningful=${delta.metadata.meaningfulToolCallCount}`);
+			this._pendingRegularDelta = delta;
+			this._pendingRegularContext = undefined; // will use work callback directly
+			this._pendingRegularToken = parentToken;
+			// Stash the work callback so _drainQueue can use it for the
+			// coalesced pass (preserves finalize-mode closures).
+			this._pendingRegularWork = work;
+			this._pendingRegularAdvanceCursor = advanceCursor;
 			return;
 		}
 
-		this._runPass(delta, work, parentToken);
+		this._runPass(delta, work, parentToken, advanceCursor);
+	}
+
+	/** Stashed work callback for coalesced start() calls. */
+	private _pendingRegularWork: ((delta: IBackgroundTodoDelta, token: CancellationToken) => Promise<IBackgroundTodoResult>) | undefined;
+	private _pendingRegularAdvanceCursor: boolean = true;
+
+	// ── Internal execution ──────────────────────────────────────
+
+	/**
+	 * Central scheduler.  Called after every state transition and after
+	 * every enqueue.  Picks the next item to run:
+	 *   1. Pending regular pass (coalesced — only the latest survives).
+	 *   2. Pending final review.
+	 * Does nothing if a pass is already running.
+	 */
+	private _drainQueue(): void {
+		if (this._state === BackgroundTodoProcessorState.InProgress) {
+			return;
+		}
+
+		// ── Regular pass first ──────────────────────────────────
+		const regularDelta = this._pendingRegularDelta;
+		if (regularDelta) {
+			const ctx = this._pendingRegularContext;
+			const token = this._pendingRegularToken;
+			const stashedWork = this._pendingRegularWork;
+			const advanceCursor = this._pendingRegularAdvanceCursor;
+			this._pendingRegularDelta = undefined;
+			this._pendingRegularContext = undefined;
+			this._pendingRegularToken = undefined;
+			this._pendingRegularWork = undefined;
+			this._pendingRegularAdvanceCursor = true;
+
+			if (stashedWork) {
+				// Coalesced via start() — use the stashed callback directly.
+				this._runPass(regularDelta, stashedWork, token, advanceCursor);
+				return;
+			} else if (ctx) {
+				// Enqueued via requestRegularPass — recompute against the latest cursor.
+				// This avoids replaying the in-flight delta when no new rounds arrived
+				// while the previous pass was running, and retries the full delta if the
+				// previous pass failed and did not advance the cursor.
+				const latestDelta = this.deltaTracker.peekDelta(ctx.promptContext);
+				if (!latestDelta) {
+					this._logService?.debug('[BackgroundTodo] queued regular pass skipped: no new delta remains after in-flight pass');
+				} else {
+					this._runPass(
+						latestDelta,
+						(d, t) => BackgroundTodoProcessor._doExecute(d, ctx, t),
+						token,
+						true, // regular passes always advance cursor
+					);
+					return;
+				}
+			} else {
+				this._logService?.debug('[BackgroundTodo] queued regular pass skipped: missing execution context');
+			}
+		}
+
+		// ── Final review ────────────────────────────────────────
+		const finalCtx = this._pendingFinalReview;
+		if (finalCtx) {
+			const token = this._pendingFinalReviewToken;
+			this._pendingFinalReview = undefined;
+			this._pendingFinalReviewToken = undefined;
+
+			// Build a synthetic delta from the full trajectory so the
+			// finalize prompt sees every round.
+			const allRounds = collectAllRounds(
+				finalCtx.promptContext.history,
+				finalCtx.promptContext.toolCallRounds ?? [],
+			);
+			if (allRounds.length === 0) {
+				return;
+			}
+			let meaningful = 0;
+			let contextual = 0;
+			for (const round of allRounds) {
+				for (const call of round.toolCalls) {
+					const category = classifyTool(call.name);
+					if (category === 'meaningful') {
+						meaningful++;
+					} else if (category === 'context') {
+						contextual++;
+					}
+				}
+			}
+			const delta: IBackgroundTodoDelta = {
+				userRequest: finalCtx.promptContext.query,
+				newRounds: allRounds,
+				history: finalCtx.promptContext.history,
+				sessionResource: extractSessionResource(finalCtx.promptContext),
+				metadata: {
+					newRoundCount: allRounds.length,
+					newToolCallCount: meaningful + contextual,
+					meaningfulToolCallCount: meaningful,
+					contextToolCallCount: contextual,
+					isInitialDelta: false,
+					isRequestOnly: false,
+				},
+			};
+
+			this._logService?.debug(`[BackgroundTodo] draining final review — rounds=${allRounds.length}, meaningful=${meaningful}, context=${contextual}`);
+			this._runPass(
+				delta,
+				(d, t) => BackgroundTodoProcessor._doExecute(d, finalCtx, t),
+				token,
+				false, // final review must NOT advance the regular-pass cursor
+			);
+			return;
+		}
 	}
 
 	private _runPass(
 		delta: IBackgroundTodoDelta,
 		work: (delta: IBackgroundTodoDelta, token: CancellationToken) => Promise<IBackgroundTodoResult>,
 		parentToken?: CancellationToken,
+		advanceCursor: boolean = true,
 	): void {
 		this._passCount++;
 		const passNum = this._passCount;
@@ -259,7 +454,7 @@ export class BackgroundTodoProcessor {
 		this._cts = cts;
 		const token = cts.token;
 
-		this._logService?.debug(`[BackgroundTodo] starting pass #${passNum} — newRounds=${delta.metadata.newRoundCount}, meaningful=${delta.metadata.meaningfulToolCallCount}, context=${delta.metadata.contextToolCallCount}`);
+		this._logService?.debug(`[BackgroundTodo] starting pass #${passNum} — newRounds=${delta.metadata.newRoundCount}, meaningful=${delta.metadata.meaningfulToolCallCount}, context=${delta.metadata.contextToolCallCount}, advanceCursor=${advanceCursor}`);
 
 		const passPromise = work(delta, token).then(
 			(result) => {
@@ -271,11 +466,13 @@ export class BackgroundTodoProcessor {
 					this._hasCreatedTodos = true;
 				}
 				this._logService?.debug(`[BackgroundTodo] pass #${passNum} completed: outcome=${result.outcome}, durationMs=${result.durationMs ?? '?'}, model=${result.model ?? '?'}, promptTokens=${result.promptTokens ?? '?'}, completionTokens=${result.completionTokens ?? '?'}`);
-				this.deltaTracker.markProcessed(delta);
+				if (advanceCursor) {
+					this.deltaTracker.markProcessed(delta);
+				}
 				this._disposeCts(cts);
 				this._state = BackgroundTodoProcessorState.Idle;
-				const hasPending = this._checkPending(work, parentToken);
-				if (!hasPending && this._promise === passPromise) {
+				this._drainQueue();
+				if (!this._promise || this._promise === passPromise) {
 					this._promise = undefined;
 				}
 			},
@@ -289,8 +486,8 @@ export class BackgroundTodoProcessor {
 				this._logService?.warn(`[BackgroundTodo] pass #${passNum} failed: ${err}`);
 				// Do NOT advance the cursor — the delta's rounds remain unprocessed
 				// so a subsequent pass can retry with fresh or coalesced activity.
-				const hasPending = this._checkPending(work, parentToken);
-				if (!hasPending && this._promise === passPromise) {
+				this._drainQueue();
+				if (!this._promise || this._promise === passPromise) {
 					this._promise = undefined;
 				}
 			},
@@ -303,134 +500,6 @@ export class BackgroundTodoProcessor {
 			this._cts = undefined;
 		}
 		cts.dispose();
-	}
-
-	/**
-	 * If a delta was stashed while a pass was running, start a new pass now.
-	 */
-	private _checkPending(
-		work: (delta: IBackgroundTodoDelta, token: CancellationToken) => Promise<IBackgroundTodoResult>,
-		parentToken?: CancellationToken,
-	): boolean {
-		const pending = this._pendingDelta;
-		if (pending) {
-			// Prefer the work callback that was stashed alongside the pending delta —
-			// it preserves finalize-mode (or any future per-pass) context in its closure.
-			// Fall back to the caller-provided work only if no stashed callback exists.
-			const pendingWork = this._pendingWork ?? work;
-			const usingStashed = this._pendingWork !== undefined;
-			this._logService?.debug(`[BackgroundTodo] draining pending delta — newRounds=${pending.metadata.newRoundCount}, meaningful=${pending.metadata.meaningfulToolCallCount}, usingStashedWork=${usingStashed}`);
-			this._pendingDelta = undefined;
-			this._pendingWork = undefined;
-			this._runPass(pending, pendingWork, parentToken);
-			return true;
-		}
-		return false;
-	}
-
-	/**
-	 * Wait for any in-flight pass — and any pending coalesced pass that drains
-	 * from it — to settle. Returns immediately if idle.
-	 */
-	async waitForCompletion(): Promise<void> {
-		while (this._promise) {
-			const current = this._promise;
-			await current;
-			// If _checkPending started a new pass, _promise has been replaced.
-			// Loop until no new work was queued.
-			if (this._promise === current) {
-				break;
-			}
-		}
-	}
-
-	// ── Execution ──────────────────────────────────────────────
-
-	/**
-	 * Convenience method: starts a background pass using the built-in
-	 * execution logic (acquire copilot-fast endpoint → render prompt →
-	 * call model → invoke todo tool).
-	 */
-	executePass(
-		delta: IBackgroundTodoDelta,
-		context: IBackgroundTodoExecutionContext,
-		parentToken?: CancellationToken,
-	): void {
-		this._lastExecutionContext = context;
-		this._finalReviewQueued = false;
-		this.start(
-			delta,
-			(d, token) => BackgroundTodoProcessor._doExecute(d, context, token),
-			parentToken,
-		);
-	}
-
-	/**
-	 * Fire one extra background pass after the agent loop has ended for this turn.
-	 *
-	 * The regular per-round bg passes never see the very last round (there is no
-	 * follow-up `buildPrompt` to fire against), so any task that *just* completed
-	 * on the final round stays stuck as 'in-progress' until the next user turn.
-	 * This pass uses the cached execution context from the most recent
-	 * {@link executePass} and runs in finalize mode so the model focuses on
-	 * promoting completed work rather than re-planning.
-	 *
-	 * No-op when:
-	 * - No bg pass has ever run for this session (no cached context).
-	 * - No todos exist yet (nothing to finalize).
-	 * - A final review has already been queued for this turn.
-	 */
-	executeFinalReview(parentToken?: CancellationToken): void {
-		if (this._finalReviewQueued || !this._hasCreatedTodos || !this._lastExecutionContext) {
-			this._logService?.debug(`[BackgroundTodo] final review skipped — alreadyQueued=${this._finalReviewQueued}, hasCreatedTodos=${this._hasCreatedTodos}, hasExecutionContext=${this._lastExecutionContext !== undefined}`);
-			return;
-		}
-		this._finalReviewQueued = true;
-		this._logService?.debug(`[BackgroundTodo] final review requested — currentState=${this._state}`);
-
-		const ctx = this._lastExecutionContext;
-		const finalCtx: IBackgroundTodoExecutionContext = { ...ctx, isFinalReview: true };
-
-		// Build a synthetic delta that includes every round we know about so the
-		// finalize prompt has full trajectory context. Skip cursor advancement
-		// (markProcessed is intentionally not called) since this is a one-shot review.
-		const allRounds = collectAllRounds(ctx.promptContext.history, ctx.promptContext.toolCallRounds ?? []);
-		if (allRounds.length === 0) {
-			return;
-		}
-		let meaningful = 0;
-		let contextual = 0;
-		for (const round of allRounds) {
-			for (const call of round.toolCalls) {
-				const category = classifyTool(call.name);
-				if (category === 'meaningful') {
-					meaningful++;
-				} else if (category === 'context') {
-					contextual++;
-				}
-			}
-		}
-		const delta: IBackgroundTodoDelta = {
-			userRequest: ctx.promptContext.query,
-			newRounds: allRounds,
-			history: ctx.promptContext.history,
-			sessionResource: extractSessionResource(ctx.promptContext),
-			metadata: {
-				newRoundCount: allRounds.length,
-				newToolCallCount: meaningful + contextual,
-				meaningfulToolCallCount: meaningful,
-				contextToolCallCount: contextual,
-				isInitialDelta: false,
-				isRequestOnly: false,
-			},
-		};
-
-		this._logService?.debug(`[BackgroundTodo] queueing final review — rounds=${allRounds.length}, meaningful=${meaningful}, context=${contextual}`);
-		this.start(
-			delta,
-			(d, token) => BackgroundTodoProcessor._doExecute(d, finalCtx, token),
-			parentToken,
-		);
 	}
 
 	/**
@@ -473,16 +542,26 @@ export class BackgroundTodoProcessor {
 		// can see completion evidence from earlier rounds — not just the new
 		// activity since the last pass. The delta tracker drives *when* to fire
 		// (policy); the full trajectory drives *what context* the model sees.
+		// `delta.newRounds` identifies which rounds are new since the last
+		// successful background pass so the prompt can flag them as NEW. For
+		// final-review passes the synthetic delta contains every round, so
+		// pass an empty set instead of marking everything new.
 		const allRounds = collectAllRounds(context.promptContext.history, context.promptContext.toolCallRounds ?? []);
-		const compressedHistory = compressHistory(allRounds, context.promptContext.toolCallResults);
-		context.logService.debug(`[BackgroundTodo] compressed history — groups=${compressedHistory.groupedProgress.length}, previousRounds=${compressedHistory.previousRounds.length}, latestRoundTools=${compressedHistory.latestRound?.toolSummaries.length ?? 0}, assistantContextSnippets=${compressedHistory.assistantContext.length}, subagentDigests=${compressedHistory.subagentDigests.length}, hasTodos=${todoContext !== undefined}`);
+		const newRoundIds: ReadonlySet<string> = context.isFinalReview
+			? new Set<string>()
+			: new Set(delta.newRounds.map(round => round.id));
+		const history = buildBackgroundTodoHistory({ allRounds, newRoundIds });
+		const allHistoryRounds = [...history.previousRounds, ...history.newRounds];
+		const withThinkingCount = allHistoryRounds.reduce((acc, r) => acc + (r.thinking ? 1 : 0), 0);
+		const withResponseCount = allHistoryRounds.reduce((acc, r) => acc + (r.response ? 1 : 0), 0);
+		context.logService.debug(`[BackgroundTodo] history — previousRounds=${history.previousRounds.length}, newRounds=${history.newRounds.length}, withThinking=${withThinkingCount}, withResponse=${withResponseCount}, hasTodos=${todoContext !== undefined}, isFinalReview=${!!context.isFinalReview}`);
 
 		// Render the prompt
 		const { messages } = await renderPromptElement(
 			context.instantiationService,
 			fastEndpoint,
 			BackgroundTodoPrompt,
-			{ currentTodos: todoContext, userRequest: delta.userRequest, history: compressedHistory, isFinalReview: !!context.isFinalReview },
+			{ currentTodos: todoContext, userRequest: delta.userRequest, history, isFinalReview: !!context.isFinalReview },
 			undefined,
 			token,
 		);
@@ -540,7 +619,7 @@ export class BackgroundTodoProcessor {
 				tools: normalizedTools,
 			},
 			userInitiatedRequest: false,
-			requestKindOptions: { kind: 'background' },
+			interactionTypeOverride: 'conversation-background',
 			telemetryProperties: associatedRequestId ? { associatedRequestId } : undefined,
 		}, token);
 
@@ -652,10 +731,15 @@ export class BackgroundTodoProcessor {
 		this._state = BackgroundTodoProcessorState.Idle;
 		this._lastError = undefined;
 		this._promise = undefined;
-		this._pendingDelta = undefined;
-		this._pendingWork = undefined;
+		this._pendingRegularDelta = undefined;
+		this._pendingRegularContext = undefined;
+		this._pendingRegularToken = undefined;
+		this._pendingRegularWork = undefined;
+		this._pendingRegularAdvanceCursor = true;
+		this._pendingFinalReview = undefined;
+		this._pendingFinalReviewToken = undefined;
 		this._lastExecutionContext = undefined;
-		this._finalReviewQueued = false;
+		this._finalReviewAttemptedTurnId = undefined;
 	}
 }
 
@@ -683,7 +767,6 @@ const CONTEXT_TOOLS: ReadonlySet<string> = new Set([
 	ToolName.SearchWorkspaceSymbols,
 	ToolName.GetNotebookSummary,
 	ToolName.ReadCellOutput,
-	ToolName.SearchViewResults,
 	ToolName.GithubSemanticRepoSearch,
 	ToolName.GithubTextSearch,
 	// Browser read-only
@@ -734,7 +817,7 @@ const NOTE_MAX = 120;
  * based on conventional argument keys (`explanation`, `description`, `goal`).
  * Returns `undefined` when no such note is present.
  */
-function extractToolNote(call: IToolCall): string | undefined {
+export function extractToolNote(call: IToolCall): string | undefined {
 	try {
 		const args = JSON.parse(call.arguments);
 		if (args && typeof args === 'object') {
@@ -832,95 +915,201 @@ export function extractTarget(call: IToolCall): string {
 	return call.name;
 }
 
-// ── History types ───────────────────────────────────────────────
+// ── History data shape ──────────────────────────────────────────
 
-/**
- * A group of tool calls targeting the same file or category,
- * collapsed for token-efficient rendering in the background prompt.
- */
-export interface IToolCallGroup {
-	/** File path or tool-type category (e.g. "terminal", "tests/tasks"). */
-	readonly target: string;
-	/** Short descriptions of meaningful (mutating) calls in this group. */
-	readonly meaningfulCalls: readonly string[];
-	/** Number of context (read-only) calls — count only, not enumerated. */
-	readonly contextCallCount: number;
-	/** Total calls in this group. */
-	readonly totalCalls: number;
-}
-
-/** A single tool call rendered with enough context to distinguish similar calls. */
-export interface IToolCallSummary {
+/** A compact summary of one tool call inside a round. */
+export interface IBackgroundTodoToolCallSummary {
 	/** Tool name as exposed to the model. */
 	readonly name: string;
-	/** File path or tool-type category (e.g. "terminal", "tests/tasks"). */
+	/** File path or tool-type category (e.g. `terminal`, `tests/tasks`). */
 	readonly target?: string;
 	/** Optional human-readable intent extracted from tool arguments. */
 	readonly note?: string;
+	/** Classification used by both renderer and policy. */
+	readonly category: ToolCategory;
 }
 
-/** Full-fidelity detail for one historical tool-call round. */
-export interface IToolCallRoundDetail {
-	/** Round id, used only as a stable label in rendered history. */
+/** One chronological round in the agent trajectory. */
+export interface IBackgroundTodoHistoryRound {
+	/** Stable id for the round (matches the source `IToolCallRound.id`). */
 	readonly id: string;
-	/** Tool name + optional target + optional human-readable note for each call in the round. */
-	readonly toolSummaries: readonly IToolCallSummary[];
-	/** The assistant's response text after this round. */
-	readonly assistantResponse: string;
+	/** Position in the chronological list, starting at 1. */
+	readonly index: number;
+	/** Optional model thinking text rendered as a block in the round chunk. */
+	readonly thinking?: string;
+	/** Tool calls issued during the round; excluded tools are filtered out. */
+	readonly toolCalls: readonly IBackgroundTodoToolCallSummary[];
+	/** Assistant response text after the tool calls, when available. */
+	readonly response?: string;
 }
 
 /**
- * Full-fidelity detail for the most recent tool-call round.
- */
-export interface ILatestRoundDetail {
-	/** Tool name + optional target + optional human-readable note for each call in the round. */
-	readonly toolSummaries: readonly IToolCallSummary[];
-	/** The assistant's response text after this round, truncated. */
-	readonly assistantResponse: string;
-}
-
-/**
- * A short digest of a single subagent invocation: the target description plus
- * the textual output the subagent returned. Used so the background todo agent
- * can see *what was discovered* by exploration subagents, not just that an
- * exploration happened.
- */
-export interface ISubagentDigest {
-	/** Short label for the subagent call (tool name + extracted description). */
-	readonly target: string;
-	/** Concatenated text output from the subagent, truncated. */
-	readonly output: string;
-}
-
-/**
- * Representation of conversation history for the background todo prompt.
- * Produced by {@link compressHistory}.
+ * Round-first history snapshot consumed by the background todo prompt.
+ *
+ * Rounds are split into two groups so the prompt can render them in
+ * separate blocks: `<previous-context>` (prunable under budget pressure)
+ * and `<new-activity>` (never pruned).
  */
 export interface IBackgroundTodoHistory {
-	/** Grouped progress from all rounds except the latest. */
-	readonly groupedProgress: readonly IToolCallGroup[];
-	/** Per-round tool activity from all rounds except the latest. */
-	readonly previousRounds: readonly IToolCallRoundDetail[];
-	/** Full-fidelity detail for the most recent round. */
-	readonly latestRound: ILatestRoundDetail | undefined;
-	/** 1–2 recent assistant response snippets for reasoning context. */
-	readonly assistantContext: readonly string[];
-	/** Digests of subagent outputs (search/explore/execution subagents). */
-	readonly subagentDigests: readonly ISubagentDigest[];
+	/** Rounds from before the current background pass — continuity context. */
+	readonly previousRounds: readonly IBackgroundTodoHistoryRound[];
+	/** Rounds new since the previous background pass — the decision signal. */
+	readonly newRounds: readonly IBackgroundTodoHistoryRound[];
 }
 
-// ── Compression logic ───────────────────────────────────────────
+// ── Builder ─────────────────────────────────────────────────────
 
+export interface IBuildBackgroundTodoHistoryOptions {
+	readonly allRounds: readonly IToolCallRound[];
+	readonly newRoundIds: ReadonlySet<string>;
+}
 
-/** Tools whose output should be surfaced as a subagent digest. */
-const SUBAGENT_TOOL_NAMES: ReadonlySet<string> = new Set([
-	ToolName.SearchSubagent,
-	ToolName.ExploreSubagent,
-	ToolName.ExecutionSubagent,
-	ToolName.CoreRunSubagent,
-]);
+/** Build a chronological round-first history for the background todo agent. */
+export function buildBackgroundTodoHistory(opts: IBuildBackgroundTodoHistoryOptions): IBackgroundTodoHistory {
+	const { allRounds, newRoundIds } = opts;
+	const previousRounds: IBackgroundTodoHistoryRound[] = [];
+	const newRounds: IBackgroundTodoHistoryRound[] = [];
+	let index = 0;
 
-const MAX_SUBAGENT_DIGEST_CHUNK_LENGTH = 4000;
+	for (const round of allRounds) {
+		const summaries = summarizeToolCalls(round.toolCalls);
+		const thinking = serializeThinking(round.thinking);
+		const response = round.response.trim().length > 0 ? round.response : undefined;
+
+		// Skip completely empty rounds (no tools, no thinking, no response).
+		if (summaries.length === 0 && !thinking && !response) {
+			continue;
+		}
+
+		index++;
+		const historyRound: IBackgroundTodoHistoryRound = {
+			id: round.id,
+			index,
+			thinking,
+			toolCalls: summaries,
+			response,
+		};
+
+		if (newRoundIds.has(round.id)) {
+			newRounds.push(historyRound);
+		} else {
+			previousRounds.push(historyRound);
+		}
+	}
+
+	return { previousRounds, newRounds };
+}
+
+function summarizeToolCalls(calls: readonly IToolCall[]): IBackgroundTodoToolCallSummary[] {
+	const result: IBackgroundTodoToolCallSummary[] = [];
+	for (const call of calls) {
+		const category = classifyTool(call.name);
+		if (category === 'excluded') {
+			continue;
+		}
+		const note = extractToolNote(call);
+		const target = extractTarget(call);
+		result.push(note ? { name: call.name, target, note, category } : { name: call.name, target, category });
+	}
+	return result;
+}
+
+function serializeThinking(thinking: IToolCallRound['thinking']): string | undefined {
+	if (!thinking) {
+		return undefined;
+	}
+	const text = thinking.text;
+	if (!text) {
+		return undefined;
+	}
+	const joined = Array.isArray(text) ? text.join('\n') : text;
+	const trimmed = joined.trim();
+	return trimmed.length > 0 ? trimmed : undefined;
+}
+
+// ── Rendering ───────────────────────────────────────────────────
+
+/**
+ * Neutralize angle brackets in user-controllable text so it cannot
+ * forge or close any of the tags emitted around the trajectory
+ * (`<round>`, `<thinking>`, `<tool-calls>`, `<response>`,
+ * `<previous-context>`, `<new-activity>`, `<full-trajectory>`).
+ *
+ * Thinking/response come from the main agent's model output and tool
+ * call targets/notes come from arbitrary tool arguments — both can be
+ * influenced by indirect prompt injection (e.g. file contents read by
+ * the agent), so they must be sanitized before being interpolated
+ * into a tagged block. Replacing `<`/`>` with the look-alike
+ * single-angle-quote characters (U+2039 / U+203A) preserves
+ * readability for the model while making tag forgery impossible.
+ */
+export function escapeForPromptTag(text: string): string {
+	return text.replace(/</g, '\u2039').replace(/>/g, '\u203A');
+}
+
+/**
+ * Stricter form of {@link escapeForPromptTag} for fields that are
+ * embedded inline inside a tagged block — tool name, target, and
+ * note. In addition to neutralizing angle brackets, collapse runs of
+ * whitespace (including newlines and tabs) into a single space so
+ * the value can't introduce a fake `- toolName → …` row or an
+ * indented `note: …` line that masquerades as another tool call
+ * inside `<tool-calls>`.
+ */
+function escapeInlineForPromptTag(text: string): string {
+	return escapeForPromptTag(text.replace(/\s+/g, ' ').trim());
+}
+
+/**
+ * Render a round into a stable, parseable text block. Used by the
+ * prompt-tsx round chunk so the model sees a uniform shape per round.
+ */
+export function renderBackgroundTodoRound(round: IBackgroundTodoHistoryRound): string {
+	const lines: string[] = [`<round index="${round.index}">`];
+
+	if (round.thinking) {
+		lines.push('<thinking>');
+		lines.push(escapeForPromptTag(round.thinking));
+		lines.push('</thinking>');
+	}
+
+	if (round.toolCalls.length > 0) {
+		lines.push('<tool-calls>');
+		for (const tc of round.toolCalls) {
+			const name = escapeInlineForPromptTag(tc.name);
+			const target = tc.target ? escapeInlineForPromptTag(tc.target) : undefined;
+			const head = target ? `- ${name} → ${target}` : `- ${name}`;
+			lines.push(head);
+			if (tc.note) {
+				lines.push(`    note: ${escapeInlineForPromptTag(tc.note)}`);
+			}
+		}
+		lines.push('</tool-calls>');
+	}
+
+	if (round.response) {
+		lines.push('<response>');
+		lines.push(escapeForPromptTag(round.response));
+		lines.push('</response>');
+	}
+
+	lines.push('</round>');
+	return lines.join('\n');
+}
+
+/**
+ * Compute a prompt-tsx priority for a previous-context round so newer
+ * rounds survive budget pressure ahead of older history. Values are
+ * clamped to the [700, 879] range so they stay below the system
+ * message (1000), user request (950), current todos (900), and the
+ * new-activity block (880). New-activity rounds are rendered without
+ * pruning so they don't need a priority helper.
+ */
+export function computeRoundPriority(round: IBackgroundTodoHistoryRound, totalPreviousRounds: number): number {
+	// 700 base + monotonic index boost so newer context survives longer,
+	// capped strictly below the new-activity priority.
+	return Math.min(879, 700 + Math.min(round.index, totalPreviousRounds));
+}
 
 /**
  * Collect all tool-call rounds from history turns and current-turn rounds
@@ -935,249 +1124,4 @@ export function collectAllRounds(history: readonly Turn[], currentRounds: readon
 	}
 	all.push(...currentRounds);
 	return all;
-}
-
-/**
- * Process raw tool-call rounds into a structured history for the
- * background todo prompt. Older rounds are kept as per-round summaries
- * and also grouped as a compact fallback; the last round is kept at full
- * fidelity.
- *
- * If `toolCallResults` is provided, subagent outputs are extracted into
- * {@link IBackgroundTodoHistory.subagentDigests} so the background agent
- * can see what exploration subagents actually discovered.
- */
-export function compressHistory(
-	allRounds: readonly IToolCallRound[],
-	toolCallResults?: Record<string, vscode.LanguageModelToolResult>,
-): IBackgroundTodoHistory {
-	if (allRounds.length === 0) {
-		return { groupedProgress: [], previousRounds: [], latestRound: undefined, assistantContext: [], subagentDigests: [] };
-	}
-
-	const latestRoundRaw = allRounds[allRounds.length - 1];
-	const olderRounds = allRounds.slice(0, -1);
-
-	// ── Group older rounds ──────────────────────────────────
-	const groupMap = new Map<string, { meaningful: string[]; contextCount: number; total: number }>();
-
-	for (const round of olderRounds) {
-		for (const call of round.toolCalls) {
-			const category = classifyTool(call.name);
-			if (category === 'excluded') {
-				continue;
-			}
-			const target = extractTarget(call);
-			let group = groupMap.get(target);
-			if (!group) {
-				group = { meaningful: [], contextCount: 0, total: 0 };
-				groupMap.set(target, group);
-			}
-			group.total++;
-			if (category === 'meaningful') {
-				group.meaningful.push(call.name);
-			} else {
-				group.contextCount++;
-			}
-		}
-	}
-
-	// Sort: meaningful-heavy groups first, then by total count
-	const groupedProgress: IToolCallGroup[] = [...groupMap.entries()]
-		.sort((a, b) => {
-			const meaningfulDiff = b[1].meaningful.length - a[1].meaningful.length;
-			if (meaningfulDiff !== 0) {
-				return meaningfulDiff;
-			}
-			return b[1].total - a[1].total;
-		})
-		.map(([target, g]) => ({
-			target,
-			meaningfulCalls: g.meaningful,
-			contextCallCount: g.contextCount,
-			totalCalls: g.total,
-		}));
-
-	const previousRounds = olderRounds
-		.map(round => toToolCallRoundDetail(round))
-		.filter(round => round.toolSummaries.length > 0 || round.assistantResponse.trim().length > 0);
-
-	// ── Latest round detail ─────────────────────────────────
-	const latestRound = toLatestRoundDetail(latestRoundRaw);
-
-	// ── Assistant context ────────────────────────────────────
-	const assistantContext = extractAssistantContext(allRounds);
-
-	// ── Subagent digests ─────────────────────────────────────
-	const subagentDigests = toolCallResults
-		? extractSubagentDigests(allRounds, toolCallResults)
-		: [];
-
-	return { groupedProgress, previousRounds, latestRound, assistantContext, subagentDigests };
-}
-
-function toToolCallRoundDetail(round: IToolCallRound): IToolCallRoundDetail {
-	return {
-		id: round.id,
-		toolSummaries: summarizeToolCalls(round.toolCalls),
-		assistantResponse: round.response,
-	};
-}
-
-function toLatestRoundDetail(round: IToolCallRound): ILatestRoundDetail {
-	return {
-		toolSummaries: summarizeToolCalls(round.toolCalls),
-		assistantResponse: round.response,
-	};
-}
-
-function summarizeToolCalls(calls: readonly IToolCall[]): IToolCallSummary[] {
-	return calls
-		.filter(call => classifyTool(call.name) !== 'excluded')
-		.map(call => {
-			const note = extractToolNote(call);
-			return note
-				? { name: call.name, target: extractTarget(call), note }
-				: { name: call.name, target: extractTarget(call) };
-		});
-}
-
-/**
- * Return all non-empty assistant response snippets in chronological order.
- * Truncation is deliberately NOT applied here; the prompt renders each snippet
- * as its own message with a descending priority so prompt-tsx prunes the
- * oldest snippets first when the budget is tight.
- */
-function extractAssistantContext(allRounds: readonly IToolCallRound[]): string[] {
-	const result: string[] = [];
-	for (const round of allRounds) {
-		const response = round.response.trim();
-		if (response.length > 0) {
-			result.push(response);
-		}
-	}
-	return result;
-}
-
-/**
- * Extract textual outputs from subagent tool calls in chronological order.
- * Large digests are split into chunks; the prompt-tsx renderer is responsible
- * for pruning lower-priority blocks if the overall prompt exceeds the budget.
- */
-function extractSubagentDigests(
-	allRounds: readonly IToolCallRound[],
-	toolCallResults: Record<string, vscode.LanguageModelToolResult>,
-): ISubagentDigest[] {
-	const digests: ISubagentDigest[] = [];
-
-	for (const round of allRounds) {
-		for (const call of round.toolCalls) {
-			if (!SUBAGENT_TOOL_NAMES.has(call.name)) {
-				continue;
-			}
-			const result = toolCallResults[call.id];
-			if (!result) {
-				continue;
-			}
-			const output = stringifyToolResult(result).trim();
-			if (output.length === 0) {
-				continue;
-			}
-			const target = extractSubagentDigestTarget(call);
-			const chunks = splitSubagentDigestOutput(output);
-			for (let i = 0; i < chunks.length; i++) {
-				digests.push({
-					target: chunks.length === 1 ? target : `${target} (part ${i + 1}/${chunks.length})`,
-					output: chunks[i],
-				});
-			}
-		}
-	}
-
-	return digests;
-}
-
-function extractSubagentDigestTarget(call: IToolCall): string {
-	const target = extractTarget(call);
-	const note = extractToolNote(call);
-	return note ? `${target}: ${note}` : target;
-}
-
-function splitSubagentDigestOutput(output: string): string[] {
-	const chunks: string[] = [];
-	for (let start = 0; start < output.length; start += MAX_SUBAGENT_DIGEST_CHUNK_LENGTH) {
-		chunks.push(output.slice(start, start + MAX_SUBAGENT_DIGEST_CHUNK_LENGTH));
-	}
-	return chunks;
-}
-
-function stringifyToolResult(result: vscode.LanguageModelToolResult): string {
-	const parts: string[] = [];
-	for (const part of result.content) {
-		if (part instanceof LanguageModelTextPart) {
-			parts.push(part.value);
-		}
-	}
-	return parts.join('\n');
-}
-
-// ── Rendering helpers ───────────────────────────────────────────
-
-/**
- * Render grouped progress into a compact string for the prompt.
- */
-export function renderGroupedProgress(groups: readonly IToolCallGroup[]): string {
-	if (groups.length === 0) {
-		return '';
-	}
-
-	return groups.map(g => {
-		const parts: string[] = [`[${g.target}]`];
-		if (g.meaningfulCalls.length > 0) {
-			// Deduplicate tool names within the group
-			const unique = [...new Set(g.meaningfulCalls)];
-			parts.push(`Actions: ${unique.join(', ')}`);
-		}
-		if (g.contextCallCount > 0) {
-			parts.push(`(${g.contextCallCount} read${g.contextCallCount > 1 ? 's' : ''})`);
-		}
-		return parts.join(' ');
-	}).join('\n');
-}
-
-export function renderToolCallRound(detail: IToolCallRoundDetail): string {
-	const parts = [`Round ${detail.id}:`, renderToolSummaries(detail.toolSummaries)];
-	if (detail.assistantResponse.length > 0) {
-		parts.push(`\nAgent said: ${detail.assistantResponse}`);
-	}
-	return parts.join('\n');
-}
-
-/**
- * Render the latest round detail into a string for the prompt.
- */
-export function renderLatestRound(detail: ILatestRoundDetail): string {
-	const parts = ['Current tools:', renderToolSummaries(detail.toolSummaries)];
-	if (detail.assistantResponse.length > 0) {
-		parts.push(`\nAgent said: ${detail.assistantResponse}`);
-	}
-	return parts.join('\n');
-}
-
-function renderToolSummaries(toolSummaries: readonly IToolCallSummary[]): string {
-	return toolSummaries.map(s => {
-		const head = s.target ? `- ${s.name} → ${s.target}` : `- ${s.name}`;
-		return s.note ? `${head}\n      ↳ ${s.note}` : head;
-	}).join('\n');
-}
-
-/**
- * Render subagent digests into a compact string for the prompt.
- * Each digest shows the subagent target and its truncated text output.
- */
-export function renderSubagentDigests(digests: readonly ISubagentDigest[]): string {
-	if (digests.length === 0) {
-		return '';
-	}
-	return digests.map((d, i) => `[${i + 1}] ${d.target}\n${d.output}`).join('\n\n');
 }

@@ -116,6 +116,27 @@ export interface ISessionsTasksService {
 	 * Sets or clears the pinned task for the given repository.
 	 */
 	setPinnedTaskLabel(repository: URI | undefined, taskLabel: string | undefined): void;
+
+	/**
+	 * Observable URL configured for the integrated browser action for the given repository.
+	 */
+	getBrowserUrl(repository: URI | undefined): IObservable<string | undefined>;
+
+	/**
+	 * Sets or clears the configured browser URL for the given repository.
+	 */
+	setBrowserUrl(repository: URI | undefined, url: string | undefined): void;
+
+	/**
+	 * Observable indicating whether the integrated browser action is pinned as the primary action for the given repository.
+	 */
+	getPinnedBrowser(repository: URI | undefined): IObservable<boolean>;
+
+	/**
+	 * Sets or clears whether the integrated browser action is pinned as the primary action for the given repository.
+	 * Pinning the browser clears any pinned task; pinning a task clears the pinned browser.
+	 */
+	setPinnedBrowser(repository: URI | undefined, pinned: boolean): void;
 }
 
 export const ISessionsTasksService = createDecorator<ISessionsTasksService>('sessionsTasksService');
@@ -125,10 +146,16 @@ export class SessionsTasksService extends Disposable implements ISessionsTasksSe
 	declare readonly _serviceBrand: undefined;
 
 	private static readonly _PINNED_TASK_LABELS_KEY = 'agentSessions.pinnedTaskLabels';
+	private static readonly _BROWSER_URLS_KEY = 'agentSessions.browserUrls';
+	private static readonly _PINNED_BROWSERS_KEY = 'agentSessions.pinnedBrowsers';
 	private readonly _sessionTasks = observableValue<readonly ISessionTaskWithTarget[]>(this, []);
 	private readonly _fileWatcher = this._register(new MutableDisposable());
 	private readonly _pinnedTaskLabels: Map<string, string>;
 	private readonly _pinnedTaskObservables = new Map<string, ReturnType<typeof observableValue<string | undefined>>>();
+	private readonly _browserUrls: Map<string, string>;
+	private readonly _browserUrlObservables = new Map<string, ReturnType<typeof observableValue<string | undefined>>>();
+	private readonly _pinnedBrowsers: Set<string>;
+	private readonly _pinnedBrowserObservables = new Map<string, ReturnType<typeof observableValue<boolean>>>();
 
 	private _watchedResource: URI | undefined;
 	private _lastRefreshedFolder: URI | undefined;
@@ -143,6 +170,8 @@ export class SessionsTasksService extends Disposable implements ISessionsTasksSe
 	) {
 		super();
 		this._pinnedTaskLabels = this._loadPinnedTaskLabels();
+		this._browserUrls = this._loadBrowserUrls();
+		this._pinnedBrowsers = this._loadPinnedBrowsers();
 	}
 
 	getSessionTasks(session: ISession): IObservable<readonly ISessionTaskWithTarget[]> {
@@ -341,7 +370,72 @@ export class SessionsTasksService extends Disposable implements ISessionsTasksSe
 			return;
 		}
 
-		this._setPinnedTaskLabelForKey(repository.toString(), taskLabel);
+		const key = repository.toString();
+		this._setPinnedTaskLabelForKey(key, taskLabel);
+		if (taskLabel !== undefined) {
+			this._setPinnedBrowserForKey(key, false);
+		}
+	}
+
+	getBrowserUrl(repository: URI | undefined): IObservable<string | undefined> {
+		if (!repository) {
+			return observableValue('browserUrl', undefined);
+		}
+
+		const key = repository.toString();
+		let obs = this._browserUrlObservables.get(key);
+		if (!obs) {
+			obs = observableValue('browserUrl', this._browserUrls.get(key));
+			this._browserUrlObservables.set(key, obs);
+		}
+		return obs;
+	}
+
+	setBrowserUrl(repository: URI | undefined, url: string | undefined): void {
+		if (!repository) {
+			return;
+		}
+
+		const key = repository.toString();
+		const trimmed = url?.trim();
+		if (!trimmed) {
+			this._browserUrls.delete(key);
+		} else {
+			this._browserUrls.set(key, trimmed);
+		}
+
+		this._saveBrowserUrls();
+
+		const obs = this._browserUrlObservables.get(key);
+		if (obs) {
+			transaction(tx => obs.set(trimmed || undefined, tx));
+		}
+	}
+
+	getPinnedBrowser(repository: URI | undefined): IObservable<boolean> {
+		if (!repository) {
+			return observableValue('pinnedBrowser', false);
+		}
+
+		const key = repository.toString();
+		let obs = this._pinnedBrowserObservables.get(key);
+		if (!obs) {
+			obs = observableValue('pinnedBrowser', this._pinnedBrowsers.has(key));
+			this._pinnedBrowserObservables.set(key, obs);
+		}
+		return obs;
+	}
+
+	setPinnedBrowser(repository: URI | undefined, pinned: boolean): void {
+		if (!repository) {
+			return;
+		}
+
+		const key = repository.toString();
+		this._setPinnedBrowserForKey(key, pinned);
+		if (pinned) {
+			this._setPinnedTaskLabelForKey(key, undefined);
+		}
 	}
 
 	// --- private helpers ---
@@ -477,6 +571,66 @@ export class SessionsTasksService extends Disposable implements ISessionsTasksSe
 		const obs = this._pinnedTaskObservables.get(key);
 		if (obs) {
 			transaction(tx => obs.set(taskLabel, tx));
+		}
+	}
+
+	private _loadBrowserUrls(): Map<string, string> {
+		const raw = this._storageService.get(SessionsTasksService._BROWSER_URLS_KEY, StorageScope.APPLICATION);
+		if (raw) {
+			try {
+				return new Map(Object.entries(JSON.parse(raw)));
+			} catch {
+				// ignore corrupt data
+			}
+		}
+		return new Map();
+	}
+
+	private _saveBrowserUrls(): void {
+		this._storageService.store(
+			SessionsTasksService._BROWSER_URLS_KEY,
+			JSON.stringify(Object.fromEntries(this._browserUrls)),
+			StorageScope.APPLICATION,
+			StorageTarget.USER
+		);
+	}
+
+	private _loadPinnedBrowsers(): Set<string> {
+		const raw = this._storageService.get(SessionsTasksService._PINNED_BROWSERS_KEY, StorageScope.APPLICATION);
+		if (raw) {
+			try {
+				const arr = JSON.parse(raw);
+				if (Array.isArray(arr)) {
+					return new Set(arr);
+				}
+			} catch {
+				// ignore corrupt data
+			}
+		}
+		return new Set();
+	}
+
+	private _savePinnedBrowsers(): void {
+		this._storageService.store(
+			SessionsTasksService._PINNED_BROWSERS_KEY,
+			JSON.stringify([...this._pinnedBrowsers]),
+			StorageScope.APPLICATION,
+			StorageTarget.USER
+		);
+	}
+
+	private _setPinnedBrowserForKey(key: string, pinned: boolean): void {
+		if (pinned) {
+			this._pinnedBrowsers.add(key);
+		} else {
+			this._pinnedBrowsers.delete(key);
+		}
+
+		this._savePinnedBrowsers();
+
+		const obs = this._pinnedBrowserObservables.get(key);
+		if (obs) {
+			transaction(tx => obs.set(pinned, tx));
 		}
 	}
 }

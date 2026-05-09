@@ -74,6 +74,7 @@ import { MobileNavigationStack } from './mobileNavigationStack.js';
 import { MobileTitlebarPart } from './parts/mobile/mobileTitlebarPart.js';
 import { autorun } from '../../base/common/observable.js';
 import { ISessionsManagementService } from '../services/sessions/common/sessionsManagement.js';
+import { ISessionsSetUpService } from './sessionsSetUpService.js';
 
 //#region Workbench Options
 
@@ -282,6 +283,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 
 	private _editorMaximized = false;
 	private _editorLastNonMaximizedVisibility: IPartVisibilityState | undefined;
+	private _restoreAttachedEditorMaximizedOnShow = false;
 
 	private readonly restoredPromise = new DeferredPromise<void>();
 	readonly whenRestored = this.restoredPromise.p;
@@ -639,7 +641,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		const workbenchClasses = coalesce([
 			'monaco-workbench',
 			'agent-sessions-workbench',
-			LayoutClasses.SHELL_GRADIENT_BACKGROUND,
+			// LayoutClasses.SHELL_GRADIENT_BACKGROUND,
 			platformClass,
 			isWeb ? 'web' : undefined,
 			isChrome ? 'chromium' : isFirefox ? 'firefox' : isSafari ? 'safari' : undefined,
@@ -842,6 +844,11 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		// Restore parts (open default view containers)
 		this.restoreParts();
 
+		// Restore the last active session (progress is shown inside the service).
+		void this.sessionsManagementService.restoreLastActiveSession().catch(e => {
+			this.logService.error('[Workbench] restoreLastActiveSession failed', e);
+		});
+
 		// Set lifecycle phase to `Restored`
 		lifecycleService.phase = LifecyclePhase.Restored;
 
@@ -903,12 +910,14 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 
 			if (!this.partVisibility.editor) {
 				this.setEditorHidden(false);
+				this.restoreAttachedEditorMaximizedState();
 			}
 		}));
 
 		// Hide editor part when last editor closes
 		this._register(this.editorService.onDidCloseEditor(() => {
 			if (this.partVisibility.editor && this.areAllGroupsEmpty()) {
+				this.rememberAttachedEditorMaximizedState();
 				this.setEditorHidden(true);
 			}
 		}));
@@ -933,6 +942,19 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 			}
 		}
 		return true;
+	}
+
+	private rememberAttachedEditorMaximizedState(): void {
+		this._restoreAttachedEditorMaximizedOnShow = this._editorMaximized && this.partVisibility.auxiliaryBar;
+	}
+
+	private restoreAttachedEditorMaximizedState(): void {
+		const shouldRestore = this._restoreAttachedEditorMaximizedOnShow && this.partVisibility.auxiliaryBar;
+		this._restoreAttachedEditorMaximizedOnShow = false;
+
+		if (shouldRestore) {
+			this.setEditorMaximized(true);
+		}
 	}
 
 	private registerLayoutListeners(): void {
@@ -1039,8 +1061,10 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		}));
 	}
 
-	createWorkbenchManagement(_instantiationService: IInstantiationService): void {
-		// No floating toolbars in this layout
+	createWorkbenchManagement(instantiationService: IInstantiationService): void {
+		// Welcome — must be created early in layout so the widget can gate
+		// other UI until sign-in / chat setup is complete.
+		instantiationService.invokeFunction(accessor => accessor.get(ISessionsSetUpService));
 	}
 
 	/**
@@ -1484,6 +1508,10 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 	private setAuxiliaryBarHidden(hidden: boolean): void {
 		if (this.partVisibility.auxiliaryBar === !hidden) {
 			return;
+		}
+
+		if (hidden) {
+			this._restoreAttachedEditorMaximizedOnShow = false;
 		}
 
 		this.partVisibility.auxiliaryBar = !hidden;

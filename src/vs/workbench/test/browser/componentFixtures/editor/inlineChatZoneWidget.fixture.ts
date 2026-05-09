@@ -223,6 +223,8 @@ function renderInlineChatZoneWidget({ container, disposableStore, theme }: Compo
 				override readonly sentimentObs = observableValue('sentiment', { completed: true });
 				override readonly anonymousObs = observableValue('anonymous', false);
 				override readonly onDidChangeAnonymous = Event.None;
+				override readonly quotas = {};
+				override readonly onDidChangeQuotaRemaining = Event.None;
 			}());
 			reg.defineInstance(IChatModeService, new MockChatModeService());
 			reg.defineInstance(IChatSessionsService, new class extends mock<IChatSessionsService>() {
@@ -397,7 +399,7 @@ function renderInlineChatZoneWidget({ container, disposableStore, theme }: Compo
 
 	zoneWidget.show(new Position(10, 1));
 
-	const dummyModel = instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.EditorInline, canUseTools: false });
+	const dummyModel = disposableStore.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.EditorInline, canUseTools: false }));
 	zoneWidget.widget.chatWidget.setModel(dummyModel);
 	zoneWidget.widget.chatWidget.setInputPlaceholder('Ask Copilot...');
 
