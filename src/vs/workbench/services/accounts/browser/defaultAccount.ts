@@ -64,9 +64,9 @@ const enum DefaultAccountStatus {
 const CONTEXT_DEFAULT_ACCOUNT_STATE = new RawContextKey<string>('defaultAccountStatus', DefaultAccountStatus.Uninitialized);
 const CACHED_POLICY_DATA_KEY = 'defaultAccount.cachedPolicyData';
 const ACCOUNT_DATA_POLL_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
-// Endpoint changes rarely for accounts that don't have an MCP registry, so use a longer
-// cache window when the previous fetch returned no registry to avoid retrying every hour.
-const MCP_REGISTRY_NEGATIVE_CACHE_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
+// Use a longer cache window when the previous fetch returned no registry, to avoid
+// retrying a 404 endpoint on every relaunch and blocking startup.
+const MCP_REGISTRY_NEGATIVE_CACHE_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours
 
 interface ITokenEntitlementsResponse {
 	token: string;
