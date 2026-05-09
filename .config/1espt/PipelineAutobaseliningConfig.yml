@@ -7,20 +7,20 @@ pipelines:
         credscan:
           lastModifiedDate: 2024-09-10
         eslint:
-          lastModifiedDate: 2024-09-10
+          lastModifiedDate: 2026-05-09
         psscriptanalyzer:
-          lastModifiedDate: 2024-09-10
+          lastModifiedDate: 2026-05-09
         armory:
-          lastModifiedDate: 2024-09-10
+          lastModifiedDate: 2026-05-09
         accessibilityinsights:
           lastModifiedDate: 2025-06-02
       binary:
         credscan:
           lastModifiedDate: 2025-02-04
         binskim:
-          lastModifiedDate: 2025-02-04
+          lastModifiedDate: 2026-05-09
         spotbugs:
-          lastModifiedDate: 2025-02-04
+          lastModifiedDate: 2026-05-09
   629:
     retail:
       source:
@@ -52,20 +52,20 @@ pipelines:
     retail:
       source:
         policheck:
-          lastModifiedDate: 2026-05-09
+          lastModifiedDate: 2026-04-16
         eslint:
-          lastModifiedDate: 2026-05-09
+          lastModifiedDate: 2026-04-16
         psscriptanalyzer:
-          lastModifiedDate: 2026-05-09
+          lastModifiedDate: 2026-04-16
         armory:
-          lastModifiedDate: 2026-05-09
+          lastModifiedDate: 2026-04-16
         accessibilityinsights:
           lastModifiedDate: 2026-04-16
       binary:
         binskim:
-          lastModifiedDate: 2026-05-09
+          lastModifiedDate: 2026-04-16
         spotbugs:
-          lastModifiedDate: 2026-05-09
+          lastModifiedDate: 2026-04-16
   684:
     retail:
       source:
