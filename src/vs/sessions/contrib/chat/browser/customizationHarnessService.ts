@@ -3,30 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import {
-	CustomizationHarness,
-	CustomizationHarnessServiceBase,
-	createCliHarnessDescriptor,
-	getCliUserRoots,
-} from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
-import { IPathService } from '../../../../workbench/services/path/common/pathService.js';
+import { CustomizationHarnessServiceBase, createVSCodeHarnessDescriptor } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
+import { IPromptsService, PromptsStorage } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { BUILTIN_STORAGE } from '../common/builtinPromptsStorage.js';
+import { SessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 
 /**
  * Sessions-window override of the customization harness service.
  *
- * Only the CLI harness is registered because sessions always run via
- * the Copilot CLI. With a single harness the toggle bar is hidden.
+ * The Local harness is registered statically so that local customizations
+ * (instructions, skills, agents, etc.) are available in the Agents window.
+ * The Copilot CLI extension provides its harness (with `itemProvider`) via
+ * `registerChatSessionCustomizationProvider()`, and AHP remote servers
+ * register directly via `registerExternalHarness()`.
  */
 export class SessionsCustomizationHarnessService extends CustomizationHarnessServiceBase {
 	constructor(
-		@IPathService pathService: IPathService,
+		@IPromptsService promptsService: IPromptsService
 	) {
-		const userHome = pathService.userHome({ preferLocal: true });
-		const extras = [BUILTIN_STORAGE];
+		const localExtras = [PromptsStorage.extension, BUILTIN_STORAGE];
 		super(
-			[createCliHarnessDescriptor(getCliUserRoots(userHome), extras)],
-			CustomizationHarness.CLI,
+			[createVSCodeHarnessDescriptor(localExtras)],
+			SessionType.Local,
+			promptsService,
 		);
 	}
 }

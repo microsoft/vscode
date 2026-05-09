@@ -25,6 +25,8 @@ declare module 'vscode' {
 		static readonly Prompt: ChatSessionCustomizationType;
 		/** Hook customization (event-driven automation). */
 		static readonly Hook: ChatSessionCustomizationType;
+		/** Plugin customization (agent runtime plugins). */
+		static readonly Plugins: ChatSessionCustomizationType;
 
 		/**
 		 * The string identifier for this customization type.
@@ -56,11 +58,11 @@ declare module 'vscode' {
 		readonly iconId?: string;
 
 		/**
-		 * Customization types that this provider does **not** support.
-		 * The corresponding sections will be hidden in the management UI
-		 * when this provider is active.
+		 * Customization types that this provider supports.
+		 * Only the corresponding sections will be shown in the management UI
+		 * when this provider is active. When omitted, all sections are shown.
 		 */
-		readonly unsupportedTypes?: readonly ChatSessionCustomizationType[];
+		readonly supportedTypes?: readonly ChatSessionCustomizationType[];
 	}
 
 	/**
@@ -88,6 +90,16 @@ declare module 'vscode' {
 		readonly description?: string;
 
 		/**
+		 * The extension identifier that contributed this customization, if any.
+		 */
+		readonly extensionId?: string;
+
+		/**
+		 * The URI of the plugin that contributed this customization, if any.
+		 */
+		readonly pluginUri?: Uri;
+
+		/**
 		 * Optional group key for display grouping. Items sharing the same
 		 * `groupKey` are placed under a shared collapsible header in the
 		 * management UI.
@@ -107,6 +119,12 @@ declare module 'vscode' {
 		 * Optional tooltip text shown when hovering over the badge.
 		 */
 		readonly badgeTooltip?: string;
+
+		/**
+		 * Whether this item should be shown to users as invocable.
+		 * Applies to agents, skills, and prompts. When `false`, the item is hidden from the UI and cannot be invoked by users,
+		 */
+		readonly userInvocable?: boolean;
 	}
 
 	/**

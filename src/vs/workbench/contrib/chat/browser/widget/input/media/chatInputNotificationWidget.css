@@ -1,0 +1,191 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Hide the container when no notification is active */
+.interactive-session .interactive-input-part > .chat-input-notification-container:not(.has-notification) {
+	display: none;
+}
+
+/* Counteract the `.interactive-input-part` `gap: 4px` so the notification attaches to the input. Add extra -6px to account for rounded corners. */
+.interactive-session .interactive-input-part > .chat-input-notification-container {
+	margin-bottom: -10px;
+}
+
+.interactive-session .interactive-input-part > .chat-input-notification-container .chat-input-notification {
+	/* Padding needs to be -6px for top to account for -10px margin in parent container and 4px for half of chat border radius. */
+	padding: 10px 16px 16px 16px;
+	box-sizing: border-box;
+	border: 1px solid var(--vscode-input-border, transparent);
+	border-bottom: none;
+	border-top-left-radius: 4px;
+	border-top-right-radius: 4px;
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+/* Severity variants */
+.interactive-session .interactive-input-part > .chat-input-notification-container .chat-input-notification.severity-info {
+	border-color: var(--vscode-focusBorder);
+	background-color: color-mix(in srgb, var(--vscode-focusBorder) 6%, var(--vscode-editorWidget-background));
+}
+
+.interactive-session .interactive-input-part > .chat-input-notification-container .chat-input-notification.severity-warning {
+	border-color: var(--vscode-editorWarning-foreground);
+	background-color: color-mix(in srgb, var(--vscode-editorWarning-foreground) 6%, var(--vscode-editorWidget-background));
+}
+
+.interactive-session .interactive-input-part > .chat-input-notification-container .chat-input-notification.severity-error {
+	border-color: var(--vscode-editorError-foreground);
+	background-color: color-mix(in srgb, var(--vscode-editorError-foreground) 6%, var(--vscode-editorWidget-background));
+}
+
+/* Header row: icon + title + dismiss */
+.chat-input-notification .chat-input-notification-header {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	min-width: 0;
+}
+
+/* Severity icon */
+.chat-input-notification .chat-input-notification-icon {
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+}
+
+.chat-input-notification.severity-info .chat-input-notification-icon {
+	color: var(--vscode-focusBorder);
+}
+
+.chat-input-notification.severity-warning .chat-input-notification-icon {
+	color: var(--vscode-editorWarning-foreground);
+}
+
+.chat-input-notification.severity-error .chat-input-notification-icon {
+	color: var(--vscode-editorError-foreground);
+}
+
+/* Title */
+.chat-input-notification .chat-input-notification-title {
+	font-size: 12px;
+	font-weight: 600;
+	line-height: 18px;
+	color: var(--vscode-foreground);
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* Body row: description + actions inline */
+/* Markdown-rendered title: keep the title inline (no block <p> margins). */
+.chat-input-notification .chat-input-notification-title-markdown {
+	display: inline;
+}
+
+.chat-input-notification .chat-input-notification-title-markdown > p {
+	display: inline;
+	margin: 0;
+}
+
+.chat-input-notification .chat-input-notification-title-markdown code {
+	font-family: var(--monaco-monospace-font);
+	font-size: 11px;
+	padding: 0 3px;
+	border-radius: 3px;
+	background: var(--vscode-textCodeBlock-background);
+}
+
+/* Body row: description + actions inline, wraps at small widths */
+.chat-input-notification .chat-input-notification-body {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	min-width: 0;
+}
+
+/* Description */
+.chat-input-notification .chat-input-notification-description {
+	font-size: 12px;
+	line-height: 18px;
+	color: var(--vscode-descriptionForeground);
+	flex: 1 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* Actions container */
+.chat-input-notification .chat-input-notification-actions {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	flex-shrink: 0;
+	margin-left: auto;
+}
+
+/* Action buttons */
+.chat-input-notification .chat-input-notification-action-button {
+	font-size: 11px;
+	padding: 4px 12px;
+	min-width: unset;
+	width: auto;
+	height: 24px;
+}
+
+/* Transparent ghost style for secondary action buttons (e.g. "View Usage") */
+.chat-input-notification .chat-input-notification-action-button.secondary {
+	border: none;
+	background: transparent;
+	color: var(--vscode-foreground);
+	padding: 4px 8px;
+	opacity: 0.8;
+}
+
+.chat-input-notification .chat-input-notification-action-button.secondary:hover {
+	background: var(--vscode-toolbar-hoverBackground);
+	opacity: 1;
+}
+
+/* Dismiss button */
+.chat-input-notification .chat-input-notification-dismiss {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 20px;
+	height: 20px;
+	border-radius: 4px;
+	cursor: pointer;
+	color: var(--vscode-icon-foreground);
+	background: transparent;
+	border: none;
+	outline: none;
+	flex-shrink: 0;
+	margin-left: auto;
+}
+
+.chat-input-notification .chat-input-notification-dismiss:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.chat-input-notification .chat-input-notification-dismiss:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+/* Cascade styling — remove top border-radius from sibling containers when notification is visible */
+.interactive-session .interactive-input-part > .chat-input-notification-container.has-notification + .chat-todo-list-widget-container .chat-todo-list-widget {
+	border-top-left-radius: 0;
+	border-top-right-radius: 0;
+}
+
+/* Hide the getting-started tip when a notification is visible */
+.interactive-session .interactive-input-part > .chat-input-notification-container.has-notification ~ .chat-getting-started-tip-container {
+	display: none !important;
+}

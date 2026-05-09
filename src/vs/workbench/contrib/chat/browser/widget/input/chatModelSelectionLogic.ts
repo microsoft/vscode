@@ -9,10 +9,9 @@ import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } f
 /**
  * Describes the context needed for model selection decisions.
  */
-export interface IModelSelectionContext {
+interface IModelSelectionContext {
 	readonly location: ChatAgentLocation;
 	readonly currentModeKind: ChatModeKind;
-	readonly isInlineChatV2Enabled: boolean;
 	readonly sessionType: string | undefined;
 }
 
@@ -26,7 +25,6 @@ export function filterModelsForSession(
 	sessionType: string | undefined,
 	currentModeKind: ChatModeKind,
 	location: ChatAgentLocation,
-	isInlineChatV2Enabled: boolean,
 ): ILanguageModelChatMetadataAndIdentifier[] {
 	if (sessionType && sessionType !== 'local' && hasModelsTargetingSession(models, sessionType)) {
 		return models.filter(entry =>
@@ -39,7 +37,7 @@ export function filterModelsForSession(
 		!entry.metadata?.targetChatSessionType &&
 		entry.metadata?.isUserSelectable &&
 		isModelSupportedForMode(entry, currentModeKind) &&
-		isModelSupportedForInlineChat(entry, location, isInlineChatV2Enabled)
+		isModelSupportedForInlineChat(entry, location)
 	);
 }
 
@@ -62,9 +60,8 @@ export function isModelSupportedForMode(
 export function isModelSupportedForInlineChat(
 	model: ILanguageModelChatMetadataAndIdentifier,
 	location: ChatAgentLocation,
-	isInlineChatV2Enabled: boolean,
 ): boolean {
-	if (location !== ChatAgentLocation.EditorInline || !isInlineChatV2Enabled) {
+	if (location !== ChatAgentLocation.EditorInline) {
 		return true;
 	}
 	return !!model.metadata.capabilities?.toolCalling;
@@ -167,7 +164,7 @@ export function shouldResetModelToDefault(
 	}
 
 	// Model not supported for inline chat
-	if (!isModelSupportedForInlineChat(currentModel, context.location, context.isInlineChatV2Enabled)) {
+	if (!isModelSupportedForInlineChat(currentModel, context.location)) {
 		return true;
 	}
 
@@ -216,7 +213,7 @@ export function resolveModelFromSyncState(
 		if (!isModelSupportedForMode(stateModel, context.currentModeKind)) {
 			return { action: 'default' };
 		}
-		if (!isModelSupportedForInlineChat(stateModel, context.location, context.isInlineChatV2Enabled)) {
+		if (!isModelSupportedForInlineChat(stateModel, context.location)) {
 			return { action: 'default' };
 		}
 	}
@@ -225,24 +222,32 @@ export function resolveModelFromSyncState(
 }
 
 /**
- * Merges live models with cached models per-vendor.
- * For vendors whose models have resolved, uses live data.
- * For vendors that are contributed but haven't resolved yet (startup race), keeps cached models.
- * Vendors no longer contributed are evicted from cache.
+ * Merges live models with cached models per-vendor, evicting cache for vendors
+ * no longer contributed.
+ *
+ * - `resolvedVendors`: vendors whose providers have produced at least one
+ *   result. An empty live list for these is authoritative (e.g. BYOK key
+ *   removed) and their cache entries are dropped.
+ * - When no contributor info is available yet and there are no live models
+ *   (startup / extension reload), the full cache is returned to avoid
+ *   flickering the picker to empty.
  */
 export function mergeModelsWithCache(
 	liveModels: ILanguageModelChatMetadataAndIdentifier[],
 	cachedModels: ILanguageModelChatMetadataAndIdentifier[],
 	contributedVendors: Set<string>,
+	resolvedVendors?: ReadonlySet<string>,
 ): ILanguageModelChatMetadataAndIdentifier[] {
-	if (liveModels.length > 0) {
-		const liveVendors = new Set(liveModels.map(m => m.metadata.vendor));
-		return [
-			...liveModels,
-			...cachedModels.filter(m => !liveVendors.has(m.metadata.vendor) && contributedVendors.has(m.metadata.vendor)),
-		];
+	if (contributedVendors.size === 0 && liveModels.length === 0) {
+		return cachedModels;
 	}
-	return cachedModels;
+	const liveVendors = new Set(liveModels.map(m => m.metadata.vendor));
+	const usableCached = cachedModels.filter(m =>
+		contributedVendors.has(m.metadata.vendor) &&
+		!liveVendors.has(m.metadata.vendor) &&
+		!resolvedVendors?.has(m.metadata.vendor)
+	);
+	return [...liveModels, ...usableCached];
 }
 
 /**

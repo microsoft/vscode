@@ -1,0 +1,8 @@
+lib/**
+src/**
+dist/*.map
+node_modules/**
+fixtures/**
+bootstrap/**
+tsconfig.json
+.esbuild.ts

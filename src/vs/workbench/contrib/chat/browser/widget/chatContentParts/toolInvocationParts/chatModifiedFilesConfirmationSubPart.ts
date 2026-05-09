@@ -73,9 +73,11 @@ export class ChatModifiedFilesConfirmationSubPart extends AbstractToolConfirmati
 		const hasToolConfirmation = ChatContextKeys.Editing.hasToolConfirmation.bindTo(this.contextKeyService);
 		hasToolConfirmation.set(true);
 
-		this._register(confirmWidget.onDidClick(button => {
+		this._register(confirmWidget.onDidClick(({ button, isTouchClick }) => {
 			button.data();
-			this.chatWidgetService.getWidgetBySessionResource(this.context.element.sessionResource)?.focusInput();
+			if (!isTouchClick) {
+				this.chatWidgetService.getWidgetBySessionResource(this.context.element.sessionResource)?.focusInput();
+			}
 		}));
 
 		this._register(toDisposable(() => hasToolConfirmation.reset()));
@@ -175,6 +177,8 @@ export class ChatModifiedFilesConfirmationSubPart extends AbstractToolConfirmati
 		const listItems = data.modifiedFiles.map<IChatCollapsibleListItem>(file => {
 			const resource = URI.revive(file.uri);
 			const originalUri = file.originalUri ? URI.revive(file.originalUri) : undefined;
+			const modifiedContentUri = file.modifiedContentUri ? URI.revive(file.modifiedContentUri) : undefined;
+			const originalContentUri = file.originalContentUri ? URI.revive(file.originalContentUri) : undefined;
 			return {
 				kind: 'reference',
 				reference: resource,
@@ -187,7 +191,8 @@ export class ChatModifiedFilesConfirmationSubPart extends AbstractToolConfirmati
 						added: file.insertions ?? 0,
 						removed: file.deletions ?? 0,
 					} : undefined,
-					originalUri,
+					originalUri: originalContentUri ?? originalUri,
+					modifiedUri: modifiedContentUri,
 					status: undefined,
 				}
 			};
@@ -198,8 +203,9 @@ export class ChatModifiedFilesConfirmationSubPart extends AbstractToolConfirmati
 				return;
 			}
 
-			const modifiedUri = e.element.reference;
-			const originalUri = e.element.options?.originalUri;
+			const options = e.element.options;
+			const modifiedUri = options?.modifiedUri ?? e.element.reference;
+			const originalUri = options?.originalUri;
 			if (originalUri) {
 				await this.editorService.openEditor({
 					original: { resource: originalUri },
@@ -257,8 +263,8 @@ export class ChatModifiedFilesConfirmationSubPart extends AbstractToolConfirmati
 		await this.commandService.executeCommand('_workbench.openMultiDiffEditor', {
 			title: localize('modifiedFilesAllChangesTitle', 'All Changes'),
 			resources: data.modifiedFiles.map(file => ({
-				originalUri: file.originalUri ? URI.revive(file.originalUri) : undefined,
-				modifiedUri: URI.revive(file.uri),
+				originalUri: file.originalContentUri ? URI.revive(file.originalContentUri) : file.originalUri ? URI.revive(file.originalUri) : undefined,
+				modifiedUri: file.modifiedContentUri ? URI.revive(file.modifiedContentUri) : URI.revive(file.uri),
 			}))
 		});
 	}

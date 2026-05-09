@@ -85,7 +85,7 @@
 /* Title */
 .agent-feedback-widget-title {
 	font-weight: 500;
-	line-height: 12px;
+	line-height: 16px;
 	color: var(--vscode-foreground);
 	white-space: nowrap;
 	overflow: hidden;
