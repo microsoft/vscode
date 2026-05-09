@@ -15,6 +15,7 @@ import { runPlan } from './commands/plan';
 import { runResume } from './commands/resume';
 import { runSpecialist } from './commands/run';
 import { toolsCommand } from './commands/tools';
+import { runTraces } from './commands/traces';
 import { runUpdate } from './commands/update';
 
 const program = new Command();
@@ -66,6 +67,13 @@ program
 	.option('--yes', 'Non-interactive mode (skip prompts; use defaults)')
 	.addOption(outputOption())
 	.action(runInit);
+
+program
+	.command('traces')
+	.description('Print prompt-cache and model-routing summaries collected by the harness.')
+	.option('--load <path>', 'Load persisted metrics from a workspace root or .son-of-anton/metrics directory')
+	.addOption(outputOption())
+	.action(runTraces);
 
 program
 	.command('update')

@@ -5,6 +5,8 @@
 import * as vscode from 'vscode';
 import { spawn } from 'node:child_process';
 import { ToolExecutionContext } from 'son-of-anton-core/tools/types';
+import type { HookRunner } from 'son-of-anton-core/persistence/HookRunner';
+import { instrumentToolExecutionContext } from 'son-of-anton-core/persistence/instrumentToolExecutionContext';
 
 // Re-export the moved registry surface so existing relative imports
 // (`../tools/registry`) keep working without churning every call site.
@@ -234,4 +236,19 @@ export function createWorkspaceToolContext(): ToolExecutionContext {
 			return results;
 		},
 	};
+}
+
+/**
+ * Build a workspace-backed `ToolExecutionContext` and, when a {@link HookRunner}
+ * is supplied, wrap it with the shared `instrumentToolExecutionContext`
+ * decorator so configured `.son-of-anton/hooks.json` scripts fire on the
+ * primitives the IDE's tool registry calls into (`pre-write-file`,
+ * `pre-shell-command`, `post-tool-call`).
+ *
+ * Without a `hookRunner` this is equivalent to {@link createWorkspaceToolContext}
+ * — call sites that don't need hooks (e.g. tests) keep using the bare factory.
+ */
+export function createInstrumentedWorkspaceToolContext(hookRunner?: HookRunner): ToolExecutionContext {
+	const base = createWorkspaceToolContext();
+	return hookRunner ? instrumentToolExecutionContext(base, hookRunner) : base;
 }

@@ -20,7 +20,10 @@ import { PERSONAS } from 'son-of-anton-core/chat/personas';
 import { TraceViewerPanel } from './trace/TraceViewerPanel';
 import { TraceExporter } from './trace/TraceExporter';
 import { LlmClient } from 'son-of-anton-core/llm/LlmClient';
-import { ToolRegistry, createWorkspaceToolContext } from './tools/registry';
+import { ToolRegistry, createInstrumentedWorkspaceToolContext } from './tools/registry';
+import { HookRunner, hooksFilePath } from 'son-of-anton-core/persistence/HookRunner';
+import type { CoreHost } from 'son-of-anton-core/host';
+import * as fs from 'node:fs';
 import { AgentManager } from 'son-of-anton-core/agents/AgentManager';
 import { McpClient, type McpClientDeps } from 'son-of-anton-core/mcp/McpClient';
 import { bridgeMcpToolsIntoRegistry, subscribeMcpToolBridge } from 'son-of-anton-core/mcp/McpToolBridge';
@@ -243,6 +246,45 @@ export function activate(context: vscode.ExtensionContext): void {
 	// workspace root is captured at activation. Switching workspaces
 	// requires a window reload — same constraint that already applies
 	// to `workspaceRoot` and `projectContextProvider` above.
+	// H14 — Workspace-trust-gated hook runner for `.son-of-anton/hooks.json`.
+	// Constructed once per activation so every chat surface (agent stack
+	// specialists AND the chat panel's per-send tool loop) fires the same
+	// `pre-write-file` / `pre-shell-command` / `post-tool-call` scripts.
+	// We skip instantiation entirely when the file is missing or the
+	// workspace is untrusted so untouched workspaces pay zero overhead.
+	// The HookRunner needs a CoreHost; we synthesise the minimal slice
+	// (workspace + notifier) here rather than pulling in a full host
+	// implementation — the runner only reads `workspace.folders[0].fsPath`,
+	// `workspace.isTrusted`, and `notifier.warn` for slow-script logging.
+	const hookRunner: HookRunner | undefined = (() => {
+		if (!workspacePath || !vscode.workspace.isTrusted) {
+			return undefined;
+		}
+		if (!fs.existsSync(hooksFilePath(workspacePath))) {
+			return undefined;
+		}
+		const folderName = vscode.workspace.workspaceFolders?.[0]?.name ?? path.basename(workspacePath);
+		// VS Code adapter for the core `Notifier` interface. `warn` is the
+		// only method the HookRunner actually calls (slow-hook timeouts);
+		// the others are wired for completeness so future hook events that
+		// log via `notifier.info` / `notifier.error` keep working.
+		const notifier = {
+			info: (message: string) => { void vscode.window.showInformationMessage(message); },
+			warn: (message: string) => { void vscode.window.showWarningMessage(message); },
+			error: (message: string) => { void vscode.window.showErrorMessage(message); },
+		};
+		const hostStub = {
+			// Only the surface HookRunner reads is populated; the rest is
+			// asserted via cast since the runner never touches it.
+			workspace: {
+				folders: [{ fsPath: workspacePath, name: folderName }],
+				isTrusted: true,
+			},
+			notifier,
+		} as unknown as CoreHost;
+		return new HookRunner(hostStub);
+	})();
+
 	const agentStack = createAgentStack({
 		llmClient,
 		mcpClient,
@@ -250,7 +292,7 @@ export function activate(context: vscode.ExtensionContext): void {
 		globalState: context.globalState,
 		workspaceRoot: workspacePath || undefined,
 		projectContext: projectContextProvider,
-		toolExecutionContext: workspacePath ? createWorkspaceToolContext() : undefined,
+		toolExecutionContext: workspacePath ? createInstrumentedWorkspaceToolContext(hookRunner) : undefined,
 	});
 	context.subscriptions.push({ dispose: () => agentStack.dispose() });
 	// Specialist memory is owned by the stack but pushed separately so
@@ -413,7 +455,7 @@ export function activate(context: vscode.ExtensionContext): void {
 	);
 
 	// Chat sidebar view (primary surface)
-	const chatViewProvider = new ChatViewProvider(context, conversationStore, llmClient, toolRegistry, agentBridge, workspaceContextProvider, costReporter, checkpointManager, auth.broker, taskBoardModel, writeSnapshotStore);
+	const chatViewProvider = new ChatViewProvider(context, conversationStore, llmClient, toolRegistry, agentBridge, workspaceContextProvider, costReporter, checkpointManager, auth.broker, taskBoardModel, writeSnapshotStore, hookRunner);
 	context.subscriptions.push(
 		vscode.window.registerWebviewViewProvider(ChatViewProvider.VIEW_ID, chatViewProvider, {
 			webviewOptions: { retainContextWhenHidden: true },
@@ -589,7 +631,7 @@ export function activate(context: vscode.ExtensionContext): void {
 	// Open chat in editor area (legacy command, still useful for split layouts)
 	context.subscriptions.push(
 		vscode.commands.registerCommand('sota.openChat', () => {
-			ChatPanel.createOrShow(context, conversationStore, llmClient, toolRegistry, agentBridge, workspaceContextProvider, costReporter, checkpointManager, auth.broker, taskBoardModel, writeSnapshotStore);
+			ChatPanel.createOrShow(context, conversationStore, llmClient, toolRegistry, agentBridge, workspaceContextProvider, costReporter, checkpointManager, auth.broker, taskBoardModel, writeSnapshotStore, hookRunner);
 		})
 	);
 
@@ -1105,6 +1147,38 @@ export function activate(context: vscode.ExtensionContext): void {
 				vscode.window.showInformationMessage(`Traces exported to ${uri.fsPath}`);
 			}
 		})
+	);
+
+	// Harness stats command (H16) — surface PromptCacheOptimizer +
+	// ModelRouter `formatSummary()` output as a one-shot markdown snapshot.
+	// Both objects are read off the agent stack so the dump reflects the
+	// same instances the rest of the editor reads from.
+	context.subscriptions.push(
+		vscode.commands.registerCommand('sota.showHarnessStats', async () => {
+			const cacheSummary = agentStack.cacheOptimizer
+				? agentStack.cacheOptimizer.formatSummary()
+				: '## Prompt Cache Performance\n\n_(cache optimizer not available)_\n';
+			const routingSummary = agentStack.modelRouter
+				? agentStack.modelRouter.formatSummary()
+				: '## Model Routing Summary\n\n_(model router not available)_\n';
+
+			const generatedAt = new Date().toISOString();
+			const combined = `# Son of Anton — Harness Stats\n\n_Snapshot taken at ${generatedAt}_\n\n${cacheSummary}\n\n${routingSummary}\n`;
+
+			const doc = await vscode.workspace.openTextDocument({
+				content: combined,
+				language: 'markdown',
+			});
+			await vscode.window.showTextDocument(doc, { preview: true });
+			// Open the markdown preview alongside so the tables render.
+			// Failure (e.g. preview disabled) is non-fatal — the raw markdown
+			// is already visible in the editor.
+			try {
+				await vscode.commands.executeCommand('markdown.showPreview', doc.uri);
+			} catch {
+				// Preview unavailable — markdown source is still shown.
+			}
+		}),
 	);
 
 	// Sandbox terminal command

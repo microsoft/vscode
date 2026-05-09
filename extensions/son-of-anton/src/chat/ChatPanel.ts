@@ -5,7 +5,8 @@
 import * as vscode from 'vscode';
 import { globalScopedConfig } from './globalScopedConfig';
 import { LlmClient, LlmContentPart, LlmMessage, ModelId, ToolDefinition as LlmToolDefinition } from 'son-of-anton-core/llm/LlmClient';
-import { ToolRegistry, createWorkspaceToolContext } from '../tools/registry';
+import { ToolRegistry, createInstrumentedWorkspaceToolContext } from '../tools/registry';
+import type { HookRunner } from 'son-of-anton-core/persistence/HookRunner';
 import { ToolExecutionResult, ToolCategory } from 'son-of-anton-core/tools/types';
 import { SPECIALIST_ROLES, getSpecialist, buildSystemPrompt } from 'son-of-anton-core/chat/specialistRegistry';
 import { PERSONAS, getRoster } from 'son-of-anton-core/chat/personas';
@@ -424,6 +425,7 @@ export class ChatSession {
 		private readonly credentialBroker?: CredentialBroker,
 		private readonly taskBoardModel?: TaskBoardModel,
 		private readonly writeSnapshotStore?: WriteSnapshotStore,
+		private readonly hookRunner?: HookRunner,
 	) {
 		// Resolve the initial conversation: prefer the requested id, fall back
 		// to the most recent existing conversation, or create a fresh one when
@@ -2558,7 +2560,12 @@ export class ChatSession {
 		// looser superset), so a runtime-safe cast is used at the boundary.
 		const tools = this.toolRegistry.definitions() as unknown as ReadonlyArray<LlmToolDefinition>;
 		// Single execution context per send — tool calls reuse the same handles.
-		const ctx = createWorkspaceToolContext();
+		// H14 — when a HookRunner is supplied (workspace trusted +
+		// `.son-of-anton/hooks.json` exists) the context is wrapped so
+		// `pre-write-file` / `pre-shell-command` / `post-tool-call` scripts
+		// fire on the same primitives the agent stack uses. Without a runner
+		// this collapses back to the bare workspace context.
+		const ctx = createInstrumentedWorkspaceToolContext(this.hookRunner);
 		const MAX_TOOL_TURNS = 5;
 
 		// Build the initial LLM message list. The latest user turn carries the
@@ -4671,6 +4678,7 @@ export class ChatPanel {
 		credentialBroker?: CredentialBroker,
 		taskBoardModel?: TaskBoardModel,
 		writeSnapshotStore?: WriteSnapshotStore,
+		hookRunner?: HookRunner,
 	): void {
 		if (ChatPanel.currentPanel) {
 			ChatPanel.currentPanel.reveal(vscode.ViewColumn.Beside);
@@ -4690,7 +4698,7 @@ export class ChatPanel {
 			},
 		);
 
-		const session = new ChatSession(panel.webview, context.extensionUri, conversationStore, llmClient, toolRegistry, agentBridge, workspaceContext, costReporter, undefined, checkpointManager, context.secrets, credentialBroker, taskBoardModel, writeSnapshotStore);
+		const session = new ChatSession(panel.webview, context.extensionUri, conversationStore, llmClient, toolRegistry, agentBridge, workspaceContext, costReporter, undefined, checkpointManager, context.secrets, credentialBroker, taskBoardModel, writeSnapshotStore, hookRunner);
 
 		panel.onDidDispose(() => {
 			session.dispose();

@@ -292,6 +292,10 @@
 				"title": "Anton: Export Traces"
 			},
 			{
+				"command": "sota.showHarnessStats",
+				"title": "Son of Anton: Show Harness Stats"
+			},
+			{
 				"command": "sota.showSandbox",
 				"title": "Anton: Show Sandbox Terminal"
 			},

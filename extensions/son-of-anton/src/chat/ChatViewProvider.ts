@@ -14,6 +14,7 @@ import { CheckpointManager } from 'son-of-anton-core/checkpoint/CheckpointManage
 import { CredentialBroker } from 'son-of-anton-core/auth/CredentialBroker';
 import { TaskBoardModel } from '../board/TaskBoardModel';
 import { WriteSnapshotStore } from './WriteSnapshotStore';
+import type { HookRunner } from 'son-of-anton-core/persistence/HookRunner';
 
 /**
  * Hosts the chat experience inside an activity-bar sidebar view container,
@@ -37,6 +38,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 		private readonly credentialBroker?: CredentialBroker,
 		private readonly taskBoardModel?: TaskBoardModel,
 		private readonly writeSnapshotStore?: WriteSnapshotStore,
+		private readonly hookRunner?: HookRunner,
 	) { }
 
 	resolveWebviewView(view: vscode.WebviewView): void {
@@ -70,6 +72,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 			this.credentialBroker,
 			this.taskBoardModel,
 			this.writeSnapshotStore,
+			this.hookRunner,
 		);
 
 		view.onDidDispose(() => {
