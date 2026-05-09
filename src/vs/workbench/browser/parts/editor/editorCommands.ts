@@ -1937,7 +1937,7 @@ function registerTabGroupCommands(): void {
 				});
 			}
 			items.push({
-				label: '$(add) ' + localize('newTabGroup', "New Group..."),
+				label: `$(add) ${localize('newTabGroup', "New Group...")}`,
 				id: '__new__'
 			});
 

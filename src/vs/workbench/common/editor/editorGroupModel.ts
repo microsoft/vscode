@@ -197,7 +197,7 @@ export interface IReadonlyEditorGroupModel {
 }
 
 export interface ITabGroupMutations {
-	createTabGroup(editors: EditorInput[], name?: string, color?: string): IEditorTabGroup;
+	createTabGroup(editors: EditorInput[], name?: string, color?: string): IEditorTabGroup | undefined;
 	collapseTabGroup(groupId: string): void;
 	expandTabGroup(groupId: string): void;
 	addToTabGroup(groupId: string, editor: EditorInput): void;
@@ -1203,7 +1203,7 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 		return this._tabGroups.find(g => index >= g.startIndex && index < g.startIndex + g.count);
 	}
 
-	createTabGroup(editors: EditorInput[], name?: string, color?: string): IEditorTabGroup {
+	createTabGroup(editors: EditorInput[], name?: string, color?: string): IEditorTabGroup | undefined {
 		// Build a list of (editor, index) pairs, filter, and sort by index
 		const editorEntries = editors
 			.map(e => ({ editor: e, index: this.indexOf(e) }))
@@ -1211,7 +1211,7 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 			.sort((a, b) => a.index - b.index);
 
 		if (editorEntries.length === 0) {
-			throw new Error('Cannot create tab group: no valid non-sticky editors provided');
+			return undefined;
 		}
 
 		// Remove editors from any existing groups to prevent overlap
@@ -1266,7 +1266,7 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 		}
 
 		const editorIndex = this.indexOf(editor);
-		if (editorIndex < 0) {
+		if (editorIndex < 0 || this.isSticky(editorIndex)) {
 			return;
 		}
 
@@ -1697,7 +1697,7 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 		}
 
 		if (data.tabGroups) {
-			this._tabGroups = data.tabGroups
+			const restored = data.tabGroups
 				.filter(g => g.startIndex >= 0 && g.count > 0 && g.startIndex + g.count <= this.editors.length)
 				.map(g => ({
 					id: g.id,
@@ -1707,6 +1707,18 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 					startIndex: g.startIndex,
 					count: g.count
 				}));
+			restored.sort((a, b) => a.startIndex - b.startIndex);
+
+			// Drop overlapping groups (keep the first one encountered)
+			const validated: typeof restored = [];
+			let maxEnd = 0;
+			for (const g of restored) {
+				if (g.startIndex >= maxEnd) {
+					validated.push(g);
+					maxEnd = g.startIndex + g.count;
+				}
+			}
+			this._tabGroups = validated;
 		}
 
 		return this._id;

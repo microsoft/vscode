@@ -2615,7 +2615,7 @@ suite('EditorGroupModel', () => {
 			group.openEditor(input2, { pinned: true });
 			group.openEditor(input3, { pinned: true });
 
-			const tabGroup = group.createTabGroup([input1, input2]);
+			const tabGroup = group.createTabGroup([input1, input2])!;
 
 			assert.strictEqual(tabGroup.count, 2);
 			assert.strictEqual(tabGroup.startIndex, 0);
@@ -2635,10 +2635,10 @@ suite('EditorGroupModel', () => {
 			group.openEditor(input2, { pinned: true });
 			group.openEditor(input3, { pinned: true });
 
-			const tabGroup1 = group.createTabGroup([input1, input2, input3]);
+			const tabGroup1 = group.createTabGroup([input1, input2, input3])!;
 			assert.strictEqual(tabGroup1.count, 3);
 
-			const tabGroup2 = group.createTabGroup([input2]);
+			const tabGroup2 = group.createTabGroup([input2])!;
 			assert.strictEqual(tabGroup2.count, 1);
 			assert.strictEqual(tabGroup1.count, 2);
 			assert.strictEqual(group.getTabGroupForEditor(input2)?.id, tabGroup2.id);
@@ -2652,7 +2652,7 @@ suite('EditorGroupModel', () => {
 			group.openEditor(input1, { pinned: true, sticky: true });
 			group.openEditor(input2, { pinned: true });
 
-			const tabGroup = group.createTabGroup([input1, input2]);
+			const tabGroup = group.createTabGroup([input1, input2])!;
 			assert.strictEqual(tabGroup.count, 1);
 			assert.strictEqual(group.getTabGroupForEditor(input1), undefined);
 			assert.strictEqual(group.getTabGroupForEditor(input2)?.id, tabGroup.id);
@@ -2668,7 +2668,7 @@ suite('EditorGroupModel', () => {
 			group.openEditor(input2, { pinned: true });
 			group.openEditor(input3, { pinned: true });
 
-			const tabGroup = group.createTabGroup([input1]);
+			const tabGroup = group.createTabGroup([input1])!;
 			assert.strictEqual(tabGroup.count, 1);
 
 			group.addToTabGroup(tabGroup.id, input2);
@@ -2688,7 +2688,7 @@ suite('EditorGroupModel', () => {
 			group.openEditor(input1, { pinned: true });
 			group.openEditor(input2, { pinned: true });
 
-			const tabGroup = group.createTabGroup([input1]);
+			const tabGroup = group.createTabGroup([input1])!;
 			group.includeInTabGroup(tabGroup.id, input2);
 			assert.strictEqual(tabGroup.count, 2);
 			assert.strictEqual(group.getTabGroupForEditor(input2)?.id, tabGroup.id);
@@ -2706,8 +2706,8 @@ suite('EditorGroupModel', () => {
 			group.openEditor(input3, { pinned: true });
 			group.openEditor(input4, { pinned: true });
 
-			const tabGroup1 = group.createTabGroup([input1, input2]);
-			const tabGroup2 = group.createTabGroup([input3, input4]);
+			const tabGroup1 = group.createTabGroup([input1, input2])!;
+			const tabGroup2 = group.createTabGroup([input3, input4])!;
 
 			assert.strictEqual(tabGroup1.startIndex, 0);
 			assert.strictEqual(tabGroup2.startIndex, 2);
@@ -2724,7 +2724,7 @@ suite('EditorGroupModel', () => {
 
 			group.openEditor(input1, { pinned: true });
 
-			const tabGroup = group.createTabGroup([input1]);
+			const tabGroup = group.createTabGroup([input1])!;
 			assert.strictEqual(tabGroup.collapsed, false);
 
 			group.collapseTabGroup(tabGroup.id);
@@ -2742,7 +2742,7 @@ suite('EditorGroupModel', () => {
 			group.openEditor(input1, { pinned: true });
 			group.openEditor(input2, { pinned: true });
 
-			const tabGroup = group.createTabGroup([input1, input2]);
+			const tabGroup = group.createTabGroup([input1, input2])!;
 			assert.strictEqual(tabGroup.count, 2);
 			assert.strictEqual(tabGroup.startIndex, 0);
 
@@ -2761,7 +2761,7 @@ suite('EditorGroupModel', () => {
 			group.openEditor(input1, { pinned: true });
 			group.openEditor(input2, { pinned: true });
 
-			const tabGroup = group.createTabGroup([input1, input2]);
+			const tabGroup = group.createTabGroup([input1, input2])!;
 			assert.strictEqual(tabGroup.count, 2);
 
 			const input3 = input();
@@ -2781,7 +2781,7 @@ suite('EditorGroupModel', () => {
 			group.openEditor(input2, { pinned: true });
 			group.openEditor(input3, { pinned: true });
 
-			const tabGroup = group.createTabGroup([input1, input2, input3]);
+			const tabGroup = group.createTabGroup([input1, input2, input3])!;
 			assert.strictEqual(tabGroup.count, 3);
 
 			group.closeEditor(input2);
@@ -2796,7 +2796,7 @@ suite('EditorGroupModel', () => {
 			group.openEditor(input1, { pinned: true });
 			group.openEditor(input2, { pinned: true });
 
-			const tabGroup = group.createTabGroup([input1, input2]);
+			const tabGroup = group.createTabGroup([input1, input2])!;
 			assert.strictEqual(group.tabGroups.length, 1);
 
 			group.dissolveTabGroup(tabGroup.id);
@@ -2811,7 +2811,7 @@ suite('EditorGroupModel', () => {
 
 			group.openEditor(input1, { pinned: true });
 
-			const tabGroup = group.createTabGroup([input1], 'Initial', 'red');
+			const tabGroup = group.createTabGroup([input1], 'Initial', 'red')!;
 			assert.strictEqual(tabGroup.name, 'Initial');
 			assert.strictEqual(tabGroup.color, 'red');
 
@@ -2832,7 +2832,7 @@ suite('EditorGroupModel', () => {
 			group.openEditor(input2, { pinned: true });
 			group.openEditor(input3, { pinned: true });
 
-			const tabGroup = group.createTabGroup([input1, input2], 'Test Group', 'blue');
+			const tabGroup = group.createTabGroup([input1, input2], 'Test Group', 'blue')!;
 			group.collapseTabGroup(tabGroup.id);
 
 			const serialized = group.serialize();

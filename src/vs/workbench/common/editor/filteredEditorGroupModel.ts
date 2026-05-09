@@ -39,7 +39,7 @@ abstract class FilteredEditorGroupModel extends Disposable implements IReadonlyE
 	getTabGroupForEditor(editorOrIndex: EditorInput | number): IEditorTabGroup | undefined { return this.model.getTabGroupForEditor(editorOrIndex); }
 
 	// ITabGroupMutations delegation
-	createTabGroup(editors: EditorInput[], name?: string, color?: string): IEditorTabGroup { return this.mutations.createTabGroup(editors, name, color); }
+	createTabGroup(editors: EditorInput[], name?: string, color?: string): IEditorTabGroup | undefined { return this.mutations.createTabGroup(editors, name, color); }
 	collapseTabGroup(groupId: string): void { this.mutations.collapseTabGroup(groupId); }
 	expandTabGroup(groupId: string): void { this.mutations.expandTabGroup(groupId); }
 	addToTabGroup(groupId: string, editor: EditorInput): void { this.mutations.addToTabGroup(groupId, editor); }

@@ -438,7 +438,8 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 					// Handle tab group reorder: move group to the end
 					if (this.draggedTabGroupId) {
 						e.preventDefault();
-						this.tabGroupMutations.moveTabGroup(this.draggedTabGroupId, this.tabsModel.count + this.groupView.stickyCount);
+						const endIndex = this.tabsModel instanceof UnstickyEditorGroupModel ? this.tabsModel.count + this.groupView.stickyCount : this.tabsModel.count;
+						this.tabGroupMutations.moveTabGroup(this.draggedTabGroupId, endIndex);
 						this.draggedTabGroupId = undefined;
 						return;
 					}
@@ -1777,7 +1778,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 					e.preventDefault();
 					const targetGroup = this.tabsModel.tabGroups.find(g => g.id === groupId);
 					if (targetGroup) {
-						const absoluteIndex = targetGroup.startIndex + this.groupView.stickyCount;
+						const absoluteIndex = this.tabsModel instanceof UnstickyEditorGroupModel ? targetGroup.startIndex + this.groupView.stickyCount : targetGroup.startIndex;
 						this.tabGroupMutations.moveTabGroup(this.draggedTabGroupId, absoluteIndex);
 					}
 					this.draggedTabGroupId = undefined;
@@ -2603,12 +2604,32 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		return undefined;
 	}
 
-	private getTabElementCount(_tabsContainer: HTMLElement): number {
-		return this.tabElementsCache.length;
+	private getTabElementCount(tabsContainer: HTMLElement): number {
+		if (this.tabElementsCache.length > 0) {
+			return this.tabElementsCache.length;
+		}
+		// Fallback: count .tab elements directly from DOM
+		let count = 0;
+		for (let i = 0; i < tabsContainer.children.length; i++) {
+			if (tabsContainer.children[i].classList.contains('tab')) {
+				count++;
+			}
+		}
+		return count;
 	}
 
-	private getLastTabElement(_tabsContainer: HTMLElement): HTMLElement | undefined {
-		return this.tabElementsCache.length > 0 ? this.tabElementsCache[this.tabElementsCache.length - 1] : undefined;
+	private getLastTabElement(tabsContainer: HTMLElement): HTMLElement | undefined {
+		if (this.tabElementsCache.length > 0) {
+			return this.tabElementsCache[this.tabElementsCache.length - 1];
+		}
+		// Fallback: find last .tab element from DOM
+		for (let i = tabsContainer.children.length - 1; i >= 0; i--) {
+			const child = tabsContainer.children[i] as HTMLElement;
+			if (child.classList.contains('tab')) {
+				return child;
+			}
+		}
+		return undefined;
 	}
 
 	private getTabAtIndex(tabIndex: number): HTMLElement | undefined {
