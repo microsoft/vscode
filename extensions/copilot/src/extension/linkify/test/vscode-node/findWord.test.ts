@@ -146,5 +146,6 @@ suite('Find symbol location in file', () => {
 		assert(methodLocation);
 		assert.strictEqual(parserService.parseCount, 1);
 		assert.strictEqual(parserService.genericSymbolQueryCount, 1);
+		assert.deepStrictEqual(parserService.genericSymbolRanges, [{ startIndex: 0, endIndex: contents.length }]);
 	});
 });

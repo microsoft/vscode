@@ -9,6 +9,7 @@ import { IParserService } from '../../../platform/parser/node/parserService';
 import { IWorkspaceService } from '../../../platform/workspace/common/workspaceService';
 import { collapseRangeToStart } from '../../../util/common/range';
 import { CancellationToken } from '../../../util/vs/base/common/cancellation';
+import { isEqualOrParent } from '../../../util/vs/base/common/resources';
 import { SymbolInformation, Uri } from '../../../vscodeTypes';
 import { LinkifiedPart, LinkifiedText, LinkifySymbolAnchor } from '../common/linkifiedText';
 import { IContributedLinkifier, LinkifierContext } from '../common/linkifyService';
@@ -23,6 +24,8 @@ import { findSymbolLocationInFile, type SymbolFileCache } from './findWord';
  * ```
  */
 export class SymbolLinkifier implements IContributedLinkifier {
+
+	private readonly symbolFileCache: SymbolFileCache = new Map();
 
 	constructor(
 		@IFileSystemService private readonly fileSystem: IFileSystemService,
@@ -41,7 +44,6 @@ export class SymbolLinkifier implements IContributedLinkifier {
 		}
 
 		const out: LinkifiedPart[] = [];
-		const symbolFileCache: SymbolFileCache = new Map();
 
 		let endLastMatch = 0;
 		for (const match of text.matchAll(/\[`([^`\[\]]+?)`]\((\S+?\.\w+)\)/g)) {
@@ -61,7 +63,7 @@ export class SymbolLinkifier implements IContributedLinkifier {
 			const resolvedUri = await this.resolveInWorkspace(symbolPath, workspaceFolders);
 
 			if (resolvedUri) {
-				const initialLocation = await findSymbolLocationInFile(this.parserService, resolvedUri, symbolText, token, symbolFileCache)
+				const initialLocation = await findSymbolLocationInFile(this.parserService, resolvedUri, symbolText, token, this.symbolFileCache)
 					.catch(() => undefined);
 				const info: SymbolInformation = {
 					name: symbolText,
@@ -114,7 +116,13 @@ export class SymbolLinkifier implements IContributedLinkifier {
 
 	private async resolveInWorkspace(symbolPath: string, workspaceFolders: readonly Uri[]): Promise<Uri | undefined> {
 		const candidates = workspaceFolders.map(folder => Uri.joinPath(folder, symbolPath));
-		const results = await Promise.all(candidates.map(uri => this.exists(uri).then(exists => exists ? uri : undefined)));
+		const results = await Promise.all(candidates.map((uri, index) => {
+			const workspaceFolder = workspaceFolders[index];
+			if (!isEqualOrParent(uri, workspaceFolder)) {
+				return undefined;
+			}
+			return this.exists(uri).then(exists => exists ? uri : undefined);
+		}));
 		return results.find((uri): uri is Uri => uri !== undefined);
 	}
 

@@ -140,7 +140,8 @@ async function doGetFileSymbols(parserService: IParserService, uri: vscode.Uri, 
 	}
 
 	try {
-		const ast = parserService.getTreeSitterASTForWASMLanguage(wasmLanguage, doc.getText());
+		const text = doc.getText();
+		const ast = parserService.getTreeSitterASTForWASMLanguage(wasmLanguage, text);
 		const [classDeclarations, functionDefinitions, typeDeclarations] = await Promise.all([
 			ast.getClassDeclarations(),
 			ast.getFunctionDefinitions(),
@@ -158,10 +159,9 @@ async function doGetFileSymbols(parserService: IParserService, uri: vscode.Uri, 
 					return Promise.resolve([]);
 				}
 				genericSymbols ??= (async () => {
-					const fullFileRange = new vscode.Range(0, 0, Number.MAX_SAFE_INTEGER, 0);
 					const symbols = await ast.getSymbols({
-						startIndex: doc.offsetAt(fullFileRange.start),
-						endIndex: doc.offsetAt(fullFileRange.end),
+						startIndex: 0,
+						endIndex: text.length,
 					});
 					return toFileSymbols(uri, doc, symbols);
 				})().catch(() => []);

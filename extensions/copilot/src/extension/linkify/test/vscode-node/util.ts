@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import assert from 'assert';
 import { mkdir, mkdtemp, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { dirname, join } from 'path';
@@ -14,6 +15,7 @@ import { URI } from '../../../../util/vs/base/common/uri';
 export class TestParserService implements Partial<IParserService> {
 	public parseCount = 0;
 	public genericSymbolQueryCount = 0;
+	public readonly genericSymbolRanges: { readonly startIndex: number; readonly endIndex: number }[] = [];
 
 	constructor(
 		private readonly symbols: readonly TreeSitterExpressionInfo[] = [],
@@ -32,8 +34,9 @@ export class TestParserService implements Partial<IParserService> {
 			getClassDeclarations: async () => classDeclarations,
 			getFunctionDefinitions: async () => functionDefinitions,
 			getTypeDeclarations: async () => typeDeclarations,
-			getSymbols: async () => {
+			getSymbols: async (range: { readonly startIndex: number; readonly endIndex: number }) => {
 				this.genericSymbolQueryCount++;
+				this.genericSymbolRanges.push(range);
 				return symbols;
 			},
 		} as unknown as TreeSitterAST;
@@ -65,6 +68,7 @@ export function asParserService(parserService: TestParserService): IParserServic
 
 export function symbol(contents: string, identifier: string): TreeSitterExpressionInfo {
 	const startIndex = contents.indexOf(identifier);
+	assert.notStrictEqual(startIndex, -1, `Test symbol "${identifier}" was not found in contents.`);
 	return {
 		identifier,
 		text: identifier,
@@ -75,6 +79,7 @@ export function symbol(contents: string, identifier: string): TreeSitterExpressi
 
 export function declaration(contents: string, identifier: string, text: string): TreeSitterExpressionInfo {
 	const startIndex = contents.indexOf(text);
+	assert.notStrictEqual(startIndex, -1, `Test declaration text "${text}" was not found in contents.`);
 	return {
 		identifier,
 		text,

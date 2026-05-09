@@ -241,6 +241,51 @@ suite('Symbol Linkify', () => {
 		assert.strictEqual(parts[2].symbolInformation.location.range.start.character, 6);
 	});
 
+	test(`Should reuse the tree-sitter cache across streamed chunks`, async () => {
+		const contents = [
+			'class Foo {',
+			'}',
+			'',
+			'class Bar {',
+			'}',
+		].join('\n');
+		const { workspace } = await createTestFile('src/file.ts', contents);
+
+		const testParserService = new TestParserService([
+			symbol(contents, 'Foo'),
+			symbol(contents, 'Bar'),
+		]);
+		const fs = createMockFsService([URI.joinPath(workspace, 'src/file.ts')]);
+		const linkifier = new SymbolLinkifier(fs, asParserService(testParserService), createWorkspaceService(workspace));
+		const context = { requestId: undefined, references: [] };
+
+		const firstResult = await linkifier.linkify('[`Foo`](src/file.ts)', context, CancellationToken.None);
+		const secondResult = await linkifier.linkify('[`Bar`](src/file.ts)', context, CancellationToken.None);
+
+		assert.strictEqual(testParserService.parseCount, 1);
+		assert(firstResult);
+		assert(secondResult);
+		assert(firstResult.parts[0] instanceof LinkifySymbolAnchor);
+		assert(secondResult.parts[0] instanceof LinkifySymbolAnchor);
+		assert.strictEqual(firstResult.parts[0].symbolInformation.location.range.start.line, 0);
+		assert.strictEqual(secondResult.parts[0].symbolInformation.location.range.start.line, 3);
+	});
+
+	test(`Should not linkify symbols that resolve outside the workspace`, async () => {
+		const workspace = URI.file('/workspace');
+		const outsideUri = URI.joinPath(workspace, '../outside.ts');
+		const testParserService = new TestParserService([
+			{ identifier: 'Foo', text: 'Foo', startIndex: 0, endIndex: 3 }
+		]);
+		const fs = createMockFsService([outsideUri]);
+		const linkifier = new SymbolLinkifier(fs, asParserService(testParserService), createWorkspaceService(workspace));
+
+		const result = await linkifier.linkify('[`Foo`](%2e%2e/outside.ts)', { requestId: undefined, references: [] }, CancellationToken.None);
+
+		assert.deepStrictEqual(result?.parts, ['`Foo`']);
+		assert.strictEqual(testParserService.parseCount, 0);
+	});
+
 	test(`Should let LSP resolve upgrade symbol kind and location`, async () => {
 		const contents = [
 			'const value = 1;',
