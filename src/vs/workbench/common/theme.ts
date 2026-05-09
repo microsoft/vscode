@@ -154,7 +154,6 @@ export const TAB_UNFOCUSED_HOVER_BORDER = registerColor('tab.unfocusedHoverBorde
 
 //#endregion
 
-
 //#region Tab Drag and Drop Border
 
 export const TAB_DRAG_AND_DROP_BORDER = registerColor('tab.dragAndDropBorder', {

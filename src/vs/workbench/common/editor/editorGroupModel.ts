@@ -1275,20 +1275,20 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 			return;
 		}
 
+		// Only allow absorption of adjacent editors to maintain contiguity
+		if (editorIndex !== group.startIndex + group.count && editorIndex !== group.startIndex - 1) {
+			return;
+		}
+
 		// Remove from any other group
 		this.removeFromTabGroupByIndex(editorIndex);
 
-		// Expand the group to include the editor at its current position
+		// Expand the group to include the adjacent editor
 		if (editorIndex === group.startIndex + group.count) {
 			group.count++;
 		} else if (editorIndex === group.startIndex - 1) {
 			group.startIndex--;
 			group.count++;
-		} else {
-			group.count++;
-			if (editorIndex < group.startIndex) {
-				group.startIndex = editorIndex;
-			}
 		}
 
 		this._onDidModelChange.fire({ kind: GroupModelChangeKind.TAB_GROUP_EDITOR_ADDED });
@@ -1396,6 +1396,15 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 					other.startIndex--;
 				}
 			}
+
+			// Emit EDITOR_MOVE so other listeners (Open Editors, extension host) stay in sync
+			const moveEvent: IGroupEditorMoveEvent = {
+				kind: GroupModelChangeKind.EDITOR_MOVE,
+				editor,
+				oldEditorIndex: editorIndex,
+				editorIndex: groupEnd
+			};
+			this._onDidModelChange.fire(moveEvent);
 		}
 
 		// Shrink the group from the end
@@ -1481,6 +1490,17 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 		// Maintain sorted invariant
 		this._tabGroups.sort((a, b) => a.startIndex - b.startIndex);
 
+		// Emit EDITOR_MOVE events so other listeners stay in sync with the new order
+		for (let i = 0; i < groupEditors.length; i++) {
+			const moveEvent: IGroupEditorMoveEvent = {
+				kind: GroupModelChangeKind.EDITOR_MOVE,
+				editor: groupEditors[i],
+				oldEditorIndex: oldStart + i,
+				editorIndex: insertAt + i
+			};
+			this._onDidModelChange.fire(moveEvent);
+		}
+
 		this._onDidModelChange.fire({ kind: GroupModelChangeKind.TAB_GROUP_CHANGED });
 	}
 
@@ -1527,9 +1547,21 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 	}
 
 	private adjustTabGroupsForMove(fromIndex: number, toIndex: number): void {
-		// A move is equivalent to: remove from fromIndex, then insert at toIndex.
-		// The splice calls already happened on the editors array, so we simulate
-		// the same effect on tab group indices.
+		// Check if moving within the same group (membership preserved, no adjustment needed).
+		// Both indices must be within the same group's range BEFORE any mutation.
+		// Note: after splice, if fromIndex < toIndex, the effective insertion is at toIndex
+		// which was the original position toIndex (since splice removes first, then inserts).
+		// We check if both the source and destination are within the same group's boundaries.
+		for (const group of this._tabGroups) {
+			const end = group.startIndex + group.count;
+			if (fromIndex >= group.startIndex && fromIndex < end &&
+				toIndex >= group.startIndex && toIndex <= end) {
+				// Moving within the same group: no boundary changes needed
+				return;
+			}
+		}
+
+		// Cross-group or ungrouped move: simulate as remove+insert
 		this.adjustTabGroupsForRemove(fromIndex);
 		this.adjustTabGroupsForInsert(toIndex);
 	}

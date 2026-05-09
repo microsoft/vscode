@@ -655,6 +655,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				// Remove the last .tab element (must be last to keep indexes in order!)
 				const lastTab = this.getLastTabElement(tabsContainer);
 				lastTab?.remove();
+				this.tabElementsCache.pop();
 
 				// Remove associated tab label and widget
 				dispose(this.tabDisposables.pop());
@@ -1643,6 +1644,18 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		}
 
 		if (!this.groupsView.partOptions.tabGroups?.enabled) {
+			// Clean up any stale group headers and classes if feature was just disabled
+			for (const [, header] of this.tabGroupHeaders) {
+				header.remove();
+			}
+			this.tabGroupHeaders.clear();
+			for (let i = 0; i < tabsContainer.children.length; i++) {
+				const child = tabsContainer.children[i] as HTMLElement;
+				if (child.classList.contains('tab')) {
+					child.classList.remove('in-tab-group', 'tab-group-collapsed');
+					child.style.removeProperty('--tab-group-color');
+				}
+			}
 			return;
 		}
 
@@ -1697,11 +1710,16 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			header.setAttribute('role', 'button');
 			header.tabIndex = 0;
 
+			const groupId = group.id;
 			const toggleCollapse = () => {
-				if (group.collapsed) {
-					this.tabGroupMutations.expandTabGroup(group.id);
+				const current = this.tabsModel.tabGroups.find(g => g.id === groupId);
+				if (!current) {
+					return;
+				}
+				if (current.collapsed) {
+					this.tabGroupMutations.expandTabGroup(groupId);
 				} else {
-					this.tabGroupMutations.collapseTabGroup(group.id);
+					this.tabGroupMutations.collapseTabGroup(groupId);
 				}
 			};
 
@@ -1720,7 +1738,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 			// DnD: dragging the group header to reorder groups
 			header.addEventListener('dragstart', (e: DragEvent) => {
-				this.draggedTabGroupId = group.id;
+				this.draggedTabGroupId = groupId;
 				if (e.dataTransfer) {
 					e.dataTransfer.effectAllowed = 'move';
 					e.dataTransfer.setDragImage(header!, 0, 0);
@@ -1734,7 +1752,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 			// DnD: allow dropping tabs or groups onto this header
 			header.addEventListener('dragover', (e: DragEvent) => {
-				if (this.draggedTabGroupId && this.draggedTabGroupId !== group.id) {
+				if (this.draggedTabGroupId && this.draggedTabGroupId !== groupId) {
 					e.preventDefault();
 					if (e.dataTransfer) {
 						e.dataTransfer.dropEffect = 'move';
@@ -1755,9 +1773,13 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				header!.classList.remove('drag-over');
 
 				// Dropping a group onto another group: reorder
-				if (this.draggedTabGroupId && this.draggedTabGroupId !== group.id) {
+				if (this.draggedTabGroupId && this.draggedTabGroupId !== groupId) {
 					e.preventDefault();
-					this.tabGroupMutations.moveTabGroup(this.draggedTabGroupId, group.startIndex);
+					const targetGroup = this.tabsModel.tabGroups.find(g => g.id === groupId);
+					if (targetGroup) {
+						const absoluteIndex = targetGroup.startIndex + this.groupView.stickyCount;
+						this.tabGroupMutations.moveTabGroup(this.draggedTabGroupId, absoluteIndex);
+					}
 					this.draggedTabGroupId = undefined;
 					return;
 				}
@@ -1767,7 +1789,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				if (draggedEditors && draggedEditors.length > 0) {
 					e.preventDefault();
 					for (const dragged of draggedEditors) {
-						this.tabGroupMutations.addToTabGroup(group.id, dragged.identifier.editor);
+						this.tabGroupMutations.addToTabGroup(groupId, dragged.identifier.editor);
 					}
 				}
 			});
@@ -1775,10 +1797,13 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			// Context menu on group header
 			header.addEventListener('contextmenu', (e: MouseEvent) => {
 				EventHelper.stop(e, true);
-				this.showTabGroupHeaderContextMenu(group, header!, e);
+				const currentGroup = this.tabsModel.tabGroups.find(g => g.id === groupId);
+				if (currentGroup) {
+					this.showTabGroupHeaderContextMenu(currentGroup, header!, e);
+				}
 			});
 
-			this.tabGroupHeaders.set(group.id, header);
+			this.tabGroupHeaders.set(groupId, header);
 		}
 
 		// Update header content and styling
