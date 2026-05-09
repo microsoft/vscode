@@ -437,14 +437,13 @@ class AnimationFrameQueueItem implements IDisposable {
 		headA: number;
 		B: AnimationFrameQueueItem[];
 		headB: number;
-		bDirty: boolean;
 		C: AnimationFrameQueueItem[];
 	}
 
 	/**
-	 * Tri-buffer structure per window to avoid Array.splice allocations
-	 * A: current queue (sorted, consumed via head pointer during frame)
-	 * B: in-frame insertion accumulator (lazy sorted)
+	 * Tri-buffer structure per window to minimize allocations in the hot path.
+	 * A: current queue (sorted once at frame start, consumed via head pointer)
+	 * B: in-frame insertion accumulator (maintained in sorted order via binary insertion)
 	 * C: next-frame accumulator
 	 */
 	const triBuffers = new Map<number /* window ID */, TriBuffer>();
@@ -465,12 +464,37 @@ class AnimationFrameQueueItem implements IDisposable {
 				headA: 0,
 				B: [],
 				headB: 0,
-				bDirty: false,
 				C: []
 			};
 			triBuffers.set(windowId, buffer);
 		}
 		return buffer;
+	}
+
+	/**
+	 * Insert an item into the unconsumed portion of buffer.B (from headB onward)
+	 * maintaining sorted order, so that B never needs a full re-sort.
+	 * Uses push + copyWithin to avoid the allocation overhead of Array.splice.
+	 */
+	function binaryInsertIntoB(buffer: TriBuffer, item: AnimationFrameQueueItem): void {
+		const arr = buffer.B;
+		let lo = buffer.headB;
+		let hi = arr.length;
+		while (lo < hi) {
+			const mid = (lo + hi) >>> 1;
+			if (AnimationFrameQueueItem.sort(arr[mid], item) <= 0) {
+				lo = mid + 1;
+			} else {
+				hi = mid;
+			}
+		}
+		// Grow by one, shift elements right in-place, then place the item
+		const oldLen = arr.length;
+		arr.push(item);
+		if (lo < oldLen) {
+			arr.copyWithin(lo + 1, lo, oldLen);
+			arr[lo] = item;
+		}
 	}
 
 	const animationFrameRunner = (targetWindowId: number) => {
@@ -491,22 +515,10 @@ class AnimationFrameQueueItem implements IDisposable {
 		// Ensure B is empty at frame start
 		buffer.B.length = 0;
 		buffer.headB = 0;
-		buffer.bDirty = false;
 
 		inAnimationFrameRunner.set(targetWindowId, true);
 
 		while (buffer.headA < buffer.A.length || buffer.headB < buffer.B.length) {
-			if (buffer.bDirty) {
-				if (buffer.headB > 0) {
-					buffer.B = buffer.B.slice(buffer.headB);
-					buffer.headB = 0;
-				}
-				if (buffer.B.length > 0) {
-					buffer.B.sort(AnimationFrameQueueItem.sort);
-				}
-				buffer.bDirty = false;
-			}
-
 			let item: AnimationFrameQueueItem;
 			if (buffer.headA >= buffer.A.length) {
 				item = buffer.B[buffer.headB++];
@@ -552,8 +564,7 @@ class AnimationFrameQueueItem implements IDisposable {
 		if (inAnimationFrameRunner.get(targetWindowId)) {
 			const item = new AnimationFrameQueueItem(runner, priority);
 			const buffer = getOrCreateTriBuffer(targetWindowId);
-			buffer.B.push(item);
-			buffer.bDirty = true;
+			binaryInsertIntoB(buffer, item);
 			return item;
 		} else {
 			return scheduleAtNextAnimationFrame(targetWindow, runner, priority);
