@@ -56,3 +56,15 @@ export interface IPostToolUseHookSpecificCommandOutput {
 }
 
 //#endregion
+
+//#region PreCompact
+
+/**
+ * Hook-specific output fields returned by a PreCompact hook command (inside `hookSpecificOutput`).
+ */
+export interface IPreCompactHookSpecificCommandOutput {
+	readonly hookEventName?: string;
+	readonly additionalContext?: string;
+}
+
+//#endregion

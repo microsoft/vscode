@@ -290,4 +290,23 @@ export interface PreCompactHookInput {
 	readonly custom_instructions?: string;
 }
 
+/**
+ * Output from the PreCompact hook.
+ */
+export interface PreCompactHookOutput {
+	/**
+	 * Hook-specific output from the PreCompact hook.
+	 * This is nested under `hookSpecificOutput` to match the JSON contract used
+	 * by other hook types.
+	 */
+	readonly hookSpecificOutput?: {
+		readonly hookEventName?: string;
+		/**
+		 * Additional context to include in the compaction/summarization instructions.
+		 * Multiple hooks' values are concatenated.
+		 */
+		readonly additionalContext?: string;
+	};
+}
+
 //#endregion
