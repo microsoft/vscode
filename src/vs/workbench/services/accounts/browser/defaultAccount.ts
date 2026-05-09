@@ -64,7 +64,6 @@ const enum DefaultAccountStatus {
 const CONTEXT_DEFAULT_ACCOUNT_STATE = new RawContextKey<string>('defaultAccountStatus', DefaultAccountStatus.Uninitialized);
 const CACHED_POLICY_DATA_KEY = 'defaultAccount.cachedPolicyData';
 const ACCOUNT_DATA_POLL_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
-const MCP_REGISTRY_NEGATIVE_CACHE_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours
 const CHAT_DISABLED_CONFIGURATION_KEY = 'chat.disableAIFeatures';
 
 interface ITokenEntitlementsResponse {
@@ -559,7 +558,7 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 					policyData.mcpRegistryUrl = accountPolicyData?.policyData.mcpRegistryUrl;
 					policyData.mcpAccess = accountPolicyData?.policyData.mcpAccess;
 					mcpRegistryDataFetchedAt = accountPolicyData?.mcpRegistryDataFetchedAt;
-					if (options?.forceRefresh || !accountPolicyData?.mcpRegistryDataFetchedAt || this.isMcpRegistryDataStale(accountPolicyData)) {
+					if (options?.forceRefresh || !accountPolicyData?.mcpRegistryDataFetchedAt || this.isDataStale(accountPolicyData.mcpRegistryDataFetchedAt)) {
 						void this.refreshMcpRegistryInBackground(sessions, accountId, accountPolicyData, options);
 					}
 				} else {
@@ -736,7 +735,7 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 	}
 
 	private async getMcpRegistryProvider(sessions: AuthenticationSession[], accountPolicyData: IAccountPolicyData | undefined, options?: { forceRefresh?: boolean }): Promise<{ data: IMcpRegistryProvider | null; fetchedAt: number } | undefined> {
-		if (!options?.forceRefresh && accountPolicyData?.mcpRegistryDataFetchedAt && !this.isMcpRegistryDataStale(accountPolicyData)) {
+		if (!options?.forceRefresh && accountPolicyData?.mcpRegistryDataFetchedAt && !this.isDataStale(accountPolicyData.mcpRegistryDataFetchedAt)) {
 			this.logService.debug('[DefaultAccount] Using last fetched MCP registry data');
 			const data = accountPolicyData.policyData.mcpRegistryUrl && accountPolicyData.policyData.mcpAccess ? { url: accountPolicyData.policyData.mcpRegistryUrl, registry_access: accountPolicyData.policyData.mcpAccess } : null;
 			return { data, fetchedAt: accountPolicyData.mcpRegistryDataFetchedAt };
@@ -864,16 +863,6 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 
 	private isDataStale(fetchedAt: number): boolean {
 		return (Date.now() - fetchedAt) >= ACCOUNT_DATA_POLL_INTERVAL_MS;
-	}
-
-	private isMcpRegistryDataStale(accountPolicyData: IAccountPolicyData): boolean {
-		if (!accountPolicyData.mcpRegistryDataFetchedAt) {
-			return true;
-		}
-		// When the previous fetch returned no registry (e.g. 404), use a longer cache
-		// window to avoid hammering an endpoint that has nothing to return.
-		const interval = accountPolicyData.policyData.mcpRegistryUrl ? ACCOUNT_DATA_POLL_INTERVAL_MS : MCP_REGISTRY_NEGATIVE_CACHE_INTERVAL_MS;
-		return (Date.now() - accountPolicyData.mcpRegistryDataFetchedAt) >= interval;
 	}
 
 	private isAIDisabled(): boolean {
