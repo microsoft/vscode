@@ -8,7 +8,7 @@ import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { IActiveCodeEditor } from '../../../browser/editorBrowser.js';
 import { Position } from '../../../common/core/position.js';
 import { Range } from '../../../common/core/range.js';
-import { FindMatch, IModelDecorationsChangeAccessor, IModelDeltaDecoration, MinimapPosition, OverviewRulerLane, TrackedRangeStickiness } from '../../../common/model.js';
+import { FindMatch, IModelDecorationOptions, IModelDecorationsChangeAccessor, IModelDeltaDecoration, MinimapPosition, OverviewRulerLane, TrackedRangeStickiness } from '../../../common/model.js';
 import { ModelDecorationOptions } from '../../../common/model/textModel.js';
 import { minimapFindMatch, overviewRulerFindMatchForeground } from '../../../../platform/theme/common/colorRegistry.js';
 import { themeColorFromId } from '../../../../platform/theme/common/themeService.js';
@@ -336,85 +336,55 @@ export class FindDecorations implements IDisposable {
 		return result;
 	}
 
-	public static readonly _CURRENT_FIND_MATCH_DECORATION = ModelDecorationOptions.register({
-		description: 'current-find-match',
-		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-		zIndex: 13,
-		className: 'currentFindMatch',
-		inlineClassName: 'currentFindMatchInline',
-		showIfCollapsed: true,
-		overviewRuler: {
-			color: themeColorFromId(overviewRulerFindMatchForeground),
-			position: OverviewRulerLane.Center
-		},
-		minimap: {
-			color: themeColorFromId(minimapFindMatch),
-			position: MinimapPosition.Inline
-		}
-	});
+	private static _createCurrentFindMatchDecorationOptions(description: string, inlineClassName?: string): IModelDecorationOptions {
+		return {
+			description,
+			stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+			zIndex: 13,
+			className: 'currentFindMatch',
+			inlineClassName,
+			showIfCollapsed: true,
+			overviewRuler: {
+				color: themeColorFromId(overviewRulerFindMatchForeground),
+				position: OverviewRulerLane.Center
+			},
+			minimap: {
+				color: themeColorFromId(minimapFindMatch),
+				position: MinimapPosition.Inline
+			}
+		};
+	}
 
-	public static readonly _CURRENT_FIND_MATCH_BIDI_DECORATION = ModelDecorationOptions.register({
-		description: 'current-find-match-bidi',
-		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-		zIndex: 13,
-		className: 'currentFindMatch',
-		showIfCollapsed: true,
-		overviewRuler: {
-			color: themeColorFromId(overviewRulerFindMatchForeground),
-			position: OverviewRulerLane.Center
-		},
-		minimap: {
-			color: themeColorFromId(minimapFindMatch),
-			position: MinimapPosition.Inline
-		}
-	});
+	private static _createFindMatchDecorationOptions(description: string, includeOverviewRuler: boolean, zIndex?: number, inlineClassName?: string): IModelDecorationOptions {
+		return {
+			description,
+			stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+			zIndex,
+			className: 'findMatch',
+			inlineClassName,
+			showIfCollapsed: true,
+			overviewRuler: includeOverviewRuler ? {
+				color: themeColorFromId(overviewRulerFindMatchForeground),
+				position: OverviewRulerLane.Center
+			} : undefined,
+			minimap: includeOverviewRuler ? {
+				color: themeColorFromId(minimapFindMatch),
+				position: MinimapPosition.Inline
+			} : undefined
+		};
+	}
 
-	public static readonly _FIND_MATCH_DECORATION = ModelDecorationOptions.register({
-		description: 'find-match',
-		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-		zIndex: 10,
-		className: 'findMatch',
-		inlineClassName: 'findMatchInline',
-		showIfCollapsed: true,
-		overviewRuler: {
-			color: themeColorFromId(overviewRulerFindMatchForeground),
-			position: OverviewRulerLane.Center
-		},
-		minimap: {
-			color: themeColorFromId(minimapFindMatch),
-			position: MinimapPosition.Inline
-		}
-	});
+	public static readonly _CURRENT_FIND_MATCH_DECORATION = ModelDecorationOptions.register(FindDecorations._createCurrentFindMatchDecorationOptions('current-find-match', 'currentFindMatchInline'));
 
-	public static readonly _FIND_MATCH_BIDI_DECORATION = ModelDecorationOptions.register({
-		description: 'find-match-bidi',
-		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-		zIndex: 10,
-		className: 'findMatch',
-		showIfCollapsed: true,
-		overviewRuler: {
-			color: themeColorFromId(overviewRulerFindMatchForeground),
-			position: OverviewRulerLane.Center
-		},
-		minimap: {
-			color: themeColorFromId(minimapFindMatch),
-			position: MinimapPosition.Inline
-		}
-	});
+	public static readonly _CURRENT_FIND_MATCH_BIDI_DECORATION = ModelDecorationOptions.register(FindDecorations._createCurrentFindMatchDecorationOptions('current-find-match-bidi'));
 
-	public static readonly _FIND_MATCH_NO_OVERVIEW_DECORATION = ModelDecorationOptions.register({
-		description: 'find-match-no-overview',
-		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-		className: 'findMatch',
-		showIfCollapsed: true
-	});
+	public static readonly _FIND_MATCH_DECORATION = ModelDecorationOptions.register(FindDecorations._createFindMatchDecorationOptions('find-match', true, 10, 'findMatchInline'));
 
-	public static readonly _FIND_MATCH_NO_OVERVIEW_BIDI_DECORATION = ModelDecorationOptions.register({
-		description: 'find-match-no-overview-bidi',
-		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-		className: 'findMatch',
-		showIfCollapsed: true
-	});
+	public static readonly _FIND_MATCH_BIDI_DECORATION = ModelDecorationOptions.register(FindDecorations._createFindMatchDecorationOptions('find-match-bidi', true, 10));
+
+	public static readonly _FIND_MATCH_NO_OVERVIEW_DECORATION = ModelDecorationOptions.register(FindDecorations._createFindMatchDecorationOptions('find-match-no-overview', false));
+
+	public static readonly _FIND_MATCH_NO_OVERVIEW_BIDI_DECORATION = FindDecorations._FIND_MATCH_NO_OVERVIEW_DECORATION;
 
 	private static readonly _FIND_MATCH_ONLY_OVERVIEW_DECORATION = ModelDecorationOptions.register({
 		description: 'find-match-only-overview',
