@@ -5,7 +5,6 @@ Thumbs.db
 node_modules/
 .tmp/
 .build/
-.vscode/extensions/**/out/
 extensions/**/dist/
 src/vs/base/browser/ui/codicons/codicon/codicon.ttf
 /out*/
@@ -46,3 +45,4 @@ dist
 .github/prompts/*.local.prompt.md
 .agents/skills/.local/
 .github/skills/.local/
+config.bat
