@@ -3640,13 +3640,21 @@
           ],
           "markdownDescription": "%config.postCommitCommand%",
           "scope": "resource",
-          "default": "none"
+          "default": "none",
+          "agentsWindow": {
+            "default": "none",
+            "readOnly": true
+          }
         },
         "git.rememberPostCommitCommand": {
           "type": "boolean",
           "description": "%config.rememberPostCommitCommand%",
           "scope": "resource",
-          "default": false
+          "default": false,
+          "agentsWindow": {
+            "default": false,
+            "readOnly": true
+          }
         },
         "git.openAfterClone": {
           "type": "string",

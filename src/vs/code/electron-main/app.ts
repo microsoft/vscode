@@ -7,7 +7,6 @@ import { app, Details, GPUFeatureStatus, powerMonitor, protocol, session, Sessio
 import { addUNCHostToAllowlist, disableUNCAccessRestrictions } from '../../base/node/unc.js';
 import { validatedIpcMain } from '../../base/parts/ipc/electron-main/ipcMain.js';
 import { hostname, release } from 'os';
-import { exec } from 'child_process';
 import { initWindowsVersionInfo } from '../../base/node/windowsVersion.js';
 import { VSBuffer } from '../../base/common/buffer.js';
 import { toErrorMessage } from '../../base/common/errorMessage.js';
@@ -142,7 +141,6 @@ import { IWebContentExtractorService } from '../../platform/webContentExtractor/
 import { NativeWebContentExtractorService } from '../../platform/webContentExtractor/electron-main/webContentExtractorService.js';
 import { AgentNetworkFilterService, IAgentNetworkFilterService } from '../../platform/networkFilter/common/networkFilterService.js';
 import { ITerminalSandboxService, NullTerminalSandboxService } from '../../platform/sandbox/common/terminalSandboxService.js';
-import { tryConsumeAgentsLastRunningMarker } from './agentsLastRunningTracker.js';
 import ErrorTelemetry from '../../platform/telemetry/electron-main/errorTelemetry.js';
 
 /**
@@ -575,13 +573,6 @@ export class CodeApplication extends Disposable {
 			}
 		} catch (error) {
 			this.logService.error(error);
-		}
-
-		// One-time cleanup of the previous Agents sub-application on macOS (Insiders only).
-		// The agents experience now ships as a window of VS Code itself, so any leftover
-		// Dock pinned entry and Launch Services registration of the old sub-app should be removed.
-		if (isMacintosh && this.productService.quality === 'insider') {
-			this.cleanupAgentsApplication();
 		}
 
 		// Main process server (electron IPC based)
@@ -1345,19 +1336,6 @@ export class CodeApplication extends Disposable {
 			});
 		}
 
-		const agentsLastRunning = await tryConsumeAgentsLastRunningMarker(this.environmentMainService.userRoamingDataHome, this.fileService, this.logService);
-		if (agentsLastRunning?.agentsRunning) {
-			const agentsWindows = await windowsMainService.openAgentsWindow({
-				context,
-				cli: args,
-				initialStartup: true
-			});
-			if (!agentsLastRunning.vscodeRunning) {
-				return agentsWindows;
-			}
-			// Otherwise also restore the editor windows below.
-		}
-
 		// Then check for windows from protocol links to open
 		if (initialProtocolUrls) {
 
@@ -1727,41 +1705,5 @@ export class CodeApplication extends Disposable {
 		// Validate Device ID is up to date (delay this as it has shown significant perf impact)
 		// Refs: https://github.com/microsoft/vscode/issues/234064
 		validateDevDeviceId(this.stateService, this.logService);
-	}
-
-	private cleanupAgentsApplication(): void {
-		const cleanupKey = 'macAgentsSubAppCleanup.v1';
-		if (this.stateService.getItem<boolean>(cleanupKey, false)) {
-			return;
-		}
-
-		const bundleId = 'com.microsoft.VSCodeAgentsInsiders';
-		const script = [
-			`plist="$HOME/Library/Preferences/com.apple.dock.plist"`,
-			`[ -f "$plist" ] || exit 0`,
-			`n=$(/usr/libexec/PlistBuddy -c "Print :persistent-apps" "$plist" 2>/dev/null | grep -c "^    Dict {")`,
-			`changed=0`,
-			`i=$((n-1))`,
-			`while [ $i -ge 0 ]; do`,
-			`  bid=$(/usr/libexec/PlistBuddy -c "Print :persistent-apps:$i:tile-data:bundle-identifier" "$plist" 2>/dev/null)`,
-			`  if [ "$bid" = "${bundleId}" ]; then`,
-			`    /usr/libexec/PlistBuddy -c "Delete :persistent-apps:$i" "$plist" 2>/dev/null`,
-			`    changed=1`,
-			`  fi`,
-			`  i=$((i-1))`,
-			`done`,
-			`[ "$changed" = "1" ] && /usr/bin/killall -HUP Dock`,
-			`exit 0`
-		].join('\n');
-
-		const child = exec(script, { timeout: 10_000, killSignal: 'SIGKILL' }, (error, _stdout, stderr) => {
-			if (error) {
-				this.logService.warn(`[agents] legacy sub-app cleanup failed: ${error.message}${stderr ? ` (${stderr.trim()})` : ''}`);
-				return;
-			}
-			this.stateService.setItem(cleanupKey, true);
-			this.logService.info('[agents] legacy sub-app cleanup completed');
-		});
-		child.unref();
 	}
 }

@@ -27,6 +27,7 @@ import { IToolsService } from '../../tools/common/toolsService';
 import { IClaudeRuntimeDataService } from '../claude/common/claudeRuntimeDataService';
 import { ClaudeSessionUri } from '../claude/common/claudeSessionUri';
 import { ClaudeToolPermissionService, IClaudeToolPermissionService } from '../claude/common/claudeToolPermissionService';
+import { ClaudePlanFileTracker, IClaudePlanFileTracker } from '../claude/common/claudePlanFileTracker';
 import { ClaudeCodeFolderMruService } from '../claude/node/claudeCodeFolderMru';
 import { ClaudeAgentManager } from '../claude/node/claudeCodeAgent';
 import { ClaudeCodeModels, IClaudeCodeModels } from '../claude/node/claudeCodeModels';
@@ -141,6 +142,7 @@ export class ChatSessionsContrib extends Disposable implements IExtensionContrib
 				[IClaudeCodeModels, new SyncDescriptor(ClaudeCodeModels)],
 				[ILanguageModelServer, new SyncDescriptor(LanguageModelServer)],
 				[IClaudeToolPermissionService, new SyncDescriptor(ClaudeToolPermissionService)],
+				[IClaudePlanFileTracker, new SyncDescriptor(ClaudePlanFileTracker)],
 				[IClaudeSessionStateService, new SyncDescriptor(ClaudeSessionStateService)],
 				[IClaudeSlashCommandService, new SyncDescriptor(ClaudeSlashCommandService)],
 				[IChatSessionMetadataStore, sessionMetadata],

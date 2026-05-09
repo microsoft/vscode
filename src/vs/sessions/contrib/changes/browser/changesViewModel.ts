@@ -70,6 +70,7 @@ export interface ActiveSessionState {
 	readonly incomingChanges: number | undefined;
 	readonly outgoingChanges: number | undefined;
 	readonly uncommittedChanges: number | undefined;
+	readonly hasBranchChanges: boolean | undefined;
 	readonly hasGitHubRemote: boolean | undefined;
 	readonly hasPullRequest: boolean | undefined;
 	readonly hasOpenPullRequest: boolean | undefined;
@@ -429,6 +430,7 @@ export class ChangesViewModel extends Disposable {
 
 			const sessionMetadata = this._activeSessionMetadataObs.read(reader);
 			const activeSession = this.sessionManagementService.activeSession.read(reader);
+			const activeSessionChanges = activeSession?.changes.read(reader) ?? [];
 			const workspace = activeSession?.workspace.read(reader);
 
 			// Session state
@@ -459,6 +461,7 @@ export class ChangesViewModel extends Disposable {
 			const incomingChanges = (sessionMetadata?.incomingChanges as number | undefined) ?? workspaceRepository?.incomingChanges ?? 0;
 			const outgoingChanges = (sessionMetadata?.outgoingChanges as number | undefined) ?? workspaceRepository?.outgoingChanges ?? 0;
 			const uncommittedChanges = (sessionMetadata?.uncommittedChanges as number | undefined) ?? workspaceRepository?.uncommittedChanges ?? 0;
+			const hasBranchChanges = activeSessionChanges.length > 0;
 			const hasGitOperationInProgress = (sessionMetadata?.hasGitOperationInProgress as boolean | undefined) ?? false;
 
 			return {
@@ -471,6 +474,7 @@ export class ChangesViewModel extends Disposable {
 				incomingChanges,
 				outgoingChanges,
 				uncommittedChanges,
+				hasBranchChanges,
 				hasGitHubRemote,
 				hasPullRequest,
 				hasOpenPullRequest,

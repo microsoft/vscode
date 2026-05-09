@@ -40,7 +40,7 @@ import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, ICh
 import { isImageVariableEntry, type IChatRequestVariableEntry, type IImageVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { coerceImageBuffer } from '../../../common/chatImageExtraction.js';
 import { getChatSessionType } from '../../../common/model/chatUri.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, isChatPermissionLevel } from '../../../common/constants.js';
 import { IChatEditingService } from '../../../common/editing/chatEditingService.js';
 import { ChatQuestionCarouselData } from '../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
@@ -52,6 +52,8 @@ import { getAgentHostIcon } from '../agentSessions.js';
 import { AgentHostEditingSession } from './agentHostEditingSession.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWorkingDirectoryResolver.js';
 import { activeTurnToProgress, completedToolCallToEditParts, completedToolCallToSerialized, finalizeToolInvocation, getTerminalContentUri, isSubagentTool, makeAhpTerminalToolSessionId, parseAhpTerminalToolSessionId, rawMarkdownToString, stringOrMarkdownToString, toolCallStateToInvocation, turnsToHistory, updateRunningToolSpecificData, userMessageToVariableData, type IToolCallFileEdit, type TurnModelLookup } from './stateToProgressAdapter.js';
+import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
+import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 
 // =============================================================================
 // AgentHostSessionHandler - renderer-side handler for a single agent host
@@ -391,6 +393,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
+		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
 		this._config = config;
@@ -750,11 +753,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			// sessions, so this is the first time the agent sees them. Use
 			// `replace: true` so the agent's view exactly matches the
 			// resolved values the picker computed.
-			if (request.agentHostSessionConfig && Object.keys(request.agentHostSessionConfig).length > 0) {
+			const config = this._mergeDefaultSessionConfig(request.agentHostSessionConfig);
+			if (config && Object.keys(config).length > 0) {
 				this._dispatchAction({
 					type: ActionType.SessionConfigChanged,
 					session: sessionKey,
-					config: request.agentHostSessionConfig,
+					config,
 					replace: true,
 				});
 			}
@@ -2285,6 +2289,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 	/** Creates a new backend session and subscribes to its state. */
 	private async _createAndSubscribe(sessionResource: URI, model: ModelSelection | undefined, fork?: { session: URI; turnIndex: number; turnId: string }, config?: Record<string, unknown>): Promise<URI> {
+		config = this._mergeDefaultSessionConfig(config);
+
 		const workingDirectory = this._resolveRequestedWorkingDirectory(sessionResource);
 		const requestedSession = fork ? undefined : this._resolveSessionUri(sessionResource);
 
@@ -2365,6 +2371,34 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		this._watchForServerInitiatedTurns(session, sessionResource);
 
 		return session;
+	}
+
+	/**
+	 * HACK to enable auto-approve in vscode for AH evals when the picker has not been implemented yet.
+	 */
+	private _mergeDefaultSessionConfig(sessionConfig: Record<string, unknown> | undefined): Record<string, unknown> | undefined {
+		const defaults = this._getWorkbenchDefaultSessionConfig();
+		if (!defaults || Object.keys(defaults).length === 0) {
+			return sessionConfig;
+		}
+		return { ...defaults, ...sessionConfig };
+	}
+
+	private _getWorkbenchDefaultSessionConfig(): Record<string, unknown> | undefined {
+		if (this._environmentService.isSessionsWindow) {
+			return undefined;
+		}
+		const result = {
+			[SessionConfigKey.Isolation]: 'folder'
+		};
+		const defaultPermissionLevel = this._configurationService.getValue<ChatPermissionLevel>(ChatConfiguration.DefaultPermissionLevel);
+		if (!isChatPermissionLevel(defaultPermissionLevel) || defaultPermissionLevel === ChatPermissionLevel.Default) {
+			return result;
+		}
+		return {
+			...result,
+			[SessionConfigKey.AutoApprove]: defaultPermissionLevel,
+		};
 	}
 
 	/**

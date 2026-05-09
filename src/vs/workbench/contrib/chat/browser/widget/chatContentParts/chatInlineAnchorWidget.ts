@@ -161,8 +161,6 @@ export class InlineAnchorWidget extends Disposable {
 	) {
 		super();
 
-		// TODO: Make sure we handle updates from an inlineReference being `resolved` late
-
 		this.data = 'uri' in inlineReference.inlineReference
 			? inlineReference.inlineReference
 			: 'name' in inlineReference.inlineReference
