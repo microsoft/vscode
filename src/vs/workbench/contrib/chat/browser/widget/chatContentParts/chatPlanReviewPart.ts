@@ -82,12 +82,14 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 	private _isFeedbackMode = false;
 	private readonly _planReviewRegistration = this._register(new MutableDisposable());
 	private readonly _commentRowDisposables = this._register(new DisposableStore());
+	private _inlineEditorMountId = 0;
+	private _suppressFeedbackModeAutoOpen = false;
 
 	// Bound to an in-memory model so typing doesn't dirty the real file's
 	// working copy (which would trip `TextFileEditorTracker` into opening it).
 	private _messageEditor: CodeEditorWidget | undefined;
 	private _editingUri: URI | undefined;
-	// Used on unmount to skip a no-op write and to update `review.content`.
+	// Used on feedback submission to skip a no-op write and to update `review.content`.
 	private _initialEditorContent: string | undefined;
 	private readonly _messageEditorDisposables = this._register(new DisposableStore());
 
@@ -505,7 +507,7 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 		const items = this.getInlineFeedbackItems();
 
 		// Auto-promote into review mode the first time a comment shows up.
-		if (items.length > 0 && !this._isFeedbackMode && !this._isCollapsed) {
+		if (items.length > 0 && !this._suppressFeedbackModeAutoOpen && !this._isFeedbackMode && !this._isCollapsed) {
 			this.enterFeedbackMode({ focus: false });
 			return;
 		}
@@ -781,7 +783,8 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 		this.domNode.classList.add('chat-plan-review-feedback-mode');
 		this.renderCommentsList();
 		this.renderCurrentActionButtons();
-		void this.mountInlineEditor();
+		const mountId = ++this._inlineEditorMountId;
+		void this.mountInlineEditor(mountId);
 		if (options?.focus !== false) {
 			this.focusFeedbackInput();
 		}
@@ -794,7 +797,7 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 			return;
 		}
 
-		// Back is non-destructive: comments and the textarea draft persist.
+		// Back discards the temporary inline editor model; comments and the textarea draft persist.
 		this._isFeedbackMode = false;
 		if (this._feedbackSection) {
 			dom.hide(this._feedbackSection);
@@ -817,9 +820,9 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 
 	// Mount a Monaco editor over the message body backed by an in-memory model
 	// seeded from the plan file. Avoids dirtying the real file's working copy;
-	// the buffer is written back via `ITextFileService.write` on unmount.
-	private async mountInlineEditor(): Promise<void> {
-		if (this._messageEditor || !this.review.planUri || this._isSubmitted) {
+	// the buffer is only written back via `ITextFileService.write` on submission.
+	private async mountInlineEditor(mountId: number): Promise<void> {
+		if (!this.canContinueInlineEditorMount(mountId) || !this.review.planUri) {
 			return;
 		}
 		const planUri = URI.revive(this.review.planUri);
@@ -832,7 +835,7 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 		} catch {
 			return;
 		}
-		if (!this._isFeedbackMode || this._isSubmitted || this._messageEditorDisposables.isDisposed) {
+		if (!this.canContinueInlineEditorMount(mountId)) {
 			return;
 		}
 
@@ -852,7 +855,7 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 		} catch {
 			// Non-fatal: editing still works, only some sub-features may misbehave.
 		}
-		if (!this._isFeedbackMode || this._isSubmitted || this._messageEditorDisposables.isDisposed) {
+		if (!this.canContinueInlineEditorMount(mountId)) {
 			pinnedRef?.dispose();
 			model.dispose();
 			return;
@@ -886,14 +889,24 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 			},
 		};
 
-		// Register the editor BEFORE the model so disposal order is editor → model.
-		// editor.dispose() tears down its ModelData (ViewModel + View) via _detachModel;
-		// disposing the model first leaves them un-detached and they leak.
-		const editor = this._messageEditorDisposables.add(
-			this._instantiationService.createInstance(CodeEditorWidget, this._messageEl, editorOptions, {
+		let editor: CodeEditorWidget;
+		try {
+			editor = this._instantiationService.createInstance(CodeEditorWidget, this._messageEl, editorOptions, {
 				isSimpleWidget: false,
-			})
-		);
+			});
+		} catch {
+			pinnedRef?.dispose();
+			model.dispose();
+			this._messageEl.classList.remove('chat-plan-review-body-editor');
+			dom.clearNode(this._messageEl);
+			this.renderMarkdown();
+			return;
+		}
+		// Explicitly detach the scratch model before either the editor or model is
+		// disposed. This tears down editor ModelData (ViewModel + View) while the
+		// model is still alive, avoiding leaked editor internals.
+		this._messageEditorDisposables.add(toDisposable(() => editor.setModel(null)));
+		this._messageEditorDisposables.add(editor);
 		this._messageEditorDisposables.add(model);
 		if (pinnedRef) {
 			this._messageEditorDisposables.add(pinnedRef);
@@ -910,6 +923,17 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 			this._editingUri = undefined;
 		}));
 
+		try {
+			editor.setModel(model);
+		} catch {
+			this._messageEditorDisposables.clear();
+			this._messageEl.classList.remove('chat-plan-review-body-editor');
+			dom.clearNode(this._messageEl);
+			this.renderMarkdown();
+			return;
+		}
+		this._messageEditor = editor;
+
 		// Migrate pre-existing comments to the editing URI; restored on unmount.
 		const preExistingComments = this._planReviewFeedbackService.getFeedback(planUri);
 		if (preExistingComments.length > 0) {
@@ -917,27 +941,45 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 				this._planReviewFeedbackService.addFeedback(editingUri, item.line, item.column, item.text);
 			}
 			this._planReviewFeedbackService.clearFeedback(planUri);
-			this._messageEditorDisposables.add(toDisposable(() => {
-				const current = this._planReviewFeedbackService.getFeedback(editingUri);
-				for (const item of current) {
-					this._planReviewFeedbackService.addFeedback(planUri, item.line, item.column, item.text);
-				}
-			}));
 		}
-
-		editor.setModel(model);
-		this._messageEditor = editor;
 
 		this._messageScrollable.scanDomNode();
 		this._onDidChangeHeight.fire();
 		editor.focus();
 	}
 
-	// Tear down the editor; if the buffer changed, write it back to disk.
-	private async unmountInlineEditor(): Promise<void> {
+	private canContinueInlineEditorMount(mountId: number): boolean {
+		return this._inlineEditorMountId === mountId
+			&& !this._messageEditor
+			&& this._isFeedbackMode
+			&& !this._isSubmitted
+			&& !this._messageEditorDisposables.isDisposed;
+	}
+
+	private migrateInlineFeedbackToPlan(editingUri: URI, planUri: URI): void {
+		const items = [...this._planReviewFeedbackService.getFeedback(editingUri)];
+		if (items.length === 0) {
+			return;
+		}
+
+		this._suppressFeedbackModeAutoOpen = true;
+		try {
+			for (const item of items) {
+				this._planReviewFeedbackService.addFeedback(planUri, item.line, item.column, item.text);
+			}
+			this._planReviewFeedbackService.clearFeedback(editingUri);
+		} finally {
+			this._suppressFeedbackModeAutoOpen = false;
+		}
+	}
+
+	// Tear down the editor; if requested, write changed scratch text back to disk.
+	private async unmountInlineEditor(options?: { writeBack?: boolean }): Promise<void> {
+		this._inlineEditorMountId++;
 		if (!this._messageEditor) {
 			return;
 		}
+		const editor = this._messageEditor;
 		const editingUri = this._editingUri;
 		const model = editingUri ? this._modelService.getModel(editingUri) : undefined;
 		const planUri = this.review.planUri ? URI.revive(this.review.planUri) : undefined;
@@ -945,15 +987,22 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 
 		// Snapshot before disposing — clearing the store disposes the model.
 		const text = model && !model.isDisposed() ? model.getValue() : undefined;
+		if (editingUri && planUri) {
+			this.migrateInlineFeedbackToPlan(editingUri, planUri);
+		}
 
 		this._messageEditor = undefined;
 		this._initialEditorContent = undefined;
-		this._messageEditorDisposables.clear();
-		this._messageEl.classList.remove('chat-plan-review-body-editor');
-		dom.clearNode(this._messageEl);
+		try {
+			editor.setModel(null);
+		} finally {
+			this._messageEditorDisposables.clear();
+			this._messageEl.classList.remove('chat-plan-review-body-editor');
+			dom.clearNode(this._messageEl);
+		}
 
 		// Skip writes when nothing changed to avoid mtime bumps / watcher fires.
-		if (text !== undefined && planUri && text !== initialContent) {
+		if (options?.writeBack && text !== undefined && planUri && text !== initialContent) {
 			if (this.review instanceof ChatPlanReviewData) {
 				this.review.content = text;
 			}
@@ -973,15 +1022,16 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 
 		const commentUri = this.getCommentUri();
 		const editorFeedbackItems: readonly IPlanReviewFeedbackItem[] = commentUri
-			? this._planReviewFeedbackService.getFeedback(commentUri)
+			? [...this._planReviewFeedbackService.getFeedback(commentUri)]
 			: [];
 
 		if (!textareaFeedback && editorFeedbackItems.length === 0) {
 			return;
 		}
+		this._isSubmitted = true;
 
 		// Flush in-widget edits to disk before notifying the agent.
-		await this.unmountInlineEditor();
+		await this.unmountInlineEditor({ writeBack: true });
 
 		// Keep overall and inline blocks separate so the transcript can render them distinctly.
 		let feedbackInlineMarkdown: string | undefined;
@@ -1009,7 +1059,6 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 		}
 
 		const feedback = sections.join('\n\n');
-		this._isSubmitted = true;
 		this._options.onSubmit({
 			rejected: false,
 			feedback,
@@ -1051,7 +1100,7 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 		// Hide the editor contribution even if the plan file is still open.
 		this._planReviewRegistration.clear();
 		if (this._messageEditor) {
-			await this.unmountInlineEditor();
+			await this.unmountInlineEditor({ writeBack: false });
 			this.renderMarkdown();
 		}
 		if (this._feedbackTextarea) {

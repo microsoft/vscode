@@ -16,6 +16,7 @@ import { IChatContentPartRenderContext } from '../../../../browser/widget/chatCo
 import { IChatPlanApprovalAction, IChatPlanReview, IChatPlanReviewResult } from '../../../../common/chatService/chatService.js';
 import { IChatRendererContent } from '../../../../common/model/chatViewModel.js';
 import { ChatPlanReviewData } from '../../../../common/model/chatProgressTypes/chatPlanReviewData.js';
+import { IUserInteractionService, MockUserInteractionService } from '../../../../../../../platform/userInteraction/browser/userInteractionService.js';
 
 function createMockReview(overrides?: Partial<IChatPlanReview>): IChatPlanReview {
 	return {
@@ -74,7 +75,8 @@ suite('ChatPlanReviewPart', () => {
 	function createWidget(review: IChatPlanReview, dialogService?: TestDialogService): ChatPlanReviewPart {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		const feedbackService = store.add(new PlanReviewFeedbackService());
-		instantiationService.stub(IPlanReviewFeedbackService, feedbackService);
+		instantiationService.stub(IPlanReviewFeedbackService, feedbackService); instantiationService.stub(IUserInteractionService, new MockUserInteractionService());
+
 		lastFeedbackService = feedbackService;
 		if (dialogService) {
 			instantiationService.stub(IDialogService, dialogService);
@@ -220,6 +222,90 @@ suite('ChatPlanReviewPart', () => {
 	});
 
 	suite('Feedback mode', () => {
+		test('clicking Review button opens feedback section and shows Submit Feedback button', async () => {
+			createWidget(createMockReviewWithPlan());
+
+			const reviewButton = getReviewButton(widget)!;
+			reviewButton.click();
+			await tick();
+
+			// Feedback section should now be visible.
+			const feedbackSection = getFeedbackSection(widget);
+			assert.notStrictEqual(feedbackSection.style.display, 'none', 'feedback section should be visible');
+
+			// Footer should have Submit Feedback + Reject (no approve, no Provide Feedback).
+			const buttons = getFooterButtons(widget);
+			assert.ok(buttons.some(b => b.textContent?.includes('Submit Feedback')), 'should have Submit Feedback button');
+			assert.ok(buttons.some(b => b.textContent?.includes('Reject')), 'should still have Reject button');
+			assert.ok(!buttons.some(b => b.textContent?.includes('Autopilot')), 'approve button should be hidden');
+		});
+
+		test('reject button remains visible in feedback mode', async () => {
+			createWidget(createMockReviewWithPlan());
+
+			getReviewButton(widget)!.click();
+			await tick();
+
+			const buttons = getFooterButtons(widget);
+			assert.ok(buttons.some(b => b.textContent?.includes('Reject')), 'reject button should still be visible');
+		});
+
+		test('clicking Review button opens feedback section and shows Submit Feedback button', async () => {
+			createWidget(createMockReviewWithPlan());
+
+			const reviewButton = getReviewButton(widget)!;
+			reviewButton.click();
+			await tick();
+
+			// Feedback section should now be visible.
+			const feedbackSection = getFeedbackSection(widget);
+			assert.notStrictEqual(feedbackSection.style.display, 'none', 'feedback section should be visible');
+
+			// Footer should have Submit Feedback + Reject (no approve, no Provide Feedback).
+			const buttons = getFooterButtons(widget);
+			assert.ok(buttons.some(b => b.textContent?.includes('Submit Feedback')), 'should have Submit Feedback button');
+			assert.ok(buttons.some(b => b.textContent?.includes('Reject')), 'should still have Reject button');
+			assert.ok(!buttons.some(b => b.textContent?.includes('Autopilot')), 'approve button should be hidden');
+		});
+
+		test('reject button remains visible in feedback mode', async () => {
+			createWidget(createMockReviewWithPlan());
+
+			getReviewButton(widget)!.click();
+			await tick();
+
+			const buttons = getFooterButtons(widget);
+			assert.ok(buttons.some(b => b.textContent?.includes('Reject')), 'reject button should still be visible');
+		});
+
+		test('clicking Review button opens feedback section and shows Submit Feedback button', async () => {
+			createWidget(createMockReviewWithPlan());
+
+			const reviewButton = getReviewButton(widget)!;
+			reviewButton.click();
+			await tick();
+
+			// Feedback section should now be visible.
+			const feedbackSection = getFeedbackSection(widget);
+			assert.notStrictEqual(feedbackSection.style.display, 'none', 'feedback section should be visible');
+
+			// Footer should have Submit Feedback + Reject (no approve, no Provide Feedback).
+			const buttons = getFooterButtons(widget);
+			assert.ok(buttons.some(b => b.textContent?.includes('Submit Feedback')), 'should have Submit Feedback button');
+			assert.ok(buttons.some(b => b.textContent?.includes('Reject')), 'should still have Reject button');
+			assert.ok(!buttons.some(b => b.textContent?.includes('Autopilot')), 'approve button should be hidden');
+		});
+
+		test('reject button remains visible in feedback mode', async () => {
+			createWidget(createMockReviewWithPlan());
+
+			getReviewButton(widget)!.click();
+			await tick();
+
+			const buttons = getFooterButtons(widget);
+			assert.ok(buttons.some(b => b.textContent?.includes('Reject')), 'reject button should still be visible');
+		});
+
 		test('approving with textarea content sends approval + feedback', () => {
 			// canProvideFeedback without planUri shows the textarea alongside
 			// the regular Approve/Reject buttons; typed feedback rides along
