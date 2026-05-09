@@ -1,4 +1,4 @@
-name: Checking Component Screenshots
+name: Component Fixtures
 
 on:
   push:
@@ -15,12 +15,12 @@ permissions:
   id-token: write
 
 concurrency:
-  group: screenshots-${{ github.event.pull_request.number || github.sha }}
+  group: component-fixtures-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: true
 
 jobs:
   screenshots:
-    name: Checking Component Screenshots
+    name: Screenshots & Tests
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -84,6 +84,25 @@ jobs:
 
       - name: Install Playwright Chromium
         run: npx playwright install chromium
+
+      - name: Install Playwright test dependencies
+        run: npm ci
+        working-directory: test/componentFixtures/playwright
+
+      - name: Install Playwright Chromium (tests)
+        run: npx playwright install chromium
+        working-directory: test/componentFixtures/playwright
+
+      - name: Run Playwright fixture tests
+        run: npx playwright test
+        working-directory: test/componentFixtures/playwright
+
+      - name: Upload Playwright test results
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-test-results
+          path: test/componentFixtures/playwright/test-results/
 
       - name: Capture screenshots
         run: ./node_modules/.bin/component-explorer render --project ./test/componentFixtures/component-explorer.json

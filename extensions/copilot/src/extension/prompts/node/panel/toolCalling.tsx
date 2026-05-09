@@ -492,6 +492,7 @@ export function sendInvokedToolTelemetry(instantiationService: IInstantiationSer
 	// matching the prior behavior with modelMaxPromptTokens: Infinity
 	const endpointWithUnlimitedBudget: IChatEndpoint = {
 		...endpoint,
+		tokenizer: endpoint.tokenizer,
 		modelMaxPromptTokens: Infinity,
 	};
 

@@ -59,6 +59,14 @@ export class MarkdownPreviewLineDiffProvider {
 		return translateLine(line, (await this.#getLineChanges()).modifiedToOriginal, this.#originalDocument.lineCount);
 	}
 
+	public async getOriginalToModifiedMappings(): Promise<readonly number[]> {
+		return (await this.#getLineChanges()).originalToModified;
+	}
+
+	public async getModifiedToOriginalMappings(): Promise<readonly number[]> {
+		return (await this.#getLineChanges()).modifiedToOriginal;
+	}
+
 	#getLineChanges(): Promise<LineChanges> {
 		if (!this.#cachedLineChanges || this.#cachedOriginalVersion !== this.#originalDocument.version || this.#cachedModifiedVersion !== this.#modifiedDocument.version) {
 			this.#cachedOriginalVersion = this.#originalDocument.version;

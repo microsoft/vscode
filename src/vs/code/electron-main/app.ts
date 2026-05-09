@@ -1337,7 +1337,7 @@ export class CodeApplication extends Disposable {
 		const args = this.environmentMainService.args;
 
 		// Handle agents window first based on context
-		if ((args['agents'] && this.productService.quality !== 'stable')) {
+		if (args['agents']) {
 			return windowsMainService.openAgentsWindow({
 				context,
 				cli: args,
@@ -1345,9 +1345,7 @@ export class CodeApplication extends Disposable {
 			});
 		}
 
-		const agentsLastRunning = this.productService.quality !== 'stable'
-			? await tryConsumeAgentsLastRunningMarker(this.environmentMainService.userRoamingDataHome, this.fileService, this.logService)
-			: undefined;
+		const agentsLastRunning = await tryConsumeAgentsLastRunningMarker(this.environmentMainService.userRoamingDataHome, this.fileService, this.logService);
 		if (agentsLastRunning?.agentsRunning) {
 			const agentsWindows = await windowsMainService.openAgentsWindow({
 				context,

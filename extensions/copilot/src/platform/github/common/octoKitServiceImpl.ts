@@ -10,7 +10,7 @@ import { ILogService } from '../../log/common/logService';
 import { IFetcherService } from '../../networking/common/fetcherService';
 import { ITelemetryService } from '../../telemetry/common/telemetry';
 import { AssignableActor, getAssignableActorsWithAssignableUsers, getAssignableActorsWithSuggestedActors, getErrorCode, PullRequestComment, PullRequestSearchItem, SessionInfo } from './githubAPI';
-import { AuthOptions, BaseOctoKitService, CCAEnabledResult, CustomAgentDetails, CustomAgentListItem, CustomAgentListOptions, ErrorResponseWithStatusCode, IOctoKitService, IOctoKitUser, JobInfo, PermissiveAuthRequiredError, PullRequestFile, RemoteAgentJobResponse } from './githubService';
+import { AuthOptions, BaseOctoKitService, CCAEnabledResult, CreatedPullRequest, CustomAgentDetails, CustomAgentListItem, CustomAgentListOptions, ErrorResponseWithStatusCode, IOctoKitService, IOctoKitUser, JobInfo, PermissiveAuthRequiredError, PullRequestFile, RemoteAgentJobResponse } from './githubService';
 
 export class OctoKitService extends BaseOctoKitService implements IOctoKitService {
 	declare readonly _serviceBrand: undefined;
@@ -212,6 +212,15 @@ export class OctoKitService extends BaseOctoKitService implements IOctoKitServic
 			throw new PermissiveAuthRequiredError();
 		}
 		return this.addPullRequestCommentWithToken(pullRequestId, commentBody, authToken);
+	}
+
+	async createPullRequest(owner: string, repo: string, title: string, body: string, head: string, base: string, draft: boolean, authOptions: AuthOptions): Promise<CreatedPullRequest> {
+		const authToken = (await this._getPermissiveSession(authOptions))?.accessToken;
+		if (!authToken) {
+			this._logService.trace('No authentication token available for createPullRequest');
+			throw new PermissiveAuthRequiredError();
+		}
+		return this.createPullRequestWithToken(owner, repo, title, body, head, base, draft, authToken);
 	}
 
 	async getAllSessions(nwo: string | undefined, open: boolean, authOptions: AuthOptions): Promise<SessionInfo[]> {

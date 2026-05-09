@@ -54,7 +54,7 @@ export class FindFilesTool implements ICopilotTool<IFindFilesToolParams> {
 		const modelFamily = endpoint?.family;
 
 		// The input _should_ be a pattern matching inside a workspace, folder, but sometimes we get absolute paths, so try to resolve them
-		const globResult = inputGlobToPattern(options.input.query, this.workspaceService, modelFamily);
+		const globResult = inputGlobToPattern(options.input.query, this.workspaceService, modelFamily, options.workingDirectory);
 
 		void this.sendSearchToolTelemetry(options, globResult.folderName);
 

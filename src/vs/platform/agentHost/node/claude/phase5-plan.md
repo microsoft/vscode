@@ -2,6 +2,11 @@
 
 > **Handoff plan** — written to be executed by an agent with no prior conversation context. All file paths and line citations are verified against the workspace at synthesis time. Cross-reference [roadmap.md](./roadmap.md) before committing exact phase numbers.
 
+> **Status note (post-Phase 6.5 design — Phase 6.1 Cycle G).** Two pieces of this plan are now historical and superseded:
+>
+> 1. **Fork narrative.** The fork narrative below was drafted under the working assumption that the agent host would translate `protocolTurnId → SDK-event-uuid` *at fork time* via a live SDK session handle (e.g. `ClaudeAgentSession.getNextTurnEventId(…)` or a JSONL walk through `sdk.getSessionMessages`). That approach was attempted and reverted; **Phase 6.5 ships the contract-based persisted-mapping approach instead** — the mapping is captured on every `type:'result'` ingest by Phase 13's result-message mapper and stored in the session-data DB, so fork is an O(1) DB lookup with no JSONL inference. See [roadmap.md §"Phase 6.5 — Fork"](./roadmap.md) and [CONTEXT.md M9 fork sub-flow](./CONTEXT.md) for the canonical contract. The references to `getNextTurnEventId`, JSONL walks, and `sdk.getSessionMessages` lookups in the body of this plan are historical — read them as the design that was *replaced*, not the design that shipped.
+> 2. **`permissionMode` enum width.** The §B5 schema example shows the original 4-value enum `['default', 'acceptEdits', 'bypassPermissions', 'plan']`. The canonical enum is the 6-value form `['default', 'acceptEdits', 'bypassPermissions', 'plan', 'dontAsk', 'auto']` (matching `ClaudePermissionMode` in [`claudeSessionConfigKeys.ts`](../../common/claudeSessionConfigKeys.ts) and the SDK's `PermissionMode` typedef), expanded in Phase 6.1 Cycle E1. See [CONTEXT.md M11/M12](./CONTEXT.md) and Cycle E1 in [phase6.1-plan.md](./phase6.1-plan.md) for the live code.
+
 ## 1. Goal
 
 Replace the seven Phase-5 stubs in [claudeAgent.ts](claudeAgent.ts) (`createSession`, `disposeSession`, `getSessionMessages`, `listSessions`, `resolveSessionConfig`, `sessionConfigCompletions`, `shutdown`) with real implementations. **No live LLM traffic** in this phase — `sendMessage` stays a Phase-6 stub. The SDK's `query()` is **not** spawned in `createSession`.

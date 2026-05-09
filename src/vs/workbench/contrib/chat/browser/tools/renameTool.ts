@@ -176,7 +176,7 @@ export class RenameTool extends Disposable implements IToolImpl {
 		const input = invocation.parameters as IRenameToolInput;
 
 		// --- resolve URI ---
-		const uri = resolveToolUri(input, this._workspaceContextService);
+		const uri = resolveToolUri(input, this._workspaceContextService, invocation.context?.workingDirectory);
 		if (!uri) {
 			return errorResult('Provide either "uri" (a full URI) or "filePath" (a workspace-relative path) to identify the file.');
 		}
