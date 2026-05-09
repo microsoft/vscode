@@ -106,7 +106,6 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 			// If terminal sandbox settings changed, update sandbox config.
 			if (
 				e?.affectsConfiguration(AgentSandboxSettingId.AgentSandboxEnabled) ||
-				e?.affectsConfiguration(AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands) ||
 				e?.affectsConfiguration(AgentSandboxSettingId.DeprecatedAgentSandboxEnabled) ||
 				e?.affectsConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains) ||
 				e?.affectsConfiguration(AgentNetworkDomainSettingId.DeprecatedSandboxAllowedNetworkDomains) ||
