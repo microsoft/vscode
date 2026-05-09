@@ -324,6 +324,7 @@ class ResourceLabelWidget extends IconLabel {
 		@INotebookDocumentService private readonly notebookDocumentService: INotebookDocumentService
 	) {
 		super(container, options);
+		this.nameContainerElement = super.nameContainerDomNode;
 	}
 
 	notifyVisibilityChanged(visible: boolean): void {
