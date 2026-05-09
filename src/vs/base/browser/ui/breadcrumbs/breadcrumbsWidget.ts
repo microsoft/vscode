@@ -257,7 +257,7 @@ export class BreadcrumbsWidget {
 	reveal(item: BreadcrumbsItem): void {
 		const idx = this._items.indexOf(item);
 		if (idx >= 0) {
-			this._reveal(idx, false);
+			this._reveal(idx, true);
 		}
 	}
 
@@ -273,6 +273,10 @@ export class BreadcrumbsWidget {
 		if (!node) {
 			return;
 		}
+		// Refresh cached dimensions: setItems re-renders synchronously but defers the
+		// scrollable's scanDomNode to a double-RAF, so without this we may clamp against
+		// a stale scrollWidth and leave the target right-clipped.
+		this._scrollable.scanDomNode();
 		const { width } = this._scrollable.getScrollDimensions();
 		const { scrollLeft } = this._scrollable.getScrollPosition();
 		const newScrollLeft = getBreadcrumbScrollLeft(scrollLeft, width, node.offsetLeft, node.offsetWidth, minimal);
