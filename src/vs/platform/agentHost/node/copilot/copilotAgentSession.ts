@@ -641,7 +641,7 @@ export class CopilotAgentSession extends Disposable {
 		return result.turns;
 	}
 
-	async getSubagentMessages(parentToolCallId: string, childSessionUri: string): Promise<readonly Turn[]> {
+	async getSubagentMessages(parentToolCallId: string): Promise<readonly Turn[]> {
 		const events = await this._wrapper.session.getMessages();
 		let db: ISessionDatabase | undefined;
 		try {
