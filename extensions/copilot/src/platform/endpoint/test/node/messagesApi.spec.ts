@@ -13,7 +13,7 @@ import { AnthropicMessagesTool, CUSTOM_TOOL_SEARCH_NAME } from '../../../network
 import { IChatEndpoint, ICreateEndpointBodyOptions } from '../../../networking/common/networking';
 import { IToolDeferralService } from '../../../networking/common/toolDeferralService';
 import { createPlatformServices } from '../../../test/node/services';
-import { addMessagesApiCacheControl, addToolsAndSystemCacheControl, buildToolInputSchema, createMessagesRequestBody, rawMessagesToMessagesAPI } from '../../node/messagesApi';
+import { addMessagesApiCacheControl, addToolsAndSystemCacheControl, buildToolInputSchema, clearAllCacheControl, createMessagesRequestBody, rawMessagesToMessagesAPI } from '../../node/messagesApi';
 
 function assertContentArray(content: MessageParam['content']): ContentBlockParam[] {
 	expect(Array.isArray(content)).toBe(true);
@@ -651,6 +651,75 @@ suite('addMessagesApiCacheControl', function () {
 		];
 		addMessagesApiCacheControl({ messages: iterB });
 		expect(ccPositions({ messages: iterB })).toEqual(['messages[4].block[0]']);
+	});
+});
+
+suite('clearAllCacheControl', function () {
+
+	function ccPositions(args: { messages: MessageParam[]; system?: TextBlockParam[] }): string[] {
+		const out: string[] = [];
+		args.system?.forEach((b, i) => { if (b.cache_control) { out.push(`system[${i}]`); } });
+		args.messages.forEach((m, i) => {
+			if (Array.isArray(m.content)) {
+				m.content.forEach((b, j) => {
+					if (typeof b === 'object' && 'cache_control' in b && b.cache_control) {
+						out.push(`messages[${i}].block[${j}]`);
+					}
+				});
+			}
+		});
+		return out;
+	}
+
+	test('strips cache_control from messages and system blocks', function () {
+		const messages: MessageParam[] = [
+			{ role: 'user', content: [{ type: 'text', text: 'a', cache_control: { type: 'ephemeral' } }] },
+			{ role: 'assistant', content: [{ type: 'text', text: 'b', cache_control: { type: 'ephemeral' } }] },
+		];
+		const system: TextBlockParam[] = [{ type: 'text', text: 's', cache_control: { type: 'ephemeral' } }];
+
+		clearAllCacheControl({ messages, system });
+
+		expect(ccPositions({ messages, system })).toEqual([]);
+	});
+
+	test('caps total cc count at 3 even when upstream loaded 4 markers', function () {
+		// Repro: a prompt-tsx prompt (e.g. inlineChatPrompt) emits multiple
+		// <cacheBreakpoint> parts that rawContentToAnthropicContent translates
+		// into cache_control fields. Without clearAllCacheControl we'd add
+		// 3 more on top → exceed Anthropic's 4-cc limit → 400.
+		const tools: AnthropicMessagesTool[] = [
+			{ name: 't', description: '', input_schema: { type: 'object', properties: {}, required: [] } },
+		];
+		const system: TextBlockParam[] = [{ type: 'text', text: 's', cache_control: { type: 'ephemeral' } }];
+		const messages: MessageParam[] = [
+			{ role: 'user', content: [{ type: 'text', text: 'a', cache_control: { type: 'ephemeral' } }] },
+			{ role: 'assistant', content: [{ type: 'text', text: 'b', cache_control: { type: 'ephemeral' } }] },
+			{ role: 'user', content: [{ type: 'text', text: 'c', cache_control: { type: 'ephemeral' } }] },
+		];
+
+		clearAllCacheControl({ messages, system });
+		addMessagesApiCacheControl({ messages, system });
+		addToolsAndSystemCacheControl(tools, { messages, system });
+
+		// Exactly 3 ccs, all in the deterministic positions we own.
+		expect([
+			...tools.flatMap((t, i) => t.cache_control ? [`tools[${i}]`] : []),
+			...ccPositions({ messages, system }),
+		]).toEqual([
+			'tools[0]', 'system[0]', 'messages[2].block[0]',
+		]);
+	});
+
+	test('is a no-op when no cache_control is present', function () {
+		const messages: MessageParam[] = [
+			{ role: 'user', content: [{ type: 'text', text: 'a' }] },
+		];
+		const system: TextBlockParam[] = [{ type: 'text', text: 's' }];
+
+		clearAllCacheControl({ messages, system });
+
+		expect(ccPositions({ messages, system })).toEqual([]);
 	});
 });
 

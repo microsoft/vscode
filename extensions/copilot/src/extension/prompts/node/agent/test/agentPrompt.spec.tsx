@@ -266,6 +266,24 @@ testFamilies.forEach(family => {
 				})).toMatchFileSnapshot(getSnapshotFile('cache_BPs_multi_round'));
 		});
 
+		// The Messages API path uses summarization without prompt-tsx breakpoints
+		// — placement is owned downstream by messagesApi.ts. This pins the
+		// rendered shape so a regression in the AgentPrompt branch (currently
+		// at line 144: `if (this.props.enableSummarization)`) is caught here.
+		test('summarization without cache breakpoints (Messages API config)', async () => {
+			await expect(await agentPromptToString(
+				accessor,
+				{
+					chatVariables: new ChatVariablesCollection([{ id: 'vscode.file', name: 'file', value: fileTsUri }]),
+					history: [],
+					query: 'edit this file',
+				},
+				{
+					enableSummarization: true,
+					enableCacheBreakpoints: false,
+				})).toMatchFileSnapshot(getSnapshotFile('summarization_no_cache_bps'));
+		});
+
 		test('custom instructions not in system message', async () => {
 			accessor.get(IConfigurationService).setConfig(ConfigKey.CustomInstructionsInSystemMessage, false);
 			await expect(await agentPromptToString(accessor, {
