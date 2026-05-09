@@ -119,6 +119,37 @@ export class ChatCompositeBar extends Disposable {
 			tab.classList.toggle('untitled', status === SessionStatus.Untitled);
 		}));
 
+		// Track unread / needs-input / in-progress state for the indicator.
+		// Precedence: needs-input (unread) > in-progress (spinner) > unread when not active.
+		// At most one indicator is shown at a time.
+		const indicator = $('.chat-composite-bar-tab-indicator');
+		const indicatorIcon = $('.chat-composite-bar-tab-indicator-icon');
+		indicator.appendChild(indicatorIcon);
+		this._tabDisposables.add(autorun(reader => {
+			const activeSession = this._sessionsManagementService.activeSession.read(reader);
+			const activeChat = activeSession?.activeChat.read(reader);
+			const isActive = activeChat?.resource.toString() === chat.resource.toString();
+			const status = chat.status.read(reader);
+			const isRead = chat.isRead.read(reader);
+
+			let mode: 'unread' | 'in-progress' | 'none' = 'none';
+			if (status === SessionStatus.NeedsInput) {
+				mode = 'unread';
+			} else if (status === SessionStatus.InProgress) {
+				mode = 'in-progress';
+			} else if (!isRead && !isActive) {
+				mode = 'unread';
+			}
+
+			tab.classList.toggle('unread', mode === 'unread');
+			tab.classList.toggle('in-progress', mode === 'in-progress');
+
+			indicatorIcon.className = 'chat-composite-bar-tab-indicator-icon';
+			if (mode === 'in-progress') {
+				indicatorIcon.classList.add(...ThemeIcon.asClassNameArray(ThemeIcon.modify(Codicon.loading, 'spin')));
+			}
+		}));
+
 		// Remove action bar — only for non-main chats, visible on hover
 		if (!isMainChat) {
 			const closeAction = this._tabDisposables.add(new Action(
@@ -138,7 +169,6 @@ export class ChatCompositeBar extends Disposable {
 			actionBar.getContainer().classList.add('chat-composite-bar-tab-actions');
 		}
 
-		const indicator = $('.chat-composite-bar-tab-indicator');
 		tab.appendChild(indicator);
 
 		this._tabsContainer.appendChild(tab);

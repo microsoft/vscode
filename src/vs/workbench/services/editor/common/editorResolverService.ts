@@ -102,10 +102,12 @@ export type RegisteredEditorOptions = {
 };
 
 export type RegisteredEditorInfo = {
-	id: string;
-	label: string;
-	detail?: string;
-	priority: RegisteredEditorPriority;
+	readonly id: string;
+	readonly label: string;
+	readonly detail?: string;
+	readonly priority: RegisteredEditorPriority;
+	readonly diffEditorPriority?: RegisteredEditorPriority;
+	readonly mergeEditorPriority?: RegisteredEditorPriority;
 };
 
 type EditorInputFactoryResult = EditorInputWithOptions | Promise<EditorInputWithOptions>;
