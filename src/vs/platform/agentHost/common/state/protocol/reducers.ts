@@ -544,13 +544,13 @@ export function sessionReducer(state: SessionState, action: SessionAction, log?:
 			};
 
 		case ActionType.SessionUsage:
-			if (state.activeTurn?.id === action.turnId) {
-				return {
-					...state,
-					activeTurn: { ...state.activeTurn, usage: action.usage },
-				};
+			if (!state.activeTurn || state.activeTurn.id !== action.turnId) {
+				return state;
 			}
-			return state;
+			return {
+				...state,
+				activeTurn: { ...state.activeTurn, usage: action.usage },
+			};
 
 		case ActionType.SessionReasoning:
 			return updateResponsePart(state, action.turnId, action.partId, part => {

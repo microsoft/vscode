@@ -1419,9 +1419,6 @@ export class CopilotAgentSession extends Disposable {
 				cacheReadTokens: e.data.cacheReadTokens,
 				...(Object.keys(metadata).length > 0 ? { _meta: metadata } : {}),
 			};
-			if (this._turnId) {
-				this._databaseRef.object.setTurnUsage(this._turnId, usage).catch(err => this._logService.warn(`[Copilot:${sessionId}] Failed to store turn usage`, err));
-			}
 			this._emitAction({
 				type: ActionType.SessionUsage,
 				session: this._protocolSession(),

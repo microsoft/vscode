@@ -399,27 +399,6 @@ suite('SessionDatabase', () => {
 			db = disposables.add(await SessionDatabase.open(':memory:'));
 			await db.deleteTurn('nonexistent'); // should not throw
 		});
-
-		test('store and retrieve turn usage', async () => {
-			db = disposables.add(await SessionDatabase.open(':memory:'));
-
-			await db.setTurnUsage('turn-1', {
-				inputTokens: 10,
-				outputTokens: 20,
-				model: 'claude-haiku-4.5',
-				cacheReadTokens: 5,
-				_meta: { cost: 0.33 },
-			});
-
-			assert.deepStrictEqual(await db.getTurnUsage('turn-1'), {
-				inputTokens: 10,
-				outputTokens: 20,
-				model: 'claude-haiku-4.5',
-				cacheReadTokens: 5,
-				_meta: { cost: 0.33 },
-			});
-			assert.strictEqual(await db.getTurnUsage('unknown'), undefined);
-		});
 	});
 
 	// ---- Dispose --------------------------------------------------------

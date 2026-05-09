@@ -19,14 +19,14 @@ import { ServiceCollection } from '../../../instantiation/common/serviceCollecti
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { AgentSession, type AgentSignal, type IAgentActionSignal, type IAgentToolPendingConfirmationSignal } from '../../common/agentService.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
-import { ISessionDataService, type ISessionDatabase } from '../../common/sessionDataService.js';
+import { ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType, type SessionDeltaAction, type SessionErrorAction, type SessionInputRequestedAction, type SessionResponsePartAction, type SessionToolCallCompleteAction, type SessionToolCallReadyAction, type SessionToolCallStartAction } from '../../common/state/sessionActions.js';
 import { MessageAttachmentKind, ResponsePartKind, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, ToolResultContentType } from '../../common/state/sessionState.js';
 import { CopilotAgentSession, IActiveClientSnapshot, SessionWrapperFactory } from '../../node/copilot/copilotAgentSession.js';
 import { CopilotSessionWrapper } from '../../node/copilot/copilotSessionWrapper.js';
 import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
-import { createSessionDataService, createZeroDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
+import { createSessionDataService, createZeroDiffComputeService } from '../common/sessionTestHelpers.js';
 
 // ---- Mock CopilotSession (SDK level) ----------------------------------------
 
@@ -39,7 +39,6 @@ class MockCopilotSession {
 	readonly sessionId = 'test-session-1';
 	readonly sendRequests: unknown[] = [];
 	readonly modeSetCalls: Array<{ mode: 'interactive' | 'plan' | 'autopilot' }> = [];
-	messages: SessionEvent[] = [];
 
 	private readonly _handlers = new Map<string, Set<(event: SessionEvent) => void>>();
 	planReadResult: { exists: boolean; content: string | null; path: string | null } = { exists: false, content: null, path: null };
@@ -69,7 +68,7 @@ class MockCopilotSession {
 	async send(request: unknown) { this.sendRequests.push(request); return ''; }
 	async abort() { }
 	async setModel() { }
-	async getMessages() { return this.messages; }
+	async getMessages() { return []; }
 	async destroy() { }
 
 	readonly rpc = {
@@ -153,7 +152,6 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	configValues?: Record<string, unknown>;
 	fileContents?: Record<string, string>;
 	fileReadErrors?: readonly string[];
-	database?: ISessionDatabase;
 }): Promise<{
 	session: CopilotAgentSession;
 	mockSession: MockCopilotSession;
@@ -207,7 +205,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			return { value: VSBuffer.fromString(options?.fileContents?.[resource.toString()] ?? options?.fileContents?.[resource.fsPath] ?? '') };
 		},
 	} as Partial<IFileService> as IFileService);
-	services.set(ISessionDataService, createSessionDataService(options?.database));
+	services.set(ISessionDataService, createSessionDataService());
 	services.set(IDiffComputeService, createZeroDiffComputeService());
 	const sessionConfigUpdates: Array<{ session: string; patch: Record<string, unknown> }> = [];
 	const configValues = options?.configValues ?? {};
@@ -354,46 +352,6 @@ suite('CopilotAgentSession', () => {
 				},
 			},
 		]);
-	});
-
-	test('restores persisted Copilot usage metadata for previous turns', async () => {
-		const database = new TestSessionDatabase();
-		const { session, mockSession } = await createAgentSession(disposables, { database });
-
-		session.resetTurnState('turn-usage');
-		mockSession.fire('assistant.usage', {
-			model: 'claude-haiku-4.5',
-			inputTokens: 29217,
-			outputTokens: 71,
-			cacheReadTokens: 29023,
-			cost: 0.33,
-		});
-		mockSession.messages = [
-			{
-				type: 'user.message',
-				id: 'event-user',
-				parentId: null,
-				timestamp: new Date().toISOString(),
-				data: { interactionId: 'turn-usage', content: 'hello' },
-			} satisfies SessionEventPayload<'user.message'>,
-			{
-				type: 'assistant.message',
-				id: 'event-assistant',
-				parentId: 'event-user',
-				timestamp: new Date().toISOString(),
-				data: { messageId: 'assistant-message', content: 'hi' },
-			} satisfies SessionEventPayload<'assistant.message'>,
-		];
-
-		const turns = await session.getMessages();
-
-		assert.deepStrictEqual(turns.map(turn => turn.usage), [{
-			inputTokens: 29217,
-			outputTokens: 71,
-			model: 'claude-haiku-4.5',
-			cacheReadTokens: 29023,
-			_meta: { cost: 0.33 },
-		}]);
 	});
 
 	test('extracts selected text from file contents for different line endings and bounds', async () => {
