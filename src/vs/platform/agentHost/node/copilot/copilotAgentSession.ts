@@ -31,7 +31,7 @@ import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import type { IExitPlanModeRequestParams, IExitPlanModeResponse } from './copilotAgent.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
 import type { ShellManager } from './copilotShellTools.js';
-import { getEditFilePath, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellLanguage, getSubagentMetadata, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, isShellTool, synthesizeSkillToolCall, tryStringify, type ITypedPermissionRequest } from './copilotToolDisplay.js';
+import { getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellLanguage, getSubagentMetadata, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, isShellTool, synthesizeSkillToolCall, tryStringify, type ITypedPermissionRequest } from './copilotToolDisplay.js';
 import { FileEditTracker } from './fileEditTracker.js';
 import { mapSessionEvents } from './mapSessionEvents.js';
 import { buildPendingEditContentUri } from './pendingEditContentStore.js';
@@ -1074,10 +1074,8 @@ export class CopilotAgentSession extends Disposable {
 	private async _handlePreToolUse(input: PreToolUseHookInput): Promise<void> {
 		try {
 			if (isEditTool(input.toolName)) {
-				const filePath = getEditFilePath(input.toolArgs);
-				if (filePath) {
-					await this._editTracker.trackEditStart(filePath);
-				}
+				const filePaths = getEditFilePaths(input.toolArgs);
+				await Promise.all(filePaths.map(p => this._editTracker.trackEditStart(p)));
 			}
 		} catch (error) {
 			this._logService.error(error, `[Copilot:${this.sessionId}] Failed in onPreToolUse: tool=${input.toolName}`);
@@ -1088,10 +1086,8 @@ export class CopilotAgentSession extends Disposable {
 	private async _handlePostToolUse(input: PostToolUseHookInput): Promise<void> {
 		try {
 			if (isEditTool(input.toolName)) {
-				const filePath = getEditFilePath(input.toolArgs);
-				if (filePath) {
-					await this._editTracker.completeEdit(filePath);
-				}
+				const filePaths = getEditFilePaths(input.toolArgs);
+				await Promise.all(filePaths.map(p => this._editTracker.completeEdit(p)));
 			}
 		} catch (error) {
 			this._logService.error(error, `[Copilot:${this.sessionId}] Failed in onPostToolUse: tool=${input.toolName}`);
@@ -1271,8 +1267,8 @@ export class CopilotAgentSession extends Disposable {
 				content.push({ type: ToolResultContentType.Text, text: toolOutput });
 			}
 
-			const filePath = isEditTool(tracked.toolName) ? getEditFilePath(tracked.parameters) : undefined;
-			if (filePath) {
+			const filePaths = isEditTool(tracked.toolName) ? getEditFilePaths(tracked.parameters) : [];
+			for (const filePath of filePaths) {
 				try {
 					const fileEdit = await this._editTracker.takeCompletedEdit(this._turnId, e.data.toolCallId, filePath);
 					if (fileEdit) {
