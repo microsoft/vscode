@@ -192,7 +192,14 @@ export class AgentBridge {
 		// undefined so the orchestrator falls into its normal
 		// "plan-then-await-/approve" flow.
 		const command = opts?.mode === 'plan' ? 'plan' : undefined;
-		const request = createShimChatRequest(userMessage, command, opts?.model, opts?.workspaceContextSnapshot);
+		const request = createShimChatRequest(
+			userMessage,
+			command,
+			opts?.model,
+			opts?.workspaceContextSnapshot,
+			opts?.conversationId,
+			true, // emit follow-up suggestions for IDE — the webview strips the sentinel
+		);
 		const chatContext = createShimChatContext();
 
 		try {
@@ -271,6 +278,7 @@ export class AgentBridge {
 		cancellation: vscode.CancellationToken,
 		model?: ModelId,
 		workspaceContextSnapshot?: string,
+		conversationId?: string,
 	): Promise<void> {
 		const agent = this.stack.specialists.get(handle);
 		if (!agent) {
@@ -283,9 +291,18 @@ export class AgentBridge {
 		}
 
 		try {
-			const text = await agent.runChatTurn(userMessage, token => {
-				emit({ type: 'token', token });
-			}, cancellation, model, workspaceContextSnapshot);
+			// `emitFollowupSuggestions = true` opts the IDE chat into receiving
+			// the H4 sentinel block; the chat-webview strips it before render
+			// and surfaces the suggestions as quick-pick buttons.
+			const text = await agent.runChatTurn(
+				userMessage,
+				token => emit({ type: 'token', token }),
+				cancellation,
+				model,
+				workspaceContextSnapshot,
+				true,
+				conversationId,
+			);
 			emit({ type: 'final', text });
 		} catch (err) {
 			const message = err instanceof Error ? err.message : String(err);
@@ -373,7 +390,14 @@ function createShimResponseStream(emit: (event: AgentEvent) => void): ShimRespon
  * accept that type. The native VS Code `model` field is left undefined
  * because the agent stack does not consume `vscode.LanguageModelChat`.
  */
-function createShimChatRequest(userMessage: string, command?: string, model?: ModelId, workspaceContextSnapshot?: string): vscode.ChatRequest {
+function createShimChatRequest(
+	userMessage: string,
+	command?: string,
+	model?: ModelId,
+	workspaceContextSnapshot?: string,
+	conversationId?: string,
+	emitFollowupSuggestions?: boolean,
+): vscode.ChatRequest {
 	const request = {
 		prompt: userMessage,
 		command,
@@ -386,6 +410,13 @@ function createShimChatRequest(userMessage: string, command?: string, model?: Mo
 		model: undefined,
 		modelOverride: model,
 		workspaceContextSnapshot,
+		// H6 — scopes specialist memory to this conversation so memory
+		// from one chat doesn't leak into another for the same handle.
+		conversationId,
+		// H4 — opts the agent into emitting a `<<sota:suggestions>>` block
+		// that the chat surface strips before render and renders as a row
+		// of quick-pick suggestion buttons.
+		emitFollowupSuggestions,
 	};
 	return request as unknown as vscode.ChatRequest;
 }

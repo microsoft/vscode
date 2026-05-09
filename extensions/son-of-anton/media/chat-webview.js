@@ -1053,10 +1053,30 @@
 				return '@@UB' + (uiBlockIndex++) + '@@';
 			});
 
+			// 0e. Strip the H4 follow-up-suggestions sentinel from the
+			//     rendered text. The actual suggestions are extracted +
+			//     surfaced as quick-pick buttons by `extractFollowupSuggestions`
+			//     which the streaming render pipeline calls separately.
+			//     Rendering them here would just leak the raw protocol
+			//     block into the assistant message body.
+			//
+			//     A half-streamed sentinel (opener received, closer not yet)
+			//     is also stripped — everything from the opener to end-of-
+			//     text gets removed so users don't briefly see the raw
+			//     "<<sota:suggestions>>" string mid-stream.
+			let sansSuggestions = sansUiBlock.replace(
+				/<<sota:suggestions>>[\s\S]*?<<sota:end>>\s*$/m,
+				'',
+			);
+			const openerIdx = sansSuggestions.indexOf('<<sota:suggestions>>');
+			if (openerIdx >= 0) {
+				sansSuggestions = sansSuggestions.slice(0, openerIdx).trimEnd();
+			}
+
 			// 1. Hold fenced code blocks aside so block/inline rules below don't touch their contents.
 			const codeBlocks = [];
 			let codeIndex = 0;
-			const sansCode = sansUiBlock.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => {
+			const sansCode = sansSuggestions.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => {
 				codeBlocks[codeIndex] = { lang, code };
 				return '@@CB' + (codeIndex++) + '@@';
 			});
@@ -4107,6 +4127,69 @@
 			}
 			currentAssistantTextSpan.replaceWith(wrapper);
 			currentAssistantTextSpan = null;
+
+			// H4 — render LLM-emitted follow-up suggestions as a Tab-able
+			// row of quick-pick chips below the assistant body. The sentinel
+			// itself was already stripped from the rendered text by
+			// renderMarkdown's section 0e; we re-extract from the raw stream
+			// here because the JSON payload was discarded during render.
+			if (currentAssistantDiv) {
+				renderFollowupSuggestions(raw, currentAssistantDiv);
+			}
+		}
+
+		/**
+		 * Extract a `<<sota:suggestions>>[...]<<sota:end>>` JSON array from
+		 * the raw assistant text and append a row of quick-pick chips below
+		 * the assistant message. Clicking a chip drops the suggestion into
+		 * the composer and submits it as the next user turn — fast follow-
+		 * ups without retyping. Silently no-ops when the sentinel is absent
+		 * or the JSON is malformed.
+		 */
+		function renderFollowupSuggestions(rawText, assistantDiv) {
+			const match = rawText.match(/<<sota:suggestions>>\s*([\s\S]*?)\s*<<sota:end>>/);
+			if (!match) {
+				return;
+			}
+			let suggestions;
+			try {
+				suggestions = JSON.parse(match[1]);
+			} catch {
+				return;
+			}
+			if (!Array.isArray(suggestions) || suggestions.length === 0) {
+				return;
+			}
+			const valid = suggestions
+				.filter(s => typeof s === 'string' && s.trim().length > 0)
+				.slice(0, 5);
+			if (valid.length === 0) {
+				return;
+			}
+			const strip = document.createElement('div');
+			strip.className = 'msg-followups';
+			const label = document.createElement('span');
+			label.className = 'msg-followups-label';
+			label.textContent = 'Follow-ups:';
+			strip.appendChild(label);
+			for (const suggestion of valid) {
+				const chip = document.createElement('button');
+				chip.type = 'button';
+				chip.className = 'msg-followup-chip';
+				chip.textContent = suggestion;
+				chip.addEventListener('click', () => {
+					const input = document.getElementById('chatInput');
+					if (input) {
+						input.value = suggestion;
+						input.focus();
+					}
+					if (typeof sendMessage === 'function') {
+						sendMessage();
+					}
+				});
+				strip.appendChild(chip);
+			}
+			assistantDiv.appendChild(strip);
 		}
 
 		/**

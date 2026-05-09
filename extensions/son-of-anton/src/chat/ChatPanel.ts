@@ -3002,7 +3002,7 @@ export class ChatSession {
 				// We still surface a system-style hint upstream of the call so
 				// users notice the chip is non-functional for non-orchestrator
 				// turns; see handleSendMessage's pre-dispatch hint.
-				await this.agentBridge.runSpecialist(specialistId as AgentHandle, fullPrompt, emit, cancellationSource.token, model, workspaceContextSnapshot);
+				await this.agentBridge.runSpecialist(specialistId as AgentHandle, fullPrompt, emit, cancellationSource.token, model, workspaceContextSnapshot, this.currentConversationId);
 			}
 		} catch (err) {
 			const message = err instanceof Error ? err.message : String(err);

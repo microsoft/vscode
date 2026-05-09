@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { BaseAgent, AgentContext } from './BaseAgent';
+import { loadAgentPrompt } from './promptLoader';
 import { SubtaskResult } from './types';
 
 /**
@@ -13,23 +14,9 @@ import { SubtaskResult } from './types';
  */
 export class TestWriterAgent extends BaseAgent {
 	protected getRoleDescription(): string {
-		return [
-			'You are a test writing specialist for Son of Anton.',
-			'You generate tests for code, covering happy-path, edge cases, and error scenarios.',
-			'',
-			'## Rules',
-			'1. Use the project\'s existing testing framework and patterns.',
-			'2. Use `describe` and `test` blocks consistently with existing patterns.',
-			'3. Prefer snapshot-style `assert.deepStrictEqual` over many small assertions.',
-			'4. Include: happy-path tests, edge cases, error scenarios, boundary conditions.',
-			'5. Add tests to existing test files when they exist for the module.',
-			'6. Create new test files following the project naming convention when needed.',
-			'',
-			'## Output Format',
-			'Provide test code in ```diff``` or ```typescript``` code fences.',
-			'For new test files, use <!-- CREATE: path/to/file.test.ts --> before the code block.',
-			'Include a summary of what is tested.',
-		].join('\n');
+		// H10 — role description loaded from `prompts/anton-test.prompt.md`
+		// at runtime so prompt iteration doesn't require a TypeScript edit.
+		return loadAgentPrompt(this.handle);
 	}
 
 	async execute(context: AgentContext): Promise<SubtaskResult> {
