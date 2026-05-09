@@ -432,7 +432,7 @@ describe('AutomodeService', () => {
 			expect(secondResult).toBe(firstResult);
 		});
 
-		it('should throw when no available models match any known endpoint', async () => {
+		it('should fall back to first known endpoint when no available models match', async () => {
 			mockApiResponse(['unknown-model-1', 'unknown-model-2']);
 
 			automodeService = createService();
@@ -442,9 +442,11 @@ describe('AutomodeService', () => {
 				sessionId: 'session-no-match'
 			};
 
-			await expect(
-				automodeService.resolveAutoModeEndpoint(chatRequest as ChatRequest, [mockChatEndpoint])
-			).rejects.toThrow('no available model found');
+			const result = await automodeService.resolveAutoModeEndpoint(chatRequest as ChatRequest, [mockChatEndpoint]);
+			expect(result.model).toBe(mockChatEndpoint.model);
+			expect(mockLogService.warn).toHaveBeenCalledWith(
+				expect.stringContaining('No available_models matched knownEndpoints; using fallback endpoint')
+			);
 		});
 	});
 
@@ -1241,7 +1243,7 @@ describe('AutomodeService', () => {
 			expect(result.model).toBe('gpt-4.1');
 		});
 
-		it('should throw when all available_models are unknown to knownEndpoints', async () => {
+		it('should fall back to first known endpoint when all available_models are unknown', async () => {
 			enableRouter();
 			const gpt4oEndpoint = createEndpoint('gpt-4o', 'OpenAI');
 
@@ -1265,9 +1267,8 @@ describe('AutomodeService', () => {
 				sessionId: 'session-all-unknown'
 			};
 
-			await expect(
-				automodeService.resolveAutoModeEndpoint(chatRequest as ChatRequest, [gpt4oEndpoint])
-			).rejects.toThrow('no available model found');
+			const result = await automodeService.resolveAutoModeEndpoint(chatRequest as ChatRequest, [gpt4oEndpoint]);
+			expect(result.model).toBe('gpt-4o');
 			expect(mockLogService.warn).toHaveBeenCalledWith(
 				expect.stringContaining('No available_models matched knownEndpoints')
 			);

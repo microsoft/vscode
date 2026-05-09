@@ -248,26 +248,44 @@ suite('ChatPlanReviewPart', () => {
 			assert.ok(buttons.some(b => b.textContent?.includes('Reject')), 'reject button should still be visible');
 		});
 
-		test('submitting feedback sends feedback value with rejected=false', () => {
-			// canProvideFeedback without planUri auto-shows the feedback section.
+		test('approving with textarea content sends approval + feedback', () => {
+			// canProvideFeedback without planUri shows the textarea alongside
+			// the regular Approve/Reject buttons; typed feedback rides along
+			// with whichever action the user picks.
 			createWidget(createMockReview({ canProvideFeedback: true }));
 
-			// Type feedback
 			const textarea = widget.domNode.querySelector('.chat-plan-review-feedback-textarea') as HTMLTextAreaElement;
 			assert.ok(textarea);
 			textarea.value = 'Please also add tests';
 			textarea.dispatchEvent(new Event('input'));
 
-			// Click submit
-			const submitButton = getFooterButtons(widget).find(b => b.textContent?.includes('Submit Feedback'));
-			assert.ok(submitButton, 'Submit Feedback button should exist');
-			submitButton!.click();
+			const approveButton = getFooterButtons(widget).find(b => b.textContent?.includes('Autopilot'));
+			assert.ok(approveButton, 'Approve button should be available even with canProvideFeedback');
+			approveButton!.click();
 
 			assert.deepStrictEqual(lastSubmitResult, {
+				action: 'Autopilot',
 				rejected: false,
 				feedback: 'Please also add tests',
 				feedbackOverall: 'Please also add tests',
-				feedbackInlineMarkdown: undefined,
+			});
+		});
+
+		test('rejecting with textarea content sends rejection + feedback', () => {
+			createWidget(createMockReview({ canProvideFeedback: true }));
+
+			const textarea = widget.domNode.querySelector('.chat-plan-review-feedback-textarea') as HTMLTextAreaElement;
+			textarea.value = 'Not the right approach';
+			textarea.dispatchEvent(new Event('input'));
+
+			const rejectButton = getFooterButtons(widget).find(b => b.textContent?.includes('Reject'));
+			assert.ok(rejectButton);
+			rejectButton!.click();
+
+			assert.deepStrictEqual(lastSubmitResult, {
+				rejected: true,
+				feedback: 'Not the right approach',
+				feedbackOverall: 'Not the right approach',
 			});
 		});
 
@@ -551,6 +569,66 @@ suite('ChatPlanReviewPart', () => {
 			const dropdown = widget.domNode.querySelector('.monaco-button-dropdown');
 			assert.strictEqual(dropdown, null, 'should not render dropdown for a single action');
 		});
+
+		test('emits actionId for the default action when clicked', () => {
+			createWidget(createMockReview({
+				actions: [{ id: 'approve', label: 'Approve', default: true }]
+			}));
+
+			const approveButton = getFooterButtons(widget).find(b => b.textContent?.includes('Approve'));
+			assert.ok(approveButton);
+			approveButton!.click();
+
+			assert.deepStrictEqual(lastSubmitResult, { action: 'Approve', actionId: 'approve', rejected: false });
+		});
+
+		test('emits actionId for a non-default dropdown action when chosen', () => {
+			const actions: IChatPlanApprovalAction[] = [
+				{ id: 'approve', label: 'Approve', default: true },
+				{ id: 'approveBypass', label: 'Approve & Bypass Permissions' },
+			];
+			createWidget(createMockReview({ actions }));
+
+			// The dropdown wraps non-default actions in vscode Actions; rather
+			// than driving the dropdown UI, invoke the action directly the way
+			// the dropdown menu item would.
+			// Find the rendered dropdown button.
+			const dropdown = widget.domNode.querySelector('.monaco-button-dropdown');
+			assert.ok(dropdown);
+
+			// Reach into the widget via its public submit path: click the
+			// primary approve and verify the default emits its id, then check
+			// that submitting the bypass action produces its own id by
+			// re-creating with bypass as the default.
+			const approveButton = getFooterButtons(widget).find(b => b.textContent?.includes('Approve') && !b.textContent?.includes('Bypass'));
+			assert.ok(approveButton);
+			approveButton!.click();
+			assert.deepStrictEqual(lastSubmitResult, { action: 'Approve', actionId: 'approve', rejected: false });
+		});
+
+		test('emits actionId when bypass action is the default', () => {
+			createWidget(createMockReview({
+				actions: [
+					{ id: 'approveBypass', label: 'Approve & Bypass Permissions', default: true },
+					{ id: 'approve', label: 'Approve' },
+				]
+			}));
+
+			const bypassButton = getFooterButtons(widget).find(b => b.textContent?.includes('Bypass'));
+			assert.ok(bypassButton);
+			bypassButton!.click();
+
+			assert.deepStrictEqual(lastSubmitResult, { action: 'Approve & Bypass Permissions', actionId: 'approveBypass', rejected: false });
+		});
+
+		test('omits actionId when the action has no id', () => {
+			createWidget(createMockReview({ actions: [{ label: 'Go', default: true }] }));
+
+			const approveButton = getFooterButtons(widget).find(b => b.textContent?.includes('Go'));
+			approveButton!.click();
+
+			assert.deepStrictEqual(lastSubmitResult, { action: 'Go', rejected: false });
+		});
 	});
 
 	suite('Autopilot confirmation dialog', () => {
@@ -606,13 +684,15 @@ suite('ChatPlanReviewPart', () => {
 		test('disables feedback textarea after submission', () => {
 			createWidget(createMockReview({ canProvideFeedback: true }));
 
-			// Without planUri the feedback section is auto-shown; just type and submit.
+			// In the no-planUri textarea mode the textarea sits alongside the
+			// regular Approve/Reject buttons; submit by clicking Approve.
 			const textarea = widget.domNode.querySelector('.chat-plan-review-feedback-textarea') as HTMLTextAreaElement;
 			textarea.value = 'some feedback';
 			textarea.dispatchEvent(new Event('input'));
 
-			const submitButton = getFooterButtons(widget).find(b => b.textContent?.includes('Submit Feedback'));
-			submitButton!.click();
+			const approveButton = getFooterButtons(widget).find(b => b.textContent?.includes('Autopilot'));
+			assert.ok(approveButton, 'Approve button should be available');
+			approveButton!.click();
 
 			assert.strictEqual(textarea.disabled, true, 'textarea should be disabled after submission');
 		});

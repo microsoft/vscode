@@ -313,6 +313,9 @@ export class AnthropicLMProvider extends AbstractLanguageModelChatProvider {
 						contextManagement: result.contextManagement
 					});
 				}
+				if (result.usage) {
+					wrappedProgress.report(new LanguageModelDataPart(new TextEncoder().encode(JSON.stringify(result.usage)), CustomDataPartMimeTypes.Usage));
+				}
 				pendingLoggedChatRequest.resolve({
 					type: ChatFetchResponseType.Success,
 					requestId,

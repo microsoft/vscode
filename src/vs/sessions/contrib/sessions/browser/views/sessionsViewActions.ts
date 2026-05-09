@@ -799,14 +799,16 @@ registerAction2(class MarkSessionAsDoneAction extends Action2 {
 					IsActiveSessionArchivedContext.negate(),
 					ActiveSessionContextKeys.HasGitRepository.isEqualTo(true),
 					ContextKeyExpr.or(
-						// Merge scenario
+						// No changes
+						ActiveSessionContextKeys.HasBranchChanges.negate(),
+						// Merge changes (base branch is not protected)
 						ContextKeyExpr.and(
 							ActiveSessionContextKeys.IsMergeBaseBranchProtected.isEqualTo(false),
 							ActiveSessionContextKeys.HasIncomingChanges.isEqualTo(false),
 							ActiveSessionContextKeys.HasOutgoingChanges.isEqualTo(false),
 							ActiveSessionContextKeys.HasUncommittedChanges.isEqualTo(false)
 						),
-						// Pull-request scenario
+						// Pull-request (base branch is protected)
 						ContextKeyExpr.and(
 							ActiveSessionContextKeys.IsMergeBaseBranchProtected.isEqualTo(true),
 							ActiveSessionContextKeys.HasPullRequest.isEqualTo(true),

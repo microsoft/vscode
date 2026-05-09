@@ -922,8 +922,6 @@ export namespace ConfigKey {
 
 	/** Use the Messages API instead of Chat Completions when supported */
 	export const UseAnthropicMessagesApi = defineSetting<boolean | undefined>('chat.anthropic.useMessagesApi', ConfigType.ExperimentBased, true);
-	/** Use "last two messages" cache breakpoint strategy instead of heuristic-based placement */
-	export const AnthropicCacheBreakpointsLastTwoMessages = defineSetting<boolean>('chat.anthropic.cacheBreakpoints.lastTwoMessages', ConfigType.ExperimentBased, false);
 	/** Context editing mode for Anthropic Messages API. 'off' disables context editing. */
 	export const AnthropicContextEditingMode = defineSetting<'off' | 'clear-thinking' | 'clear-tooluse' | 'clear-both'>('chat.anthropic.contextEditing.mode', ConfigType.ExperimentBased, 'off');
 	/** Configure reasoning summary style sent to Responses API */
