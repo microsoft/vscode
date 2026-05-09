@@ -64,7 +64,6 @@ const enum DefaultAccountStatus {
 const CONTEXT_DEFAULT_ACCOUNT_STATE = new RawContextKey<string>('defaultAccountStatus', DefaultAccountStatus.Uninitialized);
 const CACHED_POLICY_DATA_KEY = 'defaultAccount.cachedPolicyData';
 const ACCOUNT_DATA_POLL_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
-const CHAT_DISABLED_CONFIGURATION_KEY = 'chat.disableAIFeatures';
 
 interface ITokenEntitlementsResponse {
 	token: string;
@@ -552,7 +551,7 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 				policyData.chat_preview_features_enabled = tokenEntitlementsData.policyData.chat_preview_features_enabled;
 				policyData.session_search = tokenEntitlementsData.policyData.session_search;
 				policyData.mcp = tokenEntitlementsData.policyData.mcp;
-				if (policyData.mcp && !this.isAIDisabled()) {
+				if (policyData.mcp) {
 					// Use cached MCP registry data immediately so the renderer is not blocked
 					// by the network round-trip during startup. Refresh in the background if stale.
 					policyData.mcpRegistryUrl = accountPolicyData?.policyData.mcpRegistryUrl;
@@ -860,10 +859,6 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 
 	private isDataStale(fetchedAt: number): boolean {
 		return (Date.now() - fetchedAt) >= ACCOUNT_DATA_POLL_INTERVAL_MS;
-	}
-
-	private isAIDisabled(): boolean {
-		return this.configurationService.getValue(CHAT_DISABLED_CONFIGURATION_KEY) === true;
 	}
 
 	private getEntitlementUrl(): string | undefined {
