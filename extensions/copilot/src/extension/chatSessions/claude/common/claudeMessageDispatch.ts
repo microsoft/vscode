@@ -19,6 +19,7 @@ import { ExternalEditTracker } from '../../../chatSessions/common/externalEditTr
 import { ToolName } from '../../../tools/common/toolNames';
 import { IToolsService } from '../../../tools/common/toolsService';
 import { ClaudeToolNames, claudeEditTools, getAffectedUrisForEditTool } from './claudeTools';
+import { IClaudePlanFileTracker } from './claudePlanFileTracker';
 import { IClaudeSessionStateService } from './claudeSessionStateService';
 import { completeToolInvocation, createFormattedToolInvocation } from './toolInvocationFormatter';
 
@@ -197,12 +198,32 @@ export function handleAssistantMessage(
 				}
 			}
 
-			if (request.editTracker && claudeEditTools.includes(item.name)) {
+			if (claudeEditTools.includes(item.name)) {
+				let uris: vscode.Uri[] = [];
 				try {
-					const uris = getAffectedUrisForEditTool(item.name, item.input);
-					void request.editTracker.trackEdit(item.id, uris, stream, request.token);
+					uris = getAffectedUrisForEditTool(item.name, item.input);
 				} catch (e) {
-					logService.warn(`[ClaudeMessageDispatch] Failed to track edit for ${item.name}: ${e}`);
+					logService.warn(`[ClaudeMessageDispatch] Failed to resolve affected URIs for ${item.name}: ${e}`);
+				}
+				if (request.editTracker) {
+					try {
+						void request.editTracker.trackEdit(item.id, uris, stream, request.token);
+					} catch (e) {
+						logService.warn(`[ClaudeMessageDispatch] Failed to track edit for ${item.name}: ${e}`);
+					}
+				}
+
+				// Record any plan-directory writes/edits so the
+				// ExitPlanMode permission handler can surface the plan
+				// file in the review widget. Hooked at the dispatch
+				// level (rather than inside the EditToolHandler) so we
+				// observe the call regardless of permission mode —
+				// `bypassPermissions` short-circuits `canUseTool`, and
+				// the SDK may write the plan file via internal paths
+				// that skip `canUseTool` entirely.
+				const planFileTracker = accessor.get(IClaudePlanFileTracker);
+				for (const uri of uris) {
+					planFileTracker.recordIfPlanFile(sessionId, uri.fsPath);
 				}
 			}
 

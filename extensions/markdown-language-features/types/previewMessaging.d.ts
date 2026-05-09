@@ -22,6 +22,15 @@ export interface MarkdownPreviewLineChanges {
 	readonly innerChanges?: readonly MarkdownPreviewInnerChange[];
 }
 
+export interface DiffScrollSyncData {
+	/** Shared BroadcastChannel name for this diff pair */
+	readonly channelName: string;
+	/** Which side of the diff this preview represents */
+	readonly role: 'original' | 'modified';
+	/** Mapping from the other side's line numbers to this side's line numbers */
+	readonly lineMappings: readonly number[];
+}
+
 export namespace FromWebviewMessage {
 
 	export interface CacheImageSizes extends BaseMessage {
@@ -79,6 +88,7 @@ export namespace ToWebviewMessage {
 		readonly type: 'updateContent';
 		readonly content: string;
 		readonly lineChanges?: MarkdownPreviewLineChanges;
+		readonly diffScrollSync?: DiffScrollSyncData;
 	}
 
 	export interface CopyImageContent extends BaseMessage {

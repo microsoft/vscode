@@ -28,6 +28,7 @@ import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultS
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { AICustomizationManagementSection } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { ICustomizationHarnessService } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
+import { ISession } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
@@ -287,9 +288,9 @@ export class CustomizationsToolbarContribution extends Disposable implements IWo
 					const harnessService = accessor.get(ICustomizationHarnessService);
 					const sessionsManagementService = accessor.get(ISessionsManagementService);
 					const configurationService = accessor.get(IConfigurationService);
-					const activeSessionType = sessionsManagementService.activeSession.get()?.sessionType;
-					if (activeSessionType && harnessService.findHarnessById(activeSessionType)) {
-						harnessService.setActiveHarness(activeSessionType);
+					const harnessId = findHarnessIdForSession(sessionsManagementService.activeSession.get(), harnessService);
+					if (harnessId) {
+						harnessService.setActiveHarness(harnessId);
 					}
 					const input = AICustomizationManagementEditorInput.getOrCreate();
 					const pane = await editorService.openEditor(input, { pinned: true });
@@ -311,10 +312,36 @@ export class CustomizationsToolbarContribution extends Disposable implements IWo
 registerWorkbenchContribution2(CustomizationsToolbarContribution.ID, CustomizationsToolbarContribution, WorkbenchPhase.AfterRestored);
 
 /**
+ * Returns the harness id that matches a given session, or `undefined` if no
+ * harness is registered for it.
+ *
+ * The session's `resource.scheme` is the per-host harness id (e.g. local AHP
+ * uses `agent-host-${provider}` and remote AHP uses `remote-${authority}-${provider}`),
+ * while {@link ISession.sessionType} is the agent provider name shared across
+ * hosts (e.g. `copilotcli`). Lookup therefore prefers the resource scheme so
+ * that an AHP remote session selects its remote harness rather than the local
+ * harness with the same `sessionType`. The `sessionType` is kept as a fallback
+ * for harnesses whose id matches it directly.
+ */
+export function findHarnessIdForSession(session: ISession | undefined, harnessService: ICustomizationHarnessService): string | undefined {
+	if (!session) {
+		return undefined;
+	}
+	const schemeId = session.resource.scheme;
+	if (harnessService.findHarnessById(schemeId)) {
+		return schemeId;
+	}
+	if (harnessService.findHarnessById(session.sessionType)) {
+		return session.sessionType;
+	}
+	return undefined;
+}
+
+/**
  * Keeps the active customization harness in sync with the currently active
- * session's `sessionType`. This drives the customizations sidebar (counts,
- * filtering) and the customizations editor so they reflect the harness that
- * matches the session the user is interacting with.
+ * session. This drives the customizations sidebar (counts, filtering) and the
+ * customizations editor so they reflect the harness that matches the session
+ * the user is interacting with.
  *
  * This covers two cases identically:
  *  - opening / navigating into an existing session
@@ -332,16 +359,17 @@ export class ActiveSessionHarnessSyncContribution extends Disposable implements 
 		super();
 
 		this._register(autorun(reader => {
-			const sessionType = sessionsManagementService.activeSession.read(reader)?.sessionType;
-			if (!sessionType) {
+			const session = sessionsManagementService.activeSession.read(reader);
+			if (!session) {
 				return;
 			}
 			// Re-read available harnesses so we re-run when an external harness
 			// (e.g. agent host, CLI) registers asynchronously after the session
 			// has already been selected.
 			harnessService.availableHarnesses.read(reader);
-			if (harnessService.findHarnessById(sessionType)) {
-				harnessService.setActiveHarness(sessionType);
+			const harnessId = findHarnessIdForSession(session, harnessService);
+			if (harnessId) {
+				harnessService.setActiveHarness(harnessId);
 			}
 		}));
 	}

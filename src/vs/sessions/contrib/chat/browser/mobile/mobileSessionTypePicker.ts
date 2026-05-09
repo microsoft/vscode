@@ -36,7 +36,7 @@ export class MobileSessionTypePicker extends SessionTypePicker {
 		super(actionWidgetService, sessionsManagementService, sessionsProvidersService, storageService);
 	}
 
-	override render(container: HTMLElement): void {
+	override render(container: HTMLElement, options?: { className?: string }): void {
 		// Always render so the session-type chip is visible in the chip
 		// row on phone. The base class renders a trigger that the mobile
 		// `_showPicker` override routes to a bottom sheet, while desktop
@@ -44,7 +44,7 @@ export class MobileSessionTypePicker extends SessionTypePicker {
 		// viewports also means rotation across the phone breakpoint
 		// keeps the trigger alive — consistent with MOBILE.md's
 		// principle of same functionality, different presentation.
-		super.render(container);
+		super.render(container, options);
 	}
 
 	protected override _showPicker(): void {

@@ -4,11 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
+import { isGpt55 } from '../../../platform/endpoint/common/chatModelCapabilities';
 import { ILogService } from '../../../platform/log/common/logService';
 import { IChatEndpoint } from '../../../platform/networking/common/networking';
 import { CopilotChatAttr, emitToolCallEvent, GenAiAttr, GenAiMetrics, GenAiOperationName, GenAiToolType, StdAttr, truncateForOTel } from '../../../platform/otel/common/index';
 import { IOTelService, SpanKind, SpanStatusCode } from '../../../platform/otel/common/otelService';
 import { getCurrentCapturingToken } from '../../../platform/requestLogger/node/requestLogger';
+import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { equals as arraysEqual } from '../../../util/vs/base/common/arrays';
 import { Iterable } from '../../../util/vs/base/common/iterator';
 import { Lazy } from '../../../util/vs/base/common/lazy';
@@ -86,6 +89,8 @@ export class ToolsService extends BaseToolsService {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILogService logService: ILogService,
 		@IOTelService private readonly _otelService: IOTelService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IExperimentationService private readonly _experimentationService: IExperimentationService,
 	) {
 		super(logService);
 		this._copilotTools = new Lazy(() => new Map(ToolRegistry.getTools().map(t => [t.toolName, _instantiationService.createInstance(t)] as const)));
@@ -274,6 +279,24 @@ export class ToolsService extends BaseToolsService {
 			.filter(tool => {
 				// 0. If the tool was a model specific tool with an override, it'll be mixed in in the 'map' later.
 				if (modelSpecificTools.get(tool.name)?.tool.overridesTool) {
+					return false;
+				}
+
+				// For changed_files_tool, disable experimentally for gpt-5.5.
+				if (
+					tool.name === ToolName.GetScmChanges
+					&& isGpt55(endpoint)
+					&& !this._configurationService.getExperimentBasedConfig(ConfigKey.EnableGpt55GetChangedFilesTool, this._experimentationService)
+				) {
+					return false;
+				}
+
+				// For read_file_tool, disable experimentally for gpt-5.5.
+				if (
+					tool.name === ToolName.ReadFile
+					&& isGpt55(endpoint)
+					&& !this._configurationService.getExperimentBasedConfig(ConfigKey.EnableGpt55ReadFileTool, this._experimentationService)
+				) {
 					return false;
 				}
 

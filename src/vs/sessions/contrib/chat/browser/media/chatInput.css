@@ -252,7 +252,7 @@
 	position: relative;
 	width: 22px;
 	height: 22px;
-	border-radius: 4px;
+	border-radius: 50%;
 }
 
 .sessions-chat-send-button .monaco-button {
@@ -263,7 +263,7 @@
 	height: 22px;
 	min-width: 22px;
 	padding: 0;
-	border-radius: 4px;
+	border-radius: 50%;
 	color: var(--vscode-icon-foreground);
 	background: transparent;
 	border: none;
@@ -341,7 +341,7 @@
 	content: '';
 	position: absolute;
 	inset: -2px;
-	border-radius: 6px;
+	border-radius: 50%;
 	background: conic-gradient(from 135deg,
 			var(--vscode-chat-inputWorkingBorderColor1),
 			var(--vscode-chat-inputWorkingBorderColor2),
@@ -363,25 +363,20 @@
 /* Loading spinner in toolbar */
 .sessions-chat-loading-spinner {
 	display: none;
-	width: 12px;
-	height: 12px;
+	align-items: center;
+	justify-content: center;
 	margin-right: 4px;
-	border: 1.5px solid var(--vscode-icon-foreground);
-	border-top-color: transparent;
-	border-radius: 50%;
-	animation: sessions-chat-spin 0.8s linear infinite;
 	opacity: 0.6;
 	flex-shrink: 0;
+	color: var(--vscode-icon-foreground);
 }
 
 .sessions-chat-loading-spinner.visible {
-	display: block;
+	display: flex;
 }
 
-@keyframes sessions-chat-spin {
-	to {
-		transform: rotate(360deg);
-	}
+.sessions-chat-loading-spinner .codicon {
+	font-size: 14px;
 }
 
 /* Attach row (pills only, above editor, inside input area) */

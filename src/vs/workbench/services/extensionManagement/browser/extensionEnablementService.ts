@@ -34,6 +34,7 @@ import { Delayer } from '../../../../base/common/async.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { isWeb } from '../../../../base/common/platform.js';
 import { ChatEntitlementService, IChatEntitlementService } from '../../chat/common/chatEntitlementService.js';
+import { SESSIONS_WINDOW_ALLOWED_EXTENSIONS } from './sessionsWindowAllowedExtensions.js';
 
 const SOURCE = 'IWorkbenchExtensionEnablementService';
 
@@ -635,6 +636,11 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 
 	private _isDisabledBySessionsWindow(extension: IExtension): boolean {
 		if (!this.environmentService.isSessionsWindow) {
+			return false;
+		}
+
+		// Allow-listed extensions are always enabled in the sessions window.
+		if (SESSIONS_WINDOW_ALLOWED_EXTENSIONS.has(extension.identifier.id.toLowerCase())) {
 			return false;
 		}
 

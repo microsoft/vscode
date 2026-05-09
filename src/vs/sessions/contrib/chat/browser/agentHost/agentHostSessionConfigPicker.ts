@@ -305,9 +305,6 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		const properties = this._orderProperties(Object.entries(resolvedConfig.schema.properties));
 
 		for (const [property, schema] of properties) {
-			if (property === SessionConfigKey.BranchNameHint) {
-				continue;
-			}
 			// Only render pickers for properties we know how to present. Today
 			// that's string properties with either a static `enum` or a
 			// dynamic enum sourced via `getSessionConfigCompletions`.

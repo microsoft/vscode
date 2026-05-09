@@ -11,11 +11,12 @@ import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { DeferredPromise, raceTimeout } from '../../../base/common/async.js';
 import { ConfigurationTarget, IConfigurationService } from '../../configuration/common/configuration.js';
+import { IEnvironmentService } from '../../environment/common/environment.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ILabelService } from '../../label/common/label.js';
 import { ILogService } from '../../log/common/log.js';
 
-import type { IAgentConnection } from '../common/agentService.js';
+import { AgentHostAhpJsonlLoggingSettingId, type IAgentConnection } from '../common/agentService.js';
 import {
 	IRemoteAgentHostService,
 	RemoteAgentHostConnectionStatus,
@@ -84,6 +85,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
 		@ILabelService private readonly _labelService: ILabelService,
+		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 	) {
 		super();
 
@@ -385,7 +387,15 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		}
 
 		const store = new DisposableStore();
-		const transport = store.add(new WebSocketClientTransport(address, connectionToken));
+		const ahpLoggingEnabled = !!this._configurationService.getValue<boolean>(AgentHostAhpJsonlLoggingSettingId);
+		const transport = store.add(this._instantiationService.createInstance(
+			WebSocketClientTransport,
+			address,
+			connectionToken,
+			ahpLoggingEnabled
+				? { logsHome: this._environmentService.logsHome, connectionId: address, transport: 'websocket' }
+				: undefined,
+		));
 		const client = store.add(this._instantiationService.createInstance(RemoteAgentHostProtocolClient, address, transport));
 		const entry: IConnectionEntry = { store, client, connected: false, status: RemoteAgentHostConnectionStatus.connecting };
 		this._entries.set(address, entry);
