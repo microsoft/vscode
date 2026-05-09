@@ -584,9 +584,9 @@ suite('Parsing .gitignore files', () => {
 		// Parent should still ignore when child has no negation
 		const childNoNegation = new IgnoreFile('node_modules/\n', '/', parentIgnore);
 		assert(childNoNegation.isArbitraryPathIgnored('/.myconfig', true),
-			'without negation, parent ignore should still apply');
-		assert(childNoNegation.isArbitraryPathIgnored('/.myconfig', false),
-			'without negation, parent ignore should still apply for files');
+			'without negation, parent ignore should still apply for directories');
+		assert(childNoNegation.isArbitraryPathIgnored('/.myconfig/settings/test.md', false),
+			'without negation, files under parent-ignored directory should still be ignored');
 	});
 
 	test('child negation overrides parent ignore for files', () => {
