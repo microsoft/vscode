@@ -756,23 +756,15 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 			if (!currentPolicyData || currentPolicyData.accountId !== accountId) {
 				return; // account changed in the meantime
 			}
-			const newUrl = result.data?.url;
-			const newAccess = result.data?.registry_access;
-			if (currentPolicyData.policyData.mcpRegistryUrl === newUrl
-				&& currentPolicyData.policyData.mcpAccess === newAccess
-				&& currentPolicyData.mcpRegistryDataFetchedAt === result.fetchedAt) {
-				return;
-			}
-			const updated: IAccountPolicyData = {
+			this.setPolicyData({
 				...currentPolicyData,
 				policyData: {
 					...currentPolicyData.policyData,
-					mcpRegistryUrl: newUrl,
-					mcpAccess: newAccess,
+					mcpRegistryUrl: result.data?.url,
+					mcpAccess: result.data?.registry_access,
 				},
 				mcpRegistryDataFetchedAt: result.fetchedAt,
-			};
-			this.setPolicyData(updated);
+			});
 		} catch (error) {
 			this.logService.error('[DefaultAccount] Background MCP registry refresh failed:', getErrorMessage(error));
 		}
