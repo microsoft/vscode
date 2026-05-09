@@ -95,7 +95,14 @@ export function getConfiguredTypingDirection(value: string, preset: EditorTextDi
 			}
 			return firstStrong.direction;
 		}
-		case 'auto-keep':
+		case 'auto-keep': {
+			// Preserve base typing direction when a neutral prefix is present.
+			const firstStrong = getFirstStrongCharacter(value);
+			if (!firstStrong || firstStrong.leadingNeutralCharacters) {
+				return baseDirection;
+			}
+			return firstStrong.direction;
+		}
 		case 'auto-follow': {
 			// Type in the direction of the first strong character regardless of neutral prefix.
 			const firstStrong = getFirstStrongCharacter(value);

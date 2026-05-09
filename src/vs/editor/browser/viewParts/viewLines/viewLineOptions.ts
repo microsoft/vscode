@@ -6,9 +6,11 @@
 import type { ColorScheme } from '../../../../platform/theme/common/theme.js';
 import type { IEditorConfiguration } from '../../../common/config/editorConfiguration.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
+import type { EditorTextDirectionPreset } from '../../../common/core/textDirection.js';
 
 export class ViewLineOptions {
 	public readonly themeType: ColorScheme;
+	public readonly textDirectionPreset: EditorTextDirectionPreset;
 	public readonly renderWhitespace: 'none' | 'boundary' | 'selection' | 'trailing' | 'all';
 	public readonly experimentalWhitespaceRendering: 'svg' | 'font' | 'off';
 	public readonly renderControlCharacters: boolean;
@@ -27,6 +29,7 @@ export class ViewLineOptions {
 		this.themeType = themeType;
 		const options = config.options;
 		const fontInfo = options.get(EditorOption.fontInfo);
+		this.textDirectionPreset = options.get(EditorOption.textDirection);
 		this.renderWhitespace = options.get(EditorOption.renderWhitespace);
 		this.experimentalWhitespaceRendering = options.get(EditorOption.experimentalWhitespaceRendering);
 		this.renderControlCharacters = options.get(EditorOption.renderControlCharacters);
@@ -48,6 +51,7 @@ export class ViewLineOptions {
 	public equals(other: ViewLineOptions): boolean {
 		return (
 			this.themeType === other.themeType
+			&& this.textDirectionPreset === other.textDirectionPreset
 			&& this.renderWhitespace === other.renderWhitespace
 			&& this.experimentalWhitespaceRendering === other.experimentalWhitespaceRendering
 			&& this.renderControlCharacters === other.renderControlCharacters

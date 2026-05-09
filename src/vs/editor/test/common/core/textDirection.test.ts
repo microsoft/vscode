@@ -60,14 +60,18 @@ suite('TextDirection', () => {
 			assert.strictEqual(getConfiguredTextDirection('# فارسی', 'auto-keep', TextDirection.LTR), TextDirection.LTR);
 		});
 
-		// Typing direction: RTL so user types right-to-left after the neutral prefix
-		test('typing direction becomes RTL for neutral + RTL content', () => {
-			assert.strictEqual(getConfiguredTypingDirection('# فارسی', 'auto-keep', TextDirection.LTR), TextDirection.RTL);
+		// Typing direction: keep base direction (LTR) when neutral prefix is present
+		test('typing direction stays LTR for neutral + RTL content', () => {
+			assert.strictEqual(getConfiguredTypingDirection('# فارسی', 'auto-keep', TextDirection.LTR), TextDirection.LTR);
 		});
 
 		// When the strong character after neutral is LTR, typing stays LTR
 		test('typing direction stays LTR when first strong character after neutral is LTR', () => {
 			assert.strictEqual(getConfiguredTypingDirection('# hello', 'auto-keep', TextDirection.LTR), TextDirection.LTR);
+		});
+
+		test('line direction stays LTR for mixed RTL/LTR content after neutral prefix', () => {
+			assert.strictEqual(getConfiguredTextDirection('. سلام kami چطوری', 'auto-keep', TextDirection.LTR), TextDirection.LTR);
 		});
 
 		// Compare all three auto modes for the same '# فارسی' input:
@@ -80,11 +84,11 @@ suite('TextDirection', () => {
 				typing: getConfiguredTypingDirection(input, 'auto', TextDirection.LTR),
 			}, { line: TextDirection.LTR, typing: TextDirection.LTR });
 
-			// auto-keep: line LTR (# stays at left), typing RTL (right-to-left input)
+			// auto-keep: line LTR (# stays at left), typing LTR (keep base typing direction)
 			assert.deepStrictEqual({
 				line: getConfiguredTextDirection(input, 'auto-keep', TextDirection.LTR),
 				typing: getConfiguredTypingDirection(input, 'auto-keep', TextDirection.LTR),
-			}, { line: TextDirection.LTR, typing: TextDirection.RTL });
+			}, { line: TextDirection.LTR, typing: TextDirection.LTR });
 
 			// auto-follow: line RTL (# moves to right), typing RTL
 			assert.deepStrictEqual({

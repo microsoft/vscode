@@ -6,9 +6,9 @@
 import * as dom from '../../../../base/browser/dom.js';
 import { createTrustedTypesPolicy } from '../../../../base/browser/trustedTypes.js';
 import { equals } from '../../../../base/common/arrays.js';
+import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import './stickyScroll.css';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference } from '../../../browser/editorBrowser.js';
 import { getColumnOfNodeOffset } from '../../../browser/viewParts/viewLines/viewLine.js';
 import { EmbeddedCodeEditorWidget } from '../../../browser/widget/codeEditor/embeddedCodeEditorWidget.js';
@@ -17,10 +17,10 @@ import { Position } from '../../../common/core/position.js';
 import { StringBuilder } from '../../../common/core/stringBuilder.js';
 import { LineDecoration } from '../../../common/viewLayout/lineDecorations.js';
 import { CharacterMapping, RenderLineInput, renderViewLine } from '../../../common/viewLayout/viewLineRenderer.js';
+import { IViewModel } from '../../../common/viewModel.js';
 import { foldingCollapsedIcon, foldingExpandedIcon } from '../../folding/browser/foldingDecorations.js';
 import { FoldingModel } from '../../folding/browser/foldingModel.js';
-import { Emitter } from '../../../../base/common/event.js';
-import { IViewModel } from '../../../common/viewModel.js';
+import './stickyScroll.css';
 
 export class StickyScrollWidgetState {
 	constructor(
@@ -460,7 +460,7 @@ class RenderedStickyLine {
 			lineRenderingData.tokens, actualInlineDecorations,
 			lineRenderingData.tabSize, lineRenderingData.startVisibleColumn,
 			1, 1, 1, 500, 'none', true, true, null,
-			textDirection, verticalScrollbarSize
+			textDirection, verticalScrollbarSize, false, editor.getOption(EditorOption.textDirection)
 		);
 
 		const sb = new StringBuilder(2000);

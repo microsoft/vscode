@@ -3,16 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from '../../../nls.js';
 import { CharCode } from '../../../base/common/charCode.js';
 import * as strings from '../../../base/common/strings.js';
-import { IViewLineTokens } from '../tokens/lineTokens.js';
+import * as nls from '../../../nls.js';
+import { OffsetRange } from '../core/ranges/offsetRange.js';
 import { StringBuilder } from '../core/stringBuilder.js';
+import { EditorTextDirectionPreset, getConfiguredTextDirection, textDirectionToString } from '../core/textDirection.js';
+import { StandardTokenType, TokenMetadata } from '../encodedTokenAttributes.js';
+import { TextDirection } from '../model.js';
+import { IViewLineTokens } from '../tokens/lineTokens.js';
+import { InlineDecorationType } from '../viewModel/inlineDecorations.js';
 import { LineDecoration, LineDecorationsNormalizer } from './lineDecorations.js';
 import { LinePart, LinePartMetadata } from './linePart.js';
-import { OffsetRange } from '../core/ranges/offsetRange.js';
-import { InlineDecorationType } from '../viewModel/inlineDecorations.js';
-import { TextDirection } from '../model.js';
+
+const STRONG_RTL_CHARACTER = /[\u0590-\u08FF\uFB1D-\uFDFD\uFE70-\uFEFC]/u;
+const STRONG_LTR_OR_NUMBER_CHARACTER = /[0-9A-Za-z\u00C0-\u02AF\u1E00-\u1EFF\u0660-\u0669\u06F0-\u06F9]/u;
 
 export const enum RenderWhitespace {
 	None = 0,
@@ -45,6 +50,7 @@ export interface IRenderLineInputOptions {
 	textDirection: TextDirection | null;
 	verticalScrollbarSize: number;
 	renderNewLineWhenEmpty: boolean;
+	textDirectionPreset?: EditorTextDirectionPreset;
 }
 
 export class RenderLineInput {
@@ -69,6 +75,7 @@ export class RenderLineInput {
 	public readonly fontLigatures: boolean;
 	public readonly textDirection: TextDirection | null;
 	public readonly verticalScrollbarSize: number;
+	public readonly textDirectionPreset: EditorTextDirectionPreset;
 
 	/**
 	 * Defined only when renderWhitespace is 'selection'. Selections are non-overlapping,
@@ -107,6 +114,7 @@ export class RenderLineInput {
 		textDirection: TextDirection | null,
 		verticalScrollbarSize: number,
 		renderNewLineWhenEmpty: boolean = false,
+		textDirectionPreset: EditorTextDirectionPreset = 'default',
 	) {
 		this.useMonospaceOptimizations = useMonospaceOptimizations;
 		this.canUseHalfwidthRightwardsArrow = canUseHalfwidthRightwardsArrow;
@@ -138,6 +146,7 @@ export class RenderLineInput {
 		this.renderNewLineWhenEmpty = renderNewLineWhenEmpty;
 		this.textDirection = textDirection;
 		this.verticalScrollbarSize = verticalScrollbarSize;
+		this.textDirectionPreset = textDirectionPreset;
 
 		const wsmiddotDiff = Math.abs(wsmiddotWidth - spaceWidth);
 		const middotDiff = Math.abs(middotWidth - spaceWidth);
@@ -196,8 +205,14 @@ export class RenderLineInput {
 			&& this.textDirection === other.textDirection
 			&& this.verticalScrollbarSize === other.verticalScrollbarSize
 			&& this.renderNewLineWhenEmpty === other.renderNewLineWhenEmpty
+			&& this.textDirectionPreset === other.textDirectionPreset
 		);
 	}
+}
+
+interface ITokenDirectionRenderInfo {
+	readonly direction: 'ltr' | 'rtl';
+	readonly usePlaintext: boolean;
 }
 
 const enum CharacterMappingConstants {
@@ -447,6 +462,7 @@ class ResolvedRenderLineInput {
 		public readonly len: number,
 		public readonly isOverflowing: boolean,
 		public readonly overflowingCharCount: number,
+		public readonly leadingNeutralRtlRunStartOffset: number,
 		public readonly parts: LinePart[],
 		public readonly containsForeignElements: ForeignElementType,
 		public readonly fauxIndentLength: number,
@@ -456,13 +472,74 @@ class ResolvedRenderLineInput {
 		public readonly renderSpaceCharCode: number,
 		public readonly renderWhitespace: RenderWhitespace,
 		public readonly renderControlCharacters: boolean,
+		public readonly textDirection: TextDirection | null,
+		public readonly textDirectionPreset: EditorTextDirectionPreset,
 	) {
 		//
 	}
 }
 
+// Apply token-level direction to standard user-authored token kinds so mixed
+// content in languages such as HTML/JSX/XML remains readable even when markup
+// and text are split into separate tokens.
+function shouldApplyTokenDirection(tokenMetadata: number): boolean {
+	switch (TokenMetadata.getTokenType(tokenMetadata)) {
+		case StandardTokenType.Other:
+		case StandardTokenType.Comment:
+		case StandardTokenType.String:
+		case StandardTokenType.RegEx:
+			return true;
+		default:
+			return false;
+	}
+}
+
+function getPartDirectionRenderInfo(input: ResolvedRenderLineInput): Array<ITokenDirectionRenderInfo | null> {
+	const result = Array<ITokenDirectionRenderInfo | null>(input.parts.length).fill(null);
+	if (input.textDirectionPreset !== 'auto' && input.textDirectionPreset !== 'auto-follow') {
+		return result;
+	}
+
+	const baseDirection = input.textDirection ?? TextDirection.LTR;
+	const usePlaintext = input.textDirectionPreset === 'auto' || input.textDirectionPreset === 'auto-keep' || input.textDirectionPreset === 'auto-follow';
+
+	let runStartOffset = 0;
+	for (let partIndex = 0; partIndex < input.parts.length; partIndex++) {
+		const part = input.parts[partIndex];
+		const runEndIndex = part.endIndex;
+		if (!shouldApplyTokenDirection(part.tokenMetadata) || runEndIndex <= runStartOffset) {
+			runStartOffset = runEndIndex;
+			continue;
+		}
+
+		let runEndPartIndex = partIndex;
+		let runTextEndIndex = runEndIndex;
+		while (runEndPartIndex + 1 < input.parts.length && input.parts[runEndPartIndex + 1].tokenMetadata === part.tokenMetadata) {
+			runEndPartIndex++;
+			runTextEndIndex = input.parts[runEndPartIndex].endIndex;
+		}
+
+		const runText = input.lineContent.substring(runStartOffset, runTextEndIndex);
+		if (runText.length > 0) {
+			const info: ITokenDirectionRenderInfo = {
+				direction: textDirectionToString(getConfiguredTextDirection(runText, input.textDirectionPreset, baseDirection)),
+				usePlaintext
+			};
+			for (let i = partIndex; i <= runEndPartIndex; i++) {
+				result[i] = info;
+			}
+		}
+
+		partIndex = runEndPartIndex;
+		runStartOffset = runTextEndIndex;
+	}
+
+	return result;
+}
+
 function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput {
 	const lineContent = input.lineContent;
+	let leadingNeutralRtlRunStartOffset = -1;
 
 	let isOverflowing: boolean;
 	let overflowingCharCount: number;
@@ -512,6 +589,12 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 	} else {
 		// Split the first token if it contains both leading whitespace and RTL text
 		tokens = splitLeadingWhitespaceFromRTL(lineContent, tokens);
+		if (input.textDirection === TextDirection.LTR && (input.textDirectionPreset === 'auto' || input.textDirectionPreset === 'auto-follow')) {
+			leadingNeutralRtlRunStartOffset = getLeadingNeutralRtlRunStartOffset(lineContent);
+			if (leadingNeutralRtlRunStartOffset !== -1) {
+				tokens = splitTokenAtOffset(tokens, leadingNeutralRtlRunStartOffset);
+			}
+		}
 	}
 
 	return new ResolvedRenderLineInput(
@@ -521,6 +604,7 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 		len,
 		isOverflowing,
 		overflowingCharCount,
+		leadingNeutralRtlRunStartOffset,
 		tokens,
 		containsForeignElements,
 		input.fauxIndentLength,
@@ -529,8 +613,51 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 		input.spaceWidth,
 		input.renderSpaceCharCode,
 		input.renderWhitespace,
-		input.renderControlCharacters
+		input.renderControlCharacters,
+		input.textDirection,
+		input.textDirectionPreset
 	);
+}
+
+function getLeadingNeutralRtlRunStartOffset(lineContent: string): number {
+	for (let i = 0; i < lineContent.length; i++) {
+		const ch = lineContent.charAt(i);
+		if (STRONG_RTL_CHARACTER.test(ch)) {
+			return i > 0 ? i : -1;
+		}
+		if (STRONG_LTR_OR_NUMBER_CHARACTER.test(ch)) {
+			return -1;
+		}
+	}
+
+	return -1;
+}
+
+function splitTokenAtOffset(tokens: LinePart[], splitOffset: number): LinePart[] {
+	if (splitOffset <= 0 || tokens.length === 0) {
+		return tokens;
+	}
+
+	const result: LinePart[] = [];
+	let previousEndIndex = 0;
+	let didSplit = false;
+
+	for (const token of tokens) {
+		if (!didSplit && previousEndIndex < splitOffset && splitOffset < token.endIndex) {
+			result.push(new LinePart(splitOffset, token.type, token.metadata, false, token.tokenMetadata));
+			result.push(new LinePart(token.endIndex, token.type, token.metadata, token.containsRTL, token.tokenMetadata));
+			didSplit = true;
+		} else {
+			result.push(token);
+			if (!didSplit && splitOffset === token.endIndex) {
+				didSplit = true;
+			}
+		}
+
+		previousEndIndex = token.endIndex;
+	}
+
+	return result;
 }
 
 /**
@@ -553,13 +680,14 @@ function transformAndRemoveOverflowing(lineContent: string, lineContainsRTL: boo
 			continue;
 		}
 		const type = tokens.getClassName(tokenIndex);
+		const tokenMetadata = tokens.getMetadata(tokenIndex);
 		if (endIndex >= len) {
 			const tokenContainsRTL = (lineContainsRTL ? strings.containsRTL(lineContent.substring(startOffset, len)) : false);
-			result[resultLen++] = new LinePart(len, type, 0, tokenContainsRTL);
+			result[resultLen++] = new LinePart(len, type, 0, tokenContainsRTL, tokenMetadata);
 			break;
 		}
 		const tokenContainsRTL = (lineContainsRTL ? strings.containsRTL(lineContent.substring(startOffset, endIndex)) : false);
-		result[resultLen++] = new LinePart(endIndex, type, 0, tokenContainsRTL);
+		result[resultLen++] = new LinePart(endIndex, type, 0, tokenContainsRTL, tokenMetadata);
 		startOffset = endIndex;
 	}
 
@@ -591,6 +719,7 @@ function splitLargeTokens(lineContent: string, tokens: LinePart[], onlyAtSpaces:
 			if (lastTokenEndIndex + Constants.LongToken < tokenEndIndex) {
 				const tokenType = token.type;
 				const tokenMetadata = token.metadata;
+				const tokenClassMetadata = token.tokenMetadata;
 				const tokenContainsRTL = token.containsRTL;
 
 				let lastSpaceOffset = -1;
@@ -601,13 +730,13 @@ function splitLargeTokens(lineContent: string, tokens: LinePart[], onlyAtSpaces:
 					}
 					if (lastSpaceOffset !== -1 && j - currTokenStart >= Constants.LongToken) {
 						// Split at `lastSpaceOffset` + 1
-						result[resultLen++] = new LinePart(lastSpaceOffset + 1, tokenType, tokenMetadata, tokenContainsRTL);
+						result[resultLen++] = new LinePart(lastSpaceOffset + 1, tokenType, tokenMetadata, tokenContainsRTL, tokenClassMetadata);
 						currTokenStart = lastSpaceOffset + 1;
 						lastSpaceOffset = -1;
 					}
 				}
 				if (currTokenStart !== tokenEndIndex) {
-					result[resultLen++] = new LinePart(tokenEndIndex, tokenType, tokenMetadata, tokenContainsRTL);
+					result[resultLen++] = new LinePart(tokenEndIndex, tokenType, tokenMetadata, tokenContainsRTL, tokenClassMetadata);
 				}
 			} else {
 				result[resultLen++] = token;
@@ -624,13 +753,14 @@ function splitLargeTokens(lineContent: string, tokens: LinePart[], onlyAtSpaces:
 			if (diff > Constants.LongToken) {
 				const tokenType = token.type;
 				const tokenMetadata = token.metadata;
+				const tokenClassMetadata = token.tokenMetadata;
 				const tokenContainsRTL = token.containsRTL;
 				const piecesCount = Math.ceil(diff / Constants.LongToken);
 				for (let j = 1; j < piecesCount; j++) {
 					const pieceEndIndex = lastTokenEndIndex + (j * Constants.LongToken);
-					result[resultLen++] = new LinePart(pieceEndIndex, tokenType, tokenMetadata, tokenContainsRTL);
+					result[resultLen++] = new LinePart(pieceEndIndex, tokenType, tokenMetadata, tokenContainsRTL, tokenClassMetadata);
 				}
-				result[resultLen++] = new LinePart(tokenEndIndex, tokenType, tokenMetadata, tokenContainsRTL);
+				result[resultLen++] = new LinePart(tokenEndIndex, tokenType, tokenMetadata, tokenContainsRTL, tokenClassMetadata);
 			} else {
 				result[resultLen++] = token;
 			}
@@ -672,8 +802,8 @@ function splitLeadingWhitespaceFromRTL(lineContent: string, tokens: LinePart[]):
 
 	// Split the first token into leading whitespace and the rest
 	const result: LinePart[] = [];
-	result.push(new LinePart(firstNonWhitespaceIndex, firstToken.type, firstToken.metadata, false));
-	result.push(new LinePart(firstTokenEndIndex, firstToken.type, firstToken.metadata, firstToken.containsRTL));
+	result.push(new LinePart(firstNonWhitespaceIndex, firstToken.type, firstToken.metadata, false, firstToken.tokenMetadata));
+	result.push(new LinePart(firstTokenEndIndex, firstToken.type, firstToken.metadata, firstToken.containsRTL, firstToken.tokenMetadata));
 
 	// Add remaining tokens
 	for (let i = 1; i < tokens.length; i++) {
@@ -728,16 +858,16 @@ function extractControlCharacters(lineContent: string, tokens: LinePart[]): Line
 			if (isControlCharacter(charCode)) {
 				if (charOffset > lastLinePart.endIndex) {
 					// emit previous part if it has text
-					lastLinePart = new LinePart(charOffset, token.type, token.metadata, token.containsRTL);
+					lastLinePart = new LinePart(charOffset, token.type, token.metadata, token.containsRTL, token.tokenMetadata);
 					result.push(lastLinePart);
 				}
-				lastLinePart = new LinePart(charOffset + 1, 'mtkcontrol', token.metadata, false);
+				lastLinePart = new LinePart(charOffset + 1, 'mtkcontrol', token.metadata, false, token.tokenMetadata);
 				result.push(lastLinePart);
 			}
 		}
 		if (charOffset > lastLinePart.endIndex) {
 			// emit previous part if it has text
-			lastLinePart = new LinePart(tokenEndIndex, token.type, token.metadata, token.containsRTL);
+			lastLinePart = new LinePart(tokenEndIndex, token.type, token.metadata, token.containsRTL, token.tokenMetadata);
 			result.push(lastLinePart);
 		}
 	}
@@ -765,6 +895,7 @@ function _applyRenderWhitespace(input: RenderLineInput, lineContent: string, len
 	let resultLen = 0;
 	let tokenIndex = 0;
 	let tokenType = tokens[tokenIndex].type;
+	let tokenMetadata = tokens[tokenIndex].tokenMetadata;
 	let tokenContainsRTL = tokens[tokenIndex].containsRTL;
 	let tokenEndIndex = tokens[tokenIndex].endIndex;
 	const tokensLength = tokens.length;
@@ -845,17 +976,17 @@ function _applyRenderWhitespace(input: RenderLineInput, lineContent: string, len
 				if (generateLinePartForEachWhitespace) {
 					const lastEndIndex = (resultLen > 0 ? result[resultLen - 1].endIndex : fauxIndentLength);
 					for (let i = lastEndIndex + 1; i <= charIndex; i++) {
-						result[resultLen++] = new LinePart(i, 'mtkw', LinePartMetadata.IS_WHITESPACE, false);
+						result[resultLen++] = new LinePart(i, 'mtkw', LinePartMetadata.IS_WHITESPACE, false, tokenMetadata);
 					}
 				} else {
-					result[resultLen++] = new LinePart(charIndex, 'mtkw', LinePartMetadata.IS_WHITESPACE, false);
+					result[resultLen++] = new LinePart(charIndex, 'mtkw', LinePartMetadata.IS_WHITESPACE, false, tokenMetadata);
 				}
 				tmpIndent = tmpIndent % tabSize;
 			}
 		} else {
 			// was in regular token
 			if (charIndex === tokenEndIndex || (isInWhitespace && charIndex > fauxIndentLength)) {
-				result[resultLen++] = new LinePart(charIndex, tokenType, 0, tokenContainsRTL);
+				result[resultLen++] = new LinePart(charIndex, tokenType, 0, tokenContainsRTL, tokenMetadata);
 				tmpIndent = tmpIndent % tabSize;
 			}
 		}
@@ -874,6 +1005,7 @@ function _applyRenderWhitespace(input: RenderLineInput, lineContent: string, len
 			tokenIndex++;
 			if (tokenIndex < tokensLength) {
 				tokenType = tokens[tokenIndex].type;
+				tokenMetadata = tokens[tokenIndex].tokenMetadata;
 				tokenContainsRTL = tokens[tokenIndex].containsRTL;
 				tokenEndIndex = tokens[tokenIndex].endIndex;
 			} else {
@@ -901,13 +1033,13 @@ function _applyRenderWhitespace(input: RenderLineInput, lineContent: string, len
 		if (generateLinePartForEachWhitespace) {
 			const lastEndIndex = (resultLen > 0 ? result[resultLen - 1].endIndex : fauxIndentLength);
 			for (let i = lastEndIndex + 1; i <= len; i++) {
-				result[resultLen++] = new LinePart(i, 'mtkw', LinePartMetadata.IS_WHITESPACE, false);
+				result[resultLen++] = new LinePart(i, 'mtkw', LinePartMetadata.IS_WHITESPACE, false, tokenMetadata);
 			}
 		} else {
-			result[resultLen++] = new LinePart(len, 'mtkw', LinePartMetadata.IS_WHITESPACE, false);
+			result[resultLen++] = new LinePart(len, 'mtkw', LinePartMetadata.IS_WHITESPACE, false, tokenMetadata);
 		}
 	} else {
-		result[resultLen++] = new LinePart(len, tokenType, 0, tokenContainsRTL);
+		result[resultLen++] = new LinePart(len, tokenType, 0, tokenContainsRTL, tokenMetadata);
 	}
 
 	return result;
@@ -931,6 +1063,7 @@ function _applyInlineDecorations(lineContent: string, len: number, tokens: LineP
 		const tokenEndIndex = token.endIndex;
 		const tokenType = token.type;
 		const tokenMetadata = token.metadata;
+		const tokenClassMetadata = token.tokenMetadata;
 		const tokenContainsRTL = token.containsRTL;
 
 		while (lineDecorationIndex < lineDecorationsLen && lineDecorations[lineDecorationIndex].startOffset < tokenEndIndex) {
@@ -938,25 +1071,25 @@ function _applyInlineDecorations(lineContent: string, len: number, tokens: LineP
 
 			if (lineDecoration.startOffset > lastResultEndIndex) {
 				lastResultEndIndex = lineDecoration.startOffset;
-				result[resultLen++] = new LinePart(lastResultEndIndex, tokenType, tokenMetadata, tokenContainsRTL);
+				result[resultLen++] = new LinePart(lastResultEndIndex, tokenType, tokenMetadata, tokenContainsRTL, tokenClassMetadata);
 			}
 
 			if (lineDecoration.endOffset + 1 <= tokenEndIndex) {
 				// This line decoration ends before this token ends
 				lastResultEndIndex = lineDecoration.endOffset + 1;
-				result[resultLen++] = new LinePart(lastResultEndIndex, tokenType + ' ' + lineDecoration.className, tokenMetadata | lineDecoration.metadata, tokenContainsRTL);
+				result[resultLen++] = new LinePart(lastResultEndIndex, tokenType + ' ' + lineDecoration.className, tokenMetadata | lineDecoration.metadata, tokenContainsRTL, tokenClassMetadata);
 				lineDecorationIndex++;
 			} else {
 				// This line decoration continues on to the next token
 				lastResultEndIndex = tokenEndIndex;
-				result[resultLen++] = new LinePart(lastResultEndIndex, tokenType + ' ' + lineDecoration.className, tokenMetadata | lineDecoration.metadata, tokenContainsRTL);
+				result[resultLen++] = new LinePart(lastResultEndIndex, tokenType + ' ' + lineDecoration.className, tokenMetadata | lineDecoration.metadata, tokenContainsRTL, tokenClassMetadata);
 				break;
 			}
 		}
 
 		if (tokenEndIndex > lastResultEndIndex) {
 			lastResultEndIndex = tokenEndIndex;
-			result[resultLen++] = new LinePart(lastResultEndIndex, tokenType, tokenMetadata, tokenContainsRTL);
+			result[resultLen++] = new LinePart(lastResultEndIndex, tokenType, tokenMetadata, tokenContainsRTL, tokenClassMetadata);
 		}
 	}
 
@@ -992,6 +1125,20 @@ function _renderLine(input: ResolvedRenderLineInput, sb: StringBuilder): RenderL
 	const renderSpaceCharCode = input.renderSpaceCharCode;
 	const renderWhitespace = input.renderWhitespace;
 	const renderControlCharacters = input.renderControlCharacters;
+	const partDirectionInfos = getPartDirectionRenderInfo(input);
+	const disableRtlTokenIsolation = (input.leadingNeutralRtlRunStartOffset !== -1);
+	const rtlRunStartPartIndex = disableRtlTokenIsolation ? parts.findIndex(part => part.endIndex > input.leadingNeutralRtlRunStartOffset) : -1;
+	let rtlRunEndPartIndex = -1;
+	if (rtlRunStartPartIndex !== -1) {
+		let previousPartEndIndex = 0;
+		for (let partIndex = 0; partIndex < parts.length; partIndex++) {
+			const partEndIndex = parts[partIndex].endIndex;
+			if (partEndIndex > previousPartEndIndex) {
+				rtlRunEndPartIndex = partIndex;
+			}
+			previousPartEndIndex = partEndIndex;
+		}
+	}
 
 	const characterMapping = new CharacterMapping(len + 1, parts.length);
 	let lastCharacterMappingDefined = false;
@@ -1011,17 +1158,32 @@ function _renderLine(input: ResolvedRenderLineInput, sb: StringBuilder): RenderL
 		const partEndIndex = part.endIndex;
 		const partType = part.type;
 		const partContainsRTL = part.containsRTL;
+		const partDirectionInfo = partDirectionInfos[partIndex];
 		const partRendersWhitespace = (renderWhitespace !== RenderWhitespace.None && part.isWhitespace());
 		const partRendersWhitespaceWithWidth = partRendersWhitespace && !fontIsMonospace && (partType === 'mtkw'/*only whitespace*/ || !containsForeignElements);
 		const partIsEmptyAndHasPseudoAfter = (charIndex === partEndIndex && part.isPseudoAfter());
+		const usePlaintextDirection = partDirectionInfo?.usePlaintext ?? false;
+		const useRtlIsolation = partContainsRTL && !disableRtlTokenIsolation && !usePlaintextDirection;
+		const emitLegacyIsolateStyle = !partDirectionInfo && useRtlIsolation && !partRendersWhitespaceWithWidth;
 		charOffsetInPart = 0;
 
 		sb.appendString('<span ');
-		if (partContainsRTL) {
+		if (emitLegacyIsolateStyle) {
 			sb.appendString('style="unicode-bidi:isolate" ');
+		}
+		if (partDirectionInfo) {
+			sb.appendString('dir="');
+			sb.appendString(partDirectionInfo.direction);
+			sb.appendString('" ');
 		}
 		sb.appendString('class="');
 		sb.appendString(partRendersWhitespaceWithWidth ? 'mtkz' : partType);
+		if (partIndex === rtlRunStartPartIndex) {
+			sb.appendString(' mtkbidiStart');
+		}
+		if (partIndex === rtlRunEndPartIndex) {
+			sb.appendString(' mtkbidiEnd');
+		}
 		sb.appendASCIICharCode(CharCode.DoubleQuote);
 
 		if (partRendersWhitespace) {
@@ -1041,10 +1203,19 @@ function _renderLine(input: ResolvedRenderLineInput, sb: StringBuilder): RenderL
 				}
 			}
 
-			if (partRendersWhitespaceWithWidth) {
-				sb.appendString(' style="width:');
-				sb.appendString(String(spaceWidth * partWidth));
-				sb.appendString('px"');
+			if (partRendersWhitespaceWithWidth || usePlaintextDirection || (useRtlIsolation && !emitLegacyIsolateStyle)) {
+				sb.appendString(' style="');
+				if (usePlaintextDirection) {
+					sb.appendString('unicode-bidi:plaintext;');
+				} else if (useRtlIsolation) {
+					sb.appendString('unicode-bidi:isolate;');
+				}
+				if (partRendersWhitespaceWithWidth) {
+					sb.appendString('width:');
+					sb.appendString(String(spaceWidth * partWidth));
+					sb.appendString('px');
+				}
+				sb.appendString('"');
 			}
 			sb.appendASCIICharCode(CharCode.GreaterThan);
 
@@ -1085,6 +1256,15 @@ function _renderLine(input: ResolvedRenderLineInput, sb: StringBuilder): RenderL
 			}
 
 		} else {
+			if (usePlaintextDirection || (useRtlIsolation && !emitLegacyIsolateStyle)) {
+				sb.appendString(' style="');
+				if (usePlaintextDirection) {
+					sb.appendString('unicode-bidi:plaintext;');
+				} else {
+					sb.appendString('unicode-bidi:isolate;');
+				}
+				sb.appendString('"');
+			}
 
 			sb.appendASCIICharCode(CharCode.GreaterThan);
 

@@ -6,21 +6,21 @@
 import * as browser from '../../../../base/browser/browser.js';
 import { FastDomNode, createFastDomNode } from '../../../../base/browser/fastDomNode.js';
 import * as platform from '../../../../base/common/platform.js';
-import { IVisibleLine } from '../../view/viewLayer.js';
-import { RangeUtil } from './rangeUtil.js';
-import { StringBuilder } from '../../../common/core/stringBuilder.js';
-import { FloatHorizontalRange, VisibleRanges } from '../../view/renderingContext.js';
-import { LineDecoration } from '../../../common/viewLayout/lineDecorations.js';
-import { CharacterMapping, ForeignElementType, RenderLineInput, renderViewLine, DomPosition, RenderWhitespace } from '../../../common/viewLayout/viewLineRenderer.js';
-import { ViewportData } from '../../../common/viewLayout/viewLinesViewportData.js';
 import { isHighContrast } from '../../../../platform/theme/common/theme.js';
 import { EditorFontLigatures } from '../../../common/config/editorOptions.js';
-import { DomReadingContext } from './domReadingContext.js';
-import type { ViewLineOptions } from './viewLineOptions.js';
-import { ViewGpuContext } from '../../gpu/viewGpuContext.js';
 import { OffsetRange } from '../../../common/core/ranges/offsetRange.js';
-import { InlineDecorationType } from '../../../common/viewModel/inlineDecorations.js';
+import { StringBuilder } from '../../../common/core/stringBuilder.js';
 import { TextDirection } from '../../../common/model.js';
+import { LineDecoration } from '../../../common/viewLayout/lineDecorations.js';
+import { CharacterMapping, DomPosition, ForeignElementType, RenderLineInput, RenderWhitespace, renderViewLine } from '../../../common/viewLayout/viewLineRenderer.js';
+import { ViewportData } from '../../../common/viewLayout/viewLinesViewportData.js';
+import { InlineDecorationType } from '../../../common/viewModel/inlineDecorations.js';
+import { ViewGpuContext } from '../../gpu/viewGpuContext.js';
+import { FloatHorizontalRange, VisibleRanges } from '../../view/renderingContext.js';
+import { IVisibleLine } from '../../view/viewLayer.js';
+import { DomReadingContext } from './domReadingContext.js';
+import { RangeUtil } from './rangeUtil.js';
+import type { ViewLineOptions } from './viewLineOptions.js';
 
 const canUseFastRenderedViewLine = (function () {
 	if (platform.isNative) {
@@ -169,7 +169,9 @@ export class ViewLine implements IVisibleLine {
 			options.fontLigatures !== EditorFontLigatures.OFF,
 			selectionsOnLine,
 			lineData.textDirection,
-			options.verticalScrollbarSize
+			options.verticalScrollbarSize,
+			false,
+			options.textDirectionPreset
 		);
 
 		if (this._renderedViewLine && this._renderedViewLine.input.equals(renderLineInput)) {
@@ -189,11 +191,13 @@ export class ViewLine implements IVisibleLine {
 		sb.appendString(String(lineHeight));
 		sb.appendString('px;line-height:');
 		sb.appendString(String(lineHeight));
+		sb.appendString('px');
 		if (lineData.textDirection === TextDirection.RTL) {
-			sb.appendString('px;padding-right:');
+			sb.appendString(';padding-right:');
 			sb.appendString(String(options.verticalScrollbarSize));
+			sb.appendString('px');
 		}
-		sb.appendString('px;" class="');
+		sb.appendString(';" class="');
 		sb.appendString(ViewLine.CLASS_NAME);
 		sb.appendString('">');
 
