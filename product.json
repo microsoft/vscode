@@ -42,7 +42,7 @@
 	"urlProtocol": "tscode",
 	"enableTelemetry": true,
 	"updateUrl": "http://tscode-update-service.paasuat.cmbchina.cn",
-	"quality": "test",
+	"quality": "stable",
 	"version": "1.116.0",
 	"aiConfig": {
 		"ariaKey": "tscode-telemetry-key"
@@ -299,8 +299,8 @@
 	"tsCodeAuthMockEnabled": false,
 	"defaultColorTheme": "Light 2026",
 	"gitVersion": "v1.0.3",
-	"commit": "8ca744cd62f5ba11ef718be912b21978ad6e942a",
-	"date": "2026-05-07T15:54:58+08:00",
+	"commit": "12934b91e86ec2d0537879d544ee923f6a8e1b75",
+	"date": "2026-05-08T15:23:12+08:00",
 	"extensionsGallery": {
 		"serviceUrl": "https://tscode-vsx-registry.paasuat.cmbchina.cn/vscode/gallery",
 		"itemUrl": "https://tscode-vsx-registry.paasuat.cmbchina.cn/vscode/item",
