@@ -295,7 +295,7 @@ suite('FindModel', () => {
 
 			const mixedLineDecoration = decorations.find(decoration => decoration.range.startLineNumber === 1);
 			assert.ok(mixedLineDecoration);
-			assert.strictEqual(mixedLineDecoration.options.inlineClassName, undefined);
+			assert.strictEqual(mixedLineDecoration.options.inlineClassName, null);
 
 			const ltrLineDecoration = decorations.find(decoration => decoration.range.startLineNumber === 2);
 			assert.ok(ltrLineDecoration);
