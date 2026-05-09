@@ -174,6 +174,8 @@ export class FindDecorations implements IDisposable {
 
 	public set(findMatches: FindMatch[], findScopes: Range[] | null): void {
 		this._editor.changeDecorations((accessor) => {
+			const model = this._editor.getModel();
+			const lineContainsRTLCache = model.mightContainRTL() ? new Map<number, boolean>() : undefined;
 
 			this._useFindMatchOverviewRuler = true;
 			const newOverviewRulerApproximateDecorations: IModelDeltaDecoration[] = [];
@@ -184,7 +186,7 @@ export class FindDecorations implements IDisposable {
 				this._useFindMatchOverviewRuler = false;
 
 				// approximate a distance in lines where matches should be merged
-				const lineCount = this._editor.getModel().getLineCount();
+				const lineCount = model.getLineCount();
 				const height = this._editor.getLayoutInfo().height;
 				const approxPixelsPerLine = height / lineCount;
 				const mergeLinesDelta = Math.max(2, Math.ceil(3 / approxPixelsPerLine));
@@ -219,7 +221,7 @@ export class FindDecorations implements IDisposable {
 			for (let i = 0, len = findMatches.length; i < len; i++) {
 				newFindMatchesDecorations[i] = {
 					range: findMatches[i].range,
-					options: this._getFindMatchDecorationOptions(findMatches[i].range, this._useFindMatchOverviewRuler)
+					options: this._getFindMatchDecorationOptions(findMatches[i].range, this._useFindMatchOverviewRuler, lineContainsRTLCache)
 				};
 			}
 			this._decorations = accessor.deltaDecorations(this._decorations, newFindMatchesDecorations);
@@ -244,8 +246,8 @@ export class FindDecorations implements IDisposable {
 		});
 	}
 
-	private _getFindMatchDecorationOptions(range: Range, includeOverviewRuler: boolean): ModelDecorationOptions {
-		if (this._rangeContainsRTL(range)) {
+	private _getFindMatchDecorationOptions(range: Range, includeOverviewRuler: boolean, lineContainsRTLCache?: Map<number, boolean>): ModelDecorationOptions {
+		if (this._rangeContainsRTL(range, lineContainsRTLCache)) {
 			return includeOverviewRuler ? FindDecorations._FIND_MATCH_BIDI_DECORATION : FindDecorations._FIND_MATCH_NO_OVERVIEW_BIDI_DECORATION;
 		}
 
@@ -256,10 +258,20 @@ export class FindDecorations implements IDisposable {
 		return this._rangeContainsRTL(range) ? FindDecorations._CURRENT_FIND_MATCH_BIDI_DECORATION : FindDecorations._CURRENT_FIND_MATCH_DECORATION;
 	}
 
-	private _rangeContainsRTL(range: Range): boolean {
+	private _rangeContainsRTL(range: Range, lineContainsRTLCache?: Map<number, boolean>): boolean {
 		const model = this._editor.getModel();
+		if (!model.mightContainRTL()) {
+			return false;
+		}
+
 		for (let lineNumber = range.startLineNumber; lineNumber <= range.endLineNumber; lineNumber++) {
-			if (strings.containsRTL(model.getLineContent(lineNumber))) {
+			let containsRTL = lineContainsRTLCache?.get(lineNumber);
+			if (containsRTL === undefined) {
+				containsRTL = strings.containsRTL(model.getLineContent(lineNumber));
+				lineContainsRTLCache?.set(lineNumber, containsRTL);
+			}
+
+			if (containsRTL) {
 				return true;
 			}
 		}
