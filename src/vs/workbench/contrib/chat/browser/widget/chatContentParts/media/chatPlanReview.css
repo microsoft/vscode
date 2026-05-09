@@ -188,6 +188,8 @@
 
 .interactive-session .chat-plan-review-container .chat-confirmation-widget-message.chat-plan-review-body .rendered-markdown > :last-child {
 	margin-bottom: 0;
+	margin-top: 0;
+	padding-inline-start: 20px;
 }
 
 .interactive-session .chat-plan-review-container .chat-confirmation-widget-message.chat-plan-review-body.chat-plan-review-body-editor {

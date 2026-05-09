@@ -859,39 +859,6 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 		}
 
 		this._messageEditorDisposables.clear();
-		this._messageEditorDisposables.add(model);
-		if (pinnedRef) {
-			this._messageEditorDisposables.add(pinnedRef);
-		}
-		this._editingUri = editingUri;
-		this._initialEditorContent = initialContent;
-
-		// Register the editing URI before migrating: addFeedback no-ops on
-		// unregistered URIs.
-		const editingRegistration = this._planReviewFeedbackService.registerPlanReview(editingUri, () => {
-			void this.submitFeedback();
-		});
-		this._messageEditorDisposables.add(editingRegistration);
-		this._messageEditorDisposables.add(toDisposable(() => {
-			this._editingUri = undefined;
-		}));
-
-		// Migrate pre-existing comments to the editing URI so they stay visible;
-		// migrated back on unmount so a Back click doesn't lose them.
-		const preExistingComments = this._planReviewFeedbackService.getFeedback(planUri);
-		if (preExistingComments.length > 0) {
-			for (const item of preExistingComments) {
-				this._planReviewFeedbackService.addFeedback(editingUri, item.line, item.column, item.text);
-			}
-			this._planReviewFeedbackService.clearFeedback(planUri);
-			this._messageEditorDisposables.add(toDisposable(() => {
-				const current = this._planReviewFeedbackService.getFeedback(editingUri);
-				for (const item of current) {
-					this._planReviewFeedbackService.addFeedback(planUri, item.line, item.column, item.text);
-				}
-			}));
-		}
-
 		this._messageContentDisposables.clear();
 		dom.clearNode(this._messageEl);
 		this._messageEl.classList.add('chat-plan-review-body-editor');
@@ -918,11 +885,46 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 				alwaysConsumeMouseWheel: false,
 			},
 		};
+
+		// Register the editor BEFORE the model so disposal order is editor → model.
+		// editor.dispose() tears down its ModelData (ViewModel + View) via _detachModel;
+		// disposing the model first leaves them un-detached and they leak.
 		const editor = this._messageEditorDisposables.add(
 			this._instantiationService.createInstance(CodeEditorWidget, this._messageEl, editorOptions, {
 				isSimpleWidget: false,
 			})
 		);
+		this._messageEditorDisposables.add(model);
+		if (pinnedRef) {
+			this._messageEditorDisposables.add(pinnedRef);
+		}
+		this._editingUri = editingUri;
+		this._initialEditorContent = initialContent;
+
+		// Register the editing URI before migrating: addFeedback no-ops on unregistered URIs.
+		const editingRegistration = this._planReviewFeedbackService.registerPlanReview(editingUri, () => {
+			void this.submitFeedback();
+		});
+		this._messageEditorDisposables.add(editingRegistration);
+		this._messageEditorDisposables.add(toDisposable(() => {
+			this._editingUri = undefined;
+		}));
+
+		// Migrate pre-existing comments to the editing URI; restored on unmount.
+		const preExistingComments = this._planReviewFeedbackService.getFeedback(planUri);
+		if (preExistingComments.length > 0) {
+			for (const item of preExistingComments) {
+				this._planReviewFeedbackService.addFeedback(editingUri, item.line, item.column, item.text);
+			}
+			this._planReviewFeedbackService.clearFeedback(planUri);
+			this._messageEditorDisposables.add(toDisposable(() => {
+				const current = this._planReviewFeedbackService.getFeedback(editingUri);
+				for (const item of current) {
+					this._planReviewFeedbackService.addFeedback(planUri, item.line, item.column, item.text);
+				}
+			}));
+		}
+
 		editor.setModel(model);
 		this._messageEditor = editor;
 
