@@ -238,10 +238,11 @@ export async function mapSessionEvents(
 	// them at `tool.execution_complete` time.
 	const toolInfoByCallId = new Map<string, IToolStartInfo>();
 	const editToolCallIds: string[] = [];
-	const completedToolCallIds = new Set<string>();
+	const completionsByCallId = new Map<string, ISessionEventToolComplete['data']>();
 	for (const e of events) {
 		if (e.type === 'tool.execution_complete') {
-			completedToolCallIds.add((e as ISessionEventToolComplete).data.toolCallId);
+			const d = (e as ISessionEventToolComplete).data;
+			completionsByCallId.set(d.toolCallId, d);
 		}
 		if (e.type === 'tool.execution_start') {
 			const d = (e as ISessionEventToolStart).data;
@@ -462,7 +463,8 @@ export async function mapSessionEvents(
 
 	function appendFallbackToolRequests(builder: ITurnBuilder, toolRequests: readonly IToolRequestInfo[], parentToolCallId: string | undefined): void {
 		for (const request of toolRequests) {
-			if (completedToolCallIds.has(request.toolCallId) && toolInfoByCallId.has(request.toolCallId)) {
+			const completion = completionsByCallId.get(request.toolCallId);
+			if (completion && toolInfoByCallId.has(request.toolCallId)) {
 				continue;
 			}
 			const info = toolInfoByCallId.get(request.toolCallId)
@@ -471,7 +473,7 @@ export async function mapSessionEvents(
 				continue;
 			}
 			builder.responseParts.push(makeCompletedToolCallPart(
-				{ toolCallId: request.toolCallId, success: true },
+				completion ?? { toolCallId: request.toolCallId, success: true },
 				info,
 				sessionUriStr,
 				storedEdits,

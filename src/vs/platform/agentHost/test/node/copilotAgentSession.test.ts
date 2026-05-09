@@ -1053,12 +1053,26 @@ suite('CopilotAgentSession', () => {
 								type: 'function',
 							},
 							{
+								toolCallId: 'tc-bash',
+								name: 'bash',
+								arguments: { command: 'npm test' },
+								type: 'function',
+							},
+							{
 								toolCallId: 'tc-intent',
 								name: 'report_intent',
 								arguments: { intent: 'Inspecting files' },
 								type: 'function',
 							},
 						],
+					},
+				},
+				{
+					type: 'tool.execution_complete',
+					data: {
+						toolCallId: 'tc-bash',
+						success: false,
+						error: { message: 'tests failed' },
 					},
 				},
 				{
@@ -1079,6 +1093,8 @@ suite('CopilotAgentSession', () => {
 								toolCallId: part.toolCall.toolCallId,
 								toolName: part.toolCall.toolName,
 								status: part.toolCall.status,
+								success: part.toolCall.status === ToolCallStatus.Completed ? part.toolCall.success : undefined,
+								content: part.toolCall.status === ToolCallStatus.Completed ? part.toolCall.content : undefined,
 							});
 							break;
 						case ResponsePartKind.Markdown:
@@ -1095,7 +1111,8 @@ suite('CopilotAgentSession', () => {
 				userMessage: 'inspect the workspace',
 				parts: [
 					{ kind: ResponsePartKind.Markdown, content: 'I will inspect the workspace.' },
-					{ kind: ResponsePartKind.ToolCall, toolCallId: 'tc-view', toolName: 'view', status: ToolCallStatus.Completed },
+					{ kind: ResponsePartKind.ToolCall, toolCallId: 'tc-view', toolName: 'view', status: ToolCallStatus.Completed, success: true, content: undefined },
+					{ kind: ResponsePartKind.ToolCall, toolCallId: 'tc-bash', toolName: 'bash', status: ToolCallStatus.Completed, success: false, content: [{ type: ToolResultContentType.Text, text: 'tests failed' }] },
 					{ kind: ResponsePartKind.Markdown, content: 'Done.' },
 				],
 			}]);
