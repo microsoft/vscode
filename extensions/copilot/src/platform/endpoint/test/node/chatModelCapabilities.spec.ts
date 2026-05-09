@@ -32,6 +32,14 @@ describe('modelSupportsPDFDocuments', () => {
 });
 
 describe('modelSupportsToolSearch', () => {
+	const experimentationService = {} as IExperimentationService;
+
+	function createToolSearchConfigurationService(enabled: boolean): IConfigurationService {
+		return {
+			getExperimentBasedConfig: (key: unknown) => key === ConfigKey.ResponsesApiToolSearchEnabled && enabled,
+		} as unknown as IConfigurationService;
+	}
+
 	test('supports Claude Sonnet/Opus 4.5 and up', () => {
 		expect(modelSupportsToolSearch('claude-sonnet-4-5')).toBe(true);
 		expect(modelSupportsToolSearch('claude-sonnet-4.5')).toBe(true);
@@ -67,6 +75,14 @@ describe('modelSupportsToolSearch', () => {
 	test('supports OpenAI gpt-5.4 and gpt-5.5 models', () => {
 		expect(modelSupportsToolSearch('gpt-5.4')).toBe(true);
 		expect(modelSupportsToolSearch('gpt-5.5')).toBe(true);
+	});
+
+	test('rejects exact gpt-5.4 and gpt-5.5 models when the feature flag is disabled', () => {
+		const configurationService = createToolSearchConfigurationService(false);
+
+		for (const model of ['gpt-5.4', 'gpt-5.5']) {
+			expect(modelSupportsToolSearch(model, configurationService, experimentationService)).toBe(false);
+		}
 	});
 
 	test('rejects suffixed gpt-5.4/5.5 variants (exact match only)', () => {

@@ -42,6 +42,14 @@ function createMockEndpoint(model: string): IChatEndpoint {
 	} as unknown as IChatEndpoint;
 }
 
+function createCustomOAIResponsesEndpoint(model: string): IChatEndpoint {
+	return {
+		...createMockEndpoint(model),
+		modelProvider: 'CustomOAI',
+		urlOrRequestMetadata: 'https://custom.example.test/v1/responses',
+	} as IChatEndpoint;
+}
+
 function createMockOptions(overrides: Partial<ICreateEndpointBodyOptions> = {}): ICreateEndpointBodyOptions {
 	return {
 		debugName: 'test',
@@ -147,6 +155,19 @@ describe('createResponsesRequestBody tools', () => {
 		expect(tools.find(t => t.name === 'another_deferred_tool')).toBeUndefined();
 	});
 
+	it.each(['gpt-5.4', 'gpt-5.5'])('adds client tool_search for supported Custom OAI Responses %s requests when the upstream tool list includes tool_search', model => {
+		const endpoint = createCustomOAIResponsesEndpoint(model);
+		const configService = accessor.get(IConfigurationService) as InMemoryConfigurationService;
+		configService.setConfig(ConfigKey.ResponsesApiToolSearchEnabled, true);
+
+		const body = accessor.get(IInstantiationService).invokeFunction(
+			createResponsesRequestBody, createMockOptions(), endpoint.model, endpoint
+		);
+
+		const tools = body.tools as any[];
+		expect(tools.find(t => t.type === 'tool_search')).toBeDefined();
+	});
+
 	it('does not defer tools for unsupported models', () => {
 		const endpoint = createMockEndpoint('gpt-4o');
 
@@ -197,6 +218,27 @@ describe('createResponsesRequestBody tools', () => {
 		// All user-listed tools should be sent to the model, not stripped.
 		expect(tools.find(t => t.name === 'some_mcp_tool')).toBeDefined();
 		expect(tools.find(t => t.name === 'another_mcp_tool')).toBeDefined();
+	});
+
+	it('keeps native Responses tool_search unavailable for supported Custom OAI requests when the upstream tool list omits tool_search', () => {
+		const endpoint = createCustomOAIResponsesEndpoint('gpt-5.4');
+		const configService = accessor.get(IConfigurationService) as InMemoryConfigurationService;
+		configService.setConfig(ConfigKey.ResponsesApiToolSearchEnabled, true);
+
+		const options = createMockOptions({
+			requestOptions: {
+				tools: [
+					createFunctionTool('some_mcp_tool', 'An MCP tool', { input: { type: 'string' } }, ['input']),
+				]
+			}
+		});
+		const body = accessor.get(IInstantiationService).invokeFunction(
+			createResponsesRequestBody, options, endpoint.model, endpoint
+		);
+
+		const tools = body.tools as any[];
+		expect(tools.find(t => t.type === 'tool_search')).toBeUndefined();
+		expect(tools.find(t => t.name === 'some_mcp_tool')).toBeDefined();
 	});
 
 	it('always filters tool_search function tool from tools array', () => {
