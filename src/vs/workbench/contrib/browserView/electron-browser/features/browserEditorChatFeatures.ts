@@ -39,6 +39,7 @@ import product from '../../../../../platform/product/common/product.js';
 import { AgentHostEnabledSettingId } from '../../../../../platform/agentHost/common/agentService.js';
 import { workbenchConfigurationNodeBase } from '../../../../common/configuration.js';
 import { safeSetInnerHtml } from '../../../../../base/browser/domSanitize.js';
+import { BrowserChatToolsAllowedDomainsSettingId } from '../../common/browserChatToolsAllowedDomains.js';
 import { BrowserActionCategory } from '../browserViewActions.js';
 import { AgentHostChatToolsEnabledSettingId } from '../browserViewWorkbenchService.js';
 
@@ -482,6 +483,30 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			experiment: { mode: 'startup' },
 			tags: ['experimental', 'advanced'],
 			included: product.quality !== 'stable',
+		},
+		[BrowserChatToolsAllowedDomainsSettingId]: {
+			type: 'array',
+			items: { type: 'string' },
+			default: [],
+			restricted: true,
+			markdownDescription: localize(
+				'browser.chatTools.allowedDomains',
+				'When non-empty, integrated browser chat tools (`#workbench.browser.enableChatTools#`) may only open, navigate to, or interact with pages whose host matches an entry. Supports wildcards such as `*.example.com` (matches `example.com` and any subdomain). Entries like `localhost` and `127.0.0.1` are supported. File URLs and pages without a host always pass. An empty array means no extra restriction. This applies only to browser chat tools; it does not change the fetch tool or other agent network settings (`#chat.agent.allowedNetworkDomains#`, `#chat.agent.networkFilter#`).'
+			),
+			policy: {
+				name: 'BrowserChatToolsAllowedDomains',
+				category: PolicyCategory.InteractiveSession,
+				minimumVersion: '1.120',
+				localization: {
+					description: {
+						key: 'browser.chatTools.allowedDomains',
+						value: localize(
+							'browser.chatTools.allowedDomains',
+							'When non-empty, integrated browser chat tools (`#workbench.browser.enableChatTools#`) may only open, navigate to, or interact with pages whose host matches an entry. Supports wildcards such as `*.example.com` (matches `example.com` and any subdomain). Entries like `localhost` and `127.0.0.1` are supported. File URLs and pages without a host always pass. An empty array means no extra restriction. This applies only to browser chat tools; it does not change the fetch tool or other agent network settings (`#chat.agent.allowedNetworkDomains#`, `#chat.agent.networkFilter#`).'
+						)
+					}
+				}
+			},
 		}
 	}
 });

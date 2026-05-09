@@ -455,6 +455,21 @@
             "included": true
         },
         {
+            "key": "workbench.browser.chatTools.allowedDomains",
+            "name": "BrowserChatToolsAllowedDomains",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.120",
+            "localization": {
+                "description": {
+                    "key": "browser.chatTools.allowedDomains",
+                    "value": "When non-empty, integrated browser chat tools (`#workbench.browser.enableChatTools#`) may only open, navigate to, or interact with pages whose host matches an entry. Supports wildcards such as `*.example.com` (matches `example.com` and any subdomain). Entries like `localhost` and `127.0.0.1` are supported. File URLs and pages without a host always pass. An empty array means no extra restriction. This applies only to browser chat tools; it does not change the fetch tool or other agent network settings (`#chat.agent.allowedNetworkDomains#`, `#chat.agent.networkFilter#`)."
+                }
+            },
+            "type": "array",
+            "default": [],
+            "included": true
+        },
+        {
             "key": "github.copilot.nextEditSuggestions.enabled",
             "name": "CopilotNextEditSuggestions",
             "category": "InteractiveSession",
