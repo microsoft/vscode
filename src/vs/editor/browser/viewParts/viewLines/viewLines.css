@@ -82,6 +82,7 @@
 	color: var(--vscode-editorWhitespace-foreground) !important;
 }
 
+/* Inject Unicode RLI/PDI bidi controls to isolate RTL runs and stabilize mixed-direction rendering. */
 .monaco-editor .mtkbidiStart::before {
 	content: '\2067';
 }

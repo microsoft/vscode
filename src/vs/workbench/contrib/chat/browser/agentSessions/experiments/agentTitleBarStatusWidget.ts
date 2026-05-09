@@ -3,48 +3,49 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import './media/agenttitlebarstatuswidget.css';
+
 import { $, addDisposableListener, EventType, getWindow, isHTMLElement, reset } from '../../../../../../base/browser/dom.js';
-import { renderAsPlaintext } from '../../../../../../base/browser/markdownRenderer.js';
-import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { getDefaultHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { mainWindow } from '../../../../../../base/browser/window.js';
-import { IAction, Separator, SubmenuAction, toAction } from '../../../../../../base/common/actions.js';
+import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Event as EventUtils } from '../../../../../../base/common/event.js';
-import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../../nls.js';
-import { IActionViewItemService } from '../../../../../../platform/actions/browser/actionViewItemService.js';
-import { DropdownWithPrimaryActionViewItem } from '../../../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
-import { createActionViewItem } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
-import { HiddenItemStrategy, WorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
-import { IMenuService, MenuId, MenuItemAction, SubmenuItemAction } from '../../../../../../platform/actions/common/actions.js';
-import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
-import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { getDefaultHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { AgentStatusMode, IAgentTitleBarStatusService } from './agentTitleBarStatusService.js';
+import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
-import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
+import { EnterAgentSessionProjectionAction, ExitAgentSessionProjectionAction } from './agentSessionProjectionActions.js';
+import { UNIFIED_QUICK_ACCESS_ACTION_ID } from './unifiedQuickAccessActions.js';
+import { IAgentSessionsService } from '../agentSessionsService.js';
+import { AgentSessionStatus, IAgentSession, isSessionInProgressStatus } from '../agentSessionsModel.js';
+import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { IAction, Separator, SubmenuAction, toAction } from '../../../../../../base/common/actions.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../../../platform/workspace/common/workspace.js';
-import { applyConfiguredTextDirectionToElement } from '../../../../../browser/labelTextDirection.js';
-import { WindowTitle } from '../../../../../browser/parts/titlebar/windowTitle.js';
-import { IWorkbenchContribution } from '../../../../../common/contributions.js';
-import { ChatEntitlement, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IEditorGroupsService } from '../../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
-import { LayoutSettings } from '../../../../../services/layout/browser/layoutService.js';
-import { getChatTextDirection } from '../../../common/chatTextDirection.js';
-import { ChatConfiguration } from '../../../common/constants.js';
-import { IChatWidgetService } from '../../chat.js';
+import { renderAsPlaintext } from '../../../../../../base/browser/markdownRenderer.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { IMenuService, MenuId, MenuItemAction, SubmenuItemAction } from '../../../../../../platform/actions/common/actions.js';
+import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { applyConfiguredTextDirectionToElement } from '../../../../../browser/labelTextDirection.js';
+import { HiddenItemStrategy, WorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
+import { DropdownWithPrimaryActionViewItem } from '../../../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
+import { createActionViewItem } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { FocusAgentSessionsAction } from '../agentSessionsActions.js';
-import { AgentSessionStatus, IAgentSession, isSessionInProgressStatus } from '../agentSessionsModel.js';
-import { IAgentSessionsService } from '../agentSessionsService.js';
-import { EnterAgentSessionProjectionAction, ExitAgentSessionProjectionAction } from './agentSessionProjectionActions.js';
-import { AgentStatusMode, IAgentTitleBarStatusService } from './agentTitleBarStatusService.js';
-import './media/agenttitlebarstatuswidget.css';
-import { UNIFIED_QUICK_ACCESS_ACTION_ID } from './unifiedQuickAccessActions.js';
+import { IWorkbenchContribution } from '../../../../../common/contributions.js';
+import { getChatTextDirection } from '../../../common/chatTextDirection.js';
+import { IActionViewItemService } from '../../../../../../platform/actions/browser/actionViewItemService.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { mainWindow } from '../../../../../../base/browser/window.js';
+import { LayoutSettings } from '../../../../../services/layout/browser/layoutService.js';
+import { WindowTitle } from '../../../../../browser/parts/titlebar/windowTitle.js';
+import { ChatConfiguration } from '../../../common/constants.js';
+import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
+import { IChatWidgetService } from '../../chat.js';
+import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 
 // Telemetry types
 type AgentStatusClickAction =

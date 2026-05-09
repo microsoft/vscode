@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IViewLineTokens } from '../../../common/tokens/lineTokens.js';
+
 import { ColorId, ITokenPresentation, StandardTokenType, TokenMetadata } from '../../../common/encodedTokenAttributes.js';
 import { ILanguageIdCodec } from '../../../common/languages.js';
-import { IViewLineTokens } from '../../../common/tokens/lineTokens.js';
 
 /**
  * A token on a line.

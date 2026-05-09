@@ -6,8 +6,6 @@
 import { addDisposableListener, getActiveWindow, isHTMLElement } from '../../../../../base/browser/dom.js';
 import { FastDomNode } from '../../../../../base/browser/fastDomNode.js';
 import { createTrustedTypesPolicy } from '../../../../../base/browser/trustedTypes.js';
-import { IME } from '../../../../../base/common/ime.js';
-import { Disposable, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { EditorFontLigatures, EditorOption, FindComputedEditorOptionValueById, IComputedEditorOptions } from '../../../../common/config/editorOptions.js';
 import { Range } from '../../../../common/core/range.js';
@@ -15,12 +13,14 @@ import { Selection } from '../../../../common/core/selection.js';
 import { StringBuilder } from '../../../../common/core/stringBuilder.js';
 import { LineDecoration } from '../../../../common/viewLayout/lineDecorations.js';
 import { CharacterMapping, RenderLineInput, renderViewLine } from '../../../../common/viewLayout/viewLineRenderer.js';
-import { ISimpleModel } from '../../../../common/viewModel/screenReaderSimpleModel.js';
 import { ViewContext } from '../../../../common/viewModel/viewContext.js';
-import { ViewController } from '../../../view/viewController.js';
-import { getColumnOfNodeOffset } from '../../../viewParts/viewLines/viewLine.js';
 import { IPagedScreenReaderStrategy } from '../screenReaderUtils.js';
+import { ISimpleModel } from '../../../../common/viewModel/screenReaderSimpleModel.js';
+import { Disposable, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { IME } from '../../../../../base/common/ime.js';
+import { ViewController } from '../../../view/viewController.js';
 import { IScreenReaderContent } from './screenReaderUtils.js';
+import { getColumnOfNodeOffset } from '../../../viewParts/viewLines/viewLine.js';
 
 const ttPolicy = createTrustedTypesPolicy('richScreenReaderContent', { createHTML: value => value });
 

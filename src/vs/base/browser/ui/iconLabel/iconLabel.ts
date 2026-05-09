@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import './iconlabel.css';
+import * as dom from '../../dom.js';
+import * as css from '../../cssValue.js';
+import { HighlightedLabel } from '../highlightedlabel/highlightedLabel.js';
+import { IHoverDelegate } from '../hover/hoverDelegate.js';
 import { IMatch } from '../../../common/filters.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../common/lifecycle.js';
 import { equals } from '../../../common/objects.js';
 import { Range } from '../../../common/range.js';
-import { ThemeIcon } from '../../../common/themables.js';
-import { URI } from '../../../common/uri.js';
-import * as css from '../../cssValue.js';
-import * as dom from '../../dom.js';
-import { HighlightedLabel } from '../highlightedlabel/highlightedLabel.js';
-import type { IManagedHoverTooltipMarkdownString } from '../hover/hover.js';
-import { IHoverDelegate } from '../hover/hoverDelegate.js';
-import { getBaseLayerHoverDelegate } from '../hover/hoverDelegate2.js';
 import { getDefaultHoverDelegate } from '../hover/hoverDelegateFactory.js';
-import './iconlabel.css';
+import type { IManagedHoverTooltipMarkdownString } from '../hover/hover.js';
+import { getBaseLayerHoverDelegate } from '../hover/hoverDelegate2.js';
+import { URI } from '../../../common/uri.js';
+import { ThemeIcon } from '../../../common/themables.js';
 
 export interface IIconLabelCreationOptions {
 	readonly supportHighlights?: boolean;
@@ -96,7 +96,7 @@ export class IconLabel extends Disposable {
 	private readonly creationOptions?: IIconLabelCreationOptions;
 
 	private readonly domNode: FastLabelNode;
-	protected readonly nameContainer: HTMLElement;
+	private readonly nameContainer: HTMLElement;
 	private readonly nameNode: Label | LabelWithHighlights;
 
 	private descriptionNode: FastLabelNode | HighlightedLabel | undefined;

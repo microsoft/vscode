@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Schemas } from '../../../../base/common/network.js';
+import { IChatSessionsService } from './chatSessionsService.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ContextKeyExpr, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { ChatEntitlementContextKeys } from '../../../services/chat/common/chatEntitlementService.js';
-import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IsSessionsWindowContext } from '../../../common/contextkeys.js';
-import { IChatSessionsService } from './chatSessionsService.js';
 
 export enum ChatConfiguration {
 	AIDisabled = 'chat.disableAIFeatures',

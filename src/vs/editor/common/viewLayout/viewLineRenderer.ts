@@ -3,18 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as nls from '../../../nls.js';
+
 import { CharCode } from '../../../base/common/charCode.js';
 import * as strings from '../../../base/common/strings.js';
-import * as nls from '../../../nls.js';
-import { OffsetRange } from '../core/ranges/offsetRange.js';
+import { IViewLineTokens } from '../tokens/lineTokens.js';
 import { StringBuilder } from '../core/stringBuilder.js';
 import { EditorTextDirectionPreset, getConfiguredTextDirection, textDirectionToString } from '../core/textDirection.js';
 import { StandardTokenType, TokenMetadata } from '../encodedTokenAttributes.js';
-import { TextDirection } from '../model.js';
-import { IViewLineTokens } from '../tokens/lineTokens.js';
-import { InlineDecorationType } from '../viewModel/inlineDecorations.js';
 import { LineDecoration, LineDecorationsNormalizer } from './lineDecorations.js';
 import { LinePart, LinePartMetadata } from './linePart.js';
+import { OffsetRange } from '../core/ranges/offsetRange.js';
+import { InlineDecorationType } from '../viewModel/inlineDecorations.js';
+import { TextDirection } from '../model.js';
 
 const STRONG_RTL_CHARACTER = /[\u0590-\u08FF\uFB1D-\uFDFD\uFE70-\uFEFC]/u;
 const STRONG_LTR_OR_NUMBER_CHARACTER = /[0-9A-Za-z\u00C0-\u02AF\u1E00-\u1EFF\u0660-\u0669\u06F0-\u06F9]/u;
@@ -505,7 +506,7 @@ function getPartDirectionRenderInfo(input: ResolvedRenderLineInput): Array<IToke
 	}
 
 	const baseDirection = input.textDirection ?? TextDirection.LTR;
-	const usePlaintext = input.textDirectionPreset === 'auto' || input.textDirectionPreset === 'auto-follow';
+	const usePlaintext = true;
 
 	let runStartOffset = 0;
 	for (let partIndex = 0; partIndex < input.parts.length; partIndex++) {

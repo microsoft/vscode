@@ -6,21 +6,21 @@
 import * as browser from '../../../../base/browser/browser.js';
 import { FastDomNode, createFastDomNode } from '../../../../base/browser/fastDomNode.js';
 import * as platform from '../../../../base/common/platform.js';
-import { isHighContrast } from '../../../../platform/theme/common/theme.js';
-import { EditorFontLigatures } from '../../../common/config/editorOptions.js';
-import { OffsetRange } from '../../../common/core/ranges/offsetRange.js';
+import { IVisibleLine } from '../../view/viewLayer.js';
+import { RangeUtil } from './rangeUtil.js';
 import { StringBuilder } from '../../../common/core/stringBuilder.js';
-import { TextDirection } from '../../../common/model.js';
+import { FloatHorizontalRange, VisibleRanges } from '../../view/renderingContext.js';
 import { LineDecoration } from '../../../common/viewLayout/lineDecorations.js';
 import { CharacterMapping, DomPosition, ForeignElementType, RenderLineInput, RenderWhitespace, renderViewLine } from '../../../common/viewLayout/viewLineRenderer.js';
 import { ViewportData } from '../../../common/viewLayout/viewLinesViewportData.js';
-import { InlineDecorationType } from '../../../common/viewModel/inlineDecorations.js';
-import { ViewGpuContext } from '../../gpu/viewGpuContext.js';
-import { FloatHorizontalRange, VisibleRanges } from '../../view/renderingContext.js';
-import { IVisibleLine } from '../../view/viewLayer.js';
+import { isHighContrast } from '../../../../platform/theme/common/theme.js';
+import { EditorFontLigatures } from '../../../common/config/editorOptions.js';
 import { DomReadingContext } from './domReadingContext.js';
-import { RangeUtil } from './rangeUtil.js';
 import type { ViewLineOptions } from './viewLineOptions.js';
+import { ViewGpuContext } from '../../gpu/viewGpuContext.js';
+import { OffsetRange } from '../../../common/core/ranges/offsetRange.js';
+import { InlineDecorationType } from '../../../common/viewModel/inlineDecorations.js';
+import { TextDirection } from '../../../common/model.js';
 
 const canUseFastRenderedViewLine = (function () {
 	if (platform.isNative) {
