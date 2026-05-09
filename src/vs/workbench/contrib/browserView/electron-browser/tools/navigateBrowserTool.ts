@@ -117,6 +117,11 @@ export class NavigateBrowserTool implements IToolImpl {
 			return errorResult(`No page ID provided. Use '${OpenPageToolId}' first.`);
 		}
 
+		const blockedBefore = await getBrowserChatToolDomainBlockedToolResult(this.playwrightService, this.configurationService, sessionId, params.pageId);
+		if (blockedBefore) {
+			return blockedBefore;
+		}
+
 		let result: IToolResult;
 		switch (params.type) {
 			case 'reload':
