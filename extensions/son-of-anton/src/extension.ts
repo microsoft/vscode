@@ -20,7 +20,8 @@ import { PERSONAS } from 'son-of-anton-core/chat/personas';
 import { TraceViewerPanel } from './trace/TraceViewerPanel';
 import { TraceExporter } from './trace/TraceExporter';
 import { LlmClient } from 'son-of-anton-core/llm/LlmClient';
-import { ToolRegistry, createInstrumentedWorkspaceToolContext } from './tools/registry';
+import { ToolRegistry, createInstrumentedWorkspaceToolContext, defaultModalApproval } from './tools/registry';
+import { getActiveApproval } from './chat/approvalRegistry';
 import { HookRunner, hooksFilePath } from 'son-of-anton-core/persistence/HookRunner';
 import type { CoreHost } from 'son-of-anton-core/host';
 import * as fs from 'node:fs';
@@ -292,7 +293,24 @@ export function activate(context: vscode.ExtensionContext): void {
 		globalState: context.globalState,
 		workspaceRoot: workspacePath || undefined,
 		projectContext: projectContextProvider,
-		toolExecutionContext: workspacePath ? createInstrumentedWorkspaceToolContext(hookRunner) : undefined,
+		toolExecutionContext: workspacePath
+			? createInstrumentedWorkspaceToolContext(hookRunner, {
+				// Approval routing: consult the chat panel's webview-card
+				// flow when one is active (registered via
+				// `setActiveApproval` on chat-session construction); fall
+				// back to the modal `vscode.window.showInformationMessage`
+				// flow when no panel exists (palette commands,
+				// programmatic invocations). The lookup happens per call
+				// so panels opening / closing are picked up immediately.
+				requestApproval: async (request) => {
+					const handler = getActiveApproval();
+					if (handler) {
+						return handler(request);
+					}
+					return defaultModalApproval(request);
+				},
+			})
+			: undefined,
 	});
 	context.subscriptions.push({ dispose: () => agentStack.dispose() });
 	// Specialist memory is owned by the stack but pushed separately so

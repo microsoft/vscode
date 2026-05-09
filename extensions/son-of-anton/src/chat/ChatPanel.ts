@@ -6,6 +6,8 @@ import * as vscode from 'vscode';
 import { globalScopedConfig } from './globalScopedConfig';
 import { LlmClient, LlmContentPart, LlmMessage, ModelId, ToolDefinition as LlmToolDefinition } from 'son-of-anton-core/llm/LlmClient';
 import { ToolRegistry, createInstrumentedWorkspaceToolContext } from '../tools/registry';
+import type { ApprovalRequest } from '../tools/registry';
+import { clearActiveApproval, getActiveApproval, setActiveApproval } from './approvalRegistry';
 import type { HookRunner } from 'son-of-anton-core/persistence/HookRunner';
 import { ToolExecutionResult, ToolCategory } from 'son-of-anton-core/tools/types';
 import { SPECIALIST_ROLES, getSpecialist, buildSystemPrompt } from 'son-of-anton-core/chat/specialistRegistry';
@@ -501,6 +503,14 @@ export class ChatSession {
 
 		ACTIVE_SESSIONS.add(this);
 
+		// Register this session's approval handler so the agent-stack tool
+		// context delegates write / shell prompts to the webview-card UX
+		// instead of falling back to modal dialogs. Cleared on dispose.
+		// Multiple chat sessions could exist simultaneously (sidebar +
+		// editor); the most-recently-opened wins, matching VS Code's own
+		// "active" semantics.
+		setActiveApproval(this.boundRequestApproval);
+
 		// Kick off an initial connection-state refresh and a 30s poll.
 		void this.refreshConnectionState();
 		const intervalHandle = setInterval(() => {
@@ -693,6 +703,12 @@ export class ChatSession {
 		this.disposed = true;
 		ACTIVE_SESSIONS.delete(this);
 		this.abortController?.abort();
+		// Clear the approval registry IF this session was the active one,
+		// so the agent-stack tool context falls back to its modal default
+		// when no chat panel is open.
+		if (getActiveApproval() === this.boundRequestApproval) {
+			clearActiveApproval();
+		}
 		// Settle any in-flight approval prompts as cancellations so awaiters
 		// resolve cleanly instead of leaking promises across panel disposal.
 		this.cancelPendingApprovals('cancel');
@@ -701,6 +717,62 @@ export class ChatSession {
 		}
 		this.disposables.length = 0;
 	}
+
+	/**
+	 * Public approval entry point. Translates an `ApprovalRequest` from the
+	 * agent-stack tool context into a webview-card prompt, awaits the
+	 * user's decision, and returns the resolved `ApprovalDecision`. The
+	 * card flips into its post-response state via `approvalResolved` so
+	 * users see a clear approved / rejected / cancelled outcome.
+	 *
+	 * Routes through the same `pendingApprovals` map that the chat panel's
+	 * own runDirectTurn flow uses, so a single chat session never has two
+	 * parallel approval surfaces fighting for the same id.
+	 */
+	async requestApproval(request: ApprovalRequest): Promise<ApprovalDecision> {
+		if (this.disposed) {
+			return { action: 'reject', reason: 'chat panel disposed' };
+		}
+		const approvalId = `approval-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+		// Build a payload the webview's existing approval-card renderer
+		// can consume verbatim. The request shape is already aligned with
+		// what `buildApprovalPayload` produces for direct-tool-loop runs;
+		// we just adapt the kind → toolName mapping the webview expects.
+		const toolName = request.kind === 'write' ? 'write_file' : 'run_command';
+		const payload = this.buildApprovalPayload(toolName, this.requestToInput(request));
+		this.webview.postMessage({
+			type: 'approvalRequest',
+			id: approvalId,
+			toolName,
+			toolCallId: approvalId,
+			input: this.requestToInput(request),
+			payload,
+			autoApproved: false,
+		});
+		const decision = await this.waitForApproval(approvalId, this.abortController?.signal);
+		this.webview.postMessage({
+			type: 'approvalResolved',
+			id: approvalId,
+			toolCallId: approvalId,
+			action: decision.action,
+			reason: decision.reason,
+		});
+		return decision;
+	}
+
+	private requestToInput(request: ApprovalRequest): Record<string, unknown> {
+		if (request.kind === 'write') {
+			return { path: request.path, content: request.content };
+		}
+		return { command: request.command, args: request.args, cwd: request.cwd, timeoutMs: request.timeoutMs };
+	}
+
+	/**
+	 * Bound reference to {@link requestApproval} so we can identity-compare
+	 * during dispose to avoid clearing a different session's registration.
+	 * Set in the constructor; never reassigned.
+	 */
+	private readonly boundRequestApproval = (req: ApprovalRequest): Promise<ApprovalDecision> => this.requestApproval(req);
 
 	/**
 	 * Resolve every pending approval with the given outcome and clear their

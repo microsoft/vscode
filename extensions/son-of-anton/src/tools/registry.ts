@@ -85,6 +85,61 @@ export interface CreateWorkspaceToolContextOptions {
  * inline webview-card approval flow into the orchestrator-dispatched
  * specialist path so both surfaces share the same UX.
  */
+/**
+ * Modal-based fallback for {@link CreateWorkspaceToolContextOptions.requestApproval}.
+ * Pops the existing diff-preview + `vscode.window.showInformationMessage` /
+ * `showWarningMessage` modals so callers without a webview surface (palette
+ * commands, programmatic invocations, surfaces with no chat panel registered)
+ * still get a visible approval prompt instead of silently auto-approving.
+ *
+ * Exported so registry-consulting callbacks can fall back here when no
+ * higher-priority host callback is registered. The implementation is a
+ * direct lift of the inline modal branches that lived inside
+ * `createWorkspaceToolContext` before the H1 webview-card unification.
+ */
+export async function defaultModalApproval(req: ApprovalRequest): Promise<ApprovalDecision> {
+	const root = vscode.workspace.workspaceFolders?.[0]?.uri;
+	if (req.kind === 'write') {
+		if (!root) {
+			return { action: 'reject', reason: 'no workspace folder is open' };
+		}
+		const path = req.path ?? '';
+		const content = req.content ?? '';
+		try {
+			const targetUri = vscode.Uri.joinPath(root, path);
+			const proposedDoc = await vscode.workspace.openTextDocument({ content, language: 'plaintext' });
+			const title = req.existed ? `${path} (proposed change)` : `${path} (proposed new file)`;
+			await vscode.commands.executeCommand('vscode.diff', targetUri, proposedDoc.uri, title);
+		} catch {
+			// Diff editor failure is non-fatal — proceed to confirm.
+		}
+		const choice = await vscode.window.showInformationMessage(
+			`Allow Son of Anton to write to ${path}?`,
+			{ modal: true },
+			'Apply',
+			'Cancel',
+		);
+		return choice === 'Apply'
+			? { action: 'approve' }
+			: { action: 'reject', reason: 'declined by user' };
+	}
+	// kind === 'shell'
+	const command = req.command ?? '';
+	const args = req.args ?? [];
+	const argDisplay = args.length > 0 ? ' ' + args.map(a => /[\s"']/.test(a) ? JSON.stringify(a) : a).join(' ') : '';
+	const fullDisplay = `${command}${argDisplay}`;
+	const cwdDisplay = req.cwd ? ` (in ${req.cwd})` : '';
+	const choice = await vscode.window.showWarningMessage(
+		`Allow Son of Anton to run:\n\n${fullDisplay}${cwdDisplay}\n\nTimeout: ${Math.round((req.timeoutMs ?? 30_000) / 1000)}s`,
+		{ modal: true },
+		'Run',
+		'Cancel',
+	);
+	return choice === 'Run'
+		? { action: 'approve' }
+		: { action: 'reject', reason: 'declined by user' };
+}
+
 export function createWorkspaceToolContext(options?: CreateWorkspaceToolContextOptions): ToolExecutionContext {
 	const requestApproval = options?.requestApproval;
 	const root = vscode.workspace.workspaceFolders?.[0]?.uri;
