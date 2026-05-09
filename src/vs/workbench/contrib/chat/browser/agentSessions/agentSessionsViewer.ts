@@ -3,56 +3,59 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import './media/agentsessionsviewer.css';
+import { IDragAndDropData } from '../../../../../base/browser/dnd.js';
 import { h } from '../../../../../base/browser/dom.js';
-import { localize } from '../../../../../nls.js';
-import { IIdentityProvider, IListVirtualDelegate, NotSelectableGroupId, NotSelectableGroupIdType } from '../../../../../base/browser/ui/list/list.js';
+import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
 import { AriaRole } from '../../../../../base/browser/ui/aria/aria.js';
+import { Button } from '../../../../../base/browser/ui/button/button.js';
+import { HoverStyle, IDelayedHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
+import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
+import { IconLabel } from '../../../../../base/browser/ui/iconLabel/iconLabel.js';
+import { IIdentityProvider, IListVirtualDelegate, NotSelectableGroupId, NotSelectableGroupIdType } from '../../../../../base/browser/ui/list/list.js';
+import { ListViewTargetSector } from '../../../../../base/browser/ui/list/listView.js';
 import { IListAccessibilityProvider } from '../../../../../base/browser/ui/list/listWidget.js';
 import { ITreeCompressionDelegate } from '../../../../../base/browser/ui/tree/asyncDataTree.js';
 import { ICompressedTreeNode } from '../../../../../base/browser/ui/tree/compressedObjectTreeModel.js';
 import { ICompressibleKeyboardNavigationLabelProvider, ICompressibleTreeRenderer } from '../../../../../base/browser/ui/tree/objectTree.js';
-import { ITreeNode, ITreeElementRenderDetails, IAsyncDataSource, ITreeSorter, ITreeDragAndDrop, ITreeDragOverReaction } from '../../../../../base/browser/ui/tree/tree.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
-import { AgentSessionSection, AgentSessionStatus, getAgentChangesSummary, hasValidDiff, IAgentSession, IAgentSessionSection, IAgentSessionShowLess, IAgentSessionShowMore, IAgentSessionsModel, isAgentSession, isAgentSessionSection, isAgentSessionShowLess, isAgentSessionShowMore, isAgentSessionsModel, isSessionInProgressStatus } from './agentSessionsModel.js';
-import { IconLabel } from '../../../../../base/browser/ui/iconLabel/iconLabel.js';
-import { ThemeIcon, themeColorFromId } from '../../../../../base/common/themables.js';
-import { Codicon } from '../../../../../base/common/codicons.js';
-import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.js';
-import { fromNow, getDurationString } from '../../../../../base/common/date.js';
-import { FuzzyScore, createMatches } from '../../../../../base/common/filters.js';
-import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
-import { allowedChatMarkdownHtmlTags } from '../widget/chatContentMarkdownRenderer.js';
-import { IProductService } from '../../../../../platform/product/common/productService.js';
-import { IDragAndDropData } from '../../../../../base/browser/dnd.js';
-import { ListViewTargetSector } from '../../../../../base/browser/ui/list/listView.js';
+import { IAsyncDataSource, ITreeDragAndDrop, ITreeDragOverReaction, ITreeElementRenderDetails, ITreeNode, ITreeSorter } from '../../../../../base/browser/ui/tree/tree.js';
 import { coalesce } from '../../../../../base/common/arrays.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { fillEditorsDragData } from '../../../../browser/dnd.js';
-import { HoverStyle, IDelayedHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
-import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
-import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IntervalTimer } from '../../../../../base/common/async.js';
+import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { fromNow, getDurationString } from '../../../../../base/common/date.js';
+import { BugIndicatingError } from '../../../../../base/common/errors.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { createMatches, FuzzyScore } from '../../../../../base/common/filters.js';
+import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { autorun, IObservable } from '../../../../../base/common/observable.js';
+import { compareIgnoreCase } from '../../../../../base/common/strings.js';
+import { themeColorFromId, ThemeIcon } from '../../../../../base/common/themables.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { EditorOptions } from '../../../../../editor/common/config/editorOptions.js';
+import { localize } from '../../../../../nls.js';
 import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
-import { Emitter, Event } from '../../../../../base/common/event.js';
-import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
-import { MarkdownString, IMarkdownString } from '../../../../../base/common/htmlContent.js';
+import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.js';
+import { fillEditorsDragData } from '../../../../browser/dnd.js';
+import { applyConfiguredTextDirectionToElement } from '../../../../browser/labelTextDirection.js';
+import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { IChatSessionsService } from '../../common/chatSessionsService.js';
+import { allowedChatMarkdownHtmlTags } from '../widget/chatContentMarkdownRenderer.js';
+import { AgentSessionApprovalModel } from './agentSessionApprovalModel.js';
 import { AgentSessionHoverWidget } from './agentSessionHoverWidget.js';
 import { AgentSessionProviders } from './agentSessions.js';
 import { AgentSessionsGrouping, AgentSessionsSorting } from './agentSessionsFilter.js';
-import { autorun, IObservable } from '../../../../../base/common/observable.js';
-import { URI } from '../../../../../base/common/uri.js';
-import { Button } from '../../../../../base/browser/ui/button/button.js';
-import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
-import { AgentSessionApprovalModel } from './agentSessionApprovalModel.js';
-import { BugIndicatingError } from '../../../../../base/common/errors.js';
-import { compareIgnoreCase } from '../../../../../base/common/strings.js';
-import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
-import { IChatSessionsService } from '../../common/chatSessionsService.js';
+import { AgentSessionSection, AgentSessionStatus, getAgentChangesSummary, hasValidDiff, IAgentSession, IAgentSessionSection, IAgentSessionShowLess, IAgentSessionShowMore, IAgentSessionsModel, isAgentSession, isAgentSessionSection, isAgentSessionShowLess, isAgentSessionShowMore, isAgentSessionsModel, isSessionInProgressStatus } from './agentSessionsModel.js';
+import './media/agentsessionsviewer.css';
 
 export type AgentSessionListItem = IAgentSession | IAgentSessionSection | IAgentSessionShowMore | IAgentSessionShowLess;
 
@@ -65,6 +68,7 @@ interface IAgentSessionItemTemplate {
 	readonly icon: HTMLElement;
 
 	// Column 2 Row 1
+	readonly titleContainer: HTMLElement;
 	readonly title: IconLabel;
 	readonly pinnedIndicator: HTMLElement;
 	readonly statusContainer: HTMLElement;
@@ -131,6 +135,7 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 	}
@@ -184,6 +189,7 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 		return {
 			element: elements.item,
 			icon: elements.icon,
+			titleContainer: elements.title,
 			title: disposables.add(new IconLabel(elements.title, { supportHighlights: true, supportIcons: true })),
 			pinnedIndicator: elements.pinnedIndicator,
 			titleToolbar,
@@ -249,7 +255,9 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 
 		// Title
 		const markdownTitle = new MarkdownString(session.element.label);
-		template.title.setLabel(renderAsPlaintext(markdownTitle), undefined, { matches: createMatches(session.filterData) });
+		const plainTextTitle = renderAsPlaintext(markdownTitle);
+		template.title.setLabel(plainTextTitle, undefined, { matches: createMatches(session.filterData) });
+		applyConfiguredTextDirectionToElement(template.titleContainer, plainTextTitle, EditorOptions.textDirection.validate(this.configurationService.getValue('editor.textDirection')));
 
 		// Title Actions - Update context keys
 		ChatContextKeys.isArchivedAgentSession.bindTo(template.contextKeyService).set(session.element.isArchived());

@@ -3,23 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import './media/chatViewTitleControl.css';
 import { addDisposableListener, EventType, h } from '../../../../../../base/browser/dom.js';
 import { renderAsPlaintext } from '../../../../../../base/browser/markdownRenderer.js';
 import { Gesture, EventType as TouchEventType } from '../../../../../../base/browser/touch.js';
+import { ActionViewItem, IActionViewItemOptions } from '../../../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { IAction } from '../../../../../../base/common/actions.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
+import { EditorOptions } from '../../../../../../editor/common/config/editorOptions.js';
 import { localize } from '../../../../../../nls.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { applyConfiguredTextDirectionToElement } from '../../../../../browser/labelTextDirection.js';
 import { IChatViewTitleActionContext } from '../../../common/actions/chatActions.js';
 import { IChatModel } from '../../../common/model/chatModel.js';
-import { ActionViewItem, IActionViewItemOptions } from '../../../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { IAction } from '../../../../../../base/common/actions.js';
 import { AgentSessionsPicker } from '../../agentSessions/agentSessionsPicker.js';
+import './media/chatViewTitleControl.css';
 
 export interface IChatViewTitleDelegate {
 	focusChat(): void;
@@ -50,10 +53,16 @@ export class ChatViewTitleControl extends Disposable {
 		private readonly container: HTMLElement,
 		private readonly delegate: IChatViewTitleDelegate,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 
 		this.render(this.container);
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('editor.textDirection')) {
+				this.titleLabel.value?.updateTitle(this.title ?? ChatViewTitleControl.DEFAULT_TITLE);
+			}
+		}));
 
 		this.registerActions();
 	}
@@ -96,7 +105,7 @@ export class ChatViewTitleControl extends Disposable {
 		this.navigationToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, elements.navigationToolbar, MenuId.ChatViewSessionTitleNavigationToolbar, {
 			actionViewItemProvider: (action: IAction) => {
 				if (action.id === ChatViewTitleControl.PICK_AGENT_SESSION_ACTION_ID) {
-					this.titleLabel.value = new ChatViewTitleLabel(action);
+					this.titleLabel.value = new ChatViewTitleLabel(action, this.configurationService);
 					this.titleLabel.value.updateTitle(this.title ?? ChatViewTitleControl.DEFAULT_TITLE);
 
 					return this.titleLabel.value;
@@ -193,7 +202,7 @@ class ChatViewTitleLabel extends ActionViewItem {
 
 	private titleLabel: HTMLSpanElement | undefined = undefined;
 
-	constructor(action: IAction, options?: IActionViewItemOptions) {
+	constructor(action: IAction, private readonly configurationService: IConfigurationService, options?: IActionViewItemOptions) {
 		super(null, action, { ...options, icon: false, label: true });
 	}
 
@@ -221,8 +230,10 @@ class ChatViewTitleLabel extends ActionViewItem {
 
 		if (this.title) {
 			this.titleLabel.textContent = this.title;
+			applyConfiguredTextDirectionToElement(this.titleLabel, this.title, EditorOptions.textDirection.validate(this.configurationService.getValue('editor.textDirection')));
 		} else {
 			this.titleLabel.textContent = '';
+			applyConfiguredTextDirectionToElement(this.titleLabel, '', EditorOptions.textDirection.validate(this.configurationService.getValue('editor.textDirection')));
 		}
 	}
 }
