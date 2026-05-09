@@ -289,6 +289,18 @@ export function toSessionId(providerId: string, resource: URI): string {
 }
 
 /**
+ * Returns the active repository branch name exposed by a session provider. The
+ * `detail` fallback preserves extension-host CLI sessions, which store their
+ * worktree branch there.
+ */
+export function getSessionBranchName(session: ISession | undefined): string | undefined {
+	const repository = session?.workspace.get()?.repositories[0];
+	const branchName = repository?.branchName ?? repository?.detail;
+	const trimmed = branchName?.trim();
+	return trimmed || undefined;
+}
+
+/**
  * Capabilities declared per session.
  * Consumers check these before surfacing session-specific features in the UI.
  */
