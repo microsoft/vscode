@@ -347,6 +347,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private _inputEditor!: CodeEditorWidget;
 	private _inputEditorElement!: HTMLElement;
+	private _cachedInputTextArea: HTMLElement | undefined;
+	private _cachedInputTextAreaHost: HTMLElement | undefined;
 	private _forceVisibleScrollbarUntilAccept = false;
 
 	// Reference to the input model for syncing input state
@@ -357,8 +359,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	// Flag to prevent circular updates between view and model
 	private _isSyncingToOrFromInputModel = false;
-	private _cachedInputTextArea: HTMLElement | undefined;
-	private _cachedInputTextAreaHost: HTMLElement | undefined;
 
 	// Debounced scheduler for syncing text changes
 	private readonly _syncTextDebounced: RunOnceScheduler;
