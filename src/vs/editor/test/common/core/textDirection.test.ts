@@ -66,6 +66,20 @@ suite('TextDirection', () => {
 		assert.strictEqual(getConfiguredTextDirection('# فارسی', 'auto-follow', TextDirection.LTR), TextDirection.RTL);
 	});
 
+	test('treats Arabic-script digits as weak numbers instead of strong rtl characters', () => {
+		assert.deepStrictEqual({
+			ascii: getConfiguredTextDirection('123 hello', 'auto-follow', TextDirection.RTL),
+			persian: getConfiguredTextDirection('۱۲۳ hello', 'auto-follow', TextDirection.RTL),
+			arabicIndic: getConfiguredTextDirection('١٢٣ hello', 'auto-follow', TextDirection.RTL),
+		}, { ascii: TextDirection.LTR, persian: TextDirection.LTR, arabicIndic: TextDirection.LTR });
+
+		assert.deepStrictEqual({
+			ascii: getConfiguredTypingDirection('123 فارسی', 'auto', TextDirection.LTR),
+			persian: getConfiguredTypingDirection('۱۲۳ فارسی', 'auto', TextDirection.LTR),
+			arabicIndic: getConfiguredTypingDirection('١٢٣ فارسی', 'auto', TextDirection.LTR),
+		}, { ascii: TextDirection.LTR, persian: TextDirection.LTR, arabicIndic: TextDirection.LTR });
+	});
+
 	test('respects explicit force modes', () => {
 		assert.strictEqual(getConfiguredTextDirection('hello', 'rtl', TextDirection.LTR), TextDirection.RTL);
 		assert.strictEqual(getConfiguredTextDirection('فارسی', 'ltr', TextDirection.RTL), TextDirection.LTR);

@@ -636,6 +636,24 @@ suite('renderViewLine', () => {
 		assert.ok(actual.html.includes('mtkbidiEnd'));
 	});
 
+	test('Arabic-script digits do not start a leading-neutral RTL run in auto mode', () => {
+		const lineContent = '. ۱۲۳ یک دو';
+		const lineTokens = createViewLineTokens([
+			createPart(lineContent.length, 1),
+		]);
+		const actual = renderViewLine(createRenderLineInput({
+			lineContent,
+			isBasicASCII: false,
+			containsRTL: true,
+			lineTokens,
+			textDirection: TextDirection.LTR,
+			textDirectionPreset: 'auto',
+		}));
+
+		assert.ok(!actual.html.includes('mtkbidiStart'));
+		assert.ok(!actual.html.includes('mtkbidiEnd'));
+	});
+
 	test('leading-neutral RTL comment lines keep the original rendering behavior in default mode', () => {
 		const lineContent = '# یک دو three four پنج شش هفت eight نه ده';
 		const lineTokens = createViewLineTokens([

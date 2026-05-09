@@ -18,6 +18,7 @@ import { InlineDecorationType } from '../viewModel/inlineDecorations.js';
 import { TextDirection } from '../model.js';
 
 const STRONG_RTL_CHARACTER = /[\u0590-\u08FF\uFB1D-\uFDFD\uFE70-\uFEFC]/u;
+const WEAK_NUMBER_CHARACTER = /[0-9\u0660-\u0669\u06F0-\u06F9]/u;
 const STRONG_LTR_OR_NUMBER_CHARACTER = /[0-9A-Za-z\u00C0-\u02AF\u1E00-\u1EFF\u0660-\u0669\u06F0-\u06F9]/u;
 
 export const enum RenderWhitespace {
@@ -636,6 +637,9 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 function getLeadingNeutralRtlRunStartOffset(lineContent: string): number {
 	for (let i = 0; i < lineContent.length; i++) {
 		const ch = lineContent.charAt(i);
+		if (WEAK_NUMBER_CHARACTER.test(ch)) {
+			return -1;
+		}
 		if (STRONG_RTL_CHARACTER.test(ch)) {
 			return i > 0 ? i : -1;
 		}
