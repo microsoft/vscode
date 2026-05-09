@@ -64,9 +64,8 @@ const enum DefaultAccountStatus {
 const CONTEXT_DEFAULT_ACCOUNT_STATE = new RawContextKey<string>('defaultAccountStatus', DefaultAccountStatus.Uninitialized);
 const CACHED_POLICY_DATA_KEY = 'defaultAccount.cachedPolicyData';
 const ACCOUNT_DATA_POLL_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
-// Use a longer cache window when the previous fetch returned no registry, to avoid
-// retrying a 404 endpoint on every relaunch and blocking startup.
 const MCP_REGISTRY_NEGATIVE_CACHE_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours
+const CHAT_DISABLED_CONFIGURATION_KEY = 'chat.disableAIFeatures';
 
 interface ITokenEntitlementsResponse {
 	token: string;
@@ -554,11 +553,15 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 				policyData.chat_preview_features_enabled = tokenEntitlementsData.policyData.chat_preview_features_enabled;
 				policyData.session_search = tokenEntitlementsData.policyData.session_search;
 				policyData.mcp = tokenEntitlementsData.policyData.mcp;
-				if (policyData.mcp) {
-					const mcpRegistryResult = await this.getMcpRegistryProvider(sessions, accountPolicyData, options);
-					mcpRegistryDataFetchedAt = mcpRegistryResult?.fetchedAt;
-					policyData.mcpRegistryUrl = mcpRegistryResult?.data?.url;
-					policyData.mcpAccess = mcpRegistryResult?.data?.registry_access;
+				if (policyData.mcp && !this.isAIDisabled()) {
+					// Use cached MCP registry data immediately so the renderer is not blocked
+					// by the network round-trip during startup. Refresh in the background if stale.
+					policyData.mcpRegistryUrl = accountPolicyData?.policyData.mcpRegistryUrl;
+					policyData.mcpAccess = accountPolicyData?.policyData.mcpAccess;
+					mcpRegistryDataFetchedAt = accountPolicyData?.mcpRegistryDataFetchedAt;
+					if (options?.forceRefresh || !accountPolicyData?.mcpRegistryDataFetchedAt || this.isMcpRegistryDataStale(accountPolicyData)) {
+						void this.refreshMcpRegistryInBackground(sessions, accountId, accountPolicyData, options);
+					}
 				} else {
 					policyData.mcpRegistryUrl = undefined;
 					policyData.mcpAccess = undefined;
@@ -742,6 +745,38 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 		return !isUndefined(data) ? { data, fetchedAt: Date.now() } : undefined;
 	}
 
+	private async refreshMcpRegistryInBackground(sessions: AuthenticationSession[], accountId: string, accountPolicyData: IAccountPolicyData | undefined, options?: { forceRefresh?: boolean }): Promise<void> {
+		try {
+			const result = await this.getMcpRegistryProvider(sessions, accountPolicyData, options);
+			if (!result) {
+				return;
+			}
+			const currentPolicyData = this._policyData;
+			if (!currentPolicyData || currentPolicyData.accountId !== accountId) {
+				return; // account changed in the meantime
+			}
+			const newUrl = result.data?.url;
+			const newAccess = result.data?.registry_access;
+			if (currentPolicyData.policyData.mcpRegistryUrl === newUrl
+				&& currentPolicyData.policyData.mcpAccess === newAccess
+				&& currentPolicyData.mcpRegistryDataFetchedAt === result.fetchedAt) {
+				return;
+			}
+			const updated: IAccountPolicyData = {
+				...currentPolicyData,
+				policyData: {
+					...currentPolicyData.policyData,
+					mcpRegistryUrl: newUrl,
+					mcpAccess: newAccess,
+				},
+				mcpRegistryDataFetchedAt: result.fetchedAt,
+			};
+			this.setPolicyData(updated);
+		} catch (error) {
+			this.logService.error('[DefaultAccount] Background MCP registry refresh failed:', getErrorMessage(error));
+		}
+	}
+
 	private async requestMcpRegistryProvider(sessions: AuthenticationSession[]): Promise<IMcpRegistryProvider | null | undefined> {
 		const mcpRegistryDataUrl = this.getMcpRegistryDataUrl();
 		if (!mcpRegistryDataUrl) {
@@ -750,7 +785,10 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 		}
 
 		this.logService.debug('[DefaultAccount] Fetching MCP registry data from:', mcpRegistryDataUrl);
-		const response = await this.request(mcpRegistryDataUrl, 'GET', undefined, sessions, CancellationToken.None, 'defaultAccount.mcpRegistryProvider');
+		// Don't fan out 404s across sessions: a 404 here means no registry is provisioned for this
+		// account, not a permissions/scope problem with this particular session, so retrying with
+		// other sessions just adds latency without changing the answer.
+		const response = await this.request(mcpRegistryDataUrl, 'GET', undefined, sessions, CancellationToken.None, 'defaultAccount.mcpRegistryProvider', { retryOn404: false });
 		if (!response) {
 			return undefined;
 		}
@@ -778,10 +816,11 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 		}
 	}
 
-	private async request(url: string, type: 'GET', body: undefined, sessions: AuthenticationSession[], token: CancellationToken, callSite: string): Promise<IRequestContext | undefined>;
-	private async request(url: string, type: 'POST', body: object, sessions: AuthenticationSession[], token: CancellationToken, callSite: string): Promise<IRequestContext | undefined>;
-	private async request(url: string, type: 'GET' | 'POST', body: object | undefined, sessions: AuthenticationSession[], token: CancellationToken, callSite: string): Promise<IRequestContext | undefined> {
+	private async request(url: string, type: 'GET', body: undefined, sessions: AuthenticationSession[], token: CancellationToken, callSite: string, options?: { retryOn404?: boolean }): Promise<IRequestContext | undefined>;
+	private async request(url: string, type: 'POST', body: object, sessions: AuthenticationSession[], token: CancellationToken, callSite: string, options?: { retryOn404?: boolean }): Promise<IRequestContext | undefined>;
+	private async request(url: string, type: 'GET' | 'POST', body: object | undefined, sessions: AuthenticationSession[], token: CancellationToken, callSite: string, options?: { retryOn404?: boolean }): Promise<IRequestContext | undefined> {
 		let lastResponse: IRequestContext | undefined;
+		const retryOn404 = options?.retryOn404 !== false;
 
 		for (const session of sessions) {
 			if (token.isCancellationRequested) {
@@ -801,7 +840,7 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 				}, token);
 
 				const status = response.res.statusCode;
-				if (status === 401 || status === 404) {
+				if (status === 401 || (status === 404 && retryOn404)) {
 					this.logService.debug(`[DefaultAccount] Received ${status} for URL ${url} with session ${session.id}, likely due to expired/revoked token or insufficient permissions.`, 'Trying next session if available.');
 					lastResponse = response;
 					continue; // try next session
@@ -832,9 +871,13 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 			return true;
 		}
 		// When the previous fetch returned no registry (e.g. 404), use a longer cache
-		// window to avoid blocking startup with repeated requests on every relaunch.
+		// window to avoid hammering an endpoint that has nothing to return.
 		const interval = accountPolicyData.policyData.mcpRegistryUrl ? ACCOUNT_DATA_POLL_INTERVAL_MS : MCP_REGISTRY_NEGATIVE_CACHE_INTERVAL_MS;
 		return (Date.now() - accountPolicyData.mcpRegistryDataFetchedAt) >= interval;
+	}
+
+	private isAIDisabled(): boolean {
+		return this.configurationService.getValue(CHAT_DISABLED_CONFIGURATION_KEY) === true;
 	}
 
 	private getEntitlementUrl(): string | undefined {
