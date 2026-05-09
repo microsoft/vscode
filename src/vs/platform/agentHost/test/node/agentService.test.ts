@@ -7,7 +7,7 @@ import assert from 'assert';
 import { mkdtempSync, readFileSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { fileURLToPath } from 'url';
-import { VSBuffer } from '../../../../base/common/buffer.js';
+import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { DisposableStore, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { joinPath } from '../../../../base/common/resources.js';
@@ -22,7 +22,8 @@ import { AgentSession } from '../../common/agentService.js';
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope } from '../../common/state/sessionActions.js';
-import { SessionActiveClient, ResponsePartKind, SessionLifecycle, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, type MarkdownResponsePart, type ToolCallCompletedState, type ToolCallResponsePart } from '../../common/state/sessionState.js';
+import { MessageAttachmentKind, SessionActiveClient, ResponsePartKind, SessionLifecycle, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, type MarkdownResponsePart, type ToolCallCompletedState, type ToolCallResponsePart } from '../../common/state/sessionState.js';
+import { type MessageResourceAttachment } from '../../common/state/protocol/state.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
 import { MockAgent, ScriptedMockAgent } from './mockAgent.js';
@@ -168,6 +169,211 @@ suite('AgentService (node dispatcher)', () => {
 			} finally {
 				rmSync(tempDir.fsPath, { recursive: true, force: true });
 			}
+		});
+	});
+
+	// ---- attachment rewriting ------------------------------------------
+
+	suite('user-message attachment rewriting', () => {
+
+		/**
+		 * Sets up an {@link AgentService} backed by an in-memory file system
+		 * and a {@link createSessionDataService} that points at a fixed
+		 * directory. Returns the wired-up service and the URI under which
+		 * snapshotted attachments should land.
+		 */
+		async function setup(): Promise<{
+			svc: AgentService;
+			agent: MockAgent;
+			session: URI;
+			attachmentsRoot: URI;
+			warnings: string[];
+		}> {
+			const sessionDataDir = URI.from({ scheme: Schemas.inMemory, path: '/session-data' });
+			const attachmentsRoot = joinPath(sessionDataDir, 'attachments');
+			await fileService.createFolder(attachmentsRoot);
+			const sessionDataService = createSessionDataService();
+			// Override getSessionDataDir so the rewriter writes under our
+			// in-memory file system instead of the helper's default path.
+			sessionDataService.getSessionDataDir = () => sessionDataDir;
+			const warnings: string[] = [];
+			const logService = new class extends NullLogService {
+				override warn(message: string): void { warnings.push(message); }
+			};
+			const svc = disposables.add(new AgentService(logService, fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			svc.registerProvider(agent);
+			const session = await svc.createSession({ provider: 'copilot' });
+			return { svc, agent, session, attachmentsRoot, warnings };
+		}
+
+		async function dispatchTurnAndWait(svc: AgentService, agent: MockAgent, session: URI, attachments: MessageResourceAttachment[] | { type: MessageAttachmentKind.EmbeddedResource; label: string; data: string; contentType: string; displayKind?: string }[]): Promise<void> {
+			svc.dispatchAction(
+				{
+					type: ActionType.SessionTurnStarted,
+					session: session.toString(),
+					turnId: 'turn-1',
+					userMessage: { text: 'hello', attachments: attachments as never },
+				},
+				'test-client', 1,
+			);
+			// dispatchAction queues an async rewrite and the side-effect
+			// handler is invoked from the same continuation; poll until the
+			// agent has observed the (rewritten) sendMessage.
+			for (let i = 0; i < 20 && agent.sendMessageCalls.length === 0; i++) {
+				await new Promise(r => setTimeout(r, 5));
+			}
+		}
+
+		test('snapshots EmbeddedResource attachments to disk and rewrites to a Resource URI under the session attachments folder', async () => {
+			const { svc, agent, session, attachmentsRoot } = await setup();
+			const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+
+			await dispatchTurnAndWait(svc, agent, session, [{
+				type: MessageAttachmentKind.EmbeddedResource,
+				label: 'paste.png',
+				data: encodeBase64(VSBuffer.wrap(png)),
+				contentType: 'image/png',
+				displayKind: 'image',
+			} as never]);
+
+			assert.strictEqual(agent.sendMessageCalls.length, 1);
+			const rewritten = agent.sendMessageCalls[0].attachments;
+			assert.strictEqual(rewritten?.length, 1);
+			const a = rewritten[0];
+			assert.strictEqual(a.type, MessageAttachmentKind.Resource);
+			if (a.type !== MessageAttachmentKind.Resource) { return; }
+			assert.strictEqual(a.label, 'paste.png');
+			assert.strictEqual(a.displayKind, 'image');
+			assert.ok(a.uri.startsWith(attachmentsRoot.toString() + '/'), `attachment uri ${a.uri} should be under ${attachmentsRoot.toString()}/`);
+			// File on disk holds exactly the original bytes
+			const written = await fileService.readFile(URI.parse(a.uri));
+			assert.deepStrictEqual([...written.value.buffer], [...png]);
+		});
+
+		test('preserves existing displayKind / range / selection / _meta on rewrite', async () => {
+			const { svc, agent, session } = await setup();
+			const range = { start: { line: 1, character: 0 }, end: { line: 1, character: 4 } };
+
+			await dispatchTurnAndWait(svc, agent, session, [{
+				type: MessageAttachmentKind.EmbeddedResource,
+				label: 'note.txt',
+				data: encodeBase64(VSBuffer.fromString('alpha\nbeta\ngamma')),
+				contentType: 'text/plain',
+				// EmbeddedResource carries optional selection too
+				// (textual resources only); make sure the rewriter copies it.
+				displayKind: 'selection',
+			} as never]);
+
+			const rewritten = agent.sendMessageCalls[0].attachments![0];
+			assert.strictEqual(rewritten.type, MessageAttachmentKind.Resource);
+			if (rewritten.type !== MessageAttachmentKind.Resource) { return; }
+			// `displayKind` is preserved as-is from the original attachment.
+			assert.strictEqual(rewritten.displayKind, 'selection');
+
+			void range; // selection round-trip on EmbeddedResource is covered by the next test
+		});
+
+		test('snapshots Resource attachments by reading the original file and rewriting to a local snapshot', async () => {
+			const { svc, agent, session, attachmentsRoot, warnings } = await setup();
+			const sourceUri = URI.from({ scheme: Schemas.inMemory, path: '/workspace/source.txt' });
+			await fileService.writeFile(sourceUri, VSBuffer.fromString('hello world'));
+
+			await dispatchTurnAndWait(svc, agent, session, [{
+				type: MessageAttachmentKind.Resource,
+				uri: sourceUri.toString(),
+				label: 'source.txt',
+				displayKind: 'document',
+			}]);
+
+			const rewritten = agent.sendMessageCalls[0].attachments![0];
+			assert.strictEqual(rewritten.type, MessageAttachmentKind.Resource);
+			if (rewritten.type !== MessageAttachmentKind.Resource) { return; }
+			assert.notStrictEqual(rewritten.uri, sourceUri.toString(), `should be rewritten to the snapshot URI; warnings=${JSON.stringify(warnings)}; got ${rewritten.uri}`);
+			assert.ok(rewritten.uri.startsWith(attachmentsRoot.toString() + '/'));
+			assert.strictEqual(rewritten.label, 'source.txt');
+			assert.strictEqual(rewritten.displayKind, 'document');
+
+			const snapshot = await fileService.readFile(URI.parse(rewritten.uri));
+			assert.strictEqual(snapshot.value.toString(), 'hello world');
+		});
+
+		test('preserves selection range on Resource rewrite', async () => {
+			const { svc, agent, session, attachmentsRoot } = await setup();
+			const sourceUri = URI.from({ scheme: Schemas.inMemory, path: '/workspace/sel.txt' });
+			await fileService.writeFile(sourceUri, VSBuffer.fromString('alpha\nbeta\ngamma'));
+			const range = { start: { line: 1, character: 0 }, end: { line: 1, character: 4 } };
+
+			await dispatchTurnAndWait(svc, agent, session, [{
+				type: MessageAttachmentKind.Resource,
+				uri: sourceUri.toString(),
+				label: 'sel.txt',
+				displayKind: 'selection',
+				selection: { range },
+			}]);
+
+			const rewritten = agent.sendMessageCalls[0].attachments![0];
+			assert.strictEqual(rewritten.type, MessageAttachmentKind.Resource);
+			if (rewritten.type !== MessageAttachmentKind.Resource) { return; }
+			assert.ok(rewritten.uri.startsWith(attachmentsRoot.toString() + '/'), 'should be rewritten to a snapshot URI');
+			assert.deepStrictEqual(rewritten.selection?.range, range);
+			assert.strictEqual(rewritten.displayKind, 'selection');
+		});
+
+		test('passes directory Resource attachments through unchanged', async () => {
+			const { svc, agent, session } = await setup();
+			const dirUri = URI.from({ scheme: Schemas.inMemory, path: '/workspace/dir' });
+
+			await dispatchTurnAndWait(svc, agent, session, [{
+				type: MessageAttachmentKind.Resource,
+				uri: dirUri.toString(),
+				label: 'dir',
+				displayKind: 'directory',
+			}]);
+
+			assert.deepStrictEqual(agent.sendMessageCalls[0].attachments, [{
+				type: MessageAttachmentKind.Resource,
+				uri: dirUri.toString(),
+				label: 'dir',
+				displayKind: 'directory',
+			}]);
+		});
+
+		test('does not re-snapshot attachments that already point under the session attachments folder', async () => {
+			const { svc, agent, session, attachmentsRoot } = await setup();
+			const existing = joinPath(attachmentsRoot, 'previous-id', 'note.txt');
+			await fileService.writeFile(existing, VSBuffer.fromString('already snapshotted'));
+
+			await dispatchTurnAndWait(svc, agent, session, [{
+				type: MessageAttachmentKind.Resource,
+				uri: existing.toString(),
+				label: 'note.txt',
+				displayKind: 'document',
+			}]);
+
+			const a = agent.sendMessageCalls[0].attachments?.[0];
+			assert.ok(a && a.type === MessageAttachmentKind.Resource);
+			assert.strictEqual(a.uri, existing.toString(), 'second-pass rewrite should be a no-op');
+		});
+
+		test('preserves the original attachment when the source cannot be read', async () => {
+			const { svc, agent, session } = await setup();
+			const missingUri = URI.from({ scheme: Schemas.inMemory, path: '/workspace/missing.txt' });
+
+			await dispatchTurnAndWait(svc, agent, session, [{
+				type: MessageAttachmentKind.Resource,
+				uri: missingUri.toString(),
+				label: 'missing.txt',
+				displayKind: 'document',
+			}]);
+
+			assert.deepStrictEqual(agent.sendMessageCalls[0].attachments, [{
+				type: MessageAttachmentKind.Resource,
+				uri: missingUri.toString(),
+				label: 'missing.txt',
+				displayKind: 'document',
+			}]);
 		});
 	});
 

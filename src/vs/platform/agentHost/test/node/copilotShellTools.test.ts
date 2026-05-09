@@ -14,15 +14,16 @@ import { ILogService, NullLogService } from '../../../log/common/log.js';
 import type { CreateTerminalParams } from '../../common/state/protocol/commands.js';
 import type { TerminalClaim, TerminalInfo } from '../../common/state/protocol/state.js';
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
-import { ShellManager, prefixForHistorySuppression } from '../../node/copilot/copilotShellTools.js';
+import { ShellManager, prefixForHistorySuppression, shellTypeForExecutable } from '../../node/copilot/copilotShellTools.js';
 
 class TestAgentHostTerminalManager implements IAgentHostTerminalManager {
 	declare readonly _serviceBrand: undefined;
 
+	defaultShell = '/bin/bash';
 	readonly created: { params: CreateTerminalParams; options?: { shell?: string; preventShellHistory?: boolean; nonInteractive?: boolean } }[] = [];
 
 	async createTerminal(params: CreateTerminalParams, options?: { shell?: string; preventShellHistory?: boolean; nonInteractive?: boolean }): Promise<void> {
-		this.created.push({ params, options });
+		this.created.push({ params, options: { ...options, shell: options?.shell ?? this.defaultShell } });
 	}
 	writeInput(): void { }
 	onData(): IDisposable { return Disposable.None; }
@@ -37,6 +38,7 @@ class TestAgentHostTerminalManager implements IAgentHostTerminalManager {
 	disposeTerminal(): void { }
 	getTerminalInfos(): TerminalInfo[] { return []; }
 	getTerminalState(): undefined { return undefined; }
+	async getDefaultShell(): Promise<string> { return this.defaultShell; }
 }
 
 suite('CopilotShellTools', () => {
@@ -46,13 +48,18 @@ suite('CopilotShellTools', () => {
 	teardown(() => disposables.clear());
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('uses session working directory for created shells', async () => {
+	function createServices(): { instantiationService: IInstantiationService; terminalManager: TestAgentHostTerminalManager } {
 		const terminalManager = new TestAgentHostTerminalManager();
 		const services = new ServiceCollection();
 		services.set(ILogService, new NullLogService());
 		services.set(IAgentHostTerminalManager, terminalManager);
 		const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
 		services.set(IInstantiationService, instantiationService);
+		return { instantiationService, terminalManager };
+	}
+
+	test('uses session working directory for created shells', async () => {
+		const { instantiationService, terminalManager } = createServices();
 		const worktreePath = URI.file('/workspace/worktree').fsPath;
 		const explicitCwd = URI.file('/explicit/cwd').fsPath;
 		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), URI.file(worktreePath)));
@@ -67,12 +74,7 @@ suite('CopilotShellTools', () => {
 	});
 
 	test('opts every managed shell into shell-history suppression and non-interactive mode', async () => {
-		const terminalManager = new TestAgentHostTerminalManager();
-		const services = new ServiceCollection();
-		services.set(ILogService, new NullLogService());
-		services.set(IAgentHostTerminalManager, terminalManager);
-		const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
-		services.set(IInstantiationService, instantiationService);
+		const { instantiationService, terminalManager } = createServices();
 		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), undefined));
 
 		await shellManager.getOrCreateShell('bash', 'turn-1', 'tool-1');
@@ -82,9 +84,33 @@ suite('CopilotShellTools', () => {
 		assert.strictEqual(terminalManager.created[0].options?.nonInteractive, true);
 	});
 
+	test('uses the executable resolved by the terminal manager', async () => {
+		const { instantiationService, terminalManager } = createServices();
+		terminalManager.defaultShell = '/custom/path/to/pwsh';
+		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), undefined));
+
+		await shellManager.getOrCreateShell('powershell', 'turn-1', 'tool-1');
+
+		assert.strictEqual(terminalManager.created[0].options?.shell, '/custom/path/to/pwsh');
+	});
+
 	test('prefixForHistorySuppression prepends a space for POSIX shells, no-op for PowerShell', () => {
 		assert.strictEqual(prefixForHistorySuppression('bash'), ' ');
 		assert.strictEqual(prefixForHistorySuppression('powershell'), '');
+	});
+
+	test('shellTypeForExecutable maps known shell basenames and falls back to platform default', () => {
+		assert.deepStrictEqual([
+			shellTypeForExecutable('C:\\Program Files\\PowerShell\\7\\pwsh.exe'),
+			shellTypeForExecutable('C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe'),
+			shellTypeForExecutable('/usr/bin/bash'),
+			shellTypeForExecutable('/usr/bin/zsh'),
+			shellTypeForExecutable('/bin/sh'),
+		], ['powershell', 'powershell', 'bash', 'bash', 'bash']);
+
+		// Unknown shells fall through to the platform default — just assert it's one of the known types.
+		const unknownDefault = shellTypeForExecutable('C:\\Windows\\System32\\cmd.exe');
+		assert.ok(unknownDefault === 'bash' || unknownDefault === 'powershell');
 	});
 
 	test('getOrCreateShell reuses an idle shell after the reference is disposed', async () => {

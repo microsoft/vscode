@@ -132,8 +132,6 @@ Guidelines for session memory (`/memories/session/`):
 This is a test custom instruction file
 </instructions>
 
-
-[copilot_cache_control: { type: 'ephemeral' }]
 ~~~
 
 

@@ -40,10 +40,8 @@ import { formatDisplayName, truncateToFirstLine } from './aiCustomizationListWid
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
-import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
 import { CustomizationGroupHeaderRenderer, ICustomizationGroupHeaderEntry, CUSTOMIZATION_GROUP_HEADER_HEIGHT, CUSTOMIZATION_GROUP_HEADER_HEIGHT_WITH_SEPARATOR } from './customizationGroupHeaderRenderer.js';
 import { AgentPluginItemKind, IAgentPluginItem } from '../agentPluginEditor/agentPluginItems.js';
-import { SessionType } from '../../common/chatSessionsService.js';
 
 const $ = DOM.$;
 
@@ -121,7 +119,6 @@ interface IMcpServerItemTemplateData {
 	readonly name: HTMLElement;
 	readonly description: HTMLElement;
 	readonly status: HTMLElement;
-	readonly bridgedBadge: HTMLElement;
 	readonly disposables: DisposableStore;
 }
 
@@ -135,7 +132,6 @@ class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry | IMcpB
 		@IMcpService private readonly mcpService: IMcpService,
 		@IAICustomizationWorkspaceService private readonly workspaceService: IAICustomizationWorkspaceService,
 		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
-		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
 		@IHoverService private readonly hoverService: IHoverService,
 	) { }
 
@@ -149,29 +145,15 @@ class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry | IMcpB
 		const nameRow = DOM.append(details, $('.mcp-server-name-row'));
 		const name = DOM.append(nameRow, $('.mcp-server-name'));
 
-		const bridgedBadge = DOM.append(nameRow, $('.inline-badge.mcp-bridged-badge'));
-		bridgedBadge.textContent = localize('bridged', "Bridged");
-
 		const description = DOM.append(details, $('.mcp-server-description'));
 
 		const status = DOM.append(container, $('.mcp-server-status'));
 
-		return { container, typeIcon, name, description, status, bridgedBadge, disposables: new DisposableStore() };
+		return { container, typeIcon, name, description, status, disposables: new DisposableStore() };
 	}
 
 	renderElement(element: IMcpServerItemEntry | IMcpBuiltinItemEntry, index: number, templateData: IMcpServerItemTemplateData): void {
 		templateData.disposables.clear();
-
-		// Show/hide the "Bridged" badge based on active harness
-		templateData.disposables.add(autorun(reader => {
-			const activeId = this.harnessService.activeHarness.read(reader);
-			templateData.bridgedBadge.style.display = activeId !== SessionType.Local ? '' : 'none';
-		}));
-		templateData.disposables.add(this.hoverService.setupManagedHover(
-			getDefaultHoverDelegate('mouse'),
-			templateData.bridgedBadge,
-			localize('bridgedHover', "This server is managed by VS Code and forwarded to all compatible agent sessions."),
-		));
 
 		if (element.type === 'builtin-item') {
 			templateData.container.classList.add('builtin');
@@ -523,14 +505,11 @@ export class McpListWidget extends Disposable {
 				setRowLineHeight: false,
 				horizontalScrolling: false,
 				accessibilityProvider: {
-					getAriaLabel(element: IMcpListEntry) {
+					getAriaLabel: (element: IMcpListEntry) => {
 						if (element.type === 'group-header') {
 							return localize('mcpGroupAriaLabel', "{0}, {1} items, {2}", element.label, element.count, element.collapsed ? localize('collapsed', "collapsed") : localize('expanded', "expanded"));
 						}
-						if (element.type === 'builtin-item') {
-							return element.label;
-						}
-						return element.server.label;
+						return element.type === 'builtin-item' ? element.label : element.server.label;
 					},
 					getWidgetAriaLabel() {
 						return localize('mcpServersListAriaLabel', "MCP Servers");

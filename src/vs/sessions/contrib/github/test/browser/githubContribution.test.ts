@@ -15,7 +15,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { mock } from '../../../../../base/test/common/mock.js';
 import { GitHubPullRequestPollingContribution } from '../../browser/github.contribution.js';
 import { IGitHubService } from '../../browser/githubService.js';
-import { IChat, IGitHubInfo, ISession, ISessionCapabilities, ISessionFileChange, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { IChat, IGitHubInfo, ISession, ISessionCapabilities, ISessionChangeset, ISessionFileChange, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 
 suite('GitHubPullRequestPollingContribution', () => {
@@ -152,6 +152,7 @@ class TestSession implements ISession {
 	readonly title: ReturnType<typeof observableValue<string>>;
 	readonly updatedAt: ReturnType<typeof observableValue<Date>>;
 	readonly status: ReturnType<typeof observableValue<SessionStatus>>;
+	readonly changesets: ReturnType<typeof observableValue<readonly ISessionChangeset[]>>;
 	readonly changes: ReturnType<typeof observableValue<readonly ISessionFileChange[]>>;
 	readonly workspace: ReturnType<typeof observableValue<ISessionWorkspace | undefined>>;
 	readonly modelId: ReturnType<typeof observableValue<string | undefined>>;
@@ -172,6 +173,7 @@ class TestSession implements ISession {
 		this.title = observableValue<string>(`test.title.${id}`, id);
 		this.updatedAt = observableValue<Date>(`test.updatedAt.${id}`, new Date(0));
 		this.status = observableValue<SessionStatus>(`test.status.${id}`, SessionStatus.Completed);
+		this.changesets = observableValue<readonly ISessionChangeset[]>(`test.changesets.${id}`, []);
 		this.changes = observableValue<readonly ISessionFileChange[]>(`test.changes.${id}`, []);
 		this.workspace = observableValue<ISessionWorkspace | undefined>(`test.workspace.${id}`, undefined);
 		this.modelId = observableValue<string | undefined>(`test.modelId.${id}`, undefined);
@@ -188,6 +190,7 @@ class TestSession implements ISession {
 			title: this.title,
 			updatedAt: this.updatedAt,
 			status: this.status,
+			changesets: this.changesets,
 			changes: this.changes,
 			modelId: this.modelId,
 			mode: this.mode,

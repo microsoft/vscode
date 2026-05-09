@@ -95,14 +95,15 @@ export class ModelPickerActionItem extends BaseActionViewItem {
 	}
 
 	private _updateTooltip(): void {
-		if (!this.element) {
+		const target = this._pickerWidget.nameButton;
+		if (!target) {
 			return;
 		}
 		const hoverContent = this._getHoverContents();
 		if (typeof hoverContent === 'string' && hoverContent) {
 			this._managedHover.value = getBaseLayerHoverDelegate().setupManagedHover(
 				getDefaultHoverDelegate('mouse'),
-				this.element,
+				target,
 				hoverContent
 			);
 		} else {

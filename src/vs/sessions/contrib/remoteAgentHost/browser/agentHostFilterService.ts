@@ -17,10 +17,11 @@ import { AgentHostFilterConnectionStatus, IAgentHostFilterEntry, IAgentHostFilte
 const STORAGE_KEY = 'sessions.agentHostFilter.selectedProviderId';
 
 function mapStatus(s: RemoteAgentHostConnectionStatus): AgentHostFilterConnectionStatus {
-	switch (s) {
-		case RemoteAgentHostConnectionStatus.Connected: return AgentHostFilterConnectionStatus.Connected;
-		case RemoteAgentHostConnectionStatus.Connecting: return AgentHostFilterConnectionStatus.Connecting;
-		case RemoteAgentHostConnectionStatus.Disconnected:
+	switch (s.kind) {
+		case 'connected': return AgentHostFilterConnectionStatus.Connected;
+		case 'connecting': return AgentHostFilterConnectionStatus.Connecting;
+		case 'disconnected':
+		case 'incompatible':
 		default: return AgentHostFilterConnectionStatus.Disconnected;
 	}
 }
