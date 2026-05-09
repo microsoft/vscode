@@ -116,6 +116,8 @@ export interface ISessionRepository {
 	readonly outgoingChanges?: number;
 	/** Number of files with uncommitted changes. */
 	readonly uncommittedChanges?: number;
+	/** Whether a Git operation is currently in progress. */
+	readonly hasGitOperationInProgress?: boolean;
 }
 
 /**
