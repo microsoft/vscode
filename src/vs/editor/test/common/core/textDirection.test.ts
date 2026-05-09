@@ -97,4 +97,22 @@ suite('TextDirection', () => {
 			}, { line: TextDirection.RTL, typing: TextDirection.RTL });
 		});
 	});
+
+	test('auto detects direction from markdown inline code content', () => {
+		const input = '```سلام World خوب هستی```';
+
+		assert.deepStrictEqual({
+			line: getConfiguredTextDirection(input, 'auto', TextDirection.LTR),
+			typing: getConfiguredTypingDirection(input, 'auto', TextDirection.LTR),
+		}, { line: TextDirection.RTL, typing: TextDirection.RTL });
+	});
+
+	test('auto detects direction from markdown fenced block content', () => {
+		const input = '```md\nسلام World خوب هستی\n```';
+
+		assert.deepStrictEqual({
+			line: getConfiguredTextDirection(input, 'auto', TextDirection.LTR),
+			typing: getConfiguredTypingDirection(input, 'auto', TextDirection.LTR),
+		}, { line: TextDirection.RTL, typing: TextDirection.RTL });
+	});
 });

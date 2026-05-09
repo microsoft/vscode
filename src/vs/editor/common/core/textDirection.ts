@@ -16,7 +16,30 @@ function isWhitespaceCharacter(ch: string): boolean {
 	return /\s/u.test(ch);
 }
 
+function getDirectionDetectionSample(value: string): string {
+	const openingFence = value.match(/^`+/)?.[0];
+	const closingFence = value.match(/`+$/)?.[0];
+	if (!openingFence || !closingFence || openingFence.length !== closingFence.length) {
+		return value;
+	}
+
+	let sample = value.slice(openingFence.length, value.length - closingFence.length);
+	if (sample.startsWith(' ') && sample.endsWith(' ')) {
+		sample = sample.slice(1, -1);
+	}
+
+	if (openingFence.length >= 3) {
+		const firstNewlineIndex = sample.indexOf('\n');
+		if (firstNewlineIndex !== -1) {
+			sample = sample.slice(firstNewlineIndex + 1);
+		}
+	}
+
+	return sample.length > 0 ? sample : value;
+}
+
 function getFirstStrongCharacter(value: string): { direction: TextDirection; leadingNeutralCharacters: boolean } | null {
+	value = getDirectionDetectionSample(value);
 	let sawLeadingNeutralCharacter = false;
 	let encounteredNonWhitespace = false;
 

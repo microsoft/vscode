@@ -350,6 +350,22 @@ suite('renderViewLine', () => {
 		assert.match(actual.html, /dir="rtl" class="mtk2" style="unicode-bidi:plaintext;"/);
 	});
 
+	test('markdown backtick-wrapped tokens follow inner content in auto mode', () => {
+		const lineContent = '```سلام World خوب هستی```';
+		const actual = renderViewLine(createRenderLineInput({
+			lineContent,
+			containsRTL: true,
+			isBasicASCII: false,
+			textDirection: TextDirection.LTR,
+			textDirectionPreset: 'auto',
+			lineTokens: createViewLineTokens([
+				createTypedPart(lineContent.length, 2, StandardTokenType.String),
+			])
+		}));
+
+		assert.match(actual.html, /dir="rtl" class="mtk2" style="unicode-bidi:plaintext;"/);
+	});
+
 	// issue #2255: Weird line rendering part 1
 	test('issue-2255-1', async () => {
 		const lineContent = '\t\t\tcursorStyle:\t\t\t\t\t\t(prevOpts.cursorStyle !== newOpts.cursorStyle),';

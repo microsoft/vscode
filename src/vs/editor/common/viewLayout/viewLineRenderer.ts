@@ -459,6 +459,7 @@ class ResolvedRenderLineInput {
 		public readonly fontIsMonospace: boolean,
 		public readonly canUseHalfwidthRightwardsArrow: boolean,
 		public readonly lineContent: string,
+		public readonly containsRTL: boolean,
 		public readonly len: number,
 		public readonly isOverflowing: boolean,
 		public readonly overflowingCharCount: number,
@@ -497,6 +498,9 @@ function shouldApplyTokenDirection(tokenMetadata: number): boolean {
 function getPartDirectionRenderInfo(input: ResolvedRenderLineInput): Array<ITokenDirectionRenderInfo | null> {
 	const result = Array<ITokenDirectionRenderInfo | null>(input.parts.length).fill(null);
 	if (input.textDirectionPreset !== 'auto' && input.textDirectionPreset !== 'auto-follow') {
+		return result;
+	}
+	if (!input.containsRTL) {
 		return result;
 	}
 
@@ -601,6 +605,7 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 		input.useMonospaceOptimizations,
 		input.canUseHalfwidthRightwardsArrow,
 		lineContent,
+		input.containsRTL,
 		len,
 		isOverflowing,
 		overflowingCharCount,
