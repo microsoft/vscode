@@ -553,8 +553,18 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 				policyData.mcp = tokenEntitlementsData.policyData.mcp;
 				if (policyData.mcp) {
 					mcpRegistryDataFetchedAt = accountPolicyData?.mcpRegistryDataFetchedAt;
-					if (options?.forceRefresh || !accountPolicyData?.mcpRegistryDataFetchedAt || this.isDataStale(accountPolicyData.mcpRegistryDataFetchedAt)) {
-						void this.refreshMcpRegistryInBackground(sessions, accountId, accountPolicyData, options);
+					const needsRefresh = options?.forceRefresh || !accountPolicyData?.mcpRegistryDataFetchedAt || this.isDataStale(accountPolicyData.mcpRegistryDataFetchedAt);
+					if (needsRefresh) {
+						if (options?.forceRefresh) {
+							const mcpRegistryResult = await this.getMcpRegistryProvider(sessions, accountPolicyData, options);
+							if (mcpRegistryResult) {
+								policyData.mcpRegistryUrl = mcpRegistryResult.data?.url;
+								policyData.mcpAccess = mcpRegistryResult.data?.registry_access;
+								mcpRegistryDataFetchedAt = mcpRegistryResult.fetchedAt;
+							}
+						} else {
+							void this.refreshMcpRegistryInBackground(sessions, accountId, accountPolicyData);
+						}
 					}
 				} else {
 					policyData.mcpRegistryUrl = undefined;
@@ -739,9 +749,9 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 		return !isUndefined(data) ? { data, fetchedAt: Date.now() } : undefined;
 	}
 
-	private async refreshMcpRegistryInBackground(sessions: AuthenticationSession[], accountId: string, accountPolicyData: IAccountPolicyData | undefined, options?: { forceRefresh?: boolean }): Promise<void> {
+	private async refreshMcpRegistryInBackground(sessions: AuthenticationSession[], accountId: string, accountPolicyData: IAccountPolicyData | undefined): Promise<void> {
 		try {
-			const result = await this.getMcpRegistryProvider(sessions, accountPolicyData, options);
+			const result = await this.getMcpRegistryProvider(sessions, accountPolicyData, { forceRefresh: true });
 			if (!result) {
 				return;
 			}
