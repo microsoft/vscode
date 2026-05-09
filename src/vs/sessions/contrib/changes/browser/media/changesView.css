@@ -367,6 +367,15 @@
 	color: var(--vscode-chat-linesRemovedForeground);
 }
 
+/* Primary action button */
+.changes-view-body .chat-editing-session-actions .monaco-button.monaco-text-button {
+	gap: 2px;
+
+	.codicon {
+		margin: 0;
+	}
+}
+
 /* Line counts in buttons */
 .changes-view-body .chat-editing-session-actions .monaco-button.working-set-diff-stats {
 	flex-shrink: 0;

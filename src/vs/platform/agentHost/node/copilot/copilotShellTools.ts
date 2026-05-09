@@ -37,15 +37,49 @@ interface IManagedShell {
 	readonly id: string;
 	readonly terminalUri: string;
 	readonly shellType: ShellType;
+	readonly executable: string;
 }
 
 export type ShellType = 'bash' | 'powershell';
 
-function getShellExecutable(shellType: ShellType): string {
-	if (shellType === 'powershell') {
-		return 'powershell.exe';
+/**
+ * Routes a resolved shell executable to one of the Copilot SDK's two
+ * built-in shell tools (`bash` / `powershell`). Falls back to the platform
+ * default for unknown shells.
+ */
+export function shellTypeForExecutable(shellPath: string): ShellType {
+	// Strip path on either separator and the .exe suffix.
+	const lastSep = Math.max(shellPath.lastIndexOf('/'), shellPath.lastIndexOf('\\'));
+	const base = shellPath.slice(lastSep + 1).toLowerCase().replace(/\.exe$/, '');
+	switch (base) {
+		// PowerShell
+		case 'pwsh':
+		case 'powershell':
+		case 'pwsh-preview':
+			return 'powershell';
+		// POSIX shells
+		case 'bash':
+		case 'sh':
+		case 'zsh':
+		case 'fish':
+		case 'csh':
+		case 'ksh':
+		case 'nu':
+		case 'xonsh':
+		// Git for Windows bash entry points
+		case 'git-cmd':
+		// WSL launchers — bash inside, but invoked via these stubs
+		case 'wsl':
+		case 'ubuntu':
+		case 'ubuntu1804':
+		case 'kali':
+		case 'debian':
+		case 'opensuse-42':
+		case 'sles-12':
+			return 'bash';
+		default:
+			return platform.isWindows ? 'powershell' : 'bash';
 	}
-	return process.env['SHELL'] || '/bin/bash';
 }
 
 // ---------------------------------------------------------------------------
@@ -64,6 +98,7 @@ export class ShellManager {
 
 	private readonly _shells = new Map<string, IManagedShell>();
 	private readonly _toolCallShells = new Map<string, string>();
+	private _resolvedExecutable: Promise<string> | undefined;
 	/** Set of shell ids currently executing a command and unsafe to share. */
 	private readonly _busyShellIds = new Set<string>();
 
@@ -76,6 +111,18 @@ export class ShellManager {
 		@IAgentHostTerminalManager private readonly _terminalManager: IAgentHostTerminalManager,
 		@ILogService private readonly _logService: ILogService,
 	) { }
+
+	/**
+	 * Resolves the session's shell executable via {@link IAgentHostTerminalManager.getDefaultShell}
+	 * and caches it so every tool call in the session uses the same binary
+	 * (keeps `shellType`, sentinel format, and history suppression consistent).
+	 */
+	getResolvedExecutable(): Promise<string> {
+		if (!this._resolvedExecutable) {
+			this._resolvedExecutable = this._terminalManager.getDefaultShell();
+		}
+		return this._resolvedExecutable;
+	}
 
 	/**
 	 * Acquire a shell of the given type for executing a single command. The
@@ -120,19 +167,21 @@ export class ShellManager {
 		};
 
 		const shellDisplayName = shellType === 'bash' ? 'Bash' : 'PowerShell';
+		const executable = await this.getResolvedExecutable();
 
 		await this._terminalManager.createTerminal({
 			terminal: terminalUri,
 			claim,
 			name: shellDisplayName,
 			cwd: cwd ?? this._workingDirectory?.fsPath,
-		}, { shell: getShellExecutable(shellType), preventShellHistory: true, nonInteractive: true });
+		}, { shell: executable, preventShellHistory: true, nonInteractive: true });
 
-		const shell: IManagedShell = { id, terminalUri, shellType };
+		const shell: IManagedShell = { id, terminalUri, shellType, executable };
 		this._shells.set(id, shell);
 		this._busyShellIds.add(id);
 		this._trackToolCall(toolCallId, id);
-		this._logService.info(`[ShellManager] Created ${shellType} shell ${id} (terminal=${terminalUri})`);
+
+		this._logService.info(`[ShellManager] Created ${shellType} shell ${id} (terminal=${terminalUri},  executable=${executable})`);
 		return this._makeReference(shell);
 	}
 
@@ -227,8 +276,6 @@ function buildSentinelCommand(sentinelId: string, shellType: ShellType): string 
  * settings in via the `VSCODE_PREVENT_SHELL_HISTORY` env var (set when the
  * terminal is created with `preventShellHistory: true`). PowerShell
  * suppresses history through PSReadLine instead, so no prefix is needed.
- *
- * Exported for tests.
  */
 export function prefixForHistorySuppression(shellType: ShellType): string {
 	return shellType === 'powershell' ? '' : ' ';
@@ -463,23 +510,22 @@ interface IShutdownShellArgs {
 }
 
 /**
- * Creates the set of SDK {@link Tool} definitions that override the built-in
- * Copilot CLI shell tools with PTY-backed implementations.
- *
- * Returns tools for the platform-appropriate shell (bash or powershell),
- * including companion tools (read, write, shutdown, list).
+ * Builds the SDK {@link Tool} set that overrides the Copilot SDK's two
+ * built-in shells (`bash` and `powershell`) with PTY-backed implementations,
+ * plus companion tools (read, write, shutdown, list).
  */
-export function createShellTools(
+export async function createShellTools(
 	shellManager: ShellManager,
 	terminalManager: IAgentHostTerminalManager,
 	logService: ILogService,
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-): Tool<any>[] {
-	const shellType: ShellType = platform.isWindows ? 'powershell' : 'bash';
+): Promise<Tool<any>[]> {
+	const executable = await shellManager.getResolvedExecutable();
+	const shellType = shellTypeForExecutable(executable);
 
 	const primaryTool: Tool<IShellToolArgs> = {
 		name: shellType,
-		description: shellType === 'bash' ? createBashModelDescription(false) : createPowerShellModelDescription(shellType, 'pwsh.exe', false),
+		description: shellType === 'bash' ? createBashModelDescription(false) : createPowerShellModelDescription(shellType, executable, false),
 		parameters: {
 			type: 'object',
 			properties: {
@@ -602,7 +648,29 @@ export function createShellTools(
 		},
 	};
 
-	return [primaryTool, readTool, writeTool, shutdownTool, listTool];
+	// Stub the *other* SDK built-in so the model can't bypass our override
+	// (e.g. on Windows still calling `powershell` when Git Bash is configured).
+	const otherShellType: ShellType = shellType === 'bash' ? 'powershell' : 'bash';
+	const redirectMessage = `This tool is disabled because the configured shell is ${executable}. Use the \`${shellType}\` tool instead.`;
+	const redirectTool: Tool<IShellToolArgs> = {
+		name: otherShellType,
+		description: redirectMessage,
+		parameters: {
+			type: 'object',
+			properties: {
+				command: { type: 'string', description: 'The command to execute' },
+				timeout: { type: 'number', description: 'Timeout in milliseconds (default 120000)' },
+			},
+			required: ['command'],
+		},
+		overridesBuiltInTool: true,
+		skipPermission: true,
+		handler: () => {
+			return makeFailureResult(redirectMessage, 'wrong_shell');
+		},
+	};
+
+	return [primaryTool, readTool, writeTool, shutdownTool, listTool, redirectTool];
 }
 interface ITerminalSandboxResolvedNetworkDomains {
 	allowedDomains: string[];

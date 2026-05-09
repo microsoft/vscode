@@ -25,10 +25,9 @@ import { tmpdir } from 'os';
 import { join } from '../../../../../base/common/path.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { SubscribeResult } from '../../../common/state/protocol/commands.js';
-import { PROTOCOL_VERSION } from '../../../common/state/sessionCapabilities.js';
-import type { INotificationBroadcastParams } from '../../../common/state/sessionProtocol.js';
+import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
 import type { SessionState } from '../../../common/state/sessionState.js';
-import type { SessionAddedNotification, SessionDiffsChangedAction, SessionToolCallReadyAction } from '../../../common/state/sessionActions.js';
+import type { SessionDiffsChangedAction, SessionToolCallReadyAction } from '../../../common/state/sessionActions.js';
 import {
 	getActionEnvelope,
 	IServerHandle,
@@ -100,17 +99,17 @@ function resolveGitHubToken(): string {
 
 		const workingDirUri = URI.file(tempDir).toString();
 
-		await client.call('initialize', { protocolVersion: PROTOCOL_VERSION, clientId: 'real-sdk-git-diffs' }, 30_000);
+		await client.call('initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'real-sdk-git-diffs' }, 30_000);
 		await client.call('authenticate', { resource: 'https://api.github.com', token: resolveGitHubToken() }, 30_000);
 
 		const sessionUri = URI.from({ scheme: 'copilotcli', path: `/real-diff-${Date.now()}` }).toString();
 		await client.call('createSession', { session: sessionUri, provider: 'copilotcli', workingDirectory: workingDirUri }, 30_000);
 
-		const addedNotif = await client.waitForNotification(n =>
-			n.method === 'notification' && (n.params as INotificationBroadcastParams).notification.type === 'notify/sessionAdded',
-			15_000,
-		);
-		const realSessionUri = ((addedNotif.params as INotificationBroadcastParams).notification as SessionAddedNotification).summary.resource;
+		// Sessions are created provisionally — `notify/sessionAdded` is deferred
+		// until the agent materializes on first message dispatch. The provisional
+		// state is already in the state manager and addressable by the URI we
+		// passed in, so subscribe directly without waiting for the notification.
+		const realSessionUri = sessionUri;
 		createdSessions.push(realSessionUri);
 
 		await client.call<SubscribeResult>('subscribe', { resource: realSessionUri });

@@ -330,6 +330,32 @@ function rawMessagesToResponseAPI(modelId: string, messages: readonly Raw.ChatMe
 		markerIndex = undefined;
 	}
 
+	const toolSearchCallIds = new Set<string>();
+	const toolSearchLoadedTools = new Set<string>();
+	// Only pre-scan when history will be sliced (matches the slicing block below);
+	// otherwise the serialization loop visits each tool_search_call before its
+	// result and populates these sets in order on its own.
+	const willSliceHistory = markerIndex !== undefined || latestCompactionMessageIndex !== undefined;
+	if (willSliceHistory) {
+		for (const message of messages) {
+			if (message.role === Raw.ChatRole.Assistant && message.toolCalls) {
+				for (const toolCall of message.toolCalls) {
+					if (toolCall.function.name === CUSTOM_TOOL_SEARCH_NAME) {
+						toolSearchCallIds.add(toolCall.id);
+					}
+				}
+			} else if (message.role === Raw.ChatRole.Tool && message.toolCallId && toolSearchCallIds.has(message.toolCallId) && toolsMap) {
+				const resultText = message.content
+					.filter(c => c.type === Raw.ChatCompletionContentPartKind.Text)
+					.map(c => c.text)
+					.join('');
+				for (const t of buildToolSearchOutputTools(resultText, toolsMap, shouldLoadToolFromToolSearch)) {
+					toolSearchLoadedTools.add(t.name);
+				}
+			}
+		}
+	}
+
 	if (markerIndex !== undefined) {
 		// Requests that resume from previous_response_id send only post-marker history,
 		// but they still need the latest compaction item even when that item predates
@@ -345,11 +371,6 @@ function rawMessagesToResponseAPI(modelId: string, messages: readonly Raw.ChatMe
 	} else if (latestCompactionMessageIndex !== undefined) {
 		messages = messages.slice(latestCompactionMessageIndex);
 	}
-
-	// Track which call_ids are tool_search_calls (from client-executed tool search)
-	const toolSearchCallIds = new Set<string>();
-	// Track tool names loaded via tool_search_output — these need a namespace field on function_call
-	const toolSearchLoadedTools = new Set<string>();
 
 	const input: OpenAI.Responses.ResponseInputItem[] = [];
 	for (const message of messages) {
@@ -865,6 +886,12 @@ interface CapiResponsesTextDeltaEvent extends Omit<OpenAI.Responses.ResponseText
 	logprobs: Array<OpenAI.Responses.ResponseTextDeltaEvent.Logprob> | undefined;
 }
 
+interface CapiResponseCompletedEvent extends OpenAI.Responses.ResponseCompletedEvent {
+	copilot_usage?: {
+		total_nano_aiu: number;
+	};
+}
+
 export class OpenAIResponsesProcessor {
 	private textAccumulator: string = '';
 	private hasReceivedReasoningSummary = false;
@@ -1061,7 +1088,8 @@ export class OpenAIResponsesProcessor {
 					}
 				});
 			case 'response.completed': {
-				const normalizedOutput = keepLatestCompactionOutput(chunk.response.output, this.latestCompactionOutputIndex);
+				const capiChunk = chunk as CapiResponseCompletedEvent;
+				const normalizedOutput = keepLatestCompactionOutput(capiChunk.response.output, this.latestCompactionOutputIndex);
 				const latestCompactionOutput = getLatestCompactionOutput(normalizedOutput, this.latestCompactionOutputIndex);
 				const latestCompactionItem = latestCompactionOutput?.item;
 				const previousCompactionItem = this.latestCompactionItem;
@@ -1131,6 +1159,7 @@ export class OpenAIResponsesProcessor {
 							accepted_prediction_tokens: 0,
 							rejected_prediction_tokens: 0,
 						},
+						copilot_usage: capiChunk.copilot_usage?.total_nano_aiu !== undefined ? capiChunk.copilot_usage : undefined,
 					},
 					finishReason: FinishedCompletionReason.Stop,
 					message: {
