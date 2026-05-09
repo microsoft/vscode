@@ -799,7 +799,15 @@ export class ChatTeardownContribution extends Disposable implements IWorkbenchCo
 
 	private async maybeEnableOrDisableExtension(state: EnablementState.EnabledGlobally | EnablementState.EnabledWorkspace | EnablementState.DisabledGlobally | EnablementState.DisabledWorkspace): Promise<void> {
 		const defaultChatExtension = this.extensionsWorkbenchService.local.find(value => ExtensionIdentifier.equals(value.identifier.id, defaultChat.chatExtensionId));
-		if (!defaultChatExtension) {
+		if (!defaultChatExtension?.local) {
+			return;
+		}
+
+		const workspace = state === EnablementState.EnabledWorkspace || state === EnablementState.DisabledWorkspace;
+		const canChange = workspace
+			? this.extensionEnablementService.canChangeWorkspaceEnablement(defaultChatExtension.local)
+			: this.extensionEnablementService.canChangeEnablement(defaultChatExtension.local);
+		if (!canChange) {
 			return;
 		}
 
