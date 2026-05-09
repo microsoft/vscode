@@ -46,6 +46,20 @@ suite('TextDirection', () => {
 		}, { line: TextDirection.LTR, typing: TextDirection.LTR });
 	});
 
+	test('auto and contextual keep strong rtl content ltr in syntax-heavy languages', () => {
+		assert.deepStrictEqual({
+			autoLine: getConfiguredTextDirection('سلام', 'auto', TextDirection.LTR, 'typescript'),
+			autoTyping: getConfiguredTypingDirection('سلام', 'auto', TextDirection.LTR, 'typescript'),
+			contextualLine: getConfiguredTextDirection('سلام', 'contextual', TextDirection.LTR, 'typescript'),
+			contextualTyping: getConfiguredTypingDirection('سلام', 'contextual', TextDirection.LTR, 'typescript'),
+		}, {
+			autoLine: TextDirection.LTR,
+			autoTyping: TextDirection.LTR,
+			contextualLine: TextDirection.LTR,
+			contextualTyping: TextDirection.LTR,
+		});
+	});
+
 	test('detects rtl when content starts with a strong rtl character', () => {
 		assert.strictEqual(getConfiguredTextDirection('فارسی test', 'auto', TextDirection.LTR), TextDirection.RTL);
 	});

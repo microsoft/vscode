@@ -306,6 +306,37 @@ suite('renderViewLine', () => {
 		assert.match(python.html, /dir="ltr" class="mtk1" style="unicode-bidi:plaintext;"/);
 	});
 
+	test('auto and contextual keep multiline-comment rtl lines ltr in syntax-heavy languages', () => {
+		const autoComment = renderViewLine(createRenderLineInput({
+			lineContent: 'سلام',
+			containsRTL: true,
+			isBasicASCII: false,
+			textDirection: TextDirection.LTR,
+			textDirectionPreset: 'auto',
+			textDirectionLanguageId: 'typescript',
+			lineTokens: createViewLineTokens([
+				createTypedPart(4, 1, StandardTokenType.Comment),
+			])
+		}));
+
+		const contextualComment = renderViewLine(createRenderLineInput({
+			lineContent: 'سلام',
+			containsRTL: true,
+			isBasicASCII: false,
+			textDirection: TextDirection.LTR,
+			textDirectionPreset: 'contextual',
+			textDirectionLanguageId: 'typescript',
+			lineTokens: createViewLineTokens([
+				createTypedPart(4, 1, StandardTokenType.Comment),
+			])
+		}));
+
+		assert.match(autoComment.html, /dir="ltr" class="mtk1" style="unicode-bidi:plaintext;"/);
+		assert.match(contextualComment.html, /dir="ltr" class="mtk1" style="unicode-bidi:plaintext;"/);
+		assert.doesNotMatch(autoComment.html, /dir="rtl" class="mtk1"/);
+		assert.doesNotMatch(contextualComment.html, /dir="rtl" class="mtk1"/);
+	});
+
 	test('default preset keeps comment and string tokens at the original rendering behavior', () => {
 		const actual = renderViewLine(createRenderLineInput({
 			lineContent: 'const value = "سلام kami"; // سلام kami',

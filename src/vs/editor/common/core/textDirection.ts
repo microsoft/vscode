@@ -89,12 +89,20 @@ export function resolveTextDirectionPreset(preset: EditorTextDirectionPreset, la
 	return !languageId || proseLikeLanguageIds.has(languageId) ? 'auto-follow' : 'auto';
 }
 
+function shouldKeepBaseDirectionForAuto(preset: EditorTextDirectionPreset, languageId?: string): boolean {
+	return resolveTextDirectionPreset(preset, languageId) === 'auto' && !!languageId && !proseLikeLanguageIds.has(languageId);
+}
+
 /**
  * Returns the direction for **rendering** a line (controls the `dir=` attribute on the view-line).
  * - `auto`: auto-detect, keep base direction when leading neutral characters precede the first strong character.
  * - `auto-follow`: auto-detect, let leading neutral characters follow the first strong character.
  */
 export function getConfiguredTextDirection(value: string, preset: EditorTextDirectionPreset, baseDirection: TextDirection, languageId?: string): TextDirection {
+	if (shouldKeepBaseDirectionForAuto(preset, languageId)) {
+		return baseDirection;
+	}
+
 	switch (resolveTextDirectionPreset(preset, languageId)) {
 		case 'ltr':
 			return TextDirection.LTR;
@@ -126,6 +134,10 @@ export function getConfiguredTextDirection(value: string, preset: EditorTextDire
  * `auto` preserves the base typing direction when a neutral prefix precedes the first strong character.
  */
 export function getConfiguredTypingDirection(value: string, preset: EditorTextDirectionPreset, baseDirection: TextDirection, languageId?: string): TextDirection {
+	if (shouldKeepBaseDirectionForAuto(preset, languageId)) {
+		return baseDirection;
+	}
+
 	switch (resolveTextDirectionPreset(preset, languageId)) {
 		case 'ltr':
 			return TextDirection.LTR;
