@@ -13,7 +13,6 @@ import { IAction, Separator, SubmenuAction, toAction } from '../../../../../../b
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Event as EventUtils } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
-import { EditorOptions } from '../../../../../../editor/common/config/editorOptions.js';
 import { localize } from '../../../../../../nls.js';
 import { IActionViewItemService } from '../../../../../../platform/actions/browser/actionViewItemService.js';
 import { DropdownWithPrimaryActionViewItem } from '../../../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
@@ -36,6 +35,7 @@ import { ChatEntitlement, IChatEntitlementService } from '../../../../../service
 import { IEditorGroupsService } from '../../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { LayoutSettings } from '../../../../../services/layout/browser/layoutService.js';
+import { getChatTextDirection } from '../../../common/chatTextDirection.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { IChatWidgetService } from '../../chat.js';
 import { FocusAgentSessionsAction } from '../agentSessionsActions.js';
@@ -639,7 +639,7 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 		const titleLabel = $('span.agent-status-title');
 		const sessionInfo = this.agentTitleBarStatusService.sessionInfo;
 		titleLabel.textContent = sessionInfo?.title ?? localize('agentSessionProjection', "Agent Session Projection");
-		applyConfiguredTextDirectionToElement(titleLabel, titleLabel.textContent ?? '', EditorOptions.textDirection.validate(this.configurationService.getValue('editor.textDirection')));
+		applyConfiguredTextDirectionToElement(titleLabel, titleLabel.textContent ?? '', getChatTextDirection(this.configurationService));
 		pill.appendChild(titleLabel);
 
 		// Escape button (right side)
@@ -683,7 +683,7 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 		const titleLabel = $('span.agent-status-title');
 		const sessionInfo = this.agentTitleBarStatusService.sessionInfo;
 		titleLabel.textContent = sessionInfo?.title ?? localize('agentSessionReady', "Review Changes");
-		applyConfiguredTextDirectionToElement(titleLabel, titleLabel.textContent ?? '', EditorOptions.textDirection.validate(this.configurationService.getValue('editor.textDirection')));
+		applyConfiguredTextDirectionToElement(titleLabel, titleLabel.textContent ?? '', getChatTextDirection(this.configurationService));
 		pill.appendChild(titleLabel);
 
 		// Enter button (right side)

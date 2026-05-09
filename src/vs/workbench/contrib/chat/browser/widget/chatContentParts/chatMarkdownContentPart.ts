@@ -22,7 +22,9 @@ import { autorun, autorunSelfDisposable, derived } from '../../../../../../base/
 import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
+import { getConfiguredTextDirection, textDirectionToString } from '../../../../../../editor/common/core/textDirection.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { TextDirection } from '../../../../../../editor/common/model.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { isLocation, type SymbolTag } from '../../../../../../editor/common/languages.js';
 import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
@@ -46,6 +48,7 @@ import { AccessibilityWorkbenchSettingId } from '../../../../accessibility/brows
 import { IAiEditTelemetryService } from '../../../../editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
 import { MarkedKatexSupport } from '../../../../markdown/browser/markedKatexSupport.js';
 import { extractCodeblockUrisFromText, extractVulnerabilitiesFromText } from '../../../common/widget/annotations.js';
+import { getChatTextDirection } from '../../../common/chatTextDirection.js';
 import { IEditSessionDiffStats, IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
 import { IChatProgressRenderableResponseContent } from '../../../common/model/chatModel.js';
 import { IChatContentInlineReference, IChatMarkdownContent, IChatService, IChatUndoStop } from '../../../common/chatService/chatService.js';
@@ -66,6 +69,24 @@ import { IncrementalDOMMorpher } from './chatIncrementalRendering/chatIncrementa
 import './media/chatMarkdownPart.css';
 
 const $ = dom.$;
+const chatTextDirectionBlockTagNames = new Set(['P', 'LI', 'BLOCKQUOTE', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'TD', 'TH', 'UL', 'OL', 'TABLE']);
+
+function getChatTextDirectionBlockElements(root: HTMLElement): HTMLElement[] {
+	const blockElements = [root];
+	const nodesToVisit: Element[] = [root];
+
+	while (nodesToVisit.length > 0) {
+		const currentNode = nodesToVisit.pop()!;
+		for (let child = currentNode.firstElementChild; child; child = child.nextElementSibling) {
+			nodesToVisit.push(child);
+			if (dom.isHTMLElement(child) && chatTextDirectionBlockTagNames.has(child.tagName)) {
+				blockElements.push(child);
+			}
+		}
+	}
+
+	return blockElements;
+}
 
 export interface IChatMarkdownContentPartOptions {
 	readonly codeBlockRenderOptions?: ICodeBlockRenderOptions;
@@ -125,7 +146,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		currentWidth: number,
 		private readonly rendererOptions: IChatMarkdownContentPartOptions,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IConfigurationService configurationService: IConfigurationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IAiEditTelemetryService private readonly aiEditTelemetryService: IAiEditTelemetryService,
 	) {
@@ -324,6 +345,8 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 				...markdownRenderOptions,
 			}, this.domNode));
 
+			this.applyChatTextDirection(element);
+
 			// Ideally this would happen earlier, but we need to parse the markdown.
 			if (isResponseVM(element) && !element.model.codeBlockInfos && element.model.isComplete) {
 				element.model.initializeCodeBlockInfos(this._codeblocks.map(info => {
@@ -395,6 +418,27 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		}
 	}
 
+	private applyChatTextDirection(element: IChatContentPartRenderContext['element']): void {
+		if (!isRequestVM(element) && !isResponseVM(element)) {
+			this.domNode.removeAttribute('dir');
+			this.domNode.style.removeProperty('unicode-bidi');
+			return;
+		}
+
+		const textDirectionPreset = getChatTextDirection(this.configurationService);
+		const applyPlainTextBidi = textDirectionPreset === 'auto' || textDirectionPreset === 'auto-follow';
+		const blockElements = getChatTextDirectionBlockElements(this.domNode);
+
+		for (const blockElement of blockElements) {
+			const direction = textDirectionToString(getConfiguredTextDirection(blockElement.textContent || '', textDirectionPreset, TextDirection.LTR));
+			blockElement.setAttribute('dir', direction);
+			if (applyPlainTextBidi) {
+				blockElement.style.unicodeBidi = 'plaintext';
+			} else {
+				blockElement.style.removeProperty('unicode-bidi');
+			}
+		}
+	}
 	override dispose(): void {
 		super.dispose();
 

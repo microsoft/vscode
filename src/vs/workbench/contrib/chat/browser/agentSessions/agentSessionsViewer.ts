@@ -32,7 +32,6 @@ import { autorun, IObservable } from '../../../../../base/common/observable.js';
 import { compareIgnoreCase } from '../../../../../base/common/strings.js';
 import { themeColorFromId, ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { EditorOptions } from '../../../../../editor/common/config/editorOptions.js';
 import { localize } from '../../../../../nls.js';
 import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
@@ -49,6 +48,7 @@ import { fillEditorsDragData } from '../../../../browser/dnd.js';
 import { applyConfiguredTextDirectionToElement } from '../../../../browser/labelTextDirection.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
+import { getChatTextDirection } from '../../common/chatTextDirection.js';
 import { allowedChatMarkdownHtmlTags } from '../widget/chatContentMarkdownRenderer.js';
 import { AgentSessionApprovalModel } from './agentSessionApprovalModel.js';
 import { AgentSessionHoverWidget } from './agentSessionHoverWidget.js';
@@ -257,7 +257,7 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 		const markdownTitle = new MarkdownString(session.element.label);
 		const plainTextTitle = renderAsPlaintext(markdownTitle);
 		template.title.setLabel(plainTextTitle, undefined, { matches: createMatches(session.filterData) });
-		applyConfiguredTextDirectionToElement(template.titleContainer, plainTextTitle, EditorOptions.textDirection.validate(this.configurationService.getValue('editor.textDirection')));
+		applyConfiguredTextDirectionToElement(template.titleContainer, plainTextTitle, getChatTextDirection(this.configurationService));
 
 		// Title Actions - Update context keys
 		ChatContextKeys.isArchivedAgentSession.bindTo(template.contextKeyService).set(session.element.isArchived());

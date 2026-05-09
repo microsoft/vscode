@@ -12,7 +12,6 @@ import { Emitter } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
-import { EditorOptions } from '../../../../../../editor/common/config/editorOptions.js';
 import { localize } from '../../../../../../nls.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
@@ -20,6 +19,7 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { IInstantiationService, ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { applyConfiguredTextDirectionToElement } from '../../../../../browser/labelTextDirection.js';
 import { IChatViewTitleActionContext } from '../../../common/actions/chatActions.js';
+import { affectsChatTextDirectionConfiguration, getChatTextDirection } from '../../../common/chatTextDirection.js';
 import { IChatModel } from '../../../common/model/chatModel.js';
 import { AgentSessionsPicker } from '../../agentSessions/agentSessionsPicker.js';
 import './media/chatViewTitleControl.css';
@@ -59,7 +59,7 @@ export class ChatViewTitleControl extends Disposable {
 
 		this.render(this.container);
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('editor.textDirection')) {
+			if (affectsChatTextDirectionConfiguration(e)) {
 				this.titleLabel.value?.updateTitle(this.title ?? ChatViewTitleControl.DEFAULT_TITLE);
 			}
 		}));
@@ -230,10 +230,10 @@ class ChatViewTitleLabel extends ActionViewItem {
 
 		if (this.title) {
 			this.titleLabel.textContent = this.title;
-			applyConfiguredTextDirectionToElement(this.titleLabel, this.title, EditorOptions.textDirection.validate(this.configurationService.getValue('editor.textDirection')));
+			applyConfiguredTextDirectionToElement(this.titleLabel, this.title, getChatTextDirection(this.configurationService));
 		} else {
 			this.titleLabel.textContent = '';
-			applyConfiguredTextDirectionToElement(this.titleLabel, '', EditorOptions.textDirection.validate(this.configurationService.getValue('editor.textDirection')));
+			applyConfiguredTextDirectionToElement(this.titleLabel, '', getChatTextDirection(this.configurationService));
 		}
 	}
 }
