@@ -1003,7 +1003,7 @@ suite('AgentHostChatContribution', () => {
 			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
 
 			fire({ type: 'session/turnComplete', session, turnId } as SessionAction);
-			fire({ type: 'session/usage', session, turnId, usage: { model: 'opus-4.7', _meta: { copilotUsage: { totalNanoAiu: 1_500_000_000 } } } } as SessionAction);
+			fire({ type: 'session/usage', session, turnId, usage: { model: 'opus-4.7', _meta: { cost: 1.5 } } } as SessionAction);
 
 			const result = await turnPromise;
 
@@ -1779,7 +1779,7 @@ suite('AgentHostChatContribution', () => {
 						id: 'turn-1',
 						userMessage: { text: 'Q1' },
 						responseParts: [{ kind: ResponsePartKind.Markdown, id: 'md-1', content: 'A1' }],
-						usage: { model: 'opus-4.7', _meta: { copilotUsage: { totalNanoAiu: 1_500_000_000 } } },
+						usage: { model: 'opus-4.7', _meta: { cost: 1.5 } },
 						state: TurnState.Complete,
 					},
 					{
@@ -1794,7 +1794,7 @@ suite('AgentHostChatContribution', () => {
 					id: 'turn-active',
 					userMessage: { text: 'Q3' },
 					responseParts: [],
-					usage: { _meta: { copilotUsage: { totalNanoAiu: 1_000_000_000 } } },
+					usage: { _meta: { cost: 1 } },
 				},
 			});
 
