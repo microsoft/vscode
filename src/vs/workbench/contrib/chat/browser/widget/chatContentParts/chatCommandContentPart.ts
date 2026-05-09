@@ -13,6 +13,7 @@ import { IChatContentPart, IChatContentPartRenderContext } from './chatContentPa
 import { IChatProgressRenderableResponseContent } from '../../../common/model/chatModel.js';
 import { IChatCommandButton } from '../../../common/chatService/chatService.js';
 import { isResponseVM } from '../../../common/model/chatViewModel.js';
+import { Command } from '../../../../../../editor/common/languages.js';
 
 const $ = dom.$;
 
@@ -28,15 +29,28 @@ export class ChatCommandButtonContentPart extends Disposable implements IChatCon
 
 		this.domNode = $('.chat-command-button');
 		const enabled = !isResponseVM(context.element) || !context.element.isStale;
+
+		// Render the primary button
+		this.renderButton(this.domNode, commandButton.command, enabled);
+
+		// Render additional buttons if any
+		if (commandButton.additionalCommands) {
+			for (const command of commandButton.additionalCommands) {
+				this.renderButton(this.domNode, command, enabled, true);
+			}
+		}
+	}
+
+	private renderButton(container: HTMLElement, command: Command, enabled: boolean, secondary?: boolean): void {
 		const tooltip = enabled ?
-			commandButton.command.tooltip :
+			command.tooltip :
 			localize('commandButtonDisabled', "Button not available in restored chat");
-		const button = this._register(new Button(this.domNode, { ...defaultButtonStyles, supportIcons: true, title: tooltip }));
-		button.label = commandButton.command.title;
+		const button = this._register(new Button(container, { ...defaultButtonStyles, supportIcons: true, title: tooltip, secondary }));
+		button.label = command.title;
 		button.enabled = enabled;
 
 		// TODO still need telemetry for command buttons
-		this._register(button.onDidClick(() => this.commandService.executeCommand(commandButton.command.id, ...(commandButton.command.arguments ?? []))));
+		this._register(button.onDidClick(() => this.commandService.executeCommand(command.id, ...(command.arguments ?? []))));
 	}
 
 	hasSameContent(other: IChatProgressRenderableResponseContent): boolean {

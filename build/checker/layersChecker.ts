@@ -31,7 +31,6 @@ const NATIVE_TYPES = [
 	'ICommonNativeHostService',
 	'INativeHostService',
 	'IMainProcessService',
-	'INativeBrowserElementsService',
 ];
 
 const RULES: IRule[] = [
@@ -48,9 +47,7 @@ const RULES: IRule[] = [
 			'environment/common/*.ts',
 			'window/common/window.ts',
 			'native/common/native.ts',
-			'native/common/nativeHostService.ts',
-			'browserElements/common/browserElements.ts',
-			'browserElements/common/nativeBrowserElementsService.ts'
+			'native/common/nativeHostService.ts'
 		].join(',')}}`,
 		disallowedTypes: [/* Ignore native types that are defined from here */],
 	},
@@ -58,6 +55,12 @@ const RULES: IRule[] = [
 	// Common: vs/base/parts/sandbox/electron-browser/preload{,-aux}.ts
 	{
 		target: '**/vs/base/parts/sandbox/electron-browser/preload{,-aux}.ts',
+		disallowedTypes: NATIVE_TYPES,
+	},
+
+	// Browser view preload script
+	{
+		target: '**/vs/platform/browserView/electron-browser/preload-browserView.ts',
 		disallowedTypes: NATIVE_TYPES,
 	},
 

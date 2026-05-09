@@ -24,7 +24,23 @@ function _definePolyfillMarks(timeOrigin?: number) {
 		}
 		return result;
 	}
-	return { mark, getMarks };
+	function clearMarks(name?: string) {
+		if (typeof name === 'undefined') {
+			const hasTimeOrigin = _data.length >= 2 && _data[0] === 'code/timeOrigin';
+			const timeOriginValue = hasTimeOrigin ? _data[1] : undefined;
+			_data.length = 0;
+			if (hasTimeOrigin) {
+				_data.push('code/timeOrigin', timeOriginValue);
+			}
+		} else {
+			for (let i = _data.length - 2; i >= 0; i -= 2) {
+				if (_data[i] === name) {
+					_data.splice(i, 2);
+				}
+			}
+		}
+	}
+	return { mark, getMarks, clearMarks };
 }
 
 declare const process: INodeProcess;
@@ -42,6 +58,7 @@ interface IPerformanceTiming {
 
 interface IPerformance {
 	mark(name: string, markOptions?: { startTime?: number }): void;
+	clearMarks(name?: string): void;
 	getEntriesByType(type: string): IPerformanceEntry[];
 	readonly timeOrigin: number;
 	readonly timing: IPerformanceTiming;
@@ -68,6 +85,9 @@ function _define() {
 			return {
 				mark(name: string, markOptions?: { startTime?: number }) {
 					performance.mark(name, markOptions);
+				},
+				clearMarks(name?: string) {
+					performance.clearMarks(name);
 				},
 				getMarks() {
 					let timeOrigin = performance.timeOrigin;
@@ -111,6 +131,12 @@ function _factory(sharedObj: any) {
 const perf = _factory(globalThis);
 
 export const mark: (name: string, markOptions?: { startTime?: number }) => void = perf.mark;
+
+/**
+ * Clears performance marks. If a name is given, only marks with that exact
+ * name are removed. If no name is given, all marks are removed.
+ */
+export const clearMarks: (name?: string) => void = perf.clearMarks;
 
 export interface PerformanceMark {
 	readonly name: string;

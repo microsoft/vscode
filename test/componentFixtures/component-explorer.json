@@ -1,0 +1,27 @@
+{
+	"$schema": "../../node_modules/@vscode/component-explorer-cli/dist/component-explorer-config.schema.json",
+	"screenshotDir": ".screenshots",
+	"sessions": [
+		{
+			"name": "current"
+		}
+	],
+	"worktree": {
+		"maxSlots": 1,
+		"setup": {
+			"command": "echo 'test'"
+		}
+	},
+	"redirection": {
+		"port": 5337
+	},
+	"server": {
+		"type": "http",
+		"cmd": "npm run serve-out-rspack",
+		"cwd": "../../",
+		"wait": {
+			"stderr": "Loopback: http://localhost:(?<port>\\d+)/,"
+		},
+		"url": "http://localhost:${var:port}"
+	}
+}

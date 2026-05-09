@@ -29,6 +29,8 @@ function isDocumentSuffix(str?: string): str is DarwinDocumentSuffix {
 const root = path.dirname(path.dirname(import.meta.dirname));
 const product = JSON.parse(fs.readFileSync(path.join(root, 'product.json'), 'utf8'));
 const commit = getVersion(root);
+const useVersionedUpdate = process.platform === 'win32' && (product as typeof product & { win32VersionedUpdate?: boolean })?.win32VersionedUpdate;
+const versionedResourcesFolder = useVersionedUpdate ? commit!.substring(0, 10) : '';
 
 function createTemplate(input: string): (params: Record<string, string>) => string {
 	return (params: Record<string, string>) => {
@@ -107,6 +109,7 @@ export const config = {
 	productAppName: product.nameLong,
 	companyName: 'Microsoft Corporation',
 	copyright: 'Copyright (C) 2026 Microsoft. All rights reserved',
+	darwinExecutable: product.nameShort,
 	darwinIcon: 'resources/darwin/code.icns',
 	darwinBundleIdentifier: product.darwinBundleIdentifier,
 	darwinApplicationCategoryType: 'public.app-category.developer-tools',
@@ -203,6 +206,8 @@ export const config = {
 	repo: product.electronRepository || undefined,
 	validateChecksum: true,
 	checksumFile: path.join(root, 'build', 'checksums', 'electron.txt'),
+	createVersionedResources: useVersionedUpdate,
+	productVersionString: versionedResourcesFolder,
 };
 
 function getElectron(arch: string): () => NodeJS.ReadWriteStream {
@@ -224,15 +229,9 @@ function getElectron(arch: string): () => NodeJS.ReadWriteStream {
 }
 
 async function main(arch: string = process.arch): Promise<void> {
-	const version = electronVersion;
 	const electronPath = path.join(root, '.build', 'electron');
-	const versionFile = path.join(electronPath, 'version');
-	const isUpToDate = fs.existsSync(versionFile) && fs.readFileSync(versionFile, 'utf8') === `${version}`;
-
-	if (!isUpToDate) {
-		await util.rimraf(electronPath)();
-		await util.streamToPromise(getElectron(arch)());
-	}
+	await util.rimraf(electronPath)();
+	await util.streamToPromise(getElectron(arch)());
 }
 
 if (import.meta.main) {

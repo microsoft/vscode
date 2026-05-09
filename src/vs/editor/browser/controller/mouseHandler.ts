@@ -403,10 +403,6 @@ class MouseDownOperation extends Disposable {
 		this._lastMouseEvent = null;
 	}
 
-	public override dispose(): void {
-		super.dispose();
-	}
-
 	public isActive(): boolean {
 		return this._isActive;
 	}

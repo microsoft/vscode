@@ -19,6 +19,7 @@ import { getIconRegistry } from '../../../../platform/theme/common/iconRegistry.
 import { basename } from '../../../../base/common/path.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { hasKey, isString } from '../../../../base/common/types.js';
+import { Event } from '../../../../base/common/event.js';
 
 
 type DefaultProfileName = string;
@@ -76,16 +77,29 @@ export class TerminalProfileQuickpick {
 			await this._configurationService.updateValue(defaultProfileKey, result.profileName, ConfigurationTarget.USER);
 		} else if (type === 'createInstance') {
 			if (hasKey(result.profile, { id: true })) {
+				const config: {
+					extensionIdentifier: string;
+					id: string;
+					title: string;
+					titleTemplate?: string;
+					options: {
+						icon: IExtensionTerminalProfile['icon'];
+						color: IExtensionTerminalProfile['color'];
+					};
+				} = {
+					extensionIdentifier: result.profile.extensionIdentifier,
+					id: result.profile.id,
+					title: result.profile.title,
+					options: {
+						icon: result.profile.icon,
+						color: result.profile.color,
+					}
+				};
+				if (result.profile.titleTemplate !== undefined) {
+					config.titleTemplate = result.profile.titleTemplate;
+				}
 				return {
-					config: {
-						extensionIdentifier: result.profile.extensionIdentifier,
-						id: result.profile.id,
-						title: result.profile.title,
-						options: {
-							icon: result.profile.icon,
-							color: result.profile.color,
-						}
-					},
+					config,
 					keyMods: result.keyMods
 				};
 			} else {
@@ -176,7 +190,8 @@ export class TerminalProfileQuickpick {
 					title: contributed.title,
 					icon: contributed.icon,
 					id: contributed.id,
-					color: contributed.color
+					color: contributed.color,
+					titleTemplate: contributed.titleTemplate
 				},
 				profileName: contributed.title,
 				iconClasses
@@ -247,7 +262,9 @@ export class TerminalProfileQuickpick {
 					run: () => r(false)
 				}]
 			);
-			handle.onDidClose(() => r(false));
+			Event.once(handle.onDidClose)(() => {
+				r(false);
+			});
 		});
 	}
 

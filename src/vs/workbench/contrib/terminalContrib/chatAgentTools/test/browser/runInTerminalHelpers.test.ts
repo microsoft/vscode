@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ok, strictEqual } from 'assert';
-import { generateAutoApproveActions, TRUNCATION_MESSAGE, dedupeRules, isPowerShell, sanitizeTerminalOutput, truncateOutputKeepingTail } from '../../browser/runInTerminalHelpers.js';
+import { generateAutoApproveActions, TRUNCATION_MESSAGE, dedupeRules, isPowerShell, truncateOutputKeepingTail, extractCdPrefix, normalizeTerminalCommandForDisplay, normalizeCommandForExecution, isMultilineCommand } from '../../browser/runInTerminalHelpers.js';
 import { OperatingSystem } from '../../../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
@@ -283,13 +283,22 @@ suite('truncateOutputKeepingTail', () => {
 	});
 });
 
-suite('sanitizeTerminalOutput', () => {
+suite('normalizeTerminalCommandForDisplay', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
-	test('adds truncation notice when exceeding max length', () => {
-		const longOutput = 'line\n'.repeat(20000);
-		const result = sanitizeTerminalOutput(longOutput);
-		ok(result.startsWith(TRUNCATION_MESSAGE));
-		ok(result.endsWith('line'));
+
+	test('removes escaped single and double quotes', () => {
+		const input = 'git rev-parse \\\'stash@{0}\\\' && echo \\\"done\\\"';
+		strictEqual(normalizeTerminalCommandForDisplay(input), 'git rev-parse \'stash@{0}\' && echo "done"');
+	});
+
+	test('normalizes escaped forward slashes', () => {
+		const input = 'echo \\/Users\\/me\\/project';
+		strictEqual(normalizeTerminalCommandForDisplay(input), 'echo /Users/me/project');
+	});
+
+	test('preserves non-quote escapes', () => {
+		const input = 'echo path\\ with\\ spaces';
+		strictEqual(normalizeTerminalCommandForDisplay(input), input);
 	});
 });
 
@@ -464,3 +473,99 @@ suite('generateAutoApproveActions', () => {
 		strictEqual(subCommandAction, undefined, 'Should not suggest approval for already approved commands');
 	});
 });
+
+suite('extractCdPrefix', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	suite('Posix', () => {
+		function t(commandLine: string, expectedDir: string | undefined, expectedCommand: string | undefined) {
+			const result = extractCdPrefix(commandLine, 'bash', OperatingSystem.Linux);
+			strictEqual(result?.directory, expectedDir);
+			strictEqual(result?.command, expectedCommand);
+		}
+
+		test('should return undefined when no cd prefix', () => t('echo hello', undefined, undefined));
+		test('should return undefined when cd has no suffix', () => t('cd /some/path', undefined, undefined));
+		test('should extract cd prefix with && separator', () => t('cd /some/path && npm install', '/some/path', 'npm install'));
+		test('should extract quoted path', () => t('cd "/some/path" && npm install', '/some/path', 'npm install'));
+		test('should extract complex suffix', () => t('cd /path && npm install && npm test', '/path', 'npm install && npm test'));
+
+		suite('unsupported patterns', () => {
+			test('should return undefined for path with escaped space', () => t('cd /some/path\ with\ spaces && npm install', undefined, undefined));
+		});
+	});
+
+	suite('PowerShell', () => {
+		function t(commandLine: string, expectedDir: string | undefined, expectedCommand: string | undefined) {
+			const result = extractCdPrefix(commandLine, 'pwsh', OperatingSystem.Windows);
+			strictEqual(result?.directory, expectedDir);
+			strictEqual(result?.command, expectedCommand);
+		}
+
+		test('should extract cd with ; separator', () => t('cd C:\\path; npm test', 'C:\\path', 'npm test'));
+		test('should extract cd /d with && separator', () => t('cd /d C:\\path && echo hello', 'C:\\path', 'echo hello'));
+		test('should extract Set-Location', () => t('Set-Location C:\\path; npm test', 'C:\\path', 'npm test'));
+		test('should extract Set-Location -Path', () => t('Set-Location -Path C:\\path; npm test', 'C:\\path', 'npm test'));
+
+		suite('unsupported patterns', () => {
+			test('should return undefined for quoted path with spaces', () => t('cd "C:\\path with spaces"; npm test', undefined, undefined));
+		});
+	});
+});
+
+suite('normalizeCommandForExecution', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('should collapse newlines to spaces for simple commands', () => {
+		strictEqual(normalizeCommandForExecution('echo hello\necho world'), 'echo hello echo world');
+	});
+
+	test('should collapse \\r\\n to spaces', () => {
+		strictEqual(normalizeCommandForExecution('echo a\r\necho b'), 'echo a echo b');
+	});
+
+	test('should collapse \\r to spaces', () => {
+		strictEqual(normalizeCommandForExecution('echo a\recho b'), 'echo a echo b');
+	});
+
+	test('should trim whitespace', () => {
+		strictEqual(normalizeCommandForExecution('  echo hello  '), 'echo hello');
+	});
+
+	test('should handle single-line command', () => {
+		strictEqual(normalizeCommandForExecution('ls -la'), 'ls -la');
+	});
+});
+
+suite('isMultilineCommand', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('should return true for heredoc', () => {
+		strictEqual(isMultilineCommand('cat > file.txt << \'EOF\'\nhello world\nEOF'), true);
+	});
+
+	test('should return true for multi-statement with \\n', () => {
+		strictEqual(isMultilineCommand('echo hello\necho world'), true);
+	});
+
+	test('should return true for multi-statement with \\r\\n', () => {
+		strictEqual(isMultilineCommand('echo hello\r\necho world'), true);
+	});
+
+	test('should return false for single-line command', () => {
+		strictEqual(isMultilineCommand('ls -la'), false);
+	});
+
+	test('should return false for line continuation with backslash-newline', () => {
+		strictEqual(isMultilineCommand('echo hello \\\n  world'), false);
+	});
+
+	test('should return false for line continuation with backslash-crlf', () => {
+		strictEqual(isMultilineCommand('echo hello \\\r\n  world'), false);
+	});
+
+	test('should return true when continuation and bare newline are mixed', () => {
+		strictEqual(isMultilineCommand('echo hello \\\n  world\necho done'), true);
+	});
+});
+

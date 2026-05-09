@@ -26,7 +26,7 @@ suite('McpStdioStateHandler', () => {
 			processId: new Promise<number>((resolve) => {
 				child.on('spawn', () => resolve(child.pid!));
 			}),
-			output: new Promise<string>((resolve) => {
+			output: new Promise<string>((resolve, reject) => {
 				let output = '';
 				child.stderr.setEncoding('utf-8').on('data', (data) => {
 					output += data.toString();
@@ -34,6 +34,7 @@ suite('McpStdioStateHandler', () => {
 				child.stdout.setEncoding('utf-8').on('data', (data) => {
 					output += data.toString();
 				});
+				child.on('error', reject);
 				child.on('close', () => resolve(output));
 			}),
 		};

@@ -6,6 +6,7 @@
 import * as vscode from 'vscode';
 import { TypeScriptServiceConfiguration } from '../configuration/configuration';
 import { tsNativeExtensionId } from '../commands/useTsgo';
+import { readUnifiedConfig, unifiedConfigSection } from '../utils/configuration';
 import { setImmediate } from '../utils/async';
 import { Disposable } from '../utils/dispose';
 import { ITypeScriptVersionProvider, TypeScriptVersion } from './versionProvider';
@@ -131,8 +132,7 @@ export class TypeScriptVersionManager extends Disposable {
 					const trusted = await vscode.workspace.requestWorkspaceTrust();
 					if (trusted) {
 						await this.workspaceState.update(useWorkspaceTsdkStorageKey, true);
-						const tsConfig = vscode.workspace.getConfiguration('typescript');
-						await tsConfig.update('tsdk', version.pathLabel, false);
+						await vscode.workspace.getConfiguration(unifiedConfigSection).update('tsdk.path', version.pathLabel, false);
 						this.updateActiveVersion(version);
 					}
 				},
@@ -146,8 +146,7 @@ export class TypeScriptVersionManager extends Disposable {
 			return undefined;
 		}
 
-		const tsConfig = vscode.workspace.getConfiguration('typescript');
-		const isUsingTsgo = tsConfig.get<boolean>('experimental.useTsgo', false);
+		const isUsingTsgo = readUnifiedConfig<boolean>('experimental.useTsgo', false, { fallbackSection: 'typescript' });
 
 		return {
 			label: (isUsingTsgo ? '• ' : '') + vscode.l10n.t("Use TypeScript Native Preview (Experimental)"),

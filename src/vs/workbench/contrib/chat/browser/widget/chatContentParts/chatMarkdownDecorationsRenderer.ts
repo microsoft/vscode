@@ -260,7 +260,6 @@ export class ChatMarkdownDecorationsRenderer {
 		return container;
 	}
 
-
 	private injectKeybindingHint(a: HTMLAnchorElement, href: string, keybindingService: IKeybindingService): void {
 		const command = href.match(/command:([^\)]+)/)?.[1];
 		if (command) {

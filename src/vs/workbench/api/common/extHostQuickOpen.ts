@@ -252,10 +252,10 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 			session?._fireDidTriggerButton(handle, checked);
 		}
 
-		$onDidTriggerItemButton(sessionId: number, itemHandle: number, buttonHandle: number): void {
+		$onDidTriggerItemButton(sessionId: number, itemHandle: number, buttonHandle: number, checked?: boolean): void {
 			const session = this._sessions.get(sessionId);
 			if (session instanceof ExtHostQuickPick) {
-				session._fireDidTriggerItemButton(itemHandle, buttonHandle);
+				session._fireDidTriggerItemButton(itemHandle, buttonHandle, checked);
 			}
 		}
 
@@ -568,7 +568,11 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 							return {
 								iconPathDto: IconPath.from(button.iconPath),
 								tooltip: button.tooltip,
-								handle: i
+								handle: i,
+								toggle:
+									typeof button.toggle === 'object' && typeof button.toggle.checked === 'boolean'
+										? { checked: button.toggle.checked }
+										: undefined,
 							};
 						}),
 					});
@@ -670,13 +674,16 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 
 		onDidTriggerItemButton = this._onDidTriggerItemButtonEmitter.event;
 
-		_fireDidTriggerItemButton(itemHandle: number, buttonHandle: number) {
+		_fireDidTriggerItemButton(itemHandle: number, buttonHandle: number, checked?: boolean) {
 			const item = this._handlesToItems.get(itemHandle)!;
 			if (!item || !item.buttons || !item.buttons.length) {
 				return;
 			}
 			const button = item.buttons[buttonHandle];
 			if (button) {
+				if (checked !== undefined && button.toggle) {
+					button.toggle.checked = checked;
+				}
 				this._onDidTriggerItemButtonEmitter.fire({
 					button,
 					item

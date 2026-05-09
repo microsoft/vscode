@@ -10,8 +10,9 @@ import File from 'vinyl';
 import es from 'event-stream';
 import filter from 'gulp-filter';
 import { Stream } from 'stream';
+import { fileURLToPath } from 'url';
 
-const watcherPath = path.join(import.meta.dirname, 'watcher.exe');
+const watcherPath = path.join(typeof __dirname !== 'undefined' ? __dirname : path.dirname(fileURLToPath(import.meta.url)), 'watcher.exe');
 
 function toChangeType(type: '0' | '1' | '2'): 'change' | 'add' | 'unlink' {
 	switch (type) {

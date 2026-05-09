@@ -22,7 +22,7 @@ import { CodeEditorWidget, ICodeEditorWidgetOptions } from '../../../../editor/b
 import { IPosition, Position } from '../../../../editor/common/core/position.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
-import { ITextModelContentProvider, ITextModelService } from '../../../../editor/common/services/resolverService.js';
+
 import { AccessibilityHelpNLS } from '../../../../editor/common/standaloneStrings.js';
 import { CodeActionController } from '../../../../editor/contrib/codeAction/browser/codeActionController.js';
 import { FloatingEditorToolbar } from '../../../../editor/contrib/floatingMenu/browser/floatingMenu.js';
@@ -53,7 +53,9 @@ import { AccessibilityVerbositySettingId, AccessibilityWorkbenchSettingId, acces
 import { resolveContentAndKeybindingItems } from './accessibleViewKeybindingResolver.js';
 
 const enum DIMENSIONS {
-	MAX_WIDTH = 600
+	MAX_WIDTH = 900,
+	WIDTH_RATIO = 0.75,
+	MAX_HEIGHT_RATIO = 0.6
 }
 
 export type AccesibleViewContentProvider = AccessibleContentProvider | ExtensionContentProvider;
@@ -66,7 +68,7 @@ interface ICodeBlock {
 	chatSessionResource: URI | undefined;
 }
 
-export class AccessibleView extends Disposable implements ITextModelContentProvider {
+export class AccessibleView extends Disposable {
 	private _editorWidget: CodeEditorWidget;
 
 	private _accessiblityHelpIsShown: IContextKey<boolean>;
@@ -93,6 +95,7 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 	private _currentContent: string | undefined;
 
 	private _lastProvider: AccesibleViewContentProvider | undefined;
+	private _lastProviderPosition: Map<string, Position> = new Map();
 
 	private _viewContainer: HTMLElement | undefined;
 
@@ -111,7 +114,6 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 		@ICommandService private readonly _commandService: ICommandService,
 		@IChatCodeBlockContextProviderService private readonly _codeBlockContextProviderService: IChatCodeBlockContextProviderService,
 		@IStorageService private readonly _storageService: IStorageService,
-		@ITextModelService private readonly textModelResolverService: ITextModelService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
 	) {
@@ -167,7 +169,6 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 			readOnly: true,
 			fontFamily: 'var(--monaco-monospace-font)'
 		};
-		this.textModelResolverService.registerTextModelContentProvider(Schemas.accessibleView, this);
 
 		this._editorWidget = this._register(this._instantiationService.createInstance(CodeEditorWidget, this._container, editorOptions, codeEditorWidgetOptions));
 		this._register(this._accessibilityService.onDidChangeScreenReaderOptimized(() => {
@@ -214,10 +215,6 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 		} else if (lineContent?.startsWith('-')) {
 			this._accessibilitySignalService.playSignal(AccessibilitySignal.diffLineDeleted);
 		}
-	}
-
-	provideTextContent(resource: URI): Promise<ITextModel | null> | null {
-		return this._getTextModel(resource);
 	}
 
 	private _resetContextKeys(): void {
@@ -296,7 +293,7 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 		}
 		provider.onOpen?.();
 		const delegate: IContextViewDelegate = {
-			getAnchor: () => { return { x: (getActiveWindow().innerWidth / 2) - ((Math.min(this._layoutService.activeContainerDimension.width * 0.62 /* golden cut */, DIMENSIONS.MAX_WIDTH)) / 2), y: this._layoutService.activeContainerOffset.quickPickTop }; },
+			getAnchor: () => { return { x: (getActiveWindow().innerWidth / 2) - ((Math.min(this._layoutService.activeContainerDimension.width * DIMENSIONS.WIDTH_RATIO, DIMENSIONS.MAX_WIDTH)) / 2), y: this._layoutService.activeContainerOffset.quickPickTop }; },
 			render: (container) => {
 				this._viewContainer = container;
 				this._viewContainer.classList.add('accessible-view-container');
@@ -305,6 +302,13 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 			onHide: () => {
 				if (!showAccessibleViewHelp) {
 					this._updateLastProvider();
+					// Save cursor position before disposing so it can be restored on reopen
+					if (this._currentProvider) {
+						const currentPosition = this._editorWidget.getPosition();
+						if (currentPosition) {
+							this._lastProviderPosition.set(this._currentProvider.id, currentPosition);
+						}
+					}
 					this._currentProvider?.dispose();
 					this._currentProvider = undefined;
 					this._resetContextKeys();
@@ -329,6 +333,7 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 				if (this._lastProvider?.options.id === id) {
 					this._lastProvider = undefined;
 				}
+				this._lastProviderPosition.delete(id);
 			}));
 		}
 		if (provider.options.id) {
@@ -545,6 +550,10 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 		this._accessibleViewGoToSymbolSupported.set(this._goToSymbolsSupported() ? this.getSymbols()?.length! > 0 : false);
 	}
 
+	private _getStableUri(providerId: string): URI {
+		return URI.from({ path: `accessible-view-${providerId}`, scheme: Schemas.accessibleView });
+	}
+
 	private _updateContent(provider: AccesibleViewContentProvider, updatedContent?: string): void {
 		let content = updatedContent ?? provider.provideContent();
 		if (provider.options.type === AccessibleViewType.View) {
@@ -590,11 +599,20 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 		this.calculateCodeBlocks(this._currentContent);
 		this._updateContextKeys(provider, true);
 		const widgetIsFocused = this._editorWidget.hasTextFocus() || this._editorWidget.hasWidgetFocus();
-		this._getTextModel(URI.from({ path: `accessible-view-${provider.id}`, scheme: Schemas.accessibleView, fragment: this._currentContent })).then((model) => {
+		const stableUri = this._getStableUri(provider.id);
+		this._getTextModel(stableUri).then((model) => {
 			if (!model) {
 				return;
 			}
-			this._editorWidget.setModel(model);
+			// Update the content of the existing model instead of creating a new one
+			// This preserves the cursor position when content changes
+			const currentContent = this._currentContent ?? '';
+			if (model.getValue() !== currentContent) {
+				model.setValue(currentContent);
+			}
+			if (this._editorWidget.getModel() !== model) {
+				this._editorWidget.setModel(model);
+			}
 			const domNode = this._editorWidget.getDomNode();
 			if (!domNode) {
 				return;
@@ -633,6 +651,17 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 				}
 			} else if (previousPosition) {
 				this._editorWidget.setPosition(previousPosition);
+			} else {
+				// Restore the saved position for this provider if available (e.g., after close and reopen)
+				const savedPosition = this._lastProviderPosition.get(provider.id);
+				if (savedPosition) {
+					const lineCount = this._editorWidget.getModel()?.getLineCount() ?? 0;
+					// Only restore if the saved position is still valid within the current content
+					if (savedPosition.lineNumber <= lineCount) {
+						this._editorWidget.setPosition(savedPosition);
+						this._editorWidget.revealPosition(savedPosition);
+					}
+				}
 			}
 		});
 		this._updateToolbar(this._currentProvider.actions, provider.options.type);
@@ -654,6 +683,11 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 				return;
 			}
 			this._updateContextKeys(provider, false);
+			// Save the cursor position for this provider so it can be restored on reopen
+			const currentPosition = this._editorWidget.getPosition();
+			if (currentPosition) {
+				this._lastProviderPosition.set(provider.id, currentPosition);
+			}
 			this._lastProvider = undefined;
 			this._currentContent = undefined;
 			this._currentProvider?.dispose();
@@ -709,9 +743,9 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 
 	private _layout(): void {
 		const dimension = this._layoutService.activeContainerDimension;
-		const maxHeight = dimension.height && dimension.height * .4;
+		const maxHeight = dimension.height && dimension.height * DIMENSIONS.MAX_HEIGHT_RATIO;
 		const height = Math.min(maxHeight, this._editorWidget.getContentHeight());
-		const width = Math.min(dimension.width * 0.62 /* golden cut */, DIMENSIONS.MAX_WIDTH);
+		const width = Math.min(dimension.width * DIMENSIONS.WIDTH_RATIO, DIMENSIONS.MAX_WIDTH);
 		this._editorWidget.layout({ width, height });
 	}
 
@@ -720,7 +754,8 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 		if (existing && !existing.isDisposed()) {
 			return existing;
 		}
-		return this._modelService.createModel(resource.fragment, null, resource, false);
+		// Create an empty model - content will be set via setValue() to preserve cursor position
+		return this._modelService.createModel('', null, resource, false);
 	}
 
 	private _goToSymbolsSupported(): boolean {
@@ -831,7 +866,7 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 	}
 
 	private _navigationHint(): string {
-		return localize('accessibleViewNextPreviousHint', "Show the next item{0} or previous item{1}.", `<keybinding:${AccessibilityCommandId.ShowNext}`, `<keybinding:${AccessibilityCommandId.ShowPrevious}>`);
+		return localize('accessibleViewNextPreviousHint', "Show the next item{0} or previous item{1}.", `<keybinding:${AccessibilityCommandId.ShowNext}>`, `<keybinding:${AccessibilityCommandId.ShowPrevious}>`);
 	}
 
 	private _disableVerbosityHint(provider: AccesibleViewContentProvider): string {

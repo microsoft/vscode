@@ -130,6 +130,10 @@ export class OffsetRange implements IOffsetRange {
 		return Math.max(0, end - start);
 	}
 
+	/**
+	 * `a.intersects(b)` iff there exists a number n so that `a.contains(n)` and `b.contains(n)`.
+	 * Warning: If one range is empty, this method returns always false.
+	*/
 	public intersects(other: OffsetRange): boolean {
 		const start = Math.max(this.start, other.start);
 		const end = Math.min(this.endExclusive, other.endExclusive);
@@ -253,7 +257,7 @@ export class OffsetRangeSet {
 	}
 
 	/**
-	 * Returns of there is a value that is contained in this instance and the given range.
+	 * Returns if there is a value that is contained in this instance and the given range.
 	 */
 	public intersectsStrict(other: OffsetRange): boolean {
 		// TODO use binary search

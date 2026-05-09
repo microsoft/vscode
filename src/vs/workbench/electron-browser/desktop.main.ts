@@ -62,8 +62,8 @@ import { IConfigurationService } from '../../platform/configuration/common/confi
 import { applyZoom } from '../../platform/window/electron-browser/window.js';
 import { mainWindow } from '../../base/browser/window.js';
 import { IDefaultAccountService } from '../../platform/defaultAccount/common/defaultAccount.js';
-import { DefaultAccountService } from '../services/accounts/common/defaultAccount.js';
-import { AccountPolicyService } from '../services/policies/common/accountPolicyService.js';
+import { DefaultAccountService } from '../services/accounts/browser/defaultAccount.js';
+import { AccountPolicyService, IAccountPolicyGateService } from '../services/policies/common/accountPolicyService.js';
 import { MultiplexPolicyService } from '../services/policies/common/multiplexPolicyService.js';
 
 export class DesktopMain extends Disposable {
@@ -210,19 +210,20 @@ export class DesktopMain extends Disposable {
 		}
 
 		// Default Account
-		const defaultAccountService = this._register(new DefaultAccountService());
+		const defaultAccountService = this._register(new DefaultAccountService(productService));
 		serviceCollection.set(IDefaultAccountService, defaultAccountService);
 
 		// Policies
 		let policyService: IPolicyService;
-		const accountPolicy = new AccountPolicyService(logService, defaultAccountService);
-		if (this.configuration.policiesData) {
-			const policyChannel = new PolicyChannelClient(this.configuration.policiesData, mainProcessService.getChannel('policy'));
+		const policyChannel = this.configuration.policiesData ? new PolicyChannelClient(this.configuration.policiesData, mainProcessService.getChannel('policy')) : undefined;
+		const accountPolicy = new AccountPolicyService(logService, defaultAccountService, policyChannel);
+		if (policyChannel) {
 			policyService = new MultiplexPolicyService([policyChannel, accountPolicy], logService);
 		} else {
 			policyService = accountPolicy;
 		}
 		serviceCollection.set(IPolicyService, policyService);
+		serviceCollection.set(IAccountPolicyGateService, accountPolicy);
 
 		// Shared Process
 		const sharedProcessService = new SharedProcessService(this.configuration.windowId, logService);

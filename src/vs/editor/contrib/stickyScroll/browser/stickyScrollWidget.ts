@@ -503,11 +503,11 @@ class RenderedStickyLine {
 		innerLineNumberHTML.style.paddingLeft = `${layoutInfo.lineNumbersLeft}px`;
 
 		lineNumberHTMLNode.appendChild(innerLineNumberHTML);
-		const foldingIcon = this._renderFoldingIconForLine(editor, foldingModel, lineNumber, lineHeight, isOnGlyphMargin);
-		if (foldingIcon) {
-			lineNumberHTMLNode.appendChild(foldingIcon.domNode);
-			foldingIcon.domNode.style.left = `${layoutInfo.lineNumbersWidth + layoutInfo.lineNumbersLeft}px`;
-			foldingIcon.domNode.style.lineHeight = `${lineHeight}px`;
+		this.foldingIcon = this._renderFoldingIconForLine(editor, foldingModel, lineNumber, lineHeight, isOnGlyphMargin);
+		if (this.foldingIcon) {
+			lineNumberHTMLNode.appendChild(this.foldingIcon.domNode);
+			this.foldingIcon.domNode.style.left = `${layoutInfo.lineNumbersWidth + layoutInfo.lineNumbersLeft}px`;
+			this.foldingIcon.domNode.style.lineHeight = `${lineHeight}px`;
 		}
 
 		editor.applyFontInfo(lineHTMLNode);

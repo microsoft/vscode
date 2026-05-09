@@ -43,13 +43,13 @@ export interface IWebSocket {
 	readonly onError: Event<unknown>;
 
 	traceSocketEvent?(type: SocketDiagnosticsEventType, data?: VSBuffer | Uint8Array | ArrayBuffer | ArrayBufferView | unknown): void;
-	send(data: ArrayBuffer | ArrayBufferView): void;
+	send(data: ArrayBuffer | ArrayBufferView<ArrayBuffer>): void;
 	close(): void;
 }
 
 class BrowserWebSocket extends Disposable implements IWebSocket {
 
-	private readonly _onData = new Emitter<ArrayBuffer>();
+	private readonly _onData = this._register(new Emitter<ArrayBuffer>());
 	public readonly onData = this._onData.event;
 
 	private readonly _onOpen = this._register(new Emitter<void>());
@@ -182,7 +182,7 @@ class BrowserWebSocket extends Disposable implements IWebSocket {
 		}));
 	}
 
-	send(data: ArrayBuffer | ArrayBufferView): void {
+	send(data: ArrayBuffer | ArrayBufferView<ArrayBuffer>): void {
 		if (this._isClosed) {
 			// Refuse to write data to closed WebSocket...
 			return;
@@ -254,7 +254,7 @@ class BrowserSocket implements ISocket {
 	}
 
 	public write(buffer: VSBuffer): void {
-		this.socket.send(buffer.buffer);
+		this.socket.send(buffer.buffer as Uint8Array<ArrayBuffer>);
 	}
 
 	public end(): void {

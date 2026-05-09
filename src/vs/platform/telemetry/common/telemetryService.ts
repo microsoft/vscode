@@ -11,12 +11,13 @@ import { escapeRegExpCharacters } from '../../../base/common/strings.js';
 import { localize } from '../../../nls.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { ConfigurationScope, Extensions, IConfigurationRegistry } from '../../configuration/common/configurationRegistry.js';
+import { IMeteredConnectionService } from '../../meteredConnection/common/meteredConnection.js';
 import product from '../../product/common/product.js';
 import { IProductService } from '../../product/common/productService.js';
 import { Registry } from '../../registry/common/platform.js';
 import { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck } from './gdprTypings.js';
 import { ITelemetryData, ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_CRASH_REPORTER_SETTING_ID, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SECTION_ID, TELEMETRY_SETTING_ID, ICommonProperties } from './telemetry.js';
-import { cleanData, getTelemetryLevel, ITelemetryAppender } from './telemetryUtils.js';
+import { cleanData, getTelemetryLevel, ITelemetryAppender, TelemetryTrustedValue } from './telemetryUtils.js';
 
 export interface ITelemetryServiceConfig {
 	appenders: ITelemetryAppender[];
@@ -28,6 +29,10 @@ export interface ITelemetryServiceConfig {
 	 * (up to 10 seconds) to ensure experiment context is attached to all events.
 	 */
 	waitForExperimentProperties?: boolean;
+	/**
+	 * If provided, telemetry events will be dropped when the connection is metered.
+	 */
+	meteredConnectionService?: IMeteredConnectionService;
 }
 
 interface IPendingEvent {
@@ -55,10 +60,12 @@ export class TelemetryService implements ITelemetryService {
 
 	private _appenders: ITelemetryAppender[];
 	private _commonProperties: ICommonProperties;
-	private _experimentProperties: { [name: string]: string } = {};
+	private _experimentProperties: { [name: string]: string | TelemetryTrustedValue<string> } = {};
 	private _piiPaths: string[];
 	private _telemetryLevel: TelemetryLevel;
 	private _sendErrorTelemetry: boolean;
+
+	private readonly _meteredConnectionService: IMeteredConnectionService | undefined;
 
 	private _pendingEvents: IPendingEvent[] = [];
 	private _isExperimentPropertySet = false;
@@ -85,6 +92,7 @@ export class TelemetryService implements ITelemetryService {
 		this._piiPaths = config.piiPaths || [];
 		this._telemetryLevel = TelemetryLevel.USAGE;
 		this._sendErrorTelemetry = !!config.sendErrorTelemetry;
+		this._meteredConnectionService = config.meteredConnectionService;
 
 		// static cleanup pattern for: `vscode-file:///DANGEROUS/PATH/resources/app/Useful/Information`
 		this._cleanupPatterns = [/(vscode-)?file:\/\/.*?\/resources\/app\//gi];
@@ -119,12 +127,16 @@ export class TelemetryService implements ITelemetryService {
 	}
 
 	setExperimentProperty(name: string, value: string): void {
-		this._experimentProperties[name] = value;
+		this._experimentProperties[name] = new TelemetryTrustedValue(value);
 
 		// On first call, flush all pending events that were buffered waiting for experiment properties
 		if (!this._isExperimentPropertySet) {
 			this._flushPendingEvents();
 		}
+	}
+
+	setCommonProperty(name: string, value: string): void {
+		this._commonProperties[name] = value;
 	}
 
 	private _flushPendingEvents(): void {
@@ -180,6 +192,11 @@ export class TelemetryService implements ITelemetryService {
 			return;
 		}
 
+		// Don't send events when the connection is metered
+		if (this._meteredConnectionService?.isConnectionMetered) {
+			return;
+		}
+
 		// Buffer events until experiment properties are set (or timeout expires)
 		if (!this._isExperimentPropertySet) {
 			if (this._pendingEvents.length < TelemetryService.MAX_BUFFER_SIZE) {
@@ -200,6 +217,11 @@ export class TelemetryService implements ITelemetryService {
 
 		// add common properties
 		data = mixin(data, this._commonProperties);
+
+		// tag error-level events so the backend can identify them generically
+		if (eventLevel === TelemetryLevel.ERROR) {
+			data = { ...data, 'isError': true };
+		}
 
 		// Log to the appenders of sufficient level
 		this._appenders.forEach(a => a.log(eventName, data ?? {}));

@@ -21,7 +21,7 @@ export class ColorizedBracketPairsDecorationProvider extends Disposable implemen
 	private colorizationOptions: BracketPairColorizationOptions;
 	private readonly colorProvider = new ColorProvider();
 
-	private readonly onDidChangeEmitter = new Emitter<void>();
+	private readonly onDidChangeEmitter = this._register(new Emitter<void>());
 	public readonly onDidChange = this.onDidChangeEmitter.event;
 
 	constructor(private readonly textModel: TextModel) {
@@ -42,7 +42,7 @@ export class ColorizedBracketPairsDecorationProvider extends Disposable implemen
 
 	//#endregion
 
-	getDecorationsInRange(range: Range, ownerId?: number, filterOutValidation?: boolean, onlyMinimapDecorations?: boolean): IModelDecoration[] {
+	getDecorationsInRange(range: Range, ownerId?: number, filterOutValidation?: boolean, filterFontDecorations?: boolean, onlyMinimapDecorations?: boolean): IModelDecoration[] {
 		if (onlyMinimapDecorations) {
 			// Bracket pair colorization decorations are not rendered in the minimap
 			return [];
@@ -70,7 +70,7 @@ export class ColorizedBracketPairsDecorationProvider extends Disposable implemen
 		return result;
 	}
 
-	getAllDecorations(ownerId?: number, filterOutValidation?: boolean): IModelDecoration[] {
+	getAllDecorations(ownerId?: number, filterOutValidation?: boolean, filterFontDecorations?: boolean): IModelDecoration[] {
 		if (ownerId === undefined) {
 			return [];
 		}
@@ -80,7 +80,8 @@ export class ColorizedBracketPairsDecorationProvider extends Disposable implemen
 		return this.getDecorationsInRange(
 			new Range(1, 1, this.textModel.getLineCount(), 1),
 			ownerId,
-			filterOutValidation
+			filterOutValidation,
+			filterFontDecorations
 		);
 	}
 }

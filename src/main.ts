@@ -227,10 +227,7 @@ function configureCommandlineSwitchesSync(cliArgs: NativeParsedArgs) {
 		// bypass any specified proxy for the given semi-colon-separated list of hosts
 		'proxy-bypass-list',
 
-		'remote-debugging-port',
-
-		// Enable recovery from invalid Graphite recordings
-		'enable-graphite-invalid-recording-recovery'
+		'remote-debugging-port'
 	];
 
 	if (process.platform === 'linux') {
@@ -345,7 +342,7 @@ function configureCommandlineSwitchesSync(cliArgs: NativeParsedArgs) {
 	app.commandLine.appendSwitch('disable-blink-features', blinkFeaturesToDisable);
 
 	// Support JS Flags
-	const jsFlags = getJSFlags(cliArgs);
+	const jsFlags = getJSFlags(cliArgs, argvConfig);
 	if (jsFlags) {
 		app.commandLine.appendSwitch('js-flags', jsFlags);
 	}
@@ -377,7 +374,7 @@ interface IArgvConfig {
 	readonly 'use-inmemory-secretstorage'?: boolean;
 	readonly 'enable-rdp-display-tracking'?: boolean;
 	readonly 'remote-debugging-port'?: string;
-	readonly 'enable-graphite-invalid-recording-recovery'?: boolean;
+	readonly 'js-flags'?: string;
 }
 
 function readArgvConfigSync(): IArgvConfig {
@@ -541,12 +538,17 @@ function configureCrashReporter(): void {
 	});
 }
 
-function getJSFlags(cliArgs: NativeParsedArgs): string | null {
+function getJSFlags(cliArgs: NativeParsedArgs, argvConfig: IArgvConfig): string | null {
 	const jsFlags: string[] = [];
 
 	// Add any existing JS flags we already got from the command line
 	if (cliArgs['js-flags']) {
 		jsFlags.push(cliArgs['js-flags']);
+	}
+
+	// Add JS flags from runtime arguments (argv.json)
+	if (typeof argvConfig['js-flags'] === 'string' && argvConfig['js-flags']) {
+		jsFlags.push(argvConfig['js-flags']);
 	}
 
 	if (process.platform === 'linux') {

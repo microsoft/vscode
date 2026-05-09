@@ -64,6 +64,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 	private _state: OverlayState = OverlayState.Off;
 	private _isRefreshQueued = false;
 	private _rawMaxLineCount: number = 5;
+	private _ignoredCommands: string[] = [];
 	private _pendingShowOperation = false;
 
 	constructor(
@@ -93,6 +94,9 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		this._register(Event.runAndSubscribe(configurationService.onDidChangeConfiguration, e => {
 			if (!e || e.affectsConfiguration(TerminalStickyScrollSettingId.MaxLineCount)) {
 				this._rawMaxLineCount = configurationService.getValue(TerminalStickyScrollSettingId.MaxLineCount);
+			}
+			if (!e || e.affectsConfiguration(TerminalStickyScrollSettingId.IgnoredCommands)) {
+				this._ignoredCommands = configurationService.getValue(TerminalStickyScrollSettingId.IgnoredCommands);
 			}
 		}));
 
@@ -229,8 +233,8 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		// scroll.
 		this._currentStickyCommand = undefined;
 
-		// No command or clear command
-		if (!command || this._isClearCommand(command)) {
+		// No command or ignored command
+		if (!command || this._isIgnoredCommand(command)) {
 			this._setVisible(false);
 			return;
 		}
@@ -529,18 +533,12 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		};
 	}
 
-	private _isClearCommand(command: ITerminalCommand | ICurrentPartialCommand): boolean {
+	private _isIgnoredCommand(command: ITerminalCommand | ICurrentPartialCommand): boolean {
 		if (!command.command) {
 			return false;
 		}
 		const trimmedCommand = command.command.trim().toLowerCase();
-		const clearCommands = [
-			'clear',
-			'cls',
-			'clear-host',
-		];
-
-		return clearCommands.includes(trimmedCommand);
+		return this._ignoredCommands.some(cmd => cmd.toLowerCase() === trimmedCommand);
 	}
 }
 

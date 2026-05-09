@@ -72,17 +72,13 @@ function buildWin32Setup(arch: string, target: string): task.CallbackTask {
 		fs.mkdirSync(outputPath, { recursive: true });
 
 		const quality = (product as typeof product & { quality?: string }).quality || 'dev';
-		let versionedResourcesFolder = '';
-		let issPath = path.join(import.meta.dirname, 'win32', 'code.iss');
-		if (quality && quality === 'insider') {
-			versionedResourcesFolder = commit!.substring(0, 10);
-			issPath = path.join(import.meta.dirname, 'win32', 'code-insider.iss');
-		}
+		const useVersionedUpdate = (product as typeof product & { win32VersionedUpdate?: boolean })?.win32VersionedUpdate;
+		const versionedResourcesFolder = useVersionedUpdate ? commit!.substring(0, 10) : '';
+		const issPath = path.join(import.meta.dirname, 'win32', 'code.iss');
 		const originalProductJsonPath = path.join(sourcePath, versionedResourcesFolder, 'resources/app/product.json');
 		const productJsonPath = path.join(outputPath, 'product.json');
 		const productJson = JSON.parse(fs.readFileSync(originalProductJsonPath, 'utf8'));
 		productJson['target'] = target;
-		fs.writeFileSync(productJsonPath, JSON.stringify(productJson, undefined, '\t'));
 
 		const definitions: Record<string, unknown> = {
 			NameLong: product.nameLong,
@@ -119,7 +115,13 @@ function buildWin32Setup(arch: string, target: string): task.CallbackTask {
 			definitions['AppxPackage'] = `${quality === 'stable' ? 'code' : 'code_insider'}_${arch}.appx`;
 			definitions['AppxPackageDll'] = `${quality === 'stable' ? 'code' : 'code_insider'}_explorer_command_${arch}.dll`;
 			definitions['AppxPackageName'] = `${product.win32AppUserModelId}`;
+			const ctxMenu = (product as { win32ContextMenu?: Record<string, { clsid: string }> }).win32ContextMenu;
+			if (ctxMenu && ctxMenu[arch]) {
+				definitions['FileExplorerContextMenuCLSID'] = ctxMenu[arch].clsid;
+			}
 		}
+
+		fs.writeFileSync(productJsonPath, JSON.stringify(productJson, undefined, '\t'));
 
 		packageInnoSetup(issPath, { definitions }, cb as (err?: Error | null) => void);
 	};

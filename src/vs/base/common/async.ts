@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken, CancellationTokenSource } from './cancellation.js';
-import { BugIndicatingError, CancellationError } from './errors.js';
+import { BugIndicatingError, CancellationError, isCancellationError } from './errors.js';
 import { Emitter, Event } from './event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, isDisposable, MutableDisposable, toDisposable } from './lifecycle.js';
 import { extUri as defaultExtUri, IExtUri } from './resources.js';
@@ -114,6 +114,13 @@ export function raceCancellationError<T>(promise: Promise<T>, token: Cancellatio
 		});
 		promise.then(resolve, reject).finally(() => ref.dispose());
 	});
+}
+
+export function rejectIfNotCanceled(err: unknown): undefined {
+	if (isCancellationError(err)) {
+		return undefined;
+	}
+	return Promise.reject(err) as never;
 }
 
 /**
@@ -1098,15 +1105,15 @@ export class IntervalTimer implements IDisposable {
 	}
 }
 
-export class RunOnceScheduler implements IDisposable {
+export class RunOnceScheduler<Runner extends (...args: any[]) => any = () => any> implements IDisposable {
 
-	protected runner: ((...args: unknown[]) => void) | null;
+	protected runner: Runner | null;
 
 	private timeoutToken: Timeout | undefined;
 	private timeout: number;
 	private timeoutHandler: () => void;
 
-	constructor(runner: (...args: any[]) => void, delay: number) {
+	constructor(runner: Runner, delay: number) {
 		this.timeoutToken = undefined;
 		this.runner = runner;
 		this.timeout = delay;
@@ -1246,7 +1253,7 @@ export class ProcessTimeRunOnceScheduler {
 	}
 }
 
-export class RunOnceWorker<T> extends RunOnceScheduler {
+export class RunOnceWorker<T> extends RunOnceScheduler<(units: T[]) => void> {
 
 	private units: T[] = [];
 
@@ -1491,6 +1498,17 @@ export let _runWhenIdle: (targetWindow: IdleApi, callback: (idle: IdleDeadline) 
 	}
 	runWhenGlobalIdle = (runner, timeout) => _runWhenIdle(globalThis, runner, timeout);
 })();
+
+export function installFakeRunWhenIdle(fakeImpl: typeof _runWhenIdle): IDisposable {
+	const origRunWhenIdle = _runWhenIdle;
+	const origRunWhenGlobalIdle = runWhenGlobalIdle;
+	_runWhenIdle = fakeImpl;
+	runWhenGlobalIdle = (runner, timeout) => fakeImpl(globalThis, runner, timeout);
+	return toDisposable(() => {
+		_runWhenIdle = origRunWhenIdle;
+		runWhenGlobalIdle = origRunWhenGlobalIdle;
+	});
+}
 
 export abstract class AbstractIdleValue<T> {
 
@@ -2642,4 +2660,9 @@ export class AsyncReader<T> {
 
 		return this._extendBufferPromise;
 	}
+}
+
+export function createTimeout(ms: number, cb: () => void): IDisposable {
+	const t = setTimeout(cb, ms);
+	return toDisposable(() => clearTimeout(t));
 }

@@ -10,9 +10,10 @@ import { localize } from '../../../../../../nls.js';
 import { TerminalCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ToolDataSource, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type CountTokensCallback, type ToolProgress } from '../../../../chat/common/tools/languageModelToolsService.js';
 import { ITerminalService } from '../../../../terminal/browser/terminal.js';
+import { TerminalToolId } from './toolIds.js';
 
 export const GetTerminalLastCommandToolData: IToolData = {
-	id: 'terminal_last_command',
+	id: TerminalToolId.TerminalLastCommand,
 	toolReferenceName: 'terminalLastCommand',
 	legacyToolReferenceFullNames: ['runCommands/terminalLastCommand'],
 	displayName: localize('terminalLastCommandTool.displayName', 'Get Terminal Last Command'),

@@ -88,7 +88,7 @@ export class TaskTerminalStatus extends Disposable {
 	}
 
 	private terminalFromEvent(event: { terminalId: number | undefined }): ITerminalData | undefined {
-		if (!('terminalId' in event) || !event.terminalId) {
+		if (!Object.hasOwn(event, 'terminalId') || !event.terminalId) {
 			return undefined;
 		}
 		return this.terminalMap.get(event.terminalId);
