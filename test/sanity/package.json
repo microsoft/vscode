@@ -6,7 +6,7 @@
   "main": "./out/index.js",
   "scripts": {
     "compile": "tsc",
-    "start": "node ./out/index.js"
+    "start": "node api.js && node ./out/index.js"
   },
   "dependencies": {
     "minimist": "^1.2.8",
