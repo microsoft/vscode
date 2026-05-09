@@ -70,18 +70,32 @@ import './media/chatMarkdownPart.css';
 
 const $ = dom.$;
 const chatTextDirectionBlockTagNames = new Set(['P', 'LI', 'BLOCKQUOTE', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'TD', 'TH', 'UL', 'OL', 'TABLE']);
+const chatTextDirectionLeafBlockTagNames = new Set(['P', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'TD', 'TH']);
 
 function getChatTextDirectionBlockElements(root: HTMLElement): HTMLElement[] {
 	const blockElements = [root];
-	const nodesToVisit: Element[] = [root];
+	const nodesToVisit: Element[] = [];
+
+	for (let child = root.lastElementChild; child; child = child.previousElementSibling) {
+		nodesToVisit.push(child);
+	}
 
 	while (nodesToVisit.length > 0) {
 		const currentNode = nodesToVisit.pop()!;
-		for (let child = currentNode.firstElementChild; child; child = child.nextElementSibling) {
-			nodesToVisit.push(child);
-			if (dom.isHTMLElement(child) && chatTextDirectionBlockTagNames.has(child.tagName)) {
-				blockElements.push(child);
+		if (!dom.isHTMLElement(currentNode)) {
+			continue;
+		}
+
+		if (chatTextDirectionBlockTagNames.has(currentNode.tagName)) {
+			blockElements.push(currentNode);
+
+			if (chatTextDirectionLeafBlockTagNames.has(currentNode.tagName)) {
+				continue;
 			}
+		}
+
+		for (let child = currentNode.lastElementChild; child; child = child.previousElementSibling) {
+			nodesToVisit.push(child);
 		}
 	}
 

@@ -556,4 +556,25 @@ suite('ChatMarkdownContentPart', () => {
 		assert.strictEqual(paragraphs[1].getAttribute('dir'), 'rtl');
 		assert.strictEqual(paragraphs[1].style.unicodeBidi, 'plaintext');
 	});
+
+	test('applies configured text direction only to block markdown elements', () => {
+		const configService = instantiationService.get(IConfigurationService) as import('../../../../../../../platform/configuration/test/common/testConfigurationService.js').TestConfigurationService;
+		configService.setUserConfiguration('editor', {
+			fontFamily: 'Consolas',
+			fontLigatures: false,
+			accessibilitySupport: 'off',
+			textDirection: 'auto',
+		});
+
+		const part = createMarkdownPart('hello **bold**\n\nسلام **دنیا**');
+		const paragraphs = Array.from(part.domNode.querySelectorAll('p'));
+		const strong = Array.from(part.domNode.querySelectorAll('strong'));
+
+		assert.strictEqual(paragraphs.length, 2);
+		assert.strictEqual(strong.length, 2);
+		assert.strictEqual(paragraphs[0].getAttribute('dir'), 'ltr');
+		assert.strictEqual(paragraphs[1].getAttribute('dir'), 'rtl');
+		assert.strictEqual(strong[0].hasAttribute('dir'), false);
+		assert.strictEqual(strong[1].hasAttribute('dir'), false);
+	});
 });
