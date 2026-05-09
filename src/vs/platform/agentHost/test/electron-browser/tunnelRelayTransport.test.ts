@@ -90,7 +90,7 @@ suite('TunnelRelayTransport', () => {
 	});
 
 	test('dispose disconnects relay', () => {
-		const transport = disposables.add(new TunnelRelayTransport('conn-1', mockService as unknown as ITunnelAgentHostMainService));
+		const transport = new TunnelRelayTransport('conn-1', mockService as unknown as ITunnelAgentHostMainService);
 
 		transport.dispose();
 

@@ -658,7 +658,6 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				return;
 			}
 		}
-		throw new Error(`${LOG_PREFIX} No SSH relay connection for ${connectionId}`);
 	}
 
 	async reconnect(sshConfigHost: string, name: string, remoteAgentHostCommand?: string, agentForward?: boolean): Promise<ISSHConnectResult> {

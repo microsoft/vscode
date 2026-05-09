@@ -257,7 +257,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 				continue;
 			}
 			if (!autoConnect) {
-				this._cancelSSHReconnect(address);
+				this._clearSSHReconnectBackoff(address);
 				continue;
 			}
 			this._scheduleSSHReconnect(entry, true);
@@ -317,13 +317,14 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		if (entry.connection.type !== RemoteAgentHostEntryType.SSH || !entry.connection.sshConfigHost) {
 			return;
 		}
-		if (!this._configurationService.getValue<boolean>(RemoteAgentHostAutoConnectSettingId)) {
-			return;
-		}
-
 		const address = getEntryAddress(entry);
 		const sshConfigHost = entry.connection.sshConfigHost;
+		if (!this._configurationService.getValue<boolean>(RemoteAgentHostAutoConnectSettingId)) {
+			this._clearSSHReconnectBackoff(address);
+			return;
+		}
 		if (!this._isConfiguredSSHEntry(address, sshConfigHost)) {
+			this._clearSSHReconnectBackoff(address);
 			return;
 		}
 		if (this._pendingSSHReconnects.has(sshConfigHost) || this._sshReconnectTimeouts.has(address)) {
@@ -337,12 +338,13 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		const attempt = this._sshReconnectAttempts.get(address) ?? 0;
 		const delay = immediate && attempt === 0
 			? 0
-			: Math.min(SSH_RECONNECT_INITIAL_DELAY * Math.pow(2, Math.max(0, attempt - 1)), SSH_RECONNECT_MAX_DELAY);
+			: Math.min(SSH_RECONNECT_INITIAL_DELAY * Math.pow(2, attempt), SSH_RECONNECT_MAX_DELAY);
 		this._logService.info(`[RemoteAgentHost] Scheduling SSH reconnect for ${sshConfigHost} in ${delay}ms (attempt ${attempt + 1})`);
 
 		const timeout = setTimeout(() => {
 			this._sshReconnectTimeouts.delete(address);
 			if (!this._isConfiguredSSHEntry(address, sshConfigHost)) {
+				this._clearSSHReconnectBackoff(address);
 				return;
 			}
 			if (this._pendingSSHReconnects.has(sshConfigHost)) {

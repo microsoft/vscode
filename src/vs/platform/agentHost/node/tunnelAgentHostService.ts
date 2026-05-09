@@ -228,7 +228,6 @@ export class TunnelAgentHostMainService extends Disposable implements ITunnelAge
 			conn.relaySend(message);
 			return;
 		}
-		throw new Error(`${LOG_PREFIX} No tunnel relay connection for ${connectionId}`);
 	}
 
 	async disconnect(connectionId: string): Promise<void> {
