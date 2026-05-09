@@ -395,7 +395,7 @@ export class AgentSubscriptionManager extends Disposable {
 	 */
 	getSubscriptionUnmanaged<T>(resource: URI): IAgentSubscription<T> | undefined {
 		const entry = this._subscriptions.get(resource);
-		return entry?.sub as unknown as IAgentSubscription<T> | undefined;
+		return entry?.sub as IAgentSubscription<T> | undefined;
 	}
 
 	/**
