@@ -505,8 +505,8 @@ export class AgentService extends Disposable implements IAgentService {
 				config: config.config,
 			});
 			return { schema: resolved.schema, values: resolved.values };
-		} catch (error) {
-			this._logService.error(`[AgentService] Failed to resolve created session config for provider ${provider.id}`, error);
+		} catch (err) {
+			this._logService.error(`[AgentService] Failed to resolve created session config for provider ${provider.id}`, err);
 			return config.config ? { schema: { type: 'object', properties: {} }, values: config.config } : undefined;
 		}
 	}
