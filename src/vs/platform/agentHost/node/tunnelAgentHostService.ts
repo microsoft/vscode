@@ -9,6 +9,7 @@ import { createHash } from 'crypto';
 import type WebSocket from 'ws';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
+import { raceTimeout } from '../../../base/common/async.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { ILogService } from '../../log/common/log.js';
 import {
@@ -44,12 +45,12 @@ async function withTimeout<T>(
 	timeoutMs: number,
 	stepName: string,
 ): Promise<T> {
-	const sentinel: unique symbol = Symbol('timeout');
-	const result = await Promise.race<T | typeof sentinel>([
-		op(),
-		new Promise<typeof sentinel>(resolve => setTimeout(() => resolve(sentinel), timeoutMs)),
-	]);
-	if (result === sentinel) {
+	// Use raceTimeout so the timer is cleared in `finally` once `op` settles
+	// (avoids stray timers across frequent reconnect attempts). The void-return
+	// disambiguation is handled by the onTimeout callback flag below.
+	let timedOut = false;
+	const result = await raceTimeout(op(), timeoutMs, () => { timedOut = true; });
+	if (timedOut) {
 		throw new Error(`${LOG_PREFIX} ${stepName} timed out after ${timeoutMs}ms`);
 	}
 	return result as T;

@@ -87,7 +87,13 @@ class SSHReconnectState extends Disposable {
 	}
 
 	scheduleRetry(delayMs: number, handler: () => void): void {
-		this._timer.value = disposableTimeout(handler, delayMs);
+		this._timer.value = disposableTimeout(() => {
+			// Drop the disposable now that the timer has fired so
+			// `hasPendingTimer` reflects reality even if `handler` returns
+			// early without scheduling a follow-up attempt.
+			this._timer.value = undefined;
+			handler();
+		}, delayMs);
 	}
 
 	cancelTimer(): void {
