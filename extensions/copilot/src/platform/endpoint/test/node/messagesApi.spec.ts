@@ -568,23 +568,23 @@ suite('addMessagesApiCacheControl', function () {
 		return out;
 	}
 
-	test('marks the last cacheable block of the latest cacheable message', function () {
+	test('marks the last cacheable block of the two most recent cacheable messages', function () {
 		const messages: MessageParam[] = [
 			{ role: 'user', content: [{ type: 'text', text: 'do stuff' }] },
 			{ role: 'assistant', content: [{ type: 'text', text: 'calling tools' }, { type: 'tool_use', id: 'a', name: 't', input: {} }, { type: 'tool_use', id: 'b', name: 't', input: {} }] },
 			{ role: 'user', content: [{ type: 'tool_result', tool_use_id: 'a', content: 'ra' }, { type: 'tool_result', tool_use_id: 'b', content: 'rb' }] },
 		];
 		addMessagesApiCacheControl({ messages });
-		expect(ccPositions({ messages })).toEqual(['messages[2].block[1]']);
+		expect(ccPositions({ messages })).toEqual(['messages[1].block[2]', 'messages[2].block[1]']);
 	});
 
-	test('skips thinking-only blocks within the latest message', function () {
+	test('skips thinking-only blocks within recent messages', function () {
 		const messages: MessageParam[] = [
 			{ role: 'user', content: [{ type: 'text', text: 'hello' }] },
 			{ role: 'assistant', content: [{ type: 'thinking', thinking: 'hmm', signature: 'sig' }, { type: 'text', text: 'response' }] },
 		];
 		addMessagesApiCacheControl({ messages });
-		expect(ccPositions({ messages })).toEqual(['messages[1].block[1]']);
+		expect(ccPositions({ messages })).toEqual(['messages[0].block[0]', 'messages[1].block[1]']);
 	});
 
 	test('walks past trailing messages with no cacheable blocks', function () {
@@ -595,7 +595,7 @@ suite('addMessagesApiCacheControl', function () {
 			{ role: 'user', content: [] },
 		];
 		addMessagesApiCacheControl({ messages });
-		expect(ccPositions({ messages })).toEqual(['messages[1].block[0]']);
+		expect(ccPositions({ messages })).toEqual(['messages[0].block[0]', 'messages[1].block[0]']);
 	});
 
 	test('handles single message and empty array', function () {
@@ -608,7 +608,7 @@ suite('addMessagesApiCacheControl', function () {
 		expect(empty).toHaveLength(0);
 	});
 
-	test('combined with addToolsAndSystemCacheControl produces the 3-cc layout', function () {
+	test('combined with addToolsAndSystemCacheControl produces the 4-cc layout', function () {
 		const tools: AnthropicMessagesTool[] = [
 			{ name: 'read_file', description: '', input_schema: { type: 'object', properties: {}, required: [] } },
 			{ name: 'edit_file', description: '', input_schema: { type: 'object', properties: {}, required: [] } },
@@ -622,11 +622,11 @@ suite('addMessagesApiCacheControl', function () {
 		addMessagesApiCacheControl({ messages, system });
 		addToolsAndSystemCacheControl(tools, { messages, system });
 		expect(ccPositions({ messages, system, tools })).toEqual([
-			'tools[1]', 'system[0]', 'messages[2].block[0]',
+			'tools[1]', 'system[0]', 'messages[1].block[0]', 'messages[2].block[0]',
 		]);
 	});
 
-	test('cc shifts forward each iteration of an agent loop', function () {
+	test('cc anchors shift forward each iteration of an agent loop', function () {
 		const query: ContentBlockParam = { type: 'text', text: 'do work' };
 		const r1Use: ContentBlockParam = { type: 'tool_use', id: 'a', name: 't', input: {} };
 		const r1Res: ContentBlockParam = { type: 'tool_result', tool_use_id: 'a', content: 'r1' };
@@ -639,7 +639,8 @@ suite('addMessagesApiCacheControl', function () {
 			{ role: 'user', content: [r1Res] },
 		];
 		addMessagesApiCacheControl({ messages: iterA });
-		expect(ccPositions({ messages: iterA })).toEqual(['messages[2].block[0]']);
+		expect(ccPositions({ messages: iterA })).toEqual(['messages[1].block[0]', 'messages[2].block[0]']);
+		(r1Use as { cache_control?: unknown }).cache_control = undefined;
 		(r1Res as ToolResultBlockParam).cache_control = undefined;
 
 		const iterB: MessageParam[] = [
@@ -650,7 +651,7 @@ suite('addMessagesApiCacheControl', function () {
 			{ role: 'user', content: [r2Res] },
 		];
 		addMessagesApiCacheControl({ messages: iterB });
-		expect(ccPositions({ messages: iterB })).toEqual(['messages[4].block[0]']);
+		expect(ccPositions({ messages: iterB })).toEqual(['messages[3].block[0]', 'messages[4].block[0]']);
 	});
 });
 
@@ -683,11 +684,11 @@ suite('clearAllCacheControl', function () {
 		expect(ccPositions({ messages, system })).toEqual([]);
 	});
 
-	test('caps total cc count at 3 even when upstream loaded 4 markers', function () {
+	test('caps total cc count at 4 even when upstream loaded markers', function () {
 		// Repro: a prompt-tsx prompt (e.g. inlineChatPrompt) emits multiple
 		// <cacheBreakpoint> parts that rawContentToAnthropicContent translates
 		// into cache_control fields. Without clearAllCacheControl we'd add
-		// 3 more on top → exceed Anthropic's 4-cc limit → 400.
+		// our own on top → exceed Anthropic's 4-cc limit → 400.
 		const tools: AnthropicMessagesTool[] = [
 			{ name: 't', description: '', input_schema: { type: 'object', properties: {}, required: [] } },
 		];
@@ -702,12 +703,12 @@ suite('clearAllCacheControl', function () {
 		addMessagesApiCacheControl({ messages, system });
 		addToolsAndSystemCacheControl(tools, { messages, system });
 
-		// Exactly 3 ccs, all in the deterministic positions we own.
+		// Exactly 4 ccs, all in the deterministic positions we own.
 		expect([
 			...tools.flatMap((t, i) => t.cache_control ? [`tools[${i}]`] : []),
 			...ccPositions({ messages, system }),
 		]).toEqual([
-			'tools[0]', 'system[0]', 'messages[2].block[0]',
+			'tools[0]', 'system[0]', 'messages[1].block[0]', 'messages[2].block[0]',
 		]);
 	});
 

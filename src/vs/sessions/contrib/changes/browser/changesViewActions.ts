@@ -117,7 +117,7 @@ class OpenFileAction extends Action2 {
 			icon: Codicon.goToFile,
 			f1: false,
 			menu: {
-				id: MenuId.ChatEditingSessionChangeToolbar,
+				id: MenuId.AgentsChangeInlineToolbar,
 				group: 'navigation',
 				order: 1,
 				alt: {
