@@ -35,8 +35,7 @@ const LOG_PREFIX = '[TunnelAgentHost]';
  * event pending forever — which in turn hangs the renderer's
  * `_tunnelService.connect(...)` await, leaving the per-host `_pendingConnects`
  * flag set and effectively disabling auto-reconnect for the lifetime of the
- * shared process. That symptom matches the user-visible bug:
- * "reload doesn't help, only quitting and restarting the app does".
+ * shared process.
  */
 const TUNNEL_STEP_TIMEOUT_MS = 30_000;
 
@@ -374,7 +373,8 @@ export class TunnelAgentHostMainService extends Disposable implements ITunnelAge
 				this._onDidRelayMessage.fire({ connectionId, data: text });
 			});
 
-			ws.on('close', () => {
+			ws.on('close', (code: number, reason: Buffer) => {
+				this._logService.info(`${LOG_PREFIX} WebSocket relay closed for connection ${connectionId}; code=${code}, reason=${reason?.toString() || '(empty)'}`);
 				const conn = this._connections.get(connectionId);
 				if (conn) {
 					conn.dispose();

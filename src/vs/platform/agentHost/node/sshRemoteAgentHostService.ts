@@ -347,8 +347,14 @@ class SSHConnection extends Disposable {
 	readonly config: ISSHAgentHostConfigSanitized;
 	private _closed = false;
 	private _sshClientDetached = false;
-	private readonly _sshCloseListener = () => { this.dispose(); };
-	private readonly _sshErrorListener = () => { this.dispose(); };
+	private readonly _sshCloseListener = () => {
+		this._logService.info(`${LOG_PREFIX} SSH client closed for connection ${this.connectionId} (address ${this.address}); disposing connection`);
+		this.dispose();
+	};
+	private readonly _sshErrorListener = (err?: Error) => {
+		this._logService.info(`${LOG_PREFIX} SSH client error for connection ${this.connectionId} (address ${this.address}): ${err instanceof Error ? err.message : String(err)}; disposing connection`);
+		this.dispose();
+	};
 
 	constructor(
 		fullConfig: ISSHAgentHostConfig,
@@ -360,6 +366,7 @@ class SSHConnection extends Disposable {
 		readonly sshClient: SSHClient,
 		private readonly _relay: { send: (data: string) => void; close: () => void },
 		private readonly _remoteStream: SSHChannel | undefined,
+		private readonly _logService: ILogService,
 	) {
 		super();
 
@@ -498,6 +505,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 					conn = new SSHConnection(
 						config, connectionId, connectionKey, config.name,
 						connectionToken, remotePort, sshClient, relay, undefined,
+						this._logService,
 					);
 
 					Event.once(conn.onDidClose)(() => {
@@ -643,6 +651,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				sshClient,
 				relay,
 				agentStream,
+				this._logService,
 			);
 
 			Event.once(conn.onDidClose)(() => {
