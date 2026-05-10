@@ -189,8 +189,19 @@ interface WebviewMessage {
 	 * stamped an id onto it.
 	 */
 	subtaskId?: string;
-	/** Specialist handle (e.g. `anton-code`) for the `rerunFromSubtask` row. */
+	/**
+	 * Specialist handle (e.g. `anton-code`) for the `rerunFromSubtask` row,
+	 * or for the `setSpecialistModel` payload that targets a specific
+	 * `sota.agents.<handle>.model` setting key.
+	 */
 	handle?: string;
+	/**
+	 * Configuration scope for `setSpecialistModel`. Mapped to
+	 * `vscode.ConfigurationTarget`: `'user' | 'workspace' | 'folder'`.
+	 * Defaults to `'user'` when omitted so settings flow into the global
+	 * profile by default (the safest option for personal preference).
+	 */
+	scope?: 'user' | 'workspace' | 'folder';
 	/** Subtask description copied from the focus-chain row for `rerunFromSubtask`. */
 	description?: string;
 	/**
@@ -1704,6 +1715,20 @@ export class ChatSession {
 					case 'requestSettings':
 						this.postSettingsState();
 						break;
+					case 'getSpecialistModelsState':
+						this.postSpecialistModelsState();
+						break;
+					case 'setSpecialistModel':
+						await this.handleSetSpecialistModel(message);
+						break;
+					case 'reloadWindow':
+						// Surfaced by the Specialist Models sub-tab's "Reload
+						// window to apply" button after the user has changed
+						// at least one per-agent override. The agent stack
+						// reads the setting at activation, so a window
+						// reload is the cheapest way to land the change.
+						await vscode.commands.executeCommand('workbench.action.reloadWindow');
+						break;
 					case 'openSettingsJson':
 						if (typeof message.settingId === 'string' && message.settingId.length > 0) {
 							await vscode.commands.executeCommand('workbench.action.openSettings', message.settingId);
@@ -2160,6 +2185,106 @@ export class ChatSession {
 		}
 		// Re-push so the webview repaints with defaults.
 		this.postSettingsState();
+	}
+
+	/**
+	 * Ordered list of specialist handles whose `sota.agents.<handle>.model`
+	 * setting is exposed in the Settings → Specialist Models sub-tab. Each
+	 * tuple stores the handle, a human-friendly display name, and the
+	 * hardcoded default the agent stack falls back to when the override
+	 * setting is empty. The list mirrors (a) the per-agent settings declared
+	 * in `package.json` and (b) the `AGENT_CONFIGS` defaults in
+	 * `son-of-anton-core/src/agents/AgentStackFactory.ts`. Update both in
+	 * lock-step when adding a new specialist.
+	 */
+	private static readonly SPECIALIST_MODEL_ENTRIES: ReadonlyArray<{
+		readonly handle: string;
+		readonly displayName: string;
+		readonly defaultModel: string;
+	}> = [
+		{ handle: 'anton', displayName: 'Orchestrator', defaultModel: 'opus' },
+		{ handle: 'anton-code', displayName: 'Code', defaultModel: 'sonnet' },
+		{ handle: 'anton-test', displayName: 'Test', defaultModel: 'sonnet' },
+		{ handle: 'anton-e2e', displayName: 'E2E', defaultModel: 'sonnet' },
+		{ handle: 'anton-security', displayName: 'Security', defaultModel: 'sonnet' },
+		{ handle: 'anton-docs', displayName: 'Docs', defaultModel: 'haiku' },
+		{ handle: 'anton-ci', displayName: 'CI', defaultModel: 'sonnet' },
+		{ handle: 'anton-pr', displayName: 'PR', defaultModel: 'sonnet' },
+		{ handle: 'anton-moderniser', displayName: 'Moderniser', defaultModel: 'sonnet' },
+		{ handle: 'anton-review', displayName: 'Review', defaultModel: 'sonnet' },
+	];
+
+	/**
+	 * Resolve a webview-supplied scope discriminator to a
+	 * `vscode.ConfigurationTarget`. Unknown / missing values fall back to
+	 * `Global` so the operation can never silently target the wrong scope.
+	 */
+	private resolveConfigurationTarget(scope: WebviewMessage['scope']): vscode.ConfigurationTarget {
+		switch (scope) {
+			case 'workspace': return vscode.ConfigurationTarget.Workspace;
+			case 'folder': return vscode.ConfigurationTarget.WorkspaceFolder;
+			case 'user':
+			default: return vscode.ConfigurationTarget.Global;
+		}
+	}
+
+	/**
+	 * Push the current per-specialist model overrides down to the webview so
+	 * the Settings → Specialist Models sub-tab can paint each row's selected
+	 * value plus its "Default" / "Pinned" status pill. Reads the underlying
+	 * `sota.agents.<handle>.model` settings keys via `getConfiguration`.
+	 * Sent in response to `getSpecialistModelsState`, and again after every
+	 * successful `setSpecialistModel` write so the pane re-renders without
+	 * the webview having to keep a stale in-memory copy.
+	 */
+	private postSpecialistModelsState(): void {
+		if (this.disposed) {
+			return;
+		}
+		const cfg = vscode.workspace.getConfiguration();
+		const entries = ChatSession.SPECIALIST_MODEL_ENTRIES.map(entry => {
+			const raw = cfg.get<string>(`sota.agents.${entry.handle}.model`, '') ?? '';
+			const value = typeof raw === 'string' ? raw.trim() : '';
+			return {
+				handle: entry.handle,
+				displayName: entry.displayName,
+				defaultModel: entry.defaultModel,
+				value,
+				pinned: value.length > 0,
+			};
+		});
+		this.webview.postMessage({ type: 'specialistModelsState', entries });
+	}
+
+	/**
+	 * Persist a single per-specialist model override and push fresh state
+	 * back so the Settings → Specialist Models row repaints. Validates the
+	 * handle against the canonical list so a malformed message can't write
+	 * arbitrary `sota.agents.*` keys. Empty / missing model strings clear
+	 * the override (i.e. revert to the hardcoded `AGENT_CONFIGS` default).
+	 */
+	private async handleSetSpecialistModel(message: WebviewMessage): Promise<void> {
+		const handle = typeof message.handle === 'string' ? message.handle.trim() : '';
+		const known = ChatSession.SPECIALIST_MODEL_ENTRIES.some(e => e.handle === handle);
+		if (!known) {
+			return;
+		}
+		const rawModel = typeof message.model === 'string' ? message.model.trim() : '';
+		const target = this.resolveConfigurationTarget(message.scope);
+		// Empty string clears the override so the AgentConfig default kicks
+		// back in. `update(key, undefined, ...)` removes the entry entirely
+		// from the affected settings.json scope — preferable to writing an
+		// empty string, which would still register as "set" in the inspect()
+		// view and confuse later debugging.
+		const value: string | undefined = rawModel.length > 0 ? rawModel : undefined;
+		try {
+			await vscode.workspace
+				.getConfiguration()
+				.update(`sota.agents.${handle}.model`, value, target);
+		} catch (err) {
+			console.warn(`[chat] setSpecialistModel failed for ${handle}: ${err instanceof Error ? err.message : String(err)}`);
+		}
+		this.postSpecialistModelsState();
 	}
 
 	private async handleSettingChange(message: WebviewMessage): Promise<void> {
@@ -4186,6 +4311,10 @@ export class ChatSession {
 						<svg class="settings-section-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="8" r="5"/><path d="M8 3v10M3 8h10"/></svg>
 						<span>Models</span>
 					</button>
+					<button class="settings-subtab" data-subtab="specialists" role="tab" aria-selected="false" aria-controls="settingsSubtab-specialists">
+						<svg class="settings-section-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="6" r="2"/><circle cx="11" cy="6" r="2"/><path d="M1.5 13c0-2 1.6-3 3.5-3s3.5 1 3.5 3M7.5 13c0-2 1.6-3 3.5-3s3.5 1 3.5 3"/></svg>
+						<span>Specialist Models</span>
+					</button>
 					<button class="settings-subtab" data-subtab="features" role="tab" aria-selected="false" aria-controls="settingsSubtab-features">
 						<svg class="settings-section-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="2" width="5" height="5"/><rect x="9" y="2" width="5" height="5"/><rect x="2" y="9" width="5" height="5"/><rect x="9" y="9" width="5" height="5"/></svg>
 						<span>Features</span>
@@ -4247,6 +4376,27 @@ export class ChatSession {
 							<input class="settings-input settings-slider" type="range" min="0" max="24000" step="1000" data-setting-number="sota.thinkingBudgetTokens" id="settingsThinkingBudget" />
 						</label>
 						<button class="settings-link-button" type="button" data-action="open-settings-json" data-setting-id="sota.defaultModel">Edit model routing in settings.json</button>
+					</section>
+
+					<section class="settings-section settings-subtab-pane" id="settingsSubtab-specialists" data-subtab-pane="specialists" role="tabpanel" hidden aria-labelledby="settingsSubtab-specialists">
+						<div class="settings-section-head">
+							<svg class="settings-section-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="6" r="2"/><circle cx="11" cy="6" r="2"/><path d="M1.5 13c0-2 1.6-3 3.5-3s3.5 1 3.5 3M7.5 13c0-2 1.6-3 3.5-3s3.5 1 3.5 3"/></svg>
+							<h4>Specialist Models</h4>
+						</div>
+						<p class="settings-section-blurb">Pin a model per specialist. Empty selection falls back to that agent's hardcoded default (shown in brackets). Reload the window for changes to take effect — the agent stack reads these at activation.</p>
+						<div class="specialist-models-controls">
+							<label class="settings-field specialist-models-scope">
+								<span class="settings-field-label">Apply to</span>
+								<select class="settings-input" id="specialistModelsScope">
+									<option value="user">User</option>
+									<option value="workspace">Workspace</option>
+									<option value="folder">Folder</option>
+								</select>
+							</label>
+							<button class="settings-link-button" type="button" id="specialistModelsReload" hidden>Reload window to apply</button>
+						</div>
+						<div class="specialist-models-list" id="specialistModelsList" role="list"></div>
+						<button class="settings-link-button" type="button" data-action="open-settings-json" data-setting-id="sota.agents">Edit agent models in settings.json</button>
 					</section>
 
 					<section class="settings-section settings-subtab-pane" id="settingsSubtab-features" data-subtab-pane="features" role="tabpanel" hidden aria-labelledby="settingsSubtab-features">

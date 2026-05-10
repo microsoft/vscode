@@ -3983,6 +3983,9 @@
 				case 'settingsState':
 					applySettingsState(message.settings);
 					break;
+				case 'specialistModelsState':
+					applySpecialistModelsState(Array.isArray(message.entries) ? message.entries : []);
+					break;
 				case 'showAntonIsWatching':
 					showAntonIsWatchingOverlay(message.text || '');
 					break;
@@ -7394,6 +7397,50 @@
 					vscode.postMessage({ type: 'settingChange', settingId: id, value: String(textarea.value || '') });
 				});
 			});
+			// Specialist Models — dropdown changes write a single
+			// `setSpecialistModel` message, scoped by the "Apply to"
+			// select. The host re-pushes state after every successful
+			// write so the pill flips without us having to mutate the
+			// DOM optimistically.
+			chatSettingsView.addEventListener('change', (ev) => {
+				const target = ev.target;
+				if (!(target instanceof HTMLElement)) return;
+				if (target.classList && target.classList.contains('specialist-row-model')) {
+					const select = target;
+					const handle = select.getAttribute('data-handle') || '';
+					if (!handle) return;
+					const model = String(select.value || '');
+					vscode.postMessage({
+						type: 'setSpecialistModel',
+						handle,
+						model,
+						scope: readSpecialistModelsScope(),
+					});
+					specialistModelsDirty = true;
+					const reloadBtn = document.getElementById('specialistModelsReload');
+					if (reloadBtn) reloadBtn.hidden = false;
+					// Toast reminder. Settings persist immediately, but the
+					// agent stack only reads them at activation — so users
+					// need to reload the window for the change to land.
+					showComposerToast('Specialist model updated. Reload the window to apply.');
+					return;
+				}
+				if (target.id === 'specialistModelsScope') {
+					specialistModelsScope = readSpecialistModelsScope();
+					return;
+				}
+			});
+			// Reload-window affordance — only visible after the first
+			// per-session change so we don't push the button on a user
+			// who's just browsing.
+			chatSettingsView.addEventListener('click', (ev) => {
+				const target = ev.target;
+				if (!(target instanceof HTMLElement)) return;
+				if (target.id === 'specialistModelsReload') {
+					ev.preventDefault();
+					vscode.postMessage({ type: 'reloadWindow' });
+				}
+			});
 			// Initial sub-tab attribute (default to 'api').
 			setActiveSettingsSubtab(chatSettingsView.getAttribute('data-active-subtab') || 'api');
 		}
@@ -7409,6 +7456,164 @@
 			chatSettingsView.querySelectorAll('.settings-subtab-pane').forEach((pane) => {
 				pane.hidden = pane.getAttribute('data-subtab-pane') !== id;
 			});
+			// Specialist Models is the only sub-tab whose data isn't included
+			// in the bulk `settingsState` push, so request a fresh state when
+			// the user lands on it. Cheap — the host just reads 10 config
+			// keys and posts them back.
+			if (id === 'specialists') {
+				vscode.postMessage({ type: 'getSpecialistModelsState' });
+			}
+		}
+
+		// --- Specialist Models sub-tab ----------------------------------
+		//
+		// The Settings → Specialist Models pane shows one row per agent
+		// (`@anton`, `@anton-code`, …) with a model dropdown bound to the
+		// `sota.agents.<handle>.model` setting key. Three pieces of state:
+		//
+		//   * `specialistModelsScope` — webview-local "Apply to" preference
+		//     (User / Workspace / Folder). NOT a real setting — just lets
+		//     the user pick which `ConfigurationTarget` writes go into for
+		//     this session.
+		//   * `specialistModelsDirty` — set after the first write so the
+		//     "Reload window to apply" affordance only appears once the
+		//     user has actually changed something.
+		//   * Per-row status pill — "Default" (override empty, falling
+		//     back to AGENT_CONFIGS) vs "Pinned" (override is active).
+		let specialistModelsScope = 'user';
+		let specialistModelsDirty = false;
+
+		/**
+		 * Cache of `{ id, label }` tuples scraped from the composer's main
+		 * model menu so the per-specialist `<select>`s show the same model
+		 * list (in the same order) without us having to maintain a second
+		 * source of truth. Built lazily on first render and reused.
+		 */
+		let specialistModelOptionsCache = null;
+
+		/**
+		 * Walk the existing #modelMenu popover and collect each model
+		 * option as a `{ id, label, group }` tuple, preserving the section
+		 * dividers so we can rebuild `<optgroup>`s. We reuse the composer
+		 * menu rather than re-listing models here so any future addition
+		 * (a new provider, a new tier) flows into this picker automatically.
+		 */
+		function readSpecialistModelOptions() {
+			if (specialistModelOptionsCache) return specialistModelOptionsCache;
+			const menu = document.getElementById('modelMenu');
+			if (!menu) return [];
+			const groups = [];
+			let current = null;
+			menu.childNodes.forEach((node) => {
+				if (!(node instanceof HTMLElement)) return;
+				if (node.classList && node.classList.contains('popover-section-label')) {
+					current = { label: node.textContent || '', options: [] };
+					groups.push(current);
+					return;
+				}
+				if (node.classList && node.classList.contains('popover-item') && node.hasAttribute('data-model')) {
+					const id = node.getAttribute('data-model') || '';
+					// The label text inside the button is split across the
+					// check span, the model name, and an item-key span;
+					// stitch them by reading the model-name text node.
+					let label = '';
+					node.childNodes.forEach((c) => {
+						if (c.nodeType === Node.TEXT_NODE) {
+							label += c.textContent || '';
+						}
+					});
+					label = label.trim();
+					if (!label) label = id;
+					if (!current) {
+						current = { label: 'Models', options: [] };
+						groups.push(current);
+					}
+					current.options.push({ id, label });
+				}
+			});
+			specialistModelOptionsCache = groups;
+			return groups;
+		}
+
+		/**
+		 * Build the `<option>` markup for a specialist row's model dropdown.
+		 * The first entry is always a `Default (<fallback>)` option mapped
+		 * to an empty value so picking it clears the per-specialist
+		 * override. Below that, options are grouped by provider via
+		 * `<optgroup>` so the long list stays scannable.
+		 */
+		function buildSpecialistModelOptions(defaultModel) {
+			const groups = readSpecialistModelOptions();
+			const escDefault = escapeHtml(defaultModel || 'default');
+			let html = '<option value="">Default (' + escDefault + ')</option>';
+			groups.forEach((group) => {
+				if (!group.options.length) return;
+				html += '<optgroup label="' + escapeHtml(group.label) + '">';
+				group.options.forEach((opt) => {
+					html += '<option value="' + escapeHtml(opt.id) + '">' + escapeHtml(opt.label) + '</option>';
+				});
+				html += '</optgroup>';
+			});
+			return html;
+		}
+
+		/**
+		 * Repaint the Specialist Models list from the host-supplied state.
+		 * Each entry produces a row with the handle, display name, model
+		 * picker, and a status pill. Existing select element values get
+		 * preserved across re-renders so the user's selection survives the
+		 * round-trip without flicker.
+		 */
+		function applySpecialistModelsState(entries) {
+			const list = document.getElementById('specialistModelsList');
+			if (!list || !Array.isArray(entries)) return;
+			const reloadBtn = document.getElementById('specialistModelsReload');
+			if (reloadBtn) reloadBtn.hidden = !specialistModelsDirty;
+			const rows = entries.map((entry) => {
+				const handle = typeof entry.handle === 'string' ? entry.handle : '';
+				const display = typeof entry.displayName === 'string' ? entry.displayName : handle;
+				const defaultModel = typeof entry.defaultModel === 'string' ? entry.defaultModel : '';
+				const value = typeof entry.value === 'string' ? entry.value : '';
+				const pinned = Boolean(entry.pinned);
+				const statusClass = pinned ? 'is-pinned' : 'is-default';
+				const statusLabel = pinned ? 'Pinned' : 'Default';
+				const options = buildSpecialistModelOptions(defaultModel);
+				return ''
+					+ '<div class="specialist-row" data-handle="' + escapeHtml(handle) + '" role="listitem">'
+					+ '<div class="specialist-row-name">'
+					+ '<span class="specialist-row-handle">@' + escapeHtml(handle) + '</span>'
+					+ '<span class="specialist-row-display">' + escapeHtml(display) + '</span>'
+					+ '</div>'
+					+ '<select class="specialist-row-model" data-handle="' + escapeHtml(handle) + '" aria-label="Model for @' + escapeHtml(handle) + '">'
+					+ options
+					+ '</select>'
+					+ '<span class="specialist-row-status ' + statusClass + '" data-handle="' + escapeHtml(handle) + '">' + statusLabel + '</span>'
+					+ '</div>';
+			});
+			list.innerHTML = rows.join('');
+			// Apply the selected value after the markup is in the DOM —
+			// setting `select.value` directly is more reliable than
+			// emitting `selected` attributes inline, since unknown values
+			// (e.g. a model id removed from the menu) cleanly fall back to
+			// the empty default rather than rendering as an orphan option.
+			entries.forEach((entry) => {
+				const handle = typeof entry.handle === 'string' ? entry.handle : '';
+				const value = typeof entry.value === 'string' ? entry.value : '';
+				const sel = list.querySelector('select.specialist-row-model[data-handle="' + handle + '"]');
+				if (sel) sel.value = value;
+			});
+		}
+
+		/**
+		 * Convert the webview-local scope toggle into the discriminator the
+		 * host expects. Defensive — falls back to `'user'` if the select
+		 * has been tampered with (the host re-validates anyway).
+		 */
+		function readSpecialistModelsScope() {
+			const select = document.getElementById('specialistModelsScope');
+			if (!select) return 'user';
+			const v = String(select.value || '');
+			return (v === 'user' || v === 'workspace' || v === 'folder') ? v : 'user';
 		}
 
 		function applySettingsState(settings) {

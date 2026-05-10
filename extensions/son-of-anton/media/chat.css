@@ -1214,6 +1214,94 @@ button {
 }
 
 /*--------------------------------------------------------------------
+ *  Specialist Models sub-tab — per-agent model picker. One row per
+ *  specialist with a model dropdown and a status pill ("Default" vs
+ *  "Pinned"). Layout is a CSS grid so the columns line up regardless
+ *  of label width.
+ *-------------------------------------------------------------------*/
+
+.specialist-models-controls {
+	display: flex;
+	align-items: flex-end;
+	gap: 12px;
+	margin-bottom: 8px;
+	flex-wrap: wrap;
+}
+
+.specialist-models-scope {
+	flex: 0 0 auto;
+	min-width: 140px;
+}
+
+.specialist-models-list {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.specialist-row {
+	display: grid;
+	grid-template-columns: minmax(140px, 1fr) minmax(160px, 1.4fr) auto;
+	align-items: center;
+	gap: 10px;
+	padding: 8px 10px;
+	background-color: var(--sota-card-bg);
+	border: 1px solid var(--vscode-input-border, transparent);
+	border-radius: var(--sota-radius-sm);
+	font-size: 12px;
+}
+
+.specialist-row-name {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	min-width: 0;
+}
+
+.specialist-row-handle {
+	font-family: var(--vscode-editor-font-family, ui-monospace, SFMono-Regular, Menlo, monospace);
+	font-size: 11px;
+	color: var(--sota-accent);
+}
+
+.specialist-row-display {
+	font-weight: 600;
+	color: var(--vscode-foreground);
+}
+
+.specialist-row-model {
+	font: inherit;
+	font-size: 12px;
+	color: var(--vscode-foreground);
+	background: var(--vscode-input-background, var(--sota-card-bg));
+	border: 1px solid var(--vscode-input-border, transparent);
+	border-radius: 4px;
+	padding: 4px 6px;
+	min-width: 0;
+	width: 100%;
+}
+
+.specialist-row-status {
+	font-size: 10px;
+	padding: 2px 8px;
+	border-radius: 999px;
+	flex-shrink: 0;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	white-space: nowrap;
+}
+
+.specialist-row-status.is-default {
+	background-color: color-mix(in srgb, var(--sota-status-grey, var(--vscode-descriptionForeground)) 14%, transparent);
+	color: var(--sota-fg-muted, var(--vscode-descriptionForeground));
+}
+
+.specialist-row-status.is-pinned {
+	background-color: color-mix(in srgb, var(--sota-accent) 18%, transparent);
+	color: var(--sota-accent);
+}
+
+/*--------------------------------------------------------------------
  *  MCP servers — list + inline add/edit form inside the chat settings
  *  view. Phase 55 replaces the "Edit in settings.json" button with a
  *  proper UI; the link-button below the list is kept as a deep-link

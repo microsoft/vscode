@@ -65,6 +65,7 @@ import { AgentEvent, AgentPlan } from './chat/agentEvents';
 import { CodeGraphController } from './services/CodeGraphController';
 import { CodeGraphStatusBarItem } from './sidebar/CodeGraphStatusBarItem';
 import { CliStatusBarItem } from './cli/CliStatusBarItem';
+import { HarnessStatusBarItem } from './status/HarnessStatusBarItem';
 import { registerOpenCliInTerminalCommand } from './cli/openCliInTerminal';
 import * as cp from 'node:child_process';
 
@@ -1396,6 +1397,14 @@ export function activate(context: vscode.ExtensionContext): void {
 	const cliStatusItem = new CliStatusBarItem();
 	context.subscriptions.push(cliStatusItem);
 	registerOpenCliInTerminalCommand(context);
+
+	// Harness state at a glance — Codex / Claude CLI auth pills + a count
+	// of pinned specialist model overrides. Lives next to the `sota` CLI
+	// item but covers a different concern (subscription auth + per-agent
+	// model assignment vs. CLI install state). Click opens a quick-pick
+	// with sign-in / settings / harness-stats shortcuts.
+	const harnessStatusItem = new HarnessStatusBarItem();
+	context.subscriptions.push(harnessStatusItem);
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand('sota.enableCodeGraph', async () => {

@@ -219,6 +219,11 @@
 				"category": "Son of Anton"
 			},
 			{
+				"command": "sota.harness.openMenu",
+				"title": "Show Harness State Menu",
+				"category": "Son of Anton"
+			},
+			{
 				"command": "sota.openTaskBoard",
 				"title": "Open Task Board",
 				"category": "Son of Anton"
