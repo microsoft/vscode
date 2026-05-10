@@ -513,14 +513,15 @@ export function addToolsAndSystemCacheControl(
  * Marks the last cacheable block of the two most recent cacheable messages.
  *
  * Anthropic's prompt cache matches on content prefix, so a single tail anchor
- * is sufficient under steady-state. The second (older) anchor provides a
- * fallback within Anthropic's 20-block lookback window: if the tail anchor
- * misses (TTL expiry on a slow tool call, or rare content drift), the older
- * anchor still serves a cache hit covering everything up to it, so we lose at
- * most one exchange instead of resetting the entire conversation cache.
+ * is sufficient under steady-state. The second (older) anchor is intended to
+ * improve the chance of retaining a useful fallback within Anthropic's
+ * lookback window: if the tail anchor misses (TTL expiry on a slow tool call,
+ * or rare content drift), the older anchor can still serve a cache hit
+ * covering everything up to it, so we typically lose at most one exchange
+ * instead of resetting the entire conversation cache.
  *
- * Combined with the tools + system breakpoints, this produces 4 cache_control
- * markers — exactly Anthropic's per-request limit.
+ * Combined with the tools + system breakpoints, this can produce up to 4
+ * cache_control markers, which matches Anthropic's per-request limit.
  */
 export function addMessagesApiCacheControl(
 	messagesResult: { messages: MessageParam[]; system?: TextBlockParam[] },
