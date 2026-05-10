@@ -37,9 +37,9 @@ const LOG_PREFIX = '[TunnelAgentHost]';
  * flag set and effectively disabling auto-reconnect for the lifetime of the
  * shared process.
  */
-const TUNNEL_STEP_TIMEOUT_MS = 30_000;
+export const TUNNEL_STEP_TIMEOUT_MS = 30_000;
 
-async function withTimeout<T>(
+export async function withTimeout<T>(
 	op: () => Promise<T>,
 	timeoutMs: number,
 	stepName: string,

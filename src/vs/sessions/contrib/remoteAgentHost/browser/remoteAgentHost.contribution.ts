@@ -74,7 +74,7 @@ const SSH_RECONNECT_MAX_ATTEMPTS = 10;
  * which disposes the entry — and therefore the pending timer — when the host
  * is no longer configured or when the contribution itself is disposed.
  */
-class SSHReconnectState extends Disposable {
+export class SSHReconnectState extends Disposable {
 	private readonly _timer = this._register(new MutableDisposable());
 
 	/** Consecutive failed reconnect attempts. */

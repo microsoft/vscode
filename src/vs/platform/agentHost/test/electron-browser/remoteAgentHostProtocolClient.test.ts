@@ -266,6 +266,67 @@ suite('RemoteAgentHostProtocolClient', () => {
 		});
 	});
 
+	test('watchdog stops ticking after the connection is closed', async () => {
+		return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
+			const { client, transport } = createClient();
+			let closeCount = 0;
+			disposables.add(client.onDidClose(() => closeCount++));
+
+			// Trigger the watchdog so the first close fires.
+			client.resourceList(URI.file('/workspace')).catch(() => { /* expected */ });
+			await timeout(30_000);
+			assert.strictEqual(closeCount, 1, 'watchdog should have force-closed once');
+
+			// Issue another request after close. The protocol client may
+			// outlive the close briefly while addManagedConnection swaps in
+			// a new client. The watchdog must NOT keep ticking and re-close.
+			client.resourceList(URI.file('/workspace2')).catch(() => { /* expected */ });
+			await timeout(60_000);
+			assert.strictEqual(closeCount, 1, 'watchdog should not fire again after close');
+			assert.strictEqual(transport.sentMessages.length, 1, 'no further requests should be sent after close');
+			client.dispose();
+		});
+	});
+
+	test('inbound messages are dropped after close', async () => {
+		return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
+			const { client, transport } = createClient();
+			let actionCount = 0;
+			disposables.add(client.onDidAction(() => actionCount++));
+
+			// Issue a request, then force close via the watchdog timeout.
+			const pending = client.resourceList(URI.file('/workspace'));
+			const rejected = pending.catch(err => err);
+			await timeout(30_000);
+			const err = await rejected;
+			assert.ok(err instanceof ProtocolError);
+
+			// Late response for the same request id — the shared
+			// SSHRelayTransport feeds both old and new clients for the
+			// same connectionId, so this can happen in production. The
+			// pending request was already rejected; if _handleMessage
+			// processed the response it would log a "unknown request id"
+			// warning at best, or settle a request the caller no longer
+			// owns at worst. Either way, after close it must be a no-op.
+			transport.fireMessage({ jsonrpc: '2.0', id: 1, result: { entries: [] } });
+
+			// Late notification — must not fan out as an action event.
+			const lateAction: SessionActiveClientChangedAction = {
+				type: ActionType.SessionActiveClientChanged,
+				session: 'session://test/late',
+				activeClient: null,
+			};
+			transport.fireMessage({
+				jsonrpc: '2.0',
+				method: 'action',
+				params: { action: lateAction, serverSeq: 1, origin: undefined }
+			});
+
+			assert.strictEqual(actionCount, 0, 'late action notifications must be ignored after close');
+			client.dispose();
+		});
+	});
+
 	test('rejects connect when transport closes before connect completes', async () => {
 		const transport = disposables.add(new TestClientProtocolTransport());
 		const { client } = createClient(transport);
