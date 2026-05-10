@@ -174,9 +174,11 @@ interface CascadeResult {
  * part is unchanged. `currentFile` and `lintOptions` are intentionally excluded
  * and continue using their own per-part caps.
  *
- * Cost is measured as the sum of `computeTokens` over each produced snippet
- * string (or the diff history string). This understates the joining whitespace
- * by ~1 token per snippet, which is conservative w.r.t. the total budget.
+ * Each sub-builder reports `tokensConsumed` using the same internal accounting
+ * it uses to make budget decisions (paged-clipping line cost, raw-snippet cost
+ * for appenders, diff-entry cost for history). The cascade uses that reported
+ * value to compute `surplus`, which keeps the cascade aligned with how each
+ * part actually charges against its budget.
  */
 function runGlobalBudgetCascade(
 	activeDoc: StatelessNextEditDocument,
@@ -187,13 +189,7 @@ function runGlobalBudgetCascade(
 	neighborSnippets: readonly INeighborFileSnippet[] | undefined,
 	globalBudget: GlobalBudgetOptions,
 ): CascadeResult {
-	// Validate cascade order: neighbor files depend on docsInPrompt populated by
-	// the recently-viewed builder, so the latter must run first when both are present.
-	const recentIdx = globalBudget.order.indexOf('recentlyViewedDocuments');
-	const neighborIdx = globalBudget.order.indexOf('neighborFiles');
-	if (recentIdx !== -1 && neighborIdx !== -1 && neighborIdx < recentIdx) {
-		throw new Error(`globalBudget.order must place 'recentlyViewedDocuments' before 'neighborFiles'`);
-	}
+	validateGlobalBudget(globalBudget);
 
 	const recentlyViewedSnippets: string[] = [];
 	const langCtxSnippets: string[] = [];
@@ -208,14 +204,11 @@ function runGlobalBudgetCascade(
 
 	const preparedRecent = prepareRecentCodeSnippets(activeDoc, xtabHistory, opts);
 
-	const countCost = (snippets: readonly string[]): number =>
-		snippets.reduce((sum, s) => sum + computeTokens(s), 0);
-
 	let surplus = 0;
 	for (const part of globalBudget.order) {
 		const share = globalBudget.shares[part] ?? 0;
 		const budget = Math.max(0, Math.floor(surplus + globalBudget.totalTokens * share));
-		let actualCost = 0;
+		let tokensConsumed = 0;
 		switch (part) {
 			case 'recentlyViewedDocuments': {
 				const overridden: PromptOptions = {
@@ -225,20 +218,19 @@ function runGlobalBudgetCascade(
 				const r = buildCodeSnippetsUsingPagedClipping(preparedRecent, computeTokens, overridden);
 				recentlyViewedSnippets.push(...r.snippets);
 				r.docsInPrompt.forEach(d => docsInPrompt.add(d));
-				actualCost = countCost(r.snippets);
+				tokensConsumed = r.tokensConsumed;
 				break;
 			}
 			case 'languageContext': {
 				if (langCtx) {
-					appendLanguageContextSnippets(langCtx, langCtxSnippets, budget, computeTokens, opts.recentlyViewedDocuments.includeLineNumbers);
-					actualCost = countCost(langCtxSnippets);
+					tokensConsumed = appendLanguageContextSnippets(langCtx, langCtxSnippets, budget, computeTokens, opts.recentlyViewedDocuments.includeLineNumbers);
 				}
 				break;
 			}
 			case 'neighborFiles': {
 				if (opts.neighborFiles.enabled && neighborSnippets && neighborSnippets.length > 0) {
 					neighborSnippetsResult = appendNeighborFileSnippets(neighborSnippets, neighborOutSnippets, docsInPrompt, budget, computeTokens, opts.recentlyViewedDocuments.includeLineNumbers);
-					actualCost = countCost(neighborOutSnippets);
+					tokensConsumed = neighborSnippetsResult.tokensConsumed;
 				}
 				break;
 			}
@@ -248,13 +240,13 @@ function runGlobalBudgetCascade(
 				editDiffHistory = r.promptPiece;
 				nDiffsInPrompt = r.nDiffs;
 				diffTokensInPrompt = r.totalTokens;
-				actualCost = r.totalTokens;
+				tokensConsumed = r.totalTokens;
 				break;
 			}
 			default:
 				assertNever(part);
 		}
-		surplus = Math.max(0, budget - actualCost);
+		surplus = Math.max(0, budget - tokensConsumed);
 	}
 
 	const codeSnippets = [...recentlyViewedSnippets, ...langCtxSnippets, ...neighborOutSnippets].join('\n\n');
@@ -267,6 +259,41 @@ function runGlobalBudgetCascade(
 		nDiffsInPrompt,
 		diffTokensInPrompt,
 	};
+}
+
+/**
+ * Validate {@link GlobalBudgetOptions} since it is runtime-configurable
+ * (e.g. via experiments). Catches misconfigurations that would otherwise
+ * cause silent, hard-to-debug behavior:
+ *  - duplicate parts in `order` (would render the same part twice)
+ *  - missing share for any part in `order`
+ *  - shares not summing to ~1 across `order` (would over/under-allocate)
+ *  - `neighborFiles` ordered before `recentlyViewedDocuments` (the former
+ *    consults `docsInPrompt` populated by the latter)
+ */
+function validateGlobalBudget(globalBudget: GlobalBudgetOptions): void {
+	const seen = new Set<string>();
+	for (const part of globalBudget.order) {
+		if (seen.has(part)) {
+			throw new Error(`globalBudget.order contains duplicate part '${part}'`);
+		}
+		seen.add(part);
+		if (typeof globalBudget.shares[part] !== 'number') {
+			throw new Error(`globalBudget.shares is missing entry for '${part}'`);
+		}
+	}
+
+	const recentIdx = globalBudget.order.indexOf('recentlyViewedDocuments');
+	const neighborIdx = globalBudget.order.indexOf('neighborFiles');
+	if (recentIdx !== -1 && neighborIdx !== -1 && neighborIdx < recentIdx) {
+		throw new Error(`globalBudget.order must place 'recentlyViewedDocuments' before 'neighborFiles'`);
+	}
+
+	const sharesSum = globalBudget.order.reduce((sum, part) => sum + globalBudget.shares[part], 0);
+	const epsilon = 1e-3;
+	if (Math.abs(sharesSum - 1) > epsilon) {
+		throw new Error(`globalBudget.shares across order must sum to ~1, got ${sharesSum}`);
+	}
 }
 
 function wrapInBackticks(content: string) {

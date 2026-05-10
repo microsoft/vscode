@@ -768,4 +768,41 @@ describe('getUserPrompt — globalBudget cascade', () => {
 		});
 		expect(() => getUserPrompt(pieces)).toThrow(/'recentlyViewedDocuments' before 'neighborFiles'/);
 	});
+
+	test('throws on duplicate part in order', () => {
+		const pieces = makePieces({
+			totalTokens: 1000,
+			order: ['recentlyViewedDocuments', 'recentlyViewedDocuments', 'neighborFiles', 'languageContext', 'diffHistory'],
+			shares: GlobalBudgetOptions.DEFAULT_SHARES,
+		});
+		expect(() => getUserPrompt(pieces)).toThrow(/duplicate part 'recentlyViewedDocuments'/);
+	});
+
+	test('throws when shares do not sum to ~1', () => {
+		const pieces = makePieces({
+			totalTokens: 1000,
+			order: GlobalBudgetOptions.DEFAULT_ORDER,
+			shares: {
+				recentlyViewedDocuments: 0.5,
+				languageContext: 0.5,
+				neighborFiles: 0.5,
+				diffHistory: 0.5,
+			},
+		});
+		expect(() => getUserPrompt(pieces)).toThrow(/shares across order must sum to ~1/);
+	});
+
+	test('throws when shares is missing an entry for a part in order', () => {
+		const pieces = makePieces({
+			totalTokens: 1000,
+			order: GlobalBudgetOptions.DEFAULT_ORDER,
+			// missing 'diffHistory'
+			shares: {
+				languageContext: 0.4,
+				recentlyViewedDocuments: 0.4,
+				neighborFiles: 0.2,
+			} as Record<'languageContext' | 'recentlyViewedDocuments' | 'neighborFiles' | 'diffHistory', number>,
+		});
+		expect(() => getUserPrompt(pieces)).toThrow(/shares is missing entry for 'diffHistory'/);
+	});
 });
