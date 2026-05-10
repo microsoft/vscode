@@ -5,12 +5,25 @@
 
 import * as React from 'react';
 import type { LlmClient, LlmMessage, ModelId } from 'son-of-anton-core/dist/llm/LlmClient';
+import type { HookRunner } from 'son-of-anton-core/dist/persistence/HookRunner';
 import type { TuiMessage } from './types';
 
 interface UseAgentStreamArgs {
 	llm: LlmClient;
 	model: ModelId;
 	specialist: string;
+	/**
+	 * Optional workspace-trust-gated hook runner. When present, `pre-prompt`
+	 * fires before each user turn (with stdout-driven replacement) and
+	 * `post-response` fires after the assistant turn settles.
+	 */
+	hookRunner?: HookRunner;
+	/**
+	 * Live conversation id from `ChatApp`. Threaded through as a ref so the
+	 * `send` callback doesn't have to be re-created when a fresh
+	 * conversation rolls over mid-session.
+	 */
+	conversationIdRef?: React.MutableRefObject<string | undefined>;
 }
 
 interface UseAgentStreamResult {
@@ -33,7 +46,7 @@ interface UseAgentStreamResult {
  * mutates as tokens arrive, then closes out when the stream completes.
  */
 export function useAgentStream(args: UseAgentStreamArgs): UseAgentStreamResult {
-	const { llm, model, specialist } = args;
+	const { llm, model, specialist, hookRunner, conversationIdRef } = args;
 	const [messages, setMessages] = React.useState<ReadonlyArray<TuiMessage>>([]);
 	const [busy, setBusy] = React.useState(false);
 	const [usage, setUsage] = React.useState<{ input: number; output: number; cached: number }>({ input: 0, output: 0, cached: 0 });
@@ -45,19 +58,55 @@ export function useAgentStream(args: UseAgentStreamArgs): UseAgentStreamResult {
 		return `m${idCounterRef.current}`;
 	};
 
+	/**
+	 * Add a system-rendered message asynchronously from inside `send`. Uses
+	 * the same id generator as `addSystemMessage` so transcript ordering is
+	 * deterministic even when a hook denies a prompt before any user-row is
+	 * shown.
+	 */
+	const pushSystemMessage = (text: string): void => {
+		const id = nextId();
+		setMessages((prev) => [...prev, { id, role: 'system', text }]);
+	};
+
 	const send = React.useCallback(
 		(text: string): void => {
 			if (busy) {
 				return;
 			}
-			const userMsg: TuiMessage = { id: nextId(), role: 'user', text };
-			const assistantId = nextId();
-			const assistantMsg: TuiMessage = { id: assistantId, role: 'assistant', text: '', streaming: true };
-			historyRef.current.push({ role: 'user', content: text });
-			setMessages((prev) => [...prev, userMsg, assistantMsg]);
 			setBusy(true);
-
 			void (async () => {
+				// Fire `pre-prompt` BEFORE pushing the user turn into the
+				// transcript or the LLM history. A denying hook leaves the
+				// conversation state untouched; a replacing hook rewrites the
+				// prompt that goes to the model (the user still sees their
+				// original keystrokes — they typed them, after all).
+				let promptForLlm = text;
+				if (hookRunner) {
+					try {
+						const fired = await hookRunner.fire('pre-prompt', {
+							prompt: text,
+							conversationId: conversationIdRef?.current,
+						});
+						if (!fired.allowed) {
+							pushSystemMessage('pre-prompt hook denied this prompt.');
+							setBusy(false);
+							return;
+						}
+						if (fired.replacement && fired.replacement.length > 0) {
+							promptForLlm = fired.replacement;
+						}
+					} catch {
+						// Swallow — hooks must never break a session.
+					}
+				}
+
+				const userMsg: TuiMessage = { id: nextId(), role: 'user', text };
+				const assistantId = nextId();
+				const assistantMsg: TuiMessage = { id: assistantId, role: 'assistant', text: '', streaming: true };
+				historyRef.current.push({ role: 'user', content: promptForLlm });
+				setMessages((prev) => [...prev, userMsg, assistantMsg]);
+
 				let assistantText = '';
 				const toolCalls: Array<{ name: string; input?: unknown }> = [];
 				let errorMessage: string | undefined;
@@ -114,9 +163,24 @@ export function useAgentStream(args: UseAgentStreamArgs): UseAgentStreamResult {
 					),
 				);
 				setBusy(false);
+
+				// `post-response` is informational only. We pass the original
+				// user prompt (not the post-`pre-prompt` rewrite) so hooks see
+				// what the user actually typed.
+				if (hookRunner) {
+					void hookRunner
+						.fire('post-response', {
+							prompt: text,
+							response: assistantText,
+							conversationId: conversationIdRef?.current,
+							tokensIn: turnUsage.input,
+							tokensOut: turnUsage.output,
+						})
+						.catch(() => { /* swallow */ });
+				}
 			})();
 		},
-		[busy, llm, model, specialist],
+		[busy, llm, model, specialist, hookRunner, conversationIdRef],
 	);
 
 	const addSystemMessage = React.useCallback((text: string): void => {

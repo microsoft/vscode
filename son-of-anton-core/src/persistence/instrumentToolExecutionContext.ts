@@ -27,8 +27,14 @@ function stringifyOutput(value: unknown): string {
  * Decorate a {@link ToolExecutionContext} so configured `.son-of-anton/hooks.json`
  * scripts fire on the host primitives the tool registry calls into.
  *
- * Wired events (H14, tool-loop scope only):
+ * Wired events:
  *
+ * - `pre-tool-call` — fires inside `writeFile`, `runCommand`, `readFile`,
+ *   `readDir`, and `searchTextInWorkspace` BEFORE the per-method hook runs.
+ *   Non-zero exit denies the entire call (defence in depth — a workspace
+ *   can register a generic `pre-tool-call` rule that catches every tool
+ *   while still scoping a narrower `pre-write-file` / `pre-shell-command`
+ *   policy on top). Stdin payload is `{ name, input }`.
  * - `pre-write-file` — fires inside `writeFile` BEFORE the fs write. Stdin
  *   payload is `{ path, content }`. If any script writes non-empty stdout,
  *   that becomes the new content; if any script exits non-zero, the write
@@ -41,13 +47,12 @@ function stringifyOutput(value: unknown): string {
  *   `readFile`, `readDir`, and `searchTextInWorkspace` returns. Informational
  *   only — the hook's exit code is ignored.
  *
- * Deviation from the cli-upgrade-plan spec: `post-tool-call`'s `name` field
- * is the ToolExecutionContext METHOD name (e.g. `'writeFile'`,
- * `'runCommand'`) rather than the tool-registry tool name (e.g.
- * `'write_file'`, `'run_command'`). The decorator sits below the registry
- * boundary, where tool names are not in scope. The pre-tool-call hook is
- * deferred for the same reason — it fires conceptually at the registry
- * boundary, not at the host-primitive boundary.
+ * Deviation from the cli-upgrade-plan spec: the `name` field on the
+ * `pre-tool-call` and `post-tool-call` payloads is the ToolExecutionContext
+ * METHOD name (e.g. `'writeFile'`, `'runCommand'`) rather than the
+ * tool-registry tool name (e.g. `'write_file'`, `'run_command'`). The
+ * decorator sits below the registry boundary, where tool names are not in
+ * scope.
  *
  * @param ctx The base tool execution context to wrap.
  * @param hookRunner A constructed {@link HookRunner}. Must already be gated
@@ -69,6 +74,19 @@ export function instrumentToolExecutionContext(
 		getConfigValue: ctx.getConfigValue,
 
 		readFile: async (relPath) => {
+			const gate = await hookRunner.fire('pre-tool-call', {
+				name: 'readFile',
+				input: { path: relPath },
+			});
+			if (!gate.allowed) {
+				await hookRunner.fire('post-tool-call', {
+					name: 'readFile',
+					input: { path: relPath },
+					output: stringifyOutput({ read: false, reason: 'pre-tool-call hook denied read' }),
+					isError: true,
+				});
+				return '';
+			}
 			const result = await ctx.readFile(relPath);
 			await hookRunner.fire('post-tool-call', {
 				name: 'readFile',
@@ -80,6 +98,20 @@ export function instrumentToolExecutionContext(
 		},
 
 		readDir: async (relPath) => {
+			const gate = await hookRunner.fire('pre-tool-call', {
+				name: 'readDir',
+				input: { path: relPath },
+			});
+			if (!gate.allowed) {
+				const denied: ReadonlyArray<{ name: string; isDirectory: boolean }> = [];
+				await hookRunner.fire('post-tool-call', {
+					name: 'readDir',
+					input: { path: relPath },
+					output: stringifyOutput({ listed: false, reason: 'pre-tool-call hook denied list' }),
+					isError: true,
+				});
+				return denied;
+			}
 			const result = await ctx.readDir(relPath);
 			await hookRunner.fire('post-tool-call', {
 				name: 'readDir',
@@ -91,6 +123,20 @@ export function instrumentToolExecutionContext(
 		},
 
 		searchTextInWorkspace: async (query, maxMatches) => {
+			const gate = await hookRunner.fire('pre-tool-call', {
+				name: 'searchTextInWorkspace',
+				input: { query, maxMatches },
+			});
+			if (!gate.allowed) {
+				const denied: ReadonlyArray<{ relPath: string; line: number; preview: string }> = [];
+				await hookRunner.fire('post-tool-call', {
+					name: 'searchTextInWorkspace',
+					input: { query, maxMatches },
+					output: stringifyOutput({ searched: false, reason: 'pre-tool-call hook denied search' }),
+					isError: true,
+				});
+				return denied;
+			}
 			const result = await ctx.searchTextInWorkspace(query, maxMatches);
 			await hookRunner.fire('post-tool-call', {
 				name: 'searchTextInWorkspace',
@@ -102,6 +148,20 @@ export function instrumentToolExecutionContext(
 		},
 
 		writeFile: async (relPath, content) => {
+			const gate = await hookRunner.fire('pre-tool-call', {
+				name: 'writeFile',
+				input: { path: relPath, content },
+			});
+			if (!gate.allowed) {
+				const denied = { written: false as const, reason: 'pre-tool-call hook denied write' };
+				await hookRunner.fire('post-tool-call', {
+					name: 'writeFile',
+					input: { path: relPath, content },
+					output: stringifyOutput(denied),
+					isError: false,
+				});
+				return denied;
+			}
 			const fired = await hookRunner.fire('pre-write-file', { path: relPath, content });
 			if (!fired.allowed) {
 				const denied = { written: false as const, reason: 'pre-write-file hook denied write' };
@@ -125,6 +185,20 @@ export function instrumentToolExecutionContext(
 		},
 
 		runCommand: async (command, args, opts) => {
+			const gate = await hookRunner.fire('pre-tool-call', {
+				name: 'runCommand',
+				input: { command, args, cwd: opts?.cwd },
+			});
+			if (!gate.allowed) {
+				const denied = { ran: false as const, reason: 'pre-tool-call hook denied command' };
+				await hookRunner.fire('post-tool-call', {
+					name: 'runCommand',
+					input: { command, args, cwd: opts?.cwd },
+					output: stringifyOutput(denied),
+					isError: false,
+				});
+				return denied;
+			}
 			const fired = await hookRunner.fire('pre-shell-command', {
 				command,
 				args,

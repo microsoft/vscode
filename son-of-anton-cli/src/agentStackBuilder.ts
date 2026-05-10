@@ -23,7 +23,7 @@ import { buildCliToolExecutionContext } from './toolExecutionContext';
  * in try/catch and surfaces "(Code graph not available)") so the stack still
  * produces a usable response.
  */
-export function buildCliAgentStack(host: CoreHost): { stack: AgentStack; llm: LlmClient; agentManager: AgentManager; mcpClient: McpClient; dispose: () => void } {
+export function buildCliAgentStack(host: CoreHost): { stack: AgentStack; llm: LlmClient; agentManager: AgentManager; mcpClient: McpClient; hookRunner?: HookRunner; dispose: () => void } {
 	const llm = new LlmClient(host.secrets, host.config);
 
 	// MCP deps wired to "no servers, no live updates". The CLI doesn't
@@ -74,5 +74,5 @@ export function buildCliAgentStack(host: CoreHost): { stack: AgentStack; llm: Ll
 		try { mcpClient.dispose(); } catch { /* swallow on shutdown */ }
 	};
 
-	return { stack, llm, agentManager, mcpClient, dispose };
+	return { stack, llm, agentManager, mcpClient, hookRunner, dispose };
 }

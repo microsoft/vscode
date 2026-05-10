@@ -9,6 +9,7 @@ import { SpecialistMemory } from 'son-of-anton-core/dist/agents/SpecialistMemory
 import type { AgentHandle } from 'son-of-anton-core/dist/agents/types';
 import type { CoreHost } from 'son-of-anton-core/dist/host';
 import type { LlmClient, ModelId } from 'son-of-anton-core/dist/llm/LlmClient';
+import type { HookRunner } from 'son-of-anton-core/dist/persistence/HookRunner';
 import { BUILTIN_TOOLS } from 'son-of-anton-core/dist/tools/registry';
 import {
 	listConversations,
@@ -35,6 +36,13 @@ export interface ChatAppProps {
 	model: ModelId;
 	specialist: string;
 	resumeFrom?: CliConversation;
+	/**
+	 * Workspace-trust-gated hook runner. When present, the chat-loop lifecycle
+	 * events (`session-start`, `session-end`, `pre-prompt`, `post-response`)
+	 * fire through this runner. `undefined` when no `.son-of-anton/hooks.json`
+	 * exists or the workspace is untrusted.
+	 */
+	hookRunner?: HookRunner;
 }
 
 /**
@@ -44,7 +52,7 @@ export interface ChatAppProps {
  * the agent-stream helpers and the live model / specialist state.
  */
 export function ChatApp(props: ChatAppProps): JSX.Element {
-	const { llm, host, resumeFrom } = props;
+	const { llm, host, resumeFrom, hookRunner } = props;
 	const { exit } = useApp();
 	const [model, setModel] = React.useState<ModelId>((resumeFrom?.model as ModelId) ?? props.model);
 	const [specialist, setSpecialist] = React.useState<string>(resumeFrom?.specialist ?? props.specialist);
@@ -56,8 +64,41 @@ export function ChatApp(props: ChatAppProps): JSX.Element {
 	const specialistMemory = React.useMemo(() => new SpecialistMemory(host.globalState), [host.globalState]);
 	React.useEffect(() => () => specialistMemory.dispose(), [specialistMemory]);
 
-	const stream = useAgentStream({ llm, model, specialist });
+	const conversationIdRef = React.useRef<string | undefined>(resumeFrom?.id);
+	const stream = useAgentStream({ llm, model, specialist, hookRunner, conversationIdRef });
 	const { messages, busy, send, addSystemMessage, clearTranscript, resetConversation, replaceMessages, usage } = stream;
+
+	// Mirror `messages` into a ref so the unmount handler can read the final
+	// turn count without depending on the latest state directly (the cleanup
+	// callback would otherwise close over the mount-time empty array).
+	const messagesRef = React.useRef<ReadonlyArray<TuiMessage>>(messages);
+	React.useEffect(() => {
+		messagesRef.current = messages;
+	}, [messages]);
+
+	// Fire session-start once on mount and session-end once on unmount. Both
+	// are wrapped to swallow errors — hooks must never break a chat session.
+	// The session-end fire is intentionally fire-and-forget; React's cleanup
+	// can't await async work and we don't want to block process exit on a
+	// long-running script.
+	React.useEffect(() => {
+		if (!hookRunner) {
+			return;
+		}
+		const workspaceRoot = host.workspace.folders[0]?.fsPath;
+		void hookRunner
+			.fire('session-start', { workspaceRoot, conversationId: conversationIdRef.current })
+			.catch(() => { /* swallow — hooks never break a session */ });
+		return () => {
+			const turnsRun = messagesRef.current.length;
+			void hookRunner
+				.fire('session-end', { workspaceRoot, conversationId: conversationIdRef.current, turnsRun })
+				.catch(() => { /* swallow */ });
+		};
+		// Mount/unmount only — conversation id and message count are read
+		// through refs at unmount time to avoid resubscribing the lifecycle.
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, []);
 	// H11 — cumulative session cost. The model can change mid-session via
 	// /model, but tokens billed under the previous model still cost what
 	// they cost — we re-price each turn at the model active when the turn
@@ -68,7 +109,6 @@ export function ChatApp(props: ChatAppProps): JSX.Element {
 	const totalTokens = usage.input + usage.output;
 
 	const [history, setHistory] = React.useState<ReadonlyArray<string>>(() => loadHistory());
-	const conversationIdRef = React.useRef<string | undefined>(resumeFrom?.id);
 	const [resumePickerOpen, setResumePickerOpen] = React.useState(false);
 	const [uiBlockState, setUiBlockState] = React.useState<Map<string, { settled: boolean; value?: UiBlockResponse }>>(() => new Map());
 	const [suggestionHighlight, setSuggestionHighlight] = React.useState(0);

@@ -3,11 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as fs from 'fs';
 import * as readline from 'readline';
 import { LlmClient, type LlmMessage, type ModelId } from 'son-of-anton-core/dist/llm/LlmClient';
 import { bootstrapCredentials } from '../auth/bootstrap';
 import { buildCliHost } from '../cliHost';
 import type { CliConversation } from '../persistence/ConversationStore';
+import { HookRunner, hooksFilePath } from '../persistence/HookRunner';
 import { makeRenderer, type Renderer } from '../render/renderer';
 import { maybeNagAboutUpdate } from './update';
 
@@ -134,8 +136,17 @@ export async function runChat(opts: ChatOptions): Promise<void> {
 	const model = resolveModelId(opts.model);
 	const llm = new LlmClient(host.secrets, host.config);
 
+	// Construct a HookRunner only when the workspace is trusted AND a
+	// `.son-of-anton/hooks.json` file is present. Skipping instantiation
+	// (rather than relying on the runner's no-op behaviour for empty configs)
+	// keeps cost zero for the common case where no hooks are configured.
+	const workspaceRoot = host.workspace.folders[0]?.fsPath;
+	const hookRunner = workspaceRoot && host.workspace.isTrusted && fs.existsSync(hooksFilePath(workspaceRoot))
+		? new HookRunner(host)
+		: undefined;
+
 	if (shouldUseTui(opts)) {
-		await runChatTui({ llm, host, model, specialist: opts.specialist, resumeFrom: opts.resumeFrom });
+		await runChatTui({ llm, host, model, specialist: opts.specialist, resumeFrom: opts.resumeFrom, hookRunner });
 		return;
 	}
 
@@ -201,6 +212,7 @@ interface ChatTuiArgs {
 	model: ModelId;
 	specialist: string;
 	resumeFrom?: CliConversation;
+	hookRunner?: HookRunner;
 }
 
 /**
@@ -224,6 +236,7 @@ async function runChatTui(args: ChatTuiArgs): Promise<void> {
 			model: args.model,
 			specialist: args.specialist,
 			resumeFrom: args.resumeFrom,
+			hookRunner: args.hookRunner,
 		}),
 	);
 	await waitUntilExit();
