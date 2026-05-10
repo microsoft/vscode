@@ -22,6 +22,7 @@ import { IEditorGroupsContainer } from '../../../workbench/services/editor/commo
 import { CodeWindow, mainWindow } from '../../../base/browser/window.js';
 import { TitlebarPart, TitleService } from '../../browser/parts/titlebarPart.js';
 import { isMacintosh } from '../../../base/common/platform.js';
+import { localize } from '../../../nls.js';
 
 export class NativeTitlebarPart extends TitlebarPart {
 
@@ -53,14 +54,15 @@ export class NativeTitlebarPart extends TitlebarPart {
 		// appear in the "Windows" menu if the first `document.title`
 		// matches the BrowserWindow's initial title.
 		// See: https://github.com/microsoft/vscode/issues/191288
+		const window = getWindow(this.element);
+		const agentsTitle = localize('agentsWindowTitle', "Agents");
 		if (isMacintosh) {
-			const window = getWindow(this.element);
-			const nativeTitle = this.productService.nameLong;
-			if (!window.document.title || window.document.title === nativeTitle) {
-				window.document.title = `${nativeTitle} \u200b`;
+			const initialTitle = this.productService.nameLong;
+			if (!window.document.title || window.document.title === initialTitle) {
+				window.document.title = `${agentsTitle} \u200b`;
 			}
-			window.document.title = nativeTitle;
 		}
+		window.document.title = agentsTitle;
 
 		return super.createContentArea(parent);
 	}
