@@ -523,7 +523,7 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 		this.updateContextKeys();
 
 		if (this.logService.getLevel() === LogLevel.Trace) {
-			this.logService.trace(`[chat entitlement] acceptQuotas: ${JSON.stringify(quotas)}`);
+			this.logService.trace(`[chat entitlement]: acceptQuotas: ${JSON.stringify(quotas)}`);
 		}
 
 		const { changed: chatChanged } = this.compareQuotas(oldQuota.chat, quotas.chat);
