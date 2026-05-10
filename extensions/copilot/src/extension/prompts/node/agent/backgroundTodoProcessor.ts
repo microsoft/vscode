@@ -20,7 +20,6 @@ import { IToolsService } from '../../../tools/common/toolsService';
 import { renderPromptElement } from '../base/promptRenderer';
 import { BackgroundTodoDeltaTracker, extractSessionResource, IBackgroundTodoDelta } from './backgroundTodoDelta';
 import { BackgroundTodoPrompt } from './backgroundTodoPrompt';
-
 /**
  * State machine for a background todo processor.
  *
@@ -254,12 +253,13 @@ export class BackgroundTodoProcessor {
 	 *
 	 * No-op when:
 	 * - No execution context has been recorded (no prompt build happened).
-	 * - No todos have been created yet (nothing to finalize).
+	 * - No todos have been created yet AND the session has no pre-existing
+	 *   todos to finalize.
 	 * - Final review was already requested for the given {@link turnId}.
 	 */
 	requestFinalReview(turnId: string, parentToken?: CancellationToken): void {
-		if (!this._hasCreatedTodos || !this._lastExecutionContext) {
-			this._logService?.debug(`[BackgroundTodo] final review skipped — hasCreatedTodos=${this._hasCreatedTodos}, hasExecutionContext=${this._lastExecutionContext !== undefined}`);
+		if (!this._lastExecutionContext) {
+			this._logService?.debug(`[BackgroundTodo] final review skipped — no execution context`);
 			return;
 		}
 		if (this._finalReviewAttemptedTurnId === turnId) {
@@ -267,11 +267,55 @@ export class BackgroundTodoProcessor {
 			return;
 		}
 		this._finalReviewAttemptedTurnId = turnId;
-		this._logService?.debug(`[BackgroundTodo] final review requested for turn ${turnId} — currentState=${this._state}`);
 
-		this._pendingFinalReview = { ...this._lastExecutionContext, isFinalReview: true };
-		this._pendingFinalReviewToken = parentToken;
-		this._drainQueue();
+		if (this._hasCreatedTodos) {
+			this._logService?.debug(`[BackgroundTodo] final review requested for turn ${turnId} — currentState=${this._state}`);
+			this._pendingFinalReview = { ...this._lastExecutionContext, isFinalReview: true };
+			this._pendingFinalReviewToken = parentToken;
+			this._drainQueue();
+			return;
+		}
+
+		// We never created todos during this processor's lifetime, but the
+		// session may already contain a list (e.g. after a reload or when a
+		// new processor instance picks up an existing chat). Probe the
+		// provider asynchronously; if todos exist, run a finalize pass.
+		const ctx = this._lastExecutionContext;
+		void this._scheduleFinalReviewIfTodosExist(turnId, ctx, parentToken);
+	}
+
+	private async _scheduleFinalReviewIfTodosExist(
+		turnId: string,
+		ctx: IBackgroundTodoExecutionContext,
+		parentToken: CancellationToken | undefined,
+	): Promise<void> {
+		try {
+			const sessionResource = extractSessionResource(ctx.promptContext);
+			if (!sessionResource) {
+				this._logService?.debug(`[BackgroundTodo] final review skipped — no session resource (turn ${turnId})`);
+				return;
+			}
+			const markdown = await ctx.instantiationService.invokeFunction(async (accessor) => {
+				const todoProvider = accessor.get<ITodoListContextProvider>(ITodoListContextProvider);
+				return todoProvider.getCurrentTodoContext(sessionResource.toString());
+			});
+			if (!markdown) {
+				this._logService?.debug(`[BackgroundTodo] final review skipped — no todos in session (turn ${turnId})`);
+				return;
+			}
+			// Guard against a regular pass having created todos in the meantime
+			// — `requestRegularPass`/_doExecute would have set `_hasCreatedTodos`
+			// to `true`, in which case the synchronous branch above already ran.
+			if (this._pendingFinalReview) {
+				return;
+			}
+			this._logService?.debug(`[BackgroundTodo] final review recovered (turn ${turnId}, pre-existing todos found) — currentState=${this._state}`);
+			this._pendingFinalReview = { ...ctx, isFinalReview: true };
+			this._pendingFinalReviewToken = parentToken;
+			this._drainQueue();
+		} catch (err) {
+			this._logService?.warn(`[BackgroundTodo] final review recovery probe failed: ${err}`);
+		}
 	}
 
 	/**
