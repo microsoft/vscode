@@ -288,6 +288,20 @@ export function activate(context: vscode.ExtensionContext): void {
 		return new HookRunner(hostStub);
 	})();
 
+	// Thin VS Code adapter for the core ConfigStore shape so the agent
+	// stack can read user-configurable settings — currently
+	// `sota.agents.<handle>.model` for per-agent model overrides.
+	// Reading via `vscode.workspace.getConfiguration()` picks up live
+	// changes without an extension reload, but the agent stack only
+	// reads at construction so a window reload is still required for
+	// new model assignments to take effect.
+	const agentConfigStore: import('son-of-anton-core/host').ConfigStore = {
+		get<T>(key: string, defaultValue?: T): T | undefined {
+			const value = vscode.workspace.getConfiguration().get<T>(key);
+			return value ?? defaultValue;
+		},
+	};
+
 	const agentStack = createAgentStack({
 		llmClient,
 		mcpClient,
@@ -295,6 +309,7 @@ export function activate(context: vscode.ExtensionContext): void {
 		globalState: context.globalState,
 		workspaceRoot: workspacePath || undefined,
 		projectContext: projectContextProvider,
+		configStore: agentConfigStore,
 		toolExecutionContext: workspacePath
 			? createInstrumentedWorkspaceToolContext(hookRunner, {
 				// Approval routing: consult the chat panel's webview-card

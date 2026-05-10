@@ -727,6 +727,56 @@
 					"default": "",
 					"description": "Anthropic API key (prefer environment variable ANTHROPIC_API_KEY)"
 				},
+				"sota.agents.anton.model": {
+					"type": "string",
+					"default": "",
+					"markdownDescription": "Model id used by the orchestrator (`@anton`). Leave empty to use the default (`opus`). Common picks: `opus`, `sonnet`, `claude-opus-4-7`, `claude-sonnet-4-7`, `gpt-5`, `gpt-4-1`. The chat composer's per-turn picker still overrides this on each request. Reload the window after changing."
+				},
+				"sota.agents.anton-code.model": {
+					"type": "string",
+					"default": "",
+					"markdownDescription": "Model id used by `@anton-code` (code generation). Default `sonnet`. Reload the window after changing."
+				},
+				"sota.agents.anton-test.model": {
+					"type": "string",
+					"default": "",
+					"markdownDescription": "Model id used by `@anton-test` (test writing). Default `sonnet`. Reload the window after changing."
+				},
+				"sota.agents.anton-e2e.model": {
+					"type": "string",
+					"default": "",
+					"markdownDescription": "Model id used by `@anton-e2e` (E2E test generation). Default `sonnet`. Reload the window after changing."
+				},
+				"sota.agents.anton-security.model": {
+					"type": "string",
+					"default": "",
+					"markdownDescription": "Model id used by `@anton-security` (vulnerability scanning). Default `sonnet`. Reload the window after changing."
+				},
+				"sota.agents.anton-docs.model": {
+					"type": "string",
+					"default": "",
+					"markdownDescription": "Model id used by `@anton-docs` (documentation). Default `haiku` (cheap + fast). Reload the window after changing."
+				},
+				"sota.agents.anton-ci.model": {
+					"type": "string",
+					"default": "",
+					"markdownDescription": "Model id used by `@anton-ci` (CI failure analysis). Default `sonnet`. Reload the window after changing."
+				},
+				"sota.agents.anton-pr.model": {
+					"type": "string",
+					"default": "",
+					"markdownDescription": "Model id used by `@anton-pr` (PR generation). Default `sonnet`. Reload the window after changing."
+				},
+				"sota.agents.anton-moderniser.model": {
+					"type": "string",
+					"default": "",
+					"markdownDescription": "Model id used by `@anton-moderniser` (legacy code modernisation). Default `sonnet`. Reload the window after changing."
+				},
+				"sota.agents.anton-review.model": {
+					"type": "string",
+					"default": "",
+					"markdownDescription": "Model id used by the review agent (runs after every specialist subtask). Default `sonnet`. Use `haiku` to make reviews cheaper at the cost of some signal. Reload the window after changing."
+				},
 				"sota.openaiApiKey": {
 					"type": "string",
 					"default": "",

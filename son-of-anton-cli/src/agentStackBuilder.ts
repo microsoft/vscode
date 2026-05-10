@@ -53,6 +53,11 @@ export function buildCliAgentStack(host: CoreHost): { stack: AgentStack; llm: Ll
 	const toolExecutionContext = baseToolExecutionContext && hookRunner
 		? instrumentToolExecutionContext(baseToolExecutionContext, hookRunner)
 		: baseToolExecutionContext;
+	// `configStore` lets the factory read per-agent model overrides at
+	// construction (`sota.agents.<handle>.model` settings in
+	// `~/.son-of-anton/config.json`). The CLI process is short-lived so
+	// any setting change is picked up on the next `sota` invocation
+	// without reload churn.
 	const stack = createAgentStack({
 		llmClient: llm,
 		mcpClient,
@@ -61,6 +66,7 @@ export function buildCliAgentStack(host: CoreHost): { stack: AgentStack; llm: Ll
 		workspaceRoot,
 		projectContext: host.projectContext,
 		toolExecutionContext,
+		configStore: host.config,
 	});
 
 	const dispose = (): void => {

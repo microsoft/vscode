@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { MementoStore, ProjectContextProvider } from '../host';
-import { LlmClient } from '../llm/LlmClient';
+import type { ConfigStore, MementoStore, ProjectContextProvider } from '../host';
+import { LlmClient, type ModelId } from '../llm/LlmClient';
 import { ModelRouter } from '../llm/ModelRouter';
 import { PromptCacheOptimizer } from '../llm/PromptCacheOptimizer';
 import { McpClient } from '../mcp/McpClient';
@@ -213,8 +213,20 @@ export function createAgentStack(deps: {
 	 * raw read/write/run primitives.
 	 */
 	toolExecutionContext?: ToolExecutionContext;
+	/**
+	 * Optional. When supplied, the factory consults
+	 * `configStore.get<string>('sota.agents.<handle>.model')` for each
+	 * specialist and overrides the hardcoded `AgentConfig.defaultModel`
+	 * when a value is set. Lets users assign different models to
+	 * different agents (e.g. anton-code → opus, anton-docs → haiku) via
+	 * VS Code settings without code changes. Reads happen at
+	 * construction time — settings changes require an extension reload
+	 * to take effect (the agent stack is owned by the activation
+	 * lifecycle).
+	 */
+	configStore?: ConfigStore;
 }): AgentStack {
-	const { llmClient, mcpClient, agentManager, globalState, workspaceRoot, projectContext, toolExecutionContext } = deps;
+	const { llmClient, mcpClient, agentManager, globalState, workspaceRoot, projectContext, toolExecutionContext, configStore } = deps;
 	const metricsTracker = new MetricsTracker();
 	// H16 — surface a single PromptCacheOptimizer + ModelRouter on the stack
 	// so the CLI (`sota traces`) and IDE ("Show Harness Stats" palette command)
@@ -241,6 +253,18 @@ export function createAgentStack(deps: {
 		const config = configs.get(handle);
 		if (!config) {
 			throw new Error(`Missing AgentConfig for handle "${handle}"`);
+		}
+		// Per-agent model override (`sota.agents.<handle>.model`). When set,
+		// rewrites the config's `defaultModel` so the specialist's
+		// runChatTurn / runAgenticTurn / execute paths route through the
+		// user-chosen model on every turn unless the chat composer's
+		// per-turn picker overrides further. Empty / missing settings fall
+		// back to the AgentConfig default. Validation happens at the
+		// LlmClient boundary — an unknown ModelId errors at request time
+		// rather than silently downgrading at activation.
+		const override = configStore?.get<string>(`sota.agents.${handle}.model`);
+		if (typeof override === 'string' && override.trim().length > 0) {
+			return { ...config, defaultModel: override.trim() as ModelId };
 		}
 		return config;
 	};
