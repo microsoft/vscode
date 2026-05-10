@@ -218,7 +218,7 @@ appendToCommandPalette({
 	id: COPY_FILENAME_COMMAND_ID,
 	title: nls.localize2('copyFilenameOfActive', "Copy Filename of Active File"),
 	category: Categories.File
-});
+}, IsSessionsWindowContext.negate());
 appendToCommandPalette({
 	id: COPY_PATH_COMMAND_ID,
 	title: nls.localize2('copyPathOfActive', "Copy Path of Active File"),
