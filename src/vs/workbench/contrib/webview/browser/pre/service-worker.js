@@ -537,6 +537,14 @@ function getWebviewIdForClient(client) {
 }
 
 /**
+ * @param {URL} url
+ * @returns {boolean}
+ */
+function isWebviewIframe(url) {
+	return (url.pathname === `${rootPath}/` || url.pathname === `${rootPath}/index.html` || url.pathname === `${rootPath}/index-no-csp.html`);
+}
+
+/**
  * @param {string} webviewId
  * @returns {Promise<Client[]>}
  */
@@ -544,8 +552,7 @@ async function getOuterIframeClient(webviewId) {
 	const allClients = await sw.clients.matchAll({ includeUncontrolled: true });
 	return allClients.filter(client => {
 		const clientUrl = new URL(client.url);
-		const hasExpectedPathName = (clientUrl.pathname === `${rootPath}/` || clientUrl.pathname === `${rootPath}/index.html` || clientUrl.pathname === `${rootPath}/index-no-csp.html`);
-		return hasExpectedPathName && clientUrl.searchParams.get('id') === webviewId;
+		return isWebviewIframe(clientUrl) && clientUrl.searchParams.get('id') === webviewId;
 	});
 }
 
@@ -565,8 +572,7 @@ async function getWebviewIdForWorkerClient(workerClient) {
 	let matchedId = null;
 	for (const c of allClients) {
 		const cUrl = new URL(c.url);
-		const isWebviewIframe = (cUrl.pathname === `${rootPath}/` || cUrl.pathname === `${rootPath}/index.html` || cUrl.pathname === `${rootPath}/index-no-csp.html`);
-		if (isWebviewIframe && cUrl.origin === workerUrl.origin) {
+		if (isWebviewIframe(cUrl) && cUrl.origin === workerUrl.origin) {
 			const id = cUrl.searchParams.get('id');
 			if (id) {
 				if (matchedId && matchedId !== id) {
