@@ -31,7 +31,7 @@ function createMockContext(): IChatContentPartRenderContext {
 	};
 }
 
-function renderCollapsible(context: ComponentFixtureContext, commandText: string, isSandboxWrapped: boolean, isComplete: boolean): void {
+function renderCollapsible(context: ComponentFixtureContext, commandText: string, isSandboxWrapped: boolean, isComplete: boolean, isSkipped: boolean = false): void {
 	const { container, disposableStore } = context;
 
 	const instantiationService = createEditorServices(disposableStore, {
@@ -58,6 +58,7 @@ function renderCollapsible(context: ComponentFixtureContext, commandText: string
 		createMockContext(),
 		false,
 		isComplete,
+		isSkipped,
 	));
 
 	session.appendChild(wrapper.domNode);
