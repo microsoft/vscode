@@ -3,13 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { MessageOptions } from '@github/copilot-sdk';
+import { basename } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { IFileEditRecord, ISessionDatabase } from '../../common/sessionDataService.js';
-import { ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, type ResponsePart, type StringOrMarkdown, type ToolCallCompletedState, type ToolResultContent, type Turn } from '../../common/state/sessionState.js';
+import { MessageAttachmentKind, type MessageAttachment } from '../../common/state/protocol/state.js';
+import { ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, type ResponsePart, type StringOrMarkdown, type ToolCallCompletedState, type ToolResultContent, type Turn, type UserMessage } from '../../common/state/sessionState.js';
 import { getInvocationMessage, getPastTenseMessage, getShellLanguage, getSubagentMetadata, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, synthesizeSkillToolCall } from './copilotToolDisplay.js';
 import { buildSessionDbUri } from './fileEditTracker.js';
+import { getMediaMime } from '../../../../base/common/mime.js';
 
 function tryStringify(value: unknown): string | undefined {
 	try {
@@ -65,8 +69,16 @@ export interface ISessionEventMessage {
 		 * as user turns.
 		 */
 		source?: string;
+		/**
+		 * Attachments persisted with the user message by the SDK. Mirrors
+		 * the SDK's `UserMessageAttachment` union; intentionally typed
+		 * locally so we don't pull the SDK package into shared code.
+		 */
+		attachments?: readonly ISdkUserMessageAttachment[];
 	};
 }
+
+type ISdkUserMessageAttachment = Required<MessageOptions>['attachments'][number];
 
 /** Minimal event shape for `skill.invoked`, used to synthesize a tool-style render. */
 export interface ISessionEventSkillInvoked {
@@ -145,15 +157,16 @@ interface ISubagentInfo {
  * own builder so inner events route there directly.
  */
 interface ITurnBuilder {
-	readonly id: string;
-	readonly userMessage: { text: string };
+	id: string;
+	userMessage: UserMessage;
 	readonly responseParts: ResponsePart[];
 	/** Tool starts seen but not yet completed in this turn, keyed by toolCallId. */
 	readonly pendingTools: Map<string, IToolStartInfo>;
 }
 
-function newTurnBuilder(id: string, text: string): ITurnBuilder {
-	return { id, userMessage: { text }, responseParts: [], pendingTools: new Map() };
+function newTurnBuilder(id: string, text: string, attachments?: MessageAttachment[]): ITurnBuilder {
+	const userMessage: UserMessage = attachments?.length ? { text, attachments } : { text };
+	return { id, userMessage, responseParts: [], pendingTools: new Map() };
 }
 
 function finalizeTurn(builder: ITurnBuilder, state: TurnState): Turn {
@@ -302,6 +315,7 @@ export async function mapSessionEvents(
 				const d = (e as ISessionEventMessage).data;
 				const messageId = d?.messageId ?? d?.interactionId ?? '';
 				const content = d?.content ?? '';
+				const attachments = sdkAttachmentsToProtocol(d?.attachments);
 				if (d?.parentToolCallId) {
 					// User messages with a parent tool call route into the
 					// subagent's transcript. They never start a new parent
@@ -315,12 +329,15 @@ export async function mapSessionEvents(
 							content,
 						});
 					}
+					if (attachments?.length) {
+						builder.userMessage = { ...builder.userMessage, attachments };
+					}
 				} else {
 					// A new top-level user message starts a new parent turn.
 					if (parentBuilder) {
 						turns.push(finalizeTurn(parentBuilder, TurnState.Cancelled));
 					}
-					parentBuilder = newTurnBuilder(messageId, content);
+					parentBuilder = newTurnBuilder(messageId, content, attachments);
 				}
 				break;
 			}
@@ -426,6 +443,76 @@ export async function mapSessionEvents(
 	}
 
 	return { turns, subagentTurnsByToolCallId: subagentTurns };
+}
+
+/**
+ * Translates the SDK's `UserMessageAttachment[]` payload back into the
+ * agent-protocol {@link MessageAttachment} shape. Blob attachments are
+ * surfaced as inline {@link MessageAttachmentKind.EmbeddedResource}
+ * payloads; file/directory/selection variants reconstruct local
+ * `Resource` attachments. We don't try to re-link these to the on-disk
+ * snapshots produced by the agent host's attachment rewriter — the SDK
+ * keeps a copy of the bytes / paths it actually saw on send, which is
+ * the authoritative record for replay.
+ */
+function sdkAttachmentsToProtocol(
+	attachments: readonly ISdkUserMessageAttachment[] | undefined,
+): MessageAttachment[] | undefined {
+	if (!attachments?.length) {
+		return undefined;
+	}
+	const out: MessageAttachment[] = [];
+	for (const a of attachments) {
+		const converted = sdkAttachmentToProtocol(a);
+		if (converted) {
+			out.push(converted);
+		}
+	}
+	return out.length > 0 ? out : undefined;
+}
+
+function sdkAttachmentToProtocol(
+	attachment: ISdkUserMessageAttachment,
+): MessageAttachment | undefined {
+	switch (attachment.type) {
+		case 'file': {
+			return {
+				type: MessageAttachmentKind.Resource,
+				uri: URI.file(attachment.path).toString(),
+				label: attachment.displayName || basename(attachment.path),
+				displayKind: getMediaMime(attachment.path)?.startsWith('image/') ? 'image' : 'document',
+			};
+		}
+		case 'directory': {
+			return {
+				type: MessageAttachmentKind.Resource,
+				uri: URI.file(attachment.path).toString(),
+				label: attachment.displayName || basename(attachment.path),
+				displayKind: 'directory',
+			};
+		}
+		case 'selection': {
+			return {
+				type: MessageAttachmentKind.Resource,
+				uri: URI.file(attachment.filePath).toString(),
+				label: attachment.displayName,
+				displayKind: 'selection',
+				selection: { range: attachment.selection! },
+			};
+		}
+		case 'blob': {
+			const displayKind = attachment.mimeType.startsWith('image/') ? 'image' : undefined;
+			return {
+				type: MessageAttachmentKind.EmbeddedResource,
+				label: attachment.displayName ?? 'attachment',
+				data: attachment.data,
+				contentType: attachment.mimeType,
+				displayKind,
+			};
+		}
+		default:
+			return undefined;
+	}
 }
 
 /**

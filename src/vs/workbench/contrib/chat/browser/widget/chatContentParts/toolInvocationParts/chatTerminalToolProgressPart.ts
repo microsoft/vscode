@@ -1222,9 +1222,8 @@ class ChatTerminalToolOutputSection extends Disposable {
 		this._register(dom.addDisposableListener(this.domNode, dom.EventType.FOCUS_IN, () => this._onDidFocusEmitter.fire()));
 		this._register(dom.addDisposableListener(this.domNode, dom.EventType.FOCUS_OUT, event => this._onDidBlurEmitter.fire(event)));
 
-		const resizeObserver = new ResizeObserver(() => this._handleResize());
-		resizeObserver.observe(this.domNode);
-		this._register(toDisposable(() => resizeObserver.disconnect()));
+		const resizeObserver = this._register(new dom.DisposableResizeObserver('ChatTerminalToolProgressPart.handleResize', () => this._handleResize()));
+		this._register(resizeObserver.observe(this.domNode));
 
 		this._applyBackgroundColor();
 		this._register(this._themeService.onDidColorThemeChange(() => this._applyBackgroundColor()));

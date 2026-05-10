@@ -6,11 +6,13 @@
 import * as dom from '../../../../../../base/browser/dom.js';
 import { Button } from '../../../../../../base/browser/ui/button/button.js';
 import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../../../base/common/actions.js';
+import { Codicon } from '../../../../../../base/common/codicons.js';
+import { isMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
-import { Codicon } from '../../../../../../base/common/codicons.js';
-import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { localize } from '../../../../../../nls.js';
+import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { IMarkdownRendererService } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { defaultButtonStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
 import { ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationService } from './chatInputNotificationService.js';
@@ -45,12 +47,11 @@ export class ChatInputNotificationWidget extends Disposable {
 		@IChatInputNotificationService private readonly _notificationService: IChatInputNotificationService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IMarkdownRendererService private readonly _markdownRendererService: IMarkdownRendererService,
 	) {
 		super();
 
 		this.domNode = $('.chat-input-notification-widget');
-		this.domNode.setAttribute('role', 'status');
-		this.domNode.setAttribute('aria-live', 'polite');
 
 		this._register(this._notificationService.onDidChange(() => this._render()));
 		this._render();
@@ -85,7 +86,14 @@ export class ChatInputNotificationWidget extends Disposable {
 
 		// Title
 		const titleElement = dom.append(headerRow, $('.chat-input-notification-title'));
-		titleElement.textContent = notification.message;
+		if (isMarkdownString(notification.message)) {
+			const rendered = this._contentDisposables.add(this._markdownRendererService.render(notification.message));
+			rendered.element.classList.add('chat-input-notification-title-markdown');
+			titleElement.appendChild(rendered.element);
+		} else {
+			titleElement.textContent = notification.message;
+		}
+		const ariaTitle = isMarkdownString(notification.message) ? notification.message.value : notification.message;
 
 		// Dismiss button (in header row, pushed to the right)
 		if (notification.dismissible) {
@@ -125,13 +133,21 @@ export class ChatInputNotificationWidget extends Disposable {
 
 					const button = this._contentDisposables.add(new Button(actionsContainer, {
 						...defaultButtonStyles,
-						...(!isLast ? { buttonSecondaryBorder: undefined } : {}),
+						...(!isLast ? {
+							buttonBackground: undefined,
+							buttonHoverBackground: undefined,
+							buttonForeground: undefined,
+							buttonSecondaryBackground: undefined,
+							buttonSecondaryHoverBackground: undefined,
+							buttonSecondaryForeground: undefined,
+							buttonSecondaryBorder: undefined,
+						} : {}),
 						supportIcons: true,
 						secondary: !isLast,
 					}));
 					button.element.classList.add('chat-input-notification-action-button');
 					button.label = action.label;
-					button.element.ariaLabel = `${notification.message} ${action.label}`;
+					button.element.ariaLabel = `${ariaTitle} ${action.label}`;
 
 					this._contentDisposables.add(button.onDidClick(async () => {
 						this._telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', {

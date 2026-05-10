@@ -3,13 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { IObservable } from '../../../../base/common/observable.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
-import { IChatSessionFileChange, IChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { IChatSessionFileChange, IChatSessionFileChange2, isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 
 export interface ISessionType {
 	/** Unique identifier (e.g., 'copilot-cli', 'copilot-cloud', 'claude-code'). */
@@ -48,6 +50,16 @@ export const ClaudeCodeSessionType: ISessionType = {
 	id: CLAUDE_CODE_SESSION_TYPE,
 	label: localize('claudeCode', "Claude"),
 	icon: Codicon.claude,
+};
+
+/** Session type ID for local VS Code chat sessions (in-process, no worktree). */
+export const LOCAL_SESSION_TYPE = 'local';
+
+/** Local session type — in-process VS Code chat, no background agent or worktree. */
+export const LocalSessionType: ISessionType = {
+	id: LOCAL_SESSION_TYPE,
+	label: localize('localSession', "Local"),
+	icon: Codicon.vm,
 };
 
 /**
@@ -104,6 +116,8 @@ export interface ISessionRepository {
 	readonly outgoingChanges?: number;
 	/** Number of files with uncommitted changes. */
 	readonly uncommittedChanges?: number;
+	/** Whether a Git operation is currently in progress. */
+	readonly hasGitOperationInProgress?: boolean;
 }
 
 /**
@@ -150,6 +164,19 @@ export interface IGitHubInfo {
 
 export type ISessionFileChange = IChatSessionFileChange | IChatSessionFileChange2;
 
+export interface ISessionChangeset {
+	/** Unique identifier for the changeset. */
+	readonly id: string;
+	/** Display label for the changeset. */
+	readonly label: string;
+	/** Optional description for the changeset. */
+	readonly description?: string;
+	/** Whether the changeset is enabled. */
+	readonly enabled: IObservable<boolean>;
+	/** File changes associated with this changeset. */
+	readonly changes: IObservable<readonly ISessionFileChange[]>;
+}
+
 /**
  * A single chat within a session, produced by the sessions management layer.
  */
@@ -169,6 +196,8 @@ export interface IChat {
 	readonly status: IObservable<SessionStatus>;
 	/** File changes produced by the chat. */
 	readonly changes: IObservable<readonly ISessionFileChange[]>;
+	/** Changesets produced by the chat. */
+	readonly changesets: IObservable<readonly ISessionChangeset[]>;
 	/** Currently selected model identifier. */
 	readonly modelId: IObservable<string | undefined>;
 	/** Currently selected mode identifier and kind. */
@@ -194,7 +223,7 @@ export interface ISession {
 	readonly resource: URI;
 	/** ID of the provider that owns this session. */
 	readonly providerId: string;
-	/** Session type ID (e.g., 'copilot-cli', 'copilot-cloud'). */
+	/** Session type ID (e.g., 'copilot-cli', 'copilot-cloud', 'local'). */
 	readonly sessionType: string;
 	/** Icon for this session. */
 	readonly icon: ThemeIcon;
@@ -213,6 +242,8 @@ export interface ISession {
 	readonly status: IObservable<SessionStatus>;
 	/** File changes produced by the session. */
 	readonly changes: IObservable<readonly ISessionFileChange[]>;
+	/** Changesets produced by the session. */
+	readonly changesets: IObservable<readonly ISessionChangeset[]>;
 	/** Currently selected model identifier. */
 	readonly modelId: IObservable<string | undefined>;
 	/** Currently selected mode identifier and kind. */
@@ -260,6 +291,18 @@ export function toSessionId(providerId: string, resource: URI): string {
 }
 
 /**
+ * Returns the active repository branch name exposed by a session provider. The
+ * `detail` fallback preserves extension-host CLI sessions, which store their
+ * worktree branch there.
+ */
+export function getSessionBranchName(session: ISession | undefined): string | undefined {
+	const repository = session?.workspace.get()?.repositories[0];
+	const branchName = repository?.branchName ?? repository?.detail;
+	const trimmed = branchName?.trim();
+	return trimmed || undefined;
+}
+
+/**
  * Capabilities declared per session.
  * Consumers check these before surfacing session-specific features in the UI.
  */
@@ -296,4 +339,66 @@ export interface ISessionWorkspaceBrowseAction {
 	readonly providerId: string;
 	/** Execute the browse action and return the selected workspace, or undefined if cancelled. */
 	run(): Promise<ISessionWorkspace | undefined>;
+	/**
+	 * Optional method to enumerate folders inline (e.g. for a phone-friendly
+	 * picker that shows a folder list with search-as-you-type instead of
+	 * opening a separate file dialog). Implementations should respect the
+	 * cancellation token so stale queries can be aborted as the user types.
+	 *
+	 * @param query Case-insensitive substring filter (empty string returns the default set).
+	 * @param token Cancellation token; the implementation should resolve with
+	 * a partial result or empty array once cancelled.
+	 */
+	listFolders?(query: string, token: CancellationToken): Promise<readonly ISessionWorkspace[]>;
+}
+
+/**
+ * Structural equality for arrays of {@link ISessionFileChange}. Used as an
+ * `equalsFn` on the `changes` observables so that providers can re-publish a
+ * freshly-built array without notifying observers when the underlying file
+ * changes have not actually changed.
+ */
+export function sessionFileChangesEqual(a: readonly ISessionFileChange[], b: readonly ISessionFileChange[]): boolean {
+	if (a === b) {
+		return true;
+	}
+
+	if (a.length !== b.length) {
+		return false;
+	}
+
+	for (let i = 0; i < a.length; i++) {
+		const x = a[i], y = b[i];
+		if (x === y) {
+			continue;
+		}
+
+		if (x.insertions !== y.insertions || x.deletions !== y.deletions) {
+			return false;
+		}
+
+		const xIsIChatSessionFileChange2 = isIChatSessionFileChange2(x);
+		const yIsIChatSessionFileChange2 = isIChatSessionFileChange2(y);
+		if (xIsIChatSessionFileChange2 !== yIsIChatSessionFileChange2) {
+			return false;
+		}
+
+		const xUri = xIsIChatSessionFileChange2 ? x.uri : x.modifiedUri;
+		const yUri = yIsIChatSessionFileChange2 ? y.uri : y.modifiedUri;
+		if (!isEqual(xUri, yUri)) {
+			return false;
+		}
+
+		const xModified = xIsIChatSessionFileChange2 ? x.modifiedUri : undefined;
+		const yModified = yIsIChatSessionFileChange2 ? y.modifiedUri : undefined;
+		if (!isEqual(xModified, yModified)) {
+			return false;
+		}
+
+		if (!isEqual(x.originalUri, y.originalUri)) {
+			return false;
+		}
+	}
+
+	return true;
 }

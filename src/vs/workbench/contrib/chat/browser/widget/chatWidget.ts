@@ -2214,6 +2214,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	// Coding agent locking methods
 	lockToCodingAgent(name: string, displayName: string, agentId: string): void {
+		if (this._lockedAgent?.id === agentId && this._lockedAgent.name === name && this._lockedAgent.displayName === displayName) {
+			return;
+		}
+
 		this._lockedAgent = {
 			id: agentId,
 			name,
@@ -2234,6 +2238,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	unlockFromCodingAgent(): void {
+		if (!this._lockedAgent) {
+			return;
+		}
+
 		// Clear all state related to locking
 		this._lockedAgent = undefined;
 		this._lockedToCodingAgentContextKey.set(false);
@@ -2640,6 +2648,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	getModeRequestOptions(): Partial<IChatSendRequestOptions> {
+		if (!this.inputPartDisposable.value) {
+			return {};
+		}
+
 		const sessionResource = this.viewModel?.sessionResource;
 		const capturedModeId = this.input.currentModeObs.get().id;
 		const userSelectedTools = this.input.selectedToolsModel.userSelectedTools;

@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Attachment, SendOptions, Session, SessionOptions } from '@github/copilot/sdk';
+import type { Attachment, LocalSession, SendOptions, Session, SessionOptions } from '@github/copilot/sdk';
 import * as l10n from '@vscode/l10n';
 import * as cp from 'child_process';
 import * as crypto from 'crypto';
 import type * as vscode from 'vscode';
 import type { ChatParticipantToolToken } from 'vscode';
 import { IAuthenticationService } from '../../../../platform/authentication/common/authentication';
+import { IChatQuotaService } from '../../../../platform/chat/common/chatQuotaService';
 import { ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
 import { PermissiveAuthRequiredError } from '../../../../platform/github/common/githubService';
 import { ILogService } from '../../../../platform/log/common/logService';
@@ -805,6 +806,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		@IOTelService private readonly _otelService: IOTelService,
 		@IGitService private readonly _gitService: IGitService,
 		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
+		@IChatQuotaService private readonly _chatQuotaService: IChatQuotaService,
 	) {
 		super();
 		this.sessionId = _sdkSession.sessionId;
@@ -913,7 +915,6 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		this.attachments.push(...attachments);
 		const prompt = getPromptLabel(input);
 		this._pendingPrompt = prompt;
-		this.logService.info(`[CopilotCLISession] Steering session ${this.sessionId}`);
 		const disposables = new DisposableStore();
 		const logStartTime = Date.now();
 		disposables.add(token.onCancellationRequested(() => {
@@ -1011,6 +1012,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		const prompt = getPromptLabel(input);
 		this._pendingPrompt = prompt;
 		this._lastResponseModelId = undefined;
+		this._chatQuotaService.resetTurnCredits(request.id);
 		this.logService.info(`[CopilotCLISession] Invoking session ${this.sessionId}`);
 		const disposables = new DisposableStore();
 		const logStartTime = Date.now();
@@ -1114,7 +1116,6 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		try {
 			const shouldHandleExitPlanModeRequests = this.configurationService.getConfig(ConfigKey.Advanced.CLIPlanExitModeEnabled);
 			disposables.add(toDisposable(this._sdkSession.on('*', (event) => {
-				this.logService.trace(`[CopilotCLISession] CopilotCLI Event: ${JSON.stringify(event, null, 2)}`);
 				// Forward events to Mission Control if remote control is active
 				this._bufferMcEvent(event);
 			})));
@@ -1274,6 +1275,14 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 				if (requestStream && typeof event.data.outputTokens === 'number' && typeof event.data.inputTokens === 'number') {
 					reportUsage(event.data.inputTokens, event.data.outputTokens);
 				}
+				// Accumulate per-turn credits from SDK copilotUsage data
+				const copilotUsage = (event.data as Record<string, unknown>).copilotUsage;
+				if (copilotUsage && typeof copilotUsage === 'object') {
+					const { totalNanoAiu } = copilotUsage as { totalNanoAiu?: number };
+					if (typeof totalNanoAiu === 'number') {
+						this._chatQuotaService.setLastCopilotUsage(totalNanoAiu, request.id);
+					}
+				}
 			})));
 			disposables.add(toDisposable(this._sdkSession.on('session.usage_info', (event) => {
 				lastUsageInfo = {
@@ -1339,7 +1348,6 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 						}
 					}
 				}
-				this.logService.trace(`[CopilotCLISession] Start Tool ${event.data.toolName || '<unknown>'}`);
 			})));
 			disposables.add(toDisposable(this._sdkSession.on('tool.execution_complete', (event) => {
 				const toolName = toolCalls.get(event.data.toolCallId)?.toolName || '<unknown>';
@@ -1347,7 +1355,6 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 					const pullRequestUrl = extractPullRequestUrlFromToolResult(event.data.result);
 					if (pullRequestUrl) {
 						this._createdPullRequestUrl = pullRequestUrl;
-						this.logService.trace(`[CopilotCLISession] Captured pull request URL: ${pullRequestUrl}`);
 						GenAiMetrics.incrementPullRequestCount(this._otelService);
 					}
 				}
@@ -1359,7 +1366,6 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 				// Mark the end of the edit if this was an edit tool.
 				toolIdEditMap.set(event.data.toolCallId, editTracker.completeEdit(event.data.toolCallId));
 				if (editToolIds.has(event.data.toolCallId)) {
-					this.logService.trace(`[CopilotCLISession] Completed edit tracking for toolCallId ${event.data.toolCallId}`);
 					return;
 				}
 
@@ -1373,11 +1379,6 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 					wroteResponseContent = true;
 					requestStream?.push(responsePart);
 				}
-
-				const success = `success: ${event.data.success}`;
-				const error = event.data.error ? `error: ${event.data.error.code},${event.data.error.message}` : '';
-				const result = event.data.result ? `result: ${event.data.result?.content}` : '';
-				const parts = [success, error, result].filter(part => part.length > 0).join(', ');
 
 				// When a sql tool execution completes that modifies the todos table,
 				// query the session database and update the todo list widget.
@@ -1401,7 +1402,6 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 					}
 				}
 
-				this.logService.trace(`[CopilotCLISession]Complete Tool ${toolName}, ${parts}`);
 			})));
 			disposables.add(toDisposable(this._sdkSession.on('session.error', (event) => {
 				flushPendingInvocationMessages();
@@ -1419,16 +1419,12 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 				});
 			})));
 			disposables.add(toDisposable(this._sdkSession.on('subagent.started', (event) => {
-				this.logService.trace(`[CopilotCLISession] Subagent started: ${event.data.agentDisplayName} (toolCallId: ${event.data.toolCallId})`);
 				enrichToolInvocationWithSubagentMetadata(
 					event.data.toolCallId,
 					event.data.agentDisplayName,
 					event.data.agentDescription,
 					pendingToolInvocations
 				);
-			})));
-			disposables.add(toDisposable(this._sdkSession.on('subagent.completed', (event) => {
-				this.logService.trace(`[CopilotCLISession] Subagent completed: ${event.data.agentDisplayName} (toolCallId: ${event.data.toolCallId})`);
 			})));
 			disposables.add(toDisposable(this._sdkSession.on('subagent.failed', (event) => {
 				this.logService.trace(`[CopilotCLISession] Subagent failed: ${event.data.agentDisplayName} (toolCallId: ${event.data.toolCallId})`);
@@ -1618,6 +1614,18 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 				sendOptions.source = input.source;
 			}
 			await this._sdkSession.send(sendOptions);
+
+			try {
+				const localSession = this._sdkSession as LocalSession;
+				if (localSession.waitForPendingBackgroundTasks) {
+					await localSession.waitForPendingBackgroundTasks();
+				}
+			}
+			catch (error) {
+				this.logService.error(error, '[CopilotCLISession] Error while waiting for pending background tasks');
+				// Don't fail the whole request if waiting for background tasks fails, as it's not critical to the main flow.
+				// Just log the error and continue.
+			}
 		}
 	}
 

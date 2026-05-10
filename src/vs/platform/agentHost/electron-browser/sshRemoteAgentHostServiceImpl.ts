@@ -8,10 +8,13 @@ import { Disposable, IDisposable, toDisposable } from '../../../base/common/life
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { IEnvironmentService } from '../../environment/common/environment.js';
 import { ISharedProcessService } from '../../ipc/electron-browser/services.js';
 import { ProxyChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { IRemoteAgentHostService, RemoteAgentHostEntryType } from '../common/remoteAgentHostService.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
+import { AhpJsonlLogger } from '../common/ahpJsonlLogger.js';
+import { AgentHostAhpJsonlLoggingSettingId } from '../common/agentService.js';
 import { SSHRelayTransport } from './sshRelayTransport.js';
 import { RemoteAgentHostProtocolClient } from '../browser/remoteAgentHostProtocolClient.js';
 import {
@@ -48,6 +51,7 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 		@ILogService private readonly _logService: ILogService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 	) {
 		super();
 
@@ -197,7 +201,12 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 	}
 
 	private _createRelayClient(result: { connectionId: string; address: string }): RemoteAgentHostProtocolClient {
-		const transport = new SSHRelayTransport(result.connectionId, this._mainService);
+		const ahpLoggingEnabled = !!this._configurationService.getValue<boolean>(AgentHostAhpJsonlLoggingSettingId);
+		const logger = ahpLoggingEnabled ? this._instantiationService.createInstance(
+			AhpJsonlLogger,
+			{ logsHome: this._environmentService.logsHome, connectionId: result.connectionId, transport: 'ssh' },
+		) : undefined;
+		const transport = new SSHRelayTransport(result.connectionId, this._mainService, logger);
 		return this._instantiationService.createInstance(
 			RemoteAgentHostProtocolClient, result.address, transport,
 		);

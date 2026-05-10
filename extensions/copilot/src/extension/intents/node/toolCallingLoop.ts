@@ -42,7 +42,7 @@ import { IInstantiationService } from '../../../util/vs/platform/instantiation/c
 import { ChatResponsePullRequestPart, LanguageModelDataPart2, LanguageModelPartAudience, LanguageModelToolResult2, MarkdownString } from '../../../vscodeTypes';
 import { InteractionOutcomeComputer } from '../../inlineChat/node/promptCraftingTypes';
 import { ChatVariablesCollection } from '../../prompt/common/chatVariablesCollection';
-import { AnthropicTokenUsageMetadata, Conversation, IResultMetadata, ResponseStreamParticipant, TurnStatus } from '../../prompt/common/conversation';
+import { Conversation, IResultMetadata, ResponseStreamParticipant, TurnStatus, TurnTokenUsageMetadata } from '../../prompt/common/conversation';
 import { IBuildPromptContext, InternalToolReference, IToolCall, IToolCallRound } from '../../prompt/common/intents';
 import { cancelText, IToolCallIterationIncrease } from '../../prompt/common/specialRequestTypes';
 import { ThinkingDataItem, ToolCallRound } from '../../prompt/common/toolCallRound';
@@ -104,7 +104,7 @@ export interface IToolCallingBuiltPromptEvent {
 	tools: LanguageModelToolInformation[];
 }
 
-export type ToolCallingLoopFetchOptions = Required<Pick<IMakeChatRequestOptions, 'messages' | 'finishedCb' | 'requestOptions' | 'userInitiatedRequest' | 'turnId'>> & Pick<IMakeChatRequestOptions, 'modelCapabilities' | 'summarizedAtRoundId'> & { iterationNumber: number };
+export type ToolCallingLoopFetchOptions = Required<Pick<IMakeChatRequestOptions, 'messages' | 'finishedCb' | 'requestOptions' | 'userInitiatedRequest' | 'turnId'>> & Pick<IMakeChatRequestOptions, 'modelCapabilities' | 'summarizedAtRoundId' | 'topLevelTurnId'> & { iterationNumber: number };
 
 interface StartHookResult {
 	/**
@@ -1360,7 +1360,8 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 		markChatExt(this.options.conversation.sessionId, ChatExtPerfMark.WillFetch);
 		const fetchResult = await this.fetch({
 			messages: this.applyMessagePostProcessing(effectiveBuildPromptResult.messages, { stripOrphanedToolCalls: isGeminiFamily(endpoint) }),
-			turnId: this.turn.id,
+			turnId: this.options.request.id,
+			topLevelTurnId: this.options.request.parentRequestId ?? this.turn.id,
 			summarizedAtRoundId,
 			finishedCb: async (text, index, delta) => {
 				fetchStreamSource?.update(text, delta);
@@ -1451,9 +1452,8 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 
 		const toolInputRetry = isToolInputFailure ? (this.toolCallRounds.at(-1)?.toolInputRetry || 0) + 1 : 0;
 		if (fetchResult.type === ChatFetchResponseType.Success) {
-			// Store token usage metadata for Anthropic models using Messages API
-			if (fetchResult.usage && isAnthropicFamily(endpoint)) {
-				this.turn.setMetadata(new AnthropicTokenUsageMetadata(
+			if (fetchResult.usage) {
+				this.turn.setMetadata(new TurnTokenUsageMetadata(
 					fetchResult.usage.prompt_tokens,
 					fetchResult.usage.completion_tokens
 				));
@@ -1484,7 +1484,7 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 					statefulMarker,
 					thinking: thinkingItem,
 					phase,
-					phaseModelId: phase ? endpoint.model : undefined,
+					modelId: endpoint.model,
 					compaction,
 				}),
 				chatResult,

@@ -31,6 +31,7 @@ import { PromptRenderer } from '../../base/promptRenderer';
 import { AgentPrompt, AgentPromptProps } from '../agentPrompt';
 import { PromptRegistry } from '../promptRegistry';
 import { ISessionTranscriptService, NullSessionTranscriptService } from '../../../../../platform/chat/common/sessionTranscriptService';
+import { ITokenizerProvider } from '../../../../../platform/tokenizer/node/tokenizer';
 import { appendTranscriptHintToSummary, ConversationHistorySummarizationPrompt, extractSummary, stripToolSearchMessages, SummarizedConversationHistory, SummarizedConversationHistoryMetadata, SummarizedConversationHistoryPropsBuilder } from '../summarizedConversationHistory';
 
 suite('Agent Summarization', () => {
@@ -40,7 +41,7 @@ suite('Agent Summarization', () => {
 
 	let conversation: Conversation;
 
-	beforeAll(() => {
+	beforeAll(async () => {
 		const testDoc = createTextDocumentData(fileTsUri, 'line 1\nline 2\n\nline 4\nline 5', 'ts').document;
 
 		const services = createExtensionUnitTestingServices();
@@ -57,6 +58,12 @@ suite('Agent Summarization', () => {
 		accessor.get(IConfigurationService).setConfig(ConfigKey.CodeGenerationInstructions, [{
 			text: 'This is a test custom instruction file',
 		} satisfies CodeGenerationTextInstruction]);
+
+		// Warm up the tokenizer once so per-test timing is predictable. The first
+		// tokenizer use parses a ~3.6MB BPE file which can take seconds on slow CI
+		// machines and would otherwise be charged to whichever test runs first.
+		const endpoint = accessor.get(IInstantiationService).createInstance(MockEndpoint, undefined);
+		await accessor.get(ITokenizerProvider).acquireTokenizer(endpoint).tokenLength('warmup');
 	});
 
 	beforeEach(() => {
@@ -88,6 +95,7 @@ suite('Agent Summarization', () => {
 			location: ChatLocation.Panel,
 			promptContext,
 			maxToolResultLength: Infinity,
+			enableSummarization: true,
 			...otherProps
 		};
 
@@ -98,8 +106,9 @@ suite('Agent Summarization', () => {
 			renderer = PromptRenderer.create(instaService, endpoint, AgentPrompt, props);
 		} else {
 			const propsInfo = instaService.createInstance(SummarizedConversationHistoryPropsBuilder).getProps(baseProps);
+			expect(propsInfo, 'expected propsInfo to be defined for test scenario').toBeDefined();
 			const simpleMode = promptType === TestPromptType.SimpleSummarization;
-			renderer = PromptRenderer.create(instaService, endpoint, ConversationHistorySummarizationPrompt, { ...propsInfo.props, simpleMode });
+			renderer = PromptRenderer.create(instaService, endpoint, ConversationHistorySummarizationPrompt, { ...propsInfo!.props, simpleMode });
 		}
 
 		const r = await renderer.render();
@@ -481,7 +490,8 @@ suite('Agent Summarization', () => {
 		};
 
 		const propsInfo = instaService.createInstance(SummarizedConversationHistoryPropsBuilder).getProps(baseProps);
-		const renderer = PromptRenderer.create(instaService, endpoint, ConversationHistorySummarizationPrompt, { ...propsInfo.props, simpleMode: true });
+		expect(propsInfo, 'expected propsInfo to be defined for test scenario').toBeDefined();
+		const renderer = PromptRenderer.create(instaService, endpoint, ConversationHistorySummarizationPrompt, { ...propsInfo!.props, simpleMode: true });
 		const result = await renderer.render();
 
 		// prompt-tsx prunes all content and silently drops empty messages → 0 messages

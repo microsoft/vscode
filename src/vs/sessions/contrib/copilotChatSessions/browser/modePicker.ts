@@ -244,7 +244,6 @@ export class ModePicker extends Disposable {
 
 		const labelSpan = dom.append(this._triggerElement, dom.$('span.sessions-chat-dropdown-label'));
 		labelSpan.textContent = this._selectedMode.label.get();
-		dom.append(this._triggerElement, renderIcon(Codicon.chevronDown));
 
 		this._triggerElement.ariaLabel = localize('modePicker.triggerAriaLabel', "Pick Mode, {0}", this._selectedMode.label.get());
 	}
