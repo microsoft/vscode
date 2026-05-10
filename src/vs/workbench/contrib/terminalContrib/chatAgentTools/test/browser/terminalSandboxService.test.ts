@@ -808,6 +808,20 @@ suite('TerminalSandboxService - network domains', () => {
 		strictEqual(wrapResult.isSandboxWrapped, true, 'Command should remain sandbox wrapped');
 	});
 
+	test('should deny write access to the sandbox settings file', async () => {
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		const configPath = await sandboxService.getSandboxConfigPath();
+
+		ok(configPath, 'Sandbox config path should be defined');
+		// Read the written config file to verify denyWrite includes the config path
+		const configFileUri = URI.file(configPath!);
+		const configEntries = createdFiles.get(configFileUri.path);
+		ok(configEntries, 'Sandbox config file should have been written');
+		const config = JSON.parse(configEntries!);
+		ok(Array.isArray(config.filesystem?.denyWrite), 'denyWrite should be an array');
+		ok(config.filesystem.denyWrite.includes(configPath), `denyWrite should include the config file path (${configPath}). Actual denyWrite: ${JSON.stringify(config.filesystem.denyWrite)}`);
+	});
+
 	test('should preserve TMPDIR when unsandboxed execution is requested', async () => {
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
 		await sandboxService.getSandboxConfigPath();
