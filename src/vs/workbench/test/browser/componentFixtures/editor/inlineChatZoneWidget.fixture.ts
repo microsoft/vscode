@@ -223,6 +223,8 @@ function renderInlineChatZoneWidget({ container, disposableStore, theme }: Compo
 				override readonly sentimentObs = observableValue('sentiment', { completed: true });
 				override readonly anonymousObs = observableValue('anonymous', false);
 				override readonly onDidChangeAnonymous = Event.None;
+				override readonly quotas = {};
+				override readonly onDidChangeQuotaRemaining = Event.None;
 			}());
 			reg.defineInstance(IChatModeService, new MockChatModeService());
 			reg.defineInstance(IChatSessionsService, new class extends mock<IChatSessionsService>() {

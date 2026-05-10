@@ -75,15 +75,6 @@ Type: filesandordirs; Name: "{app}\{#VersionedResourcesFolder}\resources\app\nod
 Type: files; Name: "{app}\{#VersionedResourcesFolder}\resources\app\node_modules.asar"; Check: IsNotBackgroundUpdate
 Type: files; Name: "{app}\{#VersionedResourcesFolder}\resources\app\Credits_45.0.2454.85.html"; Check: IsNotBackgroundUpdate
 
-; Remove leftover shortcuts and pinned entries from the previous Agents sub-application.
-Type: files; Name: "{group}\Agents - Insiders.lnk"; Check: QualityIsInsiders
-Type: files; Name: "{userprograms}\Agents - Insiders.lnk"; Check: QualityIsInsiders
-Type: files; Name: "{commonprograms}\Agents - Insiders.lnk"; Check: QualityIsInsiders
-Type: files; Name: "{autodesktop}\Agents - Insiders.lnk"; Check: QualityIsInsiders
-Type: files; Name: "{userappdata}\Microsoft\Internet Explorer\Quick Launch\Agents - Insiders.lnk"; Check: QualityIsInsiders
-Type: files; Name: "{userappdata}\Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar\Agents - Insiders.lnk"; Check: QualityIsInsiders
-Type: files; Name: "{userappdata}\Microsoft\Internet Explorer\Quick Launch\User Pinned\StartMenu\Agents - Insiders.lnk"; Check: QualityIsInsiders
-
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}\_"
 Type: filesandordirs; Name: "{app}\bin"

@@ -2648,6 +2648,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	getModeRequestOptions(): Partial<IChatSendRequestOptions> {
+		if (!this.inputPartDisposable.value) {
+			return {};
+		}
+
 		const sessionResource = this.viewModel?.sessionResource;
 		const capturedModeId = this.input.currentModeObs.get().id;
 		const userSelectedTools = this.input.selectedToolsModel.userSelectedTools;
