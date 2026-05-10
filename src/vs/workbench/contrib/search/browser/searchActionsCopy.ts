@@ -13,7 +13,6 @@ import { KeybindingWeight } from '../../../../platform/keybinding/common/keybind
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { category, getSearchView } from './searchActionsBase.js';
 import { isWindows } from '../../../../base/common/platform.js';
-import { basename } from '../../../../base/common/resources.js';
 import { searchMatchComparer } from './searchCompare.js';
 import { RenderableMatch, ISearchTreeMatch, isSearchTreeMatch, ISearchTreeFileMatch, ISearchTreeFolderMatch, ISearchTreeFolderMatchWithResource, isSearchTreeFileMatch, isSearchTreeFolderMatch, isSearchTreeFolderMatchWithResource, isTextSearchHeading } from './searchTreeModel/searchTreeCommon.js';
 
@@ -160,7 +159,7 @@ export const lineDelimiter = isWindows ? '\r\n' : '\n';
 async function copyFilenameCommand(accessor: ServicesAccessor, fileMatch: ISearchTreeFileMatch | ISearchTreeFolderMatchWithResource | undefined) {
 	if (!fileMatch) {
 		const selection = getSelectedRow(accessor);
-		if (!isSearchTreeFileMatch(selection) || isSearchTreeFolderMatchWithResource(selection)) {
+		if (!isSearchTreeFileMatch(selection) && !isSearchTreeFolderMatchWithResource(selection)) {
 			return;
 		}
 
@@ -168,13 +167,15 @@ async function copyFilenameCommand(accessor: ServicesAccessor, fileMatch: ISearc
 	}
 
 	const clipboardService = accessor.get(IClipboardService);
-	await clipboardService.writeText(basename(fileMatch.resource));
+	const labelService = accessor.get(ILabelService);
+
+	await clipboardService.writeText(labelService.getUriBasenameLabel(fileMatch.resource));
 }
 
 async function copyPathCommand(accessor: ServicesAccessor, fileMatch: ISearchTreeFileMatch | ISearchTreeFolderMatchWithResource | undefined) {
 	if (!fileMatch) {
 		const selection = getSelectedRow(accessor);
-		if (!isSearchTreeFileMatch(selection) || isSearchTreeFolderMatchWithResource(selection)) {
+		if (!isSearchTreeFileMatch(selection) && !isSearchTreeFolderMatchWithResource(selection)) {
 			return;
 		}
 
