@@ -723,13 +723,14 @@ export function validateQuotaSnapshotFromMetadata(raw: unknown): IValidatedQuota
 	}
 
 	const quotaRemaining = typeof obj.quotaRemaining === 'number' && obj.quotaRemaining >= 0 ? obj.quotaRemaining : undefined;
+	const entitlement = typeof obj.entitlement === 'number' ? obj.entitlement : undefined;
 
 	return {
 		snapshot: {
 			percentRemaining: obj.percentRemaining,
 			unlimited: obj.unlimited,
-			entitlement: typeof obj.entitlement === 'number' ? obj.entitlement : undefined,
-			quotaRemaining,
+			...(entitlement !== undefined ? { entitlement } : undefined),
+			...(quotaRemaining !== undefined ? { quotaRemaining } : undefined),
 		},
 		additionalUsage: {
 			enabled: typeof obj.additionalUsageEnabled === 'boolean' ? obj.additionalUsageEnabled : false,

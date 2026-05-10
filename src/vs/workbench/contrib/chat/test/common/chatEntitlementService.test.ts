@@ -436,6 +436,10 @@ suite('validateQuotaSnapshotFromMetadata', () => {
 		assert.deepStrictEqual(result.additionalUsage, { enabled: false, used: 0 });
 		assert.strictEqual(result.snapshot.entitlement, undefined);
 		assert.strictEqual(result.snapshot.quotaRemaining, undefined);
+		// Verify undefined optional fields are omitted (not present as keys)
+		// so that spreading the snapshot won't overwrite existing values.
+		assert.strictEqual(Object.keys(result.snapshot).includes('entitlement'), false);
+		assert.strictEqual(Object.keys(result.snapshot).includes('quotaRemaining'), false);
 	});
 
 	test('accepts zero quotaRemaining', () => {
