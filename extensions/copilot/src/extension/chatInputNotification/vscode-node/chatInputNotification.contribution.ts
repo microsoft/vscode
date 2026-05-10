@@ -152,7 +152,7 @@ export class ChatInputNotificationContribution extends Disposable {
 				for (let j = 0; j <= i; j++) {
 					shownThresholds.add(THRESHOLDS[j]);
 				}
-				return { percentUsed: Math.round(percentUsed), resetDate: info.resetDate };
+				return { percentUsed: Math.floor(percentUsed), resetDate: info.resetDate };
 			}
 		}
 		return undefined;
