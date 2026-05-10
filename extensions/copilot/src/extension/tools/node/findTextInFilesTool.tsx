@@ -14,6 +14,7 @@ import { IPromptPathRepresentationService } from '../../../platform/prompts/comm
 import { ISearchService } from '../../../platform/search/common/searchService';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
 import { IWorkspaceService } from '../../../platform/workspace/common/workspaceService';
+import { WorkingDirectory } from '../../../platform/workspace/common/workingDirectory';
 import { raceTimeoutAndCancellationError } from '../../../util/common/racePromise';
 import { asArray } from '../../../util/vs/base/common/arrays';
 import { CancellationToken } from '../../../util/vs/base/common/cancellation';
@@ -65,13 +66,14 @@ export class FindTextInFilesTool implements ICopilotTool<IFindTextInFilesToolPar
 		const modelFamily = endpoint?.family;
 
 		// The input _should_ be a pattern matching inside a workspace, folder, but sometimes we get absolute paths, so try to resolve them
-		const globResult = options.input.includePattern ? inputGlobToPattern(options.input.includePattern, this.workspaceService, modelFamily, options.workingDirectory) : undefined;
+		const workingDir = new WorkingDirectory(options.workingDirectory, this.workspaceService);
+		const globResult = options.input.includePattern ? inputGlobToPattern(options.input.includePattern, workingDir, modelFamily) : undefined;
 		let patterns = globResult?.patterns;
 
 		// When no include pattern is specified but a working directory is set (agents window),
 		// scope the search to the session's working directory.
-		if (!patterns && options.workingDirectory) {
-			patterns = [new RelativePattern(options.workingDirectory, '**')];
+		if (!patterns && workingDir.hasExplicitWorkingDirectory) {
+			patterns = [new RelativePattern(workingDir.uri!, '**')];
 		}
 
 		void this.sendSearchToolTelemetry(options, globResult);
@@ -225,7 +227,7 @@ Then if you want to include those files you can call the tool again by setting "
 
 	prepareInvocation(options: vscode.LanguageModelToolInvocationPrepareOptions<IFindTextInFilesToolParams>, token: vscode.CancellationToken): vscode.ProviderResult<vscode.PreparedToolInvocation> {
 		const isRegExp = options.input.isRegexp ?? true;
-		const globResult = options.input.includePattern ? inputGlobToPattern(options.input.includePattern, this.workspaceService, undefined) : undefined;
+		const globResult = options.input.includePattern ? inputGlobToPattern(options.input.includePattern, new WorkingDirectory(undefined, this.workspaceService), undefined) : undefined;
 		const query = this.formatQueryString(options.input, globResult);
 		return {
 			invocationMessage: isRegExp ?
