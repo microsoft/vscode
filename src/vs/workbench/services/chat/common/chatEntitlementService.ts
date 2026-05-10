@@ -703,6 +703,41 @@ export interface IQuotaSnapshot {
 	readonly quotaRemaining?: number;
 }
 
+export interface IValidatedQuotaUpdate {
+	readonly snapshot: IQuotaSnapshot;
+	readonly additionalUsage: { enabled: boolean; used: number };
+}
+
+/**
+ * Validates a raw quota snapshot object from extension metadata and returns
+ * a typed {@link IValidatedQuotaUpdate} or `undefined` if the data is invalid.
+ */
+export function validateQuotaSnapshotFromMetadata(raw: unknown): IValidatedQuotaUpdate | undefined {
+	if (!raw || typeof raw !== 'object') {
+		return undefined;
+	}
+
+	const obj = raw as Record<string, unknown>;
+	if (typeof obj.percentRemaining !== 'number' || typeof obj.unlimited !== 'boolean') {
+		return undefined;
+	}
+
+	const quotaRemaining = typeof obj.quotaRemaining === 'number' && obj.quotaRemaining >= 0 ? obj.quotaRemaining : undefined;
+
+	return {
+		snapshot: {
+			percentRemaining: obj.percentRemaining,
+			unlimited: obj.unlimited,
+			entitlement: typeof obj.entitlement === 'number' ? obj.entitlement : undefined,
+			quotaRemaining,
+		},
+		additionalUsage: {
+			enabled: typeof obj.additionalUsageEnabled === 'boolean' ? obj.additionalUsageEnabled : false,
+			used: typeof obj.additionalUsageUsed === 'number' ? obj.additionalUsageUsed : 0,
+		},
+	};
+}
+
 interface IQuotas {
 	readonly resetDate?: string;
 	readonly resetDateHasTime?: boolean;

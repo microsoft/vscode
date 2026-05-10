@@ -28,7 +28,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../pla
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
-import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
+import { IChatEntitlementService, validateQuotaSnapshotFromMetadata } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IChatDebugService } from '../chatDebugService.js';
 import { IMcpService } from '../../../mcp/common/mcpTypes.js';
 import { awaitStatsForSession } from '../chat.js';
@@ -1447,19 +1447,9 @@ export class ChatService extends Disposable implements IChatService {
 
 					// Forward quota snapshot from the extension to the entitlement
 					// service so the dashboard reflects the latest usage immediately.
-					const quotaSnapshot = rawResult.metadata?.quotaSnapshot;
-					if (quotaSnapshot && typeof quotaSnapshot === 'object' && typeof (quotaSnapshot as Record<string, unknown>).percentRemaining === 'number') {
-						const qs = quotaSnapshot as { percentRemaining: number; unlimited: boolean; entitlement: number; quotaRemaining?: number; additionalUsageUsed: number; additionalUsageEnabled: boolean; resetDate: string };
-						const validQuotaRemaining = typeof qs.quotaRemaining === 'number' && qs.quotaRemaining >= 0 ? qs.quotaRemaining : undefined;
-						this.chatEntitlementService.updateQuotaSnapshot({
-							percentRemaining: qs.percentRemaining,
-							unlimited: qs.unlimited,
-							entitlement: qs.entitlement,
-							quotaRemaining: validQuotaRemaining,
-						}, {
-							enabled: qs.additionalUsageEnabled,
-							used: qs.additionalUsageUsed,
-						});
+					const validatedQuota = validateQuotaSnapshotFromMetadata(rawResult.metadata?.quotaSnapshot);
+					if (validatedQuota) {
+						this.chatEntitlementService.updateQuotaSnapshot(validatedQuota.snapshot, validatedQuota.additionalUsage);
 					}
 
 					shouldProcessPending = !rawResult.errorDetails

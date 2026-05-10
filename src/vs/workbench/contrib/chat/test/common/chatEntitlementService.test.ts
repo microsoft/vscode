@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { IEntitlementsData } from '../../../../../base/common/defaultAccount.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { parseQuotas } from '../../../../services/chat/common/chatEntitlementService.js';
+import { parseQuotas, validateQuotaSnapshotFromMetadata } from '../../../../services/chat/common/chatEntitlementService.js';
 
 suite('parseQuotas', () => {
 
@@ -132,6 +132,7 @@ suite('parseQuotas', () => {
 				usageBasedBilling: true,
 				resetAt: undefined,
 				entitlement: 0,
+				quotaRemaining: undefined,
 			},
 			completions: {
 				percentRemaining: 100,
@@ -139,6 +140,7 @@ suite('parseQuotas', () => {
 				usageBasedBilling: true,
 				resetAt: undefined,
 				entitlement: 0,
+				quotaRemaining: undefined,
 			},
 			premiumChat: {
 				percentRemaining: 97.4,
@@ -146,6 +148,7 @@ suite('parseQuotas', () => {
 				usageBasedBilling: true,
 				resetAt: undefined,
 				entitlement: 3900,
+				quotaRemaining: undefined,
 			},
 			additionalUsageEnabled: true,
 			additionalUsageCount: 0,
@@ -307,5 +310,143 @@ suite('parseQuotas', () => {
 		assert.strictEqual(quotas.completions?.percentRemaining, 100);
 		assert.strictEqual(quotas.completions?.entitlement, 4000);
 		assert.strictEqual(quotas.premiumChat, undefined);
+	});
+
+	test('quota_remaining flows through and recomputes percentRemaining', () => {
+		const data = makeEntitlementsData({
+			token_based_billing: true,
+			quota_snapshots: {
+				premium_interactions: {
+					overage_count: 0,
+					overage_permitted: true,
+					percent_remaining: 50, // server percent — should be overridden
+					unlimited: false,
+					entitlement: '2000',
+					quota_remaining: 1500,
+				},
+			},
+		});
+
+		const quotas = parseQuotas(data);
+		assert.strictEqual(quotas.premiumChat?.quotaRemaining, 1500);
+		assert.strictEqual(quotas.premiumChat?.entitlement, 2000);
+		// percentRemaining recomputed: 1500/2000 * 100 = 75
+		assert.strictEqual(quotas.premiumChat?.percentRemaining, 75);
+	});
+
+	test('negative quota_remaining is ignored', () => {
+		const data = makeEntitlementsData({
+			token_based_billing: true,
+			quota_snapshots: {
+				premium_interactions: {
+					overage_count: 5,
+					overage_permitted: true,
+					percent_remaining: 0,
+					unlimited: false,
+					entitlement: '2000',
+					quota_remaining: -100,
+				},
+			},
+		});
+
+		const quotas = parseQuotas(data);
+		assert.strictEqual(quotas.premiumChat?.quotaRemaining, undefined);
+		// Falls back to server percent_remaining since quota_remaining is invalid
+		assert.strictEqual(quotas.premiumChat?.percentRemaining, 0);
+	});
+});
+
+suite('validateQuotaSnapshotFromMetadata', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('returns validated snapshot for valid input', () => {
+		const result = validateQuotaSnapshotFromMetadata({
+			percentRemaining: 75,
+			unlimited: false,
+			entitlement: 2000,
+			quotaRemaining: 1500,
+			additionalUsageUsed: 10,
+			additionalUsageEnabled: true,
+			resetDate: '2026-06-01',
+		});
+
+		assert.deepStrictEqual(result, {
+			snapshot: {
+				percentRemaining: 75,
+				unlimited: false,
+				entitlement: 2000,
+				quotaRemaining: 1500,
+			},
+			additionalUsage: {
+				enabled: true,
+				used: 10,
+			},
+		});
+	});
+
+	test('returns undefined for null input', () => {
+		assert.strictEqual(validateQuotaSnapshotFromMetadata(null), undefined);
+	});
+
+	test('returns undefined for undefined input', () => {
+		assert.strictEqual(validateQuotaSnapshotFromMetadata(undefined), undefined);
+	});
+
+	test('returns undefined for non-object input', () => {
+		assert.strictEqual(validateQuotaSnapshotFromMetadata('string'), undefined);
+		assert.strictEqual(validateQuotaSnapshotFromMetadata(42), undefined);
+	});
+
+	test('returns undefined when percentRemaining is missing', () => {
+		assert.strictEqual(validateQuotaSnapshotFromMetadata({
+			unlimited: false,
+			entitlement: 2000,
+		}), undefined);
+	});
+
+	test('returns undefined when unlimited is missing', () => {
+		assert.strictEqual(validateQuotaSnapshotFromMetadata({
+			percentRemaining: 75,
+			entitlement: 2000,
+		}), undefined);
+	});
+
+	test('rejects negative quotaRemaining', () => {
+		const result = validateQuotaSnapshotFromMetadata({
+			percentRemaining: 0,
+			unlimited: false,
+			entitlement: 2000,
+			quotaRemaining: -50,
+			additionalUsageUsed: 5,
+			additionalUsageEnabled: true,
+		});
+
+		assert.ok(result);
+		assert.strictEqual(result.snapshot.quotaRemaining, undefined);
+	});
+
+	test('defaults additionalUsage when fields are missing', () => {
+		const result = validateQuotaSnapshotFromMetadata({
+			percentRemaining: 100,
+			unlimited: true,
+		});
+
+		assert.ok(result);
+		assert.deepStrictEqual(result.additionalUsage, { enabled: false, used: 0 });
+		assert.strictEqual(result.snapshot.entitlement, undefined);
+		assert.strictEqual(result.snapshot.quotaRemaining, undefined);
+	});
+
+	test('accepts zero quotaRemaining', () => {
+		const result = validateQuotaSnapshotFromMetadata({
+			percentRemaining: 0,
+			unlimited: false,
+			entitlement: 2000,
+			quotaRemaining: 0,
+		});
+
+		assert.ok(result);
+		assert.strictEqual(result.snapshot.quotaRemaining, 0);
 	});
 });

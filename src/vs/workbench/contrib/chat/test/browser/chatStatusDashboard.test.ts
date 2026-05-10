@@ -431,6 +431,22 @@ suite('ChatStatusDashboard', () => {
 		assert.deepStrictEqual(getQuotaValues(dashboard.element), ['25%']);
 	});
 
+	test('Hover clamps used credits to [0, total] when quotaRemaining exceeds entitlement', () => {
+		const dashboard = createDashboard(createEntitlementService({
+			chat: { percentRemaining: 100, unlimited: false, entitlement: 2000, quotaRemaining: 2500 },
+			entitlement: ChatEntitlement.Free,
+		}));
+
+		const quotaPercentages = dashboard.element.querySelectorAll('.quota-indicator:not(.included) .quota-percentage');
+		assert.strictEqual(quotaPercentages.length, 1);
+
+		// Hover: used = max(0, 2000 - 2500) = max(0, -500) = 0, clamped to [0, total]
+		quotaPercentages[0].dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+		const chatValue = quotaPercentages[0].querySelector('.quota-value');
+		assert.ok(chatValue?.textContent?.includes('0'), `Should clamp used to 0, got: ${chatValue?.textContent}`);
+		assert.ok(chatValue?.textContent?.includes('2,000'), `Should show total 2000, got: ${chatValue?.textContent}`);
+	});
+
 	// --- CALLOUT MESSAGES ---
 
 	test('Callout: no callout when quota is not approaching limit', () => {
