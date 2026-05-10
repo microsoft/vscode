@@ -223,6 +223,7 @@ export class ChatSessionsContrib extends Disposable implements IExtensionContrib
 		));
 		const copilotCLISessionService = copilotcliAgentInstaService.invokeFunction(accessor => accessor.get(ICopilotCLISessionService));
 		const copilotCLIWorktreeManagerService = copilotcliAgentInstaService.invokeFunction(accessor => accessor.get(IChatSessionWorktreeService));
+		const copilotCLIWorktreeCheckpointService = copilotcliAgentInstaService.invokeFunction(accessor => accessor.get(IChatSessionWorktreeCheckpointService));
 		const copilotCLIWorkspaceFolderSessions = copilotcliAgentInstaService.invokeFunction(accessor => accessor.get(IChatSessionWorkspaceFolderService));
 		const folderRepositoryManager = copilotcliAgentInstaService.invokeFunction(accessor => accessor.get(IFolderRepositoryManager));
 		const nativeEnvService = copilotcliAgentInstaService.invokeFunction(accessor => accessor.get(INativeEnvService));
@@ -240,7 +241,7 @@ export class ChatSessionsContrib extends Disposable implements IExtensionContrib
 		this._register(vscode.chat.registerChatSessionContentProvider(this.copilotcliSessionType, copilotcliChatSessionContentProvider, copilotcliParticipant));
 		const copilotcliCustomizationProvider = this._register(copilotcliAgentInstaService.createInstance(CopilotCLICustomizationProvider));
 		this._register(vscode.chat.registerChatSessionCustomizationProvider(this.copilotcliSessionType, CopilotCLICustomizationProvider.metadata, copilotcliCustomizationProvider));
-		this._register(registerCLIChatCommands(copilotCLISessionService, copilotCLIWorktreeManagerService, gitService, gitCommitMessageService, copilotCLIWorkspaceFolderSessions, copilotcliChatSessionContentProvider, folderRepositoryManager, copilotCLIFolderMruService, nativeEnvService, fileSystemService, sessionTracker, terminalIntegration, pullRequestCreationService, logService));
+		this._register(registerCLIChatCommands(copilotCLISessionService, copilotCLIWorktreeManagerService, copilotCLIWorktreeCheckpointService, gitService, gitCommitMessageService, copilotCLIWorkspaceFolderSessions, copilotcliChatSessionContentProvider, folderRepositoryManager, copilotCLIFolderMruService, nativeEnvService, fileSystemService, sessionTracker, terminalIntegration, pullRequestCreationService, logService));
 		// #endregion
 
 		const sessionMetadata = copilotcliAgentInstaService.invokeFunction(accessor => accessor.get(IChatSessionMetadataStore));
@@ -299,6 +300,7 @@ export class ChatSessionsContrib extends Disposable implements IExtensionContrib
 		));
 		const copilotCLISessionService = copilotcliAgentInstaService.invokeFunction(accessor => accessor.get(ICopilotCLISessionService));
 		const copilotCLIWorktreeManagerService = copilotcliAgentInstaService.invokeFunction(accessor => accessor.get(IChatSessionWorktreeService));
+		const copilotCLIWorktreeCheckpointService = copilotcliAgentInstaService.invokeFunction(accessor => accessor.get(IChatSessionWorktreeCheckpointService));
 
 		// Handle worktree cleanup/recreation when archive state changes
 		const onDidChangeChatSessionItemState = (providerRegistration as { onDidChangeChatSessionItemState?: vscode.Event<vscode.ChatSessionItem> }).onDidChangeChatSessionItemState;
@@ -343,7 +345,7 @@ export class ChatSessionsContrib extends Disposable implements IExtensionContrib
 		this._register(vscode.chat.registerChatSessionContentProvider(this.copilotcliSessionType, copilotcliChatSessionContentProvider, copilotcliParticipant));
 		const copilotcliCustomizationProvider = this._register(copilotcliAgentInstaService.createInstance(CopilotCLICustomizationProvider));
 		this._register(vscode.chat.registerChatSessionCustomizationProvider(this.copilotcliSessionType, CopilotCLICustomizationProvider.metadata, copilotcliCustomizationProvider));
-		this._register(registerCLIChatCommandsV1(copilotcliSessionItemProvider, copilotCLISessionService, copilotCLIWorktreeManagerService, gitService, gitCommitMessageService, gitExtensionService, toolsService, copilotCLIWorkspaceFolderSessions, copilotcliChatSessionContentProvider, folderRepositoryManager, copilotFolderMruService, nativeEnvService, fileSystemService, pullRequestCreationService, logService));
+		this._register(registerCLIChatCommandsV1(copilotcliSessionItemProvider, copilotCLISessionService, copilotCLIWorktreeManagerService, copilotCLIWorktreeCheckpointService, gitService, gitCommitMessageService, gitExtensionService, toolsService, copilotCLIWorkspaceFolderSessions, copilotcliChatSessionContentProvider, folderRepositoryManager, copilotFolderMruService, nativeEnvService, fileSystemService, pullRequestCreationService, logService));
 		// #endregion
 
 		const sessionMetadata = copilotcliAgentInstaService.invokeFunction(accessor => accessor.get(IChatSessionMetadataStore));
