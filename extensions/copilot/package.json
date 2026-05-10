@@ -5194,6 +5194,13 @@
 					"group": "sync@1"
 				}
 			],
+			"agents/change/inline": [
+				{
+					"command": "github.copilot.sessions.discardChanges",
+					"when": "chatSessionType == copilotcli && isSessionsWindow && sessions.hasGitRepository && !isActiveSessionArchived && !sessions.isAgentHostSession",
+					"group": "navigation@2"
+				}
+			],
 			"chat/contextUsage/actions": [
 				{
 					"command": "github.copilot.chat.compact"
@@ -5937,13 +5944,6 @@
 					"command": "github.copilot.sessions.refreshChanges",
 					"when": "chatSessionType == copilotcli && isSessionsWindow && !sessions.isAgentHostSession",
 					"group": "9_refresh@1"
-				}
-			],
-			"chat/input/editing/sessionChangeToolbar": [
-				{
-					"command": "github.copilot.sessions.discardChanges",
-					"when": "chatSessionType == copilotcli && isSessionsWindow && sessions.hasGitRepository && !sessions.isAgentHostSession && (sessions.changesVersionMode == branchChanges || sessions.changesVersionMode == uncommittedChanges)",
-					"group": "navigation@2"
 				}
 			],
 			"chat/customizations/create": [

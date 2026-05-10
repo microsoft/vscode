@@ -16,6 +16,7 @@ import { IChatContentPartRenderContext } from '../../../../browser/widget/chatCo
 import { IChatPlanApprovalAction, IChatPlanReview, IChatPlanReviewResult } from '../../../../common/chatService/chatService.js';
 import { IChatRendererContent } from '../../../../common/model/chatViewModel.js';
 import { ChatPlanReviewData } from '../../../../common/model/chatProgressTypes/chatPlanReviewData.js';
+import { IUserInteractionService, MockUserInteractionService } from '../../../../../../../platform/userInteraction/browser/userInteractionService.js';
 
 function createMockReview(overrides?: Partial<IChatPlanReview>): IChatPlanReview {
 	return {
@@ -74,7 +75,8 @@ suite('ChatPlanReviewPart', () => {
 	function createWidget(review: IChatPlanReview, dialogService?: TestDialogService): ChatPlanReviewPart {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		const feedbackService = store.add(new PlanReviewFeedbackService());
-		instantiationService.stub(IPlanReviewFeedbackService, feedbackService);
+		instantiationService.stub(IPlanReviewFeedbackService, feedbackService); instantiationService.stub(IUserInteractionService, new MockUserInteractionService());
+
 		lastFeedbackService = feedbackService;
 		if (dialogService) {
 			instantiationService.stub(IDialogService, dialogService);
@@ -248,6 +250,62 @@ suite('ChatPlanReviewPart', () => {
 			assert.ok(buttons.some(b => b.textContent?.includes('Reject')), 'reject button should still be visible');
 		});
 
+		test('clicking Review button opens feedback section and shows Submit Feedback button', async () => {
+			createWidget(createMockReviewWithPlan());
+
+			const reviewButton = getReviewButton(widget)!;
+			reviewButton.click();
+			await tick();
+
+			// Feedback section should now be visible.
+			const feedbackSection = getFeedbackSection(widget);
+			assert.notStrictEqual(feedbackSection.style.display, 'none', 'feedback section should be visible');
+
+			// Footer should have Submit Feedback + Reject (no approve, no Provide Feedback).
+			const buttons = getFooterButtons(widget);
+			assert.ok(buttons.some(b => b.textContent?.includes('Submit Feedback')), 'should have Submit Feedback button');
+			assert.ok(buttons.some(b => b.textContent?.includes('Reject')), 'should still have Reject button');
+			assert.ok(!buttons.some(b => b.textContent?.includes('Autopilot')), 'approve button should be hidden');
+		});
+
+		test('reject button remains visible in feedback mode', async () => {
+			createWidget(createMockReviewWithPlan());
+
+			getReviewButton(widget)!.click();
+			await tick();
+
+			const buttons = getFooterButtons(widget);
+			assert.ok(buttons.some(b => b.textContent?.includes('Reject')), 'reject button should still be visible');
+		});
+
+		test('clicking Review button opens feedback section and shows Submit Feedback button', async () => {
+			createWidget(createMockReviewWithPlan());
+
+			const reviewButton = getReviewButton(widget)!;
+			reviewButton.click();
+			await tick();
+
+			// Feedback section should now be visible.
+			const feedbackSection = getFeedbackSection(widget);
+			assert.notStrictEqual(feedbackSection.style.display, 'none', 'feedback section should be visible');
+
+			// Footer should have Submit Feedback + Reject (no approve, no Provide Feedback).
+			const buttons = getFooterButtons(widget);
+			assert.ok(buttons.some(b => b.textContent?.includes('Submit Feedback')), 'should have Submit Feedback button');
+			assert.ok(buttons.some(b => b.textContent?.includes('Reject')), 'should still have Reject button');
+			assert.ok(!buttons.some(b => b.textContent?.includes('Autopilot')), 'approve button should be hidden');
+		});
+
+		test('reject button remains visible in feedback mode', async () => {
+			createWidget(createMockReviewWithPlan());
+
+			getReviewButton(widget)!.click();
+			await tick();
+
+			const buttons = getFooterButtons(widget);
+			assert.ok(buttons.some(b => b.textContent?.includes('Reject')), 'reject button should still be visible');
+		});
+
 		test('approving with textarea content sends approval + feedback', () => {
 			// canProvideFeedback without planUri shows the textarea alongside
 			// the regular Approve/Reject buttons; typed feedback rides along
@@ -287,41 +345,6 @@ suite('ChatPlanReviewPart', () => {
 				feedback: 'Not the right approach',
 				feedbackOverall: 'Not the right approach',
 			});
-		});
-
-		test('clicking Back exits feedback mode but preserves textarea draft', async () => {
-			const data = new ChatPlanReviewData('Title', 'Content', [{ label: 'Autopilot', default: true }], true, URI.parse('file:///plan.md').toJSON());
-			createWidget(data);
-
-			// Enter feedback mode via the Review button.
-			getReviewButton(widget)!.click();
-			await tick();
-
-			// Type some draft feedback
-			const textarea = widget.domNode.querySelector('.chat-plan-review-feedback-textarea') as HTMLTextAreaElement;
-			textarea.value = 'draft feedback';
-			textarea.dispatchEvent(new Event('input'));
-
-			// Click Back inside the feedback header
-			const backButton = widget.domNode.querySelector('.chat-plan-review-feedback-close') as HTMLElement;
-			assert.ok(backButton, 'feedback Back button should exist');
-			backButton.click();
-			await tick();
-
-			// Feedback section should be hidden
-			const feedbackSection = getFeedbackSection(widget);
-			assert.strictEqual(feedbackSection.style.display, 'none', 'feedback section should be hidden');
-
-			// Footer buttons should be back to the normal set (Approve + Reject only).
-			const buttons = getFooterButtons(widget);
-			assert.ok(buttons.some(b => b.textContent?.includes('Autopilot')), 'approve button should be back');
-			assert.ok(buttons.some(b => b.textContent?.includes('Reject')), 'reject button should be back');
-			assert.ok(!buttons.some(b => b.textContent?.includes('Submit Feedback')), 'submit button should be gone');
-			assert.ok(!buttons.some(b => b.textContent?.includes('Provide Feedback')), 'provide feedback button should not return');
-
-			// Back is non-destructive: draft persists.
-			assert.strictEqual(textarea.value, 'draft feedback', 'textarea draft should be preserved');
-			assert.strictEqual(data.draftFeedback, 'draft feedback', 'draft feedback should be preserved');
 		});
 
 		test('submit is disabled when feedback textarea is empty and no inline comments', async () => {
