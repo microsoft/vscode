@@ -685,7 +685,8 @@ class View extends Disposable {
 			null,
 			verticalScrollbarSize,
 			false,
-			options.get(EditorOption.textDirection)
+			options.get(EditorOption.textDirection),
+			model.getLanguageId()
 		));
 
 		return r.html;
