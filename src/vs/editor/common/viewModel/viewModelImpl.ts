@@ -568,13 +568,13 @@ export class ViewModel extends Disposable implements IViewModel {
 	private readonly hiddenAreasModel = new HiddenAreasModel();
 	private previousHiddenAreas: readonly Range[] = [];
 
-	public getFontSizeAtPosition(position: IPosition): string | null {
+	public getFontSizeAtPosition(position: IPosition): number | null {
 		const allowVariableFonts = this._configuration.options.get(EditorOption.effectiveAllowVariableFonts);
 		if (!allowVariableFonts) {
 			return null;
 		}
 		const fontDecorations = this.model.getFontDecorationsInRange(Range.fromPositions(position), this._editorId);
-		let fontSize: string = this._configuration.options.get(EditorOption.fontInfo).fontSize + 'px';
+		let fontSize = this._configuration.options.get(EditorOption.fontInfo).fontSize;
 		for (const fontDecoration of fontDecorations) {
 			if (fontDecoration.options.fontSize) {
 				fontSize = fontDecoration.options.fontSize;
