@@ -1074,6 +1074,37 @@ function serializeThinking(thinking: IToolCallRound['thinking']): string | undef
 // ── Rendering ───────────────────────────────────────────────────
 
 /**
+ * Neutralize angle brackets in user-controllable text so it cannot
+ * forge or close any of the tags emitted around the trajectory
+ * (`<round>`, `<thinking>`, `<tool-calls>`, `<response>`,
+ * `<previous-context>`, `<new-activity>`, `<full-trajectory>`).
+ *
+ * Thinking/response come from the main agent's model output and tool
+ * call targets/notes come from arbitrary tool arguments — both can be
+ * influenced by indirect prompt injection (e.g. file contents read by
+ * the agent), so they must be sanitized before being interpolated
+ * into a tagged block. Replacing `<`/`>` with the look-alike
+ * single-angle-quote characters (U+2039 / U+203A) preserves
+ * readability for the model while making tag forgery impossible.
+ */
+export function escapeForPromptTag(text: string): string {
+	return text.replace(/</g, '\u2039').replace(/>/g, '\u203A');
+}
+
+/**
+ * Stricter form of {@link escapeForPromptTag} for fields that are
+ * embedded inline inside a tagged block — tool name, target, and
+ * note. In addition to neutralizing angle brackets, collapse runs of
+ * whitespace (including newlines and tabs) into a single space so
+ * the value can't introduce a fake `- toolName → …` row or an
+ * indented `note: …` line that masquerades as another tool call
+ * inside `<tool-calls>`.
+ */
+function escapeInlineForPromptTag(text: string): string {
+	return escapeForPromptTag(text.replace(/\s+/g, ' ').trim());
+}
+
+/**
  * Render a round into a stable, parseable text block. Used by the
  * prompt-tsx round chunk so the model sees a uniform shape per round.
  */
@@ -1082,17 +1113,19 @@ export function renderBackgroundTodoRound(round: IBackgroundTodoHistoryRound): s
 
 	if (round.thinking) {
 		lines.push('<thinking>');
-		lines.push(round.thinking);
+		lines.push(escapeForPromptTag(round.thinking));
 		lines.push('</thinking>');
 	}
 
 	if (round.toolCalls.length > 0) {
 		lines.push('<tool-calls>');
 		for (const tc of round.toolCalls) {
-			const head = tc.target ? `- ${tc.name} → ${tc.target}` : `- ${tc.name}`;
+			const name = escapeInlineForPromptTag(tc.name);
+			const target = tc.target ? escapeInlineForPromptTag(tc.target) : undefined;
+			const head = target ? `- ${name} → ${target}` : `- ${name}`;
 			lines.push(head);
 			if (tc.note) {
-				lines.push(`    note: ${tc.note}`);
+				lines.push(`    note: ${escapeInlineForPromptTag(tc.note)}`);
 			}
 		}
 		lines.push('</tool-calls>');
@@ -1100,7 +1133,7 @@ export function renderBackgroundTodoRound(round: IBackgroundTodoHistoryRound): s
 
 	if (round.response) {
 		lines.push('<response>');
-		lines.push(round.response);
+		lines.push(escapeForPromptTag(round.response));
 		lines.push('</response>');
 	}
 

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { BasePromptElementProps, Chunk, PrioritizedList, PromptElement, PromptSizing, SystemMessage, UserMessage } from '@vscode/prompt-tsx';
-import { computeRoundPriority, IBackgroundTodoHistory, IBackgroundTodoHistoryRound, renderBackgroundTodoRound } from './backgroundTodoProcessor';
+import { computeRoundPriority, escapeForPromptTag, IBackgroundTodoHistory, IBackgroundTodoHistoryRound, renderBackgroundTodoRound } from './backgroundTodoProcessor';
 
 export interface BackgroundTodoPromptProps extends BasePromptElementProps {
 	/** Current todo list state as rendered markdown, or undefined if no todos exist yet. */
@@ -174,7 +174,7 @@ export class BackgroundTodoPrompt extends PromptElement<BackgroundTodoPromptProp
 				{currentTodos && (
 					<UserMessage priority={900}>
 						Current todo list:{'\n'}
-						{currentTodos}
+						{escapeForPromptTag(currentTodos)}
 					</UserMessage>
 				)}
 
