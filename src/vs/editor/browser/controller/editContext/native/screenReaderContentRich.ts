@@ -178,6 +178,7 @@ export class RichScreenReaderContent extends Disposable implements IScreenReader
 		const lineDecorations = LineDecoration.filter(positionLineData.inlineDecorations, viewLineNumber, positionLineData.minColumn, positionLineData.maxColumn);
 		const useMonospaceOptimizations = fontInfo.isMonospace && !disableMonospaceOptimizations;
 		const useFontLigatures = fontLigatures !== EditorFontLigatures.OFF;
+		const textDirectionLanguageId = positionLineData.tokens.getCount() > 0 ? positionLineData.tokens.getLanguageId(0) : viewModel.model.getLanguageId();
 		let renderWhitespace: FindComputedEditorOptionValueById<EditorOption.renderWhitespace>;
 		const experimentalWhitespaceRendering = options.get(EditorOption.experimentalWhitespaceRendering);
 		if (experimentalWhitespaceRendering === 'off') {
@@ -208,7 +209,8 @@ export class RichScreenReaderContent extends Disposable implements IScreenReader
 			null,
 			0,
 			true,
-			options.get(EditorOption.textDirection)
+			options.get(EditorOption.textDirection),
+			textDirectionLanguageId
 		);
 		const htmlBuilder = new StringBuilder(10000);
 		const renderOutput = renderViewLine(renderLineInput, htmlBuilder);
