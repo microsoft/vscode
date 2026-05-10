@@ -31,36 +31,30 @@
 @supports (background: color-mix(in srgb, black 0%, white)) {
 	.agent-sessions-workbench.shell-gradient-background::before {
 		background:
-			linear-gradient(
-				to bottom right,
+			linear-gradient(to bottom right,
 				transparent 0%,
 				color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 5%, transparent) 58%,
 				color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 7%, transparent) 82%,
-				color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 9%, transparent) 100%
-			),
+				color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 9%, transparent) 100%),
 			var(--vscode-agents-background);
 	}
 
 	.monaco-workbench.vs.agent-sessions-workbench.shell-gradient-background::before {
 		background:
-			linear-gradient(
-				to bottom right,
+			linear-gradient(to bottom right,
 				transparent 0%,
 				color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 1%, transparent) 45%,
 				color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 6%, transparent) 75%,
-				color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 12%, transparent) 100%
-			),
+				color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 12%, transparent) 100%),
 			var(--vscode-agents-background);
 	}
 
 	.monaco-workbench.vs-dark.agent-sessions-workbench.shell-gradient-background::before {
-		background: linear-gradient(
-			to bottom right,
-			var(--vscode-agents-background) 0%,
-			color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 7%, var(--vscode-agents-background)) 56%,
-			color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 10%, var(--vscode-agents-background)) 82%,
-			color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 13%, var(--vscode-agents-background)) 100%
-		);
+		background: linear-gradient(to bottom right,
+				var(--vscode-agents-background) 0%,
+				color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 7%, var(--vscode-agents-background)) 56%,
+				color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 10%, var(--vscode-agents-background)) 82%,
+				color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 13%, var(--vscode-agents-background)) 100%);
 	}
 }
 
@@ -141,7 +135,7 @@
 }
 
 .agent-sessions-workbench .part.chatbar {
-	margin: 0 10px 0px 10px;
+	margin: 0 5px 0 10px;
 	background: var(--part-background);
 	border: 1px solid var(--part-border-color, transparent);
 	border-radius: 8px;
@@ -149,7 +143,12 @@
 }
 
 .agent-sessions-workbench .part.editor:not(.modal-editor-part) {
-	margin: 0 0 0 0;
+	/*
+	 * No right margin so the editor flushes against the auxiliary bar (whose
+	 * `margin-left` is 0 in this state). The grid sash sits at the visual
+	 * seam between the two cards.
+	 */
+	margin: 0 0 0 5px;
 	background: var(--vscode-agentsPanel-background);
 	border: 1px solid var(--vscode-agentsPanel-border, transparent);
 	border-right-width: 0;
@@ -314,7 +313,22 @@
 }
 
 .agent-sessions-workbench .part.auxiliarybar {
+	/*
+	 * The card's inner content width is invariant across editor visibility
+	 * (width - 17px in both states). The right margin is always 10px.
+	 *
+	 * Default (editor visible): card flushes against the editor with the
+	 * grid sash at the seam. `padding-left: 5px` keeps the inner content
+	 * aligned with the editor-hidden state.
+	 *
+	 * Editor hidden (override below): 5px left gutter against the sash and
+	 * 10px right gutter (matching the editor-visible state).
+	 *
+	 * The TS `layout()` mirrors this and re-runs on editor visibility
+	 * changes so the inner area is sized correctly.
+	 */
 	margin: 0 10px 0px 0;
+	padding-left: 5px;
 	background: var(--part-background);
 	border: 1px solid var(--part-border-color, transparent);
 	border-top-left-radius: 0;
@@ -325,6 +339,9 @@
 }
 
 .agent-sessions-workbench.nomaineditorarea .part.auxiliarybar {
+	margin-left: 5px;
+	margin-right: 10px;
+	padding-left: 0;
 	border-top-left-radius: 8px;
 	border-bottom-left-radius: 8px;
 }
@@ -334,7 +351,7 @@
 }
 
 .agent-sessions-workbench .part.panel {
-	margin: 0 10px 10px 10px;
+	margin: 5px 10px 10px 10px;
 	background: var(--part-background);
 	border: 1px solid var(--part-border-color, transparent);
 	border-radius: 8px;
@@ -541,6 +558,7 @@
 .agent-sessions-workbench .interactive-session .interactive-response .interactive-result-code-block {
 	border-color: var(--vscode-editorWidget-border, var(--vscode-widget-border));
 }
+
 /* ---- Modal Editor Block ---- */
 
 .agent-sessions-workbench .monaco-modal-editor-block {
@@ -611,13 +629,6 @@
 		margin-bottom 250ms ease-out;
 }
 
-/* Auxiliary bar also transitions horizontal margin */
-.agent-sessions-workbench .part.auxiliarybar {
-	transition:
-		opacity 250ms ease-out,
-		margin 250ms ease-out;
-}
-
 .agent-sessions-workbench .part.sidebar > .content {
 	transition:
 		opacity 250ms ease-out,
@@ -625,6 +636,7 @@
 }
 
 @starting-style {
+
 	/* Shared starting values */
 	.agent-sessions-workbench .part.auxiliarybar,
 	.agent-sessions-workbench .part.panel,
@@ -662,6 +674,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+
 	.agent-sessions-workbench .part.auxiliarybar,
 	.agent-sessions-workbench .part.panel,
 	.agent-sessions-workbench .part.chatbar {
@@ -834,6 +847,7 @@
 		transform: translateY(30%);
 		opacity: 0.5;
 	}
+
 	to {
 		transform: translateY(0);
 		opacity: 1;
@@ -889,6 +903,7 @@
 		transform: translateY(100%);
 		opacity: 0.5;
 	}
+
 	to {
 		transform: translateY(0);
 		opacity: 1;
@@ -926,6 +941,7 @@
 		transform: translateX(100%);
 		opacity: 0;
 	}
+
 	to {
 		transform: translateX(0);
 		opacity: 1;

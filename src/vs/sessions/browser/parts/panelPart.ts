@@ -68,6 +68,7 @@ export class PanelPart extends AbstractPaneCompositePart {
 	static readonly activePanelSettingsKey = 'workbench.agentsession.panelpart.activepanelid';
 
 	/** Visual margin values for the card-like appearance */
+	static readonly MARGIN_TOP = 5;
 	static readonly MARGIN_BOTTOM = 10;
 	static readonly MARGIN_LEFT = 10;
 	static readonly MARGIN_RIGHT = 10;
@@ -180,7 +181,7 @@ export class PanelPart extends AbstractPaneCompositePart {
 		const marginLeft = this.layoutService.isVisible(Parts.SIDEBAR_PART) ? 0 : PanelPart.MARGIN_LEFT;
 		super.layout(
 			width - marginLeft - PanelPart.MARGIN_RIGHT - borderTotal,
-			height - PanelPart.MARGIN_BOTTOM - borderTotal,
+			height - PanelPart.MARGIN_TOP - PanelPart.MARGIN_BOTTOM - borderTotal,
 			top, left
 		);
 

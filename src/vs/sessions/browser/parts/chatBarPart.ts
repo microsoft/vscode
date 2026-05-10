@@ -45,10 +45,10 @@ export class ChatBarPart extends AbstractPaneCompositePart { // TODO: should not
 	override get snap(): boolean { return false; }
 
 	/** Visual margin values for the card-like appearance */
-	static readonly MARGIN_TOP = 10;
+	static readonly MARGIN_TOP = 0;
 	static readonly MARGIN_LEFT = 10;
-	static readonly MARGIN_RIGHT = 10;
-	static readonly MARGIN_BOTTOM = 0;
+	static readonly MARGIN_RIGHT = 5;
+	static readonly MARGIN_BOTTOM = 10;
 
 	/** Border width on the card (1px each side) */
 	static readonly BORDER_WIDTH = 1;
@@ -152,9 +152,11 @@ export class ChatBarPart extends AbstractPaneCompositePart { // TODO: should not
 		// Layout content with reduced dimensions to account for visual margins and border
 		const borderTotal = ChatBarPart.BORDER_WIDTH * 2;
 		const marginLeft = this.layoutService.isVisible(Parts.SIDEBAR_PART) ? 0 : ChatBarPart.MARGIN_LEFT;
+		const marginBottom = this.layoutService.isVisible(Parts.PANEL_PART) ? ChatBarPart.MARGIN_BOTTOM - 5 : ChatBarPart.MARGIN_BOTTOM;
+
 		super.layout(
 			width - marginLeft - ChatBarPart.MARGIN_RIGHT - borderTotal,
-			height - ChatBarPart.MARGIN_TOP - ChatBarPart.MARGIN_BOTTOM - borderTotal - sessionBarHeight,
+			height - ChatBarPart.MARGIN_TOP - marginBottom - borderTotal - sessionBarHeight,
 			top, left
 		);
 
