@@ -85,12 +85,28 @@ export interface DuplicateAdditionRemoval {
 }
 
 /**
- * Callback invoked once per duplicate-addition detection. The caller can use
- * it to count occurrences and emit telemetry. In `Log` mode, the patch is
- * not actually modified; the callback still fires.
+ * Telemetry-safe summary of a single duplicate-addition detection.
+ *
+ * Deliberately excludes raw line content (`newAdditions` / `removedLines`)
+ * to keep `OnDuplicateRemovedCallback` from accidentally surfacing user
+ * source code through telemetry pipelines. Use the internal
+ * {@link DuplicateAdditionRemoval} returned by
+ * {@link tryRemoveDuplicateAdditions} when you legitimately need the
+ * content (e.g. to apply the trim).
+ */
+export interface DuplicateAdditionRemovalSummary {
+	readonly kind: 'suffix' | 'prefix' | 'middle';
+	readonly removedLineCount: number;
+	readonly remainingAdditionCount: number;
+}
+
+/**
+ * Callback invoked once per duplicate-addition detection. Receives only
+ * redacted, telemetry-safe metadata (counts and shape). In `Log` mode the
+ * patch is not actually modified; the callback still fires.
  */
 export type OnDuplicateRemovedCallback = (info: {
-	readonly removal: DuplicateAdditionRemoval;
+	readonly summary: DuplicateAdditionRemovalSummary;
 	readonly mode: DuplicateAdditionsMode.Log | DuplicateAdditionsMode.Remove;
 	readonly filePath: string;
 	readonly lineNumZeroBased: number;
@@ -154,7 +170,9 @@ export function tryRemoveDuplicateAdditions(
 		return undefined;
 	}
 
-	// `lineRange` is 1-based; convert to 0-based for line array access.
+	// All line numbers here are 1-based (matching `LineRange` and
+	// `AbstractText.getLineAt`). `endLineNumberExclusive` is the first line
+	// after the deletion — i.e. the first "following" line.
 	const followingStartLine1Based = replacement.lineRange.endLineNumberExclusive;
 	const fileLineCount = currentText.lineRange.endLineNumberExclusive - 1;
 	const followingEndLine1BasedExclusive = Math.min(
@@ -261,9 +279,16 @@ export class XtabCustomDiffPatchResponseHandler {
 				if (duplicateAdditionsMode !== DuplicateAdditionsMode.Off && isActiveDoc) {
 					const removal = tryRemoveDuplicateAdditions(lineReplacement, currentDocument.content);
 					if (removal !== undefined) {
-						tracer.trace(`Detected ${removal.removedLines.length} duplicate addition(s) (kind=${removal.kind}, mode=${duplicateAdditionsMode}) for edit at ${edit.filePath}:${edit.lineNumZeroBased}: ${JSON.stringify(removal.removedLines)}`);
+						// Log only metadata (kind / counts / location) — do
+						// NOT include raw line content. The tracer output
+						// may end up in user-visible diagnostics.
+						tracer.trace(`Detected duplicate addition(s) (kind=${removal.kind}, count=${removal.removedLines.length}, mode=${duplicateAdditionsMode}) for edit at ${edit.filePath}:${edit.lineNumZeroBased}`);
 						onDuplicateRemoved?.({
-							removal,
+							summary: {
+								kind: removal.kind,
+								removedLineCount: removal.removedLines.length,
+								remainingAdditionCount: removal.newAdditions.length,
+							},
 							mode: duplicateAdditionsMode,
 							filePath: edit.filePath,
 							lineNumZeroBased: edit.lineNumZeroBased,

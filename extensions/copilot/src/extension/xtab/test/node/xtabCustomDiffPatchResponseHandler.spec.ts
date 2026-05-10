@@ -17,7 +17,7 @@ import { StringText } from '../../../../util/vs/editor/common/core/text/abstract
 import { ensureDependenciesAreSet } from '../../../../util/vs/editor/common/core/text/positionToOffset';
 import { FetchStreamError } from '../../common/fetchStreamError';
 import { CurrentDocument } from '../../common/xtabCurrentDocument';
-import { DuplicateAdditionRemoval, OnDuplicateRemovedCallback, tryRemoveDuplicateAdditions, XtabCustomDiffPatchResponseHandler } from '../../node/xtabCustomDiffPatchResponseHandler';
+import { DuplicateAdditionRemoval, DuplicateAdditionRemovalSummary, OnDuplicateRemovedCallback, tryRemoveDuplicateAdditions, XtabCustomDiffPatchResponseHandler } from '../../node/xtabCustomDiffPatchResponseHandler';
 
 async function consumeHandleResponse(
 	...args: Parameters<typeof XtabCustomDiffPatchResponseHandler.handleResponse>
@@ -593,8 +593,8 @@ another_file.js:
 				yield '+}';
 			}
 
-			const seen: DuplicateAdditionRemoval[] = [];
-			const onDuplicateRemoved: OnDuplicateRemovedCallback = info => seen.push(info.removal);
+			const seen: DuplicateAdditionRemovalSummary[] = [];
+			const onDuplicateRemoved: OnDuplicateRemovedCallback = info => seen.push(info.summary);
 
 			const { edits } = await consumeHandleResponse(
 				makeStream(),
@@ -611,10 +611,12 @@ another_file.js:
 			// Additions are NOT modified in Log mode — the trailing `}` is kept.
 			const lineReplacement = edits[0].edit as LineReplacement;
 			expect(lineReplacement.newLines).toEqual(['    let x = 1;', '    let y = 2;', '}']);
-			// Detection is reported via the callback.
+			// Detection is reported via the callback. Payload is redacted —
+			// only metadata (kind + counts), no raw line content.
 			expect(seen).toHaveLength(1);
 			expect(seen[0].kind).toBe('suffix');
-			expect(seen[0].removedLines).toEqual(['}']);
+			expect(seen[0].removedLineCount).toBe(1);
+			expect(seen[0].remainingAdditionCount).toBe(2);
 		});
 
 		it('returns NoSuggestions (not FilteredOut) when every patch is dropped by Remove dedup', async () => {
@@ -629,8 +631,8 @@ another_file.js:
 				yield '+    let x = 1;';
 			}
 
-			const seen: DuplicateAdditionRemoval[] = [];
-			const onDuplicateRemoved: OnDuplicateRemovedCallback = info => seen.push(info.removal);
+			const seen: DuplicateAdditionRemovalSummary[] = [];
+			const onDuplicateRemoved: OnDuplicateRemovedCallback = info => seen.push(info.summary);
 
 			const { edits, returnValue } = await consumeHandleResponse(
 				makeStream(),
