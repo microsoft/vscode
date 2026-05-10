@@ -487,3 +487,54 @@ After H1 ships, the harness is genuinely competitive with Claude Code and Codex 
 ---
 
 *This review is grounded in direct reads of `BaseAgent.ts` (561 lines), `OrchestratorAgent.ts` (987 lines), `LlmClient.ts` (3448 lines, skimmed for tool wiring + cache control), `ModelRouter.ts` (619 lines), `PromptCacheOptimizer.ts` (344 lines), `tools/builtin.ts` (390 lines), `ProjectMemory.ts` (150 lines), `SpecialistMemory.ts` (211 lines). Cross-referenced with extension.ts:675 (the only caller passing native tools today), the CLI agent stack builder, and architecture commentary in CLAUDE.md.*
+
+---
+
+## Post-implementation status (Updated: 2026-05-10)
+
+The original sections 1-13 above remain architecturally accurate as a description of the codebase before the H-phase work began. Most of the punch list has now landed; this appendix tracks where each item ended up and what abstractions came out of the work.
+
+### What landed
+
+| Phase | Status | Notes |
+|---|---|---|
+| H1 Native tool-use loop in BaseAgent | ✅ landed | `BaseAgent.runToolLoop` + `CodeGeneratorAgent` migration; IDE activation via `createWorkspaceToolContext` supplied to `AgentStack`. |
+| H2 `edit_file` + `glob` | ✅ landed | Surgical anchor-based edit; glob with `*` `**` `?` `{a,b}` `[abc]` syntax. |
+| H3 Structured `ReviewFeedback` | ✅ landed | `issues[]` with severity / category / proposedFix; orchestrator skips low-confidence retries. |
+| H4 Follow-up suggestions sentinel | ✅ landed | System-prompt instruction + TUI strip + IDE webview chips. |
+| H5 System prompt cache breakpoints | ✅ landed | 3-part `SystemPromptPart` with per-part `cache_control`; Anthropic only. |
+| H6 Conversation-scoped memory | ✅ landed | `SpecialistMemory.list/get/format` accept `conversationId`; `ChatRequestLike.conversationId` plumbed through the agent bridge. |
+| H7 Confidence-driven escalation | ✅ landed | Enabled on `ReviewAgent` + `CiRetryAgent` classifier. |
+| H8 Retry-backoff for 429 / 5xx | ✅ landed | `retryableFetch` wrapping Anthropic / OpenAI / Foundry / Gemini streams. |
+| H9 Per-turn timeout + circuit breaker | ✅ landed | 5-min default, 3-failure breaker per handle. |
+| H10 Role descriptions in `.prompt.md` files | ✅ landed | All 10 specialists migrated; orchestrator's `{{SPECIALISTS}}` and moderniser's `{{CURRENT_PHASE}}` substitutions preserved. |
+| H11 Live cost meter | ✅ landed | CLI TUI status bar + IDE chat panel session pill, both with shared formatting. |
+| H12 Specialist memory compaction | ✅ landed | Haiku-driven sieve when entries cross `COMPACTION_THRESHOLD = 25`. |
+| H13 Todo focus chain | ✅ landed | `todo_write` / `todo_read` tools + TUI checklist + IDE chat checklist. |
+| H14 Hooks lifecycle | ✅ landed | Tool-loop scope (`pre-write-file` / `pre-shell-command` / `post-tool-call`); chat-loop hooks (`pre-prompt` / `post-response` / etc.) is a tracked follow-up. |
+| H15 `run_command` sandbox modes | ✅ landed | `safe` / `workspace-write` / `unrestricted` with allowlist + git subcommand allowlist. |
+| H16 Trace pane | ✅ landed | `sota traces` CLI command + `sota.showHarnessStats` palette command. |
+| H17 Rust embedded code-graph | 🚧 user working on | Implementing per `docs/rust-codegraph-plan.md`. |
+| H18 Multi-modal context | ⏸️ deferred | `LlmContentPart.image` already plumbed for Anthropic / OpenAI / Gemini; host file-attach UX deferred until specialists actually need image input. |
+| IDE H1 activation | ✅ landed | Orchestrator-dispatched specialists fire the native tool path. |
+| Direct specialist tool loop | ✅ landed | `@anton-code "fix this"` is now genuinely agentic with inline tool cards. |
+| Webview-card approval unification | ✅ landed | Chat panel registers a `requestApproval` handler; agent stack consults the registry, falls back to `defaultModalApproval`. |
+| Centralised `cacheOptimizer` + `ModelRouter` | ✅ landed | `LlmClient.setCacheOptimizer` fires per-completion stats; trace panes show real numbers. |
+| Direct subscription sign-in (Codex / Claude) | ✅ landed | Palette commands now offer terminal-based CLI login when the `codex` / `claude` binary is detected on `PATH`. |
+
+### Post-implementation architecture (a quick survey)
+
+**Native tool-use spine.** The new shape is `runToolLoop` driving a `ToolExecutionContext` (now with an optional `getConfigValue` accessor for sandbox + hook config), wrapped by `instrumentToolExecutionContext` for hook firing, with `ApprovalRequest` / `ApprovalDecision` carrying enough metadata to unify webview cards and modal prompts. `todo_write` and `todo_read` are factory-bound builtins so each conversation gets its own scratchpad. Composition is deliberately straight: the agent stack supplies the context; the decorator wraps it; the agent calls `runToolLoop`; the loop dispatches via the supplied `executeTool` callback; `BUILTIN_TOOLS` run and call back into the context; the sandbox check intercepts via `getConfigValue`; the relevant hook fires before any side effect. No layer reaches across.
+
+**System prompt assembly.** Prompts are now a `SystemPromptPart` array with optional `cache: 'ephemeral'` markers. `buildSystemPromptParts` splits into three cache-aware blocks: voice + role + project (cacheable), workspace + project memory (cacheable), specialist memory + sentinel instructions (uncached). `LlmClient.streamRequest` threads `systemPromptParts` down to `streamAnthropic`, which emits one `cache_control` block per part. `ChatRequestLike` gained `conversationId` (for scoping specialist memory) and `emitFollowupSuggestions` (for the H4 sentinel). The non-Anthropic providers receive the parts flattened — same semantics, no cache markers.
+
+**Telemetry + escalation.** `PromptCacheOptimizer` and `ModelRouter` are now first-class on `AgentStack` and wired into `LlmClient` via `setCacheOptimizer`, so every completion records cache stats regardless of which agent issued it. Confidence escalation lives in `BaseAgent.callLlm` (`detectUncertainty` + `selectEscalationModel`) and is opt-in per call via `{ escalateOnUncertainty: true }`. `AgentEvent` gained `tool-call` (for the direct specialist tool loop) alongside the existing `ui-block` variant. The new `sota traces` CLI command and `sota.showHarnessStats` palette command surface routing decisions, cache hit rate, and per-handle escalation counts.
+
+### What's next
+
+- **H17** is the only big-shape item remaining — see `docs/rust-codegraph-plan.md`.
+- **H18** when an actual specialist needs image input.
+- **CLI5** (CLI-side OAuth) once the team is willing to test per-provider OAuth callbacks.
+- **CLI7** (binary bundling) once cross-platform CI is set up.
+- Smallest next win for someone joining: enable confidence escalation on more specialists (`DocumentationAgent`, `SecurityScannerAgent`) — 2-line change each, immediate cost lift.
+- Or: refresh the comparison table in section 11 to mark previously-gap items as parity (the original table was the gap analysis; most rows have closed).

@@ -5,7 +5,7 @@
 
 import type { LlmMessage } from '../llm/LlmClient';
 import { BUILTIN_TOOLS } from '../tools/registry';
-import type { Tool, ToolDefinition, ToolExecutionContext } from '../tools/types';
+import type { Tool, ToolExecutionContext } from '../tools/types';
 import { BaseAgent, AgentContext } from './BaseAgent';
 import { loadAgentPrompt } from './promptLoader';
 import { FileChange, SubtaskResult, TokenUsage } from './types';
@@ -60,7 +60,10 @@ export class CodeGeneratorAgent extends BaseAgent {
 			const systemPromptParts = this.buildSystemPromptParts(this.getRoleDescription());
 			const systemPrompt = systemPromptParts.map(p => p.text).join('\n\n---\n\n');
 			const initialMessages: LlmMessage[] = [{ role: 'user', content: userMessage }];
-			const tools = this.allowedToolDefinitions();
+			// Inherit the shared default tool surface from `BaseAgent` so the
+			// agentic chat-turn path and the specialist `execute` path stay
+			// converged on a single source of truth.
+			const tools = this.getAgenticToolDefinitions();
 
 			let liveText = '';
 			const result = await this.runToolLoop({
@@ -125,26 +128,6 @@ export class CodeGeneratorAgent extends BaseAgent {
 	 */
 	protected getToolExecutionContext(): ToolExecutionContext | undefined {
 		return this.toolExecutionContext;
-	}
-
-	/**
-	 * Restrict the tool surface exposed to the model to the ones a code
-	 * generator should plausibly need. Excludes `emit_ui_block` (not useful
-	 * for code edits) and `fetch_url` (out-of-scope side effect).
-	 */
-	private allowedToolDefinitions(): ReadonlyArray<ToolDefinition> {
-		const allow = new Set([
-			'read_file',
-			'list_directory',
-			'search_workspace',
-			'glob',
-			'write_file',
-			'edit_file',
-			'run_command',
-		]);
-		return BUILTIN_TOOLS
-			.filter((t: Tool) => allow.has(t.definition.name))
-			.map((t: Tool) => t.definition);
 	}
 
 	/**

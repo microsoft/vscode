@@ -312,11 +312,19 @@ export class SpecialistMemory implements Disposable {
 	async compact(
 		handle: AgentHandle | 'anton',
 		llm: LlmClient,
-	): Promise<{ before: number; after: number; compacted: boolean }> {
-		const entries = this.list(handle);
+		conversationId?: string,
+	): Promise<{ before: number; after: number; compacted: boolean; scope: 'global' | 'conversation' }> {
+		// `list(handle, conversationId)` already returns globals + entries
+		// scoped to the supplied conversation when `conversationId` is set
+		// (H6). We compact only the slice the active turn could see, so a
+		// turn in conversation A never trims a memory written under
+		// conversation B. Without a conversationId, we compact globally
+		// (the legacy behaviour).
+		const entries = this.list(handle, conversationId);
 		const before = entries.length;
+		const scope: 'global' | 'conversation' = conversationId ? 'conversation' : 'global';
 		if (before < COMPACTION_THRESHOLD) {
-			return { before, after: before, compacted: false };
+			return { before, after: before, compacted: false, scope };
 		}
 
 		const systemPrompt = [
@@ -331,8 +339,11 @@ export class SpecialistMemory implements Disposable {
 		].join('\n');
 
 		const serialised = JSON.stringify(entries.map(e => ({ key: e.key, value: e.value })), null, 2);
+		const scopeNote = conversationId
+			? ` scoped to the active conversation (${conversationId.slice(0, 8)}…)`
+			: '';
 		const userPrompt = [
-			`Compact this list of ${before} memories for the @${handle} specialist:`,
+			`Compact this list of ${before} memories for the @${handle} specialist${scopeNote}:`,
 			'',
 			serialised,
 			'',
@@ -351,13 +362,13 @@ export class SpecialistMemory implements Disposable {
 			// fire-and-forget wrapper swallows the rejection, so we surface
 			// "no compaction" rather than re-throwing here.
 			console.warn(`[SpecialistMemory] Compaction LLM call failed for @${handle}:`, err);
-			return { before, after: before, compacted: false };
+			return { before, after: before, compacted: false, scope };
 		}
 
 		const parsed = parseCompactedEntries(raw);
 		if (!parsed) {
 			console.warn(`[SpecialistMemory] Compaction parse failed for @${handle}; leaving list unchanged. Raw response:`, raw);
-			return { before, after: before, compacted: false };
+			return { before, after: before, compacted: false, scope };
 		}
 
 		const capped = parsed.slice(0, MAX_COMPACTED_ENTRIES);
@@ -366,17 +377,25 @@ export class SpecialistMemory implements Disposable {
 			const truncated = value.length > MAX_VALUE_LENGTH
 				? value.slice(0, MAX_VALUE_LENGTH - 1) + '…'
 				: value;
-			return { key, value: truncated, updatedAt: now };
+			// Stamp the conversationId on each replacement entry so the
+			// compacted slice stays scoped after the swap. Without this,
+			// a conversation-scoped compaction would silently flatten its
+			// inputs into globals — defeating the point of scoping.
+			const entry: SpecialistMemoryEntry = conversationId
+				? { key, value: truncated, updatedAt: now, conversationId }
+				: { key, value: truncated, updatedAt: now };
+			return entry;
 		});
-		this.replaceAll(handle, replacement);
+		this.replaceScoped(handle, conversationId, replacement);
 
-		return { before, after: replacement.length, compacted: true };
+		return { before, after: replacement.length, compacted: true, scope };
 	}
 
 	/**
 	 * Atomically replace every entry for `handle` with `entries`. Used by
-	 * `compact` to swap in the consolidated list without leaking partial
-	 * state through repeated `set` calls. Fires `onDidChange` once.
+	 * the global path of `compact` to swap in the consolidated list without
+	 * leaking partial state through repeated `set` calls. Fires
+	 * `onDidChange` once.
 	 */
 	private replaceAll(handle: AgentHandle | 'anton', entries: ReadonlyArray<SpecialistMemoryEntry>): void {
 		const map = this.readMap();
@@ -384,6 +403,52 @@ export class SpecialistMemory implements Disposable {
 			delete map[handle];
 		} else {
 			map[handle] = [...entries];
+		}
+		void this.writeMap(map);
+		this.emitter.fire({ handle });
+	}
+
+	/**
+	 * Conversation-aware sibling of {@link replaceAll}. When `conversationId`
+	 * is supplied, the swap touches only the slice the active turn could
+	 * see (globals + entries scoped to that conversation). Entries written
+	 * under OTHER conversations are preserved verbatim. When
+	 * `conversationId` is `undefined`, behaves exactly like `replaceAll` —
+	 * the global path of `compact`.
+	 *
+	 * The implementation:
+	 *   1. Reads the existing list.
+	 *   2. Filters out entries that fell within the compaction scope (no
+	 *      `conversationId` for global compaction, or matching the supplied
+	 *      one for scoped). These are the entries the LLM was given.
+	 *   3. Concatenates the survivors with the supplied replacement entries.
+	 *
+	 * This way a scoped compaction only ever rewrites its own slice; cross-
+	 * conversation entries are untouchable.
+	 */
+	private replaceScoped(
+		handle: AgentHandle | 'anton',
+		conversationId: string | undefined,
+		entries: ReadonlyArray<SpecialistMemoryEntry>,
+	): void {
+		if (!conversationId) {
+			// Global compaction — same semantics as the legacy replaceAll.
+			this.replaceAll(handle, entries);
+			return;
+		}
+		const map = this.readMap();
+		const existing = map[handle] ?? [];
+		const survivors = existing.filter(e => {
+			// Survivors are entries scoped to a DIFFERENT conversation —
+			// the active scope's entries (globals AND matching-conversation)
+			// are the inputs the LLM consolidated, so they're replaced wholesale.
+			return e.conversationId !== undefined && e.conversationId !== conversationId;
+		});
+		const next = [...survivors, ...entries];
+		if (next.length === 0) {
+			delete map[handle];
+		} else {
+			map[handle] = next;
 		}
 		void this.writeMap(map);
 		this.emitter.fire({ handle });

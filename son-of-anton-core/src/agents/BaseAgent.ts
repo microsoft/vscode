@@ -886,7 +886,11 @@ export abstract class BaseAgent {
 			this.agentManager.completeTask(task.id);
 			// H12 — fire-and-forget post-turn compaction check. Doesn't block
 			// the return; failures are swallowed inside maybeCompactMemory.
-			void this.maybeCompactMemory();
+			// Threading the active `conversationId` through scopes the
+			// compaction to the current conversation's slice (globals +
+			// matching conversation entries) — a turn in conversation A
+			// never trims a memory written under conversation B.
+			void this.maybeCompactMemory(conversationId);
 			return fullText;
 		} catch (err) {
 			const message = err instanceof Error ? err.message : String(err);
@@ -947,19 +951,25 @@ export abstract class BaseAgent {
 	 * trigger while one is already running is silently dropped — the
 	 * next turn will pick it up.
 	 */
-	protected async maybeCompactMemory(): Promise<void> {
+	protected async maybeCompactMemory(conversationId?: string): Promise<void> {
 		if (this.compactionInProgress || !this.specialistMemory) {
 			return;
 		}
-		const entries = this.specialistMemory.list(this.handle);
+		// Scope the size check to whatever slice the active turn could see.
+		// Without a conversationId, this matches the legacy global view.
+		// With one, only globals + this conversation's entries are counted —
+		// crossing 25 in conversation A doesn't trigger a compaction that
+		// touches conversation B's slice.
+		const entries = this.specialistMemory.list(this.handle, conversationId);
 		if (entries.length < COMPACTION_THRESHOLD) {
 			return;
 		}
 		this.compactionInProgress = true;
 		try {
-			const result = await this.specialistMemory.compact(this.handle, this.llmClient);
+			const result = await this.specialistMemory.compact(this.handle, this.llmClient, conversationId);
 			if (result.compacted) {
-				console.info(`[SpecialistMemory] Compacted @${this.handle}: ${result.before} → ${result.after}`);
+				const scopeTag = result.scope === 'conversation' ? ` [conv ${conversationId?.slice(0, 8)}…]` : '';
+				console.info(`[SpecialistMemory] Compacted @${this.handle}${scopeTag}: ${result.before} → ${result.after}`);
 			}
 		} catch (err) {
 			console.warn(`[SpecialistMemory] Compaction failed for @${this.handle}:`, err);
@@ -969,12 +979,16 @@ export abstract class BaseAgent {
 	}
 
 	/**
-	 * Tools the agentic chat-turn path exposes to the model. Defaults to the
-	 * full builtin set minus `emit_ui_block` (which is more useful from
-	 * within an orchestrator-dispatched specialist subtask than from a
-	 * direct user-to-specialist conversation). Subclasses can override to
-	 * narrow or expand the surface — `CodeGeneratorAgent.allowedToolDefinitions`
-	 * is a representative example.
+	 * Single source of truth for "which builtin tools should this agent
+	 * expose to the model by default" — used both by the agentic chat-turn
+	 * path (`runAgenticTurn`) and by specialist `execute` implementations
+	 * that drive the native tool-use loop (e.g. `CodeGeneratorAgent`).
+	 *
+	 * Defaults to the full builtin set minus `emit_ui_block` (which is
+	 * more useful from within an orchestrator-dispatched specialist
+	 * subtask than from a direct user-to-specialist conversation).
+	 * Subclasses can override to narrow or widen the surface — but the
+	 * base default already matches what every current specialist needs.
 	 */
 	protected getAgenticToolDefinitions(): ReadonlyArray<ToolDefinition> {
 		// Lazily imported to avoid pulling tool definitions into modules that
@@ -1084,7 +1098,11 @@ export abstract class BaseAgent {
 			this.agentManager.completeTask(task.id);
 			// H12 — fire-and-forget post-turn compaction check. Doesn't block
 			// the return; failures are swallowed inside maybeCompactMemory.
-			void this.maybeCompactMemory();
+			// Threading the active `conversationId` through scopes the
+			// compaction to the current conversation's slice (globals +
+			// matching conversation entries) — a turn in conversation A
+			// never trims a memory written under conversation B.
+			void this.maybeCompactMemory(conversationId);
 			return result.text || fullText;
 		} catch (err) {
 			const message = err instanceof Error ? err.message : String(err);
