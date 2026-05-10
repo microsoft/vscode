@@ -20,6 +20,8 @@ import { PERSONAS } from 'son-of-anton-core/chat/personas';
 import { TraceViewerPanel } from './trace/TraceViewerPanel';
 import { TraceExporter } from './trace/TraceExporter';
 import { LlmClient } from 'son-of-anton-core/llm/LlmClient';
+import { isCodexAvailable } from 'son-of-anton-core/llm/codexRunner';
+import { isClaudeCodeAvailable } from 'son-of-anton-core/llm/claudeCodeRunner';
 import { ToolRegistry, createInstrumentedWorkspaceToolContext, defaultModalApproval } from './tools/registry';
 import { getActiveApproval } from './chat/approvalRegistry';
 import { HookRunner, hooksFilePath } from 'son-of-anton-core/persistence/HookRunner';
@@ -956,16 +958,46 @@ export function activate(context: vscode.ExtensionContext): void {
 	// --- OAuth sign-in commands (user-facing) ---
 	// CredentialBroker has no onDidConnect hook, so we refresh the status bar
 	// here after each connect attempt to surface the new provider state.
+	//
+	// Neither Anthropic nor OpenAI offers public OAuth client registration for
+	// third-party tools today, so the literal `sotaAuth.connect` PKCE flow
+	// requires a per-user `clientId` setting (not workable for typical
+	// installs). The CLI-delegation path is the path that actually works:
+	// users install Anthropic's `claude` or OpenAI's `codex` binary, run its
+	// own `login` command, and Son of Anton spawns the binary at chat-turn
+	// time with the API key stripped from env so the CLI's stored
+	// subscription tokens are used.
+	//
+	// Both commands present a quick-pick when the relevant CLI is detected,
+	// offering "Sign in via the CLI" as the first option. Users without the
+	// CLI get an "Install" link and an advanced "Configure OAuth client ID"
+	// fallback for OAuth-partner deployments.
 	context.subscriptions.push(
 		vscode.commands.registerCommand('sota.signInClaude', async () => {
-			await vscode.commands.executeCommand('sotaAuth.connect', 'anthropic-oauth');
+			await runSubscriptionSignIn({
+				providerLabel: 'Claude (Anthropic)',
+				cliBinary: 'claude',
+				cliInstallUrl: 'https://docs.claude.com/en/docs/claude-code/quickstart',
+				cliInstalled: isClaudeCodeAvailable(),
+				oauthProviderId: 'anthropic-oauth',
+				oauthClientIdSetting: 'sotaAuth.anthropic-oauth.clientId',
+				apiKeySetting: 'sota.apiKey',
+			});
 			await statusBarManager.refreshAuth();
 		})
 	);
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand('sota.signInOpenAI', async () => {
-			await vscode.commands.executeCommand('sotaAuth.connect', 'chatgpt-oauth');
+			await runSubscriptionSignIn({
+				providerLabel: 'ChatGPT / Codex (OpenAI)',
+				cliBinary: 'codex',
+				cliInstallUrl: 'https://github.com/openai/codex',
+				cliInstalled: isCodexAvailable(),
+				oauthProviderId: 'chatgpt-oauth',
+				oauthClientIdSetting: 'sotaAuth.chatgpt-oauth.clientId',
+				apiKeySetting: 'sota.openaiApiKey',
+			});
 			await statusBarManager.refreshAuth();
 		})
 	);
@@ -1630,6 +1662,109 @@ async function countTopLevelFiles(root: string): Promise<number> {
  * dependency satisfaction, while the orchestrator collapses both into
  * `pending` until dispatch.
  */
+/**
+ * Drive the "Sign in to ChatGPT / Codex" / "Sign in to Claude" UX. The
+ * underlying providers don't have public OAuth client registration today
+ * so the realistic path is: install the official subscription CLI
+ * (`codex` for OpenAI, `claude` for Anthropic), run its own `login`
+ * subcommand, and let Son of Anton spawn the binary at chat-turn time
+ * with the API key stripped from env so the CLI's stored tokens get
+ * used.
+ *
+ * Renders a quick-pick whose contents depend on whether the relevant
+ * CLI is detected on PATH:
+ *
+ *   - CLI installed → primary action opens an integrated terminal and
+ *     types `<cli> login` so the user can complete OAuth in their
+ *     browser.
+ *   - CLI not installed → primary action opens the install docs in
+ *     the system browser.
+ *
+ * In both cases an "advanced" option is offered to configure a
+ * `sotaAuth.<provider>.clientId` setting, in case the user is an
+ * approved OAuth partner with their own client id.
+ */
+async function runSubscriptionSignIn(opts: {
+	providerLabel: string;
+	cliBinary: string;
+	cliInstallUrl: string;
+	cliInstalled: boolean;
+	oauthProviderId: string;
+	oauthClientIdSetting: string;
+	apiKeySetting: string;
+}): Promise<void> {
+	interface PickItem extends vscode.QuickPickItem {
+		readonly action: 'cli-login' | 'install-cli' | 'configure-oauth' | 'use-api-key';
+	}
+
+	const items: PickItem[] = [];
+	if (opts.cliInstalled) {
+		items.push({
+			label: `$(terminal) Sign in via ${opts.cliBinary} CLI`,
+			description: `Run \`${opts.cliBinary} login\` — works with your subscription`,
+			detail: `Opens an integrated terminal so you can complete OAuth in your browser. Recommended for ${opts.providerLabel} subscribers.`,
+			action: 'cli-login',
+		});
+	} else {
+		items.push({
+			label: `$(cloud-download) Install ${opts.cliBinary} CLI`,
+			description: opts.cliInstallUrl,
+			detail: `You need the ${opts.cliBinary} CLI to sign in with a subscription. Opens the install docs in your browser.`,
+			action: 'install-cli',
+		});
+	}
+
+	items.push({
+		label: '$(key) Use an API key instead',
+		description: `Set ${opts.apiKeySetting}`,
+		detail: 'Routes through the metered API. Faster to set up, but uses pay-as-you-go billing rather than your subscription.',
+		action: 'use-api-key',
+	});
+
+	items.push({
+		label: '$(gear) Configure OAuth client ID (advanced)',
+		description: `Set ${opts.oauthClientIdSetting}`,
+		detail: 'For approved OAuth partners only. Most users should pick the CLI option above — public OAuth is not currently available for third-party tools.',
+		action: 'configure-oauth',
+	});
+
+	const choice = await vscode.window.showQuickPick(items, {
+		placeHolder: `Sign in to ${opts.providerLabel}`,
+		title: `Son of Anton — ${opts.providerLabel} sign-in`,
+	});
+	if (!choice) {
+		return;
+	}
+
+	if (choice.action === 'cli-login') {
+		const existing = vscode.window.terminals.find(t => t.name === `${opts.cliBinary} login`);
+		const terminal = existing ?? vscode.window.createTerminal({ name: `${opts.cliBinary} login` });
+		terminal.show();
+		terminal.sendText(`${opts.cliBinary} login`);
+		// Best-effort hint so the user knows what to do next.
+		vscode.window.showInformationMessage(
+			`Running \`${opts.cliBinary} login\` in the terminal. Complete sign-in in your browser, then come back and pick a ${opts.providerLabel} model in the chat composer.`,
+		);
+		return;
+	}
+	if (choice.action === 'install-cli') {
+		await vscode.env.openExternal(vscode.Uri.parse(opts.cliInstallUrl));
+		return;
+	}
+	if (choice.action === 'use-api-key') {
+		await vscode.commands.executeCommand('workbench.action.openSettings', opts.apiKeySetting);
+		return;
+	}
+	if (choice.action === 'configure-oauth') {
+		await vscode.commands.executeCommand('workbench.action.openSettings', opts.oauthClientIdSetting);
+		// Try the connect flow afterwards in case the user has just
+		// pasted a clientId — the broker will surface its own error if
+		// nothing's configured yet.
+		await vscode.commands.executeCommand('sotaAuth.connect', opts.oauthProviderId);
+		return;
+	}
+}
+
 function subtaskStatusToBoardState(status: 'pending' | 'in_progress' | 'completed' | 'failed'): SubtaskState {
 	switch (status) {
 		case 'in_progress': return 'in-progress';
