@@ -603,7 +603,7 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 		// Split the first token if it contains both leading whitespace and RTL text
 		tokens = splitLeadingWhitespaceFromRTL(lineContent, tokens);
 		const resolvedTextDirectionPreset = resolveTextDirectionPreset(input.textDirectionPreset, input.textDirectionLanguageId);
-		if (input.textDirection === TextDirection.LTR && (resolvedTextDirectionPreset === 'auto' || resolvedTextDirectionPreset === 'auto-follow')) {
+		if ((input.textDirection ?? TextDirection.LTR) === TextDirection.LTR && (resolvedTextDirectionPreset === 'auto' || resolvedTextDirectionPreset === 'auto-follow')) {
 			leadingNeutralRtlRunStartOffset = getLeadingNeutralRtlRunStartOffset(lineContent);
 			if (leadingNeutralRtlRunStartOffset !== -1) {
 				tokens = splitTokenAtOffset(tokens, leadingNeutralRtlRunStartOffset);
