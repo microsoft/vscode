@@ -86,6 +86,34 @@ export interface AgentContext {
 }
 
 /**
+ * Optional per-turn flags shared between `runChatTurn` and
+ * `runAgenticTurn`. Most fields default to undefined; only
+ * `modelOverride` is regularly supplied (from the chat composer's
+ * model picker). The shape is structural rather than positional so
+ * adding a new field doesn't cascade through every call site.
+ */
+export interface ChatTurnOptions {
+	/** Per-turn model override from the chat composer's picker. */
+	readonly modelOverride?: ModelId;
+	/** Per-turn workspace snapshot block injected into the system prompt. */
+	readonly workspaceContextSnapshot?: string;
+	/**
+	 * Whether the agent should emit a `<<sota:suggestions>>` follow-up
+	 * sentinel at the end of its reply. The CLI TUI strips + renders
+	 * the sentinel; surfaces that don't (orchestrator path today)
+	 * leave this false to avoid the protocol leaking into rendered
+	 * text.
+	 */
+	readonly emitFollowupSuggestions?: boolean;
+	/**
+	 * Host-supplied opaque id used to scope per-conversation
+	 * specialist memory + post-turn compaction. When omitted, the
+	 * legacy global view is used.
+	 */
+	readonly conversationId?: string;
+}
+
+/**
  * Base class for all specialist agents.
  * Provides shared infrastructure: LLM calls, MCP tool access, tracing, and metrics.
  */
@@ -830,16 +858,25 @@ export abstract class BaseAgent {
 	 * same behaviour as `handleChatRequest` but with a callback-based emit
 	 * channel and an `AbortSignal`-friendly cancellation hook. Returns the
 	 * full assistant text once the stream completes.
+	 *
+	 * Optional per-turn flags (`modelOverride`, `workspaceContextSnapshot`,
+	 * `emitFollowupSuggestions`, `conversationId`) are bundled into a single
+	 * `ChatTurnOptions` bag so adding a new flag doesn't ripple through
+	 * every call site — only callers that supply the new field touch their
+	 * invocation.
 	 */
 	async runChatTurn(
 		userMessage: string,
 		emit: (token: string) => void,
 		cancellation: CancellationLike,
-		modelOverride?: ModelId,
-		workspaceContextSnapshot?: string,
-		emitFollowupSuggestions?: boolean,
-		conversationId?: string,
+		options?: ChatTurnOptions,
 	): Promise<string> {
+		const {
+			modelOverride,
+			workspaceContextSnapshot,
+			emitFollowupSuggestions,
+			conversationId,
+		} = options ?? {};
 		// Task descriptions surface in the trace pane and the task list, so we
 		// keep the title short. The full prompt — which may include a multi-page
 		// workspace context block — stays in the LLM call but never leaks into
@@ -1012,16 +1049,23 @@ export abstract class BaseAgent {
 	 * Falls back to `runChatTurn` when no `ToolExecutionContext` has been
 	 * wired into this agent, so installations that don't supply one still
 	 * get a usable single-shot result.
+	 *
+	 * Optional per-turn flags (`modelOverride`, `workspaceContextSnapshot`,
+	 * `emitFollowupSuggestions`, `conversationId`) are bundled into a single
+	 * `ChatTurnOptions` bag — see the matching note on `runChatTurn`.
 	 */
 	async runAgenticTurn(
 		userMessage: string,
 		emit: (event: { type: 'token'; token: string } | { type: 'tool-call'; id: string; name: string; input: Record<string, unknown>; status: 'running' | 'done' | 'error'; output?: string }) => void,
 		cancellation: CancellationLike,
-		modelOverride?: ModelId,
-		workspaceContextSnapshot?: string,
-		emitFollowupSuggestions?: boolean,
-		conversationId?: string,
+		options?: ChatTurnOptions,
 	): Promise<string> {
+		const {
+			modelOverride,
+			workspaceContextSnapshot,
+			emitFollowupSuggestions,
+			conversationId,
+		} = options ?? {};
 		const toolExecutionContext = this.toolExecutionContext;
 		if (!toolExecutionContext) {
 			// No tool context — fall back to single-shot streaming.
@@ -1029,10 +1073,12 @@ export abstract class BaseAgent {
 				userMessage,
 				token => emit({ type: 'token', token }),
 				cancellation,
-				modelOverride,
-				workspaceContextSnapshot,
-				emitFollowupSuggestions,
-				conversationId,
+				{
+					modelOverride,
+					workspaceContextSnapshot,
+					emitFollowupSuggestions,
+					conversationId,
+				},
 			);
 		}
 

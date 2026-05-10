@@ -319,10 +319,12 @@ export class AgentBridge {
 					}
 				},
 				cancellation,
-				model,
-				workspaceContextSnapshot,
-				true,
-				conversationId,
+				{
+					modelOverride: model,
+					workspaceContextSnapshot,
+					emitFollowupSuggestions: true,
+					conversationId,
+				},
 			);
 			emit({ type: 'final', text });
 		} catch (err) {
