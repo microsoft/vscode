@@ -446,6 +446,14 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	}
 
 	private _handleMessage(msg: ProtocolMessage): void {
+		if (this._isClosed) {
+			// After close, the transport may still emit late messages (e.g.
+			// because the same shared event source is also feeding a newer
+			// transport for the same connectionId). Drop them so they can't
+			// trigger any side effects.
+			return;
+		}
+
 		// Any inbound traffic — including this message — is evidence the
 		// transport is still alive. Update before dispatch so the watchdog
 		// is consistent even if a handler synchronously schedules work.
@@ -497,6 +505,9 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 
 		this._isClosed = true;
 		this._closeError = error;
+		// Stop the watchdog so it doesn't keep ticking on a dead connection
+		// (the client may outlive the close, waiting to be replaced).
+		this._watchdog.cancel();
 		this._rejectPendingRequests(error);
 		this._permissionService.connectionClosed(this._address);
 		this._grantedCustomizationUris.clear();
