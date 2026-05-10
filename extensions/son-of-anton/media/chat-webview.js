@@ -7208,7 +7208,7 @@
 
 		// --- Inline settings view ---
 
-		const SETTINGS_PROVIDER_ORDER = ['anthropic', 'openai', 'foundry', 'bedrock', 'google', 'openrouter', 'ollama', 'lmstudio'];
+		const SETTINGS_PROVIDER_ORDER = ['anthropic', 'openai', 'foundry', 'bedrock', 'google', 'openrouter', 'ollama', 'lmstudio', 'deepseek', 'mistral', 'groq', 'cerebras', 'together', 'fireworks'];
 
 		function renderSettingsProviderCards(flags) {
 			if (!settingsProviders) return;
