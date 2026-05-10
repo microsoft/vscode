@@ -11,6 +11,7 @@ import * as cp from 'child_process';
 import { dirname, join, isAbsolute, basename } from '../../../base/common/path.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, toDisposable } from '../../../base/common/lifecycle.js';
+import { raceTimeout } from '../../../base/common/async.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
@@ -62,6 +63,22 @@ interface SSHClient {
 }
 
 const LOG_PREFIX = '[SSHRemoteAgentHost]';
+
+/**
+ * Maximum time to wait for {@link SSHRemoteAgentHostMainService._createWebSocketRelay}
+ * to settle on the `replaceRelay` reconnect path before giving up. A silently
+ * dead SSH client (TCP half-open, ssh2 keepalive hasn't fired yet) can leave
+ * `forwardOut`'s callback unfired, hanging the whole `connect()` call. Bounding
+ * this surfaces a clean failure so the renderer can clear its pending-reconnect
+ * flag and retry, and so the dead SSH client gets ended (purging it from the
+ * shared-process `_connections` map).
+ *
+ * The value is just slightly larger than ssh2's default keepalive failure
+ * window (`keepaliveInterval * keepaliveCountMax` ~= 15s * 3 = 45s) so that in
+ * practice the SSH client itself will surface its own `'close'` first when
+ * the network is hard-down. Tests override this to a much smaller value.
+ */
+const RECONNECT_RELAY_TIMEOUT_MS = 60_000;
 
 /**
  * One entry in the queue of authentication attempts handed to ssh2's
@@ -407,6 +424,12 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 
 	private _nativeRequire: NodeJS.Require | undefined;
 
+	/**
+	 * Override hook for tests to shorten the relay-creation timeout used on
+	 * the `replaceRelay` reconnect path. See {@link RECONNECT_RELAY_TIMEOUT_MS}.
+	 */
+	protected relayCreationTimeoutMs: number = RECONNECT_RELAY_TIMEOUT_MS;
+
 	constructor(
 		@ILogService private readonly _logService: ILogService,
 		@IProductService private readonly _productService: IProductService,
@@ -455,11 +478,22 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				const connectionId = connectionKey;
 				try {
 					let conn: SSHConnection | undefined; // eslint-disable-line prefer-const
-					const relay = await this._createWebSocketRelay(
-						sshClient, '127.0.0.1', remotePort, connectionToken,
-						(data: string) => this._onDidRelayMessage.fire({ connectionId, data }),
-						() => { conn?.dispose(); },
+					// Bound the relay creation: a silently dead SSH client
+					// (TCP half-open, ssh2 keepalive hasn't fired yet) can
+					// leave forwardOut's callback unfired, hanging the whole
+					// promise chain. raceTimeout returns undefined on timeout.
+					const timeoutMs = this.relayCreationTimeoutMs;
+					const relay = await raceTimeout(
+						this._createWebSocketRelay(
+							sshClient, '127.0.0.1', remotePort, connectionToken,
+							(data: string) => this._onDidRelayMessage.fire({ connectionId, data }),
+							() => { conn?.dispose(); },
+						),
+						timeoutMs,
 					);
+					if (!relay) {
+						throw new Error(`SSH relay creation timed out after ${timeoutMs}ms (SSH client appears unresponsive)`);
+					}
 
 					conn = new SSHConnection(
 						config, connectionId, connectionKey, config.name,
