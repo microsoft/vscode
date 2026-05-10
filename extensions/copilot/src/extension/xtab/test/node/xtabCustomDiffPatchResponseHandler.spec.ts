@@ -525,7 +525,7 @@ another_file.js:
 
 	describe('handleResponse with duplicateAdditionsMode', () => {
 
-		it('strips trailing duplicate addition in Remove mode', async () => {
+		it('strips trailing duplicate addition in TrimDuplicate mode', async () => {
 			const docId = DocumentId.create('file:///test.ts');
 			const docContent = 'function foo() {\n    let x = 1;\n}\n';
 			const documentBeforeEdits = new CurrentDocument(new StringText(docContent), new Position(2, 1));
@@ -545,7 +545,7 @@ another_file.js:
 				undefined,
 				undefined,
 				new TestLogService(),
-				DuplicateAdditionsMode.Remove,
+				DuplicateAdditionsMode.TrimDuplicate,
 			);
 
 			expect(edits).toHaveLength(1);
@@ -619,7 +619,7 @@ another_file.js:
 			expect(seen[0].remainingAdditionCount).toBe(2);
 		});
 
-		it('returns NoSuggestions (not FilteredOut) when every patch is dropped by Remove dedup', async () => {
+		it('returns NoSuggestions (not FilteredOut) when every patch is dropped by TrimDuplicate dedup', async () => {
 			const docId = DocumentId.create('file:///test.ts');
 			const docContent = 'function foo() {\n    let x = 1;\n    let y = 2;\n}\n';
 			const documentBeforeEdits = new CurrentDocument(new StringText(docContent), new Position(1, 1));
@@ -641,7 +641,7 @@ another_file.js:
 				undefined,
 				undefined,
 				new TestLogService(),
-				DuplicateAdditionsMode.Remove,
+				DuplicateAdditionsMode.TrimDuplicate,
 				onDuplicateRemoved,
 			);
 
@@ -667,7 +667,7 @@ another_file.js:
 				undefined,
 				undefined,
 				new TestLogService(),
-				DuplicateAdditionsMode.Remove,
+				DuplicateAdditionsMode.TrimDuplicate,
 			);
 
 			expect(edits).toHaveLength(0);
@@ -696,7 +696,7 @@ another_file.js:
 				undefined,
 				undefined,
 				new TestLogService(),
-				DuplicateAdditionsMode.Remove,
+				DuplicateAdditionsMode.TrimDuplicate,
 			);
 
 			expect(edits).toHaveLength(1);
@@ -724,12 +724,95 @@ another_file.js:
 				undefined,
 				undefined,
 				new TestLogService(),
-				DuplicateAdditionsMode.Remove,
+				DuplicateAdditionsMode.TrimDuplicate,
 			);
 
 			expect(edits).toHaveLength(1);
 			const lineReplacement = edits[0].edit as LineReplacement;
 			expect(lineReplacement.newLines).toEqual(['a', 'b']);
+		});
+
+		it('DropPatch mode drops the offending patch but continues yielding subsequent patches', async () => {
+			const docId = DocumentId.create('file:///test.ts');
+			const docContent = 'function foo() {\n    let x = 1;\n}\nfunction bar() {\n    let y = 2;\n}\n';
+			const documentBeforeEdits = new CurrentDocument(new StringText(docContent), new Position(2, 1));
+
+			async function* makeStream(): AsyncGenerator<string> {
+				// First patch: duplicates the trailing `}` (suffix shape) — should be dropped.
+				yield '/test.ts:1';
+				yield '-    let x = 1;';
+				yield '+    let x = 1;';
+				yield '+}';
+				// Second patch: legitimate change to a different region — should be yielded.
+				yield '/test.ts:4';
+				yield '-    let y = 2;';
+				yield '+    let y = 42;';
+			}
+
+			const seen: DuplicateAdditionRemovalSummary[] = [];
+			const onDuplicateRemoved: OnDuplicateRemovedCallback = info => seen.push(info.summary);
+
+			const { edits, returnValue } = await consumeHandleResponse(
+				makeStream(),
+				documentBeforeEdits,
+				docId,
+				undefined,
+				undefined,
+				new TestLogService(),
+				DuplicateAdditionsMode.DropPatch,
+				onDuplicateRemoved,
+			);
+
+			expect(edits).toHaveLength(1);
+			const lineReplacement = edits[0].edit as LineReplacement;
+			expect(lineReplacement.newLines).toEqual(['    let y = 42;']);
+			expect(seen).toHaveLength(1);
+			expect(returnValue).toBeInstanceOf(NoNextEditReason.NoSuggestions);
+		});
+
+		it('DropAllRemaining mode drops the offending patch and every subsequent patch', async () => {
+			const docId = DocumentId.create('file:///test.ts');
+			const docContent = 'function foo() {\n    let x = 1;\n}\nfunction bar() {\n    let y = 2;\n}\n';
+			const documentBeforeEdits = new CurrentDocument(new StringText(docContent), new Position(2, 1));
+
+			async function* makeStream(): AsyncGenerator<string> {
+				// First patch: legitimate, yielded as-is.
+				yield '/test.ts:0';
+				yield '-function foo() {';
+				yield '+function fooRenamed() {';
+				// Second patch: duplicates trailing `}` — triggers DropAllRemaining.
+				yield '/test.ts:1';
+				yield '-    let x = 1;';
+				yield '+    let x = 1;';
+				yield '+}';
+				// Third patch: would have been legitimate, but must NOT be yielded.
+				yield '/test.ts:4';
+				yield '-    let y = 2;';
+				yield '+    let y = 42;';
+			}
+
+			const seen: DuplicateAdditionRemovalSummary[] = [];
+			const onDuplicateRemoved: OnDuplicateRemovedCallback = info => seen.push(info.summary);
+
+			const { edits, returnValue } = await consumeHandleResponse(
+				makeStream(),
+				documentBeforeEdits,
+				docId,
+				undefined,
+				undefined,
+				new TestLogService(),
+				DuplicateAdditionsMode.DropAllRemaining,
+				onDuplicateRemoved,
+			);
+
+			// Only the patch yielded before the detection survives. The
+			// triggering patch and every subsequent patch are dropped.
+			expect(edits).toHaveLength(1);
+			const lineReplacement = edits[0].edit as LineReplacement;
+			expect(lineReplacement.newLines).toEqual(['function fooRenamed() {']);
+			// Callback fires exactly once — for the triggering detection.
+			expect(seen).toHaveLength(1);
+			expect(returnValue).toBeInstanceOf(NoNextEditReason.NoSuggestions);
 		});
 	});
 });

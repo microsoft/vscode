@@ -102,12 +102,13 @@ export interface DuplicateAdditionRemovalSummary {
 
 /**
  * Callback invoked once per duplicate-addition detection. Receives only
- * redacted, telemetry-safe metadata (counts and shape). In `Log` mode the
- * patch is not actually modified; the callback still fires.
+ * redacted, telemetry-safe metadata (counts and shape). The callback fires
+ * for every action mode (Log / DropPatch / DropAllRemaining / TrimDuplicate),
+ * including `Log` where the patch is not actually modified.
  */
 export type OnDuplicateRemovedCallback = (info: {
 	readonly summary: DuplicateAdditionRemovalSummary;
-	readonly mode: DuplicateAdditionsMode.Log | DuplicateAdditionsMode.Remove;
+	readonly mode: Exclude<DuplicateAdditionsMode, DuplicateAdditionsMode.Off>;
 	readonly filePath: string;
 	readonly lineNumZeroBased: number;
 }) => void;
@@ -262,7 +263,12 @@ export class XtabCustomDiffPatchResponseHandler {
 		const activeDocRelativePath = toUniquePath(activeDocumentId, workspaceRoot?.path);
 
 		try {
+			let dropAllRemaining = false;
 			for await (const edit of XtabCustomDiffPatchResponseHandler.extractEdits(linesStream)) {
+				if (dropAllRemaining) {
+					continue;
+				}
+
 				const isActiveDoc = edit.filePath === activeDocRelativePath;
 				const targetDocument = isActiveDoc
 					? activeDocumentId
@@ -293,13 +299,29 @@ export class XtabCustomDiffPatchResponseHandler {
 							filePath: edit.filePath,
 							lineNumZeroBased: edit.lineNumZeroBased,
 						});
-						if (duplicateAdditionsMode === DuplicateAdditionsMode.Remove) {
-							const newAdditions = removal.newAdditions;
-							if (newAdditions.length === 0 && lineReplacement.lineRange.length === 0) {
-								// No-op patch after dedup — drop it.
+
+						switch (duplicateAdditionsMode) {
+							case DuplicateAdditionsMode.Log:
+								// Yield the patch unchanged.
+								break;
+							case DuplicateAdditionsMode.DropPatch:
 								continue;
+							case DuplicateAdditionsMode.DropAllRemaining:
+								// Drop this patch and skip every subsequent
+								// patch in the stream. We still consume the
+								// stream to completion so the underlying
+								// fetch is allowed to finalize cleanly.
+								dropAllRemaining = true;
+								continue;
+							case DuplicateAdditionsMode.TrimDuplicate: {
+								const newAdditions = removal.newAdditions;
+								if (newAdditions.length === 0 && lineReplacement.lineRange.length === 0) {
+									// Trim left a no-op patch — drop it.
+									continue;
+								}
+								lineReplacement = new LineReplacement(lineReplacement.lineRange, newAdditions);
+								break;
 							}
-							lineReplacement = new LineReplacement(lineReplacement.lineRange, newAdditions);
 						}
 					}
 				}
