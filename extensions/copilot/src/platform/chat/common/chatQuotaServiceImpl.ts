@@ -19,7 +19,9 @@ export class ChatQuotaService extends Disposable implements IChatQuotaService {
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange = this._onDidChange.event;
 
-	constructor(@IAuthenticationService private readonly _authService: IAuthenticationService) {
+	constructor(
+		@IAuthenticationService private readonly _authService: IAuthenticationService,
+	) {
 		super();
 		this._rateLimitInfo = { session: undefined, weekly: undefined };
 		this._register(this._authService.onDidAuthenticationChange(() => {
@@ -70,7 +72,10 @@ export class ChatQuotaService extends Disposable implements IChatQuotaService {
 	}
 
 	processQuotaHeaders(headers: IHeaders): void {
-		const quotaHeader = this._authService.copilotToken?.isFreeUser ? headers.get('x-quota-snapshot-chat') : headers.get('x-quota-snapshot-premium_models') || headers.get('x-quota-snapshot-premium_interactions');
+		const chatHeader = headers.get('x-quota-snapshot-chat');
+		const premiumModelsHeader = headers.get('x-quota-snapshot-premium_models');
+		const premiumInteractionsHeader = headers.get('x-quota-snapshot-premium_interactions');
+		const quotaHeader = this._authService.copilotToken?.isFreeUser ? chatHeader : premiumModelsHeader || premiumInteractionsHeader;
 		if (!quotaHeader) {
 			return;
 		}
