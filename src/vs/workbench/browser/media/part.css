@@ -6,6 +6,18 @@
 .monaco-workbench .part {
 	box-sizing: border-box;
 	overflow: hidden;
+	
+	/* Custom Arc/Cursor Layout: simulated padding using borders */
+	border: 6px solid #0d0d0f !important;
+	border-radius: 18px !important;
+}
+
+/* Exclude top and bottom bars from the floating pill effect */
+.monaco-workbench .part.titlebar,
+.monaco-workbench .part.statusbar,
+.monaco-workbench .part.activitybar {
+	border: none !important;
+	border-radius: 0 !important;
 }
 
 .monaco-workbench .part > .drop-block-overlay.visible {

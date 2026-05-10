@@ -3,6 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/* Custom Arc/Antigravity UI Theme Variables */
+:root {
+	--vscode-editor-background: #0d0d0f !important;
+	--vscode-sideBar-background: #111114 !important;
+	--vscode-activityBar-background: #0d0d0f !important;
+	--vscode-titleBar-activeBackground: #0d0d0f !important;
+	--vscode-statusBar-background: #1a1a2e !important;
+	--vscode-panel-background: #111114 !important;
+
+	/* Rounded corners */
+	--corner-radius: 10px;
+}
+
 /* Animations */
 
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }

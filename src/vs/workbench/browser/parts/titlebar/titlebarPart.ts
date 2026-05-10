@@ -831,6 +831,12 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 			const titleBorder = this.getColor(TITLE_BAR_BORDER);
 			this.element.style.borderBottom = titleBorder ? `1px solid ${titleBorder}` : '';
+
+			// Custom Arc Theme Overrides
+			this.element.style.backdropFilter = 'blur(20px)';
+			this.element.style.backgroundColor = 'rgba(13, 13, 15, 0.85)';
+			this.element.style.borderBottom = '1px solid rgba(255, 255, 255, 0.06)';
+			this.element.style.borderRadius = '12px 12px 0 0'; /* Rounding the top, as it's the titlebar */
 		}
 	}
 

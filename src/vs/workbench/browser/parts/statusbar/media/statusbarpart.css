@@ -7,8 +7,8 @@
 	box-sizing: border-box;
 	cursor: default;
 	width: 100%;
-	height: 22px;
-	font-size: 12px;
+	height: 20px; /* Thinner statusbar */
+	font-size: 10px; /* Smaller font */
 	display: flex;
 	overflow: hidden;
 }
@@ -56,7 +56,7 @@
 
 .monaco-workbench .part.statusbar > .items-container > .statusbar-item {
 	display: inline-block;
-	line-height: 22px;
+	line-height: 20px; /* Match thinner height */
 	height: 100%;
 	vertical-align: top;
 	max-width: 40vw;
