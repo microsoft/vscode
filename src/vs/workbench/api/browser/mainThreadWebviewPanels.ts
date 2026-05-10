@@ -174,6 +174,11 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 		}, this.webviewPanelViewType.fromExternal(viewType), initData.title, undefined, mainThreadShowOptions);
 
 		this.addWebviewInput(handle, webview, { serializeBuffersForPostMessage: initData.serializeBuffersForPostMessage });
+
+		// Editor events fired during openWebview run before the handle is registered above,
+		// so the resolved viewColumn never reaches the extension host. Push it now so symbolic
+		// columns (e.g. ViewColumn.Beside) resolve to a concrete column right after creation.
+		this.updateWebviewViewStates(this._editorService.activeEditor);
 	}
 
 	public $disposeWebview(handle: extHostProtocol.WebviewHandle): void {
