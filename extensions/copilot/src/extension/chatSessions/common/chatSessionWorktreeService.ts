@@ -72,6 +72,7 @@ export interface IChatSessionWorktreeService {
 
 	getWorktreeProperties(sessionId: string): Promise<ChatSessionWorktreeProperties | undefined>;
 	setWorktreeProperties(sessionId: string, properties: string | ChatSessionWorktreeProperties): Promise<void>;
+	updateWorktreeProperties(sessionId: string, properties: Partial<ChatSessionWorktreeProperties>): Promise<void>;
 
 	getWorktreeRepository(sessionId: string): Promise<RepoContext | undefined>;
 	getWorktreePath(sessionId: string): Promise<vscode.Uri | undefined>;
