@@ -587,7 +587,7 @@ multiplex from **three** SDK callback origins.
 | IAgent method | Used for | Resolves |
 |---|---|---|
 | `respondToPermissionRequest(requestId, approved: boolean)` | tool-permission gates | the deferred parked inside `Options.canUseTool` |
-| `respondToUserInputRequest(requestId, response: SessionInputResponseKind, answers?)` | structured user input (form questions, URL accept/decline) | the deferred parked inside `Options.canUseTool` (interactive-tool subset) **or** `Options.onElicitation` |
+| `respondToUserInputRequest(requestId, response: SessionInputResponseKind, answers?)` | structured user input (form questions, URL accept/decline) | the deferred parked inside `Options.canUseTool` (`AskUserQuestion` only) **or** `Options.onElicitation` |
 
 **Three SDK origins, two flows.** The host receives callbacks from
 the SDK at three places; `claudeMessageDispatch` / the host's
@@ -595,9 +595,24 @@ permission gate route each to the appropriate IAgent flow.
 
 | SDK callback | When it fires | Routes to flow | Why |
 |---|---|---|---|
-| `Options.canUseTool(toolName, input, { suggestions })` for arbitrary tool names | Before any tool is executed | **Permission** (`SessionToolCallReady` → `respondToPermissionRequest`) | Standard tool-permission gate |
-| `Options.canUseTool('AskUserQuestion' \| 'ExitPlanMode', input, ...)` | Built-in interactive Claude tools | **User input** (`SessionInputRequested` → `respondToUserInputRequest`) | These two tools' "input" is itself a user-facing question / plan; `INTERACTIVE_CLAUDE_TOOLS` is the closed-set discriminator |
+| `Options.canUseTool(toolName, input, { suggestions })` for arbitrary tool names | Before any tool that the SDK has NOT auto-approved via `permissionMode` is executed (see [PermissionMode docstring, sdk.d.ts:1558](../../../../../../extensions/copilot/node_modules/@anthropic-ai/claude-agent-sdk/sdk.d.ts#L1558)) | **Permission** (`SessionToolCallReady` → `respondToPermissionRequest`) | Standard tool-permission gate |
+| `Options.canUseTool('ExitPlanMode', input, ...)` | Built-in interactive Claude tool (exempt from `permissionMode` auto-approval, so it reaches the host even under `bypassPermissions`) | **Permission** (`SessionToolCallReady` → `respondToPermissionRequest`) | Approving/denying "leave plan mode" is a permission decision (Approve/Deny on a tool call), not user input. The host renders it as a `pending_confirmation` card with custom Approve/Deny labels and the plan body as `invocationMessage`. |
+| `Options.canUseTool('AskUserQuestion', input, ...)` | Built-in interactive Claude tool (exempt from `permissionMode` auto-approval) | **User input** (`SessionInputRequested` → `respondToUserInputRequest`) | The tool's "input" is itself a multi-question carousel that the user fills in; answers ride back on `PermissionResult.updatedInput`. |
 | `Options.onElicitation(request, { signal })` | An MCP server (host's own *or* third-party) calls `elicit/create` | **User input** (`SessionInputRequested` → `respondToUserInputRequest`) | MCP elicitation is the canonical path for "structured user input"; the host's in-process MCP server uses it too |
+
+**SDK-side auto-approval.** The host's `canUseTool` is a pure UI
+bridge: it surfaces a `pending_confirmation` to the workbench and
+returns the user's decision verbatim. It does NOT make mode-aware
+judgement calls of its own. The SDK owns auto-approval / auto-denial
+entirely via `permissionMode`:
+- `bypassPermissions` — SDK auto-approves; `canUseTool` is not called.
+- `acceptEdits` — SDK auto-approves write/edit tools; `canUseTool`
+  is not called for those. Non-write tools still flow through.
+- `plan` — SDK enforces read-only execution. Whatever it elects to
+  delegate to `canUseTool` is rendered to the user as a normal
+  prompt; the host applies no extra denial.
+- `default` / `dontAsk` / `auto` — SDK invokes `canUseTool` for any
+  tool needing a permission decision.
 
 **`canUseTool` return type** (locked invariant, [sdk.d.ts:1582](../../../../../../extensions/copilot/node_modules/@anthropic-ai/claude-agent-sdk/sdk.d.ts#L1582)):
 
@@ -609,10 +624,13 @@ type PermissionResult =
 
 There is **no `behavior: 'ask'` variant.** `'deny'` requires
 `message: string` (sent back to the model so it knows why) and
-optionally `interrupt: true` to stop the turn entirely. For the
-interactive-tool subset, the host returns `{ behavior: 'allow',
+optionally `interrupt: true` to stop the turn entirely. For
+`AskUserQuestion`, the host returns `{ behavior: 'allow',
 updatedInput }` once the user submits answers — the answers ride on
 `updatedInput` so the tool's own handler sees the chosen values.
+For `ExitPlanMode`, the host returns `{ behavior: 'allow',
+updatedInput: input }` on Approve (input passes through unchanged)
+and `{ behavior: 'deny', message: ... }` on Deny.
 
 **`onElicitation` return type** ([sdk.d.ts:966](../../../../../../extensions/copilot/node_modules/@anthropic-ai/claude-agent-sdk/sdk.d.ts#L966), [sdk.d.ts:1163](../../../../../../extensions/copilot/node_modules/@anthropic-ai/claude-agent-sdk/sdk.d.ts#L1163)):
 
@@ -648,15 +666,15 @@ The shape is the same; the SDK callbacks differ.
 |---|---|---|
 | Permission SDK callback | `Options.canUseTool(toolName, input, ...)` (one seam, dual-routed) | `SessionConfig.handlePermissionRequest(ITypedPermissionRequest)` — typed kind: `'read' \| 'write' \| ...` |
 | Permission return shape | `{ behavior: 'allow', updatedInput? } \| { behavior: 'deny', message }` | `{ kind: 'approve-once' \| 'reject' }` |
-| User-input SDK callback(s) | `canUseTool` for `INTERACTIVE_CLAUDE_TOOLS` **and** `Options.onElicitation` (MCP) | `SessionConfig.onUserInputRequest({ question, choices?, allowFreeform? })` — single seam for the `ask_user` tool |
-| User-input return shape | `PermissionResult` `{ allow, updatedInput }` (interactive-tool path) or `ElicitationResult` `{ action, content? }` (MCP path) | `{ answer: string, wasFreeform: boolean }` |
+| User-input SDK callback(s) | `canUseTool` for `AskUserQuestion`, **and** `Options.onElicitation` (MCP). `ExitPlanMode` is exempt from auto-approval like `AskUserQuestion`, but its semantics fit the permission gate, not user input — see the canUseTool routing table above. | `SessionConfig.onUserInputRequest({ question, choices?, allowFreeform? })` — single seam for the `ask_user` tool |
+| User-input return shape | `PermissionResult` `{ allow, updatedInput }` (`AskUserQuestion` path) or `ElicitationResult` `{ action, content? }` (MCP path) | `{ answer: string, wasFreeform: boolean }` |
 | Pending state | `_pendingPermissions: Map<toolCallId, DeferredPromise<boolean>>`, `_pendingUserInputs: Map<requestId, { deferred, questionId }>` | Same two maps, same shape |
 | Outbound permission signal | `pending_confirmation` progress event → `SessionToolCallReady` action | `pending_confirmation` progress event with `permissionKind` / `permissionPath` / `parentToolCallId` (subagent routing) |
 | Outbound input signal | `ActionType.SessionInputRequested` with `SessionInputRequest { id, questions[] }` | Same action, same shape |
 | Inbound resolution | `respondToPermissionRequest`/`respondToUserInputRequest` walk `_sessions.values()`, return `boolean` on first match | Identical pattern ([`copilotAgent.ts:1239-1254`](../copilot/copilotAgent.ts#L1239-L1254)) |
-| Auto-approve hook | Defers to SDK `permissionMode` (`default` / `acceptEdits` / `plan` / `bypassPermissions`) | Host-side: internal session-resource paths, `copilot-tool-output-*.txt` SDK temp files, `autopilot` config |
+| Auto-approve hook | None on the host — `_handleCanUseTool` is a pure UI bridge. The SDK owns all auto-approval / auto-denial via `permissionMode` ([sdk.d.ts:1558](../../../../../../extensions/copilot/node_modules/@anthropic-ai/claude-agent-sdk/sdk.d.ts#L1558)) before `canUseTool` is invoked. | Host-side: internal session-resource paths, `copilot-tool-output-*.txt` SDK temp files, `autopilot` config |
 | Edit-preview building | None at this layer (Phase 7) | Builds `FileEdit` with `pending-edit-content:` URI before firing `pending_confirmation` so the client can show a diff |
-| `ExitPlanMode` analogue | `INTERACTIVE_CLAUDE_TOOLS` includes `'ExitPlanMode'`; routed through `SessionInputRequested` | `_pendingPlanReviews` map; `_resolveExitPlanMode` maps the response back to `IExitPlanModeResponse { approved, feedback?, selectedAction?, autoApproveEdits? }` |
+| `ExitPlanMode` analogue | Routed through `pending_confirmation` like a normal permission gate, with custom Approve/Deny labels and the plan body as `invocationMessage`. (`INTERACTIVE_CLAUDE_TOOLS` membership only signals that the SDK does not auto-approve it under any `permissionMode`, ensuring it always reaches the host.) On Approve, host writes `permissionMode: 'acceptEdits'` to `IAgentConfigurationService`; the next `sendMessage` forwards it via `Query.setPermissionMode` between turns. | `_pendingPlanReviews` map; `_resolveExitPlanMode` maps the response back to `IExitPlanModeResponse { approved, feedback?, selectedAction?, autoApproveEdits? }` |
 | Status (Phase 6) | Stub — both methods throw `TODO: Phase 7` ([`claudeAgent.ts:790, 794`](claudeAgent.ts#L790-L794)). Re-implementation explicitly mirrors `copilotAgent.ts:1239-1254` (see [phase7-plan.md](phase7-plan.md)) | Fully implemented |
 
 The Copilot CLI SDK pre-resolves the Claude-side fan-in: its single

@@ -1037,6 +1037,14 @@ export interface IChatDisabledClaudeHooksPart {
 
 /** A single approval option shown in the plan review dropdown button. */
 export interface IChatPlanApprovalAction {
+	/**
+	 * Stable identifier for matching the chosen action programmatically.
+	 * Unlike `label` this is not localized, so callers should compare
+	 * against `IChatPlanReviewResult.actionId` rather than `action`.
+	 * Optional for backwards-compatibility; omit for one-off actions
+	 * where the localized label is the only intended identifier.
+	 */
+	id?: string;
 	label: string;
 	description?: string;
 	default?: boolean;
@@ -1046,7 +1054,11 @@ export interface IChatPlanApprovalAction {
 
 /** The result of reviewing a plan. */
 export interface IChatPlanReviewResult {
+	/** The chosen action's localized `label`. */
 	action?: string;
+	/** The chosen action's stable `id`, if it had one. Prefer this over
+	 * `action` for programmatic comparisons. */
+	actionId?: string;
 	rejected: boolean;
 	/** Combined feedback string sent to the agent (overall comment + inline
 	 * comments, joined and formatted as markdown). */
