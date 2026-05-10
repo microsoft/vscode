@@ -443,7 +443,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'explorer.openEditors.showEditorIndex': {
 			'type': 'boolean',
-			'description': nls.localize('openEditorsShowTabIndex', 'When enabled, will show the open editor index.'),
+			'description': nls.localize('openEditorsShowEditorIndex', 'When enabled, will show the open editor index.'),
 			'default': false,
 		},
 		'explorer.autoReveal': {
