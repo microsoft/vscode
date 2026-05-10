@@ -7,7 +7,9 @@ import type { CancellationToken } from '../../../../../../base/common/cancellati
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../../nls.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../../chat/common/tools/languageModelToolsService.js';
+import { TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
 import { RunInTerminalTool } from './runInTerminalTool.js';
 import { TerminalToolId } from './toolIds.js';
 
@@ -38,7 +40,12 @@ export interface IGetTerminalOutputInputParams {
 
 export class GetTerminalOutputTool extends Disposable implements IToolImpl {
 
-	constructor() {
+	private static readonly _maxOutputSnapshots = 100;
+	private readonly _lastOutputByTerminalId = new Map<string, string>();
+
+	constructor(
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+	) {
 		super();
 	}
 
@@ -63,6 +70,7 @@ export class GetTerminalOutputTool extends Disposable implements IToolImpl {
 
 		const execution = RunInTerminalTool.getExecution(args.id);
 		if (!execution) {
+			this._lastOutputByTerminalId.delete(args.id);
 			return {
 				content: [{
 					kind: 'text',
@@ -74,8 +82,40 @@ export class GetTerminalOutputTool extends Disposable implements IToolImpl {
 		return {
 			content: [{
 				kind: 'text',
-				value: `Output of terminal ${args.id}:\n${execution.getOutput()}`
+				value: this._formatOutput(args.id, execution.getOutput())
 			}]
 		};
+	}
+
+	private _formatOutput(id: string, output: string): string {
+		if (!this._configurationService.getValue<boolean>(TerminalChatAgentToolsSettingId.OutputDeltas)) {
+			this._lastOutputByTerminalId.clear();
+			return `Output of terminal ${id}:\n${output}`;
+		}
+
+		const previousOutput = this._lastOutputByTerminalId.get(id);
+		this._rememberOutput(id, output);
+
+		if (previousOutput === undefined) {
+			return `Output of terminal ${id}:\n${output}`;
+		}
+		if (output === previousOutput) {
+			return `Output of terminal ${id} unchanged since previous poll (${output.length} characters already shown). No new output.`;
+		}
+		if (output.startsWith(previousOutput)) {
+			const delta = output.slice(previousOutput.length);
+			return `Output of terminal ${id} since previous poll (${delta.length} new characters, ${output.length} total characters):\n${delta}`;
+		}
+		return `Output of terminal ${id} changed since previous poll; returning current output (${output.length} characters):\n${output}`;
+	}
+
+	private _rememberOutput(id: string, output: string): void {
+		if (!this._lastOutputByTerminalId.has(id) && this._lastOutputByTerminalId.size >= GetTerminalOutputTool._maxOutputSnapshots) {
+			const oldestId = this._lastOutputByTerminalId.keys().next().value;
+			if (oldestId !== undefined) {
+				this._lastOutputByTerminalId.delete(oldestId);
+			}
+		}
+		this._lastOutputByTerminalId.set(id, output);
 	}
 }
