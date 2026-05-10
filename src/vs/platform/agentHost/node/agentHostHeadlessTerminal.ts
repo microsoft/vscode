@@ -48,7 +48,7 @@ export class AgentHostHeadlessTerminal extends Disposable {
 		this._terminal = options.terminalFactory?.(terminalOptions) ?? new XtermTerminal(terminalOptions);
 
 		this._register(this._terminal.onData(data => {
-			if (this._isAllowedResponseData(data)) {
+			if (this._isCursorPositionReportResponse(data)) {
 				this._logService.debug(`[AgentHostHeadlessTerminal] Forwarding terminal response ${JSON.stringify(data)}`);
 				this._onResponseData.fire(data);
 			} else {
@@ -94,7 +94,7 @@ export class AgentHostHeadlessTerminal extends Disposable {
 		super.dispose();
 	}
 
-	private _isAllowedResponseData(data: string): boolean {
+	private _isCursorPositionReportResponse(data: string): boolean {
 		// Only forward cursor position reports for now. xterm can also answer
 		// device attribute queries, but workbench only forwards those in narrow
 		// ConPTY-specific cases; keep Agent Host conservative until needed.

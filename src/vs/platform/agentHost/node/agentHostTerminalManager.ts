@@ -28,6 +28,9 @@ import { Osc633Event, Osc633EventType, Osc633Parser } from './osc633Parser.js';
 
 const WAIT_FOR_PROMPT_TIMEOUT = 10_000;
 const HEADLESS_TERMINAL_SCROLLBACK = 0;
+const DSR_CURSOR_POSITION_QUERY = '\x1b[6n';
+const DEC_DSR_CURSOR_POSITION_QUERY = '\x1b[?6n';
+const SERVER_HANDLED_QUERY_PREFIXES = ['\x1b[?6', '\x1b[?', '\x1b[6', '\x1b[', '\x1b'];
 
 export const IAgentHostTerminalManager = createDecorator<IAgentHostTerminalManager>('agentHostTerminalManager');
 
@@ -36,6 +39,41 @@ export interface ICommandFinishedEvent {
 	exitCode: number | undefined;
 	command: string;
 	output: string;
+}
+
+export interface ITerminalQueryFilterState {
+	pendingData: string;
+}
+
+export function removeServerHandledTerminalQueries(data: string, state: ITerminalQueryFilterState): string {
+	if (
+		!state.pendingData
+		&& !data.includes(DSR_CURSOR_POSITION_QUERY)
+		&& !data.includes(DEC_DSR_CURSOR_POSITION_QUERY)
+		&& !getServerHandledTerminalQueryPrefix(data)
+	) {
+		return data;
+	}
+
+	const combinedData = state.pendingData + data;
+	const pendingData = getServerHandledTerminalQueryPrefix(combinedData);
+	const dataToFilter = pendingData ? combinedData.substring(0, combinedData.length - pendingData.length) : combinedData;
+	state.pendingData = pendingData;
+	if (!dataToFilter.includes(DSR_CURSOR_POSITION_QUERY) && !dataToFilter.includes(DEC_DSR_CURSOR_POSITION_QUERY)) {
+		return dataToFilter;
+	}
+	return dataToFilter
+		.replaceAll(DEC_DSR_CURSOR_POSITION_QUERY, '')
+		.replaceAll(DSR_CURSOR_POSITION_QUERY, '');
+}
+
+function getServerHandledTerminalQueryPrefix(data: string): string {
+	for (const prefix of SERVER_HANDLED_QUERY_PREFIXES) {
+		if (data.endsWith(prefix)) {
+			return prefix;
+		}
+	}
+	return '';
 }
 
 /**
@@ -99,6 +137,7 @@ interface IManagedTerminal {
 	exitCode?: number;
 	commandTracker?: ICommandTracker;
 	headlessTerminal?: AgentHostHeadlessTerminal;
+	terminalQueryFilterState: ITerminalQueryFilterState;
 }
 
 /**
@@ -314,6 +353,7 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 			claim,
 			commandTracker,
 			headlessTerminal,
+			terminalQueryFilterState: { pendingData: '' },
 		};
 
 		this._terminals.set(uri, managed);
@@ -508,6 +548,11 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 		} else {
 			cleanedData = rawData;
 		}
+
+		// Agent Host's server-side headless terminal answers CPR so terminals
+		// work without an attached client. Hide those queries from client xterms
+		// to avoid a second CPR response flowing back through AgentHostPty.input.
+		cleanedData = removeServerHandledTerminalQueries(cleanedData, managed.terminalQueryFilterState);
 
 		// Append to structured content
 		if (cleanedData.length > 0) {

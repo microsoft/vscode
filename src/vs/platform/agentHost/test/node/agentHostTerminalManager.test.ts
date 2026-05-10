@@ -8,6 +8,7 @@ import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ActionType, StateAction } from '../../common/state/protocol/actions.js';
 import { TerminalContentPart } from '../../common/state/protocol/state.js';
+import { removeServerHandledTerminalQueries, type ITerminalQueryFilterState } from '../../node/agentHostTerminalManager.js';
 import { Osc633Event, Osc633EventType, Osc633Parser } from '../../node/osc633Parser.js';
 
 /**
@@ -39,6 +40,7 @@ class TestTerminalDataHandler {
 	readonly dispatched: StateAction[] = [];
 	content: TerminalContentPart[] = [];
 	cwd = '/home/user';
+	private readonly _terminalQueryFilterState: ITerminalQueryFilterState = { pendingData: '' };
 
 	constructor(
 		readonly uri: string,
@@ -48,7 +50,7 @@ class TestTerminalDataHandler {
 	/** Simulates AgentHostTerminalManager._handlePtyData */
 	handlePtyData(rawData: string): string {
 		const parseResult = this.tracker.parser.parse(rawData);
-		const cleanedData = parseResult.cleanedData;
+		const cleanedData = removeServerHandledTerminalQueries(parseResult.cleanedData, this._terminalQueryFilterState);
 
 		for (const event of parseResult.events) {
 			this._handleOsc633Event(event);
@@ -177,6 +179,41 @@ suite('AgentHostTerminalManager – command detection integration', () => {
 	const disposables = new DisposableStore();
 	teardown(() => disposables.clear());
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('server-handled CPR queries are stripped from client-facing data', () => {
+		function filter(data: string): string {
+			return removeServerHandledTerminalQueries(data, { pendingData: '' });
+		}
+
+		assert.strictEqual(filter('before \x1b[6n after'), 'before  after');
+		assert.strictEqual(filter('before \x1b[?6n after'), 'before  after');
+		assert.strictEqual(filter('\x1b[5n\x1b[c\x1b[0c\x1b[>c\x1b[>0c'), '\x1b[5n\x1b[c\x1b[0c\x1b[>c\x1b[>0c');
+		assert.strictEqual(filter('normal output\r\n'), 'normal output\r\n');
+	});
+
+	test('server-handled CPR queries are stripped across data chunks', () => {
+		let state: ITerminalQueryFilterState = { pendingData: '' };
+		assert.strictEqual(removeServerHandledTerminalQueries('before \x1b[', state), 'before ');
+		assert.strictEqual(removeServerHandledTerminalQueries('6n after', state), ' after');
+
+		state = { pendingData: '' };
+		assert.strictEqual(removeServerHandledTerminalQueries('before \x1b[?', state), 'before ');
+		assert.strictEqual(removeServerHandledTerminalQueries('6n after', state), ' after');
+
+		state = { pendingData: '' };
+		assert.strictEqual(removeServerHandledTerminalQueries('before \x1b[', state), 'before ');
+		assert.strictEqual(removeServerHandledTerminalQueries('K after', state), '\x1b[K after');
+	});
+
+	test('manager data path strips CPR queries while preserving surrounding output', () => {
+		const handler = createHandler();
+
+		const cleaned = handler.handlePtyData(`before${osc633('A')}\x1b[6nmid\x1b[?6nafter`);
+
+		assert.strictEqual(cleaned, 'beforemidafter');
+		assert.deepStrictEqual(handler.content, [{ type: 'unclassified', value: 'beforemidafter' }]);
+		assert.strictEqual(handler.dispatched[0].type, ActionType.TerminalCommandDetectionAvailable);
+	});
 
 	test('TerminalCommandDetectionAvailable is dispatched on first OSC 633', () => {
 		const handler = createHandler();
