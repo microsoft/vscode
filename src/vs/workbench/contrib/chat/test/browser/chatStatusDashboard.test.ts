@@ -22,6 +22,7 @@ interface IQuotaConfig {
 	usageBasedBilling?: boolean;
 	resetAt?: number;
 	entitlement?: number;
+	quotaRemaining?: number;
 }
 
 function createEntitlementService(opts: {
@@ -62,7 +63,7 @@ function createEntitlementService(opts: {
 		markAnonymousRateLimited: () => { },
 		markSetupCompleted: () => { },
 		setForceHidden: () => { },
-		updateQuotaSnapshot: () => { },
+		updateQuotaSnapshot: (_snapshot: IQuotaConfig) => { },
 		previewFeaturesDisabled: false,
 		clientByokEnabled: false,
 	} as IChatEntitlementService;
@@ -408,6 +409,26 @@ suite('ChatStatusDashboard', () => {
 		const quotaPercentage = dashboard.element.querySelector('.quota-indicator:not(.included) .quota-percentage') as HTMLElement;
 		assert.ok(quotaPercentage);
 		assert.strictEqual(quotaPercentage.tabIndex, 0);
+	});
+
+	test('Hover uses quotaRemaining for precise credit display', () => {
+		const dashboard = createDashboard(createEntitlementService({
+			chat: { percentRemaining: 75, unlimited: false, entitlement: 2000, quotaRemaining: 1500 },
+			entitlement: ChatEntitlement.Free,
+		}));
+
+		const quotaPercentages = dashboard.element.querySelectorAll('.quota-indicator:not(.included) .quota-percentage');
+		assert.strictEqual(quotaPercentages.length, 1);
+
+		// Hover: shows credit fractions computed from quotaRemaining (used = 2000 - 1500 = 500)
+		quotaPercentages[0].dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+		const chatValue = quotaPercentages[0].querySelector('.quota-value');
+		assert.ok(chatValue?.textContent?.includes('/'), 'Should show credit fractions on hover');
+		assert.ok(chatValue?.textContent?.includes('500'), `Should show 500 used credits, got: ${chatValue?.textContent}`);
+
+		// Mouse leave: reverts to percentage
+		quotaPercentages[0].dispatchEvent(new MouseEvent('mouseleave', { bubbles: true }));
+		assert.deepStrictEqual(getQuotaValues(dashboard.element), ['25%']);
 	});
 
 	// --- CALLOUT MESSAGES ---

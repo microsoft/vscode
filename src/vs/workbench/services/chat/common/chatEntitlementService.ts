@@ -194,7 +194,7 @@ export interface IChatEntitlementService {
 	 * result. This merges the snapshot into the existing quotas rather
 	 * than replacing them, so that chat / completions quotas are not lost.
 	 */
-	updateQuotaSnapshot(snapshot: IQuotaSnapshot): void;
+	updateQuotaSnapshot(snapshot: IQuotaSnapshot, additionalUsage?: { enabled: boolean; used: number }): void;
 
 	/**
 	 * Mark the chat setup flow as completed.
@@ -572,11 +572,14 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 		this.acceptQuotas({});
 	}
 
-	updateQuotaSnapshot(snapshot: IQuotaSnapshot): void {
+	updateQuotaSnapshot(snapshot: IQuotaSnapshot, additionalUsage?: { enabled: boolean; used: number }): void {
+		const isUsageBasedBilling = this._quotas.usageBasedBilling === true;
 		const isFree = this.entitlement === ChatEntitlement.Free || this.entitlement === ChatEntitlement.Available;
+		const targetBucket: 'chat' | 'premiumChat' = isUsageBasedBilling || !isFree ? 'premiumChat' : 'chat';
 		this.acceptQuotas({
 			...this._quotas,
-			...(isFree ? { chat: snapshot } : { premiumChat: snapshot }),
+			[targetBucket]: { ...this._quotas[targetBucket], ...snapshot },
+			...(additionalUsage ? { additionalUsageEnabled: additionalUsage.enabled, additionalUsageCount: additionalUsage.used } : undefined),
 		});
 	}
 

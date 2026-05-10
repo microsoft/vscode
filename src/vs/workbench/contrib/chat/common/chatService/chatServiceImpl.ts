@@ -1450,11 +1450,15 @@ export class ChatService extends Disposable implements IChatService {
 					const quotaSnapshot = rawResult.metadata?.quotaSnapshot;
 					if (quotaSnapshot && typeof quotaSnapshot === 'object' && typeof (quotaSnapshot as Record<string, unknown>).percentRemaining === 'number') {
 						const qs = quotaSnapshot as { percentRemaining: number; unlimited: boolean; entitlement: number; quotaRemaining?: number; additionalUsageUsed: number; additionalUsageEnabled: boolean; resetDate: string };
+						const validQuotaRemaining = typeof qs.quotaRemaining === 'number' && qs.quotaRemaining >= 0 ? qs.quotaRemaining : undefined;
 						this.chatEntitlementService.updateQuotaSnapshot({
 							percentRemaining: qs.percentRemaining,
 							unlimited: qs.unlimited,
 							entitlement: qs.entitlement,
-							quotaRemaining: qs.quotaRemaining,
+							quotaRemaining: validQuotaRemaining,
+						}, {
+							enabled: qs.additionalUsageEnabled,
+							used: qs.additionalUsageUsed,
 						});
 					}
 
