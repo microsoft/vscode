@@ -702,6 +702,7 @@ export interface IRepositoryResolver {
 
 export class Repository implements Disposable {
 	static readonly WORKTREE_ROOT_STORAGE_KEY = 'worktreeRoot';
+	static readonly PINNED_BRANCHES_STORAGE_KEY = 'pinnedBranches';
 
 	private _onDidChangeRepository = new EventEmitter<Uri>();
 	readonly onDidChangeRepository: Event<Uri> = this._onDidChangeRepository.event;
@@ -1702,6 +1703,7 @@ export class Repository implements Disposable {
 	async deleteBranch(name: string, force?: boolean): Promise<void> {
 		return this.run(Operation.DeleteBranch, async () => {
 			await this.repository.deleteBranch(name, force);
+			this.unpinBranch(name);
 			await this.repository.config('unset', 'local', `branch.${name}.vscode-merge-base`);
 		});
 	}
@@ -3382,6 +3384,43 @@ export class Repository implements Disposable {
 		}
 
 		return false;
+	}
+
+	public isBranchPinned(branch: string): boolean {
+		return this.getPinnedBranches().includes(branch);
+	}
+
+	public pinBranch(branch: string): void {
+		if (this.isBranchPinned(branch)) {
+			return;
+		}
+
+		const pinnedBranches = this.getPinnedBranches();
+		pinnedBranches.push(branch);
+
+		this.globalState.update(this.getPinnedBranchesStorageKey(), pinnedBranches);
+	}
+
+	public unpinBranch(branch: string): void {
+		const pinnedBranches = this.getPinnedBranches();
+		const index = pinnedBranches.indexOf(branch);
+
+		if (index === -1) {
+			return;
+		}
+
+		pinnedBranches.splice(index, 1);
+
+		this.globalState.update(this.getPinnedBranchesStorageKey(), pinnedBranches);
+	}
+
+	private getPinnedBranches(): string[] {
+		const pinnedBranches = this.globalState.get<string[] | unknown>(this.getPinnedBranchesStorageKey(), []);
+		return Array.isArray(pinnedBranches) ? pinnedBranches : [];
+	}
+
+	private getPinnedBranchesStorageKey(): string {
+		return `${Repository.PINNED_BRANCHES_STORAGE_KEY}:${this.root}`;
 	}
 
 	async getUnpublishedCommits(): Promise<Set<string>> {
