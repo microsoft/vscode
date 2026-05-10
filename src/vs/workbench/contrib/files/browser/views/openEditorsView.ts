@@ -480,7 +480,7 @@ export class OpenEditorsView extends ViewPane {
 		if (
 			event.affectsConfiguration('explorer.decorations') ||
 			event.affectsConfiguration('explorer.openEditors.sortOrder') ||
-			event.affectsConfiguration('explorer.openEditors.showTabIndex')
+			event.affectsConfiguration('explorer.openEditors.showEditorIndex')
 		) {
 			this.listRefreshScheduler?.schedule();
 		}
@@ -680,9 +680,9 @@ class OpenEditorRenderer implements IListRenderer<OpenEditor, IOpenEditorTemplat
 		templateData.actionRunner.editor = openedEditor;
 		templateData.container.classList.toggle('dirty', editor.isDirty() && !editor.isSaving());
 		templateData.container.classList.toggle('sticky', openedEditor.isSticky());
-		const showTabIndex = this.configurationService.getValue<boolean>('explorer.openEditors.showTabIndex');
+		const showEditorIndex = this.configurationService.getValue<IFilesConfiguration>().explorer.openEditors.showEditorIndex;
 		const editorIndex = openedEditor.group.getIndexOfEditor(openedEditor.editor);
-		const namePrefix = showTabIndex
+		const namePrefix = showEditorIndex
 			? `${editorIndex + 1}: `
 			: undefined;
 		templateData.root.setResource({

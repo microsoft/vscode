@@ -440,9 +440,9 @@ configurationRegistry.registerConfiguration({
 			],
 			'default': 'editorOrder'
 		},
-		'explorer.openEditors.showTabIndex': {
+		'explorer.openEditors.showEditorIndex': {
 			'type': 'boolean',
-			'description': nls.localize('openEditorsShowTabIndex', 'When enabled, will show the tab index.'),
+			'description': nls.localize('openEditorsShowTabIndex', 'When enabled, will show the open editor index.'),
 			'default': false,
 		},
 		'explorer.autoReveal': {
