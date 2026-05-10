@@ -178,13 +178,11 @@ export class ChatInputNotificationContribution extends Disposable {
 		if (isAnonymous) {
 			notification.description = vscode.l10n.t('Sign in to keep going.');
 			notification.actions = [
-				{ label: vscode.l10n.t('View Usage'), commandId: 'workbench.action.chat.openCopilotStatus' },
 				{ label: vscode.l10n.t('Sign In'), commandId: 'workbench.action.chat.triggerSetup' },
 			];
 		} else if (isFree) {
 			notification.description = vscode.l10n.t('Upgrade to keep going.');
 			notification.actions = [
-				{ label: vscode.l10n.t('View Usage'), commandId: 'workbench.action.chat.openCopilotStatus' },
 				{ label: vscode.l10n.t('Upgrade'), commandId: 'workbench.action.chat.upgradePlan' },
 			];
 		} else if (isManagedPlan) {
@@ -193,13 +191,11 @@ export class ChatInputNotificationContribution extends Disposable {
 		} else if (hadOverage) {
 			notification.description = vscode.l10n.t('Increase your budget to keep building.');
 			notification.actions = [
-				{ label: vscode.l10n.t('View Usage'), commandId: 'workbench.action.chat.openCopilotStatus' },
 				{ label: vscode.l10n.t('Manage Budget'), commandId: 'workbench.action.chat.manageAdditionalSpend' },
 			];
 		} else {
 			notification.description = vscode.l10n.t('Manage your budget to keep building.');
 			notification.actions = [
-				{ label: vscode.l10n.t('View Usage'), commandId: 'workbench.action.chat.openCopilotStatus' },
 				{ label: vscode.l10n.t('Manage Budget'), commandId: 'workbench.action.chat.manageAdditionalSpend' },
 			];
 		}

@@ -893,7 +893,15 @@ class LocalNewSession extends Disposable implements ICopilotChatSession {
 		}
 	}
 
-	update(_session: IAgentSession): void { }
+	update(session: IAgentSession): void {
+		transaction(tx => {
+			this._title.set(session.label, tx);
+			const updatedTime = session.timing.lastRequestEnded ?? session.timing.lastRequestStarted ?? session.timing.created;
+			this._updatedAt.set(new Date(updatedTime), tx);
+			this._status.set(toSessionStatus(session.status), tx);
+			this._isArchived.set(session.isArchived(), tx);
+		});
+	}
 }
 
 /**
