@@ -169,12 +169,31 @@ function collectRecentDocumentsGrouped(
 	return docOrder.map(docId => ({ docId, entries: docEntries.get(docId)! }));
 }
 
-type RecentCodeSnippet = {
+export type RecentCodeSnippet = {
 	readonly id: DocumentId;
 	readonly content: StringText;
 	readonly focalRanges?: readonly OffsetRange[];
 	readonly editEntryCount?: number;
 };
+
+/**
+ * Build the per-document `RecentCodeSnippet` list that feeds the paged-clipping
+ * recently-viewed builder. Extracted from {@link getRecentCodeSnippets} so the
+ * global-budget cascade can run the recently-viewed sub-builder independently.
+ */
+export function prepareRecentCodeSnippets(
+	activeDoc: StatelessNextEditDocument,
+	xtabHistory: readonly IXtabHistoryEntry[],
+	opts: PromptOptions,
+): RecentCodeSnippet[] {
+	const { includeViewedFiles, nDocuments, clippingStrategy } = opts.recentlyViewedDocuments;
+	if (clippingStrategy === RecentFileClippingStrategy.Proportional) {
+		const grouped = collectRecentDocumentsGrouped(xtabHistory, activeDoc.id, includeViewedFiles, nDocuments);
+		return grouped.map(g => historyEntriesToCodeSnippet(g.entries));
+	}
+	const docsBesidesActiveDoc = collectRecentDocuments(xtabHistory, activeDoc.id, includeViewedFiles, nDocuments);
+	return docsBesidesActiveDoc.map(d => historyEntryToCodeSnippet(d));
+}
 
 /**
  * Select focal ranges prioritizing the most recent (earliest in array order),
@@ -296,7 +315,7 @@ export function historyEntriesToCodeSnippet(entries: IXtabHistoryEntry[]): Recen
 /**
  * Append language context snippets to the snippets array, respecting the token budget.
  */
-function appendLanguageContextSnippets(
+export function appendLanguageContextSnippets(
 	langCtx: LanguageContextResponse,
 	snippets: string[],
 	tokenBudget: number,

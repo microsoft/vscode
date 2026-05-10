@@ -101,13 +101,16 @@ export type GlobalBudgetOptions = {
 
 export namespace GlobalBudgetOptions {
 	/**
-	 * Default cascade: opt-in/often-disabled parts come first so their typically-zero
-	 * cost donates surplus into the always-on `recentlyViewedDocuments` and `diffHistory`.
+	 * Default cascade: language context donates first (often disabled), then
+	 * recently-viewed documents (always-on, accepts most of the surplus), then
+	 * neighbor files (must run after recently-viewed because it consults
+	 * `docsInPrompt` to avoid duplicating recently-viewed documents), then
+	 * diff history.
 	 */
 	export const DEFAULT_ORDER: readonly GlobalBudgetPart[] = [
 		'languageContext',
-		'neighborFiles',
 		'recentlyViewedDocuments',
+		'neighborFiles',
 		'diffHistory',
 	];
 
