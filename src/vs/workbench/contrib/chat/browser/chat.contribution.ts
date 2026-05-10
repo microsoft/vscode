@@ -1003,7 +1003,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[AgentHostAhpJsonlLoggingSettingId]: {
 			type: 'boolean',
-			description: nls.localize('chat.agentHost.ahpJsonlLogging', "When enabled, logs all AHP transport messages for remote agent host connections to JSONL files under the window's log directory."),
+			description: nls.localize('chat.agentHost.ahpJsonlLogging', "When enabled, logs all AHP transport messages for agent host connections to JSONL files under the window's log directory."),
 			default: product.quality !== 'stable',
 			tags: ['experimental', 'advanced'],
 			included: product.quality !== 'stable',
