@@ -173,6 +173,28 @@ suite('renderViewLine', () => {
 		assertCharacterReplacement('xxxx\t', 4, 'xxxx\u00a0\u00a0\u00a0\u00a0', [0, 1, 2, 3, 4, 8]);
 	});
 
+	test('RenderLineInput equality tracks textDirectionLanguageId', () => {
+		const plaintextInput = createRenderLineInput({
+			textDirectionPreset: 'contextual',
+			textDirectionLanguageId: 'plaintext'
+		});
+		const syntaxHeavyInput = createRenderLineInput({
+			textDirectionPreset: 'contextual',
+			textDirectionLanguageId: 'typescript'
+		});
+		const noLanguageInput = createRenderLineInput({
+			textDirectionPreset: 'contextual'
+		});
+		const emptyLanguageInput = createRenderLineInput({
+			textDirectionPreset: 'contextual',
+			textDirectionLanguageId: ''
+		});
+
+		assert.strictEqual(plaintextInput.equals(syntaxHeavyInput), false);
+		assert.strictEqual(noLanguageInput.equals(emptyLanguageInput), true);
+		assert.strictEqual(emptyLanguageInput.textDirectionLanguageId, undefined);
+	});
+
 	function assertParts(lineContent: string, tabSize: number, parts: TestLineToken[], expected: string, info: CharacterMappingInfo[]): void {
 		const _actual = renderViewLine(createRenderLineInput({
 			lineContent,

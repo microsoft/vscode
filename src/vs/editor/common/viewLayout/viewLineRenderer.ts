@@ -152,7 +152,7 @@ export class RenderLineInput {
 		this.textDirection = textDirection;
 		this.verticalScrollbarSize = verticalScrollbarSize;
 		this.textDirectionPreset = textDirectionPreset;
-		this.textDirectionLanguageId = textDirectionLanguageId;
+		this.textDirectionLanguageId = textDirectionLanguageId || undefined;
 
 		const wsmiddotDiff = Math.abs(wsmiddotWidth - spaceWidth);
 		const middotDiff = Math.abs(middotWidth - spaceWidth);
@@ -212,6 +212,7 @@ export class RenderLineInput {
 			&& this.verticalScrollbarSize === other.verticalScrollbarSize
 			&& this.renderNewLineWhenEmpty === other.renderNewLineWhenEmpty
 			&& this.textDirectionPreset === other.textDirectionPreset
+			&& this.textDirectionLanguageId === other.textDirectionLanguageId
 		);
 	}
 }
