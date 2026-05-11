@@ -1071,7 +1071,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			if (!parentEntry) {
 				return [];
 			}
-			return parentEntry.getSubagentMessages(subagentInfo.toolCallId, session.toString());
+			return parentEntry.getSubagentMessages(subagentInfo.toolCallId);
 		}
 
 		const sessionId = AgentSession.id(session);

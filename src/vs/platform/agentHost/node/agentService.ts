@@ -505,8 +505,8 @@ export class AgentService extends Disposable implements IAgentService {
 				config: config.config,
 			});
 			return { schema: resolved.schema, values: resolved.values };
-		} catch (error) {
-			this._logService.error(`[AgentService] Failed to resolve created session config for provider ${provider.id}`, error);
+		} catch (err) {
+			this._logService.error(`[AgentService] Failed to resolve created session config for provider ${provider.id}`, err);
 			return config.config ? { schema: { type: 'object', properties: {} }, values: config.config } : undefined;
 		}
 	}
@@ -579,7 +579,7 @@ export class AgentService extends Disposable implements IAgentService {
 				// Try subagent restore before regular session restore
 				const parsed = parseSubagentSessionUri(resource);
 				if (parsed) {
-					await this._restoreSubagentSession(resourceStr, parsed.parentSession, parsed.toolCallId);
+					await this._restoreSubagentSession(resourceStr, parsed.parentSession);
 				} else {
 					await this.restoreSession(resource);
 				}
@@ -1295,7 +1295,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 * the subagent (by `parentToolCallId`), and builds the child session's
 	 * turns from those events.
 	 */
-	private async _restoreSubagentSession(subagentUri: string, parentSession: URI, toolCallId: string): Promise<void> {
+	private async _restoreSubagentSession(subagentUri: string, parentSession: URI): Promise<void> {
 		// Ensure the parent session is loaded first
 		const parentSessionKey = parentSession.toString();
 		if (!this._stateManager.getSessionState(parentSessionKey)) {
