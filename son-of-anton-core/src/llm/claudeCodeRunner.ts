@@ -96,11 +96,16 @@ export async function* runClaudeCode(options: ClaudeCodeRunOptions): AsyncGenera
 
 	// stream-json -p mode: read prompt + messages from stdin, emit JSON events
 	// on stdout. `--max-turns 1` keeps the CLI from running its own agent loop
-	// (we orchestrate that on our side).
+	// (we orchestrate that on our side). `--include-partial-messages` makes
+	// the CLI emit per-delta `stream_event` chunks so the chat surface sees
+	// tokens flowing as Claude generates them; without it the CLI emits ONE
+	// consolidated `assistant` event per turn and the response appears as a
+	// single snap instead of a stream.
 	const args = [
 		'--system-prompt', options.systemPrompt,
 		'--verbose',
 		'--output-format', 'stream-json',
+		'--include-partial-messages',
 		'--max-turns', '1',
 		'--model', options.modelId,
 		'-p',
@@ -127,12 +132,16 @@ export async function* runClaudeCode(options: ClaudeCodeRunOptions): AsyncGenera
 	}, STREAM_JSON_TIMEOUT_MS);
 
 	const rl = readline.createInterface({ input: proc.stdout });
+	// `sawDelta` is tracked across the whole CLI invocation so the
+	// consolidated `assistant` event can suppress its (duplicate) text
+	// emission whenever any partial-message delta has already streamed.
+	const ctx = { sawDelta: false };
 
 	try {
 		for await (const line of rl) {
 			const trimmed = line.trim();
 			if (!trimmed) continue;
-			let parsed: { type?: string; subtype?: string; message?: { content?: unknown }; usage?: Record<string, number>; total_cost_usd?: number };
+			let parsed: ParsedChunk;
 			try {
 				parsed = JSON.parse(trimmed);
 			} catch {
@@ -141,7 +150,7 @@ export async function* runClaudeCode(options: ClaudeCodeRunOptions): AsyncGenera
 				// as `error` from the close handler below.
 				continue;
 			}
-			yield* mapChunkToEvents(parsed);
+			yield* mapChunkToEvents(parsed, ctx);
 		}
 		yield { type: 'done' };
 	} finally {
@@ -160,7 +169,25 @@ export async function* runClaudeCode(options: ClaudeCodeRunOptions): AsyncGenera
 	}
 }
 
-function* mapChunkToEvents(chunk: { type?: string; subtype?: string; message?: { content?: unknown }; usage?: Record<string, number>; total_cost_usd?: number }): IterableIterator<ClaudeCodeChunk> {
+/**
+ * Top-level CLI chunk shape we care about. `event` carries the nested
+ * Anthropic SSE event when `chunk.type === 'stream_event'` — that's where
+ * the per-delta `text_delta` payloads live when `--include-partial-messages`
+ * is enabled.
+ */
+interface ParsedChunk {
+	type?: string;
+	subtype?: string;
+	message?: { content?: unknown };
+	usage?: Record<string, number>;
+	total_cost_usd?: number;
+	event?: {
+		type?: string;
+		delta?: { type?: string; text?: string };
+	};
+}
+
+function* mapChunkToEvents(chunk: ParsedChunk, ctx: { sawDelta: boolean }): IterableIterator<ClaudeCodeChunk> {
 	if (!chunk.type) return;
 	if (chunk.type === 'system') {
 		yield { type: 'system', subtype: String(chunk.subtype ?? ''), data: chunk };
@@ -170,7 +197,31 @@ function* mapChunkToEvents(chunk: { type?: string; subtype?: string; message?: {
 		yield { type: 'rate_limit_event', data: chunk };
 		return;
 	}
+	// Per-token streaming: `--include-partial-messages` makes the CLI emit
+	// nested Anthropic SSE events. Only `content_block_delta` with a
+	// `text_delta` payload carries the user-visible token text; everything
+	// else (message_start, content_block_stop, message_delta, message_stop)
+	// is structural and ignored.
+	if (chunk.type === 'stream_event' && chunk.event) {
+		if (chunk.event.type === 'content_block_delta' && chunk.event.delta?.type === 'text_delta') {
+			const text = chunk.event.delta.text;
+			if (typeof text === 'string' && text.length > 0) {
+				ctx.sawDelta = true;
+				yield { type: 'text', text };
+			}
+		}
+		return;
+	}
+	// Consolidated `assistant` event arrives at the end of each turn with
+	// the full assembled text. With `--include-partial-messages` enabled the
+	// caller has already streamed every delta — re-emitting here would
+	// double-render the reply. We only fall back to emitting from this
+	// event when no deltas were observed (older Claude CLI or a future
+	// release that drops the partial-message stream).
 	if (chunk.type === 'assistant' && chunk.message && Array.isArray(chunk.message.content)) {
+		if (ctx.sawDelta) {
+			return;
+		}
 		for (const block of chunk.message.content) {
 			if (block && typeof block === 'object' && (block as { type?: string }).type === 'text') {
 				const text = (block as { text?: string }).text;
