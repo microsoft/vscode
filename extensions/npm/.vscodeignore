@@ -1,6 +1,7 @@
 src/**
 out/**
 tsconfig*.json
+**/*.tsbuildinfo
 .vscode/**
 esbuild*
 package-lock.json

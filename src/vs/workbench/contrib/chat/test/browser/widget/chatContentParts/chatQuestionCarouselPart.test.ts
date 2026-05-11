@@ -149,6 +149,82 @@ suite('ChatQuestionCarouselPart', () => {
 			const directChildCloseContainer = widget.domNode.querySelector(':scope > .chat-question-close-container');
 			assert.strictEqual(directChildCloseContainer, null, 'close button container should not be positioned as a direct child of the carousel container');
 		});
+
+		test('renders collapse button in title row even when skip is disabled', () => {
+			const carousel = createMockCarousel([
+				{ id: 'q1', type: 'text', title: 'Question 1' }
+			], false);
+			createWidget(carousel);
+
+			const titleRow = widget.domNode.querySelector('.chat-question-title-row');
+			assert.ok(titleRow, 'title row should exist');
+
+			const collapseButton = titleRow?.querySelector('.chat-question-collapse-toggle');
+			assert.ok(collapseButton, 'collapse button should be rendered even when skip is disabled');
+		});
+
+		test('renders collapse button to the right of close button', () => {
+			const carousel = createMockCarousel([
+				{ id: 'q1', type: 'text', title: 'Question 1' },
+				{ id: 'q2', type: 'text', title: 'Question 2' }
+			], true);
+			createWidget(carousel);
+
+			const actionsContainer = widget.domNode.querySelector('.chat-question-header-actions');
+			assert.ok(actionsContainer, 'actions container should exist');
+			if (!actionsContainer) {
+				return;
+			}
+
+			const actionButtons = Array.from(actionsContainer.querySelectorAll('.monaco-button'));
+			const closeIndex = actionButtons.findIndex(button => button.classList.contains('chat-question-close'));
+			const collapseIndex = actionButtons.findIndex(button => button.classList.contains('chat-question-collapse-toggle'));
+
+			assert.ok(closeIndex >= 0, 'close button should exist');
+			assert.ok(collapseIndex >= 0, 'collapse button should exist');
+			assert.ok(collapseIndex > closeIndex, 'collapse button should be positioned to the right of close button');
+		});
+
+		test('toggles collapsed state and updates aria-expanded', () => {
+			const carousel = createMockCarousel([
+				{ id: 'q1', type: 'text', title: 'Question 1' },
+				{ id: 'q2', type: 'text', title: 'Question 2' }
+			], true);
+			createWidget(carousel);
+
+			const collapseButton = widget.domNode.querySelector('.chat-question-collapse-toggle') as HTMLElement;
+			assert.ok(collapseButton, 'collapse button should exist');
+			assert.strictEqual(collapseButton.getAttribute('aria-expanded'), 'true');
+
+			collapseButton.click();
+			assert.ok(widget.domNode.classList.contains('chat-question-carousel-collapsed'), 'widget should enter collapsed state');
+			assert.strictEqual(collapseButton.getAttribute('aria-expanded'), 'false');
+			const collapsedSummary = widget.domNode.querySelector('.chat-question-collapsed-summary');
+			assert.strictEqual(collapsedSummary, null, 'collapsed mode should not render an additional summary section');
+
+			const titleRow = widget.domNode.querySelector('.chat-question-title-row');
+			assert.ok(titleRow, 'header should remain visible when collapsed');
+
+			const inputScrollable = widget.domNode.querySelector('.chat-question-input-scrollable');
+			assert.ok(inputScrollable, 'input section exists in DOM but is hidden while collapsed');
+
+			collapseButton.click();
+			assert.ok(!widget.domNode.classList.contains('chat-question-carousel-collapsed'), 'widget should exit collapsed state');
+			assert.strictEqual(collapseButton.getAttribute('aria-expanded'), 'true');
+		});
+
+		test('restores draft collapsed state from carousel data', () => {
+			const carousel = new ChatQuestionCarouselData([
+				{ id: 'q1', type: 'text', title: 'Question 1' },
+				{ id: 'q2', type: 'text', title: 'Question 2' }
+			], true);
+			carousel.draftCollapsed = true;
+			createWidget(carousel);
+
+			assert.ok(widget.domNode.classList.contains('chat-question-carousel-collapsed'), 'widget should restore collapsed draft state');
+			const collapseButton = widget.domNode.querySelector('.chat-question-collapse-toggle');
+			assert.strictEqual(collapseButton?.getAttribute('aria-expanded'), 'false');
+		});
 	});
 
 	suite('Question Types', () => {
@@ -290,9 +366,10 @@ suite('ChatQuestionCarouselPart', () => {
 			]);
 			createWidget(carousel);
 
+			// Default option 'b' is re-sorted to appear first
 			const listItems = widget.domNode.querySelectorAll('.chat-question-list-item') as NodeListOf<HTMLElement>;
-			assert.strictEqual(listItems[0].classList.contains('selected'), false);
-			assert.strictEqual(listItems[1].classList.contains('selected'), true, 'Default option should be selected');
+			assert.strictEqual(listItems[0].classList.contains('selected'), true, 'Default option should be re-sorted to first and selected');
+			assert.strictEqual(listItems[1].classList.contains('selected'), false);
 		});
 
 		test('default options are pre-selected for multiSelect', () => {
@@ -311,10 +388,67 @@ suite('ChatQuestionCarouselPart', () => {
 			]);
 			createWidget(carousel);
 
+			// Default options 'a' and 'c' are re-sorted to appear first
 			const listItems = widget.domNode.querySelectorAll('.chat-question-list-item') as NodeListOf<HTMLElement>;
 			assert.strictEqual(listItems[0].classList.contains('checked'), true, 'First default option should be checked');
-			assert.strictEqual(listItems[1].classList.contains('checked'), false);
-			assert.strictEqual(listItems[2].classList.contains('checked'), true, 'Third default option should be checked');
+			assert.strictEqual(listItems[1].classList.contains('checked'), true, 'Second default option should be checked (re-sorted from third)');
+			assert.strictEqual(listItems[2].classList.contains('checked'), false, 'Non-default option should not be checked');
+		});
+
+		test('singleSelect keeps value mapping after default-first reordering', () => {
+			const carousel = createMockCarousel([
+				{
+					id: 'q1',
+					type: 'singleSelect',
+					title: 'Choose one',
+					options: [
+						{ id: 'a', label: 'Option A', value: 'value_a' },
+						{ id: 'b', label: 'Option B', value: 'value_b' }
+					],
+					defaultValue: 'b'
+				}
+			]);
+			createWidget(carousel);
+
+			const listItems = widget.domNode.querySelectorAll('.chat-question-list-item') as NodeListOf<HTMLElement>;
+			assert.strictEqual(listItems.length, 2, 'Expected two options');
+			listItems[1].click(); // Option A after default-first ordering
+
+			const answer = submittedAnswers?.get('q1') as { selectedValue: unknown; freeformValue: unknown };
+			assert.strictEqual(answer.selectedValue, 'value_a');
+			assert.strictEqual(answer.freeformValue, undefined);
+		});
+
+		test('multiSelect keeps value mapping after default-first reordering', () => {
+			const carousel = createMockCarousel([
+				{
+					id: 'q1',
+					type: 'multiSelect',
+					title: 'Choose multiple',
+					options: [
+						{ id: 'a', label: 'Option A', value: 'value_a' },
+						{ id: 'b', label: 'Option B', value: 'value_b' },
+						{ id: 'c', label: 'Option C', value: 'value_c' }
+					],
+					defaultValue: 'c'
+				}
+			]);
+			createWidget(carousel);
+
+			const listItems = widget.domNode.querySelectorAll('.chat-question-list-item') as NodeListOf<HTMLElement>;
+			assert.strictEqual(listItems.length, 3, 'Expected three options');
+			listItems[1].click(); // Option A after default-first ordering
+
+			const submitButton = widget.domNode.querySelector('.chat-question-submit-button') as HTMLButtonElement;
+			assert.ok(submitButton, 'Submit button should exist');
+			submitButton.click();
+
+			const answer = submittedAnswers?.get('q1') as { selectedValues: unknown[]; freeformValue: unknown };
+			assert.ok(Array.isArray(answer.selectedValues));
+			assert.ok(answer.selectedValues.includes('value_a'));
+			assert.ok(answer.selectedValues.includes('value_c'));
+			assert.strictEqual(answer.selectedValues.length, 2);
+			assert.strictEqual(answer.freeformValue, undefined);
 		});
 	});
 

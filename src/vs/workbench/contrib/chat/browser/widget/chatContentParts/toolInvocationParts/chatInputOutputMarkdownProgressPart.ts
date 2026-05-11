@@ -22,7 +22,7 @@ import { IChatCodeBlockInfo } from '../../../chat.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { ChatCollapsibleInputOutputContentPart, ChatCollapsibleIOPart, IChatCollapsibleIOCodePart } from '../chatToolInputOutputContentPart.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
-import { getToolApprovalMessage } from './chatToolPartUtilities.js';
+import { getToolApprovalMessage, shouldShimmerForTool } from './chatToolPartUtilities.js';
 
 export class ChatInputOutputMarkdownProgressPart extends BaseChatToolInvocationSubPart {
 	/** Remembers expanded tool parts on re-render */
@@ -116,6 +116,7 @@ export class ChatInputOutputMarkdownProgressPart extends BaseChatToolInvocationS
 			// otherwise use the stored expanded state (defaulting to false)
 			(isError && configurationService.getValue<boolean>(ChatConfiguration.AutoExpandToolFailures)) ||
 			(ChatInputOutputMarkdownProgressPart._expandedByDefault.get(toolInvocation) ?? false),
+			shouldShimmerForTool(toolInvocation),
 		));
 		this._register(toDisposable(() => ChatInputOutputMarkdownProgressPart._expandedByDefault.set(toolInvocation, collapsibleListPart.expanded)));
 

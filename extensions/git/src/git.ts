@@ -2245,11 +2245,15 @@ export class Repository {
 		await this.exec(args);
 	}
 
-	async addWorktree(options: { path: string; commitish: string; branch?: string }): Promise<void> {
+	async addWorktree(options: { path: string; commitish: string; branch?: string; noTrack?: boolean }): Promise<void> {
 		const args = ['worktree', 'add'];
 
 		if (options.branch) {
 			args.push('-b', options.branch);
+		}
+
+		if (options.noTrack) {
+			args.push('--no-track');
 		}
 
 		args.push(options.path, options.commitish);
@@ -2342,6 +2346,26 @@ export class Repository {
 			}
 
 			throw err;
+		}
+	}
+
+	async restore(paths: string[], options?: { staged?: boolean; ref?: string }): Promise<void> {
+		const args = ['restore'];
+
+		if (options?.staged) {
+			args.push('--staged');
+		}
+
+		if (options?.ref) {
+			args.push('--source', options.ref);
+		}
+
+		if (paths.length > 0) {
+			for (const chunk of splitInChunks(paths.map(p => this.sanitizeRelativePath(p)), MAX_CLI_LENGTH)) {
+				await this.exec([...args, '--', ...chunk]);
+			}
+		} else {
+			await this.exec([...args, '--', '.']);
 		}
 	}
 

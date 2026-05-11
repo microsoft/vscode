@@ -40,6 +40,7 @@
 .agentSessionsWelcome-header h1.product-name {
 	font-size: 32px;
 	font-weight: 400;
+	line-height: 1;
 	margin: 0 0 12px 0;
 	color: var(--vscode-foreground);
 }
@@ -209,25 +210,49 @@
 	display: none !important;
 }
 
-.agentSessionsWelcome-openSessionsButton {
+.agentSessionsWelcome-agentsBanner {
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	gap: 6px;
+	gap: 8px;
 	width: 100%;
-	padding: 8px 16px;
 	margin-top: 12px;
+	font-size: 13px;
+}
+
+.agentSessionsWelcome-agentsBanner .agents-banner-button {
+	display: flex;
+	align-items: center;
+	padding: 6px 10px;
 	border: none;
-	border-radius: 4px;
+	border-radius: 6px;
 	background-color: var(--vscode-toolbar-hoverBackground);
 	color: var(--vscode-foreground);
 	font-size: 13px;
 	cursor: pointer;
+	font-family: inherit;
+	border-radius: 50px;
+	width: 100%;
+	justify-content: center;
 }
 
-.agentSessionsWelcome-openSessionsButton:hover {
+.agentSessionsWelcome-agentsBanner .codicon {
+	color: var(--vscode-textLink-foreground) !important;
+}
+
+.agentSessionsWelcome-agentsBanner .agents-banner-button:hover {
 	background-color: var(--vscode-toolbar-activeBackground);
-	color: var(--vscode-textLink-foreground);
+}
+
+.agentSessionsWelcome-agentsBanner .icon-widget {
+	font-size: 20px;
+	padding-right: 8px;
+}
+
+.agentSessionsWelcome-agentsBanner .category-title {
+	font-size: 13px;
+	font-weight: normal;
+	margin: 0;
 }
 
 /* Walkthroughs section */

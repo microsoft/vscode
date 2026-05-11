@@ -10,6 +10,7 @@ import { IContextKeyService } from '../../../platform/contextkey/common/contextk
 import { IContextMenuService } from '../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { INativeHostService } from '../../../platform/native/common/native.js';
+import { IProductService } from '../../../platform/product/common/productService.js';
 import { IStorageService } from '../../../platform/storage/common/storage.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { useWindowControlsOverlay } from '../../../platform/window/common/window.js';
@@ -20,6 +21,8 @@ import { IAuxiliaryTitlebarPart } from '../../../workbench/browser/parts/titleba
 import { IEditorGroupsContainer } from '../../../workbench/services/editor/common/editorGroupsService.js';
 import { CodeWindow, mainWindow } from '../../../base/browser/window.js';
 import { TitlebarPart, TitleService } from '../../browser/parts/titlebarPart.js';
+import { isMacintosh } from '../../../base/common/platform.js';
+import { localize } from '../../../nls.js';
 
 export class NativeTitlebarPart extends TitlebarPart {
 
@@ -37,11 +40,31 @@ export class NativeTitlebarPart extends TitlebarPart {
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IHostService hostService: IHostService,
+		@IProductService private readonly productService: IProductService,
 		@INativeHostService private readonly nativeHostService: INativeHostService,
 	) {
 		super(id, targetWindow, contextMenuService, configurationService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService);
 
 		this.handleWindowsAlwaysOnTop(targetWindow.vscodeWindowId, contextKeyService);
+	}
+
+	protected override createContentArea(parent: HTMLElement): HTMLElement {
+
+		// Workaround for macOS/Electron bug where the window does not
+		// appear in the "Windows" menu if the first `document.title`
+		// matches the BrowserWindow's initial title.
+		// See: https://github.com/microsoft/vscode/issues/191288
+		const window = getWindow(this.element);
+		const agentsTitle = localize('agentsWindowTitle', "Agents");
+		if (isMacintosh) {
+			const initialTitle = this.productService.nameLong;
+			if (!window.document.title || window.document.title === initialTitle) {
+				window.document.title = `${agentsTitle} \u200b`;
+			}
+		}
+		window.document.title = agentsTitle;
+
+		return super.createContentArea(parent);
 	}
 
 	private async handleWindowsAlwaysOnTop(targetWindowId: number, contextKeyService: IContextKeyService): Promise<void> {
@@ -107,9 +130,10 @@ class MainNativeTitlebarPart extends NativeTitlebarPart {
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IHostService hostService: IHostService,
+		@IProductService productService: IProductService,
 		@INativeHostService nativeHostService: INativeHostService,
 	) {
-		super(Parts.TITLEBAR_PART, mainWindow, contextMenuService, configurationService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService, nativeHostService);
+		super(Parts.TITLEBAR_PART, mainWindow, contextMenuService, configurationService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService, productService, nativeHostService);
 	}
 }
 
@@ -130,10 +154,11 @@ class AuxiliaryNativeTitlebarPart extends NativeTitlebarPart implements IAuxilia
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IHostService hostService: IHostService,
+		@IProductService productService: IProductService,
 		@INativeHostService nativeHostService: INativeHostService,
 	) {
 		const id = AuxiliaryNativeTitlebarPart.COUNTER++;
-		super(`workbench.parts.auxiliaryTitle.${id}`, getWindow(container), contextMenuService, configurationService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService, nativeHostService);
+		super(`workbench.parts.auxiliaryTitle.${id}`, getWindow(container), contextMenuService, configurationService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService, productService, nativeHostService);
 	}
 
 	override get preventZoom(): boolean {

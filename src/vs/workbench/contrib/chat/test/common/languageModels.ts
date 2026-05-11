@@ -8,8 +8,9 @@ import { IStringDictionary } from '../../../../../base/common/collections.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../base/common/observable.js';
+import { IAction } from '../../../../../base/common/actions.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
-import { IChatMessage, IModelsControlManifest, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatProvider, ILanguageModelChatResponse, ILanguageModelChatSelector, ILanguageModelProviderDescriptor, ILanguageModelsGroup, ILanguageModelsService, IUserFriendlyLanguageModel } from '../../common/languageModels.js';
+import { IChatMessage, IModelsControlManifest, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatProvider, ILanguageModelChatRequestOptions, ILanguageModelChatResponse, ILanguageModelChatSelector, ILanguageModelProviderDescriptor, ILanguageModelsGroup, ILanguageModelsService, IUserFriendlyLanguageModel } from '../../common/languageModels.js';
 import { ILanguageModelsProviderGroup } from '../../common/languageModelsConfiguration.js';
 
 export class NullLanguageModelsService implements ILanguageModelsService {
@@ -25,10 +26,6 @@ export class NullLanguageModelsService implements ILanguageModelsService {
 	onDidChangeLanguageModels = Event.None;
 	onDidChangeLanguageModelVendors = Event.None;
 	onDidChangeModelsControlManifest = Event.None;
-
-	updateModelPickerPreference(modelIdentifier: string, showInModelPicker: boolean): void {
-		return;
-	}
 
 	getVendors(): ILanguageModelProviderDescriptor[] {
 		return [];
@@ -62,12 +59,15 @@ export class NullLanguageModelsService implements ILanguageModelsService {
 		return [];
 	}
 
+	hasResolvedVendor(vendor: string): boolean {
+		return false;
+	}
+
 	async selectLanguageModels(selector: ILanguageModelChatSelector): Promise<string[]> {
 		return [];
 	}
 
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	sendChatRequest(identifier: string, from: ExtensionIdentifier | undefined, messages: IChatMessage[], options: { [name: string]: any }, token: CancellationToken): Promise<ILanguageModelChatResponse> {
+	sendChatRequest(identifier: string, from: ExtensionIdentifier | undefined, messages: IChatMessage[], options: ILanguageModelChatRequestOptions, token: CancellationToken): Promise<ILanguageModelChatResponse> {
 		throw new Error('Method not implemented.');
 	}
 
@@ -75,8 +75,22 @@ export class NullLanguageModelsService implements ILanguageModelsService {
 		throw new Error('Method not implemented.');
 	}
 
+	getModelConfiguration(_modelId: string): IStringDictionary<unknown> | undefined {
+		return undefined;
+	}
+
+	async setModelConfiguration(_modelId: string, _values: IStringDictionary<unknown>): Promise<void> {
+	}
+
+	getModelConfigurationActions(_modelId: string): IAction[] {
+		return [];
+	}
+
 	async configureLanguageModelsProviderGroup(vendorId: string, name?: string): Promise<void> {
 
+	}
+
+	async configureModel(_modelId: string): Promise<void> {
 	}
 
 	async addLanguageModelsProviderGroup(name: string, vendorId: string, configuration: IStringDictionary<unknown> | undefined): Promise<void> {

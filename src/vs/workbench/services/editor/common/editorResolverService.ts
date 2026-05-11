@@ -35,15 +35,23 @@ export type EditorAssociation = {
 export type EditorAssociations = readonly EditorAssociation[];
 
 export const editorsAssociationsSettingId = 'workbench.editorAssociations';
+export const diffEditorsAssociationsSettingId = 'workbench.diffEditorAssociations';
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
 const editorAssociationsConfigurationNode: IConfigurationNode = {
 	...workbenchConfigurationNodeBase,
 	properties: {
-		'workbench.editorAssociations': {
+		[editorsAssociationsSettingId]: {
 			type: 'object',
 			markdownDescription: localize('editor.editorAssociations', "Configure [glob patterns](https://aka.ms/vscode-glob-patterns) to editors (for example `\"*.hex\": \"hexEditor.hexedit\"`). These have precedence over the default behavior."),
+			additionalProperties: {
+				type: 'string'
+			}
+		},
+		[diffEditorsAssociationsSettingId]: {
+			type: 'object',
+			markdownDescription: localize('editor.diffEditorAssociations', "Configure [glob patterns](https://aka.ms/vscode-glob-patterns) to editors for diff views (for example `\"*.md\": \"vscode.markdown.preview.editor\"`). These override `workbench.editorAssociations` for diffs."),
 			additionalProperties: {
 				type: 'string'
 			}
@@ -94,10 +102,12 @@ export type RegisteredEditorOptions = {
 };
 
 export type RegisteredEditorInfo = {
-	id: string;
-	label: string;
-	detail?: string;
-	priority: RegisteredEditorPriority;
+	readonly id: string;
+	readonly label: string;
+	readonly detail?: string;
+	readonly priority: RegisteredEditorPriority;
+	readonly diffEditorPriority?: RegisteredEditorPriority;
+	readonly mergeEditorPriority?: RegisteredEditorPriority;
 };
 
 type EditorInputFactoryResult = EditorInputWithOptions | Promise<EditorInputWithOptions>;

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 import { Application, Logger } from '../../../../automation';
 import { installAllHandlers, timeout } from '../../utils';
@@ -30,7 +31,7 @@ export function setup(logger: Logger) {
 			this.timeout(60_000);
 
 			const app = this.app as Application;
-			const pidFile = path.join(app.workspacePathOrFolder, 'vscode-ext-host-pid.txt');
+			const pidFile = path.join(os.tmpdir(), 'vscode-ext-host-pid.txt');
 
 			if (fs.existsSync(pidFile)) {
 				fs.unlinkSync(pidFile);
@@ -78,8 +79,8 @@ export function setup(logger: Logger) {
 			this.timeout(60_000);
 
 			const app = this.app as Application;
-			const pidFile = path.join(app.workspacePathOrFolder, 'vscode-ext-host-pid-graceful.txt');
-			const markerFile = path.join(app.workspacePathOrFolder, 'vscode-ext-host-deactivated.txt');
+			const pidFile = path.join(os.tmpdir(), 'vscode-ext-host-pid-graceful.txt');
+			const markerFile = path.join(os.tmpdir(), 'vscode-ext-host-deactivated.txt');
 
 			// Clean up any existing files
 			if (fs.existsSync(pidFile)) {
@@ -138,6 +139,80 @@ export function setup(logger: Logger) {
 			}
 
 			logger.log('Extension host was properly terminated after graceful deactivation');
+		});
+
+		it('kills blocked extension host on restart extension host (issue #296681)', async function () {
+			this.timeout(90_000);
+
+			const app = this.app as Application;
+			const pidFile = path.join(os.tmpdir(), 'vscode-ext-host-pid.txt');
+			const activationPidFile = path.join(os.tmpdir(), 'vscode-ext-host-pid-on-activate.txt');
+
+			if (fs.existsSync(pidFile)) {
+				fs.unlinkSync(pidFile);
+			}
+
+			await app.workbench.quickaccess.runCommand('smoketest.getExtensionHostPidAndBlock');
+
+			let retries = 0;
+			while (!fs.existsSync(pidFile) && retries < 20) {
+				await timeout(500);
+				retries++;
+			}
+
+			if (!fs.existsSync(pidFile)) {
+				throw new Error('PID file was not created - extension may not have activated');
+			}
+
+			const oldPid = parseInt(fs.readFileSync(pidFile, 'utf-8'), 10);
+			logger.log(`Old extension host PID: ${oldPid}`);
+
+			if (fs.existsSync(activationPidFile)) {
+				fs.unlinkSync(activationPidFile);
+			}
+
+			await app.workbench.quickaccess.runCommand('Developer: Restart Extension Host', { keepOpen: true });
+
+			const maxWaitMs = 10_000;
+			const pollIntervalMs = 500;
+			let waitedMs = 0;
+
+			let newPid: number | undefined;
+			while (waitedMs < maxWaitMs) {
+				if (fs.existsSync(activationPidFile)) {
+					const pidText = fs.readFileSync(activationPidFile, 'utf-8').trim();
+					const parsedPid = parseInt(pidText, 10);
+					if (!Number.isNaN(parsedPid) && parsedPid !== oldPid) {
+						newPid = parsedPid;
+						break;
+					}
+				}
+
+				await timeout(pollIntervalMs);
+				waitedMs += pollIntervalMs;
+			}
+
+			if (!newPid) {
+				throw new Error(`New extension host PID was not observed after restart (waited ${maxWaitMs}ms)`);
+			}
+
+			if (newPid === oldPid) {
+				throw new Error(`Extension host PID did not change after restart (pid: ${oldPid})`);
+			}
+
+			logger.log(`New extension host PID observed: ${newPid}`);
+
+			waitedMs = 0;
+			while (processExists(oldPid) && waitedMs < maxWaitMs) {
+				await timeout(pollIntervalMs);
+				waitedMs += pollIntervalMs;
+			}
+
+			if (processExists(oldPid)) {
+				throw new Error(`Old extension host ${oldPid} still running after restart (waited ${maxWaitMs}ms)`);
+			}
+
+			logger.log(`Extension host restarted successfully (old: ${oldPid}, new: ${newPid})`);
 		});
 	});
 }

@@ -1,9 +1,9 @@
 ---
 name: sessions
-description: Agent Sessions window architecture — covers the sessions-first app, layering, folder structure, chat widget, menus, contributions, entry points, and development guidelines. Use when implementing features or fixing issues in the Agent Sessions window.
+description: Agents window architecture — covers the agents-first app, layering, folder structure, chat widget, menus, contributions, entry points, and development guidelines. Use when implementing features or fixing issues in the Agents window.
 ---
 
-When working on the Agent Sessions window (`src/vs/sessions/`), always follow these guidelines:
+When working on the Agents window (`src/vs/sessions/`), always follow these guidelines:
 
 ## 1. Read the Specification Documents First
 
@@ -41,13 +41,13 @@ vs/sessions      ← Agent Sessions window (this layer)
 
 ### 2.3 How It Differs from VS Code
 
-| Aspect | VS Code Workbench | Agent Sessions Window |
+| Aspect | VS Code Workbench | Agents Window |
 |--------|-------------------|----------------------|
 | Layout | Configurable part positions | Fixed layout, no settings customization |
 | Chrome | Activity bar, status bar, banner | Simplified — none of these |
 | Primary UX | Editor-centric | Chat-first (Chat Bar is a primary part) |
 | Editors | In the grid layout | Modal overlay above the workbench |
-| Titlebar | Menubar, editor actions, layout controls | Session picker, run script, toggle sidebar/panel |
+| Titlebar | Menubar, editor actions, layout controls | Agent picker, run script, toggle sidebar/panel |
 | Navigation | Activity bar with viewlets | Sidebar (views) + sidebar footer (account) |
 | Entry point | `vs/workbench` workbench class | `vs/sessions/browser/workbench.ts` `Workbench` class |
 
@@ -154,7 +154,7 @@ The main editor part is hidden (`display:none`). All editors open via `MODAL_GRO
 
 ## 5. Chat Widget
 
-The Agent Sessions chat experience is built around `AgentSessionsChatWidget` — a wrapper around the core `ChatWidget` that adds:
+The Agents chat experience is built around `AgentSessionsChatWidget` — a wrapper around the core `ChatWidget` that adds:
 
 - **Deferred session creation** — the UI is interactive before any session resource exists; sessions are created on first message send
 - **Target configuration** — observable state tracking which agent provider (Local, Cloud) is selected
@@ -172,17 +172,17 @@ Read `browser/widget/AGENTS_CHAT_WIDGET.md` for the full architecture.
 
 ## 6. Menus
 
-The agent sessions window uses **its own menu IDs** defined in `browser/menus.ts` via the `Menus` export. **Never use shared `MenuId.*` constants** from `vs/platform/actions` for agent sessions UI — use the `Menus.*` equivalents instead.
+The agents window uses **its own menu IDs** defined in `browser/menus.ts` via the `Menus` export. **Never use shared `MenuId.*` constants** from `vs/platform/actions` for agents window UI — use the `Menus.*` equivalents instead.
 
 | Menu ID | Purpose |
 |---------|---------|
 | `Menus.ChatBarTitle` | Chat bar title actions |
-| `Menus.CommandCenter` | Center toolbar with session picker widget |
+| `Menus.CommandCenter` | Center toolbar with agent picker widget |
 | `Menus.CommandCenterCenter` | Center section of command center |
 | `Menus.TitleBarContext` | Titlebar context menu |
 | `Menus.TitleBarLeftLayout` | Left layout toolbar |
-| `Menus.TitleBarSessionTitle` | Session title in titlebar |
-| `Menus.TitleBarSessionMenu` | Session menu in titlebar |
+| `Menus.TitleBarSessionTitle` | Agent title in titlebar |
+| `Menus.TitleBarSessionMenu` | Agent menu in titlebar |
 | `Menus.TitleBarRightLayout` | Right layout toolbar |
 | `Menus.PanelTitle` | Panel title bar actions |
 | `Menus.SidebarTitle` | Sidebar title bar actions |
@@ -201,7 +201,7 @@ Defined in `common/contextkeys.ts`:
 | `activeChatBar` | `string` | ID of the active chat bar panel |
 | `chatBarFocus` | `boolean` | Whether chat bar has keyboard focus |
 | `chatBarVisible` | `boolean` | Whether chat bar is visible |
-| `sessionsWelcomeVisible` | `boolean` | Whether the sessions welcome overlay is visible |
+| `sessionsWelcomeVisible` | `boolean` | Whether the agents welcome overlay is visible |
 ## 8. Contributions
 
 Feature contributions live under `contrib/<featureName>/browser/` and are registered via imports in `sessions.desktop.main.ts` (desktop) or `sessions.common.main.ts` (browser-compatible).
@@ -210,8 +210,8 @@ Feature contributions live under `contrib/<featureName>/browser/` and are regist
 
 | Contribution | Location | Purpose |
 |-------------|----------|---------|
-| **Sessions View** | `contrib/sessions/browser/` | Sessions list in sidebar, session picker, active session service |
-| **Title Bar Widget** | `contrib/sessions/browser/sessionsTitleBarWidget.ts` | Session picker in titlebar center |
+| **Sessions View** | `contrib/sessions/browser/` | Agents list in sidebar, agent picker, active session service |
+| **Title Bar Widget** | `contrib/sessions/browser/sessionsTitleBarWidget.ts` | Agent picker in titlebar center |
 | **Account Widget** | `contrib/accountMenu/browser/` | Account button in sidebar footer |
 | **Chat Actions** | `contrib/chat/browser/` | Chat actions (run script, branch, prompts, customizations debug log) |
 | **Changes View** | `contrib/changesView/browser/` | File changes in auxiliary bar |
@@ -229,7 +229,7 @@ Feature contributions live under `contrib/<featureName>/browser/` and are regist
 
 ### 8.2 Service Overrides
 
-The agent sessions window registers its own implementations for:
+The agents window registers its own implementations for:
 
 - `IPaneCompositePartService` → `AgenticPaneCompositePartService` (creates agent-specific parts)
 - `IPromptsService` → `AgenticPromptsService` (scopes prompt discovery to active session worktree)
@@ -241,7 +241,7 @@ Service overrides also live under `services/`:
 
 ### 8.3 `WindowVisibility.Sessions`
 
-Views and contributions that should only appear in the agent sessions window (not in regular VS Code) use `WindowVisibility.Sessions` in their registration.
+Views and contributions that should only appear in the agents window (not in regular VS Code) use `WindowVisibility.Sessions` in their registration.
 
 ## 9. Entry Points
 

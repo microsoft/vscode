@@ -59,7 +59,8 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 					environmentService.devDeviceId,
 					isInternal,
 					process,
-					environmentService.remoteAuthority
+					environmentService.remoteAuthority,
+					environmentService.isSessionsWindow ? productService.agentsTelemetryAppName : undefined
 				),
 				piiPaths: getPiiPathsFromEnvironment(environmentService),
 				sendErrorTelemetry: true,
@@ -74,7 +75,7 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 		this.sendErrorTelemetry = this.impl.sendErrorTelemetry;
 
 		this._register(requestService.onDidCompleteRequest(e => {
-			if (e.callSite === NO_FETCH_TELEMETRY) {
+			if (e.callSite === NO_FETCH_TELEMETRY || productService.quality === 'stable') {
 				return;
 			}
 			type FetchCallClassification = {
@@ -99,6 +100,10 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 
 	setExperimentProperty(name: string, value: string): void {
 		return this.impl.setExperimentProperty(name, value);
+	}
+
+	setCommonProperty(name: string, value: string): void {
+		this.impl.setCommonProperty(name, value);
 	}
 
 	get telemetryLevel(): TelemetryLevel {
