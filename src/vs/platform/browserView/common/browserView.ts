@@ -6,6 +6,7 @@
 import { Event } from '../../../base/common/event.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { localize } from '../../../nls.js';
+import { ITunnelProxyInfo } from '../../tunnel/common/sharedProcessTunnelProxyService.js';
 
 const commandPrefix = 'workbench.action.browser';
 export enum BrowserViewCommandId {
@@ -124,7 +125,7 @@ export interface IBrowserViewCreatedEvent {
 
 export interface IBrowserViewCreateOptions {
 	readonly owner: IBrowserViewOwner;
-	readonly scope: BrowserViewStorageScope;
+	readonly sessionOptions: IBrowserSessionOptions;
 	readonly initialState?: Partial<IBrowserViewState>;
 }
 
@@ -144,6 +145,7 @@ export interface IBrowserViewState {
 	storageScope: BrowserViewStorageScope;
 	browserZoomIndex: number;
 	isElementSelectionActive: boolean;
+	isRemoteSession: boolean;
 }
 
 export interface IBrowserViewNavigationEvent {
@@ -226,6 +228,13 @@ export enum BrowserViewStorageScope {
 	Global = 'global',
 	Workspace = 'workspace',
 	Ephemeral = 'ephemeral'
+}
+
+export interface IBrowserSessionOptions {
+	/** Storage / data-isolation scope for the session. */
+	scope: BrowserViewStorageScope;
+	/** Tunnel proxy info (URL, credentials, certificate fingerprint). */
+	proxy?: ITunnelProxyInfo;
 }
 
 export const ipcBrowserViewChannelName = 'browserView';

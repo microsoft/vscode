@@ -94,6 +94,14 @@ export abstract class BrowserEditorContribution extends Disposable {
 	get urlBarWidgets(): readonly IBrowserEditorWidgetContribution[] { return []; }
 
 	/**
+	 * Optional widgets to display before the URL input (between the
+	 * navigation toolbar and the URL container).  These are rendered
+	 * inside the URL container on the left, before the site-info slot.
+	 * Contributions can override this getter to provide widgets.
+	 */
+	get preUrlWidgets(): readonly IBrowserEditorWidgetContribution[] { return []; }
+
+	/**
 	 * Optional toolbar-like elements to insert into the editor root between the navbar and the
 	 * browser container.  Contributions can override this getter to provide elements.
 	 */
@@ -118,6 +126,7 @@ class BrowserNavigationBar extends Disposable {
 	private readonly _urlInput: HTMLInputElement;
 	private readonly _urlDisplay: HTMLElement;
 	private readonly _siteInfoWidget: SiteInfoWidget;
+	private readonly _preUrlWidgetsContainer: HTMLElement;
 	private readonly _urlBarWidgetsContainer: HTMLElement;
 
 	constructor(
@@ -182,6 +191,9 @@ class BrowserNavigationBar extends Disposable {
 
 		this._urlBarWidgetsContainer = $('.browser-url-bar-widgets');
 
+		this._preUrlWidgetsContainer = $('.browser-pre-url-widgets');
+
+		urlContainer.appendChild(this._preUrlWidgetsContainer);
 		urlContainer.appendChild(siteInfoContainer);
 		urlContainer.appendChild(urlInputWrapper);
 		urlContainer.appendChild(this._urlBarWidgetsContainer);
@@ -264,6 +276,16 @@ class BrowserNavigationBar extends Disposable {
 		this._urlInput.style.display = '';
 		this._urlInput.select();
 		this._urlInput.focus();
+	}
+
+	/**
+	 * Add widget elements before the URL input, sorted by order.
+	 */
+	addPreUrlWidgets(widgets: readonly IBrowserEditorWidgetContribution[]): void {
+		const sorted = widgets.slice().sort((a, b) => a.order - b.order);
+		for (const widget of sorted) {
+			this._preUrlWidgetsContainer.appendChild(widget.element);
+		}
 	}
 
 	/**
@@ -420,9 +442,12 @@ export class BrowserEditor extends EditorPane {
 
 		// Inject URL bar widgets from contributions
 		const allWidgets: IBrowserEditorWidgetContribution[] = [];
+		const allPreUrlWidgets: IBrowserEditorWidgetContribution[] = [];
 		for (const contribution of this._contributionInstances.values()) {
 			allWidgets.push(...contribution.urlBarWidgets);
+			allPreUrlWidgets.push(...contribution.preUrlWidgets);
 		}
+		this._navigationBar.addPreUrlWidgets(allPreUrlWidgets);
 		this._navigationBar.addUrlBarWidgets(allWidgets);
 
 		root.appendChild(navbar);
