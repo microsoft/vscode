@@ -350,6 +350,8 @@
 	"github.copilot.config.gpt54LargePrompt.enabled": "Enables the large prompt experiment for gpt-5.4 model.",
 	"github.copilot.config.gpt55GetChangedFilesTool.enabled": "Enables the Get Changed Files tool for gpt-5.5 models.",
 	"github.copilot.config.gpt55ReadFileTool.enabled": "Enables the Read File tool for gpt-5.5 models.",
+	"github.copilot.config.gpt55EconomicalSearchAndEdit.enabled": "Enables economical search and edit instructions for gpt-5.5 models.",
+	"github.copilot.config.gpt55LargePromptSections.enabled": "Enables additional gpt-5.4 large prompt sections for gpt-5.5 models.",
 	"github.copilot.config.anthropic.tools.websearch.enabled": "Enable Anthropic's native web search tool for BYOK Claude models. When enabled, allows Claude to search the web for current information. \n\n**Note**: This is an experimental feature only available for BYOK Anthropic Claude models.",
 	"github.copilot.config.anthropic.tools.websearch.maxUses": "Maximum number of web searches allowed per request. Valid range is 1 to 20. Prevents excessive API calls within a single interaction. If Claude exceeds this limit, the response returns an error.",
 	"github.copilot.config.anthropic.tools.websearch.allowedDomains": "List of domains to restrict web search results to (e.g., `[\"example.com\", \"docs.example.com\"]`). Domains should not include the HTTP/HTTPS scheme. Subdomains are automatically included. Cannot be used together with `#github.copilot.chat.anthropic.tools.websearch.blockedDomains#`; configuring both will cause web search requests to fail.",
