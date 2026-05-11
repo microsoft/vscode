@@ -4,6 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
-import { LayoutController } from './layoutController.js';
+import { LayoutController } from './sessionLayoutController.js';
 
-registerWorkbenchContribution2(LayoutController.ID, LayoutController, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(LayoutController.ID, LayoutController, WorkbenchPhase.AfterRestored);
