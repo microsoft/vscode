@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../base/common/event.js';
+import { CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
@@ -256,11 +257,13 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 		this._logService.info(`[SSHRemoteAgentHost] Keyboard-interactive prompt for ${request.displayHost} (${request.prompts.length} prompt(s))`);
 
 		// Honor cancellation if the underlying connect attempt fails or
-		// completes while we're still gathering responses.
-		let cancelled = false;
+		// completes while we're still gathering responses. Pass the
+		// CancellationToken into quickInput so an in-flight prompt is
+		// dismissed immediately rather than lingering on screen.
+		const cts = new CancellationTokenSource();
 		const cancelListener = this._mainService.onDidCancelKeyboardInteractive(requestId => {
 			if (requestId === request.requestId) {
-				cancelled = true;
+				cts.cancel();
 			}
 		});
 
@@ -272,7 +275,7 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 
 			const responses: string[] = [];
 			for (let i = 0; i < request.prompts.length; i++) {
-				if (cancelled) {
+				if (cts.token.isCancellationRequested) {
 					return;
 				}
 				const prompt = request.prompts[i];
@@ -287,8 +290,8 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 					prompt: cleanedPrompt || localize('sshKbiDefaultPrompt', "Authentication required for {0}@{1}", request.username, request.displayHost),
 					password: !prompt.echo,
 					ignoreFocusLost: true,
-				});
-				if (cancelled) {
+				}, cts.token);
+				if (cts.token.isCancellationRequested) {
 					return;
 				}
 				if (value === undefined) {
@@ -299,7 +302,7 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 				responses.push(value);
 			}
 
-			if (cancelled) {
+			if (cts.token.isCancellationRequested) {
 				return;
 			}
 			await this._mainService.respondKeyboardInteractive(request.requestId, responses);
@@ -312,6 +315,7 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 			} catch { /* swallow */ }
 		} finally {
 			cancelListener.dispose();
+			cts.dispose();
 		}
 	}
 }

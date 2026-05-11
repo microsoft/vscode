@@ -905,9 +905,15 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 
 		const cancelLiveKbiRequests = () => {
 			for (const requestId of liveKbiRequests) {
-				if (this._pendingKbiRequests.delete(requestId)) {
-					this._onDidCancelKeyboardInteractive.fire(requestId);
-				}
+				// Pull the pending finish callback (if any) and invoke it with
+				// empty responses so ssh2 stops waiting on this attempt — without
+				// this, ssh2 hangs until `readyTimeout` elapses when a connect
+				// attempt is aborted mid-prompt. The renderer also gets notified
+				// so it can dismiss any open quick-input UI.
+				const finish = this._pendingKbiRequests.get(requestId);
+				this._pendingKbiRequests.delete(requestId);
+				this._onDidCancelKeyboardInteractive.fire(requestId);
+				finish?.([]);
 			}
 			liveKbiRequests.clear();
 		};
