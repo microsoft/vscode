@@ -129,8 +129,6 @@ export const MODEL_METADATA: Record<ModelId, ModelInfo> = {
 	'gemini-2-0-pro': { contextWindow: 2000000, maxOutputTokens: 8192, capabilities: ['text', 'vision', 'tools', 'audio'], inputCostPer1M: 0.5, outputCostPer1M: 2, blurb: 'Gemini 2.0 Pro.' },
 	'gemini-2-0-flash': { contextWindow: 1000000, maxOutputTokens: 8192, capabilities: ['text', 'vision', 'tools', 'audio'], inputCostPer1M: 0.1, outputCostPer1M: 0.4, blurb: 'Gemini 2.0 Flash — cheap multimodal.' },
 	'gemini-2-0-flash-lite': { contextWindow: 1000000, maxOutputTokens: 8192, capabilities: ['text', 'vision'], inputCostPer1M: 0.075, outputCostPer1M: 0.3, blurb: 'Gemini 2.0 Flash Lite — even cheaper.' },
-	'gemini-1-5-pro': { contextWindow: 2000000, maxOutputTokens: 8192, capabilities: ['text', 'vision', 'tools', 'audio'], inputCostPer1M: 1.25, outputCostPer1M: 5, blurb: 'Gemini 1.5 Pro — long context legacy.' },
-	'gemini-1-5-flash': { contextWindow: 1000000, maxOutputTokens: 8192, capabilities: ['text', 'vision', 'tools', 'audio'], inputCostPer1M: 0.075, outputCostPer1M: 0.3, blurb: 'Gemini 1.5 Flash — long context, cheap.' },
 
 	// --- OpenRouter (single API key, hundreds of models) ----------
 	// Context windows / max output mirror the upstream provider; OpenRouter

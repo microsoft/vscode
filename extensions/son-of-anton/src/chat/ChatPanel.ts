@@ -1931,7 +1931,7 @@ export class ChatSession {
 			openai: 'gpt-4o-mini',
 			foundry: 'foundry-gpt-4o-mini',
 			bedrock: 'bedrock-claude-haiku',
-			google: 'gemini-1-5-flash',
+			google: 'gemini-2-5-flash',
 			openrouter: 'openrouter-claude-sonnet-4-7',
 			ollama: 'ollama-llama-3-1',
 			lmstudio: 'lmstudio-loaded',
@@ -4894,8 +4894,6 @@ export class ChatSession {
 			<button class="popover-item" role="menuitem" data-model="gemini-2-0-pro"><span class="item-check"></span>Gemini 2.0 Pro<span class="item-key">google</span></button>
 			<button class="popover-item" role="menuitem" data-model="gemini-2-0-flash"><span class="item-check"></span>Gemini 2.0 Flash<span class="item-key">google</span></button>
 			<button class="popover-item" role="menuitem" data-model="gemini-2-0-flash-lite"><span class="item-check"></span>Gemini 2.0 Flash Lite<span class="item-key">google</span></button>
-			<button class="popover-item" role="menuitem" data-model="gemini-1-5-pro"><span class="item-check"></span>Gemini 1.5 Pro<span class="item-key">google</span></button>
-			<button class="popover-item" role="menuitem" data-model="gemini-1-5-flash"><span class="item-check"></span>Gemini 1.5 Flash<span class="item-key">google</span></button>
 			<div class="popover-section-label">OpenRouter</div>
 			<button class="popover-item" role="menuitem" data-model="openrouter-claude-opus-4-7"><span class="item-check"></span>Claude Opus 4.7 (OpenRouter)<span class="item-key">router</span></button>
 			<button class="popover-item" role="menuitem" data-model="openrouter-claude-sonnet-4-7"><span class="item-check"></span>Claude Sonnet 4.7 (OpenRouter)<span class="item-key">router</span></button>

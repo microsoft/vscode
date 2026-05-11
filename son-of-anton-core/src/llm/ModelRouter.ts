@@ -173,8 +173,6 @@ const MODEL_COSTS: Record<ModelId, { input: number; output: number; cachedInput:
 	'gemini-2-0-pro': { input: 0.5, output: 2.0, cachedInput: 0.125 },
 	'gemini-2-0-flash': { input: 0.1, output: 0.4, cachedInput: 0.025 },
 	'gemini-2-0-flash-lite': { input: 0.075, output: 0.3, cachedInput: 0.01875 },
-	'gemini-1-5-pro': { input: 1.25, output: 5.0, cachedInput: 0.3125 },
-	'gemini-1-5-flash': { input: 0.075, output: 0.3, cachedInput: 0.01875 },
 	// Claude Code variants route through the user's subscription, not metered
 	// API. Cost per token is $0 — the subscription is the bill.
 	'claude-code-opus': { input: 0, output: 0, cachedInput: 0 },

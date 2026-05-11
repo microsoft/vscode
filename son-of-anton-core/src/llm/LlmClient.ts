@@ -131,8 +131,6 @@ export type ModelId =
 	| 'gemini-2-0-pro'
 	| 'gemini-2-0-flash'
 	| 'gemini-2-0-flash-lite'
-	| 'gemini-1-5-pro'
-	| 'gemini-1-5-flash'
 	| 'gemini-deep-research-preview'
 	| 'gemini-deep-research-max-preview'
 	| 'gemma-4-31b-it'
@@ -299,8 +297,6 @@ const MULTIMODAL_MODELS: ReadonlySet<ModelId> = new Set<ModelId>([
 	// Google Gemini — every shipping Gemini model accepts inline images.
 	'gemini-2-5-pro', 'gemini-2-5-flash',
 	'gemini-2-0-pro', 'gemini-2-0-flash', 'gemini-2-0-flash-lite',
-	'gemini-1-5-pro',
-	'gemini-1-5-flash',
 	// OpenRouter — pre-configured ids that point at upstream vision-capable
 	// models. The `openrouter-custom` catch-all is conservatively text-only;
 	// users routing a vision model through it can still receive text
@@ -772,8 +768,6 @@ function providerForModel(model: ModelId): Provider {
 		case 'gemini-2-0-pro':
 		case 'gemini-2-0-flash':
 		case 'gemini-2-0-flash-lite':
-		case 'gemini-1-5-pro':
-		case 'gemini-1-5-flash':
 		case 'gemini-deep-research-preview':
 		case 'gemini-deep-research-max-preview':
 		case 'gemma-4-31b-it':
@@ -1120,8 +1114,6 @@ export class LlmClient {
 			'gemini-2-0-pro': 'gemini-2.0-pro',
 			'gemini-2-0-flash': 'gemini-2.0-flash',
 			'gemini-2-0-flash-lite': 'gemini-2.0-flash-lite',
-			'gemini-1-5-pro': 'gemini-1.5-pro',
-			'gemini-1-5-flash': 'gemini-1.5-flash',
 			'gemini-deep-research-preview': 'deep-research-preview-04-2026',
 			'gemini-deep-research-max-preview': 'deep-research-max-preview-04-2026',
 			'gemma-4-31b-it': 'gemma-4-31b-it',
@@ -1456,8 +1448,6 @@ export class LlmClient {
 			case 'gemini-2-0-pro': return 'gemini-2-0-pro';
 			case 'gemini-2-0-flash': return 'gemini-2-0-flash';
 			case 'gemini-2-0-flash-lite': return 'gemini-2-0-flash-lite';
-			case 'gemini-1-5-pro': return 'gemini-1-5-pro';
-			case 'gemini-1-5-flash': return 'gemini-1-5-flash';
 			case 'gemini-deep-research-preview': return 'gemini-deep-research-preview';
 			case 'gemini-deep-research-max-preview': return 'gemini-deep-research-max-preview';
 			case 'gemma-4-31b-it': return 'gemma-4-31b-it';
@@ -3808,8 +3798,6 @@ function estimateRatesForModel(model: ModelId): { input: number; output: number 
 		'gemini-2-0-pro': { input: 0.5, output: 2.0 },
 		'gemini-2-0-flash': { input: 0.1, output: 0.4 },
 		'gemini-2-0-flash-lite': { input: 0.075, output: 0.3 },
-		'gemini-1-5-pro': { input: 1.25, output: 5.0 },
-		'gemini-1-5-flash': { input: 0.075, output: 0.3 },
 		'claude-code-opus': { input: 0, output: 0 },
 		'claude-code-sonnet': { input: 0, output: 0 },
 		'claude-code-haiku': { input: 0, output: 0 },
