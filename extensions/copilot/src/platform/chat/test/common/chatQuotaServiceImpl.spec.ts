@@ -6,6 +6,7 @@
 import { describe, expect, test } from 'vitest';
 import { Emitter } from '../../../../util/vs/base/common/event';
 import { IAuthenticationService } from '../../../authentication/common/authentication';
+import { TestLogService } from '../../../testing/common/testLogService';
 import { ChatQuotaService } from '../../common/chatQuotaServiceImpl';
 
 function createMockAuthService(): IAuthenticationService {
@@ -45,7 +46,7 @@ type SnapshotData = { quota_id: string; entitlement: number; remaining: number; 
 
 describe('ChatQuotaService', () => {
 	function create() {
-		return new ChatQuotaService(createMockAuthService());
+		return new ChatQuotaService(createMockAuthService(), new TestLogService());
 	}
 
 	const TURN_A = 'turn-a';
@@ -455,7 +456,7 @@ describe('ChatQuotaService', () => {
 	describe('processUserInfoQuotaSnapshot via auth change', () => {
 		test('free user reads from chat snapshot', () => {
 			const { authService, emitter, setToken } = createMockAuthServiceWithEmitter({ isFreeUser: true });
-			const svc = new ChatQuotaService(authService);
+			const svc = new ChatQuotaService(authService, new TestLogService());
 
 			setToken(makeQuotaInfo({
 				chat: { percent_remaining: 30, overage_permitted: false, overage_count: 0, entitlement: 100 },
@@ -473,7 +474,7 @@ describe('ChatQuotaService', () => {
 
 		test('paid user reads from premium_interactions snapshot', () => {
 			const { authService, emitter, setToken } = createMockAuthServiceWithEmitter({ isFreeUser: false });
-			const svc = new ChatQuotaService(authService);
+			const svc = new ChatQuotaService(authService, new TestLogService());
 
 			setToken(makeQuotaInfo({
 				chat: { percent_remaining: 30, overage_permitted: false, overage_count: 0, entitlement: 100 },
@@ -491,7 +492,7 @@ describe('ChatQuotaService', () => {
 
 		test('fires onDidChange when quota is updated', () => {
 			const { authService, emitter, setToken } = createMockAuthServiceWithEmitter({ isFreeUser: true });
-			const svc = new ChatQuotaService(authService);
+			const svc = new ChatQuotaService(authService, new TestLogService());
 			let changeCount = 0;
 			svc.onDidChange(() => changeCount++);
 
@@ -503,7 +504,7 @@ describe('ChatQuotaService', () => {
 
 		test('no-ops when copilotToken has no quotaInfo', () => {
 			const { authService, emitter } = createMockAuthServiceWithEmitter({ isFreeUser: true });
-			const svc = new ChatQuotaService(authService);
+			const svc = new ChatQuotaService(authService, new TestLogService());
 
 			(authService as any).copilotToken = { isFreeUser: true, quotaInfo: undefined };
 			emitter.fire();

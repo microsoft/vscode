@@ -52,6 +52,16 @@ export const ClaudeCodeSessionType: ISessionType = {
 	icon: Codicon.claude,
 };
 
+/** Session type ID for local VS Code chat sessions (in-process, no worktree). */
+export const LOCAL_SESSION_TYPE = 'local';
+
+/** Local session type — in-process VS Code chat, no background agent or worktree. */
+export const LocalSessionType: ISessionType = {
+	id: LOCAL_SESSION_TYPE,
+	label: localize('localSession', "Local"),
+	icon: Codicon.vm,
+};
+
 /**
  * Returns whether the given session type represents a workspace-backed
  * agent (e.g. Copilot CLI, Claude Code) that operates on a worktree or
@@ -106,6 +116,8 @@ export interface ISessionRepository {
 	readonly outgoingChanges?: number;
 	/** Number of files with uncommitted changes. */
 	readonly uncommittedChanges?: number;
+	/** Whether a Git operation is currently in progress. */
+	readonly hasGitOperationInProgress?: boolean;
 }
 
 /**
@@ -211,7 +223,7 @@ export interface ISession {
 	readonly resource: URI;
 	/** ID of the provider that owns this session. */
 	readonly providerId: string;
-	/** Session type ID (e.g., 'copilot-cli', 'copilot-cloud'). */
+	/** Session type ID (e.g., 'copilot-cli', 'copilot-cloud', 'local'). */
 	readonly sessionType: string;
 	/** Icon for this session. */
 	readonly icon: ThemeIcon;
@@ -276,6 +288,18 @@ export interface ISession {
  */
 export function toSessionId(providerId: string, resource: URI): string {
 	return `${providerId}:${resource.toString()}`;
+}
+
+/**
+ * Returns the active repository branch name exposed by a session provider. The
+ * `detail` fallback preserves extension-host CLI sessions, which store their
+ * worktree branch there.
+ */
+export function getSessionBranchName(session: ISession | undefined): string | undefined {
+	const repository = session?.workspace.get()?.repositories[0];
+	const branchName = repository?.branchName ?? repository?.detail;
+	const trimmed = branchName?.trim();
+	return trimmed || undefined;
 }
 
 /**

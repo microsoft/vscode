@@ -24,7 +24,7 @@ import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from 
 import { Menus } from '../../../browser/menus.js';
 import { ActiveSessionHasGitRepositoryContext, ActiveSessionProviderIdContext, ActiveSessionTypeContext, ChatSessionProviderIdContext, IsNewChatSessionContext } from '../../../common/contextkeys.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { CLAUDE_CODE_SESSION_TYPE, COPILOT_CLI_SESSION_TYPE, COPILOT_CLOUD_SESSION_TYPE, ISession } from '../../../services/sessions/common/session.js';
+import { CLAUDE_CODE_SESSION_TYPE, COPILOT_CLI_SESSION_TYPE, COPILOT_CLOUD_SESSION_TYPE, LOCAL_SESSION_TYPE, ISession } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { SessionItemContextMenuId } from '../../sessions/browser/views/sessionsList.js';
 import { BranchPicker } from './branchPicker.js';
@@ -34,14 +34,17 @@ import { IsolationPicker } from './isolationPicker.js';
 import { ModePicker } from './modePicker.js';
 import { CloudModelPicker } from './modelPicker.js';
 import { CopilotPermissionPickerDelegate, PermissionPicker } from './permissionPicker.js';
+import { SessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 
 const IsActiveSessionCopilotCLI = ContextKeyExpr.equals(ActiveSessionTypeContext.key, COPILOT_CLI_SESSION_TYPE);
 const IsActiveSessionCopilotCloud = ContextKeyExpr.equals(ActiveSessionTypeContext.key, COPILOT_CLOUD_SESSION_TYPE);
+const IsActiveSessionLocal = ContextKeyExpr.equals(ActiveSessionTypeContext.key, LOCAL_SESSION_TYPE);
 const IsActiveCopilotChatSessionProvider = ContextKeyExpr.equals(ActiveSessionProviderIdContext.key, COPILOT_PROVIDER_ID);
 const IsActiveSessionCopilotChatCLI = ContextKeyExpr.and(IsActiveSessionCopilotCLI, IsActiveCopilotChatSessionProvider);
 const IsActiveSessionCopilotChatCloud = ContextKeyExpr.and(IsActiveSessionCopilotCloud, IsActiveCopilotChatSessionProvider);
 const IsActiveSessionClaudeCode = ContextKeyExpr.equals(ActiveSessionTypeContext.key, CLAUDE_CODE_SESSION_TYPE);
 const IsActiveSessionCopilotChatClaudeCode = ContextKeyExpr.and(IsActiveSessionClaudeCode, IsActiveCopilotChatSessionProvider);
+const IsActiveSessionCopilotChatLocal = ContextKeyExpr.and(IsActiveSessionLocal, IsActiveCopilotChatSessionProvider);
 
 // -- Actions --
 
@@ -94,7 +97,7 @@ registerAction2(class extends Action2 {
 				id: Menus.NewSessionConfig,
 				group: 'navigation',
 				order: 0,
-				when: IsActiveSessionCopilotChatCLI,
+				when: ContextKeyExpr.or(IsActiveSessionCopilotChatCLI, IsActiveSessionCopilotChatLocal),
 			}],
 		});
 	}
@@ -111,7 +114,7 @@ registerAction2(class extends Action2 {
 				id: Menus.NewSessionConfig,
 				group: 'navigation',
 				order: 1,
-				when: ContextKeyExpr.or(IsActiveSessionCopilotChatCLI, IsActiveSessionCopilotChatClaudeCode),
+				when: ContextKeyExpr.or(IsActiveSessionCopilotChatCLI, IsActiveSessionCopilotChatClaudeCode, IsActiveSessionCopilotChatLocal),
 			}],
 		});
 	}
@@ -145,7 +148,7 @@ registerAction2(class extends Action2 {
 				id: Menus.NewSessionControl,
 				group: 'navigation',
 				order: 1,
-				when: IsActiveSessionCopilotChatCLI,
+				when: ContextKeyExpr.or(IsActiveSessionCopilotChatCLI, IsActiveSessionCopilotChatLocal),
 			}],
 		});
 	}
@@ -397,12 +400,21 @@ export function getAvailableModels(
 	if (!session) {
 		return [];
 	}
-	return languageModelsService.getLanguageModelIds()
+	const allModels = languageModelsService.getLanguageModelIds()
 		.map(id => {
 			const metadata = languageModelsService.lookupLanguageModel(id);
 			return metadata ? { metadata, identifier: id } : undefined;
 		})
-		.filter((m): m is ILanguageModelChatMetadataAndIdentifier => !!m && m.metadata.targetChatSessionType === session.sessionType);
+		.filter((m): m is ILanguageModelChatMetadataAndIdentifier => !!m);
+
+	// For 'local' sessions (in-process VS Code chat), use general-purpose
+	// models (those without a targetChatSessionType) since no extension
+	// registers models specifically targeting the 'local' session type.
+	if (session.sessionType === SessionType.Local) {
+		return allModels.filter(m => !m.metadata.targetChatSessionType && m.metadata.isUserSelectable);
+	}
+
+	return allModels.filter(m => m.metadata.targetChatSessionType === session.sessionType);
 }
 
 // -- Context Key Contribution --

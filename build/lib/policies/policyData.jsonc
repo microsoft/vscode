@@ -347,6 +347,51 @@
             "included": true
         },
         {
+            "key": "chat.agent.sandbox.allowUnsandboxedCommands",
+            "name": "ChatAgentSandboxAllowUnsandboxedCommands",
+            "category": "IntegratedTerminal",
+            "minimumVersion": "1.116",
+            "localization": {
+                "description": {
+                    "key": "agentSandbox.allowUnsandboxedCommands",
+                    "value": "Controls whether agent mode terminal commands can run outside the sandbox after user confirmation when a sandboxed command fails or when sandbox restrictions would block the command. This applies only when `#chat.agent.sandbox.enabled#` is enabled."
+                }
+            },
+            "type": "boolean",
+            "default": true,
+            "included": true
+        },
+        {
+            "key": "chat.agent.sandbox.autoApproveUnsandboxedCommands",
+            "name": "ChatAgentSandboxAutoApproveUnsandboxedCommands",
+            "category": "IntegratedTerminal",
+            "minimumVersion": "1.116",
+            "localization": {
+                "description": {
+                    "key": "agentSandbox.autoApproveUnsandboxedCommands",
+                    "value": "Controls whether agent mode terminal commands that run outside the sandbox are auto-approved. This applies only when both `#chat.agent.sandbox.enabled#` and `#chat.agent.sandbox.allowUnsandboxedCommands#` are enabled."
+                }
+            },
+            "type": "boolean",
+            "default": false,
+            "included": true
+        },
+        {
+            "key": "chat.agent.sandbox.allowAutoApprove",
+            "name": "ChatAgentSandboxAllowAutoApprove",
+            "category": "IntegratedTerminal",
+            "minimumVersion": "1.116",
+            "localization": {
+                "description": {
+                    "key": "agentSandbox.allowAutoApprove",
+                    "value": "Controls whether agent mode terminal commands that run inside the sandbox are auto-approved. When disabled, the run in terminal tool uses the existing approval flow. This applies only when `#chat.agent.sandbox.enabled#` is enabled."
+                }
+            },
+            "type": "boolean",
+            "default": true,
+            "included": true
+        },
+        {
             "key": "update.mode",
             "name": "UpdateMode",
             "category": "Update",

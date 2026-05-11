@@ -28,7 +28,9 @@ import { IViewPaneOptions, ViewPane } from '../../../../workbench/browser/parts/
 import { WorkspacePicker, IWorkspaceSelection } from './sessionWorkspacePicker.js';
 import { WebWorkspacePicker } from './webWorkspacePicker.js';
 import { NewChatInputWidget } from './newChatInput.js';
+import { NoAgentHostEmptyState } from './noAgentHostEmptyState.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { IAgentHostFilterService } from '../../remoteAgentHost/common/agentHostFilter.js';
 
 // #region --- New Chat Widget ---
 
@@ -41,6 +43,14 @@ class NewChatWidget extends Disposable {
 	/** Tracks an in-flight wait for a provider's session types to become available. */
 	private readonly _pendingSessionTypeWait = new MutableDisposable<IDisposable>();
 
+	/**
+	 * The currently mounted no-agent-host empty state, if any. Set by
+	 * {@link _renderEmptyStateGate} while the empty state replaces the
+	 * workspace picker; consulted by {@link focusInput} to route focus to
+	 * the visible heading instead of the (hidden) chat input.
+	 */
+	private _activeEmptyState: NoAgentHostEmptyState | undefined;
+
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILogService private readonly logService: ILogService,
@@ -48,6 +58,7 @@ class NewChatWidget extends Disposable {
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@IAquariumService private readonly aquariumService: IAquariumService,
+		@IAgentHostFilterService private readonly agentHostFilterService: IAgentHostFilterService,
 	) {
 		super();
 		// On web (vscode.dev / insiders.vscode.dev), use {@link WebWorkspacePicker}
@@ -106,7 +117,15 @@ class NewChatWidget extends Disposable {
 		this._aquariumToggle = this._register(this.aquariumService.mountToggle(element));
 
 		const workspacePickerContainer = dom.append(chatWidgetContent, dom.$('.new-session-workspace-picker-container'));
-		this._register(this._renderWorkspacePicker(workspacePickerContainer));
+		// On web (vscode.dev / insiders.vscode.dev) the workspace picker is
+		// scoped to the currently selected agent host. When no hosts are
+		// known there is nothing for the user to pick, so swap the picker
+		// out for the no-agent-host empty state. On Electron desktop the
+		// regular picker is always functional (the local Copilot provider
+		// is always available) so this branch is web-only.
+		this._register(isWeb
+			? this._renderEmptyStateGate(workspacePickerContainer, chatWidgetContent)
+			: this._renderWorkspacePicker(workspacePickerContainer));
 
 		this._newChatInput.render(chatWidgetContent, parent);
 
@@ -209,8 +228,95 @@ class NewChatWidget extends Disposable {
 		this._newChatInput.sessionTypePicker.render(pickersRow, { className: 'sessions-chat-session-type-picker' });
 		return this._workspacePicker.onDidSelectWorkspace(() => {
 			const workspace = this._workspacePicker.selectedProject;
-			pickersLabel.textContent = workspace ? localize('newSessionIn', "New session in") : localize('newSessionChooseWorkspace', "Start by picking a");
+			pickersLabel.textContent = workspace
+				? localize('newSessionIn', "New session in")
+				: localize('newSessionChooseWorkspace', "Start by picking a");
 		});
+	}
+
+	private _renderEmptyState(container: HTMLElement): IDisposable {
+		const emptyState = this.instantiationService.createInstance(NoAgentHostEmptyState);
+		emptyState.render(container);
+		this._activeEmptyState = emptyState;
+		return {
+			dispose: () => {
+				if (this._activeEmptyState === emptyState) {
+					this._activeEmptyState = undefined;
+				}
+				emptyState.dispose();
+			},
+		};
+	}
+
+	/**
+	 * Web-only: hosts the workspace picker, but swaps it out for the
+	 * no-agent-host empty state once we are *sure* there are no hosts —
+	 * i.e. after a discovery cycle has completed. Rendering the empty
+	 * state before discovery has run would briefly flash it at users who
+	 * actually have hosts that just haven't been discovered yet (e.g.
+	 * cached tunnels resolved on startup). Until then we keep the regular
+	 * workspace picker, which has its own loading affordance.
+	 */
+	private _renderEmptyStateGate(container: HTMLElement, chatWidgetContent: HTMLElement): IDisposable {
+		const store = new DisposableStore();
+		const pickerSlot = dom.append(container, dom.$('.session-workspace-picker-slot'));
+		const stateDisposables = store.add(new MutableDisposable());
+
+		const showPicker = () => {
+			chatWidgetContent.classList.remove('no-agent-host');
+			dom.clearNode(pickerSlot);
+			stateDisposables.value = this._renderWorkspacePicker(pickerSlot);
+		};
+
+		const showEmptyState = () => {
+			chatWidgetContent.classList.add('no-agent-host');
+			dom.clearNode(pickerSlot);
+			stateDisposables.value = this._renderEmptyState(pickerSlot);
+		};
+
+		const filter = this.agentHostFilterService;
+		let hasCompletedDiscovery = filter.hosts.length > 0;
+
+		// If no discovery cycle is in flight or has completed yet, kick one
+		// off so the empty state can resolve in a bounded time. The
+		// `tunnelAgentHost.contribution` already triggers a startup
+		// rediscover, but in the (rare) case the view mounts before the
+		// contribution gets a chance, this prevents the user from being
+		// stuck on a picker that never gets populated.
+		if (!hasCompletedDiscovery && !filter.isDiscovering) {
+			filter.rediscover();
+		}
+
+		const update = () => {
+			if (hasCompletedDiscovery && !filter.isDiscovering && filter.hosts.length === 0) {
+				showEmptyState();
+			} else {
+				showPicker();
+			}
+		};
+
+		update();
+
+		// `onDidChange` fires when the host list changes — entering or
+		// leaving the empty state if the last host disconnects or the
+		// first host appears.
+		store.add(filter.onDidChange(() => {
+			if (filter.hosts.length > 0) {
+				hasCompletedDiscovery = true;
+			}
+			update();
+		}));
+		// `onDidChangeDiscovering` fires on discovery start *and* end; we
+		// treat any transition out of discovering as having completed at
+		// least one cycle.
+		store.add(filter.onDidChangeDiscovering(() => {
+			if (!filter.isDiscovering) {
+				hasCompletedDiscovery = true;
+			}
+			update();
+		}));
+
+		return store;
 	}
 
 	// --- Send ---
@@ -248,6 +354,14 @@ class NewChatWidget extends Disposable {
 	}
 
 	focusInput(): void {
+		// While the empty state is mounted, the chat input is hidden via
+		// CSS (`.no-agent-host` on `.new-chat-widget-content`) so focusing
+		// it would just send focus to <body>. Land on the empty state's
+		// heading instead so the user has a visible focus target.
+		if (this._activeEmptyState) {
+			this._activeEmptyState.focus();
+			return;
+		}
 		this._newChatInput.focus();
 	}
 

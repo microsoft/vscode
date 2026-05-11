@@ -66,6 +66,7 @@ export enum ToolName {
 	CoreRunSubagent = 'runSubagent',
 	CoreConfirmationTool = 'vscode_get_confirmation',
 	CoreConfirmationToolWithOptions = 'vscode_get_confirmation_with_options',
+	CoreReviewPlan = 'vscode_reviewPlan',
 	CoreTerminalConfirmationTool = 'vscode_get_terminal_confirmation',
 	SearchSubagent = 'search_subagent',
 	ExploreSubagent = 'explore_subagent',
@@ -260,6 +261,7 @@ export const toolCategories: Record<ToolName, ToolCategory> = {
 	// Other tools - categorize appropriately
 	[ToolName.CoreConfirmationTool]: ToolCategory.VSCodeInteraction,
 	[ToolName.CoreConfirmationToolWithOptions]: ToolCategory.VSCodeInteraction,
+	[ToolName.CoreReviewPlan]: ToolCategory.VSCodeInteraction,
 	[ToolName.CoreTerminalConfirmationTool]: ToolCategory.VSCodeInteraction,
 	[ToolName.CoreAskQuestions]: ToolCategory.VSCodeInteraction,
 	[ToolName.SwitchAgent]: ToolCategory.VSCodeInteraction,

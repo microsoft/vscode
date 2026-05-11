@@ -11,10 +11,10 @@ import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextke
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { agentHostAuthority, toAgentHostUri } from '../../../../platform/agentHost/common/agentHostUri.js';
-import { IAgentHostService } from '../../../../platform/agentHost/common/agentService.js';
 import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
+import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { INativeHostService } from '../../../../platform/native/common/native.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -55,7 +55,6 @@ export class ExportAgentHostDebugLogsAction extends Action2 {
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
 		const pathService = accessor.get(IPathService);
 		const remoteAgentHostService = accessor.get(IRemoteAgentHostService);
-		const agentHostService = accessor.get(IAgentHostService);
 		const outputService = accessor.get(IOutputService);
 		const fileService = accessor.get(IFileService);
 		const fileDialogService = accessor.get(IFileDialogService);
@@ -64,6 +63,7 @@ export class ExportAgentHostDebugLogsAction extends Action2 {
 		const textModelService = accessor.get(ITextModelService);
 		const productService = accessor.get(IProductService);
 		const logService = accessor.get(ILogService);
+		const environmentService = accessor.get(IEnvironmentService);
 
 		const sessionResource = sessionsManagementService.activeSession.get()?.resource;
 		const userHome = pathService.userHome({ preferLocal: true });
@@ -98,17 +98,12 @@ export class ExportAgentHostDebugLogsAction extends Action2 {
 		let remoteConnection: IRemoteAgentHostConnectionInfo | undefined;
 
 		if (isLocal) {
-			// IPC traffic log for the local agent host connection
-			channelIds.push(`agenthost.${agentHostService.clientId}`);
 			// Agent host process logger (forwarded from the utility process)
 			channelIds.push(AGENT_HOST_LOGGER_CHANNEL_ID);
 		} else {
 			const remoteAuthority = parseRemoteAuthorityFromScheme(sessionResource!.scheme);
 			if (remoteAuthority) {
 				remoteConnection = remoteAgentHostService.connections.find(c => agentHostAuthority(c.address) === remoteAuthority);
-				if (remoteConnection) {
-					channelIds.push(`agenthost.${remoteConnection.clientId}`);
-				}
 			}
 		}
 
@@ -142,7 +137,27 @@ export class ExportAgentHostDebugLogsAction extends Action2 {
 			}
 		}
 
-		// 3. For remote agent hosts, also download the agenthost.log file directly from
+		// 3. AHP transport JSONL logs (one file per remote connection, written under <logsHome>/ahp/).
+		// These replace the per-connection `agenthost.<clientId>` IPC traffic output channel.
+		try {
+			const ahpDir = joinPath(environmentService.logsHome, 'ahp');
+			const stat = await fileService.resolve(ahpDir, { resolveMetadata: true });
+			for (const child of stat.children ?? []) {
+				if (child.isDirectory || !child.name.endsWith('.jsonl')) {
+					continue;
+				}
+				try {
+					const content = await fileService.readFile(child.resource);
+					files.push({ path: `ahp/${child.name}`, contents: content.value.toString() });
+				} catch (error) {
+					logService.warn(`[ExportAgentHostDebugLogs] Failed to read AHP log '${child.name}': ${error instanceof Error ? error.message : String(error)}`);
+				}
+			}
+		} catch {
+			// AHP log directory may not exist if no remote connection has been opened or if logging is disabled.
+		}
+
+		// 4. For remote agent hosts, also download the agenthost.log file directly from
 		// the remote machine. The CLI launches the server with its default data dir,
 		// which lives at `<home>/<serverDataFolderName>/data/logs/<datestamp>/agenthost.log`.
 		if (remoteConnection?.defaultDirectory) {
