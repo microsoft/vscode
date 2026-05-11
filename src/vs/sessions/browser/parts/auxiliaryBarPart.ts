@@ -303,7 +303,9 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 		const editorVisible = this.layoutService.isVisible(Parts.EDITOR_PART, mainWindow);
 		const marginLeft = editorVisible ? 0 : AuxiliaryBarPart.MARGIN_LEFT;
 		const paddingLeft = editorVisible ? AuxiliaryBarPart.MARGIN_LEFT : 0;
-		const marginBottom = this.layoutService.isVisible(Parts.PANEL_PART) ? AuxiliaryBarPart.MARGIN_BOTTOM : 0;
+		const marginBottom = this.layoutService.isVisible(Parts.PANEL_PART)
+			? AuxiliaryBarPart.MARGIN_BOTTOM
+			: 0;
 
 		super.layout(
 			width - marginLeft - borderTotal - paddingLeft,
