@@ -8,6 +8,9 @@ import { IChatMLFetcher } from '../../../../platform/chat/common/chatMLFetcher';
 import { ChatLocation } from '../../../../platform/chat/common/commonTypes';
 import { StaticChatMLFetcher } from '../../../../platform/chat/test/common/staticChatMLFetcher';
 import { ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
+import { IEndpointProvider } from '../../../../platform/endpoint/common/endpointProvider';
+import { MockEndpoint } from '../../../../platform/endpoint/test/node/mockEndpoint';
+import { IChatEndpoint } from '../../../../platform/networking/common/networking';
 import { ITestingServicesAccessor } from '../../../../platform/test/node/services';
 import { TestWorkspaceService } from '../../../../platform/test/node/testWorkspaceService';
 import { IWorkspaceService } from '../../../../platform/workspace/common/workspaceService';
@@ -27,6 +30,27 @@ import { MockChatResponseStream, TestChatRequest } from '../../../test/node/test
 import { ToolName } from '../../../tools/common/toolNames';
 import { AgentIntent } from '../agentIntent';
 
+class MockEndpointProvider implements IEndpointProvider {
+	declare readonly _serviceBrand: undefined;
+	readonly onDidModelsRefresh = Event.None;
+	private endpoint: IChatEndpoint | undefined;
+
+	constructor(
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+	) { }
+
+	async getChatEndpoint(): Promise<IChatEndpoint> {
+		return this.endpoint ??= this.instantiationService.createInstance(MockEndpoint, undefined);
+	}
+
+	async getAllChatEndpoints(): Promise<IChatEndpoint[]> {
+		return [await this.getChatEndpoint()];
+	}
+
+	async getAllCompletionModels(): Promise<never[]> { return []; }
+	async getEmbeddingsEndpoint(): Promise<never> { throw new Error('not implemented'); }
+}
+
 describe('AgentIntent /summarize command', () => {
 	let accessor: ITestingServicesAccessor;
 	let instantiationService: IInstantiationService;
@@ -35,6 +59,7 @@ describe('AgentIntent /summarize command', () => {
 
 	beforeAll(() => {
 		const services = createExtensionUnitTestingServices();
+		services.define(IEndpointProvider, new SyncDescriptor(MockEndpointProvider));
 		services.define(IWorkspaceFileIndex, new SyncDescriptor(NullWorkspaceFileIndex));
 		services.define(IWorkspaceService, new SyncDescriptor(
 			TestWorkspaceService,

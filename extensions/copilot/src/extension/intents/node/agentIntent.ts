@@ -975,6 +975,8 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 					finishedCb: undefined,
 					location: ChatLocation.Agent,
 					conversationId,
+					useWebSocket: this.endpoint.apiType === 'responses' ? false : undefined,
+					ignoreStatefulMarker: this.endpoint.apiType === 'responses' ? false : undefined,
 					requestOptions: {
 						temperature: 0,
 						stream: false,

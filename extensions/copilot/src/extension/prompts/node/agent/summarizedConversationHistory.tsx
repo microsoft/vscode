@@ -668,6 +668,7 @@ class ConversationHistorySummarizer {
 
 		let summarizationPrompt: ChatMessage[];
 		const associatedRequestId = this.props.promptContext.conversation?.getLatestTurn().id;
+		const conversationId = this.props.promptContext.conversation?.sessionId;
 		try {
 			summarizationPrompt = (await renderPromptElement(this.instantiationService, endpoint, ConversationHistorySummarizationPrompt, { ...propsInfo.props, enableCacheBreakpoints: false, simpleMode: mode === SummaryMode.Simple }, undefined, this.token)).messages;
 			this.logInfo(`summarization prompt rendered in ${stopwatch.elapsed()}ms.`, mode);
@@ -747,6 +748,9 @@ class ConversationHistorySummarizer {
 				messages,
 				finishedCb: undefined,
 				location: ChatLocation.Agent,
+				conversationId,
+				useWebSocket: endpoint.apiType === 'responses' ? false : undefined,
+				ignoreStatefulMarker: endpoint.apiType === 'responses' ? false : undefined,
 				requestOptions: {
 					temperature: 0,
 					stream: false,
