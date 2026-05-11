@@ -50,8 +50,3 @@
 	border-radius: 50%;
 	margin-bottom: 18px;
 }
-
-/* Keep the active-state pulse concentric with the larger phone button. */
-.agent-sessions-workbench.phone-layout .sessions-chat-send-button:has(.monaco-button:not(.disabled):active)::after {
-	border-radius: 50%;
-}

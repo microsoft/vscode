@@ -1074,17 +1074,15 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 /* Idle: solid primary button background. */
 .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:not(.disabled) > .action-label.codicon-arrow-up {
-	background: var(--vscode-button-background) !important;
+	background: var(--vscode-button-background);
 	color: var(--vscode-button-foreground) !important;
 	border-radius: 5px;
 	transition: background-color 120ms ease;
-	position: relative;
-	z-index: 1;
 }
 
 .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:not(.disabled) > .action-label.codicon-arrow-up:hover,
 .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:not(.disabled) > .action-label.codicon-arrow-up:focus-visible {
-	background: var(--vscode-button-hoverBackground) !important;
+	background: var(--vscode-button-hoverBackground);
 }
 
 .interactive-input-part:has(.chat-editing-session > .chat-editing-session-container) .chat-input-container,
