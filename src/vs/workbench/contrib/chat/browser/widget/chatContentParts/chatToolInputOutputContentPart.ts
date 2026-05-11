@@ -7,7 +7,7 @@ import * as dom from '../../../../../../base/browser/dom.js';
 import { ButtonWithIcon } from '../../../../../../base/browser/ui/button/button.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { autorun, ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -62,6 +62,8 @@ export interface IChatCollapsibleOutputData {
 export class ChatCollapsibleInputOutputContentPart extends Disposable {
 	private readonly _editorReferences: IDisposableReference<CodeBlockPart>[] = [];
 	private readonly _titlePart: ChatQueryTitlePart;
+	private readonly _titleFileWidgetStore = this._register(new DisposableStore());
+	private readonly _titleElement: HTMLElement;
 	private _outputSubPart: ChatToolOutputContentSubPart | undefined;
 	public readonly domNode: HTMLElement;
 	private _contentInitialized = false;
@@ -73,6 +75,7 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 
 	public set title(s: string | IMarkdownString) {
 		this._titlePart.title = s;
+		this.renderTitleWidgets();
 	}
 
 	public get title(): string | IMarkdownString {
@@ -106,6 +109,7 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 		const container = dom.h('.chat-confirmation-widget-container');
 		const titleEl = dom.h('.chat-confirmation-widget-title-inner');
 		const elements = dom.h('.chat-confirmation-widget');
+		this._titleElement = titleEl.root;
 		this.domNode = container.root;
 		container.root.appendChild(elements.root);
 
@@ -115,7 +119,7 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 			title,
 			subtitle,
 		));
-		renderFileWidgets(titleEl.root, this._instantiationService, this.chatMarkdownAnchorService, this._store);
+		this.renderTitleWidgets();
 		const spacer = document.createElement('span');
 		spacer.style.flexGrow = '1';
 
@@ -185,9 +189,14 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 			group.classList.add('chat-collapsible-top-level-resource-group');
 			container.root.appendChild(group);
 			this._register(autorun(r => {
-				group.style.display = expanded.read(r) ? 'none' : '';
-			}));
+			group.style.display = expanded.read(r) ? 'none' : '';
+		}));
 		}
+	}
+
+	private renderTitleWidgets(): void {
+		this._titleFileWidgetStore.clear();
+		renderFileWidgets(this._titleElement, this._instantiationService, this.chatMarkdownAnchorService, this._titleFileWidgetStore);
 	}
 
 	private createMessageContents() {
