@@ -40,25 +40,21 @@
 
 /*
  * Right-align the Branch + Isolation chips within the secondary chat-input
- * toolbar by pushing the Branch action-item to `margin-left: auto`. The
- * Isolation chip follows naturally because the toolbar is a flex row.
- *
- * The picker tags its host element with a per-property modifier class
- * (`agent-host-chat-input-picker-host-branch`) so this selector can target
- * just the leading chip of the right-aligned pair without affecting Mode.
- */
-/*
- * Right-align the Branch + Isolation chips. Branch (when present) takes the
- * leading `margin-left: auto`; Isolation otherwise. With both present the
- * Isolation rule is suppressed by the general-sibling selector that detects
- * a preceding Branch chip.
+ * toolbar. The picker tags its host element with a per-property modifier
+ * class (`agent-host-chat-input-picker-host-branch`) so these selectors can
+ * target just the right-aligned pair without affecting Mode. Branch (when
+ * present) takes the leading `margin-left: auto`; Isolation otherwise. With
+ * both present the Isolation rule is suppressed by the general-sibling
+ * selector below that detects a preceding (visible) Branch chip.
  */
 .chat-secondary-input-toolbar .monaco-action-bar .actions-container > .action-item.agent-host-chat-input-picker-host-branch {
 	margin-left: auto;
 }
+
 .chat-secondary-input-toolbar .monaco-action-bar .actions-container > .action-item.agent-host-chat-input-picker-host-isolation {
 	margin-left: auto;
 }
+
 /*
  * Suppress Isolation's leading-margin only when a *visible* Branch chip
  * precedes it. Hidden chips keep the `agent-host-chat-input-picker-host-hidden`

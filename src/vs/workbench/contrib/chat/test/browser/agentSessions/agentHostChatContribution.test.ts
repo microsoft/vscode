@@ -830,6 +830,62 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(listController.isNewSession(item.resource), false);
 			assert.strictEqual(listController.items.some(existing => existing.resource.toString() === item.resource.toString()), true);
 		}));
+
+		test('newChatSessionItem rebinds untitled provisional to real resource so chip-selected config survives first send', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { instantiationService, agentHostService } = createTestServices(disposables);
+
+			const workspaceFolder = URI.from({ scheme: 'file', path: '/workspace/root' });
+			instantiationService.stub(IWorkspaceContextService, {
+				getWorkspace: () => ({ id: '', folders: [{ uri: workspaceFolder, name: 'root', index: 0, toResource: () => workspaceFolder }] }),
+				getWorkspaceFolder: () => null,
+			});
+
+			const rebindCalls: { oldResource: URI; newResource: URI; provider: string; workingDirectory: URI | undefined }[] = [];
+			instantiationService.stub(IAgentHostUntitledProvisionalSessionService, {
+				onDidChange: Event.None,
+				get: () => undefined,
+				waitForPending: async () => undefined,
+				getOrCreate: async () => undefined,
+				tryRebind: async (oldResource: URI, newResource: URI, provider: string, workingDirectory: URI | undefined) => {
+					rebindCalls.push({ oldResource, newResource, provider, workingDirectory });
+					return newResource;
+				},
+				disposeSession: async () => { },
+			} as Partial<IAgentHostUntitledProvisionalSessionService> as IAgentHostUntitledProvisionalSessionService);
+
+			const listController = disposables.add(instantiationService.createInstance(AgentHostSessionListController, 'agent-host-copilot', 'copilot', agentHostService, undefined, 'local'));
+
+			const untitledResource = URI.from({ scheme: 'agent-host-copilot', path: '/untitled-abc' });
+			const item = await listController.newChatSessionItem({ prompt: 'Hello', untitledResource }, CancellationToken.None);
+
+			assert.ok(item);
+			assert.deepStrictEqual(rebindCalls, [{
+				oldResource: untitledResource,
+				newResource: item.resource,
+				provider: 'copilot',
+				workingDirectory: workspaceFolder,
+			}]);
+		}));
+
+		test('newChatSessionItem skips rebind when no untitled provisional resource is provided', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { instantiationService, agentHostService } = createTestServices(disposables);
+
+			let rebindCalls = 0;
+			instantiationService.stub(IAgentHostUntitledProvisionalSessionService, {
+				onDidChange: Event.None,
+				get: () => undefined,
+				waitForPending: async () => undefined,
+				getOrCreate: async () => undefined,
+				tryRebind: async () => { rebindCalls++; return undefined; },
+				disposeSession: async () => { },
+			} as Partial<IAgentHostUntitledProvisionalSessionService> as IAgentHostUntitledProvisionalSessionService);
+
+			const listController = disposables.add(instantiationService.createInstance(AgentHostSessionListController, 'agent-host-copilot', 'copilot', agentHostService, undefined, 'local'));
+
+			const item = await listController.newChatSessionItem({ prompt: 'Hello' }, CancellationToken.None);
+			assert.ok(item);
+			assert.strictEqual(rebindCalls, 0);
+		}));
 	});
 
 	// ---- Session ID resolution in _invokeAgent --------------------------
@@ -2763,7 +2819,7 @@ suite('AgentHostChatContribution', () => {
 			// include `isolation` and is NOT a replace.
 			if (configChanged) {
 				assert.strictEqual(configChanged.action.replace, undefined, 'must not use replace-semantics for picker-set state');
-				assert.ok(!('isolation' in configChanged.action.config), `picker-set isolation must not be overwritten, got ${JSON.stringify(configChanged.action.config)}`);
+				assert.ok(!Object.prototype.hasOwnProperty.call(configChanged.action.config, 'isolation'), `picker-set isolation must not be overwritten, got ${JSON.stringify(configChanged.action.config)}`);
 			}
 		}));
 

@@ -170,7 +170,7 @@ export class AgentHostChatInputPicker extends Disposable {
 		if (!sessionResource || !backendSession) {
 			this._subRef.clear();
 			this._initialResolved = undefined;
-			this._initialResolveCts.clear();
+			this._cancelInitialResolve();
 			this._renderChip();
 			return;
 		}
@@ -202,7 +202,7 @@ export class AgentHostChatInputPicker extends Disposable {
 		}
 
 		this._initialResolved = undefined;
-		this._initialResolveCts.clear();
+		this._cancelInitialResolve();
 		const ref = this._agentHostService.getSubscription(StateComponents.Session, backendSession);
 		const sub = ref.object;
 		const listener = sub.onDidChange(() => this._renderChip());
@@ -214,7 +214,17 @@ export class AgentHostChatInputPicker extends Disposable {
 		this._renderChip();
 	}
 
+	private _cancelInitialResolve(): void {
+		// CancellationTokenSource.dispose() does not cancel by default, so we
+		// must explicitly cancel before clearing/replacing to ensure any
+		// in-flight resolveSessionConfig call cannot still write back into
+		// `_initialResolved` after the session has moved on.
+		this._initialResolveCts.value?.cancel();
+		this._initialResolveCts.clear();
+	}
+
 	private async _refreshInitialResolved(sessionResource: URI, backendSession: URI): Promise<void> {
+		this._initialResolveCts.value?.cancel();
 		const cts = new CancellationTokenSource();
 		this._initialResolveCts.value = cts;
 		try {
@@ -222,7 +232,7 @@ export class AgentHostChatInputPicker extends Disposable {
 				provider: backendSession.scheme,
 				workingDirectory: this._readWorkingDirectory(),
 			});
-			if (cts.token.isCancellationRequested) {
+			if (cts.token.isCancellationRequested || this._widget.viewModel?.sessionResource?.toString() !== sessionResource.toString()) {
 				return;
 			}
 			this._initialResolved = { sessionResource, result };
