@@ -149,6 +149,11 @@ const copyFilenameCommand = {
 	title: nls.localize('copyFilename', "Copy Filename")
 };
 
+const copyFolderNameCommand = {
+	id: COPY_FILENAME_COMMAND_ID,
+	title: nls.localize('copyFolderName', "Copy Folder Name")
+};
+
 const copyPathCommand = {
 	id: COPY_PATH_COMMAND_ID,
 	title: nls.localize('copyPath', "Copy Path")
@@ -620,7 +625,14 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 	group: '6_copypath',
 	order: 5,
 	command: copyFilenameCommand,
-	when: ResourceContextKey.IsFileSystemResource
+	when: ContextKeyExpr.and(ResourceContextKey.IsFileSystemResource, ExplorerFolderContext.toNegated())
+});
+
+MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
+	group: '6_copypath',
+	order: 5,
+	command: copyFolderNameCommand,
+	when: ContextKeyExpr.and(ResourceContextKey.IsFileSystemResource, ExplorerFolderContext)
 });
 
 MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
@@ -806,7 +818,14 @@ MenuRegistry.appendMenuItem(MenuId.ChatAttachmentsContext, {
 	group: '1_cutcopypaste',
 	order: 5,
 	command: copyFilenameCommand,
-	when: ResourceContextKey.IsFileSystemResource
+	when: ContextKeyExpr.and(ResourceContextKey.IsFileSystemResource, ExplorerFolderContext.toNegated())
+});
+
+MenuRegistry.appendMenuItem(MenuId.ChatAttachmentsContext, {
+	group: '1_cutcopypaste',
+	order: 5,
+	command: copyFolderNameCommand,
+	when: ContextKeyExpr.and(ResourceContextKey.IsFileSystemResource, ExplorerFolderContext)
 });
 
 MenuRegistry.appendMenuItem(MenuId.ChatAttachmentsContext, {
@@ -844,7 +863,14 @@ for (const menuId of [MenuId.ChatInlineResourceAnchorContext, MenuId.ChatInputRe
 		group: '1_cutcopypaste',
 		order: 5,
 		command: copyFilenameCommand,
-		when: ResourceContextKey.IsFileSystemResource
+		when: ContextKeyExpr.and(ResourceContextKey.IsFileSystemResource, ExplorerFolderContext.toNegated())
+	});
+
+	MenuRegistry.appendMenuItem(menuId, {
+		group: '1_cutcopypaste',
+		order: 5,
+		command: copyFolderNameCommand,
+		when: ContextKeyExpr.and(ResourceContextKey.IsFileSystemResource, ExplorerFolderContext)
 	});
 
 	MenuRegistry.appendMenuItem(menuId, {
