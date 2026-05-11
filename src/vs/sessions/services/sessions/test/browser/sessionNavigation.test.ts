@@ -17,7 +17,7 @@ import { SessionsNavigation } from '../../browser/sessionNavigation.js';
 import { Event } from '../../../../../base/common/event.js';
 import { ISendRequestOptions } from '../../common/sessionsProvider.js';
 
-const stubChat: IChat = {
+const stubChat = {
 	resource: URI.parse('test:///chat'),
 	createdAt: new Date(),
 	title: constObservable('Chat'),
@@ -25,6 +25,7 @@ const stubChat: IChat = {
 	status: constObservable(SessionStatus.Completed),
 	changesets: constObservable([]),
 	changes: constObservable([]),
+	checkpoints: constObservable(undefined),
 	modelId: constObservable(undefined),
 	mode: constObservable(undefined),
 	isArchived: constObservable(false),
@@ -40,6 +41,7 @@ function stubChatWithId(id: string, status: SessionStatus = SessionStatus.Comple
 		title: constObservable(`Chat ${id}`),
 		updatedAt: constObservable(new Date()),
 		status: constObservable(status),
+		checkpoints: constObservable(undefined),
 		changesets: constObservable([]),
 		changes: constObservable([]),
 		modelId: constObservable(undefined),
