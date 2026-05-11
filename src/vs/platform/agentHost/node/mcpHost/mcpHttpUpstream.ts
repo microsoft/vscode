@@ -8,6 +8,8 @@ import { Emitter, type Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { observableValue, type IObservable } from '../../../../base/common/observable.js';
 import type { JsonRpcMessage } from '../../../../base/common/jsonRpcProtocol.js';
+import { SSEParser } from '../../../../base/common/sseParser.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
 import type { ILogger } from '../../../log/common/log.js';
 import type { IMcpRemoteServerConfiguration } from '../../../mcp/common/mcpPlatformTypes.js';
 import {
@@ -30,6 +32,12 @@ export interface IHttpResponse {
 	status: number;
 	headers: { get(name: string): string | null };
 	text(): Promise<string>;
+	/**
+	 * Optional response body stream. Required for `text/event-stream`
+	 * responses. When `undefined`/`null`, the upstream falls back to
+	 * {@link text} and skips SSE handling.
+	 */
+	body?: ReadableStream<Uint8Array> | null;
 }
 
 export interface IMcpHttpUpstreamOptions {
@@ -57,13 +65,18 @@ const PROBE_BODY = JSON.stringify({
  * but the HTTP status drives the state machine (2xx → Ready, 401/403 →
  * AuthRequired, otherwise Error).
  *
+ * Supports the streamable HTTP transport: a POST may receive either a
+ * one-shot `application/json` reply or an SSE (`text/event-stream`)
+ * stream that delivers one or more JSON-RPC messages. Both are routed
+ * through {@link IMcpUpstream.onMessage}.
+ *
  * Caveats:
  *  - The probe may briefly initialize the upstream server before the
  *    SDK does. For session-bearing servers this is still acceptable
  *    per MCP, but it does mean the handshake is observable upstream.
- *  - SSE for server→client messages is not supported in v1; only the
- *    request/response pattern is plumbed through {@link send}. Adding
- *    SSE is a Phase 6 follow-up.
+ *  - A long-lived `GET` SSE stream for purely server-initiated
+ *    messages (the second half of the streamable HTTP spec) is not
+ *    yet plumbed; only POST-response streams are consumed.
  */
 export class McpHttpUpstream extends Disposable implements IMcpUpstream {
 
@@ -121,7 +134,7 @@ export class McpHttpUpstream extends Disposable implements IMcpUpstream {
 		return this._trackRequest(ac, async () => {
 			let response: IHttpResponse;
 			try {
-				response = await this._fetch(this._config.url, {
+				response = await this._traceFetch('probe', this._config.url, {
 					method: 'POST',
 					headers: this._buildHeaders(),
 					body: PROBE_BODY,
@@ -146,6 +159,10 @@ export class McpHttpUpstream extends Disposable implements IMcpUpstream {
 
 			if (response.status >= 200 && response.status < 300) {
 				this._status.set({ kind: McpServerStatusKind.Ready }, undefined);
+				// Drain or close the probe response body. The probe payload is
+				// not consumed (the SDK runs its own initialize), but leaving an
+				// SSE stream open would hold the underlying connection.
+				response.body?.cancel().catch(() => { /* best-effort */ });
 				return this._status.get();
 			}
 
@@ -179,6 +196,33 @@ export class McpHttpUpstream extends Disposable implements IMcpUpstream {
 		return work().finally(() => this._pendingRequests.delete(ac));
 	}
 
+	/**
+	 * Wraps {@link _fetch} with trace-level logging. Each call produces a
+	 * short correlation id so the request and response lines pair up in
+	 * logs. Bodies are truncated; bearer tokens and configured headers
+	 * are redacted.
+	 */
+	private async _traceFetch(label: string, url: string, init: {
+		readonly method: 'GET' | 'POST';
+		readonly headers: Record<string, string>;
+		readonly body?: string;
+		readonly signal?: AbortSignal;
+	}): Promise<IHttpResponse> {
+		const id = generateUuid().slice(0, 8);
+		const bodyPreview = init.body ? `, body=${truncate(init.body, 256)}` : '';
+		this._logger.trace(`McpHttpUpstream[${label}] -> ${id}: ${init.method} ${url}${bodyPreview}`);
+		try {
+			const response = await this._fetch(url, init);
+			const contentType = response.headers.get('content-type') ?? '';
+			this._logger.trace(`McpHttpUpstream[${label}] <- ${id}: HTTP ${response.status}${contentType ? ` content-type=${contentType}` : ''}`);
+			return response;
+		} catch (err) {
+			const message = err instanceof Error ? err.message : String(err);
+			this._logger.trace(`McpHttpUpstream[${label}] <- ${id}: error: ${message}`);
+			throw err;
+		}
+	}
+
 	public async send(message: JsonRpcMessage): Promise<void> {
 		const current = this._status.get();
 		if (current.kind !== McpServerStatusKind.Ready) {
@@ -190,7 +234,7 @@ export class McpHttpUpstream extends Disposable implements IMcpUpstream {
 		return this._trackRequest(ac, async () => {
 			let response: IHttpResponse;
 			try {
-				response = await this._fetch(this._config.url, {
+				response = await this._traceFetch('send', this._config.url, {
 					method: 'POST',
 					headers: this._buildHeaders(),
 					body: JSON.stringify(message),
@@ -213,20 +257,106 @@ export class McpHttpUpstream extends Disposable implements IMcpUpstream {
 				throw new Error('McpHttpUpstream: upstream is now AuthRequired');
 			}
 
-			const text = await response.text();
-			if (!text) {
+			await this._consumeResponseBody(response, ac, 'send');
+		});
+	}
+
+	/**
+	 * Reads a POST response body and emits any contained JSON-RPC
+	 * messages via {@link onMessage}. Branches on `Content-Type`:
+	 *  - `text/event-stream` → stream-parsed via {@link SSEParser};
+	 *    each `data` event whose payload is JSON-RPC fires `onMessage`.
+	 *    Resolves once the stream closes or the upstream is disposed.
+	 *  - anything else → reads the body as a one-shot JSON message.
+	 */
+	private async _consumeResponseBody(response: IHttpResponse, ac: AbortController, label: string): Promise<void> {
+		const contentType = (response.headers.get('content-type') ?? '').toLowerCase();
+		if (contentType.includes('text/event-stream')) {
+			await this._consumeSseStream(response, ac, label);
+			return;
+		}
+
+		const text = await response.text();
+		if (text) {
+			this._logger.trace(`McpHttpUpstream[${label}] body: ${truncate(text, 256)}`);
+		}
+		if (!text) {
+			return;
+		}
+		let parsed: JsonRpcMessage;
+		try {
+			parsed = JSON.parse(text) as JsonRpcMessage;
+		} catch (err) {
+			const errMessage = err instanceof Error ? err.message : String(err);
+			this._logger.error(`McpHttpUpstream: failed to parse response body: ${errMessage}`);
+			return;
+		}
+		this._onMessage.fire(parsed);
+	}
+
+	/**
+	 * Streams an SSE response body through {@link SSEParser}. Each
+	 * `message` event whose `data` parses as JSON-RPC is emitted via
+	 * {@link onMessage}. Custom event types are logged and ignored.
+	 * Resolves when the stream closes (server side) or the upstream is
+	 * disposed/aborted.
+	 */
+	private async _consumeSseStream(response: IHttpResponse, ac: AbortController, label: string): Promise<void> {
+		const body = response.body;
+		if (!body) {
+			this._logger.warn(`McpHttpUpstream[${label}]: text/event-stream response has no body`);
+			return;
+		}
+		const parser = new SSEParser(event => {
+			// Per the MCP streamable HTTP spec, JSON-RPC payloads are carried
+			// on the default `message` event. Other event names are reserved
+			// for future protocol extensions — trace and ignore.
+			if (event.type && event.type !== 'message') {
+				this._logger.trace(`McpHttpUpstream[${label}] sse: ignoring event type=${event.type}`);
 				return;
 			}
+			if (!event.data) {
+				return;
+			}
+			this._logger.trace(`McpHttpUpstream[${label}] sse: ${truncate(event.data, 256)}`);
 			let parsed: JsonRpcMessage;
 			try {
-				parsed = JSON.parse(text) as JsonRpcMessage;
+				parsed = JSON.parse(event.data) as JsonRpcMessage;
 			} catch (err) {
-				const errMessage = err instanceof Error ? err.message : String(err);
-				this._logger.error(`McpHttpUpstream: failed to parse response body: ${errMessage}`);
+				const message = err instanceof Error ? err.message : String(err);
+				this._logger.error(`McpHttpUpstream: failed to parse SSE event data: ${message}`);
 				return;
 			}
 			this._onMessage.fire(parsed);
 		});
+
+		const reader = body.getReader();
+		try {
+			for (; ;) {
+				if (ac.signal.aborted || this._disposed) {
+					return;
+				}
+				const { done, value } = await reader.read();
+				if (done) {
+					return;
+				}
+				if (value && value.length > 0) {
+					parser.feed(value);
+				}
+			}
+		} catch (err) {
+			if (ac.signal.aborted || this._disposed) {
+				return;
+			}
+			const message = err instanceof Error ? err.message : String(err);
+			this._logger.warn(`McpHttpUpstream[${label}]: SSE read error: ${message}`);
+		} finally {
+			try {
+				await reader.cancel();
+			} catch {
+				// best-effort
+			}
+		}
 	}
 
 	public setBearerToken(token: string | undefined): void {
@@ -241,7 +371,7 @@ export class McpHttpUpstream extends Disposable implements IMcpUpstream {
 	private _buildHeaders(): Record<string, string> {
 		const headers: Record<string, string> = {
 			'Content-Type': 'application/json',
-			'Accept': 'application/json',
+			'Accept': 'application/json, text/event-stream',
 		};
 		if (this._config.headers) {
 			for (const [key, value] of Object.entries(this._config.headers)) {
@@ -303,7 +433,7 @@ export class McpHttpUpstream extends Disposable implements IMcpUpstream {
 		const ac = new AbortController();
 		return this._trackRequest(ac, async () => {
 			try {
-				const response = await this._fetch(url, {
+				const response = await this._traceFetch('resource_metadata', url, {
 					method: 'GET',
 					headers: { 'Accept': 'application/json' },
 					signal: ac.signal,

@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../../base/common/uri.js';
-import { type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { McpServerStatusKind, type McpServerSummary, type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { type AgentInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
+import { type IAgentHostMcpAuthRegistry } from './agentHostMcpAuthRegistry.js';
 
 /**
  * Tracks the last bearer token pushed to a given agent host connection
@@ -110,10 +111,36 @@ export async function resolveTokenForResource(
 export interface IAgentHostAuthenticateRequest {
 	readonly resource: string;
 	readonly token: string;
+	/**
+	 * Optional MCP server URI to scope the token to. Forwarded as
+	 * `AuthenticateParams.server`; the host treats the token as
+	 * server-scoped when set, otherwise as resource-wide.
+	 */
+	readonly server?: URI;
 }
 
 export interface IAgentHostAuthenticationOptions {
 	readonly authTokenCache?: AgentHostAuthTokenCache;
+	/**
+	 * Persistent memory of previously approved MCP scopes per OAuth
+	 * resource. Used by the per-MCP-server helpers to silent-auth with
+	 * the scopes the user originally consented to, even when the
+	 * server's current `requiredScopes` are narrower or absent. The
+	 * helpers only call `recall`/`remember`; the caller may pass the
+	 * full {@link IAgentHostMcpAuthRegistry} since it implements both.
+	 *
+	 * Memory is consulted only when {@link mcpAuthHostKey} is also
+	 * provided — the host dimension prevents a token approved against
+	 * one agent host from silently authenticating another.
+	 */
+	readonly mcpAuthMemory?: Pick<IAgentHostMcpAuthRegistry, 'recall' | 'remember' | 'forget'>;
+	/**
+	 * Stable identifier for the agent host these credentials live under
+	 * (`'local'` for the in-process agent host, an address string for
+	 * remote hosts). Combined with the OAuth resource URI to scope
+	 * {@link mcpAuthMemory} reads/writes.
+	 */
+	readonly mcpAuthHostKey?: string;
 	readonly authenticationService: IAuthenticationService;
 	readonly logPrefix: string;
 	readonly logService: ILogService;
@@ -206,4 +233,182 @@ export async function resolveAuthenticationInteractively(
 	}
 
 	return false;
+}
+
+/**
+ * Try to silently push a token to the agent host for a single MCP
+ * server. Resolves an existing OAuth session matching the previously
+ * approved scopes (no `createSession` fallback) and forwards the
+ * bearer token scoped to {@link mcpServer} via
+ * {@link IAgentHostAuthenticateRequest.server}.
+ *
+ * Used to auto-recover from `AuthRequired` transitions without
+ * surfacing UI when the user has already authenticated the underlying
+ * OAuth resource — for example, after the agent host re-emits
+ * `AuthRequired` for a server we had previously authenticated.
+ *
+ * Silent authentication only proceeds when
+ * {@link IAgentHostAuthenticationOptions.mcpAuthMemory} has a
+ * recorded entry for this `(host, resource)` AND the remembered
+ * scopes cover the currently-requested scopes. Without a recorded
+ * approval that subsumes the new request, we'd be quietly granting
+ * the agent host access to scopes the user never agreed to — fall
+ * back to the interactive flow instead.
+ *
+ * Like {@link resolveMcpServerAuthenticationInteractively}, this does
+ * not consult or update the resource-wide
+ * {@link AgentHostAuthTokenCache}: per-server tokens are independent.
+ */
+export async function resolveMcpServerAuthenticationSilently(
+	mcpServer: URI,
+	resource: ProtectedResourceMetadata,
+	scopes: readonly string[] | undefined,
+	options: IAgentHostAuthenticationOptions,
+): Promise<boolean> {
+	if (!options.mcpAuthMemory || !options.mcpAuthHostKey) {
+		return false;
+	}
+	const remembered = options.mcpAuthMemory.recall(options.mcpAuthHostKey, resource.resource);
+	if (!remembered) {
+		return false;
+	}
+	const requestedScopes = scopes ?? resource.scopes_supported ?? [];
+	const rememberedSet = new Set(remembered);
+	for (const scope of requestedScopes) {
+		if (!rememberedSet.has(scope)) {
+			return false;
+		}
+	}
+	const resourceUri = URI.parse(resource.resource);
+	const token = await resolveTokenForResource(
+		resourceUri,
+		resource.authorization_servers ?? [],
+		remembered,
+		options.authenticationService,
+		options.logService,
+		options.logPrefix,
+	);
+	if (!token) {
+		return false;
+	}
+	await options.authenticate({ resource: resource.resource, token, server: mcpServer });
+	options.logService.info(`${options.logPrefix} Silent MCP authentication succeeded for ${resource.resource} (${mcpServer.toString()})`);
+	return true;
+}
+
+/**
+ * Authenticate a single MCP server's protected resource and forward the
+ * resulting token to the agent host scoped to that server URI. Mirrors
+ * {@link resolveAuthenticationInteractively} but always scopes to a
+ * specific MCP server proxy via {@link IAgentHostAuthenticateRequest.server}.
+ *
+ * Tries {@link resolveMcpServerAuthenticationSilently} first; if memory
+ * doesn't authorize a silent reuse, falls back to looking up an
+ * existing session matching the requested scopes (the user is actively
+ * authorizing this server, so reusing a matching session is OK even
+ * without a memory record). Only triggers `createSession` (which
+ * prompts) when no matching session exists at all. Successful
+ * authentications are recorded into
+ * {@link IAgentHostAuthenticationOptions.mcpAuthMemory} so future
+ * reloads can silent-auth without prompting.
+ *
+ * Unlike the agent-level helper, this does NOT consult or update the
+ * resource-wide token cache: per-server tokens may differ from the
+ * agent-scoped token for the same OAuth resource, and writing to the
+ * shared cache could mask a later resource-wide call.
+ */
+export async function resolveMcpServerAuthenticationInteractively(
+	mcpServer: URI,
+	resource: ProtectedResourceMetadata,
+	scopes: readonly string[] | undefined,
+	options: IAgentHostAuthenticationOptions,
+): Promise<boolean> {
+	if (await resolveMcpServerAuthenticationSilently(mcpServer, resource, scopes, options)) {
+		return true;
+	}
+
+	const effectiveScopes = scopes ?? resource.scopes_supported ?? [];
+	const resourceUri = URI.parse(resource.resource);
+
+	// Reuse an existing OAuth session that already covers the requested
+	// scopes before prompting, even when memory has no record. The user
+	// is actively authorizing this server, so binding an already-granted
+	// session to it doesn't escalate consent.
+	const existingToken = await resolveTokenForResource(
+		resourceUri,
+		resource.authorization_servers ?? [],
+		effectiveScopes,
+		options.authenticationService,
+		options.logService,
+		options.logPrefix,
+	);
+	if (existingToken) {
+		await options.authenticate({ resource: resource.resource, token: existingToken, server: mcpServer });
+		if (options.mcpAuthMemory && options.mcpAuthHostKey) {
+			options.mcpAuthMemory.remember(options.mcpAuthHostKey, resource.resource, effectiveScopes);
+		}
+		options.logService.info(`${options.logPrefix} Reused existing session for ${resource.resource} (${mcpServer.toString()})`);
+		return true;
+	}
+
+	for (const server of resource.authorization_servers ?? []) {
+		const serverUri = URI.parse(server);
+		const providerId = await options.authenticationService.getOrActivateProviderIdForServer(serverUri, resourceUri);
+		if (!providerId) {
+			continue;
+		}
+
+		const session = await options.authenticationService.createSession(providerId, [...effectiveScopes], {
+			activateImmediate: true,
+			authorizationServer: serverUri,
+		});
+
+		await options.authenticate({ resource: resource.resource, token: session.accessToken, server: mcpServer });
+		if (options.mcpAuthMemory && options.mcpAuthHostKey) {
+			options.mcpAuthMemory.remember(options.mcpAuthHostKey, resource.resource, effectiveScopes);
+		}
+		options.logService.info(`${options.logPrefix} Interactive MCP authentication succeeded for ${resource.resource} (${mcpServer.toString()})`);
+		return true;
+	}
+
+	return false;
+}
+
+/**
+ * Drive interactive authentication for one MCP server (`target`) or for
+ * every server in the supplied snapshot that's currently in
+ * `AuthRequired`. Per-server failures are logged and skipped so a
+ * single rejection doesn't abort the rest of the batch.
+ *
+ * Used by both the chat-session-bound auth path and the provisional
+ * (new-chat) path so the iteration semantics match across the two
+ * surfaces.
+ *
+ * @returns `true` when at least one of the attempted servers
+ *          authenticated successfully.
+ */
+export async function authenticateMcpServerCandidates(
+	summaries: readonly McpServerSummary[],
+	target: McpServerSummary | undefined,
+	options: IAgentHostAuthenticationOptions,
+): Promise<boolean> {
+	const candidates = target ? [target] : summaries.filter(s => s.status.kind === McpServerStatusKind.AuthRequired);
+	let anySucceeded = false;
+	for (const summary of candidates) {
+		if (summary.status.kind !== McpServerStatusKind.AuthRequired) {
+			continue;
+		}
+		try {
+			const ok = await resolveMcpServerAuthenticationInteractively(
+				URI.parse(summary.resource),
+				summary.status.resource,
+				summary.status.requiredScopes,
+				options,
+			);
+			anySucceeded ||= ok;
+		} catch (err) {
+			options.logService.error(`${options.logPrefix} MCP authentication failed for ${summary.resource}`, err);
+		}
+	}
+	return anySucceeded;
 }

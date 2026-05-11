@@ -17,9 +17,12 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
+import { IAgentHostActiveClientRegistry } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientRegistry.js';
+import { IAgentHostMcpAuthRegistry } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostMcpAuthRegistry.js';
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
+import { IAuthenticationService } from '../../../../workbench/services/authentication/common/authentication.js';
 import { BaseAgentHostSessionsProvider } from './baseAgentHostSessionsProvider.js';
 import { buildAgentHostSessionWorkspace, readBranchProtectionPatterns } from '../../../common/agentHostSessionWorkspace.js';
 import { ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_LOCAL } from '../../../services/sessions/common/session.js';
@@ -58,8 +61,11 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILogService logService: ILogService,
 		@IGitHubService gitHubService: IGitHubService,
+		@IAuthenticationService authenticationService: IAuthenticationService,
+		@IAgentHostMcpAuthRegistry mcpAuthRegistry: IAgentHostMcpAuthRegistry,
+		@IAgentHostActiveClientRegistry activeClientRegistry: IAgentHostActiveClientRegistry,
 	) {
-		super(chatSessionsService, chatService, chatWidgetService, languageModelsService, _configurationService, logService, gitHubService);
+		super(chatSessionsService, chatService, chatWidgetService, languageModelsService, _configurationService, logService, gitHubService, authenticationService, mcpAuthRegistry, activeClientRegistry);
 
 		this.label = localize('localAgentHostLabel', "Local Agent Host");
 
@@ -100,6 +106,8 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 	protected get connection(): IAgentConnection { return this._agentHostService; }
 
 	protected get authenticationPending(): IObservable<boolean> { return this._agentHostService.authenticationPending; }
+
+	protected get _mcpAuthHostKey(): string { return 'local'; }
 
 	/**
 	 * Local resource scheme: `agent-host-${provider}`. Must match the type

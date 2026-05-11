@@ -25,9 +25,12 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IChatWidget, IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
+import { IAgentHostActiveClientRegistry } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientRegistry.js';
+import { IAgentHostMcpAuthRegistry } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostMcpAuthRegistry.js';
 import { IChatService, type ChatSendResult, type IChatSendRequestOptions } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
+import { IAuthenticationService } from '../../../../../workbench/services/authentication/common/authentication.js';
 import { ISessionChangeEvent } from '../../../../services/sessions/common/sessionsProvider.js';
 import { SessionStatus, COPILOT_CLI_SESSION_TYPE } from '../../../../services/sessions/common/session.js';
 import { RemoteAgentHostSessionsProvider, type IRemoteAgentHostSessionsProviderConfig } from '../../browser/remoteAgentHostSessionsProvider.js';
@@ -214,6 +217,13 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 	instantiationService.stub(ILogService, new NullLogService());
 	instantiationService.stub(IGitHubService, new class extends mock<IGitHubService>() {
 		override findPullRequestNumberByHeadBranch = async () => undefined;
+	}());
+	instantiationService.stub(IAuthenticationService, new class extends mock<IAuthenticationService>() { }());
+	instantiationService.stub(IAgentHostMcpAuthRegistry, new class extends mock<IAgentHostMcpAuthRegistry>() {
+		override registerSession = () => ({ dispose() { } });
+	}());
+	instantiationService.stub(IAgentHostActiveClientRegistry, new class extends mock<IAgentHostActiveClientRegistry>() {
+		override get = () => undefined;
 	}());
 
 	const config: IRemoteAgentHostSessionsProviderConfig = {

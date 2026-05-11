@@ -86,6 +86,55 @@
 	flex: 1;
 }
 
+/* MCP-auth indicator (see `NewChatMcpAuthIndicator`). Hidden via the
+   `.hidden` class while the active session has no servers in
+   `AuthRequired`. Color and pulsing animation mirror
+   `chatMcpAuthAction.css` so the indicator looks the same on both
+   surfaces. */
+.sessions-chat-mcp-auth-indicator {
+	display: flex;
+	align-items: center;
+}
+
+.sessions-chat-mcp-auth-indicator.hidden {
+	display: none;
+}
+
+.sessions-chat-mcp-auth-indicator .monaco-button {
+	background: transparent;
+	border: none;
+	padding: 2px 4px;
+	color: var(--vscode-notificationsWarningIcon-foreground);
+	cursor: pointer;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	animation: sessions-chat-mcp-auth-pulse 2s ease-in-out infinite;
+}
+
+.sessions-chat-mcp-auth-indicator .monaco-button:hover,
+.sessions-chat-mcp-auth-indicator .monaco-button:focus-visible {
+	background: var(--vscode-toolbar-hoverBackground);
+	animation: none;
+}
+
+@keyframes sessions-chat-mcp-auth-pulse {
+	0%, 100% {
+		opacity: 1;
+		transform: scale(1);
+	}
+	50% {
+		opacity: 0.65;
+		transform: scale(1.08);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.sessions-chat-mcp-auth-indicator .monaco-button {
+		animation: none;
+	}
+}
+
 /* Model picker - uses workbench ModelPickerActionItem */
 /* Session config toolbar (mode, model pickers via MenuWorkbenchToolBar) */
 .sessions-chat-config-toolbar {

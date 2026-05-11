@@ -27,9 +27,12 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
+import { IAgentHostActiveClientRegistry } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientRegistry.js';
+import { IAgentHostMcpAuthRegistry } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostMcpAuthRegistry.js';
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
+import { IAuthenticationService } from '../../../../workbench/services/authentication/common/authentication.js';
 import { AgentHostSessionAdapter, BaseAgentHostSessionsProvider } from '../../agentHost/browser/baseAgentHostSessionsProvider.js';
 import { IGitHubService } from '../../github/browser/githubService.js';
 import { buildAgentHostSessionWorkspace, readBranchProtectionPatterns } from '../../../common/agentHostSessionWorkspace.js';
@@ -204,8 +207,11 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILogService logService: ILogService,
 		@IGitHubService gitHubService: IGitHubService,
+		@IAuthenticationService authenticationService: IAuthenticationService,
+		@IAgentHostMcpAuthRegistry mcpAuthRegistry: IAgentHostMcpAuthRegistry,
+		@IAgentHostActiveClientRegistry activeClientRegistry: IAgentHostActiveClientRegistry,
 	) {
-		super(chatSessionsService, chatService, chatWidgetService, languageModelsService, _configurationService, logService, gitHubService);
+		super(chatSessionsService, chatService, chatWidgetService, languageModelsService, _configurationService, logService, gitHubService, authenticationService, mcpAuthRegistry, activeClientRegistry);
 
 		this._connectionAuthority = agentHostAuthority(config.address);
 		this._connectOnDemand = config.connectOnDemand;
@@ -257,6 +263,8 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 	protected get connection(): IAgentConnection | undefined { return this._connection; }
 
 	protected get authenticationPending(): IObservable<boolean> { return this._authenticationPending; }
+
+	protected get _mcpAuthHostKey(): string { return this.remoteAddress; }
 
 	protected override createAdapter(meta: IAgentSessionMetadata): AgentHostSessionAdapter {
 		this._metaByRawId.set(AgentSession.id(meta.session), meta);

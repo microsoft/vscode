@@ -30,6 +30,8 @@ import { IProductService } from '../../../../../../platform/product/common/produ
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { AgentHostSessionHandler, toolDataToDefinition, toolResultToProtocol } from '../../../browser/agentSessions/agentHost/agentHostSessionHandler.js';
+import { IAgentHostActiveClientRegistry } from '../../../browser/agentSessions/agentHost/agentHostActiveClientRegistry.js';
+import { IAgentHostMcpAuthRegistry } from '../../../browser/agentSessions/agentHost/agentHostMcpAuthRegistry.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { TestFileService } from '../../../../../test/common/workbenchTestServices.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
@@ -455,6 +457,17 @@ suite('AgentHostClientTools', () => {
 				isNewSession: () => false,
 			});
 			instantiationService.stub(ILanguageModelToolsService, toolsService);
+			instantiationService.stub(IAgentHostActiveClientRegistry, {
+				register: () => toDisposable(() => { }),
+				get: () => undefined,
+			});
+			instantiationService.stub(IAgentHostMcpAuthRegistry, {
+				registerSession: () => toDisposable(() => { }),
+				getEntry: () => undefined,
+				remember: () => { },
+				forget: () => { },
+				recall: () => undefined,
+			});
 
 			const handler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
 				provider: 'copilot' as const,

@@ -20,16 +20,20 @@ import { AgentSession, IAgentConnection, IAgentSessionMetadata } from '../../../
 import { KNOWN_AUTO_APPROVE_VALUES, SessionConfigKey } from '../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { ResolveSessionConfigResult } from '../../../../platform/agentHost/common/state/protocol/commands.js';
 import { NotificationType } from '../../../../platform/agentHost/common/state/protocol/notifications.js';
-import { FileEdit, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, SessionState, SessionSummary } from '../../../../platform/agentHost/common/state/protocol/state.js';
+import { FileEdit, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, SessionState, SessionSummary, type McpServerSummary } from '../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, isSessionAction } from '../../../../platform/agentHost/common/state/sessionActions.js';
 import { readSessionGitState, SessionMeta, StateComponents, type ISessionGitState } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ChatViewPaneTarget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
+import { authenticateMcpServerCandidates } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostAuth.js';
+import { IAgentHostActiveClientRegistry } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientRegistry.js';
+import { IAgentHostMcpAuthRegistry, type IAgentHostMcpAuthSessionEntry } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostMcpAuthRegistry.js';
 import { IChatSendRequestOptions, IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionFileChange, IChatSessionFileChange2, IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
+import { IAuthenticationService } from '../../../../workbench/services/authentication/common/authentication.js';
 import { buildMutableConfigSchema, IAgentHostSessionsProvider, resolvedConfigsEqual } from '../../../common/agentHostSessionsProvider.js';
 import { agentHostSessionWorkspaceKey } from '../../../common/agentHostSessionWorkspace.js';
 import { isSessionConfigComplete } from '../../../common/sessionConfig.js';
@@ -364,6 +368,30 @@ export class AgentHostSessionAdapter implements ISession {
 // ============================================================================
 
 /**
+ * Per-NewSession dependencies needed to surface MCP-auth state and
+ * drive interactive auth before the session has been graduated into a
+ * real chat session (i.e. before `provideChatSessionContent` runs).
+ *
+ * Mirrors the auth machinery `AgentHostSessionHandler` uses for active
+ * sessions; both surfaces share `agentHostAuth.ts` helpers so the
+ * silent / remembered-scopes semantics stay identical across the two
+ * code paths.
+ */
+export interface IProvisionalMcpAuthBinding {
+	readonly registry: IAgentHostMcpAuthRegistry;
+	readonly authenticationService: IAuthenticationService;
+	/**
+	 * Stable agent-host identifier (`'local'` for the in-process host,
+	 * the remote address for remote hosts). Combined with the OAuth
+	 * resource URI to scope the registry's persistent scope memory so
+	 * that approving the same OAuth resource on a different agent host
+	 * prompts the user again instead of silently reusing a token from
+	 * another host.
+	 */
+	readonly mcpAuthHostKey: string;
+}
+
+/**
  * Inputs needed to construct a {@link NewSession}.
  */
 interface INewSessionConstructionContext {
@@ -381,6 +409,22 @@ interface INewSessionConstructionContext {
 	 * the picker reflects the user's preference immediately.
 	 */
 	readonly initialConfigValues?: Record<string, unknown>;
+	/**
+	 * Optional MCP-auth binding. When provided, the {@link NewSession}
+	 * registers itself with the workbench MCP-auth registry once its
+	 * eager backend session opens, so the chat-input MCP-auth indicator
+	 * appears for provisional sessions on the new-chat view.
+	 */
+	readonly mcpAuthBinding?: IProvisionalMcpAuthBinding;
+	/**
+	 * Optional registry for retrieving the chat-session handler's
+	 * active-client snapshot (`clientId`, client tools, customizations)
+	 * by `sessionType`. Passed straight through to
+	 * `connection.createSession`'s `activeClient` parameter so the agent
+	 * host establishes the active client at creation time without a
+	 * follow-up `session/activeClientChanged` dispatch.
+	 */
+	readonly activeClientRegistry?: IAgentHostActiveClientRegistry;
 }
 
 /**
@@ -440,6 +484,23 @@ class NewSession extends Disposable {
 
 	private readonly _logService: ILogService;
 	private readonly _providerId: string;
+	/**
+	 * Chat-session type identifier used to look up the active-client
+	 * snapshot. Equals `resourceScheme` (matches the value the chat
+	 * session contribution registers under) — the agent provider id
+	 * stored on {@link agentProvider} differs from this for remote
+	 * hosts, so we capture the right key explicitly.
+	 */
+	private readonly _chatSessionType: string;
+	private readonly _mcpAuthBinding: IProvisionalMcpAuthBinding | undefined;
+	private readonly _activeClientRegistry: IAgentHostActiveClientRegistry | undefined;
+	/**
+	 * MCP-auth registration cleanup. Lazily filled in when
+	 * {@link eagerCreate}'s subscription opens; cleared on
+	 * {@link graduate} or dispose so the registry entry doesn't outlive
+	 * the eager backend session.
+	 */
+	private readonly _mcpAuthRegistration = this._register(new MutableDisposable());
 
 	constructor(ctx: INewSessionConstructionContext) {
 		super();
@@ -450,7 +511,10 @@ class NewSession extends Disposable {
 		this.workspaceUri = workspaceUri;
 		this.agentProvider = ctx.sessionType.id;
 		this._providerId = ctx.providerId;
+		this._chatSessionType = ctx.resourceScheme;
 		this._logService = ctx.logService;
+		this._mcpAuthBinding = ctx.mcpAuthBinding;
+		this._activeClientRegistry = ctx.activeClientRegistry;
 
 		const resource = URI.from({ scheme: ctx.resourceScheme, path: `/${generateUuid()}` });
 		this._status = observableValue<SessionStatus>(this, SessionStatus.Untitled);
@@ -606,10 +670,18 @@ class NewSession extends Disposable {
 
 		void (async () => {
 			try {
+				// Look up the chat-session handler's active-client snapshot
+				// (`clientId`, tools, customizations) for this session type
+				// and pass it through. The agent host treats this as
+				// equivalent to dispatching `session/activeClientChanged`
+				// immediately after creation, so customizations and client
+				// tools are in place for the very first turn.
+				const activeClient = this._activeClientRegistry?.get(this._chatSessionType);
 				await connection.createSession({
 					provider: this.agentProvider,
 					session: backendUri,
 					workingDirectory: this.workspaceUri,
+					activeClient,
 				});
 			} catch (err) {
 				this._logService.warn(`[${this._providerId}] Eager createSession failed for ${backendUri.toString()}: ${err}`);
@@ -637,7 +709,66 @@ class NewSession extends Disposable {
 			// when chat content opens, so when we release this ref on
 			// graduation the wire-level refcount stays positive.
 			this._subscription = connection.getSubscription(StateComponents.Session, backendUri);
+
+			// Register an MCP-auth entry against the chat session resource
+			// so the chat-input indicator (and the new-chat-input indicator
+			// in particular) can surface MCP servers in `AuthRequired`
+			// before the user sends their first message — the
+			// `provideChatSessionContent` registration only runs at
+			// graduation. Skipped silently when no binding was provided
+			// (tests, surfaces that don't surface the indicator).
+			this._registerMcpAuth(connection);
 		})();
+	}
+
+	/**
+	 * Wires `_subscription`'s `mcpServers` slice into the workbench-scoped
+	 * MCP-auth registry. Called from {@link eagerCreate} after the
+	 * subscription opens; the resulting registration lives until
+	 * {@link graduate} or dispose, at which point the chat-session-bound
+	 * registration takes over (or the session goes away).
+	 */
+	private _registerMcpAuth(connection: IAgentConnection): void {
+		const binding = this._mcpAuthBinding;
+		if (!binding) {
+			return;
+		}
+		const sub = this._subscription;
+		if (!sub) {
+			return;
+		}
+		const store = new DisposableStore();
+		const typedSub = sub.object as { value: SessionState | Error | undefined; onDidChange: Event<unknown> };
+		const mcpServersObs: ISettableObservable<readonly McpServerSummary[]> = observableValue(this, []);
+		const update = () => {
+			const v = typedSub.value;
+			mcpServersObs.set((v && !(v instanceof Error)) ? (v.mcpServers ?? []) : [], undefined);
+		};
+		update();
+		store.add(typedSub.onDidChange(update));
+
+		const logPrefix = `[NewSession-MCP/${this._providerId}]`;
+		const entry: IAgentHostMcpAuthSessionEntry = {
+			mcpServers: mcpServersObs,
+			authenticate: target => authenticateMcpServerCandidates(
+				mcpServersObs.get(),
+				target,
+				{
+					authenticate: req => connection.authenticate({
+						resource: req.resource,
+						token: req.token,
+						server: req.server,
+					}),
+					authenticationService: binding.authenticationService,
+					logService: this._logService,
+					logPrefix,
+					mcpAuthMemory: binding.registry,
+					mcpAuthHostKey: binding.mcpAuthHostKey,
+				},
+			),
+		};
+		store.add(binding.registry.registerSession(this.session.resource, entry));
+		this._mcpAuthRegistration.value = store;
 	}
 
 	/**
@@ -651,6 +782,10 @@ class NewSession extends Disposable {
 		this._backendUri = undefined;
 		this._connection = undefined;
 		this._configRequestSeq++;
+		// Drop our MCP-auth registration; the chat-session handler will
+		// re-register an equivalent entry against the same resource via
+		// `provideChatSessionContent`.
+		this._mcpAuthRegistration.clear();
 	}
 
 	override dispose(): void {
@@ -778,6 +913,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		@IConfigurationService protected readonly _baseConfigurationService: IConfigurationService,
 		@ILogService protected readonly _logService: ILogService,
 		@IGitHubService protected readonly _gitHubService: IGitHubService,
+		@IAuthenticationService protected readonly _authenticationService: IAuthenticationService,
+		@IAgentHostMcpAuthRegistry protected readonly _mcpAuthRegistry: IAgentHostMcpAuthRegistry,
+		@IAgentHostActiveClientRegistry protected readonly _activeClientRegistry: IAgentHostActiveClientRegistry,
 	) {
 		super();
 	}
@@ -789,6 +927,16 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	/** Provider-level authentication-pending observable used to derive `loading` for sessions. */
 	protected abstract get authenticationPending(): IObservable<boolean>;
+
+	/**
+	 * Stable identifier for the agent host this provider talks to,
+	 * used as the `host` axis of {@link IAgentHostMcpAuthRegistry}'s
+	 * persistent scope memory. `'local'` for the in-process host,
+	 * the remote address for remote hosts. The host axis prevents
+	 * authorizing an OAuth resource on one host from silently
+	 * authenticating another.
+	 */
+	protected abstract get _mcpAuthHostKey(): string;
 
 	/**
 	 * Subclass-specific portion of the adapter options. Base fills in
@@ -975,6 +1123,12 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			authenticationPending: this.authenticationPending,
 			logService: this._logService,
 			initialConfigValues: this._initialNewSessionConfig(),
+			mcpAuthBinding: {
+				registry: this._mcpAuthRegistry,
+				authenticationService: this._authenticationService,
+				mcpAuthHostKey: this._mcpAuthHostKey,
+			},
+			activeClientRegistry: this._activeClientRegistry,
 		});
 		this._newSession = newSession;
 		this._onDidChangeSessionConfig.fire(newSession.sessionId);

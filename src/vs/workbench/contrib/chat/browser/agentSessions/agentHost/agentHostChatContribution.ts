@@ -6,8 +6,9 @@
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { Event } from '../../../../../../base/common/event.js';
-import { observableValue } from '../../../../../../base/common/observable.js';
+import { autorun, observableValueOpts } from '../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
+import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { AgentHostEnabledSettingId, IAgentHostService, type AgentProvider } from '../../../../../../platform/agentHost/common/agentService.js';
 import { type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -28,12 +29,14 @@ import { IAgentPluginService } from '../../../common/plugins/agentPluginService.
 import { IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { AgentCustomizationSyncProvider } from './agentCustomizationSyncProvider.js';
 import { LocalAgentHostCustomizationItemProvider, resolveCustomizationRefs } from './agentHostLocalCustomizations.js';
-import { authenticateProtectedResources, AgentHostAuthTokenCache, resolveAuthenticationInteractively } from './agentHostAuth.js';
+import { authenticateProtectedResources, AgentHostAuthTokenCache, resolveAuthenticationInteractively, resolveMcpServerAuthenticationInteractively, resolveMcpServerAuthenticationSilently } from './agentHostAuth.js';
+import { IAgentHostMcpAuthRegistry } from './agentHostMcpAuthRegistry.js';
 import { AgentHostLanguageModelProvider } from './agentHostLanguageModelProvider.js';
 import { AgentHostSessionHandler } from './agentHostSessionHandler.js';
 import { AgentHostSessionListController } from './agentHostSessionListController.js';
 import { LoggingAgentConnection } from './loggingAgentConnection.js';
 import { SyncedCustomizationBundler } from './syncedCustomizationBundler.js';
+import { equals as deepEquals } from '../../../../../../base/common/objects.js';
 
 export { AgentHostSessionHandler } from './agentHostSessionHandler.js';
 export { AgentHostSessionListController } from './agentHostSessionListController.js';
@@ -77,6 +80,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		@IAgentPluginService private readonly _agentPluginService: IAgentPluginService,
 		@IPromptsService private readonly _promptsService: IPromptsService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IAgentHostMcpAuthRegistry private readonly _mcpAuthRegistry: IAgentHostMcpAuthRegistry,
 	) {
 		super();
 
@@ -206,7 +210,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			itemProvider,
 		}));
 
-		const customizations = observableValue<CustomizationRef[]>('agentCustomizations', []);
+		const customizations = observableValueOpts<CustomizationRef[]>({ debugName: 'agentCustomizations', equalsFn: deepEquals }, []);
 		const updateCustomizations = async () => {
 			const refs = await resolveCustomizationRefs(this._promptsService, syncProvider, this._agentPluginService, bundler, sessionType);
 			customizations.set(refs, undefined);
@@ -218,7 +222,18 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			this._promptsService.onDidChangeSkills,
 			this._promptsService.onDidChangeInstructions,
 		)(() => updateCustomizations()));
-		updateCustomizations(); // resolve initial state
+		// Refresh when the installed plugin set or any plugin's MCP server
+		// definitions / hooks change — these contributions are not surfaced
+		// via the prompts service events above, so MCP-only plugins would
+		// otherwise never trigger an update.
+		store.add(autorun(reader => {
+			const plugins = this._agentPluginService.plugins.read(reader);
+			for (const plugin of plugins) {
+				plugin.mcpServerDefinitions.read(reader);
+				plugin.hooks.read(reader);
+			}
+			updateCustomizations();
+		}));
 
 		// Session handler
 		const sessionHandler = store.add(this._instantiationService.createInstance(AgentHostSessionHandler, {
@@ -231,6 +246,8 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			connectionAuthority: 'local',
 			isNewSession: sessionResource => listController.isNewSession(sessionResource),
 			resolveAuthentication: (resources) => this._resolveAuthenticationInteractively(resources),
+			resolveMcpAuthentication: (mcpServer, resource, scopes) => this._resolveMcpAuthenticationInteractively(mcpServer, resource, scopes),
+			resolveMcpAuthenticationSilently: (mcpServer, resource, scopes) => this._resolveMcpAuthenticationSilently(mcpServer, resource, scopes),
 			customizations,
 		}));
 		store.add(this._chatSessionsService.registerChatSessionContentProvider(sessionType, sessionHandler));
@@ -303,6 +320,54 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		} catch (err) {
 			this._logService.error('[AgentHost] Interactive authentication failed', err);
 			this._loggedConnection!.logError('resolveAuthenticationInteractively', err);
+		}
+		return false;
+	}
+
+	/**
+	 * Interactively authenticates a single MCP server's protected resource
+	 * and forwards the token scoped to that server. Used by the chat-input
+	 * MCP-auth indicator so per-server tokens are pushed independently.
+	 */
+	private async _resolveMcpAuthenticationInteractively(mcpServer: URI, resource: ProtectedResourceMetadata, scopes: readonly string[] | undefined): Promise<boolean> {
+		try {
+			return await resolveMcpServerAuthenticationInteractively(mcpServer, resource, scopes, {
+				authTokenCache: this._authTokenCache,
+				mcpAuthMemory: this._mcpAuthRegistry,
+				mcpAuthHostKey: 'local',
+				authenticationService: this._authenticationService,
+				logPrefix: '[AgentHost]',
+				logService: this._logService,
+				authenticate: request => this._loggedConnection!.authenticate(request),
+			});
+		} catch (err) {
+			this._logService.error('[AgentHost] Interactive MCP authentication failed', err);
+			this._loggedConnection!.logError('resolveMcpAuthenticationInteractively', err);
+		}
+		return false;
+	}
+
+	/**
+	 * Silently re-authenticates a single MCP server using an existing
+	 * OAuth session (no prompt). Triggered when an MCP server
+	 * transitions to `AuthRequired` so previously-authenticated hosts
+	 * recover without surfacing UI. Returns `false` when no matching
+	 * session is available; the indicator click path then drives the
+	 * interactive flow.
+	 */
+	private async _resolveMcpAuthenticationSilently(mcpServer: URI, resource: ProtectedResourceMetadata, scopes: readonly string[] | undefined): Promise<boolean> {
+		try {
+			return await resolveMcpServerAuthenticationSilently(mcpServer, resource, scopes, {
+				authTokenCache: this._authTokenCache,
+				mcpAuthMemory: this._mcpAuthRegistry,
+				mcpAuthHostKey: 'local',
+				authenticationService: this._authenticationService,
+				logPrefix: '[AgentHost]',
+				logService: this._logService,
+				authenticate: request => this._loggedConnection!.authenticate(request),
+			});
+		} catch (err) {
+			this._logService.warn('[AgentHost] Silent MCP authentication failed', err);
 		}
 		return false;
 	}

@@ -39,6 +39,7 @@ import { getSimpleEditorOptions } from '../../../../workbench/contrib/codeEditor
 import { NewChatContextAttachments } from './newChatContextAttachments.js';
 import { SessionTypePicker } from './sessionTypePicker.js';
 import { MobileSessionTypePicker } from './mobile/mobileSessionTypePicker.js';
+import { NewChatMcpAuthIndicator } from './agentHost/newChatMcpAuthIndicator.js';
 import { installMobileChipLaneScroll } from '../../../browser/parts/mobile/mobileChipLaneScroll.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { Menus } from '../../../browser/menus.js';
@@ -440,6 +441,12 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		}));
 
 		dom.append(toolbar, dom.$('.sessions-chat-toolbar-spacer'));
+
+		// MCP-auth indicator: appears when the active session has any
+		// MCP server in `AuthRequired`. Mirrors the chat-input toolbar
+		// indicator (see `OpenMcpAuthAction`) but renders here directly
+		// because the new-chat-input doesn't host `MenuId.ChatExecute`.
+		this._register(this.instantiationService.createInstance(NewChatMcpAuthIndicator, toolbar));
 
 		this._loadingSpinner = dom.append(toolbar, dom.$('.sessions-chat-loading-spinner'));
 		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), this._loadingSpinner, localize('loading', "Loading...")));

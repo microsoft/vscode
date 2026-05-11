@@ -21,7 +21,7 @@ import { AgentProvider, AgentSession, type IAgentConnection } from '../../../../
 import { IAgentSubscription, observableFromSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { SessionTruncatedAction } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { CompletionItemKind as AhpCompletionItemKind, type CompletionItem as AhpCompletionItem } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { ConfirmationOptionKind, CustomizationRef, TerminalClaimKind, ToolResultContentType, type ConfirmationOption, type ProtectedResourceMetadata, type ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { ConfirmationOptionKind, CustomizationRef, McpServerStatusKind, TerminalClaimKind, ToolResultContentType, type ConfirmationOption, type McpServerSummary, type ProtectedResourceMetadata, type ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, SessionTurnStartedAction, type ClientSessionAction, type SessionAction, type SessionInputCompletedAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { buildSubagentSessionUri, getToolFileEdits, getToolSubagentContent, MessageAttachmentKind, PendingMessageKind, ResponsePartKind, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, type ICompletedToolCall, type MarkdownResponsePart, type MessageAttachment, type ModelSelection, type ReasoningResponsePart, type RootState, type SessionInputAnswer, type SessionInputRequest, type SessionState, type ToolCallResponsePart, type ToolCallState, type Turn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -50,6 +50,8 @@ import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { ILanguageModelToolsService, IToolData, IToolInvocation, IToolResult, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { getAgentHostIcon } from '../agentSessions.js';
 import { AgentHostEditingSession } from './agentHostEditingSession.js';
+import { IAgentHostActiveClientRegistry } from './agentHostActiveClientRegistry.js';
+import { IAgentHostMcpAuthRegistry, type IAgentHostMcpAuthSessionEntry } from './agentHostMcpAuthRegistry.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWorkingDirectoryResolver.js';
 import { activeTurnToProgress, completedToolCallToEditParts, completedToolCallToSerialized, finalizeToolInvocation, getTerminalContentUri, isSubagentTool, makeAhpTerminalToolSessionId, parseAhpTerminalToolSessionId, rawMarkdownToString, stringOrMarkdownToString, toolCallStateToInvocation, turnsToHistory, updateRunningToolSpecificData, userMessageToVariableData, type IToolCallFileEdit, type TurnModelLookup } from './stateToProgressAdapter.js';
 
@@ -210,6 +212,13 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 	readonly progressObs = observableValue<IChatProgress[]>('agentHostProgress', []);
 	readonly isCompleteObs = observableValue<boolean>('agentHostComplete', true);
 
+	/**
+	 * Live MCP-server summaries for this session, mirroring
+	 * `SessionState.mcpServers`. Updated by the owning session handler as
+	 * the protocol state changes.
+	 */
+	readonly mcpServersObs = observableValue<readonly McpServerSummary[]>('agentHostMcpServers', []);
+
 	private readonly _onWillDispose = this._register(new Emitter<void>());
 	readonly onWillDispose = this._onWillDispose.event;
 
@@ -331,6 +340,28 @@ export interface IAgentHostSessionHandlerConfig {
 	readonly resolveAuthentication?: (protectedResources: ProtectedResourceMetadata[]) => Promise<boolean>;
 
 	/**
+	 * Optional callback invoked when the user requests authentication for a
+	 * specific MCP server (e.g. by clicking the MCP-auth indicator on the
+	 * chat input). The token MUST be forwarded to the agent host scoped to
+	 * `mcpServer` (i.e. {@link AuthenticateParams.server}).
+	 *
+	 * `scopes` carries the authoritative scopes for this challenge — for
+	 * AHP this is `McpServerStatusAuthRequired.requiredScopes` when set,
+	 * falling back to `resource.scopes_supported`.
+	 */
+	readonly resolveMcpAuthentication?: (mcpServer: URI, resource: ProtectedResourceMetadata, scopes: readonly string[] | undefined) => Promise<boolean>;
+
+	/**
+	 * Optional callback used for the auto-recovery path: when an MCP
+	 * server transitions to `AuthRequired`, the handler tries this once
+	 * before surfacing the click-to-authenticate indicator. The
+	 * implementation MUST NOT prompt the user — it should look up an
+	 * existing OAuth session matching `scopes` and forward its token if
+	 * available, otherwise return `false`.
+	 */
+	readonly resolveMcpAuthenticationSilently?: (mcpServer: URI, resource: ProtectedResourceMetadata, scopes: readonly string[] | undefined) => Promise<boolean>;
+
+	/**
 	 * Observable set of agent-level customizations to include in the active
 	 * client set. When the value changes, active sessions are updated.
 	 */
@@ -355,6 +386,21 @@ function offsetToPosition(text: string, offset: number): IPosition {
 		}
 	}
 	return { lineNumber, column };
+}
+
+/**
+ * Compact, deterministic fingerprint of an MCP server's
+ * `AuthRequired` challenge: the canonical resource URI plus the sorted
+ * scope list. Used to dedupe automatic silent re-auth attempts so a
+ * rejected silent token doesn't loop, while a subsequent `AuthRequired`
+ * with new scopes still re-arms the silent path.
+ */
+function mcpAuthChallengeFingerprint(summary: McpServerSummary): string {
+	if (summary.status.kind !== McpServerStatusKind.AuthRequired) {
+		return '';
+	}
+	const scopes = [...(summary.status.requiredScopes ?? summary.status.resource.scopes_supported ?? [])].sort();
+	return `${summary.status.resource.resource}|${scopes.join(' ')}`;
 }
 export class AgentHostSessionHandler extends Disposable implements IChatSessionContentProvider {
 
@@ -391,6 +437,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
+		@IAgentHostMcpAuthRegistry private readonly _mcpAuthRegistry: IAgentHostMcpAuthRegistry,
+		@IAgentHostActiveClientRegistry private readonly _activeClientRegistry: IAgentHostActiveClientRegistry,
 	) {
 		super();
 		this._config = config;
@@ -476,6 +524,19 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				}
 			}));
 		}
+
+		// Publish our active-client snapshot under this handler's session
+		// type so the sessions provider can read it from
+		// `NewSession.eagerCreate` and pass it as the `activeClient`
+		// parameter on `connection.createSession`. That establishes the
+		// active client at the moment the backend session is created,
+		// avoiding a separate post-hoc dispatch for provisional
+		// (new-chat-input) sessions.
+		this._register(this._activeClientRegistry.register(config.sessionType, () => ({
+			clientId: this._config.connection.clientId,
+			tools: this._clientToolsObs.get().map(toolDataToDefinition),
+			customizations: this._config.customizations?.get() ?? [],
+		})));
 
 		this._registerAgent();
 	}
@@ -651,6 +712,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			},
 		);
 		this._activeSessions.set(sessionResource, session);
+
+		// Wire up live MCP-server summaries from the session subscription
+		// into the chat session, and register the session with the global
+		// MCP-auth registry so the chat input UI can find it. Both bindings
+		// are torn down with the chat session.
+		this._wireMcpServerState(sessionResource, resolvedSession, session);
 
 		if (!isNewSession) {
 			this._ensurePendingMessageSubscription(sessionResource, resolvedSession);
@@ -2692,6 +2759,107 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}
 		const value = ref.object.value;
 		return (value && !(value instanceof Error)) ? value : undefined;
+	}
+
+	/**
+	 * Wires the per-session MCP server state into `session.mcpServersObs`
+	 * and registers the session with the workbench-scoped MCP auth
+	 * registry so the chat input UI can look it up. Both bindings are
+	 * torn down with the chat session.
+	 */
+	private _wireMcpServerState(sessionResource: URI, backendSession: URI, session: AgentHostChatSession): void {
+		const sub = this._ensureSessionSubscription(backendSession.toString());
+
+		// Per-server fingerprint of the most recent silent-auth attempt,
+		// keyed by `McpServerSummary.resource` (the server URI). We retry
+		// silent auth only when the fingerprint changes — i.e., a
+		// genuinely new `AuthRequired` episode (different resource or
+		// scopes) — so that a token rejection doesn't loop. Cleared when
+		// the server leaves `AuthRequired` so future challenges re-arm.
+		const lastSilentAttempt = new Map<string, string>();
+
+		const update = () => {
+			const state = sub.value;
+			const servers = (state && !(state instanceof Error)) ? (state.mcpServers ?? []) : [];
+			session.mcpServersObs.set(servers, undefined);
+
+			// React to AuthRequired transitions: try a silent auth pass
+			// for any server whose challenge fingerprint we haven't yet
+			// attempted in this episode. If it succeeds the host
+			// transitions the server back to Ready (no UI), otherwise
+			// the indicator surfaces normally.
+			const liveServerKeys = new Set<string>();
+			for (const summary of servers) {
+				liveServerKeys.add(summary.resource);
+				if (summary.status.kind !== McpServerStatusKind.AuthRequired) {
+					lastSilentAttempt.delete(summary.resource);
+					continue;
+				}
+				const fingerprint = mcpAuthChallengeFingerprint(summary);
+				if (lastSilentAttempt.get(summary.resource) === fingerprint) {
+					continue;
+				}
+				lastSilentAttempt.set(summary.resource, fingerprint);
+				this._tryMcpServerSilentAuth(summary);
+			}
+			// Drop memo entries for servers that disappeared.
+			for (const key of lastSilentAttempt.keys()) {
+				if (!liveServerKeys.has(key)) {
+					lastSilentAttempt.delete(key);
+				}
+			}
+		};
+		update();
+		session.registerDisposable(sub.onDidChange(update));
+
+		const entry: IAgentHostMcpAuthSessionEntry = {
+			mcpServers: session.mcpServersObs,
+			authenticate: server => this._authenticateMcpServers(session, server),
+		};
+		session.registerDisposable(this._mcpAuthRegistry.registerSession(sessionResource, entry));
+	}
+
+	/**
+	 * Drives interactive authentication for one or all MCP servers in an
+	 * `AuthRequired` state on the given session.
+	 */
+	private async _authenticateMcpServers(session: AgentHostChatSession, target?: McpServerSummary): Promise<boolean> {
+		const resolveMcp = this._config.resolveMcpAuthentication;
+		if (!resolveMcp) {
+			return false;
+		}
+		const summaries = session.mcpServersObs.get();
+		const candidates = (target ? [target] : summaries.filter(s => s.status.kind === McpServerStatusKind.AuthRequired));
+		let anySucceeded = false;
+		for (const summary of candidates) {
+			if (summary.status.kind !== McpServerStatusKind.AuthRequired) {
+				continue;
+			}
+			try {
+				const ok = await resolveMcp(URI.parse(summary.resource), summary.status.resource, summary.status.requiredScopes);
+				anySucceeded ||= ok;
+			} catch (err) {
+				this._logService.error(`[AgentHost] MCP authentication failed for ${summary.resource}`, err);
+			}
+		}
+		return anySucceeded;
+	}
+
+	/**
+	 * Fire-and-forget silent re-authentication for a single MCP server
+	 * that just transitioned to (or refreshed) `AuthRequired`. Errors
+	 * are swallowed; the indicator path remains the user-visible
+	 * fallback.
+	 */
+	private _tryMcpServerSilentAuth(summary: McpServerSummary): void {
+		const resolveMcpSilently = this._config.resolveMcpAuthenticationSilently;
+		if (!resolveMcpSilently || summary.status.kind !== McpServerStatusKind.AuthRequired) {
+			return;
+		}
+		const status = summary.status;
+		Promise.resolve()
+			.then(() => resolveMcpSilently(URI.parse(summary.resource), status.resource, status.requiredScopes))
+			.catch(err => this._logService.warn(`[AgentHost] Silent MCP authentication failed for ${summary.resource}`, err));
 	}
 
 	/**

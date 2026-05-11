@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import type { JsonRpcMessage } from '../../../../../base/common/jsonRpcProtocol.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogger } from '../../../../log/common/log.js';
 import { McpServerType, type IMcpRemoteServerConfiguration } from '../../../../mcp/common/mcpPlatformTypes.js';
@@ -364,6 +365,62 @@ suite('McpHttpUpstream', () => {
 				/cannot send while in state 'stopped'/,
 			);
 		} finally {
+			upstream.dispose();
+		}
+	});
+
+	test('send() consumes text/event-stream responses and emits one onMessage per JSON-RPC event', async () => {
+		// Encode two SSE `message` events whose data fields are JSON-RPC payloads.
+		const sseBytes = new TextEncoder().encode([
+			'event: message',
+			`data: ${JSON.stringify({ jsonrpc: '2.0', id: 1, result: { ok: true } })}`,
+			'',
+			'event: message',
+			`data: ${JSON.stringify({ jsonrpc: '2.0', method: 'notifications/progress', params: { value: 42 } })}`,
+			'',
+			'',
+		].join('\n'));
+
+		// Probe response: one-shot JSON, transitions to Ready.
+		// Send response: SSE stream with the two events above.
+		const responses: ((url: string) => IFetchResponseSpec)[] = [
+			() => ({ status: 200 }),
+			() => ({ status: 200, headers: { 'Content-Type': 'text/event-stream' } }),
+		];
+		let i = 0;
+		const calls: IFetchCall[] = [];
+		const fetch: HttpFetch = async (url, init) => {
+			calls.push({ url, method: init.method, headers: { ...init.headers }, body: init.body });
+			const spec = responses[i++](url);
+			const base = makeResponse(spec);
+			if (i === 2) {
+				// Attach a real ReadableStream as the response body for the SSE branch.
+				return {
+					...base,
+					body: new ReadableStream<Uint8Array>({
+						start(controller) {
+							controller.enqueue(sseBytes);
+							controller.close();
+						},
+					}),
+				};
+			}
+			return base;
+		};
+
+		const upstream = new McpHttpUpstream({ config: baseConfig, logger: new NullLogger(), fetch });
+		const received: JsonRpcMessage[] = [];
+		const sub = upstream.onMessage(m => received.push(m));
+		try {
+			const startStatus = await upstream.start();
+			assert.strictEqual(startStatus.kind, McpServerStatusKind.Ready);
+			await upstream.send({ jsonrpc: '2.0', id: 1, method: 'tools/list' });
+			assert.deepStrictEqual(received, [
+				{ jsonrpc: '2.0', id: 1, result: { ok: true } },
+				{ jsonrpc: '2.0', method: 'notifications/progress', params: { value: 42 } },
+			]);
+		} finally {
+			sub.dispose();
 			upstream.dispose();
 		}
 	});

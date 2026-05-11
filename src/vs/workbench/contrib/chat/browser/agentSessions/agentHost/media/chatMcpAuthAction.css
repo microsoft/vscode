@@ -1,0 +1,32 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-action-bar .action-item.chat-mcp-auth-action > .action-label.codicon {
+	color: var(--vscode-notificationsWarningIcon-foreground);
+	animation: chat-mcp-auth-pulse 2s ease-in-out infinite;
+}
+
+.monaco-action-bar .action-item.chat-mcp-auth-action:hover > .action-label.codicon,
+.monaco-action-bar .action-item.chat-mcp-auth-action:focus-within > .action-label.codicon {
+	color: var(--vscode-notificationsWarningIcon-foreground);
+	animation: none;
+}
+
+@keyframes chat-mcp-auth-pulse {
+	0%, 100% {
+		opacity: 1;
+		transform: scale(1);
+	}
+	50% {
+		opacity: 0.65;
+		transform: scale(1.08);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.monaco-action-bar .action-item.chat-mcp-auth-action > .action-label.codicon {
+		animation: none;
+	}
+}

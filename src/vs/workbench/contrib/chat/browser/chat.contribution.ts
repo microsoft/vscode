@@ -111,6 +111,10 @@ import { ChatDebugEditor } from './chatDebug/chatDebugEditor.js';
 import { PromptsDebugContribution } from './promptsDebugContribution.js';
 import { ChatDebugEditorInput, ChatDebugEditorInputSerializer } from './chatDebug/chatDebugEditorInput.js';
 import './agentSessions/agentSessions.contribution.js';
+import './agentSessions/agentHost/agentHostActiveClientRegistry.js';
+import './agentSessions/agentHost/agentHostMcpAuthRegistry.js';
+import { AgentHostMcpAuthIndicatorContribution } from './agentSessions/agentHost/agentHostMcpAuthIndicatorContribution.js';
+import { registerMcpAuthActions } from './agentSessions/agentHost/chatMcpAuthAction.js';
 
 import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
 
@@ -2262,6 +2266,7 @@ registerWorkbenchContribution2(PromptLanguageFeaturesProvider.ID, PromptLanguage
 registerWorkbenchContribution2(ChatWindowNotifier.ID, ChatWindowNotifier, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatRepoInfoContribution.ID, ChatRepoInfoContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(AgentPluginRecommendations.ID, AgentPluginRecommendations, WorkbenchPhase.Eventually);
+registerWorkbenchContribution2(AgentHostMcpAuthIndicatorContribution.ID, AgentHostMcpAuthIndicatorContribution, WorkbenchPhase.AfterRestored);
 
 registerChatActions();
 registerChatAccessibilityActions();
@@ -2273,6 +2278,7 @@ registerChatFileTreeActions();
 registerChatPromptNavigationActions();
 registerChatTitleActions();
 registerChatExecuteActions();
+registerMcpAuthActions();
 registerChatQueueActions();
 registerQuickChatActions();
 registerChatExportActions();

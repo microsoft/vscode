@@ -10,8 +10,7 @@ import { Limiter, raceTimeout, SequencerByKey } from '../../../../base/common/as
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { appendEscapedMarkdownInlineCode } from '../../../../base/common/htmlContent.js';
-import { Disposable, DisposableMap, toDisposable } from '../../../../base/common/lifecycle.js';
-import { ResourceMap } from '../../../../base/common/map.js';
+import { Disposable, DisposableMap, DisposableResourceMap, toDisposable } from '../../../../base/common/lifecycle.js';
 import { FileAccess } from '../../../../base/common/network.js';
 import { equals } from '../../../../base/common/objects.js';
 import { observableValue, waitForState } from '../../../../base/common/observable.js';
@@ -32,7 +31,7 @@ import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ISessionDataService, SESSION_DB_FILENAME } from '../../common/sessionDataService.js';
 import { buildMcpServerUri } from '../../common/state/mcpServerUri.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
-import { ProtectedResourceMetadata, type ConfigSchema, type ModelSelection, type SessionCustomization, type ToolDefinition } from '../../common/state/protocol/state.js';
+import { ProtectedResourceMetadata, McpServerStatusKind, type ConfigSchema, type ModelSelection, type SessionCustomization, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { CustomizationRef, CustomizationStatus, ResponsePartKind, SessionInputResponseKind, parseSubagentSessionUri, type MessageAttachment, type PendingMessage, type PolicyState, type ResponsePart, type SessionInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
@@ -237,7 +236,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * server will be re-attached on the next session refresh once the proxy
 	 * comes online.
 	 */
-	private static readonly _MCP_ENDPOINT_TIMEOUT_MS = 5000;
+	private static readonly _MCP_SERVER_READY_TIMEOUT_MS = 10_000;
 
 	private readonly _onDidSessionProgress = this._register(new Emitter<AgentSignal>());
 	readonly onDidSessionProgress = this._onDidSessionProgress.event;
@@ -273,13 +272,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private readonly _plugins: PluginController;
 	readonly onDidCustomizationsChange: Event<void>;
 	/** Per-session active client state for tools + plugin snapshot tracking. */
-	private readonly _activeClients = new ResourceMap<ActiveClient>();
-	/**
-	 * Per-session cache of the most recently published MCP server definitions.
-	 * Lets `_plugins.onDidChange` skip republishing when the resolved set is
-	 * structurally unchanged.
-	 */
-	private readonly _publishedMcpServers = new ResourceMap<readonly IMcpServerDefinition[]>();
+	private readonly _activeClients = this._register(new DisposableResourceMap<ActiveClient>());
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
@@ -294,12 +287,17 @@ export class CopilotAgent extends Disposable implements IAgent {
 		super();
 		this._plugins = this._register(this._instantiationService.createInstance(PluginController));
 		this.onDidCustomizationsChange = this._plugins.onDidChange;
-		// Republish MCP servers for every live session whenever the parsed
-		// plugin set changes. {@link _publishMcpServers} diffs against the
-		// last-published set so unchanged sessions are no-ops.
+		// Republish MCP servers for every session that has an active client
+		// whenever the parsed plugin set changes. Each ActiveClient dedups
+		// against its last-published set so unchanged sessions are no-ops.
+		// Iterating active clients (rather than only live SDK sessions) is
+		// what lets pre-materialization (provisional) sessions warm up
+		// their MCP proxies before the user sends their first message.
 		this._register(this._plugins.onDidChange(() => {
-			for (const sessionId of this._sessions.keys()) {
-				this._publishMcpServers(AgentSession.uri(this.id, sessionId));
+			for (const ac of this._activeClients.values()) {
+				void ac.republish().catch(err => {
+					this._logService.warn(`[Copilot] MCP republish on plugin change failed: ${err instanceof Error ? err.message : String(err)}`);
+				});
 			}
 		}));
 	}
@@ -777,6 +775,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 			if (config.activeClient.customizations !== undefined) {
 				await this._plugins.sync(config.activeClient.clientId, config.activeClient.customizations);
 			}
+
+			// Snapshot such that MCP servers eagerly get published, triggering auth
+			void ac.snapshot(config.workingDirectory);
 		}
 
 		// Compute project metadata cheaply from the original working dir.
@@ -837,11 +838,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 		const customizationDirectory = provisional.workingDirectory;
 		const activeClient = this._activeClients.get(sessionUri);
+		// `snapshot()` publishes the resolved MCP servers as a side effect
+		// so the proxies are bound by the time `_buildSessionConfig`
+		// resolves endpoints below.
 		const snapshot = activeClient ? await activeClient.snapshot(customizationDirectory) : undefined;
-		// Publish MCP servers BEFORE building the SDK config so the proxies
-		// have a chance to bind by the time `_buildSessionConfig` resolves
-		// endpoints.
-		this._publishMcpServersForPlugins(sessionUri, snapshot?.plugins ?? []);
 		const workingDirectory = await this._resolveSessionWorkingDirectory(materializedConfig, sessionId, prompt);
 		const shellManager = this._instantiationService.createInstance(ShellManager, sessionUri, workingDirectory);
 		const sessionConfigBuilder = this._buildSessionConfig(sessionUri, snapshot, shellManager);
@@ -1329,7 +1329,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _getOrCreateActiveClient(session: URI): ActiveClient {
 		let client = this._activeClients.get(session);
 		if (!client) {
-			client = new ActiveClient(directory => this._plugins.getAppliedPlugins(directory));
+			client = this._instantiationService.createInstance(ActiveClient, session, directory => this._plugins.getAppliedPlugins(directory));
 			this._activeClients.set(session, client);
 		}
 		return client;
@@ -1363,20 +1363,19 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	private async _destroyAndDisposeSession(sessionId: string): Promise<void> {
 		const sessionUri = AgentSession.uri(this.id, sessionId);
-		// Clear MCP servers for this session before tearing down. Idempotent
-		// when the session never had any registered (e.g. provisional sessions
-		// disposed before materialization).
-		this._mcpHostService.setSessionServers(sessionUri, []);
-		this._publishedMcpServers.delete(sessionUri);
+		// Disposing the active client clears its published MCP servers via
+		// `setSessionServers([])`. Idempotent when the session never had
+		// any registered (e.g. provisional sessions disposed before
+		// materialization).
+		this._activeClients.deleteAndDispose(sessionUri);
 
 		// Provisional sessions have no SDK session, no worktree, and no
-		// on-disk metadata — drop the in-memory record and clean up the
-		// active-client snapshot. The state-manager entry is removed by the
-		// caller via {@link IAgentService.disposeSession}.
+		// on-disk metadata — drop the in-memory record. The state-manager
+		// entry is removed by the caller via
+		// {@link IAgentService.disposeSession}.
 		const provisional = this._provisionalSessions.get(sessionId);
 		if (provisional) {
 			this._provisionalSessions.delete(sessionId);
-			this._activeClients.delete(provisional.sessionUri);
 			return;
 		}
 		const entry = this._sessions.get(sessionId);
@@ -1435,12 +1434,16 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	/**
 	 * Resolves each MCP server's local proxy endpoint and produces the SDK
-	 * `mcpServers` config. Each handle's endpoint observable is awaited
-	 * briefly (up to {@link CopilotAgent._MCP_ENDPOINT_TIMEOUT_MS}) so the
-	 * very first session connect after {@link _publishMcpServers} doesn't
-	 * race the proxy bind. Servers whose endpoint never binds in time are
-	 * dropped — they will be picked up on the next customization-change
-	 * driven session refresh.
+	 * `mcpServers` config. Waits up to
+	 * {@link CopilotAgent._MCP_SERVER_READY_TIMEOUT_MS} for each server to
+	 * reach {@link McpServerStatusKind.Ready}. Servers in any other state
+	 * (Starting after timeout, AuthRequired, Error, Stopped) are dropped
+	 * from this round of SDK config — we never advertise an unhealthy or
+	 * pending-auth server to the SDK because the SDK will eagerly try to
+	 * `initialize` against it and fail. Skipped servers are picked up on
+	 * the next session refresh, which fires when the active client's
+	 * customizations change or when the user authenticates and the
+	 * server transitions to Ready.
 	 */
 	private async _resolveMcpServersForSdk(sessionUri: URI, defs: readonly IMcpServerDefinition[]): Promise<ReturnType<typeof toSdkMcpServers>> {
 		const resolved = new Map<IMcpServerDefinition, URI>();
@@ -1449,55 +1452,41 @@ export class CopilotAgent extends Disposable implements IAgent {
 			if (!handle) {
 				return;
 			}
-			const current = handle.endpoint.get();
-			if (current) {
-				resolved.set(def, current);
+			const currentKind = handle.summary.get().status.kind;
+			if (currentKind === McpServerStatusKind.Ready) {
+				const endpoint = handle.endpoint.get();
+				if (endpoint) {
+					resolved.set(def, endpoint);
+				}
+				return;
+			}
+			if (currentKind !== McpServerStatusKind.Starting) {
+				// AuthRequired / Error / Stopped — nothing to wait for.
+				this._logService.info(`[Copilot] MCP server '${def.name}' is in state '${currentKind}'; not advertising to SDK`);
 				return;
 			}
 			try {
-				const endpoint = await raceTimeout(
-					waitForState(handle.endpoint, value => value !== undefined, undefined, CancellationToken.None),
-					CopilotAgent._MCP_ENDPOINT_TIMEOUT_MS,
+				const readySummary = await raceTimeout(
+					waitForState(handle.summary, value => value.status.kind !== McpServerStatusKind.Starting, undefined, CancellationToken.None),
+					CopilotAgent._MCP_SERVER_READY_TIMEOUT_MS,
 				);
+				if (!readySummary) {
+					this._logService.warn(`[Copilot] MCP server '${def.name}' did not reach Ready within ${CopilotAgent._MCP_SERVER_READY_TIMEOUT_MS}ms; skipping`);
+					return;
+				}
+				if (readySummary.status.kind !== McpServerStatusKind.Ready) {
+					this._logService.info(`[Copilot] MCP server '${def.name}' settled in '${readySummary.status.kind}'; not advertising to SDK`);
+					return;
+				}
+				const endpoint = handle.endpoint.get();
 				if (endpoint) {
 					resolved.set(def, endpoint);
-				} else {
-					this._logService.warn(`[Copilot] MCP server '${def.name}' endpoint did not bind within ${CopilotAgent._MCP_ENDPOINT_TIMEOUT_MS}ms; skipping`);
 				}
 			} catch (err) {
-				this._logService.warn(`[Copilot] MCP server '${def.name}' endpoint resolution failed: ${err instanceof Error ? err.message : String(err)}`);
+				this._logService.warn(`[Copilot] MCP server '${def.name}' readiness wait failed: ${err instanceof Error ? err.message : String(err)}`);
 			}
 		}));
 		return toSdkMcpServers(defs, def => resolved.get(def));
-	}
-
-	/**
-	 * Resolves and publishes the MCP servers for a live session into
-	 * {@link IMcpHostService}. Idempotent: re-publishes only when the
-	 * resolved definition list is structurally different from the last
-	 * published set. Pulls plugins from the live session entry's
-	 * {@link CopilotAgentSession.appliedSnapshot}.
-	 */
-	private _publishMcpServers(session: URI): void {
-		const sessionId = AgentSession.id(session);
-		const entry = this._sessions.get(sessionId);
-		const plugins = entry ? entry.appliedSnapshot.plugins : [];
-		this._publishMcpServersForPlugins(session, plugins);
-	}
-
-	/**
-	 * Same as {@link _publishMcpServers} but takes a plugin list directly,
-	 * for the publish points that fire BEFORE the session entry is in
-	 * {@link _sessions} (materialization + resume).
-	 */
-	private _publishMcpServersForPlugins(session: URI, plugins: readonly IParsedPlugin[]): void {
-		const servers = plugins.flatMap(p => p.mcpServers);
-		const previous = this._publishedMcpServers.get(session);
-		if (previous && equals(previous, servers)) {
-			return;
-		}
-		this._publishedMcpServers.set(session, servers);
-		this._mcpHostService.setSessionServers(session, servers);
 	}
 
 	protected async _resumeSession(sessionId: string): Promise<CopilotAgentSession> {
@@ -1519,9 +1508,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 
 		const shellManager = this._instantiationService.createInstance(ShellManager, sessionUri, workingDirectory);
-		// Publish MCP servers BEFORE building the SDK config so proxies have
-		// a chance to bind before `_buildSessionConfig` resolves endpoints.
-		this._publishMcpServersForPlugins(sessionUri, snapshot?.plugins ?? []);
 		const sessionConfig = this._buildSessionConfig(sessionUri, snapshot, shellManager);
 
 		const factory: SessionWrapperFactory = async callbacks => {
@@ -2025,18 +2011,31 @@ class PluginController extends Disposable {
 }
 
 /**
- * Tracks per-session active client contributions (tools and plugins).
- * The {@link snapshot} captures the state at session creation time, and
- * {@link isOutdated} detects when the session needs to be refreshed.
+ * Tracks per-session active client contributions (tools and plugins) AND
+ * owns the publishing of resolved MCP servers into {@link IMcpHostService}.
+ *
+ * Every {@link snapshot} call refreshes the resolved plugin set and
+ * forwards the resulting MCP server definitions to the host service,
+ * deduplicating against the previously published set. {@link republish}
+ * does the same without changing the captured tool/clientId state — used
+ * by plugin-change subscribers that don't have a directory in hand. The
+ * disposable lifecycle is bound to the session: disposing this instance
+ * clears the session's MCP servers via `setSessionServers([])`.
  */
-class ActiveClient {
+export class ActiveClient extends Disposable {
 	private _tools: readonly ToolDefinition[] = [];
 	private _clientId = '';
+	private _lastDirectory: URI | undefined;
+	private _publishedMcpServers: readonly IMcpServerDefinition[] | undefined;
 
 	constructor(
-		/** Resolves the current set of applied plugins. May block while a sync is in progress. */
+		private readonly _sessionUri: URI,
 		private readonly _resolvePlugins: (directory: URI | undefined) => Promise<readonly IParsedPlugin[]>,
-	) { }
+		@IMcpHostService private readonly _mcpHostService: IMcpHostService,
+		@ILogService private readonly _logger: ILogService,
+	) {
+		super();
+	}
 
 	updateTools(clientId: string, tools: readonly ToolDefinition[]): void {
 		this._clientId = clientId;
@@ -2044,7 +2043,19 @@ class ActiveClient {
 	}
 
 	async snapshot(directory: URI | undefined): Promise<IActiveClientSnapshot> {
-		return { clientId: this._clientId, tools: this._tools, plugins: await this._resolvePlugins(directory) };
+		this._lastDirectory = directory;
+		const plugins = await this._resolvePlugins(directory);
+		this._republishMcpServers(plugins);
+		return { clientId: this._clientId, tools: this._tools, plugins };
+	}
+
+	/**
+	 * Re-resolves plugins using the most recent {@link snapshot} directory
+	 * and republishes the MCP server set. Idempotent via the dedup check.
+	 */
+	async republish(): Promise<void> {
+		const plugins = await this._resolvePlugins(this._lastDirectory);
+		this._republishMcpServers(plugins);
 	}
 
 	async isOutdated(snap: IActiveClientSnapshot, directory: URI | undefined): Promise<boolean> {
@@ -2067,5 +2078,26 @@ class ActiveClient {
 			}
 		}
 		return false;
+	}
+
+	override dispose(): void {
+		if (this._publishedMcpServers !== undefined) {
+			try {
+				this._mcpHostService.setSessionServers(this._sessionUri, []);
+			} catch (err) {
+				this._logger.warn(`[Copilot:ActiveClient] dispose: failed to clear MCP servers for ${this._sessionUri.toString()}: ${err instanceof Error ? err.message : String(err)}`);
+			}
+			this._publishedMcpServers = undefined;
+		}
+		super.dispose();
+	}
+
+	private _republishMcpServers(plugins: readonly IParsedPlugin[]): void {
+		const servers = plugins.flatMap(p => p.mcpServers);
+		if (this._publishedMcpServers !== undefined && equals(this._publishedMcpServers, servers)) {
+			return;
+		}
+		this._publishedMcpServers = servers;
+		this._mcpHostService.setSessionServers(this._sessionUri, servers);
 	}
 }

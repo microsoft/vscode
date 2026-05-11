@@ -10,6 +10,10 @@ import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import type { ILogger } from '../../../log/common/log.js';
 
+function truncate(s: string, max: number): string {
+	return s.length <= max ? s : s.slice(0, max) + '…';
+}
+
 /**
  * Handles a single inbound HTTP request body for a registered route.
  * Each route owns its own JSON-RPC dispatch.
@@ -175,18 +179,23 @@ export class McpProxyHttpListener extends Disposable {
 				return;
 			}
 			const body = Buffer.concat(chunks).toString('utf8');
+			const traceId = generateUuid().slice(0, 8);
+			this._logger.trace(`McpProxyHttpListener[${routeId.slice(0, 8)}] -> ${traceId}: POST ${url}${body ? `, body=${truncate(body, 256)}` : ''}`);
 			handler(body).then(
 				responseBody => {
 					if (responseBody.length === 0) {
+						this._logger.trace(`McpProxyHttpListener[${routeId.slice(0, 8)}] <- ${traceId}: 204`);
 						res.statusCode = 204;
 						res.end();
 						return;
 					}
+					this._logger.trace(`McpProxyHttpListener[${routeId.slice(0, 8)}] <- ${traceId}: 200, body=${truncate(responseBody, 256)}`);
 					res.statusCode = 200;
 					res.setHeader('Content-Type', 'application/json');
 					res.end(responseBody);
 				},
 				err => {
+					this._logger.trace(`McpProxyHttpListener[${routeId.slice(0, 8)}] <- ${traceId}: 500: ${err instanceof Error ? err.message : String(err)}`);
 					this._logger.error(`McpProxyHttpListener: route handler error: ${err instanceof Error ? err.message : String(err)}`);
 					if (!res.headersSent) {
 						res.statusCode = 500;

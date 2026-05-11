@@ -170,4 +170,88 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 		// Use CancellationToken so the import isn't dead in the bundle.
 		assert.ok(CancellationToken.None.isCancellationRequested === false);
 	});
+
+	test('includes plugins whose only contribution is an MCP server', async () => {
+		const pluginUri = URI.file('/plugins/mcp-only');
+		const mcpServerUri = URI.file('/plugins/mcp-only/mcp.json');
+		const plugin: IAgentPlugin = {
+			uri: pluginUri,
+			label: 'MCP Only Plugin',
+			enablement: observableValue('enablement', 'enabled' as never),
+			remove: () => { /* no-op */ },
+			hooks: observableValue('hooks', []),
+			commands: observableValue('commands', []),
+			skills: observableValue('skills', []),
+			agents: observableValue('agents', []),
+			instructions: observableValue('instructions', []),
+			mcpServerDefinitions: observableValue('mcpServers', [
+				{ name: 'test', configuration: {} as never, uri: mcpServerUri },
+			]),
+		};
+		const promptsService = makePromptsService(new Map());
+		const bundler = new FakeBundler();
+
+		const refs = await resolveCustomizationRefs(
+			promptsService,
+			new FakeSyncProvider(),
+			makeAgentPluginService([plugin]),
+			bundler as unknown as SyncedCustomizationBundler,
+			SessionType.CopilotCLI,
+		);
+
+		assert.strictEqual(bundler.received.length, 0);
+		assert.strictEqual(refs.length, 1);
+		assert.strictEqual(refs[0].displayName, 'MCP Only Plugin');
+		assert.strictEqual(refs[0].uri, pluginUri.toString());
+	});
+
+	test('omits MCP-only plugins that the user has disabled', async () => {
+		const pluginUri = URI.file('/plugins/mcp-only');
+		const plugin: IAgentPlugin = {
+			uri: pluginUri,
+			label: 'MCP Only Plugin',
+			enablement: observableValue('enablement', 'enabled' as never),
+			remove: () => { /* no-op */ },
+			hooks: observableValue('hooks', []),
+			commands: observableValue('commands', []),
+			skills: observableValue('skills', []),
+			agents: observableValue('agents', []),
+			instructions: observableValue('instructions', []),
+			mcpServerDefinitions: observableValue('mcpServers', [
+				{ name: 'test', configuration: {} as never, uri: URI.file('/plugins/mcp-only/mcp.json') },
+			]),
+		};
+		const refs = await resolveCustomizationRefs(
+			makePromptsService(new Map()),
+			new FakeSyncProvider(new Set([pluginUri.toString()])),
+			makeAgentPluginService([plugin]),
+			new FakeBundler() as unknown as SyncedCustomizationBundler,
+			SessionType.CopilotCLI,
+		);
+		assert.deepStrictEqual(refs, []);
+	});
+
+	test('skips plugins with no syncable content', async () => {
+		const pluginUri = URI.file('/plugins/empty');
+		const plugin: IAgentPlugin = {
+			uri: pluginUri,
+			label: 'Empty Plugin',
+			enablement: observableValue('enablement', 'enabled' as never),
+			remove: () => { /* no-op */ },
+			hooks: observableValue('hooks', []),
+			commands: observableValue('commands', []),
+			skills: observableValue('skills', []),
+			agents: observableValue('agents', []),
+			instructions: observableValue('instructions', []),
+			mcpServerDefinitions: observableValue('mcpServers', []),
+		};
+		const refs = await resolveCustomizationRefs(
+			makePromptsService(new Map()),
+			new FakeSyncProvider(),
+			makeAgentPluginService([plugin]),
+			new FakeBundler() as unknown as SyncedCustomizationBundler,
+			SessionType.CopilotCLI,
+		);
+		assert.deepStrictEqual(refs, []);
+	});
 });

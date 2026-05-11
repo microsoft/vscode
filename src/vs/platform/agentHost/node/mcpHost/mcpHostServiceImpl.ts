@@ -76,6 +76,7 @@ class Entry extends Disposable implements IMcpServerHandle {
 		public readonly definition: IMcpServerDefinition,
 		public readonly resource: URI,
 		initialStatus: McpServerStatus,
+		private readonly _logService: ILogService,
 	) {
 		super();
 		this._summary = observableValue<McpServerSummary>(this, {
@@ -104,6 +105,7 @@ class Entry extends Disposable implements IMcpServerHandle {
 	public setProxy(proxy: IMcpProxy): void {
 		this._proxy = this._register(proxy);
 		this._endpoint.set(proxy.endpoint, undefined);
+		this._logService.info(`[McpHostService] proxy ready for '${this.resource.toString()}' → ${proxy.endpoint?.toString() ?? '<no endpoint>'}`);
 	}
 
 	public setStatus(status: McpServerStatus): void {
@@ -307,7 +309,7 @@ export class McpHostServiceImpl extends Disposable implements IMcpHostService {
 	private _addEntry(session: URI, def: IMcpServerDefinition): Entry {
 		const resource = buildMcpServerUri(session, def.name);
 		const initialStatus: McpServerStatus = { kind: McpServerStatusKind.Starting };
-		const entry = new Entry(session, def, resource, initialStatus);
+		const entry = new Entry(session, def, resource, initialStatus, this._logService);
 		this._entries.set(resource, entry);
 
 		// Dispatch `mcp/serverAdded` synchronously BEFORE kicking off the

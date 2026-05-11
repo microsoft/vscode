@@ -217,9 +217,6 @@ export async function resolveCustomizationRefs(
 ): Promise<CustomizationRef[]> {
 	const enumerated = await enumerateLocalCustomizationsForHarness(promptsService, syncProvider, sessionType, CancellationToken.None);
 	const enabled = enumerated.filter(e => !e.disabled);
-	if (enabled.length === 0) {
-		return [];
-	}
 
 	const plugins = agentPluginService.plugins.get();
 	const pluginRefs = new Map<string, CustomizationRef>();
@@ -240,6 +237,25 @@ export async function resolveCustomizationRefs(
 			}
 		} else {
 			looseFiles.push({ uri: entry.uri, type: entry.type });
+		}
+	}
+
+	// Plugins whose only contributions are MCP servers or hooks are not
+	// surfaced by `enumerateLocalCustomizationsForHarness` (which walks
+	// prompt files only). Pick them up here so the agent host still
+	// receives those plugins in the `customizations` set.
+	for (const plugin of plugins) {
+		const key = plugin.uri.toString();
+		if (pluginRefs.has(key)) {
+			continue;
+		}
+		if (syncProvider.isDisabled(plugin.uri)) {
+			continue;
+		}
+		const hasNonPromptContent = plugin.mcpServerDefinitions.get().length > 0
+			|| plugin.hooks.get().length > 0;
+		if (hasNonPromptContent) {
+			pluginRefs.set(key, { uri: key as ProtocolURI, displayName: plugin.label });
 		}
 	}
 
