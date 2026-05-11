@@ -185,6 +185,7 @@ suite('TerminalSandboxService - network domains', () => {
 
 		// Setup default configuration
 		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.On);
+		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands, true);
 		configurationService.setUserConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains, []);
 		configurationService.setUserConfiguration(AgentNetworkDomainSettingId.DeniedNetworkDomains, []);
 
@@ -804,6 +805,7 @@ suite('TerminalSandboxService - network domains', () => {
 		const expectedWrappedCwd = String.raw`-c 'cd '\''/workspace-one'\'' && head -1 /etc/shells'`;
 
 		ok(wrapResult.command.startsWith(`cd '${sandboxService.getTempDir()?.path}'; `), 'Sandbox runtime should start from the sandbox temp dir on Linux');
+		ok(wrapResult.command.includes(`; ELECTRON_RUN_AS_NODE=1 PATH="$PATH:`), 'ELECTRON_RUN_AS_NODE should apply to the sandbox runtime, not the temp-dir cd');
 		ok(wrapResult.command.includes(expectedWrappedCwd), `Sandboxed command should restore the original cwd before running the user command. Actual: ${wrapResult.command}`);
 		strictEqual(wrapResult.isSandboxWrapped, true, 'Command should remain sandbox wrapped');
 	});
@@ -813,6 +815,18 @@ suite('TerminalSandboxService - network domains', () => {
 		await sandboxService.getSandboxConfigPath();
 
 		strictEqual((await sandboxService.wrapCommand('echo test', true, 'bash')).command, `env TMPDIR="${sandboxService.getTempDir()?.path}" 'bash' -c 'echo test'`);
+	});
+
+	test('should keep commands sandboxed when unsandboxed execution is requested but disabled', async () => {
+		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands, false);
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		await sandboxService.getSandboxConfigPath();
+
+		const wrapResult = await sandboxService.wrapCommand('echo test', true, 'bash');
+
+		strictEqual(wrapResult.isSandboxWrapped, true, 'Explicit unsandbox requests should be ignored when unsandboxed commands are disabled');
+		strictEqual(wrapResult.requiresUnsandboxConfirmation, undefined, 'Sandboxed command should not require unsandbox confirmation');
+		ok(wrapResult.command.includes('--settings'), 'Command should be wrapped with the sandbox runtime');
 	});
 
 	test('should preserve TMPDIR for piped unsandboxed commands', async () => {
@@ -846,6 +860,18 @@ suite('TerminalSandboxService - network domains', () => {
 		strictEqual(wrapResult.requiresUnsandboxConfirmation, true, 'Blocked domains should require unsandbox confirmation');
 		deepStrictEqual(wrapResult.blockedDomains, ['example.com']);
 		strictEqual(wrapResult.command, `env TMPDIR="${sandboxService.getTempDir()?.path}" 'bash' -c 'curl https://example.com'`);
+	});
+
+	test('should keep blocked-domain commands sandboxed when unsandboxed commands are disabled', async () => {
+		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands, false);
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		await sandboxService.getSandboxConfigPath();
+
+		const wrapResult = await sandboxService.wrapCommand('curl https://example.com', false, 'bash');
+
+		strictEqual(wrapResult.isSandboxWrapped, true, 'Blocked domains should stay sandboxed when unsandboxed commands are disabled');
+		strictEqual(wrapResult.requiresUnsandboxConfirmation, undefined, 'Blocked domains should not trigger unsandbox confirmation when unsandboxed commands are disabled');
+		strictEqual(wrapResult.blockedDomains, undefined, 'Blocked domains should not be reported as an unsandbox fallback when unsandboxed commands are disabled');
 	});
 
 	test('should allow exact allowlisted domains', async () => {
