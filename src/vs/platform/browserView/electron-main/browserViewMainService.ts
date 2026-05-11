@@ -6,8 +6,7 @@
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
-import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
-import { IBrowserViewBounds, IBrowserViewState, IBrowserViewService, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, BrowserViewCommandId, IElementData, IBrowserViewOwner, IBrowserViewInfo, IBrowserViewCreatedEvent, IBrowserViewOpenOptions, IBrowserViewCreateOptions } from '../common/browserView.js';
+import { IBrowserViewBounds, IBrowserViewState, IBrowserViewService, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, BrowserViewCommandId, IBrowserViewOwner, IBrowserViewInfo, IBrowserViewCreatedEvent, IBrowserViewOpenOptions, IBrowserViewCreateOptions } from '../common/browserView.js';
 import { clipboard, Menu, MenuItem } from 'electron';
 import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
 import { createDecorator, IInstantiationService } from '../../instantiation/common/instantiation.js';
@@ -45,7 +44,6 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 	}
 
 	private readonly browserViews = this._register(new DisposableMap<string, BrowserView>());
-	private readonly _activeTokens = new Map<number, CancellationTokenSource>();
 	private _keybindings: { [commandId: string]: string } = Object.create(null);
 
 	private readonly _onDidCreateBrowserView = this._register(new Emitter<IBrowserViewCreatedEvent>());
@@ -178,6 +176,14 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		return this._getBrowserView(id).onDidClose;
 	}
 
+	onDynamicDidSelectElement(id: string) {
+		return this._getBrowserView(id).inspector.onDidSelectElement;
+	}
+
+	onDynamicDidChangeElementSelectionActive(id: string) {
+		return this._getBrowserView(id).inspector.onDidChangeElementSelectionActive;
+	}
+
 	async getState(id: string): Promise<IBrowserViewState> {
 		return this._getBrowserView(id).getState();
 	}
@@ -281,31 +287,12 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		return this._getBrowserView(id).getConsoleLogs();
 	}
 
-	async getElementData(id: string, cancellationId: number): Promise<IElementData | undefined> {
-		return this._makeCancellable(cancellationId, (token) => this._getBrowserView(id).getElementData(token));
-	}
-
-	async getFocusedElementData(id: string): Promise<IElementData | undefined> {
-		return this._getBrowserView(id).getFocusedElementData();
-	}
-
-	async cancel(cancellationId: number): Promise<void> {
-		this._activeTokens.get(cancellationId)?.cancel();
+	async toggleElementSelection(id: string, enabled?: boolean): Promise<void> {
+		return this._getBrowserView(id).inspector.toggleElementSelection(enabled);
 	}
 
 	async updateKeybindings(keybindings: { [commandId: string]: string }): Promise<void> {
 		this._keybindings = keybindings;
-	}
-
-	private async _makeCancellable<T>(cancellationId: number, callback: (token: CancellationToken) => T | Promise<T>): Promise<T> {
-		const cts: CancellationTokenSource = new CancellationTokenSource();
-		this._activeTokens.set(cancellationId, cts);
-		try {
-			return await callback(cts.token);
-		} finally {
-			this._activeTokens.delete(cancellationId);
-			cts.dispose();
-		}
 	}
 
 	/**

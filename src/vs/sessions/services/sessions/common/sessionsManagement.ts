@@ -126,6 +126,12 @@ export interface ISessionsManagementService {
 	 */
 	openNewChatInSession(session: ISession): void;
 
+	/** Navigate to the previous session in the navigation history. */
+	openPreviousSession(): Promise<void>;
+
+	/** Navigate to the next session in the navigation history. */
+	openNextSession(): Promise<void>;
+
 	// -- Session Actions --
 
 	/** Archive a session. */

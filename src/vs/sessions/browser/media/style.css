@@ -141,15 +141,26 @@
 }
 
 .agent-sessions-workbench .part.chatbar {
-	margin: 0 10px 0px 10px;
+	margin: 0 5px 5px 10px;
 	background: var(--part-background);
 	border: 1px solid var(--part-border-color, transparent);
 	border-radius: 8px;
 	box-sizing: border-box;
 }
 
+.agent-sessions-workbench.nopanel .part.chatbar {
+	margin-bottom: 0;
+}
+
 .agent-sessions-workbench .part.editor:not(.modal-editor-part) {
-	margin: 0 0 0 0;
+	/*
+	 * No right margin so the editor flushes against the auxiliary bar (whose
+	 * `margin-left` is 0 in this state). The grid sash sits at the visual
+	 * seam between the two cards. The 5px bottom margin pairs with the
+	 * panel's `margin-top: 5px` to center the sash; it drops to 0 when the
+	 * panel is hidden (see `.nopanel` override).
+	 */
+	margin: 0 0 5px 5px;
 	background: var(--vscode-agentsPanel-background);
 	border: 1px solid var(--vscode-agentsPanel-border, transparent);
 	border-right-width: 0;
@@ -316,7 +327,23 @@
 }
 
 .agent-sessions-workbench .part.auxiliarybar {
-	margin: 0 10px 0px 0;
+	/*
+	 * The right gutter is provided by the workbench grid (see Workbench.layout).
+	 * The bottom margin is 5px when the panel is visible (paired with the panel's
+	 * 5px top margin to center the sash) and 0 when the panel is hidden
+	 * (see `.nopanel` override below) so the card fills its cell.
+	 *
+	 * Default (editor visible): card flushes against the editor with the
+	 * grid sash at the seam. `padding-left: 5px` keeps the inner content
+	 * aligned with the editor-hidden state.
+	 *
+	 * Editor hidden (override below): 5px left gutter against the sash.
+	 *
+	 * The TS `layout()` mirrors this and re-runs on editor visibility
+	 * changes so the inner area is sized correctly.
+	 */
+	margin: 0 0 5px 0;
+	padding-left: 5px;
 	background: var(--part-background);
 	border: 1px solid var(--part-border-color, transparent);
 	border-top-left-radius: 0;
@@ -327,8 +354,15 @@
 }
 
 .agent-sessions-workbench.nomaineditorarea .part.auxiliarybar {
+	margin-left: 5px;
+	padding-left: 0;
 	border-top-left-radius: 8px;
 	border-bottom-left-radius: 8px;
+}
+
+.agent-sessions-workbench.nopanel .part.auxiliarybar,
+.agent-sessions-workbench.nopanel .part.editor:not(.modal-editor-part) {
+	margin-bottom: 0;
 }
 
 .agent-sessions-workbench .part.auxiliarybar > .content .pane-body {
@@ -336,7 +370,7 @@
 }
 
 .agent-sessions-workbench .part.panel {
-	margin: 0 10px 10px 10px;
+	margin: 5px 0 0 10px;
 	background: var(--part-background);
 	border: 1px solid var(--part-border-color, transparent);
 	border-radius: 8px;
@@ -543,6 +577,7 @@
 .agent-sessions-workbench .interactive-session .interactive-response .interactive-result-code-block {
 	border-color: var(--vscode-editorWidget-border, var(--vscode-widget-border));
 }
+
 /* ---- Modal Editor Block ---- */
 
 .agent-sessions-workbench .monaco-modal-editor-block {
@@ -611,13 +646,6 @@
 		margin-top 250ms ease-out,
 		margin-right 250ms ease-out,
 		margin-bottom 250ms ease-out;
-}
-
-/* Auxiliary bar also transitions horizontal margin */
-.agent-sessions-workbench .part.auxiliarybar {
-	transition:
-		opacity 250ms ease-out,
-		margin 250ms ease-out;
 }
 
 .agent-sessions-workbench .part.sidebar > .content {
