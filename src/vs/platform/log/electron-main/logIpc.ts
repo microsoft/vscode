@@ -79,3 +79,4 @@ export class LoggerChannel extends Disposable implements IServerChannel {
 		}
 	}
 }
+
