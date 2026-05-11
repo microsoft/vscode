@@ -42,6 +42,7 @@ import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IGitHubService } from '../../github/browser/githubService.js';
 import { computePullRequestIcon, GitHubPullRequestState } from '../../github/common/types.js';
@@ -770,6 +771,7 @@ class LocalNewSession extends Disposable implements ICopilotChatSession {
 		providerId: string,
 		@IGitService private readonly gitService: IGitService,
 		@IChatService private readonly chatService: IChatService,
+		@IFileService private readonly fileService: IFileService,
 	) {
 		super();
 
@@ -831,15 +833,68 @@ class LocalNewSession extends Disposable implements ICopilotChatSession {
 					}],
 				}, undefined);
 
-				this._changes.set(state.workingTreeChanges.concat(state.untrackedChanges).map<IChatSessionFileChange2>(el => {
-					return {
+				// Capture all known changed files from the current state snapshot
+				// so we can fill in any that diffBetweenWithStats2 misses
+				// (e.g. untracked files regardless of the git.untrackedChanges setting)
+				const allStateChanges = [...state.workingTreeChanges, ...state.untrackedChanges, ...state.indexChanges];
+
+				// Fetch real line-level diff stats asynchronously
+				repo.diffBetweenWithStats2('HEAD').then(async diffChanges => {
+					if (this._store.isDisposed) {
+						return;
+					}
+					// diffBetweenWithStats2 only covers tracked changes against HEAD;
+					// append any files from the git state that it missed
+					// (e.g. untracked/new files not yet staged) with real line counts
+					const trackedUris = new Set(diffChanges.map(el => el.uri.toString()));
+					const changes: IChatSessionFileChange2[] = diffChanges.map(el => ({
+						uri: el.uri,
+						originalUri: el.originalUri,
+						modifiedUri: el.modifiedUri ?? el.uri,
+						insertions: el.insertions,
+						deletions: el.deletions,
+					}));
+					const untrackedFiles = allStateChanges.filter(el => !trackedUris.has(el.uri.toString()));
+					const lineCountPromises = untrackedFiles.map(async el => {
+						let insertions = 0;
+						try {
+							const stat = await this.fileService.stat(el.uri);
+							if (!stat.isDirectory) {
+								const content = await this.fileService.readFile(el.uri);
+								// Count newlines; add 1 for the last line if file is non-empty
+								const text = content.value.toString();
+								insertions = text.length > 0 ? text.split('\n').length : 0;
+							}
+						} catch {
+							// File may have been deleted between state snapshot and read
+						}
+						return {
+							uri: el.uri,
+							originalUri: undefined,
+							modifiedUri: el.modifiedUri ?? el.uri,
+							insertions,
+							deletions: 0,
+						} satisfies IChatSessionFileChange2;
+					});
+					const untrackedChanges = await Promise.all(lineCountPromises);
+					if (this._store.isDisposed) {
+						return;
+					}
+					changes.push(...untrackedChanges);
+					this._changes.set(changes, undefined);
+				}, () => {
+					// Diff computation failed — fall back to zero stats
+					if (this._store.isDisposed) {
+						return;
+					}
+					this._changes.set(allStateChanges.map<IChatSessionFileChange2>(el => ({
 						uri: el.uri,
 						originalUri: el.originalUri,
 						modifiedUri: el.modifiedUri ?? el.uri,
 						insertions: 0,
 						deletions: 0,
-					};
-				}), undefined);
+					})), undefined);
+				});
 			}));
 
 		} catch {
@@ -893,7 +948,15 @@ class LocalNewSession extends Disposable implements ICopilotChatSession {
 		}
 	}
 
-	update(_session: IAgentSession): void { }
+	update(session: IAgentSession): void {
+		transaction(tx => {
+			this._title.set(session.label, tx);
+			const updatedTime = session.timing.lastRequestEnded ?? session.timing.lastRequestStarted ?? session.timing.created;
+			this._updatedAt.set(new Date(updatedTime), tx);
+			this._status.set(toSessionStatus(session.status), tx);
+			this._isArchived.set(session.isArchived(), tx);
+		});
+	}
 }
 
 /**
@@ -1180,6 +1243,7 @@ class AgentSessionAdapter implements ICopilotChatSession {
 	update(session: IAgentSession): void {
 		transaction(tx => {
 			this._title.set(session.label, tx);
+			this._workspace.set(this._buildWorkspace(session), tx);
 			const updatedTime = session.timing.lastRequestEnded ?? session.timing.lastRequestStarted ?? session.timing.created;
 			this._updatedAt.set(new Date(updatedTime), tx);
 			this._status.set(toSessionStatus(session.status), tx);
@@ -1348,13 +1412,33 @@ class AgentSessionAdapter implements ICopilotChatSession {
 	}
 
 	private _buildWorkspace(session: IAgentSession): ISessionWorkspace | undefined {
-		const [repoUri, worktreeUri, branchName, baseBranchName] = this._extractRepositoryFromMetadata(session);
+		const {
+			repoUri,
+			worktreeUri,
+			branchName,
+			baseBranchName,
+			baseBranchProtected,
+			hasGitHubRemote,
+			upstreamBranchName,
+			incomingChanges,
+			outgoingChanges,
+			uncommittedChanges,
+			hasGitOperationInProgress
+		} = this._extractRepositoryFromMetadata(session);
 
 		const repository: ISessionRepository = {
 			uri: repoUri ?? URI.parse('unknown:///'),
 			workingDirectory: worktreeUri,
 			detail: branchName,
+			branchName,
 			baseBranchName,
+			baseBranchProtected,
+			hasGitHubRemote,
+			upstreamBranchName,
+			incomingChanges,
+			outgoingChanges,
+			uncommittedChanges,
+			hasGitOperationInProgress
 		};
 
 		return {
@@ -1370,10 +1454,22 @@ class AgentSessionAdapter implements ICopilotChatSession {
 	 * Extract repository/worktree information from session metadata.
 	 * Mirrors the logic in sessionsManagementService.getRepositoryFromMetadata().
 	 */
-	private _extractRepositoryFromMetadata(session: IAgentSession): [URI | undefined, URI | undefined, string | undefined, string | undefined] {
+	private _extractRepositoryFromMetadata(session: IAgentSession): {
+		readonly repoUri?: URI;
+		readonly worktreeUri?: URI;
+		readonly branchName?: string;
+		readonly baseBranchName?: string;
+		readonly baseBranchProtected?: boolean;
+		readonly hasGitHubRemote?: boolean;
+		readonly upstreamBranchName?: string;
+		readonly incomingChanges?: number;
+		readonly outgoingChanges?: number;
+		readonly uncommittedChanges?: number;
+		readonly hasGitOperationInProgress?: boolean;
+	} {
 		const metadata = session.metadata;
 		if (!metadata) {
-			return [undefined, undefined, undefined, undefined];
+			return {};
 		}
 
 		if (session.providerType === AgentSessionProviders.Cloud) {
@@ -1383,13 +1479,13 @@ class AgentSessionAdapter implements ICopilotChatSession {
 				authority: 'github',
 				path: `/${metadata.owner}/${metadata.name}/${encodeURIComponent(branch)}`
 			});
-			return [repositoryUri, undefined, undefined, undefined];
+			return { repoUri: repositoryUri };
 		}
 
 		// Background/CLI sessions: check workingDirectoryPath first
 		const workingDirectoryPath = metadata?.workingDirectoryPath as string | undefined;
 		if (workingDirectoryPath) {
-			return [URI.file(workingDirectoryPath), undefined, undefined, undefined];
+			return { repoUri: URI.file(workingDirectoryPath) };
 		}
 
 		// Fall back to repositoryPath + worktreePath
@@ -1399,15 +1495,19 @@ class AgentSessionAdapter implements ICopilotChatSession {
 		const worktreePath = metadata?.worktreePath as string | undefined;
 		const worktreePathUri = typeof worktreePath === 'string' ? URI.file(worktreePath) : undefined;
 
-		const worktreeBranchName = metadata?.branchName as string | undefined;
-		const worktreeBaseBranchName = metadata?.baseBranchName as string | undefined;
-
-		return [
-			URI.isUri(repositoryPathUri) ? repositoryPathUri : undefined,
-			URI.isUri(worktreePathUri) ? worktreePathUri : undefined,
-			worktreeBranchName,
-			worktreeBaseBranchName,
-		];
+		return {
+			repoUri: URI.isUri(repositoryPathUri) ? repositoryPathUri : undefined,
+			worktreeUri: URI.isUri(worktreePathUri) ? worktreePathUri : undefined,
+			branchName: metadata?.branchName as string | undefined,
+			baseBranchName: metadata?.baseBranchName as string | undefined,
+			baseBranchProtected: metadata?.baseBranchProtected as boolean | undefined,
+			hasGitHubRemote: metadata?.hasGitHubRemote as boolean | undefined,
+			upstreamBranchName: metadata?.upstreamBranchName as string | undefined,
+			incomingChanges: metadata?.incomingChanges as number | undefined,
+			outgoingChanges: metadata?.outgoingChanges as number | undefined,
+			uncommittedChanges: metadata?.uncommittedChanges as number | undefined,
+			hasGitOperationInProgress: metadata?.hasGitOperationInProgress as boolean | undefined
+		};
 	}
 }
 

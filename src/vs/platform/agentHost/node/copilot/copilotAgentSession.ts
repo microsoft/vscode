@@ -8,7 +8,8 @@ import { DeferredPromise } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
-import { join } from '../../../../base/common/path.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { isAbsolute, join } from '../../../../base/common/path.js';
 import { extUriBiasedIgnorePathCase, normalizePath } from '../../../../base/common/resources.js';
 import { splitLinesIncludeSeparators } from '../../../../base/common/strings.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -23,7 +24,7 @@ import { platformSessionSchema } from '../../common/agentHostSchema.js';
 import { AgentSignal } from '../../common/agentService.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
-import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
+import { ISessionDatabase, ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../../common/sessionDataService.js';
 import { MessageAttachmentKind, type FileEdit, type MessageAttachment, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { ActionType, type SessionAction } from '../../common/state/sessionActions.js';
 import { ResponsePartKind, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, type PendingMessage, type URI as ProtocolURI, type SessionInputAnswer, type SessionInputRequest, type ToolCallResult, type ToolResultContent, type Turn } from '../../common/state/sessionState.js';
@@ -31,7 +32,7 @@ import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import type { IExitPlanModeRequestParams, IExitPlanModeResponse } from './copilotAgent.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
 import type { ShellManager } from './copilotShellTools.js';
-import { getEditFilePath, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellLanguage, getSubagentMetadata, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, isShellTool, synthesizeSkillToolCall, tryStringify, type ITypedPermissionRequest } from './copilotToolDisplay.js';
+import { getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellLanguage, getSubagentMetadata, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, isShellTool, synthesizeSkillToolCall, tryStringify, type ITypedPermissionRequest } from './copilotToolDisplay.js';
 import { FileEditTracker } from './fileEditTracker.js';
 import { mapSessionEvents } from './mapSessionEvents.js';
 import { buildPendingEditContentUri } from './pendingEditContentStore.js';
@@ -202,6 +203,8 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _editTracker: FileEditTracker;
 	/** Session database reference. */
 	private readonly _databaseRef: IReference<ISessionDatabase>;
+	/** On-disk root for per-session data (database, attachments, …). */
+	private readonly _sessionDataDir: URI;
 	/** Protocol turn ID set by {@link send}, used for file edit tracking. */
 	private _turnId = '';
 	/** SDK session wrapper, set by {@link initializeSession}. */
@@ -261,6 +264,7 @@ export class CopilotAgentSession extends Disposable {
 
 		this._databaseRef = sessionDataService.openDatabase(options.sessionUri);
 		this._register(toDisposable(() => this._databaseRef.dispose()));
+		this._sessionDataDir = sessionDataService.getSessionDataDir(options.sessionUri);
 
 		this._editTracker = this._instantiationService.createInstance(FileEditTracker, options.sessionUri.toString(), this._databaseRef.object);
 
@@ -336,6 +340,17 @@ export class CopilotAgentSession extends Disposable {
 		this._currentMarkdownPartIds.clear();
 		this._currentReasoningPartIds.clear();
 		this._parentToolCallIdsByAgentId.clear();
+	}
+
+	private _getEditFilePaths(parameters: unknown): string[] {
+		return getEditFilePaths(parameters).map(path => this._resolveEditFilePath(path));
+	}
+
+	private _resolveEditFilePath(path: string): string {
+		if (isAbsolute(path) || !this._workingDirectory || this._workingDirectory.scheme !== Schemas.file) {
+			return path;
+		}
+		return join(this._workingDirectory.fsPath, path);
 	}
 
 	/**
@@ -527,11 +542,17 @@ export class CopilotAgentSession extends Disposable {
 
 	/**
 	 * Translate a protocol {@link MessageAttachment} into the Copilot CLI
-	 * SDK's `attachments` payload shape. Only resource attachments are
-	 * forwarded — simple and embedded resources are dropped because the
-	 * CLI SDK does not consume them. The {@link MessageAttachmentBase.displayKind}
-	 * advisory hint controls whether a resource is treated as a file,
-	 * directory, or a selection.
+	 * SDK's `attachments` payload shape. Resource attachments map to the
+	 * SDK's reference-style `file`/`directory`/`selection` variants (the
+	 * {@link MessageAttachmentBase.displayKind} advisory hint controls
+	 * which one). Embedded resources (e.g. inline image bytes) map to the
+	 * SDK's `blob` variant. Resource attachments that point at a
+	 * `session-db:` URI are also forwarded as `blob` — the agent host
+	 * snapshots inline / client-resident attachment bytes into the
+	 * session database before dispatching the turn, so by the time we
+	 * see them here the bytes are local and the original URI is gone.
+	 * Simple attachments are dropped — the SDK has no equivalent shape
+	 * for them.
 	 *
 	 * For selections we read the resource content from disk and slice it
 	 * by the carried range (the protocol's {@link TextSelection} only
@@ -539,6 +560,9 @@ export class CopilotAgentSession extends Disposable {
 	 * selection downgrades to a plain file reference.
 	 */
 	private async _toSdkAttachment(attachment: MessageAttachment): Promise<CopilotSdkAttachment | undefined> {
+		if (attachment.type === MessageAttachmentKind.EmbeddedResource) {
+			return { type: 'blob' as const, data: attachment.data, mimeType: attachment.contentType, displayName: attachment.label };
+		}
 		if (attachment.type !== MessageAttachmentKind.Resource) {
 			return undefined;
 		}
@@ -629,7 +653,7 @@ export class CopilotAgentSession extends Disposable {
 		return result.turns;
 	}
 
-	async getSubagentMessages(parentToolCallId: string, childSessionUri: string): Promise<readonly Turn[]> {
+	async getSubagentMessages(parentToolCallId: string): Promise<readonly Turn[]> {
 		const events = await this._wrapper.session.getMessages();
 		let db: ISessionDatabase | undefined;
 		try {
@@ -685,6 +709,20 @@ export class CopilotAgentSession extends Disposable {
 			const sessionResourcePath = this._getInternalSessionResourcePath(request);
 			if (sessionResourcePath) {
 				this._logService.info(`[Copilot:${this.sessionId}] Auto-approving internal session resource ${sessionResourcePath}`);
+				return { kind: 'approve-once' };
+			}
+
+			// Auto-approve reads of files under the session's attachments
+			// directory. The agent host writes user-message attachments
+			// (pasted images, snapshotted client-side files, etc.) there
+			// before dispatching the turn; the agent ends up needing to
+			// read those same files back, and prompting the user to
+			// approve a read of bytes they themselves attached is
+			// redundant.
+			if (request.kind === 'read' && typeof request.path === 'string'
+				&& this._isSessionAttachmentPath(request.path)
+			) {
+				this._logService.info(`[Copilot:${this.sessionId}] Auto-approving session attachment ${request.path}`);
 				return { kind: 'approve-once' };
 			}
 
@@ -776,6 +814,19 @@ export class CopilotAgentSession extends Disposable {
 
 		const permissionUri = normalizePath(URI.file(permissionPath));
 		return extUriBiasedIgnorePathCase.isEqualOrParent(permissionUri, sessionDir) ? permissionPath : undefined;
+	}
+
+	/**
+	 * Returns true when `permissionPath` lives under this session's
+	 * `<sessionDataDir>/attachments` directory — i.e. the bytes were
+	 * written by the agent host's user-message attachment rewriter and so
+	 * are already user-supplied content that does not need to be
+	 * re-confirmed via a permission prompt.
+	 */
+	private _isSessionAttachmentPath(permissionPath: string): boolean {
+		const attachmentsDir = normalizePath(URI.joinPath(this._sessionDataDir, SESSION_ATTACHMENTS_DIRNAME));
+		const permissionUri = normalizePath(URI.file(permissionPath));
+		return extUriBiasedIgnorePathCase.isEqualOrParent(permissionUri, attachmentsDir);
 	}
 
 	/**
@@ -1035,10 +1086,8 @@ export class CopilotAgentSession extends Disposable {
 	private async _handlePreToolUse(input: PreToolUseHookInput): Promise<void> {
 		try {
 			if (isEditTool(input.toolName)) {
-				const filePath = getEditFilePath(input.toolArgs);
-				if (filePath) {
-					await this._editTracker.trackEditStart(filePath);
-				}
+				const filePaths = this._getEditFilePaths(input.toolArgs);
+				await Promise.all(filePaths.map(p => this._editTracker.trackEditStart(p)));
 			}
 		} catch (error) {
 			this._logService.error(error, `[Copilot:${this.sessionId}] Failed in onPreToolUse: tool=${input.toolName}`);
@@ -1049,10 +1098,8 @@ export class CopilotAgentSession extends Disposable {
 	private async _handlePostToolUse(input: PostToolUseHookInput): Promise<void> {
 		try {
 			if (isEditTool(input.toolName)) {
-				const filePath = getEditFilePath(input.toolArgs);
-				if (filePath) {
-					await this._editTracker.completeEdit(filePath);
-				}
+				const filePaths = this._getEditFilePaths(input.toolArgs);
+				await Promise.all(filePaths.map(p => this._editTracker.completeEdit(p)));
 			}
 		} catch (error) {
 			this._logService.error(error, `[Copilot:${this.sessionId}] Failed in onPostToolUse: tool=${input.toolName}`);
@@ -1232,8 +1279,8 @@ export class CopilotAgentSession extends Disposable {
 				content.push({ type: ToolResultContentType.Text, text: toolOutput });
 			}
 
-			const filePath = isEditTool(tracked.toolName) ? getEditFilePath(tracked.parameters) : undefined;
-			if (filePath) {
+			const filePaths = isEditTool(tracked.toolName) ? this._getEditFilePaths(tracked.parameters) : [];
+			for (const filePath of filePaths) {
 				try {
 					const fileEdit = await this._editTracker.takeCompletedEdit(this._turnId, e.data.toolCallId, filePath);
 					if (fileEdit) {
