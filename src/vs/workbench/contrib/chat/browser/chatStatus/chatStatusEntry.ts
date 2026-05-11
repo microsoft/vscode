@@ -25,10 +25,16 @@ import { isCompletionsEnabled } from '../../../../../editor/common/services/comp
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { CHAT_SETUP_ACTION_ID } from '../actions/chatActions.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { isWeb } from '../../../../../base/common/platform.js';
+import { InEditorZenModeContext } from '../../../../common/contextkeys.js';
+import { ChatConfiguration } from '../../common/constants.js';
 
 export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.chatStatusBarEntry';
+
+	private static readonly TITLE_BAR_CONTEXT_KEYS = new Set(['updateTitleBar', InEditorZenModeContext.key]);
 
 	private entry: IStatusbarEntryAccessor | undefined = undefined;
 
@@ -46,6 +52,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		@IInlineCompletionsService private readonly completionsService: IInlineCompletionsService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IHoverService private readonly hoverService: IHoverService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super();
 
@@ -101,6 +108,11 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		this._register(this.chatEntitlementService.onDidChangeQuotaExceeded(() => this.update()));
 		this._register(this.chatEntitlementService.onDidChangeSentiment(() => this.update()));
 		this._register(this.chatEntitlementService.onDidChangeEntitlement(() => this.update()));
+		this._register(this.contextKeyService.onDidChangeContext(e => {
+			if (e.affectsSome(ChatStatusBarEntry.TITLE_BAR_CONTEXT_KEYS)) {
+				this.update();
+			}
+		}));
 
 		this._register(this.completionsService.onDidChangeIsSnoozing(() => this.update()));
 
@@ -115,7 +127,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		this._register(this.editorService.onDidActiveEditorChange(() => this.onDidActiveEditorChange()));
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(product.defaultChatAgent?.completionsEnablementSetting)) {
+			if (e.affectsConfiguration(product.defaultChatAgent?.completionsEnablementSetting) || e.affectsConfiguration(ChatConfiguration.TitleBarSignInEnabled)) {
 				this.update();
 			}
 		}));
@@ -238,15 +250,45 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 	}
 
 	private getSetupEntryProps(): IStatusbarEntry {
+		const showSignInLabel = !this.isSignInTitleBarAffordanceVisible();
 		const signInLabel = localize('signIn', "Sign In");
 		return {
 			name: localize('chatStatus', "Copilot Status"),
-			text: `$(copilot) ${signInLabel}`,
-			ariaLabel: signInLabel,
+			text: showSignInLabel ? `$(copilot) ${signInLabel}` : '$(copilot)',
+			ariaLabel: showSignInLabel ? signInLabel : localize('chatStatusAria', "Copilot status"),
 			command: CHAT_SETUP_ACTION_ID,
 			showInAllWindows: true,
 			kind: undefined,
+			content: this.entryAnchor,
 		};
+	}
+
+	private isSignInTitleBarAffordanceVisible(): boolean {
+		if (isWeb) {
+			return false;
+		}
+
+		// Title bar sign-in button only shows when user is signed out
+		if (this.chatEntitlementService.entitlement !== ChatEntitlement.Unknown) {
+			return false;
+		}
+
+		if (this.chatEntitlementService.sentiment.hidden || this.chatEntitlementService.sentiment.disabledInWorkspace) {
+			return false;
+		}
+
+		const hasTitleBarUpdate = Boolean(this.contextKeyService.getContextKeyValue('updateTitleBar'));
+		if (hasTitleBarUpdate) {
+			return false;
+		}
+
+		const inZenMode = Boolean(this.contextKeyService.getContextKeyValue(InEditorZenModeContext.key));
+		if (inZenMode) {
+			return false;
+		}
+
+		const signInTitleBarEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.TitleBarSignInEnabled) !== false;
+		return signInTitleBarEnabled;
 	}
 
 	override dispose(): void {

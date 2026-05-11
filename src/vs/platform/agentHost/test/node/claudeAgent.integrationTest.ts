@@ -34,7 +34,7 @@
  */
 
 import type Anthropic from '@anthropic-ai/sdk';
-import type { Options, Query, SDKMessage, SDKResultSuccess, SDKSessionInfo, SDKSystemMessage, SDKUserMessage, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
+import type { Options, PermissionResult, Query, SDKMessage, SDKResultSuccess, SDKSessionInfo, SDKSystemMessage, SDKUserMessage, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
 import type * as http from 'http';
@@ -43,14 +43,29 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
+import { type AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../common/agentService.js';
+import { ActionType } from '../../common/state/sessionActions.js';
+import { ResponsePartKind, ToolResultContentType } from '../../common/state/sessionState.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
-import { GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../common/agentService.js';
+import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
+import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { IAgentHostGitService } from '../../node/agentHostGitService.js';
 import { ClaudeAgent } from '../../node/claude/claudeAgent.js';
 import { IClaudeAgentSdkService } from '../../node/claude/claudeAgentSdkService.js';
 import { ClaudeProxyService, IClaudeProxyService } from '../../node/claude/claudeProxyService.js';
 import { ICopilotApiService, type ICopilotApiServiceRequestOptions } from '../../node/shared/copilotApiService.js';
 import { createNoopGitService, createSessionDataService } from '../common/sessionTestHelpers.js';
+import {
+	makeContentBlockStartText,
+	makeContentBlockStartToolUse,
+	makeContentBlockStop,
+	makeInputJsonDelta,
+	makeMessageStart,
+	makeMessageStop,
+	makeStreamEvent,
+	makeTextDelta,
+	makeUserToolResultMessage,
+} from './claudeMapSessionEventsTestUtils.js';
 
 // #region Test fixtures
 
@@ -255,6 +270,28 @@ interface IProxyRoundTripResult {
 }
 
 /**
+ * Marker entry the test can interleave inside
+ * {@link ProxyRoundTripSdkService.queryMessages} between SDK messages.
+ * When {@link RoundTripQuery.next} encounters a marker, it invokes the
+ * captured {@link Options.canUseTool} closure and waits for it to
+ * resolve before proceeding to the next entry, mirroring the real SDK
+ * subprocess's behaviour around an assistant `tool_use` → synthetic
+ * user `tool_result` round-trip.
+ */
+interface CanUseToolMarker {
+	readonly kind: 'canUseTool';
+	readonly toolName: string;
+	readonly input: Record<string, unknown>;
+	readonly toolUseID: string;
+}
+
+type QueryStreamItem = SDKMessage | CanUseToolMarker;
+
+function isCanUseToolMarker(item: QueryStreamItem): item is CanUseToolMarker {
+	return (item as CanUseToolMarker).kind === 'canUseTool';
+}
+
+/**
  * Test double for {@link IClaudeAgentSdkService}. On `startup()`, performs
  * a real HTTP `POST /v1/messages` against the proxy URL the agent passed
  * via `Options.settings.env`, using the bearer the agent constructed.
@@ -268,13 +305,27 @@ class ProxyRoundTripSdkService implements IClaudeAgentSdkService {
 	readonly capturedStartupOptions: Options[] = [];
 	readonly proxyRoundTrips: IProxyRoundTripResult[] = [];
 
-	/** Messages the produced WarmQuery's Query will yield in order. */
-	queryMessages: SDKMessage[] = [];
+	/**
+	 * Items the produced WarmQuery's Query will yield in order. SDK
+	 * messages flow through unchanged; {@link CanUseToolMarker} entries
+	 * pause the iterator and invoke the captured
+	 * `Options.canUseTool` closure (mirroring what the real SDK
+	 * subprocess does between assistant `tool_use` and the synthetic
+	 * `user` `tool_result` it follows up with).
+	 */
+	queryMessages: QueryStreamItem[] = [];
+
+	/** Records the {@link PermissionResult} returned by each `canUseTool` invocation in {@link queryMessages} order. */
+	readonly canUseToolResults: PermissionResult[] = [];
 
 	readonly warmQueries: RoundTripWarmQuery[] = [];
 
 	async listSessions(): Promise<readonly SDKSessionInfo[]> {
 		return [];
+	}
+
+	async getSessionInfo(_sessionId: string): Promise<SDKSessionInfo | undefined> {
+		return undefined;
 	}
 
 	async startup(params: { options: Options; initializeTimeoutMs?: number }): Promise<WarmQuery> {
@@ -347,11 +398,24 @@ class RoundTripQuery implements AsyncGenerator<SDKMessage, void> {
 	}
 
 	async next(): Promise<IteratorResult<SDKMessage, void>> {
-		if (this._index >= this._sdk.queryMessages.length) {
-			await this._drainer;
-			return { done: true, value: undefined };
+		while (this._index < this._sdk.queryMessages.length) {
+			const item = this._sdk.queryMessages[this._index++];
+			if (isCanUseToolMarker(item)) {
+				const startup = this._sdk.capturedStartupOptions[0];
+				if (!startup?.canUseTool) {
+					throw new Error('integration test: canUseTool marker but Options.canUseTool not wired');
+				}
+				const result = await startup.canUseTool(item.toolName, item.input, {
+					signal: new AbortController().signal,
+					toolUseID: item.toolUseID,
+				});
+				this._sdk.canUseToolResults.push(result);
+				continue;
+			}
+			return { done: false, value: item };
 		}
-		return { done: false, value: this._sdk.queryMessages[this._index++] };
+		await this._drainer;
+		return { done: true, value: undefined };
 	}
 
 	async return(): Promise<IteratorResult<SDKMessage, void>> {
@@ -487,13 +551,17 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 
 		const realProxy = disposables.add(new ClaudeProxyService(new NullLogService(), capi));
 		const sdk = new ProxyRoundTripSdkService();
+		const logService = new NullLogService();
+		const stateManager = disposables.add(new AgentHostStateManager(logService));
+		const configService = disposables.add(new AgentConfigurationService(stateManager, logService));
 
 		const services = new ServiceCollection(
-			[ILogService, new NullLogService()],
+			[ILogService, logService],
 			[ICopilotApiService, capi],
 			[IClaudeProxyService, realProxy],
 			[ISessionDataService, createSessionDataService()],
 			[IClaudeAgentSdkService, sdk],
+			[IAgentConfigurationService, configService],
 			[IAgentHostGitService, createNoopGitService()],
 		);
 		const instantiationService = disposables.add(new InstantiationService(services));
@@ -589,6 +657,187 @@ suite('ClaudeAgent integration (proxy-backed)', function () {
 		} finally {
 			handle.dispose();
 		}
+	});
+
+	test('Phase 7 §5.3 — canUseTool / onElicitation closures wired through to Options on materialize', async () => {
+		// Phase 7 §5.3. The Phase-6 round-trip above exercised the
+		// proxy / CAPI / settings-env wiring; this test pins the
+		// Phase-7 callback surface — `canUseTool` and `onElicitation`
+		// must both be present in the Options the SDK service receives
+		// from `_materializeProvisional` and behave per §3.4 / §3.7.
+		// We don't need a full SDK message stream with tool_use blocks
+		// to validate the wiring — the unit suites in
+		// `claudeAgent.test.ts` cover the in-process tool round-trip
+		// exhaustively. What this integration adds: the closures
+		// survive the materialize → SDK boundary intact when the real
+		// proxy is in the loop.
+		const capi = new StubCopilotApiService();
+		capi.streamEvents = makeCannedStream('claude-opus-4.6');
+		const realProxy = disposables.add(new ClaudeProxyService(new NullLogService(), capi));
+		const sdk = new ProxyRoundTripSdkService();
+		const logService = new NullLogService();
+		const stateManager = disposables.add(new AgentHostStateManager(logService));
+		const configService = disposables.add(new AgentConfigurationService(stateManager, logService));
+
+		const services = new ServiceCollection(
+			[ILogService, logService],
+			[ICopilotApiService, capi],
+			[IClaudeProxyService, realProxy],
+			[ISessionDataService, createSessionDataService()],
+			[IClaudeAgentSdkService, sdk],
+			[IAgentConfigurationService, configService],
+			[IAgentHostGitService, createNoopGitService()],
+		);
+		const instantiationService = disposables.add(new InstantiationService(services));
+		const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));
+
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'gh-int-test-token');
+		const created = await agent.createSession({ workingDirectory: URI.file('/integration-cwd') });
+		const sessionId = created.session.path.replace(/^\//, '');
+		sdk.queryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
+
+		await agent.sendMessage(created.session, 'hi', undefined, 'turn-1');
+
+		const startup = sdk.capturedStartupOptions[0];
+		assert.ok(typeof startup.canUseTool === 'function', 'canUseTool was wired into Options');
+		assert.ok(typeof startup.onElicitation === 'function', 'onElicitation was wired into Options');
+
+		const elicitResult = await startup.onElicitation!(
+			{ serverName: 'mcp-test', message: 'pick a side', mode: 'form' },
+			{ signal: new AbortController().signal },
+		);
+
+		assert.deepStrictEqual({
+			elicitResult,
+			permissionMode: startup.permissionMode,
+		}, {
+			elicitResult: { action: 'cancel' },
+			permissionMode: 'default',
+		});
+	});
+
+	test('Phase 7 §5.3 — Read tool round-trip: SDK tool_use → pending_confirmation → respondToPermissionRequest(true) → tool_result → continuation', async () => {
+		// §5.3 of the Phase-7 plan: drive a one-tool round-trip end-to-end
+		// through a materialized agent backed by the real proxy. Unit
+		// tests in `claudeAgent.test.ts` already cover the in-process
+		// `_handleCanUseTool` mechanics; what this test pins is the
+		// agent → mapper → progress-event ordering when the SDK fixture
+		// invokes the captured `Options.canUseTool` mid-stream the same
+		// way the real subprocess would.
+		const capi = new StubCopilotApiService();
+		capi.streamEvents = makeCannedStream('claude-opus-4.6');
+		const realProxy = disposables.add(new ClaudeProxyService(new NullLogService(), capi));
+		const sdk = new ProxyRoundTripSdkService();
+		const logService = new NullLogService();
+		const stateManager = disposables.add(new AgentHostStateManager(logService));
+		const configService = disposables.add(new AgentConfigurationService(stateManager, logService));
+
+		const services = new ServiceCollection(
+			[ILogService, logService],
+			[ICopilotApiService, capi],
+			[IClaudeProxyService, realProxy],
+			[ISessionDataService, createSessionDataService()],
+			[IClaudeAgentSdkService, sdk],
+			[IAgentConfigurationService, configService],
+			[IAgentHostGitService, createNoopGitService()],
+		);
+		const instantiationService = disposables.add(new InstantiationService(services));
+		const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));
+
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'gh-int-test-token');
+		const created = await agent.createSession({ workingDirectory: URI.file('/integration-cwd') });
+		const sessionId = created.session.path.replace(/^\//, '');
+
+		// Canned turn: assistant says "reading", calls `Read`, the SDK
+		// invokes `canUseTool`, then a synthetic user `tool_result`
+		// arrives followed by an assistant continuation and `result`.
+		const TOOL_USE_ID = 'tu_int_read_1';
+		sdk.queryMessages = [
+			makeSystemInitMessage(sessionId),
+			makeStreamEvent(sessionId, makeMessageStart('msg_int_1')),
+			makeStreamEvent(sessionId, makeContentBlockStartText(0)),
+			makeStreamEvent(sessionId, makeTextDelta(0, 'reading')),
+			makeStreamEvent(sessionId, makeContentBlockStop(0)),
+			makeStreamEvent(sessionId, makeContentBlockStartToolUse(1, TOOL_USE_ID, 'Read')),
+			makeStreamEvent(sessionId, makeInputJsonDelta(1, '{"file_path":"/tmp/x"}')),
+			makeStreamEvent(sessionId, makeContentBlockStop(1)),
+			makeStreamEvent(sessionId, makeMessageStop()),
+			{ kind: 'canUseTool', toolName: 'Read', input: { file_path: '/tmp/x' }, toolUseID: TOOL_USE_ID },
+			makeUserToolResultMessage(sessionId, TOOL_USE_ID, 'file contents'),
+			makeStreamEvent(sessionId, makeMessageStart('msg_int_2')),
+			makeStreamEvent(sessionId, makeContentBlockStartText(0)),
+			makeStreamEvent(sessionId, makeTextDelta(0, 'done')),
+			makeStreamEvent(sessionId, makeContentBlockStop(0)),
+			makeStreamEvent(sessionId, makeMessageStop()),
+			makeResultSuccess(sessionId),
+		];
+
+		const signals: AgentSignal[] = [];
+		disposables.add(agent.onDidSessionProgress(s => {
+			signals.push(s);
+			if (s.kind === 'pending_confirmation' && s.state.toolCallId === TOOL_USE_ID) {
+				agent.respondToPermissionRequest(TOOL_USE_ID, true);
+			}
+		}));
+
+		await agent.sendMessage(created.session, 'please read /tmp/x', undefined, 'turn-1');
+
+		// Snapshot the agent-side emission stream as a single shape so
+		// the failure surface is the whole pipeline.
+		const summary = signals.map(s => {
+			if (s.kind === 'pending_confirmation') {
+				return {
+					kind: s.kind,
+					toolCallId: s.state.toolCallId,
+					toolName: s.state.toolName,
+					permissionKind: s.permissionKind,
+					permissionPath: s.permissionPath,
+				};
+			}
+			if (s.kind === 'action') {
+				const a = s.action;
+				switch (a.type) {
+					case ActionType.SessionResponsePart:
+						return { kind: 'action', type: a.type, partKind: a.part.kind, content: a.part.kind === ResponsePartKind.Markdown ? a.part.content : undefined };
+					case ActionType.SessionDelta:
+						return { kind: 'action', type: a.type, content: a.content };
+					case ActionType.SessionToolCallStart:
+						return { kind: 'action', type: a.type, toolCallId: a.toolCallId, toolName: a.toolName };
+					case ActionType.SessionToolCallDelta:
+						return { kind: 'action', type: a.type, toolCallId: a.toolCallId, content: a.content };
+					case ActionType.SessionToolCallComplete:
+						return { kind: 'action', type: a.type, toolCallId: a.toolCallId, success: a.result.success, content: a.result.content };
+					case ActionType.SessionUsage:
+						return { kind: 'action', type: a.type };
+					case ActionType.SessionTurnComplete:
+						return { kind: 'action', type: a.type };
+					default:
+						return { kind: 'action', type: a.type };
+				}
+			}
+			return { kind: s.kind };
+		});
+
+		assert.deepStrictEqual({
+			summary,
+			canUseToolResults: sdk.canUseToolResults,
+		}, {
+			summary: [
+				{ kind: 'action', type: ActionType.SessionResponsePart, partKind: ResponsePartKind.Markdown, content: '' },
+				{ kind: 'action', type: ActionType.SessionDelta, content: 'reading' },
+				{ kind: 'action', type: ActionType.SessionToolCallStart, toolCallId: TOOL_USE_ID, toolName: 'Read' },
+				{ kind: 'action', type: ActionType.SessionToolCallDelta, toolCallId: TOOL_USE_ID, content: '{"file_path":"/tmp/x"}' },
+				{ kind: 'pending_confirmation', toolCallId: TOOL_USE_ID, toolName: 'Read', permissionKind: 'read', permissionPath: '/tmp/x' },
+				{ kind: 'action', type: ActionType.SessionToolCallComplete, toolCallId: TOOL_USE_ID, success: true, content: [{ type: ToolResultContentType.Text, text: 'file contents' }] },
+				{ kind: 'action', type: ActionType.SessionResponsePart, partKind: ResponsePartKind.Markdown, content: '' },
+				{ kind: 'action', type: ActionType.SessionDelta, content: 'done' },
+				{ kind: 'action', type: ActionType.SessionUsage },
+				{ kind: 'action', type: ActionType.SessionTurnComplete },
+			],
+			canUseToolResults: [
+				{ behavior: 'allow', updatedInput: { file_path: '/tmp/x' } },
+			],
+		});
 	});
 });
 

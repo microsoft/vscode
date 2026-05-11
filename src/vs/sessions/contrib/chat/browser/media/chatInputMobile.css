@@ -32,7 +32,7 @@
 	padding-bottom: 6px;
 }
 
-/* The send button on phone is a 36×36 circle with the same accent
+/* The send button on phone grows to a 36×36 circle with the same accent
  * gradient fill as the desktop button. The wrapper and inner Button
  * widget both grow so the focus outline (drawn on the wrapper) and
  * the click target (the wrapper's `:has(...)` rules) align with the
@@ -51,10 +51,7 @@
 	margin-bottom: 18px;
 }
 
-/* The active-state pulse pseudo-element in `chatInput.css` uses
- * `border-radius: 6px` (matching the desktop button's rounded square).
- * Round it to a circle on phone so the pulse animates concentrically
- * with the new shape. */
+/* Keep the active-state pulse concentric with the larger phone button. */
 .agent-sessions-workbench.phone-layout .sessions-chat-send-button:has(.monaco-button:not(.disabled):active)::after {
 	border-radius: 50%;
 }

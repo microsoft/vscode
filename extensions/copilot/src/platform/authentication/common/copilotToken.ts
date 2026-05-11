@@ -138,6 +138,11 @@ export class CopilotToken {
 		return this.sku === 'no_auth_limited_copilot';
 	}
 
+	get isManagedPlan(): boolean {
+		const plan = this.copilotPlan;
+		return plan === 'business' || plan === 'enterprise';
+	}
+
 	get isChatQuotaExceeded(): boolean {
 		return this.isFreeUser && (this._info.limited_user_quotas?.chat ?? 1) <= 0;
 	}
