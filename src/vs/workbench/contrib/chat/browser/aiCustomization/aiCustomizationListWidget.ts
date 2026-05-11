@@ -514,6 +514,21 @@ export function getCountAnnouncement(section: AICustomizationManagementSection, 
 }
 
 /**
+ * Returns the type icon for a section (used in group headers as an
+ * experimental replacement for per-item icons).
+ */
+function sectionToTypeIcon(section: AICustomizationManagementSection): ThemeIcon | undefined {
+	switch (section) {
+		case AICustomizationManagementSection.Agents: return agentIcon;
+		case AICustomizationManagementSection.Skills: return skillIcon;
+		case AICustomizationManagementSection.Instructions: return instructionsIcon;
+		case AICustomizationManagementSection.Hooks: return hookIcon;
+		case AICustomizationManagementSection.Prompts: return promptIcon;
+		default: return undefined;
+	}
+}
+
+/**
  * An ordered create action for the add button.
  */
 interface ICreateAction {
@@ -1309,6 +1324,16 @@ export class AICustomizationListWidget extends Disposable {
 				}
 			}
 			group.items.push(item);
+		}
+
+		// Experiment: replace per-group source icons with the section's
+		// type icon so the icon appears in the list/group header instead
+		// of being repeated on every list item.
+		const typeIcon = sectionToTypeIcon(this.currentSection);
+		if (typeIcon) {
+			for (const g of groups) {
+				g.icon = typeIcon;
+			}
 		}
 
 		this.buildGroupedEntries(groups);
