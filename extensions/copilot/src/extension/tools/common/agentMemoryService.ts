@@ -5,11 +5,9 @@
 
 import { RequestType } from '@vscode/copilot-api';
 import { IAuthenticationService } from '../../../platform/authentication/common/authentication';
-import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { ICAPIClientService } from '../../../platform/endpoint/common/capiClient';
 import { getGithubRepoIdFromFetchUrl, getOrderedRemoteUrlsFromContext, IGitService, toGithubNwo } from '../../../platform/git/common/gitService';
 import { ILogService } from '../../../platform/log/common/logService';
-import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { IWorkspaceService } from '../../../platform/workspace/common/workspaceService';
 import { createServiceIdentifier } from '../../../util/common/services';
 import { Disposable } from '../../../util/vs/base/common/lifecycle';
@@ -112,8 +110,6 @@ export class AgentMemoryService extends Disposable implements IAgentMemoryServic
 		@ICAPIClientService private readonly capiClientService: ICAPIClientService,
 		@IGitService private readonly gitService: IGitService,
 		@IWorkspaceService private readonly workspaceService: IWorkspaceService,
-		@IConfigurationService private readonly configService: IConfigurationService,
-		@IExperimentationService private readonly experimentationService: IExperimentationService,
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService
 	) {
 		super();
@@ -152,10 +148,9 @@ export class AgentMemoryService extends Disposable implements IAgentMemoryServic
 
 	/**
 	 * Check if the chat.copilotMemory.enabled config is enabled.
-	 * Uses experiment-based configuration for gradual rollout.
 	 */
 	private isCAPIMemorySyncConfigEnabled(): boolean {
-		return this.configService.getExperimentBasedConfig(ConfigKey.CopilotMemoryEnabled, this.experimentationService);
+		return false;
 	}
 
 	async checkMemoryEnabled(): Promise<boolean> {

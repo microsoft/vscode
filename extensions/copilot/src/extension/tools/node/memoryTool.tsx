@@ -541,34 +541,31 @@ export class MemoryTool implements ICopilotTool<MemoryToolParams> {
 			lines.push('/memories/session/');
 		}
 
-		// List local repo memory files under repo/ (only when CAPI is not enabled)
-		const capiEnabled = this.configurationService.getExperimentBasedConfig(ConfigKey.CopilotMemoryEnabled, this.experimentationService);
-		if (!capiEnabled) {
-			try {
-				const repoUri = this._resolveUri('/memories/repo/', 'repo');
-				const repoEntries = await this.fileSystemService.readDirectory(repoUri);
-				const repoFiles: string[] = [];
-				for (const [name, type] of repoEntries) {
-					if (name.startsWith('.')) {
-						continue;
-					}
-					if (type === FileType.Directory) {
-						repoFiles.push(`/memories/repo/${name}/`);
-					} else {
-						repoFiles.push(`/memories/repo/${name}`);
-					}
+		// List local repo memory files under repo/ (CAPI memory is disabled)
+		try {
+			const repoUri = this._resolveUri('/memories/repo/', 'repo');
+			const repoEntries = await this.fileSystemService.readDirectory(repoUri);
+			const repoFiles: string[] = [];
+			for (const [name, type] of repoEntries) {
+				if (name.startsWith('.')) {
+					continue;
 				}
-				if (repoFiles.length > 0) {
-					hasContent = true;
-					lines.push('/memories/repo/');
-					lines.push(...repoFiles);
+				if (type === FileType.Directory) {
+					repoFiles.push(`/memories/repo/${name}/`);
 				} else {
-					lines.push('/memories/repo/');
+					repoFiles.push(`/memories/repo/${name}`);
 				}
-			} catch {
-				// Repo storage may not exist yet, but still mention it
+			}
+			if (repoFiles.length > 0) {
+				hasContent = true;
+				lines.push('/memories/repo/');
+				lines.push(...repoFiles);
+			} else {
 				lines.push('/memories/repo/');
 			}
+		} catch {
+			// Repo storage may not exist yet, but still mention it
+			lines.push('/memories/repo/');
 		}
 
 		if (!hasContent) {
