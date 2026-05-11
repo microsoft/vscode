@@ -294,7 +294,9 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 				modeTools[RunSubagentTool.Id] = depthAllowed; // only enable the Run Subagent tool if we are under the max depth limit
 			}
 
-			modeTools[ManageTodoListToolToolId] = false;
+			if (modeTools[ManageTodoListToolToolId] !== true) {
+				modeTools[ManageTodoListToolToolId] = false;
+			}
 			modeTools['copilot_askQuestions'] = false;
 
 			if (maxDepth > 0) {
