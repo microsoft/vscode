@@ -40,9 +40,10 @@ export class ChatInputNotificationContribution extends Disposable {
 	/** Whether a copilot token was present on the last {@link _update} call. */
 	private _hadCopilotToken = false;
 
-	private readonly _shownQuotaThresholds = new Set<number>();
-	private readonly _shownSessionThresholds = new Set<number>();
-	private readonly _shownWeeklyThresholds = new Set<number>();
+	/** Previous percentUsed values — `undefined` means no prior state (initial load). */
+	private _prevQuotaPercent: number | undefined;
+	private _prevSessionPercent: number | undefined;
+	private _prevWeeklyPercent: number | undefined;
 
 	constructor(
 		@IAuthenticationService private readonly _authService: IAuthenticationService,
@@ -64,9 +65,16 @@ export class ChatInputNotificationContribution extends Disposable {
 
 		// Detect signed-in → signed-out transition: clear thresholds and hide.
 		if (wasSignedIn && !hasCopilotToken) {
-			this._shownQuotaThresholds.clear();
-			this._shownSessionThresholds.clear();
-			this._shownWeeklyThresholds.clear();
+			this._prevQuotaPercent = undefined;
+			this._prevSessionPercent = undefined;
+			this._prevWeeklyPercent = undefined;
+			this._hideNotification();
+			this._showingExhausted = false;
+			return;
+		}
+
+		// Non-UBB (PRU) users have unlimited quotas — skip all notifications.
+		if (this._chatQuotaService.quotaInfo?.unlimited) {
 			this._hideNotification();
 			this._showingExhausted = false;
 			return;
@@ -106,56 +114,59 @@ export class ChatInputNotificationContribution extends Disposable {
 		if (!info || info.unlimited) {
 			return undefined;
 		}
-		return this._checkThreshold(info, this._shownQuotaThresholds);
+		const result = this._checkThresholdCrossing(info, this._prevQuotaPercent);
+		this._prevQuotaPercent = result.percentUsed;
+		return result.warning;
 	}
 
 	private _computeRateLimitWarning(): IRateLimitWarning | undefined {
 		const { session, weekly } = this._chatQuotaService.rateLimitInfo;
-		const sessionWarning = this._checkThreshold(session, this._shownSessionThresholds);
-		if (sessionWarning) {
-			return { ...sessionWarning, type: 'session' };
+
+		const sessionResult = this._checkThresholdCrossing(session, this._prevSessionPercent);
+		this._prevSessionPercent = sessionResult.percentUsed;
+		if (sessionResult.warning) {
+			return { ...sessionResult.warning, type: 'session' };
 		}
-		const weeklyWarning = this._checkThreshold(weekly, this._shownWeeklyThresholds);
-		if (weeklyWarning) {
-			return { ...weeklyWarning, type: 'weekly' };
+
+		const weeklyResult = this._checkThresholdCrossing(weekly, this._prevWeeklyPercent);
+		this._prevWeeklyPercent = weeklyResult.percentUsed;
+		if (weeklyResult.warning) {
+			return { ...weeklyResult.warning, type: 'weekly' };
 		}
+
 		return undefined;
 	}
 
 	/**
-	 * Checks whether a quota/rate-limit info has crossed a new threshold
-	 * that hasn't been shown yet. Clears stale thresholds when usage drops.
+	 * Checks whether usage has crossed a new threshold compared to the
+	 * previous percentage. Returns `undefined` when there is no previous
+	 * state (initial load) or no new threshold was crossed.
 	 */
-	private _checkThreshold(info: IChatQuota | undefined, shownThresholds: Set<number>): { percentUsed: number; resetDate: Date } | undefined {
-		if (!info) {
-			shownThresholds.clear();
-			return undefined;
-		}
-		if (info.unlimited) {
-			return undefined;
-		}
-
-		const percentUsed = 100 - info.percentRemaining;
-
-		// Clear thresholds that are no longer crossed (usage dropped)
-		for (const threshold of shownThresholds) {
-			if (percentUsed < threshold) {
-				shownThresholds.delete(threshold);
-			}
+	private _checkThresholdCrossing(
+		info: IChatQuota | undefined,
+		prevPercent: number | undefined,
+	): { percentUsed: number | undefined; warning: { percentUsed: number; resetDate: Date } | undefined } {
+		if (!info || info.unlimited) {
+			return { percentUsed: undefined, warning: undefined };
 		}
 
-		// Walk thresholds highest-first so we report the most severe crossed threshold
+		const percentUsed = Math.min(100, 100 - info.percentRemaining);
+
+		// No previous state — record current value but don't warn.
+		if (prevPercent === undefined) {
+			return { percentUsed, warning: undefined };
+		}
+
+		// Find the highest threshold that was just crossed
+		// (previous was below it, current is at or above it).
 		for (let i = THRESHOLDS.length - 1; i >= 0; i--) {
 			const threshold = THRESHOLDS[i];
-			if (percentUsed >= threshold && !shownThresholds.has(threshold)) {
-				// Mark this and all lower thresholds as shown
-				for (let j = 0; j <= i; j++) {
-					shownThresholds.add(THRESHOLDS[j]);
-				}
-				return { percentUsed: Math.floor(percentUsed), resetDate: info.resetDate };
+			if (percentUsed >= threshold && prevPercent < threshold) {
+				return { percentUsed, warning: { percentUsed: Math.floor(percentUsed), resetDate: info.resetDate } };
 			}
 		}
-		return undefined;
+
+		return { percentUsed, warning: undefined };
 	}
 
 	// --- Quota exhausted ---------------------------------------------------

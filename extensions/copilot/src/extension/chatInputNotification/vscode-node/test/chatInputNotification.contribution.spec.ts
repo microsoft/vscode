@@ -136,30 +136,34 @@ describe('ChatInputNotificationContribution', () => {
 			expect(mockNotification.hide).toHaveBeenCalled();
 		});
 
-		test('re-shows threshold notification after sign-out + sign-in', () => {
+		test('records state after sign-out + sign-in and warns on new crossing', () => {
 			setup(
 				{},
-				{ quotaInfo: makeQuota(5) }, // 95% used → crosses 95 threshold
+				{ quotaInfo: makeQuota(30) }, // 70% used, below 75%
 			);
 
-			// First update: threshold notification shown
+			// Seed on initial load — no notification
+			quotaEmitter.fire();
+			expect(mockNotification.show).not.toHaveBeenCalled();
+
+			// Cross 75% threshold during session
+			(quotaService as any).quotaInfo = makeQuota(20); // 80% used
 			quotaEmitter.fire();
 			expect(mockNotification.show).toHaveBeenCalledTimes(1);
 			mockNotification.show.mockClear();
 
-			// Fire again — same threshold already shown, no new notification
-			quotaEmitter.fire();
-			expect(mockNotification.show).not.toHaveBeenCalled();
-
-			// Sign out → copilot token cleared → thresholds cleared
+			// Sign out → thresholds and seed flag cleared
 			(authService as any).copilotToken = undefined;
 			authEmitter.fire();
 
-			// Sign back in
+			// Sign back in — same usage level re-seeds, no notification
 			(authService as any).copilotToken = { isFreeUser: false, isNoAuthUser: false };
 			authEmitter.fire();
+			expect(mockNotification.show).not.toHaveBeenCalled();
 
-			// Threshold was cleared, so it should re-show
+			// Usage increases past 90% → new crossing shows notification
+			(quotaService as any).quotaInfo = makeQuota(5); // 95% used
+			quotaEmitter.fire();
 			expect(mockNotification.show).toHaveBeenCalled();
 		});
 
@@ -251,24 +255,78 @@ describe('ChatInputNotificationContribution', () => {
 	});
 
 	describe('quota approaching threshold', () => {
-		test('shows warning at 50% used', () => {
+		test('does not show approaching warning on initial load', () => {
 			setup(
 				{ anyGitHubSession: { accessToken: 'tok' } },
-				{ quotaInfo: makeQuota(50) }, // 50% used
+				{ quotaInfo: makeQuota(5) }, // 95% used on initial load
 			);
 
+			quotaEmitter.fire();
+
+			expect(mockNotification.show).not.toHaveBeenCalled();
+		});
+
+		test('does not warn when quota info first appears (no previous state)', () => {
+			setup(
+				{ anyGitHubSession: { accessToken: 'tok' } },
+				{}, // no quotaInfo initially
+			);
+
+			quotaEmitter.fire();
+			expect(mockNotification.show).not.toHaveBeenCalled();
+
+			// Quota info arrives for the first time already past 90%
+			(quotaService as any).quotaInfo = makeQuota(10);
+			quotaEmitter.fire();
+
+			expect(mockNotification.show).not.toHaveBeenCalled();
+		});
+
+		test('shows warning when crossing 50% threshold during session', () => {
+			setup(
+				{ anyGitHubSession: { accessToken: 'tok' } },
+				{ quotaInfo: makeQuota(100) }, // 0% used initially
+			);
+
+			// Seed
+			quotaEmitter.fire();
+			expect(mockNotification.show).not.toHaveBeenCalled();
+
+			// Cross 50% threshold
+			(quotaService as any).quotaInfo = makeQuota(50);
 			quotaEmitter.fire();
 
 			expect(mockNotification.show).toHaveBeenCalled();
 			expect(mockNotification.message).toBe('Credits at 50%');
 		});
 
+		test('reports highest crossed threshold when skipping multiple', () => {
+			setup(
+				{ anyGitHubSession: { accessToken: 'tok' } },
+				{ quotaInfo: makeQuota(100) }, // 0% used
+			);
+
+			quotaEmitter.fire();
+
+			// Jump from 0% to 92% — crosses 50, 75, 90 at once
+			(quotaService as any).quotaInfo = makeQuota(8);
+			quotaEmitter.fire();
+
+			expect(mockNotification.show).toHaveBeenCalled();
+			expect(mockNotification.message).toBe('Credits at 92%');
+		});
+
 		test('does not re-show the same threshold', () => {
 			setup(
 				{ anyGitHubSession: { accessToken: 'tok' } },
-				{ quotaInfo: makeQuota(50) },
+				{ quotaInfo: makeQuota(100) }, // 0% used initially
 			);
 
+			// Seed
+			quotaEmitter.fire();
+
+			// Cross 50% threshold
+			(quotaService as any).quotaInfo = makeQuota(50);
 			quotaEmitter.fire();
 			expect(mockNotification.show).toHaveBeenCalledTimes(1);
 
@@ -277,12 +335,63 @@ describe('ChatInputNotificationContribution', () => {
 			expect(mockNotification.show).not.toHaveBeenCalled();
 		});
 
+		test('does not warn when usage increases within the same threshold band', () => {
+			setup(
+				{ anyGitHubSession: { accessToken: 'tok' } },
+				{ quotaInfo: makeQuota(100) }, // 0% used
+			);
+
+			quotaEmitter.fire();
+
+			// Cross 50%
+			(quotaService as any).quotaInfo = makeQuota(45); // 55%
+			quotaEmitter.fire();
+			expect(mockNotification.show).toHaveBeenCalledTimes(1);
+			mockNotification.show.mockClear();
+
+			// Increase to 60% — still between 50 and 75, no new threshold
+			(quotaService as any).quotaInfo = makeQuota(40); // 60%
+			quotaEmitter.fire();
+			expect(mockNotification.show).not.toHaveBeenCalled();
+		});
+
+		test('re-warns when usage drops below a threshold and re-crosses it', () => {
+			setup(
+				{ anyGitHubSession: { accessToken: 'tok' } },
+				{ quotaInfo: makeQuota(100) }, // 0% used
+			);
+
+			quotaEmitter.fire();
+
+			// Cross 50%
+			(quotaService as any).quotaInfo = makeQuota(45); // 55%
+			quotaEmitter.fire();
+			expect(mockNotification.show).toHaveBeenCalledTimes(1);
+			mockNotification.show.mockClear();
+
+			// Usage drops to 40% (below 50%)
+			(quotaService as any).quotaInfo = makeQuota(60); // 40%
+			quotaEmitter.fire();
+			expect(mockNotification.show).not.toHaveBeenCalled();
+
+			// Re-cross 50%
+			(quotaService as any).quotaInfo = makeQuota(45); // 55%
+			quotaEmitter.fire();
+			expect(mockNotification.show).toHaveBeenCalledTimes(1);
+			expect(mockNotification.message).toBe('Credits at 55%');
+		});
+
 		test('shows higher threshold when usage increases', () => {
 			setup(
 				{ anyGitHubSession: { accessToken: 'tok' } },
-				{ quotaInfo: makeQuota(50) }, // 50% used
+				{ quotaInfo: makeQuota(100) }, // 0% used initially
 			);
 
+			// Seed
+			quotaEmitter.fire();
+
+			// Cross 50% threshold
+			(quotaService as any).quotaInfo = makeQuota(50);
 			quotaEmitter.fire();
 			expect(mockNotification.show).toHaveBeenCalledTimes(1);
 
@@ -293,15 +402,37 @@ describe('ChatInputNotificationContribution', () => {
 			expect(mockNotification.show).toHaveBeenCalled();
 			expect(mockNotification.message).toBe('Credits at 90%');
 		});
+
+		test('caps percentage at 100% when percentRemaining is negative', () => {
+			setup(
+				{ anyGitHubSession: { accessToken: 'tok' } },
+				{ quotaInfo: makeQuota(100) }, // 0% used
+			);
+
+			quotaEmitter.fire();
+
+			// Somehow percentRemaining goes negative
+			(quotaService as any).quotaInfo = makeQuota(-5);
+			quotaEmitter.fire();
+
+			expect(mockNotification.show).toHaveBeenCalled();
+			// Should say 100%, not 105%
+			expect(mockNotification.message).toBe('Credits at 100%');
+		});
 	});
 
 	describe('rate limit warning', () => {
-		test('shows session rate limit warning', () => {
+		test('shows session rate limit warning when crossing threshold', () => {
 			setup(
 				{ anyGitHubSession: { accessToken: 'tok' } },
-				{ session: makeQuota(25) }, // 75% used
+				{ quotaInfo: makeQuota(100), session: makeQuota(100) }, // 0% session initially
 			);
 
+			// Record initial state
+			quotaEmitter.fire();
+
+			// Session rate limit crosses 75%
+			(quotaService as any).rateLimitInfo = { session: makeQuota(25), weekly: undefined };
 			quotaEmitter.fire();
 
 			expect(mockNotification.show).toHaveBeenCalled();
@@ -309,17 +440,33 @@ describe('ChatInputNotificationContribution', () => {
 			expect(mockNotification.message).toContain('session');
 		});
 
-		test('shows weekly rate limit warning', () => {
+		test('shows weekly rate limit warning when crossing threshold', () => {
 			setup(
 				{ anyGitHubSession: { accessToken: 'tok' } },
-				{ weekly: makeQuota(10) }, // 90% used
+				{ quotaInfo: makeQuota(100), weekly: makeQuota(100) }, // 0% weekly initially
 			);
 
+			// Record initial state
+			quotaEmitter.fire();
+
+			// Weekly rate limit crosses 90%
+			(quotaService as any).rateLimitInfo = { session: undefined, weekly: makeQuota(10) };
 			quotaEmitter.fire();
 
 			expect(mockNotification.show).toHaveBeenCalled();
 			expect(mockNotification.message).toContain('90%');
 			expect(mockNotification.message).toContain('weekly');
+		});
+
+		test('does not show rate limit warning on initial load', () => {
+			setup(
+				{ anyGitHubSession: { accessToken: 'tok' } },
+				{ quotaInfo: makeQuota(100), session: makeQuota(25) }, // session at 75% on load
+			);
+
+			quotaEmitter.fire();
+
+			expect(mockNotification.show).not.toHaveBeenCalled();
 		});
 	});
 
@@ -338,9 +485,15 @@ describe('ChatInputNotificationContribution', () => {
 		test('threshold warning takes priority over rate limit', () => {
 			setup(
 				{ anyGitHubSession: { accessToken: 'tok' } },
-				{ quotaInfo: makeQuota(10), session: makeQuota(25) }, // 90% quota, 75% session
+				{ quotaInfo: makeQuota(100) }, // 0% used initially
 			);
 
+			// Seed
+			quotaEmitter.fire();
+
+			// Both quota and rate limit cross thresholds
+			(quotaService as any).quotaInfo = makeQuota(10); // 90% quota
+			(quotaService as any).rateLimitInfo = { session: makeQuota(25), weekly: undefined }; // 75% session
 			quotaEmitter.fire();
 
 			expect(mockNotification.message).toBe('Credits at 90%');
@@ -360,6 +513,60 @@ describe('ChatInputNotificationContribution', () => {
 			// notifications should still flow through normally.
 			expect(mockNotification.show).toHaveBeenCalled();
 			expect(mockNotification.message).toBe('Credit Limit Reached');
+		});
+	});
+
+	describe('non-UBB (PRU) users see no notifications', () => {
+		test('hides notification when quota is unlimited', () => {
+			setup(
+				{},
+				{ quotaInfo: makeQuota(10, { unlimited: true }) },
+			);
+
+			quotaEmitter.fire();
+
+			expect(mockNotification.show).not.toHaveBeenCalled();
+		});
+
+		test('hides existing notification when quota becomes unlimited', () => {
+			setup(
+				{},
+				{ quotaInfo: makeQuota(100) }, // 0% used initially
+			);
+
+			// Seed, then cross threshold
+			quotaEmitter.fire();
+			(quotaService as any).quotaInfo = makeQuota(10); // 90% used
+			quotaEmitter.fire();
+			expect(mockNotification.show).toHaveBeenCalled();
+
+			// Quota switches to unlimited (PRU)
+			(quotaService as any).quotaInfo = makeQuota(10, { unlimited: true });
+			quotaEmitter.fire();
+
+			expect(mockNotification.hide).toHaveBeenCalled();
+		});
+
+		test('does not show rate limit warning for unlimited quota users', () => {
+			setup(
+				{},
+				{ quotaInfo: makeQuota(100, { unlimited: true }), session: makeQuota(25) },
+			);
+
+			quotaEmitter.fire();
+
+			expect(mockNotification.show).not.toHaveBeenCalled();
+		});
+
+		test('does not show exhausted notification for unlimited quota users', () => {
+			setup(
+				{},
+				{ quotaExhausted: true, quotaInfo: makeQuota(0, { unlimited: true }) },
+			);
+
+			quotaEmitter.fire();
+
+			expect(mockNotification.show).not.toHaveBeenCalled();
 		});
 	});
 });
