@@ -352,6 +352,8 @@ export class BrowserView extends Disposable {
 		// Forward key down events that weren't handled by the page to the workbench for shortcut handling.
 		webContents.ipc.on('vscode:browserView:keydown', onCommandKeydown);
 		webContents.on('devtools-opened', () => {
+			// Avoid double-registration if the webContents is reused.
+			webContents.devToolsWebContents?.ipc.off('vscode:browserView:keydown', onCommandKeydown);
 			webContents.devToolsWebContents?.ipc.on('vscode:browserView:keydown', onCommandKeydown);
 		});
 
