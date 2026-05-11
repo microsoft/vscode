@@ -416,6 +416,16 @@ export class ChatSession {
 	private sessionTurnCount = 0;
 
 	/**
+	 * H17 — lifecycle-hook turn counter. Distinct from {@link sessionTurnCount}
+	 * which mirrors the H11 status-bar meter: `turnsRun` increments once per
+	 * completed {@link handleSendMessage} (regardless of which dispatch path
+	 * the turn took) and feeds the `session-end` hook payload so a hook
+	 * author can see how chatty a session was. Keeping it separate from the
+	 * meter avoids coupling hook payloads to the cost-display semantics.
+	 */
+	private turnsRun = 0;
+
+	/**
 	 * Phase 86 — spend cap helper. Lazily wired up from the optional
 	 * {@link costReporter}: when no reporter is supplied (e.g. legacy CLI
 	 * surfaces or tests), we leave the guard undefined and every cap check
@@ -598,6 +608,24 @@ export class ChatSession {
 				this.costUpdateDebounceTimer = undefined;
 			}
 		}));
+
+		// H17 — `session-start` lifecycle hook. Fire-and-forget at the tail of
+		// construction so the panel doesn't pay any latency cost on first paint;
+		// hook failures are swallowed so a flaky script can never block the
+		// chat panel from coming up. The CLI fires the same event on its TUI
+		// mount — keep payload field names aligned so a single hook script can
+		// serve both surfaces.
+		if (this.hookRunner) {
+			void this.hookRunner
+				.fire('session-start', {
+					conversationId: this.currentConversationId,
+					specialistId: this.currentSpecialistId,
+					model: this.currentModel,
+					mode: this.currentMode,
+					timestamp: Date.now(),
+				})
+				.catch(() => { /* swallow — hooks must never break a session */ });
+		}
 	}
 
 	/**
@@ -711,6 +739,21 @@ export class ChatSession {
 	}
 
 	dispose(): void {
+		// H17 — `session-end` lifecycle hook. Fire-and-forget BEFORE flipping
+		// `disposed = true` and tearing the rest down: `dispose` is sync so we
+		// can't await the hook, and the React-cleanup analogue in the CLI's
+		// `ChatApp.tsx` follows the same shape. Failures are swallowed for
+		// the same reason as session-start.
+		if (this.hookRunner) {
+			void this.hookRunner
+				.fire('session-end', {
+					conversationId: this.currentConversationId,
+					turnsRun: this.turnsRun,
+					finalCost: this.sessionTotalCost,
+					timestamp: Date.now(),
+				})
+				.catch(() => { /* swallow — hooks must never break a session */ });
+		}
 		this.disposed = true;
 		ACTIVE_SESSIONS.delete(this);
 		this.abortController?.abort();
@@ -2621,6 +2664,39 @@ export class ChatSession {
 			// Unknown command — fall through to normal dispatch.
 		}
 
+		// H17 — `pre-prompt` lifecycle hook. Fires AFTER slash-command
+		// interception so handled commands don't pay the script latency,
+		// and BEFORE the user message is persisted / sent to the LLM so a
+		// denying hook can fully veto the turn without polluting the
+		// transcript. `/approve` and `/reject` overrides bypass entirely:
+		// they aren't user prompts in the LLM sense, they're control signals
+		// addressed to the orchestrator's queued plan. A non-empty
+		// `replacement` rewrites the prompt that's sent to the model; the
+		// user still sees their typed text in their own bubble, which
+		// mirrors the CLI's behaviour. Errors are swallowed so a flaky
+		// script can never break a chat turn.
+		let promptForLlm = rawText;
+		if (this.hookRunner && !approveOverride && !rejectOverride) {
+			try {
+				const fired = await this.hookRunner.fire('pre-prompt', {
+					conversationId: this.currentConversationId,
+					prompt: rawText,
+					specialistId,
+					model,
+					mode,
+				});
+				if (!fired.allowed) {
+					this.postSystemMessage('pre-prompt hook denied this prompt.');
+					return;
+				}
+				if (fired.replacement && fired.replacement.length > 0) {
+					promptForLlm = fired.replacement;
+				}
+			} catch {
+				// Swallow — hooks must never break a session.
+			}
+		}
+
 		const baseSystemPrompt = buildSystemPrompt(specialistId);
 
 		// Workspace context is collected lazily per-turn so the markdown
@@ -2638,8 +2714,11 @@ export class ChatSession {
 		// The LLM receives the full prompt — typed text plus any resolved
 		// attachment bodies. The persisted scrollback only keeps a short
 		// summary so reloading a session doesn't repeatedly pay for stale
-		// attachment payloads.
-		const fullPrompt = await this.buildUserPrompt(message.text ?? '', message.attachments, message.mentions, message.mentionsKinded);
+		// attachment payloads. `promptForLlm` is the post-`pre-prompt`-hook
+		// text (rewritten by a replacing hook, or the raw text otherwise);
+		// `message.text` is intentionally left untouched so the user's
+		// own bubble keeps their typed text as the visible summary.
+		const fullPrompt = await this.buildUserPrompt(promptForLlm, message.attachments, message.mentions, message.mentionsKinded);
 		const visibleSummaryText = (message.text && message.text.trim())
 			? message.text
 			: hasImages
@@ -2754,11 +2833,14 @@ export class ChatSession {
 			// Workspace context is now injected as a system-prompt section by
 			// `BaseAgent.buildSystemPrompt` via `request.workspaceContextSnapshot`,
 			// so the user's typed text stays clean — no prepending.
+			let bridgeAssistantText = '';
 			try {
-				await this.runViaAgentBridge(specialistId, fullPrompt, model, mode, assistantConversationIndex, workspaceCtx.markdown, approveOverride, rejectOverride);
+				bridgeAssistantText = await this.runViaAgentBridge(specialistId, fullPrompt, model, mode, assistantConversationIndex, workspaceCtx.markdown, approveOverride, rejectOverride);
 			} finally {
 				this.webview.postMessage({ type: 'requestEnded' });
 			}
+			this.turnsRun += 1;
+			this.firePostResponseHook(rawText, bridgeAssistantText, specialistId, model, mode);
 			return;
 		}
 
@@ -3232,16 +3314,63 @@ export class ChatSession {
 			});
 			this.saveConversation();
 		}
+
+		// H17 — `post-response` lifecycle hook. Fires once per completed turn,
+		// AFTER `messageComplete` and the assistant persistence above, so a
+		// hook script sees the final state of the transcript. The original
+		// (pre-`pre-prompt`-rewrite) `rawText` is forwarded so hooks see what
+		// the user actually typed, matching the CLI's `useAgentStream` shape.
+		this.turnsRun += 1;
+		this.firePostResponseHook(rawText, fullAssistantText, specialistId, model, mode);
+	}
+
+	/**
+	 * H17 — fire the `post-response` lifecycle hook for the just-settled turn.
+	 *
+	 * Shared between the direct-LLM and agent-bridge dispatch paths so the
+	 * payload shape stays identical regardless of which orchestrator handled
+	 * the turn. Token / cost figures are read off the `LlmClient`'s cumulative
+	 * counters and subtracted against the per-turn snapshot taken at request
+	 * start (the same primitives the Phase 68 message-metrics popover uses);
+	 * negative deltas — possible if the counter resets mid-turn — are clamped
+	 * to zero. The call is fire-and-forget with a `.catch()` swallow: a hook
+	 * failure must never break a chat turn.
+	 */
+	private firePostResponseHook(prompt: string, assistantText: string, specialistId: string, model: ModelId, mode: ChatMode): void {
+		if (!this.hookRunner) {
+			return;
+		}
+		const usage = this.llmClient.getTokenUsage();
+		const inputTokens = Math.max(0, usage.input - this.lastInputTokens);
+		const outputTokens = Math.max(0, usage.output - this.lastOutputTokens);
+		const cachedTokens = Math.max(0, usage.cached - this.lastCachedTokens);
+		const costUsd = Math.max(0, this.llmClient.estimateCost(model) - this.lastEstimatedCost);
+		void this.hookRunner
+			.fire('post-response', {
+				conversationId: this.currentConversationId,
+				prompt,
+				assistantText,
+				specialistId,
+				model,
+				mode,
+				usage: { inputTokens, outputTokens, cachedTokens, costUsd },
+			})
+			.catch(() => { /* swallow — hooks must never break a turn */ });
 	}
 
 	/**
 	 * Drive the active specialist (or orchestrator) through the agent stack.
 	 * Translates AgentEvents into webview messages, persists the assembled
 	 * assistant text, and fans cancellation/abort through to the bridge.
+	 *
+	 * Returns the visible assistant text that was persisted (or the empty
+	 * string when nothing was assembled — e.g. error or early cancel). The
+	 * caller uses this to populate the `post-response` lifecycle-hook payload
+	 * so a single helper in `handleSendMessage` covers both dispatch paths.
 	 */
-	private async runViaAgentBridge(specialistId: string, fullPrompt: string, model: ModelId, mode: ChatMode, assistantConversationIndex: number, workspaceContextSnapshot?: string, approveOverride: boolean = false, rejectOverride: boolean = false): Promise<void> {
+	private async runViaAgentBridge(specialistId: string, fullPrompt: string, model: ModelId, mode: ChatMode, assistantConversationIndex: number, workspaceContextSnapshot?: string, approveOverride: boolean = false, rejectOverride: boolean = false): Promise<string> {
 		if (!this.agentBridge) {
-			return;
+			return '';
 		}
 		const cancellationSource = new vscode.CancellationTokenSource();
 		// Bridge AbortController -> CancellationToken so the existing Cancel
@@ -3323,7 +3452,7 @@ export class ChatSession {
 
 		if (errorText) {
 			this.webview.postMessage({ type: 'streamError', error: errorText });
-			return;
+			return '';
 		}
 
 		// Token usage telemetry is currently captured per-LLM-call inside the
@@ -3371,6 +3500,7 @@ export class ChatSession {
 			});
 			this.saveConversation();
 		}
+		return persisted;
 	}
 
 	/**
