@@ -7,6 +7,7 @@ import { fromIni, fromNodeProviderChain } from '@aws-sdk/credential-providers';
 import type { AwsCredentialIdentity, AwsCredentialIdentityProvider } from '@smithy/types';
 import type { ConfigStore, SecretStore } from '../host';
 import type { PromptCacheOptimizer } from './PromptCacheOptimizer';
+import type { ClaudeCodeMessage } from './claudeCodeRunner';
 
 /**
  * Minimal sink for per-request cost telemetry. The extension implements this
@@ -1610,11 +1611,39 @@ export class LlmClient {
 			options.model === 'claude-code-opus' ? 'opus'
 			: options.model === 'claude-code-haiku' ? 'haiku'
 			: 'sonnet';
-		const messages = options.messages.map(m => {
-			const text = typeof m.content === 'string'
-				? m.content
-				: m.content.map(part => part.type === 'text' ? part.text : '').join('');
-			return { role: m.role as 'user' | 'assistant', content: text };
+		// The Claude Code CLI's stream-json input format accepts the full
+		// Anthropic Messages API message shape: `content` may be a plain string
+		// OR an array of `{type: 'text' | 'image', ...}` blocks. When the
+		// incoming message already carries structured parts (e.g. user attached
+		// an image via `/attach` or `--attach`), forward them through as
+		// Anthropic content blocks so the CLI relays them to the model
+		// untouched. String content stays a string so the historical wire
+		// format is byte-identical when no attachments are present.
+		const messages: ClaudeCodeMessage[] = options.messages.map(m => {
+			if (typeof m.content === 'string') {
+				return { role: m.role as 'user' | 'assistant', content: m.content };
+			}
+			const blocks: Array<{ type: string;[key: string]: unknown }> = [];
+			for (const part of m.content) {
+				if (part.type === 'text') {
+					blocks.push({ type: 'text', text: part.text });
+				} else if (part.type === 'image') {
+					blocks.push({
+						type: 'image',
+						source: { type: 'base64', media_type: part.mimeType, data: part.base64Data },
+					});
+				} else if (part.type === 'tool_use') {
+					blocks.push({ type: 'tool_use', id: part.id, name: part.name, input: part.input });
+				} else if (part.type === 'tool_result') {
+					blocks.push({
+						type: 'tool_result',
+						tool_use_id: part.tool_use_id,
+						content: part.content,
+						...(part.is_error ? { is_error: true } : {}),
+					});
+				}
+			}
+			return { role: m.role as 'user' | 'assistant', content: blocks };
 		});
 		let fullText = '';
 		let inputTokens = 0;
