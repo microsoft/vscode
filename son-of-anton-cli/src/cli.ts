@@ -6,6 +6,7 @@
 
 import { Command, Option } from 'commander';
 import { runAcpServer } from './acp/server';
+import { authCommand } from './commands/auth';
 import { runChat } from './commands/chat';
 import { configCommand } from './commands/config';
 import { hooksCommand } from './commands/hooks';
@@ -93,6 +94,7 @@ program.addCommand(toolsCommand());
 program.addCommand(mcpCommand());
 program.addCommand(configCommand());
 program.addCommand(hooksCommand());
+program.addCommand(authCommand());
 
 program.parseAsync(process.argv).catch(err => {
 	process.stderr.write('error: ' + (err instanceof Error ? err.message : String(err)) + '\n');
