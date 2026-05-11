@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -1331,7 +1331,7 @@ suite('CopilotChatSessionsProvider', () => {
 			return config;
 		}
 
-		test('CLI session seeds permission level from chat.permissions.default', async () => {
+		test('CLI session seeds permission level from chat.permissions.default', () => {
 			const configurationService = makeConfig({ defaultLevel: ChatPermissionLevel.Autopilot });
 			const provider = createProviderForSendTests(disposables, model, () => new Promise(() => { }), { configurationService });
 
@@ -1340,10 +1340,10 @@ suite('CopilotChatSessionsProvider', () => {
 
 			assert.strictEqual(session?.permissionLevel.get(), ChatPermissionLevel.Autopilot);
 
-			await provider.deleteSession(sessionInfo.sessionId);
+			(session as unknown as IDisposable | undefined)?.dispose();
 		});
 
-		test('clamps to Default when chat.tools.global.autoApprove policy is false', async () => {
+		test('clamps to Default when chat.tools.global.autoApprove policy is false', () => {
 			const configurationService = makeConfig({ defaultLevel: ChatPermissionLevel.Autopilot, policyRestricted: true });
 			const provider = createProviderForSendTests(disposables, model, () => new Promise(() => { }), { configurationService });
 
@@ -1352,10 +1352,10 @@ suite('CopilotChatSessionsProvider', () => {
 
 			assert.strictEqual(session?.permissionLevel.get(), ChatPermissionLevel.Default);
 
-			await provider.deleteSession(sessionInfo.sessionId);
+			(session as unknown as IDisposable | undefined)?.dispose();
 		});
 
-		test('falls back to Default when chat.permissions.default is unset', async () => {
+		test('falls back to Default when chat.permissions.default is unset', () => {
 			const configurationService = makeConfig({});
 			const provider = createProviderForSendTests(disposables, model, () => new Promise(() => { }), { configurationService });
 
@@ -1364,7 +1364,7 @@ suite('CopilotChatSessionsProvider', () => {
 
 			assert.strictEqual(session?.permissionLevel.get(), ChatPermissionLevel.Default);
 
-			await provider.deleteSession(sessionInfo.sessionId);
+			(session as unknown as IDisposable | undefined)?.dispose();
 		});
 	});
 });
