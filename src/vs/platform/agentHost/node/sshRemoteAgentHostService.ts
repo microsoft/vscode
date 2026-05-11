@@ -118,6 +118,57 @@ export type SSHKeyboardInteractivePromptHandler = (
 ) => void;
 
 /**
+ * Translate a {@link SSHAuthAttempt} into the payload shape ssh2 expects in
+ * its `authHandler` callback. Returns `undefined` when the attempt cannot be
+ * realized (currently only `keyboard-interactive` without a prompt handler).
+ *
+ * The kbi case is the one place where we still need a callback-bridge: ssh2
+ * calls our `prompt` with a `finish(string[])` and we hand the responses to
+ * `kbiHandler`. Isolating that here keeps it out of the iteration loop below.
+ */
+function toAuthMethod(
+	attempt: SSHAuthAttempt,
+	kbiHandler: SSHKeyboardInteractivePromptHandler | undefined,
+): AnyAuthMethod | undefined {
+	switch (attempt.type) {
+		case 'publickey': {
+			// Strip our internal `keyPath` metadata before handing to ssh2.
+			const { keyPath: _kp, ...payload } = attempt;
+			return payload;
+		}
+		case 'agent':
+		case 'password':
+			return attempt;
+		case 'keyboard-interactive': {
+			if (!kbiHandler) {
+				return undefined;
+			}
+			return {
+				type: 'keyboard-interactive',
+				username: attempt.username,
+				prompt: (name, instructions, _lang, prompts, finish) => {
+					const normalized = prompts.map(p => ({ prompt: p.prompt, echo: p.echo ?? true }));
+					kbiHandler(name, instructions, normalized, responses => finish([...responses]));
+				},
+			};
+		}
+	}
+}
+
+/**
+ * `agent` is a publickey-flavored method at the SSH protocol level — servers
+ * advertise `publickey`, not `agent`, in `methodsLeft`. Returns true when the
+ * server still has the underlying protocol method on offer.
+ */
+function isMethodAllowedByServer(attempt: SSHAuthAttempt, methodsLeft: AuthenticationType[] | null): boolean {
+	if (!methodsLeft) {
+		return true;
+	}
+	const protocolMethod: AuthenticationType = attempt.type === 'agent' ? 'publickey' : attempt.type;
+	return methodsLeft.includes(protocolMethod);
+}
+
+/**
  * Build an ssh2 `authHandler` callback that walks the given attempts in order,
  * filtering by the server-advertised `methodsLeft` when ssh2 provides one.
  * Returns `false` when the queue is exhausted, which causes ssh2 to surface
@@ -136,34 +187,17 @@ export function makeAuthHandler(
 	return (methodsLeft, _partialSuccess, callback) => {
 		while (index < attempts.length) {
 			const attempt = attempts[index++];
-			// `agent` is a publickey-flavored method at the SSH protocol level —
-			// servers advertise `publickey`, not `agent`, in `methodsLeft`.
-			const protocolMethod: AuthenticationType = attempt.type === 'agent' ? 'publickey' : attempt.type;
-			if (methodsLeft && !methodsLeft.includes(protocolMethod)) {
-				logService.info(`${LOG_PREFIX} Skipping ${describeAuthAttempt(attempt)} — server only allows ${methodsLeft.join(', ')}`);
+			if (!isMethodAllowedByServer(attempt, methodsLeft)) {
+				logService.info(`${LOG_PREFIX} Skipping ${describeAuthAttempt(attempt)} — server only allows ${methodsLeft!.join(', ')}`);
+				continue;
+			}
+			const method = toAuthMethod(attempt, kbiHandler);
+			if (!method) {
+				logService.warn(`${LOG_PREFIX} ${describeAuthAttempt(attempt)} skipped: no prompt handler available`);
 				continue;
 			}
 			logService.info(`${LOG_PREFIX} Trying auth: ${describeAuthAttempt(attempt)}`);
-			if (attempt.type === 'publickey') {
-				// Strip our internal `keyPath` metadata before handing to ssh2.
-				const { keyPath: _kp, ...payload } = attempt;
-				callback(payload);
-			} else if (attempt.type === 'keyboard-interactive') {
-				if (!kbiHandler) {
-					logService.warn(`${LOG_PREFIX} keyboard-interactive attempt skipped: no prompt handler available`);
-					continue;
-				}
-				callback({
-					type: 'keyboard-interactive',
-					username: attempt.username,
-					prompt: (name, instructions, _lang, prompts, finish) => {
-						const normalized = prompts.map(p => ({ prompt: p.prompt, echo: p.echo ?? true }));
-						kbiHandler(name, instructions, normalized, responses => finish([...responses]));
-					},
-				});
-			} else {
-				callback(attempt);
-			}
+			callback(method);
 			return;
 		}
 		logService.info(`${LOG_PREFIX} No more auth methods to try; giving up`);
