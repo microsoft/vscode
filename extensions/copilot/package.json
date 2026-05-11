@@ -3282,14 +3282,6 @@
 						],
 						"markdownDescription": "%github.copilot.config.codesearch.enabled%"
 					},
-					"github.copilot.chat.copilotMemory.enabled": {
-						"type": "boolean",
-						"default": false,
-						"markdownDescription": "%github.copilot.config.copilotMemory.enabled%",
-						"tags": [
-							"preview"
-						]
-					},
 					"github.copilot.chat.tools.memory.enabled": {
 						"type": "boolean",
 						"default": true,
