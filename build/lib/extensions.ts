@@ -413,6 +413,14 @@ const excludedExtensions = [
 	'vscode-test-resolver',
 	'ms-vscode.node-debug',
 	'ms-vscode.node-debug2',
+	// Microsoft-private auth: depends on `@azure/msal-node`,
+	// `@azure/msal-node-extensions`, `@azure/ms-rest-azure-env`, and
+	// `@vscode/extension-telemetry`. Those packages live on Microsoft's
+	// internal registry; the public-OSS build can't resolve them, so the
+	// extension's esbuild bundling step crashes the macOS/Linux/Windows
+	// product builds. The fork ships Claude / OpenAI auth via the
+	// son-of-anton extension instead, so this one is dead weight here.
+	'microsoft-authentication',
 ];
 
 const marketplaceWebExtensionsExclude = new Set([
