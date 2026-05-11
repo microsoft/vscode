@@ -21,8 +21,10 @@ import type {
 	ISSHConnectResult,
 	ISSHRelayMessage,
 	ISSHResolvedConfig,
+	ISSHRemoteAgentHostMainService,
 } from '../../common/sshRemoteAgentHost.js';
 import { ISSHRelayClientFactory, SSHRemoteAgentHostService } from '../../electron-browser/sshRemoteAgentHostServiceImpl.js';
+import { RemoteAgentHostProtocolClient } from '../../browser/remoteAgentHostProtocolClient.js';
 
 /**
  * In-renderer mock of the shared-process SSH service. Exposes the same
@@ -199,13 +201,13 @@ suite('SSHRemoteAgentHostService (renderer)', () => {
 		};
 
 		instantiationService.stub(ISSHRelayClientFactory, {
-			createClient: (_mainService: unknown, _connectionId: unknown, _address: unknown) => {
+			createClient: (_mainService: ISSHRemoteAgentHostMainService, _connectionId: string, _address: string) => {
 				const c = new MockProtocolClient();
 				disposables.add(c);
 				const index = createdClients.length;
 				createdClients.push(c);
 				clientWaiters[index]?.complete(c);
-				return c;
+				return c as unknown as RemoteAgentHostProtocolClient;
 			},
 		});
 
