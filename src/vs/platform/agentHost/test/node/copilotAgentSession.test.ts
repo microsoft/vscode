@@ -1588,6 +1588,194 @@ suite('CopilotAgentSession', () => {
 		});
 	});
 
+	// ---- elicitation handling ----
+
+	suite('elicitation handling', () => {
+
+		test('form-mode request projects schema fields to questions and accept round-trips content', async () => {
+			const { session, signals } = await createAgentSession(disposables);
+
+			const resultPromise = session.handleElicitationRequest({
+				sessionId: 'test-session-1',
+				message: 'Configure deployment',
+				mode: 'form',
+				requestedSchema: {
+					type: 'object',
+					properties: {
+						environment: { type: 'string', enum: ['dev', 'prod'], enumNames: ['Development', 'Production'] },
+						replicas: { type: 'integer', minimum: 1, maximum: 10, default: 3 },
+						confirm: { type: 'boolean', default: false },
+						region: { type: 'string', minLength: 2, default: 'us-west-2' },
+						tags: { type: 'array', items: { type: 'string', enum: ['a', 'b', 'c'] } },
+					},
+					required: ['environment', 'confirm'],
+				},
+			});
+
+			assert.strictEqual(signals.length, 1);
+			const request = getInputRequest(signals[0]);
+			assert.strictEqual(request.message, 'Configure deployment');
+			assert.ok(request.questions);
+			assert.deepStrictEqual(request.questions.map(q => ({ id: q.id, kind: q.kind, required: q.required })), [
+				{ id: 'environment', kind: SessionInputQuestionKind.SingleSelect, required: true },
+				{ id: 'replicas', kind: SessionInputQuestionKind.Integer, required: false },
+				{ id: 'confirm', kind: SessionInputQuestionKind.Boolean, required: true },
+				{ id: 'region', kind: SessionInputQuestionKind.Text, required: false },
+				{ id: 'tags', kind: SessionInputQuestionKind.MultiSelect, required: false },
+			]);
+			const envQuestion = request.questions[0];
+			assert.strictEqual(envQuestion.kind, SessionInputQuestionKind.SingleSelect);
+			if (envQuestion.kind === SessionInputQuestionKind.SingleSelect) {
+				assert.deepStrictEqual(envQuestion.options, [
+					{ id: 'dev', label: 'Development' },
+					{ id: 'prod', label: 'Production' },
+				]);
+			}
+
+			session.respondToUserInputRequest(request.id, SessionInputResponseKind.Accept, {
+				environment: { state: SessionInputAnswerState.Submitted, value: { kind: SessionInputAnswerValueKind.Selected, value: 'prod' } },
+				replicas: { state: SessionInputAnswerState.Submitted, value: { kind: SessionInputAnswerValueKind.Number, value: 5 } },
+				confirm: { state: SessionInputAnswerState.Submitted, value: { kind: SessionInputAnswerValueKind.Boolean, value: true } },
+				region: { state: SessionInputAnswerState.Submitted, value: { kind: SessionInputAnswerValueKind.Text, value: 'eu-west-1' } },
+				tags: { state: SessionInputAnswerState.Submitted, value: { kind: SessionInputAnswerValueKind.SelectedMany, value: ['a', 'c'] } },
+			});
+
+			assert.deepStrictEqual(await resultPromise, {
+				action: 'accept',
+				content: {
+					environment: 'prod',
+					replicas: 5,
+					confirm: true,
+					region: 'eu-west-1',
+					tags: ['a', 'c'],
+				},
+			});
+		});
+
+		test('skipped and missing answers are omitted from accept content', async () => {
+			const { session, signals } = await createAgentSession(disposables);
+
+			const resultPromise = session.handleElicitationRequest({
+				sessionId: 'test-session-1',
+				message: 'Partial form',
+				mode: 'form',
+				requestedSchema: {
+					type: 'object',
+					properties: {
+						name: { type: 'string' },
+						count: { type: 'integer' },
+					},
+				},
+			});
+
+			const request = getInputRequest(signals[0]);
+			session.respondToUserInputRequest(request.id, SessionInputResponseKind.Accept, {
+				name: { state: SessionInputAnswerState.Skipped },
+				// `count` is missing entirely
+			});
+
+			assert.deepStrictEqual(await resultPromise, { action: 'accept', content: {} });
+		});
+
+		test('url-mode request surfaces url and accept returns no content', async () => {
+			const { session, signals } = await createAgentSession(disposables);
+
+			const resultPromise = session.handleElicitationRequest({
+				sessionId: 'test-session-1',
+				message: 'Open this link',
+				mode: 'url',
+				url: 'https://example.com/auth',
+			});
+
+			const request = getInputRequest(signals[0]);
+			assert.strictEqual(request.url, 'https://example.com/auth');
+			assert.strictEqual(request.questions, undefined);
+
+			session.respondToUserInputRequest(request.id, SessionInputResponseKind.Accept);
+			assert.deepStrictEqual(await resultPromise, { action: 'accept' });
+		});
+
+		test('free-form request (no schema) returns submitted text as content.answer', async () => {
+			const { session, signals } = await createAgentSession(disposables);
+
+			const resultPromise = session.handleElicitationRequest({
+				sessionId: 'test-session-1',
+				message: 'What is your favorite color?',
+				mode: 'form',
+				// No requestedSchema — the workbench fallback renders a single text question.
+			});
+
+			const request = getInputRequest(signals[0]);
+			assert.strictEqual(request.questions, undefined);
+
+			session.respondToUserInputRequest(request.id, SessionInputResponseKind.Accept, {
+				answer: { state: SessionInputAnswerState.Submitted, value: { kind: SessionInputAnswerValueKind.Text, value: 'teal' } },
+			});
+
+			assert.deepStrictEqual(await resultPromise, { action: 'accept', content: { answer: 'teal' } });
+		});
+
+		test('decline response maps to action=decline', async () => {
+			const { session, signals } = await createAgentSession(disposables);
+
+			const resultPromise = session.handleElicitationRequest({
+				sessionId: 'test-session-1',
+				message: 'Please confirm',
+				mode: 'form',
+				requestedSchema: { type: 'object', properties: { ok: { type: 'boolean' } } },
+			});
+
+			const request = getInputRequest(signals[0]);
+			session.respondToUserInputRequest(request.id, SessionInputResponseKind.Decline);
+			assert.deepStrictEqual(await resultPromise, { action: 'decline' });
+		});
+
+		test('cancel response maps to action=cancel', async () => {
+			const { session, signals } = await createAgentSession(disposables);
+
+			const resultPromise = session.handleElicitationRequest({
+				sessionId: 'test-session-1',
+				message: 'Please confirm',
+				mode: 'form',
+				requestedSchema: { type: 'object', properties: { ok: { type: 'boolean' } } },
+			});
+
+			const request = getInputRequest(signals[0]);
+			session.respondToUserInputRequest(request.id, SessionInputResponseKind.Cancel);
+			assert.deepStrictEqual(await resultPromise, { action: 'cancel' });
+		});
+
+		test('autopilot auto-cancels without firing a progress event', async () => {
+			const { session, signals } = await createAgentSession(disposables, {
+				configValues: { [SessionConfigKey.AutoApprove]: 'autopilot' },
+			});
+
+			const result = await session.handleElicitationRequest({
+				sessionId: 'test-session-1',
+				message: 'Need input',
+				mode: 'form',
+				requestedSchema: { type: 'object', properties: { ok: { type: 'boolean' } } },
+			});
+
+			assert.deepStrictEqual(result, { action: 'cancel' });
+			assert.strictEqual(signals.length, 0);
+		});
+
+		test('pending elicitations are cancelled on dispose', async () => {
+			const { session } = await createAgentSession(disposables);
+
+			const resultPromise = session.handleElicitationRequest({
+				sessionId: 'test-session-1',
+				message: 'Will be cancelled',
+				mode: 'form',
+				requestedSchema: { type: 'object', properties: { ok: { type: 'boolean' } } },
+			});
+
+			session.dispose();
+			assert.deepStrictEqual(await resultPromise, { action: 'cancel' });
+		});
+	});
+
 	suite('SDK callback logging', () => {
 
 		test('logs and rethrows user input callback failures', async () => {

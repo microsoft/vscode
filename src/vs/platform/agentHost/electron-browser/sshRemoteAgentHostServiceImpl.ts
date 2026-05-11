@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../base/common/event.js';
+import { CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
+import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IEnvironmentService } from '../../environment/common/environment.js';
@@ -13,6 +15,7 @@ import { ISharedProcessService } from '../../ipc/electron-browser/services.js';
 import { ProxyChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { IRemoteAgentHostService, RemoteAgentHostEntryType } from '../common/remoteAgentHostService.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
+import { IQuickInputService } from '../../quickinput/common/quickInput.js';
 import { AhpJsonlLogger } from '../common/ahpJsonlLogger.js';
 import { AgentHostAhpJsonlLoggingSettingId } from '../common/agentService.js';
 import { SSHRelayTransport } from './sshRelayTransport.js';
@@ -23,6 +26,7 @@ import {
 	type ISSHAgentHostConfig,
 	type ISSHAgentHostConnection,
 	type ISSHConnectResult,
+	type ISSHKeyboardInteractiveRequest,
 	type ISSHRemoteAgentHostMainService,
 	type ISSHResolvedConfig,
 	type ISSHConnectProgress,
@@ -52,6 +56,7 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
+		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 	) {
 		super();
 
@@ -74,6 +79,12 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 			}
 		}));
 
+		// Bridge keyboard-interactive prompts from the shared process to the
+		// quick input UI so password / 2FA fallbacks work for SSH config hosts
+		// where key-based auth fails.
+		this._register(this._mainService.onDidRequestKeyboardInteractive(request => {
+			this._handleKeyboardInteractiveRequest(request);
+		}));
 	}
 
 	get connections(): readonly ISSHAgentHostConnection[] {
@@ -232,6 +243,80 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 
 	private _isSSHAgentForwardingEnabled(): boolean | undefined {
 		return this._configurationService.getValue<boolean>('chat.agentHost.forwardSSHAgent') || undefined;
+	}
+
+	/**
+	 * Show a quick-input prompt for each entry in a keyboard-interactive
+	 * challenge and forward the responses (or cancel) back to the main service.
+	 *
+	 * The renderer collects all prompts up front before responding so the
+	 * server gets a single batched answer set, matching how OpenSSH presents
+	 * keyboard-interactive challenges.
+	 */
+	private async _handleKeyboardInteractiveRequest(request: ISSHKeyboardInteractiveRequest): Promise<void> {
+		this._logService.info(`[SSHRemoteAgentHost] Keyboard-interactive prompt for ${request.displayHost} (${request.prompts.length} prompt(s))`);
+
+		// Honor cancellation if the underlying connect attempt fails or
+		// completes while we're still gathering responses. Pass the
+		// CancellationToken into quickInput so an in-flight prompt is
+		// dismissed immediately rather than lingering on screen.
+		const cts = new CancellationTokenSource();
+		const cancelListener = this._mainService.onDidCancelKeyboardInteractive(requestId => {
+			if (requestId === request.requestId) {
+				cts.cancel();
+			}
+		});
+
+		try {
+			if (request.prompts.length === 0) {
+				await this._mainService.respondKeyboardInteractive(request.requestId, []);
+				return;
+			}
+
+			const responses: string[] = [];
+			for (let i = 0; i < request.prompts.length; i++) {
+				if (cts.token.isCancellationRequested) {
+					return;
+				}
+				const prompt = request.prompts[i];
+				// Trim trailing whitespace/colons from the server-supplied
+				// prompt for a cleaner title (e.g. "Password: " -> "Password").
+				const cleanedPrompt = prompt.prompt.replace(/[\s:]+$/, '');
+				const title = request.prompts.length > 1
+					? `${request.displayHost} (${i + 1}/${request.prompts.length})`
+					: request.displayHost;
+				const value = await this._quickInputService.input({
+					title,
+					prompt: cleanedPrompt || localize('sshKbiDefaultPrompt', "Authentication required for {0}@{1}", request.username, request.displayHost),
+					password: !prompt.echo,
+					ignoreFocusLost: true,
+				}, cts.token);
+				if (cts.token.isCancellationRequested) {
+					return;
+				}
+				if (value === undefined) {
+					// User cancelled — submit empty responses to fail this attempt.
+					await this._mainService.respondKeyboardInteractive(request.requestId, undefined);
+					return;
+				}
+				responses.push(value);
+			}
+
+			if (cts.token.isCancellationRequested) {
+				return;
+			}
+			await this._mainService.respondKeyboardInteractive(request.requestId, responses);
+		} catch (err) {
+			this._logService.error('[SSHRemoteAgentHost] Failed handling keyboard-interactive prompt', err);
+			// Best effort: tell the main service to give up on this attempt
+			// so the SSH connect promise rejects rather than hanging.
+			try {
+				await this._mainService.respondKeyboardInteractive(request.requestId, undefined);
+			} catch { /* swallow */ }
+		} finally {
+			cancelListener.dispose();
+			cts.dispose();
+		}
 	}
 }
 

@@ -156,9 +156,10 @@ export class ChatBarPart extends AbstractPaneCompositePart { // TODO: should not
 		const borderTotal = ChatBarPart.BORDER_WIDTH * 2;
 		const marginLeft = this.layoutService.isVisible(Parts.SIDEBAR_PART) ? 0 : ChatBarPart.MARGIN_LEFT;
 		const marginBottom = this.layoutService.isVisible(Parts.PANEL_PART) ? ChatBarPart.MARGIN_BOTTOM : 0;
+		const marginRight = this.layoutService.isVisible(Parts.AUXILIARYBAR_PART) ? ChatBarPart.MARGIN_RIGHT : 0;
 
 		super.layout(
-			width - marginLeft - ChatBarPart.MARGIN_RIGHT - borderTotal,
+			width - marginLeft - marginRight - borderTotal,
 			height - ChatBarPart.MARGIN_TOP - marginBottom - borderTotal - sessionBarHeight,
 			top, left
 		);

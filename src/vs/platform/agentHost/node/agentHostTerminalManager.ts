@@ -22,10 +22,15 @@ import type { CreateTerminalParams } from '../common/state/protocol/commands.js'
 import { TerminalClaim, TerminalContentPart, TerminalInfo, TerminalState, TerminalClaimKind } from '../common/state/protocol/state.js';
 import { isTerminalAction } from '../common/state/sessionActions.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
+import { AgentHostHeadlessTerminal } from './agentHostHeadlessTerminal.js';
 import type { AgentHostStateManager } from './agentHostStateManager.js';
 import { Osc633Event, Osc633EventType, Osc633Parser } from './osc633Parser.js';
 
 const WAIT_FOR_PROMPT_TIMEOUT = 10_000;
+const HEADLESS_TERMINAL_SCROLLBACK = 0;
+const DSR_CURSOR_POSITION_QUERY = '\x1b[6n';
+const DEC_DSR_CURSOR_POSITION_QUERY = '\x1b[?6n';
+const SERVER_HANDLED_QUERY_PREFIXES = ['\x1b[?6', '\x1b[?', '\x1b[6', '\x1b[', '\x1b'];
 
 export const IAgentHostTerminalManager = createDecorator<IAgentHostTerminalManager>('agentHostTerminalManager');
 
@@ -34,6 +39,41 @@ export interface ICommandFinishedEvent {
 	exitCode: number | undefined;
 	command: string;
 	output: string;
+}
+
+export interface ITerminalQueryFilterState {
+	pendingData: string;
+}
+
+export function removeServerHandledTerminalQueries(data: string, state: ITerminalQueryFilterState): string {
+	if (
+		!state.pendingData
+		&& !data.includes(DSR_CURSOR_POSITION_QUERY)
+		&& !data.includes(DEC_DSR_CURSOR_POSITION_QUERY)
+		&& !getServerHandledTerminalQueryPrefix(data)
+	) {
+		return data;
+	}
+
+	const combinedData = state.pendingData + data;
+	const pendingData = getServerHandledTerminalQueryPrefix(combinedData);
+	const dataToFilter = pendingData ? combinedData.substring(0, combinedData.length - pendingData.length) : combinedData;
+	state.pendingData = pendingData;
+	if (!dataToFilter.includes(DSR_CURSOR_POSITION_QUERY) && !dataToFilter.includes(DEC_DSR_CURSOR_POSITION_QUERY)) {
+		return dataToFilter;
+	}
+	return dataToFilter
+		.replaceAll(DEC_DSR_CURSOR_POSITION_QUERY, '')
+		.replaceAll(DSR_CURSOR_POSITION_QUERY, '');
+}
+
+function getServerHandledTerminalQueryPrefix(data: string): string {
+	for (const prefix of SERVER_HANDLED_QUERY_PREFIXES) {
+		if (data.endsWith(prefix)) {
+			return prefix;
+		}
+	}
+	return '';
 }
 
 /**
@@ -96,6 +136,8 @@ interface IManagedTerminal {
 	claim: TerminalClaim;
 	exitCode?: number;
 	commandTracker?: ICommandTracker;
+	headlessTerminal?: AgentHostHeadlessTerminal;
+	terminalQueryFilterState: ITerminalQueryFilterState;
 }
 
 /**
@@ -182,8 +224,6 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 		if (this._terminals.has(uri)) {
 			throw new Error(`Terminal already exists: ${uri}`);
 		}
-
-		const nodePty = await getNodePty();
 
 		const cwd = await this._resolveCwd(params.cwd, uri);
 		const cols = params.cols ?? 80;
@@ -272,7 +312,7 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 			this._logService.info(`[TerminalManager] Shell integration not available for ${uri}: ${injection.reason}`);
 		}
 
-		const ptyProcess = nodePty.spawn(shell, shellArgs, {
+		const ptyProcess = await this._spawnPty(shell, shellArgs, {
 			name,
 			cwd,
 			env,
@@ -287,6 +327,12 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 		const onExitEmitter = store.add(new Emitter<number>());
 		const onClaimChangedEmitter = store.add(new Emitter<TerminalClaim>());
 		const onCommandFinishedEmitter = store.add(new Emitter<ICommandFinishedEvent>());
+		const headlessTerminal = store.add(new AgentHostHeadlessTerminal({
+			cols,
+			rows,
+			scrollback: HEADLESS_TERMINAL_SCROLLBACK,
+			logService: this._logService,
+		}));
 
 		const managed: IManagedTerminal = {
 			uri,
@@ -304,9 +350,19 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 			contentSize: 0,
 			claim,
 			commandTracker,
+			headlessTerminal,
+			terminalQueryFilterState: { pendingData: '' },
 		};
 
 		this._terminals.set(uri, managed);
+		store.add(headlessTerminal.onResponseData(data => {
+			this._logService.debug(`[TerminalManager] Writing headless terminal response for ${uri}: ${JSON.stringify(data)}`);
+			try {
+				ptyProcess.write(data);
+			} catch (err) {
+				this._logService.debug(`[TerminalManager] Failed to write headless terminal response for ${uri}: ${err instanceof Error ? err.message : String(err)}`);
+			}
+		}));
 
 		// Wire PTY events → protocol events
 		store.add(toDisposable(() => {
@@ -315,6 +371,7 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 
 		const onFirstData = new DeferredPromise<void>();
 		const dataListener = ptyProcess.onData(rawData => {
+			void managed.headlessTerminal?.writePtyData(rawData);
 			this._handlePtyData(managed, rawData);
 			onFirstData.complete();
 		});
@@ -353,6 +410,11 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 		await raceCancellablePromises([onFirstData.p, timeout(WAIT_FOR_PROMPT_TIMEOUT)]);
 
 		this._broadcastTerminalList();
+	}
+
+	protected async _spawnPty(file: string, args: string[], options: import('node-pty').IPtyForkOptions | import('node-pty').IWindowsPtyForkOptions): Promise<import('node-pty').IPty> {
+		const nodePty = await getNodePty();
+		return nodePty.spawn(file, args, options);
 	}
 
 	/** Send input data to a terminal's PTY process (from client-dispatched actions). */
@@ -441,6 +503,7 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 			terminal.cols = cols;
 			terminal.rows = rows;
 			terminal.pty.resize(cols, rows);
+			terminal.headlessTerminal?.resize(cols, rows);
 		}
 	}
 
@@ -469,6 +532,7 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 		if (terminal) {
 			terminal.content = [];
 			terminal.contentSize = 0;
+			terminal.headlessTerminal?.clear();
 		}
 	}
 
@@ -487,6 +551,11 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 		} else {
 			cleanedData = rawData;
 		}
+
+		// Agent Host's server-side headless terminal answers CPR so terminals
+		// work without an attached client. Hide those queries from client xterms
+		// to avoid a second CPR response flowing back through AgentHostPty.input.
+		cleanedData = removeServerHandledTerminalQueries(cleanedData, managed.terminalQueryFilterState);
 
 		// Append to structured content
 		if (cleanedData.length > 0) {

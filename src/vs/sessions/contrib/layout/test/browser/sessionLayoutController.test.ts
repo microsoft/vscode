@@ -46,6 +46,7 @@ function makeSession(resource: URI, opts?: {
 		title: observableValue('title', 'Test'),
 		updatedAt: observableValue('updatedAt', new Date()),
 		status: observableValue('status', opts?.status ?? SessionStatus.Completed),
+		checkpoints: observableValue('checkpoints', undefined),
 		changesets: observableValue('changesets', []),
 		changes: observableValue('changes', opts?.changes ?? []),
 		modelId: observableValue('modelId', undefined),

@@ -11,6 +11,7 @@ import { mixin } from '../../../../base/common/objects.js';
 import { ICommonProperties, firstSessionDateStorageKey, lastSessionDateStorageKey, machineIdKey } from '../../../../platform/telemetry/common/telemetry.js';
 import { Gesture } from '../../../../base/browser/touch.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
+import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 
 /**
  * General function to help reduce the individuality of user agents
@@ -24,9 +25,9 @@ function cleanUserAgent(userAgent: string): string {
 export function resolveWorkbenchCommonProperties(
 	storageService: IStorageService,
 	productService: IProductService,
+	environmentService: IWorkbenchEnvironmentService,
 	isInternalTelemetry: boolean,
-	remoteAuthority?: string,
-	resolveAdditionalProperties?: () => { [key: string]: unknown }
+	resolveAdditionalProperties?: () => { [key: string]: unknown },
 ): ICommonProperties {
 	const { commit, version, embedderIdentifier: productIdentifier, removeTelemetryMachineId: removeMachineId } = productService ?? {};
 	const result: ICommonProperties = Object.create(null);
@@ -56,7 +57,7 @@ export function resolveWorkbenchCommonProperties(
 	// __GDPR__COMMON__ "common.isNewSession" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 	result['common.isNewSession'] = !lastSessionDate ? '1' : '0';
 	// __GDPR__COMMON__ "common.remoteAuthority" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
-	result['common.remoteAuthority'] = cleanRemoteAuthority(remoteAuthority, productService);
+	result['common.remoteAuthority'] = cleanRemoteAuthority(environmentService.remoteAuthority, productService);
 
 	// __GDPR__COMMON__ "common.machineId" : { "endPoint": "MacAddressHash", "classification": "EndUserPseudonymizedInformation", "purpose": "FeatureInsight" }
 	result['common.machineId'] = machineId;
@@ -103,6 +104,11 @@ export function resolveWorkbenchCommonProperties(
 
 	if (resolveAdditionalProperties) {
 		mixin(result, resolveAdditionalProperties());
+	}
+
+	if (environmentService.isSessionsWindow) {
+		// __GDPR__COMMON__ "common.isAgentsWindow" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+		result['common.isAgentsWindow'] = true;
 	}
 
 	return result;

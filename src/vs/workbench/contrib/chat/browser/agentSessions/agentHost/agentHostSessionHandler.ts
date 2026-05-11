@@ -30,18 +30,20 @@ import { ExtensionIdentifier } from '../../../../../../platform/extensions/commo
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { observableConfigValue } from '../../../../../../platform/observable/common/platformObservableUtils.js';
+import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IAgentHostTerminalService } from '../../../../terminal/browser/agentHostTerminalService.js';
 import { ITerminalChatService } from '../../../../terminal/browser/terminal.js';
 import { IChatWidgetService } from '../../chat.js';
-import { ChatRequestQueueKind, ConfirmedReason, IChatProgress, IChatQuestion, IChatQuestionAnswers, IChatService, IChatToolInvocation, ToolConfirmKind, type IChatMultiSelectAnswer, type IChatQuestionAnswerValue, type IChatSingleSelectAnswer, type IChatTerminalToolInvocationData } from '../../../common/chatService/chatService.js';
+import { ChatRequestQueueKind, ConfirmedReason, ElicitationState, IChatProgress, IChatQuestion, IChatQuestionAnswers, IChatService, IChatToolInvocation, ToolConfirmKind, type IChatMultiSelectAnswer, type IChatQuestionAnswerValue, type IChatSingleSelectAnswer, type IChatTerminalToolInvocationData } from '../../../common/chatService/chatService.js';
 import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionRequestHistoryItem, type IChatInputCompletionItem, type IChatInputCompletionsParams, type IChatInputCompletionsResult } from '../../../common/chatSessionsService.js';
 import { isImageVariableEntry, type IChatRequestVariableEntry, type IImageVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { coerceImageBuffer } from '../../../common/chatImageExtraction.js';
 import { getChatSessionType } from '../../../common/model/chatUri.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, isChatPermissionLevel } from '../../../common/constants.js';
 import { IChatEditingService } from '../../../common/editing/chatEditingService.js';
+import { ChatElicitationRequestPart } from '../../../common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import { ChatQuestionCarouselData } from '../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { type IChatRequestVariableData } from '../../../common/model/chatModel.js';
@@ -394,6 +396,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
+		@IOpenerService private readonly _openerService: IOpenerService,
 	) {
 		super();
 		this._config = config;
@@ -1732,6 +1735,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		store: DisposableStore,
 		opts: IObserveTurnOptions,
 	): void {
+		if (inputReq.url) {
+			this._setupUrlInputRequest(inputReq, inputReq.url, store, opts);
+			return;
+		}
+
 		const questions: IChatQuestion[] = (inputReq.questions ?? []).map((q): IChatQuestion => {
 			switch (q.kind) {
 				case SessionInputQuestionKind.SingleSelect:
@@ -1874,6 +1882,112 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			carousel.draftCollapsed = undefined;
 			carousel.completion.complete({ answers: carouselAnswers });
 			this._chatWidgetService.getWidgetBySessionResource(opts.sessionResource)?.input.clearQuestionCarousel(undefined, inputReq.id);
+		}));
+	}
+
+	/**
+	 * Handle a URL-style {@link SessionInputRequest} by rendering a
+	 * {@link ChatElicitationRequestPart} that prompts the user to open the
+	 * URL. Clicking the accept button opens the URL via {@link IOpenerService}
+	 * and dispatches `SessionInputCompleted` with `Accept`; reject dispatches
+	 * `Decline`; abandonment / cancellation dispatches `Cancel`.
+	 */
+	private _setupUrlInputRequest(
+		inputReq: SessionInputRequest,
+		url: string,
+		store: DisposableStore,
+		opts: IObserveTurnOptions,
+	): void {
+		let settled = false;
+		const settle = (response: SessionInputResponseKind) => {
+			if (settled) {
+				return;
+			}
+			settled = true;
+			this._config.connection.dispatch({
+				type: ActionType.SessionInputCompleted,
+				session: opts.backendSession.toString(),
+				requestId: inputReq.id,
+				response,
+			});
+		};
+
+		let authority = url;
+		try {
+			authority = URI.parse(url).authority || url;
+		} catch {
+			// Fall back to the raw URL string.
+		}
+
+		const message = new MarkdownString();
+		if (inputReq.message) {
+			message.appendText(inputReq.message);
+			message.appendMarkdown('\n\n');
+		}
+		message.appendMarkdown(localize('agentHost.elicit.url.instruction', "Open this URL?"));
+		message.appendCodeblock('', url);
+
+		const part = new ChatElicitationRequestPart(
+			localize('agentHost.elicit.url.title', "Authorization Required"),
+			message,
+			'',
+			localize('agentHost.elicit.url.open', "Open {0}", authority),
+			localize('agentHost.elicit.url.cancel', "Cancel"),
+			async () => {
+				try {
+					const opened = await this._openerService.open(url, { allowCommands: false });
+					if (opened) {
+						settle(SessionInputResponseKind.Accept);
+						return ElicitationState.Accepted;
+					}
+					settle(SessionInputResponseKind.Decline);
+					return ElicitationState.Rejected;
+				} catch {
+					settle(SessionInputResponseKind.Decline);
+					return ElicitationState.Rejected;
+				}
+			},
+			async () => {
+				settle(SessionInputResponseKind.Decline);
+				return ElicitationState.Rejected;
+			},
+		);
+
+		opts.sink([part]);
+
+		// Server-side completion (e.g. another client answered or the
+		// agent observed completion). Mark settled so disposal doesn't
+		// re-dispatch a Cancel, and hide the part from the UI.
+		const sub = this._ensureSessionSubscription(opts.backendSession.toString());
+		store.add(sub.onWillApplyAction(envelope => {
+			const action = envelope.action as SessionAction;
+			if (action.type === ActionType.SessionInputCompleted && action.requestId === inputReq.id) {
+				settled = true;
+				if (action.response === SessionInputResponseKind.Accept) {
+					part.state.set(ElicitationState.Accepted, undefined);
+				} else {
+					part.state.set(ElicitationState.Rejected, undefined);
+				}
+				part.hide();
+			}
+		}));
+
+		if (opts.cancellationToken.isCancellationRequested) {
+			settle(SessionInputResponseKind.Cancel);
+			part.hide();
+		} else {
+			const tokenListener = opts.cancellationToken.onCancellationRequested(() => {
+				settle(SessionInputResponseKind.Cancel);
+				part.hide();
+			});
+			store.add(toDisposable(() => tokenListener.dispose()));
+		}
+
+		// Disposal (turn ended): if the user never resolved the request,
+		// dispatch Cancel so the server isn't left hanging.
+		store.add(toDisposable(() => {
+			settle(SessionInputResponseKind.Cancel);
+			part.hide();
 		}));
 	}
 
