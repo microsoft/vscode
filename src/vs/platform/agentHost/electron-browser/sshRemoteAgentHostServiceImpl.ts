@@ -84,7 +84,7 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 		const augmentedConfig = this._augmentConfig(config);
 		this._logService.info(`[SSHRemoteAgentHost] Connecting to ${config.host}`);
 		const result = await this._mainService.connect(augmentedConfig);
-		this._logService.trace('[SSHRemoteAgentHost] SSH tunnel established, connectionId=' + result.connectionId);
+		this._logService.trace(`[SSHRemoteAgentHost] SSH tunnel established, connectionId=${result.connectionId}`);
 		return this._setupConnection(result);
 	}
 

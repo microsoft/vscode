@@ -1061,7 +1061,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// session/truncated so the server drops the stale tail.
 		const chatModel = this._chatService.getSession(request.sessionResource);
 		const protocolState = this._getSessionState(session.toString());
-		if (chatModel && protocolState && protocolState.turns.length > 0) {
+		if (chatModel && protocolState?.turns.length) {
 			// -2 since -1 will already be the current request
 			const previousRequestIndex = chatModel.getRequests().findIndex(i => i.id === request.requestId) - 1;
 			const previousRequest = previousRequestIndex >= 0 ? chatModel.getRequests()[previousRequestIndex] : undefined;
@@ -2256,7 +2256,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			if (turnIndex < 0) {
 				throw new Error('Cannot fork: cannot fork before the first request');
 			}
-		} else if (protocolState && protocolState.turns.length > 0) {
+		} else if (protocolState?.turns.length) {
 			turnIndex = protocolState.turns.length - 1;
 		}
 
