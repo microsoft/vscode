@@ -31,6 +31,10 @@ export const SESSIONS_FILES_VIEW_ID = 'sessions.files.explorer';
 export const SESSIONS_FILES_EMPTY_VIEW_ID = 'sessions.files.explorer.empty';
 
 export class SessionsExplorerView extends ExplorerView {
+	protected override get primaryActionGroups(): string[] | undefined {
+		return ['1_files'];
+	}
+
 	protected override getLocationBasedColors(): IViewPaneLocationColors {
 		const colors = super.getLocationBasedColors();
 		return {

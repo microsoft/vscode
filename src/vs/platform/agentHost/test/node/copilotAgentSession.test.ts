@@ -21,7 +21,7 @@ import { AgentSession, type AgentSignal, type IAgentActionSignal, type IAgentToo
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType, type SessionDeltaAction, type SessionErrorAction, type SessionInputRequestedAction, type SessionResponsePartAction, type SessionToolCallCompleteAction, type SessionToolCallReadyAction, type SessionToolCallStartAction } from '../../common/state/sessionActions.js';
-import { MessageAttachmentKind, ResponsePartKind, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, ToolCallStatus, ToolResultContentType } from '../../common/state/sessionState.js';
+import { MessageAttachmentKind, ResponsePartKind, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, ToolCallStatus, ToolResultContentType, type ToolResultFileEditContent } from '../../common/state/sessionState.js';
 import { CopilotAgentSession, IActiveClientSnapshot, SessionWrapperFactory } from '../../node/copilot/copilotAgentSession.js';
 import { CopilotSessionWrapper } from '../../node/copilot/copilotSessionWrapper.js';
 import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
@@ -123,6 +123,7 @@ type ISessionInternalsForTest = {
 	_editTracker: {
 		trackEditStart(path: string): Promise<void>;
 		completeEdit(path: string): Promise<void>;
+		takeCompletedEdit(turnId: string, toolCallId: string, path: string): Promise<ToolResultFileEditContent | undefined>;
 	};
 	_pendingClientToolCalls: {
 		get(toolCallId: string): DeferredPromise<ToolResultObject> | undefined;
@@ -880,6 +881,87 @@ suite('CopilotAgentSession', () => {
 			if (isAction(readySignal, ActionType.SessionToolCallReady)) {
 				assert.strictEqual((readySignal.action as SessionToolCallReadyAction).toolInput, 'cd /repo/project && npm test');
 			}
+		});
+
+		test('edit hooks resolve relative apply_patch file paths against workingDirectory', async () => {
+			const capturedCallbacks: { current?: Parameters<SessionWrapperFactory>[0] } = {};
+			const workingDirectory = URI.file('/repo/project');
+			const absolutePath = URI.file('/tmp/absolute.ts').fsPath;
+			const { session } = await createAgentSession(disposables, { workingDirectory, captureWrapperCallbacks: capturedCallbacks });
+			const sessionInternals = session as unknown as ISessionInternalsForTest;
+			const started: string[] = [];
+			const completed: string[] = [];
+			sessionInternals._editTracker.trackEditStart = async path => { started.push(path); };
+			sessionInternals._editTracker.completeEdit = async path => { completed.push(path); };
+			const patch = [
+				'*** Begin Patch',
+				'*** Update File: foo.ts',
+				'@@',
+				'+new',
+				'*** Update File: src/bar.ts',
+				'@@',
+				'+new',
+				`*** Update File: ${absolutePath}`,
+				'@@',
+				'+new',
+				'*** End Patch',
+			].join('\n');
+
+			await capturedCallbacks.current!.hooks.onPreToolUse({
+				timestamp: 0,
+				cwd: '/repo/project',
+				toolName: 'apply_patch',
+				toolArgs: patch,
+			});
+			await capturedCallbacks.current!.hooks.onPostToolUse({
+				timestamp: 0,
+				cwd: '/repo/project',
+				toolName: 'apply_patch',
+				toolArgs: patch,
+				toolResult: { textResultForLlm: '', resultType: 'success' },
+			});
+
+			assert.deepStrictEqual({ started, completed }, {
+				started: [join(workingDirectory.fsPath, 'foo.ts'), join(workingDirectory.fsPath, 'src/bar.ts'), absolutePath],
+				completed: [join(workingDirectory.fsPath, 'foo.ts'), join(workingDirectory.fsPath, 'src/bar.ts'), absolutePath],
+			});
+		});
+
+		test('tool_complete resolves relative apply_patch file paths before taking completed edits', async () => {
+			const workingDirectory = URI.file('/repo/project');
+			const { session, mockSession, waitForSignal } = await createAgentSession(disposables, { workingDirectory });
+			const sessionInternals = session as unknown as ISessionInternalsForTest;
+			const taken: string[] = [];
+			sessionInternals._editTracker.takeCompletedEdit = async (_turnId, _toolCallId, path) => {
+				taken.push(path);
+				return undefined;
+			};
+			session.resetTurnState('turn-apply-patch');
+			const patch = [
+				'*** Begin Patch',
+				'*** Update File: foo.ts',
+				'@@',
+				'+new',
+				'*** Update File: src/bar.ts',
+				'@@',
+				'+new',
+				'*** End Patch',
+			].join('\n');
+
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-apply-patch',
+				toolName: 'apply_patch',
+				arguments: patch,
+			} as unknown as SessionEventPayload<'tool.execution_start'>['data']);
+
+			mockSession.fire('tool.execution_complete', {
+				toolCallId: 'tc-apply-patch',
+				success: true,
+			} as SessionEventPayload<'tool.execution_complete'>['data']);
+
+			await waitForSignal(s => isAction(s, ActionType.SessionToolCallComplete));
+
+			assert.deepStrictEqual(taken, [join(workingDirectory.fsPath, 'foo.ts'), join(workingDirectory.fsPath, 'src/bar.ts')]);
 		});
 
 		test('hidden tools are not emitted as tool_start', async () => {
