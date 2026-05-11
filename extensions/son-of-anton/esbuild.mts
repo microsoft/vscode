@@ -41,6 +41,31 @@ const coreResolverPlugin: Plugin = {
 	},
 };
 
+/**
+ * Copy `son-of-anton-core`'s `.prompt.md` files into the extension's
+ * `dist/prompts/` directory. `promptLoader` resolves prompts via
+ * `path.join(__dirname, 'prompts')` — when this extension's esbuild
+ * bundles the core module into a single `dist/extension.js`, `__dirname`
+ * at runtime is the extension's `dist/`, not the core's `dist/`. Without
+ * this copy the orchestrator fails on first invocation with ENOENT for
+ * `anton-orchestrator.prompt.md`. The CLI's SEA pipeline has the
+ * equivalent (see `son-of-anton-cli/scripts/lib/sea-pipeline.mjs`).
+ */
+function copyAgentPrompts(): void {
+	const promptsSrc = path.join(coreSrcRoot, 'agents', 'prompts');
+	const promptsDest = path.join(outDir, 'prompts');
+	if (!fs.existsSync(promptsSrc)) {
+		throw new Error(`Expected son-of-anton-core prompt directory at ${promptsSrc} — has the core package layout changed?`);
+	}
+	fs.mkdirSync(promptsDest, { recursive: true });
+	for (const filename of fs.readdirSync(promptsSrc)) {
+		if (!filename.endsWith('.prompt.md')) {
+			continue;
+		}
+		fs.copyFileSync(path.join(promptsSrc, filename), path.join(promptsDest, filename));
+	}
+}
+
 async function buildAll(): Promise<void> {
 	await run({
 		platform: 'node',
@@ -53,6 +78,8 @@ async function buildAll(): Promise<void> {
 			plugins: [coreResolverPlugin],
 		},
 	}, process.argv);
+
+	copyAgentPrompts();
 
 	// Chain the React board webview build. Kept in its own module because
 	// the platform / format / minify settings differ enough that sharing
