@@ -2145,46 +2145,23 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 /* Cost / pricing scale — solid filled squares for "spend" with bolded $ when applicable. */
-.chat-model-cost {
-	display: inline-flex;
-	align-items: center;
-	gap: 4px;
-	line-height: 1;
-}
-
-.chat-model-cost-dollar {
-	font-size: 11px;
-	font-weight: 400;
-	opacity: 0.55;
-	line-height: 1;
-}
-
-.chat-model-cost.has-fill .chat-model-cost-dollar {
-	font-weight: 500;
-	opacity: 0.85;
-}
-
-.chat-model-cost-dots {
-	display: inline-flex;
-	align-items: center;
-	gap: 4px;
-}
-
-.chat-model-cost-dot {
+.chat-model-cost-bar {
 	display: inline-block;
-	width: 6px;
-	height: 6px;
-	box-sizing: border-box;
-	border-radius: 50%;
-	background: transparent;
-	border: 1px solid var(--vscode-icon-foreground);
-	opacity: 0.55;
+	width: 56px;
+	height: 5px;
+	border-radius: 3px;
+	background: color-mix(in srgb, var(--vscode-icon-foreground) 15%, transparent);
+	position: relative;
+	overflow: hidden;
+	vertical-align: middle;
 }
 
-.chat-model-cost-dot.filled {
+.chat-model-cost-bar-fill {
+	display: block;
+	height: 100%;
+	border-radius: 3px;
 	background: var(--vscode-icon-foreground);
-	border-color: var(--vscode-icon-foreground);
-	opacity: 1;
+	opacity: 0.7;
 }
 
 /* 1M (or other) context window chip shown in the model row indicators. */

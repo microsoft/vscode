@@ -108,36 +108,30 @@ function createModelItem(
 	};
 }
 
-function createCostElement(filledCount: number, total: number = 3): HTMLElement {
-	const container = dom.$('span.chat-model-cost');
-	if (filledCount > 0) {
-		container.classList.add('has-fill');
+/**
+ * Returns a relative cost score for a model (0–1) based on a weighted average
+ * of its per-1M-token input/output costs, normalised against the most expensive
+ * model (Opus).  A typical request is assumed to be ~2 K input + ~1 K output.
+ */
+function getRelativeCost(modelName: string): number {
+	const costInfo = getModelCostInfoByName(modelName);
+	if (!costInfo) {
+		return 0.5; // unknown model — place in the middle
 	}
-
-	const dots = dom.$('span.chat-model-cost-dots');
-	for (let i = 0; i < total; i++) {
-		const dot = dom.$('span.chat-model-cost-dot');
-		if (i < filledCount) {
-			dot.classList.add('filled');
-		}
-		dots.appendChild(dot);
-	}
-	container.appendChild(dots);
-	return container;
+	// Weighted cost for a "typical" request (2K in, 1K out)
+	const effectiveCost = (costInfo.input * 2 + costInfo.output * 1) / 1000;
+	// Opus is the ceiling: (500*2 + 2500*1)/1000 = 3.5
+	const maxCost = 3.5;
+	return Math.min(effectiveCost / maxCost, 1);
 }
 
-function getCostBucket(modelName: string): number {
-	const n = modelName.toLowerCase();
-	if (n.includes('mini') || n.includes('haiku') || n.includes('flash') || n.includes('nano')) {
-		return 1;
-	}
-	if (n.includes('3.5') || n.includes('4o') || n.includes('gemini 2.5')) {
-		return 2;
-	}
-	if (n.includes('opus') || n.includes('o1-preview') || n.includes('gpt-5') || n.includes('claude 4') || n.includes('sonnet 4')) {
-		return 4;
-	}
-	return 3;
+function createCostBar(modelName: string): HTMLElement {
+	const ratio = getRelativeCost(modelName);
+	const container = dom.$('span.chat-model-cost-bar');
+	const fill = dom.$('span.chat-model-cost-bar-fill');
+	fill.style.width = `${Math.max(Math.round(ratio * 100), 8)}%`;
+	container.appendChild(fill);
+	return container;
 }
 
 function createModelAction(
@@ -166,8 +160,7 @@ function createModelAction(
 		discountLabel.textContent = localize('chat.modelPicker.autoDiscount', "10% Discount");
 		indicators.appendChild(discountLabel);
 	} else {
-		const costBucket = getCostBucket(model.metadata.name);
-		indicators.appendChild(createCostElement(costBucket, 4));
+		indicators.appendChild(createCostBar(model.metadata.name));
 	}
 
 	wrap.appendChild(indicators);
@@ -230,6 +223,10 @@ export function buildModelPickerItems(
 	if (useGroupedModelPicker) {
 		let otherModels: ILanguageModelChatMetadataAndIdentifier[] = [];
 		if (models.length) {
+			// Filter out parenthetical variants (e.g. "Opus 4.7 (Extra high reasoning)(Internal only)")
+			// These are config-level variants of a base model and clutter the picker.
+			models = models.filter(m => !/\(.*\)/.test(m.metadata.name));
+
 			// Collect all available models into lookup maps
 			const allModelsMap = new Map<string, ILanguageModelChatMetadataAndIdentifier>();
 			const modelsByMetadataId = new Map<string, ILanguageModelChatMetadataAndIdentifier>();
@@ -705,7 +702,7 @@ export class ModelPickerWidget extends Disposable {
 		const listOptions = {
 			showFilter,
 			filterPlaceholder: localize('chat.modelPicker.search', "Search models"),
-			filterTrailingLabel: localize('chat.modelPicker.costHeader', "Cost"),
+			filterTrailingLabel: localize('chat.modelPicker.costHeader', "Relative cost"),
 			focusFilterOnOpen: true,
 			collapsedByDefault: new Set([ModelPickerSection.Other]),
 			onDidToggleSection: (section: string, collapsed: boolean) => {
@@ -721,7 +718,7 @@ export class ModelPickerWidget extends Disposable {
 				}
 				void this._openerService.open(uri, { allowCommands: true });
 			},
-			minWidth: 200,
+			minWidth: 340,
 		};
 		const previouslyFocusedElement = dom.getActiveElement();
 
@@ -1008,7 +1005,7 @@ export class ModelPickerWidget extends Disposable {
 				getRole: () => 'menuitemradio',
 				getWidgetRole: () => 'menu',
 			},
-			{ minWidth: 160 }
+			{ minWidth: 340 }
 		);
 	}
 
@@ -1116,7 +1113,7 @@ export class ModelPickerWidget extends Disposable {
 
 
 function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentifier): MarkdownString | undefined {
-	const markdown = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
+	const markdown = new MarkdownString('', { isTrusted: true, supportThemeIcons: true, supportHtml: true });
 	let hasContent = false;
 
 // Title — strip parenthetical suffixes for a clean title
@@ -1135,10 +1132,28 @@ function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentifier): M
 	}
 
 	// Cost and context window info
-	const costInfo = getModelCostInfo(model);
+	const costInfo = getModelCostInfoByName(model.metadata.name);
 	if (costInfo) {
 		markdown.appendMarkdown('\n\n---\n\n');
 		markdown.appendMarkdown(`**${localize('chat.modelPicker.costPer1M', "Cost (per 1M tokens)")}**\n\n`);
+
+		// Relative cost label above the per-token breakdown
+		const ratio = getRelativeCost(model.metadata.name);
+		const barWidth = Math.max(Math.round(ratio * 100), 8);
+		let costLabel: string;
+		if (ratio <= 0.15) {
+			costLabel = localize('chat.modelPicker.relativeCostLowest', "Lower than most models");
+		} else if (ratio <= 0.30) {
+			costLabel = localize('chat.modelPicker.relativeCostLow', "Lower than most models");
+		} else if (ratio <= 0.55) {
+			costLabel = localize('chat.modelPicker.relativeCostMed', "About average");
+		} else if (ratio <= 0.80) {
+			costLabel = localize('chat.modelPicker.relativeCostHigh', "Higher than most models");
+		} else {
+			costLabel = localize('chat.modelPicker.relativeCostHighest', "Higher than most models");
+		}
+		markdown.appendMarkdown(`${localize('chat.modelPicker.relativeCostLabel', "Relative cost")}: ${costLabel}\n\n`);
+
 		markdown.appendMarkdown(`${localize('chat.modelPicker.input', "Input")}: ${costInfo.input} ${localize('chat.modelPicker.credits', "credits")}\n\n`);
 		markdown.appendMarkdown(`${localize('chat.modelPicker.cachedInput', "Cached input")}: ${costInfo.cachedInput} ${localize('chat.modelPicker.credits2', "credits")}\n\n`);
 		markdown.appendMarkdown(`${localize('chat.modelPicker.output', "Output")}: ${costInfo.output} ${localize('chat.modelPicker.credits3', "credits")}`);
@@ -1171,32 +1186,61 @@ interface ModelCostInfo {
 	output: number;
 }
 
-function getModelCostInfo(model: ILanguageModelChatMetadataAndIdentifier): ModelCostInfo | undefined {
-	const name = model.metadata.name.toLowerCase();
+function getModelCostInfoByName(modelName: string): ModelCostInfo | undefined {
+	const name = modelName.toLowerCase();
 
-	// Claude models
-	if (name.includes('opus')) {
-		return { input: 500, cachedInput: 50, output: 2500 };
+	// Claude models — ordered specific-first to avoid substring collisions
+	if (name.includes('haiku')) {
+		return { input: 30, cachedInput: 3, output: 150 };
 	}
 	if (name.includes('sonnet')) {
 		return { input: 120, cachedInput: 12, output: 600 };
 	}
-	if (name.includes('haiku')) {
-		return { input: 30, cachedInput: 3, output: 150 };
+	if (name.includes('opus 4.5')) {
+		return { input: 300, cachedInput: 30, output: 1500 };
+	}
+	if (name.includes('opus 4.6')) {
+		return { input: 400, cachedInput: 40, output: 2000 };
+	}
+	if (name.includes('opus')) {
+		return { input: 500, cachedInput: 50, output: 2500 };
 	}
 
-	// GPT models
+	// GPT models — ordered specific-first
+	if (name.includes('5 mini') || name.includes('5.4 mini')) {
+		return { input: 25, cachedInput: 5, output: 120 };
+	}
 	if (name.includes('codex')) {
 		return { input: 100, cachedInput: 25, output: 400 };
 	}
-	if (name.includes('5.4 mini') || name.includes('gpt-5.4 mini')) {
-		return { input: 25, cachedInput: 5, output: 120 };
-	}
-	if (name.includes('5.4') || name.includes('gpt-5.4')) {
-		return { input: 200, cachedInput: 40, output: 800 };
-	}
 	if (name.includes('4o')) {
 		return { input: 80, cachedInput: 16, output: 320 };
+	}
+	if (name.includes('gpt-4.1')) {
+		return { input: 60, cachedInput: 12, output: 240 };
+	}
+	if (name.includes('gpt-5.2')) {
+		return { input: 150, cachedInput: 30, output: 600 };
+	}
+	if (name.includes('gpt-5.4')) {
+		return { input: 200, cachedInput: 40, output: 800 };
+	}
+	if (name.includes('gpt-5')) {
+		return { input: 150, cachedInput: 30, output: 600 };
+	}
+
+	// Gemini models
+	if (name.includes('flash')) {
+		return { input: 15, cachedInput: 3, output: 75 };
+	}
+	if (name.includes('gemini 3.1') || name.includes('gemini-3.1')) {
+		return { input: 100, cachedInput: 20, output: 400 };
+	}
+	if (name.includes('gemini 2.5') || name.includes('gemini-2.5')) {
+		return { input: 80, cachedInput: 16, output: 320 };
+	}
+	if (name.includes('gemini')) {
+		return { input: 60, cachedInput: 12, output: 240 };
 	}
 
 	return undefined;

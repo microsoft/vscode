@@ -133,70 +133,171 @@
 .copilot-prototype-ft-container {
 	display: flex;
 	flex-direction: column;
+	gap: 0;
+	overflow: hidden;
 }
 
-.copilot-prototype-ft-actions {
+/* ---- First Time onboarding (carousel-inspired) ---- */
+
+.copilot-prototype-ft-header {
 	display: flex;
-	flex-direction: row-reverse;
+	align-items: center;
 	gap: 8px;
-	margin-top: auto;
+	padding: 10px 16px;
+	border-bottom: 1px solid var(--vscode-editorWidget-border, rgba(128,128,128,0.2));
+	flex-shrink: 0;
 }
 
-/* ---- First Time onboarding ---- */
+.copilot-prototype-ft-header-title {
+	font-weight: 500;
+	font-size: 12px;
+	color: var(--vscode-foreground);
+	flex: 1;
+}
 
-.copilot-prototype-dashboard-step-indicator {
-	font-size: 10px;
+.copilot-prototype-ft-header-step {
+	font-size: 11px;
 	color: var(--vscode-descriptionForeground);
-	margin-left: auto;
 	white-space: nowrap;
 }
 
-.copilot-prototype-ft-card {
+.copilot-prototype-ft-body {
 	padding: 16px;
-	border-radius: var(--vscode-cornerRadius-small);
-	border: 1px solid var(--vscode-editorWidget-border, rgba(255,255,255,0.08));
+}
+
+.copilot-prototype-ft-card-icon {
+	width: 32px;
+	height: 32px;
+	border-radius: 8px;
+	background: color-mix(in srgb, var(--vscode-textLink-foreground, #0078d4) 10%, transparent);
+	display: flex;
+	align-items: center;
+	justify-content: center;
 	margin-bottom: 12px;
+}
+
+.copilot-prototype-ft-card-icon .codicon {
+	color: var(--vscode-textLink-foreground, #0078d4);
+	font-size: 16px;
 }
 
 .copilot-prototype-ft-card-title {
 	font-weight: 600;
 	font-size: 13px;
 	color: var(--vscode-foreground);
-	margin-bottom: 8px;
+	margin-bottom: 6px;
+	letter-spacing: -0.2px;
 }
 
 .copilot-prototype-ft-card-desc {
-	font-size: 11px;
+	font-size: 12px;
 	color: var(--vscode-descriptionForeground);
-	line-height: 1.5;
+	line-height: 1.55;
 }
 
-.copilot-prototype-ft-dots {
+.copilot-prototype-ft-links {
 	display: flex;
-	justify-content: center;
-	gap: 6px;
-	margin-bottom: 12px;
+	gap: 14px;
+	margin-top: 14px;
 }
 
-.copilot-prototype-ft-dot {
+.copilot-prototype-ft-link {
+	font-size: 12px;
+	color: var(--vscode-textLink-foreground, #0078d4);
+	text-decoration: none;
+	display: flex;
+	align-items: center;
+	gap: 3px;
+	cursor: pointer;
+}
+
+.copilot-prototype-ft-link:hover {
+	text-decoration: underline;
+}
+
+.copilot-prototype-ft-link .codicon {
+	font-size: 11px;
+	opacity: 0.6;
+}
+
+/* Footer nav — mirrors carousel footer */
+.copilot-prototype-ft-footer {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: 6px 8px;
+	border-top: 1px solid var(--vscode-editorWidget-border, rgba(128,128,128,0.2));
+	flex-shrink: 0;
+}
+
+.copilot-prototype-ft-footer-left {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.copilot-prototype-ft-footer-right {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.copilot-prototype-ft-footer .monaco-button {
+	height: 24px;
+	min-width: auto;
+	padding: 0 10px;
+	font-size: 12px;
+	border-radius: 4px;
+}
+
+.copilot-prototype-ft-nav-btn {
+	width: 24px;
+	height: 24px;
+	padding: 0;
+	border: none;
+	background: transparent;
+	color: var(--vscode-foreground);
+	cursor: pointer;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border-radius: 4px;
+}
+
+.copilot-prototype-ft-nav-btn:hover {
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
+.copilot-prototype-ft-nav-btn.disabled {
+	opacity: 0.4;
+	cursor: default;
+}
+
+.copilot-prototype-ft-nav-btn.disabled:hover {
+	background: transparent;
+}
+
+/* Progress dots in footer */
+.copilot-prototype-ft-progress {
+	display: flex;
+	gap: 4px;
+	align-items: center;
+}
+
+.copilot-prototype-ft-progress-dot {
 	width: 6px;
 	height: 6px;
 	border-radius: 50%;
-	background-color: var(--vscode-editorWidget-border, rgba(128,128,128,0.3));
+	background: color-mix(in srgb, var(--vscode-foreground) 15%, transparent);
+	transition: background 0.15s ease;
 }
 
-.copilot-prototype-ft-dot.active {
-	background-color: var(--vscode-foreground);
+.copilot-prototype-ft-progress-dot.active {
+	background: var(--vscode-textLink-foreground, #0078d4);
 }
 
-.copilot-prototype-ft-dot.completed {
-	background-color: var(--vscode-descriptionForeground);
-}
-
-.copilot-prototype-ft-actions .monaco-button {
-	padding: 4px 16px;
-	font-size: 11px;
-	white-space: nowrap;
+.copilot-prototype-ft-progress-dot.completed {
+	background: color-mix(in srgb, var(--vscode-textLink-foreground, #0078d4) 40%, transparent);
 }
 
 .copilot-prototype-dashboard-header {
@@ -1285,18 +1386,20 @@
 	width: 100%;
 	max-width: 100%;
 	box-sizing: border-box;
-	padding: 8px 10px 16px 10px;
-	border-radius: var(--vscode-cornerRadius-small);
+	padding: 10px 12px 16px 12px;
+	border-radius: 10px;
 	font-size: var(--vscode-chat-font-size-body-s);
 	font-family: var(--vscode-chat-font-family, inherit);
 	color: var(--vscode-descriptionForeground);
 	flex-shrink: 0;
-	border: 1px solid var(--vscode-editorInfo-foreground, var(--vscode-textLink-foreground));
-	background-color: color-mix(in srgb, var(--vscode-editorInfo-foreground, var(--vscode-textLink-foreground)) 6%, var(--vscode-editorWidget-background));
+	border: 1px solid color-mix(in srgb, var(--vscode-foreground) 8%, transparent);
+	background: color-mix(in srgb, var(--vscode-foreground) 3%, transparent);
 }
 
 .copilot-prototype-chat-banner.info {
 	padding-bottom: 30px;
+	border-color: color-mix(in srgb, var(--vscode-textLink-foreground, #0078d4) 20%, transparent);
+	background: color-mix(in srgb, var(--vscode-textLink-foreground, #0078d4) 8%, transparent);
 }
 
 .copilot-prototype-chat-banner.info.simple {
@@ -1305,20 +1408,26 @@
 
 .copilot-prototype-chat-banner.warning {
 	padding-bottom: 36px;
+	border-color: color-mix(in srgb, var(--vscode-editorWarning-foreground) 25%, transparent);
+	background: color-mix(in srgb, var(--vscode-editorWarning-foreground) 8%, transparent);
 }
 
 .copilot-prototype-chat-banner.error {
 	padding-bottom: 36px;
+	border-color: color-mix(in srgb, var(--vscode-editorError-foreground) 25%, transparent);
+	background: color-mix(in srgb, var(--vscode-editorError-foreground) 8%, transparent);
 }
 
 .copilot-prototype-chat-banner.celebrate {
 	padding-bottom: 30px;
+	border-color: color-mix(in srgb, var(--vscode-textLink-foreground, #0078d4) 20%, transparent);
+	background: color-mix(in srgb, var(--vscode-textLink-foreground, #0078d4) 8%, transparent);
 }
 
 /* Compact gauge banner overrides: keep it to 2 lines max. */
 .copilot-prototype-chat-banner.compact {
 	gap: 4px;
-	padding: 8px 10px 42px 10px;
+	padding: 10px 12px 42px 12px;
 }
 
 .copilot-prototype-chat-banner-top {
@@ -1331,10 +1440,11 @@
 	display: flex;
 	align-items: center;
 	flex-shrink: 0;
+	font-size: 14px;
 }
 
 .copilot-prototype-chat-banner.info .copilot-prototype-chat-banner-icon {
-	color: var(--vscode-editorInfo-foreground, var(--vscode-textLink-foreground));
+	color: var(--vscode-textLink-foreground, #0078d4);
 }
 
 .copilot-prototype-chat-banner.warning .copilot-prototype-chat-banner-icon {
@@ -1347,11 +1457,12 @@
 
 .copilot-prototype-chat-banner-title {
 	font-weight: 600;
-	font-size: 11px;
+	font-size: 12px;
 	color: var(--vscode-foreground);
 	flex: 1;
 	line-height: 1.4;
 	min-width: 0;
+	letter-spacing: -0.1px;
 }
 
 /* Compact single-row banner: single line with inline description */
@@ -1411,14 +1522,17 @@
 	color: var(--vscode-descriptionForeground);
 	display: flex;
 	align-items: center;
-	padding: 2px;
-	border-radius: var(--vscode-cornerRadius-small);
+	padding: 3px;
+	border-radius: 6px;
 	margin-left: auto;
+	opacity: 0.6;
+	transition: opacity 0.15s ease, background-color 0.15s ease;
 }
 
 .copilot-prototype-chat-banner-dismiss:hover {
+	opacity: 1;
 	color: var(--vscode-foreground);
-	background-color: var(--vscode-toolbar-hoverBackground);
+	background-color: color-mix(in srgb, var(--vscode-foreground) 8%, transparent);
 }
 
 /* Inline accept/confirm button in banners */
@@ -1451,20 +1565,15 @@
 }
 
 .copilot-prototype-chat-banner.info .copilot-prototype-chat-banner-bar {
-	background-color: color-mix(in srgb, var(--vscode-editorInfo-foreground, var(--vscode-textLink-foreground)) 15%, var(--vscode-gauge-background));
+	background-color: color-mix(in srgb, var(--vscode-textLink-foreground, #0078d4) 10%, transparent);
 }
 
 .copilot-prototype-chat-banner.info .copilot-prototype-chat-banner-bar-fill {
-	background-image: linear-gradient(
-		90deg,
-		color-mix(in srgb, var(--vscode-editorInfo-foreground, var(--vscode-textLink-foreground)) 50%, white) 0%,
-		var(--vscode-editorInfo-foreground, var(--vscode-textLink-foreground)) 100%
-	);
-	background-color: var(--vscode-editorInfo-foreground, var(--vscode-textLink-foreground));
+	background: var(--vscode-textLink-foreground, #0078d4);
 }
 
 .copilot-prototype-chat-banner.info .copilot-prototype-chat-banner-percent {
-	color: var(--vscode-editorInfo-foreground, var(--vscode-textLink-foreground));
+	color: var(--vscode-textLink-foreground, #0078d4);
 }
 
 .copilot-prototype-chat-banner.warning .copilot-prototype-chat-banner-bar {
@@ -1582,8 +1691,10 @@
 }
 
 .copilot-prototype-chat-banner-single-row .copilot-prototype-chat-banner-title {
-	flex: 0 0 auto;
+	flex: 1 1 auto;
 	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
 .copilot-prototype-chat-banner-desc-inline {
@@ -1606,27 +1717,30 @@
 }
 
 .copilot-prototype-chat-banner-btn {
-	padding: 3px 10px;
+	padding: 4px 12px;
 	font-size: 11px;
 	line-height: 16px;
-	height: 22px;
-	border-radius: var(--vscode-cornerRadius-small, 4px);
+	height: 24px;
+	border-radius: 6px;
 	border: none;
 	cursor: pointer;
 	font-family: inherit;
-	background-color: var(--vscode-button-secondaryBackground);
-	color: var(--vscode-button-secondaryForeground);
+	font-weight: 500;
+	background-color: color-mix(in srgb, var(--vscode-foreground) 8%, transparent);
+	color: var(--vscode-foreground);
 	white-space: nowrap;
 	flex-shrink: 0;
+	transition: background-color 0.15s ease;
 }
 
 .copilot-prototype-chat-banner-btn:hover {
-	background-color: var(--vscode-button-secondaryHoverBackground);
+	background-color: color-mix(in srgb, var(--vscode-foreground) 14%, transparent);
 }
 
 .copilot-prototype-chat-banner-btn.primary {
 	background-color: var(--vscode-button-background);
 	color: var(--vscode-button-foreground);
+	font-weight: 600;
 }
 
 .copilot-prototype-chat-banner-btn.primary:hover {
