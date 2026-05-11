@@ -431,7 +431,7 @@
 .ai-customization-list-item {
 	display: flex;
 	align-items: flex-start;
-	padding: 6px 8px 6px 24px;
+	padding: 6px 8px 6px 30px;
 	cursor: pointer;
 	border-radius: 4px;
 	min-height: 32px;
@@ -487,7 +487,7 @@
 	opacity: 0.6;
 }
 
-/* Shared inline badge style — used for item badges */
+/* Shared inline badge style — used by MCP "Bridged" badge and item badges */
 .inline-badge {
 	flex-shrink: 0;
 	font-size: 10px;
@@ -518,7 +518,7 @@
 	margin-right: 4px;
 }
 
-/* MCP server name row — inline layout for the server name */
+/* MCP bridged badge — shown inline next to the server name */
 .mcp-server-item .mcp-server-name-row {
 	display: flex;
 	align-items: center;
@@ -578,8 +578,7 @@
 }
 
 .ai-customization-list-item:hover .item-right,
-.ai-customization-list-item:focus-within .item-right,
-.monaco-list-row.focused .item-right {
+.ai-customization-list-item:focus-within .item-right {
 	opacity: 1;
 }
 
@@ -587,6 +586,28 @@
 .ai-customization-list-item .highlight {
 	font-weight: bold;
 	color: var(--vscode-list-highlightForeground);
+}
+
+/* Section title header at top of list widget */
+.ai-customization-list-widget .section-title-header {
+	flex-shrink: 0;
+	padding: 4px 4px 16px 4px;
+}
+
+.ai-customization-list-widget .section-title-header .section-title {
+	font-size: 22px;
+	font-weight: 600;
+	line-height: 1.2;
+	margin: 0 0 6px 0;
+	color: var(--vscode-foreground);
+}
+
+.ai-customization-list-widget .section-title-header .section-title-description {
+	font-size: 13px;
+	line-height: 1.45;
+	color: var(--vscode-descriptionForeground);
+	margin: 0;
+	max-width: 720px;
 }
 
 /* Section footer at bottom of list widget */

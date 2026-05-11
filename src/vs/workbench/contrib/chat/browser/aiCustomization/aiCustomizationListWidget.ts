@@ -125,8 +125,6 @@ interface IAICustomizationItemTemplateData {
 	readonly description: HighlightedLabel;
 	readonly disposables: DisposableStore;
 	readonly elementDisposables: DisposableStore;
-	/** Index of the row currently rendered into this template, or -1 when unbound. */
-	currentIndex: number;
 }
 
 interface IGroupHeaderTemplateData {
@@ -160,9 +158,9 @@ class GroupHeaderRenderer implements IListRenderer<IGroupHeaderEntry, IGroupHead
 		const icon = DOM.append(container, $('.group-icon'));
 		const labelGroup = DOM.append(container, $('.group-label-group'));
 		const label = DOM.append(labelGroup, $('.group-label'));
-		const infoIcon = DOM.append(labelGroup, $('.group-info'));
-		infoIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.info));
 		const count = DOM.append(container, $('.group-count'));
+		const infoIcon = DOM.append(container, $('.group-info'));
+		infoIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.info));
 
 		return { container, chevron, icon, label, count, infoIcon, disposables, elementDisposables };
 	}
@@ -231,15 +229,6 @@ export function formatDisplayName(name: string): string {
 class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICustomizationItemTemplateData> {
 	readonly templateId = 'aiCustomizationItem';
 
-	/**
-	 * Live (non-disposed) templates. Used to keep only the focused row's
-	 * inline action bar in the document tab order so that Tab from a focused
-	 * row enters that row's actions exactly once instead of cycling through
-	 * every row's actions.
-	 */
-	private readonly templates = new Set<IAICustomizationItemTemplateData>();
-	private focusedIndex = -1;
-
 	constructor(
 		@IHoverService private readonly hoverService: IHoverService,
 		@ILabelService private readonly labelService: ILabelService,
@@ -248,17 +237,6 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
 	) { }
-
-	/**
-	 * Tell the renderer which row index is currently focused in the list.
-	 * The action bar of that row (and only that row) is made tab-focusable.
-	 */
-	setFocusedIndex(index: number): void {
-		this.focusedIndex = index;
-		for (const template of this.templates) {
-			template.actionBar.setFocusable(template.currentIndex === index);
-		}
-	}
 
 	renderTemplate(container: HTMLElement): IAICustomizationItemTemplateData {
 		const disposables = new DisposableStore();
@@ -280,13 +258,8 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 		const actionBar = disposables.add(new ActionBar(actionsContainer, {
 			actionViewItemProvider: createActionViewItem.bind(undefined, this.instantiationService),
 		}));
-		// Keep the inline actions out of the document tab order by default. Only the
-		// focused row's action bar is made tab-focusable (see `setFocusedIndex`),
-		// so Tab from a focused row enters that row's actions exactly once instead
-		// of cycling through every row's actions.
-		actionBar.setFocusable(false);
 
-		const template: IAICustomizationItemTemplateData = {
+		return {
 			container,
 			actionsContainer,
 			actionBar,
@@ -297,16 +270,11 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 			description,
 			disposables,
 			elementDisposables,
-			currentIndex: -1,
 		};
-		this.templates.add(template);
-		return template;
 	}
 
 	renderElement(entry: IFileItemEntry, index: number, templateData: IAICustomizationItemTemplateData): void {
 		templateData.elementDisposables.clear();
-		templateData.currentIndex = index;
-		templateData.actionBar.setFocusable(index === this.focusedIndex);
 		const element = entry.item;
 
 		// Type icon: use per-item override or fall back to prompt type
@@ -466,12 +434,7 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 		templateData.actionBar.context = context;
 	}
 
-	disposeElement(_entry: IFileItemEntry, _index: number, templateData: IAICustomizationItemTemplateData): void {
-		templateData.currentIndex = -1;
-	}
-
 	disposeTemplate(templateData: IAICustomizationItemTemplateData): void {
-		this.templates.delete(templateData);
 		templateData.elementDisposables.dispose();
 		templateData.disposables.dispose();
 	}
@@ -582,8 +545,10 @@ export class AICustomizationListWidget extends Disposable {
 
 	readonly element: HTMLElement;
 
+	private sectionTitleHeader!: HTMLElement;
+	private sectionTitle!: HTMLElement;
+	private sectionTitleDescription!: HTMLElement;
 	private sectionHeader!: HTMLElement;
-	private sectionDescription!: HTMLElement;
 	private sectionLink!: HTMLAnchorElement;
 	private searchAndButtonContainer!: HTMLElement;
 	private searchContainer!: HTMLElement;
@@ -664,6 +629,11 @@ export class AICustomizationListWidget extends Disposable {
 	}
 
 	private create(): void {
+		// Section title header (title + description) at the top.
+		this.sectionTitleHeader = DOM.append(this.element, $('.section-title-header'));
+		this.sectionTitle = DOM.append(this.sectionTitleHeader, $('h2.section-title'));
+		this.sectionTitleDescription = DOM.append(this.sectionTitleHeader, $('p.section-title-description'));
+
 		// Search and button container
 		this.searchAndButtonContainer = DOM.append(this.element, $('.list-search-and-button-container'));
 
@@ -723,7 +693,6 @@ export class AICustomizationListWidget extends Disposable {
 		this.emptyStateContainer.style.display = 'none';
 
 		// Create list
-		const itemRenderer = this.instantiationService.createInstance(AICustomizationItemRenderer);
 		this.list = this._register(this.instantiationService.createInstance(
 			WorkbenchList<IListEntry>,
 			'AICustomizationManagementList',
@@ -731,7 +700,7 @@ export class AICustomizationListWidget extends Disposable {
 			new AICustomizationListDelegate(),
 			[
 				new GroupHeaderRenderer(this.hoverService),
-				itemRenderer,
+				this.instantiationService.createInstance(AICustomizationItemRenderer),
 			],
 			{
 				identityProvider: {
@@ -772,22 +741,6 @@ export class AICustomizationListWidget extends Disposable {
 			}
 		}));
 
-		// Keep only the focused row's inline action bar in the document tab order
-		// so Tab from a focused row enters that row's actions exactly once instead
-		// of cycling through the action bar of every rendered row.
-		this._register(this.list.onDidChangeFocus(e => {
-			itemRenderer.setFocusedIndex(e.indexes.length ? e.indexes[0] : -1);
-		}));
-
-		// When the list itself receives DOM focus (e.g. via Tab) and no row is
-		// focused yet, focus the first row so the focus indicator is visible
-		// instead of requiring the user to press an arrow key first.
-		this._register(this.list.onDidFocus(() => {
-			if (this.list.getFocus().length === 0 && this.displayEntries.length > 0) {
-				this.list.focusFirst();
-			}
-		}));
-
 		// Handle context menu
 		this._register(this.list.onContextMenu(e => this.onContextMenu(e)));
 
@@ -798,9 +751,8 @@ export class AICustomizationListWidget extends Disposable {
 			}
 		}));
 
-		// Section footer at bottom with description and link
+		// Section footer at bottom with learn-more link
 		this.sectionHeader = DOM.append(this.element, $('.section-footer'));
-		this.sectionDescription = DOM.append(this.sectionHeader, $('p.section-footer-description'));
 		this.sectionLink = DOM.append(this.sectionHeader, $('a.section-footer-link')) as HTMLAnchorElement;
 		this._register(DOM.addDisposableListener(this.sectionLink, 'click', (e) => {
 			e.preventDefault();
@@ -929,38 +881,45 @@ export class AICustomizationListWidget extends Disposable {
 	 * Updates the section header based on the current section.
 	 */
 	private updateSectionHeader(): void {
+		let title: string;
 		let description: string;
 		let docsUrl: string;
 		let learnMoreLabel: string;
 		switch (this.currentSection) {
 			case AICustomizationManagementSection.Agents:
+				title = localize('agents', "Agents");
 				description = localize('agentsDescription', "Configure the AI to adopt different personas tailored to specific development tasks. Each agent has its own instructions, tools, and behavior.");
 				docsUrl = 'https://code.visualstudio.com/docs/copilot/customization/custom-agents';
 				learnMoreLabel = localize('learnMoreAgents', "Learn more about custom agents");
 				break;
 			case AICustomizationManagementSection.Skills:
+				title = localize('skills', "Skills");
 				description = localize('skillsDescription', "Folders of instructions, scripts, and resources that Copilot loads when relevant to perform specialized tasks.");
 				docsUrl = 'https://code.visualstudio.com/docs/copilot/customization/agent-skills';
 				learnMoreLabel = localize('learnMoreSkills', "Learn more about agent skills");
 				break;
 			case AICustomizationManagementSection.Instructions:
+				title = localize('instructions', "Instructions");
 				description = localize('instructionsDescription', "Define common guidelines and rules that automatically influence how AI generates code and handles development tasks.");
 				docsUrl = 'https://code.visualstudio.com/docs/copilot/customization/custom-instructions';
 				learnMoreLabel = localize('learnMoreInstructions', "Learn more about custom instructions");
 				break;
 			case AICustomizationManagementSection.Hooks:
+				title = localize('hooks', "Hooks");
 				description = localize('hooksDescription', "Prompts executed at specific points during an agentic lifecycle.");
 				docsUrl = 'https://code.visualstudio.com/docs/copilot/customization/hooks';
 				learnMoreLabel = localize('learnMoreHooks', "Learn more about hooks");
 				break;
 			case AICustomizationManagementSection.Prompts:
 			default:
+				title = localize('prompts', "Prompts");
 				description = localize('promptsDescription', "Reusable prompts for common development tasks like generating code, performing reviews, or scaffolding components.");
 				docsUrl = 'https://code.visualstudio.com/docs/copilot/customization/prompt-files';
 				learnMoreLabel = localize('learnMorePrompts', "Learn more about prompt files");
 				break;
 		}
-		this.sectionDescription.textContent = description;
+		this.sectionTitle.textContent = title;
+		this.sectionTitleDescription.textContent = description;
 		this.sectionLink.textContent = learnMoreLabel;
 		this.sectionLink.href = docsUrl;
 	}
