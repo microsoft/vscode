@@ -32,7 +32,7 @@ import { IChatSessionMetadataStore, RepositoryProperties } from '../common/chatS
 import { IChatSessionWorkspaceFolderService } from '../common/chatSessionWorkspaceFolderService';
 import { IChatSessionWorktreeService } from '../common/chatSessionWorktreeService';
 import { IChatFolderMruService, IFolderRepositoryManager, IsolationMode } from '../common/folderRepositoryManager';
-import { createStaleSessionWarningRequestMetadata, createStaleSessionWarningResult, getLastActivityFromChatSessionItem, getLastActivityFromTiming, getRecordedStaleSessionTokens, getStaleSessionWarningConfirmation, recordStaleSessionWarningActionTelemetry, sendStaleSessionWarningFollowUpTelemetry, sendStaleSessionWarningShownTelemetry, shouldWarnAboutStaleSession, showStaleSessionWarningConfirmation, StaleSessionProviderKind, StaleSessionWarningAction, StaleSessionWarningMetadata, wrapStreamForStaleSessionUsageTracking } from '../common/staleSessionWarning/staleSessionWarning';
+import { createStaleSessionWarningRequestMetadata, createStaleSessionWarningResult, getLastActivityFromChatSessionItem, getLastActivityFromTiming, getRecordedStaleSessionTokens, getStaleSessionWarningConfirmation, hasUserAlreadyActedOnStaleSessionWarning, recordStaleSessionWarningActionTelemetry, sendStaleSessionWarningFollowUpTelemetry, sendStaleSessionWarningShownTelemetry, shouldWarnAboutStaleSession, showStaleSessionWarningConfirmation, StaleSessionProviderKind, StaleSessionWarningAction, StaleSessionWarningMetadata, wrapStreamForStaleSessionUsageTracking } from '../common/staleSessionWarning/staleSessionWarning';
 import { getWorkingDirectory, IWorkspaceInfo } from '../common/workspaceInfo';
 import { ICustomSessionTitleService } from '../copilotcli/common/customSessionTitleService';
 import { IChatDelegationSummaryService } from '../copilotcli/common/delegationSummaryService';
@@ -868,7 +868,7 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 				return {};
 			}
 
-			const staleSessionWarning = !isNewSession && !staleSessionConfirmation && !request.command && !request.prompt.trim().startsWith('/')
+			const staleSessionWarning = !isNewSession && !staleSessionConfirmation && !request.command && !request.prompt.trim().startsWith('/') && !hasUserAlreadyActedOnStaleSessionWarning(context.history)
 				? shouldWarnAboutStaleSession(this.configurationService, {
 					providerKind: StaleSessionProviderKind.CopilotCLI,
 					modelId: model?.model ?? request.model?.id,

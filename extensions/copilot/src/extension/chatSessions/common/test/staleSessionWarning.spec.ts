@@ -5,7 +5,7 @@
 
 import { describe, expect, it, vi } from 'vitest';
 import { Config, ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
-import { createStaleSessionWarningActionResult, createStaleSessionWarningRequestMetadata, createStaleSessionWarningResult, formatStaleSessionIdleTime, formatStaleSessionTokenCount, recordStaleSessionWarningActionTelemetry, removeStaleSessionWarningHistory, sendStaleSessionWarningFollowUpTelemetry, sendStaleSessionWarningShownTelemetry, shouldWarnAboutStaleSession, StaleSessionProviderKind, StaleSessionWarningAction } from '../staleSessionWarning/staleSessionWarning';
+import { createStaleSessionWarningActionResult, createStaleSessionWarningRequestMetadata, createStaleSessionWarningResult, formatStaleSessionIdleTime, formatStaleSessionTokenCount, hasUserAlreadyActedOnStaleSessionWarning, recordStaleSessionWarningActionTelemetry, removeStaleSessionWarningHistory, sendStaleSessionWarningFollowUpTelemetry, sendStaleSessionWarningShownTelemetry, shouldWarnAboutStaleSession, StaleSessionProviderKind, StaleSessionWarningAction } from '../staleSessionWarning/staleSessionWarning';
 
 describe('staleSessionWarning', () => {
 	it('requires both the idle-time and token thresholds to be exceeded', () => {
@@ -111,6 +111,22 @@ describe('staleSessionWarning', () => {
 		const after = { prompt: 'after' };
 
 		expect(removeStaleSessionWarningHistory([before, actionRequest, actionResponse, after] as never)).toEqual([before, after]);
+	});
+
+	it('detects whether any prior turn already acted on a warning in this session', () => {
+		const actionMetadata = {
+			kind: 'staleSessionWarning' as const,
+			providerKind: StaleSessionProviderKind.Local,
+			action: StaleSessionWarningAction.SendAnyway,
+			originalPrompt: 'continue this task',
+			sessionId: 'session',
+			modelId: 'gpt-test',
+		};
+		const plainTurn = { prompt: 'before', result: { metadata: {} } };
+		const actionResponse = { result: createStaleSessionWarningActionResult(actionMetadata) };
+
+		expect(hasUserAlreadyActedOnStaleSessionWarning([plainTurn] as never)).toBe(false);
+		expect(hasUserAlreadyActedOnStaleSessionWarning([plainTurn, actionResponse] as never)).toBe(true);
 	});
 
 	it('emits shown, action, and follow-up telemetry with warning context', () => {

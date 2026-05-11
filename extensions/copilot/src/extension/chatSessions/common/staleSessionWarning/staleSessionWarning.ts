@@ -177,6 +177,22 @@ export function getStaleSessionWarningConfirmation(request: vscode.ChatRequest):
 	return metadataByAction[selectedAction];
 }
 
+/**
+ * Returns true when an earlier turn in this session already produced a stale
+ * session warning action (Send Anyway / Compact / Start New Session). Once the
+ * user has chosen one of those options for the current session we don't want
+ * to keep re-prompting them on every subsequent message even if the idle/token
+ * thresholds are still exceeded.
+ */
+export function hasUserAlreadyActedOnStaleSessionWarning(history: readonly (vscode.ChatRequestTurn | vscode.ChatResponseTurn)[]): boolean {
+	for (const entry of history) {
+		if (getStaleSessionWarningActionResultMetadata(entry)) {
+			return true;
+		}
+	}
+	return false;
+}
+
 export function removeStaleSessionWarningHistory(history: readonly (vscode.ChatRequestTurn | vscode.ChatResponseTurn)[]): readonly (vscode.ChatRequestTurn | vscode.ChatResponseTurn)[] {
 	const filtered: (vscode.ChatRequestTurn | vscode.ChatResponseTurn)[] = [];
 	for (let i = 0; i < history.length; i++) {

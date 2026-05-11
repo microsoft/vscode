@@ -30,7 +30,7 @@ import { ChatSummarizerProvider } from '../../prompt/node/summarizer';
 import { ChatTitleProvider } from '../../prompt/node/title';
 import { IUserFeedbackService } from './userActions';
 import { getAdditionalWelcomeMessage } from './welcomeMessageProvider';
-import { createStaleSessionWarningActionResult, createStaleSessionWarningRequestMetadata, createStaleSessionWarningResult, getRecordedStaleSessionTokens, getStaleSessionWarningConfirmation, recordStaleSessionWarningActionTelemetry, removeStaleSessionWarningHistory, sendStaleSessionWarningFollowUpTelemetry, sendStaleSessionWarningShownTelemetry, shouldWarnAboutStaleSession, showStaleSessionWarningConfirmation, StaleSessionProviderKind, StaleSessionWarningAction, StaleSessionWarningMetadata, wrapStreamForStaleSessionUsageTracking } from '../../chatSessions/common/staleSessionWarning/staleSessionWarning';
+import { createStaleSessionWarningActionResult, createStaleSessionWarningRequestMetadata, createStaleSessionWarningResult, getRecordedStaleSessionTokens, getStaleSessionWarningConfirmation, hasUserAlreadyActedOnStaleSessionWarning, recordStaleSessionWarningActionTelemetry, removeStaleSessionWarningHistory, sendStaleSessionWarningFollowUpTelemetry, sendStaleSessionWarningShownTelemetry, shouldWarnAboutStaleSession, showStaleSessionWarningConfirmation, StaleSessionProviderKind, StaleSessionWarningAction, StaleSessionWarningMetadata, wrapStreamForStaleSessionUsageTracking } from '../../chatSessions/common/staleSessionWarning/staleSessionWarning';
 
 const LOCAL_STALE_SESSION_LAST_ACTIVITY_KEY = 'chat.localStaleSessionLastActivity';
 
@@ -261,7 +261,7 @@ Learn more about [GitHub Copilot](https://docs.github.com/copilot/using-github-c
 					? { ...request, prompt: staleSessionConfirmation.originalPrompt, command: undefined, acceptedConfirmationData: undefined, rejectedConfirmationData: undefined }
 					: request;
 
-				const staleSessionWarning = !staleSessionConfirmation && !request.command && !request.prompt.trim().startsWith('/')
+				const staleSessionWarning = !staleSessionConfirmation && !request.command && !request.prompt.trim().startsWith('/') && !hasUserAlreadyActedOnStaleSessionWarning(context.history)
 					? shouldWarnAboutStaleSession(this.configurationService, {
 						providerKind: StaleSessionProviderKind.Local,
 						modelId: request.model?.id,

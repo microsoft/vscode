@@ -33,7 +33,7 @@ import { IClaudeSlashCommandService } from '../claude/vscode-node/claudeSlashCom
 import { IChatFolderMruService } from '../common/folderRepositoryManager';
 import { builtinSlashCommands } from '../common/builtinSlashCommands';
 import { IClaudeWorkspaceFolderService } from '../common/claudeWorkspaceFolderService';
-import { createStaleSessionWarningRequestMetadata, createStaleSessionWarningResult, getLastActivityFromChatSessionItem, getLastActivityFromTiming, getRecordedStaleSessionTokens, getStaleSessionWarningConfirmation, recordStaleSessionWarningActionTelemetry, sendStaleSessionWarningFollowUpTelemetry, sendStaleSessionWarningShownTelemetry, shouldWarnAboutStaleSession, showStaleSessionWarningConfirmation, StaleSessionProviderKind, StaleSessionWarningAction, StaleSessionWarningMetadata, wrapStreamForStaleSessionUsageTracking } from '../common/staleSessionWarning/staleSessionWarning';
+import { createStaleSessionWarningRequestMetadata, createStaleSessionWarningResult, getLastActivityFromChatSessionItem, getLastActivityFromTiming, getRecordedStaleSessionTokens, getStaleSessionWarningConfirmation, hasUserAlreadyActedOnStaleSessionWarning, recordStaleSessionWarningActionTelemetry, sendStaleSessionWarningFollowUpTelemetry, sendStaleSessionWarningShownTelemetry, shouldWarnAboutStaleSession, showStaleSessionWarningConfirmation, StaleSessionProviderKind, StaleSessionWarningAction, StaleSessionWarningMetadata, wrapStreamForStaleSessionUsageTracking } from '../common/staleSessionWarning/staleSessionWarning';
 import { buildChatHistory } from './chatHistoryBuilder';
 import { ClaudeSessionOptionBuilder, buildPermissionModeItems, FOLDER_OPTION_ID, isPermissionMode, PERMISSION_MODE_OPTION_ID } from './claudeSessionOptionBuilder';
 import { toWorkspaceFolderOptionItem } from './sessionOptionGroupBuilder';
@@ -170,7 +170,7 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 			const reasoningEffort = pickReasoningEffort(endpoint, typeof rawReasoningEffort === 'string' ? rawReasoningEffort : undefined);
 			this.sessionStateService.setReasoningEffortForSession(effectiveSessionId, reasoningEffort);
 
-			const staleSessionWarning = !isNewSession && !staleSessionConfirmation && !request.command && !request.prompt.trim().startsWith('/')
+			const staleSessionWarning = !isNewSession && !staleSessionConfirmation && !request.command && !request.prompt.trim().startsWith('/') && !hasUserAlreadyActedOnStaleSessionWarning(context.history)
 				? shouldWarnAboutStaleSession(this.configurationService, {
 					providerKind: StaleSessionProviderKind.Claude,
 					modelId: modelId.toEndpointModelId(),
