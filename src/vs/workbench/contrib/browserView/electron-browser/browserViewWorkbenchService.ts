@@ -200,13 +200,14 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 	getOrCreateLazy(id: string, initialState?: IBrowserEditorViewState, model?: IBrowserViewModel): BrowserEditorInput {
 		if (!this._known.has(id)) {
 			const input = this.instantiationService.createInstance(BrowserEditorInput, { id, ...initialState }, async () => {
+				const proxy = await this._getRemoteProxy();
 				const state = await this._browserViewService.getOrCreateBrowserView(
 					id,
 					{
 						owner: this._getDefaultOwner(),
 						sessionOptions: {
-							scope: await this._resolveStorageScope(),
-							proxy: await this._getRemoteProxy()
+							scope: await this._resolveStorageScope(proxy),
+							proxy
 						},
 						initialState: {
 							url: initialState?.url,
@@ -244,10 +245,10 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		return { mainWindowId: this._mainWindowId };
 	}
 
-	private async _resolveStorageScope(): Promise<BrowserViewStorageScope> {
-		const dataStorageSetting = this.configurationService.getValue<BrowserViewStorageScope>(
+	private async _resolveStorageScope(proxy: ITunnelProxyInfo | undefined): Promise<BrowserViewStorageScope> {
+		let dataStorage = this.configurationService.getValue<BrowserViewStorageScope | 'default'>(
 			'workbench.browser.dataStorage'
-		) ?? BrowserViewStorageScope.Global;
+		) ?? 'default';
 
 		await this.workspaceTrustManagementService.workspaceTrustInitialized;
 
@@ -255,7 +256,18 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 			this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY &&
 			!this.workspaceTrustManagementService.isWorkspaceTrusted();
 
-		return isWorkspaceUntrusted ? BrowserViewStorageScope.Ephemeral : dataStorageSetting;
+		if (isWorkspaceUntrusted) {
+			// Always use ephemeral sessions for untrusted workspaces
+			dataStorage = BrowserViewStorageScope.Ephemeral;
+		} else if (dataStorage === 'default') {
+			// When proxying, default to workspace-scoped sessions
+			// to avoid polluting the global session with remote site data.
+			dataStorage = proxy
+				? BrowserViewStorageScope.Workspace
+				: BrowserViewStorageScope.Global;
+		}
+
+		return dataStorage;
 	}
 
 	/**

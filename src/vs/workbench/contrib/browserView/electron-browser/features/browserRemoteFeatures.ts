@@ -48,10 +48,10 @@ class BrowserRemoteIndicatorContribution extends BrowserEditorContribution {
 		return [{ element: this._container, order: 0 }];
 	}
 
-	protected override subscribeToModel(model: IBrowserViewModel, _store: DisposableStore): void {
+	protected override subscribeToModel(model: IBrowserViewModel, store: DisposableStore): void {
 		this.setRemoteConnected(model.isRemoteSession && !model.url.startsWith('file://'));
 		if (model.isRemoteSession) {
-			this._register(model.onDidNavigate((event) => {
+			store.add(model.onDidNavigate((event) => {
 				this.setRemoteConnected(!event.url.startsWith('file://'));
 			}));
 		}

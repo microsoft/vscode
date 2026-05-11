@@ -74,17 +74,18 @@ export class SharedProcessTunnelProxyService extends Disposable implements IShar
 
 		entry.refCount++;
 
-		if (entry.startPromise) {
-			return entry.startPromise;
+		if (!entry.startPromise) {
+			entry.startPromise = this._doStart(entry);
 		}
 
-		entry.startPromise = this._doStart(entry);
+		// All callers — including concurrent ones that join an existing
+		// startPromise — must roll back their refCount on failure.
 		try {
 			return await entry.startPromise;
 		} catch (err) {
-			// Roll back on failure so the next caller can retry
 			entry.refCount--;
 			if (entry.refCount === 0) {
+				entry.startPromise = undefined;
 				this._entries.delete(authority);
 			}
 			throw err;
