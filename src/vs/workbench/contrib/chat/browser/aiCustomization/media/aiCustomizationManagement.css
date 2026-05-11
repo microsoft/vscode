@@ -1043,7 +1043,7 @@
 .mcp-server-item {
 	display: flex;
 	align-items: center;
-	padding: 6px 8px;
+	padding: 6px 8px 6px 30px;
 	cursor: pointer;
 	border-radius: 4px;
 	min-height: 32px;
@@ -1060,13 +1060,7 @@
 }
 
 .mcp-server-item .mcp-server-icon {
-	flex-shrink: 0;
-	width: 24px;
-	height: 24px;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	opacity: 0.8;
+	display: none;
 }
 
 .mcp-server-item .mcp-server-details {
