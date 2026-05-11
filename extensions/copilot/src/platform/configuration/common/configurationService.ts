@@ -933,6 +933,8 @@ export namespace ConfigKey {
 	export const ResponsesApiContextManagementEnabled = defineSetting<boolean>('chat.responsesApiContextManagement.enabled', ConfigType.ExperimentBased, false);
 	/** Enable client-side prompt_cache_key (conversationId:modelFamily) sent to Responses API */
 	export const ResponsesApiPromptCacheKeyEnabled = defineSetting<boolean>('chat.responsesApi.promptCacheKey.enabled', ConfigType.ExperimentBased, false);
+	/** Enable stateful marker reuse for OpenAI Responses API compaction requests */
+	export const ResponsesApiCompactionStatefulMarkerEnabled = defineSetting<boolean>('chat.responsesApi.compactionStatefulMarker.enabled', ConfigType.ExperimentBased, false);
 	/** Enable tool search for Responses API (client-side deferred tool loading). */
 	export const ResponsesApiToolSearchEnabled = defineSetting<boolean>('chat.responsesApi.toolSearchTool.enabled', ConfigType.ExperimentBased, false);
 	/** Enable updated prompt for 5.3Codex model */

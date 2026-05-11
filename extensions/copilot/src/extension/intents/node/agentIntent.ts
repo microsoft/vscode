@@ -51,7 +51,7 @@ import { AgentPrompt, AgentPromptProps } from '../../prompts/node/agent/agentPro
 import { BackgroundSummarizationState, BackgroundSummarizer, IBackgroundSummarizationResult, shouldKickOffBackgroundSummarization } from '../../prompts/node/agent/backgroundSummarizer';
 import { BackgroundTodoDecision, BackgroundTodoProcessor } from '../../prompts/node/agent/backgroundTodoProcessor';
 import { AgentPromptCustomizations, PromptRegistry } from '../../prompts/node/agent/promptRegistry';
-import { extractSummary, SummarizationUserMessage, SummarizedConversationHistory, SummarizedConversationHistoryMetadata, SummarizedConversationHistoryPropsBuilder, appendTranscriptHintToSummary, computeSummarizationRoundCounts } from '../../prompts/node/agent/summarizedConversationHistory';
+import { extractSummary, SummarizationUserMessage, SummarizedConversationHistory, SummarizedConversationHistoryMetadata, SummarizedConversationHistoryPropsBuilder, appendTranscriptHintToSummary, computeSummarizationRoundCounts, shouldUseStatefulMarkerForResponsesCompaction } from '../../prompts/node/agent/summarizedConversationHistory';
 import { PromptRenderer, renderPromptElement } from '../../prompts/node/base/promptRenderer';
 import { ICodeMapperService } from '../../prompts/node/codeMapper/codeMapperService';
 import { EditCodePrompt2 } from '../../prompts/node/panel/editCodePrompt2';
@@ -956,6 +956,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 				// summary user message. The prompt prefix is byte-identical
 				// to the main agent loop for cache hits.
 				const strippedMainMessages = ToolCallingLoop.stripInternalToolCallIds(mainRenderMessages);
+				const useStatefulMarker = shouldUseStatefulMarkerForResponsesCompaction(this.endpoint, this.configurationService, this.expService);
 				const summaryMsgResult = await renderPromptElement(
 					this.instantiationService,
 					this.endpoint,
@@ -975,6 +976,8 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 					finishedCb: undefined,
 					location: ChatLocation.Agent,
 					conversationId,
+					useWebSocket: useStatefulMarker ? false : undefined,
+					ignoreStatefulMarker: useStatefulMarker ? false : undefined,
 					requestOptions: {
 						temperature: 0,
 						stream: false,

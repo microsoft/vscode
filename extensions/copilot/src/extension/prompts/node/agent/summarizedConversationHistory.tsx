@@ -19,6 +19,7 @@ import { CUSTOM_TOOL_SEARCH_NAME } from '../../../../platform/networking/common/
 import { IChatEndpoint } from '../../../../platform/networking/common/networking';
 import { APIUsage } from '../../../../platform/networking/common/openai';
 import { IPromptPathRepresentationService } from '../../../../platform/prompts/common/promptPathRepresentationService';
+import { IExperimentationService } from '../../../../platform/telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
 import { ThinkingData } from '../../../../platform/thinking/common/thinking';
 import { computePromptTokenDetails } from '../../../../platform/tokenizer/node/promptTokenDetails';
@@ -42,6 +43,11 @@ import { ChatToolCalls } from '../panel/toolCalling';
 import { AgentUserMessage, AgentUserMessageCustomizations, getUserMessagePropsFromAgentProps, getUserMessagePropsFromTurn } from './agentPrompt';
 import { DefaultOpenAIKeepGoingReminder } from './openai/defaultOpenAIPrompt';
 import { SimpleSummarizedHistory } from './simpleSummarizedHistoryPrompt';
+
+export function shouldUseStatefulMarkerForResponsesCompaction(endpoint: IChatEndpoint, configurationService: IConfigurationService, experimentationService: IExperimentationService): boolean {
+	return endpoint.apiType === 'responses'
+		&& configurationService.getExperimentBasedConfig(ConfigKey.ResponsesApiCompactionStatefulMarkerEnabled, experimentationService);
+}
 
 export interface ConversationHistorySummarizationPromptProps extends SummarizedAgentHistoryProps {
 	readonly simpleMode?: boolean;
@@ -552,6 +558,7 @@ class ConversationHistorySummarizer {
 		@ILogService private readonly logService: ILogService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IExperimentationService private readonly experimentationService: IExperimentationService,
 		@IChatHookService private readonly chatHookService: IChatHookService,
 		@ISessionTranscriptService private readonly sessionTranscriptService: ISessionTranscriptService,
 	) { }
@@ -668,6 +675,7 @@ class ConversationHistorySummarizer {
 
 		let summarizationPrompt: ChatMessage[];
 		const associatedRequestId = this.props.promptContext.conversation?.getLatestTurn().id;
+		const conversationId = this.props.promptContext.conversation?.sessionId;
 		try {
 			summarizationPrompt = (await renderPromptElement(this.instantiationService, endpoint, ConversationHistorySummarizationPrompt, { ...propsInfo.props, enableCacheBreakpoints: false, simpleMode: mode === SummaryMode.Simple }, undefined, this.token)).messages;
 			this.logInfo(`summarization prompt rendered in ${stopwatch.elapsed()}ms.`, mode);
@@ -742,11 +750,15 @@ class ConversationHistorySummarizer {
 			}
 
 			promptTypes = messages.map(msg => `${msg.role}${'name' in msg && msg.name ? `-${msg.name}` : ''}:${getTextPart(msg.content).length}`).join(',');
+			const useStatefulMarker = shouldUseStatefulMarkerForResponsesCompaction(endpoint, this.configurationService, this.experimentationService);
 			summaryResponse = await endpoint.makeChatRequest2({
 				debugName: `summarizeConversationHistory-${mode}`,
 				messages,
 				finishedCb: undefined,
 				location: ChatLocation.Agent,
+				conversationId: useStatefulMarker ? conversationId : undefined,
+				useWebSocket: useStatefulMarker ? false : undefined,
+				ignoreStatefulMarker: useStatefulMarker ? false : undefined,
 				requestOptions: {
 					temperature: 0,
 					stream: false,

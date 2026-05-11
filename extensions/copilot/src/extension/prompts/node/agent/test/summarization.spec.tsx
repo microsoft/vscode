@@ -6,16 +6,19 @@
 import { Raw } from '@vscode/prompt-tsx';
 import { afterAll, beforeAll, beforeEach, expect, suite, test } from 'vitest';
 import { IChatMLFetcher } from '../../../../../platform/chat/common/chatMLFetcher';
-import { ChatLocation } from '../../../../../platform/chat/common/commonTypes';
+import { ChatFetchResponseType, ChatLocation } from '../../../../../platform/chat/common/commonTypes';
 import { StaticChatMLFetcher } from '../../../../../platform/chat/test/common/staticChatMLFetcher';
 import { CodeGenerationTextInstruction, ConfigKey, IConfigurationService } from '../../../../../platform/configuration/common/configurationService';
+import { IEndpointProvider } from '../../../../../platform/endpoint/common/endpointProvider';
 import { MockEndpoint } from '../../../../../platform/endpoint/test/node/mockEndpoint';
 import { messageToMarkdown } from '../../../../../platform/log/common/messageStringify';
 import { IResponseDelta } from '../../../../../platform/networking/common/fetch';
+import { IMakeChatRequestOptions } from '../../../../../platform/networking/common/networking';
 import { ITestingServicesAccessor } from '../../../../../platform/test/node/services';
 import { TestWorkspaceService } from '../../../../../platform/test/node/testWorkspaceService';
 import { IWorkspaceService } from '../../../../../platform/workspace/common/workspaceService';
 import { createTextDocumentData } from '../../../../../util/common/test/shims/textDocument';
+import { Event } from '../../../../../util/vs/base/common/event';
 import { URI } from '../../../../../util/vs/base/common/uri';
 import { SyncDescriptor } from '../../../../../util/vs/platform/instantiation/common/descriptors';
 import { IInstantiationService } from '../../../../../util/vs/platform/instantiation/common/instantiation';
@@ -34,6 +37,15 @@ import { ISessionTranscriptService, NullSessionTranscriptService } from '../../.
 import { ITokenizerProvider } from '../../../../../platform/tokenizer/node/tokenizer';
 import { appendTranscriptHintToSummary, ConversationHistorySummarizationPrompt, extractSummary, stripToolSearchMessages, SummarizedConversationHistory, SummarizedConversationHistoryMetadata, SummarizedConversationHistoryPropsBuilder } from '../summarizedConversationHistory';
 
+class NullEndpointProvider implements IEndpointProvider {
+	declare readonly _serviceBrand: undefined;
+	readonly onDidModelsRefresh = Event.None;
+	async getAllCompletionModels(): Promise<[]> { return []; }
+	async getAllChatEndpoints(): Promise<[]> { return []; }
+	async getChatEndpoint(): Promise<never> { throw new Error('not implemented'); }
+	async getEmbeddingsEndpoint(): Promise<never> { throw new Error('not implemented'); }
+}
+
 suite('Agent Summarization', () => {
 	let accessor: ITestingServicesAccessor;
 	let chatResponse: (string | IResponseDelta[])[] = [];
@@ -45,6 +57,7 @@ suite('Agent Summarization', () => {
 		const testDoc = createTextDocumentData(fileTsUri, 'line 1\nline 2\n\nline 4\nline 5', 'ts').document;
 
 		const services = createExtensionUnitTestingServices();
+		services.define(IEndpointProvider, new NullEndpointProvider());
 		services.define(IWorkspaceService, new SyncDescriptor(
 			TestWorkspaceService,
 			[
@@ -69,6 +82,7 @@ suite('Agent Summarization', () => {
 	beforeEach(() => {
 		const turn = new Turn('turnId', { type: 'user', message: 'hello' });
 		conversation = new Conversation('sessionId', [turn]);
+		accessor.get(IConfigurationService).setConfig(ConfigKey.ResponsesApiCompactionStatefulMarkerEnabled, false);
 	});
 
 	afterAll(() => {
@@ -432,6 +446,57 @@ suite('Agent Summarization', () => {
 		expect(summaryMeta).toBeDefined();
 		expect(summaryMeta!.text).toBe('summarized successfully!');
 		expect(summaryMeta!.toolCallRoundId).toBeTruthy();
+	});
+
+	test('Responses API summarization keeps stateful marker reuse on HTTP', async () => {
+		const { instaService, endpoint, historyProps, testConversation } = createSummarizationTestContext();
+		Object.defineProperty(endpoint, 'apiType', { value: 'responses' });
+		accessor.get(IConfigurationService).setConfig(ConfigKey.ResponsesApiCompactionStatefulMarkerEnabled, true);
+
+		let capturedOptions: IMakeChatRequestOptions | undefined;
+		endpoint.makeChatRequest2 = async (options) => {
+			capturedOptions = options;
+			return {
+				type: ChatFetchResponseType.Success,
+				requestId: 'summary-request',
+				serverRequestId: 'summary-server-request',
+				usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0, prompt_tokens_details: { cached_tokens: 0 } },
+				value: 'summarized successfully!',
+				resolvedModel: endpoint.model,
+			};
+		};
+
+		const renderer = PromptRenderer.create(instaService, endpoint, SummarizedConversationHistory, historyProps);
+		await renderer.render();
+
+		expect(capturedOptions?.conversationId).toBe(testConversation.sessionId);
+		expect(capturedOptions?.useWebSocket).toBe(false);
+		expect(capturedOptions?.ignoreStatefulMarker).toBe(false);
+	});
+
+	test('Responses API summarization leaves stateful marker options unset when experiment is disabled', async () => {
+		const { instaService, endpoint, historyProps } = createSummarizationTestContext();
+		Object.defineProperty(endpoint, 'apiType', { value: 'responses' });
+
+		let capturedOptions: IMakeChatRequestOptions | undefined;
+		endpoint.makeChatRequest2 = async (options) => {
+			capturedOptions = options;
+			return {
+				type: ChatFetchResponseType.Success,
+				requestId: 'summary-request',
+				serverRequestId: 'summary-server-request',
+				usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0, prompt_tokens_details: { cached_tokens: 0 } },
+				value: 'summarized successfully!',
+				resolvedModel: endpoint.model,
+			};
+		};
+
+		const renderer = PromptRenderer.create(instaService, endpoint, SummarizedConversationHistory, historyProps);
+		await renderer.render();
+
+		expect(capturedOptions?.conversationId).toBeUndefined();
+		expect(capturedOptions?.useWebSocket).toBeUndefined();
+		expect(capturedOptions?.ignoreStatefulMarker).toBeUndefined();
 	});
 
 	test('failed summarization does not set round.summary', async () => {
