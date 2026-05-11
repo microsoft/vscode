@@ -108,6 +108,7 @@ class MockChatEntitlementService implements IChatEntitlementService {
 	readonly anonymousObs: IObservable<boolean> = observableValue('anonymous', false);
 
 	markAnonymousRateLimited(): void { }
+	markSetupCompleted(): void { }
 	setForceHidden(_hidden: boolean): void { }
 	async update(_token: CancellationToken): Promise<void> { }
 }

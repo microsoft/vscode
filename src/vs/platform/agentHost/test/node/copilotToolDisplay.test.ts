@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellLanguage, getToolInputString, getToolKind, isHiddenTool, synthesizeSkillToolEvents, type ITypedPermissionRequest } from '../../node/copilot/copilotToolDisplay.js';
+import { getEditFilePath, getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellLanguage, getToolInputString, getToolKind, isHiddenTool, synthesizeSkillToolCall, type ITypedPermissionRequest } from '../../node/copilot/copilotToolDisplay.js';
 
 suite('getPermissionDisplay — cd-prefix stripping', () => {
 
@@ -298,44 +298,167 @@ suite('skill events', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	const session = URI.parse('agent://copilot/test');
-
 	test('hides the raw `skill` tool call and synthesizes a tool-start/complete pair from `skill.invoked`', () => {
-		const withPath = synthesizeSkillToolEvents(
-			session,
+		const withPath = synthesizeSkillToolCall(
 			{ name: 'plan', path: '/abs/repo/skills/plan/SKILL.md' },
 			'evt-123',
 		);
-		const noPath = synthesizeSkillToolEvents(
-			session,
+		const noPath = synthesizeSkillToolCall(
 			{ name: 'plan' },
 			undefined,
 		);
 
 		assert.deepStrictEqual({
 			skillIsHidden: isHiddenTool('skill'),
-			withPathToolCallId: withPath.start.toolCallId,
-			withPathSameIdOnComplete: withPath.start.toolCallId === withPath.complete.toolCallId,
-			withPathToolName: withPath.start.toolName,
-			withPathDisplayName: withPath.start.displayName,
-			withPathInvocation: withPath.start.invocationMessage,
-			withPathPastTense: withPath.complete.result.pastTenseMessage,
-			withPathSuccess: withPath.complete.result.success,
-			noPathToolCallId: noPath.start.toolCallId,
-			noPathInvocation: noPath.start.invocationMessage,
-			noPathPastTense: noPath.complete.result.pastTenseMessage,
+			withPathToolCallId: withPath.toolCallId,
+			withPathToolName: withPath.toolName,
+			withPathDisplayName: withPath.displayName,
+			withPathInvocation: withPath.invocationMessage,
+			withPathPastTense: withPath.pastTenseMessage,
+			noPathToolCallId: noPath.toolCallId,
+			noPathInvocation: noPath.invocationMessage,
+			noPathPastTense: noPath.pastTenseMessage,
 		}, {
 			skillIsHidden: true,
 			withPathToolCallId: 'synth-skill-evt-123',
-			withPathSameIdOnComplete: true,
 			withPathToolName: 'skill',
 			withPathDisplayName: 'Read Skill',
 			withPathInvocation: { markdown: 'Reading skill [plan](file:///abs/repo/skills/plan/SKILL.md)' },
 			withPathPastTense: { markdown: 'Read skill [plan](file:///abs/repo/skills/plan/SKILL.md)' },
-			withPathSuccess: true,
 			noPathToolCallId: 'synth-skill-2108d652',
 			noPathInvocation: 'Reading skill plan',
 			noPathPastTense: 'Read skill plan',
 		});
+	});
+});
+
+suite('rg / grep search tool display', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function text(msg: ReturnType<typeof getInvocationMessage>): string {
+		return typeof msg === 'string' ? msg : msg.markdown;
+	}
+
+	test('rg invocation/past tense use "Searching for {pattern}" wording', () => {
+		const inv = text(getInvocationMessage('rg', 'Search', { pattern: 'foo' }));
+		const past = text(getPastTenseMessage('rg', 'Search', { pattern: 'foo' }, true));
+		assert.deepStrictEqual({ inv, past }, {
+			inv: 'Searching for `foo`',
+			past: 'Searched for `foo`',
+		});
+	});
+
+	test('rg without a pattern falls back to a generic search message (not the raw tool name)', () => {
+		const inv = text(getInvocationMessage('rg', 'Search', undefined));
+		assert.strictEqual(inv, 'Searching files');
+	});
+
+	test('grep keeps "Searching for {pattern}" wording', () => {
+		const inv = text(getInvocationMessage('grep', 'Search', { pattern: 'bar' }));
+		const past = text(getPastTenseMessage('grep', 'Search', { pattern: 'bar' }, true));
+		assert.deepStrictEqual({ inv, past }, {
+			inv: 'Searching for `bar`',
+			past: 'Searched for `bar`',
+		});
+	});
+
+	test('getToolInputString returns pattern for both grep and rg', () => {
+		assert.strictEqual(getToolInputString('grep', { pattern: 'abc' }, undefined), 'abc');
+		assert.strictEqual(getToolInputString('rg', { pattern: 'abc' }, undefined), 'abc');
+	});
+});
+
+suite('apply_patch tool display', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function text(msg: ReturnType<typeof getInvocationMessage>): string {
+		return typeof msg === 'string' ? msg : msg.markdown;
+	}
+
+	const singleFilePatch = [
+		'*** Begin Patch',
+		'*** Update File: /repo/src/foo.ts',
+		'@@',
+		'-old',
+		'+new',
+		'*** End Patch',
+	].join('\n');
+
+	const multiFilePatch = [
+		'*** Begin Patch',
+		'*** Update File: /repo/src/foo.ts',
+		'@@',
+		'-old',
+		'+new',
+		'*** Add File: /repo/src/bar.ts',
+		'+hello',
+		'*** Delete File: /repo/src/baz.ts',
+		'*** End Patch',
+	].join('\n');
+
+	test('renders a clickable file link for a single-file patch', () => {
+		const inv = text(getInvocationMessage('apply_patch', 'Patch', { input: singleFilePatch }));
+		const past = text(getPastTenseMessage('apply_patch', 'Patch', { input: singleFilePatch }, true));
+		assert.deepStrictEqual({ inv, past }, {
+			inv: 'Editing [foo.ts](file:///repo/src/foo.ts)',
+			past: 'Edited [foo.ts](file:///repo/src/foo.ts)',
+		});
+	});
+
+	test('lists every affected file for a multi-file patch', () => {
+		const inv = text(getInvocationMessage('apply_patch', 'Patch', { input: multiFilePatch }));
+		const past = text(getPastTenseMessage('apply_patch', 'Patch', { input: multiFilePatch }, true));
+		assert.deepStrictEqual({ inv, past }, {
+			inv: 'Editing [foo.ts](file:///repo/src/foo.ts), [bar.ts](file:///repo/src/bar.ts), [baz.ts](file:///repo/src/baz.ts)',
+			past: 'Edited [foo.ts](file:///repo/src/foo.ts), [bar.ts](file:///repo/src/bar.ts), [baz.ts](file:///repo/src/baz.ts)',
+		});
+	});
+
+	test('falls back to a generic message when the patch body is missing or unparseable', () => {
+		assert.strictEqual(getInvocationMessage('apply_patch', 'Patch', undefined), 'Editing files');
+		assert.strictEqual(getInvocationMessage('apply_patch', 'Patch', { input: 'not a patch' }), 'Editing files');
+		assert.strictEqual(getPastTenseMessage('apply_patch', 'Patch', undefined, true), 'Edited files');
+	});
+
+	test('also accepts the patch text under the `patch` parameter (CLI shape)', () => {
+		const inv = text(getInvocationMessage('apply_patch', 'Patch', { patch: singleFilePatch }));
+		assert.strictEqual(inv, 'Editing [foo.ts](file:///repo/src/foo.ts)');
+	});
+
+	test('git_apply_patch shares the same display path', () => {
+		const inv = text(getInvocationMessage('git_apply_patch', 'Patch', { input: singleFilePatch }));
+		const past = text(getPastTenseMessage('git_apply_patch', 'Patch', { input: singleFilePatch }, true));
+		assert.deepStrictEqual({ inv, past }, {
+			inv: 'Editing [foo.ts](file:///repo/src/foo.ts)',
+			past: 'Edited [foo.ts](file:///repo/src/foo.ts)',
+		});
+	});
+
+	test('failure still routes through the generic failed message', () => {
+		assert.strictEqual(getPastTenseMessage('apply_patch', 'Patch', { input: singleFilePatch }, false), '"Patch" failed');
+	});
+
+	test('getEditFilePath returns the first affected file from a patch body', () => {
+		assert.strictEqual(getEditFilePath({ input: singleFilePatch }), '/repo/src/foo.ts');
+		assert.strictEqual(getEditFilePath({ input: multiFilePatch }), '/repo/src/foo.ts');
+		assert.strictEqual(getEditFilePath({ patch: singleFilePatch }), '/repo/src/foo.ts');
+		assert.strictEqual(getEditFilePath(JSON.stringify({ input: singleFilePatch })), '/repo/src/foo.ts');
+		assert.strictEqual(getEditFilePath({ input: 'not a patch' }), undefined);
+	});
+
+	test('getEditFilePaths returns every affected file from a patch body', () => {
+		assert.deepStrictEqual(getEditFilePaths({ input: singleFilePatch }), ['/repo/src/foo.ts']);
+		assert.deepStrictEqual(getEditFilePaths({ input: multiFilePatch }), ['/repo/src/foo.ts', '/repo/src/bar.ts', '/repo/src/baz.ts']);
+		assert.deepStrictEqual(getEditFilePaths({ patch: multiFilePatch }), ['/repo/src/foo.ts', '/repo/src/bar.ts', '/repo/src/baz.ts']);
+		assert.deepStrictEqual(getEditFilePaths(JSON.stringify({ input: multiFilePatch })), ['/repo/src/foo.ts', '/repo/src/bar.ts', '/repo/src/baz.ts']);
+		assert.deepStrictEqual(getEditFilePaths({ path: '/repo/src/edit.ts' }), ['/repo/src/edit.ts']);
+		assert.deepStrictEqual(getEditFilePaths({ input: 'not a patch' }), []);
+		assert.deepStrictEqual(getEditFilePaths(undefined), []);
+		// SDK custom-tool format: arguments arrive as a raw V4A patch string,
+		// not as a JSON object — exercise the string fallback path.
+		assert.deepStrictEqual(getEditFilePaths(multiFilePatch), ['/repo/src/foo.ts', '/repo/src/bar.ts', '/repo/src/baz.ts']);
+		assert.deepStrictEqual(getEditFilePaths(singleFilePatch), ['/repo/src/foo.ts']);
 	});
 });

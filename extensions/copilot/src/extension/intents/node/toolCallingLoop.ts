@@ -42,7 +42,7 @@ import { IInstantiationService } from '../../../util/vs/platform/instantiation/c
 import { ChatResponsePullRequestPart, LanguageModelDataPart2, LanguageModelPartAudience, LanguageModelToolResult2, MarkdownString } from '../../../vscodeTypes';
 import { InteractionOutcomeComputer } from '../../inlineChat/node/promptCraftingTypes';
 import { ChatVariablesCollection } from '../../prompt/common/chatVariablesCollection';
-import { AnthropicTokenUsageMetadata, Conversation, IResultMetadata, ResponseStreamParticipant, TurnStatus } from '../../prompt/common/conversation';
+import { Conversation, IResultMetadata, ResponseStreamParticipant, TurnStatus, TurnTokenUsageMetadata } from '../../prompt/common/conversation';
 import { IBuildPromptContext, InternalToolReference, IToolCall, IToolCallRound } from '../../prompt/common/intents';
 import { cancelText, IToolCallIterationIncrease } from '../../prompt/common/specialRequestTypes';
 import { ThinkingDataItem, ToolCallRound } from '../../prompt/common/toolCallRound';
@@ -104,7 +104,7 @@ export interface IToolCallingBuiltPromptEvent {
 	tools: LanguageModelToolInformation[];
 }
 
-export type ToolCallingLoopFetchOptions = Required<Pick<IMakeChatRequestOptions, 'messages' | 'finishedCb' | 'requestOptions' | 'userInitiatedRequest' | 'turnId'>> & Pick<IMakeChatRequestOptions, 'modelCapabilities' | 'summarizedAtRoundId'>;
+export type ToolCallingLoopFetchOptions = Required<Pick<IMakeChatRequestOptions, 'messages' | 'finishedCb' | 'requestOptions' | 'userInitiatedRequest' | 'turnId'>> & Pick<IMakeChatRequestOptions, 'modelCapabilities' | 'summarizedAtRoundId' | 'topLevelTurnId'> & { iterationNumber: number };
 
 interface StartHookResult {
 	/**
@@ -177,6 +177,7 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 	private chatSessionIdForTools: string | undefined;
 	private toolsAvailableEmitted = false;
 	private lastHeaderRequestId: string | undefined;
+	private lastModelCallId: string | undefined;
 
 	public appendAdditionalHookContext(context: string): void {
 		if (!context) {
@@ -275,6 +276,7 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 			modeInstructions: this.options.request.modeInstructions2,
 			additionalHookContext: this.additionalHookContext,
 			parentHeaderRequestId: this.lastHeaderRequestId,
+			parentModelCallId: this.lastModelCallId,
 		};
 	}
 
@@ -770,7 +772,7 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 					...(chatSessionId ? { [CopilotChatAttr.CHAT_SESSION_ID]: chatSessionId } : {}),
 					...(parentChatSessionId ? { [CopilotChatAttr.PARENT_CHAT_SESSION_ID]: parentChatSessionId } : {}),
 					...(debugLogLabel ? { [CopilotChatAttr.DEBUG_LOG_LABEL]: debugLogLabel } : {}),
-					...(customModeName ? { 'copilot_chat.mode_name': customModeName } : {}),
+					...(customModeName ? { [CopilotChatAttr.MODE_NAME]: customModeName } : {}),
 					...workspaceMetadataToOTelAttributes(resolveWorkspaceOTelMetadata(this._gitService)),
 				},
 				parentTraceContext,
@@ -829,16 +831,17 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 				// Always capture user input message for the debug panel
 				{
 					const userMessage = this.turn.request.message;
+					const maxLen = this._otelService.config.maxAttributeSizeChars;
 					span.setAttribute(GenAiAttr.INPUT_MESSAGES, truncateForOTel(JSON.stringify([
 						{ role: 'user', parts: [{ type: 'text', content: userMessage }] }
-					])));
+					]), maxLen));
 					// Set USER_REQUEST so event translator can emit user.message
 					if (userMessage) {
-						span.setAttribute(CopilotChatAttr.USER_REQUEST, truncateForOTel(userMessage));
+						span.setAttribute(CopilotChatAttr.USER_REQUEST, truncateForOTel(userMessage, maxLen));
 					}
 					// Emit user_message span event for real-time debug panel streaming
 					if (userMessage) {
-						span.addEvent('user_message', { content: userMessage, ...(chatSessionId ? { [CopilotChatAttr.CHAT_SESSION_ID]: chatSessionId } : {}) });
+						span.addEvent('user_message', { content: truncateForOTel(userMessage, maxLen), ...(chatSessionId ? { [CopilotChatAttr.CHAT_SESSION_ID]: chatSessionId } : {}) });
 					}
 				}
 
@@ -1357,7 +1360,8 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 		markChatExt(this.options.conversation.sessionId, ChatExtPerfMark.WillFetch);
 		const fetchResult = await this.fetch({
 			messages: this.applyMessagePostProcessing(effectiveBuildPromptResult.messages, { stripOrphanedToolCalls: isGeminiFamily(endpoint) }),
-			turnId: this.turn.id,
+			turnId: this.options.request.id,
+			topLevelTurnId: this.options.request.parentRequestId ?? this.turn.id,
 			summarizedAtRoundId,
 			finishedCb: async (text, index, delta) => {
 				fetchStreamSource?.update(text, delta);
@@ -1393,6 +1397,7 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 				})),
 			},
 			userInitiatedRequest: (iterationNumber === 0 && !isContinuation && !this.options.request.subAgentInvocationId && !this.options.request.isSystemInitiated) || this.stopHookUserInitiated,
+			iterationNumber,
 			modelCapabilities: {
 				enableThinking,
 			},
@@ -1401,12 +1406,14 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 		});
 		markChatExt(this.options.conversation.sessionId, ChatExtPerfMark.DidFetch);
 
-		// Store the headerRequestId from the fetch response for subagent telemetry linking.
-		// Use requestId (the client-generated UUID sent as X-Request-Id header), not serverRequestId
-		// (the server's response header value), because requestId is what appears as headerRequestId
-		// across all telemetry events.
+		// Store the server-echoed headerRequestId from the fetch response for subagent telemetry linking.
+		// Prefer serverRequestId (the server's x-request-id response header) because it matches
+		// chatCompletion.requestId.headerRequestId which is reported as `requestId` in response.success.
+		// Fall back to requestId (client-generated UUID) if the server didn't echo the header.
+		// Use || instead of ?? because getRequestId() returns '' for missing headers.
 		if (fetchResult.type === ChatFetchResponseType.Success) {
-			this.lastHeaderRequestId = fetchResult.requestId;
+			this.lastHeaderRequestId = fetchResult.serverRequestId || fetchResult.requestId;
+			this.lastModelCallId = fetchResult.modelCallId;
 		}
 
 		const promptTokenDetails = await computePromptTokenDetails({
@@ -1445,9 +1452,8 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 
 		const toolInputRetry = isToolInputFailure ? (this.toolCallRounds.at(-1)?.toolInputRetry || 0) + 1 : 0;
 		if (fetchResult.type === ChatFetchResponseType.Success) {
-			// Store token usage metadata for Anthropic models using Messages API
-			if (fetchResult.usage && isAnthropicFamily(endpoint)) {
-				this.turn.setMetadata(new AnthropicTokenUsageMetadata(
+			if (fetchResult.usage) {
+				this.turn.setMetadata(new TurnTokenUsageMetadata(
 					fetchResult.usage.prompt_tokens,
 					fetchResult.usage.completion_tokens
 				));
@@ -1478,7 +1484,7 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 					statefulMarker,
 					thinking: thinkingItem,
 					phase,
-					phaseModelId: phase ? endpoint.model : undefined,
+					modelId: endpoint.model,
 					compaction,
 				}),
 				chatResult,

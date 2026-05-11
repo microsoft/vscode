@@ -78,6 +78,7 @@ import '../../../../contrib/inlineChat/browser/media/inlineChat.css';
 import '../../../../contrib/chat/browser/widget/media/chat.css';
 import '../../../../../editor/contrib/zoneWidget/browser/zoneWidget.css';
 import '../../../../../base/browser/ui/codicons/codiconStyles.js';
+import { MockChatModeService } from '../../../../contrib/chat/test/common/mockChatModeService.js';
 
 const SAMPLE_CODE = `import { useState, useEffect } from 'react';
 
@@ -222,12 +223,10 @@ function renderInlineChatZoneWidget({ container, disposableStore, theme }: Compo
 				override readonly sentimentObs = observableValue('sentiment', { completed: true });
 				override readonly anonymousObs = observableValue('anonymous', false);
 				override readonly onDidChangeAnonymous = Event.None;
+				override readonly quotas = {};
+				override readonly onDidChangeQuotaRemaining = Event.None;
 			}());
-			reg.defineInstance(IChatModeService, new class extends mock<IChatModeService>() {
-				override readonly onDidChangeChatModes = Event.None;
-				override getModes() { return { builtin: [], custom: [] }; }
-				override findModeById() { return undefined; }
-			}());
+			reg.defineInstance(IChatModeService, new MockChatModeService());
 			reg.defineInstance(IChatSessionsService, new class extends mock<IChatSessionsService>() {
 				override getAllChatSessionContributions() { return []; }
 				override readonly onDidChangeSessionOptions = Event.None;
@@ -400,7 +399,7 @@ function renderInlineChatZoneWidget({ container, disposableStore, theme }: Compo
 
 	zoneWidget.show(new Position(10, 1));
 
-	const dummyModel = instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.EditorInline, canUseTools: false });
+	const dummyModel = disposableStore.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.EditorInline, canUseTools: false }));
 	zoneWidget.widget.chatWidget.setModel(dummyModel);
 	zoneWidget.widget.chatWidget.setInputPlaceholder('Ask Copilot...');
 

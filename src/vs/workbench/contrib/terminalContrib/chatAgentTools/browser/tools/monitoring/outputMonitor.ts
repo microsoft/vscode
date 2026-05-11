@@ -20,6 +20,14 @@ export interface IOutputMonitor extends Disposable {
 
 	readonly onDidFinishCommand: Event<void>;
 	readonly onDidDetectInputNeeded: Event<void>;
+	/**
+	 * Fires when the terminal is detected to be waiting for sensitive input
+	 * (e.g. a password, passphrase, token, secret or verification code). This
+	 * is fired *instead of* {@link onDidDetectInputNeeded} so callers can show
+	 * UI that focuses the terminal rather than routing the prompt through the
+	 * agent.
+	 */
+	readonly onDidDetectSensitiveInputNeeded: Event<void>;
 }
 
 export interface IOutputMonitorTelemetryCounters {
@@ -97,6 +105,9 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 
 	private readonly _onDidDetectInputNeeded = this._register(new Emitter<void>());
 	readonly onDidDetectInputNeeded: Event<void> = this._onDidDetectInputNeeded.event;
+
+	private readonly _onDidDetectSensitiveInputNeeded = this._register(new Emitter<void>());
+	readonly onDidDetectSensitiveInputNeeded: Event<void> = this._onDidDetectSensitiveInputNeeded.event;
 
 	private _asyncMode = false;
 	private _command = '';
@@ -374,8 +385,13 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		// (passwords, [Y/n], etc.) and signal the agent to handle via send_to_terminal.
 		if (this._asyncMode) {
 			if (detectsInputRequiredPattern(outputLastLine)) {
-				this._logService.trace('OutputMonitor: Async mode - input-required pattern detected, signaling agent');
-				this._onDidDetectInputNeeded.fire();
+				if (detectsSensitiveInputPrompt(outputLastLine)) {
+					this._logService.trace('OutputMonitor: Async mode - sensitive input prompt detected, signaling sensitive UI');
+					this._onDidDetectSensitiveInputNeeded.fire();
+				} else {
+					this._logService.trace('OutputMonitor: Async mode - input-required pattern detected, signaling agent');
+					this._onDidDetectInputNeeded.fire();
+				}
 			}
 			this._cleanupIdleInputListener();
 			return { shouldContinuePolling: false, output };
@@ -384,10 +400,17 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		// Use regex-based detection for input-required patterns (passwords, [Y/n], etc.)
 		// In foreground mode, fire the event so the race in runInTerminalTool can pick it
 		// up and return control to the agent (which uses send_to_terminal to provide input).
-		// No elicitation UI is shown — the agent handles it autonomously.
+		// For sensitive prompts (passwords, secrets, OTPs, …) we instead fire a separate
+		// event so the tool can show a confirmation dialog that focuses the terminal —
+		// the secret must never be routed through the model.
 		if (detectsInputRequiredPattern(outputLastLine)) {
-			this._logService.trace('OutputMonitor: Input-required pattern detected, signaling agent');
-			this._onDidDetectInputNeeded.fire();
+			if (detectsSensitiveInputPrompt(outputLastLine)) {
+				this._logService.trace('OutputMonitor: Sensitive input prompt detected, signaling sensitive UI');
+				this._onDidDetectSensitiveInputNeeded.fire();
+			} else {
+				this._logService.trace('OutputMonitor: Input-required pattern detected, signaling agent');
+				this._onDidDetectInputNeeded.fire();
+			}
 			this._cleanupIdleInputListener();
 			return { shouldContinuePolling: false, output };
 		}
@@ -403,9 +426,13 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	}
 
 	private async _handleTimeoutState(_command: string, _invocationContext: IToolInvocationContext | undefined, _extended: boolean, _token: CancellationToken): Promise<boolean> {
-		// Stop after extended polling (2 minutes) without notifying user
 		if (_extended) {
-			this._logService.info('OutputMonitor: Extended polling timeout reached after 2 minutes');
+			// Extended polling (2 minutes) expired while the process was still
+			// running. Rather than silently cancelling, signal that input may be
+			// needed so the agent sees the current output and can decide how to
+			// proceed (e.g. answer an unrecognised interactive prompt).
+			this._logService.info('OutputMonitor: Extended polling timeout reached after 2 minutes, signaling potential input needed');
+			this._onDidDetectInputNeeded.fire();
 			this._state = OutputMonitorState.Cancelled;
 			return false;
 		}
@@ -537,8 +564,19 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	}
 
 	private _isSensitivePrompt(prompt: string): boolean {
-		return /(password|passphrase|token|api\s*key|secret)/i.test(prompt);
+		return detectsSensitiveInputPrompt(prompt);
 	}
+}
+
+/**
+ * Returns true when the terminal's last visible line looks like a prompt for
+ * a sensitive secret (password, passphrase, token, API key, OTP, etc.). Used
+ * to short-circuit the normal "input needed → return to agent" flow so that
+ * the secret is never routed through the model — instead the user is asked
+ * via UI to focus the terminal and type the secret directly.
+ */
+export function detectsSensitiveInputPrompt(cursorLine: string): boolean {
+	return /(password|passphrase|token|api\s*key|secret|verification code|otp\b|one[\s-]?time (?:code|password)|2fa|mfa|pin\s*(?:code|number)?[: ]?\s*$|authentication code)/i.test(cursorLine);
 }
 
 export function matchTerminalPromptOption(options: readonly string[], suggestedOption: string): { option: string | undefined; index: number } {
@@ -599,11 +637,25 @@ export function detectsHighConfidenceInputPattern(cursorLine: string): boolean {
 		/:\s*\([^)]*\) +$/,
 		// Line contains (END) which is common in pagers
 		/\(END\)$/,
-		// Password prompt (must be followed by optional colon and trailing space to indicate
-		// an active prompt; otherwise normal output containing the word "password" would match).
-		/password:? +$/i,
+		// Password prompt. Requires a trailing colon (e.g. "Password:", "[sudo] password for user:")
+		// and tolerates zero or more trailing spaces — xterm's `translateToString(trimRight=true)`
+		// strips trailing whitespace from non-wrapped buffer lines, so a real `Password: ` prompt
+		// is captured from the buffer as `Password:` with no trailing space.
+		/password(?: for [^:]+)?:\s*$/i,
 		// "Press a key" or "Press any key"
 		/press a(?:ny)? key/i,
+		// Interactive prompt libraries (prompts, enquirer, inquirer) prefix the prompt with
+		// '? ' at the start of the line and end with a distinctive chevron character
+		// followed by optional trailing whitespace where the cursor is awaiting input.
+		// Anchoring the '?' to the start of the line (after optional whitespace/ANSI
+		// escapes) avoids false positives from normal output that contains both a '?'
+		// allow-any-unicode-next-line
+		// and a chevron (e.g. "What happened? ›").
+		// Examples:
+		//   "? Do you want to install jsdom? <chevron>"  (prompts)
+		//   "? Pick a color <chevron> "                  (enquirer)
+		// allow-any-unicode-next-line
+		/^(?:\s|\x1b\[[0-9;]*m)*\?.*[›❯▸▶]\s*$/,
 	].some(e => e.test(cursorLine));
 }
 

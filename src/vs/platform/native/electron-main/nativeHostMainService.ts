@@ -15,10 +15,9 @@ import { matchesSomeScheme, Schemas } from '../../../base/common/network.js';
 import { dirname, join, posix, resolve, win32 } from '../../../base/common/path.js';
 import { isLinux, isMacintosh, isWindows } from '../../../base/common/platform.js';
 import { AddFirstParameterToFunctions } from '../../../base/common/types.js';
-import { URI } from '../../../base/common/uri.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
 import { virtualMachineHint } from '../../../base/node/id.js';
 import { Promises, SymlinkSupport } from '../../../base/node/pfs.js';
-import { launchSiblingApp } from '../node/siblingApp.js';
 import { findFreePort, isPortFree } from '../../../base/node/ports.js';
 import { localize } from '../../../nls.js';
 import { ISerializableCommandAction } from '../../action/common/action.js';
@@ -305,41 +304,14 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		}, options);
 	}
 
-	async openAgentsWindow(windowId: number | undefined, options?: { readonly forceNewWindow?: boolean }): Promise<void> {
-		await this.windowsMainService.openAgentsWindow({
+	async openAgentsWindow(windowId: number | undefined, options?: { folderUri?: UriComponents }): Promise<void> {
+		const windows = await this.windowsMainService.openAgentsWindow({
 			context: OpenContext.API,
 			contextWindowId: windowId,
 			cli: this.environmentMainService.args,
-			forceNewWindow: options?.forceNewWindow,
-		});
-	}
-
-	async launchSiblingApp(_windowId: number | undefined, args?: string[]): Promise<void> {
-		const finalArgs = [...(args ?? [])];
-
-		// Forward transient dirs to the sibling app so it runs fully isolated
-		const agentsUserDataDir = this.environmentMainService.args['agents-user-data-dir'];
-		if (agentsUserDataDir) {
-			finalArgs.push('--user-data-dir', agentsUserDataDir);
-		}
-		const agentsExtensionsDir = this.environmentMainService.args['agents-extensions-dir'];
-		if (agentsExtensionsDir) {
-			finalArgs.push('--extensions-dir', agentsExtensionsDir);
-		}
-		const sharedDataDir = this.environmentMainService.args['shared-data-dir'];
-		if (sharedDataDir) {
-			finalArgs.push('--shared-data-dir', sharedDataDir);
-		}
-		const agentPluginsDir = this.environmentMainService.args['agent-plugins-dir'];
-		if (agentPluginsDir) {
-			finalArgs.push('--agent-plugins-dir', agentPluginsDir);
-		}
-
-		const result = launchSiblingApp(this.productService, finalArgs, err => {
-			this.logService.error('[launchSiblingApp] Failed to spawn sibling app:', err.message);
-		});
-		if (!result) {
-			this.logService.warn('[launchSiblingApp] Could not resolve sibling app on this platform');
+		}, options?.folderUri ? URI.revive(options.folderUri) : undefined);
+		if (windows.length > 0) {
+			windows[0].focus();
 		}
 	}
 

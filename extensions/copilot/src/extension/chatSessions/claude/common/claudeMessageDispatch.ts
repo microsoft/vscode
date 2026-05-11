@@ -19,6 +19,7 @@ import { ExternalEditTracker } from '../../../chatSessions/common/externalEditTr
 import { ToolName } from '../../../tools/common/toolNames';
 import { IToolsService } from '../../../tools/common/toolsService';
 import { ClaudeToolNames, claudeEditTools, getAffectedUrisForEditTool } from './claudeTools';
+import { IClaudePlanFileTracker } from './claudePlanFileTracker';
 import { IClaudeSessionStateService } from './claudeSessionStateService';
 import { completeToolInvocation, createFormattedToolInvocation } from './toolInvocationFormatter';
 
@@ -197,12 +198,32 @@ export function handleAssistantMessage(
 				}
 			}
 
-			if (request.editTracker && claudeEditTools.includes(item.name)) {
+			if (claudeEditTools.includes(item.name)) {
+				let uris: vscode.Uri[] = [];
 				try {
-					const uris = getAffectedUrisForEditTool(item.name, item.input);
-					void request.editTracker.trackEdit(item.id, uris, stream, request.token);
+					uris = getAffectedUrisForEditTool(item.name, item.input);
 				} catch (e) {
-					logService.warn(`[ClaudeMessageDispatch] Failed to track edit for ${item.name}: ${e}`);
+					logService.warn(`[ClaudeMessageDispatch] Failed to resolve affected URIs for ${item.name}: ${e}`);
+				}
+				if (request.editTracker) {
+					try {
+						void request.editTracker.trackEdit(item.id, uris, stream, request.token);
+					} catch (e) {
+						logService.warn(`[ClaudeMessageDispatch] Failed to track edit for ${item.name}: ${e}`);
+					}
+				}
+
+				// Record any plan-directory writes/edits so the
+				// ExitPlanMode permission handler can surface the plan
+				// file in the review widget. Hooked at the dispatch
+				// level (rather than inside the EditToolHandler) so we
+				// observe the call regardless of permission mode —
+				// `bypassPermissions` short-circuits `canUseTool`, and
+				// the SDK may write the plan file via internal paths
+				// that skip `canUseTool` entirely.
+				const planFileTracker = accessor.get(IClaudePlanFileTracker);
+				for (const uri of uris) {
+					planFileTracker.recordIfPlanFile(sessionId, uri.fsPath);
 				}
 			}
 
@@ -243,6 +264,7 @@ function logToolResult(
 	requestLogger: IRequestLogger,
 	otelToolSpans: Map<string, ISpanHandle>,
 	capturingToken: CapturingToken | undefined,
+	maxAttributeSizeChars: number,
 ): void {
 	// OTel span
 	const toolSpan = otelToolSpans.get(toolUseId);
@@ -250,13 +272,13 @@ function logToolResult(
 		if (toolResult.is_error) {
 			const errContent = typeof toolResult.content === 'string' ? toolResult.content : 'tool error';
 			toolSpan.setStatus(SpanStatusCode.ERROR, errContent);
-			toolSpan.setAttribute(GenAiAttr.TOOL_CALL_RESULT, truncateForOTel(`ERROR: ${errContent}`));
+			toolSpan.setAttribute(GenAiAttr.TOOL_CALL_RESULT, truncateForOTel(`ERROR: ${errContent}`, maxAttributeSizeChars));
 		} else {
 			toolSpan.setStatus(SpanStatusCode.OK);
 			if (toolResult.content !== undefined) {
 				try {
 					const result = typeof toolResult.content === 'string' ? toolResult.content : JSON.stringify(toolResult.content);
-					toolSpan.setAttribute(GenAiAttr.TOOL_CALL_RESULT, truncateForOTel(result));
+					toolSpan.setAttribute(GenAiAttr.TOOL_CALL_RESULT, truncateForOTel(result, maxAttributeSizeChars));
 				} catch (e) {
 					logService.warn(`[ClaudeMessageDispatch] Failed to serialize tool result: ${e}`);
 				}
@@ -293,6 +315,7 @@ function processToolResult(
 	const logService = accessor.get(ILogService);
 	const requestLogger = accessor.get(IRequestLogger);
 	const claudeSessionStateService = accessor.get(IClaudeSessionStateService);
+	const otelService = accessor.get(IOTelService);
 
 	const { stream } = request;
 	const { unprocessedToolCalls, otelToolSpans } = state;
@@ -313,7 +336,8 @@ function processToolResult(
 		logService,
 		requestLogger,
 		otelToolSpans,
-		claudeSessionStateService.getCapturingTokenForSession(sessionId)
+		claudeSessionStateService.getCapturingTokenForSession(sessionId),
+		otelService.config.maxAttributeSizeChars,
 	);
 
 	// Tool-specific handling
@@ -384,7 +408,7 @@ export function handleHookStarted(
 		kind: SpanKind.INTERNAL,
 		attributes: {
 			[GenAiAttr.OPERATION_NAME]: GenAiOperationName.EXECUTE_HOOK,
-			'copilot_chat.hook_type': message.hook_event,
+			[CopilotChatAttr.HOOK_TYPE]: message.hook_event,
 			'copilot_chat.hook_command': message.hook_name,
 			'copilot_chat.hook_id': message.hook_id,
 			[CopilotChatAttr.CHAT_SESSION_ID]: sessionId,
@@ -511,6 +535,7 @@ export function handleHookResponse(
 	state: MessageHandlerState,
 ): void {
 	const logService = accessor.get(ILogService);
+	const otelService = accessor.get(IOTelService);
 	// TODO: can we map these types better
 	const hookType = message.hook_event as ChatHookType;
 
@@ -528,7 +553,7 @@ export function handleHookResponse(
 			span.setAttribute('copilot_chat.hook_exit_code', message.exit_code);
 		}
 		if (message.output) {
-			span.setAttribute('copilot_chat.hook_output', truncateForOTel(message.output));
+			span.setAttribute('copilot_chat.hook_output', truncateForOTel(message.output, otelService.config.maxAttributeSizeChars));
 		}
 		span.end();
 		state.otelHookSpans.delete(message.hook_id);

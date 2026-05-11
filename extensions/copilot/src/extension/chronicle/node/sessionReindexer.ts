@@ -7,12 +7,18 @@ import * as l10n from '@vscode/l10n';
 import type { IChatDebugFileLoggerService, IDebugLogEntry } from '../../../platform/chat/common/chatDebugFileLoggerService';
 import type { ISessionStore, SessionRow, TurnRow, FileRow, RefRow } from '../../../platform/chronicle/common/sessionStore';
 import type { CancellationToken } from '../../../util/vs/base/common/cancellation';
+import type { SessionEvent } from '../common/cloudSessionTypes';
+import type { CloudSessionApiClient } from './cloudSessionApiClient';
+import type { CloudSessionIdStore } from './cloudSessionIdStore';
+import { createSessionTranslationState, translateDebugLogEntry, makeShutdownEvent } from '../common/eventTranslator';
+import { filterSecretsFromObj } from '../common/secretFilter';
 import {
 	MAX_ASSISTANT_RESPONSE_LENGTH,
 	MAX_SUMMARY_LENGTH,
 	MAX_USER_MESSAGE_LENGTH,
 	extractAssistantResponse,
 	extractFilePath,
+	extractPlainTextFromContent,
 	extractRefsFromMcpTool,
 	extractRefsFromTerminal,
 	extractRepoFromMcpTool,
@@ -261,7 +267,7 @@ function processAssistantResponse(
 
 	// Use first user message as summary if not yet set
 	if (!buffer.session?.summary && state.pendingUserMessage) {
-		const summary = truncateForStore(state.pendingUserMessage, MAX_SUMMARY_LENGTH);
+		const summary = truncateForStore(extractPlainTextFromContent(state.pendingUserMessage), MAX_SUMMARY_LENGTH);
 		if (!buffer.session) {
 			buffer.session = { id: sessionId, host_type: 'vscode' };
 		}
@@ -317,4 +323,212 @@ function processToolCall(
 			buffer.refs.push({ session_id: sessionId, ...ref, turn_index: state.turnIndex });
 		}
 	}
+}
+
+// ── Cloud reindex ────────────────────────────────────────────────────────────────
+
+/** Max events per upload batch. */
+const MAX_EVENTS_PER_UPLOAD = 500;
+
+/**
+ * Result of the cloud reindex phase.
+ */
+export interface CloudReindexResult {
+	/** Number of cloud sessions created. */
+	created: number;
+	/** Total number of events uploaded. */
+	eventsUploaded: number;
+	/** Number of sessions that failed cloud creation or upload. */
+	failed: number;
+	/** Number of sessions queued for analytics backfill. */
+	backfillQueued: number;
+	/** Whether the backfill API call failed. */
+	backfillFailed?: boolean;
+}
+
+/**
+ * Upload historical sessions to the cloud for sessions that lack a cloud
+ * counterpart. Follows the CLI reindex pattern:
+ *
+ * 1. For each local session not in {@link cloudSessionIds}: create cloud
+ *    session, stream JSONL entries, translate to cloud events, upload in
+ *    batches of 500.
+ * 2. After all sessions: single `backfillAnalytics()` call.
+ *
+ * All operations are non-blocking (yields between sessions) and bounded
+ * in memory (events are flushed in batches, buffers cleared after upload).
+ */
+export async function reindexCloudSessions(
+	cloudClient: CloudSessionApiClient,
+	cloudSessionIds: CloudSessionIdStore,
+	debugLogService: IChatDebugFileLoggerService,
+	ownerId: number,
+	repoId: number,
+	indexingLevel: 'user' | 'repo_and_user',
+	reportProgress: (message: string) => void,
+	token: CancellationToken,
+	isRepoExcluded?: (repoNwo: string) => boolean,
+): Promise<CloudReindexResult> {
+	const result: CloudReindexResult = {
+		created: 0,
+		eventsUploaded: 0,
+		failed: 0,
+		backfillQueued: 0,
+	};
+
+	await cloudSessionIds.load();
+	const sessionIds = await debugLogService.listSessionIds();
+	let processed = 0;
+
+	for (const sessionId of sessionIds) {
+		if (token.isCancellationRequested) {
+			break;
+		}
+
+		// Skip sessions already synced to cloud
+		if (cloudSessionIds.has(sessionId)) {
+			processed++;
+			continue;
+		}
+
+		processed++;
+		if (processed % 10 === 0) {
+			reportProgress(l10n.t('Cloud sync: {0}/{1} sessions scanned, {2} created...', processed, sessionIds.length, result.created));
+		}
+
+		try {
+			await reindexOneCloudSession(sessionId, cloudClient, cloudSessionIds, debugLogService, ownerId, repoId, indexingLevel, result, isRepoExcluded);
+		} catch {
+			result.failed++;
+		}
+
+		// Yield to event loop between sessions
+		await new Promise<void>(resolve => setTimeout(resolve, 0));
+	}
+
+	// Single bulk backfill call for all remote sessions
+	if (!token.isCancellationRequested) {
+		const backfillResult = await cloudClient.backfillAnalytics(indexingLevel);
+		if (backfillResult.ok) {
+			result.backfillQueued = backfillResult.sessionsQueued;
+		} else {
+			result.backfillFailed = true;
+		}
+	}
+
+	return result;
+}
+
+/**
+ * Process a single session for cloud reindex: create cloud session,
+ * stream entries, translate, upload in batches.
+ */
+async function reindexOneCloudSession(
+	sessionId: string,
+	cloudClient: CloudSessionApiClient,
+	cloudSessionIds: CloudSessionIdStore,
+	debugLogService: IChatDebugFileLoggerService,
+	ownerId: number,
+	repoId: number,
+	indexingLevel: 'user' | 'repo_and_user',
+	result: CloudReindexResult,
+	isRepoExcluded?: (repoNwo: string) => boolean,
+): Promise<void> {
+	// Stream entries, check repo exclusion, and translate to cloud events
+	const state = createSessionTranslationState();
+	const batch: SessionEvent[] = [];
+	let sessionRepo: string | undefined;
+	let excluded = false;
+
+	await debugLogService.streamEntries(sessionId, (entry: IDebugLogEntry) => {
+		// Extract repo from session_start for exclusion check
+		if (entry.type === 'session_start' && typeof entry.attrs.repository === 'string') {
+			sessionRepo = entry.attrs.repository;
+			if (isRepoExcluded) {
+				const nwo = extractNwoFromRepoString(sessionRepo);
+				if (nwo && isRepoExcluded(nwo)) {
+					excluded = true;
+				}
+			}
+		}
+		// Skip translation if repo is excluded
+		if (excluded) {
+			return;
+		}
+		const events = translateDebugLogEntry(entry, sessionId, state);
+		for (const event of events) {
+			batch.push(event);
+		}
+	});
+
+	if (excluded) {
+		batch.length = 0;
+		return;
+	}
+
+	// Create cloud session
+	const createResult = await cloudClient.createSession(ownerId, repoId, sessionId, indexingLevel);
+	if (!createResult.ok || !createResult.response.task_id) {
+		result.failed++;
+		batch.length = 0;
+		return;
+	}
+
+	const cloudSessionId = createResult.response.id;
+	const cloudTaskId = createResult.response.task_id;
+
+	// Add shutdown event
+	if (state.started) {
+		batch.push(makeShutdownEvent(state));
+	}
+
+	// Upload in batches
+	let uploaded = 0;
+	let uploadFailed = false;
+	for (let i = 0; i < batch.length; i += MAX_EVENTS_PER_UPLOAD) {
+		const chunk = batch.slice(i, i + MAX_EVENTS_PER_UPLOAD);
+		const filtered = chunk.map(e => filterSecretsFromObj(e));
+		const success = await cloudClient.submitSessionEvents(cloudSessionId, filtered);
+		if (success) {
+			uploaded += chunk.length;
+		} else {
+			uploadFailed = true;
+			break;
+		}
+	}
+
+	// Clear batch to release memory
+	batch.length = 0;
+
+	// Only persist IDs and count as created when all chunks uploaded successfully.
+	// If upload failed, leave the session eligible for retry on next reindex.
+	if (uploadFailed) {
+		result.failed++;
+	} else {
+		cloudSessionIds.set(sessionId, { cloudSessionId, cloudTaskId });
+		result.created++;
+	}
+	result.eventsUploaded += uploaded;
+}
+
+/**
+ * Extract `owner/repo` from a repository string that may be a full URL
+ * (e.g. `https://github.com/owner/repo.git`) or already `owner/repo`.
+ */
+function extractNwoFromRepoString(repo: string): string | undefined {
+	// Already in owner/repo format
+	if (/^[^/]+\/[^/]+$/.test(repo)) {
+		return repo;
+	}
+	// URL format: extract from path
+	try {
+		const url = new URL(repo);
+		const parts = url.pathname.replace(/\.git$/, '').split('/').filter(Boolean);
+		if (parts.length >= 2) {
+			return `${parts[0]}/${parts[1]}`;
+		}
+	} catch {
+		// Not a valid URL
+	}
+	return undefined;
 }

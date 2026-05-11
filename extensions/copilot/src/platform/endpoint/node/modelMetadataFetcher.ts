@@ -93,7 +93,12 @@ export class ModelMetadataFetcher extends Disposable implements IModelMetadataFe
 		super();
 		this._register(this._authService.onDidAuthenticationChange(() => {
 			// Auth changed so next fetch should be forced to get a new list
-			this._familyMap.clear();
+
+			// Only clear the family map if the copilot token is undefined, as this means the user has logged out and we should clear the models, otherwise we want to keep the old models around until we get a new list
+			if (this._authService.copilotToken === undefined) {
+				this._familyMap.clear();
+			}
+
 			this._completionsFamilyMap.clear();
 			this._lastFetchTime = 0;
 		}));

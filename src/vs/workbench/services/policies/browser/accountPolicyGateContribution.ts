@@ -145,7 +145,6 @@ export class AccountPolicyGateContribution extends Disposable implements IWorkbe
 			return;
 		}
 
-		const reason = info.reason;
 		const accountName = this.defaultAccountService.currentDefaultAccount?.accountName;
 		const approvedOrgs = info.approvedOrganizations ?? [];
 		const hasConcreteOrgs = approvedOrgs.length > 0 && !approvedOrgs.includes('*');
@@ -153,34 +152,30 @@ export class AccountPolicyGateContribution extends Disposable implements IWorkbe
 		// Notifications render as plain inline text — comma-separate orgs.
 		const orgList = approvedOrgs.join(', ');
 		let message: string;
-		if (reason === AccountPolicyGateUnsatisfiedReason.OrgNotApproved) {
-			if (accountName && hasConcreteOrgs) {
-				message = localize(
-					'accountPolicy.notification.orgWithAccount',
-					"The account \"{0}\" is not a member of an approved organization ({1}). Sign into an approved GitHub account to use AI features. Contact your administrator for more information.",
-					accountName,
-					orgList
-				);
-			} else if (accountName) {
-				message = localize(
-					'accountPolicy.notification.orgWithAccountNoList',
-					"The account \"{0}\" is not a member of an approved organization. Sign into an approved GitHub account to use AI features. Contact your administrator for more information.",
-					accountName
-				);
-			} else {
-				message = localize('accountPolicy.notification.org', "Sign in with a GitHub account from an approved organization to use AI features. Contact your administrator for more information.");
-			}
+		if (accountName && hasConcreteOrgs) {
+			message = localize(
+				'accountPolicy.notification.orgWithAccount',
+				"Your administrator restricts AI features to GitHub accounts in the following organizations: {0}. The account \"{1}\" is not a member of any of these.",
+				orgList,
+				accountName
+			);
+		} else if (accountName) {
+			message = localize(
+				'accountPolicy.notification.orgWithAccountNoList',
+				"Your administrator restricts AI features to specific GitHub accounts. The account \"{0}\" does not qualify.",
+				accountName
+			);
+		} else if (hasConcreteOrgs) {
+			message = localize(
+				'accountPolicy.notification.signinWithOrgs',
+				"Your administrator restricts AI features to GitHub accounts in the following organizations: {0}.",
+				orgList
+			);
 		} else {
-			// noAccount / wrongProvider
-			if (hasConcreteOrgs) {
-				message = localize(
-					'accountPolicy.notification.signinWithOrgs',
-					"Sign in with a GitHub account from an approved organization ({0}) to use AI features.",
-					orgList
-				);
-			} else {
-				message = localize('accountPolicy.notification.signin', "Sign in with an approved GitHub account to use AI features. Contact your administrator for more information.");
-			}
+			message = localize(
+				'accountPolicy.notification.signin',
+				"Your administrator restricts AI features to specific GitHub accounts."
+			);
 		}
 
 		const handleDisposables = new DisposableStore();

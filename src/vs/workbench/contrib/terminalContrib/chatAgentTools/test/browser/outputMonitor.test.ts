@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { detectsGenericPressAnyKeyPattern, detectsHighConfidenceInputPattern, detectsInputRequiredPattern, detectsNonInteractiveHelpPattern, detectsVSCodeTaskFinishMessage, getLastLine, matchTerminalPromptOption, OutputMonitor } from '../../browser/tools/monitoring/outputMonitor.js';
+import { detectsGenericPressAnyKeyPattern, detectsHighConfidenceInputPattern, detectsInputRequiredPattern, detectsNonInteractiveHelpPattern, detectsSensitiveInputPrompt, detectsVSCodeTaskFinishMessage, getLastLine, matchTerminalPromptOption, OutputMonitor } from '../../browser/tools/monitoring/outputMonitor.js';
 import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IExecution, IPollingResult, OutputMonitorState } from '../../browser/tools/monitoring/types.js';
@@ -233,6 +233,60 @@ suite('OutputMonitor', () => {
 		});
 	});
 
+	test('sensitive prompt fires onDidDetectSensitiveInputNeeded and not onDidDetectInputNeeded', async () => {
+		return runWithFakedTimers({}, async () => {
+			execution.getOutput = () => 'Password: ';
+			monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined, createTestContext('1'), cts.token, 'test command'));
+
+			let inputNeededFired = false;
+			let sensitiveFired = false;
+			store.add(monitor.onDidDetectInputNeeded(() => { inputNeededFired = true; }));
+			store.add(monitor.onDidDetectSensitiveInputNeeded(() => { sensitiveFired = true; }));
+
+			await Event.toPromise(monitor.onDidFinishCommand);
+
+			assert.strictEqual(sensitiveFired, true, 'onDidDetectSensitiveInputNeeded should fire for sensitive prompts');
+			assert.strictEqual(inputNeededFired, false, 'onDidDetectInputNeeded must not fire for sensitive prompts so the secret is not routed to the agent');
+		});
+	});
+
+	test('detectsSensitiveInputPrompt matches common secret prompts', () => {
+		assert.strictEqual(detectsSensitiveInputPrompt('Password: '), true);
+		assert.strictEqual(detectsSensitiveInputPrompt('[sudo] password for jdoe: '), true);
+		assert.strictEqual(detectsSensitiveInputPrompt('Passphrase for key /Users/foo/.ssh/id_rsa: '), true);
+		assert.strictEqual(detectsSensitiveInputPrompt('Enter your API key: '), true);
+		assert.strictEqual(detectsSensitiveInputPrompt('Token: '), true);
+		assert.strictEqual(detectsSensitiveInputPrompt('Verification code: '), true);
+		assert.strictEqual(detectsSensitiveInputPrompt('Enter OTP: '), true);
+		assert.strictEqual(detectsSensitiveInputPrompt('One-time code: '), true);
+		assert.strictEqual(detectsSensitiveInputPrompt('Enter your 2FA code: '), true);
+		assert.strictEqual(detectsSensitiveInputPrompt('Enter MFA code: '), true);
+
+		assert.strictEqual(detectsSensitiveInputPrompt('Continue? (y/n) '), false);
+		assert.strictEqual(detectsSensitiveInputPrompt('Press any key to continue...'), false);
+		assert.strictEqual(detectsSensitiveInputPrompt('Enter your name: '), false);
+		assert.strictEqual(detectsSensitiveInputPrompt('package name: (test_npm_init) '), false);
+	});
+
+	test('extended timeout with isActive fires onDidDetectInputNeeded', async () => {
+		return runWithFakedTimers({}, async () => {
+			// Simulate a process that stays active with output that doesn't
+			// match any input-required pattern — the extended timeout should
+			// fire onDidDetectInputNeeded so the agent can assess the output.
+			execution.isActive = async () => true;
+			execution.getOutput = () => 'Some unrecognised prompt waiting for input';
+
+			monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined, createTestContext('1'), cts.token, 'test command'));
+
+			let inputNeededFired = false;
+			store.add(monitor.onDidDetectInputNeeded(() => { inputNeededFired = true; }));
+
+			await Event.toPromise(monitor.onDidFinishCommand);
+			assert.strictEqual(inputNeededFired, true, 'onDidDetectInputNeeded should fire on extended timeout with active process');
+			assert.strictEqual(monitor.pollingResult?.state, OutputMonitorState.Cancelled);
+		});
+	});
+
 	test('non-interactive help on the last line stops monitoring before custom polling', async () => {
 		return runWithFakedTimers({}, async () => {
 			execution.getOutput = () => 'Build complete successfully\npress h + enter to show help';
@@ -354,6 +408,44 @@ suite('OutputMonitor', () => {
 			assert.strictEqual(detectsInputRequiredPattern('license: (ISC) '), true);
 		});
 
+		test('detects chevron prompts from prompts/enquirer/inquirer libraries', () => {
+			// vitest / npm-style "prompts" library uses U+203A SINGLE RIGHT-POINTING ANGLE QUOTATION MARK
+			// allow-any-unicode-next-line
+			assert.strictEqual(detectsInputRequiredPattern('? Do you want to install jsdom? ›'), true);
+			// allow-any-unicode-next-line
+			assert.strictEqual(detectsInputRequiredPattern('? Do you want to install jsdom? › '), true);
+			// inquirer / enquirer uses U+276F HEAVY RIGHT-POINTING ANGLE QUOTATION MARK
+			// allow-any-unicode-next-line
+			assert.strictEqual(detectsInputRequiredPattern('? Pick a color ❯ '), true);
+			// allow-any-unicode-next-line
+			assert.strictEqual(detectsInputRequiredPattern('? Pick a color ❯'), true);
+			// Other chevron variants prefixed with '?'
+			// allow-any-unicode-next-line
+			assert.strictEqual(detectsInputRequiredPattern('? Project name ▸ '), true);
+			// allow-any-unicode-next-line
+			assert.strictEqual(detectsInputRequiredPattern('? Choose ▶ '), true);
+
+			// No match if the user has already typed a response after the chevron
+			// allow-any-unicode-next-line
+			assert.strictEqual(detectsInputRequiredPattern('? Do you want to install jsdom? › yes'), false);
+			// allow-any-unicode-next-line
+			assert.strictEqual(detectsInputRequiredPattern('? Pick a color ❯ red'), false);
+
+			// No match for chevrons in normal output without a leading '?'
+			// allow-any-unicode-next-line
+			assert.strictEqual(detectsInputRequiredPattern('  feature/foo ❯ main'), false);
+			// allow-any-unicode-next-line
+			assert.strictEqual(detectsInputRequiredPattern('Project name ▸ '), false);
+
+			// No match when '?' appears mid-line (not as a prompt prefix)
+			// allow-any-unicode-next-line
+			assert.strictEqual(detectsInputRequiredPattern('What happened? ›'), false);
+
+			// Match when prompt is prefixed with ANSI escape codes (colored output)
+			// allow-any-unicode-next-line
+			assert.strictEqual(detectsInputRequiredPattern('\x1b[32m? Choose a framework \x1b[0m›'), true);
+		});
+
 		test('detects trailing questions', () => {
 			assert.strictEqual(detectsInputRequiredPattern('Continue? '), true);
 			assert.strictEqual(detectsInputRequiredPattern('Proceed?   '), true);
@@ -403,6 +495,13 @@ suite('OutputMonitor', () => {
 		});
 		test('matches password and press-any-key prompts', () => {
 			assert.strictEqual(detectsHighConfidenceInputPattern('Password: '), true);
+			// xterm's translateToString(trimRight=true) strips trailing whitespace from
+			// non-wrapped buffer lines, so a real `Password: ` prompt is captured as
+			// `Password:` with no trailing space (e.g. when running `sudo su`).
+			assert.strictEqual(detectsHighConfidenceInputPattern('Password:'), true);
+			// The colon is required: a bare line ending with the word "password" should
+			// not match (avoids false positives on log/help output that mentions the word).
+			assert.strictEqual(detectsHighConfidenceInputPattern('Enter your password'), false);
 			assert.strictEqual(detectsHighConfidenceInputPattern('Press any key to continue...'), true);
 		});
 		test('matches parenthesized defaults', () => {

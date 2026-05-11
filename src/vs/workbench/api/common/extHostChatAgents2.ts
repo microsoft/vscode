@@ -420,7 +420,10 @@ export class ChatAgentResponseStream {
 							checkProposedApiEnabled(that._extension, 'chatParticipantAdditions');
 
 							dto.resolveId = generateUuid();
+						}
+						_report(dto);
 
+						if (part.resolve) {
 							const cts = new CancellationTokenSource();
 							part.resolve(cts.token)
 								.then(() => {
@@ -430,7 +433,6 @@ export class ChatAgentResponseStream {
 								.then(() => cts.dispose(), () => cts.dispose());
 							that._sessionDisposables.add(toDisposable(() => cts.dispose(true)));
 						}
-						_report(dto);
 					} else if (part instanceof extHostTypes.ChatResponseExternalEditPart) {
 						const p = this.externalEdit(part.uris, part.callback);
 						p.then((value) => part.didGetApplied(value));
@@ -545,6 +547,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 			model: dto.model,
 			userInvocable: dto.userInvocable,
 			disableModelInvocation: dto.disableModelInvocation,
+			enabled: dto.enabled,
 		});
 	}
 
@@ -571,6 +574,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 			pluginUri: dto.pluginUri ? URI.revive(dto.pluginUri) : undefined,
 			sessionTypes: dto.sessionTypes,
 			userInvocable: dto.userInvocable,
+			disableModelInvocation: dto.disableModelInvocation,
 		});
 	}
 
@@ -589,7 +593,13 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 	}
 
 	private toHook(dto: IHookDto): vscode.ChatHook {
-		return Object.freeze({ uri: URI.revive(dto.uri), sessionTypes: dto.sessionTypes });
+		return Object.freeze({
+			uri: URI.revive(dto.uri),
+			sessionTypes: dto.sessionTypes,
+			source: dto.source,
+			extensionId: dto.extensionId,
+			pluginUri: dto.pluginUri ? URI.revive(dto.pluginUri) : undefined,
+		});
 	}
 
 	private toPlugin(dto: IPluginDto): vscode.ChatPlugin {
@@ -830,7 +840,10 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 				description: item.description,
 				groupKey: item.groupKey,
 				badge: item.badge,
-				badgeTooltip: item.badgeTooltip
+				badgeTooltip: item.badgeTooltip,
+				extensionId: item.extensionId,
+				pluginUri: item.pluginUri,
+				userInvocable: item.userInvocable,
 			} satisfies IChatSessionCustomizationItemDto));
 		} catch (err) {
 			return undefined;

@@ -78,9 +78,11 @@ export class RouterDecisionFetcher {
 		if (hasImage) {
 			requestBody.has_image = true;
 		}
-		const copilotToken = (await this._authService.getCopilotToken()).token;
+		const copilotTokenObj = await this._authService.getCopilotToken();
+		const copilotToken = copilotTokenObj.token;
+		requestBody.copilot_plan = copilotTokenObj.rawCopilotPlan;
 		const abortController = new AbortController();
-		const timeout = setTimeout(() => abortController.abort(), 1000);
+		const timeout = setTimeout(() => abortController.abort(), 2500);
 		let response: Response;
 		try {
 			response = await this._capiClientService.makeRequest<Response>({
@@ -183,6 +185,7 @@ export class RouterDecisionFetcher {
 				candidateModel: result.candidate_models?.[0] ?? '',
 				chosenModel: result.chosen_model ?? '',
 				candidateModels: JSON.stringify(result.candidate_models ?? []),
+				availableModels: JSON.stringify(availableModels),
 				stickyOverrideStr: String(result.sticky_override ?? false),
 				hydraScores: result.hydra_scores ? JSON.stringify(result.hydra_scores) : 'null',
 				binaryScores: JSON.stringify(result.scores),

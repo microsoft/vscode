@@ -517,7 +517,7 @@ describe('createResponsesRequestBody', () => {
 		services.set(IChatWebSocketManager, wsManager);
 		const accessor = services.createTestingAccessor();
 		const instantiationService = accessor.get(IInstantiationService);
-		const websocketEndpoint = { ...testEndpoint, family: 'gpt-5.5-preview', model: 'gpt-5.5-preview' as const };
+		const websocketEndpoint = { ...testEndpoint, family: 'gpt-5.5', model: 'gpt-5.5' as const };
 		const messages: Raw.ChatMessage[] = [
 			{
 				role: Raw.ChatRole.User,
@@ -559,7 +559,7 @@ describe('createResponsesRequestBody', () => {
 		services.set(IChatWebSocketManager, wsManager);
 		const accessor = services.createTestingAccessor();
 		const instantiationService = accessor.get(IInstantiationService);
-		const websocketEndpoint = { ...testEndpoint, family: 'gpt-5.4-preview', model: 'gpt-5.4-preview' as const };
+		const websocketEndpoint = { ...testEndpoint, family: 'gpt-5.4', model: 'gpt-5.4' as const };
 
 		wsManager.getStatefulMarker = () => 'resp-agent-1';
 		const planMessages: Raw.ChatMessage[] = [
@@ -775,7 +775,7 @@ describe('createResponsesRequestBody', () => {
 		const instantiationService = accessor.get(IInstantiationService);
 		const configService = accessor.get(IConfigurationService) as InMemoryConfigurationService;
 		configService.setConfig(ConfigKey.ResponsesApiToolSearchEnabled, true);
-		const endpoint = { ...testEndpoint, model: 'gpt-5.4-preview', family: 'gpt-5.4-preview' };
+		const endpoint = { ...testEndpoint, model: 'gpt-5.4', family: 'gpt-5.4' };
 		const tools = [
 			{ type: 'function' as const, function: { name: 'tool_search', description: 'Search tools', parameters: {} } },
 			{ type: 'function' as const, function: { name: 'some_mcp_tool', description: 'MCP tool', parameters: {} } },
