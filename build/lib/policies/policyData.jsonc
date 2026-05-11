@@ -350,7 +350,7 @@
             "key": "chat.agent.sandbox.allowUnsandboxedCommands",
             "name": "ChatAgentSandboxAllowUnsandboxedCommands",
             "category": "IntegratedTerminal",
-            "minimumVersion": "1.116",
+            "minimumVersion": "1.120",
             "localization": {
                 "description": {
                     "key": "agentSandbox.allowUnsandboxedCommands",
@@ -365,7 +365,7 @@
             "key": "chat.agent.sandbox.autoApproveUnsandboxedCommands",
             "name": "ChatAgentSandboxAutoApproveUnsandboxedCommands",
             "category": "IntegratedTerminal",
-            "minimumVersion": "1.116",
+            "minimumVersion": "1.120",
             "localization": {
                 "description": {
                     "key": "agentSandbox.autoApproveUnsandboxedCommands",
@@ -380,7 +380,7 @@
             "key": "chat.agent.sandbox.allowAutoApprove",
             "name": "ChatAgentSandboxAllowAutoApprove",
             "category": "IntegratedTerminal",
-            "minimumVersion": "1.116",
+            "minimumVersion": "1.120",
             "localization": {
                 "description": {
                     "key": "agentSandbox.allowAutoApprove",
