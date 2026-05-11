@@ -64,7 +64,7 @@ registerAction2(class CopyFilenameCommandAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor, fileMatch: ISearchTreeFileMatch | ISearchTreeFolderMatchWithResource | undefined): Promise<any> {
-		await copyFilenameCommand(accessor, fileMatch);
+		await copyBasenameCommand(accessor, fileMatch);
 	}
 });
 
@@ -87,7 +87,7 @@ registerAction2(class CopyFolderNameCommandAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor, fileMatch: ISearchTreeFileMatch | ISearchTreeFolderMatchWithResource | undefined): Promise<any> {
-		await copyFilenameCommand(accessor, fileMatch);
+		await copyBasenameCommand(accessor, fileMatch);
 	}
 });
 
@@ -179,7 +179,7 @@ registerAction2(class GetSearchResultsAction extends Action2 {
 //#region Helpers
 export const lineDelimiter = isWindows ? '\r\n' : '\n';
 
-async function copyFilenameCommand(accessor: ServicesAccessor, fileMatch: ISearchTreeFileMatch | ISearchTreeFolderMatchWithResource | undefined) {
+async function copyBasenameCommand(accessor: ServicesAccessor, fileMatch: ISearchTreeFileMatch | ISearchTreeFolderMatchWithResource | undefined) {
 	if (!fileMatch) {
 		const selection = getSelectedRow(accessor);
 		if (!isSearchTreeFileMatch(selection) && !isSearchTreeFolderMatchWithResource(selection)) {
