@@ -159,6 +159,16 @@ suite('buildModelPickerItems', () => {
 		} as IActionListItem<IActionWidgetDropdownAction>), 'Claude Opus 4.7, Copilot, 15x');
 	});
 
+	test('accessibility provider prefers ariaDescription over description', () => {
+		const provider = getModelPickerAccessibilityProvider();
+		assert.strictEqual(provider.getAriaLabel({
+			kind: ActionListItemKind.Action,
+			label: 'Claude Sonnet 4.6',
+			description: new MarkdownString('$(circle-filled)$(circle-filled)$(circle)$(circle)'),
+			ariaDescription: 'Medium cost',
+		} as IActionListItem<IActionWidgetDropdownAction>), 'Claude Sonnet 4.6, Medium cost');
+	});
+
 	test('auto model always appears first', () => {
 		const auto = createAutoModel();
 		const modelA = createModel('gpt-4o', 'GPT-4o');
