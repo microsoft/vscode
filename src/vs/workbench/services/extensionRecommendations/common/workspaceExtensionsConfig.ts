@@ -25,6 +25,7 @@ export const EXTENSIONS_CONFIG = '.vscode/extensions.json';
 export interface IExtensionsConfigContent {
 	recommendations?: string[];
 	unwantedRecommendations?: string[];
+	forceInstall?: string[];
 }
 
 export const IWorkspaceExtensionsConfigService = createDecorator<IWorkspaceExtensionsConfigService>('IWorkspaceExtensionsConfigService');
@@ -36,6 +37,7 @@ export interface IWorkspaceExtensionsConfigService {
 	getExtensionsConfigs(): Promise<IExtensionsConfigContent[]>;
 	getRecommendations(): Promise<string[]>;
 	getUnwantedRecommendations(): Promise<string[]>;
+	getForceInstall(): Promise<string[]>;
 
 	toggleRecommendation(extensionId: string): Promise<void>;
 	toggleUnwantedRecommendation(extensionId: string): Promise<void>;
@@ -87,6 +89,11 @@ export class WorkspaceExtensionsConfigService extends Disposable implements IWor
 	async getUnwantedRecommendations(): Promise<string[]> {
 		const configs = await this.getExtensionsConfigs();
 		return distinct(configs.flatMap(c => c.unwantedRecommendations ? c.unwantedRecommendations.map(c => c.toLowerCase()) : []));
+	}
+
+	async getForceInstall(): Promise<string[]> {
+		const configs = await this.getExtensionsConfigs();
+		return distinct(configs.flatMap(c => c.forceInstall ? c.forceInstall.map(c => c.toLowerCase()) : []));
 	}
 
 	async toggleRecommendation(extensionId: string): Promise<void> {
@@ -296,7 +303,8 @@ export class WorkspaceExtensionsConfigService extends Disposable implements IWor
 	private parseExtensionConfig(extensionsConfigContent: IExtensionsConfigContent): IExtensionsConfigContent {
 		return {
 			recommendations: distinct((extensionsConfigContent.recommendations || []).map(e => e.toLowerCase())),
-			unwantedRecommendations: distinct((extensionsConfigContent.unwantedRecommendations || []).map(e => e.toLowerCase()))
+			unwantedRecommendations: distinct((extensionsConfigContent.unwantedRecommendations || []).map(e => e.toLowerCase())),
+			forceInstall: distinct((extensionsConfigContent.forceInstall || []).map(e => e.toLowerCase())),
 		};
 	}
 
