@@ -41,7 +41,7 @@ export class ViewMenuActions extends Disposable {
 	private actions: PrimaryAndSecondaryActions | undefined;
 	private getActions(): PrimaryAndSecondaryActions {
 		if (!this.actions) {
-			this.actions = getActionBarActions(this.menu.getActions(this.options), (group) => this.isPrimaryActionGroup(group), undefined, true);
+			this.actions = getActionBarActions(this.menu.getActions(this.options), group => this.isPrimaryActionGroup(group), undefined, true);
 		}
 		return this.actions;
 	}
