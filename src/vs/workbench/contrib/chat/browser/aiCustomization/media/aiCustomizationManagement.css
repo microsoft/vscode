@@ -363,14 +363,7 @@
 }
 
 .ai-customization-group-header .group-icon {
-	flex-shrink: 0;
-	width: 16px;
-	height: 16px;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	font-size: 14px;
-	opacity: 0.8;
+	display: none;
 }
 
 .ai-customization-group-header .group-label-group {
@@ -591,14 +584,30 @@
 /* Section title header at top of list widget */
 .ai-customization-list-widget .section-title-header {
 	flex-shrink: 0;
-	padding: 4px 4px 16px 4px;
+	padding: 4px;
+}
+
+.ai-customization-list-widget .section-title-header .section-title-row {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	margin: 0 0 6px 0;
+}
+
+.ai-customization-list-widget .section-title-header .section-title-back-slot {
+	display: flex;
+	align-items: center;
+}
+
+.ai-customization-list-widget .section-title-header .section-title-back-slot:empty {
+	display: none;
 }
 
 .ai-customization-list-widget .section-title-header .section-title {
 	font-size: 22px;
 	font-weight: 600;
 	line-height: 1.2;
-	margin: 0 0 6px 0;
+	margin: 0;
 	color: var(--vscode-foreground);
 }
 
@@ -606,8 +615,22 @@
 	font-size: 13px;
 	line-height: 1.45;
 	color: var(--vscode-descriptionForeground);
-	margin: 0;
-	max-width: 720px;
+	margin: 0 0 8px 0;
+	min-height: calc(13px * 1.45 * 2);
+}
+
+.ai-customization-list-widget .section-title-header .section-title-link {
+	font-size: 13px;
+	color: var(--vscode-textLink-foreground);
+	text-decoration: none;
+	cursor: pointer;
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.ai-customization-list-widget .section-title-header .section-title-link:hover {
+	text-decoration: underline;
 }
 
 /* Section footer at bottom of list widget */

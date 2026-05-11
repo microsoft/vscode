@@ -546,9 +546,10 @@ export class AICustomizationListWidget extends Disposable {
 	readonly element: HTMLElement;
 
 	private sectionTitleHeader!: HTMLElement;
+	private sectionTitleBackSlot!: HTMLElement;
 	private sectionTitle!: HTMLElement;
 	private sectionTitleDescription!: HTMLElement;
-	private sectionHeader!: HTMLElement;
+	private sectionTitleDescriptionText!: HTMLElement;
 	private sectionLink!: HTMLAnchorElement;
 	private searchAndButtonContainer!: HTMLElement;
 	private searchContainer!: HTMLElement;
@@ -629,10 +630,21 @@ export class AICustomizationListWidget extends Disposable {
 	}
 
 	private create(): void {
-		// Section title header (title + description) at the top.
+		// Section title header (back arrow + title + description + learn more) at the top.
 		this.sectionTitleHeader = DOM.append(this.element, $('.section-title-header'));
-		this.sectionTitle = DOM.append(this.sectionTitleHeader, $('h2.section-title'));
+		const titleRow = DOM.append(this.sectionTitleHeader, $('.section-title-row'));
+		this.sectionTitleBackSlot = DOM.append(titleRow, $('.section-title-back-slot'));
+		this.sectionTitle = DOM.append(titleRow, $('h2.section-title'));
 		this.sectionTitleDescription = DOM.append(this.sectionTitleHeader, $('p.section-title-description'));
+		this.sectionTitleDescriptionText = DOM.append(this.sectionTitleDescription, $('span.section-title-description-text'));
+		this.sectionLink = DOM.append(this.sectionTitleDescription, $('a.section-title-link')) as HTMLAnchorElement;
+		this._register(DOM.addDisposableListener(this.sectionLink, 'click', (e) => {
+			e.preventDefault();
+			const href = this.sectionLink.href;
+			if (href) {
+				this.openerService.open(URI.parse(href));
+			}
+		}));
 
 		// Search and button container
 		this.searchAndButtonContainer = DOM.append(this.element, $('.list-search-and-button-container'));
@@ -751,16 +763,6 @@ export class AICustomizationListWidget extends Disposable {
 			}
 		}));
 
-		// Section footer at bottom with learn-more link
-		this.sectionHeader = DOM.append(this.element, $('.section-footer'));
-		this.sectionLink = DOM.append(this.sectionHeader, $('a.section-footer-link')) as HTMLAnchorElement;
-		this._register(DOM.addDisposableListener(this.sectionLink, 'click', (e) => {
-			e.preventDefault();
-			const href = this.sectionLink.href;
-			if (href) {
-				this.openerService.open(URI.parse(href));
-			}
-		}));
 		this.updateSectionHeader();
 	}
 
@@ -832,10 +834,10 @@ export class AICustomizationListWidget extends Disposable {
 	}
 
 	/**
-	 * Prepends an element to the search row (left of the search input).
+	 * Prepends an element to the section title row (left of the section title).
 	 */
 	prependToSearchRow(element: HTMLElement): void {
-		this.searchAndButtonContainer.insertBefore(element, this.searchAndButtonContainer.firstChild);
+		this.sectionTitleBackSlot.appendChild(element);
 	}
 
 	/**
@@ -919,7 +921,7 @@ export class AICustomizationListWidget extends Disposable {
 				break;
 		}
 		this.sectionTitle.textContent = title;
-		this.sectionTitleDescription.textContent = description;
+		this.sectionTitleDescriptionText.textContent = description + ' ';
 		this.sectionLink.textContent = learnMoreLabel;
 		this.sectionLink.href = docsUrl;
 	}
@@ -1514,7 +1516,7 @@ export class AICustomizationListWidget extends Disposable {
 			});
 			return;
 		}
-		const footerHeight = this.sectionHeader.offsetHeight;
+		const footerHeight = this.sectionTitleHeader.offsetHeight;
 		const listHeight = Math.max(0, height - searchBarHeight - footerHeight);
 
 		this.listContainer.style.height = `${listHeight}px`;
