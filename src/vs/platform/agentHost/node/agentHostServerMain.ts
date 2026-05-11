@@ -243,7 +243,7 @@ async function main(): Promise<void> {
 		connectionTokenValidate: options.connectionToken
 			? token => token === options.connectionToken
 			: undefined,
-	}, logService));
+	}, logService, { instantiationService, logsHome: environmentService.logsHome }));
 
 
 	const clientFileSystemProvider = disposables.add(new AgentHostClientFileSystemProvider());
@@ -254,7 +254,10 @@ async function main(): Promise<void> {
 		agentService,
 		agentService.stateManager,
 		wsServer,
-		{ defaultDirectory: URI.file(os.homedir()).toString() },
+		{
+			defaultDirectory: URI.file(os.homedir()).toString(),
+			completionTriggerCharacters: agentService.completionTriggerCharacters,
+		},
 		clientFileSystemProvider,
 		logService,
 	));

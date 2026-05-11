@@ -27,9 +27,10 @@ import { ChatSessionProviderIdContext, IsNewChatSessionContext, SessionsWelcomeV
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsListModelService } from './views/sessionsListModelService.js';
 import { SHOW_SESSIONS_PICKER_COMMAND_ID } from './sessionsActions.js';
-import { IsSessionArchivedContext, IsSessionPinnedContext, IsSessionReadContext, SessionItemContextMenuId } from './views/sessionsList.js';
+import { IsSessionArchivedContext, IsSessionPinnedContext, IsSessionReadContext, SessionItemContextMenuId, SessionItemHasBranchNameContext } from './views/sessionsList.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { getSessionBranchName } from '../../../services/sessions/common/session.js';
 
 const titleBarContextKeys = new Set([IsNewChatSessionContext.key]);
 
@@ -285,17 +286,11 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 	}
 
 	/**
-	 * Get the branch label for the active session (only when using a worktree).
+	 * Get the branch label for the active session.
 	 */
 	private _getRepositoryBranchLabel(): string | undefined {
 		const sessionData = this.sessionsManagementService.activeSession.get();
-		const workspace = sessionData?.workspace.get();
-		const repository = workspace?.repositories[0];
-		if (!workspace || !repository || !repository.workingDirectory) {
-			return undefined;
-		}
-
-		return repository.branchName ?? repository.detail;
+		return getSessionBranchName(sessionData);
 	}
 
 	private _showContextMenu(e: MouseEvent): void {
@@ -315,6 +310,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			[IsSessionPinnedContext.key, isPinned],
 			[IsSessionArchivedContext.key, isArchived],
 			[IsSessionReadContext.key, isRead],
+			[SessionItemHasBranchNameContext.key, getSessionBranchName(sessionData) !== undefined],
 			['chatSessionType', sessionData.sessionType],
 			[ChatSessionProviderIdContext.key, sessionData.providerId],
 		];

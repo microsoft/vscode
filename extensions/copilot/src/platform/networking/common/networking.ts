@@ -84,6 +84,8 @@ export interface IEndpointBody {
 	snippy?: { enabled: boolean };
 	stream_options?: { include_usage?: boolean };
 	prompt?: string;
+	/** OpenAI Chat Completions API top-level reasoning effort (BYOK chat-completions shape). Mirrors the nested `reasoning.effort` used by the Responses API. */
+	reasoning_effort?: string;
 	/** Embeddings endpoints only: */
 	dimensions?: number;
 	embed?: boolean;

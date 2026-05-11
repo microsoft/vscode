@@ -300,6 +300,12 @@ declare module 'vscode' {
 		chatInteractionId?: string;
 		terminalCommand?: string;
 		/**
+		 * The working directory URI for the session, if set.
+		 * In the agents window, each session can have its own working directory
+		 * that differs from the current workspace folders.
+		 */
+		workingDirectory?: Uri;
+		/**
 		 * Unique ID for the subagent invocation, used to group tool calls from the same subagent run together.
 		 */
 		subAgentInvocationId?: string;
@@ -334,6 +340,12 @@ declare module 'vscode' {
 		chatRequestId?: string;
 		chatSessionResource?: Uri;
 		chatInteractionId?: string;
+		/**
+		 * The working directory URI for the session, if set.
+		 * In the agents window, each session can have its own working directory
+		 * that differs from the current workspace folders.
+		 */
+		workingDirectory?: Uri;
 		/**
 		 * If set, tells the tool that it should include confirmation messages.
 		 */

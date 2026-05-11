@@ -78,7 +78,7 @@ class OpenPullRequestAction extends Action2 {
 			icon: Codicon.gitPullRequest,
 			f1: false,
 			menu: {
-				id: MenuId.ChatEditingSessionChangesToolbar,
+				id: MenuId.AgentsChangesToolbar,
 				group: 'navigation',
 				order: 9,
 				when: ContextKeyExpr.and(
@@ -117,7 +117,7 @@ class OpenFileAction extends Action2 {
 			icon: Codicon.goToFile,
 			f1: false,
 			menu: {
-				id: MenuId.ChatEditingSessionChangeToolbar,
+				id: MenuId.AgentsChangeInlineToolbar,
 				group: 'navigation',
 				order: 1,
 				alt: {

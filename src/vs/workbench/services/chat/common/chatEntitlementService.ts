@@ -15,7 +15,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { ILogService } from '../../../../platform/log/common/log.js';
+import { ILogService, LogLevel } from '../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { asText, IRequestService } from '../../../../platform/request/common/request.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
@@ -190,6 +190,11 @@ export interface IChatEntitlementService {
 	markAnonymousRateLimited(): void;
 
 	/**
+	 * Mark the chat setup flow as completed.
+	 */
+	markSetupCompleted(): void;
+
+	/**
 	 * Force the hidden state on or off, overriding the normal entitlement logic.
 	 * Used by the account policy gate to hide all AI features when the gate is
 	 * active and unsatisfied.
@@ -335,6 +340,7 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 
@@ -516,6 +522,10 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 		this._quotas = quotas;
 		this.updateContextKeys();
 
+		if (this.logService.getLevel() === LogLevel.Trace) {
+			this.logService.trace(`[chat entitlement]: acceptQuotas: ${JSON.stringify(quotas)}`);
+		}
+
 		const { changed: chatChanged } = this.compareQuotas(oldQuota.chat, quotas.chat);
 		const { changed: completionsChanged } = this.compareQuotas(oldQuota.completions, quotas.completions);
 		const { changed: premiumChatChanged } = this.compareQuotas(oldQuota.premiumChat, quotas.premiumChat);
@@ -609,6 +619,10 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 
 		this.chatQuotaExceededContextKey.set(true);
 		this._onDidChangeQuotaExceeded.fire();
+	}
+
+	markSetupCompleted(): void {
+		this.context?.value.update({ completed: true });
 	}
 
 	setForceHidden(hidden: boolean): void {

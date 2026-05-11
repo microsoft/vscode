@@ -112,6 +112,7 @@ import './fixtures.css';
 // Import color registrations to ensure colors are available
 import { IdleDeadline, installFakeRunWhenIdle } from '../../../../base/common/async.js';
 import { buildHistoryFromTasks, renderSwimlanes } from '../../../../base/test/common/executionGraph.js';
+import { pushRandomOverwrite } from '../../../../base/test/common/randomOverwrite.js';
 import {
 	captureGlobalTimeApi,
 	createLoggingTimeApi,
@@ -799,9 +800,32 @@ function resolveLabels(labels: ThemedFixtureGroupLabels | undefined): string[] {
 	return result;
 }
 
+export class DisposableStackStore implements IDisposable {
+	private readonly _items: IDisposable[] = [];
+	private _isDisposed = false;
+
+	add<T extends IDisposable>(item: T): T {
+		if (this._isDisposed) {
+			item.dispose();
+			console.warn('Adding to a disposed DisposableStackStore');
+		} else {
+			this._items.push(item);
+		}
+		return item;
+	}
+
+	dispose(): void {
+		this._isDisposed = true;
+		while (this._items.length > 0) {
+			this._items.pop()!.dispose();
+		}
+	}
+}
+
 export interface ComponentFixtureContext {
 	container: HTMLElement;
 	disposableStore: DisposableStore;
+	disposableStackStore: DisposableStackStore;
 	theme: ColorThemeData;
 }
 
@@ -842,6 +866,9 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 		background: theme === darkTheme ? 'dark' : 'light',
 		render: async (container: HTMLElement, context) => {
 			const disposableStore = new DisposableStore();
+
+			// Replace Math.random with a seeded PRNG so fixtures render deterministically.
+			disposableStore.add(pushRandomOverwrite(42));
 
 			// Do not enable virtual time in explorer ui, as multiple fixtures are rendered in parallel.
 			const virtualTimeEnabled = (options.virtualTime?.enabled ?? true) && context.host.kind !== 'explorer-ui';
@@ -956,7 +983,8 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 				}
 
 				try {
-					const result = options.render({ container, disposableStore, theme });
+					const disposableStackStore = disposableStore.add(new DisposableStackStore());
+					const result = options.render({ container, disposableStore, disposableStackStore, theme });
 
 					const p2 = virtualTimeEnabled
 						? p.run({
@@ -997,6 +1025,7 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 			});
 
 			const wantsTimeTrace = !!context.input && typeof context.input === 'object' && !!(context.input as Record<string, unknown>).outputTimeTrace;
+
 			if (wantsTimeTrace && virtualTimeEnabled && p.history.length > 0) {
 				const startTime = p.history[0].time;
 				const history = buildHistoryFromTasks(p.history, startTime);
@@ -1018,7 +1047,7 @@ interface ThemedFixtureGroupOptions {
 	readonly labels?: ThemedFixtureGroupLabels;
 }
 
-type ThemedFixtureGroupFixtures = Record<string, ThemedFixtures>;
+type ThemedFixtureGroupFixtures = Record<string, ThemedFixtures | ReturnType<typeof defineFixtureGroup>>;
 
 /**
  * Creates a nested fixture group from themed fixtures.

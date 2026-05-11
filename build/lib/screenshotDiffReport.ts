@@ -32,7 +32,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const COMMENT_MARKER = '<!-- screenshot-diff-report -->';
 const EXPAND_FIRST_N = 5;
 const EXCLUDED_LABELS = new Set(['animated', 'flaky']);
-const MAX_BODY_BYTES = 750 * 1024;
+const MAX_BODY_BYTES = 300 * 1024;
 
 // ---------------------------------------------------------------------------
 // Pixel-level image comparison
@@ -194,13 +194,21 @@ async function computePixelDiffs(
 	return results;
 }
 
+interface ManifestEvent {
+	readonly type?: string;
+	readonly message?: string;
+	readonly stack?: string;
+	readonly phase?: string;
+	readonly isError?: boolean;
+}
+
 interface LocalManifestFixture {
 	readonly fixtureId: string;
 	readonly imageHash?: string;
 	readonly imagePath?: string;
 	readonly labels?: readonly string[];
 	readonly hasError?: boolean;
-	readonly error?: { readonly message?: string; readonly stack?: string } | string;
+	readonly events?: readonly ManifestEvent[];
 }
 
 interface LocalManifest {
@@ -271,11 +279,10 @@ function diffManifests(local: LocalManifest, base: BaseCommitResponse): DiffResu
 
 	for (const cur of local.fixtures) {
 		if (cur.hasError || !cur.imageHash || !cur.imagePath) {
-			const rawError = cur.error;
-			const errorMessage = typeof rawError === 'string'
-				? rawError
-				: rawError?.message ?? 'unknown error (no image hash produced)';
-			const errorStack = typeof rawError === 'object' ? rawError?.stack : undefined;
+			const errorEvents = (cur.events ?? []).filter(e => e.isError);
+			const errorMessage = errorEvents.map(e => e.message).filter(Boolean).join('; ')
+				|| 'unknown error (no image hash produced)';
+			const errorStack = errorEvents.map(e => e.stack).find(s => s !== undefined);
 			errored.push({
 				fixtureId: cur.fixtureId,
 				labels: cur.labels,
@@ -417,7 +424,8 @@ function generateMarkdown(
 		for (let i = 0; i < errored.length; i++) {
 			const entry = errored[i];
 			const open = i < EXPAND_FIRST_N ? ' open' : '';
-			const header = `<details${open}><summary><code>${entry.fixtureId}</code> — ${escapeMarkdown(entry.errorMessage)}</summary>`;
+			const headerMessage = entry.errorMessage.split('\n').map(l => l.trim()).find(l => l.length > 0) ?? entry.errorMessage;
+			const header = `<details${open}><summary><code>${entry.fixtureId}</code> — ${escapeMarkdown(headerMessage)}</summary>`;
 			const fullStack = entry.errorStack ?? entry.errorMessage;
 			const fullBlock = `${header}\n\n\`\`\`\n${fullStack}\n\`\`\`\n\n</details>\n`;
 
