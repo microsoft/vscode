@@ -421,8 +421,8 @@ export class PluginListWidget extends Disposable {
 	private readonly _onDidChangeItemCount = this._register(new Emitter<number>());
 	readonly onDidChangeItemCount = this._onDidChangeItemCount.event;
 
-	private sectionHeader!: HTMLElement;
-	private sectionDescription!: HTMLElement;
+	private sectionTitleHeader!: HTMLElement;
+	private sectionTitleBackSlot!: HTMLElement;
 	private sectionLink!: HTMLAnchorElement;
 	private searchAndButtonContainer!: HTMLElement;
 	private searchInput!: InputBox;
@@ -488,6 +488,26 @@ export class PluginListWidget extends Disposable {
 	}
 
 	private create(): void {
+		// Section title header (title + description with inline learn more) at the top.
+		this.sectionTitleHeader = DOM.append(this.element, $('.section-title-header'));
+		const titleRow = DOM.append(this.sectionTitleHeader, $('.section-title-row'));
+		this.sectionTitleBackSlot = DOM.append(titleRow, $('.section-title-back-slot'));
+		const sectionTitle = DOM.append(titleRow, $('h2.section-title'));
+		sectionTitle.textContent = localize('plugins', "Plugins");
+		const sectionTitleDescription = DOM.append(this.sectionTitleHeader, $('p.section-title-description'));
+		const sectionTitleDescriptionText = DOM.append(sectionTitleDescription, $('span.section-title-description-text'));
+		sectionTitleDescriptionText.textContent = localize('pluginsDescription', "Extend your AI agent with plugins that add commands, skills, agents, hooks, and MCP servers from reusable packages.") + ' ';
+		this.sectionLink = DOM.append(sectionTitleDescription, $('a.section-title-link')) as HTMLAnchorElement;
+		this.sectionLink.textContent = localize('learnMorePlugins', "Learn more about agent plugins");
+		this.sectionLink.href = 'https://code.visualstudio.com/docs/copilot/customization/agent-plugins';
+		this._register(DOM.addDisposableListener(this.sectionLink, 'click', (e) => {
+			e.preventDefault();
+			const href = this.sectionLink.href;
+			if (href) {
+				this.openerService.open(URI.parse(href));
+			}
+		}));
+
 		// Search and button container
 		this.searchAndButtonContainer = DOM.append(this.element, $('.list-search-and-button-container'));
 
@@ -561,20 +581,7 @@ export class PluginListWidget extends Disposable {
 		// List container
 		this.listContainer = DOM.append(this.element, $('.mcp-list-container'));
 
-		// Section footer
-		this.sectionHeader = DOM.append(this.element, $('.section-footer'));
-		this.sectionDescription = DOM.append(this.sectionHeader, $('p.section-footer-description'));
-		this.sectionDescription.textContent = localize('pluginsDescription', "Extend your AI agent with plugins that add commands, skills, agents, hooks, and MCP servers from reusable packages.");
-		this.sectionLink = DOM.append(this.sectionHeader, $('a.section-footer-link')) as HTMLAnchorElement;
-		this.sectionLink.textContent = localize('learnMorePlugins', "Learn more about agent plugins");
-		this.sectionLink.href = 'https://code.visualstudio.com/docs/copilot/customization/agent-plugins';
-		this._register(DOM.addDisposableListener(this.sectionLink, 'click', (e) => {
-			e.preventDefault();
-			const href = this.sectionLink.href;
-			if (href) {
-				this.openerService.open(URI.parse(href));
-			}
-		}));
+		// Section footer (removed — see section-title-header at top)
 
 		// Create list
 		const delegate = new PluginItemDelegate();
@@ -1125,10 +1132,10 @@ export class PluginListWidget extends Disposable {
 	}
 
 	/**
-	 * Prepends an element to the search row (left of the search input).
+	 * Prepends an element to the section title row (left of the section title).
 	 */
 	prependToSearchRow(element: HTMLElement): void {
-		this.searchAndButtonContainer.insertBefore(element, this.searchAndButtonContainer.firstChild);
+		this.sectionTitleBackSlot.appendChild(element);
 	}
 
 	/**
@@ -1170,7 +1177,7 @@ export class PluginListWidget extends Disposable {
 			});
 			return;
 		}
-		const footerHeight = this.sectionHeader.offsetHeight;
+		const footerHeight = this.sectionTitleHeader.offsetHeight;
 		const listHeight = Math.max(0, height - searchBarHeight - footerHeight);
 
 		this.listContainer.style.height = `${listHeight}px`;

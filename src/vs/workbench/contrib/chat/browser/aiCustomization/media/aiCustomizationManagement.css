@@ -581,29 +581,34 @@
 	color: var(--vscode-list-highlightForeground);
 }
 
-/* Section title header at top of list widget */
-.ai-customization-list-widget .section-title-header {
+/* Section title header at top of list widget (shared by all list widgets) */
+.ai-customization-list-widget .section-title-header,
+.mcp-list-widget .section-title-header {
 	flex-shrink: 0;
 	padding: 4px;
 }
 
-.ai-customization-list-widget .section-title-header .section-title-row {
+.ai-customization-list-widget .section-title-header .section-title-row,
+.mcp-list-widget .section-title-header .section-title-row {
 	display: flex;
 	align-items: center;
 	gap: 6px;
 	margin: 0 0 6px 0;
 }
 
-.ai-customization-list-widget .section-title-header .section-title-back-slot {
+.ai-customization-list-widget .section-title-header .section-title-back-slot,
+.mcp-list-widget .section-title-header .section-title-back-slot {
 	display: flex;
 	align-items: center;
 }
 
-.ai-customization-list-widget .section-title-header .section-title-back-slot:empty {
+.ai-customization-list-widget .section-title-header .section-title-back-slot:empty,
+.mcp-list-widget .section-title-header .section-title-back-slot:empty {
 	display: none;
 }
 
-.ai-customization-list-widget .section-title-header .section-title {
+.ai-customization-list-widget .section-title-header .section-title,
+.mcp-list-widget .section-title-header .section-title {
 	font-size: 22px;
 	font-weight: 600;
 	line-height: 1.2;
@@ -611,7 +616,8 @@
 	color: var(--vscode-foreground);
 }
 
-.ai-customization-list-widget .section-title-header .section-title-description {
+.ai-customization-list-widget .section-title-header .section-title-description,
+.mcp-list-widget .section-title-header .section-title-description {
 	font-size: 13px;
 	line-height: 1.45;
 	color: var(--vscode-descriptionForeground);
@@ -619,7 +625,8 @@
 	min-height: calc(13px * 1.45 * 2);
 }
 
-.ai-customization-list-widget .section-title-header .section-title-link {
+.ai-customization-list-widget .section-title-header .section-title-link,
+.mcp-list-widget .section-title-header .section-title-link {
 	font-size: 13px;
 	color: var(--vscode-textLink-foreground);
 	text-decoration: none;
@@ -629,7 +636,8 @@
 	gap: 4px;
 }
 
-.ai-customization-list-widget .section-title-header .section-title-link:hover {
+.ai-customization-list-widget .section-title-header .section-title-link:hover,
+.mcp-list-widget .section-title-header .section-title-link:hover {
 	text-decoration: underline;
 }
 

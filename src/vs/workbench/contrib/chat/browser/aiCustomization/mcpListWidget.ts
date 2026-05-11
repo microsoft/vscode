@@ -346,8 +346,8 @@ export class McpListWidget extends Disposable {
 	private readonly _onDidRequestShowPlugin = this._register(new Emitter<IAgentPluginItem>());
 	readonly onDidRequestShowPlugin = this._onDidRequestShowPlugin.event;
 
-	private sectionHeader!: HTMLElement;
-	private sectionDescription!: HTMLElement;
+	private sectionTitleHeader!: HTMLElement;
+	private sectionTitleBackSlot!: HTMLElement;
 	private sectionLink!: HTMLAnchorElement;
 	private searchAndButtonContainer!: HTMLElement;
 	private searchInput!: InputBox;
@@ -408,6 +408,26 @@ export class McpListWidget extends Disposable {
 	}
 
 	private create(): void {
+		// Section title header (title + description with inline learn more) at the top.
+		this.sectionTitleHeader = DOM.append(this.element, $('.section-title-header'));
+		const titleRow = DOM.append(this.sectionTitleHeader, $('.section-title-row'));
+		this.sectionTitleBackSlot = DOM.append(titleRow, $('.section-title-back-slot'));
+		const sectionTitle = DOM.append(titleRow, $('h2.section-title'));
+		sectionTitle.textContent = localize('mcpServers', "MCP Servers");
+		const sectionTitleDescription = DOM.append(this.sectionTitleHeader, $('p.section-title-description'));
+		const sectionTitleDescriptionText = DOM.append(sectionTitleDescription, $('span.section-title-description-text'));
+		sectionTitleDescriptionText.textContent = localize('mcpServersDescription', "An open standard that lets AI use external tools and services. MCP servers provide tools for file operations, databases, APIs, and more.") + ' ';
+		this.sectionLink = DOM.append(sectionTitleDescription, $('a.section-title-link')) as HTMLAnchorElement;
+		this.sectionLink.textContent = localize('learnMoreMcp', "Learn more about MCP servers");
+		this.sectionLink.href = 'https://code.visualstudio.com/docs/copilot/chat/mcp-servers';
+		this._register(DOM.addDisposableListener(this.sectionLink, 'click', (e) => {
+			e.preventDefault();
+			const href = this.sectionLink.href;
+			if (href) {
+				this.openerService.open(URI.parse(href));
+			}
+		}));
+
 		// Search and button container
 		this.searchAndButtonContainer = DOM.append(this.element, $('.list-search-and-button-container'));
 
@@ -472,21 +492,6 @@ export class McpListWidget extends Disposable {
 
 		// List container
 		this.listContainer = DOM.append(this.element, $('.mcp-list-container'));
-
-		// Section footer at bottom with description and link
-		this.sectionHeader = DOM.append(this.element, $('.section-footer'));
-		this.sectionDescription = DOM.append(this.sectionHeader, $('p.section-footer-description'));
-		this.sectionDescription.textContent = localize('mcpServersDescription', "An open standard that lets AI use external tools and services. MCP servers provide tools for file operations, databases, APIs, and more.");
-		this.sectionLink = DOM.append(this.sectionHeader, $('a.section-footer-link')) as HTMLAnchorElement;
-		this.sectionLink.textContent = localize('learnMoreMcp', "Learn more about MCP servers");
-		this.sectionLink.href = 'https://code.visualstudio.com/docs/copilot/chat/mcp-servers';
-		this._register(DOM.addDisposableListener(this.sectionLink, 'click', (e) => {
-			e.preventDefault();
-			const href = this.sectionLink.href;
-			if (href) {
-				this.openerService.open(URI.parse(href));
-			}
-		}));
 
 		// Create list
 		const delegate = new McpServerItemDelegate();
@@ -902,10 +907,10 @@ export class McpListWidget extends Disposable {
 	}
 
 	/**
-	 * Prepends an element to the search row (left of the search input).
+	 * Prepends an element to the section title row (left of the section title).
 	 */
 	prependToSearchRow(element: HTMLElement): void {
-		this.searchAndButtonContainer.insertBefore(element, this.searchAndButtonContainer.firstChild);
+		this.sectionTitleBackSlot.appendChild(element);
 	}
 
 	/**
@@ -950,7 +955,7 @@ export class McpListWidget extends Disposable {
 			});
 			return;
 		}
-		const footerHeight = this.sectionHeader.offsetHeight;
+		const footerHeight = this.sectionTitleHeader.offsetHeight;
 		const listHeight = Math.max(0, height - searchBarHeight - footerHeight);
 
 		this.listContainer.style.height = `${listHeight}px`;

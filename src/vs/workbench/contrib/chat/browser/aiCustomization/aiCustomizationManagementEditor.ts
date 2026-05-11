@@ -886,13 +886,6 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.mcpContentContainer = DOM.append(contentInner, $('.mcp-content-container'));
 			this.mcpListWidget = this.editorDisposables.add(this.instantiationService.createInstance(McpListWidget));
 			this.mcpContentContainer.appendChild(this.mcpListWidget.element);
-			this.injectBackArrowIntoSearchRow(this.mcpListWidget, () => {
-				if (this.mcpListWidget!.isInBrowseMode()) {
-					this.mcpListWidget!.exitBrowseMode();
-				} else {
-					this.showWelcomePage();
-				}
-			});
 
 			// Embedded MCP server detail view
 			this.mcpDetailContainer = DOM.append(contentInner, $('.mcp-detail-container'));
@@ -912,13 +905,6 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.pluginContentContainer = DOM.append(contentInner, $('.plugin-content-container'));
 			this.pluginListWidget = this.editorDisposables.add(this.instantiationService.createInstance(PluginListWidget));
 			this.pluginContentContainer.appendChild(this.pluginListWidget.element);
-			this.injectBackArrowIntoSearchRow(this.pluginListWidget, () => {
-				if (this.pluginListWidget!.isInBrowseMode()) {
-					this.pluginListWidget!.exitBrowseMode();
-				} else {
-					this.showWelcomePage();
-				}
-			});
 
 			// Embedded plugin detail view
 			this.pluginDetailContainer = DOM.append(contentInner, $('.plugin-detail-container'));
