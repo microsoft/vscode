@@ -1264,10 +1264,21 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 
 		// On phone, subtract the mobile top bar height from the grid
 		const mobileTopBarHeight = this.mobileTopBarElement?.offsetHeight ?? 0;
-		const gridHeight = this._mainContainerDimension.height - mobileTopBarHeight;
+		const isPhone = this.layoutPolicy.viewportClass.get() === 'phone';
+
+		// Reserve a 10px gutter on the right and bottom edges of the workbench so that
+		// parts at those edges don't need to manage their own outer right/bottom margin.
+		// The top-row parts (chat/editor/aux) drop their bottom margin to 0 when the panel
+		// is hidden, so the card fills its cell and the visible 10px gap comes entirely
+		// from the workbench gutter. When the panel is visible, top-row parts contribute
+		// a 5px bottom margin so the sash with the panel (which has a 5px top margin) is
+		// centered in a 10px gap. Skip on phone where the layout uses different chrome.
+		const gutter = isPhone ? 0 : 10;
+		const gridWidth = this._mainContainerDimension.width - gutter;
+		const gridHeight = this._mainContainerDimension.height - mobileTopBarHeight - gutter;
 
 		// Layout the grid widget
-		this.workbenchGrid.layout(this._mainContainerDimension.width, gridHeight);
+		this.workbenchGrid.layout(gridWidth, gridHeight);
 		this.layoutMobileSidebar();
 
 		// Emit as event

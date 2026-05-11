@@ -42,6 +42,7 @@ import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IGitHubService } from '../../github/browser/githubService.js';
 import { computePullRequestIcon, GitHubPullRequestState } from '../../github/common/types.js';
@@ -770,6 +771,7 @@ class LocalNewSession extends Disposable implements ICopilotChatSession {
 		providerId: string,
 		@IGitService private readonly gitService: IGitService,
 		@IChatService private readonly chatService: IChatService,
+		@IFileService private readonly fileService: IFileService,
 	) {
 		super();
 
@@ -831,15 +833,68 @@ class LocalNewSession extends Disposable implements ICopilotChatSession {
 					}],
 				}, undefined);
 
-				this._changes.set(state.workingTreeChanges.concat(state.untrackedChanges).map<IChatSessionFileChange2>(el => {
-					return {
+				// Capture all known changed files from the current state snapshot
+				// so we can fill in any that diffBetweenWithStats2 misses
+				// (e.g. untracked files regardless of the git.untrackedChanges setting)
+				const allStateChanges = [...state.workingTreeChanges, ...state.untrackedChanges, ...state.indexChanges];
+
+				// Fetch real line-level diff stats asynchronously
+				repo.diffBetweenWithStats2('HEAD').then(async diffChanges => {
+					if (this._store.isDisposed) {
+						return;
+					}
+					// diffBetweenWithStats2 only covers tracked changes against HEAD;
+					// append any files from the git state that it missed
+					// (e.g. untracked/new files not yet staged) with real line counts
+					const trackedUris = new Set(diffChanges.map(el => el.uri.toString()));
+					const changes: IChatSessionFileChange2[] = diffChanges.map(el => ({
+						uri: el.uri,
+						originalUri: el.originalUri,
+						modifiedUri: el.modifiedUri ?? el.uri,
+						insertions: el.insertions,
+						deletions: el.deletions,
+					}));
+					const untrackedFiles = allStateChanges.filter(el => !trackedUris.has(el.uri.toString()));
+					const lineCountPromises = untrackedFiles.map(async el => {
+						let insertions = 0;
+						try {
+							const stat = await this.fileService.stat(el.uri);
+							if (!stat.isDirectory) {
+								const content = await this.fileService.readFile(el.uri);
+								// Count newlines; add 1 for the last line if file is non-empty
+								const text = content.value.toString();
+								insertions = text.length > 0 ? text.split('\n').length : 0;
+							}
+						} catch {
+							// File may have been deleted between state snapshot and read
+						}
+						return {
+							uri: el.uri,
+							originalUri: undefined,
+							modifiedUri: el.modifiedUri ?? el.uri,
+							insertions,
+							deletions: 0,
+						} satisfies IChatSessionFileChange2;
+					});
+					const untrackedChanges = await Promise.all(lineCountPromises);
+					if (this._store.isDisposed) {
+						return;
+					}
+					changes.push(...untrackedChanges);
+					this._changes.set(changes, undefined);
+				}, () => {
+					// Diff computation failed — fall back to zero stats
+					if (this._store.isDisposed) {
+						return;
+					}
+					this._changes.set(allStateChanges.map<IChatSessionFileChange2>(el => ({
 						uri: el.uri,
 						originalUri: el.originalUri,
 						modifiedUri: el.modifiedUri ?? el.uri,
 						insertions: 0,
 						deletions: 0,
-					};
-				}), undefined);
+					})), undefined);
+				});
 			}));
 
 		} catch {
