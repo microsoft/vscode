@@ -100,6 +100,11 @@ export class BrowserView extends Disposable {
 			nodeIntegration: false,
 			contextIsolation: true,
 			sandbox: true,
+
+			// NOTE: When `sandbox` is enabled, `nodeIntegrationInSubFrames` doesn't actually enable node integration or prevent sandboxing.
+			//       It allows preload scripts to run in subframes, which is important for our features like keyboard shortcut forwarding.
+			nodeIntegrationInSubFrames: true,
+
 			webviewTag: false,
 			session: this.session.electronSession,
 

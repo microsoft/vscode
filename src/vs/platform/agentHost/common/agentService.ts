@@ -37,7 +37,7 @@ export const AgentHostEnabledSettingId = 'chat.agentHost.enabled';
 /** Configuration key that controls whether per-host IPC traffic output channels are created. */
 export const AgentHostIpcLoggingSettingId = 'chat.agentHost.ipcLoggingEnabled';
 
-/** Configuration key that controls whether AHP transport JSONL logs are written. */
+/** Configuration key that controls whether AHP JSONL logs are written for agent host transports. */
 export const AgentHostAhpJsonlLoggingSettingId = 'chat.agentHost.ahpJsonlLoggingEnabled';
 
 /**

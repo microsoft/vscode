@@ -215,6 +215,7 @@ async function registerChatServices(testingServiceCollection: TestingServiceColl
 		async createWorktree() { return undefined; },
 		async getWorktreeProperties() { return undefined; },
 		async setWorktreeProperties() { },
+		async updateWorktreeProperties() { },
 		async getWorktreeRepository() { return undefined; },
 		async getWorktreePath() { return undefined; },
 		async applyWorktreeChanges() { },
