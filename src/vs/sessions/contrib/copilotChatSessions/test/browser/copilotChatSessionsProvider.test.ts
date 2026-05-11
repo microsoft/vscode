@@ -1331,7 +1331,7 @@ suite('CopilotChatSessionsProvider', () => {
 			return config;
 		}
 
-		test('CLI session seeds permission level from chat.permissions.default', () => {
+		test('CLI session seeds permission level from chat.permissions.default', async () => {
 			const configurationService = makeConfig({ defaultLevel: ChatPermissionLevel.Autopilot });
 			const provider = createProviderForSendTests(disposables, model, () => new Promise(() => { }), { configurationService });
 
@@ -1339,9 +1339,11 @@ suite('CopilotChatSessionsProvider', () => {
 			const session = provider.getSession(sessionInfo.sessionId);
 
 			assert.strictEqual(session?.permissionLevel.get(), ChatPermissionLevel.Autopilot);
+
+			await provider.deleteSession(sessionInfo.sessionId);
 		});
 
-		test('clamps to Default when chat.tools.global.autoApprove policy is false', () => {
+		test('clamps to Default when chat.tools.global.autoApprove policy is false', async () => {
 			const configurationService = makeConfig({ defaultLevel: ChatPermissionLevel.Autopilot, policyRestricted: true });
 			const provider = createProviderForSendTests(disposables, model, () => new Promise(() => { }), { configurationService });
 
@@ -1349,9 +1351,11 @@ suite('CopilotChatSessionsProvider', () => {
 			const session = provider.getSession(sessionInfo.sessionId);
 
 			assert.strictEqual(session?.permissionLevel.get(), ChatPermissionLevel.Default);
+
+			await provider.deleteSession(sessionInfo.sessionId);
 		});
 
-		test('falls back to Default when chat.permissions.default is unset', () => {
+		test('falls back to Default when chat.permissions.default is unset', async () => {
 			const configurationService = makeConfig({});
 			const provider = createProviderForSendTests(disposables, model, () => new Promise(() => { }), { configurationService });
 
@@ -1359,6 +1363,8 @@ suite('CopilotChatSessionsProvider', () => {
 			const session = provider.getSession(sessionInfo.sessionId);
 
 			assert.strictEqual(session?.permissionLevel.get(), ChatPermissionLevel.Default);
+
+			await provider.deleteSession(sessionInfo.sessionId);
 		});
 	});
 });
