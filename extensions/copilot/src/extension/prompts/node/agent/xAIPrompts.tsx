@@ -15,7 +15,7 @@ import { CodesearchModeInstructions, DefaultAgentPromptProps, detectToolCapabili
 import { FileLinkificationInstructions } from './fileLinkificationInstructions';
 import { IAgentPrompt, PromptRegistry, SystemPrompt } from './promptRegistry';
 
-class DefaultGrokCodeFastAgentPrompt extends PromptElement<DefaultAgentPromptProps> {
+class DefaultGrokAgentPrompt extends PromptElement<DefaultAgentPromptProps> {
 	async render(state: void, sizing: PromptSizing) {
 		const tools = detectToolCapabilities(this.props.availableTools);
 
@@ -114,10 +114,10 @@ class DefaultGrokCodeFastAgentPrompt extends PromptElement<DefaultAgentPromptPro
 }
 
 class XAIPromptResolver implements IAgentPrompt {
-	static readonly familyPrefixes = ['grok-code'];
+	static readonly familyPrefixes = ['grok'];
 
 	resolveSystemPrompt(endpoint: IChatEndpoint): SystemPrompt | undefined {
-		return DefaultGrokCodeFastAgentPrompt;
+		return DefaultGrokAgentPrompt;
 	}
 
 	resolveUserQueryTagName(endpoint: IChatEndpoint): string | undefined {

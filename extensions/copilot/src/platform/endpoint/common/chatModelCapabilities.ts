@@ -243,7 +243,7 @@ export function modelPrefersJsonNotebookRepresentation(model: LanguageModelChat 
  * Model supports replace_string_in_file as an edit tool.
  */
 export function modelSupportsReplaceString(model: LanguageModelChat | IChatEndpoint): boolean {
-	return isGeminiFamily(model) || model.family.includes('grok-code') || modelSupportsMultiReplaceString(model) || isHiddenModelF(model) || isMinimaxFamily(model) || isHiddenFamilyH(model);
+	return isGeminiFamily(model) || isXAIFamily(model) || modelSupportsMultiReplaceString(model) || isHiddenModelF(model) || isMinimaxFamily(model) || isHiddenFamilyH(model);
 }
 
 /**
@@ -258,7 +258,7 @@ export function modelSupportsMultiReplaceString(model: LanguageModelChat | IChat
  * without needing insert_edit_into_file.
  */
 export function modelCanUseReplaceStringExclusively(model: LanguageModelChat | IChatEndpoint): boolean {
-	return isAnthropicFamily(model) || model.family.includes('grok-code') || isHiddenModelE(model) || model.family.toLowerCase().includes('gemini-3') || isVSCModelReplaceStringSet(model) || isHiddenModelF(model) || isMinimaxFamily(model) || isHiddenFamilyH(model);
+	return isAnthropicFamily(model) || isXAIFamily(model) || isHiddenModelE(model) || model.family.toLowerCase().includes('gemini-3') || isVSCModelReplaceStringSet(model) || isHiddenModelF(model) || isMinimaxFamily(model) || isHiddenFamilyH(model);
 }
 
 /**
@@ -274,6 +274,20 @@ export function modelShouldUseReplaceStringHealing(model: LanguageModelChat | IC
  */
 export function modelCanUseMcpResultImageURL(model: LanguageModelChat | IChatEndpoint): boolean {
 	return !isAnthropicFamily(model) && !isHiddenModelE(model);
+}
+
+/**
+ * The model supports reasoning summary output.
+ */
+export function modelSupportsReasoningSummary(model: LanguageModelChat | IChatEndpoint): boolean {
+	return !isXAIFamily(model) && model.family !== 'gpt-5.3-codex-spark-preview';
+}
+
+/**
+ * The model supports reasoning effort configuration.
+ */
+export function modelSupportsReasoningEffort(model: LanguageModelChat | IChatEndpoint): boolean {
+	return !isXAIFamily(model);
 }
 
 /**
@@ -329,6 +343,10 @@ export function isGeminiFamily(model: LanguageModelChat | IChatEndpoint | string
 
 export function isMinimaxFamily(model: LanguageModelChat | IChatEndpoint): boolean {
 	return model.family.toLowerCase().includes('minimax');
+}
+
+export function isXAIFamily(model: LanguageModelChat | IChatEndpoint): boolean {
+	return model.family.startsWith('grok');
 }
 
 export function isGpt5PlusFamily(model: LanguageModelChat | IChatEndpoint | string | undefined): boolean {

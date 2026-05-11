@@ -27,7 +27,7 @@ import { IChatWebSocketManager } from '../../networking/node/chatWebSocketManage
 import { IExperimentationService } from '../../telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../telemetry/common/telemetry';
 import { TelemetryData } from '../../telemetry/common/telemetryData';
-import { getVerbosityForModelSync, isResponsesApiToolSearchEnabled } from '../common/chatModelCapabilities';
+import { getVerbosityForModelSync, isResponsesApiToolSearchEnabled, modelSupportsReasoningEffort, modelSupportsReasoningSummary } from '../common/chatModelCapabilities';
 import { rawPartAsCompactionData } from '../common/compactionDataContainer';
 import { rawPartAsPhaseData } from '../common/phaseDataContainer';
 import { getIndexOfStatefulMarker, getStatefulMarkerAndIndex } from '../common/statefulMarkerContainer';
@@ -157,9 +157,9 @@ export function createResponsesRequestBody(accessor: ServicesAccessor, options: 
 		'disabled';
 	const thinkingExplicitlyDisabled = options.modelCapabilities?.enableThinking === false;
 	const summaryConfig = configService.getExperimentBasedConfig(ConfigKey.ResponsesApiReasoningSummary, expService);
-	const shouldDisableReasoningSummary = endpoint.family === 'gpt-5.3-codex-spark-preview' || thinkingExplicitlyDisabled;
+	const shouldDisableReasoningSummary = thinkingExplicitlyDisabled || !modelSupportsReasoningSummary(endpoint);
 	const effortFromSetting = configService.getConfig(ConfigKey.Advanced.ReasoningEffortOverride);
-	const effort = endpoint.supportsReasoningEffort?.length
+	const effort = modelSupportsReasoningEffort(endpoint) && endpoint.supportsReasoningEffort?.length
 		? (effortFromSetting || options.modelCapabilities?.reasoningEffort || 'medium')
 		: undefined;
 	const summary = summaryConfig === 'off' || shouldDisableReasoningSummary ? undefined : summaryConfig;

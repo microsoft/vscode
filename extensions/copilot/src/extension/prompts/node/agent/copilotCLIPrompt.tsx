@@ -23,6 +23,7 @@ import { renderChatVariables } from '../panel/chatVariables';
 import { FilePathMode, FileVariable } from '../panel/fileVariable';
 import { EditedFileEvents } from './agentPrompt';
 import './allAgentPrompts';
+import { isXAIFamily } from '../../../../platform/endpoint/common/chatModelCapabilities';
 
 export interface AgentUserMessageProps extends BasePromptElementProps {
 	readonly request: string;
@@ -47,7 +48,7 @@ class CopilotCLIAgentUserMessage extends PromptElement<AgentUserMessageProps> {
 
 	async render(state: void, sizing: PromptSizing) {
 		const query = this.props.request;
-		const shouldUseUserQuery = this.props.endpoint.family.startsWith('grok-code');
+		const shouldUseUserQuery = isXAIFamily(this.props.endpoint);
 
 		// Files & folders will not be added as regular attachments, as those will be handed by SDK.
 		// We merely add a <attachments> tag to signal that there are file/folder attachments.
