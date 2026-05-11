@@ -33,6 +33,16 @@ export interface SlashCommandContext {
 	clearMemory(handle: string): void;
 	getActiveSpecialist(): string;
 	requestExit(): void;
+	/**
+	 * H18 — attach an image to the next user turn. Returns the parsed
+	 * attachment metadata so the dispatcher can confirm with size + name,
+	 * or an error string when validation fails.
+	 */
+	attachImage(rawPath: string): { ok: true; name: string; sizeKb: number } | { ok: false; error: string };
+	/** List the currently-pending attachments (name + size). */
+	listAttachments(): ReadonlyArray<{ name: string; sizeBytes: number }>;
+	/** Drop all pending attachments. */
+	clearAttachments(): void;
 }
 
 export interface SlashCommand {
@@ -240,6 +250,46 @@ export const BUILT_IN_SLASH_COMMANDS: ReadonlyArray<SlashCommand> = [
 		},
 	},
 	{
+		name: '/attach',
+		description: 'Attach an image to the next prompt. Usage: /attach <path> · /attach · /attach clear',
+		usage: '/attach <path>',
+		run(args, ctx) {
+			// Bare `/attach` — print the current pending list and hints for
+			// the supporting subcommands. Mirrors the IDE chat panel's
+			// "you have N attached" affordance.
+			if (args.length === 0) {
+				const pending = ctx.listAttachments();
+				if (pending.length === 0) {
+					ctx.addSystemMessage('No attachments pending. Usage: /attach <path> · /attach clear');
+					return;
+				}
+				const formatted = pending
+					.map((a) => `  ${a.name} (${formatSizeKb(a.sizeBytes)})`)
+					.join('\n');
+				ctx.addSystemMessage(`${pending.length} attachment(s) queued for the next prompt:\n${formatted}\nType /attach clear to drop them.`);
+				return;
+			}
+			if (args[0] === 'clear') {
+				const had = ctx.listAttachments().length;
+				ctx.clearAttachments();
+				ctx.addSystemMessage(had === 0 ? 'No attachments to clear.' : `Cleared ${had} attachment(s).`);
+				return;
+			}
+			// Path-mode — resolve, validate, and queue. The rest of the line
+			// (after the command + first token) is joined back together so
+			// filenames with embedded spaces still work when quoted by the
+			// shell — we just stitch the tokens with a single space which
+			// matches what the parser split.
+			const rawPath = args.join(' ');
+			const result = ctx.attachImage(rawPath);
+			if (!result.ok) {
+				ctx.addSystemMessage(`attach failed: ${result.error}`);
+				return;
+			}
+			ctx.addSystemMessage(`attached ${result.name} (${result.sizeKb} KB)`);
+		},
+	},
+	{
 		name: '/quit',
 		description: 'Exit the chat session.',
 		run(_args, ctx) {
@@ -286,6 +336,19 @@ export function findCommand(name: string): SlashCommand | null | 'ambiguous' {
 		return 'ambiguous';
 	}
 	return null;
+}
+
+/**
+ * Compact KB formatter used by the `/attach` confirmation line. We round
+ * to whole KB for files >= 1KB (cheap and matches the transcript style)
+ * and fall back to a `<1` indicator for tiny payloads so the message stays
+ * truthful for icons / favicons.
+ */
+function formatSizeKb(sizeBytes: number): string {
+	if (sizeBytes < 1024) {
+		return '<1 KB';
+	}
+	return `${Math.round(sizeBytes / 1024)} KB`;
 }
 
 /**

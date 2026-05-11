@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as React from 'react';
-import type { LlmClient, LlmMessage, ModelId } from 'son-of-anton-core/dist/llm/LlmClient';
+import type { LlmClient, LlmContentPart, LlmMessage, ModelId } from 'son-of-anton-core/dist/llm/LlmClient';
 import type { HookRunner } from 'son-of-anton-core/dist/persistence/HookRunner';
-import type { TuiMessage } from './types';
+import type { PendingAttachment } from './attachments';
+import type { TuiAttachmentSummary, TuiMessage } from './types';
 
 interface UseAgentStreamArgs {
 	llm: LlmClient;
@@ -29,7 +30,7 @@ interface UseAgentStreamArgs {
 interface UseAgentStreamResult {
 	messages: ReadonlyArray<TuiMessage>;
 	busy: boolean;
-	send: (text: string) => void;
+	send: (text: string, attachments?: ReadonlyArray<PendingAttachment>) => void;
 	addSystemMessage: (text: string) => void;
 	clearTranscript: () => void;
 	resetConversation: () => void;
@@ -70,7 +71,7 @@ export function useAgentStream(args: UseAgentStreamArgs): UseAgentStreamResult {
 	};
 
 	const send = React.useCallback(
-		(text: string): void => {
+		(text: string, attachments?: ReadonlyArray<PendingAttachment>): void => {
 			if (busy) {
 				return;
 			}
@@ -101,10 +102,29 @@ export function useAgentStream(args: UseAgentStreamArgs): UseAgentStreamResult {
 					}
 				}
 
-				const userMsg: TuiMessage = { id: nextId(), role: 'user', text };
+				// When attachments are present we promote the user content to a
+				// structured `LlmContentPart[]` so the wire-level serialisers
+				// emit the image blocks. Without attachments we keep the legacy
+				// `string` shape so the persisted history stays compact.
+				const hasAttachments = !!attachments && attachments.length > 0;
+				const attachmentSummaries: TuiAttachmentSummary[] | undefined = hasAttachments
+					? attachments!.map((a) => ({ name: a.name, sizeBytes: a.sizeBytes }))
+					: undefined;
+				const llmContent = hasAttachments
+					? ([
+						...attachments!.map((a) => ({
+							type: 'image' as const,
+							mimeType: a.mime,
+							base64Data: a.base64,
+						})),
+						{ type: 'text' as const, text: promptForLlm },
+					] satisfies LlmContentPart[])
+					: promptForLlm;
+
+				const userMsg: TuiMessage = { id: nextId(), role: 'user', text, attachments: attachmentSummaries };
 				const assistantId = nextId();
 				const assistantMsg: TuiMessage = { id: assistantId, role: 'assistant', text: '', streaming: true };
-				historyRef.current.push({ role: 'user', content: promptForLlm });
+				historyRef.current.push({ role: 'user', content: llmContent });
 				setMessages((prev) => [...prev, userMsg, assistantMsg]);
 
 				let assistantText = '';

@@ -5,12 +5,13 @@
 
 import * as fs from 'fs';
 import * as readline from 'readline';
-import { LlmClient, type LlmMessage, type ModelId } from 'son-of-anton-core/dist/llm/LlmClient';
+import { LlmClient, type LlmContentPart, type LlmMessage, type ModelId } from 'son-of-anton-core/dist/llm/LlmClient';
 import { bootstrapCredentials } from '../auth/bootstrap';
 import { buildCliHost } from '../cliHost';
 import type { CliConversation } from '../persistence/ConversationStore';
 import { HookRunner, hooksFilePath } from '../persistence/HookRunner';
 import { makeRenderer, type Renderer } from '../render/renderer';
+import { loadAttachment, type PendingAttachment } from '../tui/attachments';
 import { maybeNagAboutUpdate } from './update';
 
 interface ChatOptions {
@@ -19,6 +20,23 @@ interface ChatOptions {
 	output: 'text' | 'json';
 	tui?: boolean;
 	resumeFrom?: CliConversation;
+	/**
+	 * H18 — image paths supplied via `--attach`. Each value is resolved against
+	 * `process.cwd()` and pre-loaded onto the first user turn so one-shot
+	 * scripted invocations like `sota chat --attach foo.png "describe"` work
+	 * without an interactive `/attach` step. Commander surfaces repeatable
+	 * options as `string[]`; we accept either shape so the field can come
+	 * straight off the parsed options bag.
+	 */
+	attach?: ReadonlyArray<string> | string;
+	/**
+	 * H18 — optional positional prompt joined from the trailing CLI args. When
+	 * supplied alongside `--no-tui` the REPL fires this single turn and exits
+	 * so scripted callers can do `sota chat --no-tui --attach foo.png "describe"`
+	 * as a one-shot. Ignored in the TUI path (the user can just type the
+	 * prompt directly).
+	 */
+	initialPrompt?: string;
 }
 
 /**
@@ -34,6 +52,11 @@ function shouldUseTui(opts: ChatOptions): boolean {
 	if (opts.output !== 'text') {
 		return false;
 	}
+	// One-shot mode (positional prompt) goes through the headless path so
+	// the streamed response lands on stdout without Ink's full-screen takeover.
+	if (opts.initialPrompt && opts.initialPrompt.trim().length > 0) {
+		return false;
+	}
 	return !!process.stdout.isTTY && !!process.stdin.isTTY;
 }
 
@@ -47,6 +70,7 @@ function resolveModelId(raw: string): ModelId {
 	const known: ReadonlySet<ModelId> = new Set<ModelId>([
 		// Anthropic
 		'opus', 'sonnet', 'haiku',
+		'claude-code-opus', 'claude-code-sonnet', 'claude-code-haiku',
 		'claude-opus-4-7', 'claude-sonnet-4-7', 'claude-haiku-4-7',
 		'claude-opus-4-6', 'claude-sonnet-4-6', 'claude-haiku-4-6',
 		'claude-opus-4-5', 'claude-sonnet-4-5', 'claude-haiku-4-5',
@@ -145,23 +169,78 @@ export async function runChat(opts: ChatOptions): Promise<void> {
 		? new HookRunner(host)
 		: undefined;
 
+	// Pre-load attachments supplied via `--attach`. Validation failures here
+	// are surfaced to stderr and exit non-zero so scripted callers see the
+	// problem before they get billed for an LLM call against a half-formed
+	// turn.
+	const initialAttachments = loadInitialAttachments(opts.attach);
+	if (!initialAttachments.ok) {
+		process.stderr.write(`error: ${initialAttachments.error}\n`);
+		process.exit(1);
+	}
+
 	if (shouldUseTui(opts)) {
-		await runChatTui({ llm, host, model, specialist: opts.specialist, resumeFrom: opts.resumeFrom, hookRunner });
+		await runChatTui({
+			llm,
+			host,
+			model,
+			specialist: opts.specialist,
+			resumeFrom: opts.resumeFrom,
+			hookRunner,
+			initialAttachments: initialAttachments.attachments,
+		});
 		return;
 	}
 
 	const renderer = makeRenderer(opts.output);
+	const oneShotPrompt = opts.initialPrompt && opts.initialPrompt.trim().length > 0 ? opts.initialPrompt.trim() : undefined;
+	const messages: LlmMessage[] = [];
+	const pendingAttachments: PendingAttachment[] = [...initialAttachments.attachments];
+
+	// H18 — one-shot mode. When a positional prompt was supplied, fire a
+	// single turn (with any `--attach`ed images) and exit when it settles.
+	// We skip readline entirely so the streamed response lands on stdout
+	// without an interactive prompt indicator.
+	if (oneShotPrompt) {
+		const turnAttachments = pendingAttachments.splice(0, pendingAttachments.length);
+		if (turnAttachments.length > 0) {
+			if (opts.output === 'text') {
+				for (const a of turnAttachments) {
+					process.stdout.write(`attached ${a.name} (${Math.max(1, Math.round(a.sizeBytes / 1024))} KB)\n`);
+				}
+			}
+			const parts: LlmContentPart[] = [
+				...turnAttachments.map((a) => ({
+					type: 'image' as const,
+					mimeType: a.mime,
+					base64Data: a.base64,
+				})),
+				{ type: 'text', text: oneShotPrompt },
+			];
+			messages.push({ role: 'user', content: parts });
+		} else {
+			messages.push({ role: 'user', content: oneShotPrompt });
+		}
+		await runUserTurn(llm, model, messages, renderer, opts.specialist);
+		renderer.end();
+		return;
+	}
+
 	const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
 
 	if (opts.output === 'text') {
 		process.stdout.write(`Son of Anton CLI · @${opts.specialist} · ${model}\n`);
-		process.stdout.write(`Type 'exit' to quit.\n\n`);
+		process.stdout.write(`Type 'exit' to quit. '/attach <path>' to attach an image.\n\n`);
+		// Surface the pre-loaded `--attach` attachments so scripted callers
+		// have a confirmation line before any LLM call happens.
+		for (const attachment of initialAttachments.attachments) {
+			process.stdout.write(`attached ${attachment.name} (${Math.max(1, Math.round(attachment.sizeBytes / 1024))} KB)\n`);
+		}
 	}
+
+	let busy = false;
 	rl.setPrompt('> ');
 	rl.prompt();
-
-	const messages: LlmMessage[] = [];
-	let busy = false;
 
 	rl.on('line', (line) => {
 		if (busy) {
@@ -180,7 +259,35 @@ export async function runChat(opts: ChatOptions): Promise<void> {
 			return;
 		}
 
-		messages.push({ role: 'user', content: input });
+		// Headless `/attach` parity with the TUI. Same UX: bare command
+		// prints the pending list, `clear` drains it, a path adds it.
+		if (input.startsWith('/attach')) {
+			handleAttachCommand(input, pendingAttachments, opts.output);
+			rl.prompt();
+			return;
+		}
+
+		const turnAttachments = pendingAttachments.splice(0, pendingAttachments.length);
+		if (turnAttachments.length > 0) {
+			const parts: LlmContentPart[] = [
+				...turnAttachments.map((a) => ({
+					type: 'image' as const,
+					mimeType: a.mime,
+					base64Data: a.base64,
+				})),
+				{ type: 'text', text: input },
+			];
+			messages.push({ role: 'user', content: parts });
+			if (opts.output === 'text') {
+				const noun = turnAttachments.length === 1 ? 'attachment' : 'attachments';
+				const summary = turnAttachments
+					.map((a) => `${a.name} (${Math.max(1, Math.round(a.sizeBytes / 1024))} KB)`)
+					.join(', ');
+				process.stdout.write(`📎 ${turnAttachments.length} ${noun}: ${summary}\n`);
+			}
+		} else {
+			messages.push({ role: 'user', content: input });
+		}
 		busy = true;
 
 		void (async () => {
@@ -213,6 +320,7 @@ interface ChatTuiArgs {
 	specialist: string;
 	resumeFrom?: CliConversation;
 	hookRunner?: HookRunner;
+	initialAttachments?: ReadonlyArray<PendingAttachment>;
 }
 
 /**
@@ -237,7 +345,80 @@ async function runChatTui(args: ChatTuiArgs): Promise<void> {
 			specialist: args.specialist,
 			resumeFrom: args.resumeFrom,
 			hookRunner: args.hookRunner,
+			initialAttachments: args.initialAttachments,
 		}),
 	);
 	await waitUntilExit();
+}
+
+/**
+ * Load each path supplied via `--attach` into a `PendingAttachment`. Returns
+ * a tagged result so the caller can stop the whole `runChat` flow on the
+ * first validation failure — partial-success behaviour would be hard to
+ * communicate clearly in a scripted scenario.
+ */
+function loadInitialAttachments(
+	raw: ReadonlyArray<string> | string | undefined,
+): { ok: true; attachments: ReadonlyArray<PendingAttachment> } | { ok: false; error: string } {
+	if (!raw) {
+		return { ok: true, attachments: [] };
+	}
+	const list = Array.isArray(raw) ? raw : [raw];
+	const out: PendingAttachment[] = [];
+	for (const path of list) {
+		const result = loadAttachment(path, process.cwd());
+		if (!result.ok) {
+			return { ok: false, error: `--attach ${path}: ${result.error}` };
+		}
+		out.push(result.attachment);
+	}
+	return { ok: true, attachments: out };
+}
+
+/**
+ * Headless `/attach` dispatcher used by the readline REPL. Mirrors the TUI
+ * slash command verbatim — same parsing rules, same confirmation lines,
+ * same `clear` behaviour — so users walking between TUI and `--no-tui`
+ * sessions don't have to relearn the surface.
+ */
+function handleAttachCommand(
+	input: string,
+	pending: PendingAttachment[],
+	output: 'text' | 'json',
+): void {
+	const tokens = input.trim().split(/\s+/);
+	const args = tokens.slice(1);
+	const write = (line: string): void => {
+		if (output === 'text') {
+			process.stdout.write(`${line}\n`);
+		}
+	};
+	if (args.length === 0) {
+		if (pending.length === 0) {
+			write('No attachments pending. Usage: /attach <path>  ·  /attach clear');
+			return;
+		}
+		write(`${pending.length} attachment(s) queued for the next prompt:`);
+		for (const a of pending) {
+			const kb = Math.max(1, Math.round(a.sizeBytes / 1024));
+			write(`  ${a.name} (${kb} KB)`);
+		}
+		write('Type /attach clear to drop them.');
+		return;
+	}
+	if (args[0] === 'clear') {
+		const had = pending.length;
+		pending.length = 0;
+		write(had === 0 ? 'No attachments to clear.' : `Cleared ${had} attachment(s).`);
+		return;
+	}
+	const rawPath = args.join(' ');
+	const result = loadAttachment(rawPath, process.cwd());
+	if (!result.ok) {
+		write(`attach failed: ${result.error}`);
+		return;
+	}
+	pending.push(result.attachment);
+	const kb = Math.max(1, Math.round(result.attachment.sizeBytes / 1024));
+	write(`attached ${result.attachment.name} (${kb} KB)`);
 }

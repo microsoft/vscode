@@ -18,6 +18,7 @@ import {
 	type CliConversation,
 	type CliConversationSummary,
 } from '../persistence/ConversationStore';
+import { loadAttachment, type PendingAttachment } from './attachments';
 import { Composer } from './Composer';
 import { ResumePicker } from './ResumePicker';
 import { appendHistory, loadHistory } from './replHistory';
@@ -43,6 +44,13 @@ export interface ChatAppProps {
 	 * exists or the workspace is untrusted.
 	 */
 	hookRunner?: HookRunner;
+	/**
+	 * H18 — pre-loaded image attachments supplied via `sota chat --attach`.
+	 * Threaded straight onto the first user turn so one-shot invocations
+	 * like `sota chat --attach foo.png "describe"` work without an
+	 * interactive `/attach` step.
+	 */
+	initialAttachments?: ReadonlyArray<PendingAttachment>;
 }
 
 /**
@@ -52,11 +60,23 @@ export interface ChatAppProps {
  * the agent-stream helpers and the live model / specialist state.
  */
 export function ChatApp(props: ChatAppProps): JSX.Element {
-	const { llm, host, resumeFrom, hookRunner } = props;
+	const { llm, host, resumeFrom, hookRunner, initialAttachments } = props;
 	const { exit } = useApp();
 	const [model, setModel] = React.useState<ModelId>((resumeFrom?.model as ModelId) ?? props.model);
 	const [specialist, setSpecialist] = React.useState<string>(resumeFrom?.specialist ?? props.specialist);
 	const [planMode, setPlanMode] = React.useState(false);
+	// H18 — pending image attachments for the next user turn. A ref keeps
+	// the latest list addressable from the slash-command dispatcher (which
+	// closes over `ctx`, captured at memo time) without forcing an extra
+	// re-render dependency on the memo deps array. The state mirrors it for
+	// any UI affordance that wants to reflect the queue.
+	const pendingAttachmentsRef = React.useRef<PendingAttachment[]>(initialAttachments ? [...initialAttachments] : []);
+	const [pendingAttachments, setPendingAttachments] = React.useState<ReadonlyArray<PendingAttachment>>(
+		initialAttachments ?? [],
+	);
+	const refreshPending = (): void => {
+		setPendingAttachments([...pendingAttachmentsRef.current]);
+	};
 	const session = React.useMemo(() => loadSessionInfo(specialist, model), [specialist, model]);
 	// One SpecialistMemory per session, backed by the host's globalState.
 	// Shares the same store the IDE uses, so memories written here surface
@@ -264,6 +284,25 @@ export function ChatApp(props: ChatAppProps): JSX.Element {
 			requestExit: () => {
 				exit();
 			},
+			attachImage: (rawPath) => {
+				const result = loadAttachment(rawPath, process.cwd());
+				if (!result.ok) {
+					return { ok: false, error: result.error };
+				}
+				pendingAttachmentsRef.current = [...pendingAttachmentsRef.current, result.attachment];
+				refreshPending();
+				return {
+					ok: true,
+					name: result.attachment.name,
+					sizeKb: Math.max(1, Math.round(result.attachment.sizeBytes / 1024)),
+				};
+			},
+			listAttachments: () =>
+				pendingAttachmentsRef.current.map((a) => ({ name: a.name, sizeBytes: a.sizeBytes })),
+			clearAttachments: () => {
+				pendingAttachmentsRef.current = [];
+				refreshPending();
+			},
 		}),
 		[addSystemMessage, clearTranscript, resetConversation, exit, host, messages, model, specialist, specialistMemory],
 	);
@@ -290,7 +329,20 @@ export function ChatApp(props: ChatAppProps): JSX.Element {
 			}
 			appendHistory(value);
 			setHistory((prev) => [...prev.filter((h) => h !== value), value].slice(-100));
-			send(value);
+			// Snapshot + drain the pending attachments BEFORE firing the turn so
+			// (a) the multipart content reaches the LLM and (b) the next prompt
+			// starts with a clean queue. If `send()` rejected (e.g. busy=true)
+			// we'd lose the attachments — that's acceptable here because the
+			// Composer disables submit while the assistant is streaming, so the
+			// user can't reach this branch concurrently.
+			const queued = pendingAttachmentsRef.current;
+			if (queued.length > 0) {
+				pendingAttachmentsRef.current = [];
+				refreshPending();
+				send(value, queued);
+			} else {
+				send(value);
+			}
 		},
 		[addSystemMessage, ctx, send],
 	);
@@ -360,6 +412,15 @@ export function ChatApp(props: ChatAppProps): JSX.Element {
 					/>
 					{!busy ? (
 						<Suggestions suggestions={suggestions} highlight={suggestionHighlight} />
+					) : null}
+					{pendingAttachments.length > 0 ? (
+						<Box paddingX={1}>
+							<Text color="gray">
+								{`📎 ${pendingAttachments.length} pending: `}
+								{pendingAttachments.map((a) => a.name).join(', ')}
+								{'  (drain on next send · /attach clear to drop)'}
+							</Text>
+						</Box>
 					) : null}
 					<Composer
 						disabled={busy}

@@ -31,13 +31,17 @@ const outputOption = (): Option =>
 		.default('text');
 
 program
-	.command('chat')
-	.description('Start an interactive chat session.')
+	.command('chat [prompt...]')
+	.description('Start an interactive chat session. With a prompt, run a single turn and exit (best paired with --no-tui).')
 	.option('--specialist <id>', 'Pin a specialist (e.g. anton-code)', 'anton')
 	.option('--model <id>', 'Pin a model (e.g. sonnet)', 'sonnet')
 	.option('--no-tui', 'Disable the Ink TUI and use a plain readline REPL')
+	// H18 — repeatable image attachment for the first user turn. Commander
+	// collects repeats by appending to the accumulator we seed below, so
+	// `--attach foo.png --attach bar.jpg` lands as `['foo.png', 'bar.jpg']`.
+	.option('--attach <path>', 'Attach an image file to the first user turn (repeatable).', (value: string, previous: string[]) => [...previous, value], [] as string[])
 	.addOption(outputOption())
-	.action(runChat);
+	.action((promptTokens: ReadonlyArray<string>, opts) => runChat({ ...opts, initialPrompt: promptTokens.join(' ') }));
 
 program
 	.command('run <handle> <prompt>')

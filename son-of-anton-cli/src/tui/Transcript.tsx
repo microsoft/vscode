@@ -6,6 +6,7 @@
 import { Box, Text } from 'ink';
 import Spinner from 'ink-spinner';
 import * as React from 'react';
+import { formatBytes } from './attachments';
 import { MarkdownText } from './MarkdownText';
 import { TodoChecklist } from './TodoChecklist';
 import { ToolCard } from './ToolCard';
@@ -65,10 +66,26 @@ function MessageRow({ message, uiBlockState, onUiBlockResponse }: MessageRowProp
 	const showSpinner = !!message.streaming && !message.text;
 	const hasMarkdown = message.role === 'assistant' && !message.streaming && message.text.length > 0;
 
+	const attachments = message.attachments && message.attachments.length > 0 ? message.attachments : undefined;
+
 	return (
 		<Box flexDirection="column" marginBottom={1}>
+			{attachments ? (
+				<Box flexDirection="row">
+					<Text color={color}>{glyph} </Text>
+					<Text color="gray">
+						{`📎 ${attachments.length} ${attachments.length === 1 ? 'attachment' : 'attachments'}: `}
+						{attachments
+							.map((a) => `${a.name} (${formatBytes(a.sizeBytes)})`)
+							.join(', ')}
+					</Text>
+				</Box>
+			) : null}
 			<Box flexDirection="row">
-				<Text color={color}>{glyph} </Text>
+				{/* When an attachment line preceded the prompt we still want a glyph
+				    column on the text row, but we use a faint placeholder so the
+				    eye lands on the attachment summary above. */}
+				<Text color={attachments ? 'gray' : color}>{attachments ? '  ' : `${glyph} `}</Text>
 				{showSpinner ? (
 					<Text color="gray">
 						<Spinner type="dots" />
