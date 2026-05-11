@@ -82,8 +82,9 @@ program
 
 program
 	.command('update')
-	.description('Check for a newer release of sota on the npm registry.')
+	.description('Check for a newer release of sota; replace the running binary when invoked from a SEA build.')
 	.option('--check', 'Exit 0 even when an upgrade is available — only report it')
+	.option('--dry-run', 'Print what the update would do without writing any files')
 	.addOption(outputOption())
 	.action(runUpdate);
 

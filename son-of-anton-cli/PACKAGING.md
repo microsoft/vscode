@@ -78,9 +78,12 @@ For each target the pipeline runs:
     NODE_SEA`; on ELF/PE we don't.
 9.  **Re-sign** — on macOS, `codesign --remove-signature` strips the
     original signature; `codesign --sign -` applies an ad-hoc
-    signature so the OS will execute the modified binary. Skipped on
-    Linux and Windows (production Windows releases need Authenticode
-    in a later stage).
+    signature so the OS will execute the modified binary. After the
+    ad-hoc step, an optional production-signing pass runs if the
+    relevant `SOTA_MACOS_*` env vars are present (Developer ID re-sign
+    + notarisation; see [Signing](#signing) below). On Windows,
+    signing is likewise gated on `SOTA_WINDOWS_*` env vars and runs
+    from the same hook. Skipped wholesale on Linux.
 10. **Smoke** — `./dist-bundle/<binary> --version` must exit 0. Only
     runs when the build host matches the target; cross-builds skip
     this and rely on the consumer-machine validation in CI.
@@ -199,13 +202,13 @@ simple — only the SEA binary needs replacing.
 
 ## Cross-platform status
 
-| Platform        | Stage | Status         | Codesign at build time |
-|-----------------|-------|----------------|------------------------|
-| macOS arm64     | 1+2   | shipped        | ad-hoc                 |
-| Linux x64       | 3     | shipped        | n/a                    |
-| Windows x64     | 3     | shipped        | n/a (needs Authenticode in prod) |
-| macOS x64       | 3+    | not yet built  | —                      |
-| Linux arm64     | 3+    | not yet built  | —                      |
+| Platform        | Stage | Status         | Codesign at build time                   |
+|-----------------|-------|----------------|------------------------------------------|
+| macOS arm64     | 1+2   | shipped        | ad-hoc + optional Developer ID/notary    |
+| Linux x64       | 3     | shipped        | n/a                                      |
+| Windows x64     | 3     | shipped        | optional Authenticode via `signtool`     |
+| macOS x64       | 3+    | not yet built  | —                                        |
+| Linux arm64     | 3+    | not yet built  | —                                        |
 
 The cache-dir convention (`~/.sota/cache/...`) is identical on macOS,
 Linux, and Windows. On Windows that resolves to
@@ -228,6 +231,135 @@ darwin-arm64 vs win32-x64). After first-run extraction the user sees
 an additional `~/.sota/cache/<version>/` tree roughly 3× the archive
 size (uncompressed).
 
+## Signing
+
+Production signing is bolted onto the packaging pipeline as an optional
+ninth-step extension (`signBinary` in `scripts/lib/sea-pipeline.mjs`). It
+is **entirely env-var driven** — with no env vars set the local dev flow
+is unchanged (ad-hoc Mach-O signature, unsigned ELF, unsigned PE). The
+release GitHub Actions workflow (`.github/workflows/release-sota.yml`)
+sets the env vars from repository secrets on a per-runner basis.
+
+### macOS — Developer ID + notarisation
+
+| Env var                            | Meaning                                                                                |
+|------------------------------------|----------------------------------------------------------------------------------------|
+| `SOTA_MACOS_SIGNING_IDENTITY`      | Common name of the Developer ID Application identity in the login keychain.            |
+| `SOTA_MACOS_NOTARY_KEY_ID`         | App Store Connect API key ID (10-char alphanumeric).                                   |
+| `SOTA_MACOS_NOTARY_KEY_ISSUER`     | Issuer UUID for the API key.                                                           |
+| `SOTA_MACOS_NOTARY_KEY_PATH`       | Path to the `AuthKey_<id>.p8` file on disk.                                            |
+
+Behaviour:
+
+- If `SOTA_MACOS_SIGNING_IDENTITY` is set, the binary is re-signed
+  with `codesign --force --options runtime --timestamp --sign <identity>`
+  *after* the existing ad-hoc signature. The `--options runtime`
+  flag enables the hardened runtime, which is a prerequisite for
+  notarisation.
+- If all three `SOTA_MACOS_NOTARY_KEY_*` vars are also set, the
+  packager zips the binary, submits to `xcrun notarytool submit --wait`,
+  then `xcrun stapler staple`s the result. The zip is cleaned up
+  afterwards. Notarisation typically takes 1–5 minutes.
+- Either step is a silent no-op when its env vars are absent.
+
+### Windows — Authenticode
+
+| Env var                                       | Meaning                                                                |
+|-----------------------------------------------|------------------------------------------------------------------------|
+| `SOTA_WINDOWS_SIGNING_CERT`                   | Path to a `.pfx` (PKCS#12) certificate file.                           |
+| `SOTA_WINDOWS_SIGNING_PASSWORD`               | Password for the `.pfx`. Use this OR…                                  |
+| `SOTA_WINDOWS_SIGNING_CERT_PASSWORD_FILE`     | Path to a file whose contents are the password. Preferred for CI.      |
+
+Behaviour:
+
+- If `SOTA_WINDOWS_SIGNING_CERT` is set AND `signtool.exe` is on
+  PATH, the binary is signed with an RFC3161 timestamp from
+  `http://timestamp.digicert.com` and a SHA-256 file digest.
+- If `signtool` is not on PATH (typical on macOS / Linux build
+  hosts), signing is skipped silently. The release workflow runs the
+  Windows cross-build on `windows-2022`, where the Windows SDK ships
+  `signtool` on PATH out of the box.
+- Reading the password from a file is preferred: it stays out of
+  the process environment table and out of `ps`/audit logs.
+
+### Direct invocation from the release workflow
+
+`signMacOs(binaryPath)` and `signWindows(binaryPath)` are exported from
+`scripts/lib/sea-pipeline.mjs` so the release workflow (or a separate
+post-build signing job) can call them on an already-built binary,
+independent of the rest of the packaging pipeline. The pipeline's own
+step 9 calls `signBinary({ target, binaryPath })` which dispatches to
+the right helper based on `target.exeFormat`.
+
+### Local testing without real certs
+
+You don't need a real Developer ID or Authenticode cert to verify the
+wiring works:
+
+- **macOS**: set `SOTA_MACOS_SIGNING_IDENTITY=bogus-identity` and
+  run a packaging command. `codesign` will print "no identity found"
+  and the build will fail — which proves the env var is consumed and
+  the codesign call is reached.
+- **Windows**: on a Windows host with the SDK installed, set
+  `SOTA_WINDOWS_SIGNING_CERT` to any `.pfx` (e.g. one generated by
+  `New-SelfSignedCertificate` + `Export-PfxCertificate`) and a
+  matching password. `signtool sign` will succeed and `signtool verify
+  /pa` will warn that the cert chain doesn't terminate at a trusted
+  root — fine for testing the pipeline.
+
+## Self-update
+
+`sota update` operates in one of two modes depending on how the binary was
+installed:
+
+| Mode  | Detected via                      | Source of truth      | Behaviour                                                                                          |
+|-------|-----------------------------------|----------------------|----------------------------------------------------------------------------------------------------|
+| npm   | `require('node:sea').isSea()` → false | npmjs.org registry  | Print the recommended `npm i -g son-of-anton-cli@latest` command — do not touch any files.        |
+| SEA   | `require('node:sea').isSea()` → true  | GitHub Releases API | Fetch the latest `sota-v*` release, download the matching artefact, verify SHA256, swap in place. |
+
+The SEA flow:
+
+1. Maps `process.platform` + `process.arch` to one of the three release
+   artefact names produced by the release workflow (`sota-macos-arm64`,
+   `sota-linux-x64`, `sota-windows-x64.exe`).
+2. Calls `GET /repos/<owner>/<repo>/releases` and picks the most recent
+   non-draft release tagged `sota-v*`.
+3. Downloads `SHA256SUMS.txt` from the release and reads the expected
+   digest for the artefact. **A release without `SHA256SUMS.txt` is
+   refused.**
+4. Streams the artefact to a temp file while computing SHA256, then
+   compares against the expected digest.
+5. Atomically swaps the running binary:
+   - `rename(<runningBinary>, <runningBinary>.old)`
+   - `rename(<tempBinary>, <runningBinary>)`
+   - `chmod +x <runningBinary>` (POSIX)
+
+   The OS keeps the still-running process pointed at the now-renamed
+   `.old` file via its open file descriptor, so the current invocation
+   completes normally. The user re-runs `sota` to pick up the new binary.
+
+### Windows quirk
+
+On Windows, file handles to running executables prevent some rename
+operations. The current implementation lets the OS surface the error
+("Access is denied" or `EBUSY`) when it can't perform the swap; the
+user is expected to re-run from a different shell window or after
+closing other `sota` processes. This is documented in the post-update
+output and in `update.ts` itself.
+
+### Dry-run
+
+`sota update --dry-run` prints the planned actions (release tag, asset
+name, target path, swap commands) without touching any files. Useful for
+verifying the URL plumbing in a sandboxed environment, or as a CI gate
+against a release that hasn't been promoted yet.
+
+### Cache
+
+`sota update` and the background `maybeNagAboutUpdate` helper share a
+cache file at `~/.son-of-anton/data/update-check.json` so the registry
+isn't hit on every invocation. The cache TTL is 24 hours.
+
 ## Known limitations
 
 - **First-run startup**: extracting `vendor.tgz` adds a one-time
@@ -246,9 +378,11 @@ size (uncompressed).
   `NODE_VERSION = v22.20.0` in `scripts/lib/sea-pipeline.mjs`; bump
   that constant in lockstep with the esbuild `target` field if you
   migrate.
-- **No Windows code signing yet** — production Windows releases will
-  need Authenticode signing via signtool. The build currently
-  produces unsigned `.exe` files.
+- **Signing is opt-in** — production Authenticode signing on Windows
+  and Developer ID + notarisation on macOS are bolted onto the
+  pipeline via env vars (see [Signing](#signing)). Local builds with
+  no env vars set produce an ad-hoc-signed Mach-O on macOS and
+  unsigned ELF/PE on Linux/Windows.
 
 ## Troubleshooting
 

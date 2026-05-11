@@ -1,0 +1,240 @@
+# ----------------------------------------------------------------------------
+# Build the `sota` CLI binary for three platforms, sign where credentials are
+# available, and attach the artefacts to a draft GitHub Release.
+#
+# Triggered on tag pushes matching `sota-v*` (e.g. `sota-v0.1.0`). The matrix
+# stage produces one binary per target on a native runner (so signtool /
+# codesign work without cross-compilation tricks). The downstream `release`
+# job aggregates the three binaries, generates SHA256SUMS.txt, and creates a
+# draft pre-release.
+#
+# Signing is gated on repository secrets:
+#   - MACOS_SIGNING_IDENTITY            (mac job)
+#   - MACOS_NOTARY_KEY_ID
+#   - MACOS_NOTARY_KEY_ISSUER
+#   - MACOS_NOTARY_KEY_BASE64           (base64-encoded AuthKey_*.p8)
+#   - WINDOWS_SIGNING_CERT_BASE64       (windows job, base64-encoded .pfx)
+#   - WINDOWS_SIGNING_PASSWORD
+#
+# When the secrets are unset, the matching signing step is a silent no-op and
+# unsigned (Linux) / ad-hoc-signed (macOS) / unsigned (Windows) binaries are
+# uploaded. The release is still produced — useful for dry-run/test tags.
+#
+# Action pin policy: third-party actions are pinned to a specific commit SHA
+# with a `# vX.Y.Z` comment for human readability. First-party actions
+# (actions/*) are pinned to a major version tag — GitHub treats these as
+# moving refs but maintains a security guarantee on their org.
+#
+# Security: user-controllable inputs (workflow_dispatch `inputs.tag`,
+# tag refs) are routed through env: blocks and quoted shell variables to
+# avoid command injection. See
+# https://github.blog/security/vulnerability-research/how-to-catch-github-actions-workflow-injections-before-attackers-do/
+# ----------------------------------------------------------------------------
+
+name: Release sota CLI
+
+on:
+  push:
+    tags:
+      - 'sota-v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag name (e.g. sota-v0.1.0). Used for the release title only when run manually.'
+        required: true
+
+permissions:
+  contents: write   # required for softprops/action-gh-release to create the release
+
+jobs:
+  build:
+    name: Build sota (${{ matrix.target }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: macos-arm64
+            runs-on: macos-14
+            package-script: package:macos-arm64
+            artefact-name: sota
+            artefacts: |
+              son-of-anton-cli/dist-bundle/sota
+              son-of-anton-cli/dist-bundle/THIRD_PARTY_LICENSES.txt
+          - target: linux-x64
+            runs-on: ubuntu-22.04
+            package-script: package:linux-x64
+            artefact-name: sota-linux-x64
+            artefacts: |
+              son-of-anton-cli/dist-bundle/sota-linux-x64
+              son-of-anton-cli/dist-bundle/THIRD_PARTY_LICENSES.txt
+          - target: windows-x64
+            runs-on: windows-2022
+            package-script: package:windows-x64
+            artefact-name: sota-windows-x64
+            artefacts: |
+              son-of-anton-cli/dist-bundle/sota-windows-x64.exe
+              son-of-anton-cli/dist-bundle/THIRD_PARTY_LICENSES.txt
+    runs-on: ${{ matrix.runs-on }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.20.0'
+
+      # The repo has a top-level package.json (the VS Code fork) and a
+      # nested son-of-anton-cli/package.json (the CLI). Both need install:
+      # the cli package depends on son-of-anton-core via file: and the
+      # packaging scripts invoke `npm --prefix ../son-of-anton-core run build`.
+      - name: Install root deps
+        run: npm ci
+        shell: bash
+
+      - name: Install CLI deps
+        run: npm ci
+        working-directory: son-of-anton-cli
+        shell: bash
+
+      # --- macOS-only signing prep ------------------------------------------
+      - name: Decode notary API key (macOS)
+        if: matrix.target == 'macos-arm64' && env.MACOS_NOTARY_KEY_BASE64 != ''
+        env:
+          MACOS_NOTARY_KEY_BASE64: ${{ secrets.MACOS_NOTARY_KEY_BASE64 }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/notary"
+          printf '%s' "$MACOS_NOTARY_KEY_BASE64" | base64 -d > "$RUNNER_TEMP/notary/AuthKey.p8"
+          chmod 600 "$RUNNER_TEMP/notary/AuthKey.p8"
+          echo "SOTA_MACOS_NOTARY_KEY_PATH=$RUNNER_TEMP/notary/AuthKey.p8" >> "$GITHUB_ENV"
+
+      # The signing identity itself is presumed to already be in the runner's
+      # login keychain via an earlier "import-codesign-certs" step. For the
+      # very first deploy we'll need to add an `apple-actions/import-codesign-certs`
+      # step here; leaving it as a TODO since cert provisioning is a manual
+      # one-off rather than something to script blindly.
+      # TODO(release): add import-codesign-certs when MACOS_SIGNING_CERT_P12
+      #                + MACOS_SIGNING_CERT_PASSWORD secrets are populated.
+
+      # --- Windows-only signing prep ----------------------------------------
+      - name: Decode signing cert (Windows)
+        if: matrix.target == 'windows-x64' && env.WINDOWS_SIGNING_CERT_BASE64 != ''
+        env:
+          WINDOWS_SIGNING_CERT_BASE64: ${{ secrets.WINDOWS_SIGNING_CERT_BASE64 }}
+        shell: pwsh
+        run: |
+          $certDir = Join-Path $env:RUNNER_TEMP 'signing'
+          New-Item -ItemType Directory -Force -Path $certDir | Out-Null
+          $certPath = Join-Path $certDir 'sota.pfx'
+          [IO.File]::WriteAllBytes(
+            $certPath,
+            [Convert]::FromBase64String($env:WINDOWS_SIGNING_CERT_BASE64)
+          )
+          "SOTA_WINDOWS_SIGNING_CERT=$certPath" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      # --- Build (signing wired in via env vars) -----------------------------
+      - name: Package sota (${{ matrix.target }})
+        working-directory: son-of-anton-cli
+        env:
+          # macOS — only consumed on the mac runner; harmless when empty.
+          SOTA_MACOS_SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
+          SOTA_MACOS_NOTARY_KEY_ID: ${{ secrets.MACOS_NOTARY_KEY_ID }}
+          SOTA_MACOS_NOTARY_KEY_ISSUER: ${{ secrets.MACOS_NOTARY_KEY_ISSUER }}
+          # SOTA_MACOS_NOTARY_KEY_PATH is set by the "Decode notary API key" step above.
+          # Windows — only consumed on the windows runner; harmless when empty.
+          SOTA_WINDOWS_SIGNING_PASSWORD: ${{ secrets.WINDOWS_SIGNING_PASSWORD }}
+          # SOTA_WINDOWS_SIGNING_CERT is set by the "Decode signing cert" step above.
+        run: npm run ${{ matrix.package-script }}
+        shell: bash
+
+      # bash works on `windows-2022` runners (Git for Windows ships it). The
+      # only platform-specific quirk is line endings, which `npm run` handles.
+
+      - name: Upload artefacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artefact-name }}
+          path: ${{ matrix.artefacts }}
+          if-no-files-found: error
+          retention-days: 7
+
+  release:
+    name: Create draft release
+    needs: build
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download all artefacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artefacts
+
+      - name: Stage release files
+        run: |
+          set -euo pipefail
+          mkdir -p release
+          # The artefact layout is artefacts/<artefact-name>/<file>. Flatten
+          # into release/, renaming the THIRD_PARTY_LICENSES.txt per target
+          # so they don't collide.
+          cp "artefacts/sota/sota" "release/sota-macos-arm64"
+          cp "artefacts/sota/THIRD_PARTY_LICENSES.txt" "release/THIRD_PARTY_LICENSES-macos-arm64.txt"
+          cp "artefacts/sota-linux-x64/sota-linux-x64" "release/sota-linux-x64"
+          cp "artefacts/sota-linux-x64/THIRD_PARTY_LICENSES.txt" "release/THIRD_PARTY_LICENSES-linux-x64.txt"
+          cp "artefacts/sota-windows-x64/sota-windows-x64.exe" "release/sota-windows-x64.exe"
+          cp "artefacts/sota-windows-x64/THIRD_PARTY_LICENSES.txt" "release/THIRD_PARTY_LICENSES-windows-x64.txt"
+          chmod +x release/sota-macos-arm64 release/sota-linux-x64
+          ls -lh release/
+
+      - name: Generate SHA256SUMS.txt
+        run: |
+          set -euo pipefail
+          cd release
+          # `sha256sum`'s default format is what `sha256sum -c` expects,
+          # which is what the self-update flow ingests. Keep it.
+          sha256sum sota-macos-arm64 sota-linux-x64 sota-windows-x64.exe > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      # Resolve the release tag without dropping user-controllable input
+      # directly into a shell command. Routed through env: per the advisory
+      # at https://github.blog/security/vulnerability-research/how-to-catch-github-actions-workflow-injections-before-attackers-do/
+      - name: Resolve tag name
+        id: tag
+        env:
+          MANUAL_TAG: ${{ inputs.tag }}
+          GIT_REF: ${{ github.ref }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT_NAME" == 'workflow_dispatch' ]]; then
+            # MANUAL_TAG is quoted on both sides; no shell expansion is performed
+            # on its contents. Validate it matches the expected tag pattern to
+            # avoid garbage propagating to the release name.
+            if [[ ! "$MANUAL_TAG" =~ ^sota-v[0-9A-Za-z._-]+$ ]]; then
+              echo "Refusing tag '$MANUAL_TAG' — must match ^sota-v[0-9A-Za-z._-]+\$" >&2
+              exit 1
+            fi
+            printf 'tag=%s\n' "$MANUAL_TAG" >> "$GITHUB_OUTPUT"
+          else
+            printf 'tag=%s\n' "${GIT_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create draft release
+        uses: softprops/action-gh-release@72f2c25fcb47643c292f7107632f7a47c1df5cd8 # v2.3.2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          name: ${{ steps.tag.outputs.tag }}
+          draft: true
+          prerelease: true
+          fail_on_unmatched_files: true
+          generate_release_notes: true
+          files: |
+            release/sota-macos-arm64
+            release/sota-linux-x64
+            release/sota-windows-x64.exe
+            release/SHA256SUMS.txt
+            release/THIRD_PARTY_LICENSES-macos-arm64.txt
+            release/THIRD_PARTY_LICENSES-linux-x64.txt
+            release/THIRD_PARTY_LICENSES-windows-x64.txt

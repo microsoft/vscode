@@ -688,6 +688,11 @@ function inject(target, paths) {
 function reSign(target, paths) {
 	if (target.exeFormat !== 'macho') {
 		log('9/10', `skip codesign (${target.exeFormat})`);
+		// Windows binaries are still subject to Authenticode signing further
+		// down; ELF binaries are left unsigned by convention.
+		if (target.exeFormat === 'windows') {
+			signBinary({ target, binaryPath: paths.binary });
+		}
 		return;
 	}
 	if (!target.matchesHost) {
@@ -705,6 +710,190 @@ function reSign(target, paths) {
 		console.error('codesign --sign - failed');
 		process.exit(sign.status ?? 1);
 	}
+	// After ad-hoc signing, optionally re-sign with a real Developer ID and
+	// notarise. Both steps are gated on env vars and no-op without them, so
+	// local dev never has to think about signing.
+	signBinary({ target, binaryPath: paths.binary });
+}
+
+// --- Step 9b: production code signing -------------------------------------
+/**
+ * Optional production signing pass. Invoked from the pipeline after the
+ * ad-hoc Mach-O signing / Windows binary is produced; also exported so the
+ * release workflow can call the per-platform helpers directly.
+ *
+ * Behaviour is entirely env-var driven:
+ *
+ *   - **macOS** (Mach-O binaries): if `SOTA_MACOS_SIGNING_IDENTITY` is set,
+ *     re-sign with that Developer ID; if the three `SOTA_MACOS_NOTARY_KEY_*`
+ *     vars are also set, notarise + staple. Either step is a no-op when its
+ *     env vars are absent.
+ *   - **Windows** (PE binaries): if `SOTA_WINDOWS_SIGNING_CERT` and a
+ *     password (either `SOTA_WINDOWS_SIGNING_PASSWORD` or the contents of
+ *     `SOTA_WINDOWS_SIGNING_CERT_PASSWORD_FILE`) are set, invoke `signtool`
+ *     to apply an Authenticode signature with an RFC3161 timestamp.
+ *     Signing is silently skipped when `signtool` is not on PATH (i.e. on
+ *     non-Windows build hosts) so the cross-build does the right thing.
+ *
+ * @param {{ target: object, binaryPath: string }} args
+ */
+export function signBinary({ target, binaryPath }) {
+	if (target.exeFormat === 'macho') {
+		signMacOs(binaryPath);
+		return;
+	}
+	if (target.exeFormat === 'windows') {
+		signWindows(binaryPath);
+		return;
+	}
+	// ELF / other: nothing to do.
+}
+
+/**
+ * Re-sign a Mach-O binary with a real Developer ID and (optionally) notarise.
+ * Both phases are gated on env vars and no-op without them.
+ *
+ *   - `SOTA_MACOS_SIGNING_IDENTITY` — common name of the Developer ID
+ *     Application identity in the login keychain (e.g.
+ *     "Developer ID Application: Acme Corp (TEAMID)").
+ *   - `SOTA_MACOS_NOTARY_KEY_ID`, `SOTA_MACOS_NOTARY_KEY_ISSUER`,
+ *     `SOTA_MACOS_NOTARY_KEY_PATH` — App Store Connect API key triple used
+ *     by `xcrun notarytool`. All three must be present to trigger
+ *     notarisation; we zip the binary, submit, wait, then staple.
+ */
+export function signMacOs(binaryPath) {
+	const identity = process.env.SOTA_MACOS_SIGNING_IDENTITY;
+	if (identity) {
+		log('9b/10', `codesign --options runtime --timestamp --sign "${identity}"`);
+		const r = spawnSync(
+			'codesign',
+			['--force', '--options', 'runtime', '--timestamp', '--sign', identity, binaryPath],
+			{ stdio: 'inherit' },
+		);
+		if (r.status !== 0) {
+			console.error('Developer ID codesign failed');
+			process.exit(r.status ?? 1);
+		}
+	} else {
+		log('9b/10', 'skip Developer ID signing (SOTA_MACOS_SIGNING_IDENTITY unset)');
+	}
+	const keyId = process.env.SOTA_MACOS_NOTARY_KEY_ID;
+	const keyIssuer = process.env.SOTA_MACOS_NOTARY_KEY_ISSUER;
+	const keyPath = process.env.SOTA_MACOS_NOTARY_KEY_PATH;
+	if (!keyId || !keyIssuer || !keyPath) {
+		log('9b/10', 'skip notarisation (SOTA_MACOS_NOTARY_KEY_{ID,ISSUER,PATH} unset)');
+		return;
+	}
+	// notarytool wants the artefact inside a zip (or a .dmg / .pkg). For a
+	// raw binary we zip it, submit, then staple the original.
+	const dir = dirname(binaryPath);
+	const zipPath = resolve(dir, 'sota-notarise.zip');
+	if (existsSync(zipPath)) {
+		rmSync(zipPath, { force: true });
+	}
+	log('9b/10', `zip → ${relative(CLI_ROOT, zipPath)} for notarytool submission`);
+	const zip = spawnSync(
+		'zip', ['-j', '-q', zipPath, binaryPath],
+		{ stdio: 'inherit' },
+	);
+	if (zip.status !== 0) {
+		console.error('zip for notarisation failed');
+		process.exit(zip.status ?? 1);
+	}
+	log('9b/10', 'xcrun notarytool submit --wait');
+	const submit = spawnSync(
+		'xcrun',
+		[
+			'notarytool', 'submit', zipPath,
+			'--key', keyPath,
+			'--key-id', keyId,
+			'--issuer', keyIssuer,
+			'--wait',
+		],
+		{ stdio: 'inherit' },
+	);
+	if (submit.status !== 0) {
+		console.error('xcrun notarytool submit failed');
+		rmSync(zipPath, { force: true });
+		process.exit(submit.status ?? 1);
+	}
+	log('9b/10', 'xcrun stapler staple');
+	const staple = spawnSync('xcrun', ['stapler', 'staple', binaryPath], { stdio: 'inherit' });
+	if (staple.status !== 0) {
+		console.error('xcrun stapler staple failed');
+		rmSync(zipPath, { force: true });
+		process.exit(staple.status ?? 1);
+	}
+	rmSync(zipPath, { force: true });
+}
+
+/**
+ * Apply an Authenticode signature to a Windows PE binary. No-ops silently
+ * when:
+ *   - `SOTA_WINDOWS_SIGNING_CERT` is unset (no cert configured); or
+ *   - `signtool` is not on PATH (typical on macOS / Linux build hosts — the
+ *     release workflow runs this on a Windows runner instead).
+ *
+ * Required env vars (when signing):
+ *   - `SOTA_WINDOWS_SIGNING_CERT` — path to a .pfx (PKCS#12) file.
+ *   - `SOTA_WINDOWS_SIGNING_PASSWORD` — password for the .pfx, OR
+ *   - `SOTA_WINDOWS_SIGNING_CERT_PASSWORD_FILE` — path to a file whose
+ *     contents are the password. The file form is preferred in CI because
+ *     it keeps the password out of the process environment / argv.
+ */
+export function signWindows(binaryPath) {
+	const certPath = process.env.SOTA_WINDOWS_SIGNING_CERT;
+	if (!certPath) {
+		log('9b/10', 'skip Authenticode signing (SOTA_WINDOWS_SIGNING_CERT unset)');
+		return;
+	}
+	if (!hasSigntoolOnPath()) {
+		log('9b/10', 'skip Authenticode signing (signtool not on PATH; sign on a Windows runner instead)');
+		return;
+	}
+	let password = process.env.SOTA_WINDOWS_SIGNING_PASSWORD;
+	const pwdFile = process.env.SOTA_WINDOWS_SIGNING_CERT_PASSWORD_FILE;
+	if (!password && pwdFile) {
+		try {
+			password = readFileSync(pwdFile, 'utf8').replace(/\r?\n$/, '');
+		} catch (err) {
+			console.error(`failed to read SOTA_WINDOWS_SIGNING_CERT_PASSWORD_FILE (${pwdFile}): ${String(err)}`);
+			process.exit(1);
+		}
+	}
+	if (!password) {
+		console.error('SOTA_WINDOWS_SIGNING_CERT set but no password (set SOTA_WINDOWS_SIGNING_PASSWORD or SOTA_WINDOWS_SIGNING_CERT_PASSWORD_FILE)');
+		process.exit(1);
+	}
+	log('9b/10', `signtool sign /f ${relative(CLI_ROOT, certPath)} /tr digicert /td sha256 /fd sha256`);
+	const r = spawnSync(
+		'signtool',
+		[
+			'sign',
+			'/f', certPath,
+			'/p', password,
+			'/tr', 'http://timestamp.digicert.com',
+			'/td', 'sha256',
+			'/fd', 'sha256',
+			binaryPath,
+		],
+		{ stdio: 'inherit' },
+	);
+	if (r.status !== 0) {
+		console.error('signtool sign failed');
+		process.exit(r.status ?? 1);
+	}
+}
+
+function hasSigntoolOnPath() {
+	// `signtool.exe` lives in the Windows SDK. On a Windows runner the
+	// `setup-msbuild` / WindowsSDK action puts it on PATH; on dev macOS /
+	// Linux boxes it isn't there at all. We probe with `where` on Windows
+	// and `command -v` otherwise.
+	const probe = process.platform === 'win32'
+		? spawnSync('where', ['signtool'], { stdio: 'pipe' })
+		: spawnSync('command', ['-v', 'signtool'], { stdio: 'pipe', shell: true });
+	return probe.status === 0;
 }
 
 // --- Step 10 --------------------------------------------------------------
