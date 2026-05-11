@@ -1900,7 +1900,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	): void {
 		let settled = false;
 		const settle = (response: SessionInputResponseKind) => {
-			if (settled || opts.cancellationToken.isCancellationRequested) {
+			if (settled) {
 				return;
 			}
 			settled = true;
@@ -1935,9 +1935,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			localize('agentHost.elicit.url.cancel', "Cancel"),
 			async () => {
 				try {
-					await this._openerService.open(url, { allowCommands: false });
-					settle(SessionInputResponseKind.Accept);
-					return ElicitationState.Accepted;
+					const opened = await this._openerService.open(url, { allowCommands: false });
+					if (opened) {
+						settle(SessionInputResponseKind.Accept);
+						return ElicitationState.Accepted;
+					}
+					settle(SessionInputResponseKind.Decline);
+					return ElicitationState.Rejected;
 				} catch {
 					settle(SessionInputResponseKind.Decline);
 					return ElicitationState.Rejected;
@@ -1959,6 +1963,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			const action = envelope.action as SessionAction;
 			if (action.type === ActionType.SessionInputCompleted && action.requestId === inputReq.id) {
 				settled = true;
+				if (action.response === SessionInputResponseKind.Accept) {
+					part.state.set(ElicitationState.Accepted, undefined);
+				} else {
+					part.state.set(ElicitationState.Rejected, undefined);
+				}
 				part.hide();
 			}
 		}));

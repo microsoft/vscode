@@ -168,7 +168,11 @@ function elicitationAnswerToFieldValue(field: ElicitationSchemaField, answer: Se
 	const value = answer.value;
 	if (field.type === 'boolean') {
 		if (value.kind === SessionInputAnswerValueKind.Boolean) { return value.value; }
-		if (value.kind === SessionInputAnswerValueKind.Text) { return value.value === 'true'; }
+		if (value.kind === SessionInputAnswerValueKind.Text) {
+			if (value.value === 'true') { return true; }
+			if (value.value === 'false') { return false; }
+			return undefined;
+		}
 		return undefined;
 	}
 	if (field.type === 'number' || field.type === 'integer') {
@@ -176,6 +180,7 @@ function elicitationAnswerToFieldValue(field: ElicitationSchemaField, answer: Se
 			return field.type === 'integer' ? Math.trunc(value.value) : value.value;
 		}
 		if (value.kind === SessionInputAnswerValueKind.Text) {
+			if (value.value.trim() === '') { return undefined; }
 			const n = Number(value.value);
 			return Number.isFinite(n) ? (field.type === 'integer' ? Math.trunc(n) : n) : undefined;
 		}
@@ -1166,10 +1171,14 @@ export class CopilotAgentSession extends Disposable {
 			if (result.response !== SessionInputResponseKind.Accept) {
 				return { action: 'cancel' };
 			}
+			const answers = result.answers ?? {};
 			if (!schema) {
+				const freeform = answers.answer;
+				if (freeform && freeform.state !== SessionInputAnswerState.Skipped && freeform.value.kind === SessionInputAnswerValueKind.Text) {
+					return { action: 'accept', content: { answer: freeform.value.value } };
+				}
 				return { action: 'accept' };
 			}
-			const answers = result.answers ?? {};
 			const content: Record<string, ElicitationFieldValue> = {};
 			for (const [fieldName, field] of Object.entries(schema.properties)) {
 				const value = elicitationAnswerToFieldValue(field, answers[fieldName]);

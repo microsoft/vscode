@@ -362,15 +362,16 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 
 	const chatAgentService = new MockChatAgentService();
 	const chatWidgetService = new MockChatWidgetService();
-	const openerService: { openedUrls: (string | URI)[]; openShouldFail: boolean } & Partial<IOpenerService> = {
+	const openerService: { openedUrls: (string | URI)[]; openShouldFail: boolean; openResult: boolean } & Partial<IOpenerService> = {
 		openedUrls: [],
 		openShouldFail: false,
+		openResult: true,
 		async open(target: string | URI) {
 			this.openedUrls.push(target);
 			if (this.openShouldFail) {
 				throw new Error('open failed');
 			}
-			return true;
+			return this.openResult;
 		},
 	};
 
@@ -1425,6 +1426,35 @@ suite('AgentHostChatContribution', () => {
 			await turnPromise;
 		}));
 
+		test('url input request opener returning false dispatches Decline', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService, openerService } = createContribution(disposables);
+			openerService.openResult = false;
+
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+
+			fire({
+				type: ActionType.SessionInputRequested,
+				session,
+				request: { id: 'url-1', url: 'https://example.com/auth' },
+			});
+			await timeout(10);
+
+			const part = collected.flat().find(p => (p as { kind?: string }).kind === 'elicitation2') as ChatElicitationRequestPart;
+			assert.ok(part);
+
+			agentHostService.dispatchedActions.length = 0;
+			await part.accept(true);
+			await timeout(10);
+
+			const completions = agentHostService.dispatchedActions.filter(d => d.action.type === ActionType.SessionInputCompleted);
+			assert.strictEqual(completions.length, 1);
+			assert.strictEqual((completions[0].action as { response: SessionInputResponseKind }).response, SessionInputResponseKind.Decline);
+			assert.strictEqual(part.state.get(), ElicitationState.Rejected);
+
+			fire({ type: ActionType.SessionTurnComplete, session, turnId });
+			await turnPromise;
+		}));
+
 		test('url input request abandoned at turn end dispatches Cancel', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
@@ -1452,7 +1482,7 @@ suite('AgentHostChatContribution', () => {
 		test('url input request completion from another client does not redispatch', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
-			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
 
 			fire({
 				type: ActionType.SessionInputRequested,
@@ -1460,6 +1490,9 @@ suite('AgentHostChatContribution', () => {
 				request: { id: 'url-1', url: 'https://example.com/auth' },
 			});
 			await timeout(10);
+
+			const part = collected.flat().find(p => (p as { kind?: string }).kind === 'elicitation2') as ChatElicitationRequestPart;
+			assert.ok(part);
 
 			agentHostService.dispatchedActions.length = 0;
 			fire({
@@ -1469,6 +1502,40 @@ suite('AgentHostChatContribution', () => {
 				response: SessionInputResponseKind.Accept,
 			});
 			await timeout(10);
+
+			assert.strictEqual(part.state.get(), ElicitationState.Accepted);
+
+			fire({ type: ActionType.SessionTurnComplete, session, turnId });
+			await turnPromise;
+
+			assert.strictEqual(agentHostService.dispatchedActions.some(d => d.action.type === ActionType.SessionInputCompleted), false);
+		}));
+
+		test('url input request server-side dismissal rejects the part and does not redispatch', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+
+			fire({
+				type: ActionType.SessionInputRequested,
+				session,
+				request: { id: 'url-1', url: 'https://example.com/auth' },
+			});
+			await timeout(10);
+
+			const part = collected.flat().find(p => (p as { kind?: string }).kind === 'elicitation2') as ChatElicitationRequestPart;
+			assert.ok(part);
+
+			agentHostService.dispatchedActions.length = 0;
+			fire({
+				type: ActionType.SessionInputCompleted,
+				session,
+				requestId: 'url-1',
+				response: SessionInputResponseKind.Cancel,
+			});
+			await timeout(10);
+
+			assert.strictEqual(part.state.get(), ElicitationState.Rejected);
 
 			fire({ type: ActionType.SessionTurnComplete, session, turnId });
 			await turnPromise;

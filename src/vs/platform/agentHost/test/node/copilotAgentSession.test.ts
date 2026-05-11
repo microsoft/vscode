@@ -1695,6 +1695,26 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual(await resultPromise, { action: 'accept' });
 		});
 
+		test('free-form request (no schema) returns submitted text as content.answer', async () => {
+			const { session, signals } = await createAgentSession(disposables);
+
+			const resultPromise = session.handleElicitationRequest({
+				sessionId: 'test-session-1',
+				message: 'What is your favorite color?',
+				mode: 'form',
+				// No requestedSchema — the workbench fallback renders a single text question.
+			});
+
+			const request = getInputRequest(signals[0]);
+			assert.strictEqual(request.questions, undefined);
+
+			session.respondToUserInputRequest(request.id, SessionInputResponseKind.Accept, {
+				answer: { state: SessionInputAnswerState.Submitted, value: { kind: SessionInputAnswerValueKind.Text, value: 'teal' } },
+			});
+
+			assert.deepStrictEqual(await resultPromise, { action: 'accept', content: { answer: 'teal' } });
+		});
+
 		test('decline response maps to action=decline', async () => {
 			const { session, signals } = await createAgentSession(disposables);
 
