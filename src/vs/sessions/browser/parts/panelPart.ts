@@ -69,9 +69,7 @@ export class PanelPart extends AbstractPaneCompositePart {
 
 	/** Visual margin values for the card-like appearance */
 	static readonly MARGIN_TOP = 5;
-	static readonly MARGIN_BOTTOM = 10;
 	static readonly MARGIN_LEFT = 10;
-	static readonly MARGIN_RIGHT = 10;
 
 	constructor(
 		@INotificationService notificationService: INotificationService,
@@ -176,12 +174,14 @@ export class PanelPart extends AbstractPaneCompositePart {
 			return;
 		}
 
-		// Layout content with reduced dimensions to account for visual margins and border
+		// Layout content with reduced dimensions to account for visual margins and border.
+		// The right and bottom gutters are provided by the workbench grid; the 5px top
+		// margin pairs with the top row's MARGIN_BOTTOM to center the sash.
 		const borderTotal = 2; // 1px border on each side
 		const marginLeft = this.layoutService.isVisible(Parts.SIDEBAR_PART) ? 0 : PanelPart.MARGIN_LEFT;
 		super.layout(
-			width - marginLeft - PanelPart.MARGIN_RIGHT - borderTotal,
-			height - PanelPart.MARGIN_TOP - PanelPart.MARGIN_BOTTOM - borderTotal,
+			width - marginLeft - borderTotal,
+			height - PanelPart.MARGIN_TOP - borderTotal,
 			top, left
 		);
 

@@ -50,8 +50,7 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 
 	/** Visual margin values for the card-like appearance */
 	static readonly MARGIN_TOP = 0;
-	static readonly MARGIN_RIGHT = 10;
-	static readonly MARGIN_BOTTOM = 10;
+	static readonly MARGIN_BOTTOM = 5;
 	static readonly MARGIN_LEFT = 5;
 
 	// Action ID for run script - defined here to avoid layering issues
@@ -294,22 +293,20 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 		}
 
 		const borderTotal = 2; // 1px border on each side
-		const marginBottom = this.layoutService.isVisible(Parts.PANEL_PART)
-			? AuxiliaryBarPart.MARGIN_BOTTOM - 5
-			: AuxiliaryBarPart.MARGIN_BOTTOM;
 
-		// The card's inner content width is invariant across editor visibility
-		// (width - 17 in both states). When the editor is visible, padding-left: 5px
-		// pushes the content right and margin-left is 0 (card flush against the editor).
-		// When the editor is hidden, margin-left: 5px creates a left gutter and
-		// padding-left is 0. The right margin is always MARGIN_RIGHT (10px).
+		// The right gutter is provided by the workbench grid (see Workbench.layout).
+		// The bottom margin is 5px when the panel is visible (paired with the panel's
+		// 5px top margin to center the sash) and 0 when the panel is hidden (so the card
+		// fills its cell; the workbench grid's 10px bottom gutter provides the visible gap).
+		// When the editor is visible, padding-left: 5px keeps the inner content position
+		// invariant (matching the editor-hidden state where margin-left: 5px applies instead).
 		const editorVisible = this.layoutService.isVisible(Parts.EDITOR_PART, mainWindow);
 		const marginLeft = editorVisible ? 0 : AuxiliaryBarPart.MARGIN_LEFT;
-		const marginRight = AuxiliaryBarPart.MARGIN_RIGHT;
 		const paddingLeft = editorVisible ? AuxiliaryBarPart.MARGIN_LEFT : 0;
+		const marginBottom = this.layoutService.isVisible(Parts.PANEL_PART) ? AuxiliaryBarPart.MARGIN_BOTTOM : 0;
 
 		super.layout(
-			width - marginRight - marginLeft - borderTotal - paddingLeft,
+			width - marginLeft - borderTotal - paddingLeft,
 			height - AuxiliaryBarPart.MARGIN_TOP - marginBottom - borderTotal,
 			top, left
 		);

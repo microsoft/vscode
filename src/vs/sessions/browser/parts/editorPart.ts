@@ -9,22 +9,22 @@ import { Parts } from '../../../workbench/services/layout/browser/layoutService.
 
 export class MainEditorPart extends MainEditorPartBase {
 	static readonly MARGIN_TOP = 0;
+	static readonly MARGIN_BOTTOM = 5;
 	static readonly MARGIN_LEFT = 5;
-	static readonly MARGIN_BOTTOM = 10;
 
 	override layout(width: number, height: number, top: number, left: number): void {
 		if (!this.layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
 			return;
 		}
 
-		const marginBottom = this.layoutService.isVisible(Parts.PANEL_PART)
-			? MainEditorPart.MARGIN_BOTTOM - 5
-			: MainEditorPart.MARGIN_BOTTOM;
-
+		// MARGIN_BOTTOM applies only when the panel is visible (paired with the panel's
+		// 5px top margin to center the sash). When the panel is hidden the card fills its
+		// cell; the workbench grid's 10px bottom gutter provides the visible gap.
 		const marginLeft = this.layoutService.isVisible(Parts.SIDEBAR_PART) ||
 			this.layoutService.isVisible(Parts.CHATBAR_PART)
 			? 0
 			: MainEditorPart.MARGIN_LEFT;
+		const marginBottom = this.layoutService.isVisible(Parts.PANEL_PART) ? MainEditorPart.MARGIN_BOTTOM : 0;
 
 		const adjustedWidth = width - marginLeft - 2 /* border width */;
 		const adjustedHeight = height - MainEditorPart.MARGIN_TOP - marginBottom - 2 /* border width */;
