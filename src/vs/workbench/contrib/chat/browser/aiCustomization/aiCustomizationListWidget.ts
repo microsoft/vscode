@@ -125,6 +125,8 @@ interface IAICustomizationItemTemplateData {
 	readonly description: HighlightedLabel;
 	readonly disposables: DisposableStore;
 	readonly elementDisposables: DisposableStore;
+	/** Index of the row currently rendered into this template, or -1 when unbound. */
+	currentIndex: number;
 }
 
 interface IGroupHeaderTemplateData {
@@ -229,6 +231,15 @@ export function formatDisplayName(name: string): string {
 class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICustomizationItemTemplateData> {
 	readonly templateId = 'aiCustomizationItem';
 
+	/**
+	 * Live (non-disposed) templates. Used to keep only the focused row's
+	 * inline action bar in the document tab order so that Tab from a focused
+	 * row enters that row's actions exactly once instead of cycling through
+	 * every row's actions.
+	 */
+	private readonly templates = new Set<IAICustomizationItemTemplateData>();
+	private focusedIndex = -1;
+
 	constructor(
 		@IHoverService private readonly hoverService: IHoverService,
 		@ILabelService private readonly labelService: ILabelService,
@@ -237,6 +248,17 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
 	) { }
+
+	/**
+	 * Tell the renderer which row index is currently focused in the list.
+	 * The action bar of that row (and only that row) is made tab-focusable.
+	 */
+	setFocusedIndex(index: number): void {
+		this.focusedIndex = index;
+		for (const template of this.templates) {
+			template.actionBar.setFocusable(template.currentIndex === index);
+		}
+	}
 
 	renderTemplate(container: HTMLElement): IAICustomizationItemTemplateData {
 		const disposables = new DisposableStore();
@@ -258,8 +280,13 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 		const actionBar = disposables.add(new ActionBar(actionsContainer, {
 			actionViewItemProvider: createActionViewItem.bind(undefined, this.instantiationService),
 		}));
+		// Keep the inline actions out of the document tab order by default. Only the
+		// focused row's action bar is made tab-focusable (see `setFocusedIndex`),
+		// so Tab from a focused row enters that row's actions exactly once instead
+		// of cycling through every row's actions.
+		actionBar.setFocusable(false);
 
-		return {
+		const template: IAICustomizationItemTemplateData = {
 			container,
 			actionsContainer,
 			actionBar,
@@ -270,11 +297,16 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 			description,
 			disposables,
 			elementDisposables,
+			currentIndex: -1,
 		};
+		this.templates.add(template);
+		return template;
 	}
 
 	renderElement(entry: IFileItemEntry, index: number, templateData: IAICustomizationItemTemplateData): void {
 		templateData.elementDisposables.clear();
+		templateData.currentIndex = index;
+		templateData.actionBar.setFocusable(index === this.focusedIndex);
 		const element = entry.item;
 
 		// Type icon: use per-item override or fall back to prompt type
@@ -434,7 +466,12 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 		templateData.actionBar.context = context;
 	}
 
+	disposeElement(_entry: IFileItemEntry, _index: number, templateData: IAICustomizationItemTemplateData): void {
+		templateData.currentIndex = -1;
+	}
+
 	disposeTemplate(templateData: IAICustomizationItemTemplateData): void {
+		this.templates.delete(templateData);
 		templateData.elementDisposables.dispose();
 		templateData.disposables.dispose();
 	}
@@ -671,6 +708,7 @@ export class AICustomizationListWidget extends Disposable {
 		this.emptyStateContainer.style.display = 'none';
 
 		// Create list
+		const itemRenderer = this.instantiationService.createInstance(AICustomizationItemRenderer);
 		this.list = this._register(this.instantiationService.createInstance(
 			WorkbenchList<IListEntry>,
 			'AICustomizationManagementList',
@@ -678,7 +716,7 @@ export class AICustomizationListWidget extends Disposable {
 			new AICustomizationListDelegate(),
 			[
 				new GroupHeaderRenderer(this.hoverService),
-				this.instantiationService.createInstance(AICustomizationItemRenderer),
+				itemRenderer,
 			],
 			{
 				identityProvider: {
@@ -689,9 +727,11 @@ export class AICustomizationListWidget extends Disposable {
 						if (entry.type === 'group-header') {
 							return localize('groupAriaLabel', "{0}, {1} items, {2}", entry.label, entry.count, entry.collapsed ? localize('collapsed', "collapsed") : localize('expanded', "expanded"));
 						}
-						const nameAndDesc = entry.item.description
-							? localize('itemAriaLabel', "{0}, {1}", entry.item.name, entry.item.description)
-							: entry.item.name;
+						const displayName = entry.item.displayName ?? formatDisplayName(entry.item.name);
+						const secondaryText = getCustomizationSecondaryText(entry.item.description, entry.item.filename, entry.item.promptType);
+						const nameAndDesc = secondaryText
+							? localize('itemAriaLabel', "{0}. {1}", displayName, secondaryText)
+							: displayName;
 						return entry.item.disabled
 							? localize('itemAriaLabelDisabled', "{0}, disabled", nameAndDesc)
 							: nameAndDesc;
@@ -714,6 +754,22 @@ export class AICustomizationListWidget extends Disposable {
 				} else {
 					this._onDidSelectItem.fire(e.element.item);
 				}
+			}
+		}));
+
+		// Keep only the focused row's inline action bar in the document tab order
+		// so Tab from a focused row enters that row's actions exactly once instead
+		// of cycling through the action bar of every rendered row.
+		this._register(this.list.onDidChangeFocus(e => {
+			itemRenderer.setFocusedIndex(e.indexes.length ? e.indexes[0] : -1);
+		}));
+
+		// When the list itself receives DOM focus (e.g. via Tab) and no row is
+		// focused yet, focus the first row so the focus indicator is visible
+		// instead of requiring the user to press an arrow key first.
+		this._register(this.list.onDidFocus(() => {
+			if (this.list.getFocus().length === 0 && this.displayEntries.length > 0) {
+				this.list.focusFirst();
 			}
 		}));
 

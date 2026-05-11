@@ -3,45 +3,48 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { BaseActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { coalesce } from '../../../../base/common/arrays.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
+import { MarshalledId } from '../../../../base/common/marshallingIds.js';
 import { IReader, autorun, observableValue } from '../../../../base/common/observable.js';
 import { isWeb } from '../../../../base/common/platform.js';
 import { localize2 } from '../../../../nls.js';
-import { Action2, registerAction2, MenuId, MenuRegistry, isIMenuItem } from '../../../../platform/actions/common/actions.js';
-import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
-import { MarshalledId } from '../../../../base/common/marshallingIds.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
+import { Action2, MenuId, MenuRegistry, isIMenuItem, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { BaseActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
-import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
-import { ModelPickerActionItem, IModelPickerDelegate } from '../../../../workbench/contrib/chat/browser/widget/input/modelPickerActionItem.js';
-import { IChatInputPickerOptions } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerActionItem.js';
-import { IContextKeyService, ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { Menus } from '../../../browser/menus.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { SessionItemContextMenuId } from '../../sessions/browser/views/sessionsList.js';
-import { CLAUDE_CODE_SESSION_TYPE, COPILOT_CLI_SESSION_TYPE, COPILOT_CLOUD_SESSION_TYPE, ISession } from '../../../services/sessions/common/session.js';
+import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../../workbench/common/contributions.js';
 import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
-import { COPILOT_PROVIDER_ID, CopilotChatSessionsProvider } from './copilotChatSessionsProvider.js';
+import { IChatInputPickerOptions } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerActionItem.js';
+import { IModelPickerDelegate, ModelPickerActionItem } from '../../../../workbench/contrib/chat/browser/widget/input/modelPickerActionItem.js';
+import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
+import { Menus } from '../../../browser/menus.js';
 import { ActiveSessionHasGitRepositoryContext, ActiveSessionProviderIdContext, ActiveSessionTypeContext, ChatSessionProviderIdContext, IsNewChatSessionContext } from '../../../common/contextkeys.js';
-import { IsolationPicker } from './isolationPicker.js';
+import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
+import { CLAUDE_CODE_SESSION_TYPE, COPILOT_CLI_SESSION_TYPE, COPILOT_CLOUD_SESSION_TYPE, LOCAL_SESSION_TYPE, ISession } from '../../../services/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { SessionItemContextMenuId } from '../../sessions/browser/views/sessionsList.js';
 import { BranchPicker } from './branchPicker.js';
+import { ClaudePermissionModePicker } from './claudePermissionModePicker.js';
+import { COPILOT_PROVIDER_ID, CopilotChatSessionsProvider } from './copilotChatSessionsProvider.js';
+import { IsolationPicker } from './isolationPicker.js';
 import { ModePicker } from './modePicker.js';
 import { CloudModelPicker } from './modelPicker.js';
 import { CopilotPermissionPickerDelegate, PermissionPicker } from './permissionPicker.js';
-import { ClaudePermissionModePicker } from './claudePermissionModePicker.js';
+import { SessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 
 const IsActiveSessionCopilotCLI = ContextKeyExpr.equals(ActiveSessionTypeContext.key, COPILOT_CLI_SESSION_TYPE);
 const IsActiveSessionCopilotCloud = ContextKeyExpr.equals(ActiveSessionTypeContext.key, COPILOT_CLOUD_SESSION_TYPE);
+const IsActiveSessionLocal = ContextKeyExpr.equals(ActiveSessionTypeContext.key, LOCAL_SESSION_TYPE);
 const IsActiveCopilotChatSessionProvider = ContextKeyExpr.equals(ActiveSessionProviderIdContext.key, COPILOT_PROVIDER_ID);
 const IsActiveSessionCopilotChatCLI = ContextKeyExpr.and(IsActiveSessionCopilotCLI, IsActiveCopilotChatSessionProvider);
 const IsActiveSessionCopilotChatCloud = ContextKeyExpr.and(IsActiveSessionCopilotCloud, IsActiveCopilotChatSessionProvider);
 const IsActiveSessionClaudeCode = ContextKeyExpr.equals(ActiveSessionTypeContext.key, CLAUDE_CODE_SESSION_TYPE);
 const IsActiveSessionCopilotChatClaudeCode = ContextKeyExpr.and(IsActiveSessionClaudeCode, IsActiveCopilotChatSessionProvider);
+const IsActiveSessionCopilotChatLocal = ContextKeyExpr.and(IsActiveSessionLocal, IsActiveCopilotChatSessionProvider);
 
 // -- Actions --
 
@@ -94,7 +97,7 @@ registerAction2(class extends Action2 {
 				id: Menus.NewSessionConfig,
 				group: 'navigation',
 				order: 0,
-				when: IsActiveSessionCopilotChatCLI,
+				when: ContextKeyExpr.or(IsActiveSessionCopilotChatCLI, IsActiveSessionCopilotChatLocal),
 			}],
 		});
 	}
@@ -111,7 +114,7 @@ registerAction2(class extends Action2 {
 				id: Menus.NewSessionConfig,
 				group: 'navigation',
 				order: 1,
-				when: ContextKeyExpr.or(IsActiveSessionCopilotChatCLI, IsActiveSessionCopilotChatClaudeCode),
+				when: ContextKeyExpr.or(IsActiveSessionCopilotChatCLI, IsActiveSessionCopilotChatClaudeCode, IsActiveSessionCopilotChatLocal),
 			}],
 		});
 	}
@@ -145,7 +148,7 @@ registerAction2(class extends Action2 {
 				id: Menus.NewSessionControl,
 				group: 'navigation',
 				order: 1,
-				when: IsActiveSessionCopilotChatCLI,
+				when: ContextKeyExpr.or(IsActiveSessionCopilotChatCLI, IsActiveSessionCopilotChatLocal),
 			}],
 		});
 	}
@@ -397,12 +400,21 @@ export function getAvailableModels(
 	if (!session) {
 		return [];
 	}
-	return languageModelsService.getLanguageModelIds()
+	const allModels = languageModelsService.getLanguageModelIds()
 		.map(id => {
 			const metadata = languageModelsService.lookupLanguageModel(id);
 			return metadata ? { metadata, identifier: id } : undefined;
 		})
-		.filter((m): m is ILanguageModelChatMetadataAndIdentifier => !!m && m.metadata.targetChatSessionType === session.sessionType);
+		.filter((m): m is ILanguageModelChatMetadataAndIdentifier => !!m);
+
+	// For 'local' sessions (in-process VS Code chat), use general-purpose
+	// models (those without a targetChatSessionType) since no extension
+	// registers models specifically targeting the 'local' session type.
+	if (session.sessionType === SessionType.Local) {
+		return allModels.filter(m => !m.metadata.targetChatSessionType && m.metadata.isUserSelectable);
+	}
+
+	return allModels.filter(m => m.metadata.targetChatSessionType === session.sessionType);
 }
 
 // -- Context Key Contribution --
@@ -515,7 +527,10 @@ registerAction2(class DeleteSessionAction extends Action2 {
 				id: SessionItemContextMenuId,
 				group: '1_edit',
 				order: 4,
-				when: ContextKeyExpr.equals(ChatSessionProviderIdContext.key, COPILOT_PROVIDER_ID),
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.equals(ChatSessionProviderIdContext.key, COPILOT_PROVIDER_ID),
+					ContextKeyExpr.notEquals('chatSessionType', CLAUDE_CODE_SESSION_TYPE),
+				),
 			}]
 		});
 	}

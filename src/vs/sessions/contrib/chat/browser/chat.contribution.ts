@@ -17,7 +17,6 @@ import { IsNewChatInSessionContext, IsNewChatSessionContext } from '../../../com
 import { BranchChatSessionAction } from './branchChatSessionAction.js';
 import { RunScriptContribution } from './runScriptAction.js';
 import './nullInlineChatSessionService.js';
-import './openInVSCodeWidget.js';
 import './nullChatTipService.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -68,10 +67,6 @@ class NewChatInSessionsWindowAction extends Action2 {
 }
 
 registerAction2(NewChatInSessionsWindowAction);
-
-
-
-
 
 // --- Sessions New Chat View Registration ---
 // Registers in the same ChatBar container as the existing ChatViewPane.

@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { appendSystemDrift, CacheDiffKind, diffPromptSignature, formatSignatureToken, parseInputMessages } from '../../browser/chatDebug/chatDebugCacheDiff.js';
+import { appendSystemDrift, appendToolsDrift, CacheDiffKind, diffPromptSignature, formatSignatureToken, parseInputMessages } from '../../browser/chatDebug/chatDebugCacheDiff.js';
 
 function msg(role: string, content: string, name?: string) {
 	const part: { type: string; content: string; name?: string } = { type: 'text', content };
@@ -52,6 +52,17 @@ suite('chatDebugCacheDiff', () => {
 			const expected = `call:fs_read${JSON.stringify({ path: '/etc/hosts' })}`;
 			assert.deepStrictEqual(parseInputMessages(json), [
 				{ role: 'assistant', name: undefined, text: expected, charLength: expected.length },
+			]);
+		});
+
+		test('extracts tool_search_output content and labels role distinctly', () => {
+			const payload = { id: 'call_1', status: 'completed', tools: [{ type: 'function', name: 'read_file' }] };
+			const json = JSON.stringify([
+				{ role: 'tool_search', parts: [{ type: 'tool_search_output', ...payload }] },
+			]);
+			const expected = JSON.stringify(payload);
+			assert.deepStrictEqual(parseInputMessages(json), [
+				{ role: 'tool_search', name: undefined, text: expected, charLength: expected.length },
 			]);
 		});
 	});
@@ -156,6 +167,33 @@ suite('chatDebugCacheDiff', () => {
 		test('appendSystemDrift returns input unchanged when system matches', () => {
 			const existing = [{ name: 'messages[0]', role: 'user', status: CacheDiffKind.ContentDrift, aSize: 4, bSize: 4 }];
 			assert.deepStrictEqual(appendSystemDrift(existing, 'sys', 'sys'), existing);
+		});
+
+		test('appendToolsDrift returns input unchanged when tools match', () => {
+			const existing = [{ name: 'messages[0]', role: 'user', status: CacheDiffKind.ContentDrift, aSize: 4, bSize: 4 }];
+			assert.deepStrictEqual(appendToolsDrift(existing, '[tools]', '[tools]'), existing);
+			assert.deepStrictEqual(appendToolsDrift(existing, undefined, undefined), existing);
+		});
+
+		test('appendToolsDrift classifies all kinds and inserts after a leading system entry', () => {
+			const sys = { name: 'system', status: CacheDiffKind.LengthChange, aSize: 4, bSize: 6 };
+			const msg = { name: 'messages[0]', role: 'user', status: CacheDiffKind.ContentDrift, aSize: 4, bSize: 4 };
+			assert.deepStrictEqual(
+				{
+					onlyInA: appendToolsDrift([msg], '[a]', undefined),
+					onlyInB: appendToolsDrift([msg], undefined, '[b]'),
+					contentDrift: appendToolsDrift([msg], '[ab]', '[cd]'),
+					lengthChange: appendToolsDrift([msg], '[a]', '[abc]'),
+					afterSystem: appendToolsDrift([sys, msg], '[a]', '[abc]'),
+				},
+				{
+					onlyInA: [{ name: 'tools', status: CacheDiffKind.OnlyInA, aSize: 3, bSize: 0 }, msg],
+					onlyInB: [{ name: 'tools', status: CacheDiffKind.OnlyInB, aSize: 0, bSize: 3 }, msg],
+					contentDrift: [{ name: 'tools', status: CacheDiffKind.ContentDrift, aSize: 4, bSize: 4 }, msg],
+					lengthChange: [{ name: 'tools', status: CacheDiffKind.LengthChange, aSize: 3, bSize: 5 }, msg],
+					afterSystem: [sys, { name: 'tools', status: CacheDiffKind.LengthChange, aSize: 3, bSize: 5 }, msg],
+				},
+			);
 		});
 	});
 

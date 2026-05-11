@@ -88,7 +88,8 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 					value: localize('autoApproveMode.description', "Controls whether to allow auto approval in the run in terminal tool."),
 				}
 			}
-		}
+		},
+		agentsWindow: { default: true },
 	},
 	[TerminalChatAgentToolsSettingId.AutoApprove]: {
 		markdownDescription: [
@@ -525,7 +526,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		enumDescriptions: [
 			localize('agentSandbox.enabledSetting.offDescription', 'Disable sandboxing for agent mode tools.'),
 			localize('agentSandbox.enabledSetting.onDescription', 'Enable sandboxing for agent mode tools.'),
-			localize('agentSandbox.enabledSetting.allowNetworkDescription', 'Enable sandboxing for agent mode tools, but do not block commands based on configured network domains.'),
+			localize('agentSandbox.enabledSetting.allowNetworkDescription', 'Enable sandboxing for agent mode tools and allow all network domains.'),
 		],
 		default: AgentSandboxEnabledValue.Off,
 		tags: ['preview'],
@@ -553,9 +554,63 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 					},
 					{
 						key: 'agentSandbox.enabledSetting.allowNetworkDescription',
-						value: localize('agentSandbox.enabledSetting.allowNetworkDescription', 'Enable sandboxing for agent mode tools, but do not block commands based on configured network domains.'),
+						value: localize('agentSandbox.enabledSetting.allowNetworkDescription', 'Enable sandboxing for agent mode tools and allow all network domains.'),
 					},
 				]
+			}
+		}
+	},
+	[AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands]: {
+		markdownDescription: localize('agentSandbox.allowUnsandboxedCommands', "Controls whether agent mode terminal commands can run outside the sandbox after user confirmation when a sandboxed command fails or when sandbox restrictions would block the command. This applies only when {0} is enabled.", `\`#${AgentSandboxSettingId.AgentSandboxEnabled}#\``),
+		type: 'boolean',
+		default: true,
+		tags: ['preview'],
+		restricted: true,
+		policy: {
+			name: 'ChatAgentSandboxAllowUnsandboxedCommands',
+			category: PolicyCategory.IntegratedTerminal,
+			minimumVersion: '1.116',
+			localization: {
+				description: {
+					key: 'agentSandbox.allowUnsandboxedCommands',
+					value: localize('agentSandbox.allowUnsandboxedCommands', "Controls whether agent mode terminal commands can run outside the sandbox after user confirmation when a sandboxed command fails or when sandbox restrictions would block the command. This applies only when {0} is enabled.", `\`#${AgentSandboxSettingId.AgentSandboxEnabled}#\``),
+				}
+			}
+		}
+	},
+	[AgentSandboxSettingId.AgentSandboxAutoApproveUnsandboxedCommands]: {
+		markdownDescription: localize('agentSandbox.autoApproveUnsandboxedCommands', "Controls whether agent mode terminal commands that run outside the sandbox are auto-approved. This applies only when both {0} and {1} are enabled.", `\`#${AgentSandboxSettingId.AgentSandboxEnabled}#\``, `\`#${AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands}#\``),
+		type: 'boolean',
+		default: false,
+		tags: ['preview'],
+		restricted: true,
+		policy: {
+			name: 'ChatAgentSandboxAutoApproveUnsandboxedCommands',
+			category: PolicyCategory.IntegratedTerminal,
+			minimumVersion: '1.116',
+			localization: {
+				description: {
+					key: 'agentSandbox.autoApproveUnsandboxedCommands',
+					value: localize('agentSandbox.autoApproveUnsandboxedCommands', "Controls whether agent mode terminal commands that run outside the sandbox are auto-approved. This applies only when both {0} and {1} are enabled.", `\`#${AgentSandboxSettingId.AgentSandboxEnabled}#\``, `\`#${AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands}#\``),
+				}
+			}
+		}
+	},
+	[AgentSandboxSettingId.AgentSandboxAllowAutoApprove]: {
+		markdownDescription: localize('agentSandbox.allowAutoApprove', "Controls whether agent mode terminal commands that run inside the sandbox are auto-approved. When disabled, the run in terminal tool uses the existing approval flow. This applies only when {0} is enabled.", `\`#${AgentSandboxSettingId.AgentSandboxEnabled}#\``),
+		type: 'boolean',
+		default: true,
+		tags: ['preview'],
+		restricted: true,
+		policy: {
+			name: 'ChatAgentSandboxAllowAutoApprove',
+			category: PolicyCategory.IntegratedTerminal,
+			minimumVersion: '1.116',
+			localization: {
+				description: {
+					key: 'agentSandbox.allowAutoApprove',
+					value: localize('agentSandbox.allowAutoApprove', "Controls whether agent mode terminal commands that run inside the sandbox are auto-approved. When disabled, the run in terminal tool uses the existing approval flow. This applies only when {0} is enabled.", `\`#${AgentSandboxSettingId.AgentSandboxEnabled}#\``),
+				}
 			}
 		}
 	},
@@ -615,7 +670,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			},
 			allowWrite: {
 				type: 'array',
-				description: localize('agentSandbox.macFileSystemSetting.allowWrite', "Array of paths to allow write access. Leave empty to disallow all writes."),
+				description: localize('agentSandbox.macFileSystemSetting.allowWrite', "Array of additional paths to allow write access. Leave empty to disallow writes outside the workspace folders and sandbox temp directory."),
 				items: { type: 'string' },
 				default: []
 			},
