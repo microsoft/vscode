@@ -13,7 +13,6 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { IConfigurationService } from '../../../configuration/common/configuration.js';
-import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ISharedProcessService } from '../../../ipc/electron-browser/services.js';
 import { IRemoteAgentHostService } from '../../common/remoteAgentHostService.js';
 import type { IAgentConnection } from '../../common/agentService.js';
@@ -23,7 +22,7 @@ import type {
 	ISSHRelayMessage,
 	ISSHResolvedConfig,
 } from '../../common/sshRemoteAgentHost.js';
-import { SSHRemoteAgentHostService } from '../../electron-browser/sshRemoteAgentHostServiceImpl.js';
+import { ISSHRelayClientFactory, SSHRemoteAgentHostService } from '../../electron-browser/sshRemoteAgentHostServiceImpl.js';
 
 /**
  * In-renderer mock of the shared-process SSH service. Exposes the same
@@ -199,23 +198,16 @@ suite('SSHRemoteAgentHostService (renderer)', () => {
 			return (clientWaiters[index] ??= new DeferredPromise<MockProtocolClient>()).p;
 		};
 
-		const inner: Partial<IInstantiationService> = {
-			createInstance: (_ctor: unknown, ...args: unknown[]) => {
+		instantiationService.stub(ISSHRelayClientFactory, {
+			createClient: (_mainService: unknown, _connectionId: unknown, _address: unknown) => {
 				const c = new MockProtocolClient();
-				// The real RemoteAgentHostProtocolClient owns the transport disposable
-				// it's constructed with; mirror that here so SSHRelayTransport doesn't leak.
-				const transport = args[1] as IDisposable | undefined;
-				if (transport) {
-					c.registerOwned(transport);
-				}
 				disposables.add(c);
 				const index = createdClients.length;
 				createdClients.push(c);
 				clientWaiters[index]?.complete(c);
 				return c;
 			},
-		};
-		instantiationService.stub(IInstantiationService, inner as Partial<IInstantiationService>);
+		});
 
 		service = disposables.add(instantiationService.createInstance(SSHRemoteAgentHostService));
 	});
