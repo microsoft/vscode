@@ -8,7 +8,6 @@ import { isBinaryFile } from 'isbinaryfile';
 import * as path from 'path';
 import { beforeAll, describe, it } from 'vitest';
 import { TestLogService } from '../../../../../platform/testing/common/testLogService';
-import { copyNodePtyFiles } from '../../../copilotcli/node/nodePtyShim';
 import { copyRipgrepShim } from '../../../copilotcli/node/ripgrepShim';
 
 describe('CopilotCLI SDK Upgrade', function () {
@@ -192,7 +191,7 @@ describe('CopilotCLI SDK Upgrade', function () {
 		const errors: string[] = [];
 		// Look for new binaries
 		for (const binary of existingBinaries) {
-			if (binary.startsWith(ripgrepFilesWeCopy) || isNodePtyShimFile(binary)) {
+			if (binary.startsWith(ripgrepFilesWeCopy)) {
 				continue;
 			}
 			const binaryName = path.basename(binary);
@@ -208,7 +207,7 @@ describe('CopilotCLI SDK Upgrade', function () {
 		}
 		// Look for removed binaries.
 		for (const binary of knownBinaries) {
-			if (binary.startsWith(ripgrepFilesWeCopy) || isNodePtyShimFile(binary)) {
+			if (binary.startsWith(ripgrepFilesWeCopy)) {
 				continue;
 			}
 			if (!existingBinaries.has(binary)) {
@@ -229,8 +228,6 @@ describe('CopilotCLI SDK Upgrade', function () {
 async function copyBinaries(extensionPath: string) {
 	const copilotSDKPath = path.join(extensionPath, 'node_modules', '@github', 'copilot');
 	const vscodeRipgrepPath = path.join(copilotSDKPath, 'ripgrep', 'bin', process.platform + '-' + process.arch);
-	const nodePtyPrebuilds = path.join(copilotSDKPath, 'prebuilds', process.platform + '-' + process.arch);
-	await copyNodePtyFiles(extensionPath, nodePtyPrebuilds, new TestLogService());
 	await copyRipgrepShim(extensionPath, vscodeRipgrepPath, new TestLogService());
 }
 async function findAllBinaries(dir: string): Promise<string[]> {
