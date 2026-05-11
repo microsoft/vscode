@@ -22,9 +22,9 @@ import { CUSTOM_TOOL_SEARCH_NAME, ToolSearchToolPromptOptimized } from '../toolS
 
 class Gpt55Prompt extends PromptElement<DefaultAgentPromptProps> {
 	constructor(
-		props: DefaultAgentPromptProps,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IExperimentationService private readonly experimentationService: IExperimentationService,
+		props: DefaultAgentPromptProps,
 	) {
 		super(props);
 	}
