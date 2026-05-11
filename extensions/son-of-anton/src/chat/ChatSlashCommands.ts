@@ -23,12 +23,12 @@ export interface SlashCommandResult {
 	handled: boolean;
 	/**
 	 * Side-channel signal for commands that need to trigger an orchestrator
-	 * action after the dispatcher returns. Currently only `/approve` sets
-	 * this — the caller routes the next turn through the orchestrator's
-	 * `command='approve'` branch instead of treating the raw text as a
-	 * user prompt.
+	 * action after the dispatcher returns. `/approve` and `/reject` both
+	 * use this — the caller routes the next turn through the orchestrator's
+	 * `command='approve' | 'reject'` branch instead of treating the raw
+	 * text as a user prompt.
 	 */
-	action?: 'approve';
+	action?: 'approve' | 'reject';
 }
 
 // Mirrors the `ModelId` union from `LlmClient.ts`. The literal union is a
@@ -87,6 +87,7 @@ export const COMMANDS: ReadonlyArray<CommandDescriptor> = [
 	{ name: '/plan', args: '', description: 'Switch to Plan mode — Anton drafts a plan without executing tools' },
 	{ name: '/act', args: '', description: 'Switch to Act mode — plan and execute (default)' },
 	{ name: '/approve', args: '', description: 'Execute the orchestrator\'s most recently proposed plan' },
+	{ name: '/reject', args: '', description: 'Discard the orchestrator\'s most recently proposed plan' },
 ];
 
 /**
@@ -138,6 +139,11 @@ export async function parseAndDispatch(
 			// `command='approve'` which streams its own "Plan approved.
 			// Executing subtasks..." preamble via the orchestrator pipeline.
 			return { handled: true, output: '', action: 'approve' };
+		case '/reject':
+			// Symmetric with `/approve`: the caller fires an orchestrator
+			// turn with `command='reject'` which discards `activePlan` and
+			// emits a `plan-rejected` event for the task-board surface.
+			return { handled: true, output: '', action: 'reject' };
 		default:
 			return { handled: false, output: '' };
 	}

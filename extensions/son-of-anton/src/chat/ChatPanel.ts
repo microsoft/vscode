@@ -2603,6 +2603,7 @@ export class ChatSession {
 		// actually executes.
 		const rawText = message.text ?? '';
 		let approveOverride = false;
+		let rejectOverride = false;
 		if (rawText.trimStart().startsWith('/')) {
 			const result = await parseAndDispatch(rawText, this.buildSlashCommandContext());
 			if (result.handled) {
@@ -2611,6 +2612,8 @@ export class ChatSession {
 				}
 				if (result.action === 'approve') {
 					approveOverride = true;
+				} else if (result.action === 'reject') {
+					rejectOverride = true;
 				} else {
 					return;
 				}
@@ -2752,7 +2755,7 @@ export class ChatSession {
 			// `BaseAgent.buildSystemPrompt` via `request.workspaceContextSnapshot`,
 			// so the user's typed text stays clean — no prepending.
 			try {
-				await this.runViaAgentBridge(specialistId, fullPrompt, model, mode, assistantConversationIndex, workspaceCtx.markdown, approveOverride);
+				await this.runViaAgentBridge(specialistId, fullPrompt, model, mode, assistantConversationIndex, workspaceCtx.markdown, approveOverride, rejectOverride);
 			} finally {
 				this.webview.postMessage({ type: 'requestEnded' });
 			}
@@ -3236,7 +3239,7 @@ export class ChatSession {
 	 * Translates AgentEvents into webview messages, persists the assembled
 	 * assistant text, and fans cancellation/abort through to the bridge.
 	 */
-	private async runViaAgentBridge(specialistId: string, fullPrompt: string, model: ModelId, mode: ChatMode, assistantConversationIndex: number, workspaceContextSnapshot?: string, approveOverride: boolean = false): Promise<void> {
+	private async runViaAgentBridge(specialistId: string, fullPrompt: string, model: ModelId, mode: ChatMode, assistantConversationIndex: number, workspaceContextSnapshot?: string, approveOverride: boolean = false, rejectOverride: boolean = false): Promise<void> {
 		if (!this.agentBridge) {
 			return;
 		}
@@ -3286,11 +3289,12 @@ export class ChatSession {
 		};
 
 		try {
-			// `/approve` always routes through the orchestrator regardless of
-			// the active specialist chip — only the orchestrator owns the
-			// active plan, and `command='approve'` skips its message-as-prompt
-			// handling and executes the queued subtasks directly.
-			if (specialistId === 'anton' || approveOverride) {
+			// `/approve` and `/reject` always route through the orchestrator
+			// regardless of the active specialist chip — only the orchestrator
+			// owns the active plan, and the `command='approve' | 'reject'`
+			// branches skip the orchestrator's message-as-prompt handling and
+			// act on the queued plan directly.
+			if (specialistId === 'anton' || approveOverride || rejectOverride) {
 				// Forward the composer's model pick onto the orchestrator so the
 				// orchestrator's planning LLM call routes through the user's
 				// chosen provider. Without this the orchestrator silently
@@ -3300,7 +3304,7 @@ export class ChatSession {
 					conversationId: this.currentConversationId,
 					model,
 					workspaceContextSnapshot,
-					command: approveOverride ? 'approve' : undefined,
+					command: approveOverride ? 'approve' : rejectOverride ? 'reject' : undefined,
 				});
 			} else {
 				// Mode is orchestrator-specific — specialists always execute.

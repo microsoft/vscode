@@ -46,11 +46,12 @@ export interface RunOrchestratorOptions {
 	/**
 	 * Explicit orchestrator slash command for this turn. Overrides the
 	 * mode-derived command (`mode='plan' → command='plan'`) when set. Used
-	 * by the chat panel's `/approve` slash command so the orchestrator's
-	 * existing `command='approve'` branch executes the active plan instead
-	 * of treating the raw `/approve` text as a fresh user prompt.
+	 * by the chat panel's `/approve` and `/reject` slash commands so the
+	 * orchestrator's existing `command='approve' | 'reject'` branches act
+	 * on the active plan instead of treating the raw slash text as a
+	 * fresh user prompt.
 	 */
-	readonly command?: 'plan' | 'approve';
+	readonly command?: 'plan' | 'approve' | 'reject';
 }
 
 /**

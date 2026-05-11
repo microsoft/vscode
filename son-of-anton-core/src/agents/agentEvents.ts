@@ -36,6 +36,7 @@ export type ChatMode = 'plan' | 'act';
  */
 export type AgentEvent =
 	| { type: 'plan-proposed'; plan: AgentPlan; mode?: ChatMode }
+	| { type: 'plan-rejected'; mode?: ChatMode }
 	| { type: 'subtask-ready'; subtaskId: string; assignee: string; mode?: ChatMode }
 	| { type: 'subtask-started'; subtaskId: string; assignee: string; instruction: string; mode?: ChatMode }
 	| { type: 'subtask-token'; subtaskId: string; token: string; mode?: ChatMode }

@@ -108,6 +108,8 @@ export class OrchestratorAgent extends BaseAgent {
 				await this.handlePlanCommand(request, stream, task.id, token, personalityEnabled, structuredEmit);
 			} else if (request.command === 'approve') {
 				await this.handleApproveCommand(stream, task.id, token, personalityEnabled, structuredEmit);
+			} else if (request.command === 'reject') {
+				await this.handleRejectCommand(stream, structuredEmit);
 			} else if (request.command === 'status') {
 				await this.handleStatusCommand(stream, personalityEnabled);
 			} else if (request.command === 'metrics') {
@@ -559,6 +561,38 @@ export class OrchestratorAgent extends BaseAgent {
 			});
 		}
 
+		this.activePlan = undefined;
+	}
+
+	/**
+	 * Handle `/reject` — discard the orchestrator's most recently proposed
+	 * plan without executing it. Symmetric with `handleApproveCommand`:
+	 * surfaces a system-style confirmation, clears `activePlan`, and emits
+	 * a `plan-rejected` event so task-board / chat surfaces can react.
+	 *
+	 * Idempotent — when no plan is active we surface a hint that mirrors
+	 * the equivalent approve-path message rather than throwing.
+	 */
+	private async handleRejectCommand(
+		stream: ChatStreamLike,
+		structuredEmit?: (event: AgentEvent) => void,
+	): Promise<void> {
+		if (!this.activePlan) {
+			stream.markdown('No active plan to reject. Use `@anton` to create a plan first.\n');
+			return;
+		}
+		this.activePlan = undefined;
+		stream.markdown('**Plan rejected.** Send a refined request to draft a new one.\n');
+		structuredEmit?.({ type: 'plan-rejected' });
+	}
+
+	/**
+	 * Public escape hatch for callers that need to discard the active plan
+	 * without driving a full chat turn — e.g. a "Cancel" button on the
+	 * task-board card. Symmetric with the orchestrator's existing
+	 * `getActivePlan` accessor. Safe when no plan is active.
+	 */
+	discardActivePlan(): void {
 		this.activePlan = undefined;
 	}
 
