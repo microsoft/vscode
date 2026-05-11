@@ -30,6 +30,7 @@ import { IContextMenuService } from '../../../../../../platform/contextview/brow
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IMarkdownRendererService } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { defaultButtonStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
@@ -39,6 +40,7 @@ import { IPlanReviewFeedbackItem, IPlanReviewFeedbackService } from '../../planR
 import { ChatPlanReviewData } from '../../../common/model/chatProgressTypes/chatPlanReviewData.js';
 import { IChatRendererContent, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { ChatTreeItem } from '../../chat.js';
+import { ChatConfiguration } from '../../../common/constants.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 import './media/chatPlanReview.css';
 
@@ -108,6 +110,7 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 		@IModelService private readonly _modelService: IModelService,
 		@ITextModelService private readonly _textModelService: ITextModelService,
 		@ILanguageService private readonly _languageService: ILanguageService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -186,7 +189,13 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 			const reviewButton = this._register(new Button(this._titleActionsEl, { ...defaultButtonStyles, secondary: true, supportIcons: true, title: reviewButtonTooltip, ariaLabel: reviewButtonTooltip }));
 			reviewButton.element.classList.add('chat-plan-review-title-button', 'chat-plan-review-review-button');
 			this._reviewButton = reviewButton;
-			this._register(reviewButton.onDidClick(() => this.enterReviewMode()));
+			this._register(reviewButton.onDidClick(() => {
+				if (this._isFeedbackMode) {
+					void this.exitFeedbackMode();
+				} else {
+					void this.enterReviewMode();
+				}
+			}));
 		}
 
 		// Restore/expand toggle.
@@ -305,14 +314,14 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 			this._clearAllButtonEl = clearAllButton.element;
 		}
 
-		// Back — non-destructive exit from feedback mode. Per-row × buttons
+		// Close — non-destructive exit from feedback mode. Per-row × buttons
 		// and Clear All handle deletion explicitly.
 		if (this.review.planUri) {
-			const backButtonLabel = localize('chat.planReview.back', "Back");
-			const backButton = this._register(new Button(headerActions, { ...defaultButtonStyles, secondary: true, supportIcons: true, title: backButtonLabel, ariaLabel: backButtonLabel }));
-			backButton.element.classList.add('chat-plan-review-title-button', 'chat-plan-review-feedback-close');
-			backButton.label = backButtonLabel;
-			this._register(backButton.onDidClick(() => this.exitFeedbackMode()));
+			const closeButtonLabel = localize('chat.planReview.close', "Close");
+			const closeButton = this._register(new Button(headerActions, { ...defaultButtonStyles, secondary: true, supportIcons: true, title: closeButtonLabel, ariaLabel: closeButtonLabel }));
+			closeButton.element.classList.add('chat-plan-review-title-button', 'chat-plan-review-title-icon-button', 'chat-plan-review-feedback-close');
+			closeButton.label = `$(${Codicon.close.id})`;
+			this._register(closeButton.onDidClick(() => this.exitFeedbackMode()));
 		}
 
 		// Inline comments list — wrapped in a Monaco scrollable for a styled
@@ -694,6 +703,8 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 			this._reviewButton.element.classList.toggle('chat-plan-review-title-icon-button', isIconOnly);
 			if (isIconOnly) {
 				this._reviewButton.label = `$(${Codicon.edit.id})`;
+			} else if (this._isFeedbackMode) {
+				this._reviewButton.label = localize('chat.planReview.cancelButtonLabel', "Cancel");
 			} else {
 				this._reviewButton.label = this.review.canProvideFeedback
 					? localize('chat.planReview.reviewButtonLabel', "Edit or Provide Feedback")
@@ -728,6 +739,11 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 				await this._editorService.openEditor({ resource: URI.revive(this.review.planUri) });
 			}
 			return;
+		}
+		// When the inline editor is disabled, also open the plan file in a side editor
+		// so the user has somewhere to edit.
+		if (!this.isInlineEditorEnabled() && this.review.planUri) {
+			await this._editorService.openEditor({ resource: URI.revive(this.review.planUri) });
 		}
 		if (this._isCollapsed) {
 			this._isCollapsed = false;
@@ -791,8 +807,11 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 		this.domNode.classList.add('chat-plan-review-feedback-mode');
 		this.renderCommentsList();
 		this.renderCurrentActionButtons();
+		this.updateCollapsedPresentation();
 		const mountId = ++this._inlineEditorMountId;
-		void this.mountInlineEditor(mountId);
+		if (this.isInlineEditorEnabled()) {
+			void this.mountInlineEditor(mountId);
+		}
 		if (options?.focus !== false) {
 			this.focusFeedbackInput();
 		}
@@ -814,6 +833,7 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 		await this.unmountInlineEditor();
 		this.renderMarkdown();
 		this.renderCurrentActionButtons();
+		this.updateCollapsedPresentation();
 		this._messageScrollable.scanDomNode();
 		this._onDidChangeHeight.fire();
 	}
@@ -962,6 +982,10 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 			&& this._isFeedbackMode
 			&& !this._isSubmitted
 			&& !this._messageEditorDisposables.isDisposed;
+	}
+
+	private isInlineEditorEnabled(): boolean {
+		return this._configurationService.getValue<boolean>(ChatConfiguration.PlanReviewInlineEditorEnabled) !== false;
 	}
 
 	private migrateInlineFeedbackToPlan(editingUri: URI, planUri: URI): void {
