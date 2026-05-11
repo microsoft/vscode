@@ -74,7 +74,7 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 
 		const browserSession = BrowserSession.getOrCreate(
 			id,
-			options.scope,
+			options.sessionOptions,
 			this.environmentMainService.workspaceStorageHome,
 			ownerWindow.openedWorkspace?.id
 		);
