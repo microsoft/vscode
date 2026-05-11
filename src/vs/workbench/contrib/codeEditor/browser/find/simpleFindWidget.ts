@@ -7,7 +7,7 @@ import './simpleFindWidget.css';
 import * as nls from '../../../../../nls.js';
 import * as dom from '../../../../../base/browser/dom.js';
 import { FindInput } from '../../../../../base/browser/ui/findinput/findInput.js';
-import { NthMatchInput } from '../../../../../base/browser/ui/findinput/nthMatchInput.js';
+import { NthMatchInput, getSanitizedInputValue } from '../../../../../base/browser/ui/findinput/nthMatchInput.js';
 import { Widget } from '../../../../../base/browser/ui/widget.js';
 import { Delayer, disposableTimeout } from '../../../../../base/common/async.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
@@ -61,7 +61,7 @@ const MATCHES_COUNT_WIDTH = 73;
 
 export abstract class SimpleFindWidget extends Widget implements IVerticalSashLayoutProvider {
 	private readonly _findInput: FindInput;
-	private readonly _nthMatchInput: NthMatchInput;
+	public readonly _nthMatchInput: NthMatchInput;
 	private readonly _domNode: HTMLElement;
 	private readonly _innerDomNode: HTMLElement;
 	private readonly _focusTracker: dom.IFocusTracker;
@@ -550,9 +550,10 @@ export abstract class SimpleFindWidget extends Widget implements IVerticalSashLa
 		const max = parseInt(trimmedCountStr) || this._matchesLimit;
 
 		const input = new NthMatchInput(this._domNode, contextViewService, {
-			placeholder: 'Jump to the result at the given position.',
-			width: 20,
+			placeholder: 'N',
+			tooltip: 'Jump to the Nth result.',
 			label: NLS_NTH_MATCH_INPUT_LABEL,
+			width: 20,
 			type: 'text',
 			min: min,
 			max: max,
@@ -579,14 +580,12 @@ export abstract class SimpleFindWidget extends Widget implements IVerticalSashLa
 		}));
 
 		this._register(input.onInput((e) => {
-			const currentValueAsInt = parseInt(input.getValue());
-			// Enforce the numerical input and min/max constraints here.
-			input.setValue(
-				isNaN(currentValueAsInt) ?
-					`${input.min}` : currentValueAsInt > input.max ?
-						`${input.max}` : currentValueAsInt < input.min ?
-							`${input.min}` : `${currentValueAsInt}`
-			);
+			if (!input.getValue()) {
+				return;
+			}
+			const inputValueAsSanitizedInt = getSanitizedInputValue(input);
+			input.setValue(`${inputValueAsSanitizedInt}`);
+			this.findNth(inputValueAsSanitizedInt);
 			input.updateInputWrapperWidth();
 		}));
 

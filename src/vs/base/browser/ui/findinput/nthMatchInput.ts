@@ -18,6 +18,7 @@ import { MATCHES_LIMIT } from '../../../../editor/contrib/find/browser/findModel
 
 export interface INthMatchInputOptions {
 	readonly placeholder?: string;
+	readonly tooltip?: string;
 	readonly width?: number;
 	readonly label: string;
 	readonly type: 'text';
@@ -46,6 +47,7 @@ const NLS_DEFAULT_LABEL = nls.localize('defaultLabel', "input");
 export class NthMatchInput extends Widget {
 
 	private placeholder: string;
+	private tooltip: string;
 	private label: string;
 	private type: string;
 	private imeSessionInProgress = false;
@@ -80,6 +82,7 @@ export class NthMatchInput extends Widget {
 	constructor(parent: HTMLElement | null, contextViewProvider: IContextViewProvider | undefined, options: INthMatchInputOptions) {
 		super();
 		this.placeholder = options.placeholder || '';
+		this.tooltip = options.tooltip || '';
 		this.label = options.label || NLS_DEFAULT_LABEL;
 		this.type = options.type || 'text';
 		this.min = options.min || 1;
@@ -94,6 +97,7 @@ export class NthMatchInput extends Widget {
 
 		this.inputBox = this._register(new InputBox(this.domNode, contextViewProvider, {
 			placeholder: this.placeholder || '',
+			tooltip: this.tooltip || '',
 			ariaLabel: this.label || '',
 			flexibleHeight,
 			flexibleWidth,
@@ -233,3 +237,17 @@ export class NthMatchInput extends Widget {
 		this.inputBox.hideMessage();
 	}
 }
+
+export function getSanitizedInputValue(input: NthMatchInput): number {
+	// Enforce the numerical input and min/max constraints here.
+	if (!input || !input.getValue()) {
+		return 1;
+	}
+
+	const currentValueAsInt = parseInt(input.getValue(), 10);
+	return isNaN(currentValueAsInt) ?
+		input.min : currentValueAsInt > input.max ?
+			input.max : currentValueAsInt < input.min ?
+				input.min : currentValueAsInt;
+}
+

@@ -23,6 +23,7 @@ import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { createTextInputActions } from '../../../../browser/actions/textInputActions.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
+import { getSanitizedInputValue } from '../../../../../base/browser/ui/findinput/nthMatchInput.js';
 
 const TERMINAL_FIND_WIDGET_INITIAL_WIDTH = 419;
 
@@ -96,9 +97,10 @@ export class TerminalFindWidget extends SimpleFindWidget {
 		}));
 		this._register(themeService.onDidColorThemeChange(() => {
 			if (this.isVisible()) {
-				// Does the match cursor need to jump to the previous instance when the theme changes?
-				// The normal findWidget doesn't behave this way.
-				this.find(true, true);
+				// Update the terminal theming while preserving the current match highlight.
+				// Perform a trivial jump to the current match position,
+				// which should trigger @xterm's decoration logic.
+				this.findNth(getSanitizedInputValue(this._nthMatchInput));
 			}
 		}));
 		this._register(configurationService.onDidChangeConfiguration((e) => {

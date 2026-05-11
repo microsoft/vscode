@@ -11,7 +11,7 @@ import { Toggle } from '../../../../base/browser/ui/toggle/toggle.js';
 import { IContextViewProvider } from '../../../../base/browser/ui/contextview/contextview.js';
 import { FindInput } from '../../../../base/browser/ui/findinput/findInput.js';
 import { ReplaceInput } from '../../../../base/browser/ui/findinput/replaceInput.js';
-import { NthMatchInput } from '../../../../base/browser/ui/findinput/nthMatchInput.js';
+import { NthMatchInput, getSanitizedInputValue } from '../../../../base/browser/ui/findinput/nthMatchInput.js';
 import { IMessage as InputBoxMessage } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { ISashEvent, IVerticalSashLayoutProvider, Orientation, Sash } from '../../../../base/browser/ui/sash/sash.js';
 import { Widget } from '../../../../base/browser/ui/widget.js';
@@ -538,7 +538,8 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		const max = this._state.matchesCount || MATCHES_LIMIT;
 
 		const input = new NthMatchInput(this._domNode, this._contextViewProvider, {
-			placeholder: 'Jump to the result at the given position.',
+			placeholder: 'N',
+			tooltip: 'Jump to the Nth result.',
 			width: 20,
 			label: NLS_NTH_MATCH_INPUT_LABEL,
 			type: 'text',
@@ -567,15 +568,11 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		}));
 
 		this._register(input.onInput((e) => {
-			const currentValueAsInt = parseInt(input.getValue());
-			// Enforce the numerical input and min/max constraints here.
-			input.setValue(
-				isNaN(currentValueAsInt) ?
-					`${input.min}` : currentValueAsInt > input.max ?
-						`${input.max}` : currentValueAsInt < input.min ?
-							`${input.min}` : `${currentValueAsInt}`
-			);
-
+			if (!input.getValue()) {
+				return;
+			}
+			this._nthMatchInput.setValue(`${getSanitizedInputValue(this._nthMatchInput)}`);
+			assertReturnsDefined(this._codeEditor.getAction(FIND_IDS.GoToEditableNthMatchFindAction)).run().then(undefined, onUnexpectedError);
 			this._nthMatchInput.updateInputWrapperWidth();
 		}));
 
