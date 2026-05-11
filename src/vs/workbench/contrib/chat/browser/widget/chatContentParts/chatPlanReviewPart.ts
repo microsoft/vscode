@@ -266,7 +266,7 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 		// Promote into review mode if inline feedback is already present
 		// (e.g. restored from a prior session).
 		if (!this._isSubmitted && this.getInlineFeedbackItems().length > 0) {
-			this.enterFeedbackMode({ focus: false });
+			void this.enterFeedbackMode({ focus: false });
 		}
 	}
 
@@ -525,7 +525,7 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 
 		// Auto-promote into review mode the first time a comment shows up.
 		if (items.length > 0 && !this._suppressFeedbackModeAutoOpen && !this._isFeedbackMode && !this._isCollapsed) {
-			this.enterFeedbackMode({ focus: false });
+			void this.enterFeedbackMode({ focus: false });
 			return;
 		}
 
@@ -701,15 +701,30 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 		if (this._reviewButton) {
 			const isIconOnly = this._isCollapsed;
 			this._reviewButton.element.classList.toggle('chat-plan-review-title-icon-button', isIconOnly);
+			let label: string;
+			let tooltip: string;
 			if (isIconOnly) {
-				this._reviewButton.label = `$(${Codicon.edit.id})`;
+				label = `$(${Codicon.edit.id})`;
+				const fileName = this.review.planUri ? basename(URI.revive(this.review.planUri)) : '';
+				tooltip = this.review.canProvideFeedback
+					? localize('chat.planReview.reviewTooltip', 'Review {0}', fileName)
+					: localize('chat.planReview.openTooltip', 'Open {0}', fileName);
 			} else if (this._isFeedbackMode) {
-				this._reviewButton.label = localize('chat.planReview.cancelButtonLabel', "Cancel");
+				label = localize('chat.planReview.cancelButtonLabel', "Cancel");
+				tooltip = localize('chat.planReview.cancelTooltip', "Exit feedback mode");
 			} else {
-				this._reviewButton.label = this.review.canProvideFeedback
-					? localize('chat.planReview.reviewButtonLabel', "Edit or Provide Feedback")
-					: localize('chat.planReview.openButtonLabel', "Open Plan");
+				const fileName = this.review.planUri ? basename(URI.revive(this.review.planUri)) : '';
+				if (this.review.canProvideFeedback) {
+					label = localize('chat.planReview.reviewButtonLabel', "Edit or Provide Feedback");
+					tooltip = localize('chat.planReview.reviewTooltip', 'Review {0}', fileName);
+				} else {
+					label = localize('chat.planReview.openButtonLabel', "Open Plan");
+					tooltip = localize('chat.planReview.openTooltip', 'Open {0}', fileName);
+				}
 			}
+			this._reviewButton.label = label;
+			this._reviewButton.element.setAttribute('aria-label', tooltip);
+			this._reviewButton.setTitle(tooltip);
 		}
 
 		// Move action buttons between footer (expanded) and inline title
@@ -733,17 +748,12 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 	}
 
 	private async enterReviewMode(): Promise<void> {
-		// Read-only / submitted plans: fall back to opening the file in a side editor.
+		// Read-only / submitted plans: fall back to opening the file in an editor.
 		if (!this.review.canProvideFeedback || this._isSubmitted) {
 			if (this.review.planUri) {
 				await this._editorService.openEditor({ resource: URI.revive(this.review.planUri) });
 			}
 			return;
-		}
-		// When the inline editor is disabled, also open the plan file in a side editor
-		// so the user has somewhere to edit.
-		if (!this.isInlineEditorEnabled() && this.review.planUri) {
-			await this._editorService.openEditor({ resource: URI.revive(this.review.planUri) });
 		}
 		if (this._isCollapsed) {
 			this._isCollapsed = false;
@@ -753,7 +763,7 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 			this.updateCollapsedPresentation();
 			this.updateExpandedPresentation();
 		}
-		this.enterFeedbackMode({ focus: true });
+		await this.enterFeedbackMode({ focus: true });
 	}
 
 	private async submitApproval(action: IChatPlanApprovalAction): Promise<void> {
@@ -793,7 +803,7 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 		void this.markUsed();
 	}
 
-	private enterFeedbackMode(options?: { focus?: boolean }): void {
+	private async enterFeedbackMode(options?: { focus?: boolean }): Promise<void> {
 		if (this._isFeedbackMode) {
 			if (options?.focus) {
 				this.focusFeedbackInput();
@@ -806,11 +816,17 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 		}
 		this.domNode.classList.add('chat-plan-review-feedback-mode');
 		this.renderCommentsList();
-		this.renderCurrentActionButtons();
+		// `updateCollapsedPresentation` re-renders the action buttons, so we don't call
+		// `renderCurrentActionButtons` explicitly here to avoid double work.
 		this.updateCollapsedPresentation();
 		const mountId = ++this._inlineEditorMountId;
 		if (this.isInlineEditorEnabled()) {
-			void this.mountInlineEditor(mountId);
+			await this.mountInlineEditor(mountId);
+		} else if (this.review.planUri) {
+			// No inline editor surface: open the plan file in an editor so the user has
+			// somewhere to edit. Covers paths that bypass `enterReviewMode` (e.g. the
+			// constructor auto-promote when restored inline comments exist).
+			await this._editorService.openEditor({ resource: URI.revive(this.review.planUri) });
 		}
 		if (options?.focus !== false) {
 			this.focusFeedbackInput();
@@ -824,7 +840,8 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 			return;
 		}
 
-		// Back discards the temporary inline editor model; comments and the textarea draft persist.
+		// Closing is non-destructive: discards the temporary inline editor model;
+		// comments and the textarea draft persist.
 		this._isFeedbackMode = false;
 		if (this._feedbackSection) {
 			dom.hide(this._feedbackSection);
@@ -832,7 +849,7 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 		this.domNode.classList.remove('chat-plan-review-feedback-mode');
 		await this.unmountInlineEditor();
 		this.renderMarkdown();
-		this.renderCurrentActionButtons();
+		// `updateCollapsedPresentation` re-renders the action buttons.
 		this.updateCollapsedPresentation();
 		this._messageScrollable.scanDomNode();
 		this._onDidChangeHeight.fire();
