@@ -29,15 +29,6 @@ export interface ISendRequestOptions {
 }
 
 /**
- * Capabilities declared by a sessions provider.
- * Consumers check these before surfacing provider-specific features in the UI.
- */
-export interface ISessionsProviderCapabilities {
-	/** Whether the provider supports multiple chats within a single session. */
-	readonly multipleChatsPerSession: boolean;
-}
-
-/**
  * A sessions provider encapsulates a compute environment.
  * It owns workspace discovery, session creation, session listing, and picker contributions.
  *
@@ -70,15 +61,6 @@ export interface ISessionsProvider {
 	readonly onDidChangeSessionTypes: Event<void>;
 
 	/**
-	 * Capabilities of the provider, which may affect how sessions from this provider are surfaced in the UI. The provider is expected to update capabilities and fire `onDidChangeCapabilities` when they change.
-	 */
-	readonly capabilities: ISessionsProviderCapabilities;
-	/**
-	 * Event that fires when capabilities change. Consumers should refresh any UI affected by capabilities when this occurs.
-	 */
-	readonly onDidChangeCapabilities: Event<ISessionsProviderCapabilities>;
-
-	/**
 	 * List of all sessions currently known to the provider. Consumers should not cache this list, but should listen to `onDidChangeSessions` and update their cached list accordingly.
 	 */
 	getSessions(): ISession[];
@@ -96,24 +78,24 @@ export interface ISessionsProvider {
 	readonly onDidReplaceSession?: Event<{ readonly from: ISession; readonly to: ISession }>;
 
 	/**
-	 * Optional. Fires when a temporary (untitled) chat is atomically replaced
-	 * by a committed chat after the first turn.
-	 *
-	 * @internal This is an implementation detail of the Copilot Chat sessions
-	 * provider. Do not implement or consume this event in other providers.
-	 */
-	readonly onDidReplaceChat?: Event<{ readonly from: IChat; readonly to: IChat }>;
-
-	/**
 	 * List of workspace browse actions supported by the provider. These are used to contribute entries to the "Open Workspace" picker. Consumers should not cache this list, but should call `resolveWorkspace` when an action is executed.
 	 */
 	readonly browseActions: readonly ISessionWorkspaceBrowseAction[];
 
 	/**
+	 * Whether this provider can resolve and run sessions against local file-system workspaces.
+	 * When `true`, the workspace picker includes a "Local" tab with a built-in
+	 * folder browse action that resolves through this provider.
+	 */
+	readonly supportsLocalWorkspaces?: boolean;
+
+	/**
 	 * Resolve a workspace for the given repository URI.
+	 * Returns `undefined` when the provider cannot handle the given URI
+	 * (e.g. wrong scheme or authority).
 	 * @param repositoryUri The URI of the repository to resolve the workspace for.
 	 */
-	resolveWorkspace(repositoryUri: URI): ISessionWorkspace;
+	resolveWorkspace(repositoryUri: URI): ISessionWorkspace | undefined;
 
 	/**
 	 * Create a new session for the given repository URI.

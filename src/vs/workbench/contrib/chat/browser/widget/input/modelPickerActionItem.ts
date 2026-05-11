@@ -49,7 +49,7 @@ export class ModelPickerActionItem extends BaseActionViewItem {
 	) {
 		super(undefined, action);
 
-		this._pickerWidget = this._register(instantiationService.createInstance(ModelPickerWidget, delegate, pickerOptions.hoverPosition));
+		this._pickerWidget = this._register(instantiationService.createInstance(ModelPickerWidget, delegate));
 		this._pickerWidget.setSelectedModel(delegate.currentModel.get());
 		this._pickerWidget.setHideChevrons(pickerOptions.hideChevrons);
 
@@ -95,14 +95,15 @@ export class ModelPickerActionItem extends BaseActionViewItem {
 	}
 
 	private _updateTooltip(): void {
-		if (!this.element) {
+		const target = this._pickerWidget.nameButton;
+		if (!target) {
 			return;
 		}
 		const hoverContent = this._getHoverContents();
 		if (typeof hoverContent === 'string' && hoverContent) {
 			this._managedHover.value = getBaseLayerHoverDelegate().setupManagedHover(
 				getDefaultHoverDelegate('mouse'),
-				this.element,
+				target,
 				hoverContent
 			);
 		} else {

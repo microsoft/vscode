@@ -20,7 +20,7 @@ import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contex
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IQuickInputButton, IQuickInputService, IQuickTreeItem } from '../../../../../platform/quickinput/common/quickInput.js';
-import { InstalledAgentPluginsViewId } from '../agentPluginsView.js';
+import { InstalledAgentPluginsViewId } from '../chat.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { IPromptPath, IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
@@ -66,7 +66,7 @@ function isUserDefined(storage: PromptsStorage): boolean {
 }
 
 function isUserDefinedMcpCollection(collection: McpCollectionDefinition): boolean {
-	const order = collection.presentation?.order;
+	const order = collection.order;
 	return order === McpCollectionSortOrder.User
 		|| order === McpCollectionSortOrder.WorkspaceFolder
 		|| order === McpCollectionSortOrder.Workspace;
@@ -583,6 +583,8 @@ export async function updateMarketplaceIfNeeded(fileService: IFileService, targe
 	}
 }
 
-export function registerCreatePluginAction(): void {
-	registerAction2(CreatePluginAction);
+export function registerCreatePluginAction(): DisposableStore {
+	const store = new DisposableStore();
+	store.add(registerAction2(CreatePluginAction));
+	return store;
 }

@@ -45,13 +45,16 @@
 				"owner": "typescript",
 				"applyTo": "closedDocuments",
 				"fileLocation": [
-					"absolute"
+					"relative",
+					"${workspaceFolder}"
 				],
+				"source": "ts",
 				"pattern": {
-					"regexp": "Error: ([^(]+)\\((\\d+|\\d+,\\d+|\\d+,\\d+,\\d+,\\d+)\\): (.*)$",
+					"regexp": "\\] (.+)\\(([\\d,]+)\\): error TS(\\d+): (.*)$",
 					"file": 1,
 					"location": 2,
-					"message": 3
+					"code": 3,
+					"message": 4
 				},
 				"background": {
 					"beginsPattern": "Starting compilation\\.\\.\\.",
@@ -275,14 +278,20 @@
 		},
 		{
 			"label": "Run and Compile Agents - OSS",
-			"dependsOn": ["Transpile Client", "Run Dev Agents"],
+			"dependsOn": [
+				"Transpile Client",
+				"Run Dev Agents"
+			],
 			"dependsOrder": "sequence",
 			"inAgents": true,
 			"problemMatcher": []
 		},
 		{
 			"label": "Run and Compile Code - OSS",
-			"dependsOn": ["Transpile Client", "Run Dev"],
+			"dependsOn": [
+				"Transpile Client",
+				"Run Dev"
+			],
 			"dependsOrder": "sequence",
 			"inAgents": true,
 			"problemMatcher": []

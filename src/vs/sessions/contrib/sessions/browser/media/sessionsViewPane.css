@@ -139,6 +139,16 @@
 		top: 1.5px;
 	}
 
+	/* Match the find widget's close button size to the header toolbar action buttons (22x22) */
+	.agent-sessions-find-widget-container > .monaco-tree-type-filter > .monaco-tree-type-filter-actionbar .monaco-action-bar .action-label {
+		width: 22px;
+		height: 22px;
+		padding: 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+
 	/* Compact "New" button in header */
 	.agent-sessions-compact-new-button.monaco-button {
 		display: inline-flex;
@@ -149,17 +159,21 @@
 		font-size: 12px;
 		line-height: 18px;
 		border-radius: var(--vscode-cornerRadius-medium);
-		border: 1px solid var(--vscode-button-border, color-mix(in srgb, var(--vscode-foreground) 20%, transparent));
-		background-color: transparent;
-		color: var(--vscode-foreground);
+		border: 1px solid var(--vscode-agentsNewSessionButton-border, var(--vscode-button-border, color-mix(in srgb, var(--vscode-foreground) 20%, transparent)));
+		background-color: var(--vscode-agentsNewSessionButton-background, transparent);
+		color: var(--vscode-agentsNewSessionButton-foreground, var(--vscode-foreground));
 		width: auto;
 		min-width: 0;
 		height: auto;
 		white-space: nowrap;
 	}
 
+	.agent-sessions-compact-new-button.monaco-button:not(.disabled) {
+		cursor: pointer;
+	}
+
 	.agent-sessions-compact-new-button.monaco-button.default-colors:hover {
-		background-color: var(--vscode-toolbar-hoverBackground);
+		background-color: var(--vscode-agentsNewSessionButton-hoverBackground, var(--vscode-toolbar-hoverBackground));
 	}
 
 	.agent-sessions-compact-new-button.monaco-button:focus {
@@ -215,14 +229,14 @@
 	}
 }
 
-.agent-sessions-workbench.experimental-shell-gradient-background .agent-sessions-viewpane {
+.agent-sessions-workbench.shell-gradient-background .agent-sessions-viewpane {
 	background: transparent !important;
 }
 
-.agent-sessions-workbench.experimental-shell-gradient-background .part.sidebar > .content .pane-body,
-.agent-sessions-workbench.experimental-shell-gradient-background .part.sidebar > .content .monaco-scrollable-element,
-.agent-sessions-workbench.experimental-shell-gradient-background .part.sidebar > .content .monaco-list,
-.agent-sessions-workbench.experimental-shell-gradient-background .part.sidebar > .content .monaco-list-rows {
+.agent-sessions-workbench.shell-gradient-background .part.sidebar > .content .pane-body,
+.agent-sessions-workbench.shell-gradient-background .part.sidebar > .content .monaco-scrollable-element,
+.agent-sessions-workbench.shell-gradient-background .part.sidebar > .content .monaco-list,
+.agent-sessions-workbench.shell-gradient-background .part.sidebar > .content .monaco-list-rows {
 	background: transparent !important;
 }
 

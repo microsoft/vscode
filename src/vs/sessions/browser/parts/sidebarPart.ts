@@ -13,7 +13,7 @@ import { IKeybindingService } from '../../../platform/keybinding/common/keybindi
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { SIDE_BAR_TITLE_FOREGROUND, SIDE_BAR_TITLE_BORDER, SIDE_BAR_FOREGROUND, SIDE_BAR_DRAG_AND_DROP_BACKGROUND, ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_TOP_FOREGROUND, ACTIVITY_BAR_TOP_ACTIVE_BORDER, ACTIVITY_BAR_TOP_INACTIVE_FOREGROUND, ACTIVITY_BAR_TOP_DRAG_AND_DROP_BORDER } from '../../../workbench/common/theme.js';
-import { sessionsSidebarBackground, sessionsSidebarHeaderBackground, sessionsSidebarHeaderForeground } from '../../common/theme.js';
+import { agentsPanelForeground } from '../../common/theme.js';
 import { INotificationService } from '../../../platform/notification/common/notification.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { AnchorAlignment } from '../../../base/browser/ui/contextview/contextview.js';
@@ -38,7 +38,7 @@ import { isFullscreen, onDidChangeFullscreen } from '../../../base/browser/brows
 import { mainWindow } from '../../../base/browser/window.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { hasNativeTitlebar, getTitleBarStyle } from '../../../platform/window/common/window.js';
-import { isMacintosh, isNative } from '../../../base/common/platform.js';
+import { isMacintosh, isNative, isWeb } from '../../../base/common/platform.js';
 
 /**
  * Sidebar part specifically for agent sessions workbench.
@@ -68,7 +68,10 @@ export class SidebarPart extends AbstractPaneCompositePart {
 
 	//#region IView
 
-	readonly minimumWidth: number = 170;
+	// On web the titlebar hosts an additional host filter combo alongside the
+	// sidebar toggle; use a wider minimum so those controls always fit within
+	// the sidebar's rendered area (below this the sidebar snaps closed).
+	readonly minimumWidth: number = isWeb ? 270 : 170;
 	readonly maximumWidth: number = Number.POSITIVE_INFINITY;
 	readonly minimumHeight: number = 0;
 	readonly maximumHeight: number = Number.POSITIVE_INFINITY;
@@ -110,7 +113,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 	) {
 		super(
 			Parts.SIDEBAR_PART,
-			{ hasTitle: true, trailingSeparator: false, borderWidth: () => 0 },
+			{ hasTitle: false, trailingSeparator: false, borderWidth: () => 0 },
 			SidebarPart.activeViewletSettingsKey,
 			ActiveViewletContext.bindTo(contextKeyService),
 			SidebarFocusContext.bindTo(contextKeyService),
@@ -121,7 +124,6 @@ export class SidebarPart extends AbstractPaneCompositePart {
 			ViewContainerLocation.Sidebar,
 			Extensions.Viewlets,
 			Menus.SidebarTitle,
-			Menus.TitleBarLeftLayout,
 			notificationService,
 			storageService,
 			contextMenuService,
@@ -223,7 +225,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 
 		const container = assertReturnsDefined(this.getContainer());
 
-		container.style.backgroundColor = this.getColor(sessionsSidebarBackground) || '';
+		container.style.backgroundColor = 'transparent';
 		container.style.color = this.getColor(SIDE_BAR_FOREGROUND) || '';
 		container.style.outlineColor = this.getColor(SIDE_BAR_DRAG_AND_DROP_BACKGROUND) ?? '';
 
@@ -232,10 +234,9 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		container.style.borderRightStyle = '';
 		container.style.borderRightColor = '';
 
-		// Title area uses sessions-specific header colors
 		if (this.sideBarTitleArea) {
-			this.sideBarTitleArea.style.backgroundColor = this.getColor(sessionsSidebarHeaderBackground) || '';
-			this.sideBarTitleArea.style.color = this.getColor(sessionsSidebarHeaderForeground) || '';
+			this.sideBarTitleArea.style.backgroundColor = 'transparent';
+			this.sideBarTitleArea.style.color = this.getColor(agentsPanelForeground) || '';
 		}
 	}
 
@@ -297,8 +298,8 @@ export class SidebarPart extends AbstractPaneCompositePart {
 			iconSize: 16,
 			overflowActionSize: 30,
 			colors: theme => ({
-				activeBackgroundColor: theme.getColor(sessionsSidebarBackground),
-				inactiveBackgroundColor: theme.getColor(sessionsSidebarBackground),
+				activeBackgroundColor: undefined,
+				inactiveBackgroundColor: undefined,
 				activeBorderBottomColor: theme.getColor(ACTIVITY_BAR_TOP_ACTIVE_BORDER),
 				activeForegroundColor: theme.getColor(ACTIVITY_BAR_TOP_FOREGROUND),
 				inactiveForegroundColor: theme.getColor(ACTIVITY_BAR_TOP_INACTIVE_FOREGROUND),

@@ -8,7 +8,8 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { RemoteAgentHostProtocolClient } from '../../../../platform/agentHost/browser/remoteAgentHostProtocolClient.js';
 import { RemoteAgentHostEntryType, IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import type { IProtocolTransport } from '../../../../platform/agentHost/common/state/sessionTransport.js';
-import type { IProtocolMessage, IAhpServerNotification, IJsonRpcResponse } from '../../../../platform/agentHost/common/state/sessionProtocol.js';
+import type { ProtocolMessage, AhpServerNotification, JsonRpcResponse } from '../../../../platform/agentHost/common/state/sessionProtocol.js';
+import { MALFORMED_FRAMES_FORCE_CLOSE_THRESHOLD, MALFORMED_FRAMES_LOG_CAP } from '../../../../platform/agentHost/common/transportConstants.js';
 import {
 	ITunnelAgentHostService,
 	TUNNEL_ADDRESS_PREFIX,
@@ -29,6 +30,8 @@ const LOG_PREFIX = '[WebTunnelAgentHost]';
 
 /** Storage key for recently used tunnel cache. */
 const CACHED_TUNNELS_KEY = 'tunnelAgentHost.recentTunnels';
+/** Storage key for tunnels the user explicitly disconnected. */
+const AUTO_CONNECT_SUPPRESSED_TUNNELS_KEY = 'tunnelAgentHost.autoConnectSuppressedTunnels';
 
 /**
  * Web (browser) implementation of {@link ITunnelAgentHostService}.
@@ -130,7 +133,7 @@ export class WebTunnelAgentHostService extends Disposable implements ITunnelAgen
 		// Derive connection token from tunnel ID (same convention as CLI and desktop)
 		const connectionToken = await deriveConnectionToken(tunnelId);
 
-		const transport = new TunnelConnectionTransport(connection);
+		const transport = new TunnelConnectionTransport(connection, this._logService);
 		const address = `${TUNNEL_ADDRESS_PREFIX}${tunnelId}`;
 		const protocolClient = this._instantiationService.createInstance(
 			RemoteAgentHostProtocolClient, address, transport,
@@ -140,7 +143,7 @@ export class WebTunnelAgentHostService extends Disposable implements ITunnelAgen
 			await protocolClient.connect();
 			this._logService.info(`${LOG_PREFIX} Protocol handshake completed with ${address}`);
 
-			await this._remoteAgentHostService.addSSHConnection({
+			await this._remoteAgentHostService.addManagedConnection({
 				name: tunnel.name,
 				connectionToken,
 				connection: {
@@ -200,6 +203,7 @@ export class WebTunnelAgentHostService extends Disposable implements ITunnelAgen
 			name: tunnel.name,
 			authProvider,
 		});
+		this.clearAutoConnectSuppression(tunnel.tunnelId);
 		this._storeCachedTunnels(filtered.slice(0, 20));
 		this._onDidChangeTunnels.fire();
 	}
@@ -207,7 +211,26 @@ export class WebTunnelAgentHostService extends Disposable implements ITunnelAgen
 	removeCachedTunnel(tunnelId: string): void {
 		const cached = this.getCachedTunnels();
 		this._storeCachedTunnels(cached.filter(t => t.tunnelId !== tunnelId));
+		this.clearAutoConnectSuppression(tunnelId);
 		this._onDidChangeTunnels.fire();
+	}
+
+	isAutoConnectSuppressed(tunnelId: string): boolean {
+		return this._getAutoConnectSuppressedTunnels().has(tunnelId);
+	}
+
+	suppressAutoConnect(tunnelId: string): void {
+		const suppressed = this._getAutoConnectSuppressedTunnels();
+		suppressed.add(tunnelId);
+		this._storeAutoConnectSuppressedTunnels(suppressed);
+	}
+
+	clearAutoConnectSuppression(tunnelId: string): void {
+		const suppressed = this._getAutoConnectSuppressedTunnels();
+		if (!suppressed.delete(tunnelId)) {
+			return;
+		}
+		this._storeAutoConnectSuppressedTunnels(suppressed);
 	}
 
 	private _storeCachedTunnels(tunnels: ICachedTunnel[]): void {
@@ -215,6 +238,30 @@ export class WebTunnelAgentHostService extends Disposable implements ITunnelAgen
 			this._storageService.remove(CACHED_TUNNELS_KEY, StorageScope.APPLICATION);
 		} else {
 			this._storageService.store(CACHED_TUNNELS_KEY, JSON.stringify(tunnels), StorageScope.APPLICATION, StorageTarget.USER);
+		}
+	}
+
+	private _getAutoConnectSuppressedTunnels(): Set<string> {
+		const raw = this._storageService.get(AUTO_CONNECT_SUPPRESSED_TUNNELS_KEY, StorageScope.APPLICATION);
+		if (!raw) {
+			return new Set();
+		}
+		try {
+			const parsed: unknown = JSON.parse(raw);
+			if (!Array.isArray(parsed)) {
+				return new Set();
+			}
+			return new Set(parsed.filter(item => typeof item === 'string'));
+		} catch {
+			return new Set();
+		}
+	}
+
+	private _storeAutoConnectSuppressedTunnels(tunnelIds: Set<string>): void {
+		if (tunnelIds.size === 0) {
+			this._storageService.remove(AUTO_CONNECT_SUPPRESSED_TUNNELS_KEY, StorageScope.APPLICATION);
+		} else {
+			this._storageService.store(AUTO_CONNECT_SUPPRESSED_TUNNELS_KEY, JSON.stringify([...tunnelIds]), StorageScope.APPLICATION, StorageTarget.USER);
 		}
 	}
 }
@@ -227,27 +274,48 @@ export class WebTunnelAgentHostService extends Disposable implements ITunnelAgen
  * so there is no `connect()` method — the protocol client skips that step.
  */
 class TunnelConnectionTransport extends Disposable implements IProtocolTransport {
-	private readonly _onMessage = this._register(new Emitter<IProtocolMessage>());
+	private readonly _onMessage = this._register(new Emitter<ProtocolMessage>());
 	readonly onMessage = this._onMessage.event;
 
 	private readonly _onClose = this._register(new Emitter<void>());
 	readonly onClose = this._onClose.event;
 
-	constructor(private readonly _connection: ITunnelConnection) {
+	private _malformedFrames = 0;
+
+	constructor(
+		private readonly _connection: ITunnelConnection,
+		private readonly _logService: ILogService,
+	) {
 		super();
 		this._register(_connection.onMessage((data: string) => {
+			let message: ProtocolMessage;
 			try {
-				this._onMessage.fire(JSON.parse(data) as IProtocolMessage);
-			} catch {
-				// Malformed message - drop.
+				message = JSON.parse(data) as ProtocolMessage;
+			} catch (err) {
+				this._malformedFrames++;
+				if (this._malformedFrames <= MALFORMED_FRAMES_LOG_CAP) {
+					const preview = data.length > 80 ? data.slice(0, 80) + '…' : data;
+					this._logService.warn(
+						`[TunnelConnectionTransport] Malformed frame #${this._malformedFrames} (len=${data.length}): ${preview}`,
+						err instanceof Error ? err.message : String(err)
+					);
+				}
+				if (this._malformedFrames > MALFORMED_FRAMES_FORCE_CLOSE_THRESHOLD) {
+					this._logService.warn(
+						'[TunnelConnectionTransport] Malformed frame threshold exceeded; forcing tunnel close.'
+					);
+					this._connection.close();
+				}
+				return;
 			}
+			this._onMessage.fire(message);
 		}));
 		this._register(_connection.onClose(() => {
 			this._onClose.fire();
 		}));
 	}
 
-	send(message: IProtocolMessage | IAhpServerNotification | IJsonRpcResponse): void {
+	send(message: ProtocolMessage | AhpServerNotification | JsonRpcResponse): void {
 		this._connection.send(JSON.stringify(message));
 	}
 

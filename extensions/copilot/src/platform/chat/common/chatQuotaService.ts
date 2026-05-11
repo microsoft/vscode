@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createServiceIdentifier } from '../../../util/common/services';
+import { Event } from '../../../util/vs/base/common/event';
 import { IHeaders } from '../../networking/common/fetcherService';
 
 /**
@@ -45,10 +46,10 @@ export interface CopilotUserQuotaInfo {
 
 export interface IChatQuota {
 	quota: number;
-	used: number;
+	percentRemaining: number;
 	unlimited: boolean;
-	overageUsed: number;
-	overageEnabled: boolean;
+	additionalUsageUsed: number;
+	additionalUsageEnabled: boolean;
 	resetDate: Date;
 }
 
@@ -57,9 +58,9 @@ export interface QuotaSnapshot {
 	readonly entitlement: string;
 	/** Percentage of quota remaining (0–100), rounded up to 1 decimal. */
 	readonly percent_remaining: number;
-	/** Whether overage (usage beyond entitlement) is permitted. */
+	/** Whether additional usage (usage beyond included credits) is permitted. */
 	readonly overage_permitted: boolean;
-	/** Number of overage units consumed, rounded up to 1 decimal. */
+	/** Number of additional usage units consumed, rounded up to 1 decimal. */
 	readonly overage_count: number;
 	/** ISO 8601 date when the quota resets, if applicable. */
 	readonly reset_date?: string;
@@ -69,10 +70,19 @@ export type QuotaSnapshots = Record<string, QuotaSnapshot>;
 
 export interface IChatQuotaService {
 	readonly _serviceBrand: undefined;
+	readonly onDidChange: Event<void>;
+	readonly quotaInfo: IChatQuota | undefined;
+	readonly rateLimitInfo: { readonly session: IChatQuota | undefined; readonly weekly: IChatQuota | undefined };
 	quotaExhausted: boolean;
-	overagesEnabled: boolean;
+	additionalUsageEnabled: boolean;
+	/** AIC credits accumulated for the given turn, from copilot_usage.total_nano_aiu. */
+	getCreditsForTurn(turnId: string): number | undefined;
 	processQuotaHeaders(headers: IHeaders): void;
 	processQuotaSnapshots(snapshots: QuotaSnapshots): void;
+	/** Accumulate per-request cost from copilot_usage.total_nano_aiu (in nano-AIUs), scoped to a turn. */
+	setLastCopilotUsage(totalNanoAiu: number, turnId: string): void;
+	/** Reset accumulated credits for the given turn. */
+	resetTurnCredits(turnId: string): void;
 	clearQuota(): void;
 }
 

@@ -9,7 +9,7 @@ import { URI } from '../../../base/common/uri.js';
 import { IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
 import { IAgentPluginManager, type ISyncedCustomization } from '../common/agentPluginManager.js';
-import { CustomizationStatus, type ICustomizationRef, type ISessionCustomization } from '../common/state/sessionState.js';
+import { CustomizationStatus, type CustomizationRef, type SessionCustomization } from '../common/state/sessionState.js';
 import { toAgentClientUri } from '../common/agentClientUri.js';
 
 const DEFAULT_MAX_PLUGINS = 20;
@@ -63,13 +63,13 @@ export class AgentPluginManager implements IAgentPluginManager {
 
 	async syncCustomizations(
 		clientId: string,
-		customizations: ICustomizationRef[],
-		progress?: (status: ISessionCustomization[]) => void,
+		customizations: CustomizationRef[],
+		progress?: (status: SessionCustomization[]) => void,
 	): Promise<ISyncedCustomization[]> {
 		await this._ensureCacheLoaded();
 
 		// Build initial loading status and fire it immediately via progress
-		const statuses: ISessionCustomization[] = customizations.map(c => ({
+		const statuses: SessionCustomization[] = customizations.map(c => ({
 			customization: c,
 			enabled: true,
 			status: CustomizationStatus.Loading,
@@ -103,7 +103,7 @@ export class AgentPluginManager implements IAgentPluginManager {
 	 * Syncs a single plugin to local storage. Skips the copy when the
 	 * nonce matches the cached value. Returns the local directory URI.
 	 */
-	private async _syncPlugin(clientId: string, ref: ICustomizationRef): Promise<URI> {
+	private async _syncPlugin(clientId: string, ref: CustomizationRef): Promise<URI> {
 		const pluginUri = toAgentClientUri(URI.parse(ref.uri), clientId);
 		const key = this._keyForUri(ref.uri);
 		const destDir = URI.joinPath(this._basePath, key);

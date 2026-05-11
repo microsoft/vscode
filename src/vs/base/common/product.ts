@@ -79,13 +79,14 @@ export interface IProductConfiguration {
 	readonly win32RegValueName?: string;
 	readonly win32NameVersion?: string;
 	readonly win32VersionedUpdate?: boolean;
-	readonly win32SiblingExeBasename?: string;
+	readonly win32ContextMenu?: { readonly [arch: string]: { readonly clsid: string } };
 	readonly applicationName: string;
 	readonly embedderIdentifier?: string;
-	readonly telemetryAppName?: string;
+	readonly agentsTelemetryAppName?: string;
 
 	readonly urlProtocol: string;
 	readonly dataFolderName: string; // location for extensions (e.g. ~/.vscode-insiders)
+	readonly sharedDataFolderName: string; // location for shared data (e.g. ~/.vscode-insiders-shared)
 
 	readonly builtInExtensions?: IBuiltInExtension[];
 	readonly walkthroughMetadata?: IProductWalkthrough[];
@@ -237,10 +238,7 @@ export interface IProductConfiguration {
 	readonly extensionConfigurationPolicy?: IStringDictionary<IPolicy>;
 
 	readonly onboardingKeymaps?: readonly IProductOnboardingKeymap[];
-	readonly onboardingExtensions?: readonly IProductOnboardingExtension[];
 	readonly onboardingThemes?: readonly IProductOnboardingTheme[];
-
-	readonly embedded?: IEmbeddedProductConfiguration;
 
 	/**
 	 * When running as an embedded app, the parent VS Code's policy
@@ -261,35 +259,12 @@ export interface IProductOnboardingKeymap {
 	readonly description: string;
 }
 
-export interface IProductOnboardingExtension {
-	readonly id: string;
-	readonly name: string;
-	readonly publisher: string;
-	readonly description: string;
-	readonly icon: string;
-}
-
 export interface IProductOnboardingTheme {
 	readonly id: string;
 	readonly label: string;
 	readonly themeId: string;
 	readonly type: 'dark' | 'light' | 'hcDark' | 'hcLight';
 }
-
-export type IEmbeddedProductConfiguration = Pick<IProductConfiguration,
-	'nameShort' |
-	'nameLong' |
-	'applicationName' |
-	'dataFolderName' |
-	'darwinBundleIdentifier' |
-	'urlProtocol' |
-	'win32AppUserModelId' |
-	'win32MutexName' |
-	'win32RegValueName' |
-	'win32NameVersion' |
-	'win32VersionedUpdate' |
-	'win32SiblingExeBasename'
->;
 
 export interface ITunnelApplicationConfig {
 	authenticationProviders: IStringDictionary<{ scopes: string[] }>;
@@ -433,7 +408,6 @@ export interface IDefaultChatAgent {
 
 	readonly walkthroughCommand: string;
 	readonly completionsMenuCommand: string;
-	readonly completionsRefreshTokenCommand: string;
 	readonly chatRefreshTokenCommand: string;
 	readonly generateCommitMessageCommand: string;
 	readonly resolveMergeConflictsCommand: string;

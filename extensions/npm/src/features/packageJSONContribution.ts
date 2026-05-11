@@ -278,13 +278,16 @@ export class PackageJSONContribution implements IJSONContribution {
 			return undefined; // avoid unnecessary lookups
 		}
 		let info: ViewPackageInfo | undefined;
+		let installedVersion: string | undefined;
 		if (this.npmCommandPath) {
-			info = await this.npmView(this.npmCommandPath, pack, resource);
+			([info, installedVersion] = await Promise.all([
+				this.npmView(this.npmCommandPath, pack, resource),
+				this.npmListInstalledVersion(this.npmCommandPath, pack, resource)
+			]));
 		}
 		if (!info && this.onlineEnabled()) {
 			info = await this.npmjsView(pack);
 		}
-		const installedVersion = this.npmCommandPath ? await this.npmListInstalledVersion(this.npmCommandPath, pack, resource) : undefined;
 		if (installedVersion) {
 			info = info ?? { description: '' };
 			info.installedVersion = installedVersion;
@@ -320,16 +323,18 @@ export class PackageJSONContribution implements IJSONContribution {
 	}
 
 	private async npmView(npmCommandPath: string, pack: string, resource: Uri | undefined): Promise<ViewPackageInfo | undefined> {
-		const args = ['view', '--json', '--', pack, 'description', 'dist-tags.latest', 'homepage', 'version', 'time'];
+		// Request @latest to avoid fetching publish timestamps for all versions in the time field.
+		const args = ['view', '--json', '--', `${pack}@latest`, 'description', 'homepage', 'version', 'time'];
+
 		const stdout = await this.runNpmCommand(npmCommandPath, args, resource);
 		if (stdout) {
 			try {
 				const content = JSON.parse(stdout);
-				const version = content['dist-tags.latest'] || content['version'];
+				const version = content['version'];
 				return {
 					description: content['description'],
-					version,
-					time: content.time?.[version],
+					version: content['version'],
+					time: version ? content['time']?.[version] : undefined,
 					homepage: content['homepage']
 				};
 			} catch (e) {
