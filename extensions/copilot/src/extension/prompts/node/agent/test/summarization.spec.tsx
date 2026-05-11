@@ -82,6 +82,7 @@ suite('Agent Summarization', () => {
 	beforeEach(() => {
 		const turn = new Turn('turnId', { type: 'user', message: 'hello' });
 		conversation = new Conversation('sessionId', [turn]);
+		accessor.get(IConfigurationService).setConfig(ConfigKey.ResponsesApiCompactionStatefulMarkerEnabled, false);
 	});
 
 	afterAll(() => {
@@ -450,6 +451,7 @@ suite('Agent Summarization', () => {
 	test('Responses API summarization keeps stateful marker reuse on HTTP', async () => {
 		const { instaService, endpoint, historyProps, testConversation } = createSummarizationTestContext();
 		Object.defineProperty(endpoint, 'apiType', { value: 'responses' });
+		accessor.get(IConfigurationService).setConfig(ConfigKey.ResponsesApiCompactionStatefulMarkerEnabled, true);
 
 		let capturedOptions: IMakeChatRequestOptions | undefined;
 		endpoint.makeChatRequest2 = async (options) => {
@@ -470,6 +472,31 @@ suite('Agent Summarization', () => {
 		expect(capturedOptions?.conversationId).toBe(testConversation.sessionId);
 		expect(capturedOptions?.useWebSocket).toBe(false);
 		expect(capturedOptions?.ignoreStatefulMarker).toBe(false);
+	});
+
+	test('Responses API summarization leaves stateful marker options unset when experiment is disabled', async () => {
+		const { instaService, endpoint, historyProps } = createSummarizationTestContext();
+		Object.defineProperty(endpoint, 'apiType', { value: 'responses' });
+
+		let capturedOptions: IMakeChatRequestOptions | undefined;
+		endpoint.makeChatRequest2 = async (options) => {
+			capturedOptions = options;
+			return {
+				type: ChatFetchResponseType.Success,
+				requestId: 'summary-request',
+				serverRequestId: 'summary-server-request',
+				usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0, prompt_tokens_details: { cached_tokens: 0 } },
+				value: 'summarized successfully!',
+				resolvedModel: endpoint.model,
+			};
+		};
+
+		const renderer = PromptRenderer.create(instaService, endpoint, SummarizedConversationHistory, historyProps);
+		await renderer.render();
+
+		expect(capturedOptions?.conversationId).toBeUndefined();
+		expect(capturedOptions?.useWebSocket).toBeUndefined();
+		expect(capturedOptions?.ignoreStatefulMarker).toBeUndefined();
 	});
 
 	test('failed summarization does not set round.summary', async () => {
