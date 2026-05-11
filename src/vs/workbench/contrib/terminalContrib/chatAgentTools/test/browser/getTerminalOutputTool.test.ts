@@ -5,6 +5,7 @@
 
 import * as assert from 'assert';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { Emitter } from '../../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { GetTerminalOutputTool, GetTerminalOutputToolData } from '../../browser/tools/getTerminalOutputTool.js';
 import { RunInTerminalTool, type IActiveTerminalExecution } from '../../browser/tools/runInTerminalTool.js';
@@ -20,19 +21,20 @@ suite('GetTerminalOutputTool', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const UNKNOWN_TERMINAL_ID = '123e4567-e89b-12d3-a456-426614174000';
 	const KNOWN_TERMINAL_ID = '123e4567-e89b-12d3-a456-426614174001';
+	const KNOWN_TERMINAL_INSTANCE_ID = 1;
 	let tool: GetTerminalOutputTool;
 	let originalGetExecution: typeof RunInTerminalTool.getExecution;
 	let instantiationService: TestInstantiationService;
 	let configurationService: TestConfigurationService;
-	let mockTerminalInstances: Map<number, Partial<ITerminalInstance>>;
+	let terminalServiceDisposeEmitter: Emitter<ITerminalInstance>;
 
 	setup(() => {
-		mockTerminalInstances = new Map();
 		instantiationService = store.add(new TestInstantiationService());
 		configurationService = new TestConfigurationService();
+		terminalServiceDisposeEmitter = store.add(new Emitter<ITerminalInstance>());
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(ITerminalService, {
-			getInstanceFromId: (id: number) => mockTerminalInstances.get(id) as ITerminalInstance | undefined,
+			onDidDisposeInstance: terminalServiceDisposeEmitter.event,
 		});
 		tool = store.add(instantiationService.createInstance(GetTerminalOutputTool));
 		originalGetExecution = RunInTerminalTool.getExecution;
@@ -54,19 +56,19 @@ suite('GetTerminalOutputTool', () => {
 		} as unknown as IToolInvocation;
 	}
 
-	function createMockExecution(output: string): IActiveTerminalExecution {
+	function createMockExecution(output: string, instanceId = KNOWN_TERMINAL_INSTANCE_ID): IActiveTerminalExecution {
 		return {
 			completionPromise: Promise.resolve({ output } as ITerminalExecuteStrategyResult),
-			instance: {} as ITerminalInstance,
+			instance: { instanceId } as ITerminalInstance,
 			getOutput: () => output,
 		};
 	}
 
-	function createMutableMockExecution(output: string): IActiveTerminalExecution & { setOutput(value: string): void } {
+	function createMutableMockExecution(output: string, instanceId = KNOWN_TERMINAL_INSTANCE_ID): IActiveTerminalExecution & { setOutput(value: string): void } {
 		let currentOutput = output;
 		return {
 			completionPromise: Promise.resolve({ output } as ITerminalExecuteStrategyResult),
-			instance: {} as ITerminalInstance,
+			instance: { instanceId } as ITerminalInstance,
 			getOutput: () => currentOutput,
 			setOutput: value => currentOutput = value,
 		};
@@ -170,6 +172,54 @@ suite('GetTerminalOutputTool', () => {
 		assert.ok(value.includes('6 new characters'));
 		assert.ok(value.endsWith('\nline2'));
 		assert.ok(!value.endsWith('line1\nline2'));
+	});
+
+	test('clears output snapshot when terminal instance is disposed', async () => {
+		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.OutputDeltas, true);
+		const execution = createMutableMockExecution('line1');
+		RunInTerminalTool.getExecution = () => execution;
+
+		await tool.invoke(
+			createInvocation(KNOWN_TERMINAL_ID),
+			async () => 0,
+			{ report: () => { } },
+			CancellationToken.None,
+		);
+		terminalServiceDisposeEmitter.fire(execution.instance);
+		execution.setOutput('line1\nline2');
+		const result = await tool.invoke(
+			createInvocation(KNOWN_TERMINAL_ID),
+			async () => 0,
+			{ report: () => { } },
+			CancellationToken.None,
+		);
+
+		const value = (result.content[0] as { value: string }).value;
+		assert.strictEqual(value, `Output of terminal ${KNOWN_TERMINAL_ID}:\nline1\nline2`);
+	});
+
+	test('clears output snapshot when tool is disposed', async () => {
+		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.OutputDeltas, true);
+		const execution = createMutableMockExecution('line1');
+		RunInTerminalTool.getExecution = () => execution;
+
+		await tool.invoke(
+			createInvocation(KNOWN_TERMINAL_ID),
+			async () => 0,
+			{ report: () => { } },
+			CancellationToken.None,
+		);
+		tool.dispose();
+		execution.setOutput('line1\nline2');
+		const result = await tool.invoke(
+			createInvocation(KNOWN_TERMINAL_ID),
+			async () => 0,
+			{ report: () => { } },
+			CancellationToken.None,
+		);
+
+		const value = (result.content[0] as { value: string }).value;
+		assert.strictEqual(value, `Output of terminal ${KNOWN_TERMINAL_ID}:\nline1\nline2`);
 	});
 
 	test('returns current output when output delta base no longer matches', async () => {
