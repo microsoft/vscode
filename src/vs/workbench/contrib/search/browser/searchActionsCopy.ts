@@ -55,7 +55,30 @@ registerAction2(class CopyFilenameCommandAction extends Action2 {
 			category,
 			menu: [{
 				id: MenuId.SearchContext,
-				when: Constants.SearchContext.FileMatchOrFolderMatchWithResourceFocusKey,
+				when: Constants.SearchContext.FileFocusKey,
+				group: 'search_2',
+				order: 2
+			}]
+		});
+
+	}
+
+	override async run(accessor: ServicesAccessor, fileMatch: ISearchTreeFileMatch | ISearchTreeFolderMatchWithResource | undefined): Promise<any> {
+		await copyFilenameCommand(accessor, fileMatch);
+	}
+});
+
+registerAction2(class CopyFolderNameCommandAction extends Action2 {
+
+	constructor(
+	) {
+		super({
+			id: Constants.SearchCommandIds.CopyFolderNameCommandId,
+			title: nls.localize2('copyFolderNameLabel', "Copy Folder Name"),
+			category,
+			menu: [{
+				id: MenuId.SearchContext,
+				when: Constants.SearchContext.ResourceFolderFocusKey,
 				group: 'search_2',
 				order: 2
 			}]
