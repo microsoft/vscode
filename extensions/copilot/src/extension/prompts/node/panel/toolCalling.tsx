@@ -499,12 +499,19 @@ export function sendInvokedToolTelemetry(instantiationService: IInstantiationSer
 		modelMaxPromptTokens: Infinity,
 	};
 
+	// Filter out image data parts to avoid accessing endpoint.supportsVision during
+	// async rendering. This render is fire-and-forget, so it can outlive the parent
+	// PromptRenderer's DI tree (disposed after parent render completes), causing
+	// @IPromptEndpoint to resolve to undefined when PrimitiveToolResult.onImage() runs.
+	// Images contribute a fixed token cost (~1 token each) so the impact on counting is minimal.
+	const textContent = toolResult.content.filter(part => !isImageDataPart(part));
+
 	PromptRenderer.create(
 		instantiationService,
 		endpointWithUnlimitedBudget,
 		class extends PromptElement {
 			render() {
-				return <UserMessage><PrimitiveToolResult content={toolResult.content} /></UserMessage>;
+				return <UserMessage><PrimitiveToolResult content={textContent} /></UserMessage>;
 			}
 		},
 		{},
