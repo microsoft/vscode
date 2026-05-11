@@ -25,7 +25,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { getModeNameForTelemetry, buildCustomAgentHandoffsInfo, getHandoffId, IChatMode, IChatModeService } from '../../common/chatModes.js';
+import { getModeNameForTelemetry, buildCustomAgentHandoffsInfo, getHandoffId, IChatMode, IChatModeService, IChatModes } from '../../common/chatModes.js';
 import { chatVariableLeader } from '../../common/requestParser/chatParserTypes.js';
 import { ChatStopCancellationNoopClassification, ChatStopCancellationNoopEvent, ChatStopCancellationNoopEventName, IChatService } from '../../common/chatService/chatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
@@ -39,7 +39,6 @@ import { getEditingSessionContext } from '../chatEditing/chatEditingActions.js';
 import { ctxHasEditorModification, ctxHasRequestInProgress, ctxIsGlobalEditingSession } from '../chatEditing/chatEditingEditorContextKeys.js';
 import { ACTION_ID_NEW_CHAT, CHAT_CATEGORY, clearChatSessionPreservingType, handleCurrentEditingSession, handleModeSwitch } from './chatActions.js';
 import { CreateRemoteAgentJobAction } from './chatContinueInAction.js';
-import { CTX_HOVER_MODE } from '../../../inlineChat/common/inlineChat.js';
 
 export interface IVoiceChatExecuteActionContext {
 	readonly disableTimeout?: boolean;
@@ -296,7 +295,6 @@ class ToggleChatModeAction extends Action2 {
 	async run(accessor: ServicesAccessor, ...args: unknown[]) {
 		const commandService = accessor.get(ICommandService);
 		const instaService = accessor.get(IInstantiationService);
-		const modeService = accessor.get(IChatModeService);
 		const telemetryService = accessor.get(ITelemetryService);
 		const chatWidgetService = accessor.get(IChatWidgetService);
 
@@ -314,7 +312,8 @@ class ToggleChatModeAction extends Action2 {
 
 		const chatSession = widget.viewModel?.model;
 		const requestCount = chatSession?.getRequests().length ?? 0;
-		const switchToMode = (arg && (modeService.findModeById(arg.modeId) || modeService.findModeByName(arg.modeId))) ?? this.getNextMode(widget, requestCount, modeService);
+		const modes = widget.input.currentChatModesObs.get();
+		const switchToMode = (arg && (modes.findModeById(arg.modeId) || modes.findModeByName(arg.modeId))) ?? this.getNextMode(widget, requestCount, modes);
 
 		const currentMode = widget.input.currentModeObs.get();
 		if (switchToMode.id === currentMode.id) {
@@ -353,8 +352,7 @@ class ToggleChatModeAction extends Action2 {
 		}
 	}
 
-	private getNextMode(chatWidget: IChatWidget, requestCount: number, modeService: IChatModeService): IChatMode {
-		const modes = modeService.getModes();
+	private getNextMode(chatWidget: IChatWidget, requestCount: number, modes: IChatModes): IChatMode {
 		const flat = [
 			...modes.builtin.filter(mode => {
 				return mode.kind !== ChatModeKind.Edit || requestCount === 0;
@@ -450,7 +448,7 @@ export class OpenPermissionPickerAction extends Action2 {
 			precondition: ChatContextKeys.enabled,
 			menu: {
 				id: MenuId.ChatInputSecondary,
-				order: 10,
+				order: 1,
 				group: 'navigation',
 				when:
 					ContextKeyExpr.and(
@@ -461,6 +459,7 @@ export class OpenPermissionPickerAction extends Action2 {
 						ContextKeyExpr.or(
 							ChatContextKeys.lockedToCodingAgent.negate(),
 							ChatContextKeys.lockedCodingAgentId.isEqualTo(AgentSessionProviders.Background),
+							ChatContextKeys.lockedCodingAgentId.isEqualTo(AgentSessionProviders.Claude),
 						),
 					)
 			}
@@ -622,22 +621,11 @@ export class OpenWorkspacePickerAction extends Action2 {
 			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.inAgentSessionsWelcome),
 			menu: [
 				{
-					id: MenuId.ChatInput,
-					order: 0.6,
-					when: ContextKeyExpr.and(
-						ChatContextKeys.inAgentSessionsWelcome,
-						ChatContextKeys.chatSessionType.isEqualTo(localChatSessionType),
-						IsSessionsWindowContext
-					),
-					group: 'navigation',
-				},
-				{
 					id: MenuId.ChatInputSecondary,
 					order: 0.6,
 					when: ContextKeyExpr.and(
 						ChatContextKeys.inAgentSessionsWelcome,
-						ChatContextKeys.chatSessionType.isEqualTo(localChatSessionType),
-						IsSessionsWindowContext.negate()
+						ChatContextKeys.chatSessionType.isEqualTo(localChatSessionType)
 					),
 					group: 'navigation',
 				},
@@ -659,22 +647,51 @@ export class ChatSessionPrimaryPickerAction extends Action2 {
 			category: CHAT_CATEGORY,
 			f1: false,
 			precondition: ChatContextKeys.enabled,
-			menu: {
-				id: MenuId.ChatInput,
-				order: 4,
-				group: 'navigation',
-				when:
-					ContextKeyExpr.and(
-						ChatContextKeys.chatSessionHasModels,
-						ContextKeyExpr.or(
-							ChatContextKeys.lockedToCodingAgent,
-							ContextKeyExpr.and(
-								ChatContextKeys.inAgentSessionsWelcome,
-								ChatContextKeys.chatSessionType.notEqualsTo('local')
+			menu: [
+				{
+					// Cloud sessions: keep on the primary chat input toolbar
+					id: MenuId.ChatInput,
+					order: 4,
+					group: 'navigation',
+					when:
+						ContextKeyExpr.and(
+							ChatContextKeys.chatSessionHasModels,
+							ChatContextKeys.chatSessionType.isEqualTo(AgentSessionProviders.Cloud),
+							ContextKeyExpr.or(
+								ChatContextKeys.lockedToCodingAgent,
+								ContextKeyExpr.and(
+									ChatContextKeys.inAgentSessionsWelcome,
+									ChatContextKeys.chatSessionType.notEqualsTo('local')
+								)
 							)
 						)
-					)
-			}
+				},
+				{
+					// All other coding agents (Claude, etc.): show in the secondary toolbar.
+					// In the Agents window only, hide the worktree/branch pickers for Copilot
+					// CLI sessions because their option groups are surfaced through the CLI
+					// session UI there. They remain visible in the regular VS Code workbench.
+					id: MenuId.ChatInputSecondary,
+					order: 4,
+					group: 'navigation',
+					when:
+						ContextKeyExpr.and(
+							ChatContextKeys.chatSessionHasModels,
+							ChatContextKeys.chatSessionType.notEqualsTo(AgentSessionProviders.Cloud),
+							ContextKeyExpr.or(
+								IsSessionsWindowContext.negate(),
+								ChatContextKeys.chatSessionType.notEqualsTo(AgentSessionProviders.Background)
+							),
+							ContextKeyExpr.or(
+								ChatContextKeys.lockedToCodingAgent,
+								ContextKeyExpr.and(
+									ChatContextKeys.inAgentSessionsWelcome,
+									ChatContextKeys.chatSessionType.notEqualsTo('local')
+								)
+							)
+						)
+				},
+			]
 		});
 	}
 
@@ -912,7 +929,6 @@ export class CancelAction extends Action2 {
 				when: ContextKeyExpr.and(
 					ctxIsGlobalEditingSession.negate(),
 					ctxHasRequestInProgress,
-					CTX_HOVER_MODE.negate(),
 				),
 				order: 4,
 				group: 'navigation',
@@ -1015,6 +1031,8 @@ interface IGetHandoffsArgs {
 	 * handoffs from all agents and built-in modes are returned.
 	 */
 	sourceCustomAgent?: string;
+
+	sessionType?: string;
 }
 
 /**
@@ -1044,7 +1062,7 @@ class GetHandoffsAction extends Action2 {
 		const modeService = accessor.get(IChatModeService);
 		const arg = args.at(0) as IGetHandoffsArgs | undefined;
 
-		const { builtin, custom } = modeService.getModes();
+		const { builtin, custom } = modeService.getModes(arg?.sessionType ?? localChatSessionType);
 		let allModes: readonly IChatMode[] = [...builtin, ...custom];
 
 		if (arg?.sourceCustomAgent) {
@@ -1101,7 +1119,6 @@ class ExecuteHandoffAction extends Action2 {
 
 	async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<IExecuteHandoffResult> {
 		const chatWidgetService = accessor.get(IChatWidgetService);
-		const modeService = accessor.get(IChatModeService);
 
 		const arg = args.at(0) as IExecuteHandoffArgs | undefined;
 		if (!arg?.id && !arg?.label) {
@@ -1129,7 +1146,7 @@ class ExecuteHandoffAction extends Action2 {
 		let sourceMode: IChatMode | undefined;
 		if (arg.sourceCustomAgent) {
 			const filterName = arg.sourceCustomAgent.toLowerCase();
-			const { builtin, custom } = modeService.getModes();
+			const { builtin, custom } = widget.input.currentChatModesObs.get();
 			sourceMode = [...builtin, ...custom].find(m => m.name.get().toLowerCase() === filterName || m.id.toLowerCase() === filterName);
 		}
 		if (!sourceMode) {

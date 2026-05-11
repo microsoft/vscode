@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../base/browser/dom.js';
+import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
@@ -15,25 +16,32 @@ import { ISessionsProvidersService } from '../../../services/sessions/browser/se
 import { autorun } from '../../../../base/common/observable.js';
 import { ISession, ISessionType } from '../../../services/sessions/common/session.js';
 import { Emitter } from '../../../../base/common/event.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+
+export const STORAGE_KEY_LAST_SESSION_TYPE = 'sessions.lastSelectedSessionType';
 
 export class SessionTypePicker extends Disposable {
 
-	private _sessionType: string | undefined;
-	private readonly _onDidSelectSessionType = this._register(new Emitter<string | undefined>());
+	protected _sessionType: string | undefined;
+	protected readonly _onDidSelectSessionType = this._register(new Emitter<string | undefined>());
 	readonly onDidSelectSessionType = this._onDidSelectSessionType.event;
 
-	private _supportedSessionTypes: ISessionType[] = [];
-	private _allProviderSessionTypes: ISessionType[] = [];
+	protected _supportedSessionTypes: ISessionType[] = [];
+	protected _allProviderSessionTypes: ISessionType[] = [];
 
 	private readonly _renderDisposables = this._register(new DisposableStore());
-	private _triggerElement: HTMLElement | undefined;
+	protected _triggerElement: HTMLElement | undefined;
 
 	constructor(
 		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
+		@IStorageService protected readonly storageService: IStorageService,
 	) {
 		super();
+
+		// Restore the previously selected session type from storage
+		this._sessionType = this.storageService.get(STORAGE_KEY_LAST_SESSION_TYPE, StorageScope.PROFILE);
 
 		const refresh = (session: ISession | undefined) => {
 			if (session) {
@@ -49,7 +57,9 @@ export class SessionTypePicker extends Disposable {
 			} else {
 				this._supportedSessionTypes = [];
 				this._allProviderSessionTypes = [];
-				this._sessionType = undefined;
+				// Preserve the stored session type when no active session exists,
+				// so it can be used as the default for the next new session.
+				this._sessionType = this.storageService.get(STORAGE_KEY_LAST_SESSION_TYPE, StorageScope.PROFILE);
 			}
 			this._updateTriggerLabel();
 		};
@@ -69,10 +79,16 @@ export class SessionTypePicker extends Disposable {
 		return this._sessionType;
 	}
 
-	render(container: HTMLElement): void {
+	render(container: HTMLElement, options?: { className?: string }): void {
 		this._renderDisposables.clear();
 
 		const slot = dom.append(container, dom.$('.sessions-chat-picker-slot'));
+		if (options?.className) {
+			const classNames = options.className.split(/\s+/).filter(className => className.length > 0);
+			if (classNames.length > 0) {
+				slot.classList.add(...classNames);
+			}
+		}
 		this._renderDisposables.add({ dispose: () => slot.remove() });
 
 		const trigger = dom.append(slot, dom.$('a.action-label'));
@@ -81,10 +97,13 @@ export class SessionTypePicker extends Disposable {
 		this._triggerElement = trigger;
 		this._updateTriggerLabel();
 
-		this._renderDisposables.add(dom.addDisposableListener(trigger, dom.EventType.CLICK, (e) => {
-			dom.EventHelper.stop(e, true);
-			this._showPicker();
-		}));
+		this._renderDisposables.add(Gesture.addTarget(trigger));
+		for (const eventType of [dom.EventType.CLICK, TouchEventType.Tap]) {
+			this._renderDisposables.add(dom.addDisposableListener(trigger, eventType, (e) => {
+				dom.EventHelper.stop(e, true);
+				this._showPicker();
+			}));
+		}
 
 		this._renderDisposables.add(dom.addDisposableListener(trigger, dom.EventType.KEY_DOWN, (e) => {
 			if (e.key === 'Enter' || e.key === ' ') {
@@ -94,7 +113,12 @@ export class SessionTypePicker extends Disposable {
 		}));
 	}
 
-	private _showPicker(): void {
+	/**
+	 * Override hook for mobile subclasses. Receives the trigger element so
+	 * the override can decide where to anchor (or that it doesn't need
+	 * anchoring at all, e.g. for a bottom sheet).
+	 */
+	protected _showPicker(): void {
 		if (!this._triggerElement || this.actionWidgetService.isVisible) {
 			return;
 		}
@@ -123,6 +147,7 @@ export class SessionTypePicker extends Disposable {
 			onSelect: (type) => {
 				this.actionWidgetService.hide();
 				if (type.id !== this._sessionType) {
+					this.storageService.store(STORAGE_KEY_LAST_SESSION_TYPE, type.id, StorageScope.PROFILE, StorageTarget.MACHINE);
 					this._onDidSelectSessionType.fire(type.id);
 				}
 			},
@@ -165,7 +190,8 @@ export class SessionTypePicker extends Disposable {
 		const labelSpan = dom.append(this._triggerElement, dom.$('span.sessions-chat-dropdown-label'));
 		labelSpan.textContent = modeLabel;
 
-		dom.append(this._triggerElement, renderIcon(Codicon.chevronDown));
+		const chevron = dom.append(this._triggerElement, renderIcon(Codicon.chevronDown));
+		chevron.classList.add('sessions-chat-dropdown-chevron');
 
 		this._triggerElement.ariaLabel = localize('sessionTypePicker.triggerAriaLabel', "Pick Session Type, {0}", modeLabel);
 	}

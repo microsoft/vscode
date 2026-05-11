@@ -26,7 +26,7 @@
 	display: none;
 }
 
-/* Base tab: capitalize text + pill padding — mirrors auxiliarybar action-label */
+/* Base tab: preserve chat title casing while keeping the same pill treatment */
 .chat-composite-bar-tab {
 	display: flex;
 	align-items: center;
@@ -35,7 +35,6 @@
 	cursor: pointer;
 	white-space: nowrap;
 	color: var(--chat-tab-inactive-foreground);
-	text-transform: capitalize;
 	font-weight: 500;
 	font-size: 12px;
 	line-height: 22px;
@@ -54,12 +53,63 @@
 	background-color: color-mix(in srgb, var(--vscode-agentsPanel-foreground, var(--vscode-foreground)) 5%, transparent);
 }
 
-.chat-composite-bar-tab.untitled {
-	padding-right: 4px;
+/* Reduce right padding when close button is present to avoid excess spacing */
+.chat-composite-bar-tab:has(.chat-composite-bar-tab-actions) {
+	padding-right: 2px;
 }
 
-/* Hide the underline indicator — mirrors auxiliarybar active-item-indicator hiding */
+/* When an indicator is shown on a tab without a close button (e.g. the main chat),
+	reserve right-side space so the absolutely-positioned indicator doesn't overlap the label. */
+.chat-composite-bar-tab:not(:has(.chat-composite-bar-tab-actions)).unread,
+.chat-composite-bar-tab:not(:has(.chat-composite-bar-tab-actions)).in-progress {
+	padding-right: 22px;
+}
+
+/* Indicator: absolutely positioned over the close-action slot.
+	Shows a small yellow dot for unread, or a spinner for in-progress.
+	Only one mode is set on the element at a time (mutually exclusive in JS). */
 .chat-composite-bar-tab-indicator {
+	display: none;
+	position: absolute;
+	right: 4px;
+	top: 50%;
+	transform: translateY(-50%);
+	width: 16px;
+	height: 16px;
+	align-items: center;
+	justify-content: center;
+	pointer-events: none;
+}
+
+.chat-composite-bar-tab.unread .chat-composite-bar-tab-indicator,
+.chat-composite-bar-tab.in-progress .chat-composite-bar-tab-indicator {
+	display: flex;
+}
+
+.chat-composite-bar-tab-indicator-icon {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.chat-composite-bar-tab.unread .chat-composite-bar-tab-indicator-icon::before {
+	content: '';
+	width: 6px;
+	height: 6px;
+	border-radius: 50%;
+	background-color: var(--vscode-list-warningForeground);
+}
+
+.chat-composite-bar-tab.in-progress .chat-composite-bar-tab-indicator-icon {
+	font-size: 12px;
+}
+
+/* When the close action is visible (hover / focus-within / active),
+	suppress the indicator so the two never render at the same time.
+	Only applies to tabs that actually have a close action. */
+.chat-composite-bar-tab.active:has(.chat-composite-bar-tab-actions) .chat-composite-bar-tab-indicator,
+.chat-composite-bar-tab:hover:has(.chat-composite-bar-tab-actions) .chat-composite-bar-tab-indicator,
+.chat-composite-bar-tab:focus-within:has(.chat-composite-bar-tab-actions) .chat-composite-bar-tab-indicator {
 	display: none;
 }
 
@@ -68,9 +118,9 @@
 	outline-offset: -1px;
 }
 
-/* Close action bar — hidden by default, shown on hover/active for untitled chats only */
+/* Close action — visible on hover/focus/active, hidden by default so the indicator (if any) shows instead */
 .chat-composite-bar-tab-actions {
-	display: none;
+	display: flex;
 	margin-left: 2px;
 }
 
@@ -79,11 +129,13 @@
 	height: 16px;
 	border-radius: 4px;
 	color: var(--chat-tab-inactive-foreground, currentColor);
+	opacity: 0;
 }
 
-.chat-composite-bar-tab.untitled:hover .chat-composite-bar-tab-actions,
-.chat-composite-bar-tab.untitled.active .chat-composite-bar-tab-actions {
-	display: flex;
+.chat-composite-bar-tab.active .chat-composite-bar-tab-actions .action-label,
+.chat-composite-bar-tab:hover .chat-composite-bar-tab-actions .action-label,
+.chat-composite-bar-tab-actions .action-label:focus {
+	opacity: 1;
 }
 
 .chat-composite-bar-tab-actions .action-item .action-label:hover {

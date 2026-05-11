@@ -435,6 +435,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/services/policies",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/services/progress",
 			"project": "vscode-workbench"
 		},
@@ -637,6 +641,10 @@
 			"project": "vscode-sessions"
 		},
 		{
+			"name": "vs/sessions/contrib/agentHost",
+			"project": "vscode-sessions"
+		},
+		{
 			"name": "vs/sessions/contrib/aiCustomizationTreeView",
 			"project": "vscode-sessions"
 		},
@@ -672,20 +680,20 @@
 			"name": "vs/sessions/contrib/files",
 			"project": "vscode-sessions"
 		},
-                {
-                        "name": "vs/sessions/contrib/policyBlocked",
-                        "project": "vscode-sessions"
-                },
+		{
+			"name": "vs/sessions/contrib/search",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/policyBlocked",
+			"project": "vscode-sessions"
+		},
 		{
 			"name": "vs/sessions/contrib/git",
 			"project": "vscode-sessions"
 		},
 		{
 			"name": "vs/sessions/contrib/logs",
-			"project": "vscode-sessions"
-		},
-		{
-			"name": "vs/sessions/contrib/localAgentHost",
 			"project": "vscode-sessions"
 		},
 		{
@@ -705,11 +713,19 @@
 			"project": "vscode-sessions"
 		},
 		{
+			"name": "vs/sessions/contrib/aquarium",
+			"project": "vscode-sessions"
+		},
+		{
 			"name": "vs/sessions/contrib/chatDebug",
 			"project": "vscode-sessions"
 		},
 		{
 			"name": "vs/sessions/contrib/tunnelHost",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/editor",
 			"project": "vscode-sessions"
 		}
 	]

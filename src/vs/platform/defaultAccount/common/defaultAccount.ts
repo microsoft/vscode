@@ -27,6 +27,7 @@ export interface IDefaultAccountService {
 	readonly onDidChangeDefaultAccount: Event<IDefaultAccount | null>;
 	readonly onDidChangePolicyData: Event<IPolicyData | null>;
 	readonly policyData: IPolicyData | null;
+	readonly currentDefaultAccount: IDefaultAccount | null;
 	readonly copilotTokenInfo: ICopilotTokenInfo | null;
 	readonly onDidChangeCopilotTokenInfo: Event<ICopilotTokenInfo | null>;
 	getDefaultAccount(): Promise<IDefaultAccount | null>;

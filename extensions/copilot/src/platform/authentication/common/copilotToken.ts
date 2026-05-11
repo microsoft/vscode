@@ -138,6 +138,11 @@ export class CopilotToken {
 		return this.sku === 'no_auth_limited_copilot';
 	}
 
+	get isManagedPlan(): boolean {
+		const plan = this.copilotPlan;
+		return plan === 'business' || plan === 'enterprise';
+	}
+
 	get isChatQuotaExceeded(): boolean {
 		return this.isFreeUser && (this._info.limited_user_quotas?.chat ?? 1) <= 0;
 	}
@@ -173,6 +178,18 @@ export class CopilotToken {
 				// Default to 'individual' for unexpected values
 				return 'individual';
 		}
+	}
+
+	/**
+	 * Returns the raw copilot_plan string from the token payload without normalization.
+	 * Used when the exact plan value must be preserved (e.g. for per-SKU routing overrides
+	 * where individual_edu, individual_pro_plus, etc. need distinct handling).
+	 */
+	get rawCopilotPlan(): string {
+		if (this.isFreeUser) {
+			return 'free';
+		}
+		return this._info.copilot_plan ?? 'individual';
 	}
 
 	get quotaInfo() {

@@ -78,6 +78,11 @@ interface AnthropicStreamEvent {
 		signature?: string;
 		stop_reason?: string;
 		stop_sequence?: string;
+		stop_details?: {
+			category?: string;
+			explanation?: string;
+			type?: string;
+		};
 	};
 	copilot_annotations?: {
 		IPCodeCitations?: AnthropicIPCodeCitation[];
@@ -88,6 +93,9 @@ interface AnthropicStreamEvent {
 		cache_creation_input_tokens?: number;
 		cache_read_input_tokens?: number;
 	};
+	copilot_usage?: {
+		total_nano_aiu: number;
+	};
 	context_management?: ContextManagementResponse;
 }
 
@@ -96,7 +104,8 @@ export function createMessagesRequestBody(accessor: ServicesAccessor, options: I
 	const experimentationService = accessor.get(IExperimentationService);
 	const toolDeferralService = accessor.get(IToolDeferralService);
 
-	const toolSearchEnabled = !!endpoint.supportsToolSearch;
+	const toolSearchEnabled = !!endpoint.supportsToolSearch
+		&& !!options.requestOptions?.tools?.some(t => t.function.name === CUSTOM_TOOL_SEARCH_NAME);
 
 	// Split tools into non-deferred and deferred up front so we can build finalTools
 	// with non-deferred first. This ensures the cache_control breakpoint on the last
@@ -131,20 +140,15 @@ export function createMessagesRequestBody(accessor: ServicesAccessor, options: I
 	const reasoningEffort = options.modelCapabilities?.reasoningEffort;
 	let thinkingConfig: { type: 'enabled' | 'adaptive'; budget_tokens?: number; display?: 'summarized' } | undefined;
 	if (options.modelCapabilities?.enableThinking) {
-		const configuredBudget = configurationService.getConfig(ConfigKey.AnthropicThinkingBudget);
-		const thinkingExplicitlyDisabled = configuredBudget === 0;
-		if (endpoint.supportsAdaptiveThinking && !thinkingExplicitlyDisabled) {
+		const hardcodedBudget = 16000;
+		if (endpoint.supportsAdaptiveThinking) {
 			thinkingConfig = { type: 'adaptive', display: 'summarized' };
-		} else if (!thinkingExplicitlyDisabled && endpoint.maxThinkingBudget && endpoint.minThinkingBudget) {
+		} else if (endpoint.maxThinkingBudget && endpoint.minThinkingBudget) {
 			const maxTokens = options.postOptions.max_tokens ?? 1024;
 			const minBudget = endpoint.minThinkingBudget ?? 1024;
-			const normalizedBudget = (configuredBudget && configuredBudget > 0)
-				? (configuredBudget < minBudget ? minBudget : configuredBudget)
-				: undefined;
+			const normalizedBudget = hardcodedBudget < minBudget ? minBudget : hardcodedBudget;
 			const maxBudget = endpoint.maxThinkingBudget ?? 32000;
-			const thinkingBudget = normalizedBudget
-				? Math.min(maxBudget, maxTokens - 1, normalizedBudget)
-				: undefined;
+			const thinkingBudget = Math.min(maxBudget, maxTokens - 1, normalizedBudget);
 			if (thinkingBudget) {
 				thinkingConfig = { type: 'enabled', budget_tokens: thinkingBudget };
 			}
@@ -175,10 +179,8 @@ export function createMessagesRequestBody(accessor: ServicesAccessor, options: I
 	const validToolNames = finalTools.length > 0 ? new Set(finalTools.map(t => t.name)) : undefined;
 	const messagesResult = rawMessagesToMessagesAPI(options.messages, toolSearchEnabled ? validToolNames : undefined);
 
-	// Add cache_control to the last tool and last system block so the stable tools+system
-	// prefix is cached across turns. Per the Anthropic docs, cache prefixes are created in
-	// order: tools → system → messages, and a max of 4 cache_control blocks is allowed.
-	// Count existing cache_control in messages+system first to stay within the limit.
+	clearAllCacheControl(messagesResult);
+	addMessagesApiCacheControl(messagesResult);
 	addToolsAndSystemCacheControl(finalTools, messagesResult);
 
 	// Guard: The Anthropic Messages API requires the conversation to end with a user message.
@@ -469,62 +471,82 @@ function contentBlockSupportsCacheControl(block: ContentBlockParam): block is Ex
 	return block.type !== 'thinking' && block.type !== 'redacted_thinking';
 }
 
-const maxCacheBreakpoints = 4;
-
-/**
- * Optionally adds cache_control to the tools and system prefix when there are spare
- * slots available (i.e. existing breakpoints < max). The last non-deferred tool is
- * marked first if possible, and the last system block is marked only while slots remain.
- * Message-level cache breakpoints are never evicted because they already implicitly
- * cache the tools+system prefix (Anthropic cache hierarchy: tools → system → messages)
- * and cover more content.
- */
-export function addToolsAndSystemCacheControl(
-	tools: AnthropicMessagesTool[],
+/** Removes any cache_control fields from system and message blocks. */
+export function clearAllCacheControl(
 	messagesResult: { messages: MessageParam[]; system?: TextBlockParam[] },
 ): void {
-	// Count existing cache_control in messages and system
-	let existingCount = 0;
 	if (messagesResult.system) {
 		for (const block of messagesResult.system) {
-			if (block.cache_control) {
-				existingCount++;
-			}
+			delete block.cache_control;
 		}
 	}
 	for (const msg of messagesResult.messages) {
 		if (Array.isArray(msg.content)) {
 			for (const block of msg.content) {
-				if (typeof block === 'object' && 'cache_control' in block && block.cache_control) {
-					existingCount++;
+				if (typeof block === 'object' && 'cache_control' in block) {
+					delete (block as { cache_control?: unknown }).cache_control;
 				}
 			}
 		}
 	}
+}
 
-	let slotsAvailable = maxCacheBreakpoints - existingCount;
-	if (slotsAvailable <= 0) {
-		return;
-	}
-
-	// Find the last non-deferred tool — deferred tools cannot have cache_control.
-	let lastCacheableTool: AnthropicMessagesTool | undefined;
+/** Marks the last non-deferred tool and the last system block for caching. */
+export function addToolsAndSystemCacheControl(
+	tools: AnthropicMessagesTool[],
+	messagesResult: { messages: MessageParam[]; system?: TextBlockParam[] },
+): void {
 	for (let i = tools.length - 1; i >= 0; i--) {
 		if (!tools[i].defer_loading) {
-			lastCacheableTool = tools[i];
+			tools[i].cache_control = { type: 'ephemeral' };
 			break;
 		}
 	}
 
-	if (lastCacheableTool && slotsAvailable > 0) {
-		lastCacheableTool.cache_control = { type: 'ephemeral' };
-		slotsAvailable--;
-	}
-
-	// Add cache_control to the last system block (caches the stable system prompt)
 	const lastSystemBlock = messagesResult.system?.at(-1);
-	if (lastSystemBlock && !lastSystemBlock.cache_control && slotsAvailable > 0) {
+	if (lastSystemBlock && !lastSystemBlock.cache_control) {
 		lastSystemBlock.cache_control = { type: 'ephemeral' };
+	}
+}
+
+/**
+ * Marks the last cacheable block of the two most recent cacheable messages.
+ *
+ * Anthropic's prompt cache matches on content prefix, so a single tail anchor
+ * is sufficient under steady-state. The second (older) anchor is intended to
+ * improve the chance of retaining a useful fallback within Anthropic's
+ * lookback window: if the tail anchor misses (TTL expiry on a slow tool call,
+ * or rare content drift), the older anchor can still serve a cache hit
+ * covering everything up to it, so we typically lose at most one exchange
+ * instead of resetting the entire conversation cache.
+ *
+ * Combined with the tools + system breakpoints, this can produce up to 4
+ * cache_control markers, which matches Anthropic's per-request limit.
+ */
+export function addMessagesApiCacheControl(
+	messagesResult: { messages: MessageParam[]; system?: TextBlockParam[] },
+): void {
+	const messages = messagesResult.messages;
+	let marked = 0;
+	for (let i = messages.length - 1; i >= 0 && marked < 2; i--) {
+		const msg = messages[i];
+		if (Array.isArray(msg.content) && msg.content.some(b => typeof b === 'object' && contentBlockSupportsCacheControl(b))) {
+			markLastCacheableBlock(msg);
+			marked++;
+		}
+	}
+}
+
+function markLastCacheableBlock(msg: MessageParam): void {
+	if (!Array.isArray(msg.content)) {
+		return;
+	}
+	for (let j = msg.content.length - 1; j >= 0; j--) {
+		const block = msg.content[j];
+		if (typeof block === 'object' && contentBlockSupportsCacheControl(block)) {
+			block.cache_control = { type: 'ephemeral' };
+			return;
+		}
 	}
 }
 
@@ -570,7 +592,13 @@ export async function processResponseFromMessagesEndpoint(
 						telemetryDataWithUsage = telemetryData.extendedBy({}, {
 							promptTokens: completion.usage.prompt_tokens,
 							completionTokens: completion.usage.completion_tokens,
-							totalTokens: completion.usage.total_tokens
+							totalTokens: completion.usage.total_tokens,
+							...(completion.usage.prompt_tokens_details && { cachedTokens: completion.usage.prompt_tokens_details.cached_tokens }),
+							...(completion.usage.completion_tokens_details && {
+								reasoningTokens: completion.usage.completion_tokens_details.reasoning_tokens,
+								acceptedPredictionTokens: completion.usage.completion_tokens_details.accepted_prediction_tokens,
+								rejectedPredictionTokens: completion.usage.completion_tokens_details.rejected_prediction_tokens,
+							}),
 						});
 					}
 					sendEngineMessagesTelemetry(telemetryService, [telemetryMessage], telemetryDataWithUsage, true, logService);
@@ -601,8 +629,10 @@ export class AnthropicMessagesProcessor {
 	private outputTokens: number = 0;
 	private cacheCreationTokens: number = 0;
 	private cacheReadTokens: number = 0;
+	private copilotUsage?: { total_nano_aiu: number };
 	private contextManagementResponse?: ContextManagementResponse;
 	private stopReason: string | undefined;
+	private stopDetails?: { category?: string; explanation?: string; type?: string };
 
 	constructor(
 		private readonly telemetryData: TelemetryData,
@@ -710,26 +740,6 @@ export class AnthropicMessagesProcessor {
 							encrypted: data,
 						}
 					});
-				} else if (chunk.content_block) {
-					const unknownType = (chunk.content_block as { type?: string }).type ?? 'undefined';
-					this.logService.warn(`[messagesAPI] Unknown content_block type '${unknownType}' at index ${chunk.index ?? -1} for model ${this.model}`);
-
-					/* __GDPR__
-						"messagesApi.unknownContentBlock" : {
-							"owner": "bhavyaus",
-							"comment": "Tracks unknown Anthropic content block types",
-							"requestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The request ID for correlation" },
-							"model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The model that emitted the unknown block" },
-							"blockType": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The unknown content_block.type string" }
-						}
-					*/
-					this.telemetryService.sendMSFTTelemetryEvent('messagesApi.unknownContentBlock',
-						{
-							requestId: this.requestId,
-							model: this.model,
-							blockType: unknownType,
-						}
-					);
 				}
 				return;
 			case 'content_block_delta':
@@ -810,6 +820,9 @@ export class AnthropicMessagesProcessor {
 					this.cacheCreationTokens = chunk.usage.cache_creation_input_tokens ?? this.cacheCreationTokens;
 					this.cacheReadTokens = chunk.usage.cache_read_input_tokens ?? this.cacheReadTokens;
 				}
+				if (chunk.copilot_usage && typeof chunk.copilot_usage.total_nano_aiu === 'number') {
+					this.copilotUsage = chunk.copilot_usage;
+				}
 				if (chunk.context_management) {
 					this.contextManagementResponse = chunk.context_management;
 					// Report context management via delta so it gets logged to request logger
@@ -818,9 +831,12 @@ export class AnthropicMessagesProcessor {
 						contextManagement: chunk.context_management
 					});
 				}
-				// Track stop_reason for determining finish reason in message_stop
+				// Track stop_reason and stop_details for determining finish reason in message_stop
 				if (chunk.delta?.stop_reason) {
 					this.stopReason = chunk.delta.stop_reason;
+				}
+				if (chunk.delta?.stop_details) {
+					this.stopDetails = chunk.delta.stop_details;
 				}
 				return;
 			case 'message_stop': {
@@ -864,6 +880,28 @@ export class AnthropicMessagesProcessor {
 						}
 					);
 				}
+				if (this.stopReason === 'refusal') {
+					const category = this.stopDetails?.category ?? 'unknown';
+					this.logService.warn(`[messagesAPI] Refusal received: category='${category}' for model ${this.model}`);
+
+					/* __GDPR__
+						"messagesApi.refusal" : {
+							"owner": "bhavyaus",
+							"comment": "Tracks Anthropic refusal responses including cyber and other policy categories",
+							"requestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The request ID for correlation" },
+							"model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The model that produced the refusal" },
+							"category": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The refusal category (e.g. cyber, content_policy)" }
+						}
+					*/
+					this.telemetryService.sendMSFTTelemetryEvent('messagesApi.refusal',
+						{
+							requestId: this.requestId,
+							model: this.model,
+							category,
+						}
+					);
+				}
+
 				let finishReason: FinishedCompletionReason;
 				switch (this.stopReason) {
 					case 'refusal':
@@ -903,12 +941,14 @@ export class AnthropicMessagesProcessor {
 						total_tokens: computedPromptTokens + this.outputTokens,
 						prompt_tokens_details: {
 							cached_tokens: this.cacheReadTokens,
+							cache_creation_input_tokens: this.cacheCreationTokens,
 						},
 						completion_tokens_details: {
 							reasoning_tokens: 0,
 							accepted_prediction_tokens: 0,
 							rejected_prediction_tokens: 0,
 						},
+						copilot_usage: this.copilotUsage,
 					},
 					finishReason,
 					message: {

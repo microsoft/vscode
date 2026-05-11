@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/sessionsTitleBarWidget.css';
-import { $, addDisposableListener, EventType, getActiveWindow, reset } from '../../../../base/browser/dom.js';
+import { $, addDisposableGenericMouseDownListener, addDisposableListener, EventType, getActiveWindow, reset } from '../../../../base/browser/dom.js';
 import { Separator } from '../../../../base/common/actions.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
@@ -27,9 +27,12 @@ import { ChatSessionProviderIdContext, IsNewChatSessionContext, SessionsWelcomeV
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsListModelService } from './views/sessionsListModelService.js';
 import { SHOW_SESSIONS_PICKER_COMMAND_ID } from './sessionsActions.js';
-import { IsSessionArchivedContext, IsSessionPinnedContext, IsSessionReadContext, SessionItemContextMenuId } from './views/sessionsList.js';
-import { basename } from '../../../../base/common/resources.js';
+import { IsSessionArchivedContext, IsSessionPinnedContext, IsSessionReadContext, SessionItemContextMenuId, SessionItemHasBranchNameContext } from './views/sessionsList.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { getSessionBranchName } from '../../../services/sessions/common/session.js';
+
+const titleBarContextKeys = new Set([IsNewChatSessionContext.key]);
 
 /**
  * Sessions Title Bar Widget - renders the active chat session title
@@ -70,7 +73,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 	) {
 		super(undefined, action, options);
 
-		// Re-render when the active session, its data, or the active provider changes
+		// Re-render when the active session or its data changes
 		this._register(autorun(reader => {
 			const sessionData = this.sessionsManagementService.activeSession.read(reader);
 			if (sessionData) {
@@ -78,7 +81,6 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 				sessionData.status.read(reader);
 				sessionData.workspace.read(reader);
 			}
-			this.sessionsManagementService.activeProviderId.read(reader);
 			this._lastRenderState = undefined;
 			this._render();
 		}));
@@ -93,6 +95,13 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 		this._register(this.sessionsProvidersService.onDidChangeProviders(() => {
 			this._lastRenderState = undefined;
 			this._render();
+		}));
+
+		this._register(this.contextKeyService.onDidChangeContext(e => {
+			if (e.affectsSome(titleBarContextKeys)) {
+				this._lastRenderState = undefined;
+				this._render();
+			}
 		}));
 	}
 
@@ -127,13 +136,24 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 		this._isRendering = true;
 
 		try {
+			const isNewChatSession = this.contextKeyService.getContextKeyValue<boolean>(IsNewChatSessionContext.key);
+			this._container.classList.toggle('agent-sessions-titlebar-hidden', !!isNewChatSession);
+			if (isNewChatSession) {
+				this._dynamicDisposables.clear();
+				this._container.setAttribute('aria-hidden', 'true');
+				this._container.removeAttribute('role');
+				this._container.removeAttribute('aria-label');
+				this._container.tabIndex = -1;
+				return;
+			}
+
 			const label = this._getActiveSessionLabel();
 			const icon = this._getActiveSessionIcon();
 			const repoLabel = this._getRepositoryLabel();
-			const repoDetailLabel = this._getRepositoryDetailLabel();
-			const pillLabel = repoLabel ? `${label} \u00B7 ${repoLabel}${repoDetailLabel ? ` (${repoDetailLabel})` : ''}` : label;
+			const repoBranchLabel = this._getRepositoryBranchLabel();
+
 			// Build a render-state key from all displayed data
-			const renderState = `${icon?.id ?? ''}|${label}|${repoLabel ?? ''}|${repoDetailLabel ?? ''}`;
+			const renderState = `${icon?.id ?? ''}|${label}|${repoLabel ?? ''}|${repoBranchLabel ?? ''}`;
 
 			// Skip re-render if state hasn't changed
 			if (this._lastRenderState === renderState) {
@@ -146,39 +166,44 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			this._dynamicDisposables.clear();
 
 			// Set up container as the button directly
+			this._container.removeAttribute('aria-hidden');
 			this._container.setAttribute('role', 'button');
 			this._container.setAttribute('aria-label', localize('agentSessionsShowSessions', "Show Sessions"));
 			this._container.tabIndex = 0;
 
 			// Session pill: icon + label + folder together
-			const sessionPill = $('span.agent-sessions-titlebar-pill');
+			const sessionPill = $('div.agent-sessions-titlebar-pill');
 
 			// Center group: icon + label + folder
-			const centerGroup = $('span.agent-sessions-titlebar-center');
+			const centerGroup = $('div.agent-sessions-titlebar-center');
 
 			// Kind icon at the beginning
 			if (icon) {
-				const iconEl = $('span.agent-sessions-titlebar-icon' + ThemeIcon.asCSSSelector(icon));
+				const iconEl = $('div.agent-sessions-titlebar-icon' + ThemeIcon.asCSSSelector(icon));
 				centerGroup.appendChild(iconEl);
 			}
 
 			// Label
-			const labelEl = $('span.agent-sessions-titlebar-label');
+			const labelEl = $('div.agent-sessions-titlebar-label');
 			labelEl.textContent = label;
 			centerGroup.appendChild(labelEl);
 
 			// Folder shown next to the title
 			if (repoLabel) {
-				const detailsEl = $('span.agent-sessions-titlebar-details');
+				const detailsEl = $('div.agent-sessions-titlebar-details');
 
-				const separator1 = $('span.agent-sessions-titlebar-separator');
-				separator1.textContent = '\u00B7';
-				separator1.setAttribute('aria-hidden', 'true');
-				detailsEl.appendChild(separator1);
-
-				const repoEl = $('span.agent-sessions-titlebar-repo');
-				repoEl.textContent = repoDetailLabel ? `${repoLabel} (${repoDetailLabel})` : repoLabel;
+				const repoEl = $('div.agent-sessions-titlebar-repo');
+				repoEl.textContent = repoLabel;
 				detailsEl.appendChild(repoEl);
+
+				if (repoBranchLabel) {
+					const separatorEl = $('div.agent-sessions-titlebar-separator');
+					detailsEl.appendChild(separatorEl);
+
+					const branchEl = $('div.agent-sessions-titlebar-branch');
+					branchEl.append(...renderLabelWithIcons(`$(git-branch) ${repoBranchLabel}`));
+					detailsEl.appendChild(branchEl);
+				}
 
 				centerGroup.appendChild(detailsEl);
 			}
@@ -186,7 +211,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			sessionPill.appendChild(centerGroup);
 
 			// Click handler on pill
-			this._dynamicDisposables.add(addDisposableListener(sessionPill, EventType.MOUSE_DOWN, (e) => {
+			this._dynamicDisposables.add(addDisposableGenericMouseDownListener(sessionPill, (e) => {
 				e.preventDefault();
 				e.stopPropagation();
 			}));
@@ -204,10 +229,11 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			this._container.appendChild(sessionPill);
 
 			// Hover
+			const hover = `${label}${repoLabel ? `, ${repoLabel}` : ''}${repoBranchLabel ? `, ${repoBranchLabel}` : ''}`;
 			this._dynamicDisposables.add(this.hoverService.setupManagedHover(
 				getDefaultHoverDelegate('mouse'),
 				sessionPill,
-				pillLabel
+				hover
 			));
 
 			// Keyboard handler
@@ -259,33 +285,12 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 		return undefined;
 	}
 
-	private _getRepositoryDetailLabel(): string | undefined {
+	/**
+	 * Get the branch label for the active session.
+	 */
+	private _getRepositoryBranchLabel(): string | undefined {
 		const sessionData = this.sessionsManagementService.activeSession.get();
-		const workspace = sessionData?.workspace.get();
-		const repository = workspace?.repositories[0];
-		if (!workspace || !repository) {
-			return undefined;
-		}
-
-		if (repository.detail && !workspace.label.includes(`[${repository.detail}]`)) {
-			return repository.detail;
-		}
-
-		if (!repository.workingDirectory) {
-			return undefined;
-		}
-
-		const worktreeName = basename(repository.workingDirectory);
-		if (!worktreeName) {
-			return undefined;
-		}
-
-		const repositoryName = basename(repository.uri);
-		if (worktreeName === workspace.label || worktreeName === repositoryName) {
-			return undefined;
-		}
-
-		return worktreeName;
+		return getSessionBranchName(sessionData);
 	}
 
 	private _showContextMenu(e: MouseEvent): void {
@@ -305,6 +310,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			[IsSessionPinnedContext.key, isPinned],
 			[IsSessionArchivedContext.key, isArchived],
 			[IsSessionReadContext.key, isRead],
+			[SessionItemHasBranchNameContext.key, getSessionBranchName(sessionData) !== undefined],
 			['chatSessionType', sessionData.sessionType],
 			[ChatSessionProviderIdContext.key, sessionData.providerId],
 		];

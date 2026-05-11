@@ -164,4 +164,16 @@ suite('buildSessionDbUri / parseSessionDbUri', () => {
 		assert.strictEqual(parseSessionDbUri('session-db:copilot:/s1?toolCallId=tc-1'), undefined);
 		assert.strictEqual(parseSessionDbUri('session-db:copilot:/s1?toolCallId=tc-1&filePath=/f&part=middle'), undefined);
 	});
+
+	test('URI path ends with the basename of the file', () => {
+		const uri = buildSessionDbUri('copilot:/s1', 'tc-1', '/workspace/src/index.ts', 'before');
+		const parsed = URI.parse(uri);
+		assert.ok(parsed.path.endsWith('/index.ts'));
+	});
+
+	test('URI path ends with basename for files with spaces and special chars', () => {
+		const uri = buildSessionDbUri('copilot:/s1', 'tc-1', '/work space/file (1).ts', 'after');
+		const parsed = URI.parse(uri);
+		assert.ok(parsed.path.endsWith('/file (1).ts'));
+	});
 });

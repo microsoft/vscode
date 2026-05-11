@@ -21,6 +21,8 @@ export interface SessionRow {
 	host_type?: string;
 	branch?: string;
 	summary?: string;
+	agent_name?: string;
+	agent_description?: string;
 	created_at?: string;
 	updated_at?: string;
 }
@@ -111,6 +113,9 @@ export interface ISessionStore {
 
 	/** Index a workspace artifact for full-text search. Upserts by file path. */
 	indexWorkspaceArtifact(sessionId: string, filePath: string, content: string): void;
+
+	/** Delete a session and all associated data (turns, checkpoints, files, refs, search index). */
+	deleteSession(sessionId: string): void;
 
 	// ── Queries ─────────────────────────────────────────────────────────
 

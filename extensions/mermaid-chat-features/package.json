@@ -130,7 +130,7 @@
     "@vscode/codicons": "^0.0.36"
   },
   "dependencies": {
-    "dompurify": "^3.4.0",
+    "dompurify": "^3.4.1",
     "mermaid": "^11.12.3"
   },
   "overrides": {

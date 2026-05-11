@@ -58,7 +58,7 @@ export class ChatBarPart extends AbstractPaneCompositePart { // TODO: should not
 
 	private _sessionCompositeBar: ChatCompositeBar | undefined;
 
-	private _lastLayout: { readonly width: number; readonly height: number; readonly top: number; readonly left: number } | undefined;
+	protected _lastLayout: { readonly width: number; readonly height: number; readonly top: number; readonly left: number } | undefined;
 
 	get preferredHeight(): number | undefined {
 		return this.layoutService.mainContainerDimension.height * 0.4;

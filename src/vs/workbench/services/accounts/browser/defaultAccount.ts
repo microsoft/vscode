@@ -6,7 +6,7 @@
 import { distinct } from '../../../../base/common/arrays.js';
 import { Barrier, RunOnceScheduler, ThrottledDelayer, timeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { ICopilotTokenInfo, IDefaultAccount, IDefaultAccountAuthenticationProvider, IEntitlementsData, IPolicyData } from '../../../../base/common/defaultAccount.js';
+import { CopilotSessionSearchPolicy, ICopilotTokenInfo, IDefaultAccount, IDefaultAccountAuthenticationProvider, IEntitlementsData, IPolicyData } from '../../../../base/common/defaultAccount.js';
 import { getErrorMessage } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
@@ -114,6 +114,7 @@ export class DefaultAccountService extends Disposable implements IDefaultAccount
 	declare _serviceBrand: undefined;
 
 	private defaultAccount: IDefaultAccount | null = null;
+	get currentDefaultAccount(): IDefaultAccount | null { return this.defaultAccount; }
 	get policyData(): IPolicyData | null { return this.defaultAccountProvider?.policyData ?? null; }
 	get copilotTokenInfo(): ICopilotTokenInfo | null { return this.defaultAccountProvider?.copilotTokenInfo ?? null; }
 
@@ -318,7 +319,10 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 	}
 
 	private async init(): Promise<void> {
-		if (isWeb && !this.environmentService.remoteAuthority) {
+		// Skip initialization for classic web-no-remote (vscode.dev editor), but
+		// still initialize for the agents web workbench (vscode.dev/agents) where
+		// account state drives the title bar and the welcome walkthrough.
+		if (isWeb && !this.environmentService.remoteAuthority && !this.environmentService.isSessionsWindow) {
 			this.logService.debug('[DefaultAccount] Running in web without remote, skipping initialization');
 			return;
 		}
@@ -520,7 +524,6 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 				this.logService.debug('[DefaultAccount] No matching session found for provider:', authenticationProvider.id);
 				return null;
 			}
-
 			return this.getDefaultAccountFromAuthenticatedSessions(authenticationProvider, sessions, options);
 		} catch (error) {
 			this.logService.error('[DefaultAccount] Failed to get default account for provider:', authenticationProvider.id, getErrorMessage(error));
@@ -546,6 +549,7 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 				policyData = policyData ?? {};
 				policyData.chat_agent_enabled = tokenEntitlementsData.policyData.chat_agent_enabled;
 				policyData.chat_preview_features_enabled = tokenEntitlementsData.policyData.chat_preview_features_enabled;
+				policyData.session_search = tokenEntitlementsData.policyData.session_search;
 				policyData.mcp = tokenEntitlementsData.policyData.mcp;
 				if (policyData.mcp) {
 					const mcpRegistryResult = await this.getMcpRegistryProvider(sessions, accountPolicyData, options);
@@ -667,6 +671,8 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 						chat_agent_enabled: tokenMap.get('agent_mode') !== '0',
 						// MCP is only enabled if the flag is explicitly present and set to 1
 						mcp: tokenMap.get('mcp') === '1',
+						// Session search policy enum from Copilot token
+						session_search: Number(tokenMap.get('session_search') ?? '0') as CopilotSessionSearchPolicy,
 					},
 					copilotTokenInfo: {
 						sn: tokenMap.get('sn'),

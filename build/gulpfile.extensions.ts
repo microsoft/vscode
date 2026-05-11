@@ -9,6 +9,7 @@ EventEmitter.defaultMaxListeners = 100;
 
 import es from 'event-stream';
 import fancyLog from 'fancy-log';
+import * as fs from 'fs';
 import glob from 'glob';
 import gulp from 'gulp';
 import filter from 'gulp-filter';
@@ -96,6 +97,7 @@ const compilations = [
 	'.vscode/extensions/vscode-selfhost-test-provider/tsconfig.json',
 	'.vscode/extensions/vscode-selfhost-import-aid/tsconfig.json',
 	'.vscode/extensions/vscode-extras/tsconfig.json',
+	'.vscode/extensions/vscode-pr-pinger/tsconfig.json',
 ];
 
 const getBaseUrl = (out: string) => `https://main.vscode-cdn.net/sourcemaps/${commit}/${out}`;
@@ -172,7 +174,12 @@ const tasks = compilations.map(function (tsconfigFile) {
 		return pipeline;
 	}
 
-	const cleanTask = task.define(`clean-extension-${name}`, util.rimraf(out));
+	const tsBuildInfoFile = path.join(path.dirname(absolutePath), path.basename(absolutePath, '.json') + '.tsbuildinfo');
+
+	const cleanTask = task.define(`clean-extension-${name}`, async () => {
+		await util.rimraf(out)();
+		fs.rmSync(tsBuildInfoFile, { force: true });
+	});
 
 	const transpileTask = task.define(`transpile-extension:${name}`, task.series(cleanTask, () => {
 		const pipeline = createPipeline(false, true, true);

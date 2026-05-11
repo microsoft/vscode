@@ -287,6 +287,7 @@ export class ChatTodoListWidget extends Disposable {
 
 		if (!shouldShow) {
 			this.domNode.classList.remove('has-todos');
+			this.hideWidget();
 			return;
 		}
 

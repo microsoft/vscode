@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Dimension, getWindowById } from '../../../../base/browser/dom.js';
+import { getWindowById } from '../../../../base/browser/dom.js';
 import { IMouseWheelEvent } from '../../../../base/browser/mouseEvent.js';
 import { OverlayLayoutElement } from '../../../../base/browser/overlayLayoutElement.js';
 import { CodeWindow } from '../../../../base/browser/window.js';
@@ -57,6 +57,8 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 
 	private _overlayLayout: OverlayLayoutElement | undefined;
 
+	private _anchorState: { readonly anchorElement: HTMLElement; readonly clippingContainer?: HTMLElement } | undefined;
+
 	public constructor(
 		initInfo: WebviewInitInfo,
 		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
@@ -104,17 +106,21 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 			throw new Error(`OverlayWebview has been disposed`);
 		}
 
+		return this.overlayLayout.content;
+	}
+
+	private get overlayLayout() {
 		if (!this._overlayLayout) {
 			this._overlayLayout = new OverlayLayoutElement();
 			this._overlayLayout.content.style.visibility = 'hidden';
 
-			// // Webviews cannot be reparented in the dom as it will destroy their contents.
-			// // Mount them to a high level node to avoid this depending on the active container.
+			// Webviews cannot be reparented in the dom as it will destroy their contents.
+			// Mount them to a high level node to avoid this depending on the active container.
 			const root = this._layoutService.getContainer(this.window);
 			root.appendChild(this._overlayLayout.root);
 		}
 
-		return this._overlayLayout.content;
+		return this._overlayLayout;
 	}
 
 	public claim(owner: unknown, targetWindow: CodeWindow, scopedContextKeyService: IContextKeyService | undefined) {
@@ -137,6 +143,10 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 		this._owner = owner;
 		this._windowId = targetWindow.vscodeWindowId;
 		this._show(targetWindow);
+
+		if (this._anchorState) {
+			this.overlayLayout.setAnchorElement(this._anchorState.anchorElement, { clippingContainer: this._anchorState.clippingContainer });
+		}
 
 		if (oldOwner !== owner) {
 			const contextKeyService = (scopedContextKeyService || this._baseContextKeyService);
@@ -182,12 +192,10 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 		}
 	}
 
-	public layoutWebviewOverElement(anchorElement: HTMLElement, dimension?: Dimension, clippingContainer?: HTMLElement) {
-		if (!this._overlayLayout || !this._overlayLayout.content.parentElement) {
-			return;
-		}
-
-		this._overlayLayout?.layoutOverAnchorElement(anchorElement, { clippingContainer, fallbackDimension: dimension });
+	public setAnchorElement(anchorElement: HTMLElement, clippingContainer?: HTMLElement) {
+		this._anchorState = { anchorElement, clippingContainer };
+		// Force the overlay layout to be created if it doesn't exist
+		this.overlayLayout.setAnchorElement(anchorElement, { clippingContainer });
 	}
 
 	private _show(targetWindow: CodeWindow) {

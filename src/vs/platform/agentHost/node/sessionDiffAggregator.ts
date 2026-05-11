@@ -7,16 +7,28 @@ import { URI } from '../../../base/common/uri.js';
 import type { IFileEditRecord, ISessionDatabase } from '../common/sessionDataService.js';
 import type { IDiffComputeService } from '../common/diffComputeService.js';
 import { FileEditKind, type ISessionFileDiff } from '../common/state/sessionState.js';
+import { buildSessionDbUri } from './copilot/fileEditTracker.js';
 
 function getFileEditUri(diff: ISessionFileDiff): string | undefined {
 	return diff.after?.uri ?? diff.before?.uri;
 }
 
-function createSessionFileDiff(identity: IFileIdentity, added: number, removed: number): ISessionFileDiff {
-	const uri = URI.file(identity.terminalPath).toString();
-	const content = { uri };
+function createSessionFileDiff(sessionUri: string, identity: IFileIdentity, added: number, removed: number): ISessionFileDiff {
+	const hasBefore = identity.firstKind !== FileEditKind.Create;
+	const hasAfter = identity.lastKind !== FileEditKind.Delete;
 	return {
-		...(identity.lastKind === FileEditKind.Delete ? { before: { uri, content } } : { after: { uri, content } }),
+		...(hasBefore ? {
+			before: {
+				uri: URI.file(identity.firstFilePath).toString(),
+				content: { uri: buildSessionDbUri(sessionUri, identity.firstToolCallId, identity.firstFilePath, 'before') },
+			},
+		} : {}),
+		...(hasAfter ? {
+			after: {
+				uri: URI.file(identity.terminalPath).toString(),
+				content: { uri: buildSessionDbUri(sessionUri, identity.lastToolCallId, identity.lastFilePath, 'after') },
+			},
+		} : {}),
 		diff: { added, removed },
 	};
 }
@@ -69,6 +81,7 @@ export interface IIncrementalDiffOptions {
  * file and the total lines added/removed across the session.
  */
 export async function computeSessionDiffs(
+	sessionUri: string,
 	db: ISessionDatabase,
 	diffService: IDiffComputeService,
 	incremental?: IIncrementalDiffOptions,
@@ -205,7 +218,7 @@ export async function computeSessionDiffs(
 			}
 
 			const counts = await diffService.computeDiffCounts(beforeText, afterText);
-			results.push(createSessionFileDiff(identity, counts.added, counts.removed));
+			results.push(createSessionFileDiff(sessionUri, identity, counts.added, counts.removed));
 		})());
 	}
 
