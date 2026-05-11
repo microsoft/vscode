@@ -62,6 +62,11 @@ export const unicodeFilter = Object.freeze<string[]>([
 	'!extensions/**/snippets/**',
 	'!extensions/**/colorize-fixtures/**',
 	'!extensions/terminal-suggest/src/shell/fishBuiltinsCache.ts',
+	// Son of Anton webview bundle — vanilla JS / CSS asset that uses brand
+	// glyphs and pre-strict-mode formatting. Parallels the existing
+	// exclusions for markdown-language-features/media and
+	// simple-browser/media above.
+	'!extensions/son-of-anton/media/**',
 
 	'!src/vs/base/browser/dompurify/**',
 	'!src/vs/workbench/services/keybinding/browser/keyboardLayouts/**',
