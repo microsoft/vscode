@@ -882,6 +882,11 @@ export class Repository implements Disposable {
 		return this.repository.kind;
 	}
 
+	private _isUsingVirtualFileSystem: boolean | undefined = undefined;
+	get isUsingVirtualFileSystem(): boolean {
+		return this._isUsingVirtualFileSystem === true;
+	}
+
 	private _artifactProvider: GitArtifactProvider;
 	get artifactProvider(): GitArtifactProvider { return this._artifactProvider; }
 
@@ -1496,6 +1501,11 @@ export class Repository implements Disposable {
 			return message;
 		}
 
+		const chatConfig = workspace.getConfiguration('chat');
+		if (chatConfig.get<boolean>('disableAIFeatures', false)) {
+			return message;
+		}
+
 		const config = workspace.getConfiguration('git', Uri.file(this.root));
 		const addAICoAuthor = config.get<'off' | 'chatAndAgent' | 'all'>('addAICoAuthor', 'off');
 
@@ -1927,14 +1937,14 @@ export class Repository implements Disposable {
 		await this.run(Operation.DeleteTag, () => this.repository.deleteTag(name));
 	}
 
-	async createWorktree(options?: { path?: string; commitish?: string; branch?: string }): Promise<string> {
+	async createWorktree(options?: { path?: string; commitish?: string; branch?: string; noTrack?: boolean }): Promise<string> {
 		const defaultWorktreeRoot = this.globalState.get<string>(`${Repository.WORKTREE_ROOT_STORAGE_KEY}:${this.root}`);
 		const config = workspace.getConfiguration('git', Uri.file(this.root));
 		const branchPrefix = config.get<string>('branchPrefix', '');
 
 		return await this.run(Operation.Worktree(false), async () => {
 			let worktreeName: string | undefined;
-			let { path: worktreePath, commitish, branch } = options || {};
+			let { path: worktreePath, commitish, branch, noTrack } = options || {};
 
 			// Create worktree path based on the branch name
 			if (worktreePath === undefined && branch !== undefined) {
@@ -1958,7 +1968,7 @@ export class Repository implements Disposable {
 			}
 
 			// Create the worktree
-			await this.repository.addWorktree({ path: worktreePath!, commitish: commitish ?? 'HEAD', branch });
+			await this.repository.addWorktree({ path: worktreePath!, commitish: commitish ?? 'HEAD', branch, noTrack });
 
 			// Update worktree root in global state
 			const newWorktreeRoot = path.dirname(worktreePath!);
@@ -2879,7 +2889,8 @@ export class Repository implements Disposable {
 					this.getRebaseCommit(),
 					this.isMergeInProgress(),
 					this.isCherryPickInProgress(),
-					this.getInputTemplate()]);
+					this.getInputTemplate(),
+					this.initIsUsingVirtualFileSystem()]);
 
 			// Reset the list of unpublished commits if HEAD has
 			// changed (ex: checkout, fetch, pull, push, publish, etc.).
@@ -3460,6 +3471,20 @@ export class Repository implements Disposable {
 		}
 
 		return undefined;
+	}
+
+	private async initIsUsingVirtualFileSystem(): Promise<void> {
+		if (this._isUsingVirtualFileSystem !== undefined) {
+			return;
+		}
+
+		try {
+			const result = await this.getConfig('core.virtualfilesystem');
+			this._isUsingVirtualFileSystem = result.length > 0;
+		} catch (error) {
+			this._isUsingVirtualFileSystem = false;
+			return;
+		}
 	}
 
 	dispose(): void {

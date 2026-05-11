@@ -5,7 +5,7 @@
 
 import { PromptElement, PromptSizing } from '@vscode/prompt-tsx';
 import { IChatEndpoint } from '../../../../platform/networking/common/networking';
-import { ToolName } from '../../../tools/common/toolNames';
+import { agenticBrowserTools, ToolName } from '../../../tools/common/toolNames';
 import { InstructionMessage } from '../base/instructionMessage';
 import { ResponseTranslationRules } from '../base/responseTranslationRules';
 import { Tag } from '../base/tag';
@@ -93,6 +93,7 @@ class DefaultZaiAgentPrompt extends PromptElement<DefaultAgentPromptProps> {
 				{tools[ToolName.CoreRunInTerminal] && <>- {ToolName.CoreRunInTerminal}: Run commands SEQUENTIALLY. Wait for output before running next command. NEVER use for file edits unless user explicitly requests it<br /></>}
 				{!tools.hasSomeEditTool && <>- NOTE: No file editing tools available. Ask user to enable them or provide codeblocks as fallback<br /></>}
 				{!tools[ToolName.CoreRunInTerminal] && <>- NOTE: No terminal tools available. Ask user to enable them or provide commands as fallback<br /></>}
+				{tools[ToolName.CoreOpenBrowserPage] && tools.hasAgenticBrowserTools && <>- Use the browser tools ({ToolName.CoreOpenBrowserPage}, {agenticBrowserTools.find(k => tools[k])}, etc.) when beneficial for front-end tasks, such as when visualizing or validating UI changes.<br /></>}
 				- Tools may be disabled. Use only currently available tools, regardless of what was used earlier in conversation.
 			</Tag>
 

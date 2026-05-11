@@ -102,10 +102,10 @@ function createTestConversation(turnCount: number = 1): Conversation {
 	return new Conversation(generateUuid(), turns);
 }
 
-function createMockRound(toolCallNames: string[] = []): IToolCallRound {
+function createMockRound(toolCallNames: string[] = [], response: string = ''): IToolCallRound {
 	return {
 		id: generateUuid(),
-		response: 'test response',
+		response,
 		toolInputRetry: 0,
 		toolCalls: toolCallNames.map(name => ({
 			id: generateUuid(),
@@ -150,10 +150,11 @@ describe('ToolCallingLoop autopilot', () => {
 		vi.restoreAllMocks();
 	});
 
-	function createLoop(permissionLevel?: string): AutopilotTestToolCallingLoop {
+	function createLoop(permissionLevel?: string, requestOverrides: Partial<ChatRequest> = {}): AutopilotTestToolCallingLoop {
 		const conversation = createTestConversation(1);
 		const request = createMockChatRequest({
 			permissionLevel,
+			...requestOverrides,
 		} as Partial<ChatRequest>);
 		const loop = instantiationService.createInstance(
 			AutopilotTestToolCallingLoop,
@@ -196,15 +197,24 @@ describe('ToolCallingLoop autopilot', () => {
 			expect(msg).toBeUndefined();
 		});
 
-		it('should keep nudging even with autopilotStopHookActive set', () => {
+		it('should bail when prior nudge produced no tool calls', () => {
 			const loop = createLoop('autopilot');
 
 			// Simulate that we already nudged once and set the flag
 			loop.setAutopilotStopHookActive(true);
 
-			// Should still return a nudge — autopilotStopHookActive no longer causes early bail
+			// Should bail — the previous nudge produced no tool calls, so further nudges
+			// would just waste tokens (the model is effectively done).
 			const result = loop.testShouldAutopilotContinue(createMockSingleResult());
-			expect(result).toContain('task_complete');
+			expect(result).toBeUndefined();
+		});
+
+		it('should skip the nudge when the model returned a text-only response (no tool calls)', () => {
+			const loop = createLoop('autopilot');
+			const result = loop.testShouldAutopilotContinue(createMockSingleResult({
+				round: createMockRound([], 'Here is a summary of what I did.'),
+			}));
+			expect(result).toBeUndefined();
 		});
 
 		it('should allow another nudge after autopilotStopHookActive is reset', () => {

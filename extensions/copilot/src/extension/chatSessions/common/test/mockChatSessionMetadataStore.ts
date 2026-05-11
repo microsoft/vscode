@@ -20,6 +20,7 @@ export class MockChatSessionMetadataStore implements IChatSessionMetadataStore {
 	private readonly _firstUserMessages = new Map<string, string>();
 	private readonly _customTitles = new Map<string, string>();
 	private readonly _requestDetails = new Map<string, RequestDetails[]>();
+	private readonly _sessionOrigins = new Map<string, 'vscode' | 'other'>();
 
 	async deleteSessionMetadata(sessionId: string): Promise<void> {
 		this._worktreeProperties.delete(sessionId);
@@ -28,6 +29,10 @@ export class MockChatSessionMetadataStore implements IChatSessionMetadataStore {
 		this._firstUserMessages.delete(sessionId);
 		this._customTitles.delete(sessionId);
 		this._requestDetails.delete(sessionId);
+	}
+
+	async refresh(): Promise<void> {
+		// no-op in mock — there is no on-disk state to reload.
 	}
 
 	async storeWorktreeInfo(sessionId: string, properties: ChatSessionWorktreeProperties): Promise<void> {
@@ -49,15 +54,8 @@ export class MockChatSessionMetadataStore implements IChatSessionMetadataStore {
 		return undefined;
 	}
 
-	async getSessionIdForWorkspaceFolder(_folder: vscode.Uri): Promise<string[]> {
-		return [];
-	}
-
-	async getWorktreeProperties(sessionIdOrFolder: string | vscode.Uri): Promise<ChatSessionWorktreeProperties | undefined> {
-		if (typeof sessionIdOrFolder === 'string') {
-			return this._worktreeProperties.get(sessionIdOrFolder);
-		}
-		return undefined;
+	async getWorktreeProperties(sessionId: string): Promise<ChatSessionWorktreeProperties | undefined> {
+		return this._worktreeProperties.get(sessionId);
 	}
 
 	async getSessionWorkspaceFolder(_sessionId: string): Promise<vscode.Uri | undefined> {
@@ -117,5 +115,68 @@ export class MockChatSessionMetadataStore implements IChatSessionMetadataStore {
 			}
 		}
 		return undefined;
+	}
+
+	async storeForkedSessionMetadata(sourceSessionId: string, targetSessionId: string, customTitle: string): Promise<void> {
+		await this.setCustomTitle(targetSessionId, customTitle);
+		const worktree = this._worktreeProperties.get(sourceSessionId);
+		if (worktree) {
+			this._worktreeProperties.set(targetSessionId, worktree);
+		}
+		const folder = this._workspaceFolders.get(sourceSessionId);
+		if (folder) {
+			this._workspaceFolders.set(targetSessionId, folder);
+		}
+		const additional = this._additionalWorkspaces.get(sourceSessionId);
+		if (additional) {
+			this._additionalWorkspaces.set(targetSessionId, additional);
+		}
+		const firstMsg = this._firstUserMessages.get(sourceSessionId);
+		if (firstMsg) {
+			this._firstUserMessages.set(targetSessionId, firstMsg);
+		}
+	}
+
+	async setSessionOrigin(sessionId: string): Promise<void> {
+		this._sessionOrigins.set(sessionId, 'vscode');
+	}
+
+	async getSessionOrigin(sessionId: string): Promise<'vscode' | 'other'> {
+		return this._sessionOrigins.get(sessionId) ?? 'vscode';
+	}
+
+	setSessionParentId(_sessionId: string, _parentSessionId: string): Promise<void> {
+		return Promise.resolve();
+	}
+
+	getSessionParentId(_sessionId: string): Promise<string | undefined> {
+		return Promise.resolve(undefined);
+	}
+
+	getSessionIdsForFolder(folder: vscode.Uri): string[] {
+		const folderPath = folder.fsPath;
+		const sessionIds: string[] = [];
+		for (const [sessionId, props] of this._worktreeProperties) {
+			if (props.worktreePath === folderPath) {
+				sessionIds.push(sessionId);
+			}
+		}
+		for (const [sessionId, entry] of this._workspaceFolders) {
+			if (entry.folderPath === folderPath && !sessionIds.includes(sessionId)) {
+				sessionIds.push(sessionId);
+			}
+		}
+		return sessionIds;
+	}
+
+	getWorktreeSessions(folder: vscode.Uri): string[] {
+		const folderPath = folder.fsPath;
+		const sessionIds: string[] = [];
+		for (const [sessionId, props] of this._worktreeProperties) {
+			if (props.worktreePath === folderPath) {
+				sessionIds.push(sessionId);
+			}
+		}
+		return sessionIds;
 	}
 }

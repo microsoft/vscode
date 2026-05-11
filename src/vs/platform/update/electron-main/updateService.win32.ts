@@ -34,7 +34,6 @@ import { IApplicationStorageMainService } from '../../storage/electron-main/stor
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { AvailableForDownload, DisablementReason, IUpdate, State, StateType, UpdateType } from '../common/update.js';
 import { AbstractUpdateService, createUpdateURL, getUpdateRequestHeaders, IUpdateURLOptions, UpdateErrorClassification } from './abstractUpdateService.js';
-import { INodeProcess } from '../../../base/common/platform.js';
 
 interface IAvailableUpdate {
 	packagePath: string;
@@ -101,14 +100,6 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 	}
 
 	protected override async initialize(): Promise<void> {
-		// In the embedded app, skip win32-specific setup (cache paths, telemetry)
-		// but still run the base initialization to detect available updates.
-		if ((process as INodeProcess).isEmbeddedApp) {
-			this.logService.info('update#ctor - embedded app: checking for updates without auto-download');
-			await super.initialize();
-			return;
-		}
-
 		if (this.productService.win32VersionedUpdate) {
 			const cachePath = await this.cachePath;
 			app.setPath('appUpdate', cachePath);
@@ -155,7 +146,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 				this.logService.info(`update#doCheckForUpdates - application was updating to version ${updatingVersion}`);
 				const updatePackagePath = await this.getUpdatePackagePath(updatingVersion);
 				if (await pfs.Promises.exists(updatePackagePath)) {
-					await this._applySpecificUpdate(updatePackagePath);
+					await this._applySpecificUpdate(updatePackagePath, updatingVersion);
 					this.logService.info(`update#doCheckForUpdates - successfully applied update to version ${updatingVersion}`);
 				}
 			} catch (e) {
@@ -171,9 +162,11 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 				const versionedResourcesFolder = this.productService.commit.substring(0, 10);
 				const innoUpdater = path.join(exeDir, versionedResourcesFolder, 'tools', 'inno_updater.exe');
 				const exeName = basename(exePath);
-				const siblingExeName = this.productService.win32SiblingExeBasename ? `${this.productService.win32SiblingExeBasename}.exe` : '';
+				// Unblock inno_updater --gc when our context-menu COM surrogate keeps a
+				// handle on the orphan commit folder. See https://github.com/microsoft/vscode/issues/294546.
+				await this.killContextMenuComSurrogate();
 				await new Promise<void>(resolve => {
-					const child = spawn(innoUpdater, ['--gc', exePath, versionedResourcesFolder, exeName, siblingExeName], {
+					const child = spawn(innoUpdater, ['--gc', exePath, versionedResourcesFolder, exeName], {
 						stdio: ['ignore', 'ignore', 'ignore'],
 						windowsHide: true,
 						timeout: 2 * 60 * 1000
@@ -182,6 +175,42 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 				});
 			}
 		}
+	}
+
+	private async killContextMenuComSurrogate(): Promise<void> {
+		const clsid = this.productService.win32ContextMenu?.[process.arch]?.clsid;
+		if (!clsid) {
+			return;
+		}
+
+		const command =
+			`Get-CimInstance Win32_Process -Filter "Name = 'dllhost.exe'" | ` +
+			`Where-Object { $_.CommandLine -like '*/Processid:${clsid}*' } | ` +
+			`ForEach-Object { try { Stop-Process -Id $_.ProcessId -Force -ErrorAction Stop } catch {} }`;
+
+		await new Promise<void>(resolve => {
+			try {
+				spawn('powershell.exe', [
+					'-NoLogo', '-NoProfile', '-NonInteractive',
+					'-WindowStyle', 'Hidden',
+					'-ExecutionPolicy', 'Bypass',
+					'-Command', command
+				], {
+					stdio: ['ignore', 'ignore', 'ignore'],
+					windowsHide: true,
+					timeout: 5 * 1000
+				}).once('exit', code => {
+					this.logService.info(`update#killContextMenuComSurrogate: powershell exited with code ${code}`);
+					resolve();
+				}).once('error', err => {
+					this.logService.warn(`update#killContextMenuComSurrogate: failed to spawn powershell: ${err}`);
+					resolve();
+				});
+			} catch (err) {
+				this.logService.warn(`update#killContextMenuComSurrogate: spawn threw: ${err}`);
+				resolve();
+			}
+		});
 	}
 
 	protected buildUpdateFeedUrl(quality: string, commit: string, options?: IUpdateURLOptions): string | undefined {
@@ -230,13 +259,6 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 
 				if (updateType === UpdateType.Archive) {
 					this.setState(State.AvailableForDownload(update));
-					return Promise.resolve(null);
-				}
-
-				// In the embedded app, signal that an update exists but can't be installed here.
-				if ((process as INodeProcess).isEmbeddedApp) {
-					this.logService.info('update#doCheckForUpdates - embedded app: update available, skipping download');
-					this.setState(State.AvailableForDownload(update, /* canInstall */ false));
 					return Promise.resolve(null);
 				}
 
@@ -541,13 +563,13 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		return getUpdateType();
 	}
 
-	override async _applySpecificUpdate(packagePath: string): Promise<void> {
+	override async _applySpecificUpdate(packagePath: string, commit?: string): Promise<void> {
 		if (this.state.type !== StateType.Idle) {
 			return;
 		}
 
 		const fastUpdatesEnabled = this.configurationService.getValue('update.enableWindowsBackgroundUpdates');
-		const update: IUpdate = await this.loadUpdateMetadata() ?? { version: 'unknown', productVersion: 'unknown' };
+		const update: IUpdate = await this.loadUpdateMetadata() ?? { version: commit ?? 'unknown', productVersion: 'unknown' };
 
 		this.setState(State.Downloading(update, true, false));
 		this.availableUpdate = { packagePath };

@@ -64,8 +64,6 @@ export interface IStorageSourceFilter {
 export interface IWelcomePageFeatures {
 	/** Show the "Configure Your AI" getting-started banner. */
 	readonly showGettingStartedBanner: boolean;
-	/** Show "Generate with AI" actions on category cards. */
-	readonly showGenerateActions: boolean;
 }
 
 /**

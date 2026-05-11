@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ISubscribeResult } from '../../../common/state/protocol/commands.js';
+import { SubscribeResult } from '../../../common/state/protocol/commands.js';
 import type { IResponsePartAction } from '../../../common/state/sessionActions.js';
-import type { IFetchTurnsResult } from '../../../common/state/sessionProtocol.js';
-import { ResponsePartKind, type IMarkdownResponsePart, type ISessionState } from '../../../common/state/sessionState.js';
+import type { FetchTurnsResult } from '../../../common/state/sessionProtocol.js';
+import { ResponsePartKind, buildSubagentSessionUri, type MarkdownResponsePart, type SessionState } from '../../../common/state/sessionState.js';
 import {
 	createAndSubscribeSession,
 	dispatchTurnStarted,
@@ -51,7 +51,7 @@ suite('Protocol WebSocket — Turn Execution', function () {
 		const responsePart = await client.waitForNotification(n => isActionNotification(n, 'session/responsePart'));
 		const responsePartAction = getActionEnvelope(responsePart).action as IResponsePartAction;
 		assert.strictEqual(responsePartAction.part.kind, ResponsePartKind.Markdown);
-		assert.strictEqual((responsePartAction.part as IMarkdownResponsePart).content, 'Hello, world!');
+		assert.strictEqual((responsePartAction.part as MarkdownResponsePart).content, 'Hello, world!');
 
 		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
 	});
@@ -99,8 +99,8 @@ suite('Protocol WebSocket — Turn Execution', function () {
 
 		await client.waitForNotification(n => isActionNotification(n, 'session/turnCancelled'));
 
-		const snapshot = await client.call<ISubscribeResult>('subscribe', { resource: sessionUri });
-		const state = snapshot.snapshot.state as ISessionState;
+		const snapshot = await client.call<SubscribeResult>('subscribe', { resource: sessionUri });
+		const state = snapshot.snapshot.state as SessionState;
 		assert.ok(state.turns.length >= 1);
 		assert.strictEqual(state.turns[state.turns.length - 1].state, 'cancelled');
 	});
@@ -117,8 +117,8 @@ suite('Protocol WebSocket — Turn Execution', function () {
 		await new Promise(resolve => setTimeout(resolve, 200));
 		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
 
-		const snapshot = await client.call<ISubscribeResult>('subscribe', { resource: sessionUri });
-		const state = snapshot.snapshot.state as ISessionState;
+		const snapshot = await client.call<SubscribeResult>('subscribe', { resource: sessionUri });
+		const state = snapshot.snapshot.state as SessionState;
 		assert.ok(state.turns.length >= 2, `expected >= 2 turns but got ${state.turns.length}`);
 		assert.strictEqual(state.turns[0].id, 'turn-m1');
 		assert.strictEqual(state.turns[1].id, 'turn-m2');
@@ -136,7 +136,7 @@ suite('Protocol WebSocket — Turn Execution', function () {
 		await new Promise(resolve => setTimeout(resolve, 200));
 		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
 
-		const result = await client.call<IFetchTurnsResult>('fetchTurns', { session: sessionUri, limit: 10 });
+		const result = await client.call<FetchTurnsResult>('fetchTurns', { session: sessionUri, limit: 10 });
 		assert.ok(result.turns.length >= 2);
 		assert.strictEqual(typeof result.hasMore, 'boolean');
 	});
@@ -154,8 +154,8 @@ suite('Protocol WebSocket — Turn Execution', function () {
 
 		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
 
-		const snapshot = await client.call<ISubscribeResult>('subscribe', { resource: sessionUri });
-		const state = snapshot.snapshot.state as ISessionState;
+		const snapshot = await client.call<SubscribeResult>('subscribe', { resource: sessionUri });
+		const state = snapshot.snapshot.state as SessionState;
 		assert.ok(state.turns.length >= 1);
 		const turn = state.turns[state.turns.length - 1];
 		assert.ok(turn.usage);
@@ -168,16 +168,48 @@ suite('Protocol WebSocket — Turn Execution', function () {
 
 		const sessionUri = await createAndSubscribeSession(client, 'test-modifiedAt');
 
-		const initialSnapshot = await client.call<ISubscribeResult>('subscribe', { resource: sessionUri });
-		const initialModifiedAt = (initialSnapshot.snapshot.state as ISessionState).summary.modifiedAt;
+		const initialSnapshot = await client.call<SubscribeResult>('subscribe', { resource: sessionUri });
+		const initialModifiedAt = (initialSnapshot.snapshot.state as SessionState).summary.modifiedAt;
 
 		await new Promise(resolve => setTimeout(resolve, 50));
 
 		dispatchTurnStarted(client, sessionUri, 'turn-mod', 'hello', 1);
 		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
 
-		const updatedSnapshot = await client.call<ISubscribeResult>('subscribe', { resource: sessionUri });
-		const updatedModifiedAt = (updatedSnapshot.snapshot.state as ISessionState).summary.modifiedAt;
+		const updatedSnapshot = await client.call<SubscribeResult>('subscribe', { resource: sessionUri });
+		const updatedModifiedAt = (updatedSnapshot.snapshot.state as SessionState).summary.modifiedAt;
 		assert.ok(updatedModifiedAt >= initialModifiedAt);
+	});
+
+	test('subagent: inner tool calls land in child session, not parent', async function () {
+		this.timeout(15_000);
+
+		const sessionUri = await createAndSubscribeSession(client, 'test-subagent');
+		dispatchTurnStarted(client, sessionUri, 'turn-sa', 'subagent', 1);
+
+		// Wait for the parent turn to complete.
+		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
+
+		// Subscribe to the child subagent session — its URI is derived from
+		// the parent session URI + parent toolCallId.
+		const childUri = buildSubagentSessionUri(sessionUri, 'tc-task-1');
+
+		const parentSnapshot = await client.call<SubscribeResult>('subscribe', { resource: sessionUri });
+		const parentState = parentSnapshot.snapshot.state as SessionState;
+		const childSnapshot = await client.call<SubscribeResult>('subscribe', { resource: childUri });
+		const childState = childSnapshot.snapshot.state as SessionState;
+
+		// Parent turn should contain the `task` tool call but NOT the inner one.
+		const parentTurn = parentState.turns[parentState.turns.length - 1];
+		const parentToolCalls = parentTurn.responseParts.filter(p => p.kind === ResponsePartKind.ToolCall);
+		const parentToolNames = parentToolCalls.map(p => p.toolCall.toolName);
+		assert.deepStrictEqual(parentToolNames, ['task'], 'parent turn should only contain the `task` tool call (inner tool must route to subagent)');
+
+		// Child session should have one turn with the inner `echo_tool` call.
+		assert.ok(childState.turns.length >= 1, 'child subagent session should have at least one turn');
+		const childTurn = childState.turns[childState.turns.length - 1];
+		const childToolCalls = childTurn.responseParts.filter(p => p.kind === ResponsePartKind.ToolCall);
+		const childToolNames = childToolCalls.map(p => p.toolCall.toolName);
+		assert.deepStrictEqual(childToolNames, ['echo_tool'], 'child subagent session should contain the inner `echo_tool` call');
 	});
 });

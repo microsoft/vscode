@@ -115,7 +115,7 @@
 		"type": "label",
 		"name": "*duplicate",
 		"action": "close",
-		"reason": "not_planned",
+		"reason": "duplicate",
 		"comment": "Thanks for creating this issue! We figured it's covering the same as another one we already have. Thus, we closed this one as a duplicate. You can search for [similar existing issues](${duplicateQuery}). See also our [issue reporting guidelines](https://aka.ms/vscodeissuereporting).\n\nHappy Coding!"
 	},
 	{
@@ -544,7 +544,7 @@
 		"name": "~chat-rate-limiting",
 		"removeLabel": "~chat-rate-limiting",
 		"action": "close",
-		"reason": "not_planned",
+		"reason": "duplicate",
 		"comment": "This issue is a duplicate of https://github.com/microsoft/vscode/issues/253124. Please refer to that issue for updates and discussions. Feel free to open a new issue if you think this is a different problem."
 	},
 	{
@@ -552,7 +552,7 @@
 		"name": "~chat-request-failed",
 		"removeLabel": "~chat-request-failed",
 		"action": "close",
-		"reason": "not_planned",
+		"reason": "duplicate",
 		"comment": "This issue is a duplicate of https://github.com/microsoft/vscode/issues/253136. Please refer to that issue for updates and discussions. Feel free to open a new issue if you think this is a different problem."
 	},
 	{
@@ -560,7 +560,7 @@
 		"name": "~chat-rai-content-filters",
 		"removeLabel": "~chat-rai-content-filters",
 		"action": "close",
-		"reason": "not_planned",
+		"reason": "duplicate",
 		"comment": "This issue is a duplicate of https://github.com/microsoft/vscode/issues/253130. Please refer to that issue for updates and discussions. Feel free to open a new issue if you think this is a different problem."
 	},
 	{
@@ -568,7 +568,7 @@
 		"name": "~chat-public-code-blocking",
 		"removeLabel": "~chat-public-code-blocking",
 		"action": "close",
-		"reason": "not_planned",
+		"reason": "duplicate",
 		"comment": "This issue is a duplicate of https://github.com/microsoft/vscode/issues/253129. Please refer to that issue for updates and discussions. Feel free to open a new issue if you think this is a different problem."
 	},
 	{
@@ -576,7 +576,7 @@
 		"name": "~chat-lm-unavailable",
 		"removeLabel": "~chat-lm-unavailable",
 		"action": "close",
-		"reason": "not_planned",
+		"reason": "duplicate",
 		"comment": "This issue is a duplicate of https://github.com/microsoft/vscode/issues/253137. Please refer to that issue for updates and discussions. Feel free to open a new issue if you think this is a different problem."
 	},
 	{
@@ -584,7 +584,7 @@
 		"name": "~chat-authentication",
 		"removeLabel": "~chat-authentication",
 		"action": "close",
-		"reason": "not_planned",
+		"reason": "duplicate",
 		"comment": "Please look at the following meta issue: https://github.com/microsoft/vscode/issues/253132, if the bug you are experiencing is not there, please comment on this closed issue thread so we can re-open it.",
 		"assign": [
 			"TylerLeonhardt"
@@ -595,7 +595,7 @@
 		"name": "~chat-no-response-returned",
 		"removeLabel": "~chat-no-response-returned",
 		"action": "close",
-		"reason": "not_planned",
+		"reason": "duplicate",
 		"comment": "Please look at the following meta issue: https://github.com/microsoft/vscode/issues/253126. Please refer to that issue for updates and discussions. Feel free to open a new issue if you think this is a different problem."
 	},
 	{
@@ -604,7 +604,7 @@
 		"removeLabel": "~chat-billing",
 		"addLabel": "chat-billing",
 		"action": "close",
-		"reason": "not_planned",
+		"reason": "duplicate",
 		"comment": "Please look at the following meta issue: https://github.com/microsoft/vscode/issues/252230. Please refer to that issue for updates and discussions. Feel free to open a new issue if you think this is a different problem."
 	},
 	{
@@ -613,7 +613,7 @@
 		"removeLabel": "~chat-infinite-response-loop",
 		"addLabel": "chat-infinite-response-loop",
 		"action": "close",
-		"reason": "not_planned",
+		"reason": "duplicate",
 		"comment": "Please look at the following meta issue: https://github.com/microsoft/vscode/issues/253134. Please refer to that issue for updates and discussions. Feel free to open a new issue if you think this is a different problem."
 	},
 	{
@@ -670,5 +670,11 @@
 		"addLabel": "accessibility-sla",
 		"removeLabel": "~accessibility-sla",
 		"comment": "The Visual Studio and VS Code teams have an agreement with the Accessibility team that 3:1 contrast is enough for inside the editor."
+	},
+	{
+		"type": "comment",
+		"name": "requires-eval-assessment",
+		"action": "updateLabels",
+		"addLabel": "~requires-eval-assessment"
 	}
 ]

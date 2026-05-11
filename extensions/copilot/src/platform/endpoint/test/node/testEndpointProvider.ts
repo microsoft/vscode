@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* eslint-disable import/no-restricted-paths */
-
 import type { ChatRequest, LanguageModelChat } from 'vscode';
 import { CacheableRequest, SQLiteCache } from '../../../../../test/base/cache';
 import { TestingCacheSalts } from '../../../../../test/base/salts';
@@ -20,7 +18,7 @@ import { IEnvService } from '../../../env/common/envService';
 import { IOctoKitService } from '../../../github/common/githubService';
 import { ILogService } from '../../../log/common/logService';
 import { IChatEndpoint, IEmbeddingsEndpoint } from '../../../networking/common/networking';
-import { IRequestLogger } from '../../../requestLogger/node/requestLogger';
+import { IRequestLogger } from '../../../requestLogger/common/requestLogger';
 import { IExperimentationService } from '../../../telemetry/common/nullExperimentationService';
 import { ChatEndpointFamily, EmbeddingsEndpointFamily, IChatModelInformation, ICompletionModelInformation, IEmbeddingModelInformation, IEndpointProvider } from '../../common/endpointProvider';
 import { EmbeddingEndpoint } from '../../node/embeddingsEndpoint';

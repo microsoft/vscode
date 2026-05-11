@@ -3,75 +3,99 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { raceTimeout } from '../../../../base/common/async.js';
-import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { basename } from '../../../../base/common/resources.js';
-import { constObservable, IObservable, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { basename, dirname } from '../../../../base/common/resources.js';
+import { IObservable, observableValue } from '../../../../base/common/observable.js';
+import { isWeb } from '../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
-import { generateUuid } from '../../../../base/common/uuid.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { localize } from '../../../../nls.js';
 import { agentHostUri } from '../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
-import { AGENT_HOST_SCHEME, agentHostAuthority, toAgentHostUri } from '../../../../platform/agentHost/common/agentHostUri.js';
+import { AGENT_HOST_SCHEME, agentHostAuthority, fromAgentHostUri, toAgentHostUri } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentSession, type IAgentConnection, type IAgentSessionMetadata } from '../../../../platform/agentHost/common/agentService.js';
-import { RemoteAgentHostConnectionStatus } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
-import { ActionType, isSessionAction } from '../../../../platform/agentHost/common/state/sessionActions.js';
+import type { ISessionGitState } from '../../../../platform/agentHost/common/state/sessionState.js';
+import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
-import { ChatViewPaneTarget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
-import { IChatSendRequestOptions, IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import { IChatSessionFileChange, IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
+import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
-import { ISessionChangeEvent, ISendRequestOptions, ISessionsProvider } from '../../../services/sessions/common/sessionsProvider.js';
-import { ISession, IChat, IGitHubInfo, ISessionWorkspace, ISessionWorkspaceBrowseAction, SessionStatus, CopilotCLISessionType, ISessionType } from '../../../services/sessions/common/session.js';
+import { AgentHostSessionAdapter, BaseAgentHostSessionsProvider } from '../../agentHost/browser/baseAgentHostSessionsProvider.js';
+import { IGitHubService } from '../../github/browser/githubService.js';
+import { buildAgentHostSessionWorkspace, readBranchProtectionPatterns } from '../../../common/agentHostSessionWorkspace.js';
+import { ISession, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../services/sessions/common/session.js';
+import { remoteAgentHostSessionTypeId } from '../common/remoteAgentHostSessionType.js';
 
-interface IChatData {
-	/** Globally unique session ID (`providerId:localId`). */
-	readonly id: string;
-	/** Resource URI identifying this session. */
-	readonly resource: URI;
-	/** ID of the provider that owns this session. */
-	readonly providerId: string;
-	/** Session type ID (e.g., 'copilot-cli', 'copilot-cloud'). */
-	readonly sessionType: string;
-	/** Icon for this session. */
-	readonly icon: ThemeIcon;
-	/** When the session was created. */
-	readonly createdAt: Date;
-	/** Workspace this session operates on. */
-	readonly workspace: IObservable<ISessionWorkspace | undefined>;
+/** Storage key prefix for cached session summaries, per remote address. */
+const CACHED_SESSIONS_STORAGE_PREFIX = 'remoteAgentHost.cachedSessions.';
 
-	// Reactive properties
+/** Maximum number of cached session summaries persisted per host. */
+const CACHED_SESSIONS_MAX_PER_HOST = 100;
 
-	/** Session display title (changes when auto-titled or renamed). */
-	readonly title: IObservable<string>;
-	/** When the session was last updated. */
-	readonly updatedAt: IObservable<Date>;
-	/** Current session status. */
-	readonly status: IObservable<SessionStatus>;
-	/** File changes produced by the session. */
-	readonly changes: IObservable<readonly IChatSessionFileChange[]>;
-	/** Currently selected model identifier. */
-	readonly modelId: IObservable<string | undefined>;
-	/** Currently selected mode identifier and kind. */
-	readonly mode: IObservable<{ readonly id: string; readonly kind: string } | undefined>;
-	/** Whether the session is still initializing (e.g., resolving git repository). */
-	readonly loading: IObservable<boolean>;
-	/** Whether the session is archived. */
-	readonly isArchived: IObservable<boolean>;
-	/** Whether the session has been read. */
-	readonly isRead: IObservable<boolean>;
-	/** Status description shown while the session is active (e.g., current agent action). */
-	readonly description: IObservable<IMarkdownString | undefined>;
-	/** Timestamp of when the last agent turn ended, if any. */
-	readonly lastTurnEnd: IObservable<Date | undefined>;
-	/** GitHub information associated with this session, if any. */
-	readonly gitHubInfo: IObservable<IGitHubInfo | undefined>;
+/**
+ * Serialized shape of an {@link IAgentSessionMetadata} suitable for
+ * persisting via {@link IStorageService}. URIs are stored as strings
+ * and diffs are intentionally omitted (they are re-populated when the
+ * connection refreshes sessions).
+ */
+interface ISerializedSessionMetadata {
+	readonly session: string;
+	readonly startTime: number;
+	readonly modifiedTime: number;
+	readonly summary?: string;
+	readonly model?: IAgentSessionMetadata['model'];
+	readonly workingDirectory?: string;
+	readonly isRead?: boolean;
+	readonly isArchived?: boolean;
+	/** @deprecated Legacy name for `isArchived`. */
+	readonly isDone?: boolean;
+	readonly project?: { readonly uri: string; readonly displayName: string };
+}
+
+function serializeMetadata(meta: IAgentSessionMetadata): ISerializedSessionMetadata {
+	return {
+		session: meta.session.toString(),
+		startTime: meta.startTime,
+		modifiedTime: meta.modifiedTime,
+		summary: meta.summary,
+		model: meta.model,
+		workingDirectory: meta.workingDirectory?.toString(),
+		isRead: meta.isRead,
+		isArchived: meta.isArchived,
+		project: meta.project ? { uri: meta.project.uri.toString(), displayName: meta.project.displayName } : undefined,
+	};
+}
+
+function deserializeMetadata(raw: ISerializedSessionMetadata): IAgentSessionMetadata | undefined {
+	try {
+		return {
+			session: URI.parse(raw.session),
+			startTime: raw.startTime,
+			modifiedTime: raw.modifiedTime,
+			summary: raw.summary,
+			model: raw.model,
+			workingDirectory: raw.workingDirectory ? URI.parse(raw.workingDirectory) : undefined,
+			isRead: raw.isRead,
+			isArchived: raw.isArchived ?? raw.isDone,
+			project: raw.project ? { uri: URI.parse(raw.project.uri), displayName: raw.project.displayName } : undefined,
+		};
+	} catch {
+		return undefined;
+	}
+}
+
+function toLocalProjectUri(uri: URI, connectionAuthority: string): URI {
+	return uri.scheme === Schemas.file ? toAgentHostUri(uri, connectionAuthority) : uri;
 }
 
 export interface IRemoteAgentHostSessionsProviderConfig {
@@ -79,189 +103,265 @@ export interface IRemoteAgentHostSessionsProviderConfig {
 	readonly name: string;
 	/** Optional hook to establish a connection on demand (e.g. tunnel relay). */
 	readonly connectOnDemand?: () => Promise<void>;
+	/** Optional hook to tear down the active connection on demand (e.g. tunnel relay). */
+	readonly disconnectOnDemand?: () => Promise<void>;
 }
 
 /**
- * Adapts agent host session metadata into the {@link IChatData} facade.
- */
-class RemoteSessionAdapter implements IChatData {
-
-	readonly id: string;
-	readonly resource: URI;
-	readonly providerId: string;
-	readonly sessionType: string;
-	readonly icon = Codicon.remote;
-	readonly createdAt: Date;
-	readonly workspace: ISettableObservable<ISessionWorkspace | undefined>;
-	readonly title: ISettableObservable<string>;
-	readonly updatedAt: ISettableObservable<Date>;
-	readonly status = observableValue<SessionStatus>('status', SessionStatus.Completed);
-	readonly changes = observableValue<readonly IChatSessionFileChange[]>('changes', []);
-	readonly modelId = observableValue<string | undefined>('modelId', undefined);
-	readonly mode = observableValue<{ readonly id: string; readonly kind: string } | undefined>('mode', undefined);
-	readonly loading = observableValue('loading', false);
-	readonly isArchived = observableValue('isArchived', false);
-	readonly isRead = observableValue('isRead', true);
-	readonly description: ISettableObservable<IMarkdownString | undefined>;
-	readonly lastTurnEnd: ISettableObservable<Date | undefined>;
-	readonly gitHubInfo = observableValue<IGitHubInfo | undefined>('gitHubInfo', undefined);
-
-	/** The agent provider name (e.g. 'copilot') for constructing backend URIs. */
-	readonly agentProvider: string;
-
-	constructor(
-		metadata: IAgentSessionMetadata,
-		providerId: string,
-		resourceScheme: string,
-		logicalSessionType: string,
-		providerLabel: string,
-		connectionAuthority: string,
-	) {
-		const rawId = AgentSession.id(metadata.session);
-		this.agentProvider = AgentSession.provider(metadata.session) ?? 'copilot';
-		this.resource = URI.from({ scheme: resourceScheme, path: `/${rawId}` });
-		this.id = `${providerId}:${this.resource.toString()}`;
-		this.providerId = providerId;
-		this.sessionType = logicalSessionType;
-		this.createdAt = new Date(metadata.startTime);
-		this.title = observableValue('title', metadata.summary ?? `Session ${rawId.substring(0, 8)}`);
-		this.updatedAt = observableValue('updatedAt', new Date(metadata.modifiedTime));
-		this.lastTurnEnd = observableValue('lastTurnEnd', metadata.modifiedTime ? new Date(metadata.modifiedTime) : undefined);
-		this.description = observableValue('description', new MarkdownString().appendText(providerLabel));
-		this.workspace = observableValue('workspace', metadata.workingDirectory
-			? RemoteAgentHostSessionsProvider.buildWorkspace(metadata.workingDirectory, providerLabel, connectionAuthority)
-			: undefined);
-
-		if (metadata.isRead === false) {
-			this.isRead.set(false, undefined);
-		}
-		if (metadata.isDone) {
-			this.isArchived.set(true, undefined);
-		}
-	}
-
-	update(metadata: IAgentSessionMetadata): void {
-		this.title.set(metadata.summary ?? this.title.get(), undefined);
-		this.updatedAt.set(new Date(metadata.modifiedTime), undefined);
-		this.lastTurnEnd.set(metadata.modifiedTime ? new Date(metadata.modifiedTime) : undefined, undefined);
-		if (metadata.isRead !== undefined) {
-			this.isRead.set(metadata.isRead, undefined);
-		}
-		if (metadata.isDone !== undefined) {
-			this.isArchived.set(metadata.isDone, undefined);
-		}
-	}
-}
-
-/**
- * Sessions provider for a remote agent host connection.
- * One instance is created per connection and handles all agents on it.
- *
- * Fully implements {@link ISessionsProvider}:
- * - Session listing via {@link IAgentConnection.listSessions} with incremental updates
- * - Session creation and initial request sending via {@link IChatService}
- * - Session actions (delete, rename, etc.) where supported by the protocol
+ * Sessions provider for a remote agent host connection. A thin subclass of
+ * {@link BaseAgentHostSessionsProvider} that adds the connection-lifecycle
+ * surface (`setConnection`/`clearConnection`), sticky authentication-pending
+ * tracking, the well-known session-type mapping, and a remote folder picker.
  *
  * **URI/ID scheme:**
  * - **rawId** - unique session identifier (e.g. `abc123`), used as the cache key.
- * - **resource** - `{sessionType}:///{rawId}` (e.g. `remote-host__4321-copilot:///abc123`).
- *   The scheme routes the chat service to the correct {@link AgentHostSessionHandler}.
+ * - **resource** - `{resourceScheme}:///{rawId}`. The scheme is the unique
+ *   per-connection id and routes the chat service to the correct
+ *   {@link AgentHostSessionHandler}.
+ * - **sessionType** - the logical session type (e.g. `copilotcli` for copilot
+ *   agents, or the per-connection id for other agents). Distinct from the
+ *   resource scheme.
  * - **sessionId** - `{providerId}:{resource}` - the provider-scoped ID used by
- *   {@link ISessionsProvider} methods. The rawId can be extracted from the resource path.
- * - Protocol operations (e.g. `disposeSession`) use the canonical agent session URI
- *   (`copilot:///abc123`), reconstructed via {@link AgentSession.uri}.
+ *   {@link ISessionsProvider} methods.
+ * - Protocol operations (e.g. `disposeSession`) use the canonical agent
+ *   session URI (`copilot:///abc123`), reconstructed via {@link AgentSession.uri}.
  */
-export class RemoteAgentHostSessionsProvider extends Disposable implements ISessionsProvider {
+export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvider {
 
 	readonly id: string;
 	readonly label: string;
 	readonly icon: ThemeIcon = Codicon.remote;
-	readonly sessionTypes: readonly ISessionType[];
-	readonly capabilities = { multipleChatsPerSession: false };
 	readonly remoteAddress: string;
+	readonly browseActions: readonly ISessionWorkspaceBrowseAction[];
+
 	private _outputChannelId: string | undefined;
 	get outputChannelId(): string | undefined { return this._outputChannelId; }
 
-	private readonly _connectionStatus = observableValue<RemoteAgentHostConnectionStatus>('connectionStatus', RemoteAgentHostConnectionStatus.Disconnected);
+	private readonly _connectionStatus = observableValue<RemoteAgentHostConnectionStatus>('connectionStatus', RemoteAgentHostConnectionStatus.disconnected);
 	readonly connectionStatus: IObservable<RemoteAgentHostConnectionStatus> = this._connectionStatus;
 
-	private readonly _onDidChangeSessions = this._register(new Emitter<ISessionChangeEvent>());
-	readonly onDidChangeSessions: Event<ISessionChangeEvent> = this._onDidChangeSessions.event;
+	/**
+	 * `true` while we are still resolving and pushing tokens for the host's
+	 * `protectedResources`. Defaults to `true` so that sessions surface as
+	 * loading until the first authentication pass settles.
+	 */
+	private readonly _authenticationPending = observableValue('authenticationPending', true);
+	private _authenticationSettled = false;
 
-	private readonly _onDidReplaceSession = this._register(new Emitter<{ readonly from: ISession; readonly to: ISession }>());
-	readonly onDidReplaceSession: Event<{ readonly from: ISession; readonly to: ISession }> = this._onDidReplaceSession.event;
-
-	readonly browseActions: readonly ISessionWorkspaceBrowseAction[];
-
-	/** Cache of adapted sessions, keyed by raw session ID. */
-	private readonly _sessionCache = new Map<string, RemoteSessionAdapter>();
+	private readonly _onDidDisconnect = this._register(new Emitter<void>());
+	protected override get onConnectionLost(): Event<void> { return this._onDidDisconnect.event; }
 
 	/**
-	 * Temporary session that has been sent (first turn dispatched) but not yet
-	 * committed to a real backend session. Shown in the session list until the
-	 * server creates the backend session, at which point it is replaced via
-	 * {@link _onDidReplaceSession}.
+	 * Overridable seam so tests can exercise both the web and non-web
+	 * branches of the label/description gating without depending on the
+	 * ambient {@link isWeb} constant (the browser test runner always
+	 * reports `isWeb === true`).
 	 */
-	private _pendingSession: ISession | undefined;
-
-	/** Selected model for the current new session. */
-	private _selectedModelId: string | undefined;
-	/** Settable status for the current new session, kept to avoid unsafe cast from IObservable. */
-	private _currentNewSessionStatus: ISettableObservable<SessionStatus> | undefined;
+	protected get isWebPlatform(): boolean { return isWeb; }
 
 	private _connection: IAgentConnection | undefined;
 	private _defaultDirectory: string | undefined;
 	private readonly _connectionListeners = this._register(new DisposableStore());
-	private readonly _onDidDisconnect = this._register(new Emitter<void>());
 	private readonly _connectionAuthority: string;
 	private readonly _connectOnDemand: (() => Promise<void>) | undefined;
+	private readonly _disconnectOnDemand: (() => Promise<void>) | undefined;
+	/** Storage key used for persisting {@link _sessionCache} snapshots. */
+	private readonly _storageKey: string;
+	/**
+	 * Set when {@link _sessionCache} has changed since the last persist.
+	 * The actual write happens on the next `onWillSaveState` signal from
+	 * {@link IStorageService} so that bursts of notifications do not
+	 * repeatedly re-serialize the whole cache.
+	 */
+	private _cacheDirty = false;
+	/**
+	 * Snapshot of the source metadata for each adapter in {@link _sessionCache},
+	 * keyed by raw session ID. Captured in {@link createAdapter} and re-used by
+	 * {@link _persistCache} to serialize sessions without having to reconstruct
+	 * every `IAgentSessionMetadata` field from observables.
+	 */
+	private readonly _metaByRawId = new Map<string, IAgentSessionMetadata>();
+	/**
+	 * When `true`, the provider has been marked unreachable and sessions are
+	 * hidden from {@link getSessions}, even though {@link _sessionCache} and
+	 * persistent storage are retained. Cleared when a new connection is wired
+	 * up in {@link setConnection}, at which point the cached entries are
+	 * re-announced so the UI can repopulate.
+	 */
+	private _unpublished = false;
 
 	constructor(
 		config: IRemoteAgentHostSessionsProviderConfig,
 		@IFileDialogService private readonly _fileDialogService: IFileDialogService,
-		@IChatSessionsService private readonly _chatSessionsService: IChatSessionsService,
-		@IChatService private readonly _chatService: IChatService,
-		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
-		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 		@INotificationService private readonly _notificationService: INotificationService,
+		@IStorageService private readonly _storageService: IStorageService,
+		@IChatSessionsService chatSessionsService: IChatSessionsService,
+		@IChatService chatService: IChatService,
+		@IChatWidgetService chatWidgetService: IChatWidgetService,
+		@ILanguageModelsService languageModelsService: ILanguageModelsService,
+		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
+		@ILabelService private readonly _labelService: ILabelService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ILogService logService: ILogService,
+		@IGitHubService gitHubService: IGitHubService,
 	) {
-		super();
+		super(chatSessionsService, chatService, chatWidgetService, languageModelsService, _configurationService, logService, gitHubService);
 
 		this._connectionAuthority = agentHostAuthority(config.address);
 		this._connectOnDemand = config.connectOnDemand;
+		this._disconnectOnDemand = config.disconnectOnDemand;
 		const displayName = config.name || config.address;
 
 		this.id = `agenthost-${this._connectionAuthority}`;
 		this.label = displayName;
 		this.remoteAddress = config.address;
-
-		this.sessionTypes = [CopilotCLISessionType];
+		this._storageKey = `${CACHED_SESSIONS_STORAGE_PREFIX}${this._connectionAuthority}`;
 
 		this.browseActions = [{
 			label: localize('folders', "Folders"),
-			// label: localize('browseRemote', "Browse Folders ({0})...", displayName),
+			description: displayName,
+			group: SESSION_WORKSPACE_GROUP_REMOTE,
 			icon: Codicon.remote,
 			providerId: this.id,
 			run: () => this._browseForFolder(),
+			listFolders: (query, token) => this._listRemoteFolders(query, token),
 		}];
+
+		this._loadCachedSessions();
+
+		this._register(this._onDidChangeSessions.event(e => {
+			if (this._unpublished) {
+				return;
+			}
+			if (e.added.length > 0 || e.removed.length > 0 || e.changed.length > 0) {
+				this._cacheDirty = true;
+			}
+			for (const removed of e.removed) {
+				const rawId = this._rawIdFromChatId(removed.sessionId);
+				if (rawId) {
+					this._metaByRawId.delete(rawId);
+				}
+			}
+		}));
+
+		this._register(this._storageService.onWillSaveState(() => {
+			if (this._cacheDirty) {
+				this._persistCache();
+				this._cacheDirty = false;
+			}
+		}));
+	}
+
+	// -- BaseAgentHostSessionsProvider hooks ---------------------------------
+
+	protected get connection(): IAgentConnection | undefined { return this._connection; }
+
+	protected get authenticationPending(): IObservable<boolean> { return this._authenticationPending; }
+
+	protected override createAdapter(meta: IAgentSessionMetadata): AgentHostSessionAdapter {
+		this._metaByRawId.set(AgentSession.id(meta.session), meta);
+		return super.createAdapter(meta);
+	}
+
+	protected _adapterOptions() {
+		const web = this.isWebPlatform;
+		return {
+			description: web ? undefined : new MarkdownString().appendText(this.label),
+			buildWorkspace: (project: IAgentSessionMetadata['project'], workingDirectory: URI | undefined, gitState: ISessionGitState | undefined) => {
+				const uriForDescription = project?.uri ?? workingDirectory;
+				const description = uriForDescription ? this._labelService.getUriLabel(dirname(uriForDescription), { relative: false }) : undefined;
+				const branchProtectionPatterns = readBranchProtectionPatterns(this._configurationService, workingDirectory ?? project?.uri);
+				return RemoteAgentHostSessionsProvider.buildWorkspace(project, workingDirectory, web ? undefined : this.label, gitState, description, branchProtectionPatterns);
+			},
+		};
+	}
+
+	protected resourceSchemeForProvider(provider: string): string {
+		return remoteAgentHostSessionTypeId(this._connectionAuthority, provider);
+	}
+
+	override getSessions(): ISession[] {
+		return this._unpublished ? [] : super.getSessions();
+	}
+
+	protected override mapWorkingDirectoryUri(uri: URI): URI {
+		return toAgentHostUri(uri, this._connectionAuthority);
+	}
+
+	protected override mapProjectUri(uri: URI): URI {
+		return toLocalProjectUri(uri, this._connectionAuthority);
+	}
+
+	protected override _diffUriMapper(): (uri: URI) => URI {
+		return uri => toAgentHostUri(uri, this._connectionAuthority);
+	}
+
+	protected override _validateBeforeCreate(_sessionType: ISessionType): void {
+		if (!this._connection) {
+			throw new Error(localize('notConnectedSession', "Cannot create session: not connected to remote agent host '{0}'.", this.label));
+		}
+	}
+
+	protected override _noAgentsErrorMessage(): string {
+		return localize('noAgents', "Remote agent host '{0}' has not advertised any agents yet.", this.label);
+	}
+
+	protected override _notConnectedSendErrorMessage(): string {
+		return localize('notConnectedSend', "Cannot send request: not connected to remote agent host '{0}'.", this.label);
+	}
+
+	// -- Connection lifecycle ------------------------------------------------
+
+	/**
+	 * Establish (or re-establish) the connection for this host on demand.
+	 * Tunnel-backed providers use their relay hook; other providers fall
+	 * back to the generic remote agent host reconnect path.
+	 */
+	async connect(): Promise<void> {
+		if (this._connectOnDemand) {
+			await this._connectOnDemand();
+			return;
+		}
+		this._remoteAgentHostService.reconnect(this.remoteAddress);
 	}
 
 	/**
-	 * Update the connection status for this provider.
-	 * Called by the contribution when connection state changes.
+	 * Tear down the active connection for this host. Tunnel-backed providers
+	 * use their relay hook; other providers fall back to the generic remote
+	 * agent host disconnect path. Cached sessions are hidden from the UI so
+	 * the sessions list reflects the disconnected state; the persisted cache
+	 * is retained so sessions can be restored on reconnect.
 	 */
+	async disconnect(): Promise<void> {
+		this.unpublishCachedSessions();
+		if (this._disconnectOnDemand) {
+			await this._disconnectOnDemand();
+			return;
+		}
+		await this._remoteAgentHostService.removeRemoteAgentHost(this.remoteAddress);
+	}
+
+	/** Update the connection status for this provider. */
 	setConnectionStatus(status: RemoteAgentHostConnectionStatus): void {
 		this._connectionStatus.set(status, undefined);
 	}
 
-	/**
-	 * Set the output channel ID for this provider's IPC log.
-	 */
+	/** Set the output channel ID for this provider's IPC log. */
 	setOutputChannelId(id: string): void {
 		this._outputChannelId = id;
 	}
 
-	// -- Connection Management --
+	setAuthenticationPending(pending: boolean): void {
+		// Sticky: once the first authentication pass settles, never surface
+		// pending again. Subsequent re-auths happen silently in the background.
+		if (this._authenticationSettled) {
+			return;
+		}
+		if (!pending) {
+			this._authenticationSettled = true;
+		}
+		this._authenticationPending.set(pending, undefined);
+	}
 
 	/**
 	 * Wire a live connection to this provider, enabling session operations and folder browsing.
@@ -272,488 +372,179 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 		}
 
 		this._connectionListeners.clear();
+		this._sessionStateSubscriptions.clearAndDisposeAll();
 		this._connection = connection;
 		this._defaultDirectory = defaultDirectory;
+		this._unpublished = false;
 
-		this._connectionListeners.add(connection.onDidNotification(n => {
-			if (n.type === 'notify/sessionAdded') {
-				this._handleSessionAdded(n.summary);
-			} else if (n.type === 'notify/sessionRemoved') {
-				this._handleSessionRemoved(n.session);
-			}
+		// Dynamically discover session types from the host's advertised agents.
+		const rootStateValue = connection.rootState.value;
+		if (rootStateValue && !(rootStateValue instanceof Error)) {
+			this._syncSessionTypesFromRootState(rootStateValue);
+			this._syncRootConfigFromRootState(rootStateValue);
+		}
+		this._connectionListeners.add(connection.rootState.onDidChange(rootState => {
+			this._syncSessionTypesFromRootState(rootState);
+			this._syncRootConfigFromRootState(rootState);
 		}));
 
-		// Handle session state changes from the server
-		this._connectionListeners.add(this._connection.onDidAction(e => {
-			if (e.action.type === ActionType.SessionTurnComplete && isSessionAction(e.action)) {
-				const cts = new CancellationTokenSource();
-				this._refreshSessions(cts.token).finally(() => cts.dispose());
-			} else if (e.action.type === ActionType.SessionTitleChanged && isSessionAction(e.action)) {
-				this._handleTitleChanged(e.action.session, e.action.title);
-			} else if (e.action.type === ActionType.SessionIsReadChanged && isSessionAction(e.action)) {
-				this._handleIsReadChanged(e.action.session, e.action.isRead);
-			} else if (e.action.type === ActionType.SessionIsDoneChanged && isSessionAction(e.action)) {
-				this._handleIsDoneChanged(e.action.session, e.action.isDone);
-			}
-		}));
+		this._attachConnectionListeners(connection, this._connectionListeners);
 
 		// Always refresh sessions when a connection is (re)established
-		const cts = new CancellationTokenSource();
 		this._cacheInitialized = true;
-		this._refreshSessions(cts.token).finally(() => cts.dispose());
+		this._refreshSessions();
 	}
 
 	/**
 	 * Clear the connection, e.g. when the remote host disconnects.
-	 * Retains the provider registration so it remains visible in the UI.
+	 * Retains the provider registration so it remains visible in the UI,
+	 * and **preserves** the cached session list so previously loaded
+	 * sessions stay visible while we're offline. Callers that know the
+	 * host is unreachable should follow up with {@link unpublishCachedSessions}.
 	 */
 	clearConnection(): void {
 		this._connectionListeners.clear();
+		this._sessionStateSubscriptions.clearAndDisposeAll();
 		this._onDidDisconnect.fire();
 		this._connection = undefined;
 		this._defaultDirectory = undefined;
-
-		const removed: ISession[] = Array.from(this._sessionCache.values()).map(cached => this._chatToSession(cached));
-		if (this._pendingSession) {
-			removed.push(this._pendingSession);
-			this._pendingSession = undefined;
+		if (this._newSession) {
+			// Setter on the MutableDisposable handles disposal of the old value.
+			this._newSession = undefined;
 		}
-		this._sessionCache.clear();
+
+		if (this._sessionTypes.length > 0) {
+			this._sessionTypes = [];
+			this._onDidChangeSessionTypes.fire();
+		}
+
+		// Drop only the transient pending/draft session; keep the persisted
+		// cache so the workspace picker keeps showing offline sessions.
+		if (this._pendingSession) {
+			const pending = this._pendingSession;
+			this._pendingSession = undefined;
+			this._onDidChangeSessions.fire({ added: [], removed: [pending], changed: [] });
+		}
+
+		// Reset the in-memory cache-initialized flag so a fresh connection
+		// triggers a full list refresh (which will reconcile against the
+		// persisted entries we keep on disk).
 		this._cacheInitialized = false;
+	}
+
+	/**
+	 * Hide cached sessions from the UI without discarding them. Called by the
+	 * host-tracking contributions when they determine the remote host is
+	 * unreachable (tunnel offline or SSH reconnect failed). The in-memory
+	 * cache and persisted storage are left intact so the sessions can be
+	 * restored if the host comes back online in this session, or on the next
+	 * launch. The next {@link setConnection} call re-announces the cached
+	 * entries.
+	 */
+	unpublishCachedSessions(): void {
+		if (this._unpublished) {
+			return;
+		}
+		this._unpublished = true;
+		const removed: ISession[] = Array.from(this._sessionCache.values());
 		if (removed.length > 0) {
 			this._onDidChangeSessions.fire({ added: [], removed, changed: [] });
 		}
 	}
 
-	// -- Workspaces --
+	/** Load persisted session summaries into {@link _sessionCache}. */
+	private _loadCachedSessions(): void {
+		const parsed = this._storageService.getObject(this._storageKey, StorageScope.APPLICATION);
+		if (!Array.isArray(parsed)) {
+			return;
+		}
+		for (const entry of parsed as readonly ISerializedSessionMetadata[]) {
+			const meta = deserializeMetadata(entry);
+			if (!meta) {
+				continue;
+			}
+			const rawId = AgentSession.id(meta.session);
+			if (this._sessionCache.has(rawId)) {
+				continue;
+			}
+			const cached = this.createAdapter(meta);
+			this._sessionCache.set(rawId, cached);
+		}
+	}
 
 	/**
-	 * Builds workspace metadata from a working directory path on the remote host.
+	 * Persist the current {@link _sessionCache} to storage, capping at
+	 * {@link CACHED_SESSIONS_MAX_PER_HOST} most-recently-modified entries.
+	 * Mutable fields are read from each adapter's observables and overlaid on
+	 * top of the original metadata snapshot captured in {@link _metaByRawId}.
 	 */
-	static buildWorkspace(workingDirectory: URI, providerLabel: string, _connectionAuthority: string): ISessionWorkspace {
-		const folderName = basename(workingDirectory) || workingDirectory.path;
-		return {
-			label: `${folderName} [${providerLabel}]`,
-			icon: Codicon.remote,
-			repositories: [{ uri: workingDirectory, workingDirectory: undefined, detail: providerLabel, baseBranchName: undefined, baseBranchProtected: undefined }],
-			requiresWorkspaceTrust: false,
-		};
+	private _persistCache(): void {
+		const entries: ISerializedSessionMetadata[] = [];
+		for (const [rawId, adapter] of this._sessionCache) {
+			const base = this._metaByRawId.get(rawId);
+			if (!base) {
+				continue;
+			}
+			entries.push(serializeMetadata({
+				...base,
+				summary: adapter.title.get() || base.summary,
+				modifiedTime: adapter.updatedAt.get().getTime(),
+				model: adapter.modelSelection ?? base.model,
+				isRead: adapter.isRead.get(),
+				isArchived: adapter.isArchived.get(),
+			}));
+		}
+		if (entries.length === 0) {
+			this._storageService.remove(this._storageKey, StorageScope.APPLICATION);
+			return;
+		}
+		entries.sort((a, b) => b.modifiedTime - a.modifiedTime);
+		const limited = entries.slice(0, CACHED_SESSIONS_MAX_PER_HOST);
+		this._storageService.store(this._storageKey, JSON.stringify(limited), StorageScope.APPLICATION, StorageTarget.USER);
+	}
+
+	// -- Session-type sync ---------------------------------------------------
+
+	protected _formatSessionTypeLabel(agentLabel: string): string {
+		return `${agentLabel} [${this.label}]`;
+	}
+
+	// -- Workspaces ----------------------------------------------------------
+
+	static buildWorkspace(project: IAgentSessionMetadata['project'], workingDirectory: URI | undefined, providerLabel: string | undefined, gitState: ISessionGitState | undefined, description?: string, branchProtectionPatterns?: readonly string[]): ISessionWorkspace | undefined {
+		return buildAgentHostSessionWorkspace(project, workingDirectory, { providerLabel, fallbackIcon: Codicon.remote, requiresWorkspaceTrust: false, description, branchProtectionPatterns, group: SESSION_WORKSPACE_GROUP_REMOTE }, gitState);
 	}
 
 	private _buildWorkspaceFromUri(uri: URI): ISessionWorkspace {
 		const folderName = basename(uri) || uri.path;
 		return {
-			label: `${folderName} [${this.label}]`,
+			label: this.isWebPlatform ? folderName : `${folderName} [${this.label}]`,
+			description: this._labelService.getUriLabel(dirname(uri), { relative: false }),
+			group: SESSION_WORKSPACE_GROUP_REMOTE,
 			icon: Codicon.remote,
-			repositories: [{ uri, workingDirectory: undefined, detail: this.label, baseBranchName: undefined, baseBranchProtected: undefined }],
+			repositories: [{ uri, workingDirectory: undefined, detail: undefined, baseBranchName: undefined }],
 			requiresWorkspaceTrust: true,
 		};
 	}
 
-	resolveWorkspace(repositoryUri: URI): ISessionWorkspace {
+	resolveWorkspace(repositoryUri: URI): ISessionWorkspace | undefined {
+		if (repositoryUri.scheme !== AGENT_HOST_SCHEME) {
+			return undefined;
+		}
 		return this._buildWorkspaceFromUri(repositoryUri);
 	}
 
-	// -- Sessions --
-
-	getSessionTypes(_sessionId: string): ISessionType[] {
-		return [...this.sessionTypes];
-	}
-
-	getSessions(): ISession[] {
-		this._ensureSessionCache();
-		const sessions: ISession[] = Array.from(this._sessionCache.values()).map(cached => this._chatToSession(cached));
-		if (this._pendingSession) {
-			sessions.push(this._pendingSession);
-		}
-		return sessions;
-	}
-
-	// -- Session Lifecycle --
-
-	private _currentNewSession: IChatData | undefined;
-
-	createNewSession(workspace: ISessionWorkspace): ISession {
-		if (!this._connection) {
-			throw new Error(localize('notConnectedSession', "Cannot create session: not connected to remote agent host '{0}'.", this.label));
-		}
-
-		const workspaceUri = workspace.repositories[0]?.uri;
-		if (!workspaceUri) {
-			throw new Error('Workspace has no repository URI');
-		}
-
-		// Reset draft state from any prior unsent session
-		this._currentNewSession = undefined;
-		this._selectedModelId = undefined;
-
-		const resource = URI.from({ scheme: this._sessionTypeForProvider('copilot'), path: `/untitled-${generateUuid()}` });
-		const status = observableValue<SessionStatus>(this, SessionStatus.Untitled);
-		const session: IChatData = {
-			id: `${this.id}:${resource.toString()}`,
-			resource,
-			providerId: this.id,
-			sessionType: this.sessionTypes[0].id,
-			icon: Codicon.remote,
-			createdAt: new Date(),
-			workspace: observableValue(this, workspace),
-			title: observableValue(this, ''),
-			updatedAt: observableValue(this, new Date()),
-			status,
-			changes: observableValue<readonly IChatSessionFileChange[]>(this, []),
-			modelId: observableValue(this, undefined),
-			mode: observableValue(this, undefined),
-			loading: observableValue(this, false),
-			isArchived: observableValue(this, false),
-			isRead: observableValue(this, true),
-			description: observableValue(this, undefined),
-			lastTurnEnd: observableValue(this, undefined),
-			gitHubInfo: observableValue(this, undefined),
-		};
-		this._currentNewSession = session;
-		this._currentNewSessionStatus = status;
-		return this._chatToSession(session);
-	}
-
-	setSessionType(_sessionId: string, _type: ISessionType): ISession {
-		throw new Error('Remote agent host sessions do not support changing session type');
-	}
-
-	setModel(sessionId: string, modelId: string): void {
-		if (this._currentNewSession?.id === sessionId) {
-			this._selectedModelId = modelId;
-		}
-	}
-
-	// -- Session Actions --
-
-	async archiveSession(sessionId: string): Promise<void> {
-		const rawId = this._rawIdFromChatId(sessionId);
-		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
-		if (cached && rawId) {
-			cached.isArchived.set(true, undefined);
-			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [this._chatToSession(cached)] });
-			if (this._connection) {
-				const action = { type: ActionType.SessionIsDoneChanged as const, session: AgentSession.uri(cached.agentProvider, rawId).toString(), isDone: true };
-				this._connection.dispatchAction(action, this._connection.clientId, this._connection.nextClientSeq());
-			}
-		}
-	}
-
-	async unarchiveSession(sessionId: string): Promise<void> {
-		const rawId = this._rawIdFromChatId(sessionId);
-		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
-		if (cached && rawId) {
-			cached.isArchived.set(false, undefined);
-			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [this._chatToSession(cached)] });
-			if (this._connection) {
-				const action = { type: ActionType.SessionIsDoneChanged as const, session: AgentSession.uri(cached.agentProvider, rawId).toString(), isDone: false };
-				this._connection.dispatchAction(action, this._connection.clientId, this._connection.nextClientSeq());
-			}
-		}
-	}
-
-	async deleteSession(sessionId: string): Promise<void> {
-		const rawId = this._rawIdFromChatId(sessionId);
-		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
-		if (cached && rawId && this._connection) {
-			await this._connection.disposeSession(AgentSession.uri(cached.agentProvider, rawId));
-			this._sessionCache.delete(rawId);
-			this._onDidChangeSessions.fire({ added: [], removed: [this._chatToSession(cached)], changed: [] });
-		}
-	}
-
-	async renameChat(sessionId: string, _chatUri: URI, _title: string): Promise<void> {
-		const rawId = this._rawIdFromChatId(sessionId);
-		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
-		if (cached && rawId && this._connection) {
-			cached.title.set(_title, undefined);
-			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [this._chatToSession(cached)] });
-			const action = { type: ActionType.SessionTitleChanged as const, session: AgentSession.uri(cached.agentProvider, rawId).toString(), title: _title };
-			this._connection.dispatchAction(action, this._connection.clientId, this._connection.nextClientSeq());
-		}
-	}
-
-	async deleteChat(_sessionId: string, _chatUri: URI): Promise<void> {
-		// Agent host sessions don't support deleting individual chats
-	}
-
-	setRead(sessionId: string, read: boolean): void {
-		const rawId = this._rawIdFromChatId(sessionId);
-		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
-		if (cached) {
-			cached.isRead.set(read, undefined);
-			if (this._connection && rawId) {
-				const action = { type: ActionType.SessionIsReadChanged as const, session: AgentSession.uri(cached.agentProvider, rawId).toString(), isRead: read };
-				this._connection.dispatchAction(action, this._connection.clientId, this._connection.nextClientSeq());
-			}
-		}
-	}
-
-	async sendAndCreateChat(chatId: string, options: ISendRequestOptions): Promise<ISession> {
-		if (!this._connection) {
-			throw new Error(localize('notConnectedSend', "Cannot send request: not connected to remote agent host '{0}'.", this.label));
-		}
-
-		const session = this._currentNewSession;
-		if (!session || session.id !== chatId) {
-			throw new Error(`Session '${chatId}' not found or not a new session`);
-		}
-
-		const { query, attachedContext } = options;
-
-		const contribution = this._chatSessionsService.getChatSessionContribution(this._sessionTypeForProvider('copilot'));
-
-		const sendOptions: IChatSendRequestOptions = {
-			location: ChatAgentLocation.Chat,
-			userSelectedModelId: this._selectedModelId,
-			modeInfo: {
-				kind: ChatModeKind.Agent,
-				isBuiltin: true,
-				modeInstructions: undefined,
-				modeId: 'agent',
-				applyCodeBlockSuggestionId: undefined,
-				permissionLevel: undefined,
-			},
-			agentIdSilent: contribution?.type,
-			attachedContext,
-		};
-
-		// Open chat widget
-		await this._chatSessionsService.getOrCreateChatSession(session.resource, CancellationToken.None);
-		const chatWidget = await this._chatWidgetService.openSession(session.resource, ChatViewPaneTarget);
-		if (!chatWidget) {
-			throw new Error('[RemoteAgentHost] Failed to open chat widget');
-		}
-
-		// Load session model and apply selected model
-		const modelRef = await this._chatService.acquireOrLoadSession(session.resource, ChatAgentLocation.Chat, CancellationToken.None);
-		if (modelRef) {
-			if (this._selectedModelId) {
-				const languageModel = this._languageModelsService.lookupLanguageModel(this._selectedModelId);
-				if (languageModel) {
-					modelRef.object.inputModel.setState({ selectedModel: { identifier: this._selectedModelId, metadata: languageModel } });
-				}
-			}
-			modelRef.dispose();
-		}
-
-		// Capture existing session keys before sending so we can detect the new
-		// backend session. Must be captured before sendRequest because the
-		// backend session may be created during the send and arrive via
-		// notification before sendRequest resolves.
-		const existingKeys = new Set(this._sessionCache.keys());
-
-		// Send request through the chat service, which delegates to the
-		// AgentHostSessionHandler content provider for turn handling
-		const result = await this._chatService.sendRequest(session.resource, query, sendOptions);
-		if (result.kind === 'rejected') {
-			throw new Error(`[RemoteAgentHost] sendRequest rejected: ${result.reason}`);
-		}
-
-		// Add the untitled session to the pending set so it stays visible in the
-		// session list while the turn is in progress. It will be replaced
-		// by the committed session once the backend session appears.
-		this._currentNewSessionStatus?.set(SessionStatus.InProgress, undefined);
-		const newSession = this._chatToSession(session);
-		this._pendingSession = newSession;
-		this._onDidChangeSessions.fire({ added: [newSession], removed: [], changed: [] });
-
-		this._selectedModelId = undefined;
-		this._currentNewSessionStatus = undefined;
-
-		// Wait for the real backend session to appear (via server notification
-		// after the handler creates it), then replace the temporary entry.
-		try {
-			const committedSession = await this._waitForNewSession(existingKeys);
-			if (committedSession) {
-				this._currentNewSession = undefined;
-				this._onDidReplaceSession.fire({ from: newSession, to: committedSession });
-				return committedSession;
-			}
-		} catch {
-			// Connection lost or timeout — clean up
-		} finally {
-			this._pendingSession = undefined;
-		}
-
-		// Fallback: keep the temp session visible
-		this._currentNewSession = undefined;
-		return newSession;
-	}
-
-	// -- Private: Session Cache --
-
-	private _cacheInitialized = false;
-
-	private _ensureSessionCache(): void {
-		if (this._cacheInitialized) {
-			return;
-		}
-		this._cacheInitialized = true;
-		const cts = new CancellationTokenSource();
-		this._refreshSessions(cts.token).finally(() => cts.dispose());
-	}
-
-	private async _refreshSessions(_token: unknown): Promise<void> {
-		if (!this._connection) {
-			return;
-		}
-		try {
-			const sessions = await this._connection.listSessions();
-			const currentKeys = new Set<string>();
-			const added: ISession[] = [];
-			const changed: ISession[] = [];
-
-			for (const meta of sessions) {
-				const rawId = AgentSession.id(meta.session);
-				const provider = AgentSession.provider(meta.session) ?? 'copilot';
-				currentKeys.add(rawId);
-
-				const existing = this._sessionCache.get(rawId);
-				if (existing) {
-					existing.update(meta);
-					changed.push(this._chatToSession(existing));
-				} else {
-					const cached = new RemoteSessionAdapter(meta, this.id, this._sessionTypeForProvider(provider), this.sessionTypes[0].id, this.label, this._connectionAuthority);
-					this._sessionCache.set(rawId, cached);
-					added.push(this._chatToSession(cached));
-				}
-			}
-
-			const removed: ISession[] = [];
-			for (const [key, cached] of this._sessionCache) {
-				if (!currentKeys.has(key)) {
-					this._sessionCache.delete(key);
-					removed.push(this._chatToSession(cached));
-				}
-			}
-
-			if (added.length > 0 || removed.length > 0 || changed.length > 0) {
-				this._onDidChangeSessions.fire({ added, removed, changed });
-			}
-		} catch {
-			// Connection may not be ready yet
-		}
-	}
-
-	/**
-	 * Wait for a new session to appear in the cache that wasn't present before.
-	 * Tries an immediate refresh, then listens for the session-added notification.
-	 * Returns `undefined` if the connection is lost or a timeout expires.
-	 */
-	private async _waitForNewSession(existingKeys: Set<string>): Promise<ISession | undefined> {
-		// First, try an immediate refresh
-		await this._refreshSessions(CancellationToken.None);
-		for (const [key, cached] of this._sessionCache) {
-			if (!existingKeys.has(key)) {
-				return this._chatToSession(cached);
-			}
-		}
-
-		// If not found yet, wait for the next onDidChangeSessions event,
-		// bounded by a timeout and aborted on disconnect.
-		const waitDisposables = new DisposableStore();
-		try {
-			const sessionPromise = new Promise<ISession | undefined>((resolve) => {
-				waitDisposables.add(this._onDidChangeSessions.event(e => {
-					const newSession = e.added.find(s => {
-						const rawId = s.resource.path.substring(1);
-						return !existingKeys.has(rawId);
-					});
-					if (newSession) {
-						resolve(newSession);
-					}
-				}));
-				waitDisposables.add(this._onDidDisconnect.event(() => resolve(undefined)));
-			});
-			return await raceTimeout(sessionPromise, 30_000);
-		} finally {
-			waitDisposables.dispose();
-		}
-	}
-
-	private _handleSessionAdded(summary: { resource: string; provider: string; title: string; createdAt: number; modifiedAt: number; workingDirectory?: string; isRead?: boolean; isDone?: boolean }): void {
-		const sessionUri = URI.parse(summary.resource);
-		const rawId = AgentSession.id(sessionUri);
-		if (this._sessionCache.has(rawId)) {
-			return;
-		}
-
-		const provider = AgentSession.provider(sessionUri) ?? 'copilot';
-		const workingDir = typeof summary.workingDirectory === 'string'
-			? toAgentHostUri(URI.parse(summary.workingDirectory), this._connectionAuthority)
-			: undefined;
-		const meta: IAgentSessionMetadata = {
-			session: sessionUri,
-			startTime: summary.createdAt,
-			modifiedTime: summary.modifiedAt,
-			summary: summary.title,
-			workingDirectory: workingDir,
-			isRead: summary.isRead,
-			isDone: summary.isDone,
-		};
-		const cached = new RemoteSessionAdapter(meta, this.id, this._sessionTypeForProvider(provider), this.sessionTypes[0].id, this.label, this._connectionAuthority);
-		this._sessionCache.set(rawId, cached);
-		this._onDidChangeSessions.fire({ added: [this._chatToSession(cached)], removed: [], changed: [] });
-	}
-
-	private _handleSessionRemoved(session: URI | string): void {
-		const rawId = AgentSession.id(session);
-		const cached = this._sessionCache.get(rawId);
-		if (cached) {
-			this._sessionCache.delete(rawId);
-			this._onDidChangeSessions.fire({ added: [], removed: [this._chatToSession(cached)], changed: [] });
-		}
-	}
-
-	private _handleTitleChanged(session: string, title: string): void {
-		const rawId = AgentSession.id(session);
-		const cached = this._sessionCache.get(rawId);
-		if (cached) {
-			cached.title.set(title, undefined);
-			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [this._chatToSession(cached)] });
-		}
-	}
-
-	private _handleIsReadChanged(session: string, isRead: boolean): void {
-		const rawId = AgentSession.id(session);
-		const cached = this._sessionCache.get(rawId);
-		if (cached) {
-			cached.isRead.set(isRead, undefined);
-			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [this._chatToSession(cached)] });
-		}
-	}
-
-	private _handleIsDoneChanged(session: string, isDone: boolean): void {
-		const rawId = AgentSession.id(session);
-		const cached = this._sessionCache.get(rawId);
-		if (cached) {
-			cached.isArchived.set(isDone, undefined);
-			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [this._chatToSession(cached)] });
-		}
-	}
-
-	private _rawIdFromChatId(chatId: string): string | undefined {
-		const prefix = `${this.id}:`;
-		const resourceStr = chatId.startsWith(prefix) ? chatId.substring(prefix.length) : chatId;
-		try {
-			return URI.parse(resourceStr).path.substring(1) || undefined;
-		} catch {
-			return undefined;
-		}
-	}
-
-	private _sessionTypeForProvider(provider: string): string {
-		return `remote-${this._connectionAuthority}-${provider}`;
-	}
-
-	// -- Private: Browse --
+	// -- Browse --------------------------------------------------------------
 
 	private async _browseForFolder(): Promise<ISessionWorkspace | undefined> {
 		// Establish connection on demand if a hook is provided (e.g. tunnel relay)
 		if (!this._connection && this._connectOnDemand) {
-			await this._connectOnDemand();
+			try {
+				await this._connectOnDemand();
+			} catch (err) {
+				this._notificationService.error(localize('connectFailed', "Failed to connect to remote agent host '{0}': {1}", this.label, err instanceof Error ? err.message : String(err)));
+				return undefined;
+			}
 		}
 
 		if (!this._connection) {
@@ -781,44 +572,86 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 		return undefined;
 	}
 
-	private _chatToSession(chat: IChatData): ISession {
-		const mainChat: IChat = {
-			resource: chat.resource,
-			createdAt: chat.createdAt,
-			title: chat.title,
-			updatedAt: chat.updatedAt,
-			status: chat.status,
-			changes: chat.changes,
-			modelId: chat.modelId,
-			mode: chat.mode,
-			isArchived: chat.isArchived,
-			isRead: chat.isRead,
-			description: chat.description,
-			lastTurnEnd: chat.lastTurnEnd,
-		};
-		const session: ISession = {
-			sessionId: chat.id,
-			resource: chat.resource,
-			providerId: chat.providerId,
-			sessionType: chat.sessionType,
-			icon: chat.icon,
-			createdAt: chat.createdAt,
-			workspace: chat.workspace,
-			title: chat.title,
-			updatedAt: chat.updatedAt,
-			status: chat.status,
-			changes: chat.changes,
-			modelId: chat.modelId,
-			mode: chat.mode,
-			loading: chat.loading,
-			isArchived: chat.isArchived,
-			isRead: chat.isRead,
-			description: chat.description,
-			lastTurnEnd: chat.lastTurnEnd,
-			gitHubInfo: chat.gitHubInfo,
-			chats: constObservable([mainChat]),
-			mainChat,
-		};
-		return session;
+	/**
+	 * Enumerate subdirectories below {@link _defaultDirectory}, filtered
+	 * by a case-insensitive substring query. Backs the inline folder
+	 * list rendered by the mobile workspace picker sheet so users can
+	 * pick a folder without opening a separate file-dialog.
+	 *
+	 * The query supports light path navigation: a `/` in the query is
+	 * treated as a path delimiter, listing children of `<default>/<prefix>`
+	 * and matching the part after the last slash. So typing `projects/`
+	 * drills into the `projects` directory, and `projects/foo` lists
+	 * children of `projects` whose name contains `foo`.
+	 *
+	 * Hidden directories (those starting with `.`) are omitted, results
+	 * are sorted by name, and the cancellation token is honored before
+	 * and after the network round-trip so stale queries don't surface
+	 * after the user has typed more characters.
+	 */
+	private async _listRemoteFolders(query: string, token: CancellationToken): Promise<readonly ISessionWorkspace[]> {
+		// Establish a connection on demand if a hook is available; if it
+		// fails or is unavailable, return empty so the sheet renders an
+		// empty result rather than throwing.
+		if (!this._connection && this._connectOnDemand) {
+			try {
+				await this._connectOnDemand();
+			} catch {
+				return [];
+			}
+		}
+		if (!this._connection || token.isCancellationRequested) {
+			return [];
+		}
+
+		const rootAgentHostUri = agentHostUri(this._connectionAuthority, this._defaultDirectory ?? '/');
+
+		// Parse path navigation out of the query. Anything before the
+		// last `/` is a relative directory we descend into; the part
+		// after is the filter we apply to that directory's children.
+		const trimmed = query.trim();
+		const lastSlash = trimmed.lastIndexOf('/');
+		let listingAgentHostUri = rootAgentHostUri;
+		let filter = trimmed;
+		if (lastSlash >= 0) {
+			const subPath = trimmed.slice(0, lastSlash).replace(/^\/+|\/+$/g, '');
+			filter = trimmed.slice(lastSlash + 1);
+			if (subPath) {
+				listingAgentHostUri = URI.joinPath(rootAgentHostUri, subPath);
+			}
+		}
+		const listingOriginalUri = fromAgentHostUri(listingAgentHostUri);
+
+		let entries;
+		try {
+			const result = await this._connection.resourceList(listingOriginalUri);
+			entries = result.entries;
+		} catch {
+			return [];
+		}
+		if (token.isCancellationRequested) {
+			return [];
+		}
+
+		const lowerFilter = filter.toLocaleLowerCase();
+		const folders: ISessionWorkspace[] = [];
+		for (const entry of entries) {
+			if (entry.type !== 'directory') {
+				continue;
+			}
+			if (entry.name.startsWith('.')) {
+				continue;
+			}
+			if (lowerFilter && !entry.name.toLocaleLowerCase().includes(lowerFilter)) {
+				continue;
+			}
+			const childUri = URI.joinPath(listingAgentHostUri, entry.name);
+			// Use a folder icon for inline list rows — `Codicon.remote`
+			// is the right choice for the host-level browse action,
+			// but per-folder rows read better as folder glyphs.
+			folders.push({ ...this._buildWorkspaceFromUri(childUri), icon: Codicon.folder });
+		}
+		folders.sort((a, b) => a.label.localeCompare(b.label));
+		return folders;
 	}
 }

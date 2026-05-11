@@ -7,6 +7,7 @@ import * as vscode from 'vscode';
 import { coalesce } from '../../../util/vs/base/common/arrays';
 import { URI } from '../../../util/vs/base/common/uri';
 import { ChatReferenceBinaryData, ChatRequestTurn2 } from '../../../vscodeTypes';
+import { tryParseClaudeModelId } from '../claude/node/claudeModelId';
 import { completeToolInvocation, createFormattedToolInvocation } from '../claude/common/toolInvocationFormatter';
 import { AssistantMessageContent, ContentBlock, IClaudeCodeSession, ImageBlock, ISubagentSession, StoredMessage, SYNTHETIC_MODEL_ID, TextBlock, ThinkingBlock, ToolResultBlock, ToolUseBlock } from '../claude/node/sessionParser/claudeSessionSchema';
 
@@ -286,31 +287,16 @@ function extractAssistantParts(messages: readonly AssistantMessageContent[], too
 // #region Subagent Tool Extraction
 
 /**
- * Builds a map from agentId to ISubagentSession for quick lookup.
+ * Builds a map from parentToolUseId to ISubagentSession for quick lookup.
  */
 function buildSubagentMap(subagents: readonly ISubagentSession[]): Map<string, ISubagentSession> {
 	const map = new Map<string, ISubagentSession>();
 	for (const subagent of subagents) {
-		map.set(subagent.agentId, subagent);
-	}
-	return map;
-}
-
-/**
- * Extracts the tool_use_id from the first tool_result block in a user message's content.
- * Used to identify the Task tool_use that spawned a subagent — when `toolUseResultAgentId`
- * is set on a StoredMessage, the corresponding tool_result block carries the Task's tool_use_id.
- */
-function extractToolResultToolUseId(content: string | ContentBlock[]): string | undefined {
-	if (typeof content === 'string') {
-		return undefined;
-	}
-	for (const block of content) {
-		if (isToolResultBlock(block)) {
-			return block.tool_use_id;
+		if (subagent.parentToolUseId) {
+			map.set(subagent.parentToolUseId, subagent);
 		}
 	}
-	return undefined;
+	return map;
 }
 
 /**
@@ -359,46 +345,27 @@ function extractSubagentToolParts(
 
 /**
  * Looks ahead from a given index in the message array to find the model ID
- * from the first non-synthetic assistant message. This is the model that was
- * used to respond to the preceding user request.
+ * from the first non-synthetic assistant message. Converts SDK model IDs
+ * to endpoint format using {@link tryParseClaudeModelId}.
  *
  * @param messages The session's stored messages
  * @param startIndex The index to start looking from (typically after user messages)
- * @param modelIdMap Optional map from SDK model IDs to endpoint model IDs
  * @returns The endpoint model ID, or undefined if not found
  */
 function findModelIdForRequest(
 	messages: readonly StoredMessage[],
 	startIndex: number,
-	modelIdMap?: ReadonlyMap<string, string>,
 ): string | undefined {
 	for (let j = startIndex; j < messages.length; j++) {
 		const msg = messages[j];
 		if (msg.type === 'assistant' && msg.message.role === 'assistant') {
 			const assistantMsg = msg.message as AssistantMessageContent;
 			if (assistantMsg.model && assistantMsg.model !== SYNTHETIC_MODEL_ID) {
-				return modelIdMap?.get(assistantMsg.model) ?? assistantMsg.model;
+				return tryParseClaudeModelId(assistantMsg.model)?.toEndpointModelId() ?? assistantMsg.model;
 			}
 		}
 	}
 	return undefined;
-}
-
-/**
- * Collects all unique SDK model IDs from assistant messages in a session.
- * These can then be mapped to endpoint model IDs via {@link IClaudeCodeModels.mapSdkModelToEndpointModel}.
- */
-export function collectSdkModelIds(session: IClaudeCodeSession): Set<string> {
-	const sdkModelIds = new Set<string>();
-	for (const msg of session.messages) {
-		if (msg.type === 'assistant' && msg.message.role === 'assistant') {
-			const assistantMsg = msg.message as AssistantMessageContent;
-			if (assistantMsg.model && assistantMsg.model !== SYNTHETIC_MODEL_ID) {
-				sdkModelIds.add(assistantMsg.model);
-			}
-		}
-	}
-	return sdkModelIds;
 }
 
 // #endregion
@@ -414,10 +381,10 @@ export function collectSdkModelIds(session: IClaudeCodeSession): Set<string> {
  * when we encounter a user message with actual text (a new user request).
  *
  * @param session The Claude Code session to convert
- * @param modelIdMap Optional map from SDK model IDs (e.g., 'claude-opus-4-5-20251101') to
- *   endpoint model IDs. When provided, request turns will include the mapped model ID.
+ * @param getModelDetails Optional lookup that returns the display string for a Claude
+ * model id (as it appears on stored assistant messages).
  */
-export function buildChatHistory(session: IClaudeCodeSession, modelIdMap?: ReadonlyMap<string, string>): (vscode.ChatRequestTurn2 | vscode.ChatResponseTurn2)[] {
+export function buildChatHistory(session: IClaudeCodeSession, getModelDetails?: (modelId: string) => string | undefined): (vscode.ChatRequestTurn2 | vscode.ChatResponseTurn2)[] {
 	const result: (vscode.ChatRequestTurn2 | vscode.ChatResponseTurn2)[] = [];
 	const toolContext: ToolContext = {
 		unprocessedToolCalls: new Map(),
@@ -426,8 +393,18 @@ export function buildChatHistory(session: IClaudeCodeSession, modelIdMap?: Reado
 	let i = 0;
 	const messages = session.messages;
 	let pendingResponseParts: (vscode.ChatResponseMarkdownPart | vscode.ChatResponseThinkingProgressPart | vscode.ChatToolInvocationPart)[] = [];
+	// Tracks the most recent assistant model id observed in the current pending response
+	// group so we can populate `ChatResponseTurn2.result.details` when finalizing it.
+	let pendingResponseModelId: string | undefined;
+	const makeResponseResult = (modelId: string | undefined): vscode.ChatResult => {
+		if (!modelId || !getModelDetails) {
+			return {};
+		}
+		const details = getModelDetails(modelId);
+		return details ? { details } : {};
+	};
 
-	// Build a map from agentId to subagent for quick lookup
+	// Build a map from parentToolUseId to subagent for quick lookup
 	const subagentMap = buildSubagentMap(session.subagents);
 
 	while (i < messages.length) {
@@ -448,17 +425,18 @@ export function buildChatHistory(session: IClaudeCodeSession, modelIdMap?: Reado
 				processToolResults(content, toolContext);
 			}
 
-			// After processing tool results, inject subagent tool calls for completed Task tools.
-			// Each StoredMessage with toolUseResultAgentId represents a Task tool result linked to a
-			// subagent. The tool_use_id is extracted directly from the message's tool_result block,
-			// ensuring a 1:1 correlation even when multiple Task results appear consecutively.
-			for (const msg of userMessages) {
-				if (msg.toolUseResultAgentId) {
-					const subagent = subagentMap.get(msg.toolUseResultAgentId);
-					if (subagent) {
-						const taskToolUseId = extractToolResultToolUseId(msg.message.content);
-						if (taskToolUseId) {
-							const subagentParts = extractSubagentToolParts(subagent, taskToolUseId);
+			// After processing tool results, inject subagent tool calls for subagents correlated via parentToolUseId.
+			// Each subagent's parentToolUseId links it to the Agent or legacy Task tool_use that spawned it.
+			// We match tool_result blocks in user messages to those subagents via tool_use_id.
+			for (const content of userContents) {
+				if (typeof content === 'string') {
+					continue;
+				}
+				for (const block of content) {
+					if (isToolResultBlock(block)) {
+						const subagent = subagentMap.get(block.tool_use_id);
+						if (subagent) {
+							const subagentParts = extractSubagentToolParts(subagent, block.tool_use_id);
 							pendingResponseParts.push(...subagentParts);
 						}
 					}
@@ -467,12 +445,13 @@ export function buildChatHistory(session: IClaudeCodeSession, modelIdMap?: Reado
 
 			// Check for slash command patterns (e.g., /compact, /init)
 			const commandInfo = extractCommandInfo(userContents);
-			const modelId = findModelIdForRequest(messages, i, modelIdMap);
+			const modelId = findModelIdForRequest(messages, i);
 			if (commandInfo) {
 				// Finalize any pending response first
 				if (pendingResponseParts.length > 0) {
-					result.push(new vscode.ChatResponseTurn2(pendingResponseParts, {}, ''));
+					result.push(new vscode.ChatResponseTurn2(pendingResponseParts, makeResponseResult(pendingResponseModelId), ''));
 					pendingResponseParts = [];
+					pendingResponseModelId = undefined;
 				}
 				// Emit the command as a request turn
 				result.push(new ChatRequestTurn2(commandInfo.commandName, undefined, [], '', [], undefined, currentMessageId, modelId, undefined));
@@ -490,8 +469,9 @@ export function buildChatHistory(session: IClaudeCodeSession, modelIdMap?: Reado
 				if (requestTurn) {
 					// Real user message — finalize any pending response first
 					if (pendingResponseParts.length > 0) {
-						result.push(new vscode.ChatResponseTurn2(pendingResponseParts, {}, ''));
+						result.push(new vscode.ChatResponseTurn2(pendingResponseParts, makeResponseResult(pendingResponseModelId), ''));
 						pendingResponseParts = [];
+						pendingResponseModelId = undefined;
 					}
 					result.push(requestTurn);
 				}
@@ -505,6 +485,9 @@ export function buildChatHistory(session: IClaudeCodeSession, modelIdMap?: Reado
 				const assistantMessage = messages[i].message as AssistantMessageContent;
 				if (assistantMessage.model !== SYNTHETIC_MODEL_ID) {
 					assistantMessages.push(assistantMessage);
+					if (assistantMessage.model) {
+						pendingResponseModelId = assistantMessage.model;
+					}
 				}
 				i++;
 			}
@@ -534,7 +517,7 @@ export function buildChatHistory(session: IClaudeCodeSession, modelIdMap?: Reado
 
 	// Finalize any remaining pending response
 	if (pendingResponseParts.length > 0) {
-		result.push(new vscode.ChatResponseTurn2(pendingResponseParts, {}, ''));
+		result.push(new vscode.ChatResponseTurn2(pendingResponseParts, makeResponseResult(pendingResponseModelId), ''));
 	}
 
 	return result;

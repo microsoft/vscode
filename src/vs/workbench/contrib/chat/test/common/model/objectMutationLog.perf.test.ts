@@ -54,6 +54,7 @@ interface BenchmarkResult {
 interface BenchmarkWriter<T> {
 	createInitial(current: T): VSBuffer;
 	write(current: T): { op: 'append' | 'replace'; data: VSBuffer };
+	confirmWrite(): void;
 	readonly reusedReferences?: number;
 }
 
@@ -129,6 +130,10 @@ class ReferenceReusingObjectMutationLog<TFrom, TTo> implements BenchmarkWriter<T
 		}
 
 		return { op: 'append', data: VSBuffer.fromString(data) };
+	}
+
+	confirmWrite(): void {
+		// Perf benchmark always succeeds, state is eagerly updated in write()
 	}
 
 	private _diff<T, R>(
@@ -361,6 +366,7 @@ function runBenchmarkRound(writer: BenchmarkWriter<BenchmarkState>, states: read
 	const sw = StopWatch.create();
 	for (let i = 1; i < states.length; i++) {
 		serialized = appendToLog(serialized, writer.write(states[i]));
+		writer.confirmWrite();
 	}
 	const elapsedMs = sw.elapsed();
 

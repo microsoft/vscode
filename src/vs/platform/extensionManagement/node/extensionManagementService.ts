@@ -24,7 +24,7 @@ import * as pfs from '../../../base/node/pfs.js';
 import { extract, IFile, zip } from '../../../base/node/zip.js';
 import * as nls from '../../../nls.js';
 import { IDownloadService } from '../../download/common/download.js';
-import { INativeEnvironmentService } from '../../environment/common/environment.js';
+import { IEnvironmentService, INativeEnvironmentService } from '../../environment/common/environment.js';
 import { AbstractExtensionManagementService, AbstractExtensionTask, IInstallExtensionTask, InstallExtensionTaskOptions, IUninstallExtensionTask, toExtensionManagementError, UninstallExtensionTaskOptions } from '../common/abstractExtensionManagementService.js';
 import {
 	ExtensionManagementError, ExtensionManagementErrorCode, IExtensionGalleryService, IExtensionIdentifier, IExtensionManagementService, IGalleryExtension, ILocalExtension, InstallOperation,
@@ -544,6 +544,7 @@ export class ExtensionsScanner extends Disposable {
 
 	constructor(
 		private readonly beforeRemovingExtension: (e: ILocalExtension) => Promise<void>,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IFileService private readonly fileService: IFileService,
 		@IExtensionsScannerService private readonly extensionsScannerService: IExtensionsScannerService,
 		@IExtensionsProfileScannerService private readonly extensionsProfileScannerService: IExtensionsProfileScannerService,
@@ -937,19 +938,17 @@ export class ExtensionsScanner extends Disposable {
 	}
 
 	private async removeStaleAutoUpdateBuiltinExtensions(): Promise<void> {
-		const autoUpdateBuiltinExtensions = this.productService.builtInExtensionsEnabledWithAutoUpdates;
-		if (!autoUpdateBuiltinExtensions?.length) {
+		if (this.environmentService.extensionTestsLocationURI) {
 			return;
 		}
-		const productVersion = this.productService.version;
-		const productMajorMinor = `${semver.major(productVersion)}.${semver.minor(productVersion)}`;
-		const extensions = await this.extensionsScannerService.scanAllUserExtensions();
-		const staleExtensions = extensions.filter(extension => {
-			if (!autoUpdateBuiltinExtensions.some(id => id.toLowerCase() === extension.identifier.id.toLowerCase())) {
+		const builtinExtensions = await this.extensionsScannerService.scanSystemExtensions({});
+		const userExtensions = await this.extensionsScannerService.scanAllUserExtensions();
+		const staleExtensions = userExtensions.filter(userExtension => {
+			if (!this.productService.builtInExtensionsEnabledWithAutoUpdates.some(id => id.toLowerCase() === userExtension.identifier.id.toLowerCase())) {
 				return false;
 			}
-			const extensionMajorMinor = `${semver.major(extension.manifest.version)}.${semver.minor(extension.manifest.version)}`;
-			return productMajorMinor !== extensionMajorMinor;
+			const builtinExtension = builtinExtensions.find(e => areSameExtensions(e.identifier, userExtension.identifier));
+			return builtinExtension && semver.lt(userExtension.manifest.version, builtinExtension.manifest.version);
 		});
 		if (staleExtensions.length) {
 			this.logService.info('Removing stale auto-update builtin extensions:', staleExtensions.map(e => `${e.identifier.id}@${e.manifest.version}`).join(', '));
@@ -1057,6 +1056,7 @@ class InstallExtensionInProfileTask extends AbstractExtensionTask<ILocalExtensio
 		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@IExtensionsScannerService private readonly extensionsScannerService: IExtensionsScannerService,
 		@IExtensionsProfileScannerService private readonly extensionsProfileScannerService: IExtensionsProfileScannerService,
+		@IProductService private readonly productService: IProductService,
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
@@ -1068,6 +1068,17 @@ class InstallExtensionInProfileTask extends AbstractExtensionTask<ILocalExtensio
 		const existingExtension = installed.find(i => areSameExtensions(i.identifier, this.identifier));
 		if (existingExtension) {
 			this._operation = InstallOperation.Update;
+		}
+
+		const system = await this.extensionsScanner.scanExtensions(ExtensionType.System, this.options.profileLocation, this.options.productVersion);
+		const existingSystemExtension = system.find(i => areSameExtensions(i.identifier, this.identifier));
+		if (existingSystemExtension) {
+			if (!existingSystemExtension.forceAutoUpdate) {
+				throw new ExtensionManagementError(nls.localize('builtinAutoUpdate', "Extension '{0}' is a built-in extension and not allowed to be updated in the current product quality '{1}'.", existingSystemExtension.identifier.id, this.productService.quality), ExtensionManagementErrorCode.Incompatible);
+			}
+			if (semver.gt(existingSystemExtension.manifest.version, this.manifest.version)) {
+				throw new ExtensionManagementError(nls.localize('builtinVersion', "Extension '{0}' is a built-in extension with version '{1}' and cannot be downgraded to version '{2}'.", existingSystemExtension.identifier.id, existingSystemExtension.manifest.version, this.manifest.version), ExtensionManagementErrorCode.Incompatible);
+			}
 		}
 
 		const metadata: Metadata = {
@@ -1093,6 +1104,7 @@ class InstallExtensionInProfileTask extends AbstractExtensionTask<ILocalExtensio
 					}
 				}
 			}
+
 			// Remove the extension with same version if it is already uninstalled.
 			// Installing a VSIX extension shall replace the existing extension always.
 			const existingWithSameVersion = await this.unsetIfRemoved(this.extensionKey);

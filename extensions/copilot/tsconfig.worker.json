@@ -5,10 +5,12 @@
 	//
 	// The intent is to compile against an environment that matches the
 	// web worker based extension host.
-
 	"extends": "./tsconfig.base.json",
 	"compilerOptions": {
-		"lib": ["ES2022", "WebWorker"],
+		"lib": [
+			"ES2022",
+			"WebWorker"
+		],
 		"types": [],
 		"noEmit": true,
 		"skipLibCheck": true,
@@ -23,5 +25,9 @@
 		"src/**/vscode-worker/**/*.ts",
 		"src/**/*.d.ts"
 	],
-	"exclude": ["src/**/test/**", "src/**/fixtures/**", "src/extension/completions-core/**/*.test.ts"]
+	"exclude": [
+		"src/**/test/**",
+		"src/**/fixtures/**",
+		"src/extension/completions-core/**/*.test.ts"
+	]
 }

@@ -80,6 +80,7 @@ export class Turn {
 			request.editedFileEvents,
 			request.acceptedConfirmationData,
 			isToolCallLimitAcceptance(request) || isContinueOnError(request) || isSwitchToAutoOnRateLimit(request),
+			request.modeInstructions2,
 		);
 	}
 
@@ -90,7 +91,8 @@ export class Turn {
 		private readonly _toolReferences: readonly InternalToolReference[] = [],
 		readonly editedFileEvents?: ChatRequestEditedFileEvent[],
 		readonly acceptedConfirmationData?: unknown[],
-		readonly isContinuation = false
+		readonly isContinuation = false,
+		readonly modeInstructions?: ChatRequest['modeInstructions2'],
 	) { }
 
 	get promptVariables(): ChatVariablesCollection | undefined {
@@ -444,15 +446,18 @@ export class GlobalContextMessageMetadata {
 }
 
 /**
- * Metadata capturing token usage information from Anthropic Messages API.
- * Stores prompt tokens and output tokens for each turn.
- * This metadata is used to trigger summarization when token usage exceeds thresholds.
+ * Captures `prompt_tokens` and `completion_tokens` from the most recent
+ * successful fetch on a turn. All providers return these values in their
+ * `usage` payload, so this metadata is the authoritative source for
+ * "how many tokens did we actually send last turn" — used by the agent
+ * loop to floor its local context-size estimate when deciding whether to
+ * trigger summarization.
  */
-export class AnthropicTokenUsageMetadata {
+export class TurnTokenUsageMetadata {
 	constructor(
-		/** Total number of prompt input tokens */
+		/** Total number of prompt input tokens reported by the server. */
 		readonly promptTokens: number,
-		/** Number of output/completion tokens */
+		/** Number of output/completion tokens reported by the server. */
 		readonly outputTokens: number,
 	) { }
 }

@@ -187,6 +187,7 @@ export interface WebSocketConnection {
 	readonly responseHeaders: IHeaders;
 	readonly responseStatusCode: number | undefined;
 	readonly responseStatusText: string | undefined;
+	readonly networkError: Error | undefined;
 }
 
 export interface IAbortSignal {
