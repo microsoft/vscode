@@ -149,29 +149,57 @@
 	}
 }
 
-/* Spacing between action items inside the bottom-row toolbars (e.g. Worktree, branch) */
-.new-chat-widget-container .new-chat-bottom-container .monaco-action-bar .actions-container {
-	gap: 4px;
-}
+.new-chat-widget-container {
+	/* Spacing between action items inside the bottom-row toolbars (e.g. Worktree, branch) */
+	.new-chat-bottom-container .monaco-action-bar .actions-container {
+		gap: 4px;
+	}
 
-/* Match VS Code chat-secondary-toolbar sizing for action items in the bottom row
- * (e.g. session control pickers and repo config pickers) so they align with the
- * mode/model picker font in the input toolbar. The 1px right padding is intentional
- * because the chevron's 16x16 codicon box supplies the visual right padding. */
-.new-chat-widget-container .new-chat-bottom-container .action-label {
-	height: 16px;
-	padding: 3px 1px 3px 7px;
-	font-size: 11px;
-	color: var(--vscode-icon-foreground);
-}
+	/* Match VS Code chat-secondary-toolbar sizing for action items in the bottom row
+	 * (e.g. session control pickers and repo config pickers) so they align with the
+	 * mode/model picker font in the input toolbar. */
+	.new-chat-bottom-container .action-label {
+		height: 16px;
+		padding: 3px 6px;
+		font-size: 11px;
+		color: var(--vscode-icon-foreground);
 
-.new-chat-widget-container .new-chat-bottom-container .action-label > .codicon {
-	font-size: 12px;
-}
+		> .codicon {
+			font-size: 12px;
+		}
 
-.new-chat-widget-container .new-chat-bottom-container .action-label > .codicon-chevron-down {
-	font-size: 10px;
-	margin-left: 4px;
+		> .codicon-chevron-down {
+			display: none;
+		}
+	}
+
+	.new-chat-bottom-container .sessions-chat-picker-slot .action-label > .codicon-chevron-down,
+	.new-chat-bottom-container .monaco-action-bar .action-item .action-label > .codicon-chevron-down {
+		display: none;
+	}
+
+	/* Hide chevrons next to dropdown labels in the input toolbar as well */
+	.sessions-chat-toolbar {
+		gap: 10px;
+
+		.sessions-chat-config-toolbar .monaco-action-bar .action-item .action-label > .codicon-chevron-down {
+			display: none;
+		}
+	}
+
+	/* Dividers between adjacent items in the new-session bottom row and input toolbar. */
+	.new-chat-bottom-container .new-chat-controls-container,
+	.new-chat-bottom-container .new-chat-repo-config-container .monaco-action-bar .actions-container,
+	.sessions-chat-config-toolbar .monaco-action-bar .actions-container {
+		gap: 10px;
+	}
+
+	.new-chat-bottom-container .new-chat-controls-container > * + *,
+	.new-chat-bottom-container .new-chat-repo-config-container .monaco-action-bar .actions-container > .action-item + .action-item,
+	.sessions-chat-config-toolbar .monaco-action-bar .actions-container > .action-item + .action-item,
+	.sessions-chat-attach-button + .sessions-chat-config-toolbar {
+		box-shadow: -5px 0 0 -4px var(--vscode-editorWidget-border);
+	}
 }
 
 /* Pickers row - two equal halves */

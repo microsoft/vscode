@@ -1711,6 +1711,33 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: none;
 }
 
+/* Dividers between adjacent items in the secondary toolbar.
+ * .chat-input-picker-item normally has overflow:hidden which would clip an
+ * absolutely-positioned divider, so disable it here — the inner .action-label
+ * already enforces overflow:hidden / text ellipsis. */
+.interactive-session .chat-secondary-input-toolbar .monaco-action-bar .actions-container > .action-item.chat-input-picker-item {
+	overflow: visible;
+}
+
+.interactive-session .chat-secondary-input-toolbar .monaco-action-bar .actions-container > .action-item + .action-item {
+	position: relative;
+}
+
+.interactive-session .chat-secondary-input-toolbar .monaco-action-bar .actions-container > .action-item + .action-item::before {
+	content: '';
+	position: absolute;
+	left: -5px;
+	top: 25%;
+	bottom: 25%;
+	width: 1px;
+	background-color: var(--vscode-editorWidget-border);
+	pointer-events: none;
+}
+
+.interactive-session .chat-secondary-toolbar .chat-sessionPicker-container > .chat-sessionPicker-item + .chat-sessionPicker-item {
+	box-shadow: -5px 0 0 -4px var(--vscode-editorWidget-border);
+}
+
 .interactive-session .chat-secondary-toolbar > .chat-secondary-input-toolbar {
 	overflow: hidden;
 	min-width: 0px;
@@ -1752,7 +1779,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-secondary-toolbar .chat-input-picker-item .action-label {
 	height: 16px;
-	padding: 3px 0px 3px 6px;
+	padding: 3px 6px;
 	display: flex;
 	align-items: center;
 	color: var(--vscode-icon-foreground);
@@ -1865,7 +1892,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-input-toolbar .chat-input-picker-item .action-label,
 .interactive-session .chat-input-toolbar .chat-sessionPicker-item .action-label {
 	height: 16px;
-	padding: 3px 7px;
+	padding: 3px 6px;
 	display: flex;
 	align-items: center;
 	color: var(--vscode-icon-foreground);
@@ -1886,28 +1913,31 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	cursor: default;
 }
 
-/* Dividers: only in the workbench chat input toolbar (not in the agents app) */
-.interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.model-picker-split::before,
-.interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.model-picker-split::after {
+/* Dividers between adjacent items in the workbench chat input toolbar
+ * (not applied in the agents app). Pickers normally have overflow:hidden
+ * which would clip an absolutely-positioned divider, so disable it here —
+ * the inner .action-label already enforces overflow:hidden / text ellipsis. */
+.interactive-session .chat-input-toolbar .monaco-action-bar .actions-container > .action-item.chat-input-picker-item {
+	overflow: visible;
+}
+
+.interactive-session .chat-input-toolbar .monaco-action-bar .actions-container > .action-item + .action-item {
+	position: relative;
+}
+
+.interactive-session .chat-input-toolbar .monaco-action-bar .actions-container > .action-item + .action-item::before {
 	content: '';
 	position: absolute;
+	left: -2px;
 	top: 25%;
 	bottom: 25%;
 	width: 1px;
 	background-color: var(--vscode-editorWidget-border);
+	pointer-events: none;
 }
 
-.interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.model-picker-split::before {
-	left: 0;
-}
-
-.interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.model-picker-split::after {
-	right: 0;
-}
-
-/* Hide right divider when the model picker is the last item (e.g. Copilot CLI with no tool config button) */
-.interactive-session .chat-input-toolbar .chat-input-picker-item:last-child .action-label.model-picker-split::after {
-	content: none;
+.interactive-session .chat-input-toolbar .chat-sessionPicker-container > .chat-sessionPicker-item + .chat-sessionPicker-item {
+	box-shadow: -5px 0 0 -4px var(--vscode-editorWidget-border);
 }
 
 .chat-input-picker-item .action-label.model-picker-split .model-picker-section {
@@ -1974,7 +2004,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-secondary-input-toolbar .chat-sessionPicker-item .action-label {
 	height: 16px;
-	padding: 3px 0px 3px 6px;
+	padding: 3px 6px;
 	display: flex;
 	align-items: center;
 	color: var(--vscode-icon-foreground);
@@ -2031,11 +2061,20 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	gap: 4px;
 }
 
+.interactive-session .chat-secondary-input-toolbar .monaco-action-bar .actions-container {
+	gap: 10px;
+}
+
 .interactive-session .chat-input-toolbars .chat-sessionPicker-container,
 .interactive-session .chat-secondary-toolbar .chat-sessionPicker-container {
 	display: flex;
 	gap: 4px;
 	max-width: 100%;
+}
+
+.interactive-session .chat-input-toolbar .chat-sessionPicker-container,
+.interactive-session .chat-secondary-toolbar .chat-sessionPicker-container {
+	gap: 10px;
 }
 
 .monaco-workbench .interactive-session .chat-input-toolbars .monaco-action-bar .action-item .codicon,

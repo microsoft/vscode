@@ -21,6 +21,7 @@ import { renderLabelWithIcons, renderIcon } from '../../../../../base/browser/ui
 import { localize } from '../../../../../nls.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IChatInputPickerOptions } from '../widget/input/chatInputPickerActionItem.js';
+import { autorun } from '../../../../../base/common/observable.js';
 
 
 export interface IChatSessionPickerDelegate {
@@ -77,6 +78,16 @@ export class ChatSessionPickerActionItem extends ActionWidgetDropdownActionViewI
 			}
 			this.updateEnabled();
 		}));
+
+		const pickerOptions = this._pickerOptions;
+		if (pickerOptions) {
+			this._register(autorun(reader => {
+				pickerOptions.hideChevrons.read(reader);
+				if (this.element) {
+					this.renderLabel(this.element);
+				}
+			}));
+		}
 	}
 
 	/**
@@ -183,7 +194,9 @@ export class ChatSessionPickerActionItem extends ActionWidgetDropdownActionViewI
 			domChildren.push(dom.$('span.chat-session-option-label', undefined, this.currentOption?.name ?? group?.description ?? localize('chat.sessionPicker.label', "Pick Option")));
 		}
 
-		domChildren.push(...renderLabelWithIcons(`$(chevron-down)`));
+		if (!this._pickerOptions?.hideChevrons.get()) {
+			domChildren.push(...renderLabelWithIcons(`$(chevron-down)`));
+		}
 
 		dom.reset(element, ...domChildren);
 		this.setAriaLabelAttributes(element);

@@ -169,17 +169,6 @@
 	height: auto;
 }
 
-/* Left divider for the agents app welcome view */
-.sessions-chat-config-toolbar .action-label.model-picker-split::before {
-	content: '';
-	position: absolute;
-	top: 25%;
-	bottom: 25%;
-	left: 0;
-	width: 1px;
-	background-color: var(--vscode-editorWidget-border);
-}
-
 .sessions-chat-config-toolbar .monaco-action-bar .action-item .action-label > .codicon-chevron-down {
 	display: inline-flex;
 	align-items: center;
