@@ -17,6 +17,11 @@ export class LoggerChannel extends Disposable implements IServerChannel {
 
 	constructor(private readonly loggerService: ILoggerMainService) {
 		super();
+		this._register(this.loggerService.onDidChangeLoggers(({ removed }) => {
+			for (const loggerResource of removed) {
+				this.loggers.deleteAndDispose(loggerResource.resource);
+			}
+		}));
 	}
 
 	listen(_: unknown, event: string, windowId?: number): Event<any> {
@@ -36,7 +41,7 @@ export class LoggerChannel extends Disposable implements IServerChannel {
 			case 'setLogLevel': return isLogLevel(arg[0]) ? this.loggerService.setLogLevel(arg[0]) : this.loggerService.setLogLevel(URI.revive(arg[0]), arg[1]);
 			case 'setVisibility': return this.loggerService.setVisibility(URI.revive(arg[0]), arg[1]);
 			case 'registerLogger': return this.loggerService.registerLogger({ ...arg[0], resource: URI.revive(arg[0].resource) }, arg[1]);
-			case 'deregisterLogger': return this.deregisterLogger(URI.revive(arg[0]));
+			case 'deregisterLogger': return this.loggerService.deregisterLogger(URI.revive(arg[0]));
 		}
 
 		throw new Error(`Call not found: ${command}`);
@@ -44,11 +49,6 @@ export class LoggerChannel extends Disposable implements IServerChannel {
 
 	private createLogger(file: URI, options: ILoggerOptions, windowId: number | undefined): void {
 		this.loggers.set(file, this.loggerService.createLogger(file, options, windowId));
-	}
-
-	private deregisterLogger(file: URI): void {
-		this.loggers.deleteAndDispose(file);
-		this.loggerService.deregisterLogger(file);
 	}
 
 	private consoleLog(level: LogLevel, args: any[]): void {
