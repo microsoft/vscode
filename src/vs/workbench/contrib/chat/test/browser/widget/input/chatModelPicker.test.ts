@@ -822,6 +822,9 @@ suite('buildModelPickerItems', () => {
 		assert.ok(gptItem.description instanceof MarkdownString);
 		assert.ok(gptItem.description.value.includes('circle-filled'));
 		assert.ok(gptItem.description.value.includes('circle'));
+		// ariaDescription should be a readable label for screen readers
+		assert.ok(typeof gptItem.ariaDescription === 'string');
+		assert.ok(gptItem.ariaDescription!.length > 0);
 	});
 
 	test('model with unknown priceCategory shows no circle indicators', () => {
