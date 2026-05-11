@@ -750,6 +750,21 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.listWidget.delegateScrollFromMouseWheelEvent(e);
 		}));
 
+		// Forward wheel events from the area around the chat widget (e.g. the
+		// max-width margins in the classic VS Code chat view) to the chat list.
+		this._register(dom.addDisposableListener(parent, dom.EventType.MOUSE_WHEEL, (e: IMouseWheelEvent) => {
+			if (e.defaultPrevented) {
+				return;
+			}
+
+			const target = e.target as Node | null;
+			if (target && dom.isAncestor(target, this.container)) {
+				return;
+			}
+
+			this.listWidget.delegateScrollFromMouseWheelEvent(e);
+		}));
+
 		// Update the font family and size
 		this._register(autorun(reader => {
 			const fontFamily = this.chatLayoutService.fontFamily.read(reader);
