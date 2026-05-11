@@ -205,17 +205,6 @@ const supportsAllAttachments: Required<IChatAgentAttachmentCapabilities> = {
 };
 
 const DISCLAIMER = localize('chatDisclaimer', "AI responses may be inaccurate");
-const INPUT_MOUSE_WHEEL_INTERACTIVE_SELECTOR = [
-	'a',
-	'button',
-	'input',
-	'textarea',
-	'select',
-	'[tabindex]',
-	'[role="button"]',
-	'.action-label',
-	'.monaco-scrollable-element',
-].join(', ');
 
 export class ChatWidget extends Disposable implements IChatWidget {
 
@@ -751,13 +740,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.renderWelcomeViewContentIfNeeded();
 		this.createList(this.listContainer, { editable: !isInlineChat(this) && !isQuickChat(this), ...this.viewOptions.rendererOptions, renderStyle });
 
-		// Forward scroll events from chat margins and empty container space to the chat list.
-		this._register(dom.addDisposableListener(parent, dom.EventType.MOUSE_WHEEL, (e: IMouseWheelEvent) => {
-			if (e.defaultPrevented) {
-				return;
-			}
-
-			if (!this.shouldDelegateMouseWheelToList(e.target as Node | null)) {
+		// Forward wheel events that target the chat container itself (the margins
+		// around the list and input) to the chat list.
+		this._register(dom.addDisposableListener(this.container, dom.EventType.MOUSE_WHEEL, (e: IMouseWheelEvent) => {
+			if (e.defaultPrevented || e.target !== this.container) {
 				return;
 			}
 
@@ -2016,39 +2002,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.input.attachmentModel.updateContext(disabledTools, Iterable.empty());
 			this.refreshParsedInput();
 		}));
-	}
-
-	private shouldDelegateMouseWheelToList(target: Node | null): boolean {
-		if (!target) {
-			return false;
-		}
-
-		if (!dom.isAncestor(target, this.container)) {
-			return true;
-		}
-
-		if (dom.isAncestor(target, this.listContainer)) {
-			return false;
-		}
-
-		const inputParts = [this.inputPartDisposable.value, this.inlineInputPartDisposable.value];
-		for (const inputPart of inputParts) {
-			if (inputPart && dom.isAncestor(target, inputPart.element)) {
-				if (target === inputPart.element) {
-					return true;
-				}
-
-				const inputContainer = inputPart.inputContainerElement;
-				if (inputContainer && dom.isAncestor(target, inputContainer)) {
-					return false;
-				}
-
-				const targetElement = dom.isHTMLElement(target) ? target : target.parentElement;
-				return !targetElement?.closest(INPUT_MOUSE_WHEEL_INTERACTIVE_SELECTOR);
-			}
-		}
-
-		return true;
 	}
 
 	private onDidStyleChange(): void {
