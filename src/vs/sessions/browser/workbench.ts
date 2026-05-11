@@ -293,6 +293,8 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 
 	//#endregion
 
+	private static readonly _PART_VISIBILITY_KEY = 'workbench.sessions.partVisibility';
+
 	//#region Services
 
 	private editorGroupService!: IEditorGroupsService;
@@ -301,6 +303,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 	private viewDescriptorService!: IViewDescriptorService;
 	private sessionsManagementService!: ISessionsManagementService;
 	private instantiationService!: IInstantiationService;
+	private storageService!: IStorageService;
 
 	//#endregion
 
@@ -617,6 +620,27 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		}
 	}
 
+	private _loadPartVisibility(storageService: IStorageService): { editor?: boolean; auxiliaryBar?: boolean; sidebar?: boolean } {
+		const raw = storageService.get(Workbench._PART_VISIBILITY_KEY, StorageScope.WORKSPACE);
+		if (raw) {
+			try {
+				return JSON.parse(raw);
+			} catch {
+				// Corrupted data — remove the bad key so we don't keep warning on every startup
+				storageService.remove(Workbench._PART_VISIBILITY_KEY, StorageScope.WORKSPACE);
+			}
+		}
+		return {};
+	}
+
+	private _savePartVisibility(): void {
+		this.storageService.store(Workbench._PART_VISIBILITY_KEY, JSON.stringify({
+			editor: this.partVisibility.editor,
+			auxiliaryBar: this.partVisibility.auxiliaryBar,
+			sidebar: this.partVisibility.sidebar,
+		}), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+	}
+
 	//#endregion
 
 	private renderWorkbench(instantiationService: IInstantiationService, notificationService: NotificationService, storageService: IStorageService, configurationService: IConfigurationService): void {
@@ -634,7 +658,10 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		this.partVisibility.auxiliaryBar = visibilityDefaults.auxiliaryBar;
 		this.partVisibility.panel = visibilityDefaults.panel;
 		this.partVisibility.chatBar = visibilityDefaults.chatBar;
-		this.partVisibility.editor = visibilityDefaults.editor;
+		const savedPartVisibility = this._loadPartVisibility(storageService);
+		this.partVisibility.editor = savedPartVisibility.editor ?? visibilityDefaults.editor;
+		this.partVisibility.auxiliaryBar = savedPartVisibility.auxiliaryBar ?? visibilityDefaults.auxiliaryBar;
+		this.partVisibility.sidebar = savedPartVisibility.sidebar ?? visibilityDefaults.sidebar;
 
 		// State specific classes
 		const platformClass = isWindows ? 'windows' : isLinux ? 'linux' : 'mac';
@@ -894,6 +921,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		this.viewDescriptorService = accessor.get(IViewDescriptorService);
 		this.sessionsManagementService = accessor.get(ISessionsManagementService);
 		this.instantiationService = accessor.get(IInstantiationService);
+		this.storageService = accessor.get(IStorageService);
 		accessor.get(ITitleService);
 
 		// Register layout listeners
@@ -1264,10 +1292,21 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 
 		// On phone, subtract the mobile top bar height from the grid
 		const mobileTopBarHeight = this.mobileTopBarElement?.offsetHeight ?? 0;
-		const gridHeight = this._mainContainerDimension.height - mobileTopBarHeight;
+		const isPhone = this.layoutPolicy.viewportClass.get() === 'phone';
+
+		// Reserve a 10px gutter on the right and bottom edges of the workbench so that
+		// parts at those edges don't need to manage their own outer right/bottom margin.
+		// The top-row parts (chat/editor/aux) drop their bottom margin to 0 when the panel
+		// is hidden, so the card fills its cell and the visible 10px gap comes entirely
+		// from the workbench gutter. When the panel is visible, top-row parts contribute
+		// a 5px bottom margin so the sash with the panel (which has a 5px top margin) is
+		// centered in a 10px gap. Skip on phone where the layout uses different chrome.
+		const gutter = isPhone ? 0 : 10;
+		const gridWidth = this._mainContainerDimension.width - gutter;
+		const gridHeight = this._mainContainerDimension.height - mobileTopBarHeight - gutter;
 
 		// Layout the grid widget
-		this.workbenchGrid.layout(this._mainContainerDimension.width, gridHeight);
+		this.workbenchGrid.layout(gridWidth, gridHeight);
 		this.layoutMobileSidebar();
 
 		// Emit as event
@@ -1503,6 +1542,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		}
 
 		this.layoutMobileSidebar();
+		this._savePartVisibility();
 	}
 
 	private setAuxiliaryBarHidden(hidden: boolean): void {
@@ -1536,6 +1576,8 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 				this.paneCompositeService.openPaneComposite(paneCompositeToOpen, ViewContainerLocation.AuxiliaryBar);
 			}
 		}
+
+		this._savePartVisibility();
 	}
 
 	private setEditorHidden(hidden: boolean): void {
@@ -1554,6 +1596,8 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		if (this.editorPartView) {
 			this.workbenchGrid.setViewVisible(this.editorPartView, !hidden);
 		}
+
+		this._savePartVisibility();
 	}
 
 	private setPanelHidden(hidden: boolean): void {
