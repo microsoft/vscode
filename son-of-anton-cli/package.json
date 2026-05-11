@@ -8,13 +8,14 @@
 	},
 	"scripts": {
 		"build": "tsc -p tsconfig.json",
-		"watch": "tsc -p tsconfig.json --watch"
+		"watch": "tsc -p tsconfig.json --watch",
+		"package:macos-arm64": "npm --prefix ../son-of-anton-core run build && npm run build && node scripts/package-macos-arm64.mjs"
 	},
 	"dependencies": {
 		"@aws-sdk/client-bedrock-runtime": "^3.700.0",
 		"@aws-sdk/credential-providers": "^3.700.0",
-		"commander": "^9.5.0",
 		"cli-highlight": "^2.1.11",
+		"commander": "^9.5.0",
 		"ink": "^3.2.0",
 		"ink-spinner": "^4.0.3",
 		"marked": "^4.3.0",
@@ -25,6 +26,8 @@
 	"devDependencies": {
 		"@types/node": "^22.0.0",
 		"@types/react": "^17.0.83",
+		"esbuild": "^0.28.0",
+		"postject": "^1.0.0-alpha.6",
 		"typescript": "^5.0.0"
 	}
 }

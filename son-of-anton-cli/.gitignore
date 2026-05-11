@@ -1,0 +1,9 @@
+# Compiled output
+dist/
+
+# Single-binary packaging artefacts (Stage 1: esbuild + Node SEA)
+dist-bundle/
+sea-config.json
+
+# Workspace state written by the harness during local smoke runs
+.son-of-anton/
