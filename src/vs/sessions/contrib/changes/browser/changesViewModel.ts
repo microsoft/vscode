@@ -164,9 +164,9 @@ export class ChangesViewModel extends Disposable {
 		});
 
 		// Active session first checkpoint ref
-		this.activeSessionFirstCheckpointRefObs = derived(reader => {
-			const metadata = this._activeSessionMetadataObs.read(reader);
-			return metadata?.firstCheckpointRef as string | undefined;
+		this.activeSessionFirstCheckpointRefObs = derived<string | undefined>(reader => {
+			const activeSession = this.sessionManagementService.activeSession.read(reader);
+			return activeSession?.mainChat.checkpoints.read(reader)?.firstCheckpointRef;
 		});
 
 		// Active session last checkpoint ref
@@ -178,8 +178,7 @@ export class ChangesViewModel extends Disposable {
 
 			// Session has only one chat
 			if (activeSessionChats.length === 1) {
-				const metadata = this._activeSessionMetadataObs.read(reader);
-				return metadata?.lastCheckpointRef as string | undefined;
+				return activeSessionChats[0].checkpoints.read(reader)?.lastCheckpointRef;
 			}
 
 			// Session has multiple chats - find the last chat that completed
@@ -190,8 +189,7 @@ export class ChangesViewModel extends Disposable {
 				return sortDateDesc(chatALastTurnEnd, chatBLastTurnEnd);
 			});
 
-			const model = this.agentSessionsService.getSession(chatsSortedByLastTurnEnd[0].resource);
-			return model?.metadata?.lastCheckpointRef as string | undefined;
+			return chatsSortedByLastTurnEnd[0].checkpoints.read(reader)?.lastCheckpointRef;
 		});
 
 		// Active session state
