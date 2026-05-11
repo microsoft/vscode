@@ -240,10 +240,15 @@ export class AgentHostChatInputPicker extends Disposable {
 		dom.clearNode(this._container);
 
 		const ctx = this._readContext();
-		// For existing (already-materialized) sessions, hide the picker
-		// entirely when the property cannot be changed post-creation.
-		const isExistingSession = !!this._subRef.value;
-		if (!ctx || (isExistingSession && ctx.schema.sessionMutable === false)) {
+		// For sessions that have already started (i.e. no longer untitled —
+		// the first message was sent and the chat session has been
+		// materialized), hide the picker entirely when the property cannot
+		// be changed post-creation. While the session is still untitled the
+		// user is in the pre-send configuration phase and must be able to
+		// adjust creation-time-only properties (e.g. isolation, branch).
+		const sessionResource = this._widget.viewModel?.sessionResource;
+		const isStartedSession = !!sessionResource && !isUntitledChatSession(sessionResource);
+		if (!ctx || (isStartedSession && ctx.schema.sessionMutable === false)) {
 			this._container.style.display = 'none';
 			this._container.classList.add('agent-host-chat-input-picker-host-hidden');
 			return;
@@ -254,7 +259,7 @@ export class AgentHostChatInputPicker extends Disposable {
 		const slot = dom.append(this._container, dom.$('.agent-host-chat-input-picker-slot'));
 		this._renderDisposables.add({ dispose: () => slot.remove() });
 
-		const isReadOnly = !!ctx.schema.readOnly || ctx.schema.sessionMutable === false;
+		const isReadOnly = !!ctx.schema.readOnly || (isStartedSession && ctx.schema.sessionMutable === false);
 		const trigger = renderPickerTrigger(slot, isReadOnly, this._renderDisposables, () => this._showPicker(trigger));
 		this._renderTrigger(trigger, ctx.schema, ctx.value, isReadOnly);
 	}

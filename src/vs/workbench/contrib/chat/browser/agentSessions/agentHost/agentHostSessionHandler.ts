@@ -759,19 +759,33 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			this._ensurePendingMessageSubscription(request.sessionResource, resolvedSession);
 			this._watchForServerInitiatedTurns(resolvedSession, request.sessionResource);
 
-			// Push the user-selected session config (e.g. isolation = worktree)
-			// to the agent so its provisional record materializes with the
-			// latest values. The picker doesn't dispatch this for new
-			// sessions, so this is the first time the agent sees them. Use
-			// `replace: true` so the agent's view exactly matches the
-			// resolved values the picker computed.
-			const config = this._mergeDefaultSessionConfig(request.agentHostSessionConfig);
-			if (config && Object.keys(config).length > 0) {
+			// Push session config to the agent so its provisional record
+			// materializes with the right values. Two sources contribute:
+			//   1. `request.agentHostSessionConfig` — explicit per-request
+			//      config carried by the Agents window's sessions provider.
+			//   2. Workbench defaults (e.g. `isolation: 'folder'`) — the
+			//      VS Code workbench's fallback when the user hasn't picked.
+			// In the VS Code workbench the chat-input picker may have
+			// already dispatched `SessionConfigChanged` directly against the
+			// provisional backend (e.g. the user chose "Worktree"). Those
+			// values live in `existingState.config?.values` and MUST NOT be
+			// clobbered — neither by replace-semantics nor by workbench
+			// defaults. Merge semantics + filtering achieve this:
+			//  - Drop any default key the agent already has a value for.
+			//  - Pass through `request.agentHostSessionConfig` unchanged so
+			//    the Agents-window flow continues to win over picker state
+			//    (its provider is the source of truth there).
+			const existingValues = existingState.config?.values ?? {};
+			const defaults = this._getWorkbenchDefaultSessionConfig();
+			const filteredDefaults = defaults
+				? Object.fromEntries(Object.entries(defaults).filter(([k]) => !Object.prototype.hasOwnProperty.call(existingValues, k)))
+				: undefined;
+			const config = { ...filteredDefaults, ...request.agentHostSessionConfig };
+			if (Object.keys(config).length > 0) {
 				this._dispatchAction({
 					type: ActionType.SessionConfigChanged,
 					session: sessionKey,
 					config,
-					replace: true,
 				});
 			}
 
