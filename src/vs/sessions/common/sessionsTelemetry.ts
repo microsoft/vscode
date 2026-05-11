@@ -13,7 +13,8 @@ export type SessionsInteractionButton =
 	| 'addTask'
 	| 'generateNewTask'
 	| 'openTerminal'
-	| 'openInVSCode';
+	| 'openInVSCode'
+	| 'openForwardedPort';
 
 export type SessionsInteractionSource = 'menu' | 'actionWidget';
 

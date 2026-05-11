@@ -65,3 +65,9 @@ export const IsPhoneLayoutContext = new RawContextKey<boolean>('sessionsIsPhoneL
 export const KeyboardVisibleContext = new RawContextKey<boolean>('sessionsKeyboardVisible', false, localize('sessionsKeyboardVisible', "Whether the virtual keyboard is visible"));
 
 //#endregion
+
+//#region < --- Port Forwarding --- >
+
+export const HasForwardedPortContext = new RawContextKey<boolean>('sessionsHasForwardedPort', false, localize('sessionsHasForwardedPort', "Whether the active session has at least one forwarded port"));
+
+//#endregion

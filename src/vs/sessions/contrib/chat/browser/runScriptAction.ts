@@ -36,6 +36,7 @@ import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/c
 import { Menus } from '../../../browser/menus.js';
 import { INonSessionTaskEntry, ISessionsTasksService, ISessionTaskWithTarget, ITaskEntry, TaskStorageTarget } from './sessionsTasksService.js';
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
+import { IsWebContext } from '../../../../platform/contextkey/common/contextkeys.js';
 import { IRunScriptCustomTaskWidgetResult, RunScriptCustomTaskWidget } from './runScriptCustomTaskWidget.js';
 
 
@@ -837,7 +838,11 @@ class ChevronActionWidgetDropdown extends ActionWidgetDropdownActionViewItem {
 	}
 }
 
-// Register the Run split button submenu on the workbench title bar (background sessions only)
+// Register the Run split button submenu on the workbench title bar (background sessions only).
+// Excluded on web (the agents workbench at vscode.dev/agents): there it is replaced by the
+// OpenForwardedPort globe button — see openForwardedPortAction.ts. Mobile is automatically
+// excluded because mobileTitlebarPart only mounts the MobileTitleBarCenter menu and never
+// the desktop TitleBarSessionMenu where this button lives.
 MenuRegistry.appendMenuItem(Menus.TitleBarSessionMenu, {
 	submenu: RunScriptDropdownMenuId,
 	isSplitButton: true,
@@ -845,7 +850,7 @@ MenuRegistry.appendMenuItem(Menus.TitleBarSessionMenu, {
 	icon: Codicon.play,
 	group: 'navigation',
 	order: 8,
-	when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), IsActiveSessionBackgroundProviderContext)
+	when: ContextKeyExpr.and(IsWebContext.toNegated(), IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), IsActiveSessionBackgroundProviderContext)
 });
 
 // Disabled placeholder shown in the titlebar when the active session does not support running scripts
@@ -861,7 +866,7 @@ class RunScriptNotAvailableAction extends Action2 {
 				id: Menus.TitleBarSessionMenu,
 				group: 'navigation',
 				order: 8,
-				when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), IsActiveSessionBackgroundProviderContext.toNegated())
+				when: ContextKeyExpr.and(IsWebContext.toNegated(), IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), IsActiveSessionBackgroundProviderContext.toNegated())
 			}]
 		});
 	}
@@ -874,9 +879,13 @@ registerAction2(RunScriptNotAvailableAction);
 // Register F5 keybinding at module level to ensure it's in the registry
 // before the keybinding resolver is cached. The command handler is
 // registered later by RunScriptContribution.
+//
+// Web is excluded because the Run command surfaces the desktop task
+// runner, which the agents workbench cannot drive (its replacement on
+// the web titlebar is the globe button — see openForwardedPortAction.ts).
 KeybindingsRegistry.registerKeybindingRule({
 	id: RUN_SCRIPT_ACTION_PRIMARY_ID,
 	primary: KeyCode.F5,
 	weight: KeybindingWeight.WorkbenchContrib + 100,
-	when: IsAuxiliaryWindowContext.toNegated()
+	when: ContextKeyExpr.and(IsWebContext.toNegated(), IsAuxiliaryWindowContext.toNegated())
 });

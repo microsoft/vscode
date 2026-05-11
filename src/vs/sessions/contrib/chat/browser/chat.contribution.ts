@@ -16,6 +16,8 @@ import { ISessionsManagementService } from '../../../services/sessions/common/se
 import { IsNewChatInSessionContext, IsNewChatSessionContext } from '../../../common/contextkeys.js';
 import { BranchChatSessionAction } from './branchChatSessionAction.js';
 import { RunScriptContribution } from './runScriptAction.js';
+import { OpenForwardedPortContribution } from './openForwardedPortAction.js';
+import { AgentsWebPortForwardingContribution } from './agentsWebPortForwardingContribution.js';
 import './nullInlineChatSessionService.js';
 import './nullChatTipService.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
@@ -145,6 +147,8 @@ registerAction2(BranchChatSessionAction);
 // register workbench contributions
 registerWorkbenchContribution2(RegisterChatViewContainerContribution.ID, RegisterChatViewContainerContribution, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(RunScriptContribution.ID, RunScriptContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(OpenForwardedPortContribution.ID, OpenForwardedPortContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(AgentsWebPortForwardingContribution.ID, AgentsWebPortForwardingContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(SessionsOpenerParticipantContribution.ID, SessionsOpenerParticipantContribution, WorkbenchPhase.BlockStartup);
 
 // register services
