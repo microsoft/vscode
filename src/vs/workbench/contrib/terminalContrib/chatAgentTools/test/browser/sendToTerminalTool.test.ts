@@ -137,6 +137,37 @@ suite('SendToTerminalTool', () => {
 		assert.strictEqual(mockExecution.sentTexts[0].shouldExecute, true);
 	});
 
+	test('appends cancel-signal steering when input is Ctrl-C', async () => {
+		const mockExecution = createMockExecution('npm error canceled\n$ ');
+		RunInTerminalTool.getExecution = () => mockExecution;
+
+		const result = await tool.invoke(
+			createInvocation(KNOWN_TERMINAL_ID, '\u0003'),
+			async () => 0,
+			{ report: () => { } },
+			CancellationToken.None,
+		);
+
+		const value = (result.content[0] as { value: string }).value;
+		assert.ok(value.includes('cancel signal'), 'should mention cancel signal');
+		assert.ok(value.includes('not a signal to end the turn'), 'should remind the model the turn is not done');
+	});
+
+	test('does not append cancel-signal steering for ordinary input', async () => {
+		const mockExecution = createMockExecution('hello');
+		RunInTerminalTool.getExecution = () => mockExecution;
+
+		const result = await tool.invoke(
+			createInvocation(KNOWN_TERMINAL_ID, 'y'),
+			async () => 0,
+			{ report: () => { } },
+			CancellationToken.None,
+		);
+
+		const value = (result.content[0] as { value: string }).value;
+		assert.ok(!value.includes('cancel signal'), 'should not mention cancel signal for ordinary input');
+	});
+
 	function createPreparationContext(id: string, command: string, chatSessionResource?: URI): IToolInvocationPreparationContext {
 		return {
 			parameters: { id, command },
