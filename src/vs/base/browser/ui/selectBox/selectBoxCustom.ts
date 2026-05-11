@@ -528,7 +528,10 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 		return {
 			dispose: () => {
 				// contextView will dispose itself if moving from one View to another
-				this.selectDropDownContainer.remove(); // remove to take out the CSS rules we add
+				// Guard: the node may already have been removed by a blur event handler
+				if (this.selectDropDownContainer.parentNode) {
+					this.selectDropDownContainer.remove(); // remove to take out the CSS rules we add
+				}
 			}
 		};
 	}
