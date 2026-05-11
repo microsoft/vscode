@@ -14,6 +14,7 @@ import { IRequestLogger } from '../../../platform/requestLogger/common/requestLo
 import { getCurrentCapturingToken } from '../../../platform/requestLogger/node/requestLogger';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { IWorkspaceService } from '../../../platform/workspace/common/workspaceService';
+import { WorkingDirectory } from '../../../platform/workspace/common/workingDirectory';
 import { ChatResponseStreamImpl } from '../../../util/common/chatResponseStreamImpl';
 import { URI } from '../../../util/vs/base/common/uri';
 import { generateUuid } from '../../../util/vs/base/common/uuid';
@@ -90,9 +91,8 @@ class SearchSubagentTool implements ICopilotTool<ISearchSubagentParams> {
 	async invoke(options: vscode.LanguageModelToolInvocationOptions<ISearchSubagentParams>, token: vscode.CancellationToken) {
 		// Get the current working directory — prefer the session's working directory
 		// (agents window) over the first workspace folder.
-		const workspaceFolders = this.workspaceService.getWorkspaceFolders();
-		const cwd = options.workingDirectory?.fsPath
-			?? (workspaceFolders.length > 0 ? workspaceFolders[0].fsPath : undefined);
+		const workingDir = new WorkingDirectory(options.workingDirectory, this.workspaceService);
+		const cwd = workingDir.getFolders()[0]?.fsPath;
 
 		const searchInstruction = [
 			`Find relevant code snippets for: ${options.input.query}`,

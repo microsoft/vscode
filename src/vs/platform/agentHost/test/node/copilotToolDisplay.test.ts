@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellLanguage, getToolInputString, getToolKind, isHiddenTool, synthesizeSkillToolCall, type ITypedPermissionRequest } from '../../node/copilot/copilotToolDisplay.js';
+import { getEditFilePath, getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellLanguage, getToolInputString, getToolKind, isHiddenTool, synthesizeSkillToolCall, type ITypedPermissionRequest } from '../../node/copilot/copilotToolDisplay.js';
 
 suite('getPermissionDisplay — cd-prefix stripping', () => {
 
@@ -366,5 +366,99 @@ suite('rg / grep search tool display', () => {
 	test('getToolInputString returns pattern for both grep and rg', () => {
 		assert.strictEqual(getToolInputString('grep', { pattern: 'abc' }, undefined), 'abc');
 		assert.strictEqual(getToolInputString('rg', { pattern: 'abc' }, undefined), 'abc');
+	});
+});
+
+suite('apply_patch tool display', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function text(msg: ReturnType<typeof getInvocationMessage>): string {
+		return typeof msg === 'string' ? msg : msg.markdown;
+	}
+
+	const singleFilePatch = [
+		'*** Begin Patch',
+		'*** Update File: /repo/src/foo.ts',
+		'@@',
+		'-old',
+		'+new',
+		'*** End Patch',
+	].join('\n');
+
+	const multiFilePatch = [
+		'*** Begin Patch',
+		'*** Update File: /repo/src/foo.ts',
+		'@@',
+		'-old',
+		'+new',
+		'*** Add File: /repo/src/bar.ts',
+		'+hello',
+		'*** Delete File: /repo/src/baz.ts',
+		'*** End Patch',
+	].join('\n');
+
+	test('renders a clickable file link for a single-file patch', () => {
+		const inv = text(getInvocationMessage('apply_patch', 'Patch', { input: singleFilePatch }));
+		const past = text(getPastTenseMessage('apply_patch', 'Patch', { input: singleFilePatch }, true));
+		assert.deepStrictEqual({ inv, past }, {
+			inv: 'Editing [foo.ts](file:///repo/src/foo.ts)',
+			past: 'Edited [foo.ts](file:///repo/src/foo.ts)',
+		});
+	});
+
+	test('lists every affected file for a multi-file patch', () => {
+		const inv = text(getInvocationMessage('apply_patch', 'Patch', { input: multiFilePatch }));
+		const past = text(getPastTenseMessage('apply_patch', 'Patch', { input: multiFilePatch }, true));
+		assert.deepStrictEqual({ inv, past }, {
+			inv: 'Editing [foo.ts](file:///repo/src/foo.ts), [bar.ts](file:///repo/src/bar.ts), [baz.ts](file:///repo/src/baz.ts)',
+			past: 'Edited [foo.ts](file:///repo/src/foo.ts), [bar.ts](file:///repo/src/bar.ts), [baz.ts](file:///repo/src/baz.ts)',
+		});
+	});
+
+	test('falls back to a generic message when the patch body is missing or unparseable', () => {
+		assert.strictEqual(getInvocationMessage('apply_patch', 'Patch', undefined), 'Editing files');
+		assert.strictEqual(getInvocationMessage('apply_patch', 'Patch', { input: 'not a patch' }), 'Editing files');
+		assert.strictEqual(getPastTenseMessage('apply_patch', 'Patch', undefined, true), 'Edited files');
+	});
+
+	test('also accepts the patch text under the `patch` parameter (CLI shape)', () => {
+		const inv = text(getInvocationMessage('apply_patch', 'Patch', { patch: singleFilePatch }));
+		assert.strictEqual(inv, 'Editing [foo.ts](file:///repo/src/foo.ts)');
+	});
+
+	test('git_apply_patch shares the same display path', () => {
+		const inv = text(getInvocationMessage('git_apply_patch', 'Patch', { input: singleFilePatch }));
+		const past = text(getPastTenseMessage('git_apply_patch', 'Patch', { input: singleFilePatch }, true));
+		assert.deepStrictEqual({ inv, past }, {
+			inv: 'Editing [foo.ts](file:///repo/src/foo.ts)',
+			past: 'Edited [foo.ts](file:///repo/src/foo.ts)',
+		});
+	});
+
+	test('failure still routes through the generic failed message', () => {
+		assert.strictEqual(getPastTenseMessage('apply_patch', 'Patch', { input: singleFilePatch }, false), '"Patch" failed');
+	});
+
+	test('getEditFilePath returns the first affected file from a patch body', () => {
+		assert.strictEqual(getEditFilePath({ input: singleFilePatch }), '/repo/src/foo.ts');
+		assert.strictEqual(getEditFilePath({ input: multiFilePatch }), '/repo/src/foo.ts');
+		assert.strictEqual(getEditFilePath({ patch: singleFilePatch }), '/repo/src/foo.ts');
+		assert.strictEqual(getEditFilePath(JSON.stringify({ input: singleFilePatch })), '/repo/src/foo.ts');
+		assert.strictEqual(getEditFilePath({ input: 'not a patch' }), undefined);
+	});
+
+	test('getEditFilePaths returns every affected file from a patch body', () => {
+		assert.deepStrictEqual(getEditFilePaths({ input: singleFilePatch }), ['/repo/src/foo.ts']);
+		assert.deepStrictEqual(getEditFilePaths({ input: multiFilePatch }), ['/repo/src/foo.ts', '/repo/src/bar.ts', '/repo/src/baz.ts']);
+		assert.deepStrictEqual(getEditFilePaths({ patch: multiFilePatch }), ['/repo/src/foo.ts', '/repo/src/bar.ts', '/repo/src/baz.ts']);
+		assert.deepStrictEqual(getEditFilePaths(JSON.stringify({ input: multiFilePatch })), ['/repo/src/foo.ts', '/repo/src/bar.ts', '/repo/src/baz.ts']);
+		assert.deepStrictEqual(getEditFilePaths({ path: '/repo/src/edit.ts' }), ['/repo/src/edit.ts']);
+		assert.deepStrictEqual(getEditFilePaths({ input: 'not a patch' }), []);
+		assert.deepStrictEqual(getEditFilePaths(undefined), []);
+		// SDK custom-tool format: arguments arrive as a raw V4A patch string,
+		// not as a JSON object — exercise the string fallback path.
+		assert.deepStrictEqual(getEditFilePaths(multiFilePatch), ['/repo/src/foo.ts', '/repo/src/bar.ts', '/repo/src/baz.ts']);
+		assert.deepStrictEqual(getEditFilePaths(singleFilePatch), ['/repo/src/foo.ts']);
 	});
 });

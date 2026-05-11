@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { joinPath } from '../../../../../base/common/resources.js';
 import { escapeRegExpCharacters } from '../../../../../base/common/strings.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IToolResult } from '../../common/tools/languageModelToolsService.js';
 import { createToolSimpleTextResult } from '../../common/tools/builtinTools/toolHelpers.js';
+import { WorkingDirectory } from '../../common/workingDirectory.js';
 
 export interface ISymbolToolInput {
 	symbol: string;
@@ -29,19 +29,8 @@ export function resolveToolUri(input: ISymbolToolInput, workspaceContextService:
 		return URI.parse(input.uri);
 	}
 	if (input.filePath) {
-		// Prefer the session's working directory when available (agents window)
-		if (workingDirectory) {
-			return joinPath(workingDirectory, input.filePath);
-		}
-
-		const folders = workspaceContextService.getWorkspace().folders;
-		if (folders.length === 1) {
-			return folders[0].toResource(input.filePath);
-		}
-		// try each folder, return the first
-		for (const folder of folders) {
-			return folder.toResource(input.filePath);
-		}
+		const workingDir = new WorkingDirectory(workspaceContextService, workingDirectory);
+		return workingDir.resolveRelativePath(input.filePath);
 	}
 	return undefined;
 }

@@ -368,6 +368,10 @@ export class AgentIntent extends EditCodeIntent {
 				tools: availableTools,
 				maxToolResultLength: Infinity,
 			});
+			if (!propsInfo) {
+				stream.markdown(l10n.t('Nothing to compact yet.'));
+				return {};
+			}
 
 			stream.progress(l10n.t('Compacting conversation...'));
 

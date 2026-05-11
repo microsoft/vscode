@@ -21,6 +21,7 @@ import { IAlternativeNotebookContentService } from '../../../platform/notebook/c
 import { INotebookService } from '../../../platform/notebook/common/notebookService';
 import { IPromptPathRepresentationService } from '../../../platform/prompts/common/promptPathRepresentationService';
 import { IWorkspaceService } from '../../../platform/workspace/common/workspaceService';
+import { WorkingDirectory } from '../../../platform/workspace/common/workingDirectory';
 import { getLanguageId } from '../../../util/common/markdown';
 import { findNotebook } from '../../../util/common/notebooks';
 import * as glob from '../../../util/vs/base/common/glob';
@@ -949,15 +950,9 @@ export async function createEditConfirmation(accessor: ServicesAccessor, uris: r
 	}
 
 	const workspaceService = accessor.get(IWorkspaceService);
-	// When workingDirectory is set (agents window), use it exclusively for determining
-	// whether a file is inside the workspace. Only fall back to workspace folders otherwise.
 	if (!getWorkspaceFolder) {
-		if (workingDirectory) {
-			getWorkspaceFolder = (resource: URI) =>
-				extUriBiasedIgnorePathCase.isEqualOrParent(resource, workingDirectory) ? workingDirectory : undefined;
-		} else {
-			getWorkspaceFolder = workspaceService.getWorkspaceFolder.bind(workspaceService);
-		}
+		const wd = new WorkingDirectory(workingDirectory, workspaceService);
+		getWorkspaceFolder = (resource: URI) => wd.getFolder(resource);
 	}
 	const checker = makeUriConfirmationChecker(accessor.get(IConfigurationService), getWorkspaceFolder, accessor.get(ICustomInstructionsService));
 	const needsConfirmation = (await Promise.all(uris

@@ -507,15 +507,25 @@ suite('RemoteAgentHostService', () => {
 			assert.strictEqual(service.getConnection('ws://managed:1234'), undefined);
 		});
 
-		test('disposes previous transportDisposable when entry is replaced', async () => {
+		test('does NOT dispose previous transportDisposable when entry is replaced', async () => {
+			// When the entry is replaced (e.g. on reconnect to the same address),
+			// the new entry takes ownership of the same underlying connectionId.
+			// Running the old transportDisposable would call disconnect() on the
+			// shared-process tunnel keyed by that connectionId and immediately
+			// tear down the brand-new connection. The new transportDisposable
+			// inherits responsibility for the underlying tunnel.
 			const t1 = makeTransportDisposable();
 			await addManaged('Managed', 'managed:1234', t1.disposable);
 
 			const t2 = makeTransportDisposable();
 			await addManaged('Managed', 'managed:1234', t2.disposable);
 
-			assert.strictEqual(t1.disposed(), true, 'first transport disposable runs when entry is replaced');
-			assert.strictEqual(t2.disposed(), false, 'second transport disposable is still alive');
+			assert.strictEqual(t1.disposed(), false, 'previous transport disposable is not run on replacement');
+			assert.strictEqual(t2.disposed(), false, 'new transport disposable is still alive');
+
+			await service.removeRemoteAgentHost('ws://managed:1234');
+
+			assert.strictEqual(t2.disposed(), true, 'new transport disposable runs on full removal');
 		});
 
 		test('disposes transportDisposable when service itself is disposed', async () => {

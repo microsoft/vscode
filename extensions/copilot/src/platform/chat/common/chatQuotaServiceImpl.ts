@@ -6,6 +6,7 @@
 import { Emitter } from '../../../util/vs/base/common/event';
 import { Disposable } from '../../../util/vs/base/common/lifecycle';
 import { IAuthenticationService } from '../../authentication/common/authentication';
+import { ILogService } from '../../log/common/logService';
 import { IHeaders } from '../../networking/common/fetcherService';
 import { CopilotUserQuotaInfo, IChatQuota, IChatQuotaService, QuotaSnapshots } from './chatQuotaService';
 
@@ -19,7 +20,10 @@ export class ChatQuotaService extends Disposable implements IChatQuotaService {
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange = this._onDidChange.event;
 
-	constructor(@IAuthenticationService private readonly _authService: IAuthenticationService) {
+	constructor(
+		@IAuthenticationService private readonly _authService: IAuthenticationService,
+		@ILogService private readonly _logService: ILogService,
+	) {
 		super();
 		this._rateLimitInfo = { session: undefined, weekly: undefined };
 		this._register(this._authService.onDidAuthenticationChange(() => {
@@ -79,6 +83,7 @@ export class ChatQuotaService extends Disposable implements IChatQuotaService {
 			return;
 		}
 		this._quotaInfo = quotaInfo;
+		this._logService.trace(`[ChatQuota] processQuotaHeaders: ${JSON.stringify(quotaInfo)}`);
 		const sessionRateLimitHeader = headers.get('x-usage-ratelimit-session');
 		const weeklyRateLimitHeader = headers.get('x-usage-ratelimit-weekly');
 		this._rateLimitInfo.session = sessionRateLimitHeader ? this._processHeaderValue(sessionRateLimitHeader) : undefined;
@@ -106,6 +111,7 @@ export class ChatQuotaService extends Disposable implements IChatQuotaService {
 				additionalUsageEnabled: snapshot.overage_permitted,
 				resetDate,
 			};
+			this._logService.trace(`[ChatQuota] processQuotaSnapshots: ${JSON.stringify(this._quotaInfo)}`);
 			this._onDidChange.fire();
 		} catch (error) {
 			console.error('Failed to process quota snapshots', error);
@@ -162,6 +168,7 @@ export class ChatQuotaService extends Disposable implements IChatQuotaService {
 			resetDate: new Date(quotaInfo.quota_reset_date),
 			percentRemaining: snapshot.percent_remaining,
 		};
+		this._logService.trace(`[ChatQuota] processUserInfoQuotaSnapshot: ${JSON.stringify(this._quotaInfo)}`);
 		this._onDidChange.fire();
 	}
 }

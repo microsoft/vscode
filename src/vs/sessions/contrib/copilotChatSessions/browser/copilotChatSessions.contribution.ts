@@ -30,8 +30,9 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		},
 		[LOCAL_SESSION_ENABLED_SETTING]: {
 			type: 'boolean',
-			default: false,
+			default: true,
 			tags: ['experimental'],
+			experiment: { mode: 'startup' },
 			description: localize('sessions.chat.localAgent.enabled', "Enable Local VS Code chat sessions in the Agents Window."),
 		},
 	},

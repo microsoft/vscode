@@ -2383,8 +2383,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	private renderToolInvocation(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized, context: IChatContentPartRenderContext, templateData: IChatListItemTemplate): IChatContentPart | undefined {
-		// Skip rendering completed tool invocations that have no meaningful content - ie, autopilot "task complete"
-		if (IChatToolInvocation.isComplete(toolInvocation)) {
+		// Skip rendering completed tool invocations that are hidden and have no meaningful content - ie, autopilot "task complete".
+		// We intentionally only short-circuit when the invocation's presentation is hidden, otherwise extension-contributed
+		// tools that don't supply a `pastTenseMessage` (proposed API) get filtered out incorrectly.
+		if (IChatToolInvocation.isComplete(toolInvocation) && IChatToolInvocation.isEffectivelyHidden(toolInvocation)) {
 			const msg = toolInvocation.pastTenseMessage ?? toolInvocation.invocationMessage;
 			const text = typeof msg === 'string' ? msg : msg?.value;
 			if (!text || text.trim().length === 0) {

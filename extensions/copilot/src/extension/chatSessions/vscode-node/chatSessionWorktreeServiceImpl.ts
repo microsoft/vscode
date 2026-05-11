@@ -22,6 +22,7 @@ import { generateUuid } from '../../../util/vs/base/common/uuid';
 import { IAgentSessionsWorkspace } from '../common/agentSessionsWorkspace';
 import { IChatSessionMetadataStore } from '../common/chatSessionMetadataStore';
 import { ChatSessionWorktreeFile, ChatSessionWorktreeProperties, ChatSessionWorktreePropertiesV2, IChatSessionWorktreeService } from '../common/chatSessionWorktreeService';
+import { SequencerByKey } from '../../../util/vs/base/common/async';
 
 // const CHAT_SESSION_WORKTREE_MEMENTO_KEY = 'github.copilot.cli.sessionWorktrees';
 
@@ -29,8 +30,12 @@ export class ChatSessionWorktreeService extends Disposable implements IChatSessi
 	declare _serviceBrand: undefined;
 
 	private _sessionWorktrees: Map<string, string | ChatSessionWorktreeProperties> = new Map();
+
 	private readonly _onDidChangeWorktreeChanges = this._register(new vscode.EventEmitter<{ sessionId: string }>());
 	readonly onDidChangeWorktreeChanges = this._onDidChangeWorktreeChanges.event;
+
+	private readonly _updatePropertiesSequencer = new SequencerByKey<string>();
+
 	constructor(
 		@IAgentSessionsWorkspace private readonly agentSessionsWorkspace: IAgentSessionsWorkspace,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -196,6 +201,17 @@ export class ChatSessionWorktreeService extends Disposable implements IChatSessi
 		}
 	}
 
+	async updateWorktreeProperties(sessionId: string, properties: Partial<ChatSessionWorktreeProperties>): Promise<void> {
+		await this._updatePropertiesSequencer.queue(sessionId, async () => {
+			const currentProperties = await this.getWorktreeProperties(sessionId);
+			if (!currentProperties || typeof currentProperties === 'string') {
+				return;
+			}
+
+			await this.setWorktreeProperties(sessionId, { ...currentProperties, ...properties } as ChatSessionWorktreeProperties);
+		});
+	}
+
 	async getWorktreeRepository(sessionId: string): Promise<RepoContext | undefined> {
 		const worktreeProperties = await this.getWorktreeProperties(sessionId);
 		if (typeof worktreeProperties === 'string' || !worktreeProperties?.repositoryPath) {
@@ -313,6 +329,19 @@ export class ChatSessionWorktreeService extends Disposable implements IChatSessi
 			return false;
 		}
 		return !!worktreeProperties.changes;
+	}
+
+	async refreshWorktreeChanges(sessionId: string): Promise<void> {
+		const worktreeProperties = await this.getWorktreeProperties(sessionId);
+		if (!worktreeProperties || typeof worktreeProperties === 'string') {
+			return;
+		}
+
+		// Clear the cache
+		await this.updateWorktreeProperties(sessionId, { changes: undefined });
+
+		// Populate the cache
+		await this.getWorktreeChanges(sessionId);
 	}
 
 	async getWorktreeChanges(sessionId: string): Promise<readonly vscode.ChatSessionChangedFile[] | undefined> {

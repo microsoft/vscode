@@ -818,6 +818,96 @@ suite('SessionsTerminalContribution', () => {
 		assert.strictEqual(createdTerminals.length, 1, 'should create a terminal at the unwrapped repository path');
 		assert.strictEqual(createdTerminals[0].cwd.fsPath, URI.file('/Users/user/repo').fsPath);
 	});
+
+	// --- Hidden tool terminals (hideFromUser) ---
+
+	test('does not dispose hidden tool terminals when session is archived', async () => {
+		const worktreeUri = URI.file('/worktree');
+		await contribution.ensureTerminal(worktreeUri, false);
+
+		// Simulate a hidden tool terminal (created by run_in_terminal) at the same cwd
+		const toolTerminal = makeTerminalInstance(nextInstanceId++, worktreeUri.fsPath);
+		toolTerminal._testSetShellLaunchConfig({ hideFromUser: true } as ITerminalInstance['shellLaunchConfig']);
+		terminalInstances.set(toolTerminal.instanceId, toolTerminal);
+
+		const session = makeAgentSession({
+			isArchived: true,
+			worktree: worktreeUri,
+			providerType: AgentSessionProviders.Background,
+		});
+		onDidChangeSessions.fire({ added: [], removed: [], changed: [session] });
+		await tick();
+
+		// The regular terminal should be disposed, but the tool terminal should survive
+		assert.strictEqual(disposedInstances.length, 1, 'should dispose exactly one terminal');
+		assert.notStrictEqual(disposedInstances[0].instanceId, toolTerminal.instanceId, 'should not dispose the tool terminal');
+	});
+
+	test('does not dispose hidden tool terminals when session is removed', async () => {
+		const worktreeUri = URI.file('/worktree');
+		await contribution.ensureTerminal(worktreeUri, false);
+
+		const toolTerminal = makeTerminalInstance(nextInstanceId++, worktreeUri.fsPath);
+		toolTerminal._testSetShellLaunchConfig({ hideFromUser: true } as ITerminalInstance['shellLaunchConfig']);
+		terminalInstances.set(toolTerminal.instanceId, toolTerminal);
+
+		const session = makeAgentSession({ worktree: worktreeUri, providerType: AgentSessionProviders.Background });
+		onDidChangeSessions.fire({ added: [], removed: [session], changed: [] });
+		await tick();
+
+		assert.strictEqual(disposedInstances.length, 1, 'should dispose exactly one terminal');
+		assert.notStrictEqual(disposedInstances[0].instanceId, toolTerminal.instanceId, 'should not dispose the tool terminal');
+	});
+
+	test('does not background hidden tool terminals during session switch', async () => {
+		const cwd1 = URI.file('/cwd1');
+		const cwd2 = URI.file('/cwd2');
+
+		activeSessionObs.set(makeAgentSession({ worktree: cwd1, providerType: AgentSessionProviders.Background }), undefined);
+		await tick();
+
+		// Add a hidden tool terminal at cwd1
+		const toolTerminal = makeTerminalInstance(nextInstanceId++, cwd1.fsPath);
+		toolTerminal._testSetShellLaunchConfig({ hideFromUser: true } as ITerminalInstance['shellLaunchConfig']);
+		terminalInstances.set(toolTerminal.instanceId, toolTerminal);
+
+		// Switch to cwd2
+		activeSessionObs.set(makeAgentSession({ worktree: cwd2, providerType: AgentSessionProviders.Background }), undefined);
+		await tick();
+
+		assert.ok(!moveToBackgroundCalls.includes(toolTerminal.instanceId), 'hidden tool terminal should not be moved to background');
+	});
+
+	test('does not include hidden tool terminals in ensureTerminal matches', async () => {
+		const cwd = URI.file('/worktree');
+
+		// Add a hidden tool terminal at the target cwd
+		const toolTerminal = makeTerminalInstance(nextInstanceId++, cwd.fsPath);
+		toolTerminal._testSetShellLaunchConfig({ hideFromUser: true } as ITerminalInstance['shellLaunchConfig']);
+		terminalInstances.set(toolTerminal.instanceId, toolTerminal);
+
+		// ensureTerminal should not find the tool terminal, so it creates a new one
+		await contribution.ensureTerminal(cwd, false);
+
+		assert.strictEqual(createdTerminals.length, 1, 'should create a new terminal since tool terminal is hidden');
+	});
+
+	test('does not hide restored hidden tool terminals on session create', async () => {
+		activeSessionObs.set(makeAgentSession({ worktree: URI.file('/active'), providerType: AgentSessionProviders.Background }), undefined);
+		await tick();
+
+		const toolTerminal = makeTerminalInstance(nextInstanceId++, '/other');
+		toolTerminal._testSetShellLaunchConfig({
+			hideFromUser: true,
+			attachPersistentProcess: {} as never,
+		} as ITerminalInstance['shellLaunchConfig']);
+		terminalInstances.set(toolTerminal.instanceId, toolTerminal);
+
+		onDidCreateInstance.fire(toolTerminal);
+		await tick();
+
+		assert.ok(!moveToBackgroundCalls.includes(toolTerminal.instanceId), 'hidden tool terminal should not be moved to background on restore');
+	});
 });
 
 function tick(): Promise<void> {

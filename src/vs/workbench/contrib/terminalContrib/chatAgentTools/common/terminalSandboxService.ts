@@ -180,9 +180,11 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 			throw new Error('Sandbox config path or temp dir not initialized');
 		}
 
+		const allowUnsandboxedCommands = this._areUnsandboxedCommandsAllowed();
+
 		// Check if the command would attempt to access any blocked network domains before wrapping it in the sandbox.
-		const blockedDomainResult = requestUnsandboxedExecution ? { blockedDomains: [], deniedDomains: [] } : this._getBlockedDomains(command);
-		if (!requestUnsandboxedExecution && blockedDomainResult.blockedDomains.length > 0) {
+		const blockedDomainResult = requestUnsandboxedExecution || !allowUnsandboxedCommands ? { blockedDomains: [], deniedDomains: [] } : this._getBlockedDomains(command);
+		if (!requestUnsandboxedExecution && allowUnsandboxedCommands && blockedDomainResult.blockedDomains.length > 0) {
 			return {
 				command: this._wrapUnsandboxedCommand(command, shell),
 				isSandboxWrapped: false,
@@ -193,7 +195,7 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		}
 
 		// If requestUnsandboxedExecution is true, need to ensure env variables set during sandbox still apply.
-		if (requestUnsandboxedExecution) {
+		if (requestUnsandboxedExecution && allowUnsandboxedCommands) {
 			return {
 				command: this._wrapUnsandboxedCommand(command, shell),
 				isSandboxWrapped: false,
@@ -810,6 +812,10 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 
 	private _isSandboxAllowNetworkConfigured(): boolean {
 		return this._getSandboxConfiguredEnabledValue() === AgentSandboxEnabledValue.AllowNetwork;
+	}
+
+	private _areUnsandboxedCommandsAllowed(): boolean {
+		return this._getSettingValue<boolean>(AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands) === true;
 	}
 
 	private _getSettingValue<T>(settingId: TerminalChatAgentToolsSettingId | AgentNetworkDomainSettingId | AgentSandboxSettingId, ...deprecatedSettingIds: (TerminalChatAgentToolsSettingId | AgentNetworkDomainSettingId | AgentSandboxSettingId)[]): T | undefined {

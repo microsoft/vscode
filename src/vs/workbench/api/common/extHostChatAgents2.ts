@@ -420,7 +420,10 @@ export class ChatAgentResponseStream {
 							checkProposedApiEnabled(that._extension, 'chatParticipantAdditions');
 
 							dto.resolveId = generateUuid();
+						}
+						_report(dto);
 
+						if (part.resolve) {
 							const cts = new CancellationTokenSource();
 							part.resolve(cts.token)
 								.then(() => {
@@ -430,7 +433,6 @@ export class ChatAgentResponseStream {
 								.then(() => cts.dispose(), () => cts.dispose());
 							that._sessionDisposables.add(toDisposable(() => cts.dispose(true)));
 						}
-						_report(dto);
 					} else if (part instanceof extHostTypes.ChatResponseExternalEditPart) {
 						const p = this.externalEdit(part.uris, part.callback);
 						p.then((value) => part.didGetApplied(value));

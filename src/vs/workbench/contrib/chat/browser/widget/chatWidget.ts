@@ -740,13 +740,25 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.renderWelcomeViewContentIfNeeded();
 		this.createList(this.listContainer, { editable: !isInlineChat(this) && !isQuickChat(this), ...this.viewOptions.rendererOptions, renderStyle });
 
-		// Forward scroll events from the parent container margins (outside the max-width area) to the chat list
+		// Forward wheel events that target the chat container itself (the margins
+		// around the list and input) to the chat list.
+		this._register(dom.addDisposableListener(this.container, dom.EventType.MOUSE_WHEEL, (e: IMouseWheelEvent) => {
+			if (e.defaultPrevented || e.target !== this.container) {
+				return;
+			}
+
+			this.listWidget.delegateScrollFromMouseWheelEvent(e);
+		}));
+
+		// Forward wheel events from the area around the chat widget (e.g. the
+		// max-width margins in the classic VS Code chat view) to the chat list.
 		this._register(dom.addDisposableListener(parent, dom.EventType.MOUSE_WHEEL, (e: IMouseWheelEvent) => {
 			if (e.defaultPrevented) {
 				return;
 			}
 
-			if (dom.isAncestor(e.target as Node | null, this.container)) {
+			const target = e.target as Node | null;
+			if (target && dom.isAncestor(target, this.container)) {
 				return;
 			}
 
@@ -2648,6 +2660,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	getModeRequestOptions(): Partial<IChatSendRequestOptions> {
+		if (!this.inputPartDisposable.value) {
+			return {};
+		}
+
 		const sessionResource = this.viewModel?.sessionResource;
 		const capturedModeId = this.input.currentModeObs.get().id;
 		const userSelectedTools = this.input.selectedToolsModel.userSelectedTools;

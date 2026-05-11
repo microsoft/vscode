@@ -166,6 +166,16 @@ class TestableSSHRemoteAgentHostMainService extends SSHRemoteAgentHostMainServic
 	/** Override to intercept relay creation in specific tests. */
 	relayHook: ((call: number) => { send: (data: string) => void; close: () => void } | Error | undefined) | undefined;
 
+	/**
+	 * If set to a positive number, the Nth `_createWebSocketRelay` call will
+	 * return a promise that never resolves nor rejects. This simulates a
+	 * silently dead SSH client where `forwardOut`'s callback never fires.
+	 */
+	hangRelayCreationOnCall: number | undefined;
+
+	/** Public override so tests can shorten the relay creation timeout. */
+	override relayCreationTimeoutMs: number = 30_000;
+
 	/** Stored onMessage callbacks from relays, most recent last. */
 	private readonly _relayMessageCallbacks: Array<(data: string) => void> = [];
 	/** Stored onClose callbacks from relays, most recent last. */
@@ -195,6 +205,12 @@ class TestableSSHRemoteAgentHostMainService extends SSHRemoteAgentHostMainServic
 		this.relayCalled++;
 		this._relayMessageCallbacks.push(onMessage);
 		this._relayCloseCallbacks.push(onClose);
+		if (this.hangRelayCreationOnCall === this.relayCalled) {
+			// Simulate forwardOut hanging — never resolve. The wrapper in
+			// `connect()` should still surface a timeout error instead of
+			// hanging the whole connect() call.
+			return new Promise<{ send: (data: string) => void; close: () => void }>(() => { /* never */ });
+		}
 		const hookResult = this.relayHook?.(this.relayCalled);
 		if (hookResult !== undefined) {
 			if (hookResult instanceof Error) {
@@ -978,6 +994,48 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 		// SSH client should have been cleaned up despite the failure
 		assert.strictEqual(originalClient.ended, true);
 		// Close event should have fired to notify the renderer
+		assert.deepStrictEqual(closeEvents, ['ssh:myhost']);
+	});
+
+	test('reconnect rejects with timeout when relay creation hangs (silently dead SSH client)', async () => {
+		// Repro for: after a silent network drop, the SSH client's TCP is
+		// half-open but ssh2 hasn't seen 'close' yet. Reusing it for a fresh
+		// relay calls forwardOut, whose callback never fires. Without a
+		// timeout the whole connect() call hangs forever, so the renderer
+		// never sees a rejection and never retries — even after a window
+		// reload, since the shared-process state survives.
+		service.execResponses = [
+			{ stdout: 'Linux\n', code: 0 },
+			{ stdout: 'x86_64\n', code: 0 },
+			{ stdout: '1.0.0\n', code: 0 },
+			{ stdout: '', code: 1 },
+			{ stdout: '', code: 0 },
+		];
+
+		await service.connect(makeConfig({ sshConfigHost: 'myhost' }));
+		const originalClient = service.mockClients[0];
+		assert.strictEqual(originalClient.ended, false);
+
+		// Use a short timeout so the test completes quickly.
+		service.relayCreationTimeoutMs = 50;
+		// Make the *reconnect* call's relay creation hang (the second relay).
+		service.hangRelayCreationOnCall = 2;
+
+		const closeEvents: string[] = [];
+		disposables.add(service.onDidCloseConnection(id => closeEvents.push(id)));
+
+		await assert.rejects(
+			() => service.reconnect('myhost', 'test-host'),
+			/timed out|timeout/i,
+			'reconnect should reject (with a timeout error) instead of hanging when relay creation never settles'
+		);
+
+		// SSH client should have been ended so subsequent reconnect attempts
+		// don't keep reusing the dead client. After this, the entry is also
+		// removed from `_connections` so a fresh reconnect path runs.
+		assert.strictEqual(originalClient.ended, true, 'dead SSH client should be ended');
+		// Close event should have fired so the renderer's contribution sees
+		// the reconnect attempt resolved (even as a failure) and can retry.
 		assert.deepStrictEqual(closeEvents, ['ssh:myhost']);
 	});
 

@@ -537,11 +537,12 @@ export class ClaudeChatSessionItemController extends Disposable {
 
 			if (sessionResource) {
 				pipeline.isSessionStarted.set(true, undefined);
+				const sessionId = ClaudeSessionUri.getSessionId(sessionResource);
+				this._sessionStateService.setPermissionModeForSession(sessionId, pipeline.permissionMode.get());
 
 				// React to external permission mode changes for this session.
 				// Runs for both previousInputState and new-state paths so that
 				// EnterPlanMode / ExitPlanMode tool calls always update the input UI.
-				const sessionId = ClaudeSessionUri.getSessionId(sessionResource);
 				const externalPermissionMode = observableFromEvent(
 					this,
 					Event.filter(this._sessionStateService.onDidChangeSessionState,

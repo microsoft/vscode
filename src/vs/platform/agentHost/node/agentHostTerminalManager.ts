@@ -616,11 +616,11 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 	private _appendToContent(managed: IManagedTerminal, data: string): void {
 		const tail = managed.content.length > 0 ? managed.content[managed.content.length - 1] : undefined;
 
-		if (tail && tail.type === 'command' && !tail.isComplete) {
+		if (tail?.type === 'command' && !tail.isComplete) {
 			// Active command — append to its output
 			tail.output += data;
 			managed.contentSize += data.length;
-		} else if (tail && tail.type === 'unclassified') {
+		} else if (tail?.type === 'unclassified') {
 			// Extend the existing unclassified part
 			tail.value += data;
 			managed.contentSize += data.length;

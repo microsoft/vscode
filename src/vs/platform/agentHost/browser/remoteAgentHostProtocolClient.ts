@@ -7,7 +7,7 @@
 // Wraps WebSocketClientTransport and SessionClientState to provide a
 // higher-level API matching IAgentService.
 
-import { DeferredPromise } from '../../../base/common/async.js';
+import { DeferredPromise, IntervalTimer } from '../../../base/common/async.js';
 import { CancellationError } from '../../../base/common/errors.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable, IReference } from '../../../base/common/lifecycle.js';
@@ -32,6 +32,36 @@ import { ContentEncoding, ResourceRequestParams, type CompletionsParams, type Co
 import { decodeBase64, encodeBase64, VSBuffer } from '../../../base/common/buffer.js';
 
 const AHP_CLIENT_CONNECTION_CLOSED = -32000;
+
+/**
+ * How often the connection liveness watchdog runs.
+ *
+ * Mirrors {@link ProtocolConstants.KeepAliveSendTime} from the regular
+ * remote extension host stack. Cheap because the check is just a couple
+ * of timestamp comparisons.
+ */
+const WATCHDOG_CHECK_INTERVAL_MS = 5_000;
+
+/**
+ * If a request has been outstanding for this long AND no message of any
+ * kind has been received in the same window, declare the transport dead
+ * and force-close it so the renderer's reconnect logic kicks in.
+ *
+ * Matches {@link ProtocolConstants.TimeoutTime} from the regular remote
+ * extension host stack.
+ *
+ * Idle connections are not probed — no ping traffic is sent. The first
+ * user-driven request after the transport goes silent will surface the
+ * timeout within {@link WATCHDOG_TIMEOUT_MS}ms.
+ */
+const WATCHDOG_TIMEOUT_MS = 20_000;
+
+function connectionTimeoutError(address: string, sinceLastReadMs: number, oldestRequestAgeMs: number): ProtocolError {
+	return new ProtocolError(
+		AHP_CLIENT_CONNECTION_CLOSED,
+		`Connection appears dead: ${address}; no message received for ${sinceLastReadMs}ms, oldest pending request is ${oldestRequestAgeMs}ms old.`,
+	);
+}
 
 function connectionClosedError(address: string): ProtocolError {
 	return new ProtocolError(AHP_CLIENT_CONNECTION_CLOSED, `Connection closed: ${address}`);
@@ -77,10 +107,26 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	readonly onDidClose = this._onDidClose.event;
 
 	/** Pending JSON-RPC requests keyed by request id. */
-	private readonly _pendingRequests = new Map<number, DeferredPromise<unknown>>();
+	private readonly _pendingRequests = new Map<number, { deferred: DeferredPromise<unknown>; sentAt: number }>();
 	private _nextRequestId = 1;
 	private _isClosed = false;
 	private _closeError: ProtocolError | undefined;
+
+	/**
+	 * Timestamp of the most recent message of any kind received from the
+	 * server. Updated in {@link _handleMessage}. Used by the watchdog to
+	 * decide if the transport has gone silent.
+	 */
+	private _lastReadTime = Date.now();
+
+	/**
+	 * Periodic check that fires {@link _handleClose} when there are
+	 * outstanding requests *and* nothing has been received for
+	 * {@link WATCHDOG_TIMEOUT_MS}ms. Detects silently-dead transports
+	 * (e.g. SSH/tunnel after laptop sleep + network change) that don't
+	 * produce a socket close event of their own. See {@link _watchdogTick}.
+	 */
+	private readonly _watchdog = this._register(new IntervalTimer());
 
 	/**
 	 * Comparison keys of customization URIs we have already granted implicit
@@ -128,6 +174,9 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		this._register(this.onDidAction(envelope => {
 			this._subscriptionManager.receiveEnvelope(envelope);
 		}));
+
+		// Detect silently-dead transports — see {@link _watchdogTick}.
+		this._watchdog.cancelAndSet(() => this._watchdogTick(), WATCHDOG_CHECK_INTERVAL_MS);
 	}
 
 	override dispose(): void {
@@ -397,6 +446,19 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	}
 
 	private _handleMessage(msg: ProtocolMessage): void {
+		if (this._isClosed) {
+			// After close, the transport may still emit late messages (e.g.
+			// because the same shared event source is also feeding a newer
+			// transport for the same connectionId). Drop them so they can't
+			// trigger any side effects.
+			return;
+		}
+
+		// Any inbound traffic — including this message — is evidence the
+		// transport is still alive. Update before dispatch so the watchdog
+		// is consistent even if a handler synchronously schedules work.
+		this._lastReadTime = Date.now();
+
 		if (isJsonRpcRequest(msg)) {
 			this._handleReverseRequest(msg.id, msg.method, msg.params);
 		} else if (isJsonRpcResponse(msg)) {
@@ -405,9 +467,9 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 				this._pendingRequests.delete(msg.id);
 				if (hasKey(msg, { error: true })) {
 					this._logService.warn(`[RemoteAgentHostProtocol] Request ${msg.id} failed:`, msg.error);
-					pending.error(this._toProtocolError(msg.error));
+					pending.deferred.error(this._toProtocolError(msg.error));
 				} else {
-					pending.complete(msg.result);
+					pending.deferred.complete(msg.result);
 				}
 			} else {
 				this._logService.warn(`[RemoteAgentHostProtocol] Received response for unknown request id ${msg.id}`);
@@ -443,6 +505,9 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 
 		this._isClosed = true;
 		this._closeError = error;
+		// Stop the watchdog so it doesn't keep ticking on a dead connection
+		// (the client may outlive the close, waiting to be replaced).
+		this._watchdog.cancel();
 		this._rejectPendingRequests(error);
 		this._permissionService.connectionClosed(this._address);
 		this._grantedCustomizationUris.clear();
@@ -625,7 +690,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 
 		const id = this._nextRequestId++;
 		const deferred = new DeferredPromise<unknown>();
-		this._pendingRequests.set(id, deferred);
+		this._pendingRequests.set(id, { deferred, sentAt: Date.now() });
 		// Generic M can't satisfy the distributive AhpRequest union directly
 		// eslint-disable-next-line local/code-no-dangerous-type-assertions
 		this._transport.send({ jsonrpc: '2.0' as const, id, method, params } as ProtocolMessage);
@@ -640,7 +705,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 
 		const id = this._nextRequestId++;
 		const deferred = new DeferredPromise<unknown>();
-		this._pendingRequests.set(id, deferred);
+		this._pendingRequests.set(id, { deferred, sentAt: Date.now() });
 		const request: JsonRpcRequest = { jsonrpc: '2.0', id, method, params };
 		this._transport.send(request);
 		return deferred.p as Promise<IRemoteAgentHostExtensionCommandMap[M]['result']>;
@@ -652,9 +717,52 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 
 	private _rejectPendingRequests(error: ProtocolError): void {
 		for (const pending of this._pendingRequests.values()) {
-			pending.error(error);
+			pending.deferred.error(error);
 		}
 		this._pendingRequests.clear();
+	}
+
+	/**
+	 * Fired on a {@link WATCHDOG_CHECK_INTERVAL_MS} interval. If the
+	 * transport has at least one outstanding request that's been waiting
+	 * for more than {@link WATCHDOG_TIMEOUT_MS} and no inbound message has
+	 * arrived in the same window, declare the transport dead and trigger
+	 * the renderer's reconnect path.
+	 *
+	 * After laptop sleep + wake the JS event loop is paused, so the
+	 * interval fires only once after wake. The lookback comparison still
+	 * works — we're comparing wall-clock {@link Date.now()} values, not
+	 * counting ticks.
+	 */
+	private _watchdogTick(): void {
+		if (this._isClosed || this._pendingRequests.size === 0) {
+			return;
+		}
+		const now = Date.now();
+		const sinceLastRead = now - this._lastReadTime;
+		if (sinceLastRead < WATCHDOG_TIMEOUT_MS) {
+			return;
+		}
+		// Find the oldest outstanding request; treat it as a proxy for
+		// "how long have we been waiting for *any* response from the
+		// remote". Iterating is cheap — _pendingRequests is at most a
+		// few dozen entries in practice.
+		let oldestSentAt = now;
+		for (const pending of this._pendingRequests.values()) {
+			if (pending.sentAt < oldestSentAt) {
+				oldestSentAt = pending.sentAt;
+			}
+		}
+		const oldestAge = now - oldestSentAt;
+		if (oldestAge < WATCHDOG_TIMEOUT_MS) {
+			return;
+		}
+		this._logService.info(
+			`[RemoteAgentHostProtocol] Watchdog: connection to ${this._address} appears dead — `
+			+ `${this._pendingRequests.size} request(s) outstanding, no message received for ${sinceLastRead}ms, `
+			+ `oldest request ${oldestAge}ms old. Forcing close to trigger reconnect.`,
+		);
+		this._handleClose(connectionTimeoutError(this._address, sinceLastRead, oldestAge));
 	}
 
 	/**

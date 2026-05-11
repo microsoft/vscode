@@ -119,7 +119,7 @@ export function agentHostAuthority(address: string): string {
 	if (/^[a-zA-Z0-9.:\-]+$/.test(normalized)) {
 		return normalized.replaceAll(':', '__');
 	}
-	return 'b64-' + encodeBase64(VSBuffer.fromString(normalized), false, true);
+	return `b64-${encodeBase64(VSBuffer.fromString(normalized), false, true)}`;
 }
 
 /**

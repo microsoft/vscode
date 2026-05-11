@@ -116,6 +116,8 @@ export interface ISessionRepository {
 	readonly outgoingChanges?: number;
 	/** Number of files with uncommitted changes. */
 	readonly uncommittedChanges?: number;
+	/** Whether a Git operation is currently in progress. */
+	readonly hasGitOperationInProgress?: boolean;
 }
 
 /**
@@ -286,6 +288,18 @@ export interface ISession {
  */
 export function toSessionId(providerId: string, resource: URI): string {
 	return `${providerId}:${resource.toString()}`;
+}
+
+/**
+ * Returns the active repository branch name exposed by a session provider. The
+ * `detail` fallback preserves extension-host CLI sessions, which store their
+ * worktree branch there.
+ */
+export function getSessionBranchName(session: ISession | undefined): string | undefined {
+	const repository = session?.workspace.get()?.repositories[0];
+	const branchName = repository?.branchName ?? repository?.detail;
+	const trimmed = branchName?.trim();
+	return trimmed || undefined;
 }
 
 /**

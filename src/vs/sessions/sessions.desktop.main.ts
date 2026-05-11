@@ -218,6 +218,7 @@ import './contrib/chat/electron-browser/chat.contribution.js';
 import './contrib/agentHost/browser/localAgentHost.contribution.js';
 import './contrib/agentHost/browser/agentSessionSettings.contribution.js';
 import './contrib/agentHost/browser/agentHostSettings.contribution.js';
+import './contrib/agentHost/browser/agentHostSessionBranchActions.js';
 import './contrib/agentHost/browser/agentHostSkillButtons.js';
 
 // Tunnel Host (allow remote connections to local agent host)

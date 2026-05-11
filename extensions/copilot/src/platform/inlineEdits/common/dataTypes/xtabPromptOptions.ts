@@ -72,6 +72,59 @@ export type DiffHistoryOptions = {
 	readonly useRelativePaths: boolean;
 };
 
+/**
+ * Parts that participate in the global-budget cascade. `currentFile` and lint
+ * output are intentionally excluded and continue to use their own per-part caps.
+ */
+export type GlobalBudgetPart =
+	| 'recentlyViewedDocuments'
+	| 'languageContext'
+	| 'neighborFiles'
+	| 'diffHistory';
+
+/**
+ * Opt-in global-budget allocation modelled after the cascade in
+ * `CascadingPromptFactory` (completions-core): every participating part gets a
+ * percentage share of a single `totalTokens` pool, parts are rendered in
+ * `order`, and any unused tokens in one part cascade as surplus to the next.
+ *
+ * When `undefined` (the default), each part uses its own `maxTokens` cap as
+ * before and no cross-part budget reuse happens.
+ */
+export type GlobalBudgetOptions = {
+	readonly totalTokens: number;
+	/** Cascade order. Earlier parts get budget first; their surplus flows to later parts. */
+	readonly order: readonly GlobalBudgetPart[];
+	/** Share of `totalTokens` allocated to each part. Must sum to 1 across `order`. */
+	readonly shares: Readonly<Record<GlobalBudgetPart, number>>;
+};
+
+export namespace GlobalBudgetOptions {
+	/**
+	 * Default cascade: language context donates first (often disabled), then
+	 * recently-viewed documents (always-on, accepts most of the surplus), then
+	 * neighbor files (must run after recently-viewed because it consults
+	 * `docsInPrompt` to avoid duplicating recently-viewed documents), then
+	 * diff history.
+	 */
+	export const DEFAULT_ORDER: readonly GlobalBudgetPart[] = [
+		'languageContext',
+		'recentlyViewedDocuments',
+		'neighborFiles',
+		'diffHistory',
+	];
+
+	/** Shares matching today's per-part `maxTokens` ratios (volume-neutral baseline). */
+	export const DEFAULT_SHARES: Readonly<Record<GlobalBudgetPart, number>> = {
+		recentlyViewedDocuments: 2 / 6,
+		languageContext: 2 / 6,
+		neighborFiles: 1 / 6,
+		diffHistory: 1 / 6,
+	};
+
+	export const DEFAULT_TOTAL_TOKENS = 6000;
+}
+
 export type PagedClipping = { pageSize: number };
 
 export type CurrentFileOptions = {
@@ -256,6 +309,12 @@ export type PromptOptions = {
 	readonly diffHistory: DiffHistoryOptions;
 	readonly includePostScript: boolean;
 	readonly lintOptions: LintOptions | undefined;
+	/**
+	 * When set, parts share a single pool of `totalTokens` and unused budget from
+	 * earlier parts in `order` cascades to later parts. When `undefined`, each
+	 * part uses its own per-part `maxTokens` cap (legacy behavior).
+	 */
+	readonly globalBudget?: GlobalBudgetOptions;
 };
 
 /**
@@ -580,6 +639,45 @@ export enum SpeculativeRequestsEnablement {
 
 export namespace SpeculativeRequestsEnablement {
 	export const VALIDATOR = vEnum(SpeculativeRequestsEnablement.On, SpeculativeRequestsEnablement.Off);
+}
+
+/**
+ * What `XtabCustomDiffPatchResponseHandler` should do when the dedup
+ * heuristic detects that a patch's additions duplicate the file content
+ * immediately following the deleted range.
+ *
+ * - `Off`: do not run the detector at all.
+ * - `Log`: run the detector and report each detection (tracer + telemetry
+ *   callback) but yield the patch unchanged. Lets us measure the
+ *   heuristic's firing rate before flipping user-visible behavior.
+ * - `DropPatch`: drop just the offending patch and continue processing
+ *   the rest of the stream. Use when we want to suppress individual bad
+ *   patches but trust the rest of the model's output.
+ * - `DropAllRemaining`: drop the offending patch AND every subsequent
+ *   patch from the same response. Use when a duplicate inside the stream
+ *   is treated as a signal that the response has gone off the rails.
+ *   Patches already yielded before the detection are kept.
+ * - `TrimDuplicate`: trim just the duplicated lines from the patch's
+ *   additions and yield the (possibly shorter) patch. If the trim leaves
+ *   the patch with no additions and no removals, the patch is dropped.
+ *   This is the most aggressive about salvaging the model's intent.
+ */
+export enum DuplicateAdditionsMode {
+	Off = 'off',
+	Log = 'log',
+	DropPatch = 'dropPatch',
+	DropAllRemaining = 'dropAllRemaining',
+	TrimDuplicate = 'trimDuplicate',
+}
+
+export namespace DuplicateAdditionsMode {
+	export const VALIDATOR = vEnum(
+		DuplicateAdditionsMode.Off,
+		DuplicateAdditionsMode.Log,
+		DuplicateAdditionsMode.DropPatch,
+		DuplicateAdditionsMode.DropAllRemaining,
+		DuplicateAdditionsMode.TrimDuplicate,
+	);
 }
 
 export enum SpeculativeRequestsCursorPlacement {

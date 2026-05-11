@@ -659,7 +659,7 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 
 		let toolSpecificData: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatModifiedFilesConfirmationData | undefined;
 		const pendingEdits = tc.edits?.items;
-		if (pendingEdits && pendingEdits.length > 0) {
+		if (pendingEdits?.length) {
 			const wrap = (uri: URI) => connectionAuthority ? toAgentHostUri(uri, connectionAuthority) : uri;
 			const mapped = mapFileEdits(pendingEdits, tc.toolCallId);
 			toolSpecificData = {

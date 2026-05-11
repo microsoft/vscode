@@ -106,8 +106,9 @@ suite('Agent Summarization', () => {
 			renderer = PromptRenderer.create(instaService, endpoint, AgentPrompt, props);
 		} else {
 			const propsInfo = instaService.createInstance(SummarizedConversationHistoryPropsBuilder).getProps(baseProps);
+			expect(propsInfo, 'expected propsInfo to be defined for test scenario').toBeDefined();
 			const simpleMode = promptType === TestPromptType.SimpleSummarization;
-			renderer = PromptRenderer.create(instaService, endpoint, ConversationHistorySummarizationPrompt, { ...propsInfo.props, simpleMode });
+			renderer = PromptRenderer.create(instaService, endpoint, ConversationHistorySummarizationPrompt, { ...propsInfo!.props, simpleMode });
 		}
 
 		const r = await renderer.render();
@@ -489,7 +490,8 @@ suite('Agent Summarization', () => {
 		};
 
 		const propsInfo = instaService.createInstance(SummarizedConversationHistoryPropsBuilder).getProps(baseProps);
-		const renderer = PromptRenderer.create(instaService, endpoint, ConversationHistorySummarizationPrompt, { ...propsInfo.props, simpleMode: true });
+		expect(propsInfo, 'expected propsInfo to be defined for test scenario').toBeDefined();
+		const renderer = PromptRenderer.create(instaService, endpoint, ConversationHistorySummarizationPrompt, { ...propsInfo!.props, simpleMode: true });
 		const result = await renderer.render();
 
 		// prompt-tsx prunes all content and silently drops empty messages → 0 messages

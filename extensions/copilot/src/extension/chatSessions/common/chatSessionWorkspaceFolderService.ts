@@ -53,6 +53,11 @@ export interface IChatSessionWorkspaceFolderService {
 	handleRequestCompleted(sessionId: string): Promise<void>;
 
 	/**
+	 * Refresh the changes in the workspace folder for a session.
+	 */
+	refreshWorkspaceChanges(sessionId: string): Promise<void>;
+
+	/**
 	 * Get the changes in the workspace folder for a session.
 	 */
 	getWorkspaceChanges(sessionId: string): Promise<readonly ChatSessionWorktreeFile[] | undefined>;

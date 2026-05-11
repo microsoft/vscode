@@ -7,7 +7,7 @@ import { assert, describe, expect, it, suite, test } from 'vitest';
 import { DocumentId } from '../../../../platform/inlineEdits/common/dataTypes/documentId';
 import { Edits } from '../../../../platform/inlineEdits/common/dataTypes/edit';
 import { LanguageId } from '../../../../platform/inlineEdits/common/dataTypes/languageId';
-import { AggressivenessLevel, CurrentFileOptions, DEFAULT_OPTIONS, IncludeLineNumbersOption, PromptingStrategy, PromptOptions } from '../../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
+import { AggressivenessLevel, CurrentFileOptions, DEFAULT_OPTIONS, GlobalBudgetOptions, IncludeLineNumbersOption, PromptingStrategy, PromptOptions } from '../../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
 import { StatelessNextEditDocument } from '../../../../platform/inlineEdits/common/statelessNextEditProvider';
 import { TestLanguageDiagnosticsService } from '../../../../platform/languages/common/testLanguageDiagnosticsService';
 import { Result } from '../../../../util/common/result';
@@ -702,5 +702,107 @@ describe('getUserPrompt', () => {
 
 		// No line number prefix — cursor line starts directly with content
 		expect(prompt).toContain(PromptTags.CURSOR_LOCATION.start + '\n' + '  const ' + PromptTags.CURSOR + 'x = 1;' + '\n' + PromptTags.CURSOR_LOCATION.end);
+	});
+});
+
+describe('getUserPrompt — globalBudget cascade', () => {
+
+	function makeActiveDoc(): { activeDoc: StatelessNextEditDocument; currentDocument: CurrentDocument; currentDocLines: string[] } {
+		const currentDocLines = ['function foo() {', '  const x = 1;', '  return x;', '}', ''];
+		const docText = new StringText(currentDocLines.join('\n'));
+		const documentId = DocumentId.create('file:///test/file.ts');
+		const currentDocument = new CurrentDocument(docText, new Position(2, 1));
+		const activeDoc = new StatelessNextEditDocument(
+			documentId,
+			undefined,
+			LanguageId.create('typescript'),
+			currentDocLines,
+			LineEdit.empty,
+			docText,
+			new Edits(StringEdit, []),
+		);
+		return { activeDoc, currentDocument, currentDocLines };
+	}
+
+	function makePieces(globalBudget: PromptOptions['globalBudget']): PromptPieces {
+		const { activeDoc, currentDocument, currentDocLines } = makeActiveDoc();
+		const promptOptions: PromptOptions = {
+			...DEFAULT_OPTIONS,
+			currentFile: { ...DEFAULT_OPTIONS.currentFile, maxTokens: 10000 },
+			globalBudget,
+		};
+		return new PromptPieces(
+			currentDocument,
+			new OffsetRange(1, 3),
+			new OffsetRange(0, 5),
+			activeDoc,
+			[],
+			currentDocLines,
+			'<area>some code</area>',
+			undefined,
+			AggressivenessLevel.Medium,
+			new LintErrors(activeDoc.id, currentDocument, new TestLanguageDiagnosticsService()),
+			s => Math.ceil(s.length / 4),
+			promptOptions,
+		);
+	}
+
+	test('produces the same prompt as legacy path when budgets are large', () => {
+		const legacy = getUserPrompt(makePieces(undefined));
+		const cascaded = getUserPrompt(makePieces({
+			totalTokens: 100000,
+			order: GlobalBudgetOptions.DEFAULT_ORDER,
+			shares: GlobalBudgetOptions.DEFAULT_SHARES,
+		}));
+		// History is empty and language context/neighbor files are disabled, so
+		// both paths produce identical output (current file + empty sections).
+		expect(cascaded.prompt).toBe(legacy.prompt);
+		expect(cascaded.nDiffsInPrompt).toBe(legacy.nDiffsInPrompt);
+	});
+
+	test('throws when neighborFiles is ordered before recentlyViewedDocuments', () => {
+		const pieces = makePieces({
+			totalTokens: 1000,
+			order: ['neighborFiles', 'recentlyViewedDocuments', 'languageContext', 'diffHistory'],
+			shares: GlobalBudgetOptions.DEFAULT_SHARES,
+		});
+		expect(() => getUserPrompt(pieces)).toThrow(/'recentlyViewedDocuments' before 'neighborFiles'/);
+	});
+
+	test('throws on duplicate part in order', () => {
+		const pieces = makePieces({
+			totalTokens: 1000,
+			order: ['recentlyViewedDocuments', 'recentlyViewedDocuments', 'neighborFiles', 'languageContext', 'diffHistory'],
+			shares: GlobalBudgetOptions.DEFAULT_SHARES,
+		});
+		expect(() => getUserPrompt(pieces)).toThrow(/duplicate part 'recentlyViewedDocuments'/);
+	});
+
+	test('throws when shares do not sum to ~1', () => {
+		const pieces = makePieces({
+			totalTokens: 1000,
+			order: GlobalBudgetOptions.DEFAULT_ORDER,
+			shares: {
+				recentlyViewedDocuments: 0.5,
+				languageContext: 0.5,
+				neighborFiles: 0.5,
+				diffHistory: 0.5,
+			},
+		});
+		expect(() => getUserPrompt(pieces)).toThrow(/shares across order must sum to ~1/);
+	});
+
+	test('throws when shares is missing an entry for a part in order', () => {
+		const pieces = makePieces({
+			totalTokens: 1000,
+			order: GlobalBudgetOptions.DEFAULT_ORDER,
+			// missing 'diffHistory'
+			shares: {
+				languageContext: 0.4,
+				recentlyViewedDocuments: 0.4,
+				neighborFiles: 0.2,
+			} as Record<'languageContext' | 'recentlyViewedDocuments' | 'neighborFiles' | 'diffHistory', number>,
+		});
+		expect(() => getUserPrompt(pieces)).toThrow(/shares is missing entry for 'diffHistory'/);
 	});
 });

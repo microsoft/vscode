@@ -436,14 +436,14 @@ export class ChangesViewModel extends Disposable {
 			// Session state
 			const workspaceRepository = workspace?.repositories[0];
 			const hasGitRepository = this.activeSessionHasGitRepositoryObs.read(reader);
-			const branchName = (sessionMetadata?.branchName ?? sessionMetadata?.branch) as string | undefined
-				?? workspaceRepository?.branchName;
-			const baseBranchName = (sessionMetadata?.baseBranchName ?? sessionMetadata?.baseBranch) as string | undefined
-				?? workspaceRepository?.baseBranchName;
+			const branchName = workspaceRepository?.branchName ??
+				(sessionMetadata?.branchName ?? sessionMetadata?.branch) as string | undefined;
+			const baseBranchName = workspaceRepository?.baseBranchName
+				?? (sessionMetadata?.baseBranchName ?? sessionMetadata?.baseBranch) as string | undefined;
 
 			// Fall back to reading details from repo on the session management service session
-			const isMergeBaseBranchProtected = (sessionMetadata?.baseBranchProtected as boolean | undefined)
-				?? workspaceRepository?.baseBranchProtected;
+			const isMergeBaseBranchProtected = workspaceRepository?.baseBranchProtected
+				?? (sessionMetadata?.baseBranchProtected as boolean | undefined);
 			const isolationMode = workspaceRepository?.workingDirectory === undefined
 				? IsolationMode.Workspace
 				: IsolationMode.Worktree;
@@ -456,13 +456,13 @@ export class ChangesViewModel extends Disposable {
 					gitHubInfo.pullRequest.icon?.id === Codicon.gitPullRequest.id);
 
 			// Fall back to reading details from repo on the session management service session
-			const hasGitHubRemote = (sessionMetadata?.hasGitHubRemote as boolean | undefined) ?? workspaceRepository?.hasGitHubRemote ?? false;
-			const upstreamBranchName = (sessionMetadata?.upstreamBranchName as string | undefined) ?? workspaceRepository?.upstreamBranchName;
-			const incomingChanges = (sessionMetadata?.incomingChanges as number | undefined) ?? workspaceRepository?.incomingChanges ?? 0;
-			const outgoingChanges = (sessionMetadata?.outgoingChanges as number | undefined) ?? workspaceRepository?.outgoingChanges ?? 0;
-			const uncommittedChanges = (sessionMetadata?.uncommittedChanges as number | undefined) ?? workspaceRepository?.uncommittedChanges ?? 0;
+			const hasGitHubRemote = workspaceRepository?.hasGitHubRemote ?? (sessionMetadata?.hasGitHubRemote as boolean | undefined) ?? false;
+			const upstreamBranchName = workspaceRepository?.upstreamBranchName ?? (sessionMetadata?.upstreamBranchName as string | undefined);
+			const incomingChanges = workspaceRepository?.incomingChanges ?? (sessionMetadata?.incomingChanges as number | undefined) ?? 0;
+			const outgoingChanges = workspaceRepository?.outgoingChanges ?? (sessionMetadata?.outgoingChanges as number | undefined) ?? 0;
+			const uncommittedChanges = workspaceRepository?.uncommittedChanges ?? (sessionMetadata?.uncommittedChanges as number | undefined) ?? 0;
 			const hasBranchChanges = activeSessionChanges.length > 0;
-			const hasGitOperationInProgress = (sessionMetadata?.hasGitOperationInProgress as boolean | undefined) ?? false;
+			const hasGitOperationInProgress = workspaceRepository?.hasGitOperationInProgress ?? (sessionMetadata?.hasGitOperationInProgress as boolean | undefined) ?? false;
 
 			return {
 				isolationMode,
