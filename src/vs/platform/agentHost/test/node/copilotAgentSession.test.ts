@@ -885,7 +885,9 @@ suite('CopilotAgentSession', () => {
 
 		test('edit hooks resolve relative apply_patch file paths against workingDirectory', async () => {
 			const capturedCallbacks: { current?: Parameters<SessionWrapperFactory>[0] } = {};
-			const { session } = await createAgentSession(disposables, { workingDirectory: URI.file('/repo/project'), captureWrapperCallbacks: capturedCallbacks });
+			const workingDirectory = URI.file('/repo/project');
+			const absolutePath = URI.file('/tmp/absolute.ts').fsPath;
+			const { session } = await createAgentSession(disposables, { workingDirectory, captureWrapperCallbacks: capturedCallbacks });
 			const sessionInternals = session as unknown as ISessionInternalsForTest;
 			const started: string[] = [];
 			const completed: string[] = [];
@@ -899,7 +901,7 @@ suite('CopilotAgentSession', () => {
 				'*** Update File: src/bar.ts',
 				'@@',
 				'+new',
-				'*** Update File: /tmp/absolute.ts',
+				`*** Update File: ${absolutePath}`,
 				'@@',
 				'+new',
 				'*** End Patch',
@@ -920,13 +922,14 @@ suite('CopilotAgentSession', () => {
 			});
 
 			assert.deepStrictEqual({ started, completed }, {
-				started: ['/repo/project/foo.ts', '/repo/project/src/bar.ts', '/tmp/absolute.ts'],
-				completed: ['/repo/project/foo.ts', '/repo/project/src/bar.ts', '/tmp/absolute.ts'],
+				started: [join(workingDirectory.fsPath, 'foo.ts'), join(workingDirectory.fsPath, 'src/bar.ts'), absolutePath],
+				completed: [join(workingDirectory.fsPath, 'foo.ts'), join(workingDirectory.fsPath, 'src/bar.ts'), absolutePath],
 			});
 		});
 
 		test('tool_complete resolves relative apply_patch file paths before taking completed edits', async () => {
-			const { session, mockSession, waitForSignal } = await createAgentSession(disposables, { workingDirectory: URI.file('/repo/project') });
+			const workingDirectory = URI.file('/repo/project');
+			const { session, mockSession, waitForSignal } = await createAgentSession(disposables, { workingDirectory });
 			const sessionInternals = session as unknown as ISessionInternalsForTest;
 			const taken: string[] = [];
 			sessionInternals._editTracker.takeCompletedEdit = async (_turnId, _toolCallId, path) => {
@@ -958,7 +961,7 @@ suite('CopilotAgentSession', () => {
 
 			await waitForSignal(s => isAction(s, ActionType.SessionToolCallComplete));
 
-			assert.deepStrictEqual(taken, ['/repo/project/foo.ts', '/repo/project/src/bar.ts']);
+			assert.deepStrictEqual(taken, [join(workingDirectory.fsPath, 'foo.ts'), join(workingDirectory.fsPath, 'src/bar.ts')]);
 		});
 
 		test('hidden tools are not emitted as tool_start', async () => {
