@@ -909,11 +909,17 @@ export class GettingStartedPage extends EditorPane {
 		// own `<style>` block, no external assets, CSP-friendly). The ASCII
 		// art is retained as a visually-hidden screen-reader fallback.
 		//
-		// `innerHTML` is acceptable here because the markup is a hardcoded
-		// constant from `sotaWelcomeHero.ts` — no user input, no remote
-		// fetches, no XSS surface.
+		// We parse the SVG via DOMParser and append the parsed root rather
+		// than assigning to `innerHTML` — the production workbench enforces
+		// Trusted Types (`require-trusted-types-for 'script'`) which rejects
+		// raw-string innerHTML assignments. The SVG markup is a hardcoded
+		// constant from `sotaWelcomeHero.ts` (no user input, no remote
+		// fetches, no XSS surface), so a DOM tree built from it is safe.
 		const art = $('.sota-welcome-skyline', { 'aria-hidden': 'true' });
-		art.innerHTML = content.skylineSvg;
+		const skylineDoc = new DOMParser().parseFromString(content.skylineSvg, 'image/svg+xml');
+		if (skylineDoc.documentElement && skylineDoc.documentElement.nodeName !== 'parsererror') {
+			art.appendChild(skylineDoc.documentElement);
+		}
 		const artFallback = $('pre.sota-welcome-skyline-fallback', { 'aria-hidden': 'true' });
 		artFallback.textContent = content.art;
 		art.appendChild(artFallback);
