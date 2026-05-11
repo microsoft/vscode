@@ -4,11 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { BasePromptElementProps, PromptElement, PromptElementProps, PromptSizing } from '@vscode/prompt-tsx';
-import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { IVSCodeExtensionContext } from '../../../platform/extContext/common/extensionContext';
 import { IFileSystemService } from '../../../platform/filesystem/common/fileSystemService';
 import { FileType } from '../../../platform/filesystem/common/fileTypes';
-import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
 import { URI } from '../../../util/vs/base/common/uri';
 import { Tag } from '../../prompts/node/base/tag';
@@ -25,8 +23,6 @@ export interface MemoryContextPromptProps extends BasePromptElementProps {
 export class MemoryContextPrompt extends PromptElement<MemoryContextPromptProps> {
 	constructor(
 		props: any,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IExperimentationService private readonly experimentationService: IExperimentationService,
 		@IVSCodeExtensionContext private readonly extensionContext: IVSCodeExtensionContext,
 		@IFileSystemService private readonly fileSystemService: IFileSystemService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
@@ -35,12 +31,6 @@ export class MemoryContextPrompt extends PromptElement<MemoryContextPromptProps>
 	}
 
 	async render() {
-		const enableMemoryTool = this.configurationService.getExperimentBasedConfig(ConfigKey.MemoryToolEnabled, this.experimentationService);
-
-		if (!enableMemoryTool) {
-			return null;
-		}
-
 		const userMemoryContent = await this.getUserMemoryContent();
 		const sessionMemoryFiles = await this.getSessionMemoryFiles(this.props.sessionResource);
 		const localRepoMemoryFiles = await this.getLocalRepoMemoryFiles();
@@ -201,18 +191,11 @@ export class MemoryContextPrompt extends PromptElement<MemoryContextPromptProps>
 export class MemoryInstructionsPrompt extends PromptElement<BasePromptElementProps> {
 	constructor(
 		props: PromptElementProps<BasePromptElementProps>,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IExperimentationService private readonly experimentationService: IExperimentationService,
 	) {
 		super(props);
 	}
 
 	async render(state: void, sizing: PromptSizing) {
-		const enableMemoryTool = this.configurationService.getExperimentBasedConfig(ConfigKey.MemoryToolEnabled, this.experimentationService);
-		if (!enableMemoryTool) {
-			return null;
-		}
-
 		return <Tag name='memoryInstructions'>
 			As you work, consult your memory files to build on previous experience. When you encounter a mistake that seems like it could be common, check your memory for relevant notes — and if nothing is written yet, record what you learned.<br />
 			<br />

@@ -424,7 +424,6 @@
 	"github.copilot.config.cli.remote.enabled": "Enable the /remote command for Copilot CLI sessions, allowing you to view and steer from GitHub.com and the GitHub mobile app.",
 	"github.copilot.config.backgroundAgent.enabled": "Enable the Copilot CLI. When disabled, the Copilot CLI will not be available in 'Continue In' context menus.",
 	"github.copilot.config.cloudAgent.enabled": "Enable the Cloud Agent. When disabled, the Cloud Agent will not be available in 'Continue In' context menus.",
-	"github.copilot.config.tools.memory.enabled": "Enable the memory tool to let the agent save and recall notes during a conversation. Memories are stored locally in VS Code storage — user-scoped memories persist across workspaces and sessions, while session-scoped memories are cleared when the conversation ends.",
 	"github.copilot.config.gpt5AlternativePatch": "Enable GPT-5 alternative patch format.",
 	"github.copilot.config.inlineEdits.triggerOnEditorChangeAfterSeconds": "Trigger inline edits after editor has been idle for this many seconds.",
 	"github.copilot.config.inlineEdits.nextCursorPrediction.displayLine": "Display predicted cursor line for next edit suggestions.",

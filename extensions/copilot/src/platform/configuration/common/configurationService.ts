@@ -1051,7 +1051,6 @@ export namespace ConfigKey {
 	/** Model override for Explore (Code Research) agent — reads from core `chat.exploreAgent.defaultModel` */
 	export const ExploreAgentModel = defineSetting<string>('chat.exploreAgent.model', ConfigType.Simple, '');
 
-	export const MemoryToolEnabled = defineSetting<boolean>('chat.tools.memory.enabled', ConfigType.ExperimentBased, true);
 	export const ViewImageToolEnabled = defineSetting<boolean>('chat.tools.viewImage.enabled', ConfigType.ExperimentBased, true);
 
 	/** Enable local session search index — tracks sessions locally and enables chronicle commands.*/
