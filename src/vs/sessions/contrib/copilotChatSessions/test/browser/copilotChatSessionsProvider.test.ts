@@ -1336,9 +1336,9 @@ suite('CopilotChatSessionsProvider', () => {
 			const provider = createProviderForSendTests(disposables, model, () => new Promise(() => { }), { configurationService });
 
 			const sessionInfo = provider.createNewSession(workspace, CopilotCLISessionType.id);
-			const session = disposables.add(provider.getSession(sessionInfo.sessionId)!);
+			const session = provider.getSession(sessionInfo.sessionId);
 
-			assert.strictEqual(session.permissionLevel.get(), ChatPermissionLevel.Autopilot);
+			assert.strictEqual(session?.permissionLevel.get(), ChatPermissionLevel.Autopilot);
 		});
 
 		test('clamps to Default when chat.tools.global.autoApprove policy is false', () => {
@@ -1346,9 +1346,9 @@ suite('CopilotChatSessionsProvider', () => {
 			const provider = createProviderForSendTests(disposables, model, () => new Promise(() => { }), { configurationService });
 
 			const sessionInfo = provider.createNewSession(workspace, CopilotCLISessionType.id);
-			const session = disposables.add(provider.getSession(sessionInfo.sessionId)!);
+			const session = provider.getSession(sessionInfo.sessionId);
 
-			assert.strictEqual(session.permissionLevel.get(), ChatPermissionLevel.Default);
+			assert.strictEqual(session?.permissionLevel.get(), ChatPermissionLevel.Default);
 		});
 
 		test('falls back to Default when chat.permissions.default is unset', () => {
@@ -1356,9 +1356,9 @@ suite('CopilotChatSessionsProvider', () => {
 			const provider = createProviderForSendTests(disposables, model, () => new Promise(() => { }), { configurationService });
 
 			const sessionInfo = provider.createNewSession(workspace, CopilotCLISessionType.id);
-			const session = disposables.add(provider.getSession(sessionInfo.sessionId)!);
+			const session = provider.getSession(sessionInfo.sessionId);
 
-			assert.strictEqual(session.permissionLevel.get(), ChatPermissionLevel.Default);
+			assert.strictEqual(session?.permissionLevel.get(), ChatPermissionLevel.Default);
 		});
 	});
 });
