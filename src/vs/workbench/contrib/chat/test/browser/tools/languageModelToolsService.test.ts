@@ -41,6 +41,7 @@ import { ILanguageModelChatMetadata } from '../../../common/languageModels.js';
 const noopToolResultCompressor: IToolResultCompressor = {
 	_serviceBrand: undefined,
 	registerFilter: () => { },
+	registerCache: () => { },
 	maybeCompress: () => undefined,
 };
 

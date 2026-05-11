@@ -2761,6 +2761,7 @@ suite('ChatAgentToolsContribution - tool registration refresh', () => {
 		instantiationService.stub(IToolResultCompressor, {
 			_serviceBrand: undefined,
 			registerFilter: () => { },
+			registerCache: () => { },
 			maybeCompress: () => undefined,
 		});
 	});
