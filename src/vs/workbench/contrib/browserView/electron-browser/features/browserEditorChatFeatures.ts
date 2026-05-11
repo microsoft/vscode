@@ -492,25 +492,22 @@ class AddElementToChatAction extends Action2 {
 			return;
 		}
 
-		// When Browser Select is enabled, use the annotation toggle
-		const configService = accessor.get(IConfigurationService);
-		if (configService.getValue<boolean>('workbench.browser.enableSelect') === true) {
-			const feature = browserEditor.getContribution(BrowserAnnotationFeature);
-			if (feature) {
-				const annotations = feature.getAnnotations();
-				if (feature.isAnnotationModeActive() || annotations.length > 0) {
-					// Active or has annotations → stop and clear
-					feature.stopAnnotationMode();
-					feature.clearAnnotations();
-				} else {
-					// Start annotation mode
-					await feature.toggleAnnotationMode();
-				}
-				return;
+		// Use the annotation toggle
+		const feature = browserEditor.getContribution(BrowserAnnotationFeature);
+		if (feature) {
+			const annotations = feature.getAnnotations();
+			if (feature.isAnnotationModeActive() || annotations.length > 0) {
+				// Active or has annotations → stop and clear
+				feature.stopAnnotationMode();
+				feature.clearAnnotations();
+			} else {
+				// Start annotation mode
+				await feature.toggleAnnotationMode();
 			}
+			return;
 		}
 
-		// Default: original add-element-to-chat behavior
+		// Fallback: original add-element-to-chat behavior
 		await browserEditor.getContribution(BrowserEditorChatIntegration)?.addElementToChat();
 	}
 }
@@ -602,16 +599,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			experiment: { mode: 'startup' },
 			tags: ['experimental', 'advanced'],
 			included: product.quality !== 'stable',
-		},
-		'workbench.browser.enableSelect': {
-			type: 'boolean',
-			default: false,
-			tags: ['experimental'],
-			markdownDescription: localize(
-				{ comment: ['This is the description for a setting.'], key: 'browser.enableSelect' },
-				'Enable Browser Select: an in-page annotation toolbar in the Integrated Browser that lets you mark up elements and send them to chat. Requires {0}.',
-				'`#workbench.browser.enableChatTools#`'
-			),
 		}
 	}
 });

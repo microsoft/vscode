@@ -6,7 +6,6 @@
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IAgentNetworkFilterService } from '../../../../../platform/networkFilter/common/networkFilterService.js';
 import { registerWorkbenchContribution2, WorkbenchPhase, type IWorkbenchContribution } from '../../../../common/contributions.js';
@@ -28,8 +27,6 @@ import { ScreenshotBrowserTool, ScreenshotBrowserToolData } from './screenshotBr
 import { TypeBrowserTool, TypeBrowserToolData } from './typeBrowserTool.js';
 import { AnnotateBrowserTool, AnnotateBrowserToolData } from './annotateBrowserTool.js';
 
-export const BROWSER_SELECT_ENABLED_SETTING = 'workbench.browser.enableSelect';
-
 
 class BrowserChatAgentToolsContribution extends Disposable implements IWorkbenchContribution {
 
@@ -47,7 +44,6 @@ class BrowserChatAgentToolsContribution extends Disposable implements IWorkbench
 		@IEditorService private readonly editorService: IEditorService,
 		@IBrowserViewWorkbenchService private readonly browserViewService: IBrowserViewWorkbenchService,
 		@IAgentNetworkFilterService private readonly agentNetworkFilterService: IAgentNetworkFilterService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -65,11 +61,6 @@ class BrowserChatAgentToolsContribution extends Disposable implements IWorkbench
 
 		this._register(this.browserViewService.onDidChangeSharingAvailable(() => {
 			this._updateToolRegistrations();
-		}));
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(BROWSER_SELECT_ENABLED_SETTING)) {
-				this._updateToolRegistrations();
-			}
 		}));
 	}
 
@@ -96,11 +87,7 @@ class BrowserChatAgentToolsContribution extends Disposable implements IWorkbench
 		this._toolsStore.add(this.toolsService.registerTool(TypeBrowserToolData, this.instantiationService.createInstance(TypeBrowserTool)));
 		this._toolsStore.add(this.toolsService.registerTool(RunPlaywrightCodeToolData, this.instantiationService.createInstance(RunPlaywrightCodeTool)));
 		this._toolsStore.add(this.toolsService.registerTool(HandleDialogBrowserToolData, this.instantiationService.createInstance(HandleDialogBrowserTool)));
-
-		const browserSelectEnabled = this.configurationService.getValue<boolean>(BROWSER_SELECT_ENABLED_SETTING) === true;
-		if (browserSelectEnabled) {
-			this._toolsStore.add(this.toolsService.registerTool(AnnotateBrowserToolData, this.instantiationService.createInstance(AnnotateBrowserTool)));
-		}
+		this._toolsStore.add(this.toolsService.registerTool(AnnotateBrowserToolData, this.instantiationService.createInstance(AnnotateBrowserTool)));
 
 		this._toolsStore.add(this._browserToolSet.addTool(OpenBrowserToolData));
 		this._toolsStore.add(this._browserToolSet.addTool(ReadBrowserToolData));
@@ -112,9 +99,7 @@ class BrowserChatAgentToolsContribution extends Disposable implements IWorkbench
 		this._toolsStore.add(this._browserToolSet.addTool(TypeBrowserToolData));
 		this._toolsStore.add(this._browserToolSet.addTool(RunPlaywrightCodeToolData));
 		this._toolsStore.add(this._browserToolSet.addTool(HandleDialogBrowserToolData));
-		if (browserSelectEnabled) {
-			this._toolsStore.add(this._browserToolSet.addTool(AnnotateBrowserToolData));
-		}
+		this._toolsStore.add(this._browserToolSet.addTool(AnnotateBrowserToolData));
 
 		// Subscribe to browser view changes and model sharing state changes
 		this._syncModelListeners();

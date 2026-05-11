@@ -29,7 +29,7 @@ import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js
 
 import { BrowserEditor, BrowserEditorContribution, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR } from '../browserEditor.js';
 import { BROWSER_EDITOR_ACTIVE, BrowserActionCategory } from '../browserViewActions.js';
-import { IBrowserViewModel, BrowserViewSharingState } from '../../common/browserView.js';
+import { IBrowserViewModel } from '../../common/browserView.js';
 import { IBrowserAnnotation, BrowserAnnotationDetailLevel, createBrowserAnnotation } from '../../common/browserAnnotation.js';
 import { generateAnnotationOutput } from '../browserAnnotationOutput.js';
 import { BrowserAnnotationMarkers, IAnnotationThemeColors, IAnnotationEditRequest, IAnnotationClickResult } from '../browserAnnotationMarkers.js';
@@ -51,10 +51,6 @@ const CONTEXT_BROWSER_HAS_ANNOTATIONS = new RawContextKey<boolean>(
 );
 
 const STORAGE_KEY_PREFIX = 'browserAnnotations.';
-
-const BROWSER_SELECT_ENABLED_SETTING = 'workbench.browser.enableSelect';
-
-const BROWSER_SELECT_ENABLED = ContextKeyExpr.equals(`config.${BROWSER_SELECT_ENABLED_SETTING}`, true);
 
 // -- Annotation Feature Contribution --------------------------------------
 
@@ -149,26 +145,7 @@ export class BrowserAnnotationFeature extends BrowserEditorContribution {
 		return [this._toolbarElement];
 	}
 
-	private _isFeatureEnabled(): boolean {
-		return this.configurationService.getValue<boolean>(BROWSER_SELECT_ENABLED_SETTING) === true;
-	}
-
 	protected override subscribeToModel(model: IBrowserViewModel, store: DisposableStore): void {
-		this._toolbarElement.classList.toggle('disabled', !this._isFeatureEnabled());
-		store.add(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(BROWSER_SELECT_ENABLED_SETTING)) {
-				const enabled = this._isFeatureEnabled();
-				this._toolbarElement.classList.toggle('disabled', !enabled);
-				if (!enabled && this._annotationModeActive) {
-					this._stopAnnotationMode();
-				}
-			}
-		}));
-		// Update toolbar when sharing state changes (hides/shows Send to Chat button)
-		store.add(model.onDidChangeSharingState(() => this._updateToolbarUI()));
-		if (!this._isFeatureEnabled()) {
-			return;
-		}
 		// Create markers instance for this browser view
 		const markers = new BrowserAnnotationMarkers(model.id, this.playwrightService, this.logService);
 		this._markers.value = markers;
@@ -723,10 +700,8 @@ export class BrowserAnnotationFeature extends BrowserEditorContribution {
 
 				this.logService.debug(`BrowserAnnotationFeature: Added annotation #${annotation.index} for ${annotation.displayName}`);
 
-				// If sharing with agent is active, auto-send to chat immediately
-				if (model.sharingState === BrowserViewSharingState.Shared) {
-					await this._autoSendAnnotationToChat(annotation);
-				}
+				// Auto-send annotation to chat
+				await this._autoSendAnnotationToChat(annotation);
 
 				// Re-focus the browser and re-activate hover for next selection
 				this.editor.ensureBrowserFocus();
@@ -790,10 +765,7 @@ export class BrowserAnnotationFeature extends BrowserEditorContribution {
 
 			if (editResult.action === 'delete') {
 				this.deleteAnnotation(annotation.id);
-				// Sync chat if sharing
-				if (this.editor.model?.sharingState === BrowserViewSharingState.Shared) {
-					await this._syncAnnotationsToChat();
-				}
+				await this._syncAnnotationsToChat();
 				return;
 			}
 
@@ -804,10 +776,7 @@ export class BrowserAnnotationFeature extends BrowserEditorContribution {
 					this._syncMarkers();
 					this._saveAnnotationsToStorage();
 					this.logService.debug(`BrowserAnnotationFeature: Updated annotation #${annotation.index}`);
-					// Sync chat if sharing
-					if (this.editor.model?.sharingState === BrowserViewSharingState.Shared) {
-						await this._syncAnnotationsToChat();
-					}
+					await this._syncAnnotationsToChat();
 				}
 			}
 		} finally {
@@ -911,17 +880,7 @@ export class BrowserAnnotationFeature extends BrowserEditorContribution {
 	private _updateToolbarUI(): void {
 		const hasModel = !!this.editor.model?.url;
 		const hasAnnotations = this._annotations.length > 0;
-		const isShared = this.editor.model?.sharingState === BrowserViewSharingState.Shared;
-		const isFeatureEnabled = this._isFeatureEnabled();
 
-		// When sharing with agent is active, hide the floating toolbar entirely
-		// — the existing toolbar inspect icon handles the toggle
-		if (isShared && isFeatureEnabled) {
-			this._toolbarElement.classList.remove('visible');
-			return;
-		}
-
-		// Not sharing — show floating toolbar
 		this._toolbarElement.classList.toggle('visible', hasModel);
 		this._toggleBtn.classList.toggle('active', this._annotationModeActive);
 		this._toggleBtn.setAttribute('aria-pressed', String(this._annotationModeActive));
@@ -1008,7 +967,6 @@ class ToggleAnnotationModeAction extends Action2 {
 
 	constructor() {
 		const enabled = ContextKeyExpr.and(
-			BROWSER_SELECT_ENABLED,
 			ChatContextKeys.enabled,
 			ContextKeyExpr.equals('config.chat.sendElementsToChat.enabled', true),
 		);
@@ -1041,7 +999,7 @@ class CopyAnnotationsAction extends Action2 {
 			category: BrowserActionCategory,
 			icon: Codicon.copy,
 			f1: true,
-			precondition: ContextKeyExpr.and(BROWSER_SELECT_ENABLED, BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_ANNOTATIONS),
+			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_ANNOTATIONS),
 		});
 	}
 
@@ -1063,7 +1021,7 @@ class SendAnnotationsToChatAction extends Action2 {
 			category: BrowserActionCategory,
 			icon: Codicon.commentDiscussion,
 			f1: true,
-			precondition: ContextKeyExpr.and(BROWSER_SELECT_ENABLED, BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_ANNOTATIONS, ChatContextKeys.enabled),
+			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_ANNOTATIONS, ChatContextKeys.enabled),
 		});
 	}
 
@@ -1085,7 +1043,7 @@ class ClearAnnotationsAction extends Action2 {
 			category: BrowserActionCategory,
 			icon: Codicon.clearAll,
 			f1: true,
-			precondition: ContextKeyExpr.and(BROWSER_SELECT_ENABLED, BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_ANNOTATIONS),
+			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_ANNOTATIONS),
 		});
 	}
 
@@ -1139,7 +1097,7 @@ class ManageAnnotationsAction extends Action2 {
 			category: BrowserActionCategory,
 			icon: Codicon.listOrdered,
 			f1: true,
-			precondition: ContextKeyExpr.and(BROWSER_SELECT_ENABLED, BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_ANNOTATIONS),
+			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_ANNOTATIONS),
 		});
 	}
 
@@ -1162,7 +1120,7 @@ class NextAnnotationAction extends Action2 {
 			title: localize2('browser.nextAnnotation', 'Next Annotation'),
 			category: BrowserActionCategory,
 			f1: false,
-			precondition: ContextKeyExpr.and(BROWSER_SELECT_ENABLED, BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_ANNOTATIONS),
+			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_ANNOTATIONS),
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyCode.DownArrow,
@@ -1188,7 +1146,7 @@ class PreviousAnnotationAction extends Action2 {
 			title: localize2('browser.previousAnnotation', 'Previous Annotation'),
 			category: BrowserActionCategory,
 			f1: false,
-			precondition: ContextKeyExpr.and(BROWSER_SELECT_ENABLED, BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_ANNOTATIONS),
+			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_ANNOTATIONS),
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyCode.UpArrow,
