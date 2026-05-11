@@ -65,6 +65,7 @@ import { IResolvedWalkthrough, IResolvedWalkthroughStep, IWalkthroughsService, h
 import { RestoreWalkthroughsConfigurationValue, restoreWalkthroughsConfigurationKey } from './startupPage.js';
 import { startEntries } from '../common/gettingStartedContent.js';
 import { getSotaWelcomeHeroContent, ISotaWelcomeHeroAction } from '../common/sotaWelcomeHero.js';
+import { createTrustedTypesPolicy } from '../../../../base/browser/trustedTypes.js';
 import { GroupsOrder, IEditorGroup, IEditorGroupsService, preferredSideBySideGroupDirection } from '../../../services/editor/common/editorGroupsService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IHostService } from '../../../services/host/browser/host.js';
@@ -118,6 +119,15 @@ type GettingStartedActionEvent = {
 type RecentEntry = (IRecentFolder | IRecentWorkspace) & { id: string };
 
 const REDUCED_MOTION_KEY = 'workbench.welcomePage.preferReducedMotion';
+
+// TrustedTypes policy for the SoA welcome hero. The production workbench
+// bundle enforces `require-trusted-types-for 'script'`, which rejects
+// raw-string innerHTML assignments. The skyline SVG is a hardcoded
+// constant from `sotaWelcomeHero.ts` (no user input, no remote fetches,
+// no XSS surface), so a pass-through policy is safe — it satisfies the
+// browser's TrustedHTML invariant without changing the bytes.
+const sotaWelcomeHeroTTPolicy = createTrustedTypesPolicy('sotaWelcomeHero', { createHTML: value => value });
+
 export class GettingStartedPage extends EditorPane {
 
 	public static readonly ID = 'gettingStartedPage';
@@ -909,17 +919,13 @@ export class GettingStartedPage extends EditorPane {
 		// own `<style>` block, no external assets, CSP-friendly). The ASCII
 		// art is retained as a visually-hidden screen-reader fallback.
 		//
-		// We parse the SVG via DOMParser and append the parsed root rather
-		// than assigning to `innerHTML` — the production workbench enforces
-		// Trusted Types (`require-trusted-types-for 'script'`) which rejects
-		// raw-string innerHTML assignments. The SVG markup is a hardcoded
-		// constant from `sotaWelcomeHero.ts` (no user input, no remote
-		// fetches, no XSS surface), so a DOM tree built from it is safe.
+		// The innerHTML write goes through the module-level
+		// `sotaWelcomeHeroTTPolicy` so the assignment satisfies the
+		// production workbench's Trusted Types policy. The fallback
+		// (`?? content.skylineSvg`) preserves behaviour in environments
+		// where `trustedTypes` isn't enabled (most tests / web previews).
 		const art = $('.sota-welcome-skyline', { 'aria-hidden': 'true' });
-		const skylineDoc = new DOMParser().parseFromString(content.skylineSvg, 'image/svg+xml');
-		if (skylineDoc.documentElement && skylineDoc.documentElement.nodeName !== 'parsererror') {
-			art.appendChild(skylineDoc.documentElement);
-		}
+		art.innerHTML = (sotaWelcomeHeroTTPolicy?.createHTML(content.skylineSvg) ?? content.skylineSvg) as string;
 		const artFallback = $('pre.sota-welcome-skyline-fallback', { 'aria-hidden': 'true' });
 		artFallback.textContent = content.art;
 		art.appendChild(artFallback);
