@@ -1036,7 +1036,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private _setEmptyModelState() {
 		const currentLevel = this._inputModel?.state?.get()?.permissionLevel;
-		if (currentLevel === undefined) {
+		if (currentLevel === undefined || !isChatPermissionLevel(currentLevel)) {
 			this.setPermissionLevel(this.getDefaultPermissionLevel());
 		}
 
