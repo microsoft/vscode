@@ -31,36 +31,30 @@
 @supports (background: color-mix(in srgb, black 0%, white)) {
 	.agent-sessions-workbench.shell-gradient-background::before {
 		background:
-			radial-gradient(
-				ellipse 128% 102% at 100% 100%,
+			radial-gradient(ellipse 128% 102% at 100% 100%,
 				color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 9%, transparent) 0%,
 				color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 7%, transparent) 16%,
 				color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 5%, transparent) 30%,
-				transparent 60%
-			),
+				transparent 60%),
 			var(--vscode-agents-background);
 	}
 
 	.monaco-workbench.vs.agent-sessions-workbench.shell-gradient-background::before {
 		background:
-			radial-gradient(
-				ellipse 128% 102% at 100% 100%,
+			radial-gradient(ellipse 128% 102% at 100% 100%,
 				color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 12%, transparent) 0%,
 				color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 6%, transparent) 18%,
 				color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 1%, transparent) 32%,
-				transparent 58%
-			),
+				transparent 58%),
 			var(--vscode-agents-background);
 	}
 
 	.monaco-workbench.vs-dark.agent-sessions-workbench.shell-gradient-background::before {
-		background: radial-gradient(
-			ellipse 128% 102% at 100% 100%,
-			color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 13%, var(--vscode-agents-background)) 0%,
-			color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 10%, var(--vscode-agents-background)) 17%,
-			color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 7%, var(--vscode-agents-background)) 31%,
-			var(--vscode-agents-background) 60%
-		);
+		background: radial-gradient(ellipse 128% 102% at 100% 100%,
+				color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 13%, var(--vscode-agents-background)) 0%,
+				color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 10%, var(--vscode-agents-background)) 17%,
+				color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 7%, var(--vscode-agents-background)) 31%,
+				var(--vscode-agents-background) 60%);
 	}
 }
 
@@ -150,6 +144,10 @@
 
 .agent-sessions-workbench.nopanel .part.chatbar {
 	margin-bottom: 0;
+}
+
+.agent-sessions-workbench.noauxiliarybar .part.chatbar {
+	margin-right: 0;
 }
 
 .agent-sessions-workbench .part.editor:not(.modal-editor-part) {
@@ -655,6 +653,7 @@
 }
 
 @starting-style {
+
 	/* Shared starting values */
 	.agent-sessions-workbench .part.auxiliarybar,
 	.agent-sessions-workbench .part.panel,
@@ -692,6 +691,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+
 	.agent-sessions-workbench .part.auxiliarybar,
 	.agent-sessions-workbench .part.panel,
 	.agent-sessions-workbench .part.chatbar {
@@ -864,6 +864,7 @@
 		transform: translateY(30%);
 		opacity: 0.5;
 	}
+
 	to {
 		transform: translateY(0);
 		opacity: 1;
@@ -919,6 +920,7 @@
 		transform: translateY(100%);
 		opacity: 0.5;
 	}
+
 	to {
 		transform: translateY(0);
 		opacity: 1;
@@ -956,6 +958,7 @@
 		transform: translateX(100%);
 		opacity: 0;
 	}
+
 	to {
 		transform: translateX(0);
 		opacity: 1;
