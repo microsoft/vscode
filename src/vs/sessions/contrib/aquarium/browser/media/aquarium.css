@@ -26,7 +26,7 @@
 	pointer-events: none;
 	overflow: hidden;
 	z-index: 0;
-	border-radius: 12px;
+	border-radius: inherit;
 	opacity: 0;
 	transition: opacity 320ms ease-out;
 	/* Linear (not radial) — bands far less than radial alpha gradients. */
