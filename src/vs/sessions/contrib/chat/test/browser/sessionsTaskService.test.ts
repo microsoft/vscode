@@ -47,10 +47,11 @@ function makeSession(opts: { repository?: URI; worktree?: URI } = {}): ISession 
 		mode: observableValue('mode', undefined),
 		isArchived: observableValue('isArchived', false),
 		isRead: observableValue('isRead', true),
+		checkpoints: observableValue('checkpoints', undefined),
 		lastTurnEnd: observableValue('lastTurnEnd', undefined),
 		description: observableValue('description', undefined),
-	};
-	const session: ISession = {
+	} satisfies IChat;
+	const session = {
 		sessionId: 'test:session',
 		resource: chat.resource,
 		providerId: 'test',
@@ -74,7 +75,7 @@ function makeSession(opts: { repository?: URI; worktree?: URI } = {}): ISession 
 		chats: observableValue('chats', [chat]),
 		mainChat: chat,
 		capabilities: { supportsMultipleChats: false },
-	};
+	} satisfies ISession;
 	return session;
 }
 

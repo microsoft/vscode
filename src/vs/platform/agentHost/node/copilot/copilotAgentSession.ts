@@ -1667,6 +1667,11 @@ export class CopilotAgentSession extends Disposable {
 				this._parentToolCallIdsByAgentId.delete(e.agentId);
 			}
 			this._logService.trace(`[Copilot:${sessionId}] Subagent completed: ${e.data.agentName}`);
+			this._onDidSessionProgress.fire({
+				kind: 'subagent_completed',
+				session: this.sessionUri,
+				toolCallId: e.data.toolCallId,
+			});
 		}));
 
 		this._register(wrapper.onSubagentFailed(e => {
@@ -1674,6 +1679,11 @@ export class CopilotAgentSession extends Disposable {
 				this._parentToolCallIdsByAgentId.delete(e.agentId);
 			}
 			this._logService.error(`[Copilot:${sessionId}] Subagent failed: ${e.data.agentName} - ${e.data.error}`);
+			this._onDidSessionProgress.fire({
+				kind: 'subagent_completed',
+				session: this.sessionUri,
+				toolCallId: e.data.toolCallId,
+			});
 		}));
 
 		this._register(wrapper.onSubagentSelected(e => {
