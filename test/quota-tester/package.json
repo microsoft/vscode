@@ -1,0 +1,24 @@
+{
+	"name": "quota-tester",
+	"version": "0.1.0",
+	"description": "A local proxy + web UI for testing VS Code Copilot TBB (Token-Based Billing) entitlement responses by replacing /copilot_internal/user.",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"start": "tsx src/server/server.ts",
+		"dev": "tsx watch src/server/server.ts",
+		"build:client": "tsx build.mts",
+		"build": "tsc --build && npm run build:client",
+		"typecheck": "tsc --build --noEmit"
+	},
+	"dependencies": {
+		"express": "^4.21.1"
+	},
+	"devDependencies": {
+		"@types/express": "^5.0.0",
+		"@types/node": "^22.10.0",
+		"esbuild": "^0.25.12",
+		"tsx": "^4.19.2",
+		"typescript": "^5.6.3"
+	}
+}

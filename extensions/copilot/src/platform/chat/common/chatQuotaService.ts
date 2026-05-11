@@ -75,6 +75,10 @@ export interface IChatQuotaService {
 	readonly rateLimitInfo: { readonly session: IChatQuota | undefined; readonly weekly: IChatQuota | undefined };
 	quotaExhausted: boolean;
 	additionalUsageEnabled: boolean;
+	/** DEV: When set, the mock quota-tester server has indicated quota is exhausted. Contains the error code/message to use. */
+	mockQuotaExceededError: { code: string; message: string } | undefined;
+	/** DEV: When set, overrides copilotToken.copilotPlan for error wording. Synced from mock entitlements. */
+	mockCopilotPlan: string | undefined;
 	/** AIC credits accumulated for the given turn, from copilot_usage.total_nano_aiu. */
 	getCreditsForTurn(turnId: string): number | undefined;
 	processQuotaHeaders(headers: IHeaders): void;

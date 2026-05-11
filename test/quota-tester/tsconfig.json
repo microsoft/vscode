@@ -1,0 +1,19 @@
+{
+	"compilerOptions": {
+		"target": "ES2022",
+		"module": "ESNext",
+		"moduleResolution": "Bundler",
+		"strict": true,
+		"esModuleInterop": true,
+		"skipLibCheck": true,
+		"resolveJsonModule": true,
+		"forceConsistentCasingInFileNames": true,
+		"noUnusedLocals": true,
+		"noImplicitOverride": true
+	},
+	"files": [],
+	"references": [
+		{ "path": "src/server" },
+		{ "path": "src/client" }
+	]
+}

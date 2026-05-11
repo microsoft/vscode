@@ -77,6 +77,8 @@ function createQuotaService(opts?: {
 		getCreditsForTurn: () => undefined,
 		processQuotaHeaders: vi.fn(),
 		processQuotaSnapshots: vi.fn(),
+		mockQuotaExceededError: undefined,
+		mockCopilotPlan: undefined,
 		setLastCopilotUsage: vi.fn(),
 		resetTurnCredits: vi.fn(),
 		clearQuota: vi.fn(),

@@ -837,7 +837,10 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 			}
 		}
 
-		return this.defaultAccountConfig.entitlementUrl;
+		// DEV: use local quota-tester mock server if running (test/quota-tester)
+		const mockUrl = 'http://localhost:4000/copilot_internal/user';
+		this.logService.trace(`[DefaultAccount] Using mock entitlement URL: ${mockUrl}`);
+		return mockUrl;
 	}
 
 	private getTokenEntitlementUrl(): string | undefined {

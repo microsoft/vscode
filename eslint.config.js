@@ -2256,6 +2256,13 @@ export default tseslint.config(
 						'@playwright/*',
 						'*' // node modules
 					]
+				},
+				{
+					'target': 'test/quota-tester/**',
+					'restrictions': [
+						'test/quota-tester/**',
+						'*' // node modules
+					]
 				}
 			]
 		}

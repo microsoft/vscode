@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<title>Copilot Quota Tester</title>
+	<link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+	<header>
+		<h1>Copilot Quota Tester</h1>
+		<div class="actions">
+			<span id="status" class="status"></span>
+			<button id="reset">Reset</button>
+		</div>
+	</header>
+
+	<main>
+		<section class="panel">
+			<h2>Scenario presets</h2>
+			<p class="hint">One-click scenarios from the TBB integration guide. Applies on top of default state.</p>
+			<div id="presets" class="presets"></div>
+		</section>
+
+		<section class="panel decrement-panel">
+			<h2>Simulate Chat Request (Decrement Quota)</h2>
+			<p class="hint">
+				Each click decrements the primary quota (chat for free users, premium_interactions for paid users)
+				by the configured amount. When quota reaches 0 (and overage is not permitted), the server returns
+				a <code>quota_exceeded</code> error matching the CAPI error shape.
+			</p>
+			<div class="decrement-controls">
+				<label>
+					Credits per request
+					<input type="number" id="decrement-amount" min="0" max="10000" step="1" value="10" />
+				</label>
+				<button id="decrement-btn" class="primary">▼ Decrement Quota</button>
+			</div>
+			<div id="decrement-result" class="decrement-result"></div>
+		</section>
+
+		<section class="panel">
+			<h2>Quota snapshots</h2>
+			<p class="hint">
+				Changes save instantly. Only the snapshots checked below will be included in the response.
+				Percent is 0–100; overage_count &gt; 0 marks the user as being in overage; unlimited disables the budget check.
+			</p>
+			<div id="snapshots"></div>
+		</section>
+
+		<section class="panel">
+			<div class="panel-header">
+				<h2>Preview response (<code>/copilot_internal/user</code>)</h2>
+				<button id="copy-preview" class="copy-btn" title="Copy to clipboard">Copy</button>
+			</div>
+			<pre id="preview"></pre>
+		</section>
+	</main>
+
+	<script type="module" src="/app.js"></script>
+</body>
+</html>

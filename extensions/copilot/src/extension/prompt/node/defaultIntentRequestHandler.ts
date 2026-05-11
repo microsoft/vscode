@@ -11,6 +11,7 @@ import { IAuthenticationChatUpgradeService } from '../../../platform/authenticat
 import { IChatHookService, UserPromptSubmitHookInput, UserPromptSubmitHookOutput } from '../../../platform/chat/common/chatHookService';
 import { CanceledResult, ChatFetchError, ChatFetchResponseType, ChatLocation, ChatResponse, getErrorDetailsFromChatFetchError } from '../../../platform/chat/common/commonTypes';
 import { IConversationOptions } from '../../../platform/chat/common/conversationOptions';
+import { IChatQuotaService } from '../../../platform/chat/common/chatQuotaService';
 import { ISessionTranscriptService } from '../../../platform/chat/common/sessionTranscriptService';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { IEditSurvivalTrackerService, IEditSurvivalTrackingSession, NullEditSurvivalTrackingSession } from '../../../platform/editSurvivalTracking/common/editSurvivalTrackerService';
@@ -102,6 +103,7 @@ export class DefaultIntentRequestHandler {
 		@IChatHookService private readonly _chatHookService: IChatHookService,
 		@IOctoKitService private readonly _octoKitService: IOctoKitService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IChatQuotaService private readonly _chatQuotaService: IChatQuotaService,
 	) {
 		// Initialize properties
 		this.turn = conversation.getLatestTurn();
@@ -486,7 +488,9 @@ export class DefaultIntentRequestHandler {
 
 	private async getErrorDetails(error: ChatFetchError) {
 		const status = await this._octoKitService.getGitHubOutageStatus();
-		return getErrorDetailsFromChatFetchError(error, this._authenticationService.copilotToken?.copilotPlan, status);
+		// DEV: prefer mock plan for error wording when quota-tester is active
+		const copilotPlan = this._chatQuotaService?.mockCopilotPlan ?? this._authenticationService.copilotToken?.copilotPlan;
+		return getErrorDetailsFromChatFetchError(error, copilotPlan, status);
 	}
 
 	private async processResult(fetchResult: ChatResponse, responseMessage: string, chatResult: ChatResult | void, metadataFragment: Partial<IResultMetadata>, baseModelTelemetry: ConversationalBaseTelemetryData, rounds: IToolCallRound[]): Promise<ChatResult> {

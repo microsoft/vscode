@@ -136,6 +136,23 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 	 * Note: the returned array of strings may be less than `n` (e.g., in case there were errors during streaming)
 	 */
 	public async fetchMany(opts: IFetchMLOptions, token: CancellationToken): Promise<ChatResponses> {
+		// DEV: Check mock quota-tester before every request.
+		// If previously exhausted, verify it's still exhausted (user may have reset).
+		// If not previously exhausted, check if the mock shows 0% (e.g. exhausted preset).
+		const mockExhausted = await this._checkMockQuotaExhausted();
+		if (mockExhausted) {
+			const mockError = this._chatQuotaService.mockQuotaExceededError!;
+			const fakeRequestId = `mock-quota-exceeded-${Date.now()}`;
+			return {
+				type: ChatFetchResponseType.QuotaExceeded,
+				reason: mockError.message,
+				requestId: fakeRequestId,
+				serverRequestId: undefined,
+				retryAfter: undefined,
+				capiError: { code: mockError.code, message: mockError.message },
+			};
+		}
+
 		let { debugName, endpoint: chatEndpoint, finishedCb, location, messages, requestOptions, source, telemetryProperties, userInitiatedRequest, interactionTypeOverride, conversationId, turnId, topLevelTurnId, useWebSocket, ignoreStatefulMarker } = opts;
 		const interactionType = interactionTypeOverride ?? locationToIntent(location);
 		if (useWebSocket && this._consecutiveWebSocketRetryFallbacks >= ChatMLFetcherImpl._maxConsecutiveWebSocketFallbacks) {
@@ -2220,6 +2237,54 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 			errorDetail = errorDetail.replaceAll(regex, '<login>');
 		}
 		return errorDetail.replaceAll(/(?<=logged in as )(?!<login>)[^\s]+/ig, '!<login>!'); // marking fallback with !
+	}
+
+	/**
+	 * DEV: Check the mock quota-tester's current quota state.
+	 * - If the mock server is not running, returns false (not exhausted — proceed normally).
+	 * - If the primary quota is at 0% (and not unlimited), sets mockQuotaExceededError and returns true.
+	 * - If quota has been restored (e.g. after a reset), clears mockQuotaExceededError and returns false.
+	 */
+	private async _checkMockQuotaExhausted(): Promise<boolean> {
+		try {
+			const res = await fetch('http://localhost:4000/copilot_internal/user');
+			if (!res.ok) {
+				// Can't reach mock — if we had a previous error, keep it; otherwise proceed
+				return !!this._chatQuotaService.mockQuotaExceededError;
+			}
+			const entitlements = await res.json();
+			const isMockFree = entitlements?.access_type_sku === 'free_limited_copilot';
+			const snapshot = isMockFree
+				? entitlements?.quota_snapshots?.chat
+				: entitlements?.quota_snapshots?.premium_interactions;
+
+			if (snapshot && !snapshot.unlimited && snapshot.percent_remaining <= 0) {
+				// Quota is exhausted — set the error if not already set
+				if (!this._chatQuotaService.mockQuotaExceededError) {
+					const code = isMockFree ? 'free_quota_exceeded' : 'quota_exceeded';
+					this._chatQuotaService.mockQuotaExceededError = {
+						code,
+						message: isMockFree
+							? 'You have exceeded your free tier quota. Please upgrade to Copilot Pro.'
+							: 'You have exceeded your included quota for this billing cycle.',
+					};
+					// Sync mock plan
+					if (isMockFree) {
+						this._chatQuotaService.mockCopilotPlan = 'free';
+					} else if (entitlements?.copilot_plan) {
+						this._chatQuotaService.mockCopilotPlan = entitlements.copilot_plan;
+					}
+				}
+				return true;
+			}
+
+			// Quota is available — clear any previous exhaustion
+			this._chatQuotaService.mockQuotaExceededError = undefined;
+			return false;
+		} catch {
+			// Mock server not running — proceed with real request
+			return false;
+		}
 	}
 }
 
