@@ -124,6 +124,13 @@ const MODEL_COSTS: Record<ModelId, { input: number; output: number; cachedInput:
 	'bedrock-nova-lite': { input: 0.06, output: 0.24, cachedInput: 0.015 },
 	'bedrock-nova-micro': { input: 0.035, output: 0.14, cachedInput: 0.00875 },
 	// Google Gemini.
+	'gemini-3-1-pro-preview': { input: 2.0, output: 16.0, cachedInput: 0.5 },
+	'gemini-3-1-flash-lite': { input: 0.05, output: 0.2, cachedInput: 0.0125 },
+	'gemini-3-1-flash-live-preview': { input: 0.5, output: 2.0, cachedInput: 0.125 },
+	'gemini-3-flash-preview': { input: 0.15, output: 0.6, cachedInput: 0.0375 },
+	'gemini-deep-research-preview': { input: 5.0, output: 40.0, cachedInput: 1.25 },
+	'gemini-deep-research-max-preview': { input: 10.0, output: 80.0, cachedInput: 2.5 },
+	'gemma-4-31b-it': { input: 0.0, output: 0.0, cachedInput: 0.0 },
 	'gemini-2-5-pro': { input: 1.25, output: 10.0, cachedInput: 0.3125 },
 	'gemini-2-5-flash': { input: 0.075, output: 0.3, cachedInput: 0.01875 },
 	'gemini-2-0-pro': { input: 0.5, output: 2.0, cachedInput: 0.125 },

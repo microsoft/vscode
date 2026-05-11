@@ -116,7 +116,16 @@ export type ModelId =
 	| 'bedrock-nova-pro'
 	| 'bedrock-nova-lite'
 	| 'bedrock-nova-micro'
-	// Google Gemini.
+	// Google Gemini. The 3.x family (preview, April 2026) adds the
+	// `flash-live` realtime variant and a dedicated `flash-lite` tier
+	// for high-volume / low-latency workloads. `deep-research-*` are
+	// Google's deep-research variants that pair a long horizon with the
+	// web-search tool; `gemma-4-31b-it` is the open-weights instruction
+	// model served through the same generative-language endpoint.
+	| 'gemini-3-1-pro-preview'
+	| 'gemini-3-1-flash-lite'
+	| 'gemini-3-1-flash-live-preview'
+	| 'gemini-3-flash-preview'
 	| 'gemini-2-5-pro'
 	| 'gemini-2-5-flash'
 	| 'gemini-2-0-pro'
@@ -124,6 +133,9 @@ export type ModelId =
 	| 'gemini-2-0-flash-lite'
 	| 'gemini-1-5-pro'
 	| 'gemini-1-5-flash'
+	| 'gemini-deep-research-preview'
+	| 'gemini-deep-research-max-preview'
+	| 'gemma-4-31b-it'
 	// Claude Code (subscription).
 	| 'claude-code-opus'
 	| 'claude-code-sonnet'
@@ -751,6 +763,10 @@ function providerForModel(model: ModelId): Provider {
 		case 'bedrock-nova-lite':
 		case 'bedrock-nova-micro':
 			return 'bedrock';
+		case 'gemini-3-1-pro-preview':
+		case 'gemini-3-1-flash-lite':
+		case 'gemini-3-1-flash-live-preview':
+		case 'gemini-3-flash-preview':
 		case 'gemini-2-5-pro':
 		case 'gemini-2-5-flash':
 		case 'gemini-2-0-pro':
@@ -758,6 +774,9 @@ function providerForModel(model: ModelId): Provider {
 		case 'gemini-2-0-flash-lite':
 		case 'gemini-1-5-pro':
 		case 'gemini-1-5-flash':
+		case 'gemini-deep-research-preview':
+		case 'gemini-deep-research-max-preview':
+		case 'gemma-4-31b-it':
 			return 'google';
 		case 'claude-code-opus':
 		case 'claude-code-sonnet':
@@ -1092,6 +1111,10 @@ export class LlmClient {
 	 */
 	private getGoogleModelInvocationId(model: ModelId): string | undefined {
 		const defaults: Partial<Record<ModelId, string>> = {
+			'gemini-3-1-pro-preview': 'gemini-3.1-pro-preview',
+			'gemini-3-1-flash-lite': 'gemini-3.1-flash-lite',
+			'gemini-3-1-flash-live-preview': 'gemini-3.1-flash-live-preview',
+			'gemini-3-flash-preview': 'gemini-3-flash-preview',
 			'gemini-2-5-pro': 'gemini-2.5-pro',
 			'gemini-2-5-flash': 'gemini-2.5-flash',
 			'gemini-2-0-pro': 'gemini-2.0-pro',
@@ -1099,6 +1122,9 @@ export class LlmClient {
 			'gemini-2-0-flash-lite': 'gemini-2.0-flash-lite',
 			'gemini-1-5-pro': 'gemini-1.5-pro',
 			'gemini-1-5-flash': 'gemini-1.5-flash',
+			'gemini-deep-research-preview': 'deep-research-preview-04-2026',
+			'gemini-deep-research-max-preview': 'deep-research-max-preview-04-2026',
+			'gemma-4-31b-it': 'gemma-4-31b-it',
 		};
 		const raw = this.config.get<string>('googleModelMap', '{}');
 		let userMap: Record<string, string> = {};
@@ -1421,6 +1447,10 @@ export class LlmClient {
 			// Google Gemini ids: report the human-readable id unchanged. The
 			// actual API model name (e.g. gemini-1.5-pro) is resolved at request
 			// time via getGoogleModelInvocationId() with sensible defaults.
+			case 'gemini-3-1-pro-preview': return 'gemini-3-1-pro-preview';
+			case 'gemini-3-1-flash-lite': return 'gemini-3-1-flash-lite';
+			case 'gemini-3-1-flash-live-preview': return 'gemini-3-1-flash-live-preview';
+			case 'gemini-3-flash-preview': return 'gemini-3-flash-preview';
 			case 'gemini-2-5-pro': return 'gemini-2-5-pro';
 			case 'gemini-2-5-flash': return 'gemini-2-5-flash';
 			case 'gemini-2-0-pro': return 'gemini-2-0-pro';
@@ -1428,6 +1458,9 @@ export class LlmClient {
 			case 'gemini-2-0-flash-lite': return 'gemini-2-0-flash-lite';
 			case 'gemini-1-5-pro': return 'gemini-1-5-pro';
 			case 'gemini-1-5-flash': return 'gemini-1-5-flash';
+			case 'gemini-deep-research-preview': return 'gemini-deep-research-preview';
+			case 'gemini-deep-research-max-preview': return 'gemini-deep-research-max-preview';
+			case 'gemma-4-31b-it': return 'gemma-4-31b-it';
 			// Claude Code variants — the CLI accepts plain `opus` / `sonnet` /
 			// `haiku` and resolves to the latest. We report the same string so
 			// trace logs are readable.
@@ -3759,6 +3792,17 @@ function estimateRatesForModel(model: ModelId): { input: number; output: number 
 		'bedrock-nova-pro': { input: 0.8, output: 3.2 },
 		'bedrock-nova-lite': { input: 0.06, output: 0.24 },
 		'bedrock-nova-micro': { input: 0.035, output: 0.14 },
+		// Gemini 3.x preview pricing is published per Google's April 2026
+		// rate card; the deep-research tier pairs higher per-token cost
+		// with the bundled web-search tool. `gemma-4-31b-it` runs at the
+		// open-weights free tier on the Gemini API today.
+		'gemini-3-1-pro-preview': { input: 2.0, output: 16.0 },
+		'gemini-3-1-flash-lite': { input: 0.05, output: 0.2 },
+		'gemini-3-1-flash-live-preview': { input: 0.5, output: 2.0 },
+		'gemini-3-flash-preview': { input: 0.15, output: 0.6 },
+		'gemini-deep-research-preview': { input: 5.0, output: 40.0 },
+		'gemini-deep-research-max-preview': { input: 10.0, output: 80.0 },
+		'gemma-4-31b-it': { input: 0.0, output: 0.0 },
 		'gemini-2-5-pro': { input: 1.25, output: 10.0 },
 		'gemini-2-5-flash': { input: 0.075, output: 0.3 },
 		'gemini-2-0-pro': { input: 0.5, output: 2.0 },

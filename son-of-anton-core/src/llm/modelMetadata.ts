@@ -117,6 +117,13 @@ export const MODEL_METADATA: Record<ModelId, ModelInfo> = {
 	'bedrock-nova-micro': { contextWindow: 128000, maxOutputTokens: 5000, capabilities: ['text'], inputCostPer1M: 0.035, outputCostPer1M: 0.14, blurb: 'Amazon Nova Micro — text-only, very cheap.' },
 
 	// --- Google Gemini ---------------------------------------------
+	'gemini-3-1-pro-preview': { contextWindow: 2000000, maxOutputTokens: 65536, capabilities: ['text', 'vision', 'tools', 'reasoning', 'audio'], inputCostPer1M: 2.0, outputCostPer1M: 16, blurb: 'Gemini 3.1 Pro (preview) — next-gen flagship.' },
+	'gemini-3-1-flash-lite': { contextWindow: 1000000, maxOutputTokens: 32768, capabilities: ['text', 'vision', 'tools'], inputCostPer1M: 0.05, outputCostPer1M: 0.2, blurb: 'Gemini 3.1 Flash Lite — cheap & fast 3.x.' },
+	'gemini-3-1-flash-live-preview': { contextWindow: 1000000, maxOutputTokens: 32768, capabilities: ['text', 'vision', 'tools', 'audio'], inputCostPer1M: 0.5, outputCostPer1M: 2.0, blurb: 'Gemini 3.1 Flash Live (preview) — realtime audio + video.' },
+	'gemini-3-flash-preview': { contextWindow: 1000000, maxOutputTokens: 32768, capabilities: ['text', 'vision', 'tools', 'audio'], inputCostPer1M: 0.15, outputCostPer1M: 0.6, blurb: 'Gemini 3 Flash (preview) — multimodal workhorse.' },
+	'gemini-deep-research-preview': { contextWindow: 1000000, maxOutputTokens: 65536, capabilities: ['text', 'vision', 'tools', 'reasoning'], inputCostPer1M: 5.0, outputCostPer1M: 40.0, blurb: 'Deep Research (preview) — multi-hop web research.' },
+	'gemini-deep-research-max-preview': { contextWindow: 1000000, maxOutputTokens: 65536, capabilities: ['text', 'vision', 'tools', 'reasoning'], inputCostPer1M: 10.0, outputCostPer1M: 80.0, blurb: 'Deep Research Max (preview) — broadest, longest-horizon research.' },
+	'gemma-4-31b-it': { contextWindow: 131072, maxOutputTokens: 16384, capabilities: ['text', 'tools'], inputCostPer1M: 0, outputCostPer1M: 0, blurb: 'Gemma 4 31B instruction-tuned — open weights via Gemini API.' },
 	'gemini-2-5-pro': { contextWindow: 2000000, maxOutputTokens: 65536, capabilities: ['text', 'vision', 'tools', 'reasoning', 'audio'], inputCostPer1M: 1.25, outputCostPer1M: 10, blurb: 'Gemini 2.5 Pro — Google\'s flagship with thinking.' },
 	'gemini-2-5-flash': { contextWindow: 1000000, maxOutputTokens: 65536, capabilities: ['text', 'vision', 'tools', 'reasoning', 'audio'], inputCostPer1M: 0.075, outputCostPer1M: 0.3, blurb: 'Gemini 2.5 Flash — fast multimodal.' },
 	'gemini-2-0-pro': { contextWindow: 2000000, maxOutputTokens: 8192, capabilities: ['text', 'vision', 'tools', 'audio'], inputCostPer1M: 0.5, outputCostPer1M: 2, blurb: 'Gemini 2.0 Pro.' },

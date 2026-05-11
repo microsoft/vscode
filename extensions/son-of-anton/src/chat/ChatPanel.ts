@@ -4882,6 +4882,13 @@ export class ChatSession {
 			<button class="popover-item" role="menuitem" data-model="bedrock-nova-lite"><span class="item-check"></span>Bedrock Nova Lite<span class="item-key">aws</span></button>
 			<button class="popover-item" role="menuitem" data-model="bedrock-nova-micro"><span class="item-check"></span>Bedrock Nova Micro<span class="item-key">aws</span></button>
 			<div class="popover-section-label">Google Gemini</div>
+			<button class="popover-item" role="menuitem" data-model="gemini-3-1-pro-preview"><span class="item-check"></span>Gemini 3.1 Pro (preview)<span class="item-key">google</span></button>
+			<button class="popover-item" role="menuitem" data-model="gemini-3-1-flash-lite"><span class="item-check"></span>Gemini 3.1 Flash Lite<span class="item-key">google</span></button>
+			<button class="popover-item" role="menuitem" data-model="gemini-3-1-flash-live-preview"><span class="item-check"></span>Gemini 3.1 Flash Live (preview)<span class="item-key">google</span></button>
+			<button class="popover-item" role="menuitem" data-model="gemini-3-flash-preview"><span class="item-check"></span>Gemini 3 Flash (preview)<span class="item-key">google</span></button>
+			<button class="popover-item" role="menuitem" data-model="gemini-deep-research-preview"><span class="item-check"></span>Deep Research (preview)<span class="item-key">google</span></button>
+			<button class="popover-item" role="menuitem" data-model="gemini-deep-research-max-preview"><span class="item-check"></span>Deep Research Max (preview)<span class="item-key">google</span></button>
+			<button class="popover-item" role="menuitem" data-model="gemma-4-31b-it"><span class="item-check"></span>Gemma 4 31B (instruction-tuned)<span class="item-key">google</span></button>
 			<button class="popover-item" role="menuitem" data-model="gemini-2-5-pro"><span class="item-check"></span>Gemini 2.5 Pro<span class="item-key">google</span></button>
 			<button class="popover-item" role="menuitem" data-model="gemini-2-5-flash"><span class="item-check"></span>Gemini 2.5 Flash<span class="item-key">google</span></button>
 			<button class="popover-item" role="menuitem" data-model="gemini-2-0-pro"><span class="item-check"></span>Gemini 2.0 Pro<span class="item-key">google</span></button>
