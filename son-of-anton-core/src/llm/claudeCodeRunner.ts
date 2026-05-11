@@ -100,13 +100,19 @@ export async function* runClaudeCode(options: ClaudeCodeRunOptions): AsyncGenera
 	// the CLI emit per-delta `stream_event` chunks so the chat surface sees
 	// tokens flowing as Claude generates them; without it the CLI emits ONE
 	// consolidated `assistant` event per turn and the response appears as a
-	// single snap instead of a stream.
+	// single snap instead of a stream. `--tools ""` disables the CLI's
+	// built-in tools — we use the CLI purely as a transport for the model
+	// API and run our own tool loop on our side. Without this Haiku in
+	// particular eagerly emits a tool_use block, which combined with
+	// `--max-turns 1` makes the CLI bail with exit 1 (`error_max_turns`)
+	// before any text streams.
 	const args = [
 		'--system-prompt', options.systemPrompt,
 		'--verbose',
 		'--output-format', 'stream-json',
 		'--include-partial-messages',
 		'--max-turns', '1',
+		'--tools', '',
 		'--model', options.modelId,
 		'-p',
 	];
