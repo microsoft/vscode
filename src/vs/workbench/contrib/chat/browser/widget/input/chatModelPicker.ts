@@ -181,6 +181,7 @@ function createModelItem(
 	openerService?: IOpenerService,
 	vendorLabel?: string,
 	isUBB?: boolean,
+	ariaDescription?: string,
 ): IActionListItem<IActionWidgetDropdownAction> {
 	const hover = model && openerService ? getModelHoverContent(model, openerService, isUBB) : undefined;
 	return {
@@ -188,6 +189,7 @@ function createModelItem(
 		kind: ActionListItemKind.Action,
 		label: action.label,
 		description: descriptionOverride ?? action.description,
+		ariaDescription,
 		group: { title: '', icon: action.icon ?? ThemeIcon.fromId(action.checked ? Codicon.check.id : Codicon.blank.id) },
 		hideIcon: false,
 		section: action.section,
@@ -245,6 +247,19 @@ function getPriceCategoryIndicator(priceCategory: string | undefined): string | 
 }
 
 /**
+ * Returns a screen-reader-friendly label for the price category.
+ */
+function getPriceCategoryLabel(priceCategory: string | undefined): string | undefined {
+	switch (priceCategory) {
+		case 'low': return localize('chat.priceCategory.low', "Low cost");
+		case 'medium': return localize('chat.priceCategory.medium', "Medium cost");
+		case 'high': return localize('chat.priceCategory.high', "High cost");
+		case 'very_high': return localize('chat.priceCategory.veryHigh', "Very high cost");
+		default: return undefined;
+	}
+}
+
+/**
  * Returns a short description summarizing the model's current configuration values
  * for properties marked with group 'navigation' (e.g., "High", "Medium").
  */
@@ -284,12 +299,13 @@ function createModelAction(
 	section?: string,
 	suppressVendorInDetail?: boolean,
 	isUBB?: boolean,
-): { action: IActionWidgetDropdownAction & { section?: string }; descriptionOverride?: MarkdownString } {
+): { action: IActionWidgetDropdownAction & { section?: string }; descriptionOverride?: MarkdownString; ariaDescription?: string } {
 	// Only show pricing in the description line if it's a multiplier (e.g. "2x").
 	// Detailed AIC/token pricing is shown in the hover instead.
 	const pricingForDescription = isMultiplierPricing(model) ? model.metadata.pricing : undefined;
 	// Price category circles are UBB-only
 	const priceCategoryIndicator = isUBB ? getPriceCategoryIndicator(model.metadata.priceCategory) : undefined;
+	const priceCategoryLabel = isUBB ? getPriceCategoryLabel(model.metadata.priceCategory) : undefined;
 	// In PRU mode, show the current configuration value (e.g. thinking effort "High") in the description
 	const configDescription = !isUBB ? getModelConfigurationDescription(model, languageModelsService) : undefined;
 	// Strip the detail when suppressVendorInDetail is set — the vendor is
@@ -324,7 +340,10 @@ function createModelAction(
 		toolbarActions: toolbarActions && toolbarActions.length > 0 ? toolbarActions : undefined,
 		run: () => onSelect(model),
 	};
-	return { action, descriptionOverride };
+	const ariaDescription = priceCategoryLabel
+		? (textDescription ? textDescription + ' · ' + priceCategoryLabel : priceCategoryLabel)
+		: undefined;
+	return { action, descriptionOverride, ariaDescription };
 }
 
 function shouldShowManageModelsAction(chatEntitlementService: IChatEntitlementService): boolean {
@@ -444,8 +463,8 @@ export function buildModelPickerItems(
 			const autoModel = models.find(m => isAutoModel(m));
 			if (autoModel) {
 				markPlaced(autoModel.identifier, autoModel.metadata.id);
-				const { action: autoAction, descriptionOverride: autoDesc } = createModelAction(autoModel, selectedModelId, onSelect, languageModelsService!, undefined, undefined, isUBB);
-				items.push(createModelItem(autoAction, autoModel, autoDesc, openerService, undefined, isUBB));
+				const { action: autoAction, descriptionOverride: autoDesc, ariaDescription: autoAriaDesc } = createModelAction(autoModel, selectedModelId, onSelect, languageModelsService!, undefined, undefined, isUBB);
+				items.push(createModelItem(autoAction, autoModel, autoDesc, openerService, undefined, isUBB, autoAriaDesc));
 			}
 
 			// --- 2. Promoted section (selected + recently used + featured) ---
@@ -546,8 +565,8 @@ export function buildModelPickerItems(
 						const groupLabel = showPromotedGroupLabel
 							? getProviderGroupForModel(item.model, modelToGroup, languageModelsService!).groupName
 							: undefined;
-						const { action: promotedAction, descriptionOverride: promotedDesc } = createModelAction(item.model, selectedModelId, onSelect, languageModelsService!, undefined, showPromotedGroupLabel, isUBB);
-						items.push(createModelItem(promotedAction, item.model, promotedDesc, openerService, groupLabel, isUBB));
+						const { action: promotedAction, descriptionOverride: promotedDesc, ariaDescription: promotedAriaDesc } = createModelAction(item.model, selectedModelId, onSelect, languageModelsService!, undefined, showPromotedGroupLabel, isUBB);
+						items.push(createModelItem(promotedAction, item.model, promotedDesc, openerService, groupLabel, isUBB, promotedAriaDesc));
 					} else {
 						items.push(createUnavailableModelItem(item.id, item.entry, item.reason, manageSettingsUrl, updateStateType, chatEntitlementService));
 					}
@@ -638,8 +657,8 @@ export function buildModelPickerItems(
 						if (entry?.minVSCodeVersion && !isVersionAtLeast(currentVSCodeVersion, entry.minVSCodeVersion)) {
 							items.push(createUnavailableModelItem(model.metadata.id, entry, 'update', manageSettingsUrl, updateStateType, chatEntitlementService, ModelPickerSection.Other));
 						} else {
-							const { action: bucketAction, descriptionOverride: bucketDesc } = createModelAction(model, selectedModelId, onSelect, languageModelsService!, ModelPickerSection.Other, showGroupHeaders, isUBB);
-							items.push(createModelItem(bucketAction, model, bucketDesc, openerService, undefined, isUBB));
+							const { action: bucketAction, descriptionOverride: bucketDesc, ariaDescription: bucketAriaDesc } = createModelAction(model, selectedModelId, onSelect, languageModelsService!, ModelPickerSection.Other, showGroupHeaders, isUBB);
+							items.push(createModelItem(bucketAction, model, bucketDesc, openerService, undefined, isUBB, bucketAriaDesc));
 						}
 					}
 				}
@@ -662,8 +681,8 @@ export function buildModelPickerItems(
 		// Flat list: auto first, then all models sorted alphabetically
 		const autoModel = models.find(m => isAutoModel(m));
 		if (autoModel) {
-			const { action: flatAutoAction, descriptionOverride: flatAutoDesc } = createModelAction(autoModel, selectedModelId, onSelect, languageModelsService!, undefined, undefined, isUBB);
-			items.push(createModelItem(flatAutoAction, autoModel, flatAutoDesc, openerService, undefined, isUBB));
+			const { action: flatAutoAction, descriptionOverride: flatAutoDesc, ariaDescription: flatAutoAriaDesc } = createModelAction(autoModel, selectedModelId, onSelect, languageModelsService!, undefined, undefined, isUBB);
+			items.push(createModelItem(flatAutoAction, autoModel, flatAutoDesc, openerService, undefined, isUBB, flatAutoAriaDesc));
 		}
 		const sortedModels = models
 			.filter(m => m !== autoModel)
@@ -672,8 +691,8 @@ export function buildModelPickerItems(
 				return vendorCmp !== 0 ? vendorCmp : a.metadata.name.localeCompare(b.metadata.name);
 			});
 		for (const model of sortedModels) {
-			const { action: flatAction, descriptionOverride: flatDesc } = createModelAction(model, selectedModelId, onSelect, languageModelsService!, undefined, undefined, isUBB);
-			items.push(createModelItem(flatAction, model, flatDesc, openerService, undefined, isUBB));
+			const { action: flatAction, descriptionOverride: flatDesc, ariaDescription: flatAriaDesc } = createModelAction(model, selectedModelId, onSelect, languageModelsService!, undefined, undefined, isUBB);
+			items.push(createModelItem(flatAction, model, flatDesc, openerService, undefined, isUBB, flatAriaDesc));
 		}
 	}
 
