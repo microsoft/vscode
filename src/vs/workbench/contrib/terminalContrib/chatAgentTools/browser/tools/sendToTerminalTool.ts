@@ -66,7 +66,7 @@ export interface ISendToTerminalInputParams {
  * than completing it, so the model needs an extra nudge that the turn is not done.
  */
 function isCancelSignal(command: string): boolean {
-	return /^[\u0003\u0004\u001c]$/.test(command);
+	return /^[\u0003\u0004\u001c]$/.test(command.trim());
 }
 
 const FocusTerminalByIdCommandId = 'workbench.action.terminal.chat.focusTerminalById';
