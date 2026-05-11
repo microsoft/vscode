@@ -429,6 +429,9 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 							...(result.usage.completion_tokens_details?.reasoning_tokens
 								? { [GenAiAttr.USAGE_REASONING_TOKENS]: result.usage.completion_tokens_details.reasoning_tokens }
 								: {}),
+							...(typeof result.usage.copilot_usage?.total_nano_aiu === 'number'
+								? { [CopilotChatAttr.COPILOT_USAGE_NANO_AIU]: result.usage.copilot_usage.total_nano_aiu }
+								: {}),
 						});
 					}
 					// Always capture response content for the debug panel

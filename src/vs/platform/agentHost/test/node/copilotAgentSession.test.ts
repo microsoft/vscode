@@ -17,11 +17,11 @@ import { IFileService } from '../../../files/common/files.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
-import { AgentAttachmentType, AgentSession, type AgentSignal, type IAgentActionSignal, type IAgentToolPendingConfirmationSignal } from '../../common/agentService.js';
+import { AgentSession, type AgentSignal, type IAgentActionSignal, type IAgentToolPendingConfirmationSignal } from '../../common/agentService.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType, type SessionDeltaAction, type SessionErrorAction, type SessionInputRequestedAction, type SessionResponsePartAction, type SessionToolCallCompleteAction, type SessionToolCallReadyAction, type SessionToolCallStartAction } from '../../common/state/sessionActions.js';
-import { ResponsePartKind, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, ToolResultContentType } from '../../common/state/sessionState.js';
+import { MessageAttachmentKind, ResponsePartKind, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, ToolCallStatus, ToolResultContentType, type ToolResultFileEditContent } from '../../common/state/sessionState.js';
 import { CopilotAgentSession, IActiveClientSnapshot, SessionWrapperFactory } from '../../node/copilot/copilotAgentSession.js';
 import { CopilotSessionWrapper } from '../../node/copilot/copilotSessionWrapper.js';
 import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
@@ -68,7 +68,7 @@ class MockCopilotSession {
 	async send(request: unknown) { this.sendRequests.push(request); return ''; }
 	async abort() { }
 	async setModel() { }
-	async getMessages() { return []; }
+	async getMessages(): Promise<SessionEvent[]> { return []; }
 	async destroy() { }
 
 	readonly rpc = {
@@ -123,6 +123,7 @@ type ISessionInternalsForTest = {
 	_editTracker: {
 		trackEditStart(path: string): Promise<void>;
 		completeEdit(path: string): Promise<void>;
+		takeCompletedEdit(turnId: string, toolCallId: string, path: string): Promise<ToolResultFileEditContent | undefined>;
 	};
 	_pendingClientToolCalls: {
 		get(toolCallId: string): DeferredPromise<ToolResultObject> | undefined;
@@ -272,14 +273,17 @@ suite('CopilotAgentSession', () => {
 		});
 
 		await session.send('hello', [
-			{ type: AgentAttachmentType.File, uri: fileUri, displayName: 'file.ts' },
+			{ type: MessageAttachmentKind.Resource, uri: fileUri.toString(), label: 'file.ts', displayKind: 'document' },
 			{
-				type: AgentAttachmentType.Selection,
-				uri: selectionUri,
-				displayName: 'selection.ts',
+				type: MessageAttachmentKind.Resource,
+				uri: selectionUri.toString(),
+				label: 'selection.ts',
+				displayKind: 'selection',
 				selection: {
-					start: { line: 2, character: 3 },
-					end: { line: 2, character: 16 },
+					range: {
+						start: { line: 2, character: 3 },
+						end: { line: 2, character: 16 },
+					},
 				},
 			},
 		]);
@@ -347,10 +351,11 @@ suite('CopilotAgentSession', () => {
 			});
 
 			await session.send('hello', [{
-				type: AgentAttachmentType.Selection,
-				uri: selectionUri,
-				displayName: `${testCase.name}.ts`,
-				selection: testCase.selection,
+				type: MessageAttachmentKind.Resource,
+				uri: selectionUri.toString(),
+				label: `${testCase.name}.ts`,
+				displayKind: 'selection',
+				selection: { range: testCase.selection },
 			}]);
 
 			assert.deepStrictEqual(mockSession.sendRequests, [{
@@ -376,12 +381,15 @@ suite('CopilotAgentSession', () => {
 		});
 
 		await session.send('hello', [{
-			type: AgentAttachmentType.Selection,
-			uri: selectionUri,
-			displayName: 'missing.ts',
+			type: MessageAttachmentKind.Resource,
+			uri: selectionUri.toString(),
+			label: 'missing.ts',
+			displayKind: 'selection',
 			selection: {
-				start: { line: 0, character: 0 },
-				end: { line: 0, character: 5 },
+				range: {
+					start: { line: 0, character: 0 },
+					end: { line: 0, character: 5 },
+				},
 			},
 		}]);
 
@@ -875,6 +883,87 @@ suite('CopilotAgentSession', () => {
 			}
 		});
 
+		test('edit hooks resolve relative apply_patch file paths against workingDirectory', async () => {
+			const capturedCallbacks: { current?: Parameters<SessionWrapperFactory>[0] } = {};
+			const workingDirectory = URI.file('/repo/project');
+			const absolutePath = URI.file('/tmp/absolute.ts').fsPath;
+			const { session } = await createAgentSession(disposables, { workingDirectory, captureWrapperCallbacks: capturedCallbacks });
+			const sessionInternals = session as unknown as ISessionInternalsForTest;
+			const started: string[] = [];
+			const completed: string[] = [];
+			sessionInternals._editTracker.trackEditStart = async path => { started.push(path); };
+			sessionInternals._editTracker.completeEdit = async path => { completed.push(path); };
+			const patch = [
+				'*** Begin Patch',
+				'*** Update File: foo.ts',
+				'@@',
+				'+new',
+				'*** Update File: src/bar.ts',
+				'@@',
+				'+new',
+				`*** Update File: ${absolutePath}`,
+				'@@',
+				'+new',
+				'*** End Patch',
+			].join('\n');
+
+			await capturedCallbacks.current!.hooks.onPreToolUse({
+				timestamp: 0,
+				cwd: '/repo/project',
+				toolName: 'apply_patch',
+				toolArgs: patch,
+			});
+			await capturedCallbacks.current!.hooks.onPostToolUse({
+				timestamp: 0,
+				cwd: '/repo/project',
+				toolName: 'apply_patch',
+				toolArgs: patch,
+				toolResult: { textResultForLlm: '', resultType: 'success' },
+			});
+
+			assert.deepStrictEqual({ started, completed }, {
+				started: [join(workingDirectory.fsPath, 'foo.ts'), join(workingDirectory.fsPath, 'src/bar.ts'), absolutePath],
+				completed: [join(workingDirectory.fsPath, 'foo.ts'), join(workingDirectory.fsPath, 'src/bar.ts'), absolutePath],
+			});
+		});
+
+		test('tool_complete resolves relative apply_patch file paths before taking completed edits', async () => {
+			const workingDirectory = URI.file('/repo/project');
+			const { session, mockSession, waitForSignal } = await createAgentSession(disposables, { workingDirectory });
+			const sessionInternals = session as unknown as ISessionInternalsForTest;
+			const taken: string[] = [];
+			sessionInternals._editTracker.takeCompletedEdit = async (_turnId, _toolCallId, path) => {
+				taken.push(path);
+				return undefined;
+			};
+			session.resetTurnState('turn-apply-patch');
+			const patch = [
+				'*** Begin Patch',
+				'*** Update File: foo.ts',
+				'@@',
+				'+new',
+				'*** Update File: src/bar.ts',
+				'@@',
+				'+new',
+				'*** End Patch',
+			].join('\n');
+
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-apply-patch',
+				toolName: 'apply_patch',
+				arguments: patch,
+			} as unknown as SessionEventPayload<'tool.execution_start'>['data']);
+
+			mockSession.fire('tool.execution_complete', {
+				toolCallId: 'tc-apply-patch',
+				success: true,
+			} as SessionEventPayload<'tool.execution_complete'>['data']);
+
+			await waitForSignal(s => isAction(s, ActionType.SessionToolCallComplete));
+
+			assert.deepStrictEqual(taken, [join(workingDirectory.fsPath, 'foo.ts'), join(workingDirectory.fsPath, 'src/bar.ts')]);
+		});
+
 		test('hidden tools are not emitted as tool_start', async () => {
 			const { mockSession, signals } = await createAgentSession(disposables);
 			mockSession.fire('tool.execution_start', {
@@ -1024,6 +1113,147 @@ suite('CopilotAgentSession', () => {
 				return false;
 			});
 			assert.ok(hasPart, 'should have surfaced the message content');
+		});
+
+		test('history replay renders assistant tool requests when lifecycle events are missing', async () => {
+			const { session, mockSession } = await createAgentSession(disposables);
+			mockSession.getMessages = async () => [
+				{
+					type: 'user.message',
+					data: { messageId: 'turn-1', content: 'inspect the workspace' },
+				},
+				{
+					type: 'assistant.message',
+					data: {
+						messageId: 'msg-1',
+						content: 'I will inspect the workspace.',
+						toolRequests: [
+							{
+								toolCallId: 'tc-view',
+								name: 'view',
+								arguments: { path: '/workspace/file.ts' },
+								type: 'function',
+							},
+							{
+								toolCallId: 'tc-bash',
+								name: 'bash',
+								arguments: { command: 'npm test' },
+								type: 'function',
+							},
+							{
+								toolCallId: 'tc-intent',
+								name: 'report_intent',
+								arguments: { intent: 'Inspecting files' },
+								type: 'function',
+							},
+						],
+					},
+				},
+				{
+					type: 'tool.execution_complete',
+					data: {
+						toolCallId: 'tc-bash',
+						success: false,
+						error: { message: 'tests failed' },
+					},
+				},
+				{
+					type: 'assistant.message',
+					data: { messageId: 'msg-2', content: 'Done.' },
+				},
+			] as SessionEvent[];
+
+			const turns = await session.getMessages();
+
+			const actual = turns.map(turn => {
+				const parts: Array<Record<string, unknown>> = [];
+				for (const part of turn.responseParts) {
+					switch (part.kind) {
+						case ResponsePartKind.ToolCall:
+							parts.push({
+								kind: part.kind,
+								toolCallId: part.toolCall.toolCallId,
+								toolName: part.toolCall.toolName,
+								status: part.toolCall.status,
+								success: part.toolCall.status === ToolCallStatus.Completed ? part.toolCall.success : undefined,
+								content: part.toolCall.status === ToolCallStatus.Completed ? part.toolCall.content : undefined,
+							});
+							break;
+						case ResponsePartKind.Markdown:
+							parts.push({ kind: part.kind, content: part.content });
+							break;
+						default:
+							parts.push({ kind: part.kind });
+					}
+				}
+				return { userMessage: turn.userMessage.text, parts };
+			});
+
+			assert.deepStrictEqual(actual, [{
+				userMessage: 'inspect the workspace',
+				parts: [
+					{ kind: ResponsePartKind.Markdown, content: 'I will inspect the workspace.' },
+					{ kind: ResponsePartKind.ToolCall, toolCallId: 'tc-view', toolName: 'view', status: ToolCallStatus.Completed, success: true, content: undefined },
+					{ kind: ResponsePartKind.ToolCall, toolCallId: 'tc-bash', toolName: 'bash', status: ToolCallStatus.Completed, success: false, content: [{ type: ToolResultContentType.Text, text: 'tests failed' }] },
+					{ kind: ResponsePartKind.Markdown, content: 'Done.' },
+				],
+			}]);
+		});
+
+		test('history replay does not duplicate assistant tool requests with lifecycle events', async () => {
+			const { session, mockSession } = await createAgentSession(disposables);
+			mockSession.getMessages = async () => [
+				{
+					type: 'user.message',
+					data: { messageId: 'turn-1', content: 'run tests' },
+				},
+				{
+					type: 'assistant.message',
+					data: {
+						messageId: 'msg-1',
+						content: '',
+						toolRequests: [{
+							toolCallId: 'tc-bash',
+							name: 'bash',
+							arguments: { command: 'npm test' },
+							type: 'function',
+						}],
+					},
+				},
+				{
+					type: 'tool.execution_start',
+					data: {
+						toolCallId: 'tc-bash',
+						toolName: 'bash',
+						arguments: { command: 'npm test' },
+					},
+				},
+				{
+					type: 'tool.execution_complete',
+					data: {
+						toolCallId: 'tc-bash',
+						success: true,
+						result: { content: 'passed' },
+					},
+				},
+				{
+					type: 'assistant.message',
+					data: { messageId: 'msg-2', content: 'Done.' },
+				},
+			] as SessionEvent[];
+
+			const turns = await session.getMessages();
+			const toolCalls = turns[0].responseParts.flatMap(part => part.kind === ResponsePartKind.ToolCall ? [part.toolCall] : []);
+
+			assert.deepStrictEqual(toolCalls.map(toolCall => ({
+				toolCallId: toolCall.toolCallId,
+				toolName: toolCall.toolName,
+				content: toolCall.status === ToolCallStatus.Completed ? toolCall.content : undefined,
+			})), [{
+				toolCallId: 'tc-bash',
+				toolName: 'bash',
+				content: [{ type: ToolResultContentType.Text, text: 'passed' }],
+			}]);
 		});
 
 		test('subagent message delta does not suppress final parent assistant message', async () => {

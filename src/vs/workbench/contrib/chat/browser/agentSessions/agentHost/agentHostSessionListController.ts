@@ -6,7 +6,6 @@
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { hasKey } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
@@ -16,36 +15,22 @@ import { IProductService } from '../../../../../../platform/product/common/produ
 import { ChatSessionStatus, IChatNewSessionRequest, IChatSessionFileChange2, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta } from '../../../common/chatSessionsService.js';
 import { getAgentHostIcon } from '../agentSessions.js';
 
-type ICompactSessionFileDiff = { readonly uri: string; readonly added?: number; readonly removed?: number };
-
-function mapDiffsToChanges(diffs: readonly ISessionFileDiff[] | readonly ICompactSessionFileDiff[] | undefined, connectionAuthority: string): readonly IChatSessionFileChange2[] | undefined {
+function mapDiffsToChanges(diffs: readonly ISessionFileDiff[] | undefined, connectionAuthority: string): readonly IChatSessionFileChange2[] | undefined {
 	if (!diffs || diffs.length === 0) {
 		return undefined;
 	}
 	const changes: IChatSessionFileChange2[] = [];
 	for (const diff of diffs) {
-		const uri = getDiffUri(diff);
+		const uri = diff.after?.uri ?? diff.before?.uri;
 		if (uri) {
 			changes.push({
 				uri: toAgentHostUri(URI.parse(uri), connectionAuthority),
-				insertions: getDiffAdded(diff) ?? 0,
-				deletions: getDiffRemoved(diff) ?? 0,
+				insertions: diff.diff?.added ?? 0,
+				deletions: diff.diff?.removed ?? 0,
 			});
 		}
 	}
 	return changes.length > 0 ? changes : undefined;
-}
-
-function getDiffUri(diff: ISessionFileDiff | ICompactSessionFileDiff): string | undefined {
-	return hasKey(diff, { uri: true }) ? diff.uri : diff.after?.uri ?? diff.before?.uri;
-}
-
-function getDiffAdded(diff: ISessionFileDiff | ICompactSessionFileDiff): number | undefined {
-	return hasKey(diff, { uri: true }) ? diff.added : diff.diff?.added;
-}
-
-function getDiffRemoved(diff: ISessionFileDiff | ICompactSessionFileDiff): number | undefined {
-	return hasKey(diff, { uri: true }) ? diff.removed : diff.diff?.removed;
 }
 
 function mapSessionStatus(status: SessionStatus | undefined): ChatSessionStatus {
@@ -107,16 +92,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 				const rawId = AgentSession.id(n.summary.resource);
 				this._pendingNewSessions.delete(rawId);
 				this._cachedSummaries.set(rawId, n.summary);
-				const workingDir = typeof n.summary.workingDirectory === 'string' ? URI.parse(n.summary.workingDirectory) : undefined;
-				const item = this._makeItem(rawId, {
-					title: n.summary.title,
-					status: n.summary.status,
-					activity: n.summary.activity,
-					workingDirectory: workingDir,
-					createdAt: n.summary.createdAt,
-					modifiedAt: n.summary.modifiedAt,
-					diffs: n.summary.diffs,
-				});
+				const item = this._makeItemFromSummary(rawId, n.summary, n.summary.diffs);
 				const existingIndex = this._items.findIndex(item => item.resource.path === `/${rawId}`);
 				if (existingIndex >= 0) {
 					this._items[existingIndex] = item;
@@ -253,7 +229,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		workingDirectory?: URI;
 		createdAt: number;
 		modifiedAt: number;
-		diffs?: readonly ISessionFileDiff[] | readonly ICompactSessionFileDiff[];
+		diffs?: readonly ISessionFileDiff[];
 	}): IChatSessionItem {
 		const inProgress = opts.status !== undefined && (opts.status & SessionStatus.InProgress) !== 0;
 		const description = inProgress && opts.activity ? opts.activity : this._description;
