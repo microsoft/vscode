@@ -32,8 +32,6 @@
 	align-items: center;
 	gap: 4px;
 	padding: 2px 0 6px;
-	margin-bottom: 6px;
-	border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border, var(--vscode-panel-border, var(--vscode-widget-border, transparent)));
 }
 
 .ai-customization-management-editor .sidebar-home-button {
@@ -585,7 +583,9 @@
 .ai-customization-list-widget .section-title-header,
 .mcp-list-widget .section-title-header {
 	flex-shrink: 0;
-	padding: 4px;
+	padding: 4px 4px 8px 4px;
+	border-bottom: 1px solid var(--vscode-panel-border);
+	margin-bottom: 8px;
 }
 
 .ai-customization-list-widget .section-title-header .section-title-row,
