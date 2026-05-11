@@ -705,7 +705,7 @@ export function getModelPickerAccessibilityProvider() {
 			if (element.kind !== ActionListItemKind.Action) {
 				return null;
 			}
-			const description = typeof element.description === 'string' ? element.description : element.description?.value;
+			const description = element.ariaDescription ?? (typeof element.description === 'string' ? element.description : element.description?.value);
 			return [element.label, element.badge, description].filter((part): part is string => !!part).join(', ');
 		},
 		isChecked(element: IActionListItem<IActionWidgetDropdownAction>) {
