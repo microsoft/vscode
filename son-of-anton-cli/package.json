@@ -9,7 +9,10 @@
 	"scripts": {
 		"build": "tsc -p tsconfig.json",
 		"watch": "tsc -p tsconfig.json --watch",
-		"package:macos-arm64": "npm --prefix ../son-of-anton-core run build && npm run build && node scripts/package-macos-arm64.mjs"
+		"package:macos-arm64": "npm --prefix ../son-of-anton-core run build && npm run build && node scripts/package-macos-arm64.mjs",
+		"package:linux-x64": "npm --prefix ../son-of-anton-core run build && npm run build && node scripts/package-linux-x64.mjs",
+		"package:windows-x64": "npm --prefix ../son-of-anton-core run build && npm run build && node scripts/package-windows-x64.mjs",
+		"package:all": "npm --prefix ../son-of-anton-core run build && npm run build && node scripts/package-all.mjs"
 	},
 	"dependencies": {
 		"@aws-sdk/client-bedrock-runtime": "^3.700.0",
