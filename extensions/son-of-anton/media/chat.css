@@ -1629,30 +1629,20 @@ button {
 	opacity: 1;
 }
 
-/* Streaming dots — sit next to the meta label so they don't move
- * around as text wraps. */
+/* `.streaming-dots` is a JS hook used by `clearStreamingIndicator` to
+ * find + remove the in-flight indicator the moment the first token
+ * arrives. The Phase 99 SVG thinking-ring replaced the old three-dot
+ * `<span><span><span>` pattern, so the class only needs to lay its
+ * children out inline now — the dot styling was deleted because its
+ * `.streaming-dots span` selector was forcing `width: 4px; height: 4px`
+ * onto the new `.thinking-indicator-label` span, breaking the label
+ * into a one-character-per-line column. */
 .streaming-dots {
 	display: inline-flex;
 	gap: 3px;
 	margin-left: 2px;
 	vertical-align: middle;
 	align-items: center;
-}
-
-.streaming-dots span {
-	width: 4px;
-	height: 4px;
-	border-radius: 50%;
-	background-color: var(--vscode-progressBar-background, var(--sota-accent));
-	animation: sota-pulse 1.2s infinite;
-}
-
-.streaming-dots span:nth-child(2) { animation-delay: 0.15s; }
-.streaming-dots span:nth-child(3) { animation-delay: 0.3s; }
-
-@keyframes sota-pulse {
-	0%, 60%, 100% { opacity: 0.3; transform: translateY(0); }
-	30%           { opacity: 1;   transform: translateY(-2px); }
 }
 
 /* Body wrapper. For assistant messages this hosts the accent stripe
