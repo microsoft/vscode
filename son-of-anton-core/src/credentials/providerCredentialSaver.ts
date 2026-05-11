@@ -523,7 +523,7 @@ function modelForProvider(provider: ProviderId): ModelId {
 		case 'openai': return 'gpt-4o-mini';
 		case 'foundry': return 'foundry-gpt-4o-mini';
 		case 'bedrock': return 'bedrock-claude-haiku';
-		case 'google': return 'gemini-1-5-flash';
+		case 'google': return 'gemini-2-5-flash';
 		case 'openrouter': return 'openrouter-claude-sonnet-4-7';
 		case 'ollama': return 'ollama-llama-3-1';
 		case 'lmstudio': return 'lmstudio-loaded';
