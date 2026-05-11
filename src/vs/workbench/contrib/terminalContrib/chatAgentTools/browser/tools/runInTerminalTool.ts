@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
-import { DeferredPromise, timeout, type CancelablePromise } from '../../../../../../base/common/async.js';
+import { DeferredPromise, RunOnceScheduler, timeout, type CancelablePromise } from '../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
@@ -1484,6 +1484,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		let exitCode: number | undefined;
 		let altBufferResult: IToolResult | undefined;
 		let didTimeout = false;
+		let didIdleSilence = false;
 		let didInputNeeded = false;
 		let didSensitiveAutoCancelled = false;
 		// Covers both terminals that start as background (persistentSession) and
@@ -1673,7 +1674,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 						));
 					}
 				});
-				const raceCandidates: Promise<{ type: 'completed'; result: ITerminalExecuteStrategyResult } | { type: 'background' } | { type: 'timeout' } | { type: 'inputNeeded' }>[] = [
+				const raceCandidates: Promise<{ type: 'completed'; result: ITerminalExecuteStrategyResult } | { type: 'background' } | { type: 'timeout' } | { type: 'inputNeeded' } | { type: 'idleSilence' }>[] = [
 					executionPromise.then(result => ({ type: 'completed' as const, result })),
 					continueInBackgroundPromise.then(() => ({ type: 'background' as const })),
 					new Promise<{ type: 'inputNeeded' }>(resolve => {
@@ -1686,6 +1687,18 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				];
 				if (timeoutRacePromise) {
 					raceCandidates.push(timeoutRacePromise);
+				}
+				// Idle-silence promotion: if no terminal output arrives for N ms,
+				// hand control back to the model with the terminal ID + output
+				// collected so far. The process keeps running — model can poll,
+				// send input, or kill it. Default 60s; 0 disables.
+				const idleSilenceMs = this._configurationService.getValue<number>(TerminalChatAgentToolsSettingId.IdleSilenceTimeoutMs) ?? 60000;
+				if (idleSilenceMs > 0) {
+					const idleSilenceDeferred = new DeferredPromise<{ type: 'idleSilence' }>();
+					const idleSilenceScheduler = raceCleanup.add(new RunOnceScheduler(() => idleSilenceDeferred.complete({ type: 'idleSilence' as const }), idleSilenceMs));
+					raceCleanup.add(toolTerminal.instance.onData(() => idleSilenceScheduler.schedule()));
+					idleSilenceScheduler.schedule();
+					raceCandidates.push(idleSilenceDeferred.p);
 				}
 				const raceResult = await Promise.race(raceCandidates);
 				raceCleanup.dispose();
@@ -1723,6 +1736,18 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					const timeoutOutput = execution.getOutput();
 					outputLineCount = timeoutOutput ? count(timeoutOutput.trim(), '\n') + 1 : 0;
 					terminalResult = timeoutOutput ?? '';
+				} else if (raceResult.type === 'idleSilence') {
+					// No output for N ms - promote to background and hand back to model. Process keeps running.
+					this._logService.debug(`RunInTerminalTool: Idle silence reached (${idleSilenceMs}ms), promoting to background`);
+					error = 'idleSilence';
+					didIdleSilence = true;
+					isBackgroundExecution = true;
+					toolTerminal.isBackground = true;
+					this._sessionTerminalAssociations.delete(chatSessionResource);
+					await this._associateProcessIdWithSession(toolTerminal.instance, chatSessionResource, termId, toolTerminal.shellIntegrationQuality, true);
+					const idleSilenceOutput = execution.getOutput();
+					outputLineCount = idleSilenceOutput ? count(idleSilenceOutput.trim(), '\n') + 1 : 0;
+					terminalResult = idleSilenceOutput ?? '';
 				} else {
 					const executeResult = raceResult.result;
 					// Reset user input state after command execution completes
@@ -1982,6 +2007,11 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				? ' You will be automatically notified on your next turn when it completes.'
 				: '';
 			resultText.push(`Note: Command timed out after ${timeoutValue}ms. The command may still be running in terminal ID ${termId}.${notificationHint}\n${this._buildInputNeededSteeringText(chatSessionResource, termId, /*mentionTimeout*/ true)}\n\n`);
+		} else if (didIdleSilence) {
+			const notificationHint = shouldSendNotifications
+				? ' You will be automatically notified on your next turn when it completes.'
+				: '';
+			resultText.push(`Note: The command produced no new output for an extended period and was moved to background terminal ID ${termId}; the process is still running and has not been killed.${notificationHint}\n${this._buildInputNeededSteeringText(chatSessionResource, termId, /*mentionTimeout*/ true)}\n\n`);
 		}
 		const outputAnalyzerMessage = await this._getOutputAnalyzerMessage(exitCode, terminalResult, command, didSandboxWrapCommand);
 		if (outputAnalyzerMessage) {
