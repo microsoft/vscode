@@ -34,8 +34,6 @@ export const SYNCABLE_PROMPT_TYPES: readonly PromptsType[] = [
  * instructions, and agents available as the local VS Code client.
  */
 export const SYNCABLE_STORAGE_SOURCES: readonly PromptsStorage[] = [
-	PromptsStorage.local,
-	PromptsStorage.user,
 	PromptsStorage.plugin,
 	PromptsStorage.extension,
 ];
