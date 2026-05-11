@@ -187,7 +187,7 @@ class ChangesButtonBarWidget extends Disposable {
 	private _getButtonConfiguration(action: IAction, outgoingChanges: number, reviewState: { isLoading: boolean; commentCount: number | undefined }, hasGitOperationInProgress: boolean, runningLabelObs: IObservable<string | IMarkdownString | undefined>): { showIcon: boolean; showLabel: boolean; isSecondary?: boolean; customLabel?: string | IMarkdownString; customLabelObs?: IObservable<string | IMarkdownString | undefined>; customClass?: string } | undefined {
 		if (
 			action.id === 'github.copilot.sessions.commit' ||
-			action.id === 'github.copilot.sessions.commitAndSync'
+			action.id === 'github.copilot.chat.createPullRequestCopilotCLIAgentSession.createPR'
 		) {
 			if (!hasGitOperationInProgress) {
 				return { showIcon: true, showLabel: true, isSecondary: false };
@@ -198,22 +198,20 @@ class ChangesButtonBarWidget extends Disposable {
 			});
 			return { showIcon: false, showLabel: true, isSecondary: false, customLabelObs };
 		}
-		if (action.id === 'github.copilot.sessions.sync') {
+		if (
+			action.id === 'github.copilot.sessions.sync' ||
+			action.id === 'github.copilot.sessions.commitAndSync'
+		) {
 			const labelWithCount = outgoingChanges > 0
 				? `${action.label} ${outgoingChanges}↑`
 				: `${action.label}`;
 			if (!hasGitOperationInProgress) {
 				return { showIcon: true, showLabel: true, isSecondary: false, customLabel: labelWithCount };
 			}
-			const customLabelObs = derived(reader => {
-				const running = runningLabelObs.read(reader);
-				return `$(loading) ${running ?? labelWithCount}`;
-			});
-			return { showIcon: false, showLabel: true, isSecondary: false, customLabelObs };
+			return { showIcon: false, showLabel: true, isSecondary: false, customLabel: `$(loading) ${labelWithCount}` };
 		}
 		if (
 			action.id === 'github.copilot.claude.sessions.sync' ||
-			action.id === 'github.copilot.chat.createPullRequestCopilotCLIAgentSession.updatePR' ||
 			action.id === AGENT_HOST_SKILL_BUTTON_UPDATE_PR_ID
 		) {
 			const customLabel = outgoingChanges > 0
@@ -295,11 +293,12 @@ export class ChangesViewPane extends ViewPane {
 	private readonly hasGitRepositoryContextKey: IContextKey<boolean>;
 	private readonly hasUpstreamContextKey: IContextKey<boolean>;
 	private readonly hasIncomingChangesContextKey: IContextKey<boolean>;
-	private readonly hasOpenPullRequestContextKey: IContextKey<boolean>;
 	private readonly hasOutgoingChangesContextKey: IContextKey<boolean>;
-	private readonly hasPullRequestContextKey: IContextKey<boolean>;
-	private readonly hasGitHubRemoteContextKey: IContextKey<boolean>;
 	private readonly hasUncommittedChangesContextKey: IContextKey<boolean>;
+	private readonly hasBranchChangesContextKey: IContextKey<boolean>;
+	private readonly hasGitHubRemoteContextKey: IContextKey<boolean>;
+	private readonly hasPullRequestContextKey: IContextKey<boolean>;
+	private readonly hasOpenPullRequestContextKey: IContextKey<boolean>;
 	private readonly hasGitOperationInProgressContextKey: IContextKey<boolean>;
 
 	private readonly hasGitOperationInProgressObs: IObservable<boolean>;
@@ -347,6 +346,7 @@ export class ChangesViewPane extends ViewPane {
 		this.hasIncomingChangesContextKey = ActiveSessionContextKeys.HasIncomingChanges.bindTo(this.scopedContextKeyService);
 		this.hasOutgoingChangesContextKey = ActiveSessionContextKeys.HasOutgoingChanges.bindTo(this.scopedContextKeyService);
 		this.hasUncommittedChangesContextKey = ActiveSessionContextKeys.HasUncommittedChanges.bindTo(this.scopedContextKeyService);
+		this.hasBranchChangesContextKey = ActiveSessionContextKeys.HasBranchChanges.bindTo(this.scopedContextKeyService);
 		this.hasGitHubRemoteContextKey = ActiveSessionContextKeys.HasGitHubRemote.bindTo(this.scopedContextKeyService);
 		this.hasPullRequestContextKey = ActiveSessionContextKeys.HasPullRequest.bindTo(this.scopedContextKeyService);
 		this.hasOpenPullRequestContextKey = ActiveSessionContextKeys.HasOpenPullRequest.bindTo(this.scopedContextKeyService);
@@ -791,6 +791,7 @@ export class ChangesViewPane extends ViewPane {
 				this.hasIncomingChangesContextKey.set(state.incomingChanges !== undefined && state.incomingChanges > 0);
 				this.hasOutgoingChangesContextKey.set(state.outgoingChanges !== undefined && state.outgoingChanges > 0);
 				this.hasUncommittedChangesContextKey.set(state.uncommittedChanges !== undefined && state.uncommittedChanges > 0);
+				this.hasBranchChangesContextKey.set(state.hasBranchChanges === true);
 				this.hasGitOperationInProgressContextKey.set(state.hasGitOperationInProgress === true);
 			});
 		}));

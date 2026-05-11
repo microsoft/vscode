@@ -37,8 +37,8 @@ export interface IFixtureMessage {
 	readonly assistant?: ReadonlyArray<
 		| { kind: 'markdown'; text: string }
 		| { kind: 'progress'; text: string }
-		| { kind: 'terminalConfirmation'; command: string; title?: string; disclaimer?: string; requestUnsandboxedExecution?: boolean; requestUnsandboxedExecutionReason?: string; riskAssessment?: { risk: ToolRiskLevel; explanation: string }; riskLoading?: boolean }
-		| { kind: 'elicitation'; title: string; message: string; riskAssessment?: { risk: ToolRiskLevel; explanation: string }; riskLoading?: boolean }
+		| { kind: 'terminalConfirmation'; command: string; title?: string; disclaimer?: string; requestUnsandboxedExecution?: boolean; requestUnsandboxedExecutionReason?: string; riskAssessment?: { risk: ToolRiskLevel; explanation: string }; riskLoading?: boolean; confirmation?: { commandLine: string; cwdLabel?: string; cdPrefix?: string } }
+		| { kind: 'elicitation'; title: string; message: string; confirmation?: { commandLine: string; cwdLabel?: string; cdPrefix?: string }; riskAssessment?: { risk: ToolRiskLevel; explanation: string }; riskLoading?: boolean }
 	>;
 	readonly responseComplete?: boolean;
 }
@@ -180,6 +180,7 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 							language: 'pwsh',
 							requestUnsandboxedExecution: part.requestUnsandboxedExecution,
 							requestUnsandboxedExecutionReason: part.requestUnsandboxedExecutionReason,
+							confirmation: part.confirmation,
 						},
 					},
 					fixtureToolData,
@@ -321,6 +322,26 @@ const PENDING_TOOL_APPROVAL: IFixtureMessage[] = [
 	},
 ];
 
+// https://github.com/microsoft/vscode/issues/309796
+const ISSUE_309796_MISSING_BACKSLASH: IFixtureMessage[] = [
+	{
+		user: 'install dependencies in the server directory',
+		assistant: [
+			{
+				kind: 'terminalConfirmation',
+				command: 'cd packages\\server && npm install',
+				title: 'Run `pwsh` command within `packages\\server`?',
+				confirmation: {
+					commandLine: 'npm install',
+					cwdLabel: 'packages\\server',
+					cdPrefix: 'cd packages\\server && ',
+				},
+			},
+		],
+		responseComplete: false,
+	},
+];
+
 const STREAMING: IFixtureMessage[] = [
 	{
 		user: 'Search the workspace for TODO comments',
@@ -356,5 +377,8 @@ export default defineThemedFixtureGroup({ path: 'chat/widget/' }, {
 	SimpleQA: defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: SIMPLE_QA }) }),
 	Streaming: defineComponentFixture({ labels: { kind: 'animated' }, render: ctx => renderChatWidget(ctx, { messages: STREAMING }) }),
 	PendingToolApproval: defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: PENDING_TOOL_APPROVAL }) }),
+	bugs: defineThemedFixtureGroup({
+		'issue-309796-missing-backslash': defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: ISSUE_309796_MISSING_BACKSLASH }) }),
+	}),
 	MultiTurn: defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: MULTI_TURN }) }),
 });

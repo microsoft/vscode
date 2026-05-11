@@ -142,8 +142,6 @@ Guidelines for session memory (`/memories/session/`):
 This is a test custom instruction file
 </instructions>
 
-
-[copilot_cache_control: { type: 'ephemeral' }]
 ~~~
 
 
@@ -191,8 +189,6 @@ search_workspace_symbols
 test_search
 </availableDeferredTools>
 
-
-[copilot_cache_control: { type: 'ephemeral' }]
 ~~~
 
 
@@ -213,6 +209,4 @@ Do NOT create markdown files to document changes unless requested.
 hello
 </userRequest>
 
-
-[copilot_cache_control: { type: 'ephemeral' }]
 ~~~

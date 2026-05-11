@@ -424,7 +424,8 @@ function generateMarkdown(
 		for (let i = 0; i < errored.length; i++) {
 			const entry = errored[i];
 			const open = i < EXPAND_FIRST_N ? ' open' : '';
-			const header = `<details${open}><summary><code>${entry.fixtureId}</code> — ${escapeMarkdown(entry.errorMessage)}</summary>`;
+			const headerMessage = entry.errorMessage.split('\n').map(l => l.trim()).find(l => l.length > 0) ?? entry.errorMessage;
+			const header = `<details${open}><summary><code>${entry.fixtureId}</code> — ${escapeMarkdown(headerMessage)}</summary>`;
 			const fullStack = entry.errorStack ?? entry.errorMessage;
 			const fullBlock = `${header}\n\n\`\`\`\n${fullStack}\n\`\`\`\n\n</details>\n`;
 
