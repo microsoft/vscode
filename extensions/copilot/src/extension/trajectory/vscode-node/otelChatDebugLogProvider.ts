@@ -93,6 +93,8 @@ export class OTelChatDebugLogProviderContribution extends Disposable implements 
 					this._provideChatDebugLogExport(sessionResource, options, token),
 				resolveChatDebugLogImport: (data, token) =>
 					this._resolveChatDebugLogImport(data, token),
+				provideAvailableDebugSessionResources: (token) =>
+					this._getAvailableDebugSessionResources(token),
 			}));
 		} catch (e) {
 			this._logService.warn(`[OTelDebug] Failed to register debug log provider: ${e}`);
@@ -118,6 +120,23 @@ export class OTelChatDebugLogProviderContribution extends Disposable implements 
 			this._sentDedupKeys.add(dedupKey);
 		}
 		this._activeProgress.report(evt);
+	}
+
+	/**
+	 * Prefix child entry event IDs that reuse the invoke_agent spanId
+	 * (user_message and subagent entries) so they don't collide with
+	 * parent-session entries (hooks, tool calls) that use the same ID
+	 * as their parentSpanId. Include the entry type in the prefix so
+	 * child-session user_message and subagent events that share a spanId
+	 * don't collide with each other in UI caches or id-based lookups.
+	 */
+	private _prefixChildEventId(evt: vscode.ChatDebugEvent, entry: IDebugLogEntry): void {
+		if (entry.type === 'user_message' || entry.type === 'subagent') {
+			const evtWithId = evt as { id?: string };
+			if (evtWithId.id) {
+				evtWithId.id = `child-${entry.type}-${evtWithId.id}`;
+			}
+		}
 	}
 
 	/**
@@ -179,6 +198,7 @@ export class OTelChatDebugLogProviderContribution extends Disposable implements 
 				const evt = debugLogEntryToDebugEvent(entry, this._skipCoreEvents);
 				if (evt) {
 					this._scopeEventIds(evt, entry.rIdx ?? 0);
+					this._prefixChildEventId(evt, entry);
 					if ('parentEventId' in evt) {
 						(evt as { parentEventId?: string }).parentEventId = childParentId;
 					}
@@ -285,6 +305,7 @@ export class OTelChatDebugLogProviderContribution extends Disposable implements 
 							const childEvt = debugLogEntryToDebugEvent(childEntry, this._skipCoreEvents);
 							if (childEvt) {
 								this._scopeEventIds(childEvt, childEntry.rIdx ?? 0);
+								this._prefixChildEventId(childEvt, childEntry);
 								// Set parent to the child_session_ref entry (with run-index scope)
 								if ('parentEventId' in childEvt) {
 									(childEvt as { parentEventId?: string }).parentEventId = scopedParentId;
@@ -388,6 +409,7 @@ export class OTelChatDebugLogProviderContribution extends Disposable implements 
 				const childEvt = debugLogEntryToDebugEvent(childEntry, this._skipCoreEvents);
 				if (childEvt) {
 					this._scopeEventIds(childEvt, childEntry.rIdx ?? 0);
+					this._prefixChildEventId(childEvt, childEntry);
 					if ('parentEventId' in childEvt) {
 						(childEvt as { parentEventId?: string }).parentEventId = scopedParentId;
 					}
@@ -668,6 +690,71 @@ export class OTelChatDebugLogProviderContribution extends Disposable implements 
 		} catch (err) {
 			this._logService.error(`[OTelDebug] Failed to parse import file: ${err}`);
 			return undefined;
+		}
+	}
+
+	private async _getAvailableDebugSessionResources(
+		token: vscode.CancellationToken,
+	): Promise<{ uri: vscode.Uri; title?: string }[]> {
+		// Sessions are returned sorted by most recent first from listSessionIds().
+		// We only read JSONL tails for a limited batch to keep startup fast.
+		// The home view shows PAGE_SIZE (5) at a time, so reading ~15 covers
+		// the visible page plus a buffer for filtered-out discovery-only sessions.
+		const MAX_TAIL_READS = 15;
+
+		try {
+			const sessionIds = await this._fileLogger.listSessionIds();
+
+			// Read tails only for the first batch (most recent sessions).
+			const toRead = sessionIds.slice(0, MAX_TAIL_READS);
+			const settled = await Promise.allSettled(toRead.map(async (id): Promise<{ uri: vscode.Uri; title?: string } | undefined> => {
+				if (token.isCancellationRequested) {
+					return undefined;
+				}
+				const encoded = Buffer.from(id).toString('base64url');
+				const uri = vscode.Uri.parse(`vscode-chat-session://local/${encoded}`);
+
+				let title: string | undefined;
+				let hasRealEvents = false;
+				try {
+					const entries = await this._fileLogger.readTailEntries(id, 50);
+					const userMsg = entries.find(e => e.type === 'user_message');
+					if (userMsg) {
+						hasRealEvents = true;
+						const content = userMsg.attrs.content as string | undefined;
+						if (content) {
+							title = content.length > 80 ? content.slice(0, 80) + '\u2026' : content;
+						}
+					}
+					if (!hasRealEvents) {
+						hasRealEvents = entries.some(e =>
+							e.type === 'tool_call' || e.type === 'llm_request' ||
+							e.type === 'agent_response' || e.type === 'subagent'
+						);
+					}
+				} catch {
+					// best effort
+				}
+				if (!hasRealEvents) {
+					return undefined;
+				}
+				if (!title) {
+					const shortId = id.length > 12 ? id.slice(0, 12) + '\u2026' : id;
+					title = `Session ${shortId}`;
+				}
+				return { uri, title };
+			}));
+
+			const results: { uri: vscode.Uri; title?: string }[] = [];
+			for (const entry of settled) {
+				if (entry.status === 'fulfilled' && entry.value) {
+					results.push(entry.value);
+				}
+			}
+			return results;
+		} catch (err) {
+			this._logService.error(`[OTelDebug] Failed to list available sessions: ${err}`);
+			return [];
 		}
 	}
 }

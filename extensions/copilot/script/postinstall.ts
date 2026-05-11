@@ -61,6 +61,11 @@ const treeSitterGrammars: ITreeSitterGrammar[] = [
 
 const REPO_ROOT = path.join(__dirname, '..');
 
+async function removeCopilotCLIShim() {
+	const shimsPath = path.join(REPO_ROOT, 'node_modules', '@github', 'copilot', 'shims.txt');
+	await fs.promises.rm(shimsPath, { force: true }).catch(() => { /* ignore */ });
+}
+
 /**
  * @github/copilot/sdk/index.js depends on @github/copilot/worker/*.js files.
  * We need to copy these files into the sdk directory to ensure they are available at runtime.
@@ -84,6 +89,41 @@ async function copyCopilotCliDefinitionFiles() {
 	const targetDir = path.join(REPO_ROOT, 'node_modules', '@github', 'copilot', 'sdk', 'definitions');
 
 	await copyCopilotCLIFolders(sourceDir, targetDir);
+}
+
+async function copyCopilotCliSkillsFiles() {
+	const sourceDir = path.join(REPO_ROOT, 'node_modules', '@github', 'copilot', 'builtin-skills');
+	const targetDir = path.join(REPO_ROOT, 'node_modules', '@github', 'copilot', 'sdk', 'builtin-skills');
+
+	await copyCopilotCLIFolders(sourceDir, targetDir);
+}
+
+async function copyCopilotCliQueryFiles() {
+	const sourceDir = path.join(REPO_ROOT, 'node_modules', '@github', 'copilot', 'queries');
+	const targetDir = path.join(REPO_ROOT, 'node_modules', '@github', 'copilot', 'sdk', 'queries');
+
+	await copyCopilotCLIFolders(sourceDir, targetDir);
+}
+
+async function copyCopilotCliPrebuildFiles() {
+	const sourceDir = path.join(REPO_ROOT, 'node_modules', '@github', 'copilot', 'prebuilds');
+	const targetDir = path.join(REPO_ROOT, 'node_modules', '@github', 'copilot', 'sdk', 'prebuilds');
+
+	await fs.promises.rm(targetDir, { recursive: true, force: true });
+	await fs.promises.mkdir(targetDir, { recursive: true });
+	await fs.promises.cp(sourceDir, targetDir, {
+		recursive: true, force: true, filter: (src) => {
+			try {
+				// Only copy computer.node and win32.node files
+				if (fs.statSync(src).isFile()) {
+					return src.endsWith('computer.node') || src.endsWith('win32.node');
+				}
+				return true;
+			} catch {
+				return true;
+			}
+		}
+	});
 }
 
 async function copyCopilotCLIFolders(sourceDir: string, targetDir: string) {
@@ -138,9 +178,13 @@ async function main() {
 		'node_modules/@github/blackbird-external-ingest-utils/pkg/nodejs/external_ingest_utils_bg.wasm',
 	], 'dist');
 
+	await removeCopilotCLIShim();
 	await copyCopilotCliWorkerFiles();
 	await copyCopilotCliSharpFiles();
 	await copyCopilotCliDefinitionFiles();
+	await copyCopilotCliSkillsFiles();
+	await copyCopilotCliQueryFiles();
+	await copyCopilotCliPrebuildFiles();
 
 	// Check if the base cache file exists (dev-only sanity check, non-fatal in CI)
 	const baseCachePath = path.join('test', 'simulation', 'cache', 'base.sqlite');

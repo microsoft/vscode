@@ -69,7 +69,7 @@ class Gpt53CodexPrompt extends PromptElement<DefaultAgentPromptProps> {
 				<Tag name='general'>
 					- When searching for text or files, prefer using `rg` or `rg --files` respectively because `rg` is much faster than alternatives like `grep`. (If the `rg` command is not found, then use alternatives.)<br />
 					- Parallelize tool calls whenever possible - especially file reads, such as `cat`, `rg`, `sed`, `ls`, `git show`, `nl`, `wc`.<br />
-					{tools[ToolName.SearchSubagent] && <>- For efficient codebase exploration, prefer {ToolName.SearchSubagent} to search and gather data instead of directly calling {ToolName.FindTextInFiles}, {ToolName.Codebase} or {ToolName.FindFiles}. Use this as a quick injection of context before beginning to solve the problem yourself.<br /></>}
+					{(tools[ToolName.SearchSubagent] || tools[ToolName.ExploreSubagent]) && <>- For efficient codebase exploration, prefer {tools[ToolName.SearchSubagent] ? ToolName.SearchSubagent : ToolName.ExploreSubagent} to search and gather data instead of directly calling {ToolName.FindTextInFiles}, {ToolName.Codebase} or {ToolName.FindFiles}. Use this as a quick injection of context before beginning to solve the problem yourself.<br /></>}
 					{tools[ToolName.ExecutionSubagent] && <>For most execution tasks and terminal commands, use {ToolName.ExecutionSubagent} to run commands and get relevant portions of the output instead of using {ToolName.CoreRunInTerminal}. Use {ToolName.CoreRunInTerminal} in rare cases when you want the entire output of a single command without truncation.<br /></>}
 					{tools[ToolName.ExecutionSubagent] && <>Don't call {ToolName.ExecutionSubagent} multiple times in parallel. Instead, invoke one subagent and wait for its response before running the next command.<br /></>}
 				</Tag>
@@ -135,7 +135,7 @@ class Gpt53CodexPrompt extends PromptElement<DefaultAgentPromptProps> {
 					- You use 1-2 sentence user updates to communicated progress and new information to the user as you are doing work.<br />
 					- Do not begin responses with conversational interjections or meta commentary. Avoid openers such as acknowledgements (“Done —”, “Got it”, “Great question, ”) or framing phrases.<br />
 					- You provide user updates frequently, every 20s.<br />
-					- Before exploring or doing substantial work, you start with a user update acknowledging the request and explaining your first step. You should include your understanding of the user request and explain what you will do. Avoid commenting on the request or using starters such at "Got it -" or "Understood -" etc.<br />
+					- You must always start with a intermediary update before any content in the `analysis` channel. The initial message should be a user update acknowledging the request and explaining your first step. You should include your understanding of the user request and explain what you will do. Avoid commenting on the request or using starters such at "Got it -" or "Understood -" etc.<br />
 					- When exploring, e.g. searching, reading files you provide user updates as you go, every 20s, explaining what context you are gathering and what you've learned. Vary your sentence structure when providing these updates to avoid sounding repetitive - in particular, don't start each sentence the same way.<br />
 					- After you have sufficient context, and the work is substantial you provide a longer plan (this is the only user update that may be longer than 2 sentences and can contain formatting).<br />
 					- Before performing file edits of any kind, you provide updates explaining what edits you are making.<br />
@@ -277,7 +277,7 @@ class Gpt53CodexPrompt extends PromptElement<DefaultAgentPromptProps> {
 				- Do not use one-letter variable names unless explicitly requested.<br />
 				- NEVER output inline citations like "【F:README.md†L5-L14】" in your outputs. The UI is not able to render these so they will just be broken in the UI. Instead, if you output valid filepaths, users will be able to click on them to open the files in their editor.<br />
 				- You have access to many tools. If a tool exists to perform a specific task, you MUST use that tool instead of running a terminal command to perform that task.<br />
-				{tools[ToolName.SearchSubagent] && <>- For efficient codebase exploration, prefer {ToolName.SearchSubagent} to search and gather data instead of directly calling {ToolName.FindTextInFiles}, {ToolName.Codebase} or {ToolName.FindFiles}. Use this as a quick injection of context before beginning to solve the problem yourself.<br /></>}
+				{(tools[ToolName.SearchSubagent] || tools[ToolName.ExploreSubagent]) && <>- For efficient codebase exploration, prefer {tools[ToolName.SearchSubagent] ? ToolName.SearchSubagent : ToolName.ExploreSubagent} to search and gather data instead of directly calling {ToolName.FindTextInFiles}, {ToolName.Codebase} or {ToolName.FindFiles}. Use this as a quick injection of context before beginning to solve the problem yourself.<br /></>}
 				{tools[ToolName.CoreRunTest] && <>- Use the {ToolName.CoreRunTest} tool to run tests instead of running terminal commands.<br /></>}
 			</Tag>
 			{tools[ToolName.ExecutionSubagent] && <>

@@ -17,7 +17,7 @@ on:
 jobs:
   linux-test:
     name: ${{ inputs.job_name }}
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     env:
       ARTIFACT_NAME: ${{ (inputs.electron_tests && 'electron') || (inputs.browser_tests && 'browser') || (inputs.remote_tests && 'remote') || 'unknown' }}
       NPM_ARCH: x64
@@ -36,6 +36,9 @@ jobs:
       - name: Setup system services
         run: |
           set -e
+          # Allow unprivileged user namespaces for Chromium's namespace sandbox
+          # Ubuntu 24.04 restricts this by default via AppArmor
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
           # Start X server
           ./build/azure-pipelines/linux/apt-retry.sh sudo apt-get update
           ./build/azure-pipelines/linux/apt-retry.sh sudo apt-get install -y pkg-config \
@@ -133,6 +136,125 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Workaround expat NULL deref CVEs in fontconfig parsing
+        run: |
+          set -e
+          # Ubuntu 24.04 ships expat 2.6.1 which has multiple NULL dereference
+          # CVEs triggered when fontconfig parses <include> directives via
+          # expat's XML_ExternalEntityParserCreate:
+          #   CVE-2026-24515 (backported but crash persists)
+          #   CVE-2026-32776 (not yet backported) - empty external parameter entities
+          #   CVE-2026-32778 (not yet backported) - setContext after OOM
+          # All three are fixed upstream in expat >= 2.7.5.
+          # Check if the runner already has the fix — skip workaround if so.
+          EXPAT_VER=$(dpkg-query -W -f='${Version}' libexpat1 2>/dev/null || echo "0")
+          if dpkg --compare-versions "$EXPAT_VER" ge "2.7.5"; then
+            echo "::warning::libexpat1 $EXPAT_VER includes all CVE fixes (>= 2.7.5). The fontconfig workaround in this workflow can be removed."
+            exit 0
+          fi
+          echo "Installed expat: $EXPAT_VER — applying fontconfig workaround"
+          # Workaround: use a minimal fontconfig config with no <include> directives,
+          # avoiding the external entity parser codepath entirely. Based on upstream
+          # fontconfig 2.15.0 fonts.conf.in with <include> removed, generic family
+          # aliases inlined, and default font mappings for generic families added
+          # (from conf.d/49-sansserif.conf and DejaVu font configs).
+          # Remove once Ubuntu backports the remaining CVE fixes.
+          cat > /tmp/fonts-minimal.conf << 'FONTCONFIG_EOF'
+          <?xml version="1.0"?>
+          <!DOCTYPE fontconfig SYSTEM "urn:fontconfig:fonts.dtd">
+          <fontconfig>
+            <dir>/usr/share/fonts</dir>
+            <dir>/usr/local/share/fonts</dir>
+            <dir prefix="xdg">fonts</dir>
+            <cachedir>/var/cache/fontconfig</cachedir>
+            <cachedir prefix="xdg">fontconfig</cachedir>
+            <!-- Generic family aliases from upstream fonts.conf -->
+            <match target="pattern">
+              <test qual="any" name="family"><string>mono</string></test>
+              <edit name="family" mode="assign" binding="same"><string>monospace</string></edit>
+            </match>
+            <match target="pattern">
+              <test qual="any" name="family"><string>sans serif</string></test>
+              <edit name="family" mode="assign" binding="same"><string>sans-serif</string></edit>
+            </match>
+            <match target="pattern">
+              <test qual="any" name="family"><string>sans</string></test>
+              <edit name="family" mode="assign" binding="same"><string>sans-serif</string></edit>
+            </match>
+            <match target="pattern">
+              <test qual="any" name="family"><string>system ui</string></test>
+              <edit name="family" mode="assign" binding="same"><string>system-ui</string></edit>
+            </match>
+            <!-- Map generic families to actual fonts (from conf.d/49-sansserif, 57-dejavu) -->
+            <alias>
+              <family>monospace</family>
+              <prefer><family>DejaVu Sans Mono</family></prefer>
+            </alias>
+            <alias>
+              <family>sans-serif</family>
+              <prefer><family>DejaVu Sans</family></prefer>
+            </alias>
+            <alias>
+              <family>serif</family>
+              <prefer><family>DejaVu Serif</family></prefer>
+            </alias>
+            <!-- Fallback: assign sans-serif to unmatched families (from 49-sansserif.conf) -->
+            <match target="pattern">
+              <test qual="all" name="family" compare="not_eq"><string>sans-serif</string></test>
+              <test qual="all" name="family" compare="not_eq"><string>serif</string></test>
+              <test qual="all" name="family" compare="not_eq"><string>monospace</string></test>
+              <edit name="family" mode="append_last"><string>sans-serif</string></edit>
+            </match>
+            <!-- Rendering defaults -->
+            <match target="font">
+              <edit name="antialias" mode="assign"><bool>true</bool></edit>
+              <edit name="hinting" mode="assign"><bool>true</bool></edit>
+              <edit name="hintstyle" mode="assign"><const>hintslight</const></edit>
+            </match>
+            <config>
+              <rescan><int>0</int></rescan>
+            </config>
+          </fontconfig>
+          FONTCONFIG_EOF
+          echo "FONTCONFIG_FILE=/tmp/fonts-minimal.conf" >> "$GITHUB_ENV"
+
+      - name: Fontconfig diagnostics and cache reset
+        run: |
+          set -e
+          echo "--- Font package versions ---"
+          dpkg -l | grep -E 'libexpat|fontconfig|libfreetype|libpango' || true
+          echo ""
+          echo "--- Installed font packages ---"
+          apt list --installed 2>/dev/null | grep -E 'fonts-|fontconfig' || true
+          echo ""
+          echo "--- Active fontconfig file ---"
+          echo "FONTCONFIG_FILE=${FONTCONFIG_FILE:-/etc/fonts/fonts.conf}"
+          echo ""
+          echo "--- Verify active config integrity ---"
+          python3 -c "
+          import xml.etree.ElementTree as ET, os, glob, sys
+          fc = os.environ.get('FONTCONFIG_FILE', '/etc/fonts/fonts.conf')
+          files = [fc] if os.path.exists(fc) else ['/etc/fonts/fonts.conf'] + sorted(glob.glob('/etc/fonts/conf.d/*.conf'))
+          for f in files:
+              try:
+                  ET.parse(f)
+              except Exception as e:
+                  print(f'WARNING: {f} is invalid: {e}', file=sys.stderr)
+          print('Font config XML validation complete')
+          "
+          echo ""
+          echo "--- Check for symlink loops in font dirs ---"
+          find /usr/share/fonts -maxdepth 3 -type l -exec test -d {} \; -print 2>/dev/null | head -10 || true
+          echo ""
+          echo "--- Clear and rebuild font cache ---"
+          sudo rm -rf /var/cache/fontconfig 2>/dev/null || true
+          rm -rf ~/.cache/fontconfig 2>/dev/null || true
+          fc-cache -f -v 2>&1 | tail -5
+          echo ""
+          echo "--- fontconfig version ---"
+          fc-cache --version 2>&1 | head -1
+        continue-on-error: true
+
       - name: Transpile client and extensions
         run: npm run gulp transpile-client-esbuild transpile-extensions
 
@@ -197,6 +319,9 @@ jobs:
             compile-extension:vscode-colorize-tests \
             compile-extension:vscode-colorize-perf-tests \
             compile-extension:vscode-test-resolver
+
+      - name: Compile Copilot extension
+        run: npm --prefix extensions/copilot run compile
 
       - name: 🧪 Run integration tests (Electron)
         if: ${{ inputs.electron_tests }}

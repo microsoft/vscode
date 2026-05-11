@@ -28,7 +28,6 @@ import { PromptFileParser } from '../../../../common/promptSyntax/promptFilePars
 import { ICustomAgent, IPromptsService, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
 import { MockChatModeService } from '../../../common/mockChatModeService.js';
 import { MockPromptsService } from '../../../common/promptSyntax/service/mockPromptsService.js';
-import { PromptsConfig } from '../../../../common/promptSyntax/config/config.js';
 
 suite('PromptValidator', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -43,8 +42,6 @@ suite('PromptValidator', () => {
 
 		testConfigService = new TestConfigurationService();
 		testConfigService.setUserConfiguration(ChatConfiguration.ExtensionToolsEnabled, true);
-		testConfigService.setUserConfiguration(PromptsConfig.USE_CUSTOM_AGENT_HOOKS, true);
-		testConfigService.setUserConfiguration(ChatConfiguration.SubagentToolCustomAgents, true);
 		instaService = workbenchInstantiationService({
 			contextKeyService: () => disposables.add(new ContextKeyService(testConfigService)),
 			configurationService: () => testConfigService
@@ -145,7 +142,8 @@ suite('PromptValidator', () => {
 			agentInstructions: { content: 'Beast mode instructions', toolReferences: [] },
 			source: { storage: PromptsStorage.local },
 			target: Target.Undefined,
-			visibility: { userInvocable: true, agentInvocable: true }
+			visibility: { userInvocable: true, agentInvocable: true },
+			enabled: true
 		});
 		instaService.stub(IChatModeService, new MockChatModeService({ builtin: [ChatMode.Agent, ChatMode.Ask, ChatMode.Edit], custom: [customChatMode] }));
 
@@ -165,7 +163,8 @@ suite('PromptValidator', () => {
 			agentInstructions: { content: 'Custom mode body', toolReferences: [] },
 			source: { storage: PromptsStorage.local },
 			target: Target.Undefined,
-			visibility: { userInvocable: true, agentInvocable: true }
+			visibility: { userInvocable: true, agentInvocable: true },
+			enabled: true
 		};
 		promptsService.setCustomModes([customMode]);
 		instaService.stub(IPromptsService, promptsService);
@@ -1104,7 +1103,6 @@ suite('PromptValidator', () => {
 
 			// Valid infer: true (maps to 'all') - shows deprecation warning
 			{
-				testConfigService.setUserConfiguration(ChatConfiguration.SubagentToolCustomAgents, true);
 				const content = [
 					'---',
 					'name: "TestAgent"',
@@ -1165,28 +1163,8 @@ suite('PromptValidator', () => {
 			}
 		});
 
-		test('disable-model-invocation: false warns when customAgentInSubagent.enabled is disabled', async () => {
-			testConfigService.setUserConfiguration(ChatConfiguration.SubagentToolCustomAgents, false);
-
-			// disable-model-invocation: false should warn when config is disabled
-			{
-				const content = [
-					'---',
-					'name: "TestAgent"',
-					'description: "Test agent"',
-					'disable-model-invocation: false',
-					'---',
-					'Body',
-				].join('\n');
-				const markers = await validate(content, PromptsType.agent);
-				assert.strictEqual(markers.length, 1);
-				assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
-				assert.strictEqual(markers[0].message, `For agents to be used as subagent you also need to enable the 'chat.customAgentInSubagent.enabled' setting.`);
-			}
-		});
 
 		test('agents attribute must be an array', async () => {
-			testConfigService.setUserConfiguration(ChatConfiguration.SubagentToolCustomAgents, true);
 			const content = [
 				'---',
 				'description: "Test"',
@@ -1198,7 +1176,6 @@ suite('PromptValidator', () => {
 		});
 
 		test('each agent name in agents attribute must be a string', async () => {
-			testConfigService.setUserConfiguration(ChatConfiguration.SubagentToolCustomAgents, true);
 			const content = [
 				'---',
 				'description: "Test"',
@@ -1226,7 +1203,6 @@ suite('PromptValidator', () => {
 		});
 
 		test('agents attribute with non-empty value requires agent tool 1', async () => {
-			testConfigService.setUserConfiguration(ChatConfiguration.SubagentToolCustomAgents, true);
 			const content = [
 				'---',
 				'description: "Test"',
@@ -1238,7 +1214,6 @@ suite('PromptValidator', () => {
 		});
 
 		test('agents attribute with non-empty value requires agent tool 2', async () => {
-			testConfigService.setUserConfiguration(ChatConfiguration.SubagentToolCustomAgents, true);
 			const content = [
 				'---',
 				'description: "Test"',
@@ -1251,7 +1226,6 @@ suite('PromptValidator', () => {
 		});
 
 		test('agents attribute with non-empty value requires agent tool 3', async () => {
-			testConfigService.setUserConfiguration(ChatConfiguration.SubagentToolCustomAgents, true);
 			const content = [
 				'---',
 				'description: "Test"',
@@ -1264,7 +1238,6 @@ suite('PromptValidator', () => {
 		});
 
 		test('agents attribute with non-empty value requires agent tool 4', async () => {
-			testConfigService.setUserConfiguration(ChatConfiguration.SubagentToolCustomAgents, true);
 			const content = [
 				'---',
 				'description: "Test"',
@@ -1277,7 +1250,6 @@ suite('PromptValidator', () => {
 		});
 
 		test('agents attribute with empty array does not require agent tool', async () => {
-			testConfigService.setUserConfiguration(ChatConfiguration.SubagentToolCustomAgents, true);
 			const content = [
 				'---',
 				'description: "Test"',
@@ -2124,7 +2096,7 @@ suite('PromptValidator', () => {
 			assert.strictEqual(markers[0].message, `The skill name 'different-name' should match the folder name 'my-skill'.`);
 		});
 
-		test('skill without name attribute should error', async () => {
+		test('skill without name attribute should warn', async () => {
 			const content = [
 				'---',
 				'description: Test Skill',
@@ -2133,8 +2105,14 @@ suite('PromptValidator', () => {
 			].join('\n');
 			const markers = await validate(content, PromptsType.skill, URI.parse('file:///.github/skills/my-skill/SKILL.md'));
 			assert.strictEqual(markers.length, 1);
-			assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
-			assert.strictEqual(markers[0].message, `Skill must provide a name.`);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
+			assert.strictEqual(markers[0].message, 'Skill should provide a name.');
+		});
+
+		test('skill without frontmatter should not warn about missing name or description', async () => {
+			const content = 'This is a skill without any frontmatter.';
+			const markers = await validate(content, PromptsType.skill, URI.parse('file:///.github/skills/my-skill/SKILL.md'));
+			assert.deepStrictEqual(markers, []);
 		});
 
 		test('skill with empty name should error', async () => {
@@ -2151,7 +2129,7 @@ suite('PromptValidator', () => {
 			assert.strictEqual(markers[0].message, `The 'name' attribute must not be empty.`);
 		});
 
-		test('skill without description attribute should error', async () => {
+		test('skill without description attribute should warn', async () => {
 			const content = [
 				'---',
 				'name: my-skill',
@@ -2160,8 +2138,40 @@ suite('PromptValidator', () => {
 			].join('\n');
 			const markers = await validate(content, PromptsType.skill, URI.parse('file:///.github/skills/my-skill/SKILL.md'));
 			assert.strictEqual(markers.length, 1);
-			assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
-			assert.strictEqual(markers[0].message, `Skill must provide a description.`);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
+			assert.strictEqual(markers[0].message, 'Skill should provide a description.');
+		});
+
+		test('skill without description but with user-invocable false should error on that attribute', async () => {
+			const content = [
+				'---',
+				'name: my-skill',
+				'user-invocable: false',
+				'---',
+				'This is a skill.'
+			].join('\n');
+			const markers = await validate(content, PromptsType.skill, URI.parse('file:///.github/skills/my-skill/SKILL.md'));
+			assert.strictEqual(markers.length, 2);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
+			assert.strictEqual(markers[0].message, 'Skill should provide a description.');
+			assert.strictEqual(markers[1].severity, MarkerSeverity.Error);
+			assert.ok(markers[1].message.includes('description is required when user-invocable is false'));
+		});
+
+		test('skill without description but with disable-model-invocation false should error on that attribute', async () => {
+			const content = [
+				'---',
+				'name: my-skill',
+				'disable-model-invocation: false',
+				'---',
+				'This is a skill.'
+			].join('\n');
+			const markers = await validate(content, PromptsType.skill, URI.parse('file:///.github/skills/my-skill/SKILL.md'));
+			assert.strictEqual(markers.length, 2);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
+			assert.strictEqual(markers[0].message, 'Skill should provide a description.');
+			assert.strictEqual(markers[1].severity, MarkerSeverity.Error);
+			assert.ok(markers[1].message.includes('description is required when model invocation is enabled'));
 		});
 
 		test('skill with empty description should error', async () => {

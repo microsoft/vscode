@@ -5,7 +5,7 @@
 
 import { PromptElement, PromptSizing } from '@vscode/prompt-tsx';
 import { IChatEndpoint } from '../../../../../platform/networking/common/networking';
-import { ToolName } from '../../../../tools/common/toolNames';
+import { agenticBrowserTools, ToolName } from '../../../../tools/common/toolNames';
 import { InstructionMessage } from '../../base/instructionMessage';
 import { ResponseTranslationRules } from '../../base/responseTranslationRules';
 import { Tag } from '../../base/tag';
@@ -33,7 +33,7 @@ export class DefaultOpenAIAgentPrompt extends PromptElement<DefaultAgentPromptPr
 				You are a highly sophisticated automated coding agent with expert-level knowledge across many different programming languages and frameworks.<br />
 				The user will ask a question, or ask you to perform a task, and it may require lots of research to answer correctly. There is a selection of tools that let you perform actions or retrieve helpful context to answer the user's question.<br />
 				<DefaultOpenAIKeepGoingReminder />
-				{tools[ToolName.SearchSubagent] && <>For codebase exploration, prefer {ToolName.SearchSubagent} to search and gather data instead of directly calling {ToolName.FindTextInFiles}, {ToolName.Codebase} or {ToolName.FindFiles}.<br /></>}
+				{(tools[ToolName.SearchSubagent] || tools[ToolName.ExploreSubagent]) && <>For codebase exploration, prefer {tools[ToolName.SearchSubagent] ? ToolName.SearchSubagent : ToolName.ExploreSubagent} to search and gather data instead of directly calling {ToolName.FindTextInFiles}, {ToolName.Codebase} or {ToolName.FindFiles}.<br /></>}
 				{tools[ToolName.ExecutionSubagent] && <>For most execution tasks and terminal commands, use {ToolName.ExecutionSubagent} to run commands and get relevant portions of the output instead of using {ToolName.CoreRunInTerminal}. Use {ToolName.CoreRunInTerminal} in rare cases when you want the entire output of a single command without truncation.<br /></>}
 				You will be given some context and attachments along with the user prompt. You can use them if they are relevant to the task, and ignore them if not.{tools[ToolName.ReadFile] && <> Some attachments may be summarized with omitted sections like `/* Lines 123-456 omitted */`. You can use the {ToolName.ReadFile} tool to read more context if needed. Never pass this omitted line marker to an edit tool.</>}<br />
 				If you can infer the project type (languages, frameworks, and libraries) from the user's query or the context that you have, make sure to keep them in mind when making changes.<br />
@@ -63,6 +63,7 @@ export class DefaultOpenAIAgentPrompt extends PromptElement<DefaultAgentPromptPr
 				{tools[ToolName.CoreRunInTerminal] && <>NEVER try to edit a file by running terminal commands unless the user specifically asks for it.<br /></>}
 				{!tools.hasSomeEditTool && <>You don't currently have any tools available for editing files. If the user asks you to edit a file, you can ask the user to enable editing tools or print a codeblock with the suggested changes.<br /></>}
 				{!tools[ToolName.CoreRunInTerminal] && <>You don't currently have any tools available for running terminal commands. If the user asks you to run a terminal command, you can ask the user to enable terminal tools or print a codeblock with the suggested command.<br /></>}
+				{tools[ToolName.CoreOpenBrowserPage] && tools.hasAgenticBrowserTools && <>Use the browser tools ({ToolName.CoreOpenBrowserPage}, {agenticBrowserTools.find(k => tools[k])}, etc.) when beneficial for front-end tasks, such as when visualizing or validating UI changes.<br /></>}
 				Tools can be disabled by the user. You may see tools used previously in the conversation that are not currently available. Be careful to only use the tools that are currently available to you.
 			</Tag>
 			{this.props.codesearchMode && <CodesearchModeInstructions {...this.props} />}

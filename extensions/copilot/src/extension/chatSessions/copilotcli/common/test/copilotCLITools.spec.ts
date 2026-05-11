@@ -11,8 +11,9 @@ import { URI } from '../../../../../util/vs/base/common/uri';
 import {
 	ChatRequestTurn2, ChatResponseMarkdownPart, ChatResponsePullRequestPart, ChatResponseThinkingProgressPart, ChatResponseTurn2, ChatToolInvocationPart, MarkdownString
 } from '../../../../../vscodeTypes';
+import { CancellationToken } from '../../../../../util/vs/base/common/cancellation';
 import {
-	buildChatHistoryFromEvents, createCopilotCLIToolInvocation, enrichToolInvocationWithSubagentMetadata, extractCdPrefix, getAffectedUrisForEditTool, isCopilotCliEditToolCall, isCopilotCLIToolThatCouldRequirePermissions, processToolExecutionComplete, processToolExecutionStart, RequestIdDetails, stripReminders, ToolCall
+	buildChatHistoryFromEvents, createCopilotCLIToolInvocation, enrichToolInvocationWithSubagentMetadata, extractCdPrefix, FakeToolsService, getAffectedUrisForEditTool, isCopilotCliEditToolCall, isCopilotCLIToolThatCouldRequirePermissions, isTodoRelatedSqlQuery, processToolExecutionComplete, processToolExecutionStart, RequestIdDetails, stripReminders, ToolCall, updateTodoListFromSqlItems
 } from '../copilotCLITools';
 import { IChatDelegationSummaryService } from '../delegationSummaryService';
 
@@ -72,6 +73,10 @@ describe('CopilotCLITools', () => {
 		it('removes pr_metadata tags', () => {
 			const input = '<pr_metadata uri="u" title="t" description="d" author="a" linkTag="l"/> Body';
 			expect(stripReminders(input)).toBe('Body');
+		});
+		it('removes user_query blocks', () => {
+			const input = '<user_query>Hidden prompt</user_query> Visible';
+			expect(stripReminders(input)).toBe('Visible');
 		});
 		it('removes multiple constructs mixed', () => {
 			const input = '<reminder>x</reminder>One<current_datetime>y</current_datetime> <pr_metadata uri="u" title="t" description="d" author="a" linkTag="l"/>Two';
@@ -151,6 +156,97 @@ describe('CopilotCLITools', () => {
 			const markdownParts = parts.filter(p => p instanceof ChatResponseMarkdownPart);
 			expect(markdownParts).toHaveLength(1);
 			expect((markdownParts[0] as any).value?.value || (markdownParts[0] as any).value).toContain('All tests are passing.');
+		});
+
+		it('preserves response details on the final rebuilt response turn', () => {
+			const events: any[] = [
+				{ type: 'user.message', data: { content: 'Hello', attachments: [] } },
+				{ type: 'assistant.message', data: { content: 'Hi there' } }
+			];
+			const turns = buildChatHistoryFromEvents('', 'base', events, getVSCodeRequestId, delegationSummary, logger, undefined, undefined, new Map([['base', 'Base • 2x']]));
+			expect(turns).toHaveLength(2);
+			const responseTurn = turns[1] as ChatResponseTurn2;
+			expect(responseTurn.result).toEqual({ details: 'Base • 2x' });
+		});
+
+		it('uses session model changes for each rebuilt response turn', () => {
+			const modelDetails = new Map([
+				['opus-4.6', 'Opus 4.6 • 4x'],
+				['opus-4.7', 'Opus 4.7 • 4x'],
+				['gpt-5.4', 'GPT 5.4 • 2x'],
+				['gpt-5.3', 'GPT 5.3 • 1x'],
+			]);
+			const events: any[] = [
+				{ type: 'session.start', data: { selectedModel: 'opus-4.6' } },
+				{ type: 'user.message', id: 'u1', data: { content: 'First', attachments: [] } },
+				{ type: 'assistant.message', data: { content: 'One' } },
+				{ type: 'session.model_change', data: { previousModel: 'opus-4.6', newModel: 'opus-4.7' } },
+				{ type: 'user.message', id: 'u2', data: { content: 'Second', attachments: [] } },
+				{ type: 'assistant.message', data: { content: 'Two' } },
+				{ type: 'session.model_change', data: { previousModel: 'opus-4.7', newModel: 'gpt-5.4' } },
+				{ type: 'user.message', id: 'u3', data: { content: 'Third', attachments: [] } },
+				{ type: 'assistant.message', data: { content: 'Three' } },
+				{ type: 'session.model_change', data: { previousModel: 'gpt-5.4', newModel: 'gpt-5.3' } },
+				{ type: 'user.message', id: 'u4', data: { content: 'Fourth', attachments: [] } },
+				{ type: 'assistant.message', data: { content: 'Four' } },
+			];
+
+			const turns = buildChatHistoryFromEvents('', undefined, events, getVSCodeRequestId, delegationSummary, logger, undefined, undefined, modelDetails);
+
+			expect(turns.filter(turn => turn instanceof ChatRequestTurn2).map(turn => (turn as ChatRequestTurn2).modelId)).toEqual(['opus-4.6', 'opus-4.7', 'gpt-5.4', 'gpt-5.3']);
+			expect(turns.filter(turn => turn instanceof ChatResponseTurn2).map(turn => (turn as ChatResponseTurn2).result)).toEqual([
+				{ details: 'Opus 4.6 • 4x' },
+				{ details: 'Opus 4.7 • 4x' },
+				{ details: 'GPT 5.4 • 2x' },
+				{ details: 'GPT 5.3 • 1x' },
+			]);
+		});
+
+		it('uses assistant usage model for the active rebuilt response turn', () => {
+			const events: any[] = [
+				{ type: 'user.message', id: 'u1', data: { content: 'Hello', attachments: [] } },
+				{ type: 'assistant.message', data: { content: 'Hi' } },
+				{ type: 'assistant.usage', data: { model: 'gpt-5.4', inputTokens: 10, outputTokens: 5 } },
+			];
+
+			const turns = buildChatHistoryFromEvents('', undefined, events, getVSCodeRequestId, delegationSummary, logger, undefined, undefined, new Map([['gpt-5.4', 'GPT 5.4 • 2x']]));
+
+			expect(turns).toHaveLength(2);
+			expect((turns[0] as ChatRequestTurn2).modelId).toBe('gpt-5.4');
+			expect((turns[1] as ChatResponseTurn2).result).toEqual({ details: 'GPT 5.4 • 2x' });
+		});
+
+		it('uses persisted responseModelId to recover model details on reload for auto sessions', () => {
+			// Simulates a reloaded `auto` session: the SDK only persists `selectedModel: "auto"`
+			// (the `assistant.usage` event that carried the resolved model id is ephemeral and
+			// dropped from the persisted event log). The resolved model id was previously
+			// captured by the participant and stored via the chat session metadata store as
+			// `RequestDetails.responseModelId`, then surfaced through the `getVSCodeRequestId`
+			// callback. The reload path must use it to render the model footer details.
+			const events: any[] = [
+				{ type: 'session.start', data: { selectedModel: 'auto' } },
+				{ type: 'user.message', id: 'u1', data: { content: 'First', attachments: [] } },
+				{ type: 'assistant.message', data: { content: 'One' } },
+				{ type: 'user.message', id: 'u2', data: { content: 'Second', attachments: [] } },
+				{ type: 'assistant.message', data: { content: 'Two' } },
+			];
+			const detailsByEventId: Record<string, RequestIdDetails> = {
+				u1: { requestId: 'r1', toolIdEditMap: {}, responseModelId: 'gpt-5.4' },
+				u2: { requestId: 'r2', toolIdEditMap: {}, responseModelId: 'claude-opus-4.7' },
+			};
+			const lookup = (sdkRequestId: string) => detailsByEventId[sdkRequestId];
+
+			const turns = buildChatHistoryFromEvents('', 'auto', events, lookup, delegationSummary, logger, undefined, undefined, new Map([
+				['gpt-5.4', 'GPT 5.4 • 2x'],
+				['claude-opus-4.7', 'Claude Opus 4.7 • 4x'],
+			]));
+
+			expect(turns).toHaveLength(4);
+			expect(turns.filter(turn => turn instanceof ChatRequestTurn2).map(turn => (turn as ChatRequestTurn2).modelId)).toEqual(['gpt-5.4', 'claude-opus-4.7']);
+			expect(turns.filter(turn => turn instanceof ChatResponseTurn2).map(turn => (turn as ChatResponseTurn2).result)).toEqual([
+				{ details: 'GPT 5.4 • 2x' },
+				{ details: 'Claude Opus 4.7 • 4x' },
+			]);
 		});
 
 		it('converts file attachments to references on user messages', () => {
@@ -338,6 +434,50 @@ describe('CopilotCLITools', () => {
 			expect(requestTurn.modeInstructions2!.uri).toBeUndefined();
 			expect(requestTurn.modeInstructions2!.name).toBe('builtin-agent');
 			expect(requestTurn.modeInstructions2!.isBuiltin).toBe(true);
+		});
+
+		it('prefixes prompt with /autopilot when agentMode is autopilot', () => {
+			const events: any[] = [
+				{ type: 'user.message', data: { content: 'Fix the bug', attachments: [], agentMode: 'autopilot' } },
+				{ type: 'assistant.message', data: { content: 'Done' } }
+			];
+			const turns = buildChatHistoryFromEvents('', undefined, events, getVSCodeRequestId, delegationSummary, logger);
+			expect(turns).toHaveLength(2);
+			const requestTurn = turns[0] as ChatRequestTurn2;
+			expect(requestTurn.prompt).toBe('/autopilot Fix the bug');
+		});
+
+		it('prefixes prompt with /plan when agentMode is plan', () => {
+			const events: any[] = [
+				{ type: 'user.message', data: { content: 'Create a plan', attachments: [], agentMode: 'plan' } },
+				{ type: 'assistant.message', data: { content: 'Here is the plan' } }
+			];
+			const turns = buildChatHistoryFromEvents('', undefined, events, getVSCodeRequestId, delegationSummary, logger);
+			expect(turns).toHaveLength(2);
+			const requestTurn = turns[0] as ChatRequestTurn2;
+			expect(requestTurn.prompt).toBe('/plan Create a plan');
+		});
+
+		it('does not prefix prompt when agentMode is not set', () => {
+			const events: any[] = [
+				{ type: 'user.message', data: { content: 'Hello', attachments: [] } },
+				{ type: 'assistant.message', data: { content: 'Hi' } }
+			];
+			const turns = buildChatHistoryFromEvents('', undefined, events, getVSCodeRequestId, delegationSummary, logger);
+			expect(turns).toHaveLength(2);
+			const requestTurn = turns[0] as ChatRequestTurn2;
+			expect(requestTurn.prompt).toBe('Hello');
+		});
+
+		it('does not prefix prompt when agentMode is an unknown value', () => {
+			const events: any[] = [
+				{ type: 'user.message', data: { content: 'Hello', attachments: [], agentMode: 'unknown-mode' } },
+				{ type: 'assistant.message', data: { content: 'Hi' } }
+			];
+			const turns = buildChatHistoryFromEvents('', undefined, events, getVSCodeRequestId, delegationSummary, logger);
+			expect(turns).toHaveLength(2);
+			const requestTurn = turns[0] as ChatRequestTurn2;
+			expect(requestTurn.prompt).toBe('Hello');
 		});
 	});
 
@@ -1130,5 +1270,116 @@ describe('CopilotCLITools', () => {
 			expect(grep.subAgentInvocationId).toBe('L0');
 		});
 	});
-});
 
+	describe('isTodoRelatedSqlQuery', () => {
+		it('returns true for INSERT into todos', () => {
+			expect(isTodoRelatedSqlQuery('INSERT INTO todos (title, status) VALUES (\'task\', \'pending\')')).toBe(true);
+		});
+
+		it('returns true for UPDATE todos', () => {
+			expect(isTodoRelatedSqlQuery('UPDATE todos SET status = \'done\' WHERE id = 1')).toBe(true);
+		});
+
+		it('returns true for DELETE from todos', () => {
+			expect(isTodoRelatedSqlQuery('DELETE FROM todos WHERE id = 1')).toBe(true);
+		});
+
+		it('returns true for CREATE TABLE todos', () => {
+			expect(isTodoRelatedSqlQuery('CREATE TABLE todos (id INTEGER PRIMARY KEY, title TEXT)')).toBe(true);
+		});
+
+		it('returns true for queries targeting todo_deps table', () => {
+			expect(isTodoRelatedSqlQuery('INSERT INTO todo_deps (todo_id, dep_id) VALUES (1, 2)')).toBe(true);
+		});
+
+		it('returns false for SELECT-only queries on todos', () => {
+			expect(isTodoRelatedSqlQuery('SELECT * FROM todos')).toBe(false);
+		});
+
+		it('returns false for queries not targeting todos or todo_deps', () => {
+			expect(isTodoRelatedSqlQuery('INSERT INTO tasks (title) VALUES (\'task\')')).toBe(false);
+		});
+
+		it('returns false for empty query', () => {
+			expect(isTodoRelatedSqlQuery('')).toBe(false);
+		});
+
+		it('is case insensitive', () => {
+			expect(isTodoRelatedSqlQuery('INSERT INTO TODOS (title) VALUES (\'task\')')).toBe(true);
+		});
+
+		it('handles multiline queries', () => {
+			expect(isTodoRelatedSqlQuery('INSERT INTO\n  todos\n  (title) VALUES (\'task\')')).toBe(true);
+		});
+
+		it('returns true for DROP TABLE todos', () => {
+			expect(isTodoRelatedSqlQuery('DROP TABLE todos')).toBe(true);
+		});
+
+		it('returns true for ALTER TABLE todo_deps', () => {
+			expect(isTodoRelatedSqlQuery('ALTER TABLE todo_deps ADD COLUMN priority INTEGER')).toBe(true);
+		});
+	});
+
+	describe('updateTodoListFromSqlItems', () => {
+		it('invokes the manage_todo_list tool with mapped items', async () => {
+			const toolsService = new FakeToolsService();
+
+			await updateTodoListFromSqlItems(
+				[
+					{ id: '1', title: 'First task', description: 'desc1', status: 'pending' },
+					{ id: '2', title: 'Second task', description: 'desc2', status: 'in_progress' },
+					{ id: '3', title: 'Third task', description: '', status: 'done' },
+					{ id: '4', title: 'Fourth task', description: 'blocked desc', status: 'blocked' },
+				],
+				toolsService,
+				undefined as never,
+				CancellationToken.None,
+			);
+
+			expect(toolsService.invokeToolCalls).toHaveLength(1);
+			expect(toolsService.invokeToolCalls[0].name).toBe('manage_todo_list');
+			expect(toolsService.invokeToolCalls[0].input).toEqual({
+				operation: 'write',
+				todoList: [
+					{ id: 0, title: 'First task', description: 'desc1', status: 'not-started' },
+					{ id: 1, title: 'Second task', description: 'desc2', status: 'in-progress' },
+					{ id: 2, title: 'Third task', description: '', status: 'completed' },
+					{ id: 3, title: 'Fourth task', description: 'blocked desc', status: 'not-started' },
+				],
+			});
+		});
+
+		it('maps unknown status to not-started', async () => {
+			const toolsService = new FakeToolsService();
+
+			await updateTodoListFromSqlItems(
+				[{ id: '1', title: 'task', description: '', status: 'unknown_status' as never }],
+				toolsService,
+				undefined as never,
+				CancellationToken.None,
+			);
+
+			const input = toolsService.invokeToolCalls[0].input as { todoList: { status: string }[] };
+			expect(input.todoList[0].status).toBe('not-started');
+		});
+
+		it('uses sequential ids starting from 0', async () => {
+			const toolsService = new FakeToolsService();
+
+			await updateTodoListFromSqlItems(
+				[
+					{ id: '100', title: 'a', description: '', status: 'pending' },
+					{ id: '200', title: 'b', description: '', status: 'done' },
+				],
+				toolsService,
+				undefined as never,
+				CancellationToken.None,
+			);
+
+			const input = toolsService.invokeToolCalls[0].input as { todoList: { id: number }[] };
+			expect(input.todoList[0].id).toBe(0);
+			expect(input.todoList[1].id).toBe(1);
+		});
+	});
+});

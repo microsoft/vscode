@@ -8,6 +8,7 @@ import { isGpt54, isGpt54ConcisePromptExp, isGpt54LargePromptExp } from '../../.
 import { IChatEndpoint } from '../../../../../platform/networking/common/networking';
 import { IInstantiationService } from '../../../../../util/vs/platform/instantiation/common/instantiation';
 import { ToolName } from '../../../../tools/common/toolNames';
+import { CUSTOM_TOOL_SEARCH_NAME, ToolSearchToolPromptOptimized } from '../toolSearchInstructions';
 import { GPT5CopilotIdentityRule } from '../../base/copilotIdentity';
 import { InstructionMessage } from '../../base/instructionMessage';
 import { ResponseTranslationRules } from '../../base/responseTranslationRules';
@@ -53,7 +54,7 @@ export class Gpt54Prompt extends PromptElement<DefaultAgentPromptProps> {
 				As an expert coding agent, your primary focus is writing code, answering questions, and helping the user complete their task in the current environment. You build context by examining the codebase first without making assumptions or jumping to conclusions. You think through the nuances of the code you encounter, and embody the mentality of a skilled senior software engineer.<br />
 				- When searching for text or files, prefer using `rg` or `rg --files` respectively because `rg` is much faster than alternatives like `grep`. (If the `rg` command is not found, then use alternatives.)<br />
 				- Parallelize tool calls whenever possible - especially file reads, such as `cat`, `rg`, `sed`, `ls`, `git show`, `nl`, `wc`. Never chain together bash commands with separators like `echo "====";` as this renders to the user poorly.<br />
-				{tools[ToolName.SearchSubagent] && <>- For efficient codebase exploration, prefer {ToolName.SearchSubagent} to search and gather data instead of directly calling {ToolName.FindTextInFiles}, {ToolName.Codebase} or {ToolName.FindFiles}. Use this as a quick injection of context before beginning to solve the problem yourself.<br /></>}
+				{(tools[ToolName.SearchSubagent] || tools[ToolName.ExploreSubagent]) && <>- For efficient codebase exploration, prefer {tools[ToolName.SearchSubagent] ? ToolName.SearchSubagent : ToolName.ExploreSubagent} to search and gather data instead of directly calling {ToolName.FindTextInFiles}, {ToolName.Codebase} or {ToolName.FindFiles}. Use this as a quick injection of context before beginning to solve the problem yourself.<br /></>}
 			</Tag>
 			<Tag name='editing_constraints'>
 				- Default to ASCII when editing or creating files. Only introduce non-ASCII or other Unicode characters when there is a clear justification and the file already uses them.<br />
@@ -79,6 +80,7 @@ export class Gpt54Prompt extends PromptElement<DefaultAgentPromptProps> {
 				<MathIntegrationRules />
 			</Tag>
 			{this.props.availableTools && <McpToolInstructions tools={this.props.availableTools} />}
+			<ToolSearchToolPromptOptimized availableTools={this.props.availableTools} />
 			{tools[ToolName.ApplyPatch] && <ApplyPatchInstructions {...this.props} tools={tools} />}
 			<Tag name='frontend_tasks'>
 				When doing frontend design tasks, avoid collapsing into "AI slop" or safe, average-looking layouts.<br />
@@ -136,7 +138,7 @@ export class Gpt54Prompt extends PromptElement<DefaultAgentPromptProps> {
 				- User updates are short updates while you are working, they are NOT final answers.<br />
 				- You use 1-2 sentence user updates to communicated progress and new information to the user as you are doing work.<br />
 				- Do not begin responses with conversational interjections or meta commentary. Avoid openers such as acknowledgements (“Done —”, “Got it”, “Great question, ”) or framing phrases.<br />
-				- Before exploring or doing substantial work, you start with a user update acknowledging the request and explaining your first step. You should include your understanding of the user request and explain what you will do. Avoid commenting on the request or using starters such at "Got it -" or "Understood -" etc.<br />
+				- You must always start with an intermediary update before any content in the `analysis` channel if the task will require calling tools. The user update should acknowledge the request and explain your first step. Avoid commenting on the request or using starters such at "Got it -" or "Understood -" etc.<br />
 				- You provide user updates frequently, every 30s.<br />
 				- When exploring, e.g. searching, reading files you provide user updates as you go, explaining what context you are gathering and what you've learned. Vary your sentence structure when providing these updates to avoid sounding repetitive - in particular, don't start each sentence the same way.<br />
 				- When working for a while, keep updates informative and varied, but stay concise.<br />
@@ -226,6 +228,7 @@ class Gpt54PromptResolver implements IAgentPrompt {
 
 export class Gpt54ReminderInstructions extends PromptElement<ReminderInstructionsProps> {
 	async render(state: void, sizing: PromptSizing) {
+		const toolSearchEnabled = !!this.props.endpoint.supportsToolSearch;
 		return <>
 			You are an agent—keep going until the user's query is completely resolved before ending your turn. ONLY stop if solved or genuinely blocked.<br />
 			Take action when possible; the user expects you to do useful work without unnecessary questions.<br />
@@ -235,6 +238,10 @@ export class Gpt54ReminderInstructions extends PromptElement<ReminderInstruction
 			Progress cadence: After 3 to 5 tool calls, or when you create/edit &gt; ~3 files in a burst, report progress.<br />
 			Requirements coverage: Read the user's ask in full and think carefully. Do not omit a requirement. If something cannot be done with available tools, note why briefly and propose a viable alternative.<br />
 			{getEditingReminder(this.props.hasEditFileTool, this.props.hasReplaceStringTool, false /* useStrongReplaceStringHint */, this.props.hasMultiReplaceStringTool)}
+			{toolSearchEnabled && <>
+				<br />
+				IMPORTANT: Before calling any deferred tool that was not previously returned by {CUSTOM_TOOL_SEARCH_NAME}, you MUST first use {CUSTOM_TOOL_SEARCH_NAME} to load it. Calling a deferred tool without first loading it will fail. Tools returned by {CUSTOM_TOOL_SEARCH_NAME} are automatically expanded and immediately available - do not search for them again.<br />
+			</>}
 		</>;
 	}
 }

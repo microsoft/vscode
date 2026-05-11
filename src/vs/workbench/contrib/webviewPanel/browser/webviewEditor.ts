@@ -6,7 +6,7 @@
 import * as DOM from '../../../../base/browser/dom.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { isWeb } from '../../../../base/common/platform.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import * as nls from '../../../../nls.js';
@@ -40,9 +40,9 @@ export class WebviewEditor extends EditorPane {
 	public static readonly ID = 'WebviewEditor';
 
 	private _element?: HTMLElement;
-	private _dimension?: DOM.Dimension;
 	private _visible = false;
 	private _isDisposed = false;
+	private _clippingContainer?: HTMLElement;
 
 	private readonly _webviewVisibleDisposables = this._register(new DisposableStore());
 	private readonly _onFocusWindowHandler = this._register(new MutableDisposable());
@@ -64,15 +64,6 @@ export class WebviewEditor extends EditorPane {
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 	) {
 		super(WebviewEditor.ID, group, telemetryService, themeService, storageService);
-
-		const part = _editorGroupsService.getPart(group);
-		this._register(Event.any(part.onDidScroll, part.onDidAddGroup, part.onDidRemoveGroup, part.onDidMoveGroup)(() => {
-			if (this.webview && this._visible) {
-				this.synchronizeWebviewContainerDimensions(this.webview);
-			}
-		}));
-
-
 	}
 
 	private get webview(): IOverlayWebview | undefined {
@@ -102,10 +93,7 @@ export class WebviewEditor extends EditorPane {
 	}
 
 	public override layout(dimension: DOM.Dimension): void {
-		this._dimension = dimension;
-		if (this.webview && this._visible) {
-			this.synchronizeWebviewContainerDimensions(this.webview, dimension);
-		}
+		this.setEditorVisible(dimension.width > 0 && dimension.height > 0);
 	}
 
 	public override focus(): void {
@@ -122,6 +110,10 @@ export class WebviewEditor extends EditorPane {
 	}
 
 	protected override setEditorVisible(visible: boolean): void {
+		if (visible === this._visible) {
+			return;
+		}
+
 		this._visible = visible;
 		if (this.input instanceof WebviewInput && this.webview) {
 			if (visible) {
@@ -165,9 +157,6 @@ export class WebviewEditor extends EditorPane {
 			if (!alreadyOwnsWebview) {
 				this.claimWebview(input);
 			}
-			if (this._dimension) {
-				this.layout(this._dimension);
-			}
 		}
 	}
 
@@ -179,6 +168,11 @@ export class WebviewEditor extends EditorPane {
 			DOM.setParentFlowTo(input.webview.container, this._element);
 		}
 
+		// Check if this editor is inside a modal editor
+		const modalEditorContainer = this._editorGroupsService.activeModalEditorPart?.modalElement;
+		const isModal = isHTMLElement(modalEditorContainer) && this._element && modalEditorContainer.contains(this._element);
+		this._clippingContainer = isModal ? undefined : this._workbenchLayoutService.getContainer(this.window, Parts.EDITOR_PART);
+
 		this._webviewVisibleDisposables.clear();
 
 		// Webviews are not part of the normal editor dom, so we have to register our own drag and drop handler on them.
@@ -188,51 +182,16 @@ export class WebviewEditor extends EditorPane {
 
 		this._webviewVisibleDisposables.add(new WebviewWindowDragMonitor(this.window, () => this.webview));
 
-		this.synchronizeWebviewContainerDimensions(input.webview);
+		this.setWebviewAnchorElement(input.webview);
 		this._webviewVisibleDisposables.add(this.trackFocus(input.webview));
-
-		// Use CSS Anchor Positioning to automatically track position changes.
-		// The editor element's parent acts as the CSS anchor, and the webview
-		// container is tethered to it.
-		// Falls back to explicit pixel positioning via layoutWebviewOverElement
-		// when anchor positioning is not supported.
-		if (this._element?.parentElement && CSS.supports('(top: anchor(top))')) {
-			const anchorName = `--${this._element.id}`;
-			this._element.parentElement.style.setProperty('anchor-name', anchorName);
-			const container = input.webview.container;
-			container.style.setProperty('position-anchor', anchorName);
-			container.style.setProperty('top', 'anchor(top)');
-			container.style.setProperty('left', 'anchor(left)');
-			this._webviewVisibleDisposables.add(toDisposable(() => {
-				this._element?.parentElement?.style.removeProperty('anchor-name');
-				container.style.removeProperty('position-anchor');
-				container.style.removeProperty('top');
-				container.style.removeProperty('left');
-			}));
-		}
 	}
 
-	private synchronizeWebviewContainerDimensions(webview: IOverlayWebview, dimension?: DOM.Dimension) {
+	private setWebviewAnchorElement(webview: IOverlayWebview) {
 		if (!this._element?.isConnected) {
 			return;
 		}
 
-		const modalEditorContainer = this._editorGroupsService.activeModalEditorPart?.modalElement;
-		let clippingContainer: HTMLElement | undefined;
-		if (isHTMLElement(modalEditorContainer)) {
-			clippingContainer = modalEditorContainer;
-		} else {
-			clippingContainer = this._workbenchLayoutService.getContainer(this.window, Parts.EDITOR_PART);
-		}
-		webview.layoutWebviewOverElement(this._element.parentElement!, dimension, clippingContainer);
-
-		// Re-apply CSS anchor positioning after layoutWebviewOverElement sets
-		// explicit pixel values for top/left. This lets the browser handle
-		// position tracking between explicit layout calls.
-		if (CSS.supports('(top: anchor(top))') && this._element.parentElement?.style.getPropertyValue('anchor-name')) {
-			webview.container.style.setProperty('top', 'anchor(top)');
-			webview.container.style.setProperty('left', 'anchor(left)');
-		}
+		webview.setAnchorElement(this._element.parentElement!, this._clippingContainer);
 	}
 
 	private trackFocus(webview: IOverlayWebview): IDisposable {

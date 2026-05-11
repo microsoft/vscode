@@ -100,7 +100,6 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 		AICustomizationManagementSection.Agents,
 		AICustomizationManagementSection.Skills,
 		AICustomizationManagementSection.Instructions,
-		AICustomizationManagementSection.Prompts,
 		AICustomizationManagementSection.Hooks,
 		AICustomizationManagementSection.McpServers,
 		AICustomizationManagementSection.Plugins,
@@ -113,8 +112,7 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 	readonly isSessionsWindow = true;
 
 	readonly welcomePageFeatures = {
-		showGettingStartedBanner: false,
-		showGenerateActions: false,
+		showGettingStartedBanner: true,
 	};
 
 	/**

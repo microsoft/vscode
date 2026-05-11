@@ -8,6 +8,7 @@ import dedent from 'ts-dedent';
 import type { CancellationToken } from 'vscode';
 import { CancellationTokenSource } from 'vscode-languageserver-protocol';
 import { ILogService } from '../../../../../../../platform/log/common/logService';
+import { ICompletionsFetchService } from '../../../../../../../platform/nesFetch/common/completionsFetchService';
 import { generateUuid } from '../../../../../../../util/vs/base/common/uuid';
 import { SyncDescriptor } from '../../../../../../../util/vs/platform/instantiation/common/descriptors';
 import { ServicesAccessor } from '../../../../../../../util/vs/platform/instantiation/common/instantiation';
@@ -24,7 +25,7 @@ import { extractPrompt, PromptResponsePresent, trimLastLine } from '../../prompt
 import { getGhostTextInternal } from '../../prompt/test/prompt';
 import { TelemetryWithExp } from '../../telemetry';
 import { createLibTestingContext } from '../../test/context';
-import { createFakeCompletionResponse, fakeCodeReference, NoFetchFetcher, StaticFetcher } from '../../test/fetcher';
+import { createFakeCompletionResponse, fakeCodeReference, NoFetchFetcher, StaticCompletionsFetchService, StaticFetcher } from '../../test/fetcher';
 import { withInMemoryTelemetry } from '../../test/telemetry';
 import { createTextDocument } from '../../test/textDocument';
 import { ITextDocument, LocationFactory } from '../../textDocument';
@@ -58,7 +59,8 @@ suite('Isolated GhostText tests', function () {
 	) {
 		const serviceCollection = createLibTestingContext();
 		serviceCollection.define(ICompletionsFetcherService, fetcher);
-		serviceCollection.define(ICompletionsOpenAIFetcherService, new SyncDescriptor(LiveOpenAIFetcher)); // gets results from static fetcher
+		serviceCollection.define(ICompletionsFetchService, new StaticCompletionsFetchService(fetcher));
+		serviceCollection.define(ICompletionsOpenAIFetcherService, new SyncDescriptor(LiveOpenAIFetcher));
 		const accessor = serviceCollection.createTestingAccessor();
 
 		const filePath = 'file:///fizzbuzz.go';

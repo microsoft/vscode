@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ForkSessionOptions, ForkSessionResult, Options, Query, SDKAssistantMessage, SDKResultMessage, SDKSessionInfo, SDKUserMessage, SessionMessage } from '@anthropic-ai/claude-agent-sdk';
-import { IClaudeCodeSdkService } from '../claudeCodeSdkService';
+import type { ForkSessionOptions, ForkSessionResult, GetSubagentMessagesOptions, ListSubagentsOptions, Options, Query, SDKAssistantMessage, SDKResultMessage, SDKSessionInfo, SDKUserMessage, SessionMessage, Settings } from '@anthropic-ai/claude-agent-sdk';
+import type { IClaudeCodeSdkService } from '../claudeCodeSdkService';
 
 /**
  * Mock implementation of IClaudeCodeService for testing
@@ -16,11 +16,15 @@ export class MockClaudeCodeSdkService implements IClaudeCodeSdkService {
 	public lastSetModel: string | undefined;
 	public setPermissionModeCallCount = 0;
 	public lastSetPermissionMode: string | undefined;
+	public applyFlagSettingsCallCount = 0;
+	public lastAppliedFlagSettings: Settings | undefined;
 	public lastQueryOptions: Options | undefined;
 	public readonly receivedMessages: SDKUserMessage[] = [];
 
 	public mockSessions: SDKSessionInfo[] = [];
 	public mockSessionMessages: SessionMessage[] = [];
+	public mockSubagentIds: string[] = [];
+	public mockSubagentMessages: Map<string, SessionMessage[]> = new Map();
 
 	public async query(options: {
 		prompt: AsyncIterable<SDKUserMessage>;
@@ -31,7 +35,7 @@ export class MockClaudeCodeSdkService implements IClaudeCodeSdkService {
 		return this.createMockQuery(options.prompt);
 	}
 
-	public async listSessions(dir: string): Promise<SDKSessionInfo[]> {
+	public async listSessions(dir?: string): Promise<SDKSessionInfo[]> {
 		return this.mockSessions;
 	}
 
@@ -60,6 +64,14 @@ export class MockClaudeCodeSdkService implements IClaudeCodeSdkService {
 		return { sessionId: 'forked-session-id' } as ForkSessionResult;
 	}
 
+	public async listSubagents(sessionId: string, options?: ListSubagentsOptions): Promise<string[]> {
+		return this.mockSubagentIds;
+	}
+
+	public async getSubagentMessages(sessionId: string, agentId: string, options?: GetSubagentMessagesOptions): Promise<SessionMessage[]> {
+		return this.mockSubagentMessages.get(agentId) ?? [];
+	}
+
 	private createMockQuery(prompt: AsyncIterable<SDKUserMessage>): Query {
 		const generator = this.createMockGenerator(prompt);
 		return {
@@ -71,6 +83,10 @@ export class MockClaudeCodeSdkService implements IClaudeCodeSdkService {
 			setPermissionMode: async (mode: string) => {
 				this.setPermissionModeCallCount++;
 				this.lastSetPermissionMode = mode;
+			},
+			applyFlagSettings: async (settings: Settings) => {
+				this.applyFlagSettingsCallCount++;
+				this.lastAppliedFlagSettings = settings;
 			},
 			abort: () => { /* no-op for mock */ },
 		} as unknown as Query;

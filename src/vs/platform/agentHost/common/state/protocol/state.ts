@@ -75,7 +75,7 @@ export interface Icon {
  * @category Authentication
  * @see {@link https://datatracker.ietf.org/doc/html/rfc9728 | RFC 9728}
  */
-export interface IProtectedResourceMetadata {
+export interface ProtectedResourceMetadata {
 	/**
 	 * REQUIRED. The protected resource's resource identifier, a URL using the
 	 * `https` scheme with no fragment component (e.g. `"https://api.github.com"`).
@@ -147,19 +147,21 @@ export const enum PolicyState {
  *
  * @category Root State
  */
-export interface IRootState {
+export interface RootState {
 	/** Available agent backends and their models */
-	agents: IAgentInfo[];
+	agents: AgentInfo[];
 	/** Number of active (non-disposed) sessions on the server */
 	activeSessions?: number;
 	/** Known terminals on the server. Subscribe to individual terminal URIs for full state. */
-	terminals?: ITerminalInfo[];
+	terminals?: TerminalInfo[];
+	/** Agent host configuration schema and current values */
+	config?: RootConfigState;
 }
 
 /**
  * @category Root State
  */
-export interface IAgentInfo {
+export interface AgentInfo {
 	/** Agent provider ID (e.g. `'copilot'`) */
 	provider: string;
 	/** Human-readable name */
@@ -167,7 +169,7 @@ export interface IAgentInfo {
 	/** Description string */
 	description: string;
 	/** Available models for this agent */
-	models: ISessionModelInfo[];
+	models: SessionModelInfo[];
 	/**
 	 * Protected resources this agent requires authentication for.
 	 *
@@ -179,20 +181,20 @@ export interface IAgentInfo {
 	 *
 	 * @see {@link /specification/authentication | Authentication}
 	 */
-	protectedResources?: IProtectedResourceMetadata[];
+	protectedResources?: ProtectedResourceMetadata[];
 	/**
 	 * Customizations (Open Plugins) associated with this agent.
 	 *
 	 * Each entry is a reference to an [Open Plugins](https://open-plugins.com/)
 	 * plugin that the agent host can activate for sessions using this agent.
 	 */
-	customizations?: ICustomizationRef[];
+	customizations?: CustomizationRef[];
 }
 
 /**
  * @category Root State
  */
-export interface ISessionModelInfo {
+export interface SessionModelInfo {
 	/** Model identifier */
 	id: string;
 	/** Provider this model belongs to */
@@ -205,6 +207,33 @@ export interface ISessionModelInfo {
 	supportsVision?: boolean;
 	/** Policy configuration state */
 	policyState?: PolicyState;
+	/**
+	 * Configuration schema describing model-specific options (e.g. thinking
+	 * level). Clients present this as a form and pass the resolved values in
+	 * {@link ModelSelection.config} when creating or changing sessions.
+	 */
+	configSchema?: ConfigSchema;
+	/**
+	 * Additional provider-specific metadata for this model.
+	 *
+	 * Clients MAY look for well-known keys here to provide enhanced UI.
+	 * For example, a `pricing` key may carry model pricing metadata.
+	 */
+	_meta?: Record<string, unknown>;
+}
+
+/**
+ * A model selection: the chosen model ID together with any model-specific
+ * configuration values whose keys correspond to the model's
+ * {@link SessionModelInfo.configSchema}.
+ *
+ * @category Root State
+ */
+export interface ModelSelection {
+	/** Model identifier */
+	id: string;
+	/** Model-specific configuration values */
+	config?: Record<string, string>;
 }
 
 // ─── Pending Message Types ───────────────────────────────────────────────────
@@ -230,11 +259,11 @@ export const enum PendingMessageKind {
  *
  * @category Pending Message Types
  */
-export interface IPendingMessage {
+export interface PendingMessage {
 	/** Unique identifier for this pending message */
 	id: string;
 	/** The message content */
-	userMessage: IUserMessage;
+	userMessage: UserMessage;
 }
 
 // ─── Session State ───────────────────────────────────────────────────────────
@@ -251,14 +280,27 @@ export const enum SessionLifecycle {
 }
 
 /**
- * Current session status.
+ * Bitset of summary-level session status flags.
+ *
+ * Use bitwise checks instead of equality for non-terminal activity. For example,
+ * `status & SessionStatus.InProgress` matches both ordinary in-progress turns
+ * and turns that are paused waiting for input.
  *
  * @category Session State
  */
 export const enum SessionStatus {
-	Idle = 'idle',
-	InProgress = 'in-progress',
-	Error = 'error',
+	/** Session is idle — no turn is active. */
+	Idle = 1,
+	/** Session ended with an error. */
+	Error = 1 << 1,
+	/** A turn is actively streaming. */
+	InProgress = 1 << 3,
+	/** A turn is in progress but blocked waiting for user input or tool confirmation. */
+	InputNeeded = (1 << 3) | (1 << 4),
+	/** The client has viewed this session since its last modification. */
+	IsRead = 1 << 5,
+	/** The session has been archived by the client. */
+	IsArchived = 1 << 6,
 }
 
 /**
@@ -266,34 +308,44 @@ export const enum SessionStatus {
  *
  * @category Session State
  */
-export interface ISessionState {
+export interface SessionState {
 	/** Lightweight session metadata */
-	summary: ISessionSummary;
+	summary: SessionSummary;
 	/** Session initialization state */
 	lifecycle: SessionLifecycle;
 	/** Error details if creation failed */
-	creationError?: IErrorInfo;
+	creationError?: ErrorInfo;
 	/** Tools provided by the server (agent host) for this session */
-	serverTools?: IToolDefinition[];
+	serverTools?: ToolDefinition[];
 	/** The client currently providing tools and interactive capabilities to this session */
-	activeClient?: ISessionActiveClient;
-	/** The working directory URI for this session */
-	workingDirectory?: URI;
+	activeClient?: SessionActiveClient;
 	/** Completed turns */
-	turns: ITurn[];
+	turns: Turn[];
 	/** Currently in-progress turn */
-	activeTurn?: IActiveTurn;
+	activeTurn?: ActiveTurn;
 	/** Message to inject into the current turn at a convenient point */
-	steeringMessage?: IPendingMessage;
+	steeringMessage?: PendingMessage;
 	/** Messages to send automatically as new turns after the current turn finishes */
-	queuedMessages?: IPendingMessage[];
+	queuedMessages?: PendingMessage[];
+	/** Requests for user input that are currently blocking or informing session progress */
+	inputRequests?: SessionInputRequest[];
+	/** Session configuration schema and current values */
+	config?: SessionConfigState;
 	/**
 	 * Server-provided customizations active in this session.
 	 *
 	 * Client-provided customizations are available on
-	 * {@link ISessionActiveClient.customizations | activeClient.customizations}.
+	 * {@link SessionActiveClient.customizations | activeClient.customizations}.
 	 */
-	customizations?: ISessionCustomization[];
+	customizations?: SessionCustomization[];
+	/**
+	 * Additional provider-specific metadata for this session.
+	 *
+	 * Clients MAY look for well-known keys here to provide enhanced UI.
+	 * For example, a `git` key may provide extra git metadata about the session's
+	 * workingDirectory.
+	 */
+	_meta?: Record<string, unknown>;
 }
 
 /**
@@ -304,35 +356,33 @@ export interface ISessionState {
  *
  * @category Session State
  */
-export interface ISessionActiveClient {
+export interface SessionActiveClient {
 	/** Client identifier (matches `clientId` from `initialize`) */
 	clientId: string;
 	/** Human-readable client name (e.g. `"VS Code"`) */
 	displayName?: string;
 	/** Tools this client provides to the session */
-	tools: IToolDefinition[];
+	tools: ToolDefinition[];
 	/** Customizations this client contributes to the session */
-	customizations?: ICustomizationRef[];
+	customizations?: CustomizationRef[];
 }
 
 /**
- * A summary of changes to a single file within a session.
+ * Server-owned project metadata for a session.
  *
  * @category Session State
  */
-export interface ISessionFileDiff {
-	/** URI of the affected file */
+export interface ProjectInfo {
+	/** Project URI */
 	uri: URI;
-	/** Number of items added (e.g., lines for text files, cells for notebooks) */
-	added?: number;
-	/** Number of items removed (e.g., lines for text files, cells for notebooks) */
-	removed?: number;
+	/** Human-readable project name */
+	displayName: string;
 }
 
 /**
  * @category Session State
  */
-export interface ISessionSummary {
+export interface SessionSummary {
 	/** Session URI */
 	resource: URI;
 	/** Agent provider ID */
@@ -341,21 +391,381 @@ export interface ISessionSummary {
 	title: string;
 	/** Current session status */
 	status: SessionStatus;
+	/** Human-readable description of what the session is currently doing */
+	activity?: string;
 	/** Creation timestamp */
 	createdAt: number;
 	/** Last modification timestamp */
 	modifiedAt: number;
+	/** Server-owned project for this session */
+	project?: ProjectInfo;
 	/** Currently selected model */
-	model?: string;
+	model?: ModelSelection;
 	/** The working directory URI for this session */
 	workingDirectory?: URI;
-	/** Whether the client has viewed this session since its last modification */
-	isRead?: boolean;
-	/** Whether the session has been marked as done by the client */
-	isDone?: boolean;
 	/** Files changed during this session with diff statistics */
-	diffs?: ISessionFileDiff[];
+	diffs?: FileEdit[];
 }
+
+// ─── Config Schema Types ─────────────────────────────────────────────────────
+
+/**
+ * A JSON Schema-compatible property descriptor with display extensions.
+ *
+ * Standard JSON Schema fields (`type`, `title`, `description`, `default`,
+ * `enum`) allow validators to process the schema. Display extensions
+ * (`enumLabels`, `enumDescriptions`) are parallel arrays that provide UI
+ * metadata for each `enum` value.
+ *
+ * This is the generic base type. See {@link SessionConfigPropertySchema} for
+ * session-specific extensions.
+ *
+ * @category Config Schema Types
+ */
+export interface ConfigPropertySchema {
+	/** JSON Schema: property type */
+	type: 'string' | 'number' | 'boolean' | 'array' | 'object';
+	/** JSON Schema: human-readable label for the property */
+	title: string;
+	/** JSON Schema: description / tooltip */
+	description?: string;
+	/** JSON Schema: default value */
+	default?: unknown;
+	/** JSON Schema: allowed values (typically used with `string` type) */
+	enum?: string[];
+	/** Display extension: human-readable label per enum value (parallel array) */
+	enumLabels?: string[];
+	/** Display extension: description per enum value (parallel array) */
+	enumDescriptions?: string[];
+	/** JSON Schema: when `true`, the property is displayed but cannot be modified by the user */
+	readOnly?: boolean;
+	/** JSON Schema: schema for array items (used when `type` is `'array'`) */
+	items?: ConfigPropertySchema;
+	/** JSON Schema: property descriptors for object properties (used when `type` is `'object'`) */
+	properties?: Record<string, ConfigPropertySchema>;
+	/** JSON Schema: list of required property ids (used when `type` is `'object'`) */
+	required?: string[];
+}
+
+/**
+ * A JSON Schema object describing available configuration properties.
+ *
+ * This is the generic base type. See {@link SessionConfigSchema} for
+ * session-specific usage.
+ *
+ * @category Config Schema Types
+ */
+export interface ConfigSchema {
+	/** JSON Schema: always `'object'` */
+	type: 'object';
+	/** JSON Schema: property descriptors keyed by property id */
+	properties: Record<string, ConfigPropertySchema>;
+	/** JSON Schema: list of required property ids */
+	required?: string[];
+}
+
+// ─── Root Config Types ───────────────────────────────────────────────────────
+
+/**
+ * Live agent-host configuration metadata.
+ *
+ * The schema describes the available configuration properties and the values
+ * contain the current value for each resolved property.
+ *
+ * @category Root State
+ */
+export interface RootConfigState {
+	/** JSON Schema describing available configuration properties */
+	schema: ConfigSchema;
+	/** Current configuration values */
+	values: Record<string, unknown>;
+}
+
+// ─── Session Config Types ────────────────────────────────────────────────────
+
+/**
+ * A session configuration property descriptor.
+ *
+ * Extends the generic {@link ConfigPropertySchema} with session-specific
+ * display extensions.
+ *
+ * @category Session Config Types
+ */
+export interface SessionConfigPropertySchema extends ConfigPropertySchema {
+	/**
+	 * Display extension: when `true`, the full set of allowed values is too large
+	 * to enumerate statically. The client SHOULD use `sessionConfigCompletions`
+	 * to fetch matching values based on user input. Any values in `enum` are
+	 * seed/recent values for initial display.
+	 */
+	enumDynamic?: boolean;
+	/** When `true`, the user may change this property after session creation */
+	sessionMutable?: boolean;
+}
+
+/**
+ * A JSON Schema object describing available session configuration metadata.
+ *
+ * @category Session Config Types
+ */
+export interface SessionConfigSchema {
+	/** JSON Schema: always `'object'` */
+	type: 'object';
+	/** JSON Schema: property descriptors keyed by property id */
+	properties: Record<string, SessionConfigPropertySchema>;
+	/** JSON Schema: list of required property ids */
+	required?: string[];
+}
+
+/**
+ * Live session configuration metadata.
+ *
+ * The schema describes the available configuration properties and the values
+ * contain the current value for each resolved property.
+ *
+ * @category Session Config Types
+ */
+export interface SessionConfigState {
+	/** JSON Schema describing available configuration properties */
+	schema: SessionConfigSchema;
+	/** Current configuration values */
+	values: Record<string, unknown>;
+}
+
+// ─── Session Input Types ────────────────────────────────────────────────────
+
+/**
+ * How a client completed an input request.
+ *
+ * @category Session Input Types
+ */
+export const enum SessionInputResponseKind {
+	Accept = 'accept',
+	Decline = 'decline',
+	Cancel = 'cancel',
+}
+
+/**
+ * Question/input control kind.
+ *
+ * @category Session Input Types
+ */
+export const enum SessionInputQuestionKind {
+	Text = 'text',
+	Number = 'number',
+	Integer = 'integer',
+	Boolean = 'boolean',
+	SingleSelect = 'single-select',
+	MultiSelect = 'multi-select',
+}
+
+/**
+ * A choice in a select-style question.
+ *
+ * @category Session Input Types
+ */
+export interface SessionInputOption {
+	/** Stable option identifier; for MCP enum values this is the enum string */
+	id: string;
+	/** Display label */
+	label: string;
+	/** Optional secondary text */
+	description?: string;
+	/** Whether this option is the recommended/default choice */
+	recommended?: boolean;
+}
+
+interface SessionInputQuestionBase {
+	/** Stable question identifier used as the key in `answers` */
+	id: string;
+	/** Short display title */
+	title?: string;
+	/** Prompt shown to the user */
+	message: string;
+	/** Whether the user must answer this question to accept the request */
+	required?: boolean;
+}
+
+/** Text question within a session input request. */
+export interface SessionInputTextQuestion extends SessionInputQuestionBase {
+	kind: SessionInputQuestionKind.Text;
+	/** Format hint for text questions, such as `email`, `uri`, `date`, or `date-time` */
+	format?: string;
+	/** Minimum string length */
+	min?: number;
+	/** Maximum string length */
+	max?: number;
+	/** Default text */
+	defaultValue?: string;
+}
+
+/** Numeric question within a session input request. */
+export interface SessionInputNumberQuestion extends SessionInputQuestionBase {
+	kind: SessionInputQuestionKind.Number | SessionInputQuestionKind.Integer;
+	/**
+	 * Minimum value
+	 * @format float
+	 */
+	min?: number;
+	/**
+	 * Maximum value
+	 * @format float
+	 */
+	max?: number;
+	/**
+	 * Default numeric value
+	 * @format float
+	 */
+	defaultValue?: number;
+}
+
+/** Boolean question within a session input request. */
+export interface SessionInputBooleanQuestion extends SessionInputQuestionBase {
+	kind: SessionInputQuestionKind.Boolean;
+	/** Default boolean value */
+	defaultValue?: boolean;
+}
+
+/** Single-select question within a session input request. */
+export interface SessionInputSingleSelectQuestion extends SessionInputQuestionBase {
+	kind: SessionInputQuestionKind.SingleSelect;
+	/** Options the user may select from */
+	options: SessionInputOption[];
+	/** Whether the user may enter text instead of selecting an option */
+	allowFreeformInput?: boolean;
+}
+
+/** Multi-select question within a session input request. */
+export interface SessionInputMultiSelectQuestion extends SessionInputQuestionBase {
+	kind: SessionInputQuestionKind.MultiSelect;
+	/** Options the user may select from */
+	options: SessionInputOption[];
+	/** Whether the user may enter text in addition to selecting options */
+	allowFreeformInput?: boolean;
+	/** Minimum selected item count */
+	min?: number;
+	/** Maximum selected item count */
+	max?: number;
+}
+
+/**
+ * One question within a session input request.
+ *
+ * @category Session Input Types
+ */
+export type SessionInputQuestion = SessionInputTextQuestion
+	| SessionInputNumberQuestion
+	| SessionInputBooleanQuestion
+	| SessionInputSingleSelectQuestion
+	| SessionInputMultiSelectQuestion;
+
+/**
+ * A live request for user input.
+ *
+ * The server creates or replaces requests with `session/inputRequested`.
+ * Clients sync drafts with `session/inputAnswerChanged` and complete requests
+ * with `session/inputCompleted`.
+ *
+ * @category Session Input Types
+ */
+export interface SessionInputRequest {
+	/** Stable request identifier */
+	id: string;
+	/** Display message for the request as a whole */
+	message?: string;
+	/** URL the user should review or open, for URL-style elicitations */
+	url?: URI;
+	/** Ordered questions to ask the user */
+	questions?: SessionInputQuestion[];
+	/** Current draft or submitted answers, keyed by question ID */
+	answers?: Record<string, SessionInputAnswer>;
+}
+
+/**
+ * Answer value kind.
+ *
+ * @category Session Input Types
+ */
+export const enum SessionInputAnswerValueKind {
+	Text = 'text',
+	Number = 'number',
+	Boolean = 'boolean',
+	Selected = 'selected',
+	SelectedMany = 'selected-many',
+}
+
+/**
+ * Value captured for one answer.
+ *
+ * @category Session Input Types
+ */
+export interface SessionInputTextAnswerValue {
+	kind: SessionInputAnswerValueKind.Text;
+	value: string;
+}
+
+export interface SessionInputNumberAnswerValue {
+	kind: SessionInputAnswerValueKind.Number;
+	/** @format float */
+	value: number;
+}
+
+export interface SessionInputBooleanAnswerValue {
+	kind: SessionInputAnswerValueKind.Boolean;
+	value: boolean;
+}
+
+export interface SessionInputSelectedAnswerValue {
+	kind: SessionInputAnswerValueKind.Selected;
+	value: string;
+	/** Free-form text entered instead of selecting an option */
+	freeformValues?: string[];
+}
+
+export interface SessionInputSelectedManyAnswerValue {
+	kind: SessionInputAnswerValueKind.SelectedMany;
+	value: string[];
+	/** Free-form text entered in addition to selected options */
+	freeformValues?: string[];
+}
+
+export type SessionInputAnswerValue = SessionInputTextAnswerValue
+	| SessionInputNumberAnswerValue
+	| SessionInputBooleanAnswerValue
+	| SessionInputSelectedAnswerValue
+	| SessionInputSelectedManyAnswerValue;
+
+export interface SessionInputAnswered {
+	/** Answer state */
+	state: SessionInputAnswerState.Draft | SessionInputAnswerState.Submitted;
+	/** Answer value */
+	value: SessionInputAnswerValue;
+}
+
+export interface SessionInputSkipped {
+	/** Answer state */
+	state: SessionInputAnswerState.Skipped;
+	/** Free-form reason or value captured while skipping, if any */
+	freeformValues?: string[];
+}
+
+/**
+ * Answer lifecycle state.
+ *
+ * @category Session Input Types
+ */
+export const enum SessionInputAnswerState {
+	Draft = 'draft',
+	Submitted = 'submitted',
+	Skipped = 'skipped',
+}
+
+/**
+ * Draft, submitted, or skipped answer for one question.
+ *
+ * @category Session Input Types
+ */
+export type SessionInputAnswer = SessionInputAnswered | SessionInputSkipped;
 
 // ─── Turn Types ──────────────────────────────────────────────────────────────
 
@@ -371,14 +781,17 @@ export const enum TurnState {
 }
 
 /**
- * Type of a message attachment.
+ * Discriminant for {@link MessageAttachment} variants.
  *
  * @category Turn Types
  */
-export const enum AttachmentType {
-	File = 'file',
-	Directory = 'directory',
-	Selection = 'selection',
+export const enum MessageAttachmentKind {
+	/** A simple, opaque attachment whose representation is described by the producer. */
+	Simple = 'simple',
+	/** An attachment whose data is embedded inline as a base64 string. */
+	EmbeddedResource = 'embeddedResource',
+	/** An attachment that references a resource by URI. */
+	Resource = 'resource',
 }
 
 /**
@@ -386,24 +799,24 @@ export const enum AttachmentType {
  *
  * @category Turn Types
  */
-export interface ITurn {
+export interface Turn {
 	/** Turn identifier */
 	id: string;
 	/** The user's input */
-	userMessage: IUserMessage;
+	userMessage: UserMessage;
 	/**
 	 * All response content in stream order: text, tool calls, reasoning, and content refs.
 	 *
 	 * Consumers should derive display text by concatenating markdown parts,
 	 * and find tool calls by filtering for `ToolCall` parts.
 	 */
-	responseParts: IResponsePart[];
+	responseParts: ResponsePart[];
 	/** Token usage info */
-	usage: IUsageInfo | undefined;
+	usage: UsageInfo | undefined;
 	/** How the turn ended */
 	state: TurnState;
 	/** Error details if state is `'error'` */
-	error?: IErrorInfo;
+	error?: ErrorInfo;
 }
 
 /**
@@ -411,42 +824,189 @@ export interface ITurn {
  *
  * @category Turn Types
  */
-export interface IActiveTurn {
+export interface ActiveTurn {
 	/** Turn identifier */
 	id: string;
 	/** The user's input */
-	userMessage: IUserMessage;
+	userMessage: UserMessage;
 	/**
 	 * All response content in stream order: text, tool calls, reasoning, and content refs.
 	 *
 	 * Tool call parts include `pendingPermissions` when permissions are awaiting user approval.
 	 */
-	responseParts: IResponsePart[];
+	responseParts: ResponsePart[];
 	/** Token usage info */
-	usage: IUsageInfo | undefined;
+	usage: UsageInfo | undefined;
 }
 
 /**
+ * A user message and its associated attachments.
+ *
+ * Attachments MAY be referenced inside {@link UserMessage.text} via their
+ * {@link MessageAttachmentBase.range} field. Attachments without a range are
+ * still associated with the message but do not correspond to a specific span
+ * in the text.
+ *
  * @category Turn Types
  */
-export interface IUserMessage {
+export interface UserMessage {
 	/** Message text */
 	text: string;
 	/** File/selection attachments */
-	attachments?: IMessageAttachment[];
+	attachments?: MessageAttachment[];
 }
 
 /**
+ * Common fields shared by all {@link MessageAttachment} variants.
+ *
  * @category Turn Types
  */
-export interface IMessageAttachment {
-	/** Attachment type */
-	type: AttachmentType;
-	/** File/directory path */
-	path: string;
-	/** Display name */
-	displayName?: string;
+export interface MessageAttachmentBase {
+	/**
+	 * A human-readable label for the attachment (e.g. the filename of a file
+	 * attachment). Used for display in UI.
+	 */
+	label: string;
+
+	/**
+	 * If defined, the range in {@link UserMessage.text} that references this
+	 * attachment. This is a text range, not a byte range.
+	 */
+	range?: TextRange;
+
+	/**
+	 * Advisory display hint for clients rendering this attachment. Recognized
+	 * values include:
+	 *
+	 * - `'image'`: the attachment is an image
+	 * - `'document'`: the attachment is a textual document
+	 * - `'symbol'`: the attachment is a code symbol (e.g. a function or class)
+	 * - `'directory'`: the attachment is a folder
+	 * - `'selection'`: the attachment is a selection within a document
+	 *
+	 * Implementations MAY provide additional values; clients SHOULD fall back
+	 * to a reasonable default when an unknown value is encountered.
+	 */
+	displayKind?: string;
+
+	/**
+	 * Additional implementation-defined metadata for the attachment.
+	 *
+	 * If the attachment was produced by the `completions` command, the client
+	 * MUST preserve every property of `_meta` originally returned by the agent
+	 * host when sending the user message containing the accepted completion.
+	 */
+	_meta?: Record<string, unknown>;
 }
+
+/**
+ * A zero-based position within a textual document.
+ *
+ * @category Turn Types
+ */
+export interface TextPosition {
+	/** Zero-based line number. */
+	line: number;
+	/** Zero-based character offset within the line. */
+	character: number;
+}
+
+/**
+ * A range within a textual document.
+ *
+ * @category Turn Types
+ */
+export interface TextRange {
+	/** Start position of the range. */
+	start: TextPosition;
+	/** End position of the range. */
+	end: TextPosition;
+}
+
+/**
+ * A selection within a textual resource.
+ *
+ * This is only meaningful for textual resources. Binary resources may still
+ * use resource or embedded resource attachments, but they should not use this
+ * text selection field.
+ *
+ * @category Turn Types
+ */
+export interface TextSelection {
+	/** The range covered by the selection. */
+	range: TextRange;
+}
+
+/**
+ * A simple, opaque attachment whose model representation is described by
+ * the producer.
+ *
+ * @category Turn Types
+ */
+export interface SimpleMessageAttachment extends MessageAttachmentBase {
+	/** Discriminant */
+	type: MessageAttachmentKind.Simple;
+
+	/**
+	 * Representation of the attachment as it should be shown to the model.
+	 *
+	 * If the attachment was produced by the client, this property MUST be
+	 * defined so the agent host can correctly interpret the attachment. This
+	 * property MAY be omitted when the attachment originated from a
+	 * `completions` response.
+	 */
+	modelRepresentation?: string;
+}
+
+/**
+ * An attachment whose data is embedded inline as a base64 string.
+ *
+ * Use this for small binary payloads (e.g. a pasted image) that should be
+ * delivered with the user message itself rather than fetched separately.
+ *
+ * @category Turn Types
+ */
+export interface MessageEmbeddedResourceAttachment extends MessageAttachmentBase {
+	/** Discriminant */
+	type: MessageAttachmentKind.EmbeddedResource;
+	/** Base64-encoded binary data */
+	data: string;
+	/** Content MIME type (e.g. `"image/png"`, `"application/pdf"`) */
+	contentType: string;
+	/**
+	 * Optional selection within the attached textual resource.
+	 *
+	 * Only meaningful for textual resources.
+	 */
+	selection?: TextSelection;
+}
+
+/**
+ * An attachment that references a resource by URI. The content is not
+ * delivered inline; consumers can fetch it via `resourceRead` when needed.
+ *
+ * @category Turn Types
+ */
+export interface MessageResourceAttachment extends MessageAttachmentBase, ContentRef {
+	/** Discriminant */
+	type: MessageAttachmentKind.Resource;
+	/**
+	 * Optional selection within the referenced textual resource.
+	 *
+	 * Only meaningful for textual resources.
+	 */
+	selection?: TextSelection;
+}
+
+/**
+ * An attachment associated with a {@link UserMessage}.
+ *
+ * @category Turn Types
+ */
+export type MessageAttachment =
+	| SimpleMessageAttachment
+	| MessageEmbeddedResourceAttachment
+	| MessageResourceAttachment;
 
 // ─── Response Parts ──────────────────────────────────────────────────────────
 
@@ -460,12 +1020,13 @@ export const enum ResponsePartKind {
 	ContentRef = 'contentRef',
 	ToolCall = 'toolCall',
 	Reasoning = 'reasoning',
+	SystemNotification = 'systemNotification',
 }
 
 /**
  * @category Response Parts
  */
-export interface IMarkdownResponsePart {
+export interface MarkdownResponsePart {
 	/** Discriminant */
 	kind: ResponsePartKind.Markdown;
 	/** Part identifier, used by `session/delta` to target this part for content appends */
@@ -477,7 +1038,7 @@ export interface IMarkdownResponsePart {
 /**
  * A reference to large content stored outside the state tree.
  */
-export interface IContentRef {
+export interface ContentRef {
 	/** Content URI */
 	uri: URI;
 	/** Approximate size in bytes */
@@ -491,7 +1052,7 @@ export interface IContentRef {
  *
  * @category Response Parts
  */
-export interface IResourceReponsePart extends IContentRef {
+export interface ResourceReponsePart extends ContentRef {
 	/** Discriminant */
 	kind: ResponsePartKind.ContentRef;
 }
@@ -505,11 +1066,11 @@ export interface IResourceReponsePart extends IContentRef {
  *
  * @category Response Parts
  */
-export interface IToolCallResponsePart {
+export interface ToolCallResponsePart {
 	/** Discriminant */
 	kind: ResponsePartKind.ToolCall;
 	/** Full tool call lifecycle state */
-	toolCall: IToolCallState;
+	toolCall: ToolCallState;
 }
 
 /**
@@ -517,7 +1078,7 @@ export interface IToolCallResponsePart {
  *
  * @category Response Parts
  */
-export interface IReasoningResponsePart {
+export interface ReasoningResponsePart {
 	/** Discriminant */
 	kind: ResponsePartKind.Reasoning;
 	/** Part identifier, used by `session/reasoning` to target this part for content appends */
@@ -529,7 +1090,30 @@ export interface IReasoningResponsePart {
 /**
  * @category Response Parts
  */
-export type IResponsePart = IMarkdownResponsePart | IResourceReponsePart | IToolCallResponsePart | IReasoningResponsePart;
+export type ResponsePart =
+	| MarkdownResponsePart
+	| ResourceReponsePart
+	| ToolCallResponsePart
+	| ReasoningResponsePart
+	| SystemNotificationResponsePart;
+
+/**
+ * A system notification surfaced as part of the response stream.
+ *
+ * System notifications are messages authored by the agent harness
+ * that need to be visible to both the agent (for situational awareness) and
+ * the user (for transcript continuity). Examples include "background subagent
+ * X completed" or "task Y was cancelled".
+ *
+ * @category Response Parts
+ */
+export interface SystemNotificationResponsePart {
+	/** Discriminant */
+	kind: ResponsePartKind.SystemNotification;
+	/** The text of the system notification */
+	content: StringOrMarkdown;
+}
+
 
 // ─── Tool Call Types ─────────────────────────────────────────────────────────
 
@@ -574,6 +1158,40 @@ export const enum ToolCallCancellationReason {
 }
 
 /**
+ * Whether a confirmation option represents an approval or denial action.
+ *
+ * @category Tool Call Types
+ */
+export const enum ConfirmationOptionKind {
+	Approve = 'approve',
+	Deny = 'deny',
+}
+
+/**
+ * A confirmation option that the server offers for a tool call awaiting
+ * approval. Allows richer choices beyond simple approve/deny — for example,
+ * "Approve in this Session" or "Deny with reason."
+ *
+ * @category Tool Call Types
+ */
+export interface ConfirmationOption {
+	/** Unique identifier for the option, returned in the confirmed action */
+	id: string;
+	/** Human-readable label displayed to the user */
+	label: string;
+	/** Whether this option represents an approval or denial */
+	kind: ConfirmationOptionKind;
+	/**
+	 * Logical group number for visual categorisation.
+	 *
+	 * Clients SHOULD display options in the order they are defined and MAY
+	 * use differing group numbers to insert dividers between logical clusters
+	 * of options.
+	 */
+	group?: number;
+}
+
+/**
  * Metadata common to all tool call states.
  *
  * @category Tool Call Types
@@ -583,7 +1201,7 @@ export const enum ToolCallCancellationReason {
  * A future version may move these to a separate diagnostic channel or namespace them
  * more clearly.
  */
-interface IToolCallBase {
+interface ToolCallBase {
 	/** Unique tool call identifier */
 	toolCallId: string;
 	/** Internal tool name (for debugging/logging) */
@@ -614,7 +1232,7 @@ interface IToolCallBase {
  *
  * @category Tool Call Types
  */
-interface IToolCallParameterFields {
+interface ToolCallParameterFields {
 	/** Message describing what the tool will do */
 	invocationMessage: StringOrMarkdown;
 	/** Raw tool input */
@@ -626,7 +1244,7 @@ interface IToolCallParameterFields {
  *
  * @category Tool Call Types
  */
-export interface IToolCallResult {
+export interface ToolCallResult {
 	/** Whether the tool succeeded */
 	success: boolean;
 	/** Past-tense description of what the tool did */
@@ -636,7 +1254,7 @@ export interface IToolCallResult {
 	 *
 	 * This mirrors the `content` field of MCP `CallToolResult`.
 	 */
-	content?: IToolResultContent[];
+	content?: ToolResultContent[];
 	/**
 	 * Optional structured result object.
 	 *
@@ -652,7 +1270,7 @@ export interface IToolCallResult {
  *
  * @category Tool Call Types
  */
-export interface IToolCallStreamingState extends IToolCallBase {
+export interface ToolCallStreamingState extends ToolCallBase {
 	status: ToolCallStatus.Streaming;
 	/** Partial parameters accumulated so far */
 	partialInput?: string;
@@ -666,10 +1284,21 @@ export interface IToolCallStreamingState extends IToolCallBase {
  *
  * @category Tool Call Types
  */
-export interface IToolCallPendingConfirmationState extends IToolCallBase, IToolCallParameterFields {
+export interface ToolCallPendingConfirmationState extends ToolCallBase, ToolCallParameterFields {
 	status: ToolCallStatus.PendingConfirmation;
 	/** Short title for the confirmation prompt (e.g. `"Run in terminal"`, `"Write file"`) */
 	confirmationTitle?: StringOrMarkdown;
+	/** File edits that this tool call will perform, for preview before confirmation */
+	edits?: { items: FileEdit[] };
+	/** Whether the agent host allows the client to edit the tool's input parameters before confirming */
+	editable?: boolean;
+	/**
+	 * Options the server offers for this confirmation. When present, the client
+	 * SHOULD render these instead of a plain approve/deny UI. Each option
+	 * belongs to a {@link ConfirmationOptionGroup} so the client can still
+	 * categorise the choices.
+	 */
+	options?: ConfirmationOption[];
 }
 
 /**
@@ -677,17 +1306,19 @@ export interface IToolCallPendingConfirmationState extends IToolCallBase, IToolC
  *
  * @category Tool Call Types
  */
-export interface IToolCallRunningState extends IToolCallBase, IToolCallParameterFields {
+export interface ToolCallRunningState extends ToolCallBase, ToolCallParameterFields {
 	status: ToolCallStatus.Running;
 	/** How the tool was confirmed for execution */
 	confirmed: ToolCallConfirmationReason;
+	/** The confirmation option the user selected, if confirmation options were provided */
+	selectedOption?: ConfirmationOption;
 	/**
 	 * Partial content produced while the tool is still executing.
 	 *
 	 * For example, a terminal content block lets clients subscribe to live
 	 * output before the tool completes.
 	 */
-	content?: IToolResultContent[];
+	content?: ToolResultContent[];
 }
 
 /**
@@ -695,10 +1326,12 @@ export interface IToolCallRunningState extends IToolCallBase, IToolCallParameter
  *
  * @category Tool Call Types
  */
-export interface IToolCallPendingResultConfirmationState extends IToolCallBase, IToolCallParameterFields, IToolCallResult {
+export interface ToolCallPendingResultConfirmationState extends ToolCallBase, ToolCallParameterFields, ToolCallResult {
 	status: ToolCallStatus.PendingResultConfirmation;
 	/** How the tool was confirmed for execution */
 	confirmed: ToolCallConfirmationReason;
+	/** The confirmation option the user selected, if confirmation options were provided */
+	selectedOption?: ConfirmationOption;
 }
 
 /**
@@ -706,10 +1339,12 @@ export interface IToolCallPendingResultConfirmationState extends IToolCallBase, 
  *
  * @category Tool Call Types
  */
-export interface IToolCallCompletedState extends IToolCallBase, IToolCallParameterFields, IToolCallResult {
+export interface ToolCallCompletedState extends ToolCallBase, ToolCallParameterFields, ToolCallResult {
 	status: ToolCallStatus.Completed;
 	/** How the tool was confirmed for execution */
 	confirmed: ToolCallConfirmationReason;
+	/** The confirmation option the user selected, if confirmation options were provided */
+	selectedOption?: ConfirmationOption;
 }
 
 /**
@@ -717,14 +1352,16 @@ export interface IToolCallCompletedState extends IToolCallBase, IToolCallParamet
  *
  * @category Tool Call Types
  */
-export interface IToolCallCancelledState extends IToolCallBase, IToolCallParameterFields {
+export interface ToolCallCancelledState extends ToolCallBase, ToolCallParameterFields {
 	status: ToolCallStatus.Cancelled;
 	/** Why the tool was cancelled */
 	reason: ToolCallCancellationReason;
 	/** Optional message explaining the cancellation */
 	reasonMessage?: StringOrMarkdown;
 	/** What the user suggested doing instead */
-	userSuggestion?: IUserMessage;
+	userSuggestion?: UserMessage;
+	/** The confirmation option the user selected, if confirmation options were provided */
+	selectedOption?: ConfirmationOption;
 }
 
 /**
@@ -735,25 +1372,22 @@ export interface IToolCallCancelledState extends IToolCallBase, IToolCallParamet
  *
  * @category Tool Call Types
  */
-export type IToolCallState =
-	| IToolCallStreamingState
-	| IToolCallPendingConfirmationState
-	| IToolCallRunningState
-	| IToolCallPendingResultConfirmationState
-	| IToolCallCompletedState
-	| IToolCallCancelledState;
+export type ToolCallState =
+	| ToolCallStreamingState
+	| ToolCallPendingConfirmationState
+	| ToolCallRunningState
+	| ToolCallPendingResultConfirmationState
+	| ToolCallCompletedState
+	| ToolCallCancelledState;
 
 // ─── Tool Definition Types ───────────────────────────────────────────────────
 
 /**
  * Describes a tool available in a session, provided by either the server or the active client.
  *
- * This type mirrors the MCP `Tool` type from the Model Context Protocol specification
- * (2025-11-25 draft) and will continue to track it.
- *
  * @category Tool Definition Types
  */
-export interface IToolDefinition {
+export interface ToolDefinition {
 	/** Unique tool identifier */
 	name: string;
 	/** Human-readable display name */
@@ -782,7 +1416,7 @@ export interface IToolDefinition {
 		required?: string[];
 	};
 	/** Behavioral hints about the tool. All properties are advisory. */
-	annotations?: IToolAnnotations;
+	annotations?: ToolAnnotations;
 	/**
 	 * Additional provider-specific metadata.
 	 *
@@ -799,7 +1433,7 @@ export interface IToolDefinition {
  *
  * @category Tool Definition Types
  */
-export interface IToolAnnotations {
+export interface ToolAnnotations {
 	/** Alternate human-readable title */
 	title?: string;
 	/** Tool does not modify its environment (default: false) */
@@ -825,6 +1459,7 @@ export const enum ToolResultContentType {
 	Resource = 'resource',
 	FileEdit = 'fileEdit',
 	Terminal = 'terminal',
+	Subagent = 'subagent',
 }
 
 /**
@@ -834,7 +1469,7 @@ export const enum ToolResultContentType {
  *
  * @category Tool Result Content
  */
-export interface IToolResultTextContent {
+export interface ToolResultTextContent {
 	type: ToolResultContentType.Text;
 	/** The text content */
 	text: string;
@@ -847,7 +1482,7 @@ export interface IToolResultTextContent {
  *
  * @category Tool Result Content
  */
-export interface IToolResultEmbeddedResourceContent {
+export interface ToolResultEmbeddedResourceContent {
 	type: ToolResultContentType.EmbeddedResource;
 	/** Base64-encoded data */
 	data: string;
@@ -858,37 +1493,36 @@ export interface IToolResultEmbeddedResourceContent {
 /**
  * A reference to a resource stored outside the tool result.
  *
- * Wraps {@link IContentRef} for lazy-loading large results.
+ * Wraps {@link ContentRef} for lazy-loading large results.
  *
  * @category Tool Result Content
  */
-export interface IToolResultResourceContent extends IContentRef {
+export interface ToolResultResourceContent extends ContentRef {
 	type: ToolResultContentType.Resource;
 }
 
 /**
- * Describes a file modification performed by a tool.
+ * Describes a file modification with before/after state and diff metadata.
  *
  * Supports creates (only `after`), deletes (only `before`), renames/moves
  * (different `uri` in `before` and `after`), and edits (same `uri`, different content).
  *
  * @category Tool Result Content
  */
-export interface IToolResultFileEditContent {
-	type: ToolResultContentType.FileEdit;
+export interface FileEdit {
 	/** The file state before the edit. Absent for file creations or for in-place file edits. */
 	before?: {
 		/** URI of the file before the edit */
 		uri: URI;
 		/** Reference to the file content before the edit */
-		content: IContentRef;
+		content: ContentRef;
 	};
 	/** The file state after the edit. Absent for file deletions. */
 	after?: {
 		/** URI of the file after the edit */
 		uri: URI;
 		/** Reference to the file content after the edit */
-		content: IContentRef;
+		content: ContentRef;
 	};
 	/** Optional diff display metadata */
 	diff?: {
@@ -900,6 +1534,15 @@ export interface IToolResultFileEditContent {
 }
 
 /**
+ * Describes a file modification performed by a tool.
+ *
+ * @category Tool Result Content
+ */
+export interface ToolResultFileEditContent extends FileEdit {
+	type: ToolResultContentType.FileEdit;
+}
+
+/**
  * A reference to a terminal whose output is relevant to this tool result.
  *
  * Clients can subscribe to the terminal's URI to stream its output in real
@@ -907,7 +1550,7 @@ export interface IToolResultFileEditContent {
  *
  * @category Tool Result Content
  */
-export interface IToolResultTerminalContent {
+export interface ToolResultTerminalContent {
 	type: ToolResultContentType.Terminal;
 	/** Terminal URI (subscribable for full terminal state) */
 	resource: URI;
@@ -916,21 +1559,43 @@ export interface IToolResultTerminalContent {
 }
 
 /**
- * Content block in a tool result.
+ * A reference to a subagent session spawned by a tool.
  *
- * Mirrors the content blocks in MCP `CallToolResult.content`, plus
- * `IToolResultResourceContent` for lazy-loading large results,
- * `IToolResultFileEditContent` for file edit diffs, and
- * `IToolResultTerminalContent` for live terminal output (AHP extensions).
+ * Clients can subscribe to the subagent's session URI to stream its
+ * progress in real time, including inner tool calls and responses.
  *
  * @category Tool Result Content
  */
-export type IToolResultContent =
-	| IToolResultTextContent
-	| IToolResultEmbeddedResourceContent
-	| IToolResultResourceContent
-	| IToolResultFileEditContent
-	| IToolResultTerminalContent;
+export interface ToolResultSubagentContent {
+	type: ToolResultContentType.Subagent;
+	/** Subagent session URI (subscribable for full session state) */
+	resource: URI;
+	/** Display title for the subagent */
+	title: string;
+	/** Internal agent name */
+	agentName?: string;
+	/** Human-readable description of the subagent's task */
+	description?: string;
+}
+
+/**
+ * Content block in a tool result.
+ *
+ * Mirrors the content blocks in MCP `CallToolResult.content`, plus
+ * `ToolResultResourceContent` for lazy-loading large results,
+ * `ToolResultFileEditContent` for file edit diffs,
+ * `ToolResultTerminalContent` for live terminal output, and
+ * `ToolResultSubagentContent` for subagent sessions (AHP extensions).
+ *
+ * @category Tool Result Content
+ */
+export type ToolResultContent =
+	| ToolResultTextContent
+	| ToolResultEmbeddedResourceContent
+	| ToolResultResourceContent
+	| ToolResultFileEditContent
+	| ToolResultTerminalContent
+	| ToolResultSubagentContent;
 
 // ─── Customization Types ─────────────────────────────────────────────────────
 
@@ -942,7 +1607,7 @@ export type IToolResultContent =
  *
  * @category Customization Types
  */
-export interface ICustomizationRef {
+export interface CustomizationRef {
 	/** Plugin URI (e.g. an HTTPS URL or marketplace identifier) */
 	uri: URI;
 	/** Human-readable name */
@@ -980,16 +1645,18 @@ export const enum CustomizationStatus {
 /**
  * A customization active in a session.
  *
- * Entries without a `clientId` are server-provided; entries with a `clientId`
- * originate from that client.
- *
  * @category Customization Types
  */
-export interface ISessionCustomization {
+export interface SessionCustomization {
 	/** The plugin this customization refers to */
-	customization: ICustomizationRef;
+	customization: CustomizationRef;
 	/** Whether this customization is currently enabled */
 	enabled: boolean;
+	/**
+	 * The `clientId` of the client that contributed this customization.
+	 * Absent for server-provided customizations.
+	 */
+	clientId?: string;
 	/** Server-reported loading status */
 	status?: CustomizationStatus;
 	/**
@@ -1005,13 +1672,13 @@ export interface ISessionCustomization {
  *
  * @category Terminal Types
  */
-export interface ITerminalInfo {
+export interface TerminalInfo {
 	/** Terminal URI (subscribable for full terminal state) */
 	resource: URI;
 	/** Human-readable terminal title */
 	title: string;
 	/** Who currently holds this terminal */
-	claim: ITerminalClaim;
+	claim: TerminalClaim;
 	/** Process exit code, if the terminal process has exited */
 	exitCode?: number;
 }
@@ -1031,7 +1698,7 @@ export const enum TerminalClaimKind {
  *
  * @category Terminal Types
  */
-export interface ITerminalClientClaim {
+export interface TerminalClientClaim {
 	/** Discriminant */
 	kind: TerminalClaimKind.Client;
 	/** The `clientId` of the claiming client */
@@ -1043,7 +1710,7 @@ export interface ITerminalClientClaim {
  *
  * @category Terminal Types
  */
-export interface ITerminalSessionClaim {
+export interface TerminalSessionClaim {
 	/** Discriminant */
 	kind: TerminalClaimKind.Session;
 	/** Session URI that claimed the terminal */
@@ -1060,14 +1727,14 @@ export interface ITerminalSessionClaim {
  *
  * @category Terminal Types
  */
-export type ITerminalClaim = ITerminalClientClaim | ITerminalSessionClaim;
+export type TerminalClaim = TerminalClientClaim | TerminalSessionClaim;
 
 /**
  * Full state for a single terminal, loaded when a client subscribes to the terminal's URI.
  *
  * @category Terminal Types
  */
-export interface ITerminalState {
+export interface TerminalState {
 	/** Human-readable terminal title */
 	title: string;
 	/** Current working directory of the terminal process */
@@ -1077,14 +1744,83 @@ export interface ITerminalState {
 	/** Terminal height in rows */
 	rows?: number;
 	/**
-	 * Accumulated terminal output. May contain ANSI escape sequences.
-	 * The scrollback length is implementation-defined.
+	 * Typed content parts, replacing the flat `content: string`.
+	 *
+	 * Naive consumers that only need the raw VT stream can reconstruct it with:
+	 *   `content.map(p => p.type === 'command' ? p.output : p.value).join('')`
+	 *
+	 * Consumers that need command boundaries can filter by part type.
 	 */
-	content: string;
+	content: TerminalContentPart[];
 	/** Process exit code, set when the terminal process exits */
 	exitCode?: number;
 	/** Who currently holds this terminal */
-	claim: ITerminalClaim;
+	claim: TerminalClaim;
+	/**
+	 * Whether this terminal emits `terminal/commandExecuted` and
+	 * `terminal/commandFinished` actions and populates `command`-typed parts.
+	 *
+	 * Clients MUST check this flag before relying on command detection.
+	 * Do NOT use the presence of a `command` part as a feature flag — parts
+	 * are absent in the normal idle state.
+	 */
+	supportsCommandDetection?: boolean;
+}
+
+// ─── Terminal Content Parts ──────────────────────────────────────────────────
+
+/**
+ * A content part within terminal output.
+ *
+ * @category Terminal Types
+ */
+export type TerminalContentPart =
+	| TerminalUnclassifiedPart
+	| TerminalCommandPart;
+
+/**
+ * Unstructured terminal output — content before, between, or after commands,
+ * or from terminals that do not support command detection.
+ *
+ * @category Terminal Types
+ */
+export interface TerminalUnclassifiedPart {
+	type: 'unclassified';
+	/** Accumulated VT output. Appended to by `terminal/data` when no command is executing. */
+	value: string;
+}
+
+/**
+ * A single command: its command line and the output it produced.
+ *
+ * While `isComplete` is false the command is still executing; `output` grows
+ * as `terminal/data` actions arrive. At `terminal/commandFinished` the part
+ * is mutated in-place with `isComplete: true` and the completion metadata.
+ *
+ * @category Terminal Types
+ */
+export interface TerminalCommandPart {
+	type: 'command';
+	/**
+	 * Stable id matching the `commandId` on the corresponding
+	 * `terminal/commandExecuted` and `terminal/commandFinished` actions.
+	 */
+	commandId: string;
+	/** The command line submitted to the shell. */
+	commandLine: string;
+	/**
+	 * Accumulated VT output. Appended to by `terminal/data` while `isComplete`
+	 * is false. Shell integration escape sequences are stripped by the server.
+	 */
+	output: string;
+	/** Unix timestamp (ms) when execution started, as reported by the server. */
+	timestamp: number;
+	/** Whether the command has finished. */
+	isComplete: boolean;
+	/** Shell exit code. Set at completion. `undefined` if unknown. */
+	exitCode?: number;
+	/** Wall-clock duration in milliseconds. Set at completion. */
+	durationMs?: number;
 }
 
 // ─── Common Types ────────────────────────────────────────────────────────────
@@ -1092,7 +1828,7 @@ export interface ITerminalState {
 /**
  * @category Common Types
  */
-export interface IUsageInfo {
+export interface UsageInfo {
 	/** Input tokens consumed */
 	inputTokens?: number;
 	/** Output tokens generated */
@@ -1106,7 +1842,7 @@ export interface IUsageInfo {
 /**
  * @category Common Types
  */
-export interface IErrorInfo {
+export interface ErrorInfo {
 	/** Error type identifier */
 	errorType: string;
 	/** Human-readable error message */
@@ -1121,11 +1857,11 @@ export interface IErrorInfo {
  *
  * @category Common Types
  */
-export interface ISnapshot {
+export interface Snapshot {
 	/** The subscribed resource URI (e.g. `agenthost:/root` or `copilot:/<uuid>`) */
 	resource: URI;
 	/** The current state of the resource */
-	state: IRootState | ISessionState | ITerminalState;
+	state: RootState | SessionState | TerminalState;
 	/** The `serverSeq` at which this snapshot was taken. Subsequent actions will have `serverSeq > fromSeq`. */
 	fromSeq: number;
 }

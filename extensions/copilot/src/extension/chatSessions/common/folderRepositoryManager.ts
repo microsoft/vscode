@@ -179,3 +179,10 @@ export interface IFolderRepositoryManager {
 	 */
 	getFolderMRU(): Promise<FolderRepositoryMRUEntry[]>;
 }
+
+export interface IChatFolderMruService {
+	readonly _serviceBrand: undefined;
+	getRecentlyUsedFolders(token: vscode.CancellationToken): Promise<FolderRepositoryMRUEntry[]>;
+	deleteRecentlyUsedFolder(folder: vscode.Uri): Promise<void>;
+}
+export const IChatFolderMruService = createServiceIdentifier<IChatFolderMruService>('IChatFolderMruService');
