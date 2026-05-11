@@ -37,7 +37,7 @@ export class MemoryContextPrompt extends PromptElement<MemoryContextPromptProps>
 	}
 
 	async render() {
-		const enableCopilotMemory = this.configurationService.getExperimentBasedConfig(ConfigKey.CopilotMemoryEnabled, this.experimentationService);
+		const enableCopilotMemory = false;
 		const enableMemoryTool = this.configurationService.getExperimentBasedConfig(ConfigKey.MemoryToolEnabled, this.experimentationService);
 
 		const userMemoryContent = enableMemoryTool ? await this.getUserMemoryContent() : undefined;
@@ -257,7 +257,7 @@ export class MemoryInstructionsPrompt extends PromptElement<BasePromptElementPro
 	}
 
 	async render(state: void, sizing: PromptSizing) {
-		const enableCopilotMemory = this.configurationService.getExperimentBasedConfig(ConfigKey.CopilotMemoryEnabled, this.experimentationService);
+		const enableCopilotMemory = false;
 		const enableMemoryTool = this.configurationService.getExperimentBasedConfig(ConfigKey.MemoryToolEnabled, this.experimentationService);
 		if (!enableCopilotMemory && !enableMemoryTool) {
 			return null;
