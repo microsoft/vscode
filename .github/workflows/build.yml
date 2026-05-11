@@ -53,6 +53,116 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+  # ---------------------------------------------------------------------------
+  # Son of Anton-specific package CI. The compile job above covers the VS Code
+  # monolithic build; this matrix covers the three first-party SoA packages
+  # that live alongside the fork:
+  #
+  #   - son-of-anton-core: shared agent + LLM engine (consumed by both the
+  #     CLI and the IDE extension via its compiled `dist/`).
+  #   - son-of-anton-cli: the `sota` CLI surface.
+  #   - extensions/son-of-anton: the IDE extension.
+  #
+  # We deliberately keep these in their own job so a failure surfaces against
+  # the right package rather than buried in the monolithic compile output.
+  # No untrusted input ever reaches these run: blocks — all commands are
+  # hardcoded against package directories controlled by this repo.
+  sota-typecheck:
+    name: Son of Anton — Cross-package Typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install root dependencies
+        run: npm ci
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build son-of-anton-core
+        run: npm --prefix son-of-anton-core run build
+
+      - name: Build son-of-anton-cli
+        run: npm --prefix son-of-anton-cli run build
+
+      - name: Typecheck extensions/son-of-anton
+        run: npx tsc -p tsconfig.json --noEmit
+        working-directory: extensions/son-of-anton
+
+  # End-to-end smoke against the harness CLI. Runs the offline path (no live
+  # LLM call) so the job stays free + deterministic. Covers: build, version
+  # banner, tools list, traces export, MCP wiring, sota init bootstrap,
+  # hooks runtime — the surfaces most likely to break silently on a refactor.
+  sota-cli-smoke:
+    name: Son of Anton — CLI Smoke
+    needs: sota-typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install root dependencies
+        run: npm ci
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run harness smoke (offline)
+        run: bash scripts/harness-smoke.sh --no-live
+
+  # Son of Anton agent-harness unit tests (extension test/* directory). The
+  # core and CLI packages don't yet ship Mocha tests; once they do they
+  # should be added as additional steps here. The extension tests run under
+  # the VS Code test harness which needs a display server, so we use xvfb.
+  sota-harness-tests:
+    name: Son of Anton — Agent Harness Tests
+    needs: sota-typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y xvfb libnss3 libatk-bridge2.0-0 libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxrandr2 libgbm1 libpango-1.0-0 libcairo2 libasound2
+
+      - name: Install root dependencies
+        run: npm ci
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build son-of-anton-core
+        run: npm --prefix son-of-anton-core run build
+
+      - name: Build extensions/son-of-anton
+        run: npm --prefix extensions/son-of-anton run build
+
+      - name: Run extension tests under xvfb
+        run: xvfb-run --auto-servernum npm --prefix extensions/son-of-anton test
+
   test-ubuntu:
     name: Unit Tests (Ubuntu)
     needs: compile
