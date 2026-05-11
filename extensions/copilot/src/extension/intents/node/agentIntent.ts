@@ -31,6 +31,7 @@ import { ITelemetryService } from '../../../platform/telemetry/common/telemetry'
 import { ITestProvider } from '../../../platform/testing/common/testProvider';
 import { IWorkspaceService } from '../../../platform/workspace/common/workspaceService';
 
+import { findLast } from '../../../util/vs/base/common/arraysFind';
 import { isCancellationError } from '../../../util/vs/base/common/errors';
 import { Iterable } from '../../../util/vs/base/common/iterator';
 import { IInstantiationService, ServicesAccessor } from '../../../util/vs/platform/instantiation/common/instantiation';
@@ -39,7 +40,7 @@ import { ChatResponseProgressPart2 } from '../../../vscodeTypes';
 import { ICommandService } from '../../commands/node/commandService';
 import { Intent } from '../../common/constants';
 import { ChatVariablesCollection } from '../../prompt/common/chatVariablesCollection';
-import { Conversation, normalizeSummariesOnRounds, RenderedUserMessageMetadata, TurnStatus } from '../../prompt/common/conversation';
+import { Conversation, normalizeSummariesOnRounds, RenderedUserMessageMetadata, TurnStatus, TurnTokenUsageMetadata } from '../../prompt/common/conversation';
 import { IBuildPromptContext, InternalToolReference } from '../../prompt/common/intents';
 import { getRequestedToolCallIterationLimit, IContinueOnErrorConfirmation } from '../../prompt/common/specialRequestTypes';
 import { ChatTelemetryBuilder } from '../../prompt/node/chatParticipantTelemetry';
@@ -367,6 +368,10 @@ export class AgentIntent extends EditCodeIntent {
 				tools: availableTools,
 				maxToolResultLength: Infinity,
 			});
+			if (!propsInfo) {
+				stream.markdown(l10n.t('Nothing to compact yet.'));
+				return {};
+			}
 
 			stream.progress(l10n.t('Compacting conversation...'));
 
@@ -534,11 +539,11 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 
 		this.logService.debug(`[Agent] rendering with budget=${safeBudget} (baseBudget: ${baseBudget}, toolTokens: ${toolTokens}, totalTools: ${tools?.length ?? 0}, toolSearchEnabled: ${toolSearchEnabled}), summarizationEnabled=${summarizationEnabled}`);
 		let result: RenderPromptResult;
-		// When the "last two messages" cache breakpoint strategy is enabled,
-		// suppress prompt-tsx and heuristic cache breakpoints — messagesApi.ts
-		// will place breakpoints on the last two merged messages instead.
-		const useLastTwoMessagesCacheBPs = isAnthropicFamily(this.endpoint)
-			&& this.configurationService.getExperimentBasedConfig(ConfigKey.AnthropicCacheBreakpointsLastTwoMessages, this.expService);
+		// For the Anthropic Messages API, cache_control placement is owned
+		// entirely by messagesApi.ts. Suppress prompt-tsx breakpoints to avoid
+		// duplicating or shifting them — but keep summarization on, since the
+		// summarization rendering path is independent from cache breakpoints.
+		const isMessagesApi = this.endpoint.apiType === 'messages';
 		const props: AgentPromptProps = {
 			endpoint,
 			promptContext: {
@@ -549,7 +554,8 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 				}
 			},
 			location: this.location,
-			enableCacheBreakpoints: summarizationEnabled && !useLastTwoMessagesCacheBPs,
+			enableSummarization: summarizationEnabled,
+			enableCacheBreakpoints: summarizationEnabled && !isMessagesApi,
 			...this.extraPromptProps,
 			customizations: this._resolvedCustomizations
 		};
@@ -567,8 +573,14 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		//                ready for a future turn.
 		//
 		const backgroundSummarizer = summarizationEnabled ? this._getOrCreateBackgroundSummarizer(promptContext.conversation?.sessionId) : undefined;
+		// Walk back through turns to find the most recent one with token usage
+		// metadata. On iteration 1 of a fresh user turn, the current turn has
+		// no fetch yet, so fall back to the previous turn — otherwise the floor
+		// would be 0 and offer no protection across user-turn boundaries.
+		const lastTurnPromptTokens = findLast(promptContext.conversation?.turns ?? [], turn => !!turn.getMetadata(TurnTokenUsageMetadata))
+			?.getMetadata(TurnTokenUsageMetadata)?.promptTokens;
 		const contextRatio = backgroundSummarizer && baseBudget > 0
-			? (this._lastRenderTokenCount + toolTokens) / baseBudget
+			? Math.max(this._lastRenderTokenCount + toolTokens, lastTurnPromptTokens ?? 0) / baseBudget
 			: 0;
 
 		// Track whether this iteration already performed compaction-related work
@@ -600,6 +612,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 			const renderer = PromptRenderer.create(this.instantiationService, this.endpoint, this.prompt, {
 				...renderProps,
 				endpoint: this.endpoint,
+				enableSummarization: false,
 				enableCacheBreakpoints: false
 			});
 			try {
@@ -780,8 +793,10 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		// warmed) and jitter the threshold around 0.80 to avoid firing at the
 		// same exact boundary every time.
 		if (summarizationEnabled && backgroundSummarizer && !didSummarizeThisIteration) {
+			const localPostRender = result.tokenCount + toolTokens;
+			const effectivePostRender = Math.max(localPostRender, lastTurnPromptTokens ?? 0);
 			const postRenderRatio = baseBudget > 0
-				? (result.tokenCount + toolTokens) / baseBudget
+				? effectivePostRender / baseBudget
 				: 0;
 
 			const idleOrFailed = backgroundSummarizer.state === BackgroundSummarizationState.Idle
@@ -823,7 +838,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 			}
 		}
 
-		if (!useLastTwoMessagesCacheBPs) {
+		if (this.endpoint.apiType !== 'messages') {
 			addCacheBreakpoints(result.messages);
 		}
 

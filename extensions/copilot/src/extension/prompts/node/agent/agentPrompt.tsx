@@ -20,7 +20,7 @@ import { IPromptPathRepresentationService } from '../../../../platform/prompts/c
 import { ITabsAndEditorsService } from '../../../../platform/tabs/common/tabsAndEditorsService';
 import { ITasksService } from '../../../../platform/tasks/common/tasksService';
 import { IExperimentationService } from '../../../../platform/telemetry/common/nullExperimentationService';
-import { IWorkspaceService } from '../../../../platform/workspace/common/workspaceService';
+import { WorkingDirectory } from '../../../../platform/workspace/common/workingDirectory';
 import { isDefined, isString } from '../../../../util/vs/base/common/types';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
@@ -58,7 +58,15 @@ export interface AgentPromptProps extends GenericBasePromptElementProps {
 	readonly triggerSummarize?: boolean;
 
 	/**
-	 * Enables cache breakpoints and summarization
+	 * Routes history rendering through SummarizedConversationHistory (which can
+	 * compact when the budget is exceeded). Independent from cache breakpoints
+	 * — Anthropic Messages API endpoints suppress cache breakpoints but still
+	 * need summarization for long conversations.
+	 */
+	readonly enableSummarization?: boolean;
+
+	/**
+	 * Emits prompt-tsx <cacheBreakpoint> markers in the rendered prompt.
 	 */
 	readonly enableCacheBreakpoints?: boolean;
 
@@ -141,7 +149,7 @@ export class AgentPrompt extends PromptElement<AgentPromptProps> {
 		const ReminderInstructionsClass = customizations.ReminderInstructionsClass;
 		const ToolReferencesHintClass = customizations.ToolReferencesHintClass;
 
-		if (this.props.enableCacheBreakpoints) {
+		if (this.props.enableSummarization) {
 			return <>
 				{baseInstructions}
 				<SummarizedConversationHistory
@@ -222,9 +230,11 @@ export class AgentPrompt extends PromptElement<AgentPromptProps> {
 		const isNewChat = this.props.promptContext.history?.length === 0;
 		// TODO:@bhavyau find a better way to extract session resource
 		const sessionResource = (this.props.promptContext.tools?.toolInvocationToken as any)?.sessionResource as string | undefined;
+		const workingDirectory = (this.props.promptContext.tools?.toolInvocationToken as any)?.workingDirectory as URI | undefined;
+		const workingDir = this.instantiationService.createInstance(WorkingDirectory, workingDirectory);
 		const result = globalContext ?
 			renderedMessageToTsxChildren(globalContext, !!this.props.enableCacheBreakpoints) :
-			<GlobalAgentContext enableCacheBreakpoints={!!this.props.enableCacheBreakpoints} availableTools={this.props.promptContext.tools?.availableTools} isNewChat={isNewChat} sessionResource={sessionResource} />;
+			<GlobalAgentContext enableCacheBreakpoints={!!this.props.enableCacheBreakpoints} availableTools={this.props.promptContext.tools?.availableTools} isNewChat={isNewChat} sessionResource={sessionResource} workingDir={workingDir} />;
 
 		return result;
 	}
@@ -245,7 +255,8 @@ export class AgentPrompt extends PromptElement<AgentPromptProps> {
 		// TODO:@bhavyau find a better way to extract session resource
 		const sessionResource = (this.props.promptContext.tools?.toolInvocationToken as any)?.sessionResource as string | undefined;
 		const workingDirectory = (this.props.promptContext.tools?.toolInvocationToken as any)?.workingDirectory as URI | undefined;
-		const rendered = await renderPromptElement(this.instantiationService, endpoint, GlobalAgentContext, { enableCacheBreakpoints: this.props.enableCacheBreakpoints, availableTools: this.props.promptContext.tools?.availableTools, isNewChat, sessionResource, workingDirectory }, undefined, undefined);
+		const workingDir = this.instantiationService.createInstance(WorkingDirectory, workingDirectory);
+		const rendered = await renderPromptElement(this.instantiationService, endpoint, GlobalAgentContext, { enableCacheBreakpoints: this.props.enableCacheBreakpoints, availableTools: this.props.promptContext.tools?.availableTools, isNewChat, sessionResource, workingDir }, undefined, undefined);
 		const msg = rendered.messages.at(0)?.content;
 		if (msg) {
 			firstTurn?.setMetadata(new GlobalContextMessageMetadata(msg, this.instantiationService.invokeFunction(getGlobalContextCacheKey)));
@@ -259,7 +270,7 @@ interface GlobalAgentContextProps extends BasePromptElementProps {
 	readonly availableTools?: readonly LanguageModelToolInformation[];
 	readonly isNewChat?: boolean;
 	readonly sessionResource?: string;
-	readonly workingDirectory?: URI;
+	readonly workingDir: WorkingDirectory;
 }
 
 /**
@@ -276,8 +287,8 @@ class GlobalAgentContext extends PromptElement<GlobalAgentContextProps> {
 				<TokenLimit max={2000}>
 					<AgentTasksInstructions availableTools={this.props.availableTools} />
 				</TokenLimit>
-				<WorkspaceFoldersHint workingDirectory={this.props.workingDirectory} />
-				<AgentMultirootWorkspaceStructure maxSize={2000} excludeDotFiles={true} availableTools={this.props.availableTools} workingDirectory={this.props.workingDirectory} />
+				<WorkspaceFoldersHint workingDir={this.props.workingDir} />
+				<AgentMultirootWorkspaceStructure maxSize={2000} excludeDotFiles={true} availableTools={this.props.availableTools} workingDir={this.props.workingDir} />
 			</Tag>
 			<UserPreferences flexGrow={7} priority={800} />
 			{this.props.isNewChat && <MemoryContextPrompt sessionResource={this.props.sessionResource} />}
@@ -649,24 +660,19 @@ class CurrentEditorContext extends PromptElement<CurrentEditorContextProps> {
 }
 
 interface WorkspaceFoldersHintProps extends BasePromptElementProps {
-	readonly workingDirectory?: URI;
+	readonly workingDir: WorkingDirectory;
 }
 
 class WorkspaceFoldersHint extends PromptElement<WorkspaceFoldersHintProps> {
 	constructor(
 		props: WorkspaceFoldersHintProps,
-		@IWorkspaceService private readonly workspaceService: IWorkspaceService,
 		@IPromptPathRepresentationService private readonly promptPathRepresentationService: IPromptPathRepresentationService,
 	) {
 		super(props);
 	}
 
 	async render(state: void, sizing: PromptSizing) {
-		// When workingDirectory is set (agents window), use it exclusively.
-		// Only fall back to workspace folders when no workingDirectory is specified.
-		const folders = this.props.workingDirectory
-			? [this.props.workingDirectory]
-			: this.workspaceService.getWorkspaceFolders();
+		const folders = this.props.workingDir.getFolders();
 		if (folders.length > 0) {
 			return (
 				<>
