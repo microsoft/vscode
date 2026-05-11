@@ -225,8 +225,6 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 			throw new Error(`Terminal already exists: ${uri}`);
 		}
 
-		const nodePty = await getNodePty();
-
 		const cwd = await this._resolveCwd(params.cwd, uri);
 		const cols = params.cols ?? 80;
 		const rows = params.rows ?? 24;
@@ -314,7 +312,7 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 			this._logService.info(`[TerminalManager] Shell integration not available for ${uri}: ${injection.reason}`);
 		}
 
-		const ptyProcess = nodePty.spawn(shell, shellArgs, {
+		const ptyProcess = await this._spawnPty(shell, shellArgs, {
 			name,
 			cwd,
 			env,
@@ -412,6 +410,11 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 		await raceCancellablePromises([onFirstData.p, timeout(WAIT_FOR_PROMPT_TIMEOUT)]);
 
 		this._broadcastTerminalList();
+	}
+
+	protected async _spawnPty(file: string, args: string[], options: import('node-pty').IPtyForkOptions | import('node-pty').IWindowsPtyForkOptions): Promise<import('node-pty').IPty> {
+		const nodePty = await getNodePty();
+		return nodePty.spawn(file, args, options);
 	}
 
 	/** Send input data to a terminal's PTY process (from client-dispatched actions). */
