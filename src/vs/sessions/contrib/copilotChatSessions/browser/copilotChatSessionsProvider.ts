@@ -1649,6 +1649,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 		if (sessionTypeId === LocalSessionType.id) {
 			const session = this.instantiationService.createInstance(LocalNewSession, workspace, this.id);
+			session.setPermissionLevel(this._defaultPermissionLevel());
 			this._currentNewSession = session;
 			return this._chatToSession(session);
 		}
@@ -1658,8 +1659,23 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		}
 		const resource = URI.from({ scheme: AgentSessionProviders.Background, path: `/untitled-${generateUuid()}` });
 		const session = this.instantiationService.createInstance(CopilotCLISession, resource, workspace, this.id);
+		session.setPermissionLevel(this._defaultPermissionLevel());
 		this._currentNewSession = session;
 		return this._chatToSession(session);
+	}
+
+	/**
+	 * Resolves the initial permission level for a brand-new session from
+	 * `chat.permissions.default`, clamped to `Default` when enterprise policy
+	 * disables global auto-approval.
+	 */
+	private _defaultPermissionLevel(): ChatPermissionLevel {
+		const policyRestricted = this.configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false;
+		if (policyRestricted) {
+			return ChatPermissionLevel.Default;
+		}
+		const level = this.configurationService.getValue<string>(ChatConfiguration.DefaultPermissionLevel);
+		return isChatPermissionLevel(level) ? level : ChatPermissionLevel.Default;
 	}
 
 	setModel(sessionId: string, modelId: string): void {
@@ -2393,9 +2409,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		const session = this.instantiationService.createInstance(CopilotCLISession, resource, newWorkspace, this.id);
 		session.setIsolationMode('workspace');
 		session.setOption(PARENT_SESSION_OPTION_ID, chat.resource.path.slice(1));
-		const level = this.configurationService.getValue<string>(ChatConfiguration.DefaultPermissionLevel);
-		const permissionLevel = isChatPermissionLevel(level) ? level : ChatPermissionLevel.Default;
-		session.setPermissionLevel(permissionLevel);
+		session.setPermissionLevel(this._defaultPermissionLevel());
 		this._currentNewSession = session;
 		return session;
 	}
