@@ -1303,7 +1303,7 @@ export class CodeApplication extends Disposable {
 		mainProcessElectronServer.registerChannel(McpGatewayChannelName, mcpGatewayChannel);
 
 		// Logger
-		const loggerChannel = new LoggerChannel(accessor.get(ILoggerMainService),);
+		const loggerChannel = this._register(new LoggerChannel(accessor.get(ILoggerMainService)));
 		mainProcessElectronServer.registerChannel('logger', loggerChannel);
 		sharedProcessClient.then(client => client.registerChannel('logger', loggerChannel));
 
