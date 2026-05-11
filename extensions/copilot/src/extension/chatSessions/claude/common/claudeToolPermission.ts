@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { PermissionMode } from '@anthropic-ai/claude-agent-sdk';
+import { PermissionMode, PermissionUpdate } from '@anthropic-ai/claude-agent-sdk';
 import type * as vscode from 'vscode';
 import { ClaudeToolInputMap, ClaudeToolNames } from './claudeTools';
 
@@ -11,7 +11,7 @@ import { ClaudeToolInputMap, ClaudeToolNames } from './claudeTools';
  * Result type for tool permission checks, matching the Claude SDK canUseTool return type
  */
 export type ClaudeToolPermissionResult =
-	| { behavior: 'allow'; updatedInput: Record<string, unknown> }
+	| { behavior: 'allow'; updatedInput: Record<string, unknown>; updatedPermissions?: PermissionUpdate[] }
 	| { behavior: 'deny'; message: string };
 
 /**
@@ -21,6 +21,8 @@ export interface ClaudeToolPermissionContext {
 	readonly toolInvocationToken: vscode.ChatParticipantToolToken;
 	readonly permissionMode?: PermissionMode;
 	readonly stream?: vscode.ChatResponseStream;
+	/** Claude SDK session id this tool call belongs to. */
+	readonly sessionId?: string;
 }
 
 /**

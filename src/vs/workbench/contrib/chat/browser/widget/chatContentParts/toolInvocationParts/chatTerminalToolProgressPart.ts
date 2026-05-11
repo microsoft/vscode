@@ -9,7 +9,7 @@ import { IConfigurationService } from '../../../../../../../platform/configurati
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { ChatConfiguration } from '../../../../common/constants.js';
 import { migrateLegacyTerminalToolSpecificData } from '../../../../common/chat.js';
-import { IChatToolInvocation, IChatToolInvocationSerialized, type IChatMarkdownContent, type IChatTerminalToolInvocationData, type ILegacyChatTerminalToolInvocationData } from '../../../../common/chatService/chatService.js';
+import { IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind, type IChatMarkdownContent, type IChatTerminalToolInvocationData, type ILegacyChatTerminalToolInvocationData } from '../../../../common/chatService/chatService.js';
 import { ChatTreeItem, IChatCodeBlockInfo, IChatWidgetService } from '../../../chat.js';
 import { ChatQueryTitlePart } from '../chatConfirmationWidget.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
@@ -533,6 +533,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			: commandText;
 
 		const isComplete = IChatToolInvocation.isComplete(toolInvocation);
+		const isSkipped = IChatToolInvocation.executionConfirmedOrDenied(toolInvocation)?.type === ToolConfirmKind.Skipped;
 		const autoExpandFailures = this._configurationService.getValue<boolean>(ChatConfiguration.AutoExpandToolFailures);
 		const hasError = autoExpandFailures && this._terminalData.terminalCommandState?.exitCode !== undefined && this._terminalData.terminalCommandState.exitCode !== 0;
 		const initialExpanded = !isComplete || hasError;
@@ -544,7 +545,8 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			contentElement,
 			context,
 			initialExpanded,
-			isComplete
+			isComplete,
+			isSkipped
 		));
 		this._thinkingCollapsibleWrapper = wrapper;
 
@@ -1222,9 +1224,8 @@ class ChatTerminalToolOutputSection extends Disposable {
 		this._register(dom.addDisposableListener(this.domNode, dom.EventType.FOCUS_IN, () => this._onDidFocusEmitter.fire()));
 		this._register(dom.addDisposableListener(this.domNode, dom.EventType.FOCUS_OUT, event => this._onDidBlurEmitter.fire(event)));
 
-		const resizeObserver = new ResizeObserver(() => this._handleResize());
-		resizeObserver.observe(this.domNode);
-		this._register(toDisposable(() => resizeObserver.disconnect()));
+		const resizeObserver = this._register(new dom.DisposableResizeObserver('ChatTerminalToolProgressPart.handleResize', () => this._handleResize()));
+		this._register(resizeObserver.observe(this.domNode));
 
 		this._applyBackgroundColor();
 		this._register(this._themeService.onDidColorThemeChange(() => this._applyBackgroundColor()));
@@ -1618,6 +1619,7 @@ export class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleConte
 	private readonly _commandText: string;
 	private readonly _isSandboxWrapped: boolean;
 	private _isComplete: boolean;
+	private readonly _isSkipped: boolean;
 
 	constructor(
 		commandText: string,
@@ -1626,18 +1628,22 @@ export class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleConte
 		context: IChatContentPartRenderContext,
 		initialExpanded: boolean,
 		isComplete: boolean,
+		isSkipped: boolean,
 		@IHoverService hoverService: IHoverService,
 		@IConfigurationService configurationService: IConfigurationService,
 	) {
-		const title = isComplete
-			? localize('chat.terminal.ran.plain', "Ran {0}", commandText)
-			: localize('chat.terminal.running.plain', "Running {0}", commandText);
+		const title = isSkipped
+			? localize('chat.terminal.skipped.plain', "Skipped {0}", commandText)
+			: isComplete
+				? localize('chat.terminal.ran.plain', "Ran {0}", commandText)
+				: localize('chat.terminal.running.plain', "Running {0}", commandText);
 		super(title, context, undefined, hoverService, configurationService);
 
 		this._terminalContentElement = contentElement;
 		this._commandText = commandText;
 		this._isSandboxWrapped = isSandboxWrapped;
 		this._isComplete = isComplete;
+		this._isSkipped = isSkipped;
 
 		this.domNode.classList.add('chat-terminal-thinking-collapsible');
 
@@ -1658,9 +1664,11 @@ export class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleConte
 		labelElement.textContent = '';
 
 		if (this._isSandboxWrapped) {
-			const prefixText = this._isComplete
-				? localize('chat.terminal.ranInSandbox.prefix', "Ran ")
-				: localize('chat.terminal.runningInSandbox.prefix', "Running ");
+			const prefixText = this._isSkipped
+				? localize('chat.terminal.skippedInSandbox.prefix', "Skipped ")
+				: this._isComplete
+					? localize('chat.terminal.ranInSandbox.prefix', "Ran ")
+					: localize('chat.terminal.runningInSandbox.prefix', "Running ");
 			const suffixText = localize('chat.terminal.sandbox.suffix', " in sandbox");
 			labelElement.appendChild(document.createTextNode(prefixText));
 			const codeElement = document.createElement('code');
@@ -1670,9 +1678,11 @@ export class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleConte
 			return;
 		}
 
-		const prefixText = this._isComplete
-			? localize('chat.terminal.ran.prefix', "Ran ")
-			: localize('chat.terminal.running.prefix', "Running ");
+		const prefixText = this._isSkipped
+			? localize('chat.terminal.skipped.prefix', "Skipped ")
+			: this._isComplete
+				? localize('chat.terminal.ran.prefix', "Ran ")
+				: localize('chat.terminal.running.prefix', "Running ");
 		const ranText = document.createTextNode(prefixText);
 		const codeElement = document.createElement('code');
 		codeElement.textContent = this._commandText;

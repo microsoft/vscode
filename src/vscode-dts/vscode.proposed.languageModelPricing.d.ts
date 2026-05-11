@@ -31,6 +31,12 @@ declare module 'vscode' {
 		 * Displayed in the model management UI as the cost per million cached tokens.
 		 */
 		readonly cacheCost?: number;
+
+		/**
+		 * Optional relative pricing category for this model (e.g. "low", "medium", "high", "very_high").
+		 * Displayed in the model picker as a visual indicator of relative cost.
+		 */
+		readonly priceCategory?: string;
 	}
 
 	export interface LanguageModelChat {
@@ -54,5 +60,11 @@ declare module 'vscode' {
 		 * Optional cache cost in AI credits for this model.
 		 */
 		readonly cacheCost?: number;
+
+		/**
+		 * Optional relative pricing category for this model (e.g. "low", "medium", "high", "very_high").
+		 * Displayed in the model picker as a visual indicator of relative cost.
+		 */
+		readonly priceCategory?: string;
 	}
 }

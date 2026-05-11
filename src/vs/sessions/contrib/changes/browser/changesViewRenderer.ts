@@ -202,7 +202,7 @@ export class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTre
 		const actionBarContainer = $('.chat-collapsible-list-action-bar');
 		const contextKeyService = templateDisposables.add(this.contextKeyService.createScoped(actionBarContainer));
 		const scopedInstantiationService = templateDisposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService])));
-		const toolbar = templateDisposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, actionBarContainer, MenuId.ChatEditingSessionChangeToolbar, { menuOptions: { shouldForwardArgs: true, arg: undefined }, actionRunner: this.actionRunner }));
+		const toolbar = templateDisposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, actionBarContainer, MenuId.AgentsChangeInlineToolbar, { menuOptions: { shouldForwardArgs: true, arg: undefined }, actionRunner: this.actionRunner }));
 		label.element.appendChild(actionBarContainer);
 
 		templateDisposables.add(bindContextKey(ChatContextKeys.agentSessionType, contextKeyService, reader => {

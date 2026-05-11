@@ -15,7 +15,7 @@ import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import * as os from 'os';
 import * as inspector from 'inspector';
-import { AgentHostEnableClaudeEnvVar, AgentHostIpcChannels, IAgentHostInspectInfo, IAgentHostSocketInfo, IConnectionTrackerService } from '../common/agentService.js';
+import { AgentHostClaudeSdkPathEnvVar, AgentHostIpcChannels, IAgentHostInspectInfo, IAgentHostSocketInfo, IConnectionTrackerService } from '../common/agentService.js';
 import { AgentService } from './agentService.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { IAgentHostTerminalManager } from './agentHostTerminalManager.js';
@@ -41,6 +41,7 @@ import { FileService } from '../../files/common/fileService.js';
 import { IFileService } from '../../files/common/files.js';
 import { DiskFileSystemProvider } from '../../files/node/diskFileSystemProvider.js';
 import { Schemas } from '../../../base/common/network.js';
+import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { InstantiationService } from '../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
 import { SessionDataService } from './sessionDataService.js';
@@ -99,6 +100,7 @@ function startAgentHost(): void {
 
 	// Create the real service implementation that lives in this process
 	let agentService: AgentService;
+	let instantiationService: IInstantiationService;
 	try {
 		// Build the DI container early so the git service can be created via
 		// `createInstance` (it needs IFileService + INativeEnvironmentService).
@@ -108,7 +110,7 @@ function startAgentHost(): void {
 		diServices.set(IFileService, fileService);
 		diServices.set(ISessionDataService, sessionDataService);
 		diServices.set(IProductService, productService);
-		const instantiationService = new InstantiationService(diServices);
+		instantiationService = new InstantiationService(diServices);
 		const gitService = instantiationService.createInstance(AgentHostGitService);
 		diServices.set(IAgentHostGitService, gitService);
 		const copilotApiService = instantiationService.createInstance(CopilotApiService, undefined);
@@ -127,9 +129,11 @@ function startAgentHost(): void {
 		diServices.set(IAgentConfigurationService, agentService.configurationService);
 		agentService.registerProvider(instantiationService.createInstance(CopilotAgent));
 		// The Claude agent provider is opt-in. Gated on the
-		// `chat.agentHost.claudeAgent.enabled` workbench setting, forwarded by the
-		// agent host starters as `VSCODE_AGENT_HOST_ENABLE_CLAUDE`.
-		if (process.env[AgentHostEnableClaudeEnvVar] === '1') {
+		// `chat.agentHost.claudeAgent.path` workbench setting being non-empty,
+		// forwarded by the agent host starters as `VSCODE_AGENT_HOST_CLAUDE_SDK_PATH`.
+		// The SDK is intentionally not bundled with VS Code; the env var holds the
+		// absolute path to a locally-installed `@anthropic-ai/claude-agent-sdk` package.
+		if (process.env[AgentHostClaudeSdkPathEnvVar]) {
 			agentService.registerProvider(instantiationService.createInstance(ClaudeAgent));
 		}
 	} catch (err) {
@@ -188,13 +192,17 @@ function startAgentHost(): void {
 			const wsServer = disposables.add(await WebSocketProtocolServer.create(
 				{ socketPath },
 				logService,
+				{ instantiationService, logsHome: environmentService.logsHome },
 			));
 
 			const protocolHandler = disposables.add(new ProtocolServerHandler(
 				agentService,
 				agentService.stateManager,
 				wsServer,
-				{ defaultDirectory: URI.file(os.homedir()).toString() },
+				{
+					defaultDirectory: URI.file(os.homedir()).toString(),
+					completionTriggerCharacters: agentService.completionTriggerCharacters,
+				},
 				clientFileSystemProvider,
 				logService,
 			));
@@ -255,7 +263,15 @@ function startAgentHost(): void {
 	server.registerChannel(AgentHostIpcChannels.ConnectionTracker, connectionTrackerChannel);
 
 	// Start WebSocket server for external clients if configured (env-var flow for CLI/server)
-	startWebSocketServer(agentService, clientFileSystemProvider, logService, disposables, count => connectionCountEmitter.fire(count)).catch(err => {
+	startWebSocketServer(
+		agentService,
+		clientFileSystemProvider,
+		instantiationService,
+		environmentService.logsHome,
+		logService,
+		disposables,
+		count => connectionCountEmitter.fire(count),
+	).catch(err => {
 		logService.error('Failed to start WebSocket server', err);
 	});
 
@@ -272,7 +288,15 @@ function startAgentHost(): void {
  * This reuses the same {@link AgentService} and {@link AgentHostStateManager}
  * that the IPC channel uses, so both IPC and WebSocket clients share state.
  */
-async function startWebSocketServer(agentService: AgentService, clientFileSystemProvider: AgentHostClientFileSystemProvider, logService: ILogService, disposables: DisposableStore, onConnectionCountChanged: (count: number) => void): Promise<void> {
+async function startWebSocketServer(
+	agentService: AgentService,
+	clientFileSystemProvider: AgentHostClientFileSystemProvider,
+	instantiationService: IInstantiationService,
+	logsHome: URI,
+	logService: ILogService,
+	disposables: DisposableStore,
+	onConnectionCountChanged: (count: number) => void,
+): Promise<void> {
 	const port = process.env['VSCODE_AGENT_HOST_PORT'];
 	const socketPath = process.env['VSCODE_AGENT_HOST_SOCKET_PATH'];
 
@@ -299,13 +323,17 @@ async function startWebSocketServer(agentService: AgentService, clientFileSystem
 					: undefined,
 			},
 		logService,
+		{ instantiationService, logsHome },
 	));
 
 	const protocolHandler = disposables.add(new ProtocolServerHandler(
 		agentService,
 		agentService.stateManager,
 		wsServer,
-		{ defaultDirectory: URI.file(os.homedir()).toString() },
+		{
+			defaultDirectory: URI.file(os.homedir()).toString(),
+			completionTriggerCharacters: agentService.completionTriggerCharacters,
+		},
 		clientFileSystemProvider,
 		logService,
 	));

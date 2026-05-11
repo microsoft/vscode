@@ -22,6 +22,7 @@ import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/action
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { URI } from '../../../../base/common/uri.js';
+import { IsActiveSessionArchivedContext } from '../../../common/contextkeys.js';
 
 const hasWorktreeAndRepositoryContextKey = new RawContextKey<boolean>('agentSessionHasWorktreeAndRepository', false, {
 	type: 'boolean',
@@ -64,7 +65,7 @@ class ApplyChangesToParentRepoAction extends Action2 {
 			),
 			menu: [
 				{
-					id: MenuId.ChatEditingSessionApplySubmenu,
+					id: MenuId.AgentsChangesPrimaryActionSubMenu,
 					group: 'navigation',
 					order: 2,
 					when: ContextKeyExpr.and(
@@ -164,10 +165,12 @@ registerAction2(ApplyChangesToParentRepoAction);
 registerWorkbenchContribution2(ApplyChangesToParentRepoContribution.ID, ApplyChangesToParentRepoContribution, WorkbenchPhase.AfterRestored);
 
 // Register the apply submenu in the session changes toolbar
-MenuRegistry.appendMenuItem(MenuId.ChatEditingSessionChangesToolbar, {
-	submenu: MenuId.ChatEditingSessionApplySubmenu,
+MenuRegistry.appendMenuItem(MenuId.AgentsChangesToolbar, {
+	submenu: MenuId.AgentsChangesPrimaryActionSubMenu,
 	title: localize2('applyActions', 'Apply Actions'),
 	group: 'navigation',
 	order: 1,
-	when: IsSessionsWindowContext,
+	when: ContextKeyExpr.and(
+		IsSessionsWindowContext,
+		IsActiveSessionArchivedContext.isEqualTo(false))
 });

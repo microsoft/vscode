@@ -5,7 +5,7 @@
 import type { CancellationToken } from 'vscode';
 import { IChatMLFetcher } from '../../../platform/chat/common/chatMLFetcher';
 import { ChatFetchResponseType, ChatResponse } from '../../../platform/chat/common/commonTypes';
-import { IConfigurationService } from '../../../platform/configuration/common/configurationService';
+import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { IDomainService } from '../../../platform/endpoint/common/domainService';
 import { IChatModelInformation } from '../../../platform/endpoint/common/endpointProvider';
 import { ChatEndpoint } from '../../../platform/endpoint/node/chatEndpoint';
@@ -250,6 +250,7 @@ export class OpenAIEndpoint extends ChatEndpoint {
 				// Don't use a response ID from CAPI or when zero data retention is enabled
 				body.previous_response_id = undefined;
 			}
+			this._applyReasoningEffort(body, options);
 			return body;
 		} else if (this.useMessagesApi) {
 			// Delegate to base ChatEndpoint for Messages API dispatch
@@ -263,7 +264,41 @@ export class OpenAIEndpoint extends ChatEndpoint {
 				}
 			};
 			const body = createCapiRequestBody(options, this.model, callback);
+			this._applyReasoningEffort(body, options);
 			return body;
+		}
+	}
+
+	/**
+	 * Forwards the per-request reasoning effort to the model body in the shape the endpoint expects.
+	 * Default shape mirrors the API path (`Responses` \u2192 nested `reasoning.effort`, `Chat Completions` \u2192 top-level `reasoning_effort`).
+	 * `IChatModelInformation.reasoningEffortFormat` overrides the default so users hosting OpenAI-compatible servers
+	 * with diverging conventions (e.g. nested `reasoning.effort` on `/chat/completions`) can opt in deterministically.
+	 */
+	private _applyReasoningEffort(body: IEndpointBody, options: ICreateEndpointBodyOptions): void {
+		const supports = this.supportsReasoningEffort;
+		if (!supports?.length) {
+			return;
+		}
+		const format = this.modelMetadata.reasoningEffortFormat
+			?? (this.useResponsesApi ? 'responses' : 'chat-completions');
+		const override = this._configurationService.getConfig(ConfigKey.Advanced.ReasoningEffortOverride);
+		const requested = override || options.modelCapabilities?.reasoningEffort || body.reasoning?.effort || body.reasoning_effort;
+		const effort = requested && supports.includes(requested) ? requested : undefined;
+		// Scrub any pre-populated effort first so unsupported values (e.g. the hard-coded `medium` default
+		// from `createResponsesRequestBody`) cannot leak through, then write the resolved value into the
+		// expected shape.
+		if (body.reasoning) {
+			const { effort: _drop, ...rest } = body.reasoning;
+			body.reasoning = Object.keys(rest).length > 0 ? rest : undefined;
+		}
+		body.reasoning_effort = undefined;
+		if (effort) {
+			if (format === 'responses') {
+				body.reasoning = { ...body.reasoning, effort };
+			} else {
+				body.reasoning_effort = effort;
+			}
 		}
 	}
 

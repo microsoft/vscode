@@ -454,7 +454,11 @@ export class AICustomizationManagementEditor extends EditorPane {
 			layout: (width, _, height) => {
 				this.sidebarContainer.style.width = `${width}px`;
 				if (height !== undefined) {
-					this.sectionsList.layout(height - 8, width);
+					// Subtract sidebar-content padding (4px each side = 8px) and the
+					// header row height. Without subtracting the header the sections
+					// list overflows and the bottom items are clipped.
+					const headerHeight = this.sidebarHeaderContainer?.offsetHeight ?? 0;
+					this.sectionsList.layout(Math.max(0, height - 8 - headerHeight), width);
 				}
 			},
 		}, savedWidth, undefined, true);
@@ -629,6 +633,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 				if (!this.isHarnessSelectorEnabled) {
 					this.harnessService.setActiveHarness(SessionType.Local);
 				}
+			}
+			if (e.affectsConfiguration(ChatConfiguration.ChatCustomizationsStructuredPreviewEnabled)) {
+				this.onStructuredPreviewSettingChanged();
 			}
 		}));
 
@@ -1022,6 +1029,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.welcomePage?.reset();
 		this.updateContentVisibility();
 		this.ensureSectionsListReflectsActiveSection(undefined);
+		this.welcomePage?.focus();
 	}
 
 	private selectSection(section: AICustomizationManagementSection, options?: { showMarketplace?: boolean }): void {
@@ -1056,6 +1064,14 @@ export class AICustomizationManagementEditor extends EditorPane {
 		// Load items for the new section (only for prompts-based sections)
 		if (this.isPromptsSection(section)) {
 			void this.listWidget.setSection(section);
+		}
+
+		// Re-layout after visibility change so the newly-visible widget can
+		// measure its flex-computed container height correctly. Without this,
+		// a widget that was previously hidden (offsetHeight === 0) keeps its
+		// stale listContainer height and clips items at the bottom.
+		if (this.dimension) {
+			this.layout(this.dimension);
 		}
 
 		this.ensureSectionsListReflectsActiveSection(section);
@@ -1969,10 +1985,31 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	private isStructuredPreviewSupported(promptType: PromptsType | undefined): boolean {
+		if (this.configurationService.getValue<boolean>(ChatConfiguration.ChatCustomizationsStructuredPreviewEnabled) !== true) {
+			return false;
+		}
 		return promptType === PromptsType.agent
 			|| promptType === PromptsType.skill
 			|| promptType === PromptsType.instructions
 			|| promptType === PromptsType.prompt;
+	}
+
+	private onStructuredPreviewSettingChanged(): void {
+		if (this.viewMode !== 'editor') {
+			return;
+		}
+		const supportsStructuredPreview = this.isStructuredPreviewSupported(this.currentEditingPromptType);
+		if (!supportsStructuredPreview) {
+			this.editorDisplayMode = 'raw';
+			this.editorPreviewRenderScheduler.cancel();
+			this.clearEditorPreview();
+		} else if (this.editorDisplayMode === 'preview') {
+			this.editorPreviewRenderScheduler.schedule();
+		}
+		this.updateEditorDisplayMode();
+		if (this.dimension) {
+			this.layout(this.dimension);
+		}
 	}
 
 	private getCurrentEditingModel(): ITextModel | undefined {

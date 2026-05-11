@@ -18,9 +18,11 @@ import { ChatViewModel } from '../../../../contrib/chat/common/model/chatViewMod
 import { ChatListWidget } from '../../../../contrib/chat/browser/widget/chatListWidget.js';
 import { ChatInputPart, IChatInputPartOptions, IChatInputStyles } from '../../../../contrib/chat/browser/widget/input/chatInputPart.js';
 import { IChatWidget, IChatWidgetService } from '../../../../contrib/chat/browser/chat.js';
-import { IChatService } from '../../../../contrib/chat/common/chatService/chatService.js';
+import { ElicitationState, IChatService } from '../../../../contrib/chat/common/chatService/chatService.js';
+import { ChatElicitationRequestPart } from '../../../../contrib/chat/common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import { ChatToolInvocation } from '../../../../contrib/chat/common/model/chatProgressTypes/chatToolInvocation.js';
-import { IToolData, ToolDataSource } from '../../../../contrib/chat/common/tools/languageModelToolsService.js';
+import { ILanguageModelToolsService, IToolData, ToolDataSource } from '../../../../contrib/chat/common/tools/languageModelToolsService.js';
+import { IChatToolRiskAssessmentService, IToolRiskAssessment, ToolRiskLevel } from '../../../../contrib/chat/browser/tools/chatToolRiskAssessmentService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../../contrib/chat/common/constants.js';
@@ -30,19 +32,27 @@ import { FixtureMenuService, registerChatFixtureServices } from './chatFixtureUt
 
 import '../../../../contrib/chat/browser/widget/media/chat.css';
 
-interface IFixtureMessage {
+export interface IFixtureMessage {
 	readonly user: string; // user prompt text
 	readonly assistant?: ReadonlyArray<
 		| { kind: 'markdown'; text: string }
 		| { kind: 'progress'; text: string }
-		| { kind: 'terminalConfirmation'; command: string; title?: string }
+		| { kind: 'terminalConfirmation'; command: string; title?: string; disclaimer?: string; requestUnsandboxedExecution?: boolean; requestUnsandboxedExecutionReason?: string; riskAssessment?: { risk: ToolRiskLevel; explanation: string }; riskLoading?: boolean; confirmation?: { commandLine: string; cwdLabel?: string; cdPrefix?: string } }
+		| { kind: 'elicitation'; title: string; message: string; confirmation?: { commandLine: string; cwdLabel?: string; cdPrefix?: string }; riskAssessment?: { risk: ToolRiskLevel; explanation: string }; riskLoading?: boolean }
 	>;
 	readonly responseComplete?: boolean;
 }
 
-interface IChatWidgetFixtureOptions {
+export interface IChatWidgetFixtureOptions {
 	readonly messages: ReadonlyArray<IFixtureMessage>;
-	readonly withInput?: boolean;
+	readonly width?: number;
+	readonly height?: number;
+	/**
+	 * When `false`, registers a stub `IChatToolRiskAssessmentService` whose
+	 * `isEnabled()` returns `false`, exercising the "feature off" code path.
+	 * When omitted, behaves like today (auto-detected from message risk data).
+	 */
+	readonly riskAssessmentEnabled?: boolean;
 }
 
 function makeUserMessage(text: string) {
@@ -52,10 +62,24 @@ function makeUserMessage(text: string) {
 	};
 }
 
-async function renderChatWidget(context: ComponentFixtureContext, options: IChatWidgetFixtureOptions): Promise<void> {
+export async function renderChatWidget(context: ComponentFixtureContext, options: IChatWidgetFixtureOptions): Promise<void> {
 	const { container, disposableStore } = context;
 
 	const widgetHolder: { current: IChatWidget | undefined } = { current: undefined };
+
+	const fixtureToolData: IToolData = {
+		id: 'fixture.terminalTool',
+		displayName: 'Terminal',
+		modelDescription: 'Run a command in the terminal',
+		source: ToolDataSource.Internal,
+	};
+
+	// Collect risk assessments from messages so the risk badge service can
+	// return them synchronously via getCached().
+	const hasRiskAssessment = options.messages.some(m => m.assistant?.some(p => (p.kind === 'terminalConfirmation' || p.kind === 'elicitation') && p.riskAssessment));
+	const hasRiskLoading = options.messages.some(m => m.assistant?.some(p => (p.kind === 'terminalConfirmation' || p.kind === 'elicitation') && p.riskLoading));
+	const riskFeatureExplicitlyDisabled = options.riskAssessmentEnabled === false;
+	const needsRiskService = hasRiskAssessment || hasRiskLoading || riskFeatureExplicitlyDisabled;
 
 	const instantiationService = createEditorServices(disposableStore, {
 		colorTheme: context.theme,
@@ -75,14 +99,39 @@ async function renderChatWidget(context: ComponentFixtureContext, options: IChat
 				override getWidgetsByLocations() { return []; }
 				override register() { return { dispose() { } }; }
 			}());
+
+			if (needsRiskService) {
+				reg.defineInstance(ILanguageModelToolsService, new class extends mock<ILanguageModelToolsService>() {
+					override onDidChangeTools = Event.None;
+					override onDidPrepareToolCallBecomeUnresponsive = Event.None;
+					override getTools() { return [fixtureToolData]; }
+					override getTool(id: string) { return id === fixtureToolData.id ? fixtureToolData : undefined; }
+				}());
+				reg.defineInstance(IChatToolRiskAssessmentService, new class extends mock<IChatToolRiskAssessmentService>() {
+					override isEnabled() { return !riskFeatureExplicitlyDisabled; }
+					override getCached() {
+						// Return the first risk assessment found in the fixture messages.
+						for (const m of options.messages) {
+							for (const p of m.assistant ?? []) {
+								if ((p.kind === 'terminalConfirmation' || p.kind === 'elicitation') && p.riskAssessment) {
+									return p.riskAssessment;
+								}
+							}
+						}
+						return undefined;
+					}
+					// For riskLoading: assess() never resolves, keeping the badge in loading state.
+					override async assess(): Promise<IToolRiskAssessment | undefined> { return new Promise(() => { }); }
+				}());
+			}
 		},
 	});
 
 	const configService = instantiationService.get(IConfigurationService) as TestConfigurationService;
-	await configService.setUserConfiguration('chat', {
+	configService.setUserConfiguration('chat', {
 		editor: { fontSize: 13, fontFamily: 'default', fontWeight: 'default', lineHeight: 0, wordWrap: 'off' },
 	});
-	await configService.setUserConfiguration('editor', { fontFamily: 'monospace', fontLigatures: false });
+	configService.setUserConfiguration('editor', { fontFamily: 'monospace', fontLigatures: false });
 	configService.setUserConfiguration(ChatConfiguration.ToolConfirmationCarousel, true);
 
 	// Build a real ChatModel populated with hand-crafted requests/responses, then drive a
@@ -95,13 +144,6 @@ async function renderChatWidget(context: ComponentFixtureContext, options: IChat
 	));
 	chatService.addSession(model);
 
-	const fixtureToolData: IToolData = {
-		id: 'fixture.terminalTool',
-		displayName: 'Terminal',
-		modelDescription: 'Run a command in the terminal',
-		source: ToolDataSource.Internal,
-	};
-
 	for (const message of options.messages) {
 		const request = model.addRequest(makeUserMessage(message.user), { variables: [] }, 0);
 		const response = request.response!;
@@ -110,17 +152,35 @@ async function renderChatWidget(context: ComponentFixtureContext, options: IChat
 				model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString(part.text) });
 			} else if (part.kind === 'progress') {
 				model.acceptResponseProgress(request, { kind: 'progressMessage', content: new MarkdownString(part.text) });
+			} else if (part.kind === 'elicitation') {
+				const elicitation = new ChatElicitationRequestPart(
+					part.title,
+					part.message,
+					'',
+					'Continue',
+					'Cancel',
+					async () => ElicitationState.Accepted,
+					async () => ElicitationState.Rejected,
+					undefined,
+					undefined,
+					undefined,
+					part.riskAssessment || part.riskLoading ? { toolId: fixtureToolData.id, parameters: undefined } : undefined,
+				);
+				model.acceptResponseProgress(request, elicitation);
 			} else if (part.kind === 'terminalConfirmation') {
 				const title = part.title ?? `Run pwsh command?`;
 				const toolInvocation = new ChatToolInvocation(
 					{
 						invocationMessage: new MarkdownString(`Running \`${part.command}\``),
 						pastTenseMessage: new MarkdownString(`Ran \`${part.command}\``),
-						confirmationMessages: { title, message: new MarkdownString(`\`${part.command}\``) },
+						confirmationMessages: { title, message: new MarkdownString(`\`${part.command}\``), disclaimer: part.disclaimer ? new MarkdownString(part.disclaimer, { supportThemeIcons: true }) : undefined },
 						toolSpecificData: {
 							kind: 'terminal',
 							commandLine: { original: part.command },
 							language: 'pwsh',
+							requestUnsandboxedExecution: part.requestUnsandboxedExecution,
+							requestUnsandboxedExecutionReason: part.requestUnsandboxedExecutionReason,
+							confirmation: part.confirmation,
 						},
 					},
 					fixtureToolData,
@@ -138,8 +198,10 @@ async function renderChatWidget(context: ComponentFixtureContext, options: IChat
 
 	const viewModel = disposableStore.add(instantiationService.createInstance(ChatViewModel, model, undefined));
 
-	container.style.width = '720px';
-	container.style.height = '600px';
+	const width = options.width ?? 720;
+	const height = options.height ?? 600;
+	container.style.width = `${width}px`;
+	container.style.height = `${height}px`;
 	container.style.backgroundColor = 'var(--vscode-sideBar-background, var(--vscode-editor-background))';
 	container.classList.add('monaco-workbench');
 
@@ -161,33 +223,32 @@ async function renderChatWidget(context: ComponentFixtureContext, options: IChat
 	// Build the input part FIRST so the widget (with its inputPart) is registered
 	// in IChatWidgetService before the list widget renders. The renderer queries
 	// the service synchronously when routing tool confirmations to the carousel.
-	let inputPart: ChatInputPart | undefined;
-	if (options.withInput) {
-		const menuService = instantiationService.get(IMenuService) as FixtureMenuService;
-		menuService.addItem(MenuId.ChatInput, { command: { id: 'workbench.action.chat.attachContext', title: '+', icon: Codicon.add }, group: 'navigation', order: -1 });
-		menuService.addItem(MenuId.ChatInput, { command: { id: 'workbench.action.chat.openModePicker', title: 'Agent' }, group: 'navigation', order: 1 });
-		menuService.addItem(MenuId.ChatInput, { command: { id: 'workbench.action.chat.openModelPicker', title: 'GPT-5.3-Codex' }, group: 'navigation', order: 3 });
-		menuService.addItem(MenuId.ChatInput, { command: { id: 'workbench.action.chat.configureTools', title: '', icon: Codicon.settingsGear }, group: 'navigation', order: 100 });
-		menuService.addItem(MenuId.ChatExecute, { command: { id: 'workbench.action.chat.submit', title: 'Send', icon: Codicon.arrowUp }, group: 'navigation', order: 4 });
-		menuService.addItem(MenuId.ChatInputSecondary, { command: { id: 'workbench.action.chat.openSessionTargetPicker', title: 'Local' }, group: 'navigation', order: 0 });
-		menuService.addItem(MenuId.ChatInputSecondary, { command: { id: 'workbench.action.chat.openPermissionPicker', title: 'Default Approvals' }, group: 'navigation', order: 10 });
+	// In production a chat widget always has an inputPart, so the fixture creates
+	// one unconditionally; `withInput` only controls whether it is rendered in DOM.
+	const menuService = instantiationService.get(IMenuService) as FixtureMenuService;
+	menuService.addItem(MenuId.ChatInput, { command: { id: 'workbench.action.chat.attachContext', title: '+', icon: Codicon.add }, group: 'navigation', order: -1 });
+	menuService.addItem(MenuId.ChatInput, { command: { id: 'workbench.action.chat.openModePicker', title: 'Agent' }, group: 'navigation', order: 1 });
+	menuService.addItem(MenuId.ChatInput, { command: { id: 'workbench.action.chat.openModelPicker', title: 'GPT-5.3-Codex' }, group: 'navigation', order: 3 });
+	menuService.addItem(MenuId.ChatInput, { command: { id: 'workbench.action.chat.configureTools', title: '', icon: Codicon.settingsGear }, group: 'navigation', order: 100 });
+	menuService.addItem(MenuId.ChatExecute, { command: { id: 'workbench.action.chat.submit', title: 'Send', icon: Codicon.arrowUp }, group: 'navigation', order: 4 });
+	menuService.addItem(MenuId.ChatInputSecondary, { command: { id: 'workbench.action.chat.openSessionTargetPicker', title: 'Local' }, group: 'navigation', order: 0 });
+	menuService.addItem(MenuId.ChatInputSecondary, { command: { id: 'workbench.action.chat.openPermissionPicker', title: 'Default Approvals' }, group: 'navigation', order: 10 });
 
-		const inputOptions: IChatInputPartOptions = {
-			renderFollowups: false,
-			renderInputToolbarBelowInput: false,
-			renderWorkingSet: false,
-			menus: { executeToolbar: MenuId.ChatExecute, telemetrySource: 'fixture' },
-			widgetViewKindTag: 'view',
-			inputEditorMinLines: 2,
-		};
-		const inputStyles: IChatInputStyles = {
-			overlayBackground: 'var(--vscode-editor-background)',
-			listForeground: 'var(--vscode-foreground)',
-			listBackground: 'var(--vscode-editor-background)',
-		};
+	const inputOptions: IChatInputPartOptions = {
+		renderFollowups: false,
+		renderInputToolbarBelowInput: false,
+		renderWorkingSet: false,
+		menus: { executeToolbar: MenuId.ChatExecute, telemetrySource: 'fixture' },
+		widgetViewKindTag: 'view',
+		inputEditorMinLines: 2,
+	};
+	const inputStyles: IChatInputStyles = {
+		overlayBackground: 'var(--vscode-editor-background)',
+		listForeground: 'var(--vscode-foreground)',
+		listBackground: 'var(--vscode-editor-background)',
+	};
 
-		inputPart = disposableStore.add(instantiationService.createInstance(ChatInputPart, ChatAgentLocation.Chat, inputOptions, inputStyles, false));
-	}
+	const inputPart = disposableStore.add(instantiationService.createInstance(ChatInputPart, ChatAgentLocation.Chat, inputOptions, inputStyles, false));
 
 	const fixtureWidget = new class extends mock<IChatWidget>() {
 		override readonly onDidChangeViewModel = new Emitter<never>().event;
@@ -195,16 +256,12 @@ async function renderChatWidget(context: ComponentFixtureContext, options: IChat
 		override readonly contribs = [];
 		override readonly location = ChatAgentLocation.Chat;
 		override readonly viewContext = {};
-		override readonly inputPart = inputPart!;
+		override readonly inputPart = inputPart;
 	}();
 	widgetHolder.current = fixtureWidget;
 
-	if (inputPart) {
-		inputPart.render(session, '', fixtureWidget);
-		inputPart.layout(720);
-		await new Promise(r => setTimeout(r, 50));
-		inputPart.layout(720);
-	}
+	inputPart.render(session, '', fixtureWidget);
+	inputPart.layout(width);
 
 	const listContainer = dom.$('.interactive-list');
 	listContainer.style.flex = '1 1 auto';
@@ -234,12 +291,8 @@ async function renderChatWidget(context: ComponentFixtureContext, options: IChat
 	listWidget.setVisible(true);
 	listWidget.refresh();
 
-	const listHeight = options.withInput ? 420 : 600;
-	listWidget.layout(listHeight, 720);
-
-	// Allow the renderer to flush its async progressive rendering pass.
-	await new Promise(r => setTimeout(r, 100));
-	listWidget.layout(listHeight, 720);
+	const listHeight = 420;
+	listWidget.layout(listHeight, width);
 	listWidget.scrollTop = 0;
 }
 
@@ -256,7 +309,34 @@ const PENDING_TOOL_APPROVAL: IFixtureMessage[] = [
 	{
 		user: 'run git init',
 		assistant: [
-			{ kind: 'terminalConfirmation', command: 'git init' },
+			{
+				kind: 'terminalConfirmation',
+				command: 'git init',
+				riskAssessment: {
+					risk: ToolRiskLevel.Orange,
+					explanation: 'Initializes a new Git repository in the current directory. Reversible by removing the .git folder.',
+				},
+			},
+		],
+		responseComplete: false,
+	},
+];
+
+// https://github.com/microsoft/vscode/issues/309796
+const ISSUE_309796_MISSING_BACKSLASH: IFixtureMessage[] = [
+	{
+		user: 'install dependencies in the server directory',
+		assistant: [
+			{
+				kind: 'terminalConfirmation',
+				command: 'cd packages\\server && npm install',
+				title: 'Run `pwsh` command within `packages\\server`?',
+				confirmation: {
+					commandLine: 'npm install',
+					cwdLabel: 'packages\\server',
+					cdPrefix: 'cd packages\\server && ',
+				},
+			},
 		],
 		responseComplete: false,
 	},
@@ -297,7 +377,8 @@ export default defineThemedFixtureGroup({ path: 'chat/widget/' }, {
 	SimpleQA: defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: SIMPLE_QA }) }),
 	Streaming: defineComponentFixture({ labels: { kind: 'animated' }, render: ctx => renderChatWidget(ctx, { messages: STREAMING }) }),
 	PendingToolApproval: defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: PENDING_TOOL_APPROVAL }) }),
-	PendingToolApprovalWithInput: defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: PENDING_TOOL_APPROVAL, withInput: true }) }),
+	bugs: defineThemedFixtureGroup({
+		'issue-309796-missing-backslash': defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: ISSUE_309796_MISSING_BACKSLASH }) }),
+	}),
 	MultiTurn: defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: MULTI_TURN }) }),
-	WithInput: defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: MULTI_TURN, withInput: true }) }),
 });

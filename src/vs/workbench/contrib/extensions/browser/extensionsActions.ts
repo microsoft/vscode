@@ -1840,7 +1840,7 @@ class EnableAIFeaturesGloballyAction extends ExtensionAction {
 	}
 }
 
-class EnableAIFeaturesInWorkspaceAction extends ExtensionAction {
+export class EnableAIFeaturesInWorkspaceAction extends ExtensionAction {
 
 	static readonly ID = 'extensions.enableAIInWorkspace';
 	static readonly LABEL = localize('enableAIInWorkspaceAction', "Enable AI Features (Workspace)");
@@ -1892,7 +1892,7 @@ class EnableAIFeaturesInWorkspaceAction extends ExtensionAction {
 			return;
 		}
 		await this.extensionsWorkbenchService.setEnablement(this.extension, EnablementState.EnabledWorkspace);
-		if (this.configurationService.inspect(CHAT_AI_DISABLED_SETTING).workspaceValue === true) {
+		if (this.configurationService.getValue<boolean>(CHAT_AI_DISABLED_SETTING) === true) {
 			await this.configurationService.updateValue(CHAT_AI_DISABLED_SETTING, false, ConfigurationTarget.WORKSPACE);
 		}
 	}

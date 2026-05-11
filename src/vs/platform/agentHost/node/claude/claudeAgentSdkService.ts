@@ -4,8 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { ListSessionsOptions, Options, SDKSessionInfo, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
+import * as fs from 'fs';
+import { pathToFileURL } from 'url';
+import { join, resolve } from '../../../../base/common/path.js';
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
+import { AgentHostClaudeSdkPathEnvVar } from '../../common/agentService.js';
 
 export const IClaudeAgentSdkService = createDecorator<IClaudeAgentSdkService>('claudeAgentSdkService');
 
@@ -30,6 +34,16 @@ export interface IClaudeAgentSdkService {
 	 * collapsing the wider listing pipeline.
 	 */
 	listSessions(): Promise<readonly SDKSessionInfo[]>;
+
+	/**
+	 * Looks up a single session's metadata by id. Resolves to `undefined`
+	 * when the SDK has no record of it (deleted from disk, never created,
+	 * or just outside the searched project tree). Used by
+	 * {@link import('./claudeAgent.js').ClaudeAgent.getSessionMetadata}
+	 * to compose SDK-supplied fields (summary, cwd, timestamps) with the
+	 * per-session DB overlay. Phase 6.1 / Cycle D4.
+	 */
+	getSessionInfo(sessionId: string): Promise<SDKSessionInfo | undefined>;
 
 	/**
 	 * Pre-warms the SDK subprocess and runs the init handshake. Returns
@@ -57,6 +71,7 @@ export interface IClaudeAgentSdkService {
  */
 export interface IClaudeSdkBindings {
 	listSessions(options?: ListSessionsOptions): Promise<SDKSessionInfo[]>;
+	getSessionInfo(sessionId: string): Promise<SDKSessionInfo | undefined>;
 	startup(params: { options: Options; initializeTimeoutMs?: number }): Promise<WarmQuery>;
 }
 
@@ -97,6 +112,11 @@ export class ClaudeAgentSdkService implements IClaudeAgentSdkService {
 		return sdk.listSessions(undefined);
 	}
 
+	async getSessionInfo(sessionId: string): Promise<SDKSessionInfo | undefined> {
+		const sdk = await this._getSdk();
+		return sdk.getSessionInfo(sessionId);
+	}
+
 	async startup(params: { options: Options; initializeTimeoutMs?: number }): Promise<WarmQuery> {
 		const sdk = await this._getSdk();
 		return sdk.startup(params);
@@ -119,6 +139,27 @@ export class ClaudeAgentSdkService implements IClaudeAgentSdkService {
 	}
 
 	protected async _loadSdk(): Promise<IClaudeSdkBindings> {
-		return import('@anthropic-ai/claude-agent-sdk');
+		// The SDK is intentionally not bundled with VS Code. The user supplies an
+		// absolute path to a locally-installed `@anthropic-ai/claude-agent-sdk`
+		// package via the `chat.agentHost.claudeAgent.path` setting, which is
+		// forwarded to this process as `AgentHostClaudeSdkPathEnvVar`. Convert
+		// to a `file://` URL so dynamic `import()` accepts paths with spaces and
+		// works on Windows.
+		const sdkPath = process.env[AgentHostClaudeSdkPathEnvVar];
+		if (!sdkPath) {
+			throw new Error(`Cannot load @anthropic-ai/claude-agent-sdk: ${AgentHostClaudeSdkPathEnvVar} is not set. Set the 'chat.agentHost.claudeAgent.path' setting to a locally-installed SDK package.`);
+		}
+		// Node ESM rejects directory imports, so if the user pointed at the
+		// package directory, resolve its `exports['.']` / `main` entry first.
+		let entry = sdkPath;
+		if (fs.statSync(sdkPath).isDirectory()) {
+			const pkgJson = JSON.parse(fs.readFileSync(join(sdkPath, 'package.json'), 'utf8'));
+			const mainEntry = pkgJson.exports?.['.']?.default
+				?? pkgJson.exports?.['.']?.import
+				?? pkgJson.main
+				?? 'index.js';
+			entry = resolve(sdkPath, mainEntry);
+		}
+		return import(pathToFileURL(entry).href);
 	}
 }
