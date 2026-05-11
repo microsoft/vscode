@@ -37,7 +37,7 @@ export const AgentHostEnabledSettingId = 'chat.agentHost.enabled';
 /** Configuration key that controls whether per-host IPC traffic output channels are created. */
 export const AgentHostIpcLoggingSettingId = 'chat.agentHost.ipcLoggingEnabled';
 
-/** Configuration key that controls whether AHP transport JSONL logs are written. */
+/** Configuration key that controls whether AHP JSONL logs are written for agent host transports. */
 export const AgentHostAhpJsonlLoggingSettingId = 'chat.agentHost.ahpJsonlLoggingEnabled';
 
 /**
@@ -538,6 +538,8 @@ export interface IAgent {
 	 * Resolves the tool handler's deferred promise so the SDK can continue.
 	 *
 	 * @param session The session the tool call belongs to.
+	 * @param toolCallId The id of the tool call being completed.
+	 * @param result The result of the tool call.
 	 */
 	onClientToolCallComplete(session: URI, toolCallId: string, result: ToolCallResult): void;
 

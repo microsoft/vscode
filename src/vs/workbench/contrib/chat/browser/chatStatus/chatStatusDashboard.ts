@@ -766,7 +766,6 @@ export class ChatStatusDashboard extends DomWidget {
 		const update = () => {
 			const quotas = this.chatEntitlementService.quotas;
 			const additionalUsageEnabled = quotas.additionalUsageEnabled ?? false;
-			const additionalUsageActive = additionalUsageEnabled && (quotas.additionalUsageCount ?? 0) > 0;
 			const isEnterpriseUser = this.chatEntitlementService.entitlement === ChatEntitlement.Enterprise || this.chatEntitlementService.entitlement === ChatEntitlement.Business;
 			const isUsageBasedBilling = quotas.usageBasedBilling === true;
 
@@ -777,7 +776,7 @@ export class ChatStatusDashboard extends DomWidget {
 
 			const maxUsedPercentage = allQuotas.length > 0 ? Math.max(...allQuotas.map(q => Math.max(0, 100 - q.percentRemaining))) : 0;
 
-			if (maxUsedPercentage >= 100 && additionalUsageActive) {
+			if (maxUsedPercentage >= 100 && additionalUsageEnabled) {
 				quotaCallout.style.display = '';
 				quotaCallout.className = 'quota-callout info';
 				calloutIcon.className = `callout-icon ${ThemeIcon.asClassName(Codicon.info)}`;
@@ -791,7 +790,7 @@ export class ChatStatusDashboard extends DomWidget {
 				calloutText.textContent = isUsageBasedBilling
 					? localize('quotaAdditionalUsageApproaching', "Once the limit is reached, additional spend will be used.")
 					: localize('quotaBudgetApproaching', "Once the limit is reached, premium request budget will be used.");
-			} else if (maxUsedPercentage >= 100 && !additionalUsageActive) {
+			} else if (maxUsedPercentage >= 100 && !additionalUsageEnabled) {
 				quotaCallout.style.display = '';
 				quotaCallout.className = 'quota-callout info';
 				calloutIcon.className = `callout-icon ${ThemeIcon.asClassName(Codicon.info)}`;

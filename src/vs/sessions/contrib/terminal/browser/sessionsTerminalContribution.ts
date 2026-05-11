@@ -140,6 +140,10 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		// belong to the current active session. These arrive asynchronously
 		// during reconnection and would otherwise flash in the foreground.
 		this._register(this._terminalService.onDidCreateInstance(instance => {
+			// Skip hidden tool terminals — managed by the chat tool lifecycle
+			if (instance.shellLaunchConfig.hideFromUser) {
+				return;
+			}
 			if (instance.shellLaunchConfig.attachPersistentProcess && this._activeKey) {
 				instance.getInitialCwd().then(cwd => {
 					if (cwd.toLowerCase() !== this._activeKey) {
@@ -281,6 +285,10 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 	private async _findTerminalsForKey(key: string): Promise<ITerminalInstance[]> {
 		const result: ITerminalInstance[] = [];
 		for (const instance of this._terminalService.instances) {
+			// Skip hidden tool terminals — managed by the chat tool lifecycle
+			if (instance.shellLaunchConfig.hideFromUser) {
+				continue;
+			}
 			try {
 				const cwd = await instance.getInitialCwd();
 				if (cwd.toLowerCase() === key) {
@@ -311,6 +319,10 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		const toHide: ITerminalInstance[] = [];
 
 		for (const instance of [...this._terminalService.instances]) {
+			// Skip hidden tool terminals — managed by the chat tool lifecycle
+			if (instance.shellLaunchConfig.hideFromUser) {
+				continue;
+			}
 			let cwd: string | undefined;
 			try {
 				cwd = (await instance.getInitialCwd()).toLowerCase();
@@ -365,6 +377,12 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 	private async _closeTerminalsForPath(fsPath: string): Promise<void> {
 		const key = fsPath.toLowerCase();
 		for (const instance of [...this._terminalService.instances]) {
+			// Skip hidden tool terminals (e.g. run_in_terminal) — those are
+			// managed by the chat tool lifecycle, not the session terminal
+			// contribution.
+			if (instance.shellLaunchConfig.hideFromUser) {
+				continue;
+			}
 			try {
 				const cwd = (await instance.getInitialCwd()).toLowerCase();
 				if (cwd === key) {
