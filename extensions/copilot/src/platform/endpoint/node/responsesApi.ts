@@ -27,7 +27,7 @@ import { IChatWebSocketManager } from '../../networking/node/chatWebSocketManage
 import { IExperimentationService } from '../../telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../telemetry/common/telemetry';
 import { TelemetryData } from '../../telemetry/common/telemetryData';
-import { getVerbosityForModelSync, isResponsesApiToolSearchEnabled } from '../common/chatModelCapabilities';
+import { getVerbosityForModelSync } from '../common/chatModelCapabilities';
 import { rawPartAsCompactionData } from '../common/compactionDataContainer';
 import { rawPartAsPhaseData } from '../common/phaseDataContainer';
 import { getIndexOfStatefulMarker, getStatefulMarkerAndIndex } from '../common/statefulMarkerContainer';
@@ -63,11 +63,11 @@ export function createResponsesRequestBody(accessor: ServicesAccessor, options: 
 	// (excluded from the request entirely). Uses OpenAI's client-executed tool search protocol: we add
 	// { type: 'tool_search', execution: 'client' }. The model emits tool_search_call, which we handle via
 	// our ToolSearchTool embeddings search, then round-trip as tool_search_output in the next request.
-	const toolSearchEnabled = isResponsesApiToolSearchEnabled(endpoint, configService, expService);
+	const toolSearchEnabled = !!endpoint.supportsToolSearch
+		&& !!options.requestOptions?.tools?.some(t => t.function.name === CUSTOM_TOOL_SEARCH_NAME);
 	const isAllowedConversationAgent = options.location === ChatLocation.Agent || options.location === ChatLocation.MessagesProxy;
 	const isSubagent = options.telemetryProperties?.subType?.startsWith('subagent') ?? false;
-	const toolSearchInRequest = !!options.requestOptions?.tools?.some(t => t.function.name === CUSTOM_TOOL_SEARCH_NAME);
-	const shouldDeferTools = toolSearchEnabled && isAllowedConversationAgent && !isSubagent && toolSearchInRequest;
+	const shouldDeferTools = toolSearchEnabled && isAllowedConversationAgent && !isSubagent;
 	const toolDeferralService = shouldDeferTools ? accessor.get(IToolDeferralService) : undefined;
 
 	type ResponsesFunctionTool = OpenAI.Responses.FunctionTool & OpenAiResponsesFunctionTool;

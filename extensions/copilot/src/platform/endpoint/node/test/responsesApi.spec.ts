@@ -9,8 +9,6 @@ import { describe, expect, it } from 'vitest';
 import { TokenizerType } from '../../../../util/common/tokenizer';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { ChatLocation } from '../../../chat/common/commonTypes';
-import { ConfigKey, IConfigurationService } from '../../../configuration/common/configurationService';
-import { InMemoryConfigurationService } from '../../../configuration/test/common/inMemoryConfigurationService';
 import { ILogService } from '../../../log/common/logService';
 import { isOpenAIContextManagementResponse } from '../../../networking/common/fetch';
 import { IChatEndpoint, ICreateEndpointBodyOptions } from '../../../networking/common/networking';
@@ -773,9 +771,7 @@ describe('createResponsesRequestBody', () => {
 		services.define(IToolDeferralService, { _serviceBrand: undefined, isNonDeferredTool: (name: string) => name === 'read_file' || name === 'tool_search' });
 		const accessor = services.createTestingAccessor();
 		const instantiationService = accessor.get(IInstantiationService);
-		const configService = accessor.get(IConfigurationService) as InMemoryConfigurationService;
-		configService.setConfig(ConfigKey.ResponsesApiToolSearchEnabled, true);
-		const endpoint = { ...testEndpoint, model: 'gpt-5.4', family: 'gpt-5.4' };
+		const endpoint = { ...testEndpoint, model: 'gpt-5.4', family: 'gpt-5.4', supportsToolSearch: true };
 		const tools = [
 			{ type: 'function' as const, function: { name: 'tool_search', description: 'Search tools', parameters: {} } },
 			{ type: 'function' as const, function: { name: 'some_mcp_tool', description: 'MCP tool', parameters: {} } },
