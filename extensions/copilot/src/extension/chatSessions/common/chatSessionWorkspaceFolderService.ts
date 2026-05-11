@@ -43,9 +43,19 @@ export interface IChatSessionWorkspaceFolderService {
 	getRepositoryProperties(sessionId: string): Promise<RepositoryProperties | undefined>;
 
 	/**
+	 * Set the repository properties associated with a session.
+	 */
+	setRepositoryProperties(sessionId: string, repositoryProperties: RepositoryProperties): Promise<void>;
+
+	/**
 	 * Handle the completion of a request for a session.
 	 */
 	handleRequestCompleted(sessionId: string): Promise<void>;
+
+	/**
+	 * Refresh the changes in the workspace folder for a session.
+	 */
+	refreshWorkspaceChanges(sessionId: string): Promise<void>;
 
 	/**
 	 * Get the changes in the workspace folder for a session.

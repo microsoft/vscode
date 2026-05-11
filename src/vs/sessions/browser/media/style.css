@@ -31,30 +31,36 @@
 @supports (background: color-mix(in srgb, black 0%, white)) {
 	.agent-sessions-workbench.shell-gradient-background::before {
 		background:
-			linear-gradient(to bottom right,
-				transparent 0%,
-				color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 5%, transparent) 58%,
-				color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 7%, transparent) 82%,
-				color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 9%, transparent) 100%),
+			radial-gradient(
+				ellipse 128% 102% at 100% 100%,
+				color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 9%, transparent) 0%,
+				color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 7%, transparent) 16%,
+				color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 5%, transparent) 30%,
+				transparent 60%
+			),
 			var(--vscode-agents-background);
 	}
 
 	.monaco-workbench.vs.agent-sessions-workbench.shell-gradient-background::before {
 		background:
-			linear-gradient(to bottom right,
-				transparent 0%,
-				color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 1%, transparent) 45%,
-				color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 6%, transparent) 75%,
-				color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 12%, transparent) 100%),
+			radial-gradient(
+				ellipse 128% 102% at 100% 100%,
+				color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 12%, transparent) 0%,
+				color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 6%, transparent) 18%,
+				color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 1%, transparent) 32%,
+				transparent 58%
+			),
 			var(--vscode-agents-background);
 	}
 
 	.monaco-workbench.vs-dark.agent-sessions-workbench.shell-gradient-background::before {
-		background: linear-gradient(to bottom right,
-				var(--vscode-agents-background) 0%,
-				color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 7%, var(--vscode-agents-background)) 56%,
-				color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 10%, var(--vscode-agents-background)) 82%,
-				color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 13%, var(--vscode-agents-background)) 100%);
+		background: radial-gradient(
+			ellipse 128% 102% at 100% 100%,
+			color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 13%, var(--vscode-agents-background)) 0%,
+			color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 10%, var(--vscode-agents-background)) 17%,
+			color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 7%, var(--vscode-agents-background)) 31%,
+			var(--vscode-agents-background) 60%
+		);
 	}
 }
 
@@ -274,13 +280,15 @@
 	--tab-border-top-color: transparent !important;
 }
 
-/* Allow tabs to shrink in narrow viewports so the close button stays reachable.
- * The default `sizing-fit` rule sets `min-width: fit-content; flex-shrink: 0;`
- * which prevents the tab from shrinking below its label width and pushes the
- * close button out of view. */
+/* Allow tabs to shrink when space is constrained so the close button stays
+ * reachable, while still letting them grow to fit their label when there is
+ * space. The default `sizing-fit` rule sets `width: 120px; min-width:
+ * fit-content; flex-shrink: 0;` — clearing min-width alone leaves the tab
+ * pinned at 120px and prevents it from expanding to its full content width. */
 .agent-sessions-workbench .part.editor .tabs-container > .tab.sizing-fit {
+	width: auto !important;
 	min-width: 0 !important;
-	flex-shrink: 1 !important;
+	flex: 0 1 auto !important;
 }
 
 .agent-sessions-workbench .part.editor .tabs-container > .tab.sizing-fit .monaco-icon-label,

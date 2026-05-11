@@ -9,8 +9,12 @@
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { connectionTokenQueryName } from '../../../base/common/network.js';
+import { URI } from '../../../base/common/uri.js';
+import { generateUuid } from '../../../base/common/uuid.js';
+import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
-import { JSON_RPC_PARSE_ERROR, type AhpServerNotification, type JsonRpcResponse, type ProtocolMessage } from '../common/state/sessionProtocol.js';
+import { AhpJsonlLogger, getAhpLogByteLength } from '../common/ahpJsonlLogger.js';
+import { JSON_RPC_PARSE_ERROR, type AhpServerNotification, type JsonRpcNotification, type JsonRpcRequest, type JsonRpcResponse, type ProtocolMessage } from '../common/state/sessionProtocol.js';
 import type { IProtocolServer, IProtocolTransport } from '../common/state/sessionTransport.js';
 import type * as wsTypes from 'ws';
 import type * as httpTypes from 'http';
@@ -51,13 +55,18 @@ export class WebSocketProtocolTransport extends Disposable implements IProtocolT
 	constructor(
 		private readonly _ws: wsTypes.WebSocket,
 		private readonly _WebSocket: typeof wsTypes.WebSocket,
+		private readonly _ahpLogger?: AhpJsonlLogger,
 	) {
 		super();
+		if (this._ahpLogger) {
+			this._register(this._ahpLogger);
+		}
 
 		this._ws.on('message', (data: Buffer | string) => {
 			try {
 				const text = typeof data === 'string' ? data : data.toString('utf-8');
 				const message = JSON.parse(text) as ProtocolMessage;
+				this._ahpLogger?.log(message, 'c2s', getAhpLogByteLength(text));
 				this._onMessage.fire(message);
 			} catch {
 				this.send({ jsonrpc: '2.0', id: null!, error: { code: JSON_RPC_PARSE_ERROR, message: 'Parse error' } });
@@ -74,9 +83,11 @@ export class WebSocketProtocolTransport extends Disposable implements IProtocolT
 		});
 	}
 
-	send(message: ProtocolMessage | AhpServerNotification | JsonRpcResponse): void {
+	send(message: ProtocolMessage | AhpServerNotification | JsonRpcNotification | JsonRpcResponse | JsonRpcRequest): void {
 		if (this._ws.readyState === this._WebSocket.OPEN) {
-			this._ws.send(JSON.stringify(message));
+			const text = JSON.stringify(message);
+			this._ahpLogger?.log(message, 's2c', getAhpLogByteLength(text));
+			this._ws.send(text);
 		}
 	}
 
@@ -100,6 +111,7 @@ export class WebSocketProtocolServer extends Disposable implements IProtocolServ
 	private readonly _wss: wsTypes.WebSocketServer;
 	private readonly _httpServer: httpTypes.Server | undefined;
 	private readonly _WebSocket: typeof wsTypes.WebSocket;
+	private _connectionCount = 0;
 
 	private readonly _onConnection = this._register(new Emitter<IProtocolTransport>());
 	readonly onConnection = this._onConnection.event;
@@ -119,18 +131,20 @@ export class WebSocketProtocolServer extends Disposable implements IProtocolServ
 	static async create(
 		options: IWebSocketServerOptions | number,
 		logService: ILogService,
+		ahpLogOptions?: { readonly instantiationService: IInstantiationService; readonly logsHome: URI },
 	): Promise<WebSocketProtocolServer> {
 		const [ws, http, url] = await Promise.all([
 			import('ws'),
 			import('http'),
 			import('url'),
 		]);
-		return new WebSocketProtocolServer(options, logService, ws, http, url);
+		return new WebSocketProtocolServer(options, logService, ahpLogOptions, ws, http, url);
 	}
 
 	private constructor(
 		options: IWebSocketServerOptions | number,
 		private readonly _logService: ILogService,
+		private readonly _ahpLogOptions: { readonly instantiationService: IInstantiationService; readonly logsHome: URI } | undefined,
 		ws: typeof wsTypes,
 		http: typeof httpTypes,
 		url: typeof urlTypes,
@@ -171,13 +185,27 @@ export class WebSocketProtocolServer extends Disposable implements IProtocolServ
 
 		this._wss.on('connection', (wsConn) => {
 			this._logService.trace('[WebSocketProtocol] New client connection');
-			const transport = new WebSocketProtocolTransport(wsConn, this._WebSocket);
+			const transport = new WebSocketProtocolTransport(wsConn, this._WebSocket, this._createAhpLogger());
 			this._onConnection.fire(transport);
 		});
 
 		this._wss.on('error', (err) => {
 			this._logService.error('[WebSocketProtocol] Server error', err);
 		});
+	}
+
+	private _createAhpLogger(): AhpJsonlLogger | undefined {
+		if (!this._ahpLogOptions) {
+			return undefined;
+		}
+		return this._ahpLogOptions.instantiationService.createInstance(
+			AhpJsonlLogger,
+			{
+				logsHome: this._ahpLogOptions.logsHome,
+				connectionId: `agent-host-${++this._connectionCount}-${generateUuid()}`,
+				transport: 'websocket',
+			},
+		);
 	}
 
 	override dispose(): void {

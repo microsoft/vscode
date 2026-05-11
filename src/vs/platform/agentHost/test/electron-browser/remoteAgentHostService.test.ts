@@ -8,12 +8,27 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
+import { IEnvironmentService } from '../../../environment/common/environment.js';
+import { URI } from '../../../../base/common/uri.js';
 import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
 import { IConfigurationService, type IConfigurationChangeEvent } from '../../../configuration/common/configuration.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
+import { ILabelService, type ResourceLabelFormatter } from '../../../label/common/label.js';
 import { RemoteAgentHostService } from '../../browser/remoteAgentHostServiceImpl.js';
 import { parseRemoteAgentHostInput, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, RemoteAgentHostsSettingId, entryToRawEntry, type IRawRemoteAgentHostEntry, type IRemoteAgentHostEntry } from '../../common/remoteAgentHostService.js';
+import { AGENT_HOST_SCHEME, agentHostAuthority } from '../../common/agentHostUri.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
+
+// ---- Mock transport ---------------------------------------------------------
+
+class MockTransport extends Disposable {
+	readonly onMessage = Event.None;
+	readonly onClose = Event.None;
+	readonly onOpen = Event.None;
+	readonly isOpen = false;
+	connect(): Promise<void> { return Promise.resolve(); }
+	send(): boolean { return true; }
+}
 
 // ---- Mock protocol client ---------------------------------------------------
 
@@ -98,6 +113,7 @@ suite('RemoteAgentHostService', () => {
 	const disposables = new DisposableStore();
 	let configService: TestConfigurationService;
 	let createdClients: MockProtocolClient[];
+	let registeredFormatters: ResourceLabelFormatter[];
 	let service: RemoteAgentHostService;
 
 	setup(() => {
@@ -108,11 +124,32 @@ suite('RemoteAgentHostService', () => {
 
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IEnvironmentService, { logsHome: URI.file('/logs') } as Partial<IEnvironmentService>);
 		instantiationService.stub(IConfigurationService, configService as Partial<IConfigurationService>);
+		registeredFormatters = [];
+		instantiationService.stub(ILabelService, {
+			registerFormatter(formatter: ResourceLabelFormatter) {
+				registeredFormatters.push(formatter);
+				return toDisposable(() => {
+					const idx = registeredFormatters.indexOf(formatter);
+					if (idx >= 0) {
+						registeredFormatters.splice(idx, 1);
+					}
+				});
+			},
+		} as Partial<ILabelService>);
 
-		// Mock the instantiation service to capture created protocol clients
+		// Mock the instantiation service to capture created protocol clients.
+		// `_connectTo` calls `createInstance` for both `WebSocketClientTransport` and
+		// `RemoteAgentHostProtocolClient`. We only care about tracking the protocol
+		// client; for the transport we return a no-op disposable so the test can
+		// continue to assert on `createdClients.length`.
 		const mockInstantiationService: Partial<IInstantiationService> = {
-			createInstance: (_ctor: unknown, ...args: unknown[]) => {
+			createInstance: (ctor: unknown, ...args: unknown[]) => {
+				const ctorName = (ctor as { name?: string }).name;
+				if (ctorName === 'WebSocketClientTransport') {
+					return disposables.add(new MockTransport());
+				}
 				const client = new MockProtocolClient(args[0] as string);
 				disposables.add(client);
 				createdClients.push(client);
@@ -129,7 +166,7 @@ suite('RemoteAgentHostService', () => {
 
 	/** Wait for a connection to reach Connected status. */
 	async function waitForConnected(): Promise<void> {
-		while (!service.connections.some(c => c.status === RemoteAgentHostConnectionStatus.Connected)) {
+		while (!service.connections.some(c => RemoteAgentHostConnectionStatus.isConnected(c.status))) {
 			await Event.toPromise(service.onDidChangeConnections);
 		}
 	}
@@ -168,7 +205,7 @@ suite('RemoteAgentHostService', () => {
 		createdClients[0].connectDeferred.complete();
 		await waitForConnected();
 
-		const connected = service.connections.filter(c => c.status === RemoteAgentHostConnectionStatus.Connected);
+		const connected = service.connections.filter(c => RemoteAgentHostConnectionStatus.isConnected(c.status));
 		assert.strictEqual(connected.length, 1);
 		assert.strictEqual(connected[0].address, 'host1:8080');
 		assert.strictEqual(connected[0].name, 'Host 1');
@@ -213,7 +250,7 @@ suite('RemoteAgentHostService', () => {
 		assert.strictEqual(service.getConnection('ws://host1:8080'), undefined);
 		const entry = service.connections.find(c => c.address === 'host1:8080');
 		assert.ok(entry);
-		assert.strictEqual(entry.status, RemoteAgentHostConnectionStatus.Disconnected);
+		assert.strictEqual(entry.status, RemoteAgentHostConnectionStatus.disconnected);
 	});
 
 	test('removes connection on connect failure', async () => {
@@ -240,7 +277,7 @@ suite('RemoteAgentHostService', () => {
 		createdClients[1].connectDeferred.complete();
 		await waitForConnected();
 
-		assert.strictEqual(service.connections.filter(c => c.status === RemoteAgentHostConnectionStatus.Connected).length, 2);
+		assert.strictEqual(service.connections.filter(c => RemoteAgentHostConnectionStatus.isConnected(c.status)).length, 2);
 
 		const conn1 = service.getConnection('ws://host1:8080');
 		const conn2 = service.getConnection('ws://host2:8080');
@@ -294,7 +331,7 @@ suite('RemoteAgentHostService', () => {
 			name: 'Host 1',
 			clientId: createdClients[0].clientId,
 			defaultDirectory: undefined,
-			status: RemoteAgentHostConnectionStatus.Connected,
+			status: RemoteAgentHostConnectionStatus.connected,
 		});
 	});
 
@@ -320,7 +357,7 @@ suite('RemoteAgentHostService', () => {
 			name: 'Updated Host',
 			clientId: createdClients[0].clientId,
 			defaultDirectory: undefined,
-			status: RemoteAgentHostConnectionStatus.Connected,
+			status: RemoteAgentHostConnectionStatus.connected,
 		});
 	});
 
@@ -375,7 +412,7 @@ suite('RemoteAgentHostService', () => {
 		configService.setEntries([{ name: 'Host 1', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'host1:8080' } }]);
 		createdClients[0].connectDeferred.complete();
 		await waitForConnected();
-		assert.strictEqual(service.connections.filter(c => c.status === RemoteAgentHostConnectionStatus.Connected).length, 1);
+		assert.strictEqual(service.connections.filter(c => RemoteAgentHostConnectionStatus.isConnected(c.status)).length, 1);
 
 		configService.setEnabled(false);
 
@@ -395,7 +432,7 @@ suite('RemoteAgentHostService', () => {
 		configService.setEntries([{ name: 'Host 1', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'host1:8080' } }]);
 		createdClients[0].connectDeferred.complete();
 		await waitForConnected();
-		assert.strictEqual(service.connections.filter(c => c.status === RemoteAgentHostConnectionStatus.Connected).length, 1);
+		assert.strictEqual(service.connections.filter(c => RemoteAgentHostConnectionStatus.isConnected(c.status)).length, 1);
 
 		configService.setEnabled(false);
 		assert.strictEqual(service.connections.length, 0);
@@ -404,7 +441,7 @@ suite('RemoteAgentHostService', () => {
 		assert.strictEqual(createdClients.length, 2); // new client created
 		createdClients[1].connectDeferred.complete();
 		await waitForConnected();
-		assert.strictEqual(service.connections.filter(c => c.status === RemoteAgentHostConnectionStatus.Connected).length, 1);
+		assert.strictEqual(service.connections.filter(c => RemoteAgentHostConnectionStatus.isConnected(c.status)).length, 1);
 	});
 
 	test('removeRemoteAgentHost removes entry and disconnects', async () => {
@@ -415,14 +452,14 @@ suite('RemoteAgentHostService', () => {
 		createdClients[0].connectDeferred.complete();
 		createdClients[1].connectDeferred.complete();
 		await waitForConnected();
-		assert.strictEqual(service.connections.filter(c => c.status === RemoteAgentHostConnectionStatus.Connected).length, 2);
+		assert.strictEqual(service.connections.filter(c => RemoteAgentHostConnectionStatus.isConnected(c.status)).length, 2);
 
 		await service.removeRemoteAgentHost('ws://host1:8080');
 
 		assert.deepStrictEqual(configService.entries, [
 			{ address: 'ws://host2:9090', name: 'Host 2', connectionToken: undefined },
 		]);
-		assert.strictEqual(service.connections.filter(c => c.status === RemoteAgentHostConnectionStatus.Connected).length, 1);
+		assert.strictEqual(service.connections.filter(c => RemoteAgentHostConnectionStatus.isConnected(c.status)).length, 1);
 		assert.strictEqual(service.getConnection('ws://host1:8080'), undefined);
 		assert.ok(service.getConnection('ws://host2:9090'));
 	});
@@ -470,15 +507,25 @@ suite('RemoteAgentHostService', () => {
 			assert.strictEqual(service.getConnection('ws://managed:1234'), undefined);
 		});
 
-		test('disposes previous transportDisposable when entry is replaced', async () => {
+		test('does NOT dispose previous transportDisposable when entry is replaced', async () => {
+			// When the entry is replaced (e.g. on reconnect to the same address),
+			// the new entry takes ownership of the same underlying connectionId.
+			// Running the old transportDisposable would call disconnect() on the
+			// shared-process tunnel keyed by that connectionId and immediately
+			// tear down the brand-new connection. The new transportDisposable
+			// inherits responsibility for the underlying tunnel.
 			const t1 = makeTransportDisposable();
 			await addManaged('Managed', 'managed:1234', t1.disposable);
 
 			const t2 = makeTransportDisposable();
 			await addManaged('Managed', 'managed:1234', t2.disposable);
 
-			assert.strictEqual(t1.disposed(), true, 'first transport disposable runs when entry is replaced');
-			assert.strictEqual(t2.disposed(), false, 'second transport disposable is still alive');
+			assert.strictEqual(t1.disposed(), false, 'previous transport disposable is not run on replacement');
+			assert.strictEqual(t2.disposed(), false, 'new transport disposable is still alive');
+
+			await service.removeRemoteAgentHost('ws://managed:1234');
+
+			assert.strictEqual(t2.disposed(), true, 'new transport disposable runs on full removal');
 		});
 
 		test('disposes transportDisposable when service itself is disposed', async () => {
@@ -488,6 +535,49 @@ suite('RemoteAgentHostService', () => {
 			service.dispose();
 
 			assert.strictEqual(t.disposed(), true, 'transport disposable runs when service is disposed');
+		});
+	});
+
+	suite('host label formatter', () => {
+
+		function formatterFor(address: string): ResourceLabelFormatter | undefined {
+			const authority = agentHostAuthority(address);
+			return registeredFormatters.find(f => f.scheme === AGENT_HOST_SCHEME && f.authority === authority);
+		}
+
+		test('registers formatter when an entry is added', async () => {
+			configService.setEntries([{ name: 'Host 1', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'ws://host1:8080' } }]);
+
+			const formatter = formatterFor('host1:8080');
+			assert.ok(formatter, 'formatter is registered');
+			assert.strictEqual(formatter.formatting.workspaceSuffix, 'Host 1');
+		});
+
+		test('refreshes formatter when an entry name changes', async () => {
+			configService.setEntries([{ name: 'Host 1', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'ws://host1:8080' } }]);
+			configService.setEntries([{ name: 'Renamed', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'ws://host1:8080' } }]);
+
+			const matching = registeredFormatters.filter(f => f.authority === agentHostAuthority('host1:8080'));
+			assert.strictEqual(matching.length, 1, 'old formatter is replaced, not duplicated');
+			assert.strictEqual(matching[0].formatting.workspaceSuffix, 'Renamed');
+		});
+
+		test('removes formatter when an entry is removed', async () => {
+			configService.setEntries([{ name: 'Host 1', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'ws://host1:8080' } }]);
+			assert.ok(formatterFor('host1:8080'));
+
+			configService.setEntries([]);
+
+			assert.strictEqual(formatterFor('host1:8080'), undefined);
+		});
+
+		test('removes formatters when the service is disabled', async () => {
+			configService.setEntries([{ name: 'Host 1', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'ws://host1:8080' } }]);
+			assert.ok(formatterFor('host1:8080'));
+
+			configService.setEnabled(false);
+
+			assert.strictEqual(formatterFor('host1:8080'), undefined);
 		});
 	});
 });
