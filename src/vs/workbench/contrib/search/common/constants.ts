@@ -13,6 +13,7 @@ export const enum SearchCommandIds {
 	OpenMatchToSide = 'search.action.openResultToSide',
 	RemoveActionId = 'search.action.remove',
 	CopyFilenameCommandId = 'search.action.copyFilename',
+	CopyFolderNameCommandId = 'search.action.copyFolderName',
 	CopyPathCommandId = 'search.action.copyPath',
 	CopyMatchCommandId = 'search.action.copyMatch',
 	CopyAllCommandId = 'search.action.copyAll',
