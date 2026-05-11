@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise } from '../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { RemoteAgentHostProtocolClient } from '../../browser/remoteAgentHostProtocolClient.js';
@@ -199,6 +200,131 @@ suite('RemoteAgentHostProtocolClient', () => {
 
 		await assertRemoteProtocolError(client.resourceList(URI.file('/workspace')), { code: -32000, message: 'Connection disposed: test.example:1234' });
 		assert.strictEqual(transport.sentMessages.length, 0);
+	});
+
+	test('watchdog forces close when a request stays unanswered past the timeout', async () => {
+		return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
+			const { client, transport } = createClient();
+			let closeCount = 0;
+			disposables.add(client.onDidClose(() => closeCount++));
+
+			// Outstanding request the server never answers.
+			const pending = client.resourceList(URI.file('/workspace'));
+			const rejected = pending.catch(err => err);
+
+			// Advance well past WATCHDOG_TIMEOUT_MS (20s). The watchdog
+			// ticks every 5s; after ~25s with no response and no inbound
+			// traffic it should force-close the connection.
+			await timeout(30_000);
+
+			const err = await rejected;
+			assert.ok(err instanceof ProtocolError, `Expected ProtocolError, got ${String(err)}`);
+			assert.strictEqual(err.code, -32000);
+			assert.match(err.message, /Connection appears dead/);
+			assert.strictEqual(closeCount, 1);
+			assert.strictEqual(transport.sentMessages.length, 1);
+			client.dispose();
+		});
+	});
+
+	test('watchdog stays quiet when there are no outstanding requests', async () => {
+		return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
+			const { client } = createClient();
+			let closeCount = 0;
+			disposables.add(client.onDidClose(() => closeCount++));
+
+			// No request issued — the watchdog has nothing to time out on.
+			await timeout(60_000);
+
+			assert.strictEqual(closeCount, 0);
+			client.dispose();
+		});
+	});
+
+	test('watchdog resets when a response arrives before the timeout', async () => {
+		return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
+			const { client, transport } = createClient();
+			let closeCount = 0;
+			disposables.add(client.onDidClose(() => closeCount++));
+
+			const first = client.resourceList(URI.file('/one'));
+			await timeout(10_000);
+			transport.fireMessage({ jsonrpc: '2.0', id: 1, result: { entries: [] } });
+			await first;
+
+			// Issue another request 5s later, then wait another 15s.
+			// Without the reset on the inbound message, the watchdog
+			// would already have fired by now (20s since the first send).
+			await timeout(5_000);
+			const second = client.resourceList(URI.file('/two'));
+			await timeout(15_000);
+
+			assert.strictEqual(closeCount, 0);
+			transport.fireMessage({ jsonrpc: '2.0', id: 2, result: { entries: [] } });
+			await second;
+			client.dispose();
+		});
+	});
+
+	test('watchdog stops ticking after the connection is closed', async () => {
+		return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
+			const { client, transport } = createClient();
+			let closeCount = 0;
+			disposables.add(client.onDidClose(() => closeCount++));
+
+			// Trigger the watchdog so the first close fires.
+			client.resourceList(URI.file('/workspace')).catch(() => { /* expected */ });
+			await timeout(30_000);
+			assert.strictEqual(closeCount, 1, 'watchdog should have force-closed once');
+
+			// Issue another request after close. The protocol client may
+			// outlive the close briefly while addManagedConnection swaps in
+			// a new client. The watchdog must NOT keep ticking and re-close.
+			client.resourceList(URI.file('/workspace2')).catch(() => { /* expected */ });
+			await timeout(60_000);
+			assert.strictEqual(closeCount, 1, 'watchdog should not fire again after close');
+			assert.strictEqual(transport.sentMessages.length, 1, 'no further requests should be sent after close');
+			client.dispose();
+		});
+	});
+
+	test('inbound messages are dropped after close', async () => {
+		return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
+			const { client, transport } = createClient();
+			let actionCount = 0;
+			disposables.add(client.onDidAction(() => actionCount++));
+
+			// Issue a request, then force close via the watchdog timeout.
+			const pending = client.resourceList(URI.file('/workspace'));
+			const rejected = pending.catch(err => err);
+			await timeout(30_000);
+			const err = await rejected;
+			assert.ok(err instanceof ProtocolError);
+
+			// Late response for the same request id — the shared
+			// SSHRelayTransport feeds both old and new clients for the
+			// same connectionId, so this can happen in production. The
+			// pending request was already rejected; if _handleMessage
+			// processed the response it would log a "unknown request id"
+			// warning at best, or settle a request the caller no longer
+			// owns at worst. Either way, after close it must be a no-op.
+			transport.fireMessage({ jsonrpc: '2.0', id: 1, result: { entries: [] } });
+
+			// Late notification — must not fan out as an action event.
+			const lateAction: SessionActiveClientChangedAction = {
+				type: ActionType.SessionActiveClientChanged,
+				session: 'session://test/late',
+				activeClient: null,
+			};
+			transport.fireMessage({
+				jsonrpc: '2.0',
+				method: 'action',
+				params: { action: lateAction, serverSeq: 1, origin: undefined }
+			});
+
+			assert.strictEqual(actionCount, 0, 'late action notifications must be ignored after close');
+			client.dispose();
+		});
 	});
 
 	test('rejects connect when transport closes before connect completes', async () => {
