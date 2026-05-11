@@ -369,7 +369,7 @@
 	color: var(--vscode-descriptionForeground);
 	font-size: 12px;
 	flex-shrink: 0;
-	margin-right: 2px;
+	margin-right: 6px;
 }
 
 /* Footer text */
