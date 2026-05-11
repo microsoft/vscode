@@ -8,7 +8,7 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { URI } from '../../../../base/common/uri.js';
 import { removeAnsiEscapeCodes } from '../../../../base/common/strings.js';
 import * as platform from '../../../../base/common/platform.js';
-import { DisposableStore, type IReference, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, type IReference, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { ILogService } from '../../../log/common/log.js';
 import { TerminalClaimKind, type TerminalSessionClaim } from '../../common/state/protocol/state.js';
@@ -94,7 +94,7 @@ export function shellTypeForExecutable(shellPath: string): ShellType {
  * Created via {@link IInstantiationService} once per session and disposed when
  * the session ends.
  */
-export class ShellManager {
+export class ShellManager extends Disposable {
 
 	private readonly _shells = new Map<string, IManagedShell>();
 	private readonly _toolCallShells = new Map<string, string>();
@@ -102,7 +102,7 @@ export class ShellManager {
 	/** Set of shell ids currently executing a command and unsafe to share. */
 	private readonly _busyShellIds = new Set<string>();
 
-	private readonly _onDidAssociateTerminal = new Emitter<{ toolCallId: string; terminalUri: string; displayName: string }>();
+	private readonly _onDidAssociateTerminal = this._register(new Emitter<{ toolCallId: string; terminalUri: string; displayName: string }>());
 	readonly onDidAssociateTerminal: Event<{ toolCallId: string; terminalUri: string; displayName: string }> = this._onDidAssociateTerminal.event;
 
 	constructor(
@@ -110,7 +110,20 @@ export class ShellManager {
 		private readonly _workingDirectory: URI | undefined,
 		@IAgentHostTerminalManager private readonly _terminalManager: IAgentHostTerminalManager,
 		@ILogService private readonly _logService: ILogService,
-	) { }
+	) {
+		super();
+
+		this._register(toDisposable(() => {
+			for (const shell of this._shells.values()) {
+				if (this._terminalManager.hasTerminal(shell.terminalUri)) {
+					this._terminalManager.disposeTerminal(shell.terminalUri);
+				}
+			}
+			this._shells.clear();
+			this._toolCallShells.clear();
+			this._busyShellIds.clear();
+		}));
+	}
 
 	/**
 	 * Resolves the session's shell executable via {@link IAgentHostTerminalManager.getDefaultShell}
@@ -240,17 +253,6 @@ export class ShellManager {
 		this._busyShellIds.delete(id);
 		this._logService.info(`[ShellManager] Shut down shell ${id}`);
 		return true;
-	}
-
-	dispose(): void {
-		for (const shell of this._shells.values()) {
-			if (this._terminalManager.hasTerminal(shell.terminalUri)) {
-				this._terminalManager.disposeTerminal(shell.terminalUri);
-			}
-		}
-		this._shells.clear();
-		this._toolCallShells.clear();
-		this._busyShellIds.clear();
 	}
 }
 

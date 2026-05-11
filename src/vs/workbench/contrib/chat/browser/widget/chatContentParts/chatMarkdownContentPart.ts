@@ -23,6 +23,8 @@ import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { Range } from '../../../../../../editor/common/core/range.js';
+import { isLocation, type SymbolTag } from '../../../../../../editor/common/languages.js';
 import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
 import { getIconClasses } from '../../../../../../editor/common/services/getIconClasses.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
@@ -46,7 +48,7 @@ import { MarkedKatexSupport } from '../../../../markdown/browser/markedKatexSupp
 import { extractCodeblockUrisFromText, extractVulnerabilitiesFromText } from '../../../common/widget/annotations.js';
 import { IEditSessionDiffStats, IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
 import { IChatProgressRenderableResponseContent } from '../../../common/model/chatModel.js';
-import { IChatMarkdownContent, IChatService, IChatUndoStop } from '../../../common/chatService/chatService.js';
+import { IChatContentInlineReference, IChatMarkdownContent, IChatService, IChatUndoStop } from '../../../common/chatService/chatService.js';
 import { isRequestVM, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { IChatCodeBlockInfo } from '../../chat.js';
@@ -454,7 +456,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 			return false;
 		}
 
-		if (other.content.value === this.markdown.content.value) {
+		if (other.content.value === this.markdown.content.value && equalsInlineReferences(other.inlineReferences, this.markdown.inlineReferences)) {
 			return true;
 		}
 
@@ -484,6 +486,10 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 	 */
 	tryIncrementalUpdate(newMarkdown: IChatMarkdownContent): boolean {
 		if (!this._incrementalMorpher) {
+			return false;
+		}
+
+		if (!equalsInlineReferences(newMarkdown.inlineReferences, this.markdown.inlineReferences)) {
 			return false;
 		}
 
@@ -534,6 +540,72 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 	addDisposable(disposable: IDisposable): void {
 		this._register(disposable);
 	}
+}
+
+function equalsInlineReferences(a: Record<string, IChatContentInlineReference> | undefined, b: Record<string, IChatContentInlineReference> | undefined): boolean {
+	if (a === b) {
+		return true;
+	}
+	if (!a || !b) {
+		return !a && !b;
+	}
+
+	const aKeys = Object.keys(a);
+	const bKeys = Object.keys(b);
+	if (aKeys.length !== bKeys.length) {
+		return false;
+	}
+
+	return aKeys.every(key => equalsInlineReference(a[key], b[key]));
+}
+
+function equalsInlineReference(a: IChatContentInlineReference | undefined, b: IChatContentInlineReference | undefined): boolean {
+	if (!a || !b) {
+		return !a && !b;
+	}
+
+	return a.resolveId === b.resolveId
+		&& a.name === b.name
+		&& equalsInlineReferenceValue(a.inlineReference, b.inlineReference);
+}
+
+type InlineReferenceValue = IChatContentInlineReference['inlineReference'];
+type WorkspaceSymbolInlineReference = Extract<InlineReferenceValue, { name: string; location: unknown }>;
+type WorkspaceSymbolComparer = (a: WorkspaceSymbolInlineReference, b: WorkspaceSymbolInlineReference) => boolean;
+
+const workspaceSymbolComparers: { readonly [K in keyof WorkspaceSymbolInlineReference]-?: WorkspaceSymbolComparer } = {
+	name: (a, b) => a.name === b.name,
+	containerName: (a, b) => a.containerName === b.containerName,
+	kind: (a, b) => a.kind === b.kind,
+	tags: (a, b) => equalsSymbolTags(a.tags, b.tags),
+	location: (a, b) => isEqual(a.location.uri, b.location.uri) && Range.equalsRange(a.location.range, b.location.range),
+};
+
+const workspaceSymbolComparerKeys = Object.keys(workspaceSymbolComparers) as (keyof WorkspaceSymbolInlineReference)[];
+
+function equalsInlineReferenceValue(a: InlineReferenceValue, b: InlineReferenceValue): boolean {
+	if (URI.isUri(a) || URI.isUri(b)) {
+		return URI.isUri(a) && URI.isUri(b) && isEqual(a, b);
+	}
+	if (isLocation(a) || isLocation(b)) {
+		return isLocation(a) && isLocation(b) && isEqual(a.uri, b.uri) && Range.equalsRange(a.range, b.range);
+	}
+
+	return equalsWorkspaceSymbol(a, b);
+}
+
+function equalsWorkspaceSymbol(a: WorkspaceSymbolInlineReference, b: WorkspaceSymbolInlineReference): boolean {
+	return workspaceSymbolComparerKeys.every(key => workspaceSymbolComparers[key](a, b));
+}
+
+function equalsSymbolTags(a: readonly SymbolTag[] | undefined, b: readonly SymbolTag[] | undefined): boolean {
+	if (a === b) {
+		return true;
+	}
+	if (!a || !b || a.length !== b.length) {
+		return false;
+	}
+	return a.every((tag, index) => tag === b[index]);
 }
 
 export function codeblockHasClosingBackticks(str: string): boolean {

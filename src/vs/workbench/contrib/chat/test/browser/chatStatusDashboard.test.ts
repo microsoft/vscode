@@ -455,7 +455,7 @@ suite('ChatStatusDashboard', () => {
 		assert.strictEqual(getCalloutText(dashboard.element), 'Copilot is paused until the limit resets.');
 	});
 
-	test('Callout: shows paused when quota exhausted and overage permitted but no overage used', () => {
+	test('Callout: shows budget active when quota exhausted and overage permitted but no overage used yet', () => {
 		const dashboard = createDashboard(createEntitlementService({
 			premiumChat: { percentRemaining: 0, unlimited: false },
 			completions: { percentRemaining: 90, unlimited: false },
@@ -464,7 +464,7 @@ suite('ChatStatusDashboard', () => {
 			entitlement: ChatEntitlement.Pro,
 		}));
 
-		assert.strictEqual(getCalloutText(dashboard.element), 'Copilot is paused until the limit resets.');
+		assert.strictEqual(getCalloutText(dashboard.element), 'Premium request budget is configured. Usage will continue until limits reset.');
 	});
 
 	test('Callout: PRU — shows budget active when quota exhausted and overage count > 0', () => {
@@ -512,7 +512,7 @@ suite('ChatStatusDashboard', () => {
 		assert.strictEqual(getCalloutText(dashboard.element), 'Copilot is paused until the limit resets. Contact your administrator for more information.');
 	});
 
-	test('Callout: TBB — shows paused when exhausted with overage permitted but no usage (PRU bug fix)', () => {
+	test('Callout: TBB — shows additional spend active when exhausted with overage permitted but no usage yet', () => {
 		const dashboard = createDashboard(createEntitlementService({
 			premiumChat: { percentRemaining: 0, unlimited: false, usageBasedBilling: true },
 			additionalUsageEnabled: true,
@@ -520,7 +520,7 @@ suite('ChatStatusDashboard', () => {
 			entitlement: ChatEntitlement.Pro,
 		}));
 
-		assert.strictEqual(getCalloutText(dashboard.element), 'Copilot is paused until the limit resets.');
+		assert.strictEqual(getCalloutText(dashboard.element), 'Additional spend is configured. Usage will continue until limits reset.');
 	});
 
 	test('Callout: TBB — shows additional spend wording when overage count > 0', () => {

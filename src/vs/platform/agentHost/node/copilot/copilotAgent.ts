@@ -203,14 +203,10 @@ function prependAnnouncementToFirstTurn(
 	}
 	const result = turns.slice();
 	const first = result[0];
-	const partIdx = first.responseParts.findIndex(rp => rp.kind === ResponsePartKind.Markdown);
-	if (partIdx >= 0) {
-		const part = first.responseParts[partIdx];
-		const updated: ResponsePart = part.kind === ResponsePartKind.Markdown
-			? { ...part, content: announcement + part.content }
-			: part;
+	const part = first.responseParts[0];
+	if (part?.kind === ResponsePartKind.Markdown) {
 		const responseParts = first.responseParts.slice();
-		responseParts[partIdx] = updated;
+		responseParts[0] = { ...part, content: announcement + part.content };
 		result[0] = { ...first, responseParts };
 	} else {
 		const responseParts: ResponsePart[] = [
@@ -1075,7 +1071,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			if (!parentEntry) {
 				return [];
 			}
-			return parentEntry.getSubagentMessages(subagentInfo.toolCallId, session.toString());
+			return parentEntry.getSubagentMessages(subagentInfo.toolCallId);
 		}
 
 		const sessionId = AgentSession.id(session);

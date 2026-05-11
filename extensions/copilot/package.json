@@ -2,7 +2,7 @@
 	"name": "copilot-chat",
 	"displayName": "GitHub Copilot Chat",
 	"description": "AI chat features powered by Copilot",
-	"version": "0.48.0",
+	"version": "0.49.0",
 	"build": "1",
 	"internalAIKey": "1058ec22-3c95-4951-8443-f26c1f325911",
 	"completionsCoreVersion": "1.378.1799",
@@ -23,7 +23,7 @@
 	"icon": "assets/copilot.png",
 	"pricing": "Trial",
 	"engines": {
-		"vscode": "^1.120.0",
+		"vscode": "^1.121.0",
 		"npm": ">=9.0.0",
 		"node": ">=22.14.0"
 	},
@@ -5194,6 +5194,13 @@
 					"group": "sync@1"
 				}
 			],
+			"agents/change/inline": [
+				{
+					"command": "github.copilot.sessions.discardChanges",
+					"when": "chatSessionType == copilotcli && isSessionsWindow && sessions.hasGitRepository && !isActiveSessionArchived && !sessions.isAgentHostSession",
+					"group": "navigation@2"
+				}
+			],
 			"chat/contextUsage/actions": [
 				{
 					"command": "github.copilot.chat.compact"
@@ -5937,13 +5944,6 @@
 					"command": "github.copilot.sessions.refreshChanges",
 					"when": "chatSessionType == copilotcli && isSessionsWindow && !sessions.isAgentHostSession",
 					"group": "9_refresh@1"
-				}
-			],
-			"chat/input/editing/sessionChangeToolbar": [
-				{
-					"command": "github.copilot.sessions.discardChanges",
-					"when": "chatSessionType == copilotcli && isSessionsWindow && sessions.hasGitRepository && !sessions.isAgentHostSession && (sessions.changesVersionMode == branchChanges || sessions.changesVersionMode == uncommittedChanges)",
-					"group": "navigation@2"
 				}
 			],
 			"chat/customizations/create": [

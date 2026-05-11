@@ -33,7 +33,7 @@ import { WorkbenchObjectTree } from '../../../../../platform/list/browser/listSe
 import { IStyleOverride, defaultButtonStyles, defaultFindWidgetStyles, defaultToggleStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { CopilotCLISessionType, GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { CopilotCLISessionType, getSessionBranchName, GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
@@ -55,6 +55,7 @@ export const SessionSectionToolbarMenuId = new MenuId('SessionSectionToolbar');
 export const IsSessionPinnedContext = new RawContextKey<boolean>('sessionItem.isPinned', false);
 export const IsSessionArchivedContext = new RawContextKey<boolean>('sessionItem.isArchived', false);
 export const IsSessionReadContext = new RawContextKey<boolean>('sessionItem.isRead', true);
+export const SessionItemHasBranchNameContext = new RawContextKey<boolean>('sessionItem.hasBranchName', false);
 export const SessionSectionTypeContext = new RawContextKey<string>('sessionSection.type', '');
 
 //#region Types
@@ -264,6 +265,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		IsSessionPinnedContext.bindTo(template.contextKeyService).set(isPinned);
 		IsSessionArchivedContext.bindTo(template.contextKeyService).set(element.isArchived.get());
 		IsSessionReadContext.bindTo(template.contextKeyService).set(this.options.isRead(element));
+		SessionItemHasBranchNameContext.bindTo(template.contextKeyService).set(getSessionBranchName(element) !== undefined);
 
 		// Pinned & archived styling — reactive
 		template.elementDisposables.add(autorun(reader => {
@@ -1245,6 +1247,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			[IsSessionPinnedContext.key, this.isSessionPinned(element)],
 			[IsSessionArchivedContext.key, element.isArchived.get()],
 			[IsSessionReadContext.key, this.isSessionRead(element)],
+			[SessionItemHasBranchNameContext.key, getSessionBranchName(element) !== undefined],
 			['chatSessionType', element.sessionType],
 			[ChatSessionProviderIdContext.key, element.providerId],
 		];

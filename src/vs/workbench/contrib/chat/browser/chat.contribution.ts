@@ -458,6 +458,11 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			tags: ['experimental'],
 		},
+		[ChatConfiguration.PlanReviewInlineEditorEnabled]: {
+			type: 'boolean',
+			markdownDescription: nls.localize('chat.planReview.inlineEditor.enabled', "When enabled, the plan review widget mounts an editor inline, as opposed to in a separate editor tab."),
+			default: true,
+		},
 		[ChatConfiguration.DefaultPermissionLevel]: {
 			type: 'string',
 			enum: [ChatPermissionLevel.Default, ChatPermissionLevel.AutoApprove, ChatPermissionLevel.Autopilot],
@@ -1003,7 +1008,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[AgentHostAhpJsonlLoggingSettingId]: {
 			type: 'boolean',
-			description: nls.localize('chat.agentHost.ahpJsonlLogging', "When enabled, logs all AHP transport messages for remote agent host connections to JSONL files under the window's log directory."),
+			description: nls.localize('chat.agentHost.ahpJsonlLogging', "When enabled, logs all AHP transport messages for agent host connections to JSONL files under the window's log directory."),
 			default: product.quality !== 'stable',
 			tags: ['experimental', 'advanced'],
 			included: product.quality !== 'stable',
