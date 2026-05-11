@@ -21,6 +21,14 @@ export interface SlashCommandContext {
 export interface SlashCommandResult {
 	output: string;
 	handled: boolean;
+	/**
+	 * Side-channel signal for commands that need to trigger an orchestrator
+	 * action after the dispatcher returns. Currently only `/approve` sets
+	 * this — the caller routes the next turn through the orchestrator's
+	 * `command='approve'` branch instead of treating the raw text as a
+	 * user prompt.
+	 */
+	action?: 'approve';
 }
 
 // Mirrors the `ModelId` union from `LlmClient.ts`. The literal union is a
@@ -78,6 +86,7 @@ export const COMMANDS: ReadonlyArray<CommandDescriptor> = [
 	{ name: '/status', args: '', description: 'Show current specialist, model, and provider connection state' },
 	{ name: '/plan', args: '', description: 'Switch to Plan mode — Anton drafts a plan without executing tools' },
 	{ name: '/act', args: '', description: 'Switch to Act mode — plan and execute (default)' },
+	{ name: '/approve', args: '', description: 'Execute the orchestrator\'s most recently proposed plan' },
 ];
 
 /**
@@ -124,6 +133,11 @@ export async function parseAndDispatch(
 			return { handled: true, output: handleMode('plan', ctx) };
 		case '/act':
 			return { handled: true, output: handleMode('act', ctx) };
+		case '/approve':
+			// No textual output — the caller fires an orchestrator turn with
+			// `command='approve'` which streams its own "Plan approved.
+			// Executing subtasks..." preamble via the orchestrator pipeline.
+			return { handled: true, output: '', action: 'approve' };
 		default:
 			return { handled: false, output: '' };
 	}

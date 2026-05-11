@@ -43,6 +43,14 @@ export interface RunOrchestratorOptions {
 	 * it as a system-prompt section rather than treating it as user text.
 	 */
 	readonly workspaceContextSnapshot?: string;
+	/**
+	 * Explicit orchestrator slash command for this turn. Overrides the
+	 * mode-derived command (`mode='plan' → command='plan'`) when set. Used
+	 * by the chat panel's `/approve` slash command so the orchestrator's
+	 * existing `command='approve'` branch executes the active plan instead
+	 * of treating the raw `/approve` text as a fresh user prompt.
+	 */
+	readonly command?: 'plan' | 'approve';
 }
 
 /**
@@ -186,12 +194,13 @@ export class AgentBridge {
 			return;
 		}
 		const stream = createShimResponseStream(tappedEmit);
+		// Explicit command (from `/approve`) wins over the mode-derived one.
 		// Plan mode pins the orchestrator into its existing `'plan'` slash
 		// command branch — handlePlanCommand drafts and presents a plan but
 		// never dispatches subtasks. Act mode (default) leaves the command
 		// undefined so the orchestrator falls into its normal
 		// "plan-then-await-/approve" flow.
-		const command = opts?.mode === 'plan' ? 'plan' : undefined;
+		const command = opts?.command ?? (opts?.mode === 'plan' ? 'plan' : undefined);
 		const request = createShimChatRequest(
 			userMessage,
 			command,

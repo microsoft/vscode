@@ -2598,14 +2598,22 @@ export class ChatSession {
 		// parse it locally first. Recognised commands are handled in-process
 		// (no LLM call); unrecognised slashy text falls through so users can
 		// still ask questions like "/loop never resolves on this branch".
+		// `/approve` is a special case — it's handled but ALSO needs to fire
+		// an orchestrator turn (with `command='approve'`) so the active plan
+		// actually executes.
 		const rawText = message.text ?? '';
+		let approveOverride = false;
 		if (rawText.trimStart().startsWith('/')) {
 			const result = await parseAndDispatch(rawText, this.buildSlashCommandContext());
 			if (result.handled) {
 				if (result.output) {
 					this.postSystemMessage(result.output);
 				}
-				return;
+				if (result.action === 'approve') {
+					approveOverride = true;
+				} else {
+					return;
+				}
 			}
 			// Unknown command — fall through to normal dispatch.
 		}
@@ -2744,7 +2752,7 @@ export class ChatSession {
 			// `BaseAgent.buildSystemPrompt` via `request.workspaceContextSnapshot`,
 			// so the user's typed text stays clean — no prepending.
 			try {
-				await this.runViaAgentBridge(specialistId, fullPrompt, model, mode, assistantConversationIndex, workspaceCtx.markdown);
+				await this.runViaAgentBridge(specialistId, fullPrompt, model, mode, assistantConversationIndex, workspaceCtx.markdown, approveOverride);
 			} finally {
 				this.webview.postMessage({ type: 'requestEnded' });
 			}
@@ -3228,7 +3236,7 @@ export class ChatSession {
 	 * Translates AgentEvents into webview messages, persists the assembled
 	 * assistant text, and fans cancellation/abort through to the bridge.
 	 */
-	private async runViaAgentBridge(specialistId: string, fullPrompt: string, model: ModelId, mode: ChatMode, assistantConversationIndex: number, workspaceContextSnapshot?: string): Promise<void> {
+	private async runViaAgentBridge(specialistId: string, fullPrompt: string, model: ModelId, mode: ChatMode, assistantConversationIndex: number, workspaceContextSnapshot?: string, approveOverride: boolean = false): Promise<void> {
 		if (!this.agentBridge) {
 			return;
 		}
@@ -3278,12 +3286,22 @@ export class ChatSession {
 		};
 
 		try {
-			if (specialistId === 'anton') {
+			// `/approve` always routes through the orchestrator regardless of
+			// the active specialist chip — only the orchestrator owns the
+			// active plan, and `command='approve'` skips its message-as-prompt
+			// handling and executes the queued subtasks directly.
+			if (specialistId === 'anton' || approveOverride) {
 				// Forward the composer's model pick onto the orchestrator so the
 				// orchestrator's planning LLM call routes through the user's
 				// chosen provider. Without this the orchestrator silently
 				// hardcoded Opus and tried Anthropic regardless of the picker.
-				await this.agentBridge.runOrchestrator(fullPrompt, emit, cancellationSource.token, { mode, conversationId: this.currentConversationId, model, workspaceContextSnapshot });
+				await this.agentBridge.runOrchestrator(fullPrompt, emit, cancellationSource.token, {
+					mode,
+					conversationId: this.currentConversationId,
+					model,
+					workspaceContextSnapshot,
+					command: approveOverride ? 'approve' : undefined,
+				});
 			} else {
 				// Mode is orchestrator-specific — specialists always execute.
 				// We still surface a system-style hint upstream of the call so
