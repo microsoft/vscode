@@ -482,7 +482,9 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		// Subscription / Copilot dashboard.
 		const contentSection = append(panel, $('.sessions-account-titlebar-panel-content'));
 		if (this.shouldShowCopilotDashboardHover()) {
-			const subscriptionSection = append(contentSection, $('section.sessions-account-titlebar-panel-section.subscription'));
+			const subscriptionSection = append(contentSection, $('section.sessions-account-titlebar-panel-section.subscription', {
+				'aria-label': localize('sessionsAccountSubscriptionSectionLabel', "Subscription")
+			}));
 			const dashboard = this.createCopilotHoverContent({ compactQuotaLayout: true, ctaButtonsContainer });
 			append(subscriptionSection, dashboard);
 		} else if (!this.isAccountLoading) {

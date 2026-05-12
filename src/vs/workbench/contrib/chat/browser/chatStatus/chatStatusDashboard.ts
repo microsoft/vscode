@@ -742,7 +742,7 @@ export class ChatStatusDashboard extends DomWidget {
 			quotaValue,
 			quotaValueSuffix
 		);
-		quotaPercentage.tabIndex = 0;
+		quotaPercentage.tabIndex = isCompact ? -1 : 0;
 
 		const indicatorElement = $('div.quota-indicator', undefined,
 			$('div.quota-title', undefined, isCompact ? compactTitle : label),

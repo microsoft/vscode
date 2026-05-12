@@ -247,11 +247,10 @@
 .chat-status-bar-entry-tooltip .quota-indicator.compact {
 	display: grid;
 	grid-template-columns: 1fr auto;
-	grid-template-rows: auto auto auto;
+	grid-template-rows: auto auto;
 	grid-template-areas:
 		"title value"
-		"reset suffix"
-		"bar bar";
+		"reset suffix";
 	column-gap: 12px;
 	row-gap: 2px;
 }
@@ -277,10 +276,6 @@
 	line-height: inherit;
 }
 
-.chat-status-bar-entry-tooltip .quota-indicator.compact .quota-percentage .quota-value .quota-value-text {
-	cursor: default;
-}
-
 .chat-status-bar-entry-tooltip .quota-indicator.compact .quota-percentage .quota-value-suffix {
 	grid-area: suffix;
 	text-align: right;
@@ -292,7 +287,6 @@
 .chat-status-bar-entry-tooltip .quota-indicator.compact .quota-reset {
 	grid-area: reset;
 }
-
 
 /* Quota Callout */
 
