@@ -51,7 +51,8 @@ export class CommandLineAutoApproveAnalyzer extends Disposable implements IComma
 	}
 
 	async analyze(options: ICommandLineAnalyzerOptions): Promise<ICommandLineAnalyzerResult> {
-		if (options.chatSessionResource && this._terminalChatService.hasChatSessionAutoApproval(options.chatSessionResource)) {
+		const isAutoApproveEnabledInSettings = this._configurationService.getValue<boolean>(TerminalChatAgentToolsSettingId.EnableAutoApprove) === true;
+		if (isAutoApproveEnabledInSettings && options.chatSessionResource && this._terminalChatService.hasChatSessionAutoApproval(options.chatSessionResource)) {
 			this._log('Session has auto approval enabled, auto approving command');
 			const disableUri = createCommandUri(TerminalChatCommandId.DisableSessionAutoApproval, options.chatSessionResource);
 			const mdTrustSettings = {
@@ -82,7 +83,17 @@ export class CommandLineAutoApproveAnalyzer extends Disposable implements IComma
 		let autoApproveInfo: IMarkdownString | undefined;
 		let customActions: ToolConfirmationAction[] | undefined;
 
-		if (!subCommands) {
+		if (!subCommands?.length) {
+			if (trimmedCommandLine.length === 0) {
+				this._log('Command line is empty, auto approving');
+				return {
+					isAutoApproved: true,
+					isAutoApproveAllowed: true,
+					disclaimers: [],
+				};
+			}
+
+			this._log('No sub-commands were parsed, auto approval is not allowed');
 			return {
 				isAutoApproveAllowed: false,
 				disclaimers: [],

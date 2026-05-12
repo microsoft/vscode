@@ -130,7 +130,7 @@ export class UserDataProfileInitializer implements IUserDataInitializer {
 		}
 		try {
 			const url = URI.revive(this.environmentService.options.profile.contents).toString(true);
-			const context = await this.requestService.request({ type: 'GET', url }, CancellationToken.None);
+			const context = await this.requestService.request({ type: 'GET', url, callSite: 'userDataProfileInit.initializeProfile' }, CancellationToken.None);
 			if (context.res.statusCode === 200) {
 				return await asJson(context);
 			} else {

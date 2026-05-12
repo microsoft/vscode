@@ -155,7 +155,7 @@ Renders the welcome view when the chat is empty:
 - **Option pickers** — extension-contributed option groups (repository, folder, etc.)
 - **Input slot** — where the chat input is placed when in welcome mode
 
-The welcome part reads from `IAgentChatTargetConfig` and the `IChatSessionsService` for option groups.
+The welcome part reads from `IAgentChatTargetConfig` and the `IChatSessionsService` for option groups. When the shared `ChatInputPart` is rendered in this slot, the sessions window preserves the core `.chat-input-container.focused` focus border behavior so the active chat input uses `focusBorder` while focused.
 
 ### 3.4 `AgentSessionsChatInputPart`
 

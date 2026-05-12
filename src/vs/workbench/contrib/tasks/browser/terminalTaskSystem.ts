@@ -177,6 +177,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	private _terminalTabActions = [{ id: RerunForActiveTerminalCommandId, label: nls.localize('rerunTask', 'Rerun Task'), icon: rerunTaskIcon }];
 	private _taskTerminalActive: IContextKey<boolean>;
 	private readonly _taskStartTimes = new Map<number, number>();
+	private readonly _capturedTaskVariables = new Map<string, string>();
 
 	taskShellIntegrationStartSequence(cwd: string | URI | undefined): string {
 		return (
@@ -898,6 +899,9 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 					if (this._busyTasks[mapKey]) {
 						delete this._busyTasks[mapKey];
 					}
+					if (event.capturedVariables) {
+						this._registerCapturedVariables(event.capturedVariables);
+					}
 					this._fireTaskEvent(TaskEvent.inactive(task, terminal?.instanceId, this._takeTaskDuration(terminal?.instanceId)));
 					if (eventCounter === 0) {
 						if ((watchingProblemMatcher.numberOfMatches > 0) && watchingProblemMatcher.maxMarkerSeverity &&
@@ -1168,6 +1172,15 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		}
 		this._taskStartTimes.delete(terminalId);
 		return Date.now() - startTime;
+	}
+
+	private _registerCapturedVariables(capturedVariables: ReadonlyMap<string, string>): void {
+		for (const [name, value] of capturedVariables) {
+			this._capturedTaskVariables.set(name, value);
+			if (!this._configurationResolverService.resolvableVariables.has(`taskVar:${name}`)) {
+				this._configurationResolverService.contributeVariable(`taskVar:${name}`, async () => this._capturedTaskVariables.get(name));
+			}
+		}
 	}
 
 	private _createTerminalName(task: CustomTask | ContributedTask): string {

@@ -113,6 +113,11 @@ steps:
 
   - template: ../../common/install-builtin-extensions.yml@self
 
+  - pwsh: npx deemon --detach --wait -- node build/azure-pipelines/common/downloadCopilotVsix.ts
+    env:
+      SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+    displayName: Download Copilot VSIX (background)
+
   - powershell: npm run gulp core-ci
     env:
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
@@ -140,6 +145,11 @@ steps:
   - ${{ if and(ne(parameters.VSCODE_CIBUILD, true), ne(parameters.VSCODE_QUALITY, 'exploration')) }}:
     - powershell: node build/win32/explorer-dll-fetcher.ts .build/win32/appx
       displayName: Download Explorer dll
+
+  - pwsh: npx deemon --attach -- node build/azure-pipelines/common/downloadCopilotVsix.ts
+    env:
+      SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+    displayName: Download Copilot VSIX
 
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
