@@ -143,6 +143,10 @@ export class CopilotToken {
 		return plan === 'business' || plan === 'enterprise';
 	}
 
+	get isUsageBasedBilling(): boolean {
+		return this._info.token_based_billing === true;
+	}
+
 	get isChatQuotaExceeded(): boolean {
 		return this.isFreeUser && (this._info.limited_user_quotas?.chat ?? 1) <= 0;
 	}
@@ -530,6 +534,7 @@ export interface CopilotUserInfo extends CopilotUserQuotaInfo {
 		name: string | null;
 	}>;
 	codex_agent_enabled?: boolean;
+	token_based_billing?: boolean;
 }
 
 /**
@@ -540,7 +545,7 @@ export type ExtendedTokenInfo = TokenEnvelope & {
 	// Extended fields added by client
 	username: string;
 	isVscodeTeamMember: boolean;
-} & Pick<CopilotUserInfo, 'copilot_plan' | 'quota_snapshots' | 'quota_reset_date' | 'codex_agent_enabled' | 'organization_login_list'>;
+} & Pick<CopilotUserInfo, 'copilot_plan' | 'quota_snapshots' | 'quota_reset_date' | 'codex_agent_enabled' | 'organization_login_list' | 'token_based_billing'>;
 
 /**
  * Creates a minimal ExtendedTokenInfo for testing purposes.

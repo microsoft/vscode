@@ -59,8 +59,7 @@ class LocalAgentHostContribution extends Disposable implements IWorkbenchContrib
 					continue;
 				}
 				resolverRegistrations.set(resourceScheme, workingDirectoryResolver.registerResolver(resourceScheme, sessionResource => {
-					const repository = provider.getSessionByResource(sessionResource)?.workspace.get()?.repositories[0];
-					return repository?.workingDirectory ?? repository?.uri;
+					return provider.getSessionByResource(sessionResource)?.workspace.get()?.folders[0]?.workingDirectory;
 				}, sessionResource => {
 					return provider.getSessionByResource(sessionResource)?.status.get() === SessionStatus.Untitled;
 				}));

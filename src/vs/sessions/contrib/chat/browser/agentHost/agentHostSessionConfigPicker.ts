@@ -24,6 +24,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import type { SessionConfigPropertySchema, SessionConfigValueItem } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ChatConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { ChatContextKeyExprs } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
@@ -32,6 +33,7 @@ import { type IChatInputPickerOptions } from '../../../../../workbench/contrib/c
 import { Menus } from '../../../../browser/menus.js';
 import { ActiveSessionProviderIdContext, IsPhoneLayoutContext } from '../../../../common/contextkeys.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
+import { reportNewChatPickerClosed } from '../newChatPickerTelemetry.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import type { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
@@ -243,6 +245,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		@IDialogService protected readonly _dialogService: IDialogService,
 		@ISessionsManagementService protected readonly _sessionsManagementService: ISessionsManagementService,
 		@ISessionsProvidersService protected readonly _sessionsProvidersService: ISessionsProvidersService,
+		@ITelemetryService protected readonly _telemetryService: ITelemetryService,
 		@IWorkbenchLayoutService protected readonly _layoutService: IWorkbenchLayoutService,
 	) {
 		super();
@@ -420,11 +423,22 @@ export class AgentHostSessionConfigPicker extends Disposable {
 
 		const isAutoApproveProperty = property === SessionConfigKey.AutoApprove;
 		const currentValue = provider.getSessionConfig(sessionId)?.values[property];
+		const currentItem = items.find(i => i.value === currentValue);
 		const actionItems = toActionItems(property, items, currentValue, policyRestricted);
 
 		const delegate: IActionListDelegate<IConfigPickerItem> = {
 			onSelect: async item => {
 				this._actionWidgetService.hide();
+
+				reportNewChatPickerClosed(this._telemetryService, {
+					id: 'NewChatAgentHostSessionConfigPicker',
+					name: `NewChatAgentHostSessionConfigPicker.${property}`,
+					optionIdBefore: typeof currentValue === 'string' ? currentValue : undefined,
+					optionIdAfter: item.value,
+					optionLabelBefore: currentItem?.label,
+					optionLabelAfter: item.label,
+					isPII: !!schema.enumDynamic,
+				});
 
 				if (isAutoApproveProperty && (item.value === 'autoApprove' || item.value === 'autopilot')) {
 					const confirmed = await confirmAutoApproveLevel(item.value, this._dialogService);
@@ -586,16 +600,16 @@ class MobileAgentHostSessionConfigPicker extends AgentHostSessionConfigPicker {
 		const branchValue = config.values[SessionConfigKey.Branch];
 		const sheetItems: IMobilePickerSheetItem[] = [];
 
-		const idToConfig = new Map<string, { property: string; value: string }>();
-		const registerId = (property: string, value: string): string => {
+		const idToConfig = new Map<string, { property: string; value: string; label: string; isPII: boolean }>();
+		const registerId = (property: string, value: string, label: string, isPII: boolean): string => {
 			const id = `repo-row-${idToConfig.size}`;
-			idToConfig.set(id, { property, value });
+			idToConfig.set(id, { property, value, label, isPII });
 			return id;
 		};
 
 		isolationItems.forEach((item, index) => {
 			sheetItems.push({
-				id: registerId(SessionConfigKey.Isolation, item.value),
+				id: registerId(SessionConfigKey.Isolation, item.value, item.label, !!isolationSchema?.enumDynamic),
 				label: item.label,
 				description: item.description,
 				icon: getConfigIcon(SessionConfigKey.Isolation, item.value),
@@ -608,7 +622,7 @@ class MobileAgentHostSessionConfigPicker extends AgentHostSessionConfigPicker {
 		if (!branchSchema?.enumDynamic) {
 			branchItems.forEach((item, index) => {
 				sheetItems.push({
-					id: registerId(SessionConfigKey.Branch, item.value),
+					id: registerId(SessionConfigKey.Branch, item.value, item.label, !!branchSchema?.enumDynamic),
 					label: item.label,
 					description: item.description,
 					icon: getConfigIcon(SessionConfigKey.Branch, item.value),
@@ -637,7 +651,7 @@ class MobileAgentHostSessionConfigPicker extends AgentHostSessionConfigPicker {
 						return [];
 					}
 					return items.map(item => ({
-						id: registerId(SessionConfigKey.Branch, item.value),
+						id: registerId(SessionConfigKey.Branch, item.value, item.label, !!branchSchema.enumDynamic),
 						label: item.label,
 						description: item.description,
 						icon: getConfigIcon(SessionConfigKey.Branch, item.value),
@@ -661,6 +675,16 @@ class MobileAgentHostSessionConfigPicker extends AgentHostSessionConfigPicker {
 				onDidSelect: (id) => {
 					const selection = idToConfig.get(id);
 					if (selection) {
+						const beforeValue = provider.getSessionConfig(sessionId)?.values[selection.property];
+						reportNewChatPickerClosed(this._telemetryService, {
+							id: 'NewChatAgentHostSessionConfigPicker',
+							name: `NewChatAgentHostSessionConfigPicker.${selection.property}`,
+							optionIdBefore: typeof beforeValue === 'string' ? beforeValue : undefined,
+							optionIdAfter: selection.value,
+							optionLabelBefore: undefined,
+							optionLabelAfter: selection.label,
+							isPII: selection.isPII,
+						});
 						provider.setSessionConfigValue(sessionId, selection.property, selection.value).catch(() => { /* best-effort */ });
 					}
 				},
