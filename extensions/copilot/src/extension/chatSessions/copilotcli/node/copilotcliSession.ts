@@ -1363,7 +1363,8 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 				}
 			})));
 			disposables.add(toDisposable(this._sdkSession.on('tool.execution_complete', (event) => {
-				const toolName = toolCalls.get(event.data.toolCallId)?.toolName || '<unknown>';
+				const toolCall = toolCalls.get(event.data.toolCallId);
+				const toolName = toolCall?.toolName || '<unknown>';
 				if (toolName.endsWith('create_pull_request') && event.data.success) {
 					const pullRequestUrl = extractPullRequestUrlFromToolResult(event.data.result);
 					if (pullRequestUrl) {
@@ -1374,12 +1375,12 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 				// Emit `languageModelToolInvoked` to mirror the workbench LanguageModelToolsService event
 				// for the Copilot CLI agent. CLI tools execute inside the SDK and never reach
 				// LanguageModelToolsService, so the workbench-side emission does not fire for them.
-				this._sendToolInvokedTelemetry(event, toolCalls, toolStartTimes, request.sessionResource);
+				this._sendToolInvokedTelemetry(event, toolCall, toolStartTimes, request.sessionResource);
 
 				// Log tool call to request logger
 				const eventError = event.data.error ? { ...event.data.error, code: event.data.error.code || '' } : undefined;
 				const eventData = { ...event.data, error: eventError };
-				this._logToolCall(event.data.toolCallId, toolName, toolCalls.get(event.data.toolCallId)?.arguments, eventData);
+				this._logToolCall(event.data.toolCallId, toolName, toolCall?.arguments, eventData);
 
 				// Mark the end of the edit if this was an edit tool.
 				toolIdEditMap.set(event.data.toolCallId, editTracker.completeEdit(event.data.toolCallId));
@@ -1401,9 +1402,8 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 				// When a sql tool execution completes that modifies the todos table,
 				// query the session database and update the todo list widget.
 				if (toolName === 'sql' && event.data.success) {
-					const toolCallData = toolCalls.get(event.data.toolCallId);
 					try {
-						const query = (toolCallData?.arguments as { query?: string } | undefined)?.query ?? '';
+						const query = (toolCall?.arguments as { query?: string } | undefined)?.query ?? '';
 						if (isTodoRelatedSqlQuery(query)) {
 							const sessionDir = getCopilotCLISessionDir(this.sessionId);
 							this._todoSqlQuery.queryTodos(sessionDir).then(items => {
@@ -2626,12 +2626,11 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 
 	private _sendToolInvokedTelemetry(
 		event: ToolExecutionCompleteEvent,
-		toolCalls: Map<string, ToolCall>,
+		toolCall: ToolCall | undefined,
 		toolStartTimes: Map<string, number>,
 		sessionResource: vscode.Uri | undefined,
 	): void {
 		const { toolCallId, success, error } = event.data;
-		const toolCall = toolCalls.get(toolCallId);
 		const toolName = toolCall?.toolName || '<unknown>';
 		const startTime = toolStartTimes.get(toolCallId);
 		toolStartTimes.delete(toolCallId);
