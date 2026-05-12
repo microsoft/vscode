@@ -72,6 +72,16 @@ suite('AgentHostHeadlessTerminal', () => {
 		assert.deepStrictEqual(responses, []);
 	});
 
+	test('tracks bracketed paste mode', async () => {
+		const terminal = createTerminal();
+
+		assert.strictEqual(terminal.isBracketedPasteMode(), false);
+		await terminal.writePtyData('\x1b[?2004h');
+		assert.strictEqual(terminal.isBracketedPasteMode(), true);
+		await terminal.writePtyData('\x1b[?2004l');
+		assert.strictEqual(terminal.isBracketedPasteMode(), false);
+	});
+
 	test('ignores writes after dispose', async () => {
 		const terminal = createTerminal();
 		const responses: string[] = [];

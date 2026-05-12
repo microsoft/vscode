@@ -283,6 +283,15 @@ export function prefixForHistorySuppression(shellType: ShellType): string {
 	return shellType === 'powershell' ? '' : ' ';
 }
 
+export function isMultilineCommand(command: string): boolean {
+	const normalized = command.replace(/\r\n|\r/g, '\n');
+	return /(?<!\\)\n/.test(normalized);
+}
+
+function shouldUseBracketedPasteMode(command: string): boolean {
+	return platform.isMacintosh || isMultilineCommand(command);
+}
+
 function parseSentinel(content: string, sentinelId: string): { found: boolean; exitCode: number; outputBeforeSentinel: string } {
 	const marker = `${SENTINEL_PREFIX}${sentinelId}_EXIT_`;
 	const idx = content.indexOf(marker);
@@ -352,7 +361,10 @@ async function executeCommandWithShellIntegration(
 ): Promise<ToolResultObject> {
 	const disposables = new DisposableStore();
 
-	terminalManager.sendText(shell.terminalUri, `${prefixForHistorySuppression(shell.shellType)}${command}`, { shouldExecute: true });
+	terminalManager.sendText(shell.terminalUri, `${prefixForHistorySuppression(shell.shellType)}${command}`, {
+		shouldExecute: true,
+		bracketedPasteMode: shouldUseBracketedPasteMode(command),
+	});
 
 	return new Promise<ToolResultObject>(resolve => {
 		let resolved = false;
@@ -421,7 +433,10 @@ async function executeCommandWithSentinel(
 	const contentBefore = terminalManager.getContent(shell.terminalUri) ?? '';
 	const offsetBefore = contentBefore.length;
 
-	terminalManager.sendText(shell.terminalUri, `${prefixForHistorySuppression(shell.shellType)}${command}`, { shouldExecute: true });
+	terminalManager.sendText(shell.terminalUri, `${prefixForHistorySuppression(shell.shellType)}${command}`, {
+		shouldExecute: true,
+		bracketedPasteMode: shouldUseBracketedPasteMode(command),
+	});
 	terminalManager.sendText(shell.terminalUri, sentinelCmd, { shouldExecute: true });
 
 	return new Promise<ToolResultObject>(resolve => {

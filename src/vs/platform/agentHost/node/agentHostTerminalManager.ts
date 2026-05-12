@@ -47,6 +47,15 @@ export interface ITerminalQueryFilterState {
 
 export interface ISendTextOptions {
 	shouldExecute: boolean;
+	/**
+	 * Match workbench terminal sendText: wrap in bracketed paste markers only
+	 * when requested by the caller and enabled by the terminal.
+	 */
+	bracketedPasteMode?: boolean;
+}
+
+export interface IFormatTerminalTextOptions extends ISendTextOptions {
+	shouldWrapWithBracketedPaste?: boolean;
 }
 
 export function removeServerHandledTerminalQueries(data: string, state: ITerminalQueryFilterState): string {
@@ -80,7 +89,10 @@ function getServerHandledTerminalQueryPrefix(data: string): string {
 	return '';
 }
 
-export function formatTerminalText(data: string, options: ISendTextOptions): string {
+export function formatTerminalText(data: string, options: IFormatTerminalTextOptions): string {
+	if (options.shouldWrapWithBracketedPaste) {
+		data = `\x1b[200~${data}\x1b[201~`;
+	}
 	data = data.replace(/\r?\n/g, '\r');
 	if (options.shouldExecute && !data.endsWith('\r')) {
 		data += '\r';
@@ -445,7 +457,9 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 
 	/** Send formatted text to a terminal's PTY process. */
 	sendText(uri: string, data: string, options: ISendTextOptions): void {
-		this.writeInput(uri, formatTerminalText(data, options));
+		const terminal = this._terminals.get(uri);
+		const shouldWrapWithBracketedPaste = !!(options.bracketedPasteMode && terminal?.headlessTerminal?.isBracketedPasteMode());
+		this.writeInput(uri, formatTerminalText(data, { ...options, shouldWrapWithBracketedPaste }));
 	}
 
 	/** Register a callback for PTY data events on a terminal. */

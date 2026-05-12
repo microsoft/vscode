@@ -83,6 +83,10 @@ export class AgentHostHeadlessTerminal extends Disposable {
 		this._terminal.resize(cols, rows);
 	}
 
+	isBracketedPasteMode(): boolean {
+		return this._terminal.modes.bracketedPasteMode;
+	}
+
 	clear(): void {
 		// xterm.clear() preserves the visible line content; emulate a terminal
 		// clear sequence so future terminal-state reads match a user-visible clear.
