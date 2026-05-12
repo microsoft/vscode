@@ -86,7 +86,7 @@ suite('Breadcrumb Model', function () {
 
 	test('untitled uri has no file path elements', function () {
 
-		model = new BreadcrumbsModel(URI.from({ scheme: Schemas.untitled, path: '/Untitled-1' }), undefined, configService, workspaceService, new class extends mock<IOutlineService>() { });
+		model = new BreadcrumbsModel(URI.from({ scheme: Schemas.untitled, path: 'Untitled-1' }), undefined, configService, workspaceService, new class extends mock<IOutlineService>() { });
 		const elements = model.getElements();
 
 		assert.strictEqual(elements.length, 0);

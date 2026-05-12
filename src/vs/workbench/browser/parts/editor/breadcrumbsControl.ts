@@ -353,13 +353,11 @@ export class BreadcrumbsControl {
 		}
 	}
 
-	private show(): void {
+	private _setVisibility(visible: boolean): void {
 		const wasHidden = this.isHidden();
-
-		this._ckBreadcrumbsVisible.set(true);
-		this.domNode.classList.toggle('hidden', false);
-
-		if (wasHidden) {
+		this._ckBreadcrumbsVisible.set(visible);
+		this.domNode.classList.toggle('hidden', !visible);
+		if (wasHidden !== !visible) {
 			this._onDidVisibilityChange.fire();
 		}
 	}
@@ -414,9 +412,9 @@ export class BreadcrumbsControl {
 			if (items.length === 0) {
 				if (model.resource.scheme === Schemas.untitled) {
 					// untitled files have no file path — hide until symbols are available
-					this.hide();
+					this._setVisibility(false);
 				} else {
-					this.show();
+					this._setVisibility(true);
 					this._widget.setEnabled(false);
 					this._widget.setItems([new class extends BreadcrumbsItem {
 						render(container: HTMLElement): void {
@@ -431,7 +429,7 @@ export class BreadcrumbsControl {
 					}]);
 				}
 			} else {
-				this.show();
+				this._setVisibility(true);
 				this._widget.setEnabled(true);
 				this._widget.setItems(items);
 				this._widget.reveal(items[items.length - 1]);
