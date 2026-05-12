@@ -53,7 +53,7 @@ function makeAgentSession(opts: {
 	sessionId?: string;
 }): IActiveSession {
 	const folder = opts.repository || opts.worktree ? {
-		uri: opts.repository ?? opts.worktree!,
+		root: opts.repository ?? opts.worktree!,
 		workingDirectory: opts.worktree ?? opts.repository!,
 		name: 'test',
 		description: undefined,
@@ -82,7 +82,15 @@ function makeAgentSession(opts: {
 		sessionType: opts.providerType ?? AgentSessionProviders.Local,
 		icon: Codicon.copilot,
 		createdAt: chat.createdAt,
-		workspace: observableValue('test.workspace', folder ? { uri: folder.uri, label: 'test', icon: Codicon.repo, folders: [folder], requiresWorkspaceTrust: false, } as ISessionWorkspace : undefined),
+		workspace: observableValue('test.workspace', folder
+			? {
+				uri: folder.root,
+				label: 'test',
+				icon: Codicon.repo,
+				folders: [folder],
+				requiresWorkspaceTrust: false,
+			} satisfies ISessionWorkspace
+			: undefined),
 		title: chat.title,
 		updatedAt: chat.updatedAt,
 		status: chat.status,
@@ -105,7 +113,7 @@ function makeAgentSession(opts: {
 
 function makeNonAgentSession(opts: { repository?: URI; worktree?: URI; providerType?: string }): ISession {
 	const folder = opts.repository || opts.worktree ? {
-		uri: opts.repository ?? opts.worktree!,
+		root: opts.repository ?? opts.worktree!,
 		workingDirectory: opts.worktree ?? opts.repository!,
 		name: 'test',
 		description: undefined,
@@ -134,7 +142,14 @@ function makeNonAgentSession(opts: { repository?: URI; worktree?: URI; providerT
 		sessionType: opts.providerType ?? AgentSessionProviders.Local,
 		icon: Codicon.copilot,
 		createdAt: chat.createdAt,
-		workspace: observableValue('test.workspace', folder ? { uri: folder.uri, label: 'test', icon: Codicon.repo, folders: [folder], requiresWorkspaceTrust: false, } as ISessionWorkspace : undefined),
+		workspace: observableValue('test.workspace', folder
+			? {
+				uri: folder.root,
+				label: 'test',
+				icon: Codicon.repo,
+				folders: [folder],
+				requiresWorkspaceTrust: false,
+			} as ISessionWorkspace : undefined),
 		title: chat.title,
 		updatedAt: chat.updatedAt,
 		status: chat.status,
