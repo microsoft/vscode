@@ -27,12 +27,13 @@ import { IDefaultAccountService } from '../../../../../../platform/defaultAccoun
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatAgentLocation } from '../../../common/constants.js';
-import { ChatRequestQueueKind, IChatService, IChatMarkdownContent, IChatProgress, IChatTerminalToolInvocationData, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
+import { ChatRequestQueueKind, ElicitationState, IChatService, IChatMarkdownContent, IChatProgress, IChatTerminalToolInvocationData, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { IChatEditingService } from '../../../common/editing/chatEditingService.js';
 import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { IChatSessionsService, type IChatSessionRequestHistoryItem } from '../../../common/chatSessionsService.js';
-import { ILanguageModelsService } from '../../../common/languageModels.js';
+import { ILanguageModelsService, type ILanguageModelChatMetadata } from '../../../common/languageModels.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
+import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IOutputService } from '../../../../../services/output/common/output.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
@@ -55,6 +56,7 @@ import { ILanguageModelToolsService } from '../../../common/tools/languageModelT
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
 import { IChatWidgetService } from '../../../browser/chat.js';
 import { ChatQuestionCarouselData } from '../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
+import { ChatElicitationRequestPart } from '../../../common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import type { IChatModel, IChatPendingRequest, IChatRequestModel } from '../../../common/model/chatModel.js';
 
 // ---- Mock agent host service ------------------------------------------------
@@ -352,7 +354,7 @@ class MockChatWidgetService extends mock<IChatWidgetService>() {
 
 // ---- Helpers ----------------------------------------------------------------
 
-function createTestServices(disposables: DisposableStore, workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean }, authServiceOverride?: Partial<IAuthenticationService>) {
+function createTestServices(disposables: DisposableStore, workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean }, authServiceOverride?: Partial<IAuthenticationService>, languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata>) {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	const agentHostService = new MockAgentHostService();
@@ -360,6 +362,18 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 
 	const chatAgentService = new MockChatAgentService();
 	const chatWidgetService = new MockChatWidgetService();
+	const openerService: { openedUrls: (string | URI)[]; openShouldFail: boolean; openResult: boolean } & Partial<IOpenerService> = {
+		openedUrls: [],
+		openShouldFail: false,
+		openResult: true,
+		async open(target: string | URI) {
+			this.openedUrls.push(target);
+			if (this.openShouldFail) {
+				throw new Error('open failed');
+			}
+			return this.openResult;
+		},
+	};
 
 	instantiationService.stub(IAgentHostService, agentHostService);
 	instantiationService.stub(ILogService, new NullLogService());
@@ -378,7 +392,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 	instantiationService.stub(ILanguageModelsService, {
 		deltaLanguageModelChatProviderDescriptors: () => { },
 		registerLanguageModelProvider: () => toDisposable(() => { }),
-		lookupLanguageModel: () => undefined,
+		lookupLanguageModel: (modelId: string) => languageModels?.get(modelId),
 	});
 	instantiationService.stub(IConfigurationService, {
 		onDidChangeConfiguration: Event.None,
@@ -449,12 +463,13 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		isNewSession: sessionResource => workingDirectoryResolver?.isNewSession?.(sessionResource) ?? sessionResource.path.substring(1).startsWith('new-'),
 	});
 	instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow: false } as Partial<IWorkbenchEnvironmentService>);
+	instantiationService.stub(IOpenerService, openerService as IOpenerService);
 
-	return { instantiationService, agentHostService, chatAgentService, chatWidgetService, chatService };
+	return { instantiationService, agentHostService, chatAgentService, chatWidgetService, chatService, openerService };
 }
 
-function createContribution(disposables: DisposableStore, opts?: { authServiceOverride?: Partial<IAuthenticationService>; workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean } }) {
-	const { instantiationService, agentHostService, chatAgentService, chatWidgetService, chatService } = createTestServices(disposables, opts?.workingDirectoryResolver, opts?.authServiceOverride);
+function createContribution(disposables: DisposableStore, opts?: { authServiceOverride?: Partial<IAuthenticationService>; workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean }; languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata> }) {
+	const { instantiationService, agentHostService, chatAgentService, chatWidgetService, chatService, openerService } = createTestServices(disposables, opts?.workingDirectoryResolver, opts?.authServiceOverride, opts?.languageModels);
 
 	const listController = disposables.add(instantiationService.createInstance(AgentHostSessionListController, 'agent-host-copilot', 'copilot', agentHostService, undefined, 'local'));
 	const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
@@ -469,7 +484,7 @@ function createContribution(disposables: DisposableStore, opts?: { authServiceOv
 	}));
 	const contribution = disposables.add(instantiationService.createInstance(AgentHostContribution));
 
-	return { contribution, listController, sessionHandler, agentHostService, chatAgentService, chatWidgetService, chatService, instantiationService };
+	return { contribution, listController, sessionHandler, agentHostService, chatAgentService, chatWidgetService, chatService, instantiationService, openerService };
 }
 
 function makeRequest(overrides: Partial<{ message: string; sessionResource: URI; variables: IChatAgentRequest['variables']; userSelectedModelId: string; modelConfiguration: Record<string, unknown>; agentHostSessionConfig: Record<string, string>; agentId: string }> = {}): IChatAgentRequest {
@@ -994,6 +1009,22 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(chatSession.isCompleteObs?.get(), true, 'should be complete after turn finishes');
 		}));
 
+		test('live turn returns model credit details from usage', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const languageModels = new Map<string, ILanguageModelChatMetadata>([
+				['agent-host-copilot:opus-4.7', upcastPartial<ILanguageModelChatMetadata>({ name: 'Opus 4.7', pricing: '15x' })],
+			]);
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, { languageModels });
+
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+
+			fire({ type: 'session/usage', session, turnId, usage: { model: 'opus-4.7', _meta: { cost: 1.5 } } } as SessionAction);
+			fire({ type: 'session/turnComplete', session, turnId } as SessionAction);
+
+			const result = await turnPromise;
+
+			assert.strictEqual(result.details, 'Opus 4.7 • 1.5 credits');
+		}));
+
 		test('tool_start events become toolInvocation progress', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
@@ -1283,6 +1314,249 @@ suite('AgentHostChatContribution', () => {
 
 			fire({ type: ActionType.SessionTurnComplete, session, turnId });
 			await turnPromise;
+		}));
+
+		test('url-style input request renders an elicitation part with the URL', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+
+			fire({
+				type: ActionType.SessionInputRequested,
+				session,
+				request: {
+					id: 'url-1',
+					message: 'Please authorize',
+					url: 'https://example.com/auth?token=abc',
+				},
+			});
+			await timeout(10);
+
+			const part = collected.flat().find(p => (p as { kind?: string }).kind === 'elicitation2') as ChatElicitationRequestPart | undefined;
+			assert.ok(part, 'url input request should render an elicitation part');
+			assert.ok(part instanceof ChatElicitationRequestPart);
+			assert.strictEqual(textOf(part.title), 'Authorization Required');
+			const messageText = textOf(part.message) ?? '';
+			// `appendText` converts spaces to `&nbsp;`, so check for individual words.
+			assert.ok(messageText.includes('authorize'), 'message should include the request message');
+			assert.ok(messageText.includes('https://example.com/auth?token=abc'), 'message should include the URL');
+			assert.ok(part.acceptButtonLabel.includes('example.com'), 'accept button should reference the URL authority');
+			assert.strictEqual(collected.flat().some(p => p.kind === 'questionCarousel'), false, 'url-style requests must not also render a question carousel');
+
+			fire({ type: ActionType.SessionTurnComplete, session, turnId });
+			await turnPromise;
+		}));
+
+		test('url input request accept opens URL and dispatches Accept', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService, openerService } = createContribution(disposables);
+
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+
+			fire({
+				type: ActionType.SessionInputRequested,
+				session,
+				request: {
+					id: 'url-1',
+					url: 'https://example.com/auth',
+				},
+			});
+			await timeout(10);
+
+			const part = collected.flat().find(p => (p as { kind?: string }).kind === 'elicitation2') as ChatElicitationRequestPart;
+			assert.ok(part);
+
+			agentHostService.dispatchedActions.length = 0;
+			await part.accept(true);
+			await timeout(10);
+
+			assert.deepStrictEqual(openerService.openedUrls.map(String), ['https://example.com/auth']);
+			assert.strictEqual(part.state.get(), ElicitationState.Accepted);
+			const completions = agentHostService.dispatchedActions.filter(d => d.action.type === ActionType.SessionInputCompleted);
+			assert.strictEqual(completions.length, 1);
+			assert.deepStrictEqual({
+				requestId: (completions[0].action as { requestId: string }).requestId,
+				response: (completions[0].action as { response: SessionInputResponseKind }).response,
+			}, { requestId: 'url-1', response: SessionInputResponseKind.Accept });
+
+			fire({ type: ActionType.SessionTurnComplete, session, turnId });
+			await turnPromise;
+		}));
+
+		test('url input request decline dispatches Decline', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+
+			fire({
+				type: ActionType.SessionInputRequested,
+				session,
+				request: {
+					id: 'url-1',
+					url: 'https://example.com/auth',
+				},
+			});
+			await timeout(10);
+
+			const part = collected.flat().find(p => (p as { kind?: string }).kind === 'elicitation2') as ChatElicitationRequestPart;
+			assert.ok(part?.reject);
+
+			agentHostService.dispatchedActions.length = 0;
+			await part.reject!();
+			await timeout(10);
+
+			const completions = agentHostService.dispatchedActions.filter(d => d.action.type === ActionType.SessionInputCompleted);
+			assert.strictEqual(completions.length, 1);
+			assert.strictEqual((completions[0].action as { response: SessionInputResponseKind }).response, SessionInputResponseKind.Decline);
+			assert.strictEqual(part.state.get(), ElicitationState.Rejected);
+
+			fire({ type: ActionType.SessionTurnComplete, session, turnId });
+			await turnPromise;
+		}));
+
+		test('url input request accept failure dispatches Decline', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService, openerService } = createContribution(disposables);
+			openerService.openShouldFail = true;
+
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+
+			fire({
+				type: ActionType.SessionInputRequested,
+				session,
+				request: { id: 'url-1', url: 'https://example.com/auth' },
+			});
+			await timeout(10);
+
+			const part = collected.flat().find(p => (p as { kind?: string }).kind === 'elicitation2') as ChatElicitationRequestPart;
+			assert.ok(part);
+
+			agentHostService.dispatchedActions.length = 0;
+			await part.accept(true);
+			await timeout(10);
+
+			const completions = agentHostService.dispatchedActions.filter(d => d.action.type === ActionType.SessionInputCompleted);
+			assert.strictEqual(completions.length, 1);
+			assert.strictEqual((completions[0].action as { response: SessionInputResponseKind }).response, SessionInputResponseKind.Decline);
+			assert.strictEqual(part.state.get(), ElicitationState.Rejected);
+
+			fire({ type: ActionType.SessionTurnComplete, session, turnId });
+			await turnPromise;
+		}));
+
+		test('url input request opener returning false dispatches Decline', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService, openerService } = createContribution(disposables);
+			openerService.openResult = false;
+
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+
+			fire({
+				type: ActionType.SessionInputRequested,
+				session,
+				request: { id: 'url-1', url: 'https://example.com/auth' },
+			});
+			await timeout(10);
+
+			const part = collected.flat().find(p => (p as { kind?: string }).kind === 'elicitation2') as ChatElicitationRequestPart;
+			assert.ok(part);
+
+			agentHostService.dispatchedActions.length = 0;
+			await part.accept(true);
+			await timeout(10);
+
+			const completions = agentHostService.dispatchedActions.filter(d => d.action.type === ActionType.SessionInputCompleted);
+			assert.strictEqual(completions.length, 1);
+			assert.strictEqual((completions[0].action as { response: SessionInputResponseKind }).response, SessionInputResponseKind.Decline);
+			assert.strictEqual(part.state.get(), ElicitationState.Rejected);
+
+			fire({ type: ActionType.SessionTurnComplete, session, turnId });
+			await turnPromise;
+		}));
+
+		test('url input request abandoned at turn end dispatches Cancel', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+
+			fire({
+				type: ActionType.SessionInputRequested,
+				session,
+				request: { id: 'url-1', url: 'https://example.com/auth' },
+			});
+			await timeout(10);
+
+			agentHostService.dispatchedActions.length = 0;
+			fire({ type: ActionType.SessionTurnComplete, session, turnId });
+			await turnPromise;
+
+			const completions = agentHostService.dispatchedActions.filter(d => d.action.type === ActionType.SessionInputCompleted);
+			assert.strictEqual(completions.length, 1);
+			assert.deepStrictEqual({
+				requestId: (completions[0].action as { requestId: string }).requestId,
+				response: (completions[0].action as { response: SessionInputResponseKind }).response,
+			}, { requestId: 'url-1', response: SessionInputResponseKind.Cancel });
+		}));
+
+		test('url input request completion from another client does not redispatch', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+
+			fire({
+				type: ActionType.SessionInputRequested,
+				session,
+				request: { id: 'url-1', url: 'https://example.com/auth' },
+			});
+			await timeout(10);
+
+			const part = collected.flat().find(p => (p as { kind?: string }).kind === 'elicitation2') as ChatElicitationRequestPart;
+			assert.ok(part);
+
+			agentHostService.dispatchedActions.length = 0;
+			fire({
+				type: ActionType.SessionInputCompleted,
+				session,
+				requestId: 'url-1',
+				response: SessionInputResponseKind.Accept,
+			});
+			await timeout(10);
+
+			assert.strictEqual(part.state.get(), ElicitationState.Accepted);
+
+			fire({ type: ActionType.SessionTurnComplete, session, turnId });
+			await turnPromise;
+
+			assert.strictEqual(agentHostService.dispatchedActions.some(d => d.action.type === ActionType.SessionInputCompleted), false);
+		}));
+
+		test('url input request server-side dismissal rejects the part and does not redispatch', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+
+			fire({
+				type: ActionType.SessionInputRequested,
+				session,
+				request: { id: 'url-1', url: 'https://example.com/auth' },
+			});
+			await timeout(10);
+
+			const part = collected.flat().find(p => (p as { kind?: string }).kind === 'elicitation2') as ChatElicitationRequestPart;
+			assert.ok(part);
+
+			agentHostService.dispatchedActions.length = 0;
+			fire({
+				type: ActionType.SessionInputCompleted,
+				session,
+				requestId: 'url-1',
+				response: SessionInputResponseKind.Cancel,
+			});
+			await timeout(10);
+
+			assert.strictEqual(part.state.get(), ElicitationState.Rejected);
+
+			fire({ type: ActionType.SessionTurnComplete, session, turnId });
+			await turnPromise;
+
+			assert.strictEqual(agentHostService.dispatchedActions.some(d => d.action.type === ActionType.SessionInputCompleted), false);
 		}));
 	});
 
@@ -1744,7 +2018,11 @@ suite('AgentHostChatContribution', () => {
 		});
 
 		test('history requests get per-turn modelId from usage, with active turn falling back to session model', async () => {
-			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const languageModels = new Map<string, ILanguageModelChatMetadata>([
+				['agent-host-copilot:opus-4.7', upcastPartial<ILanguageModelChatMetadata>({ name: 'Opus 4.7', pricing: '15x' })],
+				['agent-host-copilot:sonnet-4.6', upcastPartial<ILanguageModelChatMetadata>({ name: 'Sonnet 4.6', pricing: '2x' })],
+			]);
+			const { sessionHandler, agentHostService } = createContribution(disposables, { languageModels });
 
 			const sessionUri = AgentSession.uri('copilot', 'sess-models');
 			agentHostService.sessionStates.set(sessionUri.toString(), {
@@ -1759,7 +2037,7 @@ suite('AgentHostChatContribution', () => {
 						id: 'turn-1',
 						userMessage: { text: 'Q1' },
 						responseParts: [{ kind: ResponsePartKind.Markdown, id: 'md-1', content: 'A1' }],
-						usage: { model: 'opus-4.7' },
+						usage: { model: 'opus-4.7', _meta: { cost: 1.5 } },
 						state: TurnState.Complete,
 					},
 					{
@@ -1774,7 +2052,7 @@ suite('AgentHostChatContribution', () => {
 					id: 'turn-active',
 					userMessage: { text: 'Q3' },
 					responseParts: [],
-					usage: undefined,
+					usage: { _meta: { cost: 1 } },
 				},
 			});
 
@@ -1790,6 +2068,12 @@ suite('AgentHostChatContribution', () => {
 					{ prompt: 'Q2', modelId: 'agent-host-copilot:sonnet-4.6' },
 					{ prompt: 'Q3', modelId: 'agent-host-copilot:sonnet-4.6' },
 				],
+			);
+
+			const responses = session.history.filter(h => h.type === 'response');
+			assert.deepStrictEqual(
+				responses.map(r => r.details),
+				['Opus 4.7 • 1.5 credits', 'Sonnet 4.6 · 2x', 'Sonnet 4.6 • 1 credit'],
 			);
 
 			const activeResponse = session.history[session.history.length - 1];

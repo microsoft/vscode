@@ -23,6 +23,7 @@ import { ICopilotTool } from '../../../tools/common/toolsRegistry';
 import { IOnWillInvokeToolEvent, IToolsService, IToolValidationResult } from '../../../tools/common/toolsService';
 import { formatUriForFileWidget } from '../../../tools/common/toolUtils';
 import { StoredModeInstructions } from '../../common/chatSessionMetadataStore';
+import { formatModelDetailsWithCredits } from '../../../../platform/chat/common/chatModelDetails';
 import { extractChatPromptReferences, getFolderAttachmentPath } from './copilotCLIPrompt';
 import { IChatDelegationSummaryService } from './delegationSummaryService';
 
@@ -519,6 +520,7 @@ export interface RequestIdDetails {
 	readonly toolIdEditMap: Record<string, string>;
 	readonly modeInstructions?: StoredModeInstructions;
 	readonly responseModelId?: string;
+	readonly creditsUsed?: number;
 }
 
 /**
@@ -534,6 +536,7 @@ export function buildChatHistoryFromEvents(sessionId: string, modelId: string | 
 	let isFirstUserMessage = true;
 	let currentModelId = modelId;
 	let currentResponseModelId: string | undefined;
+	let currentCreditsUsed: number | undefined;
 	let currentRequestTurnIndex: number | undefined;
 	const currentAssistantMessage: { chunks: string[] } = { chunks: [] };
 	const processedMessages = new Set<string>();
@@ -545,17 +548,22 @@ export function buildChatHistoryFromEvents(sessionId: string, modelId: string | 
 		return modelDetailsById.get(modelId.trim().toLowerCase());
 	}
 
-	function createResultForModel(modelId: string | undefined) {
-		const details = getModelDetails(modelId);
-		return details ? { details } : {};
+	function createResultForModel(modelId: string | undefined, creditsUsed: number | undefined) {
+		const modelDetails = getModelDetails(modelId);
+		if (modelDetails && creditsUsed !== undefined) {
+			const modelName = modelDetails.split(' \u2022')[0];
+			return { details: formatModelDetailsWithCredits(modelName, creditsUsed) };
+		}
+		return modelDetails ? { details: modelDetails } : {};
 	}
 
 	function flushResponseParts() {
 		if (currentResponseParts.length > 0) {
-			turns.push(new ChatResponseTurn2(currentResponseParts, createResultForModel(currentResponseModelId ?? currentModelId), ''));
+			turns.push(new ChatResponseTurn2(currentResponseParts, createResultForModel(currentResponseModelId ?? currentModelId, currentCreditsUsed), ''));
 			currentResponseParts = [];
 		}
 		currentResponseModelId = undefined;
+		currentCreditsUsed = undefined;
 		currentRequestTurnIndex = undefined;
 	}
 
@@ -732,6 +740,7 @@ export function buildChatHistoryFromEvents(sessionId: string, modelId: string | 
 				// the currently tracked model id (from `session.start`/`session.model_change`).
 				const resolvedRequestModelId = details?.responseModelId ?? currentModelId;
 				currentResponseModelId = resolvedRequestModelId;
+				currentCreditsUsed = details?.creditsUsed;
 				turns.push(new ChatRequestTurn2(`${commandPrefix}${prompt}`, undefined, references, '', [], undefined, details?.requestId ?? event.id, resolvedRequestModelId, modeInstructions2));
 				currentRequestTurnIndex = turns.length - 1;
 				break;

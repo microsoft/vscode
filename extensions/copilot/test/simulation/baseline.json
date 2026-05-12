@@ -23,9 +23,9 @@
   {
     "name": "/review [inline] [python] - Bank account with missing lock acquisition - (gpt-4.1-2025-04-14)",
     "contentFilterCount": 0,
-    "passCount": 6,
-    "failCount": 4,
-    "score": 0.6
+    "passCount": 8,
+    "failCount": 2,
+    "score": 0.8
   },
   {
     "name": "/review [inline] [typescript] - InstantiationService this scoping bug - (gpt-4.1-2025-04-14)",
@@ -268,9 +268,9 @@
   {
     "name": "codeMapper [context] [markdown] - mixed product icons (60kb) - modify & insert",
     "contentFilterCount": 0,
-    "passCount": 7,
-    "failCount": 3,
-    "score": 0.7
+    "passCount": 0,
+    "failCount": 10,
+    "score": 0
   },
   {
     "name": "codeMapper [context] [markdown] - sorted product icons (60kb) - modify & insert",
@@ -396,42 +396,42 @@
     "contentFilterCount": 0,
     "passCount": 10,
     "failCount": 0,
-    "score": 0.8667
+    "score": 1
   },
   {
     "name": "Debug config to command [context] - opening a browser",
     "contentFilterCount": 0,
     "passCount": 10,
     "failCount": 0,
-    "score": 0.95
+    "score": 0.55
   },
   {
     "name": "Debug config to command [context] - python3 subdirectory and arg",
     "contentFilterCount": 0,
     "passCount": 10,
     "failCount": 0,
-    "score": 0.75
+    "score": 0.825
   },
   {
     "name": "Debug tools list [context] - c",
     "contentFilterCount": 0,
     "passCount": 10,
     "failCount": 0,
-    "score": 0.2
+    "score": 0.27999999999999997
   },
   {
     "name": "Debug tools list [context] - csharp",
     "contentFilterCount": 0,
     "passCount": 10,
     "failCount": 0,
-    "score": 1
+    "score": 0.475
   },
   {
     "name": "Debug tools list [context] - elixir",
     "contentFilterCount": 0,
     "passCount": 10,
     "failCount": 0,
-    "score": 0.8
+    "score": 0
   },
   {
     "name": "Debug tools list [context] - go",
@@ -445,14 +445,14 @@
     "contentFilterCount": 0,
     "passCount": 10,
     "failCount": 0,
-    "score": 0.625
+    "score": 0.25
   },
   {
     "name": "Debug tools list [context] - lua",
     "contentFilterCount": 0,
     "passCount": 10,
     "failCount": 0,
-    "score": 0.65
+    "score": 0.55
   },
   {
     "name": "Debug tools list [context] - python",
@@ -473,7 +473,7 @@
     "contentFilterCount": 0,
     "passCount": 10,
     "failCount": 0,
-    "score": 0.625
+    "score": 0.25
   },
   {
     "name": "Dev Container Configuration [external] - Suggests a devcontainer.json template (sample 0)",
@@ -656,23 +656,23 @@
   {
     "name": "edit-InlineChatIntent [inline] [cpp] - edit for cpp",
     "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 1
-  },
-  {
-    "name": "edit-InlineChatIntent [inline] [cpp] - edit for macro",
-    "contentFilterCount": 0,
     "passCount": 9,
     "failCount": 1,
     "score": 0.9
   },
   {
+    "name": "edit-InlineChatIntent [inline] [cpp] - edit for macro",
+    "contentFilterCount": 0,
+    "passCount": 2,
+    "failCount": 8,
+    "score": 0.2
+  },
+  {
     "name": "edit-InlineChatIntent [inline] [csharp] - issue release#275: Inline Diff refinement causes massive duplication of code",
     "contentFilterCount": 0,
-    "passCount": 4,
-    "failCount": 6,
-    "score": 0.4
+    "passCount": 6,
+    "failCount": 4,
+    "score": 0.6
   },
   {
     "name": "edit-InlineChatIntent [inline] [css] - issue #6469",
@@ -691,23 +691,23 @@
   {
     "name": "edit-InlineChatIntent [inline] [javascript] - issue #2946: Inline chat markers don't work",
     "contentFilterCount": 0,
-    "passCount": 9,
-    "failCount": 1,
-    "score": 0.9
+    "passCount": 2,
+    "failCount": 8,
+    "score": 0.2
   },
   {
     "name": "edit-InlineChatIntent [inline] [javascript] - issue #6329",
     "contentFilterCount": 0,
-    "passCount": 8,
-    "failCount": 2,
-    "score": 0.8
+    "passCount": 6,
+    "failCount": 4,
+    "score": 0.6
   },
   {
     "name": "edit-InlineChatIntent [inline] [javascript] - issue #6956",
     "contentFilterCount": 0,
-    "passCount": 7,
-    "failCount": 3,
-    "score": 0.7
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
   },
   {
     "name": "edit-InlineChatIntent [inline] [javascript] - Issue #7282",
@@ -740,9 +740,9 @@
   {
     "name": "edit-InlineChatIntent [inline] [python] - issue #1198: Multi-lingual queries throw off the inline response formatting",
     "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 1
+    "passCount": 8,
+    "failCount": 2,
+    "score": 0.8
   },
   {
     "name": "edit-InlineChatIntent [inline] [typescript] - Context Outline: TypeScript between methods",
@@ -754,9 +754,9 @@
   {
     "name": "edit-InlineChatIntent [inline] [typescript] - Context Outline: TypeScript in method",
     "contentFilterCount": 0,
-    "passCount": 2,
-    "failCount": 8,
-    "score": 0.2
+    "passCount": 1,
+    "failCount": 9,
+    "score": 0.1
   },
   {
     "name": "edit-InlineChatIntent [inline] [typescript] - convert ternary to if/else in short function",
@@ -782,16 +782,16 @@
   {
     "name": "edit-InlineChatIntent [inline] [typescript] - edit: add toString2",
     "contentFilterCount": 0,
-    "passCount": 0,
-    "failCount": 10,
-    "score": 0
+    "passCount": 5,
+    "failCount": 5,
+    "score": 0.5
   },
   {
     "name": "edit-InlineChatIntent [inline] [typescript] - edit: import assert",
     "contentFilterCount": 0,
-    "passCount": 9,
-    "failCount": 1,
-    "score": 0.9
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
   },
   {
     "name": "edit-InlineChatIntent [inline] [typescript] - edit: import assert 2",
@@ -831,16 +831,16 @@
   {
     "name": "edit-InlineChatIntent [inline] [typescript] - issue #3257: Inline chat ends up duplicating code",
     "contentFilterCount": 0,
-    "passCount": 1,
-    "failCount": 9,
-    "score": 0.1
+    "passCount": 0,
+    "failCount": 10,
+    "score": 0
   },
   {
     "name": "edit-InlineChatIntent [inline] [typescript] - issue #3575: Inline Chat in function expands to delete whole file",
     "contentFilterCount": 0,
-    "passCount": 9,
-    "failCount": 1,
-    "score": 0.9
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
   },
   {
     "name": "edit-InlineChatIntent [inline] [typescript] - issue #3759: add type",
@@ -873,16 +873,16 @@
   {
     "name": "edit-InlineChatIntent [inline] [typescript] - issue #4151: Rewrite the selection to use async/await",
     "contentFilterCount": 0,
-    "passCount": 1,
-    "failCount": 9,
-    "score": 0.1
+    "passCount": 5,
+    "failCount": 5,
+    "score": 0.5
   },
   {
     "name": "edit-InlineChatIntent [inline] [typescript] - issue #4302: Code doesn't come with backticks",
     "contentFilterCount": 0,
-    "passCount": 0,
-    "failCount": 10,
-    "score": 0
+    "passCount": 4,
+    "failCount": 6,
+    "score": 0.4
   },
   {
     "name": "edit-InlineChatIntent [inline] [typescript] - issue #5710: Code doesn't come with backticks",
@@ -922,16 +922,16 @@
   {
     "name": "edit-InlineChatIntent [inline] [typescript] - issue #7202",
     "contentFilterCount": 0,
-    "passCount": 9,
-    "failCount": 1,
-    "score": 0.9
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
   },
   {
     "name": "edit-InlineChatIntent [inline] [typescript] - issue #7660",
     "contentFilterCount": 0,
-    "passCount": 7,
-    "failCount": 3,
-    "score": 0.7
+    "passCount": 1,
+    "failCount": 9,
+    "score": 0.1
   },
   {
     "name": "edit-InlineChatIntent [inline] [typescript] - Issue #7996 - use entire context window",
@@ -957,23 +957,23 @@
   {
     "name": "edit-InlineChatIntent [inline] [typescript] - refactor forloop, but only selected one",
     "contentFilterCount": 0,
-    "passCount": 9,
-    "failCount": 1,
-    "score": 0.9
+    "passCount": 5,
+    "failCount": 5,
+    "score": 0.5
   },
   {
     "name": "edit-InlineChatIntent [inline] [typescriptreact] - issue #7487",
     "contentFilterCount": 0,
-    "passCount": 9,
-    "failCount": 1,
-    "score": 0.9
+    "passCount": 0,
+    "failCount": 10,
+    "score": 0
   },
   {
     "name": "explain (expanded context) [panel] [cpp] - includes and interprets variables",
     "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 1
+    "passCount": 1,
+    "failCount": 9,
+    "score": 0.1
   },
   {
     "name": "explain (expanded context) [panel] [cpp] - includes function definitions from same file",
@@ -1027,9 +1027,9 @@
   {
     "name": "explain (expanded context) [panel] [ruby] - includes function definitions from same file",
     "contentFilterCount": 0,
-    "passCount": 9,
-    "failCount": 1,
-    "score": 0.9
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
   },
   {
     "name": "explain (expanded context) [panel] [typescript] - can explain different editor selections in a single conversation",
@@ -1242,9 +1242,9 @@
   {
     "name": "fix-InlineChatIntent (eslint) [inline] [typescript] - (AML-17-166) unexpected control character",
     "contentFilterCount": 0,
-    "passCount": 3,
-    "failCount": 7,
-    "score": 0.3
+    "passCount": 0,
+    "failCount": 10,
+    "score": 0
   },
   {
     "name": "fix-InlineChatIntent (eslint) [inline] [typescript] - (AML-17-243) unexpected constant condition 2",
@@ -1256,9 +1256,9 @@
   {
     "name": "fix-InlineChatIntent (eslint) [inline] [typescript] - class-methods-use-this with cookbook",
     "contentFilterCount": 0,
-    "passCount": 8,
-    "failCount": 2,
-    "score": 0.8
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
   },
   {
     "name": "fix-InlineChatIntent (eslint) [inline] [typescript] - comma expected",
@@ -1270,16 +1270,16 @@
   {
     "name": "fix-InlineChatIntent (eslint) [inline] [typescript] - consistent-this with cookbook",
     "contentFilterCount": 0,
-    "passCount": 9,
-    "failCount": 1,
-    "score": 0.9
+    "passCount": 5,
+    "failCount": 5,
+    "score": 0.5
   },
   {
     "name": "fix-InlineChatIntent (eslint) [inline] [typescript] - constructor-super with cookbook",
     "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 1
+    "passCount": 2,
+    "failCount": 8,
+    "score": 0.2
   },
   {
     "name": "fix-InlineChatIntent (eslint) [inline] [typescript] - func-names with cookbook",
@@ -1305,16 +1305,16 @@
   {
     "name": "fix-InlineChatIntent (eslint) [inline] [typescript] - max-lines-per-function with cookbook",
     "contentFilterCount": 0,
-    "passCount": 8,
-    "failCount": 2,
-    "score": 0.8
+    "passCount": 9,
+    "failCount": 1,
+    "score": 0.9
   },
   {
     "name": "fix-InlineChatIntent (eslint) [inline] [typescript] - max-params with cookbook",
     "contentFilterCount": 0,
-    "passCount": 1,
-    "failCount": 9,
-    "score": 0.1
+    "passCount": 6,
+    "failCount": 4,
+    "score": 0.6
   },
   {
     "name": "fix-InlineChatIntent (eslint) [inline] [typescript] - max-statements with cookbook",
@@ -1326,9 +1326,9 @@
   {
     "name": "fix-InlineChatIntent (eslint) [inline] [typescript] - no-case-declarations with cookbook",
     "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 1
+    "passCount": 6,
+    "failCount": 4,
+    "score": 0.6
   },
   {
     "name": "fix-InlineChatIntent (eslint) [inline] [typescript] - no-dupe-else-if with cookbook",
@@ -1340,9 +1340,9 @@
   {
     "name": "fix-InlineChatIntent (eslint) [inline] [typescript] - no-duplicate-case with cookbook",
     "contentFilterCount": 0,
-    "passCount": 9,
-    "failCount": 1,
-    "score": 0.9
+    "passCount": 4,
+    "failCount": 6,
+    "score": 0.4
   },
   {
     "name": "fix-InlineChatIntent (eslint) [inline] [typescript] - no-duplicate-imports with cookbook",
@@ -1354,16 +1354,16 @@
   {
     "name": "fix-InlineChatIntent (eslint) [inline] [typescript] - no-fallthrough with cookbook",
     "contentFilterCount": 0,
-    "passCount": 9,
-    "failCount": 1,
-    "score": 0.9
+    "passCount": 6,
+    "failCount": 4,
+    "score": 0.6
   },
   {
     "name": "fix-InlineChatIntent (eslint) [inline] [typescript] - no-inner-declarations with cookbook",
     "contentFilterCount": 0,
-    "passCount": 5,
-    "failCount": 5,
-    "score": 0.5
+    "passCount": 2,
+    "failCount": 8,
+    "score": 0.2
   },
   {
     "name": "fix-InlineChatIntent (eslint) [inline] [typescript] - no-multi-assign with cookbook",
@@ -1375,9 +1375,9 @@
   {
     "name": "fix-InlineChatIntent (eslint) [inline] [typescript] - no-negated-condition 2 with cookbook",
     "contentFilterCount": 0,
-    "passCount": 8,
-    "failCount": 2,
-    "score": 0.8
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
   },
   {
     "name": "fix-InlineChatIntent (eslint) [inline] [typescript] - no-negated-condition with cookbook",
@@ -1410,16 +1410,16 @@
   {
     "name": "fix-InlineChatIntent (eslint) [inline] [typescript] - no-sparse-arrays 3 with cookbook",
     "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 1
+    "passCount": 9,
+    "failCount": 1,
+    "score": 0.9
   },
   {
     "name": "fix-InlineChatIntent (eslint) [inline] [typescript] - no-sparse-arrays with cookbook",
     "contentFilterCount": 0,
-    "passCount": 9,
-    "failCount": 1,
-    "score": 0.9
+    "passCount": 5,
+    "failCount": 5,
+    "score": 0.5
   },
   {
     "name": "fix-InlineChatIntent (eslint) [inline] [typescript] - require-await with cookbook",
@@ -1431,9 +1431,9 @@
   {
     "name": "fix-InlineChatIntent (eslint) [inline] [typescript] - sort-keys with cookbook",
     "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 1
+    "passCount": 7,
+    "failCount": 3,
+    "score": 0.7
   },
   {
     "name": "fix-InlineChatIntent (eslint) [inline] [typescript] - unexpected token",
@@ -1445,9 +1445,9 @@
   {
     "name": "fix-InlineChatIntent (powershell) [inline] [powershell] - Issue #7894",
     "contentFilterCount": 0,
-    "passCount": 0,
-    "failCount": 10,
-    "score": 0
+    "passCount": 8,
+    "failCount": 2,
+    "score": 0.8
   },
   {
     "name": "fix-InlineChatIntent (pylint) [inline] [python] - line-too-long cookbook 1 function definition with long parameters",
@@ -1459,9 +1459,9 @@
   {
     "name": "fix-InlineChatIntent (pylint) [inline] [python] - line-too-long cookbook 2 long print statememt",
     "contentFilterCount": 0,
-    "passCount": 8,
-    "failCount": 2,
-    "score": 0.8
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
   },
   {
     "name": "fix-InlineChatIntent (pylint) [inline] [python] - line-too-long cookbook 3 long dictionary / list",
@@ -1480,9 +1480,9 @@
   {
     "name": "fix-InlineChatIntent (pylint) [inline] [python] - line-too-long cookbook 5 multi-line docstring",
     "contentFilterCount": 0,
-    "passCount": 7,
-    "failCount": 3,
-    "score": 0.7
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
   },
   {
     "name": "fix-InlineChatIntent (pylint) [inline] [python] - unecessary parenthesis",
@@ -1578,9 +1578,9 @@
   {
     "name": "fix-InlineChatIntent (pyright) [inline] [python] - async cannot be used in a non-async function",
     "contentFilterCount": 0,
-    "passCount": 9,
-    "failCount": 1,
-    "score": 0.9
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
   },
   {
     "name": "fix-InlineChatIntent (pyright) [inline] [python] - await cannot be used in a non-async function",
@@ -1606,23 +1606,23 @@
   {
     "name": "fix-InlineChatIntent (pyright) [inline] [python] - cannot instantiate abstract class",
     "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 1
+    "passCount": 7,
+    "failCount": 3,
+    "score": 0.7
   },
   {
     "name": "fix-InlineChatIntent (pyright) [inline] [python] - general type issue",
     "contentFilterCount": 0,
-    "passCount": 8,
-    "failCount": 2,
-    "score": 0.8
+    "passCount": 9,
+    "failCount": 1,
+    "score": 0.9
   },
   {
     "name": "fix-InlineChatIntent (pyright) [inline] [python] - import missing",
     "contentFilterCount": 0,
-    "passCount": 8,
-    "failCount": 2,
-    "score": 0.8
+    "passCount": 4,
+    "failCount": 6,
+    "score": 0.4
   },
   {
     "name": "fix-InlineChatIntent (pyright) [inline] [python] - optional member access",
@@ -1655,9 +1655,9 @@
   {
     "name": "fix-InlineChatIntent (roslyn) [inline] [csharp] - (AML-10-28) field is never used",
     "contentFilterCount": 0,
-    "passCount": 4,
-    "failCount": 6,
-    "score": 0.4
+    "passCount": 5,
+    "failCount": 5,
+    "score": 0.5
   },
   {
     "name": "fix-InlineChatIntent (roslyn) [inline] [csharp] - (AML-10-57) call is not awaited, execution continues",
@@ -1767,9 +1767,9 @@
   {
     "name": "fix-InlineChatIntent (TSC) [inline] [typescript] - Error 18047 - (AML-10-64) possibly null",
     "contentFilterCount": 0,
-    "passCount": 1,
-    "failCount": 9,
-    "score": 0.1
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
   },
   {
     "name": "fix-InlineChatIntent (TSC) [inline] [typescript] - Error 18047 - (AML-8-1) property does not exist on type window",
@@ -1788,16 +1788,16 @@
   {
     "name": "fix-InlineChatIntent (TSC) [inline] [typescript] - Error 2304 - (AML-10-14) can not find module",
     "contentFilterCount": 0,
-    "passCount": 4,
-    "failCount": 6,
-    "score": 0.4
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
   },
   {
     "name": "fix-InlineChatIntent (TSC) [inline] [typescript] - Error 2304 - (AML-8-125) can not find name",
     "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 1
+    "passCount": 6,
+    "failCount": 4,
+    "score": 0.6
   },
   {
     "name": "fix-InlineChatIntent (TSC) [inline] [typescript] - Error 2304 - (AML-8-125) can not find name 2",
@@ -1886,16 +1886,16 @@
   {
     "name": "fix-InlineChatIntent (TSC) [inline] [typescript] - Error 2420 - incorrect interface implementation",
     "contentFilterCount": 0,
-    "passCount": 5,
-    "failCount": 5,
-    "score": 0.5
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
   },
   {
     "name": "fix-InlineChatIntent (TSC) [inline] [typescript] - Error 2420 - incorrect interface implementation, with related information",
     "contentFilterCount": 0,
-    "passCount": 2,
-    "failCount": 8,
-    "score": 0.2
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
   },
   {
     "name": "fix-InlineChatIntent (TSC) [inline] [typescript] - Error 2454 - variable is used before being assigned",
@@ -1935,9 +1935,9 @@
   {
     "name": "fix-InlineChatIntent (TSC) [inline] [typescript] - Error 7053 - (AML-10-25) expression of type can't be used to index",
     "contentFilterCount": 0,
-    "passCount": 7,
-    "failCount": 3,
-    "score": 0.7
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
   },
   {
     "name": "fix-InlineChatIntent (TSC) [inline] [typescript] - Issue #7300",
@@ -1977,9 +1977,9 @@
   {
     "name": "generate-InlineChatIntent [inline] [cpp] - cpp code generation",
     "contentFilterCount": 0,
-    "passCount": 5,
-    "failCount": 5,
-    "score": 0.5
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
   },
   {
     "name": "generate-InlineChatIntent [inline] [cpp] - templated code generation",
@@ -1991,9 +1991,9 @@
   {
     "name": "generate-InlineChatIntent [inline] [html] - code below cursor is not duplicated",
     "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 1
+    "passCount": 9,
+    "failCount": 1,
+    "score": 0.9
   },
   {
     "name": "generate-InlineChatIntent [inline] [javascript] - Generate a nodejs server",
@@ -2005,9 +2005,9 @@
   {
     "name": "generate-InlineChatIntent [inline] [javascript] - issue #3597: gen twice",
     "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 1
+    "passCount": 8,
+    "failCount": 2,
+    "score": 0.8
   },
   {
     "name": "generate-InlineChatIntent [inline] [javascript] - issue #3782: gen twice",
@@ -2026,9 +2026,9 @@
   {
     "name": "generate-InlineChatIntent [inline] [json] - issue #2589: IllegalArgument: line must be non-negative",
     "contentFilterCount": 0,
-    "passCount": 8,
-    "failCount": 2,
-    "score": 0.8
+    "passCount": 5,
+    "failCount": 5,
+    "score": 0.5
   },
   {
     "name": "generate-InlineChatIntent [inline] [json] - issue #6163",
@@ -2047,9 +2047,9 @@
   {
     "name": "generate-InlineChatIntent [inline] [markdown] - doesn't handle markdown code response",
     "contentFilterCount": 0,
-    "passCount": 7,
-    "failCount": 3,
-    "score": 0.7
+    "passCount": 9,
+    "failCount": 1,
+    "score": 0.9
   },
   {
     "name": "generate-InlineChatIntent [inline] [markdown] - issue #224: Lots of lines deleted when using interactive chat in a markdown file",
@@ -2159,16 +2159,16 @@
   {
     "name": "generate-InlineChatIntent [inline] [typescript] - issue #3778: Incorrect streaming edits",
     "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 1
+    "passCount": 3,
+    "failCount": 7,
+    "score": 0.3
   },
   {
     "name": "generate-InlineChatIntent [inline] [typescript] - issue #4080: Implementing a getter/method duplicates the signature",
     "contentFilterCount": 0,
-    "passCount": 4,
-    "failCount": 6,
-    "score": 0.4
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
   },
   {
     "name": "generate-InlineChatIntent [inline] [typescript] - issue #4179: Imports aren't inserted to the top of the file anymore",
@@ -2194,9 +2194,9 @@
   {
     "name": "generate-InlineChatIntent [inline] [typescript] - issue #6788",
     "contentFilterCount": 0,
-    "passCount": 4,
-    "failCount": 6,
-    "score": 0.4
+    "passCount": 2,
+    "failCount": 8,
+    "score": 0.2
   },
   {
     "name": "generate-InlineChatIntent [inline] [typescript] - issue #7772",
@@ -2208,9 +2208,9 @@
   {
     "name": "generate-InlineChatIntent [inline] [typescript] - issue release#142: Inline chat updates code outside of area I expect",
     "contentFilterCount": 0,
-    "passCount": 9,
-    "failCount": 1,
-    "score": 0.9
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
   },
   {
     "name": "generate-InlineChatIntent [inline] [typescript] - parse keybindings",
@@ -4437,9 +4437,9 @@
   {
     "name": "intent [panel] - [relaxed] [builtin] please help me implement tests for this program",
     "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 1
+    "passCount": 9,
+    "failCount": 1,
+    "score": 0.9
   },
   {
     "name": "intent [panel] - [relaxed] [builtin] powershell json to csv and csv to json example",
@@ -5431,9 +5431,9 @@
   {
     "name": "intent [panel] - [strict] [builtin] please help me implement tests for this program",
     "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 1
+    "passCount": 9,
+    "failCount": 1,
+    "score": 0.9
   },
   {
     "name": "intent [panel] - [strict] [builtin] powershell json to csv and csv to json example",
@@ -5459,9 +5459,9 @@
   {
     "name": "intent [panel] - [strict] [builtin] pyhton calculator",
     "contentFilterCount": 0,
-    "passCount": 0,
-    "failCount": 10,
-    "score": 0
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
   },
   {
     "name": "intent [panel] - [strict] [builtin] remove current changes in branch with git?",
@@ -5767,9 +5767,9 @@
   {
     "name": "multifile-edit [panel] - multiple questions",
     "contentFilterCount": 0,
-    "passCount": 8,
-    "failCount": 2,
-    "score": 0.8
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
   },
   {
     "name": "multifile-edit [panel] - unicode string sequences",
@@ -5802,9 +5802,9 @@
   {
     "name": "multifile-edit [panel] [typescript] - change library used by two files",
     "contentFilterCount": 0,
-    "passCount": 8,
-    "failCount": 2,
-    "score": 0.8
+    "passCount": 1,
+    "failCount": 9,
+    "score": 0.1
   },
   {
     "name": "multifile-edit [panel] [typescript] - does not delete code (big file) #15475",
@@ -5816,9 +5816,9 @@
   {
     "name": "multifile-edit [panel] [typescript] - fs provider: move function from one file to another",
     "contentFilterCount": 0,
-    "passCount": 4,
-    "failCount": 6,
-    "score": 0.4
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
   },
   {
     "name": "multifile-edit [panel] [typescript] - import new helper function",
@@ -5830,110 +5830,12 @@
   {
     "name": "multifile-edit [panel] [typescript] - issue #8098: extract function to unseen file",
     "contentFilterCount": 0,
-    "passCount": 4,
-    "failCount": 6,
-    "score": 0.4
+    "passCount": 2,
+    "failCount": 8,
+    "score": 0.2
   },
   {
     "name": "multifile-edit [panel] [typescript] - Issue #9647",
-    "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 1
-  },
-  {
-    "name": "multifile-edit-claude [panel] - create a README from two other files - (claude-3.5-sonnet)",
-    "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 1
-  },
-  {
-    "name": "multifile-edit-claude [panel] - issue #8131: properly using dotenv in this file - (claude-3.5-sonnet)",
-    "contentFilterCount": 0,
-    "passCount": 0,
-    "failCount": 10,
-    "score": 0
-  },
-  {
-    "name": "multifile-edit-claude [panel] - multiple edits on the same file - (claude-3.5-sonnet)",
-    "contentFilterCount": 0,
-    "passCount": 0,
-    "failCount": 10,
-    "score": 0
-  },
-  {
-    "name": "multifile-edit-claude [panel] - multiple questions - (claude-3.5-sonnet)",
-    "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 1
-  },
-  {
-    "name": "multifile-edit-claude [panel] - unicode string sequences - (claude-3.5-sonnet)",
-    "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 1
-  },
-  {
-    "name": "multifile-edit-claude [panel] - work with untitled files - (claude-3.5-sonnet)",
-    "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 1
-  },
-  {
-    "name": "multifile-edit-claude [panel] [typescript] - add a command and dependency to a VS Code extension - (claude-3.5-sonnet)",
-    "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 1
-  },
-  {
-    "name": "multifile-edit-claude [panel] [typescript] - add validation logic to three files - (claude-3.5-sonnet)",
-    "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 1
-  },
-  {
-    "name": "multifile-edit-claude [panel] [typescript] - change library used by two files - (claude-3.5-sonnet)",
-    "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 1
-  },
-  {
-    "name": "multifile-edit-claude [panel] [typescript] - does not delete code (big file) #15475",
-    "contentFilterCount": 0,
-    "passCount": 0,
-    "failCount": 10,
-    "score": 0
-  },
-  {
-    "name": "multifile-edit-claude [panel] [typescript] - fs provider: move function from one file to another - (claude-3.5-sonnet)",
-    "contentFilterCount": 0,
-    "passCount": 8,
-    "failCount": 2,
-    "score": 0.8
-  },
-  {
-    "name": "multifile-edit-claude [panel] [typescript] - import new helper function - (claude-3.5-sonnet)",
-    "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 1
-  },
-  {
-    "name": "multifile-edit-claude [panel] [typescript] - issue #8098: extract function to unseen file - (claude-3.5-sonnet)",
-    "contentFilterCount": 0,
-    "passCount": 3,
-    "failCount": 7,
-    "score": 0.3
-  },
-  {
-    "name": "multifile-edit-claude [panel] [typescript] - Issue #9647 - (claude-3.5-sonnet)",
     "contentFilterCount": 0,
     "passCount": 10,
     "failCount": 0,
@@ -5991,9 +5893,9 @@
   {
     "name": "newNotebook (prompt) [panel] [python] - generate code cell",
     "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 1
+    "passCount": 9,
+    "failCount": 1,
+    "score": 0.9
   },
   {
     "name": "newNotebook (prompt) [panel] [python] - Generate code cell (numpy)",
@@ -6005,9 +5907,9 @@
   {
     "name": "newNotebook (prompt) [panel] [python] - Generate code cell (seaborn + pandas)",
     "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 1
+    "passCount": 9,
+    "failCount": 1,
+    "score": 0.9
   },
   {
     "name": "notebook (edit) [inline] [python] - /fix notebook exection ImportError",
@@ -6103,9 +6005,9 @@
   {
     "name": "notebook (fix runtime) [inline] [python] - /fix numpy, unsupported operand types",
     "contentFilterCount": 0,
-    "passCount": 0,
-    "failCount": 10,
-    "score": 0
+    "passCount": 1,
+    "failCount": 9,
+    "score": 0.1
   },
   {
     "name": "notebook (fix runtime) [inline] [python] - /fix Tensorflow InvalidArgumentError",
@@ -6131,9 +6033,9 @@
   {
     "name": "notebook (fix runtime) [inline] [python] - /fix TypeError: Index does not support mutable operations",
     "contentFilterCount": 0,
-    "passCount": 9,
-    "failCount": 1,
-    "score": 0.9
+    "passCount": 8,
+    "failCount": 2,
+    "score": 0.8
   },
   {
     "name": "notebook (fix runtime) [inline] [python] - /fix TypeError: str object is not an iterator",
@@ -6229,9 +6131,9 @@
   {
     "name": "notebook (fix) [inline] [python] - await cannot be used in a non-async function",
     "contentFilterCount": 0,
-    "passCount": 8,
-    "failCount": 2,
-    "score": 0.8
+    "passCount": 7,
+    "failCount": 3,
+    "score": 0.7
   },
   {
     "name": "notebook (fix) [inline] [python] - bad token",
@@ -6257,9 +6159,9 @@
   {
     "name": "notebook (fix) [inline] [python] - general type issue",
     "contentFilterCount": 0,
-    "passCount": 9,
-    "failCount": 1,
-    "score": 0.9
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
   },
   {
     "name": "notebook (fix) [inline] [python] - optional member access",
@@ -7373,9 +7275,9 @@
   {
     "name": "notebookEdits (modification - json) [panel] [python] - code cell modification, convert Point2D code to Point3D",
     "contentFilterCount": 0,
-    "passCount": 8,
-    "failCount": 2,
-    "score": 0.8
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
   },
   {
     "name": "notebookEdits (modification - json) [panel] [python] - code cell modification, plotting",
@@ -7401,9 +7303,9 @@
   {
     "name": "notebookEdits (modification - json) [panel] [python] - Insert markdown cells explaining code",
     "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 1
+    "passCount": 8,
+    "failCount": 2,
+    "score": 0.8
   },
   {
     "name": "notebookEdits (modification - json) [panel] [python] - new code cells in empty notebook",
@@ -7520,16 +7422,16 @@
   {
     "name": "notebookEdits (modification - text) [panel] [python] - notebook code cell deletion",
     "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 1
+    "passCount": 9,
+    "failCount": 1,
+    "score": 0.9
   },
   {
     "name": "notebookEdits (modification - text) [panel] [python] - re-organize python imports to top of the notebook",
     "contentFilterCount": 0,
-    "passCount": 4,
-    "failCount": 6,
-    "score": 0.4
+    "passCount": 2,
+    "failCount": 8,
+    "score": 0.2
   },
   {
     "name": "notebookEdits (modification - xml) [panel] [julia] - new julia code cells in empty notebook",
@@ -7856,9 +7758,9 @@
   {
     "name": "search [panel] - find all markdown headings",
     "contentFilterCount": 0,
-    "passCount": 5,
-    "failCount": 5,
-    "score": 0.5
+    "passCount": 0,
+    "failCount": 10,
+    "score": 0
   },
   {
     "name": "search [panel] - generate typescript constructor",
@@ -7884,9 +7786,9 @@
   {
     "name": "search [panel] - html comments ",
     "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 1
+    "passCount": 9,
+    "failCount": 1,
+    "score": 0.9
   },
   {
     "name": "search [panel] - HTML Tags except <p> </p> ",
@@ -8012,21 +7914,21 @@
     "contentFilterCount": 0,
     "passCount": 10,
     "failCount": 0,
-    "score": 0.7666999999999999
+    "score": 0.7
   },
   {
     "name": "setupTests - invoke [panel] - nodeApp",
     "contentFilterCount": 0,
     "passCount": 10,
     "failCount": 0,
-    "score": 1
+    "score": 0.7666999999999999
   },
   {
     "name": "setupTests - invoke [panel] - nodeExpressApp",
     "contentFilterCount": 0,
     "passCount": 10,
     "failCount": 0,
-    "score": 1
+    "score": 0.7333000000000001
   },
   {
     "name": "setupTests - invoke [panel] - phpLaravelApp",
@@ -8047,7 +7949,7 @@
     "contentFilterCount": 0,
     "passCount": 10,
     "failCount": 0,
-    "score": 0.7
+    "score": 0.7333000000000001
   },
   {
     "name": "setupTests - recommend [panel] - dotnetCoreApp",
@@ -8346,16 +8248,16 @@
   {
     "name": "terminal (general) [panel] [bash] - kill process using port",
     "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 1
+    "passCount": 8,
+    "failCount": 2,
+    "score": 0.8
   },
   {
     "name": "terminal (general) [panel] [bash] - kill process using port (strict)",
     "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 1
+    "passCount": 8,
+    "failCount": 2,
+    "score": 0.8
   },
   {
     "name": "terminal (general) [panel] [bash] - kill the process using port 8123",
@@ -8724,16 +8626,16 @@
   {
     "name": "terminal (general) [panel] [fish] - make a directory",
     "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 1
+    "passCount": 9,
+    "failCount": 1,
+    "score": 0.9
   },
   {
     "name": "terminal (general) [panel] [fish] - make a directory (strict)",
     "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 1
+    "passCount": 9,
+    "failCount": 1,
+    "score": 0.9
   },
   {
     "name": "terminal (general) [panel] [fish] - make a directory called foo",
@@ -8864,16 +8766,16 @@
   {
     "name": "terminal (general) [panel] [powershell] - delete the foo/ dir",
     "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 1
+    "passCount": 9,
+    "failCount": 1,
+    "score": 0.9
   },
   {
     "name": "terminal (general) [panel] [powershell] - delete the foo/ dir (strict)",
     "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 1
+    "passCount": 9,
+    "failCount": 1,
+    "score": 0.9
   },
   {
     "name": "terminal (general) [panel] [powershell] - extract a tar file",
@@ -8892,23 +8794,23 @@
   {
     "name": "terminal (general) [panel] [powershell] - extract a zip file",
     "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 1
+    "passCount": 0,
+    "failCount": 10,
+    "score": 0
   },
   {
     "name": "terminal (general) [panel] [powershell] - extract a zip file (strict)",
     "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 1
+    "passCount": 0,
+    "failCount": 10,
+    "score": 0
   },
   {
     "name": "terminal (general) [panel] [powershell] - extract foo.tar",
     "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 1
+    "passCount": 9,
+    "failCount": 1,
+    "score": 0.9
   },
   {
     "name": "terminal (general) [panel] [powershell] - extract foo.tar (strict)",
@@ -8934,16 +8836,16 @@
   {
     "name": "terminal (general) [panel] [powershell] - extract foo.zip",
     "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 1
+    "passCount": 9,
+    "failCount": 1,
+    "score": 0.9
   },
   {
     "name": "terminal (general) [panel] [powershell] - extract foo.zip (strict)",
     "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 1
+    "passCount": 9,
+    "failCount": 1,
+    "score": 0.9
   },
   {
     "name": "terminal (general) [panel] [powershell] - go to the foo dir",
@@ -9018,16 +8920,16 @@
   {
     "name": "terminal (general) [panel] [powershell] - kill the visual studio code process",
     "contentFilterCount": 0,
-    "passCount": 7,
-    "failCount": 3,
-    "score": 0.7
+    "passCount": 1,
+    "failCount": 9,
+    "score": 0.1
   },
   {
     "name": "terminal (general) [panel] [powershell] - kill the visual studio code process (strict)",
     "contentFilterCount": 0,
-    "passCount": 7,
-    "failCount": 3,
-    "score": 0.7
+    "passCount": 1,
+    "failCount": 9,
+    "score": 0.1
   },
   {
     "name": "terminal (general) [panel] [powershell] - list files in directory",
@@ -9312,30 +9214,30 @@
   {
     "name": "terminal (general) [panel] [zsh] - kill process using port",
     "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 1
+    "passCount": 6,
+    "failCount": 4,
+    "score": 0.6
   },
   {
     "name": "terminal (general) [panel] [zsh] - kill process using port (strict)",
     "contentFilterCount": 0,
+    "passCount": 6,
+    "failCount": 4,
+    "score": 0.6
+  },
+  {
+    "name": "terminal (general) [panel] [zsh] - kill the process using port 8123",
+    "contentFilterCount": 0,
     "passCount": 10,
     "failCount": 0,
     "score": 1
   },
   {
-    "name": "terminal (general) [panel] [zsh] - kill the process using port 8123",
-    "contentFilterCount": 0,
-    "passCount": 2,
-    "failCount": 8,
-    "score": 0.2
-  },
-  {
     "name": "terminal (general) [panel] [zsh] - kill the process using port 8123 (strict)",
     "contentFilterCount": 0,
-    "passCount": 2,
-    "failCount": 8,
-    "score": 0.2
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
   },
   {
     "name": "terminal (general) [panel] [zsh] - kill the visual studio code process",
@@ -9683,9 +9585,9 @@
   {
     "name": "terminal (git) [panel] [fish] - list all git commits by Daniel (strict)",
     "contentFilterCount": 0,
-    "passCount": 7,
-    "failCount": 3,
-    "score": 0.7
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
   },
   {
     "name": "terminal (git) [panel] [fish] - merge the branch foo into this branch",
@@ -9711,9 +9613,9 @@
   {
     "name": "terminal (git) [panel] [fish] - show last git commit details (strict)",
     "contentFilterCount": 0,
-    "passCount": 1,
-    "failCount": 9,
-    "score": 0.1
+    "passCount": 0,
+    "failCount": 10,
+    "score": 0
   },
   {
     "name": "terminal (git) [panel] [powershell] - add a git remote",
@@ -9774,16 +9676,16 @@
   {
     "name": "terminal (git) [panel] [powershell] - delete the foo branch",
     "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 1
+    "passCount": 9,
+    "failCount": 1,
+    "score": 0.9
   },
   {
     "name": "terminal (git) [panel] [powershell] - delete the foo branch (strict)",
     "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 1
+    "passCount": 9,
+    "failCount": 1,
+    "score": 0.9
   },
   {
     "name": "terminal (git) [panel] [powershell] - enable colors in the git cli",
@@ -9809,9 +9711,9 @@
   {
     "name": "terminal (git) [panel] [powershell] - list all git commits by Daniel (strict)",
     "contentFilterCount": 0,
-    "passCount": 2,
-    "failCount": 8,
-    "score": 0.2
+    "passCount": 7,
+    "failCount": 3,
+    "score": 0.7
   },
   {
     "name": "terminal (git) [panel] [powershell] - merge the branch foo into this branch",
@@ -9837,9 +9739,9 @@
   {
     "name": "terminal (git) [panel] [powershell] - show last git commit details (strict)",
     "contentFilterCount": 0,
-    "passCount": 8,
-    "failCount": 2,
-    "score": 0.8
+    "passCount": 0,
+    "failCount": 10,
+    "score": 0
   },
   {
     "name": "terminal (git) [panel] [zsh] - add a git remote",
@@ -9928,16 +9830,16 @@
   {
     "name": "terminal (git) [panel] [zsh] - list all git commits by Daniel",
     "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 1
+    "passCount": 9,
+    "failCount": 1,
+    "score": 0.9
   },
   {
     "name": "terminal (git) [panel] [zsh] - list all git commits by Daniel (strict)",
     "contentFilterCount": 0,
-    "passCount": 10,
-    "failCount": 0,
-    "score": 1
+    "passCount": 9,
+    "failCount": 1,
+    "score": 0.9
   },
   {
     "name": "terminal (git) [panel] [zsh] - merge the branch foo into this branch",
