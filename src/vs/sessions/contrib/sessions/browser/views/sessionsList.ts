@@ -641,7 +641,7 @@ class SessionShowMoreRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 		container?.classList.toggle('session-show-more-folders', element.kind === 'folders');
 		if (element.mode === 'less') {
 			template.textContent = element.kind === 'folders'
-				? localize('showLessWorkspacesCompact', "Show less workspaces")
+				? localize('showLessWorkspacesCompact', "Show fewer workspaces")
 				: localize('showLessCompact', "Show less");
 		} else {
 			template.textContent = element.kind === 'folders'
@@ -667,8 +667,8 @@ class SessionsAccessibilityProvider {
 		if (isSessionShowMore(element)) {
 			if (element.mode === 'less') {
 				return element.kind === 'folders'
-					? localize('showLessWorkspacesAria', "Show less workspaces")
-					: localize('showLessAria', "Show less sessions");
+					? localize('showLessWorkspacesAria', "Show fewer workspaces")
+					: localize('showLessAria', "Show fewer sessions");
 			}
 			return element.kind === 'folders'
 				? localize('showMoreWorkspacesAria', "Show {0} more workspaces", element.remainingCount)
@@ -1016,8 +1016,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const hasTodaySessions = sections.some(s => s.id === 'today' && s.sessions.length > 0);
 
 		// Partition workspace sections into "primary" (meets criteria) and "more"
-		// when grouping by workspace. Find widget bypasses partitioning.
-		const partitionFolders = grouping === SessionsGrouping.Workspace && !this.findOpen;
+		// when grouping by workspace. Find widget bypasses partitioning. When the
+		// user has chosen "Show All Sessions" (uncapped), show every workspace
+		// group inline instead of hiding some behind a "more workspaces" entry.
+		const partitionFolders = grouping === SessionsGrouping.Workspace && !this.findOpen && this.workspaceGroupCapped;
 		const moreFolderSectionIds = new Set<string>();
 		if (partitionFolders) {
 			const workspaceSections = sections.filter(s => s.id.startsWith('workspace:'));
