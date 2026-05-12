@@ -5,13 +5,14 @@
 
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { DeferredPromise } from '../../../base/common/async.js';
+import { Emitter, Event } from '../../../base/common/event.js';
 import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
 import { IAddress, IAddressProvider, IConnectionOptions, connectRemoteAgentTunnel } from '../../remote/common/remoteAgentConnection.js';
 import { IRemoteSocketFactoryService } from '../../remote/common/remoteSocketFactoryService.js';
 import { ISignService } from '../../sign/common/sign.js';
 import { ISharedProcessTunnelProxyService, ITunnelProxyInfo } from '../common/sharedProcessTunnelProxyService.js';
-import { TunnelProxy } from './tunnelProxy.js';
+import { SocksProxy } from './socksProxy.js';
 
 class AddressProvider implements IAddressProvider {
 	private _address: IAddress | null = null;
@@ -37,8 +38,9 @@ class AddressProvider implements IAddressProvider {
 }
 
 class ProxyEntry {
+	constructor(readonly authority: string) { }
 	readonly addressProvider = new AddressProvider();
-	proxy: TunnelProxy | undefined;
+	proxy: SocksProxy | undefined;
 	startPromise: Promise<ITunnelProxyInfo> | undefined;
 	refCount = 0;
 }
@@ -47,6 +49,8 @@ export class SharedProcessTunnelProxyService extends Disposable implements IShar
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _entries = new Map<string, ProxyEntry>();
+	private readonly _onDidChangeActiveConnections = this._register(new Emitter<string>());
+	readonly onDidChangeActiveConnections: Event<string> = this._onDidChangeActiveConnections.event;
 
 	constructor(
 		@IRemoteSocketFactoryService private readonly _remoteSocketFactoryService: IRemoteSocketFactoryService,
@@ -68,7 +72,7 @@ export class SharedProcessTunnelProxyService extends Disposable implements IShar
 	async start(authority: string): Promise<ITunnelProxyInfo> {
 		let entry = this._entries.get(authority);
 		if (!entry) {
-			entry = new ProxyEntry();
+			entry = new ProxyEntry(authority);
 			this._entries.set(authority, entry);
 		}
 
@@ -103,18 +107,40 @@ export class SharedProcessTunnelProxyService extends Disposable implements IShar
 			ipcLogger: null,
 		};
 
-		const proxy = new TunnelProxy(
+		const proxy = new SocksProxy(
 			(host, port) => connectRemoteAgentTunnel(options, host, port),
 			this._logService,
 		);
-		const result = await proxy.start();
+		const localPort = await proxy.start();
 		entry.proxy = proxy;
 
-		return result;
+		// Forward active connection changes so consumers can poll the state
+		proxy.onDidChangeActiveConnections(() => {
+			this._onDidChangeActiveConnections.fire(entry.authority);
+		});
+
+		return {
+			proxyRules: `socks5://127.0.0.1:${localPort}`,
+			port: localPort,
+		};
 	}
 
 	async setAddress(authority: string, address: IAddress): Promise<void> {
 		this._entries.get(authority)?.addressProvider.setAddress(address);
+	}
+
+	async updateAllowlist(authority: string, destinations: ReadonlyArray<{ host: string; port: number }>): Promise<void> {
+		this._entries.get(authority)?.proxy?.updateAllowlist(destinations);
+	}
+
+	async getActiveTunneledHosts(authority: string): Promise<string[]> {
+		const proxy = this._entries.get(authority)?.proxy;
+		return proxy ? [...proxy.activeTunneledHosts] : [];
+	}
+
+	async getActiveDirectHosts(authority: string): Promise<string[]> {
+		const proxy = this._entries.get(authority)?.proxy;
+		return proxy ? [...proxy.activeDirectHosts] : [];
 	}
 
 	async stop(authority: string): Promise<void> {

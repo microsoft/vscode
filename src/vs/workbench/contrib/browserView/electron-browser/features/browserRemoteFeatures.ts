@@ -14,16 +14,29 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { workbenchConfigurationNodeBase } from '../../../../common/configuration.js';
+import { addressMatchesSet } from '../../../../../platform/tunnel/common/tunnel.js';
+import { ISharedProcessTunnelProxyService } from '../../../../../platform/tunnel/common/sharedProcessTunnelProxyService.js';
+import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
+
+/**
+ * Remote proxy routing state for the indicator.
+ * - `none`  — no requests were tunneled (grey)
+ * - `partial` — some requests tunneled, some direct (yellow)
+ * - `full` — all requests were tunneled (blue)
+ */
+type RemoteRoutingState = 'none' | 'partial' | 'full';
 
 class BrowserRemoteIndicatorContribution extends BrowserEditorContribution {
 	private readonly _container: HTMLElement;
 
-	private _isRemoteConnected = false;
+	private _routingState: RemoteRoutingState = 'none';
 
 	constructor(
 		editor: BrowserEditor,
 		@IHoverService hoverService: IHoverService,
 		@IBrowserViewWorkbenchService private readonly browserViewWorkbenchService: IBrowserViewWorkbenchService,
+		@ISharedProcessTunnelProxyService private readonly tunnelProxyService: ISharedProcessTunnelProxyService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 	) {
 		super(editor);
 
@@ -35,13 +48,15 @@ class BrowserRemoteIndicatorContribution extends BrowserEditorContribution {
 		this._register(hoverService.setupDelayedHover(
 			this._container,
 			() => ({
-				content: this._isRemoteConnected
-					? localize('browser.remoteSession', "Connected via remote")
-					: localize('browser.remoteSessionDisconnected', "Connected locally"),
+				content: this._routingState === 'full'
+					? localize('browser.remoteRoutingFull', "Connected via remote")
+					: this._routingState === 'partial'
+						? localize('browser.remoteRoutingPartial', "Partially connected via remote")
+						: localize('browser.remoteRoutingNone', "Connected locally"),
 			})
 		));
 
-		this.setRemoteConnected(false);
+		this._setRoutingState('none');
 	}
 
 	override get preUrlWidgets(): readonly IBrowserEditorWidgetContribution[] {
@@ -49,24 +64,74 @@ class BrowserRemoteIndicatorContribution extends BrowserEditorContribution {
 	}
 
 	protected override subscribeToModel(model: IBrowserViewModel, store: DisposableStore): void {
-		this.setRemoteConnected(model.isRemoteSession && !model.url.startsWith('file://'));
-		if (model.isRemoteSession) {
-			store.add(model.onDidNavigate((event) => {
-				this.setRemoteConnected(!event.url.startsWith('file://'));
-			}));
+		if (!model.isRemoteSession) {
+			this._setRoutingState('none');
+			return;
 		}
+
+		// Compute initial state
+		void this._updateRoutingState(model.requestedHosts);
+
+		// Update when requested hosts change (new sub-resource loaded)
+		store.add(model.onDidChangeRequestedHosts(({ requestedHosts }) => {
+			void this._updateRoutingState(requestedHosts);
+		}));
+
+		// Update when the proxy's active connections change (connection
+		// opened or closed) — this is the authoritative routing state.
+		store.add(this.tunnelProxyService.onDidChangeActiveConnections(() => {
+			void this._updateRoutingState(model.requestedHosts);
+		}));
 	}
 
 	override clear(): void {
-		this.setRemoteConnected(false);
+		this._setRoutingState('none');
 	}
 
-	private setRemoteConnected(isConnected: boolean): void {
-		this._isRemoteConnected = isConnected;
-		this._container.classList.toggle('connected', isConnected);
+	private async _updateRoutingState(requestedHosts: string[]): Promise<void> {
+		if (requestedHosts.length === 0) {
+			this._setRoutingState('none');
+			return;
+		}
 
-		// Always display the icon in remote workspaces -- just update the state based on whether we're actually serving via remote.
-		this._container.style.display = isConnected || this.browserViewWorkbenchService.willUseRemoteProxy() ? '' : 'none';
+		const authority = this.environmentService.remoteAuthority;
+		if (!authority) {
+			this._setRoutingState('none');
+			return;
+		}
+
+		// Query the proxy for the authoritative set of hosts it currently
+		// has active tunneled connections for.
+		const tunneledList = await this.tunnelProxyService.getActiveTunneledHosts(authority);
+		const tunneledSet = new Set(tunneledList);
+
+		// Use the same addressMatchesSet helper as the SOCKS proxy
+		// so localhost/all-interfaces variants are treated as equivalent.
+		let tunneled = 0;
+		for (const hostPort of requestedHosts) {
+			const [host, portStr] = hostPort.split(':');
+			const port = parseInt(portStr, 10);
+			if (host && !isNaN(port) && addressMatchesSet(host, port, tunneledSet)) {
+				tunneled++;
+			}
+		}
+
+		if (tunneled === 0) {
+			this._setRoutingState('none');
+		} else if (tunneled === requestedHosts.length) {
+			this._setRoutingState('full');
+		} else {
+			this._setRoutingState('partial');
+		}
+	}
+
+	private _setRoutingState(state: RemoteRoutingState): void {
+		this._routingState = state;
+		this._container.classList.toggle('connected', state === 'full');
+		this._container.classList.toggle('partial', state === 'partial');
+
+		// Show the indicator in remote workspaces; hide in local
+		this._container.style.display = this.browserViewWorkbenchService.willUseRemoteProxy() ? '' : 'none';
 	}
 }
 
