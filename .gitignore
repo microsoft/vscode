@@ -29,6 +29,7 @@ test-output.json
 test/componentFixtures/.screenshots/*
 !test/componentFixtures/.screenshots/baseline/
 dist
+dist-test
 
 # Son of Anton — local environment
 .env

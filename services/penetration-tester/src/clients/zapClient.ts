@@ -7,6 +7,36 @@ import http from 'node:http';
 import { PenTestConfig } from '../types';
 
 /**
+ * Coerce an unknown value to a string, falling back to an empty string for
+ * anything that isn't already a string or number. Used to defang the
+ * dynamic shape of ZAP's JSON responses before we feed it into typed APIs.
+ */
+function asString(value: unknown): string {
+	if (typeof value === 'string') {
+		return value;
+	}
+	if (typeof value === 'number' || typeof value === 'boolean') {
+		return String(value);
+	}
+	return '';
+}
+
+/**
+ * Coerce an unknown value to a base-10 integer. Returns `fallback` if the
+ * value isn't a finite number after parsing.
+ */
+function asInt(value: unknown, fallback = 0): number {
+	if (typeof value === 'number' && Number.isFinite(value)) {
+		return Math.trunc(value);
+	}
+	if (typeof value === 'string') {
+		const parsed = parseInt(value, 10);
+		return Number.isFinite(parsed) ? parsed : fallback;
+	}
+	return fallback;
+}
+
+/**
  * Client for communicating with the OWASP ZAP daemon API.
  * All scan operations are routed through this client.
  */
@@ -39,7 +69,7 @@ export class ZapClient {
 			maxChildren: '10',
 			recurse: 'true',
 		});
-		return result?.scan ?? '';
+		return asString(result?.scan);
 	}
 
 	/**
@@ -52,7 +82,7 @@ export class ZapClient {
 			recurse: 'true',
 			inScopeOnly: 'true',
 		});
-		return result?.scan ?? '';
+		return asString(result?.scan);
 	}
 
 	/**
@@ -63,7 +93,7 @@ export class ZapClient {
 		const result = await this.apiGet('/JSON/ascan/view/status/', {
 			scanId,
 		});
-		return parseInt(result?.status ?? '0', 10);
+		return asInt(result?.status, 0);
 	}
 
 	/**
@@ -74,11 +104,15 @@ export class ZapClient {
 		const result = await this.apiGet('/JSON/spider/view/status/', {
 			scanId,
 		});
-		return parseInt(result?.status ?? '0', 10);
+		return asInt(result?.status, 0);
 	}
 
 	/**
 	 * Retrieve all alerts (findings) from ZAP.
+	 *
+	 * ZAP's JSON shape is documented but loosely typed at runtime — we coerce
+	 * every field via `asString` / `asInt` so a malformed payload can't crash
+	 * downstream consumers. Items that aren't object-shaped are skipped.
 	 */
 	async getAlerts(targetUrl: string): Promise<ZapAlert[]> {
 		const result = await this.apiGet('/JSON/alert/view/alerts/', {
@@ -87,27 +121,36 @@ export class ZapClient {
 			count: '500',
 		});
 
-		if (!result?.alerts || !Array.isArray(result.alerts)) {
+		const rawAlerts = result?.alerts;
+		if (!Array.isArray(rawAlerts)) {
 			return [];
 		}
 
-		return result.alerts.map((alert: Record<string, string>) => ({
-			pluginId: alert.pluginId ?? '',
-			alertRef: alert.alertRef ?? '',
-			name: alert.name ?? '',
-			riskCode: parseInt(alert.riskcode ?? '0', 10),
-			confidence: parseInt(alert.confidence ?? '0', 10),
-			riskDesc: alert.riskdesc ?? '',
-			description: alert.description ?? '',
-			solution: alert.solution ?? '',
-			url: alert.url ?? '',
-			method: alert.method ?? '',
-			param: alert.param ?? '',
-			attack: alert.attack ?? '',
-			evidence: alert.evidence ?? '',
-			cweid: alert.cweid ?? '',
-			wascid: alert.wascid ?? '',
-		}));
+		const alerts: ZapAlert[] = [];
+		for (const raw of rawAlerts) {
+			if (raw === null || typeof raw !== 'object') {
+				continue;
+			}
+			const alert = raw as Record<string, unknown>;
+			alerts.push({
+				pluginId: asString(alert.pluginId),
+				alertRef: asString(alert.alertRef),
+				name: asString(alert.name),
+				riskCode: asInt(alert.riskcode, 0),
+				confidence: asInt(alert.confidence, 0),
+				riskDesc: asString(alert.riskdesc),
+				description: asString(alert.description),
+				solution: asString(alert.solution),
+				url: asString(alert.url),
+				method: asString(alert.method),
+				param: asString(alert.param),
+				attack: asString(alert.attack),
+				evidence: asString(alert.evidence),
+				cweid: asString(alert.cweid),
+				wascid: asString(alert.wascid),
+			});
+		}
+		return alerts;
 	}
 
 	/**

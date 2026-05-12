@@ -7,7 +7,7 @@
 		"build": "tsc",
 		"start": "node dist/index.js",
 		"dev": "tsc --watch & nodemon dist/index.js",
-		"test": "node --test test/**/*.test.js",
+		"test": "tsc -p tsconfig.test.json && node --test dist-test/test/**/*.test.js",
 		"lint": "eslint src/**/*.ts"
 	},
 	"dependencies": {},

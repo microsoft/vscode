@@ -144,7 +144,7 @@ export class PenTestServer {
 	 */
 	private async handleFullScan(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
 		const body = await this.readBody(req);
-		const targetUrl = body.targetUrl ?? this.config.targetBaseUrl;
+		const targetUrl = this.getStringField(body, 'targetUrl', this.config.targetBaseUrl);
 
 		if (!validateTargetUrl(targetUrl)) {
 			this.sendJson(res, 400, { error: 'Target URL must be localhost' });
@@ -167,8 +167,8 @@ export class PenTestServer {
 	 */
 	private async handleEndpointScan(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
 		const body = await this.readBody(req);
-		const targetUrl = body.targetUrl ?? this.config.targetBaseUrl;
-		const endpointPath = body.endpoint;
+		const targetUrl = this.getStringField(body, 'targetUrl', this.config.targetBaseUrl);
+		const endpointPath = this.getStringField(body, 'endpoint');
 
 		if (!endpointPath) {
 			this.sendJson(res, 400, { error: 'Missing endpoint parameter' });
@@ -195,13 +195,17 @@ export class PenTestServer {
 	 */
 	private async handleOwaspScan(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
 		const body = await this.readBody(req);
-		const targetUrl = body.targetUrl ?? this.config.targetBaseUrl;
-		const category = body.category as OwaspCategory;
+		const targetUrl = this.getStringField(body, 'targetUrl', this.config.targetBaseUrl);
+		const categoryRaw = this.getStringField(body, 'category');
 
-		if (!category) {
+		if (!categoryRaw) {
 			this.sendJson(res, 400, { error: 'Missing category parameter' });
 			return;
 		}
+
+		// Cast only after we've confirmed the field is a non-empty string.
+		// `coordinator.createCategoryPlan` enforces the actual category set.
+		const category = categoryRaw as OwaspCategory;
 
 		if (!validateTargetUrl(targetUrl)) {
 			this.sendJson(res, 400, { error: 'Target URL must be localhost' });
@@ -223,7 +227,7 @@ export class PenTestServer {
 	 */
 	private async handleBaselineScan(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
 		const body = await this.readBody(req);
-		const targetUrl = body.targetUrl ?? this.config.targetBaseUrl;
+		const targetUrl = this.getStringField(body, 'targetUrl', this.config.targetBaseUrl);
 
 		if (!validateTargetUrl(targetUrl)) {
 			this.sendJson(res, 400, { error: 'Target URL must be localhost' });
@@ -395,19 +399,48 @@ export class PenTestServer {
 
 	// --- Utilities ---
 
+	/**
+	 * Read and parse a JSON request body, returning a plain object.
+	 *
+	 * Anything that isn't a JSON object at the top level (arrays, strings,
+	 * numbers, malformed JSON) is normalised to an empty object so that the
+	 * scan handlers never have to defend against `body.foo` blowing up on a
+	 * non-object value.
+	 */
 	private async readBody(req: http.IncomingMessage): Promise<Record<string, unknown>> {
 		return new Promise((resolve, reject) => {
 			let data = '';
 			req.on('data', chunk => { data += chunk; });
 			req.on('end', () => {
+				if (!data) {
+					resolve({});
+					return;
+				}
 				try {
-					resolve(data ? JSON.parse(data) : {});
+					const parsed = JSON.parse(data);
+					if (parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)) {
+						resolve(parsed as Record<string, unknown>);
+					} else {
+						// Reject malformed payloads (arrays, primitives) by returning an empty
+						// object — the handler will fall back to its defaults / 400 path.
+						resolve({});
+					}
 				} catch {
 					resolve({});
 				}
 			});
 			req.on('error', reject);
 		});
+	}
+
+	/**
+	 * Extract a string field from a request body, returning a default if it is
+	 * missing or not a string. Use this instead of casting directly so we never
+	 * pass `unknown` into string APIs (validateTargetUrl, URL parsing, etc.).
+	 */
+	private getStringField(body: Record<string, unknown>, key: string, fallback = ''): string {
+		const value = body[key];
+		return typeof value === 'string' ? value : fallback;
 	}
 
 	private sendJson(res: http.ServerResponse, statusCode: number, body: unknown): void {
