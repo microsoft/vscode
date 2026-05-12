@@ -135,7 +135,7 @@ export class ChangesViewModel extends Disposable {
 
 		this.activeSessionIsVirtualWorkspaceObs = derived(reader => {
 			const activeSession = this.sessionManagementService.activeSession.read(reader);
-			return activeSession?.workspace.read(reader)?.isVirtualWorkspace ?? true;
+			return activeSession?.workspace.read(reader)?.isVirtualWorkspace ?? false;
 		});
 
 		this.activeSessionIsArchivedObs = derived(reader => {
