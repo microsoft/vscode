@@ -45,7 +45,6 @@ import { isNewUser } from './chatStatus.js';
 import { IChatStatusItemService, ChatStatusEntry } from './chatStatusItemService.js';
 import product from '../../../../../platform/product/common/product.js';
 import { isCompletionsEnabled } from '../../../../../editor/common/services/completionsEnablement.js';
-import { IChatInputNotificationService } from '../widget/input/chatInputNotificationService.js';
 
 const defaultChat = product.defaultChatAgent;
 
@@ -92,6 +91,12 @@ export interface IChatStatusDashboardOptions {
 	 * The separate header (plan name + manage action) is not rendered.
 	 */
 	compactQuotaLayout?: boolean;
+	/**
+	 * When provided, CTA buttons (Manage Budget, Upgrade) are rendered into
+	 * this caller-owned container instead of the dashboard header. Use this
+	 * in compact mode to place action buttons in the host header.
+	 */
+	ctaButtonsContainer?: HTMLElement;
 }
 
 export class ChatStatusDashboard extends DomWidget {
@@ -123,7 +128,6 @@ export class ChatStatusDashboard extends DomWidget {
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IStorageService private readonly storageService: IStorageService,
-		@IChatInputNotificationService private readonly chatInputNotificationService: IChatInputNotificationService,
 	) {
 		super();
 
@@ -139,7 +143,7 @@ export class ChatStatusDashboard extends DomWidget {
 		const hasUsageSection = hasQuotas || isAnonymousWithSentiment;
 		const hasVisibleUsageContent = chat?.unlimited === false ||
 			premiumChat?.unlimited === false ||
-			completions?.unlimited === false ||
+			(!this.options?.compactQuotaLayout && completions?.unlimited === false) ||
 			isAnonymousWithSentiment;
 		const contributedEntries = [...this.chatStatusItemService.getEntries()];
 		const hasQuickSettingsContent =
@@ -195,9 +199,35 @@ export class ChatStatusDashboard extends DomWidget {
 			}
 		}
 
-		// Compact notification (mirrors chat input notifications)
+		// CTA buttons for compact mode — rendered into a caller-provided container
+		if (hasUsageSection && this.options?.compactQuotaLayout && this.options.ctaButtonsContainer) {
+			const ctaContainer = this.options.ctaButtonsContainer;
+			const canConfigureAdditionalSpend = this.chatEntitlementService.entitlement === ChatEntitlement.EDU || this.chatEntitlementService.entitlement === ChatEntitlement.Pro || this.chatEntitlementService.entitlement === ChatEntitlement.ProPlus || this.chatEntitlementService.entitlement === ChatEntitlement.Max;
+			const showUpgrade = this.chatEntitlementService.entitlement !== ChatEntitlement.ProPlus &&
+				this.chatEntitlementService.entitlement !== ChatEntitlement.Max &&
+				this.chatEntitlementService.entitlement !== ChatEntitlement.Business &&
+				this.chatEntitlementService.entitlement !== ChatEntitlement.Enterprise;
+			const initialAdditionalUsageEnabled = this.chatEntitlementService.quotas.additionalUsageEnabled ?? false;
+
+			if (canConfigureAdditionalSpend) {
+				headerAdditionalSpendButton = this._store.add(new Button(ctaContainer, { ...defaultButtonStyles, hoverDelegate: nativeHoverDelegate, secondary: true }));
+				headerAdditionalSpendButton.label = initialAdditionalUsageEnabled ? localize('manageBudget', "Manage Budget") : localize('configureBudget', "Configure Budget");
+				this._store.add(headerAdditionalSpendButton.onDidClick(() => {
+					this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: 'workbench.action.chat.manageAdditionalSpend', from: 'chat-status' });
+					this.runCommandAndClose(() => this.openerService.open(URI.parse(defaultChat.manageOverageUrl)));
+				}));
+			}
+
+			if (showUpgrade && !canConfigureAdditionalSpend) {
+				const upgradeButton = this._store.add(new Button(ctaContainer, { ...defaultButtonStyles, hoverDelegate: nativeHoverDelegate }));
+				upgradeButton.label = localize('upgrade', "Upgrade");
+				this._store.add(upgradeButton.onDidClick(() => this.runCommandAndClose('workbench.action.chat.upgradePlan')));
+			}
+		}
+
+		// Compact mode class for CSS targeting
 		if (this.options?.compactQuotaLayout) {
-			this.renderCompactNotification();
+			this.element.classList.add('compact');
 		}
 
 		// Always trigger a fresh quota fetch when the dashboard opens
@@ -277,7 +307,7 @@ export class ChatStatusDashboard extends DomWidget {
 			}
 
 			let completionsQuotaIndicator: ((quota: IQuotaSnapshot | string) => void) | undefined;
-			const showCompletions = completionsQuota && !completionsQuota.unlimited && completionsQuota.percentRemaining >= 0
+			const showCompletions = !compact && completionsQuota && !completionsQuota.unlimited && completionsQuota.percentRemaining >= 0
 				&& (!this.chatEntitlementService.quotas.usageBasedBilling || this.chatEntitlementService.entitlement === ChatEntitlement.Free);
 			if (showCompletions) {
 				completionsQuotaIndicator = this.createQuotaIndicator(container, completionsQuota, localize('completionsLabel', "Inline Suggestions"), resetLabel, compact ? planName : undefined);
@@ -319,24 +349,6 @@ export class ChatStatusDashboard extends DomWidget {
 		// Anonymous Indicator
 		else if (this.chatEntitlementService.anonymous && this.chatEntitlementService.sentiment.completed) {
 			this.createQuotaIndicator(container, localize('quotaLimited', "Limited"), localize('chatsLabel', "Chat messages"));
-		}
-	}
-
-	private renderCompactNotification(): void {
-		const notification = this.chatInputNotificationService.getActiveNotification();
-		if (!notification) {
-			return;
-		}
-
-		const container = this.element.appendChild($('div.compact-notification.severity-info'));
-		const iconElement = container.appendChild($('div.compact-notification-icon'));
-		iconElement.classList.add(...ThemeIcon.asClassNameArray(Codicon.info));
-		const content = container.appendChild($('div.compact-notification-content'));
-		const primary = content.appendChild($('div.compact-notification-primary'));
-		primary.textContent = typeof notification.message === 'string' ? notification.message : notification.message.value;
-		if (notification.description) {
-			const secondary = content.appendChild($('div.compact-notification-secondary'));
-			secondary.textContent = notification.description;
 		}
 	}
 
@@ -717,6 +729,7 @@ export class ChatStatusDashboard extends DomWidget {
 	private createQuotaIndicator(container: HTMLElement, quota: IQuotaSnapshot | string, label: string, resetLabel?: string, compactTitle?: string): (quota: IQuotaSnapshot | string) => void {
 		const isCompact = !!compactTitle;
 		const quotaValue = $('span.quota-value');
+		const quotaValueText = isCompact ? quotaValue.appendChild($('span.quota-value-text')) : quotaValue;
 		const quotaValueSuffix = $('span.quota-value-suffix');
 		const quotaBit = $('div.quota-bit');
 		const resetValue = $('span.quota-reset');
@@ -737,9 +750,7 @@ export class ChatStatusDashboard extends DomWidget {
 				quotaPercentage,
 				resetValue
 			),
-			$('div.quota-bar', undefined,
-				quotaBit
-			)
+			...isCompact ? [] : [$('div.quota-bar', undefined, quotaBit)]
 		);
 		if (isCompact) {
 			indicatorElement.classList.add('compact');
@@ -751,11 +762,11 @@ export class ChatStatusDashboard extends DomWidget {
 
 		const showPercentage = () => {
 			if (typeof currentQuota === 'string') {
-				quotaValue.textContent = currentQuota;
+				quotaValueText.textContent = currentQuota;
 				quotaValueSuffix.textContent = '';
 			} else {
 				const usedPercentage = Math.max(0, 100 - currentQuota.percentRemaining);
-				quotaValue.textContent = localize('quotaDisplay', "{0}%", this.quotaPercentageFormatter.value.format(Math.floor(usedPercentage)));
+				quotaValueText.textContent = localize('quotaDisplay', "{0}%", this.quotaPercentageFormatter.value.format(Math.floor(usedPercentage)));
 				quotaValueSuffix.textContent = isCompact
 					? localize('quotaLabelUsed', "{0} used", label)
 					: ` ${localize('quotaUsed', "used")}`;
@@ -768,17 +779,18 @@ export class ChatStatusDashboard extends DomWidget {
 				const used = total * (100 - currentQuota.percentRemaining) / 100;
 				const usedFormatted = this.quotaCreditsFormatter.value.format(used);
 				const totalFormatted = this.quotaCreditsFormatter.value.format(total);
-				quotaValue.textContent = localize('quotaCreditsDisplay', "{0} / {1}", usedFormatted, totalFormatted);
+				quotaValueText.textContent = localize('quotaCreditsDisplay', "{0} / {1}", usedFormatted, totalFormatted);
 				quotaValueSuffix.textContent = isCompact
 					? localize('quotaLabelUsed', "{0} used", label)
 					: ` ${localize('quotaUsed', "used")}`;
 			}
 		};
 
-		this._store.add(addDisposableListener(quotaPercentage, EventType.MOUSE_ENTER, () => { isHovered = true; showCredits(); }));
-		this._store.add(addDisposableListener(quotaPercentage, EventType.MOUSE_LEAVE, () => { isHovered = false; showPercentage(); }));
-		this._store.add(addDisposableListener(quotaPercentage, EventType.FOCUS, () => { isHovered = true; showCredits(); }));
-		this._store.add(addDisposableListener(quotaPercentage, EventType.BLUR, () => { isHovered = false; showPercentage(); }));
+		const hoverTarget = isCompact ? quotaValueText : quotaPercentage;
+		this._store.add(addDisposableListener(hoverTarget, EventType.MOUSE_ENTER, () => { isHovered = true; showCredits(); }));
+		this._store.add(addDisposableListener(hoverTarget, EventType.MOUSE_LEAVE, () => { isHovered = false; showPercentage(); }));
+		this._store.add(addDisposableListener(hoverTarget, EventType.FOCUS, () => { isHovered = true; showCredits(); }));
+		this._store.add(addDisposableListener(hoverTarget, EventType.BLUR, () => { isHovered = false; showPercentage(); }));
 
 		const update = (quota: IQuotaSnapshot | string) => {
 			currentQuota = quota;

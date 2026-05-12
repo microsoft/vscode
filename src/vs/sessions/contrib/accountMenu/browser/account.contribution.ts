@@ -440,20 +440,22 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		}
 		const title = append(headerSection, $('div.sessions-account-titlebar-panel-title'));
 		title.textContent = this.getPanelHeaderLabel();
-		if (partitioned.personalize.length > 0 || partitioned.signOut) {
-			const headerActionsContainer = append(headerSection, $('.sessions-account-titlebar-panel-header-actions'));
-			for (const action of partitioned.personalize) {
-				this.createPanelButton(headerActionsContainer, action, panelStore, {
-					classNames: ['sessions-account-titlebar-panel-header-action'],
-					icon: this.getHeaderActionIcon(action),
-				});
-			}
-			if (partitioned.signOut) {
-				this.createPanelButton(headerActionsContainer, partitioned.signOut, panelStore, {
-					classNames: ['sessions-account-titlebar-panel-header-action'],
-					icon: this.getHeaderActionIcon(partitioned.signOut),
-				});
-			}
+		const headerActionsContainer = append(headerSection, $('.sessions-account-titlebar-panel-header-actions'));
+
+		// CTA buttons (Manage Budget, Upgrade) will be rendered here by the dashboard
+		const ctaButtonsContainer = append(headerActionsContainer, $('.sessions-account-titlebar-panel-cta-actions'));
+
+		for (const action of partitioned.personalize) {
+			this.createPanelButton(headerActionsContainer, action, panelStore, {
+				classNames: ['sessions-account-titlebar-panel-header-action'],
+				icon: this.getHeaderActionIcon(action),
+			});
+		}
+		if (partitioned.signOut) {
+			this.createPanelButton(headerActionsContainer, partitioned.signOut, panelStore, {
+				classNames: ['sessions-account-titlebar-panel-header-action'],
+				icon: this.getHeaderActionIcon(partitioned.signOut),
+			});
 		}
 
 		// Other panel actions (sign-in, etc.) — only render if there's at least one non-separator action.
@@ -481,7 +483,7 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		const contentSection = append(panel, $('.sessions-account-titlebar-panel-content'));
 		if (this.shouldShowCopilotDashboardHover()) {
 			const subscriptionSection = append(contentSection, $('section.sessions-account-titlebar-panel-section.subscription'));
-			const dashboard = this.createCopilotHoverContent({ compactQuotaLayout: true });
+			const dashboard = this.createCopilotHoverContent({ compactQuotaLayout: true, ctaButtonsContainer });
 			append(subscriptionSection, dashboard);
 		} else if (!this.isAccountLoading) {
 			const summary = append(contentSection, $('.sessions-account-titlebar-panel-summary'));
