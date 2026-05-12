@@ -109,7 +109,7 @@ export class LayoutController extends Disposable {
 
 		const activeSessionHasWorkspaceObs = derived<boolean>(reader => {
 			const activeSession = this._sessionManagementService.activeSession.read(reader);
-			return activeSession?.workspace.read(reader)?.repositories?.[0]?.uri !== undefined;
+			return activeSession?.workspace.read(reader)?.folders?.[0]?.root !== undefined;
 		});
 
 		// Switch between sessions — sync auxiliary bar (skip on mobile to avoid
@@ -202,8 +202,7 @@ export class LayoutController extends Disposable {
 		const activeSessionForWorkingSet = derivedObservableWithCache<IActiveSession | undefined>(this, (reader, lastValue) => {
 			const workspaceFolders = workspaceFoldersObs.read(reader);
 			const activeSession = this._sessionManagementService.activeSession.read(reader);
-			const activeSessionWorkspace = activeSession?.workspace.read(reader)?.repositories[0];
-			const activeSessionWorkspaceUri = activeSessionWorkspace?.workingDirectory ?? activeSessionWorkspace?.uri;
+			const activeSessionWorkspaceUri = activeSession?.workspace.read(reader)?.folders[0]?.workingDirectory;
 
 			// The active session is updated before the workspace folders are updated. We
 			// need to wait until the workspace folders are updated before considering the
