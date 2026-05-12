@@ -1973,7 +1973,7 @@ suite('AgentSideEffects', () => {
 			assert.strictEqual(innerTool, undefined, 'stale buffered inner tool call must not be replayed');
 		});
 
-		test('completeSubagentSession completes the subagent turn when parent tool completes', () => {
+		test('subagent_completed signal completes the subagent turn', () => {
 			setupSession();
 			startTurn('turn-1');
 			disposables.add(sideEffects.registerProgressListener(agent));
@@ -1983,20 +1983,28 @@ suite('AgentSideEffects', () => {
 			agent.fireProgress({ kind: 'action', session: sessionUri, action: { type: ActionType.SessionToolCallReady, session: sessionUri.toString(), turnId: 'turn-1', toolCallId: 'tc-1', invocationMessage: 'Delegating...', toolInput: undefined, confirmed: ToolCallConfirmationReason.NotNeeded } });
 			agent.fireProgress({ kind: 'subagent_started', session: sessionUri, toolCallId: 'tc-1', agentName: 'helper', agentDisplayName: 'Helper', agentDescription: 'Helps' });
 
-			// Complete the parent tool call
+			// Completing the parent tool call must NOT tear down the
+			// subagent session — background subagents keep running after
+			// their parent tool call returns.
 			agent.fireProgress({
 				kind: 'action', session: sessionUri,
 				action: {
 					type: ActionType.SessionToolCallComplete, session: sessionUri.toString(), turnId: 'turn-1',
 					toolCallId: 'tc-1',
-					result: { success: true, pastTenseMessage: 'Done' },
+					result: { success: true, pastTenseMessage: 'Started in background' },
 				},
 			});
 
-			// Verify the subagent session's turn was completed
 			const subagentUri = `${sessionUri.toString()}/subagent/tc-1`;
-			const subState = stateManager.getSessionState(subagentUri);
+			let subState = stateManager.getSessionState(subagentUri);
 			assert.ok(subState);
+			assert.ok(subState!.activeTurn, 'subagent turn should still be active after parent tool completes');
+
+			// The SDK's `subagent.completed`/`subagent.failed` event is what
+			// actually closes the subagent session.
+			agent.fireProgress({ kind: 'subagent_completed', session: sessionUri, toolCallId: 'tc-1' });
+
+			subState = stateManager.getSessionState(subagentUri);
 			assert.strictEqual(subState!.activeTurn, undefined, 'subagent turn should be completed');
 			assert.strictEqual(subState!.turns.length, 1);
 		});

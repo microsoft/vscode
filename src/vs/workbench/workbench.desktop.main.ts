@@ -187,9 +187,6 @@ import './contrib/encryption/electron-browser/encryption.contribution.js';
 // Emergency Alert
 import './contrib/emergencyAlert/electron-browser/emergencyAlert.contribution.js';
 
-// Agents App Merged Banner
-import './contrib/agentsAppMergedBanner/browser/agentsAppMergedBanner.contribution.js';
-
 // MCP
 import './contrib/mcp/electron-browser/mcp.contribution.js';
 

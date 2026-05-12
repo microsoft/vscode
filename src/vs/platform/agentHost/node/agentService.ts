@@ -9,9 +9,10 @@ import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableResourceMap, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../base/common/map.js';
+import { getExtensionForMimeType, getMediaMime } from '../../../base/common/mime.js';
 import { equals as objectEquals } from '../../../base/common/objects.js';
 import { observableValue } from '../../../base/common/observable.js';
-import { isEqual } from '../../../base/common/resources.js';
+import { extname as resourcesExtname, isEqual, joinPath } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { FileSystemProviderErrorCode, IFileService, toFileSystemProviderErrorCode } from '../../files/common/files.js';
@@ -19,22 +20,25 @@ import { InstantiationService } from '../../instantiation/common/instantiationSe
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
 import { ILogService } from '../../log/common/log.js';
 import { AgentProvider, AgentSession, IAgent, IAgentCreateSessionConfig, IAgentMaterializeSessionEvent, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult } from '../common/agentService.js';
-import { ISessionDataService } from '../common/sessionDataService.js';
+import { ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../common/sessionDataService.js';
 import { ActionType, ActionEnvelope, INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
+import { MessageAttachmentKind, type MessageAttachment, type MessageResourceAttachment } from '../common/state/protocol/state.js';
+import type { SessionPendingMessageSetAction, SessionTurnStartedAction } from '../common/state/protocol/actions.js';
 import { ResponsePartKind, SessionStatus, ToolCallStatus, ToolResultContentType, buildSubagentSessionUriPrefix, parseSubagentSessionUri, readSessionGitState, withSessionGitState, type SessionConfigState, type ISessionFileDiff, type SessionSummary, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
 import { IProductService } from '../../product/common/productService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from './agentConfigurationService.js';
 import { AgentSideEffects } from './agentSideEffects.js';
 import { AgentHostTerminalManager, type IAgentHostTerminalManager } from './agentHostTerminalManager.js';
-import { ISessionDbUriFields, parseSessionDbUri } from './copilot/fileEditTracker.js';
+import { ISessionDbUriFields, parseSessionDbUri } from './shared/fileEditTracker.js';
 import { IGitBlobUriFields, parseGitBlobUri } from './gitDiffContent.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostGitService } from './agentHostGitService.js';
 import { AgentHostCompletions, IAgentHostCompletions } from './agentHostCompletions.js';
 import { AgentHostFileCompletionProvider } from './agentHostFileCompletionProvider.js';
 import { AgentHostWorkspaceFiles } from './agentHostWorkspaceFiles.js';
+import { toAgentClientUri } from '../common/agentClientUri.js';
 
 /**
  * Grace period before an empty, unsubscribed session is garbage-collected
@@ -501,8 +505,8 @@ export class AgentService extends Disposable implements IAgentService {
 				config: config.config,
 			});
 			return { schema: resolved.schema, values: resolved.values };
-		} catch (error) {
-			this._logService.error(`[AgentService] Failed to resolve created session config for provider ${provider.id}`, error);
+		} catch (err) {
+			this._logService.error(`[AgentService] Failed to resolve created session config for provider ${provider.id}`, err);
 			return config.config ? { schema: { type: 'object', properties: {} }, values: config.config } : undefined;
 		}
 	}
@@ -575,7 +579,7 @@ export class AgentService extends Disposable implements IAgentService {
 				// Try subagent restore before regular session restore
 				const parsed = parseSubagentSessionUri(resource);
 				if (parsed) {
-					await this._restoreSubagentSession(resourceStr, parsed.parentSession, parsed.toolCallId);
+					await this._restoreSubagentSession(resourceStr, parsed.parentSession);
 				} else {
 					await this.restoreSession(resource);
 				}
@@ -761,15 +765,183 @@ export class AgentService extends Disposable implements IAgentService {
 		return false;
 	}
 
+	/**
+	 * Per-client sequencer that serialises action dispatches whose
+	 * processing requires an asynchronous prelude (e.g. snapshotting
+	 * user-message attachments into the session database before the
+	 * action is reduced into state). Actions that don't need any
+	 * asynchronous prelude bypass the queue entirely as long as no
+	 * earlier action from the same client is still pending.
+	 *
+	 * todo@connor4312: we can drop this when sending a message become a command
+	 */
+	private readonly _clientDispatchQueues = new Map<string, Promise<void>>();
+
 	dispatchAction(action: SessionAction | TerminalAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void {
 		this._logService.trace(`[AgentService] dispatchAction: type=${action.type}, clientId=${clientId}, clientSeq=${clientSeq}`, action);
 
+		const pending = this._clientDispatchQueues.get(clientId);
+		if (!pending && !this._needsAsyncRewrite(action)) {
+			this._dispatchActionNow(action, clientId, clientSeq);
+			return;
+		}
+		const next = (pending ?? Promise.resolve()).then(async () => {
+			const rewritten: SessionAction | TerminalAction | IRootConfigChangedAction = this._needsAsyncRewrite(action)
+				? await this._rewriteUserMessageAttachments(action, clientId)
+				: action;
+			this._dispatchActionNow(rewritten, clientId, clientSeq);
+		}).catch(err => {
+			this._logService.error(`[AgentService] async dispatchAction failed: ${toErrorMessage(err)}`);
+		});
+
+		this._clientDispatchQueues.set(clientId, next.finally(() => {
+			if (this._clientDispatchQueues.get(clientId) === next) {
+				this._clientDispatchQueues.delete(clientId);
+			}
+		}));
+	}
+
+	private _dispatchActionNow(action: SessionAction | TerminalAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void {
 		const origin = { clientId, clientSeq };
 		this._stateManager.dispatchClientAction(action, origin);
 		if (action.type === ActionType.RootConfigChanged) {
 			this._configurationService.persistRootConfig();
 		}
 		this._sideEffects.handleAction(action);
+	}
+
+	private _needsAsyncRewrite(action: SessionAction | TerminalAction | IRootConfigChangedAction): action is SessionTurnStartedAction | SessionPendingMessageSetAction {
+		if (action.type !== ActionType.SessionTurnStarted && action.type !== ActionType.SessionPendingMessageSet) {
+			return false;
+		}
+		const attachmentsRootStr = this._attachmentsRoot(URI.parse(action.session)).toString();
+		return !!action.userMessage.attachments?.some(a => this._isRewritableAttachment(a, attachmentsRootStr));
+	}
+
+	private _isRewritableAttachment(attachment: MessageAttachment, attachmentsRootStr: string): boolean {
+		if (attachment.type === MessageAttachmentKind.EmbeddedResource) {
+			return true;
+		}
+		if (attachment.type === MessageAttachmentKind.Resource) {
+			// Don't try to fetch directories or already-rewritten attachments
+			// (whose URIs already point under our session attachments folder).
+			if (attachment.displayKind === 'directory') {
+				return false;
+			}
+			if (attachment.uri.startsWith(attachmentsRootStr)) {
+				return false;
+			}
+			return true;
+		}
+		return false;
+	}
+
+	private _attachmentsRoot(session: URI): URI {
+		return joinPath(this._sessionDataService.getSessionDataDir(session), SESSION_ATTACHMENTS_DIRNAME);
+	}
+
+	/**
+	 * Snapshot inline / client-resident attachment payloads onto disk
+	 * under the session's data directory and rewrite the action to
+	 * reference them via local `file:` URIs. Keeps potentially large
+	 * blobs (e.g. pasted images) out of the in-memory state tree while
+	 * letting the agent consume them via the standard {@link IFileService}
+	 * surface — no special URI scheme or blob round-tripping needed.
+	 *
+	 * Failures are isolated per-attachment: if a rewrite cannot be
+	 * performed (no client connection registered, `resourceRead` rejects,
+	 * etc.) the original attachment is preserved so the agent still has a
+	 * chance to make use of it.
+	 */
+	private async _rewriteUserMessageAttachments<T extends SessionTurnStartedAction | SessionPendingMessageSetAction>(action: T, clientId: string): Promise<T> {
+		const attachments = action.userMessage.attachments;
+		if (!attachments?.length) {
+			return action;
+		}
+		const attachmentsRoot = this._attachmentsRoot(URI.parse(action.session));
+		const attachmentsRootStr = attachmentsRoot.toString();
+		const rewritten = await Promise.all(attachments.map(a => this._rewriteSingleAttachment(a, attachmentsRoot, attachmentsRootStr, clientId)));
+		return {
+			...action,
+			userMessage: { ...action.userMessage, attachments: rewritten },
+		};
+	}
+
+	private async _rewriteSingleAttachment(attachment: MessageAttachment, attachmentsRoot: URI, attachmentsRootStr: string, clientId: string): Promise<MessageAttachment> {
+		try {
+			if (attachment.type === MessageAttachmentKind.EmbeddedResource) {
+				const bytes = decodeBase64(attachment.data).buffer;
+				const basename = this._attachmentBasename(attachment.label, attachment.contentType);
+				return this._writeAndRewrite(attachment, bytes, basename, attachmentsRoot);
+			}
+			if (attachment.type === MessageAttachmentKind.Resource && this._isRewritableAttachment(attachment, attachmentsRootStr)) {
+				const originalUri = URI.parse(attachment.uri);
+				const bytes = await this._readClientResource(originalUri, clientId);
+				const basename = this._attachmentBasename(attachment.label, getMediaMime(originalUri.path));
+				return this._writeAndRewrite(attachment, bytes, basename, attachmentsRoot);
+			}
+		} catch (err) {
+			this._logService.warn(`[AgentService] Failed to rewrite attachment '${attachment.label}': ${toErrorMessage(err)}`);
+		}
+		return attachment;
+	}
+
+	/**
+	 * Reads `originalUri` through the `vscode-agent-client` filesystem
+	 * provider so it is fetched from the originating client. Falls back to
+	 * a direct read against `originalUri` when no client filesystem
+	 * authority is registered for `clientId` (e.g. unit tests, in-process
+	 * agent host with a local URI).
+	 */
+	private async _readClientResource(originalUri: URI, clientId: string): Promise<Uint8Array> {
+		const proxiedUri = clientId ? toAgentClientUri(originalUri, clientId) : originalUri;
+		try {
+			const contents = await this._fileService.readFile(proxiedUri);
+			return contents.value.buffer;
+		} catch (err) {
+			if (proxiedUri !== originalUri) {
+				const contents = await this._fileService.readFile(originalUri);
+				return contents.value.buffer;
+			}
+			throw err;
+		}
+	}
+
+	private async _writeAndRewrite(
+		original: MessageAttachment,
+		bytes: Uint8Array,
+		basename: string,
+		attachmentsRoot: URI,
+	): Promise<MessageResourceAttachment> {
+		const id = generateUuid();
+		const target = joinPath(attachmentsRoot, id, basename);
+		await this._fileService.writeFile(target, VSBuffer.wrap(bytes));
+		const rewritten: MessageResourceAttachment = {
+			type: MessageAttachmentKind.Resource,
+			uri: target.toString(),
+			label: original.label,
+			displayKind: original.displayKind,
+			range: original.range,
+			_meta: original._meta,
+		};
+		if (original.type === MessageAttachmentKind.Resource && original.selection) {
+			rewritten.selection = original.selection;
+		}
+		return rewritten;
+	}
+
+	/**
+	 * Pick a sensible on-disk basename for the snapshotted attachment,
+	 * preserving a usable extension where possible so the SDK and other
+	 * downstream consumers can detect the right type from the path alone.
+	 */
+	private _attachmentBasename(label: string, contentType: string | undefined): string {
+		const safeLabel = (label || 'attachment').replace(/[\\/:*?"<>|\u0000-\u001f]/g, '_');
+		if (resourcesExtname(URI.file(safeLabel))) {
+			return safeLabel;
+		}
+		const ext = contentType ? getExtensionForMimeType(contentType) : undefined;
+		return ext ? `${safeLabel}${ext}` : safeLabel;
 	}
 
 	async resourceList(uri: URI): Promise<ResourceListResult> {
@@ -1123,7 +1295,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 * the subagent (by `parentToolCallId`), and builds the child session's
 	 * turns from those events.
 	 */
-	private async _restoreSubagentSession(subagentUri: string, parentSession: URI, toolCallId: string): Promise<void> {
+	private async _restoreSubagentSession(subagentUri: string, parentSession: URI): Promise<void> {
 		// Ensure the parent session is loaded first
 		const parentSessionKey = parentSession.toString();
 		if (!this._stateManager.getSessionState(parentSessionKey)) {
