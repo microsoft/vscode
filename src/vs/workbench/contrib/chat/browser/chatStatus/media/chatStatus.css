@@ -39,6 +39,10 @@
 	margin-top: 0;
 }
 
+.chat-status-bar-entry-tooltip .collapsible-header.non-collapsible {
+	cursor: default;
+}
+
 .chat-status-bar-entry-tooltip .collapsible-header:focus {
 	outline: none;
 }
