@@ -13,7 +13,7 @@ import {
 } from '../../../../../vscodeTypes';
 import { CancellationToken } from '../../../../../util/vs/base/common/cancellation';
 import {
-	buildChatHistoryFromEvents, createCopilotCLIToolInvocation, enrichToolInvocationWithSubagentMetadata, extractCdPrefix, FakeToolsService, getAffectedUrisForEditTool, isCopilotCliEditToolCall, isCopilotCLIToolThatCouldRequirePermissions, isTodoRelatedSqlQuery, processToolExecutionComplete, processToolExecutionStart, RequestIdDetails, stripReminders, ToolCall, updateTodoListFromSqlItems
+	buildChatHistoryFromEvents, createCopilotCLIToolInvocation, enrichToolInvocationWithSubagentMetadata, extractCdPrefix, FakeToolsService, formatModelDetailsWithCredits, getAffectedUrisForEditTool, isCopilotCliEditToolCall, isCopilotCLIToolThatCouldRequirePermissions, isTodoRelatedSqlQuery, processToolExecutionComplete, processToolExecutionStart, RequestIdDetails, stripReminders, ToolCall, updateTodoListFromSqlItems
 } from '../copilotCLITools';
 import { IChatDelegationSummaryService } from '../delegationSummaryService';
 
@@ -82,6 +82,20 @@ describe('CopilotCLITools', () => {
 			const input = '<reminder>x</reminder>One<current_datetime>y</current_datetime> <pr_metadata uri="u" title="t" description="d" author="a" linkTag="l"/>Two';
 			// Current behavior compacts content without guaranteeing spacing
 			expect(stripReminders(input)).toBe('OneTwo');
+		});
+	});
+
+	describe('formatModelDetailsWithCredits', () => {
+		it('formats integer credits as plural', () => {
+			expect(formatModelDetailsWithCredits('GPT 5.4', 5)).toBe('GPT 5.4 \u2022 5 credits');
+		});
+
+		it('formats exactly 1 credit as singular', () => {
+			expect(formatModelDetailsWithCredits('GPT 5.4', 1)).toBe('GPT 5.4 \u2022 1 credit');
+		});
+
+		it('formats fractional credits with one decimal place', () => {
+			expect(formatModelDetailsWithCredits('GPT 5.4', 16.31565)).toBe('GPT 5.4 \u2022 16.3 credits');
 		});
 	});
 

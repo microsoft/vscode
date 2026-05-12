@@ -523,6 +523,17 @@ export interface RequestIdDetails {
 }
 
 /**
+ * Formats model details with credit usage for display.
+ * Returns a localized string like "Model Name • 5 credits" or "Model Name • 1 credit".
+ */
+export function formatModelDetailsWithCredits(modelName: string, creditsUsed: number): string {
+	const formatted = creditsUsed % 1 === 0 ? creditsUsed.toString() : creditsUsed.toFixed(1);
+	return creditsUsed === 1
+		? l10n.t('{0} \u2022 {1} credit', modelName, formatted)
+		: l10n.t('{0} \u2022 {1} credits', modelName, formatted);
+}
+
+/**
  * Build chat history from SDK events for VS Code chat session
  * Converts SDKEvents into ChatRequestTurn2 and ChatResponseTurn2 objects
  */
@@ -550,11 +561,8 @@ export function buildChatHistoryFromEvents(sessionId: string, modelId: string | 
 	function createResultForModel(modelId: string | undefined, creditsUsed: number | undefined) {
 		const modelDetails = getModelDetails(modelId);
 		if (modelDetails && creditsUsed !== undefined) {
-			const formatted = creditsUsed % 1 === 0 ? creditsUsed.toString() : creditsUsed.toFixed(1);
-			const details = creditsUsed === 1
-				? `${modelDetails.split(' \u2022')[0]} \u2022 ${formatted} credit`
-				: `${modelDetails.split(' \u2022')[0]} \u2022 ${formatted} credits`;
-			return { details };
+			const modelName = modelDetails.split(' \u2022')[0];
+			return { details: formatModelDetailsWithCredits(modelName, creditsUsed) };
 		}
 		return modelDetails ? { details: modelDetails } : {};
 	}
