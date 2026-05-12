@@ -459,8 +459,11 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 	/** Send formatted text to a terminal's PTY process. */
 	async sendText(uri: string, data: string, options: ISendTextOptions): Promise<void> {
 		const terminal = this._terminals.get(uri);
-		await terminal?.headlessTerminal?.whenPtyDataFlushed();
-		const forceBracketedPasteMode = !!(options.bracketedPasteMode && terminal?.headlessTerminal?.isBracketedPasteMode());
+		let forceBracketedPasteMode = false;
+		if (options.bracketedPasteMode) {
+			await terminal?.headlessTerminal?.whenPtyDataFlushed();
+			forceBracketedPasteMode = !!terminal?.headlessTerminal?.isBracketedPasteMode();
+		}
 		this.writeInput(uri, formatTerminalText(data, { shouldExecute: options.shouldExecute, forceBracketedPasteMode }));
 	}
 
