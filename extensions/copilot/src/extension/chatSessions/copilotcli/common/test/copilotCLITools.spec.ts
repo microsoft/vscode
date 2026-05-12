@@ -13,8 +13,9 @@ import {
 } from '../../../../../vscodeTypes';
 import { CancellationToken } from '../../../../../util/vs/base/common/cancellation';
 import {
-	buildChatHistoryFromEvents, createCopilotCLIToolInvocation, enrichToolInvocationWithSubagentMetadata, extractCdPrefix, FakeToolsService, formatModelDetailsWithCredits, getAffectedUrisForEditTool, isCopilotCliEditToolCall, isCopilotCLIToolThatCouldRequirePermissions, isTodoRelatedSqlQuery, processToolExecutionComplete, processToolExecutionStart, RequestIdDetails, stripReminders, ToolCall, updateTodoListFromSqlItems
+	buildChatHistoryFromEvents, createCopilotCLIToolInvocation, enrichToolInvocationWithSubagentMetadata, extractCdPrefix, FakeToolsService, getAffectedUrisForEditTool, isCopilotCliEditToolCall, isCopilotCLIToolThatCouldRequirePermissions, isTodoRelatedSqlQuery, processToolExecutionComplete, processToolExecutionStart, RequestIdDetails, stripReminders, ToolCall, updateTodoListFromSqlItems
 } from '../copilotCLITools';
+import { formatModelDetailsWithCredits } from '../../../../../platform/chat/common/chatModelDetails';
 import { IChatDelegationSummaryService } from '../delegationSummaryService';
 
 // Helper to extract invocation message text independent of MarkdownString vs string

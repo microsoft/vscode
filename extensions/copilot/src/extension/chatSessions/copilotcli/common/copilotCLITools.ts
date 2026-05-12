@@ -23,6 +23,7 @@ import { ICopilotTool } from '../../../tools/common/toolsRegistry';
 import { IOnWillInvokeToolEvent, IToolsService, IToolValidationResult } from '../../../tools/common/toolsService';
 import { formatUriForFileWidget } from '../../../tools/common/toolUtils';
 import { StoredModeInstructions } from '../../common/chatSessionMetadataStore';
+import { formatModelDetailsWithCredits } from '../../../../platform/chat/common/chatModelDetails';
 import { extractChatPromptReferences, getFolderAttachmentPath } from './copilotCLIPrompt';
 import { IChatDelegationSummaryService } from './delegationSummaryService';
 
@@ -520,17 +521,6 @@ export interface RequestIdDetails {
 	readonly modeInstructions?: StoredModeInstructions;
 	readonly responseModelId?: string;
 	readonly creditsUsed?: number;
-}
-
-/**
- * Formats model details with credit usage for display.
- * Returns a localized string like "Model Name • 5 credits" or "Model Name • 1 credit".
- */
-export function formatModelDetailsWithCredits(modelName: string, creditsUsed: number): string {
-	const formatted = creditsUsed % 1 === 0 ? creditsUsed.toString() : creditsUsed.toFixed(1);
-	return creditsUsed === 1
-		? l10n.t('{0} \u2022 {1} credit', modelName, formatted)
-		: l10n.t('{0} \u2022 {1} credits', modelName, formatted);
 }
 
 /**

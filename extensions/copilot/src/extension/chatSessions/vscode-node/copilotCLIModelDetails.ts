@@ -8,7 +8,7 @@ import { ILogService } from '../../../platform/log/common/logService';
 import { IChatSessionMetadataStore } from '../common/chatSessionMetadataStore';
 import { ICopilotCLIModels, formatModelDetails, matchesCopilotCLIModel } from '../copilotcli/node/copilotCli';
 import { ICopilotCLISession } from '../copilotcli/node/copilotcliSession';
-import { formatModelDetailsWithCredits } from '../copilotcli/common/copilotCLITools';
+import { formatModelDetailsWithCredits } from '../../../platform/chat/common/chatModelDetails';
 
 export interface CopilotCLIModelDetails {
 	readonly result: vscode.ChatResult;

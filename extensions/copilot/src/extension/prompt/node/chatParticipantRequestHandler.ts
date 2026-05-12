@@ -33,7 +33,7 @@ import { getAgentForIntent, Intent } from '../../common/constants';
 import { IConversationStore } from '../../conversationStore/node/conversationStore';
 import { IIntentService } from '../../intents/node/intentService';
 import { UnknownIntent } from '../../intents/node/unknownIntent';
-import { formatModelDetailsWithCredits } from '../../chatSessions/copilotcli/common/copilotCLITools';
+import { formatModelDetailsWithCredits } from '../../../platform/chat/common/chatModelDetails';
 import { ContributedToolName } from '../../tools/common/toolNames';
 import { ChatVariablesCollection } from '../common/chatVariablesCollection';
 import { Conversation, getGlobalContextCacheKey, GlobalContextMessageMetadata, ICopilotChatResult, ICopilotChatResultIn, normalizeSummariesOnRounds, RenderedUserMessageMetadata, Turn, TurnStatus, TurnTokenUsageMetadata } from '../common/conversation';

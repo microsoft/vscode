@@ -28,7 +28,7 @@ import { IClaudeCodeSdkService } from '../claude/node/claudeCodeSdkService';
 import { parseClaudeModelId } from '../claude/node/claudeModelId';
 import { IClaudeSessionStateService } from '../claude/common/claudeSessionStateService';
 import { IClaudeCodeSessionService } from '../claude/node/sessionParser/claudeCodeSessionService';
-import { formatModelDetailsWithCredits } from '../copilotcli/common/copilotCLITools';
+import { formatModelDetailsWithCredits } from '../../../platform/chat/common/chatModelDetails';
 import { IClaudeCodeSessionInfo, IClaudeCodeSession, SYNTHETIC_MODEL_ID } from '../claude/node/sessionParser/claudeSessionSchema';
 import { IClaudeSlashCommandService } from '../claude/vscode-node/claudeSlashCommandService';
 import { IChatFolderMruService } from '../common/folderRepositoryManager';
