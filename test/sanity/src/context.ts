@@ -10,7 +10,7 @@ import { test } from 'mocha';
 import fetch, { Response } from 'node-fetch';
 import os from 'os';
 import path from 'path';
-import { Browser, chromium, Page, webkit } from 'playwright';
+import { Browser, chromium, ElectronApplication, Page, webkit } from 'playwright';
 import { Capability, detectCapabilities } from './detectors.js';
 
 /**
@@ -990,60 +990,6 @@ export class TestContext {
 	}
 
 	/**
-	 * Validates that the Agents app binary exists in the specified installation directory.
-	 * @param dir The directory of the VS Code installation.
-	 * @returns The path to the Agents entry point executable.
-	 */
-	public validateAgentsEntryPoint(dir: string): void {
-		let filePath: string = '';
-
-		switch (os.platform()) {
-			case 'darwin': {
-				let appName: string;
-				let agentsAppName: string;
-				switch (this.options.quality) {
-					case 'stable':
-						// Agents app is not included in stable yet.
-						// appName = 'Visual Studio Code.app';
-						// agentsAppName = 'Visual Studio Code Agents.app';
-						return;
-					case 'insider':
-						appName = 'Visual Studio Code - Insiders.app';
-						agentsAppName = 'Visual Studio Code Agents - Insiders.app';
-						break;
-					case 'exploration':
-						appName = 'Visual Studio Code - Exploration.app';
-						agentsAppName = 'Visual Studio Code Agents - Exploration.app';
-						break;
-				}
-				filePath = path.join(dir, appName, 'Contents', 'Applications', agentsAppName);
-				break;
-			}
-			case 'win32': {
-				let exeName: string;
-				switch (this.options.quality) {
-					case 'stable':
-						// Agents app is not included in stable yet.
-						// exeName = 'Agents.exe';
-						return;
-					case 'insider':
-						exeName = 'Agents - Insiders.exe';
-						break;
-					case 'exploration':
-						exeName = 'Agents - Exploration.exe';
-						break;
-				}
-				filePath = path.join(dir, exeName);
-				break;
-			}
-		}
-
-		if (!filePath || !fs.existsSync(filePath)) {
-			this.error(`Agents entry point does not exist: ${filePath}`);
-		}
-	}
-
-	/**
 	 * Returns the entry point executable for the VS Code CLI in the specified directory.
 	 * @param dir The directory containing unpacked CLI files.
 	 * @returns The path to the CLI entry point executable.
@@ -1175,6 +1121,40 @@ export class TestContext {
 		const page = await pagePromise;
 		page.setDefaultTimeout(3 * 60 * 1000);
 		return page;
+	}
+
+	/**
+	 * Closes a Playwright Electron application gracefully, falling back to a forced
+	 * kill of the process tree if the close hangs (for example after a renderer crash).
+	 */
+	public async closeElectronApp(app: ElectronApplication, timeoutMs = 60_000): Promise<void> {
+		this.log('Closing the application');
+		const pid = app.process().pid;
+		let timeoutHandle: NodeJS.Timeout | undefined;
+		try {
+			await Promise.race([
+				app.close(),
+				new Promise<never>((_, reject) => {
+					timeoutHandle = setTimeout(
+						() => reject(new Error(`app.close() did not complete within ${timeoutMs}ms`)),
+						timeoutMs,
+					);
+				}),
+			]);
+		} catch (error) {
+			this.warn(`Failed to close application gracefully: ${error instanceof Error ? error.message : String(error)}`);
+			if (pid) {
+				try {
+					this.killProcessTree(pid);
+				} catch (killError) {
+					this.warn(`Failed to force-kill application process tree: ${killError instanceof Error ? killError.message : String(killError)}`);
+				}
+			}
+		} finally {
+			if (timeoutHandle) {
+				clearTimeout(timeoutHandle);
+			}
+		}
 	}
 
 	/**

@@ -14,7 +14,7 @@ import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
-import { agentsPanelForeground } from '../../common/theme.js';
+import { agentsBackground, agentsPanelForeground } from '../../common/theme.js';
 import { isMacintosh, isWeb, isNative, platformLocale } from '../../../base/common/platform.js';
 import { EventType, EventHelper, append, $, addDisposableListener, prepend, getWindow, getWindowId, getContentWidth } from '../../../base/browser/dom.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
@@ -30,6 +30,9 @@ import { CodeWindow, mainWindow } from '../../../base/browser/window.js';
 import { safeIntl } from '../../../base/common/date.js';
 import { ITitlebarPart, ITitleProperties, ITitleVariable, IAuxiliaryTitlebarPart } from '../../../workbench/browser/parts/titlebar/titlebarPart.js';
 import { Menus } from '../menus.js';
+import { IsNewChatSessionContext } from '../../common/contextkeys.js';
+
+const commandCenterContextKeys = new Set([IsNewChatSessionContext.key]);
 
 /**
  * Simplified agent sessions titlebar part.
@@ -213,11 +216,16 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 		// Uses .window-title > .command-center nesting to match default workbench CSS selectors
 		const windowTitle = append(this.centerContent, $('div.window-title'));
 		const centerToolbarContainer = append(windowTitle, $('div.command-center'));
-		this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, centerToolbarContainer, Menus.CommandCenter, {
+		const centerToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, centerToolbarContainer, Menus.CommandCenter, {
 			contextMenu: Menus.TitleBarContext,
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			telemetrySource: 'commandCenter',
 			toolbarOptions: { primaryGroup: () => true },
+		}));
+		this._register(this.contextKeyService.onDidChangeContext(e => {
+			if (e.affectsSome(commandCenterContextKeys)) {
+				centerToolbar.refresh();
+			}
 		}));
 
 		// Right toolbar (driven by Menus.TitleBarRightLayout - includes layout actions)
@@ -255,9 +263,8 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 		if (this.element) {
 			this.element.classList.toggle('inactive', this.isInactive);
 
-			// Titlebar is transparent — it inherits the sidebar/gradient background via CSS.
-			// Only set foreground color for text/icon contrast.
-			this.element.style.backgroundColor = '';
+			const titleBarBackground = this.getColor(agentsBackground); // transparent background not supported on some platforms
+			this.element.style.backgroundColor = titleBarBackground || '';
 
 			const titleForeground = this.getColor(agentsPanelForeground);
 			this.element.style.color = titleForeground || '';

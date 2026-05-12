@@ -158,6 +158,7 @@ export class ChatEndpoint implements IChatEndpoint {
 	public readonly multiplier?: number | undefined;
 	public readonly restrictedToSkus?: string[] | undefined;
 	public readonly tokenPricing?: IChatEndpointTokenPricing | undefined;
+	public readonly priceCategory?: string | undefined;
 	public readonly customModel?: CustomModel | undefined;
 	public readonly maxPromptImages?: number | undefined;
 
@@ -189,6 +190,7 @@ export class ChatEndpoint implements IChatEndpoint {
 		this.multiplier = modelMetadata.billing?.multiplier;
 		this.restrictedToSkus = modelMetadata.billing?.restricted_to;
 		this.tokenPricing = normalizeTokenPricing(modelMetadata.billing?.token_prices);
+		this.priceCategory = modelMetadata.model_picker_price_category;
 		this.isFallback = modelMetadata.is_chat_fallback;
 		this.supportsToolCalls = !!modelMetadata.capabilities.supports.tool_calls;
 		this.supportsVision = !!modelMetadata.capabilities.supports.vision;
@@ -197,7 +199,7 @@ export class ChatEndpoint implements IChatEndpoint {
 		this.minThinkingBudget = modelMetadata.capabilities.supports.min_thinking_budget;
 		this.maxThinkingBudget = modelMetadata.capabilities.supports.max_thinking_budget;
 		this.supportsReasoningEffort = modelMetadata.capabilities.supports.reasoning_effort;
-		this.supportsToolSearch = modelMetadata.capabilities.supports.tool_search ?? modelSupportsToolSearch(this.model, this._configurationService, this._expService);
+		this.supportsToolSearch = modelMetadata.capabilities.supports.tool_search ?? modelSupportsToolSearch(this.model);
 		this.supportsContextEditing = modelMetadata.capabilities.supports.context_editing ?? modelSupportsContextEditing(this.model);
 		this._supportsStreaming = !!modelMetadata.capabilities.supports.streaming;
 		this.customModel = modelMetadata.custom_model;

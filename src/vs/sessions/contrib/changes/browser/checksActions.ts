@@ -129,7 +129,7 @@ class FixCIChecksAction extends Action2 {
 			category: CHAT_CATEGORY,
 			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, hasActiveSessionFailedCIChecks),
 			menu: [{
-				id: MenuId.ChatEditingSessionApplySubmenu,
+				id: MenuId.AgentsChangesPrimaryActionSubMenu,
 				group: 'navigation',
 				order: 4,
 				when: ContextKeyExpr.and(IsSessionsWindowContext, hasActiveSessionFailedCIChecks),

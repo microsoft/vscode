@@ -166,7 +166,7 @@ export class ChatStatusDashboard extends DomWidget {
 			if (canConfigureAdditionalSpend) {
 				headerAdditionalSpendButton = this._store.add(new Button(header, { ...defaultButtonStyles, hoverDelegate: nativeHoverDelegate, secondary: true }));
 				headerAdditionalSpendButton.element.classList.add('header-cta-button');
-				headerAdditionalSpendButton.label = initialAdditionalUsageEnabled ? localize('manageAdditionalSpend', "Manage Additional Spend") : localize('configureAdditionalSpend', "Configure Additional Spend");
+				headerAdditionalSpendButton.label = initialAdditionalUsageEnabled ? localize('manageBudget', "Manage Budget") : localize('configureBudget', "Configure Budget");
 				this._store.add(headerAdditionalSpendButton.onDidClick(() => {
 					this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: 'workbench.action.chat.manageAdditionalSpend', from: 'chat-status' });
 					this.runCommandAndClose(() => this.openerService.open(URI.parse(defaultChat.manageOverageUrl)));
@@ -176,7 +176,7 @@ export class ChatStatusDashboard extends DomWidget {
 				}
 			}
 
-			if (showUpgrade) {
+			if (showUpgrade && !canConfigureAdditionalSpend) {
 				const upgradeButton = this._store.add(new Button(header, { ...defaultButtonStyles, hoverDelegate: nativeHoverDelegate }));
 				upgradeButton.element.classList.add('header-cta-button');
 				upgradeButton.label = localize('upgrade', "Upgrade");
@@ -198,8 +198,8 @@ export class ChatStatusDashboard extends DomWidget {
 		// Premium chat included indicator (shown when premium chat is unlimited)
 		const hasPremiumUnlimited = !!premiumChat?.unlimited;
 		if (hasPremiumUnlimited) {
-			const includedTitle = premiumChat!.usageBasedBilling
-				? localize('includedTitleTBB', "Monthly Limit")
+			const includedTitle = this.chatEntitlementService.quotas.usageBasedBilling
+				? localize('includedTitleTBB', "Credits")
 				: localize('includedTitle', "Premium Requests");
 			const includedContainer = this.element.appendChild($('div.quota-indicator.included'));
 			includedContainer.appendChild($('div.quota-title', undefined, includedTitle));
@@ -237,22 +237,26 @@ export class ChatStatusDashboard extends DomWidget {
 			}
 
 			let chatQuotaIndicator: ((quota: IQuotaSnapshot | string) => void) | undefined;
-			if (chatQuota && !chatQuota.unlimited && !premiumChatQuota?.usageBasedBilling) {
-				chatQuotaIndicator = this.createQuotaIndicator(container, chatQuota, localize('chatsLabel', "Chat messages"), resetLabel);
+			if (chatQuota && !chatQuota.unlimited && (!this.chatEntitlementService.quotas.usageBasedBilling || this.chatEntitlementService.entitlement === ChatEntitlement.Free)) {
+				const chatLabel = this.chatEntitlementService.quotas.usageBasedBilling && this.chatEntitlementService.entitlement === ChatEntitlement.Free
+					? localize('creditsLabel', "Credits")
+					: localize('chatsLabel', "Chat messages");
+				chatQuotaIndicator = this.createQuotaIndicator(container, chatQuota, chatLabel, resetLabel);
 			}
 
 			let premiumChatQuotaIndicator: ((quota: IQuotaSnapshot | string) => void) | undefined;
 			if (premiumChatQuota && !premiumChatQuota.unlimited && premiumChatQuota.percentRemaining >= 0) {
-				const premiumChatLabel = premiumChatQuota.usageBasedBilling
-					? localize('monthlyLimitLabel', "Monthly Limit")
+				const isUBB = this.chatEntitlementService.quotas.usageBasedBilling;
+				const premiumChatLabel = isUBB
+					? localize('creditsLabel', "Credits")
 					: this.chatEntitlementService.quotas.additionalUsageEnabled ? localize('includedPremiumChatsLabel', "Included premium requests") : localize('premiumChatsLabel', "Premium requests");
-				const premiumChatResetLabel = premiumChatQuota.usageBasedBilling ? this.formatResetAtLabel(premiumChatQuota.resetAt) ?? resetLabel : resetLabel;
+				const premiumChatResetLabel = isUBB ? this.formatResetAtLabel(premiumChatQuota.resetAt) ?? resetLabel : resetLabel;
 				premiumChatQuotaIndicator = this.createQuotaIndicator(container, premiumChatQuota, premiumChatLabel, premiumChatResetLabel);
 			}
 
 			let completionsQuotaIndicator: ((quota: IQuotaSnapshot | string) => void) | undefined;
 			const showCompletions = completionsQuota && !completionsQuota.unlimited && completionsQuota.percentRemaining >= 0
-				&& (!premiumChatQuota?.usageBasedBilling || this.chatEntitlementService.entitlement === ChatEntitlement.Free);
+				&& (!this.chatEntitlementService.quotas.usageBasedBilling || this.chatEntitlementService.entitlement === ChatEntitlement.Free);
 			if (showCompletions) {
 				completionsQuotaIndicator = this.createQuotaIndicator(container, completionsQuota, localize('completionsLabel', "Inline Suggestions"), resetLabel);
 			}
@@ -278,7 +282,7 @@ export class ChatStatusDashboard extends DomWidget {
 				const { calloutVisible, additionalUsageEnabled: isAdditionalUsageEnabled } = globalCalloutUpdater();
 				if (headerAdditionalSpendButton) {
 					headerAdditionalSpendButton.element.style.display = calloutVisible ? '' : 'none';
-					headerAdditionalSpendButton.label = isAdditionalUsageEnabled ? localize('manageAdditionalSpend', "Manage Additional Spend") : localize('configureAdditionalSpend', "Configure Additional Spend");
+					headerAdditionalSpendButton.label = isAdditionalUsageEnabled ? localize('manageBudget', "Manage Budget") : localize('configureBudget', "Configure Budget");
 				}
 			})();
 		}
@@ -705,7 +709,7 @@ export class ChatStatusDashboard extends DomWidget {
 		};
 
 		const showCredits = () => {
-			if (typeof currentQuota !== 'string' && currentQuota.entitlement !== undefined) {
+			if (typeof currentQuota !== 'string' && currentQuota.entitlement) {
 				const total = currentQuota.entitlement;
 				const used = total * (100 - currentQuota.percentRemaining) / 100;
 				const usedFormatted = this.quotaCreditsFormatter.value.format(used);
@@ -753,6 +757,7 @@ export class ChatStatusDashboard extends DomWidget {
 			const quotas = this.chatEntitlementService.quotas;
 			const additionalUsageEnabled = quotas.additionalUsageEnabled ?? false;
 			const isEnterpriseUser = this.chatEntitlementService.entitlement === ChatEntitlement.Enterprise || this.chatEntitlementService.entitlement === ChatEntitlement.Business;
+			const isUsageBasedBilling = quotas.usageBasedBilling === true;
 
 			const allQuotas: IQuotaSnapshot[] = [];
 			if (quotas.chat && !quotas.chat.unlimited) { allQuotas.push(quotas.chat); }
@@ -765,12 +770,16 @@ export class ChatStatusDashboard extends DomWidget {
 				quotaCallout.style.display = '';
 				quotaCallout.className = 'quota-callout info';
 				calloutIcon.className = `callout-icon ${ThemeIcon.asClassName(Codicon.info)}`;
-				calloutText.textContent = localize('quotaAdditionalUsageActive', "Additional spend is configured. Usage will continue until limits reset.");
-			} else if (maxUsedPercentage >= 75 && additionalUsageEnabled) {
+				calloutText.textContent = isUsageBasedBilling
+					? localize('quotaAdditionalUsageActive', "Additional spend is configured. Usage will continue until limits reset.")
+					: localize('quotaBudgetActive', "Premium request budget is configured. Usage will continue until limits reset.");
+			} else if (maxUsedPercentage >= 75 && maxUsedPercentage < 100 && additionalUsageEnabled) {
 				quotaCallout.style.display = '';
 				quotaCallout.className = 'quota-callout info';
 				calloutIcon.className = `callout-icon ${ThemeIcon.asClassName(Codicon.info)}`;
-				calloutText.textContent = localize('quotaAdditionalUsageApproaching', "Once the limit is reached, additional spend will be used.");
+				calloutText.textContent = isUsageBasedBilling
+					? localize('quotaAdditionalUsageApproaching', "Once the limit is reached, additional spend will be used.")
+					: localize('quotaBudgetApproaching', "Once the limit is reached, premium request budget will be used.");
 			} else if (maxUsedPercentage >= 100 && !additionalUsageEnabled) {
 				quotaCallout.style.display = '';
 				quotaCallout.className = 'quota-callout info';

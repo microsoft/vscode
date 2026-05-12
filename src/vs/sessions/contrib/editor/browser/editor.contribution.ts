@@ -9,7 +9,7 @@ import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
-import { EditorPartModalContext, IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
+import { EditorPartModalContext, IsSessionsWindowContext, IsTopRightEditorGroupContext } from '../../../../workbench/common/contextkeys.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { EditorMaximizedContext } from '../../../common/contextkeys.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
@@ -31,7 +31,7 @@ class MaximizeMainEditorPartAction extends Action2 {
 	constructor() {
 		super({
 			id: MaximizeMainEditorPartAction.ID,
-			title: localize2('maximizeMainEditorPart', "Maximize Editor"),
+			title: localize2('maximizeMainEditorPart', "Maximize Editor Area"),
 			icon: Codicon.screenFull,
 			f1: false,
 			menu: {
@@ -40,6 +40,7 @@ class MaximizeMainEditorPartAction extends Action2 {
 				order: 99,
 				when: ContextKeyExpr.and(
 					IsSessionsWindowContext,
+					IsTopRightEditorGroupContext,
 					EditorMaximizedContext.negate())
 			}
 		});
@@ -73,7 +74,7 @@ class RestoreMainEditorPartAction extends Action2 {
 	constructor() {
 		super({
 			id: RestoreMainEditorPartAction.ID,
-			title: localize2('restoreMainEditorPart', "Restore Editor"),
+			title: localize2('restoreMainEditorPart', "Restore Editor Area"),
 			icon: Codicon.screenNormal,
 			f1: false,
 			menu: {
@@ -82,6 +83,7 @@ class RestoreMainEditorPartAction extends Action2 {
 				order: 99,
 				when: ContextKeyExpr.and(
 					IsSessionsWindowContext,
+					IsTopRightEditorGroupContext,
 					EditorMaximizedContext)
 			}
 		});
@@ -109,14 +111,16 @@ class CloseMainEditorPartAction extends Action2 {
 	constructor() {
 		super({
 			id: CloseMainEditorPartAction.ID,
-			title: localize2('closeMainEditorPart', "Close Editor"),
+			title: localize2('closeMainEditorPart', "Close Editor Area"),
 			icon: Codicon.close,
 			f1: false,
 			menu: {
 				id: MenuId.EditorTitleLayout,
 				group: 'navigation',
 				order: 100,
-				when: IsSessionsWindowContext
+				when: ContextKeyExpr.and(
+					IsSessionsWindowContext,
+					IsTopRightEditorGroupContext)
 			}
 		});
 	}
@@ -142,7 +146,9 @@ class OpenEditorInModalEditorAction extends Action2 {
 				id: MenuId.EditorTitleLayout,
 				group: 'navigation',
 				order: 1,
-				when: IsSessionsWindowContext
+				when: ContextKeyExpr.and(
+					IsSessionsWindowContext
+				)
 			}
 		});
 	}
@@ -180,7 +186,7 @@ class OpenEditorInModalEditorAction extends Action2 {
 		activeGroup.moveEditors(editorsToMove, modalPart.activeGroup);
 
 		// Maximize
-		if (isMaximized) {
+		if (isMaximized && !modalPart.maximized) {
 			modalPart.toggleMaximized();
 		}
 
@@ -197,7 +203,7 @@ class OpenModalEditorInEditorAction extends Action2 {
 	constructor() {
 		super({
 			id: OpenModalEditorInEditorAction.ID,
-			title: localize2('openModalEditorInEditor', "Open in Editor"),
+			title: localize2('openModalEditorInEditor', "Open in Editor Area"),
 			icon: Codicon.openInWindow,
 			f1: false,
 			menu: {

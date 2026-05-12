@@ -41,6 +41,8 @@ export interface ISearchSubagentToolCallingLoopOptions extends IToolCallingLoopO
 	parentHeaderRequestId?: string;
 	/** The modelCallId from the parent agent's model call that triggered this subagent invocation. */
 	parentModelCallId?: string;
+	/** The top-level turn ID for aggregating credits across subagent calls. */
+	topLevelTurnId?: string;
 	/** Thoroughness level for the search, passed through to the prompt when thoroughnessEnabled config is on. */
 	thoroughness?: 'normal' | 'deep';
 }
@@ -161,6 +163,8 @@ export class SearchSubagentToolCallingLoop extends ToolCallingLoop<ISearchSubage
 			},
 			// This loop is inside a tool called from another request, so never user initiated
 			userInitiatedRequest: false,
+			turnId: this.options.request.id,
+			topLevelTurnId: this.options.topLevelTurnId,
 			telemetryProperties: {
 				requestId: this.options.subAgentInvocationId,
 				messageId: randomUUID(),
@@ -168,11 +172,12 @@ export class SearchSubagentToolCallingLoop extends ToolCallingLoop<ISearchSubage
 				subType: 'search_subagent',
 				conversationId: this.options.conversation.sessionId,
 				parentToolCallId: this.options.parentToolCallId,
+				parentRequestId: this.options.request.id,
 				parentHeaderRequestId: this.options.parentHeaderRequestId,
 				parentModelCallId: this.options.parentModelCallId,
 				iterationNumber: iterationNumber.toString(),
 			},
-			requestKindOptions: { kind: 'subagent' }
+			interactionTypeOverride: 'conversation-subagent'
 		}, token);
 	}
 }
