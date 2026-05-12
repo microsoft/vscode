@@ -90,5 +90,6 @@ suite('Breadcrumb Model', function () {
 		const elements = model.getElements();
 
 		assert.strictEqual(elements.length, 0);
+		assert.strictEqual(model.hasOutline(), false);
 	});
 });

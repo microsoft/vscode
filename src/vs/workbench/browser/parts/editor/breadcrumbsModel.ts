@@ -113,6 +113,10 @@ export class BreadcrumbsModel {
 		return result;
 	}
 
+	hasOutline(): boolean {
+		return Boolean(this._currentOutline.value);
+	}
+
 	private _initFilePathInfo(uri: URI): FileInfo {
 
 		if (matchesSomeScheme(uri, Schemas.untitled, Schemas.data)) {

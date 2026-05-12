@@ -410,7 +410,7 @@ export class BreadcrumbsControl {
 				? this._instantiationService.createInstance(FileItem, model, element, options, this._labels, this._hoverDelegate)
 				: this._instantiationService.createInstance(OutlineItem, model, element, options));
 			if (items.length === 0) {
-				if (model.resource.scheme === Schemas.untitled) {
+				if (model.resource.scheme === Schemas.untitled && !model.hasOutline()) {
 					// untitled files have no file path — hide until symbols are available
 					this._setVisibility(false);
 				} else {
