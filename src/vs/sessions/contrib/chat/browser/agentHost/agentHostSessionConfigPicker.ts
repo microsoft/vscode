@@ -530,8 +530,17 @@ class MobileAgentHostSessionConfigPicker extends AgentHostSessionConfigPicker {
 	 * then Worktree. Sort the known repo-config properties to that
 	 * order; unknown properties fall through to schema-declared order
 	 * after the known ones.
+	 *
+	 * On desktop viewports this subclass is also instantiated (see the
+	 * factory in `AgentHostSessionConfigPickersContribution` — it always
+	 * picks the mobile-aware subclass so `_showPicker` can route to the
+	 * bottom sheet on phones), so we must defer to the base ordering
+	 * (Isolation first, Branch second) when not on a phone layout.
 	 */
 	protected override _orderProperties(properties: ReadonlyArray<[string, SessionConfigPropertySchema]>): ReadonlyArray<[string, SessionConfigPropertySchema]> {
+		if (!isPhoneLayout(this._layoutService)) {
+			return super._orderProperties(properties);
+		}
 		const order = new Map<string, number>([
 			[SessionConfigKey.Branch, 0],
 			[SessionConfigKey.Isolation, 1],
