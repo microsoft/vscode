@@ -1,0 +1,40 @@
+{
+	"name": "@son-of-anton/codegraph-napi",
+	"version": "0.1.0",
+	"description": "Native Rust bindings for the Son of Anton embedded code-graph backend (H17).",
+	"main": "index.js",
+	"types": "index.d.ts",
+	"license": "MIT",
+	"private": true,
+	"napi": {
+		"name": "sota-codegraph-napi",
+		"triples": {
+			"defaults": false,
+			"additional": [
+				"aarch64-apple-darwin",
+				"x86_64-apple-darwin",
+				"x86_64-unknown-linux-gnu",
+				"aarch64-unknown-linux-gnu",
+				"x86_64-pc-windows-msvc"
+			]
+		}
+	},
+	"files": [
+		"index.js",
+		"index.d.ts",
+		"*.node"
+	],
+	"scripts": {
+		"build": "napi build --platform --release",
+		"build:debug": "napi build --platform",
+		"prepublishOnly": "napi prepublish -t npm",
+		"artifacts": "napi artifacts",
+		"version": "napi version"
+	},
+	"devDependencies": {
+		"@napi-rs/cli": "^2.18.4"
+	},
+	"engines": {
+		"node": ">=18"
+	}
+}
