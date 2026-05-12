@@ -12,7 +12,7 @@ import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessio
 import { IChat, ISession } from '../../common/session.js';
 import { deduplicateSessions } from '../../browser/sessionsManagementService.js';
 
-const stubChat: IChat = {
+const stubChat = {
 	resource: URI.parse('test:///chat'),
 	createdAt: new Date(),
 	title: constObservable('Chat'),
@@ -20,13 +20,14 @@ const stubChat: IChat = {
 	status: constObservable(0),
 	changesets: constObservable([]),
 	changes: constObservable([]),
+	checkpoints: constObservable(undefined),
 	modelId: constObservable(undefined),
 	mode: constObservable(undefined),
 	isArchived: constObservable(false),
 	isRead: constObservable(true),
 	description: constObservable(undefined),
 	lastTurnEnd: constObservable(undefined),
-};
+} satisfies IChat;
 
 function stubSession(overrides: Partial<ISession> & Pick<ISession, 'sessionId' | 'providerId'>): ISession {
 	return {

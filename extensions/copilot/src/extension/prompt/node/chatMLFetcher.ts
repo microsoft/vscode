@@ -70,9 +70,10 @@ export abstract class AbstractChatMLFetcher extends Disposable implements IChatM
 		return {
 			temperature: this.options.temperature,
 			top_p: this.options.topP,
-			// we disallow `stream=false` because we don't support non-streamed response
+			// Default to streaming; callers can override via requestOptions.stream
+			// to opt into non-streaming (e.g. for background summarization).
+			stream: true,
 			...requestOptions,
-			stream: true
 		};
 	}
 

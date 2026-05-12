@@ -174,6 +174,10 @@ export interface IGitHubInfo {
 		readonly uri: URI;
 		/** Icon reflecting the PR state. */
 		readonly icon?: ThemeIcon;
+		/** Object ID of the base ref (merge target) commit. */
+		readonly baseRefOid?: string;
+		/** Object ID of the head ref (PR branch) commit. */
+		readonly headRefOid?: string;
 	};
 }
 
@@ -190,6 +194,13 @@ export interface ISessionChangeset {
 	readonly enabled: IObservable<boolean>;
 	/** File changes associated with this changeset. */
 	readonly changes: IObservable<readonly ISessionFileChange[]>;
+}
+
+export interface IChatCheckpoints {
+	/** Reference to the first checkpoint in the chat. */
+	readonly firstCheckpointRef: string;
+	/** Reference to the last checkpoint in the chat. */
+	readonly lastCheckpointRef: string;
 }
 
 /**
@@ -213,6 +224,8 @@ export interface IChat {
 	readonly changes: IObservable<readonly ISessionFileChange[]>;
 	/** Changesets produced by the chat. */
 	readonly changesets: IObservable<readonly ISessionChangeset[]>;
+	/** Checkpoints associated with the chat. */
+	readonly checkpoints: IObservable<IChatCheckpoints | undefined>;
 	/** Currently selected model identifier. */
 	readonly modelId: IObservable<string | undefined>;
 	/** Currently selected mode identifier and kind. */
@@ -402,4 +415,30 @@ export function sessionFileChangesEqual(a: readonly ISessionFileChange[], b: rea
 	}
 
 	return true;
+}
+
+/**
+ * Structural equality for {@link IGitHubInfo}. Used as an `equalsFn` on the `gitHubInfo` observable
+ * so that providers can re-publish updated info without notifying observers when the underlying GitHub
+ * info has not actually changed.
+ */
+export function gitHubInfoEqual(a: IGitHubInfo | undefined, b: IGitHubInfo | undefined): boolean {
+	if (a === b) {
+		return true;
+	}
+
+	if (a === undefined || b === undefined) {
+		return false;
+	}
+
+	const aIcon = a.pullRequest?.icon;
+	const bIcon = b.pullRequest?.icon;
+
+	return a.owner === b.owner &&
+		a.repo === b.repo &&
+		a.pullRequest?.number === b.pullRequest?.number &&
+		isEqual(a.pullRequest?.uri, b.pullRequest?.uri) &&
+		(aIcon === bIcon || (!!aIcon && !!bIcon && ThemeIcon.isEqual(aIcon, bIcon))) &&
+		a.pullRequest?.baseRefOid === b.pullRequest?.baseRefOid &&
+		a.pullRequest?.headRefOid === b.pullRequest?.headRefOid;
 }

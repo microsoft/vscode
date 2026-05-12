@@ -15,7 +15,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { mock } from '../../../../../base/test/common/mock.js';
 import { GitHubPullRequestPollingContribution } from '../../browser/github.contribution.js';
 import { IGitHubService } from '../../browser/githubService.js';
-import { IChat, IGitHubInfo, ISession, ISessionCapabilities, ISessionChangeset, ISessionFileChange, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { IChat, IGitHubInfo, ISession, ISessionCapabilities, ISessionChangeset, IChatCheckpoints, ISessionFileChange, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 
 suite('GitHubPullRequestPollingContribution', () => {
@@ -200,6 +200,9 @@ class TestSession implements ISession {
 		this.isRead = observableValue<boolean>(`test.isRead.${id}`, true);
 		this.description = observableValue<IMarkdownString | undefined>(`test.description.${id}`, undefined);
 		this.lastTurnEnd = observableValue<Date | undefined>(`test.lastTurnEnd.${id}`, undefined);
+
+		const checkpoints = observableValue<IChatCheckpoints | undefined>(`test.checkpoints.${id}`, undefined);
+
 		this.mainChat = {
 			resource: this.resource,
 			createdAt: this.createdAt,
@@ -208,6 +211,7 @@ class TestSession implements ISession {
 			status: this.status,
 			changesets: this.changesets,
 			changes: this.changes,
+			checkpoints,
 			modelId: this.modelId,
 			mode: this.mode,
 			isArchived: this.isArchived,

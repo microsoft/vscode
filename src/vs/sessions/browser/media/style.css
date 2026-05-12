@@ -152,6 +152,10 @@
 	margin-bottom: 0;
 }
 
+.agent-sessions-workbench.noauxiliarybar .part.chatbar {
+	margin-right: 0;
+}
+
 .agent-sessions-workbench .part.editor:not(.modal-editor-part) {
 	/*
 	 * No right margin so the editor flushes against the auxiliary bar (whose
@@ -655,6 +659,7 @@
 }
 
 @starting-style {
+
 	/* Shared starting values */
 	.agent-sessions-workbench .part.auxiliarybar,
 	.agent-sessions-workbench .part.panel,
@@ -692,6 +697,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+
 	.agent-sessions-workbench .part.auxiliarybar,
 	.agent-sessions-workbench .part.panel,
 	.agent-sessions-workbench .part.chatbar {
@@ -864,6 +870,7 @@
 		transform: translateY(30%);
 		opacity: 0.5;
 	}
+
 	to {
 		transform: translateY(0);
 		opacity: 1;
@@ -919,6 +926,7 @@
 		transform: translateY(100%);
 		opacity: 0.5;
 	}
+
 	to {
 		transform: translateY(0);
 		opacity: 1;
@@ -956,6 +964,7 @@
 		transform: translateX(100%);
 		opacity: 0;
 	}
+
 	to {
 		transform: translateX(0);
 		opacity: 1;

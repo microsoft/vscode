@@ -228,6 +228,8 @@ export class AgentHostSessionAdapter implements ISession {
 			this.changes.set(diffsToChanges(metadata.diffs, _options.mapDiffUri), undefined);
 		}
 
+		const checkpoints = observableValue(this, undefined);
+
 		this.mainChat = {
 			resource: this.resource,
 			createdAt: this.createdAt,
@@ -236,6 +238,7 @@ export class AgentHostSessionAdapter implements ISession {
 			status: this.status,
 			changes: this.changes,
 			changesets: this.changesets,
+			checkpoints,
 			modelId: this.modelId,
 			mode: this.mode,
 			isArchived: this.isArchived,
@@ -456,6 +459,7 @@ class NewSession extends Disposable {
 		const updatedAt = observableValue(this, new Date());
 		const changesets = observableValue<readonly ISessionChangeset[]>(this, []);
 		const changes = observableValueOpts<readonly (IChatSessionFileChange | IChatSessionFileChange2)[]>({ owner: this, equalsFn: sessionFileChangesEqual }, []);
+		const checkpoints = observableValue(this, undefined);
 		this._modelId = observableValue<string | undefined>(this, undefined);
 		const mode = observableValue<{ readonly id: string; readonly kind: string } | undefined>(this, undefined);
 		const isArchived = observableValue(this, false);
@@ -470,6 +474,7 @@ class NewSession extends Disposable {
 			status: this._status,
 			changesets,
 			changes,
+			checkpoints,
 			modelId: this._modelId,
 			mode, isArchived, isRead, description, lastTurnEnd,
 		};

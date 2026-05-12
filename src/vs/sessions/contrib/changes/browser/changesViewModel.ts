@@ -15,7 +15,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { IChatSessionFileChange2, IChatSessionItemMetadata } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { GitDiffChange, IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
-import { COPILOT_CLOUD_SESSION_TYPE, ISessionFileChange } from '../../../services/sessions/common/session.js';
+import { COPILOT_CLOUD_SESSION_TYPE, gitHubInfoEqual, IGitHubInfo, ISessionFileChange } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { IAgentFeedbackService } from '../../agentFeedback/browser/agentFeedbackService.js';
 import { CodeReviewStateKind, getCodeReviewFilesFromSessionChanges, getCodeReviewVersion, ICodeReviewService, PRReviewStateKind } from '../../codeReview/browser/codeReviewService.js';
@@ -164,9 +164,9 @@ export class ChangesViewModel extends Disposable {
 		});
 
 		// Active session first checkpoint ref
-		this.activeSessionFirstCheckpointRefObs = derived(reader => {
-			const metadata = this._activeSessionMetadataObs.read(reader);
-			return metadata?.firstCheckpointRef as string | undefined;
+		this.activeSessionFirstCheckpointRefObs = derived<string | undefined>(reader => {
+			const activeSession = this.sessionManagementService.activeSession.read(reader);
+			return activeSession?.mainChat.checkpoints.read(reader)?.firstCheckpointRef;
 		});
 
 		// Active session last checkpoint ref
@@ -178,8 +178,7 @@ export class ChangesViewModel extends Disposable {
 
 			// Session has only one chat
 			if (activeSessionChats.length === 1) {
-				const metadata = this._activeSessionMetadataObs.read(reader);
-				return metadata?.lastCheckpointRef as string | undefined;
+				return activeSessionChats[0].checkpoints.read(reader)?.lastCheckpointRef;
 			}
 
 			// Session has multiple chats - find the last chat that completed
@@ -190,8 +189,7 @@ export class ChangesViewModel extends Disposable {
 				return sortDateDesc(chatALastTurnEnd, chatBLastTurnEnd);
 			});
 
-			const model = this.agentSessionsService.getSession(chatsSortedByLastTurnEnd[0].resource);
-			return model?.metadata?.lastCheckpointRef as string | undefined;
+			return chatsSortedByLastTurnEnd[0].checkpoints.read(reader)?.lastCheckpointRef;
 		});
 
 		// Active session state
@@ -260,6 +258,13 @@ export class ChangesViewModel extends Disposable {
 	}
 
 	private _getActiveSessionChanges(): IObservable<readonly ISessionFileChange[]> {
+		const gitHubInfoObs = derivedOpts<IGitHubInfo | undefined>(
+			{ equalsFn: gitHubInfoEqual },
+			reader => {
+				const activeSession = this.sessionManagementService.activeSession.read(reader);
+				return activeSession?.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
+			});
+
 		// Changes
 		const activeSessionChangesObs = derived(reader => {
 			const activeSession = this.sessionManagementService.activeSession.read(reader);
@@ -309,10 +314,10 @@ export class ChangesViewModel extends Disposable {
 
 			if (sessionType === COPILOT_CLOUD_SESSION_TYPE) {
 				// Cloud session
-				const metadata = this._activeSessionMetadataObs.read(reader);
+				const gitHubInfo = gitHubInfoObs.read(reader);
 
-				const firstCheckpointRef = metadata?.baseRefOid as string | undefined;
-				const lastCheckpointRef = metadata?.headRefOid as string | undefined;
+				const firstCheckpointRef = gitHubInfo?.pullRequest?.baseRefOid;
+				const lastCheckpointRef = gitHubInfo?.pullRequest?.headRefOid;
 
 				if (!firstCheckpointRef || !lastCheckpointRef) {
 					return constObservable([]);
@@ -341,8 +346,8 @@ export class ChangesViewModel extends Disposable {
 
 			if (sessionType === COPILOT_CLOUD_SESSION_TYPE) {
 				// Cloud session
-				const metadata = this._activeSessionMetadataObs.read(reader);
-				const lastCheckpointRef = metadata?.headRefOid as string | undefined;
+				const gitHubInfo = gitHubInfoObs.read(reader);
+				const lastCheckpointRef = gitHubInfo?.pullRequest?.headRefOid;
 
 				if (!lastCheckpointRef) {
 					return constObservable([]);

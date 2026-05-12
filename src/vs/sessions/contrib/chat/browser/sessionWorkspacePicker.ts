@@ -345,17 +345,7 @@ export class WorkspacePicker extends Disposable {
 		return {
 			onSelect: (item) => {
 				hide();
-				if (item.commandId) {
-					this.commandService.executeCommand(item.commandId);
-				} else if (item.selection && this._isProviderUnavailable(item.selection.providerId)) {
-					// Workspace belongs to an unavailable remote — ignore selection
-					return;
-				}
-				if (item.browseActionIndex !== undefined) {
-					this._executeBrowseAction(item.browseActionIndex);
-				} else if (item.selection) {
-					this._selectProject(item.selection);
-				}
+				this._dispatchPickerItem(item);
 			},
 			onHide: () => {
 				triggerElement.setAttribute('aria-expanded', 'false');

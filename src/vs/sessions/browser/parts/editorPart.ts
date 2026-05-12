@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { LayoutPriority } from '../../../base/browser/ui/splitview/splitview.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { MainEditorPart as MainEditorPartBase } from '../../../workbench/browser/parts/editor/editorPart.js';
 import { Parts } from '../../../workbench/services/layout/browser/layoutService.js';
@@ -12,6 +13,8 @@ export class MainEditorPart extends MainEditorPartBase {
 	static readonly MARGIN_BOTTOM = 5;
 	static readonly MARGIN_LEFT = 5;
 	static readonly MARGIN_RIGHT = 5;
+
+	override priority = LayoutPriority.High;
 
 	override layout(width: number, height: number, top: number, left: number): void {
 		if (!this.layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
