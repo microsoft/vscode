@@ -71,6 +71,21 @@ export type HooksFile = Partial<Record<HookEvent, ReadonlyArray<string>>>;
  * always populates at least one folder (the cwd), so we treat the first
  * folder as the workspace root.
  */
+/**
+ * Best-effort mtime probe. Returns 0 when the file doesn't exist (the
+ * common case for workspaces with no hooks configured) — that's
+ * indistinguishable from "no change" so the in-memory snapshot stays
+ * authoritative. Any other stat failure (permissions, filesystem error)
+ * also returns 0; we'd rather use the snapshot than crash the chat turn.
+ */
+function safeMtimeMs(filePath: string): number {
+	try {
+		return fs.statSync(filePath).mtimeMs;
+	} catch {
+		return 0;
+	}
+}
+
 function resolveWorkspaceRoot(host: CoreHost): string {
 	const folder = host.workspace.folders[0];
 	return folder ? folder.fsPath : process.cwd();
@@ -202,22 +217,49 @@ async function runOneScript(
 }
 
 /**
- * Workspace-trust-gated runner for `.son-of-anton/hooks.json`. Built once at
- * session start; reads its config at construction time so a user editing
- * `hooks.json` mid-session won't see the new rules until the next session —
- * the same contract Claude Code's hooks promise.
+ * Workspace-trust-gated runner for `.son-of-anton/hooks.json`.
+ *
+ * Re-reads `hooks.json` from disk before each `fire()` when the on-disk
+ * mtime has advanced — so a user editing the file mid-session sees their
+ * new rules on the next turn without restarting. The mtime check is one
+ * `fs.statSync` per hook event (a handful per chat turn), which is well
+ * under the noise floor of the LLM round-trip. If the file disappears
+ * mid-session we fall back to the in-memory snapshot rather than crashing.
+ *
+ * The original constructor-only-load contract was inherited from Claude
+ * Code's hook design. We deliberately diverge because editing a hook in
+ * the IDE typically happens during a chat session and forcing a window
+ * reload to pick it up is a confusing UX miss.
  */
 export class HookRunner {
 	private readonly workspaceRoot: string;
 	private readonly trusted: boolean;
-	private readonly hooks: HooksFile;
+	private hooks: HooksFile;
+	private hooksMtimeMs: number;
 	private readonly notifier: Notifier;
 
 	constructor(host: CoreHost) {
 		this.workspaceRoot = resolveWorkspaceRoot(host);
 		this.trusted = host.workspace.isTrusted;
 		this.hooks = this.trusted ? readHooksFile(this.workspaceRoot) : {};
+		this.hooksMtimeMs = this.trusted ? safeMtimeMs(hooksFilePath(this.workspaceRoot)) : 0;
 		this.notifier = host.notifier;
+	}
+
+	/**
+	 * Reload the in-memory hooks snapshot when the on-disk file's mtime
+	 * has advanced. No-op for untrusted workspaces (where the snapshot is
+	 * empty and we never read disk).
+	 */
+	private maybeReload(): void {
+		if (!this.trusted) {
+			return;
+		}
+		const currentMtime = safeMtimeMs(hooksFilePath(this.workspaceRoot));
+		if (currentMtime !== this.hooksMtimeMs) {
+			this.hooks = readHooksFile(this.workspaceRoot);
+			this.hooksMtimeMs = currentMtime;
+		}
 	}
 
 	/** Whether the workspace was trusted when this runner was constructed. */
@@ -227,6 +269,7 @@ export class HookRunner {
 
 	/** Snapshot of the configured scripts per event, useful for diagnostics. */
 	get configured(): HooksFile {
+		this.maybeReload();
 		return this.hooks;
 	}
 
@@ -239,6 +282,7 @@ export class HookRunner {
 	 * so the chat flow can call it unconditionally without branching.
 	 */
 	async fire(event: HookEvent, payload: unknown): Promise<HookFireResult> {
+		this.maybeReload();
 		const scripts = this.hooks[event];
 		if (!this.trusted || !scripts || scripts.length === 0) {
 			return { allowed: true, scriptResults: [] };

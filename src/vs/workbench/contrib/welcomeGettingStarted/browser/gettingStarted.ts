@@ -124,9 +124,25 @@ const REDUCED_MOTION_KEY = 'workbench.welcomePage.preferReducedMotion';
 // bundle enforces `require-trusted-types-for 'script'`, which rejects
 // raw-string innerHTML assignments. The skyline SVG is a hardcoded
 // constant from `sotaWelcomeHero.ts` (no user input, no remote fetches,
-// no XSS surface), so a pass-through policy is safe — it satisfies the
-// browser's TrustedHTML invariant without changing the bytes.
-const sotaWelcomeHeroTTPolicy = createTrustedTypesPolicy('sotaWelcomeHero', { createHTML: value => value });
+// no XSS surface).
+//
+// The policy is NOT a pass-through. It compares the candidate string
+// against the snapshot of `SOTA_WELCOME_HERO_SKYLINE_SVG` taken once
+// at module load and throws when the two don't match. That way, if a
+// future refactor accidentally makes the SVG dynamic — say, by
+// interpolating a user-controlled string into the markup — the policy
+// fires immediately at the assignment site rather than silently letting
+// untrusted HTML reach `innerHTML`. The cost is one string comparison
+// per welcome-page mount, which is dwarfed by the SVG render itself.
+const KNOWN_SOTA_WELCOME_SKYLINE = getSotaWelcomeHeroContent().skylineSvg;
+const sotaWelcomeHeroTTPolicy = createTrustedTypesPolicy('sotaWelcomeHero', {
+	createHTML: (value: string) => {
+		if (value !== KNOWN_SOTA_WELCOME_SKYLINE) {
+			throw new Error('sotaWelcomeHero TT policy rejects unrecognised HTML — the skyline SVG must be the hardcoded constant from sotaWelcomeHero.ts.');
+		}
+		return value;
+	},
+});
 
 export class GettingStartedPage extends EditorPane {
 

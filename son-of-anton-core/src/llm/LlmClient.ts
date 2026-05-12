@@ -295,6 +295,10 @@ const MULTIMODAL_MODELS: ReadonlySet<ModelId> = new Set<ModelId>([
 	'bedrock-claude-sonnet',
 	'bedrock-nova-pro', 'bedrock-nova-lite',
 	// Google Gemini — every shipping Gemini model accepts inline images.
+	// Gemma is text-only (no vision capability in the open-weights tier).
+	'gemini-3-1-pro-preview', 'gemini-3-1-flash-lite',
+	'gemini-3-1-flash-live-preview', 'gemini-3-flash-preview',
+	'gemini-deep-research-preview', 'gemini-deep-research-max-preview',
 	'gemini-2-5-pro', 'gemini-2-5-flash',
 	'gemini-2-0-pro', 'gemini-2-0-flash', 'gemini-2-0-flash-lite',
 	// OpenRouter — pre-configured ids that point at upstream vision-capable

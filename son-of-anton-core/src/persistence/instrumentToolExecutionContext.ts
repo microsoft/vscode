@@ -47,12 +47,14 @@ function stringifyOutput(value: unknown): string {
  *   `readFile`, `readDir`, and `searchTextInWorkspace` returns. Informational
  *   only — the hook's exit code is ignored.
  *
- * Deviation from the cli-upgrade-plan spec: the `name` field on the
- * `pre-tool-call` and `post-tool-call` payloads is the ToolExecutionContext
- * METHOD name (e.g. `'writeFile'`, `'runCommand'`) rather than the
- * tool-registry tool name (e.g. `'write_file'`, `'run_command'`). The
- * decorator sits below the registry boundary, where tool names are not in
- * scope.
+ * The `name` field on `pre-tool-call` / `post-tool-call` payloads uses the
+ * tool-registry tool names (`'read_file'`, `'list_directory'`,
+ * `'search_workspace'`, `'write_file'`, `'run_command'`) so hook authors
+ * can match the same identifiers they see in the CLI documentation and
+ * the `/tools` slash-command output. Earlier revisions of this decorator
+ * leaked the ToolExecutionContext method names (`'readFile'`,
+ * `'runCommand'`, …) which was confusing for hook authors writing deny
+ * rules.
  *
  * @param ctx The base tool execution context to wrap.
  * @param hookRunner A constructed {@link HookRunner}. Must already be gated
@@ -75,21 +77,29 @@ export function instrumentToolExecutionContext(
 
 		readFile: async (relPath) => {
 			const gate = await hookRunner.fire('pre-tool-call', {
-				name: 'readFile',
+				name: 'read_file',
 				input: { path: relPath },
 			});
 			if (!gate.allowed) {
 				await hookRunner.fire('post-tool-call', {
-					name: 'readFile',
+					name: 'read_file',
 					input: { path: relPath },
 					output: stringifyOutput({ read: false, reason: 'pre-tool-call hook denied read' }),
 					isError: true,
 				});
-				return '';
+				// Throwing rather than returning '' makes the read_file builtin
+				// surface the denial as an `isError: true` ToolExecutionResult,
+				// so the LLM sees "denied" rather than "empty file". The
+				// `read_file`, `list_directory`, and `search_workspace` tools
+				// all wrap `ctx.readFile` / `ctx.readDir` /
+				// `ctx.searchTextInWorkspace` in try/catch and convert thrown
+				// errors via describeError(), so the model gets a clean error
+				// instead of a hallucinated empty result.
+				throw new Error('pre-tool-call hook denied read');
 			}
 			const result = await ctx.readFile(relPath);
 			await hookRunner.fire('post-tool-call', {
-				name: 'readFile',
+				name: 'read_file',
 				input: { path: relPath },
 				output: stringifyOutput(result),
 				isError: false,
@@ -99,22 +109,21 @@ export function instrumentToolExecutionContext(
 
 		readDir: async (relPath) => {
 			const gate = await hookRunner.fire('pre-tool-call', {
-				name: 'readDir',
+				name: 'list_directory',
 				input: { path: relPath },
 			});
 			if (!gate.allowed) {
-				const denied: ReadonlyArray<{ name: string; isDirectory: boolean }> = [];
 				await hookRunner.fire('post-tool-call', {
-					name: 'readDir',
+					name: 'list_directory',
 					input: { path: relPath },
 					output: stringifyOutput({ listed: false, reason: 'pre-tool-call hook denied list' }),
 					isError: true,
 				});
-				return denied;
+				throw new Error('pre-tool-call hook denied list');
 			}
 			const result = await ctx.readDir(relPath);
 			await hookRunner.fire('post-tool-call', {
-				name: 'readDir',
+				name: 'list_directory',
 				input: { path: relPath },
 				output: stringifyOutput(result),
 				isError: false,
@@ -124,22 +133,21 @@ export function instrumentToolExecutionContext(
 
 		searchTextInWorkspace: async (query, maxMatches) => {
 			const gate = await hookRunner.fire('pre-tool-call', {
-				name: 'searchTextInWorkspace',
+				name: 'search_workspace',
 				input: { query, maxMatches },
 			});
 			if (!gate.allowed) {
-				const denied: ReadonlyArray<{ relPath: string; line: number; preview: string }> = [];
 				await hookRunner.fire('post-tool-call', {
-					name: 'searchTextInWorkspace',
+					name: 'search_workspace',
 					input: { query, maxMatches },
 					output: stringifyOutput({ searched: false, reason: 'pre-tool-call hook denied search' }),
 					isError: true,
 				});
-				return denied;
+				throw new Error('pre-tool-call hook denied search');
 			}
 			const result = await ctx.searchTextInWorkspace(query, maxMatches);
 			await hookRunner.fire('post-tool-call', {
-				name: 'searchTextInWorkspace',
+				name: 'search_workspace',
 				input: { query, maxMatches },
 				output: stringifyOutput(result),
 				isError: false,
@@ -149,13 +157,13 @@ export function instrumentToolExecutionContext(
 
 		writeFile: async (relPath, content) => {
 			const gate = await hookRunner.fire('pre-tool-call', {
-				name: 'writeFile',
+				name: 'write_file',
 				input: { path: relPath, content },
 			});
 			if (!gate.allowed) {
 				const denied = { written: false as const, reason: 'pre-tool-call hook denied write' };
 				await hookRunner.fire('post-tool-call', {
-					name: 'writeFile',
+					name: 'write_file',
 					input: { path: relPath, content },
 					output: stringifyOutput(denied),
 					isError: false,
@@ -166,7 +174,7 @@ export function instrumentToolExecutionContext(
 			if (!fired.allowed) {
 				const denied = { written: false as const, reason: 'pre-write-file hook denied write' };
 				await hookRunner.fire('post-tool-call', {
-					name: 'writeFile',
+					name: 'write_file',
 					input: { path: relPath, content },
 					output: stringifyOutput(denied),
 					isError: false,
@@ -176,7 +184,7 @@ export function instrumentToolExecutionContext(
 			const effectiveContent = fired.replacement !== undefined ? fired.replacement : content;
 			const result = await ctx.writeFile(relPath, effectiveContent);
 			await hookRunner.fire('post-tool-call', {
-				name: 'writeFile',
+				name: 'write_file',
 				input: { path: relPath, content: effectiveContent },
 				output: stringifyOutput(result),
 				isError: false,
@@ -186,13 +194,13 @@ export function instrumentToolExecutionContext(
 
 		runCommand: async (command, args, opts) => {
 			const gate = await hookRunner.fire('pre-tool-call', {
-				name: 'runCommand',
+				name: 'run_command',
 				input: { command, args, cwd: opts?.cwd },
 			});
 			if (!gate.allowed) {
 				const denied = { ran: false as const, reason: 'pre-tool-call hook denied command' };
 				await hookRunner.fire('post-tool-call', {
-					name: 'runCommand',
+					name: 'run_command',
 					input: { command, args, cwd: opts?.cwd },
 					output: stringifyOutput(denied),
 					isError: false,
@@ -207,7 +215,7 @@ export function instrumentToolExecutionContext(
 			if (!fired.allowed) {
 				const denied = { ran: false as const, reason: 'pre-shell-command hook denied command' };
 				await hookRunner.fire('post-tool-call', {
-					name: 'runCommand',
+					name: 'run_command',
 					input: { command, args, cwd: opts?.cwd },
 					output: stringifyOutput(denied),
 					isError: false,
@@ -216,7 +224,7 @@ export function instrumentToolExecutionContext(
 			}
 			const result = await ctx.runCommand(command, args, opts);
 			await hookRunner.fire('post-tool-call', {
-				name: 'runCommand',
+				name: 'run_command',
 				input: { command, args, cwd: opts?.cwd },
 				output: stringifyOutput(result),
 				isError: false,

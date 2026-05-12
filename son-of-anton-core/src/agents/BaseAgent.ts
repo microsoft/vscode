@@ -473,7 +473,7 @@ export abstract class BaseAgent {
 				inputTokens: usage.input,
 				outputTokens: usage.output,
 				cachedTokens: usage.cached,
-				naiveInputTokens: 0,
+				naiveInputTokens: usage.input + usage.cached,
 			};
 
 			span.attributes['inputTokens'] = tokenUsage.inputTokens;
@@ -495,7 +495,7 @@ export abstract class BaseAgent {
 			inputTokens: usage.input,
 			outputTokens: usage.output,
 			cachedTokens: usage.cached,
-			naiveInputTokens: 0,
+			naiveInputTokens: usage.input + usage.cached,
 		};
 
 		span.attributes['inputTokens'] = tokenUsage.inputTokens;
@@ -533,11 +533,23 @@ export abstract class BaseAgent {
 	}
 
 	/**
+	 * Drop the McpClient's soft-error diagnostic string when the
+	 * `code-graph` server isn't configured / connected. The diagnostic
+	 * is human-readable ("(MCP server 'code-graph' not configured...)")
+	 * and would otherwise be embedded as graph context in LLM prompts.
+	 * Returning `''` here gives the caller a chance to emit a
+	 * neutral placeholder instead of leaking ops noise into the model.
+	 */
+	private graphContentOrEmpty(result: McpToolResult): string {
+		return result.isError ? '' : result.content;
+	}
+
+	/**
 	 * Query the code graph for file summary information.
 	 */
 	protected async queryFileGraph(taskId: string, filePath: string): Promise<string> {
 		const result = await this.callMcpTool(taskId, 'code-graph', 'file_summary', { filePath });
-		return result.content;
+		return this.graphContentOrEmpty(result);
 	}
 
 	/**
@@ -545,7 +557,7 @@ export abstract class BaseAgent {
 	 */
 	protected async querySymbol(taskId: string, symbolName: string): Promise<string> {
 		const result = await this.callMcpTool(taskId, 'code-graph', 'symbol_lookup', { symbolName });
-		return result.content;
+		return this.graphContentOrEmpty(result);
 	}
 
 	/**
@@ -553,7 +565,7 @@ export abstract class BaseAgent {
 	 */
 	protected async queryDependencies(taskId: string, filePath: string): Promise<string> {
 		const result = await this.callMcpTool(taskId, 'code-graph', 'dependency_traversal', { filePath });
-		return result.content;
+		return this.graphContentOrEmpty(result);
 	}
 
 	/**
@@ -561,7 +573,7 @@ export abstract class BaseAgent {
 	 */
 	protected async queryImpact(taskId: string, filePath: string): Promise<string> {
 		const result = await this.callMcpTool(taskId, 'code-graph', 'impact_analysis', { filePath });
-		return result.content;
+		return this.graphContentOrEmpty(result);
 	}
 
 	/**
@@ -569,7 +581,7 @@ export abstract class BaseAgent {
 	 */
 	protected async queryReferences(taskId: string, symbolName: string): Promise<string> {
 		const result = await this.callMcpTool(taskId, 'code-graph', 'find_references', { symbolName });
-		return result.content;
+		return this.graphContentOrEmpty(result);
 	}
 
 	/**
@@ -784,6 +796,11 @@ export abstract class BaseAgent {
 			aggregateUsage.inputTokens += usage.input;
 			aggregateUsage.outputTokens += usage.output;
 			aggregateUsage.cachedTokens += usage.cached;
+			// `naiveInputTokens` is the worst-case input cost — what we'd
+			// have paid if nothing were cached. Accumulating
+			// `input + cached` per loop iteration keeps the aggregate
+			// consistent with the non-tool-loop callers above.
+			aggregateUsage.naiveInputTokens += usage.input + usage.cached;
 
 			if (pendingCalls.length === 0) {
 				// Natural turn-end: model is done with tools. Return.
