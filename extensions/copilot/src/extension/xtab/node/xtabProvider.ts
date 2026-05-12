@@ -1439,6 +1439,13 @@ export class XtabProvider implements IStatelessNextEditProvider {
 			},
 			lintOptions: undefined,
 			includePostScript: true,
+			globalBudget: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabGlobalBudgetEnabled, this.expService)
+				? {
+					totalTokens: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabGlobalBudgetTotalTokens, this.expService),
+					order: xtabPromptOptions.GlobalBudgetOptions.DEFAULT_ORDER,
+					shares: xtabPromptOptions.GlobalBudgetOptions.DEFAULT_SHARES,
+				}
+				: undefined,
 		};
 
 		const selectedModelConfig = this.modelService.selectedModelConfiguration();
