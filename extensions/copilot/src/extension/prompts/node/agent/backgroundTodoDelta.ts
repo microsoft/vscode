@@ -50,10 +50,14 @@ export interface IBackgroundTodoDeltaMetadata {
 	readonly newRoundCount: number;
 	/** Total number of individual tool calls across new rounds. */
 	readonly newToolCallCount: number;
-	/** Number of substantive (non-excluded) tool calls in new rounds.
-	 *  Substantive = the agent did real work (reads, edits, terminal,
-	 *  searches, subagents, etc); excluded = infrastructure noise. */
+	/** Number of substantive (non-excluded) tool calls across ALL new rounds
+	 *  (current turn + any unprocessed history rounds). */
 	readonly substantiveToolCallCount: number;
+	/** Number of substantive tool calls from the current turn only
+	 *  (`promptContext.toolCallRounds`).  Used by the invocation policy
+	 *  so that unprocessed rounds from previous turns don't inflate the
+	 *  threshold and trigger spurious passes. */
+	readonly currentTurnSubstantiveToolCallCount: number;
 	/** True when this is the very first delta for the session (no rounds processed yet). */
 	readonly isInitialDelta: boolean;
 	/** True when the delta contains only a user request and zero new rounds. */
@@ -125,6 +129,26 @@ export class BackgroundTodoDeltaTracker {
 			}
 		}
 
+		// Count substantive calls from current-turn rounds only so that
+		// unprocessed history rounds don't inflate the policy threshold.
+		const currentTurnRoundIds = new Set<string>();
+		for (const round of currentRounds) {
+			if (!this._processedRoundIds.has(round.id)) {
+				currentTurnRoundIds.add(round.id);
+			}
+		}
+		let currentTurnSubstantiveToolCallCount = 0;
+		for (const round of newRounds) {
+			if (!currentTurnRoundIds.has(round.id)) {
+				continue;
+			}
+			for (const call of round.toolCalls) {
+				if (classifyTool(call.name) === 'substantive') {
+					currentTurnSubstantiveToolCallCount++;
+				}
+			}
+		}
+
 		return {
 			userRequest,
 			newRounds,
@@ -134,6 +158,7 @@ export class BackgroundTodoDeltaTracker {
 				newRoundCount: newRounds.length,
 				newToolCallCount,
 				substantiveToolCallCount,
+				currentTurnSubstantiveToolCallCount,
 				isInitialDelta,
 				isRequestOnly: newRounds.length === 0,
 			},

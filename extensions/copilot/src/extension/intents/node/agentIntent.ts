@@ -1273,9 +1273,11 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 			promptContext,
 		};
 
+		const turnId = promptContext.conversation?.getLatestTurn()?.id;
+
 		if (decision === BackgroundTodoDecision.Wait && reason === 'processorInProgress' && delta) {
 			// Coalesce into the queue so the latest context is not lost.
-			processor.requestRegularPass(delta, executionContext, token);
+			processor.requestRegularPass(delta, executionContext, token, turnId);
 			return;
 		}
 
@@ -1283,7 +1285,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 			return;
 		}
 
-		processor.requestRegularPass(delta, executionContext, token);
+		processor.requestRegularPass(delta, executionContext, token, turnId);
 	}
 
 	override processResponse = undefined;

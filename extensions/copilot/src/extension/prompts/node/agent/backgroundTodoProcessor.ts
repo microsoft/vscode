@@ -156,6 +156,10 @@ export class BackgroundTodoProcessor {
 	/** Number of consecutive no-op passes that completed while no todos had been
 	 *  created yet.  Used to back off the initial-branch firing threshold. */
 	private _consecutiveInitialNoops: number = 0;
+	/** Turn ID from the most recent {@link requestRegularPass} call.  When
+	 *  the turn changes, per-turn state like `_consecutiveInitialNoops` is
+	 *  reset so a new user message starts with a fresh policy evaluation. */
+	private _lastSeenTurnId: string | undefined;
 
 	// ── Two-slot queue ──────────────────────────────────────────
 	// Regular passes coalesce into one slot; final review occupies a
@@ -176,6 +180,10 @@ export class BackgroundTodoProcessor {
 	 *  call.  Used by {@link requestFinalReview} to build the synthetic
 	 *  final-review delta when no explicit context is provided. */
 	private _lastExecutionContext: IBackgroundTodoExecutionContext | undefined;
+	/** Turn ID associated with {@link _lastExecutionContext}.  Used by
+	 *  {@link requestFinalReview} to skip when the execution context is
+	 *  stale (from a previous turn with no new activity this turn). */
+	private _lastExecutionContextTurnId: string | undefined;
 
 	readonly deltaTracker = new BackgroundTodoDeltaTracker();
 
@@ -219,7 +227,7 @@ export class BackgroundTodoProcessor {
 			return { decision: BackgroundTodoDecision.Wait, reason: 'processorInProgress', delta };
 		}
 
-		const { substantiveToolCallCount, isInitialDelta, isRequestOnly } = delta.metadata;
+		const { currentTurnSubstantiveToolCallCount, isInitialDelta, isRequestOnly } = delta.metadata;
 
 		// ── Initial request (no tool calls yet) ────────────────────
 		if (isRequestOnly && isInitialDelta) {
@@ -249,22 +257,22 @@ export class BackgroundTodoProcessor {
 				BackgroundTodoProcessor.INITIAL_SUBSTANTIVE_THRESHOLD << this._consecutiveInitialNoops,
 				BackgroundTodoProcessor.MAX_INITIAL_BACKOFF_THRESHOLD,
 			);
-			if (substantiveToolCallCount >= effectiveThreshold) {
-				this._logService?.debug(`[BackgroundTodo] policy: Run (initialActivity) — substantive=${substantiveToolCallCount} >= effective threshold=${effectiveThreshold} (noops=${this._consecutiveInitialNoops}), rounds=${delta.metadata.newRoundCount}`);
+			if (currentTurnSubstantiveToolCallCount >= effectiveThreshold) {
+				this._logService?.debug(`[BackgroundTodo] policy: Run (initialActivity) — substantive=${currentTurnSubstantiveToolCallCount} >= effective threshold=${effectiveThreshold} (noops=${this._consecutiveInitialNoops}), rounds=${delta.metadata.newRoundCount}`);
 				return { decision: BackgroundTodoDecision.Run, reason: 'initialActivity', delta };
 			}
 			const reason = this._consecutiveInitialNoops > 0 ? 'initialBackoff' : 'belowThreshold';
-			this._logService?.debug(`[BackgroundTodo] policy: Wait (${reason}) — substantive=${substantiveToolCallCount} < effective threshold=${effectiveThreshold} (noops=${this._consecutiveInitialNoops}), rounds=${delta.metadata.newRoundCount}`);
+			this._logService?.debug(`[BackgroundTodo] policy: Wait (${reason}) — substantive=${currentTurnSubstantiveToolCallCount} < effective threshold=${effectiveThreshold} (noops=${this._consecutiveInitialNoops}), rounds=${delta.metadata.newRoundCount}`);
 			return { decision: BackgroundTodoDecision.Wait, reason, delta };
 		}
 
 		// ── Subsequent passes (todos already exist) ─────────────────
-		if (substantiveToolCallCount >= BackgroundTodoProcessor.SUBSEQUENT_SUBSTANTIVE_THRESHOLD) {
-			this._logService?.debug(`[BackgroundTodo] policy: Run (substantiveActivity) — substantive=${substantiveToolCallCount} >= threshold=${BackgroundTodoProcessor.SUBSEQUENT_SUBSTANTIVE_THRESHOLD}, rounds=${delta.metadata.newRoundCount}`);
+		if (currentTurnSubstantiveToolCallCount >= BackgroundTodoProcessor.SUBSEQUENT_SUBSTANTIVE_THRESHOLD) {
+			this._logService?.debug(`[BackgroundTodo] policy: Run (substantiveActivity) — substantive=${currentTurnSubstantiveToolCallCount} >= threshold=${BackgroundTodoProcessor.SUBSEQUENT_SUBSTANTIVE_THRESHOLD}, rounds=${delta.metadata.newRoundCount}`);
 			return { decision: BackgroundTodoDecision.Run, reason: 'substantiveActivity', delta };
 		}
 
-		this._logService?.debug(`[BackgroundTodo] policy: Wait (belowThreshold) — substantive=${substantiveToolCallCount}, rounds=${delta.metadata.newRoundCount}`);
+		this._logService?.debug(`[BackgroundTodo] policy: Wait (belowThreshold) — substantive=${currentTurnSubstantiveToolCallCount}, rounds=${delta.metadata.newRoundCount}`);
 		return { decision: BackgroundTodoDecision.Wait, reason: 'belowThreshold', delta };
 	}
 
@@ -274,14 +282,24 @@ export class BackgroundTodoProcessor {
 	 * Enqueue or coalesce a regular background pass. If a pass is already
 	 * running, the delta is stashed and will drain when the current pass
 	 * completes.  Always updates {@link _lastExecutionContext}.
+	 *
+	 * @param turnId  The ID of the turn that triggered this pass.  Used by
+	 *                {@link requestFinalReview} to detect stale contexts.
 	 */
 	requestRegularPass(
 		delta: IBackgroundTodoDelta,
 		context: IBackgroundTodoExecutionContext,
 		parentToken?: CancellationToken,
+		turnId?: string,
 	): void {
+		// Reset per-turn state when a new turn is detected.
+		if (turnId !== undefined && turnId !== this._lastSeenTurnId) {
+			this._consecutiveInitialNoops = 0;
+			this._lastSeenTurnId = turnId;
+		}
 		this._lastExecutionContext = context;
-		this._logService?.debug(`[BackgroundTodo] requestRegularPass — newRounds=${delta.metadata.newRoundCount}, substantive=${delta.metadata.substantiveToolCallCount}, state=${this._state}`);
+		this._lastExecutionContextTurnId = turnId;
+		this._logService?.debug(`[BackgroundTodo] requestRegularPass — newRounds=${delta.metadata.newRoundCount}, substantive=${delta.metadata.substantiveToolCallCount}, state=${this._state}, turnId=${turnId}`);
 		this._pendingRegularDelta = delta;
 		this._pendingRegularContext = context;
 		this._pendingRegularToken = parentToken;
@@ -301,6 +319,12 @@ export class BackgroundTodoProcessor {
 	requestFinalReview(turnId: string, parentToken?: CancellationToken): void {
 		if (!this._hasCreatedTodos || !this._lastExecutionContext) {
 			this._logService?.debug(`[BackgroundTodo] final review skipped — hasCreatedTodos=${this._hasCreatedTodos}, hasExecutionContext=${this._lastExecutionContext !== undefined}`);
+			return;
+		}
+		// Skip if the execution context is from a different turn — no bg todo
+		// work happened this turn, so there is nothing new to finalize.
+		if (this._lastExecutionContextTurnId !== undefined && this._lastExecutionContextTurnId !== turnId) {
+			this._logService?.debug(`[BackgroundTodo] final review skipped — execution context is from turn ${this._lastExecutionContextTurnId}, not current turn ${turnId}`);
 			return;
 		}
 		if (this._finalReviewAttemptedTurnId === turnId) {
@@ -436,13 +460,14 @@ export class BackgroundTodoProcessor {
 
 			// Build a synthetic delta from the full trajectory so the
 			// finalize prompt sees every round.
-			const allRounds = collectAllRounds(
+			const allRoundsWithTurns = collectAllRounds(
 				finalCtx.promptContext.history,
 				finalCtx.promptContext.toolCallRounds ?? [],
 			);
-			if (allRounds.length === 0) {
+			if (allRoundsWithTurns.length === 0) {
 				return;
 			}
+			const allRounds = allRoundsWithTurns.map(r => r.round);
 			let substantive = 0;
 			for (const round of allRounds) {
 				for (const call of round.toolCalls) {
@@ -460,6 +485,7 @@ export class BackgroundTodoProcessor {
 					newRoundCount: allRounds.length,
 					newToolCallCount: substantive,
 					substantiveToolCallCount: substantive,
+					currentTurnSubstantiveToolCallCount: substantive,
 					isInitialDelta: false,
 					isRequestOnly: false,
 				},
@@ -656,7 +682,6 @@ export class BackgroundTodoProcessor {
 			location: ChatLocation.Other,
 			requestOptions: {
 				temperature: 0,
-				stream: false,
 				tools: normalizedTools,
 			},
 			userInitiatedRequest: false,
@@ -780,6 +805,8 @@ export class BackgroundTodoProcessor {
 		this._pendingFinalReview = undefined;
 		this._pendingFinalReviewToken = undefined;
 		this._lastExecutionContext = undefined;
+		this._lastExecutionContextTurnId = undefined;
+		this._lastSeenTurnId = undefined;
 		this._finalReviewAttemptedTurnId = undefined;
 	}
 }
@@ -956,6 +983,9 @@ export interface IBackgroundTodoHistoryRound {
 	readonly id: string;
 	/** Position in the chronological list, starting at 1. */
 	readonly index: number;
+	/** 1-based turn index this round belongs to.  Rounds from history turns
+	 *  precede the current turn's rounds.  Used to render `<turn>` boundaries. */
+	readonly turnIndex: number;
 	/** Optional model thinking text rendered as a block in the round chunk. */
 	readonly thinking?: string;
 	/** Tool calls issued during the round; excluded tools are filtered out. */
@@ -981,7 +1011,7 @@ export interface IBackgroundTodoHistory {
 // ── Builder ─────────────────────────────────────────────────────
 
 export interface IBuildBackgroundTodoHistoryOptions {
-	readonly allRounds: readonly IToolCallRound[];
+	readonly allRounds: readonly IToolCallRoundWithTurn[];
 	readonly newRoundIds: ReadonlySet<string>;
 }
 
@@ -992,7 +1022,8 @@ export function buildBackgroundTodoHistory(opts: IBuildBackgroundTodoHistoryOpti
 	const newRounds: IBackgroundTodoHistoryRound[] = [];
 	let index = 0;
 
-	for (const round of allRounds) {
+	for (const roundWithTurn of allRounds) {
+		const round = roundWithTurn.round;
 		const summaries = summarizeToolCalls(round.toolCalls);
 		const thinking = serializeThinking(round.thinking);
 		const response = round.response.trim().length > 0 ? round.response : undefined;
@@ -1006,6 +1037,7 @@ export function buildBackgroundTodoHistory(opts: IBuildBackgroundTodoHistoryOpti
 		const historyRound: IBackgroundTodoHistoryRound = {
 			id: round.id,
 			index,
+			turnIndex: roundWithTurn.turnIndex,
 			thinking,
 			toolCalls: summaries,
 			response,
@@ -1119,6 +1151,33 @@ export function renderBackgroundTodoRound(round: IBackgroundTodoHistoryRound): s
 }
 
 /**
+ * Render a list of rounds grouped by `turnIndex`, wrapping consecutive
+ * same-turn rounds inside `<turn index="N">…</turn>` tags.  This saves
+ * tokens compared to repeating a `turn` attribute on every `<round>`.
+ */
+export function renderRoundsGroupedByTurn(rounds: readonly IBackgroundTodoHistoryRound[]): string {
+	if (rounds.length === 0) {
+		return '';
+	}
+	const lines: string[] = [];
+	let currentTurn: number | undefined;
+	for (const round of rounds) {
+		if (round.turnIndex !== currentTurn) {
+			if (currentTurn !== undefined) {
+				lines.push('</turn>');
+			}
+			lines.push(`<turn index="${round.turnIndex}">`);
+			currentTurn = round.turnIndex;
+		}
+		lines.push(renderBackgroundTodoRound(round));
+	}
+	if (currentTurn !== undefined) {
+		lines.push('</turn>');
+	}
+	return lines.join('\n');
+}
+
+/**
  * Compute a prompt-tsx priority for a previous-context round so newer
  * rounds survive budget pressure ahead of older history. Values are
  * clamped to the [700, 879] range so they stay below the system
@@ -1132,17 +1191,27 @@ export function computeRoundPriority(round: IBackgroundTodoHistoryRound, totalPr
 	return Math.min(879, 700 + Math.min(round.index, totalPreviousRounds));
 }
 
+/** A tool-call round annotated with its 1-based turn index. */
+export interface IToolCallRoundWithTurn {
+	readonly round: IToolCallRound;
+	readonly turnIndex: number;
+}
+
 /**
  * Collect all tool-call rounds from history turns and current-turn rounds
- * in chronological order.
+ * in chronological order, annotated with 1-based turn indices.
  */
-export function collectAllRounds(history: readonly Turn[], currentRounds: readonly IToolCallRound[]): IToolCallRound[] {
-	const all: IToolCallRound[] = [];
-	for (const turn of history) {
-		for (const round of turn.rounds) {
-			all.push(round);
+export function collectAllRounds(history: readonly Turn[], currentRounds: readonly IToolCallRound[]): IToolCallRoundWithTurn[] {
+	const all: IToolCallRoundWithTurn[] = [];
+	for (let i = 0; i < history.length; i++) {
+		const turnIndex = i + 1;
+		for (const round of history[i].rounds) {
+			all.push({ round, turnIndex });
 		}
 	}
-	all.push(...currentRounds);
+	const currentTurnIndex = history.length + 1;
+	for (const round of currentRounds) {
+		all.push({ round, turnIndex: currentTurnIndex });
+	}
 	return all;
 }
