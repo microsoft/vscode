@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Attachment, LocalSession, SendOptions, Session, SessionOptions, ToolExecutionCompleteEvent } from '@github/copilot/sdk';
+import type { Attachment, CompactionResult, LocalSession, SendOptions, Session, SessionOptions, ToolExecutionCompleteEvent } from '@github/copilot/sdk';
 import * as l10n from '@vscode/l10n';
 import * as cp from 'child_process';
 import * as crypto from 'crypto';
@@ -453,6 +453,17 @@ function getPromptLabel(input: CopilotCLISessionInput): string {
 	return input.prompt;
 }
 
+function normalizeCopilotCLICommandInput(input: CopilotCLISessionInput): CopilotCLISessionInput {
+	if ('command' in input || !isCompactInput(input)) {
+		return input;
+	}
+	return { command: 'compact', prompt: '', source: input.source };
+}
+
+function isCompactInput(input: CopilotCLISessionInput): boolean {
+	return 'command' in input ? input.command === 'compact' : stripReminders(input.prompt).trim().toLowerCase() === '/compact';
+}
+
 function getRemoteControlArgs(input: CopilotCLISessionInput): string {
 	const prompt = stripReminders(('prompt' in input ? input.prompt : '') ?? '').trim().toLowerCase();
 	if (prompt === '/remote' || prompt === 'remote') {
@@ -884,6 +895,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 	private _lastResponseModelId: string | undefined;
 	private _pendingPrompt: string | undefined;
 	private _bridgeProcessor: CopilotCliBridgeSpanProcessor | undefined;
+	private _lastUsageInfo: UsageInfoData | undefined;
 	private readonly _todoSqlQuery = new TodoSqlQuery();
 	private readonly _missionControlApiClient: MissionControlApiClient;
 	private _cancelPendingCancellationAbort: (() => void) | undefined;
@@ -1214,22 +1226,42 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 
 		const chunkMessageIds = new Set<string>();
 		const assistantMessageChunks: string[] = [];
-		let lastUsageInfo: UsageInfoData | undefined;
-		const reportUsage = (promptTokens: number, completionTokens: number) => {
+		let requestUsageInfo: UsageInfoData | undefined;
+		const reportUsage = (promptTokens: number, completionTokens: number, usageInfo: UsageInfoData | undefined = requestUsageInfo) => {
 			if (token.isCancellationRequested || !requestStream) {
+				return;
+			}
+			if (promptTokens <= 0 && completionTokens <= 0) {
 				return;
 			}
 			requestStream.usage({
 				promptTokens,
 				completionTokens,
-				promptTokenDetails: buildPromptTokenDetails(lastUsageInfo),
+				promptTokenDetails: buildPromptTokenDetails(usageInfo),
 			});
 		};
-		const updateUsageInfo = (async () => {
+		const updateUsageInfo = async (useMetricsUsage: boolean) => {
+			if (!useMetricsUsage) {
+				const usageInfo = requestUsageInfo ?? this._lastUsageInfo;
+				if (usageInfo && usageInfo.currentTokens > 0) {
+					reportUsage(usageInfo.currentTokens, 0, usageInfo);
+				}
+				return;
+			}
 			const metrics = await this._sdkSession.usage.getMetrics();
-			const promptTokens = lastUsageInfo?.currentTokens || metrics.lastCallInputTokens;
-			reportUsage(promptTokens, metrics.lastCallOutputTokens);
-		})();
+			if (requestUsageInfo && requestUsageInfo.currentTokens > 0) {
+				reportUsage(requestUsageInfo.currentTokens, metrics.lastCallOutputTokens, requestUsageInfo);
+				return;
+			}
+			if (metrics.lastCallInputTokens > 0 || metrics.lastCallOutputTokens > 0) {
+				reportUsage(metrics.lastCallInputTokens, metrics.lastCallOutputTokens);
+			}
+		};
+		const updateRequestUsageInfo = (usageInfo: UsageInfoData) => {
+			requestUsageInfo = usageInfo;
+			this._lastUsageInfo = usageInfo;
+			reportUsage(usageInfo.currentTokens, 0, usageInfo);
+		};
 		try {
 			const shouldHandleExitPlanModeRequests = this.configurationService.getConfig(ConfigKey.Advanced.CLIPlanExitModeEnabled);
 			disposables.add(toDisposable(this._sdkSession.on('*', (event) => {
@@ -1390,7 +1422,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			disposables.add(toDisposable(this._sdkSession.on('assistant.usage', (event) => {
 				this._lastResponseModelId = event.data.model;
 				if (requestStream && typeof event.data.outputTokens === 'number' && typeof event.data.inputTokens === 'number') {
-					reportUsage(event.data.inputTokens, event.data.outputTokens);
+					reportUsage(event.data.inputTokens, event.data.outputTokens, requestUsageInfo);
 				}
 				// Accumulate per-turn credits from SDK copilotUsage data
 				const copilotUsage = (event.data as Record<string, unknown>).copilotUsage;
@@ -1402,14 +1434,14 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 				}
 			})));
 			disposables.add(toDisposable(this._sdkSession.on('session.usage_info', (event) => {
-				lastUsageInfo = {
+				updateRequestUsageInfo({
 					currentTokens: event.data.currentTokens,
+					messagesLength: event.data.messagesLength,
 					systemTokens: event.data.systemTokens,
 					conversationTokens: event.data.conversationTokens,
 					toolDefinitionsTokens: event.data.toolDefinitionsTokens,
 					tokenLimit: event.data.tokenLimit,
-				};
-				reportUsage(lastUsageInfo.currentTokens, 0);
+				});
 			})));
 			disposables.add(toDisposable(this._sdkSession.on('assistant.message_delta', (event) => {
 				// Support for streaming delta messages.
@@ -1585,6 +1617,10 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 				);
 			})));
 
+			const useMetricsUsage = !isCompactInput(input);
+			if (useMetricsUsage) {
+				this._lastUsageInfo = undefined;
+			}
 			if (!token.isCancellationRequested) {
 				await this.sendRequestInternal(input, attachments, false, logStartTime);
 			}
@@ -1619,7 +1655,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 					this.logService.error(`[CopilotCLISession] Failed to update chat session metadata store for request ${request.id}`, error);
 				});
 			}
-			await updateUsageInfo.catch(error => {
+			await updateUsageInfo(useMetricsUsage).catch(error => {
 				this.logService.error(`[CopilotCLISession] Failed to update usage info after request ${request.id}`, error);
 			});
 			this._status = ChatSessionStatus.Completed;
@@ -1728,17 +1764,40 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 	 *   starting a new turn. This is the mechanism behind session steering.
 	 */
 	private async sendRequestInternal(input: CopilotCLISessionInput, attachments: Attachment[], steering = false, logStartTime: number): Promise<void> {
-		const prompt = getPromptLabel(input);
+		const effectiveInput = normalizeCopilotCLICommandInput(input);
+		const prompt = getPromptLabel(effectiveInput);
 		this._logRequest(prompt, this._lastUsedModel || '', attachments, logStartTime);
 
-		if ('command' in input && input.command !== 'plan') {
-			switch (input.command) {
+		if ('command' in effectiveInput && effectiveInput.command !== 'plan') {
+			switch (effectiveInput.command) {
 				case 'compact': {
+					const messages = await this._sdkSession.getChatMessages();
+					if (messages.length === 0) {
+						this._stream?.markdown(l10n.t('Nothing to compact.'));
+						break;
+					}
+					// Mirrors compactHistory's no-op precondition, but avoids surfacing the SDK error as a failed command.
+					if (messages.length < 2) {
+						this._stream?.markdown(l10n.t('Conversation already compacted.'));
+						break;
+					}
 					this._stream?.progress(l10n.t('Compacting conversation...'));
 					await this._sdkSession.initializeAndValidateTools();
 					this._sdkSession.currentMode = 'interactive';
-					const result = await this._sdkSession.compactHistory();
+					let result: Awaited<ReturnType<Session['compactHistory']>>;
+					try {
+						result = await this._sdkSession.compactHistory();
+					} catch (error) {
+						if (isNothingToCompactError(error)) {
+							this._stream?.markdown(l10n.t('Conversation already compacted.'));
+							break;
+						}
+						throw error;
+					}
 					if (result.success) {
+						if (result.contextWindow) {
+							this._lastUsageInfo = result.contextWindow;
+						}
 						this._stream?.markdown(l10n.t('Compacted conversation.'));
 					} else {
 						this._stream?.markdown(l10n.t('Unable to compact conversation.'));
@@ -1746,31 +1805,31 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 					break;
 				}
 				case 'fleet': {
-					await this._startFleetAndWaitForIdle(input);
+					await this._startFleetAndWaitForIdle(effectiveInput);
 					break;
 				}
 				case 'remote': {
-					await this._handleRemoteControl(input);
+					await this._handleRemoteControl(effectiveInput);
 					break;
 				}
 			}
 		} else {
-			const remoteMode = isMissionControlCommandSource(input.source) ? this._mcState?.mcMode : undefined;
+			const remoteMode = isMissionControlCommandSource(effectiveInput.source) ? this._mcState?.mcMode : undefined;
 			if (remoteMode) {
 				this._sdkSession.currentMode = remoteMode;
-			} else if ('command' in input && input.command === 'plan') {
+			} else if ('command' in effectiveInput && effectiveInput.command === 'plan') {
 				this._sdkSession.currentMode = 'plan';
 			} else if (this._permissionLevel === 'autopilot') {
 				this._sdkSession.currentMode = 'autopilot';
 			} else {
 				this._sdkSession.currentMode = 'interactive';
 			}
-			const sendOptions: SendOptions = { prompt: input.prompt ?? '', attachments, agentMode: this._sdkSession.currentMode };
+			const sendOptions: SendOptions = { prompt: effectiveInput.prompt ?? '', attachments, agentMode: this._sdkSession.currentMode };
 			if (steering) {
 				sendOptions.mode = 'immediate';
 			}
-			if (input.source) {
-				sendOptions.source = input.source;
+			if (effectiveInput.source) {
+				sendOptions.source = effectiveInput.source;
 			}
 			await this._sdkSession.send(sendOptions);
 
@@ -2825,12 +2884,12 @@ function isHttpUrl(value: string): boolean {
 	}
 }
 
-interface UsageInfoData {
-	readonly currentTokens: number;
-	readonly systemTokens?: number;
-	readonly conversationTokens?: number;
-	readonly toolDefinitionsTokens?: number;
-	readonly tokenLimit?: number;
+type UsageInfoData = NonNullable<CompactionResult['contextWindow']>;
+
+function isNothingToCompactError(error: unknown): boolean {
+	const message = error instanceof Error ? error.message : String(error);
+	// @github/copilot 1.0.39 throws this plain Error when compactHistory has fewer than two chat messages.
+	return /^(?:Error:\s*)?Nothing to compact\.?$/.test(message.trim());
 }
 
 function buildPromptTokenDetails(usageInfo: UsageInfoData | undefined): { category: string; label: string; percentageOfPrompt: number }[] | undefined {
