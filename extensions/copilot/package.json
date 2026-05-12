@@ -3174,11 +3174,6 @@
 						"default": false,
 						"markdownDescription": "%github.copilot.config.claudeAgent.allowDangerouslySkipPermissions%"
 					},
-					"github.copilot.chat.claudeAgent.allowAutoPermissions": {
-						"type": "boolean",
-						"default": true,
-						"markdownDescription": "%github.copilot.config.claudeAgent.allowAutoPermissions%"
-					},
 					"github.copilot.chat.reviewAgent.enabled": {
 						"type": "boolean",
 						"default": true,
@@ -3270,6 +3265,14 @@
 			{
 				"id": "preview",
 				"properties": {
+					"github.copilot.chat.claudeAgent.allowAutoPermissions": {
+						"type": "boolean",
+						"default": true,
+						"tags": [
+							"preview"
+						],
+						"markdownDescription": "%github.copilot.config.claudeAgent.allowAutoPermissions%"
+					},
 					"github.copilot.chat.copilotDebugCommand.enabled": {
 						"type": "boolean",
 						"default": true,

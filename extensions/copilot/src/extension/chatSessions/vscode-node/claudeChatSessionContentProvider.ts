@@ -6,6 +6,7 @@
 import * as vscode from 'vscode';
 import { ChatExtendedRequestHandler } from 'vscode';
 import { PermissionMode } from '@anthropic-ai/claude-agent-sdk';
+import { IAuthenticationService } from '../../../platform/authentication/common/authentication';
 import { IChatQuotaService } from '../../../platform/chat/common/chatQuotaService';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { INativeEnvService } from '../../../platform/env/common/envService';
@@ -301,6 +302,7 @@ export class ClaudeChatSessionItemController extends Disposable {
 		@IClaudeCodeSdkService private readonly _sdkService: IClaudeCodeSdkService,
 		@ILogService private readonly _logService: ILogService,
 		@IClaudeWorkspaceFolderService private readonly _claudeWorkspaceFolderService: IClaudeWorkspaceFolderService,
+		@IAuthenticationService _authenticationService: IAuthenticationService,
 	) {
 		super();
 		this._optionBuilder = new ClaudeSessionOptionBuilder(_configurationService, folderMruService, _workspaceService);
@@ -314,9 +316,13 @@ export class ClaudeChatSessionItemController extends Disposable {
 
 		this._autoPermissionsEnabled = observableFromEvent(
 			this,
-			Event.filter(_configurationService.onDidChangeConfiguration,
-				e => e.affectsConfiguration(ConfigKey.ClaudeAgentAllowAutoPermissions.fullyQualifiedId)),
-			() => _configurationService.getConfig(ConfigKey.ClaudeAgentAllowAutoPermissions) as boolean,
+			Event.any(
+				Event.filter(_configurationService.onDidChangeConfiguration,
+					e => e.affectsConfiguration(ConfigKey.ClaudeAgentAllowAutoPermissions.fullyQualifiedId)),
+				_authenticationService.onDidAuthenticationChange,
+			),
+			() => _configurationService.getConfig(ConfigKey.ClaudeAgentAllowAutoPermissions) as boolean
+				&& (_authenticationService.copilotToken?.isEditorPreviewFeaturesEnabled() ?? false),
 		);
 
 		// Bridge vscode.Event → internal Event for workspace folder changes
