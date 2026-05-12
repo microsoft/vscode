@@ -1026,8 +1026,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const hasTodaySessions = sections.some(s => s.id === 'today' && s.sessions.length > 0);
 
 		// Partition workspace sections into "primary" (meets criteria) and "more"
-		// when grouping by workspace. Find widget bypasses partitioning.
-		const partitionFolders = grouping === SessionsGrouping.Workspace && !this.findOpen;
+		// when grouping by workspace. Find widget bypasses partitioning. When the
+		// user has chosen "Show All Sessions" (uncapped), show every workspace
+		// group inline instead of hiding some behind a "more workspaces" entry.
+		const partitionFolders = grouping === SessionsGrouping.Workspace && !this.findOpen && this.workspaceGroupCapped;
 		const moreFolderSectionIds = new Set<string>();
 		if (partitionFolders) {
 			const workspaceSections = sections.filter(s => s.id.startsWith('workspace:'));
