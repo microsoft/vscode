@@ -65,9 +65,16 @@ function makeSession(resource: URI, opts?: {
 		icon: Codicon.copilot,
 		createdAt: chat.createdAt,
 		workspace: observableValue('workspace', opts?.workspace ?? {
+			uri: URI.file('/repo'),
 			label: 'test',
 			icon: Codicon.repo,
-			repositories: [{ uri: URI.file('/repo'), workingDirectory: undefined, detail: undefined, baseBranchName: undefined }],
+			folders: [{
+				root: URI.file('/repo'),
+				workingDirectory: URI.file('/repo'),
+				name: 'repo',
+				description: undefined,
+				gitRepository: undefined,
+			}],
 			requiresWorkspaceTrust: false,
 		}),
 		title: chat.title,
@@ -82,7 +89,6 @@ function makeSession(resource: URI, opts?: {
 		isRead: chat.isRead,
 		lastTurnEnd: chat.lastTurnEnd,
 		description: chat.description,
-		gitHubInfo: observableValue('gitHubInfo', undefined),
 		chats: observableValue('chats', [chat]),
 		activeChat: observableValue('activeChat', chat),
 		mainChat: chat,
@@ -224,7 +230,7 @@ suite('LayoutController', () => {
 	test('does not open views when session has no workspace', () => {
 		createLayoutController();
 		const session = makeSession(URI.parse('session:1'), {
-			workspace: { label: 'test', icon: Codicon.repo, repositories: [], requiresWorkspaceTrust: false },
+			workspace: { uri: URI.file('/repo'), label: 'test', icon: Codicon.repo, folders: [], requiresWorkspaceTrust: false },
 		});
 		activeSessionObs.set(session, undefined);
 
