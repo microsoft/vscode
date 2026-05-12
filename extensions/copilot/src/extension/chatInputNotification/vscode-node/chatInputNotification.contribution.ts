@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import { IAuthenticationService } from '../../../platform/authentication/common/authentication';
-import { IChatQuota, IChatQuotaService } from '../../../platform/chat/common/chatQuotaService';
+import { IChatQuota, IChatQuotaChangeEvent, IChatQuotaService } from '../../../platform/chat/common/chatQuotaService';
 import { Disposable } from '../../../util/vs/base/common/lifecycle';
 
 const QUOTA_NOTIFICATION_ID = 'copilot.quotaStatus';
@@ -39,6 +39,8 @@ export class ChatInputNotificationContribution extends Disposable {
 	private _showingExhausted = false;
 	/** Whether a copilot token was present on the last {@link _update} call. */
 	private _hadCopilotToken = false;
+	/** Whether the initial threshold state has been seeded. */
+	private _initialized = false;
 
 	private readonly _shownQuotaThresholds = new Set<number>();
 	private readonly _shownSessionThresholds = new Set<number>();
@@ -50,14 +52,14 @@ export class ChatInputNotificationContribution extends Disposable {
 	) {
 		super();
 		this._register(this._authService.onDidAuthenticationChange(() => this._update()));
-		this._register(this._chatQuotaService.onDidChange(() => this._update()));
+		this._register(this._chatQuotaService.onDidChange(e => this._update(e)));
 	}
 
 	/**
 	 * Single entry point that determines the highest-priority notification
 	 * to show (or whether to hide).
 	 */
-	private _update(): void {
+	private _update(event?: IChatQuotaChangeEvent): void {
 		const hasCopilotToken = !!this._authService.copilotToken;
 		const wasSignedIn = this._hadCopilotToken;
 		this._hadCopilotToken = hasCopilotToken;
@@ -69,7 +71,16 @@ export class ChatInputNotificationContribution extends Disposable {
 			this._shownWeeklyThresholds.clear();
 			this._hideNotification();
 			this._showingExhausted = false;
+			this._initialized = false;
 			return;
+		}
+
+		// On the first update, seed already-crossed thresholds so that we
+		// only notify when the user *crosses* a threshold, not when the
+		// window reloads with usage already above a threshold.
+		if (!this._initialized) {
+			this._initialized = true;
+			this._seedThresholds();
 		}
 
 		// Skip quota notifications for PRU users — only show for UBB.
@@ -102,6 +113,40 @@ export class ChatInputNotificationContribution extends Disposable {
 		// active and the quota is no longer exhausted (state-driven).
 		if (this._showingExhausted && !this._chatQuotaService.quotaExhausted) {
 			this._hideNotification();
+		}
+
+		// When credits are reported, estimate whether the post-request usage
+		// would cross a threshold that the stale data doesn't yet reflect.
+		// If so, fetch up-to-date quota from the server.
+		if (event?.creditsUsed) {
+			this._refreshQuotaIfThresholdCrossed(event.creditsUsed);
+		}
+	}
+
+	// --- Speculative refresh -------------------------------------------------
+
+	/**
+	 * Estimates whether the stale quota data plus the just-used credits would
+	 * cross a notification threshold. If so, requests up-to-date data from
+	 * the server so the notification can fire at the right time.
+	 */
+	private _refreshQuotaIfThresholdCrossed(creditsUsed: number): void {
+		const info = this._chatQuotaService.quotaInfo;
+		if (!info || info.unlimited || info.quota <= 0) {
+			return;
+		}
+
+		const stalePercentUsed = 100 - info.percentRemaining;
+		const creditsAsPercent = (creditsUsed / info.quota) * 100;
+		const estimatedPercentUsed = stalePercentUsed + creditsAsPercent;
+
+		// Check if the estimated usage would cross any un-shown threshold
+		for (const threshold of THRESHOLDS) {
+			if (stalePercentUsed < threshold && estimatedPercentUsed >= threshold
+				&& !this._shownQuotaThresholds.has(threshold)) {
+				this._chatQuotaService.refreshQuota();
+				return;
+			}
 		}
 	}
 
@@ -267,6 +312,30 @@ export class ChatInputNotificationContribution extends Disposable {
 		notification.actions = [];
 
 		notification.show();
+	}
+
+	// --- Threshold seeding --------------------------------------------------
+
+	/**
+	 * Pre-populates threshold sets with all thresholds already crossed
+	 * so that a window reload does not re-trigger notifications.
+	 */
+	private _seedThresholds(): void {
+		this._seedThresholdSet(this._chatQuotaService.quotaInfo, this._shownQuotaThresholds);
+		this._seedThresholdSet(this._chatQuotaService.rateLimitInfo.session, this._shownSessionThresholds);
+		this._seedThresholdSet(this._chatQuotaService.rateLimitInfo.weekly, this._shownWeeklyThresholds);
+	}
+
+	private _seedThresholdSet(info: IChatQuota | undefined, shownThresholds: Set<number>): void {
+		if (!info || info.unlimited) {
+			return;
+		}
+		const percentUsed = 100 - info.percentRemaining;
+		for (const threshold of THRESHOLDS) {
+			if (percentUsed >= threshold) {
+				shownThresholds.add(threshold);
+			}
+		}
 	}
 
 	// --- Helpers ------------------------------------------------------------

@@ -3,12 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { RequestType } from '@vscode/copilot-api';
 import { Emitter } from '../../../util/vs/base/common/event';
 import { Disposable } from '../../../util/vs/base/common/lifecycle';
 import { IAuthenticationService } from '../../authentication/common/authentication';
+import { ICAPIClientService } from '../../endpoint/common/capiClient';
 import { ILogService } from '../../log/common/logService';
-import { IHeaders } from '../../networking/common/fetcherService';
-import { CopilotUserQuotaInfo, IChatQuota, IChatQuotaService, QuotaSnapshots } from './chatQuotaService';
+import { FetchOptions, IHeaders, Response } from '../../networking/common/fetcherService';
+import { CopilotUserQuotaInfo, IChatQuota, IChatQuotaChangeEvent, IChatQuotaService, QuotaSnapshots } from './chatQuotaService';
 
 export class ChatQuotaService extends Disposable implements IChatQuotaService {
 	declare readonly _serviceBrand: undefined;
@@ -16,19 +18,28 @@ export class ChatQuotaService extends Disposable implements IChatQuotaService {
 	private _quotaInfo: IChatQuota | undefined;
 	private _rateLimitInfo: { session: IChatQuota | undefined; weekly: IChatQuota | undefined };
 	private readonly _turnCredits = new Map<string, number>();
+	private _refreshTimer: ReturnType<typeof setTimeout> | undefined;
 
-	private readonly _onDidChange = this._register(new Emitter<void>());
+	private readonly _onDidChange = this._register(new Emitter<IChatQuotaChangeEvent>());
 	readonly onDidChange = this._onDidChange.event;
 
 	constructor(
 		@IAuthenticationService private readonly _authService: IAuthenticationService,
 		@ILogService private readonly _logService: ILogService,
+		@ICAPIClientService private readonly _capiClientService: ICAPIClientService,
 	) {
 		super();
 		this._rateLimitInfo = { session: undefined, weekly: undefined };
 		this._register(this._authService.onDidAuthenticationChange(() => {
 			this._processUserInfoQuotaSnapshot(this._authService.copilotToken?.quotaInfo);
 		}));
+		this._register({
+			dispose: () => {
+				if (this._refreshTimer !== undefined) {
+					clearTimeout(this._refreshTimer);
+				}
+			}
+		});
 	}
 
 	get quotaInfo(): IChatQuota | undefined {
@@ -62,6 +73,7 @@ export class ChatQuotaService extends Disposable implements IChatQuotaService {
 		const aic = totalNanoAiu / 1_000_000_000;
 		if (aic > 0) {
 			this._turnCredits.set(turnId, (this._turnCredits.get(turnId) ?? 0) + aic);
+			this._onDidChange.fire({ creditsUsed: aic });
 		}
 	}
 
@@ -88,7 +100,7 @@ export class ChatQuotaService extends Disposable implements IChatQuotaService {
 		const weeklyRateLimitHeader = headers.get('x-usage-ratelimit-weekly');
 		this._rateLimitInfo.session = sessionRateLimitHeader ? this._processHeaderValue(sessionRateLimitHeader) : undefined;
 		this._rateLimitInfo.weekly = weeklyRateLimitHeader ? this._processHeaderValue(weeklyRateLimitHeader) : undefined;
-		this._onDidChange.fire();
+		this._onDidChange.fire({});
 	}
 
 	processQuotaSnapshots(snapshots: QuotaSnapshots): void {
@@ -112,9 +124,45 @@ export class ChatQuotaService extends Disposable implements IChatQuotaService {
 				resetDate,
 			};
 			this._logService.trace(`[ChatQuota] processQuotaSnapshots: ${JSON.stringify(this._quotaInfo)}`);
-			this._onDidChange.fire();
+			this._onDidChange.fire({});
 		} catch (error) {
 			console.error('Failed to process quota snapshots', error);
+		}
+	}
+
+	private static readonly _REFRESH_DEBOUNCE_MS = 2000;
+
+	refreshQuota(): void {
+		if (this._refreshTimer !== undefined) {
+			clearTimeout(this._refreshTimer);
+		}
+		this._refreshTimer = setTimeout(() => {
+			this._refreshTimer = undefined;
+			this._fetchQuotaFromUserEndpoint();
+		}, ChatQuotaService._REFRESH_DEBOUNCE_MS);
+	}
+
+	private async _fetchQuotaFromUserEndpoint(): Promise<void> {
+		const githubToken = this._authService.anyGitHubSession?.accessToken;
+		if (!githubToken) {
+			return;
+		}
+		try {
+			const options: FetchOptions = {
+				callSite: 'copilot-quota-refresh',
+				headers: {
+					Authorization: `token ${githubToken}`,
+					'X-GitHub-Api-Version': '2025-04-01',
+				},
+				retryFallbacks: true,
+				expectJSON: true,
+			};
+			const response = await this._capiClientService.makeRequest<Response>(options, { type: RequestType.CopilotUserInfo });
+			const data: CopilotUserQuotaInfo = await response.json();
+			this._processUserInfoQuotaSnapshot(data);
+			this._logService.trace('[ChatQuota] refreshQuota: fetched up-to-date quota data');
+		} catch (error) {
+			this._logService.trace(`[ChatQuota] refreshQuota: failed to fetch quota data: ${error}`);
 		}
 	}
 
@@ -169,6 +217,6 @@ export class ChatQuotaService extends Disposable implements IChatQuotaService {
 			percentRemaining: snapshot.percent_remaining,
 		};
 		this._logService.trace(`[ChatQuota] processUserInfoQuotaSnapshot: ${JSON.stringify(this._quotaInfo)}`);
-		this._onDidChange.fire();
+		this._onDidChange.fire({});
 	}
 }

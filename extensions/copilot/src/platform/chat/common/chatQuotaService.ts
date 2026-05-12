@@ -68,9 +68,14 @@ export interface QuotaSnapshot {
 
 export type QuotaSnapshots = Record<string, QuotaSnapshot>;
 
+export interface IChatQuotaChangeEvent {
+	/** AIC credits used in the request that triggered this change, if known. */
+	readonly creditsUsed?: number;
+}
+
 export interface IChatQuotaService {
 	readonly _serviceBrand: undefined;
-	readonly onDidChange: Event<void>;
+	readonly onDidChange: Event<IChatQuotaChangeEvent>;
 	readonly quotaInfo: IChatQuota | undefined;
 	readonly rateLimitInfo: { readonly session: IChatQuota | undefined; readonly weekly: IChatQuota | undefined };
 	quotaExhausted: boolean;
@@ -84,6 +89,11 @@ export interface IChatQuotaService {
 	/** Reset accumulated credits for the given turn. */
 	resetTurnCredits(turnId: string): void;
 	clearQuota(): void;
+	/**
+	 * Triggers a debounced fetch to the `copilot_internal/user` endpoint
+	 * to get up-to-date quota data. Fire-and-forget — errors are logged.
+	 */
+	refreshQuota(): void;
 }
 
 export const IChatQuotaService = createServiceIdentifier<IChatQuotaService>('IChatQuotaService');
