@@ -20,6 +20,22 @@ vscode.db
 /.profile-oss
 /cli/target
 /cli/openssl
+
+# Son of Anton Rust workspace (H17 embedded code-graph).
+# Build artefacts and embedder caches that should never be committed.
+/crates/target/
+/crates/**/target/
+/crates/.cargo-cache/
+/services/code-graph/mcp-server/dist/
+/services/code-graph/extension-sample/dist/
+/services/code-graph/extension-sample/out/
+*.dylib
+*.so
+*.dll
+# napi-rs prebuilt artefacts produced by `napi build`.
+/crates/sota-codegraph-napi/index.js
+/crates/sota-codegraph-napi/index.d.ts
+/crates/sota-codegraph-napi/*.node
 product.overrides.json
 *.snap.actual
 *.tsbuildinfo

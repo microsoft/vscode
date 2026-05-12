@@ -1,0 +1,18 @@
+[package]
+name = "sota-codegraph-napi"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+sota-codegraph-core = { path = "../sota-codegraph-core" }
+napi = { version = "2", features = ["async", "napi6"] }
+napi-derive = "2"
+tokio = { version = "1", features = ["rt-multi-thread", "sync", "macros"] }
+once_cell = "1"
+parking_lot = "0.12"
+
+[build-dependencies]
+napi-build = "2"

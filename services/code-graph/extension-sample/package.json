@@ -1,0 +1,79 @@
+{
+  "name": "codegraph-sample",
+  "displayName": "Code Graph (sample)",
+  "description": "Reference VS Code extension that spawns the codegraph MCP server. Adapt this into the Son of Anton extension.",
+  "version": "0.1.0",
+  "publisher": "son-of-anton",
+  "private": true,
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "codegraph.reindex",
+        "title": "Code Graph: Reindex Workspace"
+      },
+      {
+        "command": "codegraph.showLogs",
+        "title": "Code Graph: Show Logs"
+      },
+      {
+        "command": "codegraph.switchToDocker",
+        "title": "Switch to Docker Code Graph (advanced)"
+      },
+      {
+        "command": "codegraph.quickActions",
+        "title": "Code Graph: Quick Actions"
+      }
+    ],
+    "configuration": {
+      "title": "Code Graph",
+      "properties": {
+        "codegraph.backend": {
+          "type": "string",
+          "enum": ["embedded", "docker"],
+          "default": "embedded",
+          "description": "Which code-graph backend to use. Docker is the opt-in upgrade for very large monorepos."
+        },
+        "codegraph.indexOnStartup": {
+          "type": "boolean",
+          "default": true,
+          "description": "Run a workspace index when the extension activates."
+        },
+        "codegraph.embedder": {
+          "type": "string",
+          "enum": ["none", "local", "provider"],
+          "default": "local",
+          "description": "Embedder to use for semantic_search."
+        },
+        "codegraph.providerEmbedder.endpoint": {
+          "type": "string",
+          "default": "",
+          "description": "OpenAI-compatible /embeddings endpoint URL."
+        },
+        "codegraph.providerEmbedder.model": {
+          "type": "string",
+          "default": ""
+        },
+        "codegraph.providerEmbedder.dims": {
+          "type": "number",
+          "default": 1536
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "@types/vscode": "^1.90.0",
+    "typescript": "^5.4"
+  }
+}

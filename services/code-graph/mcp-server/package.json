@@ -1,15 +1,25 @@
 {
-	"name": "son-of-anton-code-graph-mcp",
-	"version": "0.1.0",
-	"description": "Son of Anton — code graph MCP server (stdio JSON-RPC).",
-	"private": true,
-	"main": "dist/index.js",
-	"scripts": {
-		"build": "tsc",
-		"start": "node dist/index.js"
-	},
-	"devDependencies": {
-		"@types/node": "^22.0.0",
-		"typescript": "^5.6.0"
-	}
+  "name": "@son-of-anton/codegraph-mcp-server",
+  "version": "0.1.0",
+  "description": "MCP server exposing the embedded Rust code-graph backend.",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "codegraph-mcp-server": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "typescript": "^5.4"
+  },
+  "engines": {
+    "node": ">=22"
+  }
 }

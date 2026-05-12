@@ -1,0 +1,39 @@
+[package]
+name = "sota-codegraph-core"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "1"
+anyhow = "1"
+tracing = "0.1"
+tokio = { version = "1", features = ["rt-multi-thread", "sync", "macros", "time"] }
+rusqlite = { version = "0.31", features = ["bundled"] }
+rusqlite_migration = "1.2"
+tree-sitter = "0.26.8"
+tree-sitter-typescript = "0.23"
+tree-sitter-javascript = "0.23"
+tree-sitter-python = "0.23"
+tree-sitter-rust = "0.23"
+walkdir = "2"
+fastembed = { version = "5", features = ["ort-download-binaries"] }
+instant-distance = "0.6"
+bytemuck = "1"
+reqwest = { version = "0.12", features = ["json"] }
+notify = "6"
+xxhash-rust = { version = "0.8", features = ["xxh3"] }
+rayon = "1"
+streaming-iterator = "0.1"
+async-trait = "0.1"
+once_cell = "1"
+parking_lot = "0.12"
+redis = { version = "0.27", features = ["tokio-comp", "connection-manager"] }
+
+[dev-dependencies]
+tempfile = "3"
+wiremock = "0.6"
+tokio = { version = "1", features = ["rt-multi-thread", "sync", "macros", "time", "test-util"] }

@@ -163,6 +163,51 @@ jobs:
       - name: Run extension tests under xvfb
         run: xvfb-run --auto-servernum npm --prefix extensions/son-of-anton test
 
+  # Son of Anton Rust workspace (H17 embedded code-graph). Lives under
+  # `crates/` per Rust convention. Three crates: sota-codegraph-core
+  # (logic), sota-codegraph-napi (Node bindings), sota-codegraph-cli
+  # (clap CLI). The cargo invocations run from `crates/` because that's
+  # where the workspace `Cargo.toml` lives. No untrusted input reaches
+  # any of the run: blocks below — every command operates on this
+  # repo's tracked files.
+  sota-rust:
+    name: Son of Anton — Rust Workspace (cargo build + test + clippy)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - name: Cache cargo target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            crates/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('crates/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: cargo build
+        working-directory: crates
+        run: cargo build --workspace --all-features
+
+      - name: cargo test
+        working-directory: crates
+        # Skip tests gated on external infra (FalkorDB, fastembed model
+        # download) — those are run manually with `cargo test --
+        # --ignored` against a provisioned environment.
+        run: cargo test --workspace --all-features
+
+      - name: cargo clippy
+        working-directory: crates
+        run: cargo clippy --workspace --all-features -- -D warnings
+
   test-ubuntu:
     name: Unit Tests (Ubuntu)
     needs: compile

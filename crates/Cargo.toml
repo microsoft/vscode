@@ -1,0 +1,7 @@
+[workspace]
+members = [
+    "sota-codegraph-core",
+    "sota-codegraph-napi",
+    "sota-codegraph-cli",
+]
+resolver = "2"

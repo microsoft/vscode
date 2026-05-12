@@ -1,0 +1,14 @@
+[package]
+name = "sota-codegraph-cli"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "sota-codegraph-cli"
+
+[dependencies]
+sota-codegraph-core = { path = "../sota-codegraph-core" }
+tokio = { version = "1", features = ["full"] }
+clap = { version = "4", features = ["derive"] }
+anyhow = "1"
+serde_json = "1"
