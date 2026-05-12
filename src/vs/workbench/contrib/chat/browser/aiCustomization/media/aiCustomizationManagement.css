@@ -638,7 +638,6 @@
 	display: inline-flex;
 	align-items: center;
 	gap: 4px;
-	margin-left: 4px;
 }
 
 .ai-customization-list-widget .section-title-header .section-title-link:hover,
