@@ -56,6 +56,7 @@ import { SyncDescriptor } from '../../../util/vs/platform/instantiation/common/d
 import { ILanguageModelServer } from '../../agents/node/langModelServer';
 import { MockLanguageModelServer } from '../../agents/node/test/mockLanguageModelServer';
 import { IClaudeRuntimeDataService } from '../../chatSessions/claude/common/claudeRuntimeDataService';
+import { ClaudePlanFileTracker, IClaudePlanFileTracker } from '../../chatSessions/claude/common/claudePlanFileTracker';
 import { IClaudeSessionStateService } from '../../chatSessions/claude/common/claudeSessionStateService';
 import { IClaudeToolPermissionService } from '../../chatSessions/claude/common/claudeToolPermissionService';
 import { ClaudeCodeModels, IClaudeCodeModels } from '../../chatSessions/claude/node/claudeCodeModels';
@@ -76,7 +77,6 @@ import { IChatDiskSessionResources } from '../../prompts/common/chatDiskSessionR
 import { ChatDiskSessionResources } from '../../prompts/node/chatDiskSessionResourcesImpl';
 import { CodeMapperService, ICodeMapperService } from '../../prompts/node/codeMapper/codeMapperService';
 import { FixCookbookService, IFixCookbookService } from '../../prompts/node/inline/fixCookbookService';
-import { AgentMemoryService, IAgentMemoryService } from '../../tools/common/agentMemoryService';
 import { EditToolLearningService, IEditToolLearningService } from '../../tools/common/editToolLearningService';
 import { IMemoryCleanupService, MemoryCleanupService } from '../../tools/common/memoryCleanupService';
 import { ToolDeferralService } from '../../tools/common/toolDeferralService';
@@ -127,6 +127,7 @@ export function createExtensionUnitTestingServices(disposables: Pick<DisposableS
 	testingServiceCollection.define(IChatDiskSessionResources, new SyncDescriptor(ChatDiskSessionResources));
 	testingServiceCollection.define(IClaudeCodeSdkService, new SyncDescriptor(MockClaudeCodeSdkService));
 	testingServiceCollection.define(IClaudeToolPermissionService, new SyncDescriptor(MockClaudeToolPermissionService));
+	testingServiceCollection.define(IClaudePlanFileTracker, new SyncDescriptor(ClaudePlanFileTracker));
 	testingServiceCollection.define(IClaudeCodeModels, new SyncDescriptor(ClaudeCodeModels));
 	testingServiceCollection.define(IClaudeSessionStateService, new SyncDescriptor(ClaudeSessionStateService));
 	testingServiceCollection.define(IClaudeRuntimeDataService, new SyncDescriptor(ClaudeRuntimeDataService));
@@ -152,7 +153,6 @@ export function createExtensionUnitTestingServices(disposables: Pick<DisposableS
 	testingServiceCollection.define(ITodoListContextProvider, new SyncDescriptor(TodoListContextProvider));
 	testingServiceCollection.define(ILanguageModelServer, new SyncDescriptor(MockLanguageModelServer));
 	testingServiceCollection.define(IEditToolLearningService, new SyncDescriptor(EditToolLearningService));
-	testingServiceCollection.define(IAgentMemoryService, new SyncDescriptor(AgentMemoryService));
 	testingServiceCollection.define(IMemoryCleanupService, new SyncDescriptor(MemoryCleanupService));
 	testingServiceCollection.define(IGitService, new SyncDescriptor(NullGitExtensionService));
 	testingServiceCollection.define(IGitExtensionService, new SyncDescriptor(NullGitExtensionService));

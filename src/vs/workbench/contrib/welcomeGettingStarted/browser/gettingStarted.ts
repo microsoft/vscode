@@ -259,6 +259,12 @@ export class GettingStartedPage extends EditorPane {
 			this.container.querySelectorAll<HTMLDivElement>(`[x-category-description-for="${category.id}"]`).forEach(step => (step as HTMLDivElement).innerText = ourCategory.description);
 		}));
 
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(REDUCED_MOTION_KEY)) {
+				this.container.classList.toggle('animatable', this.shouldAnimate());
+			}
+		}));
+
 		this._register(this.gettingStartedService.onDidProgressStep(step => {
 			const category = this.gettingStartedCategories.find(c => c.id === step.category);
 			if (!category) { throw Error('Could not find category with ID: ' + step.category); }
@@ -272,11 +278,6 @@ export class GettingStartedPage extends EditorPane {
 				this.hideCategory(category.id);
 			}
 
-			this._register(this.configurationService.onDidChangeConfiguration(e => {
-				if (e.affectsConfiguration(REDUCED_MOTION_KEY)) {
-					this.container.classList.toggle('animatable', this.shouldAnimate());
-				}
-			}));
 			ourStep.done = step.done;
 
 			if (category.id === this.currentWalkthrough?.id) {

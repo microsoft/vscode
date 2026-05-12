@@ -16,13 +16,14 @@ import { ChatViewId, ChatViewPaneTarget, IChatWidgetService } from '../../../../
 import { IProgressService } from '../../../../platform/progress/common/progress.js';
 import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
-import { ActiveSessionProviderIdContext, ActiveSessionTypeContext, IsActiveSessionArchivedContext, IsActiveSessionBackgroundProviderContext, IsNewChatInSessionContext, IsNewChatSessionContext } from '../../../common/contextkeys.js';
+import { ActiveSessionProviderIdContext, ActiveSessionTypeContext, IsActiveSessionArchivedContext, ActiveSessionWorkspaceIsVirtualContext, IsNewChatInSessionContext, IsNewChatSessionContext } from '../../../common/contextkeys.js';
 import { ActiveSessionSupportsMultiChatContext, IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../common/sessionsManagement.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from './sessionsProvidersService.js';
 import { ISendRequestOptions, ISessionChangeEvent, ISessionsProvider } from '../common/sessionsProvider.js';
-import { IChat, ISession, isWorkspaceAgentSessionType, SessionStatus, ISessionType } from '../common/session.js';
+import { IChat, ISession, SessionStatus, ISessionType } from '../common/session.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../common/agentHostSessionsProvider.js';
+import { SessionsNavigation } from './sessionNavigation.js';
 
 const ACTIVE_SESSION_STATES_KEY = 'agentSessions.activeSessionStates';
 
@@ -60,7 +61,7 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 	private readonly _isNewChatInSessionContext: IContextKey<boolean>;
 	private readonly _activeSessionProviderId: IContextKey<string>;
 	private readonly _activeSessionType: IContextKey<string>;
-	private readonly _isWorkspaceAgent: IContextKey<boolean>;
+	private readonly _activeSessionWorkspaceIsVirtual: IContextKey<boolean>;
 	private readonly _isActiveSessionArchived: IContextKey<boolean>;
 	private readonly _supportsMultiChat: IContextKey<boolean>;
 	private _activeChatObservable: ISettableObservable<IChat> | undefined;
@@ -70,6 +71,7 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 	private _activeSessionDisposables = this._register(new DisposableStore());
 	private readonly _providerListeners = this._register(new DisposableMap<string, IDisposable>());
 	private readonly _sessionStates: ResourceMap<ISessionState>;
+	private readonly _navigation: SessionsNavigation;
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
@@ -89,7 +91,7 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 		this._isNewChatInSessionContext = IsNewChatInSessionContext.bindTo(contextKeyService);
 		this._activeSessionProviderId = ActiveSessionProviderIdContext.bindTo(contextKeyService);
 		this._activeSessionType = ActiveSessionTypeContext.bindTo(contextKeyService);
-		this._isWorkspaceAgent = IsActiveSessionBackgroundProviderContext.bindTo(contextKeyService);
+		this._activeSessionWorkspaceIsVirtual = ActiveSessionWorkspaceIsVirtualContext.bindTo(contextKeyService);
 		this._isActiveSessionArchived = IsActiveSessionArchivedContext.bindTo(contextKeyService);
 		this._supportsMultiChat = ActiveSessionSupportsMultiChatContext.bindTo(contextKeyService);
 
@@ -105,6 +107,14 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 			this._updateSessionTypes();
 		}));
 		this._subscribeToProviders(this.sessionsProvidersService.getProviders());
+
+		// Session navigation history
+		this._navigation = this._register(new SessionsNavigation(
+			this,
+			contextKeyService,
+			this.logService,
+		));
+		this._register(this.onDidChangeSessions(e => this._navigation.onDidRemoveSessions(e)));
 	}
 
 	private _onProvidersChanged(e: ISessionsProvidersChangeEvent): void {
@@ -429,7 +439,7 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 		// Update context keys from session data
 		this._activeSessionProviderId.set(session?.providerId ?? '');
 		this._activeSessionType.set(session?.sessionType ?? '');
-		this._isWorkspaceAgent.set(isWorkspaceAgentSessionType(session?.sessionType));
+		this._activeSessionWorkspaceIsVirtual.set(session?.workspace.get()?.isVirtualWorkspace ?? true);
 		this._isActiveSessionArchived.set(session?.isArchived.get() ?? false);
 		this._supportsMultiChat.set(session?.capabilities.supportsMultipleChats ?? false);
 
@@ -484,6 +494,12 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 					this.openNewSessionView();
 				}
 				wasArchived = isArchived;
+			}));
+
+			// Track workspace changes so the virtual-workspace context key stays in sync
+			this._activeSessionDisposables.add(autorun(reader => {
+				const workspace = session.workspace.read(reader);
+				this._activeSessionWorkspaceIsVirtual.set(workspace?.isVirtualWorkspace ?? true);
 			}));
 
 			// Track chat list changes — if the active chat is removed, fall back
@@ -650,6 +666,16 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 		} finally {
 			onDidOpenNewSessionViewListener?.dispose();
 		}
+	}
+
+	// -- Session Navigation --
+
+	async openPreviousSession(): Promise<void> {
+		await this._navigation.goBack();
+	}
+
+	async openNextSession(): Promise<void> {
+		await this._navigation.goForward();
 	}
 
 	// -- Session Actions --

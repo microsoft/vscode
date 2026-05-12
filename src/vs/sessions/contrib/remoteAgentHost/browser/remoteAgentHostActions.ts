@@ -917,6 +917,8 @@ async function promptToConnectViaTunnel(
 	});
 
 	try {
+		// `connect` caches the tunnel internally before wiring the live
+		// connection — no separate `cacheTunnel` call needed here.
 		await tunnelService.connect(picked.tunnel, authProvider);
 		handle.close();
 	} catch (err) {
@@ -924,9 +926,6 @@ async function promptToConnectViaTunnel(
 		notificationService.error(localize('tunnelConnectFailed', "Failed to connect to tunnel '{0}': {1}", picked.tunnel.name, err instanceof Error ? err.message : String(err)));
 		return;
 	}
-
-	// Cache the tunnel for future reconnections
-	tunnelService.cacheTunnel(picked.tunnel, authProvider);
 
 	// Step 5: Open folder picker (same pattern as SSH)
 	await instantiationService.invokeFunction(accessor => promptForTunnelFolder(accessor, picked.tunnel));

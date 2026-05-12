@@ -33,7 +33,7 @@ import { ILanguageModelsService } from '../../../../workbench/contrib/chat/commo
 import { buildMutableConfigSchema, IAgentHostSessionsProvider, resolvedConfigsEqual } from '../../../common/agentHostSessionsProvider.js';
 import { agentHostSessionWorkspaceKey } from '../../../common/agentHostSessionWorkspace.js';
 import { isSessionConfigComplete } from '../../../common/sessionConfig.js';
-import { CopilotCLISessionType, IChat, IGitHubInfo, ISession, ISessionChangeset, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, sessionFileChangesEqual, SessionStatus, toSessionId } from '../../../services/sessions/common/session.js';
+import { IChat, IGitHubInfo, ISession, ISessionChangeset, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, sessionFileChangesEqual, SessionStatus, toSessionId } from '../../../services/sessions/common/session.js';
 import { ISendRequestOptions, ISessionChangeEvent } from '../../../services/sessions/common/sessionsProvider.js';
 import { computePullRequestIcon } from '../../github/common/types.js';
 import { IGitHubService } from '../../github/browser/githubService.js';
@@ -42,6 +42,13 @@ import { diffsEqual, diffsToChanges, mapProtocolStatus } from './agentHostDiffs.
 // ============================================================================
 // AgentHostSessionAdapter — shared adapter for local and remote sessions
 // ============================================================================
+
+/** Copilot CLI session type */
+export const CopilotCLISessionType: ISessionType = {
+	id: 'copilotcli',
+	label: localize('copilotCLI', "Copilot CLI"),
+	icon: Codicon.copilot,
+};
 
 /**
  * Variation points the host provider supplies when building an adapter.
@@ -55,7 +62,7 @@ export interface IAgentHostAdapterOptions {
 	/** Loading observable wired to the provider's authentication-pending state. */
 	readonly loading: IObservable<boolean>;
 	/** Builds the session workspace from session metadata; provider-specific (icon, providerLabel, requiresWorkspaceTrust). */
-	readonly buildWorkspace: (project: IAgentSessionMetadata['project'], workingDirectory: URI | undefined, gitState: ISessionGitState | undefined) => ISessionWorkspace | undefined;
+	readonly buildWorkspace: (project: IAgentSessionMetadata['project'], workingDirectory: URI | undefined, gitHubInfo: IObservable<IGitHubInfo | undefined>, gitState: ISessionGitState | undefined) => ISessionWorkspace | undefined;
 	/** Optional URI mapping for diff entries (remote uses `toAgentHostUri`; local uses identity). */
 	readonly mapDiffUri?: (uri: URI) => URI;
 	/**
@@ -91,7 +98,12 @@ export class AgentHostSessionAdapter implements ISession {
 	readonly mode = observableValue<{ readonly id: string; readonly kind: string } | undefined>('mode', undefined);
 	readonly loading: IObservable<boolean>;
 	readonly isArchived = observableValue('isArchived', false);
-	readonly isRead = observableValue('isRead', true);
+	// Agent host sessions defer unread tracking to the workbench view-level
+	// state (see SessionsListModelService). The agent host protocol still
+	// carries an isRead bit but exposing it here would conflict with the
+	// view's own tracking, so we always report `true` from this observable
+	// and let the view be the source of truth.
+	readonly isRead = constObservable(true);
 	readonly description: IObservable<IMarkdownString | undefined>;
 	readonly lastTurnEnd: ISettableObservable<Date | undefined>;
 	readonly gitHubInfo: IObservable<IGitHubInfo | undefined>;
@@ -148,21 +160,6 @@ export class AgentHostSessionAdapter implements ISession {
 		this._workingDirectory = metadata.workingDirectory;
 		this._meta = metadata._meta;
 		this._metaObs = observableValue<SessionMeta | undefined>('agentHostSessionMeta', this._meta);
-		const initialGitState = readSessionGitState(this._meta);
-		const initialWorkspace = _options.buildWorkspace(this._project, this._workingDirectory, initialGitState);
-		this.workspace = observableValue('workspace', initialWorkspace);
-		this.loading = _options.loading;
-		this.description = derived(reader => {
-			const status = this.status.read(reader);
-			if (status === SessionStatus.InProgress || status === SessionStatus.NeedsInput) {
-				const activity = this._activity.read(reader);
-				if (activity) {
-					return new MarkdownString().appendText(activity);
-				}
-			}
-
-			return this._options.description;
-		});
 
 		// gitHubInfo is reactively derived from `_meta.git`. Owner/repo come
 		// from the agent host's git state; the PR number is resolved by the
@@ -215,15 +212,30 @@ export class AgentHostSessionAdapter implements ISession {
 			};
 		});
 
-		if (metadata.isRead === false) {
-			this.isRead.set(false, undefined);
-		}
+		const initialGitState = readSessionGitState(this._meta);
+		const initialWorkspace = _options.buildWorkspace(this._project, this._workingDirectory, this.gitHubInfo, initialGitState);
+		this.workspace = observableValue('workspace', initialWorkspace);
+		this.loading = _options.loading;
+		this.description = derived(reader => {
+			const status = this.status.read(reader);
+			if (status === SessionStatus.InProgress || status === SessionStatus.NeedsInput) {
+				const activity = this._activity.read(reader);
+				if (activity) {
+					return new MarkdownString().appendText(activity);
+				}
+			}
+
+			return this._options.description;
+		});
+
 		if (metadata.isArchived) {
 			this.isArchived.set(true, undefined);
 		}
 		if (metadata.diffs && metadata.diffs.length > 0) {
 			this.changes.set(diffsToChanges(metadata.diffs, _options.mapDiffUri), undefined);
 		}
+
+		const checkpoints = observableValue(this, undefined);
 
 		this.mainChat = {
 			resource: this.resource,
@@ -233,6 +245,7 @@ export class AgentHostSessionAdapter implements ISession {
 			status: this.status,
 			changes: this.changes,
 			changesets: this.changesets,
+			checkpoints,
 			modelId: this.modelId,
 			mode: this.mode,
 			isArchived: this.isArchived,
@@ -289,14 +302,9 @@ export class AgentHostSessionAdapter implements ISession {
 				this._meta = metadata._meta;
 				this._metaObs.set(this._meta, tx);
 			}
-			const workspace = this._options.buildWorkspace(this._project, this._workingDirectory, readSessionGitState(this._meta));
+			const workspace = this._options.buildWorkspace(this._project, this._workingDirectory, this.gitHubInfo, readSessionGitState(this._meta));
 			if (agentHostSessionWorkspaceKey(workspace) !== agentHostSessionWorkspaceKey(this.workspace.get())) {
 				this.workspace.set(workspace, tx);
-				didChange = true;
-			}
-
-			if (metadata.isRead !== undefined && metadata.isRead !== this.isRead.get()) {
-				this.isRead.set(metadata.isRead, tx);
 				didChange = true;
 			}
 
@@ -347,7 +355,7 @@ export class AgentHostSessionAdapter implements ISession {
 	setMeta(meta: IAgentSessionMetadata['_meta']): boolean {
 		this._meta = meta;
 		const gitState = readSessionGitState(this._meta);
-		const workspace = this._options.buildWorkspace(this._project, this._workingDirectory, gitState);
+		const workspace = this._options.buildWorkspace(this._project, this._workingDirectory, this.gitHubInfo, gitState);
 		const workspaceChanged = agentHostSessionWorkspaceKey(workspace) !== agentHostSessionWorkspaceKey(this.workspace.get());
 		transaction(tx => {
 			this._metaObs.set(this._meta, tx);
@@ -443,7 +451,7 @@ class NewSession extends Disposable {
 
 	constructor(ctx: INewSessionConstructionContext) {
 		super();
-		const workspaceUri = ctx.workspace.repositories[0]?.uri;
+		const workspaceUri = ctx.workspace.folders[0]?.root;
 		if (!workspaceUri) {
 			throw new Error('Workspace has no repository URI');
 		}
@@ -458,6 +466,7 @@ class NewSession extends Disposable {
 		const updatedAt = observableValue(this, new Date());
 		const changesets = observableValue<readonly ISessionChangeset[]>(this, []);
 		const changes = observableValueOpts<readonly (IChatSessionFileChange | IChatSessionFileChange2)[]>({ owner: this, equalsFn: sessionFileChangesEqual }, []);
+		const checkpoints = observableValue(this, undefined);
 		this._modelId = observableValue<string | undefined>(this, undefined);
 		const mode = observableValue<{ readonly id: string; readonly kind: string } | undefined>(this, undefined);
 		const isArchived = observableValue(this, false);
@@ -472,6 +481,7 @@ class NewSession extends Disposable {
 			status: this._status,
 			changesets,
 			changes,
+			checkpoints,
 			modelId: this._modelId,
 			mode, isArchived, isRead, description, lastTurnEnd,
 		};
@@ -497,7 +507,6 @@ class NewSession extends Disposable {
 			isRead,
 			description,
 			lastTurnEnd,
-			gitHubInfo: observableValue(this, undefined),
 			mainChat,
 			chats: constObservable([mainChat]),
 			capabilities: { supportsMultipleChats: false },
@@ -882,7 +891,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			this._onDidChangeRootConfig.fire();
 			return;
 		}
-		if (prev && prev.schema === next.schema && equals(prev.values, next.values)) {
+		if (prev?.schema === next.schema && equals(prev.values, next.values)) {
 			return;
 		}
 		this._rootConfig = next;
@@ -1694,8 +1703,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				this._handleTitleChanged(e.action.session, e.action.title);
 			} else if (e.action.type === ActionType.SessionModelChanged && isSessionAction(e.action)) {
 				this._handleModelChanged(e.action.session, e.action.model);
-			} else if (e.action.type === ActionType.SessionIsReadChanged && isSessionAction(e.action)) {
-				this._handleIsReadChanged(e.action.session, e.action.isRead);
 			} else if (e.action.type === ActionType.SessionIsArchivedChanged && isSessionAction(e.action)) {
 				this._handleIsArchivedChanged(e.action.session, e.action.isArchived);
 			} else if (e.action.type === ActionType.SessionConfigChanged && isSessionAction(e.action)) {
@@ -1726,7 +1733,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			...(summary.project ? { project: { uri: this.mapProjectUri(URI.parse(summary.project.uri)), displayName: summary.project.displayName } } : {}),
 			model: summary.model,
 			workingDirectory: workingDir,
-			isRead: !!(summary.status & ProtocolSessionStatus.IsRead),
 			isArchived: !!(summary.status & ProtocolSessionStatus.IsArchived),
 		};
 		const cached = this.createAdapter(meta);
@@ -1768,15 +1774,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 	}
 
-	private _handleIsReadChanged(session: string, isRead: boolean): void {
-		const rawId = AgentSession.id(session);
-		const cached = this._sessionCache.get(rawId);
-		if (cached) {
-			cached.isRead.set(isRead, undefined);
-			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
-		}
-	}
-
 	private _handleIsArchivedChanged(session: string, isArchived: boolean): void {
 		const rawId = AgentSession.id(session);
 		const cached = this._sessionCache.get(rawId);
@@ -1808,12 +1805,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			const uiStatus = mapProtocolStatus(changes.status);
 			if (uiStatus !== cached.status.get()) {
 				cached.status.set(uiStatus, undefined);
-				didChange = true;
-			}
-
-			const isRead = !!(changes.status & ProtocolSessionStatus.IsRead);
-			if (isRead !== cached.isRead.get()) {
-				cached.isRead.set(isRead, undefined);
 				didChange = true;
 			}
 
