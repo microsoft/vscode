@@ -45,6 +45,10 @@ export interface ITerminalQueryFilterState {
 	pendingData: string;
 }
 
+export interface ISendTextOptions {
+	shouldExecute: boolean;
+}
+
 export function removeServerHandledTerminalQueries(data: string, state: ITerminalQueryFilterState): string {
 	if (
 		!state.pendingData
@@ -76,6 +80,14 @@ function getServerHandledTerminalQueryPrefix(data: string): string {
 	return '';
 }
 
+export function formatTerminalText(data: string, options: ISendTextOptions): string {
+	data = data.replace(/\r?\n/g, '\r');
+	if (options.shouldExecute && !data.endsWith('\r')) {
+		data += '\r';
+	}
+	return data;
+}
+
 /**
  * Service interface for terminal management in the agent host.
  */
@@ -83,6 +95,7 @@ export interface IAgentHostTerminalManager {
 	readonly _serviceBrand: undefined;
 	createTerminal(params: CreateTerminalParams, options?: { shell?: string; preventShellHistory?: boolean; nonInteractive?: boolean }): Promise<void>;
 	writeInput(uri: string, data: string): void;
+	sendText(uri: string, data: string, options: ISendTextOptions): void;
 	onData(uri: string, cb: (data: string) => void): IDisposable;
 	onExit(uri: string, cb: (exitCode: number) => void): IDisposable;
 	onClaimChanged(uri: string, cb: (claim: TerminalClaim) => void): IDisposable;
@@ -428,6 +441,11 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 		if (terminal && terminal.exitCode === undefined) {
 			terminal.pty.write(data);
 		}
+	}
+
+	/** Send formatted text to a terminal's PTY process. */
+	sendText(uri: string, data: string, options: ISendTextOptions): void {
+		this.writeInput(uri, formatTerminalText(data, options));
 	}
 
 	/** Register a callback for PTY data events on a terminal. */
