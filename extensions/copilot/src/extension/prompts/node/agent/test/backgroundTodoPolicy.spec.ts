@@ -319,6 +319,7 @@ describe('BackgroundTodoProcessor.shouldRun (policy)', () => {
 			newRoundCount: firstBatchRounds.length,
 			newToolCallCount: BackgroundTodoProcessor.INITIAL_SUBSTANTIVE_THRESHOLD,
 			substantiveToolCallCount: BackgroundTodoProcessor.INITIAL_SUBSTANTIVE_THRESHOLD,
+			currentTurnSubstantiveToolCallCount: BackgroundTodoProcessor.INITIAL_SUBSTANTIVE_THRESHOLD,
 			isInitialDelta: true,
 			isRequestOnly: false,
 		};
@@ -346,6 +347,7 @@ describe('BackgroundTodoProcessor.shouldRun (policy)', () => {
 			newRoundCount: firstBatchRounds.length,
 			newToolCallCount: BackgroundTodoProcessor.INITIAL_SUBSTANTIVE_THRESHOLD,
 			substantiveToolCallCount: BackgroundTodoProcessor.INITIAL_SUBSTANTIVE_THRESHOLD,
+			currentTurnSubstantiveToolCallCount: BackgroundTodoProcessor.INITIAL_SUBSTANTIVE_THRESHOLD,
 			isInitialDelta: true,
 			isRequestOnly: false,
 		};
@@ -376,6 +378,7 @@ describe('BackgroundTodoProcessor.shouldRun (policy)', () => {
 				newRoundCount: rounds.length,
 				newToolCallCount: threshold,
 				substantiveToolCallCount: threshold,
+				currentTurnSubstantiveToolCallCount: threshold,
 				isInitialDelta: batchIdx === 0,
 				isRequestOnly: false,
 			};
