@@ -11,7 +11,7 @@ import { MarkdownString } from '../../../../../../../base/common/htmlContent.js'
 import { ActionListItemKind, IActionListItem } from '../../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetDropdownAction } from '../../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { StateType } from '../../../../../../../platform/update/common/update.js';
-import { buildModelPickerItems, getModelPickerAccessibilityProvider } from '../../../../browser/widget/input/chatModelPicker.js';
+import { buildModelPickerItems, formatTokenCount, getModelPickerAccessibilityProvider } from '../../../../browser/widget/input/chatModelPicker.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelControlEntry } from '../../../../common/languageModels.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../../services/chat/common/chatEntitlementService.js';
 
@@ -69,7 +69,32 @@ const stubManageModelsAction: IActionWidgetDropdownAction = {
 	run: () => { }
 };
 
-const stubLanguageModelsService = { getModelConfigurationActions: () => [], getModelConfiguration: () => undefined } as unknown as ILanguageModelsService;
+const stubLanguageModelsService = { getModelConfigurationActions: () => [], getModelConfiguration: () => undefined, getVendors: () => [], getLanguageModelGroups: () => [] } as unknown as ILanguageModelsService;
+
+/**
+ * Builds a `ILanguageModelsService` stub that simulates BYOK provider
+ * groups: each `vendors` entry advertises one or more user-configured
+ * groups (mapping group name to model identifiers). Used to exercise the
+ * picker's `(vendor, groupName)` bucketing without spinning up the real
+ * service.
+ */
+function createLanguageModelsServiceStub(vendors: { vendor: string; displayName: string; groups: { name: string; modelIdentifiers: string[] }[] }[]): ILanguageModelsService {
+	return {
+		getModelConfigurationActions: () => [],
+		getModelConfiguration: () => undefined,
+		getVendors: () => vendors.map(v => ({ vendor: v.vendor, displayName: v.displayName })),
+		getLanguageModelGroups: (vendor: string) => {
+			const v = vendors.find(x => x.vendor === vendor);
+			if (!v) {
+				return [];
+			}
+			return v.groups.map(g => ({
+				group: { vendor: v.vendor, name: g.name },
+				modelIdentifiers: g.modelIdentifiers,
+			}));
+		},
+	} as unknown as ILanguageModelsService;
+}
 
 function callBuild(
 	models: ILanguageModelChatMetadataAndIdentifier[],
@@ -84,6 +109,8 @@ function callBuild(
 		anonymous?: boolean;
 		showUnavailableFeatured?: boolean;
 		showFeatured?: boolean;
+		isUBB?: boolean;
+		languageModelsService?: ILanguageModelsService;
 	} = {},
 ): IActionListItem<IActionWidgetDropdownAction>[] {
 	const onSelect = () => { };
@@ -105,7 +132,9 @@ function callBuild(
 		entitlementService,
 		opts.showUnavailableFeatured ?? true,
 		opts.showFeatured ?? true,
-		stubLanguageModelsService,
+		opts.languageModelsService ?? stubLanguageModelsService,
+		undefined,
+		opts.isUBB,
 	);
 }
 
@@ -118,6 +147,26 @@ suite('buildModelPickerItems', () => {
 		assert.strictEqual(provider.getRole({ kind: ActionListItemKind.Action } as IActionListItem<IActionWidgetDropdownAction>), 'menuitemradio');
 		assert.strictEqual(provider.getRole({ kind: ActionListItemKind.Separator } as IActionListItem<IActionWidgetDropdownAction>), 'separator');
 		assert.strictEqual(provider.getWidgetRole(), 'menu');
+	});
+
+	test('accessibility provider includes inline source and right-aligned multiplier', () => {
+		const provider = getModelPickerAccessibilityProvider();
+		assert.strictEqual(provider.getAriaLabel({
+			kind: ActionListItemKind.Action,
+			label: 'Claude Opus 4.7',
+			badge: 'Copilot',
+			description: '15x',
+		} as IActionListItem<IActionWidgetDropdownAction>), 'Claude Opus 4.7, Copilot, 15x');
+	});
+
+	test('accessibility provider prefers ariaDescription over description', () => {
+		const provider = getModelPickerAccessibilityProvider();
+		assert.strictEqual(provider.getAriaLabel({
+			kind: ActionListItemKind.Action,
+			label: 'Claude Sonnet 4.6',
+			description: 'Copilot',
+			ariaDescription: 'Medium cost',
+		} as IActionListItem<IActionWidgetDropdownAction>), 'Claude Sonnet 4.6, Medium cost');
 	});
 
 	test('auto model always appears first', () => {
@@ -303,8 +352,8 @@ suite('buildModelPickerItems', () => {
 		});
 		// With no selected, no recent, and no featured, both models should be in Other
 		const seps = items.filter(i => i.kind === ActionListItemKind.Separator);
-		// One separator before Other Models section, one before Manage Models
-		assert.strictEqual(seps.length, 2);
+		// One separator before Other Models section (Manage Models is in the toolbar)
+		assert.strictEqual(seps.length, 1);
 		const actions = getActionItems(items);
 		assert.strictEqual(actions[0].label, 'Auto');
 		// Next should be "Other Models" toggle
@@ -366,13 +415,15 @@ suite('buildModelPickerItems', () => {
 		assert.ok(toggles[0].label!.includes('Other Models'));
 	});
 
-	test('Other Models section includes Manage Models entry', () => {
+	test('Other Models section includes Manage Models in toolbar', () => {
 		const auto = createAutoModel();
 		const modelA = createModel('gpt-4o', 'GPT-4o');
 		const items = callBuild([auto, modelA]);
-		const manageItem = getActionItems(items).find(i => i.item?.id === 'manageModels');
-		assert.ok(manageItem);
-		assert.ok(manageItem.label!.includes('Manage Models'));
+		const toggle = getActionItems(items).find(i => i.isSectionToggle);
+		assert.ok(toggle);
+		assert.ok(toggle.toolbarActions);
+		assert.strictEqual(toggle.toolbarActions!.length, 1);
+		assert.strictEqual(toggle.toolbarActions![0].id, 'manageModels');
 	});
 
 	test('Other Models with minVSCodeVersion that fails shows as disabled', () => {
@@ -451,17 +502,94 @@ suite('buildModelPickerItems', () => {
 		assert.strictEqual(actions[0].label, 'Auto');
 	});
 
-	test('Other Models sorted by vendor then name', () => {
+	test('Other Models grouped by vendor with separator headers', () => {
 		const auto = createAutoModel();
 		const modelA = createModel('zebra', 'Zebra', 'copilot');
 		const modelB = createModel('alpha', 'Alpha', 'other-vendor');
 		const modelC = createModel('beta', 'Beta', 'copilot');
 		const items = callBuild([auto, modelA, modelB, modelC]);
+		// Vendor separators should be present with correct labels
+		const vendorSeparators = items.filter(i => i.kind === ActionListItemKind.Separator && i.label);
+		assert.strictEqual(vendorSeparators.length, 2);
+		// Vendors sorted alphabetically by display name
+		assert.strictEqual(vendorSeparators[0].label, 'Copilot');
+		assert.strictEqual(vendorSeparators[1].label, 'Other-vendor');
+		// Models within each vendor group are sorted alphabetically
 		const actions = getActionItems(items);
-		// Skip Auto and "Other Models" toggle
-		const otherModelLabels = actions.slice(2).map(a => a.label!).filter(l => !l.includes('Manage Models'));
-		// copilot models first (sorted by name), then other-vendor
+		const otherModelLabels = actions.filter(a => !a.isSectionToggle && a.section === 'other').map(a => a.label!);
 		assert.deepStrictEqual(otherModelLabels, ['Beta', 'Zebra', 'Alpha']);
+	});
+
+	test('single vendor group omits vendor separator header', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('gpt-4o', 'GPT-4o', 'copilot');
+		const modelB = createModel('claude', 'Claude', 'copilot');
+		const items = callBuild([auto, modelA, modelB]);
+		// No vendor separators when all models share the same vendor
+		const vendorSeparators = items.filter(i => i.kind === ActionListItemKind.Separator && i.label);
+		assert.strictEqual(vendorSeparators.length, 0);
+	});
+
+	test('Other Models splits a single vendor into per-group sections (BYOK)', () => {
+		// Simulates a BYOK setup where one vendor (`customoai`) advertises
+		// two user-configured provider groups. The picker should mirror the
+		// model configuration view and render one section per group rather
+		// than collapsing them under the vendor display name.
+		const auto = createAutoModel();
+		const gpt41 = createModel('gpt-4.1', 'gpt-4.1', 'customoai');
+		const ossModel = createModel('openai.gpt-oss-120b', 'gpt-oss-120b', 'customoai');
+		const lmService = createLanguageModelsServiceStub([
+			{
+				vendor: 'customoai',
+				displayName: 'OpenAI Compatible',
+				groups: [
+					{ name: 'OpenAI Compatible', modelIdentifiers: [gpt41.identifier] },
+					{ name: 'AWS Bedrock', modelIdentifiers: [ossModel.identifier] },
+				],
+			},
+		]);
+		const items = callBuild([auto, gpt41, ossModel], { languageModelsService: lmService });
+		const labelledSeparators = items.filter(i => i.kind === ActionListItemKind.Separator && i.label);
+		assert.deepStrictEqual(labelledSeparators.map(s => s.label), ['AWS Bedrock', 'OpenAI Compatible']);
+	});
+
+	test('Other Models keeps a single section when a vendor has only one group (BYOK)', () => {
+		const auto = createAutoModel();
+		const gpt41 = createModel('gpt-4.1', 'gpt-4.1', 'customoai');
+		const lmService = createLanguageModelsServiceStub([
+			{
+				vendor: 'customoai',
+				displayName: 'OpenAI Compatible',
+				groups: [{ name: 'OpenAI Compatible', modelIdentifiers: [gpt41.identifier] }],
+			},
+		]);
+		const items = callBuild([auto, gpt41], { languageModelsService: lmService });
+		const labelledSeparators = items.filter(i => i.kind === ActionListItemKind.Separator && i.label);
+		assert.strictEqual(labelledSeparators.length, 0);
+	});
+
+	test('promoted models show provider group name when groups disambiguate a single vendor (BYOK)', () => {
+		const auto = createAutoModel();
+		const gpt41 = createModel('gpt-4.1', 'gpt-4.1', 'customoai');
+		const ossModel = createModel('openai.gpt-oss-120b', 'gpt-oss-120b', 'customoai');
+		const lmService = createLanguageModelsServiceStub([
+			{
+				vendor: 'customoai',
+				displayName: 'OpenAI Compatible',
+				groups: [
+					{ name: 'OpenAI Compatible', modelIdentifiers: [gpt41.identifier] },
+					{ name: 'AWS Bedrock', modelIdentifiers: [ossModel.identifier] },
+				],
+			},
+		]);
+		const items = callBuild([auto, gpt41, ossModel], {
+			recentModelIds: [gpt41.identifier],
+			languageModelsService: lmService,
+		});
+		const promoted = getActionItems(items).find(a => a.label === 'gpt-4.1');
+		assert.ok(promoted);
+		// Badge should carry the user-configured group name, not the vendor displayName.
+		assert.strictEqual(promoted.badge, 'OpenAI Compatible');
 	});
 
 	test('onSelect callback is wired into action items', () => {
@@ -728,4 +856,153 @@ suite('buildModelPickerItems', () => {
 		const otherGpt = actions.find(a => a.label === 'GPT-4o' && a.section === 'other');
 		assert.ok(otherGpt, 'Version-gated featured model should appear in Other Models when showUnavailableFeatured=false');
 	});
+
+	test('model description includes pricing when set', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('gpt-4o', 'GPT-4o');
+		modelA.metadata = { ...modelA.metadata, pricing: '3x', multiplierNumeric: 3 } as ILanguageModelChatMetadata;
+		const items = callBuild([auto, modelA]);
+		const gptItem = getActionItems(items).find(a => a.label === 'GPT-4o');
+		assert.ok(gptItem);
+		assert.strictEqual(gptItem.item?.description, '3x');
+	});
+
+	test('model description combines detail and pricing', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('gpt-4o', 'GPT-4o');
+		modelA.metadata = { ...modelA.metadata, detail: 'High', pricing: '3x', multiplierNumeric: 3 } as ILanguageModelChatMetadata;
+		const items = callBuild([auto, modelA]);
+		const gptItem = getActionItems(items).find(a => a.label === 'GPT-4o');
+		assert.ok(gptItem);
+		assert.strictEqual(gptItem.item?.description, 'High · 3x');
+	});
+
+	test('model description hides non-multiplier pricing from description', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('gpt-4o', 'GPT-4o');
+		modelA.metadata = { ...modelA.metadata, detail: 'Provider', pricing: 'In: 2.04 · Out: 4.34 AICs/1M tokens' } as ILanguageModelChatMetadata;
+		const items = callBuild([auto, modelA]);
+		const gptItem = getActionItems(items).find(a => a.label === 'GPT-4o');
+		assert.ok(gptItem);
+		// Non-multiplier pricing should not appear in description
+		assert.strictEqual(gptItem.item?.description, 'Provider');
+	});
+
+	test('model description shows multiplier pricing in description', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('claude', 'Claude');
+		modelA.metadata = { ...modelA.metadata, pricing: '15x', multiplierNumeric: 15 } as ILanguageModelChatMetadata;
+		const items = callBuild([auto, modelA]);
+		const claudeItem = getActionItems(items).find(a => a.label === 'Claude');
+		assert.ok(claudeItem);
+		assert.strictEqual(claudeItem.item?.description, '15x');
+	});
+
+	test('model with no pricing and no detail has undefined description', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('gpt-4o', 'GPT-4o');
+		const items = callBuild([auto, modelA]);
+		const gptItem = getActionItems(items).find(a => a.label === 'GPT-4o');
+		assert.ok(gptItem);
+		assert.strictEqual(gptItem.item?.description, undefined);
+	});
+
+	test('model with priceCategory shows ariaDescription with price label', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('gpt-4o', 'GPT-4o');
+		modelA.metadata = { ...modelA.metadata, priceCategory: 'medium' } as ILanguageModelChatMetadata;
+		const items = callBuild([auto, modelA], { isUBB: true });
+		const gptItem = getActionItems(items).find(a => a.label === 'GPT-4o');
+		assert.ok(gptItem);
+		// Price category is no longer shown as circle indicators in the description
+		assert.strictEqual(gptItem.description, undefined);
+		// ariaDescription should be a readable label for screen readers
+		assert.ok(typeof gptItem.ariaDescription === 'string');
+		assert.ok(!gptItem.ariaDescription.includes('circle'));
+	});
+
+	test('model with unknown priceCategory shows no circle indicators', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('gpt-4o', 'GPT-4o');
+		modelA.metadata = { ...modelA.metadata, priceCategory: 'unknown_tier' } as ILanguageModelChatMetadata;
+		const items = callBuild([auto, modelA]);
+		const gptItem = getActionItems(items).find(a => a.label === 'GPT-4o');
+		assert.ok(gptItem);
+		// Unknown category should fall through to normal description (undefined since no detail)
+		assert.strictEqual(gptItem.item?.description, undefined);
+		assert.strictEqual(gptItem.description, undefined);
+	});
+
+	test('promoted models show inline vendor label when multiple vendors exist across all models', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('gpt-4o', 'GPT-4o', 'copilot');
+		modelA.metadata = { ...modelA.metadata, pricing: '15x', multiplierNumeric: 15 } as ILanguageModelChatMetadata;
+		const modelB = createModel('claude', 'Claude', 'anthropic');
+		const items = callBuild([auto, modelA, modelB], {
+			recentModelIds: [modelA.identifier],
+		});
+		const actions = getActionItems(items);
+		// GPT-4o is promoted (recent) and should show the source inline while keeping multiplier on the right.
+		const gptItem = actions.find(a => a.label === 'GPT-4o');
+		assert.ok(gptItem);
+		assert.strictEqual(gptItem.className, 'chat-model-picker-inline-source');
+		assert.strictEqual(gptItem.badge, 'Copilot');
+		assert.strictEqual(gptItem.description, '15x');
+	});
+
+	test('promoted models omit inline vendor label when only one vendor exists', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('gpt-4o', 'GPT-4o', 'copilot');
+		const modelB = createModel('claude', 'Claude', 'copilot');
+		const items = callBuild([auto, modelA, modelB], {
+			recentModelIds: [modelA.identifier],
+		});
+		const actions = getActionItems(items);
+		const gptItem = actions.find(a => a.label === 'GPT-4o');
+		assert.ok(gptItem);
+		// No vendor label since all models are from the same vendor
+		assert.strictEqual(gptItem.className, undefined);
+		assert.strictEqual(gptItem.badge, undefined);
+	});
+
+	test('vendor detail is suppressed in Other Models when multiple vendor groups shown', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('gpt-4o', 'GPT-4o', 'copilot');
+		modelA.metadata = { ...modelA.metadata, detail: 'GitHub Copilot' } as ILanguageModelChatMetadata;
+		const modelB = createModel('claude', 'Claude', 'anthropic');
+		modelB.metadata = { ...modelB.metadata, detail: 'Anthropic' } as ILanguageModelChatMetadata;
+		const items = callBuild([auto, modelA, modelB]);
+		const actions = getActionItems(items);
+		// Detail should be suppressed for models in vendor groups
+		const gptItem = actions.find(a => a.label === 'GPT-4o');
+		assert.ok(gptItem);
+		assert.strictEqual(gptItem.item?.description, undefined);
+		const claudeItem = actions.find(a => a.label === 'Claude');
+		assert.ok(claudeItem);
+		assert.strictEqual(claudeItem.item?.description, undefined);
+	});
 });
+
+suite('formatTokenCount', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('returns M for counts above 900K', () => {
+		assert.strictEqual(formatTokenCount(1_000_000), '1M');
+		assert.strictEqual(formatTokenCount(935_997), '1M');
+		assert.strictEqual(formatTokenCount(1_500_000), '2M');
+		assert.strictEqual(formatTokenCount(2_000_000), '2M');
+	});
+
+	test('returns K for counts between 1000 and 900K', () => {
+		assert.strictEqual(formatTokenCount(200_000), '200K');
+		assert.strictEqual(formatTokenCount(128_000), '128K');
+		assert.strictEqual(formatTokenCount(1_000), '1K');
+		assert.strictEqual(formatTokenCount(900_000), '900K');
+	});
+
+	test('returns raw number for counts below 1000', () => {
+		assert.strictEqual(formatTokenCount(500), '500');
+		assert.strictEqual(formatTokenCount(0), '0');
+	});
+});
+

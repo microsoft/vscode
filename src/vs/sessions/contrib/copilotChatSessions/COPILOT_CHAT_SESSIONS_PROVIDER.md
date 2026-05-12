@@ -2,7 +2,7 @@
 
 **File:** `src/vs/sessions/contrib/copilotChatSessions/browser/copilotChatSessionsProvider.ts`
 
-The default sessions provider, registered with ID `'default-copilot'`. Wraps the existing agent session infrastructure into the extensible provider model. Supports three session types: **Copilot CLI** (local), **Copilot Cloud** (remote), and **Claude** (local, gated by `sessions.chatSessions.claude.enabled`).
+The default sessions provider, registered with ID `'default-copilot'`. Wraps the existing agent session infrastructure into the extensible provider model. Supports three session types: **Copilot CLI** (local), **Copilot Cloud** (remote), and **Claude** (local, gated by `sessions.chat.claudeAgent.enabled`).
 
 ## Registration
 
@@ -57,7 +57,7 @@ When `createNewSession(workspace)` is called, the provider creates one of two co
 - Implements `ISession` with simplified configuration (Claude manages its own worktrees and branches)
 - No-ops for `setIsolationMode()` and `setBranch()`
 - `setOption()` writes to `selectedOptions` map; options are propagated to `IChatSessionsService` during `_sendFirstChat()` via `updateSessionOptions()`
-- Gated by the `sessions.chatSessions.claude.enabled` setting (default: `false`)
+- Gated by the `sessions.chat.claudeAgent.enabled` setting (default: `true`)
 
 ## `AgentSessionAdapter` — Wrapping Existing Sessions
 
@@ -155,5 +155,7 @@ this._register(actionViewItemService.register(
 ### Current Limitations
 
 The picker model is currently **hardcoded per session type**. Each session type that needs pickers must register its own actions and widgets with appropriate `when` clauses. For example, the Copilot CLI permission picker (`PermissionPicker`) and the Claude permission mode picker (`ClaudePermissionModePicker`) are separate, hardcoded widgets even though they serve a similar purpose.
+
+Context-menu actions on session list items are similarly hardcoded per session type. The `Delete...` action registered for `SessionItemContextMenuId` gates on both `chatSessionProviderId == COPILOT_PROVIDER_ID` *and* `chatSessionType != CLAUDE_CODE_SESSION_TYPE`, because Claude sessions (although exposed through the Copilot provider) don't support the native delete flow. Any new session type that opts into the Copilot provider but not into a shared action needs its own `chatSessionType` exclusion in the action's `when` clause.
 
 Ideally, pickers would be **generic and contributable** — a session type would declare its option groups (as the Claude extension already does via `IChatSessionsService.setOptionGroupsForSessionType()`), and the welcome view would dynamically render pickers from those groups without needing per-type widget classes. The active-session chat widget (`chatInputPart.ts`) already has this generic infrastructure via `createChatSessionPickerWidgets()`, but the welcome view does not yet use it. Until the welcome view adopts this pattern, new session types must follow the hardcoded approach above.

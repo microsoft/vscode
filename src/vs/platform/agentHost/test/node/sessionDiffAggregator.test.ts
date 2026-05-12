@@ -9,7 +9,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { FileEditKind, type ISessionFileDiff } from '../../common/state/sessionState.js';
 import { encodeString, TestDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { computeSessionDiffs } from '../../node/sessionDiffAggregator.js';
-import { parseSessionDbUri } from '../../node/copilot/fileEditTracker.js';
+import { parseSessionDbUri } from '../../node/shared/fileEditTracker.js';
 
 const TEST_SESSION_URI = 'session://test-session';
 

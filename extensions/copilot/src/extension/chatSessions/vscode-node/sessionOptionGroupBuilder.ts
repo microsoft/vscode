@@ -361,7 +361,7 @@ export class SessionOptionGroupBuilder implements ISessionOptionGroupBuilder {
 		if (!uri) {
 			return undefined;
 		}
-		const isTrusted = await vscode.workspace.isResourceTrusted(uri);
+		const isTrusted = await this.workspaceService.isResourceTrusted(uri);
 		if (!isTrusted) {
 			return undefined;
 		}

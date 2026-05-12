@@ -72,6 +72,8 @@ suite('PluginInstallService', () => {
 		trustedMarketplaces: string[];
 		/** Plugins returned by readPluginsFromDirectory */
 		readPluginsResult: IMarketplacePlugin[];
+		/** Plugin returned by readSinglePluginManifest (single-plugin repo fallback) */
+		singlePluginManifestResult: IMarketplacePlugin | undefined;
 		/** Result of the quick pick dialog */
 		quickPickResult: { label: string } | undefined;
 		/** Result of the quick input dialog */
@@ -99,6 +101,7 @@ suite('PluginInstallService', () => {
 			marketplaceTrusted: true,
 			trustedMarketplaces: [],
 			readPluginsResult: [],
+			singlePluginManifestResult: undefined,
 			quickPickResult: undefined,
 			quickInputResult: undefined,
 			configuredMarketplaces: [],
@@ -267,6 +270,7 @@ suite('PluginInstallService', () => {
 				state.trustedMarketplaces.push(ref.canonicalId);
 			},
 			readPluginsFromDirectory: async () => state.readPluginsResult,
+			readSinglePluginManifest: async () => state.singlePluginManifestResult,
 		} as unknown as IPluginMarketplaceService);
 
 		// IConfigurationService
@@ -1037,6 +1041,66 @@ suite('PluginInstallService', () => {
 			await service.installPluginFromSource('owner/my-plugin');
 
 			assert.strictEqual(state.updatedMarketplaces, undefined);
+		});
+
+		test('falls back to single-plugin manifest when no marketplace.json exists', async () => {
+			const ref = makeMarketplaceRef('owner/single-plugin-repo');
+			const singlePlugin = createPlugin({
+				name: 'single-plugin-repo',
+				sourceDescriptor: { kind: PluginSourceKind.GitHub, repo: 'owner/single-plugin-repo' },
+				marketplace: ref.displayLabel,
+				marketplaceReference: ref,
+				marketplaceType: MarketplaceType.Claude,
+			});
+			const { service, state } = createService({
+				ensurePluginSourceResult: URI.file('/cache/agentPlugins/github.com/owner/single-plugin-repo'),
+				readPluginsResult: [],
+				singlePluginManifestResult: singlePlugin,
+			});
+
+			await service.installPluginFromSource('owner/single-plugin-repo');
+
+			assert.strictEqual(state.addedPlugins.length, 1);
+			assert.strictEqual(state.addedPlugins[0].plugin.name, 'single-plugin-repo');
+			assert.strictEqual(state.notifications.length, 0);
+			// Single-plugin repos are not marketplaces — config must NOT be touched.
+			assert.strictEqual(state.updatedMarketplaces, undefined);
+		});
+
+		test('reports error when single-plugin manifest name does not match options.plugin', async () => {
+			const ref = makeMarketplaceRef('owner/single-plugin-repo');
+			const singlePlugin = createPlugin({
+				name: 'actual-name',
+				sourceDescriptor: { kind: PluginSourceKind.GitHub, repo: 'owner/single-plugin-repo' },
+				marketplace: ref.displayLabel,
+				marketplaceReference: ref,
+				marketplaceType: MarketplaceType.Claude,
+			});
+			const { service, state } = createService({
+				ensurePluginSourceResult: URI.file('/cache/agentPlugins/github.com/owner/single-plugin-repo'),
+				readPluginsResult: [],
+				singlePluginManifestResult: singlePlugin,
+			});
+
+			const result = await service.installPluginFromValidatedSource('owner/single-plugin-repo', { plugin: 'requested-name' });
+
+			assert.strictEqual(result.success, false);
+			assert.ok(result.message?.includes('not found'));
+			assert.strictEqual(state.addedPlugins.length, 0);
+		});
+
+		test('still reports "no plugins found" when neither marketplace.json nor single-plugin manifest exists', async () => {
+			const { service, state } = createService({
+				ensurePluginSourceResult: URI.file('/cache/agentPlugins/github.com/owner/empty-repo'),
+				readPluginsResult: [],
+				singlePluginManifestResult: undefined,
+			});
+
+			await service.installPluginFromSource('owner/empty-repo');
+
+			assert.strictEqual(state.addedPlugins.length, 0);
+			assert.strictEqual(state.notifications.length, 1);
+			assert.ok(state.notifications[0].message.includes('No plugins found'));
 		});
 	});
 });

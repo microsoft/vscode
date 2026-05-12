@@ -37,6 +37,8 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IWorkingCopyIdentifier } from '../../../services/workingCopy/common/workingCopy.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { getActiveElement } from '../../../../base/browser/dom.js';
+import * as nls from '../../../../nls.js';
+import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 
 
 const OpenInEditorCommandId = 'search.action.openInEditor';
@@ -56,6 +58,52 @@ const CleanSearchEditorStateCommandId = 'cleanSearchEditorState';
 const SelectAllSearchEditorMatchesCommandId = 'selectAllSearchEditorMatches';
 
 
+//#region Search Editor Configuration
+Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
+	id: 'search',
+	order: 13,
+	title: nls.localize('searchConfigurationTitle', "Search"),
+	type: 'object',
+	properties: {
+		'search.searchEditor.doubleClickBehaviour': {
+			type: 'string',
+			enum: ['selectWord', 'goToLocation', 'openLocationToSide'],
+			default: 'goToLocation',
+			enumDescriptions: [
+				nls.localize('search.searchEditor.doubleClickBehaviour.selectWord', "Double-clicking selects the word under the cursor."),
+				nls.localize('search.searchEditor.doubleClickBehaviour.goToLocation', "Double-clicking opens the result in the active editor group."),
+				nls.localize('search.searchEditor.doubleClickBehaviour.openLocationToSide', "Double-clicking opens the result in the editor group to the side, creating one if it does not yet exist."),
+			],
+			markdownDescription: nls.localize('search.searchEditor.doubleClickBehaviour', "Configure effect of double-clicking a result in a search editor.")
+		},
+		'search.searchEditor.singleClickBehaviour': {
+			type: 'string',
+			enum: ['default', 'peekDefinition'],
+			default: 'default',
+			enumDescriptions: [
+				nls.localize('search.searchEditor.singleClickBehaviour.default', "Single-clicking does nothing."),
+				nls.localize('search.searchEditor.singleClickBehaviour.peekDefinition', "Single-clicking opens a Peek Definition window."),
+			],
+			markdownDescription: nls.localize('search.searchEditor.singleClickBehaviour', "Configure effect of single-clicking a result in a search editor.")
+		},
+		'search.searchEditor.reusePriorSearchConfiguration': {
+			type: 'boolean',
+			default: false,
+			markdownDescription: nls.localize({ key: 'search.searchEditor.reusePriorSearchConfiguration', comment: ['"Search Editor" is a type of editor that can display search results. "includes, excludes, and flags" refers to the "files to include" and "files to exclude" input boxes, and the flags that control whether a query is case-sensitive or a regex.'] }, "When enabled, new Search Editors will reuse the includes, excludes, and flags of the previously opened Search Editor.")
+		},
+		'search.searchEditor.defaultNumberOfContextLines': {
+			type: ['number', 'null'],
+			default: 1,
+			markdownDescription: nls.localize('search.searchEditor.defaultNumberOfContextLines', "The default number of surrounding context lines to use when creating new Search Editors. If using `#search.searchEditor.reusePriorSearchConfiguration#`, this can be set to `null` (empty) to use the prior Search Editor's configuration.")
+		},
+		'search.searchEditor.focusResultsOnSearch': {
+			type: 'boolean',
+			default: false,
+			markdownDescription: nls.localize('search.searchEditor.focusResultsOnSearch', "When a search is triggered, focus the Search Editor results instead of the Search Editor input.")
+		},
+	}
+});
+//#endregion
 
 //#region Editor Descriptior
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(

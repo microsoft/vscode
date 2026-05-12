@@ -29,10 +29,11 @@ import { removeAnsiEscapeCodes } from '../../../../../base/common/strings.js';
 import { URI } from '../../../../../base/common/uri.js';
 import type { SessionToolCallStartAction } from '../../../common/state/protocol/actions.js';
 import { SubscribeResult } from '../../../common/state/protocol/commands.js';
-import { PROTOCOL_VERSION } from '../../../common/state/sessionCapabilities.js';
+import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
 import { ResponsePartKind, ROOT_STATE_URI, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, ToolResultContentType, isSubagentSession, type SessionInputAnswer, type SessionInputRequest, type SessionState, type TerminalState, type ToolResultContent, type ToolResultSubagentContent } from '../../../common/state/sessionState.js';
 import type { RootState } from '../../../common/state/protocol/state.js';
-import type { RootAgentsChangedAction, SessionAddedNotification, SessionInputRequestedAction, SessionResponsePartAction, SessionToolCallReadyAction } from '../../../common/state/sessionActions.js';
+import { type RootAgentsChangedAction, type SessionInputRequestedAction, type SessionToolCallReadyAction, type SessionAddedNotification, type SessionUsageAction } from '../../../common/state/sessionActions.js';
+import { NotificationType } from '../../../common/state/protocol/notifications.js';
 import type { INotificationBroadcastParams } from '../../../common/state/sessionProtocol.js';
 import {
 	getActionEnvelope,
@@ -71,26 +72,25 @@ interface IRealSessionResult {
 
 /** Full version that returns the sessionAdded notification and subscribe snapshot for assertions. */
 async function createRealSessionFull(c: TestProtocolClient, clientId: string, trackingList: string[], workingDirectory?: string): Promise<IRealSessionResult> {
-	await c.call('initialize', { protocolVersion: PROTOCOL_VERSION, clientId }, 30_000);
+	await c.call('initialize', { protocolVersions: [PROTOCOL_VERSION], clientId }, 30_000);
 
 	await c.call('authenticate', { resource: 'https://api.github.com', token: resolveGitHubToken() }, 30_000);
 
 	const sessionUri = URI.from({ scheme: 'copilotcli', path: `/real-test-${Date.now()}` }).toString();
 	await c.call('createSession', { session: sessionUri, provider: 'copilotcli', workingDirectory }, 30_000);
 
-	const notif = await c.waitForNotification(n =>
-		n.method === 'notification' && (n.params as INotificationBroadcastParams).notification.type === 'notify/sessionAdded',
-		15_000,
-	);
-	const addedNotification = (notif.params as INotificationBroadcastParams).notification as SessionAddedNotification;
-	const realSessionUri = addedNotification.summary.resource;
-	trackingList.push(realSessionUri);
+	// Sessions are created provisionally — `notify/sessionAdded` is deferred
+	// until the agent materializes on first message dispatch. The provisional
+	// state is already in the state manager and addressable by the URI we
+	// passed in, so subscribe directly without waiting for the notification.
+	trackingList.push(sessionUri);
 
-	const subscribeResult = await c.call<SubscribeResult>('subscribe', { resource: realSessionUri });
+	const subscribeResult = await c.call<SubscribeResult>('subscribe', { resource: sessionUri });
 	const subscribeSnapshot = subscribeResult.snapshot.state as SessionState;
+	const addedNotification: SessionAddedNotification = { type: NotificationType.SessionAdded, summary: subscribeSnapshot.summary };
 	c.clearReceived();
 
-	return { sessionUri: realSessionUri, addedNotification, subscribeSnapshot };
+	return { sessionUri, addedNotification, subscribeSnapshot };
 }
 
 /** Dispatch a turn with the given user message text. */
@@ -166,10 +166,23 @@ function getAcceptedAnswers(request: SessionInputRequest): Record<string, Sessio
 }
 
 function getMarkdownResponseText(c: TestProtocolClient): string {
-	return c.receivedNotifications(n => isActionNotification(n, 'session/responsePart'))
-		.map(notification => getActionEnvelope(notification).action as SessionResponsePartAction)
-		.flatMap(action => action.part.kind === ResponsePartKind.Markdown ? [action.part.content] : [])
-		.join('\n');
+	// Markdown content arrives as a `session/responsePart` action that opens
+	// the part with the first chunk, followed by `session/delta` actions
+	// appending subsequent chunks. Concatenate both to get the full text.
+	const markdownPartIds = new Set<string>();
+	const pieces: string[] = [];
+	for (const notification of c.receivedNotifications(n =>
+		isActionNotification(n, 'session/responsePart') || isActionNotification(n, 'session/delta')
+	)) {
+		const action = getActionEnvelope(notification).action;
+		if (action.type === 'session/responsePart' && action.part.kind === ResponsePartKind.Markdown) {
+			markdownPartIds.add(action.part.id);
+			pieces.push(action.part.content);
+		} else if (action.type === 'session/delta' && markdownPartIds.has(action.partId)) {
+			pieces.push(action.content);
+		}
+	}
+	return pieces.join('');
 }
 
 interface IDrivenTurnResult {
@@ -253,6 +266,149 @@ function terminalText(state: TerminalState): string {
 	return removeAnsiEscapeCodes(state.content.map(part => part.type === 'command' ? `${part.commandLine}\n${part.output}` : part.value).join(''));
 }
 
+/** Looks up the toolName for a toolCallReady by joining against the matching toolCallStart. */
+function findToolNameForCall(c: TestProtocolClient, toolCallId: string): string | undefined {
+	return c.receivedNotifications(n => isActionNotification(n, 'session/toolCallStart'))
+		.map(n => getActionEnvelope(n).action as SessionToolCallStartAction)
+		.find(a => a.toolCallId === toolCallId)?.toolName;
+}
+
+interface IApprovalRule {
+	/** Tool name this rule applies to (e.g. `'bash'`, `'write_bash'`). */
+	toolName: string;
+	/** Optional predicate over the tool input. If omitted, any input matches. */
+	matchInput?: (toolInput: string | undefined) => boolean;
+	/**
+	 * Optional inspector run for every matched call before approval.
+	 * Push assertion failure messages onto `errors` to fail the test.
+	 */
+	inspect?: (info: {
+		action: SessionToolCallReadyAction;
+		errors: string[];
+	}) => void;
+}
+
+interface IBackgroundApprovalLoopOptions {
+	/** Starting clientSeq for dispatched toolCallConfirmed actions. Avoids collisions with the test's own dispatches. */
+	approvalSeqStart: number;
+	/**
+	 * Allow-list of tool calls the loop is permitted to auto-approve. Each
+	 * pending confirmation must match exactly one rule (by `toolName` plus
+	 * optional `matchInput` predicate). Calls that don't match are recorded
+	 * as errors and denied — the loop refuses to rubber-stamp anything the
+	 * test didn't anticipate (e.g. an unexpected `rm` from the model).
+	 */
+	allow: readonly IApprovalRule[];
+}
+
+interface IBackgroundApprovalLoop {
+	/** Errors collected during the run (unmatched tool calls + inspector failures). */
+	readonly errors: readonly string[];
+	/** Tool names that were observed and approved at least once. */
+	readonly approvedToolNames: ReadonlySet<string>;
+	/**
+	 * Tool names for every permission request observed by the loop, regardless
+	 * of whether they matched the allow-list. Useful for asserting that a
+	 * tool with `skipPermission: true` never triggered a permission flow.
+	 */
+	readonly observedToolNames: ReadonlySet<string>;
+	/** Stops the loop and waits for it to drain. */
+	stop(): Promise<void>;
+}
+
+/**
+ * Starts a background loop that auto-approves pending tool call confirmations
+ * during a real-SDK turn, but only if they match the supplied allow-list.
+ * Anything outside the allow-list is denied and recorded as an error so the
+ * test fails loudly instead of silently approving model-chosen tool calls.
+ *
+ * Implementation note: `waitForNotification` does NOT consume notifications from
+ * the client's queue, so we dedupe by `serverSeq`.
+ */
+function startBackgroundApprovalLoop(c: TestProtocolClient, options: IBackgroundApprovalLoopOptions): IBackgroundApprovalLoop {
+	const errors: string[] = [];
+	const approvedToolNames = new Set<string>();
+	const observedToolNames = new Set<string>();
+	const processedSeqs = new Set<number>();
+	let active = true;
+	let approvalSeq = options.approvalSeqStart;
+
+	const loop = (async () => {
+		while (active) {
+			try {
+				const ready = await c.waitForNotification(n => {
+					if (!isActionNotification(n, 'session/toolCallReady')) {
+						return false;
+					}
+					return !processedSeqs.has(getActionEnvelope(n).serverSeq);
+				}, 2_000);
+				const envelope = getActionEnvelope(ready);
+				processedSeqs.add(envelope.serverSeq);
+				const action = envelope.action as SessionToolCallReadyAction & { session: string; turnId: string };
+				if (action.confirmed) {
+					continue;
+				}
+
+				const toolName = findToolNameForCall(c, action.toolCallId);
+				if (toolName) {
+					observedToolNames.add(toolName);
+				}
+				const matchingRule = options.allow.find(rule =>
+					rule.toolName === toolName
+					&& (rule.matchInput?.(action.toolInput) ?? true));
+
+				if (!matchingRule) {
+					errors.push(`unexpected tool call: toolName=${toolName ?? '<unknown>'} input=${JSON.stringify(action.toolInput)}`);
+					c.notify('dispatchAction', {
+						clientSeq: ++approvalSeq,
+						action: {
+							type: 'session/toolCallConfirmed',
+							session: action.session,
+							turnId: action.turnId,
+							toolCallId: action.toolCallId,
+							approved: false,
+						},
+					});
+					continue;
+				}
+
+				matchingRule.inspect?.({ action, errors });
+				approvedToolNames.add(matchingRule.toolName);
+
+				c.notify('dispatchAction', {
+					clientSeq: ++approvalSeq,
+					action: {
+						type: 'session/toolCallConfirmed',
+						session: action.session,
+						turnId: action.turnId,
+						toolCallId: action.toolCallId,
+						approved: true,
+					},
+				});
+			} catch (e) {
+				// Only ignore the expected 2-second poll timeout. Any other error
+				// (e.g. 'Client closed', exception from matchingRule.inspect) is a
+				// real failure — record it so the test fails deterministically.
+				const msg = e instanceof Error ? e.message : String(e);
+				if (!msg.includes('Timed out') && !msg.includes('timed out')) {
+					errors.push(`approval loop error: ${msg}`);
+					active = false;
+				}
+			}
+		}
+	})();
+
+	return {
+		errors,
+		approvedToolNames,
+		observedToolNames,
+		async stop(): Promise<void> {
+			active = false;
+			await loop;
+		},
+	};
+}
+
 (REAL_SDK_ENABLED ? suite : suite.skip)('Protocol WebSocket — Real Copilot SDK', function () {
 
 	let server: IServerHandle;
@@ -289,9 +445,18 @@ function terminalText(state: TerminalState): string {
 		createdSessions.length = 0;
 		client.close();
 
-		// Remove temp directories created during this test
+		// Remove temp directories created during this test. On Windows the
+		// agent subprocess can still hold handles to the working directory for
+		// a brief moment after `disposeSession` returns, which surfaces as
+		// EBUSY. Retry a few times to give the OS a chance to release the
+		// handle before failing the teardown.
 		for (const dir of tempDirs) {
-			rmSync(dir, { recursive: true, force: true });
+			try {
+				rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+			} catch {
+				// Best-effort cleanup — leftover temp dirs in os.tmpdir() are
+				// harmless and shouldn't fail an otherwise passing test.
+			}
 		}
 		tempDirs.length = 0;
 	});
@@ -310,6 +475,34 @@ function terminalText(state: TerminalState): string {
 		// Verify we received at least one response part
 		const responseParts = client.receivedNotifications(n => isActionNotification(n, 'session/responsePart'));
 		assert.ok(responseParts.length > 0, 'should have received at least one response part');
+	});
+
+	test('usage reports include Copilot cost metadata', async function () {
+		this.timeout(120_000);
+
+		const sessionUri = await createRealSession(client, 'real-sdk-usage', createdSessions, URI.file(tmpdir()).toString());
+		dispatchTurn(client, sessionUri, 'turn-usage', 'Reply with exactly "usage-ok" and do not use tools.', 1);
+
+		const usageNotif = await client.waitForNotification(n => isActionNotification(n, 'session/usage'), 90_000);
+		const usageAction = getActionEnvelope(usageNotif).action as SessionUsageAction;
+		assert.strictEqual(usageAction.session, sessionUri);
+		assert.strictEqual(usageAction.turnId, 'turn-usage');
+		assert.strictEqual(typeof usageAction.usage.model, 'string');
+		assert.ok(usageAction.usage.model);
+		assert.ok(usageAction.usage.inputTokens === undefined || usageAction.usage.inputTokens > 0);
+		assert.ok(usageAction.usage.outputTokens === undefined || usageAction.usage.outputTokens > 0);
+
+		const cost = usageAction.usage._meta?.cost;
+		if (typeof cost !== 'number') {
+			assert.fail(`expected usage._meta.cost to be numeric: ${JSON.stringify(usageAction.usage)}`);
+		}
+		assert.ok(cost > 0, `expected usage._meta.cost to be positive: ${JSON.stringify(usageAction.usage)}`);
+
+		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'), 90_000);
+		const snapshot = await client.call<SubscribeResult>('subscribe', { resource: sessionUri });
+		const state = snapshot.snapshot.state as SessionState;
+		const turn = state.turns.find(t => t.id === 'turn-usage');
+		assert.strictEqual(turn?.usage?._meta?.cost, cost);
 	});
 
 	// ---- Tool call with permission flow -------------------------------------
@@ -354,36 +547,63 @@ function terminalText(state: TerminalState): string {
 		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'), 90_000);
 	});
 
-	test.skip('planning-mode session-state writes are auto-approved in default mode', async function () {
-		// TODO: re-enable once exit_plan_mode is fully supported in @github/copilot-sdk.
-		// The public SDK currently lacks agentMode: 'plan' on MessageOptions and
-		// respondToExitPlanMode() on the session, so the model never calls exit_plan_mode
-		// and sawInputRequest never becomes true.
-
+	test('planning-mode session-state writes are auto-approved in default mode', async function () {
 		this.timeout(180_000);
 
 		const tempDir = mkdtempSync(`${tmpdir()}/ahp-plan-test-`);
 		tempDirs.push(tempDir);
 		const sessionUri = await createRealSession(client, 'real-sdk-plan-mode', createdSessions, URI.file(tempDir).toString());
 
+		// Switch the session into plan mode via the standard config-change flow
+		// before sending the first turn. The agent host reads this value at
+		// turn-start time and pushes it to the SDK via `rpc.mode.set`.
+		client.notify('dispatchAction', {
+			clientSeq: 1,
+			action: {
+				type: 'session/configChanged',
+				session: sessionUri,
+				config: { mode: 'plan' },
+			},
+		});
+		await client.waitForNotification(n => isActionNotification(n, 'session/configChanged'));
+
 		const planTurn = await driveTurnToCompletion(client, sessionUri, 'turn-plan',
-			'Enter plan mode for the trivial task "say hello". Write the shortest possible plan to your session plan.md, then stop at exit_plan_mode. Do not inspect or modify workspace files.', 1);
+			'Help me implement a Python script that prints "hello world" to stdout. Write the shortest possible plan to your session plan.md and use the exit_plan_mode tool to ask me to approve it before writing any code.', 2);
 		assert.strictEqual(planTurn.sawPendingConfirmation, false, 'should not have received pending-confirmation toolCallReady while writing session-state plan.md');
 		assert.ok(planTurn.sawInputRequest, 'should reach the exit_plan_mode question so the test can continue the same session');
 
 		const extraSessionNotificationsAfterPlan = client.receivedNotifications(n =>
-			n.method === 'notification' && (n.params as INotificationBroadcastParams).notification.type === 'notify/sessionAdded',
+			n.method === 'notification' &&
+			(n.params as INotificationBroadcastParams).notification.type === 'notify/sessionAdded' &&
+			((n.params as INotificationBroadcastParams).notification as SessionAddedNotification).summary.resource !== sessionUri,
 		);
 		assert.strictEqual(extraSessionNotificationsAfterPlan.length, 0, 'should not create a second session while answering the plan-mode question');
 
+		// Mirror what a real UI client would do after the user accepted the
+		// plan: update the session config so subsequent turns no longer run
+		// in plan mode. Without this the agent host would re-set the SDK's
+		// mode to 'plan' at the next send because the session config still
+		// holds the original 'plan' value.
+		client.notify('dispatchAction', {
+			clientSeq: 50,
+			action: {
+				type: 'session/configChanged',
+				session: sessionUri,
+				config: { mode: 'interactive' },
+			},
+		});
+		await client.waitForNotification(n => isActionNotification(n, 'session/configChanged'));
+
 		const followupTurn = await driveTurnToCompletion(client, sessionUri, 'turn-followup',
-			'What was the trivial task from the plan? Reply with exactly "say hello".', 10,
+			'What did the plan I just approved say to print? Reply with exactly "hello world".', 100,
 		);
 		assert.strictEqual(followupTurn.sawPendingConfirmation, false, 'follow-up turn should not surface new pending confirmations');
-		assert.match(followupTurn.responseText, /say hello/i, 'follow-up turn should retain the original plan context');
+		assert.match(followupTurn.responseText, /hello world/i, 'follow-up turn should retain the original plan context');
 
 		const extraSessionNotificationsAfterFollowup = client.receivedNotifications(n =>
-			n.method === 'notification' && (n.params as INotificationBroadcastParams).notification.type === 'notify/sessionAdded',
+			n.method === 'notification' &&
+			(n.params as INotificationBroadcastParams).notification.type === 'notify/sessionAdded' &&
+			((n.params as INotificationBroadcastParams).notification as SessionAddedNotification).summary.resource !== sessionUri,
 		);
 		assert.strictEqual(extraSessionNotificationsAfterFollowup.length, 0, 'sending another message should stay on the same session instead of forking');
 
@@ -435,27 +655,18 @@ function terminalText(state: TerminalState): string {
 		tempDirs.push(tempDir);
 		const workingDirUri = URI.file(tempDir).toString();
 
-		await client.call('initialize', { protocolVersion: PROTOCOL_VERSION, clientId: 'real-sdk-workdir' });
+		await client.call('initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'real-sdk-workdir' });
 		await client.call('authenticate', { resource: 'https://api.github.com', token: resolveGitHubToken() });
 
 		const sessionUri = URI.from({ scheme: 'copilotcli', path: `/real-test-wd-${Date.now()}` }).toString();
 		await client.call('createSession', { session: sessionUri, provider: 'copilotcli', workingDirectory: workingDirUri });
+		createdSessions.push(sessionUri);
 
-		// 1. Verify workingDirectory in the sessionAdded notification
-		const addedNotif = await client.waitForNotification(n =>
-			n.method === 'notification' && (n.params as INotificationBroadcastParams).notification.type === 'notify/sessionAdded',
-			15_000,
-		);
-		const addedSummary = ((addedNotif.params as INotificationBroadcastParams).notification as SessionAddedNotification).summary;
-		createdSessions.push(addedSummary.resource);
-		assert.strictEqual(
-			addedSummary.workingDirectory,
-			workingDirUri,
-			`sessionAdded notification should carry the requested working directory`,
-		);
-
-		// 2. Subscribe and verify workingDirectory in the session state snapshot
-		const subscribeResult = await client.call<SubscribeResult>('subscribe', { resource: addedSummary.resource });
+		// Sessions are created provisionally; the workingDirectory is recorded
+		// in the session state immediately and is unchanged by materialization
+		// for the non-worktree (folder) isolation case. Subscribe directly and
+		// verify the snapshot carries the requested working directory.
+		const subscribeResult = await client.call<SubscribeResult>('subscribe', { resource: sessionUri });
 		const sessionState = subscribeResult.snapshot.state as SessionState;
 		assert.strictEqual(
 			sessionState.summary.workingDirectory,
@@ -479,7 +690,7 @@ function terminalText(state: TerminalState): string {
 		const defaultBranch = execSync('git branch --show-current', { cwd: tempDir, encoding: 'utf-8' }).trim();
 		const workingDirUri = URI.file(tempDir).toString();
 
-		await client.call('initialize', { protocolVersion: PROTOCOL_VERSION, clientId: 'real-sdk-worktree' });
+		await client.call('initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'real-sdk-worktree' });
 		await client.call('authenticate', { resource: 'https://api.github.com', token: resolveGitHubToken() });
 
 		const sessionUri = URI.from({ scheme: 'copilotcli', path: `/real-test-wt-${Date.now()}` }).toString();
@@ -489,27 +700,13 @@ function terminalText(state: TerminalState): string {
 			workingDirectory: workingDirUri,
 			config: { isolation: 'worktree', branch: defaultBranch },
 		});
+		createdSessions.push(sessionUri);
 
-		const addedNotif = await client.waitForNotification(n =>
-			n.method === 'notification' && (n.params as INotificationBroadcastParams).notification.type === 'notify/sessionAdded',
-			15_000,
-		);
-		const addedSummary = ((addedNotif.params as INotificationBroadcastParams).notification as SessionAddedNotification).summary;
-		createdSessions.push(addedSummary.resource);
-
-		// Subscribe so we receive action broadcasts for this session
-		await client.call<SubscribeResult>('subscribe', { resource: addedSummary.resource });
-
-		// Verify the worktree path is in the summary
-		assert.ok(
-			addedSummary.workingDirectory,
-			'sessionAdded notification should have a workingDirectory',
-		);
-		assert.ok(
-			addedSummary.workingDirectory!.includes('.worktrees'),
-			`workingDirectory should be under the .worktrees folder, got: ${addedSummary.workingDirectory}`,
-		);
-		const resolvedWorkingDirectoryPath = URI.parse(addedSummary.workingDirectory!).fsPath;
+		// Subscribe so we receive action broadcasts for this session. The
+		// session is provisional — the worktree isn't created and the
+		// `notify/sessionAdded` isn't emitted until the agent materializes
+		// on the first sendMessage below.
+		await client.call<SubscribeResult>('subscribe', { resource: sessionUri });
 
 		// Set the active client with tools (matching real VS Code flow where
 		// activeClientChanged is dispatched AFTER createSession). When the next
@@ -521,7 +718,7 @@ function terminalText(state: TerminalState): string {
 			clientSeq: 1,
 			action: {
 				type: 'session/activeClientChanged',
-				session: addedSummary.resource,
+				session: sessionUri,
 				activeClient: {
 					clientId: 'real-sdk-worktree',
 					displayName: 'Test Client',
@@ -536,22 +733,41 @@ function terminalText(state: TerminalState): string {
 			},
 		});
 
-		// Send a turn — this triggers sendMessage, which will detect the tools
-		// changed and refresh the session (dispose + _resumeSession). The
-		// resumed session should still have the worktree as its working
-		// directory. Ask a safe, read-only question about the working directory.
+		// Send a turn — this triggers materialization (worktree creation +
+		// SDK session instantiation) followed by sendMessage. The materialized
+		// session should use the worktree as its working directory.
 		client.clearReceived();
-		dispatchTurn(client, addedSummary.resource, 'turn-wt',
+		dispatchTurn(client, sessionUri, 'turn-wt',
 			'What is your current working directory? Reply with just the absolute path and nothing else.', 2);
 
-		// Wait for the turn to complete or error
+		// Wait for the deferred sessionAdded notification — it fires when the
+		// agent materializes the provisional session into a real one.
+		const addedNotif = await client.waitForNotification(n =>
+			n.method === 'notification' && (n.params as INotificationBroadcastParams).notification.type === 'notify/sessionAdded',
+			60_000,
+		);
+		const addedSummary = ((addedNotif.params as INotificationBroadcastParams).notification as SessionAddedNotification).summary;
+
+		// Verify the worktree path is in the summary
+		assert.ok(
+			addedSummary.workingDirectory,
+			'sessionAdded notification should have a workingDirectory',
+		);
+		assert.ok(
+			addedSummary.workingDirectory!.includes('.worktrees'),
+			`workingDirectory should be under the .worktrees folder, got: ${addedSummary.workingDirectory}`,
+		);
+		const resolvedWorkingDirectoryPath = URI.parse(addedSummary.workingDirectory!).fsPath;
+
+		// Wait for the turn (which triggered materialization) to complete or
+		// error. The session refresh during materialization should succeed —
+		// if it errors with "workingDirectory is required to resume", the
+		// worktree path was lost.
 		await client.waitForNotification(
 			n => isActionNotification(n, 'session/turnComplete') || isActionNotification(n, 'session/error'),
 			90_000,
 		);
 
-		// The session refresh should succeed — if it errors with
-		// "workingDirectory is required to resume", the worktree path was lost.
 		const errors = client.receivedNotifications(n => isActionNotification(n, 'session/error'));
 		assert.strictEqual(errors.length, 0,
 			errors.length > 0
@@ -739,7 +955,7 @@ function terminalText(state: TerminalState): string {
 	test('listModels returns well-shaped model entries after authenticate', async function () {
 		this.timeout(60_000);
 
-		await client.call('initialize', { protocolVersion: PROTOCOL_VERSION, clientId: 'real-sdk-list-models' }, 30_000);
+		await client.call('initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'real-sdk-list-models' }, 30_000);
 
 		// Subscribe to root state *before* authenticating so we can observe
 		// the agentsChanged action that carries the populated model list.
@@ -850,18 +1066,35 @@ function terminalText(state: TerminalState): string {
 		}
 
 		// Drive any further confirmations to completion so teardown is clean.
+		// Track which toolCallReady notifications we've already handled by
+		// serverSeq — without this, `waitForNotification` keeps finding the
+		// same already-processed notification synchronously every iteration
+		// and the loop spins at 100% CPU.
+		const seenSeqs = new Set<number>();
+		seenSeqs.add(getActionEnvelope(toolReadyNotif).serverSeq);
+		let teardownSeq = 3;
 		while (true) {
 			const next = await client.waitForNotification(
-				n => isActionNotification(n, 'session/toolCallReady') || isActionNotification(n, 'session/turnComplete') || isActionNotification(n, 'session/error'),
+				n => {
+					if (isActionNotification(n, 'session/turnComplete') || isActionNotification(n, 'session/error')) {
+						return true;
+					}
+					if (!isActionNotification(n, 'session/toolCallReady')) {
+						return false;
+					}
+					return !seenSeqs.has(getActionEnvelope(n).serverSeq);
+				},
 				90_000,
 			);
 			if (isActionNotification(next, 'session/turnComplete') || isActionNotification(next, 'session/error')) {
 				break;
 			}
-			const action = getActionEnvelope(next).action as { session: string; turnId: string; toolCallId: string; confirmed?: string };
+			const envelope = getActionEnvelope(next);
+			seenSeqs.add(envelope.serverSeq);
+			const action = envelope.action as { session: string; turnId: string; toolCallId: string; confirmed?: string };
 			if (!action.confirmed) {
 				client.notify('dispatchAction', {
-					clientSeq: 3,
+					clientSeq: ++teardownSeq,
 					action: {
 						type: 'session/toolCallConfirmed',
 						session: action.session,
@@ -872,5 +1105,89 @@ function terminalText(state: TerminalState): string {
 				});
 			}
 		}
+	});
+
+	// ---- write_bash skipPermission regression test --------------------------
+
+	test('write_bash never triggers a permission request (skipPermission flag)', async function () {
+		this.timeout(180_000);
+
+		// What this test verifies:
+		//   `write_bash` (and `read_bash` / `bash_shutdown` / `list_bash`) are
+		//   registered as external tools with `skipPermission: true`, mirroring
+		//   the SDK's built-in shell helpers which never call `permissions.request`.
+		//   This regression test catches accidental removal of that flag — if it's
+		//   removed, the SDK will route write_bash through our permission flow and
+		//   the test will fail with `observedToolNames` containing 'write_bash'.
+		//
+		// How it works:
+		//   1. Allow-list permits ONLY `bash` (the interactive prompt). write_bash
+		//      is intentionally absent from the allow list.
+		//   2. The model is instructed to use `write_bash`. If any permission
+		//      request appears for write_bash, the loop records it in
+		//      `observedToolNames` and we fail the assertion.
+		//   3. We assert that bash actually ran AND that write_bash appeared in
+		//      toolCallStart notifications (so the test is non-vacuous — the model
+		//      actually tried to use the tool, not just piped input via bash).
+
+		const tempDir = mkdtempSync(`${tmpdir()}/ahp-write-bash-skip-perm-`);
+		tempDirs.push(tempDir);
+		const sessionUri = await createRealSession(client, 'real-sdk-write-bash-skip-perm', createdSessions, URI.file(tempDir).toString());
+
+		const approvalLoop = startBackgroundApprovalLoop(client, {
+			approvalSeqStart: 100,
+			allow: [
+				{
+					// Setup bash command — the interactive `read` prompt.
+					toolName: 'bash',
+					matchInput: input => !!input && input.includes('read') && input.includes('Got:'),
+				},
+				// Note: write_bash is intentionally NOT in the allow list. With
+				// skipPermission: true, the SDK won't ask us — so the test passes.
+				// Without it, the SDK would ask, the loop would deny + record an
+				// error, and the test would fail loudly.
+			],
+		});
+
+		dispatchTurn(client, sessionUri, 'turn-write-bash-skip-perm',
+			'You MUST demonstrate the `write_bash` tool. Steps, in order:\n' +
+			'1. Use the `bash` tool to run exactly: read -p "Enter: " v; echo "Got: $v"\n' +
+			'   This will block waiting for stdin.\n' +
+			'2. While that bash call is waiting, you MUST use the `write_bash` tool to send the input "hello\\n" to it.\n' +
+			'   Do NOT pipe the input via the original bash command. Do NOT use `echo hello | ...`.\n' +
+			'   You MUST go through the `write_bash` tool — that is the entire point of this task.\n' +
+			'3. After the shell prints "Got: hello", reply with the single word "done".',
+			1);
+
+		await client.waitForNotification(
+			n => isActionNotification(n, 'session/turnComplete') || isActionNotification(n, 'session/error'),
+			150_000,
+		);
+		await approvalLoop.stop();
+
+		// Sanity check: the bash setup command actually ran. Otherwise the
+		// model ignored the prompt and the write_bash assertion below is vacuous.
+		assert.ok(approvalLoop.approvedToolNames.has('bash'),
+			`expected the model to invoke bash for setup; observed approved tools: ${[...approvalLoop.approvedToolNames].join(', ') || '<none>'}`);
+
+		// Non-vacuousness check: write_bash must have actually been invoked
+		// (seen in a toolCallStart notification). If the model piped input via
+		// the original bash command instead of using write_bash, this fails.
+		const writeBashStarts = client.receivedNotifications(n => isActionNotification(n, 'session/toolCallStart'))
+			.map(n => getActionEnvelope(n).action as { toolName?: string })
+			.filter(a => a.toolName === 'write_bash');
+		assert.ok(writeBashStarts.length > 0,
+			`expected write_bash to be invoked at least once (toolCallStart), but it was never called. The model may have piped input via the original bash command instead.`);
+
+		// The actual regression check: write_bash must never reach our
+		// permission handler. If this fails, `skipPermission: true` was likely
+		// removed from copilotShellTools.ts.
+		assert.ok(!approvalLoop.observedToolNames.has('write_bash'),
+			`write_bash should be auto-approved by the SDK (skipPermission: true) and never trigger a permission request, but the test observed one. Observed permission requests: ${[...approvalLoop.observedToolNames].join(', ')}`);
+
+		// Any other unexpected permission requests (e.g. an unrelated tool the
+		// model decided to use) would also have been recorded as errors.
+		assert.deepStrictEqual(approvalLoop.errors, [],
+			`unexpected approval-loop errors: ${approvalLoop.errors.join('; ')}`);
 	});
 });

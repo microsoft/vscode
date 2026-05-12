@@ -681,6 +681,10 @@
 			"project": "vscode-sessions"
 		},
 		{
+			"name": "vs/sessions/contrib/search",
+			"project": "vscode-sessions"
+		},
+		{
 			"name": "vs/sessions/contrib/policyBlocked",
 			"project": "vscode-sessions"
 		},
@@ -706,6 +710,10 @@
 		},
 		{
 			"name": "vs/sessions/contrib/welcome",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/aquarium",
 			"project": "vscode-sessions"
 		},
 		{

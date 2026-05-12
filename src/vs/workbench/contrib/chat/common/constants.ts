@@ -7,7 +7,6 @@ import { Schemas } from '../../../../base/common/network.js';
 import { IChatSessionsService } from './chatSessionsService.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ContextKeyExpr, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
-import { IsDevelopmentContext, IsLinuxContext } from '../../../../platform/contextkey/common/contextkeys.js';
 import { ChatEntitlementContextKeys } from '../../../services/chat/common/chatEntitlementService.js';
 import { IsSessionsWindowContext } from '../../../common/contextkeys.js';
 
@@ -40,12 +39,15 @@ export enum ChatConfiguration {
 	ThinkingGenerateTitles = 'chat.agent.thinking.generateTitles',
 	TerminalToolsInThinking = 'chat.agent.thinking.terminalTools',
 	SimpleTerminalCollapsible = 'chat.tools.terminal.simpleCollapsible',
+	CompressOutputEnabled = 'chat.tools.compressOutput.enabled',
 	ThinkingPhrases = 'chat.agent.thinking.phrases',
 	AutoExpandToolFailures = 'chat.tools.autoExpandFailures',
 	TodosShowWidget = 'chat.tools.todos.showWidget',
 	NotifyWindowOnConfirmation = 'chat.notifyWindowOnConfirmation',
 	NotifyWindowOnResponseReceived = 'chat.notifyWindowOnResponseReceived',
 	ChatViewSessionsEnabled = 'chat.viewSessions.enabled',
+	SessionSyncEnabled = 'chat.sessionSync.enabled',
+	SessionSyncExcludeRepositories = 'chat.sessionSync.excludeRepositories',
 	ChatViewSessionsGrouping = 'chat.viewSessions.grouping',
 	ChatViewSessionsOrientation = 'chat.viewSessions.orientation',
 	ChatViewProgressBadgeEnabled = 'chat.viewProgressBadge.enabled',
@@ -61,10 +63,13 @@ export enum ChatConfiguration {
 	ExplainChangesEnabled = 'chat.editing.explainChanges.enabled',
 	RevealNextChangeOnResolve = 'chat.editing.revealNextChangeOnResolve',
 	GrowthNotificationEnabled = 'chat.growthNotification.enabled',
-	SignInTitleBarEnabled = 'chat.signInTitleBar.enabled',
+	TitleBarSignInEnabled = 'chat.titleBar.signIn.enabled',
 
 	ChatCustomizationHarnessSelectorEnabled = 'chat.customizations.harnessSelector.enabled',
+	ChatCustomizationsStructuredPreviewEnabled = 'chat.customizations.structuredPreview.enabled',
+	UseChatSessionCustomizationsForCustomAgents = 'chat.customizations.useChatSessionCustomizationsForCustomAgents',
 	AutopilotEnabled = 'chat.autopilot.enabled',
+	PlanReviewInlineEditorEnabled = 'chat.planReview.inlineEditor.enabled',
 	DefaultPermissionLevel = 'chat.permissions.default',
 	ImageCarouselEnabled = 'imageCarousel.chat.enabled',
 	ArtifactsEnabled = 'chat.artifacts.enabled',
@@ -72,6 +77,8 @@ export enum ChatConfiguration {
 	ArtifactsRulesByFilePath = 'chat.artifacts.rules.byFilePath',
 	ArtifactsRulesByMemoryFilePath = 'chat.artifacts.rules.byMemoryFilePath',
 	ToolConfirmationCarousel = 'chat.tools.confirmationCarousel.enabled',
+	ToolRiskAssessmentEnabled = 'chat.tools.riskAssessment.enabled',
+	ToolRiskAssessmentModel = 'chat.tools.riskAssessment.model',
 	DefaultNewSessionMode = 'chat.newSession.defaultMode',
 	AgentHostClientTools = 'chat.agentHost.clientTools',
 
@@ -196,12 +203,13 @@ export function isSupportedChatFileScheme(accessor: ServicesAccessor, scheme: st
 
 export const MANAGE_CHAT_COMMAND_ID = 'workbench.action.chat.manage';
 
+export const OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID = 'workbench.action.openWorkspaceInAgentsWindow';
 export const OPEN_AGENTS_WINDOW_COMMAND_ID = 'workbench.action.openAgentsWindow';
 export const OPEN_AGENTS_WINDOW_PRECONDITION = ContextKeyExpr.and(
-	ContextKeyExpr.or(IsLinuxContext.negate(), IsDevelopmentContext),
 	ChatEntitlementContextKeys.Setup.hidden.negate(),
 	ChatEntitlementContextKeys.Setup.disabledInWorkspace.negate(),
 	IsSessionsWindowContext.negate(),
+	ContextKeyExpr.has(`config.${ChatConfiguration.AgentEnabled}`),
 );
 
 export const ChatEditorTitleMaxLength = 30;

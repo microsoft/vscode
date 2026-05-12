@@ -12,6 +12,22 @@ When working on files under `src/vs/sessions/`, use these skills for detailed gu
 - **`sessions`** skill — covers the full architecture: layering, folder structure, chat widget, menus, contributions, entry points, and development guidelines
 - **`agent-sessions-layout`** skill — covers the fixed layout structure, grid configuration, part visibility, editor modal, titlebar, sidebar footer, and implementation requirements
 
+## Mobile Component Architecture
+
+The Agents window has an established mobile architecture (documented in `src/vs/sessions/MOBILE.md`). When adding phone-specific UI — bottom sheets, action sheets, mobile pickers, or any interaction that differs from desktop — follow these rules:
+
+1. **Never add `IsPhoneLayoutContext` branching inside a desktop component.** Desktop code must have zero phone-layout checks. If a component needs different behavior on phone, create a mobile subclass or a phone-gated contribution instead.
+
+2. **Create mobile subclasses in `browser/parts/mobile/`.** Extend the desktop class, override only the methods that differ (e.g., the picker/menu method), and keep the rest inherited. Examples: `MobileChatBarPart`, `MobileSidebarPart`, `MobilePanelPart`.
+
+3. **Use conditional instantiation.** The call site that creates the component (e.g., `AgenticPaneCompositePartService`) should pick the mobile vs. desktop class based on viewport width at construction time — the same pattern already used for Part subclasses.
+
+4. **Co-locate component CSS with its TypeScript file.** Each component should own its CSS in a `media/` subfolder next to the component, imported directly in the TypeScript file via `import './media/myComponent.css';`. Do not put component-specific styles in `mobileChatShell.css` — that file should contain only layout and shell-level styles for phone layout (`phone-layout` class rules).
+
+5. **Prefer reusable mobile widgets.** Before hand-rolling a bottom sheet, check if an existing pattern (panel sheet, context menu action sheet, quick pick) can be reused or extended. If a new pattern is genuinely needed, build it as a reusable widget in `browser/parts/mobile/` so other features can share it.
+
+6. **Phone-specific contributions** use `when: IsPhoneLayoutContext` in their registration and live in separate files — giving full file separation with no internal branching.
+
 ## Touch & iOS Compatibility
 
 The Agents window can run on touch-capable platforms (notably iOS). Follow these rules for all DOM interaction code:

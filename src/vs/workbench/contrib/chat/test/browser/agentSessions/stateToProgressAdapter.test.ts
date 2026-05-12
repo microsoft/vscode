@@ -9,7 +9,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, type ActiveTurn, type ICompletedToolCall, type ToolCallRunningState, type Turn, type ToolCallResponsePart, ToolCallCancellationReason } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IChatToolInvocationSerialized, type IChatMarkdownContent } from '../../../common/chatService/chatService.js';
-import { ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
+import { ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, toolCallStateToInvocation as rawToolCallStateToInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 
 // ---- Helper factories -------------------------------------------------------
@@ -59,8 +59,28 @@ function finalizeToolInvocation(invocation: Parameters<typeof rawFinalizeToolInv
 	return rawFinalizeToolInvocation(invocation, tc, URI.file('/'), undefined);
 }
 
-function turnsToHistory(backendSession: Parameters<typeof rawTurnsToHistory>[0], turns: Parameters<typeof rawTurnsToHistory>[1], participantId: Parameters<typeof rawTurnsToHistory>[2], modelId?: Parameters<typeof rawTurnsToHistory>[4]) {
-	return rawTurnsToHistory(backendSession, turns, participantId, undefined, modelId);
+function turnsToHistory(backendSession: Parameters<typeof rawTurnsToHistory>[0], turns: Parameters<typeof rawTurnsToHistory>[1], participantId: Parameters<typeof rawTurnsToHistory>[2], lookup?: Parameters<typeof rawTurnsToHistory>[4]) {
+	return rawTurnsToHistory(backendSession, turns, participantId, 'local', lookup);
+}
+
+/**
+ * Builds a fake {@link TurnModelLookup} that namespaces ids with a fixed
+ * prefix and returns display names from a static map. `fallbackRawModelId`
+ * mirrors the real handler's "use summary.model when usage hasn't reported
+ * yet" behavior.
+ */
+function makeLookup(prefix: string, displayNames: Record<string, string>, fallbackRawModelId?: string): Parameters<typeof rawTurnsToHistory>[4] {
+	const resolveRaw = (raw: string | undefined): string | undefined => raw ?? fallbackRawModelId;
+	return {
+		toLanguageModelId: (raw) => {
+			const r = resolveRaw(raw);
+			return r ? `${prefix}${r}` : undefined;
+		},
+		toResponseDetails: (raw) => {
+			const r = resolveRaw(raw);
+			return r ? displayNames[r] : undefined;
+		},
+	};
 }
 
 function activeTurnToProgress(sessionResource: Parameters<typeof rawActiveTurnToProgress>[0], activeTurn: Parameters<typeof rawActiveTurnToProgress>[1], connectionAuthority?: Parameters<typeof rawActiveTurnToProgress>[2]) {
@@ -110,12 +130,57 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(serialized.isComplete, true);
 		});
 
+		test('per-turn model id and display name flow from usage.model', () => {
+			const turn1 = createTurn({
+				id: 'turn-1',
+				userMessage: { text: 'first' },
+				usage: { model: 'gpt-5' },
+			});
+			const turn2 = createTurn({
+				id: 'turn-2',
+				userMessage: { text: 'second' },
+				usage: { model: 'opus-4.7' },
+			});
+
+			const lookup = makeLookup('agent-host-copilot:', { 'gpt-5': 'GPT-5', 'opus-4.7': 'Claude Opus 4.7' });
+			const history = turnsToHistory(URI.file('/'), [turn1, turn2], 'p', lookup);
+
+			assert.deepStrictEqual(
+				history.map(h => h.type === 'request'
+					? { type: h.type, modelId: h.modelId }
+					: { type: h.type, details: h.details }),
+				[
+					{ type: 'request', modelId: 'agent-host-copilot:gpt-5' },
+					{ type: 'response', details: 'GPT-5' },
+					{ type: 'request', modelId: 'agent-host-copilot:opus-4.7' },
+					{ type: 'response', details: 'Claude Opus 4.7' },
+				],
+			);
+		});
+
+		test('falls back to session-level model when turn has no usage.model', () => {
+			const turn = createTurn({ userMessage: { text: 'first' } });
+			const lookup = makeLookup('agent-host-copilot:', { 'gpt-5': 'GPT-5' }, 'gpt-5');
+			const history = turnsToHistory(URI.file('/'), [turn], 'p', lookup);
+
+			assert.deepStrictEqual(
+				history.map(h => h.type === 'request'
+					? { type: h.type, modelId: h.modelId }
+					: { type: h.type, details: h.details }),
+				[
+					{ type: 'request', modelId: 'agent-host-copilot:gpt-5' },
+					{ type: 'response', details: 'GPT-5' },
+				],
+			);
+		});
+
 		test('request history includes restored model id', () => {
 			const turn = createTurn({
 				userMessage: { text: 'Use restored model' },
 			});
 
-			const history = turnsToHistory(URI.file('/'), [turn], 'participant-1', 'agent-host-copilot:gpt-5');
+			const lookup = makeLookup('agent-host-copilot:', {}, 'gpt-5');
+			const history = turnsToHistory(URI.file('/'), [turn], 'participant-1', lookup);
 
 			assert.deepStrictEqual(history[0], {
 				id: turn.id,
@@ -123,6 +188,7 @@ suite('stateToProgressAdapter', () => {
 				prompt: 'Use restored model',
 				participant: 'participant-1',
 				modelId: 'agent-host-copilot:gpt-5',
+				variableData: undefined,
 			});
 		});
 
@@ -291,6 +357,43 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(value,
 				'Real [](vscode-agent-host://my-host/file/-/a.ts) and literal `[two](file:///b.ts)` here.'
 			);
+		});
+
+		test('preserves label and tags vscodeLinkType=skill for SKILL.md links', () => {
+			const turn = createTurn({
+				responseParts: [{
+					kind: ResponsePartKind.Markdown,
+					id: 'md-skill',
+					content: 'Loaded [plan](file:///abs/repo/skills/plan/SKILL.md) and [other](file:///abs/repo/foo.ts).',
+				}],
+			});
+
+			const history = rawTurnsToHistory(URI.file('/'), [turn], 'p', 'my-host');
+			const response = history[1];
+			assert.strictEqual(response.type, 'response');
+			if (response.type !== 'response') { return; }
+			const value = (response.parts[0] as IChatMarkdownContent).content.value;
+			assert.strictEqual(value,
+				'Loaded [plan](vscode-agent-host://my-host/file/-/abs/repo/skills/plan/SKILL.md?vscodeLinkType%3Dskill) ' +
+				'and [](vscode-agent-host://my-host/file/-/abs/repo/foo.ts).'
+			);
+		});
+
+		test('preserves alt text for image tokens', () => {
+			const turn = createTurn({
+				responseParts: [{
+					kind: ResponsePartKind.Markdown,
+					id: 'md-image',
+					content: 'See ![diagram](file:///a/b.png).',
+				}],
+			});
+
+			const history = rawTurnsToHistory(URI.file('/'), [turn], 'p', 'my-host');
+			const response = history[1];
+			assert.strictEqual(response.type, 'response');
+			if (response.type !== 'response') { return; }
+			const value = (response.parts[0] as IChatMarkdownContent).content.value;
+			assert.strictEqual(value, 'See ![diagram](vscode-agent-host://my-host/file/-/a/b.png).');
 		});
 
 		test('error turn produces error message in history', () => {
@@ -504,6 +607,33 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(fileEdits[0].beforeContentUri?.toString(), URI.parse('agenthost-content:///session/snap/before').toString());
 			assert.strictEqual(fileEdits[0].afterContentUri?.toString(), URI.parse('agenthost-content:///session/snap/after').toString());
 			assert.ok(fileEdits[0].undoStopId);
+			assert.strictEqual(invocation.presentation, ToolInvocationPresentation.Hidden);
+		});
+
+		test('does not hide presentation when tool with file edits fails', () => {
+			const tc = createToolCallState({ status: ToolCallStatus.Running });
+			const invocation = toolCallStateToInvocation(tc);
+
+			finalizeToolInvocation(invocation, {
+				status: ToolCallStatus.Completed,
+				toolCallId: 'tc-1',
+				toolName: 'edit_file',
+				displayName: 'Edit File',
+				invocationMessage: 'Editing file...',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+				success: false,
+				pastTenseMessage: 'Failed to edit',
+				error: { message: 'write error' },
+				content: [{
+					type: ToolResultContentType.FileEdit,
+					after: {
+						uri: URI.file('/home/user/file.ts').toString(),
+						content: { uri: 'agenthost-content:///snap/after' },
+					},
+				}],
+			});
+
+			assert.notStrictEqual(invocation.presentation, ToolInvocationPresentation.Hidden);
 		});
 
 		test('returns empty file edits for cancelled tool call', () => {

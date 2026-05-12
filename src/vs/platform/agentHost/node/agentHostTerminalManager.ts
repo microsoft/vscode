@@ -16,14 +16,21 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
 import { getShellIntegrationInjection } from '../../terminal/node/terminalEnvironment.js';
+import { AgentHostConfigKey, agentHostCustomizationConfigSchema } from '../common/agentHostCustomizationConfig.js';
 import { ActionType } from '../common/state/protocol/actions.js';
 import type { CreateTerminalParams } from '../common/state/protocol/commands.js';
 import { TerminalClaim, TerminalContentPart, TerminalInfo, TerminalState, TerminalClaimKind } from '../common/state/protocol/state.js';
 import { isTerminalAction } from '../common/state/sessionActions.js';
+import { IAgentConfigurationService } from './agentConfigurationService.js';
+import { AgentHostHeadlessTerminal } from './agentHostHeadlessTerminal.js';
 import type { AgentHostStateManager } from './agentHostStateManager.js';
 import { Osc633Event, Osc633EventType, Osc633Parser } from './osc633Parser.js';
 
 const WAIT_FOR_PROMPT_TIMEOUT = 10_000;
+const HEADLESS_TERMINAL_SCROLLBACK = 0;
+const DSR_CURSOR_POSITION_QUERY = '\x1b[6n';
+const DEC_DSR_CURSOR_POSITION_QUERY = '\x1b[?6n';
+const SERVER_HANDLED_QUERY_PREFIXES = ['\x1b[?6', '\x1b[?', '\x1b[6', '\x1b[', '\x1b'];
 
 export const IAgentHostTerminalManager = createDecorator<IAgentHostTerminalManager>('agentHostTerminalManager');
 
@@ -34,6 +41,53 @@ export interface ICommandFinishedEvent {
 	output: string;
 }
 
+export interface ITerminalQueryFilterState {
+	pendingData: string;
+}
+
+export interface ISendTextOptions {
+	shouldExecute: boolean;
+}
+
+export function removeServerHandledTerminalQueries(data: string, state: ITerminalQueryFilterState): string {
+	if (
+		!state.pendingData
+		&& !data.includes(DSR_CURSOR_POSITION_QUERY)
+		&& !data.includes(DEC_DSR_CURSOR_POSITION_QUERY)
+		&& !getServerHandledTerminalQueryPrefix(data)
+	) {
+		return data;
+	}
+
+	const combinedData = state.pendingData + data;
+	const pendingData = getServerHandledTerminalQueryPrefix(combinedData);
+	const dataToFilter = pendingData ? combinedData.substring(0, combinedData.length - pendingData.length) : combinedData;
+	state.pendingData = pendingData;
+	if (!dataToFilter.includes(DSR_CURSOR_POSITION_QUERY) && !dataToFilter.includes(DEC_DSR_CURSOR_POSITION_QUERY)) {
+		return dataToFilter;
+	}
+	return dataToFilter
+		.replaceAll(DEC_DSR_CURSOR_POSITION_QUERY, '')
+		.replaceAll(DSR_CURSOR_POSITION_QUERY, '');
+}
+
+function getServerHandledTerminalQueryPrefix(data: string): string {
+	for (const prefix of SERVER_HANDLED_QUERY_PREFIXES) {
+		if (data.endsWith(prefix)) {
+			return prefix;
+		}
+	}
+	return '';
+}
+
+export function formatTerminalText(data: string, options: ISendTextOptions): string {
+	data = data.replace(/\r?\n/g, '\r');
+	if (options.shouldExecute && !data.endsWith('\r')) {
+		data += '\r';
+	}
+	return data;
+}
+
 /**
  * Service interface for terminal management in the agent host.
  */
@@ -41,6 +95,7 @@ export interface IAgentHostTerminalManager {
 	readonly _serviceBrand: undefined;
 	createTerminal(params: CreateTerminalParams, options?: { shell?: string; preventShellHistory?: boolean; nonInteractive?: boolean }): Promise<void>;
 	writeInput(uri: string, data: string): void;
+	sendText(uri: string, data: string, options: ISendTextOptions): void;
 	onData(uri: string, cb: (data: string) => void): IDisposable;
 	onExit(uri: string, cb: (exitCode: number) => void): IDisposable;
 	onClaimChanged(uri: string, cb: (claim: TerminalClaim) => void): IDisposable;
@@ -53,6 +108,7 @@ export interface IAgentHostTerminalManager {
 	disposeTerminal(uri: string): void;
 	getTerminalInfos(): TerminalInfo[];
 	getTerminalState(uri: string): TerminalState | undefined;
+	getDefaultShell(): Promise<string>;
 }
 
 // node-pty is loaded dynamically to avoid bundling issues in non-node environments
@@ -93,6 +149,8 @@ interface IManagedTerminal {
 	claim: TerminalClaim;
 	exitCode?: number;
 	commandTracker?: ICommandTracker;
+	headlessTerminal?: AgentHostHeadlessTerminal;
+	terminalQueryFilterState: ITerminalQueryFilterState;
 }
 
 /**
@@ -112,6 +170,7 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 		private readonly _stateManager: AgentHostStateManager,
 		@ILogService private readonly _logService: ILogService,
 		@IProductService private readonly _productService: IProductService,
+		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 	) {
 		super();
 
@@ -179,13 +238,11 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 			throw new Error(`Terminal already exists: ${uri}`);
 		}
 
-		const nodePty = await getNodePty();
-
 		const cwd = await this._resolveCwd(params.cwd, uri);
 		const cols = params.cols ?? 80;
 		const rows = params.rows ?? 24;
 
-		const shell = options?.shell ?? await this._getDefaultShell();
+		const shell = options?.shell ?? await this.getDefaultShell();
 		const name = platform.isWindows ? 'cmd' : 'xterm-256color';
 
 		this._logService.info(`[TerminalManager] Creating terminal ${uri}: shell=${shell}, cwd=${cwd}, cols=${cols}, rows=${rows}`);
@@ -268,7 +325,7 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 			this._logService.info(`[TerminalManager] Shell integration not available for ${uri}: ${injection.reason}`);
 		}
 
-		const ptyProcess = nodePty.spawn(shell, shellArgs, {
+		const ptyProcess = await this._spawnPty(shell, shellArgs, {
 			name,
 			cwd,
 			env,
@@ -283,6 +340,12 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 		const onExitEmitter = store.add(new Emitter<number>());
 		const onClaimChangedEmitter = store.add(new Emitter<TerminalClaim>());
 		const onCommandFinishedEmitter = store.add(new Emitter<ICommandFinishedEvent>());
+		const headlessTerminal = store.add(new AgentHostHeadlessTerminal({
+			cols,
+			rows,
+			scrollback: HEADLESS_TERMINAL_SCROLLBACK,
+			logService: this._logService,
+		}));
 
 		const managed: IManagedTerminal = {
 			uri,
@@ -300,9 +363,19 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 			contentSize: 0,
 			claim,
 			commandTracker,
+			headlessTerminal,
+			terminalQueryFilterState: { pendingData: '' },
 		};
 
 		this._terminals.set(uri, managed);
+		store.add(headlessTerminal.onResponseData(data => {
+			this._logService.debug(`[TerminalManager] Writing headless terminal response for ${uri}: ${JSON.stringify(data)}`);
+			try {
+				ptyProcess.write(data);
+			} catch (err) {
+				this._logService.debug(`[TerminalManager] Failed to write headless terminal response for ${uri}: ${err instanceof Error ? err.message : String(err)}`);
+			}
+		}));
 
 		// Wire PTY events → protocol events
 		store.add(toDisposable(() => {
@@ -311,6 +384,7 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 
 		const onFirstData = new DeferredPromise<void>();
 		const dataListener = ptyProcess.onData(rawData => {
+			void managed.headlessTerminal?.writePtyData(rawData);
 			this._handlePtyData(managed, rawData);
 			onFirstData.complete();
 		});
@@ -351,6 +425,11 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 		this._broadcastTerminalList();
 	}
 
+	protected async _spawnPty(file: string, args: string[], options: import('node-pty').IPtyForkOptions | import('node-pty').IWindowsPtyForkOptions): Promise<import('node-pty').IPty> {
+		const nodePty = await getNodePty();
+		return nodePty.spawn(file, args, options);
+	}
+
 	/** Send input data to a terminal's PTY process (from client-dispatched actions). */
 	private _writeInput(uri: string, data: string): void {
 		this.writeInput(uri, data);
@@ -362,6 +441,11 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 		if (terminal && terminal.exitCode === undefined) {
 			terminal.pty.write(data);
 		}
+	}
+
+	/** Send formatted text to a terminal's PTY process. */
+	sendText(uri: string, data: string, options: ISendTextOptions): void {
+		this.writeInput(uri, formatTerminalText(data, options));
 	}
 
 	/** Register a callback for PTY data events on a terminal. */
@@ -437,6 +521,7 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 			terminal.cols = cols;
 			terminal.rows = rows;
 			terminal.pty.resize(cols, rows);
+			terminal.headlessTerminal?.resize(cols, rows);
 		}
 	}
 
@@ -465,6 +550,7 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 		if (terminal) {
 			terminal.content = [];
 			terminal.contentSize = 0;
+			terminal.headlessTerminal?.clear();
 		}
 	}
 
@@ -483,6 +569,11 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 		} else {
 			cleanedData = rawData;
 		}
+
+		// Agent Host's server-side headless terminal answers CPR so terminals
+		// work without an attached client. Hide those queries from client xterms
+		// to avoid a second CPR response flowing back through AgentHostPty.input.
+		cleanedData = removeServerHandledTerminalQueries(cleanedData, managed.terminalQueryFilterState);
 
 		// Append to structured content
 		if (cleanedData.length > 0) {
@@ -612,11 +703,11 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 	private _appendToContent(managed: IManagedTerminal, data: string): void {
 		const tail = managed.content.length > 0 ? managed.content[managed.content.length - 1] : undefined;
 
-		if (tail && tail.type === 'command' && !tail.isComplete) {
+		if (tail?.type === 'command' && !tail.isComplete) {
 			// Active command — append to its output
 			tail.output += data;
 			managed.contentSize += data.length;
-		} else if (tail && tail.type === 'unclassified') {
+		} else if (tail?.type === 'unclassified') {
 			// Extend the existing unclassified part
 			tail.value += data;
 			managed.contentSize += data.length;
@@ -666,7 +757,16 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 		}
 	}
 
-	private _getDefaultShell(): Promise<string> {
+	async getDefaultShell(): Promise<string> {
+		const configured = this._configurationService.getRootValue(agentHostCustomizationConfigSchema, AgentHostConfigKey.DefaultShell);
+		if (configured) {
+			try {
+				await fs.promises.access(configured, fs.constants.X_OK);
+				return configured;
+			} catch (err) {
+				this._logService.warn(`[TerminalManager] Configured defaultShell '${configured}' is not accessible, falling back to system shell: ${err instanceof Error ? err.message : String(err)}`);
+			}
+		}
 		return getSystemShell(platform.OS, process.env);
 	}
 

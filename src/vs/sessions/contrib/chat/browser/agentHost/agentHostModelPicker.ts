@@ -12,19 +12,22 @@ import { Action2, registerAction2 } from '../../../../../platform/actions/common
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
 import { type ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { type IChatInputPickerOptions } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerActionItem.js';
 import { ModelPickerActionItem, type IModelPickerDelegate } from '../../../../../workbench/contrib/chat/browser/widget/input/modelPickerActionItem.js';
-import { ActiveSessionProviderIdContext } from '../../../../common/contextkeys.js';
-import { type ISession } from '../../../../services/sessions/common/session.js';
+import { ActiveSessionProviderIdContext, IsPhoneLayoutContext } from '../../../../common/contextkeys.js';
+import { SessionStatus, type ISession } from '../../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { Menus } from '../../../../browser/menus.js';
+import { LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_HOST_PROVIDER_RE } from '../../../../common/agentHostSessionsProvider.js';
+import { reportNewChatPickerClosed } from '../newChatPickerTelemetry.js';
 
 const IsActiveSessionAgentHost = ContextKeyExpr.or(
-	ContextKeyExpr.equals(ActiveSessionProviderIdContext.key, 'local-agent-host'),
-	ContextKeyExpr.regex(ActiveSessionProviderIdContext.key, /^agenthost-/),
+	ContextKeyExpr.equals(ActiveSessionProviderIdContext.key, LOCAL_AGENT_HOST_PROVIDER_ID),
+	ContextKeyExpr.regex(ActiveSessionProviderIdContext.key, REMOTE_AGENT_HOST_PROVIDER_RE),
 );
 
 // -- Agent Host Model Picker Action --
@@ -39,7 +42,10 @@ registerAction2(class extends Action2 {
 				id: Menus.NewSessionConfig,
 				group: 'navigation',
 				order: 1,
-				when: IsActiveSessionAgentHost,
+				// On phone the {@link MobileChatInputConfigPicker} replaces
+				// this picker with a unified mode + model bottom sheet, so
+				// gate this desktop-only Action out of phone layouts.
+				when: ContextKeyExpr.and(IsActiveSessionAgentHost, IsPhoneLayoutContext.negate()),
 			}],
 		});
 	}
@@ -48,7 +54,10 @@ registerAction2(class extends Action2 {
 
 // -- Agent Host Model Picker Contribution --
 
-function getAgentHostModels(
+/**
+ * Gets the language models registered for the active agent-host session resource scheme.
+ */
+export function getAgentHostModels(
 	languageModelsService: ILanguageModelsService,
 	session: ISession | undefined,
 ): ILanguageModelChatMetadataAndIdentifier[] {
@@ -68,7 +77,25 @@ function getAgentHostModels(
 		.filter((m): m is ILanguageModelChatMetadataAndIdentifier => !!m && m.metadata.targetChatSessionType === resourceScheme);
 }
 
-const STORAGE_KEY = 'sessions.agentHostModelPicker.selectedModelId';
+export function agentHostModelPickerStorageKey(resourceScheme: string): string {
+	return `workbench.agentsession.agentHostModelPicker.${resourceScheme}.selectedModelId`;
+}
+
+/**
+ * Resolves the model that should be shown for a session.
+ */
+export function resolveAgentHostModel(
+	models: readonly ILanguageModelChatMetadataAndIdentifier[],
+	sessionModelId: string | undefined,
+	storedModelId: string | undefined,
+): ILanguageModelChatMetadataAndIdentifier | undefined {
+	const sessionModel = sessionModelId ? models.find(model => model.identifier === sessionModelId) : undefined;
+	if (sessionModel) {
+		return sessionModel;
+	}
+
+	return storedModelId ? models.find(model => model.identifier === storedModelId) : undefined;
+}
 
 class AgentHostModelPickerContribution extends Disposable implements IWorkbenchContribution {
 
@@ -81,6 +108,7 @@ class AgentHostModelPickerContribution extends Disposable implements IWorkbenchC
 		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
 		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
 		@IStorageService storageService: IStorageService,
+		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		super();
 
@@ -88,15 +116,27 @@ class AgentHostModelPickerContribution extends Disposable implements IWorkbenchC
 			Menus.NewSessionConfig, 'sessions.agentHost.modelPicker',
 			() => {
 				const currentModel = observableValue<ILanguageModelChatMetadataAndIdentifier | undefined>('currentModel', undefined);
+				let settingModelInternally = false;
 				const delegate: IModelPickerDelegate = {
 					currentModel,
 					setModel: (model: ILanguageModelChatMetadataAndIdentifier) => {
+						const previousModel = currentModel.get();
 						currentModel.set(model, undefined);
-						storageService.store(STORAGE_KEY, model.identifier, StorageScope.PROFILE, StorageTarget.MACHINE);
 						const session = sessionsManagementService.activeSession.get();
 						if (session) {
+							storageService.store(agentHostModelPickerStorageKey(session.resource.scheme), model.identifier, StorageScope.PROFILE, StorageTarget.MACHINE);
 							const provider = sessionsProvidersService.getProviders().find(p => p.id === session.providerId);
 							provider?.setModel(session.sessionId, model.identifier);
+						}
+						if (!settingModelInternally) {
+							reportNewChatPickerClosed(telemetryService, {
+								id: 'NewChatAgentHostModelPicker',
+								optionIdBefore: previousModel?.identifier,
+								optionIdAfter: model.identifier,
+								optionLabelBefore: previousModel?.metadata.name,
+								optionLabelAfter: model.metadata.name,
+								isPII: false,
+							});
 						}
 					},
 					getModels: () => getAgentHostModels(languageModelsService, sessionsManagementService.activeSession.get()),
@@ -111,31 +151,32 @@ class AgentHostModelPickerContribution extends Disposable implements IWorkbenchC
 				const action = { id: 'sessions.agentHost.modelPicker', label: '', enabled: true, class: undefined, tooltip: '', run: () => { } };
 				const modelPicker = instantiationService.createInstance(ModelPickerActionItem, action, delegate, pickerOptions);
 
-				const rememberedModelId = storageService.get(STORAGE_KEY, StorageScope.PROFILE);
-				const initModel = (session: ISession | undefined, sessionModelId: string | undefined) => {
+				const initModel = (session: ISession | undefined, sessionModelId: string | undefined, isUntitled: boolean) => {
 					const models = getAgentHostModels(languageModelsService, session);
 					modelPicker.setEnabled(models.length > 0);
 
-					let resolvedModel = sessionModelId
-						? models.find(model => model.identifier === sessionModelId)
-						: undefined;
-
-					// When no model is explicitly selected, restore the
-					// remembered model or pick the first available one so
-					// the picker shows a real model name instead of the
-					// misleading "Auto" label (the copilot "auto"
-					// pseudo-model is not available in agent host sessions).
-					if (!resolvedModel && models.length > 0) {
-						const remembered = rememberedModelId ? models.find(m => m.identifier === rememberedModelId) : undefined;
-						resolvedModel = remembered ?? models[0];
-						delegate.setModel(resolvedModel);
+					if (!session || models.length === 0) {
+						currentModel.set(undefined, undefined);
+						return;
 					}
 
+					const storedModelId = isUntitled
+						? storageService.get(agentHostModelPickerStorageKey(session.resource.scheme), StorageScope.PROFILE)
+						: undefined;
+					const resolvedModel = resolveAgentHostModel(models, sessionModelId, storedModelId);
 					currentModel.set(resolvedModel, undefined);
+					if (!sessionModelId && isUntitled && resolvedModel) {
+						settingModelInternally = true;
+						try {
+							delegate.setModel(resolvedModel);
+						} finally {
+							settingModelInternally = false;
+						}
+					}
 				};
 				const initModelFromActiveSession = () => {
 					const session = sessionsManagementService.activeSession.get();
-					initModel(session, session?.modelId.get());
+					initModel(session, session?.modelId.get(), session?.status.get() === SessionStatus.Untitled);
 				};
 				initModelFromActiveSession();
 
@@ -145,17 +186,8 @@ class AgentHostModelPickerContribution extends Disposable implements IWorkbenchC
 				disposableStore.add(autorun(reader => {
 					const session = sessionsManagementService.activeSession.read(reader);
 					const sessionModelId = session?.modelId.read(reader);
-					initModel(session, sessionModelId);
-				}));
-
-				// When the active session changes, push the selected model to the new session
-				disposableStore.add(autorun(reader => {
-					const session = sessionsManagementService.activeSession.read(reader);
-					const model = currentModel.read(reader);
-					if (session && model) {
-						const provider = sessionsProvidersService.getProviders().find(p => p.id === session.providerId);
-						provider?.setModel(session.sessionId, model.identifier);
-					}
+					const isUntitled = session?.status.read(reader) === SessionStatus.Untitled;
+					initModel(session, sessionModelId, isUntitled);
 				}));
 
 				return new AgentHostPickerActionViewItem(modelPicker, disposableStore);

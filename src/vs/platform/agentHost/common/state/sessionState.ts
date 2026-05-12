@@ -11,6 +11,7 @@
 // helpers and re-exports.
 
 import { hasKey } from '../../../../base/common/types.js';
+import { URI as ResourceURI } from '../../../../base/common/uri.js';
 import {
 	SessionLifecycle,
 	ToolResultContentType,
@@ -26,6 +27,7 @@ import {
 	type ToolResultContent,
 	type ToolResultSubagentContent,
 	type ToolResultTextContent,
+	type URI as ProtocolURI,
 	type UserMessage,
 	TerminalState,
 } from './protocol/state.js';
@@ -41,6 +43,7 @@ export {
 	type ProjectInfo,
 	type MarkdownResponsePart,
 	type MessageAttachment,
+	type MessageResourceAttachment,
 	type ReasoningResponsePart,
 	type ResponsePart,
 	type RootState,
@@ -81,8 +84,8 @@ export {
 	type SessionInputQuestion,
 	type SessionInputAnswer,
 	type SessionInputOption,
-	AttachmentType,
 	CustomizationStatus,
+	MessageAttachmentKind,
 	PendingMessageKind,
 	PolicyState,
 	ResponsePartKind,
@@ -193,40 +196,58 @@ export function getToolSubagentContent(result: { content?: readonly ToolResultCo
 
 // ---- Subagent URI helpers ---------------------------------------------------
 
+const SUBAGENT_URI_SEGMENT = 'subagent';
+const SUBAGENT_URI_MARKER = `/${SUBAGENT_URI_SEGMENT}/`;
+const SUBAGENT_URI_PATH_REGEX = /^(?<parentPath>.+)\/subagent\/(?<toolCallId>.+)$/;
+
+function asResourceUri(uri: ProtocolURI | ResourceURI): ResourceURI {
+	return typeof uri === 'string' ? ResourceURI.parse(uri) : uri;
+}
+
+function getSubagentBasePath(parentSession: ProtocolURI | ResourceURI): { parent: ResourceURI; path: string } {
+	const parent = asResourceUri(parentSession);
+	const parentPath = parent.path.endsWith('/') ? parent.path.slice(0, -1) : parent.path;
+	return { parent, path: `${parentPath}${SUBAGENT_URI_MARKER}` };
+}
+
 /**
  * Builds a subagent session URI from a parent session URI and tool call ID.
  * Convention: `{parentSessionUri}/subagent/{toolCallId}`
  */
-export function buildSubagentSessionUri(parentSession: string, toolCallId: string): string {
-	// Normalize: strip trailing slash from parent to avoid double-slash in URI
-	const parent = parentSession.endsWith('/') ? parentSession.slice(0, -1) : parentSession;
-	return `${parent}/subagent/${toolCallId}`;
+export function buildSubagentSessionUri(parentSession: ProtocolURI | ResourceURI, toolCallId: string): string {
+	const { parent, path } = getSubagentBasePath(parentSession);
+	return parent.with({ path: `${path}${toolCallId}` }).toString();
 }
 
 /**
  * Parses a subagent session URI into its parent session URI and tool call ID.
  * Returns `undefined` if the URI does not follow the subagent convention.
  */
-export function parseSubagentSessionUri(uri: string): { parentSession: string; toolCallId: string } | undefined {
-	const idx = uri.lastIndexOf('/subagent/');
-	if (idx < 0) {
-		return undefined;
-	}
-	const toolCallId = uri.substring(idx + '/subagent/'.length);
-	if (!toolCallId) {
+export function parseSubagentSessionUri(uri: ProtocolURI | ResourceURI): { parentSession: ResourceURI; toolCallId: string } | undefined {
+	const resource = asResourceUri(uri);
+	const match = SUBAGENT_URI_PATH_REGEX.exec(resource.path);
+	if (!match?.groups) {
 		return undefined;
 	}
 	return {
-		parentSession: uri.substring(0, idx),
-		toolCallId,
+		parentSession: resource.with({ path: match.groups.parentPath }),
+		toolCallId: match.groups.toolCallId,
 	};
 }
 
 /**
  * Returns whether a session URI represents a subagent session.
  */
-export function isSubagentSession(uri: string): boolean {
-	return uri.includes('/subagent/');
+export function isSubagentSession(uri: ProtocolURI | ResourceURI): boolean {
+	return parseSubagentSessionUri(uri) !== undefined;
+}
+
+/**
+ * Builds the string prefix used by the state manager for cached subagent sessions.
+ */
+export function buildSubagentSessionUriPrefix(parentSession: ProtocolURI | ResourceURI): string {
+	const { parent, path } = getSubagentBasePath(parentSession);
+	return parent.with({ path }).toString();
 }
 
 // ---- Factory helpers --------------------------------------------------------
@@ -267,3 +288,103 @@ export type ComponentToState = {
 	[StateComponents.Session]: SessionState;
 	[StateComponents.Terminal]: TerminalState;
 };
+
+// ---- SessionMeta accessors -------------------------------------------------
+
+/**
+ * VS Code-side alias for the protocol's open `_meta` property bag on
+ * {@link SessionState}. Keys SHOULD be namespaced (e.g. `git`, `vscode.foo`)
+ * to avoid collisions; values MUST be JSON-serializable.
+ */
+export type SessionMeta = Record<string, unknown>;
+
+/**
+ * Reserved key under {@link SessionMeta} for the well-known git-state
+ * payload. Value at this key, when present, MUST be shaped like
+ * {@link ISessionGitState}. This is a VS Code-specific convention layered
+ * on top of the protocol's generic `_meta` bag — the protocol itself does
+ * not know about git state.
+ */
+export const SESSION_META_GIT_KEY = 'git';
+
+/**
+ * Git state of a session's working directory, carried under
+ * {@link SessionMeta} at {@link SESSION_META_GIT_KEY}. Used by clients to
+ * drive source-control affordances (e.g. PR/merge buttons in the Agents
+ * app).
+ *
+ * All fields are optional — agents that do not track a particular field
+ * should omit it rather than send a placeholder, so clients can distinguish
+ * "unknown" from "known to be zero".
+ */
+export interface ISessionGitState {
+	/** Whether the working directory has a `github.com` git remote. */
+	readonly hasGitHubRemote?: boolean;
+	/** Current branch name. */
+	readonly branchName?: string;
+	/** Base branch the work targets (e.g. `main`). */
+	readonly baseBranchName?: string;
+	/** Upstream tracking branch (e.g. `origin/feature`). */
+	readonly upstreamBranchName?: string;
+	/** Number of commits the upstream branch has ahead of the local branch. */
+	readonly incomingChanges?: number;
+	/** Number of commits the local branch has ahead of the upstream branch. */
+	readonly outgoingChanges?: number;
+	/** Number of files with uncommitted changes. */
+	readonly uncommittedChanges?: number;
+	/** GitHub repository owner parsed from the working copy's GitHub remote (preferring `origin`, falling back to the first GitHub remote). */
+	readonly githubOwner?: string;
+	/** GitHub repository name parsed from the working copy's GitHub remote (preferring `origin`, falling back to the first GitHub remote). */
+	readonly githubRepo?: string;
+}
+
+/**
+ * Reads the well-known git-state payload from {@link SessionMeta}, if
+ * present. Returns `undefined` when the meta bag is absent or the value at
+ * the git key is not a plain object (e.g. an array or a primitive).
+ * Individual fields with wrong types are silently dropped so partial state
+ * still propagates.
+ */
+export function readSessionGitState(meta: SessionMeta | undefined): ISessionGitState | undefined {
+	const value = meta?.[SESSION_META_GIT_KEY];
+	if (!value || typeof value !== 'object' || Array.isArray(value)) {
+		return undefined;
+	}
+	const raw = value as Record<string, unknown>;
+	const result: {
+		hasGitHubRemote?: boolean;
+		branchName?: string;
+		baseBranchName?: string;
+		upstreamBranchName?: string;
+		incomingChanges?: number;
+		outgoingChanges?: number;
+		uncommittedChanges?: number;
+		githubOwner?: string;
+		githubRepo?: string;
+	} = {};
+	if (typeof raw['hasGitHubRemote'] === 'boolean') { result.hasGitHubRemote = raw['hasGitHubRemote']; }
+	if (typeof raw['branchName'] === 'string') { result.branchName = raw['branchName']; }
+	if (typeof raw['baseBranchName'] === 'string') { result.baseBranchName = raw['baseBranchName']; }
+	if (typeof raw['upstreamBranchName'] === 'string') { result.upstreamBranchName = raw['upstreamBranchName']; }
+	if (typeof raw['incomingChanges'] === 'number') { result.incomingChanges = raw['incomingChanges']; }
+	if (typeof raw['outgoingChanges'] === 'number') { result.outgoingChanges = raw['outgoingChanges']; }
+	if (typeof raw['uncommittedChanges'] === 'number') { result.uncommittedChanges = raw['uncommittedChanges']; }
+	if (typeof raw['githubOwner'] === 'string') { result.githubOwner = raw['githubOwner']; }
+	if (typeof raw['githubRepo'] === 'string') { result.githubRepo = raw['githubRepo']; }
+	return result;
+}
+
+/**
+ * Returns a new {@link SessionMeta} with the git-state payload set to
+ * `gitState`, or with the git slot removed if `gitState` is `undefined`.
+ * Returns `undefined` if the result would be empty.
+ */
+export function withSessionGitState(meta: SessionMeta | undefined, gitState: ISessionGitState | undefined): SessionMeta | undefined {
+	const next: { [key: string]: unknown } = { ...meta };
+	if (gitState !== undefined) {
+		next[SESSION_META_GIT_KEY] = gitState;
+	} else {
+		delete next[SESSION_META_GIT_KEY];
+	}
+	return Object.keys(next).length > 0 ? next : undefined;
+}

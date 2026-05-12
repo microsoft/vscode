@@ -657,4 +657,7 @@ export const codiconsLibrary = {
 	openInWindow: register('open-in-window', 0xec83),
 	newSession: register('new-session', 0xec84),
 	terminalSecure: register('terminal-secure', 0xec85),
+	chatImport: register('chat-import', 0xec86),
+	chatExport: register('chat-export', 0xec87),
+	shareWindow: register('share-window', 0xec88),
 } as const;

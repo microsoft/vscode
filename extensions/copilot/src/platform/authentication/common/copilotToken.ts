@@ -138,6 +138,15 @@ export class CopilotToken {
 		return this.sku === 'no_auth_limited_copilot';
 	}
 
+	get isManagedPlan(): boolean {
+		const plan = this.copilotPlan;
+		return plan === 'business' || plan === 'enterprise';
+	}
+
+	get isUsageBasedBilling(): boolean {
+		return this._info.token_based_billing === true;
+	}
+
 	get isChatQuotaExceeded(): boolean {
 		return this.isFreeUser && (this._info.limited_user_quotas?.chat ?? 1) <= 0;
 	}
@@ -173,6 +182,18 @@ export class CopilotToken {
 				// Default to 'individual' for unexpected values
 				return 'individual';
 		}
+	}
+
+	/**
+	 * Returns the raw copilot_plan string from the token payload without normalization.
+	 * Used when the exact plan value must be preserved (e.g. for per-SKU routing overrides
+	 * where individual_edu, individual_pro_plus, etc. need distinct handling).
+	 */
+	get rawCopilotPlan(): string {
+		if (this.isFreeUser) {
+			return 'free';
+		}
+		return this._info.copilot_plan ?? 'individual';
 	}
 
 	get quotaInfo() {
@@ -513,6 +534,7 @@ export interface CopilotUserInfo extends CopilotUserQuotaInfo {
 		name: string | null;
 	}>;
 	codex_agent_enabled?: boolean;
+	token_based_billing?: boolean;
 }
 
 /**
@@ -523,7 +545,7 @@ export type ExtendedTokenInfo = TokenEnvelope & {
 	// Extended fields added by client
 	username: string;
 	isVscodeTeamMember: boolean;
-} & Pick<CopilotUserInfo, 'copilot_plan' | 'quota_snapshots' | 'quota_reset_date' | 'codex_agent_enabled' | 'organization_login_list'>;
+} & Pick<CopilotUserInfo, 'copilot_plan' | 'quota_snapshots' | 'quota_reset_date' | 'codex_agent_enabled' | 'organization_login_list' | 'token_based_billing'>;
 
 /**
  * Creates a minimal ExtendedTokenInfo for testing purposes.

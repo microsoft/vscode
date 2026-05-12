@@ -6,9 +6,10 @@
 import type { PermissionRequest } from '@github/copilot-sdk';
 import { hasKey } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
-import { appendEscapedMarkdownInlineCode } from '../../../../base/common/htmlContent.js';
+import { appendEscapedMarkdownInlineCode, escapeMarkdownLinkLabel } from '../../../../base/common/htmlContent.js';
+import { hash } from '../../../../base/common/hash.js';
 import { localize } from '../../../../nls.js';
-import type { IAgentToolReadyEvent } from '../../common/agentService.js';
+import type { IAgentToolPendingConfirmationSignal } from '../../common/agentService.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { StringOrMarkdown } from '../../common/state/protocol/state.js';
 import { basename } from '../../../../base/common/resources.js';
@@ -48,6 +49,7 @@ const enum CopilotToolName {
 	Edit = 'edit',
 	Create = 'create',
 	Grep = 'grep',
+	Rg = 'rg',
 	Glob = 'glob',
 	ApplyPatch = 'apply_patch',
 	GitApplyPatch = 'git_apply_patch',
@@ -55,6 +57,8 @@ const enum CopilotToolName {
 	WebFetch = 'web_fetch',
 	AskUser = 'ask_user',
 	ReportIntent = 'report_intent',
+	Skill = 'skill',
+	ExitPlanMode = 'exit_plan_mode',
 }
 
 /** Parameters for the `bash` / `powershell` shell tools. */
@@ -100,17 +104,108 @@ function formatViewRange(view_range: number[] | undefined): { startLine: number;
 	return { startLine, endLine };
 }
 
-/** Parameters for the `grep` tool. */
+/**
+ * Parameters for the `grep` tool. The Copilot CLI's `grep` accepts the same
+ * rich rg-flag schema as `rg`; the older narrower shape (e.g. `include`) is
+ * no longer used.
+ */
 interface ICopilotGrepToolArgs {
 	pattern: string;
 	path?: string;
-	include?: string;
+	output_mode?: 'content' | 'files_with_matches' | 'count';
+	glob?: string;
+	type?: string;
+	'-i'?: boolean;
+	'-A'?: number;
+	'-B'?: number;
+	'-C'?: number;
+	'-n'?: boolean;
+	head_limit?: number;
+	multiline?: boolean;
+}
+
+/**
+ * Parameters for the `rg` tool. Mirrors {@link ICopilotGrepToolArgs} today but
+ * is kept as a distinct interface so the two tools can drift independently if
+ * the SDK ever differentiates them.
+ */
+interface ICopilotRgToolArgs {
+	pattern: string;
+	path?: string;
+	output_mode?: 'content' | 'files_with_matches' | 'count';
+	glob?: string;
+	type?: string;
+	'-i'?: boolean;
+	'-A'?: number;
+	'-B'?: number;
+	'-C'?: number;
+	'-n'?: boolean;
+	head_limit?: number;
+	multiline?: boolean;
 }
 
 /** Parameters for the `glob` tool. */
 interface ICopilotGlobToolArgs {
 	pattern: string;
 	path?: string;
+}
+
+/**
+ * Parameters for the `apply_patch` / `git_apply_patch` tools. The patch text
+ * itself lives in `input` using the V4A diff format (file headers like
+ * `*** Update File: <path>`), so file paths must be parsed out of the body
+ * rather than read from a top-level field.
+ */
+interface ICopilotApplyPatchToolArgs {
+	input?: string;
+	/** Some SDK callers send the patch under `patch` instead of `input`. */
+	patch?: string;
+	explanation?: string;
+}
+
+/**
+ * Headers of the V4A patch format the `apply_patch` tool accepts. Tolerates
+ * leading whitespace; trims the captured path.
+ */
+const APPLY_PATCH_FILE_HEADERS = [
+	/^\s*\*\*\*\s+Update File:\s*(.+?)\s*$/,
+	/^\s*\*\*\*\s+Add File:\s*(.+?)\s*$/,
+	/^\s*\*\*\*\s+Delete File:\s*(.+?)\s*$/,
+	/^\s*\*\*\*\s+Move to:\s*(.+?)\s*$/,
+];
+
+/**
+ * Extracts the set of file paths affected by an `apply_patch` payload. Reads
+ * the `*** Update File:` / `*** Add File:` / `*** Delete File:` / `*** Move to:`
+ * headers from the V4A diff body. Returns paths in document order with
+ * duplicates removed.
+ *
+ * Accepts either a structured args object ({@link ICopilotApplyPatchToolArgs})
+ * or a bare patch string. The Copilot SDK delivers `apply_patch` with
+ * `arguments` as a raw V4A patch string (custom tool format), not as a JSON
+ * object, so the string fallback is the common case for apply_patch.
+ */
+function getApplyPatchFiles(args: string | ICopilotApplyPatchToolArgs | undefined): string[] {
+	const text = typeof args === 'string' ? args : (args?.input ?? args?.patch);
+	if (typeof text !== 'string' || text.length === 0) {
+		return [];
+	}
+	const seen = new Set<string>();
+	const out: string[] = [];
+	for (const line of text.split('\n')) {
+		for (const re of APPLY_PATCH_FILE_HEADERS) {
+			const m = re.exec(line);
+			if (m) {
+				const path = m[1];
+				if (path && !seen.has(path)) {
+					seen.add(path);
+					out.push(path);
+				}
+				break;
+			}
+		}
+	}
+	return out;
 }
 
 /** Set of tool names that perform file edits. */
@@ -130,18 +225,49 @@ export function isEditTool(toolName: string): boolean {
 
 /**
  * Extracts the target file path from an edit tool's parameters, if available.
+ * For `apply_patch` / `git_apply_patch` the first file in the V4A patch body
+ * is returned. Callers that need every affected file (for snapshotting all
+ * edits in a multi-file patch) should use {@link getEditFilePaths} instead.
  */
 export function getEditFilePath(parameters: unknown): string | undefined {
+	return getEditFilePaths(parameters)[0];
+}
+
+/**
+ * Extracts every file path an edit tool will touch. For `edit` / `create` this
+ * is the single `path` parameter; for `apply_patch` / `git_apply_patch` this
+ * is the unique set of files declared in the V4A patch body, in document
+ * order. Returns an empty array if no paths can be determined.
+ */
+export function getEditFilePaths(parameters: unknown): string[] {
 	if (typeof parameters === 'string') {
+		// Could be either a JSON-encoded args object or a raw V4A patch
+		// string. Copilot SDK delivers `apply_patch` arguments as a bare
+		// patch string (custom tool format), so when JSON parsing fails
+		// fall back to treating it as the patch body.
 		try {
 			parameters = JSON.parse(parameters);
 		} catch {
-			return undefined;
+			return getApplyPatchFiles(parameters as string);
+		}
+		// JSON.parse may have returned a string (e.g. a JSON-encoded patch
+		// body that round-trips through tryStringify on the call site).
+		if (typeof parameters === 'string') {
+			return getApplyPatchFiles(parameters);
 		}
 	}
 
-	const args = parameters as ICopilotFileToolArgs | undefined;
-	return args?.path;
+	if (!parameters || typeof parameters !== 'object') {
+		return [];
+	}
+
+	const patchArgs = parameters as ICopilotApplyPatchToolArgs;
+	if (typeof patchArgs.input === 'string' || typeof patchArgs.patch === 'string') {
+		return getApplyPatchFiles(patchArgs);
+	}
+
+	const args = parameters as ICopilotFileToolArgs;
+	return typeof args.path === 'string' ? [args.path] : [];
 }
 
 /** Set of tool names that execute shell commands (bash or powershell). */
@@ -150,17 +276,42 @@ const SHELL_TOOL_NAMES: ReadonlySet<string> = new Set([
 	CopilotToolName.PowerShell,
 ]);
 
+/** Set of tool names that write input to an interactive shell session. */
+const WRITE_SHELL_TOOL_NAMES: ReadonlySet<string> = new Set([
+	CopilotToolName.WriteBash,
+	CopilotToolName.WritePowerShell,
+]);
+
+/** Set of tool names that read output from an interactive shell session. */
+const READ_SHELL_TOOL_NAMES: ReadonlySet<string> = new Set([
+	CopilotToolName.ReadBash,
+	CopilotToolName.ReadPowerShell,
+]);
+
 /** Set of tool names that spawn subagent sessions. */
 const SUBAGENT_TOOL_NAMES: ReadonlySet<string> = new Set([
 	'task',
 ]);
 
+/** Set of tool names that perform file/text search. */
+const SEARCH_TOOL_NAMES: ReadonlySet<string> = new Set([
+	CopilotToolName.Grep,
+	CopilotToolName.Rg,
+]);
+
 /**
  * Tools that should not be shown to the user. These are internal tools
  * used by the CLI for its own purposes (e.g., reporting intent to the model).
+ *
+ * `skill` is hidden because the SDK already emits a richer `skill.invoked`
+ * lifecycle event with the resolved skill file path; the agent session
+ * synthesizes a tool-start/complete pair from that event so the UI can
+ * render a clickable file link instead of just the skill name. See
+ * {@link synthesizeSkillToolCall}.
  */
 const HIDDEN_TOOL_NAMES: ReadonlySet<string> = new Set([
 	CopilotToolName.ReportIntent,
+	CopilotToolName.Skill,
 ]);
 
 /**
@@ -221,13 +372,15 @@ export function getToolDisplayName(toolName: string): string {
 		case CopilotToolName.View: return localize('toolName.view', "View File");
 		case CopilotToolName.Edit: return localize('toolName.edit', "Edit File");
 		case CopilotToolName.Create: return localize('toolName.create', "Create File");
-		case CopilotToolName.Grep: return localize('toolName.grep', "Search");
+		case CopilotToolName.Grep:
+		case CopilotToolName.Rg: return localize('toolName.grep', "Search");
 		case CopilotToolName.Glob: return localize('toolName.glob', "Find Files");
 		case CopilotToolName.ApplyPatch:
 		case CopilotToolName.GitApplyPatch: return localize('toolName.patch', "Patch");
 		case CopilotToolName.WebSearch: return localize('toolName.webSearch', "Web Search");
 		case CopilotToolName.WebFetch: return localize('toolName.webFetch', "Web Fetch");
 		case CopilotToolName.AskUser: return localize('toolName.askUser', "Ask User");
+		case CopilotToolName.ExitPlanMode: return localize('toolName.exitPlanMode', "Plan");
 		default: return toolName;
 	}
 }
@@ -240,6 +393,19 @@ export function getInvocationMessage(toolName: string, displayName: string, para
 			return md(localize('toolInvoke.shellCmd', "Running {0}", appendEscapedMarkdownInlineCode(truncate(firstLine, 80))));
 		}
 		return localize('toolInvoke.shell', "Running {0} command", displayName);
+	}
+
+	if (WRITE_SHELL_TOOL_NAMES.has(toolName)) {
+		const args = parameters as ICopilotShellToolArgs | undefined;
+		if (args?.command) {
+			const firstLine = args.command.split('\n')[0];
+			return md(localize('toolInvoke.writeShellCmd', "Sending {0} to shell", appendEscapedMarkdownInlineCode(truncate(firstLine, 80))));
+		}
+		return localize('toolInvoke.writeShell', "Sending input to shell");
+	}
+
+	if (READ_SHELL_TOOL_NAMES.has(toolName)) {
+		return localize('toolInvoke.readShell', "Reading shell output");
 	}
 
 	switch (toolName) {
@@ -282,6 +448,13 @@ export function getInvocationMessage(toolName: string, displayName: string, para
 			}
 			return localize('toolInvoke.grep', "Searching files");
 		}
+		case CopilotToolName.Rg: {
+			const args = parameters as ICopilotRgToolArgs | undefined;
+			if (args?.pattern) {
+				return md(localize('toolInvoke.grepPattern', "Searching for {0}", appendEscapedMarkdownInlineCode(truncate(args.pattern, 80))));
+			}
+			return localize('toolInvoke.grep', "Searching files");
+		}
 		case CopilotToolName.Glob: {
 			const args = parameters as ICopilotGlobToolArgs | undefined;
 			if (args?.pattern) {
@@ -289,6 +462,19 @@ export function getInvocationMessage(toolName: string, displayName: string, para
 			}
 			return localize('toolInvoke.glob', "Finding files");
 		}
+		case CopilotToolName.ApplyPatch:
+		case CopilotToolName.GitApplyPatch: {
+			const files = getEditFilePaths(parameters);
+			if (files.length === 1) {
+				return md(localize('toolInvoke.patchFile', "Editing {0}", formatPathAsMarkdownLink(files[0])));
+			}
+			if (files.length > 1) {
+				return md(localize('toolInvoke.patchFiles', "Editing {0}", files.map(formatPathAsMarkdownLink).join(', ')));
+			}
+			return localize('toolInvoke.patch', "Editing files");
+		}
+		case CopilotToolName.ExitPlanMode:
+			return localize('toolInvoke.exitPlanMode', "Presenting plan");
 		default:
 			return localize('toolInvoke.generic', "Using \"{0}\"", displayName);
 	}
@@ -306,6 +492,19 @@ export function getPastTenseMessage(toolName: string, displayName: string, param
 			return md(localize('toolComplete.shellCmd', "Ran {0}", appendEscapedMarkdownInlineCode(truncate(firstLine, 80))));
 		}
 		return localize('toolComplete.shell', "Ran {0} command", displayName);
+	}
+
+	if (WRITE_SHELL_TOOL_NAMES.has(toolName)) {
+		const args = parameters as ICopilotShellToolArgs | undefined;
+		if (args?.command) {
+			const firstLine = args.command.split('\n')[0];
+			return md(localize('toolComplete.writeShellCmd', "Sent {0} to shell", appendEscapedMarkdownInlineCode(truncate(firstLine, 80))));
+		}
+		return localize('toolComplete.writeShell', "Sent input to shell");
+	}
+
+	if (READ_SHELL_TOOL_NAMES.has(toolName)) {
+		return localize('toolComplete.readShell', "Read shell output");
 	}
 
 	switch (toolName) {
@@ -348,6 +547,13 @@ export function getPastTenseMessage(toolName: string, displayName: string, param
 			}
 			return localize('toolComplete.grep', "Searched files");
 		}
+		case CopilotToolName.Rg: {
+			const args = parameters as ICopilotRgToolArgs | undefined;
+			if (args?.pattern) {
+				return md(localize('toolComplete.grepPattern', "Searched for {0}", appendEscapedMarkdownInlineCode(truncate(args.pattern, 80))));
+			}
+			return localize('toolComplete.grep', "Searched files");
+		}
 		case CopilotToolName.Glob: {
 			const args = parameters as ICopilotGlobToolArgs | undefined;
 			if (args?.pattern) {
@@ -355,9 +561,109 @@ export function getPastTenseMessage(toolName: string, displayName: string, param
 			}
 			return localize('toolComplete.glob', "Found files");
 		}
+		case CopilotToolName.ApplyPatch:
+		case CopilotToolName.GitApplyPatch: {
+			const files = getEditFilePaths(parameters);
+			if (files.length === 1) {
+				return md(localize('toolComplete.patchFile', "Edited {0}", formatPathAsMarkdownLink(files[0])));
+			}
+			if (files.length > 1) {
+				return md(localize('toolComplete.patchFiles', "Edited {0}", files.map(formatPathAsMarkdownLink).join(', ')));
+			}
+			return localize('toolComplete.patch', "Edited files");
+		}
+		case CopilotToolName.ExitPlanMode:
+			return localize('toolComplete.exitPlanMode', "Exited plan mode");
 		default:
 			return localize('toolComplete.generic', "Used \"{0}\"", displayName);
 	}
+}
+
+// =============================================================================
+// Skill event synthesis
+//
+// The Copilot SDK emits a `skill` tool call (which we hide) and, separately, a
+// `skill.invoked` lifecycle event with the resolved skill file path. We turn
+// the latter into a synthesized tool-start/complete pair so clients can render
+// a clickable file link to the SKILL.md the agent loaded -- matching the
+// existing `view`-tool display style. Live and replay paths share this helper
+// so they stay in lock-step (see also the mirrored-pair gotcha for tool-call
+// display in this file).
+// =============================================================================
+
+/** Subset of the SDK's `skill.invoked` payload that the synth helper needs. */
+export interface ICopilotSkillInvokedData {
+	readonly name: string;
+	readonly path?: string;
+	readonly description?: string;
+}
+
+/**
+ * Builds a stable synthetic tool call id for a `skill.invoked` event so
+ * reconnect/replay produces the same id as the original live emit. The id
+ * is used unencoded as a path segment (e.g. by `ChatResponseResource.createUri`),
+ * so it must not contain characters like `/` -- we hash any fallback values
+ * that could carry filesystem paths or arbitrary text.
+ */
+export function getSkillSyntheticToolCallId(eventId: string | undefined, data: ICopilotSkillInvokedData): string {
+	if (eventId) {
+		return `synth-skill-${eventId}`;
+	}
+	const seed = data.path ?? data.name;
+	return `synth-skill-${hash(seed).toString(16)}`;
+}
+
+/**
+ * Synthesized data for a `skill.invoked` tool call. Used by both the live
+ * session handler and the history-replay mapper so the two paths render
+ * identically. Callers wrap this into protocol actions or {@link Turn}
+ * data; this helper avoids any agent-protocol coupling.
+ */
+export interface ISynthesizedSkillToolCall {
+	readonly toolCallId: string;
+	readonly toolName: string;
+	readonly displayName: string;
+	readonly invocationMessage: StringOrMarkdown;
+	readonly pastTenseMessage: StringOrMarkdown;
+}
+
+/**
+ * Synthesizes the data for a `skill.invoked` tool call (a tool-start /
+ * tool-complete pair). Returns the constituent fields without coupling to
+ * any specific event or action shape — callers compose them into protocol
+ * actions or {@link Turn} entries as needed.
+ */
+export function synthesizeSkillToolCall(
+	data: ICopilotSkillInvokedData,
+	eventId: string | undefined,
+): ISynthesizedSkillToolCall {
+	const toolCallId = getSkillSyntheticToolCallId(eventId, data);
+	const displayName = localize('toolName.skill', "Read Skill");
+	// Use the skill name as the link text rather than the basename: every skill
+	// file is named SKILL.md, so `Reading skill [plan]` reads better than the
+	// always-identical `Reading skill [SKILL.md]`. The client may further upgrade
+	// this link to a rich pill based on the `SKILL.md` basename. Skill names and
+	// paths come from the SDK / agent host and are escaped to prevent markdown
+	// injection from a malicious skill author.
+	// Escape only the characters that would break out of markdown link text
+	// syntax (`\` and `]`); a full markdown escape would leave visible
+	// backslashes in renderers (like the skill pill) that extract link text
+	// without re-parsing markdown.
+	const escapedName = escapeMarkdownLinkLabel(data.name);
+	const skillLink = data.path ? `[${escapedName}](${URI.file(data.path)})` : undefined;
+	const invocationMessage: StringOrMarkdown = skillLink
+		? md(localize('toolInvoke.skill', "Reading skill {0}", skillLink))
+		: localize('toolInvoke.skillName', "Reading skill {0}", data.name);
+	const pastTenseMessage: StringOrMarkdown = skillLink
+		? md(localize('toolComplete.skill', "Read skill {0}", skillLink))
+		: localize('toolComplete.skillName', "Read skill {0}", data.name);
+	return {
+		toolCallId,
+		toolName: CopilotToolName.Skill,
+		displayName,
+		invocationMessage,
+		pastTenseMessage,
+	};
 }
 
 export function getToolInputString(toolName: string, parameters: Record<string, unknown> | undefined, rawArguments: string | undefined): string | undefined {
@@ -365,7 +671,7 @@ export function getToolInputString(toolName: string, parameters: Record<string, 
 		return undefined;
 	}
 
-	if (SHELL_TOOL_NAMES.has(toolName)) {
+	if (SHELL_TOOL_NAMES.has(toolName) || WRITE_SHELL_TOOL_NAMES.has(toolName)) {
 		const args = parameters as ICopilotShellToolArgs | undefined;
 		// Custom tool overrides may wrap the args: { kind: 'custom-tool', args: { command: '...' } }
 		const command = args?.command ?? (args as Record<string, unknown> | undefined)?.args;
@@ -383,6 +689,10 @@ export function getToolInputString(toolName: string, parameters: Record<string, 
 			const args = parameters as ICopilotGrepToolArgs | undefined;
 			return args?.pattern ?? rawArguments;
 		}
+		case CopilotToolName.Rg: {
+			const args = parameters as ICopilotRgToolArgs | undefined;
+			return args?.pattern ?? rawArguments;
+		}
 		default:
 			// For other tools, show the formatted JSON arguments
 			if (parameters) {
@@ -397,16 +707,19 @@ export function getToolInputString(toolName: string, parameters: Record<string, 
 }
 
 /**
- * Returns a rendering hint for the given tool. Currently only 'terminal' is
- * supported, which tells the renderer to display the tool as a terminal command
- * block.
+ * Returns a rendering hint for the given tool. Currently 'terminal', 'subagent',
+ * and 'search' are supported, which tell the renderer to display the tool with
+ * a terminal command block, a subagent widget, or a search icon respectively.
  */
-export function getToolKind(toolName: string): 'terminal' | 'subagent' | undefined {
+export function getToolKind(toolName: string): 'terminal' | 'subagent' | 'search' | undefined {
 	if (SHELL_TOOL_NAMES.has(toolName)) {
 		return 'terminal';
 	}
 	if (SUBAGENT_TOOL_NAMES.has(toolName)) {
 		return 'subagent';
+	}
+	if (SEARCH_TOOL_NAMES.has(toolName)) {
+		return 'search';
 	}
 	return undefined;
 }
@@ -439,7 +752,9 @@ export function getSubagentMetadata(parameters: Record<string, unknown> | undefi
  */
 export function getShellLanguage(toolName: string): string {
 	switch (toolName) {
-		case CopilotToolName.PowerShell: return 'powershell';
+		case CopilotToolName.PowerShell:
+		case CopilotToolName.WritePowerShell:
+		case CopilotToolName.ReadPowerShell: return 'powershell';
 		default: return 'shellscript';
 	}
 }
@@ -501,7 +816,7 @@ export function getPermissionDisplay(request: ITypedPermissionRequest, workingDi
 	invocationMessage: StringOrMarkdown;
 	toolInput?: string;
 	/** Normalized permission kind for auto-approval routing. */
-	permissionKind: IAgentToolReadyEvent['permissionKind'];
+	permissionKind: IAgentToolPendingConfirmationSignal['permissionKind'];
 	/** File path extracted from the request. */
 	permissionPath?: string;
 } {

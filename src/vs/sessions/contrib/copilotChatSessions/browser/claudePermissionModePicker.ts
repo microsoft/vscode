@@ -12,9 +12,12 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem, IActionListOptions } from '../../../../platform/actionWidget/browser/actionList.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { CopilotChatSessionsProvider } from './copilotChatSessionsProvider.js';
+import { reportNewChatPickerClosed } from '../../chat/browser/newChatPickerTelemetry.js';
+import { IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 
 const PERMISSION_MODE_OPTION_ID = 'permissionMode';
 
@@ -56,6 +59,8 @@ export class ClaudePermissionModePicker extends Disposable {
 		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 	}
@@ -63,7 +68,7 @@ export class ClaudePermissionModePicker extends Disposable {
 	render(container: HTMLElement): HTMLElement {
 		this._renderDisposables.clear();
 
-		const slot = dom.append(container, dom.$('.sessions-chat-picker-slot'));
+		const slot = dom.append(container, dom.$('.sessions-chat-picker-slot.sessions-chat-permission-picker'));
 		this._renderDisposables.add({ dispose: () => slot.remove() });
 
 		const trigger = dom.append(slot, dom.$('a.action-label'));
@@ -131,6 +136,18 @@ export class ClaudePermissionModePicker extends Disposable {
 	}
 
 	private _selectMode(mode: IClaudePermissionModeItem): void {
+		const beforeId = this._currentModeId;
+		const beforeLabel = permissionModes.find(m => m.id === beforeId)?.label;
+		reportNewChatPickerClosed(this.telemetryService, {
+			id: 'NewChatClaudePermissionModePicker',
+			name: 'NewChatClaudePermissionModePicker',
+			optionIdBefore: beforeId,
+			optionIdAfter: mode.id,
+			optionLabelBefore: beforeLabel,
+			optionLabelAfter: mode.label,
+			isPII: false,
+		});
+
 		this._currentModeId = mode.id;
 		this._updateTriggerLabel(this._triggerElement);
 
@@ -140,7 +157,16 @@ export class ClaudePermissionModePicker extends Disposable {
 		}
 		const provider = this.sessionsProvidersService.getProvider(session.providerId);
 		if (provider instanceof CopilotChatSessionsProvider) {
-			provider.getSession(session.sessionId)?.setOption?.(PERMISSION_MODE_OPTION_ID, { id: mode.id, name: mode.label });
+			const chatSession = provider.getSession(session.sessionId);
+			if (!chatSession) {
+				return;
+			}
+			const option = { id: mode.id, name: mode.label };
+			if (chatSession.setOption) {
+				chatSession.setOption(PERMISSION_MODE_OPTION_ID, option);
+			} else {
+				this.chatSessionsService.setSessionOption(chatSession.resource, PERMISSION_MODE_OPTION_ID, option);
+			}
 		}
 	}
 
