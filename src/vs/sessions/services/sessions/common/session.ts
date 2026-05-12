@@ -159,6 +159,10 @@ export interface IGitHubInfo {
 		readonly uri: URI;
 		/** Icon reflecting the PR state. */
 		readonly icon?: ThemeIcon;
+		/** Object ID of the base ref (merge target) commit. */
+		readonly baseRefOid?: string;
+		/** Object ID of the head ref (PR branch) commit. */
+		readonly headRefOid?: string;
 	};
 }
 

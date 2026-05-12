@@ -1320,7 +1320,22 @@ class AgentSessionAdapter implements ICopilotChatSession {
 			return { owner, repo };
 		}
 
-		return { owner, repo, pullRequest: { number: prNumber, uri: pullRequestUri, icon: this._extractPullRequestStateIcon(session) } };
+		const icon = this._extractPullRequestStateIcon(session);
+
+		const baseRefOid = metadata.baseRefOid as string | undefined;
+		const headRefOid = metadata.headRefOid as string | undefined;
+
+		return {
+			owner,
+			repo,
+			pullRequest: {
+				number: prNumber,
+				uri: pullRequestUri,
+				icon,
+				baseRefOid,
+				headRefOid
+			}
+		};
 	}
 
 	private _extractPullRequestNumber(session: IAgentSession, pullRequestUri: URI): number | undefined {
