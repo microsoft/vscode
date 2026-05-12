@@ -6,17 +6,22 @@
 import assert from 'assert';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionListModelChangeEvent, SessionListModelChangeKind, SessionsListModelService } from '../../browser/views/sessionsListModelService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 
-function createSession(id: string): ISession {
+// A date clearly after the UNREAD_DEFAULT_CUTOFF (2026-05-12) so sessions are
+// unread by default in tests, matching real post-launch behaviour.
+const AFTER_CUTOFF = new Date('2026-06-01T00:00:00.000Z');
+const BEFORE_CUTOFF = new Date('2026-05-01T00:00:00.000Z');
+
+function createSession(id: string, status: SessionStatus = SessionStatus.Completed, updatedAt: Date = AFTER_CUTOFF): ISession {
 	return {
 		sessionId: id,
 		resource: URI.parse(`session://${id}`),
@@ -26,8 +31,8 @@ function createSession(id: string): ISession {
 		createdAt: new Date(),
 		workspace: observableValue(`workspace-${id}`, undefined),
 		title: observableValue(`title-${id}`, id),
-		updatedAt: observableValue(`updatedAt-${id}`, new Date()),
-		status: observableValue(`status-${id}`, SessionStatus.Completed),
+		updatedAt: observableValue(`updatedAt-${id}`, updatedAt),
+		status: observableValue(`status-${id}`, status),
 		changesets: observableValue(`changesets-${id}`, []),
 		changes: observableValue(`changes-${id}`, []),
 		modelId: observableValue(`modelId-${id}`, undefined),
@@ -37,7 +42,6 @@ function createSession(id: string): ISession {
 		isRead: observableValue(`isRead-${id}`, true),
 		description: observableValue(`description-${id}`, undefined),
 		lastTurnEnd: observableValue(`lastTurnEnd-${id}`, undefined),
-		gitHubInfo: observableValue(`gitHubInfo-${id}`, undefined),
 		chats: observableValue<readonly IChat[]>(`chats-${id}`, []),
 		mainChat: undefined!,
 		capabilities: { supportsMultipleChats: false },
@@ -49,14 +53,17 @@ suite('SessionsListModelService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let service: SessionsListModelService;
 	let sessionsChangedEmitter: Emitter<ISessionsChangeEvent>;
+	let activeSession: ISettableObservable<IActiveSession | undefined>;
 
 	setup(() => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IStorageService, disposables.add(new InMemoryStorageService()));
 		sessionsChangedEmitter = disposables.add(new Emitter<ISessionsChangeEvent>());
+		activeSession = observableValue('activeSession', undefined);
 		instantiationService.stub(ISessionsManagementService, {
 			...mock<ISessionsManagementService>(),
 			onDidChangeSessions: sessionsChangedEmitter.event,
+			activeSession,
 		});
 		service = disposables.add(instantiationService.createInstance(SessionsListModelService));
 	});
@@ -151,6 +158,49 @@ suite('SessionsListModelService', () => {
 		service.markUnread(session);
 
 		assert.strictEqual(changeCount, 0);
+	});
+
+	// -- Cutoff date (pre-launch sessions default to read) --
+
+	test('session with updatedAt before cutoff is read by default without being in read set', () => {
+		const session = createSession('s1', SessionStatus.Completed, BEFORE_CUTOFF);
+		assert.strictEqual(service.isSessionRead(session), true);
+	});
+
+	test('session with updatedAt after cutoff is unread by default', () => {
+		const session = createSession('s1', SessionStatus.Completed, AFTER_CUTOFF);
+		assert.strictEqual(service.isSessionRead(session), false);
+	});
+
+	test('markUnread on pre-cutoff session is a no-op', () => {
+		const session = createSession('s1', SessionStatus.Completed, BEFORE_CUTOFF);
+		let changeCount = 0;
+		disposables.add(service.onDidChange(() => changeCount++));
+
+		service.markUnread(session);
+
+		assert.strictEqual(service.isSessionRead(session), true);
+		assert.strictEqual(changeCount, 0);
+	});
+
+	test('markRead on pre-cutoff session adds it to the read set and fires event', () => {
+		const session = createSession('s1', SessionStatus.Completed, BEFORE_CUTOFF);
+		let changeCount = 0;
+		disposables.add(service.onDidChange(() => changeCount++));
+
+		service.markRead(session);
+
+		assert.strictEqual(service.isSessionRead(session), true);
+		assert.strictEqual(changeCount, 1);
+	});
+
+	test('pre-cutoff session becomes unread when updatedAt advances past cutoff', () => {
+		const session = createSession('s1', SessionStatus.Completed, BEFORE_CUTOFF);
+		assert.strictEqual(service.isSessionRead(session), true);
+
+		(session.updatedAt as ISettableObservable<Date>).set(AFTER_CUTOFF, undefined);
+
+		assert.strictEqual(service.isSessionRead(session), false);
 	});
 
 	test('markAllRead marks multiple sessions as read', () => {
@@ -291,6 +341,66 @@ suite('SessionsListModelService', () => {
 		assert.strictEqual(service.isSessionPinned(s2), true);
 	});
 
+	test('marks session unread when it transitions from InProgress to Completed in background', () => {
+		const session = createSession('s1', SessionStatus.InProgress);
+		service.markRead(session);
+
+		// Seed the last-known status as InProgress
+		sessionsChangedEmitter.fire({ added: [], removed: [], changed: [session] });
+		assert.strictEqual(service.isSessionRead(session), true);
+
+		// Turn completes while session is not active
+		(session.status as ISettableObservable<SessionStatus>).set(SessionStatus.Completed, undefined);
+		sessionsChangedEmitter.fire({ added: [], removed: [], changed: [session] });
+
+		assert.strictEqual(service.isSessionRead(session), false);
+	});
+
+	test('does not mark active session unread when it transitions from InProgress to Completed', () => {
+		const session = createSession('s1', SessionStatus.InProgress);
+		service.markRead(session);
+
+		// Make session the active one
+		activeSession.set({ ...session, activeChat: constObservable(session.mainChat) }, undefined);
+
+		// Seed the last-known status as InProgress
+		sessionsChangedEmitter.fire({ added: [], removed: [], changed: [session] });
+
+		// Turn completes while session IS active
+		(session.status as ISettableObservable<SessionStatus>).set(SessionStatus.Completed, undefined);
+		sessionsChangedEmitter.fire({ added: [], removed: [], changed: [session] });
+
+		assert.strictEqual(service.isSessionRead(session), true);
+	});
+
+	test('marks session unread when it transitions from InProgress to NeedsInput in background', () => {
+		const session = createSession('s1', SessionStatus.InProgress);
+		service.markRead(session);
+
+		// Seed the last-known status as InProgress
+		sessionsChangedEmitter.fire({ added: [], removed: [], changed: [session] });
+
+		// Session needs input while not active
+		(session.status as ISettableObservable<SessionStatus>).set(SessionStatus.NeedsInput, undefined);
+		sessionsChangedEmitter.fire({ added: [], removed: [], changed: [session] });
+
+		assert.strictEqual(service.isSessionRead(session), false);
+	});
+
+	test('does not mark session unread when status does not change from InProgress', () => {
+		const session = createSession('s1');
+		service.markRead(session);
+
+		let changeCount = 0;
+		disposables.add(service.onDidChange(() => changeCount++));
+
+		// Session was Completed and stays Completed (e.g. title changed)
+		sessionsChangedEmitter.fire({ added: [], removed: [], changed: [session] });
+
+		assert.strictEqual(service.isSessionRead(session), true);
+		assert.strictEqual(changeCount, 0);
+	});
+
 	// -- Storage persistence --
 
 	test('state is loaded from storage on construction', () => {
@@ -302,7 +412,7 @@ suite('SessionsListModelService', () => {
 
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IStorageService, storageService);
-		instantiationService.stub(ISessionsManagementService, { ...mock<ISessionsManagementService>(), onDidChangeSessions: disposables.add(new Emitter<ISessionsChangeEvent>()).event });
+		instantiationService.stub(ISessionsManagementService, { ...mock<ISessionsManagementService>(), onDidChangeSessions: disposables.add(new Emitter<ISessionsChangeEvent>()).event, activeSession: constObservable(undefined) });
 		const loadedService = disposables.add(instantiationService.createInstance(SessionsListModelService));
 
 		assert.strictEqual(loadedService.isSessionPinned(createSession('s1')), true);
@@ -317,7 +427,7 @@ suite('SessionsListModelService', () => {
 
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IStorageService, storageService);
-		instantiationService.stub(ISessionsManagementService, { ...mock<ISessionsManagementService>(), onDidChangeSessions: disposables.add(new Emitter<ISessionsChangeEvent>()).event });
+		instantiationService.stub(ISessionsManagementService, { ...mock<ISessionsManagementService>(), onDidChangeSessions: disposables.add(new Emitter<ISessionsChangeEvent>()).event, activeSession: constObservable(undefined) });
 		const loadedService = disposables.add(instantiationService.createInstance(SessionsListModelService));
 
 		// Should not throw and should return empty state

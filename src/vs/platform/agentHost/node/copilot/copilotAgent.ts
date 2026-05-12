@@ -84,6 +84,16 @@ const ThinkingLevelConfigKey = 'thinkingLevel';
 const ReasoningEfforts = ['low', 'medium', 'high', 'xhigh'] as const;
 type ReasoningEffort = NonNullable<SessionConfig['reasoningEffort']>;
 
+export const COPILOT_AGENT_HOST_SYSTEM_MESSAGE = {
+	mode: 'customize',
+	sections: {
+		identity: {
+			action: 'replace',
+			content: 'You are an AI assistant using Copilot CLI runtime in VS Code. You help users with software engineering tasks. When asked about your identity, you must state that you are an AI assistant using Copilot CLI runtime in VS Code.',
+		},
+	},
+} satisfies NonNullable<ResumeSessionConfig['systemMessage']>;
+
 interface ISerializedModelSelection {
 	id?: unknown;
 	config?: unknown;
@@ -140,6 +150,28 @@ export function getCopilotWorktreeBranchName(sessionId: string, branchNameHint: 
 }
 
 /**
+ * Derive a slug-style branch-name hint from the user's first message. Used
+ * by the worktree isolation flow so the generated branch name reflects the
+ * intent of the session instead of being just a session id.
+ *
+ * Returns `undefined` if the message has no slug-able content (e.g. only
+ * punctuation), in which case the caller falls back to a session-id-only
+ * branch name.
+ */
+export function getCopilotBranchNameHintFromMessage(message: string): string | undefined {
+	const words = message
+		.toLowerCase()
+		.normalize('NFKD')
+		.replace(/[^a-z0-9]+/g, '-')
+		.replace(/^-+|-+$/g, '')
+		.split('-')
+		.filter(word => word.length > 0)
+		.slice(0, 8);
+	const hint = words.join('-').slice(0, 48).replace(/-+$/g, '');
+	return hint.length > 0 ? hint : undefined;
+}
+
+/**
  * Builds the localized "Created isolated worktree for branch X" markdown
  * shown at the top of the first response in worktree-isolated sessions.
  * The branch name is wrapped as inline code so the localized template
@@ -171,14 +203,10 @@ function prependAnnouncementToFirstTurn(
 	}
 	const result = turns.slice();
 	const first = result[0];
-	const partIdx = first.responseParts.findIndex(rp => rp.kind === ResponsePartKind.Markdown);
-	if (partIdx >= 0) {
-		const part = first.responseParts[partIdx];
-		const updated: ResponsePart = part.kind === ResponsePartKind.Markdown
-			? { ...part, content: announcement + part.content }
-			: part;
+	const part = first.responseParts[0];
+	if (part?.kind === ResponsePartKind.Markdown) {
 		const responseParts = first.responseParts.slice();
-		responseParts[partIdx] = updated;
+		responseParts[0] = { ...part, content: announcement + part.content };
 		result[0] = { ...first, responseParts };
 	} else {
 		const responseParts: ResponsePart[] = [
@@ -761,7 +789,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * `SessionConfigChanged` actions that arrived after `createSession` are
 	 * honoured without bespoke forwarding.
 	 */
-	private async _materializeProvisional(sessionId: string): Promise<CopilotAgentSession> {
+	private async _materializeProvisional(sessionId: string, prompt: string): Promise<CopilotAgentSession> {
 		const provisional = this._provisionalSessions.get(sessionId);
 		if (!provisional) {
 			throw new Error(`Cannot materialize unknown provisional session: ${sessionId}`);
@@ -781,7 +809,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const customizationDirectory = provisional.workingDirectory;
 		const activeClient = this._activeClients.get(sessionUri);
 		const snapshot = activeClient ? await activeClient.snapshot(customizationDirectory) : undefined;
-		const workingDirectory = await this._resolveSessionWorkingDirectory(materializedConfig, sessionId);
+		const workingDirectory = await this._resolveSessionWorkingDirectory(materializedConfig, sessionId, prompt);
 		const shellManager = this._instantiationService.createInstance(ShellManager, sessionUri, workingDirectory);
 		const sessionConfigBuilder = this._buildSessionConfig(snapshot, shellManager);
 
@@ -828,6 +856,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			enumDescriptions: gitInfo ? [localize('agentHost.sessionConfig.isolation.folderDescription', "Work directly in the folder"), localize('agentHost.sessionConfig.isolation.worktreeDescription', "Create a Git worktree for isolation")] : [localize('agentHost.sessionConfig.isolation.folderDescription', "Work directly in the folder")],
 			default: gitInfo ? 'worktree' : 'folder',
 			readOnly: !gitInfo,
+			sessionMutable: false,
 		});
 
 		// Resolve isolation first — downstream schema shapes (branch's
@@ -851,6 +880,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				default: branchDefault,
 				enumDynamic: !branchReadOnly,
 				readOnly: branchReadOnly,
+				sessionMutable: false,
 			});
 		}
 
@@ -920,10 +950,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 		await this._sessionSequencer.queue(sessionId, async () => {
 
 			// First message on a provisional session: materialize the SDK
-			// session, worktree, and on-disk metadata before continuing.
+			// session, worktree, and on-disk metadata before continuing. The
+			// prompt is forwarded so a worktree-isolated session can derive
+			// its branch-name hint from the user's first message.
 			let entry: CopilotAgentSession | undefined;
 			if (this._provisionalSessions.has(sessionId)) {
-				entry = await this._materializeProvisional(sessionId);
+				entry = await this._materializeProvisional(sessionId, prompt);
 			} else {
 				entry = this._sessions.get(sessionId);
 			}
@@ -1041,7 +1073,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			if (!parentEntry) {
 				return [];
 			}
-			return parentEntry.getSubagentMessages(subagentInfo.toolCallId, session.toString());
+			return parentEntry.getSubagentMessages(subagentInfo.toolCallId);
 		}
 
 		const sessionId = AgentSession.id(session);
@@ -1338,10 +1370,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return {
 				onPermissionRequest: callbacks.onPermissionRequest,
 				onUserInputRequest: callbacks.onUserInputRequest,
+				onElicitationRequest: callbacks.onElicitationRequest,
 				hooks: toSdkHooks(plugins.flatMap(p => p.hooks), callbacks.hooks),
 				mcpServers: toSdkMcpServers(plugins.flatMap(p => p.mcpServers)),
 				customAgents,
 				skillDirectories: toSdkSkillDirectories(plugins.flatMap(p => p.skills)),
+				systemMessage: COPILOT_AGENT_HOST_SYSTEM_MESSAGE,
 				tools: [...shellTools, ...callbacks.clientTools],
 				// Enable infinite sessions so the SDK provisions a workspace
 				// directory (containing `plan.md`, `checkpoints/`, `files/`).
@@ -1430,7 +1464,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return this._gitService.getBranches(workingDirectory, { query, limit: CopilotAgent._BRANCH_COMPLETION_LIMIT });
 	}
 
-	protected async _resolveSessionWorkingDirectory(config: IAgentCreateSessionConfig | undefined, sessionId: string): Promise<URI | undefined> {
+	protected async _resolveSessionWorkingDirectory(config: IAgentCreateSessionConfig | undefined, sessionId: string, prompt?: string): Promise<URI | undefined> {
 		if (config?.config?.isolation !== 'worktree' || !config.workingDirectory || typeof config.config.branch !== 'string') {
 			return config?.workingDirectory;
 		}
@@ -1441,8 +1475,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 
 		const worktreesRoot = getCopilotWorktreesRoot(repositoryRoot);
-		const branchNameHintRaw = config.config[SessionConfigKey.BranchNameHint];
-		const branchNameHint = typeof branchNameHintRaw === 'string' ? branchNameHintRaw : undefined;
+		const branchNameHint = prompt ? getCopilotBranchNameHintFromMessage(prompt) : undefined;
 		const branchName = getCopilotWorktreeBranchName(sessionId, branchNameHint);
 		const worktree = URI.joinPath(worktreesRoot, getCopilotWorktreeName(branchName));
 		await fs.mkdir(worktreesRoot.fsPath, { recursive: true });

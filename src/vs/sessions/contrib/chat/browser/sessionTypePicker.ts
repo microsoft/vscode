@@ -17,6 +17,8 @@ import { autorun } from '../../../../base/common/observable.js';
 import { ISession, ISessionType } from '../../../services/sessions/common/session.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { reportNewChatPickerClosed } from './newChatPickerTelemetry.js';
 
 export const STORAGE_KEY_LAST_SESSION_TYPE = 'sessions.lastSelectedSessionType';
 
@@ -37,6 +39,7 @@ export class SessionTypePicker extends Disposable {
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@IStorageService protected readonly storageService: IStorageService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 
@@ -79,10 +82,16 @@ export class SessionTypePicker extends Disposable {
 		return this._sessionType;
 	}
 
-	render(container: HTMLElement): void {
+	render(container: HTMLElement, options?: { className?: string }): void {
 		this._renderDisposables.clear();
 
 		const slot = dom.append(container, dom.$('.sessions-chat-picker-slot'));
+		if (options?.className) {
+			const classNames = options.className.split(/\s+/).filter(className => className.length > 0);
+			if (classNames.length > 0) {
+				slot.classList.add(...classNames);
+			}
+		}
 		this._renderDisposables.add({ dispose: () => slot.remove() });
 
 		const trigger = dom.append(slot, dom.$('a.action-label'));
@@ -140,10 +149,7 @@ export class SessionTypePicker extends Disposable {
 		const delegate: IActionListDelegate<ISessionType> = {
 			onSelect: (type) => {
 				this.actionWidgetService.hide();
-				if (type.id !== this._sessionType) {
-					this.storageService.store(STORAGE_KEY_LAST_SESSION_TYPE, type.id, StorageScope.PROFILE, StorageTarget.MACHINE);
-					this._onDidSelectSessionType.fire(type.id);
-				}
+				this._handleSelectedSessionType(type.id);
 			},
 			onHide: () => { triggerElement.focus(); },
 		};
@@ -161,6 +167,37 @@ export class SessionTypePicker extends Disposable {
 				getWidgetAriaLabel: () => localize('sessionTypePicker.ariaLabel', "Session Type"),
 			},
 		);
+	}
+
+	/**
+	 * Handles the user picking a session type. Emits `newChatPickerClosed`
+	 * telemetry (with the previously selected type read from storage, or
+	 * the in-memory field when nothing is stored), and — when the
+	 * selection actually changed — persists the new type and fires
+	 * {@link onDidSelectSessionType}.
+	 *
+	 * Shared between desktop (action-widget popup) and mobile (bottom
+	 * sheet) presentations so both surfaces report identical telemetry.
+	 */
+	protected _handleSelectedSessionType(typeId: string): void {
+		const beforeId = this.storageService.get(STORAGE_KEY_LAST_SESSION_TYPE, StorageScope.PROFILE) ?? this._sessionType;
+		const beforeLabel = this._allProviderSessionTypes.find(t => t.id === beforeId)?.label;
+		const afterLabel = this._allProviderSessionTypes.find(t => t.id === typeId)?.label;
+
+		reportNewChatPickerClosed(this.telemetryService, {
+			id: 'NewChatSessionTypePicker',
+			name: 'NewChatSessionTypePicker',
+			optionIdBefore: beforeId,
+			optionIdAfter: typeId,
+			optionLabelBefore: beforeLabel,
+			optionLabelAfter: afterLabel,
+			isPII: false,
+		});
+
+		if (typeId !== this._sessionType) {
+			this.storageService.store(STORAGE_KEY_LAST_SESSION_TYPE, typeId, StorageScope.PROFILE, StorageTarget.MACHINE);
+			this._onDidSelectSessionType.fire(typeId);
+		}
 	}
 
 	private _updateTriggerLabel(): void {
@@ -184,7 +221,8 @@ export class SessionTypePicker extends Disposable {
 		const labelSpan = dom.append(this._triggerElement, dom.$('span.sessions-chat-dropdown-label'));
 		labelSpan.textContent = modeLabel;
 
-		dom.append(this._triggerElement, renderIcon(Codicon.chevronDown));
+		const chevron = dom.append(this._triggerElement, renderIcon(Codicon.chevronDown));
+		chevron.classList.add('sessions-chat-dropdown-chevron');
 
 		this._triggerElement.ariaLabel = localize('sessionTypePicker.triggerAriaLabel', "Pick Session Type, {0}", modeLabel);
 	}

@@ -32,7 +32,7 @@ export class ChatPlanReviewData implements IChatPlanReview {
 		public source?: ToolDataSource,
 	) { }
 
-
+	/** Dismiss without a user choice (e.g. the response was cancelled). */
 	dismiss(): void {
 		if (this.isUsed) {
 			return;

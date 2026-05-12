@@ -155,23 +155,23 @@ suite('ChatStatusDashboard', () => {
 		assert.deepStrictEqual(getQuotaValues(dashboard.element), ['100%', '100%']);
 	});
 
-	test('Free — TBB: shows Credits and Inline Suggestions, not Chat messages', () => {
+	test('Free — TBB: shows Credits and Inline Suggestions', () => {
 		const dashboard = createDashboard(createEntitlementService({
 			chat: { percentRemaining: 80, unlimited: false },
-			premiumChat: { percentRemaining: 60, unlimited: false, usageBasedBilling: true },
 			completions: { percentRemaining: 70, unlimited: false },
+			usageBasedBilling: true,
 			entitlement: ChatEntitlement.Free,
 		}));
 
 		assert.deepStrictEqual(getQuotaLabels(dashboard.element), ['Credits', 'Inline Suggestions']);
-		assert.deepStrictEqual(getQuotaValues(dashboard.element), ['40%', '30%']);
+		assert.deepStrictEqual(getQuotaValues(dashboard.element), ['20%', '30%']);
 	});
 
 	test('Free — TBB exhausted: shows Credits and Inline Suggestions at 0%', () => {
 		const dashboard = createDashboard(createEntitlementService({
 			chat: { percentRemaining: 0, unlimited: false },
-			premiumChat: { percentRemaining: 0, unlimited: false, usageBasedBilling: true },
 			completions: { percentRemaining: 0, unlimited: false },
+			usageBasedBilling: true,
 			entitlement: ChatEntitlement.Free,
 		}));
 
@@ -455,7 +455,7 @@ suite('ChatStatusDashboard', () => {
 		assert.strictEqual(getCalloutText(dashboard.element), 'Copilot is paused until the limit resets.');
 	});
 
-	test('Callout: shows paused when quota exhausted and overage permitted but no overage used', () => {
+	test('Callout: shows budget active when quota exhausted and overage permitted but no overage used yet', () => {
 		const dashboard = createDashboard(createEntitlementService({
 			premiumChat: { percentRemaining: 0, unlimited: false },
 			completions: { percentRemaining: 90, unlimited: false },
@@ -464,7 +464,7 @@ suite('ChatStatusDashboard', () => {
 			entitlement: ChatEntitlement.Pro,
 		}));
 
-		assert.strictEqual(getCalloutText(dashboard.element), 'Copilot is paused until the limit resets.');
+		assert.strictEqual(getCalloutText(dashboard.element), 'Premium request budget is configured. Usage will continue until limits reset.');
 	});
 
 	test('Callout: PRU — shows budget active when quota exhausted and overage count > 0', () => {
@@ -512,7 +512,7 @@ suite('ChatStatusDashboard', () => {
 		assert.strictEqual(getCalloutText(dashboard.element), 'Copilot is paused until the limit resets. Contact your administrator for more information.');
 	});
 
-	test('Callout: TBB — shows paused when exhausted with overage permitted but no usage (PRU bug fix)', () => {
+	test('Callout: TBB — shows additional spend active when exhausted with overage permitted but no usage yet', () => {
 		const dashboard = createDashboard(createEntitlementService({
 			premiumChat: { percentRemaining: 0, unlimited: false, usageBasedBilling: true },
 			additionalUsageEnabled: true,
@@ -520,7 +520,7 @@ suite('ChatStatusDashboard', () => {
 			entitlement: ChatEntitlement.Pro,
 		}));
 
-		assert.strictEqual(getCalloutText(dashboard.element), 'Copilot is paused until the limit resets.');
+		assert.strictEqual(getCalloutText(dashboard.element), 'Additional spend is configured. Usage will continue until limits reset.');
 	});
 
 	test('Callout: TBB — shows additional spend wording when overage count > 0', () => {

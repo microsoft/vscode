@@ -640,7 +640,7 @@ export class ProtocolServerHandler extends Disposable {
 		authenticate: async (_client, params) => {
 			const result = await this._agentService.authenticate(params);
 			if (!result.authenticated) {
-				throw new ProtocolError(AHP_AUTH_REQUIRED, 'Authentication failed for resource: ' + params.resource);
+				throw new ProtocolError(AHP_AUTH_REQUIRED, `Authentication failed for resource: ${params.resource}`);
 			}
 			return {};
 		},

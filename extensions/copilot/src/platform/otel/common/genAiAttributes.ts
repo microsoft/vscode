@@ -164,6 +164,8 @@ export const CopilotChatAttr = {
 	MODE_NAME: 'copilot_chat.mode_name',
 	/** Aggregated session cost in USD (Claude agent) */
 	TOTAL_COST_USD: 'copilot_chat.total_cost_usd',
+	/** Per-request cost from copilot_usage.total_nano_aiu */
+	COPILOT_USAGE_NANO_AIU: 'copilot_chat.copilot_usage_nano_aiu',
 } as const;
 
 export type EditSource = 'inline_chat' | 'chat_editing' | 'chat_editing_hunk' | 'apply_patch' | 'replace_string' | 'code_mapper';

@@ -605,7 +605,7 @@ export class RequestLogger extends AbstractRequestLogger {
 		// Just some other options to track
 		// TODO Probably we should just extract every item on the body and format it as below, instead of doing this one-by-one
 		const otherOptions: Record<string, string | number | boolean> = {};
-		for (const opt of ['temperature', 'stream', 'store'] satisfies (keyof IEndpointBody)[]) {
+		for (const opt of ['temperature', 'stream', 'store', 'reasoning_effort'] satisfies (keyof IEndpointBody)[]) {
 			if (entry.chatParams.body?.[opt] !== undefined) {
 				otherOptions[opt] = entry.chatParams.body[opt];
 			}
