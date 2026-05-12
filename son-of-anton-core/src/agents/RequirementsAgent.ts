@@ -177,11 +177,13 @@ export class RequirementsAgent extends BaseAgent {
 	 * Gather project context from the code graph.
 	 */
 	private async gatherProjectContext(taskId: string): Promise<string> {
+		const fallback = 'Project context unavailable — code graph may not be indexed yet.';
 		try {
 			const overview = await this.callMcpTool(taskId, 'code-graph', 'project_overview', {});
-			return overview.content;
+			const text = this.mcpContentOrEmpty(overview);
+			return text.length > 0 ? text : fallback;
 		} catch {
-			return 'Project context unavailable — code graph may not be indexed yet.';
+			return fallback;
 		}
 	}
 

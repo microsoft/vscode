@@ -149,11 +149,13 @@ export class DesignAgent extends BaseAgent {
 	}
 
 	private async gatherFullCodeContext(taskId: string): Promise<string> {
+		const fallback = 'Code graph context unavailable.';
 		try {
 			const overview = await this.callMcpTool(taskId, 'code-graph', 'project_overview', {});
-			return overview.content;
+			const text = this.mcpContentOrEmpty(overview);
+			return text.length > 0 ? text : fallback;
 		} catch {
-			return 'Code graph context unavailable.';
+			return fallback;
 		}
 	}
 

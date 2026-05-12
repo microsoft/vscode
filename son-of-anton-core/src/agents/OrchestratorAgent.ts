@@ -880,8 +880,15 @@ export class OrchestratorAgent extends BaseAgent {
 	 */
 	private async gatherGraphContext(taskId: string, request: string): Promise<string> {
 		const sections: string[] = [];
+		const fallback = '## Relevant Files\n(Code graph not available)';
 
-		// Query for relevant files based on the request
+		// Query for relevant files based on the request. The try/catch
+		// covers a hard throw (legacy McpClient behaviour); the explicit
+		// `mcpContentOrEmpty` guard covers the modern soft-fail shape
+		// where McpClient returns `{ isError: true, content: "(MCP
+		// server '...' not configured...)" }` instead of throwing.
+		// Without the guard the diagnostic string ends up as "Relevant
+		// Files" context in the planning prompt.
 		try {
 			const searchResult = await this.callMcpTool(
 				taskId,
@@ -889,9 +896,10 @@ export class OrchestratorAgent extends BaseAgent {
 				'semantic_search',
 				{ query: request, limit: 5 },
 			);
-			sections.push('## Relevant Files\n' + searchResult.content);
+			const text = this.mcpContentOrEmpty(searchResult);
+			sections.push(text.length > 0 ? '## Relevant Files\n' + text : fallback);
 		} catch {
-			sections.push('## Relevant Files\n(Code graph not available)');
+			sections.push(fallback);
 		}
 
 		return sections.join('\n\n');

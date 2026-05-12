@@ -534,14 +534,32 @@ export abstract class BaseAgent {
 
 	/**
 	 * Drop the McpClient's soft-error diagnostic string when the
-	 * `code-graph` server isn't configured / connected. The diagnostic
-	 * is human-readable ("(MCP server 'code-graph' not configured...)")
-	 * and would otherwise be embedded as graph context in LLM prompts.
-	 * Returning `''` here gives the caller a chance to emit a
-	 * neutral placeholder instead of leaking ops noise into the model.
+	 * MCP server isn't configured / connected. McpClient.callTool now
+	 * returns `{ isError: true, content: "(MCP server '<name>' not
+	 * configured...)" }` rather than throwing — the diagnostic is
+	 * intended for trace inspection, NOT for inclusion in LLM prompts.
+	 *
+	 * Every callsite that forwards `result.content` into a system
+	 * prompt, plan context, or LLM message must route through this
+	 * helper. Returning `''` lets the caller emit a neutral placeholder
+	 * (e.g. "(Code graph not available)") or simply omit the section.
+	 *
+	 * Marked `protected` so the 10 specialist agents in this directory
+	 * can share the guard — the pattern applies to every MCP server,
+	 * not just `code-graph`.
+	 */
+	protected mcpContentOrEmpty(result: McpToolResult): string {
+		return result.isError ? '' : result.content;
+	}
+
+	/**
+	 * @deprecated Use {@link mcpContentOrEmpty}. Kept as an alias so the
+	 * in-file `queryFileGraph` / `querySymbol` / `queryDependencies` /
+	 * `queryImpact` / `queryReferences` helpers can keep their domain-
+	 * named wrapper without two duplicate implementations.
 	 */
 	private graphContentOrEmpty(result: McpToolResult): string {
-		return result.isError ? '' : result.content;
+		return this.mcpContentOrEmpty(result);
 	}
 
 	/**

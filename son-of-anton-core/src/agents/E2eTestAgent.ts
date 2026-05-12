@@ -76,16 +76,28 @@ export class E2eTestAgent extends BaseAgent {
 		const baseUrl = this.extractBaseUrl(context.instruction) ?? 'http://localhost:3000';
 
 		try {
-			// Navigate to the app
+			// Navigate to the app. mcpContentOrEmpty drops the McpClient
+			// soft-error diagnostic ("(MCP server 'playwright' not
+			// configured...)") when the Playwright server isn't reachable;
+			// without it, "Navigation to http://… (MCP server not configured)"
+			// would land in the test-generation prompt as if it were a real
+			// page state. Empty content here is harmless — it just collapses
+			// the section to its header.
 			const navResult = await this.callMcpTool(taskId, 'playwright', 'navigate', {
 				url: baseUrl,
 				waitUntil: 'networkidle',
 			});
-			sections.push(`### Navigation to ${baseUrl}\n${navResult.content}`);
+			const navText = this.mcpContentOrEmpty(navResult);
+			if (navText.length > 0) {
+				sections.push(`### Navigation to ${baseUrl}\n${navText}`);
+			}
 
 			// Get the accessibility tree
 			const treeResult = await this.callMcpTool(taskId, 'playwright', 'get_accessibility_tree', {});
-			sections.push(`### Accessibility Tree\n${treeResult.content}`);
+			const treeText = this.mcpContentOrEmpty(treeResult);
+			if (treeText.length > 0) {
+				sections.push(`### Accessibility Tree\n${treeText}`);
+			}
 
 			// Take a screenshot for context
 			await this.callMcpTool(taskId, 'playwright', 'screenshot', {
@@ -97,7 +109,10 @@ export class E2eTestAgent extends BaseAgent {
 			const contentResult = await this.callMcpTool(taskId, 'playwright', 'read_content', {
 				maxLength: 10000,
 			});
-			sections.push(`### Page Content\n${contentResult.content}`);
+			const contentText = this.mcpContentOrEmpty(contentResult);
+			if (contentText.length > 0) {
+				sections.push(`### Page Content\n${contentText}`);
+			}
 		} catch (err) {
 			const message = err instanceof Error ? err.message : String(err);
 			sections.push(`### Exploration limited: ${message}`);

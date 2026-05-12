@@ -147,7 +147,8 @@ export class TaskDecompositionAgent extends BaseAgent {
 	private async gatherCodeContext(taskId: string): Promise<string> {
 		try {
 			const overview = await this.callMcpTool(taskId, 'code-graph', 'project_overview', {});
-			return overview.content;
+			const text = this.mcpContentOrEmpty(overview);
+			return text.length > 0 ? text : 'Code graph context unavailable.';
 		} catch {
 			return 'Code graph context unavailable.';
 		}

@@ -117,6 +117,17 @@ export class CiRetryAgent extends BaseAgent {
 				pr: prMatch ? parseInt(prMatch[1], 10) : undefined,
 			});
 
+			// Soft-error from McpClient: the `deployment` server isn't
+			// configured / reachable. `statusResult.content` is the
+			// human-readable diagnostic, not JSON — feeding it to
+			// `JSON.parse` would throw into the catch below and silently
+			// report `status: 'unknown'`. Detect the soft-error case
+			// explicitly so the diagnostic surfaces in `logs` for the
+			// retry agent's reasoning rather than being lost.
+			if (statusResult.isError) {
+				return { status: 'unknown', logs: statusResult.content };
+			}
+
 			const pipelineData = JSON.parse(statusResult.content);
 
 			let logs = '';
@@ -125,7 +136,8 @@ export class CiRetryAgent extends BaseAgent {
 					const logsResult = await this.callMcpTool(taskId, 'deployment', 'deployment_logs', {
 						deploymentId: pipelineData.commitSha,
 					});
-					logs = logsResult.content;
+					logs = this.mcpContentOrEmpty(logsResult)
+						|| JSON.stringify(pipelineData.stages, null, 2);
 				} catch {
 					logs = JSON.stringify(pipelineData.stages, null, 2);
 				}
