@@ -17,6 +17,7 @@
 	inset: 0;
 	box-sizing: border-box;
 	overflow: hidden;
+	padding: 0 4px;
 }
 
 .ai-customization-management-editor .welcome-prompts-inner {

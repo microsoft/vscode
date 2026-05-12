@@ -251,7 +251,7 @@
 	align-items: center;
 	gap: 8px;
 	flex-shrink: 0;
-	padding: 6px 2px;
+	padding: 12px 2px;
 }
 
 .ai-customization-list-widget .list-search-container,
@@ -583,9 +583,8 @@
 .ai-customization-list-widget .section-title-header,
 .mcp-list-widget .section-title-header {
 	flex-shrink: 0;
-	padding: 4px 4px 8px 4px;
+	padding: 4px 4px 32px 4px;
 	border-bottom: 1px solid var(--vscode-panel-border);
-	margin-bottom: 8px;
 }
 
 .ai-customization-list-widget .section-title-header .section-title-row,
