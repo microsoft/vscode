@@ -390,7 +390,6 @@ export class BreadcrumbsControl {
 		// display uri which can be derived from certain inputs
 		const fileInfoUri = EditorResourceAccessor.getOriginalUri(this._editorGroup.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 
-		this.show();
 		this._ckBreadcrumbsPossible.set(true);
 
 		const model = this._instantiationService.createInstance(BreadcrumbsModel,
@@ -417,6 +416,7 @@ export class BreadcrumbsControl {
 					// untitled files have no file path — hide until symbols are available
 					this.hide();
 				} else {
+					this.show();
 					this._widget.setEnabled(false);
 					this._widget.setItems([new class extends BreadcrumbsItem {
 						render(container: HTMLElement): void {
@@ -431,7 +431,7 @@ export class BreadcrumbsControl {
 					}]);
 				}
 			} else {
-				this.show(); // re-show if hidden while waiting for symbols (e.g. untitled file)
+				this.show();
 				this._widget.setEnabled(true);
 				this._widget.setItems(items);
 				this._widget.reveal(items[items.length - 1]);
