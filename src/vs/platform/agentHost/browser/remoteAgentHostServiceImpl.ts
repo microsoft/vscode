@@ -40,9 +40,22 @@ import { PROTOCOL_VERSION } from '../common/state/protocol/version/registry.js';
 interface IConnectionEntry {
 	readonly store: DisposableStore;
 	readonly client: RemoteAgentHostProtocolClient;
+	/**
+	 * Optional teardown for the shared-process tunnel that this entry's
+	 * transport is using (SSH or dev-tunnels). Tracked separately from
+	 * {@link store} because on reconnect the new entry takes ownership of
+	 * the same underlying connectionId — running the old teardown would
+	 * disconnect the freshly-established tunnel as a side effect.
+	 */
+	readonly transportDisposable?: IDisposable;
 	connected: boolean;
 	/** Current connection status for UI display. */
 	status: RemoteAgentHostConnectionStatus;
+}
+
+function disposeEntry(entry: IConnectionEntry): void {
+	entry.store.dispose();
+	entry.transportDisposable?.dispose();
 }
 
 export class RemoteAgentHostService extends Disposable implements IRemoteAgentHostService {
@@ -223,6 +236,13 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 
 		// Dispose any existing entry for this address to avoid leaking
 		// old protocol clients and relay transports on reconnect.
+		//
+		// CRITICAL: we deliberately do NOT run the existing entry's
+		// transportDisposable. On a reconnect to the same address, the
+		// shared-process tunnel keyed by connectionId is already owned by
+		// the new connection we just established. Running the old teardown
+		// would call _mainService.disconnect(connectionId) and immediately
+		// kill the brand-new tunnel.
 		const existingEntry = this._entries.get(address);
 		if (existingEntry) {
 			this._entries.delete(address);
@@ -234,13 +254,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		// Create a connection entry wrapping the pre-connected client
 		const protocolClient = connection as RemoteAgentHostProtocolClient;
 		store.add(protocolClient);
-		// Tear the underlying transport (e.g. SSH/tunnel relay) down with
-		// the entry. This is what makes "Remove Remote" actually close the
-		// shared-process tunnel and stop the remote agent host process.
-		if (transportDisposable) {
-			store.add(transportDisposable);
-		}
-		const connEntry: IConnectionEntry = { store, client: protocolClient, connected: true, status: RemoteAgentHostConnectionStatus.connected };
+		const connEntry: IConnectionEntry = { store, client: protocolClient, transportDisposable, connected: true, status: RemoteAgentHostConnectionStatus.connected };
 		this._entries.set(address, connEntry);
 		this._names.set(address, entry.name);
 		this._registeredEntries.set(address, entry);
@@ -297,7 +311,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		const entry = this._entries.get(address);
 		if (entry) {
 			this._entries.delete(address);
-			entry.store.dispose();
+			disposeEntry(entry);
 			this._rejectPendingConnectionWait(address, new Error(`Connection closed: ${address}`));
 			this._onDidChangeConnections.fire();
 		}
@@ -643,7 +657,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		}
 		this._pendingConnectionWaits.clear();
 		for (const entry of this._entries.values()) {
-			entry.store.dispose();
+			disposeEntry(entry);
 		}
 		this._entries.clear();
 		for (const handle of this._labelFormatters.values()) {

@@ -1305,6 +1305,27 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._horizontalScrollbar = undefined;
 		}
 
+		if (this._pressAnyKeyToCloseListener) {
+			this._pressAnyKeyToCloseListener.dispose();
+			this._pressAnyKeyToCloseListener = undefined;
+		}
+
+		if (this._exitReason === undefined) {
+			this._exitReason = reason ?? TerminalExitReason.Unknown;
+		}
+
+		this._processManager.dispose();
+		// Process manager dispose/shutdown doesn't fire process exit, trigger with undefined if it
+		// hasn't happened yet
+		this._onProcessExit(undefined);
+
+		// Fire onDisposed before disposing xterm so that contributions can clean
+		// up their xterm addons while the raw terminal is still alive. Disposing
+		// xterm first would cause AddonManager to remove addons from its list,
+		// and subsequent contribution disposal would fail with "Could not dispose
+		// an addon that has not been loaded".
+		this._onDisposed.fire(this);
+
 		try {
 			this.xterm?.dispose();
 		} catch (err: unknown) {
@@ -1320,22 +1341,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._terminalHasTextContextKey.reset();
 			this._onDidBlur.fire(this);
 		}
-
-		if (this._pressAnyKeyToCloseListener) {
-			this._pressAnyKeyToCloseListener.dispose();
-			this._pressAnyKeyToCloseListener = undefined;
-		}
-
-		if (this._exitReason === undefined) {
-			this._exitReason = reason ?? TerminalExitReason.Unknown;
-		}
-
-		this._processManager.dispose();
-		// Process manager dispose/shutdown doesn't fire process exit, trigger with undefined if it
-		// hasn't happened yet
-		this._onProcessExit(undefined);
-
-		this._onDisposed.fire(this);
 
 		super.dispose();
 	}

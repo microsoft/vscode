@@ -32,7 +32,7 @@ import { SubscribeResult } from '../../../common/state/protocol/commands.js';
 import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
 import { ResponsePartKind, ROOT_STATE_URI, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, ToolResultContentType, isSubagentSession, type SessionInputAnswer, type SessionInputRequest, type SessionState, type TerminalState, type ToolResultContent, type ToolResultSubagentContent } from '../../../common/state/sessionState.js';
 import type { RootState } from '../../../common/state/protocol/state.js';
-import { type RootAgentsChangedAction, type SessionInputRequestedAction, type SessionToolCallReadyAction, type SessionAddedNotification } from '../../../common/state/sessionActions.js';
+import { type RootAgentsChangedAction, type SessionInputRequestedAction, type SessionToolCallReadyAction, type SessionAddedNotification, type SessionUsageAction } from '../../../common/state/sessionActions.js';
 import { NotificationType } from '../../../common/state/protocol/notifications.js';
 import type { INotificationBroadcastParams } from '../../../common/state/sessionProtocol.js';
 import {
@@ -475,6 +475,34 @@ function startBackgroundApprovalLoop(c: TestProtocolClient, options: IBackground
 		// Verify we received at least one response part
 		const responseParts = client.receivedNotifications(n => isActionNotification(n, 'session/responsePart'));
 		assert.ok(responseParts.length > 0, 'should have received at least one response part');
+	});
+
+	test('usage reports include Copilot cost metadata', async function () {
+		this.timeout(120_000);
+
+		const sessionUri = await createRealSession(client, 'real-sdk-usage', createdSessions, URI.file(tmpdir()).toString());
+		dispatchTurn(client, sessionUri, 'turn-usage', 'Reply with exactly "usage-ok" and do not use tools.', 1);
+
+		const usageNotif = await client.waitForNotification(n => isActionNotification(n, 'session/usage'), 90_000);
+		const usageAction = getActionEnvelope(usageNotif).action as SessionUsageAction;
+		assert.strictEqual(usageAction.session, sessionUri);
+		assert.strictEqual(usageAction.turnId, 'turn-usage');
+		assert.strictEqual(typeof usageAction.usage.model, 'string');
+		assert.ok(usageAction.usage.model);
+		assert.ok(usageAction.usage.inputTokens === undefined || usageAction.usage.inputTokens > 0);
+		assert.ok(usageAction.usage.outputTokens === undefined || usageAction.usage.outputTokens > 0);
+
+		const cost = usageAction.usage._meta?.cost;
+		if (typeof cost !== 'number') {
+			assert.fail(`expected usage._meta.cost to be numeric: ${JSON.stringify(usageAction.usage)}`);
+		}
+		assert.ok(cost > 0, `expected usage._meta.cost to be positive: ${JSON.stringify(usageAction.usage)}`);
+
+		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'), 90_000);
+		const snapshot = await client.call<SubscribeResult>('subscribe', { resource: sessionUri });
+		const state = snapshot.snapshot.state as SessionState;
+		const turn = state.turns.find(t => t.id === 'turn-usage');
+		assert.strictEqual(turn?.usage?._meta?.cost, cost);
 	});
 
 	// ---- Tool call with permission flow -------------------------------------
