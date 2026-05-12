@@ -137,42 +137,6 @@ describe('translateSpan', () => {
 		expect(events).toHaveLength(0);
 	});
 
-	it('truncates oversized user message content', () => {
-		const state = createSessionTranslationState();
-		const longMessage = 'x'.repeat(20_000);
-		const span = makeSpan({
-			attributes: {
-				'gen_ai.operation.name': 'invoke_agent',
-				'copilot_chat.user_request': longMessage,
-			},
-		});
-
-		const events = translateSpan(span, state);
-		const userEvent = events.find(e => e.type === 'user.message');
-		expect(userEvent).toBeDefined();
-		expect((userEvent!.data.content as string).length).toBeLessThan(longMessage.length);
-		expect((userEvent!.data.content as string)).toContain('[truncated]');
-	});
-
-	it('truncates oversized tool result content', () => {
-		const state = createSessionTranslationState();
-		state.started = true;
-		const longResult = 'x'.repeat(10_000);
-
-		const span = makeSpan({
-			attributes: {
-				'gen_ai.operation.name': 'execute_tool',
-				'gen_ai.tool.name': 'read_file',
-				'gen_ai.tool.result': longResult,
-			},
-		});
-
-		const events = translateSpan(span, state);
-		const result = events[0].data.result as { content: string };
-		expect(result.content.length).toBeLessThan(longResult.length);
-		expect(result.content).toContain('[truncated]');
-	});
-
 	it('chains parentId across events', () => {
 		const state = createSessionTranslationState();
 		const span1 = makeSpan({
@@ -381,19 +345,5 @@ describe('translateDebugLogEntry', () => {
 
 		const events = translateDebugLogEntry(entry, 'sess-1', state);
 		expect(events).toHaveLength(0);
-	});
-
-	it('truncates oversized user message', () => {
-		const state = createSessionTranslationState();
-		state.started = true;
-		const entry = makeDebugEntry({
-			type: 'user_message',
-			name: 'user_message',
-			attrs: { content: 'x'.repeat(20_000) },
-		});
-
-		const events = translateDebugLogEntry(entry, 'sess-1', state);
-		expect((events[0].data.content as string).length).toBeLessThan(20_000);
-		expect((events[0].data.content as string)).toContain('[truncated]');
 	});
 });

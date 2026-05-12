@@ -9,30 +9,11 @@ import type { ICompletedSpanData } from '../../../platform/otel/common/otelServi
 import type { IDebugLogEntry } from '../../../platform/chat/common/chatDebugFileLoggerService';
 import type { SessionEvent, WorkingDirectoryContext } from './cloudSessionTypes';
 
-// ── Content size limits (bytes) ─────────────────────────────────────────────────
-// Truncate content before buffering to keep memory and payload sizes bounded.
-
-/** Maximum size for user message content. */
-const MAX_USER_MESSAGE_SIZE = 10_240;
-
-/** Maximum size for assistant message content. */
-const MAX_ASSISTANT_MESSAGE_SIZE = 10_240;
-
-/** Maximum size for tool result content blocks. */
-const MAX_TOOL_RESULT_SIZE = 5_120;
+// ── Event size limit (bytes) ────────────────────────────────────────────────────
+// Whole events exceeding this size are dropped before buffering.
 
 /** Maximum estimated JSON size for a single event before it is dropped. */
-const MAX_EVENT_SIZE = 51_200;
-
-/**
- * Truncate a string to a maximum byte length (UTF-8 approximation).
- */
-function truncate(str: string, maxBytes: number): string {
-	if (str.length <= maxBytes) {
-		return str;
-	}
-	return str.slice(0, maxBytes) + '... [truncated]';
-}
+const MAX_EVENT_SIZE = 102_400;
 
 /**
  * Rough estimate of the JSON-serialized size of an event.
@@ -117,7 +98,7 @@ export function translateSpan(
 		// Emit user.message (matches CLI format)
 		if (userRequest) {
 			events.push(makeEvent(state, 'user.message', {
-				content: truncate(userRequest, MAX_USER_MESSAGE_SIZE),
+				content: userRequest,
 				source: 'chat',
 				agentMode: 'interactive',
 			}));
@@ -129,7 +110,7 @@ export function translateSpan(
 		if (assistantText || toolRequests.length > 0) {
 			events.push(makeEvent(state, 'assistant.message', {
 				messageId: generateUuid(),
-				content: truncate(assistantText ?? '', MAX_ASSISTANT_MESSAGE_SIZE),
+				content: assistantText ?? '',
 				toolRequests: toolRequests.length > 0 ? toolRequests : undefined,
 			}));
 
@@ -150,18 +131,18 @@ export function translateSpan(
 			const toolCallId = (span.attributes[GenAiAttr.TOOL_CALL_ID] as string | undefined) ?? generateUuid();
 			const resultText = span.attributes['gen_ai.tool.result'] as string | undefined;
 			const success = span.status.code !== 2; // SpanStatusCode.ERROR = 2
-			const truncatedResult = resultText ? truncate(resultText, MAX_TOOL_RESULT_SIZE) : '';
+			const resultContent = resultText ?? '';
 
 			// Emit tool.execution_complete (matches CLI format exactly)
 			events.push(makeEvent(state, 'tool.execution_complete', {
 				toolCallId,
 				success,
 				result: success ? {
-					content: truncatedResult,
-					detailedContent: truncatedResult,
+					content: resultContent,
+					detailedContent: resultContent,
 				} : undefined,
 				error: !success ? {
-					message: truncatedResult || 'Tool execution failed',
+					message: resultContent || 'Tool execution failed',
 					code: 'failure',
 				} : undefined,
 			}));
@@ -242,7 +223,7 @@ export function translateDebugLogEntry(
 					: undefined;
 			if (content) {
 				events.push(makeEventAt(state, ts, 'user.message', {
-					content: truncate(content, MAX_USER_MESSAGE_SIZE),
+					content,
 					source: 'chat',
 					agentMode: 'interactive',
 				}));
@@ -255,7 +236,7 @@ export function translateDebugLogEntry(
 			if (response) {
 				events.push(makeEventAt(state, ts, 'assistant.message', {
 					messageId: generateUuid(),
-					content: truncate(response, MAX_ASSISTANT_MESSAGE_SIZE),
+					content: response,
 				}));
 			}
 			break;
@@ -267,18 +248,18 @@ export function translateDebugLogEntry(
 				const toolCallId = entry.spanId || generateUuid();
 				const resultText = typeof entry.attrs.result === 'string' ? entry.attrs.result : undefined;
 				const success = entry.status === 'ok';
-				const truncatedResult = resultText ? truncate(resultText, MAX_TOOL_RESULT_SIZE) : '';
+				const resultContent = resultText ?? '';
 
 				events.push(makeEventAt(state, ts, 'tool.execution_complete', {
 					toolCallId,
 					toolName,
 					success,
 					result: success ? {
-						content: truncatedResult,
-						detailedContent: truncatedResult,
+						content: resultContent,
+						detailedContent: resultContent,
 					} : undefined,
 					error: !success ? {
-						message: truncatedResult || (typeof entry.attrs.error === 'string' ? entry.attrs.error : 'Tool execution failed'),
+						message: resultContent || (typeof entry.attrs.error === 'string' ? entry.attrs.error : 'Tool execution failed'),
 						code: 'failure',
 					} : undefined,
 				}));
