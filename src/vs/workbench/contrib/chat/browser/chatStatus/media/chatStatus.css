@@ -237,6 +237,55 @@
 	border-radius: 4px;
 }
 
+/* Compact Quota Indicator (2x2 grid: plan name + percentage, reset + label) */
+
+.chat-status-bar-entry-tooltip .quota-indicator.compact {
+	display: grid;
+	grid-template-columns: 1fr auto;
+	grid-template-rows: auto auto auto;
+	grid-template-areas:
+		"title value"
+		"reset suffix"
+		"bar bar";
+	column-gap: 12px;
+	row-gap: 2px;
+}
+
+.chat-status-bar-entry-tooltip .quota-indicator.compact .quota-title {
+	grid-area: title;
+	margin-bottom: 0;
+}
+
+.chat-status-bar-entry-tooltip .quota-indicator.compact .quota-details {
+	display: contents;
+}
+
+.chat-status-bar-entry-tooltip .quota-indicator.compact .quota-percentage {
+	display: contents;
+}
+
+.chat-status-bar-entry-tooltip .quota-indicator.compact .quota-percentage .quota-value {
+	grid-area: value;
+	text-align: right;
+}
+
+.chat-status-bar-entry-tooltip .quota-indicator.compact .quota-percentage .quota-value-suffix {
+	grid-area: suffix;
+	text-align: right;
+	font-size: 12px;
+	line-height: 16px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.chat-status-bar-entry-tooltip .quota-indicator.compact .quota-reset {
+	grid-area: reset;
+}
+
+.chat-status-bar-entry-tooltip .quota-indicator.compact .quota-bar {
+	grid-area: bar;
+	margin-top: 4px;
+}
+
 /* Quota Callout */
 
 .chat-status-bar-entry-tooltip .quota-callout {
