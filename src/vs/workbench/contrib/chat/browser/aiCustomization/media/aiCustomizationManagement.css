@@ -375,7 +375,6 @@
 .ai-customization-group-header .group-label {
 	font-weight: 500;
 	text-transform: capitalize;
-	letter-spacing: 0.04em;
 	color: var(--vscode-sideBarSectionHeader-foreground, var(--vscode-foreground));
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -387,7 +386,6 @@
 	font-size: 10px;
 	font-weight: 500;
 	color: var(--vscode-descriptionForeground);
-	border-radius: 8px;
 	min-width: 14px;
 	text-align: center;
 	line-height: 16px;
@@ -900,34 +898,6 @@
 	flex-direction: column;
 	height: 100%;
 	overflow: hidden;
-}
-
-.mcp-list-widget .section-footer {
-	flex-shrink: 0;
-	padding: 12px 4px 6px 4px;
-	border-top: 1px solid var(--vscode-widget-border);
-}
-
-.mcp-list-widget .section-footer .section-footer-description {
-	font-size: 13px;
-	color: var(--vscode-descriptionForeground);
-	line-height: 1.5;
-	margin: 0 0 8px 0;
-}
-
-.mcp-list-widget .section-footer .section-footer-link {
-	font-size: 13px;
-	color: var(--vscode-textLink-foreground);
-	text-decoration: none;
-	cursor: pointer;
-	display: inline-flex;
-	align-items: center;
-	gap: 4px;
-}
-
-.mcp-list-widget .section-footer .section-footer-link:hover {
-	text-decoration: underline;
-	color: var(--vscode-textLink-activeForeground);
 }
 
 .mcp-list-widget .mcp-list-container {

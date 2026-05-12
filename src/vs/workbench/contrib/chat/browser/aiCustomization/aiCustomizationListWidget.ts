@@ -125,6 +125,8 @@ interface IAICustomizationItemTemplateData {
 	readonly description: HighlightedLabel;
 	readonly disposables: DisposableStore;
 	readonly elementDisposables: DisposableStore;
+	/** Index of the row currently rendered into this template, or -1 when unbound. */
+	currentIndex: number;
 }
 
 interface IGroupHeaderTemplateData {
@@ -229,6 +231,15 @@ export function formatDisplayName(name: string): string {
 class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICustomizationItemTemplateData> {
 	readonly templateId = 'aiCustomizationItem';
 
+	/**
+	 * Live (non-disposed) templates. Used to keep only the focused row's
+	 * inline action bar in the document tab order so that Tab from a focused
+	 * row enters that row's actions exactly once instead of cycling through
+	 * every row's actions.
+	 */
+	private readonly templates = new Set<IAICustomizationItemTemplateData>();
+	private focusedIndex = -1;
+
 	constructor(
 		@IHoverService private readonly hoverService: IHoverService,
 		@ILabelService private readonly labelService: ILabelService,
@@ -237,6 +248,21 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
 	) { }
+
+	/**
+	 * Tell the renderer which row index is currently focused in the list.
+	 * The action bar of that row (and only that row) is made tab-focusable.
+	 * Pass -1 to clear focus; in that case all action bars are made non-focusable.
+	 */
+	setFocusedIndex(index: number): void {
+		this.focusedIndex = index;
+		for (const template of this.templates) {
+			// Guard against the -1 === -1 case where unbound/recycled templates
+			// (whose currentIndex was reset by disposeElement) would otherwise be
+			// made tab-focusable when no row has focus.
+			template.actionBar.setFocusable(index !== -1 && template.currentIndex === index);
+		}
+	}
 
 	renderTemplate(container: HTMLElement): IAICustomizationItemTemplateData {
 		const disposables = new DisposableStore();
@@ -258,8 +284,13 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 		const actionBar = disposables.add(new ActionBar(actionsContainer, {
 			actionViewItemProvider: createActionViewItem.bind(undefined, this.instantiationService),
 		}));
+		// Keep the inline actions out of the document tab order by default. Only the
+		// focused row's action bar is made tab-focusable (see `setFocusedIndex`),
+		// so Tab from a focused row enters that row's actions exactly once instead
+		// of cycling through every row's actions.
+		actionBar.setFocusable(false);
 
-		return {
+		const template: IAICustomizationItemTemplateData = {
 			container,
 			actionsContainer,
 			actionBar,
@@ -270,11 +301,16 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 			description,
 			disposables,
 			elementDisposables,
+			currentIndex: -1,
 		};
+		this.templates.add(template);
+		return template;
 	}
 
 	renderElement(entry: IFileItemEntry, index: number, templateData: IAICustomizationItemTemplateData): void {
 		templateData.elementDisposables.clear();
+		templateData.currentIndex = index;
+		templateData.actionBar.setFocusable(this.focusedIndex !== -1 && index === this.focusedIndex);
 		const element = entry.item;
 
 		// Type icon: use per-item override or fall back to prompt type
@@ -434,7 +470,12 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 		templateData.actionBar.context = context;
 	}
 
+	disposeElement(_entry: IFileItemEntry, _index: number, templateData: IAICustomizationItemTemplateData): void {
+		templateData.currentIndex = -1;
+	}
+
 	disposeTemplate(templateData: IAICustomizationItemTemplateData): void {
+		this.templates.delete(templateData);
 		templateData.elementDisposables.dispose();
 		templateData.disposables.dispose();
 	}
@@ -514,21 +555,6 @@ export function getCountAnnouncement(section: AICustomizationManagementSection, 
 }
 
 /**
- * Returns the type icon for a section (used in group headers as an
- * experimental replacement for per-item icons).
- */
-function sectionToTypeIcon(section: AICustomizationManagementSection): ThemeIcon | undefined {
-	switch (section) {
-		case AICustomizationManagementSection.Agents: return agentIcon;
-		case AICustomizationManagementSection.Skills: return skillIcon;
-		case AICustomizationManagementSection.Instructions: return instructionsIcon;
-		case AICustomizationManagementSection.Hooks: return hookIcon;
-		case AICustomizationManagementSection.Prompts: return promptIcon;
-		default: return undefined;
-	}
-}
-
-/**
  * An ordered create action for the add button.
  */
 interface ICreateAction {
@@ -546,7 +572,6 @@ export class AICustomizationListWidget extends Disposable {
 	readonly element: HTMLElement;
 
 	private sectionTitleHeader!: HTMLElement;
-	private sectionTitleBackSlot!: HTMLElement;
 	private sectionTitle!: HTMLElement;
 	private sectionTitleDescription!: HTMLElement;
 	private sectionTitleDescriptionText!: HTMLElement;
@@ -570,6 +595,9 @@ export class AICustomizationListWidget extends Disposable {
 	private searchQuery: string = '';
 	private readonly collapsedGroups = new Set<string>();
 	private _layoutDeferred = false;
+	private lastLayoutWidth = 0;
+	private lastLayoutHeight = 0;
+	private lastHeaderHeight = 0;
 	private readonly dropdownActionDisposables = this._register(new DisposableStore());
 
 	/** Monotonically increasing counter; guards the post-load announcement against stale calls. */
@@ -630,10 +658,9 @@ export class AICustomizationListWidget extends Disposable {
 	}
 
 	private create(): void {
-		// Section title header (back arrow + title + description + learn more) at the top.
+		// Section title header (title + description with inline learn more) at the top.
 		this.sectionTitleHeader = DOM.append(this.element, $('.section-title-header'));
 		const titleRow = DOM.append(this.sectionTitleHeader, $('.section-title-row'));
-		this.sectionTitleBackSlot = DOM.append(titleRow, $('.section-title-back-slot'));
 		this.sectionTitle = DOM.append(titleRow, $('h2.section-title'));
 		this.sectionTitleDescription = DOM.append(this.sectionTitleHeader, $('p.section-title-description'));
 		this.sectionTitleDescriptionText = DOM.append(this.sectionTitleDescription, $('span.section-title-description-text'));
@@ -645,6 +672,28 @@ export class AICustomizationListWidget extends Disposable {
 				this.openerService.open(URI.parse(href));
 			}
 		}));
+
+		// Re-layout when the header height changes (e.g. description wraps,
+		// or CSS adjustments alter padding) so the list's allotted height stays
+		// in sync with the actual on-screen header size. Only relayout when the
+		// header height actually changed to avoid redundant work on DPR changes
+		// or width-only resizes.
+		const targetWindow = DOM.getWindow(this.element);
+		const headerObserver = this._register(new DOM.DisposableResizeObserver(
+			'AICustomizationListWidget.sectionTitleHeader',
+			() => {
+				if (this.lastLayoutWidth <= 0 || this.lastLayoutHeight <= 0) {
+					return;
+				}
+				const headerHeight = this.sectionTitleHeader.offsetHeight;
+				if (headerHeight === this.lastHeaderHeight) {
+					return;
+				}
+				this.layout(this.lastLayoutHeight, this.lastLayoutWidth);
+			},
+			targetWindow,
+		));
+		this._register(headerObserver.observe(this.sectionTitleHeader));
 
 		// Search and button container
 		this.searchAndButtonContainer = DOM.append(this.element, $('.list-search-and-button-container'));
@@ -705,6 +754,7 @@ export class AICustomizationListWidget extends Disposable {
 		this.emptyStateContainer.style.display = 'none';
 
 		// Create list
+		const itemRenderer = this.instantiationService.createInstance(AICustomizationItemRenderer);
 		this.list = this._register(this.instantiationService.createInstance(
 			WorkbenchList<IListEntry>,
 			'AICustomizationManagementList',
@@ -712,7 +762,7 @@ export class AICustomizationListWidget extends Disposable {
 			new AICustomizationListDelegate(),
 			[
 				new GroupHeaderRenderer(this.hoverService),
-				this.instantiationService.createInstance(AICustomizationItemRenderer),
+				itemRenderer,
 			],
 			{
 				identityProvider: {
@@ -749,6 +799,26 @@ export class AICustomizationListWidget extends Disposable {
 					this.toggleGroup(e.element);
 				} else {
 					this._onDidSelectItem.fire(e.element.item);
+				}
+			}
+		}));
+
+		// Keep only the focused row's inline action bar in the document tab order
+		// so Tab from a focused row enters that row's actions exactly once instead
+		// of cycling through the action bar of every rendered row.
+		this._register(this.list.onDidChangeFocus(e => {
+			itemRenderer.setFocusedIndex(e.indexes.length ? e.indexes[0] : -1);
+		}));
+
+		// When the list itself receives DOM focus (e.g. via Tab) and no row is
+		// focused yet, focus the first selectable item (skipping group headers)
+		// so the focus indicator is visible instead of requiring the user to
+		// press an arrow key first.
+		this._register(this.list.onDidFocus(() => {
+			if (this.list.getFocus().length === 0 && this.displayEntries.length > 0) {
+				const firstItemIndex = this.displayEntries.findIndex(e => e.type !== 'group-header');
+				if (firstItemIndex >= 0) {
+					this.list.setFocus([firstItemIndex]);
 				}
 			}
 		}));
@@ -834,13 +904,6 @@ export class AICustomizationListWidget extends Disposable {
 	}
 
 	/**
-	 * Prepends an element to the section title row (left of the section title).
-	 */
-	prependToSearchRow(element: HTMLElement): void {
-		this.sectionTitleBackSlot.appendChild(element);
-	}
-
-	/**
 	 * Sets the current section and binds the list to the model's per-section
 	 * observable. Returns once the initial fetch for the section has resolved
 	 * so that callers (e.g. tests/fixtures) can rely on rendered output
@@ -921,7 +984,7 @@ export class AICustomizationListWidget extends Disposable {
 				break;
 		}
 		this.sectionTitle.textContent = title;
-		this.sectionTitleDescriptionText.textContent = description + ' ';
+		this.sectionTitleDescriptionText.textContent = description;
 		this.sectionLink.textContent = learnMoreLabel;
 		this.sectionLink.href = docsUrl;
 	}
@@ -1341,16 +1404,6 @@ export class AICustomizationListWidget extends Disposable {
 			group.items.push(item);
 		}
 
-		// Experiment: replace per-group source icons with the section's
-		// type icon so the icon appears in the list/group header instead
-		// of being repeated on every list item.
-		const typeIcon = sectionToTypeIcon(this.currentSection);
-		if (typeIcon) {
-			for (const g of groups) {
-				g.icon = typeIcon;
-			}
-		}
-
 		this.buildGroupedEntries(groups);
 
 		this.commitDisplayEntries();
@@ -1496,6 +1549,8 @@ export class AICustomizationListWidget extends Disposable {
 	 * Layouts the widget.
 	 */
 	layout(height: number, width: number): void {
+		this.lastLayoutHeight = height;
+		this.lastLayoutWidth = width;
 		this.element.style.height = `${height}px`;
 		this.searchInput.layout();
 
@@ -1516,8 +1571,9 @@ export class AICustomizationListWidget extends Disposable {
 			});
 			return;
 		}
-		const footerHeight = this.sectionTitleHeader.offsetHeight;
-		const listHeight = Math.max(0, height - searchBarHeight - footerHeight);
+		const headerHeight = this.sectionTitleHeader.offsetHeight;
+		this.lastHeaderHeight = headerHeight;
+		const listHeight = Math.max(0, height - searchBarHeight - headerHeight);
 
 		this.listContainer.style.height = `${listHeight}px`;
 		this.list.layout(listHeight, width);
