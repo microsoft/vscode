@@ -3267,9 +3267,10 @@
 				"properties": {
 					"github.copilot.chat.claudeAgent.allowAutoPermissions": {
 						"type": "boolean",
-						"default": true,
+						"default": false,
 						"tags": [
-							"preview"
+							"preview",
+							"onExp"
 						],
 						"markdownDescription": "%github.copilot.config.claudeAgent.allowAutoPermissions%"
 					},

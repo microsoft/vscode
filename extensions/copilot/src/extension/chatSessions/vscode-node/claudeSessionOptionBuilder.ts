@@ -7,6 +7,7 @@ import { PermissionMode } from '@anthropic-ai/claude-agent-sdk';
 import * as l10n from '@vscode/l10n';
 import * as vscode from 'vscode';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
+import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { IWorkspaceService } from '../../../platform/workspace/common/workspaceService';
 import { CancellationToken } from '../../../util/vs/base/common/cancellation';
 import { basename } from '../../../util/vs/base/common/resources';
@@ -40,6 +41,7 @@ export class ClaudeSessionOptionBuilder {
 		private readonly _configurationService: IConfigurationService,
 		private readonly _folderMruService: IChatFolderMruService,
 		private readonly _workspaceService: IWorkspaceService,
+		private readonly _experimentationService: IExperimentationService,
 	) { }
 
 	async buildNewSessionGroups(): Promise<vscode.ChatSessionProviderOptionGroup[]> {
@@ -79,7 +81,7 @@ export class ClaudeSessionOptionBuilder {
 
 	buildPermissionModeGroup(): vscode.ChatSessionProviderOptionGroup {
 		const bypassEnabled = this._configurationService.getConfig(ConfigKey.ClaudeAgentAllowDangerouslySkipPermissions);
-		const autoEnabled = this._configurationService.getConfig(ConfigKey.ClaudeAgentAllowAutoPermissions);
+		const autoEnabled = this._configurationService.getExperimentBasedConfig(ConfigKey.ClaudeAgentAllowAutoPermissions, this._experimentationService);
 		return buildPermissionModeItems(bypassEnabled, autoEnabled);
 	}
 

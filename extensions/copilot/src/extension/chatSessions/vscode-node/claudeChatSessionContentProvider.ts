@@ -12,6 +12,7 @@ import { ConfigKey, IConfigurationService } from '../../../platform/configuratio
 import { INativeEnvService } from '../../../platform/env/common/envService';
 import { getGitHubRepoInfoFromContext, IGitService } from '../../../platform/git/common/gitService';
 import { ILogService } from '../../../platform/log/common/logService';
+import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { IWorkspaceService } from '../../../platform/workspace/common/workspaceService';
 import { CancellationToken } from '../../../util/vs/base/common/cancellation';
 import { Emitter, Event } from '../../../util/vs/base/common/event';
@@ -303,9 +304,10 @@ export class ClaudeChatSessionItemController extends Disposable {
 		@ILogService private readonly _logService: ILogService,
 		@IClaudeWorkspaceFolderService private readonly _claudeWorkspaceFolderService: IClaudeWorkspaceFolderService,
 		@IAuthenticationService _authenticationService: IAuthenticationService,
+		@IExperimentationService experimentationService: IExperimentationService,
 	) {
 		super();
-		this._optionBuilder = new ClaudeSessionOptionBuilder(_configurationService, folderMruService, _workspaceService);
+		this._optionBuilder = new ClaudeSessionOptionBuilder(_configurationService, folderMruService, _workspaceService, experimentationService);
 
 		this._bypassPermissionsEnabled = observableFromEvent(
 			this,
@@ -321,7 +323,7 @@ export class ClaudeChatSessionItemController extends Disposable {
 					e => e.affectsConfiguration(ConfigKey.ClaudeAgentAllowAutoPermissions.fullyQualifiedId)),
 				_authenticationService.onDidAuthenticationChange,
 			),
-			() => _configurationService.getConfig(ConfigKey.ClaudeAgentAllowAutoPermissions) as boolean
+			() => _configurationService.getExperimentBasedConfig(ConfigKey.ClaudeAgentAllowAutoPermissions, experimentationService)
 				&& (_authenticationService.copilotToken?.isEditorPreviewFeaturesEnabled() ?? false),
 		);
 
