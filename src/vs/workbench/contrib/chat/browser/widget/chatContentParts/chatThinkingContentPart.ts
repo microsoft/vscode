@@ -183,9 +183,6 @@ const funWorkingMessages = [
 	localize('chat.working.fun.2', "Reticulating splines"),
 	localize('chat.working.fun.3', "Untangling the spaghetti"),
 
-	// Halo
-	localize('chat.working.fun.halo.1', "Activating Cortana"),
-
 	// Minecraft
 	localize('chat.working.fun.minecraft.1', "Mining diamonds"),
 

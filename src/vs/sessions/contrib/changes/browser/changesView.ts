@@ -293,11 +293,12 @@ export class ChangesViewPane extends ViewPane {
 	private readonly hasGitRepositoryContextKey: IContextKey<boolean>;
 	private readonly hasUpstreamContextKey: IContextKey<boolean>;
 	private readonly hasIncomingChangesContextKey: IContextKey<boolean>;
-	private readonly hasOpenPullRequestContextKey: IContextKey<boolean>;
 	private readonly hasOutgoingChangesContextKey: IContextKey<boolean>;
-	private readonly hasPullRequestContextKey: IContextKey<boolean>;
-	private readonly hasGitHubRemoteContextKey: IContextKey<boolean>;
 	private readonly hasUncommittedChangesContextKey: IContextKey<boolean>;
+	private readonly hasBranchChangesContextKey: IContextKey<boolean>;
+	private readonly hasGitHubRemoteContextKey: IContextKey<boolean>;
+	private readonly hasPullRequestContextKey: IContextKey<boolean>;
+	private readonly hasOpenPullRequestContextKey: IContextKey<boolean>;
 	private readonly hasGitOperationInProgressContextKey: IContextKey<boolean>;
 
 	private readonly hasGitOperationInProgressObs: IObservable<boolean>;
@@ -345,6 +346,7 @@ export class ChangesViewPane extends ViewPane {
 		this.hasIncomingChangesContextKey = ActiveSessionContextKeys.HasIncomingChanges.bindTo(this.scopedContextKeyService);
 		this.hasOutgoingChangesContextKey = ActiveSessionContextKeys.HasOutgoingChanges.bindTo(this.scopedContextKeyService);
 		this.hasUncommittedChangesContextKey = ActiveSessionContextKeys.HasUncommittedChanges.bindTo(this.scopedContextKeyService);
+		this.hasBranchChangesContextKey = ActiveSessionContextKeys.HasBranchChanges.bindTo(this.scopedContextKeyService);
 		this.hasGitHubRemoteContextKey = ActiveSessionContextKeys.HasGitHubRemote.bindTo(this.scopedContextKeyService);
 		this.hasPullRequestContextKey = ActiveSessionContextKeys.HasPullRequest.bindTo(this.scopedContextKeyService);
 		this.hasOpenPullRequestContextKey = ActiveSessionContextKeys.HasOpenPullRequest.bindTo(this.scopedContextKeyService);
@@ -789,6 +791,7 @@ export class ChangesViewPane extends ViewPane {
 				this.hasIncomingChangesContextKey.set(state.incomingChanges !== undefined && state.incomingChanges > 0);
 				this.hasOutgoingChangesContextKey.set(state.outgoingChanges !== undefined && state.outgoingChanges > 0);
 				this.hasUncommittedChangesContextKey.set(state.uncommittedChanges !== undefined && state.uncommittedChanges > 0);
+				this.hasBranchChangesContextKey.set(state.hasBranchChanges === true);
 				this.hasGitOperationInProgressContextKey.set(state.hasGitOperationInProgress === true);
 			});
 		}));
@@ -836,11 +839,11 @@ export class ChangesViewPane extends ViewPane {
 
 		// Get the repository details for the session
 		// - uri: location of the repository
-		// - workingDirectory (optional): location of the worktree
+		// - workingDirectory: location of the worktree
 		const activeSession = this.sessionManagementService.activeSession.get();
-		const repository = activeSession?.workspace.get()?.repositories[0];
-		const workspaceFolderUri = repository?.workingDirectory ?? repository?.uri;
-		if (!repository?.uri || !workspaceFolderUri) {
+		const folder = activeSession?.workspace.get()?.folders[0];
+		const workspaceFolderUri = folder?.workingDirectory;
+		if (!folder?.root || !workspaceFolderUri) {
 			return undefined;
 		}
 
@@ -855,9 +858,9 @@ export class ChangesViewPane extends ViewPane {
 		} else {
 			// Local session
 			const branchName = this.viewModel.activeSessionStateObs.get()?.branchName;
-			name = repository.workingDirectory
-				? `${basename(repository.uri)} (${branchName})`
-				: basename(repository.uri);
+			name = branchName
+				? `${basename(folder.workingDirectory)} (${branchName})`
+				: basename(folder.workingDirectory);
 		}
 
 		return {
@@ -994,10 +997,10 @@ export class ChangesViewPane extends ViewPane {
 				() => {
 					// Pass in the tree root to be used to compute the label description
 					const activeSession = this.sessionManagementService.activeSession.get();
-					const repository = activeSession?.workspace.get()?.repositories[0];
-					return repository?.uri.scheme === GITHUB_REMOTE_FILE_SCHEME
+					const folder = activeSession?.workspace.get()?.folders[0];
+					return folder?.root.scheme === GITHUB_REMOTE_FILE_SCHEME
 						? URI.from({ scheme: Schemas.copilotPr, path: '/' })
-						: repository?.workingDirectory ?? repository?.uri;
+						: folder?.workingDirectory;
 				})],
 			{
 				alwaysConsumeMouseWheel: false,
