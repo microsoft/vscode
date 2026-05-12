@@ -260,14 +260,8 @@ export class ChatStatusDashboard extends DomWidget {
 				completionsQuotaIndicator = this.createQuotaIndicator(container, completionsQuota, localize('completionsLabel', "Inline Suggestions"), resetLabel);
 			}
 
-			// Global quota callout and header button are updated in the async block below
-
-			(async () => {
-				await updatePromise;
-				if (token.isCancellationRequested) {
-					return;
-				}
-
+			// Update indicators from current quota state
+			const updateIndicators = () => {
 				const { chat: chatQuota, premiumChat: premiumChatQuota, completions: completionsQuota } = this.chatEntitlementService.quotas;
 				if (chatQuota) {
 					chatQuotaIndicator?.(chatQuota);
@@ -283,7 +277,20 @@ export class ChatStatusDashboard extends DomWidget {
 					headerAdditionalSpendButton.element.style.display = calloutVisible ? '' : 'none';
 					headerAdditionalSpendButton.label = isAdditionalUsageEnabled ? localize('manageBudget', "Manage Budget") : localize('configureBudget', "Configure Budget");
 				}
+			};
+
+			// Update once when the initial fetch completes
+			(async () => {
+				await updatePromise;
+				if (token.isCancellationRequested) {
+					return;
+				}
+				updateIndicators();
 			})();
+
+			// Update dynamically when quota data changes while the dashboard is open
+			this._store.add(this.chatEntitlementService.onDidChangeQuotaRemaining(() => updateIndicators()));
+			this._store.add(this.chatEntitlementService.onDidChangeQuotaExceeded(() => updateIndicators()));
 		}
 
 		// Anonymous Indicator
@@ -727,14 +734,14 @@ export class ChatStatusDashboard extends DomWidget {
 				quotaCallout.className = 'quota-callout info';
 				calloutIcon.className = `callout-icon ${ThemeIcon.asClassName(Codicon.info)}`;
 				calloutText.textContent = isUsageBasedBilling
-					? localize('quotaAdditionalUsageActive', "Additional spend is configured. Usage will continue until limits reset.")
+					? localize('quotaAdditionalUsageActive', "Additional budget is configured. Usage will continue until limits reset.")
 					: localize('quotaBudgetActive', "Premium request budget is configured. Usage will continue until limits reset.");
 			} else if (maxUsedPercentage >= 75 && maxUsedPercentage < 100 && additionalUsageEnabled) {
 				quotaCallout.style.display = '';
 				quotaCallout.className = 'quota-callout info';
 				calloutIcon.className = `callout-icon ${ThemeIcon.asClassName(Codicon.info)}`;
 				calloutText.textContent = isUsageBasedBilling
-					? localize('quotaAdditionalUsageApproaching', "Once the limit is reached, additional spend will be used.")
+					? localize('quotaAdditionalUsageApproaching', "Once the limit is reached, additional budget will be used.")
 					: localize('quotaBudgetApproaching', "Once the limit is reached, premium request budget will be used.");
 			} else if (maxUsedPercentage >= 100 && !additionalUsageEnabled) {
 				quotaCallout.style.display = '';

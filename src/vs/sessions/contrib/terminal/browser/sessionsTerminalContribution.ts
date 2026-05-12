@@ -5,7 +5,7 @@
 
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derived } from '../../../../base/common/observable.js';
+import { autorun, derived, IReader } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
 import { localize, localize2 } from '../../../../nls.js';
@@ -21,7 +21,7 @@ import { Menus } from '../../../browser/menus.js';
 import { isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../common/agentHostSessionsProvider.js';
 import { SessionsWelcomeVisibleContext, IsPhoneLayoutContext } from '../../../common/contextkeys.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { isWorkspaceAgentSessionType, ISession } from '../../../services/sessions/common/session.js';
+import { ISession } from '../../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
@@ -45,11 +45,15 @@ interface ISessionTerminalInfo {
  * workspace-backed agent sessions. Returns `undefined` for sessions without a
  * workspace (e.g. Cloud), or when no path is available.
  */
-function getSessionTerminalInfo(session: ISession | undefined): ISessionTerminalInfo | undefined {
-	if (!session || !isWorkspaceAgentSessionType(session.sessionType)) {
+function getSessionTerminalInfo(session: ISession | undefined, reader?: IReader): ISessionTerminalInfo | undefined {
+	if (!session) {
 		return undefined;
 	}
-	const folder = session.workspace.get()?.folders[0];
+	const workspace = reader ? session.workspace.read(reader) : session.workspace.get();
+	if (workspace?.isVirtualWorkspace !== false) {
+		return undefined;
+	}
+	const folder = workspace.folders[0];
 	const cwd = folder?.workingDirectory;
 	if (!cwd) {
 		return undefined;
@@ -116,7 +120,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		// This is a little hacky but I don't see any better approach.
 		this._register(autorun(reader => {
 			const session = this._sessionsManagementService.activeSession.read(reader);
-			const info = getSessionTerminalInfo(session);
+			const info = getSessionTerminalInfo(session, reader);
 			this._agentHostTerminalService.setDefaultCwd(info?.cwd);
 		}));
 

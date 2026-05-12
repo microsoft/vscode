@@ -531,6 +531,7 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 				gitRepository: { uri, workTreeUri: undefined, baseBranchName: undefined, gitHubInfo: constObservable(undefined) },
 			}],
 			requiresWorkspaceTrust: true,
+			isVirtualWorkspace: false,
 		};
 	}
 

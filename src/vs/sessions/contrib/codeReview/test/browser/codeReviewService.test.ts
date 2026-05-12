@@ -141,6 +141,7 @@ suite('CodeReviewService', () => {
 					gitRepository: { uri: workspaceUri, workTreeUri: undefined, baseBranchName: undefined, gitHubInfo: gitHubInfoObs },
 				}],
 				requiresWorkspaceTrust: false,
+				isVirtualWorkspace: false,
 			});
 			const sessionData: ISession = {
 				sessionId: `test:${resource.toString()}`,
