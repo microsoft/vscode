@@ -656,16 +656,16 @@
   {
     "name": "edit-InlineChatIntent [inline] [cpp] - edit for cpp",
     "contentFilterCount": 0,
-    "passCount": 5,
-    "failCount": 5,
-    "score": 0.5
+    "passCount": 9,
+    "failCount": 1,
+    "score": 0.9
   },
   {
     "name": "edit-InlineChatIntent [inline] [cpp] - edit for macro",
     "contentFilterCount": 0,
-    "passCount": 0,
-    "failCount": 10,
-    "score": 0
+    "passCount": 2,
+    "failCount": 8,
+    "score": 0.2
   },
   {
     "name": "edit-InlineChatIntent [inline] [csharp] - issue release#275: Inline Diff refinement causes massive duplication of code",
@@ -1977,16 +1977,16 @@
   {
     "name": "generate-InlineChatIntent [inline] [cpp] - cpp code generation",
     "contentFilterCount": 0,
-    "passCount": 3,
-    "failCount": 7,
-    "score": 0.3
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
   },
   {
     "name": "generate-InlineChatIntent [inline] [cpp] - templated code generation",
     "contentFilterCount": 0,
-    "passCount": 0,
-    "failCount": 10,
-    "score": 0
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
   },
   {
     "name": "generate-InlineChatIntent [inline] [html] - code below cursor is not duplicated",
