@@ -143,6 +143,12 @@ export class WebTunnelAgentHostService extends Disposable implements ITunnelAgen
 			await protocolClient.connect();
 			this._logService.info(`${LOG_PREFIX} Protocol handshake completed with ${address}`);
 
+			// Cache before announcing the live connection so the contribution's
+			// `onDidChangeTunnels` handler has created the provider by the time
+			// `onDidChangeConnections` fires from `addManagedConnection` and
+			// wires the connection. Also fires `onDidChangeTunnels`.
+			this.cacheTunnel(tunnel, authProvider);
+
 			await this._remoteAgentHostService.addManagedConnection({
 				name: tunnel.name,
 				connectionToken,
@@ -154,8 +160,6 @@ export class WebTunnelAgentHostService extends Disposable implements ITunnelAgen
 					authProvider,
 				},
 			}, protocolClient);
-
-			this._onDidChangeTunnels.fire();
 		} catch (err) {
 			protocolClient.dispose();
 			this._logService.error(`${LOG_PREFIX} Connection setup failed`, err);

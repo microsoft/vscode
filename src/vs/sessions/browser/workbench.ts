@@ -293,6 +293,8 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 
 	//#endregion
 
+	private static readonly _PART_VISIBILITY_KEY = 'workbench.sessions.partVisibility';
+
 	//#region Services
 
 	private editorGroupService!: IEditorGroupsService;
@@ -301,6 +303,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 	private viewDescriptorService!: IViewDescriptorService;
 	private sessionsManagementService!: ISessionsManagementService;
 	private instantiationService!: IInstantiationService;
+	private storageService!: IStorageService;
 
 	//#endregion
 
@@ -617,6 +620,27 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		}
 	}
 
+	private _loadPartVisibility(storageService: IStorageService): { editor?: boolean; auxiliaryBar?: boolean; sidebar?: boolean } {
+		const raw = storageService.get(Workbench._PART_VISIBILITY_KEY, StorageScope.WORKSPACE);
+		if (raw) {
+			try {
+				return JSON.parse(raw);
+			} catch {
+				// Corrupted data — remove the bad key so we don't keep warning on every startup
+				storageService.remove(Workbench._PART_VISIBILITY_KEY, StorageScope.WORKSPACE);
+			}
+		}
+		return {};
+	}
+
+	private _savePartVisibility(): void {
+		this.storageService.store(Workbench._PART_VISIBILITY_KEY, JSON.stringify({
+			editor: this.partVisibility.editor,
+			auxiliaryBar: this.partVisibility.auxiliaryBar,
+			sidebar: this.partVisibility.sidebar,
+		}), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+	}
+
 	//#endregion
 
 	private renderWorkbench(instantiationService: IInstantiationService, notificationService: NotificationService, storageService: IStorageService, configurationService: IConfigurationService): void {
@@ -634,7 +658,10 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		this.partVisibility.auxiliaryBar = visibilityDefaults.auxiliaryBar;
 		this.partVisibility.panel = visibilityDefaults.panel;
 		this.partVisibility.chatBar = visibilityDefaults.chatBar;
-		this.partVisibility.editor = visibilityDefaults.editor;
+		const savedPartVisibility = this._loadPartVisibility(storageService);
+		this.partVisibility.editor = savedPartVisibility.editor ?? visibilityDefaults.editor;
+		this.partVisibility.auxiliaryBar = savedPartVisibility.auxiliaryBar ?? visibilityDefaults.auxiliaryBar;
+		this.partVisibility.sidebar = savedPartVisibility.sidebar ?? visibilityDefaults.sidebar;
 
 		// State specific classes
 		const platformClass = isWindows ? 'windows' : isLinux ? 'linux' : 'mac';
@@ -894,6 +921,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		this.viewDescriptorService = accessor.get(IViewDescriptorService);
 		this.sessionsManagementService = accessor.get(ISessionsManagementService);
 		this.instantiationService = accessor.get(IInstantiationService);
+		this.storageService = accessor.get(IStorageService);
 		accessor.get(ITitleService);
 
 		// Register layout listeners
@@ -1514,6 +1542,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		}
 
 		this.layoutMobileSidebar();
+		this._savePartVisibility();
 	}
 
 	private setAuxiliaryBarHidden(hidden: boolean): void {
@@ -1547,6 +1576,8 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 				this.paneCompositeService.openPaneComposite(paneCompositeToOpen, ViewContainerLocation.AuxiliaryBar);
 			}
 		}
+
+		this._savePartVisibility();
 	}
 
 	private setEditorHidden(hidden: boolean): void {
@@ -1565,6 +1596,8 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		if (this.editorPartView) {
 			this.workbenchGrid.setViewVisible(this.editorPartView, !hidden);
 		}
+
+		this._savePartVisibility();
 	}
 
 	private setPanelHidden(hidden: boolean): void {

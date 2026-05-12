@@ -6,13 +6,17 @@
 import type { PermissionMode, Query, SDKMessage, SDKUserMessage, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { CancellationError } from '../../../../base/common/errors.js';
-import { Emitter } from '../../../../base/common/event.js';
-import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { Disposable, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
+import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
 import { AgentSignal } from '../../common/agentService.js';
+import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
+import { ISessionDatabase } from '../../common/sessionDataService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { SessionInputAnswer, SessionInputRequest, SessionInputResponseKind, ToolCallPendingConfirmationState } from '../../common/state/protocol/state.js';
+import { ClaudeFileEditObserver } from './claudeFileEditObserver.js';
 import { ClaudeMapperState, mapSDKMessageToAgentSignals } from './claudeMapSessionEvents.js';
 import { ClaudePermissionKind } from './claudeToolDisplay.js';
 
@@ -114,7 +118,7 @@ export class ClaudeAgentSession extends Disposable {
 	 * (allow) or `false` (deny) via {@link respondToPermissionRequest}
 	 * or {@link _denyAllPending}.
 	 */
-	private readonly _pendingPermissions = new Map<string, DeferredPromise<boolean>>();
+	private readonly _pendingPermissions = new PendingRequestRegistry<boolean>();
 
 	/**
 	 * Phase 7 S3.3 mapper state — one instance per session, threaded
@@ -134,7 +138,25 @@ export class ClaudeAgentSession extends Disposable {
 	 * resolves via {@link respondToUserInputRequest} (workbench answered)
 	 * or {@link _denyAllPending} (session disposed mid-park).
 	 */
-	private readonly _pendingUserInputs = new Map<string, DeferredPromise<{ response: SessionInputResponseKind; answers?: Record<string, SessionInputAnswer> }>>();
+	private readonly _pendingUserInputs = new PendingRequestRegistry<{ response: SessionInputResponseKind; answers?: Record<string, SessionInputAnswer> }>();
+
+	/**
+	 * Phase 8 — file-edit observation collaborator. Owns the
+	 * {@link FileEditTracker} and the in-flight `tool_use_id → path` map.
+	 * Constructed from the dbRef passed to this session at materialize
+	 * time; disposed with the session.
+	 */
+	private readonly _editObserver: ClaudeFileEditObserver;
+
+	/**
+	 * All session-progress signals (actions, pending confirmations,
+	 * input requests) flow through this emitter. The owning agent
+	 * subscribes via {@link onDidSessionProgress} and re-fires on its
+	 * own public event; the session never receives a writer for the
+	 * agent's emitter, keeping the publish/subscribe direction clean.
+	 */
+	private readonly _onDidSessionProgress = this._register(new Emitter<AgentSignal>());
+	readonly onDidSessionProgress: Event<AgentSignal> = this._onDidSessionProgress.event;
 
 	constructor(
 		readonly sessionId: string,
@@ -142,10 +164,19 @@ export class ClaudeAgentSession extends Disposable {
 		readonly workingDirectory: URI | undefined,
 		private readonly _warm: WarmQuery,
 		private readonly _abortController: AbortController,
-		private readonly _onDidSessionProgress: Emitter<AgentSignal>,
-		private readonly _logService: ILogService,
+		dbRef: IReference<ISessionDatabase>,
+		@ILogService private readonly _logService: ILogService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
+		// Phase 8: hand the dbRef to the file-edit observer, which owns it
+		// for this session's lifetime so {@link FileEditTracker.takeCompletedEdit}'s
+		// `storeFileEdit` write has a live database. The observer is
+		// disposed first — ahead of the WarmQuery abort below — so any
+		// in-flight write completes against an open DB.
+		this._editObserver = this._register(
+			instantiationService.createInstance(ClaudeFileEditObserver, sessionUri.toString(), dbRef),
+		);
 		// Dispose chain → abort → SDK cleanup (sdk.d.ts:982).
 		this._register(toDisposable(() => this._abortController.abort()));
 		// Wake any parked prompt iterator so it can return `{ done: true }`.
@@ -202,14 +233,8 @@ export class ClaudeAgentSession extends Disposable {
 	 * workbench. The SDK is blocked on the returned promise inside its
 	 * `canUseTool` callback until {@link respondToPermissionRequest}
 	 * resolves it. Resolves with `false` if the session is already
-	 * aborted.
-	 *
-	 * The register-fire-await sequence is deliberately atomic here:
-	 * `agentSideEffects` auto-approves writes synchronously inside the
-	 * fire path, so a deferred registered AFTER the fire would miss
-	 * that response and the SDK's `canUseTool` would deadlock. Owning
-	 * the sequence in the session keeps that ordering invariant in one
-	 * place and mirrors {@link requestUserInput}.
+	 * aborted. The register-fire-await sequence is atomic per
+	 * {@link PendingRequestRegistry.registerAndFire}.
 	 */
 	requestPermission(args: {
 		readonly toolUseID: string;
@@ -220,16 +245,15 @@ export class ClaudeAgentSession extends Disposable {
 		if (this._abortController.signal.aborted) {
 			return Promise.resolve(false);
 		}
-		const deferred = new DeferredPromise<boolean>();
-		this._pendingPermissions.set(args.toolUseID, deferred);
-		this._onDidSessionProgress.fire({
-			kind: 'pending_confirmation',
-			session: this.sessionUri,
-			state: args.state,
-			permissionKind: args.permissionKind,
-			...(args.permissionPath !== undefined ? { permissionPath: args.permissionPath } : {}),
+		return this._pendingPermissions.registerAndFire(args.toolUseID, () => {
+			this._onDidSessionProgress.fire({
+				kind: 'pending_confirmation',
+				session: this.sessionUri,
+				state: args.state,
+				permissionKind: args.permissionKind,
+				...(args.permissionPath !== undefined ? { permissionPath: args.permissionPath } : {}),
+			});
 		});
-		return deferred.p;
 	}
 
 	/**
@@ -239,13 +263,7 @@ export class ClaudeAgentSession extends Disposable {
 	 * Mirrors {@link CopilotAgentSession.respondToPermissionRequest}.
 	 */
 	respondToPermissionRequest(requestId: string, approved: boolean): boolean {
-		const deferred = this._pendingPermissions.get(requestId);
-		if (!deferred) {
-			return false;
-		}
-		this._pendingPermissions.delete(requestId);
-		deferred.complete(approved);
-		return true;
+		return this._pendingPermissions.respond(requestId, approved);
 	}
 
 	/**
@@ -265,18 +283,17 @@ export class ClaudeAgentSession extends Disposable {
 		if (this._abortController.signal.aborted) {
 			return Promise.resolve({ response: SessionInputResponseKind.Cancel });
 		}
-		const deferred = new DeferredPromise<{ response: SessionInputResponseKind; answers?: Record<string, SessionInputAnswer> }>();
-		this._pendingUserInputs.set(request.id, deferred);
-		this._onDidSessionProgress.fire({
-			kind: 'action',
-			session: this.sessionUri,
-			action: {
-				type: ActionType.SessionInputRequested,
-				session: this.sessionUri.toString(),
-				request,
-			},
+		return this._pendingUserInputs.registerAndFire(request.id, () => {
+			this._onDidSessionProgress.fire({
+				kind: 'action',
+				session: this.sessionUri,
+				action: {
+					type: ActionType.SessionInputRequested,
+					session: this.sessionUri.toString(),
+					request,
+				},
+			});
 		});
-		return deferred.p;
 	}
 
 	/**
@@ -289,13 +306,7 @@ export class ClaudeAgentSession extends Disposable {
 		response: SessionInputResponseKind,
 		answers?: Record<string, SessionInputAnswer>,
 	): boolean {
-		const deferred = this._pendingUserInputs.get(requestId);
-		if (!deferred) {
-			return false;
-		}
-		this._pendingUserInputs.delete(requestId);
-		deferred.complete({ response, answers });
-		return true;
+		return this._pendingUserInputs.respond(requestId, { response, answers });
 	}
 
 	/**
@@ -312,6 +323,8 @@ export class ClaudeAgentSession extends Disposable {
 		await this._query?.setPermissionMode(mode);
 	}
 
+	// #endregion
+
 	/**
 	 * Resolve every parked permission with `false` and every parked
 	 * input with `Cancel`. Called from {@link dispose} BEFORE
@@ -321,19 +334,8 @@ export class ClaudeAgentSession extends Disposable {
 	 * and the subprocess shuts down without orphaning a handle.
 	 */
 	private _denyAllPending(): void {
-		for (const [, deferred] of this._pendingPermissions) {
-			if (!deferred.isSettled) {
-				deferred.complete(false);
-			}
-		}
-		this._pendingPermissions.clear();
-
-		for (const [, deferred] of this._pendingUserInputs) {
-			if (!deferred.isSettled) {
-				deferred.complete({ response: SessionInputResponseKind.Cancel });
-			}
-		}
-		this._pendingUserInputs.clear();
+		this._pendingPermissions.denyAll(false);
+		this._pendingUserInputs.denyAll({ response: SessionInputResponseKind.Cancel });
 	}
 
 	override dispose(): void {
@@ -344,8 +346,6 @@ export class ClaudeAgentSession extends Disposable {
 		this._denyAllPending();
 		super.dispose();
 	}
-
-	// #endregion
 
 	/**
 	 * Build the prompt iterable bound to {@link WarmQuery.query}.
@@ -399,9 +399,21 @@ export class ClaudeAgentSession extends Disposable {
 				// Mapper needs the current turn's `turnId`. Phase 6's
 				// per-session sequencer keeps `_inFlightRequests.length <= 1`
 				// while a turn is streaming, so the head element is the
-				// active turn. Skip mapping if no turn is in flight (e.g.
-				// the SDK emits a stray pre-prompt system message).
+				// active turn. Skip mapping (and observation, which also
+				// needs a turnId) if no turn is in flight (e.g. the SDK
+				// emits a stray pre-prompt system message).
 				const turnId = this._inFlightRequests[0]?.turnId;
+				// Phase 8 — observe edit tool calls in the SDK message
+				// stream (non-bypassable; user-configurable hooks were
+				// considered and rejected — see {@link ClaudeFileEditObserver}).
+				// Assistant: fire-and-forget pre-snapshot. User: must await
+				// before the mapper runs so `cacheFileEdit` lands before
+				// `state.takeFileEdit` in `mapUserMessage`.
+				if (message.type === 'assistant') {
+					this._editObserver.observeAssistant(message);
+				} else if (message.type === 'user' && turnId !== undefined) {
+					await this._editObserver.observeUser(message, turnId, this._mapperState);
+				}
 				if (turnId !== undefined) {
 					try {
 						const signals = mapSDKMessageToAgentSignals(

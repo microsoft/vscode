@@ -277,6 +277,7 @@ export type AgentSignal =
 	| IAgentActionSignal
 	| IAgentToolPendingConfirmationSignal
 	| IAgentSubagentStartedSignal
+	| IAgentSubagentCompletedSignal
 	| IAgentSteeringConsumedSignal;
 
 /**
@@ -344,6 +345,19 @@ export interface IAgentSubagentStartedSignal {
 	readonly agentName: string;
 	readonly agentDisplayName: string;
 	readonly agentDescription?: string;
+}
+
+/**
+ * A subagent has finished — either successfully or with an error. The host
+ * uses this to tear down the child session after all of its events have been
+ * routed. The parent tool call completing is not a reliable signal for this
+ * because background subagents (e.g. Copilot's `mode: background` task) keep
+ * emitting events after their parent tool call returns immediately.
+ */
+export interface IAgentSubagentCompletedSignal {
+	readonly kind: 'subagent_completed';
+	readonly session: URI;
+	readonly toolCallId: string;
 }
 
 /** A steering message was consumed (sent to the model). */

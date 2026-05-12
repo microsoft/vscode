@@ -41,7 +41,7 @@ function createAuthService(opts?: { anyGitHubSession?: unknown; copilotToken?: u
 	const authService = {
 		_serviceBrand: undefined,
 		anyGitHubSession: hasSession ? opts.anyGitHubSession : { accessToken: 'tok' },
-		copilotToken: hasToken ? opts.copilotToken : { isFreeUser: false, isNoAuthUser: false },
+		copilotToken: hasToken ? opts.copilotToken : { isFreeUser: false, isNoAuthUser: false, isUsageBasedBilling: true },
 		onDidAuthenticationChange: emitter.event,
 	} as unknown as IAuthenticationService;
 	return { authService, emitter };
@@ -156,7 +156,7 @@ describe('ChatInputNotificationContribution', () => {
 			authEmitter.fire();
 
 			// Sign back in
-			(authService as any).copilotToken = { isFreeUser: false, isNoAuthUser: false };
+			(authService as any).copilotToken = { isFreeUser: false, isNoAuthUser: false, isUsageBasedBilling: true };
 			authEmitter.fire();
 
 			// Threshold was cleared, so it should re-show
@@ -179,7 +179,7 @@ describe('ChatInputNotificationContribution', () => {
 			authEmitter.fire();
 
 			// Sign back in, quota no longer exhausted
-			(authService as any).copilotToken = { isFreeUser: false, isNoAuthUser: false };
+			(authService as any).copilotToken = { isFreeUser: false, isNoAuthUser: false, isUsageBasedBilling: true };
 			(quotaService as any).quotaExhausted = false;
 			(quotaService as any).quotaInfo = undefined;
 			(quotaService as any).rateLimitInfo = { session: undefined, weekly: undefined };
@@ -202,19 +202,30 @@ describe('ChatInputNotificationContribution', () => {
 			expect(mockNotification.hide).not.toHaveBeenCalled();
 		});
 
-		test('anonymous user with no GitHub session still sees quota notifications', () => {
+		test('anonymous UBB user with no GitHub session still sees quota notifications', () => {
 			setup(
-				{ anyGitHubSession: undefined, copilotToken: { isNoAuthUser: true, isFreeUser: false } },
+				{ anyGitHubSession: undefined, copilotToken: { isNoAuthUser: true, isFreeUser: false, isUsageBasedBilling: true } },
 				{ quotaExhausted: true },
 			);
 
-			// Anonymous user has a copilotToken but no GitHub session.
+			// Anonymous UBB user has a copilotToken but no GitHub session.
 			// They should still see the exhausted notification.
 			quotaEmitter.fire();
 
 			expect(mockNotification.show).toHaveBeenCalled();
 			expect(mockNotification.message).toBe('Credit Limit Reached');
 			expect(mockNotification.description).toBe('Sign in to keep going.');
+		});
+
+		test('anonymous PRU user does not see quota notifications', () => {
+			setup(
+				{ anyGitHubSession: undefined, copilotToken: { isNoAuthUser: true, isFreeUser: false, isUsageBasedBilling: false } },
+				{ quotaExhausted: true },
+			);
+
+			quotaEmitter.fire();
+
+			expect(mockNotification.show).not.toHaveBeenCalled();
 		});
 	});
 
@@ -223,7 +234,7 @@ describe('ChatInputNotificationContribution', () => {
 	describe('quota exhausted', () => {
 		test('shows exhausted notification', () => {
 			setup(
-				{ copilotToken: { isFreeUser: true, isNoAuthUser: false } },
+				{ copilotToken: { isFreeUser: true, isNoAuthUser: false, isUsageBasedBilling: true } },
 				{ quotaExhausted: true },
 			);
 
@@ -360,6 +371,64 @@ describe('ChatInputNotificationContribution', () => {
 			// notifications should still flow through normally.
 			expect(mockNotification.show).toHaveBeenCalled();
 			expect(mockNotification.message).toBe('Credit Limit Reached');
+		});
+	});
+
+	describe('PRU users do not see quota notifications', () => {
+		test('does not show exhausted notification for individual PRU user', () => {
+			setup(
+				{ copilotToken: { isFreeUser: false, isNoAuthUser: false, isManagedPlan: false, isUsageBasedBilling: false } },
+				{ quotaExhausted: true },
+			);
+
+			quotaEmitter.fire();
+
+			expect(mockNotification.show).not.toHaveBeenCalled();
+		});
+
+		test('does not show exhausted notification for free PRU user', () => {
+			setup(
+				{ copilotToken: { isFreeUser: true, isNoAuthUser: false, isManagedPlan: false, isUsageBasedBilling: false } },
+				{ quotaExhausted: true },
+			);
+
+			quotaEmitter.fire();
+
+			expect(mockNotification.show).not.toHaveBeenCalled();
+		});
+
+		test('does not show exhausted notification for managed plan PRU user', () => {
+			setup(
+				{ copilotToken: { isFreeUser: false, isNoAuthUser: false, isManagedPlan: true, isUsageBasedBilling: false } },
+				{ quotaExhausted: true },
+			);
+
+			quotaEmitter.fire();
+
+			expect(mockNotification.show).not.toHaveBeenCalled();
+		});
+
+		test('does not show approaching notification for PRU user', () => {
+			setup(
+				{ copilotToken: { isFreeUser: false, isNoAuthUser: false, isManagedPlan: false, isUsageBasedBilling: false } },
+				{ quotaInfo: makeQuota(5) }, // 95% used
+			);
+
+			quotaEmitter.fire();
+
+			expect(mockNotification.show).not.toHaveBeenCalled();
+		});
+
+		test('still shows rate limit warning for PRU user', () => {
+			setup(
+				{ copilotToken: { isFreeUser: false, isNoAuthUser: false, isManagedPlan: false, isUsageBasedBilling: false } },
+				{ session: makeQuota(25) }, // 75% used
+			);
+
+			quotaEmitter.fire();
+
+			expect(mockNotification.show).toHaveBeenCalled();
+			expect(mockNotification.message).toContain('session');
 		});
 	});
 });

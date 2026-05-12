@@ -135,16 +135,29 @@
 
 /* Below this width the bottom-row pickers can't fit their labels comfortably,
  * so collapse to icon + chevron only. The .new-chat-widget-container declares
- * `container-type: size` which makes this a size container query. */
+ * `container-type: size` which makes this a size container query. The
+ * permission picker (`.sessions-chat-permission-picker`) gets a more lenient
+ * threshold below because its label ("Autopilot (Preview)" etc.) carries
+ * important state that is worth preserving as long as there is room. */
 @container (max-width: 330px) {
 	/* Bottom-row pickers (Copilot CLI, Default Approvals, Worktree, branch): icon-only */
 	.new-chat-widget-container .new-chat-bottom-container .sessions-chat-dropdown-label {
 		display: none;
 	}
 
+	.new-chat-widget-container .new-chat-bottom-container .sessions-chat-permission-picker .sessions-chat-dropdown-label {
+		display: revert;
+	}
+
 	/* Chat input config toolbar: hide mode picker label (uses sessions-chat-dropdown-label),
 	 * but keep the model picker label (uses chat-input-picker-label) visible. */
 	.new-chat-widget-container .sessions-chat-config-toolbar .sessions-chat-dropdown-label {
+		display: none;
+	}
+}
+
+@container (max-width: 240px) {
+	.new-chat-widget-container .new-chat-bottom-container .sessions-chat-permission-picker .sessions-chat-dropdown-label {
 		display: none;
 	}
 }
