@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { CHAT_MODEL } from '../../src/platform/configuration/common/configurationService';
+// import { CHAT_MODEL } from '../../src/platform/configuration/common/configurationService'; // re-enable with #315940
 import { TestingServiceCollection } from '../../src/platform/test/node/services';
 import { escapeRegExpCharacters } from '../../src/util/vs/base/common/strings';
 import { URI } from '../../src/util/vs/base/common/uri';
@@ -23,7 +23,9 @@ function executeEditTest(
 
 function forEditsAndAgent(callback: (strategy: EditTestStrategyPanel, variant: string | undefined, model: string | undefined, configurations: Configuration<any>[] | undefined) => void): void {
 	callback(EditTestStrategy.Edits, '', undefined, undefined);
-	callback(EditTestStrategy.Edits, '-claude', CHAT_MODEL.CLAUDE_SONNET, undefined);
+	// Temporarily disabled: claude-3.5-sonnet returns model_not_supported from the endpoint.
+	// Tracked by https://github.com/microsoft/vscode/issues/315940
+	// callback(EditTestStrategy.Edits, '-claude', CHAT_MODEL.CLAUDE_SONNET, undefined);
 	// callback(EditTestStrategy.Agent, '-agent', undefined);
 }
 

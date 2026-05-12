@@ -69,7 +69,32 @@ const stubManageModelsAction: IActionWidgetDropdownAction = {
 	run: () => { }
 };
 
-const stubLanguageModelsService = { getModelConfigurationActions: () => [], getModelConfiguration: () => undefined, getVendors: () => [] } as unknown as ILanguageModelsService;
+const stubLanguageModelsService = { getModelConfigurationActions: () => [], getModelConfiguration: () => undefined, getVendors: () => [], getLanguageModelGroups: () => [] } as unknown as ILanguageModelsService;
+
+/**
+ * Builds a `ILanguageModelsService` stub that simulates BYOK provider
+ * groups: each `vendors` entry advertises one or more user-configured
+ * groups (mapping group name to model identifiers). Used to exercise the
+ * picker's `(vendor, groupName)` bucketing without spinning up the real
+ * service.
+ */
+function createLanguageModelsServiceStub(vendors: { vendor: string; displayName: string; groups: { name: string; modelIdentifiers: string[] }[] }[]): ILanguageModelsService {
+	return {
+		getModelConfigurationActions: () => [],
+		getModelConfiguration: () => undefined,
+		getVendors: () => vendors.map(v => ({ vendor: v.vendor, displayName: v.displayName })),
+		getLanguageModelGroups: (vendor: string) => {
+			const v = vendors.find(x => x.vendor === vendor);
+			if (!v) {
+				return [];
+			}
+			return v.groups.map(g => ({
+				group: { vendor: v.vendor, name: g.name },
+				modelIdentifiers: g.modelIdentifiers,
+			}));
+		},
+	} as unknown as ILanguageModelsService;
+}
 
 function callBuild(
 	models: ILanguageModelChatMetadataAndIdentifier[],
@@ -84,6 +109,8 @@ function callBuild(
 		anonymous?: boolean;
 		showUnavailableFeatured?: boolean;
 		showFeatured?: boolean;
+		isUBB?: boolean;
+		languageModelsService?: ILanguageModelsService;
 	} = {},
 ): IActionListItem<IActionWidgetDropdownAction>[] {
 	const onSelect = () => { };
@@ -105,7 +132,9 @@ function callBuild(
 		entitlementService,
 		opts.showUnavailableFeatured ?? true,
 		opts.showFeatured ?? true,
-		stubLanguageModelsService,
+		opts.languageModelsService ?? stubLanguageModelsService,
+		undefined,
+		opts.isUBB,
 	);
 }
 
@@ -128,6 +157,16 @@ suite('buildModelPickerItems', () => {
 			badge: 'Copilot',
 			description: '15x',
 		} as IActionListItem<IActionWidgetDropdownAction>), 'Claude Opus 4.7, Copilot, 15x');
+	});
+
+	test('accessibility provider prefers ariaDescription over description', () => {
+		const provider = getModelPickerAccessibilityProvider();
+		assert.strictEqual(provider.getAriaLabel({
+			kind: ActionListItemKind.Action,
+			label: 'Claude Sonnet 4.6',
+			description: new MarkdownString('$(circle-filled)$(circle-filled)$(circle)$(circle)'),
+			ariaDescription: 'Medium cost',
+		} as IActionListItem<IActionWidgetDropdownAction>), 'Claude Sonnet 4.6, Medium cost');
 	});
 
 	test('auto model always appears first', () => {
@@ -491,6 +530,68 @@ suite('buildModelPickerItems', () => {
 		assert.strictEqual(vendorSeparators.length, 0);
 	});
 
+	test('Other Models splits a single vendor into per-group sections (BYOK)', () => {
+		// Simulates a BYOK setup where one vendor (`customoai`) advertises
+		// two user-configured provider groups. The picker should mirror the
+		// model configuration view and render one section per group rather
+		// than collapsing them under the vendor display name.
+		const auto = createAutoModel();
+		const gpt41 = createModel('gpt-4.1', 'gpt-4.1', 'customoai');
+		const ossModel = createModel('openai.gpt-oss-120b', 'gpt-oss-120b', 'customoai');
+		const lmService = createLanguageModelsServiceStub([
+			{
+				vendor: 'customoai',
+				displayName: 'OpenAI Compatible',
+				groups: [
+					{ name: 'OpenAI Compatible', modelIdentifiers: [gpt41.identifier] },
+					{ name: 'AWS Bedrock', modelIdentifiers: [ossModel.identifier] },
+				],
+			},
+		]);
+		const items = callBuild([auto, gpt41, ossModel], { languageModelsService: lmService });
+		const labelledSeparators = items.filter(i => i.kind === ActionListItemKind.Separator && i.label);
+		assert.deepStrictEqual(labelledSeparators.map(s => s.label), ['AWS Bedrock', 'OpenAI Compatible']);
+	});
+
+	test('Other Models keeps a single section when a vendor has only one group (BYOK)', () => {
+		const auto = createAutoModel();
+		const gpt41 = createModel('gpt-4.1', 'gpt-4.1', 'customoai');
+		const lmService = createLanguageModelsServiceStub([
+			{
+				vendor: 'customoai',
+				displayName: 'OpenAI Compatible',
+				groups: [{ name: 'OpenAI Compatible', modelIdentifiers: [gpt41.identifier] }],
+			},
+		]);
+		const items = callBuild([auto, gpt41], { languageModelsService: lmService });
+		const labelledSeparators = items.filter(i => i.kind === ActionListItemKind.Separator && i.label);
+		assert.strictEqual(labelledSeparators.length, 0);
+	});
+
+	test('promoted models show provider group name when groups disambiguate a single vendor (BYOK)', () => {
+		const auto = createAutoModel();
+		const gpt41 = createModel('gpt-4.1', 'gpt-4.1', 'customoai');
+		const ossModel = createModel('openai.gpt-oss-120b', 'gpt-oss-120b', 'customoai');
+		const lmService = createLanguageModelsServiceStub([
+			{
+				vendor: 'customoai',
+				displayName: 'OpenAI Compatible',
+				groups: [
+					{ name: 'OpenAI Compatible', modelIdentifiers: [gpt41.identifier] },
+					{ name: 'AWS Bedrock', modelIdentifiers: [ossModel.identifier] },
+				],
+			},
+		]);
+		const items = callBuild([auto, gpt41, ossModel], {
+			recentModelIds: [gpt41.identifier],
+			languageModelsService: lmService,
+		});
+		const promoted = getActionItems(items).find(a => a.label === 'gpt-4.1');
+		assert.ok(promoted);
+		// Badge should carry the user-configured group name, not the vendor displayName.
+		assert.strictEqual(promoted.badge, 'OpenAI Compatible');
+	});
+
 	test('onSelect callback is wired into action items', () => {
 		const auto = createAutoModel();
 		const modelA = createModel('gpt-4o', 'GPT-4o');
@@ -810,7 +911,7 @@ suite('buildModelPickerItems', () => {
 		const auto = createAutoModel();
 		const modelA = createModel('gpt-4o', 'GPT-4o');
 		modelA.metadata = { ...modelA.metadata, priceCategory: 'medium' } as ILanguageModelChatMetadata;
-		const items = callBuild([auto, modelA]);
+		const items = callBuild([auto, modelA], { isUBB: true });
 		const gptItem = getActionItems(items).find(a => a.label === 'GPT-4o');
 		assert.ok(gptItem);
 		// When priceCategory is set, the action's plain description should be undefined
@@ -819,6 +920,9 @@ suite('buildModelPickerItems', () => {
 		assert.ok(gptItem.description instanceof MarkdownString);
 		assert.ok(gptItem.description.value.includes('circle-filled'));
 		assert.ok(gptItem.description.value.includes('circle'));
+		// ariaDescription should be a readable label for screen readers
+		assert.ok(typeof gptItem.ariaDescription === 'string');
+		assert.ok(!gptItem.ariaDescription.includes('circle'));
 	});
 
 	test('model with unknown priceCategory shows no circle indicators', () => {

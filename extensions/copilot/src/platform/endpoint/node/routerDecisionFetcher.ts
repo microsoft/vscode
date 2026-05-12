@@ -82,7 +82,7 @@ export class RouterDecisionFetcher {
 		const copilotToken = copilotTokenObj.token;
 		requestBody.copilot_plan = copilotTokenObj.rawCopilotPlan;
 		const abortController = new AbortController();
-		const timeout = setTimeout(() => abortController.abort(), 1000);
+		const timeout = setTimeout(() => abortController.abort(), 2500);
 		let response: Response;
 		try {
 			response = await this._capiClientService.makeRequest<Response>({

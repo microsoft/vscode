@@ -25,7 +25,7 @@ import { BaseAgentHostSessionsProvider } from '../../browser/baseAgentHostSessio
 import '../../../applyCommitsToParentRepo/browser/applyChangesToParentRepo.js';
 
 function makeActiveSession(providerId: string): IActiveSession {
-	const chat: IChat = {
+	const chat = {
 		resource: URI.parse('file:///session'),
 		createdAt: new Date(),
 		title: observableValue('t', 'Test'),
@@ -37,9 +37,10 @@ function makeActiveSession(providerId: string): IActiveSession {
 		mode: observableValue('mo', undefined),
 		isArchived: observableValue('ia', false),
 		isRead: observableValue('ir', true),
+		checkpoints: observableValue('cp', undefined),
 		lastTurnEnd: observableValue('lte', undefined),
 		description: observableValue('d', undefined),
-	};
+	} satisfies IChat;
 	return {
 		sessionId: `${providerId}:x`,
 		resource: chat.resource,
@@ -60,12 +61,11 @@ function makeActiveSession(providerId: string): IActiveSession {
 		isRead: chat.isRead,
 		lastTurnEnd: chat.lastTurnEnd,
 		description: chat.description,
-		gitHubInfo: observableValue('gh', undefined),
 		chats: observableValue('chats', [chat]),
 		activeChat: observableValue('ac', chat),
 		mainChat: chat,
 		capabilities: { supportsMultipleChats: false },
-	} as IActiveSession;
+	} satisfies IActiveSession;
 }
 
 class FakeAgentHostProvider {
