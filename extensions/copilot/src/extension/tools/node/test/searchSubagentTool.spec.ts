@@ -170,4 +170,33 @@ suite('SearchSubagentTool', () => {
 			expect(capturedLoopOptions[0]?.toolCallLimit).toBe(baseLimit);
 		});
 	});
+
+	suite('parseFinalAnswerAndHydrate', () => {
+		const notCancelled = { isCancellationRequested: false } as vscode.CancellationToken;
+
+		test('preserves non-matching lines verbatim when the model uses a different format', async () => {
+			const { tool } = makeToolInstance(false);
+			const response = [
+				'Here are the relevant snippets:',
+				'- /workspace/file.ts (lines 10-20): test1',
+				'- /workspace/other.ts (lines 30-40): test2',
+			].join('\n');
+
+			const result = await tool['parseFinalAnswerAndHydrate'](response, '/workspace', notCancelled);
+
+			expect(result).toBe(response);
+		});
+
+		test('keeps a matching line verbatim when the captured path fails to open (no error suffix)', async () => {
+			const { tool } = makeToolInstance(false);
+			const response = [
+				'- /workspace/file.ts:10-20'
+			].join('\n');
+
+			const result = await tool['parseFinalAnswerAndHydrate'](response, '/workspace', notCancelled);
+
+			expect(result).toBe(response);
+			expect(result).not.toContain('unable to read file');
+		});
+	});
 });
