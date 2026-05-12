@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import type { ToolInvocation, ToolResultObject } from '@github/copilot-sdk';
-import { timeout } from '../../../../base/common/async.js';
+import { DeferredPromise } from '../../../../base/common/async.js';
 import { URI } from '../../../../base/common/uri.js';
 import * as platform from '../../../../base/common/platform.js';
 import { Emitter } from '../../../../base/common/event.js';
@@ -29,6 +29,7 @@ class TestAgentHostTerminalManager implements IAgentHostTerminalManager {
 	readonly sentTexts: { uri: string; data: string; options: ISendTextOptions }[] = [];
 	readonly existingTerminalUris = new Set<string>();
 	commandDetectionSupported = false;
+	readonly commandFinishedListenerRegistered = new DeferredPromise<void>();
 	private readonly _onCommandFinished = new Emitter<ICommandFinishedEvent>();
 
 	async createTerminal(params: CreateTerminalParams, options?: { shell?: string; preventShellHistory?: boolean; nonInteractive?: boolean }): Promise<void> {
@@ -37,14 +38,17 @@ class TestAgentHostTerminalManager implements IAgentHostTerminalManager {
 	writeInput(uri: string, data: string): void {
 		this.writes.push({ uri, data });
 	}
-	sendText(uri: string, data: string, options: ISendTextOptions): void {
+	async sendText(uri: string, data: string, options: ISendTextOptions): Promise<void> {
 		this.sentTexts.push({ uri, data, options });
 		this.writeInput(uri, formatTerminalText(data, options));
 	}
 	onData(): IDisposable { return Disposable.None; }
 	onExit(): IDisposable { return Disposable.None; }
 	onClaimChanged(): IDisposable { return Disposable.None; }
-	onCommandFinished(_uri: string, cb: (event: ICommandFinishedEvent) => void): IDisposable { return this._onCommandFinished.event(cb); }
+	onCommandFinished(_uri: string, cb: (event: ICommandFinishedEvent) => void): IDisposable {
+		this.commandFinishedListenerRegistered.complete();
+		return this._onCommandFinished.event(cb);
+	}
 	getContent(): string | undefined { return undefined; }
 	getClaim(): TerminalClaim | undefined { return undefined; }
 	hasTerminal(uri: string): boolean { return this.existingTerminalUris.has(uri); }
@@ -205,7 +209,7 @@ suite('CopilotShellTools', () => {
 			arguments: { command: 'echo first\necho second', timeout: 1000 },
 		};
 		const resultPromise = bashTool.handler({ command: 'echo first\necho second', timeout: 1000 }, invocation) as Promise<ToolResultObject>;
-		await timeout(10);
+		await terminalManager.commandFinishedListenerRegistered.p;
 		terminalManager.fireCommandFinished({ commandId: 'cmd-1', exitCode: 0, command: 'echo first\necho second', output: 'first\nsecond' });
 		const result = await resultPromise;
 
@@ -256,7 +260,7 @@ suite('CopilotShellTools', () => {
 			toolName: 'write_bash',
 			arguments: { command: 'answer\n' },
 		};
-		const result = writeTool.handler({ command: 'answer\n' }, invocation) as ToolResultObject;
+		const result = await writeTool.handler({ command: 'answer\n' }, invocation) as ToolResultObject;
 
 		assert.strictEqual(result.resultType, 'success');
 		assert.strictEqual(terminalManager.sentTexts[0].options.bracketedPasteMode, undefined);

@@ -258,8 +258,8 @@ suite('AgentHostTerminalManager – command detection integration', () => {
 		assert.strictEqual(formatTerminalText('echo first\r', { shouldExecute: true }), 'echo first\r');
 		assert.strictEqual(formatTerminalText('answer\n', { shouldExecute: false }), 'answer\r');
 		assert.strictEqual(formatTerminalText('/tmp/foo\npwd', { shouldExecute: true }), '/tmp/foo\rpwd\r');
-		assert.strictEqual(formatTerminalText('echo first\necho second', { shouldExecute: true, shouldWrapWithBracketedPaste: true }), '\x1b[200~echo first\recho second\x1b[201~\r');
-		assert.strictEqual(formatTerminalText('answer\n', { shouldExecute: false, shouldWrapWithBracketedPaste: true }), '\x1b[200~answer\r\x1b[201~');
+		assert.strictEqual(formatTerminalText('echo first\necho second', { shouldExecute: true, forceBracketedPasteMode: true }), '\x1b[200~echo first\recho second\x1b[201~\r');
+		assert.strictEqual(formatTerminalText('answer\n', { shouldExecute: false, forceBracketedPasteMode: true }), '\x1b[200~answer\r\x1b[201~');
 	});
 
 	test('writes formatted command input to the PTY', async () => {
@@ -282,7 +282,7 @@ suite('AgentHostTerminalManager – command detection integration', () => {
 		pty.fireData('prompt');
 		await createTerminal;
 
-		manager.sendText('agenthost-terminal://test/command-input', 'echo first\necho second', { shouldExecute: true });
+		await manager.sendText('agenthost-terminal://test/command-input', 'echo first\necho second', { shouldExecute: true });
 
 		assert.deepStrictEqual(pty.writes, ['echo first\recho second\r']);
 	});
@@ -306,9 +306,8 @@ suite('AgentHostTerminalManager – command detection integration', () => {
 		await pty.dataListenerRegistered.p;
 		pty.fireData('\x1b[?2004h');
 		await createTerminal;
-		await timeout(10);
 
-		manager.sendText('agenthost-terminal://test/bracketed-paste', 'echo first\necho second', { shouldExecute: true, bracketedPasteMode: true });
+		await manager.sendText('agenthost-terminal://test/bracketed-paste', 'echo first\necho second', { shouldExecute: true, bracketedPasteMode: true });
 
 		assert.deepStrictEqual(pty.writes, ['\x1b[200~echo first\recho second\x1b[201~\r']);
 	});
@@ -333,7 +332,7 @@ suite('AgentHostTerminalManager – command detection integration', () => {
 		pty.fireData('prompt');
 		await createTerminal;
 
-		manager.sendText('agenthost-terminal://test/bracketed-paste-disabled', 'echo first\necho second', { shouldExecute: true, bracketedPasteMode: true });
+		await manager.sendText('agenthost-terminal://test/bracketed-paste-disabled', 'echo first\necho second', { shouldExecute: true, bracketedPasteMode: true });
 
 		assert.deepStrictEqual(pty.writes, ['echo first\recho second\r']);
 	});

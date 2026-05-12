@@ -54,8 +54,9 @@ export interface ISendTextOptions {
 	bracketedPasteMode?: boolean;
 }
 
-export interface IFormatTerminalTextOptions extends ISendTextOptions {
-	shouldWrapWithBracketedPaste?: boolean;
+export interface IFormatTerminalTextOptions {
+	shouldExecute: boolean;
+	forceBracketedPasteMode?: boolean;
 }
 
 export function removeServerHandledTerminalQueries(data: string, state: ITerminalQueryFilterState): string {
@@ -90,7 +91,7 @@ function getServerHandledTerminalQueryPrefix(data: string): string {
 }
 
 export function formatTerminalText(data: string, options: IFormatTerminalTextOptions): string {
-	if (options.shouldWrapWithBracketedPaste) {
+	if (options.forceBracketedPasteMode) {
 		data = `\x1b[200~${data}\x1b[201~`;
 	}
 	data = data.replace(/\r?\n/g, '\r');
@@ -107,7 +108,7 @@ export interface IAgentHostTerminalManager {
 	readonly _serviceBrand: undefined;
 	createTerminal(params: CreateTerminalParams, options?: { shell?: string; preventShellHistory?: boolean; nonInteractive?: boolean }): Promise<void>;
 	writeInput(uri: string, data: string): void;
-	sendText(uri: string, data: string, options: ISendTextOptions): void;
+	sendText(uri: string, data: string, options: ISendTextOptions): Promise<void>;
 	onData(uri: string, cb: (data: string) => void): IDisposable;
 	onExit(uri: string, cb: (exitCode: number) => void): IDisposable;
 	onClaimChanged(uri: string, cb: (claim: TerminalClaim) => void): IDisposable;
@@ -456,10 +457,11 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 	}
 
 	/** Send formatted text to a terminal's PTY process. */
-	sendText(uri: string, data: string, options: ISendTextOptions): void {
+	async sendText(uri: string, data: string, options: ISendTextOptions): Promise<void> {
 		const terminal = this._terminals.get(uri);
-		const shouldWrapWithBracketedPaste = !!(options.bracketedPasteMode && terminal?.headlessTerminal?.isBracketedPasteMode());
-		this.writeInput(uri, formatTerminalText(data, { ...options, shouldWrapWithBracketedPaste }));
+		await terminal?.headlessTerminal?.whenPtyDataFlushed();
+		const forceBracketedPasteMode = !!(options.bracketedPasteMode && terminal?.headlessTerminal?.isBracketedPasteMode());
+		this.writeInput(uri, formatTerminalText(data, { shouldExecute: options.shouldExecute, forceBracketedPasteMode }));
 	}
 
 	/** Register a callback for PTY data events on a terminal. */

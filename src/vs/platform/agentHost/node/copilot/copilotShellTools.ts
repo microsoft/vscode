@@ -361,7 +361,7 @@ async function executeCommandWithShellIntegration(
 ): Promise<ToolResultObject> {
 	const disposables = new DisposableStore();
 
-	terminalManager.sendText(shell.terminalUri, `${prefixForHistorySuppression(shell.shellType)}${command}`, {
+	await terminalManager.sendText(shell.terminalUri, `${prefixForHistorySuppression(shell.shellType)}${command}`, {
 		shouldExecute: true,
 		bracketedPasteMode: shouldUseBracketedPasteMode(command),
 	});
@@ -433,11 +433,11 @@ async function executeCommandWithSentinel(
 	const contentBefore = terminalManager.getContent(shell.terminalUri) ?? '';
 	const offsetBefore = contentBefore.length;
 
-	terminalManager.sendText(shell.terminalUri, `${prefixForHistorySuppression(shell.shellType)}${command}`, {
+	await terminalManager.sendText(shell.terminalUri, `${prefixForHistorySuppression(shell.shellType)}${command}`, {
 		shouldExecute: true,
 		bracketedPasteMode: shouldUseBracketedPasteMode(command),
 	});
-	terminalManager.sendText(shell.terminalUri, sentinelCmd, { shouldExecute: true });
+	await terminalManager.sendText(shell.terminalUri, sentinelCmd, { shouldExecute: true });
 
 	return new Promise<ToolResultObject>(resolve => {
 		let resolved = false;
@@ -605,13 +605,13 @@ export async function createShellTools(
 		},
 		overridesBuiltInTool: true,
 		skipPermission: true,
-		handler: (args) => {
+		handler: async (args) => {
 			const shells = shellManager.listShells();
 			const shell = shells[shells.length - 1];
 			if (!shell) {
 				return makeFailureResult('No active shell found.', 'no_shell');
 			}
-			terminalManager.sendText(shell.terminalUri, args.command, { shouldExecute: false });
+			await terminalManager.sendText(shell.terminalUri, args.command, { shouldExecute: false });
 			return makeSuccessResult('Input sent to shell.');
 		},
 	};
