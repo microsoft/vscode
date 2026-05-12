@@ -13,10 +13,12 @@ import { localize } from '../../../../nls.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IChatSessionProviderOptionItem, IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { CopilotChatSessionsProvider, RemoteNewSession } from './copilotChatSessionsProvider.js';
+import { reportNewChatPickerClosed } from '../../chat/browser/newChatPickerTelemetry.js';
 
 const FILTER_THRESHOLD = 10;
 
@@ -54,6 +56,7 @@ export class CloudModelPicker extends Disposable {
 		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
 		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
 		@IChatSessionsService chatSessionsService: IChatSessionsService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 
@@ -158,9 +161,18 @@ export class CloudModelPicker extends Disposable {
 		const showFilter = items.filter(i => i.kind === ActionListItemKind.Action).length > FILTER_THRESHOLD;
 
 		const triggerElement = this._triggerElement;
+		const previousModel = this._selectedModel;
 		const delegate: IActionListDelegate<IModelItem> = {
 			onSelect: (item) => {
 				this.actionWidgetService.hide();
+				reportNewChatPickerClosed(this.telemetryService, {
+					id: 'NewChatCloudModelPicker',
+					optionIdBefore: previousModel?.id,
+					optionIdAfter: item.id,
+					optionLabelBefore: previousModel?.name,
+					optionLabelAfter: item.name,
+					isPII: false,
+				});
 				this._selectModel(item);
 			},
 			onHide: () => { triggerElement.focus(); },

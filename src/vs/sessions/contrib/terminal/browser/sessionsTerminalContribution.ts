@@ -49,8 +49,8 @@ function getSessionTerminalInfo(session: ISession | undefined): ISessionTerminal
 	if (!session || !isWorkspaceAgentSessionType(session.sessionType)) {
 		return undefined;
 	}
-	const repo = session.workspace.get()?.repositories[0];
-	const cwd = repo?.workingDirectory ?? repo?.uri;
+	const folder = session.workspace.get()?.folders[0];
+	const cwd = folder?.workingDirectory;
 	if (!cwd) {
 		return undefined;
 	}

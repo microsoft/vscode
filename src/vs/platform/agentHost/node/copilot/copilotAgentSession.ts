@@ -28,13 +28,13 @@ import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ISessionDatabase, ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../../common/sessionDataService.js';
 import { MessageAttachmentKind, type FileEdit, type MessageAttachment, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { ActionType, type SessionAction } from '../../common/state/sessionActions.js';
-import { ResponsePartKind, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, type PendingMessage, type SessionInputAnswer, type SessionInputOption, type SessionInputQuestion, type SessionInputRequest, type ToolCallResult, type ToolResultContent, type Turn, type URI as ProtocolURI } from '../../common/state/sessionState.js';
+import { ResponsePartKind, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, type PendingMessage, type SessionInputAnswer, type SessionInputOption, type SessionInputQuestion, type SessionInputRequest, type ToolCallResult, type ToolResultContent, type Turn, type URI as ProtocolURI, type UsageInfo } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import type { IExitPlanModeRequestParams, IExitPlanModeResponse } from './copilotAgent.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
 import type { ShellManager } from './copilotShellTools.js';
 import { getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellLanguage, getSubagentMetadata, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, isShellTool, synthesizeSkillToolCall, tryStringify, type ITypedPermissionRequest } from './copilotToolDisplay.js';
-import { FileEditTracker } from './fileEditTracker.js';
+import { FileEditTracker } from '../shared/fileEditTracker.js';
 import { mapSessionEvents } from './mapSessionEvents.js';
 import { buildPendingEditContentUri } from './pendingEditContentStore.js';
 
@@ -333,6 +333,8 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _sessionDataDir: URI;
 	/** Protocol turn ID set by {@link send}, used for file edit tracking. */
 	private _turnId = '';
+	/** Accumulated Copilot usage for the current top-level turn, in nano-AIU. */
+	private _turnCopilotUsageTotalNanoAiu = 0;
 	/** SDK session wrapper, set by {@link initializeSession}. */
 	private _wrapper!: CopilotSessionWrapper;
 	/** Last agent mode pushed to the SDK via {@link applyMode}, to elide redundant `rpc.mode.set` calls. */
@@ -464,6 +466,7 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	resetTurnState(turnId: string): void {
 		this._turnId = turnId;
+		this._turnCopilotUsageTotalNanoAiu = 0;
 		this._currentMarkdownPartIds.clear();
 		this._currentReasoningPartIds.clear();
 		this._parentToolCallIdsByAgentId.clear();
@@ -652,6 +655,7 @@ export class CopilotAgentSession extends Disposable {
 	async send(prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, mode?: CopilotSdkMode): Promise<void> {
 		if (turnId) {
 			this._turnId = turnId;
+			this._turnCopilotUsageTotalNanoAiu = 0;
 		}
 		this._logService.info(`[Copilot:${this.sessionId}] sendMessage called: "${prompt.substring(0, 100)}${prompt.length > 100 ? '...' : ''}" (${attachments?.length ?? 0} attachments)`);
 
@@ -1619,17 +1623,30 @@ export class CopilotAgentSession extends Disposable {
 		}));
 
 		this._register(wrapper.onUsage(e => {
-			this._logService.trace(`[Copilot:${sessionId}] Usage: model=${e.data.model}, in=${e.data.inputTokens ?? '?'}, out=${e.data.outputTokens ?? '?'}, cacheRead=${e.data.cacheReadTokens ?? '?'}`);
+			const metadata: Record<string, unknown> = {};
+			if (typeof e.data.cost === 'number') {
+				metadata.cost = e.data.cost;
+			}
+			if (typeof e.data.copilotUsage?.totalNanoAiu === 'number') {
+				this._turnCopilotUsageTotalNanoAiu += e.data.copilotUsage.totalNanoAiu;
+				metadata.copilotUsage = {
+					...e.data.copilotUsage,
+					totalNanoAiu: this._turnCopilotUsageTotalNanoAiu,
+				};
+			}
+			this._logService.trace(`[Copilot:${sessionId}] Usage: model=${e.data.model}, in=${e.data.inputTokens ?? '?'}, out=${e.data.outputTokens ?? '?'}, cacheRead=${e.data.cacheReadTokens ?? '?'}, cost=${e.data.cost ?? '?'}, totalNanoAiu=${this._turnCopilotUsageTotalNanoAiu || '?'}`);
+			const usage: UsageInfo = {
+				inputTokens: e.data.inputTokens,
+				outputTokens: e.data.outputTokens,
+				model: e.data.model,
+				cacheReadTokens: e.data.cacheReadTokens,
+				...(Object.keys(metadata).length > 0 ? { _meta: metadata } : {}),
+			};
 			this._emitAction({
 				type: ActionType.SessionUsage,
 				session: this._protocolSession(),
 				turnId: this._turnId,
-				usage: {
-					inputTokens: e.data.inputTokens,
-					outputTokens: e.data.outputTokens,
-					model: e.data.model,
-					cacheReadTokens: e.data.cacheReadTokens,
-				},
+				usage,
 			});
 		}));
 

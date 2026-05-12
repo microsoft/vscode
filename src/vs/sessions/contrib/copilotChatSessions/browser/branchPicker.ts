@@ -11,7 +11,9 @@ import { autorun } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { reportNewChatPickerClosed } from '../../chat/browser/newChatPickerTelemetry.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { CopilotChatSessionsProvider, ICopilotChatSession } from './copilotChatSessionsProvider.js';
@@ -37,6 +39,7 @@ export class BranchPicker extends Disposable {
 		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 
@@ -111,6 +114,15 @@ export class BranchPicker extends Disposable {
 		const delegate: IActionListDelegate<IBranchItem> = {
 			onSelect: (item) => {
 				this.actionWidgetService.hide();
+				reportNewChatPickerClosed(this.telemetryService, {
+					id: 'NewChatBranchPicker',
+					name: 'NewChatBranchPicker',
+					optionIdBefore: selectedBranch,
+					optionIdAfter: item.name,
+					optionLabelBefore: selectedBranch,
+					optionLabelAfter: item.name,
+					isPII: true,
+				});
 				session?.setBranch(item.name);
 			},
 			onHide: () => { triggerElement.focus(); },

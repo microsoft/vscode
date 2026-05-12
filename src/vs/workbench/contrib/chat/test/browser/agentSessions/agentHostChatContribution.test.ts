@@ -31,7 +31,7 @@ import { ChatRequestQueueKind, ElicitationState, IChatService, IChatMarkdownCont
 import { IChatEditingService } from '../../../common/editing/chatEditingService.js';
 import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { IChatSessionsService, type IChatSessionRequestHistoryItem } from '../../../common/chatSessionsService.js';
-import { ILanguageModelsService } from '../../../common/languageModels.js';
+import { ILanguageModelsService, type ILanguageModelChatMetadata } from '../../../common/languageModels.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -52,6 +52,7 @@ import { IAgentSubscription } from '../../../../../../platform/agentHost/common/
 import { ITerminalChatService } from '../../../../terminal/browser/terminal.js';
 import { IAgentHostTerminalService } from '../../../../terminal/browser/agentHostTerminalService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
+import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { ILanguageModelToolsService } from '../../../common/tools/languageModelToolsService.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
 import { IChatWidgetService } from '../../../browser/chat.js';
@@ -354,7 +355,7 @@ class MockChatWidgetService extends mock<IChatWidgetService>() {
 
 // ---- Helpers ----------------------------------------------------------------
 
-function createTestServices(disposables: DisposableStore, workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean }, authServiceOverride?: Partial<IAuthenticationService>) {
+function createTestServices(disposables: DisposableStore, workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean }, authServiceOverride?: Partial<IAuthenticationService>, languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata>) {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	const agentHostService = new MockAgentHostService();
@@ -392,7 +393,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 	instantiationService.stub(ILanguageModelsService, {
 		deltaLanguageModelChatProviderDescriptors: () => { },
 		registerLanguageModelProvider: () => toDisposable(() => { }),
-		lookupLanguageModel: () => undefined,
+		lookupLanguageModel: (modelId: string) => languageModels?.get(modelId),
 	});
 	instantiationService.stub(IConfigurationService, {
 		onDidChangeConfiguration: Event.None,
@@ -463,13 +464,21 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		isNewSession: sessionResource => workingDirectoryResolver?.isNewSession?.(sessionResource) ?? sessionResource.path.substring(1).startsWith('new-'),
 	});
 	instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow: false } as Partial<IWorkbenchEnvironmentService>);
+	instantiationService.stub(IAgentHostUntitledProvisionalSessionService, {
+		onDidChange: Event.None,
+		get: () => undefined,
+		waitForPending: async () => undefined,
+		getOrCreate: async () => undefined,
+		tryRebind: async () => undefined,
+		disposeSession: async () => { },
+	} as Partial<IAgentHostUntitledProvisionalSessionService> as IAgentHostUntitledProvisionalSessionService);
 	instantiationService.stub(IOpenerService, openerService as IOpenerService);
 
 	return { instantiationService, agentHostService, chatAgentService, chatWidgetService, chatService, openerService };
 }
 
-function createContribution(disposables: DisposableStore, opts?: { authServiceOverride?: Partial<IAuthenticationService>; workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean } }) {
-	const { instantiationService, agentHostService, chatAgentService, chatWidgetService, chatService, openerService } = createTestServices(disposables, opts?.workingDirectoryResolver, opts?.authServiceOverride);
+function createContribution(disposables: DisposableStore, opts?: { authServiceOverride?: Partial<IAuthenticationService>; workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean }; languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata> }) {
+	const { instantiationService, agentHostService, chatAgentService, chatWidgetService, chatService, openerService } = createTestServices(disposables, opts?.workingDirectoryResolver, opts?.authServiceOverride, opts?.languageModels);
 
 	const listController = disposables.add(instantiationService.createInstance(AgentHostSessionListController, 'agent-host-copilot', 'copilot', agentHostService, undefined, 'local'));
 	const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
@@ -836,6 +845,62 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(listController.isNewSession(item.resource), false);
 			assert.strictEqual(listController.items.some(existing => existing.resource.toString() === item.resource.toString()), true);
 		}));
+
+		test('newChatSessionItem rebinds untitled provisional to real resource so chip-selected config survives first send', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { instantiationService, agentHostService } = createTestServices(disposables);
+
+			const workspaceFolder = URI.from({ scheme: 'file', path: '/workspace/root' });
+			instantiationService.stub(IWorkspaceContextService, {
+				getWorkspace: () => ({ id: '', folders: [{ uri: workspaceFolder, name: 'root', index: 0, toResource: () => workspaceFolder }] }),
+				getWorkspaceFolder: () => null,
+			});
+
+			const rebindCalls: { oldResource: URI; newResource: URI; provider: string; workingDirectory: URI | undefined }[] = [];
+			instantiationService.stub(IAgentHostUntitledProvisionalSessionService, {
+				onDidChange: Event.None,
+				get: () => undefined,
+				waitForPending: async () => undefined,
+				getOrCreate: async () => undefined,
+				tryRebind: async (oldResource: URI, newResource: URI, provider: string, workingDirectory: URI | undefined) => {
+					rebindCalls.push({ oldResource, newResource, provider, workingDirectory });
+					return newResource;
+				},
+				disposeSession: async () => { },
+			} as Partial<IAgentHostUntitledProvisionalSessionService> as IAgentHostUntitledProvisionalSessionService);
+
+			const listController = disposables.add(instantiationService.createInstance(AgentHostSessionListController, 'agent-host-copilot', 'copilot', agentHostService, undefined, 'local'));
+
+			const untitledResource = URI.from({ scheme: 'agent-host-copilot', path: '/untitled-abc' });
+			const item = await listController.newChatSessionItem({ prompt: 'Hello', untitledResource }, CancellationToken.None);
+
+			assert.ok(item);
+			assert.deepStrictEqual(rebindCalls, [{
+				oldResource: untitledResource,
+				newResource: item.resource,
+				provider: 'copilot',
+				workingDirectory: workspaceFolder,
+			}]);
+		}));
+
+		test('newChatSessionItem skips rebind when no untitled provisional resource is provided', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { instantiationService, agentHostService } = createTestServices(disposables);
+
+			let rebindCalls = 0;
+			instantiationService.stub(IAgentHostUntitledProvisionalSessionService, {
+				onDidChange: Event.None,
+				get: () => undefined,
+				waitForPending: async () => undefined,
+				getOrCreate: async () => undefined,
+				tryRebind: async () => { rebindCalls++; return undefined; },
+				disposeSession: async () => { },
+			} as Partial<IAgentHostUntitledProvisionalSessionService> as IAgentHostUntitledProvisionalSessionService);
+
+			const listController = disposables.add(instantiationService.createInstance(AgentHostSessionListController, 'agent-host-copilot', 'copilot', agentHostService, undefined, 'local'));
+
+			const item = await listController.newChatSessionItem({ prompt: 'Hello' }, CancellationToken.None);
+			assert.ok(item);
+			assert.strictEqual(rebindCalls, 0);
+		}));
 	});
 
 	// ---- Session ID resolution in _invokeAgent --------------------------
@@ -1007,6 +1072,22 @@ suite('AgentHostChatContribution', () => {
 			await turnPromise;
 
 			assert.strictEqual(chatSession.isCompleteObs?.get(), true, 'should be complete after turn finishes');
+		}));
+
+		test('live turn returns model credit details from usage', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const languageModels = new Map<string, ILanguageModelChatMetadata>([
+				['agent-host-copilot:opus-4.7', upcastPartial<ILanguageModelChatMetadata>({ name: 'Opus 4.7', pricing: '15x' })],
+			]);
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, { languageModels });
+
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+
+			fire({ type: 'session/usage', session, turnId, usage: { model: 'opus-4.7', _meta: { cost: 1.5 } } } as SessionAction);
+			fire({ type: 'session/turnComplete', session, turnId } as SessionAction);
+
+			const result = await turnPromise;
+
+			assert.strictEqual(result.details, 'Opus 4.7 • 1.5 credits');
 		}));
 
 		test('tool_start events become toolInvocation progress', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -2002,7 +2083,11 @@ suite('AgentHostChatContribution', () => {
 		});
 
 		test('history requests get per-turn modelId from usage, with active turn falling back to session model', async () => {
-			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const languageModels = new Map<string, ILanguageModelChatMetadata>([
+				['agent-host-copilot:opus-4.7', upcastPartial<ILanguageModelChatMetadata>({ name: 'Opus 4.7', pricing: '15x' })],
+				['agent-host-copilot:sonnet-4.6', upcastPartial<ILanguageModelChatMetadata>({ name: 'Sonnet 4.6', pricing: '2x' })],
+			]);
+			const { sessionHandler, agentHostService } = createContribution(disposables, { languageModels });
 
 			const sessionUri = AgentSession.uri('copilot', 'sess-models');
 			agentHostService.sessionStates.set(sessionUri.toString(), {
@@ -2017,7 +2102,7 @@ suite('AgentHostChatContribution', () => {
 						id: 'turn-1',
 						userMessage: { text: 'Q1' },
 						responseParts: [{ kind: ResponsePartKind.Markdown, id: 'md-1', content: 'A1' }],
-						usage: { model: 'opus-4.7' },
+						usage: { model: 'opus-4.7', _meta: { cost: 1.5 } },
 						state: TurnState.Complete,
 					},
 					{
@@ -2032,7 +2117,7 @@ suite('AgentHostChatContribution', () => {
 					id: 'turn-active',
 					userMessage: { text: 'Q3' },
 					responseParts: [],
-					usage: undefined,
+					usage: { _meta: { cost: 1 } },
 				},
 			});
 
@@ -2048,6 +2133,12 @@ suite('AgentHostChatContribution', () => {
 					{ prompt: 'Q2', modelId: 'agent-host-copilot:sonnet-4.6' },
 					{ prompt: 'Q3', modelId: 'agent-host-copilot:sonnet-4.6' },
 				],
+			);
+
+			const responses = session.history.filter(h => h.type === 'response');
+			assert.deepStrictEqual(
+				responses.map(r => r.details),
+				['Opus 4.7 • 1.5 credits', 'Sonnet 4.6 · 2x', 'Sonnet 4.6 • 1 credit'],
 			);
 
 			const activeResponse = session.history[session.history.length - 1];
@@ -2962,6 +3053,58 @@ suite('AgentHostChatContribution', () => {
 			const configChanged = agentHostService.dispatchedActions.find(d => d.action.type === ActionType.SessionConfigChanged);
 			assert.ok(configChanged, 'expected a SessionConfigChanged dispatch');
 			assert.deepStrictEqual((configChanged!.action as { config: Record<string, unknown> }).config, config);
+		}));
+
+		test('handler does not clobber picker-set session config on eager-create path', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			// Repro for the VS Code chat-input picker bug: the user picks
+			// "Worktree" via the chip, the picker dispatches
+			// SessionConfigChanged({ isolation: 'worktree' }) directly
+			// against the provisional backend, then sends a message. The
+			// handler's eager-create branch must NOT overwrite that with
+			// the workbench default (`isolation: 'folder'`) and must NOT
+			// use replace-semantics. The Agents window flow (where
+			// `agentHostSessionConfig` is supplied on the request) must
+			// still continue to work.
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+
+			const sessionUri = AgentSession.uri('copilot', 'eager-picker');
+			agentHostService.sessionStates.set(sessionUri.toString(), {
+				...createSessionState({ resource: sessionUri.toString(), provider: 'copilot', title: 'Test', status: SessionStatus.Idle, createdAt: Date.now(), modifiedAt: Date.now() }),
+				lifecycle: SessionLifecycle.Ready,
+				turns: [],
+				config: {
+					schema: { type: 'object', properties: {} },
+					values: { isolation: 'worktree' },
+				},
+			});
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/eager-picker' });
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => chatSession.dispose()));
+
+			agentHostService.dispatchedActions.length = 0;
+
+			const registered = chatAgentService.registeredAgents.get('agent-host-copilot')!;
+			// No `agentHostSessionConfig` on the request — this models the
+			// VS Code workbench path where the picker dispatches directly.
+			const turnPromise = registered.impl.invoke(
+				makeRequest({ message: 'Pick worktree and send', sessionResource }),
+				() => { }, [], CancellationToken.None,
+			);
+			await timeout(10);
+			const turnDispatch = agentHostService.turnActions[0];
+			const turnAction = turnDispatch.action as ITurnStartedAction;
+			agentHostService.fireAction({ action: turnDispatch.action, serverSeq: 1, origin: { clientId: agentHostService.clientId, clientSeq: turnDispatch.clientSeq } });
+			agentHostService.fireAction({ action: { type: 'session/turnComplete', session: turnAction.session, turnId: turnAction.turnId } as SessionAction, serverSeq: 2, origin: undefined });
+			await turnPromise;
+
+			const configChanged = agentHostService.dispatchedActions.find(d => d.action.type === ActionType.SessionConfigChanged) as { action: { config: Record<string, unknown>; replace?: boolean } } | undefined;
+			// Either no dispatch (preferred) or a dispatch that does NOT
+			// include `isolation` and is NOT a replace.
+			if (configChanged) {
+				assert.strictEqual(configChanged.action.replace, undefined, 'must not use replace-semantics for picker-set state');
+				assert.ok(!Object.prototype.hasOwnProperty.call(configChanged.action.config, 'isolation'), `picker-set isolation must not be overwritten, got ${JSON.stringify(configChanged.action.config)}`);
+			}
 		}));
 
 		test('handler uses registered working directory resolver', () => runWithFakedTimers({ useFakeTimers: true }, async () => {

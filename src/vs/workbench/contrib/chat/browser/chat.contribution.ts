@@ -1027,7 +1027,6 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			description: nls.localize('chat.tools.riskAssessment.enabled', "When enabled, terminal tool confirmations show an LLM-generated risk level (Safe / Caution / Review carefully) and a short explanation."),
 			default: true,
-			tags: ['experimental'],
 			experiment: {
 				mode: 'auto'
 			},

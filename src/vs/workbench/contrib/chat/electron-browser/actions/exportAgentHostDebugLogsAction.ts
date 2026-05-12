@@ -9,7 +9,9 @@ import { localize, localize2 } from '../../../../../nls.js';
 import { Categories } from '../../../../../platform/action/common/actionCommonCategories.js';
 import { Action2 } from '../../../../../platform/actions/common/actions.js';
 import { agentHostAuthority, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import { AgentHostEnabledSettingId, IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
 import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
@@ -23,7 +25,7 @@ import { IOutputService } from '../../../../services/output/common/output.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
 import { IChatWidgetService } from '../../browser/chat.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { COPILOT_CLI_EH_SCHEME, COPILOT_CLI_LOCAL_AH_SCHEME, parseRemoteAuthorityFromScheme, resolveEventsUri } from '../../browser/copilotCliEventsUri.js';
+import { COPILOT_CLI_LOCAL_AH_SCHEME, parseRemoteAuthorityFromScheme, resolveEventsUri } from '../../browser/copilotCliEventsUri.js';
 
 /** Output channel ID for the agent host process logger (forwarded via RemoteLoggerChannelClient). */
 const AGENT_HOST_LOGGER_CHANNEL_ID = 'agenthost';
@@ -33,22 +35,35 @@ const WINDOW_LOG_CHANNEL_ID = 'rendererLog';
 const SHARED_PROCESS_LOG_CHANNEL_ID = 'shared';
 
 /**
+ * Description of the agent-host session whose logs should be exported. If
+ * not provided, the action exports all agent-host-related logs for the
+ * current window (no session-specific scoping or events file).
+ */
+export interface IActiveAgentHostSessionForExport {
+	/** The chat session resource. */
+	readonly resource: URI;
+	/** Optional display title used to derive the default zip filename. */
+	readonly title: string | undefined;
+	/** True for local agent-host sessions (`agent-host-*` scheme). */
+	readonly isLocal: boolean;
+}
+
+/**
  * Shared implementation of "Export Agent Host Debug Logs". Collects the
- * Copilot CLI session events file, the window/shared/agent-host output
- * channel logs, and the AHP transport JSONL logs into a single zip file
- * chosen by the user via a save dialog. Notifies the user on failure or
- * when no logs are available.
+ * Copilot CLI session events file (if available), the window/shared/agent-host
+ * output channel logs, and the AHP transport JSONL logs into a single zip file
+ * chosen by the user via a save dialog.
  *
- * Both the workbench-side action (uses `IChatWidgetService`) and the
- * sessions-app-side action (uses `ISessionsManagementService`) call into
- * this helper after resolving the active Copilot CLI session resource.
+ * Both the workbench-side action (resolves the active session via
+ * `IChatWidgetService`) and the sessions-app-side action (resolves it via
+ * `ISessionsManagementService`) call into this helper.
  */
 export async function exportAgentHostDebugLogs(
 	accessor: ServicesAccessor,
-	sessionResource: URI | undefined,
-	sessionTitle: string | undefined,
+	activeSession: IActiveAgentHostSessionForExport | undefined,
 ): Promise<void> {
 	const pathService = accessor.get(IPathService);
+	const agentHostService = accessor.get(IAgentHostService);
 	const remoteAgentHostService = accessor.get(IRemoteAgentHostService);
 	const outputService = accessor.get(IOutputService);
 	const fileService = accessor.get(IFileService);
@@ -63,56 +78,53 @@ export async function exportAgentHostDebugLogs(
 	const userHome = pathService.userHome({ preferLocal: true });
 
 	const eventsResult = resolveEventsUri(
-		sessionResource,
+		activeSession?.resource,
 		userHome,
 		authority => remoteAgentHostService.connections.find(c => agentHostAuthority(c.address) === authority),
 	);
 
-	switch (eventsResult.kind) {
-		case 'no-session':
-			notificationService.info(localize('exportDebugLogs.noSession', "No Copilot CLI session is active."));
-			return;
-		case 'unsupported-scheme':
-			notificationService.info(localize('exportDebugLogs.unsupported', "The active chat session is not a Copilot CLI session."));
-			return;
-		case 'remote-not-connected':
-			notificationService.warn(localize('exportDebugLogs.notConnected', "No active connection found for remote agent host '{0}'.", eventsResult.authority));
-			return;
-		case 'remote-no-home':
-			notificationService.warn(localize('exportDebugLogs.noHome', "Remote agent host '{0}' did not report a home directory.", eventsResult.authority));
-			return;
-	}
-
-	const isLocal = sessionResource?.scheme === COPILOT_CLI_LOCAL_AH_SCHEME || sessionResource?.scheme === COPILOT_CLI_EH_SCHEME;
-
 	// Collect all output channel IDs relevant for the current session's agent host.
-	const channelIds: string[] = [];
+	const channelIds = new Set<string>();
 
 	// Remote agent host connection (if any), for downloading agenthost.log from the remote.
 	let remoteConnection: IRemoteAgentHostConnectionInfo | undefined;
+	let ahpLogNameFilter: ((name: string) => boolean) | undefined;
 
-	if (isLocal) {
-		// Agent host process logger (forwarded from the utility process)
-		channelIds.push(AGENT_HOST_LOGGER_CHANNEL_ID);
+	if (activeSession) {
+		if (activeSession.isLocal) {
+			// Agent host process logger (forwarded from the utility process)
+			channelIds.add(AGENT_HOST_LOGGER_CHANNEL_ID);
+			channelIds.add(`agenthost.${agentHostService.clientId}`);
+			const localClientId = sanitizeFilePart(agentHostService.clientId);
+			ahpLogNameFilter = name => name.includes(localClientId);
+		} else {
+			remoteConnection = getRemoteConnectionForSession(activeSession.resource, remoteAgentHostService.connections);
+			if (remoteConnection) {
+				channelIds.add(`agenthost.${remoteConnection.clientId}`);
+			}
+		}
 	} else {
-		const remoteAuthority = parseRemoteAuthorityFromScheme(sessionResource!.scheme);
-		if (remoteAuthority) {
-			remoteConnection = remoteAgentHostService.connections.find(c => agentHostAuthority(c.address) === remoteAuthority);
+		channelIds.add(AGENT_HOST_LOGGER_CHANNEL_ID);
+		channelIds.add(`agenthost.${agentHostService.clientId}`);
+		for (const connection of remoteAgentHostService.connections) {
+			channelIds.add(`agenthost.${connection.clientId}`);
 		}
 	}
 
 	// Always include the window and shared process logs
-	channelIds.push(WINDOW_LOG_CHANNEL_ID);
-	channelIds.push(SHARED_PROCESS_LOG_CHANNEL_ID);
+	channelIds.add(WINDOW_LOG_CHANNEL_ID);
+	channelIds.add(SHARED_PROCESS_LOG_CHANNEL_ID);
 
 	const files: { path: string; contents: string }[] = [];
 
 	// 1. events.jsonl
-	try {
-		const content = await fileService.readFile(eventsResult.resource);
-		files.push({ path: 'events.jsonl', contents: content.value.toString() });
-	} catch {
-		// File may not exist yet if the session never wrote any events
+	if (eventsResult.kind === 'ok') {
+		try {
+			const content = await fileService.readFile(eventsResult.resource);
+			files.push({ path: 'events.jsonl', contents: content.value.toString() });
+		} catch {
+			// File may not exist yet if the session never wrote any events
+		}
 	}
 
 	// 2. Output channels
@@ -137,7 +149,7 @@ export async function exportAgentHostDebugLogs(
 		const ahpDir = joinPath(environmentService.logsHome, 'ahp');
 		const stat = await fileService.resolve(ahpDir, { resolveMetadata: true });
 		for (const child of stat.children ?? []) {
-			if (child.isDirectory || !child.name.endsWith('.jsonl')) {
+			if (child.isDirectory || !child.name.endsWith('.jsonl') || ahpLogNameFilter && !ahpLogNameFilter(child.name)) {
 				continue;
 			}
 			try {
@@ -168,13 +180,15 @@ export async function exportAgentHostDebugLogs(
 	if (files.length === 0) {
 		notificationService.notify({
 			severity: Severity.Warning,
-			message: localize('exportDebugLogs.noFiles', "No log files were found for the active session."),
+			message: activeSession
+				? localize('exportDebugLogs.noFiles.activeSession', "No log files were found for the active Agent Host session.")
+				: localize('exportDebugLogs.noFiles.currentWindow', "No Agent Host log files were found for the current window."),
 		});
 		return;
 	}
 
-	const titleSlug = sessionTitle
-		? `-${sessionTitle.replace(/[/\\:*?"<>|\s]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40)}`
+	const titleSlug = activeSession?.title
+		? `-${activeSession.title.replace(/[/\\:*?"<>|\s]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40)}`
 		: '';
 	const defaultUri = joinPath(await fileDialogService.defaultFilePath(), `ah-logs${titleSlug}.zip`);
 	const saveUri = await fileDialogService.showSaveDialog({
@@ -212,16 +226,44 @@ export class ExportAgentHostDebugLogsAction extends Action2 {
 			title: localize2('exportAgentHostDebugLogs', "Export Agent Host Debug Logs..."),
 			f1: true,
 			category: Categories.Developer,
-			precondition: ChatContextKeys.enabled,
+			precondition: ContextKeyExpr.and(
+				ChatContextKeys.enabled,
+				ContextKeyExpr.equals(`config.${AgentHostEnabledSettingId}`, true),
+			),
 		});
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const chatWidgetService = accessor.get(IChatWidgetService);
 		const widget = chatWidgetService.lastFocusedWidget;
-		const sessionResource = widget?.viewModel?.sessionResource;
-		await exportAgentHostDebugLogs(accessor, sessionResource, undefined);
+		const model = widget?.viewModel?.model;
+		const activeSession = model ? toActiveAgentHostSession(model.sessionResource, model.title) : undefined;
+		await exportAgentHostDebugLogs(accessor, activeSession);
 	}
+}
+
+/**
+ * Translates a chat session URI scheme into an agent-host session context,
+ * or `undefined` if the scheme does not belong to a Copilot CLI agent-host
+ * session (i.e. local AH or remote AH; the EH CLI extension's own
+ * `copilotcli:` sessions are excluded).
+ */
+function toActiveAgentHostSession(resource: URI, title: string | undefined): IActiveAgentHostSessionForExport | undefined {
+	if (resource.scheme === COPILOT_CLI_LOCAL_AH_SCHEME) {
+		return { resource, title, isLocal: true };
+	}
+	if (parseRemoteAuthorityFromScheme(resource.scheme)) {
+		return { resource, title, isLocal: false };
+	}
+	return undefined;
+}
+
+function getRemoteConnectionForSession(sessionResource: URI, connections: readonly IRemoteAgentHostConnectionInfo[]): IRemoteAgentHostConnectionInfo | undefined {
+	return connections.find(connection => sessionResource.scheme.startsWith(`remote-${agentHostAuthority(connection.address)}-`));
+}
+
+function sanitizeFilePart(value: string): string {
+	return value.replace(/[\\/:\*\?"<>|\s]+/g, '-').replace(/^-+|-+$/g, '') || 'connection';
 }
 
 /**

@@ -90,16 +90,11 @@ export const enum SessionStatus {
 	Error = 4,
 }
 
-/**
- * A repository within a session workspace.
- */
-export interface ISessionRepository {
+export interface ISessionGitRepository {
 	/** The source repository URI. */
 	readonly uri: URI;
 	/** The working directory URI (e.g., a git worktree or checkout path). */
-	readonly workingDirectory: URI | undefined;
-	/** Provider-chosen display detail (e.g., branch name, host name). */
-	readonly detail: string | undefined;
+	readonly workTreeUri: URI | undefined;
 	/** Current branch name. */
 	readonly branchName?: string;
 	/** Name of the base branch. */
@@ -118,12 +113,32 @@ export interface ISessionRepository {
 	readonly uncommittedChanges?: number;
 	/** Whether a Git operation is currently in progress. */
 	readonly hasGitOperationInProgress?: boolean;
+	/** GitHub information associated with the repository. */
+	readonly gitHubInfo: IObservable<IGitHubInfo | undefined>;
+}
+
+/**
+ * A folder within a session workspace.
+ */
+export interface ISessionFolder {
+	/** Canonical URI of the folder. */
+	readonly root: URI;
+	/** Working directory used for file operations. */
+	readonly workingDirectory: URI;
+	/** Display name for the folder (e.g., repository or directory basename). */
+	readonly name: string;
+	/** Optional description shown alongside the name (e.g., parent folder path). */
+	readonly description: string | undefined;
+	/** Git repository information associated with this folder. */
+	readonly gitRepository?: ISessionGitRepository;
 }
 
 /**
  * Workspace information for a session, encapsulating one or more repositories.
  */
 export interface ISessionWorkspace {
+	/** URI identifying the workspace. */
+	readonly uri: URI;
 	/** Display label for the workspace (e.g., "my-app", "org/repo", "host:/path"). */
 	readonly label: string;
 	/** Optional description shown alongside the label (e.g., parent folder path "~/work"). */
@@ -137,8 +152,8 @@ export interface ISessionWorkspace {
 	readonly group?: string;
 	/** Icon for the workspace. */
 	readonly icon: ThemeIcon;
-	/** Repositories in this workspace. */
-	readonly repositories: ISessionRepository[];
+	/** Folders in this session workspace. */
+	readonly folders: ISessionFolder[];
 	/** Whether the session requires workspace trust to operate. */
 	readonly requiresWorkspaceTrust: boolean;
 }
@@ -159,6 +174,10 @@ export interface IGitHubInfo {
 		readonly uri: URI;
 		/** Icon reflecting the PR state. */
 		readonly icon?: ThemeIcon;
+		/** Object ID of the base ref (merge target) commit. */
+		readonly baseRefOid?: string;
+		/** Object ID of the head ref (PR branch) commit. */
+		readonly headRefOid?: string;
 	};
 }
 
@@ -267,8 +286,6 @@ export interface ISession {
 	readonly description: IObservable<IMarkdownString | undefined>;
 	/** Timestamp of when the last agent turn ended, if any. */
 	readonly lastTurnEnd: IObservable<Date | undefined>;
-	/** GitHub information associated with this session, if any. */
-	readonly gitHubInfo: IObservable<IGitHubInfo | undefined>;
 	/** The chats belonging to this session group. */
 	readonly chats: IObservable<readonly IChat[]>;
 	/** The main (first) chat of this session. */
@@ -297,18 +314,6 @@ export interface ISession {
  */
 export function toSessionId(providerId: string, resource: URI): string {
 	return `${providerId}:${resource.toString()}`;
-}
-
-/**
- * Returns the active repository branch name exposed by a session provider. The
- * `detail` fallback preserves extension-host CLI sessions, which store their
- * worktree branch there.
- */
-export function getSessionBranchName(session: ISession | undefined): string | undefined {
-	const repository = session?.workspace.get()?.repositories[0];
-	const branchName = repository?.branchName ?? repository?.detail;
-	const trimmed = branchName?.trim();
-	return trimmed || undefined;
 }
 
 /**
@@ -410,4 +415,30 @@ export function sessionFileChangesEqual(a: readonly ISessionFileChange[], b: rea
 	}
 
 	return true;
+}
+
+/**
+ * Structural equality for {@link IGitHubInfo}. Used as an `equalsFn` on the `gitHubInfo` observable
+ * so that providers can re-publish updated info without notifying observers when the underlying GitHub
+ * info has not actually changed.
+ */
+export function gitHubInfoEqual(a: IGitHubInfo | undefined, b: IGitHubInfo | undefined): boolean {
+	if (a === b) {
+		return true;
+	}
+
+	if (a === undefined || b === undefined) {
+		return false;
+	}
+
+	const aIcon = a.pullRequest?.icon;
+	const bIcon = b.pullRequest?.icon;
+
+	return a.owner === b.owner &&
+		a.repo === b.repo &&
+		a.pullRequest?.number === b.pullRequest?.number &&
+		isEqual(a.pullRequest?.uri, b.pullRequest?.uri) &&
+		(aIcon === bIcon || (!!aIcon && !!bIcon && ThemeIcon.isEqual(aIcon, bIcon))) &&
+		a.pullRequest?.baseRefOid === b.pullRequest?.baseRefOid &&
+		a.pullRequest?.headRefOid === b.pullRequest?.headRefOid;
 }

@@ -14,7 +14,7 @@ import { IEnvironmentService } from '../../environment/common/environment.js';
 import { ISharedProcessService } from '../../ipc/electron-browser/services.js';
 import { ProxyChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { IRemoteAgentHostService, RemoteAgentHostEntryType } from '../common/remoteAgentHostService.js';
-import { IInstantiationService } from '../../instantiation/common/instantiation.js';
+import { createDecorator, IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { IQuickInputService } from '../../quickinput/common/quickInput.js';
 import { AhpJsonlLogger } from '../common/ahpJsonlLogger.js';
 import { AgentHostAhpJsonlLoggingSettingId } from '../common/agentService.js';
@@ -31,6 +31,33 @@ import {
 	type ISSHResolvedConfig,
 	type ISSHConnectProgress,
 } from '../common/sshRemoteAgentHost.js';
+
+export const ISSHRelayClientFactory = createDecorator<ISSHRelayClientFactory>('sshRelayClientFactory');
+
+export interface ISSHRelayClientFactory {
+	readonly _serviceBrand: undefined;
+	createClient(mainService: ISSHRemoteAgentHostMainService, connectionId: string, address: string): RemoteAgentHostProtocolClient;
+}
+
+export class SSHRelayClientFactory implements ISSHRelayClientFactory {
+	declare readonly _serviceBrand: undefined;
+
+	constructor(
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
+	) { }
+
+	createClient(mainService: ISSHRemoteAgentHostMainService, connectionId: string, address: string): RemoteAgentHostProtocolClient {
+		const ahpLoggingEnabled = !!this._configurationService.getValue<boolean>(AgentHostAhpJsonlLoggingSettingId);
+		const logger = ahpLoggingEnabled ? this._instantiationService.createInstance(
+			AhpJsonlLogger,
+			{ logsHome: this._environmentService.logsHome, connectionId, transport: 'ssh' },
+		) : undefined;
+		const transport = this._instantiationService.createInstance(SSHRelayTransport, connectionId, mainService, logger);
+		return this._instantiationService.createInstance(RemoteAgentHostProtocolClient, address, transport);
+	}
+}
 
 /**
  * Renderer-side implementation of {@link ISSHRemoteAgentHostService} that
@@ -53,9 +80,8 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 		@ISharedProcessService sharedProcessService: ISharedProcessService,
 		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
 		@ILogService private readonly _logService: ILogService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
+		@ISSHRelayClientFactory private readonly _relayClientFactory: ISSHRelayClientFactory,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 	) {
 		super();
@@ -212,15 +238,7 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 	}
 
 	private _createRelayClient(result: { connectionId: string; address: string }): RemoteAgentHostProtocolClient {
-		const ahpLoggingEnabled = !!this._configurationService.getValue<boolean>(AgentHostAhpJsonlLoggingSettingId);
-		const logger = ahpLoggingEnabled ? this._instantiationService.createInstance(
-			AhpJsonlLogger,
-			{ logsHome: this._environmentService.logsHome, connectionId: result.connectionId, transport: 'ssh' },
-		) : undefined;
-		const transport = new SSHRelayTransport(result.connectionId, this._mainService, logger);
-		return this._instantiationService.createInstance(
-			RemoteAgentHostProtocolClient, result.address, transport,
-		);
+		return this._relayClientFactory.createClient(this._mainService, result.connectionId, result.address);
 	}
 
 	private _augmentConfig(config: ISSHAgentHostConfig): ISSHAgentHostConfig {
