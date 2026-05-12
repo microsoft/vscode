@@ -706,7 +706,7 @@ describe('CopilotCLISession', () => {
 
 		// Native CLI tool: success
 		sdkSession.emit('tool.execution_start', { toolName: 'bash', toolCallId: 't-success', arguments: {} });
-		sdkSession.emit('tool.execution_complete', { toolCallId: 't-success', toolName: 'bash', success: true, result: { content: 'ok' } });
+		sdkSession.emit('tool.execution_complete', { toolCallId: 't-success', toolName: 'completion_bash', success: true, result: { content: 'ok' } });
 
 		// MCP tool: failure
 		sdkSession.emit('tool.execution_start', { toolName: 'mcp_tool', toolCallId: 't-mcp', mcpServerName: 'srv', mcpToolName: 'mt', arguments: {} });

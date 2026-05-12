@@ -2632,7 +2632,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 	): void {
 		const { toolCallId, success, error } = event.data;
 		const eventToolName = 'toolName' in event.data && typeof event.data.toolName === 'string' ? event.data.toolName : undefined;
-		const toolName = eventToolName ?? toolCall?.toolName ?? '<unknown>';
+		const toolName = toolCall?.toolName ?? eventToolName ?? '<unknown>';
 		const startTime = toolStartTimes.get(toolCallId);
 		toolStartTimes.delete(toolCallId);
 		const invocationTimeMs = startTime !== undefined ? Date.now() - startTime : undefined;
