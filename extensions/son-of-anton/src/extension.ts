@@ -63,7 +63,9 @@ import { TaskBoardPanel } from './board/TaskBoardPanel';
 import { TaskBoardSidebarView } from './board/TaskBoardSidebarView';
 import { AgentEvent, AgentPlan } from './chat/agentEvents';
 import { CodeGraphController } from './services/CodeGraphController';
-import { CodeGraphStatusBarItem } from './sidebar/CodeGraphStatusBarItem';
+import { CodeGraphStatusBarItem as DockerStackStatusBarItem } from './sidebar/CodeGraphStatusBarItem';
+import { CodeGraphBackend, type McpServerEntry as CodeGraphMcpEntry } from './codeGraph/CodeGraphBackend';
+import { CodeGraphStatusBarItem } from './status/CodeGraphStatusBarItem';
 import { CliStatusBarItem } from './cli/CliStatusBarItem';
 import { HarnessStatusBarItem } from './status/HarnessStatusBarItem';
 import { registerOpenCliInTerminalCommand } from './cli/openCliInTerminal';
@@ -115,14 +117,65 @@ export function activate(context: vscode.ExtensionContext): void {
 	// Single shared tool registry threaded into all chat surfaces so tool-call
 	// orchestration is consistent regardless of where the chat is hosted.
 	const toolRegistry = new ToolRegistry();
+
+	// Forward reference: the bundled code-graph backend (see below) is
+	// constructed after the agent stack so it can read globalStorageUri, but
+	// the McpClient is built earlier and needs to know about the embedded
+	// MCP server. The closure captures the reference and reads it at call
+	// time — the backend's `onDidChangeState` re-fires `onSettingChange` so
+	// the McpClient reconciles when the embedded server comes up or down.
+	let codeGraphBackendRef: CodeGraphBackend | undefined;
+	const codeGraphSettingChangeListeners: Array<() => void> = [];
+	const fireCodeGraphSettingChange = (): void => {
+		for (const listener of codeGraphSettingChangeListeners) {
+			try { listener(); } catch (err) { console.warn('[extension] code-graph setting listener threw', err); }
+		}
+	};
 	const mcpClientDeps: McpClientDeps = {
-		readServersSetting: () => vscode.workspace.getConfiguration().get<unknown>('sota.mcp.servers'),
-		getWorkspaceRoot: () => vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
-		onSettingChange: (listener) => vscode.workspace.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('sota.mcp.servers')) {
-				listener();
+		readServersSetting: () => {
+			const userServers = vscode.workspace.getConfiguration().get<unknown>('sota.mcp.servers');
+			const list: unknown[] = Array.isArray(userServers) ? [...userServers] : [];
+			const backendEntry: CodeGraphMcpEntry | undefined = codeGraphBackendRef?.getMcpServerEntry();
+			if (backendEntry) {
+				// Skip if the user has manually configured a `code-graph` entry
+				// already — their setting wins so existing Docker users aren't
+				// silently overridden.
+				const userHasOverride = list.some(s =>
+					s !== null && typeof s === 'object' && (s as { name?: unknown }).name === backendEntry.name,
+				);
+				if (!userHasOverride) {
+					list.push({
+						name: backendEntry.name,
+						command: backendEntry.command,
+						args: backendEntry.args ? [...backendEntry.args] : undefined,
+						env: backendEntry.env,
+						cwd: backendEntry.cwd,
+					});
+				}
 			}
-		}),
+			return list;
+		},
+		getWorkspaceRoot: () => vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
+		onSettingChange: (listener) => {
+			codeGraphSettingChangeListeners.push(listener);
+			const sub = vscode.workspace.onDidChangeConfiguration(e => {
+				if (
+					e.affectsConfiguration('sota.mcp.servers') ||
+					e.affectsConfiguration('sota.codeGraph')
+				) {
+					listener();
+				}
+			});
+			return {
+				dispose: () => {
+					const idx = codeGraphSettingChangeListeners.indexOf(listener);
+					if (idx >= 0) {
+						codeGraphSettingChangeListeners.splice(idx, 1);
+					}
+					sub.dispose();
+				},
+			};
+		},
 	};
 	const mcpClient = new McpClient(mcpClientDeps);
 	context.subscriptions.push({ dispose: () => mcpClient.dispose() });
@@ -1372,9 +1425,10 @@ export function activate(context: vscode.ExtensionContext): void {
 		})
 	);
 
-	// --- Code Graph (bundled docker stack) ---
+	// --- Code Graph (bundled docker stack + embedded backend) ---
 	const codeGraphChannel = vscode.window.createOutputChannel('Son of Anton Code Graph');
 	context.subscriptions.push(codeGraphChannel);
+	const repoRoot = path.resolve(context.extensionPath, '..', '..');
 	// `services/code-graph/` lives in the Son of Anton repo (alongside the
 	// `extensions/` dir), NOT in the user's open workspace. The extension at
 	// `<repo>/extensions/son-of-anton/` resolves the repo root as
@@ -1383,12 +1437,43 @@ export function activate(context: vscode.ExtensionContext): void {
 	// (e.g. when the extension ships from a packaged location in the future).
 	const codeGraphController = new CodeGraphController({
 		workspaceRoot: workspacePath || undefined,
-		repoRoot: path.resolve(context.extensionPath, '..', '..'),
+		repoRoot,
 		output: codeGraphChannel,
 	});
 	context.subscriptions.push(codeGraphController);
-	const codeGraphStatusItem = new CodeGraphStatusBarItem(codeGraphController);
-	context.subscriptions.push(codeGraphStatusItem);
+	// Legacy Docker-compose stack status item — kept for users on the new
+	// FalkorDB+Qdrant path. The unified backend status (below) covers the
+	// embedded server lifecycle and the legacy `services/{indexer,lsif,
+	// mcp-gateway}` Docker setup.
+	const dockerStackStatusItem = new DockerStackStatusBarItem(codeGraphController);
+	context.subscriptions.push(dockerStackStatusItem);
+
+	// Embedded MCP server lifecycle. Owns the child-process spawn of
+	// `services/code-graph/mcp-server/dist/index.js`, auto-restarts on
+	// crash, and surfaces backend state to its own status-bar item. The
+	// extension merges its `getMcpServerEntry()` into `sota.mcp.servers`
+	// (see `mcpClientDeps.readServersSetting` above) so the existing
+	// `McpClient` picks the server up without the user having to add it
+	// manually.
+	const codeGraphBackend = new CodeGraphBackend({
+		workspaceRoot: workspacePath || undefined,
+		repoRoot,
+		storageDir: context.globalStorageUri.fsPath,
+		output: codeGraphChannel,
+	});
+	codeGraphBackendRef = codeGraphBackend;
+	context.subscriptions.push(codeGraphBackend);
+	// Trigger an McpClient reconcile whenever the backend transitions between
+	// off / starting / embedded / docker / failed so the server entry is
+	// added/removed in lock-step with the lifecycle.
+	context.subscriptions.push(
+		codeGraphBackend.onDidChangeState(() => fireCodeGraphSettingChange()),
+	);
+	const codeGraphBackendStatusItem = new CodeGraphStatusBarItem(codeGraphBackend);
+	context.subscriptions.push(codeGraphBackendStatusItem);
+	// Kick off the backend asynchronously — activation must stay fast and
+	// non-blocking. Failures surface in the output channel / status bar item.
+	void codeGraphBackend.start();
 
 	// CLI integration (Phase CLI7 partial). The status bar item shows whether
 	// the bundled `sota` CLI is on PATH and the palette command launches it
@@ -1437,6 +1522,35 @@ export function activate(context: vscode.ExtensionContext): void {
 			} else {
 				await codeGraphController.showLogs();
 			}
+		}),
+	);
+
+	// Four palette commands for the embedded code-graph backend. They mirror
+	// the reference extension in `services/code-graph/extension-sample/` but
+	// drive the unified `CodeGraphBackend` rather than the older docker
+	// compose controller.
+	context.subscriptions.push(
+		vscode.commands.registerCommand('sota.codeGraph.indexWorkspace', async () => {
+			await codeGraphBackend.indexWorkspace();
+			vscode.window.showInformationMessage('Son of Anton: code graph reindex requested.');
+		}),
+		vscode.commands.registerCommand('sota.codeGraph.restart', async () => {
+			await codeGraphBackend.restart();
+		}),
+		vscode.commands.registerCommand('sota.codeGraph.showStatus', () => {
+			const state = codeGraphBackend.currentState;
+			const lastIndexed = codeGraphBackend.lastIndexedAt
+				? new Date(codeGraphBackend.lastIndexedAt).toLocaleString()
+				: 'never';
+			const files = codeGraphBackend.fileCount ?? 0;
+			const symbols = codeGraphBackend.symbolCount ?? 0;
+			const failure = codeGraphBackend.failureReason ? ` — ${codeGraphBackend.failureReason}` : '';
+			vscode.window.showInformationMessage(
+				`Code Graph: ${state}${failure} · last index: ${lastIndexed} · ${files} files, ${symbols} symbols`,
+			);
+		}),
+		vscode.commands.registerCommand('sota.codeGraph.openLogs', () => {
+			codeGraphBackend.openLogs();
 		}),
 	);
 

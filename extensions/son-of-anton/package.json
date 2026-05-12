@@ -427,6 +427,26 @@
 				"command": "sota.codeGraph.menu",
 				"title": "Code Graph Actions",
 				"category": "Son of Anton"
+			},
+			{
+				"command": "sota.codeGraph.indexWorkspace",
+				"title": "Code Graph: Index Workspace",
+				"category": "Son of Anton"
+			},
+			{
+				"command": "sota.codeGraph.restart",
+				"title": "Code Graph: Restart Backend",
+				"category": "Son of Anton"
+			},
+			{
+				"command": "sota.codeGraph.showStatus",
+				"title": "Code Graph: Show Status",
+				"category": "Son of Anton"
+			},
+			{
+				"command": "sota.codeGraph.openLogs",
+				"title": "Code Graph: Open Logs",
+				"category": "Son of Anton"
 			}
 		],
 		"keybindings": [
@@ -937,6 +957,53 @@
 					"default": false,
 					"scope": "resource",
 					"description": "Automatically start the bundled code-graph docker stack when this workspace opens. Toggled on by 'Son of Anton: Enable Code Graph'."
+				},
+				"sota.codeGraph.backend": {
+					"type": "string",
+					"enum": [
+						"auto",
+						"embedded",
+						"docker",
+						"off"
+					],
+					"default": "auto",
+					"scope": "application",
+					"description": "Which code-graph backend to use. 'auto' detects an existing Docker stack and falls back to the embedded MCP server. 'embedded' always spawns the bundled child process. 'docker' defers to the legacy services/{indexer,lsif,mcp-gateway} stack. 'off' disables the backend entirely."
+				},
+				"sota.codeGraph.indexRoot": {
+					"type": "string",
+					"default": "",
+					"scope": "resource",
+					"description": "Root directory the code-graph indexer scans. Defaults to the active workspace folder when blank."
+				},
+				"sota.codeGraph.embedder": {
+					"type": "string",
+					"enum": [
+						"none",
+						"local",
+						"provider"
+					],
+					"default": "none",
+					"scope": "application",
+					"description": "Embedder used for semantic_search. 'none' returns empty results. 'local' downloads a ~30MB fastembed model on first call. 'provider' calls an OpenAI-compatible /embeddings endpoint (configure sota.codeGraph.providerEmbedder.*)."
+				},
+				"sota.codeGraph.providerEmbedder.endpoint": {
+					"type": "string",
+					"default": "",
+					"scope": "application",
+					"description": "OpenAI-compatible /embeddings endpoint URL. Used when sota.codeGraph.embedder is 'provider'."
+				},
+				"sota.codeGraph.providerEmbedder.model": {
+					"type": "string",
+					"default": "",
+					"scope": "application",
+					"description": "Model identifier passed to the provider embedder endpoint."
+				},
+				"sota.codeGraph.providerEmbedder.dims": {
+					"type": "number",
+					"default": 1536,
+					"scope": "application",
+					"description": "Output dimension of the provider embedder. Must match the model's native dimension."
 				},
 				"sota.mcp.servers": {
 					"type": "array",
