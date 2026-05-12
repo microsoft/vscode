@@ -91,7 +91,12 @@ export class AgentHostSessionAdapter implements ISession {
 	readonly mode = observableValue<{ readonly id: string; readonly kind: string } | undefined>('mode', undefined);
 	readonly loading: IObservable<boolean>;
 	readonly isArchived = observableValue('isArchived', false);
-	readonly isRead = observableValue('isRead', true);
+	// Agent host sessions defer unread tracking to the workbench view-level
+	// state (see SessionsListModelService). The agent host protocol still
+	// carries an isRead bit but exposing it here would conflict with the
+	// view's own tracking, so we always report `true` from this observable
+	// and let the view be the source of truth.
+	readonly isRead = constObservable(true);
 	readonly description: IObservable<IMarkdownString | undefined>;
 	readonly lastTurnEnd: ISettableObservable<Date | undefined>;
 	readonly gitHubInfo: IObservable<IGitHubInfo | undefined>;
@@ -215,15 +220,14 @@ export class AgentHostSessionAdapter implements ISession {
 			};
 		});
 
-		if (metadata.isRead === false) {
-			this.isRead.set(false, undefined);
-		}
 		if (metadata.isArchived) {
 			this.isArchived.set(true, undefined);
 		}
 		if (metadata.diffs && metadata.diffs.length > 0) {
 			this.changes.set(diffsToChanges(metadata.diffs, _options.mapDiffUri), undefined);
 		}
+
+		const checkpoints = observableValue(this, undefined);
 
 		this.mainChat = {
 			resource: this.resource,
@@ -233,6 +237,7 @@ export class AgentHostSessionAdapter implements ISession {
 			status: this.status,
 			changes: this.changes,
 			changesets: this.changesets,
+			checkpoints,
 			modelId: this.modelId,
 			mode: this.mode,
 			isArchived: this.isArchived,
@@ -292,11 +297,6 @@ export class AgentHostSessionAdapter implements ISession {
 			const workspace = this._options.buildWorkspace(this._project, this._workingDirectory, readSessionGitState(this._meta));
 			if (agentHostSessionWorkspaceKey(workspace) !== agentHostSessionWorkspaceKey(this.workspace.get())) {
 				this.workspace.set(workspace, tx);
-				didChange = true;
-			}
-
-			if (metadata.isRead !== undefined && metadata.isRead !== this.isRead.get()) {
-				this.isRead.set(metadata.isRead, tx);
 				didChange = true;
 			}
 
@@ -458,6 +458,7 @@ class NewSession extends Disposable {
 		const updatedAt = observableValue(this, new Date());
 		const changesets = observableValue<readonly ISessionChangeset[]>(this, []);
 		const changes = observableValueOpts<readonly (IChatSessionFileChange | IChatSessionFileChange2)[]>({ owner: this, equalsFn: sessionFileChangesEqual }, []);
+		const checkpoints = observableValue(this, undefined);
 		this._modelId = observableValue<string | undefined>(this, undefined);
 		const mode = observableValue<{ readonly id: string; readonly kind: string } | undefined>(this, undefined);
 		const isArchived = observableValue(this, false);
@@ -472,6 +473,7 @@ class NewSession extends Disposable {
 			status: this._status,
 			changesets,
 			changes,
+			checkpoints,
 			modelId: this._modelId,
 			mode, isArchived, isRead, description, lastTurnEnd,
 		};
@@ -882,7 +884,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			this._onDidChangeRootConfig.fire();
 			return;
 		}
-		if (prev && prev.schema === next.schema && equals(prev.values, next.values)) {
+		if (prev?.schema === next.schema && equals(prev.values, next.values)) {
 			return;
 		}
 		this._rootConfig = next;
@@ -1694,8 +1696,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				this._handleTitleChanged(e.action.session, e.action.title);
 			} else if (e.action.type === ActionType.SessionModelChanged && isSessionAction(e.action)) {
 				this._handleModelChanged(e.action.session, e.action.model);
-			} else if (e.action.type === ActionType.SessionIsReadChanged && isSessionAction(e.action)) {
-				this._handleIsReadChanged(e.action.session, e.action.isRead);
 			} else if (e.action.type === ActionType.SessionIsArchivedChanged && isSessionAction(e.action)) {
 				this._handleIsArchivedChanged(e.action.session, e.action.isArchived);
 			} else if (e.action.type === ActionType.SessionConfigChanged && isSessionAction(e.action)) {
@@ -1726,7 +1726,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			...(summary.project ? { project: { uri: this.mapProjectUri(URI.parse(summary.project.uri)), displayName: summary.project.displayName } } : {}),
 			model: summary.model,
 			workingDirectory: workingDir,
-			isRead: !!(summary.status & ProtocolSessionStatus.IsRead),
 			isArchived: !!(summary.status & ProtocolSessionStatus.IsArchived),
 		};
 		const cached = this.createAdapter(meta);
@@ -1768,15 +1767,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 	}
 
-	private _handleIsReadChanged(session: string, isRead: boolean): void {
-		const rawId = AgentSession.id(session);
-		const cached = this._sessionCache.get(rawId);
-		if (cached) {
-			cached.isRead.set(isRead, undefined);
-			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
-		}
-	}
-
 	private _handleIsArchivedChanged(session: string, isArchived: boolean): void {
 		const rawId = AgentSession.id(session);
 		const cached = this._sessionCache.get(rawId);
@@ -1808,12 +1798,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			const uiStatus = mapProtocolStatus(changes.status);
 			if (uiStatus !== cached.status.get()) {
 				cached.status.set(uiStatus, undefined);
-				didChange = true;
-			}
-
-			const isRead = !!(changes.status & ProtocolSessionStatus.IsRead);
-			if (isRead !== cached.isRead.get()) {
-				cached.isRead.set(isRead, undefined);
 				didChange = true;
 			}
 

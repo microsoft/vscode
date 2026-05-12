@@ -32,6 +32,7 @@ import { EXTENSION_ID } from '../../common/constants';
 import { GitBranchNameGenerator } from '../../prompt/node/gitBranch';
 import { IChatSessionMetadataStore, RepositoryProperties } from '../common/chatSessionMetadataStore';
 import { IChatSessionWorkspaceFolderService } from '../common/chatSessionWorkspaceFolderService';
+import { IChatSessionWorktreeCheckpointService } from '../common/chatSessionWorktreeCheckpointService';
 import { IChatSessionWorktreeService } from '../common/chatSessionWorktreeService';
 import { IChatFolderMruService, IFolderRepositoryManager, IsolationMode } from '../common/folderRepositoryManager';
 import { getWorkingDirectory, IWorkspaceInfo } from '../common/workspaceInfo';
@@ -42,7 +43,7 @@ import { SessionIdForCLI } from '../copilotcli/common/utils';
 import { getCopilotCLISessionDir } from '../copilotcli/node/cliHelpers';
 import { ICopilotCLIModels, ICopilotCLISDK } from '../copilotcli/node/copilotCli';
 import { CopilotCLIPromptResolver } from '../copilotcli/node/copilotcliPromptResolver';
-import { builtinSlashSCommands, CopilotCLICommand, copilotCLICommands, ICopilotCLISession } from '../copilotcli/node/copilotcliSession';
+import { builtinSlashSCommands, CopilotCLICommand, copilotCLICommands, CopilotCLIQuotaExceededError, ICopilotCLISession } from '../copilotcli/node/copilotcliSession';
 import { ICopilotCLISessionItem, ICopilotCLISessionService } from '../copilotcli/node/copilotcliSessionService';
 import { buildMcpServerMappings } from '../copilotcli/node/mcpHandler';
 import { ICopilotCLISessionTracker } from '../copilotcli/vscode-node/copilotCLISessionTracker';
@@ -884,6 +885,9 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 			if (isCancellationError(ex)) {
 				return {};
 			}
+			if (ex instanceof CopilotCLIQuotaExceededError) {
+				return { errorDetails: { message: ex.message, isQuotaExceeded: true } };
+			}
 			throw ex;
 		} finally {
 			this._chatQuotaService.resetTurnCredits(request.id);
@@ -1022,6 +1026,7 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 export function registerCLIChatCommands(
 	copilotCLISessionService: ICopilotCLISessionService,
 	copilotCLIWorktreeManagerService: IChatSessionWorktreeService,
+	copilotCLIWorktreeCheckpointService: IChatSessionWorktreeCheckpointService,
 	gitService: IGitService,
 	gitCommitMessageService: IGitCommitMessageService,
 	copilotCliWorkspaceSession: IChatSessionWorkspaceFolderService,
@@ -1501,17 +1506,7 @@ export function registerCLIChatCommands(
 			return;
 		}
 
-		if (worktreeProperties) {
-			// Worktree
-			await copilotCLIWorktreeManagerService.setWorktreeProperties(sessionId, {
-				...worktreeProperties,
-				changes: undefined
-			});
-		} else if (workspaceFolder) {
-			// Workspace
-			copilotCliWorkspaceSession.clearWorkspaceChanges(sessionId);
-		}
-
+		await setHasGitOperationInProgress(sessionId, false);
 		await contentProvider.refreshSession({ reason: 'update', sessionId });
 	}));
 
@@ -1552,24 +1547,44 @@ export function registerCLIChatCommands(
 		// Set the global context key to immediately enable/disable the action
 		await vscode.commands.executeCommand('setContext', 'sessions.hasGitOperationInProgress', inProgress);
 
+		// Worktree
 		const worktreeProperties = await copilotCLIWorktreeManagerService.getWorktreeProperties(sessionId);
+		if (worktreeProperties) {
+			if (worktreeProperties.version !== 2) {
+				// Unsupported worktree version
+				return;
+			}
+
+			if (!inProgress) {
+				// Refresh the changes after the git operation is complete
+				await copilotCLIWorktreeManagerService.refreshWorktreeChanges(sessionId);
+			}
+
+			await copilotCLIWorktreeManagerService.updateWorktreeProperties(sessionId, {
+				hasGitOperationInProgress: inProgress
+			});
+
+			await contentProvider.refreshSession({ reason: 'update', sessionId });
+			return;
+		}
+
+		// Workspace
 		const workspaceFolder = await copilotCliWorkspaceSession.getSessionWorkspaceFolder(sessionId);
 		const repositoryProperties = await copilotCliWorkspaceSession.getRepositoryProperties(sessionId);
 
-		if (worktreeProperties && worktreeProperties.version === 2) {
-			await copilotCLIWorktreeManagerService.setWorktreeProperties(sessionId, {
-				...worktreeProperties,
-				hasGitOperationInProgress: inProgress
-			});
-		} else if (workspaceFolder && repositoryProperties) {
-			// Workspace (refresh the changes in the cache)
-			await copilotCliWorkspaceSession.setRepositoryProperties(sessionId, {
-				...repositoryProperties,
-				hasGitOperationInProgress: inProgress
-			});
-		} else {
+		if (!workspaceFolder || !repositoryProperties) {
 			return;
 		}
+
+		if (!inProgress) {
+			// Refresh the changes after the git operation is complete
+			await copilotCliWorkspaceSession.refreshWorkspaceChanges(sessionId);
+		}
+
+		await copilotCliWorkspaceSession.setRepositoryProperties(sessionId, {
+			...repositoryProperties,
+			hasGitOperationInProgress: inProgress
+		});
 
 		await contentProvider.refreshSession({ reason: 'update', sessionId });
 	};
@@ -1708,6 +1723,19 @@ export function registerCLIChatCommands(
 		}
 
 		await gitService.restore(repository.rootUri, resources.map(r => r.fsPath), { ref });
+
+		// Refresh the last checkpoint to reflect the now-restored worktree state
+		await copilotCLIWorktreeCheckpointService.updateLastCheckpoint(sessionId);
+
+		if (worktreeProperties) {
+			// Worktree
+			await copilotCLIWorktreeManagerService.refreshWorktreeChanges(sessionId);
+		} else if (workspaceFolder) {
+			// Workspace
+			await copilotCliWorkspaceSession.refreshWorkspaceChanges(sessionId);
+		}
+
+		await contentProvider.refreshSession({ reason: 'update', sessionId });
 	}));
 
 	const createPullRequest = async (sessionItemOrResource: vscode.ChatSessionItem | vscode.Uri | undefined, isDraft: boolean) => {

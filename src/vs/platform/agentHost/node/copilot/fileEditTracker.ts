@@ -131,6 +131,7 @@ export class FileEditTracker {
 	 * and returns the result as an {@link ToolResultFileEditContent}
 	 * for inclusion in the tool result.
 	 *
+	 * @param turnId - The turn that produced this edit.
 	 * @param toolCallId - The tool call that produced this edit.
 	 * @param filePath - Absolute path of the edited file.
 	 */

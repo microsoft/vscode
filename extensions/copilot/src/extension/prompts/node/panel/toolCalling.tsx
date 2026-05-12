@@ -124,7 +124,10 @@ export class ChatToolCalls extends PromptElement<ChatToolCallsProps, void> {
 		const statefulMarker = round.statefulMarker && <StatefulMarkerContainer statefulMarker={{ modelId: this.promptEndpoint.model, marker: round.statefulMarker }} />;
 		// Backward compat: older persisted rounds use `phaseModelId` instead of `modelId`. Read both.
 		const roundModelId = round.modelId ?? (round as IToolCallRound & { phaseModelId?: string }).phaseModelId;
-		const includeThinking = !this.props.isHistorical || (this.promptEndpoint.apiType === 'responses' && roundModelId === this.promptEndpoint.model);
+		const sameModelAsEndpoint = roundModelId === this.promptEndpoint.model;
+		const apiSupportsHistoricalThinking = this.promptEndpoint.apiType === 'responses' || this.promptEndpoint.apiType === 'messages';
+		const includeThinking = !this.props.isHistorical
+			|| (apiSupportsHistoricalThinking && sameModelAsEndpoint);
 		const thinking = includeThinking && round.thinking && <ThinkingDataContainer thinking={round.thinking} />;
 		const phase = (round.phase && roundModelId === this.promptEndpoint.model) ? <PhaseDataContainer phase={round.phase} /> : undefined;
 		const compaction = round.compaction && <CompactionDataContainer compaction={round.compaction} />;

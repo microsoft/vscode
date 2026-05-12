@@ -180,15 +180,12 @@ Guidelines for session memory (`/memories/session/`):
 
 </memoryGuidelines>
 
-
 </memoryInstructions>
 
 <instructions>
 This is a test custom instruction file
 </instructions>
 
-
-[copilot_cache_control: { type: 'ephemeral' }]
 ~~~
 
 
@@ -236,8 +233,6 @@ search_workspace_symbols
 test_search
 </availableDeferredTools>
 
-
-[copilot_cache_control: { type: 'ephemeral' }]
 ~~~
 
 
@@ -256,6 +251,4 @@ IMPORTANT: Before calling any deferred tool that was not previously returned by 
 hello
 </userRequest>
 
-
-[copilot_cache_control: { type: 'ephemeral' }]
 ~~~

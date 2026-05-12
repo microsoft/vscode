@@ -13,13 +13,16 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { IConfigurationService } from '../../../configuration/common/configuration.js';
+import { IEnvironmentService } from '../../../environment/common/environment.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ISharedProcessService } from '../../../ipc/electron-browser/services.js';
+import { IQuickInputService } from '../../../quickinput/common/quickInput.js';
 import { IRemoteAgentHostService } from '../../common/remoteAgentHostService.js';
 import type { IAgentConnection } from '../../common/agentService.js';
 import type {
 	ISSHAgentHostConfig,
 	ISSHConnectResult,
+	ISSHKeyboardInteractiveRequest,
 	ISSHRelayMessage,
 	ISSHResolvedConfig,
 } from '../../common/sshRemoteAgentHost.js';
@@ -45,6 +48,18 @@ class MockSSHMainService {
 
 	private readonly _onDidRelayClose = new Emitter<string>();
 	readonly onDidRelayClose = this._onDidRelayClose.event;
+
+	private readonly _onDidRequestKeyboardInteractive = new Emitter<ISSHKeyboardInteractiveRequest>();
+	readonly onDidRequestKeyboardInteractive = this._onDidRequestKeyboardInteractive.event;
+
+	private readonly _onDidCancelKeyboardInteractive = new Emitter<string>();
+	readonly onDidCancelKeyboardInteractive = this._onDidCancelKeyboardInteractive.event;
+
+	readonly kbiResponses: Array<{ requestId: string; responses: ReadonlyArray<string> | undefined }> = [];
+
+	async respondKeyboardInteractive(requestId: string, responses?: ReadonlyArray<string>): Promise<void> {
+		this.kbiResponses.push({ requestId, responses });
+	}
 
 	readonly disconnectCalls: string[] = [];
 	private _nextConnectionId = 1;
@@ -93,6 +108,8 @@ class MockSSHMainService {
 		this._onDidReportConnectProgress.dispose();
 		this._onDidRelayMessage.dispose();
 		this._onDidRelayClose.dispose();
+		this._onDidRequestKeyboardInteractive.dispose();
+		this._onDidCancelKeyboardInteractive.dispose();
 	}
 }
 
@@ -188,6 +205,8 @@ suite('SSHRemoteAgentHostService (renderer)', () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IConfigurationService, new TestConfigurationService() as Partial<IConfigurationService>);
+		instantiationService.stub(IEnvironmentService, { logsHome: URI.file('/tmp/logs') } as Partial<IEnvironmentService>);
+		instantiationService.stub(IQuickInputService, {} as Partial<IQuickInputService>);
 		instantiationService.stub(ISharedProcessService, sharedProcessService as ISharedProcessService);
 		instantiationService.stub(IRemoteAgentHostService, remoteAgentHostService as Partial<IRemoteAgentHostService>);
 

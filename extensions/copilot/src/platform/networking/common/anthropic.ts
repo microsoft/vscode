@@ -139,18 +139,6 @@ export function isAnthropicContextEditingEnabled(
 	return mode !== 'off';
 }
 
-export function isAnthropicMemoryToolEnabled(
-	endpoint: IChatEndpoint | string,
-	configurationService: IConfigurationService,
-	experimentationService: IExperimentationService,
-): boolean {
-	const effectiveModelId = typeof endpoint === 'string' ? endpoint : endpoint.model;
-	if (!modelSupportsMemory(effectiveModelId)) {
-		return false;
-	}
-	return configurationService.getExperimentBasedConfig(ConfigKey.MemoryToolEnabled, experimentationService);
-}
-
 export type ContextEditingMode = 'off' | 'clear-thinking' | 'clear-tooluse' | 'clear-both';
 
 /**
