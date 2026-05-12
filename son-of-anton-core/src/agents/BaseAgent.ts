@@ -341,6 +341,18 @@ export abstract class BaseAgent {
 
 	/**
 	 * Call an MCP tool and record a trace span.
+	 *
+	 * `McpClient.callTool` now soft-fails for unknown / disconnected
+	 * servers — those return `{ isError: true, content: "..." }` instead
+	 * of throwing — but the underlying `McpServerConnection` can still
+	 * throw on hard transport failures (timeout, disposed connection,
+	 * malformed response). The `try/finally` here makes sure `endTime`
+	 * is stamped on the span in either case so the trace pane never
+	 * shows perpetually-open MCP spans, and a synthetic error attribute
+	 * is recorded for the throw path so debugging real transport
+	 * failures stays observable. The exception is re-thrown so callers
+	 * (the five `query*` helpers + the eight in-agent callsites) keep
+	 * their existing try/catch contracts.
 	 */
 	protected async callMcpTool(
 		taskId: string,
@@ -356,13 +368,18 @@ export abstract class BaseAgent {
 			attributes: { server, tool, inputs: JSON.stringify(inputs) },
 		});
 
-		const result = await this.mcpClient.callTool({ server, tool, inputs });
-
-		span.endTime = Date.now();
-		span.attributes['latencyMs'] = result.latencyMs;
-		span.attributes['isError'] = result.isError;
-
-		return result;
+		try {
+			const result = await this.mcpClient.callTool({ server, tool, inputs });
+			span.attributes['latencyMs'] = result.latencyMs;
+			span.attributes['isError'] = result.isError;
+			return result;
+		} catch (err) {
+			span.attributes['isError'] = true;
+			span.attributes['error'] = err instanceof Error ? err.message : String(err);
+			throw err;
+		} finally {
+			span.endTime = Date.now();
+		}
 	}
 
 	/**
