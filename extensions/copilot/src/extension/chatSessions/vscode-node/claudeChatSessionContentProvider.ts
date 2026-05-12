@@ -282,6 +282,7 @@ export class ClaudeChatSessionItemController extends Disposable {
 
 	/** Whether the "bypass permissions" config is enabled — controls permission mode items. */
 	private readonly _bypassPermissionsEnabled: IObservable<boolean>;
+	private readonly _autoPermissionsEnabled: IObservable<boolean>;
 
 	/** Current workspace folders — controls folder group items and visibility. */
 	private readonly _workspaceFolders: IObservable<URI[]>;
@@ -309,6 +310,13 @@ export class ClaudeChatSessionItemController extends Disposable {
 			Event.filter(_configurationService.onDidChangeConfiguration,
 				e => e.affectsConfiguration(ConfigKey.ClaudeAgentAllowDangerouslySkipPermissions.fullyQualifiedId)),
 			() => _configurationService.getConfig(ConfigKey.ClaudeAgentAllowDangerouslySkipPermissions) as boolean,
+		);
+
+		this._autoPermissionsEnabled = observableFromEvent(
+			this,
+			Event.filter(_configurationService.onDidChangeConfiguration,
+				e => e.affectsConfiguration(ConfigKey.ClaudeAgentAllowAutoPermissions.fullyQualifiedId)),
+			() => _configurationService.getConfig(ConfigKey.ClaudeAgentAllowAutoPermissions) as boolean,
 		);
 
 		// Bridge vscode.Event → internal Event for workspace folder changes
@@ -470,8 +478,9 @@ export class ClaudeChatSessionItemController extends Disposable {
 		const permissionModeGroup = derived(reader => {
 			/** @description permissionModeGroup */
 			const bypassEnabled = this._bypassPermissionsEnabled.read(reader);
+			const autoEnabled = this._autoPermissionsEnabled.read(reader);
 			const selectedMode = permissionMode.read(reader);
-			const group = buildPermissionModeItems(bypassEnabled);
+			const group = buildPermissionModeItems(bypassEnabled, autoEnabled);
 			const selectedItem = group.items.find(i => i.id === selectedMode) ?? group.items[0];
 			return { ...group, selected: selectedItem };
 		});

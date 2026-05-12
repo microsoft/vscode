@@ -175,11 +175,10 @@ export class ClaudeLanguageModelServer extends Disposable {
 			}
 
 			// Set up streaming response
-			res.writeHead(200, {
-				'Content-Type': 'text/event-stream',
-				'Cache-Control': 'no-cache',
-				'Connection': 'keep-alive',
-			});
+			// Response headers are written by ClaudeStreamingPassThroughEndpoint
+			// once the upstream response arrives, so we can mirror the upstream
+			// Content-Type (text/event-stream for stream: true, application/json
+			// for stream: false — used by `auto` permission mode classifier calls).
 
 			// Handle client disconnect
 			let requestComplete = false;
@@ -230,6 +229,7 @@ export class ClaudeLanguageModelServer extends Disposable {
 				modelCapabilities: { enableThinking: true, reasoningEffort },
 				userInitiatedRequest: isUserInitiatedMessage,
 				turnId: sessionId ? this.sessionStateService.getTurnIdForSession(sessionId) : undefined,
+				requestOptions: { stream: !!requestBody.stream },
 			}, tokenSource.token);
 
 			// Wrap in trace context so chat spans are parented to the invoke_agent span
@@ -612,6 +612,30 @@ class ClaudeStreamingPassThroughEndpoint implements IChatEndpoint {
 		cancellationToken?: CancellationToken
 	): Promise<AsyncIterableObject<ChatCompletion>> {
 		const body = response.body;
+		const upstreamContentType = response.headers.get('content-type') ?? '';
+		const isStreaming = upstreamContentType.includes('text/event-stream');
+
+		// Mirror upstream Content-Type so the SDK client parses correctly.
+		// `auto` permission mode uses non-streaming (application/json); the
+		// regular agent loop uses SSE.
+		if (!this.responseStream.headersSent) {
+			if (isStreaming) {
+				this.responseStream.writeHead(200, {
+					'Content-Type': 'text/event-stream',
+					'Cache-Control': 'no-cache',
+					'Connection': 'keep-alive',
+				});
+			} else {
+				this.responseStream.writeHead(200, {
+					'Content-Type': upstreamContentType || 'application/json',
+				});
+			}
+		}
+
+		if (!isStreaming) {
+			return this._processNonStreamingResponse(body, telemetryData, response.headers, cancellationToken);
+		}
+
 		return new AsyncIterableObject<ChatCompletion>(async feed => {
 			// We parse the stream just to return a correct ChatCompletion for logging the response and token usage details.
 			const requestId = response.headers.get('X-Request-ID') ?? generateUuid();
@@ -660,6 +684,26 @@ class ClaudeStreamingPassThroughEndpoint implements IChatEndpoint {
 
 					this.responseStream.write(chunk);
 					parser.feed(chunk);
+				}
+			} finally {
+				await body.destroy();
+			}
+		});
+	}
+
+	private _processNonStreamingResponse(
+		body: Response['body'],
+		_telemetryData: TelemetryData,
+		_responseHeaders: Response['headers'],
+		cancellationToken?: CancellationToken,
+	): AsyncIterableObject<ChatCompletion> {
+		return new AsyncIterableObject<ChatCompletion>(async feed => {
+			try {
+				for await (const chunk of body) {
+					if (cancellationToken?.isCancellationRequested) {
+						break;
+					}
+					this.responseStream.write(chunk);
 				}
 			} finally {
 				await body.destroy();
