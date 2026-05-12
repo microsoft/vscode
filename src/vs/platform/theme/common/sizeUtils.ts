@@ -16,9 +16,10 @@ import { RunOnceScheduler } from '../../../base/common/async.js';
 export type SizeIdentifier = string;
 
 /**
- * Size value unit types supported by the registry
+ * Size value unit types supported by the registry.
+ * Use `''` for unitless values such as font weights.
  */
-export type SizeUnit = 'px' | 'rem' | 'em' | '%';
+export type SizeUnit = 'px' | 'rem' | 'em' | '%' | '';
 
 /**
  * A size value with a numeric amount and unit
@@ -85,10 +86,11 @@ export function sizeForAllThemes(value: number, unit: SizeUnit = 'px'): SizeDefa
 }
 
 /**
- * Convert a size value to a CSS string
+ * Convert a size value to a CSS string.
+ * When the unit is `''` the raw numeric value is returned (e.g. font weights).
  */
 export function sizeValueToCss(sizeValue: SizeValue): string {
-	return `${sizeValue.value}${sizeValue.unit}`;
+	return sizeValue.unit === '' ? `${sizeValue.value}` : `${sizeValue.value}${sizeValue.unit}`;
 }
 
 // size registry
@@ -174,8 +176,8 @@ class SizeRegistry extends Disposable implements ISizeRegistry {
 
 		const propertySchema: IJSONSchema = {
 			type: 'string',
-			pattern: '^(\\d+(\\.\\d+)?(px|rem|em|%))|default$',
-			patternErrorMessage: 'Size must be a number followed by px, rem, em, or % (e.g., "12px", "1.5rem") or "default"'
+			pattern: '^(\\d+(\\.\\d+)?(px|rem|em|%)?)|default$',
+			patternErrorMessage: 'Size must be a number optionally followed by px, rem, em, or % (e.g., "12px", "1.5rem", "600") or "default"'
 		};
 
 		if (deprecationMessage) {

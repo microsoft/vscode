@@ -13,6 +13,7 @@ import { TERMINAL_BACKGROUND_COLOR } from '../workbench/contrib/terminal/common/
 import '../workbench/api/browser/extensionHost.contribution.js';
 import '../workbench/browser/workbench.contribution.js';
 import { agentsPanelBackground } from './common/theme.js';
+import './common/sizes.js';
 
 getColorRegistry().updateDefaultColor(PANEL_BACKGROUND, agentsPanelBackground);
 getColorRegistry().updateDefaultColor(TERMINAL_BACKGROUND_COLOR, agentsPanelBackground);
