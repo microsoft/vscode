@@ -32,6 +32,7 @@ import { SessionStatus } from '../../../../services/sessions/common/session.js';
 import { LocalAgentHostSessionsProvider } from '../../browser/localAgentHostSessionsProvider.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
+import { IGitHubService } from '../../../github/browser/githubService.js';
 
 // ---- Mock IAgentHostService -------------------------------------------------
 
@@ -247,6 +248,9 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 		getUriLabel: (uri: URI) => uri.path,
 	});
 	instantiationService.stub(ILogService, new NullLogService());
+	instantiationService.stub(IGitHubService, new class extends mock<IGitHubService>() {
+		override findPullRequestNumberByHeadBranch = async () => undefined;
+	}());
 
 	return disposables.add(instantiationService.createInstance(LocalAgentHostSessionsProvider));
 }
@@ -397,8 +401,8 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 		assert.ok(ws, 'resolveWorkspace should resolve file:// URIs');
 		assert.strictEqual(ws.label, 'project [Local]');
-		assert.strictEqual(ws.repositories.length, 1);
-		assert.strictEqual(ws.repositories[0].uri.toString(), uri.toString());
+		assert.strictEqual(ws.folders.length, 1);
+		assert.strictEqual(ws.folders[0].uri.toString(), uri.toString());
 		assert.strictEqual(ws.requiresWorkspaceTrust, true);
 	});
 
@@ -551,8 +555,8 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const workspace = provider.getSessions()[0].workspace.get();
 		assert.deepStrictEqual({
 			label: workspace?.label,
-			repository: workspace?.repositories[0]?.uri.toString(),
-			workingDirectory: workspace?.repositories[0]?.workingDirectory?.toString(),
+			repository: workspace?.folders[0]?.uri.toString(),
+			workingDirectory: workspace?.folders[0]?.workingDirectory?.toString(),
 		}, {
 			label: 'vscode [Local]',
 			repository: projectUri.toString(),

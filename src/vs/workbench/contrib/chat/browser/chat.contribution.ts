@@ -9,7 +9,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
 import { PolicyCategory } from '../../../../base/common/policy.js';
 import { CopilotSessionSearchPolicy } from '../../../../base/common/defaultAccount.js';
-import { AgentHostClaudeAgentEnabledSettingId, AgentHostEnabledSettingId, AgentHostIpcLoggingSettingId } from '../../../../platform/agentHost/common/agentService.js';
+import { AgentHostAhpJsonlLoggingSettingId, AgentHostClaudeAgentSdkPathSettingId, AgentHostEnabledSettingId, AgentHostIpcLoggingSettingId } from '../../../../platform/agentHost/common/agentService.js';
 import { AgentNetworkFilterService, IAgentNetworkFilterService } from '../../../../platform/networkFilter/common/networkFilterService.js';
 import { AgentNetworkDomainSettingId } from '../../../../platform/networkFilter/common/settings.js';
 import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../platform/sandbox/common/settings.js';
@@ -153,13 +153,14 @@ import { ChatCodeBlockContextProviderService } from './codeBlockContextProviderS
 import { ChatDynamicVariableModel } from './attachments/chatDynamicVariables.js';
 import { ChatImplicitContextContribution } from './attachments/chatImplicitContext.js';
 import './widget/input/editor/chatInputCompletions.js';
+import './widget/input/editor/agentHostInputCompletions.js';
 import './widget/input/editor/chatInputEditorContrib.js';
 import './widget/input/editor/chatInputEditorHover.js';
 import { LanguageModelToolsConfirmationService } from './tools/languageModelToolsConfirmationService.js';
 import { LanguageModelToolsService, globalAutoApproveDescription } from './tools/languageModelToolsService.js';
 import { IToolResultCompressor } from '../common/tools/toolResultCompressor.js';
 import { ToolResultCompressorService } from './tools/toolResultCompressorService.js';
-import { AgentPluginService, ConfiguredAgentPluginDiscovery, ExtensionAgentPluginDiscovery, MarketplaceAgentPluginDiscovery } from '../common/plugins/agentPluginServiceImpl.js';
+import { AgentPluginService, ConfiguredAgentPluginDiscovery, CopilotCliAgentPluginDiscovery, ExtensionAgentPluginDiscovery, MarketplaceAgentPluginDiscovery } from '../common/plugins/agentPluginServiceImpl.js';
 import { IAgentPluginRepositoryService } from '../common/plugins/agentPluginRepositoryService.js';
 import { IPluginInstallService } from '../common/plugins/pluginInstallService.js';
 import { IPluginMarketplaceService, PluginMarketplaceService } from '../common/plugins/pluginMarketplaceService.js';
@@ -216,6 +217,7 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.experimentalSessionsWindowOverride', "When true, enables sessions-window-specific behavior for extensions."),
 			default: false,
 			tags: ['experimental'],
+			agentsWindow: { default: true },
 		},
 		'chat.fontSize': {
 			type: 'number',
@@ -298,12 +300,14 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental'],
 			experiment: {
 				mode: 'startup'
-			}
+			},
+			agentsWindow: { default: { 'panel': 'never' } },
 		},
 		'chat.implicitContext.suggestedContext': {
 			type: 'boolean',
 			markdownDescription: nls.localize('chat.implicitContext.suggestedContext', "Controls whether the new implicit context flow is shown. In Ask and Edit modes, the context will automatically be included. When using an agent, context will be suggested as an attachment. Selections are always included as context."),
 			default: true,
+			agentsWindow: { default: false },
 		},
 		'chat.editing.autoAcceptDelay': {
 			type: 'number',
@@ -397,15 +401,6 @@ configurationRegistry.registerConfiguration({
 			default: 'word',
 			tags: ['experimental'],
 		},
-		[ChatConfiguration.SymbolToolsCacheStable]: {
-			type: 'boolean',
-			description: nls.localize('chat.experimental.symbolTools.cacheStable', "When enabled, the rename and list-code-usages tools are always registered with a static description (no per-language list). Stabilizes the tools-array bytes across requests so prompt caches survive language-extension activations mid-turn. Tool behavior is unchanged: unsupported languages still produce an error at invocation time."),
-			default: false,
-			tags: ['experimental'],
-			experiment: {
-				mode: 'startup'
-			}
-		},
 		'chat.detectParticipant.enabled': {
 			type: 'boolean',
 			description: nls.localize('chat.detectParticipant.enabled', "Enables chat participant autodetection for panel chat."),
@@ -453,6 +448,11 @@ configurationRegistry.registerConfiguration({
 			markdownDescription: nls.localize('chat.autopilot.enabled', "Controls whether the Autopilot mode is available in the permissions picker. When enabled, Autopilot auto-approves all tool calls and continues until the task is done."),
 			default: true,
 			tags: ['experimental'],
+		},
+		[ChatConfiguration.PlanReviewInlineEditorEnabled]: {
+			type: 'boolean',
+			markdownDescription: nls.localize('chat.planReview.inlineEditor.enabled', "When enabled, the plan review widget mounts an editor inline, as opposed to in a separate editor tab."),
+			default: true,
 		},
 		[ChatConfiguration.DefaultPermissionLevel]: {
 			type: 'string',
@@ -655,6 +655,7 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			default: true,
 			description: nls.localize('chat.viewSessions.enabled', "Show chat agent sessions when chat is empty or to the side when chat view is wide enough."),
+			agentsWindow: { default: false },
 		},
 		[ChatConfiguration.ChatViewSessionsOrientation]: {
 			type: 'string',
@@ -982,16 +983,23 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental', 'advanced'],
 			included: product.quality !== 'stable',
 		},
-		[AgentHostClaudeAgentEnabledSettingId]: {
-			type: 'boolean',
-			description: nls.localize('chat.agentHost.claudeAgent.enabled', "When enabled, the Claude agent provider is registered inside the agent host. Requires `#chat.agentHost.enabled#`. The agent host process must be restarted for changes to this setting to take effect."),
-			default: false,
+		[AgentHostClaudeAgentSdkPathSettingId]: {
+			type: 'string',
+			description: nls.localize('chat.agentHost.claudeAgent.path', "Experimental, for local testing only. Absolute path to a locally-installed `@anthropic-ai/claude-agent-sdk` package. When set, the Claude agent provider is registered inside the agent host and the SDK is loaded from this path. Requires `#chat.agentHost.enabled#`. The agent host process must be restarted for changes to take effect. This setting will be removed once the SDK is delivered through the Extension Marketplace."),
+			default: '',
 			tags: ['experimental', 'advanced'],
 			included: product.quality !== 'stable',
 		},
 		[AgentHostIpcLoggingSettingId]: {
 			type: 'boolean',
 			description: nls.localize('chat.agentHost.ipcLogging', "When enabled, logs all IPC traffic for each agent host to a dedicated output channel."),
+			default: product.quality !== 'stable',
+			tags: ['experimental', 'advanced'],
+			included: product.quality !== 'stable',
+		},
+		[AgentHostAhpJsonlLoggingSettingId]: {
+			type: 'boolean',
+			description: nls.localize('chat.agentHost.ahpJsonlLogging', "When enabled, logs all AHP transport messages for agent host connections to JSONL files under the window's log directory."),
 			default: product.quality !== 'stable',
 			tags: ['experimental', 'advanced'],
 			included: product.quality !== 'stable',
@@ -1018,7 +1026,7 @@ configurationRegistry.registerConfiguration({
 		[ChatConfiguration.ToolRiskAssessmentEnabled]: {
 			type: 'boolean',
 			description: nls.localize('chat.tools.riskAssessment.enabled', "When enabled, terminal tool confirmations show an LLM-generated risk level (Safe / Caution / Review carefully) and a short explanation."),
-			default: false,
+			default: true,
 			tags: ['experimental'],
 			experiment: {
 				mode: 'auto'
@@ -1388,6 +1396,7 @@ configurationRegistry.registerConfiguration({
 					'custom-hooks/hooks.json': true,
 				},
 			],
+			agentsWindow: { default: { '.claude/settings.local.json': false, '.claude/settings.json': false, '~/.claude/settings.json': false } },
 		},
 		[PromptsConfig.USE_CHAT_HOOKS]: {
 			type: 'boolean',
@@ -1554,6 +1563,11 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.disableAIFeatures', "Disable and hide built-in AI features provided by GitHub Copilot, including chat and inline suggestions."),
 			default: false,
 			scope: ConfigurationScope.WINDOW,
+		},
+		[ChatConfiguration.TitleBarSignInEnabled]: {
+			type: 'boolean',
+			description: nls.localize('chat.titleBar.signIn.enabled', "Controls whether the Copilot Sign In button is shown in the title bar when signed out. When disabled, the Sign In affordance falls back to the status bar."),
+			default: true,
 		},
 		'chat.approvedAccountOrganizations': {
 			type: 'array',
@@ -1927,6 +1941,7 @@ class ChatAgentSettingContribution extends Disposable implements IWorkbenchContr
 							markdownDescription: nls.localize('chat.agent.maxRequests', "The maximum number of requests to allow per-turn when using an agent. When the limit is reached, will ask to confirm to continue."),
 							default: value ?? 50,
 							order: 2,
+							agentsWindow: { default: 1000 },
 						},
 					}
 				};
@@ -2281,6 +2296,7 @@ registerEditorFeature(ChatPasteProvidersFeature);
 agentPluginDiscoveryRegistry.register(new SyncDescriptor(ConfiguredAgentPluginDiscovery));
 agentPluginDiscoveryRegistry.register(new SyncDescriptor(MarketplaceAgentPluginDiscovery));
 agentPluginDiscoveryRegistry.register(new SyncDescriptor(ExtensionAgentPluginDiscovery));
+agentPluginDiscoveryRegistry.register(new SyncDescriptor(CopilotCliAgentPluginDiscovery));
 
 registerSingleton(IChatResponseResourceFileSystemProvider, ChatResponseResourceFileSystemProvider, InstantiationType.Delayed);
 registerSingleton(IChatTransferService, ChatTransferService, InstantiationType.Delayed);

@@ -25,7 +25,7 @@ import { BaseAgentHostSessionsProvider } from '../../browser/baseAgentHostSessio
 import '../../../applyCommitsToParentRepo/browser/applyChangesToParentRepo.js';
 
 function makeActiveSession(providerId: string): IActiveSession {
-	const chat: IChat = {
+	const chat = {
 		resource: URI.parse('file:///session'),
 		createdAt: new Date(),
 		title: observableValue('t', 'Test'),
@@ -37,9 +37,10 @@ function makeActiveSession(providerId: string): IActiveSession {
 		mode: observableValue('mo', undefined),
 		isArchived: observableValue('ia', false),
 		isRead: observableValue('ir', true),
+		checkpoints: observableValue('cp', undefined),
 		lastTurnEnd: observableValue('lte', undefined),
 		description: observableValue('d', undefined),
-	};
+	} satisfies IChat;
 	return {
 		sessionId: `${providerId}:x`,
 		resource: chat.resource,
@@ -60,12 +61,11 @@ function makeActiveSession(providerId: string): IActiveSession {
 		isRead: chat.isRead,
 		lastTurnEnd: chat.lastTurnEnd,
 		description: chat.description,
-		gitHubInfo: observableValue('gh', undefined),
 		chats: observableValue('chats', [chat]),
 		activeChat: observableValue('ac', chat),
 		mainChat: chat,
 		capabilities: { supportsMultipleChats: false },
-	} as IActiveSession;
+	} satisfies IActiveSession;
 }
 
 class FakeAgentHostProvider {
@@ -165,7 +165,7 @@ suite('agentHostSkillButtons - menu registration', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function skillButtonItems() {
-		const all = MenuRegistry.getMenuItems(MenuId.ChatEditingSessionApplySubmenu);
+		const all = MenuRegistry.getMenuItems(MenuId.AgentsChangesPrimaryActionSubMenu);
 		const menuItems: { command: { id: string }; when?: ContextKeyExpression }[] = [];
 		for (const item of all) {
 			if (!isIMenuItem(item)) {
@@ -209,9 +209,9 @@ suite('agentHostSkillButtons - menu registration', () => {
 	});
 
 	test('the apply submenu is contributed to the changes toolbar in the navigation group', () => {
-		const toolbarItems = MenuRegistry.getMenuItems(MenuId.ChatEditingSessionChangesToolbar);
-		const submenuEntry = toolbarItems.find(item => isISubmenuItem(item) && item.submenu === MenuId.ChatEditingSessionApplySubmenu);
-		assert.ok(submenuEntry, 'expected ChatEditingSessionApplySubmenu to be registered on ChatEditingSessionChangesToolbar');
+		const toolbarItems = MenuRegistry.getMenuItems(MenuId.AgentsChangesToolbar);
+		const submenuEntry = toolbarItems.find(item => isISubmenuItem(item) && item.submenu === MenuId.AgentsChangesPrimaryActionSubMenu);
+		assert.ok(submenuEntry, 'expected AgentsChangesPrimaryActionSubMenu to be registered on AgentsChangesToolbar');
 		assert.strictEqual((submenuEntry as { group?: string }).group, 'navigation');
 	});
 

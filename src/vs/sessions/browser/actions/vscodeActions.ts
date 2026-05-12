@@ -35,7 +35,7 @@ export class OpenInVSCodeAction extends Action2 {
 	constructor() {
 		super({
 			id: OpenInVSCodeAction.ID,
-			title: localize2('openInVSCode', 'Open in VS Code'),
+			title: localize2('openInVSCode', 'Open in Editor'),
 			icon: Codicon.vscodeInsiders,
 			precondition: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated()),
 			menu: [{
@@ -75,8 +75,8 @@ export class OpenInVSCodeAction extends Action2 {
 		}
 
 		const workspace = activeSession.workspace.get();
-		const repo = workspace?.repositories[0];
-		const rawFolderUri = isWorkspaceAgentSessionType(activeSession.sessionType) ? repo?.workingDirectory ?? repo?.uri : undefined;
+		const folder = workspace?.folders[0];
+		const rawFolderUri = isWorkspaceAgentSessionType(activeSession.sessionType) ? folder?.workingDirectory : undefined;
 
 		if (!rawFolderUri) {
 			await openerService.open(URI.from({ scheme, query: params.toString() }), { openExternal: true });

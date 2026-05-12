@@ -55,6 +55,7 @@ export const SessionSectionToolbarMenuId = new MenuId('SessionSectionToolbar');
 export const IsSessionPinnedContext = new RawContextKey<boolean>('sessionItem.isPinned', false);
 export const IsSessionArchivedContext = new RawContextKey<boolean>('sessionItem.isArchived', false);
 export const IsSessionReadContext = new RawContextKey<boolean>('sessionItem.isRead', true);
+export const SessionItemHasBranchNameContext = new RawContextKey<boolean>('sessionItem.hasBranchName', false);
 export const SessionSectionTypeContext = new RawContextKey<string>('sessionSection.type', '');
 
 //#region Types
@@ -77,6 +78,8 @@ export interface ISessionSection {
 
 export interface ISessionShowMore {
 	readonly showMore: true;
+	readonly kind: 'sessions' | 'folders';
+	readonly mode: 'more' | 'less';
 	readonly sectionLabel: string;
 	readonly remainingCount: number;
 }
@@ -90,6 +93,9 @@ function isSessionSection(item: SessionListItem): item is ISessionSection {
 function isSessionShowMore(item: SessionListItem): item is ISessionShowMore {
 	return 'showMore' in item && (item as ISessionShowMore).showMore === true;
 }
+
+const SHOW_MORE_FOLDERS_LABEL = '__more_folders__';
+const FOUR_DAYS_MS = 4 * 24 * 60 * 60 * 1000;
 
 //#endregion
 
@@ -259,6 +265,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		IsSessionPinnedContext.bindTo(template.contextKeyService).set(isPinned);
 		IsSessionArchivedContext.bindTo(template.contextKeyService).set(element.isArchived.get());
 		IsSessionReadContext.bindTo(template.contextKeyService).set(this.options.isRead(element));
+		SessionItemHasBranchNameContext.bindTo(template.contextKeyService).set(!!element.workspace.get()?.folders[0]?.gitRepository?.branchName?.trim());
 
 		// Pinned & archived styling — reactive
 		template.elementDisposables.add(autorun(reader => {
@@ -279,7 +286,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			const sessionStatus = element.status.read(reader);
 			const isRead = this.options.isRead(element);
 			const isArchived = element.isArchived.read(reader);
-			const gitHubInfo = element.gitHubInfo.read(reader);
+			const gitHubInfo = element.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
 			this._motionReducedSignal.read(reader);
 			const icon = this.getStatusIcon(sessionStatus, isRead, isArchived, gitHubInfo?.pullRequest?.icon);
 			const iconSelector = ThemeIcon.asCSSSelector(icon);
@@ -327,8 +334,8 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			const parts: HTMLElement[] = [];
 
 			const isWorkspaceSession = workspace &&
-				workspace.repositories.length > 0 &&
-				workspace?.repositories[0].workingDirectory === undefined;
+				workspace.folders.length > 0 &&
+				workspace?.folders[0]?.gitRepository?.workTreeUri === undefined;
 
 			// Session type icon in details row
 			// Disabling background icon - hacky but couldn't figure out how to do it from the new provider
@@ -535,9 +542,9 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 
 	private getWorkspaceBadgeLabel(workspace: ISessionWorkspace): string | undefined {
 		// For GitHub remote sessions, extract owner/name from the repository URI path
-		const repo = workspace.repositories[0];
-		if (repo?.uri.scheme === GITHUB_REMOTE_FILE_SCHEME) {
-			const parts = repo.uri.path.split('/').filter(Boolean);
+		const folder = workspace.folders[0];
+		if (folder?.uri.scheme === GITHUB_REMOTE_FILE_SCHEME) {
+			const parts = folder.uri.path.split('/').filter(Boolean);
 			if (parts.length >= 2) {
 				return `${parts[0]}/${parts[1]}`;
 			}
@@ -640,7 +647,17 @@ class SessionShowMoreRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 		if (!isSessionShowMore(element)) {
 			return;
 		}
-		template.textContent = localize('showMoreCompact', "+{0} more", element.remainingCount);
+		const container = template.parentElement;
+		container?.classList.toggle('session-show-more-folders', element.kind === 'folders');
+		if (element.mode === 'less') {
+			template.textContent = element.kind === 'folders'
+				? localize('showLessWorkspacesCompact', "Show less workspaces")
+				: localize('showLessCompact', "Show less");
+		} else {
+			template.textContent = element.kind === 'folders'
+				? localize('showMoreWorkspacesCompact', "+{0} more workspaces", element.remainingCount)
+				: localize('showMoreCompact', "+{0} more", element.remainingCount);
+		}
 	}
 
 	disposeTemplate(_template: HTMLElement): void { }
@@ -658,7 +675,14 @@ class SessionsAccessibilityProvider {
 			return `${element.label}, ${element.sessions.length}`;
 		}
 		if (isSessionShowMore(element)) {
-			return localize('showMoreAria', "Show {0} more sessions", element.remainingCount);
+			if (element.mode === 'less') {
+				return element.kind === 'folders'
+					? localize('showLessWorkspacesAria', "Show less workspaces")
+					: localize('showLessAria', "Show less sessions");
+			}
+			return element.kind === 'folders'
+				? localize('showMoreWorkspacesAria', "Show {0} more workspaces", element.remainingCount)
+				: localize('showMoreAria', "Show {0} more sessions", element.remainingCount);
 		}
 		const title = element.title.get();
 		const created = fromNow(element.createdAt, true);
@@ -717,6 +741,7 @@ export interface ISessionsList {
 	resetFilters(): void;
 	setWorkspaceGroupCapped(capped: boolean): void;
 	isWorkspaceGroupCapped(): boolean;
+	setOpenWindowSourceFolder(folder: URI | undefined): void;
 	collapseAllSections(): void;
 }
 
@@ -740,6 +765,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private _excludeRead: boolean;
 	private workspaceGroupCapped: boolean;
 	private readonly expandedWorkspaceGroups = new Set<string>();
+	private expandedMoreFolders = false;
+	private openWindowSourceFolder: URI | undefined;
 	private findOpen = false;
 	private suspendCollapseStatePersistence = false;
 
@@ -821,7 +848,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 							return `section:${element.id}`;
 						}
 						if (isSessionShowMore(element)) {
-							return `show-more:${element.sectionLabel}`;
+							return `show-more:${element.kind}:${element.mode}:${element.sectionLabel}`;
 						}
 						return element.resource.toString();
 					}
@@ -862,7 +889,15 @@ export class SessionsList extends Disposable implements ISessionsList {
 				return;
 			}
 			if (isSessionShowMore(element)) {
-				this.expandedWorkspaceGroups.add(element.sectionLabel);
+				if (element.kind === 'folders') {
+					this.expandedMoreFolders = element.mode === 'more';
+				} else {
+					if (element.mode === 'more') {
+						this.expandedWorkspaceGroups.add(element.sectionLabel);
+					} else {
+						this.expandedWorkspaceGroups.delete(element.sectionLabel);
+					}
+				}
 				this.update();
 				return;
 			}
@@ -990,15 +1025,61 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		const hasTodaySessions = sections.some(s => s.id === 'today' && s.sessions.length > 0);
 
+		// Partition workspace sections into "primary" (meets criteria) and "more"
+		// when grouping by workspace. Find widget bypasses partitioning.
+		const partitionFolders = grouping === SessionsGrouping.Workspace && !this.findOpen;
+		const moreFolderSectionIds = new Set<string>();
+		if (partitionFolders) {
+			const workspaceSections = sections.filter(s => s.id.startsWith('workspace:'));
+			if (workspaceSections.length > 0) {
+				const now = Date.now();
+				const isRecent = (section: ISessionSection) =>
+					section.sessions.some(s => s.updatedAt.get().getTime() >= now - FOUR_DAYS_MS);
+				const isOpenWindow = (section: ISessionSection) =>
+					!!this.openWindowSourceFolder && section.sessions.some(s => sessionMatchesFolder(s, this.openWindowSourceFolder!));
+				const meetsCriteria = (section: ISessionSection) => isRecent(section) || isOpenWindow(section);
+
+				let anyMeets = false;
+				for (const section of workspaceSections) {
+					if (meetsCriteria(section)) {
+						anyMeets = true;
+						break;
+					}
+				}
+
+				let fallbackId: string | undefined;
+				if (!anyMeets) {
+					// Criterion 3: pick the folder with the most recently updated session.
+					let bestTime = -Infinity;
+					for (const section of workspaceSections) {
+						for (const s of section.sessions) {
+							const t = s.updatedAt.get().getTime();
+							if (t > bestTime) {
+								bestTime = t;
+								fallbackId = section.id;
+							}
+						}
+					}
+				}
+
+				for (const section of workspaceSections) {
+					if (!meetsCriteria(section) && section.id !== fallbackId) {
+						moreFolderSectionIds.add(section.id);
+					}
+				}
+			}
+		}
+
 		const children: IObjectTreeElement<SessionListItem>[] = [];
 
-		children.push(...sections.map(section => {
+		const renderSection = (section: ISessionSection): IObjectTreeElement<SessionListItem> => {
 			const isWorkspaceGroup = grouping === SessionsGrouping.Workspace
 				&& section.id.startsWith('workspace:');
-			const isCapped = isWorkspaceGroup && this.workspaceGroupCapped
+			const exceedsLimit = isWorkspaceGroup
 				&& !this.findOpen
-				&& !this.expandedWorkspaceGroups.has(section.label)
 				&& section.sessions.length > SessionsList.WORKSPACE_GROUP_LIMIT;
+			const isExpanded = exceedsLimit && (this.expandedWorkspaceGroups.has(section.label) || !this.workspaceGroupCapped);
+			const isCapped = exceedsLimit && !isExpanded;
 
 			let sectionChildren: IObjectTreeElement<SessionListItem>[];
 			if (isCapped) {
@@ -1006,7 +1087,12 @@ export class SessionsList extends Disposable implements ISessionsList {
 				const remainingCount = section.sessions.length - SessionsList.WORKSPACE_GROUP_LIMIT;
 				sectionChildren = [
 					...visible.map(session => ({ element: session as SessionListItem })),
-					{ element: { showMore: true as const, sectionLabel: section.label, remainingCount } },
+					{ element: { showMore: true as const, kind: 'sessions' as const, mode: 'more' as const, sectionLabel: section.label, remainingCount } },
+				];
+			} else if (isExpanded && this.expandedWorkspaceGroups.has(section.label)) {
+				sectionChildren = [
+					...section.sessions.map(session => ({ element: session as SessionListItem })),
+					{ element: { showMore: true as const, kind: 'sessions' as const, mode: 'less' as const, sectionLabel: section.label, remainingCount: 0 } },
 				];
 			} else {
 				sectionChildren = section.sessions.map(session => ({ element: session as SessionListItem }));
@@ -1030,7 +1116,43 @@ export class SessionsList extends Disposable implements ISessionsList {
 				collapsed: this.getSavedCollapseState(section.id) ?? defaultCollapsed,
 				children: sectionChildren,
 			};
-		}));
+		};
+
+		const moreFolderSections: ISessionSection[] = [];
+		// When expanding the "more workspaces" group, the archived ("Done")
+		// section is moved to sit right above the "Show less" action so that
+		// the additional workspaces appear contiguously with the primary ones.
+		const deferArchived = partitionFolders && this.expandedMoreFolders;
+		let archivedSection: ISessionSection | undefined;
+		for (const section of sections) {
+			if (moreFolderSectionIds.has(section.id)) {
+				moreFolderSections.push(section);
+			} else if (deferArchived && section.id === 'archived') {
+				archivedSection = section;
+			} else {
+				children.push(renderSection(section));
+			}
+		}
+
+		if (moreFolderSections.length > 0) {
+			if (this.expandedMoreFolders) {
+				for (const section of moreFolderSections) {
+					children.push(renderSection(section));
+				}
+				if (archivedSection) {
+					children.push(renderSection(archivedSection));
+				}
+				children.push({
+					element: { showMore: true as const, kind: 'folders' as const, mode: 'less' as const, sectionLabel: SHOW_MORE_FOLDERS_LABEL, remainingCount: 0 },
+				});
+			} else {
+				children.push({
+					element: { showMore: true as const, kind: 'folders' as const, mode: 'more' as const, sectionLabel: SHOW_MORE_FOLDERS_LABEL, remainingCount: moreFolderSections.length },
+				});
+			}
+		} else if (archivedSection) {
+			children.push(renderSection(archivedSection));
+		}
 
 		this.tree.setChildren(null, children);
 		this._onDidUpdate.fire();
@@ -1137,6 +1259,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			[IsSessionPinnedContext.key, this.isSessionPinned(element)],
 			[IsSessionArchivedContext.key, element.isArchived.get()],
 			[IsSessionReadContext.key, this.isSessionRead(element)],
+			[SessionItemHasBranchNameContext.key, !!element.workspace.get()?.folders[0]?.gitRepository?.branchName?.trim()],
 			['chatSessionType', element.sessionType],
 			[ChatSessionProviderIdContext.key, element.providerId],
 		];
@@ -1296,6 +1419,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		this.workspaceGroupCapped = true;
 		this.storageService.store(SessionsList.WORKSPACE_GROUP_CAPPED_KEY, true, StorageScope.PROFILE, StorageTarget.USER);
 		this.expandedWorkspaceGroups.clear();
+		this.expandedMoreFolders = false;
 		this.update();
 	}
 
@@ -1312,6 +1436,16 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	isWorkspaceGroupCapped(): boolean {
 		return this.workspaceGroupCapped;
+	}
+
+	setOpenWindowSourceFolder(folder: URI | undefined): void {
+		const before = this.openWindowSourceFolder?.toString();
+		const after = folder?.toString();
+		if (before === after) {
+			return;
+		}
+		this.openWindowSourceFolder = folder;
+		this.update();
 	}
 
 	collapseAllSections(): void {
@@ -1383,6 +1517,24 @@ function getFirstApprovalAcrossChats(approvalModel: AgentSessionApprovalModel, s
 		}
 	}
 	return oldest;
+}
+
+//#endregion
+
+//#region Folder Matching
+
+function sessionMatchesFolder(session: ISession, folder: URI): boolean {
+	const workspace = session.workspace.get();
+	if (!workspace) {
+		return false;
+	}
+	const folderStr = folder.toString();
+	for (const folder of workspace.folders) {
+		if (folder.workingDirectory?.toString() === folderStr || folder.uri.toString() === folderStr) {
+			return true;
+		}
+	}
+	return false;
 }
 
 //#endregion

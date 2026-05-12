@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Attachment, SendOptions, Session, SessionOptions } from '@github/copilot/sdk';
+import type { Attachment, LocalSession, SendOptions, Session, SessionOptions } from '@github/copilot/sdk';
 import * as l10n from '@vscode/l10n';
 import * as cp from 'child_process';
 import * as crypto from 'crypto';
 import type * as vscode from 'vscode';
 import type { ChatParticipantToolToken } from 'vscode';
 import { IAuthenticationService } from '../../../../platform/authentication/common/authentication';
+import { IChatQuotaService } from '../../../../platform/chat/common/chatQuotaService';
 import { ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
 import { PermissiveAuthRequiredError } from '../../../../platform/github/common/githubService';
 import { ILogService } from '../../../../platform/log/common/logService';
@@ -29,6 +30,7 @@ import { truncate } from '../../../../util/vs/base/common/strings';
 import { ThemeIcon } from '../../../../util/vs/base/common/themables';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { ChatResponseMarkdownPart, ChatResponseThinkingProgressPart, ChatSessionStatus, ChatToolInvocationPart, EventEmitter, MarkdownString, Uri } from '../../../../vscodeTypes';
+import { getQuotaMessageForPlan } from '../../../../platform/chat/common/commonTypes';
 import { IToolsService } from '../../../tools/common/toolsService';
 import { IChatSessionMetadataStore } from '../../common/chatSessionMetadataStore';
 import { ExternalEditTracker } from '../../common/externalEditTracker';
@@ -55,6 +57,13 @@ export type CopilotCLICommand = 'compact' | 'plan' | 'fleet' | 'remote';
  * distinguish a slash-command from a regular prompt at runtime.
  */
 export const copilotCLICommands: readonly CopilotCLICommand[] = ['compact', 'plan', 'fleet', 'remote'] as const;
+
+export class CopilotCLIQuotaExceededError extends Error {
+	constructor(message: string) {
+		super(message);
+		this.name = 'CopilotCLIQuotaExceededError';
+	}
+}
 
 /**
  * Shared Mission Control state keyed by SDK session ID.
@@ -805,6 +814,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		@IOTelService private readonly _otelService: IOTelService,
 		@IGitService private readonly _gitService: IGitService,
 		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
+		@IChatQuotaService private readonly _chatQuotaService: IChatQuotaService,
 	) {
 		super();
 		this.sessionId = _sdkSession.sessionId;
@@ -1010,6 +1020,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		const prompt = getPromptLabel(input);
 		this._pendingPrompt = prompt;
 		this._lastResponseModelId = undefined;
+		this._chatQuotaService.resetTurnCredits(request.id);
 		this.logService.info(`[CopilotCLISession] Invoking session ${this.sessionId}`);
 		const disposables = new DisposableStore();
 		const logStartTime = Date.now();
@@ -1053,6 +1064,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		const toolCalls = new Map<string, ToolCall>();
 		const editTracker = new ExternalEditTracker();
 		let sdkRequestId: string | undefined;
+		let isQuotaError = false;
 		const toolIdEditMap = new Map<string, Promise<string | undefined>>();
 		const remoteMode = isMissionControlCommandSource(input.source) ? this._mcState?.mcMode : undefined;
 		const effectivePermissionLevel = remoteMode ? (remoteMode === 'autopilot' ? 'autopilot' : undefined) : this._permissionLevel;
@@ -1272,6 +1284,14 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 				if (requestStream && typeof event.data.outputTokens === 'number' && typeof event.data.inputTokens === 'number') {
 					reportUsage(event.data.inputTokens, event.data.outputTokens);
 				}
+				// Accumulate per-turn credits from SDK copilotUsage data
+				const copilotUsage = (event.data as Record<string, unknown>).copilotUsage;
+				if (copilotUsage && typeof copilotUsage === 'object') {
+					const { totalNanoAiu } = copilotUsage as { totalNanoAiu?: number };
+					if (typeof totalNanoAiu === 'number') {
+						this._chatQuotaService.setLastCopilotUsage(totalNanoAiu, request.id);
+					}
+				}
 			})));
 			disposables.add(toDisposable(this._sdkSession.on('session.usage_info', (event) => {
 				lastUsageInfo = {
@@ -1395,7 +1415,12 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			disposables.add(toDisposable(this._sdkSession.on('session.error', (event) => {
 				flushPendingInvocationMessages();
 				this.logService.error(`[CopilotCLISession]CopilotCLI error: (${event.data.errorType}), ${event.data.message}`);
-				requestStream?.markdown(l10n.t('\n\nError: ({0}) {1}', event.data.errorType, event.data.message));
+
+				if (event.data.errorType === 'quota' || event.data.statusCode === 402) {
+					isQuotaError = true;
+				} else {
+					requestStream?.markdown(l10n.t('\n\nError: ({0}) {1}', event.data.errorType, event.data.message));
+				}
 
 				const errorMarkdown = [`# Error Details`, `Type: ${event.data.errorType}`, `Message: ${event.data.message}`, `## Stack`, event.data.stack || ''].join('\n');
 				this._requestLogger.addEntry({
@@ -1449,6 +1474,15 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			if (!token.isCancellationRequested) {
 				await this.sendRequestInternal(input, attachments, false, logStartTime);
 			}
+			if (isQuotaError) {
+				this._chatQuotaService.clearQuota();
+				let plan: string | undefined;
+				try {
+					const copilotToken = await this._authenticationService.getCopilotToken();
+					plan = copilotToken.copilotPlan;
+				} catch { /* token unavailable */ }
+				throw new CopilotCLIQuotaExceededError(getQuotaMessageForPlan(plan));
+			}
 			this.logService.trace(`[CopilotCLISession] Invoking session (completed) ${this.sessionId}`);
 			const resolvedToolIdEditMap: Record<string, string> = {};
 			await Promise.all(Array.from(toolIdEditMap.entries()).map(async ([toolId, editFilePromise]) => {
@@ -1476,18 +1510,32 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			// Log the completed conversation
 			this._logConversation(prompt, assistantMessageChunks.join(''), modelId || '', attachments, logStartTime, 'Completed');
 		} catch (error) {
+			if (error instanceof CopilotCLIQuotaExceededError) {
+				throw error;
+			}
+			if (isQuotaError) {
+				this._chatQuotaService.clearQuota();
+				let plan: string | undefined;
+				try {
+					const copilotToken = await this._authenticationService.getCopilotToken();
+					plan = copilotToken.copilotPlan;
+				} catch { /* token unavailable */ }
+				throw new CopilotCLIQuotaExceededError(getQuotaMessageForPlan(plan));
+			}
 			this._status = ChatSessionStatus.Failed;
 			this._statusChange.fire(this._status);
 			this.logService.error(`[CopilotCLISession] Invoking session (error) ${this.sessionId}`, error);
-			requestStream?.markdown(l10n.t('\n\nError: {0}', error instanceof Error ? error.message : String(error)));
 
-			invokeAgentSpan.setStatus(SpanStatusCode.ERROR, error instanceof Error ? error.message : String(error));
+			const errorMessage = error instanceof Error ? error.message : String(error);
+			requestStream?.markdown(l10n.t('\n\nError: {0}', errorMessage));
+
+			invokeAgentSpan.setStatus(SpanStatusCode.ERROR, errorMessage);
 			if (error instanceof Error) {
 				invokeAgentSpan.recordException(error);
 			}
 
 			// Log the failed conversation
-			this._logConversation(prompt, assistantMessageChunks.join(''), modelId || '', attachments, logStartTime, 'Failed', error instanceof Error ? error.message : String(error));
+			this._logConversation(prompt, assistantMessageChunks.join(''), modelId || '', attachments, logStartTime, 'Failed', errorMessage);
 		} finally {
 			cancelCancellationAbort?.();
 			// End the invoke_agent wrapper span
@@ -1603,6 +1651,18 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 				sendOptions.source = input.source;
 			}
 			await this._sdkSession.send(sendOptions);
+
+			try {
+				const localSession = this._sdkSession as LocalSession;
+				if (localSession.waitForPendingBackgroundTasks) {
+					await localSession.waitForPendingBackgroundTasks();
+				}
+			}
+			catch (error) {
+				this.logService.error(error, '[CopilotCLISession] Error while waiting for pending background tasks');
+				// Don't fail the whole request if waiting for background tasks fails, as it's not critical to the main flow.
+				// Just log the error and continue.
+			}
 		}
 	}
 

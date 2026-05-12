@@ -10,7 +10,7 @@ import { CancellationError } from '../../../../base/common/errors.js';
 import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { autorun, constObservable, derived, IObservable, IReader, observableFromEvent, observableValue, transaction } from '../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, IReader, observableFromEvent, observableValue, observableValueOpts, transaction } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -22,8 +22,8 @@ import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browse
 import { AgentSessionProviders, AgentSessionTarget } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { IChatService, IChatSendRequestOptions } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatResponseModel } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
-import { ChatSessionStatus, IChatSessionsService, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, SessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { ISession, IChat, ISessionRepository, ISessionWorkspace, SessionStatus, GITHUB_REMOTE_FILE_SCHEME, IGitHubInfo, CopilotCLISessionType, CopilotCloudSessionType, ClaudeCodeSessionType, ISessionType, ISessionWorkspaceBrowseAction, ISessionFileChange, toSessionId, SESSION_WORKSPACE_GROUP_LOCAL, ISessionChangeset } from '../../../services/sessions/common/session.js';
+import { ChatSessionStatus, IChatSessionsService, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, SessionType, IChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { ISession, IChat, ISessionGitRepository, ISessionFolder, ISessionWorkspace, SessionStatus, GITHUB_REMOTE_FILE_SCHEME, IGitHubInfo, CopilotCLISessionType, CopilotCloudSessionType, ClaudeCodeSessionType, LocalSessionType, ISessionType, ISessionWorkspaceBrowseAction, ISessionFileChange, sessionFileChangesEqual, toSessionId, SESSION_WORKSPACE_GROUP_LOCAL, ISessionChangeset, IChatCheckpoints } from '../../../services/sessions/common/session.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, isChatPermissionLevel } from '../../../../workbench/contrib/chat/common/constants.js';
 import { basename, dirname, isEqual } from '../../../../base/common/resources.js';
 import { ISendRequestOptions, ISessionChangeEvent, ISessionsProvider } from '../../../services/sessions/common/sessionsProvider.js';
@@ -42,10 +42,14 @@ import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IGitHubService } from '../../github/browser/githubService.js';
 import { computePullRequestIcon, GitHubPullRequestState } from '../../github/common/types.js';
+import { structuralEquals } from '../../../../base/common/equals.js';
 
 const SESSION_WORKSPACE_GROUP_GITHUB = localize('sessionWorkspaceGroup.github', "GitHub");
+const STORAGE_KEY_ISOLATION_MODE = 'sessions.isolationPicker.selectedMode';
 
 export interface ICopilotChatSession {
 	/** Globally unique session ID (`providerId:localId`). */
@@ -54,8 +58,8 @@ export interface ICopilotChatSession {
 	readonly resource: URI;
 	/** ID of the provider that owns this session. */
 	readonly providerId: string;
-	/** Session type ID (e.g., 'copilot-cli', 'copilot-cloud'). */
-	readonly sessionType: string;
+	/** Session type ID (e.g., 'copilot-cli', 'copilot-cloud', 'local'). */
+	readonly sessionType: typeof SessionType[keyof typeof SessionType] | string;
 	/** Icon for this session. */
 	readonly icon: ThemeIcon;
 	/** When the session was created. */
@@ -91,6 +95,8 @@ export interface ICopilotChatSession {
 	readonly lastTurnEnd: IObservable<Date | undefined>;
 	/** GitHub information associated with this session, if any. */
 	readonly gitHubInfo: IObservable<IGitHubInfo | undefined>;
+	/** Checkpoints associated with this session, if any. */
+	readonly checkpoints: IObservable<IChatCheckpoints | undefined>;
 
 	readonly permissionLevel: IObservable<ChatPermissionLevel>;
 	setPermissionLevel(level: ChatPermissionLevel): void;
@@ -120,16 +126,19 @@ export const COPILOT_MULTI_CHAT_SETTING = 'sessions.github.copilot.multiChatSess
 /** Setting key controlling whether Claude agent sessions are available. */
 export const CLAUDE_CODE_ENABLED_SETTING = 'sessions.chat.claudeAgent.enabled';
 
+/** Setting key controlling whether Local VS Code chat sessions are available in the Agents app. */
+export const LOCAL_SESSION_ENABLED_SETTING = 'sessions.chat.localAgent.enabled';
+
 const REPOSITORY_OPTION_ID = 'repository';
 const PARENT_SESSION_OPTION_ID = 'parentSessionId';
 const BRANCH_OPTION_ID = 'branch';
 const ISOLATION_OPTION_ID = 'isolation';
 const AGENT_OPTION_ID = 'agent';
 
-type NewSession = CopilotCLISession | RemoteNewSession | ClaudeCodeNewSession;
+type NewSession = CopilotCLISession | RemoteNewSession | ClaudeCodeNewSession | LocalNewSession;
 
 function isNewSession(session: ICopilotChatSession): session is NewSession {
-	return session instanceof CopilotCLISession || session instanceof RemoteNewSession || session instanceof ClaudeCodeNewSession;
+	return session instanceof CopilotCLISession || session instanceof RemoteNewSession || session instanceof ClaudeCodeNewSession || session instanceof LocalNewSession;
 }
 
 /**
@@ -145,7 +154,7 @@ class CopilotCLISession extends Disposable implements ICopilotChatSession {
 
 	readonly id: string;
 	readonly providerId: string;
-	readonly sessionType: string;
+	readonly sessionType: typeof SessionType.CopilotCLI;
 	readonly icon: ThemeIcon;
 	readonly createdAt: Date;
 
@@ -187,6 +196,9 @@ class CopilotCLISession extends Disposable implements ICopilotChatSession {
 
 	private readonly _changes: ReturnType<typeof observableValue<readonly ISessionFileChange[]>>;
 	readonly changes: IObservable<readonly ISessionFileChange[]>;
+
+	private readonly _checkpoints: ReturnType<typeof observableValueOpts<IChatCheckpoints | undefined>>;
+	readonly checkpoints: IObservable<IChatCheckpoints | undefined>;
 
 	private readonly _isArchived = observableValue(this, false);
 	readonly isArchived: IObservable<boolean> = this._isArchived;
@@ -238,6 +250,8 @@ class CopilotCLISession extends Disposable implements ICopilotChatSession {
 		providerId: string,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IGitService private readonly gitService: IGitService,
+		@IGitHubService private readonly gitHubService: IGitHubService,
+		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super();
 		this.id = toSessionId(providerId, resource);
@@ -246,7 +260,7 @@ class CopilotCLISession extends Disposable implements ICopilotChatSession {
 		this.icon = CopilotCLISessionType.icon;
 		this.createdAt = new Date();
 
-		const repoUri = sessionWorkspace.repositories[0]?.uri;
+		const repoUri = sessionWorkspace.folders[0]?.uri;
 		if (repoUri) {
 			this._repoUri = repoUri;
 			this.setOption(REPOSITORY_OPTION_ID, repoUri.fsPath);
@@ -255,8 +269,11 @@ class CopilotCLISession extends Disposable implements ICopilotChatSession {
 		// Set ISessionData workspace observable
 		this._workspaceData.set(sessionWorkspace, undefined);
 
-		this._isolationMode = 'worktree';
-		this.setOption(ISOLATION_OPTION_ID, 'worktree');
+		const storedMode = storageService.get(STORAGE_KEY_ISOLATION_MODE, StorageScope.PROFILE);
+		const initialMode: IsolationMode = storedMode === 'workspace' ? 'workspace' : 'worktree';
+		this._isolationMode = initialMode;
+		this._isolationModeObservable.set(initialMode, undefined);
+		this.setOption(ISOLATION_OPTION_ID, initialMode);
 
 		// Resolve git repository asynchronously
 		this._resolveGitRepository();
@@ -267,12 +284,15 @@ class CopilotCLISession extends Disposable implements ICopilotChatSession {
 		this._changesets = observableValue<readonly ISessionChangeset[]>(this, []);
 		this.changesets = this._changesets;
 
-		this._changes = observableValue<readonly ISessionFileChange[]>(this, []);
+		this._changes = observableValueOpts<readonly ISessionFileChange[]>({ owner: this, equalsFn: sessionFileChangesEqual }, []);
 		this.changes = this._changes;
+
+		this._checkpoints = observableValueOpts<IChatCheckpoints | undefined>({ owner: this, equalsFn: structuralEquals }, undefined);
+		this.checkpoints = this._checkpoints;
 	}
 
 	private async _resolveGitRepository(): Promise<void> {
-		const repoUri = this.sessionWorkspace.repositories[0]?.uri;
+		const repoUri = this.sessionWorkspace.folders[0]?.uri;
 		if (repoUri) {
 			try {
 				this._gitRepository = await this.gitService.openRepository(repoUri);
@@ -354,6 +374,7 @@ class CopilotCLISession extends Disposable implements ICopilotChatSession {
 			this._isolationMode = mode;
 			this._isolationModeObservable.set(mode, undefined);
 			this.setOption(ISOLATION_OPTION_ID, mode);
+			this.storageService.store(STORAGE_KEY_ISOLATION_MODE, mode, StorageScope.PROFILE, StorageTarget.MACHINE);
 
 			if (mode === 'workspace') {
 				// When switching to workspace mode, update the branch
@@ -419,13 +440,14 @@ class CopilotCLISession extends Disposable implements ICopilotChatSession {
 	}
 
 	update(agentSession: IAgentSession): void {
-		const session = new AgentSessionAdapter(agentSession, this.providerId, undefined);
+		const session = new AgentSessionAdapter(agentSession, this.providerId, this.gitHubService);
 		this._workspaceData.set(session.workspace.get(), undefined);
 		this._title.set(session.title.get(), undefined);
 		this._status.set(session.status.get(), undefined);
 		this._updatedAt.set(session.updatedAt.get(), undefined);
 		this._changesets.set(session.changesets.get(), undefined);
 		this._changes.set(session.changes.get(), undefined);
+		this._checkpoints.set(session.checkpoints.get(), undefined);
 		this._description.set(session.description.get(), undefined);
 	}
 }
@@ -473,7 +495,9 @@ export class RemoteNewSession extends Disposable implements ICopilotChatSession 
 	readonly workspace: IObservable<ISessionWorkspace | undefined> = this._workspaceData;
 
 	readonly changesets: IObservable<readonly ISessionChangeset[]> = observableValue<readonly ISessionChangeset[]>(this, []);
-	readonly changes: IObservable<readonly ISessionFileChange[]> = observableValue<readonly ISessionFileChange[]>(this, []);
+	readonly changes: IObservable<readonly ISessionFileChange[]> = observableValueOpts<readonly ISessionFileChange[]>({ owner: this, equalsFn: sessionFileChangesEqual }, []);
+
+	readonly checkpoints: IObservable<IChatCheckpoints | undefined> = constObservable(undefined);
 
 	private readonly _modelIdObservable = observableValue<string | undefined>(this, undefined);
 	readonly modelId: IObservable<string | undefined> = this._modelIdObservable;
@@ -548,7 +572,7 @@ export class RemoteNewSession extends Disposable implements ICopilotChatSession 
 
 		// Set workspace data
 		this._workspaceData.set(sessionWorkspace, undefined);
-		this._repoUri = sessionWorkspace.repositories[0]?.uri;
+		this._repoUri = sessionWorkspace.folders[0]?.uri;
 		if (this._repoUri) {
 			const id = this._repoUri.path.substring(1);
 			this.setOption('repositories', { id, name: id });
@@ -684,19 +708,21 @@ export class RemoteNewSession extends Disposable implements ICopilotChatSession 
 }
 
 /**
- * New session for Claude agent sessions.
- * Implements {@link ICopilotChatSession} (session facade) and provides
- * pre-send configuration methods for the new-session flow.
- * Simpler than {@link CopilotCLISession} because the Claude agent manages
- * its own worktrees and branches at runtime.
+ * New session for local (in-process VS Code chat) sessions.
+ * Implements {@link ICopilotChatSession} (session facade) for local sessions
+ * that run in-process without worktrees or remote agents.
+ * Keeps the underlying chat model alive by retaining the
+ * {@link IChatModelReference} returned from `startNewLocalSession` for the
+ * lifetime of this object.
  */
-class ClaudeCodeNewSession extends Disposable implements ICopilotChatSession {
+class LocalNewSession extends Disposable implements ICopilotChatSession {
 
 	// -- ISessionData fields --
 
+	readonly resource: URI;
 	readonly id: string;
 	readonly providerId: string;
-	readonly sessionType: string;
+	readonly sessionType: typeof SessionType.Local;
 	readonly icon: ThemeIcon;
 	readonly createdAt: Date;
 
@@ -716,7 +742,277 @@ class ClaudeCodeNewSession extends Disposable implements ICopilotChatSession {
 	readonly workspace: IObservable<ISessionWorkspace | undefined> = this._workspaceData;
 
 	readonly changesets: IObservable<readonly ISessionChangeset[]> = observableValue<readonly ISessionChangeset[]>(this, []);
-	readonly changes: IObservable<readonly ISessionFileChange[]> = observableValue<readonly ISessionFileChange[]>(this, []);
+
+	readonly checkpoints: IObservable<IChatCheckpoints | undefined> = constObservable(undefined);
+
+	private readonly _changes = observableValue<readonly ISessionFileChange[]>(this, []);
+	readonly changes: IObservable<readonly ISessionFileChange[]> = this._changes;
+
+	private readonly _modelIdObservable = observableValue<string | undefined>(this, undefined);
+	readonly modelId: IObservable<string | undefined> = this._modelIdObservable;
+
+	private readonly _modeObservable = observableValue<{ readonly id: string; readonly kind: string } | undefined>(this, undefined);
+	readonly mode: IObservable<{ readonly id: string; readonly kind: string } | undefined> = this._modeObservable;
+
+	readonly loading: IObservable<boolean> = observableValue(this, false);
+
+	private readonly _isArchived = observableValue(this, false);
+	readonly isArchived: IObservable<boolean> = this._isArchived;
+	readonly isRead: IObservable<boolean> = observableValue(this, true);
+	readonly description: IObservable<IMarkdownString | undefined> = constObservable(undefined);
+	readonly lastTurnEnd: IObservable<Date | undefined> = constObservable(undefined);
+	readonly gitHubInfo: IObservable<IGitHubInfo | undefined> = constObservable(undefined);
+	readonly branch: IObservable<string | undefined> = constObservable(undefined);
+	readonly isolationMode: IObservable<IsolationMode | undefined> = constObservable(undefined);
+	readonly branches: IObservable<readonly string[]> = constObservable([]);
+	readonly gitRepository?: IGitRepository | undefined;
+
+	// -- New session configuration fields --
+
+	private _modelId: string | undefined;
+	private _mode: IChatMode | undefined;
+
+	readonly target = AgentSessionProviders.Local;
+	readonly selectedOptions = new Map<string, IChatSessionProviderOptionItem>();
+
+	get selectedModelId(): string | undefined { return this._modelId; }
+	get chatMode(): IChatMode | undefined { return this._mode; }
+	get query(): string | undefined { return undefined; }
+	get attachedContext(): IChatRequestVariableEntry[] | undefined { return undefined; }
+	get disabled(): boolean { return false; }
+
+	constructor(
+		// readonly resource: URI,
+		readonly sessionWorkspace: ISessionWorkspace,
+		providerId: string,
+		@IGitService private readonly gitService: IGitService,
+		@IChatService private readonly chatService: IChatService,
+		@IFileService private readonly fileService: IFileService,
+	) {
+		super();
+
+		// Create a real local chat model upfront so the chat service has
+		// a model registered for our resource. This avoids the
+		// contributed-session path (which would require a content
+		// provider for the 'local' chat session type).
+		const modelRef = this._register(this.chatService.startNewLocalSession(
+			ChatAgentLocation.Chat,
+			{ debugOwner: 'CopilotChatSessionsProvider#createNewSession.local' },
+		));
+		if (sessionWorkspace.folders.length > 0) {
+			modelRef.object.setWorkingDirectory(sessionWorkspace.folders[0]?.uri);
+		}
+		this.resource = modelRef.object.sessionResource;
+
+		this.id = toSessionId(providerId, this.resource);
+		this.providerId = providerId;
+		this.sessionType = AgentSessionProviders.Local;
+		this.icon = LocalSessionType.icon;
+		this.createdAt = new Date();
+
+		this._workspaceData.set(sessionWorkspace, undefined);
+
+		// Resolve git state asynchronously so the Changes view has
+		// branch names, uncommitted counts, etc. without needing
+		// an agent session in agentSessionsService.
+		this._resolveGitState();
+	}
+
+	private async _resolveGitState(): Promise<void> {
+		const repoUri = this.sessionWorkspace.folders[0]?.uri;
+		if (!repoUri) {
+			return;
+		}
+
+		try {
+			const repo = await this.gitService.openRepository(repoUri);
+			if (!repo) {
+				return;
+			}
+
+			this._register(autorun((reader) => {
+				const state = repo.state.read(reader);
+				const head = state.HEAD;
+				const branchName = head?.commit ? head.name : undefined;
+				const upstreamBranchName = head?.upstream
+					? `${head.upstream.remote}/${head.upstream.name}`
+					: undefined;
+				const uncommittedChanges = state.workingTreeChanges.length + state.untrackedChanges.length + state.indexChanges.length;
+
+				this._workspaceData.set({
+					...this.sessionWorkspace,
+					folders: [{
+						...this.sessionWorkspace.folders[0],
+						gitRepository: {
+							...this.sessionWorkspace.folders[0].gitRepository!,
+							branchName,
+							upstreamBranchName,
+							uncommittedChanges,
+						},
+					}],
+				}, undefined);
+
+				// Capture all known changed files from the current state snapshot
+				// so we can fill in any that diffBetweenWithStats2 misses
+				// (e.g. untracked files regardless of the git.untrackedChanges setting)
+				const allStateChanges = [...state.workingTreeChanges, ...state.untrackedChanges, ...state.indexChanges];
+
+				// Fetch real line-level diff stats asynchronously
+				repo.diffBetweenWithStats2('HEAD').then(async diffChanges => {
+					if (this._store.isDisposed) {
+						return;
+					}
+					// diffBetweenWithStats2 only covers tracked changes against HEAD;
+					// append any files from the git state that it missed
+					// (e.g. untracked/new files not yet staged) with real line counts
+					const trackedUris = new Set(diffChanges.map(el => el.uri.toString()));
+					const changes: IChatSessionFileChange2[] = diffChanges.map(el => ({
+						uri: el.uri,
+						originalUri: el.originalUri,
+						modifiedUri: el.modifiedUri ?? el.uri,
+						insertions: el.insertions,
+						deletions: el.deletions,
+					}));
+					const untrackedFiles = allStateChanges.filter(el => !trackedUris.has(el.uri.toString()));
+					const lineCountPromises = untrackedFiles.map(async el => {
+						let insertions = 0;
+						try {
+							const stat = await this.fileService.stat(el.uri);
+							if (!stat.isDirectory) {
+								const content = await this.fileService.readFile(el.uri);
+								// Count newlines; add 1 for the last line if file is non-empty
+								const text = content.value.toString();
+								insertions = text.length > 0 ? text.split('\n').length : 0;
+							}
+						} catch {
+							// File may have been deleted between state snapshot and read
+						}
+						return {
+							uri: el.uri,
+							originalUri: undefined,
+							modifiedUri: el.modifiedUri ?? el.uri,
+							insertions,
+							deletions: 0,
+						} satisfies IChatSessionFileChange2;
+					});
+					const untrackedChanges = await Promise.all(lineCountPromises);
+					if (this._store.isDisposed) {
+						return;
+					}
+					changes.push(...untrackedChanges);
+					this._changes.set(changes, undefined);
+				}, () => {
+					// Diff computation failed — fall back to zero stats
+					if (this._store.isDisposed) {
+						return;
+					}
+					this._changes.set(allStateChanges.map<IChatSessionFileChange2>(el => ({
+						uri: el.uri,
+						originalUri: el.originalUri,
+						modifiedUri: el.modifiedUri ?? el.uri,
+						insertions: 0,
+						deletions: 0,
+					})), undefined);
+				});
+			}));
+
+		} catch {
+			// No git repository available — workspace stays as-is
+		}
+	}
+
+	setOption(optionId: string, value: IChatSessionProviderOptionItem | string): void {
+		if (typeof value === 'string') {
+			this.selectedOptions.set(optionId, { id: value, name: value });
+		} else {
+			this.selectedOptions.set(optionId, value);
+		}
+	}
+
+	setPermissionLevel(level: ChatPermissionLevel): void {
+		this._permissionLevel.set(level, undefined);
+	}
+
+	setIsolationMode(_mode: IsolationMode): void {
+		// No-op — local sessions do not use isolation
+	}
+
+	setBranch(_branch: string | undefined): void {
+		// No-op — local sessions do not manage branches
+	}
+
+	setModelId(modelId: string | undefined): void {
+		this._modelId = modelId;
+		this._modelIdObservable.set(modelId, undefined);
+	}
+
+	setTitle(title: string): void {
+		this._title.set(title, undefined);
+	}
+
+	setStatus(status: SessionStatus): void {
+		this._status.set(status, undefined);
+	}
+
+	setArchived(archived: boolean): void {
+		this._isArchived.set(archived, undefined);
+	}
+
+	setMode(mode: IChatMode | undefined): void {
+		this._mode = mode;
+		if (mode) {
+			this._modeObservable.set({ id: mode.id, kind: mode.kind }, undefined);
+		} else {
+			this._modeObservable.set(undefined, undefined);
+		}
+	}
+
+	update(session: IAgentSession): void {
+		transaction(tx => {
+			this._title.set(session.label, tx);
+			const updatedTime = session.timing.lastRequestEnded ?? session.timing.lastRequestStarted ?? session.timing.created;
+			this._updatedAt.set(new Date(updatedTime), tx);
+			this._status.set(toSessionStatus(session.status), tx);
+			this._isArchived.set(session.isArchived(), tx);
+		});
+	}
+}
+
+/**
+ * New session for Claude agent sessions.
+ * Implements {@link ICopilotChatSession} (session facade) and provides
+ * pre-send configuration methods for the new-session flow.
+ * Simpler than {@link CopilotCLISession} because the Claude agent manages
+ * its own worktrees and branches at runtime.
+ */
+class ClaudeCodeNewSession extends Disposable implements ICopilotChatSession {
+
+	// -- ISessionData fields --
+
+	readonly id: string;
+	readonly providerId: string;
+	readonly sessionType: typeof SessionType.ClaudeCode;
+	readonly icon: ThemeIcon;
+	readonly createdAt: Date;
+
+	private readonly _title = observableValue(this, '');
+	readonly title: IObservable<string> = this._title;
+
+	private readonly _updatedAt = observableValue(this, new Date());
+	readonly updatedAt: IObservable<Date> = this._updatedAt;
+
+	private readonly _status = observableValue(this, SessionStatus.Untitled);
+	readonly status: IObservable<SessionStatus> = this._status;
+
+	private readonly _permissionLevel = observableValue(this, ChatPermissionLevel.Default);
+	readonly permissionLevel: IObservable<ChatPermissionLevel> = this._permissionLevel;
+
+	private readonly _workspaceData = observableValue<ISessionWorkspace | undefined>(this, undefined);
+	readonly workspace: IObservable<ISessionWorkspace | undefined> = this._workspaceData;
+
+	readonly changesets: IObservable<readonly ISessionChangeset[]> = observableValue<readonly ISessionChangeset[]>(this, []);
+	readonly changes: IObservable<readonly ISessionFileChange[]> = observableValueOpts<readonly ISessionFileChange[]>({ owner: this, equalsFn: sessionFileChangesEqual }, []);
+	readonly checkpoints: IObservable<IChatCheckpoints | undefined> = constObservable(undefined);
 
 	private readonly _modelIdObservable = observableValue<string | undefined>(this, undefined);
 	readonly modelId: IObservable<string | undefined> = this._modelIdObservable;
@@ -861,6 +1157,9 @@ class AgentSessionAdapter implements ICopilotChatSession {
 	private readonly _changes: ReturnType<typeof observableValue<readonly ISessionFileChange[]>>;
 	readonly changes: IObservable<readonly ISessionFileChange[]>;
 
+	private readonly _checkpoints: ReturnType<typeof observableValueOpts<IChatCheckpoints | undefined>>;
+	readonly checkpoints: IObservable<IChatCheckpoints | undefined>;
+
 	readonly modelId: IObservable<string | undefined>;
 	readonly mode: IObservable<{ readonly id: string; readonly kind: string } | undefined>;
 	readonly loading: IObservable<boolean>;
@@ -889,7 +1188,7 @@ class AgentSessionAdapter implements ICopilotChatSession {
 	constructor(
 		session: IAgentSession,
 		providerId: string,
-		private readonly _gitHubService: IGitHubService | undefined,
+		private readonly _gitHubService: IGitHubService,
 	) {
 		this.id = toSessionId(providerId, session.resource);
 		this.resource = session.resource;
@@ -897,6 +1196,21 @@ class AgentSessionAdapter implements ICopilotChatSession {
 		this.sessionType = session.providerType;
 		this.icon = this._getSessionTypeIcon(session);
 		this.createdAt = new Date(session.timing.created);
+
+		this._baseGitHubInfo = observableValue(this, this._extractGitHubInfo(session));
+		this.gitHubInfo = derived(this, reader => {
+			const base = this._baseGitHubInfo.read(reader);
+			if (!base?.pullRequest || !this._gitHubService) {
+				return base;
+			}
+			const prModelRef = reader.store.add(this._gitHubService.createPullRequestModelReference(base.owner, base.repo, base.pullRequest.number));
+			const livePR = prModelRef.object.pullRequest.read(reader);
+			if (!livePR) {
+				return base;
+			}
+			return { ...base, pullRequest: { ...base.pullRequest, icon: computePullRequestIcon(livePR.isDraft ? 'draft' : livePR.state) } };
+		});
+
 		this._workspace = observableValue(this, this._buildWorkspace(session));
 		this.workspace = this._workspace;
 
@@ -913,8 +1227,11 @@ class AgentSessionAdapter implements ICopilotChatSession {
 		this._changesets = observableValue<readonly ISessionChangeset[]>(this, this._extractChangesets(session));
 		this.changesets = this._changesets;
 
-		this._changes = observableValue<readonly ISessionFileChange[]>(this, this._extractChanges(session));
+		this._changes = observableValueOpts<readonly ISessionFileChange[]>({ owner: this, equalsFn: sessionFileChangesEqual }, this._extractChanges(session));
 		this.changes = this._changes;
+
+		this._checkpoints = observableValueOpts<IChatCheckpoints | undefined>({ owner: this, equalsFn: structuralEquals }, this._extractCheckpoints(session));
+		this.checkpoints = this._checkpoints;
 
 		this.modelId = observableValue(this, undefined);
 		this.mode = observableValue(this, undefined);
@@ -928,21 +1245,6 @@ class AgentSessionAdapter implements ICopilotChatSession {
 		this.description = this._description;
 		this._lastTurnEnd = observableValue(this, session.timing.lastRequestEnded ? new Date(session.timing.lastRequestEnded) : undefined);
 		this.lastTurnEnd = this._lastTurnEnd;
-		this._baseGitHubInfo = observableValue(this, this._extractGitHubInfo(session));
-		this.gitHubInfo = this._gitHubService
-			? derived(this, reader => {
-				const base = this._baseGitHubInfo.read(reader);
-				if (!base?.pullRequest || !this._gitHubService) {
-					return base;
-				}
-				const prModelRef = reader.store.add(this._gitHubService.createPullRequestModelReference(base.owner, base.repo, base.pullRequest.number));
-				const livePR = prModelRef.object.pullRequest.read(reader);
-				if (!livePR) {
-					return base;
-				}
-				return { ...base, pullRequest: { ...base.pullRequest, icon: computePullRequestIcon(livePR.isDraft ? 'draft' : livePR.state) } };
-			})
-			: this._baseGitHubInfo;
 	}
 
 	setPermissionLevel(level: ChatPermissionLevel): void {
@@ -967,10 +1269,12 @@ class AgentSessionAdapter implements ICopilotChatSession {
 	update(session: IAgentSession): void {
 		transaction(tx => {
 			this._title.set(session.label, tx);
+			this._workspace.set(this._buildWorkspace(session), tx);
 			const updatedTime = session.timing.lastRequestEnded ?? session.timing.lastRequestStarted ?? session.timing.created;
 			this._updatedAt.set(new Date(updatedTime), tx);
 			this._status.set(toSessionStatus(session.status), tx);
 			this._changes.set(this._extractChanges(session), tx);
+			this._checkpoints.set(this._extractCheckpoints(session), tx);
 			this._isArchived.set(session.isArchived(), tx);
 			this._isRead.set(session.isRead(), tx);
 			this._description.set(this._extractDescription(session), tx);
@@ -1020,7 +1324,22 @@ class AgentSessionAdapter implements ICopilotChatSession {
 			return { owner, repo };
 		}
 
-		return { owner, repo, pullRequest: { number: prNumber, uri: pullRequestUri, icon: this._extractPullRequestStateIcon(session) } };
+		const icon = this._extractPullRequestStateIcon(session);
+
+		const baseRefOid = typeof metadata.baseRefOid === 'string' ? metadata.baseRefOid : undefined;
+		const headRefOid = typeof metadata.headRefOid === 'string' ? metadata.headRefOid : undefined;
+
+		return {
+			owner,
+			repo,
+			pullRequest: {
+				number: prNumber,
+				uri: pullRequestUri,
+				icon,
+				baseRefOid,
+				headRefOid
+			}
+		};
 	}
 
 	private _extractPullRequestNumber(session: IAgentSession, pullRequestUri: URI): number | undefined {
@@ -1055,7 +1374,7 @@ class AgentSessionAdapter implements ICopilotChatSession {
 		}
 
 		// Parse from workspace repository URI (cloud sessions)
-		const repoUri = this._buildWorkspace(session)?.repositories[0]?.uri;
+		const repoUri = this._buildWorkspace(session)?.folders[0]?.uri;
 		if (repoUri && repoUri.scheme === GITHUB_REMOTE_FILE_SCHEME) {
 			const parts = repoUri.path.split('/').filter(Boolean);
 			if (parts.length >= 2) {
@@ -1134,21 +1453,64 @@ class AgentSessionAdapter implements ICopilotChatSession {
 		return [];
 	}
 
-	private _buildWorkspace(session: IAgentSession): ISessionWorkspace | undefined {
-		const [repoUri, worktreeUri, branchName, baseBranchName] = this._extractRepositoryFromMetadata(session);
+	private _extractCheckpoints(session: IAgentSession): IChatCheckpoints | undefined {
+		const metadata = session.metadata;
+		if (typeof metadata?.firstCheckpointRef !== 'string' || typeof metadata?.lastCheckpointRef !== 'string') {
+			return undefined;
+		}
 
-		const repository: ISessionRepository = {
-			uri: repoUri ?? URI.parse('unknown:///'),
-			workingDirectory: worktreeUri,
-			detail: branchName,
+		return {
+			firstCheckpointRef: metadata.firstCheckpointRef,
+			lastCheckpointRef: metadata.lastCheckpointRef,
+		} satisfies IChatCheckpoints;
+	}
+
+	private _buildWorkspace(session: IAgentSession): ISessionWorkspace | undefined {
+		const {
+			repoUri,
+			worktreeUri,
+			branchName,
 			baseBranchName,
+			baseBranchProtected,
+			hasGitHubRemote,
+			upstreamBranchName,
+			incomingChanges,
+			outgoingChanges,
+			uncommittedChanges,
+			hasGitOperationInProgress
+		} = this._extractRepositoryFromMetadata(session);
+
+		const repoUriResolved = repoUri ?? URI.parse('unknown:///');
+
+		const gitRepository: ISessionGitRepository = {
+			uri: repoUriResolved,
+			workTreeUri: worktreeUri,
+			branchName,
+			baseBranchName,
+			baseBranchProtected,
+			hasGitHubRemote,
+			upstreamBranchName,
+			incomingChanges,
+			outgoingChanges,
+			uncommittedChanges,
+			hasGitOperationInProgress,
+			gitHubInfo: this.gitHubInfo,
+		};
+
+		const folder: ISessionFolder = {
+			uri: repoUriResolved,
+			workingDirectory: worktreeUri ?? repoUriResolved,
+			name: basename(repoUriResolved),
+			description: branchName,
+			gitRepository,
 		};
 
 		return {
-			label: getRepositoryName(session) ?? basename(repository.uri),
+			uri: repoUriResolved,
+			label: getRepositoryName(session) ?? basename(repoUriResolved),
 			icon: repoUri?.scheme === GITHUB_REMOTE_FILE_SCHEME ? Codicon.repo : Codicon.folder,
 			group: repoUri?.scheme === GITHUB_REMOTE_FILE_SCHEME ? SESSION_WORKSPACE_GROUP_GITHUB : SESSION_WORKSPACE_GROUP_LOCAL,
-			repositories: [repository],
+			folders: [folder],
 			requiresWorkspaceTrust: session.providerType !== AgentSessionProviders.Cloud,
 		};
 	}
@@ -1157,10 +1519,22 @@ class AgentSessionAdapter implements ICopilotChatSession {
 	 * Extract repository/worktree information from session metadata.
 	 * Mirrors the logic in sessionsManagementService.getRepositoryFromMetadata().
 	 */
-	private _extractRepositoryFromMetadata(session: IAgentSession): [URI | undefined, URI | undefined, string | undefined, string | undefined] {
+	private _extractRepositoryFromMetadata(session: IAgentSession): {
+		readonly repoUri?: URI;
+		readonly worktreeUri?: URI;
+		readonly branchName?: string;
+		readonly baseBranchName?: string;
+		readonly baseBranchProtected?: boolean;
+		readonly hasGitHubRemote?: boolean;
+		readonly upstreamBranchName?: string;
+		readonly incomingChanges?: number;
+		readonly outgoingChanges?: number;
+		readonly uncommittedChanges?: number;
+		readonly hasGitOperationInProgress?: boolean;
+	} {
 		const metadata = session.metadata;
 		if (!metadata) {
-			return [undefined, undefined, undefined, undefined];
+			return {};
 		}
 
 		if (session.providerType === AgentSessionProviders.Cloud) {
@@ -1170,13 +1544,13 @@ class AgentSessionAdapter implements ICopilotChatSession {
 				authority: 'github',
 				path: `/${metadata.owner}/${metadata.name}/${encodeURIComponent(branch)}`
 			});
-			return [repositoryUri, undefined, undefined, undefined];
+			return { repoUri: repositoryUri };
 		}
 
 		// Background/CLI sessions: check workingDirectoryPath first
 		const workingDirectoryPath = metadata?.workingDirectoryPath as string | undefined;
 		if (workingDirectoryPath) {
-			return [URI.file(workingDirectoryPath), undefined, undefined, undefined];
+			return { repoUri: URI.file(workingDirectoryPath) };
 		}
 
 		// Fall back to repositoryPath + worktreePath
@@ -1186,20 +1560,24 @@ class AgentSessionAdapter implements ICopilotChatSession {
 		const worktreePath = metadata?.worktreePath as string | undefined;
 		const worktreePathUri = typeof worktreePath === 'string' ? URI.file(worktreePath) : undefined;
 
-		const worktreeBranchName = metadata?.branchName as string | undefined;
-		const worktreeBaseBranchName = metadata?.baseBranchName as string | undefined;
-
-		return [
-			URI.isUri(repositoryPathUri) ? repositoryPathUri : undefined,
-			URI.isUri(worktreePathUri) ? worktreePathUri : undefined,
-			worktreeBranchName,
-			worktreeBaseBranchName,
-		];
+		return {
+			repoUri: URI.isUri(repositoryPathUri) ? repositoryPathUri : undefined,
+			worktreeUri: URI.isUri(worktreePathUri) ? worktreePathUri : undefined,
+			branchName: metadata?.branchName as string | undefined,
+			baseBranchName: metadata?.baseBranchName as string | undefined,
+			baseBranchProtected: metadata?.baseBranchProtected as boolean | undefined,
+			hasGitHubRemote: metadata?.hasGitHubRemote as boolean | undefined,
+			upstreamBranchName: metadata?.upstreamBranchName as string | undefined,
+			incomingChanges: metadata?.incomingChanges as number | undefined,
+			outgoingChanges: metadata?.outgoingChanges as number | undefined,
+			uncommittedChanges: metadata?.uncommittedChanges as number | undefined,
+			hasGitOperationInProgress: metadata?.hasGitOperationInProgress as boolean | undefined
+		};
 	}
 }
 
 /**
- * Default sessions provider for Copilot CLI and Cloud session types.
+ * Default sessions provider for Copilot CLI, Cloud, Claude, and Local session types.
  * Wraps the existing session infrastructure into the extensible provider model.
  */
 export class CopilotChatSessionsProvider extends Disposable implements ISessionsProvider {
@@ -1209,6 +1587,9 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	readonly icon = Codicon.copilot;
 	get sessionTypes(): readonly ISessionType[] {
 		const types: ISessionType[] = [CopilotCLISessionType, CopilotCloudSessionType];
+		if (this._localSessionEnabled) {
+			types.push(LocalSessionType);
+		}
 		if (this._claudeEnabled) {
 			types.push(ClaudeCodeSessionType);
 		}
@@ -1225,7 +1606,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	readonly onDidReplaceSession: Event<{ readonly from: ISession; readonly to: ISession }> = this._onDidReplaceSession.event;
 
 	/** Cache of adapted sessions, keyed by resource URI string. */
-	private readonly _sessionCache = new Map<string, AgentSessionAdapter | CopilotCLISession | RemoteNewSession | ClaudeCodeNewSession>();
+	private readonly _sessionCache = new Map<string, AgentSessionAdapter | CopilotCLISession | RemoteNewSession | ClaudeCodeNewSession | LocalNewSession>();
 
 	/** Cache of ISession wrappers, keyed by session group ID. */
 	private readonly _sessionGroupCache = new Map<string, ISession>();
@@ -1247,6 +1628,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 	private readonly _multiChatEnabled: boolean;
 	private _claudeEnabled: boolean;
+	private _localSessionEnabled: boolean;
 
 	readonly browseActions: readonly ISessionWorkspaceBrowseAction[];
 	readonly supportsLocalWorkspaces = true;
@@ -1270,12 +1652,21 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 		this._multiChatEnabled = this.configurationService.getValue<boolean>(COPILOT_MULTI_CHAT_SETTING) ?? true;
 		this._claudeEnabled = this.configurationService.getValue<boolean>(CLAUDE_CODE_ENABLED_SETTING);
+		this._localSessionEnabled = this.configurationService.getValue<boolean>(LOCAL_SESSION_ENABLED_SETTING);
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(CLAUDE_CODE_ENABLED_SETTING)) {
 				const claudeEnabled = this.configurationService.getValue<boolean>(CLAUDE_CODE_ENABLED_SETTING);
 				if (this._claudeEnabled !== claudeEnabled) {
 					this._claudeEnabled = claudeEnabled;
+					this._onDidChangeSessionTypes.fire();
+					this._refreshSessionCache();
+				}
+			}
+			if (e.affectsConfiguration(LOCAL_SESSION_ENABLED_SETTING)) {
+				const localSessionEnabled = this.configurationService.getValue<boolean>(LOCAL_SESSION_ENABLED_SETTING);
+				if (this._localSessionEnabled !== localSessionEnabled) {
+					this._localSessionEnabled = localSessionEnabled;
 					this._onDidChangeSessionTypes.fire();
 					this._refreshSessionCache();
 				}
@@ -1305,6 +1696,9 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			return [CopilotCloudSessionType];
 		}
 		const types: ISessionType[] = [CopilotCLISessionType];
+		if (this._localSessionEnabled) {
+			types.push(LocalSessionType);
+		}
 		if (this._claudeEnabled) {
 			types.push(ClaudeCodeSessionType);
 		}
@@ -1369,6 +1763,12 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		if (sessionTypeId === ClaudeCodeSessionType.id) {
 			const resource = URI.from({ scheme: AgentSessionProviders.Claude, path: `/untitled-${generateUuid()}` });
 			const session = this.instantiationService.createInstance(ClaudeCodeNewSession, resource, workspace, this.id);
+			this._currentNewSession = session;
+			return this._chatToSession(session);
+		}
+
+		if (sessionTypeId === LocalSessionType.id) {
+			const session = this.instantiationService.createInstance(LocalNewSession, workspace, this.id);
 			this._currentNewSession = session;
 			return this._chatToSession(session);
 		}
@@ -1610,7 +2010,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	 * Sends the first chat for a newly created session.
 	 * Adds the temp session to the cache, waits for commit, then replaces it.
 	 */
-	private async _sendFirstChat(session: CopilotCLISession | RemoteNewSession | ClaudeCodeNewSession, options: ISendRequestOptions): Promise<ISession> {
+	private async _sendFirstChat(session: CopilotCLISession | RemoteNewSession | ClaudeCodeNewSession | LocalNewSession, options: ISendRequestOptions): Promise<ISession> {
 
 		const { query, attachedContext } = options;
 
@@ -1650,6 +2050,14 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		// real session URIs upfront, bypassing the untitled→commit→swap flow.
 		if (session instanceof ClaudeCodeNewSession) {
 			return this._sendFirstChatViaController(session, query, sendOptions);
+		}
+
+		// Local sessions run in-process and do not go through the
+		// untitled→commit→swap flow (chatServiceImpl explicitly skips
+		// commit for localChatSessionType). Send the request and keep
+		// the session on its original URI.
+		if (session instanceof LocalNewSession) {
+			return this._sendFirstChatLocal(session, query, sendOptions, permissionLevel);
 		}
 
 		await this.chatSessionsService.getOrCreateChatSession(session.resource, CancellationToken.None);
@@ -1726,6 +2134,71 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			session.dispose();
 			throw error;
 		}
+	}
+
+	/**
+	 * Sends the first chat for a local (in-process) session.
+	 *
+	 * Local sessions do not create worktrees and the chat service explicitly
+	 * skips the untitled→commit flow for {@link localChatSessionType}.
+	 * Instead of waiting for a commit event that will never arrive, this
+	 * method keeps the session on its original untitled URI.
+	 */
+	private async _sendFirstChatLocal(
+		session: LocalNewSession,
+		query: string,
+		sendOptions: IChatSendRequestOptions,
+		permissionLevel: ChatPermissionLevel,
+	): Promise<ISession> {
+		// The chat model was already created in createNewSession via
+		// startNewLocalSession, so we skip getOrCreateChatSession here
+		// (which would otherwise try to resolve a content provider).
+		const disposable = await this._applySessionModelState(session.resource, session, permissionLevel);
+		const chatWidget = await this.chatWidgetService.openSession(session.resource, ChatViewPaneTarget);
+		disposable.dispose();
+		if (!chatWidget) {
+			throw new Error('[CopilotChatSessionsProvider] Failed to open chat widget for local session');
+		}
+
+		// Obtain user-selected tools from the chat widget so the copilot
+		// extension sees the full tool set. Without this, the direct
+		// chatService.sendRequest bypasses chatWidget.acceptInput() which
+		// normally provides these.
+		const { userSelectedTools } = chatWidget.getModeRequestOptions();
+
+		this.logService.debug(`[CopilotChatSessionsProvider] Sending first chat for local session ${session.id}`);
+		const result = await this.chatService.sendRequest(session.resource, query, {
+			...sendOptions,
+			userSelectedTools,
+			instructionContext: {
+				modeKind: sendOptions.modeInfo?.kind ?? ChatModeKind.Agent,
+				enabledTools: userSelectedTools?.get(),
+			},
+		});
+		if (result.kind === 'rejected') {
+			throw new Error(`[CopilotChatSessionsProvider] Local sendRequest rejected: ${result.reason}`);
+		}
+
+		// Local sessions stay on their original URI — no commit swap needed.
+		session.setTitle(query.split('\n')[0].substring(0, 100) || localize('new session', "New Session"));
+		session.setStatus(SessionStatus.InProgress);
+		const key = session.resource.toString();
+		this._sessionCache.set(key, session);
+		this._invalidateGroupingCaches();
+		this._currentNewSession = undefined;
+		const newSession = this._chatToSession(session);
+		this._onDidChangeSessions.fire({ added: [newSession], removed: [], changed: [] });
+
+		// Listen for the response to complete so we can flip the status
+		// from InProgress → Completed and unblock the input box.
+		if (result.kind === 'sent') {
+			result.data.responseCompletePromise.then(() => {
+				session.setStatus(SessionStatus.Completed);
+				this._onDidChangeSessions.fire({ added: [], removed: [], changed: [newSession] });
+			});
+		}
+
+		return newSession;
 	}
 
 	/**
@@ -2022,9 +2495,9 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			throw new Error('Chat session has no associated workspace');
 		}
 
-		const repository = workspace.repositories[0];
-		if (!repository) {
-			throw new Error('Workspace has no repository');
+		const folder = workspace.folders[0];
+		if (!folder) {
+			throw new Error('Workspace has no folder');
 		}
 
 		if (this._currentNewSession) {
@@ -2032,9 +2505,9 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			this._currentNewSession = undefined;
 		}
 
-		const newWorkspace = this.resolveWorkspace(repository.workingDirectory || repository.uri);
+		const newWorkspace = this.resolveWorkspace(folder.workingDirectory);
 		if (!newWorkspace) {
-			throw new Error(`Cannot resolve workspace for URI: ${(repository.workingDirectory || repository.uri).toString()}`);
+			throw new Error(`Cannot resolve workspace for working directory URI: ${folder.workingDirectory.toString()}`);
 		}
 		const resource = URI.from({ scheme: AgentSessionProviders.Background, path: `/untitled-${generateUuid()}` });
 		const session = this.instantiationService.createInstance(CopilotCLISession, resource, newWorkspace, this.id);
@@ -2165,28 +2638,44 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		const repoId = await this.commandService.executeCommand<string>(OPEN_REPO_COMMAND);
 		if (repoId) {
 			const uri = URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: `/${repoId}/HEAD` });
+			const folder: ISessionFolder = {
+				uri,
+				workingDirectory: uri,
+				name: basename(uri),
+				description: undefined,
+				gitRepository: undefined,
+			};
 			return {
+				uri,
 				label: this._labelFromUri(uri),
 				icon: this._iconFromUri(uri),
 				group: SESSION_WORKSPACE_GROUP_GITHUB,
-				repositories: [{ uri, workingDirectory: undefined, detail: undefined, baseBranchName: undefined }],
+				folders: [folder],
 				requiresWorkspaceTrust: false,
 			};
 		}
 		return undefined;
 	}
 
-	resolveWorkspace(repositoryUri: URI): ISessionWorkspace | undefined {
-		if (repositoryUri.scheme !== Schemas.file && repositoryUri.scheme !== GITHUB_REMOTE_FILE_SCHEME) {
+	resolveWorkspace(uri: URI): ISessionWorkspace | undefined {
+		if (uri.scheme !== Schemas.file && uri.scheme !== GITHUB_REMOTE_FILE_SCHEME) {
 			return undefined;
 		}
+		const folder: ISessionFolder = {
+			uri,
+			workingDirectory: uri,
+			name: basename(uri),
+			description: undefined,
+			gitRepository: undefined,
+		};
 		return {
-			label: this._labelFromUri(repositoryUri),
-			description: this._descriptionFromUri(repositoryUri),
-			group: repositoryUri.scheme === GITHUB_REMOTE_FILE_SCHEME ? SESSION_WORKSPACE_GROUP_GITHUB : SESSION_WORKSPACE_GROUP_LOCAL,
-			icon: this._iconFromUri(repositoryUri),
-			repositories: [{ uri: repositoryUri, workingDirectory: undefined, detail: undefined, baseBranchName: undefined }],
-			requiresWorkspaceTrust: repositoryUri.scheme !== GITHUB_REMOTE_FILE_SCHEME
+			uri: uri,
+			label: this._labelFromUri(uri),
+			description: this._descriptionFromUri(uri),
+			group: uri.scheme === GITHUB_REMOTE_FILE_SCHEME ? SESSION_WORKSPACE_GROUP_GITHUB : SESSION_WORKSPACE_GROUP_LOCAL,
+			icon: this._iconFromUri(uri),
+			folders: [folder],
+			requiresWorkspaceTrust: uri.scheme !== GITHUB_REMOTE_FILE_SCHEME
 		};
 	}
 
@@ -2347,7 +2836,8 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		for (const session of this.agentSessionsService.model.sessions) {
 			if (session.providerType !== AgentSessionProviders.Background
 				&& session.providerType !== AgentSessionProviders.Cloud
-				&& session.providerType !== AgentSessionProviders.Claude) {
+				&& session.providerType !== AgentSessionProviders.Claude
+				&& session.providerType !== AgentSessionProviders.Local) {
 				continue;
 			}
 
@@ -2623,7 +3113,6 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			isRead: chatsObs.map((chats, reader) => chats.every(c => c.isRead.read(reader))),
 			description: primaryChat.description,
 			lastTurnEnd: chatsObs.map((chats, reader) => this._latestDate(chats, c => c.lastTurnEnd.read(reader))),
-			gitHubInfo: primaryChat.gitHubInfo,
 			chats: chatsObs,
 			mainChat,
 			capabilities: { supportsMultipleChats: primaryChat.sessionType === CopilotCLISessionType.id && this._isMultiChatEnabled() },
@@ -2654,7 +3143,6 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			isRead: chat.isRead,
 			description: chat.description,
 			lastTurnEnd: chat.lastTurnEnd,
-			gitHubInfo: chat.gitHubInfo,
 			chats: constObservable([mainChat]),
 			mainChat,
 			capabilities: { supportsMultipleChats: false },
@@ -2670,6 +3158,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			status: chat.status,
 			changesets: chat.changesets,
 			changes: chat.changes,
+			checkpoints: chat.checkpoints,
 			modelId: chat.modelId,
 			mode: chat.mode,
 			isArchived: chat.isArchived,

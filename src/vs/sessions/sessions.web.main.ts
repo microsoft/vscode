@@ -154,6 +154,7 @@ import './contrib/remoteAgentHost/browser/remoteAgentHost.contribution.js';
 import './contrib/remoteAgentHost/browser/remoteAgentHostActions.js';
 import './contrib/agentHost/browser/agentSessionSettings.contribution.js';
 import './contrib/agentHost/browser/agentHostSettings.contribution.js';
+import './contrib/agentHost/browser/agentHostSessionBranchActions.js';
 import './contrib/agentHost/browser/agentHostSkillButtons.js';
 
 // Host filter dropdown in the titlebar (scopes the sessions list to a host)
@@ -164,7 +165,13 @@ import './contrib/remoteAgentHost/browser/hostFilter.contribution.js';
 // build. The desktop mode + model pickers are gated off on phone via
 // `when: IsPhoneLayoutContext.negate()`, so the two registrations are
 // mutually exclusive at the action-menu level.
-import './contrib/chat/browser/agentHost/mobileChatInputConfigPicker.js';
+import './contrib/chat/browser/mobile/mobileChatInputConfigPicker.js';
+
+// Phone-only presenter for the workbench `ChatInputPart`'s Mode + Model
+// pickers. Replaces the desktop popups with the same bottom-sheet
+// experience used by the empty new-chat input, applied to the
+// already-opened chat input. Web-only for the same reason as above.
+import './contrib/chat/browser/mobile/mobileChatPhoneInputPresenter.js';
 
 // Mobile-aware Copilot permission picker. Replaces the desktop
 // permission picker registration (which the shared contribution

@@ -7,10 +7,11 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { IObservable } from '../../../../base/common/observable.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
-import { IChatSessionFileChange, IChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { IChatSessionFileChange, IChatSessionFileChange2, isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 
 export interface ISessionType {
 	/** Unique identifier (e.g., 'copilot-cli', 'copilot-cloud', 'claude-code'). */
@@ -51,6 +52,16 @@ export const ClaudeCodeSessionType: ISessionType = {
 	icon: Codicon.claude,
 };
 
+/** Session type ID for local VS Code chat sessions (in-process, no worktree). */
+export const LOCAL_SESSION_TYPE = 'local';
+
+/** Local session type — in-process VS Code chat, no background agent or worktree. */
+export const LocalSessionType: ISessionType = {
+	id: LOCAL_SESSION_TYPE,
+	label: localize('localSession', "Local"),
+	icon: Codicon.vm,
+};
+
 /**
  * Returns whether the given session type represents a workspace-backed
  * agent (e.g. Copilot CLI, Claude Code) that operates on a worktree or
@@ -79,16 +90,11 @@ export const enum SessionStatus {
 	Error = 4,
 }
 
-/**
- * A repository within a session workspace.
- */
-export interface ISessionRepository {
+export interface ISessionGitRepository {
 	/** The source repository URI. */
 	readonly uri: URI;
 	/** The working directory URI (e.g., a git worktree or checkout path). */
-	readonly workingDirectory: URI | undefined;
-	/** Provider-chosen display detail (e.g., branch name, host name). */
-	readonly detail: string | undefined;
+	readonly workTreeUri: URI | undefined;
 	/** Current branch name. */
 	readonly branchName?: string;
 	/** Name of the base branch. */
@@ -105,12 +111,34 @@ export interface ISessionRepository {
 	readonly outgoingChanges?: number;
 	/** Number of files with uncommitted changes. */
 	readonly uncommittedChanges?: number;
+	/** Whether a Git operation is currently in progress. */
+	readonly hasGitOperationInProgress?: boolean;
+	/** GitHub information associated with the repository. */
+	readonly gitHubInfo: IObservable<IGitHubInfo | undefined>;
+}
+
+/**
+ * A folder within a session workspace.
+ */
+export interface ISessionFolder {
+	/** Canonical URI of the folder (e.g., the repository root). */
+	readonly uri: URI;
+	/** Working directory used for file operations (e.g., a git worktree checkout path). */
+	readonly workingDirectory: URI;
+	/** Display name for the folder (e.g., repository or directory basename). */
+	readonly name: string;
+	/** Optional description shown alongside the name (e.g., parent folder path). */
+	readonly description: string | undefined;
+	/** Git repository information associated with this folder. */
+	readonly gitRepository?: ISessionGitRepository;
 }
 
 /**
  * Workspace information for a session, encapsulating one or more repositories.
  */
 export interface ISessionWorkspace {
+	/** URI identifying the workspace. */
+	readonly uri: URI;
 	/** Display label for the workspace (e.g., "my-app", "org/repo", "host:/path"). */
 	readonly label: string;
 	/** Optional description shown alongside the label (e.g., parent folder path "~/work"). */
@@ -124,8 +152,8 @@ export interface ISessionWorkspace {
 	readonly group?: string;
 	/** Icon for the workspace. */
 	readonly icon: ThemeIcon;
-	/** Repositories in this workspace. */
-	readonly repositories: ISessionRepository[];
+	/** Folders in this session workspace. */
+	readonly folders: ISessionFolder[];
 	/** Whether the session requires workspace trust to operate. */
 	readonly requiresWorkspaceTrust: boolean;
 }
@@ -146,6 +174,10 @@ export interface IGitHubInfo {
 		readonly uri: URI;
 		/** Icon reflecting the PR state. */
 		readonly icon?: ThemeIcon;
+		/** Object ID of the base ref (merge target) commit. */
+		readonly baseRefOid?: string;
+		/** Object ID of the head ref (PR branch) commit. */
+		readonly headRefOid?: string;
 	};
 }
 
@@ -162,6 +194,13 @@ export interface ISessionChangeset {
 	readonly enabled: IObservable<boolean>;
 	/** File changes associated with this changeset. */
 	readonly changes: IObservable<readonly ISessionFileChange[]>;
+}
+
+export interface IChatCheckpoints {
+	/** Reference to the first checkpoint in the chat. */
+	readonly firstCheckpointRef: string;
+	/** Reference to the last checkpoint in the chat. */
+	readonly lastCheckpointRef: string;
 }
 
 /**
@@ -185,6 +224,8 @@ export interface IChat {
 	readonly changes: IObservable<readonly ISessionFileChange[]>;
 	/** Changesets produced by the chat. */
 	readonly changesets: IObservable<readonly ISessionChangeset[]>;
+	/** Checkpoints associated with the chat. */
+	readonly checkpoints: IObservable<IChatCheckpoints | undefined>;
 	/** Currently selected model identifier. */
 	readonly modelId: IObservable<string | undefined>;
 	/** Currently selected mode identifier and kind. */
@@ -210,7 +251,7 @@ export interface ISession {
 	readonly resource: URI;
 	/** ID of the provider that owns this session. */
 	readonly providerId: string;
-	/** Session type ID (e.g., 'copilot-cli', 'copilot-cloud'). */
+	/** Session type ID (e.g., 'copilot-cli', 'copilot-cloud', 'local'). */
 	readonly sessionType: string;
 	/** Icon for this session. */
 	readonly icon: ThemeIcon;
@@ -245,8 +286,6 @@ export interface ISession {
 	readonly description: IObservable<IMarkdownString | undefined>;
 	/** Timestamp of when the last agent turn ended, if any. */
 	readonly lastTurnEnd: IObservable<Date | undefined>;
-	/** GitHub information associated with this session, if any. */
-	readonly gitHubInfo: IObservable<IGitHubInfo | undefined>;
 	/** The chats belonging to this session group. */
 	readonly chats: IObservable<readonly IChat[]>;
 	/** The main (first) chat of this session. */
@@ -325,4 +364,81 @@ export interface ISessionWorkspaceBrowseAction {
 	 * a partial result or empty array once cancelled.
 	 */
 	listFolders?(query: string, token: CancellationToken): Promise<readonly ISessionWorkspace[]>;
+}
+
+/**
+ * Structural equality for arrays of {@link ISessionFileChange}. Used as an
+ * `equalsFn` on the `changes` observables so that providers can re-publish a
+ * freshly-built array without notifying observers when the underlying file
+ * changes have not actually changed.
+ */
+export function sessionFileChangesEqual(a: readonly ISessionFileChange[], b: readonly ISessionFileChange[]): boolean {
+	if (a === b) {
+		return true;
+	}
+
+	if (a.length !== b.length) {
+		return false;
+	}
+
+	for (let i = 0; i < a.length; i++) {
+		const x = a[i], y = b[i];
+		if (x === y) {
+			continue;
+		}
+
+		if (x.insertions !== y.insertions || x.deletions !== y.deletions) {
+			return false;
+		}
+
+		const xIsIChatSessionFileChange2 = isIChatSessionFileChange2(x);
+		const yIsIChatSessionFileChange2 = isIChatSessionFileChange2(y);
+		if (xIsIChatSessionFileChange2 !== yIsIChatSessionFileChange2) {
+			return false;
+		}
+
+		const xUri = xIsIChatSessionFileChange2 ? x.uri : x.modifiedUri;
+		const yUri = yIsIChatSessionFileChange2 ? y.uri : y.modifiedUri;
+		if (!isEqual(xUri, yUri)) {
+			return false;
+		}
+
+		const xModified = xIsIChatSessionFileChange2 ? x.modifiedUri : undefined;
+		const yModified = yIsIChatSessionFileChange2 ? y.modifiedUri : undefined;
+		if (!isEqual(xModified, yModified)) {
+			return false;
+		}
+
+		if (!isEqual(x.originalUri, y.originalUri)) {
+			return false;
+		}
+	}
+
+	return true;
+}
+
+/**
+ * Structural equality for {@link IGitHubInfo}. Used as an `equalsFn` on the `gitHubInfo` observable
+ * so that providers can re-publish updated info without notifying observers when the underlying GitHub
+ * info has not actually changed.
+ */
+export function gitHubInfoEqual(a: IGitHubInfo | undefined, b: IGitHubInfo | undefined): boolean {
+	if (a === b) {
+		return true;
+	}
+
+	if (a === undefined || b === undefined) {
+		return false;
+	}
+
+	const aIcon = a.pullRequest?.icon;
+	const bIcon = b.pullRequest?.icon;
+
+	return a.owner === b.owner &&
+		a.repo === b.repo &&
+		a.pullRequest?.number === b.pullRequest?.number &&
+		isEqual(a.pullRequest?.uri, b.pullRequest?.uri) &&
+		(aIcon === bIcon || (!!aIcon && !!bIcon && ThemeIcon.isEqual(aIcon, bIcon))) &&
+		a.pullRequest?.baseRefOid === b.pullRequest?.baseRefOid &&
+		a.pullRequest?.headRefOid === b.pullRequest?.headRefOid;
 }
