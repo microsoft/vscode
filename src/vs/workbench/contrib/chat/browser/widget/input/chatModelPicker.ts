@@ -81,6 +81,67 @@ function getVendorDisplayName(languageModelsService: ILanguageModelsService, ven
 	return vendor.charAt(0).toUpperCase() + vendor.slice(1);
 }
 
+/**
+ * Identifies a provider group bucket in the model picker. A bucket is
+ * defined by `(vendor, groupName)` so that BYOK setups with multiple
+ * user-configured groups under the same vendor (e.g. two `customoai`
+ * entries named "Provider 1" and "Provider 2") are surfaced as
+ * distinct sections — matching what the model configuration view shows.
+ */
+type ProviderGroupKey = string;
+
+function getProviderGroupKey(vendor: string, groupName: string): ProviderGroupKey {
+	return `${vendor}\u0000${groupName}`;
+}
+
+interface IProviderGroupInfo {
+	readonly vendor: string;
+	readonly groupName: string;
+}
+
+/**
+ * Builds a `modelIdentifier -> { vendor, groupName }` lookup by walking
+ * `getLanguageModelGroups()` for every registered vendor. Mirrors the
+ * grouping used by `chatModelsViewModel.ts` so the picker and the model
+ * configuration view stay aligned.
+ */
+function buildModelToProviderGroupMap(languageModelsService: ILanguageModelsService): Map<string, IProviderGroupInfo> {
+	const map = new Map<string, IProviderGroupInfo>();
+	for (const vendor of languageModelsService.getVendors()) {
+		const groups = languageModelsService.getLanguageModelGroups(vendor.vendor);
+		for (const group of groups) {
+			// `group.group` is undefined for built-in vendors that have no
+			// user configuration; fall back to the vendor display name so
+			// the bucket key matches the single-section render path.
+			const groupName = group.group?.name ?? vendor.displayName;
+			for (const identifier of group.modelIdentifiers) {
+				map.set(identifier, { vendor: vendor.vendor, groupName });
+			}
+		}
+	}
+	return map;
+}
+
+/**
+ * Resolves the provider group for a model, falling back to the vendor
+ * display name when no group entry is registered (e.g. legacy vendors or
+ * tests that stub out `getLanguageModelGroups`).
+ */
+function getProviderGroupForModel(
+	model: ILanguageModelChatMetadataAndIdentifier,
+	modelToGroup: Map<string, IProviderGroupInfo>,
+	languageModelsService: ILanguageModelsService,
+): IProviderGroupInfo {
+	const info = modelToGroup.get(model.identifier);
+	if (info) {
+		return info;
+	}
+	return {
+		vendor: model.metadata.vendor,
+		groupName: getVendorDisplayName(languageModelsService, model.metadata.vendor),
+	};
+}
+
 type ChatModelChangeClassification = {
 	owner: 'lramos15';
 	comment: 'Reporting when the model picker is switched';
@@ -297,9 +358,15 @@ function createManageModelsAction(commandService: ICommandService): IActionWidge
  * 2. Promoted section (selected + recently used + featured models from control manifest)
  *    - Available models sorted alphabetically, followed by unavailable models
  *    - Unavailable models show upgrade/update/admin status
- *    - Promoted models show an inline source label next to the model name
- * 3. Other Models (collapsible toggle) - models grouped by vendor with separator headers
- *    - Each vendor group has a titled separator header
+ *    - Promoted models show an inline source label (the provider group
+ *      name) when more than one group is configured.
+ * 3. Other Models (collapsible toggle) - models grouped by provider group
+ *    (vendor + user-configured group name) with separator headers
+ *    - Each provider group has a titled separator header. This matches
+ *      the buckets shown in the model configuration view, so a BYOK setup
+ *      with several groups under a single vendor (e.g. an "OpenAI
+ *      Compatible" group and an "AWS Bedrock" group both registered to
+ *      the `customoai` vendor) renders as distinct sections.
  * 4. Optional "Manage Models..." action shown in Other Models after a separator
  */
 export function buildModelPickerItems(
@@ -335,6 +402,13 @@ export function buildModelPickerItems(
 
 	if (useGroupedModelPicker) {
 		let otherModels: ILanguageModelChatMetadataAndIdentifier[] = [];
+		// Build a lookup so each model can be assigned to its provider group
+		// (vendor + user-configured group name). This must happen before both
+		// the promoted-section badge logic and the Other Models grouping so
+		// that both surfaces use the same notion of "distinct provider".
+		const modelToGroup = languageModelsService
+			? buildModelToProviderGroupMap(languageModelsService)
+			: new Map<string, IProviderGroupInfo>();
 		if (models.length) {
 			// Collect all available models into lookup maps
 			const allModelsMap = new Map<string, ILanguageModelChatMetadataAndIdentifier>();
@@ -445,7 +519,8 @@ export function buildModelPickerItems(
 			}
 
 			// Render promoted section: available first, then sorted alphabetically by name.
-			// Promoted models show their vendor name inline only when multiple vendors are present.
+			// Promoted models show their provider group name inline only when more
+			// than one provider group is configured across all models.
 			if (promotedItems.length > 0) {
 				promotedItems.sort((a, b) => {
 					const aAvail = a.kind === 'available' ? 0 : 1;
@@ -458,21 +533,28 @@ export function buildModelPickerItems(
 					return aName.localeCompare(bName);
 				});
 
-				const allVendors = new Set(models.map(m => m.metadata.vendor));
-				const showPromotedVendorLabel = allVendors.size > 1;
+				const allGroupKeys = new Set(
+					models.map(m => {
+						const info = getProviderGroupForModel(m, modelToGroup, languageModelsService!);
+						return getProviderGroupKey(info.vendor, info.groupName);
+					})
+				);
+				const showPromotedGroupLabel = allGroupKeys.size > 1;
 
 				for (const item of promotedItems) {
 					if (item.kind === 'available') {
-						const vendorLabel = showPromotedVendorLabel ? getVendorDisplayName(languageModelsService!, item.model.metadata.vendor) : undefined;
-						const { action: promotedAction, descriptionOverride: promotedDesc } = createModelAction(item.model, selectedModelId, onSelect, languageModelsService!, undefined, showPromotedVendorLabel, isUBB);
-						items.push(createModelItem(promotedAction, item.model, promotedDesc, openerService, vendorLabel, isUBB));
+						const groupLabel = showPromotedGroupLabel
+							? getProviderGroupForModel(item.model, modelToGroup, languageModelsService!).groupName
+							: undefined;
+						const { action: promotedAction, descriptionOverride: promotedDesc } = createModelAction(item.model, selectedModelId, onSelect, languageModelsService!, undefined, showPromotedGroupLabel, isUBB);
+						items.push(createModelItem(promotedAction, item.model, promotedDesc, openerService, groupLabel, isUBB));
 					} else {
 						items.push(createUnavailableModelItem(item.id, item.entry, item.reason, manageSettingsUrl, updateStateType, chatEntitlementService));
 					}
 				}
 			}
 
-			// --- 3. Other Models (collapsible, grouped by vendor) ---
+			// --- 3. Other Models (collapsible, grouped by provider group) ---
 			otherModels = models.filter(m => !placed.has(m.identifier) && !placed.has(m.metadata.id));
 
 			if (otherModels.length > 0) {
@@ -502,42 +584,47 @@ export function buildModelPickerItems(
 					className: 'chat-model-picker-section-toggle',
 				});
 
-				// Group remaining models by vendor and create collapsible vendor sub-sections
-				const vendorGroups = new Map<string, ILanguageModelChatMetadataAndIdentifier[]>();
+				// Group remaining models by provider group (vendor + user-configured
+				// group name). This matches `chatModelsViewModel.getProviderGroupId`,
+				// so that BYOK setups with several groups under a single vendor
+				// (e.g. multiple `customoai` entries) render as distinct sections.
+				interface IProviderGroupBucket {
+					vendor: string;
+					groupName: string;
+					models: ILanguageModelChatMetadataAndIdentifier[];
+				}
+				const providerGroups = new Map<ProviderGroupKey, IProviderGroupBucket>();
 				for (const model of otherModels) {
-					const vendor = model.metadata.vendor;
-					let group = vendorGroups.get(vendor);
-					if (!group) {
-						group = [];
-						vendorGroups.set(vendor, group);
+					const info = getProviderGroupForModel(model, modelToGroup, languageModelsService!);
+					const key = getProviderGroupKey(info.vendor, info.groupName);
+					let bucket = providerGroups.get(key);
+					if (!bucket) {
+						bucket = { vendor: info.vendor, groupName: info.groupName, models: [] };
+						providerGroups.set(key, bucket);
 					}
-					group.push(model);
+					bucket.models.push(model);
 				}
 
-				// Sort vendors: copilot first, then alphabetically by display name
-				const sortedVendors = [...vendorGroups.keys()].sort((a, b) => {
-					if (a === 'copilot') { return -1; }
-					if (b === 'copilot') { return 1; }
-					return getVendorDisplayName(languageModelsService!, a).localeCompare(getVendorDisplayName(languageModelsService!, b));
+				// Sort buckets: copilot vendor first, then alphabetically by group name
+				const sortedBuckets = [...providerGroups.values()].sort((a, b) => {
+					if (a.vendor === 'copilot' && b.vendor !== 'copilot') { return -1; }
+					if (b.vendor === 'copilot' && a.vendor !== 'copilot') { return 1; }
+					return a.groupName.localeCompare(b.groupName);
 				});
 
-				const showVendorHeaders = sortedVendors.length > 1;
+				const showGroupHeaders = sortedBuckets.length > 1;
 
-				for (const vendor of sortedVendors) {
-					const vendorModels = vendorGroups.get(vendor)!;
-
-					if (showVendorHeaders) {
-						const vendorDisplayName = getVendorDisplayName(languageModelsService!, vendor);
-						// Vendor separator header
+				for (const bucket of sortedBuckets) {
+					if (showGroupHeaders) {
 						items.push({
 							kind: ActionListItemKind.Separator,
-							label: vendorDisplayName,
+							label: bucket.groupName,
 							section: ModelPickerSection.Other,
 						});
 					}
 
-					// Vendor models sorted: available first, then alphabetically by name
-					const sortedVendorModels = [...vendorModels].sort((a, b) => {
+					// Models within a bucket sorted: available first, then alphabetically by name
+					const sortedBucketModels = [...bucket.models].sort((a, b) => {
 						const aEntry = controlModels[a.metadata.id] ?? controlModels[a.identifier];
 						const bEntry = controlModels[b.metadata.id] ?? controlModels[b.identifier];
 						const aAvail = aEntry?.minVSCodeVersion && !isVersionAtLeast(currentVSCodeVersion, aEntry.minVSCodeVersion) ? 1 : 0;
@@ -546,13 +633,13 @@ export function buildModelPickerItems(
 						return a.metadata.name.localeCompare(b.metadata.name);
 					});
 
-					for (const model of sortedVendorModels) {
+					for (const model of sortedBucketModels) {
 						const entry = controlModels[model.metadata.id] ?? controlModels[model.identifier];
 						if (entry?.minVSCodeVersion && !isVersionAtLeast(currentVSCodeVersion, entry.minVSCodeVersion)) {
 							items.push(createUnavailableModelItem(model.metadata.id, entry, 'update', manageSettingsUrl, updateStateType, chatEntitlementService, ModelPickerSection.Other));
 						} else {
-							const { action: vendorAction, descriptionOverride: vendorDesc } = createModelAction(model, selectedModelId, onSelect, languageModelsService!, ModelPickerSection.Other, showVendorHeaders, isUBB);
-							items.push(createModelItem(vendorAction, model, vendorDesc, openerService, undefined, isUBB));
+							const { action: bucketAction, descriptionOverride: bucketDesc } = createModelAction(model, selectedModelId, onSelect, languageModelsService!, ModelPickerSection.Other, showGroupHeaders, isUBB);
+							items.push(createModelItem(bucketAction, model, bucketDesc, openerService, undefined, isUBB));
 						}
 					}
 				}
