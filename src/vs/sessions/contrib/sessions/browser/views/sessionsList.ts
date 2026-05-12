@@ -651,7 +651,7 @@ class SessionShowMoreRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 		container?.classList.toggle('session-show-more-folders', element.kind === 'folders');
 		if (element.mode === 'less') {
 			template.textContent = element.kind === 'folders'
-				? localize('showLessWorkspacesCompact', "Show less workspaces")
+				? localize('showLessWorkspacesCompact', "Show fewer workspaces")
 				: localize('showLessCompact', "Show less");
 		} else {
 			template.textContent = element.kind === 'folders'
@@ -677,8 +677,8 @@ class SessionsAccessibilityProvider {
 		if (isSessionShowMore(element)) {
 			if (element.mode === 'less') {
 				return element.kind === 'folders'
-					? localize('showLessWorkspacesAria', "Show less workspaces")
-					: localize('showLessAria', "Show less sessions");
+					? localize('showLessWorkspacesAria', "Show fewer workspaces")
+					: localize('showLessAria', "Show fewer sessions");
 			}
 			return element.kind === 'folders'
 				? localize('showMoreWorkspacesAria', "Show {0} more workspaces", element.remainingCount)

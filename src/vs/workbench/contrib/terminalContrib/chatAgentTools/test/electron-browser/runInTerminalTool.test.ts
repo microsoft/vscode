@@ -2427,6 +2427,35 @@ suite('RunInTerminalTool', () => {
 		});
 	});
 
+	suite('input-needed steering text', () => {
+		function buildSteeringText(hungHint: 'none' | 'timeout' | 'idleSilence'): string {
+			const sessionResource = LocalChatSessionUri.forSession('input-needed-steering-session');
+			// eslint-disable-next-line @typescript-eslint/naming-convention
+			return (runInTerminalTool as unknown as { _buildInputNeededSteeringText(s: URI, t: string, h: 'none' | 'timeout' | 'idleSilence'): string })
+				._buildInputNeededSteeringText(sessionResource, 'test-term-id', hungHint);
+		}
+
+		test('none mode does not mention timeout, idle silence, or kill_terminal', () => {
+			const text = buildSteeringText('none');
+			ok(!text.toLowerCase().includes('timeout'), 'Expected no mention of timeout in the input-needed (none) hint');
+			ok(!text.toLowerCase().includes('no output'), 'Expected no mention of idle silence in the input-needed (none) hint');
+			ok(!text.includes(TerminalToolId.KillTerminal), 'Expected kill_terminal not to be advertised in the input-needed (none) hint');
+		});
+
+		test('timeout mode advertises kill_terminal and mentions timeout', () => {
+			const text = buildSteeringText('timeout');
+			ok(text.toLowerCase().includes('timeout'), 'Expected timeout hint to mention "timeout"');
+			ok(text.includes(TerminalToolId.KillTerminal), 'Expected timeout hint to advertise kill_terminal');
+		});
+
+		test('idleSilence mode advertises kill_terminal without saying "timeout"', () => {
+			const text = buildSteeringText('idleSilence');
+			ok(!text.toLowerCase().includes('timeout'), 'Idle-silence hint must not refer to a timeout');
+			ok(text.toLowerCase().includes('no output'), 'Expected idle-silence hint to describe the no-output condition');
+			ok(text.includes(TerminalToolId.KillTerminal), 'Expected idle-silence hint to advertise kill_terminal');
+		});
+	});
+
 	suite('unique rules deduplication', () => {
 		test('should properly deduplicate rules with same sourceText in auto-approve info', async () => {
 			setAutoApprove({

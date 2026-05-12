@@ -6,7 +6,8 @@
 import assert from 'assert';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { Event } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IInlineCompletionsService } from '../../../../../editor/browser/services/inlineCompletionsService.js';
@@ -532,6 +533,96 @@ suite('ChatStatusDashboard', () => {
 		}));
 
 		assert.strictEqual(getCalloutText(dashboard.element), 'Additional budget is configured. Usage will continue until limits reset.');
+	});
+
+	// --- LIVE UPDATES ---
+
+	function createMutableEntitlementService(opts: {
+		chat?: IQuotaConfig;
+		completions?: IQuotaConfig;
+		premiumChat?: IQuotaConfig;
+		usageBasedBilling?: boolean;
+		additionalUsageEnabled?: boolean;
+		additionalUsageCount?: number;
+		entitlement?: ChatEntitlement;
+	}, emitterStore: Pick<DisposableStore, 'add'>): IChatEntitlementService & { quotas: ReturnType<typeof createEntitlementService>['quotas']; fireQuotaRemaining: () => void; fireQuotaExceeded: () => void } {
+		const onDidChangeQuotaRemaining = emitterStore.add(new Emitter<void>());
+		const onDidChangeQuotaExceeded = emitterStore.add(new Emitter<void>());
+		const svc = {
+			...createEntitlementService(opts),
+			onDidChangeQuotaRemaining: onDidChangeQuotaRemaining.event,
+			onDidChangeQuotaExceeded: onDidChangeQuotaExceeded.event,
+			fireQuotaRemaining: () => onDidChangeQuotaRemaining.fire(),
+			fireQuotaExceeded: () => onDidChangeQuotaExceeded.fire(),
+		};
+		return svc;
+	}
+
+	test('Live update: quota indicators update when onDidChangeQuotaRemaining fires', () => {
+		const svc = createMutableEntitlementService({
+			chat: { percentRemaining: 80, unlimited: false },
+			completions: { percentRemaining: 70, unlimited: false },
+			entitlement: ChatEntitlement.Free,
+		}, store);
+
+		const dashboard = createDashboard(svc);
+		assert.deepStrictEqual(getQuotaValues(dashboard.element), ['20%', '30%']);
+
+		// Simulate fresh quota data arriving
+		(svc as { quotas: typeof svc.quotas }).quotas = {
+			...svc.quotas,
+			chat: { percentRemaining: 50, unlimited: false },
+			completions: { percentRemaining: 40, unlimited: false },
+		};
+		svc.fireQuotaRemaining();
+
+		assert.deepStrictEqual(getQuotaValues(dashboard.element), ['50%', '60%']);
+	});
+
+	test('Live update: callout appears when onDidChangeQuotaExceeded fires and quota becomes exhausted', () => {
+		const svc = createMutableEntitlementService({
+			premiumChat: { percentRemaining: 50, unlimited: false },
+			completions: { percentRemaining: 90, unlimited: false },
+			additionalUsageEnabled: false,
+			entitlement: ChatEntitlement.Pro,
+		}, store);
+
+		const dashboard = createDashboard(svc);
+		assert.strictEqual(getCalloutText(dashboard.element), null);
+
+		// Quota becomes exhausted
+		(svc as { quotas: typeof svc.quotas }).quotas = {
+			...svc.quotas,
+			premiumChat: { percentRemaining: 0, unlimited: false },
+		};
+		svc.fireQuotaExceeded();
+
+		assert.strictEqual(getCalloutText(dashboard.element), 'Copilot is paused until the limit resets.');
+	});
+
+	test('Live update: header button visibility updates when quota changes', () => {
+		const svc = createMutableEntitlementService({
+			premiumChat: { percentRemaining: 50, unlimited: false },
+			completions: { percentRemaining: 90, unlimited: false },
+			additionalUsageEnabled: true,
+			entitlement: ChatEntitlement.Pro,
+		}, store);
+
+		const dashboard = createDashboard(svc);
+
+		// No callout initially (quota < 75% used), so button should be hidden
+		const headerButton = dashboard.element.querySelector('.header-cta-button') as HTMLElement;
+		assert.ok(headerButton);
+		assert.strictEqual(headerButton.style.display, 'none');
+
+		// Quota approaches limit (>= 75% used)
+		(svc as { quotas: typeof svc.quotas }).quotas = {
+			...svc.quotas,
+			premiumChat: { percentRemaining: 20, unlimited: false },
+		};
+		svc.fireQuotaRemaining();
+
+		assert.notStrictEqual(headerButton.style.display, 'none');
 	});
 
 });
