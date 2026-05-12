@@ -76,11 +76,13 @@ export interface IChatQuotaChangeEvent {
 	 * i.e. after the response body has been fully consumed and the server has
 	 * reported `copilot_usage.total_nano_aiu`.
 	 *
-	 * The accompanying {@link IChatQuotaService.quotaInfo} reflects the **pre-request**
-	 * state (the server returns quota data as of *before* the request was processed).
-	 * Consumers can combine the stale `quotaInfo` with `creditsUsed` to estimate
-	 * the true post-request usage and decide whether to call
-	 * {@link IChatQuotaService.refreshQuota} for an authoritative update.
+	 * **Workaround:** The backend currently returns quota snapshots that reflect
+	 * the state *before* the request was processed, so
+	 * {@link IChatQuotaService.quotaInfo} is always one request behind.
+	 * Until the backend provides post-request quota data, consumers can combine
+	 * the stale `quotaInfo` with `creditsUsed` to estimate the true post-request
+	 * usage and decide whether to call {@link IChatQuotaService.refreshQuota}
+	 * for an authoritative update.
 	 */
 	readonly creditsUsed?: number;
 }
