@@ -55,19 +55,6 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 	private readonly _activeSession = observableValue<IActiveSession | undefined>(this, undefined);
 	readonly activeSession: IObservable<IActiveSession | undefined> = this._activeSession;
-	/**
-	 * The underlying {@link ISession} that produced the current
-	 * {@link _activeSession} (the latter is a spread copy with `activeChat`
-	 * tacked on). Tracked so that {@link setActiveSession} can detect a
-	 * provider swapping the session instance even when the new session
-	 * shares the previous one's `sessionId` — which happens when a new
-	 * agent host session "graduates" from its untitled skeleton to the
-	 * committed adapter (both reuse the skeleton's UUID so the chat URI
-	 * stays stable). Without this, the early-return based purely on
-	 * `sessionId` keeps observers subscribed to the skeleton's `changes`
-	 * observable and diffs from the live adapter never reach the view.
-	 */
-	private _activeUnderlyingSession: ISession | undefined;
 	/** Tracks the pending new session so it can be restored by {@link openNewSessionView}. */
 	private _pendingNewSession: ISession | undefined;
 	private readonly isNewChatSessionContext: IContextKey<boolean>;
@@ -445,17 +432,17 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 	private setActiveSession(session: ISession | undefined): void {
 		const previousSession = this._activeSession.get();
-		// Compare both the sessionId and the underlying session instance: a
-		// provider can replace a session with a different instance that
-		// happens to share the same sessionId (e.g. an agent host skeleton
-		// being swapped for the committed adapter once the backend session
-		// is created). Without the instance check the swap would be a
-		// silent no-op and observers would stay wired to the skeleton's
-		// observables.
-		if (previousSession?.sessionId === session?.sessionId && this._activeUnderlyingSession === session) {
+		// Compare both the sessionId and an underlying observable reference
+		// (spread onto `_activeSession`): a provider can replace a session
+		// with a different instance that happens to share the same sessionId
+		// (e.g. an agent host skeleton being swapped for the committed
+		// adapter once the backend session is created). The new instance
+		// has its own `changes` observable, so reference-equality on it
+		// detects the swap. Without this the early-return would be a silent
+		// no-op and observers would stay wired to the skeleton's observables.
+		if (previousSession?.sessionId === session?.sessionId && previousSession?.changes === session?.changes) {
 			return;
 		}
-		this._activeUnderlyingSession = session;
 
 		// Update context keys from session data
 		this._activeSessionProviderId.set(session?.providerId ?? '');
