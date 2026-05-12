@@ -189,20 +189,23 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 				return this.getSetupEntryProps();
 			}
 
-			// Free Quota Exceeded
-			else if (this.chatEntitlementService.entitlement === ChatEntitlement.Free && (chatQuotaExceeded || completionsQuotaExceeded)) {
-				let quotaWarning: string;
-				if (chatQuotaExceeded && !completionsQuotaExceeded) {
-					quotaWarning = localize('chatQuotaExceededStatus', "Chat quota reached");
-				} else if (completionsQuotaExceeded && !chatQuotaExceeded) {
-					quotaWarning = localize('completionsQuotaExceededStatus', "Inline suggestions quota reached");
-				} else {
-					quotaWarning = localize('chatAndCompletionsQuotaExceededStatus', "Quota reached");
-				}
+			// Quota Exceeded
+			else if ((this.chatEntitlementService.entitlement === ChatEntitlement.Free || isProUser(this.chatEntitlementService.entitlement)) && (chatQuotaExceeded || completionsQuotaExceeded)) {
+				const isExhausted = (chatQuotaExceeded || completionsQuotaExceeded) && !this.chatEntitlementService.quotas.additionalUsageEnabled;
+				if (isExhausted) {
+					let quotaWarning: string;
+					if (chatQuotaExceeded && !completionsQuotaExceeded) {
+						quotaWarning = localize('chatQuotaExceededStatus', "Chat quota reached");
+					} else if (completionsQuotaExceeded && !chatQuotaExceeded) {
+						quotaWarning = localize('completionsQuotaExceededStatus', "Inline suggestions quota reached");
+					} else {
+						quotaWarning = localize('chatAndCompletionsQuotaExceededStatus', "Quota reached");
+					}
 
-				text = `$(copilot-warning) ${quotaWarning}`;
-				ariaLabel = quotaWarning;
-				kind = 'prominent';
+					text = `$(copilot-warning) ${quotaWarning}`;
+					ariaLabel = quotaWarning;
+					kind = 'prominent';
+				}
 			}
 
 			// Completions Disabled

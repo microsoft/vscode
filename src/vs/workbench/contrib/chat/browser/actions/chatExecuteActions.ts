@@ -193,6 +193,7 @@ export class ChatSubmitAction extends SubmitAction {
 			ChatContextKeys.inputHasText,
 			ContextKeyExpr.or(whenNotInProgress, ChatContextKeys.editingRequestType.isEqualTo(ChatContextKeys.EditingRequestType.Sent)),
 			ChatContextKeys.chatSessionOptionsValid,
+			ChatContextKeys.chatQuotaExceeded.negate(),
 		);
 
 		super({
@@ -744,7 +745,8 @@ export class ChatEditingSessionSubmitAction extends SubmitAction {
 		const precondition = ContextKeyExpr.and(
 			ChatContextKeys.inputHasText,
 			notInProgressOrEditing,
-			ChatContextKeys.chatSessionOptionsValid
+			ChatContextKeys.chatSessionOptionsValid,
+			ChatContextKeys.chatQuotaExceeded.negate(),
 		);
 
 		super({

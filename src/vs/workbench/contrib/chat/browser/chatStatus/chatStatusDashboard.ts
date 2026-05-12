@@ -677,6 +677,7 @@ export class ChatStatusDashboard extends DomWidget {
 	private createQuotaIndicator(container: HTMLElement, quota: IQuotaSnapshot | string, label: string, resetLabel?: string): (quota: IQuotaSnapshot | string) => void {
 		const quotaValue = $('span.quota-value');
 		const quotaValueSuffix = $('span.quota-value-suffix');
+		const quotaExhausted = $('span.quota-exhausted');
 		const quotaBit = $('div.quota-bit');
 		const resetValue = $('span.quota-reset');
 
@@ -686,7 +687,8 @@ export class ChatStatusDashboard extends DomWidget {
 
 		const quotaPercentage = $('div.quota-percentage', undefined,
 			quotaValue,
-			quotaValueSuffix
+			quotaValueSuffix,
+			quotaExhausted
 		);
 		quotaPercentage.tabIndex = 0;
 
@@ -735,16 +737,30 @@ export class ChatStatusDashboard extends DomWidget {
 			currentQuota = quota;
 
 			let usedPercentage: number;
+			let isExhausted = false;
 			if (typeof quota === 'string') {
 				usedPercentage = 0;
 			} else {
 				usedPercentage = Math.max(0, 100 - quota.percentRemaining);
+				isExhausted = quota.percentRemaining === 0 && !this.chatEntitlementService.quotas.additionalUsageEnabled;
 			}
 
-			if (isHovered) {
-				showCredits();
+			if (isExhausted) {
+				quotaValue.style.display = 'none';
+				quotaValueSuffix.style.display = 'none';
+				quotaExhausted.style.display = '';
+				quotaExhausted.textContent = localize('quotaExhausted', "Exhausted");
+				quotaBit.classList.add('exhausted');
 			} else {
-				showPercentage();
+				quotaValue.style.display = '';
+				quotaValueSuffix.style.display = '';
+				quotaExhausted.style.display = 'none';
+				quotaBit.classList.remove('exhausted');
+				if (isHovered) {
+					showCredits();
+				} else {
+					showPercentage();
+				}
 			}
 			quotaBit.style.width = `${usedPercentage}%`;
 		};
@@ -791,9 +807,13 @@ export class ChatStatusDashboard extends DomWidget {
 				quotaCallout.style.display = '';
 				quotaCallout.className = 'quota-callout info';
 				calloutIcon.className = `callout-icon ${ThemeIcon.asClassName(Codicon.info)}`;
-				calloutText.textContent = isEnterpriseUser
-					? localize('quotaPausedEnterprise', "Copilot is paused until the limit resets. Contact your administrator for more information.")
-					: localize('quotaPaused', "Copilot is paused until the limit resets.");
+				if (isUsageBasedBilling && isEnterpriseUser) {
+					calloutText.textContent = localize('quotaExhaustedTBBEnterprise', "Your organization has used all included credits. Contact your admin to enable overages or wait for your next billing cycle.");
+				} else {
+					calloutText.textContent = isEnterpriseUser
+						? localize('quotaPausedEnterprise', "Copilot is paused until the limit resets. Contact your administrator for more information.")
+						: localize('quotaPaused', "Copilot is paused until the limit resets.");
+				}
 			} else if (maxUsedPercentage >= 75 && !additionalUsageEnabled) {
 				quotaCallout.style.display = '';
 				quotaCallout.className = 'quota-callout info';

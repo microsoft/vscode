@@ -571,13 +571,11 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 	}
 
 	private compareQuotas(oldQuota: IQuotaSnapshot | undefined, newQuota: IQuotaSnapshot | undefined): { changed: { exceeded: boolean; remaining: boolean } } {
-		return {
-			changed: {
-				exceeded: (oldQuota?.percentRemaining === 0) !== (newQuota?.percentRemaining === 0),
-				remaining: oldQuota?.percentRemaining !== newQuota?.percentRemaining
-					|| oldQuota?.usageBasedBilling !== newQuota?.usageBasedBilling
-			}
-		};
+		const exceeded = (oldQuota?.percentRemaining === 0) !== (newQuota?.percentRemaining === 0);
+		const remaining = oldQuota?.percentRemaining !== newQuota?.percentRemaining
+			|| oldQuota?.usageBasedBilling !== newQuota?.usageBasedBilling;
+
+		return { changed: { exceeded, remaining } };
 	}
 
 	clearQuotas(): void {
@@ -585,7 +583,11 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 	}
 
 	private updateContextKeys(): void {
-		this.chatQuotaExceededContextKey.set(this._quotas.chat?.percentRemaining === 0);
+		const chatExhausted = this._quotas.chat?.percentRemaining === 0;
+		const premiumChatExhausted = this._quotas.premiumChat?.percentRemaining === 0;
+		const additionalUsageEnabled = this._quotas.additionalUsageEnabled ?? false;
+
+		this.chatQuotaExceededContextKey.set(chatExhausted || (premiumChatExhausted && !additionalUsageEnabled));
 		this.completionsQuotaExceededContextKey.set(this._quotas.completions?.percentRemaining === 0);
 	}
 
@@ -713,6 +715,7 @@ interface IQuotas {
 	readonly premiumChat?: IQuotaSnapshot;
 	readonly additionalUsageEnabled?: boolean;
 	readonly additionalUsageCount?: number;
+	readonly isExhausted?: boolean;
 }
 
 export function parseQuotas(entitlementsData: IEntitlementsData): IQuotas {
@@ -778,6 +781,10 @@ export function parseQuotas(entitlementsData: IEntitlementsData): IQuotas {
 		const overageSource = entitlementsData.quota_snapshots['premium_interactions'];
 		quotas.additionalUsageEnabled = overageSource?.overage_permitted ?? false;
 		quotas.additionalUsageCount = overageSource?.overage_count ?? 0;
+
+		const isPremiumExhausted = !!quotas.premiumChat && !quotas.premiumChat.unlimited && quotas.premiumChat.percentRemaining === 0;
+		const isChatExhausted = !!quotas.chat && !quotas.chat.unlimited && quotas.chat.percentRemaining === 0;
+		quotas.isExhausted = (isPremiumExhausted || isChatExhausted) && !quotas.additionalUsageEnabled;
 	}
 	return quotas;
 }

@@ -192,7 +192,11 @@ export class ChatInputNotificationContribution extends Disposable {
 				{ label: vscode.l10n.t('Upgrade'), commandId: 'workbench.action.chat.upgradePlan' },
 			];
 		} else if (isManagedPlan) {
-			notification.description = vscode.l10n.t('Contact your admin to increase your limits.');
+			if (this._authService.copilotToken?.isUsageBasedBilling) {
+				notification.description = vscode.l10n.t('Your organization has used all included credits. Contact your admin to enable overages or wait for your next billing cycle.');
+			} else {
+				notification.description = vscode.l10n.t('Contact your admin to increase your limits.');
+			}
 			notification.actions = [];
 		} else if (hadOverage) {
 			notification.description = vscode.l10n.t('Increase your budget to keep building.');

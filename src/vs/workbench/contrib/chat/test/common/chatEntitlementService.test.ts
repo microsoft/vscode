@@ -308,4 +308,50 @@ suite('parseQuotas', () => {
 		assert.strictEqual(quotas.completions?.entitlement, 4000);
 		assert.strictEqual(quotas.premiumChat, undefined);
 	});
+
+	test('isExhausted is true for pooled entitlements when premium_interactions is at 0% and overages are disabled', () => {
+		const data = makeEntitlementsData({
+			access_type_sku: 'copilot_enterprise_seat_multi_quota',
+			copilot_plan: 'enterprise',
+			token_based_billing: true,
+			quota_snapshots: {
+				premium_interactions: {
+					overage_count: 0,
+					overage_permitted: false,
+					percent_remaining: 0,
+					unlimited: false,
+					entitlement: '3900',
+					has_quota: false,
+				},
+			},
+		});
+
+		const quotas = parseQuotas(data);
+		assert.strictEqual(quotas.premiumChat?.percentRemaining, 0);
+		assert.strictEqual(quotas.additionalUsageEnabled, false);
+		assert.strictEqual(quotas.isExhausted, true);
+	});
+
+	test('isExhausted is false for pooled entitlements when premium_interactions is at 0% but overages are enabled', () => {
+		const data = makeEntitlementsData({
+			access_type_sku: 'copilot_enterprise_seat_multi_quota',
+			copilot_plan: 'enterprise',
+			token_based_billing: true,
+			quota_snapshots: {
+				premium_interactions: {
+					overage_count: 0,
+					overage_permitted: true,
+					percent_remaining: 0,
+					unlimited: false,
+					entitlement: '3900',
+					has_quota: false,
+				},
+			},
+		});
+
+		const quotas = parseQuotas(data);
+		assert.strictEqual(quotas.premiumChat?.percentRemaining, 0);
+		assert.strictEqual(quotas.additionalUsageEnabled, true);
+		assert.strictEqual(quotas.isExhausted, false);
+	});
 });
