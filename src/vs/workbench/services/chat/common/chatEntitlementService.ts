@@ -330,6 +330,8 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 
 	declare _serviceBrand: undefined;
 
+	private static readonly CACHED_UBB_STORAGE_KEY = 'chat.usageBasedBilling';
+
 	readonly context: Lazy<ChatEntitlementContext> | undefined;
 	readonly requests: Lazy<ChatEntitlementRequests> | undefined;
 
@@ -341,8 +343,12 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILogService private readonly logService: ILogService,
+		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super();
+
+		const cachedUBB = this.storageService.getBoolean(ChatEntitlementService.CACHED_UBB_STORAGE_KEY, StorageScope.PROFILE);
+		this._quotas = cachedUBB !== undefined ? { usageBasedBilling: cachedUBB } : {};
 
 		this.chatQuotaExceededContextKey = ChatEntitlementContextKeys.chatQuotaExceeded.bindTo(this.contextKeyService);
 		this.completionsQuotaExceededContextKey = ChatEntitlementContextKeys.completionsQuotaExceeded.bindTo(this.contextKeyService);
@@ -466,7 +472,7 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 	private readonly _onDidChangeQuotaRemaining = this._register(new Emitter<void>());
 	readonly onDidChangeQuotaRemaining = this._onDidChangeQuotaRemaining.event;
 
-	private _quotas: IQuotas = {};
+	private _quotas: IQuotas;
 	get quotas() { return this._quotas; }
 
 	private readonly chatQuotaExceededContextKey: IContextKey<boolean>;
@@ -521,6 +527,14 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 		const oldQuota = this._quotas;
 		this._quotas = quotas;
 		this.updateContextKeys();
+
+		if (oldQuota.usageBasedBilling !== quotas.usageBasedBilling) {
+			if (quotas.usageBasedBilling !== undefined) {
+				this.storageService.store(ChatEntitlementService.CACHED_UBB_STORAGE_KEY, quotas.usageBasedBilling, StorageScope.PROFILE, StorageTarget.MACHINE);
+			} else {
+				this.storageService.remove(ChatEntitlementService.CACHED_UBB_STORAGE_KEY, StorageScope.PROFILE);
+			}
+		}
 
 		if (this.logService.getLevel() === LogLevel.Trace) {
 			this.logService.trace(`[chat entitlement]: acceptQuotas: ${JSON.stringify(quotas)}`);

@@ -114,6 +114,14 @@ interface IPartVisibilityState {
 	chatBar: boolean;
 }
 
+interface IPartSizesState {
+	sidebar?: number;
+	auxiliaryBar?: number;
+	chatBar?: number;
+	editor?: number;
+	panel?: number;
+}
+
 //#endregion
 
 export interface IAgentWorkbenchLayoutService extends IWorkbenchLayoutService {
@@ -291,9 +299,12 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 
 	readonly openedDefaultEditors = false;
 
+	private _savedPartSizes: IPartSizesState = {};
+
 	//#endregion
 
 	private static readonly _PART_VISIBILITY_KEY = 'workbench.sessions.partVisibility';
+	private static readonly _PART_SIZES_KEY = 'workbench.sessions.partSizes';
 
 	//#region Services
 
@@ -549,6 +560,9 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 			this._register(lifecycleService.onWillShutdown(() => this.storeFontInfo(storageService)));
 		}
 
+		// Part Sizes — persist current grid sizes so they are restored on reload
+		this._register(storageService.onWillSaveState(() => this._savePartSizes()));
+
 		// Lifecycle
 		this._register(lifecycleService.onWillShutdown(event => this._onWillShutdown.fire(event)));
 		this._register(lifecycleService.onDidShutdown(() => {
@@ -641,6 +655,46 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		}), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
+	private _loadPartSizes(storageService: IStorageService): IPartSizesState {
+		const raw = storageService.get(Workbench._PART_SIZES_KEY, StorageScope.WORKSPACE);
+		if (raw) {
+			try {
+				return JSON.parse(raw);
+			} catch {
+				// Corrupted data — remove the bad key so we don't keep warning on every startup
+				storageService.remove(Workbench._PART_SIZES_KEY, StorageScope.WORKSPACE);
+			}
+		}
+		return {};
+	}
+
+	private _savePartSizes(): void {
+		if (!this.workbenchGrid) {
+			return;
+		}
+
+		// For visible parts, read the current grid view size. For hidden parts,
+		// fall back to the grid's cached visible size — i.e. the size the part
+		// had the last time it was shown — so that toggling visibility later
+		// restores the same dimensions.
+		const getSize = (view: ISerializableView, dimension: 'width' | 'height', visible: boolean): number | undefined => {
+			if (visible) {
+				return this.workbenchGrid.getViewSize(view)[dimension];
+			}
+			return this.workbenchGrid.getViewCachedVisibleSize(view);
+		};
+
+		const sizes: IPartSizesState = {
+			sidebar: getSize(this.sideBarPartView, 'width', this.partVisibility.sidebar),
+			auxiliaryBar: getSize(this.auxiliaryBarPartView, 'width', this.partVisibility.auxiliaryBar),
+			chatBar: getSize(this.chatBarPartView, 'width', this.partVisibility.chatBar),
+			editor: getSize(this.editorPartView, 'width', this.partVisibility.editor),
+			panel: getSize(this.panelPartView, 'height', this.partVisibility.panel),
+		};
+
+		this.storageService.store(Workbench._PART_SIZES_KEY, JSON.stringify(sizes), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+	}
+
 	//#endregion
 
 	private renderWorkbench(instantiationService: IInstantiationService, notificationService: NotificationService, storageService: IStorageService, configurationService: IConfigurationService): void {
@@ -662,6 +716,11 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		this.partVisibility.editor = savedPartVisibility.editor ?? visibilityDefaults.editor;
 		this.partVisibility.auxiliaryBar = savedPartVisibility.auxiliaryBar ?? visibilityDefaults.auxiliaryBar;
 		this.partVisibility.sidebar = savedPartVisibility.sidebar ?? visibilityDefaults.sidebar;
+
+		// Load saved grid part sizes — these will be consumed when building the
+		// grid descriptor so editor/sidebar/auxbar/panel restore to their previous
+		// dimensions across reloads.
+		this._savedPartSizes = this._loadPartSizes(storageService);
 
 		// State specific classes
 		const platformClass = isWindows ? 'windows' : isLinux ? 'linux' : 'mac';
@@ -1121,11 +1180,15 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 
 		// Default sizes from layout policy
 		const sizes = this.layoutPolicy.getPartSizes(width, height);
-		// For hidden parts, still provide a reasonable cached size for when they're shown later
-		const sideBarSize = this.partVisibility.sidebar ? sizes.sideBarSize : Math.max(sizes.sideBarSize, 250);
-		const auxiliaryBarSize = this.partVisibility.auxiliaryBar ? sizes.auxiliaryBarSize : Math.max(sizes.auxiliaryBarSize, 300);
-		const panelSize = this.partVisibility.panel ? sizes.panelSize : Math.max(sizes.panelSize, 250);
-		const editorSize = 600;
+		// For hidden parts, still provide a reasonable cached size for when they're shown later.
+		// Saved sizes from a previous session take precedence over policy defaults.
+		const sideBarSize = this._savedPartSizes.sidebar
+			?? (this.partVisibility.sidebar ? sizes.sideBarSize : Math.max(sizes.sideBarSize, 250));
+		const auxiliaryBarSize = this._savedPartSizes.auxiliaryBar
+			?? (this.partVisibility.auxiliaryBar ? sizes.auxiliaryBarSize : Math.max(sizes.auxiliaryBarSize, 300));
+		const panelSize = this._savedPartSizes.panel
+			?? (this.partVisibility.panel ? sizes.panelSize : Math.max(sizes.panelSize, 250));
+		const editorSize = this._savedPartSizes.editor ?? 600;
 		const titleBarHeight = this.titleBarPartView?.minimumHeight ?? 30;
 
 		// Calculate right section width — when sidebar is hidden it takes no space
@@ -1133,7 +1196,12 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		const rightSectionWidth = Math.max(0, width - effectiveSideBarWidth);
 		const effectiveAuxBarWidth = this.partVisibility.auxiliaryBar ? auxiliaryBarSize : 0;
 		const effectiveEditorWidth = this.partVisibility.editor ? editorSize : 0;
-		const chatBarWidth = Math.max(0, rightSectionWidth - effectiveAuxBarWidth - effectiveEditorWidth);
+		// Prefer the saved chat bar width so the user's preferred chat bar size
+		// is preserved across reloads. Fall back to the remainder of the right
+		// section, which the grid distributes proportionally when the saved
+		// sizes don't fit the current container.
+		const chatBarWidth = this._savedPartSizes.chatBar
+			?? Math.max(0, rightSectionWidth - effectiveAuxBarWidth - effectiveEditorWidth);
 
 		const contentHeight = Math.max(0, height - titleBarHeight);
 		const topRightHeight = Math.max(0, contentHeight - panelSize);

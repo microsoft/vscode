@@ -2525,6 +2525,18 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					return;
 				}
 
+				// If the terminal has been disposed (e.g. the user closed it), the
+				// buffered output may still match an input-required pattern (for
+				// example, a pager prompt left in the scrollback). Sending an
+				// input-needed steering message in that case produces a spurious
+				// chat/tool turn even though there's no live terminal to send
+				// input to — the agent will be notified separately via the
+				// `onDisposed` listener below.
+				if (terminalInstance.isDisposed) {
+					this._logService.debug(`RunInTerminalTool: Suppressing input-needed notification for terminal ${termId} because the terminal is disposed`);
+					return;
+				}
+
 				if (handleSessionCancelled()) {
 					return;
 				}

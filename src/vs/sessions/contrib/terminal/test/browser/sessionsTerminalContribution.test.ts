@@ -19,7 +19,7 @@ import { ITerminalInstance, ITerminalService } from '../../../../../workbench/co
 import { ITerminalCapabilityStore, ICommandDetectionCapability, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentSessionProviders } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
-import { IChat, ISession } from '../../../../services/sessions/common/session.js';
+import { IChat, ISession, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { SessionsTerminalContribution } from '../../browser/sessionsTerminalContribution.js';
 import { TestPathService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
@@ -52,11 +52,12 @@ function makeAgentSession(opts: {
 	isArchived?: boolean;
 	sessionId?: string;
 }): IActiveSession {
-	const repo = opts.repository || opts.worktree ? {
-		uri: opts.repository ?? opts.worktree!,
-		workingDirectory: opts.worktree,
-		detail: undefined,
-		baseBranchName: undefined,
+	const folder = opts.repository || opts.worktree ? {
+		root: opts.repository ?? opts.worktree!,
+		workingDirectory: opts.worktree ?? opts.repository!,
+		name: 'test',
+		description: undefined,
+		gitRepository: { uri: opts.repository ?? opts.worktree!, workTreeUri: opts.worktree, baseBranchName: undefined, gitHubInfo: constObservable(undefined) },
 	} : undefined;
 	const chat: IChat = {
 		resource: URI.parse('file:///session'),
@@ -70,17 +71,26 @@ function makeAgentSession(opts: {
 		mode: observableValue('test.mode', undefined),
 		isArchived: observableValue('test.isArchived', opts.isArchived ?? false),
 		isRead: observableValue('test.isRead', true),
+		checkpoints: observableValue('test.checkpoints', undefined),
 		lastTurnEnd: observableValue('test.lastTurnEnd', undefined),
 		description: observableValue('test.description', undefined),
-	};
-	const session: IActiveSession = {
+	} satisfies IChat;
+	const session = {
 		sessionId: opts.sessionId ?? 'test:session',
 		resource: chat.resource,
 		providerId: 'test',
 		sessionType: opts.providerType ?? AgentSessionProviders.Local,
 		icon: Codicon.copilot,
 		createdAt: chat.createdAt,
-		workspace: observableValue('test.workspace', repo ? { label: 'test', icon: Codicon.repo, repositories: [repo], requiresWorkspaceTrust: false, } : undefined),
+		workspace: observableValue('test.workspace', folder
+			? {
+				uri: folder.root,
+				label: 'test',
+				icon: Codicon.repo,
+				folders: [folder],
+				requiresWorkspaceTrust: false,
+			} satisfies ISessionWorkspace
+			: undefined),
 		title: chat.title,
 		updatedAt: chat.updatedAt,
 		status: chat.status,
@@ -93,21 +103,21 @@ function makeAgentSession(opts: {
 		isRead: chat.isRead,
 		lastTurnEnd: chat.lastTurnEnd,
 		description: chat.description,
-		gitHubInfo: observableValue('test.gitHubInfo', undefined),
 		chats: observableValue('test.chats', [chat]),
 		activeChat: observableValue('test.activeChat', chat),
 		mainChat: chat,
 		capabilities: { supportsMultipleChats: false },
-	};
+	} satisfies IActiveSession;
 	return session;
 }
 
 function makeNonAgentSession(opts: { repository?: URI; worktree?: URI; providerType?: string }): ISession {
-	const repo = opts.repository || opts.worktree ? {
-		uri: opts.repository ?? opts.worktree!,
-		workingDirectory: opts.worktree,
-		detail: undefined,
-		baseBranchName: undefined,
+	const folder = opts.repository || opts.worktree ? {
+		root: opts.repository ?? opts.worktree!,
+		workingDirectory: opts.worktree ?? opts.repository!,
+		name: 'test',
+		description: undefined,
+		gitRepository: { uri: opts.repository ?? opts.worktree!, workTreeUri: opts.worktree, baseBranchName: undefined, gitHubInfo: constObservable(undefined) },
 	} : undefined;
 	const chat: IChat = {
 		resource: URI.parse('file:///session'),
@@ -121,17 +131,25 @@ function makeNonAgentSession(opts: { repository?: URI; worktree?: URI; providerT
 		mode: observableValue('test.mode', undefined),
 		isArchived: observableValue('test.isArchived', false),
 		isRead: observableValue('test.isRead', true),
+		checkpoints: observableValue('test.checkpoints', undefined),
 		lastTurnEnd: observableValue('test.lastTurnEnd', undefined),
 		description: observableValue('test.description', undefined),
-	};
-	const session: ISession = {
+	} satisfies IChat;
+	const session = {
 		sessionId: 'test:non-agent',
 		resource: chat.resource,
 		providerId: 'test',
 		sessionType: opts.providerType ?? AgentSessionProviders.Local,
 		icon: Codicon.copilot,
 		createdAt: chat.createdAt,
-		workspace: observableValue('test.workspace', repo ? { label: 'test', icon: Codicon.repo, repositories: [repo], requiresWorkspaceTrust: false, } : undefined),
+		workspace: observableValue('test.workspace', folder
+			? {
+				uri: folder.root,
+				label: 'test',
+				icon: Codicon.repo,
+				folders: [folder],
+				requiresWorkspaceTrust: false,
+			} as ISessionWorkspace : undefined),
 		title: chat.title,
 		updatedAt: chat.updatedAt,
 		status: chat.status,
@@ -144,11 +162,10 @@ function makeNonAgentSession(opts: { repository?: URI; worktree?: URI; providerT
 		isRead: chat.isRead,
 		lastTurnEnd: chat.lastTurnEnd,
 		description: chat.description,
-		gitHubInfo: observableValue('test.gitHubInfo', undefined),
 		chats: observableValue('test.chats', [chat]),
 		mainChat: chat,
 		capabilities: { supportsMultipleChats: false },
-	};
+	} satisfies ISession;
 	return session;
 }
 

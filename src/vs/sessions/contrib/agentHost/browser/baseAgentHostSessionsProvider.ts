@@ -55,7 +55,7 @@ export interface IAgentHostAdapterOptions {
 	/** Loading observable wired to the provider's authentication-pending state. */
 	readonly loading: IObservable<boolean>;
 	/** Builds the session workspace from session metadata; provider-specific (icon, providerLabel, requiresWorkspaceTrust). */
-	readonly buildWorkspace: (project: IAgentSessionMetadata['project'], workingDirectory: URI | undefined, gitState: ISessionGitState | undefined) => ISessionWorkspace | undefined;
+	readonly buildWorkspace: (project: IAgentSessionMetadata['project'], workingDirectory: URI | undefined, gitHubInfo: IObservable<IGitHubInfo | undefined>, gitState: ISessionGitState | undefined) => ISessionWorkspace | undefined;
 	/** Optional URI mapping for diff entries (remote uses `toAgentHostUri`; local uses identity). */
 	readonly mapDiffUri?: (uri: URI) => URI;
 	/**
@@ -153,21 +153,6 @@ export class AgentHostSessionAdapter implements ISession {
 		this._workingDirectory = metadata.workingDirectory;
 		this._meta = metadata._meta;
 		this._metaObs = observableValue<SessionMeta | undefined>('agentHostSessionMeta', this._meta);
-		const initialGitState = readSessionGitState(this._meta);
-		const initialWorkspace = _options.buildWorkspace(this._project, this._workingDirectory, initialGitState);
-		this.workspace = observableValue('workspace', initialWorkspace);
-		this.loading = _options.loading;
-		this.description = derived(reader => {
-			const status = this.status.read(reader);
-			if (status === SessionStatus.InProgress || status === SessionStatus.NeedsInput) {
-				const activity = this._activity.read(reader);
-				if (activity) {
-					return new MarkdownString().appendText(activity);
-				}
-			}
-
-			return this._options.description;
-		});
 
 		// gitHubInfo is reactively derived from `_meta.git`. Owner/repo come
 		// from the agent host's git state; the PR number is resolved by the
@@ -220,12 +205,30 @@ export class AgentHostSessionAdapter implements ISession {
 			};
 		});
 
+		const initialGitState = readSessionGitState(this._meta);
+		const initialWorkspace = _options.buildWorkspace(this._project, this._workingDirectory, this.gitHubInfo, initialGitState);
+		this.workspace = observableValue('workspace', initialWorkspace);
+		this.loading = _options.loading;
+		this.description = derived(reader => {
+			const status = this.status.read(reader);
+			if (status === SessionStatus.InProgress || status === SessionStatus.NeedsInput) {
+				const activity = this._activity.read(reader);
+				if (activity) {
+					return new MarkdownString().appendText(activity);
+				}
+			}
+
+			return this._options.description;
+		});
+
 		if (metadata.isArchived) {
 			this.isArchived.set(true, undefined);
 		}
 		if (metadata.diffs && metadata.diffs.length > 0) {
 			this.changes.set(diffsToChanges(metadata.diffs, _options.mapDiffUri), undefined);
 		}
+
+		const checkpoints = observableValue(this, undefined);
 
 		this.mainChat = {
 			resource: this.resource,
@@ -235,6 +238,7 @@ export class AgentHostSessionAdapter implements ISession {
 			status: this.status,
 			changes: this.changes,
 			changesets: this.changesets,
+			checkpoints,
 			modelId: this.modelId,
 			mode: this.mode,
 			isArchived: this.isArchived,
@@ -291,7 +295,7 @@ export class AgentHostSessionAdapter implements ISession {
 				this._meta = metadata._meta;
 				this._metaObs.set(this._meta, tx);
 			}
-			const workspace = this._options.buildWorkspace(this._project, this._workingDirectory, readSessionGitState(this._meta));
+			const workspace = this._options.buildWorkspace(this._project, this._workingDirectory, this.gitHubInfo, readSessionGitState(this._meta));
 			if (agentHostSessionWorkspaceKey(workspace) !== agentHostSessionWorkspaceKey(this.workspace.get())) {
 				this.workspace.set(workspace, tx);
 				didChange = true;
@@ -344,7 +348,7 @@ export class AgentHostSessionAdapter implements ISession {
 	setMeta(meta: IAgentSessionMetadata['_meta']): boolean {
 		this._meta = meta;
 		const gitState = readSessionGitState(this._meta);
-		const workspace = this._options.buildWorkspace(this._project, this._workingDirectory, gitState);
+		const workspace = this._options.buildWorkspace(this._project, this._workingDirectory, this.gitHubInfo, gitState);
 		const workspaceChanged = agentHostSessionWorkspaceKey(workspace) !== agentHostSessionWorkspaceKey(this.workspace.get());
 		transaction(tx => {
 			this._metaObs.set(this._meta, tx);
@@ -440,7 +444,7 @@ class NewSession extends Disposable {
 
 	constructor(ctx: INewSessionConstructionContext) {
 		super();
-		const workspaceUri = ctx.workspace.repositories[0]?.uri;
+		const workspaceUri = ctx.workspace.folders[0]?.root;
 		if (!workspaceUri) {
 			throw new Error('Workspace has no repository URI');
 		}
@@ -455,6 +459,7 @@ class NewSession extends Disposable {
 		const updatedAt = observableValue(this, new Date());
 		const changesets = observableValue<readonly ISessionChangeset[]>(this, []);
 		const changes = observableValueOpts<readonly (IChatSessionFileChange | IChatSessionFileChange2)[]>({ owner: this, equalsFn: sessionFileChangesEqual }, []);
+		const checkpoints = observableValue(this, undefined);
 		this._modelId = observableValue<string | undefined>(this, undefined);
 		const mode = observableValue<{ readonly id: string; readonly kind: string } | undefined>(this, undefined);
 		const isArchived = observableValue(this, false);
@@ -469,6 +474,7 @@ class NewSession extends Disposable {
 			status: this._status,
 			changesets,
 			changes,
+			checkpoints,
 			modelId: this._modelId,
 			mode, isArchived, isRead, description, lastTurnEnd,
 		};
@@ -494,7 +500,6 @@ class NewSession extends Disposable {
 			isRead,
 			description,
 			lastTurnEnd,
-			gitHubInfo: observableValue(this, undefined),
 			mainChat,
 			chats: constObservable([mainChat]),
 			capabilities: { supportsMultipleChats: false },

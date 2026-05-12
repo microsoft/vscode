@@ -441,7 +441,7 @@ suite('ChatStatusDashboard', () => {
 			entitlement: ChatEntitlement.Pro,
 		}));
 
-		assert.strictEqual(getCalloutText(dashboard.element), 'Once the limit is reached, additional spend will be used.');
+		assert.strictEqual(getCalloutText(dashboard.element), 'Once the limit is reached, additional budget will be used.');
 	});
 
 	test('Callout: shows paused when quota exhausted and overage not permitted', () => {
@@ -479,7 +479,7 @@ suite('ChatStatusDashboard', () => {
 		assert.strictEqual(getCalloutText(dashboard.element), 'Premium request budget is configured. Usage will continue until limits reset.');
 	});
 
-	test('Callout: UBB — shows additional spend active when quota exhausted and overage count > 0', () => {
+	test('Callout: UBB — shows additional budget active when quota exhausted and overage count > 0', () => {
 		const dashboard = createDashboard(createEntitlementService({
 			premiumChat: { percentRemaining: 0, unlimited: false, usageBasedBilling: true },
 			completions: { percentRemaining: 90, unlimited: false },
@@ -488,7 +488,7 @@ suite('ChatStatusDashboard', () => {
 			entitlement: ChatEntitlement.Pro,
 		}));
 
-		assert.strictEqual(getCalloutText(dashboard.element), 'Additional spend is configured. Usage will continue until limits reset.');
+		assert.strictEqual(getCalloutText(dashboard.element), 'Additional budget is configured. Usage will continue until limits reset.');
 	});
 
 	test('Callout: shows warning when quota >= 75% used and overage not permitted', () => {
@@ -512,7 +512,7 @@ suite('ChatStatusDashboard', () => {
 		assert.strictEqual(getCalloutText(dashboard.element), 'Copilot is paused until the limit resets. Contact your administrator for more information.');
 	});
 
-	test('Callout: TBB — shows additional spend active when exhausted with overage permitted but no usage yet', () => {
+	test('Callout: TBB — shows additional budget active when exhausted with overage permitted but no usage yet', () => {
 		const dashboard = createDashboard(createEntitlementService({
 			premiumChat: { percentRemaining: 0, unlimited: false, usageBasedBilling: true },
 			additionalUsageEnabled: true,
@@ -520,10 +520,10 @@ suite('ChatStatusDashboard', () => {
 			entitlement: ChatEntitlement.Pro,
 		}));
 
-		assert.strictEqual(getCalloutText(dashboard.element), 'Additional spend is configured. Usage will continue until limits reset.');
+		assert.strictEqual(getCalloutText(dashboard.element), 'Additional budget is configured. Usage will continue until limits reset.');
 	});
 
-	test('Callout: TBB — shows additional spend wording when overage count > 0', () => {
+	test('Callout: TBB — shows additional budget wording when overage count > 0', () => {
 		const dashboard = createDashboard(createEntitlementService({
 			premiumChat: { percentRemaining: 0, unlimited: false, usageBasedBilling: true },
 			additionalUsageEnabled: true,
@@ -531,7 +531,7 @@ suite('ChatStatusDashboard', () => {
 			entitlement: ChatEntitlement.Pro,
 		}));
 
-		assert.strictEqual(getCalloutText(dashboard.element), 'Additional spend is configured. Usage will continue until limits reset.');
+		assert.strictEqual(getCalloutText(dashboard.element), 'Additional budget is configured. Usage will continue until limits reset.');
 	});
 
 });
