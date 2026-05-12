@@ -217,12 +217,10 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		const commandToRunInSandbox = this._getSandboxCommandWithPreservedCwd(command, cwd);
 		const sandboxRuntimeCommand = `PATH="$PATH:${dirname(this._rgPath)}" TMPDIR="${this._tempDir.path}" CLAUDE_TMPDIR="${this._tempDir.path}" "${this._execPath}" "${this._srtPath}" --settings "${this._sandboxConfigPath}" -c ${this._quoteShellArgument(commandToRunInSandbox)}`;
 		const nodeSandboxRuntimeCommand = `ELECTRON_RUN_AS_NODE=1 ${sandboxRuntimeCommand}`;
-		const wrappedCommand = this._os === OperatingSystem.Linux && cwd?.path && cwd.path !== this._tempDir.path
-			? `cd ${this._quoteShellArgument(this._tempDir.path)}; ${nodeSandboxRuntimeCommand}`
-			: nodeSandboxRuntimeCommand;
+		const wrappedCommand = this._wrapSandboxRuntimeCommandForLaunch(nodeSandboxRuntimeCommand, cwd);
 		if (this._remoteEnvDetails) {
 			return {
-				command: sandboxRuntimeCommand,
+				command: this._wrapSandboxRuntimeCommandForLaunch(sandboxRuntimeCommand, cwd),
 				isSandboxWrapped: true,
 			};
 		}
@@ -441,6 +439,13 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 			return command;
 		}
 		return `cd ${this._quoteShellArgument(cwd.path)} && ${command}`;
+	}
+
+	private _wrapSandboxRuntimeCommandForLaunch(sandboxRuntimeCommand: string, cwd: URI | undefined): string {
+		const tempDirPath = this._tempDir?.path;
+		return this._os === OperatingSystem.Linux && cwd?.path && tempDirPath && cwd.path !== tempDirPath
+			? `cd ${this._quoteShellArgument(tempDirPath)}; ${sandboxRuntimeCommand}`
+			: sandboxRuntimeCommand;
 	}
 
 	private _wrapUnsandboxedCommand(command: string, shell?: string): string {
