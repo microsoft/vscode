@@ -641,6 +641,45 @@ export namespace SpeculativeRequestsEnablement {
 	export const VALIDATOR = vEnum(SpeculativeRequestsEnablement.On, SpeculativeRequestsEnablement.Off);
 }
 
+/**
+ * What `XtabCustomDiffPatchResponseHandler` should do when the dedup
+ * heuristic detects that a patch's additions duplicate the file content
+ * immediately following the deleted range.
+ *
+ * - `Off`: do not run the detector at all.
+ * - `Log`: run the detector and report each detection (tracer + telemetry
+ *   callback) but yield the patch unchanged. Lets us measure the
+ *   heuristic's firing rate before flipping user-visible behavior.
+ * - `DropPatch`: drop just the offending patch and continue processing
+ *   the rest of the stream. Use when we want to suppress individual bad
+ *   patches but trust the rest of the model's output.
+ * - `DropAllRemaining`: drop the offending patch AND every subsequent
+ *   patch from the same response. Use when a duplicate inside the stream
+ *   is treated as a signal that the response has gone off the rails.
+ *   Patches already yielded before the detection are kept.
+ * - `TrimDuplicate`: trim just the duplicated lines from the patch's
+ *   additions and yield the (possibly shorter) patch. If the trim leaves
+ *   the patch with no additions and no removals, the patch is dropped.
+ *   This is the most aggressive about salvaging the model's intent.
+ */
+export enum DuplicateAdditionsMode {
+	Off = 'off',
+	Log = 'log',
+	DropPatch = 'dropPatch',
+	DropAllRemaining = 'dropAllRemaining',
+	TrimDuplicate = 'trimDuplicate',
+}
+
+export namespace DuplicateAdditionsMode {
+	export const VALIDATOR = vEnum(
+		DuplicateAdditionsMode.Off,
+		DuplicateAdditionsMode.Log,
+		DuplicateAdditionsMode.DropPatch,
+		DuplicateAdditionsMode.DropAllRemaining,
+		DuplicateAdditionsMode.TrimDuplicate,
+	);
+}
+
 export enum SpeculativeRequestsCursorPlacement {
 	AfterEditApplied = 'afterEditApplied',
 	AfterEditWindow = 'afterEditWindow',

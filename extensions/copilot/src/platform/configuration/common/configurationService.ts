@@ -18,7 +18,7 @@ import { JointCompletionsProviderStrategy, JointCompletionsProviderTriggerChange
 import * as triggerOptions from '../../inlineEdits/common/dataTypes/triggerOptions';
 import * as xtabHistoryOptions from '../../inlineEdits/common/dataTypes/xtabHistoryOptions';
 import * as xtabPromptOptions from '../../inlineEdits/common/dataTypes/xtabPromptOptions';
-import { EarlyDivergenceCancellationMode, LANGUAGE_CONTEXT_ENABLED_LANGUAGES, LanguageContextLanguages, SpeculativeRequestsAutoExpandEditWindowLines, SpeculativeRequestsCursorPlacement, SpeculativeRequestsEnablement } from '../../inlineEdits/common/dataTypes/xtabPromptOptions';
+import { DuplicateAdditionsMode, EarlyDivergenceCancellationMode, LANGUAGE_CONTEXT_ENABLED_LANGUAGES, LanguageContextLanguages, SpeculativeRequestsAutoExpandEditWindowLines, SpeculativeRequestsCursorPlacement, SpeculativeRequestsEnablement } from '../../inlineEdits/common/dataTypes/xtabPromptOptions';
 import { ResponseProcessor } from '../../inlineEdits/common/responseProcessor';
 import { FetcherId } from '../../networking/common/fetcherService';
 import { AlternativeNotebookFormat } from '../../notebook/common/alternativeContentFormat';
@@ -857,6 +857,7 @@ export namespace ConfigKey {
 		export const InlineEditsXtabGlobalBudgetTotalTokens = defineTeamInternalSetting<number>('chat.advanced.inlineEdits.xtabProvider.globalBudget.totalTokens', ConfigType.ExperimentBased, xtabPromptOptions.GlobalBudgetOptions.DEFAULT_TOTAL_TOKENS);
 		export const InlineEditsXtabMaxMergeConflictLines = defineTeamInternalSetting<number | undefined>('chat.advanced.inlineEdits.xtabProvider.maxMergeConflictLines', ConfigType.ExperimentBased, undefined);
 		export const InlineEditsXtabOnlyMergeConflictLines = defineTeamInternalSetting<boolean>('chat.advanced.inlineEdits.xtabProvider.onlyMergeConflictLines', ConfigType.ExperimentBased, false);
+		export const InlineEditsXtabDuplicateAdditionsMode = defineTeamInternalSetting<DuplicateAdditionsMode>('chat.advanced.inlineEdits.xtabProvider.diffPatch.duplicateAdditionsMode', ConfigType.ExperimentBased, DuplicateAdditionsMode.Off, DuplicateAdditionsMode.VALIDATOR);
 		export const InlineEditsXtabAggressivenessLevel = defineTeamInternalSetting<xtabPromptOptions.AggressivenessLevel | undefined>('chat.advanced.inlineEdits.xtabProvider.aggressivenessLevel', ConfigType.ExperimentBased, undefined);
 		export const InlineEditsAggressivenessLowMinResponseTimeMs = defineTeamInternalSetting<number>('chat.advanced.inlineEdits.aggressiveness.lowMinResponseTimeMs', ConfigType.ExperimentBased, 1500);
 		export const InlineEditsAggressivenessMediumMinResponseTimeMs = defineTeamInternalSetting<number>('chat.advanced.inlineEdits.aggressiveness.mediumMinResponseTimeMs', ConfigType.ExperimentBased, 700);
