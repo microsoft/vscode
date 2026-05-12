@@ -86,12 +86,16 @@ function getVisibleRowText(widget: ActionListWidget<ITestActionItem>): string[] 
 }
 
 function withWindowInnerHeight<T>(height: number, callback: () => T): T {
-	const originalInnerHeight = mainWindow.innerHeight;
+	const originalDescriptor = Object.getOwnPropertyDescriptor(mainWindow, 'innerHeight');
 	Object.defineProperty(mainWindow, 'innerHeight', { configurable: true, value: height });
 	try {
 		return callback();
 	} finally {
-		Object.defineProperty(mainWindow, 'innerHeight', { configurable: true, value: originalInnerHeight });
+		if (originalDescriptor) {
+			Object.defineProperty(mainWindow, 'innerHeight', originalDescriptor);
+		} else {
+			Reflect.deleteProperty(mainWindow, 'innerHeight');
+		}
 	}
 }
 
@@ -223,7 +227,10 @@ suite('ActionListWidget', () => {
 		list.layout(200);
 
 		const filterHeight = 36;
-		const actionWidgetVerticalChromeHeight = 10;
+		const widget = list.domNode.parentElement!;
+		const style = mainWindow.getComputedStyle(widget);
+		const toPixels = (value: string): number => Number.parseFloat(value) || 0;
+		const actionWidgetVerticalChromeHeight = toPixels(style.paddingTop) + toPixels(style.paddingBottom) + toPixels(style.borderTopWidth) + toPixels(style.borderBottomWidth);
 		const availableSpaceAboveAnchor = 150;
 		const listHeight = parseFloat(list.domNode.style.height);
 		assert.ok(listHeight + filterHeight + actionWidgetVerticalChromeHeight <= availableSpaceAboveAnchor);
