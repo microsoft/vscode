@@ -93,21 +93,17 @@ export class ExportAgentHostDebugLogsAction extends Action2 {
 		let ahpLogNameFilter: ((name: string) => boolean) | undefined;
 
 		if (activeAgentHostSession) {
-			const ahpLogNameParts: string[] = [];
 			if (isLocal) {
 				// Agent host process logger (forwarded from the utility process)
 				channelIds.add(AGENT_HOST_LOGGER_CHANNEL_ID);
 				channelIds.add(`agenthost.${agentHostService.clientId}`);
-				ahpLogNameParts.push(sanitizeFilePart(agentHostService.clientId));
+				const localClientId = sanitizeFilePart(agentHostService.clientId);
+				ahpLogNameFilter = name => name.includes(localClientId);
 			} else {
 				remoteConnection = getRemoteConnectionForSession(activeAgentHostSession, remoteAgentHostService.connections);
 				if (remoteConnection) {
 					channelIds.add(`agenthost.${remoteConnection.clientId}`);
-					ahpLogNameParts.push(sanitizeFilePart(remoteConnection.address), sanitizeFilePart(remoteConnection.clientId));
 				}
-			}
-			if (ahpLogNameParts.length > 0) {
-				ahpLogNameFilter = name => ahpLogNameParts.some(part => part.length > 0 && name.includes(part));
 			}
 		} else {
 			channelIds.add(AGENT_HOST_LOGGER_CHANNEL_ID);
@@ -241,7 +237,7 @@ function getRemoteConnectionForSession(session: ISession, connections: readonly 
 }
 
 function sanitizeFilePart(value: string): string {
-	return value.replace(/[\/:\*\?"<>|\s]+/g, '-').replace(/^-+|-+$/g, '') || 'connection';
+	return value.replace(/[\\/:\*\?"<>|\s]+/g, '-').replace(/^-+|-+$/g, '') || 'connection';
 }
 
 /**
