@@ -357,6 +357,7 @@ export class SCMViewService implements ISCMViewService {
 		} satisfies ISCMRepositoryView;
 
 		let removed: Iterable<ISCMRepository> = Iterable.empty();
+		let newReposToReAdd: ISCMRepositoryView[] = [];
 
 		if (this.previousState && !this.didFinishLoadingRepositories.get()) {
 			// Hidden repositories are not part of the saved state, so skip
@@ -397,13 +398,18 @@ export class SCMViewService implements ISCMViewService {
 			} else {
 				// First visible repository
 				if (!this.didSelectRepository) {
-					removed = [...this.visibleRepositories];
+					newReposToReAdd = this._repositories.filter(r =>
+						r.selectionIndex !== -1 &&
+						this.previousState!.all.indexOf(getProviderStorageKey(r.repository.provider)) === -1
+					);
+
+					removed = [...this.visibleRepositories].filter(r =>
+						this.previousState!.all.indexOf(getProviderStorageKey(r.provider)) !== -1
+					);
+
 					this._repositories.forEach(r => {
-						// Preserve visibility of repos not in previousState (new repos)
-						if (this.previousState!.all.indexOf(getProviderStorageKey(r.repository.provider)) !== -1) {
-							r.focused = false;
-							r.selectionIndex = -1;
-						}
+						r.focused = false;
+						r.selectionIndex = -1;
 					});
 
 					this.didSelectRepository = true;
@@ -415,7 +421,17 @@ export class SCMViewService implements ISCMViewService {
 			// Multiple selection mode or single selection mode (select first repository)
 			const maxSelectionIndex = this.getMaxSelectionIndex();
 			this.insertRepositoryView(this._repositories, { ...repositoryView, selectionIndex: maxSelectionIndex + 1 });
-			this._onDidChangeRepositories.fire({ added: [repositoryView.repository], removed });
+
+			if (newReposToReAdd.length > 0 && this.selectionModeConfig.get() === ISCMRepositorySelectionMode.Multiple) {
+				const addedRepos: ISCMRepository[] = [repositoryView.repository];
+				for (const r of newReposToReAdd) {
+					r.selectionIndex = this.getMaxSelectionIndex() + 1;
+					addedRepos.push(r.repository);
+				}
+				this._onDidChangeRepositories.fire({ added: addedRepos, removed });
+			} else {
+				this._onDidChangeRepositories.fire({ added: [repositoryView.repository], removed });
+			}
 		} else {
 			// Single selection mode (add subsequent repository)
 			this.insertRepositoryView(this._repositories, repositoryView);
