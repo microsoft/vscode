@@ -345,15 +345,23 @@ export class BrowserView extends Disposable {
 			this._onDidChangeFocus.fire({ focused: false });
 		});
 
-		// Forward key down events that weren't handled by the page to the workbench for shortcut handling.
-		webContents.ipc.on('vscode:browserView:keydown', (_event, keyEvent: IBrowserViewKeyDownEvent) => {
+		const onCommandKeydown = (_event: unknown, keyEvent: IBrowserViewKeyDownEvent) => {
 			// Intercept Ctrl/Cmd+Enter during element selection to pick the focused element.
 			if (this.inspector.isElementSelectionActive && keyEvent.key === 'Enter' && (keyEvent.ctrlKey || keyEvent.metaKey)) {
 				void this.inspector.pickFocusedElement();
 				return;
 			}
 			this._onDidKeyCommand.fire(keyEvent);
+		};
+
+		// Forward key down events that weren't handled by the page to the workbench for shortcut handling.
+		webContents.ipc.on('vscode:browserView:keydown', onCommandKeydown);
+		webContents.on('devtools-opened', () => {
+			// Avoid double-registration if the webContents is reused.
+			webContents.devToolsWebContents?.ipc.off('vscode:browserView:keydown', onCommandKeydown);
+			webContents.devToolsWebContents?.ipc.on('vscode:browserView:keydown', onCommandKeydown);
 		});
+
 		// If the page won't be able to handle events, forward key down events directly.
 		webContents.on('before-input-event', (event, input) => {
 			if (input.type !== 'keyDown') {

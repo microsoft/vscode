@@ -592,8 +592,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			}
 			const provider = this._sessionsProvidersService.getProvider<RemoteAgentHostSessionsProvider>(providerId);
 			const session = provider?.getSessionByResource(sessionResource);
-			const repository = session?.workspace.get()?.repositories[0];
-			const workingDirectory = repository?.workingDirectory ?? repository?.uri;
+			const workingDirectory = session?.workspace.get()?.folders[0]?.workingDirectory;
 			if (workingDirectory) {
 				sessionWorkingDirs.set(resourceKey, workingDirectory);
 				return workingDirectory;

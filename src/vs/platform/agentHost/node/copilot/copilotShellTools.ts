@@ -352,7 +352,7 @@ async function executeCommandWithShellIntegration(
 ): Promise<ToolResultObject> {
 	const disposables = new DisposableStore();
 
-	terminalManager.writeInput(shell.terminalUri, `${prefixForHistorySuppression(shell.shellType)}${command}\r`);
+	terminalManager.sendText(shell.terminalUri, `${prefixForHistorySuppression(shell.shellType)}${command}`, { shouldExecute: true });
 
 	return new Promise<ToolResultObject>(resolve => {
 		let resolved = false;
@@ -421,9 +421,8 @@ async function executeCommandWithSentinel(
 	const contentBefore = terminalManager.getContent(shell.terminalUri) ?? '';
 	const offsetBefore = contentBefore.length;
 
-	// PTY input uses \r for line endings — the PTY translates to \r\n
-	const input = `${prefixForHistorySuppression(shell.shellType)}${command}\r${sentinelCmd}\r`;
-	terminalManager.writeInput(shell.terminalUri, input);
+	terminalManager.sendText(shell.terminalUri, `${prefixForHistorySuppression(shell.shellType)}${command}`, { shouldExecute: true });
+	terminalManager.sendText(shell.terminalUri, sentinelCmd, { shouldExecute: true });
 
 	return new Promise<ToolResultObject>(resolve => {
 		let resolved = false;
@@ -597,7 +596,7 @@ export async function createShellTools(
 			if (!shell) {
 				return makeFailureResult('No active shell found.', 'no_shell');
 			}
-			terminalManager.writeInput(shell.terminalUri, args.command);
+			terminalManager.sendText(shell.terminalUri, args.command, { shouldExecute: false });
 			return makeSuccessResult('Input sent to shell.');
 		},
 	};

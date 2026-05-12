@@ -42,7 +42,6 @@ function createSession(id: string, status: SessionStatus = SessionStatus.Complet
 		isRead: observableValue(`isRead-${id}`, true),
 		description: observableValue(`description-${id}`, undefined),
 		lastTurnEnd: observableValue(`lastTurnEnd-${id}`, undefined),
-		gitHubInfo: observableValue(`gitHubInfo-${id}`, undefined),
 		chats: observableValue<readonly IChat[]>(`chats-${id}`, []),
 		mainChat: undefined!,
 		capabilities: { supportsMultipleChats: false },

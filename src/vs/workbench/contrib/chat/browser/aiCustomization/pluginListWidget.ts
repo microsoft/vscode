@@ -421,8 +421,7 @@ export class PluginListWidget extends Disposable {
 	private readonly _onDidChangeItemCount = this._register(new Emitter<number>());
 	readonly onDidChangeItemCount = this._onDidChangeItemCount.event;
 
-	private sectionHeader!: HTMLElement;
-	private sectionDescription!: HTMLElement;
+	private sectionTitleHeader!: HTMLElement;
 	private sectionLink!: HTMLAnchorElement;
 	private searchAndButtonContainer!: HTMLElement;
 	private searchInput!: InputBox;
@@ -451,6 +450,7 @@ export class PluginListWidget extends Disposable {
 	private browseMode: boolean = false;
 	private lastHeight: number = 0;
 	private lastWidth: number = 0;
+	private lastHeaderHeight = 0;
 	private _layoutDeferred = false;
 	private readonly collapsedGroups = new Set<string>();
 	private marketplaceCts: CancellationTokenSource | undefined;
@@ -488,6 +488,49 @@ export class PluginListWidget extends Disposable {
 	}
 
 	private create(): void {
+		// Section title header (title + description with inline learn more) at the top.
+		this.sectionTitleHeader = DOM.append(this.element, $('.section-title-header'));
+		const titleRow = DOM.append(this.sectionTitleHeader, $('.section-title-row'));
+		const sectionTitle = DOM.append(titleRow, $('h2.section-title'));
+		sectionTitle.textContent = localize('plugins', "Plugins");
+		const sectionTitleDescription = DOM.append(this.sectionTitleHeader, $('p.section-title-description'));
+		const sectionTitleDescriptionText = DOM.append(sectionTitleDescription, $('span.section-title-description-text'));
+		sectionTitleDescriptionText.textContent = localize('pluginsDescription', "Extend your AI agent with plugins that add commands, skills, agents, hooks, and MCP servers from reusable packages.");
+		// Real whitespace text node between description and link so the gap collapses
+		// when the link wraps to a new line (a CSS margin-left would push it inward).
+		sectionTitleDescription.appendChild(document.createTextNode(' '));
+		this.sectionLink = DOM.append(sectionTitleDescription, $('a.section-title-link')) as HTMLAnchorElement;
+		this.sectionLink.textContent = localize('learnMorePlugins', "Learn more about agent plugins");
+		this.sectionLink.href = 'https://code.visualstudio.com/docs/copilot/customization/agent-plugins';
+		this._register(DOM.addDisposableListener(this.sectionLink, 'click', (e) => {
+			e.preventDefault();
+			const href = this.sectionLink.href;
+			if (href) {
+				this.openerService.open(URI.parse(href));
+			}
+		}));
+
+		// Re-layout when the header height changes so the list's allotted
+		// height stays in sync with the actual on-screen header size. Only
+		// relayout when the header height actually changed to avoid redundant
+		// work on DPR changes or width-only resizes.
+		const targetWindow = DOM.getWindow(this.element);
+		const headerObserver = this._register(new DOM.DisposableResizeObserver(
+			'PluginListWidget.sectionTitleHeader',
+			() => {
+				if (this.lastWidth <= 0 || this.lastHeight <= 0) {
+					return;
+				}
+				const headerHeight = this.sectionTitleHeader.offsetHeight;
+				if (headerHeight === this.lastHeaderHeight) {
+					return;
+				}
+				this.layout(this.lastHeight, this.lastWidth);
+			},
+			targetWindow,
+		));
+		this._register(headerObserver.observe(this.sectionTitleHeader));
+
 		// Search and button container
 		this.searchAndButtonContainer = DOM.append(this.element, $('.list-search-and-button-container'));
 
@@ -561,20 +604,7 @@ export class PluginListWidget extends Disposable {
 		// List container
 		this.listContainer = DOM.append(this.element, $('.mcp-list-container'));
 
-		// Section footer
-		this.sectionHeader = DOM.append(this.element, $('.section-footer'));
-		this.sectionDescription = DOM.append(this.sectionHeader, $('p.section-footer-description'));
-		this.sectionDescription.textContent = localize('pluginsDescription', "Extend your AI agent with plugins that add commands, skills, agents, hooks, and MCP servers from reusable packages.");
-		this.sectionLink = DOM.append(this.sectionHeader, $('a.section-footer-link')) as HTMLAnchorElement;
-		this.sectionLink.textContent = localize('learnMorePlugins', "Learn more about agent plugins");
-		this.sectionLink.href = 'https://code.visualstudio.com/docs/copilot/customization/agent-plugins';
-		this._register(DOM.addDisposableListener(this.sectionLink, 'click', (e) => {
-			e.preventDefault();
-			const href = this.sectionLink.href;
-			if (href) {
-				this.openerService.open(URI.parse(href));
-			}
-		}));
+		// Section footer (removed — see section-title-header at top)
 
 		// Create list
 		const delegate = new PluginItemDelegate();
@@ -1125,13 +1155,6 @@ export class PluginListWidget extends Disposable {
 	}
 
 	/**
-	 * Prepends an element to the search row (left of the search input).
-	 */
-	prependToSearchRow(element: HTMLElement): void {
-		this.searchAndButtonContainer.insertBefore(element, this.searchAndButtonContainer.firstChild);
-	}
-
-	/**
 	 * Whether the widget is currently in marketplace browse mode.
 	 */
 	isInBrowseMode(): boolean {
@@ -1170,8 +1193,9 @@ export class PluginListWidget extends Disposable {
 			});
 			return;
 		}
-		const footerHeight = this.sectionHeader.offsetHeight;
-		const listHeight = Math.max(0, height - searchBarHeight - footerHeight);
+		const headerHeight = this.sectionTitleHeader.offsetHeight;
+		this.lastHeaderHeight = headerHeight;
+		const listHeight = Math.max(0, height - searchBarHeight - headerHeight);
 
 		this.listContainer.style.height = `${listHeight}px`;
 		this.list.layout(listHeight, width);

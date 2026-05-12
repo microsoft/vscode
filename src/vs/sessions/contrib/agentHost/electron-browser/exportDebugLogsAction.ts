@@ -12,20 +12,24 @@ import { ServicesAccessor } from '../../../../platform/instantiation/common/inst
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { agentHostAuthority, toAgentHostUri } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { AgentHostEnabledSettingId, IAgentHostService } from '../../../../platform/agentHost/common/agentService.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { INativeHostService } from '../../../../platform/native/common/native.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { IOutputService } from '../../../../workbench/services/output/common/output.js';
+import { type ISession } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { IsAgentHostSession } from '../browser/agentHostSkillButtons.js';
+import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { IPathService } from '../../../../workbench/services/path/common/pathService.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
-import { resolveEventsUri, parseRemoteAuthorityFromScheme } from '../browser/openSessionEventsFileActions.js';
+import { resolveEventsUri } from '../browser/openSessionEventsFileActions.js';
+import { BaseAgentHostSessionsProvider } from '../browser/baseAgentHostSessionsProvider.js';
 
 /** Output channel ID for the agent host process logger (forwarded via RemoteLoggerChannelClient). */
 const AGENT_HOST_LOGGER_CHANNEL_ID = 'agenthost';
@@ -33,9 +37,6 @@ const AGENT_HOST_LOGGER_CHANNEL_ID = 'agenthost';
 const WINDOW_LOG_CHANNEL_ID = 'rendererLog';
 /** Output channel ID for the shared process compound log. */
 const SHARED_PROCESS_LOG_CHANNEL_ID = 'shared';
-
-const LOCAL_AH_SCHEME = 'agent-host-copilotcli';
-const EH_CLI_SCHEME = 'copilotcli';
 
 export class ExportAgentHostDebugLogsAction extends Action2 {
 
@@ -47,13 +48,18 @@ export class ExportAgentHostDebugLogsAction extends Action2 {
 			title: localize2('exportAgentHostDebugLogs', "Export Agent Host Debug Logs..."),
 			f1: true,
 			category: Categories.Developer,
-			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, IsAgentHostSession),
+			precondition: ContextKeyExpr.and(
+				ChatContextKeys.enabled,
+				ContextKeyExpr.or(IsSessionsWindowContext, ContextKeyExpr.equals(`config.${AgentHostEnabledSettingId}`, true)),
+			),
 		});
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		const sessionsProvidersService = accessor.get(ISessionsProvidersService);
 		const pathService = accessor.get(IPathService);
+		const agentHostService = accessor.get(IAgentHostService);
 		const remoteAgentHostService = accessor.get(IRemoteAgentHostService);
 		const outputService = accessor.get(IOutputService);
 		const fileService = accessor.get(IFileService);
@@ -65,7 +71,10 @@ export class ExportAgentHostDebugLogsAction extends Action2 {
 		const logService = accessor.get(ILogService);
 		const environmentService = accessor.get(IEnvironmentService);
 
-		const sessionResource = sessionsManagementService.activeSession.get()?.resource;
+		const activeSession = sessionsManagementService.activeSession.get();
+		const activeAgentHostSession = isAgentHostSession(activeSession, sessionsProvidersService) ? activeSession : undefined;
+		const sessionForEvents = activeAgentHostSession ?? getMostRecentAgentHostSession(sessionsManagementService.getSessions(), sessionsProvidersService);
+		const sessionResource = sessionForEvents?.resource;
 		const userHome = pathService.userHome({ preferLocal: true });
 
 		const eventsResult = resolveEventsUri(
@@ -74,51 +83,50 @@ export class ExportAgentHostDebugLogsAction extends Action2 {
 			authority => remoteAgentHostService.connections.find(c => agentHostAuthority(c.address) === authority),
 		);
 
-		switch (eventsResult.kind) {
-			case 'no-session':
-				notificationService.info(localize('exportDebugLogs.noSession', "No Copilot CLI session is active."));
-				return;
-			case 'unsupported-scheme':
-				notificationService.info(localize('exportDebugLogs.unsupported', "The active chat session is not a Copilot CLI session."));
-				return;
-			case 'remote-not-connected':
-				notificationService.warn(localize('exportDebugLogs.notConnected', "No active connection found for remote agent host '{0}'.", eventsResult.authority));
-				return;
-			case 'remote-no-home':
-				notificationService.warn(localize('exportDebugLogs.noHome', "Remote agent host '{0}' did not report a home directory.", eventsResult.authority));
-				return;
-		}
-
-		const isLocal = sessionResource?.scheme === LOCAL_AH_SCHEME || sessionResource?.scheme === EH_CLI_SCHEME;
+		const isLocal = activeAgentHostSession?.resource.scheme.startsWith('agent-host-') ?? false;
 
 		// Collect all output channel IDs relevant for the current session's agent host.
-		const channelIds: string[] = [];
+		const channelIds = new Set<string>();
 
 		// Remote agent host connection (if any), for downloading agenthost.log from the remote.
 		let remoteConnection: IRemoteAgentHostConnectionInfo | undefined;
+		let ahpLogNameFilter: ((name: string) => boolean) | undefined;
 
-		if (isLocal) {
-			// Agent host process logger (forwarded from the utility process)
-			channelIds.push(AGENT_HOST_LOGGER_CHANNEL_ID);
+		if (activeAgentHostSession) {
+			if (isLocal) {
+				// Agent host process logger (forwarded from the utility process)
+				channelIds.add(AGENT_HOST_LOGGER_CHANNEL_ID);
+				channelIds.add(`agenthost.${agentHostService.clientId}`);
+				const localClientId = sanitizeFilePart(agentHostService.clientId);
+				ahpLogNameFilter = name => name.includes(localClientId);
+			} else {
+				remoteConnection = getRemoteConnectionForSession(activeAgentHostSession, remoteAgentHostService.connections);
+				if (remoteConnection) {
+					channelIds.add(`agenthost.${remoteConnection.clientId}`);
+				}
+			}
 		} else {
-			const remoteAuthority = parseRemoteAuthorityFromScheme(sessionResource!.scheme);
-			if (remoteAuthority) {
-				remoteConnection = remoteAgentHostService.connections.find(c => agentHostAuthority(c.address) === remoteAuthority);
+			channelIds.add(AGENT_HOST_LOGGER_CHANNEL_ID);
+			channelIds.add(`agenthost.${agentHostService.clientId}`);
+			for (const connection of remoteAgentHostService.connections) {
+				channelIds.add(`agenthost.${connection.clientId}`);
 			}
 		}
 
 		// Always include the window and shared process logs
-		channelIds.push(WINDOW_LOG_CHANNEL_ID);
-		channelIds.push(SHARED_PROCESS_LOG_CHANNEL_ID);
+		channelIds.add(WINDOW_LOG_CHANNEL_ID);
+		channelIds.add(SHARED_PROCESS_LOG_CHANNEL_ID);
 
 		const files: { path: string; contents: string }[] = [];
 
 		// 1. events.jsonl
-		try {
-			const content = await fileService.readFile(eventsResult.resource);
-			files.push({ path: 'events.jsonl', contents: content.value.toString() });
-		} catch {
-			// File may not exist yet if the session never wrote any events
+		if (eventsResult.kind === 'ok') {
+			try {
+				const content = await fileService.readFile(eventsResult.resource);
+				files.push({ path: 'events.jsonl', contents: content.value.toString() });
+			} catch {
+				// File may not exist yet if the session never wrote any events
+			}
 		}
 
 		// 2. Output channels
@@ -143,7 +151,7 @@ export class ExportAgentHostDebugLogsAction extends Action2 {
 			const ahpDir = joinPath(environmentService.logsHome, 'ahp');
 			const stat = await fileService.resolve(ahpDir, { resolveMetadata: true });
 			for (const child of stat.children ?? []) {
-				if (child.isDirectory || !child.name.endsWith('.jsonl')) {
+				if (child.isDirectory || !child.name.endsWith('.jsonl') || ahpLogNameFilter && !ahpLogNameFilter(child.name)) {
 					continue;
 				}
 				try {
@@ -174,12 +182,14 @@ export class ExportAgentHostDebugLogsAction extends Action2 {
 		if (files.length === 0) {
 			notificationService.notify({
 				severity: Severity.Warning,
-				message: localize('exportDebugLogs.noFiles', "No log files were found for the active session."),
+				message: activeAgentHostSession
+					? localize('exportDebugLogs.noFiles.activeSession', "No log files were found for the active Agent Host session.")
+					: localize('exportDebugLogs.noFiles.currentWindow', "No Agent Host log files were found for the current window."),
 			});
 			return;
 		}
 
-		const sessionTitle = sessionsManagementService.activeSession.get()?.title.get();
+		const sessionTitle = activeAgentHostSession?.title.get();
 		const titleSlug = sessionTitle
 			? `-${sessionTitle.replace(/[/\\:*?"<>|\s]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40)}`
 			: '';
@@ -203,6 +213,31 @@ export class ExportAgentHostDebugLogsAction extends Action2 {
 			});
 		}
 	}
+}
+
+function isAgentHostSession(session: ISession | undefined, sessionsProvidersService: ISessionsProvidersService): session is ISession {
+	return !!session && sessionsProvidersService.getProvider(session.providerId) instanceof BaseAgentHostSessionsProvider;
+}
+
+function getMostRecentAgentHostSession(sessions: readonly ISession[], sessionsProvidersService: ISessionsProvidersService): ISession | undefined {
+	let mostRecent: ISession | undefined;
+	for (const session of sessions) {
+		if (!isAgentHostSession(session, sessionsProvidersService)) {
+			continue;
+		}
+		if (!mostRecent || session.updatedAt.get().getTime() > mostRecent.updatedAt.get().getTime()) {
+			mostRecent = session;
+		}
+	}
+	return mostRecent;
+}
+
+function getRemoteConnectionForSession(session: ISession, connections: readonly IRemoteAgentHostConnectionInfo[]): IRemoteAgentHostConnectionInfo | undefined {
+	return connections.find(connection => session.resource.scheme.startsWith(`remote-${agentHostAuthority(connection.address)}-`));
+}
+
+function sanitizeFilePart(value: string): string {
+	return value.replace(/[\\/:\*\?"<>|\s]+/g, '-').replace(/^-+|-+$/g, '') || 'connection';
 }
 
 /**

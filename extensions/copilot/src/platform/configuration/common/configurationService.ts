@@ -933,8 +933,6 @@ export namespace ConfigKey {
 	export const ResponsesApiContextManagementEnabled = defineSetting<boolean>('chat.responsesApiContextManagement.enabled', ConfigType.ExperimentBased, false);
 	/** Enable client-side prompt_cache_key (conversationId:modelFamily) sent to Responses API */
 	export const ResponsesApiPromptCacheKeyEnabled = defineSetting<boolean>('chat.responsesApi.promptCacheKey.enabled', ConfigType.ExperimentBased, false);
-	/** Enable tool search for Responses API (client-side deferred tool loading). */
-	export const ResponsesApiToolSearchEnabled = defineSetting<boolean>('chat.responsesApi.toolSearchTool.enabled', ConfigType.ExperimentBased, false);
 	/** Enable updated prompt for 5.3Codex model */
 	export const Updated53CodexPromptEnabled = defineSetting<boolean>('chat.updated53CodexPrompt.enabled', ConfigType.ExperimentBased, true);
 	/** Enable updated prompt for Claude Opus 4.7 model */
@@ -1051,8 +1049,6 @@ export namespace ConfigKey {
 	/** Model override for Explore (Code Research) agent — reads from core `chat.exploreAgent.defaultModel` */
 	export const ExploreAgentModel = defineSetting<string>('chat.exploreAgent.model', ConfigType.Simple, '');
 
-	export const CopilotMemoryEnabled = defineSetting<boolean>('chat.copilotMemory.enabled', ConfigType.ExperimentBased, false);
-	export const MemoryToolEnabled = defineSetting<boolean>('chat.tools.memory.enabled', ConfigType.ExperimentBased, true);
 	export const ViewImageToolEnabled = defineSetting<boolean>('chat.tools.viewImage.enabled', ConfigType.ExperimentBased, true);
 
 	/** Enable local session search index — tracks sessions locally and enables chronicle commands.*/

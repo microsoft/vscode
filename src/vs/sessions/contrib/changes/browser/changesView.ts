@@ -839,11 +839,11 @@ export class ChangesViewPane extends ViewPane {
 
 		// Get the repository details for the session
 		// - uri: location of the repository
-		// - workingDirectory (optional): location of the worktree
+		// - workingDirectory: location of the worktree
 		const activeSession = this.sessionManagementService.activeSession.get();
-		const repository = activeSession?.workspace.get()?.repositories[0];
-		const workspaceFolderUri = repository?.workingDirectory ?? repository?.uri;
-		if (!repository?.uri || !workspaceFolderUri) {
+		const folder = activeSession?.workspace.get()?.folders[0];
+		const workspaceFolderUri = folder?.workingDirectory;
+		if (!folder?.root || !workspaceFolderUri) {
 			return undefined;
 		}
 
@@ -858,9 +858,9 @@ export class ChangesViewPane extends ViewPane {
 		} else {
 			// Local session
 			const branchName = this.viewModel.activeSessionStateObs.get()?.branchName;
-			name = repository.workingDirectory
-				? `${basename(repository.uri)} (${branchName})`
-				: basename(repository.uri);
+			name = branchName
+				? `${basename(folder.workingDirectory)} (${branchName})`
+				: basename(folder.workingDirectory);
 		}
 
 		return {
@@ -997,10 +997,10 @@ export class ChangesViewPane extends ViewPane {
 				() => {
 					// Pass in the tree root to be used to compute the label description
 					const activeSession = this.sessionManagementService.activeSession.get();
-					const repository = activeSession?.workspace.get()?.repositories[0];
-					return repository?.uri.scheme === GITHUB_REMOTE_FILE_SCHEME
+					const folder = activeSession?.workspace.get()?.folders[0];
+					return folder?.root.scheme === GITHUB_REMOTE_FILE_SCHEME
 						? URI.from({ scheme: Schemas.copilotPr, path: '/' })
-						: repository?.workingDirectory ?? repository?.uri;
+						: folder?.workingDirectory;
 				})],
 			{
 				alwaysConsumeMouseWheel: false,
