@@ -10,7 +10,7 @@ import * as http from 'http';
 import { IChatMLFetcher, Source } from '../../../../platform/chat/common/chatMLFetcher';
 import { ChatLocation, ChatResponse } from '../../../../platform/chat/common/commonTypes';
 import { CustomModel, EndpointEditToolName } from '../../../../platform/endpoint/common/endpointProvider';
-import { AnthropicMessagesProcessor } from '../../../../platform/endpoint/node/messagesApi';
+import { AnthropicMessagesProcessor, processNonStreamingResponseFromMessagesEndpoint } from '../../../../platform/endpoint/node/messagesApi';
 import { ILogService } from '../../../../platform/log/common/logService';
 import { IOTelService } from '../../../../platform/otel/common/otelService';
 import { FinishedCallback, getRequestId, OptionalChatRequestParams } from '../../../../platform/networking/common/fetch';
@@ -433,6 +433,90 @@ function messagesApiInputToRawMessagesForLogging(request: AnthropicMessagesReque
 	return messages;
 }
 
+/**
+ * Drains a non-streaming Anthropic Messages API response while
+ * simultaneously:
+ *   1. Forwarding every upstream byte chunk verbatim to `forwardChunk` so the
+ *      Claude SDK client (which made the original `stream: false` request)
+ *      receives a byte-perfect passthrough.
+ *   2. Reconstituting the buffered body and delegating to the shared
+ *      `processNonStreamingResponseFromMessagesEndpoint` parser so the
+ *      caller receives real `ChatCompletion`s (with telemetry, usage, and
+ *      finish-callback wiring). Without this, `chatMLFetcher` would see
+ *      zero completions and fail with "Response contained no choices".
+ *
+ * On cancellation, the for-await `return`s out of the drain loop before
+ * forwarding the in-flight chunk; the `finally` still destroys the upstream
+ * body, and no completions are emitted.
+ */
+export function processNonStreamingPassThroughResponse(
+	response: Response,
+	forwardChunk: (chunk: Uint8Array) => void,
+	onUsage: ((usage: { promptTokens: number; completionTokens: number }) => void) | undefined,
+	telemetryService: ITelemetryService,
+	logService: ILogService,
+	finishCallback: FinishedCallback,
+	telemetryData: TelemetryData,
+	cancellationToken?: CancellationToken,
+): AsyncIterableObject<ChatCompletion> {
+	return new AsyncIterableObject<ChatCompletion>(async feed => {
+		const chunks: Uint8Array[] = [];
+		let totalLength = 0;
+		try {
+			for await (const chunk of response.body) {
+				if (cancellationToken?.isCancellationRequested) {
+					return;
+				}
+				forwardChunk(chunk);
+				chunks.push(chunk);
+				totalLength += chunk.length;
+			}
+		} finally {
+			await response.body.destroy();
+		}
+
+		// Concatenate then decode as UTF-8 once so multi-byte characters that
+		// span chunk boundaries decode correctly.
+		const concatenated = new Uint8Array(totalLength);
+		let offset = 0;
+		for (const chunk of chunks) {
+			concatenated.set(chunk, offset);
+			offset += chunk.length;
+		}
+		const bodyText = new TextDecoder().decode(concatenated);
+
+		const reconstituted = Response.fromText(
+			response.status,
+			response.statusText,
+			response.headers,
+			bodyText,
+			response.fetcher,
+		);
+
+		try {
+			const inner = await processNonStreamingResponseFromMessagesEndpoint(
+				telemetryService,
+				logService,
+				reconstituted,
+				finishCallback,
+				telemetryData,
+			);
+			for await (const completion of inner) {
+				feed.emitOne(completion);
+
+				if (completion.usage && onUsage) {
+					onUsage({
+						promptTokens: completion.usage.prompt_tokens,
+						completionTokens: completion.usage.completion_tokens,
+					});
+				}
+			}
+		} catch (e) {
+			feed.reject(e instanceof Error ? e : new Error(String(e)));
+		}
+	});
+}
+
 class ClaudeStreamingPassThroughEndpoint implements IChatEndpoint {
 	constructor(
 		private readonly base: IChatEndpoint,
@@ -633,7 +717,7 @@ class ClaudeStreamingPassThroughEndpoint implements IChatEndpoint {
 		}
 
 		if (!isStreaming) {
-			return this._processNonStreamingResponse(body, telemetryData, response.headers, cancellationToken);
+			return this._processNonStreamingResponse(response, telemetryService, logService, finishCallback, telemetryData, cancellationToken);
 		}
 
 		return new AsyncIterableObject<ChatCompletion>(async feed => {
@@ -692,23 +776,32 @@ class ClaudeStreamingPassThroughEndpoint implements IChatEndpoint {
 	}
 
 	private _processNonStreamingResponse(
-		body: Response['body'],
-		_telemetryData: TelemetryData,
-		_responseHeaders: Response['headers'],
+		response: Response,
+		telemetryService: ITelemetryService,
+		logService: ILogService,
+		finishCallback: FinishedCallback,
+		telemetryData: TelemetryData,
 		cancellationToken?: CancellationToken,
 	): AsyncIterableObject<ChatCompletion> {
-		return new AsyncIterableObject<ChatCompletion>(async feed => {
-			try {
-				for await (const chunk of body) {
-					if (cancellationToken?.isCancellationRequested) {
-						break;
-					}
-					this.responseStream.write(chunk);
-				}
-			} finally {
-				await body.destroy();
+		// The usage handler is looked up per-completion (mirroring the streaming
+		// branch above) in case it gets registered after the request starts.
+		const sessionId = this.sessionId;
+		const onUsage = sessionId
+			? (usage: { promptTokens: number; completionTokens: number }) => {
+				this.sessionStateService.getUsageHandlerForSession(sessionId)?.(usage);
 			}
-		});
+			: undefined;
+
+		return processNonStreamingPassThroughResponse(
+			response,
+			chunk => this.responseStream.write(chunk),
+			onUsage,
+			telemetryService,
+			logService,
+			finishCallback,
+			telemetryData,
+			cancellationToken,
+		);
 	}
 
 	public makeChatRequest(
