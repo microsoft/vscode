@@ -45,7 +45,7 @@ export const CACHING_DIAGNOSTICS_PROVIDER_CACHE_SALT = 4;
 /**
  * Used by the clang diagnostics provider.
  */
-export const CLANG_DIAGNOSTICS_PROVIDER_CACHE_SALT = 5;
+export const CLANG_DIAGNOSTICS_PROVIDER_CACHE_SALT = 6;
 
 /**
  * Used by the TS diagnostics provider.
