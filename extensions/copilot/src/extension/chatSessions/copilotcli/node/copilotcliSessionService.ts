@@ -1052,7 +1052,7 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 			if (d.copilotRequestId) {
 				const turnAgentId = d.modeInstructions?.uri || d.agentId;
 				const modeInstructions = (d.modeInstructions ?? (turnAgentId ? await this.resolveAgentModeInstructions(turnAgentId) : defaultModeInstructions)) ?? defaultModeInstructions;
-				detailsByCopilotId.set(d.copilotRequestId, { requestId: d.vscodeRequestId, toolIdEditMap: d.toolIdEditMap, modeInstructions, responseModelId: d.responseModelId });
+				detailsByCopilotId.set(d.copilotRequestId, { requestId: d.vscodeRequestId, toolIdEditMap: d.toolIdEditMap, modeInstructions, responseModelId: d.responseModelId, creditsUsed: d.creditsUsed });
 			}
 		}));
 		const getVSCodeRequestId = (sdkRequestId: string) => {

@@ -348,7 +348,9 @@ async fn forward_ws_req_to_server(
 			Err(e) => return response::connection_err(e),
 		};
 
-	tokio::spawn(connection);
+	// `.with_upgrades()` is required so that `hyper::upgrade::on` can later
+	// take over the connection for websocket traffic.
+	tokio::spawn(connection.with_upgrades());
 
 	let mut proxied_req = Request::builder().uri(req.uri());
 	for (k, v) in req.headers() {

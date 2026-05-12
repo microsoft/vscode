@@ -75,8 +75,8 @@ export class OpenInVSCodeAction extends Action2 {
 		}
 
 		const workspace = activeSession.workspace.get();
-		const repo = workspace?.repositories[0];
-		const rawFolderUri = isWorkspaceAgentSessionType(activeSession.sessionType) ? repo?.workingDirectory ?? repo?.uri : undefined;
+		const folder = workspace?.folders[0];
+		const rawFolderUri = isWorkspaceAgentSessionType(activeSession.sessionType) ? folder?.workingDirectory : undefined;
 
 		if (!rawFolderUri) {
 			await openerService.open(URI.from({ scheme, query: params.toString() }), { openExternal: true });

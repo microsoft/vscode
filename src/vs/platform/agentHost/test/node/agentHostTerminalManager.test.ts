@@ -4,10 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import type { IPty, IPtyForkOptions, IWindowsPtyForkOptions } from 'node-pty';
+import { DeferredPromise, timeout } from '../../../../base/common/async.js';
+import { Emitter } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { NullLogService } from '../../../log/common/log.js';
+import { IProductService } from '../../../product/common/productService.js';
 import { ActionType, StateAction } from '../../common/state/protocol/actions.js';
-import { TerminalContentPart } from '../../common/state/protocol/state.js';
+import { TerminalClaimKind, TerminalContentPart } from '../../common/state/protocol/state.js';
+import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
+import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { AgentHostTerminalManager, removeServerHandledTerminalQueries, type ITerminalQueryFilterState } from '../../node/agentHostTerminalManager.js';
 import { Osc633Event, Osc633EventType, Osc633Parser } from '../../node/osc633Parser.js';
 
 /**
@@ -39,6 +47,7 @@ class TestTerminalDataHandler {
 	readonly dispatched: StateAction[] = [];
 	content: TerminalContentPart[] = [];
 	cwd = '/home/user';
+	private readonly _terminalQueryFilterState: ITerminalQueryFilterState = { pendingData: '' };
 
 	constructor(
 		readonly uri: string,
@@ -48,7 +57,7 @@ class TestTerminalDataHandler {
 	/** Simulates AgentHostTerminalManager._handlePtyData */
 	handlePtyData(rawData: string): string {
 		const parseResult = this.tracker.parser.parse(rawData);
-		const cleanedData = parseResult.cleanedData;
+		const cleanedData = removeServerHandledTerminalQueries(parseResult.cleanedData, this._terminalQueryFilterState);
 
 		for (const event of parseResult.events) {
 			this._handleOsc633Event(event);
@@ -159,6 +168,62 @@ class TestTerminalDataHandler {
 	}
 }
 
+class TestPty implements IPty {
+	readonly pid = 1;
+	cols = 80;
+	rows = 24;
+	process = 'test-shell';
+	handleFlowControl = false;
+	readonly writes: string[] = [];
+	readonly dataListenerRegistered = new DeferredPromise<void>();
+
+	private readonly _onData = new Emitter<string>();
+	readonly onData: IPty['onData'] = listener => {
+		this.dataListenerRegistered.complete();
+		return this._onData.event(data => listener(data));
+	};
+
+	private readonly _onExit = new Emitter<{ exitCode: number; signal?: number }>();
+	readonly onExit: IPty['onExit'] = listener => this._onExit.event(data => listener(data));
+
+	fireData(data: string): void {
+		this._onData.fire(data);
+	}
+
+	resize(columns: number, rows: number): void {
+		this.cols = columns;
+		this.rows = rows;
+	}
+
+	clear(): void { }
+
+	write(data: string | Buffer): void {
+		this.writes.push(typeof data === 'string' ? data : data.toString());
+	}
+
+	kill(): void { }
+	pause(): void { }
+	resume(): void { }
+}
+
+class TestAgentHostTerminalManager extends AgentHostTerminalManager {
+	constructor(
+		stateManager: AgentHostStateManager,
+		logService: NullLogService,
+		productService: IProductService,
+		configurationService: AgentConfigurationService,
+		private readonly _pty: TestPty,
+	) {
+		super(stateManager, logService, productService, configurationService);
+	}
+
+	protected override async _spawnPty(_file: string, _args: string[], options: IPtyForkOptions | IWindowsPtyForkOptions): Promise<IPty> {
+		this._pty.cols = options.cols ?? this._pty.cols;
+		this._pty.rows = options.rows ?? this._pty.rows;
+		return this._pty;
+	}
+}
+
 function osc633(payload: string): string {
 	return `\x1b]633;${payload}\x07`;
 }
@@ -172,11 +237,79 @@ function createHandler(nonce = 'test-nonce'): TestTerminalDataHandler {
 	});
 }
 
+async function waitForWrites(pty: TestPty, count: number): Promise<void> {
+	for (let i = 0; i < 20; i++) {
+		if (pty.writes.length >= count) {
+			return;
+		}
+		await timeout(10);
+	}
+}
+
 suite('AgentHostTerminalManager – command detection integration', () => {
 
 	const disposables = new DisposableStore();
 	teardown(() => disposables.clear());
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('writes headless DSR responses back to the PTY', async () => {
+		const logService = new NullLogService();
+		const stateManager = disposables.add(new AgentHostStateManager(logService));
+		const configurationService = disposables.add(new AgentConfigurationService(stateManager, logService));
+		const productService = { _serviceBrand: undefined, applicationName: 'vscode' } as IProductService;
+		const pty = new TestPty();
+		const manager = disposables.add(new TestAgentHostTerminalManager(stateManager, logService, productService, configurationService, pty));
+
+		const createTerminal = manager.createTerminal({
+			terminal: 'agenthost-terminal://test/dsr',
+			claim: { kind: TerminalClaimKind.Client, clientId: 'test-client' },
+			cwd: process.cwd(),
+			cols: 80,
+			rows: 24,
+		}, { shell: '/bin/bash' });
+
+		await pty.dataListenerRegistered.p;
+		pty.fireData('abc\x1b[6n');
+		await createTerminal;
+		await waitForWrites(pty, 1);
+
+		assert.deepStrictEqual(pty.writes, ['\x1b[1;4R']);
+	});
+
+	test('server-handled CPR queries are stripped from client-facing data', () => {
+		function filter(data: string): string {
+			return removeServerHandledTerminalQueries(data, { pendingData: '' });
+		}
+
+		assert.strictEqual(filter('before \x1b[6n after'), 'before  after');
+		assert.strictEqual(filter('before \x1b[?6n after'), 'before  after');
+		assert.strictEqual(filter('\x1b[5n\x1b[c\x1b[0c\x1b[>c\x1b[>0c'), '\x1b[5n\x1b[c\x1b[0c\x1b[>c\x1b[>0c');
+		assert.strictEqual(filter('normal output\r\n'), 'normal output\r\n');
+	});
+
+	test('server-handled CPR queries are stripped across data chunks', () => {
+		let state: ITerminalQueryFilterState = { pendingData: '' };
+		assert.strictEqual(removeServerHandledTerminalQueries('before \x1b[', state), 'before ');
+		assert.strictEqual(removeServerHandledTerminalQueries('6n after', state), ' after');
+
+		state = { pendingData: '' };
+		assert.strictEqual(removeServerHandledTerminalQueries('before \x1b[?', state), 'before ');
+		assert.strictEqual(removeServerHandledTerminalQueries('6n after', state), ' after');
+
+		state = { pendingData: '' };
+		assert.strictEqual(removeServerHandledTerminalQueries('before \x1b[', state), 'before ');
+		assert.strictEqual(removeServerHandledTerminalQueries('K after', state), '\x1b[K after');
+	});
+
+	test('manager data path strips CPR queries while preserving surrounding output', () => {
+		const handler = createHandler();
+
+		const cleaned = handler.handlePtyData(`before${osc633('A')}\x1b[6nmid\x1b[?6nafter`);
+
+		assert.strictEqual(cleaned, 'beforemidafter');
+		assert.deepStrictEqual(handler.content, [{ type: 'unclassified', value: 'beforemidafter' }]);
+		assert.strictEqual(handler.dispatched[0].type, ActionType.TerminalCommandDetectionAvailable);
+	});
 
 	test('TerminalCommandDetectionAvailable is dispatched on first OSC 633', () => {
 		const handler = createHandler();
