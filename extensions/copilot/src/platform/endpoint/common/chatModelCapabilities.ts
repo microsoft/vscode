@@ -126,6 +126,24 @@ export function isGpt55(model: LanguageModelChat | IChatEndpoint | string) {
 	return family.startsWith('gpt-5.5') || HIDDEN_MODEL_B_HASHES.includes(h);
 }
 
+export function isGpt55EconomicalSearchAndEditExp(
+	accessor: ServicesAccessor,
+	model: LanguageModelChat | IChatEndpoint | string,
+) {
+	const configurationService = accessor.get(IConfigurationService);
+	const experimentationService = accessor.get(IExperimentationService);
+	return isGpt55(model) && configurationService.getExperimentBasedConfig(ConfigKey.EnableGpt55EconomicalSearchAndEdit, experimentationService);
+}
+
+export function isGpt55LargePromptSectionsExp(
+	accessor: ServicesAccessor,
+	model: LanguageModelChat | IChatEndpoint | string,
+) {
+	const configurationService = accessor.get(IConfigurationService);
+	const experimentationService = accessor.get(IExperimentationService);
+	return isGpt55(model) && configurationService.getExperimentBasedConfig(ConfigKey.EnableGpt55LargePromptSections, experimentationService);
+}
+
 export function isGpt54ConcisePromptExp(
 	accessor: ServicesAccessor,
 	model: LanguageModelChat | IChatEndpoint | string,
