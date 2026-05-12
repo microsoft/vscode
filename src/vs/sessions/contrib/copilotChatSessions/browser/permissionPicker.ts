@@ -250,6 +250,7 @@ export class PermissionPicker extends Disposable {
 				optionLabelAfter: undefined,
 				isPII: false,
 			});
+			return;
 		}
 
 		reportNewChatPickerClosed(this.telemetryService, {
