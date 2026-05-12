@@ -771,14 +771,14 @@ export class ChatStatusDashboard extends DomWidget {
 				quotaCallout.className = 'quota-callout info';
 				calloutIcon.className = `callout-icon ${ThemeIcon.asClassName(Codicon.info)}`;
 				calloutText.textContent = isUsageBasedBilling
-					? localize('quotaAdditionalUsageActive', "Additional spend is configured. Usage will continue until limits reset.")
+					? localize('quotaAdditionalUsageActive', "Additional budget is configured. Usage will continue until limits reset.")
 					: localize('quotaBudgetActive', "Premium request budget is configured. Usage will continue until limits reset.");
 			} else if (maxUsedPercentage >= 75 && maxUsedPercentage < 100 && additionalUsageEnabled) {
 				quotaCallout.style.display = '';
 				quotaCallout.className = 'quota-callout info';
 				calloutIcon.className = `callout-icon ${ThemeIcon.asClassName(Codicon.info)}`;
 				calloutText.textContent = isUsageBasedBilling
-					? localize('quotaAdditionalUsageApproaching', "Once the limit is reached, additional spend will be used.")
+					? localize('quotaAdditionalUsageApproaching', "Once the limit is reached, additional budget will be used.")
 					: localize('quotaBudgetApproaching', "Once the limit is reached, premium request budget will be used.");
 			} else if (maxUsedPercentage >= 100 && !additionalUsageEnabled) {
 				quotaCallout.style.display = '';
