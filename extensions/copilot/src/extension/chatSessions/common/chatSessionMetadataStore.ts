@@ -65,6 +65,12 @@ export interface RequestDetails {
 	 */
 	responseModelId?: string;
 
+	/**
+	 * Total credits consumed for this request turn. Persisted so that rebuilt history
+	 * can display credit usage alongside the model name.
+	 */
+	creditsUsed?: number;
+
 	/** Checkpoint reference for this request (primary workspace). */
 	checkpointRef?: string;
 
