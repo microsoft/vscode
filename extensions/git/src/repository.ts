@@ -3072,6 +3072,7 @@ export class Repository implements Disposable {
 				case 'D': indexGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Index, uri, Status.INDEX_DELETED, useIcons, undefined, this.kind)); break;
 				case 'R': indexGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Index, uri, Status.INDEX_RENAMED, useIcons, renameUri, this.kind)); break;
 				case 'C': indexGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Index, uri, Status.INDEX_COPIED, useIcons, renameUri, this.kind)); break;
+				case 'T': indexGroup.push(new Resource(this.resourceCommandResolver, ResourceGroupType.Index, uri, Status.TYPE_CHANGED, useIcons, undefined, this.kind)); break;
 			}
 
 			switch (raw.y) {
