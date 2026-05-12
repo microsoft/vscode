@@ -60,7 +60,7 @@ import { ChangesMultiDiffSourceResolver, getChangesMultiDiffSourceUri } from './
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { CodeReviewStateKind, getCodeReviewFilesFromSessionChanges, getCodeReviewVersion, ICodeReviewService, PRReviewStateKind } from '../../codeReview/browser/codeReviewService.js';
 import { CIStatusWidget } from './checksWidget.js';
-import { COPILOT_CLOUD_SESSION_TYPE, GITHUB_REMOTE_FILE_SCHEME, SessionStatus } from '../../../services/sessions/common/session.js';
+import { GITHUB_REMOTE_FILE_SCHEME, SessionStatus } from '../../../services/sessions/common/session.js';
 import { Orientation } from '../../../../base/browser/ui/sash/sash.js';
 import { IView, Sizing, SplitView } from '../../../../base/browser/ui/splitview/splitview.js';
 import { Color } from '../../../../base/common/color.js';
@@ -1375,7 +1375,7 @@ class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem {
 						detail: localize('chatEditing.versionsUncommittedChanges.description', 'Show uncommitted changes in this session'),
 						checked: viewModel.versionModeObs.get() === ChangesVersionMode.UncommittedChanges,
 						category: { label: 'changes', order: 2, showHeader: false },
-						enabled: viewModel.activeSessionTypeObs.get() !== COPILOT_CLOUD_SESSION_TYPE &&
+						enabled: !viewModel.activeSessionIsVirtualWorkspaceObs.get() &&
 							viewModel.activeSessionFirstCheckpointRefObs.get() !== undefined &&
 							viewModel.activeSessionIsArchivedObs.get() === false,
 						run: async () => {
@@ -1393,7 +1393,7 @@ class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem {
 						detail: localize('chatEditing.versionsAllChanges.description', 'Show all changes made in this session'),
 						checked: viewModel.versionModeObs.get() === ChangesVersionMode.AllChanges,
 						category: { label: 'checkpoints', order: 3, showHeader: false },
-						enabled: viewModel.activeSessionTypeObs.get() === COPILOT_CLOUD_SESSION_TYPE ||
+						enabled: viewModel.activeSessionIsVirtualWorkspaceObs.get() ||
 							(viewModel.activeSessionFirstCheckpointRefObs.get() !== undefined &&
 								viewModel.activeSessionLastCheckpointRefObs.get() !== undefined),
 						run: async () => {
@@ -1411,7 +1411,7 @@ class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem {
 						detail: localize('chatEditing.versionsLastTurnChanges.description', 'Show only changes from the last turn'),
 						checked: viewModel.versionModeObs.get() === ChangesVersionMode.LastTurn,
 						category: { label: 'checkpoints', order: 4, showHeader: false },
-						enabled: viewModel.activeSessionTypeObs.get() === COPILOT_CLOUD_SESSION_TYPE ||
+						enabled: viewModel.activeSessionIsVirtualWorkspaceObs.get() ||
 							(viewModel.activeSessionFirstCheckpointRefObs.get() !== undefined &&
 								viewModel.activeSessionLastCheckpointRefObs.get() !== undefined),
 						run: async () => {
