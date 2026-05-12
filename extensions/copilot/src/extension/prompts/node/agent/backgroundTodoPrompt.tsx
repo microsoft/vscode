@@ -147,46 +147,27 @@ Ordering and state rules:
 interface PreviousContextRoundChunkProps extends BasePromptElementProps {
 	readonly round: IBackgroundTodoHistoryRound;
 	readonly totalPreviousRounds: number;
-	/** Whether this is the first round in its turn group. */
-	readonly isFirstInTurn: boolean;
-	/** Whether this is the last round in its turn group. */
-	readonly isLastInTurn: boolean;
 }
 
 /**
  * Prompt element rendering a single previous-context round as its own
  * Chunk so that prompt-tsx can drop older rounds independently under
- * budget pressure.
+ * budget pressure.  Each chunk is self-contained: it wraps its round
+ * in `<turn>` tags so that pruning any subset of rounds never produces
+ * unbalanced or mis-nested tags.
  */
 class PreviousContextRoundChunk extends PromptElement<PreviousContextRoundChunkProps> {
 	render() {
 		const priority = computeRoundPriority(this.props.round, this.props.totalPreviousRounds);
-		const { round, isFirstInTurn, isLastInTurn } = this.props;
+		const { round } = this.props;
 		return (
 			<Chunk priority={priority} flexGrow={1}>
-				{isFirstInTurn ? `<turn index="${round.turnIndex}">\n` : ''}
+				{`<turn index="${round.turnIndex}">\n`}
 				{renderBackgroundTodoRound(round)}
-				{isLastInTurn ? '\n</turn>' : ''}
+				{'\n</turn>'}
 			</Chunk>
 		);
 	}
-}
-
-/**
- * Annotate each round with whether it is the first/last in its turn group,
- * so that `PreviousContextRoundChunk` can emit `<turn>` open/close tags
- * only at boundaries.
- */
-function annotateWithTurnBoundaries(rounds: readonly IBackgroundTodoHistoryRound[]): { round: IBackgroundTodoHistoryRound; isFirstInTurn: boolean; isLastInTurn: boolean }[] {
-	return rounds.map((round, i) => {
-		const prevTurn = i > 0 ? rounds[i - 1].turnIndex : undefined;
-		const nextTurn = i < rounds.length - 1 ? rounds[i + 1].turnIndex : undefined;
-		return {
-			round,
-			isFirstInTurn: round.turnIndex !== prevTurn,
-			isLastInTurn: round.turnIndex !== nextTurn,
-		};
-	});
 }
 
 /**
@@ -233,12 +214,10 @@ export class BackgroundTodoPrompt extends PromptElement<BackgroundTodoPromptProp
 					<UserMessage priority={880} flexGrow={1}>
 						{'<full-trajectory>\n'}
 						<PrioritizedList descending={false} passPriority={true}>
-							{annotateWithTurnBoundaries([...history.previousRounds, ...history.newRounds]).map(item => (
+							{[...history.previousRounds, ...history.newRounds].map(round => (
 								<PreviousContextRoundChunk
-									round={item.round}
+									round={round}
 									totalPreviousRounds={history.previousRounds.length + history.newRounds.length}
-									isFirstInTurn={item.isFirstInTurn}
-									isLastInTurn={item.isLastInTurn}
 								/>
 							))}
 						</PrioritizedList>
@@ -250,12 +229,10 @@ export class BackgroundTodoPrompt extends PromptElement<BackgroundTodoPromptProp
 					<UserMessage priority={850} flexGrow={1}>
 						{'<previous-context>\n'}
 						<PrioritizedList descending={false} passPriority={true}>
-							{annotateWithTurnBoundaries(history.previousRounds).map(item => (
+							{history.previousRounds.map(round => (
 								<PreviousContextRoundChunk
-									round={item.round}
+									round={round}
 									totalPreviousRounds={history.previousRounds.length}
-									isFirstInTurn={item.isFirstInTurn}
-									isLastInTurn={item.isLastInTurn}
 								/>
 							))}
 						</PrioritizedList>

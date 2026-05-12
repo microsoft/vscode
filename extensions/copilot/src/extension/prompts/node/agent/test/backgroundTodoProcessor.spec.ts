@@ -23,6 +23,7 @@ function makeDelta(rounds: string[] = []): IBackgroundTodoDelta {
 			newRoundCount: rounds.length,
 			newToolCallCount: 0,
 			substantiveToolCallCount: 0,
+			currentTurnSubstantiveToolCallCount: 0,
 			isInitialDelta: true,
 			isRequestOnly: rounds.length === 0,
 		},
@@ -267,6 +268,39 @@ describe('BackgroundTodoProcessor', () => {
 		// Second request with same turn ID should be a no-op
 		processor.requestFinalReview('turn-1');
 		expect(processor.state).toBe(BackgroundTodoProcessorState.Idle);
+	});
+
+	test('requestFinalReview skips when execution context is from a different turn', async () => {
+		const processor = new BackgroundTodoProcessor();
+		// Simulate a successful pass so hasCreatedTodos becomes true
+		processor.start(makeDelta(['r1']), async () => ({ outcome: 'success' }));
+		await processor.waitForCompletion();
+		expect(processor.hasCreatedTodos).toBe(true);
+
+		// Record context for turn-1
+		processor.requestRegularPass(makeDelta(['r2']), makeExecutionContext(['r2']), undefined, 'turn-1');
+		await processor.waitForCompletion();
+
+		// Request final review for turn-2 — should skip because context is from turn-1
+		processor.requestFinalReview('turn-2');
+		expect(processor.state).toBe(BackgroundTodoProcessorState.Idle);
+	});
+
+	test('requestFinalReview runs when turn IDs match', async () => {
+		const processor = new BackgroundTodoProcessor();
+		// Simulate a successful pass so hasCreatedTodos becomes true
+		processor.start(makeDelta(['r1']), async () => ({ outcome: 'success' }));
+		await processor.waitForCompletion();
+		expect(processor.hasCreatedTodos).toBe(true);
+
+		// Record context for turn-1
+		processor.requestRegularPass(makeDelta(['r2']), makeExecutionContext(['r2']), undefined, 'turn-1');
+		await processor.waitForCompletion();
+
+		// Request final review for turn-1 — should run
+		processor.requestFinalReview('turn-1');
+		expect(processor.state).toBe(BackgroundTodoProcessorState.InProgress);
+		await processor.waitForCompletion();
 	});
 
 	test('requestFinalReview drains after a regular pass completes', async () => {
