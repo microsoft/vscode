@@ -260,7 +260,17 @@ function createZshModelDescription(isSandboxEnabled: boolean, allowToRunUnsandbo
 		'- Use jobs, fg, bg for job control',
 		'- Use [[ ]] for conditional tests instead of [ ]',
 		'- Prefer $() over backticks for command substitution',
-		'- Take advantage of zsh globbing features (**, extended globs)'
+		'- Take advantage of zsh globbing features (**, extended globs)',
+		'',
+		'zsh pitfalls — these WILL cause errors or hangs:',
+		'- NEVER use ! inside double quotes (e.g. echo "hello!" hangs on dquote>). Use single quotes: echo \'hello!\'',
+		'- NEVER use bare == or === as separators (e.g. echo === triggers zsh equals expansion). Quote them: echo \'===\'',
+		'- NEVER use # comments inline in single-line commands (zsh: command not found: #). Chain with && instead or use a single command',
+		'- NEVER use status as a variable name (it is read-only in zsh). Use exit_code or ret instead',
+		'- Unmatched globs fail by default (zsh: no matches found). Use 2>/dev/null or test existence first',
+		'- Do not store multi-word commands in a scalar variable and then expand it (e.g. cmd="node file.js"; $cmd). Use an array or call directly',
+		'- The timeout command is not available on macOS by default. Do not use it',
+		'- Avoid passing very large inline arguments (argument list too long). Write to a temp file instead',
 	].join('\n');
 }
 
