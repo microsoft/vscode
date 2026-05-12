@@ -1530,15 +1530,16 @@ class AgentSessionAdapter implements ICopilotChatSession {
 			return { repoUri: repositoryUri };
 		}
 
-		const repositoryPath = metadata?.repositoryPath as string | undefined;
-		const repositoryPathUri = typeof repositoryPath === 'string' ? URI.file(repositoryPath) : undefined;
-
-		const worktreePath = metadata?.worktreePath as string | undefined;
-		const worktreePathUri = typeof worktreePath === 'string' ? URI.file(worktreePath) : undefined;
+		const repoUri = typeof metadata?.repositoryPath === 'string'
+			? URI.file(metadata.repositoryPath)
+			: undefined;
+		const worktreeUri = typeof metadata?.worktreePath === 'string'
+			? URI.file(metadata.worktreePath)
+			: undefined;
 
 		return {
-			repoUri: URI.isUri(repositoryPathUri) ? repositoryPathUri : undefined,
-			worktreeUri: URI.isUri(worktreePathUri) ? worktreePathUri : undefined,
+			repoUri,
+			worktreeUri,
 			branchName: metadata?.branchName as string | undefined,
 			baseBranchName: metadata?.baseBranchName as string | undefined,
 			baseBranchProtected: metadata?.baseBranchProtected as boolean | undefined,
