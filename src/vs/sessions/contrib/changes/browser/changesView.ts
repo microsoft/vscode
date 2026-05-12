@@ -839,7 +839,7 @@ export class ChangesViewPane extends ViewPane {
 
 		// Get the repository details for the session
 		// - uri: location of the repository
-		// - workingDirectory (optional): location of the worktree
+		// - workingDirectory: location of the worktree
 		const activeSession = this.sessionManagementService.activeSession.get();
 		const folder = activeSession?.workspace.get()?.folders[0];
 		const workspaceFolderUri = folder?.workingDirectory;
