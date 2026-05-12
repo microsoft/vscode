@@ -413,19 +413,25 @@ export class BreadcrumbsControl {
 				? this._instantiationService.createInstance(FileItem, model, element, options, this._labels, this._hoverDelegate)
 				: this._instantiationService.createInstance(OutlineItem, model, element, options));
 			if (items.length === 0) {
-				this._widget.setEnabled(false);
-				this._widget.setItems([new class extends BreadcrumbsItem {
-					render(container: HTMLElement): void {
-						container.textContent = localize('empty', "no elements");
-					}
-					equals(other: BreadcrumbsItem): boolean {
-						return other === this;
-					}
-					dispose(): void {
+				if (model.resource.scheme === Schemas.untitled) {
+					// untitled files have no file path — hide until symbols are available
+					this.hide();
+				} else {
+					this._widget.setEnabled(false);
+					this._widget.setItems([new class extends BreadcrumbsItem {
+						render(container: HTMLElement): void {
+							container.textContent = localize('empty', "no elements");
+						}
+						equals(other: BreadcrumbsItem): boolean {
+							return other === this;
+						}
+						dispose(): void {
 
-					}
-				}]);
+						}
+					}]);
+				}
 			} else {
+				this.show(); // re-show if hidden while waiting for symbols (e.g. untitled file)
 				this._widget.setEnabled(true);
 				this._widget.setItems(items);
 				this._widget.reveal(items[items.length - 1]);
