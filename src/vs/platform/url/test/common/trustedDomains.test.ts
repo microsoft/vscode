@@ -14,12 +14,14 @@ suite('trustedDomains', () => {
 
 	suite('isURLDomainTrusted', () => {
 
-		test('localhost is always trusted', () => {
+		test('localhost and all-interfaces authorities are always trusted', () => {
 			assert.strictEqual(isURLDomainTrusted(URI.parse('http://localhost:3000'), []), true);
 			assert.strictEqual(isURLDomainTrusted(URI.parse('http://127.0.0.1:3000'), []), true);
 			assert.strictEqual(isURLDomainTrusted(URI.parse('http://subdomain.localhost'), []), true);
 			assert.strictEqual(isURLDomainTrusted(URI.parse('https://[::1]'), []), true);
 			assert.strictEqual(isURLDomainTrusted(URI.parse('http://[::1]:3000'), []), true);
+			assert.strictEqual(isURLDomainTrusted(URI.parse('http://0.0.0.0:3000'), []), true);
+			assert.strictEqual(isURLDomainTrusted(URI.parse('http://[::]:3000'), []), true);
 		});
 
 		test('wildcard (*) matches everything', () => {
