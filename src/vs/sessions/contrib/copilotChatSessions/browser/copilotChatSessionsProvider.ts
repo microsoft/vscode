@@ -2505,9 +2505,9 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			this._currentNewSession = undefined;
 		}
 
-		const newWorkspace = this.resolveWorkspace(folder.uri);
+		const newWorkspace = this.resolveWorkspace(folder.workingDirectory);
 		if (!newWorkspace) {
-			throw new Error(`Cannot resolve workspace for URI: ${(folder.uri).toString()}`);
+			throw new Error(`Cannot resolve workspace for working directory URI: ${folder.workingDirectory.toString()}`);
 		}
 		const resource = URI.from({ scheme: AgentSessionProviders.Background, path: `/untitled-${generateUuid()}` });
 		const session = this.instantiationService.createInstance(CopilotCLISession, resource, newWorkspace, this.id);
