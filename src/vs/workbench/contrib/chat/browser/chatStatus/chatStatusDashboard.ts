@@ -45,6 +45,7 @@ import { isNewUser } from './chatStatus.js';
 import { IChatStatusItemService, ChatStatusEntry } from './chatStatusItemService.js';
 import product from '../../../../../platform/product/common/product.js';
 import { isCompletionsEnabled } from '../../../../../editor/common/services/completionsEnablement.js';
+import { IChatInputNotificationService } from '../widget/input/chatInputNotificationService.js';
 
 const defaultChat = product.defaultChatAgent;
 
@@ -122,6 +123,7 @@ export class ChatStatusDashboard extends DomWidget {
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IStorageService private readonly storageService: IStorageService,
+		@IChatInputNotificationService private readonly chatInputNotificationService: IChatInputNotificationService,
 	) {
 		super();
 
@@ -191,6 +193,11 @@ export class ChatStatusDashboard extends DomWidget {
 					header.insertBefore(upgradeButton.element, actionBarElement);
 				}
 			}
+		}
+
+		// Compact notification (mirrors chat input notifications)
+		if (this.options?.compactQuotaLayout) {
+			this.renderCompactNotification();
 		}
 
 		// Always trigger a fresh quota fetch when the dashboard opens
@@ -305,6 +312,24 @@ export class ChatStatusDashboard extends DomWidget {
 		// Anonymous Indicator
 		else if (this.chatEntitlementService.anonymous && this.chatEntitlementService.sentiment.completed) {
 			this.createQuotaIndicator(container, localize('quotaLimited', "Limited"), localize('chatsLabel', "Chat messages"));
+		}
+	}
+
+	private renderCompactNotification(): void {
+		const notification = this.chatInputNotificationService.getActiveNotification();
+		if (!notification) {
+			return;
+		}
+
+		const container = this.element.appendChild($('div.compact-notification.severity-info'));
+		const iconElement = container.appendChild($('div.compact-notification-icon'));
+		iconElement.classList.add(...ThemeIcon.asClassNameArray(Codicon.info));
+		const content = container.appendChild($('div.compact-notification-content'));
+		const primary = content.appendChild($('div.compact-notification-primary'));
+		primary.textContent = typeof notification.message === 'string' ? notification.message : notification.message.value;
+		if (notification.description) {
+			const secondary = content.appendChild($('div.compact-notification-secondary'));
+			secondary.textContent = notification.description;
 		}
 	}
 

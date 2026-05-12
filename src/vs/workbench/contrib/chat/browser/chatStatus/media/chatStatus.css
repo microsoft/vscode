@@ -286,6 +286,49 @@
 	margin-top: 4px;
 }
 
+/* Compact Notification (mirrors chat input notification in dashboard) */
+
+.chat-status-bar-entry-tooltip .compact-notification {
+	display: flex;
+	align-items: flex-start;
+	gap: 8px;
+	padding: 8px 10px;
+	border-radius: 6px;
+	border: 1px solid;
+	margin-bottom: 8px;
+	font-size: 12px;
+	line-height: 18px;
+}
+
+.chat-status-bar-entry-tooltip .compact-notification.severity-info {
+	border-color: var(--vscode-focusBorder);
+	background-color: color-mix(in srgb, var(--vscode-focusBorder) 6%, var(--vscode-editorWidget-background));
+}
+
+.chat-status-bar-entry-tooltip .compact-notification-icon {
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	height: 18px;
+	color: var(--vscode-focusBorder);
+}
+
+.chat-status-bar-entry-tooltip .compact-notification-content {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	min-width: 0;
+}
+
+.chat-status-bar-entry-tooltip .compact-notification-primary {
+	font-weight: 600;
+	color: var(--vscode-foreground);
+}
+
+.chat-status-bar-entry-tooltip .compact-notification-secondary {
+	color: var(--vscode-descriptionForeground);
+}
+
 /* Quota Callout */
 
 .chat-status-bar-entry-tooltip .quota-callout {
