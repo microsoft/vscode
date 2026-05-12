@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -1339,8 +1339,6 @@ suite('CopilotChatSessionsProvider', () => {
 			const session = provider.getSession(sessionInfo.sessionId);
 
 			assert.strictEqual(session?.permissionLevel.get(), ChatPermissionLevel.Autopilot);
-
-			(session as unknown as IDisposable | undefined)?.dispose();
 		});
 
 		test('clamps to Default when chat.tools.global.autoApprove policy is false', () => {
@@ -1351,8 +1349,6 @@ suite('CopilotChatSessionsProvider', () => {
 			const session = provider.getSession(sessionInfo.sessionId);
 
 			assert.strictEqual(session?.permissionLevel.get(), ChatPermissionLevel.Default);
-
-			(session as unknown as IDisposable | undefined)?.dispose();
 		});
 
 		test('falls back to Default when chat.permissions.default is unset', () => {
@@ -1363,8 +1359,6 @@ suite('CopilotChatSessionsProvider', () => {
 			const session = provider.getSession(sessionInfo.sessionId);
 
 			assert.strictEqual(session?.permissionLevel.get(), ChatPermissionLevel.Default);
-
-			(session as unknown as IDisposable | undefined)?.dispose();
 		});
 	});
 });

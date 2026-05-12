@@ -42,7 +42,7 @@ export interface IPermissionPickerDelegate {
 	 * omitted, the picker manages its own internal state and starts at
 	 * {@link ChatPermissionLevel.Default}.
 	 */
-	readonly currentPermissionLevel?: IObservable<ChatPermissionLevel>;
+	readonly currentPermissionLevel?: IObservable<ChatPermissionLevel | undefined>;
 
 	/**
 	 * If provided, the picker hides itself when this is `false`. Used by
@@ -121,7 +121,11 @@ export class PermissionPicker extends Disposable {
 		const currentPermissionLevel = this._delegate.currentPermissionLevel;
 		if (currentPermissionLevel) {
 			this._renderDisposables.add(autorun(reader => {
-				this._currentLevel = currentPermissionLevel.read(reader);
+				const level = currentPermissionLevel.read(reader);
+				if (level === undefined) {
+					return;
+				}
+				this._currentLevel = level;
 				this._updateTriggerLabel(trigger);
 			}));
 		}
@@ -290,7 +294,7 @@ export class PermissionPicker extends Disposable {
  */
 export class CopilotPermissionPickerDelegate extends Disposable implements IPermissionPickerDelegate {
 
-	readonly currentPermissionLevel: IObservable<ChatPermissionLevel>;
+	readonly currentPermissionLevel: IObservable<ChatPermissionLevel | undefined>;
 
 	constructor(
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
@@ -302,14 +306,13 @@ export class CopilotPermissionPickerDelegate extends Disposable implements IPerm
 		this.currentPermissionLevel = derived(this, reader => {
 			const session = this._sessionsManagementService.activeSession.read(reader);
 			if (!session) {
-				return ChatPermissionLevel.Default;
+				return undefined;
 			}
 			const provider = this._sessionsProvidersService.getProvider(session.providerId);
 			if (!(provider instanceof CopilotChatSessionsProvider)) {
-				return ChatPermissionLevel.Default;
+				return undefined;
 			}
-			const chatSession = provider.getSession(session.sessionId);
-			return chatSession?.permissionLevel.read(reader) ?? ChatPermissionLevel.Default;
+			return provider.getSession(session.sessionId)?.permissionLevel.read(reader);
 		});
 	}
 
