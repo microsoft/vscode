@@ -14,11 +14,13 @@ import { getTextPart } from '../../../../platform/chat/common/globalStringUtils'
 import { IHistoricalTurn, ISessionTranscriptService } from '../../../../platform/chat/common/sessionTranscriptService';
 import { ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
 import { isAnthropicFamily, isGeminiFamily } from '../../../../platform/endpoint/common/chatModelCapabilities';
+import { IEndpointProvider } from '../../../../platform/endpoint/common/endpointProvider';
 import { ILogService } from '../../../../platform/log/common/logService';
 import { CUSTOM_TOOL_SEARCH_NAME } from '../../../../platform/networking/common/anthropic';
 import { IChatEndpoint } from '../../../../platform/networking/common/networking';
 import { APIUsage } from '../../../../platform/networking/common/openai';
 import { IPromptPathRepresentationService } from '../../../../platform/prompts/common/promptPathRepresentationService';
+import { IExperimentationService } from '../../../../platform/telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
 import { ThinkingData } from '../../../../platform/thinking/common/thinking';
 import { computePromptTokenDetails } from '../../../../platform/tokenizer/node/promptTokenDetails';
@@ -40,6 +42,7 @@ import { renderPromptElement } from '../base/promptRenderer';
 import { Tag } from '../base/tag';
 import { ChatToolCalls } from '../panel/toolCalling';
 import { AgentUserMessage, AgentUserMessageCustomizations, getUserMessagePropsFromAgentProps, getUserMessagePropsFromTurn } from './agentPrompt';
+import { resolveCompactionEndpoint } from './compactionEndpoint';
 import { DefaultOpenAIKeepGoingReminder } from './openai/defaultOpenAIPrompt';
 import { SimpleSummarizedHistory } from './simpleSummarizedHistoryPrompt';
 
@@ -554,6 +557,8 @@ class ConversationHistorySummarizer {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IChatHookService private readonly chatHookService: IChatHookService,
 		@ISessionTranscriptService private readonly sessionTranscriptService: ISessionTranscriptService,
+		@IExperimentationService private readonly experimentationService: IExperimentationService,
+		@IEndpointProvider private readonly endpointProvider: IEndpointProvider,
 	) { }
 
 	async summarizeHistory(): Promise<{ summary: string; toolCallRoundId: string; thinking?: ThinkingData; usage?: APIUsage; promptTokenDetails?: readonly ChatResultPromptTokenDetail[]; model?: string; summarizationMode?: string; numRounds?: number; numRoundsSinceLastSummarization?: number; durationMs?: number } | undefined> {
@@ -654,17 +659,29 @@ class ConversationHistorySummarizer {
 	private async getSummary(mode: SummaryMode, propsInfo: ISummarizedConversationHistoryInfo): Promise<SummarizationResult> {
 		const stopwatch = new StopWatch(false);
 
+		// Allow a custom trajectory-compaction model to override the main agent
+		// endpoint via experiment-based config. When neither flag is set this
+		// returns `this.props.endpoint` unchanged.
+		const compactionEndpoint = await resolveCompactionEndpoint(
+			this.props.endpoint,
+			this.instantiationService,
+			this.configurationService,
+			this.experimentationService,
+			this.endpointProvider,
+			this.logService,
+		);
+
 		// In Full mode, tools are sent alongside the summarization prompt with
 		// tool_choice: 'none'. Reserve budget for them so the rendered messages
 		// plus tools don't exceed the model's context window.
 		const tools = this.props.tools;
 		const toolTokens = mode === SummaryMode.Full && tools?.length
-			? await this.props.endpoint.acquireTokenizer().countToolTokens(tools)
+			? await compactionEndpoint.acquireTokenizer().countToolTokens(tools)
 			: 0;
 		const endpoint = toolTokens > 0
-			? this.props.endpoint.cloneWithTokenOverride(
-				Math.max(1, Math.floor((this.props.endpoint.modelMaxPromptTokens - toolTokens) * 0.9)))
-			: this.props.endpoint;
+			? compactionEndpoint.cloneWithTokenOverride(
+				Math.max(1, Math.floor((compactionEndpoint.modelMaxPromptTokens - toolTokens) * 0.9)))
+			: compactionEndpoint;
 
 		let summarizationPrompt: ChatMessage[];
 		const associatedRequestId = this.props.promptContext.conversation?.getLatestTurn().id;
@@ -675,7 +692,7 @@ class ConversationHistorySummarizer {
 			const budgetExceeded = e instanceof BudgetExceededError;
 			const outcome = budgetExceeded ? 'budget_exceeded' : 'renderError';
 			this.logInfo(`Error rendering summarization prompt in mode: ${mode}. ${e.stack}`, mode);
-			this.sendSummarizationTelemetry(outcome, '', this.props.endpoint.model, mode, stopwatch.elapsed(), undefined, e instanceof Error ? e.message : String(e));
+			this.sendSummarizationTelemetry(outcome, '', endpoint.model, mode, stopwatch.elapsed(), undefined, e instanceof Error ? e.message : String(e));
 			throw e;
 		}
 
@@ -758,7 +775,7 @@ class ConversationHistorySummarizer {
 			}, this.token ?? CancellationToken.None);
 		} catch (e) {
 			this.logInfo(`Error from summarization request. ${e.message}`, mode);
-			this.sendSummarizationTelemetry('requestThrow', '', this.props.endpoint.model, mode, stopwatch.elapsed(), undefined, e instanceof Error ? e.message : String(e));
+			this.sendSummarizationTelemetry('requestThrow', '', endpoint.model, mode, stopwatch.elapsed(), undefined, e instanceof Error ? e.message : String(e));
 			throw e;
 		}
 
@@ -772,7 +789,7 @@ class ConversationHistorySummarizer {
 
 		const durationMs = stopwatch.elapsed();
 		return {
-			result: await this.handleSummarizationResponse(summaryResponse, mode, durationMs, promptTypes),
+			result: await this.handleSummarizationResponse(summaryResponse, mode, durationMs, endpoint.model, promptTypes),
 			promptTokenDetails,
 			model: endpoint.model,
 			summarizationMode: mode,
@@ -780,10 +797,10 @@ class ConversationHistorySummarizer {
 		};
 	}
 
-	private async handleSummarizationResponse(response: ChatResponse, mode: SummaryMode, elapsedTime: number, promptTypes?: string): Promise<FetchSuccess<string>> {
+	private async handleSummarizationResponse(response: ChatResponse, mode: SummaryMode, elapsedTime: number, model: string, promptTypes?: string): Promise<FetchSuccess<string>> {
 		if (response.type !== ChatFetchResponseType.Success) {
 			const outcome = response.type;
-			this.sendSummarizationTelemetry(outcome, response.requestId, this.props.endpoint.model, mode, elapsedTime, undefined, response.reason ?? response.type);
+			this.sendSummarizationTelemetry(outcome, response.requestId, model, mode, elapsedTime, undefined, response.reason ?? response.type);
 			this.logInfo(`Summarization request failed. ${response.type} ${response.reason ?? response.type}`, mode);
 			if (response.type === ChatFetchResponseType.Canceled) {
 				throw new CancellationError();
@@ -798,12 +815,12 @@ class ConversationHistorySummarizer {
 				? Math.min(this.sizing.tokenBudget, this.props.maxSummaryTokens)
 				: this.sizing.tokenBudget;
 		if (summarySize > effectiveBudget) {
-			this.sendSummarizationTelemetry('too_large', response.requestId, this.props.endpoint.model, mode, elapsedTime, response.usage, `${summarySize} tokens exceeds budget ${effectiveBudget}`);
+			this.sendSummarizationTelemetry('too_large', response.requestId, model, mode, elapsedTime, response.usage, `${summarySize} tokens exceeds budget ${effectiveBudget}`);
 			this.logInfo(`Summary too large: ${summarySize} tokens (effective budget ${effectiveBudget})`, mode);
 			throw new Error('Summary too large');
 		}
 
-		this.sendSummarizationTelemetry('success', response.requestId, this.props.endpoint.model, mode, elapsedTime, response.usage, undefined, promptTypes);
+		this.sendSummarizationTelemetry('success', response.requestId, model, mode, elapsedTime, response.usage, undefined, promptTypes);
 		this.logInfo(`Summarization usage: prompt=${response.usage?.prompt_tokens ?? '?'}, cached=${response.usage?.prompt_tokens_details?.cached_tokens ?? '?'}, completion=${response.usage?.completion_tokens ?? '?'}`, mode);
 		return response;
 	}

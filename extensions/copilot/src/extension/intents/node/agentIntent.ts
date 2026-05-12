@@ -50,6 +50,7 @@ import { IBuildPromptResult, IIntent, IIntentInvocation } from '../../prompt/nod
 import { AgentPrompt, AgentPromptProps } from '../../prompts/node/agent/agentPrompt';
 import { BackgroundSummarizationState, BackgroundSummarizer, IBackgroundSummarizationResult, shouldKickOffBackgroundSummarization } from '../../prompts/node/agent/backgroundSummarizer';
 import { BackgroundTodoDecision, BackgroundTodoProcessor } from '../../prompts/node/agent/backgroundTodoProcessor';
+import { resolveCompactionEndpoint } from '../../prompts/node/agent/compactionEndpoint';
 import { AgentPromptCustomizations, PromptRegistry } from '../../prompts/node/agent/promptRegistry';
 import { extractSummary, SummarizationUserMessage, SummarizedConversationHistory, SummarizedConversationHistoryMetadata, SummarizedConversationHistoryPropsBuilder, appendTranscriptHintToSummary, computeSummarizationRoundCounts } from '../../prompts/node/agent/summarizedConversationHistory';
 import { PromptRenderer, renderPromptElement } from '../../prompts/node/base/promptRenderer';
@@ -928,30 +929,47 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		// Build tool schemas matching the main agent loop so the prompt
 		// prefix (system + tools + messages) is identical for cache hits.
 		const availableTools = promptContext.tools?.availableTools;
-		const normalizedTools = availableTools?.length ? normalizeToolSchema(
-			this.endpoint.family,
-			availableTools.map(tool => ({
-				function: {
-					name: tool.name,
-					description: tool.description,
-					parameters: tool.inputSchema && Object.keys(tool.inputSchema).length ? tool.inputSchema : undefined
+		const buildToolOpts = (targetFamily: string) => {
+			const normalizedTools = availableTools?.length ? normalizeToolSchema(
+				targetFamily,
+				availableTools.map(tool => ({
+					function: {
+						name: tool.name,
+						description: tool.description,
+						parameters: tool.inputSchema && Object.keys(tool.inputSchema).length ? tool.inputSchema : undefined
+					},
+					type: 'function' as const,
+				})),
+				(tool, rule) => {
+					this.logService.warn(`[ConversationHistorySummarizer] Tool ${tool} failed validation: ${rule}`);
 				},
-				type: 'function' as const,
-			})),
-			(tool, rule) => {
-				this.logService.warn(`[ConversationHistorySummarizer] Tool ${tool} failed validation: ${rule}`);
-			},
-		) : undefined;
-		const toolOpts = normalizedTools?.length ? {
-			tools: normalizedTools,
-		} : undefined;
+			) : undefined;
+			return normalizedTools?.length ? { tools: normalizedTools } : undefined;
+		};
 
 		const associatedRequestId = promptContext.conversation?.getLatestTurn()?.id;
 		const conversationId = promptContext.conversation?.sessionId;
-		const modelCapabilities = this._lastModelCapabilities;
 
 		backgroundSummarizer.start(async bgToken => {
 			try {
+				// Resolve the trajectory-compaction endpoint. When neither
+				// compaction config is set this returns `this.endpoint`
+				// unchanged — preserving cache-prefix parity with the main
+				// agent loop. Otherwise tool schemas are normalised against
+				// the target endpoint's family and main-agent model
+				// capabilities (thinking / reasoning effort / tool search /
+				// context editing) are dropped because they may not apply.
+				const compactionEndpoint = await resolveCompactionEndpoint(
+					this.endpoint,
+					this.instantiationService,
+					this.configurationService,
+					this.expService,
+					this.endpointProvider,
+					this.logService,
+				);
+				const toolOpts = buildToolOpts(compactionEndpoint.family);
+				const modelCapabilities = compactionEndpoint === this.endpoint ? this._lastModelCapabilities : undefined;
+
 				// Fork the exact messages from the main render and append a
 				// summary user message. The prompt prefix is byte-identical
 				// to the main agent loop for cache hits.
@@ -969,7 +987,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 					...summaryMsgResult.messages,
 				];
 
-				const response = await this.endpoint.makeChatRequest2({
+				const response = await compactionEndpoint.makeChatRequest2({
 					debugName: 'summarizeConversationHistory',
 					messages,
 					finishedCb: undefined,
@@ -1036,7 +1054,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 				*/
 				this.telemetryService.sendMSFTTelemetryEvent('summarizedConversationHistory', {
 					outcome: 'success',
-					model: this.endpoint.model,
+					model: compactionEndpoint.model,
 					summarizationMode: 'full',
 					conversationId,
 					chatRequestId: associatedRequestId,
@@ -1061,7 +1079,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 					promptCacheTokens: response.usage?.prompt_tokens_details?.cached_tokens,
 					outputTokens: response.usage?.completion_tokens,
 					durationMs: Date.now() - bgStartTime,
-					model: this.endpoint.model,
+					model: compactionEndpoint.model,
 					summarizationMode: 'full',
 					numRounds,
 					numRoundsSinceLastSummarization,
