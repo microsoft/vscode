@@ -87,9 +87,20 @@ export class ToolResultCompressorService extends Disposable implements IToolResu
 					continue;
 				}
 				if (hit) {
-					const cachedResult = this._buildCacheHitResult(result, hit);
 					const totalBefore = result.content.reduce((acc, p) => acc + (p.kind === 'text' ? p.value.length : 0), 0);
+					// Guard: don't replace small outputs or structured data.
+					if (totalBefore < MIN_COMPRESSIBLE_LENGTH) {
+						continue;
+					}
+					const hasProtectedContent = result.content.some(p => p.kind === 'text' && isProtectedFromCompression(p.value));
+					if (hasProtectedContent) {
+						continue;
+					}
+					const cachedResult = this._buildCacheHitResult(result, hit);
 					const totalAfter = cachedResult.content.reduce((acc, p) => acc + (p.kind === 'text' ? p.value.length : 0), 0);
+					if (totalAfter >= totalBefore) {
+						continue;
+					}
 					this._sendTelemetry(toolId, [`cache:${c.id}`], totalBefore, totalAfter, true);
 					return cachedResult;
 				}

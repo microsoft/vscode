@@ -43,7 +43,7 @@ export interface IToolResultFilter {
  * Result of looking up a tool invocation in an {@link IToolResultCache}.
  */
 export interface IToolResultCacheHit {
-	/** The replacement text to substitute for the tool result. */
+	/** The cached output content from the previous run. */
 	readonly text: string;
 	/** Wall-clock timestamp (ms since epoch) of when the cached entry was produced. */
 	readonly timestamp: number;
@@ -83,8 +83,12 @@ export interface IToolResultCompressor {
 
 /**
  * Heuristically decide whether a text part should be excluded from filter
- * rewriting because it carries structured data the model is likely to parse
- * or because it contains error / exit-code information we must not mangle.
+ * rewriting because it carries structured data the model is likely to parse.
+ *
+ * Currently detects:
+ * - Top-level JSON objects/arrays (parsed to verify)
+ * - YAML documents (leading `---` header)
+ * - TOML-style documents (leading `[section]` header)
  *
  * Returning `true` means: the registry will NOT pass this text part to any
  * filter, even if the filter says it matches.
@@ -109,8 +113,8 @@ export function isProtectedFromCompression(text: string): boolean {
 			// fall through
 		}
 	}
-	// TOML / YAML-style documents at the top level: a line `---` opener, or
-	// a file-level table header like `[section]`, or a leading `# yaml:`.
+	// TOML / YAML-style documents at the top level: a line `---` opener or
+	// a file-level table header like `[section]`.
 	// These are cheap heuristics — we don't try to parse YAML/TOML.
 	if (/^---\s*\n/.test(trimmed) || /^\[[A-Za-z_][A-Za-z0-9_.-]*\]\s*\n/.test(trimmed)) {
 		return true;

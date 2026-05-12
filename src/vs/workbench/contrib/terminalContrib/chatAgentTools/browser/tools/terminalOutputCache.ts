@@ -54,10 +54,29 @@ function classifyCommand(command: string | undefined): IClassification {
 	if (!parsed || parsed.segments.length === 0) {
 		return { cls: undefined, invalidates: [] };
 	}
+	// For compound commands (e.g. `git status && git commit`), disable caching
+	// entirely — classifying only the first segment could miss mutations or
+	// return stale results.
+	if (parsed.segments.length > 1) {
+		// Still check all segments for invalidation targets.
+		const allInvalidates: string[] = [];
+		for (const seg of parsed.segments) {
+			const h = segmentHead(seg);
+			if (h) {
+				const sub = classifySingleHead(h);
+				allInvalidates.push(...sub.invalidates);
+			}
+		}
+		return { cls: undefined, invalidates: allInvalidates };
+	}
 	const head = segmentHead(parsed.segments[0]);
 	if (!head) {
 		return { cls: undefined, invalidates: [] };
 	}
+	return classifySingleHead(head);
+}
+
+function classifySingleHead(head: { head: string; sub: string | undefined }): IClassification {
 	switch (head.head) {
 		case 'git': {
 			// Mutations clear all cached `git ...` results in this cwd.
