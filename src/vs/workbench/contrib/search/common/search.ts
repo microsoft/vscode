@@ -20,7 +20,7 @@ import { RawContextKey } from '../../../../platform/contextkey/common/contextkey
 import { compare } from '../../../../base/common/strings.js';
 import { groupBy } from '../../../../base/common/arrays.js';
 import * as nls from '../../../../nls.js';
-import { IConfigurationNode } from '../../../../platform/configuration/common/configurationRegistry.js';
+import type { IConfigurationNode } from '../../../../platform/configuration/common/configurationRegistry.js';
 
 export interface IWorkspaceSymbol {
 	name: string;
