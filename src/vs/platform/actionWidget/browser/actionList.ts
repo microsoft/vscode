@@ -142,6 +142,10 @@ export const enum ActionListItemKind {
 	Separator = 'separator'
 }
 
+// Matches the .action-widget vertical padding and border so the context view
+// does not overlap its anchor and trigger horizontal anchor avoidance.
+const ACTION_WIDGET_VERTICAL_CHROME_HEIGHT = 10;
+
 interface IHeaderTemplateData {
 	readonly container: HTMLElement;
 	readonly text: HTMLElement;
@@ -1875,7 +1879,7 @@ export class ActionList<T> extends Disposable {
 				const fullHeight = chromeHeight + this._widget.computeFullHeight();
 				this._showAbove = fullHeight > spaceBelow && spaceAbove > spaceBelow;
 			}
-			availableHeight = this._showAbove ? spaceAbove : spaceBelow;
+			availableHeight = Math.max(0, (this._showAbove ? spaceAbove : spaceBelow) - ACTION_WIDGET_VERTICAL_CHROME_HEIGHT);
 		} else {
 			const padding = 10;
 			const windowHeight = this._layoutService.getContainer(targetWindow).clientHeight;
