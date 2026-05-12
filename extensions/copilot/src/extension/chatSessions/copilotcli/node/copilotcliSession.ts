@@ -2631,7 +2631,8 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		sessionResource: vscode.Uri | undefined,
 	): void {
 		const { toolCallId, success, error } = event.data;
-		const toolName = toolCall?.toolName || '<unknown>';
+		const eventToolName = 'toolName' in event.data && typeof event.data.toolName === 'string' ? event.data.toolName : undefined;
+		const toolName = eventToolName ?? toolCall?.toolName ?? '<unknown>';
 		const startTime = toolStartTimes.get(toolCallId);
 		toolStartTimes.delete(toolCallId);
 		const invocationTimeMs = startTime !== undefined ? Date.now() - startTime : undefined;
@@ -2640,8 +2641,8 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		if (success) {
 			result = 'success';
 		} else if (error?.code === 'rejected' || error?.code === 'denied' || error?.code === 'cancelled') {
-			// `rejected`/`denied` come from the user denying a permission prompt; `cancelled` from
-			// request cancellation. See processToolExecutionComplete in copilotCLITools.ts.
+			// `rejected`/`denied` come from the user denying a permission prompt; `cancelled` comes
+			// from request cancellation.
 			result = 'userCancelled';
 		} else {
 			result = 'error';

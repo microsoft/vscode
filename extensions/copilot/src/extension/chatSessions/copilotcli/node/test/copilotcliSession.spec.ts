@@ -716,6 +716,9 @@ describe('CopilotCLISession', () => {
 		sdkSession.emit('tool.execution_start', { toolName: 'bash', toolCallId: 't-denied', arguments: {} });
 		sdkSession.emit('tool.execution_complete', { toolCallId: 't-denied', toolName: 'bash', success: false, error: { code: 'denied', message: 'no' } });
 
+		// Completion-only event: fallback to toolName from the completion event
+		sdkSession.emit('tool.execution_complete', { toolCallId: 't-complete-only', toolName: 'completion_tool', success: true, result: { content: 'ok' } });
+
 		resolveSend!();
 		await requestPromise;
 
@@ -732,6 +735,7 @@ describe('CopilotCLISession', () => {
 			{ result: 'success', chatSessionId: 'copilotcli:/test-session', toolId: 'bash', toolExtensionId: undefined, toolSourceKind: 'copilotCli', hasInvocationTimeMs: true },
 			{ result: 'error', chatSessionId: 'copilotcli:/test-session', toolId: 'mcp_tool', toolExtensionId: undefined, toolSourceKind: 'mcp', hasInvocationTimeMs: true },
 			{ result: 'userCancelled', chatSessionId: 'copilotcli:/test-session', toolId: 'bash', toolExtensionId: undefined, toolSourceKind: 'copilotCli', hasInvocationTimeMs: true },
+			{ result: 'success', chatSessionId: 'copilotcli:/test-session', toolId: 'completion_tool', toolExtensionId: undefined, toolSourceKind: 'copilotCli', hasInvocationTimeMs: false },
 		]);
 	});
 
