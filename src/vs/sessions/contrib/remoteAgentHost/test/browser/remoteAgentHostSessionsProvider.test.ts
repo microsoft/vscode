@@ -300,7 +300,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		assert.strictEqual(provider.label, 'My Host');
 		assert.strictEqual(provider.sessionTypes.length, 1);
 		assert.strictEqual(provider.sessionTypes[0].id, CopilotCLISessionType.id);
-		assert.strictEqual(provider.sessionTypes[0].label, 'Copilot');
+		assert.strictEqual(provider.sessionTypes[0].label, 'Copilot [My Host]');
 	});
 
 	test('session types update when the host advertises additional agents', () => {
@@ -319,13 +319,13 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 		assert.strictEqual(changes, 1);
 		assert.deepStrictEqual(provider.sessionTypes.map(t => ({ id: t.id, label: t.label })), [
-			{ id: CopilotCLISessionType.id, label: 'Copilot' },
-			{ id: 'openai', label: 'OpenAI' },
+			{ id: CopilotCLISessionType.id, label: 'Copilot [My Host]' },
+			{ id: 'openai', label: 'OpenAI [My Host]' },
 		]);
 	});
 
-	test('session-type labels include host suffix on desktop', () => {
-		const provider = createProvider(disposables, connection, { address: '10.0.0.1:8080', connectionName: 'My Host', isWebPlatform: false });
+	test('session-type labels omit host suffix on web', () => {
+		const provider = createProvider(disposables, connection, { address: '10.0.0.1:8080', connectionName: 'My Host', isWebPlatform: true });
 
 		connection.setAgents([
 			{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [] } as AgentInfo,
@@ -333,8 +333,8 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		]);
 
 		assert.deepStrictEqual(provider.sessionTypes.map(t => ({ id: t.id, label: t.label })), [
-			{ id: CopilotCLISessionType.id, label: 'Copilot [My Host]' },
-			{ id: 'openai', label: 'OpenAI [My Host]' },
+			{ id: CopilotCLISessionType.id, label: 'Copilot' },
+			{ id: 'openai', label: 'OpenAI' },
 		]);
 	});
 
