@@ -941,6 +941,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 					const lastLine = currentDocument.lines[clippedTaggedCurrentDoc.keptRange.endExclusive - 1];
 					const lastLineLength = lastLine.length;
 					const pseudoEditWindow = currentDocument.transformer.getOffsetRange(new Range(clippedTaggedCurrentDoc.keptRange.start + 1, 1, clippedTaggedCurrentDoc.keptRange.endExclusive, lastLineLength + 1));
+					const duplicateAdditionsMode = this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabDuplicateAdditionsMode, this.expService);
 					parseResult = new ResponseParseResult.DirectEdits(
 						XtabCustomDiffPatchResponseHandler.handleResponse(
 							linesStream,
@@ -949,6 +950,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 							activeDoc.workspaceRoot,
 							pseudoEditWindow,
 							tracer,
+							duplicateAdditionsMode,
 						),
 					);
 					break;
