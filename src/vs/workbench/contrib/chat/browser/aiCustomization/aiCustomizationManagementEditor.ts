@@ -822,10 +822,6 @@ export class AICustomizationManagementEditor extends EditorPane {
 		return button;
 	}
 
-	private injectBackArrowIntoSearchRow(widget: { prependToSearchRow(el: HTMLElement): void }, onClick?: () => void): void {
-		widget.prependToSearchRow(this.createBackArrowButton(onClick));
-	}
-
 	private createContent(): void {
 		const contentInner = DOM.append(this.contentContainer, $('.content-inner'));
 
