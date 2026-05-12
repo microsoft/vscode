@@ -19,6 +19,10 @@
 	overflow-wrap: normal;
 }
 
+.monaco-text-button.secondary {
+	border-color: var(--vscode-button-secondaryBorder, var(--vscode-button-border, transparent));
+}
+
 .monaco-text-button.small {
 	line-height: 14px;
 	font-size: 11px;
