@@ -30,10 +30,11 @@ import { IChatResponseModel } from '../../../../../workbench/contrib/chat/common
 import { IChatAgentData } from '../../../../../workbench/contrib/chat/common/participants/chatAgents.js';
 import { IGitService } from '../../../../../workbench/contrib/git/common/gitService.js';
 import { ISessionChangeEvent } from '../../../../services/sessions/common/sessionsProvider.js';
-import { ClaudeCodeSessionType, CopilotCLISessionType, GITHUB_REMOTE_FILE_SCHEME, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { CLAUDE_CODE_ENABLED_SETTING, CopilotChatSessionsProvider, COPILOT_PROVIDER_ID } from '../../browser/copilotChatSessionsProvider.js';
+import { GITHUB_REMOTE_FILE_SCHEME, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { CLAUDE_CODE_ENABLED_SETTING, CopilotChatSessionsProvider, COPILOT_PROVIDER_ID, ClaudeCodeSessionType } from '../../browser/copilotChatSessionsProvider.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
+import { CopilotCLISessionType } from '../../../agentHost/browser/baseAgentHostSessionsProvider.js';
 
 // ---- Helpers ----------------------------------------------------------------
 
