@@ -2234,6 +2234,50 @@ suite('RunInTerminalTool', () => {
 		strictEqual(capturedSteeringRequests.length, 2, 'Expected a changed prompt to trigger a new notification');
 	});
 
+	test('should suppress background input-needed notification when the terminal is disposed', () => {
+		const termId = 'test-input-needed-disposed-term';
+		const sessionResource = LocalChatSessionUri.forSession('test-input-needed-disposed-session');
+		const output = 'Press ENTER or type command to continue';
+
+		const commandFinishedEmitter = new Emitter<{ exitCode: number | undefined }>();
+		const terminalDisposedEmitter = new Emitter<void>();
+		const inputNeededEmitter = new Emitter<void>();
+		const inputDataEmitter = new Emitter<string>();
+
+		let isDisposed = false;
+		const terminalInstance = {
+			capabilities: {
+				get: (cap: TerminalCapability) => cap === TerminalCapability.CommandDetection ? { onCommandFinished: commandFinishedEmitter.event } : undefined,
+			},
+			onDisposed: terminalDisposedEmitter.event,
+			onDidInputData: inputDataEmitter.event,
+			get isDisposed() { return isDisposed; },
+		} as unknown as ITerminalInstance;
+
+		const outputMonitor = {
+			onDidDetectInputNeeded: inputNeededEmitter.event,
+			onDidDetectSensitiveInputNeeded: Event.None,
+			continueMonitoringAsync: () => { },
+			dispose: () => { },
+		} as unknown as { onDidDetectInputNeeded: Event<void>; onDidDetectSensitiveInputNeeded: Event<void>; continueMonitoringAsync: () => void; dispose: () => void };
+
+		(runInTerminalTool.constructor as unknown as { _activeExecutions: Map<string, { getOutput(): string }> })._activeExecutions.set(termId, {
+			getOutput: () => output,
+		});
+
+		// eslint-disable-next-line @typescript-eslint/naming-convention
+		(runInTerminalTool as unknown as { _registerCompletionNotification: (terminal: ITerminalInstance, termId: string, session: URI, commandName: string, outputMonitor: { onDidDetectInputNeeded: Event<void>; onDidDetectSensitiveInputNeeded: Event<void>; continueMonitoringAsync: () => void; dispose: () => void }) => void })
+			._registerCompletionNotification(terminalInstance, termId, sessionResource, 'git --no-pager diff -- foo.ts', outputMonitor);
+
+		// Simulate the user closing the terminal. The output monitor may still
+		// fire `inputNeeded` because the buffered output looks like a pager
+		// prompt, but no steering chat turn should be created because the
+		// terminal is gone.
+		isDisposed = true;
+		inputNeededEmitter.fire();
+		strictEqual(capturedSteeringRequests.length, 0, 'Closing the terminal should not produce a spurious input-needed chat turn');
+	});
+
 	test('should suppress redundant input-needed notification for output already returned via foreground inputNeeded', () => {
 		const termId = 'test-input-needed-already-notified-term';
 		const sessionResource = LocalChatSessionUri.forSession('test-input-needed-already-notified-session');
