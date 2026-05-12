@@ -144,6 +144,9 @@ type PluginEntry = IAgentPlugin;
  * Minimal shape of a parsed plugin manifest. Known fields are typed; unknown
  * keys (e.g. `commands`, `skills`, `hooks`, `mcpServers`) remain `unknown` and
  * are parsed by the component readers.
+ *
+ * NOTE: `name` is typed as `string | undefined` to express intent, but
+ * consumers must still runtime-validate it (manifests are untrusted JSON).
  */
 interface IPluginManifest {
 	readonly name?: string;
@@ -337,7 +340,9 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 		store.add(manifestWatcher);
 		store.add(manifestWatcher.onDidChange(() => readManifest()));
 
-		const manifestName = initialManifest?.name?.trim() || undefined;
+		const manifestName = typeof initialManifest?.name === 'string' && initialManifest.name.trim()
+			? initialManifest.name.trim()
+			: undefined;
 
 		const plugin: PluginEntry = {
 			uri,
