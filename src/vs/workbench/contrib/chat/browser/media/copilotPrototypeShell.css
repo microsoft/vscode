@@ -2539,3 +2539,392 @@
 .copilot-prototype-dashboard-v2-snooze:hover {
 	background-color: var(--vscode-list-hoverBackground);
 }
+
+/* ---- First Time Walkthrough (chat input banner) ---- */
+
+.copilot-ft-walkthrough {
+	display: flex;
+	flex-direction: column;
+	border: 1px solid var(--vscode-editorWidget-border, rgba(255, 255, 255, 0.08));
+	border-radius: 10px;
+	overflow: hidden;
+	margin-bottom: 6px;
+	background: var(--vscode-editor-background);
+}
+
+.copilot-ft-walkthrough-hero {
+	width: 100%;
+	overflow: hidden;
+	border-radius: 10px 10px 0 0;
+	position: relative;
+}
+
+.copilot-ft-walkthrough-hero-img {
+	width: 100%;
+	height: auto;
+	display: block;
+	object-fit: cover;
+	object-position: center top;
+}
+
+.copilot-ft-walkthrough-intro-body {
+	padding: 16px 16px 8px;
+}
+
+.copilot-ft-walkthrough-title {
+	font-size: 14px;
+	font-weight: 600;
+	color: var(--vscode-foreground);
+	line-height: 1.4;
+	letter-spacing: -0.3px;
+}
+
+.copilot-ft-walkthrough-subtitle {
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+	line-height: 1.55;
+	margin-top: 6px;
+}
+
+.copilot-ft-walkthrough-badge {
+	position: absolute;
+	top: 10px;
+	left: 10px;
+	display: inline-flex;
+	align-items: baseline;
+	gap: 5px;
+	padding: 4px 10px;
+	border-radius: 6px;
+	background: color-mix(in srgb, var(--vscode-editor-background) 85%, transparent);
+	border: 1px solid color-mix(in srgb, var(--vscode-textLink-foreground, #0078d4) 20%, transparent);
+	backdrop-filter: blur(8px);
+	-webkit-backdrop-filter: blur(8px);
+	z-index: 1;
+	white-space: nowrap;
+}
+
+.copilot-ft-walkthrough-overlay-slot {
+	position: absolute;
+	top: 0;
+	left: 0;
+	z-index: 1;
+}
+
+.copilot-ft-walkthrough-badge-hint {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	cursor: pointer;
+	border: 1px solid color-mix(in srgb, var(--vscode-textLink-foreground, #0078d4) 30%, transparent);
+}
+
+.copilot-ft-walkthrough-badge-hint:hover {
+	background: color-mix(in srgb, var(--vscode-editor-background) 70%, transparent);
+}
+
+.copilot-ft-walkthrough-badge .codicon {
+	font-size: 14px;
+	opacity: 0.8;
+}
+
+.copilot-ft-walkthrough-badge-value {
+	font-size: 13px;
+	font-weight: 600;
+	color: var(--vscode-textLink-foreground, #0078d4);
+	letter-spacing: -0.3px;
+}
+
+.copilot-ft-walkthrough-badge-label {
+	font-size: 11px;
+	font-weight: 400;
+	color: var(--vscode-textLink-foreground, #0078d4);
+	opacity: 0.7;
+}
+
+.copilot-ft-walkthrough-body {
+	padding: 16px;
+}
+
+/* Content slot for sliding text */
+.copilot-ft-walkthrough-content-slot {
+	overflow: hidden;
+	position: relative;
+	min-height: 100px;
+}
+
+.copilot-ft-walkthrough-slide {
+	padding: 10px 16px 4px;
+	transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.copilot-ft-slide-enter-right {
+	opacity: 0;
+	transform: translateX(20px);
+}
+
+.copilot-ft-slide-enter-left {
+	opacity: 0;
+	transform: translateX(-20px);
+}
+
+.copilot-ft-slide-active {
+	opacity: 1;
+	transform: translateX(0);
+}
+
+/* Accent header for content slides (dashboard only) */
+.copilot-ft-walkthrough-accent-header {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	height: 80px;
+	background: linear-gradient(135deg,
+		color-mix(in srgb, var(--vscode-textLink-foreground, #0078d4) 10%, transparent),
+		color-mix(in srgb, var(--vscode-textLink-foreground, #0078d4) 4%, transparent)
+	);
+	border-bottom: 1px solid color-mix(in srgb, var(--vscode-textLink-foreground, #0078d4) 10%, transparent);
+}
+
+.copilot-ft-walkthrough-accent-icon {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 40px;
+	height: 40px;
+	border-radius: 10px;
+	background: color-mix(in srgb, var(--vscode-textLink-foreground, #0078d4) 12%, transparent);
+	font-size: 20px;
+	color: var(--vscode-textLink-foreground, #0078d4);
+}
+
+.copilot-ft-walkthrough-accent-icon .codicon {
+	font-size: 20px;
+}
+
+.copilot-ft-walkthrough-icon {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 32px;
+	height: 32px;
+	border-radius: 7px;
+	background: rgba(255, 255, 255, 0.06);
+	margin-bottom: 12px;
+	font-size: 16px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.copilot-ft-walkthrough-step-title {
+	font-size: 14px;
+	font-weight: 600;
+	color: var(--vscode-foreground);
+	margin-bottom: 8px;
+	letter-spacing: -0.2px;
+}
+
+.copilot-ft-walkthrough-step-desc {
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+	line-height: 1.6;
+}
+
+.copilot-ft-walkthrough-footer {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 4px 16px 8px;
+	margin-bottom: 30px;
+}
+
+.copilot-ft-walkthrough-footer-right {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+}
+
+.copilot-ft-walkthrough-footer-link {
+	font-size: 12px;
+	color: var(--vscode-textLink-foreground, #0078d4);
+	text-decoration: none;
+	cursor: pointer;
+	white-space: nowrap;
+}
+
+.copilot-ft-walkthrough-footer-link:hover {
+	text-decoration: underline;
+}
+
+/* Icon hint on last slide */
+.copilot-ft-walkthrough-icon-hint {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin-top: 12px;
+	padding: 8px 10px;
+	border-radius: 6px;
+	background: color-mix(in srgb, var(--vscode-foreground) 5%, transparent);
+}
+
+.copilot-ft-walkthrough-icon-hint-icon {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+	font-size: 14px;
+	color: var(--vscode-foreground);
+	opacity: 0.8;
+}
+
+.copilot-ft-walkthrough-icon-hint-text {
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+	line-height: 1.4;
+}
+
+.copilot-ft-walkthrough-nav {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.copilot-ft-walkthrough-nav-btn {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 24px;
+	height: 24px;
+	border: none;
+	border-radius: 4px;
+	background: transparent;
+	color: var(--vscode-foreground);
+	cursor: pointer;
+	opacity: 0.7;
+	font-size: 14px;
+}
+
+.copilot-ft-walkthrough-nav-btn:hover {
+	opacity: 1;
+	background: rgba(255, 255, 255, 0.06);
+}
+
+.copilot-ft-walkthrough-nav-btn.disabled {
+	opacity: 0.2;
+	pointer-events: none;
+}
+
+.copilot-ft-walkthrough-counter {
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+	margin-left: 6px;
+}
+
+.copilot-ft-walkthrough-got-it {
+	padding: 5px 18px;
+	font-size: 12px;
+	border-radius: 5px;
+	border: none;
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+	cursor: pointer;
+	font-weight: 500;
+}
+
+.copilot-ft-walkthrough-got-it:hover {
+	background: var(--vscode-button-hoverBackground);
+}
+
+/* Step link */
+.copilot-ft-walkthrough-step-link {
+	display: inline-block;
+	font-size: 12px;
+	color: var(--vscode-textLink-foreground, #0078d4);
+	text-decoration: none;
+	margin-top: 10px;
+	cursor: pointer;
+}
+
+.copilot-ft-walkthrough-step-link:hover {
+	text-decoration: underline;
+}
+
+/* Token breakdown interactive slide */
+.copilot-ft-token-grid {
+	display: flex;
+	gap: 8px;
+	margin-top: 14px;
+}
+
+.copilot-ft-token-card {
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 4px;
+	padding: 10px 6px;
+	border-radius: 8px;
+	background: color-mix(in srgb, var(--token-color, #888) 8%, transparent);
+	border: 1px solid color-mix(in srgb, var(--token-color, #888) 15%, transparent);
+	cursor: default;
+	transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+
+.copilot-ft-token-card:hover,
+.copilot-ft-token-card.active {
+	background: color-mix(in srgb, var(--token-color, #888) 16%, transparent);
+	border-color: color-mix(in srgb, var(--token-color, #888) 35%, transparent);
+	transform: translateY(-1px);
+}
+
+.copilot-ft-token-card-icon {
+	font-size: 14px;
+	color: var(--token-color, var(--vscode-descriptionForeground));
+}
+
+.copilot-ft-token-card-label {
+	font-size: 11px;
+	font-weight: 600;
+	color: var(--vscode-foreground);
+}
+
+.copilot-ft-token-card-mult {
+	font-size: 10px;
+	font-weight: 600;
+	color: var(--token-color, var(--vscode-descriptionForeground));
+	background: color-mix(in srgb, var(--token-color, #888) 12%, transparent);
+	padding: 1px 6px;
+	border-radius: 10px;
+}
+
+.copilot-ft-token-equation {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 6px;
+	margin-top: 12px;
+	font-size: 13px;
+	color: var(--vscode-descriptionForeground);
+	opacity: 0.7;
+}
+
+.copilot-ft-token-eq-label {
+	font-size: 11px;
+	font-weight: 500;
+}
+
+.copilot-ft-token-detail {
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+	text-align: center;
+	margin-top: 10px;
+	min-height: 28px;
+	line-height: 1.45;
+	transition: opacity 0.15s ease;
+}
+
+.copilot-ft-token-detail strong {
+	color: var(--vscode-foreground);
+}
+
+.copilot-ft-token-detail-mult {
+	opacity: 0.8;
+}
