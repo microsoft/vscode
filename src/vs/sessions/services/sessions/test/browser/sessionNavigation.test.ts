@@ -17,7 +17,7 @@ import { SessionsNavigation } from '../../browser/sessionNavigation.js';
 import { Event } from '../../../../../base/common/event.js';
 import { ISendRequestOptions } from '../../common/sessionsProvider.js';
 
-const stubChat: IChat = {
+const stubChat = {
 	resource: URI.parse('test:///chat'),
 	createdAt: new Date(),
 	title: constObservable('Chat'),
@@ -25,6 +25,7 @@ const stubChat: IChat = {
 	status: constObservable(SessionStatus.Completed),
 	changesets: constObservable([]),
 	changes: constObservable([]),
+	checkpoints: constObservable(undefined),
 	modelId: constObservable(undefined),
 	mode: constObservable(undefined),
 	isArchived: constObservable(false),
@@ -40,6 +41,7 @@ function stubChatWithId(id: string, status: SessionStatus = SessionStatus.Comple
 		title: constObservable(`Chat ${id}`),
 		updatedAt: constObservable(new Date()),
 		status: constObservable(status),
+		checkpoints: constObservable(undefined),
 		changesets: constObservable([]),
 		changes: constObservable([]),
 		modelId: constObservable(undefined),
@@ -462,5 +464,31 @@ suite('SessionsNavigation', () => {
 
 		store.setActiveSession(s1, chatUntitled);
 		assert.strictEqual(canGoBack(), false, 'untitled chat produces a session-only entry, no second entry');
+	});
+
+	test('goBack falls back to openSession when chat was deleted', async () => {
+		const chatA = stubChatWithId('a');
+		const chatB = stubChatWithId('b');
+		const chatsObs = observableValue<readonly IChat[]>('test.chats', [chatA, chatB]);
+		const s1: ISession = {
+			...stubSession('s1', SessionStatus.Completed, [chatA, chatB]),
+			chats: chatsObs,
+		};
+		const s2 = stubSession('s2');
+		store.addSession(s1);
+		store.addSession(s2);
+
+		// Record history: s1/chatA → s1/chatB → s2
+		store.setActiveSession(s1, chatA);
+		store.setActiveChat(chatB);
+		store.setActiveSession(s2);
+
+		// Remove chatB from the session
+		chatsObs.set([chatA], undefined);
+
+		// Go back — chatB is stale, should fall back to openSession(s1)
+		await nav.goBack();
+		assert.strictEqual(store.lastOpenedResource?.toString(), s1.resource.toString());
+		assert.strictEqual(store.lastOpenedChatResource, undefined, 'should not open a stale chat');
 	});
 });

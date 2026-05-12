@@ -70,10 +70,11 @@ function makeAgentSession(opts: {
 		mode: observableValue('test.mode', undefined),
 		isArchived: observableValue('test.isArchived', opts.isArchived ?? false),
 		isRead: observableValue('test.isRead', true),
+		checkpoints: observableValue('test.checkpoints', undefined),
 		lastTurnEnd: observableValue('test.lastTurnEnd', undefined),
 		description: observableValue('test.description', undefined),
-	};
-	const session: IActiveSession = {
+	} satisfies IChat;
+	const session = {
 		sessionId: opts.sessionId ?? 'test:session',
 		resource: chat.resource,
 		providerId: 'test',
@@ -98,7 +99,7 @@ function makeAgentSession(opts: {
 		activeChat: observableValue('test.activeChat', chat),
 		mainChat: chat,
 		capabilities: { supportsMultipleChats: false },
-	};
+	} satisfies IActiveSession;
 	return session;
 }
 
@@ -121,10 +122,11 @@ function makeNonAgentSession(opts: { repository?: URI; worktree?: URI; providerT
 		mode: observableValue('test.mode', undefined),
 		isArchived: observableValue('test.isArchived', false),
 		isRead: observableValue('test.isRead', true),
+		checkpoints: observableValue('test.checkpoints', undefined),
 		lastTurnEnd: observableValue('test.lastTurnEnd', undefined),
 		description: observableValue('test.description', undefined),
-	};
-	const session: ISession = {
+	} satisfies IChat;
+	const session = {
 		sessionId: 'test:non-agent',
 		resource: chat.resource,
 		providerId: 'test',
@@ -148,7 +150,7 @@ function makeNonAgentSession(opts: { repository?: URI; worktree?: URI; providerT
 		chats: observableValue('test.chats', [chat]),
 		mainChat: chat,
 		capabilities: { supportsMultipleChats: false },
-	};
+	} satisfies ISession;
 	return session;
 }
 

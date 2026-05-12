@@ -447,6 +447,7 @@ Parts manage their own border and background styling via the `updateStyles()` me
 
 The sessions workbench also scopes its resize sash styling in `browser/media/style.css`, rounding the sash hover indicator and orthogonal drag handles so the layout chrome matches the card surfaces.
 Both sessions chat input surfaces keep the unfocused `editorWidget.border` outline in light themes, but switch to `focusBorder` while focused so the new-chat view and the active chat input match the core workbench chat widget focus treatment.
+The aquarium easter egg water layer is mounted directly inside the Chat Bar part and inherits the Chat Bar card's border radius so its decorative water clipping stays aligned with the parent panel container.
 
 ---
 
@@ -667,6 +668,7 @@ interface IPartVisibilityState {
 
 | Date | Change |
 |------|--------|
+| 2026-05-08 | Updated the sessions aquarium easter egg water layer to inherit the Chat Bar card radius so the decorative clipping matches the parent panel container. |
 | 2026-05-07 | Updated the sessions new-chat empty state so the workspace title row now reads `New session in {workspace} with {coding agent harness}` by rendering the session type picker inline above the input, leaving the bottom control row for approvals and repository controls. |
 | 2026-05-06 | Polished the sessions command-center title widget hide/show behavior: the command-center toolbar now refreshes explicitly on new-chat context changes so adjacent actions disappear together, and the title widget uses a reduced-motion-aware subtle fade only when entering or leaving the new chat view. |
 | 2026-05-06 | Hid the sessions command-center title widget while the new chat view is visible (`isNewChatSession`), so titlebar session chrome only appears for existing or newly created chat threads. |

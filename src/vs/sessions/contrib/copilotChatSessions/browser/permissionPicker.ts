@@ -93,7 +93,7 @@ export class PermissionPicker extends Disposable {
 		const initialLevel = isChatPermissionLevel(configuredDefault) ? configuredDefault : ChatPermissionLevel.Default;
 		this._currentLevel = policyRestricted ? ChatPermissionLevel.Default : initialLevel;
 
-		const slot = dom.append(container, dom.$('.sessions-chat-picker-slot'));
+		const slot = dom.append(container, dom.$('.sessions-chat-picker-slot.sessions-chat-permission-picker'));
 		this._renderDisposables.add({ dispose: () => slot.remove() });
 
 		const trigger = dom.append(slot, dom.$('a.action-label'));

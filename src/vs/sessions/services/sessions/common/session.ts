@@ -177,6 +177,13 @@ export interface ISessionChangeset {
 	readonly changes: IObservable<readonly ISessionFileChange[]>;
 }
 
+export interface IChatCheckpoints {
+	/** Reference to the first checkpoint in the chat. */
+	readonly firstCheckpointRef: string;
+	/** Reference to the last checkpoint in the chat. */
+	readonly lastCheckpointRef: string;
+}
+
 /**
  * A single chat within a session, produced by the sessions management layer.
  */
@@ -198,6 +205,8 @@ export interface IChat {
 	readonly changes: IObservable<readonly ISessionFileChange[]>;
 	/** Changesets produced by the chat. */
 	readonly changesets: IObservable<readonly ISessionChangeset[]>;
+	/** Checkpoints associated with the chat. */
+	readonly checkpoints: IObservable<IChatCheckpoints | undefined>;
 	/** Currently selected model identifier. */
 	readonly modelId: IObservable<string | undefined>;
 	/** Currently selected mode identifier and kind. */
