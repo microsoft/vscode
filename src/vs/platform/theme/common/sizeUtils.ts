@@ -174,11 +174,28 @@ class SizeRegistry extends Disposable implements ISizeRegistry {
 		const sizeContribution: SizeContribution = { id, description, defaults, deprecationMessage };
 		this.sizesById[id] = sizeContribution;
 
-		const propertySchema: IJSONSchema = {
-			type: 'string',
-			pattern: '^(\\d+(\\.\\d+)?(px|rem|em|%)?)|default$',
-			patternErrorMessage: 'Size must be a number optionally followed by px, rem, em, or % (e.g., "12px", "1.5rem", "600") or "default"'
-		};
+		// Determine whether this token uses unitless values (e.g. font weights).
+		// The pattern is chosen per-token so that length tokens still require a unit.
+		const isUnitless = (() => {
+			if (!defaults) { return false; }
+			if (isSizeDefaults(defaults)) {
+				const sample = defaults.dark ?? defaults.light ?? defaults.hcDark ?? defaults.hcLight;
+				return sample?.unit === '';
+			}
+			return defaults.unit === '';
+		})();
+
+		const propertySchema: IJSONSchema = isUnitless
+			? {
+				type: 'string',
+				pattern: '^(?:\\d+|default)$',
+				patternErrorMessage: 'Value must be an integer (e.g., "400") or "default"'
+			}
+			: {
+				type: 'string',
+				pattern: '^(?:\\d+(\\.\\d+)?(px|rem|em|%)|default)$',
+				patternErrorMessage: 'Size must be a number followed by px, rem, em, or % (e.g., "12px", "1.5rem") or "default"'
+			};
 
 		if (deprecationMessage) {
 			propertySchema.deprecationMessage = deprecationMessage;
