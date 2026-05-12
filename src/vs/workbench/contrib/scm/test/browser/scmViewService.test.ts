@@ -244,6 +244,13 @@ suite('SCMViewService - Visibility Persistence', () => {
 
 		const { viewService, scmService } = createViewServiceWithState(previousState);
 
+		const removedDuringRestore: string[] = [];
+		disposables.add(viewService.onDidChangeRepositories(e => {
+			for (const r of e.removed) {
+				removedDuringRestore.push(r.provider.rootUri?.toString() ?? '');
+			}
+		}));
+
 		// Register a NEW repo (not in previousState) BEFORE the known repos
 		const provider4 = createMockProvider('4', URI.file('/repo4'));
 		disposables.add(scmService.registerSCMProvider(provider4));
@@ -261,6 +268,12 @@ suite('SCMViewService - Visibility Persistence', () => {
 				provider3.rootUri!.toString(),
 				provider4.rootUri!.toString()
 			].sort()
+		);
+
+		// provider4 should never appear in a removed event during restoration
+		assert.deepStrictEqual(
+			removedDuringRestore.filter(uri => uri === provider4.rootUri!.toString()),
+			[]
 		);
 	});
 });
