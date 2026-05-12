@@ -177,17 +177,18 @@ function isMultiplierPricing(model: ILanguageModelChatMetadataAndIdentifier): bo
 function createModelItem(
 	action: IActionWidgetDropdownAction & { section?: string },
 	model?: ILanguageModelChatMetadataAndIdentifier,
-	descriptionOverride?: string | MarkdownString,
 	openerService?: IOpenerService,
 	vendorLabel?: string,
 	isUBB?: boolean,
+	ariaDescription?: string,
 ): IActionListItem<IActionWidgetDropdownAction> {
 	const hover = model && openerService ? getModelHoverContent(model, openerService, isUBB) : undefined;
 	return {
 		item: action,
 		kind: ActionListItemKind.Action,
 		label: action.label,
-		description: descriptionOverride ?? action.description,
+		description: action.description,
+		ariaDescription,
 		group: { title: '', icon: action.icon ?? ThemeIcon.fromId(action.checked ? Codicon.check.id : Codicon.blank.id) },
 		hideIcon: false,
 		section: action.section,
@@ -227,21 +228,16 @@ function resolveConfigProperty(
 }
 
 /**
- * Returns a visual pricing category indicator using codicon circles.
- * One filled circle for "low", two for "medium", three for "high", four for "very_high".
- * Empty circles are shown for the remaining slots (out of four total).
+ * Returns a screen-reader-friendly label for the price category.
  */
-function getPriceCategoryIndicator(priceCategory: string | undefined): string | undefined {
-	let filled: number;
+function getPriceCategoryLabel(priceCategory: string | undefined): string | undefined {
 	switch (priceCategory) {
-		case 'low': filled = 1; break;
-		case 'medium': filled = 2; break;
-		case 'high': filled = 3; break;
-		case 'very_high': filled = 4; break;
+		case 'low': return localize('chat.priceCategory.low', "Low cost");
+		case 'medium': return localize('chat.priceCategory.medium', "Medium cost");
+		case 'high': return localize('chat.priceCategory.high', "High cost");
+		case 'very_high': return localize('chat.priceCategory.veryHigh', "Very high cost");
 		default: return undefined;
 	}
-	const total = 4;
-	return '$(circle-filled)'.repeat(filled) + '$(circle)'.repeat(total - filled);
 }
 
 /**
@@ -284,12 +280,11 @@ function createModelAction(
 	section?: string,
 	suppressVendorInDetail?: boolean,
 	isUBB?: boolean,
-): { action: IActionWidgetDropdownAction & { section?: string }; descriptionOverride?: MarkdownString } {
+): { action: IActionWidgetDropdownAction & { section?: string }; ariaDescription?: string } {
 	// Only show pricing in the description line if it's a multiplier (e.g. "2x").
 	// Detailed AIC/token pricing is shown in the hover instead.
 	const pricingForDescription = isMultiplierPricing(model) ? model.metadata.pricing : undefined;
-	// Price category circles are UBB-only
-	const priceCategoryIndicator = isUBB ? getPriceCategoryIndicator(model.metadata.priceCategory) : undefined;
+	const priceCategoryLabel = isUBB ? getPriceCategoryLabel(model.metadata.priceCategory) : undefined;
 	// In PRU mode, show the current configuration value (e.g. thinking effort "High") in the description
 	const configDescription = !isUBB ? getModelConfigurationDescription(model, languageModelsService) : undefined;
 	// Strip the detail when suppressVendorInDetail is set — the vendor is
@@ -297,16 +292,6 @@ function createModelAction(
 	const detail = suppressVendorInDetail ? undefined : model.metadata.detail;
 	const textParts = [configDescription, detail, pricingForDescription].filter(Boolean);
 	const textDescription = textParts.length > 0 ? textParts.join(' · ') : undefined;
-
-	let descriptionOverride: MarkdownString | undefined;
-	if (priceCategoryIndicator) {
-		const md = new MarkdownString('', { isTrusted: false, supportThemeIcons: true });
-		if (textDescription) {
-			md.appendText(textDescription + ' · ');
-		}
-		md.appendMarkdown(priceCategoryIndicator);
-		descriptionOverride = md;
-	}
 
 	// In PRU mode, restore per-model configuration toolbar actions (e.g. thinking effort gear)
 	const toolbarActions = !isUBB ? languageModelsService.getModelConfigurationActions(model.identifier) : undefined;
@@ -317,14 +302,17 @@ function createModelAction(
 		icon: model.metadata.statusIcon,
 		checked: model.identifier === selectedModelId,
 		class: undefined,
-		description: priceCategoryIndicator ? undefined : textDescription,
+		description: textDescription,
 		tooltip: model.metadata.name,
 		label: model.metadata.name,
 		section,
 		toolbarActions: toolbarActions && toolbarActions.length > 0 ? toolbarActions : undefined,
 		run: () => onSelect(model),
 	};
-	return { action, descriptionOverride };
+	const ariaDescription = priceCategoryLabel
+		? (textDescription ? textDescription + ' · ' + priceCategoryLabel : priceCategoryLabel)
+		: undefined;
+	return { action, ariaDescription };
 }
 
 function shouldShowManageModelsAction(chatEntitlementService: IChatEntitlementService): boolean {
@@ -444,8 +432,8 @@ export function buildModelPickerItems(
 			const autoModel = models.find(m => isAutoModel(m));
 			if (autoModel) {
 				markPlaced(autoModel.identifier, autoModel.metadata.id);
-				const { action: autoAction, descriptionOverride: autoDesc } = createModelAction(autoModel, selectedModelId, onSelect, languageModelsService!, undefined, undefined, isUBB);
-				items.push(createModelItem(autoAction, autoModel, autoDesc, openerService, undefined, isUBB));
+				const { action: autoAction, ariaDescription: autoAriaDesc } = createModelAction(autoModel, selectedModelId, onSelect, languageModelsService!, undefined, undefined, isUBB);
+				items.push(createModelItem(autoAction, autoModel, openerService, undefined, isUBB, autoAriaDesc));
 			}
 
 			// --- 2. Promoted section (selected + recently used + featured) ---
@@ -546,8 +534,8 @@ export function buildModelPickerItems(
 						const groupLabel = showPromotedGroupLabel
 							? getProviderGroupForModel(item.model, modelToGroup, languageModelsService!).groupName
 							: undefined;
-						const { action: promotedAction, descriptionOverride: promotedDesc } = createModelAction(item.model, selectedModelId, onSelect, languageModelsService!, undefined, showPromotedGroupLabel, isUBB);
-						items.push(createModelItem(promotedAction, item.model, promotedDesc, openerService, groupLabel, isUBB));
+						const { action: promotedAction, ariaDescription: promotedAriaDesc } = createModelAction(item.model, selectedModelId, onSelect, languageModelsService!, undefined, showPromotedGroupLabel, isUBB);
+						items.push(createModelItem(promotedAction, item.model, openerService, groupLabel, isUBB, promotedAriaDesc));
 					} else {
 						items.push(createUnavailableModelItem(item.id, item.entry, item.reason, manageSettingsUrl, updateStateType, chatEntitlementService));
 					}
@@ -638,8 +626,8 @@ export function buildModelPickerItems(
 						if (entry?.minVSCodeVersion && !isVersionAtLeast(currentVSCodeVersion, entry.minVSCodeVersion)) {
 							items.push(createUnavailableModelItem(model.metadata.id, entry, 'update', manageSettingsUrl, updateStateType, chatEntitlementService, ModelPickerSection.Other));
 						} else {
-							const { action: bucketAction, descriptionOverride: bucketDesc } = createModelAction(model, selectedModelId, onSelect, languageModelsService!, ModelPickerSection.Other, showGroupHeaders, isUBB);
-							items.push(createModelItem(bucketAction, model, bucketDesc, openerService, undefined, isUBB));
+							const { action: bucketAction, ariaDescription: bucketAriaDesc } = createModelAction(model, selectedModelId, onSelect, languageModelsService!, ModelPickerSection.Other, showGroupHeaders, isUBB);
+							items.push(createModelItem(bucketAction, model, openerService, undefined, isUBB, bucketAriaDesc));
 						}
 					}
 				}
@@ -662,8 +650,8 @@ export function buildModelPickerItems(
 		// Flat list: auto first, then all models sorted alphabetically
 		const autoModel = models.find(m => isAutoModel(m));
 		if (autoModel) {
-			const { action: flatAutoAction, descriptionOverride: flatAutoDesc } = createModelAction(autoModel, selectedModelId, onSelect, languageModelsService!, undefined, undefined, isUBB);
-			items.push(createModelItem(flatAutoAction, autoModel, flatAutoDesc, openerService, undefined, isUBB));
+			const { action: flatAutoAction, ariaDescription: flatAutoAriaDesc } = createModelAction(autoModel, selectedModelId, onSelect, languageModelsService!, undefined, undefined, isUBB);
+			items.push(createModelItem(flatAutoAction, autoModel, openerService, undefined, isUBB, flatAutoAriaDesc));
 		}
 		const sortedModels = models
 			.filter(m => m !== autoModel)
@@ -672,8 +660,8 @@ export function buildModelPickerItems(
 				return vendorCmp !== 0 ? vendorCmp : a.metadata.name.localeCompare(b.metadata.name);
 			});
 		for (const model of sortedModels) {
-			const { action: flatAction, descriptionOverride: flatDesc } = createModelAction(model, selectedModelId, onSelect, languageModelsService!, undefined, undefined, isUBB);
-			items.push(createModelItem(flatAction, model, flatDesc, openerService, undefined, isUBB));
+			const { action: flatAction, ariaDescription: flatAriaDesc } = createModelAction(model, selectedModelId, onSelect, languageModelsService!, undefined, undefined, isUBB);
+			items.push(createModelItem(flatAction, model, openerService, undefined, isUBB, flatAriaDesc));
 		}
 	}
 
@@ -686,7 +674,7 @@ export function getModelPickerAccessibilityProvider() {
 			if (element.kind !== ActionListItemKind.Action) {
 				return null;
 			}
-			const description = typeof element.description === 'string' ? element.description : element.description?.value;
+			const description = element.ariaDescription ?? (typeof element.description === 'string' ? element.description : element.description?.value);
 			return [element.label, element.badge, description].filter((part): part is string => !!part).join(', ');
 		},
 		isChecked(element: IActionListItem<IActionWidgetDropdownAction>) {
@@ -985,14 +973,11 @@ export class ModelPickerWidget extends Disposable {
 			isUBB,
 		);
 
-		const hasPriceCategories = models.some(m => !!m.metadata.priceCategory);
-
 		const listOptions = {
 			// Always show the filter to allow for the secondary heading to show
 			showFilter: true,
 			filterPlaceholder: localize('chat.modelPicker.search', "Search models"),
 			filterActions: !isUBB && manageModelsAction ? [manageModelsAction] : undefined,
-			secondaryHeading: isUBB && hasPriceCategories ? localize('chat.modelPicker.cost', "Cost") : undefined,
 			focusFilterOnOpen: true,
 			collapsedByDefault: new Set([ModelPickerSection.Other]),
 			onDidToggleSection: (section: string, collapsed: boolean) => {
@@ -1361,15 +1346,28 @@ function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentifier, op
 			});
 		}
 
+		const priceCategoryLabel = getPriceCategoryLabel(model.metadata.priceCategory);
 		if (costLines.length > 0) {
 			const costSection = dom.$('.chat-model-hover-cost');
-			costSection.appendChild(dom.$('.chat-model-hover-cost-title', undefined, localize('models.priceTitle', "Cost (per 1M tokens)")));
+			const titleRow = dom.$('.chat-model-hover-cost-title-row');
+			titleRow.appendChild(dom.$('.chat-model-hover-cost-title', undefined, localize('models.priceTitle', "Cost (per 1M tokens)")));
+			if (priceCategoryLabel) {
+				titleRow.appendChild(dom.$('span.chat-model-hover-cost-tag', undefined, priceCategoryLabel));
+			}
+			costSection.appendChild(titleRow);
 			for (const line of costLines) {
 				costSection.appendChild(dom.$('.chat-model-hover-cost-line', undefined,
 					dom.$('span.chat-model-hover-cost-line-label', undefined, `${line.label}: `),
 					dom.$('span', undefined, line.value),
 				));
 			}
+			container.appendChild(costSection);
+		} else if (priceCategoryLabel) {
+			const costSection = dom.$('.chat-model-hover-cost');
+			const titleRow = dom.$('.chat-model-hover-cost-title-row');
+			titleRow.appendChild(dom.$('.chat-model-hover-cost-title', undefined, localize('models.priceCategoryTitle', "Cost")));
+			titleRow.appendChild(dom.$('span.chat-model-hover-cost-tag', undefined, priceCategoryLabel));
+			costSection.appendChild(titleRow);
 			container.appendChild(costSection);
 		} else if (model.metadata.pricing && !isMultiplierPricing(model)) {
 			const costSection = dom.$('.chat-model-hover-cost');

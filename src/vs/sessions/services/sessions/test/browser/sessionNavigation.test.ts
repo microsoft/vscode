@@ -75,7 +75,6 @@ function stubSession(id: string, status: SessionStatus = SessionStatus.Completed
 		isRead: constObservable(true),
 		description: constObservable(undefined),
 		lastTurnEnd: constObservable(undefined),
-		gitHubInfo: constObservable(undefined),
 		chats: constObservable(sessionChats),
 		mainChat: sessionChats[0],
 		capabilities: { supportsMultipleChats: chats !== undefined && chats.length > 1 },

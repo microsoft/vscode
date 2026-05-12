@@ -13,8 +13,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { IConfigurationService } from '../../../configuration/common/configuration.js';
-import { IEnvironmentService } from '../../../environment/common/environment.js';
-import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
+
 import { ISharedProcessService } from '../../../ipc/electron-browser/services.js';
 import { IQuickInputService } from '../../../quickinput/common/quickInput.js';
 import { IRemoteAgentHostService } from '../../common/remoteAgentHostService.js';
@@ -25,8 +24,10 @@ import type {
 	ISSHKeyboardInteractiveRequest,
 	ISSHRelayMessage,
 	ISSHResolvedConfig,
+	ISSHRemoteAgentHostMainService,
 } from '../../common/sshRemoteAgentHost.js';
-import { SSHRemoteAgentHostService } from '../../electron-browser/sshRemoteAgentHostServiceImpl.js';
+import { ISSHRelayClientFactory, SSHRemoteAgentHostService } from '../../electron-browser/sshRemoteAgentHostServiceImpl.js';
+import { RemoteAgentHostProtocolClient } from '../../browser/remoteAgentHostProtocolClient.js';
 
 /**
  * In-renderer mock of the shared-process SSH service. Exposes the same
@@ -205,7 +206,6 @@ suite('SSHRemoteAgentHostService (renderer)', () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IConfigurationService, new TestConfigurationService() as Partial<IConfigurationService>);
-		instantiationService.stub(IEnvironmentService, { logsHome: URI.file('/tmp/logs') } as Partial<IEnvironmentService>);
 		instantiationService.stub(IQuickInputService, {} as Partial<IQuickInputService>);
 		instantiationService.stub(ISharedProcessService, sharedProcessService as ISharedProcessService);
 		instantiationService.stub(IRemoteAgentHostService, remoteAgentHostService as Partial<IRemoteAgentHostService>);
@@ -218,23 +218,16 @@ suite('SSHRemoteAgentHostService (renderer)', () => {
 			return (clientWaiters[index] ??= new DeferredPromise<MockProtocolClient>()).p;
 		};
 
-		const inner: Partial<IInstantiationService> = {
-			createInstance: (_ctor: unknown, ...args: unknown[]) => {
+		instantiationService.stub(ISSHRelayClientFactory, {
+			createClient: (_mainService: ISSHRemoteAgentHostMainService, _connectionId: string, _address: string) => {
 				const c = new MockProtocolClient();
-				// The real RemoteAgentHostProtocolClient owns the transport disposable
-				// it's constructed with; mirror that here so SSHRelayTransport doesn't leak.
-				const transport = args[1] as IDisposable | undefined;
-				if (transport) {
-					c.registerOwned(transport);
-				}
 				disposables.add(c);
 				const index = createdClients.length;
 				createdClients.push(c);
 				clientWaiters[index]?.complete(c);
-				return c;
+				return c as unknown as RemoteAgentHostProtocolClient;
 			},
-		};
-		instantiationService.stub(IInstantiationService, inner as Partial<IInstantiationService>);
+		});
 
 		service = disposables.add(instantiationService.createInstance(SSHRemoteAgentHostService));
 	});

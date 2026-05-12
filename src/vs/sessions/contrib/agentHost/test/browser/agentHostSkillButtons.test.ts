@@ -61,7 +61,6 @@ function makeActiveSession(providerId: string): IActiveSession {
 		isRead: chat.isRead,
 		lastTurnEnd: chat.lastTurnEnd,
 		description: chat.description,
-		gitHubInfo: observableValue('gh', undefined),
 		chats: observableValue('chats', [chat]),
 		activeChat: observableValue('ac', chat),
 		mainChat: chat,

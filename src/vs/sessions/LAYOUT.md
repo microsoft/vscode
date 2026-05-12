@@ -501,6 +501,7 @@ The Sessions view is registered in `contrib/sessions/browser/sessions.contributi
 - **Primary action**: The sidebar content starts with a left-aligned secondary "New Session" button rendered as `$(plus) Session`, with an inline shortcut hint that reflects the active `workbench.action.sessions.newChat` keybinding when one is available
 - **Header layout**: The sessions list header label remains visible as the sidebar narrows and truncates with ellipsis instead of being hidden outright; the inline find widget still replaces both the label and actions while open
 - **Pinned section**: Pinned chats render in their own uppercase "Pinned" section header at the top of the list; that section reuses the standard section-header styling and only exposes the section-level "Mark All as Done" action (not workspace-specific actions like "New Session")
+- **Sticky section headers**: The sessions list keeps sticky workspace/date headers on the agents shell background instead of inheriting the generic sidebar sticky-scroll background, so pinned headers do not change color while scrolling.
 
 ---
 
@@ -668,6 +669,7 @@ interface IPartVisibilityState {
 
 | Date | Change |
 |------|--------|
+| 2026-05-12 | Updated the Sessions list sticky workspace/date headers to use the agents shell background so their color stays consistent while scrolling without changing generic file tree sticky-scroll colors. |
 | 2026-05-08 | Updated the sessions aquarium easter egg water layer to inherit the Chat Bar card radius so the decorative clipping matches the parent panel container. |
 | 2026-05-07 | Updated the sessions new-chat empty state so the workspace title row now reads `New session in {workspace} with {coding agent harness}` by rendering the session type picker inline above the input, leaving the bottom control row for approvals and repository controls. |
 | 2026-05-06 | Polished the sessions command-center title widget hide/show behavior: the command-center toolbar now refreshes explicitly on new-chat context changes so adjacent actions disappear together, and the title widget uses a reduced-motion-aware subtle fade only when entering or leaving the new chat view. |

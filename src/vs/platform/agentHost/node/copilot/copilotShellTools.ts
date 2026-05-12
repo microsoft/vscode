@@ -283,6 +283,15 @@ export function prefixForHistorySuppression(shellType: ShellType): string {
 	return shellType === 'powershell' ? '' : ' ';
 }
 
+export function isMultilineCommand(command: string): boolean {
+	const normalized = command.replace(/\r\n|\r/g, '\n');
+	return /(?<!\\)\n/.test(normalized);
+}
+
+function shouldUseBracketedPasteMode(command: string): boolean {
+	return platform.isMacintosh || isMultilineCommand(command);
+}
+
 function parseSentinel(content: string, sentinelId: string): { found: boolean; exitCode: number; outputBeforeSentinel: string } {
 	const marker = `${SENTINEL_PREFIX}${sentinelId}_EXIT_`;
 	const idx = content.indexOf(marker);
@@ -352,7 +361,10 @@ async function executeCommandWithShellIntegration(
 ): Promise<ToolResultObject> {
 	const disposables = new DisposableStore();
 
-	terminalManager.writeInput(shell.terminalUri, `${prefixForHistorySuppression(shell.shellType)}${command}\r`);
+	await terminalManager.sendText(shell.terminalUri, `${prefixForHistorySuppression(shell.shellType)}${command}`, {
+		shouldExecute: true,
+		bracketedPasteMode: shouldUseBracketedPasteMode(command),
+	});
 
 	return new Promise<ToolResultObject>(resolve => {
 		let resolved = false;
@@ -421,9 +433,11 @@ async function executeCommandWithSentinel(
 	const contentBefore = terminalManager.getContent(shell.terminalUri) ?? '';
 	const offsetBefore = contentBefore.length;
 
-	// PTY input uses \r for line endings — the PTY translates to \r\n
-	const input = `${prefixForHistorySuppression(shell.shellType)}${command}\r${sentinelCmd}\r`;
-	terminalManager.writeInput(shell.terminalUri, input);
+	await terminalManager.sendText(shell.terminalUri, `${prefixForHistorySuppression(shell.shellType)}${command}`, {
+		shouldExecute: true,
+		bracketedPasteMode: shouldUseBracketedPasteMode(command),
+	});
+	await terminalManager.sendText(shell.terminalUri, sentinelCmd, { shouldExecute: true });
 
 	return new Promise<ToolResultObject>(resolve => {
 		let resolved = false;
@@ -591,13 +605,13 @@ export async function createShellTools(
 		},
 		overridesBuiltInTool: true,
 		skipPermission: true,
-		handler: (args) => {
+		handler: async (args) => {
 			const shells = shellManager.listShells();
 			const shell = shells[shells.length - 1];
 			if (!shell) {
 				return makeFailureResult('No active shell found.', 'no_shell');
 			}
-			terminalManager.writeInput(shell.terminalUri, args.command);
+			await terminalManager.sendText(shell.terminalUri, args.command, { shouldExecute: false });
 			return makeSuccessResult('Input sent to shell.');
 		},
 	};

@@ -3825,15 +3825,6 @@
 							"onExp"
 						]
 					},
-					"github.copilot.chat.responsesApi.toolSearchTool.enabled": {
-						"type": "boolean",
-						"default": false,
-						"markdownDescription": "%github.copilot.config.responsesApi.toolSearchTool.enabled%",
-						"tags": [
-							"experimental",
-							"onExp"
-						]
-					},
 					"github.copilot.chat.updated53CodexPrompt.enabled": {
 						"type": "boolean",
 						"default": true,

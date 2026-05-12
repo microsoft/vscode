@@ -10,7 +10,7 @@ import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextke
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../common/agentHostSessionsProvider.js';
 import { ChatSessionProviderIdContext } from '../../../common/contextkeys.js';
-import { getSessionBranchName, ISession } from '../../../services/sessions/common/session.js';
+import { ISession } from '../../../services/sessions/common/session.js';
 import { SessionItemContextMenuId, SessionItemHasBranchNameContext } from '../../sessions/browser/views/sessionsList.js';
 
 registerAction2(class CopySessionBranchNameAction extends Action2 {
@@ -32,7 +32,7 @@ registerAction2(class CopySessionBranchNameAction extends Action2 {
 
 	async run(accessor: ServicesAccessor, context?: ISession | ISession[]): Promise<void> {
 		const session = Array.isArray(context) ? context[0] : context;
-		const branchName = getSessionBranchName(session);
+		const branchName = session?.workspace.get()?.folders[0]?.gitRepository?.branchName?.trim();
 		if (!branchName) {
 			return;
 		}
