@@ -18,6 +18,8 @@ import { IClipboardService } from '../../../../../platform/clipboard/common/clip
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { IPreferencesService } from '../../../../../workbench/services/preferences/common/preferences.js';
 import { IOutputService } from '../../../../../workbench/services/output/common/output.js';
@@ -166,6 +168,7 @@ function createTestPicker(
 		getRecentlyOpened: async () => ({ workspaces: [], files: [] }),
 		onDidChangeRecentlyOpened: Event.None,
 	});
+	instantiationService.stub(ITelemetryService, NullTelemetryService);
 
 	return disposables.add(instantiationService.createInstance(WorkspacePicker));
 }
@@ -561,6 +564,7 @@ function createTestablePicker(disposables: DisposableStore, providersService: Mo
 		getRecentlyOpened: async () => ({ workspaces: [], files: [] }),
 		onDidChangeRecentlyOpened: Event.None,
 	});
+	instantiationService.stub(ITelemetryService, NullTelemetryService);
 	return disposables.add(instantiationService.createInstance(TestablePicker));
 }
 
@@ -664,6 +668,7 @@ suite('WorkspacePicker - Tab discovery', () => {
 			getRecentlyOpened: async () => ({ workspaces: [], files: [] }),
 			onDidChangeRecentlyOpened: Event.None,
 		});
+		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		const picker = disposables.add(instantiationService.createInstance(TestablePicker));
 		// Recent workspace group ('Cloud') is not added as a tab — only
 		// browse actions and the always-present Remote group contribute tabs.

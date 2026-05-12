@@ -37,6 +37,8 @@ import { getStatusHover, getStatusLabel, removeRemoteHost, showRemoteHostOptions
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { COPILOT_PROVIDER_ID } from '../../copilotChatSessions/browser/copilotChatSessionsProvider.js';
 import { IWorkspacesService, isRecentFolder } from '../../../../platform/workspaces/common/workspaces.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { reportNewChatPickerClosed } from './newChatPickerTelemetry.js';
 import { Menus } from '../../../browser/menus.js';
 
 const LEGACY_STORAGE_KEY_RECENT_PROJECTS = 'sessions.recentlyPickedProjects';
@@ -165,6 +167,7 @@ export class WorkspacePicker extends Disposable {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 
@@ -436,6 +439,7 @@ export class WorkspacePicker extends Disposable {
 	 * selection semantics. Treats unavailable workspaces as a no-op.
 	 */
 	protected _dispatchPickerItem(item: IWorkspacePickerItem): void {
+		this._reportPickerClosed(item);
 		if (item.run) {
 			item.run();
 		} else if (item.commandId) {
@@ -449,6 +453,28 @@ export class WorkspacePicker extends Disposable {
 		} else if (item.selection) {
 			this._selectProject(item.selection);
 		}
+	}
+
+	/**
+	 * Emits `newChatPickerClosed` telemetry on user selection. The
+	 * "before" value is read from storage (the currently-checked recent
+	 * workspace) if available, otherwise from the in-memory selection.
+	 * The "after" value comes from the item the user picked — undefined
+	 * when the item is a browse action or command rather than a workspace.
+	 */
+	private _reportPickerClosed(item: IWorkspacePickerItem): void {
+		const beforeFromStorage = this._restoreCheckedWorkspace();
+		const before = beforeFromStorage ?? this._selectedWorkspace;
+		const after = item.selection;
+		reportNewChatPickerClosed(this.telemetryService, {
+			id: 'NewChatWorkspacePicker',
+			name: 'NewChatWorkspacePicker',
+			optionIdBefore: before?.workspace?.repositories?.[0]?.uri.toString(),
+			optionIdAfter: after?.workspace?.repositories?.[0]?.uri.toString(),
+			optionLabelBefore: before?.workspace?.label,
+			optionLabelAfter: after?.workspace?.label,
+			isPII: true,
+		});
 	}
 
 	/**
