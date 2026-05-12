@@ -112,7 +112,8 @@ export class GraphWriter {
 				`MATCH (f:File {path: $filePath})
 				UNWIND $functions AS fn
 				CREATE (f)-[:CONTAINS]->(newFn:Function {
-					name: fn.name,
+					name: fn.qualifiedName,
+					simpleName: fn.name,
 					qualifiedName: fn.qualifiedName,
 					file: $filePath,
 					startLine: fn.startLine,
@@ -227,7 +228,8 @@ export class GraphWriter {
 					`MATCH (c:Class {name: $className, file: $filePath})
 					UNWIND $methods AS method
 					CREATE (m:Function {
-						name: method.name,
+						name: method.qualifiedName,
+						simpleName: method.name,
 						qualifiedName: method.qualifiedName,
 						file: $filePath,
 						startLine: method.startLine,
@@ -375,14 +377,17 @@ export class GraphWriter {
 			return;
 		}
 
-		// Optimization: Batch call site edge creation using UNWIND
-		// Reduces N+1 database queries to a single query, improving graph write performance
-		// significantly for files with many function calls.
+		// Methods are stored with `name` set to the qualified form (`Class.method`)
+		// but extracted call sites typically reference the simple method name. We
+		// match either `name` (qualified) or `simpleName` so both top-level
+		// functions and methods resolve. Caller resolution uses qualifiedName from
+		// the extractor, which already matches the stored `name`.
 		await this.db.write(
 			`UNWIND $calls AS call
-			MATCH (caller:Function {name: call.callerName}),
-				(called:Function {name: call.calledName})
-			WHERE caller <> called
+			MATCH (caller:Function), (called:Function)
+			WHERE (caller.name = call.callerName OR caller.simpleName = call.callerName)
+				AND (called.name = call.calledName OR called.simpleName = call.calledName)
+				AND caller <> called
 			CREATE (caller)-[:CALLS {line: call.line, column: call.column}]->(called)`,
 			{ calls: validCallSites }
 		);

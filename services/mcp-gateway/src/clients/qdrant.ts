@@ -40,16 +40,20 @@ export class QdrantClient {
 			...(filter ? { filter } : {}),
 		});
 
+		// The indexer is the system of record for these payloads. It writes
+		// camelCase keys (filePath, startLine, endLine, symbolName, chunkType),
+		// so the gateway must read them in the same shape. The external MCP tool
+		// boundary is still free to re-emit snake_case to LLM context if useful.
 		return searchResult.map(point => ({
 			id: String(point.id),
 			score: point.score,
-			filePath: (point.payload?.file_path as string) ?? '',
-			startLine: (point.payload?.start_line as number) ?? 0,
-			endLine: (point.payload?.end_line as number) ?? 0,
+			filePath: (point.payload?.filePath as string) ?? '',
+			startLine: (point.payload?.startLine as number) ?? 0,
+			endLine: (point.payload?.endLine as number) ?? 0,
 			content: (point.payload?.content as string) ?? '',
 			language: (point.payload?.language as string) ?? '',
-			symbolName: (point.payload?.symbol_name as string) ?? undefined,
-			symbolType: (point.payload?.symbol_type as string) ?? undefined,
+			symbolName: (point.payload?.symbolName as string) ?? undefined,
+			symbolType: (point.payload?.chunkType as string) ?? undefined,
 		}));
 	}
 

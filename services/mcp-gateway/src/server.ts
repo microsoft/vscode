@@ -5,6 +5,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { FalkorDBClient } from './clients/falkordb';
 import { QdrantClient } from './clients/qdrant';
+import { QDRANT_VECTOR_SIZE } from './config';
 import { symbolLookup } from './tools/symbolLookup';
 import { findReferences } from './tools/findReferences';
 import { dependencyTraversal } from './tools/dependencyTraversal';
@@ -131,13 +132,15 @@ export function createMcpServer(db: FalkorDBClient, qdrant: QdrantClient): McpSe
 		yield { kind: 'progress', message: `Embedding query: "${query.slice(0, 60)}"` };
 
 		// Placeholder embedding function — in production this calls the embedding model.
+		// The vector size MUST match the indexer's stored vectors (QDRANT_VECTOR_SIZE);
+		// otherwise Qdrant rejects the search outright.
 		const embedQuery = async (text: string): Promise<number[]> => {
 			let hash = 0;
 			for (let j = 0; j < text.length; j++) {
 				hash = ((hash << 5) - hash + text.charCodeAt(j)) | 0;
 			}
-			const vector = new Array<number>(384);
-			for (let i = 0; i < 384; i++) {
+			const vector = new Array<number>(QDRANT_VECTOR_SIZE);
+			for (let i = 0; i < QDRANT_VECTOR_SIZE; i++) {
 				vector[i] = Math.sin(hash + i) * 0.5;
 			}
 			return vector;

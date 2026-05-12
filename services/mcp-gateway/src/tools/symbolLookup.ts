@@ -27,14 +27,19 @@ export async function symbolLookup(
 		? `:${capitalize(input.type)}`
 		: '';
 
+	// Methods are stored with `name` = qualifiedName (Class.method) but users
+	// usually look up by the simple method name. Match both fields so the simple
+	// name resolves to the qualified Function node.
 	const cypher = input.type
-		? `MATCH (s${labelFilter} {name: $name})
+		? `MATCH (s${labelFilter})
+		   WHERE s.name = $name OR s.simpleName = $name
 		   RETURN labels(s)[0] AS type, s.name AS name, s.qualifiedName AS qualifiedName,
 		          s.file AS file, s.startLine AS startLine, s.endLine AS endLine,
 		          s.signature AS signature, s.exported AS exported
 		   LIMIT 50`
 		: `MATCH (s)
-		   WHERE s.name = $name AND (s:Function OR s:Class OR s:Type OR s:Module)
+		   WHERE (s.name = $name OR s.simpleName = $name)
+		     AND (s:Function OR s:Class OR s:Type OR s:Module)
 		   RETURN labels(s)[0] AS type, s.name AS name, s.qualifiedName AS qualifiedName,
 		          s.file AS file, s.startLine AS startLine, s.endLine AS endLine,
 		          s.signature AS signature, s.exported AS exported

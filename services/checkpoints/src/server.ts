@@ -61,8 +61,7 @@ export function createServer(manager: CheckpointManager): express.Express {
 	app.delete('/sessions/:sessionId', async (req: Request, res: Response) => {
 		try {
 			const { sessionId } = req.params;
-const { sessionId } = req.params;
-await manager.deleteSession(sessionId);
+			await manager.deleteSession(sessionId);
 			res.json({ deleted: true, sessionId });
 		} catch (err) {
 			res.status(500).json({ error: String(err) });

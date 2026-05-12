@@ -176,8 +176,10 @@ export class LsifRunner {
 				cwd: this.config.project.path,
 			});
 
-			// If the tool writes to stdout (like lsif-tsc --stdout), save to file
-			if (stdout && !await this.fileExists(tool.outputFile)) {
+			// If the tool writes to stdout (like lsif-tsc --stdout), save to file.
+			// Always overwrite so re-runs produce fresh output — the previous
+			// "skip if exists" check stopped reruns from updating stale index data.
+			if (stdout) {
 				await fs.promises.writeFile(tool.outputFile, stdout);
 			}
 
@@ -237,12 +239,4 @@ export class LsifRunner {
 		}
 	}
 
-	private async fileExists(filePath: string): Promise<boolean> {
-		try {
-			await fs.promises.access(filePath, fs.constants.F_OK);
-			return true;
-		} catch {
-			return false;
-		}
-	}
 }

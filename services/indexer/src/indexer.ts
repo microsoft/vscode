@@ -313,7 +313,11 @@ export class Indexer {
 		const projectPath = this.config.project.path;
 		if (absolutePath.startsWith(projectPath)) {
 			const relative = absolutePath.substring(projectPath.length);
-			return relative.startsWith('/') ? relative : `/${relative}`;
+			// Normalise on project-relative without a leading slash, matching what
+			// users type in tools like fileSummary (e.g. "src/foo.ts" — not
+			// "/src/foo.ts"). The gateway-side path matchers compare against the
+			// stored value verbatim, so consistency here matters.
+			return relative.replace(/^\/+/, '');
 		}
 		return absolutePath;
 	}

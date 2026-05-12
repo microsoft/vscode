@@ -167,6 +167,11 @@ export class SymbolExtractor {
 							result.exports.push({ symbolName: fn.name, isDefault: false });
 						}
 					}
+					// Descend into the function body so we record every nested call_expression.
+					const body = child.childForFieldName('body');
+					if (body) {
+						this.walkTypeScriptNode(body, source, result, false, parentClassName);
+					}
 					break;
 				}
 
@@ -177,6 +182,11 @@ export class SymbolExtractor {
 						if (isExported) {
 							result.exports.push({ symbolName: cls.name, isDefault: false });
 						}
+					}
+					// Descend into the class body so calls inside methods are captured.
+					const body = child.childForFieldName('body');
+					if (body && cls) {
+						this.walkTypeScriptNode(body, source, result, false, cls.name);
 					}
 					break;
 				}
@@ -231,6 +241,23 @@ export class SymbolExtractor {
 							result.exports.push({ symbolName: arrowFn.name, isDefault: false });
 						}
 					}
+					// Recurse so we capture call_expressions inside the initializer (incl. arrow body)
+					// and any nested function-valued declarators we didn't extract above.
+					if (child.namedChildCount > 0) {
+						this.walkTypeScriptNode(child, source, result, false, parentClassName);
+					}
+					break;
+				}
+
+				case 'method_definition': {
+					// Descend into method bodies so calls inside methods become CallSites
+					// with parentClassName as their caller. We don't extract the method
+					// itself here — extractTSClass handles that — but the body recursion
+					// is essential for the call graph.
+					const body = child.childForFieldName('body');
+					if (body) {
+						this.walkTypeScriptNode(body, source, result, false, parentClassName);
+					}
 					break;
 				}
 
@@ -238,6 +265,10 @@ export class SymbolExtractor {
 					const callSite = this.extractTSCallSite(child);
 					if (callSite) {
 						result.callSites.push(callSite);
+					}
+					// Recurse so calls passed as arguments to other calls are captured too.
+					if (child.namedChildCount > 0) {
+						this.walkTypeScriptNode(child, source, result, false, parentClassName);
 					}
 					break;
 				}
@@ -617,6 +648,11 @@ export class SymbolExtractor {
 					if (fn) {
 						result.functions.push(fn);
 					}
+					// Descend into the function body so we capture nested call expressions.
+					const body = child.childForFieldName('body');
+					if (body && fn) {
+						this.walkPythonNode(body, source, result, parentClassName);
+					}
 					break;
 				}
 
@@ -624,6 +660,12 @@ export class SymbolExtractor {
 					const cls = this.extractPythonClass(child, source);
 					if (cls) {
 						result.classes.push(cls);
+					}
+					// Descend into the class body so call sites inside methods are captured
+					// with parentClassName attached.
+					const body = child.childForFieldName('body');
+					if (body && cls) {
+						this.walkPythonNode(body, source, result, cls.name);
 					}
 					break;
 				}
@@ -637,6 +679,17 @@ export class SymbolExtractor {
 					break;
 				}
 
+				case 'call': {
+					const callSite = this.extractPythonCallSite(child);
+					if (callSite) {
+						result.callSites.push(callSite);
+					}
+					if (child.namedChildCount > 0) {
+						this.walkPythonNode(child, source, result, parentClassName);
+					}
+					break;
+				}
+
 				default:
 					if (child.namedChildCount > 0) {
 						this.walkPythonNode(child, source, result, parentClassName);
@@ -644,6 +697,30 @@ export class SymbolExtractor {
 					break;
 			}
 		}
+	}
+
+	private extractPythonCallSite(node: Parser.SyntaxNode): CallSite | null {
+		const functionNode = node.childForFieldName('function');
+		if (!functionNode) {
+			return null;
+		}
+
+		let calledName: string;
+		if (functionNode.type === 'attribute') {
+			const attribute = functionNode.childForFieldName('attribute');
+			calledName = attribute ? attribute.text : functionNode.text;
+		} else if (functionNode.type === 'identifier') {
+			calledName = functionNode.text;
+		} else {
+			return null;
+		}
+
+		return {
+			callerName: '', // Resolved later by the caller context
+			calledName,
+			line: node.startPosition.row + 1,
+			column: node.startPosition.column,
+		};
 	}
 
 	private extractPythonFunction(

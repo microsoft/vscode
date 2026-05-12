@@ -48,11 +48,18 @@ export function loadConfig(): IndexerConfig {
 			restPort: parseInt(process.env.QDRANT_REST_PORT ?? '6333', 10),
 			grpcPort: parseInt(process.env.QDRANT_GRPC_PORT ?? '6334', 10),
 			collectionName: process.env.QDRANT_COLLECTION ?? 'son-of-anton-code',
+			// NOTE: keep in sync with `services/mcp-gateway/src/config.ts`. The
+			// gateway constructs query vectors against this dimension; if the
+			// two drift, Qdrant rejects every search.
 			vectorSize: parseInt(process.env.QDRANT_VECTOR_SIZE ?? '768', 10),
 		},
 		project: {
 			path: process.env.PROJECT_PATH ?? '/workspace',
-			languages: parseLanguages(process.env.LANGUAGES ?? 'typescript,python,rust,csharp,cpp'),
+			// Only advertise languages whose grammar TreeSitterManager actually loads
+			// (see `services/indexer/src/parsers/treeSitterManager.ts`). Rust/C#/C/C++
+			// previously listed here had no grammar wired up, so every matching file
+			// silently failed to parse.
+			languages: parseLanguages(process.env.LANGUAGES ?? 'typescript,tsx,javascript,python'),
 		},
 		server: {
 			port: parseInt(process.env.PORT ?? '8080', 10),

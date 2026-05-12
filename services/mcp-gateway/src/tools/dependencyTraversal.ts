@@ -44,8 +44,11 @@ async function traverseFromFunction(
 	functionName: string,
 	depth: number
 ): Promise<DependencyTree> {
+	// Match either the stored `name` (qualifiedName) or `simpleName` so we resolve
+	// both top-level functions and class methods given the short name a user typed.
 	const cypher = `
-		MATCH (f:Function {name: $name})-[:CALLS*1..${depth}]->(dep:Function)
+		MATCH (f:Function)-[:CALLS*1..${depth}]->(dep:Function)
+		WHERE f.name = $name OR f.simpleName = $name
 		RETURN DISTINCT dep.name AS name, labels(dep)[0] AS type,
 		       dep.file AS file, 'CALLS' AS relationship,
 		       length(shortestPath((f)-[:CALLS*]->(dep))) AS depth

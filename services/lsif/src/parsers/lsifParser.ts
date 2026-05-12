@@ -187,7 +187,11 @@ export class LsifParser {
 			}
 		}
 
-		// Build definitions and references
+		// First pass: build definitions and a map from resultSet -> { name, file }.
+		// We need this so that when we walk reference ranges we can attach them to
+		// the symbol they reference (resolved through the same resultSet).
+		const resultSetToSymbol = new Map<string, { name: string; file: string }>();
+
 		for (const [rangeId, range] of rangeData) {
 			const docId = rangeToDocument.get(rangeId);
 			if (!docId) {
@@ -217,7 +221,64 @@ export class LsifParser {
 					endLine: range.end.line + 1,
 					endColumn: range.end.character,
 				});
+
+				resultSetToSymbol.set(resultSetId, { name: symbolName, file: filePath });
 			}
+		}
+
+		// Second pass: walk every range that points to a resultSet with a referenceResult
+		// and emit a SymbolReference for it. Definition ranges (which we already emitted
+		// above) are excluded so we don't double-count them as references to themselves.
+		for (const [rangeId, range] of rangeData) {
+			const resultSetId = resultSetToDefinition.get(rangeId);
+			if (!resultSetId || !referenceResults.has(resultSetId)) {
+				continue;
+			}
+
+			// Skip ranges that we already recorded as a definition; references are the
+			// non-definition occurrences of the symbol.
+			if (definitionResults.has(resultSetId)) {
+				const defRangeForResultSet = resultSetToSymbol.get(resultSetId);
+				// We don't have a clean way to tell whether *this* range is the
+				// definition range vs. a reference range, so fall back on a
+				// document-path check: if the range lives in the same file as the
+				// definition AND maps to the same resultSet, treat the matching
+				// start position as the definition.
+				const docId = rangeToDocument.get(rangeId);
+				const docUri = docId ? documentUris.get(docId) : undefined;
+				const filePath = docUri ? this.uriToPath(docUri) : '';
+				if (
+					defRangeForResultSet &&
+					defRangeForResultSet.file === filePath &&
+					range.start.line + 1 === result.definitions.find(
+						d => d.name === defRangeForResultSet.name && d.file === filePath
+					)?.startLine
+				) {
+					continue;
+				}
+			}
+
+			const docId = rangeToDocument.get(rangeId);
+			if (!docId) {
+				continue;
+			}
+			const docUri = documentUris.get(docId);
+			if (!docUri) {
+				continue;
+			}
+
+			const symbolInfo = resultSetToSymbol.get(resultSetId);
+			const symbolName = symbolInfo?.name ?? hoverResults.get(resultSetId) ?? `symbol_${rangeId}`;
+			const definitionFile = symbolInfo?.file ?? '';
+
+			result.references.push({
+				symbolName,
+				definitionFile,
+				referenceFile: this.uriToPath(docUri),
+				referenceLine: range.start.line + 1,
+				referenceColumn: range.start.character,
+				kind: 'read',
+			});
 		}
 
 		console.log(

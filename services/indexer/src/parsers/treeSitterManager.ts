@@ -3,20 +3,25 @@
 
 import Parser from 'tree-sitter';
 
-// Language grammar packages
+// Language grammar packages. Only languages whose grammar we actually
+// bundle should appear here — listing more in LANGUAGE_EXTENSIONS lies to
+// the rest of the system about which files we can parse.
 import TypeScript from 'tree-sitter-typescript';
 import JavaScript from 'tree-sitter-javascript';
 import Python from 'tree-sitter-python';
 
-/** Mapping from language identifier to file extensions. */
+/**
+ * Mapping from language identifier to file extensions.
+ *
+ * IMPORTANT: keep this list in sync with `loadGrammar` below — only advertise
+ * languages we can actually parse. `.tsx` is routed to its own grammar
+ * (`tree-sitter-typescript` exposes both `typescript` and `tsx` parsers).
+ */
 export const LANGUAGE_EXTENSIONS: Record<string, string[]> = {
-	typescript: ['.ts', '.tsx'],
+	typescript: ['.ts'],
+	tsx: ['.tsx'],
 	javascript: ['.js', '.jsx', '.mjs', '.cjs'],
 	python: ['.py'],
-	rust: ['.rs'],
-	csharp: ['.cs'],
-	c: ['.c', '.h'],
-	cpp: ['.cpp', '.cc', '.cxx', '.hpp', '.hxx', '.h'],
 };
 
 /** Reverse lookup: extension to language identifier. */
