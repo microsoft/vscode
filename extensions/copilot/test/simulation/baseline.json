@@ -646,7 +646,7 @@
     "score": 0.9
   },
   {
-    "name": "edit-agent-claude-3.5-sonnet [panel] [typescript] - issue #8098: extract function to unseen file - (claude-3.5-sonnet)",
+    "name": "edit-agent-claude-sonnet-4.5 [panel] [typescript] - issue #8098: extract function to unseen file - (claude-sonnet-4.5)",
     "optional": true,
     "contentFilterCount": 0,
     "passCount": 10,
