@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { ChatCustomAgent, ChatInstruction, ChatPromptReference, ChatSkill, LanguageModelToolInformation } from 'vscode';
+import type { ChatCustomAgent, ChatInstruction, ChatPromptReference, ChatRequestModeInstructions, ChatSkill, LanguageModelToolInformation } from 'vscode';
 import { afterEach, beforeEach, expect, suite, test } from 'vitest';
 import { InMemoryConfigurationService } from '../../../../platform/configuration/test/common/inMemoryConfigurationService';
 import { DefaultsOnlyConfigurationService } from '../../../../platform/configuration/common/defaultsOnlyConfigurationService';
@@ -116,6 +116,37 @@ suite('AutomaticInstructionsCollector', () => {
 		promptsService.dispose();
 	});
 
+	/**
+	 * Invoke the collector with a flat options bag. Wraps `tools` into the
+	 * `Map<tool, enabled>` shape and `allowedSubagents` into a minimal
+	 * `ChatRequestModeInstructions` value.
+	 */
+	function callCollect(opts: {
+		tools?: readonly LanguageModelToolInformation[];
+		allowedSubagents?: readonly string[];
+		sessionResource?: URI;
+		references?: readonly ChatPromptReference[];
+	} = {}, token: CancellationToken = CancellationToken.None) {
+		const toolsMap = new Map<LanguageModelToolInformation, boolean>();
+		for (const t of opts.tools ?? []) {
+			toolsMap.set(t, true);
+		}
+		const modeInstructions2 = opts.allowedSubagents !== undefined ? { name: '', content: '', allowedSubagents: opts.allowedSubagents } satisfies ChatRequestModeInstructions : undefined;
+		return collector.collect({
+			tools: toolsMap,
+			modeInstructions2,
+			sessionResource: opts.sessionResource ?? localSessionResource,
+			references: opts.references ?? [],
+		}, token);
+	}
+
+	/** Returns the measurements payload of the single `instructionsCollected` event. */
+	function instructionsCollectedMeasurements(): TelemetryEventMeasurements {
+		const events = telemetry.events.filter(e => e.eventName === 'instructionsCollected');
+		expect(events).toHaveLength(1);
+		return events[0].measurements;
+	}
+
 	suite('applying instructions', () => {
 		test('matches ** pattern for any attached file', async () => {
 			const attached = URI.joinPath(rootFolderUri, 'src/file.ts');
@@ -124,17 +155,11 @@ suite('AutomaticInstructionsCollector', () => {
 				{ uri: instructionUri, name: 'all', source: 'local', pattern: '**' } as ChatInstruction,
 			]);
 
-			const result = await collector.collect(
-				undefined,
-				undefined,
-				localSessionResource,
-				[toAttachedFileReference(attached)],
-				CancellationToken.None,
-			);
+			const result = await callCollect({ references: [toAttachedFileReference(attached)] });
 
-			const paths = result.entries.filter(isInstructionFile).map(e => e.value.path);
+			const paths = result.filter(isInstructionFile).map(e => e.value.path);
 			expect(paths).toContain(instructionUri.path);
-			expect(result.telemetry.applyingInstructionsCount).toBe(1);
+			expect(instructionsCollectedMeasurements().applyingInstructionsCount).toBe(1);
 		});
 
 		test('matches specific file patterns and skips non-matching ones', async () => {
@@ -146,15 +171,9 @@ suite('AutomaticInstructionsCollector', () => {
 				{ uri: jsInstruction, name: 'js', source: 'local', pattern: '**/*.js' } as ChatInstruction,
 			]);
 
-			const result = await collector.collect(
-				undefined,
-				undefined,
-				localSessionResource,
-				[toAttachedFileReference(attached)],
-				CancellationToken.None,
-			);
+			const result = await callCollect({ references: [toAttachedFileReference(attached)] });
 
-			const paths = result.entries.filter(isInstructionFile).map(e => e.value.path);
+			const paths = result.filter(isInstructionFile).map(e => e.value.path);
 			expect(paths).toContain(tsInstruction.path);
 			expect(paths).not.toContain(jsInstruction.path);
 		});
@@ -166,15 +185,9 @@ suite('AutomaticInstructionsCollector', () => {
 				{ uri: instructionUri, name: 'web', source: 'local', pattern: '**/*.ts, **/*.js, **/*.tsx' } as ChatInstruction,
 			]);
 
-			const result = await collector.collect(
-				undefined,
-				undefined,
-				localSessionResource,
-				[toAttachedFileReference(attached)],
-				CancellationToken.None,
-			);
+			const result = await callCollect({ references: [toAttachedFileReference(attached)] });
 
-			expect(result.entries.filter(isInstructionFile)).toHaveLength(1);
+			expect(result.filter(isInstructionFile)).toHaveLength(1);
 		});
 
 		test('matches relative glob patterns', async () => {
@@ -184,15 +197,9 @@ suite('AutomaticInstructionsCollector', () => {
 				{ uri: instructionUri, name: 'src', source: 'local', pattern: 'src/**/*.ts' } as ChatInstruction,
 			]);
 
-			const result = await collector.collect(
-				undefined,
-				undefined,
-				localSessionResource,
-				[toAttachedFileReference(attached)],
-				CancellationToken.None,
-			);
+			const result = await callCollect({ references: [toAttachedFileReference(attached)] });
 
-			expect(result.entries.filter(isInstructionFile)).toHaveLength(1);
+			expect(result.filter(isInstructionFile)).toHaveLength(1);
 		});
 
 		test('does not duplicate instructions for multiple matching files', async () => {
@@ -203,15 +210,9 @@ suite('AutomaticInstructionsCollector', () => {
 				{ uri: instructionUri, name: 'ts', source: 'local', pattern: '**/*.ts' } as ChatInstruction,
 			]);
 
-			const result = await collector.collect(
-				undefined,
-				undefined,
-				localSessionResource,
-				[toAttachedFileReference(file1), toAttachedFileReference(file2)],
-				CancellationToken.None,
-			);
+			const result = await callCollect({ references: [toAttachedFileReference(file1), toAttachedFileReference(file2)] });
 
-			expect(result.entries.filter(isInstructionFile)).toHaveLength(1);
+			expect(result.filter(isInstructionFile)).toHaveLength(1);
 		});
 
 		test('skips applying instructions when setting is disabled (Agent mode)', async () => {
@@ -222,15 +223,9 @@ suite('AutomaticInstructionsCollector', () => {
 				{ uri: instructionUri, name: 'ts', source: 'local', pattern: '**/*.ts' } as ChatInstruction,
 			]);
 
-			const result = await collector.collect(
-				undefined,
-				undefined,
-				localSessionResource,
-				[toAttachedFileReference(attached)],
-				CancellationToken.None,
-			);
+			const result = await callCollect({ references: [toAttachedFileReference(attached)] });
 
-			expect(result.entries.filter(isInstructionFile)).toHaveLength(0);
+			expect(result.filter(isInstructionFile)).toHaveLength(0);
 		});
 
 		test('honors sessionTypes when filtering instructions', async () => {
@@ -242,15 +237,9 @@ suite('AutomaticInstructionsCollector', () => {
 				{ uri: remoteOnly, name: 'remote', source: 'local', pattern: '**/*.ts', sessionTypes: ['remote'] } as ChatInstruction,
 			]);
 
-			const result = await collector.collect(
-				undefined,
-				undefined,
-				localSessionResource,
-				[toAttachedFileReference(attached)],
-				CancellationToken.None,
-			);
+			const result = await callCollect({ references: [toAttachedFileReference(attached)] });
 
-			const paths = result.entries.filter(isInstructionFile).map(e => e.value.path);
+			const paths = result.filter(isInstructionFile).map(e => e.value.path);
 			expect(paths).toContain(localOnly.path);
 			expect(paths).not.toContain(remoteOnly.path);
 		});
@@ -263,20 +252,15 @@ suite('AutomaticInstructionsCollector', () => {
 			const claudeMd: IAgentInstructionFile = { uri: URI.joinPath(rootFolderUri, 'CLAUDE.md'), type: AgentInstructionFileType.claudeMd };
 			promptsService.setAgentInstructions([copilot, agentsMd, claudeMd]);
 
-			const result = await collector.collect(
-				undefined,
-				undefined,
-				localSessionResource,
-				[],
-				CancellationToken.None,
-			);
+			const result = await callCollect();
 
-			const paths = result.entries.filter(e => isInstructionFile(e)).map(e => e.value.path);
+			const paths = result.filter(e => isInstructionFile(e)).map(e => e.value.path);
 			expect(paths).toContain(copilot.uri.path);
 			expect(paths).toContain(agentsMd.uri.path);
 			expect(paths).toContain(claudeMd.uri.path);
-			expect(result.telemetry.agentInstructionsCount).toBe(3);
-			expect(result.telemetry.claudeMdCount).toBe(1);
+			const m = instructionsCollectedMeasurements();
+			expect(m.agentInstructionsCount).toBe(3);
+			expect(m.claudeMdCount).toBe(1);
 		});
 
 		test('does not duplicate when the file is already attached', async () => {
@@ -290,16 +274,10 @@ suite('AutomaticInstructionsCollector', () => {
 				value: copilot.uri,
 			};
 
-			const result = await collector.collect(
-				undefined,
-				undefined,
-				localSessionResource,
-				[preAttached],
-				CancellationToken.None,
-			);
+			const result = await callCollect({ references: [preAttached] });
 
-			expect(result.entries.filter(e => isInstructionFile(e))).toHaveLength(0);
-			expect(result.telemetry.agentInstructionsCount).toBe(0);
+			expect(result.filter(e => isInstructionFile(e))).toHaveLength(0);
+			expect(instructionsCollectedMeasurements().agentInstructionsCount).toBe(0);
 		});
 	});
 
@@ -319,18 +297,12 @@ suite('AutomaticInstructionsCollector', () => {
 				{ path: referencedUri.path, contents: ['Referenced content'] },
 			]);
 
-			const result = await collector.collect(
-				undefined,
-				undefined,
-				localSessionResource,
-				[],
-				CancellationToken.None,
-			);
+			const result = await callCollect();
 
-			const paths = result.entries.filter(e => isInstructionFile(e)).map(e => e.value.path);
+			const paths = result.filter(e => isInstructionFile(e)).map(e => e.value.path);
 			expect(paths).toContain(copilotUri.path);
 			expect(paths).toContain(referencedUri.path);
-			expect(result.telemetry.referencedInstructionsCount).toBe(1);
+			expect(instructionsCollectedMeasurements().referencedInstructionsCount).toBe(1);
 		});
 
 		test('handles transitive (nested) references', async () => {
@@ -350,15 +322,9 @@ suite('AutomaticInstructionsCollector', () => {
 				{ path: level3Uri.path, contents: ['Level 3'] },
 			]);
 
-			const result = await collector.collect(
-				undefined,
-				undefined,
-				localSessionResource,
-				[],
-				CancellationToken.None,
-			);
+			const result = await callCollect();
 
-			const paths = result.entries.filter(e => isInstructionFile(e)).map(e => e.value.path);
+			const paths = result.filter(e => isInstructionFile(e)).map(e => e.value.path);
 			expect(paths).toContain(copilotUri.path);
 			expect(paths).toContain(level2Uri.path);
 			expect(paths).toContain(level3Uri.path);
@@ -371,15 +337,9 @@ suite('AutomaticInstructionsCollector', () => {
 			]);
 			promptsService.setFileContent(copilotUri, 'See #file:/tmp/external.md');
 
-			const result = await collector.collect(
-				undefined,
-				undefined,
-				localSessionResource,
-				[],
-				CancellationToken.None,
-			);
+			const result = await callCollect();
 
-			const paths = result.entries.filter(e => isInstructionFile(e)).map(e => e.value.path);
+			const paths = result.filter(e => isInstructionFile(e)).map(e => e.value.path);
 			expect(paths).toContain(copilotUri.path);
 			expect(paths).not.toContain('/tmp/external.md');
 		});
@@ -397,17 +357,11 @@ suite('AutomaticInstructionsCollector', () => {
 				{ path: referencedUri.path, contents: ['x'] },
 			]);
 
-			const result = await collector.collect(
-				undefined,
-				undefined,
-				localSessionResource,
-				[],
-				CancellationToken.None,
-			);
+			const result = await callCollect();
 
-			const paths = result.entries.filter(e => isInstructionFile(e)).map(e => e.value.path);
+			const paths = result.filter(e => isInstructionFile(e)).map(e => e.value.path);
 			expect(paths).not.toContain(referencedUri.path);
-			expect(result.telemetry.referencedInstructionsCount).toBe(0);
+			expect(instructionsCollectedMeasurements().referencedInstructionsCount).toBe(0);
 		});
 	});
 
@@ -418,15 +372,9 @@ suite('AutomaticInstructionsCollector', () => {
 				{ uri: instructionUri, name: 'test', source: 'local', description: 'Test instructions', pattern: '**/*.ts' } as ChatInstruction,
 			]);
 
-			const result = await collector.collect(
-				[tool(ToolName.ReadFile)],
-				undefined,
-				localSessionResource,
-				[],
-				CancellationToken.None,
-			);
+			const result = await callCollect({ tools: [tool(ToolName.ReadFile)] });
 
-			const indexEntry = result.entries.find(isCustomizationsIndex);
+			const indexEntry = result.find(isCustomizationsIndex);
 			expect(indexEntry).toBeDefined();
 			const content = indexEntry!.value;
 			const sections = xmlContents(content, 'instructions');
@@ -444,15 +392,9 @@ suite('AutomaticInstructionsCollector', () => {
 				{ uri: instructionUri, name: 'test', source: 'local', description: 'Test', pattern: '**/*.ts' } as ChatInstruction,
 			]);
 
-			const result = await collector.collect(
-				undefined, // no tools
-				undefined,
-				localSessionResource,
-				[],
-				CancellationToken.None,
-			);
+			const result = await callCollect();
 
-			expect(result.entries.find(isCustomizationsIndex)).toBeUndefined();
+			expect(result.find(isCustomizationsIndex)).toBeUndefined();
 		});
 
 		test('emits a <skills> section listing model-invocable skills', async () => {
@@ -463,15 +405,9 @@ suite('AutomaticInstructionsCollector', () => {
 				{ uri: tsSkillUri, name: 'typescript', source: 'local', description: 'TypeScript best practices', disableModelInvocation: false } as ChatSkill,
 			]);
 
-			const result = await collector.collect(
-				[tool(ToolName.ReadFile)],
-				undefined,
-				localSessionResource,
-				[],
-				CancellationToken.None,
-			);
+			const result = await callCollect({ tools: [tool(ToolName.ReadFile)] });
 
-			const indexEntry = result.entries.find(isCustomizationsIndex)!;
+			const indexEntry = result.find(isCustomizationsIndex)!;
 			const skills = xmlContents(xmlContents(indexEntry.value, 'skills')[0], 'skill');
 			expect(skills).toHaveLength(2);
 			expect(xmlContents(skills[0], 'name')[0]).toBe('javascript');
@@ -487,15 +423,9 @@ suite('AutomaticInstructionsCollector', () => {
 				{ uri: manualUri, name: 'manual', source: 'local', description: 'Manual skill', disableModelInvocation: true } as ChatSkill,
 			]);
 
-			const result = await collector.collect(
-				[tool(ToolName.ReadFile)],
-				undefined,
-				localSessionResource,
-				[],
-				CancellationToken.None,
-			);
+			const result = await callCollect({ tools: [tool(ToolName.ReadFile)] });
 
-			const indexEntry = result.entries.find(isCustomizationsIndex)!;
+			const indexEntry = result.find(isCustomizationsIndex)!;
 			const skills = xmlContents(xmlContents(indexEntry.value, 'skills')[0], 'skill');
 			expect(skills).toHaveLength(1);
 			expect(xmlContents(skills[0], 'name')[0]).toBe('auto');
@@ -509,15 +439,9 @@ suite('AutomaticInstructionsCollector', () => {
 				{ uri: noDesc, name: 'no-desc', source: 'local', disableModelInvocation: false } as ChatSkill,
 			]);
 
-			const result = await collector.collect(
-				[tool(ToolName.ReadFile)],
-				undefined,
-				localSessionResource,
-				[],
-				CancellationToken.None,
-			);
+			const result = await callCollect({ tools: [tool(ToolName.ReadFile)] });
 
-			const indexEntry = result.entries.find(isCustomizationsIndex)!;
+			const indexEntry = result.find(isCustomizationsIndex)!;
 			const skills = xmlContents(xmlContents(indexEntry.value, 'skills')[0], 'skill');
 			expect(skills).toHaveLength(1);
 			expect(xmlContents(skills[0], 'name')[0]).toBe('with-desc');
@@ -531,15 +455,9 @@ suite('AutomaticInstructionsCollector', () => {
 				{ uri: otherUri, name: 'other', source: 'local', description: 'Other', disableModelInvocation: false, sessionTypes: ['local'] } as ChatSkill,
 			]);
 
-			const result = await collector.collect(
-				[tool(ToolName.ReadFile)],
-				undefined,
-				remoteSessionResource,
-				[],
-				CancellationToken.None,
-			);
+			const result = await callCollect({ tools: [tool(ToolName.ReadFile)], sessionResource: remoteSessionResource });
 
-			const indexEntry = result.entries.find(isCustomizationsIndex)!;
+			const indexEntry = result.find(isCustomizationsIndex)!;
 			const skills = xmlContents(xmlContents(indexEntry.value, 'skills')[0], 'skill');
 			expect(skills).toHaveLength(1);
 			expect(xmlContents(skills[0], 'name')[0]).toBe('match');
@@ -557,23 +475,17 @@ suite('AutomaticInstructionsCollector', () => {
 				{ uri: agent3Uri, name: 'test-agent-3', source: 'local', description: 'Test agent 3', userInvocable: false, disableModelInvocation: false, enabled: true } as ChatCustomAgent,
 			]);
 
-			const result = await collector.collect(
-				[tool(ToolName.CoreRunSubagent)],
-				['*'],
-				localSessionResource,
-				[],
-				CancellationToken.None,
-			);
+			const result = await callCollect({ tools: [tool(ToolName.CoreRunSubagent)], allowedSubagents: ['*'] });
 
-			const indexEntry = result.entries.find(isCustomizationsIndex)!;
+			const indexEntry = result.find(isCustomizationsIndex)!;
 			const agents = xmlContents(xmlContents(indexEntry.value, 'agents')[0], 'agent');
-			// `disableModelInvocation` excludes an agent regardless of `enabledSubagents`.
+			// `disableModelInvocation` excludes an agent regardless of `allowedSubagents`.
 			expect(agents).toHaveLength(2);
 			expect(xmlContents(agents[0], 'name')[0]).toBe('test-agent-1');
 			expect(xmlContents(agents[1], 'name')[0]).toBe('test-agent-3');
 		});
 
-		test('respects enabledSubagents filter (specific names only)', async () => {
+		test('respects allowedSubagents filter (specific names only)', async () => {
 			const agent1Uri = URI.joinPath(rootFolderUri, '.github/agents/agent1.agent.md');
 			const agent2Uri = URI.joinPath(rootFolderUri, '.github/agents/agent2.agent.md');
 			promptsService.setCustomAgents([
@@ -581,15 +493,9 @@ suite('AutomaticInstructionsCollector', () => {
 				{ uri: agent2Uri, name: 'agent2', source: 'local', description: 'A2', userInvocable: true, disableModelInvocation: false, enabled: true } as ChatCustomAgent,
 			]);
 
-			const result = await collector.collect(
-				[tool(ToolName.CoreRunSubagent)],
-				['agent1'],
-				localSessionResource,
-				[],
-				CancellationToken.None,
-			);
+			const result = await callCollect({ tools: [tool(ToolName.CoreRunSubagent)], allowedSubagents: ['agent1'] });
 
-			const indexEntry = result.entries.find(isCustomizationsIndex)!;
+			const indexEntry = result.find(isCustomizationsIndex)!;
 			const agents = xmlContents(xmlContents(indexEntry.value, 'agents')[0], 'agent');
 			expect(agents).toHaveLength(1);
 			expect(xmlContents(agents[0], 'name')[0]).toBe('agent1');
@@ -602,15 +508,9 @@ suite('AutomaticInstructionsCollector', () => {
 				{ uri: agentUri, name: 'custom', source: 'local', description: 'Custom', userInvocable: true, disableModelInvocation: false, enabled: true } as ChatCustomAgent,
 			]);
 
-			const result = await collector.collect(
-				[tool(ToolName.CoreRunSubagent)],
-				['*'],
-				localSessionResource,
-				[],
-				CancellationToken.None,
-			);
+			const result = await callCollect({ tools: [tool(ToolName.CoreRunSubagent)], allowedSubagents: ['*'] });
 
-			const indexEntry = result.entries.find(isCustomizationsIndex)!;
+			const indexEntry = result.find(isCustomizationsIndex)!;
 			const agents = xmlContents(xmlContents(indexEntry.value, 'agents')[0], 'agent');
 			expect(agents).toHaveLength(2);
 			expect(xmlContents(agents[0], 'name')[0]).toBe('General Purpose');
@@ -624,15 +524,9 @@ suite('AutomaticInstructionsCollector', () => {
 				{ uri: nestedUri, type: AgentInstructionFileType.agentsMd },
 			]);
 
-			const result = await collector.collect(
-				[tool(ToolName.ReadFile)],
-				undefined,
-				localSessionResource,
-				[],
-				CancellationToken.None,
-			);
+			const result = await callCollect({ tools: [tool(ToolName.ReadFile)] });
 
-			const indexEntry = result.entries.find(isCustomizationsIndex)!;
+			const indexEntry = result.find(isCustomizationsIndex)!;
 			const items = xmlContents(xmlContents(indexEntry.value, 'instructions')[0], 'instruction');
 			expect(items).toHaveLength(1);
 			expect(xmlContents(items[0], 'file')[0]).toBe(nestedUri.path);
@@ -645,22 +539,16 @@ suite('AutomaticInstructionsCollector', () => {
 				{ uri: skillUri, name: 'test', source: 'local', description: 'Test skill', disableModelInvocation: false } as ChatSkill,
 			]);
 
-			const result = await collector.collect(
-				[tool(ToolName.ReadFile), tool(ToolName.Skill)],
-				undefined,
-				localSessionResource,
-				[],
-				CancellationToken.None,
-			);
+			const result = await callCollect({ tools: [tool(ToolName.ReadFile), tool(ToolName.Skill)] });
 
-			const indexEntry = result.entries.find(isCustomizationsIndex)!;
+			const indexEntry = result.find(isCustomizationsIndex)!;
 			const content = indexEntry.value;
 			expect(content).toContain('BLOCKING REQUIREMENT');
 		});
 	});
 
 	suite('telemetry', () => {
-		test('aggregates instruction counts in the returned event', async () => {
+		test('aggregates instruction counts in the emitted event', async () => {
 			const attached = URI.joinPath(rootFolderUri, 'src/file.ts');
 			const applying = URI.joinPath(rootFolderUri, '.github/instructions/typescript.instructions.md');
 			const copilot: IAgentInstructionFile = { uri: URI.joinPath(rootFolderUri, '.github/copilot-instructions.md'), type: AgentInstructionFileType.copilotInstructionsMd };
@@ -671,13 +559,7 @@ suite('AutomaticInstructionsCollector', () => {
 			]);
 			promptsService.setAgentInstructions([copilot, agentsMd]);
 
-			const result = await collector.collect(
-				undefined,
-				undefined,
-				localSessionResource,
-				[toAttachedFileReference(attached)],
-				CancellationToken.None,
-			);
+			await callCollect({ references: [toAttachedFileReference(attached)] });
 
 			const expected: InstructionsCollectionEvent = {
 				applyingInstructionsCount: 1,
@@ -689,7 +571,7 @@ suite('AutomaticInstructionsCollector', () => {
 				claudeMdCount: 0,
 				claudeAgentsCount: 0,
 			};
-			expect(result.telemetry).toEqual(expected);
+			expect(instructionsCollectedMeasurements()).toEqual(expected);
 		});
 
 		test('counts CLAUDE.md and rules folder hits', async () => {
@@ -702,16 +584,11 @@ suite('AutomaticInstructionsCollector', () => {
 			]);
 			promptsService.setAgentInstructions([claudeMd]);
 
-			const result = await collector.collect(
-				undefined,
-				undefined,
-				localSessionResource,
-				[toAttachedFileReference(attached)],
-				CancellationToken.None,
-			);
+			await callCollect({ references: [toAttachedFileReference(attached)] });
 
-			expect(result.telemetry.claudeRulesCount).toBe(1);
-			expect(result.telemetry.claudeMdCount).toBe(1);
+			const m = instructionsCollectedMeasurements();
+			expect(m.claudeRulesCount).toBe(1);
+			expect(m.claudeMdCount).toBe(1);
 		});
 
 		test('emits skillLoadedIntoContext per model-invocable skill', async () => {
@@ -722,13 +599,7 @@ suite('AutomaticInstructionsCollector', () => {
 				{ uri: b, name: 'b', source: 'local', description: 'Skill B', disableModelInvocation: false } as ChatSkill,
 			]);
 
-			await collector.collect(
-				[tool(ToolName.ReadFile)],
-				undefined,
-				localSessionResource,
-				[],
-				CancellationToken.None,
-			);
+			await callCollect({ tools: [tool(ToolName.ReadFile)] });
 
 			const skillEvents = telemetry.events.filter(e => e.eventName === 'skillLoadedIntoContext');
 			expect(skillEvents).toHaveLength(2);
@@ -745,13 +616,7 @@ suite('AutomaticInstructionsCollector', () => {
 				{ uri: auto, name: 'auto', source: 'local', description: 'Auto', disableModelInvocation: false } as ChatSkill,
 			]);
 
-			await collector.collect(
-				[tool(ToolName.ReadFile)],
-				undefined,
-				localSessionResource,
-				[],
-				CancellationToken.None,
-			);
+			await callCollect({ tools: [tool(ToolName.ReadFile)] });
 
 			const skillEvents = telemetry.events.filter(e => e.eventName === 'skillLoadedIntoContext');
 			expect(skillEvents).toHaveLength(1);
@@ -760,15 +625,9 @@ suite('AutomaticInstructionsCollector', () => {
 
 	suite('edge cases', () => {
 		test('handles an empty workspace gracefully', async () => {
-			const result = await collector.collect(
-				undefined,
-				undefined,
-				localSessionResource,
-				[],
-				CancellationToken.None,
-			);
+			const result = await callCollect();
 
-			expect(result.entries).toHaveLength(0);
+			expect(result).toHaveLength(0);
 		});
 
 		test('returns early when the token is already cancelled', async () => {
@@ -784,17 +643,14 @@ suite('AutomaticInstructionsCollector', () => {
 				{ uri: URI.joinPath(rootFolderUri, 'AGENTS.md'), type: AgentInstructionFileType.agentsMd },
 			]);
 
-			const result = await collector.collect(
-				[tool(ToolName.ReadFile)],
-				undefined,
-				localSessionResource,
-				[toAttachedFileReference(URI.joinPath(rootFolderUri, 'src/file.ts'))],
-				cancelled,
-			);
+			const result = await callCollect({
+				tools: [tool(ToolName.ReadFile)],
+				references: [toAttachedFileReference(URI.joinPath(rootFolderUri, 'src/file.ts'))],
+			}, cancelled);
 
 			// Collection returns before building any entries when cancellation has
 			// already been requested.
-			expect(result.entries).toHaveLength(0);
+			expect(result).toHaveLength(0);
 		});
 	});
 
@@ -804,15 +660,9 @@ suite('AutomaticInstructionsCollector', () => {
 			{ uri: skill, name: 'x', source: 'local', description: 'X', disableModelInvocation: false } as ChatSkill,
 		]);
 
-		const result = await collector.collect(
-			[tool(ToolName.ReadFile)],
-			undefined,
-			localSessionResource,
-			[],
-			CancellationToken.None,
-		);
+		const result = await callCollect({ tools: [tool(ToolName.ReadFile)] });
 
-		const indexEntries = result.entries.filter(e => isCustomizationsIndex(e));
+		const indexEntries = result.filter(e => isCustomizationsIndex(e));
 		expect(indexEntries).toHaveLength(1);
 		expect(typeof indexEntries[0].value).toBe('string');
 	});

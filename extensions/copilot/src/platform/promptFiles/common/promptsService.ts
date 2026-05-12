@@ -39,6 +39,7 @@ export namespace PromptConfig {
 	export const INCLUDE_REFERENCED_INSTRUCTIONS = 'chat.includeReferencedInstructions';
 	export const USE_SKILL_ADHERENCE_PROMPT = 'chat.experimental.useSkillAdherencePrompt';
 	export const GENERAL_PURPOSE_AGENT_ENABLED = 'chat.generalPurposeAgent.enabled';
+	export const COLLECT_INSTRUCTIONS_IN_EXTENSION = 'chat.experimental.collectInstructionsInExtension';
 }
 
 /**

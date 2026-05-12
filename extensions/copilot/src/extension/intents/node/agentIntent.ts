@@ -26,6 +26,7 @@ import { GenAiMetrics } from '../../../platform/otel/common/genAiMetrics';
 import { IOTelService } from '../../../platform/otel/common/otelService';
 import { IPromptPathRepresentationService } from '../../../platform/prompts/common/promptPathRepresentationService';
 import { IAutomaticInstructionsCollector } from '../../../platform/promptFiles/node/automaticInstructionsCollector';
+import { PromptConfig } from '../../../platform/promptFiles/common/promptsService';
 import { ITasksService } from '../../../platform/tasks/common/tasksService';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
@@ -497,43 +498,25 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 	): Promise<IBuildPromptResult> {
 		this._resolvedCustomizations = await PromptRegistry.resolveAllCustomizations(this.instantiationService, this.endpoint);
 
-		const tools = promptContext.tools?.availableTools;
-		const contextReferences = promptContext.chatVariables.references;
-		const automatic = await this._automaticInstructionsCollector.collect(tools, /* enabledSubagents */ undefined, this.request.sessionResource, promptContext.chatVariables.references, token);
-		if (automatic.entries.length > 0) {
-			promptContext= {
-				...promptContext,
-				chatVariables: new ChatVariablesCollection([...references, 
-					...promptContext.chatVariables.getAll(),
+		// Only collect automatic instructions in the extension when the corresponding core setting opts in.
+		// Otherwise the core workbench performs the collection before the request reaches the extension.
+		if (this.configurationService.getNonExtensionConfig<boolean>(PromptConfig.COLLECT_INSTRUCTIONS_IN_EXTENSION) === true) {
+			const addedInstructionsAndIndex = await this._automaticInstructionsCollector.collect(this.request, token);
+			if (addedInstructionsAndIndex.length > 0) {
+				promptContext = { ...promptContext, chatVariables: ChatVariablesCollection.merge(promptContext.chatVariables, new ChatVariablesCollection(addedInstructionsAndIndex)) };
 			}
-
-
-			allReferences.push(...automatic.entries);
 		}
-
-
-
 		// Add any references from the codebase invocation to the request
 		const codebase = await this._getCodebaseReferences(promptContext, token);
 
-		const allReferences: vscode.ChatPromptReference[] = [];
-		allReferences.push(...promptContext.chatVariables.references);
-
+		let variables = promptContext.chatVariables;
 		let toolReferences: vscode.ChatPromptReference[] = [];
 		if (codebase) {
-			toolReferences = toNewChatReferences(promptContext.chatVariables, codebase.references);
-			allReferences.push(...toolReferences);
+			toolReferences = toNewChatReferences(variables, codebase.references);
+			variables = new ChatVariablesCollection([...variables.references, ...toolReferences]);
 		}
 
-
-
-		this.request.modeInstructions2 = this.request.modeInstructions2 || (tools ? normalizeToolSchema(tools) : undefined);
-
-
-
-
-		const variables = new ChatVariablesCollection(allReferences);
-
+		const tools = promptContext.tools?.availableTools;
 		const toolSearchEnabled = !!this.endpoint.supportsToolSearch;
 		const toolTokens = tools?.length ? await this.endpoint.acquireTokenizer().countToolTokens(tools) : 0;
 

@@ -29,11 +29,11 @@ import { getToolReferencePromptContent } from '../../../extension/prompt/vscode-
 import { IExperimentationService } from '../../telemetry/common/nullExperimentationService';
 import { getChatSessionType, matchesSessionType } from '../../chat/common/sessionUtils';
 
-
 /**
  * Telemetry payload (parity with core's `instructionsCollected` event).
  */
 export interface InstructionsCollectionEvent {
+	[key: string]: number;
 	applyingInstructionsCount: number;
 	referencedInstructionsCount: number;
 	agentInstructionsCount: number;
@@ -44,25 +44,16 @@ export interface InstructionsCollectionEvent {
 	claudeAgentsCount: number;
 }
 
-/**
- * The result of an {@link IAutomaticInstructionsCollector.collect} call.
- */
-export interface AutomaticInstructionsResult {
-	/** Newly-added chat variable entries to merge into the request. */
-	readonly entries: ReadonlyArray<vscode.ChatPromptReference>;
-	/** Telemetry payload. */
-	readonly telemetry: InstructionsCollectionEvent;
+export interface IAutomaticInstructionsCollectorContext {
+	readonly tools: Map<vscode.LanguageModelToolInformation, boolean>;
+	readonly modeInstructions2?: vscode.ChatRequestModeInstructions;
+	readonly sessionResource: URI;
+	readonly references: readonly vscode.ChatPromptReference[];
 }
 
 export interface IAutomaticInstructionsCollector {
 	readonly _serviceBrand: undefined;
-	collect(
-		availableTools: readonly vscode.LanguageModelToolInformation[] | undefined,
-		enabledSubagents: readonly string[] | undefined,
-		sessionResource: URI,
-		existingReferences: readonly vscode.ChatPromptReference[],
-		token: CancellationToken,
-	): Promise<AutomaticInstructionsResult>;
+	collect(context: IAutomaticInstructionsCollectorContext, token: CancellationToken): Promise<readonly vscode.ChatPromptReference[]>;
 }
 
 export const IAutomaticInstructionsCollector = createServiceIdentifier<IAutomaticInstructionsCollector>('IAutomaticInstructionsCollector');
@@ -144,13 +135,7 @@ export class AutomaticInstructionsCollector implements IAutomaticInstructionsCol
 		@IExperimentationService private readonly _experimentationService: IExperimentationService,
 	) { }
 
-	public async collect(
-		availableTools: readonly vscode.LanguageModelToolInformation[] | undefined,
-		enabledSubagents: readonly string[] | undefined,
-		sessionResource: URI,
-		existingReferences: readonly vscode.ChatPromptReference[],
-		token: CancellationToken,
-	): Promise<AutomaticInstructionsResult> {
+	async collect({ sessionResource, references, tools, modeInstructions2 }: IAutomaticInstructionsCollectorContext, token: CancellationToken): Promise<readonly vscode.ChatPromptReference[]> {
 
 		const telemetry = newTelemetryEvent();
 		const newEntries: vscode.ChatPromptReference[] = [];
@@ -160,7 +145,7 @@ export class AutomaticInstructionsCollector implements IAutomaticInstructionsCol
 		this._parseResults.clear();
 
 		const instructionFiles = await this._promptsService.getInstructions(token);
-		const context = collectAttachedContext(existingReferences);
+		const context = collectAttachedContext(references);
 
 		// Track instruction URIs already known to the collector so the
 		// applying / referenced steps don't add duplicates.
@@ -172,33 +157,32 @@ export class AutomaticInstructionsCollector implements IAutomaticInstructionsCol
 		// Step 1: applying instructions (applyTo glob match).
 		await this._addApplyingInstructions(instructionFiles, context.files, seenInstructionUris, sessionType, telemetry, newEntries, token);
 		if (token.isCancellationRequested) {
-			return { entries: newEntries, telemetry: finalizeTelemetry(telemetry) };
+			return [];
 		}
 
 		// Step 3 (run before agent instructions to match core ordering).
 		// Follow references from anything currently attached as instruction.
 		await this._addReferencedInstructions(seenInstructionUris, telemetry, newEntries, token);
 		if (token.isCancellationRequested) {
-			return { entries: newEntries, telemetry: finalizeTelemetry(telemetry) };
+			return [];
 		}
 
 		// Step 2: workspace-level agent instructions, plus referenced
 		// instructions starting from copilot-instructions.md only.
 		await this._addAgentInstructions(seenInstructionUris, telemetry, newEntries, token);
 		if (token.isCancellationRequested) {
-			return { entries: newEntries, telemetry: finalizeTelemetry(telemetry) };
+			return [];
 		}
 
 		// Step 4: customizations index text variable.
-		const indexEntry = await this._buildCustomizationsIndex(instructionFiles, availableTools, enabledSubagents, sessionType, telemetry, token);
+		const indexEntry = await this._buildCustomizationsIndex(instructionFiles, tools, modeInstructions2?.allowedSubagents, sessionType, telemetry, token);
 		if (indexEntry) {
 			newEntries.push(indexEntry);
 			telemetry.listedInstructionsCount++;
 		}
 
-		const telemetry = finalizeTelemetry(telemetry);
-
-		return { entries: newEntries, telemetry: finalizeTelemetry(telemetry) };
+		this.sendTelemetry(telemetry);
+		return newEntries;
 	}
 
 	// ─── Step 1: applyTo matching ─────────────────────────────────────────
@@ -301,16 +285,17 @@ export class AutomaticInstructionsCollector implements IAutomaticInstructionsCol
 			return;
 		}
 
+		const queue: URI[] = [];
 		const seen = new ResourceSet();
 		for (const uri of startingFrom) {
 			seen.add(uri);
+			queue.push(uri);
 		}
 		if (additionalSeen) {
 			for (const uri of additionalSeen) {
 				seen.add(uri);
 			}
 		}
-		const queue: URI[] = Array.from(startingFrom);
 
 		while (queue.length > 0) {
 			if (token.isCancellationRequested) {
@@ -374,15 +359,24 @@ export class AutomaticInstructionsCollector implements IAutomaticInstructionsCol
 	// ─── Step 4: customizations index ─────────────────────────────────────
 	private async _buildCustomizationsIndex(
 		instructionFiles: readonly vscode.ChatInstruction[],
-		availableTools: readonly vscode.LanguageModelToolInformation[] | undefined,
+		tools: Map<vscode.LanguageModelToolInformation, boolean>,
 		enabledSubagents: readonly string[] | undefined,
 		sessionType: string,
 		telemetry: InstructionsCollectionEvent,
 		token: CancellationToken,
 	): Promise<vscode.ChatPromptReference | undefined> {
-		const readTool = availableTools?.find(tool => tool.name === ToolName.ReadFile);
-		const runSubagentTool = availableTools?.find(tool => tool.name === ToolName.CoreRunSubagent);
-		const skillTool = availableTools?.find(tool => tool.name === ToolName.Skill);
+		let readTool, skillTool, runSubagentTool;
+		for (const [tool, enabled] of tools) {
+			if (enabled) {
+				if (tool.name === ToolName.ReadFile) {
+					readTool = tool;
+				} else if (tool.name === ToolName.CoreRunSubagent) {
+					runSubagentTool = tool;
+				} else if (tool.name === ToolName.Skill) {
+					skillTool = tool;
+				}
+			}
+		}
 
 		const filePath = (uri: URI) => this._promptPathRepresentationService.getFilePath(uri);
 		const lines: string[] = [];
@@ -628,15 +622,29 @@ export class AutomaticInstructionsCollector implements IAutomaticInstructionsCol
 		}
 	}
 	private sendTelemetry(telemetryEvent: InstructionsCollectionEvent): void {
-		// Emit telemetry
 		telemetryEvent.totalInstructionsCount = telemetryEvent.agentInstructionsCount + telemetryEvent.referencedInstructionsCount + telemetryEvent.applyingInstructionsCount + telemetryEvent.listedInstructionsCount;
-		this._telemetryService.sendMSFTTelemetryEvent<InstructionsCollectionEvent, InstructionsCollectionClassification>('instructionsCollected', telemetryEvent);
+		/* __GDPR__
+			"instructionsCollected" : {
+				"owner": "digitarald",
+				"comment": "Tracks automatic instruction collection usage in chat prompt system.",
+				"applyingInstructionsCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Number of instructions added via pattern matching." },
+				"referencedInstructionsCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Number of instructions added via references from other instruction files." },
+				"agentInstructionsCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Number of agent instructions added (copilot-instructions.md and agents.md)." },
+				"listedInstructionsCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Number of instruction patterns added." },
+				"totalInstructionsCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Total number of instruction entries added to variables." },
+				"claudeRulesCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Number of Claude rules files (.claude/rules/) added via pattern matching." },
+				"claudeMdCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Number of CLAUDE.md agent instruction files added." },
+				"claudeAgentsCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Number of Claude agent files (.claude/agents/) listed as subagents." }
+			}
+		*/
+		this._telemetryService.sendMSFTTelemetryEvent('instructionsCollected', undefined, telemetryEvent);
 	}
 
 
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
+
 
 function newTelemetryEvent(): InstructionsCollectionEvent {
 	return {
@@ -649,26 +657,6 @@ function newTelemetryEvent(): InstructionsCollectionEvent {
 		claudeMdCount: 0,
 		claudeAgentsCount: 0,
 	};
-}
-
-type InstructionsCollectionClassification = {
-	applyingInstructionsCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of instructions added via pattern matching.' };
-	referencedInstructionsCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of instructions added via references from other instruction files.' };
-	agentInstructionsCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of agent instructions added (copilot-instructions.md and agents.md).' };
-	listedInstructionsCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of instruction patterns added.' };
-	totalInstructionsCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total number of instruction entries added to variables.' };
-	claudeRulesCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of Claude rules files (.claude/rules/) added via pattern matching.' };
-	claudeMdCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of CLAUDE.md agent instruction files added.' };
-	claudeAgentsCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of Claude agent files (.claude/agents/) listed as subagents.' };
-	owner: 'digitarald';
-	comment: 'Tracks automatic instruction collection usage in chat prompt system.';
-};
-
-function finalizeTelemetry(telemetry: InstructionsCollectionEvent): InstructionsCollectionEvent {
-	telemetry.totalInstructionsCount = telemetry.agentInstructionsCount + telemetry.referencedInstructionsCount
-	+ telemetry.applyingInstructionsCount
-		+ telemetry.listedInstructionsCount;
-	return telemetry;
 }
 
 /** Splits the existing variable set into attached files vs. instructions. */

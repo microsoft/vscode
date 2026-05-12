@@ -7,7 +7,6 @@ import type * as vscode from 'vscode';
 import { sessionResourceToId } from '../../../platform/chat/common/chatDebugFileLoggerService';
 import { URI } from '../../../util/vs/base/common/uri';
 import { basename } from '../../../util/vs/base/common/resources';
-import { ResourceMap, ResourceSet } from '../../../util/vs/base/common/map';
 
 export interface PromptVariable {
 	readonly reference: vscode.ChatPromptReference;
@@ -21,35 +20,38 @@ export interface PromptVariable {
 export class ChatVariablesCollection {
 	private _variables: PromptVariable[] | null = null;
 
-	static merge(...collections: ChatVariablesCollection[]): ChatVariablesCollection {
+	static mergeAndDedup(...collections: ChatVariablesCollection[]): ChatVariablesCollection {
 		const allReferences: vscode.ChatPromptReference[] = [];
-		const seenUris = new ResourceSet();
-		const seenValues = new Set<string>();
-		const seenLocations = new ResourceMap<string>();
+		const seen = new Set<string>();
 		for (const collection of collections) {
 			for (const variable of collection) {
 				const ref = variable.reference;
-				if (URI.isUri(variable.value)) {
-					if (seenUris.has(variable.value)) {
-						continue;
-					}
-					seenUris.add(variable.value);
-				} else if (typeof variable.value === 'string') {
-					const key = JSON.stringify(ref.value);
-					if (seenValues.has(key)) {
-						continue;
-					}
-					seenValues.add(key);
-				} else if (variable.value && typeof variable.value === 'object' && 'uri' in variable.value) {
-					const location = variable.value as vscode.Location;
-					if (seenLocations.has(location.uri)) {
-						continue;
-					}
-					seenLocations.set(location.uri, JSON.stringify(location.range));
+
+				// simple dedupe
+				let key: string;
+				try {
+					key = JSON.stringify(ref.value);
+				} catch {
+					key = ref.id + String(ref.value);
+				}
+
+				if (!seen.has(key)) {
+					seen.add(key);
+					allReferences.push(ref);
 				}
 			}
 		}
 
+		return new ChatVariablesCollection(allReferences);
+	}
+
+	static merge(...collections: ChatVariablesCollection[]): ChatVariablesCollection {
+		const allReferences: vscode.ChatPromptReference[] = [];
+		for (const collection of collections) {
+			for (const variable of collection) {
+				allReferences.push(variable.reference);
+			}
+		}
 		return new ChatVariablesCollection(allReferences);
 	}
 
