@@ -1838,9 +1838,8 @@ export interface UsageInfo {
 	/** Tokens read from cache */
 	cacheReadTokens?: number;
 	/**
-	 * Additional provider-specific usage metadata.
-	 *
-	 * Clients MAY look for well-known keys here to provide enhanced UI.
+	 * Additional provider-specific metadata for this usage report.
+	 * Clients MAY look for well-known optional keys here to provide enhanced UI.
 	 */
 	_meta?: Record<string, unknown>;
 }
