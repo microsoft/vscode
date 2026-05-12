@@ -28,6 +28,7 @@ import { IClaudeCodeSdkService } from '../claude/node/claudeCodeSdkService';
 import { parseClaudeModelId } from '../claude/node/claudeModelId';
 import { IClaudeSessionStateService } from '../claude/common/claudeSessionStateService';
 import { IClaudeCodeSessionService } from '../claude/node/sessionParser/claudeCodeSessionService';
+import { formatModelDetailsWithCredits } from '../../../platform/chat/common/chatModelDetails';
 import { IClaudeCodeSessionInfo, IClaudeCodeSession, SYNTHETIC_MODEL_ID } from '../claude/node/sessionParser/claudeSessionSchema';
 import { IClaudeSlashCommandService } from '../claude/vscode-node/claudeSlashCommandService';
 import { IChatFolderMruService } from '../common/folderRepositoryManager';
@@ -179,10 +180,7 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 			let details: string | undefined;
 			if (modelDetailsEnabled && endpoint) {
 				if (creditsUsed !== undefined) {
-					const formatted = creditsUsed % 1 === 0 ? creditsUsed.toString() : creditsUsed.toFixed(1);
-					details = creditsUsed === 1
-						? vscode.l10n.t('{0} \u2022 {1} credit', endpoint.name, formatted)
-						: vscode.l10n.t('{0} \u2022 {1} credits', endpoint.name, formatted);
+					details = formatModelDetailsWithCredits(endpoint.name, creditsUsed);
 				} else {
 					details = formatClaudeModelDetails(endpoint);
 				}
@@ -537,11 +535,12 @@ export class ClaudeChatSessionItemController extends Disposable {
 
 			if (sessionResource) {
 				pipeline.isSessionStarted.set(true, undefined);
+				const sessionId = ClaudeSessionUri.getSessionId(sessionResource);
+				this._sessionStateService.setPermissionModeForSession(sessionId, pipeline.permissionMode.get());
 
 				// React to external permission mode changes for this session.
 				// Runs for both previousInputState and new-state paths so that
 				// EnterPlanMode / ExitPlanMode tool calls always update the input UI.
-				const sessionId = ClaudeSessionUri.getSessionId(sessionResource);
 				const externalPermissionMode = observableFromEvent(
 					this,
 					Event.filter(this._sessionStateService.onDidChangeSessionState,

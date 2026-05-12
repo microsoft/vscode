@@ -798,6 +798,7 @@ registerAction2(class MarkSessionAsDoneAction extends Action2 {
 					IsSessionsWindowContext,
 					IsActiveSessionArchivedContext.negate(),
 					ActiveSessionContextKeys.HasGitRepository.isEqualTo(true),
+					ActiveSessionContextKeys.HasGitOperationInProgress.negate(),
 					ContextKeyExpr.or(
 						// No changes
 						ActiveSessionContextKeys.HasBranchChanges.negate(),

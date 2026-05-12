@@ -314,6 +314,100 @@ suite('AgentHostStateManager', () => {
 		assert.strictEqual(manager.rootState.activeSessions, 0);
 	});
 
+	test('removeSession decrements active sessions when an active turn is stranded', () => {
+		manager.createSession(makeSessionSummary());
+		manager.dispatchServerAction({ type: ActionType.SessionReady, session: sessionUri });
+		manager.dispatchServerAction({
+			type: ActionType.SessionTurnStarted,
+			session: sessionUri,
+			turnId: 'turn-1',
+			userMessage: { text: 'hello' },
+		});
+		assert.strictEqual(manager.rootState.activeSessions, 1);
+
+		const envelopes: ActionEnvelope[] = [];
+		disposables.add(manager.onDidEmitEnvelope(e => envelopes.push(e)));
+
+		// Evict the session while a turn is still active. The active-sessions
+		// count must drop to zero so that the server lifetime tracker (driving
+		// `--enable-remote-auto-shutdown`) releases its hold.
+		manager.removeSession(sessionUri);
+
+		assert.strictEqual(manager.rootState.activeSessions, 0);
+		const activeChanged = envelopes.filter(e => e.action.type === ActionType.RootActiveSessionsChanged);
+		assert.strictEqual(activeChanged.length, 1);
+		assert.strictEqual((activeChanged[0].action as { activeSessions: number }).activeSessions, 0);
+	});
+
+	test('removeSession does not dispatch active-sessions change when no turn is active', () => {
+		manager.createSession(makeSessionSummary());
+		manager.dispatchServerAction({ type: ActionType.SessionReady, session: sessionUri });
+
+		const envelopes: ActionEnvelope[] = [];
+		disposables.add(manager.onDidEmitEnvelope(e => envelopes.push(e)));
+
+		manager.removeSession(sessionUri);
+
+		const activeChanged = envelopes.filter(e => e.action.type === ActionType.RootActiveSessionsChanged);
+		assert.strictEqual(activeChanged.length, 0);
+	});
+
+	test('stale SessionTurnComplete (wrong turnId) does not decrement active sessions', () => {
+		// The reducer's `endTurn` no-ops when the action's turnId doesn't match
+		// `state.activeTurn.id`. The active-session count must follow suit so
+		// the lifetime tracker doesn't release its hold while a turn is still
+		// genuinely running.
+		manager.createSession(makeSessionSummary());
+		manager.dispatchServerAction({ type: ActionType.SessionReady, session: sessionUri });
+		manager.dispatchServerAction({
+			type: ActionType.SessionTurnStarted,
+			session: sessionUri,
+			turnId: 'turn-1',
+			userMessage: { text: 'hello' },
+		});
+		assert.strictEqual(manager.rootState.activeSessions, 1);
+
+		manager.dispatchServerAction({
+			type: ActionType.SessionTurnComplete,
+			session: sessionUri,
+			turnId: 'stale-turn',
+		});
+
+		assert.strictEqual(manager.rootState.activeSessions, 1);
+		assert.strictEqual(manager.hasActiveSessions, true);
+	});
+
+	test('concurrent SessionTurnStarted on same session keeps active count at one', () => {
+		// The reducer unconditionally overwrites `activeTurn`, so two starts
+		// without an intervening complete still represent a single active turn
+		// from state's point of view. The count must mirror that.
+		manager.createSession(makeSessionSummary());
+		manager.dispatchServerAction({ type: ActionType.SessionReady, session: sessionUri });
+		manager.dispatchServerAction({
+			type: ActionType.SessionTurnStarted,
+			session: sessionUri,
+			turnId: 'turn-1',
+			userMessage: { text: 'a' },
+		});
+		manager.dispatchServerAction({
+			type: ActionType.SessionTurnStarted,
+			session: sessionUri,
+			turnId: 'turn-2',
+			userMessage: { text: 'b' },
+		});
+
+		assert.strictEqual(manager.rootState.activeSessions, 1);
+
+		manager.dispatchServerAction({
+			type: ActionType.SessionTurnComplete,
+			session: sessionUri,
+			turnId: 'turn-2',
+		});
+
+		assert.strictEqual(manager.rootState.activeSessions, 0);
+		assert.strictEqual(manager.hasActiveSessions, false);
+	});
+
 	test('restoreSession creates session in Ready state with pre-populated turns', () => {
 		const turns = [
 			{

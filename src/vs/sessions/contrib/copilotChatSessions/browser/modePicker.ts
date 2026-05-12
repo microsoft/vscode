@@ -12,6 +12,7 @@ import { localize } from '../../../../nls.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { ChatMode, IChatMode, IChatModes, IChatModeService } from '../../../../workbench/contrib/chat/common/chatModes.js';
 import { IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -22,6 +23,7 @@ import { ISessionsManagementService } from '../../../services/sessions/common/se
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { CopilotChatSessionsProvider } from './copilotChatSessionsProvider.js';
 import { CopilotCLISessionType } from '../../../services/sessions/common/session.js';
+import { reportNewChatPickerClosed } from '../../chat/browser/newChatPickerTelemetry.js';
 
 interface IModePickerItem {
 	readonly kind: 'mode';
@@ -62,6 +64,7 @@ export class ModePicker extends Disposable {
 		@ICommandService private readonly commandService: ICommandService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 
@@ -149,10 +152,19 @@ export class ModePicker extends Disposable {
 		const items = this._buildItems(modes);
 
 		const triggerElement = this._triggerElement;
+		const previousMode = this._selectedMode;
 		const delegate: IActionListDelegate<ModePickerItem> = {
 			onSelect: (item) => {
 				this.actionWidgetService.hide();
 				if (item.kind === 'mode') {
+					reportNewChatPickerClosed(this.telemetryService, {
+						id: 'NewChatModePicker',
+						optionIdBefore: previousMode.id,
+						optionIdAfter: item.mode.id,
+						optionLabelBefore: previousMode.label.get(),
+						optionLabelAfter: item.mode.label.get(),
+						isPII: true,
+					});
 					this._selectMode(item.mode);
 				} else {
 					this.commandService.executeCommand(AICustomizationManagementCommands.OpenEditor, AICustomizationManagementSection.Agents);

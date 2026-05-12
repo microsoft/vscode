@@ -68,6 +68,12 @@ export interface IActionListItem<T> {
 	readonly detail?: string;
 	readonly description?: string | IMarkdownString;
 	/**
+	 * Optional accessible description used in place of {@link description} for
+	 * screen reader labels. Useful when the visual description contains icons
+	 * or other non-textual content.
+	 */
+	readonly ariaDescription?: string;
+	/**
 	 * Optional hover configuration shown when focusing/hovering over the item.
 	 */
 	readonly hover?: IActionListItemHover;
@@ -637,7 +643,9 @@ export class ActionListWidget<T> extends Disposable {
 						if (element.detail) {
 							label = label + ', ' + stripNewlines(element.detail);
 						}
-						if (element.description) {
+						if (element.ariaDescription) {
+							label = label + ', ' + stripNewlines(element.ariaDescription);
+						} else if (element.description) {
 							const descText = typeof element.description === 'string' ? element.description : element.description.value;
 							label = label + ', ' + stripNewlines(descText);
 						}

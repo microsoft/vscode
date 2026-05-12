@@ -6,11 +6,12 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import {
-	extractPermissionPath,
 	getClaudeConfirmationTitle,
 	getClaudePermissionKind,
 	getClaudeToolDisplayName,
+	getClaudeToolPath,
 	INTERACTIVE_CLAUDE_TOOLS,
+	isClaudeFileEditTool,
 } from '../../node/claude/claudeToolDisplay.js';
 
 /**
@@ -75,22 +76,25 @@ suite('claudeToolDisplay — §4 mapping table', () => {
 		);
 	});
 
-	test('extractPermissionPath snapshot for path-bearing tools', () => {
+	test('getClaudeToolPath snapshot for path-bearing tools', () => {
 		assert.deepStrictEqual(
 			{
-				read: extractPermissionPath('Read', { file_path: '/tmp/a' }),
-				write: extractPermissionPath('Write', { file_path: '/tmp/b' }),
-				edit: extractPermissionPath('Edit', { file_path: '/tmp/c' }),
-				multiEdit: extractPermissionPath('MultiEdit', { file_path: '/tmp/d' }),
-				notebookRead: extractPermissionPath('NotebookRead', { notebook_path: '/tmp/e.ipynb' }),
-				notebookEdit: extractPermissionPath('NotebookEdit', { notebook_path: '/tmp/f.ipynb' }),
-				glob: extractPermissionPath('Glob', { path: '/tmp/g', pattern: '*' }),
-				grep: extractPermissionPath('Grep', { path: '/tmp/h', pattern: 'foo' }),
-				ls: extractPermissionPath('LS', { path: '/tmp/i' }),
-				webFetch: extractPermissionPath('WebFetch', { url: 'https://example.com' }),
-				bash: extractPermissionPath('Bash', { command: 'ls' }),
-				wrongTypeRead: extractPermissionPath('Read', { file_path: 42 }),
-				missingRead: extractPermissionPath('Read', {}),
+				read: getClaudeToolPath('Read', { file_path: '/tmp/a' }),
+				write: getClaudeToolPath('Write', { file_path: '/tmp/b' }),
+				edit: getClaudeToolPath('Edit', { file_path: '/tmp/c' }),
+				multiEdit: getClaudeToolPath('MultiEdit', { file_path: '/tmp/d' }),
+				notebookRead: getClaudeToolPath('NotebookRead', { notebook_path: '/tmp/e.ipynb' }),
+				notebookEdit: getClaudeToolPath('NotebookEdit', { notebook_path: '/tmp/f.ipynb' }),
+				glob: getClaudeToolPath('Glob', { path: '/tmp/g', pattern: '*' }),
+				grep: getClaudeToolPath('Grep', { path: '/tmp/h', pattern: 'foo' }),
+				ls: getClaudeToolPath('LS', { path: '/tmp/i' }),
+				webFetch: getClaudeToolPath('WebFetch', { url: 'https://example.com' }),
+				bash: getClaudeToolPath('Bash', { command: 'ls' }),
+				todoWrite: getClaudeToolPath('TodoWrite', { todos: [] }),
+				wrongTypeRead: getClaudeToolPath('Read', { file_path: 42 }),
+				missingRead: getClaudeToolPath('Read', {}),
+				nonObject: getClaudeToolPath('Write', null),
+				unknownTool: getClaudeToolPath('SomeNewTool', { file_path: '/tmp/x' }),
 			},
 			{
 				read: '/tmp/a',
@@ -104,8 +108,11 @@ suite('claudeToolDisplay — §4 mapping table', () => {
 				ls: '/tmp/i',
 				webFetch: 'https://example.com',
 				bash: undefined,
+				todoWrite: undefined,
 				wrongTypeRead: undefined,
 				missingRead: undefined,
+				nonObject: undefined,
+				unknownTool: undefined,
 			},
 		);
 	});
@@ -136,6 +143,33 @@ suite('claudeToolDisplay — §4 mapping table', () => {
 				mcpWithServer: 'Allow tool from github?',
 				custom: 'Allow tool call?',
 				unknown: 'Allow tool call?',
+			},
+		);
+	});
+
+	test('Phase 8 — isClaudeFileEditTool covers Write/Edit/MultiEdit/NotebookEdit, excludes TodoWrite/Bash/others', () => {
+		assert.deepStrictEqual(
+			{
+				Write: isClaudeFileEditTool('Write'),
+				Edit: isClaudeFileEditTool('Edit'),
+				MultiEdit: isClaudeFileEditTool('MultiEdit'),
+				NotebookEdit: isClaudeFileEditTool('NotebookEdit'),
+				TodoWrite: isClaudeFileEditTool('TodoWrite'),
+				Read: isClaudeFileEditTool('Read'),
+				Bash: isClaudeFileEditTool('Bash'),
+				unknown: isClaudeFileEditTool('SomeNewTool'),
+				mcp: isClaudeFileEditTool('mcp__server__edit'),
+			},
+			{
+				Write: true,
+				Edit: true,
+				MultiEdit: true,
+				NotebookEdit: true,
+				TodoWrite: false,
+				Read: false,
+				Bash: false,
+				unknown: false,
+				mcp: false,
 			},
 		);
 	});

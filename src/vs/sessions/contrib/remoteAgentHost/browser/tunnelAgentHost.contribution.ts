@@ -194,14 +194,7 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 
 	private _createProvider(address: string, name: string): void {
 		const store = new DisposableStore();
-		const provider = this._instantiationService.createInstance(
-			RemoteAgentHostSessionsProvider, {
-			address,
-			name,
-			connectOnDemand: () => this._connectTunnel(address, { userInitiated: true }),
-			disconnectOnDemand: () => this._disconnectTunnel(address),
-		},
-		);
+		const provider = this._instantiateProvider(address, name);
 		// Surface as "Connecting" until the first silent status check or an
 		// auto-connect attempt determines the real state; otherwise the picker
 		// flashes "Offline" for every cached tunnel on startup.
@@ -211,6 +204,17 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 		this._providerInstances.set(address, provider);
 		store.add(toDisposable(() => this._providerInstances.delete(address)));
 		this._providerStores.set(address, store);
+	}
+
+	protected _instantiateProvider(address: string, name: string): RemoteAgentHostSessionsProvider {
+		return this._instantiationService.createInstance(
+			RemoteAgentHostSessionsProvider, {
+			address,
+			name,
+			connectOnDemand: () => this._connectTunnel(address, { userInitiated: true }),
+			disconnectOnDemand: () => this._disconnectTunnel(address),
+		},
+		);
 	}
 
 	// -- Connection status --
