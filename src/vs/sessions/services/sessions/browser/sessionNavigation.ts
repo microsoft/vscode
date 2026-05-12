@@ -15,10 +15,12 @@ import { ISessionsChangeEvent, ISessionsManagementService } from '../common/sess
 const MAX_HISTORY_SIZE = 50;
 
 /**
- * A navigation history entry. Stores the session resource URI.
+ * A navigation history entry. Stores the session and optionally the chat
+ * resource URI so that back/forward also restores the active chat.
  */
 interface INavigationEntry {
 	readonly sessionResource: URI;
+	readonly chatResource: URI | undefined;
 }
 
 /**
@@ -29,6 +31,7 @@ export class SessionsNavigation extends Disposable {
 
 	private readonly _history: INavigationEntry[] = [];
 	private readonly _currentIndex = observableValue<number>(this, -1);
+	private readonly _historySize = observableValue<number>(this, 0);
 
 	/** Guard: true while we are performing a back/forward navigation. */
 	private _navigating = false;
@@ -53,7 +56,7 @@ export class SessionsNavigation extends Disposable {
 		if (this._beyondHistory.read(reader)) {
 			return false;
 		}
-		return this._currentIndex.read(reader) < this._history.length - 1;
+		return this._currentIndex.read(reader) < this._historySize.read(reader) - 1;
 	});
 
 	constructor(
@@ -66,18 +69,21 @@ export class SessionsNavigation extends Disposable {
 		this._canGoBackCtx = CanGoBackContext.bindTo(contextKeyService);
 		this._canGoForwardCtx = CanGoForwardContext.bindTo(contextKeyService);
 
-		// Track active session changes to record history entries.
+		// Track active session/chat changes to record history entries.
 		// Skip undefined (new-session view) and Untitled sessions — only record
-		// sessions that have been saved/submitted.
-		// NOTE: activeSession.read(reader) must always be called first to keep the
-		// subscription alive even during navigation, otherwise the autorun loses its
-		// dependency and stops firing after goBack/goForward completes.
+		// sessions that have been saved/submitted. Also tracks active chat changes
+		// within a session so that switching chats is navigable.
+		// NOTE: all observables must always be read before the _navigating guard to
+		// keep subscriptions alive during navigation.
 		this._register(autorun(reader => {
 			const activeSession = this._sessionsManagementService.activeSession.read(reader);
+			const activeChat = activeSession?.activeChat.read(reader);
+			const sessionStatus = activeSession?.status.read(reader);
+			const chatStatus = activeChat?.status.read(reader);
 			if (this._navigating) {
 				return;
 			}
-			if (!activeSession || activeSession.status.read(reader) === SessionStatus.Untitled) {
+			if (!activeSession || sessionStatus === SessionStatus.Untitled) {
 				// User navigated to new-session view: if we have history, remember we're
 				// beyond the stack so Back can return to the last real session.
 				if (this._history.length > 0) {
@@ -86,8 +92,13 @@ export class SessionsNavigation extends Disposable {
 				return;
 			}
 
+			// Skip untitled chats (new-chat-in-session that hasn't been submitted)
+			const chatResource = activeChat && chatStatus !== SessionStatus.Untitled
+				? activeChat.resource
+				: undefined;
+
 			this._beyondHistory.set(false, undefined);
-			this._pushEntry({ sessionResource: activeSession.resource });
+			this._pushEntry({ sessionResource: activeSession.resource, chatResource });
 		}));
 
 		// Sync context keys with observables
@@ -156,8 +167,9 @@ export class SessionsNavigation extends Disposable {
 
 		this._history.push(entry);
 		this._currentIndex.set(this._history.length - 1, undefined);
+		this._historySize.set(this._history.length, undefined);
 
-		this._logService.trace(`[SessionNavigation] pushed entry idx=${this._history.length - 1} uri=${entry.sessionResource.toString()} historySize=${this._history.length}`);
+		this._logService.trace(`[SessionNavigation] pushed entry idx=${this._history.length - 1} session=${entry.sessionResource.toString()} chat=${entry.chatResource?.toString()} historySize=${this._history.length}`);
 	}
 
 	private async _navigateTo(targetIdx: number): Promise<void> {
@@ -166,7 +178,7 @@ export class SessionsNavigation extends Disposable {
 			return;
 		}
 
-		this._logService.trace(`[SessionNavigation] navigating to idx=${targetIdx} uri=${entry.sessionResource.toString()}`);
+		this._logService.trace(`[SessionNavigation] navigating to idx=${targetIdx} session=${entry.sessionResource.toString()} chat=${entry.chatResource?.toString()}`);
 
 		this._navigating = true;
 		try {
@@ -174,10 +186,20 @@ export class SessionsNavigation extends Disposable {
 
 			const session = this._sessionsManagementService.getSession(entry.sessionResource);
 			if (session) {
-				await this._sessionsManagementService.openSession(entry.sessionResource);
+				if (entry.chatResource) {
+					const chatExists = session.chats.get().some(c => c.resource.toString() === entry.chatResource!.toString());
+					if (chatExists) {
+						await this._sessionsManagementService.openChat(session, entry.chatResource);
+					} else {
+						await this._sessionsManagementService.openSession(entry.sessionResource);
+					}
+				} else {
+					await this._sessionsManagementService.openSession(entry.sessionResource);
+				}
 			} else {
-				// Session no longer exists, remove it and try again
+				// Session no longer exists, remove from history
 				this._history.splice(targetIdx, 1);
+				this._historySize.set(this._history.length, undefined);
 				if (targetIdx <= this._currentIndex.get()) {
 					this._currentIndex.set(Math.max(0, this._currentIndex.get() - 1), undefined);
 				}
@@ -188,7 +210,12 @@ export class SessionsNavigation extends Disposable {
 	}
 
 	private _isSameEntry(a: INavigationEntry, b: INavigationEntry): boolean {
-		return a.sessionResource.toString() === b.sessionResource.toString();
+		if (a.sessionResource.toString() !== b.sessionResource.toString()) {
+			return false;
+		}
+		const aChatStr = a.chatResource?.toString();
+		const bChatStr = b.chatResource?.toString();
+		return aChatStr === bChatStr;
 	}
 
 	private _removeEntriesMatching(predicate: (uri: URI) => boolean): void {
@@ -213,5 +240,6 @@ export class SessionsNavigation extends Disposable {
 		if (newCurrentIdx !== currentIdx) {
 			this._currentIndex.set(Math.max(0, newCurrentIdx), undefined);
 		}
+		this._historySize.set(this._history.length, undefined);
 	}
 }

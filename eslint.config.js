@@ -1920,7 +1920,8 @@ export default tseslint.config(
 						'vs/workbench/services/*/~',
 						'vs/workbench/contrib/*/~',
 						'vs/workbench/contrib/terminal/terminal.all.js',
-						'vs/sessions/common/theme.js' // side-effect import for color registry
+						'vs/sessions/common/theme.js', // side-effect import for color registry
+						'vs/sessions/common/sizes.js' // side-effect import for size registry
 					]
 				},
 				{

@@ -12,6 +12,7 @@ import { Action2, registerAction2 } from '../../../../../platform/actions/common
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
 import { type ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { type IChatInputPickerOptions } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerActionItem.js';
@@ -22,6 +23,7 @@ import { ISessionsManagementService } from '../../../../services/sessions/common
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { Menus } from '../../../../browser/menus.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_HOST_PROVIDER_RE } from '../../../../common/agentHostSessionsProvider.js';
+import { reportNewChatPickerClosed } from '../newChatPickerTelemetry.js';
 
 const IsActiveSessionAgentHost = ContextKeyExpr.or(
 	ContextKeyExpr.equals(ActiveSessionProviderIdContext.key, LOCAL_AGENT_HOST_PROVIDER_ID),
@@ -106,6 +108,7 @@ class AgentHostModelPickerContribution extends Disposable implements IWorkbenchC
 		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
 		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
 		@IStorageService storageService: IStorageService,
+		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		super();
 
@@ -113,15 +116,27 @@ class AgentHostModelPickerContribution extends Disposable implements IWorkbenchC
 			Menus.NewSessionConfig, 'sessions.agentHost.modelPicker',
 			() => {
 				const currentModel = observableValue<ILanguageModelChatMetadataAndIdentifier | undefined>('currentModel', undefined);
+				let settingModelInternally = false;
 				const delegate: IModelPickerDelegate = {
 					currentModel,
 					setModel: (model: ILanguageModelChatMetadataAndIdentifier) => {
+						const previousModel = currentModel.get();
 						currentModel.set(model, undefined);
 						const session = sessionsManagementService.activeSession.get();
 						if (session) {
 							storageService.store(agentHostModelPickerStorageKey(session.resource.scheme), model.identifier, StorageScope.PROFILE, StorageTarget.MACHINE);
 							const provider = sessionsProvidersService.getProviders().find(p => p.id === session.providerId);
 							provider?.setModel(session.sessionId, model.identifier);
+						}
+						if (!settingModelInternally) {
+							reportNewChatPickerClosed(telemetryService, {
+								id: 'NewChatAgentHostModelPicker',
+								optionIdBefore: previousModel?.identifier,
+								optionIdAfter: model.identifier,
+								optionLabelBefore: previousModel?.metadata.name,
+								optionLabelAfter: model.metadata.name,
+								isPII: false,
+							});
 						}
 					},
 					getModels: () => getAgentHostModels(languageModelsService, sessionsManagementService.activeSession.get()),
@@ -151,7 +166,12 @@ class AgentHostModelPickerContribution extends Disposable implements IWorkbenchC
 					const resolvedModel = resolveAgentHostModel(models, sessionModelId, storedModelId);
 					currentModel.set(resolvedModel, undefined);
 					if (!sessionModelId && isUntitled && resolvedModel) {
-						delegate.setModel(resolvedModel);
+						settingModelInternally = true;
+						try {
+							delegate.setModel(resolvedModel);
+						} finally {
+							settingModelInternally = false;
+						}
 					}
 				};
 				const initModelFromActiveSession = () => {
