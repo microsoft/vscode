@@ -33,7 +33,7 @@ import { ILanguageModelsService } from '../../../../workbench/contrib/chat/commo
 import { buildMutableConfigSchema, IAgentHostSessionsProvider, resolvedConfigsEqual } from '../../../common/agentHostSessionsProvider.js';
 import { agentHostSessionWorkspaceKey } from '../../../common/agentHostSessionWorkspace.js';
 import { isSessionConfigComplete } from '../../../common/sessionConfig.js';
-import { CopilotCLISessionType, IChat, IGitHubInfo, ISession, ISessionChangeset, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, sessionFileChangesEqual, SessionStatus, toSessionId } from '../../../services/sessions/common/session.js';
+import { IChat, IGitHubInfo, ISession, ISessionChangeset, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, sessionFileChangesEqual, SessionStatus, toSessionId } from '../../../services/sessions/common/session.js';
 import { ISendRequestOptions, ISessionChangeEvent } from '../../../services/sessions/common/sessionsProvider.js';
 import { computePullRequestIcon } from '../../github/common/types.js';
 import { IGitHubService } from '../../github/browser/githubService.js';
@@ -42,6 +42,13 @@ import { diffsEqual, diffsToChanges, mapProtocolStatus } from './agentHostDiffs.
 // ============================================================================
 // AgentHostSessionAdapter — shared adapter for local and remote sessions
 // ============================================================================
+
+/** Copilot CLI session type */
+export const CopilotCLISessionType: ISessionType = {
+	id: 'copilotcli',
+	label: localize('copilotCLI', "Copilot CLI"),
+	icon: Codicon.copilot,
+};
 
 /**
  * Variation points the host provider supplies when building an adapter.

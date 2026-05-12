@@ -283,14 +283,8 @@ export class ChatStatusDashboard extends DomWidget {
 				completionsQuotaIndicator = this.createQuotaIndicator(container, completionsQuota, localize('completionsLabel', "Inline Suggestions"), resetLabel, compact ? planName : undefined);
 			}
 
-			// Global quota callout and header button are updated in the async block below
-
-			(async () => {
-				await updatePromise;
-				if (token.isCancellationRequested) {
-					return;
-				}
-
+			// Update indicators from current quota state
+			const updateIndicators = () => {
 				const { chat: chatQuota, premiumChat: premiumChatQuota, completions: completionsQuota } = this.chatEntitlementService.quotas;
 				if (chatQuota) {
 					chatQuotaIndicator?.(chatQuota);
@@ -306,7 +300,20 @@ export class ChatStatusDashboard extends DomWidget {
 					headerAdditionalSpendButton.element.style.display = calloutVisible ? '' : 'none';
 					headerAdditionalSpendButton.label = isAdditionalUsageEnabled ? localize('manageBudget', "Manage Budget") : localize('configureBudget', "Configure Budget");
 				}
+			};
+
+			// Update once when the initial fetch completes
+			(async () => {
+				await updatePromise;
+				if (token.isCancellationRequested) {
+					return;
+				}
+				updateIndicators();
 			})();
+
+			// Update dynamically when quota data changes while the dashboard is open
+			this._store.add(this.chatEntitlementService.onDidChangeQuotaRemaining(() => updateIndicators()));
+			this._store.add(this.chatEntitlementService.onDidChangeQuotaExceeded(() => updateIndicators()));
 		}
 
 		// Anonymous Indicator
