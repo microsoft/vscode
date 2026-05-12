@@ -357,9 +357,8 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 		assert.ok(ws, 'resolveWorkspace should resolve vscode-agent-host:// URIs');
 		assert.strictEqual(ws.label, 'project');
-		assert.strictEqual(ws.repositories.length, 1);
-		assert.strictEqual(ws.repositories[0].uri.toString(), uri.toString());
-		assert.strictEqual(ws.repositories[0].detail, undefined);
+		assert.strictEqual(ws.folders.length, 1);
+		assert.strictEqual(ws.folders[0].uri.toString(), uri.toString());
 	});
 
 	// ---- Browse actions -------
@@ -446,14 +445,12 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		const workspace = provider.getSessions()[0].workspace.get();
 		assert.deepStrictEqual({
 			label: workspace?.label,
-			repository: workspace?.repositories[0]?.uri.toString(),
-			workingDirectory: workspace?.repositories[0]?.workingDirectory?.toString(),
-			detail: workspace?.repositories[0]?.detail,
+			repository: workspace?.folders[0]?.uri.toString(),
+			workingDirectory: workspace?.folders[0]?.workingDirectory?.toString(),
 		}, {
 			label: 'vscode',
 			repository: projectUri.toString(),
 			workingDirectory: workingDirectory.toString(),
-			detail: undefined,
 		});
 	}));
 
@@ -471,7 +468,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		});
 
 		const workspaces = provider.getSessions().map(session => session.workspace.get());
-		assert.deepStrictEqual(workspaces.map(workspace => workspace?.repositories[0]?.uri.toString()), [
+		assert.deepStrictEqual(workspaces.map(workspace => workspace?.folders[0]?.uri.toString()), [
 			'vscode-agent-host://localhost__4321/file/-/home/user/vscode',
 			'https://github.com/microsoft/vscode',
 		]);
@@ -905,7 +902,6 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		const workspace = wsSession!.workspace.get();
 		assert.ok(workspace, 'Workspace should be populated');
 		assert.strictEqual(workspace!.label, 'myrepo');
-		assert.strictEqual(workspace!.repositories[0].detail, undefined);
 	}));
 
 	test('session adapter without working directory has no workspace', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {

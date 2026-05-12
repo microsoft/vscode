@@ -62,7 +62,7 @@ export class LayoutController extends Disposable {
 
 		const activeSessionHasWorkspaceObs = derived<boolean>(reader => {
 			const activeSession = this._sessionManagementService.activeSession.read(reader);
-			return activeSession?.workspace.read(reader)?.repositories?.[0]?.uri !== undefined;
+			return activeSession?.workspace.read(reader)?.folders?.[0]?.uri !== undefined;
 		});
 
 		// Switch between sessions — sync auxiliary bar (skip on mobile to avoid

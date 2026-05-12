@@ -43,8 +43,8 @@ class ApplyChangesToParentRepoContribution extends Disposable implements IWorkbe
 
 		this._register(autorun(reader => {
 			const activeSession = sessionManagementService.activeSession.read(reader);
-			const repo = activeSession?.workspace.read(reader)?.repositories[0];
-			const hasWorktreeAndRepo = !!repo?.workingDirectory && !!repo?.uri;
+			const folder = activeSession?.workspace.read(reader)?.folders[0];
+			const hasWorktreeAndRepo = !!folder?.gitRepository?.workTreeUri;
 			worktreeAndRepoKey.set(hasWorktreeAndRepo);
 		}));
 	}
@@ -87,13 +87,13 @@ class ApplyChangesToParentRepoAction extends Action2 {
 		const productService = accessor.get(IProductService);
 
 		const activeSession = sessionManagementService.activeSession.get();
-		const repo = activeSession?.workspace.get()?.repositories[0];
-		if (!activeSession || !repo?.workingDirectory || !repo?.uri) {
+		const folder = activeSession?.workspace.get()?.folders[0];
+		if (!activeSession || !folder?.gitRepository?.workTreeUri) {
 			return;
 		}
 
-		const worktreeRoot = repo.workingDirectory;
-		const repoRoot = repo.uri;
+		const worktreeRoot = folder.gitRepository.workTreeUri;
+		const repoRoot = folder.uri;
 
 		const openFolderAction = toAction({
 			id: 'applyChangesToParentRepo.openFolder',

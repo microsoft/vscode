@@ -58,8 +58,8 @@ export class SessionWorkingSetController extends Disposable implements IWorkbenc
 		const activeSession = derivedObservableWithCache<IActiveSession | undefined>(this, (reader, lastValue) => {
 			const workspaceFolders = workspaceFoldersObs.read(reader);
 			const activeSession = this._sessionManagementService.activeSession.read(reader);
-			const activeSessionWorkspace = activeSession?.workspace.read(reader)?.repositories[0];
-			const activeSessionWorkspaceUri = activeSessionWorkspace?.workingDirectory ?? activeSessionWorkspace?.uri;
+			const activeSessionFolder = activeSession?.workspace.read(reader)?.folders[0];
+			const activeSessionWorkspaceUri = activeSessionFolder?.workingDirectory ?? activeSessionFolder?.uri;
 
 			// The active session is updated before the workspace folders are updated. We
 			// need to wait until the workspace folders are updated before considering the

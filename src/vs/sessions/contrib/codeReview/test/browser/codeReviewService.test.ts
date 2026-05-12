@@ -128,10 +128,18 @@ suite('CodeReviewService', () => {
 			);
 			const isArchivedObs = observableValue<boolean>('test.isArchived', archived);
 			const gitHubInfoObs = observableValue<IGitHubInfo | undefined>('test.gitHubInfo', undefined);
+			const workspaceUri = URI.file('/workspace');
 			const workspaceObs = observableValue<ISessionWorkspace | undefined>('test.workspace', {
+				uri: workspaceUri,
 				label: 'workspace',
 				icon: Codicon.folder,
-				repositories: [{ uri: URI.file('/workspace'), workingDirectory: undefined, detail: undefined, baseBranchName: undefined }],
+				folders: [{
+					uri: workspaceUri,
+					workingDirectory: workspaceUri,
+					name: 'workspace',
+					description: undefined,
+					gitRepository: { uri: workspaceUri, workTreeUri: undefined, baseBranchName: undefined, gitHubInfo: gitHubInfoObs },
+				}],
 				requiresWorkspaceTrust: false,
 			});
 			const sessionData: ISession = {
@@ -140,7 +148,6 @@ suite('CodeReviewService', () => {
 				workspace: workspaceObs,
 				changes: changesObs,
 				isArchived: isArchivedObs,
-				gitHubInfo: gitHubInfoObs,
 			} as unknown as ISession;
 			this._sessions.set(resource.toString(), sessionData);
 			return sessionData;
@@ -149,7 +156,11 @@ suite('CodeReviewService', () => {
 		setGitHubInfo(resource: URI, gitHubInfo: IGitHubInfo | undefined): void {
 			const session = this._sessions.get(resource.toString());
 			if (session) {
-				(session.gitHubInfo as ReturnType<typeof observableValue<IGitHubInfo | undefined>>).set(gitHubInfo, undefined);
+				const workspace = session.workspace.get();
+				const folder = workspace?.folders[0];
+				if (folder) {
+					(folder.gitRepository!.gitHubInfo as ReturnType<typeof observableValue<IGitHubInfo | undefined>>).set(gitHubInfo, undefined);
+				}
 			}
 		}
 
@@ -222,7 +233,7 @@ suite('CodeReviewService', () => {
 
 			this.activeSessionPullRequestReviewThreadsObs = derived(reader => {
 				const session = sessionsManagementService.activeSession.read(reader);
-				const gitHubInfo = session?.gitHubInfo.read(reader);
+				const gitHubInfo = session?.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
 				if (!gitHubInfo?.pullRequest) {
 					return undefined;
 				}

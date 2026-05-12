@@ -23,7 +23,7 @@ import { AgentSessionProviders, AgentSessionTarget } from '../../../../workbench
 import { IChatService, IChatSendRequestOptions } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatResponseModel } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ChatSessionStatus, IChatSessionsService, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, SessionType, IChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { ISession, IChat, ISessionRepository, ISessionWorkspace, SessionStatus, GITHUB_REMOTE_FILE_SCHEME, IGitHubInfo, CopilotCLISessionType, CopilotCloudSessionType, ClaudeCodeSessionType, LocalSessionType, ISessionType, ISessionWorkspaceBrowseAction, ISessionFileChange, sessionFileChangesEqual, toSessionId, SESSION_WORKSPACE_GROUP_LOCAL, ISessionChangeset } from '../../../services/sessions/common/session.js';
+import { ISession, IChat, ISessionGitRepository, ISessionFolder, ISessionWorkspace, SessionStatus, GITHUB_REMOTE_FILE_SCHEME, IGitHubInfo, CopilotCLISessionType, CopilotCloudSessionType, ClaudeCodeSessionType, LocalSessionType, ISessionType, ISessionWorkspaceBrowseAction, ISessionFileChange, sessionFileChangesEqual, toSessionId, SESSION_WORKSPACE_GROUP_LOCAL, ISessionChangeset } from '../../../services/sessions/common/session.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, isChatPermissionLevel } from '../../../../workbench/contrib/chat/common/constants.js';
 import { basename, dirname, isEqual } from '../../../../base/common/resources.js';
 import { ISendRequestOptions, ISessionChangeEvent, ISessionsProvider } from '../../../services/sessions/common/sessionsProvider.js';
@@ -244,6 +244,7 @@ class CopilotCLISession extends Disposable implements ICopilotChatSession {
 		providerId: string,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IGitService private readonly gitService: IGitService,
+		@IGitHubService private readonly gitHubService: IGitHubService,
 		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super();
@@ -253,7 +254,7 @@ class CopilotCLISession extends Disposable implements ICopilotChatSession {
 		this.icon = CopilotCLISessionType.icon;
 		this.createdAt = new Date();
 
-		const repoUri = sessionWorkspace.repositories[0]?.uri;
+		const repoUri = sessionWorkspace.folders[0]?.uri;
 		if (repoUri) {
 			this._repoUri = repoUri;
 			this.setOption(REPOSITORY_OPTION_ID, repoUri.fsPath);
@@ -282,7 +283,7 @@ class CopilotCLISession extends Disposable implements ICopilotChatSession {
 	}
 
 	private async _resolveGitRepository(): Promise<void> {
-		const repoUri = this.sessionWorkspace.repositories[0]?.uri;
+		const repoUri = this.sessionWorkspace.folders[0]?.uri;
 		if (repoUri) {
 			try {
 				this._gitRepository = await this.gitService.openRepository(repoUri);
@@ -430,7 +431,7 @@ class CopilotCLISession extends Disposable implements ICopilotChatSession {
 	}
 
 	update(agentSession: IAgentSession): void {
-		const session = new AgentSessionAdapter(agentSession, this.providerId, undefined);
+		const session = new AgentSessionAdapter(agentSession, this.providerId, this.gitHubService);
 		this._workspaceData.set(session.workspace.get(), undefined);
 		this._title.set(session.title.get(), undefined);
 		this._status.set(session.status.get(), undefined);
@@ -559,7 +560,7 @@ export class RemoteNewSession extends Disposable implements ICopilotChatSession 
 
 		// Set workspace data
 		this._workspaceData.set(sessionWorkspace, undefined);
-		this._repoUri = sessionWorkspace.repositories[0]?.uri;
+		this._repoUri = sessionWorkspace.folders[0]?.uri;
 		if (this._repoUri) {
 			const id = this._repoUri.path.substring(1);
 			this.setOption('repositories', { id, name: id });
@@ -783,8 +784,8 @@ class LocalNewSession extends Disposable implements ICopilotChatSession {
 			ChatAgentLocation.Chat,
 			{ debugOwner: 'CopilotChatSessionsProvider#createNewSession.local' },
 		));
-		if (sessionWorkspace.repositories.length > 0) {
-			modelRef.object.setWorkingDirectory(sessionWorkspace.repositories[0]?.uri);
+		if (sessionWorkspace.folders.length > 0) {
+			modelRef.object.setWorkingDirectory(sessionWorkspace.folders[0]?.uri);
 		}
 		this.resource = modelRef.object.sessionResource;
 
@@ -803,7 +804,7 @@ class LocalNewSession extends Disposable implements ICopilotChatSession {
 	}
 
 	private async _resolveGitState(): Promise<void> {
-		const repoUri = this.sessionWorkspace.repositories[0]?.uri;
+		const repoUri = this.sessionWorkspace.folders[0]?.uri;
 		if (!repoUri) {
 			return;
 		}
@@ -825,11 +826,14 @@ class LocalNewSession extends Disposable implements ICopilotChatSession {
 
 				this._workspaceData.set({
 					...this.sessionWorkspace,
-					repositories: [{
-						...this.sessionWorkspace.repositories[0],
-						branchName,
-						upstreamBranchName,
-						uncommittedChanges,
+					folders: [{
+						...this.sessionWorkspace.folders[0],
+						gitRepository: {
+							...this.sessionWorkspace.folders[0].gitRepository!,
+							branchName,
+							upstreamBranchName,
+							uncommittedChanges,
+						},
 					}],
 				}, undefined);
 
@@ -1165,7 +1169,7 @@ class AgentSessionAdapter implements ICopilotChatSession {
 	constructor(
 		session: IAgentSession,
 		providerId: string,
-		private readonly _gitHubService: IGitHubService | undefined,
+		private readonly _gitHubService: IGitHubService,
 	) {
 		this.id = toSessionId(providerId, session.resource);
 		this.resource = session.resource;
@@ -1173,6 +1177,21 @@ class AgentSessionAdapter implements ICopilotChatSession {
 		this.sessionType = session.providerType;
 		this.icon = this._getSessionTypeIcon(session);
 		this.createdAt = new Date(session.timing.created);
+
+		this._baseGitHubInfo = observableValue(this, this._extractGitHubInfo(session));
+		this.gitHubInfo = derived(this, reader => {
+			const base = this._baseGitHubInfo.read(reader);
+			if (!base?.pullRequest || !this._gitHubService) {
+				return base;
+			}
+			const prModelRef = reader.store.add(this._gitHubService.createPullRequestModelReference(base.owner, base.repo, base.pullRequest.number));
+			const livePR = prModelRef.object.pullRequest.read(reader);
+			if (!livePR) {
+				return base;
+			}
+			return { ...base, pullRequest: { ...base.pullRequest, icon: computePullRequestIcon(livePR.isDraft ? 'draft' : livePR.state) } };
+		});
+
 		this._workspace = observableValue(this, this._buildWorkspace(session));
 		this.workspace = this._workspace;
 
@@ -1204,21 +1223,6 @@ class AgentSessionAdapter implements ICopilotChatSession {
 		this.description = this._description;
 		this._lastTurnEnd = observableValue(this, session.timing.lastRequestEnded ? new Date(session.timing.lastRequestEnded) : undefined);
 		this.lastTurnEnd = this._lastTurnEnd;
-		this._baseGitHubInfo = observableValue(this, this._extractGitHubInfo(session));
-		this.gitHubInfo = this._gitHubService
-			? derived(this, reader => {
-				const base = this._baseGitHubInfo.read(reader);
-				if (!base?.pullRequest || !this._gitHubService) {
-					return base;
-				}
-				const prModelRef = reader.store.add(this._gitHubService.createPullRequestModelReference(base.owner, base.repo, base.pullRequest.number));
-				const livePR = prModelRef.object.pullRequest.read(reader);
-				if (!livePR) {
-					return base;
-				}
-				return { ...base, pullRequest: { ...base.pullRequest, icon: computePullRequestIcon(livePR.isDraft ? 'draft' : livePR.state) } };
-			})
-			: this._baseGitHubInfo;
 	}
 
 	setPermissionLevel(level: ChatPermissionLevel): void {
@@ -1332,7 +1336,7 @@ class AgentSessionAdapter implements ICopilotChatSession {
 		}
 
 		// Parse from workspace repository URI (cloud sessions)
-		const repoUri = this._buildWorkspace(session)?.repositories[0]?.uri;
+		const repoUri = this._buildWorkspace(session)?.folders[0]?.uri;
 		if (repoUri && repoUri.scheme === GITHUB_REMOTE_FILE_SCHEME) {
 			const parts = repoUri.path.split('/').filter(Boolean);
 			if (parts.length >= 2) {
@@ -1426,10 +1430,11 @@ class AgentSessionAdapter implements ICopilotChatSession {
 			hasGitOperationInProgress
 		} = this._extractRepositoryFromMetadata(session);
 
-		const repository: ISessionRepository = {
-			uri: repoUri ?? URI.parse('unknown:///'),
-			workingDirectory: worktreeUri,
-			detail: branchName,
+		const repoUriResolved = repoUri ?? URI.parse('unknown:///');
+
+		const gitRepository: ISessionGitRepository = {
+			uri: repoUriResolved,
+			workTreeUri: worktreeUri,
 			branchName,
 			baseBranchName,
 			baseBranchProtected,
@@ -1438,14 +1443,24 @@ class AgentSessionAdapter implements ICopilotChatSession {
 			incomingChanges,
 			outgoingChanges,
 			uncommittedChanges,
-			hasGitOperationInProgress
+			hasGitOperationInProgress,
+			gitHubInfo: this.gitHubInfo,
+		};
+
+		const folder: ISessionFolder = {
+			uri: repoUriResolved,
+			workingDirectory: worktreeUri ?? repoUriResolved,
+			name: basename(repoUriResolved),
+			description: branchName,
+			gitRepository,
 		};
 
 		return {
-			label: getRepositoryName(session) ?? basename(repository.uri),
+			uri: repoUriResolved,
+			label: getRepositoryName(session) ?? basename(repoUriResolved),
 			icon: repoUri?.scheme === GITHUB_REMOTE_FILE_SCHEME ? Codicon.repo : Codicon.folder,
 			group: repoUri?.scheme === GITHUB_REMOTE_FILE_SCHEME ? SESSION_WORKSPACE_GROUP_GITHUB : SESSION_WORKSPACE_GROUP_LOCAL,
-			repositories: [repository],
+			folders: [folder],
 			requiresWorkspaceTrust: session.providerType !== AgentSessionProviders.Cloud,
 		};
 	}
@@ -2430,9 +2445,9 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			throw new Error('Chat session has no associated workspace');
 		}
 
-		const repository = workspace.repositories[0];
-		if (!repository) {
-			throw new Error('Workspace has no repository');
+		const folder = workspace.folders[0];
+		if (!folder) {
+			throw new Error('Workspace has no folder');
 		}
 
 		if (this._currentNewSession) {
@@ -2440,9 +2455,9 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			this._currentNewSession = undefined;
 		}
 
-		const newWorkspace = this.resolveWorkspace(repository.workingDirectory || repository.uri);
+		const newWorkspace = this.resolveWorkspace(folder.uri);
 		if (!newWorkspace) {
-			throw new Error(`Cannot resolve workspace for URI: ${(repository.workingDirectory || repository.uri).toString()}`);
+			throw new Error(`Cannot resolve workspace for URI: ${(folder.uri).toString()}`);
 		}
 		const resource = URI.from({ scheme: AgentSessionProviders.Background, path: `/untitled-${generateUuid()}` });
 		const session = this.instantiationService.createInstance(CopilotCLISession, resource, newWorkspace, this.id);
@@ -2573,28 +2588,44 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		const repoId = await this.commandService.executeCommand<string>(OPEN_REPO_COMMAND);
 		if (repoId) {
 			const uri = URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: `/${repoId}/HEAD` });
+			const folder: ISessionFolder = {
+				uri,
+				workingDirectory: uri,
+				name: basename(uri),
+				description: undefined,
+				gitRepository: undefined,
+			};
 			return {
+				uri,
 				label: this._labelFromUri(uri),
 				icon: this._iconFromUri(uri),
 				group: SESSION_WORKSPACE_GROUP_GITHUB,
-				repositories: [{ uri, workingDirectory: undefined, detail: undefined, baseBranchName: undefined }],
+				folders: [folder],
 				requiresWorkspaceTrust: false,
 			};
 		}
 		return undefined;
 	}
 
-	resolveWorkspace(repositoryUri: URI): ISessionWorkspace | undefined {
-		if (repositoryUri.scheme !== Schemas.file && repositoryUri.scheme !== GITHUB_REMOTE_FILE_SCHEME) {
+	resolveWorkspace(uri: URI): ISessionWorkspace | undefined {
+		if (uri.scheme !== Schemas.file && uri.scheme !== GITHUB_REMOTE_FILE_SCHEME) {
 			return undefined;
 		}
+		const folder: ISessionFolder = {
+			uri,
+			workingDirectory: uri,
+			name: basename(uri),
+			description: undefined,
+			gitRepository: undefined,
+		};
 		return {
-			label: this._labelFromUri(repositoryUri),
-			description: this._descriptionFromUri(repositoryUri),
-			group: repositoryUri.scheme === GITHUB_REMOTE_FILE_SCHEME ? SESSION_WORKSPACE_GROUP_GITHUB : SESSION_WORKSPACE_GROUP_LOCAL,
-			icon: this._iconFromUri(repositoryUri),
-			repositories: [{ uri: repositoryUri, workingDirectory: undefined, detail: undefined, baseBranchName: undefined }],
-			requiresWorkspaceTrust: repositoryUri.scheme !== GITHUB_REMOTE_FILE_SCHEME
+			uri: uri,
+			label: this._labelFromUri(uri),
+			description: this._descriptionFromUri(uri),
+			group: uri.scheme === GITHUB_REMOTE_FILE_SCHEME ? SESSION_WORKSPACE_GROUP_GITHUB : SESSION_WORKSPACE_GROUP_LOCAL,
+			icon: this._iconFromUri(uri),
+			folders: [folder],
+			requiresWorkspaceTrust: uri.scheme !== GITHUB_REMOTE_FILE_SCHEME
 		};
 	}
 
@@ -3032,7 +3063,6 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			isRead: chatsObs.map((chats, reader) => chats.every(c => c.isRead.read(reader))),
 			description: primaryChat.description,
 			lastTurnEnd: chatsObs.map((chats, reader) => this._latestDate(chats, c => c.lastTurnEnd.read(reader))),
-			gitHubInfo: primaryChat.gitHubInfo,
 			chats: chatsObs,
 			mainChat,
 			capabilities: { supportsMultipleChats: primaryChat.sessionType === CopilotCLISessionType.id && this._isMultiChatEnabled() },
@@ -3063,7 +3093,6 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			isRead: chat.isRead,
 			description: chat.description,
 			lastTurnEnd: chat.lastTurnEnd,
-			gitHubInfo: chat.gitHubInfo,
 			chats: constObservable([mainChat]),
 			mainChat,
 			capabilities: { supportsMultipleChats: false },

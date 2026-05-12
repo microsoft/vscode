@@ -501,7 +501,7 @@ export class WorkspacePicker extends Disposable {
 	 * Clears the selection if it matches the given URI.
 	 */
 	removeFromRecents(uri: URI): void {
-		if (this._selectedWorkspace && this.uriIdentityService.extUri.isEqual(this._selectedWorkspace.workspace.repositories[0]?.uri, uri)) {
+		if (this._selectedWorkspace && this.uriIdentityService.extUri.isEqual(this._selectedWorkspace.workspace.folders[0]?.uri, uri)) {
 			this.clearSelection();
 		}
 	}
@@ -796,13 +796,13 @@ export class WorkspacePicker extends Disposable {
 		if (this._selectedWorkspace.providerId !== selection.providerId) {
 			return false;
 		}
-		const selectedUri = this._selectedWorkspace.workspace.repositories[0]?.uri;
-		const candidateUri = selection.workspace.repositories[0]?.uri;
+		const selectedUri = this._selectedWorkspace.workspace.folders[0]?.uri;
+		const candidateUri = selection.workspace.folders[0]?.uri;
 		return this.uriIdentityService.extUri.isEqual(selectedUri, candidateUri);
 	}
 
 	private _persistSelectedWorkspace(selection: IWorkspaceSelection): void {
-		const uri = selection.workspace.repositories[0]?.uri;
+		const uri = selection.workspace.folders[0]?.uri;
 		if (!uri) {
 			return;
 		}
@@ -965,7 +965,7 @@ export class WorkspacePicker extends Disposable {
 	// -- Recent workspaces storage --
 
 	private _addRecentWorkspace(providerId: string, workspace: ISessionWorkspace, checked: boolean): void {
-		const uri = workspace.repositories[0]?.uri;
+		const uri = workspace.folders[0]?.uri;
 		if (!uri) {
 			return;
 		}
@@ -1001,7 +1001,7 @@ export class WorkspacePicker extends Disposable {
 	}
 
 	protected _removeRecentWorkspace(selection: IWorkspaceSelection): void {
-		const uri = selection.workspace.repositories[0]?.uri;
+		const uri = selection.workspace.folders[0]?.uri;
 		if (!uri) {
 			return;
 		}
@@ -1021,7 +1021,7 @@ export class WorkspacePicker extends Disposable {
 	}
 
 	protected _removeVSCodeRecentWorkspace(selection: IWorkspaceSelection): void {
-		const uri = selection.workspace.repositories[0]?.uri;
+		const uri = selection.workspace.folders[0]?.uri;
 		if (!uri) {
 			return;
 		}

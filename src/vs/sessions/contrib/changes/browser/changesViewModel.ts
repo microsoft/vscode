@@ -154,12 +154,12 @@ export class ChangesViewModel extends Disposable {
 			// Fall back to reading details from repo on the session management service session
 			const activeSession = this.sessionManagementService.activeSession.read(reader);
 			const workspace = activeSession?.workspace.read(reader);
-			const repository = workspace?.repositories[0];
-			return repository !== undefined && (
-				repository.uncommittedChanges !== undefined ||
-				repository.incomingChanges !== undefined ||
-				repository.outgoingChanges !== undefined ||
-				repository.upstreamBranchName !== undefined
+			const folder = workspace?.folders[0];
+			return folder !== undefined && (
+				folder.gitRepository?.uncommittedChanges !== undefined ||
+				folder.gitRepository?.incomingChanges !== undefined ||
+				folder.gitRepository?.outgoingChanges !== undefined ||
+				folder.gitRepository?.upstreamBranchName !== undefined
 			);
 		});
 
@@ -285,9 +285,9 @@ export class ChangesViewModel extends Disposable {
 
 			const activeSession = this.sessionManagementService.activeSession.read(reader);
 			const workspace = activeSession?.workspace.read(reader);
-			const workspaceRepository = workspace?.repositories[0];
+			const workspaceFolder = workspace?.folders[0];
 
-			return uncommittedChanges ?? workspaceRepository?.uncommittedChanges;
+			return uncommittedChanges ?? workspaceFolder?.gitRepository?.uncommittedChanges;
 		});
 
 		this._activeSessionUncommittedChangesPromiseObs = derived(reader => {
@@ -434,35 +434,36 @@ export class ChangesViewModel extends Disposable {
 			const workspace = activeSession?.workspace.read(reader);
 
 			// Session state
-			const workspaceRepository = workspace?.repositories[0];
+			const workspaceFolder = workspace?.folders[0];
+			const gitRepo = workspaceFolder?.gitRepository;
 			const hasGitRepository = this.activeSessionHasGitRepositoryObs.read(reader);
-			const branchName = workspaceRepository?.branchName ??
+			const branchName = gitRepo?.branchName ??
 				(sessionMetadata?.branchName ?? sessionMetadata?.branch) as string | undefined;
-			const baseBranchName = workspaceRepository?.baseBranchName
+			const baseBranchName = gitRepo?.baseBranchName
 				?? (sessionMetadata?.baseBranchName ?? sessionMetadata?.baseBranch) as string | undefined;
 
 			// Fall back to reading details from repo on the session management service session
-			const isMergeBaseBranchProtected = workspaceRepository?.baseBranchProtected
+			const isMergeBaseBranchProtected = gitRepo?.baseBranchProtected
 				?? (sessionMetadata?.baseBranchProtected as boolean | undefined);
-			const isolationMode = workspaceRepository?.workingDirectory === undefined
+			const isolationMode = gitRepo?.workTreeUri === undefined
 				? IsolationMode.Workspace
 				: IsolationMode.Worktree;
 
 			// Pull request state
-			const gitHubInfo = activeSession?.gitHubInfo.read(reader);
+			const gitHubInfo = gitRepo?.gitHubInfo.read(reader);
 			const hasPullRequest = gitHubInfo?.pullRequest?.uri !== undefined;
 			const hasOpenPullRequest = hasPullRequest &&
 				(gitHubInfo.pullRequest.icon?.id === Codicon.gitPullRequestDraft.id ||
 					gitHubInfo.pullRequest.icon?.id === Codicon.gitPullRequest.id);
 
 			// Fall back to reading details from repo on the session management service session
-			const hasGitHubRemote = workspaceRepository?.hasGitHubRemote ?? (sessionMetadata?.hasGitHubRemote as boolean | undefined) ?? false;
-			const upstreamBranchName = workspaceRepository?.upstreamBranchName ?? (sessionMetadata?.upstreamBranchName as string | undefined);
-			const incomingChanges = workspaceRepository?.incomingChanges ?? (sessionMetadata?.incomingChanges as number | undefined) ?? 0;
-			const outgoingChanges = workspaceRepository?.outgoingChanges ?? (sessionMetadata?.outgoingChanges as number | undefined) ?? 0;
-			const uncommittedChanges = workspaceRepository?.uncommittedChanges ?? (sessionMetadata?.uncommittedChanges as number | undefined) ?? 0;
+			const hasGitHubRemote = gitRepo?.hasGitHubRemote ?? (sessionMetadata?.hasGitHubRemote as boolean | undefined) ?? false;
+			const upstreamBranchName = gitRepo?.upstreamBranchName ?? (sessionMetadata?.upstreamBranchName as string | undefined);
+			const incomingChanges = gitRepo?.incomingChanges ?? (sessionMetadata?.incomingChanges as number | undefined) ?? 0;
+			const outgoingChanges = gitRepo?.outgoingChanges ?? (sessionMetadata?.outgoingChanges as number | undefined) ?? 0;
+			const uncommittedChanges = gitRepo?.uncommittedChanges ?? (sessionMetadata?.uncommittedChanges as number | undefined) ?? 0;
 			const hasBranchChanges = activeSessionChanges.length > 0;
-			const hasGitOperationInProgress = workspaceRepository?.hasGitOperationInProgress ?? (sessionMetadata?.hasGitOperationInProgress as boolean | undefined) ?? false;
+			const hasGitOperationInProgress = gitRepo?.hasGitOperationInProgress ?? (sessionMetadata?.hasGitOperationInProgress as boolean | undefined) ?? false;
 
 			return {
 				isolationMode,
@@ -560,7 +561,7 @@ export class ChangesViewModel extends Disposable {
 	}
 
 	private async _getPullRequestChanges(firstCheckpointRef: string, lastCheckpointRef: string): Promise<IChatSessionFileChange2[] | undefined> {
-		const gitHubInfo = this.sessionManagementService.activeSession.get()?.gitHubInfo.get();
+		const gitHubInfo = this.sessionManagementService.activeSession.get()?.workspace.get()?.folders[0]?.gitRepository?.gitHubInfo.get();
 		if (!gitHubInfo?.owner || !gitHubInfo?.repo || !gitHubInfo?.pullRequest?.number) {
 			return [];
 		}

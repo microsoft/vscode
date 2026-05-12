@@ -441,7 +441,7 @@ export class SessionsTasksService extends Disposable implements ISessionsTasksSe
 	// --- private helpers ---
 
 	private _getSessionRepo(session: ISession) {
-		return session.workspace.get()?.repositories[0];
+		return session.workspace.get()?.folders[0];
 	}
 
 	private _getSessionFolder(session: ISession): URI | undefined {

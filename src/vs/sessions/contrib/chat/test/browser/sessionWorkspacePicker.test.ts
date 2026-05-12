@@ -8,7 +8,7 @@ import { timeout } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
@@ -54,9 +54,16 @@ function createMockProvider(id: string, opts?: {
 		onDidChangeSessionTypes: Event.None,
 		browseActions: opts?.browseActions ?? [],
 		resolveWorkspace: (uri: URI): ISessionWorkspace => ({
+			uri,
 			label: uri.path.substring(1) || uri.path,
 			icon: Codicon.folder,
-			repositories: [{ uri, workingDirectory: undefined, detail: undefined, baseBranchName: undefined }],
+			folders: [{
+				uri,
+				workingDirectory: uri,
+				name: uri.path.substring(1) || uri.path,
+				description: undefined,
+				gitRepository: { uri, workTreeUri: undefined, baseBranchName: undefined, gitHubInfo: constObservable(undefined) },
+			}],
 			requiresWorkspaceTrust: false,
 		}),
 		onDidChangeSessions: Event.None,
@@ -397,7 +404,7 @@ suite('WorkspacePicker - Connection Status', () => {
 		remoteStatus.set(RemoteAgentHostConnectionStatus.connected, undefined);
 		assertSelectedProvider(picker, 'agenthost-remote-1');
 		assert.strictEqual(
-			picker.selectedProject?.workspace.repositories[0]?.uri.path,
+			picker.selectedProject?.workspace.folders[0]?.uri.path,
 			'/remote/project',
 		);
 	});
@@ -619,10 +626,17 @@ suite('WorkspacePicker - Tab discovery', () => {
 		const provider: ISessionsProvider = {
 			...createMockProvider('p1'),
 			resolveWorkspace: (uri: URI): ISessionWorkspace => ({
+				uri,
 				label: uri.path,
 				icon: Codicon.folder,
 				group: 'Cloud',
-				repositories: [{ uri, workingDirectory: undefined, detail: undefined, baseBranchName: undefined }],
+				folders: [{
+					uri,
+					workingDirectory: uri,
+					name: uri.path,
+					description: undefined,
+					gitRepository: { uri, workTreeUri: undefined, baseBranchName: undefined, gitHubInfo: constObservable(undefined) },
+				}],
 				requiresWorkspaceTrust: false,
 			}),
 		};

@@ -47,7 +47,6 @@ function stubSession(overrides: Partial<ISession> & Pick<ISession, 'sessionId' |
 		isRead: constObservable(true),
 		description: constObservable(undefined),
 		lastTurnEnd: constObservable(undefined),
-		gitHubInfo: constObservable(undefined),
 		chats: constObservable([]),
 		mainChat: stubChat,
 		capabilities: { supportsMultipleChats: false },
