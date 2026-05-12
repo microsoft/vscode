@@ -676,7 +676,7 @@ class SessionsAccessibilityProvider {
 			if (element.mode === 'less') {
 				return element.kind === 'folders'
 					? localize('showLessWorkspacesAria', "Show fewer workspaces")
-					: localize('showLessAria', "Show less sessions");
+					: localize('showLessAria', "Show fewer sessions");
 			}
 			return element.kind === 'folders'
 				? localize('showMoreWorkspacesAria', "Show {0} more workspaces", element.remainingCount)
