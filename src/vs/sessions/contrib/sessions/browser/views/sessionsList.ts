@@ -334,8 +334,12 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			const parts: HTMLElement[] = [];
 
 			if (sessionStatus !== SessionStatus.InProgress) {
+				const isWorkspaceSession = workspace &&
+					workspace.folders.length > 0 &&
+					workspace?.folders[0]?.gitRepository?.workTreeUri === undefined;
+				const icon = workspace?.isVirtualWorkspace ? Codicon.cloud : isWorkspaceSession ? Codicon.folder : Codicon.worktree;
 				const typeIconEl = DOM.append(template.detailsRow, $('span.session-details-icon'));
-				DOM.append(typeIconEl, $(`span${ThemeIcon.asCSSSelector(element.icon)}`));
+				DOM.append(typeIconEl, $(`span${ThemeIcon.asCSSSelector(icon)}`));
 				parts.push(typeIconEl);
 			}
 
