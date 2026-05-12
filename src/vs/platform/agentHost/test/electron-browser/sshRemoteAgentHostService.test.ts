@@ -206,7 +206,6 @@ suite('SSHRemoteAgentHostService (renderer)', () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IConfigurationService, new TestConfigurationService() as Partial<IConfigurationService>);
-		instantiationService.stub(IEnvironmentService, { logsHome: URI.file('/tmp/logs') } as Partial<IEnvironmentService>);
 		instantiationService.stub(IQuickInputService, {} as Partial<IQuickInputService>);
 		instantiationService.stub(ISharedProcessService, sharedProcessService as ISharedProcessService);
 		instantiationService.stub(IRemoteAgentHostService, remoteAgentHostService as Partial<IRemoteAgentHostService>);
