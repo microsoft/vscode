@@ -4,13 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IAgentSessionsService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
+import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 import { IChat, ISession } from '../../common/session.js';
-import { deduplicateSessions } from '../../browser/sessionsManagementService.js';
+import { ISessionChangeEvent, ISessionsProvider } from '../../common/sessionsProvider.js';
+import { deduplicateSessions, SessionsManagementService } from '../../browser/sessionsManagementService.js';
+import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../browser/sessionsProvidersService.js';
 
 const stubChat = {
 	resource: URI.parse('test:///chat'),
@@ -104,5 +111,96 @@ suite('deduplicateSessions', () => {
 		const noKey = stubSession({ sessionId: 'nk', providerId: 'copilot-chat' });
 		const result = deduplicateSessions([keyed2, noKey, keyed1]);
 		assert.deepStrictEqual(result, [noKey, keyed1]);
+	});
+});
+
+class StubSessionsProvider extends Disposable {
+	readonly id = 'stub-provider';
+	readonly label = 'Stub';
+	readonly icon = Codicon.vm;
+	readonly sessionTypes = [];
+	readonly browseActions = [];
+
+	private readonly _onDidChangeSessions = this._register(new Emitter<ISessionChangeEvent>());
+	readonly onDidChangeSessions = this._onDidChangeSessions.event;
+
+	private readonly _onDidChangeSessionTypes = this._register(new Emitter<void>());
+	readonly onDidChangeSessionTypes = this._onDidChangeSessionTypes.event;
+
+	private readonly _onDidReplaceSession = this._register(new Emitter<{ readonly from: ISession; readonly to: ISession }>());
+	readonly onDidReplaceSession = this._onDidReplaceSession.event;
+
+	private _sessions: ISession[] = [];
+
+	getSessions(): ISession[] { return this._sessions; }
+	setSessions(sessions: ISession[]): void { this._sessions = sessions; }
+	fireReplace(from: ISession, to: ISession): void { this._onDidReplaceSession.fire({ from, to }); }
+
+	asProvider(): ISessionsProvider { return this as unknown as ISessionsProvider; }
+}
+
+class StubSessionsProvidersService extends Disposable {
+	declare readonly _serviceBrand: undefined;
+
+	private readonly _providers = new Map<string, ISessionsProvider>();
+	private readonly _onDidChangeProviders = this._register(new Emitter<ISessionsProvidersChangeEvent>());
+	readonly onDidChangeProviders: Event<ISessionsProvidersChangeEvent> = this._onDidChangeProviders.event;
+
+	register(provider: ISessionsProvider): void {
+		this._providers.set(provider.id, provider);
+		this._onDidChangeProviders.fire({ added: [provider], removed: [] });
+	}
+
+	getProviders(): ISessionsProvider[] { return Array.from(this._providers.values()); }
+	getProvider<T extends ISessionsProvider>(id: string): T | undefined { return this._providers.get(id) as T | undefined; }
+
+	asService(): ISessionsProvidersService { return this as unknown as ISessionsProvidersService; }
+}
+
+class StubAgentSessionsService {
+	declare readonly _serviceBrand: undefined;
+	readonly model = { observeSession: () => constObservable(undefined) } as unknown as IAgentSessionsService['model'];
+	readonly onDidChangeSessionArchivedState = Event.None;
+	getSession() { return undefined; }
+
+	asService(): IAgentSessionsService { return this as unknown as IAgentSessionsService; }
+}
+
+suite('SessionsManagementService - setActiveSession', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('rewires active session when provider replaces with a new instance sharing the same sessionId', () => {
+		const instantiationService: TestInstantiationService = workbenchInstantiationService({}, disposables);
+		const providersService = disposables.add(new StubSessionsProvidersService());
+		instantiationService.stub(ISessionsProvidersService, providersService.asService());
+		instantiationService.stub(IAgentSessionsService, new StubAgentSessionsService().asService());
+
+		const provider = disposables.add(new StubSessionsProvider());
+		providersService.register(provider.asProvider());
+
+		const service = disposables.add(instantiationService.createInstance(SessionsManagementService));
+
+		// Two separate instances that share the same sessionId — modeling the
+		// agent host skeleton/adapter swap that produced #315936.
+		const skeleton = stubSession({ sessionId: 'shared-id', providerId: provider.id });
+		const adapter = stubSession({ sessionId: 'shared-id', providerId: provider.id });
+		assert.notStrictEqual(skeleton, adapter);
+
+		// Seed the active session with the skeleton via the public openChat
+		// entry point (which calls setActiveSession internally).
+		void service.openChat(skeleton, skeleton.resource);
+		assert.strictEqual(service.activeSession.get()?.sessionId, 'shared-id');
+		const before = service.activeSession.get();
+
+		// Provider swaps in the committed instance with the same sessionId.
+		provider.fireReplace(skeleton, adapter);
+
+		const after = service.activeSession.get();
+		assert.strictEqual(after?.sessionId, 'shared-id');
+		// The IActiveSession is a fresh object spread from the new underlying
+		// session, so the wrapper changes identity even though the sessionId is
+		// the same. This confirms the rewire happened (regression guard for
+		// the early-return that previously skipped same-sessionId swaps).
+		assert.notStrictEqual(after, before);
 	});
 });
