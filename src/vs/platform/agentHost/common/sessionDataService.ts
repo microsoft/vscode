@@ -13,6 +13,15 @@ export const ISessionDataService = createDecorator<ISessionDataService>('session
 /** Filename of the per-session SQLite database. */
 export const SESSION_DB_FILENAME = 'session.db';
 
+/**
+ * Subdirectory under a session's data directory that holds snapshotted
+ * user-message attachments (e.g. pasted images, fetched file references).
+ * The agent host writes these on dispatch so large blobs stay out of the
+ * in-memory state tree, and reads of files under this directory are
+ * auto-approved by the agent's permission flow.
+ */
+export const SESSION_ATTACHMENTS_DIRNAME = 'attachments';
+
 // ---- File-edit types ----------------------------------------------------
 
 /**

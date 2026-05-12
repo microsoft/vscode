@@ -391,7 +391,7 @@ export class CodeMapper {
 				return undefined;
 			}
 			const outageStatus = await this.octoKitService.getGitHubOutageStatus();
-			const errorDetails = getErrorDetailsFromChatFetchError(fetchResult, (await this.authenticationService.getCopilotToken()).copilotPlan, outageStatus);
+			const errorDetails = getErrorDetailsFromChatFetchError(fetchResult, this.authenticationService.copilotToken?.copilotPlan, outageStatus);
 			result = createOutcome([{ label: errorDetails.message, message: `request ${fetchResult.type}`, severity: 'error' }], errorDetails);
 		}
 		if (result.annotations.length || result.errorDetails) {

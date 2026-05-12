@@ -54,6 +54,12 @@ export const discoverySourceSettingsLabel: Record<DiscoverySource, string> = {
 export const mcpConfigurationSection = 'mcp';
 export const mcpDiscoverySection = 'chat.mcp.discovery.enabled';
 export const mcpServerSamplingSection = 'chat.mcp.serverSampling';
+export const mcpServerCollisionBehaviorSection = 'chat.mcp.collisionBehavior';
+
+export const enum McpCollisionBehavior {
+	Disable = 'disable',
+	Suffix = 'suffix',
+}
 
 export interface IMcpServerSamplingConfiguration {
 	allowedDuringChat?: boolean;

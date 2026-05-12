@@ -138,10 +138,10 @@ type TunnelConnectAttemptEvent = {
 type TunnelConnectAttemptClassification = {
 	owner: 'osortega';
 	comment: 'Tracks individual agent-host tunnel connect attempts for performance and reliability.';
-	isReconnect: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether this attempt was part of a reconnect cycle (true) or an initial connect (false).' };
+	isReconnect: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether this attempt was part of a reconnect cycle (true) or an initial connect (false).' };
 	attempt: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Attempt number within the current connect session (1-based).' };
 	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Duration of this individual attempt in milliseconds.' };
-	success: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether this individual attempt succeeded.' };
+	success: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether this individual attempt succeeded.' };
 	errorCategory: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Category of error when the attempt failed (relayConnectionFailed, auth, authExpired, network, other); empty on success.' };
 };
 
@@ -166,10 +166,10 @@ type TunnelConnectResolvedEvent = {
 type TunnelConnectResolvedClassification = {
 	owner: 'osortega';
 	comment: 'Tracks overall agent-host tunnel connect session outcomes for reliability.';
-	isReconnect: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the resolved session was a reconnect cycle (true) or an initial connect (false).' };
+	isReconnect: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the resolved session was a reconnect cycle (true) or an initial connect (false).' };
 	totalAttempts: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Total number of attempts made before resolution.' };
 	totalDurationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Total elapsed time from session start to resolution in milliseconds.' };
-	success: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the connect session ultimately succeeded.' };
+	success: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the connect session ultimately succeeded.' };
 	failureReason: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Reason the session terminated without connecting (hostOffline, maxAttemptsReached, auth, authExpired); empty on success.' };
 };
 
@@ -181,4 +181,99 @@ export function logTunnelConnectResolved(telemetryService: ITelemetryService, da
 		success: data.success,
 		failureReason: data.failureReason ?? '',
 	});
+}
+
+// --- Socket lifecycle telemetry ---
+
+export type SocketCloseTrigger =
+	| 'server'
+	| 'sendOnDeadSocket'
+	| 'visibility'
+	| 'offline'
+	| 'malformedFrames'
+	| 'disposed'
+	| 'error';
+
+type SocketCloseEvent = {
+	closeCode: number;
+	wasClean: boolean;
+	lifetimeMs: number;
+	messagesSent: number;
+	messagesReceived: number;
+	messagesDropped: number;
+	trigger: string;
+};
+
+type SocketCloseClassification = {
+	owner: 'osortega';
+	comment: 'Tracks WebSocket close events for agent host connections to measure connection reliability.';
+	closeCode: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'WebSocket close code.' };
+	wasClean: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the close was clean.' };
+	lifetimeMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'How long the socket was alive in milliseconds.' };
+	messagesSent: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Total messages sent.' };
+	messagesReceived: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Total messages received.' };
+	messagesDropped: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Total messages dropped due to non-OPEN socket.' };
+	trigger: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'What triggered the close (server, sendOnDeadSocket, visibility, offline, malformedFrames, disposed, error).' };
+};
+
+export function logSocketClose(telemetryService: ITelemetryService, data: { closeCode: number; wasClean: boolean; lifetimeMs: number; messagesSent: number; messagesReceived: number; messagesDropped: number; trigger: SocketCloseTrigger }): void {
+	telemetryService.publicLog2<SocketCloseEvent, SocketCloseClassification>('vscodeAgents.socket/close', data);
+}
+
+// --- Send dropped telemetry ---
+
+type SendDroppedEvent = {
+	readyState: number;
+	timeSinceLastReceiveMs: number;
+	timeSinceLastSendMs: number;
+};
+
+type SendDroppedClassification = {
+	owner: 'osortega';
+	comment: 'Tracks when a message is silently dropped due to a non-OPEN WebSocket, indicating a zombie socket.';
+	readyState: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'WebSocket readyState at drop time (0=CONNECTING, 1=OPEN, 2=CLOSING, 3=CLOSED).' };
+	timeSinceLastReceiveMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Milliseconds since last received message.' };
+	timeSinceLastSendMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Milliseconds since last sent message.' };
+};
+
+export function logSendDropped(telemetryService: ITelemetryService, data: { readyState: number; timeSinceLastReceiveMs: number; timeSinceLastSendMs: number }): void {
+	telemetryService.publicLog2<SendDroppedEvent, SendDroppedClassification>('vscodeAgents.socket/sendDropped', data);
+}
+
+// --- Visibility resumed telemetry ---
+
+type VisibilityResumedEvent = {
+	hiddenDurationMs: number;
+	socketAlive: boolean;
+	forceClosed: boolean;
+};
+
+type VisibilityResumedClassification = {
+	owner: 'osortega';
+	comment: 'Tracks tab visibility resume events to measure zombie socket detection effectiveness.';
+	hiddenDurationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'How long the tab was hidden in milliseconds.' };
+	socketAlive: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the socket was alive after zombie detection check.' };
+	forceClosed: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the socket was force-closed on resume.' };
+};
+
+export function logVisibilityResumed(telemetryService: ITelemetryService, data: { hiddenDurationMs: number; socketAlive: boolean; forceClosed: boolean }): void {
+	telemetryService.publicLog2<VisibilityResumedEvent, VisibilityResumedClassification>('vscodeAgents.socket/visibilityResumed', data);
+}
+
+// --- Terminal recovery telemetry ---
+
+type TerminalRecoveryEvent = {
+	recoveredCount: number;
+	totalCount: number;
+};
+
+type TerminalRecoveryClassification = {
+	owner: 'osortega';
+	comment: 'Tracks terminal reconnection outcomes after agent host disconnect.';
+	recoveredCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Number of terminals successfully reconnected.' };
+	totalCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Total number of active terminals at reconnect time.' };
+};
+
+export function logTerminalRecovery(telemetryService: ITelemetryService, data: { recoveredCount: number; totalCount: number }): void {
+	telemetryService.publicLog2<TerminalRecoveryEvent, TerminalRecoveryClassification>('vscodeAgents.terminal/recovery', data);
 }

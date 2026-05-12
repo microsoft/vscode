@@ -97,6 +97,7 @@ const compilations = [
 	'.vscode/extensions/vscode-selfhost-test-provider/tsconfig.json',
 	'.vscode/extensions/vscode-selfhost-import-aid/tsconfig.json',
 	'.vscode/extensions/vscode-extras/tsconfig.json',
+	'.vscode/extensions/vscode-pr-pinger/tsconfig.json',
 ];
 
 const getBaseUrl = (out: string) => `https://main.vscode-cdn.net/sourcemaps/${commit}/${out}`;

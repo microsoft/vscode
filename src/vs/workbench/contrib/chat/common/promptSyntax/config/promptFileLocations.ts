@@ -7,6 +7,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { basename, dirname } from '../../../../../../base/common/resources.js';
 import { PromptFileSource, PromptsType } from '../promptTypes.js';
 import { PromptsStorage } from '../service/promptsService.js';
+import { compareIgnoreCase } from '../../../../../../base/common/strings.js';
 
 /**
  * File extension for the reusable prompt files.
@@ -32,6 +33,13 @@ export const AGENT_FILE_EXTENSION = '.agent.md';
  * Skill file name (case insensitive).
  */
 export const SKILL_FILENAME = 'SKILL.md';
+
+/**
+ * Check if a filename is a skill file (case insensitive).
+ */
+export function isSkillFilename(filename: string): boolean {
+	return compareIgnoreCase(filename, SKILL_FILENAME) === 0;
+}
 
 /**
  * Regex for valid skill names: lowercase alphanumeric and hyphens only.
@@ -128,7 +136,7 @@ export interface IPromptSourceFolder {
  */
 export interface IResolvedPromptSourceFolder {
 	readonly uri: URI;
-	readonly parent: URI; // matches the URI when no glob pattern is used
+	readonly searchRoot: URI; // matches the URI when no glob pattern is used
 	readonly filePattern: string | undefined; // the part of the path with the glob pattern, or undefined if no glob pattern is used
 	readonly source: PromptFolderSource;
 	readonly storage: PromptsStorage.local | PromptsStorage.user;
@@ -250,7 +258,7 @@ export function getPromptFileType(fileUri: URI): PromptsType | undefined {
 		return PromptsType.agent;
 	}
 
-	if (filename.toLowerCase() === SKILL_FILENAME.toLowerCase()) {
+	if (isSkillFilename(filename)) {
 		return PromptsType.skill;
 	}
 
@@ -343,9 +351,9 @@ export function getCleanPromptName(fileUri: URI): string {
 		return basename(fileUri, '.md');
 	}
 
-	// For SKILL.md files (case insensitive), return 'SKILL'
-	if (fileName.toLowerCase() === SKILL_FILENAME.toLowerCase()) {
-		return basename(fileUri, '.md');
+	// For SKILL.md files (case insensitive), return the parent folder name
+	if (isSkillFilename(fileName)) {
+		return getSkillFolderName(fileUri);
 	}
 
 	// For .md files in .github/agents/ folder, treat them as agent files

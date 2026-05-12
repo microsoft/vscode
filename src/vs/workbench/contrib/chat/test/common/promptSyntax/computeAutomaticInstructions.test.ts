@@ -1888,22 +1888,17 @@ suite('ComputeAutomaticInstructions', () => {
 			assert.equal(skillsList.length, 1, 'There should be one skills list');
 
 			const skills = xmlContents(skillsList[0], 'skill');
-			assert.equal(skills.length, 3, 'All three skills should be included despite missing/mismatched metadata');
+			assert.equal(skills.length, 2, 'Skills with description should be included; skill without description is excluded from model invocation');
 
 			// Skill with missing name should use folder name as fallback
 			assert.equal(xmlContents(skills[0], 'name')[0], 'no-name-skill');
 			assert.equal(xmlContents(skills[0], 'description')[0], 'A skill without a name');
 			assert.equal(xmlContents(skills[0], 'file')[0], getFilePath(`${rootFolder}/.claude/skills/no-name-skill/SKILL.md`));
 
-			// Skill with missing description should still be listed
-			assert.equal(xmlContents(skills[1], 'name')[0], 'no-desc-skill');
-			assert.equal(xmlContents(skills[1], 'description').length, 0, 'Should have no description element');
-			assert.equal(xmlContents(skills[1], 'file')[0], getFilePath(`${rootFolder}/.claude/skills/no-desc-skill/SKILL.md`));
-
 			// Skill with mismatched name should use folder name
-			assert.equal(xmlContents(skills[2], 'name')[0], 'actual-folder');
-			assert.equal(xmlContents(skills[2], 'description')[0], 'A skill with mismatched name');
-			assert.equal(xmlContents(skills[2], 'file')[0], getFilePath(`${rootFolder}/.claude/skills/actual-folder/SKILL.md`));
+			assert.equal(xmlContents(skills[1], 'name')[0], 'actual-folder');
+			assert.equal(xmlContents(skills[1], 'description')[0], 'A skill with mismatched name');
+			assert.equal(xmlContents(skills[1], 'file')[0], getFilePath(`${rootFolder}/.claude/skills/actual-folder/SKILL.md`));
 		});
 	});
 

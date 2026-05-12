@@ -60,8 +60,8 @@ export async function askForPromptSourceFolder(
 
 	// create list of source folder locations
 	const foldersList = resolvedFolders.map<IFolderQuickPickItem>(resolved => {
-		const folderUri = resolved.parent;
-		const isDefault = defaultFolder && isEqual(folderUri, defaultFolder.parent);
+		const folderUri = resolved.searchRoot;
+		const isDefault = defaultFolder && isEqual(folderUri, defaultFolder.searchRoot);
 		const sourceDescription = getSourceDescription(resolved.source);
 		const detail = (existingFolder && isEqual(folderUri, existingFolder)) ? localize('current.folder', "Current Location") : undefined;
 

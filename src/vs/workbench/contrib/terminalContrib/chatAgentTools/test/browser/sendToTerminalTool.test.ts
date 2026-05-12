@@ -5,9 +5,10 @@
 
 import * as assert from 'assert';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { Event } from '../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import type { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { SendToTerminalTool, SendToTerminalToolData } from '../../browser/tools/sendToTerminalTool.js';
 import { RunInTerminalTool, type IActiveTerminalExecution } from '../../browser/tools/runInTerminalTool.js';
 import type { IToolInvocation, IToolInvocationPreparationContext } from '../../../../chat/common/tools/languageModelToolsService.js';
@@ -45,9 +46,9 @@ suite('SendToTerminalTool', () => {
 		RunInTerminalTool.getExecution = originalGetExecution;
 	});
 
-	function createInvocation(id: string, command: string): IToolInvocation {
+	function createInvocation(id: string, command: string, waitForOutput?: boolean): IToolInvocation {
 		return {
-			parameters: { id, command },
+			parameters: { id, command, ...(waitForOutput !== undefined ? { waitForOutput } : {}) },
 			callId: 'test-call',
 			context: { sessionId: 'test-session' },
 			toolId: 'send_to_terminal',
@@ -57,17 +58,21 @@ suite('SendToTerminalTool', () => {
 		} as unknown as IToolInvocation;
 	}
 
-	function createMockExecution(output: string): IActiveTerminalExecution & { sentTexts: { text: string; shouldExecute: boolean }[] } {
-		const sentTexts: { text: string; shouldExecute: boolean }[] = [];
+	function createMockExecution(output: string): IActiveTerminalExecution & { sentTexts: { text: string; shouldExecute: boolean; forceBracketedPasteMode?: boolean }[]; dataEmitter: Emitter<string> } {
+		const sentTexts: { text: string; shouldExecute: boolean; forceBracketedPasteMode?: boolean }[] = [];
+		const dataEmitter = store.add(new Emitter<string>());
 		return {
 			completionPromise: Promise.resolve({ output } as ITerminalExecuteStrategyResult),
 			instance: {
-				sendText: async (text: string, shouldExecute: boolean) => {
-					sentTexts.push({ text, shouldExecute });
+				sendText: async (text: string, shouldExecute: boolean, forceBracketedPasteMode?: boolean) => {
+					sentTexts.push({ text, shouldExecute, forceBracketedPasteMode });
 				},
+				registerMarker: () => undefined,
+				onData: dataEmitter.event,
 			} as unknown as ITerminalInstance,
 			getOutput: () => output,
 			sentTexts,
+			dataEmitter,
 		};
 	}
 
@@ -76,60 +81,101 @@ suite('SendToTerminalTool', () => {
 		assert.ok(idProperty?.pattern?.includes('[0-9a-fA-F]{8}'));
 	});
 
-	test('returns error for unknown terminal id', async () => {
-		RunInTerminalTool.getExecution = () => undefined;
+	test('returns error for unknown terminal id', () => {
+		return runWithFakedTimers({}, async () => {
+			RunInTerminalTool.getExecution = () => undefined;
 
-		const result = await tool.invoke(
-			createInvocation(UNKNOWN_TERMINAL_ID, 'ls'),
-			async () => 0,
-			{ report: () => { } },
-			CancellationToken.None,
-		);
+			const result = await tool.invoke(
+				createInvocation(UNKNOWN_TERMINAL_ID, 'ls'),
+				async () => 0,
+				{ report: () => { } },
+				CancellationToken.None,
+			);
 
-		assert.strictEqual(result.content.length, 1);
-		assert.strictEqual(result.content[0].kind, 'text');
-		const value = (result.content[0] as { value: string }).value;
-		assert.ok(value.includes('No active terminal execution found'));
-		assert.ok(value.includes(UNKNOWN_TERMINAL_ID));
+			assert.strictEqual(result.content.length, 1);
+			assert.strictEqual(result.content[0].kind, 'text');
+			const value = (result.content[0] as { value: string }).value;
+			assert.ok(value.includes('No active terminal execution found'));
+			assert.ok(value.includes(UNKNOWN_TERMINAL_ID));
+		});
 	});
 
-	test('sends command to terminal and returns acknowledgment', async () => {
-		const mockExecution = createMockExecution('$ ls\nfile1.txt\nfile2.txt');
-		RunInTerminalTool.getExecution = () => mockExecution;
+	test('sends command to terminal and returns acknowledgment', () => {
+		return runWithFakedTimers({}, async () => {
+			const mockExecution = createMockExecution('$ ls\nfile1.txt\nfile2.txt');
+			RunInTerminalTool.getExecution = () => mockExecution;
 
-		const result = await tool.invoke(
-			createInvocation(KNOWN_TERMINAL_ID, 'ls'),
-			async () => 0,
-			{ report: () => { } },
-			CancellationToken.None,
-		);
+			const result = await tool.invoke(
+				createInvocation(KNOWN_TERMINAL_ID, 'ls'),
+				async () => 0,
+				{ report: () => { } },
+				CancellationToken.None,
+			);
 
-		assert.strictEqual(result.content.length, 1);
-		assert.strictEqual(result.content[0].kind, 'text');
-		const value = (result.content[0] as { value: string }).value;
-		assert.ok(value.includes('Successfully sent command'));
-		assert.ok(value.includes(KNOWN_TERMINAL_ID));
+			assert.strictEqual(result.content.length, 1);
+			assert.strictEqual(result.content[0].kind, 'text');
+			const value = (result.content[0] as { value: string }).value;
+			assert.ok(value.includes('Successfully sent command'));
+			assert.ok(value.includes(KNOWN_TERMINAL_ID));
 
-		// Verify sendText was called with shouldExecute=true
-		assert.strictEqual(mockExecution.sentTexts.length, 1);
-		assert.strictEqual(mockExecution.sentTexts[0].text, 'ls');
-		assert.strictEqual(mockExecution.sentTexts[0].shouldExecute, true);
+			// Verify sendText was called with shouldExecute=true
+			assert.strictEqual(mockExecution.sentTexts.length, 1);
+			assert.strictEqual(mockExecution.sentTexts[0].text, 'ls');
+			assert.strictEqual(mockExecution.sentTexts[0].shouldExecute, true);
+		});
 	});
 
-	test('sends multi-word command correctly', async () => {
-		const mockExecution = createMockExecution('output');
-		RunInTerminalTool.getExecution = () => mockExecution;
+	test('sends multi-word command correctly', () => {
+		return runWithFakedTimers({}, async () => {
+			const mockExecution = createMockExecution('output');
+			RunInTerminalTool.getExecution = () => mockExecution;
 
-		await tool.invoke(
-			createInvocation(KNOWN_TERMINAL_ID, 'echo hello world'),
-			async () => 0,
-			{ report: () => { } },
-			CancellationToken.None,
-		);
+			await tool.invoke(
+				createInvocation(KNOWN_TERMINAL_ID, 'echo hello world'),
+				async () => 0,
+				{ report: () => { } },
+				CancellationToken.None,
+			);
 
-		assert.strictEqual(mockExecution.sentTexts.length, 1);
-		assert.strictEqual(mockExecution.sentTexts[0].text, 'echo hello world');
-		assert.strictEqual(mockExecution.sentTexts[0].shouldExecute, true);
+			assert.strictEqual(mockExecution.sentTexts.length, 1);
+			assert.strictEqual(mockExecution.sentTexts[0].text, 'echo hello world');
+			assert.strictEqual(mockExecution.sentTexts[0].shouldExecute, true);
+		});
+	});
+
+	test('appends cancel-signal steering when input is Ctrl-C', () => {
+		return runWithFakedTimers({}, async () => {
+			const mockExecution = createMockExecution('npm error canceled\n$ ');
+			RunInTerminalTool.getExecution = () => mockExecution;
+
+			const result = await tool.invoke(
+				createInvocation(KNOWN_TERMINAL_ID, '\u0003'),
+				async () => 0,
+				{ report: () => { } },
+				CancellationToken.None,
+			);
+
+			const value = (result.content[0] as { value: string }).value;
+			assert.ok(value.includes('cancel signal'), 'should mention cancel signal');
+			assert.ok(value.includes('not a signal to end the turn'), 'should remind the model the turn is not done');
+		});
+	});
+
+	test('does not append cancel-signal steering for ordinary input', () => {
+		return runWithFakedTimers({}, async () => {
+			const mockExecution = createMockExecution('hello');
+			RunInTerminalTool.getExecution = () => mockExecution;
+
+			const result = await tool.invoke(
+				createInvocation(KNOWN_TERMINAL_ID, 'y'),
+				async () => 0,
+				{ report: () => { } },
+				CancellationToken.None,
+			);
+
+			const value = (result.content[0] as { value: string }).value;
+			assert.ok(!value.includes('cancel signal'), 'should not mention cancel signal for ordinary input');
+		});
 	});
 
 	function createPreparationContext(id: string, command: string, chatSessionResource?: URI): IToolInvocationPreparationContext {
@@ -403,5 +449,109 @@ suite('SendToTerminalTool', () => {
 		const message = prepared.confirmationMessages.message as IMarkdownString;
 		assert.ok(!message.value.includes('$(terminal)'), 'Focus Terminal link should not contain literal $(terminal)');
 		assert.ok(message.value.includes('Focus Terminal'), 'should contain Focus Terminal link text');
+	});
+
+	test('tool schema includes waitForOutput parameter', () => {
+		const waitForOutputProperty = SendToTerminalToolData.inputSchema?.properties?.waitForOutput as { type?: string; description?: string } | undefined;
+		assert.ok(waitForOutputProperty, 'waitForOutput should be in the schema');
+		assert.strictEqual(waitForOutputProperty.type, 'boolean');
+		assert.ok(waitForOutputProperty.description?.includes('idle'));
+	});
+
+	test('waitForOutput=true waits for idle before returning', async () => {
+		return runWithFakedTimers({}, async () => {
+			const mockExecution = createMockExecution('output');
+			RunInTerminalTool.getExecution = () => mockExecution;
+
+			// Emit some data shortly after invocation starts, then stop
+			const dataDelay = setTimeout(() => {
+				mockExecution.dataEmitter.fire('some response data');
+			}, 100);
+
+			const result = await tool.invoke(
+				createInvocation(KNOWN_TERMINAL_ID, 'look', true),
+				async () => 0,
+				{ report: () => { } },
+				CancellationToken.None,
+			);
+
+			clearTimeout(dataDelay);
+			const value = (result.content[0] as { value: string }).value;
+			assert.ok(value.includes('Successfully sent command'));
+		});
+	});
+
+	test('preserves newlines for heredoc commands and uses bracketed paste mode', () => {
+		return runWithFakedTimers({}, async () => {
+			const mockExecution = createMockExecution('output');
+			RunInTerminalTool.getExecution = () => mockExecution;
+
+			const heredocCommand = 'cat > file.txt << \'EOF\'\nhello world\nEOF';
+			await tool.invoke(
+				createInvocation(KNOWN_TERMINAL_ID, heredocCommand),
+				async () => 0,
+				{ report: () => { } },
+				CancellationToken.None,
+			);
+
+			assert.strictEqual(mockExecution.sentTexts.length, 1);
+			assert.strictEqual(mockExecution.sentTexts[0].text, heredocCommand, 'heredoc command should preserve newlines');
+			assert.strictEqual(mockExecution.sentTexts[0].forceBracketedPasteMode, true, 'multiline commands should use bracketed paste mode');
+		});
+	});
+
+	test('preserves newlines for multiline commands with \\r\\n', () => {
+		return runWithFakedTimers({}, async () => {
+			const mockExecution = createMockExecution('output');
+			RunInTerminalTool.getExecution = () => mockExecution;
+
+			const multilineCommand = 'cat > file.txt << EOF\r\ncontent\r\nEOF';
+			await tool.invoke(
+				createInvocation(KNOWN_TERMINAL_ID, multilineCommand),
+				async () => 0,
+				{ report: () => { } },
+				CancellationToken.None,
+			);
+
+			assert.strictEqual(mockExecution.sentTexts.length, 1);
+			assert.strictEqual(mockExecution.sentTexts[0].text, multilineCommand, 'multiline command with \\r\\n should preserve newlines');
+			assert.strictEqual(mockExecution.sentTexts[0].forceBracketedPasteMode, true, 'multiline commands should use bracketed paste mode');
+		});
+	});
+
+	test('single-line commands still get normalized', () => {
+		return runWithFakedTimers({}, async () => {
+			const mockExecution = createMockExecution('output');
+			RunInTerminalTool.getExecution = () => mockExecution;
+
+			await tool.invoke(
+				createInvocation(KNOWN_TERMINAL_ID, '  echo hello  '),
+				async () => 0,
+				{ report: () => { } },
+				CancellationToken.None,
+			);
+
+			assert.strictEqual(mockExecution.sentTexts.length, 1);
+			assert.strictEqual(mockExecution.sentTexts[0].text, 'echo hello', 'single-line command should be trimmed');
+		});
+	});
+
+	test('line continuation commands are normalized, not treated as multiline', () => {
+		return runWithFakedTimers({}, async () => {
+			const mockExecution = createMockExecution('output');
+			RunInTerminalTool.getExecution = () => mockExecution;
+
+			const continuationCommand = 'echo hello \\\n  world';
+			await tool.invoke(
+				createInvocation(KNOWN_TERMINAL_ID, continuationCommand),
+				async () => 0,
+				{ report: () => { } },
+				CancellationToken.None,
+			);
+
+			assert.strictEqual(mockExecution.sentTexts.length, 1);
+			assert.strictEqual(mockExecution.sentTexts[0].text, 'echo hello \\   world', 'line continuation should be normalized to single line');
+			assert.strictEqual(mockExecution.sentTexts[0].forceBracketedPasteMode, undefined, 'line continuation should not force bracketed paste mode');
+		});
 	});
 });

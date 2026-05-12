@@ -18,10 +18,10 @@ import { ITerminalInstance, ITerminalService } from '../../../../workbench/contr
 import { TerminalCapability } from '../../../../platform/terminal/common/capabilities/capabilities.js';
 import { IPathService } from '../../../../workbench/services/path/common/pathService.js';
 import { Menus } from '../../../browser/menus.js';
-import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
-import { SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
+import { isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../common/agentHostSessionsProvider.js';
+import { SessionsWelcomeVisibleContext, IsPhoneLayoutContext } from '../../../common/contextkeys.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { CopilotCLISessionType, ISession } from '../../../services/sessions/common/session.js';
+import { isWorkspaceAgentSessionType, ISession } from '../../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
@@ -42,15 +42,15 @@ interface ISessionTerminalInfo {
 
 /**
  * Returns terminal info for the given session: worktree or repository path for
- * background sessions only. Returns `undefined` for non-background sessions
- * (Cloud, Local, etc.) which have no local worktree, or when no path is available.
+ * workspace-backed agent sessions. Returns `undefined` for sessions without a
+ * workspace (e.g. Cloud), or when no path is available.
  */
 function getSessionTerminalInfo(session: ISession | undefined): ISessionTerminalInfo | undefined {
-	if (session?.sessionType !== CopilotCLISessionType.id) {
+	if (!session || !isWorkspaceAgentSessionType(session.sessionType)) {
 		return undefined;
 	}
-	const repo = session.workspace.get()?.repositories[0];
-	const cwd = repo?.workingDirectory ?? repo?.uri;
+	const folder = session.workspace.get()?.folders[0];
+	const cwd = folder?.workingDirectory;
 	if (!cwd) {
 		return undefined;
 	}
@@ -64,7 +64,9 @@ function getSessionTerminalInfo(session: ISession | undefined): ISessionTerminal
  * Manages terminal instances in the sessions window, ensuring:
  * - A terminal exists for the active session's worktree (or repository if no worktree).
  * - Terminals are shown/hidden based on their initial cwd matching the active path.
- * - All terminals for a worktree are closed when the session is archived.
+ * - Terminals for an archived/removed session are closed only when no other
+ *   live session still owns the same cwd (terminals are reused across sessions
+ *   at the same worktree).
  */
 export class SessionsTerminalContribution extends Disposable implements IWorkbenchContribution {
 
@@ -86,13 +88,17 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		super();
 
 		const profileOverride = derived(reader => {
-			const profiles = this._agentHostTerminalService.profiles.read(reader);
 			const session = this._sessionsManagementService.activeSession.read(reader);
+			if (!session || session.providerId === LOCAL_AGENT_HOST_PROVIDER_ID) {
+				return; // no need to override local default profiles with the local AH
+			}
+
 			const address = this._getSessionAgentHostAddress(session);
 			if (!address) {
 				return;
 			}
 
+			const profiles = this._agentHostTerminalService.profiles.read(reader);
 			return profiles.find(p => p.address === address) ?? this._agentHostTerminalService.getProfileForConnection(address);
 		});
 
@@ -134,6 +140,10 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		// belong to the current active session. These arrive asynchronously
 		// during reconnection and would otherwise flash in the foreground.
 		this._register(this._terminalService.onDidCreateInstance(instance => {
+			// Skip hidden tool terminals — managed by the chat tool lifecycle
+			if (instance.shellLaunchConfig.hideFromUser) {
+				return;
+			}
 			if (instance.shellLaunchConfig.attachPersistentProcess && this._activeKey) {
 				instance.getInitialCwd().then(cwd => {
 					if (cwd.toLowerCase() !== this._activeKey) {
@@ -148,12 +158,33 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 			}
 		}));
 
-		// When a session is archived or removed, close all terminals for its worktree
+		// Close terminals for archived/removed sessions, but only when no other
+		// live session still owns that cwd. Terminals are reused across sessions
+		// at the same cwd, so a plain cwd match would kill a terminal still in use
+		// (e.g. the committed session from `onDidReplaceSession`).
+		// TODO: Consider removing the logic for trying to "delete/clean-up" terminal.
+		// Or consider tag terminals by sessionId + refcount instead of guarding here.
+
 		this._register(this._sessionsManagementService.onDidChangeSessions(e => {
-			for (const session of [...e.removed, ...e.changed.filter(s => s.isArchived.get())]) {
-				const worktreeUri = session.workspace.get()?.repositories[0]?.workingDirectory;
-				if (worktreeUri) {
-					this._closeTerminalsForPath(worktreeUri.fsPath);
+			const archivedChanged = e.changed.filter(s => s.isArchived.get());
+			if (e.removed.length === 0 && archivedChanged.length === 0) {
+				return;
+			}
+			const removedIds = new Set(e.removed.map(s => s.sessionId));
+			const liveCwdKeys = new Set<string>();
+			for (const session of this._sessionsManagementService.getSessions()) {
+				if (removedIds.has(session.sessionId) || session.isArchived.get()) {
+					continue;
+				}
+				const info = getSessionTerminalInfo(session);
+				if (info) {
+					liveCwdKeys.add(info.cwd.fsPath.toLowerCase());
+				}
+			}
+			for (const session of [...e.removed, ...archivedChanged]) {
+				const info = getSessionTerminalInfo(session);
+				if (info && !liveCwdKeys.has(info.cwd.fsPath.toLowerCase())) {
+					this._closeTerminalsForPath(info.cwd.fsPath);
 				}
 			}
 		}));
@@ -254,6 +285,10 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 	private async _findTerminalsForKey(key: string): Promise<ITerminalInstance[]> {
 		const result: ITerminalInstance[] = [];
 		for (const instance of this._terminalService.instances) {
+			// Skip hidden tool terminals — managed by the chat tool lifecycle
+			if (instance.shellLaunchConfig.hideFromUser) {
+				continue;
+			}
 			try {
 				const cwd = await instance.getInitialCwd();
 				if (cwd.toLowerCase() === key) {
@@ -284,6 +319,10 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		const toHide: ITerminalInstance[] = [];
 
 		for (const instance of [...this._terminalService.instances]) {
+			// Skip hidden tool terminals — managed by the chat tool lifecycle
+			if (instance.shellLaunchConfig.hideFromUser) {
+				continue;
+			}
 			let cwd: string | undefined;
 			try {
 				cwd = (await instance.getInitialCwd()).toLowerCase();
@@ -338,6 +377,12 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 	private async _closeTerminalsForPath(fsPath: string): Promise<void> {
 		const key = fsPath.toLowerCase();
 		for (const instance of [...this._terminalService.instances]) {
+			// Skip hidden tool terminals (e.g. run_in_terminal) — those are
+			// managed by the chat tool lifecycle, not the session terminal
+			// contribution.
+			if (instance.shellLaunchConfig.hideFromUser) {
+				continue;
+			}
 			try {
 				const cwd = (await instance.getInitialCwd()).toLowerCase();
 				if (cwd === key) {
@@ -392,7 +437,7 @@ class OpenSessionInTerminalAction extends Action2 {
 				id: Menus.TitleBarSessionMenu,
 				group: 'navigation',
 				order: 10,
-				when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated()),
+				when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), IsPhoneLayoutContext.negate()),
 			}]
 		});
 	}

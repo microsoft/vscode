@@ -66,7 +66,7 @@ function isUserDefined(storage: PromptsStorage): boolean {
 }
 
 function isUserDefinedMcpCollection(collection: McpCollectionDefinition): boolean {
-	const order = collection.presentation?.order;
+	const order = collection.order;
 	return order === McpCollectionSortOrder.User
 		|| order === McpCollectionSortOrder.WorkspaceFolder
 		|| order === McpCollectionSortOrder.Workspace;

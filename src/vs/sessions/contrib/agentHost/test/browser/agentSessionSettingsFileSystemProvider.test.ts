@@ -230,7 +230,7 @@ suite('AgentSessionSettingsFileSystemProvider', () => {
 		const schemaRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 
 		function expectedSchemaId(session: ISession): string {
-			return `vscode://schemas/agent-session-settings/${session.providerId}${session.resource.scheme}${session.resource.path}.jsonc`;
+			return `vscode://schemas/agent-session-settings/${session.providerId}/${session.resource.scheme}/${session.resource.path}.jsonc`;
 		}
 
 		test('readFile lazily registers a schema + association for the session', async () => {

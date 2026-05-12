@@ -12,7 +12,8 @@ import { localize } from '../../../../nls.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { ChatMode, IChatMode, IChatModeService } from '../../../../workbench/contrib/chat/common/chatModes.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { ChatMode, IChatMode, IChatModes, IChatModeService } from '../../../../workbench/contrib/chat/common/chatModes.js';
 import { IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { Target } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
@@ -22,6 +23,7 @@ import { ISessionsManagementService } from '../../../services/sessions/common/se
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { CopilotChatSessionsProvider } from './copilotChatSessionsProvider.js';
 import { CopilotCLISessionType } from '../../../services/sessions/common/session.js';
+import { reportNewChatPickerClosed } from '../../chat/browser/newChatPickerTelemetry.js';
 
 interface IModePickerItem {
 	readonly kind: 'mode';
@@ -53,6 +55,8 @@ export class ModePicker extends Disposable {
 		return this._selectedMode;
 	}
 
+	private readonly _chatModes: IChatModes;
+
 	constructor(
 		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
 		@IChatModeService private readonly chatModeService: IChatModeService,
@@ -60,10 +64,13 @@ export class ModePicker extends Disposable {
 		@ICommandService private readonly commandService: ICommandService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 
-		this._register(this.chatModeService.onDidChangeChatModes(() => {
+		this._chatModes = this.chatModeService.getModes(CopilotCLISessionType.id);
+
+		this._register(this._chatModes.onDidChange(() => {
 			// Refresh the trigger label when available chat modes change
 			if (this._triggerElement) {
 				this._updateTriggerLabel();
@@ -116,13 +123,12 @@ export class ModePicker extends Disposable {
 	private _getAvailableModes(): IChatMode[] {
 		const customAgentTarget = this.chatSessionsService.getCustomAgentTargetForSessionType(CopilotCLISessionType.id);
 		const effectiveTarget = customAgentTarget && customAgentTarget !== Target.Undefined ? customAgentTarget : Target.GitHubCopilot;
-		const modes = this.chatModeService.getModes();
 
 		// Always include the default Agent mode
 		const result: IChatMode[] = [ChatMode.Agent];
 
 		// Add custom modes matching the target and visible to users
-		for (const mode of modes.custom) {
+		for (const mode of this._chatModes.custom) {
 			const target = mode.target.get();
 			if (target === effectiveTarget || target === Target.Undefined) {
 				const visibility = mode.visibility?.get();
@@ -146,10 +152,19 @@ export class ModePicker extends Disposable {
 		const items = this._buildItems(modes);
 
 		const triggerElement = this._triggerElement;
+		const previousMode = this._selectedMode;
 		const delegate: IActionListDelegate<ModePickerItem> = {
 			onSelect: (item) => {
 				this.actionWidgetService.hide();
 				if (item.kind === 'mode') {
+					reportNewChatPickerClosed(this.telemetryService, {
+						id: 'NewChatModePicker',
+						optionIdBefore: previousMode.id,
+						optionIdAfter: item.mode.id,
+						optionLabelBefore: previousMode.label.get(),
+						optionLabelAfter: item.mode.label.get(),
+						isPII: true,
+					});
 					this._selectMode(item.mode);
 				} else {
 					this.commandService.executeCommand(AICustomizationManagementCommands.OpenEditor, AICustomizationManagementSection.Agents);
@@ -241,7 +256,6 @@ export class ModePicker extends Disposable {
 
 		const labelSpan = dom.append(this._triggerElement, dom.$('span.sessions-chat-dropdown-label'));
 		labelSpan.textContent = this._selectedMode.label.get();
-		dom.append(this._triggerElement, renderIcon(Codicon.chevronDown));
 
 		this._triggerElement.ariaLabel = localize('modePicker.triggerAriaLabel', "Pick Mode, {0}", this._selectedMode.label.get());
 	}

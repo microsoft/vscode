@@ -2871,6 +2871,67 @@ suite('PromptFilesLocator', () => {
 		});
 	});
 
+	suite('listFiles with PromptsType.hook', () => {
+		testT('only returns targeted json files, not sibling json files', async () => {
+			configValues[PromptsConfig.HOOKS_LOCATION_KEY] = {
+				'.claude/settings.json': true,
+				'.claude/settings.local.json': true,
+				'~/.claude/settings.json': true,
+				'.github/hooks': true,
+				'~/.copilot/hooks': true,
+			};
+			setWorkspaceFolders(['/Users/legomushroom/repos/vscode']);
+			await mockFiles(fileService, [
+				// targeted files that should be found
+				{ path: '/Users/legomushroom/repos/vscode/.claude/settings.json', contents: ['{}'] },
+				{ path: '/Users/legomushroom/repos/vscode/.claude/settings.local.json', contents: ['{}'] },
+				// sibling files in .claude/ that should NOT be found
+				{ path: '/Users/legomushroom/repos/vscode/.claude/config.json', contents: ['{}'] },
+				{ path: '/Users/legomushroom/repos/vscode/.claude/stats-cache.json', contents: ['{}'] },
+				// hook directory files that should be found
+				{ path: '/Users/legomushroom/repos/vscode/.github/hooks/pre-commit.json', contents: ['{}'] },
+			]);
+			const locator = instantiationService.createInstance(PromptFilesLocator);
+
+			const files = await locator.listFiles(PromptsType.hook, PromptsStorage.local, CancellationToken.None);
+			assert.deepStrictEqual(
+				files.map(f => f.path).sort(),
+				[
+					'/Users/legomushroom/repos/vscode/.claude/settings.json',
+					'/Users/legomushroom/repos/vscode/.claude/settings.local.json',
+					'/Users/legomushroom/repos/vscode/.github/hooks/pre-commit.json',
+				],
+			);
+		});
+
+		testT('returns hook files from user home specific json paths', async () => {
+			configValues[PromptsConfig.HOOKS_LOCATION_KEY] = {
+				'~/.claude/settings.json': true,
+				'~/.copilot/hooks': true,
+			};
+			setWorkspaceFolders(['/Users/legomushroom/repos/vscode']);
+			await mockFiles(fileService, [
+				// targeted user file
+				{ path: '/Users/legomushroom/.claude/settings.json', contents: ['{}'] },
+				// sibling files that should NOT be found
+				{ path: '/Users/legomushroom/.claude/config.json', contents: ['{}'] },
+				{ path: '/Users/legomushroom/.claude/stats-cache.json', contents: ['{}'] },
+				// hook directory files
+				{ path: '/Users/legomushroom/.copilot/hooks/my-hook.json', contents: ['{}'] },
+			]);
+			const locator = instantiationService.createInstance(PromptFilesLocator);
+
+			const files = await locator.listFiles(PromptsType.hook, PromptsStorage.user, CancellationToken.None);
+			assert.deepStrictEqual(
+				files.map(f => f.path).sort(),
+				[
+					'/Users/legomushroom/.claude/settings.json',
+					'/Users/legomushroom/.copilot/hooks/my-hook.json',
+				],
+			);
+		});
+	});
+
 	suite('getSourceDescription', () => {
 		test('returns descriptions for all known folder sources', () => {
 			const folderSources: PromptFileSource[] = [

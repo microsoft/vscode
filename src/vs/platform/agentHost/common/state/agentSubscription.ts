@@ -6,8 +6,9 @@
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, IReference } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
+import { IObservable, observableFromEvent } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
-import { ActionEnvelope, SessionAction, StateAction, isSessionAction } from './sessionActions.js';
+import { ActionEnvelope, IRootConfigChangedAction, SessionAction, StateAction, isSessionAction } from './sessionActions.js';
 import { rootReducer, sessionReducer } from './sessionReducers.js';
 import { terminalReducer } from './protocol/reducers.js';
 import type { RootAction, SessionAction as IProtocolSessionAction, TerminalAction } from './protocol/action-origin.generated.js';
@@ -394,7 +395,7 @@ export class AgentSubscriptionManager extends Disposable {
 	 */
 	getSubscriptionUnmanaged<T>(resource: URI): IAgentSubscription<T> | undefined {
 		const entry = this._subscriptions.get(resource);
-		return entry?.sub as unknown as IAgentSubscription<T> | undefined;
+		return entry?.sub as IAgentSubscription<T> | undefined;
 	}
 
 	/**
@@ -453,10 +454,10 @@ export class AgentSubscriptionManager extends Disposable {
 	 * Dispatch a client action. Applies optimistically to the relevant
 	 * subscription if applicable, then returns the clientSeq.
 	 */
-	dispatchOptimistic(action: SessionAction | TerminalAction): number {
+	dispatchOptimistic(action: SessionAction | TerminalAction | IRootConfigChangedAction): number {
 		if (isSessionAction(action)) {
 			const entry = this._subscriptions.get(URI.parse(action.session));
-			if (entry && entry.sub instanceof SessionStateSubscription) {
+			if (entry?.sub instanceof SessionStateSubscription) {
 				return entry.sub.applyOptimistic(action);
 			}
 		}
@@ -499,4 +500,19 @@ export class AgentSubscriptionManager extends Disposable {
 		this._subscriptions.clear();
 		super.dispose();
 	}
+}
+
+// --- Observable Adapter ------------------------------------------------------
+
+/**
+ * Adapts an {@link IAgentSubscription} into an {@link IObservable} of the
+ * subscription's value. Errors and the pre-snapshot phase are surfaced as
+ * `undefined`; consumers that need the error itself should read
+ * {@link IAgentSubscription.value} directly.
+ */
+export function observableFromSubscription<T>(owner: object | undefined, sub: IAgentSubscription<T>): IObservable<T | undefined> {
+	return observableFromEvent(owner, sub.onDidChange, () => {
+		const v = sub.value;
+		return v instanceof Error ? undefined : v;
+	});
 }

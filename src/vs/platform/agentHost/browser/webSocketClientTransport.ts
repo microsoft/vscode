@@ -9,7 +9,9 @@
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { connectionTokenQueryName } from '../../../base/common/network.js';
-import type { AhpServerNotification, JsonRpcResponse, ProtocolMessage } from '../common/state/sessionProtocol.js';
+import { IInstantiationService } from '../../instantiation/common/instantiation.js';
+import { AhpJsonlLogger, getAhpLogByteLength, IAhpJsonlLoggerOptions } from '../common/ahpJsonlLogger.js';
+import type { AhpServerNotification, JsonRpcNotification, JsonRpcRequest, JsonRpcResponse, ProtocolMessage } from '../common/state/sessionProtocol.js';
 import type { IClientTransport } from '../common/state/sessionTransport.js';
 import { MALFORMED_FRAMES_FORCE_CLOSE_THRESHOLD, MALFORMED_FRAMES_LOG_CAP } from '../common/transportConstants.js';
 
@@ -34,15 +36,26 @@ export class WebSocketClientTransport extends Disposable implements IClientTrans
 	private _ws: WebSocket | undefined;
 	private _malformedFrames = 0;
 
+	/** Guards against firing onClose more than once. */
+	private _closeFired = false;
+
 	get isOpen(): boolean {
 		return this._ws?.readyState === WebSocket.OPEN;
 	}
 
+	private readonly _ahpLogger?: AhpJsonlLogger;
+
 	constructor(
 		private readonly _address: string,
-		private readonly _connectionToken?: string,
+		private readonly _connectionToken: string | undefined,
+		ahpLogOptions: IAhpJsonlLoggerOptions | undefined,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
+		// TODO: @osortega remove console.logs
 		super();
+		if (ahpLogOptions) {
+			this._ahpLogger = this._register(instantiationService.createInstance(AhpJsonlLogger, ahpLogOptions));
+		}
 	}
 
 	/**
@@ -134,24 +147,51 @@ export class WebSocketClientTransport extends Disposable implements IClientTrans
 					}
 					return;
 				}
+				this._ahpLogger?.log(message, 's2c', getAhpLogByteLength(text));
 				this._onMessage.fire(message);
 			});
 
 			ws.addEventListener('close', () => {
-				this._onClose.fire();
+				if (!this._closeFired) {
+					this._closeFired = true;
+					this._onClose.fire();
+				}
 			});
 
 			ws.addEventListener('error', () => {
 				// Error always precedes close - closing is handled in the close handler.
-				this._onClose.fire();
+				// Only fire if close hasn't already been fired (e.g. from send failure).
+				if (!this._closeFired) {
+					this._closeFired = true;
+					this._onClose.fire();
+				}
 			});
 		});
 	}
 
-	send(message: ProtocolMessage | AhpServerNotification | JsonRpcResponse): void {
+	/**
+	 * Send a message to the remote end. Returns `true` if the message was
+	 * sent, `false` if it was dropped (socket not open). On failure, the
+	 * transport is force-closed so reconnection is triggered immediately
+	 * rather than silently losing messages.
+	 */
+	send(message: ProtocolMessage | AhpServerNotification | JsonRpcNotification | JsonRpcResponse | JsonRpcRequest): boolean {
 		if (this._ws?.readyState === WebSocket.OPEN) {
-			this._ws.send(JSON.stringify(message));
+			const text = JSON.stringify(message);
+			this._ahpLogger?.log(message, 'c2s', getAhpLogByteLength(text));
+			this._ws.send(text);
+			return true;
 		}
+		console.warn(
+			`[WebSocketClientTransport] Message dropped: readyState=${this._ws?.readyState ?? 'no-socket'}`
+		);
+		// Force-close and fire onClose exactly once to trigger reconnection
+		this._ws?.close(4001, 'send-on-dead-socket');
+		if (!this._closeFired) {
+			this._closeFired = true;
+			this._onClose.fire();
+		}
+		return false;
 	}
 
 	override dispose(): void {
