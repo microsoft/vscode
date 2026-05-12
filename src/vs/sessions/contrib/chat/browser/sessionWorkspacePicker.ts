@@ -479,10 +479,10 @@ export class WorkspacePicker extends Disposable {
 		reportNewChatPickerClosed(this.telemetryService, {
 			id: 'NewChatWorkspacePicker',
 			name: 'NewChatWorkspacePicker',
-			optionIdBefore: before?.workspace.repositories[0]?.uri.toString(),
-			optionIdAfter: after?.workspace.repositories[0]?.uri.toString(),
-			optionLabelBefore: before?.workspace.label,
-			optionLabelAfter: after?.workspace.label,
+			optionIdBefore: before?.workspace?.uri.toString(),
+			optionIdAfter: after?.workspace?.uri.toString(),
+			optionLabelBefore: before?.workspace?.label,
+			optionLabelAfter: after?.workspace?.label,
 			isPII: true,
 		});
 	}

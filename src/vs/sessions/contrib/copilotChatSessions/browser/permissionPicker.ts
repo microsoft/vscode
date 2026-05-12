@@ -240,6 +240,18 @@ export class PermissionPicker extends Disposable {
 	}
 
 	protected async _selectLevel(level: ChatPermissionLevel): Promise<void> {
+		if (!await maybeConfirmElevatedPermissionLevel(level, this.dialogService, this.storageService)) {
+			reportNewChatPickerClosed(this.telemetryService, {
+				id: 'NewChatPermissionPicker',
+				name: 'NewChatPermissionPicker',
+				optionIdBefore: this._currentLevel,
+				optionIdAfter: this._currentLevel,
+				optionLabelBefore: undefined,
+				optionLabelAfter: undefined,
+				isPII: false,
+			});
+		}
+
 		reportNewChatPickerClosed(this.telemetryService, {
 			id: 'NewChatPermissionPicker',
 			name: 'NewChatPermissionPicker',
@@ -249,10 +261,6 @@ export class PermissionPicker extends Disposable {
 			optionLabelAfter: undefined,
 			isPII: false,
 		});
-
-		if (!await maybeConfirmElevatedPermissionLevel(level, this.dialogService, this.storageService)) {
-			return;
-		}
 
 		this._currentLevel = level;
 		this._updateTriggerLabel(this._triggerElement);
