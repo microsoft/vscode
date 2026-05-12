@@ -1,5 +1,24 @@
 // Copyright (c) Son of Anton Contributors. All rights reserved.
 // Licensed under the MIT License.
+//
+// SECURITY NOTES (do not remove without re-evaluating the full threat model):
+//
+// This service mounts /var/run/docker.sock and creates containers on behalf of
+// callers. That means anyone who can reach the HTTP port effectively owns the
+// Docker daemon on the host. To mitigate that:
+//
+//   1. The service refuses to start unless BACKGROUND_TASK_API_TOKEN is set.
+//      All write endpoints (POST /tasks, POST /tasks/:id/cancel) require an
+//      Authorization: Bearer <token> header matching that env var.
+//   2. The `image` field on incoming task configs is matched against a strict
+//      allowlist (built-in `soa-background-agent:latest` plus anything in
+//      BACKGROUND_TASK_ALLOWED_IMAGES). Unknown images are rejected with 400.
+//   3. The `projectPath` bind-mount source is resolved and must live inside
+//      BACKGROUND_TASK_WORKSPACE_ROOT (default /workspace). Path traversal is
+//      rejected with 400.
+//   4. The docker-compose.yml entry for this service does NOT publish a port
+//      to the host by default. Other in-stack services reach it through
+//      sandbox-net.
 
 import http from 'http';
 import fs from 'fs/promises';
@@ -11,12 +30,60 @@ const PORT = parseInt(process.env.BACKGROUND_TASKS_PORT ?? '8093', 10);
 const STATE_DIR = process.env.STATE_DIR ?? '/data/background';
 const STATE_FILE = path.join(STATE_DIR, 'tasks.json');
 
+const API_TOKEN = process.env.BACKGROUND_TASK_API_TOKEN ?? '';
+
+const BUILTIN_ALLOWED_IMAGE = 'soa-background-agent:latest';
+const ALLOWED_IMAGES = new Set<string>([
+	BUILTIN_ALLOWED_IMAGE,
+	...(process.env.BACKGROUND_TASK_ALLOWED_IMAGES ?? '')
+		.split(',')
+		.map(s => s.trim())
+		.filter(Boolean),
+]);
+
+const WORKSPACE_ROOT = path.resolve(process.env.BACKGROUND_TASK_WORKSPACE_ROOT ?? '/workspace');
+
 const DEFAULT_RESOURCE_LIMITS: ResourceLimits = {
 	memoryMb: 4096,
 	cpuCores: 2,
 	timeoutMs: 2 * 60 * 60 * 1000, // 2 hours
 	maxTokenBudgetUsd: 10,
 };
+
+/**
+ * Validation error thrown by request handlers. Surfaces as HTTP 400.
+ */
+class BadRequestError extends Error {
+	constructor(message: string) {
+		super(message);
+		this.name = 'BadRequestError';
+	}
+}
+
+/**
+ * Validate that `image` is in the configured allowlist.
+ */
+function assertImageAllowed(image: string): void {
+	if (!ALLOWED_IMAGES.has(image)) {
+		throw new BadRequestError(
+			`Image "${image}" is not in the allowlist. Add it to BACKGROUND_TASK_ALLOWED_IMAGES to permit it.`
+		);
+	}
+}
+
+/**
+ * Validate that `projectPath` resolves inside the configured workspace root.
+ * Returns the resolved absolute path.
+ */
+function assertProjectPathAllowed(projectPath: string): string {
+	const resolved = path.resolve(projectPath);
+	if (resolved !== WORKSPACE_ROOT && !resolved.startsWith(WORKSPACE_ROOT + path.sep)) {
+		throw new BadRequestError(
+			`projectPath "${projectPath}" must be inside BACKGROUND_TASK_WORKSPACE_ROOT (${WORKSPACE_ROOT}).`
+		);
+	}
+	return resolved;
+}
 
 /**
  * Manages background agent tasks that run in Docker containers.
@@ -52,8 +119,18 @@ class BackgroundTaskManager {
 
 	/**
 	 * Create and start a new background task.
+	 *
+	 * Validates `image` and `projectPath` against the configured allowlists
+	 * before any Docker operation is attempted.
 	 */
 	async createTask(config: TaskConfig): Promise<BackgroundTask> {
+		// Validate up-front so we never even materialise state for a rejected request.
+		const requestedImage = config.image ?? BUILTIN_ALLOWED_IMAGE;
+		assertImageAllowed(requestedImage);
+
+		const requestedProjectPath = config.projectPath ?? WORKSPACE_ROOT;
+		const resolvedProjectPath = assertProjectPathAllowed(requestedProjectPath);
+
 		const id = `bg-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 		const limits = { ...DEFAULT_RESOURCE_LIMITS, ...config.resourceLimits };
 
@@ -84,8 +161,8 @@ class BackgroundTaskManager {
 
 		await this.persistState();
 
-		// Start the container
-		await this.startTask(task, config);
+		// Start the container with the validated values.
+		await this.startTask(task, { ...config, image: requestedImage, projectPath: resolvedProjectPath });
 
 		return task;
 	}
@@ -93,7 +170,7 @@ class BackgroundTaskManager {
 	private async startTask(task: BackgroundTask, config: TaskConfig): Promise<void> {
 		try {
 			const container = await this.docker.createContainer({
-				Image: config.image ?? 'soa-background-agent:latest',
+				Image: config.image ?? BUILTIN_ALLOWED_IMAGE,
 				name: `soa-bg-${task.id}`,
 				Env: [
 					`TASK_ID=${task.id}`,
@@ -107,7 +184,7 @@ class BackgroundTaskManager {
 				],
 				HostConfig: {
 					Binds: [
-						`${config.projectPath ?? '/workspace'}:/workspace:rw`,
+						`${config.projectPath ?? WORKSPACE_ROOT}:/workspace:rw`,
 						`${task.resultDir}:/results:rw`,
 					],
 					Memory: task.resourceLimits.memoryMb * 1024 * 1024,
@@ -296,13 +373,51 @@ class BackgroundTaskManager {
 // --- HTTP API ---
 const taskManager = new BackgroundTaskManager(STATE_DIR);
 
+/**
+ * Constant-time-ish comparison for the bearer token. The token is short and we
+ * only check it once per request, so the worst-case timing leak is negligible —
+ * but we still avoid early-return so a no-op leak is one less thing to worry about.
+ */
+function tokenMatches(provided: string): boolean {
+	if (!API_TOKEN || provided.length !== API_TOKEN.length) {
+		return false;
+	}
+	let mismatch = 0;
+	for (let i = 0; i < API_TOKEN.length; i++) {
+		mismatch |= API_TOKEN.charCodeAt(i) ^ provided.charCodeAt(i);
+	}
+	return mismatch === 0;
+}
+
+/**
+ * Return true if the request carries a valid Authorization: Bearer <token> header.
+ */
+function isAuthorized(req: http.IncomingMessage): boolean {
+	const header = req.headers['authorization'];
+	if (typeof header !== 'string') {
+		return false;
+	}
+	const match = header.match(/^Bearer\s+(.+)$/i);
+	if (!match) {
+		return false;
+	}
+	return tokenMatches(match[1].trim());
+}
+
 async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
 	const url = new URL(req.url ?? '/', `http://localhost:${PORT}`);
 
-	// Health check
+	// Health check (anonymous — readiness probes need this).
 	if (url.pathname === '/health') {
 		res.writeHead(200, { 'Content-Type': 'application/json' });
 		res.end(JSON.stringify({ status: 'ok', service: 'background-tasks' }));
+		return;
+	}
+
+	// All non-health endpoints require an authenticated bearer token.
+	if (!isAuthorized(req)) {
+		res.writeHead(401, { 'Content-Type': 'application/json' });
+		res.end(JSON.stringify({ error: 'Unauthorized — missing or invalid bearer token' }));
 		return;
 	}
 
@@ -330,11 +445,27 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
 	// Create a new task
 	if (url.pathname === '/tasks' && req.method === 'POST') {
 		const body = await readBody(req);
-		const config = JSON.parse(body) as TaskConfig;
-		const task = await taskManager.createTask(config);
+		let config: TaskConfig;
+		try {
+			config = JSON.parse(body) as TaskConfig;
+		} catch {
+			res.writeHead(400, { 'Content-Type': 'application/json' });
+			res.end(JSON.stringify({ error: 'Request body must be valid JSON' }));
+			return;
+		}
 
-		res.writeHead(201, { 'Content-Type': 'application/json' });
-		res.end(JSON.stringify(task, null, 2));
+		try {
+			const task = await taskManager.createTask(config);
+			res.writeHead(201, { 'Content-Type': 'application/json' });
+			res.end(JSON.stringify(task, null, 2));
+		} catch (err) {
+			if (err instanceof BadRequestError) {
+				res.writeHead(400, { 'Content-Type': 'application/json' });
+				res.end(JSON.stringify({ error: err.message }));
+				return;
+			}
+			throw err;
+		}
 		return;
 	}
 
@@ -410,8 +541,21 @@ const httpServer = http.createServer(async (req, res) => {
 	}
 });
 
+if (!API_TOKEN) {
+	// Refuse to start unauthenticated — this service controls the Docker daemon.
+	console.error(
+		'[background-tasks] BACKGROUND_TASK_API_TOKEN must be set to run background-tasks; ' +
+		'refusing to start with anonymous Docker control.'
+	);
+	process.exit(1);
+}
+
 taskManager.initialize().then(() => {
 	httpServer.listen(PORT, () => {
 		console.log(`[background-tasks] Listening on port ${PORT}`);
+		console.log(
+			`[background-tasks] Allowed images: ${[...ALLOWED_IMAGES].join(', ')}; ` +
+			`workspace root: ${WORKSPACE_ROOT}`
+		);
 	});
 });

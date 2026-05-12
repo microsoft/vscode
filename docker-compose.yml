@@ -275,13 +275,27 @@ services:
       context: ./services/background-tasks
       dockerfile: Dockerfile
     container_name: soa-background-tasks
-    ports:
-      - "${BACKGROUND_TASKS_PORT:-8093}:8093"
+    # SECURITY: This service mounts /var/run/docker.sock and can create containers.
+    # We intentionally do NOT publish the port to the host by default. Other in-stack
+    # services reach it via sandbox-net on `soa-background-tasks:8093`. If you need to
+    # call it from the host, uncomment the localhost-bound port below — never expose
+    # this service to a public interface.
+    # ports:
+    #   - "127.0.0.1:${BACKGROUND_TASKS_PORT:-8093}:8093"
     environment:
       - BACKGROUND_TASKS_PORT=${BACKGROUND_TASKS_PORT:-8093}
       - STATE_DIR=/data/background
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - MCP_GATEWAY_URL=http://mcp-gateway:3100
+      # SECURITY: Required. The service refuses to start without it.
+      - BACKGROUND_TASK_API_TOKEN=${BACKGROUND_TASK_API_TOKEN:-}
+      # SECURITY: Comma-separated list of additional container images allowed for tasks
+      # (beyond the built-in default `soa-background-agent:latest`).
+      - BACKGROUND_TASK_ALLOWED_IMAGES=${BACKGROUND_TASK_ALLOWED_IMAGES:-}
+      # SECURITY: Bind-mount sources from POST /tasks must be inside this prefix.
+      - BACKGROUND_TASK_WORKSPACE_ROOT=${BACKGROUND_TASK_WORKSPACE_ROOT:-/workspace}
+    networks:
+      - sandbox-net
     volumes:
       - ${PROJECT_PATH:-.}:/workspace:rw
       - background-tasks-data:/data/background
