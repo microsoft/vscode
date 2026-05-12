@@ -1020,6 +1020,7 @@ export class ChatModelsWidget extends Disposable {
 			this.updateAddModelsButton();
 			this.createTable();
 		}));
+		this._register(this.chatEntitlementService.onDidChangeUsageBasedBilling(() => this.createTable()));
 		this._register(this.languageModelsService.onDidChangeLanguageModelVendors(() => this.updateAddModelsButton()));
 		this._register(this.contextKeyService.onDidChangeContext(e => {
 			if (e.affectsSome(new Set(['github.copilot.clientByokEnabled']))) {
