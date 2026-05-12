@@ -16,7 +16,12 @@ import { ISessionListModelChangeEvent, SessionListModelChangeKind, SessionsListM
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 
-function createSession(id: string, status: SessionStatus = SessionStatus.Completed): ISession {
+// A date clearly after the UNREAD_DEFAULT_CUTOFF (2026-05-12) so sessions are
+// unread by default in tests, matching real post-launch behaviour.
+const AFTER_CUTOFF = new Date('2026-06-01T00:00:00.000Z');
+const BEFORE_CUTOFF = new Date('2026-05-01T00:00:00.000Z');
+
+function createSession(id: string, status: SessionStatus = SessionStatus.Completed, updatedAt: Date = AFTER_CUTOFF): ISession {
 	return {
 		sessionId: id,
 		resource: URI.parse(`session://${id}`),
@@ -26,7 +31,7 @@ function createSession(id: string, status: SessionStatus = SessionStatus.Complet
 		createdAt: new Date(),
 		workspace: observableValue(`workspace-${id}`, undefined),
 		title: observableValue(`title-${id}`, id),
-		updatedAt: observableValue(`updatedAt-${id}`, new Date()),
+		updatedAt: observableValue(`updatedAt-${id}`, updatedAt),
 		status: observableValue(`status-${id}`, status),
 		changesets: observableValue(`changesets-${id}`, []),
 		changes: observableValue(`changes-${id}`, []),
@@ -154,6 +159,49 @@ suite('SessionsListModelService', () => {
 		service.markUnread(session);
 
 		assert.strictEqual(changeCount, 0);
+	});
+
+	// -- Cutoff date (pre-launch sessions default to read) --
+
+	test('session with updatedAt before cutoff is read by default without being in read set', () => {
+		const session = createSession('s1', SessionStatus.Completed, BEFORE_CUTOFF);
+		assert.strictEqual(service.isSessionRead(session), true);
+	});
+
+	test('session with updatedAt after cutoff is unread by default', () => {
+		const session = createSession('s1', SessionStatus.Completed, AFTER_CUTOFF);
+		assert.strictEqual(service.isSessionRead(session), false);
+	});
+
+	test('markUnread on pre-cutoff session is a no-op', () => {
+		const session = createSession('s1', SessionStatus.Completed, BEFORE_CUTOFF);
+		let changeCount = 0;
+		disposables.add(service.onDidChange(() => changeCount++));
+
+		service.markUnread(session);
+
+		assert.strictEqual(service.isSessionRead(session), true);
+		assert.strictEqual(changeCount, 0);
+	});
+
+	test('markRead on pre-cutoff session adds it to the read set and fires event', () => {
+		const session = createSession('s1', SessionStatus.Completed, BEFORE_CUTOFF);
+		let changeCount = 0;
+		disposables.add(service.onDidChange(() => changeCount++));
+
+		service.markRead(session);
+
+		assert.strictEqual(service.isSessionRead(session), true);
+		assert.strictEqual(changeCount, 1);
+	});
+
+	test('pre-cutoff session becomes unread when updatedAt advances past cutoff', () => {
+		const session = createSession('s1', SessionStatus.Completed, BEFORE_CUTOFF);
+		assert.strictEqual(service.isSessionRead(session), true);
+
+		(session.updatedAt as ISettableObservable<Date>).set(AFTER_CUTOFF, undefined);
+
+		assert.strictEqual(service.isSessionRead(session), false);
 	});
 
 	test('markAllRead marks multiple sessions as read', () => {

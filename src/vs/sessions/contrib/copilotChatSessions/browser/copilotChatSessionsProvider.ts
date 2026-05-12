@@ -23,7 +23,7 @@ import { AgentSessionProviders, AgentSessionTarget } from '../../../../workbench
 import { IChatService, IChatSendRequestOptions } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatResponseModel } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ChatSessionStatus, IChatSessionsService, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, SessionType, IChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { ISession, IChat, ISessionRepository, ISessionWorkspace, SessionStatus, GITHUB_REMOTE_FILE_SCHEME, IGitHubInfo, CopilotCLISessionType, CopilotCloudSessionType, ClaudeCodeSessionType, LocalSessionType, ISessionType, ISessionWorkspaceBrowseAction, ISessionFileChange, sessionFileChangesEqual, toSessionId, SESSION_WORKSPACE_GROUP_LOCAL, ISessionChangeset } from '../../../services/sessions/common/session.js';
+import { ISession, IChat, ISessionRepository, ISessionWorkspace, SessionStatus, GITHUB_REMOTE_FILE_SCHEME, IGitHubInfo, CopilotCLISessionType, CopilotCloudSessionType, ClaudeCodeSessionType, LocalSessionType, ISessionType, ISessionWorkspaceBrowseAction, ISessionFileChange, sessionFileChangesEqual, toSessionId, SESSION_WORKSPACE_GROUP_LOCAL, ISessionChangeset, IChatCheckpoints } from '../../../services/sessions/common/session.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, isChatPermissionLevel } from '../../../../workbench/contrib/chat/common/constants.js';
 import { basename, dirname, isEqual } from '../../../../base/common/resources.js';
 import { ISendRequestOptions, ISessionChangeEvent, ISessionsProvider } from '../../../services/sessions/common/sessionsProvider.js';
@@ -42,9 +42,11 @@ import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IGitHubService } from '../../github/browser/githubService.js';
 import { computePullRequestIcon, GitHubPullRequestState } from '../../github/common/types.js';
+import { structuralEquals } from '../../../../base/common/equals.js';
 
 const SESSION_WORKSPACE_GROUP_GITHUB = localize('sessionWorkspaceGroup.github', "GitHub");
 const STORAGE_KEY_ISOLATION_MODE = 'sessions.isolationPicker.selectedMode';
@@ -93,6 +95,8 @@ export interface ICopilotChatSession {
 	readonly lastTurnEnd: IObservable<Date | undefined>;
 	/** GitHub information associated with this session, if any. */
 	readonly gitHubInfo: IObservable<IGitHubInfo | undefined>;
+	/** Checkpoints associated with this session, if any. */
+	readonly checkpoints: IObservable<IChatCheckpoints | undefined>;
 
 	readonly permissionLevel: IObservable<ChatPermissionLevel>;
 	setPermissionLevel(level: ChatPermissionLevel): void;
@@ -193,6 +197,9 @@ class CopilotCLISession extends Disposable implements ICopilotChatSession {
 	private readonly _changes: ReturnType<typeof observableValue<readonly ISessionFileChange[]>>;
 	readonly changes: IObservable<readonly ISessionFileChange[]>;
 
+	private readonly _checkpoints: ReturnType<typeof observableValueOpts<IChatCheckpoints | undefined>>;
+	readonly checkpoints: IObservable<IChatCheckpoints | undefined>;
+
 	private readonly _isArchived = observableValue(this, false);
 	readonly isArchived: IObservable<boolean> = this._isArchived;
 	readonly isRead: IObservable<boolean> = observableValue(this, true);
@@ -278,6 +285,9 @@ class CopilotCLISession extends Disposable implements ICopilotChatSession {
 
 		this._changes = observableValueOpts<readonly ISessionFileChange[]>({ owner: this, equalsFn: sessionFileChangesEqual }, []);
 		this.changes = this._changes;
+
+		this._checkpoints = observableValueOpts<IChatCheckpoints | undefined>({ owner: this, equalsFn: structuralEquals }, undefined);
+		this.checkpoints = this._checkpoints;
 	}
 
 	private async _resolveGitRepository(): Promise<void> {
@@ -436,6 +446,7 @@ class CopilotCLISession extends Disposable implements ICopilotChatSession {
 		this._updatedAt.set(session.updatedAt.get(), undefined);
 		this._changesets.set(session.changesets.get(), undefined);
 		this._changes.set(session.changes.get(), undefined);
+		this._checkpoints.set(session.checkpoints.get(), undefined);
 		this._description.set(session.description.get(), undefined);
 	}
 }
@@ -484,6 +495,8 @@ export class RemoteNewSession extends Disposable implements ICopilotChatSession 
 
 	readonly changesets: IObservable<readonly ISessionChangeset[]> = observableValue<readonly ISessionChangeset[]>(this, []);
 	readonly changes: IObservable<readonly ISessionFileChange[]> = observableValueOpts<readonly ISessionFileChange[]>({ owner: this, equalsFn: sessionFileChangesEqual }, []);
+
+	readonly checkpoints: IObservable<IChatCheckpoints | undefined> = constObservable(undefined);
 
 	private readonly _modelIdObservable = observableValue<string | undefined>(this, undefined);
 	readonly modelId: IObservable<string | undefined> = this._modelIdObservable;
@@ -728,6 +741,9 @@ class LocalNewSession extends Disposable implements ICopilotChatSession {
 	readonly workspace: IObservable<ISessionWorkspace | undefined> = this._workspaceData;
 
 	readonly changesets: IObservable<readonly ISessionChangeset[]> = observableValue<readonly ISessionChangeset[]>(this, []);
+
+	readonly checkpoints: IObservable<IChatCheckpoints | undefined> = constObservable(undefined);
+
 	private readonly _changes = observableValue<readonly ISessionFileChange[]>(this, []);
 	readonly changes: IObservable<readonly ISessionFileChange[]> = this._changes;
 
@@ -770,6 +786,7 @@ class LocalNewSession extends Disposable implements ICopilotChatSession {
 		providerId: string,
 		@IGitService private readonly gitService: IGitService,
 		@IChatService private readonly chatService: IChatService,
+		@IFileService private readonly fileService: IFileService,
 	) {
 		super();
 
@@ -831,15 +848,68 @@ class LocalNewSession extends Disposable implements ICopilotChatSession {
 					}],
 				}, undefined);
 
-				this._changes.set(state.workingTreeChanges.concat(state.untrackedChanges).map<IChatSessionFileChange2>(el => {
-					return {
+				// Capture all known changed files from the current state snapshot
+				// so we can fill in any that diffBetweenWithStats2 misses
+				// (e.g. untracked files regardless of the git.untrackedChanges setting)
+				const allStateChanges = [...state.workingTreeChanges, ...state.untrackedChanges, ...state.indexChanges];
+
+				// Fetch real line-level diff stats asynchronously
+				repo.diffBetweenWithStats2('HEAD').then(async diffChanges => {
+					if (this._store.isDisposed) {
+						return;
+					}
+					// diffBetweenWithStats2 only covers tracked changes against HEAD;
+					// append any files from the git state that it missed
+					// (e.g. untracked/new files not yet staged) with real line counts
+					const trackedUris = new Set(diffChanges.map(el => el.uri.toString()));
+					const changes: IChatSessionFileChange2[] = diffChanges.map(el => ({
+						uri: el.uri,
+						originalUri: el.originalUri,
+						modifiedUri: el.modifiedUri ?? el.uri,
+						insertions: el.insertions,
+						deletions: el.deletions,
+					}));
+					const untrackedFiles = allStateChanges.filter(el => !trackedUris.has(el.uri.toString()));
+					const lineCountPromises = untrackedFiles.map(async el => {
+						let insertions = 0;
+						try {
+							const stat = await this.fileService.stat(el.uri);
+							if (!stat.isDirectory) {
+								const content = await this.fileService.readFile(el.uri);
+								// Count newlines; add 1 for the last line if file is non-empty
+								const text = content.value.toString();
+								insertions = text.length > 0 ? text.split('\n').length : 0;
+							}
+						} catch {
+							// File may have been deleted between state snapshot and read
+						}
+						return {
+							uri: el.uri,
+							originalUri: undefined,
+							modifiedUri: el.modifiedUri ?? el.uri,
+							insertions,
+							deletions: 0,
+						} satisfies IChatSessionFileChange2;
+					});
+					const untrackedChanges = await Promise.all(lineCountPromises);
+					if (this._store.isDisposed) {
+						return;
+					}
+					changes.push(...untrackedChanges);
+					this._changes.set(changes, undefined);
+				}, () => {
+					// Diff computation failed — fall back to zero stats
+					if (this._store.isDisposed) {
+						return;
+					}
+					this._changes.set(allStateChanges.map<IChatSessionFileChange2>(el => ({
 						uri: el.uri,
 						originalUri: el.originalUri,
 						modifiedUri: el.modifiedUri ?? el.uri,
 						insertions: 0,
 						deletions: 0,
-					};
-				}), undefined);
+					})), undefined);
+				});
 			}));
 
 		} catch {
@@ -938,6 +1008,7 @@ class ClaudeCodeNewSession extends Disposable implements ICopilotChatSession {
 
 	readonly changesets: IObservable<readonly ISessionChangeset[]> = observableValue<readonly ISessionChangeset[]>(this, []);
 	readonly changes: IObservable<readonly ISessionFileChange[]> = observableValueOpts<readonly ISessionFileChange[]>({ owner: this, equalsFn: sessionFileChangesEqual }, []);
+	readonly checkpoints: IObservable<IChatCheckpoints | undefined> = constObservable(undefined);
 
 	private readonly _modelIdObservable = observableValue<string | undefined>(this, undefined);
 	readonly modelId: IObservable<string | undefined> = this._modelIdObservable;
@@ -1082,6 +1153,9 @@ class AgentSessionAdapter implements ICopilotChatSession {
 	private readonly _changes: ReturnType<typeof observableValue<readonly ISessionFileChange[]>>;
 	readonly changes: IObservable<readonly ISessionFileChange[]>;
 
+	private readonly _checkpoints: ReturnType<typeof observableValueOpts<IChatCheckpoints | undefined>>;
+	readonly checkpoints: IObservable<IChatCheckpoints | undefined>;
+
 	readonly modelId: IObservable<string | undefined>;
 	readonly mode: IObservable<{ readonly id: string; readonly kind: string } | undefined>;
 	readonly loading: IObservable<boolean>;
@@ -1136,6 +1210,9 @@ class AgentSessionAdapter implements ICopilotChatSession {
 
 		this._changes = observableValueOpts<readonly ISessionFileChange[]>({ owner: this, equalsFn: sessionFileChangesEqual }, this._extractChanges(session));
 		this.changes = this._changes;
+
+		this._checkpoints = observableValueOpts<IChatCheckpoints | undefined>({ owner: this, equalsFn: structuralEquals }, this._extractCheckpoints(session));
+		this.checkpoints = this._checkpoints;
 
 		this.modelId = observableValue(this, undefined);
 		this.mode = observableValue(this, undefined);
@@ -1193,6 +1270,7 @@ class AgentSessionAdapter implements ICopilotChatSession {
 			this._updatedAt.set(new Date(updatedTime), tx);
 			this._status.set(toSessionStatus(session.status), tx);
 			this._changes.set(this._extractChanges(session), tx);
+			this._checkpoints.set(this._extractCheckpoints(session), tx);
 			this._isArchived.set(session.isArchived(), tx);
 			this._isRead.set(session.isRead(), tx);
 			this._description.set(this._extractDescription(session), tx);
@@ -1354,6 +1432,18 @@ class AgentSessionAdapter implements ICopilotChatSession {
 			}];
 		}
 		return [];
+	}
+
+	private _extractCheckpoints(session: IAgentSession): IChatCheckpoints | undefined {
+		const metadata = session.metadata;
+		if (typeof metadata?.firstCheckpointRef !== 'string' || typeof metadata?.lastCheckpointRef !== 'string') {
+			return undefined;
+		}
+
+		return {
+			firstCheckpointRef: metadata.firstCheckpointRef,
+			lastCheckpointRef: metadata.lastCheckpointRef,
+		} satisfies IChatCheckpoints;
 	}
 
 	private _buildWorkspace(session: IAgentSession): ISessionWorkspace | undefined {
@@ -3024,6 +3114,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			status: chat.status,
 			changesets: chat.changesets,
 			changes: chat.changes,
+			checkpoints: chat.checkpoints,
 			modelId: chat.modelId,
 			mode: chat.mode,
 			isArchived: chat.isArchived,
