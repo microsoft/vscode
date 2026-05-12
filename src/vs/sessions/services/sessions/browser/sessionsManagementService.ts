@@ -55,21 +55,6 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 	private readonly _activeSession = observableValue<IActiveSession | undefined>(this, undefined);
 	readonly activeSession: IObservable<IActiveSession | undefined> = this._activeSession;
-	/**
-	 * The underlying {@link ISession} that backs the current
-	 * {@link _activeSession} (the latter is a spread copy with `activeChat`
-	 * tacked on, so it loses instance identity). Tracked so that
-	 * {@link setActiveSession} can detect a provider swapping the session
-	 * instance even when the new session shares the previous one's
-	 * `sessionId` — which happens when a new agent host session "graduates"
-	 * from its untitled skeleton to the committed adapter (both reuse the
-	 * skeleton's UUID so the chat URI stays stable). Without this, the
-	 * early-return based purely on `sessionId` would keep observers wired
-	 * to the skeleton's observables and updates from the live adapter
-	 * would never reach the view. Always updated alongside
-	 * {@link _activeSession}.
-	 */
-	private _activeUnderlyingSession: ISession | undefined;
 	/** Tracks the pending new session so it can be restored by {@link openNewSessionView}. */
 	private _pendingNewSession: ISession | undefined;
 	private readonly isNewChatSessionContext: IContextKey<boolean>;
@@ -446,15 +431,16 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	private setActiveSession(session: ISession | undefined): void {
-		const previousSession = this._activeUnderlyingSession;
-		// Compare instance identity, not just sessionId: a provider can
-		// replace a session with a different instance that happens to share
-		// the same sessionId (e.g. an agent host skeleton being swapped for
-		// the committed adapter once the backend session is created). The
-		// new instance has its own observables, so a sessionId-only check
-		// would silently no-op the swap and leave observers wired to the
-		// stale instance.
-		if (previousSession === session) {
+		const previousSession = this._activeSession.get();
+		// Compare both the sessionId and an underlying observable reference
+		// (spread onto `_activeSession`): a provider can replace a session
+		// with a different instance that happens to share the same sessionId
+		// (e.g. an agent host skeleton being swapped for the committed
+		// adapter once the backend session is created). The new instance
+		// has its own `changes` observable, so reference-equality on it
+		// detects the swap. Without this the early-return would be a silent
+		// no-op and observers would stay wired to the skeleton's observables.
+		if (previousSession?.sessionId === session?.sessionId && previousSession?.changes === session?.changes) {
 			return;
 		}
 
@@ -505,7 +491,6 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 				activeChat: activeChatObs,
 			};
 
-			this._activeUnderlyingSession = session;
 			this._activeSession.set(activeSession, undefined);
 
 			// Track archived state changes for the active session
@@ -550,7 +535,6 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			}));
 		} else {
 			this._activeChatObservable = undefined;
-			this._activeUnderlyingSession = undefined;
 			this._activeSession.set(undefined, undefined);
 		}
 	}
