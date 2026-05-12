@@ -115,10 +115,11 @@ export class ChatInputNotificationContribution extends Disposable {
 			this._hideNotification();
 		}
 
-		// When credits are reported, estimate whether the post-request usage
-		// would cross a threshold that the stale data doesn't yet reflect.
-		// If so, fetch up-to-date quota from the server.
-		if (event?.creditsUsed) {
+		// When credits are reported for users eligible for quota notifications,
+		// estimate whether the post-request usage would cross a threshold that
+		// the stale data doesn't yet reflect. If so, fetch up-to-date quota
+		// from the server.
+		if (isQuotaNotificationEligible && event?.creditsUsed) {
 			this._refreshQuotaIfThresholdCrossed(event.creditsUsed);
 		}
 	}
