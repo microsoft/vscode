@@ -74,6 +74,7 @@ ToolRegistry.registerModelSpecificTool(
 			},
 			required: ['query'],
 		},
+		fullReferenceName: `vscode/toolSearch`,
 		models: [
 			{ family: 'gpt-5.4' },
 			{ family: 'gpt-5.5' },

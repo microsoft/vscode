@@ -557,7 +557,7 @@ class SkillAdherenceReminder extends PromptElement<SkillAdherenceReminderProps> 
 
 	async render() {
 		// Check if any skills are available from the instruction index
-		const indexVariable = this.props.chatVariables.find(isCustomizationsIndex);
+		const indexVariable = this.props.chatVariables.find(p => isCustomizationsIndex(p.reference));
 		if (!indexVariable || !isString(indexVariable.value)) {
 			return undefined;
 		}

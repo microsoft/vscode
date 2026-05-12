@@ -73,14 +73,14 @@ export class CustomInstructions extends PromptElement<CustomInstructionsProps> {
 			const hasSeenContent = new Set();
 			if (this.props.chatVariables) {
 				for (const variable of this.props.chatVariables) {
-					if (isCustomizationsIndex(variable)) {
-						let value = variable.value;
+					if (isCustomizationsIndex(variable.reference)) {
+						let value = variable.reference.value;
 						if (variable.reference.toolReferences?.length) {
 							value = await this.promptVariablesService.resolveToolReferencesInPrompt(value, variable.reference.toolReferences);
 						}
 						chunks.push(<TextChunk>{value}</TextChunk>);
-					} else if (isInstructionFile(variable)) {
-						const value = variable.value;
+					} else if (isInstructionFile(variable.reference)) {
+						const value = variable.reference.value;
 						if (!hasSeen.has(value)) {
 							hasSeen.add(value);
 							const element = await this.createElementFromURI(value, variable.reference.toolReferences);

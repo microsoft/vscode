@@ -25,6 +25,8 @@ import { INotebookService } from '../../../platform/notebook/common/notebookServ
 import { GenAiMetrics } from '../../../platform/otel/common/genAiMetrics';
 import { IOTelService } from '../../../platform/otel/common/otelService';
 import { IPromptPathRepresentationService } from '../../../platform/prompts/common/promptPathRepresentationService';
+import { IAutomaticInstructionsCollector } from '../../../platform/promptFiles/node/automaticInstructionsCollector';
+import { PromptConfig } from '../../../platform/promptFiles/common/promptsService';
 import { ITasksService } from '../../../platform/tasks/common/tasksService';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
@@ -480,6 +482,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		@IAutomodeService private readonly automodeService: IAutomodeService,
 		@IOTelService protected override readonly otelService: IOTelService,
 		@ISessionTranscriptService private readonly sessionTranscriptService: ISessionTranscriptService,
+		@IAutomaticInstructionsCollector private readonly _automaticInstructionsCollector: IAutomaticInstructionsCollector,
 	) {
 		super(intent, location, endpoint, request, intentOptions, instantiationService, codeMapperService, envService, promptPathRepresentationService, endpointProvider, workspaceService, toolsService, configurationService, editLogService, commandService, telemetryService, notebookService, otelService);
 	}
@@ -494,6 +497,15 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		token: vscode.CancellationToken
 	): Promise<IBuildPromptResult> {
 		this._resolvedCustomizations = await PromptRegistry.resolveAllCustomizations(this.instantiationService, this.endpoint);
+
+		// Only collect automatic instructions in the extension when the corresponding core setting opts in.
+		// Otherwise the core workbench performs the collection before the request reaches the extension.
+		if (this.configurationService.getNonExtensionConfig<boolean>(PromptConfig.COLLECT_INSTRUCTIONS_IN_EXTENSION) === true) {
+			const addedInstructionsAndIndex = await this._automaticInstructionsCollector.collect(this.request, token);
+			if (addedInstructionsAndIndex.length > 0) {
+				promptContext = { ...promptContext, chatVariables: ChatVariablesCollection.merge(promptContext.chatVariables, new ChatVariablesCollection(addedInstructionsAndIndex)) };
+			}
+		}
 		// Add any references from the codebase invocation to the request
 		const codebase = await this._getCodebaseReferences(promptContext, token);
 
@@ -501,7 +513,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		let toolReferences: vscode.ChatPromptReference[] = [];
 		if (codebase) {
 			toolReferences = toNewChatReferences(variables, codebase.references);
-			variables = new ChatVariablesCollection([...this.request.references, ...toolReferences]);
+			variables = new ChatVariablesCollection([...variables.references, ...toolReferences]);
 		}
 
 		const tools = promptContext.tools?.availableTools;
@@ -548,6 +560,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 			endpoint,
 			promptContext: {
 				...promptContext,
+				chatVariables: variables,
 				tools: promptContext.tools && {
 					...promptContext.tools,
 					toolReferences: this.stableToolReferences.filter((r) => r.name !== ToolName.Codebase),

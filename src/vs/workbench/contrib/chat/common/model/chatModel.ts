@@ -345,6 +345,7 @@ export interface IChatRequestModeInstructions {
 	readonly name: string;
 	readonly content: string;
 	readonly toolReferences: readonly ChatRequestToolReferenceEntry[];
+	readonly allowedSubagents?: readonly string[];
 	readonly metadata?: Record<string, boolean | string | number>;
 	readonly isBuiltin?: boolean;
 }
