@@ -1530,13 +1530,6 @@ class AgentSessionAdapter implements ICopilotChatSession {
 			return { repoUri: repositoryUri };
 		}
 
-		// Background/CLI sessions: check workingDirectoryPath first
-		const workingDirectoryPath = metadata?.workingDirectoryPath as string | undefined;
-		if (workingDirectoryPath) {
-			return { repoUri: URI.file(workingDirectoryPath) };
-		}
-
-		// Fall back to repositoryPath + worktreePath
 		const repositoryPath = metadata?.repositoryPath as string | undefined;
 		const repositoryPathUri = typeof repositoryPath === 'string' ? URI.file(repositoryPath) : undefined;
 
