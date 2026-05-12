@@ -415,3 +415,29 @@ export function sessionFileChangesEqual(a: readonly ISessionFileChange[], b: rea
 
 	return true;
 }
+
+/**
+ * Structural equality for {@link IGitHubInfo}. Used as an `equalsFn` on the `gitHubInfo` observable
+ * so that providers can re-publish updated info without notifying observers when the underlying GitHub
+ * info has not actually changed.
+ */
+export function gitHubInfoEqual(a: IGitHubInfo | undefined, b: IGitHubInfo | undefined): boolean {
+	if (a === b) {
+		return true;
+	}
+
+	if (a === undefined || b === undefined) {
+		return false;
+	}
+
+	const aIcon = a.pullRequest?.icon;
+	const bIcon = b.pullRequest?.icon;
+
+	return a.owner === b.owner &&
+		a.repo === b.repo &&
+		a.pullRequest?.number === b.pullRequest?.number &&
+		isEqual(a.pullRequest?.uri, b.pullRequest?.uri) &&
+		(aIcon === bIcon || (!!aIcon && !!bIcon && ThemeIcon.isEqual(aIcon, bIcon))) &&
+		a.pullRequest?.baseRefOid === b.pullRequest?.baseRefOid &&
+		a.pullRequest?.headRefOid === b.pullRequest?.headRefOid;
+}

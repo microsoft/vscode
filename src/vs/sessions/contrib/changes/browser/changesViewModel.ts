@@ -15,7 +15,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { IChatSessionFileChange2, IChatSessionItemMetadata } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { GitDiffChange, IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
-import { COPILOT_CLOUD_SESSION_TYPE, IGitHubInfo, ISessionFileChange } from '../../../services/sessions/common/session.js';
+import { COPILOT_CLOUD_SESSION_TYPE, gitHubInfoEqual, IGitHubInfo, ISessionFileChange } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { IAgentFeedbackService } from '../../agentFeedback/browser/agentFeedbackService.js';
 import { CodeReviewStateKind, getCodeReviewFilesFromSessionChanges, getCodeReviewVersion, ICodeReviewService, PRReviewStateKind } from '../../codeReview/browser/codeReviewService.js';
@@ -258,7 +258,8 @@ export class ChangesViewModel extends Disposable {
 	}
 
 	private _getActiveSessionChanges(): IObservable<readonly ISessionFileChange[]> {
-		const gitHubInfoObs = derivedOpts<IGitHubInfo | undefined>({ equalsFn: structuralEquals },
+		const gitHubInfoObs = derivedOpts<IGitHubInfo | undefined>(
+			{ equalsFn: gitHubInfoEqual },
 			reader => {
 				const activeSession = this.sessionManagementService.activeSession.read(reader);
 				return activeSession?.gitHubInfo.read(reader);

@@ -1227,20 +1227,18 @@ class AgentSessionAdapter implements ICopilotChatSession {
 		this._lastTurnEnd = observableValue(this, session.timing.lastRequestEnded ? new Date(session.timing.lastRequestEnded) : undefined);
 		this.lastTurnEnd = this._lastTurnEnd;
 		this._baseGitHubInfo = observableValue(this, this._extractGitHubInfo(session));
-		this.gitHubInfo = this._gitHubService
-			? derived(this, reader => {
-				const base = this._baseGitHubInfo.read(reader);
-				if (!base?.pullRequest || !this._gitHubService) {
-					return base;
-				}
-				const prModelRef = reader.store.add(this._gitHubService.createPullRequestModelReference(base.owner, base.repo, base.pullRequest.number));
-				const livePR = prModelRef.object.pullRequest.read(reader);
-				if (!livePR) {
-					return base;
-				}
-				return { ...base, pullRequest: { ...base.pullRequest, icon: computePullRequestIcon(livePR.isDraft ? 'draft' : livePR.state) } };
-			})
-			: this._baseGitHubInfo;
+		this.gitHubInfo = derived<IGitHubInfo | undefined>(reader => {
+			const base = this._baseGitHubInfo.read(reader);
+			if (!base?.pullRequest || !this._gitHubService) {
+				return base;
+			}
+			const prModelRef = reader.store.add(this._gitHubService.createPullRequestModelReference(base.owner, base.repo, base.pullRequest.number));
+			const livePR = prModelRef.object.pullRequest.read(reader);
+			if (!livePR) {
+				return base;
+			}
+			return { ...base, pullRequest: { ...base.pullRequest, icon: computePullRequestIcon(livePR.isDraft ? 'draft' : livePR.state) } };
+		});
 	}
 
 	setPermissionLevel(level: ChatPermissionLevel): void {
@@ -1322,8 +1320,8 @@ class AgentSessionAdapter implements ICopilotChatSession {
 
 		const icon = this._extractPullRequestStateIcon(session);
 
-		const baseRefOid = metadata.baseRefOid as string | undefined;
-		const headRefOid = metadata.headRefOid as string | undefined;
+		const baseRefOid = typeof metadata.baseRefOid === 'string' ? metadata.baseRefOid : undefined;
+		const headRefOid = typeof metadata.headRefOid === 'string' ? metadata.headRefOid : undefined;
 
 		return {
 			owner,
