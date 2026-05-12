@@ -165,10 +165,27 @@ export class McpClient {
 		await this.ensureInitialised();
 		const active = this.connections.get(call.server);
 		if (!active) {
-			throw new Error(`Unknown MCP server: ${call.server}`);
+			// Soft-fail when the server isn't configured: throwing here cascades
+			// through every helper (BaseAgent.queryFileGraph / querySymbol /
+			// dependency_traversal / impact_analysis / find_references and the
+			// orchestrator's per-subtask context build) and kills the whole
+			// subtask before any LLM call. Callers that already wrap individual
+			// queries in try/catch (gatherGraphContext) still get a clean
+			// error-result they can branch on; callers that don't (the new
+			// per-subtask queryFileGraph fan-out) degrade gracefully to "no
+			// graph data" instead of failing the run.
+			return {
+				content: `(MCP server '${call.server}' not configured. Start the son-of-anton-graph stack with 'docker compose up -d' to enable graph-backed context.)`,
+				isError: true,
+				latencyMs: 0,
+			};
 		}
 		if (active.connection.state !== 'ready') {
-			throw new Error(`MCP server '${call.server}' is not connected`);
+			return {
+				content: `(MCP server '${call.server}' is not connected. Check the stack with 'docker compose ps'.)`,
+				isError: true,
+				latencyMs: 0,
+			};
 		}
 		const start = Date.now();
 		const result = await active.connection.callTool(call.tool, call.inputs);
