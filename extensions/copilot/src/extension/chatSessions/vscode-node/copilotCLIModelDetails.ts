@@ -53,12 +53,12 @@ export async function getCopilotCLIModelDetails(session: ICopilotCLISession, req
 }
 
 /**
- * Persists the concrete response model id so rebuilt history can recover details for auto-mode requests.
+ * Persists the concrete response model id and credits used so rebuilt history can recover details for auto-mode requests.
  */
-export function persistCopilotCLIResponseModelId(sessionId: string, requestId: string, responseModelId: string | undefined, chatSessionMetadataStore: IChatSessionMetadataStore, logService: ILogService): void {
-	if (!responseModelId) {
+export function persistCopilotCLIResponseModelId(sessionId: string, requestId: string, responseModelId: string | undefined, chatSessionMetadataStore: IChatSessionMetadataStore, logService: ILogService, creditsUsed?: number): void {
+	if (!responseModelId && creditsUsed === undefined) {
 		return;
 	}
-	chatSessionMetadataStore.updateRequestDetails(sessionId, [{ vscodeRequestId: requestId, responseModelId }])
+	chatSessionMetadataStore.updateRequestDetails(sessionId, [{ vscodeRequestId: requestId, responseModelId, creditsUsed }])
 		.catch(ex => logService.error(ex, 'Failed to persist response model id'));
 }

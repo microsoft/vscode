@@ -249,6 +249,81 @@ describe('CopilotCLITools', () => {
 			]);
 		});
 
+		it('includes persisted creditsUsed in rebuilt response turn details', () => {
+			const events: any[] = [
+				{ type: 'user.message', id: 'u1', data: { content: 'Hello', attachments: [] } },
+				{ type: 'assistant.message', data: { content: 'Hi' } },
+			];
+			const detailsByEventId: Record<string, RequestIdDetails> = {
+				u1: { requestId: 'r1', toolIdEditMap: {}, responseModelId: 'gpt-5.4', creditsUsed: 16.3 },
+			};
+			const lookup = (sdkRequestId: string) => detailsByEventId[sdkRequestId];
+
+			const turns = buildChatHistoryFromEvents('', undefined, events, lookup, delegationSummary, logger, undefined, undefined, new Map([
+				['gpt-5.4', 'GPT 5.4 • 2x'],
+			]));
+
+			expect(turns).toHaveLength(2);
+			expect((turns[1] as ChatResponseTurn2).result).toEqual({ details: 'GPT 5.4 \u2022 16.3 credits' });
+		});
+
+		it('uses singular credit label for exactly 1 credit in rebuilt history', () => {
+			const events: any[] = [
+				{ type: 'user.message', id: 'u1', data: { content: 'Hello', attachments: [] } },
+				{ type: 'assistant.message', data: { content: 'Hi' } },
+			];
+			const detailsByEventId: Record<string, RequestIdDetails> = {
+				u1: { requestId: 'r1', toolIdEditMap: {}, responseModelId: 'gpt-5.4', creditsUsed: 1 },
+			};
+			const lookup = (sdkRequestId: string) => detailsByEventId[sdkRequestId];
+
+			const turns = buildChatHistoryFromEvents('', undefined, events, lookup, delegationSummary, logger, undefined, undefined, new Map([
+				['gpt-5.4', 'GPT 5.4 • 2x'],
+			]));
+
+			expect((turns[1] as ChatResponseTurn2).result).toEqual({ details: 'GPT 5.4 \u2022 1 credit' });
+		});
+
+		it('falls back to multiplier format when creditsUsed is not persisted', () => {
+			const events: any[] = [
+				{ type: 'user.message', id: 'u1', data: { content: 'Hello', attachments: [] } },
+				{ type: 'assistant.message', data: { content: 'Hi' } },
+			];
+			const detailsByEventId: Record<string, RequestIdDetails> = {
+				u1: { requestId: 'r1', toolIdEditMap: {}, responseModelId: 'gpt-5.4' },
+			};
+			const lookup = (sdkRequestId: string) => detailsByEventId[sdkRequestId];
+
+			const turns = buildChatHistoryFromEvents('', undefined, events, lookup, delegationSummary, logger, undefined, undefined, new Map([
+				['gpt-5.4', 'GPT 5.4 • 2x'],
+			]));
+
+			expect((turns[1] as ChatResponseTurn2).result).toEqual({ details: 'GPT 5.4 • 2x' });
+		});
+
+		it('preserves per-turn credits across multiple requests in rebuilt history', () => {
+			const events: any[] = [
+				{ type: 'user.message', id: 'u1', data: { content: 'First', attachments: [] } },
+				{ type: 'assistant.message', data: { content: 'One' } },
+				{ type: 'user.message', id: 'u2', data: { content: 'Second', attachments: [] } },
+				{ type: 'assistant.message', data: { content: 'Two' } },
+			];
+			const detailsByEventId: Record<string, RequestIdDetails> = {
+				u1: { requestId: 'r1', toolIdEditMap: {}, responseModelId: 'gpt-5.4', creditsUsed: 5 },
+				u2: { requestId: 'r2', toolIdEditMap: {}, responseModelId: 'gpt-5.4', creditsUsed: 12.5 },
+			};
+			const lookup = (sdkRequestId: string) => detailsByEventId[sdkRequestId];
+
+			const turns = buildChatHistoryFromEvents('', undefined, events, lookup, delegationSummary, logger, undefined, undefined, new Map([
+				['gpt-5.4', 'GPT 5.4 • 2x'],
+			]));
+
+			expect(turns.filter(turn => turn instanceof ChatResponseTurn2).map(turn => (turn as ChatResponseTurn2).result)).toEqual([
+				{ details: 'GPT 5.4 \u2022 5 credits' },
+				{ details: 'GPT 5.4 \u2022 12.5 credits' },
+			]);
+		});
+
 		it('converts file attachments to references on user messages', () => {
 			const events: any[] = [
 				{
