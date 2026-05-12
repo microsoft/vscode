@@ -1686,11 +1686,11 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 			if (items.some((source) => {
 				if (source.isRoot) {
-					return false; // Root folders are handled seperately
+					return false; // Root folders are handled separately
 				}
 
 				if (this.uriIdentityService.extUri.isEqual(source.resource, target.resource)) {
-					return true; // Can not move anything onto itself excpet for root folders
+					return true; // Can not move anything onto itself except for root folders
 				}
 
 				if (!isCopy && this.uriIdentityService.extUri.isEqual(dirname(source.resource), target.resource)) {
