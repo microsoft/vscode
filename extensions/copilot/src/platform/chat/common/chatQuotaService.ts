@@ -69,7 +69,19 @@ export interface QuotaSnapshot {
 export type QuotaSnapshots = Record<string, QuotaSnapshot>;
 
 export interface IChatQuotaChangeEvent {
-	/** AIC credits used in the request that triggered this change, if known. */
+	/**
+	 * AIC credits consumed by the chat request that produced this event.
+	 *
+	 * Present only when fired from {@link IChatQuotaService.setLastCopilotUsage},
+	 * i.e. after the response body has been fully consumed and the server has
+	 * reported `copilot_usage.total_nano_aiu`.
+	 *
+	 * The accompanying {@link IChatQuotaService.quotaInfo} reflects the **pre-request**
+	 * state (the server returns quota data as of *before* the request was processed).
+	 * Consumers can combine the stale `quotaInfo` with `creditsUsed` to estimate
+	 * the true post-request usage and decide whether to call
+	 * {@link IChatQuotaService.refreshQuota} for an authoritative update.
+	 */
 	readonly creditsUsed?: number;
 }
 
