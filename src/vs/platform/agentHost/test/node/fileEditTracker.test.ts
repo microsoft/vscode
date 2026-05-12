@@ -128,9 +128,6 @@ suite('FileEditTracker', () => {
 		const fileEdit = await localTracker.takeCompletedEdit('turn-1', 'tc-create', '/workspace/brand-new.txt');
 		assert.ok(fileEdit);
 
-		// Wait for the fire-and-forget DB write to complete
-		await new Promise(r => setTimeout(r, 50));
-
 		const records = await db.getAllFileEdits();
 		const created = records.find(r => r.toolCallId === 'tc-create');
 		assert.deepStrictEqual({
@@ -154,9 +151,6 @@ suite('FileEditTracker', () => {
 		await tracker.completeEdit('/workspace/file.ts');
 
 		await tracker.takeCompletedEdit('turn-1', 'tc-3', '/workspace/file.ts');
-
-		// Wait for the fire-and-forget DB write to complete
-		await new Promise(r => setTimeout(r, 50));
 
 		const content = await db.readFileEditContent('tc-3', '/workspace/file.ts');
 		assert.ok(content);

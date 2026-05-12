@@ -17,7 +17,7 @@ This phase also promotes `FileEditTracker` (and its session-db URI helpers) out 
 
 **In scope:**
 - Move `FileEditTracker`, `buildSessionDbUri`, `parseSessionDbUri`, `ISessionDbUriFields` from `node/copilot/fileEditTracker.ts` → `node/shared/fileEditTracker.ts` and update all import sites.
-- Wire `Options.hooks.PreToolUse` + `Options.hooks.PostToolUse` in `ClaudeAgent._materializeProvisional` to snapshot files before/after edit-tool execution.
+- Wire `ClaudeFileEditObserver` to the SDK message stream in `ClaudeAgentSession` so assistant tool-use events call `trackEditStart(filePath)` and matching user tool-result events call `completeEdit`/`takeCompletedEdit` and stage content on mapper state.
 - Add `isClaudeFileEditTool(toolName)` + `getClaudeEditFilePath(toolName, input)` helpers to `claudeToolDisplay.ts` (covers Write, Edit, MultiEdit, NotebookEdit; NOT Bash, TodoWrite).
 - Add a per-session `FileEditTracker` owned by `ClaudeAgentSession`.
 - Extend `ClaudeMapperState` with `cacheFileEdit(toolUseId, content)` + `takeFileEdit(toolUseId)` to pre-stage `ToolResultFileEditContent` before the synchronous mapper fires.
@@ -27,7 +27,7 @@ This phase also promotes `FileEditTracker` (and its session-db URI helpers) out 
 
 **Out of scope:**
 - `Query.rewindFiles()` as the production undo path (granularity is wrong for per-file selective undo — see Decisions §D3). A validation unit test confirms the API doesn't break anything.
-- Bash-tool edit tracking (documented gap — `sed -i`, `cat > file` aren't surfaced to SDK hooks).
+- Bash-tool edit tracking (documented gap — `sed -i`, `cat > file` aren't surfaced as structured file-edit tool events in the SDK message stream).
 - Abort/steering (Phase 9), client tools (Phase 10), customizations (Phase 11), subagents (Phase 12), transcript reconstruction (Phase 13).
 
 ## Prerequisites
@@ -39,7 +39,7 @@ This phase also promotes `FileEditTracker` (and its session-db URI helpers) out 
 
 ## Approach
 
-Wire the Claude Agent SDK's in-process `Options.hooks.PreToolUse`/`PostToolUse` callbacks — which fire synchronously in the host JS process before/after each tool execution, bridged via the SDK message channel — as the snapshot boundary. `PreToolUse` calls `FileEditTracker.trackEditStart(filePath)` (reads "before" state); `PostToolUse` calls `completeEdit` then `takeCompletedEdit` and caches the result on `ClaudeMapperState` keyed by `tool_use_id`. By the time the SDK emits the `tool_result` user message, the cache is always populated (the subprocess is blocked on the hook response), so `mapUserMessage` stays synchronous and just reads the cache.
+Wire `ClaudeFileEditObserver` to the existing SDK message stream boundary. On assistant messages with file-edit tool uses (`Write`, `Edit`, `MultiEdit`, `NotebookEdit`), the observer snapshots before-state via `FileEditTracker.trackEditStart(filePath)` and records `tool_use_id → path`. On subsequent user messages with matching `tool_result` entries, it calls `completeEdit` + `takeCompletedEdit` and caches `ToolResultFileEditContent` on `ClaudeMapperState` keyed by `tool_use_id`. `mapUserMessage` remains synchronous and appends whatever staged file-edit content is available for that tool call.
 
 The `FileEditTracker` is moved to `node/shared/` (not copied) because `agentService.ts` and `sessionDiffAggregator.ts` already import it from the Copilot folder — fixing these cross-folder imports is low-risk scope that removes an existing layering smell.
 
