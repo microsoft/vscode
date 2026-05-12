@@ -6677,7 +6677,7 @@
 	},
 	"dependencies": {
 		"@anthropic-ai/claude-agent-sdk": "0.2.112",
-		"@anthropic-ai/sdk": "^0.82.0",
+		"@anthropic-ai/sdk": "^0.91.1",
 		"@github/blackbird-external-ingest-utils": "^0.3.0",
 		"@github/copilot": "^1.0.39",
 		"@google/genai": "^1.22.0",
