@@ -7,6 +7,7 @@ import type * as vscode from 'vscode';
 import { sessionResourceToId } from '../../../platform/chat/common/chatDebugFileLoggerService';
 import { URI } from '../../../util/vs/base/common/uri';
 import { basename } from '../../../util/vs/base/common/resources';
+import { ResourceMap, ResourceSet } from '../../../util/vs/base/common/map';
 
 export interface PromptVariable {
 	readonly reference: vscode.ChatPromptReference;
@@ -22,22 +23,29 @@ export class ChatVariablesCollection {
 
 	static merge(...collections: ChatVariablesCollection[]): ChatVariablesCollection {
 		const allReferences: vscode.ChatPromptReference[] = [];
-		const seen = new Set<string>();
+		const seenUris = new ResourceSet();
+		const seenValues = new Set<string>();
+		const seenLocations = new ResourceMap<string>();
 		for (const collection of collections) {
 			for (const variable of collection) {
 				const ref = variable.reference;
-
-				// simple dedupe
-				let key: string;
-				try {
-					key = JSON.stringify(ref.value);
-				} catch {
-					key = ref.id + String(ref.value);
-				}
-
-				if (!seen.has(key)) {
-					seen.add(key);
-					allReferences.push(ref);
+				if (URI.isUri(variable.value)) {
+					if (seenUris.has(variable.value)) {
+						continue;
+					}
+					seenUris.add(variable.value);
+				} else if (typeof variable.value === 'string') {
+					const key = JSON.stringify(ref.value);
+					if (seenValues.has(key)) {
+						continue;
+					}
+					seenValues.add(key);
+				} else if (variable.value && typeof variable.value === 'object' && 'uri' in variable.value) {
+					const location = variable.value as vscode.Location;
+					if (seenLocations.has(location.uri)) {
+						continue;
+					}
+					seenLocations.set(location.uri, JSON.stringify(location.range));
 				}
 			}
 		}
@@ -63,6 +71,10 @@ export class ChatVariablesCollection {
 			}
 		}
 		return this._variables;
+	}
+
+	public get references(): readonly vscode.ChatPromptReference[] {
+		return this._getVariables().map(v => v.reference);
 	}
 
 	public reverse() {

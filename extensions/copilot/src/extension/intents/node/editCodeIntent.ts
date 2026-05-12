@@ -349,11 +349,12 @@ export class EditCodeIntentInvocation implements IIntentInvocation {
 		// Add any references from the codebase invocation to the request
 		const codebase = await this._getCodebaseReferences(promptContext, token);
 
-		let variables = promptContext.chatVariables;
+		const allReferences: vscode.ChatPromptReference[] = [];
+		allReferences.push(...promptContext.chatVariables.references);
 		let toolReferences: vscode.ChatPromptReference[] = [];
 		if (codebase) {
-			toolReferences = toNewChatReferences(variables, codebase.references);
-			variables = new ChatVariablesCollection([...this.request.references, ...toolReferences]);
+			toolReferences = toNewChatReferences(promptContext.chatVariables, codebase.references);
+			allReferences.push(...toolReferences);
 		}
 
 		if (this.request.location2 instanceof ChatRequestEditorData) {
@@ -362,10 +363,11 @@ export class EditCodeIntentInvocation implements IIntentInvocation {
 				name: this.request.location2.document.fileName,
 				value: new Location(this.request.location2.document.uri, this.request.location2.wholeRange)
 			};
-			variables = new ChatVariablesCollection([...this.request.references, ...toolReferences, editorRequestReference]);
+			allReferences.push(editorRequestReference);
 		}
 
 
+		const variables = new ChatVariablesCollection(allReferences);
 
 		const tools = await this.getAvailableTools();
 		const toolTokens = tools?.length ? await this.endpoint.acquireTokenizer().countToolTokens(tools) : 0;

@@ -21,12 +21,13 @@ import { CancellationToken } from '../../../../util/vs/base/common/cancellation'
 import { Event } from '../../../../util/vs/base/common/event';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { AutomaticInstructionsCollector, InstructionsCollectionEvent } from '../../node/automaticInstructionsCollector';
-import { ChatVariablesCollection, InstructionFileIdPrefix, isCustomizationsIndex, isInstructionFile } from '../../../../extension/prompt/common/chatVariablesCollection';
+import { InstructionFileIdPrefix, isCustomizationsIndex, isInstructionFile } from '../../../../extension/prompt/common/chatVariablesCollection';
 import { ToolName } from '../../../../extension/tools/common/toolNames';
 import { NullExperimentationService } from '../../../telemetry/common/nullExperimentationService';
 
 
-const localSessionType = 'local';
+const localSessionResource = URI.parse(`local://test`);
+const remoteSessionResource = URI.parse(`remote://test`);
 
 /**
  * Build a `ChatPromptReference` representing an attached file.
@@ -126,8 +127,8 @@ suite('AutomaticInstructionsCollector', () => {
 			const result = await collector.collect(
 				undefined,
 				undefined,
-				localSessionType,
-				new ChatVariablesCollection([toAttachedFileReference(attached)]),
+				localSessionResource,
+				[toAttachedFileReference(attached)],
 				CancellationToken.None,
 			);
 
@@ -148,8 +149,8 @@ suite('AutomaticInstructionsCollector', () => {
 			const result = await collector.collect(
 				undefined,
 				undefined,
-				localSessionType,
-				new ChatVariablesCollection([toAttachedFileReference(attached)]),
+				localSessionResource,
+				[toAttachedFileReference(attached)],
 				CancellationToken.None,
 			);
 
@@ -168,8 +169,8 @@ suite('AutomaticInstructionsCollector', () => {
 			const result = await collector.collect(
 				undefined,
 				undefined,
-				localSessionType,
-				new ChatVariablesCollection([toAttachedFileReference(attached)]),
+				localSessionResource,
+				[toAttachedFileReference(attached)],
 				CancellationToken.None,
 			);
 
@@ -186,8 +187,8 @@ suite('AutomaticInstructionsCollector', () => {
 			const result = await collector.collect(
 				undefined,
 				undefined,
-				localSessionType,
-				new ChatVariablesCollection([toAttachedFileReference(attached)]),
+				localSessionResource,
+				[toAttachedFileReference(attached)],
 				CancellationToken.None,
 			);
 
@@ -205,8 +206,8 @@ suite('AutomaticInstructionsCollector', () => {
 			const result = await collector.collect(
 				undefined,
 				undefined,
-				localSessionType,
-				new ChatVariablesCollection([toAttachedFileReference(file1), toAttachedFileReference(file2)]),
+				localSessionResource,
+				[toAttachedFileReference(file1), toAttachedFileReference(file2)],
 				CancellationToken.None,
 			);
 
@@ -224,8 +225,8 @@ suite('AutomaticInstructionsCollector', () => {
 			const result = await collector.collect(
 				undefined,
 				undefined,
-				localSessionType,
-				new ChatVariablesCollection([toAttachedFileReference(attached)]),
+				localSessionResource,
+				[toAttachedFileReference(attached)],
 				CancellationToken.None,
 			);
 
@@ -244,8 +245,8 @@ suite('AutomaticInstructionsCollector', () => {
 			const result = await collector.collect(
 				undefined,
 				undefined,
-				'local',
-				new ChatVariablesCollection([toAttachedFileReference(attached)]),
+				localSessionResource,
+				[toAttachedFileReference(attached)],
 				CancellationToken.None,
 			);
 
@@ -265,8 +266,8 @@ suite('AutomaticInstructionsCollector', () => {
 			const result = await collector.collect(
 				undefined,
 				undefined,
-				localSessionType,
-				new ChatVariablesCollection([]),
+				localSessionResource,
+				[],
 				CancellationToken.None,
 			);
 
@@ -292,8 +293,8 @@ suite('AutomaticInstructionsCollector', () => {
 			const result = await collector.collect(
 				undefined,
 				undefined,
-				localSessionType,
-				new ChatVariablesCollection([preAttached]),
+				localSessionResource,
+				[preAttached],
 				CancellationToken.None,
 			);
 
@@ -321,8 +322,8 @@ suite('AutomaticInstructionsCollector', () => {
 			const result = await collector.collect(
 				undefined,
 				undefined,
-				localSessionType,
-				new ChatVariablesCollection([]),
+				localSessionResource,
+				[],
 				CancellationToken.None,
 			);
 
@@ -352,8 +353,8 @@ suite('AutomaticInstructionsCollector', () => {
 			const result = await collector.collect(
 				undefined,
 				undefined,
-				localSessionType,
-				new ChatVariablesCollection([]),
+				localSessionResource,
+				[],
 				CancellationToken.None,
 			);
 
@@ -373,8 +374,8 @@ suite('AutomaticInstructionsCollector', () => {
 			const result = await collector.collect(
 				undefined,
 				undefined,
-				localSessionType,
-				new ChatVariablesCollection([]),
+				localSessionResource,
+				[],
 				CancellationToken.None,
 			);
 
@@ -399,8 +400,8 @@ suite('AutomaticInstructionsCollector', () => {
 			const result = await collector.collect(
 				undefined,
 				undefined,
-				localSessionType,
-				new ChatVariablesCollection([]),
+				localSessionResource,
+				[],
 				CancellationToken.None,
 			);
 
@@ -420,8 +421,8 @@ suite('AutomaticInstructionsCollector', () => {
 			const result = await collector.collect(
 				[tool(ToolName.ReadFile)],
 				undefined,
-				localSessionType,
-				new ChatVariablesCollection([]),
+				localSessionResource,
+				[],
 				CancellationToken.None,
 			);
 
@@ -446,8 +447,8 @@ suite('AutomaticInstructionsCollector', () => {
 			const result = await collector.collect(
 				undefined, // no tools
 				undefined,
-				localSessionType,
-				new ChatVariablesCollection([]),
+				localSessionResource,
+				[],
 				CancellationToken.None,
 			);
 
@@ -465,8 +466,8 @@ suite('AutomaticInstructionsCollector', () => {
 			const result = await collector.collect(
 				[tool(ToolName.ReadFile)],
 				undefined,
-				localSessionType,
-				new ChatVariablesCollection([]),
+				localSessionResource,
+				[],
 				CancellationToken.None,
 			);
 
@@ -489,8 +490,8 @@ suite('AutomaticInstructionsCollector', () => {
 			const result = await collector.collect(
 				[tool(ToolName.ReadFile)],
 				undefined,
-				localSessionType,
-				new ChatVariablesCollection([]),
+				localSessionResource,
+				[],
 				CancellationToken.None,
 			);
 
@@ -511,8 +512,8 @@ suite('AutomaticInstructionsCollector', () => {
 			const result = await collector.collect(
 				[tool(ToolName.ReadFile)],
 				undefined,
-				localSessionType,
-				new ChatVariablesCollection([]),
+				localSessionResource,
+				[],
 				CancellationToken.None,
 			);
 
@@ -533,8 +534,8 @@ suite('AutomaticInstructionsCollector', () => {
 			const result = await collector.collect(
 				[tool(ToolName.ReadFile)],
 				undefined,
-				'remote',
-				new ChatVariablesCollection([]),
+				remoteSessionResource,
+				[],
 				CancellationToken.None,
 			);
 
@@ -559,8 +560,8 @@ suite('AutomaticInstructionsCollector', () => {
 			const result = await collector.collect(
 				[tool(ToolName.CoreRunSubagent)],
 				['*'],
-				localSessionType,
-				new ChatVariablesCollection([]),
+				localSessionResource,
+				[],
 				CancellationToken.None,
 			);
 
@@ -583,8 +584,8 @@ suite('AutomaticInstructionsCollector', () => {
 			const result = await collector.collect(
 				[tool(ToolName.CoreRunSubagent)],
 				['agent1'],
-				localSessionType,
-				new ChatVariablesCollection([]),
+				localSessionResource,
+				[],
 				CancellationToken.None,
 			);
 
@@ -604,8 +605,8 @@ suite('AutomaticInstructionsCollector', () => {
 			const result = await collector.collect(
 				[tool(ToolName.CoreRunSubagent)],
 				['*'],
-				localSessionType,
-				new ChatVariablesCollection([]),
+				localSessionResource,
+				[],
 				CancellationToken.None,
 			);
 
@@ -626,8 +627,8 @@ suite('AutomaticInstructionsCollector', () => {
 			const result = await collector.collect(
 				[tool(ToolName.ReadFile)],
 				undefined,
-				localSessionType,
-				new ChatVariablesCollection([]),
+				localSessionResource,
+				[],
 				CancellationToken.None,
 			);
 
@@ -647,8 +648,8 @@ suite('AutomaticInstructionsCollector', () => {
 			const result = await collector.collect(
 				[tool(ToolName.ReadFile), tool(ToolName.Skill)],
 				undefined,
-				localSessionType,
-				new ChatVariablesCollection([]),
+				localSessionResource,
+				[],
 				CancellationToken.None,
 			);
 
@@ -673,8 +674,8 @@ suite('AutomaticInstructionsCollector', () => {
 			const result = await collector.collect(
 				undefined,
 				undefined,
-				localSessionType,
-				new ChatVariablesCollection([toAttachedFileReference(attached)]),
+				localSessionResource,
+				[toAttachedFileReference(attached)],
 				CancellationToken.None,
 			);
 
@@ -704,8 +705,8 @@ suite('AutomaticInstructionsCollector', () => {
 			const result = await collector.collect(
 				undefined,
 				undefined,
-				localSessionType,
-				new ChatVariablesCollection([toAttachedFileReference(attached)]),
+				localSessionResource,
+				[toAttachedFileReference(attached)],
 				CancellationToken.None,
 			);
 
@@ -724,8 +725,8 @@ suite('AutomaticInstructionsCollector', () => {
 			await collector.collect(
 				[tool(ToolName.ReadFile)],
 				undefined,
-				localSessionType,
-				new ChatVariablesCollection([]),
+				localSessionResource,
+				[],
 				CancellationToken.None,
 			);
 
@@ -747,8 +748,8 @@ suite('AutomaticInstructionsCollector', () => {
 			await collector.collect(
 				[tool(ToolName.ReadFile)],
 				undefined,
-				localSessionType,
-				new ChatVariablesCollection([]),
+				localSessionResource,
+				[],
 				CancellationToken.None,
 			);
 
@@ -762,8 +763,8 @@ suite('AutomaticInstructionsCollector', () => {
 			const result = await collector.collect(
 				undefined,
 				undefined,
-				localSessionType,
-				new ChatVariablesCollection([]),
+				localSessionResource,
+				[],
 				CancellationToken.None,
 			);
 
@@ -786,8 +787,8 @@ suite('AutomaticInstructionsCollector', () => {
 			const result = await collector.collect(
 				[tool(ToolName.ReadFile)],
 				undefined,
-				localSessionType,
-				new ChatVariablesCollection([toAttachedFileReference(URI.joinPath(rootFolderUri, 'src/file.ts'))]),
+				localSessionResource,
+				[toAttachedFileReference(URI.joinPath(rootFolderUri, 'src/file.ts'))],
 				cancelled,
 			);
 
@@ -806,8 +807,8 @@ suite('AutomaticInstructionsCollector', () => {
 		const result = await collector.collect(
 			[tool(ToolName.ReadFile)],
 			undefined,
-			localSessionType,
-			new ChatVariablesCollection([]),
+			localSessionResource,
+			[],
 			CancellationToken.None,
 		);
 
