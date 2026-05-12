@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import { IAuthenticationService } from '../../../platform/authentication/common/authentication';
-import { IChatQuota, IChatQuotaChangeEvent, IChatQuotaService } from '../../../platform/chat/common/chatQuotaService';
+import { IChatQuota, IChatQuotaService } from '../../../platform/chat/common/chatQuotaService';
 import { Disposable } from '../../../util/vs/base/common/lifecycle';
 
 const QUOTA_NOTIFICATION_ID = 'copilot.quotaStatus';
@@ -52,14 +52,14 @@ export class ChatInputNotificationContribution extends Disposable {
 	) {
 		super();
 		this._register(this._authService.onDidAuthenticationChange(() => this._update()));
-		this._register(this._chatQuotaService.onDidChange(e => this._update(e)));
+		this._register(this._chatQuotaService.onDidChange(() => this._update()));
 	}
 
 	/**
 	 * Single entry point that determines the highest-priority notification
 	 * to show (or whether to hide).
 	 */
-	private _update(event?: IChatQuotaChangeEvent): void {
+	private _update(): void {
 		const hasCopilotToken = !!this._authService.copilotToken;
 		const wasSignedIn = this._hadCopilotToken;
 		this._hadCopilotToken = hasCopilotToken;
@@ -97,7 +97,7 @@ export class ChatInputNotificationContribution extends Disposable {
 		if (isQuotaNotificationEligible) {
 			const quotaWarning = this._computeQuotaWarning();
 			if (quotaWarning) {
-				this._showQuotaApproachingWarning(quotaWarning);
+				this._fetchAndShowQuotaWarning(quotaWarning);
 				return;
 			}
 		}
@@ -114,40 +114,28 @@ export class ChatInputNotificationContribution extends Disposable {
 		if (this._showingExhausted && !this._chatQuotaService.quotaExhausted) {
 			this._hideNotification();
 		}
-
-		// When credits are reported for users eligible for quota notifications,
-		// estimate whether the post-request usage would cross a threshold that
-		// the stale data doesn't yet reflect. If so, fetch up-to-date quota
-		// from the server.
-		if (isQuotaNotificationEligible && event?.creditsUsed) {
-			this._refreshQuotaIfThresholdCrossed(event.creditsUsed);
-		}
 	}
 
-	// --- Speculative refresh -------------------------------------------------
+	// --- Fetch and show quota warning ----------------------------------------
 
 	/**
-	 * Estimates whether the stale quota data plus the just-used credits would
-	 * cross a notification threshold. If so, requests up-to-date data from
-	 * the server so the notification can fire at the right time.
+	 * Fetches up-to-date quota data before showing a threshold notification,
+	 * ensuring the displayed percentage reflects the latest server state.
 	 */
-	private _refreshQuotaIfThresholdCrossed(creditsUsed: number): void {
-		const info = this._chatQuotaService.quotaInfo;
-		if (!info || info.unlimited || info.quota <= 0) {
-			return;
-		}
-
-		const stalePercentUsed = 100 - info.percentRemaining;
-		const creditsAsPercent = (creditsUsed / info.quota) * 100;
-		const estimatedPercentUsed = stalePercentUsed + creditsAsPercent;
-
-		// Check if the estimated usage would cross any un-shown threshold
-		for (const threshold of THRESHOLDS) {
-			if (stalePercentUsed < threshold && estimatedPercentUsed >= threshold
-				&& !this._shownQuotaThresholds.has(threshold)) {
-				this._chatQuotaService.refreshQuota();
-				return;
+	private async _fetchAndShowQuotaWarning(fallbackWarning: IQuotaWarning): Promise<void> {
+		try {
+			await this._chatQuotaService.refreshQuota();
+			const freshInfo = this._chatQuotaService.quotaInfo;
+			if (freshInfo && !freshInfo.unlimited) {
+				this._showQuotaApproachingWarning({
+					percentUsed: Math.floor(100 - freshInfo.percentRemaining),
+					resetDate: freshInfo.resetDate,
+				});
+			} else {
+				this._showQuotaApproachingWarning(fallbackWarning);
 			}
+		} catch {
+			this._showQuotaApproachingWarning(fallbackWarning);
 		}
 	}
 

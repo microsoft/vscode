@@ -68,28 +68,9 @@ export interface QuotaSnapshot {
 
 export type QuotaSnapshots = Record<string, QuotaSnapshot>;
 
-export interface IChatQuotaChangeEvent {
-	/**
-	 * AIC credits consumed by the chat request that produced this event.
-	 *
-	 * Present only when fired from {@link IChatQuotaService.setLastCopilotUsage},
-	 * i.e. after the response body has been fully consumed and the server has
-	 * reported `copilot_usage.total_nano_aiu`.
-	 *
-	 * **Workaround:** The backend currently returns quota snapshots that reflect
-	 * the state *before* the request was processed, so
-	 * {@link IChatQuotaService.quotaInfo} is always one request behind.
-	 * Until the backend provides post-request quota data, consumers can combine
-	 * the stale `quotaInfo` with `creditsUsed` to estimate the true post-request
-	 * usage and decide whether to call {@link IChatQuotaService.refreshQuota}
-	 * for an authoritative update.
-	 */
-	readonly creditsUsed?: number;
-}
-
 export interface IChatQuotaService {
 	readonly _serviceBrand: undefined;
-	readonly onDidChange: Event<IChatQuotaChangeEvent>;
+	readonly onDidChange: Event<void>;
 	readonly quotaInfo: IChatQuota | undefined;
 	readonly rateLimitInfo: { readonly session: IChatQuota | undefined; readonly weekly: IChatQuota | undefined };
 	quotaExhausted: boolean;
@@ -104,10 +85,10 @@ export interface IChatQuotaService {
 	resetTurnCredits(turnId: string): void;
 	clearQuota(): void;
 	/**
-	 * Triggers a debounced fetch to the `copilot_internal/user` endpoint
-	 * to get up-to-date quota data. Fire-and-forget — errors are logged.
+	 * Fetches up-to-date quota data from the `copilot_internal/user` endpoint.
+	 * Errors are caught and logged.
 	 */
-	refreshQuota(): void;
+	refreshQuota(): Promise<void>;
 }
 
 export const IChatQuotaService = createServiceIdentifier<IChatQuotaService>('IChatQuotaService');

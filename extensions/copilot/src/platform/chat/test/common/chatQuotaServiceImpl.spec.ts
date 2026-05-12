@@ -110,27 +110,6 @@ describe('ChatQuotaService', () => {
 			svc.setLastCopilotUsage(0, TURN_A);
 			expect(svc.getCreditsForTurn(TURN_A)).toBe(1);
 		});
-
-		test('fires onDidChange with creditsUsed', () => {
-			const svc = create();
-			const events: { creditsUsed?: number }[] = [];
-			svc.onDidChange(e => events.push(e));
-
-			svc.setLastCopilotUsage(2_000_000_000, TURN_A); // 2 AIC
-
-			expect(events).toHaveLength(1);
-			expect(events[0].creditsUsed).toBe(2);
-		});
-
-		test('does not fire onDidChange for zero credits', () => {
-			const svc = create();
-			let changeCount = 0;
-			svc.onDidChange(() => changeCount++);
-
-			svc.setLastCopilotUsage(0, TURN_A);
-
-			expect(changeCount).toBe(0);
-		});
 	});
 
 	describe('resetTurnCredits', () => {
