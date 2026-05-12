@@ -75,13 +75,23 @@ export function createManageTodoListToolData(): IToolData {
 export const ManageTodoListToolData: IToolData = createManageTodoListToolData();
 
 interface IManageTodoListToolInputParams {
-	operation?: 'write' | 'read'; // Optional, defaults to 'write'
+	/**
+	 * Operation to perform. Defaults to 'write'.
+	 *
+	 * - 'write' (default): persist the supplied `todoList` for the session,
+	 *   replacing the current list.
+	 * - 'read': return the current persisted todo list as markdown.
+	 * - 'clear-completed': remove all todos with status 'completed' from the
+	 *   persisted list. Internal-only — used to ensure completed tasks from a
+	 *   previous turn do not carry over when a chat session continues.
+	 */
+	operation?: 'write' | 'read' | 'clear-completed';
 	todoList: Array<{
 		id: number;
 		title: string;
 		status: 'not-started' | 'in-progress' | 'completed';
 	}>;
-	// used for todo read only
+	// used for todo read / clear-completed only
 	chatSessionResource?: string;
 }
 
@@ -99,7 +109,7 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 	async invoke(invocation: IToolInvocation, _countTokens: any, _progress: any, _token: CancellationToken): Promise<IToolResult> {
 		const args = invocation.parameters as IManageTodoListToolInputParams;
 		let chatSessionResource = invocation.context?.sessionResource;
-		if (!chatSessionResource && args.operation === 'read' && args.chatSessionResource) {
+		if (!chatSessionResource && (args.operation === 'read' || args.operation === 'clear-completed') && args.chatSessionResource) {
 			try {
 				chatSessionResource = URI.parse(args.chatSessionResource);
 			} catch (error) {
@@ -120,6 +130,8 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 		try {
 			if (args.operation === 'read') {
 				return this.handleReadOperation(chatSessionResource);
+			} else if (args.operation === 'clear-completed') {
+				return this.handleClearCompletedOperation(chatSessionResource);
 			} else {
 				return this.handleWriteOperation(args, chatSessionResource);
 			}
@@ -147,6 +159,8 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 
 		if (args.operation === 'read') {
 			message = localize('todo.readOperation', "Read todo list");
+		} else if (args.operation === 'clear-completed') {
+			message = localize('todo.clearCompletedOperation', "Cleared completed todos");
 		} else if (args.todoList) {
 			message = this.generatePastTenseMessage(currentTodoItems, args.todoList);
 		}
@@ -161,9 +175,12 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 		const invocationLabel = message?.replace(/^(Starting|Completed): /i, '') ?? localize('todo.updatingList', "Updating todo list");
 		const invocationMessage = new MarkdownString(invocationLabel);
 
+		// 'clear-completed' is an internal operation; keep it hidden from the UI.
+		const isClearCompleted = args.operation === 'clear-completed';
+
 		return {
 			invocationMessage,
-			presentation: items.length ? undefined : ToolInvocationPresentation.Hidden,
+			presentation: items.length && !isClearCompleted ? undefined : ToolInvocationPresentation.Hidden,
 			pastTenseMessage: new MarkdownString(message ?? localize('todo.updatedList', "Updated todo list")),
 			toolSpecificData: {
 				kind: 'todoList',
@@ -249,6 +266,36 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 			content: [{
 				kind: 'text',
 				value: readResult
+			}]
+		};
+	}
+
+	private handleClearCompletedOperation(chatSessionResource: URI): IToolResult {
+		const existingTodos = this.chatTodoListService.getTodos(chatSessionResource);
+		const remainingTodos = existingTodos.filter(todo => todo.status !== 'completed');
+		const removedCount = existingTodos.length - remainingTodos.length;
+
+		if (removedCount > 0) {
+			this.chatTodoListService.setTodos(chatSessionResource, remainingTodos);
+		}
+
+		const statusCounts = this.calculateStatusCounts(remainingTodos);
+		this.telemetryService.publicLog2<TodoListToolInvokedEvent, TodoListToolInvokedClassification>(
+			'todoListToolInvoked',
+			{
+				operation: 'clear-completed',
+				notStartedCount: statusCounts.notStartedCount,
+				inProgressCount: statusCounts.inProgressCount,
+				completedCount: statusCounts.completedCount
+			}
+		);
+
+		return {
+			content: [{
+				kind: 'text',
+				value: removedCount > 0
+					? `Cleared ${removedCount} completed todo${removedCount === 1 ? '' : 's'}.`
+					: 'No completed todos to clear.'
 			}]
 		};
 	}
@@ -362,14 +409,14 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 }
 
 type TodoListToolInvokedEvent = {
-	operation: 'read' | 'write';
+	operation: 'read' | 'write' | 'clear-completed';
 	notStartedCount: number;
 	inProgressCount: number;
 	completedCount: number;
 };
 
 type TodoListToolInvokedClassification = {
-	operation: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The operation performed on the todo list (read or write).' };
+	operation: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The operation performed on the todo list (read, write, or clear-completed).' };
 	notStartedCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of tasks with not-started status.' };
 	inProgressCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of tasks with in-progress status.' };
 	completedCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of tasks with completed status.' };

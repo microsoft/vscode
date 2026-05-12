@@ -144,4 +144,98 @@ suite('ManageTodoListTool prepareToolInvocation', () => {
 
 		assert.strictEqual(result, undefined);
 	});
+
+	test('presentation is Hidden for clear-completed operation', async () => {
+		const tool = createTool([{ id: 1, title: 'Done', status: 'completed' }]);
+		const result = await tool.prepareToolInvocation({
+			parameters: { operation: 'clear-completed' },
+			toolCallId: 'call-1',
+			chatSessionResource: sessionResource,
+		}, CancellationToken.None);
+
+		assert.strictEqual(result?.presentation, ToolInvocationPresentation.Hidden);
+	});
+});
+
+suite('ManageTodoListTool invoke clear-completed', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const sessionResource = URI.parse('vscode-chat://session/1');
+
+	function createMockTodoListService(initial: IChatTodo[] = []): IChatTodoListService & { _stored: IChatTodo[] } {
+		const state = { _stored: [...initial] };
+		return {
+			_serviceBrand: undefined,
+			onDidUpdateTodos: Event.None,
+			getTodos: () => state._stored,
+			setTodos: (_resource, todos) => { state._stored = todos; },
+			migrateTodos: () => { },
+			get _stored() { return state._stored; }
+		} as IChatTodoListService & { _stored: IChatTodo[] };
+	}
+
+	function createTool(svc: IChatTodoListService): ManageTodoListTool {
+		return store.add(new ManageTodoListTool(
+			svc,
+			new NullLogService(),
+			NullTelemetryService,
+		));
+	}
+
+	test('removes only completed todos, keeps the rest in order', async () => {
+		const svc = createMockTodoListService([
+			{ id: 1, title: 'A', status: 'completed' },
+			{ id: 2, title: 'B', status: 'in-progress' },
+			{ id: 3, title: 'C', status: 'completed' },
+			{ id: 4, title: 'D', status: 'not-started' },
+		]);
+		const tool = createTool(svc);
+
+		const result = await tool.invoke({
+			callId: 'call-1',
+			toolId: 'manage_todo_list',
+			parameters: { operation: 'clear-completed' },
+			context: { sessionResource },
+		} as any, undefined as any, undefined as any, CancellationToken.None);
+
+		assert.deepStrictEqual(svc._stored.map(t => t.id), [2, 4]);
+		const textPart = result.content[0];
+		assert.strictEqual(textPart.kind, 'text');
+		assert.match((textPart as { kind: 'text'; value: string }).value, /Cleared 2 completed todos\./);
+	});
+
+	test('no-op when there are no completed todos', async () => {
+		const svc = createMockTodoListService([
+			{ id: 1, title: 'A', status: 'in-progress' },
+			{ id: 2, title: 'B', status: 'not-started' },
+		]);
+		const tool = createTool(svc);
+
+		const result = await tool.invoke({
+			callId: 'call-1',
+			toolId: 'manage_todo_list',
+			parameters: { operation: 'clear-completed' },
+			context: { sessionResource },
+		} as any, undefined as any, undefined as any, CancellationToken.None);
+
+		assert.deepStrictEqual(svc._stored.map(t => t.id), [1, 2]);
+		const textPart = result.content[0];
+		assert.strictEqual(textPart.kind, 'text');
+		assert.match((textPart as { kind: 'text'; value: string }).value, /No completed todos to clear\./);
+	});
+
+	test('resolves chatSessionResource from args when context is missing', async () => {
+		const svc = createMockTodoListService([
+			{ id: 1, title: 'A', status: 'completed' },
+			{ id: 2, title: 'B', status: 'not-started' },
+		]);
+		const tool = createTool(svc);
+
+		await tool.invoke({
+			callId: 'call-1',
+			toolId: 'manage_todo_list',
+			parameters: { operation: 'clear-completed', chatSessionResource: sessionResource.toString() },
+		} as any, undefined as any, undefined as any, CancellationToken.None);
+
+		assert.deepStrictEqual(svc._stored.map(t => t.id), [2]);
+	});
 });

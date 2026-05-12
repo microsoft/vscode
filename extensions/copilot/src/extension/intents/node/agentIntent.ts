@@ -47,6 +47,7 @@ import { ChatTelemetryBuilder } from '../../prompt/node/chatParticipantTelemetry
 import { IDefaultIntentRequestHandlerOptions } from '../../prompt/node/defaultIntentRequestHandler';
 import { IDocumentContext } from '../../prompt/node/documentContext';
 import { IBuildPromptResult, IIntent, IIntentInvocation } from '../../prompt/node/intents';
+import { ITodoListContextProvider } from '../../prompt/node/todoListContextProvider';
 import { AgentPrompt, AgentPromptProps } from '../../prompts/node/agent/agentPrompt';
 import { BackgroundSummarizationState, BackgroundSummarizer, IBackgroundSummarizationResult, shouldKickOffBackgroundSummarization } from '../../prompts/node/agent/backgroundSummarizer';
 import { BackgroundTodoDecision, BackgroundTodoProcessor } from '../../prompts/node/agent/backgroundTodoProcessor';
@@ -292,6 +293,24 @@ export class AgentIntent extends EditCodeIntent {
 	): Promise<vscode.ChatResult> {
 		if (request.command === 'compact') {
 			return this.handleSummarizeCommand(conversation, request, stream, token);
+		}
+
+		// When the background todo agent is managing the todo list, completed
+		// items from a previous turn should not carry over once the user
+		// continues the conversation with a new message. Prune them from the
+		// persisted list before the agent loop starts rendering the prompt or
+		// the background processor reads the current state. Skip for subagent
+		// invocations — they execute mid-turn from the main agent and must
+		// not mutate the parent's todo list state.
+		if (
+			!request.subAgentInvocationId &&
+			isBackgroundTodoAgentEnabled(this.configurationService, this.expService, request) &&
+			request.sessionResource
+		) {
+			await this.instantiationService.invokeFunction(async (accessor) => {
+				const todoProvider = accessor.get<ITodoListContextProvider>(ITodoListContextProvider);
+				await todoProvider.clearCompletedTodos(request.sessionResource.toString());
+			});
 		}
 
 		try {

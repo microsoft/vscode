@@ -12,6 +12,12 @@ import { IToolsService } from '../../tools/common/toolsService';
 export const ITodoListContextProvider = createServiceIdentifier<ITodoListContextProvider>('ITodoListContextProvider');
 export interface ITodoListContextProvider {
 	getCurrentTodoContext(sessionResource: string): Promise<string | undefined>;
+	/**
+	 * Remove any todos with status 'completed' from the persisted list for the
+	 * given session. Used to ensure completed items from a previous turn do
+	 * not carry over when the chat session continues with a new user message.
+	 */
+	clearCompletedTodos(sessionResource: string): Promise<void>;
 }
 
 export class TodoListContextProvider implements ITodoListContextProvider {
@@ -45,6 +51,20 @@ export class TodoListContextProvider implements ITodoListContextProvider {
 			return todoList;
 		} catch (error) {
 			return undefined;
+		}
+	}
+
+	async clearCompletedTodos(sessionResource: string): Promise<void> {
+		try {
+			await this.toolsService.invokeTool(
+				ToolName.CoreManageTodoList,
+				{
+					input: { operation: 'clear-completed', chatSessionResource: sessionResource }
+				} as any,
+				CancellationToken.None
+			);
+		} catch (error) {
+			// Best-effort: pruning completed todos must never fail a request.
 		}
 	}
 }
