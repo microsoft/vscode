@@ -18,9 +18,11 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { maybeConfirmElevatedPermissionLevel } from '../../../../workbench/contrib/chat/common/chatPermissionWarnings.js';
 import { IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ChatConfiguration, ChatPermissionLevel, isChatPermissionLevel } from '../../../../workbench/contrib/chat/common/constants.js';
+import { reportNewChatPickerClosed } from '../../chat/browser/newChatPickerTelemetry.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { CopilotChatSessionsProvider } from '../../copilotChatSessions/browser/copilotChatSessionsProvider.js';
@@ -77,6 +79,7 @@ export class PermissionPicker extends Disposable {
 		@IDialogService protected readonly dialogService: IDialogService,
 		@IOpenerService protected readonly openerService: IOpenerService,
 		@IStorageService protected readonly storageService: IStorageService,
+		@ITelemetryService protected readonly telemetryService: ITelemetryService,
 	) {
 		super();
 	}
@@ -237,6 +240,16 @@ export class PermissionPicker extends Disposable {
 	}
 
 	protected async _selectLevel(level: ChatPermissionLevel): Promise<void> {
+		reportNewChatPickerClosed(this.telemetryService, {
+			id: 'NewChatPermissionPicker',
+			name: 'NewChatPermissionPicker',
+			optionIdBefore: this._currentLevel,
+			optionIdAfter: level,
+			optionLabelBefore: undefined,
+			optionLabelAfter: undefined,
+			isPII: false,
+		});
+
 		if (!await maybeConfirmElevatedPermissionLevel(level, this.dialogService, this.storageService)) {
 			return;
 		}
