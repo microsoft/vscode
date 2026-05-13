@@ -23,7 +23,6 @@ function makeModel(identifier: string): ILanguageModelChatMetadataAndIdentifier 
 			maxOutputTokens: 4096,
 			isDefaultForLocation: {},
 			isUserSelectable: true,
-			modelPickerCategory: undefined,
 			targetChatSessionType: 'agent-host-copilotcli',
 		},
 	};

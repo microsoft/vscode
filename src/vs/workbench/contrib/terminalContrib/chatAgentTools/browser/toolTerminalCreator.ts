@@ -176,6 +176,13 @@ export class ToolTerminalCreator {
 			}
 		}
 
+		// Zsh-specific fixups for agent terminals: disable bang history
+		// expansion (prevents ! in double quotes from hanging on dquote>)
+		// and enable inline # comments (lets the agent annotate commands).
+		if (isZsh(shellPath, os)) {
+			env['VSCODE_AGENT_ZSH_FIXUPS'] = '1';
+		}
+
 		const config: IShellLaunchConfig = {
 			icon: ThemeIcon.fromId(Codicon.chatSparkle.id),
 			hideFromUser: true,

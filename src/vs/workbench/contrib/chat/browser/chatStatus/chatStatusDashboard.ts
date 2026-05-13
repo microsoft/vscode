@@ -164,10 +164,7 @@ export class ChatStatusDashboard extends DomWidget {
 
 			// Add Additional Spend / Upgrade buttons to the header
 			const canConfigureAdditionalSpend = this.chatEntitlementService.entitlement === ChatEntitlement.EDU || this.chatEntitlementService.entitlement === ChatEntitlement.Pro || this.chatEntitlementService.entitlement === ChatEntitlement.ProPlus || this.chatEntitlementService.entitlement === ChatEntitlement.Max;
-			const showUpgrade = this.chatEntitlementService.entitlement !== ChatEntitlement.ProPlus &&
-				this.chatEntitlementService.entitlement !== ChatEntitlement.Max &&
-				this.chatEntitlementService.entitlement !== ChatEntitlement.Business &&
-				this.chatEntitlementService.entitlement !== ChatEntitlement.Enterprise;
+			const showUpgrade = this.chatEntitlementService.quotas.canUpgradePlan ?? false;
 
 			const actionBarElement = header.lastElementChild;
 			const initialAdditionalUsageEnabled = this.chatEntitlementService.quotas.additionalUsageEnabled ?? false;
@@ -200,10 +197,7 @@ export class ChatStatusDashboard extends DomWidget {
 		if (hasUsageSection && this.options?.compactQuotaLayout && this.options.ctaButtonsContainer) {
 			const ctaContainer = this.options.ctaButtonsContainer;
 			const canConfigureAdditionalSpend = this.chatEntitlementService.entitlement === ChatEntitlement.EDU || this.chatEntitlementService.entitlement === ChatEntitlement.Pro || this.chatEntitlementService.entitlement === ChatEntitlement.ProPlus || this.chatEntitlementService.entitlement === ChatEntitlement.Max;
-			const showUpgrade = this.chatEntitlementService.entitlement !== ChatEntitlement.ProPlus &&
-				this.chatEntitlementService.entitlement !== ChatEntitlement.Max &&
-				this.chatEntitlementService.entitlement !== ChatEntitlement.Business &&
-				this.chatEntitlementService.entitlement !== ChatEntitlement.Enterprise;
+			const showUpgrade = this.chatEntitlementService.quotas.canUpgradePlan ?? false;
 			const initialAdditionalUsageEnabled = this.chatEntitlementService.quotas.additionalUsageEnabled ?? false;
 
 			if (canConfigureAdditionalSpend) {

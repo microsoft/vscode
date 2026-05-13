@@ -203,7 +203,6 @@ export interface ILanguageModelChatMetadata {
 	readonly isDefaultForLocation: { [K in ChatAgentLocation]?: boolean };
 	readonly isUserSelectable?: boolean;
 	readonly statusIcon?: ThemeIcon;
-	readonly modelPickerCategory: { label: string; order: number } | undefined;
 	readonly auth?: {
 		readonly providerLabel: string;
 		readonly accountLabel?: string;

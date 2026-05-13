@@ -103,6 +103,8 @@ import { WorkbenchMcpGalleryManifestService } from './services/mcp/browser/mcpGa
 import { UserDataSyncResourceProviderService } from '../platform/userDataSync/common/userDataSyncResourceProvider.js';
 import { IAgentHostService } from '../platform/agentHost/common/agentService.js';
 import { NullAgentHostService } from '../platform/agentHost/browser/nullAgentHostService.js';
+import { IRemoteAgentHostService, NullRemoteAgentHostService } from '../platform/agentHost/common/remoteAgentHostService.js';
+import { BrowserAgentHostDebugLogsExportService, IAgentHostDebugLogsExportService } from './contrib/chat/browser/actions/exportAgentHostDebugLogsAction.js';
 
 registerSingleton(IAgentHostService, NullAgentHostService, InstantiationType.Delayed);
 registerSingleton(IWorkbenchExtensionManagementService, ExtensionManagementService, InstantiationType.Delayed);
@@ -124,6 +126,9 @@ registerSingleton(ILanguagePackService, WebLanguagePacksService, InstantiationTy
 registerSingleton(IWebContentExtractorService, NullWebContentExtractorService, InstantiationType.Delayed);
 registerSingleton(ISharedWebContentExtractorService, NullSharedWebContentExtractorService, InstantiationType.Delayed);
 registerSingleton(IMcpGalleryManifestService, WorkbenchMcpGalleryManifestService, InstantiationType.Delayed);
+registerSingleton(IAgentHostService, NullAgentHostService, InstantiationType.Delayed);
+registerSingleton(IRemoteAgentHostService, NullRemoteAgentHostService, InstantiationType.Delayed);
+registerSingleton(IAgentHostDebugLogsExportService, BrowserAgentHostDebugLogsExportService, InstantiationType.Delayed);
 
 //#endregion
 

@@ -38,7 +38,6 @@ function createModel(id: string, name: string, vendor = 'copilot'): ILanguageMod
 			maxInputTokens: 128000,
 			maxOutputTokens: 4096,
 			isDefaultForLocation: {},
-			modelPickerCategory: undefined,
 		} as ILanguageModelChatMetadata,
 	};
 }
