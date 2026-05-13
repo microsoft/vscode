@@ -3265,6 +3265,15 @@
 			{
 				"id": "preview",
 				"properties": {
+					"github.copilot.chat.claudeAgent.allowAutoPermissions": {
+						"type": "boolean",
+						"default": false,
+						"tags": [
+							"preview",
+							"onExp"
+						],
+						"markdownDescription": "%github.copilot.config.claudeAgent.allowAutoPermissions%"
+					},
 					"github.copilot.chat.copilotDebugCommand.enabled": {
 						"type": "boolean",
 						"default": true,
@@ -4093,6 +4102,26 @@
 						"tags": [
 							"advanced"
 						]
+					},
+					"github.copilot.chat.anthropic.promptCaching.extendedTtl": {
+						"type": "boolean",
+						"default": false,
+						"tags": [
+							"advanced",
+							"experimental",
+							"onExp"
+						],
+						"description": "%github.copilot.config.anthropic.promptCaching.extendedTtl%"
+					},
+					"github.copilot.chat.freezeCustomizationsIndex": {
+						"type": "boolean",
+						"default": false,
+						"tags": [
+							"advanced",
+							"experimental",
+							"onExp"
+						],
+						"description": "%github.copilot.config.freezeCustomizationsIndex%"
 					},
 					"github.copilot.chat.installExtensionSkill.enabled": {
 						"type": "boolean",

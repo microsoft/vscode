@@ -277,9 +277,9 @@
 }
 
 /* Flatten contributed sub-sections (e.g. "Codebase Semantic Index") into
-	the parent Subscription section. The dashboard renders these non-collapsibly
-	(via `disableContributedSectionsCollapsible`); these rules just align the
-	header typography with the panel's quota-title style above it. */
+	the parent Subscription section. The dashboard renders these non-collapsibly;
+	these rules just align the header typography with the panel's quota-title
+	style above it. */
 .agent-sessions-workbench .sessions-account-titlebar-panel-section .chat-status-bar-entry-tooltip .collapsible-header.non-collapsible {
 	margin-top: 4px;
 	padding: 0 28px 0 0;
@@ -301,20 +301,15 @@
 	line-height: 15px;
 }
 
-.agent-sessions-workbench .sessions-account-titlebar-panel-section .chat-status-bar-entry-tooltip .collapsible-content > .collapsible-inner {
-	gap: 6px;
-	margin-top: 0;
-	margin-bottom: 0;
-}
-
-.agent-sessions-workbench .sessions-account-titlebar-panel-section .chat-status-bar-entry-tooltip .section-description,
-.agent-sessions-workbench .sessions-account-titlebar-panel-section .chat-status-bar-entry-tooltip .section-detail {
+.agent-sessions-workbench .sessions-account-titlebar-panel-section .chat-status-bar-entry-tooltip .collapsible-header.non-collapsible .contributed-detail {
 	font-size: 11px;
 	line-height: 15px;
 }
 
-.agent-sessions-workbench .sessions-account-titlebar-panel-section .chat-status-bar-entry-tooltip .section-detail {
-	padding-bottom: 4px;
+.agent-sessions-workbench .sessions-account-titlebar-panel-section .chat-status-bar-entry-tooltip .collapsible-content > .collapsible-inner {
+	gap: 6px;
+	margin-top: 0;
+	margin-bottom: 0;
 }
 
 .agent-sessions-workbench .sessions-account-titlebar-panel-section-title {

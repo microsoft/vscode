@@ -39,6 +39,10 @@
 	margin-top: 0;
 }
 
+.chat-status-bar-entry-tooltip .collapsible-header.non-collapsible {
+	cursor: default;
+}
+
 .chat-status-bar-entry-tooltip .collapsible-header:focus {
 	outline: none;
 }
@@ -55,6 +59,16 @@
 	flex-shrink: 0;
 	opacity: 0.7;
 	margin-top: 2px;
+}
+
+.chat-status-bar-entry-tooltip .contributed-info-icon {
+	font-size: 12px;
+	display: flex;
+	align-items: center;
+	flex-shrink: 0;
+	opacity: 0.7;
+	cursor: help;
+	color: var(--vscode-descriptionForeground);
 }
 
 .chat-status-bar-entry-tooltip .collapsible-label {
@@ -87,6 +101,17 @@
 	font-size: 12px;
 	line-height: 16px;
 	color: var(--vscode-descriptionForeground);
+}
+
+.chat-status-bar-entry-tooltip .contributed-detail {
+	font-size: 12px;
+	font-weight: 400;
+	color: var(--vscode-descriptionForeground);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	min-width: 0;
+	flex-shrink: 1;
 }
 
 .chat-status-bar-entry-tooltip .collapsible-content {

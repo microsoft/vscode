@@ -21,7 +21,6 @@ import { language } from '../../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { isObject } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { stripIcons } from '../../../../../base/common/iconLabels.js';
 import { IInlineCompletionsService } from '../../../../../editor/browser/services/inlineCompletionsService.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { ITextResourceConfigurationService } from '../../../../../editor/common/services/textResourceConfiguration.js';
@@ -76,8 +75,7 @@ export interface IChatStatusDashboardOptions {
 	disableCompletionsSnooze?: boolean;
 	/** When true, the Quick Settings region is rendered always-expanded without a collapsible header. */
 	disableQuickSettingsCollapsible?: boolean;
-	/** When true, contributed sections are rendered always-expanded without a collapsible header button. */
-	disableContributedSectionsCollapsible?: boolean;
+
 	/**
 	 * When provided, the title header (plan name + manage / CTA actions) is
 	 * rendered into this caller-owned container instead of inline at the top
@@ -102,7 +100,6 @@ export interface IChatStatusDashboardOptions {
 export class ChatStatusDashboard extends DomWidget {
 
 	private static readonly QUICK_SETTINGS_COLLAPSED_KEY = 'chatStatusDashboard.quickSettingsCollapsed';
-	private static readonly CONTRIBUTED_COLLAPSED_KEY_PREFIX = 'chatStatusDashboard.contributedCollapsed.';
 
 	readonly element = $('div.chat-status-bar-entry-tooltip');
 
@@ -421,83 +418,69 @@ export class ChatStatusDashboard extends DomWidget {
 	}
 
 	private renderContributedSections(contributedEntries: ChatStatusEntry[]): void {
-		const nonCollapsible = !!this.options?.disableContributedSectionsCollapsible;
 		for (const item of contributedEntries) {
-			const storageKey = ChatStatusDashboard.CONTRIBUTED_COLLAPSED_KEY_PREFIX + item.id;
-			const collapsed = !nonCollapsible && this.storageService.getBoolean(storageKey, StorageScope.PROFILE, true);
-
 			const headerLabel = typeof item.label === 'string' ? item.label : item.label.label;
-			const headerLink = typeof item.label === 'string' ? undefined : item.label.link;
-			const linkDescription = typeof item.label === 'string' ? undefined : item.label.helpText;
+			let headerLink = typeof item.label === 'string' ? undefined : item.label.link;
+			let linkDescription = typeof item.label === 'string' ? undefined : item.label.helpText;
 
-			const disclosureHeader = this.element.appendChild(
-				nonCollapsible
-					? $('div.collapsible-header.non-collapsible')
-					: $('button.collapsible-header')
-			);
-			let chevron: HTMLElement | undefined;
-			disclosureHeader.appendChild($('span.collapsible-label', undefined, headerLabel));
+			// Single non-collapsible header row
+			const header = this.element.appendChild($('div.collapsible-header.non-collapsible'));
+			header.appendChild($('span.collapsible-label', undefined, headerLabel));
 
-			if (!nonCollapsible) {
-				disclosureHeader.setAttribute('aria-expanded', String(!collapsed));
-				chevron = disclosureHeader.appendChild($('span.collapsible-chevron'));
-				chevron.classList.add(...ThemeIcon.asClassNameArray(collapsed ? Codicon.chevronRight : Codicon.chevronDown));
+			// Info icon (replaces chevron) — shows helpText in a nested hover
+			if (linkDescription || headerLink) {
+				const infoIcon = header.appendChild($('span.contributed-info-icon'));
+				infoIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.info));
+
+				this._store.add(this.hoverService.setupDelayedHover(infoIcon, () => {
+					const hoverContent = new MarkdownString('', { isTrusted: true });
+					if (linkDescription) {
+						hoverContent.appendText(linkDescription);
+					}
+					if (headerLink) {
+						if (linkDescription) {
+							hoverContent.appendText(' ');
+						}
+						hoverContent.appendMarkdown(`[${localize('learnMore', "Learn More")}](${headerLink})`);
+					}
+					return { content: hoverContent };
+				}));
 			}
 
-			// Use renderLabelWithIcons for header status (plain text + icons only, no links inside button)
-			const statusEl = disclosureHeader.appendChild($('span.collapsible-status'));
+			// Status text (right-aligned via margin-left: auto)
+			const statusEl = header.appendChild($('span.collapsible-status'));
 			statusEl.append(...renderLabelWithIcons(item.description));
-			statusEl.title = stripIcons(item.description).trim();
 
-			const collapsibleContent = this.element.appendChild($('div.collapsible-content'));
-			const collapsibleInner = collapsibleContent.appendChild($('div.collapsible-inner'));
-			if (collapsed) {
-				collapsibleContent.classList.add('collapsed');
-				collapsibleInner.inert = true;
+			// Show tooltip on hover of the status text
+			let currentTooltip = item.tooltip;
+			if (currentTooltip) {
+				this._store.add(this.hoverService.setupDelayedHover(statusEl, () => ({
+					content: currentTooltip ?? '',
+				})));
 			}
 
-			if (!nonCollapsible) {
-				const toggle = () => {
-					const isCollapsed = collapsibleContent.classList.toggle('collapsed');
-					collapsibleInner.inert = isCollapsed;
-					disclosureHeader.setAttribute('aria-expanded', String(!isCollapsed));
-					chevron!.className = 'collapsible-chevron';
-					chevron!.classList.add(...ThemeIcon.asClassNameArray(isCollapsed ? Codicon.chevronRight : Codicon.chevronDown));
-					this.storageService.store(storageKey, isCollapsed, StorageScope.PROFILE, StorageTarget.USER);
-				};
-
-				this._store.add(addDisposableListener(disclosureHeader, EventType.CLICK, () => toggle()));
-			}
-
-			// Use a single disposable store for all contributed section content
+			// Detail (action link) rendered inline
 			const sectionDisposables = this._store.add(new MutableDisposable());
 			const sectionStore = new DisposableStore();
 			sectionDisposables.value = sectionStore;
 
-			// Description with Learn More (use contributed data, not hardcoded text)
-			let descriptionEl: HTMLElement | undefined;
-			if (headerLink) {
-				descriptionEl = collapsibleInner.appendChild($('div.section-description'));
-				const descText = linkDescription
-					? `${linkDescription} [${localize('learnMore', "Learn More")}](${headerLink})`
-					: `[${localize('learnMore', "Learn More")}](${headerLink})`;
-				this.renderTextPlus(descriptionEl, descText, sectionStore);
-			}
-
-			// Detail content (action links like "Build index", etc.)
 			let detailEl: HTMLElement | undefined;
 			if (item.detail) {
-				detailEl = collapsibleInner.appendChild($('div.section-detail'));
+				detailEl = header.appendChild($('span.contributed-detail'));
 				this.renderTextPlus(detailEl, item.detail, sectionStore);
 			}
 
 			// Listen for updates to re-render status and detail
 			this._store.add(this.chatStatusItemService.onDidChange(e => {
 				if (e.entry.id === item.id) {
-					// Update status in header (plain text + icons only)
+					// Update status in header
 					statusEl.textContent = '';
 					statusEl.append(...renderLabelWithIcons(e.entry.description));
-					statusEl.title = stripIcons(e.entry.description).trim();
+					currentTooltip = e.entry.tooltip;
+
+					// Update mutable hover content references
+					headerLink = typeof e.entry.label === 'string' ? undefined : e.entry.label.link;
+					linkDescription = typeof e.entry.label === 'string' ? undefined : e.entry.label.helpText;
 
 					// Re-render detail content
 					const newStore = new DisposableStore();
@@ -512,30 +495,8 @@ export class ChatStatusDashboard extends DomWidget {
 							detailEl = undefined;
 						}
 					} else if (e.entry.detail) {
-						detailEl = collapsibleInner.appendChild($('div.section-detail'));
+						detailEl = header.appendChild($('span.contributed-detail'));
 						this.renderTextPlus(detailEl, e.entry.detail, newStore);
-					}
-
-					// Re-render Learn More link if needed
-					const updatedLink = typeof e.entry.label === 'string' ? undefined : e.entry.label.link;
-					const updatedLinkDesc = typeof e.entry.label === 'string' ? undefined : e.entry.label.helpText;
-					if (descriptionEl) {
-						if (updatedLink) {
-							descriptionEl.textContent = '';
-							const descText = updatedLinkDesc
-								? `${updatedLinkDesc} [${localize('learnMore', "Learn More")}](${updatedLink})`
-								: `[${localize('learnMore', "Learn More")}](${updatedLink})`;
-							this.renderTextPlus(descriptionEl, descText, newStore);
-						} else {
-							descriptionEl.remove();
-							descriptionEl = undefined;
-						}
-					} else if (updatedLink) {
-						descriptionEl = collapsibleInner.insertBefore($('div.section-description'), detailEl ?? null);
-						const descText = updatedLinkDesc
-							? `${updatedLinkDesc} [${localize('learnMore', "Learn More")}](${updatedLink})`
-							: `[${localize('learnMore', "Learn More")}](${updatedLink})`;
-						this.renderTextPlus(descriptionEl, descText, newStore);
 					}
 				}
 			}));
