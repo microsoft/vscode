@@ -6,11 +6,13 @@
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { BrowserViewUri } from '../../../../../platform/browserView/common/browserViewUri.js';
 import { IInvokeFunctionResult, IPlaywrightService } from '../../../../../platform/browserView/common/playwrightService.js';
 import { IAgentNetworkFilterService } from '../../../../../platform/networkFilter/common/networkFilterService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IToolInvocation, IToolResult } from '../../../chat/common/tools/languageModelToolsService.js';
+import { BrowserChatToolsAllowedDomainsSettingId, isAllowedDomain } from '../../common/browserChatToolsAllowedDomains.js';
 import { BrowserEditorInput } from '../../common/browserEditorInput.js';
 import { BrowserViewSharingState, IBrowserViewWorkbenchService } from '../../common/browserView.js';
 
@@ -26,6 +28,41 @@ export const DEFAULT_ELEMENT_LABEL = localize('browser.element', 'element');
 export function getSessionId(invocation: IToolInvocation): string {
 	return invocation.context?.sessionResource?.toString() ?? '<default>';
 }
+
+export function assertBrowserChatToolNavigationAllowed(url: string, configurationService: IConfigurationService): void {
+	const allowed = configurationService.getValue<string[]>(BrowserChatToolsAllowedDomainsSettingId) ?? [];
+	if (isAllowedDomain(url, allowed)) {
+		return;
+	}
+	throw new Error(localize('browserChatTools.domainBlocked', 'Navigation blocked by BrowserChatToolsAllowedDomains policy.'));
+}
+
+/**
+ * After a browser chat tool changes or relies on the current page URL, verify the page
+ * is still allowed. Returns an error result when restricted, otherwise `undefined`.
+ */
+export async function getBrowserChatToolDomainBlockedToolResult(
+	playwrightService: IPlaywrightService,
+	configurationService: IConfigurationService,
+	sessionId: string,
+	pageId: string,
+): Promise<IToolResult | undefined> {
+	const allowed = configurationService.getValue<string[]>(BrowserChatToolsAllowedDomainsSettingId) ?? [];
+	if (!allowed.length) {
+		return undefined;
+	}
+	let url: string;
+	try {
+		url = await playwrightInvokeRaw(playwrightService, sessionId, pageId, (page) => page.url());
+	} catch {
+		return errorResult(localize('browserChatTools.domainVerifyFailed', 'Could not verify the browser page URL for domain policy.'));
+	}
+	if (isAllowedDomain(url, allowed)) {
+		return undefined;
+	}
+	return errorResult(localize('browserChatTools.domainBlocked', 'Navigation blocked by BrowserChatToolsAllowedDomains policy.'));
+}
+
 
 export interface FormatBrowserEditorLinesOptions {
 	indent?: string;

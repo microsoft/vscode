@@ -7,9 +7,10 @@ import type { CancellationToken } from '../../../../../base/common/cancellation.
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { localize } from '../../../../../nls.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IPlaywrightService } from '../../../../../platform/browserView/common/playwrightService.js';
 import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../chat/common/tools/languageModelToolsService.js';
-import { createBrowserPageLink, errorResult, getSessionId } from './browserToolHelpers.js';
+import { createBrowserPageLink, errorResult, getBrowserChatToolDomainBlockedToolResult, getSessionId } from './browserToolHelpers.js';
 import { BrowserChatToolReferenceName } from '../../common/browserChatToolReferenceNames.js';
 import { OpenPageToolId } from './openBrowserTool.js';
 
@@ -56,6 +57,7 @@ interface IHandleDialogBrowserToolParams {
 export class HandleDialogBrowserTool implements IToolImpl {
 	constructor(
 		@IPlaywrightService private readonly playwrightService: IPlaywrightService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) { }
 
 	async prepareToolInvocation(_context: IToolInvocationPreparationContext, _token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
@@ -72,6 +74,11 @@ export class HandleDialogBrowserTool implements IToolImpl {
 
 		if (!params.pageId) {
 			return errorResult(`No page ID provided. Use '${OpenPageToolId}' first.`);
+		}
+
+		const blocked = await getBrowserChatToolDomainBlockedToolResult(this.playwrightService, this.configurationService, sessionId, params.pageId);
+		if (blocked) {
+			return blocked;
 		}
 
 		if (params.selectFiles !== undefined && (params.acceptModal !== undefined || params.promptText !== undefined)) {

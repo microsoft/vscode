@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { normalizeDomain, extractDomainPattern, matchesDomainPattern, extractDomainFromUri, isDomainAllowed } from '../../common/domainMatcher.js';
+import { normalizeDomain, extractDomainPattern, matchesDomainPattern, matchesDomainPolicyPattern, extractDomainFromUri, isDomainAllowed } from '../../common/domainMatcher.js';
 
 suite('domainMatcher', () => {
 
@@ -133,6 +133,22 @@ suite('domainMatcher', () => {
 
 		test('returns false for invalid pattern', () => {
 			assert.strictEqual(matchesDomainPattern('example.com', ''), false);
+		});
+	});
+
+	suite('matchesDomainPolicyPattern', () => {
+
+		test('allows bare localhost and loopback IP patterns', () => {
+			assert.strictEqual(matchesDomainPolicyPattern('localhost', 'localhost'), true);
+			assert.strictEqual(matchesDomainPolicyPattern('127.0.0.1', '127.0.0.1'), true);
+		});
+
+		test('bare localhost does not match unrelated hosts', () => {
+			assert.strictEqual(matchesDomainPolicyPattern('evil.com', 'localhost'), false);
+		});
+
+		test('wildcard prefix matches nested subdomains', () => {
+			assert.strictEqual(matchesDomainPolicyPattern('dev.internal.example.com', '*.example.com'), true);
 		});
 	});
 

@@ -8,12 +8,13 @@ import { localize } from '../../../../../nls.js';
 import { logBrowserOpen } from '../../../../../platform/browserView/common/browserViewTelemetry.js';
 import { BrowserViewUri } from '../../../../../platform/browserView/common/browserViewUri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../chat/common/tools/languageModelToolsService.js';
 import { IOpenBrowserToolParams, OpenBrowserToolData } from './openBrowserTool.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { createBrowserPageLink, findExistingPagesByHost, getExistingPagesResult } from './browserToolHelpers.js';
+import { assertBrowserChatToolNavigationAllowed, createBrowserPageLink, findExistingPagesByHost, getExistingPagesResult } from './browserToolHelpers.js';
 import { IBrowserViewWorkbenchService } from '../../common/browserView.js';
 
 export const OpenBrowserToolNonAgenticData: IToolData = {
@@ -31,6 +32,7 @@ export class OpenBrowserToolNonAgentic implements IToolImpl {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IBrowserViewWorkbenchService private readonly browserViewService: IBrowserViewWorkbenchService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) { }
 
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, _token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
@@ -43,6 +45,8 @@ export class OpenBrowserToolNonAgentic implements IToolImpl {
 		if (!parsed) {
 			throw new Error('You must provide a complete, valid URL.');
 		}
+
+		assertBrowserChatToolNavigationAllowed(parsed.href, this.configurationService);
 
 		return {
 			invocationMessage: localize('browser.open.nonAgentic.invocation', "Opening browser page at {0}", parsed.href),

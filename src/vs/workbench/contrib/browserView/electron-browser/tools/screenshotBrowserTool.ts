@@ -10,10 +10,11 @@ import {
 	MarkdownString
 } from '../../../../../base/common/htmlContent.js';
 import { localize } from '../../../../../nls.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IPlaywrightService } from '../../../../../platform/browserView/common/playwrightService.js';
 import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../chat/common/tools/languageModelToolsService.js';
 import { IBrowserViewWorkbenchService } from '../../common/browserView.js';
-import { errorResult, getSessionId, playwrightInvokeRaw } from './browserToolHelpers.js';
+import { errorResult, getBrowserChatToolDomainBlockedToolResult, getSessionId, playwrightInvokeRaw } from './browserToolHelpers.js';
 import { BrowserChatToolReferenceName } from '../../common/browserChatToolReferenceNames.js';
 import { OpenPageToolId } from './openBrowserTool.js';
 import { ReadBrowserToolData } from './readBrowserTool.js';
@@ -66,6 +67,7 @@ export class ScreenshotBrowserTool implements IToolImpl {
 	constructor(
 		@IBrowserViewWorkbenchService private readonly browserViewWorkbenchService: IBrowserViewWorkbenchService,
 		@IPlaywrightService private readonly playwrightService: IPlaywrightService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) { }
 
 	async prepareToolInvocation(_context: IToolInvocationPreparationContext, _token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
@@ -89,6 +91,11 @@ export class ScreenshotBrowserTool implements IToolImpl {
 
 		if (!params.pageId) {
 			return errorResult(`No page ID provided. Use '${OpenPageToolId}' first.`);
+		}
+
+		const blocked = await getBrowserChatToolDomainBlockedToolResult(this.playwrightService, this.configurationService, sessionId, params.pageId);
+		if (blocked) {
+			return blocked;
 		}
 
 		let selector = params.selector;

@@ -7,9 +7,10 @@ import type { CancellationToken } from '../../../../../base/common/cancellation.
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { localize } from '../../../../../nls.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IPlaywrightService } from '../../../../../platform/browserView/common/playwrightService.js';
 import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../chat/common/tools/languageModelToolsService.js';
-import { errorResult, getSessionId, invokeFunctionResultToToolResult } from './browserToolHelpers.js';
+import { errorResult, getBrowserChatToolDomainBlockedToolResult, getSessionId, invokeFunctionResultToToolResult } from './browserToolHelpers.js';
 import { BrowserChatToolReferenceName } from '../../common/browserChatToolReferenceNames.js';
 import { OpenPageToolId } from './openBrowserTool.js';
 
@@ -56,6 +57,7 @@ interface IRunPlaywrightCodeToolParams {
 export class RunPlaywrightCodeTool implements IToolImpl {
 	constructor(
 		@IPlaywrightService private readonly playwrightService: IPlaywrightService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) { }
 
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, _token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
@@ -91,9 +93,14 @@ export class RunPlaywrightCodeTool implements IToolImpl {
 
 		// Resume waiting for a deferred execution
 		if (params.deferredResultId) {
+			const blockedBeforeDefer = await getBrowserChatToolDomainBlockedToolResult(this.playwrightService, this.configurationService, sessionId, params.pageId);
+			if (blockedBeforeDefer) {
+				return blockedBeforeDefer;
+			}
 			try {
 				const result = await this.playwrightService.waitForDeferredResult(sessionId, params.deferredResultId, params.timeoutMs ?? 5_000);
-				return invokeFunctionResultToToolResult(result);
+				const blockedAfter = await getBrowserChatToolDomainBlockedToolResult(this.playwrightService, this.configurationService, sessionId, params.pageId);
+				return blockedAfter ?? invokeFunctionResultToToolResult(result);
 			} catch (e) {
 				return errorResult(e instanceof Error ? e.message : String(e));
 			}
@@ -103,12 +110,22 @@ export class RunPlaywrightCodeTool implements IToolImpl {
 			return errorResult('Either "code" or "deferredResultId" must be provided.');
 		}
 
+		const blockedBefore = await getBrowserChatToolDomainBlockedToolResult(this.playwrightService, this.configurationService, sessionId, params.pageId);
+		if (blockedBefore) {
+			return blockedBefore;
+		}
+
 		let result;
 		try {
 			result = await this.playwrightService.invokeFunction(sessionId, params.pageId, `async (page) => { ${params.code} }`, undefined, params.timeoutMs ?? 5_000);
 		} catch (e) {
 			const message = e instanceof Error ? e.message : String(e);
 			return errorResult(`Code execution failed: ${message}`);
+		}
+
+		const blockedAfter = await getBrowserChatToolDomainBlockedToolResult(this.playwrightService, this.configurationService, sessionId, params.pageId);
+		if (blockedAfter) {
+			return blockedAfter;
 		}
 
 		return invokeFunctionResultToToolResult(result, params.code.trim());

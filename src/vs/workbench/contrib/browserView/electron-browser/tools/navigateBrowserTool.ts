@@ -8,10 +8,11 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IPlaywrightService } from '../../../../../platform/browserView/common/playwrightService.js';
 import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../chat/common/tools/languageModelToolsService.js';
 import { IAgentNetworkFilterService } from '../../../../../platform/networkFilter/common/networkFilterService.js';
-import { createBrowserPageLink, errorResult, getSessionId, playwrightInvoke } from './browserToolHelpers.js';
+import { assertBrowserChatToolNavigationAllowed, createBrowserPageLink, errorResult, getBrowserChatToolDomainBlockedToolResult, getSessionId, playwrightInvoke } from './browserToolHelpers.js';
 import { BrowserChatToolReferenceName } from '../../common/browserChatToolReferenceNames.js';
 import { OpenPageToolId } from './openBrowserTool.js';
 
@@ -54,6 +55,7 @@ export class NavigateBrowserTool implements IToolImpl {
 	constructor(
 		@IPlaywrightService private readonly playwrightService: IPlaywrightService,
 		@IAgentNetworkFilterService private readonly agentNetworkFilterService: IAgentNetworkFilterService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) { }
 
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, _token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
@@ -92,6 +94,8 @@ export class NavigateBrowserTool implements IToolImpl {
 					throw new Error(this.agentNetworkFilterService.formatError(uri));
 				}
 
+				assertBrowserChatToolNavigationAllowed(parsed.href, this.configurationService);
+
 				return {
 					invocationMessage: new MarkdownString(localize('browser.navigate.invocation', "Navigating to {0} in {1}", parsed.href, link)),
 					pastTenseMessage: new MarkdownString(localize('browser.navigate.past', "Navigated to {0} in {1}", parsed.href, link)),
@@ -113,18 +117,31 @@ export class NavigateBrowserTool implements IToolImpl {
 			return errorResult(`No page ID provided. Use '${OpenPageToolId}' first.`);
 		}
 
+		const blockedBefore = await getBrowserChatToolDomainBlockedToolResult(this.playwrightService, this.configurationService, sessionId, params.pageId);
+		if (blockedBefore) {
+			return blockedBefore;
+		}
+
+		let result: IToolResult;
 		switch (params.type) {
 			case 'reload':
-				return playwrightInvoke(this.playwrightService, sessionId, params.pageId, (page) => page.reload({ waitUntil: 'domcontentloaded' }));
+				result = await playwrightInvoke(this.playwrightService, sessionId, params.pageId, (page) => page.reload({ waitUntil: 'domcontentloaded' }));
+				break;
 			case 'back':
-				return playwrightInvoke(this.playwrightService, sessionId, params.pageId, (page) => page.goBack({ waitUntil: 'domcontentloaded' }));
+				result = await playwrightInvoke(this.playwrightService, sessionId, params.pageId, (page) => page.goBack({ waitUntil: 'domcontentloaded' }));
+				break;
 			case 'forward':
-				return playwrightInvoke(this.playwrightService, sessionId, params.pageId, (page) => page.goForward({ waitUntil: 'domcontentloaded' }));
+				result = await playwrightInvoke(this.playwrightService, sessionId, params.pageId, (page) => page.goForward({ waitUntil: 'domcontentloaded' }));
+				break;
 			default: {
-				return playwrightInvoke(this.playwrightService, sessionId, params.pageId, (page, url) => {
+				result = await playwrightInvoke(this.playwrightService, sessionId, params.pageId, (page, url) => {
 					return page.goto(url, { waitUntil: 'domcontentloaded' });
 				}, params.url!);
+				break;
 			}
 		}
+
+		const blocked = await getBrowserChatToolDomainBlockedToolResult(this.playwrightService, this.configurationService, sessionId, params.pageId);
+		return blocked ?? result;
 	}
 }

@@ -24,7 +24,7 @@ import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation,
 import { BrowserViewSharingState, IBrowserViewWorkbenchService } from '../../common/browserView.js';
 import { BrowserEditorInput } from '../../common/browserEditorInput.js';
 import { BrowserChatToolReferenceName } from '../../common/browserChatToolReferenceNames.js';
-import { createBrowserPageLink, findExistingPagesByHost, getExistingPagesResult, getSessionId } from './browserToolHelpers.js';
+import { assertBrowserChatToolNavigationAllowed, createBrowserPageLink, findExistingPagesByHost, getBrowserChatToolDomainBlockedToolResult, getExistingPagesResult, getSessionId } from './browserToolHelpers.js';
 
 export const OpenPageToolId = 'open_browser_page';
 
@@ -95,6 +95,8 @@ export class OpenBrowserTool implements IToolImpl {
 		if (!this.agentNetworkFilterService.isUriAllowed(uri)) {
 			throw new Error(this.agentNetworkFilterService.formatError(uri));
 		}
+
+		assertBrowserChatToolNavigationAllowed(parsed.href, this.configService);
 
 		return {
 			invocationMessage: localize('browser.open.invocation', "Opening browser page at {0}", parsed.href),
@@ -271,11 +273,19 @@ export class OpenBrowserTool implements IToolImpl {
 	}
 
 	private async _openNewPage(sessionId: string, url: string): Promise<IToolResult> {
+		assertBrowserChatToolNavigationAllowed(url, this.configService);
 		const { pageId, summary } = await this.playwrightService.openPage(sessionId, url);
+		const blocked = await getBrowserChatToolDomainBlockedToolResult(this.playwrightService, this.configService, sessionId, pageId);
+		if (blocked) {
+			return blocked;
+		}
 		return this._pageResult(pageId, summary, localize('browser.open.result', "Opened {0}", createBrowserPageLink(pageId)));
 	}
 
 	private async _shareExistingPage(sessionId: string, editor: BrowserEditorInput): Promise<IToolResult> {
+		const pageUrl = editor.url || 'about:blank';
+		assertBrowserChatToolNavigationAllowed(pageUrl, this.configService);
+
 		const model = await editor.resolve();
 		if (model.sharingState !== BrowserViewSharingState.Shared) {
 			if (!(await model.setSharedWithAgent(true))) {
@@ -284,6 +294,10 @@ export class OpenBrowserTool implements IToolImpl {
 		}
 
 		const summary = await this.playwrightService.getSummary(sessionId, editor.id);
+		const blocked = await getBrowserChatToolDomainBlockedToolResult(this.playwrightService, this.configService, sessionId, editor.id);
+		if (blocked) {
+			return blocked;
+		}
 		return this._pageResult(editor.id, summary, localize('browser.open.sharedResult', "User shared {0}", createBrowserPageLink(editor.id)));
 	}
 

@@ -124,6 +124,23 @@ export function matchesDomainPattern(domain: string, pattern: string): boolean {
 	if (!normalizedPattern) {
 		return false;
 	}
+	return matchesNormalizedDomainPattern(domain, normalizedPattern);
+}
+
+/**
+ * Like {@link matchesDomainPattern} but normalizes the pattern as a URL/host entry
+ * (same as `fromUrl: true`), so values such as `localhost` and `127.0.0.1` are valid
+ * in enterprise allowlists.
+ */
+export function matchesDomainPolicyPattern(domain: string, pattern: string): boolean {
+	const normalizedPattern = normalizeDomain(extractDomainPattern(pattern), true);
+	if (!normalizedPattern) {
+		return false;
+	}
+	return matchesNormalizedDomainPattern(domain, normalizedPattern);
+}
+
+function matchesNormalizedDomainPattern(domain: string, normalizedPattern: string): boolean {
 	if (normalizedPattern === '*') {
 		return true;
 	}

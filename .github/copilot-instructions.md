@@ -148,6 +148,12 @@ function f(x: number, y: string): void { }
 - Avoid using events to drive control flow between components. Instead, prefer direct method calls or service interactions to ensure clearer dependencies and easier traceability of logic. Events should be reserved for broadcasting state changes or notifications rather than orchestrating behavior across components.
 - Service dependencies MUST be declared in constructors and MUST NOT be accessed through the `IInstantiationService` at any other point in time.
 
+## Integrated browser chat tools (enterprise)
+
+Administrators can enable integrated browser tools for agents (`workbench.browser.enableChatTools`, enterprise policy **BrowserChatTools**) and optionally restrict which hosts those tools may open or interact with using `workbench.browser.chatTools.allowedDomains` (policy **BrowserChatToolsAllowedDomains**). The value is a string array; when it is empty, no host restriction is applied. Wildcards such as `*.example.com` follow the same rules as `chat.agent.allowedNetworkDomains`. This restriction applies only to integrated browser **chat** tools; it does not change the fetch tool or other agent network filtering (`chat.agent.networkFilter`, `chat.agent.allowedNetworkDomains`).
+
+Example (device policy JSON): `BrowserChatTools: true`, `BrowserChatToolsAllowedDomains: ["localhost", "127.0.0.1"]`.
+
 ## Learnings
 - Minimize the amount of assertions in tests. Prefer one snapshot-style `assert.deepStrictEqual` over multiple precise assertions, as they are much more difficult to understand and to update.
 - Do not stub a global object (e.g. `(mainWindow as any).ResizeObserver = ...`) or use `any` casts to install fakes in tests. Instead, make the dependency injectable: add an optional constructor parameter on the production class that defaults to the real implementation (e.g. `targetWindow.ResizeObserver`), and have the test pass a fake that implements the real interface.
