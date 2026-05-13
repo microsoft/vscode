@@ -15,7 +15,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { mock } from '../../../../../base/test/common/mock.js';
 import { GitHubPullRequestPollingContribution } from '../../browser/github.contribution.js';
 import { IGitHubService } from '../../browser/githubService.js';
-import { IChat, IGitHubInfo, ISession, ISessionCapabilities, ISessionChangeset, ISessionFileChange, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { IChat, IGitHubInfo, ISession, ISessionCapabilities, ISessionChangeset, IChatCheckpoints, ISessionFileChange, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 
 suite('GitHubPullRequestPollingContribution', () => {
@@ -125,7 +125,11 @@ class TestSessionsManagementService extends mock<ISessionsManagementService>() {
 	}
 
 	setGitHubInfo(session: ISession, gitHubInfo: IGitHubInfo | undefined): void {
-		(session.gitHubInfo as ReturnType<typeof observableValue<IGitHubInfo | undefined>>).set(gitHubInfo, undefined);
+		const workspace = session.workspace.get();
+		const folder = workspace?.folders[0];
+		if (folder) {
+			(folder.gitRepository!.gitHubInfo as ReturnType<typeof observableValue<IGitHubInfo | undefined>>).set(gitHubInfo, undefined);
+		}
 	}
 
 	override getSessions(): ISession[] {
@@ -162,7 +166,6 @@ class TestSession implements ISession {
 	readonly isRead: ReturnType<typeof observableValue<boolean>>;
 	readonly description: ReturnType<typeof observableValue<IMarkdownString | undefined>>;
 	readonly lastTurnEnd: ReturnType<typeof observableValue<Date | undefined>>;
-	readonly gitHubInfo: ReturnType<typeof observableValue<IGitHubInfo | undefined>>;
 	readonly chats: ReturnType<typeof observableValue<readonly IChat[]>>;
 	readonly mainChat: IChat;
 	readonly capabilities: ISessionCapabilities = { supportsMultipleChats: false };
@@ -170,12 +173,27 @@ class TestSession implements ISession {
 	constructor(id: string, gitHubInfo: IGitHubInfo | undefined, archived: boolean) {
 		this.sessionId = `test:${id}`;
 		this.resource = URI.from({ scheme: 'test', path: `/${id}` });
+		const gitHubInfoObs = observableValue<IGitHubInfo | undefined>(`test.gitHubInfo.${id}`, gitHubInfo);
+		const workspaceUri = URI.from({ scheme: 'test', path: `/workspace/${id}` });
 		this.title = observableValue<string>(`test.title.${id}`, id);
 		this.updatedAt = observableValue<Date>(`test.updatedAt.${id}`, new Date(0));
 		this.status = observableValue<SessionStatus>(`test.status.${id}`, SessionStatus.Completed);
 		this.changesets = observableValue<readonly ISessionChangeset[]>(`test.changesets.${id}`, []);
 		this.changes = observableValue<readonly ISessionFileChange[]>(`test.changes.${id}`, []);
-		this.workspace = observableValue<ISessionWorkspace | undefined>(`test.workspace.${id}`, undefined);
+		this.workspace = observableValue<ISessionWorkspace | undefined>(`test.workspace.${id}`, {
+			uri: workspaceUri,
+			label: id,
+			icon: Codicon.folder,
+			folders: [{
+				root: workspaceUri,
+				workingDirectory: workspaceUri,
+				name: id,
+				description: undefined,
+				gitRepository: { uri: workspaceUri, workTreeUri: undefined, baseBranchName: undefined, gitHubInfo: gitHubInfoObs },
+			}],
+			requiresWorkspaceTrust: false,
+			isVirtualWorkspace: false,
+		});
 		this.modelId = observableValue<string | undefined>(`test.modelId.${id}`, undefined);
 		this.mode = observableValue<{ readonly id: string; readonly kind: string } | undefined>(`test.mode.${id}`, undefined);
 		this.loading = observableValue<boolean>(`test.loading.${id}`, false);
@@ -183,7 +201,9 @@ class TestSession implements ISession {
 		this.isRead = observableValue<boolean>(`test.isRead.${id}`, true);
 		this.description = observableValue<IMarkdownString | undefined>(`test.description.${id}`, undefined);
 		this.lastTurnEnd = observableValue<Date | undefined>(`test.lastTurnEnd.${id}`, undefined);
-		this.gitHubInfo = observableValue<IGitHubInfo | undefined>(`test.gitHubInfo.${id}`, gitHubInfo);
+
+		const checkpoints = observableValue<IChatCheckpoints | undefined>(`test.checkpoints.${id}`, undefined);
+
 		this.mainChat = {
 			resource: this.resource,
 			createdAt: this.createdAt,
@@ -192,6 +212,7 @@ class TestSession implements ISession {
 			status: this.status,
 			changesets: this.changesets,
 			changes: this.changes,
+			checkpoints,
 			modelId: this.modelId,
 			mode: this.mode,
 			isArchived: this.isArchived,

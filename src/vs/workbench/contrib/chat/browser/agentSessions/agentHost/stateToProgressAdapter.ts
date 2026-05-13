@@ -8,7 +8,7 @@ import { escapeMarkdownLinkLabel, IMarkdownString, MarkdownString } from '../../
 import { marked, type Token, type Tokens, type TokensList } from '../../../../../../base/common/marked/marked.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
-import { ToolCallStatus, TurnState, ResponsePartKind, getToolFileEdits, getToolOutputText, getToolSubagentContent, type ActiveTurn, type ICompletedToolCall, type ToolCallState, type Turn, FileEditKind, ToolResultContentType, type ToolResultContent } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ToolCallStatus, TurnState, ResponsePartKind, getToolFileEdits, getToolOutputText, getToolSubagentContent, type ActiveTurn, type ICompletedToolCall, type ToolCallState, type Turn, FileEditKind, ToolResultContentType, type ToolResultContent, type UsageInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { getToolKind } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { AGENT_HOST_SCHEME, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { MessageAttachmentKind, type FileEdit, type MessageAttachment, type StringOrMarkdown, type TextRange, type UserMessage } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -102,16 +102,16 @@ export function getTerminalContentUri(content: ToolResultContent[] | undefined):
 /**
  * Resolves a raw per-turn model id (as it appears on `UsageInfo.model`) into
  * the chat layer's namespaced language-model id and a human-readable display
- * name. Both halves are independent: the id flows onto request history items
- * (so the input picker shows the model that ran), while the display name
- * flows onto response history items as `details` (so the response footer
- * shows the model that produced it).
+ * details. Both halves are independent: the id flows onto request history
+ * items (so the input picker shows the model that ran), while the details
+ * flow onto response history items (so the response footer shows the model
+ * and any usage metadata).
  */
 export interface TurnModelLookup {
 	/** Returns the chat-layer namespaced model id for a raw AHP model id. */
 	toLanguageModelId(rawModelId: string | undefined): string | undefined;
-	/** Returns the human-readable display name, or undefined if unknown. */
-	toModelDisplayName(rawModelId: string | undefined): string | undefined;
+	/** Returns the human-readable response details, or undefined if unknown. */
+	toResponseDetails(rawModelId: string | undefined, usage: UsageInfo | undefined): string | undefined;
 }
 
 /**
@@ -127,7 +127,7 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 	for (const turn of turns) {
 		const rawModelId = turn.usage?.model;
 		const modelId = lookup?.toLanguageModelId(rawModelId);
-		const modelName = lookup?.toModelDisplayName(rawModelId);
+		const details = lookup?.toResponseDetails(rawModelId, turn.usage);
 
 		// Request
 		const variableData = userMessageToVariableData(turn.userMessage, connectionAuthority);
@@ -171,7 +171,7 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 			parts.push({ kind: 'markdownContent', content: new MarkdownString(`\n\nError: (${turn.error.errorType}) ${turn.error.message}`) });
 		}
 
-		history.push({ type: 'response', parts, participant: participantId, details: modelName });
+		history.push({ type: 'response', parts, participant: participantId, details });
 	}
 	return history;
 }

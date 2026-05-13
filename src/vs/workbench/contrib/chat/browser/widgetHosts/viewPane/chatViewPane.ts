@@ -764,12 +764,18 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		// Update the toolbar context with new sessionId
 		this.updateActions();
 
-		// Mark the old model as read when closing unless explicitly marked unread
+		// Mark the old model as read when closing unless explicitly marked unread.
+		// Deferred because setRead fires _onDidChangeSessions which synchronously
+		// re-renders the sessions list (~250ms), and that doesn't need to block
+		// the new chat from displaying.
 		if (oldModelResource) {
-			const oldSession = this.agentSessionsService.model.getSession(oldModelResource);
-			if (oldSession && !oldSession.isMarkedUnread()) {
-				oldSession.setRead(true);
-			}
+			const capturedOldResource = oldModelResource;
+			this._register(disposableTimeout(() => {
+				const oldSession = this.agentSessionsService.model.getSession(capturedOldResource);
+				if (oldSession && !oldSession.isMarkedUnread()) {
+					oldSession.setRead(true);
+				}
+			}, 0));
 		}
 
 		return model;

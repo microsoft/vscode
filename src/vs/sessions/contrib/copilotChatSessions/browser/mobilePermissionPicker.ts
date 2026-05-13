@@ -11,6 +11,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { ChatConfiguration, ChatPermissionLevel } from '../../../../workbench/contrib/chat/common/constants.js';
 import { IPermissionPickerDelegate, PermissionPicker } from './permissionPicker.js';
@@ -36,9 +37,10 @@ export class MobilePermissionPicker extends PermissionPicker {
 		@IDialogService dialogService: IDialogService,
 		@IOpenerService openerService: IOpenerService,
 		@IStorageService storageService: IStorageService,
+		@ITelemetryService telemetryService: ITelemetryService,
 		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 	) {
-		super(_delegate, actionWidgetService, configurationService, dialogService, openerService, storageService);
+		super(_delegate, actionWidgetService, configurationService, dialogService, openerService, storageService, telemetryService);
 	}
 
 	override showPicker(): void {

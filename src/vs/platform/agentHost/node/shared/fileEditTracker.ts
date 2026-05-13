@@ -67,17 +67,18 @@ export function parseSessionDbUri(raw: string): ISessionDbUriFields | undefined 
 export class FileEditTracker {
 
 	/**
-	 * Pending edits keyed by file path. The `onPreToolUse` hook stores
-	 * entries here; `completeEdit` pops them when the tool finishes.
+	 * Pending edits keyed by file path. Populated by {@link trackEditStart}
+	 * before the edit tool runs; popped by {@link completeEdit} when it
+	 * finishes.
 	 */
-	private readonly _pendingEdits = new Map<string, { beforeContent: VSBuffer; snapshotDone: Promise<void> }>();
+	private readonly _pendingEdits = new Map<string, { beforeContent: VSBuffer; beforeExisted: boolean; snapshotDone: Promise<void> }>();
 
 	/**
-	 * Completed edits keyed by file path. The `onPostToolUse` hook stores
-	 * entries here; `takeCompletedEdit` retrieves them from the
-	 * `onToolComplete` handler and persists to the database.
+	 * Completed edits keyed by file path. Populated by {@link completeEdit};
+	 * drained by {@link takeCompletedEdit}, which persists the entry to
+	 * the database.
 	 */
-	private readonly _completedEdits = new Map<string, { beforeContent: VSBuffer; afterContent: VSBuffer }>();
+	private readonly _completedEdits = new Map<string, { beforeContent: VSBuffer; beforeExisted: boolean; afterContent: VSBuffer }>();
 
 	constructor(
 		private readonly _sessionUri: string,
@@ -88,24 +89,31 @@ export class FileEditTracker {
 	) { }
 
 	/**
-	 * Call from the `onPreToolUse` hook before an edit tool runs.
-	 * Reads the file's current content into memory as the "before" state.
-	 * The hook blocks the SDK until this returns, ensuring the snapshot
-	 * captures pre-edit content.
+	 * Call before an edit tool runs. Reads the file's current content
+	 * into memory as the "before" state. Callers should await this so
+	 * the snapshot captures pre-edit content before the tool writes to
+	 * disk.
 	 *
 	 * @param filePath - Absolute path of the file being edited.
 	 */
 	async trackEditStart(filePath: string): Promise<void> {
-		const snapshotDone = this._readFile(filePath);
-		const entry = { beforeContent: VSBuffer.fromString(''), snapshotDone: snapshotDone.then(buf => { entry.beforeContent = buf; }) };
+		const snapshotDone = this._readFileWithExistence(filePath);
+		const entry = {
+			beforeContent: VSBuffer.fromString(''),
+			beforeExisted: false,
+			snapshotDone: snapshotDone.then(({ content, existed }) => {
+				entry.beforeContent = content;
+				entry.beforeExisted = existed;
+			}),
+		};
 		this._pendingEdits.set(filePath, entry);
 		await entry.snapshotDone;
 	}
 
 	/**
-	 * Call from the `onPostToolUse` hook after an edit tool finishes.
-	 * Reads the file content again as the "after" state and stores the
-	 * result for later retrieval via {@link takeCompletedEdit}.
+	 * Call after an edit tool finishes. Reads the file content again as
+	 * the "after" state and stores the result for later retrieval via
+	 * {@link takeCompletedEdit}.
 	 *
 	 * @param filePath - Absolute path of the file that was edited.
 	 */
@@ -121,6 +129,7 @@ export class FileEditTracker {
 
 		this._completedEdits.set(filePath, {
 			beforeContent: pending.beforeContent,
+			beforeExisted: pending.beforeExisted,
 			afterContent,
 		});
 	}
@@ -147,12 +156,14 @@ export class FileEditTracker {
 		const beforeText = edit.beforeContent.toString();
 		const afterText = edit.afterContent.toString();
 
+		const isCreate = !edit.beforeExisted && afterBytes.length > 0;
+
 		let addedLines: number | undefined;
 		let removedLines: number | undefined;
 		try {
 			const counts = await this._diffComputeService.computeDiffCounts(beforeText, afterText);
 			addedLines = counts.added;
-			removedLines = counts.removed;
+			removedLines = isCreate ? 0 : counts.removed;
 		} catch (err) {
 			this._logService.warn(`[FileEditTracker] Failed to compute diff counts: ${filePath}`, err);
 		}
@@ -162,7 +173,7 @@ export class FileEditTracker {
 				turnId,
 				toolCallId,
 				filePath,
-				kind: FileEditKind.Edit,
+				kind: isCreate ? FileEditKind.Create : FileEditKind.Edit,
 				beforeContent: beforeBytes,
 				afterContent: afterBytes,
 				addedLines,
@@ -193,6 +204,16 @@ export class FileEditTracker {
 		} catch (err) {
 			this._logService.trace(`[FileEditTracker] Could not read file for snapshot: ${filePath}`, err);
 			return VSBuffer.fromString('');
+		}
+	}
+
+	private async _readFileWithExistence(filePath: string): Promise<{ content: VSBuffer; existed: boolean }> {
+		try {
+			const content = await this._fileService.readFile(URI.file(filePath));
+			return { content: content.value, existed: true };
+		} catch (err) {
+			this._logService.trace(`[FileEditTracker] Could not read file for snapshot: ${filePath}`, err);
+			return { content: VSBuffer.fromString(''), existed: false };
 		}
 	}
 }

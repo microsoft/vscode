@@ -16,23 +16,25 @@ import { IPreferencesService } from '../../../../../workbench/services/preferenc
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { INonSessionTaskEntry, ISessionsTasksService, SessionsTasksService, ITaskEntry } from '../../browser/sessionsTasksService.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
-import { observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { Task } from '../../../../../workbench/contrib/tasks/common/tasks.js';
 import { ITaskService } from '../../../../../workbench/contrib/tasks/common/taskService.js';
-import { IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { IChat, ISession, ISessionFolder, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 
 function makeSession(opts: { repository?: URI; worktree?: URI } = {}): ISession {
 	const workspace = opts.repository ? {
+		uri: opts.repository,
 		label: 'test',
 		icon: Codicon.folder,
-		repositories: [{
-			uri: opts.repository,
-			workingDirectory: opts.worktree,
-			detail: undefined,
-			baseBranchName: undefined,
-		}],
+		folders: [{
+			root: opts.repository,
+			workingDirectory: opts.worktree ?? opts.repository,
+			name: 'test',
+			description: undefined,
+			gitRepository: { uri: opts.repository, workTreeUri: opts.worktree, baseBranchName: undefined, gitHubInfo: constObservable(undefined) },
+		} satisfies ISessionFolder],
 		requiresWorkspaceTrust: false,
 	} : undefined;
 	const chat: IChat = {
@@ -47,17 +49,18 @@ function makeSession(opts: { repository?: URI; worktree?: URI } = {}): ISession 
 		mode: observableValue('mode', undefined),
 		isArchived: observableValue('isArchived', false),
 		isRead: observableValue('isRead', true),
+		checkpoints: observableValue('checkpoints', undefined),
 		lastTurnEnd: observableValue('lastTurnEnd', undefined),
 		description: observableValue('description', undefined),
-	};
-	const session: ISession = {
+	} satisfies IChat;
+	const session = {
 		sessionId: 'test:session',
 		resource: chat.resource,
 		providerId: 'test',
 		sessionType: 'background',
 		icon: Codicon.copilot,
 		createdAt: chat.createdAt,
-		workspace: observableValue('workspace', workspace),
+		workspace: observableValue('workspace', workspace as ISessionWorkspace | undefined),
 		title: chat.title,
 		updatedAt: chat.updatedAt,
 		status: chat.status,
@@ -70,11 +73,10 @@ function makeSession(opts: { repository?: URI; worktree?: URI } = {}): ISession 
 		isRead: chat.isRead,
 		lastTurnEnd: chat.lastTurnEnd,
 		description: chat.description,
-		gitHubInfo: observableValue('gitHubInfo', undefined),
 		chats: observableValue('chats', [chat]),
 		mainChat: chat,
 		capabilities: { supportsMultipleChats: false },
-	};
+	} satisfies ISession;
 	return session;
 }
 

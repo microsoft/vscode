@@ -4,9 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { describe, expect, test } from 'vitest';
-import { ConfigKey, IConfigurationService } from '../../../configuration/common/configurationService';
 import type { IChatEndpoint } from '../../../networking/common/networking';
-import { IExperimentationService } from '../../../telemetry/common/nullExperimentationService';
 import { modelSupportsPDFDocuments, modelSupportsToolSearch } from '../../common/chatModelCapabilities';
 
 function fakeModel(family: string) {
@@ -66,28 +64,16 @@ describe('modelSupportsToolSearch', () => {
 		expect(modelSupportsToolSearch('claude-3-opus')).toBe(false);
 	});
 
-	test('supports OpenAI gpt-5.4 and gpt-5.5 models when the setting is enabled', () => {
-		const configurationService = {
-			getExperimentBasedConfig: (key: unknown) => key === ConfigKey.ResponsesApiToolSearchEnabled,
-		} as unknown as IConfigurationService;
-		const experimentationService = {} as IExperimentationService;
-
-		expect(modelSupportsToolSearch('gpt-5.4', configurationService, experimentationService)).toBe(true);
-		expect(modelSupportsToolSearch('gpt-5.5', configurationService, experimentationService)).toBe(true);
-		expect(modelSupportsToolSearch('gpt-5.4')).toBe(false);
-		expect(modelSupportsToolSearch('gpt-5.5')).toBe(false);
+	test('supports OpenAI gpt-5.4 and gpt-5.5 models', () => {
+		expect(modelSupportsToolSearch('gpt-5.4')).toBe(true);
+		expect(modelSupportsToolSearch('gpt-5.5')).toBe(true);
 	});
 
 	test('rejects suffixed gpt-5.4/5.5 variants (exact match only)', () => {
-		const configurationService = {
-			getExperimentBasedConfig: (key: unknown) => key === ConfigKey.ResponsesApiToolSearchEnabled,
-		} as unknown as IConfigurationService;
-		const experimentationService = {} as IExperimentationService;
-
-		expect(modelSupportsToolSearch('gpt-5.4-mini', configurationService, experimentationService)).toBe(false);
-		expect(modelSupportsToolSearch('gpt-5.4-preview', configurationService, experimentationService)).toBe(false);
-		expect(modelSupportsToolSearch('gpt-5.5-preview', configurationService, experimentationService)).toBe(false);
-		expect(modelSupportsToolSearch('gpt5.5-preview', configurationService, experimentationService)).toBe(false);
+		expect(modelSupportsToolSearch('gpt-5.4-mini')).toBe(false);
+		expect(modelSupportsToolSearch('gpt-5.4-preview')).toBe(false);
+		expect(modelSupportsToolSearch('gpt-5.5-preview')).toBe(false);
+		expect(modelSupportsToolSearch('gpt5.5-preview')).toBe(false);
 	});
 
 	test('rejects other non-Claude models', () => {

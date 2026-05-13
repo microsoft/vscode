@@ -111,7 +111,7 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 	}
 
 	private _startPolling(session: ISession): void {
-		const gitHubInfo = session.gitHubInfo.get();
+		const gitHubInfo = session.workspace.get()?.folders[0]?.gitRepository?.gitHubInfo.get();
 		if (!gitHubInfo || !gitHubInfo.pullRequest) {
 			return;
 		}
@@ -131,7 +131,7 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 	}
 
 	private _disposePolling(session: ISession): void {
-		const gitHubInfo = session.gitHubInfo.get();
+		const gitHubInfo = session.workspace.get()?.folders[0]?.gitRepository?.gitHubInfo.get();
 		if (!gitHubInfo || !gitHubInfo.pullRequest) {
 			return;
 		}

@@ -15,21 +15,21 @@
 .ai-customization-management-editor .welcome-prompts-content-container {
 	position: absolute;
 	inset: 0;
-	padding: 24px;
 	box-sizing: border-box;
 	overflow: hidden;
+	padding: 0 4px;
 }
 
 .ai-customization-management-editor .welcome-prompts-inner {
 	max-width: 800px;
 	margin: 0 auto;
-	padding-top: 16px;
+	padding-top: 4px;
 }
 
 .ai-customization-management-editor .welcome-prompts-heading {
-	font-size: 18px;
-	font-weight: 400;
-	letter-spacing: -0.01em;
+	font-size: 22px;
+	font-weight: 600;
+	line-height: 1.2;
 	margin: 0 0 6px;
 	color: var(--vscode-foreground);
 }
@@ -37,8 +37,10 @@
 .ai-customization-management-editor .welcome-prompts-subtitle {
 	font-size: 13px;
 	color: var(--vscode-descriptionForeground);
-	margin: 0 0 36px;
-	line-height: 1.6;
+	margin: 0 0 8px;
+	padding-bottom: 8px;
+	line-height: 1.45;
+	min-height: calc(13px * 1.45 * 2);
 }
 
 .ai-customization-management-editor .welcome-prompts-primary {
@@ -49,7 +51,7 @@
 	width: 100%;
 	box-sizing: border-box;
 	padding: 12px 8px 8px;
-	margin: 12px 0 24px;
+	margin: 12px 0;
 	border: 1px solid color-mix(in srgb, var(--vscode-editorWidget-border) 85%, transparent);
 	border-radius: 16px;
 }

@@ -116,6 +116,8 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 			await protocolClient.connect();
 			this._logService.info(`${LOG_PREFIX} Protocol handshake completed with ${result.address}`);
 
+			this.cacheTunnel(tunnel, auth.provider);
+
 			await this._remoteAgentHostService.addManagedConnection({
 				name: result.name,
 				connectionToken: result.connectionToken,
@@ -127,8 +129,6 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 					authProvider: auth.provider,
 				},
 			}, protocolClient);
-
-			this._onDidChangeTunnels.fire();
 		} catch (err) {
 			this._logService.error(`${LOG_PREFIX} Connection setup failed`, err);
 			this._mainService.disconnect(result.connectionId).catch(() => { /* best effort */ });

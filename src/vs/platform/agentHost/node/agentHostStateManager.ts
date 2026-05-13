@@ -29,8 +29,15 @@ export class AgentHostStateManager extends Disposable {
 	private _rootState: RootState;
 	private readonly _sessionStates = new Map<string, SessionState>();
 
-	/** Tracks which session URI each active turn belongs to, keyed by turnId. */
-	private readonly _activeTurnToSession = new Map<string, string>();
+	/**
+	 * Sessions whose authoritative state has an active turn. Derived from
+	 * `state.activeTurn` (the source of truth maintained by the session
+	 * reducer) — never from raw action turn-ids — so that mismatched or
+	 * out-of-order turn lifecycle actions can't desync the count from
+	 * reality. Drives `RootActiveSessionsChanged` and `hasActiveSessions`,
+	 * which together gate `--enable-remote-auto-shutdown`.
+	 */
+	private readonly _sessionsWithActiveTurn = new Set<string>();
 
 	/** Last summary sent to clients (via sessionAdded or sessionSummaryChanged). */
 	private readonly _lastNotifiedSummaries = new Map<string, SessionSummary>();
@@ -67,7 +74,7 @@ export class AgentHostStateManager extends Disposable {
 	private readonly _log = (msg: string) => this._logService.warn(`[AgentHostStateManager] ${msg}`);
 
 	get hasActiveSessions(): boolean {
-		return this._activeTurnToSession.size > 0;
+		return this._sessionsWithActiveTurn.size > 0;
 	}
 
 	// ---- State accessors ----------------------------------------------------
@@ -262,9 +269,14 @@ export class AgentHostStateManager extends Disposable {
 			this._flushSummaryNotificationFor(session);
 		}
 
-		// Clean up active turn tracking
-		if (state.activeTurn) {
-			this._activeTurnToSession.delete(state.activeTurn.id);
+		// Clean up active turn tracking. We must dispatch
+		// `RootActiveSessionsChanged` if the count actually changes so that
+		// downstream consumers (e.g. the server lifetime tracker driving
+		// `--enable-remote-auto-shutdown`) release their hold on the process.
+		// Without this, evicting a session that still has an active turn
+		// silently strands the active-sessions count above zero forever.
+		if (this._sessionsWithActiveTurn.delete(session)) {
+			this.dispatchServerAction({ type: ActionType.RootActiveSessionsChanged, activeSessions: this._sessionsWithActiveTurn.size });
 		}
 
 		this._sessionStates.delete(session);
@@ -386,17 +398,21 @@ export class AgentHostStateManager extends Disposable {
 					this._summaryNotifyScheduler.schedule();
 				}
 
-				// Track active turn for turn lifecycle
-				if (sessionAction.type === ActionType.SessionTurnStarted) {
-					this._activeTurnToSession.set(sessionAction.turnId, key);
-					this.dispatchServerAction({ type: ActionType.RootActiveSessionsChanged, activeSessions: this._activeTurnToSession.size });
-				} else if (
-					sessionAction.type === ActionType.SessionTurnComplete ||
-					sessionAction.type === ActionType.SessionTurnCancelled ||
-					sessionAction.type === ActionType.SessionError
-				) {
-					this._activeTurnToSession.delete(sessionAction.turnId);
-					this.dispatchServerAction({ type: ActionType.RootActiveSessionsChanged, activeSessions: this._activeTurnToSession.size });
+				// Track active turn transitions off the reducer's view of state,
+				// not off the raw action's turn-ids. The reducer's `endTurn`
+				// no-ops on a stale turn-id and `SessionTurnStarted` overwrites
+				// a still-running turn, so deriving the count from `activeTurn`
+				// is the only way to keep `RootActiveSessionsChanged` in sync
+				// with reality.
+				const hadActive = !!state.activeTurn;
+				const hasActive = !!newState.activeTurn;
+				if (hadActive !== hasActive) {
+					if (hasActive) {
+						this._sessionsWithActiveTurn.add(key);
+					} else {
+						this._sessionsWithActiveTurn.delete(key);
+					}
+					this.dispatchServerAction({ type: ActionType.RootActiveSessionsChanged, activeSessions: this._sessionsWithActiveTurn.size });
 				}
 
 				resultingState = newState;

@@ -93,7 +93,7 @@ registerAction2(class extends Action2 {
 			menu: {
 				id: MenuId.ViewTitle,
 				group: 'navigation',
-				order: -1,
+				order: 1,
 				when: ContextKeyExpr.and(
 					IsSessionsWindowContext,
 					IsNewChatSessionContext,
@@ -133,7 +133,7 @@ registerAction2(class extends Action2 {
 			icon: Codicon.collapseAll,
 			menu: {
 				id: MenuId.ViewTitle,
-				group: 'navigation',
+				group: '1_files',
 				order: 10,
 				when: ContextKeyExpr.equals('view', SESSIONS_FILES_VIEW_ID),
 			},

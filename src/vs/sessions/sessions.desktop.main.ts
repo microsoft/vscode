@@ -133,6 +133,9 @@ import '../workbench/contrib/debug/electron-browser/extensionHostDebugService.js
 // Extension devtools
 import '../workbench/contrib/extensions/electron-browser/devtoolsExtensionHost.contribution.js';
 
+// Extensions Management (runtime extensions editor, profiling, remote extensions, etc.)
+import '../workbench/contrib/extensions/electron-browser/extensions.contribution.js';
+
 
 // Issues
 import '../workbench/contrib/issue/electron-browser/issue.contribution.js';

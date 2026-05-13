@@ -32,8 +32,6 @@
 	align-items: center;
 	gap: 4px;
 	padding: 2px 0 6px;
-	margin-bottom: 6px;
-	border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border, var(--vscode-panel-border, var(--vscode-widget-border, transparent)));
 }
 
 .ai-customization-management-editor .sidebar-home-button {
@@ -253,7 +251,7 @@
 	align-items: center;
 	gap: 8px;
 	flex-shrink: 0;
-	padding: 6px 2px;
+	padding: 12px 2px;
 }
 
 .ai-customization-list-widget .list-search-container,
@@ -358,6 +356,8 @@
 	justify-content: center;
 	font-size: 12px;
 	opacity: 0.7;
+	order: 10;
+	margin-left: auto;
 }
 
 .ai-customization-group-header .group-icon {
@@ -365,7 +365,6 @@
 }
 
 .ai-customization-group-header .group-label-group {
-	flex: 1;
 	display: flex;
 	align-items: center;
 	gap: 4px;
@@ -376,7 +375,6 @@
 .ai-customization-group-header .group-label {
 	font-weight: 500;
 	text-transform: capitalize;
-	letter-spacing: 0.04em;
 	color: var(--vscode-sideBarSectionHeader-foreground, var(--vscode-foreground));
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -388,7 +386,6 @@
 	font-size: 10px;
 	font-weight: 500;
 	color: var(--vscode-descriptionForeground);
-	border-radius: 8px;
 	min-width: 14px;
 	text-align: center;
 	line-height: 16px;
@@ -423,7 +420,7 @@
 .ai-customization-list-item {
 	display: flex;
 	align-items: flex-start;
-	padding: 6px 8px 6px 24px;
+	padding: 6px 8px 6px 30px;
 	cursor: pointer;
 	border-radius: 4px;
 	min-height: 32px;
@@ -479,7 +476,7 @@
 	opacity: 0.6;
 }
 
-/* Shared inline badge style — used for item badges */
+/* Shared inline badge style — used by MCP "Bridged" badge and item badges */
 .inline-badge {
 	flex-shrink: 0;
 	font-size: 10px;
@@ -510,7 +507,7 @@
 	margin-right: 4px;
 }
 
-/* MCP server name row — inline layout for the server name */
+/* MCP bridged badge — shown inline next to the server name */
 .mcp-server-item .mcp-server-name-row {
 	display: flex;
 	align-items: center;
@@ -518,14 +515,7 @@
 }
 
 .ai-customization-list-item .item-type-icon {
-	flex-shrink: 0;
-	width: 16px;
-	height: 16px;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	opacity: 0.8;
-	font-size: 14px;
+	display: none;
 }
 
 .ai-customization-list-item .item-text {
@@ -578,7 +568,7 @@
 
 .ai-customization-list-item:hover .item-right,
 .ai-customization-list-item:focus-within .item-right,
-.monaco-list-row.focused .item-right {
+.monaco-list-row.focused .ai-customization-list-item .item-right {
 	opacity: 1;
 }
 
@@ -586,6 +576,74 @@
 .ai-customization-list-item .highlight {
 	font-weight: bold;
 	color: var(--vscode-list-highlightForeground);
+}
+
+/* Section title header at top of list widget (shared by all list widgets) */
+.ai-customization-list-widget .section-title-header,
+.mcp-list-widget .section-title-header {
+	flex-shrink: 0;
+	padding: 4px 4px 32px 4px;
+	border-bottom: 1px solid var(--vscode-panel-border);
+}
+
+.ai-customization-list-widget .section-title-header .section-title-row,
+.mcp-list-widget .section-title-header .section-title-row {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	margin: 0 0 6px 0;
+}
+
+.ai-customization-list-widget .section-title-header .section-title-back-slot,
+.mcp-list-widget .section-title-header .section-title-back-slot {
+	display: flex;
+	align-items: center;
+}
+
+.ai-customization-list-widget .section-title-header .section-title-back-slot:empty,
+.mcp-list-widget .section-title-header .section-title-back-slot:empty {
+	display: none;
+}
+
+.ai-customization-list-widget .section-title-header .section-title,
+.mcp-list-widget .section-title-header .section-title {
+	font-size: 22px;
+	font-weight: 600;
+	line-height: 1.2;
+	margin: 0;
+	color: var(--vscode-foreground);
+}
+
+.ai-customization-list-widget .section-title-header .section-title-description,
+.mcp-list-widget .section-title-header .section-title-description {
+	font-size: 13px;
+	line-height: 1.45;
+	color: var(--vscode-descriptionForeground);
+	margin: 0 0 8px 0;
+	/* Reserve space for ~2 lines so the header height is stable across sections. */
+	/* Rounded up to a whole pixel so naturally-wrapped 2-line descriptions and */
+	/* shorter 1-line descriptions render at the same height instead of differing */
+	/* by a sub-pixel rounding. */
+	min-height: 38px;
+}
+
+.ai-customization-list-widget .section-title-header .section-title-link,
+.mcp-list-widget .section-title-header .section-title-link {
+	font-size: 13px;
+	/* Match the description's line-height so the link's inline-flex line-box */
+	/* does not change the total header height between sections. */
+	line-height: 1.45;
+	color: var(--vscode-textLink-foreground);
+	text-decoration: none;
+	cursor: pointer;
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.ai-customization-list-widget .section-title-header .section-title-link:hover,
+.mcp-list-widget .section-title-header .section-title-link:hover {
+	text-decoration: underline;
 }
 
 /* Section footer at bottom of list widget */
@@ -850,34 +908,6 @@
 	overflow: hidden;
 }
 
-.mcp-list-widget .section-footer {
-	flex-shrink: 0;
-	padding: 12px 4px 6px 4px;
-	border-top: 1px solid var(--vscode-widget-border);
-}
-
-.mcp-list-widget .section-footer .section-footer-description {
-	font-size: 13px;
-	color: var(--vscode-descriptionForeground);
-	line-height: 1.5;
-	margin: 0 0 8px 0;
-}
-
-.mcp-list-widget .section-footer .section-footer-link {
-	font-size: 13px;
-	color: var(--vscode-textLink-foreground);
-	text-decoration: none;
-	cursor: pointer;
-	display: inline-flex;
-	align-items: center;
-	gap: 4px;
-}
-
-.mcp-list-widget .section-footer .section-footer-link:hover {
-	text-decoration: underline;
-	color: var(--vscode-textLink-activeForeground);
-}
-
 .mcp-list-widget .mcp-list-container {
 	flex: 1;
 	min-height: 0;
@@ -990,7 +1020,7 @@
 .mcp-server-item {
 	display: flex;
 	align-items: center;
-	padding: 6px 8px;
+	padding: 6px 8px 6px 30px;
 	cursor: pointer;
 	border-radius: 4px;
 	min-height: 32px;
@@ -1007,13 +1037,7 @@
 }
 
 .mcp-server-item .mcp-server-icon {
-	flex-shrink: 0;
-	width: 24px;
-	height: 24px;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	opacity: 0.8;
+	display: none;
 }
 
 .mcp-server-item .mcp-server-details {
@@ -1083,8 +1107,10 @@
 	display: flex;
 	gap: 4px;
 	flex-shrink: 0;
-	/* Reserve space so focused button outlines do not clip against the widget's overflow:hidden */
-	padding: 1px;
+	/* Horizontal-only padding so focused button outlines do not clip against */
+	/* the widget's overflow:hidden. Vertical padding is omitted so the button */
+	/* group does not make the search row taller than on other sections. */
+	padding: 0 1px;
 }
 
 .mcp-list-widget .list-button-group .monaco-button:focus-visible {

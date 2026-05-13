@@ -182,6 +182,18 @@
 	margin-left: auto;
 }
 
+.agent-sessions-workbench .sessions-account-titlebar-panel-cta-actions {
+	display: contents;
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-cta-actions .monaco-button {
+	height: 22px;
+	padding: 0 8px;
+	font-size: 11px;
+	line-height: 20px;
+	border-radius: var(--vscode-cornerRadius-medium);
+}
+
 .agent-sessions-workbench .sessions-account-titlebar-panel-header-action {
 	display: inline-flex;
 	align-items: center;
@@ -249,7 +261,6 @@
 .agent-sessions-workbench .sessions-account-titlebar-panel-section {
 	display: flex;
 	flex-direction: column;
-	padding: 6px 0 0;
 }
 
 /* The embedded chat status dashboard ships dividers/HRs and header borders
@@ -266,9 +277,9 @@
 }
 
 /* Flatten contributed sub-sections (e.g. "Codebase Semantic Index") into
-	the parent Subscription section. The dashboard renders these non-collapsibly
-	(via `disableContributedSectionsCollapsible`); these rules just align the
-	header typography with the panel's quota-title style above it. */
+	the parent Subscription section. The dashboard renders these non-collapsibly;
+	these rules just align the header typography with the panel's quota-title
+	style above it. */
 .agent-sessions-workbench .sessions-account-titlebar-panel-section .chat-status-bar-entry-tooltip .collapsible-header.non-collapsible {
 	margin-top: 4px;
 	padding: 0 28px 0 0;
@@ -290,20 +301,15 @@
 	line-height: 15px;
 }
 
-.agent-sessions-workbench .sessions-account-titlebar-panel-section .chat-status-bar-entry-tooltip .collapsible-content > .collapsible-inner {
-	gap: 6px;
-	margin-top: 0;
-	margin-bottom: 0;
-}
-
-.agent-sessions-workbench .sessions-account-titlebar-panel-section .chat-status-bar-entry-tooltip .section-description,
-.agent-sessions-workbench .sessions-account-titlebar-panel-section .chat-status-bar-entry-tooltip .section-detail {
+.agent-sessions-workbench .sessions-account-titlebar-panel-section .chat-status-bar-entry-tooltip .collapsible-header.non-collapsible .contributed-detail {
 	font-size: 11px;
 	line-height: 15px;
 }
 
-.agent-sessions-workbench .sessions-account-titlebar-panel-section .chat-status-bar-entry-tooltip .section-detail {
-	padding-bottom: 4px;
+.agent-sessions-workbench .sessions-account-titlebar-panel-section .chat-status-bar-entry-tooltip .collapsible-content > .collapsible-inner {
+	gap: 6px;
+	margin-top: 0;
+	margin-bottom: 0;
 }
 
 .agent-sessions-workbench .sessions-account-titlebar-panel-section-title {
@@ -471,7 +477,7 @@
 .agent-sessions-workbench .sessions-account-titlebar-panel-section.subscription .chat-status-bar-entry-tooltip {
 	display: flex;
 	flex-direction: column;
-	padding: 4px 8px 8px;
+	padding: 10px 8px 8px;
 }
 
 .agent-sessions-workbench .sessions-account-titlebar-panel-section.subscription .chat-status-bar-entry-tooltip > div.description {

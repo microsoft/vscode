@@ -132,7 +132,7 @@ class NewChatInSessionWidget extends Disposable {
 	private _getContextFolderUri(): URI | undefined {
 		const session = this.sessionsManagementService.activeSession.get();
 		const workspace = session?.workspace.get();
-		return workspace?.repositories[0]?.workingDirectory ?? workspace?.repositories[0]?.uri;
+		return workspace?.folders[0]?.workingDirectory;
 	}
 
 	// --- Send ---

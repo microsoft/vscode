@@ -1020,6 +1020,7 @@ export class ChatModelsWidget extends Disposable {
 			this.updateAddModelsButton();
 			this.createTable();
 		}));
+		this._register(this.chatEntitlementService.onDidChangeUsageBasedBilling(() => this.createTable()));
 		this._register(this.languageModelsService.onDidChangeLanguageModelVendors(() => this.updateAddModelsButton()));
 		this._register(this.contextKeyService.onDidChangeContext(e => {
 			if (e.affectsSome(new Set(['github.copilot.clientByokEnabled']))) {
@@ -1068,7 +1069,7 @@ export class ChatModelsWidget extends Disposable {
 			}
 		];
 
-		const hasAnyCostFields = this.viewModel.viewModelEntries.some(e => !isLanguageModelProviderEntry(e) && !isLanguageModelGroupEntry(e) && !isStatusEntry(e) && (e.model.metadata.inputCost !== undefined || e.model.metadata.outputCost !== undefined || e.model.metadata.cacheCost !== undefined));
+		const isUBB = this.chatEntitlementService.quotas.usageBasedBilling === true;
 		columns.push(
 			{
 				label: localize('tokenLimits', 'Context Size'),
@@ -1087,10 +1088,10 @@ export class ChatModelsWidget extends Disposable {
 				project(row: IViewModelEntry): IViewModelEntry { return row; }
 			},
 			{
-				label: hasAnyCostFields ? localize('cost', 'Cost (Credits per 1M Tokens)') : localize('pricing', 'Pricing'),
+				label: isUBB ? localize('cost', 'Cost (Credits per 1M Tokens)') : localize('pricing', 'Pricing'),
 				tooltip: '',
-				weight: hasAnyCostFields ? 0.24 : 0.15,
-				minimumWidth: hasAnyCostFields ? 240 : 200,
+				weight: isUBB ? 0.24 : 0.15,
+				minimumWidth: isUBB ? 240 : 200,
 				templateId: CombinedCostColumnRenderer.TEMPLATE_ID,
 				project(row: IViewModelEntry): IViewModelEntry { return row; }
 			},

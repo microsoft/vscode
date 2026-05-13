@@ -295,14 +295,14 @@ Learn more about [GitHub Copilot](https://docs.github.com/copilot/using-github-c
 		let messageString: vscode.MarkdownString;
 		if (this.authenticationService.copilotToken?.isIndividual) {
 			messageString = new vscode.MarkdownString(vscode.l10n.t({
-				message: 'You have reached your additional usage limit for this month. We have automatically switched you to {0} which is included with your plan. [Configure additional spend]({1}) to keep going.',
+				message: 'You have reached your additional budget limit for this month. We have automatically switched you to {0} which is included with your plan. [Configure budget]({1}) to keep going.',
 				args: [baseEndpoint.name, 'command:chat.enableAdditionalUsage'],
 				// To make sure the translators don't break the link
 				comment: [`{Locked=']({'}`]
 			}));
 			messageString.isTrusted = { enabledCommands: ['chat.enableAdditionalUsage'] };
 		} else {
-			messageString = new vscode.MarkdownString(vscode.l10n.t('You have reached your additional usage limit for this month. We have automatically switched you to {0} which is included with your plan. To configure additional spend, contact your organization admin.', baseEndpoint.name));
+			messageString = new vscode.MarkdownString(vscode.l10n.t('You have reached your additional budget limit for this month. We have automatically switched you to {0} which is included with your plan. To configure budget, contact your organization admin.', baseEndpoint.name));
 		}
 		stream.warning(messageString);
 		return request;

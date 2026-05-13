@@ -11,6 +11,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IActionListItem } from '../../../../../platform/actionWidget/browser/actionList.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { CopilotChatSessionsProvider, ICopilotChatSession } from '../../browser/copilotChatSessionsProvider.js';
@@ -71,6 +73,7 @@ function createPicker(
 		getProviders: () => [],
 		getProvider: () => provider,
 	} as unknown as ISessionsProvidersService);
+	instantiationService.stub(ITelemetryService, NullTelemetryService);
 
 	const picker = disposables.add(instantiationService.createInstance(ClaudePermissionModePicker));
 

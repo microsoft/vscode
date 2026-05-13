@@ -30,7 +30,6 @@ import { SHOW_SESSIONS_PICKER_COMMAND_ID } from './sessionsActions.js';
 import { IsSessionArchivedContext, IsSessionPinnedContext, IsSessionReadContext, SessionItemContextMenuId, SessionItemHasBranchNameContext } from './views/sessionsList.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { getSessionBranchName } from '../../../services/sessions/common/session.js';
 
 const titleBarContextKeys = new Set([IsNewChatSessionContext.key]);
 
@@ -290,7 +289,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 	 */
 	private _getRepositoryBranchLabel(): string | undefined {
 		const sessionData = this.sessionsManagementService.activeSession.get();
-		return getSessionBranchName(sessionData);
+		return sessionData?.workspace.get()?.folders[0]?.gitRepository?.branchName?.trim() || undefined;
 	}
 
 	private _showContextMenu(e: MouseEvent): void {
@@ -310,7 +309,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			[IsSessionPinnedContext.key, isPinned],
 			[IsSessionArchivedContext.key, isArchived],
 			[IsSessionReadContext.key, isRead],
-			[SessionItemHasBranchNameContext.key, getSessionBranchName(sessionData) !== undefined],
+			[SessionItemHasBranchNameContext.key, !!sessionData.workspace.get()?.folders[0]?.gitRepository?.branchName?.trim()],
 			['chatSessionType', sessionData.sessionType],
 			[ChatSessionProviderIdContext.key, sessionData.providerId],
 		];

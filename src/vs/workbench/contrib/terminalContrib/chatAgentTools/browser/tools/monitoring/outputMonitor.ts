@@ -381,10 +381,40 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			return { shouldContinuePolling: true };
 		}
 
-		// In async mode, use regex-based detection for input-required patterns
-		// (passwords, [Y/n], etc.) and signal the agent to handle via send_to_terminal.
+		// Decide whether the current last line should fire an input-needed signal.
+		// Two acceptable conditions:
+		//   1. Strict high-confidence prompt (y/n, password, "(END)", etc.) — safe regardless
+		//      of execution-active state.
+		//   2. Broad fallback pattern (bare ":" / "?" trailers) — only safe when
+		//      `execution.isActive() === true`, which provides independent evidence the
+		//      command is still consuming stdin. Without that guard the broad pattern
+		//      produces false positives on finished commands (issue #315476). The same
+		//      `isActive === true` guard is enforced in `_waitForIdle`, but we re-check
+		//      here because (a) activity can flip between `_waitForIdle` returning and
+		//      `_handleIdleState` running and (b) `_handleIdleState` is reachable via
+		//      paths that did not enter through the broad branch.
+		let shouldFireInputNeeded = detectsInputRequiredPattern(outputLastLine);
+		if (!shouldFireInputNeeded && detectsLikelyInputRequiredPattern(outputLastLine)) {
+			const isActive = this._execution.isActive ? await this._execution.isActive() : undefined;
+			if (isActive === true) {
+				shouldFireInputNeeded = true;
+			}
+		}
+
+		// Re-check the user-input guard after any awaits above. The earlier check at
+		// the top of this method runs before `await this._execution.isActive()`; if
+		// the user types during that await the flag flips to true but we would still
+		// fall through and fire `onDidDetectInputNeeded`, undermining the guard and
+		// potentially re-pausing the agent loop after input was already provided.
+		if (shouldFireInputNeeded && this._userInputtedSinceIdleDetected) {
+			this._logService.trace('OutputMonitor: User input detected during isActive await; skipping prompt and continuing polling');
+			this._cleanupIdleInputListener();
+			return { shouldContinuePolling: true };
+		}
+
+		// In async mode, signal the agent so it can drive send_to_terminal.
 		if (this._asyncMode) {
-			if (detectsInputRequiredPattern(outputLastLine)) {
+			if (shouldFireInputNeeded) {
 				if (detectsSensitiveInputPrompt(outputLastLine)) {
 					this._logService.trace('OutputMonitor: Async mode - sensitive input prompt detected, signaling sensitive UI');
 					this._onDidDetectSensitiveInputNeeded.fire();
@@ -397,13 +427,12 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			return { shouldContinuePolling: false, output };
 		}
 
-		// Use regex-based detection for input-required patterns (passwords, [Y/n], etc.)
 		// In foreground mode, fire the event so the race in runInTerminalTool can pick it
 		// up and return control to the agent (which uses send_to_terminal to provide input).
 		// For sensitive prompts (passwords, secrets, OTPs, …) we instead fire a separate
 		// event so the tool can show a confirmation dialog that focuses the terminal —
 		// the secret must never be routed through the model.
-		if (detectsInputRequiredPattern(outputLastLine)) {
+		if (shouldFireInputNeeded) {
 			if (detectsSensitiveInputPrompt(outputLastLine)) {
 				this._logService.trace('OutputMonitor: Sensitive input prompt detected, signaling sensitive UI');
 				this._onDidDetectSensitiveInputNeeded.fire();
@@ -516,10 +545,13 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 
 				// When the terminal has been idle (no new data) but the execution is
 				// still reported as active (e.g. task-backed executions), check the
-				// broader input-required heuristics. These patterns are too noisy to
-				// use during active output, but once the terminal has settled they
-				// reliably indicate an interactive prompt like "Enter your name: ".
-				if (recentlyIdle && isActive === true && detectsInputRequiredPattern(currentLastLine)) {
+				// broader input-required heuristics. The `isActive === true` guard is
+				// load-bearing: it provides independent evidence the command is still
+				// consuming stdin, which is the only signal that disambiguates a real
+				// prompt like `Enter your name: ` from log output like `Last Command: `
+				// on a single cursor line. Without that guard the broad patterns
+				// produce false positives on finished commands (issue #315476).
+				if (recentlyIdle && isActive === true && detectsLikelyInputRequiredPattern(currentLastLine)) {
 					this._logService.trace(`OutputMonitor: waitForIdle -> broad input pattern detected while active+idle (waited=${waited}ms, lastLine=${this._formatLastLineForLog(currentTail)})`);
 					this._state = OutputMonitorState.Idle;
 					this._setupIdleInputListener();
@@ -633,8 +665,16 @@ export function detectsHighConfidenceInputPattern(cursorLine: string): boolean {
 		// The trailing space indicates the cursor is positioned after the prompt awaiting input, as
 		// opposed to normal command output that happens to contain "(y)" followed by a newline.
 		/\(y\) +$/i,
-		// Prompt with parenthesized default value e.g. "package name: (test) " or "version: (1.0.0) "
-		/:\s*\([^)]*\) +$/,
+		// Prompt with parenthesized default value e.g. "package name: (test) " or "version: (1.0.0) ".
+		// REQUIRES at least one space between the colon and the opening paren (`\s+`, not `\s*`)
+		// so this rule does not match git-aware shell prompts like
+		// allow-any-unicode-next-line
+		//   "➜  myrepo git:(main) "                    (oh-my-zsh / robbyrussell)
+		//   "[user@host ~/myrepo (main)]$ "
+		// where the colon abuts the paren with no separator. npm-init / yarn-init style
+		// prompts always render at least one space after the colon, so this stays specific
+		// without dropping the intended matches.
+		/:\s+\([^)]*\) +$/,
 		// Line contains (END) which is common in pagers
 		/\(END\)$/,
 		// Password prompt. Requires a trailing colon (e.g. "Password:", "[sudo] password for user:")
@@ -660,15 +700,40 @@ export function detectsHighConfidenceInputPattern(cursorLine: string): boolean {
 }
 
 /**
- * Full set of input-required patterns including broader heuristics (bare `:` and
- * `?` with trailing space). These may produce false positives on normal command
- * output, so they should only be used **after** the terminal has been confirmed
- * idle through normal polling (consecutive idle events with no data). In
- * `_waitForIdle`, these are checked only when `recentlyIdle` is true (to handle
- * active executions that are actually waiting for input). For the unconditional
- * fast-path, use {@link detectsHighConfidenceInputPattern} instead.
+ * Strict input-required detection. Returns true only for patterns that are
+ * specific enough to avoid false positives on normal command output (build
+ * logs, status lines, error messages). Safe to call from any code path,
+ * including unconditionally on the last line of a finished command.
+ *
+ * For the broader heuristics (bare `:` / `?` with trailing space), use
+ * {@link detectsLikelyInputRequiredPattern} — but only from a call site that
+ * has independent evidence the command is still running and consuming stdin
+ * (e.g. `execution.isActive() === true`). Those broad patterns cannot
+ * reliably distinguish a real prompt like `Enter your name: ` from log
+ * output like `Last Command: ` on a single line.
  */
 export function detectsInputRequiredPattern(cursorLine: string): boolean {
+	return detectsHighConfidenceInputPattern(cursorLine);
+}
+
+/**
+ * Strict patterns plus broader heuristics (bare `:` and `?` with trailing
+ * space). These broad patterns may produce false positives on normal command
+ * output that happens to end with those characters (e.g. `Last Command: `,
+ * `[INFO] Starting: `, `find: /tmp/x: No such file: `). They are
+ * syntactically indistinguishable from real prompts like `Enter your name: `
+ * on a single cursor line.
+ *
+ * Therefore this function is only safe to call when the caller has
+ * independent evidence that the terminal is currently consuming stdin —
+ * specifically, `execution.isActive() === true` at a moment when the output
+ * stream has been quiet (idle) for several poll intervals. `_waitForIdle`
+ * applies that gate; new call sites should preserve it.
+ *
+ * For unconditional checks (e.g. on the last line of a finished command),
+ * use {@link detectsInputRequiredPattern} instead.
+ */
+export function detectsLikelyInputRequiredPattern(cursorLine: string): boolean {
 	if (detectsHighConfidenceInputPattern(cursorLine)) {
 		return true;
 	}
@@ -676,12 +741,14 @@ export function detectsInputRequiredPattern(cursorLine: string): boolean {
 		// Line ends with ':' followed by at least one space. The trailing space indicates a
 		// waiting prompt (cursor positioned after the colon). A bare ':\n' at end of buffer is
 		// usually non-prompt output (e.g. a header or log line) and must not match.
-		// NOTE: This is a broad pattern — only use after confirming idle state via polling.
+		// NOTE: This is a broad pattern — only use when the caller has independent evidence
+		// (e.g. `isActive === true`) that the command is still consuming stdin. On a finished
+		// command, log output like `Last Command: ` is indistinguishable from a real prompt.
 		/: +$/,
 		// Line ends with '?' followed by at least one space (optionally followed by a
 		// parenthesized hint like "Continue? (yes/no) "). Requiring trailing space avoids
 		// matching arbitrary command output where a line happens to end with '?'.
-		// NOTE: This is a broad pattern — only use after confirming idle state via polling.
+		// NOTE: This is a broad pattern — same caller-side guard required as above.
 		/\? *(?:\([a-z\s]+\))? +$/i,
 	].some(e => e.test(cursorLine));
 }

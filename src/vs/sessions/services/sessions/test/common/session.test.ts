@@ -7,32 +7,7 @@ import assert from 'assert';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IChatSessionFileChange, IChatSessionFileChange2 } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { CLAUDE_CODE_SESSION_TYPE, COPILOT_CLI_SESSION_TYPE, COPILOT_CLOUD_SESSION_TYPE, isWorkspaceAgentSessionType, sessionFileChangesEqual } from '../../common/session.js';
-
-suite('isWorkspaceAgentSessionType', () => {
-
-	ensureNoDisposablesAreLeakedInTestSuite();
-
-	test('returns true for Copilot CLI sessions', () => {
-		assert.strictEqual(isWorkspaceAgentSessionType(COPILOT_CLI_SESSION_TYPE), true);
-	});
-
-	test('returns true for Claude Code sessions', () => {
-		assert.strictEqual(isWorkspaceAgentSessionType(CLAUDE_CODE_SESSION_TYPE), true);
-	});
-
-	test('returns false for Copilot Cloud sessions', () => {
-		assert.strictEqual(isWorkspaceAgentSessionType(COPILOT_CLOUD_SESSION_TYPE), false);
-	});
-
-	test('returns false for unknown session types', () => {
-		assert.strictEqual(isWorkspaceAgentSessionType('unknown-type'), false);
-	});
-
-	test('returns false for undefined', () => {
-		assert.strictEqual(isWorkspaceAgentSessionType(undefined), false);
-	});
-});
+import { sessionFileChangesEqual } from '../../common/session.js';
 
 suite('sessionFileChangesEqual', () => {
 

@@ -132,7 +132,7 @@ export interface IEndpointFetchOptions {
 
 export interface IEndpoint {
 	readonly urlOrRequestMetadata: string | RequestMetadata;
-	getExtraHeaders?(location?: ChatLocation): Record<string, string>;
+	getExtraHeaders?(location?: ChatLocation, interactionTypeOverride?: InteractionTypeOverride): Record<string, string>;
 	getEndpointFetchOptions?(): IEndpointFetchOptions;
 	interceptBody?(body: IEndpointBody | undefined): void;
 	acquireTokenizer(): ITokenizer;
@@ -440,7 +440,7 @@ function networkRequest(
 		'OpenAI-Intent': intent, // Tells CAPI who flighted this request. Helps find buggy features
 		'X-GitHub-Api-Version': '2026-01-09',
 		...additionalHeaders,
-		...(endpoint.getExtraHeaders ? endpoint.getExtraHeaders(location) : {}),
+		...(endpoint.getExtraHeaders ? endpoint.getExtraHeaders(location, options.interactionTypeOverride) : {}),
 	};
 	headers['X-Interaction-Type'] = agentInteractionType;
 	headers['X-Agent-Task-Id'] = requestId;

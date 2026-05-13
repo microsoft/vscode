@@ -254,7 +254,7 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 			providerId = provider.id;
 		}
 
-		return this._getSessionForProvider(id, server, providerId, resolvedScopes, authorizationServer, errorOnUserInteraction, clientId ?? authDetails.clientId);
+		return this._getSessionForProvider(id, server, providerId, resolvedScopes, authorizationServer, errorOnUserInteraction, clientId ?? authDetails.clientId, authDetails.resourceMetadata?.resource);
 	}
 
 	private async _getSessionForProvider(
@@ -265,8 +265,9 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 		authorizationServer?: URI,
 		errorOnUserInteraction: boolean = false,
 		clientId?: string,
+		resource?: string,
 	): Promise<string | undefined> {
-		const sessions = await this._authenticationService.getSessions(providerId, scopes, { authorizationServer, clientId }, true);
+		const sessions = await this._authenticationService.getSessions(providerId, scopes, { authorizationServer, clientId, resource }, true);
 		const accountNamePreference = this.authenticationMcpServersService.getAccountPreference(server.id, providerId);
 		let matchingAccountPreferenceSession: AuthenticationSession | undefined;
 		if (accountNamePreference) {
@@ -319,7 +320,8 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 						activateImmediate: true,
 						account: accountToCreate,
 						authorizationServer,
-						clientId
+						clientId,
+						resource
 					});
 			} while (
 				accountToCreate

@@ -264,6 +264,11 @@ export class AgentSideEffects extends Disposable {
 			return;
 		}
 
+		if (signal.kind === 'subagent_completed') {
+			this.completeSubagentSession(sessionKey, signal.toolCallId);
+			return;
+		}
+
 		if (signal.kind === 'steering_consumed') {
 			this._stateManager.dispatchServerAction({
 				type: ActionType.SessionPendingMessageRemoved,
@@ -395,7 +400,13 @@ export class AgentSideEffects extends Disposable {
 		this._stateManager.dispatchServerAction(action);
 
 		if (action.type === ActionType.SessionToolCallComplete) {
-			this.completeSubagentSession(sessionKey, action.toolCallId);
+			// Drop any events that were buffered for a subagent whose
+			// `subagent_started` never arrived (e.g. the parent tool failed
+			// before the subagent was created). The actual subagent session
+			// teardown is driven by the `subagent_completed` signal because
+			// background subagents (`mode: background`) continue running
+			// after the parent tool call returns.
+			this._pendingSubagentSignals.delete(`${sessionKey}:${action.toolCallId}`);
 			if (getToolFileEdits(action.result).length > 0) {
 				this._scheduleDebouncedDiffComputation(sessionKey, turnId);
 			}
@@ -561,8 +572,11 @@ export class AgentSideEffects extends Disposable {
 	}
 
 	/**
-	 * Completes all active subagent sessions for a given parent session.
-	 * Called when a parent tool call completes.
+	 * Completes the subagent session associated with a parent tool call.
+	 * Driven by the `subagent_completed` signal from the agent (which the
+	 * SDK fires on both `subagent.completed` and `subagent.failed`), not by
+	 * parent tool call completion — background subagents keep running after
+	 * their parent tool returns.
 	 */
 	completeSubagentSession(parentSession: ProtocolURI, toolCallId: string): void {
 		const key = `${parentSession}:${toolCallId}`;

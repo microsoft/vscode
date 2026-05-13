@@ -33,7 +33,7 @@ MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
 		title: localize2('openSearch', "Search"),
 		icon: Codicon.search,
 	},
-	group: 'navigation',
+	group: '1_files',
 	order: 0,
 	when: ContextKeyExpr.equals('view', SESSIONS_FILES_VIEW_ID),
 });

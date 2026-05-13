@@ -5,14 +5,14 @@
 
 import { localize, localize2 } from '../../../../nls.js';
 import { Action } from '../../../../base/common/actions.js';
-import { IEditorIdentifier, IEditorCommandsContext, CloseDirection, SaveReason, EditorsOrder, EditorInputCapabilities, DEFAULT_EDITOR_ASSOCIATION, GroupIdentifier, EditorResourceAccessor, isDiffEditorInput, isResourceDiffEditorInput } from '../../../common/editor.js';
+import { IEditorIdentifier, IEditorCommandsContext, CloseDirection, SaveReason, EditorsOrder, EditorInputCapabilities, GroupIdentifier, EditorResourceAccessor } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { SideBySideEditorInput } from '../../../common/editor/sideBySideEditorInput.js';
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
 import { GoFilter, IHistoryService } from '../../../services/history/common/history.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { CLOSE_EDITOR_COMMAND_ID, MOVE_ACTIVE_EDITOR_COMMAND_ID, SelectedEditorsMoveCopyArguments, SPLIT_EDITOR_LEFT, SPLIT_EDITOR_RIGHT, SPLIT_EDITOR_UP, SPLIT_EDITOR_DOWN, splitEditor, LAYOUT_EDITOR_GROUPS_COMMAND_ID, UNPIN_EDITOR_COMMAND_ID, COPY_ACTIVE_EDITOR_COMMAND_ID, SPLIT_EDITOR, TOGGLE_MAXIMIZE_EDITOR_GROUP, MOVE_EDITOR_INTO_NEW_WINDOW_COMMAND_ID, COPY_EDITOR_INTO_NEW_WINDOW_COMMAND_ID, MOVE_EDITOR_GROUP_INTO_NEW_WINDOW_COMMAND_ID, COPY_EDITOR_GROUP_INTO_NEW_WINDOW_COMMAND_ID, NEW_EMPTY_EDITOR_WINDOW_COMMAND_ID, MOVE_EDITOR_INTO_RIGHT_GROUP, MOVE_EDITOR_INTO_LEFT_GROUP, MOVE_EDITOR_INTO_ABOVE_GROUP, MOVE_EDITOR_INTO_BELOW_GROUP } from './editorCommands.js';
+import { CLOSE_EDITOR_COMMAND_ID, MOVE_ACTIVE_EDITOR_COMMAND_ID, SelectedEditorsMoveCopyArguments, SPLIT_EDITOR_LEFT, SPLIT_EDITOR_RIGHT, SPLIT_EDITOR_UP, SPLIT_EDITOR_DOWN, splitEditor, LAYOUT_EDITOR_GROUPS_COMMAND_ID, UNPIN_EDITOR_COMMAND_ID, COPY_ACTIVE_EDITOR_COMMAND_ID, SPLIT_EDITOR, TOGGLE_MAXIMIZE_EDITOR_GROUP, MOVE_EDITOR_INTO_NEW_WINDOW_COMMAND_ID, COPY_EDITOR_INTO_NEW_WINDOW_COMMAND_ID, MOVE_EDITOR_GROUP_INTO_NEW_WINDOW_COMMAND_ID, COPY_EDITOR_GROUP_INTO_NEW_WINDOW_COMMAND_ID, NEW_EMPTY_EDITOR_WINDOW_COMMAND_ID, MOVE_EDITOR_INTO_RIGHT_GROUP, MOVE_EDITOR_INTO_LEFT_GROUP, MOVE_EDITOR_INTO_ABOVE_GROUP, MOVE_EDITOR_INTO_BELOW_GROUP, REOPEN_ACTIVE_EDITOR_WITH_COMMAND_ID } from './editorCommands.js';
 import { IEditorGroupsService, IEditorGroup, GroupsArrangement, GroupLocation, GroupDirection, preferredSideBySideGroupDirection, IFindGroupScope, GroupOrientation, EditorGroupLayout, GroupsOrder, MergeGroupMode } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -2542,7 +2542,7 @@ export class ToggleEditorTypeAction extends Action2 {
 	}
 }
 
-export class ReOpenInTextEditorAction extends Action2 {
+export class ReOpenInTextEditorAction extends ExecuteCommandAction {
 	static readonly ID = 'workbench.action.reopenTextEditor';
 	static readonly TITLE = localize2('reopenTextEditor', 'Reopen Editor with Text Editor');
 
@@ -2553,55 +2553,7 @@ export class ReOpenInTextEditorAction extends Action2 {
 			f1: true,
 			category: Categories.View,
 			precondition: ActiveEditorAvailableEditorIdsContext
-		});
-	}
-
-	override async run(accessor: ServicesAccessor): Promise<void> {
-		const editorService = accessor.get(IEditorService);
-
-		const activeEditorPane = editorService.activeEditorPane;
-		if (!activeEditorPane) {
-			return;
-		}
-
-		if (isDiffEditorInput(activeEditorPane.input)) {
-			const untypedEditor = activeEditorPane.input.toUntyped();
-			if (!isResourceDiffEditorInput(untypedEditor)) {
-				return;
-			}
-
-			await editorService.replaceEditors([
-				{
-					editor: activeEditorPane.input,
-					replacement: {
-						...untypedEditor,
-						options: {
-							...untypedEditor.options,
-							override: DEFAULT_EDITOR_ASSOCIATION.id
-						}
-					}
-				}
-			], activeEditorPane.group);
-			return;
-		}
-
-		const activeEditorResource = EditorResourceAccessor.getCanonicalUri(activeEditorPane.input);
-		if (!activeEditorResource) {
-			return;
-		}
-
-		// Replace the current editor with the text editor
-		await editorService.replaceEditors([
-			{
-				editor: activeEditorPane.input,
-				replacement: {
-					resource: activeEditorResource,
-					options: {
-						override: DEFAULT_EDITOR_ASSOCIATION.id
-					}
-				}
-			}
-		], activeEditorPane.group);
+		}, REOPEN_ACTIVE_EDITOR_WITH_COMMAND_ID, 'default');
 	}
 }
 

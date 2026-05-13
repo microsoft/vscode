@@ -12,7 +12,7 @@ import { IFileEditRecord, ISessionDatabase } from '../../common/sessionDataServi
 import { MessageAttachmentKind, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, type ResponsePart, type StringOrMarkdown, type ToolCallCompletedState, type ToolResultContent, type Turn, type UserMessage } from '../../common/state/sessionState.js';
 import { getInvocationMessage, getPastTenseMessage, getShellLanguage, getSubagentMetadata, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, synthesizeSkillToolCall } from './copilotToolDisplay.js';
-import { buildSessionDbUri } from './fileEditTracker.js';
+import { buildSessionDbUri } from '../shared/fileEditTracker.js';
 import { getMediaMime } from '../../../../base/common/mime.js';
 
 function tryStringify(value: unknown): string | undefined {

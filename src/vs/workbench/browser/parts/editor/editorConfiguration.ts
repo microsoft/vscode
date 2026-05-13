@@ -9,7 +9,7 @@ import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, IConfigurationNode, ConfigurationScope } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { workbenchConfigurationNodeBase } from '../../../common/configuration.js';
-import { diffEditorsAssociationsSettingId, editorsAssociationsSettingId, IEditorResolverService, RegisteredEditorInfo, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
+import { diffEditorsAssociationsSettingId, editorsAssociationsAgentsWindowDefault, editorsAssociationsSettingId, IEditorResolverService, RegisteredEditorInfo, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
 import { IJSONSchemaMap } from '../../../../base/common/jsonSchema.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { coalesce } from '../../../../base/common/arrays.js';
@@ -161,6 +161,9 @@ export class DynamicEditorConfigurations extends Disposable implements IWorkbenc
 							type: 'string',
 							enum: binaryEditorCandidates,
 						}
+					},
+					agentsWindow: {
+						default: editorsAssociationsAgentsWindowDefault
 					}
 				}
 			}

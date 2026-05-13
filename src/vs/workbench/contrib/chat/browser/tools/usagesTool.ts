@@ -5,10 +5,9 @@
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { Emitter, Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { escapeRegExpCharacters } from '../../../../../base/common/strings.js';
-import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { isEqual, relativePath } from '../../../../../base/common/resources.js';
@@ -18,16 +17,13 @@ import { Location, LocationLink } from '../../../../../editor/common/languages.j
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
-import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { getDefinitionsAtPosition, getImplementationsAtPosition, getReferencesAtPosition } from '../../../../../editor/contrib/gotoSymbol/browser/goToSymbol.js';
 import { localize } from '../../../../../nls.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { ISearchService, QueryType, resultIsMatch } from '../../../../services/search/common/search.js';
-import { ChatConfiguration } from '../../common/constants.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress, } from '../../common/tools/languageModelToolsService.js';
 import { createToolSimpleTextResult } from '../../common/tools/builtinTools/toolHelpers.js';
 import { errorResult, findLineNumber, findSymbolColumn, ISymbolToolInput, resolveToolUri } from './toolHelpers.js';
@@ -47,11 +43,9 @@ IMPORTANT: The file and line do NOT need to be the definition of the symbol. Any
 If the tool returns an error, retry with corrected input - ensure the file path is correct, the line content matches the actual file content, and the symbol name appears in that line.`;
 
 /**
- * Static description used when the {@link ChatConfiguration.SymbolToolsCacheStable}
- * experiment is enabled. Identical to {@link BaseModelDescription} plus a single
- * sentence describing the unsupported-language behavior. Crucially, this string
- * does NOT depend on the set of registered reference providers, so it stays
- * byte-stable across requests as language extensions activate during a turn.
+ * Static description that does not depend on the set of registered reference
+ * providers, so it stays byte-stable across requests as language extensions
+ * activate during a turn.
  */
 const StaticModelDescription = BaseModelDescription + `
 
@@ -59,64 +53,17 @@ If the file's language has no reference provider registered, the tool returns an
 
 export class UsagesTool extends Disposable implements IToolImpl {
 
-	private readonly _onDidUpdateToolData = this._store.add(new Emitter<void>());
-	readonly onDidUpdateToolData = this._onDidUpdateToolData.event;
-
 	constructor(
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
-		@ILanguageService private readonly _languageService: ILanguageService,
 		@IModelService private readonly _modelService: IModelService,
 		@ISearchService private readonly _searchService: ISearchService,
 		@ITextModelService private readonly _textModelService: ITextModelService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
-
-		// In cache-stable mode the tool's wire bytes don't depend on the set
-		// of registered reference providers, so we don't re-fire the update
-		// event on provider changes. Skipping this subscription also avoids
-		// unnecessary tool re-registration churn.
-		if (!this._isCacheStable()) {
-			this._store.add(Event.debounce(
-				this._languageFeaturesService.referenceProvider.onDidChange,
-				() => { },
-				2000
-			)((() => this._onDidUpdateToolData.fire())));
-		}
 	}
 
-	private _isCacheStable(): boolean {
-		return this._configurationService.getValue<boolean>(ChatConfiguration.SymbolToolsCacheStable) === true;
-	}
-
-	getToolData(): IToolData | undefined {
-		if (this._isCacheStable()) {
-			return this._getStaticToolData();
-		}
-
-		const languageIds = this._languageFeaturesService.referenceProvider.registeredLanguageIds;
-
-		if (languageIds.size === 0) {
-			return undefined;
-		}
-
-		let modelDescription = BaseModelDescription;
-		let userDescription: string;
-		if (languageIds.has('*')) {
-			modelDescription += '\n\nSupported for all languages.';
-			userDescription = localize('tool.usages.userDescription', 'Find references, definitions, and implementations of a symbol');
-		} else {
-			const sorted = [...languageIds].sort();
-			modelDescription += `\n\nCurrently supported for: ${sorted.join(', ')}.`;
-			const niceNames = sorted.map(id => this._languageService.getLanguageName(id) ?? id);
-			userDescription = localize('tool.usages.userDescriptionWithLanguages', 'Find references, definitions, and implementations of a symbol ({0})', niceNames.join(', '));
-		}
-
-		return this._buildToolData(modelDescription, userDescription);
-	}
-
-	private _getStaticToolData(): IToolData {
+	getToolData(): IToolData {
 		return this._buildToolData(
 			StaticModelDescription,
 			localize('tool.usages.userDescription', 'Find references, definitions, and implementations of a symbol'),
@@ -363,19 +310,6 @@ export class UsagesToolContribution extends Disposable implements IWorkbenchCont
 		super();
 
 		const usagesTool = this._store.add(instantiationService.createInstance(UsagesTool));
-
-		let registration: IDisposable | undefined;
-		const registerUsagesTool = () => {
-			registration?.dispose();
-			registration = undefined;
-			toolsService.flushToolUpdates();
-			const toolData = usagesTool.getToolData();
-			if (toolData) {
-				registration = toolsService.registerTool(toolData, usagesTool);
-			}
-		};
-		registerUsagesTool();
-		this._store.add(usagesTool.onDidUpdateToolData(registerUsagesTool));
-		this._store.add({ dispose: () => registration?.dispose() });
+		this._store.add(toolsService.registerTool(usagesTool.getToolData(), usagesTool));
 	}
 }

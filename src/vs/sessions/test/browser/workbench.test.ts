@@ -19,6 +19,7 @@ interface IWorkbenchTestHarness {
 	_restoreAttachedEditorMaximizedOnShow: boolean;
 	setEditorMaximized(maximized: boolean): void;
 	setAuxiliaryBarHidden(hidden: boolean): void;
+	_savePartVisibility(): void;
 }
 
 suite('Sessions - Workbench', () => {
@@ -41,6 +42,7 @@ suite('Sessions - Workbench', () => {
 			_restoreAttachedEditorMaximizedOnShow: false,
 			setEditorMaximized: () => { },
 			setAuxiliaryBarHidden: () => { },
+			_savePartVisibility: () => { },
 		};
 	}
 

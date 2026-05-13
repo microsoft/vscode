@@ -234,5 +234,6 @@
 	],
 	"builtInExtensionsEnabledWithAutoUpdates": [
 		"GitHub.copilot-chat"
-	]
+	],
+	"sessionsWindowAllowedExtensions": []
 }

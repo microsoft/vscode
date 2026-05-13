@@ -396,6 +396,34 @@ suite('AuthenticationService', () => {
 			});
 		});
 
+		test('getSessions - forwards resource option to provider', async () => {
+			let receivedResource: string | undefined;
+			const provider = createProvider({
+				getSessions: async (_scopes, options) => {
+					receivedResource = options.resource;
+					return [createSession()];
+				},
+			});
+			authenticationService.registerAuthenticationProvider(provider.id, provider);
+			await authenticationService.getSessions(provider.id, ['scope'], { resource: 'https://api.example.com/' });
+
+			assert.strictEqual(receivedResource, 'https://api.example.com/');
+		});
+
+		test('createSession - forwards resource option to provider', async () => {
+			let receivedResource: string | undefined;
+			const provider = createProvider({
+				createSession: async (_scopes, options) => {
+					receivedResource = options.resource;
+					return createSession();
+				},
+			});
+			authenticationService.registerAuthenticationProvider(provider.id, provider);
+			await authenticationService.createSession(provider.id, ['scope'], { resource: 'https://api.example.com/' });
+
+			assert.strictEqual(receivedResource, 'https://api.example.com/');
+		});
+
 		test('removeSession', async () => {
 			const emitter = new Emitter<AuthenticationSessionsChangeEvent>();
 			const session = createSession();

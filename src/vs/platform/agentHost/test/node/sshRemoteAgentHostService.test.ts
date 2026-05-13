@@ -1116,7 +1116,7 @@ suite('SSHRemoteAgentHostMainService - _buildAuthAttempts', () => {
 	const ED = Buffer.from('ed25519-key-bytes');
 	const EXPLICIT = Buffer.from('explicit-key-bytes');
 
-	test('Agent + no SSH_AUTH_SOCK + only id_rsa exists → publickey id_rsa only', async () => {
+	test('Agent + no SSH_AUTH_SOCK + only id_rsa exists → publickey id_rsa, then keyboard-interactive', async () => {
 		service.agentSock = undefined;
 		service.keyFiles.set('~/.ssh/id_rsa', RSA);
 
@@ -1124,10 +1124,11 @@ suite('SSHRemoteAgentHostMainService - _buildAuthAttempts', () => {
 
 		assert.deepStrictEqual(attempts, [
 			{ type: 'publickey', username: 'testuser', key: RSA, keyPath: '~/.ssh/id_rsa' },
+			{ type: 'keyboard-interactive', username: 'testuser' },
 		]);
 	});
 
-	test('Agent + SSH_AUTH_SOCK + only id_rsa exists → agent then publickey id_rsa', async () => {
+	test('Agent + SSH_AUTH_SOCK + only id_rsa exists → agent then publickey id_rsa, then keyboard-interactive', async () => {
 		// This is the regression-driving case: agent is set but doesn't have
 		// the key, so we must still fall through to the on-disk default key.
 		service.agentSock = '/tmp/ssh-agent.sock';
@@ -1138,10 +1139,11 @@ suite('SSHRemoteAgentHostMainService - _buildAuthAttempts', () => {
 		assert.deepStrictEqual(attempts, [
 			{ type: 'agent', username: 'testuser', agent: '/tmp/ssh-agent.sock' },
 			{ type: 'publickey', username: 'testuser', key: RSA, keyPath: '~/.ssh/id_rsa' },
+			{ type: 'keyboard-interactive', username: 'testuser' },
 		]);
 	});
 
-	test('Agent + SSH_AUTH_SOCK + id_ed25519 and id_rsa exist → agent then both keys in default order', async () => {
+	test('Agent + SSH_AUTH_SOCK + id_ed25519 and id_rsa exist → agent then both keys in default order, then keyboard-interactive', async () => {
 		service.agentSock = '/tmp/ssh-agent.sock';
 		service.keyFiles.set('~/.ssh/id_ed25519', ED);
 		service.keyFiles.set('~/.ssh/id_rsa', RSA);
@@ -1152,20 +1154,22 @@ suite('SSHRemoteAgentHostMainService - _buildAuthAttempts', () => {
 			{ type: 'agent', username: 'testuser', agent: '/tmp/ssh-agent.sock' },
 			{ type: 'publickey', username: 'testuser', key: ED, keyPath: '~/.ssh/id_ed25519' },
 			{ type: 'publickey', username: 'testuser', key: RSA, keyPath: '~/.ssh/id_rsa' },
+			{ type: 'keyboard-interactive', username: 'testuser' },
 		]);
 	});
 
-	test('Agent + SSH_AUTH_SOCK + no default keys → agent only', async () => {
+	test('Agent + SSH_AUTH_SOCK + no default keys → agent then keyboard-interactive', async () => {
 		service.agentSock = '/tmp/ssh-agent.sock';
 
 		const attempts = await service.testBuildAuthAttempts(makeConfig({ authMethod: SSHAuthMethod.Agent }));
 
 		assert.deepStrictEqual(attempts, [
 			{ type: 'agent', username: 'testuser', agent: '/tmp/ssh-agent.sock' },
+			{ type: 'keyboard-interactive', username: 'testuser' },
 		]);
 	});
 
-	test('Agent + explicit privateKeyPath + SSH_AUTH_SOCK + id_rsa → explicit, agent, id_rsa', async () => {
+	test('Agent + explicit privateKeyPath + SSH_AUTH_SOCK + id_rsa → explicit, agent, id_rsa, keyboard-interactive', async () => {
 		service.agentSock = '/tmp/ssh-agent.sock';
 		service.keyFiles.set('/some/explicit/key', EXPLICIT);
 		service.keyFiles.set('~/.ssh/id_rsa', RSA);
@@ -1179,10 +1183,11 @@ suite('SSHRemoteAgentHostMainService - _buildAuthAttempts', () => {
 			{ type: 'publickey', username: 'testuser', key: EXPLICIT, keyPath: '/some/explicit/key' },
 			{ type: 'agent', username: 'testuser', agent: '/tmp/ssh-agent.sock' },
 			{ type: 'publickey', username: 'testuser', key: RSA, keyPath: '~/.ssh/id_rsa' },
+			{ type: 'keyboard-interactive', username: 'testuser' },
 		]);
 	});
 
-	test('Agent + explicit privateKeyPath that matches a default → explicit added once', async () => {
+	test('Agent + explicit privateKeyPath that matches a default → explicit added once, then keyboard-interactive', async () => {
 		// When the user pins ~/.ssh/id_rsa explicitly, we shouldn't end up
 		// with the same key twice in the queue.
 		service.agentSock = undefined;
@@ -1195,6 +1200,7 @@ suite('SSHRemoteAgentHostMainService - _buildAuthAttempts', () => {
 
 		assert.deepStrictEqual(attempts, [
 			{ type: 'publickey', username: 'testuser', key: RSA, keyPath: '~/.ssh/id_rsa' },
+			{ type: 'keyboard-interactive', username: 'testuser' },
 		]);
 	});
 
@@ -1290,5 +1296,34 @@ suite('SSHRemoteAgentHostMainService - makeAuthHandler', () => {
 		handler(['publickey'], false, next => calls.push(next));
 
 		assert.deepStrictEqual(calls, [{ type: 'agent', username: 'u', agent: '/sock' }]);
+	});
+
+	test('keyboard-interactive routes prompts to the kbi handler and is skipped without one', () => {
+		const kbiAttempts: SSHAuthAttempt[] = [
+			{ type: 'keyboard-interactive', username: 'u' },
+			{ type: 'publickey', username: 'u', key: KEY, keyPath: '~/.ssh/id_rsa' },
+		];
+
+		// Without a kbi handler the kbi attempt is skipped entirely.
+		const handlerNoKbi = makeAuthHandler(kbiAttempts, new NullLogService());
+		const callsNoKbi: Array<object | false> = [];
+		handlerNoKbi(null, false, next => callsNoKbi.push(next));
+		assert.deepStrictEqual(callsNoKbi, [{ type: 'publickey', username: 'u', key: KEY }]);
+
+		// With a kbi handler we get an auth method whose `prompt` callback
+		// forwards into the handler.
+		let promptArgs: { name: string; instructions: string; prompts: ReadonlyArray<{ prompt: string; echo: boolean }> } | undefined;
+		const handlerWithKbi = makeAuthHandler(kbiAttempts, new NullLogService(), (name, instructions, prompts, finish) => {
+			promptArgs = { name, instructions, prompts };
+			finish(['secret']);
+		});
+		const callsWithKbi: Array<{ type: string; username: string; prompt?: Function } | false> = [];
+		handlerWithKbi(null, false, next => callsWithKbi.push(next as { type: string; username: string; prompt?: Function }));
+		assert.strictEqual(callsWithKbi.length, 1);
+		assert.strictEqual((callsWithKbi[0] as { type: string }).type, 'keyboard-interactive');
+		const finishCalls: ReadonlyArray<string>[] = [];
+		(callsWithKbi[0] as { prompt: Function }).prompt('n', 'i', 'lang', [{ prompt: 'Password:', echo: false }], (responses: ReadonlyArray<string>) => finishCalls.push(responses));
+		assert.deepStrictEqual(promptArgs, { name: 'n', instructions: 'i', prompts: [{ prompt: 'Password:', echo: false }] });
+		assert.deepStrictEqual(finishCalls, [['secret']]);
 	});
 });

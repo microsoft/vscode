@@ -14,8 +14,9 @@ import { localize } from '../../nls.js';
 import { registerColor, transparent } from '../../platform/theme/common/colorUtils.js';
 import { contrastBorder, focusBorder } from '../../platform/theme/common/colorRegistry.js';
 import { editorWidgetBorder, editorBackground, toolbarHoverBackground } from '../../platform/theme/common/colors/editorColors.js';
+import { foreground } from '../../platform/theme/common/colors/baseColors.js';
 import { buttonBackground, buttonBorder, inputBackground, inputBorder, inputForeground, inputPlaceholderForeground } from '../../platform/theme/common/colors/inputColors.js';
-import { ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, PANEL_BORDER, SIDE_BAR_BACKGROUND, SIDE_BAR_FOREGROUND } from '../../workbench/common/theme.js';
+import { ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, SIDE_BAR_BACKGROUND, SIDE_BAR_FOREGROUND } from '../../workbench/common/theme.js';
 
 // ============================================================================
 // Shell background (used by the gradient system)
@@ -44,7 +45,7 @@ export const agentsPanelForeground = registerColor(
 
 export const agentsPanelBorder = registerColor(
 	'agentsPanel.border',
-	{ dark: PANEL_BORDER, light: editorWidgetBorder, hcDark: contrastBorder, hcLight: contrastBorder },
+	{ dark: transparent(foreground, 0.15), light: transparent(foreground, 0.15), hcDark: contrastBorder, hcLight: contrastBorder },
 	localize('agentsPanel.border', 'Border color of the card panels (chat, files, terminal) in the agent sessions window.')
 );
 

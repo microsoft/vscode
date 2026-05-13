@@ -148,9 +148,10 @@ suite('Protocol WebSocket — Turn Execution', function () {
 		dispatchTurnStarted(client, sessionUri, 'turn-usage', 'with-usage', 1);
 
 		const usageNotif = await client.waitForNotification(n => isActionNotification(n, 'session/usage'));
-		const usageAction = getActionEnvelope(usageNotif).action as { type: string; usage: { inputTokens: number; outputTokens: number } };
+		const usageAction = getActionEnvelope(usageNotif).action as { type: string; usage: { inputTokens: number; outputTokens: number; _meta?: Record<string, unknown> } };
 		assert.strictEqual(usageAction.usage.inputTokens, 100);
 		assert.strictEqual(usageAction.usage.outputTokens, 50);
+		assert.deepStrictEqual(usageAction.usage._meta, { cost: 0.5 });
 
 		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
 
@@ -161,6 +162,7 @@ suite('Protocol WebSocket — Turn Execution', function () {
 		assert.ok(turn.usage);
 		assert.strictEqual(turn.usage!.inputTokens, 100);
 		assert.strictEqual(turn.usage!.outputTokens, 50);
+		assert.deepStrictEqual(turn.usage!._meta, { cost: 0.5 });
 	});
 
 	test('modifiedAt updates on turn completion', async function () {

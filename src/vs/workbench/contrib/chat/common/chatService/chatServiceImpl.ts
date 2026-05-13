@@ -929,7 +929,7 @@ export class ChatService extends Disposable implements IChatService {
 				// since the alias registration below may change the lookup.
 				const initialSessionOptions = this.chatSessionService.getSessionOptions(sessionResource);
 
-				const newItem = await this.chatSessionService.createNewChatSessionItem(getChatSessionType(sessionResource), { prompt: requestText, command: commandPart?.text, initialSessionOptions }, CancellationToken.None);
+				const newItem = await this.chatSessionService.createNewChatSessionItem(getChatSessionType(sessionResource), { prompt: requestText, command: commandPart?.text, initialSessionOptions, untitledResource: sessionResource }, CancellationToken.None);
 				if (newItem) {
 					// Register alias so session-option lookups work with the new resource
 					this.chatSessionService.registerSessionResourceAlias(sessionResource, newItem.resource);

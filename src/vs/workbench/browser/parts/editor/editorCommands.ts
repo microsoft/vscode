@@ -962,8 +962,9 @@ function registerCloseEditorCommands() {
 
 		for (const { group, editors } of resolvedContext.groupedEditors) {
 			for (const editor of editors) {
-				const editorToResolve = isDiffEditorInput(editor) ? editor.modified : editor;
-				const untypedEditor = editorToResolve.toUntyped();
+				const isDiffEditor = isDiffEditorInput(editor);
+				const editorToResolve = isDiffEditor ? editor.modified : editor;
+				const untypedEditor = isDiffEditor ? editor.toUntyped() : editorToResolve.toUntyped();
 				if (!untypedEditor) {
 					return; // Resolver can only resolve untyped editors
 				}

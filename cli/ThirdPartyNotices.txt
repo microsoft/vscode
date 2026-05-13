@@ -735,6 +735,7 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [`digest-io`]: ./digest-io
 [`hex-literal`]: ./hex-literal
 [`inout`]: ./inout
+[`sponge-cursor`]: ./sponge-cursor
 [`wycheproof2blb`]: ./wycheproof2blb
 [`zeroize`]: ./zeroize
 
@@ -781,6 +782,7 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [`digest-io`]: ./digest-io
 [`hex-literal`]: ./hex-literal
 [`inout`]: ./inout
+[`sponge-cursor`]: ./sponge-cursor
 [`wycheproof2blb`]: ./wycheproof2blb
 [`zeroize`]: ./zeroize
 
@@ -1421,6 +1423,7 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [`digest-io`]: ./digest-io
 [`hex-literal`]: ./hex-literal
 [`inout`]: ./inout
+[`sponge-cursor`]: ./sponge-cursor
 [`wycheproof2blb`]: ./wycheproof2blb
 [`zeroize`]: ./zeroize
 
@@ -3367,6 +3370,7 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [`digest-io`]: ./digest-io
 [`hex-literal`]: ./hex-literal
 [`inout`]: ./inout
+[`sponge-cursor`]: ./sponge-cursor
 [`wycheproof2blb`]: ./wycheproof2blb
 [`zeroize`]: ./zeroize
 
@@ -4248,6 +4252,7 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [`digest-io`]: ./digest-io
 [`hex-literal`]: ./hex-literal
 [`inout`]: ./inout
+[`sponge-cursor`]: ./sponge-cursor
 [`wycheproof2blb`]: ./wycheproof2blb
 [`zeroize`]: ./zeroize
 
@@ -6228,7 +6233,7 @@ OTHER DEALINGS IN THE SOFTWARE.
 
 ---------------------------------------------------------
 
-openssl 0.10.78 - Apache-2.0
+openssl 0.10.79 - Apache-2.0
 https://github.com/rust-openssl/rust-openssl
 
 Copyright 2011-2017 Google Inc.
@@ -6307,7 +6312,7 @@ DEALINGS IN THE SOFTWARE.
 
 ---------------------------------------------------------
 
-openssl-sys 0.9.114 - MIT
+openssl-sys 0.9.115 - MIT
 https://github.com/rust-openssl/rust-openssl
 
 The MIT License (MIT)
@@ -10663,8 +10668,8 @@ THE SOFTWARE.
 
 ---------------------------------------------------------
 
-tunnels 4be50b3cc5ade8cb6beec4038c53ea4f2cdac5a2
-https://github.com/connor4312/dev-tunnels
+tunnels 64048c1409ff56cb958b879de7ea069ec71edc8b
+https://github.com/microsoft/dev-tunnels
 
 MIT License
 
@@ -13684,6 +13689,7 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [`digest-io`]: ./digest-io
 [`hex-literal`]: ./hex-literal
 [`inout`]: ./inout
+[`sponge-cursor`]: ./sponge-cursor
 [`wycheproof2blb`]: ./wycheproof2blb
 [`zeroize`]: ./zeroize
 

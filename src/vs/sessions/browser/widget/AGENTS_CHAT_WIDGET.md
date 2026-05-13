@@ -77,6 +77,7 @@ The main wrapper around `ChatWidget`. It:
 4. **Gathers initial options** — collects all option selections and attaches them to the session context
 5. **Hides duplicate pickers** — uses `hiddenPickerIds` and `excludeOptionGroup` to avoid showing pickers in both the welcome view and input toolbar
 6. **Caches option groups** — persists extension-contributed option groups to `StorageService` so pickers render immediately on next load before extensions activate
+7. **Aligns input controls** — the active chat input's send action keeps the same circular primary-button shape as the new-session chat input
 
 #### Submission Interception: Two Mechanisms
 

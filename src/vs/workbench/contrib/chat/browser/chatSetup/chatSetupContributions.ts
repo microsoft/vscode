@@ -503,7 +503,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 			constructor() {
 				super({
 					id: 'workbench.action.chat.manageAdditionalSpend',
-					title: localize2('manageAdditionalSpend', "Manage GitHub Copilot Additional Spend"),
+					title: localize2('manageAdditionalSpend', "Manage GitHub Copilot Budget"),
 					category: localize2('chat.category', 'Chat'),
 					f1: true,
 					precondition: ContextKeyExpr.and(

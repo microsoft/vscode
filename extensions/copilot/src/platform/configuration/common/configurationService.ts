@@ -519,7 +519,7 @@ export const enum CHAT_MODEL {
 	XTAB_4O_MINI_FINETUNED = 'xtab-4o-mini-finetuned',
 	GPT4OPROXY = 'gpt-4o-instant-apply-full-ft-v66',
 	SHORT_INSTANT_APPLY = 'gpt-4o-instant-apply-full-ft-v66-short',
-	CLAUDE_SONNET = 'claude-3.5-sonnet',
+	CLAUDE_SONNET = 'claude-sonnet-4.5',
 	CLAUDE_37_SONNET = 'claude-3.7-sonnet',
 	DEEPSEEK_CHAT = 'deepseek-chat',
 	GEMINI_25_PRO = 'gemini-2.5-pro',
@@ -727,6 +727,9 @@ export namespace ConfigKey {
 		/** Internal: override reasoning/thinking effort sent to model APIs (e.g. Responses API, Messages API). Used by evals. */
 		export const ReasoningEffortOverride = defineSetting<string | null>('chat.reasoningEffortOverride', ConfigType.Simple, null);
 
+		/** Enable extended (1 hour) prompt cache TTL on tools and system blocks for the Anthropic Messages API. Only applied to 1M context Claude variants. */
+		export const AnthropicExtendedCacheTtl = defineSetting<boolean>('chat.anthropic.promptCaching.extendedTtl', ConfigType.ExperimentBased, false);
+
 		export const InlineEditsXtabProviderModelConfiguration = (() => {
 			const oldKey = 'chat.advanced.inlineEdits.xtabProvider.modelConfiguration';
 			const newKey = 'chat.inlineEdits.xtabProvider.modelConfiguration';
@@ -933,8 +936,6 @@ export namespace ConfigKey {
 	export const ResponsesApiContextManagementEnabled = defineSetting<boolean>('chat.responsesApiContextManagement.enabled', ConfigType.ExperimentBased, false);
 	/** Enable client-side prompt_cache_key (conversationId:modelFamily) sent to Responses API */
 	export const ResponsesApiPromptCacheKeyEnabled = defineSetting<boolean>('chat.responsesApi.promptCacheKey.enabled', ConfigType.ExperimentBased, false);
-	/** Enable tool search for Responses API (client-side deferred tool loading). */
-	export const ResponsesApiToolSearchEnabled = defineSetting<boolean>('chat.responsesApi.toolSearchTool.enabled', ConfigType.ExperimentBased, false);
 	/** Enable updated prompt for 5.3Codex model */
 	export const Updated53CodexPromptEnabled = defineSetting<boolean>('chat.updated53CodexPrompt.enabled', ConfigType.ExperimentBased, true);
 	/** Enable updated prompt for Claude Opus 4.7 model */
@@ -947,6 +948,10 @@ export namespace ConfigKey {
 	export const EnableGpt55GetChangedFilesTool = defineSetting<boolean>('chat.gpt55GetChangedFilesTool.enabled', ConfigType.ExperimentBased, true);
 	/** Enable read_file tool for GPT-5.5 models */
 	export const EnableGpt55ReadFileTool = defineSetting<boolean>('chat.gpt55ReadFileTool.enabled', ConfigType.ExperimentBased, true);
+	/** Enable economical search and edit instructions for GPT-5.5 models */
+	export const EnableGpt55EconomicalSearchAndEdit = defineSetting<boolean>('chat.gpt55EconomicalSearchAndEdit.enabled', ConfigType.ExperimentBased, false);
+	/** Enable GPT-5.4 large prompt sections for GPT-5.5 models */
+	export const EnableGpt55LargePromptSections = defineSetting<boolean>('chat.gpt55LargePromptSections.enabled', ConfigType.ExperimentBased, false);
 	export const EnableChatImageUpload = defineSetting<boolean>('chat.imageUpload.enabled', ConfigType.ExperimentBased, true);
 	/** Enable Anthropic web search tool for BYOK Claude models */
 	export const AnthropicWebSearchToolEnabled = defineSetting<boolean>('chat.anthropic.tools.websearch.enabled', ConfigType.ExperimentBased, false);
@@ -1047,8 +1052,6 @@ export namespace ConfigKey {
 	/** Model override for Explore (Code Research) agent — reads from core `chat.exploreAgent.defaultModel` */
 	export const ExploreAgentModel = defineSetting<string>('chat.exploreAgent.model', ConfigType.Simple, '');
 
-	export const CopilotMemoryEnabled = defineSetting<boolean>('chat.copilotMemory.enabled', ConfigType.ExperimentBased, false);
-	export const MemoryToolEnabled = defineSetting<boolean>('chat.tools.memory.enabled', ConfigType.ExperimentBased, true);
 	export const ViewImageToolEnabled = defineSetting<boolean>('chat.tools.viewImage.enabled', ConfigType.ExperimentBased, true);
 
 	/** Enable local session search index — tracks sessions locally and enables chronicle commands.*/

@@ -345,8 +345,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (normalizedHeight === template.currentElement.currentRenderedHeight) {
 			return;
 		}
+
+		const originalStoredHeight = template.currentElement.currentRenderedHeight;
 		template.currentElement.currentRenderedHeight = normalizedHeight;
-		if (template.currentElement !== this._elementBeingRendered) {
+		if (template.currentElement !== this._elementBeingRendered && typeof originalStoredHeight === 'number') {
 			this._onDidChangeItemHeight.fire({ element: template.currentElement, height: normalizedHeight });
 		}
 	}

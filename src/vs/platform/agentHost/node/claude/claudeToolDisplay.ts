@@ -34,47 +34,67 @@ export type ClaudePermissionKind =
 	| 'url'
 	| 'custom-tool';
 
-interface ClaudeToolDisplayEntry {
-	readonly permissionKind: ClaudePermissionKind;
-}
+/**
+ * Which field on the SDK's `tool_input` carries the path/url surfaced
+ * to the user (and tracked by Phase 8 for file-edit tools). One field
+ * per tool — tools without a path-bearing field omit this.
+ */
+type ClaudeToolPathField = 'file_path' | 'notebook_path' | 'path' | 'url';
 
 /**
- * Source-of-truth mapping for Phase 7 S4. Add a row here when the SDK
- * adds a new built-in; the snapshot test will fail until both this map
- * and the snapshot are updated together.
+ * Single source-of-truth row for one of Claude's built-in tools. Every
+ * structural fact the host needs about the tool sits in this row; the
+ * exported helpers below are one-liners over the table. Adding a new
+ * SDK tool means adding one row and one `displayName` arm. The
+ * snapshot test in [claudeToolDisplay.test.ts](../../test/node/claudeToolDisplay.test.ts)
+ * fails until both this map and the snapshot are updated together.
  *
- * `displayName` is intentionally NOT stored here — it is user-facing
+ * `displayName` is intentionally NOT on the row — it is user-facing
  * and must be `localize()`-d, which we cannot do at module-init time
  * without freezing the bundle's locale. Lookup lives in
  * {@link getClaudeToolDisplayName}.
  */
-const TOOL_DISPLAY: { readonly [toolName: string]: ClaudeToolDisplayEntry } = {
+interface ClaudeToolRow {
+	readonly permissionKind: ClaudePermissionKind;
+	/** Field on `tool_input` carrying the path/url for this tool, if any. */
+	readonly pathField?: ClaudeToolPathField;
+	/** True for tools whose execution writes to disk and is tracked by `FileEditTracker` (Phase 8). */
+	readonly isFileEdit?: true;
+	/**
+	 * True for tools the SDK never auto-approves under any
+	 * `permissionMode` (so they always reach `canUseTool`). Drives
+	 * {@link INTERACTIVE_CLAUDE_TOOLS}.
+	 */
+	readonly interactive?: true;
+}
+
+const TOOL_ROWS: { readonly [toolName: string]: ClaudeToolRow } = {
 	// shell tools
 	Bash: { permissionKind: 'shell' },
 	BashOutput: { permissionKind: 'shell' },
 	KillBash: { permissionKind: 'shell' },
 
 	// read tools
-	Read: { permissionKind: 'read' },
-	Glob: { permissionKind: 'read' },
-	Grep: { permissionKind: 'read' },
-	LS: { permissionKind: 'read' },
-	NotebookRead: { permissionKind: 'read' },
+	Read: { permissionKind: 'read', pathField: 'file_path' },
+	Glob: { permissionKind: 'read', pathField: 'path' },
+	Grep: { permissionKind: 'read', pathField: 'path' },
+	LS: { permissionKind: 'read', pathField: 'path' },
+	NotebookRead: { permissionKind: 'read', pathField: 'notebook_path' },
 
 	// write tools
-	Write: { permissionKind: 'write' },
-	Edit: { permissionKind: 'write' },
-	MultiEdit: { permissionKind: 'write' },
-	NotebookEdit: { permissionKind: 'write' },
+	Write: { permissionKind: 'write', pathField: 'file_path', isFileEdit: true },
+	Edit: { permissionKind: 'write', pathField: 'file_path', isFileEdit: true },
+	MultiEdit: { permissionKind: 'write', pathField: 'file_path', isFileEdit: true },
+	NotebookEdit: { permissionKind: 'write', pathField: 'notebook_path', isFileEdit: true },
 	TodoWrite: { permissionKind: 'write' },
 
 	// network tools
-	WebFetch: { permissionKind: 'url' },
+	WebFetch: { permissionKind: 'url', pathField: 'url' },
 
 	// host-routed / custom
 	Task: { permissionKind: 'custom-tool' },
-	ExitPlanMode: { permissionKind: 'custom-tool' },
-	AskUserQuestion: { permissionKind: 'custom-tool' },
+	ExitPlanMode: { permissionKind: 'custom-tool', interactive: true },
+	AskUserQuestion: { permissionKind: 'custom-tool', interactive: true },
 };
 
 const MCP_TOOL_PREFIX = 'mcp__';
@@ -84,9 +104,9 @@ const MCP_TOOL_PREFIX = 'mcp__';
  * Claude's growing built-in list never breaks the host.
  */
 export function getClaudePermissionKind(toolName: string): ClaudePermissionKind {
-	const entry = TOOL_DISPLAY[toolName];
-	if (entry) {
-		return entry.permissionKind;
+	const row = TOOL_ROWS[toolName];
+	if (row) {
+		return row.permissionKind;
 	}
 	if (toolName.startsWith(MCP_TOOL_PREFIX)) {
 		return 'mcp';
@@ -127,58 +147,52 @@ export function getClaudeToolDisplayName(toolName: string): string {
 }
 
 /**
- * S4 path extractor for `pending_confirmation.permissionPath`. Returns
- * the `string` field of `input` named per the S4 table, or `undefined`
- * when the field is missing or wrong-typed (defensive against malformed
- * SDK input).
+ * Read the `pathField` named on the tool's row from `input`. Returns
+ * `undefined` for tools without a path field, for missing fields, or
+ * for wrong-typed fields (defensive against malformed SDK input).
+ *
+ * Used both for `pending_confirmation.permissionPath` (S4) and Phase 8
+ * file-edit tracking — callers that only care about edits gate with
+ * {@link isClaudeFileEditTool} first.
  */
-export function extractPermissionPath(toolName: string, input: Record<string, unknown>): string | undefined {
-	switch (toolName) {
-		case 'Read':
-		case 'Write':
-		case 'Edit':
-		case 'MultiEdit': {
-			const fp = input.file_path;
-			return typeof fp === 'string' ? fp : undefined;
-		}
-		case 'NotebookRead':
-		case 'NotebookEdit': {
-			const fp = input.notebook_path;
-			return typeof fp === 'string' ? fp : undefined;
-		}
-		case 'Glob':
-		case 'Grep':
-		case 'LS': {
-			const p = input.path;
-			return typeof p === 'string' ? p : undefined;
-		}
-		case 'WebFetch': {
-			const url = input.url;
-			return typeof url === 'string' ? url : undefined;
-		}
-		default:
-			return undefined;
+export function getClaudeToolPath(toolName: string, input: unknown): string | undefined {
+	const row = TOOL_ROWS[toolName];
+	if (!row?.pathField || typeof input !== 'object' || input === null) {
+		return undefined;
 	}
+	const value = (input as Record<string, unknown>)[row.pathField];
+	return typeof value === 'string' ? value : undefined;
+}
+
+/**
+ * Phase 8 — true for tools that produce on-disk file edits tracked by
+ * `FileEditTracker`. Excludes `TodoWrite` (in-memory) and `Bash` (edits
+ * not surfaced as canonical SDK `tool_use` blocks the host can pair
+ * with `tool_result`).
+ */
+export function isClaudeFileEditTool(toolName: string): boolean {
+	return TOOL_ROWS[toolName]?.isFileEdit === true;
 }
 
 /**
  * Phase 7 S3.5. Tools whose `canUseTool` invocation is satisfied by a
- * `SessionInputRequested` round-trip rather than the standard
- * `pending_confirmation` signal:
+ * host-driven round-trip rather than the SDK's auto-approval:
  * - `AskUserQuestion` — carousel (S3.5a).
+ * - `ExitPlanMode` — `pending_confirmation` with custom Approve/Deny
+ *   labels and the plan body as `invocationMessage` (S3.5b).
  *
- * `ExitPlanMode` is dispatched via this same path so it can flip
- * `permissionMode` on approve, but uses the standard
- * `pending_confirmation` channel (with a custom title + plan body
- * rendered as the invocation message) rather than the carousel UI —
- * matching what tool calls already render in the workbench.
- *
+ * Membership only signals that the SDK does not auto-approve under any
+ * `permissionMode`, ensuring the call always reaches the host.
  * `_handleCanUseTool` dispatches via `INTERACTIVE_CLAUDE_TOOLS.has(toolName)`.
+ *
+ * Derived from the `interactive: true` rows above so the table stays
+ * the single source of truth.
  */
-export const INTERACTIVE_CLAUDE_TOOLS: ReadonlySet<string> = new Set([
-	'AskUserQuestion',
-	'ExitPlanMode',
-]);
+export const INTERACTIVE_CLAUDE_TOOLS: ReadonlySet<string> = new Set(
+	Object.entries(TOOL_ROWS)
+		.filter(([, row]) => row.interactive)
+		.map(([name]) => name),
+);
 
 /**
  * Confirmation-card title shown when a tool needs explicit user

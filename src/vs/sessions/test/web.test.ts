@@ -86,6 +86,7 @@ class MockChatEntitlementService implements IChatEntitlementService {
 	readonly onDidChangeEntitlement = Event.None;
 	readonly onDidChangeQuotaExceeded = Event.None;
 	readonly onDidChangeQuotaRemaining = Event.None;
+	readonly onDidChangeUsageBasedBilling = Event.None;
 	readonly onDidChangeSentiment = Event.None;
 	readonly onDidChangeAnonymous = Event.None;
 

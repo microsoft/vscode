@@ -28,3 +28,22 @@ export const enum ClaudeSessionConfigKey {
  * Mirror of the SDK's `PermissionMode` union for protocol-stable strings.
  */
 export type ClaudePermissionMode = 'default' | 'acceptEdits' | 'bypassPermissions' | 'plan' | 'dontAsk' | 'auto';
+
+/**
+ * Single source of truth for narrowing an arbitrary runtime value to the
+ * closed {@link ClaudePermissionMode} union. Returns `undefined` for
+ * non-strings or unmatched strings; callers apply their own fallback.
+ */
+export function narrowClaudePermissionMode(raw: unknown): ClaudePermissionMode | undefined {
+	switch (raw) {
+		case 'default':
+		case 'acceptEdits':
+		case 'bypassPermissions':
+		case 'plan':
+		case 'dontAsk':
+		case 'auto':
+			return raw;
+		default:
+			return undefined;
+	}
+}

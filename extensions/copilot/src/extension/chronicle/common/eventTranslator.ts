@@ -9,50 +9,62 @@ import type { ICompletedSpanData } from '../../../platform/otel/common/otelServi
 import type { IDebugLogEntry } from '../../../platform/chat/common/chatDebugFileLoggerService';
 import type { SessionEvent, WorkingDirectoryContext } from './cloudSessionTypes';
 
-// ── Content size limits (bytes) ─────────────────────────────────────────────────
-// Truncate content before buffering to keep memory and payload sizes bounded.
-
-/** Maximum size for user message content. */
-const MAX_USER_MESSAGE_SIZE = 10_240;
-
-/** Maximum size for assistant message content. */
-const MAX_ASSISTANT_MESSAGE_SIZE = 10_240;
-
-/** Maximum size for tool result content blocks. */
-const MAX_TOOL_RESULT_SIZE = 5_120;
+// ── Event size limit (bytes) ────────────────────────────────────────────────────
+// Whole events exceeding this size are dropped before buffering.
 
 /** Maximum estimated JSON size for a single event before it is dropped. */
-const MAX_EVENT_SIZE = 51_200;
+const MAX_EVENT_SIZE = 102_400;
 
 /**
- * Truncate a string to a maximum byte length (UTF-8 approximation).
+ * Cheap, short-circuiting estimate of the JSON-serialized size of an arbitrary
+ * value. Walks strings/arrays/objects accumulating an approximate byte count and
+ * bails out as soon as `limit` is reached, so large tool result/argument blobs
+ * never trigger an expensive full serialization just to decide they are too big.
  */
-function truncate(str: string, maxBytes: number): string {
-	if (str.length <= maxBytes) {
-		return str;
+function estimateValueSize(value: unknown, limit: number): number {
+	if (typeof value === 'string') {
+		return value.length + 2; // quotes
 	}
-	return str.slice(0, maxBytes) + '... [truncated]';
+	if (value === null || value === undefined) {
+		return 4;
+	}
+	if (typeof value === 'number' || typeof value === 'boolean') {
+		return 10;
+	}
+	if (Array.isArray(value)) {
+		let size = 2; // [ ]
+		for (const item of value) {
+			if (size >= limit) {
+				return size;
+			}
+			size += estimateValueSize(item, limit - size) + 1; // comma
+		}
+		return size;
+	}
+	if (typeof value === 'object') {
+		let size = 2; // { }
+		for (const [key, v] of Object.entries(value as Record<string, unknown>)) {
+			if (size >= limit) {
+				return size;
+			}
+			size += key.length + 4; // "key":
+			size += estimateValueSize(v, limit - size) + 1; // comma
+		}
+		return size;
+	}
+	return 10;
 }
 
 /**
- * Rough estimate of the JSON-serialized size of an event.
- * Avoids the cost of actual serialization.
+ * Estimated JSON size of an event, short-circuiting once `limit` is reached.
  */
-function estimateEventSize(event: SessionEvent): number {
+function estimateEventSize(event: SessionEvent, limit: number): number {
 	// Base overhead: id (36) + timestamp (24) + type (~30) + parentId (36) + structure (~50)
-	let size = 176;
-	const data = event.data;
-	for (const value of Object.values(data)) {
-		if (typeof value === 'string') {
-			size += value.length;
-		} else if (typeof value === 'object' && value !== null) {
-			// Rough estimate for nested objects
-			size += JSON.stringify(value).length;
-		} else {
-			size += 10;
-		}
+	const base = 176;
+	if (base >= limit) {
+		return base;
 	}
-	return size;
+	return base + estimateValueSize(event.data, limit - base);
 }
 
 /**
@@ -97,7 +109,7 @@ export function translateSpan(
 		// First invoke_agent span → session.start
 		if (!state.started) {
 			state.started = true;
-			events.push(makeEvent(state, 'session.start', {
+			pushEvent(events, state, 'session.start', {
 				sessionId: getSessionId(span) ?? generateUuid(),
 				version: 1,
 				producer: 'vscode-copilot-chat',
@@ -111,35 +123,35 @@ export function translateSpan(
 					branch: context?.branch,
 					headCommit: context?.headCommit,
 				},
-			}));
+			});
 		}
 
 		// Emit user.message (matches CLI format)
 		if (userRequest) {
-			events.push(makeEvent(state, 'user.message', {
-				content: truncate(userRequest, MAX_USER_MESSAGE_SIZE),
+			pushEvent(events, state, 'user.message', {
+				content: userRequest,
 				source: 'chat',
 				agentMode: 'interactive',
-			}));
+			});
 		}
 
 		// Extract assistant response + tool requests
 		const assistantText = extractAssistantText(span);
 		const toolRequests = extractToolRequests(span);
 		if (assistantText || toolRequests.length > 0) {
-			events.push(makeEvent(state, 'assistant.message', {
+			pushEvent(events, state, 'assistant.message', {
 				messageId: generateUuid(),
-				content: truncate(assistantText ?? '', MAX_ASSISTANT_MESSAGE_SIZE),
+				content: assistantText ?? '',
 				toolRequests: toolRequests.length > 0 ? toolRequests : undefined,
-			}));
+			});
 
 			// Emit tool.execution_start for each tool request (matches CLI pattern)
 			for (const req of toolRequests) {
-				events.push(makeEvent(state, 'tool.execution_start', {
+				pushEvent(events, state, 'tool.execution_start', {
 					toolCallId: req.toolCallId,
 					toolName: req.name,
 					arguments: req.arguments,
-				}));
+				});
 			}
 		}
 	}
@@ -150,33 +162,25 @@ export function translateSpan(
 			const toolCallId = (span.attributes[GenAiAttr.TOOL_CALL_ID] as string | undefined) ?? generateUuid();
 			const resultText = span.attributes['gen_ai.tool.result'] as string | undefined;
 			const success = span.status.code !== 2; // SpanStatusCode.ERROR = 2
-			const truncatedResult = resultText ? truncate(resultText, MAX_TOOL_RESULT_SIZE) : '';
+			const resultContent = resultText ?? '';
 
 			// Emit tool.execution_complete (matches CLI format exactly)
-			events.push(makeEvent(state, 'tool.execution_complete', {
+			pushEvent(events, state, 'tool.execution_complete', {
 				toolCallId,
 				success,
 				result: success ? {
-					content: truncatedResult,
-					detailedContent: truncatedResult,
+					content: resultContent,
+					detailedContent: resultContent,
 				} : undefined,
 				error: !success ? {
-					message: truncatedResult || 'Tool execution failed',
+					message: resultContent || 'Tool execution failed',
 					code: 'failure',
 				} : undefined,
-			}));
+			});
 		}
 	}
 
-	// Filter out oversized events
-	return events.filter(event => {
-		const size = estimateEventSize(event);
-		if (size > MAX_EVENT_SIZE) {
-			state.droppedCount++;
-			return false;
-		}
-		return true;
-	});
+	return events;
 }
 
 /**
@@ -216,7 +220,7 @@ export function translateDebugLogEntry(
 		case 'session_start': {
 			if (!state.started) {
 				state.started = true;
-				events.push(makeEventAt(state, ts, 'session.start', {
+				pushEventAt(events, state, ts, 'session.start', {
 					sessionId,
 					version: 1,
 					producer: 'vscode-copilot-chat',
@@ -228,7 +232,7 @@ export function translateDebugLogEntry(
 						hostType: 'github',
 						branch: typeof entry.attrs.branch === 'string' ? entry.attrs.branch : undefined,
 					},
-				}));
+				});
 			}
 			break;
 		}
@@ -241,11 +245,11 @@ export function translateDebugLogEntry(
 					? entry.attrs.userRequest
 					: undefined;
 			if (content) {
-				events.push(makeEventAt(state, ts, 'user.message', {
-					content: truncate(content, MAX_USER_MESSAGE_SIZE),
+				pushEventAt(events, state, ts, 'user.message', {
+					content,
 					source: 'chat',
 					agentMode: 'interactive',
-				}));
+				});
 			}
 			break;
 		}
@@ -253,10 +257,10 @@ export function translateDebugLogEntry(
 		case 'agent_response': {
 			const response = typeof entry.attrs.response === 'string' ? entry.attrs.response : undefined;
 			if (response) {
-				events.push(makeEventAt(state, ts, 'assistant.message', {
+				pushEventAt(events, state, ts, 'assistant.message', {
 					messageId: generateUuid(),
-					content: truncate(response, MAX_ASSISTANT_MESSAGE_SIZE),
-				}));
+					content: response,
+				});
 			}
 			break;
 		}
@@ -267,35 +271,27 @@ export function translateDebugLogEntry(
 				const toolCallId = entry.spanId || generateUuid();
 				const resultText = typeof entry.attrs.result === 'string' ? entry.attrs.result : undefined;
 				const success = entry.status === 'ok';
-				const truncatedResult = resultText ? truncate(resultText, MAX_TOOL_RESULT_SIZE) : '';
+				const resultContent = resultText ?? '';
 
-				events.push(makeEventAt(state, ts, 'tool.execution_complete', {
+				pushEventAt(events, state, ts, 'tool.execution_complete', {
 					toolCallId,
 					toolName,
 					success,
 					result: success ? {
-						content: truncatedResult,
-						detailedContent: truncatedResult,
+						content: resultContent,
+						detailedContent: resultContent,
 					} : undefined,
 					error: !success ? {
-						message: truncatedResult || (typeof entry.attrs.error === 'string' ? entry.attrs.error : 'Tool execution failed'),
+						message: resultContent || (typeof entry.attrs.error === 'string' ? entry.attrs.error : 'Tool execution failed'),
 						code: 'failure',
 					} : undefined,
-				}));
+				});
 			}
 			break;
 		}
 	}
 
-	// Filter out oversized events
-	return events.filter(event => {
-		const size = estimateEventSize(event);
-		if (size > MAX_EVENT_SIZE) {
-			state.droppedCount++;
-			return false;
-		}
-		return true;
-	});
+	return events;
 }
 
 // ── Internal helpers ────────────────────────────────────────────────────────────
@@ -329,6 +325,49 @@ function makeEventAt(
 	}
 	state.lastEventId = id;
 	return event;
+}
+
+/**
+ * Build a candidate event, run it past the size gate, and either commit it
+ * (push + advance `state.lastEventId`) or drop it (increment `droppedCount`).
+ *
+ * Only kept events advance `lastEventId`, so the `parentId` chain stays valid
+ * even when an event in the middle of a batch is dropped.
+ */
+function pushEvent(
+	events: SessionEvent[],
+	state: SessionTranslationState,
+	type: string,
+	data: Record<string, unknown>,
+	ephemeral?: boolean,
+): void {
+	pushEventAt(events, state, new Date().toISOString(), type, data, ephemeral);
+}
+
+function pushEventAt(
+	events: SessionEvent[],
+	state: SessionTranslationState,
+	timestamp: string,
+	type: string,
+	data: Record<string, unknown>,
+	ephemeral?: boolean,
+): void {
+	const event: SessionEvent = {
+		id: generateUuid(),
+		timestamp,
+		parentId: state.lastEventId,
+		type,
+		data,
+	};
+	if (ephemeral) {
+		event.ephemeral = true;
+	}
+	if (estimateEventSize(event, MAX_EVENT_SIZE + 1) > MAX_EVENT_SIZE) {
+		state.droppedCount++;
+		return;
+	}
+	state.lastEventId = event.id;
+	events.push(event);
 }
 
 function getSessionId(span: ICompletedSpanData): string | undefined {

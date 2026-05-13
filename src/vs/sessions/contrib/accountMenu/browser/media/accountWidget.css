@@ -131,7 +131,7 @@
 }
 
 .sessions-account-titlebar-panel-content .chat-status-bar-entry-tooltip .quota-indicator .quota-title {
-	font-size: 12px;
+	font-size: 14px;
 	margin-bottom: 0;
 	color: var(--vscode-foreground);
 }

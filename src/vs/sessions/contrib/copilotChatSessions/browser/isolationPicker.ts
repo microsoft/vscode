@@ -13,6 +13,8 @@ import { localize } from '../../../../nls.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { reportNewChatPickerClosed } from '../../chat/browser/newChatPickerTelemetry.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { CopilotChatSessionsProvider } from './copilotChatSessionsProvider.js';
@@ -50,6 +52,7 @@ export class IsolationPicker extends Disposable {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 		this._isolationOptionEnabled = this.configurationService.getValue<boolean>('github.copilot.chat.cli.isolationOption.enabled') !== false;
@@ -149,6 +152,15 @@ export class IsolationPicker extends Disposable {
 		const delegate: IActionListDelegate<IIsolationPickerItem> = {
 			onSelect: ({ mode }) => {
 				this.actionWidgetService.hide();
+				reportNewChatPickerClosed(this.telemetryService, {
+					id: 'NewChatIsolationPicker',
+					name: 'NewChatIsolationPicker',
+					optionIdBefore: currentIsolationMode,
+					optionIdAfter: mode,
+					optionLabelBefore: undefined,
+					optionLabelAfter: undefined,
+					isPII: false,
+				});
 				this._setModeOnSession(mode);
 			},
 			onHide: () => { triggerElement.focus(); },

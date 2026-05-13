@@ -20,7 +20,8 @@ refs that change between runs.
 | 5 (sessions) | Same as Phase 4 PLUS `createSession` succeeds (`claude:/<uuid>` URI in IPC log); first user prompt throws `TODO: Phase 6`. **NOTE: Phase 5 was never run live — see §8.** |
 | 6 (sendMessage, single-turn, no tools) | Same as Phase 4 PLUS `createSession` returns a *provisional* session (no SDK contact yet); first user prompt materializes the SDK subprocess and **renders a real text response** (no `TODO: Phase` match in the snapshot); IPC log carries `session/responsePart`, `session/delta`, `session/usage`, `session/turnComplete` actions. |
 | 7 (tool calls + permission + user input) | Same as Phase 6 PLUS: a tool-using prompt fires `pending_confirmation`; approving it lands `SessionToolCallComplete` with the result; flipping `permissionMode → bypassPermissions` skips confirmation; an `AskUserQuestion` invocation surfaces the question carousel and answers reach the model. |
-| 8+ | Add per-phase assertion to the table above. |
+| 8 (file edit tracking) | Same as Phase 7 PLUS: a `Write`/`Edit`/`MultiEdit` invocation that the user approves lands a `SessionToolCallComplete` whose `result.content` carries a `ToolResultFileEditContent` block (`type: 'file_edit'`) with non-empty `before` and `after` `session-db:` URIs; `Options.enableFileCheckpointing` is `true`, `Options.hooks` stays `undefined`, and file-edit staging is driven by the SDK message stream observer (`ClaudeFileEditObserver`) on assistant/user events. Note: an `Edit`/`MultiEdit` invocation is preceded by a `Read` permission prompt (Claude reads the file to find the target string before editing); both must be approved before the tool runs. |
+| 9+ | Add per-phase assertion to the table above. |
 
 ## Prerequisites
 

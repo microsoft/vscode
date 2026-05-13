@@ -1075,6 +1075,18 @@
 		"--slide-from-y"
 	],
 	"sizes": [
+		"--vscode-agents-fontWeight-medium",
+		"--vscode-agents-fontWeight-regular",
+		"--vscode-agents-fontWeight-semiBold",
+		"--vscode-agents-fontSize-body1",
+		"--vscode-agents-fontSize-body2",
+		"--vscode-agents-fontSize-heading1",
+		"--vscode-agents-fontSize-heading2",
+		"--vscode-agents-fontSize-heading3",
+		"--vscode-agents-fontSize-label1",
+		"--vscode-agents-fontSize-label2",
+		"--vscode-agents-fontSize-label3",
+		"--vscode-agents-fontSize-label4",
 		"--vscode-bodyFontSize",
 		"--vscode-bodyFontSize-small",
 		"--vscode-bodyFontSize-xSmall",

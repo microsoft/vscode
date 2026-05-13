@@ -7,7 +7,7 @@ import assert from 'assert';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IRemoteAgentHostConnectionInfo, RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
-import { resolveEventsUri } from '../../browser/openSessionEventsFileActions.js';
+import { resolveEventsUri } from '../../../../../workbench/contrib/chat/browser/copilotCliEventsUri.js';
 
 suite('openSessionEventsFile resolveEventsUri', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

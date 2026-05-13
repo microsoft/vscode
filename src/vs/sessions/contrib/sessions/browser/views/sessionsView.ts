@@ -32,7 +32,7 @@ import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { asCssVariable } from '../../../../../platform/theme/common/colorRegistry.js';
-import { agentsNewSessionButtonBackground, agentsNewSessionButtonBorder, agentsNewSessionButtonForeground, agentsNewSessionButtonHoverBackground } from '../../../../common/theme.js';
+import { agentsBackground, agentsNewSessionButtonBackground, agentsNewSessionButtonBorder, agentsNewSessionButtonForeground, agentsNewSessionButtonHoverBackground } from '../../../../common/theme.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
@@ -134,6 +134,7 @@ export class SessionsView extends ViewPane {
 			listOverrideStyles: {
 				...colors.listOverrideStyles,
 				listBackground: undefined!,
+				treeStickyScrollBackground: agentsBackground,
 			}
 		};
 	}

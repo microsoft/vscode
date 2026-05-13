@@ -80,7 +80,7 @@ class ModelSymbolRenameTracker extends Disposable {
 				// the current cursor position (if any)
 				const position = this._lastCursorPosition;
 				this.reset();
-				if (position !== undefined) {
+				if (position !== undefined && position.lineNumber <= this._model.getLineCount()) {
 					this.updateCursorPosition(position);
 				}
 				return;

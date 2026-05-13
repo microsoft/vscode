@@ -72,8 +72,7 @@ export class OpenSessionInVSCodeAction extends Action2 {
 		}
 
 		const workspace = activeSession.workspace.get();
-		const repo = workspace?.repositories[0];
-		const rawFolderUri = repo?.workingDirectory ?? repo?.uri;
+		const rawFolderUri = workspace?.folders[0]?.workingDirectory;
 		if (!rawFolderUri) {
 			return undefined;
 		}

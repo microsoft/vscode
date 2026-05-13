@@ -8,7 +8,7 @@ import type { URI } from '../../../../base/common/uri.js';
 import { LogLevel, type ILogService } from '../../../log/common/log.js';
 import type { AgentSignal } from '../../common/agentService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { ResponsePartKind, ToolResultContentType } from '../../common/state/sessionState.js';
+import { ResponsePartKind, ToolResultContentType, type ToolResultContent, type ToolResultFileEditContent } from '../../common/state/sessionState.js';
 import { getClaudeToolDisplayName } from './claudeToolDisplay.js';
 
 /**
@@ -44,6 +44,17 @@ export class ClaudeMapperState {
 	private readonly _toolCallTurnIds = new Map<string, string>();
 	private readonly _toolCallNames = new Map<string, string>();
 	private _currentMessageId: string | undefined;
+
+	/**
+	 * Phase 8 — file-edit content pre-staged by
+	 * `ClaudeAgentSession._observeUserMessage` and consumed by
+	 * {@link mapUserMessage} when the matching `tool_result` arrives.
+	 * Keyed by SDK `tool_use_id`. The session's `_processMessages` loop
+	 * awaits the after-snapshot before invoking the synchronous mapper,
+	 * so by the time `takeFileEdit` is called the entry is always
+	 * populated for tracked file-edit tools.
+	 */
+	private readonly _completedFileEdits = new Map<string, ToolResultFileEditContent>();
 
 	/**
 	 * Reset per-message state. Called on `message_start`. Cross-message
@@ -96,6 +107,29 @@ export class ClaudeMapperState {
 	completeToolCall(toolUseId: string): void {
 		this._toolCallTurnIds.delete(toolUseId);
 		this._toolCallNames.delete(toolUseId);
+	}
+
+	/**
+	 * Phase 8 — stash a {@link ToolResultFileEditContent} produced by
+	 * `ClaudeAgentSession._observeUserMessage` so the synchronous mapper
+	 * can append it to the matching `SessionToolCallComplete` action.
+	 */
+	cacheFileEdit(toolUseId: string, content: ToolResultFileEditContent): void {
+		this._completedFileEdits.set(toolUseId, content);
+	}
+
+	/**
+	 * Phase 8 — consume and remove the cached file edit for this
+	 * `tool_use_id`. Returns `undefined` for non-file-edit tools or for
+	 * file-edit tools where snapshotting was skipped (e.g. denied before
+	 * the SDK ran the tool, or no actual file change occurred).
+	 */
+	takeFileEdit(toolUseId: string): ToolResultFileEditContent | undefined {
+		const content = this._completedFileEdits.get(toolUseId);
+		if (content) {
+			this._completedFileEdits.delete(toolUseId);
+		}
+		return content;
 	}
 
 	/**
@@ -231,6 +265,11 @@ function mapUserMessage(
 			continue;
 		}
 		const isError = block.is_error === true;
+		const content: ToolResultContent[] = extractToolResultContent(block.content) ?? [];
+		const fileEdit = state.takeFileEdit(block.tool_use_id);
+		if (fileEdit) {
+			content.push(fileEdit);
+		}
 		signals.push({
 			kind: 'action',
 			session,
@@ -242,7 +281,7 @@ function mapUserMessage(
 				result: {
 					success: !isError,
 					pastTenseMessage: `${getClaudeToolDisplayName(tracked.toolName)} finished`,
-					content: extractToolResultContent(block.content),
+					content: content.length > 0 ? content : undefined,
 				},
 			},
 		});
@@ -253,11 +292,10 @@ function mapUserMessage(
 
 /**
  * Project the SDK's `ToolResultBlockParam.content` into the protocol's
- * `ToolResultContent[]` shape. The SDK accepts either a bare string
- * (legacy shape) or an array of typed blocks; the protocol surface
- * renders `Text`, so anything non-text is dropped here. Phase 8 will
- * lift this once richer result kinds (file edits, terminal output)
- * land.
+ * text content shape. The SDK accepts either a bare string (legacy
+ * shape) or an array of typed blocks; non-text blocks are dropped
+ * here. Phase 8 file-edit content is appended separately by
+ * {@link mapUserMessage} from {@link ClaudeMapperState.takeFileEdit}.
  */
 function extractToolResultContent(content: unknown): { type: ToolResultContentType.Text; text: string }[] | undefined {
 	if (typeof content === 'string') {

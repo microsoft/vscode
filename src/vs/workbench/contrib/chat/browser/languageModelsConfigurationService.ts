@@ -55,7 +55,9 @@ export class LanguageModelsConfigurationService extends Disposable implements IL
 		super();
 		this.modelsConfigurationFile = uriIdentityService.extUri.joinPath(userDataProfileService.currentProfile.location, 'chatLanguageModels.json');
 		this.updateLanguageModelsConfiguration();
-		this._register(fileService.watch(this.modelsConfigurationFile));
+		// Watch the parent folder for reliable change detection across platforms (especially Windows
+		// where `fs.watch` on individual files can miss in-place writes).
+		this._register(fileService.watch(uriIdentityService.extUri.dirname(this.modelsConfigurationFile)));
 		this._register(fileService.onDidFilesChange(e => {
 			if (e.contains(this.modelsConfigurationFile)) {
 				this.updateLanguageModelsConfiguration();

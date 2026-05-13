@@ -145,7 +145,6 @@ export class RouterDecisionFetcher {
 				"comment": "Reports the routing decision made by the auto mode router API",
 				"conversationId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The conversation ID in which the routing decision was made." },
 				"vscodeRequestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The VS Code chat request id in which the routing decision was made." },
-				"predictedLabel": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The predicted classification label (needs_reasoning, no_reasoning, or fallback)" },
 				"routingMethod": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The routing method used for this request (empty=server default, binary, hydra). Identifies the A/B/C experiment path." },
 				"fallback": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the router signaled a fallback to default automod selection." },
 				"fallbackReason": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The reason provided by the server when fallback is true." },
@@ -153,14 +152,17 @@ export class RouterDecisionFetcher {
 				"confidence": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The confidence score of the routing decision" },
 				"latencyMs": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "The latency of the router API call in milliseconds" },
 				"e2eLatencyMs": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "The end-to-end latency of the router request in milliseconds, including network overhead" },
-				"stickyOverride": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Whether the router applied a sticky override (1) or not (0)" }
+				"stickyOverride": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Whether the router applied a sticky override (1) or not (0)" },
+				"scoreReasoning": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Hydra per-dimension score for reasoning. -1 if not present in the response." },
+				"scoreCodeGen": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Hydra per-dimension score for code generation. -1 if not present in the response." },
+				"scoreDebugging": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Hydra per-dimension score for debugging. -1 if not present in the response." },
+				"scoreToolUse": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Hydra per-dimension score for tool use. -1 if not present in the response." }
 			}
 		*/
 		this._telemetryService.sendMSFTTelemetryEvent('automode.routerDecision',
 			{
 				conversationId: conversationId ?? '',
 				vscodeRequestId: vscodeRequestId ?? '',
-				predictedLabel: result.predicted_label,
 				routingMethod: result.routing_method ?? '',
 				fallback: String(result.fallback ?? false),
 				fallbackReason: result.fallback_reason ?? '',
@@ -171,6 +173,10 @@ export class RouterDecisionFetcher {
 				latencyMs: result.latency_ms,
 				e2eLatencyMs: e2eLatencyMs,
 				stickyOverride: result.sticky_override ? 1 : 0,
+				scoreReasoning: result.hydra_scores?.reasoning ?? -1,
+				scoreCodeGen: result.hydra_scores?.code_gen ?? -1,
+				scoreDebugging: result.hydra_scores?.debugging ?? -1,
+				scoreToolUse: result.hydra_scores?.tool_use ?? -1,
 			}
 		);
 

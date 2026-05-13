@@ -252,11 +252,41 @@ npx @playwright/cli fill e62 "Hello from George!"
 
 However, **`fill` silently fails on Code OSS** — the command completes without error but no text appears. Always verify text appeared after typing, and fall back to the keyboard shortcut + `press` pattern if it didn't. The `press`-per-key approach works universally across all builds.
 
+### Fastest Method on Code OSS / Agents Window: Clipboard Paste (macOS only)
+
+For prompts longer than ~20 characters, `press`-per-key is tediously slow. On macOS, paste via the system clipboard:
+
+```bash
+PROMPT="Edit sample.txt and replace \"hello world\" with \"hello phase 8\". Use the Edit tool."
+printf '%s' "$PROMPT" | pbcopy
+npx @playwright/cli press Control+Meta+i   # focus chat input
+npx @playwright/cli press Meta+v           # paste
+npx @playwright/cli press Enter            # submit
+```
+
+This is reliable on both the regular workbench and the **Agents window** (where the chat input editor doesn't have an `.interactive-input-editor` wrapper — see Selector Notes below). Linux / Windows equivalents use `xclip` / `clip.exe` and `Control+v`; not validated here.
+
+### Selector Notes — Agents Window
+
+The Agents window (`./scripts/code.sh --agents`) does NOT use the `.interactive-input-editor` wrapper that the regular workbench uses. Selectors that work in the workbench but FAIL in the Agents window:
+
+```js
+// ❌ Returns 0 elements in the Agents window
+document.querySelectorAll(".interactive-input-editor .view-line")
+
+// ✅ Use one of these instead
+document.querySelectorAll(".view-line")                              // unscoped
+document.activeElement?.className === "native-edit-context"          // focus check
+```
+
+The `Control+Meta+i` focus shortcut still works; only the post-focus DOM selectors differ.
+
 ### Compatibility Matrix
 
 | Method | VS Code Insiders | Code OSS |
 |--------|-----------------|----------|
 | `press` per key (after focus shortcut) | ✅ Works | ✅ Works |
+| `pbcopy` + `Meta+v` paste (macOS) | ✅ Works | ✅ Works (incl. Agents window) |
 | `fill <ref> "text"` | ✅ Works | ❌ Silent fail |
 | `type "text"` (after focus) | ✅ Works | ❌ Silent fail |
 | `click <ref>` on editor | ❌ Blocked by overlay | ❌ Blocked by overlay |

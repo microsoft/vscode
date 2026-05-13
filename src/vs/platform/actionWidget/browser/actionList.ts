@@ -68,6 +68,12 @@ export interface IActionListItem<T> {
 	readonly detail?: string;
 	readonly description?: string | IMarkdownString;
 	/**
+	 * Optional accessible description used in place of {@link description} for
+	 * screen reader labels. Useful when the visual description contains icons
+	 * or other non-textual content.
+	 */
+	readonly ariaDescription?: string;
+	/**
 	 * Optional hover configuration shown when focusing/hovering over the item.
 	 */
 	readonly hover?: IActionListItemHover;
@@ -637,7 +643,9 @@ export class ActionListWidget<T> extends Disposable {
 						if (element.detail) {
 							label = label + ', ' + stripNewlines(element.detail);
 						}
-						if (element.description) {
+						if (element.ariaDescription) {
+							label = label + ', ' + stripNewlines(element.ariaDescription);
+						} else if (element.description) {
 							const descText = typeof element.description === 'string' ? element.description : element.description.value;
 							label = label + ', ' + stripNewlines(descText);
 						}
@@ -1843,6 +1851,17 @@ export class ActionList<T> extends Disposable {
 		return this._widget.hasDynamicHeight;
 	}
 
+	private computeActionWidgetVerticalChromeHeight(): number {
+		const widgetContainer = this.domNode.parentElement?.closest('.action-widget');
+		if (!widgetContainer) {
+			return 0;
+		}
+
+		const style = dom.getWindow(widgetContainer).getComputedStyle(widgetContainer);
+		const toPixels = (value: string): number => Number.parseFloat(value) || 0;
+		return toPixels(style.paddingTop) + toPixels(style.paddingBottom) + toPixels(style.borderTopWidth) + toPixels(style.borderBottomWidth);
+	}
+
 	private computeHeight(): number {
 		const listHeight = this._widget.computeListHeight();
 
@@ -1867,7 +1886,7 @@ export class ActionList<T> extends Disposable {
 				const fullHeight = chromeHeight + this._widget.computeFullHeight();
 				this._showAbove = fullHeight > spaceBelow && spaceAbove > spaceBelow;
 			}
-			availableHeight = this._showAbove ? spaceAbove : spaceBelow;
+			availableHeight = Math.max(0, (this._showAbove ? spaceAbove : spaceBelow) - this.computeActionWidgetVerticalChromeHeight());
 		} else {
 			const padding = 10;
 			const windowHeight = this._layoutService.getContainer(targetWindow).clientHeight;

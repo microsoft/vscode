@@ -362,6 +362,16 @@ export interface IChatNewSessionRequest {
 	readonly command?: string;
 
 	readonly initialSessionOptions?: ReadonlyChatSessionOptionsMap;
+
+	/**
+	 * The chat-input session resource the user was typing into when this
+	 * request was issued. Set when the chat infrastructure is rewriting an
+	 * untitled session URI to a real one on first send. Controllers can use
+	 * this to bridge any pre-creation state they tracked under the old URI
+	 * (e.g. provisional agent-host sessions) to the new resource that the
+	 * controller returns.
+	 */
+	readonly untitledResource?: URI;
 }
 
 export interface IChatSessionItemsDelta {

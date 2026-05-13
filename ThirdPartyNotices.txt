@@ -1363,7 +1363,7 @@ SOFTWARE.
 ---------------------------------------------------------
 
 dotnet/razor 1.0.0 - MIT
-https://github.com/dotnet/razor
+https://github.com/dotnet/roslyn
 
 MIT License
 

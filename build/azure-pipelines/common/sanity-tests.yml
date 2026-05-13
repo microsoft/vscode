@@ -94,18 +94,28 @@ jobs:
             version: '22.22.0'
           displayName: Install Node.js
 
+      - task: Cache@2
+        inputs:
+          key: '"sanity-node_modules" | "$(Agent.OS)" | "${{ parameters.arch }}" | $(TEST_DIR)/package-lock.json'
+          path: $(TEST_DIR)/node_modules
+          cacheHitVar: SANITY_NODE_MODULES_RESTORED
+        displayName: Restore node_modules cache
+
       - script: npm config set registry "$(NPM_REGISTRY)" --location=project
         workingDirectory: $(TEST_DIR)
         displayName: Configure NPM Registry
+        condition: and(succeeded(), ne(variables.SANITY_NODE_MODULES_RESTORED, 'true'))
 
       - task: npmAuthenticate@0
         inputs:
           workingFile: $(TEST_DIR)/.npmrc
         displayName: Authenticate with NPM Registry
+        condition: and(succeeded(), ne(variables.SANITY_NODE_MODULES_RESTORED, 'true'))
 
       - script: npm ci
         workingDirectory: $(TEST_DIR)
         displayName: Install NPM Dependencies
+        condition: and(succeeded(), ne(variables.SANITY_NODE_MODULES_RESTORED, 'true'))
 
       - script: npm run compile
         workingDirectory: $(TEST_DIR)

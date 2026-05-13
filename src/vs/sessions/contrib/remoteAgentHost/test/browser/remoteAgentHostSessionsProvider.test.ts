@@ -29,11 +29,12 @@ import { IChatService, type ChatSendResult, type IChatSendRequestOptions } from 
 import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { ISessionChangeEvent } from '../../../../services/sessions/common/sessionsProvider.js';
-import { SessionStatus, COPILOT_CLI_SESSION_TYPE } from '../../../../services/sessions/common/session.js';
+import { SessionStatus } from '../../../../services/sessions/common/session.js';
 import { RemoteAgentHostSessionsProvider, type IRemoteAgentHostSessionsProviderConfig } from '../../browser/remoteAgentHostSessionsProvider.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
+import { CopilotCLISessionType } from '../../../agentHost/browser/baseAgentHostSessionsProvider.js';
 
 // ---- Mock connection --------------------------------------------------------
 
@@ -293,19 +294,19 @@ suite('RemoteAgentHostSessionsProvider', () => {
 	// ---- Provider identity -------
 
 	test('derives id and label from config, and session types from rootState agents', () => {
-		const provider = createProvider(disposables, connection, { address: '10.0.0.1:8080', connectionName: 'My Host' });
+		const provider = createProvider(disposables, connection, { address: '10.0.0.1:8080', connectionName: 'My Host', isWebPlatform: false });
 
 		assert.strictEqual(provider.id, 'agenthost-10.0.0.1__8080');
 		assert.strictEqual(provider.label, 'My Host');
 		assert.strictEqual(provider.sessionTypes.length, 1);
-		assert.strictEqual(provider.sessionTypes[0].id, COPILOT_CLI_SESSION_TYPE);
+		assert.strictEqual(provider.sessionTypes[0].id, CopilotCLISessionType.id);
 		assert.strictEqual(provider.sessionTypes[0].label, 'Copilot [My Host]');
 	});
 
 	test('session types update when the host advertises additional agents', () => {
-		const provider = createProvider(disposables, connection, { address: '10.0.0.1:8080', connectionName: 'My Host' });
+		const provider = createProvider(disposables, connection, { address: '10.0.0.1:8080', connectionName: 'My Host', isWebPlatform: false });
 		assert.deepStrictEqual(provider.sessionTypes.map(t => t.id), [
-			COPILOT_CLI_SESSION_TYPE,
+			CopilotCLISessionType.id,
 		]);
 
 		let changes = 0;
@@ -318,8 +319,22 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 		assert.strictEqual(changes, 1);
 		assert.deepStrictEqual(provider.sessionTypes.map(t => ({ id: t.id, label: t.label })), [
-			{ id: COPILOT_CLI_SESSION_TYPE, label: 'Copilot [My Host]' },
+			{ id: CopilotCLISessionType.id, label: 'Copilot [My Host]' },
 			{ id: 'openai', label: 'OpenAI [My Host]' },
+		]);
+	});
+
+	test('session-type labels omit host suffix on web', () => {
+		const provider = createProvider(disposables, connection, { address: '10.0.0.1:8080', connectionName: 'My Host', isWebPlatform: true });
+
+		connection.setAgents([
+			{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [] } as AgentInfo,
+			{ provider: 'openai', displayName: 'OpenAI', description: '', models: [] } as AgentInfo,
+		]);
+
+		assert.deepStrictEqual(provider.sessionTypes.map(t => ({ id: t.id, label: t.label })), [
+			{ id: CopilotCLISessionType.id, label: 'Copilot' },
+			{ id: 'openai', label: 'OpenAI' },
 		]);
 	});
 
@@ -340,7 +355,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		assert.deepStrictEqual(
 			provider.sessionTypes.map(t => ({ id: t.id, icon: t.icon.id })),
 			[
-				{ id: COPILOT_CLI_SESSION_TYPE, icon: 'copilot' },
+				{ id: CopilotCLISessionType.id, icon: 'copilot' },
 				{ id: 'claude-code', icon: 'claude' },
 				{ id: 'openai', icon: 'openai' },
 				{ id: 'unknown-agent', icon: 'remote' },
@@ -357,9 +372,8 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 		assert.ok(ws, 'resolveWorkspace should resolve vscode-agent-host:// URIs');
 		assert.strictEqual(ws.label, 'project');
-		assert.strictEqual(ws.repositories.length, 1);
-		assert.strictEqual(ws.repositories[0].uri.toString(), uri.toString());
-		assert.strictEqual(ws.repositories[0].detail, undefined);
+		assert.strictEqual(ws.folders.length, 1);
+		assert.strictEqual(ws.folders[0].root.toString(), uri.toString());
 	});
 
 	// ---- Browse actions -------
@@ -400,7 +414,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		assert.deepStrictEqual(
 			sessions.map(s => ({ title: s.title.get(), sessionType: s.sessionType })).sort((a, b) => a.title.localeCompare(b.title)),
 			[
-				{ title: 'Copilot Session', sessionType: COPILOT_CLI_SESSION_TYPE },
+				{ title: 'Copilot Session', sessionType: CopilotCLISessionType.id },
 				{ title: 'OpenAI Session', sessionType: 'openai' },
 			],
 		);
@@ -446,14 +460,12 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		const workspace = provider.getSessions()[0].workspace.get();
 		assert.deepStrictEqual({
 			label: workspace?.label,
-			repository: workspace?.repositories[0]?.uri.toString(),
-			workingDirectory: workspace?.repositories[0]?.workingDirectory?.toString(),
-			detail: workspace?.repositories[0]?.detail,
+			repository: workspace?.folders[0]?.root.toString(),
+			workingDirectory: workspace?.folders[0]?.workingDirectory?.toString(),
 		}, {
 			label: 'vscode',
 			repository: projectUri.toString(),
 			workingDirectory: workingDirectory.toString(),
-			detail: undefined,
 		});
 	}));
 
@@ -471,7 +483,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		});
 
 		const workspaces = provider.getSessions().map(session => session.workspace.get());
-		assert.deepStrictEqual(workspaces.map(workspace => workspace?.repositories[0]?.uri.toString()), [
+		assert.deepStrictEqual(workspaces.map(workspace => workspace?.folders[0]?.root.toString()), [
 			'vscode-agent-host://localhost__4321/file/-/home/user/vscode',
 			'https://github.com/microsoft/vscode',
 		]);
@@ -905,7 +917,6 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		const workspace = wsSession!.workspace.get();
 		assert.ok(workspace, 'Workspace should be populated');
 		assert.strictEqual(workspace!.label, 'myrepo');
-		assert.strictEqual(workspace!.repositories[0].detail, undefined);
 	}));
 
 	test('session adapter without working directory has no workspace', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {

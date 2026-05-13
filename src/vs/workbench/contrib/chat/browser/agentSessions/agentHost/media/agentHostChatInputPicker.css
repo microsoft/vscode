@@ -1,0 +1,65 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.agent-host-chat-input-picker-host {
+	display: inline-flex;
+	align-items: center;
+}
+
+.agent-host-chat-input-picker-host:empty {
+	display: none;
+}
+
+.agent-host-chat-input-picker-slot {
+	display: inline-flex;
+	align-items: center;
+	height: 100%;
+}
+
+.agent-host-chat-input-picker-slot a.action-label,
+.agent-host-chat-input-picker-slot span.action-label {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	padding: 0 4px;
+}
+
+.agent-host-chat-input-picker-slot.disabled span.action-label {
+	opacity: 0.6;
+	cursor: default;
+}
+
+.agent-host-chat-input-picker-label {
+	max-width: 16em;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/*
+ * Right-align the Branch + Isolation chips within the secondary chat-input
+ * toolbar. The picker tags its host element with a per-property modifier
+ * class (`agent-host-chat-input-picker-host-branch`) so these selectors can
+ * target just the right-aligned pair without affecting Mode. Branch (when
+ * present) takes the leading `margin-left: auto`; Isolation otherwise. With
+ * both present the Isolation rule is suppressed by the general-sibling
+ * selector below that detects a preceding (visible) Branch chip.
+ */
+.chat-secondary-input-toolbar .monaco-action-bar .actions-container > .action-item.agent-host-chat-input-picker-host-branch {
+	margin-left: auto;
+}
+
+.chat-secondary-input-toolbar .monaco-action-bar .actions-container > .action-item.agent-host-chat-input-picker-host-isolation {
+	margin-left: auto;
+}
+
+/*
+ * Suppress Isolation's leading-margin only when a *visible* Branch chip
+ * precedes it. Hidden chips keep the `agent-host-chat-input-picker-host-hidden`
+ * marker so this selector can ignore them.
+ */
+.chat-secondary-input-toolbar .monaco-action-bar .actions-container > .action-item.agent-host-chat-input-picker-host-branch:not(.agent-host-chat-input-picker-host-hidden) ~ .action-item.agent-host-chat-input-picker-host-isolation {
+	margin-left: 0;
+}

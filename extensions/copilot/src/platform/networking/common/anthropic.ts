@@ -6,6 +6,7 @@
 import { ConfigKey, IConfigurationService } from '../../configuration/common/configurationService';
 import { modelSupportsContextEditing } from '../../endpoint/common/chatModelCapabilities';
 import { IExperimentationService } from '../../telemetry/common/nullExperimentationService';
+import { ChatLocation } from '../../chat/common/commonTypes';
 import { IChatEndpoint } from './networking';
 
 /**
@@ -26,7 +27,7 @@ export interface AnthropicMessagesTool {
 		required?: string[];
 	};
 	defer_loading?: boolean;
-	cache_control?: { type: 'ephemeral' };
+	cache_control?: { type: 'ephemeral'; ttl?: '5m' | '1h' };
 }
 
 /** Name for the custom client-side embeddings-based tool search tool. Must not use copilot_/vscode_ prefix — those are reserved for static package.json declarations and will be rejected by vscode.lm.registerToolDefinition. */
@@ -139,16 +140,59 @@ export function isAnthropicContextEditingEnabled(
 	return mode !== 'off';
 }
 
-export function isAnthropicMemoryToolEnabled(
+/**
+ * The extended (1 hour) prompt cache TTL is only meaningful for the 1M context
+ * Claude variants. Other models keep the default 5 minute TTL even when the
+ * experimental setting is enabled.
+ *
+ * Currently:
+ * - Claude Opus 4.6 1M (`claude-opus-4.6-1m`)
+ * - Claude Opus 4.7 1M (`claude-opus-4.7-1m-internal` and similar variants)
+ */
+export function modelSupportsExtendedCacheTtl(modelId: string): boolean {
+	const normalized = modelId.toLowerCase().replace(/\./g, '-');
+	return normalized.startsWith('claude-opus-4-6-1m') ||
+		normalized.startsWith('claude-opus-4-7-1m');
+}
+
+/**
+ * Returns true when the Anthropic Messages API request should use the extended
+ * (1 hour) prompt cache TTL on its tools and system breakpoints. Gated on the
+ * model (only the 1M context variants), the experiment-based setting, the chat
+ * location (must be exactly {@link ChatLocation.Agent}), and the subagent flag.
+ *
+ * {@link ChatLocation.MessagesProxy} is intentionally out of scope — extended
+ * TTL is only meant for the main agent conversation, not for the Claude CLI
+ * passthrough.
+ *
+ * @param location Must be {@link ChatLocation.Agent}; any other value (including
+ * `undefined`) fails the gate. Callers that route through subclass overrides
+ * which drop the `location` argument (e.g. `super.getExtraHeaders()`) are
+ * correctly excluded by this strict check.
+ * @param isSubagent Subagent requests are short-lived and would not benefit
+ * from the 1h TTL.
+ */
+export function isExtendedCacheTtlEnabled(
 	endpoint: IChatEndpoint | string,
 	configurationService: IConfigurationService,
 	experimentationService: IExperimentationService,
+	location: ChatLocation | undefined,
+	isSubagent: boolean | undefined,
 ): boolean {
-	const effectiveModelId = typeof endpoint === 'string' ? endpoint : endpoint.model;
-	if (!modelSupportsMemory(effectiveModelId)) {
+	const modelId = typeof endpoint === 'string' ? endpoint : endpoint.model;
+	if (!modelSupportsExtendedCacheTtl(modelId)) {
 		return false;
 	}
-	return configurationService.getExperimentBasedConfig(ConfigKey.MemoryToolEnabled, experimentationService);
+	if (!configurationService.getExperimentBasedConfig(ConfigKey.Advanced.AnthropicExtendedCacheTtl, experimentationService)) {
+		return false;
+	}
+	if (location !== ChatLocation.Agent) {
+		return false;
+	}
+	if (isSubagent) {
+		return false;
+	}
+	return true;
 }
 
 export type ContextEditingMode = 'off' | 'clear-thinking' | 'clear-tooluse' | 'clear-both';

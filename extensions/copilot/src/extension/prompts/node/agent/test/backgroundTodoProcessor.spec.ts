@@ -22,8 +22,7 @@ function makeDelta(rounds: string[] = []): IBackgroundTodoDelta {
 		metadata: {
 			newRoundCount: rounds.length,
 			newToolCallCount: 0,
-			meaningfulToolCallCount: 0,
-			contextToolCallCount: 0,
+			substantiveToolCallCount: 0,
 			isInitialDelta: true,
 			isRequestOnly: rounds.length === 0,
 		},
@@ -45,12 +44,14 @@ function makeLogService(logMessages?: string[]) {
 
 function makeExecutionContext(rounds: string[] = [], options: IExecutionContextTestOptions = {}): IBackgroundTodoExecutionContext {
 	return {
-		instantiationService: { invokeFunction: async () => {
-			if (options.endpointDelayMs !== undefined) {
-				await new Promise(resolve => setTimeout(resolve, options.endpointDelayMs));
+		instantiationService: {
+			invokeFunction: async () => {
+				if (options.endpointDelayMs !== undefined) {
+					await new Promise(resolve => setTimeout(resolve, options.endpointDelayMs));
+				}
+				throw new Error('no endpoint');
 			}
-			throw new Error('no endpoint');
-		} } as any,
+		} as any,
 		logService: makeLogService(options.logMessages),
 		toolsService: { invokeTool: async () => undefined } as any,
 		telemetryService: { sendMSFTTelemetryEvent: (eventName: string) => options.telemetryEvents?.push(eventName) } as any,
