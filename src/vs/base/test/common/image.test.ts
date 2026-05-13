@@ -60,7 +60,7 @@ function makeGif(width: number, height: number): VSBuffer {
 function makeWebPVp8(width: number, height: number): VSBuffer {
 	return buf(
 		0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x57, 0x45, 0x42, 0x50, // "RIFF" <size> "WEBP"
-		0x56, 0x50, 0x38, 0x20, 0, 0, 0, 0, // "VP8 " <size>
+		0x56, 0x50, 0x38, 0x20, 10, 0, 0, 0, // "VP8 " <chunkSize=10>
 		0x00, 0x00, 0x00, // frame tag
 		0x9D, 0x01, 0x2A, // start code
 		width & 0xFF, (width >> 8) & 0x3F,
@@ -79,7 +79,7 @@ function makeWebPVp8l(width: number, height: number): VSBuffer {
 	const b24 = (h >> 10) & 0x0F;
 	return buf(
 		0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x57, 0x45, 0x42, 0x50,
-		0x56, 0x50, 0x38, 0x4C, 0, 0, 0, 0,
+		0x56, 0x50, 0x38, 0x4C, 10, 0, 0, 0, // "VP8L" <chunkSize=10>
 		0x2F, // VP8L signature byte
 		b21, b22, b23, b24,
 		0, 0, 0, 0, 0 // padding to satisfy the 30-byte minimum
@@ -92,7 +92,7 @@ function makeWebPVp8x(width: number, height: number): VSBuffer {
 	const h = height - 1;
 	return buf(
 		0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x57, 0x45, 0x42, 0x50,
-		0x56, 0x50, 0x38, 0x58, 0, 0, 0, 0,
+		0x56, 0x50, 0x38, 0x58, 10, 0, 0, 0, // "VP8X" <chunkSize=10>
 		0x00, 0x00, 0x00, 0x00, // flags + reserved
 		w & 0xFF, (w >> 8) & 0xFF, (w >> 16) & 0xFF,
 		h & 0xFF, (h >> 8) & 0xFF, (h >> 16) & 0xFF
@@ -115,6 +115,15 @@ suite('readImageDimensions', () => {
 			unknown: { input: buf(0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B), expected: undefined },
 			webpVp8MissingStartCode: { input: corruptByte(makeWebPVp8(300, 200), 23, 0x00), expected: undefined },
 			webpVp8lMissingSignature: { input: corruptByte(makeWebPVp8l(1024, 768), 20, 0x00), expected: undefined },
+			webpVp8ChunkTooSmall: { input: corruptByte(makeWebPVp8(300, 200), 16, 4), expected: undefined },
+			webpVp8xChunkTooSmall: { input: corruptByte(makeWebPVp8x(8000, 6000), 16, 4), expected: undefined },
+			jpegZeroSegmentLength: {
+				input: buf(
+					0xFF, 0xD8, // SOI
+					0xFF, 0xE0, 0x00, 0x00, // APP0 with invalid length 0
+					0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 // padding to pass the outer < 12 check
+				), expected: undefined
+			},
 		};
 
 		const actual = Object.fromEntries(
