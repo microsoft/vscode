@@ -86,6 +86,7 @@ class TestAgentHostTerminalManager implements IAgentHostTerminalManager {
 
 	async createTerminal(): Promise<void> { }
 	writeInput(): void { }
+	async sendText(): Promise<void> { }
 	onData(): IDisposable { return Disposable.None; }
 	onExit(): IDisposable { return Disposable.None; }
 	onClaimChanged(): IDisposable { return Disposable.None; }

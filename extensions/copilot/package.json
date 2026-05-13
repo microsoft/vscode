@@ -1162,8 +1162,7 @@
 				"displayName": "Memory",
 				"toolReferenceName": "memory",
 				"userDescription": "Manage persistent memory across conversations",
-				"when": "config.github.copilot.chat.tools.memory.enabled",
-				"modelDescription": "Manage a persistent memory system with three scopes for storing notes and information across conversations.\n\nMemory is organized under /memories/ with three tiers:\n- `/memories/` — User memory: persistent notes that survive across all workspaces and conversations. Store preferences, patterns, and general insights here.\n- `/memories/session/` — Session memory: notes scoped to the current conversation. Store task-specific context and in-progress notes here. Cleared after the conversation ends.\n- `/memories/repo/` — Repository memory: repository-scoped facts stored via Copilot. Only the `create` command is supported for this path.\n\nIMPORTANT: Before creating new memory files, first view the /memories/ directory to understand what already exists. This helps avoid duplicates and maintain organized notes.\n\nCommands:\n- `view`: View contents of a file or list directory contents. Can be used on files or directories (e.g., \"/memories/\" to see all top-level items).\n- `create`: Create a new file at the specified path with the given content. Fails if the file already exists.\n- `str_replace`: Replace an exact string in a file with a new string. The old_str must appear exactly once in the file.\n- `insert`: Insert text at a specific line number in a file. Line 0 inserts at the beginning.\n- `delete`: Delete a file or directory (and all its contents).\n- `rename`: Rename or move a file or directory from path to new_path. Cannot rename across scopes.",
+				"modelDescription": "Manage a persistent memory system with three scopes for storing notes and information across conversations.\n\nMemory is organized under /memories/ with three tiers:\n- `/memories/` — User memory: persistent notes that survive across all workspaces and conversations. Store preferences, patterns, and general insights here.\n- `/memories/session/` — Session memory: notes scoped to the current conversation. Store task-specific context and in-progress notes here. Cleared after the conversation ends.\n- `/memories/repo/` — Repository memory: repository-scoped notes stored locally in the workspace. Store codebase conventions, build commands, project structure facts, and verified practices here.\n\nIMPORTANT: Before creating new memory files, first view the /memories/ directory to understand what already exists. This helps avoid duplicates and maintain organized notes.\n\nCommands:\n- `view`: View contents of a file or list directory contents. Can be used on files or directories (e.g., \"/memories/\" to see all top-level items).\n- `create`: Create a new file at the specified path with the given content. Fails if the file already exists.\n- `str_replace`: Replace an exact string in a file with a new string. The old_str must appear exactly once in the file.\n- `insert`: Insert text at a specific line number in a file. Line 0 inserts at the beginning.\n- `delete`: Delete a file or directory (and all its contents).\n- `rename`: Rename or move a file or directory from path to new_path. Cannot rename across scopes.",
 				"inputSchema": {
 					"type": "object",
 					"properties": {
@@ -3266,6 +3265,15 @@
 			{
 				"id": "preview",
 				"properties": {
+					"github.copilot.chat.claudeAgent.allowAutoPermissions": {
+						"type": "boolean",
+						"default": false,
+						"tags": [
+							"preview",
+							"onExp"
+						],
+						"markdownDescription": "%github.copilot.config.claudeAgent.allowAutoPermissions%"
+					},
 					"github.copilot.chat.copilotDebugCommand.enabled": {
 						"type": "boolean",
 						"default": true,
@@ -3281,22 +3289,6 @@
 							"preview"
 						],
 						"markdownDescription": "%github.copilot.config.codesearch.enabled%"
-					},
-					"github.copilot.chat.copilotMemory.enabled": {
-						"type": "boolean",
-						"default": false,
-						"markdownDescription": "%github.copilot.config.copilotMemory.enabled%",
-						"tags": [
-							"preview"
-						]
-					},
-					"github.copilot.chat.tools.memory.enabled": {
-						"type": "boolean",
-						"default": true,
-						"markdownDescription": "%github.copilot.config.tools.memory.enabled%",
-						"tags": [
-							"preview"
-						]
 					},
 					"github.copilot.chat.tools.viewImage.enabled": {
 						"type": "boolean",
@@ -3842,15 +3834,6 @@
 							"onExp"
 						]
 					},
-					"github.copilot.chat.responsesApi.toolSearchTool.enabled": {
-						"type": "boolean",
-						"default": false,
-						"markdownDescription": "%github.copilot.config.responsesApi.toolSearchTool.enabled%",
-						"tags": [
-							"experimental",
-							"onExp"
-						]
-					},
 					"github.copilot.chat.updated53CodexPrompt.enabled": {
 						"type": "boolean",
 						"default": true,
@@ -3900,6 +3883,24 @@
 						"type": "boolean",
 						"default": true,
 						"markdownDescription": "%github.copilot.config.gpt55ReadFileTool.enabled%",
+						"tags": [
+							"experimental",
+							"onExp"
+						]
+					},
+					"github.copilot.chat.gpt55EconomicalSearchAndEdit.enabled": {
+						"type": "boolean",
+						"default": false,
+						"markdownDescription": "%github.copilot.config.gpt55EconomicalSearchAndEdit.enabled%",
+						"tags": [
+							"experimental",
+							"onExp"
+						]
+					},
+					"github.copilot.chat.gpt55LargePromptSections.enabled": {
+						"type": "boolean",
+						"default": false,
+						"markdownDescription": "%github.copilot.config.gpt55LargePromptSections.enabled%",
 						"tags": [
 							"experimental",
 							"onExp"
@@ -4101,6 +4102,26 @@
 						"tags": [
 							"advanced"
 						]
+					},
+					"github.copilot.chat.anthropic.promptCaching.extendedTtl": {
+						"type": "boolean",
+						"default": false,
+						"tags": [
+							"advanced",
+							"experimental",
+							"onExp"
+						],
+						"description": "%github.copilot.config.anthropic.promptCaching.extendedTtl%"
+					},
+					"github.copilot.chat.freezeCustomizationsIndex": {
+						"type": "boolean",
+						"default": false,
+						"tags": [
+							"advanced",
+							"experimental",
+							"onExp"
+						],
+						"description": "%github.copilot.config.freezeCustomizationsIndex%"
 					},
 					"github.copilot.chat.installExtensionSkill.enabled": {
 						"type": "boolean",
@@ -5522,14 +5543,6 @@
 				{
 					"command": "github.copilot.nes.captureExpected.submit",
 					"when": "github.copilot.inlineEditsEnabled"
-				},
-				{
-					"command": "github.copilot.chat.tools.memory.showMemories",
-					"when": "config.github.copilot.chat.tools.memory.enabled"
-				},
-				{
-					"command": "github.copilot.chat.tools.memory.clearMemories",
-					"when": "config.github.copilot.chat.tools.memory.enabled"
 				},
 				{
 					"command": "github.copilot.sessions.commit",

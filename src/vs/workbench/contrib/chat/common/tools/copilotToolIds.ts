@@ -3,7 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
-import { SessionWorkingSetController } from './workingSet.js';
+export const enum CopilotToolId {
+	ReadFile = 'copilot_readFile',
+}
 
-registerWorkbenchContribution2(SessionWorkingSetController.ID, SessionWorkingSetController, WorkbenchPhase.AfterRestored);
+export const enum CopilotChatSettingId {
+	Gpt55ReadFileToolEnabled = 'github.copilot.chat.gpt55ReadFileTool.enabled',
+}

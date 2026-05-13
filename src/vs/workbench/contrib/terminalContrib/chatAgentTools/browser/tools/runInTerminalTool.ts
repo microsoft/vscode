@@ -169,7 +169,6 @@ function createSandboxLines(allowToRunUnsandboxedCommands: boolean, networkDomai
 		lines.push(
 			'- When a command fails due to sandbox restrictions, immediately re-run it with requestUnsandboxedExecution=true. Do NOT ask the user for permission — setting this flag automatically shows a confirmation prompt to the user',
 			'- Only set requestUnsandboxedExecution=true when there is evidence of failures caused by the sandbox, e.g. \'Operation not permitted\' errors, network failures, or file access errors, etc',
-			'- Do NOT set requestUnsandboxedExecution=true without first executing the command in sandbox mode. Always try the command in the sandbox first, and only set requestUnsandboxedExecution=true when retrying after that sandboxed execution failed due to sandbox restrictions.',
 			'- When setting requestUnsandboxedExecution=true, also provide requestUnsandboxedExecutionReason explaining why the command needs unsandboxed access',
 		);
 	} else {
@@ -331,11 +330,11 @@ export async function createRunInTerminalToolData(
 		},
 		requestUnsandboxedExecution: {
 			type: 'boolean',
-			description: 'Request that this command run outside the terminal sandbox. Only set this after first executing the command in sandbox and observing that sandboxing caused the failure. The user will be prompted before the command runs unsandboxed.'
+			description: 'Request that this command run outside the terminal sandbox. Only set this when the command clearly needs unsandboxed access. The user will be prompted before the command runs unsandboxed.'
 		},
 		requestUnsandboxedExecutionReason: {
 			type: 'string',
-			description: 'A short explanation of the sandboxed execution failure or blocked-domain requirement that justifies retrying outside the sandbox. Only provide this when requestUnsandboxedExecution is true.'
+			description: 'A short explanation of why this command must run outside the terminal sandbox. Only provide this when requestUnsandboxedExecution is true.'
 		},
 	} : {};
 
@@ -2543,6 +2542,18 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			store.add(outputMonitor.onDidDetectInputNeeded(() => {
 				if (userIsReplyingDirectly) {
 					this._logService.debug(`RunInTerminalTool: Suppressing input-needed notification for terminal ${termId} because user is replying directly`);
+					return;
+				}
+
+				// If the terminal has been disposed (e.g. the user closed it), the
+				// buffered output may still match an input-required pattern (for
+				// example, a pager prompt left in the scrollback). Sending an
+				// input-needed steering message in that case produces a spurious
+				// chat/tool turn even though there's no live terminal to send
+				// input to — the agent will be notified separately via the
+				// `onDisposed` listener below.
+				if (terminalInstance.isDisposed) {
+					this._logService.debug(`RunInTerminalTool: Suppressing input-needed notification for terminal ${termId} because the terminal is disposed`);
 					return;
 				}
 
