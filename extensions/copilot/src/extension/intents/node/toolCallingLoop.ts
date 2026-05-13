@@ -181,12 +181,6 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 	private lastModelCallId: string | undefined;
 
 	/**
-	 * Messages from the most recent successfully-rendered prompt. Used as the
-	 * cache-warming prefix for keep-alive probes (see {@link startBuildPromptKeepAlive}).
-	 */
-	private lastRenderedMessages: Raw.ChatMessage[] | undefined;
-
-	/**
 	 * The full {@link ToolCallingLoopFetchOptions} from the most recent fetch.
 	 * Probes reuse this wholesale (overriding only `messages` and `finishedCb`)
 	 * so that the server-side prompt cache key — which includes tool schemas,
@@ -1439,10 +1433,10 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 			this.lastModelCallId = fetchResult.modelCallId;
 		}
 
-		// Cache the rendered messages and full fetch options so the next iteration's
-		// keep-alive probes can reuse them as a cache-warming prefix while buildPrompt2
-		// is awaiting slow tool calls.
-		this.lastRenderedMessages = effectiveBuildPromptResult.messages;
+		// Cache the full fetch options so the next iteration's keep-alive probes can
+		// reuse them as a cache-warming prefix while buildPrompt2 is awaiting slow
+		// tool calls. The options include already-post-processed messages so probes
+		// apply the same validation/stripping (e.g. stripOrphanedToolCalls for Gemini).
 		this.lastFetchOptions = fetchOptions;
 
 		const promptTokenDetails = await computePromptTokenDetails({
@@ -1717,10 +1711,9 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 	 * Returns a disposable that clears the timer and cancels any in-flight probe.
 	 */
 	private startBuildPromptKeepAlive(parentToken: CancellationToken): IDisposable {
-		const baseMessages = this.lastRenderedMessages;
 		const baseFetchOptions = this.lastFetchOptions;
 		// Nothing useful to send if we haven't rendered a prompt yet (first iteration).
-		if (!baseMessages || baseMessages.length === 0 || !baseFetchOptions) {
+		if (!baseFetchOptions || baseFetchOptions.messages.length === 0) {
 			return Disposable.None;
 		}
 
@@ -1739,26 +1732,30 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 				return;
 			}
 
-			const cts = new CancellationTokenSource();
+			const cts = new CancellationTokenSource(parentToken);
 			inFlight.add(cts);
 
-			// Only add on a dummy user message if the last message was from the assistant.
-			const lastMessage = baseMessages[baseMessages.length - 1];
+			// Reuse the already-post-processed messages from the last real fetch so
+			// the same validation/stripping (e.g. stripOrphanedToolCalls for Gemini)
+			// is applied. Only append a dummy user message if the last message was
+			// from the assistant.
+			const processedMessages = baseFetchOptions.messages;
+			const lastMessage = processedMessages[processedMessages.length - 1];
 			const probeMessages: Raw.ChatMessage[] = lastMessage.role === Raw.ChatRole.Assistant
 				? [
-					...baseMessages,
+					...processedMessages,
 					{
 						role: Raw.ChatRole.User,
 						content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Still working' }],
 					},
 				]
-				: [...baseMessages];
+				: [...processedMessages];
 
 			this._logService.info(`[ToolCallingLoop] Keep-alive: sending probe (elapsed=${elapsed}ms)`);
 			try {
 				await this.fetch({
 					...baseFetchOptions,
-					messages: this.applyMessagePostProcessing(probeMessages),
+					messages: probeMessages,
 					finishedCb: async (text) => text.length, // stop reading on first chunk
 				}, cts.token);
 			} catch (err) {
