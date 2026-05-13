@@ -25,7 +25,7 @@ import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from 
 import { Menus } from '../../../browser/menus.js';
 import { ActiveSessionHasGitRepositoryContext, ActiveSessionProviderIdContext, ActiveSessionTypeContext, ChatSessionProviderIdContext, IsNewChatSessionContext } from '../../../common/contextkeys.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISession } from '../../../services/sessions/common/session.js';
+import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { SessionItemContextMenuId } from '../../sessions/browser/views/sessionsList.js';
 import { BranchPicker } from './branchPicker.js';
@@ -287,6 +287,11 @@ export function modelPickerStorageKey(sessionType: string): string {
 	return `sessions.modelPicker.${sessionType}.selectedModelId`;
 }
 
+function getVendorFromModelIdentifier(modelIdentifier: string): string | undefined {
+	const firstSlash = modelIdentifier.indexOf('/');
+	return firstSlash === -1 ? undefined : modelIdentifier.substring(0, firstSlash);
+}
+
 /**
  * A model picker widget that persists the selected model per session type and
  * syncs the selection to the active session's provider. Instantiated via DI,
@@ -355,6 +360,10 @@ export class SessionModelPicker extends Disposable {
 		this._register(autorun(reader => {
 			const session = this._sessionsManagementService.activeSession.read(reader);
 			if (session) {
+				// Re-run when the provider restores model state for an existing session,
+				// or when an untitled session becomes an established one after send.
+				session.modelId.read(reader);
+				session.status.read(reader);
 				this._initModel();
 			}
 		}));
@@ -378,14 +387,31 @@ export class SessionModelPicker extends Disposable {
 		}
 
 		const current = this._currentModel.get();
+		const sessionModelId = session?.modelId.get();
+		const sessionModel = sessionModelId ? models.find(m => m.identifier === sessionModelId) : undefined;
+		const isNewSession = session?.status.get() === SessionStatus.Untitled;
 		this._settingModelInternally = true;
 		try {
+			if (session && !isNewSession) {
+				// Missing session model ids are ambiguous for existing sessions: they can
+				// be restore races, or models that were removed. Only repair with a
+				// fallback after the saved model's vendor has resolved and confirmed the
+				// model is gone.
+				if (!sessionModelId || sessionModel || !this._hasResolvedSessionModelVendor(sessionModelId)) {
+					this._currentModel.set(sessionModel, undefined);
+					this._lastPushedSessionId = session.sessionId;
+					return;
+				}
+
+				this._delegate.setModel(this._getFallbackModel(sessionType, models));
+				this._lastPushedSessionId = session.sessionId;
+				return;
+			}
+
 			if (!current) {
-				const rememberedModelId = sessionType ? this._storageService.get(modelPickerStorageKey(sessionType), StorageScope.PROFILE) : undefined;
-				const remembered = rememberedModelId ? models.find(m => m.identifier === rememberedModelId) : undefined;
-				this._delegate.setModel(remembered ?? models[0]);
+				this._delegate.setModel(sessionModel ?? this._getFallbackModel(sessionType, models));
 				this._lastPushedSessionId = session?.sessionId;
-			} else if (session && session.sessionId !== this._lastPushedSessionId && models.some(m => m.identifier === current.identifier)) {
+			} else if (session && isNewSession && session.sessionId !== this._lastPushedSessionId && models.some(m => m.identifier === current.identifier)) {
 				// Active session changed (e.g. user switched repository) but the
 				// previously selected model is still available. Re-push it so the
 				// new session's provider receives setModel — otherwise the request
@@ -401,6 +427,17 @@ export class SessionModelPicker extends Disposable {
 		} finally {
 			this._settingModelInternally = false;
 		}
+	}
+
+	private _hasResolvedSessionModelVendor(modelIdentifier: string): boolean {
+		const vendor = getVendorFromModelIdentifier(modelIdentifier);
+		return !!vendor && this._languageModelsService.hasResolvedVendor(vendor);
+	}
+
+	private _getFallbackModel(sessionType: string | undefined, models: ILanguageModelChatMetadataAndIdentifier[]): ILanguageModelChatMetadataAndIdentifier {
+		const rememberedModelId = sessionType ? this._storageService.get(modelPickerStorageKey(sessionType), StorageScope.PROFILE) : undefined;
+		const remembered = rememberedModelId ? models.find(m => m.identifier === rememberedModelId) : undefined;
+		return remembered ?? models[0];
 	}
 
 	render(container: HTMLElement): void {
