@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { SDKAssistantMessage, SDKCompactBoundaryMessage, SDKHookProgressMessage, SDKHookResponseMessage, SDKHookStartedMessage, SDKMessage, SDKResultMessage, SDKUserMessage, SDKUserMessageReplay } from '@anthropic-ai/claude-agent-sdk';
+import type { SDKAssistantMessage, SDKAssistantMessageError, SDKCompactBoundaryMessage, SDKHookProgressMessage, SDKHookResponseMessage, SDKHookStartedMessage, SDKMessage, SDKResultMessage, SDKUserMessage, SDKUserMessageReplay } from '@anthropic-ai/claude-agent-sdk';
 import type { TodoWriteInput } from '@anthropic-ai/claude-agent-sdk/sdk-tools';
 import type Anthropic from '@anthropic-ai/sdk';
 import * as l10n from '@vscode/l10n';
@@ -38,10 +38,12 @@ export interface MessageHandlerState {
 	readonly unprocessedToolCalls: Map<string, Anthropic.Beta.Messages.BetaToolUseBlock>;
 	readonly otelToolSpans: Map<string, ISpanHandle>;
 	readonly otelHookSpans: Map<string, ISpanHandle>;
-	readonly parentTraceContext?: TraceContext;
+	parentTraceContext?: TraceContext;
 	/** Trace contexts for subagent tool spans, keyed by tool_use_id. Used to parent
 	 *  child spans (chat, tool) from subagent messages under the Agent tool span. */
 	readonly subagentTraceContexts: Map<string, TraceContext>;
+	/** Tracks the last API-level error from an assistant message (e.g. 'billing_error', 'rate_limit'). */
+	lastApiError?: SDKAssistantMessageError;
 }
 
 export interface MessageHandlerResult {
@@ -120,6 +122,9 @@ export const DENY_TOOL_MESSAGE = 'The user declined to run the tool';
 
 export class KnownClaudeError extends Error { }
 
+/** Thrown when the Claude session encounters a quota-exceeded / billing error. */
+export class ClaudeQuotaExceededError extends KnownClaudeError { }
+
 interface IManageTodoListToolInputParams {
 	readonly operation?: 'write' | 'read';
 	readonly todoList: readonly {
@@ -146,6 +151,12 @@ export function handleAssistantMessage(
 	if (message.message.model === SYNTHETIC_MODEL_ID) {
 		accessor.get(ILogService).trace('[ClaudeMessageDispatch] Skipping synthetic message');
 		return;
+	}
+
+	// Track API-level errors (billing_error, rate_limit, etc.) so the result handler
+	// can produce a specific error class for quota-exceeded and similar conditions.
+	if (message.error) {
+		state.lastApiError = message.error;
 	}
 
 	const logService = accessor.get(ILogService);
@@ -625,10 +636,14 @@ export function handleHookResponse(
 export function handleResultMessage(
 	message: SDKResultMessage,
 	request: MessageHandlerRequestContext,
+	state: MessageHandlerState,
 ): MessageHandlerResult {
 	if (message.subtype === 'error_max_turns') {
 		request.stream.progress(l10n.t('Maximum turns reached ({0})', message.num_turns));
 	} else if (message.subtype === 'error_during_execution') {
+		if (state.lastApiError === 'billing_error') {
+			throw new ClaudeQuotaExceededError(l10n.t('You\'ve exceeded your quota'));
+		}
 		throw new KnownClaudeError(l10n.t('Error during execution'));
 	}
 	return { requestComplete: true };
@@ -666,7 +681,7 @@ export function dispatchMessage(
 			handleUserMessage(message, accessor, sessionId, request, state);
 			return;
 		case 'result':
-			return handleResultMessage(message, request);
+			return handleResultMessage(message, request, state);
 		case 'system':
 			if (message.subtype === 'compact_boundary') {
 				handleCompactBoundary(message, request);

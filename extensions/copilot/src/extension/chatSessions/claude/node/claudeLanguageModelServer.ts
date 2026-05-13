@@ -8,7 +8,7 @@ import { RequestMetadata, RequestType } from '@vscode/copilot-api';
 import { Raw } from '@vscode/prompt-tsx';
 import * as http from 'http';
 import { IChatMLFetcher, Source } from '../../../../platform/chat/common/chatMLFetcher';
-import { ChatLocation, ChatResponse } from '../../../../platform/chat/common/commonTypes';
+import { ChatFetchResponseType, ChatLocation, ChatResponse } from '../../../../platform/chat/common/commonTypes';
 import { CustomModel, EndpointEditToolName } from '../../../../platform/endpoint/common/endpointProvider';
 import { AnthropicMessagesProcessor, processNonStreamingResponseFromMessagesEndpoint } from '../../../../platform/endpoint/node/messagesApi';
 import { ILogService } from '../../../../platform/log/common/logService';
@@ -238,10 +238,19 @@ export class ClaudeLanguageModelServer extends Disposable {
 				? () => this._otelService.runWithTraceContext(traceContext, doRequest)
 				: doRequest;
 
+			let chatResponse: ChatResponse;
 			if (capturingToken) {
-				await this.requestLogger.captureInvocation(capturingToken, doRequestInContext);
+				chatResponse = await this.requestLogger.captureInvocation(capturingToken, doRequestInContext);
 			} else {
-				await doRequestInContext();
+				chatResponse = await doRequestInContext();
+			}
+
+			// If the upstream returned an error, forward a proper HTTP error to the
+			// SDK subprocess so it can surface it instead of silently hanging.
+			if (chatResponse.type !== ChatFetchResponseType.Success && !res.headersSent) {
+				const { status, errorType, message } = this.mapChatResponseToHttpError(chatResponse);
+				this.sendErrorResponse(res, status, errorType, message);
+				return;
 			}
 
 			requestComplete = true;
@@ -254,12 +263,37 @@ export class ClaudeLanguageModelServer extends Disposable {
 		}
 	}
 
+	/**
+	 * Maps a non-success ChatResponse to an HTTP status, Anthropic error type, and message
+	 * that the SDK subprocess can interpret.
+	 */
+	private mapChatResponseToHttpError(chatResponse: ChatResponse): { status: number; errorType: AnthropicErrorResponse['error']['type']; message: string } {
+		switch (chatResponse.type) {
+			case ChatFetchResponseType.QuotaExceeded:
+				// The SDK checks for "Your credit balance is too low" to map to billing_error
+				return { status: 402, errorType: 'invalid_request_error', message: chatResponse.reason || 'Your credit balance is too low' };
+			case ChatFetchResponseType.RateLimited:
+				return { status: 429, errorType: 'rate_limit_error', message: chatResponse.reason || 'Rate limited' };
+			case ChatFetchResponseType.Canceled:
+				return { status: 499, errorType: 'api_error', message: 'Request canceled' };
+			case ChatFetchResponseType.Filtered:
+			case ChatFetchResponseType.PromptFiltered:
+				return { status: 400, errorType: 'invalid_request_error', message: chatResponse.reason || 'Content filtered' };
+			default:
+				return { status: 500, errorType: 'api_error', message: ('reason' in chatResponse ? chatResponse.reason : undefined) || 'Request failed' };
+		}
+	}
+
 	private sendErrorResponse(
 		res: http.ServerResponse,
 		statusCode: number,
 		errorType: AnthropicErrorResponse['error']['type'],
 		message: string
 	): void {
+		if (res.headersSent) {
+			res.end();
+			return;
+		}
 		const errorResponse: AnthropicErrorResponse = {
 			type: 'error',
 			error: {

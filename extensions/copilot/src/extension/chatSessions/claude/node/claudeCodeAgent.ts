@@ -24,7 +24,7 @@ import { LanguageModelToolMCPSource } from '../../../../vscodeTypes';
 import { IClaudePluginService } from './claudeSkills';
 import { ExternalEditTracker } from '../../common/externalEditTracker';
 import { buildMcpServersFromRegistry } from '../common/claudeMcpServerRegistry';
-import { dispatchMessage, KnownClaudeError } from '../common/claudeMessageDispatch';
+import { dispatchMessage, ClaudeQuotaExceededError, KnownClaudeError, type MessageHandlerState } from '../common/claudeMessageDispatch';
 import { IClaudeRuntimeDataService } from '../common/claudeRuntimeDataService';
 import { ClaudeSessionUri } from '../common/claudeSessionUri';
 import { IClaudeToolPermissionService } from '../common/claudeToolPermissionService';
@@ -98,6 +98,11 @@ export class ClaudeAgentManager extends Disposable {
 			if (isAbortError) {
 				this.logService.trace('[ClaudeAgentManager] Request was aborted/cancelled');
 				return {};
+			}
+
+			if (invokeError instanceof ClaudeQuotaExceededError) {
+				this.logService.info('[ClaudeAgentManager] Request failed due to quota exceeded');
+				return { errorDetails: { message: invokeError.message, isQuotaExceeded: true } };
 			}
 
 			this.logService.error(invokeError as Error);
@@ -601,6 +606,14 @@ export class ClaudeCodeSession extends Disposable {
 		const subagentTraceContexts = new Map<string, TraceContext>();
 		try {
 			const unprocessedToolCalls = new Map<string, Anthropic.Beta.Messages.BetaToolUseBlock>();
+			const handlerState: MessageHandlerState = {
+				unprocessedToolCalls,
+				otelToolSpans,
+				otelHookSpans,
+				parentTraceContext: this._otelTracker.traceContext,
+				subagentTraceContexts,
+				lastApiError: undefined,
+			};
 			for await (const message of this._queryGenerator!) {
 				// Mark session as resumed after first SDK message confirms session exists on disk.
 				// This ensures future restarts (yield, settings change) use `resume` instead of `sessionId`.
@@ -628,18 +641,13 @@ export class ClaudeCodeSession extends Disposable {
 
 				let result;
 				try {
+					handlerState.parentTraceContext = this._otelTracker.traceContext;
 					result = this.instantiationService.invokeFunction(dispatchMessage, message, this.sessionId, {
 						stream: currentRequest.stream,
 						toolInvocationToken: currentRequest.request.toolInvocationToken,
 						editTracker: this._editTracker,
 						token: currentRequest.token,
-					}, {
-						unprocessedToolCalls,
-						otelToolSpans,
-						otelHookSpans,
-						parentTraceContext: this._otelTracker.traceContext,
-						subagentTraceContexts,
-					});
+					}, handlerState);
 				} catch (dispatchError) {
 					this.logService.warn(`[ClaudeCodeSession] Failed to dispatch message (stream may be disposed after yield): ${dispatchError}`);
 				}
@@ -666,6 +674,7 @@ export class ClaudeCodeSession extends Disposable {
 						this._startGatewayIdleTimer();
 					}
 					subagentTraceContexts.clear();
+					handlerState.lastApiError = undefined;
 				}
 			}
 			// Generator ended normally - clean up so next invoke starts fresh

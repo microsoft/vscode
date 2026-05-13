@@ -16,6 +16,7 @@ import { URI } from '../../../../../util/vs/base/common/uri';
 import { IToolsService } from '../../../../tools/common/toolsService';
 import {
 	ALL_KNOWN_MESSAGE_KEYS,
+	ClaudeQuotaExceededError,
 	DENY_TOOL_MESSAGE,
 	dispatchMessage,
 	handleAssistantMessage,
@@ -1015,21 +1016,29 @@ describe('parseHookJsonOutput', () => {
 
 describe('handleResultMessage', () => {
 	it('returns requestComplete for success', () => {
-		const result = handleResultMessage(makeSuccessResult(), createRequestContext());
+		const result = handleResultMessage(makeSuccessResult(), createRequestContext(), createState());
 		expect(result).toEqual({ requestComplete: true });
 	});
 
 	it('shows progress for error_max_turns', () => {
 		const request = createRequestContext();
-		const result = handleResultMessage(makeErrorResult('error_max_turns', 25), request);
+		const result = handleResultMessage(makeErrorResult('error_max_turns', 25), request, createState());
 		expect(result).toEqual({ requestComplete: true });
 		expect(request.stream.progress).toHaveBeenCalled();
 	});
 
 	it('throws KnownClaudeError for error_during_execution', () => {
 		expect(
-			() => handleResultMessage(makeErrorResult('error_during_execution'), createRequestContext()),
+			() => handleResultMessage(makeErrorResult('error_during_execution'), createRequestContext(), createState()),
 		).toThrow(KnownClaudeError);
+	});
+
+	it('throws ClaudeQuotaExceededError when lastApiError is billing_error', () => {
+		const state = createState();
+		state.lastApiError = 'billing_error';
+		expect(
+			() => handleResultMessage(makeErrorResult('error_during_execution'), createRequestContext(), state),
+		).toThrow(ClaudeQuotaExceededError);
 	});
 });
 
