@@ -28,7 +28,8 @@ export class EditTelemetryContribution extends Disposable {
 		super();
 
 		const workspace = derived(reader => reader.store.add(instantiationService.createInstance(VSCodeWorkspace)));
-		const annotatedDocuments = derived(reader => reader.store.add(instantiationService.createInstance(AnnotatedDocuments, workspace.read(reader))));
+		const annotatedDocuments = derived(reader => reader.store.add(instantiationService.createInstance(AnnotatedDocuments, workspace.read(reader), undefined)));
+		const aiContributionDocuments = derived(reader => reader.store.add(instantiationService.createInstance(AnnotatedDocuments, workspace.read(reader), { includeHiddenDocuments: true })));
 
 		const editSourceTrackingEnabled = observableConfigValue(EDIT_TELEMETRY_SETTING_ID, true, configurationService);
 		this._register(autorun(r => {
@@ -67,7 +68,7 @@ export class EditTelemetryContribution extends Disposable {
 			if (aiDisabled) {
 				return;
 			}
-			r.store.add(instantiationService.createInstance(AiContributionFeature, annotatedDocuments.read(r)));
+			r.store.add(instantiationService.createInstance(AiContributionFeature, aiContributionDocuments.read(r)));
 		}));
 	}
 }

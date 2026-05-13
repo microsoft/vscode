@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { IObservable, mapObservableArrayCached, derived, derivedObservableWithCache, observableFromEvent, observableSignalFromEvent, IReader } from '../../../../../base/common/observable.js';
+import { IObservable, mapObservableArrayCached, derived, derivedObservableWithCache, observableFromEvent, observableSignalFromEvent, IReader, constObservable } from '../../../../../base/common/observable.js';
 import { isDefined } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -17,22 +17,30 @@ export interface IAnnotatedDocuments {
 	readonly documents: IObservable<readonly AnnotatedDocument[]>;
 }
 
+export interface IAnnotatedDocumentsOptions {
+	readonly includeHiddenDocuments?: boolean;
+}
+
 export class AnnotatedDocuments extends Disposable implements IAnnotatedDocuments {
 	public readonly documents: IObservable<readonly AnnotatedDocument[]>;
 	private readonly _states;
 
 	constructor(
 		private readonly _workspace: ObservableWorkspace,
+		options: IAnnotatedDocumentsOptions | undefined,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		super();
 
+		const includeHiddenDocuments = options?.includeHiddenDocuments ?? false;
 		const uriVisibilityProvider = this._instantiationService.createInstance(UriVisibilityProvider);
 
 		this._states = mapObservableArrayCached(this, this._workspace.documents, (doc, store) => {
 			const docIsVisible = derived(reader => uriVisibilityProvider.isVisible(doc.uri, reader));
-			const wasEverVisible = derivedObservableWithCache<boolean>(this, (reader, lastVal) => lastVal || docIsVisible.read(reader));
-			return wasEverVisible.map(v => v ? store.add(this._instantiationService.createInstance(AnnotatedDocument, doc, docIsVisible)) : undefined);
+			const shouldTrack = includeHiddenDocuments
+				? constObservable(true)
+				: derivedObservableWithCache<boolean>(this, (reader, lastVal) => lastVal || docIsVisible.read(reader));
+			return shouldTrack.map(v => v ? store.add(this._instantiationService.createInstance(AnnotatedDocument, doc, docIsVisible)) : undefined);
 		});
 
 		this.documents = this._states.map((vals, reader) => vals.map(v => v.read(reader)).filter(isDefined));

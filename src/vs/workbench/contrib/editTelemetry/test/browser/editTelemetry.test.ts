@@ -61,7 +61,7 @@ suite('Edit Telemetry', () => {
 		instantiationService.stub(ILogService, new NullLogService());
 
 		const w = new MutableObservableWorkspace();
-		const docs = disposables.add(new AnnotatedDocuments(w, instantiationService));
+		const docs = disposables.add(new AnnotatedDocuments(w, undefined, instantiationService));
 		disposables.add(new EditSourceTrackingImpl(constObservable(true), docs, instantiationService));
 
 		const d1 = disposables.add(w.createDocument({

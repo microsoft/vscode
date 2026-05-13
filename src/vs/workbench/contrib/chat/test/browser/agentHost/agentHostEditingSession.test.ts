@@ -4,26 +4,34 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { timeout } from '../../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
+import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IDocumentDiff } from '../../../../../../editor/common/diff/documentDiffProvider.js';
 import { DetailedLineRangeMapping } from '../../../../../../editor/common/diff/rangeMapping.js';
 import { IEditorWorkerService } from '../../../../../../editor/common/services/editorWorker.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../../editor/common/services/resolverService.js';
+import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { ToolCallState, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import type { ToolCallCompletedState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IFileContent, IFileService } from '../../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { ServiceCollection } from '../../../../../../platform/instantiation/common/serviceCollection.js';
+import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { AgentHostEditingSession } from '../../../browser/agentSessions/agentHost/agentHostEditingSession.js';
 import { ChatEditingSessionState, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
 import { autorun, IObservable } from '../../../../../../base/common/observable.js';
+import { AiContributionFeature } from '../../../../editTelemetry/browser/aiContributionFeature.js';
+import { AnnotatedDocuments } from '../../../../editTelemetry/browser/helpers/annotatedDocuments.js';
+import { MutableObservableWorkspace } from '../../../../editTelemetry/test/browser/editTelemetry.test.js';
 
 // ---- Test helpers -----------------------------------------------------------
 
@@ -148,6 +156,16 @@ function createSession(store: DisposableStore, contentMap: Map<string, string>, 
 	return session;
 }
 
+function setupAiContributionFeature(store: DisposableStore, workspace: MutableObservableWorkspace): void {
+	const instantiationService = store.add(new TestInstantiationService(new ServiceCollection(), false, undefined, true));
+	const annotatedDocuments = store.add(new AnnotatedDocuments(workspace, { includeHiddenDocuments: true }, instantiationService));
+	store.add(instantiationService.createInstance(AiContributionFeature, annotatedDocuments));
+}
+
+function hasAiContributions(uris: URI[], level: 'chatAndAgent' | 'all'): boolean {
+	return CommandsRegistry.getCommand('_aiEdits.hasAiContributions')!.handler(undefined!, uris, level) as boolean;
+}
+
 // ---- Tests ------------------------------------------------------------------
 
 suite('AgentHostEditingSession', () => {
@@ -192,6 +210,44 @@ suite('AgentHostEditingSession', () => {
 		assert.strictEqual(session.canUndo.get(), true);
 		assert.strictEqual(session.canRedo.get(), false);
 	});
+
+	test('addToolCallEdits leaves ai contribution tracking false for agent-host resources', () => runWithFakedTimers({}, async () => {
+		const workspace = new MutableObservableWorkspace();
+		setupAiContributionFeature(store, workspace);
+
+		const session = createSession(store, new Map());
+		const fileUri = toAgentHostUri(URI.file('/workspace/file.ts'), 'local');
+		store.add(workspace.createDocument({ uri: fileUri, initialValue: 'current-content' }, undefined));
+		await timeout(1500);
+
+		const progress = session.addToolCallEdits('req-1', makeToolCall({
+			toolCallId: 'tc-1',
+			filePath: '/workspace/file.ts',
+			beforeURI: 'content://before-1',
+			afterURI: 'content://after-1',
+		}));
+
+		assert.deepStrictEqual({
+			textEditProgress: progress.filter((part): part is Extract<(typeof progress)[number], { kind: 'textEdit' }> => part.kind === 'textEdit').map(part => ({
+				uri: part.uri.toString(),
+				done: part.done,
+				isExternalEdit: part.isExternalEdit,
+			})),
+			hasAiContributions: {
+				all: hasAiContributions([fileUri], 'all'),
+				chatAndAgent: hasAiContributions([fileUri], 'chatAndAgent'),
+			},
+		}, {
+			textEditProgress: [
+				{ uri: fileUri.toString(), done: false, isExternalEdit: true },
+				{ uri: fileUri.toString(), done: true, isExternalEdit: true },
+			],
+			hasAiContributions: {
+				all: false,
+				chatAndAgent: false,
+			},
+		});
+	}));
 
 	test('addToolCallEdits ignores non-completed tool calls', () => {
 		const session = createSession(store, new Map());

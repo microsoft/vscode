@@ -57,7 +57,7 @@ suite('AiContributionFeature', () => {
 		instantiationService.stub(ILogService, new NullLogService());
 
 		workspace = new MutableObservableWorkspace();
-		const annotatedDocuments = disposables.add(new AnnotatedDocuments(workspace, instantiationService));
+		const annotatedDocuments = disposables.add(new AnnotatedDocuments(workspace, { includeHiddenDocuments: true }, instantiationService));
 		disposables.add(instantiationService.createInstance(AiContributionFeature, annotatedDocuments));
 	}
 
@@ -123,6 +123,24 @@ suite('AiContributionFeature', () => {
 
 		assert.strictEqual(hasAiContributions([d.uri], 'all'), true);
 		assert.strictEqual(hasAiContributions([d.uri], 'chatAndAgent'), false);
+		disposables.dispose();
+	}));
+
+	test('keeps hidden inline completion edits at all level only', () => runWithFakedTimers({}, async () => {
+		setup({ visibilityByUri: new Map([[fileA.toString(), false]]) });
+		const d = disposables.add(workspace.createDocument({ uri: fileA, initialValue: 'hello' }, undefined));
+		await timeout(1500);
+
+		d.applyEdit(StringEditWithReason.replace(d.findRange('hello'), 'world', inlineCompletionEdit));
+		await timeout(1500);
+
+		assert.deepStrictEqual({
+			all: hasAiContributions([d.uri], 'all'),
+			chatAndAgent: hasAiContributions([d.uri], 'chatAndAgent'),
+		}, {
+			all: true,
+			chatAndAgent: false,
+		});
 		disposables.dispose();
 	}));
 
