@@ -14,7 +14,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { GitDiffChange, IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
-import { COPILOT_CLOUD_SESSION_TYPE, gitHubInfoEqual, IGitHubInfo, ISessionFileChange } from '../../../services/sessions/common/session.js';
+import { gitHubInfoEqual, IGitHubInfo, ISessionFileChange } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { IAgentFeedbackService } from '../../agentFeedback/browser/agentFeedbackService.js';
 import { CodeReviewStateKind, getCodeReviewFilesFromSessionChanges, getCodeReviewVersion, ICodeReviewService, PRReviewStateKind } from '../../codeReview/browser/codeReviewService.js';
@@ -79,6 +79,7 @@ export interface ActiveSessionState {
 export class ChangesViewModel extends Disposable {
 	readonly activeSessionResourceObs: IObservable<URI | undefined>;
 	readonly activeSessionTypeObs: IObservable<string | undefined>;
+	readonly activeSessionIsVirtualWorkspaceObs: IObservable<boolean>;
 	readonly activeSessionIsArchivedObs: IObservable<boolean>;
 	readonly activeSessionChangesObs: IObservable<readonly ISessionFileChange[]>;
 	readonly activeSessionHasGitRepositoryObs: IObservable<boolean>;
@@ -132,6 +133,11 @@ export class ChangesViewModel extends Disposable {
 			return activeSession?.sessionType;
 		});
 
+		this.activeSessionIsVirtualWorkspaceObs = derived(reader => {
+			const activeSession = this.sessionManagementService.activeSession.read(reader);
+			return activeSession?.workspace.read(reader)?.isVirtualWorkspace ?? false;
+		});
+
 		this.activeSessionIsArchivedObs = derived(reader => {
 			const activeSession = this.sessionManagementService.activeSession.read(reader);
 			return activeSession?.isArchived.read(reader) === true;
@@ -139,8 +145,8 @@ export class ChangesViewModel extends Disposable {
 
 		// Active session has git repository
 		this.activeSessionHasGitRepositoryObs = derived(reader => {
-			const sessionType = this.activeSessionTypeObs.read(reader);
-			if (sessionType === COPILOT_CLOUD_SESSION_TYPE) {
+			const isVirtualWorkspace = this.activeSessionIsVirtualWorkspaceObs.read(reader);
+			if (isVirtualWorkspace) {
 				return true;
 			}
 
@@ -261,10 +267,10 @@ export class ChangesViewModel extends Disposable {
 
 		// All changes
 		this._activeSessionAllChangesPromiseObs = derived(reader => {
-			const sessionType = this.activeSessionTypeObs.read(reader);
+			const isVirtualWorkspace = this.activeSessionIsVirtualWorkspaceObs.read(reader);
 
-			if (sessionType === COPILOT_CLOUD_SESSION_TYPE) {
-				// Cloud session
+			if (isVirtualWorkspace) {
+				// Virtual (cloud) session
 				const gitHubInfo = gitHubInfoObs.read(reader);
 
 				const firstCheckpointRef = gitHubInfo?.pullRequest?.baseRefOid;
@@ -293,10 +299,10 @@ export class ChangesViewModel extends Disposable {
 
 		// Last turn changes
 		this._activeSessionLastTurnChangesPromiseObs = derived(reader => {
-			const sessionType = this.activeSessionTypeObs.read(reader);
+			const isVirtualWorkspace = this.activeSessionIsVirtualWorkspaceObs.read(reader);
 
-			if (sessionType === COPILOT_CLOUD_SESSION_TYPE) {
-				// Cloud session
+			if (isVirtualWorkspace) {
+				// Virtual (cloud) session
 				const gitHubInfo = gitHubInfoObs.read(reader);
 				const lastCheckpointRef = gitHubInfo?.pullRequest?.headRefOid;
 

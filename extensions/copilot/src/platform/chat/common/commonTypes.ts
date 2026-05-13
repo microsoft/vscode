@@ -354,6 +354,8 @@ function getQuotaHitMessage(fetchResult: ChatFetchError, copilotPlan: string | u
 			args: ['https://support.github.com/contact'],
 			comment: [`{Locked=']({'}`]
 		});
+	} else if (fetchResult.capiError?.code === 'billing_not_configured' && fetchResult.capiError?.message) {
+		return fetchResult.capiError.message;
 	} else if (fetchResult.capiError?.code && fetchResult.capiError?.message) {
 		return l10n.t({
 			message: 'Quota Exceeded\n\nServer Error: {0}\nError Code: {1}',
