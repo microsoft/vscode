@@ -27,7 +27,7 @@ Then read the relevant spec for the area you are changing (see table below). If 
 - **Wrong menu IDs**: Never use `MenuId.*` from `vs/platform/actions` for Agents window UI. Always use `Menus.*` from `browser/menus.ts`.
 - **Events instead of observables**: Session state must flow through `IObservable`, not `Event`. Use `autorun`/`derived` for reactive UI, not `onDid*` event listeners.
 - **Importing from providers**: Non-provider `contrib/*` code must never import from `contrib/providers/*`. Extract shared interfaces to `services/` or `common/`.
-- **Missing entry point import**: New contribution files must be imported in `sessions.common.main.ts` or `sessions.desktop.main.ts` to be loaded.
+- **Missing entry point import**: New contribution files must be imported in the appropriate `sessions.*.main.ts` entry point to be loaded (for example `sessions.common.main.ts`, `sessions.desktop.main.ts`, `sessions.web.main.ts`, or `sessions.web.main.internal.ts`).
 - **Modifying workbench code**: Prefer extending/wrapping workbench classes in the sessions layer over modifying shared workbench components.
 
 ## Validating Changes
