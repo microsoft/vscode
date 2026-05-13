@@ -214,7 +214,7 @@ export function createMessagesRequestBody(accessor: ServicesAccessor, options: I
 	return {
 		model,
 		...messagesResult,
-		stream: true,
+		stream: options.requestOptions?.stream ?? true,
 		tools: finalTools.length > 0 ? finalTools : undefined,
 		max_tokens: options.postOptions.max_tokens,
 		thinking: thinkingConfig,
@@ -558,6 +558,12 @@ export async function processResponseFromMessagesEndpoint(
 	finishCallback: FinishedCallback,
 	telemetryData: TelemetryData
 ): Promise<AsyncIterableObject<ChatCompletion>> {
+	// Route based on Content-Type: non-streaming Anthropic responses return
+	// application/json, streaming returns text/event-stream.
+	const contentType = response.headers.get('content-type') ?? '';
+	if (!contentType.includes('text/event-stream')) {
+		return processNonStreamingResponseFromMessagesEndpoint(telemetryService, logService, response, finishCallback, telemetryData);
+	}
 	return new AsyncIterableObject<ChatCompletion>(async feed => {
 		const requestId = response.headers.get('X-Request-ID') ?? generateUuid();
 		const ghRequestId = response.headers.get('x-github-request-id') ?? '';
@@ -613,6 +619,300 @@ export async function processResponseFromMessagesEndpoint(
 		for await (const chunk of response.body) {
 			parser.feed(chunk);
 		}
+	}, async () => {
+		await response.body.destroy();
+	});
+}
+
+/**
+ * Inputs for {@link buildAnthropicCompletion}. Both the streaming
+ * `message_stop` handler and the non-streaming response handler
+ * populate this from their respective data sources.
+ */
+interface AnthropicCompletionState {
+	readonly model: string;
+	readonly messageId: string;
+	readonly stopReason: string | null | undefined;
+	readonly textContent: string;
+	readonly toolCalls: readonly { id: string; name: string; arguments: string }[];
+	readonly inputTokens: number;
+	readonly outputTokens: number;
+	readonly cacheCreationTokens: number;
+	readonly cacheReadTokens: number;
+	readonly requestId: string;
+	readonly ghRequestId: string;
+	readonly serverExperiments: string;
+	readonly telemetryData: TelemetryData;
+	readonly copilotUsage?: { total_nano_aiu: number };
+}
+
+/**
+ * Map an Anthropic `stop_reason` string to a {@link FinishedCompletionReason}.
+ */
+function mapStopReason(stopReason: string | null | undefined): FinishedCompletionReason {
+	switch (stopReason) {
+		case 'refusal':
+			return FinishedCompletionReason.ClientDone;
+		case 'max_tokens':
+		case 'model_context_window_exceeded':
+			return FinishedCompletionReason.Length;
+		default:
+			return FinishedCompletionReason.Stop;
+	}
+}
+
+/**
+ * Build a {@link ChatCompletion} from the accumulated Anthropic response
+ * state. Shared between the streaming (`message_stop`) and non-streaming
+ * response handlers so token accounting, finish-reason mapping, and
+ * message construction are defined in exactly one place.
+ *
+ * @param logService Used for the cache-token consistency warning.
+ */
+function buildAnthropicCompletion(state: AnthropicCompletionState, logService: ILogService): ChatCompletion {
+	const computedPromptTokens = state.inputTokens + state.cacheCreationTokens + state.cacheReadTokens;
+	if (computedPromptTokens < state.cacheReadTokens) {
+		logService.warn(`[messagesAPI] Token count inconsistency: computed prompt_tokens (${computedPromptTokens}) < cached_tokens (${state.cacheReadTokens}). Raw values: inputTokens=${state.inputTokens}, cacheCreationTokens=${state.cacheCreationTokens}, cacheReadTokens=${state.cacheReadTokens}`);
+	}
+
+	return {
+		blockFinished: true,
+		choiceIndex: 0,
+		model: state.model,
+		tokens: [],
+		telemetryData: state.telemetryData,
+		requestId: {
+			headerRequestId: state.requestId,
+			gitHubRequestId: state.ghRequestId,
+			completionId: state.messageId,
+			created: Date.now(),
+			deploymentId: '',
+			serverExperiments: state.serverExperiments,
+		},
+		usage: {
+			prompt_tokens: computedPromptTokens,
+			completion_tokens: state.outputTokens,
+			total_tokens: computedPromptTokens + state.outputTokens,
+			prompt_tokens_details: {
+				cached_tokens: state.cacheReadTokens,
+				cache_creation_input_tokens: state.cacheCreationTokens,
+			},
+			completion_tokens_details: {
+				reasoning_tokens: 0,
+				accepted_prediction_tokens: 0,
+				rejected_prediction_tokens: 0,
+			},
+			copilot_usage: state.copilotUsage,
+		},
+		finishReason: mapStopReason(state.stopReason),
+		message: {
+			role: Raw.ChatRole.Assistant,
+			content: state.textContent ? [{
+				type: Raw.ChatCompletionContentPartKind.Text,
+				text: state.textContent
+			}] : [],
+			...(state.toolCalls.length > 0 ? {
+				toolCalls: state.toolCalls.map(tc => ({
+					id: tc.id,
+					type: 'function' as const,
+					function: {
+						name: tc.name,
+						arguments: tc.arguments
+					}
+				}))
+			} : {})
+		}
+	};
+}
+
+/**
+ * Shape of an Anthropic Messages API non-streaming response.
+ * Tagged union: successful responses have `type: 'message'`, error
+ * responses have `type: 'error'`.
+ */
+type AnthropicNonStreamingResponse =
+	| {
+		type: 'message';
+		id: string;
+		role: string;
+		content: readonly (
+			| { type: 'text'; text: string }
+			| { type: 'tool_use'; id: string; name: string; input: unknown }
+			| { type: 'thinking'; thinking: string; signature: string }
+			| { type: 'redacted_thinking'; data: string }
+		)[];
+		model: string;
+		stop_reason: string | null;
+		usage: {
+			input_tokens: number;
+			output_tokens: number;
+			cache_creation_input_tokens?: number;
+			cache_read_input_tokens?: number;
+		};
+	}
+	| {
+		type: 'error';
+		error: { type?: string; message?: string };
+	};
+
+/**
+ * Process a non-streaming response from the Anthropic Messages API.
+ * Returns the same `ChatCompletion` shape as the streaming path.
+ *
+ * NOTE: Thinking / redacted_thinking content blocks are intentionally
+ * not surfaced. If a future caller needs them, this function must be
+ * extended to include them in the `ChatCompletion.message` and in the
+ * `finishCallback` delta.
+ */
+export async function processNonStreamingResponseFromMessagesEndpoint(
+	telemetryService: ITelemetryService,
+	logService: ILogService,
+	response: Response,
+	finishCallback: FinishedCallback,
+	telemetryData: TelemetryData
+): Promise<AsyncIterableObject<ChatCompletion>> {
+	return new AsyncIterableObject<ChatCompletion>(async feed => {
+		const { headerRequestId, serverExperiments } = getRequestId(response.headers);
+		const requestId = headerRequestId || generateUuid();
+		const ghRequestId = response.headers.get('x-github-request-id') ?? '';
+
+		const bodyText = await response.text();
+
+		let parsed: AnthropicNonStreamingResponse;
+		try {
+			parsed = JSON.parse(bodyText);
+		} catch (e) {
+			feed.reject(new Error(`Failed to parse non-streaming Anthropic response: ${e instanceof Error ? e.message : String(e)}`));
+			return;
+		}
+
+		if (parsed.type === 'error') {
+			feed.reject(new Error(`Anthropic API error: ${parsed.error?.message ?? 'Unknown error'}`));
+			return;
+		}
+
+		// Extract content blocks — guard against missing content array
+		// (shouldn't happen for type=message, but be defensive).
+		let textContent = '';
+		const toolCalls: { id: string; name: string; arguments: string }[] = [];
+		for (const block of parsed.content ?? []) {
+			switch (block.type) {
+				case 'text':
+					textContent += block.text;
+					break;
+				case 'tool_use':
+					toolCalls.push({
+						id: block.id,
+						name: block.name,
+						arguments: JSON.stringify(block.input),
+					});
+					break;
+				case 'thinking':
+				case 'redacted_thinking':
+					// Intentionally not surfaced — see function JSDoc.
+					break;
+				default: {
+					// Parity with streaming path: log + emit telemetry for unknown block types
+					const unknownType = (block as { type: string }).type;
+					logService.warn(`[messagesAPI] non-streaming: unknown content_block type '${unknownType}' for model ${parsed.model}`);
+					/* __GDPR__
+						"messagesApi.unknownContentBlock" : {
+							"owner": "bhavyaus",
+							"comment": "Tracks unknown Anthropic content block types",
+							"requestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The request ID for correlation" },
+							"model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The model that emitted the unknown block" },
+							"blockType": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The unknown content_block.type string" }
+						}
+					*/
+					telemetryService.sendMSFTTelemetryEvent('messagesApi.unknownContentBlock', {
+						requestId,
+						model: parsed.model,
+						blockType: unknownType,
+					});
+					break;
+				}
+			}
+		}
+
+		// Report text and tool calls to finishedCb so callers that rely on
+		// the callback (e.g. for OTEL tracing, progress, langModelServer SSE
+		// forwarding) see the complete response — matching the streaming path.
+		const delta: IResponseDelta = {
+			text: textContent,
+			...(toolCalls.length > 0 ? {
+				copilotToolCalls: toolCalls.map(tc => ({
+					id: tc.id,
+					name: tc.name,
+					arguments: tc.arguments,
+				})),
+			} : {}),
+		};
+		await finishCallback(textContent, 0, delta);
+
+		if (parsed.stop_reason === 'refusal') {
+			logService.warn(`[messagesAPI] non-streaming: Refusal received for model ${parsed.model}`);
+
+			/* __GDPR__
+				"messagesApi.refusal" : {
+					"owner": "bhavyaus",
+					"comment": "Tracks Anthropic refusal responses including cyber and other policy categories",
+					"requestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The request ID for correlation" },
+					"model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The model that produced the refusal" },
+					"category": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The refusal category (e.g. cyber, content_policy)" }
+				}
+			*/
+			telemetryService.sendMSFTTelemetryEvent('messagesApi.refusal',
+				{
+					requestId,
+					model: parsed.model,
+					category: 'unknown',
+				}
+			);
+		}
+
+		const usage = parsed.usage;
+		const completion = buildAnthropicCompletion({
+			model: parsed.model,
+			messageId: parsed.id,
+			stopReason: parsed.stop_reason,
+			textContent,
+			toolCalls,
+			inputTokens: usage?.input_tokens ?? 0,
+			outputTokens: usage?.output_tokens ?? 0,
+			cacheCreationTokens: usage?.cache_creation_input_tokens ?? 0,
+			cacheReadTokens: usage?.cache_read_input_tokens ?? 0,
+			requestId,
+			ghRequestId,
+			serverExperiments,
+			telemetryData,
+		}, logService);
+
+		logService.info(`[messagesAPI] non-streaming message returned. finish reason: [${completion.finishReason}]`);
+
+		const dataToSendToTelemetry = telemetryData.extendedBy({
+			completionChoiceFinishReason: completion.finishReason,
+			headerRequestId: completion.requestId.headerRequestId
+		});
+		telemetryService.sendGHTelemetryEvent('completion.finishReason', dataToSendToTelemetry.properties, dataToSendToTelemetry.measurements);
+
+		const telemetryMessage = rawMessageToCAPI(completion.message);
+		let telemetryDataWithUsage = telemetryData;
+		if (completion.usage) {
+			telemetryDataWithUsage = telemetryData.extendedBy({}, {
+				promptTokens: completion.usage.prompt_tokens,
+				completionTokens: completion.usage.completion_tokens,
+				totalTokens: completion.usage.total_tokens,
+				...(completion.usage.prompt_tokens_details && { cachedTokens: completion.usage.prompt_tokens_details.cached_tokens }),
+				...(completion.usage.completion_tokens_details && {
+					reasoningTokens: completion.usage.completion_tokens_details.reasoning_tokens,
+					acceptedPredictionTokens: completion.usage.completion_tokens_details.accepted_prediction_tokens,
+					rejectedPredictionTokens: completion.usage.completion_tokens_details.rejected_prediction_tokens,
+				}),
+			});
+		}
+		sendEngineMessagesTelemetry(telemetryService, [telemetryMessage], telemetryDataWithUsage, true, logService);
+
+		feed.emitOne(completion);
 	}, async () => {
 		await response.body.destroy();
 	});
@@ -902,73 +1202,22 @@ export class AnthropicMessagesProcessor {
 					);
 				}
 
-				let finishReason: FinishedCompletionReason;
-				switch (this.stopReason) {
-					case 'refusal':
-						finishReason = FinishedCompletionReason.ClientDone;
-						break;
-					case 'max_tokens':
-					case 'model_context_window_exceeded':
-						finishReason = FinishedCompletionReason.Length;
-						break;
-					default:
-						finishReason = FinishedCompletionReason.Stop;
-						break;
-				}
-
-				const computedPromptTokens = this.inputTokens + this.cacheCreationTokens + this.cacheReadTokens;
-				if (computedPromptTokens < this.cacheReadTokens) {
-					this.logService.warn(`[messagesAPI] Token count inconsistency: computed prompt_tokens (${computedPromptTokens}) < cached_tokens (${this.cacheReadTokens}). Raw values: inputTokens=${this.inputTokens}, cacheCreationTokens=${this.cacheCreationTokens}, cacheReadTokens=${this.cacheReadTokens}`);
-				}
-
-				return {
-					blockFinished: true,
-					choiceIndex: 0,
+				return buildAnthropicCompletion({
 					model: this.model,
-					tokens: [],
+					messageId: this.messageId,
+					stopReason: this.stopReason,
+					textContent: this.textAccumulator,
+					toolCalls: this.completedToolCalls,
+					inputTokens: this.inputTokens,
+					outputTokens: this.outputTokens,
+					cacheCreationTokens: this.cacheCreationTokens,
+					cacheReadTokens: this.cacheReadTokens,
+					requestId: this.requestId,
+					ghRequestId: this.ghRequestId,
+					serverExperiments: this.serverExperiments,
 					telemetryData: this.telemetryData,
-					requestId: {
-						headerRequestId: this.requestId,
-						gitHubRequestId: this.ghRequestId,
-						completionId: this.messageId,
-						created: Date.now(),
-						deploymentId: '',
-						serverExperiments: this.serverExperiments,
-					},
-					usage: {
-						prompt_tokens: computedPromptTokens,
-						completion_tokens: this.outputTokens,
-						total_tokens: computedPromptTokens + this.outputTokens,
-						prompt_tokens_details: {
-							cached_tokens: this.cacheReadTokens,
-							cache_creation_input_tokens: this.cacheCreationTokens,
-						},
-						completion_tokens_details: {
-							reasoning_tokens: 0,
-							accepted_prediction_tokens: 0,
-							rejected_prediction_tokens: 0,
-						},
-						copilot_usage: this.copilotUsage,
-					},
-					finishReason,
-					message: {
-						role: Raw.ChatRole.Assistant,
-						content: this.textAccumulator ? [{
-							type: Raw.ChatCompletionContentPartKind.Text,
-							text: this.textAccumulator
-						}] : [],
-						...(this.completedToolCalls.length > 0 ? {
-							toolCalls: this.completedToolCalls.map(tc => ({
-								id: tc.id,
-								type: 'function' as const,
-								function: {
-									name: tc.name,
-									arguments: tc.arguments
-								}
-							}))
-						} : {})
-					}
-				};
+					copilotUsage: this.copilotUsage,
+				}, this.logService);
 			}
 			case 'error': {
 				const errorMessage = (chunk as unknown as { error?: { message?: string } }).error?.message || 'Unknown error';

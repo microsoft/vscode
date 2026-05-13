@@ -421,34 +421,18 @@ export function getVerbosityForModelSync(model: IChatEndpoint): 'low' | 'medium'
  * - Claude Opus 4.5 (claude-opus-4-5-* or claude-opus-4.5-*)
  * - Claude Opus 4.6 (claude-opus-4-6-* or claude-opus-4.6-*)
  * - Claude Opus 4.7 (claude-opus-4-7-* or claude-opus-4.7-*)
- * - OpenAI gpt-5.4/gpt-5.5, but only when the `ResponsesApiToolSearchEnabled` setting is enabled
+ * - OpenAI gpt-5.4 and gpt-5.5 (via Responses API client-side tool search)
  */
-export function modelSupportsToolSearch(modelId: string, configurationService?: IConfigurationService, experimentationService?: IExperimentationService): boolean {
+export function modelSupportsToolSearch(modelId: string): boolean {
 	const normalized = modelId.toLowerCase().replace(/\./g, '-');
-	if (isResponsesApiToolSearchModelId(normalized)) {
-		return !!configurationService && !!experimentationService && isResponsesApiToolSearchEnabled(modelId, configurationService, experimentationService);
-	}
-
-	return normalized.startsWith('claude-sonnet-4-5') ||
+	return normalized === 'gpt-5-4' ||
+		normalized === 'gpt-5-5' ||
+		normalized.startsWith('claude-sonnet-4-5') ||
 		normalized.startsWith('claude-sonnet-4-6') ||
 		normalized.startsWith('claude-opus-4-5') ||
 		normalized.startsWith('claude-opus-4-6') ||
 		normalized.startsWith('claude-opus-4-7') ||
 		isHiddenModelG(modelId);
-}
-
-function isResponsesApiToolSearchModelId(normalizedModelId: string): boolean {
-	return normalizedModelId === 'gpt-5-4' || normalizedModelId === 'gpt-5-5';
-}
-
-export function isResponsesApiToolSearchEnabled(
-	endpoint: IChatEndpoint | string,
-	configurationService: IConfigurationService,
-	experimentationService: IExperimentationService,
-): boolean {
-	const modelId = typeof endpoint === 'string' ? endpoint : endpoint.model;
-	const normalized = modelId.toLowerCase().replace(/\./g, '-');
-	return isResponsesApiToolSearchModelId(normalized) && configurationService.getExperimentBasedConfig(ConfigKey.ResponsesApiToolSearchEnabled, experimentationService);
 }
 
 /**
