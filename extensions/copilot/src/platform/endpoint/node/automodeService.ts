@@ -366,7 +366,7 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 	}
 
 	private _selectDefaultModel(currentModelProvider: string | undefined, availableModels: string[], knownEndpoints: IChatEndpoint[]): IChatEndpoint {
-		const selectedModel = (currentModelProvider && this._findSameProviderModel(currentModelProvider, availableModels, knownEndpoints))
+		const selectedModel = (currentModelProvider ? this._findSameProviderModel(currentModelProvider, availableModels, knownEndpoints) : undefined)
 			?? this._findFirstAvailableModel(availableModels, knownEndpoints);
 		if (selectedModel) {
 			return selectedModel;
