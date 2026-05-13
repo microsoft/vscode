@@ -96,6 +96,12 @@ const INPUT_NEEDED_NOTIFICATION_THROTTLE_MS = 5000;
  * the same time, this window lets them coalesce into a single message.
  */
 const COMPLETION_BATCH_DELAY_MS = 500;
+/**
+ * Maximum time to wait before force-flushing a batch, even if new
+ * completions keep arriving. Prevents indefinite deferral when
+ * terminals trickle in faster than the debounce window.
+ */
+const COMPLETION_BATCH_MAX_DELAY_MS = 2000;
 
 function createPowerShellModelDescription(shell: string, isSandboxEnabled: boolean, allowToRunUnsandboxedCommands: boolean, networkDomains?: ITerminalSandboxResolvedNetworkDomains): string {
 	const isWinPwsh = isWindowsPowerShell(shell);
@@ -515,6 +521,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		readonly items: { termId: string; commandName: string; exitCode: number | undefined; output: string }[];
 		sendOptions: { userSelectedModelId?: string; modeInfo?: IChatRequestModeInfo; userSelectedTools?: IObservable<UserSelectedTools> };
 		chatSessionResource: URI;
+		readonly firstEnqueueTime: number;
 	}>();
 
 	// Immutable window state
@@ -702,6 +709,14 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					this._completionBatches.delete(key);
 				}
 			}
+		}));
+
+		// Dispose all pending batch schedulers when the tool is disposed
+		this._register(toDisposable(() => {
+			for (const batch of this._completionBatches.values()) {
+				batch.scheduler.dispose();
+			}
+			this._completionBatches.clear();
 		}));
 
 	}
@@ -2707,11 +2722,25 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				items: [],
 				sendOptions,
 				chatSessionResource,
+				firstEnqueueTime: Date.now(),
 			};
 			this._completionBatches.set(key, batch);
 		}
+		// Always use the most recent sendOptions so the steering message
+		// inherits the latest model/mode/tools from the conversation.
+		batch.sendOptions = sendOptions;
 		batch.items.push({ termId, commandName, exitCode, output });
-		batch.scheduler.schedule();
+
+		// Force-flush if the batch has been accumulating longer than the
+		// max window to prevent indefinite deferral when terminals trickle
+		// in faster than the debounce interval.
+		const elapsed = Date.now() - batch.firstEnqueueTime;
+		if (elapsed >= COMPLETION_BATCH_MAX_DELAY_MS) {
+			batch.scheduler.cancel();
+			this._flushCompletionBatch(key);
+		} else {
+			batch.scheduler.schedule();
+		}
 	}
 
 	/**
@@ -2736,6 +2765,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			message = `[Terminal ${item.termId} notification: command completed${exitCodeText}. Use send_to_terminal to send another command or kill_terminal to stop it.]\nTerminal output:\n${item.output}`;
 			systemInitiatedLabel = localize('terminalCommandCompleted', "`{0}` completed", item.commandName);
 		} else {
+			// This branch is only reached when items.length >= 2 (the length === 1
+			// case is handled above), so the plural "commands" is always correct.
 			const summary = items.map(item => {
 				const exitCodeText = item.exitCode !== undefined ? ` (exit code ${item.exitCode})` : '';
 				return `- Terminal ${item.termId} (\`${item.commandName}\`)${exitCodeText}`;
