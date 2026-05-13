@@ -7,7 +7,7 @@ import './simpleFindWidget.css';
 import * as nls from '../../../../../nls.js';
 import * as dom from '../../../../../base/browser/dom.js';
 import { FindInput } from '../../../../../base/browser/ui/findinput/findInput.js';
-import { NthMatchInput, getSanitizedInputValue } from '../../../../../base/browser/ui/findinput/nthMatchInput.js';
+import { NthMatchInput } from '../../../../../base/browser/ui/findinput/nthMatchInput.js';
 import { Widget } from '../../../../../base/browser/ui/widget.js';
 import { Delayer, disposableTimeout } from '../../../../../base/common/async.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
@@ -30,11 +30,13 @@ import type { IHoverService } from '../../../../../platform/hover/browser/hover.
 import type { IHoverLifecycleOptions } from '../../../../../base/browser/ui/hover/hover.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
-import { MATCHES_LIMIT } from '../../../../../editor/contrib/find/browser/findModel.js';
+import { FIND_IDS, MATCHES_LIMIT } from '../../../../../editor/contrib/find/browser/findModel.js';
 
 const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
 const NLS_FIND_INPUT_PLACEHOLDER = nls.localize('placeholder.find', "Find");
-const NLS_NTH_MATCH_INPUT_LABEL = nls.localize('label.nthMatchEdit', "Enter Nth Match");
+const NLS_NTH_MATCH_INPUT_LABEL = nls.localize('label.nthMatchEdit', "Nth Match");
+const NLS_NTH_MATCH_INPUT_PLACEHOLDER = nls.localize('placeholder.nthMatchEdit', "N");
+const NLS_JUMP_TO_LAST_MATCH_BTN_LABEL = nls.localize('label.lastMatch', "Last Highlighted Match");
 const NLS_PREVIOUS_MATCH_BTN_LABEL = nls.localize('label.previousMatchButton', "Previous Match");
 const NLS_NEXT_MATCH_BTN_LABEL = nls.localize('label.nextMatchButton', "Next Match");
 const NLS_CLOSE_BTN_LABEL = nls.localize('label.closeButton', "Close");
@@ -68,6 +70,7 @@ export abstract class SimpleFindWidget extends Widget implements IVerticalSashLa
 	private readonly _findInputFocusTracker: dom.IFocusTracker;
 	private readonly _nthMatchInputFocusTracker: dom.IFocusTracker;
 	private readonly _updateHistoryDelayer: Delayer<void>;
+	private readonly lastMatchBtn: SimpleButton;
 	private readonly prevBtn: SimpleButton;
 	private readonly nextBtn: SimpleButton;
 	private readonly _matchesLimit: number;
@@ -164,6 +167,18 @@ export abstract class SimpleFindWidget extends Widget implements IVerticalSashLa
 
 		const hoverLifecycleOptions: IHoverLifecycleOptions = { groupId: 'simple-find-widget' };
 
+		this.lastMatchBtn = this._register(new SimpleButton({
+			label: `${NLS_JUMP_TO_LAST_MATCH_BTN_LABEL} ${this._keybindingLabelFor(FIND_IDS.GoToLastMatchFindAction)}`,
+			hoverLifecycleOptions,
+			onTrigger: () => {
+				const countParts = this.lastMatchBtn.domNode.innerText?.split('+') || [];
+				const trueCount = parseInt(countParts[0]);
+				this.findNth(!isNaN(trueCount) ? trueCount : this._matchesLimit);
+				this._nthMatchInput.setValue(`${!isNaN(trueCount) ? trueCount : this._matchesLimit}`);
+			}
+		}, hoverService));
+		this.lastMatchBtn.domNode.classList.add(...['last-match-btn']);
+
 		this.prevBtn = this._register(new SimpleButton({
 			label: NLS_PREVIOUS_MATCH_BTN_LABEL + (options.previousMatchActionId ? this._getKeybinding(options.previousMatchActionId) : ''),
 			icon: findPreviousMatchIcon,
@@ -233,6 +248,9 @@ export abstract class SimpleFindWidget extends Widget implements IVerticalSashLa
 			this._matchesCount.className = 'matchesCount';
 			this._findInput.domNode.insertAdjacentElement('afterend', this._matchesCount);
 			this._register(this._findInput.onDidChange(async () => {
+				// Query the search engine to get the latest results.
+				// Otherwise, the cached results might not reflect the changed input.
+				this.findNth(this._nthMatchInput.getSanitizedCurrentValue());
 				await this.updateResultCount();
 			}));
 			this._register(this._findInput.onDidOptionChange(async () => {
@@ -422,6 +440,7 @@ export abstract class SimpleFindWidget extends Widget implements IVerticalSashLa
 
 	protected updateButtons(foundMatch: boolean) {
 		const hasInput = this.inputValue.length > 0;
+		this.lastMatchBtn.setEnabled(this._isVisible && hasInput && foundMatch);
 		this.prevBtn.setEnabled(this._isVisible && hasInput && foundMatch);
 		this.nextBtn.setEnabled(this._isVisible && hasInput && foundMatch);
 	}
@@ -472,14 +491,12 @@ export abstract class SimpleFindWidget extends Widget implements IVerticalSashLa
 			this._nthMatchInput.setValue(`${matchesPosition}`);
 			this._nthMatchInput.min = 1;
 			this._nthMatchInput.max = +matchesCount || MATCHES_LIMIT;
+			this.lastMatchBtn.domNode.innerText = `${matchesCount}`;
 
 			if (([...this._matchesCount.childNodes].length === 0)) {
 				this._matchesCount.appendChild(this._nthMatchInput.domNode);
 				this._matchesCount.appendChild(document.createTextNode(' of '));
-				this._matchesCount.appendChild(document.createTextNode(`${matchesCount}`));
-			}
-			else {
-				(this._matchesCount.lastChild as Node).nodeValue = `${matchesCount}`;
+				this._matchesCount.appendChild(this.lastMatchBtn.domNode);
 			}
 
 		} else {
@@ -550,8 +567,8 @@ export abstract class SimpleFindWidget extends Widget implements IVerticalSashLa
 		const max = parseInt(trimmedCountStr) || this._matchesLimit;
 
 		const input = new NthMatchInput(this._domNode, contextViewService, {
-			placeholder: 'N',
-			tooltip: 'Jump to the Nth result.',
+			placeholder: NLS_NTH_MATCH_INPUT_PLACEHOLDER,
+			tooltip: NLS_NTH_MATCH_INPUT_LABEL,
 			label: NLS_NTH_MATCH_INPUT_LABEL,
 			width: 20,
 			type: 'text',
@@ -574,25 +591,23 @@ export abstract class SimpleFindWidget extends Widget implements IVerticalSashLa
 			input.updateInputWrapperWidth();
 		}));
 
-		this._register(input.onJump((e) => {
-			this.findNth(e.targetMatchPos || input.min);
-			input.updateInputWrapperWidth();
-		}));
-
 		this._register(input.onInput((e) => {
 			if (!input.getValue()) {
 				return;
 			}
-			const inputValueAsSanitizedInt = getSanitizedInputValue(input);
+			const inputValueAsSanitizedInt = input.getSanitizedCurrentValue();
 			input.setValue(`${inputValueAsSanitizedInt}`);
 			this.findNth(inputValueAsSanitizedInt);
-			input.updateInputWrapperWidth();
 		}));
 
 		input.domNode.classList.add(...['monaco-inputbox', 'editable-nth-match']);
 		input.setValue(`${matchPositionAndCountArr[0]}`.trim());
 
 		return input;
+	}
+
+	private _keybindingLabelFor(actionId: string): string {
+		return this._keybindingService.appendKeybinding('', actionId);
 	}
 }
 

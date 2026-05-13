@@ -24,7 +24,6 @@ export interface INthMatchInputOptions {
 	readonly type: 'text';
 	readonly min?: number;
 	readonly max?: number;
-	readonly lastMatchLocation?: number;
 	readonly flexibleHeight?: boolean;
 	readonly flexibleWidth?: boolean;
 	readonly flexibleMaxHeight?: number;
@@ -36,10 +35,6 @@ export interface INthMatchInputOptions {
 
 export interface IStepEvent {
 	direction: 'up' | 'down';
-}
-
-export interface IJumpEvent {
-	targetMatchPos: number;
 }
 
 const NLS_DEFAULT_LABEL = nls.localize('defaultLabel', "input");
@@ -54,7 +49,6 @@ export class NthMatchInput extends Widget {
 
 	public readonly domNode: HTMLElement;
 	public readonly inputBox: InputBox;
-	public lastMatchLocation: number;
 	public min: number;
 	public max: number;
 
@@ -76,8 +70,6 @@ export class NthMatchInput extends Widget {
 	private readonly _onStep = this._register(new Emitter<IStepEvent>());
 	public readonly onStep: Event<IStepEvent> = this._onStep.event;
 
-	private readonly _onJump = this._register(new Emitter<IJumpEvent>());
-	public readonly onJump: Event<IJumpEvent> = this._onJump.event;
 
 	constructor(parent: HTMLElement | null, contextViewProvider: IContextViewProvider | undefined, options: INthMatchInputOptions) {
 		super();
@@ -87,7 +79,6 @@ export class NthMatchInput extends Widget {
 		this.type = options.type || 'text';
 		this.min = options.min || 1;
 		this.max = options.max || MATCHES_LIMIT;
-		this.lastMatchLocation = options.lastMatchLocation || 0;
 		const flexibleHeight = !!options.flexibleHeight;
 		const flexibleWidth = !!options.flexibleWidth;
 		const flexibleMaxHeight = options.flexibleMaxHeight;
@@ -107,8 +98,6 @@ export class NthMatchInput extends Widget {
 		}));
 
 		this.onkeydown(this.domNode, (event: IKeyboardEvent) => {
-			const currentValueAsInt = parseInt(this.inputBox.value);
-
 			// Arrow-Key support to step the match position up or down
 			if (event.equals(KeyCode.UpArrow)) {
 				this._onStep.fire({ direction: 'down' });
@@ -116,10 +105,6 @@ export class NthMatchInput extends Widget {
 			else if (event.equals(KeyCode.DownArrow)) {
 				this._onStep.fire({ direction: 'up' });
 			}
-			else if (event.equals(KeyCode.Enter)) {
-				this._onJump.fire({ targetMatchPos: currentValueAsInt });
-			}
-
 		});
 
 		this.onchange(this.domNode, () => {
@@ -140,8 +125,6 @@ export class NthMatchInput extends Widget {
 		this.onkeyup(this.inputBox.inputElement, (e) => this._onKeyUp.fire(e));
 		this.oninput(this.inputBox.inputElement, (e) => this._onInput.fire());
 		this.onmousedown(this.inputBox.inputElement, (e) => this._onMouseDown.fire(e));
-
-		this.updateInputWrapperWidth();
 	}
 
 	public get isImeSessionInProgress(): boolean {
@@ -155,19 +138,23 @@ export class NthMatchInput extends Widget {
 	public layout(style: { collapsedFindWidget: boolean; narrowFindWidget: boolean; reducedFindWidget: boolean }) {
 		this.inputBox.layout();
 		this.updateInputBoxPadding(style.collapsedFindWidget);
-		// this.updateInputWrapperWidth();
+		this.updateInputWrapperWidth();
 	}
 
 	public updateInputWrapperWidth() {
-		const currentInputValue = this.getValue();
-
-		// Increase the input width when the character count inside exceeds 4.
-		// Restore the orignal input width when the character count falls below 3.
-		if ((currentInputValue.length >= 4)) {
-			(this.inputBox.element.parentElement as HTMLElement).classList.add(...['elongated']);
+		const currentInputValue = `${this.getSanitizedCurrentValue()}`;
+		const containerElem = (this.inputBox.element.parentElement as HTMLElement);
+		console.log('nthMatchInput.updateInputWrapperWidth() ---> currentInputValue', currentInputValue);
+		if ((currentInputValue.length >= 5)) {
+			if (!containerElem.classList.contains('elongated')) {
+				containerElem.classList.add(...['elongated']);
+			}
 		}
-		else if (currentInputValue.length <= 3) {
-			(this.inputBox.element.parentElement as HTMLElement).classList.remove(...['elongated']);
+		else if (currentInputValue.length <= 4) {
+			console.log('nthMatchInput.updateInputWrapperWidth() ---> length <= 3 ---> classList AFTER classList change', containerElem?.classList);
+			if (containerElem.classList.contains('elongated')) {
+				containerElem.classList.remove(...['elongated']);
+			}
 		}
 	}
 
@@ -211,6 +198,7 @@ export class NthMatchInput extends Widget {
 		if (this.inputBox.value !== value) {
 			this.inputBox.value = value;
 		}
+		this.updateInputWrapperWidth();
 	}
 
 	public select(): void {
@@ -236,18 +224,17 @@ export class NthMatchInput extends Widget {
 	private clearValidation(): void {
 		this.inputBox.hideMessage();
 	}
-}
 
-export function getSanitizedInputValue(input: NthMatchInput): number {
-	// Enforce the numerical input and min/max constraints here.
-	if (!input || !input.getValue()) {
-		return 1;
+	public getSanitizedCurrentValue(): number {
+		if (!this || !this.getValue()) {
+			return this.min;
+		}
+
+		// Enforce the numerical input and min/max constraints here.
+		const currentValueAsInt = parseInt(this.getValue(), 10);
+		return isNaN(currentValueAsInt) ?
+			this.min : currentValueAsInt > this.max ?
+				this.max : currentValueAsInt < this.min ?
+					this.min : currentValueAsInt;
 	}
-
-	const currentValueAsInt = parseInt(input.getValue(), 10);
-	return isNaN(currentValueAsInt) ?
-		input.min : currentValueAsInt > input.max ?
-			input.max : currentValueAsInt < input.min ?
-				input.min : currentValueAsInt;
 }
-

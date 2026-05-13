@@ -11,7 +11,7 @@ import { Toggle } from '../../../../base/browser/ui/toggle/toggle.js';
 import { IContextViewProvider } from '../../../../base/browser/ui/contextview/contextview.js';
 import { FindInput } from '../../../../base/browser/ui/findinput/findInput.js';
 import { ReplaceInput } from '../../../../base/browser/ui/findinput/replaceInput.js';
-import { NthMatchInput, getSanitizedInputValue } from '../../../../base/browser/ui/findinput/nthMatchInput.js';
+import { NthMatchInput } from '../../../../base/browser/ui/findinput/nthMatchInput.js';
 import { IMessage as InputBoxMessage } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { ISashEvent, IVerticalSashLayoutProvider, Orientation, Sash } from '../../../../base/browser/ui/sash/sash.js';
 import { Widget } from '../../../../base/browser/ui/widget.js';
@@ -65,9 +65,11 @@ export interface IFindController {
 const NLS_FIND_DIALOG_LABEL = nls.localize('label.findDialog', "Find / Replace");
 const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
 const NLS_FIND_INPUT_PLACEHOLDER = nls.localize('placeholder.find', "Find");
-const NLS_PREVIOUS_MATCH_BTN_LABEL = nls.localize('label.previousMatchButton', "Previous Match");
-const NLS_NEXT_MATCH_BTN_LABEL = nls.localize('label.nextMatchButton', "Next Match");
 const NLS_NTH_MATCH_INPUT_LABEL = nls.localize('label.nthMatchInput', "Nth Match");
+const NLS_NTH_MATCH_INPUT_PLACEHOLDER = nls.localize('placeholder.nthMatchEdit', "N");
+const NLS_JUMP_TO_LAST_MATCH_BTN_LABEL = nls.localize('label.lastMatch', "Last Highlighted Match");
+const NLS_NEXT_MATCH_BTN_LABEL = nls.localize('label.nextMatchButton', "Next Match");
+const NLS_PREVIOUS_MATCH_BTN_LABEL = nls.localize('label.previousMatchButton', "Previous Match");
 const NLS_TOGGLE_SELECTION_FIND_TITLE = nls.localize('label.toggleSelectionFind', "Find in Selection");
 const NLS_CLOSE_BTN_LABEL = nls.localize('label.closeButton', "Close");
 const NLS_REPLACE_INPUT_LABEL = nls.localize('label.replace', "Replace");
@@ -138,6 +140,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 
 	private _toggleReplaceBtn!: SimpleButton;
 	private _matchesCount!: HTMLElement;
+	private _lastMatchBtn!: SimpleButton;
 	private _prevBtn!: SimpleButton;
 	private _nextBtn!: SimpleButton;
 	private _toggleSelectionFind!: Toggle;
@@ -507,14 +510,12 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 			this._nthMatchInput.setValue(`${matchesPosition}`);
 			this._nthMatchInput.min = this._state.matchesCount >= 1 ? 1 : 0;
 			this._nthMatchInput.max = this._state.matchesCount;
+			this._lastMatchBtn.domNode.innerText = `${matchesCount}`;
 
 			if (([...this._matchesCount.childNodes].length === 0)) {
 				this._matchesCount.appendChild(this._nthMatchInput.domNode);
 				this._matchesCount.appendChild(document.createTextNode(' of '));
-				this._matchesCount.appendChild(document.createTextNode(`${matchesCount}`));
-			}
-			else {
-				(this._matchesCount.lastChild as Node).nodeValue = `${matchesCount}`;
+				this._matchesCount.appendChild(this._lastMatchBtn.domNode);
 			}
 
 		} else {
@@ -538,8 +539,8 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		const max = this._state.matchesCount || MATCHES_LIMIT;
 
 		const input = new NthMatchInput(this._domNode, this._contextViewProvider, {
-			placeholder: 'N',
-			tooltip: 'Jump to the Nth result.',
+			placeholder: NLS_NTH_MATCH_INPUT_PLACEHOLDER,
+			tooltip: NLS_NTH_MATCH_INPUT_LABEL,
 			width: 20,
 			label: NLS_NTH_MATCH_INPUT_LABEL,
 			type: 'text',
@@ -559,21 +560,15 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 			else {
 				assertReturnsDefined(this._codeEditor.getAction(FIND_IDS.PreviousMatchFindAction)).run().then(undefined, onUnexpectedError);
 			}
-			this._nthMatchInput.updateInputWrapperWidth();
-		}));
-
-		this._register(input.onJump((e) => {
-			assertReturnsDefined(this._codeEditor.getAction(FIND_IDS.GoToEditableNthMatchFindAction)).run().then(undefined, onUnexpectedError);
-			this._nthMatchInput.updateInputWrapperWidth();
+			input.updateInputWrapperWidth();
 		}));
 
 		this._register(input.onInput((e) => {
 			if (!input.getValue()) {
 				return;
 			}
-			this._nthMatchInput.setValue(`${getSanitizedInputValue(this._nthMatchInput)}`);
+			input.setValue(`${input.getSanitizedCurrentValue()}`);
 			assertReturnsDefined(this._codeEditor.getAction(FIND_IDS.GoToEditableNthMatchFindAction)).run().then(undefined, onUnexpectedError);
-			this._nthMatchInput.updateInputWrapperWidth();
 		}));
 
 		input.domNode.classList.add(...['monaco-inputbox', 'editable-nth-match']);
@@ -628,8 +623,10 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 
 		const findInputIsNonEmpty = (this._state.searchString.length > 0);
 		const matchesCount = this._state.matchesCount ? true : false;
+		const canNavigateForward = this._state.canNavigateForward();
+		this._lastMatchBtn.setEnabled(this._isVisible && findInputIsNonEmpty && matchesCount && canNavigateForward);
 		this._prevBtn.setEnabled(this._isVisible && findInputIsNonEmpty && matchesCount && this._state.canNavigateBack());
-		this._nextBtn.setEnabled(this._isVisible && findInputIsNonEmpty && matchesCount && this._state.canNavigateForward());
+		this._nextBtn.setEnabled(/* false */this._isVisible && findInputIsNonEmpty && matchesCount && canNavigateForward);
 		this._replaceBtn.setEnabled(this._isVisible && this._isReplaceVisible && findInputIsNonEmpty);
 		this._replaceAllBtn.setEnabled(this._isVisible && this._isReplaceVisible && findInputIsNonEmpty);
 
@@ -671,6 +668,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 			}
 
 			this._tryUpdateWidgetWidth();
+			this._updateMatchesCount();
 			this._updateButtons();
 
 			this._revealTimeouts.push(setTimeout(() => {
@@ -1117,12 +1115,14 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 				this._state.change({ searchString: this._findInput.getValue() }, true);
 			}
 			this._onFindInputKeyDown(e);
+			this._nthMatchInput.updateInputWrapperWidth();
 		}));
 		this._register(this._findInput.inputBox.onDidChange(() => {
 			if (this._ignoreChangeEvent || !this._codeEditor.getOption(EditorOption.find).findOnType) {
 				return;
 			}
 			this._state.change({ searchString: this._findInput.getValue() }, true);
+			this._nthMatchInput.updateInputWrapperWidth();
 		}));
 		this._register(this._findInput.onDidOptionChange(() => {
 			this._state.change({
@@ -1130,6 +1130,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 				wholeWord: this._findInput.getWholeWords(),
 				matchCase: this._findInput.getCaseSensitive()
 			}, true);
+			this._nthMatchInput.updateInputWrapperWidth();
 		}));
 		this._register(this._findInput.onCaseSensitiveKeyDown((e) => {
 			if (e.equals(KeyMod.Shift | KeyCode.Tab)) {
@@ -1158,10 +1159,22 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 
 		this._matchesCount = document.createElement('div');
 		this._matchesCount.className = 'matchesCount';
-		this._nthMatchInput = this.getNthMatchInput();
 		this._updateMatchesCount();
 
+		this._nthMatchInput = this.getNthMatchInput();
+
 		const hoverLifecycleOptions: IHoverLifecycleOptions = { groupId: 'find-widget' };
+
+		this._lastMatchBtn = this._register(new SimpleButton({
+			label: `${NLS_JUMP_TO_LAST_MATCH_BTN_LABEL} ${this._keybindingLabelFor(FIND_IDS.GoToLastMatchFindAction)}`,
+			hoverLifecycleOptions,
+			onTrigger: () => {
+				assertReturnsDefined(this._codeEditor.getAction(FIND_IDS.GoToLastMatchFindAction)).run().then(undefined, onUnexpectedError);
+				this._nthMatchInput.setValue(`${this._state.matchesCount}`);
+			}
+		}, this._hoverService));
+		this._lastMatchBtn.domNode.classList.add(...['last-match-btn']);
+
 
 		// Previous button
 		this._prevBtn = this._register(new SimpleButton({

@@ -61,12 +61,22 @@
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
 	min-width: 73px;
 	max-width: 122px;
 	padding-left: 5px;
+	margin-right: 5px;
+}
+
+.monaco-workbench .simple-find-part .matchesCount input {
+	height: 25px;
+}
+
+.monaco-workbench .simple-find-part .matchesCount .last-match-btn {
+    width: fit-content;
+	height: 18px;
+    margin-left: 10px;
+	padding: 3px;
+	box-shadow: 0 2px 4px 0 var(--vscode-widget-shadow);
 }
 
 .monaco-workbench .simple-find-part.reduced-find-widget .matchesCount {

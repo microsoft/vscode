@@ -8,14 +8,13 @@
 
 .monaco-editor .find-widget .matchesCount .editable-nth-match,
 .monaco-findInput.monaco-inputbox.editable-nth-match {
-	display: block !important;
 	width: 45px;
 	min-width: 45px;
 	max-width: 60px;
 	background-color: var(--vscode-input-background);
 	color: var(--vscode-input-foreground);
-	bottom: 2px;
-	margin-right: 0.5em;
+	bottom: 1.5px;
+	margin-right: 10px;
 	transition: width 300ms ease;
 }
 
@@ -29,6 +28,7 @@
 	text-align: center;
 	overflow-x: hidden;
 	text-overflow: clip;
+	font-size: 12px;
 }
 
 

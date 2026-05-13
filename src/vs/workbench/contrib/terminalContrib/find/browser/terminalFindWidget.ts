@@ -23,7 +23,6 @@ import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { createTextInputActions } from '../../../../browser/actions/textInputActions.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
-import { getSanitizedInputValue } from '../../../../../base/browser/ui/findinput/nthMatchInput.js';
 
 const TERMINAL_FIND_WIDGET_INITIAL_WIDTH = 419;
 
@@ -99,8 +98,8 @@ export class TerminalFindWidget extends SimpleFindWidget {
 			if (this.isVisible()) {
 				// Update the terminal theming while preserving the current match highlight.
 				// Perform a trivial jump to the current match position,
-				// which should trigger @xterm's decoration logic.
-				this.findNth(getSanitizedInputValue(this._nthMatchInput));
+				// which should trigger the terminal's decoration logic.
+				this.findNth(this._nthMatchInput.getSanitizedCurrentValue());
 			}
 		}));
 		this._register(configurationService.onDidChangeConfiguration((e) => {

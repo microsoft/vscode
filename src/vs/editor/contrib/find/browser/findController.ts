@@ -1026,6 +1026,96 @@ export class MoveToEditableNthMatchFindAction extends EditorAction {
 	}
 }
 
+export class MoveToLastMatchFindAction extends EditorAction {
+
+	private _highlightDecorations: string[] = [];
+
+	constructor() {
+		super({
+			id: FIND_IDS.GoToLastMatchFindAction,
+			label: nls.localize('findMatchAction.goToLastMatchFindAction', "Go to Last Match..."),
+			alias: 'Go to Last Match...',
+			precondition: CONTEXT_FIND_WIDGET_VISIBLE
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void | Promise<void> {
+		const controller = CommonFindController.get(editor);
+		if (!controller) {
+			return;
+		}
+
+		const matchesCount = controller.getState().matchesCount;
+		if (matchesCount < 1) {
+			const notificationService = accessor.get(INotificationService);
+			notificationService.notify({
+				severity: Severity.Warning,
+				message: nls.localize('findMatchAction.noResults', "No matches. Try searching for something else.")
+			});
+			return;
+		}
+
+		const toFindMatchIndex = (value: string): number | undefined => {
+			const index = parseInt(value);
+			if (isNaN(index)) {
+				return undefined;
+			}
+
+			if (index > 0 && index <= matchesCount) {
+				return index - 1; // zero based
+			} else if (index < 0 && index >= -matchesCount) {
+				return matchesCount + index;
+			}
+
+			return undefined;
+		};
+
+		const index = toFindMatchIndex(`${controller.getState().matchesCount}`);
+		if (typeof index === 'number') {
+			// valid
+			controller.goToMatch(index);
+			const currentMatch = controller.getState().currentMatch;
+			if (currentMatch) {
+				this.addDecorations(editor, currentMatch);
+			}
+			else {
+				this.clearDecorations(editor);
+			}
+		}
+	}
+
+	private clearDecorations(editor: ICodeEditor): void {
+		editor.changeDecorations(changeAccessor => {
+			this._highlightDecorations = changeAccessor.deltaDecorations(this._highlightDecorations, []);
+		});
+	}
+
+	private addDecorations(editor: ICodeEditor, range: IRange): void {
+		editor.changeDecorations(changeAccessor => {
+			this._highlightDecorations = changeAccessor.deltaDecorations(this._highlightDecorations, [
+				{
+					range,
+					options: {
+						description: 'find-match-quick-access-range-highlight',
+						className: 'rangeHighlight',
+						isWholeLine: true
+					}
+				},
+				{
+					range,
+					options: {
+						description: 'find-match-quick-access-range-highlight-overview',
+						overviewRuler: {
+							color: themeColorFromId(overviewRulerRangeHighlight),
+							position: OverviewRulerLane.Full
+						}
+					}
+				}
+			]);
+		});
+	}
+}
+
 
 export abstract class SelectionMatchFindAction extends EditorAction {
 	public async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
@@ -1159,6 +1249,7 @@ registerEditorAction(StartFindWithArgsAction);
 registerEditorAction(StartFindWithSelectionAction);
 registerEditorAction(MoveToMatchFindAction);
 registerEditorAction(MoveToEditableNthMatchFindAction);
+registerEditorAction(MoveToLastMatchFindAction);
 registerEditorAction(NextSelectionMatchFindAction);
 registerEditorAction(PreviousSelectionMatchFindAction);
 

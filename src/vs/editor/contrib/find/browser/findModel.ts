@@ -66,6 +66,7 @@ export const FIND_IDS = {
 	PreviousMatchFindAction: 'editor.action.previousMatchFindAction',
 	GoToMatchFindAction: 'editor.action.goToMatchFindAction',
 	GoToEditableNthMatchFindAction: 'editor.action.goToEditableNthMatchFindAction',
+	GoToLastMatchFindAction: 'editor.action.goToLastMatchFindAction',
 	NextSelectionMatchFindAction: 'editor.action.nextSelectionMatchFindAction',
 	PreviousSelectionMatchFindAction: 'editor.action.previousSelectionMatchFindAction',
 	StartFindReplaceAction: 'editor.action.startFindReplaceAction',
