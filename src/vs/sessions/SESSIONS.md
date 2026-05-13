@@ -67,6 +67,10 @@ Providers can import from all layers below them (core, services, non-provider co
 - [Copilot Chat Sessions Provider](contrib/providers/copilotChatSessions/COPILOT_CHAT_SESSIONS_PROVIDER.md) — wraps `ChatSessionsService`, metadata contract, workspace derivation
 - [Remote Agent Host Provider](contrib/providers/remoteAgentHost/REMOTE_AGENT_HOST_SESSIONS_PROVIDER.md) — remote connections, per-host provider instances
 
+### Related Specifications
+
+- [Sessions List](SESSIONS_LIST.md) — UI surface for browsing sessions: tree widget, grouping, filtering, pinning, read/unread state, mobile adaptations
+
 ---
 
 ## Key Concepts
