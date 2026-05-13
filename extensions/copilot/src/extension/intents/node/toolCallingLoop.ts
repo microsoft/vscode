@@ -1719,6 +1719,15 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 			return Disposable.None;
 		}
 
+		// Only keep the cache warm when waiting on an execution subagent, which is
+		// the primary source of long tool-call durations that cause cache expiry.
+		const hasExecutionSubagent = this.toolCallRounds.some(
+			round => round.toolCalls.some(tc => tc.name === ToolName.ExecutionSubagent)
+		);
+		if (!hasExecutionSubagent) {
+			return Disposable.None;
+		}
+
 		const maxProbes = this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.LongToolCallCachePreservationMaxProbes, this._experimentationService);
 		const inFlight = new Set<CancellationTokenSource>();
 		let timer: ReturnType<typeof setTimeout> | undefined;
