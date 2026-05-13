@@ -797,9 +797,12 @@ class ActionsColumnRenderer extends ModelsTableColumnRenderer<IActionsColumnTemp
 	}
 
 	override renderModelElement(entry: ILanguageModelEntry, index: number, templateData: IActionsColumnTemplateData): void {
-		const primaryActions: IAction[] = [
-			this.createPinAction(entry.model.identifier)
-		];
+		const primaryActions: IAction[] = [];
+
+		// Auto model cannot be pinned
+		if (entry.model.metadata.id !== 'auto') {
+			primaryActions.push(this.createPinAction(entry.model.identifier));
+		}
 
 		const configActions = this.languageModelsService.getModelConfigurationActions(entry.model.identifier);
 		const secondaryActions: IAction[] = [...configActions];
@@ -1042,7 +1045,7 @@ export class ChatModelsWidget extends Disposable {
 		}));
 		this._register(this.chatEntitlementService.onDidChangeUsageBasedBilling(() => this.createTable()));
 		this._register(this.languageModelsService.onDidChangeLanguageModelVendors(() => this.updateAddModelsButton()));
-		this._register(this.languageModelsService.onDidChangePinnedModels(() => this.createTable()));
+		this._register(this.languageModelsService.onDidChangePinnedModels(() => this.viewModel.refresh()));
 		this._register(this.contextKeyService.onDidChangeContext(e => {
 			if (e.affectsSome(new Set(['github.copilot.clientByokEnabled']))) {
 				this.updateAddModelsButton();
@@ -1212,23 +1215,26 @@ export class ChatModelsWidget extends Disposable {
 
 			if (selectedModelEntries.length) {
 				// Pin/unpin action — single action for all selected models
-				const allPinned = selectedModelEntries.every(e => this.languageModelsService.isModelPinned(e.model.identifier));
-				actions.push(toAction({
-					id: allPinned ? 'unpinModels' : 'pinModels',
-					label: allPinned
-						? localize('models.unpinModel', "Unpin Model")
-						: localize('models.pinModel', "Pin Model"),
-					class: ThemeIcon.asClassName(allPinned ? Codicon.pinned : Codicon.pin),
-					run: () => {
-						for (const entry of selectedModelEntries) {
-							if (allPinned) {
-								this.languageModelsService.unpinModel(entry.model.identifier);
-							} else {
-								this.languageModelsService.pinModel(entry.model.identifier);
+				const pinnableEntries = selectedModelEntries.filter(e => e.model.metadata.id !== 'auto');
+				if (pinnableEntries.length > 0) {
+					const allPinned = pinnableEntries.every(e => this.languageModelsService.isModelPinned(e.model.identifier));
+					actions.push(toAction({
+						id: allPinned ? 'unpinModels' : 'pinModels',
+						label: allPinned
+							? localize('models.unpinModel', "Unpin Model")
+							: localize('models.pinModel', "Pin Model"),
+						class: ThemeIcon.asClassName(allPinned ? Codicon.pinned : Codicon.pin),
+						run: () => {
+							for (const entry of pinnableEntries) {
+								if (allPinned) {
+									this.languageModelsService.unpinModel(entry.model.identifier);
+								} else {
+									this.languageModelsService.pinModel(entry.model.identifier);
+								}
 							}
 						}
-					}
-				}));
+					}));
+				}
 
 				// Show per-model configuration actions for a single model
 				if (selectedModelEntries.length === 1) {

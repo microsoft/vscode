@@ -584,6 +584,12 @@ export const languageModelChatProviderExtensionPoint = ExtensionsRegistry.regist
 
 const CHAT_MODEL_RECENTLY_USED_STORAGE_KEY = 'chatModelRecentlyUsed';
 const CHAT_MODEL_PINNED_STORAGE_KEY = 'chatModelPinned';
+
+/**
+ * The identifier for the Auto model which dynamically routes to the best backend.
+ * Auto should never appear in user-curated lists (MRU, pinned).
+ */
+const AUTO_MODEL_IDENTIFIER = 'copilot/auto';
 const CHAT_PARTICIPANT_NAME_REGISTRY_STORAGE_KEY = 'chat.participantNameRegistry';
 const CHAT_MODELS_CONTROL_STORAGE_KEY = 'chat.modelsControl';
 
@@ -1686,12 +1692,12 @@ export class LanguageModelsService implements ILanguageModelsService {
 	getRecentlyUsedModelIds(): string[] {
 		// Filter to only include models that still exist in the cache
 		return this._recentlyUsedModelIds
-			.filter(id => this._modelCache.has(id) && id !== 'copilot/auto')
+			.filter(id => this._modelCache.has(id) && id !== AUTO_MODEL_IDENTIFIER)
 			.slice(0, 4);
 	}
 
 	addToRecentlyUsedList(modelIdentifier: string): void {
-		if (modelIdentifier === 'copilot/auto') {
+		if (modelIdentifier === AUTO_MODEL_IDENTIFIER) {
 			return;
 		}
 
@@ -1727,14 +1733,11 @@ export class LanguageModelsService implements ILanguageModelsService {
 	}
 
 	getPinnedModelIds(): string[] {
-		return this._pinnedModelIds.filter(id => this._modelCache.has(id));
+		return this._pinnedModelIds.filter(id => id !== AUTO_MODEL_IDENTIFIER && this._modelCache.has(id));
 	}
 
 	pinModel(modelIdentifier: string): void {
-		if (modelIdentifier === 'copilot/auto') {
-			return;
-		}
-		if (this._pinnedModelIds.includes(modelIdentifier)) {
+		if (modelIdentifier === AUTO_MODEL_IDENTIFIER || this._pinnedModelIds.includes(modelIdentifier)) {
 			return;
 		}
 		this._pinnedModelIds.push(modelIdentifier);
@@ -1753,7 +1756,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 	}
 
 	isModelPinned(modelIdentifier: string): boolean {
-		return this._pinnedModelIds.includes(modelIdentifier);
+		return modelIdentifier !== AUTO_MODEL_IDENTIFIER && this._pinnedModelIds.includes(modelIdentifier);
 	}
 
 	//#endregion

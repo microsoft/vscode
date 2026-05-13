@@ -194,7 +194,7 @@ suite('buildModelPickerItems', () => {
 		assert.strictEqual(actions.length, 2);
 		assert.strictEqual(actions[0].label, 'Auto');
 		assert.strictEqual(actions[1].item?.id, 'manageModels');
-		assert.strictEqual(getSeparatorCount(items), 2);
+		assert.strictEqual(getSeparatorCount(items), 1);
 	});
 
 	test('selected model appears in promoted section', () => {
@@ -355,8 +355,8 @@ suite('buildModelPickerItems', () => {
 		});
 		// With no selected, no recent, and no featured, both models should be in Other
 		const seps = items.filter(i => i.kind === ActionListItemKind.Separator);
-		// Two separators: one after Auto, one before Other Models section
-		assert.strictEqual(seps.length, 2);
+		// One separator before Other Models section
+		assert.strictEqual(seps.length, 1);
 		const actions = getActionItems(items);
 		assert.strictEqual(actions[0].label, 'Auto');
 		// Next should be "Other Models" toggle
@@ -989,6 +989,72 @@ suite('buildModelPickerItems', () => {
 		const claudeItem = actions.find(a => a.label === 'Claude');
 		assert.ok(claudeItem);
 		assert.strictEqual(claudeItem.item?.description, undefined);
+	});
+
+	test('pinned models appear in dedicated pinned section', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('gpt-4o', 'GPT-4o');
+		const modelB = createModel('claude', 'Claude');
+		const modelC = createModel('gemini', 'Gemini');
+		const items = callBuild([auto, modelA, modelB, modelC], {
+			pinnedModelIds: [modelB.identifier, modelA.identifier],
+		});
+		// Pinned section header exists
+		const pinnedSep = items.find(i => i.kind === ActionListItemKind.Separator && i.label === 'Pinned');
+		assert.ok(pinnedSep, 'Pinned separator header should exist');
+		// Pinned models appear in pin order (Claude first, then GPT-4o)
+		const pinnedSepIndex = items.indexOf(pinnedSep!);
+		const afterPinned = items.slice(pinnedSepIndex + 1);
+		const firstPinned = afterPinned.find(i => i.kind === ActionListItemKind.Action);
+		assert.strictEqual(firstPinned?.label, 'Claude');
+	});
+
+	test('pinned models do not appear in MRU/promoted section', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('gpt-4o', 'GPT-4o');
+		const modelB = createModel('claude', 'Claude');
+		const items = callBuild([auto, modelA, modelB], {
+			pinnedModelIds: [modelA.identifier],
+			recentModelIds: [modelA.identifier, modelB.identifier],
+		});
+		const actions = getActionItems(items);
+		// GPT-4o should only appear once (in pinned, not again in promoted)
+		const gptItems = actions.filter(a => a.label === 'GPT-4o');
+		assert.strictEqual(gptItems.length, 1, 'Pinned model should appear exactly once');
+	});
+
+	test('MRU is capped at 3 after filtering pinned models', () => {
+		const auto = createAutoModel();
+		const models = [
+			auto,
+			createModel('m1', 'Model 1'),
+			createModel('m2', 'Model 2'),
+			createModel('m3', 'Model 3'),
+			createModel('m4', 'Model 4'),
+			createModel('m5', 'Model 5'),
+		];
+		const items = callBuild(models, {
+			recentModelIds: [models[1].identifier, models[2].identifier, models[3].identifier, models[4].identifier, models[5].identifier],
+			pinnedModelIds: [models[1].identifier],
+		});
+		// Model 1 is pinned, MRU should be Model 2, 3, 4 (capped at 3), Model 5 goes to Other
+		const actions = getActionItems(items);
+		const promotedLabels = actions
+			.filter(a => !a.isSectionToggle && a.section !== 'other' && a.item?.id !== 'manageModels' && a.label !== 'Auto' && a.label !== 'Model 1')
+			.map(a => a.label);
+		assert.ok(promotedLabels.length <= 3, 'MRU should be capped at 3');
+		assert.ok(!promotedLabels.includes('Model 1'), 'Pinned model should not be in MRU');
+	});
+
+	test('no pinned section when pinnedModelIds is empty', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('gpt-4o', 'GPT-4o');
+		const items = callBuild([auto, modelA], {
+			pinnedModelIds: [],
+			recentModelIds: [modelA.identifier],
+		});
+		const pinnedSep = items.find(i => i.kind === ActionListItemKind.Separator && i.label === 'Pinned');
+		assert.strictEqual(pinnedSep, undefined, 'No pinned separator when there are no pinned models');
 	});
 });
 

@@ -456,7 +456,6 @@ export function buildModelPickerItems(
 				markPlaced(autoModel.identifier, autoModel.metadata.id);
 				const { action: autoAction, ariaDescription: autoAriaDesc } = createModelAction(autoModel, selectedModelId, onSelect, languageModelsService!, undefined, undefined, isUBB);
 				items.push(createModelItem(autoAction, autoModel, openerService, undefined, isUBB, autoAriaDesc));
-				items.push({ kind: ActionListItemKind.Separator });
 			}
 
 			// Precompute group labels needed for inline badges
@@ -494,7 +493,6 @@ export function buildModelPickerItems(
 					const { action: pinnedAction, ariaDescription: pinnedAriaDesc } = createModelAction(model, selectedModelId, onSelect, languageModelsService!, undefined, showGroupLabel, isUBB);
 					items.push(createModelItem(pinnedAction, model, openerService, groupLabel, isUBB, pinnedAriaDesc, makePinAction(model)));
 				}
-				items.push({ kind: ActionListItemKind.Separator });
 			}
 
 			// --- 3. Promoted section (selected + recently used + featured) ---
