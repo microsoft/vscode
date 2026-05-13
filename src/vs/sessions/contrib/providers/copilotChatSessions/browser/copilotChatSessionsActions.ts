@@ -341,8 +341,16 @@ export class SessionModelPicker extends Disposable {
 			getModels: () => getAvailableModels(this._languageModelsService, this._sessionsManagementService),
 			useGroupedModelPicker: () => true,
 			showManageModelsAction: () => false,
-			showUnavailableFeatured: () => false,
+			showUnavailableFeatured: () => true,
 			showFeatured: () => true,
+			isRelevantUnavailableModel: (modelId: string) => {
+				const session = this._sessionsManagementService.activeSession.get();
+				// For Claude Code, only show Anthropic family models
+				if (session?.sessionType === SessionType.ClaudeCode) {
+					return modelId.toLowerCase().startsWith('claude');
+				}
+				return true;
+			},
 		};
 
 		const pickerOptions: IChatInputPickerOptions = {

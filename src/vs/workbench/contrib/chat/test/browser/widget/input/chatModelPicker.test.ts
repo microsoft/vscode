@@ -112,6 +112,7 @@ function callBuild(
 		showFeatured?: boolean;
 		isUBB?: boolean;
 		languageModelsService?: ILanguageModelsService;
+		unavailableModelFilter?: (modelId: string) => boolean;
 	} = {},
 ): IActionListItem<IActionWidgetDropdownAction>[] {
 	const onSelect = () => { };
@@ -138,6 +139,7 @@ function callBuild(
 		opts.languageModelsService ?? stubLanguageModelsService,
 		undefined,
 		opts.isUBB,
+		opts.unavailableModelFilter,
 	);
 }
 
@@ -1055,6 +1057,39 @@ suite('buildModelPickerItems', () => {
 		});
 		const pinnedSep = items.find(i => i.kind === ActionListItemKind.Separator && i.label === 'Pinned');
 		assert.strictEqual(pinnedSep, undefined, 'No pinned separator when there are no pinned models');
+	});
+
+	test('unavailableModelFilter excludes filtered models from promoted section', () => {
+		const auto = createAutoModel();
+		const items = callBuild([auto], {
+			controlModels: {
+				'claude-sonnet-4': { label: 'Claude Sonnet 4', featured: true, exists: false },
+				'gpt-4o': { label: 'GPT-4o', featured: true, exists: false },
+			},
+			entitlement: ChatEntitlement.Free,
+			showUnavailableFeatured: true,
+			unavailableModelFilter: (modelId: string) => modelId.toLowerCase().startsWith('claude'),
+		});
+		const actions = getActionItems(items);
+		const claudeItem = actions.find(a => a.label === 'Claude Sonnet 4');
+		const gptItem = actions.find(a => a.label === 'GPT-4o');
+		assert.ok(claudeItem, 'Claude model should appear as unavailable when filter allows it');
+		assert.strictEqual(gptItem, undefined, 'GPT model should be filtered out by unavailableModelFilter');
+	});
+
+	test('unavailableModelFilter=undefined shows all unavailable featured models', () => {
+		const auto = createAutoModel();
+		const items = callBuild([auto], {
+			controlModels: {
+				'claude-sonnet-4': { label: 'Claude Sonnet 4', featured: true, exists: false },
+				'gpt-4o': { label: 'GPT-4o', featured: true, exists: false },
+			},
+			entitlement: ChatEntitlement.Free,
+			showUnavailableFeatured: true,
+		});
+		const actions = getActionItems(items);
+		assert.ok(actions.find(a => a.label === 'Claude Sonnet 4'), 'Claude model should appear when no filter');
+		assert.ok(actions.find(a => a.label === 'GPT-4o'), 'GPT model should appear when no filter');
 	});
 });
 

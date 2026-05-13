@@ -867,12 +867,18 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				return !sessionType || sessionType === localChatSessionType;
 			},
 			showUnavailableFeatured: () => {
-				const sessionType = this.getCurrentSessionType();
-				return !sessionType || sessionType === localChatSessionType;
+				return true;
 			},
 			showFeatured: () => {
+				return true;
+			},
+			isRelevantUnavailableModel: (modelId: string) => {
 				const sessionType = this.getCurrentSessionType();
-				return !sessionType || sessionType === localChatSessionType;
+				// For Claude Code, only show Anthropic family models
+				if (sessionType === 'claude-code') {
+					return modelId.toLowerCase().startsWith('claude');
+				}
+				return true;
 			},
 		};
 	}

@@ -396,6 +396,7 @@ export function buildModelPickerItems(
 	languageModelsService?: ILanguageModelsService,
 	openerService?: IOpenerService,
 	isUBB?: boolean,
+	unavailableModelFilter?: (modelId: string) => boolean,
 ): IActionListItem<IActionWidgetDropdownAction>[] {
 	const items: IActionListItem<IActionWidgetDropdownAction>[] = [];
 	if (models.length === 0) {
@@ -560,7 +561,7 @@ export function buildModelPickerItems(
 							promotedItems.push({ kind: 'available', model });
 						}
 					} else if (!model && !entry.exists) {
-						if (showUnavailableFeatured) {
+						if (showUnavailableFeatured && (!unavailableModelFilter || unavailableModelFilter(entryId))) {
 							markPlaced(entryId);
 							promotedItems.push({ kind: 'unavailable', id: entryId, entry, reason: getUnavailableReason(entry) });
 						}
@@ -1033,6 +1034,7 @@ export class ModelPickerWidget extends Disposable {
 			this._languageModelsService,
 			this._openerService,
 			isUBB,
+			this._delegate.isRelevantUnavailableModel?.bind(this._delegate),
 		);
 
 		// Collect all hover disposables so they are properly cleaned up when the

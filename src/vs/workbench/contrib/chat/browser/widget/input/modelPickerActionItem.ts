@@ -27,6 +27,15 @@ export interface IModelPickerDelegate {
 	showManageModelsAction(): boolean;
 	showUnavailableFeatured(): boolean;
 	showFeatured(): boolean;
+	/**
+	 * Optional filter to determine if an unavailable featured model should be
+	 * shown in the promoted section. Called for each featured model in the
+	 * control manifest that is not registered. Return `true` to show the model
+	 * with an "Upgrade" action, `false` to hide it. When not implemented, all
+	 * unavailable featured models are shown when {@link showUnavailableFeatured}
+	 * returns `true`.
+	 */
+	isRelevantUnavailableModel?(modelId: string): boolean;
 }
 
 /**
