@@ -1725,15 +1725,12 @@ export class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleConte
 		if (!this._isRunningInBackground || !this._onFocusTerminal || !this._collapseButton) {
 			return;
 		}
-		const buttonParent = this._collapseButton.element.parentElement;
-		if (!buttonParent) {
-			return;
-		}
+		const labelElement = this._collapseButton.labelElement;
 		const store = new DisposableStore();
 		this._showLinkDisposables.value = store;
 		const container = dom.$('span.chat-terminal-show-link-container');
 		container.appendChild(document.createTextNode(' \u2014 '));
-		const showLink = dom.$('a.chat-terminal-show-link');
+		const showLink = dom.$('span.chat-terminal-show-link');
 		showLink.textContent = localize('chat.terminal.showTerminal', "Show");
 		showLink.role = 'button';
 		showLink.tabIndex = 0;
@@ -1749,7 +1746,7 @@ export class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleConte
 			}
 		}));
 		container.appendChild(showLink);
-		buttonParent.appendChild(container);
+		labelElement.appendChild(container);
 		this._showLinkElement = container;
 	}
 

@@ -255,13 +255,3 @@ div.chat-terminal-content-part.progress-step > div.chat-terminal-output-containe
 	display: inline;
 	white-space: nowrap;
 }
-
-.chat-terminal-thinking-collapsible > .chat-used-context-label {
-	display: flex;
-	flex-wrap: wrap;
-	align-items: center;
-}
-
-.chat-terminal-thinking-collapsible > .chat-used-context-label > .monaco-button.monaco-icon-button {
-	display: inline-flex;
-}
