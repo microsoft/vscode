@@ -1698,7 +1698,7 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 	 * `fetch` that re-sends the previous turn's messages plus a dummy "Still working"
 	 * user message so that the server keeps the cache prefix warm.
 	 *
-	 * - Fires every {@link KEEP_ALIVE_INTERVAL_MS} starting 5 minutes after `buildPrompt2`
+	 * - Fires every {@link KEEP_ALIVE_INTERVAL_MS} starting 4 minutes after `buildPrompt2`
 	 *   is called (so a fast render incurs no probe).
 	 * - Stops after the configured max probes limit is reached.
 	 * - Probes are pure side-channel: results are discarded, no mutation of
