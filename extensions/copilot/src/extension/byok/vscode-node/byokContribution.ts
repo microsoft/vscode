@@ -40,7 +40,6 @@ export class BYOKContrib extends Disposable implements IExtensionContribution {
 	) {
 		super();
 		this._byokStorageService = new BYOKStorageService(extensionContext);
-		this._buildProviders();
 		this._applyPolicy();
 		this._register(this._authService.onDidAuthenticationChange(() => this._applyPolicy()));
 	}
@@ -73,6 +72,9 @@ export class BYOKContrib extends Disposable implements IExtensionContribution {
 	private _applyPolicy(): void {
 		const allowed = isClientBYOKAllowed(!!this._authService.anyGitHubSession, this._authService.copilotToken);
 		if (allowed && !this._providersRegistered) {
+			if (this._providers.size === 0) {
+				this._buildProviders();
+			}
 			for (const [providerId, provider] of this._providers) {
 				this._providerRegistrations.add(lm.registerLanguageModelChatProvider(providerId, provider));
 			}
