@@ -16,9 +16,9 @@ import { resolveModelInfo } from '../common/byokProvider';
 import { AzureOpenAIEndpoint } from '../node/azureOpenAIEndpoint';
 import { OpenAICompatibleLanguageModelChatInformation } from './abstractLanguageModelChatProvider';
 import { IBYOKStorageService } from './byokStorageService';
-import { AbstractCustomOAIBYOKModelProvider, CustomOAIModelProviderConfig, hasExplicitApiPath } from './customOAIProvider';
+import { AbstractCustomOAIBYOKModelProvider, CustomOAIApiType, CustomOAIModelProviderConfig, hasExplicitApiPath } from './customOAIProvider';
 
-export function resolveAzureUrl(modelId: string, url: string): string {
+export function resolveAzureUrl(modelId: string, url: string, apiType?: CustomOAIApiType): string {
 	// The fully resolved url was already passed in
 	if (hasExplicitApiPath(url)) {
 		return url;
@@ -33,8 +33,7 @@ export function resolveAzureUrl(modelId: string, url: string): string {
 		url = url.slice(0, -3);
 	}
 
-	// Default to chat completions for base URLs
-	const defaultApiPath = '/chat/completions';
+	const defaultApiPath = apiType === 'responses' ? '/responses' : '/chat/completions';
 
 	if (url.includes('models.ai.azure.com') || url.includes('inference.ml.azure.com')) {
 		return `${url}/v1${defaultApiPath}`;
@@ -79,8 +78,8 @@ export class AzureBYOKModelProvider extends AbstractCustomOAIBYOKModelProvider {
 		await this._configurationService.setConfig(ConfigKey.Deprecated.AzureAuthType, undefined);
 	}
 
-	protected override resolveUrl(modelId: string, url: string): string {
-		return resolveAzureUrl(modelId, url);
+	protected override resolveUrl(modelId: string, url: string, apiType?: CustomOAIApiType): string {
+		return resolveAzureUrl(modelId, url, apiType);
 	}
 
 	override async provideLanguageModelChatResponse(
@@ -103,8 +102,8 @@ export class AzureBYOKModelProvider extends AbstractCustomOAIBYOKModelProvider {
 			}
 		);
 
-		const url = this.resolveUrl(model.id, model.url);
 		const modelConfiguration = model.configuration?.models?.find(m => m.id === model.id);
+		const url = this.resolveUrl(model.id, model.url, modelConfiguration?.apiType);
 		const modelCapabilities = {
 			maxInputTokens: model.maxInputTokens,
 			maxOutputTokens: model.maxOutputTokens,

@@ -3,12 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IChatMLFetcher } from '../../../platform/chat/common/chatMLFetcher';
 import { Config, ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
-import { EndpointEditToolName, ModelSupportedEndpoint } from '../../../platform/endpoint/common/endpointProvider';
+import { IDomainService } from '../../../platform/endpoint/common/domainService';
+import { EndpointEditToolName, IChatModelInformation, ModelSupportedEndpoint } from '../../../platform/endpoint/common/endpointProvider';
 import { IVSCodeExtensionContext } from '../../../platform/extContext/common/extensionContext';
 import { ILogService } from '../../../platform/log/common/logService';
 import { IFetcherService } from '../../../platform/networking/common/fetcherService';
+import { IChatWebSocketManager } from '../../../platform/networking/node/chatWebSocketManager';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
+import { ITokenizerProvider } from '../../../platform/tokenizer/node/tokenizer';
 import { IStringDictionary } from '../../../util/vs/base/common/collections';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { resolveModelInfo } from '../common/byokProvider';
@@ -17,7 +21,9 @@ import { AbstractOpenAICompatibleLMProvider, LanguageModelChatConfiguration, Ope
 import { byokKnownModelToAPIInfoWithEffort } from './byokModelInfo';
 import { IBYOKStorageService } from './byokStorageService';
 
-export function resolveCustomOAIUrl(modelId: string, url: string): string {
+export type CustomOAIApiType = 'chat-completions' | 'responses' | 'messages';
+
+export function resolveCustomOAIUrl(modelId: string, url: string, apiType?: CustomOAIApiType): string {
 	// The fully resolved url was already passed in
 	if (hasExplicitApiPath(url)) {
 		return url;
@@ -28,8 +34,7 @@ export function resolveCustomOAIUrl(modelId: string, url: string): string {
 		url = url.slice(0, -1);
 	}
 
-	// Default to chat completions for base URLs
-	const defaultApiPath = '/chat/completions';
+	const defaultApiPath = apiTypeToPath(apiType);
 
 	// Check if URL already contains any version pattern like /v1, /v2, etc
 	const versionPattern = /\/v\d+$/;
@@ -41,18 +46,52 @@ export function resolveCustomOAIUrl(modelId: string, url: string): string {
 	return `${url}/v1${defaultApiPath}`;
 }
 
+function apiTypeToPath(apiType: CustomOAIApiType | undefined): string {
+	switch (apiType) {
+		case 'responses': return '/responses';
+		case 'messages': return '/messages';
+		case 'chat-completions':
+		default:
+			return '/chat/completions';
+	}
+}
+
 export function hasExplicitApiPath(url: string): boolean {
-	return url.includes('/responses') || url.includes('/chat/completions');
+	return url.includes('/responses') || url.includes('/chat/completions') || url.includes('/messages');
+}
+
+function inferApiTypeFromUrl(url: string): CustomOAIApiType {
+	if (url.includes('/messages')) {
+		return 'messages';
+	}
+	if (url.includes('/responses')) {
+		return 'responses';
+	}
+	return 'chat-completions';
+}
+
+function apiTypeToSupportedEndpoints(apiType: CustomOAIApiType): ModelSupportedEndpoint[] | undefined {
+	switch (apiType) {
+		case 'responses':
+			return [ModelSupportedEndpoint.ChatCompletions, ModelSupportedEndpoint.Responses];
+		case 'messages':
+			return [ModelSupportedEndpoint.Messages];
+		case 'chat-completions':
+		default:
+			return undefined;
+	}
 }
 
 export interface CustomOAIModelProviderConfig extends LanguageModelChatConfiguration {
 	url?: string;
+	apiType?: CustomOAIApiType;
 	models?: CustomOAIModelConfig[];
 }
 
 interface _CustomOAIModelConfig {
 	name: string;
 	url: string;
+	apiType?: CustomOAIApiType;
 	maxInputTokens: number;
 	maxOutputTokens: number;
 	toolCalling: boolean;
@@ -133,8 +172,10 @@ export abstract class AbstractCustomOAIBYOKModelProvider extends AbstractOpenAIC
 	}
 
 	protected override async createOpenAIEndPoint(model: OpenAICompatibleLanguageModelChatInformation<CustomOAIModelProviderConfig>): Promise<OpenAIEndpoint> {
-		const url = this.resolveUrl(model.id, model.url);
 		const modelConfiguration = model.configuration?.models?.find(m => m.id === model.id);
+		const apiTypeOverride = modelConfiguration?.apiType ?? model.configuration?.apiType;
+		const url = this.resolveUrl(model.id, model.url, apiTypeOverride);
+		const apiType: CustomOAIApiType = apiTypeOverride ?? inferApiTypeFromUrl(url);
 		const modelCapabilities = {
 			maxInputTokens: model.maxInputTokens,
 			maxOutputTokens: model.maxOutputTokens,
@@ -150,20 +191,18 @@ export abstract class AbstractCustomOAIBYOKModelProvider extends AbstractOpenAIC
 			reasoningEffortFormat: modelConfiguration?.reasoningEffortFormat
 		};
 		const modelInfo = resolveModelInfo(model.id, this._name, undefined, modelCapabilities);
-		if (modelCapabilities?.url?.includes('/responses')) {
-			modelInfo.supported_endpoints = [
-				ModelSupportedEndpoint.ChatCompletions,
-				ModelSupportedEndpoint.Responses
-			];
+		const supportedEndpoints = apiTypeToSupportedEndpoints(apiType);
+		if (supportedEndpoints) {
+			modelInfo.supported_endpoints = supportedEndpoints;
 		}
-		return this._instantiationService.createInstance(OpenAIEndpoint, modelInfo, model.configuration?.apiKey ?? '', url);
+		return this._instantiationService.createInstance(CustomEndpointOAIEndpoint, modelInfo, model.configuration?.apiKey ?? '', url);
 	}
 
 	protected getModelsBaseUrl(configuration: CustomOAIModelProviderConfig | undefined): string | undefined {
 		return configuration?.url;
 	}
 
-	protected abstract resolveUrl(modelId: string, url: string): string;
+	protected abstract resolveUrl(modelId: string, url: string, apiType?: CustomOAIApiType): string;
 }
 
 export class CustomOAIBYOKModelProvider extends AbstractCustomOAIBYOKModelProvider {
@@ -189,7 +228,56 @@ export class CustomOAIBYOKModelProvider extends AbstractCustomOAIBYOKModelProvid
 		await this.migrateConfig(ConfigKey.Deprecated.CustomOAIModels, CustomOAIBYOKModelProvider.providerName, CustomOAIBYOKModelProvider.providerName);
 	}
 
-	protected resolveUrl(modelId: string, url: string): string {
-		return resolveCustomOAIUrl(modelId, url);
+	protected resolveUrl(modelId: string, url: string, apiType?: CustomOAIApiType): string {
+		return resolveCustomOAIUrl(modelId, url, apiType);
+	}
+}
+
+/**
+ * Custom-endpoint specific subclass that:
+ * 1. Bypasses the `UseAnthropicMessagesApi` experiment flag — the user explicitly
+ *    selected the Messages API for their endpoint, so we honor that unconditionally.
+ * 2. Sends Anthropic-style auth (`x-api-key`) and `anthropic-version` plus beta
+ *    headers when the Messages API is in use, instead of `Authorization: Bearer`.
+ *    Users can still override any header via the model's `requestHeaders` setting.
+ */
+export class CustomEndpointOAIEndpoint extends OpenAIEndpoint {
+	constructor(
+		modelMetadata: IChatModelInformation,
+		apiKey: string,
+		modelUrl: string,
+		@IDomainService domainService: IDomainService,
+		@IChatMLFetcher chatMLFetcher: IChatMLFetcher,
+		@ITokenizerProvider tokenizerProvider: ITokenizerProvider,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IExperimentationService expService: IExperimentationService,
+		@IChatWebSocketManager chatWebSocketService: IChatWebSocketManager,
+		@ILogService logService: ILogService,
+	) {
+		super(modelMetadata, apiKey, modelUrl, domainService, chatMLFetcher, tokenizerProvider, instantiationService, configurationService, expService, chatWebSocketService, logService);
+	}
+
+	protected override get useMessagesApi(): boolean {
+		return !!this.modelMetadata.supported_endpoints?.includes(ModelSupportedEndpoint.Messages);
+	}
+
+	public override getExtraHeaders(): Record<string, string> {
+		const headers: Record<string, string> = {
+			'Content-Type': 'application/json'
+		};
+		if (this.useMessagesApi) {
+			headers['x-api-key'] = this._apiKey;
+			headers['anthropic-version'] = '2023-06-01';
+			Object.assign(headers, this.getAnthropicBetaHeader());
+		} else if (this._modelUrl.includes('openai.azure')) {
+			headers['api-key'] = this._apiKey;
+		} else {
+			headers['Authorization'] = `Bearer ${this._apiKey}`;
+		}
+		for (const [key, value] of Object.entries(this._customHeaders)) {
+			headers[key] = value;
+		}
+		return headers;
 	}
 }

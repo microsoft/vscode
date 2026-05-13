@@ -110,7 +110,7 @@ export class OpenAIEndpoint extends ChatEndpoint {
 	private static readonly _maxHeaderValueLength = 8192;
 	private static readonly _maxCustomHeaderCount = 20;
 
-	private readonly _customHeaders: Record<string, string>;
+	protected readonly _customHeaders: Record<string, string>;
 	constructor(
 		_modelMetadata: IChatModelInformation,
 		protected readonly _apiKey: string,
@@ -237,16 +237,19 @@ export class OpenAIEndpoint extends ChatEndpoint {
 	override createRequestBody(options: ICreateEndpointBodyOptions): IEndpointBody {
 		if (this.useResponsesApi) {
 			// Handle Responses API: customize the body directly
-			options.ignoreStatefulMarker = false;
+			const zdr = !!this.modelMetadata.zeroDataRetentionEnabled;
+			// When ZDR is on the server refuses to retain responses, so we must
+			// not chain via `previous_response_id` and must not ask it to `store`.
+			options.ignoreStatefulMarker = zdr;
 			const body = super.createRequestBody(options);
-			body.store = true;
+			body.store = !zdr;
 			body.n = undefined;
 			body.stream_options = undefined;
 			if (!this.modelMetadata.capabilities.supports.thinking) {
 				body.reasoning = undefined;
 				body.include = undefined;
 			}
-			if (body.previous_response_id && (!body.previous_response_id.startsWith('resp_') || this.modelMetadata.zeroDataRetentionEnabled)) {
+			if (body.previous_response_id && (!body.previous_response_id.startsWith('resp_') || zdr)) {
 				// Don't use a response ID from CAPI or when zero data retention is enabled
 				body.previous_response_id = undefined;
 			}
@@ -324,9 +327,13 @@ export class OpenAIEndpoint extends ChatEndpoint {
 				body['max_completion_tokens'] = body.max_tokens;
 				delete body.max_tokens;
 			}
-			// Removing max tokens defaults to the maximum which is what we want for BYOK
-			delete body.max_tokens;
-			if (!this.useResponsesApi && body.stream) {
+			// The Anthropic Messages API requires `max_tokens`; for OpenAI Chat Completions /
+			// Responses, omitting it lets the server default to its maximum, which is what we
+			// want for BYOK. So only strip it when not using the Messages API.
+			if (!this.useMessagesApi) {
+				delete body.max_tokens;
+			}
+			if (!this.useResponsesApi && !this.useMessagesApi && body.stream) {
 				body['stream_options'] = { 'include_usage': true };
 			}
 		}

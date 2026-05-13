@@ -1862,15 +1862,32 @@
 			{
 				"vendor": "customoai",
 				"when": "productQualityType != 'stable'",
-				"displayName": "OpenAI Compatible",
+				"displayName": "Custom Endpoint",
 				"configuration": {
 					"type": "object",
 					"properties": {
 						"apiKey": {
 							"type": "string",
 							"secret": true,
-							"description": "API key for the models",
+							"minLength": 1,
+							"markdownDescription": "API key for the models. Each model can use the OpenAI Chat Completions API (default), the OpenAI Responses API, or the Anthropic Messages API \u2014 set the `apiType` property on a model to choose, or leave it unset to infer from the URL path.",
 							"title": "API Key"
+						},
+						"apiType": {
+							"type": "string",
+							"enum": [
+								"chat-completions",
+								"responses",
+								"messages"
+							],
+							"enumDescriptions": [
+								"OpenAI Chat Completions API.",
+								"OpenAI Responses API. Enables reasoning summaries and stored context.",
+								"Anthropic Messages API. Sends x-api-key and anthropic-version headers."
+							],
+							"default": "chat-completions",
+							"title": "API Type",
+							"markdownDescription": "Default request/response format for models in this group. Individual models can override this with their own `apiType` property; when both are unset the type is inferred from the URL path."
 						},
 						"models": {
 							"type": "array",
@@ -1900,11 +1917,22 @@
 									},
 									"name": {
 										"type": "string",
-										"description": "Display name of the custom OpenAI model"
+										"description": "Display name of the model"
 									},
 									"url": {
 										"type": "string",
-										"markdownDescription": "URL endpoint for the custom OpenAI-compatible model.\n\n**Important:** Base URLs default to Chat Completions API. Explicit API paths including `/responses` or `/chat/completions` are respected."
+										"pattern": "^https?://.+",
+										"patternErrorMessage": "URL must start with http:// or https://",
+										"markdownDescription": "URL endpoint for the model.\n\n**Important:** Base URLs default to Chat Completions API. Explicit API paths are respected: `/chat/completions`, `/responses`, and `/v1/messages` (Anthropic-compatible). Use the `apiType` property to override the request/response format independently of the URL."
+									},
+									"apiType": {
+										"type": "string",
+										"enum": [
+											"chat-completions",
+											"responses",
+											"messages"
+										],
+										"markdownDescription": "Request/response format used to talk to this endpoint:\n- `chat-completions`: OpenAI Chat Completions API (default).\n- `responses`: OpenAI Responses API. Enables reasoning summaries and stored context.\n- `messages`: Anthropic Messages API. Sends `x-api-key` and `anthropic-version` headers and enables Anthropic features such as interleaved thinking and prompt caching.\n\nWhen omitted, falls back to the group-level `apiType`, then to the URL path."
 									},
 									"toolCalling": {
 										"type": "boolean",
@@ -1996,6 +2024,7 @@
 						"apiKey": {
 							"type": "string",
 							"secret": true,
+							"minLength": 1,
 							"description": "API key for the models. If not set then Entra ID (Azure AD) authentication with your Microsoft account credentials will be used.",
 							"title": "API Key"
 						},
@@ -2010,10 +2039,11 @@
 											"id": "$1",
 											"name": "$2",
 											"url": "$3",
-											"toolCalling": "^${4|true,false|}",
-											"vision": "^${5|true,false|}",
-											"maxInputTokens": "^${6:128000}",
-											"maxOutputTokens": "^${7:16000}"
+											"apiType": "${4|chat-completions,responses|}",
+											"toolCalling": "^${5|true,false|}",
+											"vision": "^${6|true,false|}",
+											"maxInputTokens": "^${7:128000}",
+											"maxOutputTokens": "^${8:16000}"
 										}
 									]
 								}
@@ -2031,7 +2061,17 @@
 									},
 									"url": {
 										"type": "string",
+										"pattern": "^https?://.+",
+										"patternErrorMessage": "URL must start with http:// or https://",
 										"markdownDescription": "URL endpoint for the custom OpenAI-compatible model.\n\n**Important:** Base URLs default to Chat Completions API. Explicit API paths including `/responses` or `/chat/completions` are respected."
+									},
+									"apiType": {
+										"type": "string",
+										"enum": [
+											"chat-completions",
+											"responses"
+										],
+										"markdownDescription": "Request/response format used to talk to this endpoint:\n- `chat-completions`: OpenAI Chat Completions API (default).\n- `responses`: OpenAI Responses API. Enables reasoning summaries and stored context.\n\nWhen omitted, the API type is inferred from the URL path."
 									},
 									"toolCalling": {
 										"type": "boolean",

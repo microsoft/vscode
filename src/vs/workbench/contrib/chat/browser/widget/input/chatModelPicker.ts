@@ -1003,6 +1003,12 @@ export class ModelPickerWidget extends Disposable {
 				action.run();
 			},
 			onHide: () => {
+				// Dispose hover content created eagerly for every item; the action
+				// list only adopts these when the user actually opens a hover, so
+				// without this every un-hovered item would leak its DisposableStore.
+				for (const item of items) {
+					item.hover?.disposable?.dispose();
+				}
 				this._nameButton?.setAttribute('aria-expanded', 'false');
 				if (dom.isHTMLElement(previouslyFocusedElement)) {
 					previouslyFocusedElement.focus();
