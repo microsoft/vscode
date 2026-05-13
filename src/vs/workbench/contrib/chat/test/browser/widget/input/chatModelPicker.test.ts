@@ -101,6 +101,7 @@ function callBuild(
 	opts: {
 		selectedModelId?: string;
 		recentModelIds?: string[];
+		pinnedModelIds?: string[];
 		controlModels?: IStringDictionary<IModelControlEntry>;
 		entitlement?: ChatEntitlement;
 		currentVSCodeVersion?: string;
@@ -122,10 +123,12 @@ function callBuild(
 		models,
 		opts.selectedModelId,
 		opts.recentModelIds ?? [],
+		opts.pinnedModelIds ?? [],
 		opts.controlModels ?? {},
 		opts.currentVSCodeVersion ?? '1.100.0',
 		opts.updateStateType ?? StateType.Idle,
 		onSelect,
+		undefined,
 		opts.manageSettingsUrl,
 		true,
 		stubManageModelsAction,
@@ -191,7 +194,7 @@ suite('buildModelPickerItems', () => {
 		assert.strictEqual(actions.length, 2);
 		assert.strictEqual(actions[0].label, 'Auto');
 		assert.strictEqual(actions[1].item?.id, 'manageModels');
-		assert.strictEqual(getSeparatorCount(items), 1);
+		assert.strictEqual(getSeparatorCount(items), 2);
 	});
 
 	test('selected model appears in promoted section', () => {
@@ -352,8 +355,8 @@ suite('buildModelPickerItems', () => {
 		});
 		// With no selected, no recent, and no featured, both models should be in Other
 		const seps = items.filter(i => i.kind === ActionListItemKind.Separator);
-		// One separator before Other Models section (Manage Models is in the toolbar)
-		assert.strictEqual(seps.length, 1);
+		// Two separators: one after Auto, one before Other Models section
+		assert.strictEqual(seps.length, 2);
 		const actions = getActionItems(items);
 		assert.strictEqual(actions[0].label, 'Auto');
 		// Next should be "Other Models" toggle
@@ -601,10 +604,12 @@ suite('buildModelPickerItems', () => {
 			[auto, modelA],
 			undefined,
 			[],
+			[],
 			{},
 			'1.100.0',
 			StateType.Idle,
 			onSelect,
+			undefined,
 			undefined,
 			true,
 			undefined,
@@ -687,10 +692,12 @@ suite('buildModelPickerItems', () => {
 			[auto],
 			undefined,
 			['missing-model'],
+			[],
 			{ 'missing-model': { label: 'Missing Model' } as IModelControlEntry },
 			'1.100.0',
 			StateType.Idle,
 			() => { },
+			undefined,
 			'https://aka.ms/github-copilot-settings',
 			true,
 			undefined,
@@ -773,10 +780,12 @@ suite('buildModelPickerItems', () => {
 			[auto, modelA],
 			undefined,
 			[],
+			[],
 			{},
 			'1.100.0',
 			StateType.Idle,
 			onSelect,
+			undefined,
 			undefined,
 			true,
 			undefined,
