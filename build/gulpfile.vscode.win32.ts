@@ -131,11 +131,12 @@ function buildWin32Setup(arch: string, target: string): task.CallbackTask {
 			definitions['ProxyMutex'] = embedded.win32MutexName;
 		}
 
-		if (quality === 'stable' || quality === 'insider') {
-			definitions['AppxPackage'] = `${quality === 'stable' ? 'code' : 'code_insider'}_${arch}.appx`;
-			definitions['AppxPackageDll'] = `${quality === 'stable' ? 'code' : 'code_insider'}_explorer_command_${arch}.dll`;
-			definitions['AppxPackageName'] = `${product.win32AppUserModelId}`;
-		}
+		// test-workbench_change - Skip appx package generation
+		// if (quality === 'stable' || quality === 'insider') {
+		// 	definitions['AppxPackage'] = `${quality === 'stable' ? 'code' : 'code_insider'}_${arch}.appx`;
+		// 	definitions['AppxPackageDll'] = `${quality === 'stable' ? 'code' : 'code_insider'}_explorer_command_${arch}.dll`;
+		// 	definitions['AppxPackageName'] = `${product.win32AppUserModelId}`;
+		// }
 
 		fs.writeFileSync(productJsonPath, JSON.stringify(productJson, undefined, '\t'));
 
