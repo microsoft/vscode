@@ -397,7 +397,7 @@ function sendToolInvokedTelemetry(
 
 	/* __GDPR__
 		"languageModelToolInvoked" : {
-			"owner": "amunger",
+			"owner": "roblourens",
 			"comment": "Provides insight into the usage of language model tools (Claude Code agent).",
 			"result": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "success | error | userCancelled" },
 			"chatSessionId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The chat session resource id." },

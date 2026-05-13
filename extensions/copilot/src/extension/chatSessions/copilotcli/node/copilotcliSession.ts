@@ -2652,7 +2652,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 
 		/* __GDPR__
 			"languageModelToolInvoked" : {
-				"owner": "zhichli",
+				"owner": "roblourens",
 				"comment": "Provides insight into the usage of language model tools (Copilot CLI agent).",
 				"result": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "success | error | userCancelled" },
 				"chatSessionId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The chat session resource id." },
