@@ -24,6 +24,20 @@
 	max-width: none;
 }
 
+.monaco-hover .hover-contents:has(.copilot-prototype-dashboard) {
+	max-width: none;
+	padding: 0;
+}
+
+.monaco-hover:has(.copilot-prototype-dashboard) {
+	box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+
+.monaco-hover .hover-row.status-bar:has(+ .hover-row .copilot-prototype-dashboard),
+.monaco-hover .hover-row:has(.copilot-prototype-dashboard) {
+	padding: 0;
+}
+
 .copilot-prototype-coin-widget-title {
 	font-weight: 600;
 	font-size: 11px;
@@ -126,8 +140,8 @@
 /* ---- Dashboard (two-tab billing view — status bar tooltip) ---- */
 
 .copilot-prototype-dashboard {
-	width: 360px;
-	padding: 4px 0;
+	width: 380px;
+	padding: 0;
 }
 
 .copilot-prototype-ft-container {
@@ -2734,6 +2748,24 @@
 	justify-content: space-between;
 	padding: 4px 16px 8px;
 	margin-bottom: 30px;
+}
+
+/* No extra margin when walkthrough is inside dashboard tooltip */
+.copilot-prototype-dashboard .copilot-ft-walkthrough-footer {
+	margin-bottom: 0;
+}
+
+/* Full bleed walkthrough in dashboard */
+.copilot-prototype-dashboard .copilot-ft-walkthrough {
+	border: none;
+	border-radius: 0;
+	margin-bottom: 0;
+	box-shadow: none;
+	outline: none;
+}
+
+.copilot-prototype-dashboard .copilot-ft-walkthrough-hero {
+	border-radius: 0;
 }
 
 .copilot-ft-walkthrough-footer-right {

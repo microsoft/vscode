@@ -3128,7 +3128,7 @@ export class CopilotTBB3StatusBarContribution extends Disposable implements IWor
 
 	static readonly INDIVIDUAL_SKUS = ['Edu/Free', 'Pro/Pro+ No O', 'Pro/Pro+', 'Max'];
 	static readonly ENTERPRISE_SKUS = ['Ent/Bus ULB', 'Ent/Bus'];
-	static readonly STATES = ['First Time', 'Default', 'Monthly Approached', 'Monthly Exhausted', 'Monthly Reset', 'Overage Exhausted', 'Overage Reset'];
+	static readonly STATES = ['First Time', 'First Time (Banner)', 'Default', 'Monthly Approached', 'Monthly Exhausted', 'Monthly Reset', 'Overage Exhausted', 'Overage Reset'];
 	static readonly EXCLUDED_CELLS: ReadonlySet<string> = new Set([
 		// Edu/Free has no additional budget at all
 		'Edu/Free|Overage Exhausted', 'Edu/Free|Overage Reset',
@@ -3215,7 +3215,7 @@ export class CopilotTBB3StatusBarContribution extends Disposable implements IWor
 		this._activeSku = sku;
 		this._activeState = state;
 		this._resumed = state === 'Monthly Reset';
-		if (state === 'First Time') {
+		if (state === 'First Time' || state === 'First Time (Banner)') {
 			this._firstTimeStep = 1;
 		}
 		// Ensure the shared status-bar dashboard reflects TBB 3.0 whenever the user
@@ -3320,6 +3320,12 @@ export class CopilotTBB3StatusBarContribution extends Disposable implements IWor
 				});
 				break;
 			case 'First Time':
+				tbb1.showCustomSimpleBanner({
+					title: localize('ftBannerTitle', "Review important changes to Copilot billing"),
+					actionLabel: localize('ftBannerAction', "Learn More"),
+				});
+				break;
+			case 'First Time (Banner)':
 				tbb1.showFirstTimeWalkthrough(this.getFirstTimeSteps(sku), () => {
 					this.setActiveCell(this._activeSku, 'Default');
 				});
@@ -3358,33 +3364,33 @@ export class CopilotTBB3StatusBarContribution extends Disposable implements IWor
 			return [
 				{
 					icon: '$(copilot)',
-					title: localize('ftWalkthroughIntro', "Copilot now uses usage-based billing"),
-					description: localize('ftWalkthroughIntroEntSub', "Copilot has evolved into an agentic platform, and billing now reflects that. Your seat price hasn\u2019t changed. AI credits replace the old request system, with fewer usage limits than before."),
+					title: localize('ftWalkthroughIntro', "Copilot billing has changed"),
+					description: localize('ftWalkthroughIntroEntSub', "Copilot now uses AI credits instead of request counts. Your seat price is the same, and usage limits have been reduced."),
 					kind: 'intro',
 					badge: sku === 'Ent/Bus ULB' ? '5,000' : undefined,
 					planLabel: sku === 'Ent/Bus ULB' ? 'Copilot Business' : 'Copilot Enterprise',
 				},
 				{
 					icon: '$(symbol-type-parameter)',
-					title: localize('tbb3FtTokensTitle', "How credits work"),
-					description: localize('tbb3FtTokensDesc', "Cost now scales with the work done. Each interaction consumes input, output, and cached tokens, priced per model, then converted to credits."),
+					title: localize('tbb3FtTokensTitle', "Cost scales with the work done"),
+					description: localize('tbb3FtTokensEntDesc', "A quick chat costs a fraction of a credit. Longer agentic sessions cost more. Your team\u2019s pooled credits absorb the variation."),
 					kind: 'token-breakdown',
 				},
 				{
 					icon: '$(organization)',
 					title: localize('tbb3FtPooledTitle', "Credits are pooled across your org"),
-					description: localize('tbb3FtPooledDesc', "Instead of each seat\u2019s credits being isolated, your organization\u2019s included credits are pooled. Power users can draw more when they need it, and lighter users offset the balance. No more stranded capacity."),
+					description: localize('tbb3FtPooledDesc', "Instead of per-seat isolation, credits are shared across your organization. Lighter users offset heavier ones, so nothing goes to waste."),
 				},
 				{
 					icon: '$(shield)',
-					title: localize('tbb3FtBudgetsTitle', "Budgets at every level"),
-					description: localize('tbb3FtBudgetsDesc', "Admins can set budgets at enterprise, organization, cost center, and individual user levels. When the pool runs out, additional usage continues at published rates, or your admin can cap it. Code completions and next edit suggestions are included separately."),
+					title: localize('tbb3FtBudgetsTitle', "Spending is managed by your admin"),
+					description: localize('tbb3FtBudgetsDesc', "Budgets can be set at enterprise, org, cost center, and user levels. Code completions and next edit suggestions are included separately."),
 				},
 				{
 					icon: '$(book)',
-					title: localize('tbb3FtLearnMoreTitle', "You\u2019re in control"),
-					description: localize('tbb3FtLearnMoreEntDesc', "Track credits in the usage dashboard and check the model picker for per-model costs. Contact your administrator for budget or allowance changes."),
-					link: { label: localize('tbb3FtDocsBillingEntLink', "Usage-based billing for organizations"), href: 'https://docs.github.com/en/copilot/concepts/billing/usage-based-billing-for-individuals' },
+					title: localize('tbb3FtLearnMoreTitle', "Track your usage"),
+					description: localize('tbb3FtLearnMoreEntDesc', "The usage dashboard shows your credits and what\u2019s using them. The model picker shows per-model costs. Contact your admin for budget changes."),
+					link: { label: localize('tbb3FtDocsBillingEntLink', "How does billing work?"), href: 'https://docs.github.com/en/copilot/concepts/billing/usage-based-billing-for-individuals' },
 				},
 			];
 		}
@@ -3395,79 +3401,105 @@ export class CopilotTBB3StatusBarContribution extends Disposable implements IWor
 		const badgeAmount = isFree ? '300' : isNoO ? '1,500' : sku === 'Max' ? '20,000' : hasOverage ? '7,000' : undefined;
 		const planLabel = isFree ? 'Copilot Free' : isNoO ? 'Copilot Pro' : sku === 'Max' ? 'Copilot Max' : hasOverage ? 'Copilot Pro+' : 'Copilot Pro';
 
-		// Slide 1: Billing model changed + your credit amount
+		// Slide 1: What changed
 		steps.push({
 			icon: '$(copilot)',
-			title: localize('ftWalkthroughIntro', "Copilot now uses usage-based billing"),
+			title: localize('ftWalkthroughIntro', "Copilot billing has changed"),
 			description: isFree
-				? localize('ftWalkthroughIntroFreeSub', "Your free plan includes a monthly allowance of AI credits for chat, agents, and CLI. Credits replace the old request system.")
-				: localize('ftWalkthroughIntroSub', "Your plan price hasn\u2019t changed. AI credits replace the old request system, with fewer usage limits than before."),
+				? localize('ftWalkthroughIntroFreeSub', "Copilot now uses AI credits instead of request counts. Your free plan includes a monthly allowance, and usage limits have been reduced.")
+				: localize('ftWalkthroughIntroSub', "Copilot now uses AI credits instead of request counts. Your plan price is the same, and usage limits have been reduced."),
 			kind: 'intro',
 			badge: badgeAmount,
 			planLabel,
 			link: { label: localize('tbb3FtIntroLink', "What changed?"), href: 'https://docs.github.com/en/copilot/concepts/billing/usage-based-billing-for-individuals' },
 		});
 
-		// Slide 2: How credits work
-		steps.push({
-			icon: '$(symbol-type-parameter)',
-			title: localize('tbb3FtTokensTitle', "How credits work"),
-			description: localize('tbb3FtTokensDesc', "Cost now scales with the work done. Each interaction consumes input, output, and cached tokens, priced per model, then converted to credits."),
-			kind: 'token-breakdown',
-			link: { label: localize('tbb3FtTokensLink', "How are tokens priced?"), href: 'https://docs.github.com/en/copilot/concepts/billing/usage-based-billing-for-individuals' },
-		});
+		// Slide 2: How cost works now
+		if (isFree) {
+			steps.push({
+				icon: '$(symbol-type-parameter)',
+				title: localize('tbb3FtTokensTitle', "Cost scales with the work done"),
+				description: localize('tbb3FtTokensFreeDesc', "A quick chat costs a fraction of a credit. Agentic sessions cost more because they do more work. The usage dashboard shows what you\u2019re spending."),
+				kind: 'token-breakdown',
+				link: { label: localize('tbb3FtTokensLink', "How are tokens priced?"), href: 'https://docs.github.com/en/copilot/concepts/billing/usage-based-billing-for-individuals' },
+			});
+		} else if (hasOverage) {
+			steps.push({
+				icon: '$(symbol-type-parameter)',
+				title: localize('tbb3FtTokensTitle', "Cost scales with the work done"),
+				description: localize('tbb3FtTokensProDesc', "A quick chat costs a fraction of a credit. Longer agentic sessions cost more. If you run through your included credits, your additional budget covers the rest."),
+				kind: 'token-breakdown',
+				link: { label: localize('tbb3FtTokensLink', "How are tokens priced?"), href: 'https://docs.github.com/en/copilot/concepts/billing/usage-based-billing-for-individuals' },
+			});
+		} else if (isNoO) {
+			steps.push({
+				icon: '$(symbol-type-parameter)',
+				title: localize('tbb3FtTokensTitle', "Cost scales with the work done"),
+				description: localize('tbb3FtTokensNoODesc', "A quick chat costs a fraction of a credit. Agentic sessions cost more because they do more work. You can set up a budget to keep going if you run out."),
+				kind: 'token-breakdown',
+				link: { label: localize('tbb3FtTokensLink', "How are tokens priced?"), href: 'https://docs.github.com/en/copilot/concepts/billing/usage-based-billing-for-individuals' },
+			});
+		} else {
+			steps.push({
+				icon: '$(symbol-type-parameter)',
+				title: localize('tbb3FtTokensTitle', "Cost scales with the work done"),
+				description: localize('tbb3FtTokensDefaultDesc', "A quick chat costs a fraction of a credit. Agentic sessions cost more because they do more work. The usage dashboard shows what you\u2019re spending."),
+				kind: 'token-breakdown',
+				link: { label: localize('tbb3FtTokensLink', "How are tokens priced?"), href: 'https://docs.github.com/en/copilot/concepts/billing/usage-based-billing-for-individuals' },
+			});
+		}
 
 		// Slide 3: Model choice
 		if (isFree) {
 			steps.push({
 				icon: '$(layers)',
-				title: localize('tbb3FtModelsFreeTitle', "Lighter models go further"),
-				description: localize('tbb3FtModelsFreeDesc', "Lighter models cost fewer credits per request and stretch your free allowance further. Check the model picker to compare."),
+				title: localize('tbb3FtModelsFreeTitle', "Different models, different costs"),
+				description: localize('tbb3FtModelsFreeDesc', "Lighter models cost fewer credits and work well for quick questions. The model picker shows relative cost so you can decide what fits."),
 				link: { label: localize('tbb3FtModelsLink', "Which models cost what?"), href: 'https://docs.github.com/en/copilot/concepts/billing/usage-based-billing-for-individuals' },
 			});
 		} else if (hasOverage) {
 			steps.push({
 				icon: '$(layers)',
-				title: localize('tbb3FtModelsProTitle', "Use the best models for the job"),
-				description: localize('tbb3FtModelsProDesc', "A quick question costs a fraction of a credit. Agentic sessions with frontier models cost more. The model picker shows relative cost."),
+				title: localize('tbb3FtModelsProTitle', "Different models, different costs"),
+				description: localize('tbb3FtModelsProDesc', "Lighter models work well for routine tasks. Frontier models cost more but handle complex work better. The model picker shows relative cost."),
 				link: { label: localize('tbb3FtModelsLink', "Which models cost what?"), href: 'https://docs.github.com/en/copilot/concepts/billing/usage-based-billing-for-individuals' },
 			});
 		} else {
 			steps.push({
 				icon: '$(layers)',
-				title: localize('tbb3FtModelsTitle', "Compare costs in the model picker"),
-				description: localize('tbb3FtModelsDesc', "Each model has its own credit cost. The model picker shows relative pricing so you can choose accordingly."),
+				title: localize('tbb3FtModelsTitle', "Different models, different costs"),
+				description: localize('tbb3FtModelsDesc', "Each model has its own credit cost. The model picker shows relative pricing so you can balance speed, quality, and credits."),
 				link: { label: localize('tbb3FtModelsLink', "Which models cost what?"), href: 'https://docs.github.com/en/copilot/concepts/billing/usage-based-billing-for-individuals' },
 			});
 		}
 
-		// Slide 4: Free = what's included; Paid = budget controls
+		// Slide 4: What happens behind the scenes / budgets
 		if (isFree) {
 			steps.push({
 				icon: '$(beaker)',
-				title: localize('tbb3FtTipsFreeTitle', "What\u2019s included for free"),
-				description: localize('tbb3FtTipsFreeDesc', "Code completions and next edit suggestions are included separately. Prompt caching and smart routing are built in to make each credit go further."),
+				title: localize('tbb3FtTipsFreeTitle', "Efficiency is built in"),
+				description: localize('tbb3FtTipsFreeDesc', "Prompt caching and smart routing reduce the tokens each request uses. Code completions and next edit suggestions are included separately and don\u2019t count against credits."),
 				link: { label: localize('tbb3FtTipsFreeLink', "What uses credits?"), href: 'https://docs.github.com/en/copilot/concepts/billing/usage-based-billing-for-individuals' },
 			});
 		} else if (isNoO) {
 			steps.push({
 				icon: '$(credit-card)',
-				title: localize('tbb3FtBudgetNoOTitle', "Set up your additional budget"),
-				description: localize('tbb3FtBudgetNoODesc', "When credits run out, Copilot pauses unless you set an additional budget. You choose the cap and only pay for what you use."),
+				title: localize('tbb3FtBudgetNoOTitle', "Set a budget to keep going"),
+				description: localize('tbb3FtBudgetNoODesc', "When credits run out, Copilot pauses unless you have an additional budget. You choose the cap and only pay for what you use beyond your included amount."),
 				link: { label: localize('tbb3FtBudgetLink', "How do budgets work?"), href: 'https://github.com/settings/billing/budgets' },
 			});
 		} else if (hasOverage) {
 			steps.push({
 				icon: '$(credit-card)',
-				title: localize('tbb3FtBudgetProTitle', "Your budget, your rules"),
-				description: localize('tbb3FtBudgetProDesc', "Your additional budget kicks in automatically when credits run out. Adjust your spending cap anytime."),
+				title: localize('tbb3FtBudgetProTitle', "Your budget keeps you covered"),
+				description: localize('tbb3FtBudgetProDesc', "When your included credits run out, your additional budget kicks in. You can adjust the spending cap anytime in billing settings."),
 				link: { label: localize('tbb3FtBudgetLink', "How do budgets work?"), href: 'https://github.com/settings/billing/budgets' },
 			});
 		} else {
 			steps.push({
 				icon: '$(beaker)',
-				title: localize('tbb3FtTipsTitle', "Getting the most from your credits"),
-				description: localize('tbb3FtTipsDesc', "Code completions and next edit suggestions are included and don\u2019t count against credits. Prompt caching and smart routing are built in."),
+				title: localize('tbb3FtTipsTitle', "Efficiency is built in"),
+				description: localize('tbb3FtTipsDesc', "Prompt caching and smart routing reduce the tokens each request uses. Code completions and next edit suggestions are included and don\u2019t count against credits."),
 				link: { label: localize('tbb3FtTipsLink', "What uses credits?"), href: 'https://docs.github.com/en/copilot/concepts/billing/usage-based-billing-for-individuals' },
 			});
 		}
@@ -3476,24 +3508,24 @@ export class CopilotTBB3StatusBarContribution extends Disposable implements IWor
 		if (isFree) {
 			steps.push({
 				icon: '$(dashboard)',
-				title: localize('tbb3FtControlFreeTitle', "Track usage and upgrade anytime"),
-				description: localize('tbb3FtControlFreeDesc', "Credits reset monthly. Click the Copilot icon in the status bar to open your usage dashboard and track your balance."),
+				title: localize('tbb3FtControlFreeTitle', "Track your usage"),
+				description: localize('tbb3FtControlFreeDesc', "Credits reset monthly. Click the Copilot icon in the status bar to see your balance, usage breakdown, and upgrade options."),
 				cta: localize('upgrade', "Upgrade"),
 				link: { label: localize('tbb3FtControlLink', "How do I track my usage?"), href: 'https://docs.github.com/en/copilot/concepts/billing/usage-based-billing-for-individuals' },
 			});
 		} else if (isNoO) {
 			steps.push({
 				icon: '$(dashboard)',
-				title: localize('tbb3FtControlNoOTitle', "Monitor usage in your dashboard"),
-				description: localize('tbb3FtControlNoODesc', "Credits reset monthly. Click the Copilot icon in the status bar to open your usage dashboard and track your balance."),
+				title: localize('tbb3FtControlNoOTitle', "Track your usage"),
+				description: localize('tbb3FtControlNoODesc', "Credits reset monthly. Click the Copilot icon in the status bar to see your balance, configure your budget, and see what costs the most."),
 				cta: localize('configureBudgetBtn', "Configure Budget"),
 				link: { label: localize('tbb3FtControlLink', "How do I track my usage?"), href: 'https://docs.github.com/en/copilot/concepts/billing/usage-based-billing-for-individuals' },
 			});
 		} else {
 			steps.push({
 				icon: '$(dashboard)',
-				title: localize('tbb3FtControlProTitle', "Monitor usage in your dashboard"),
-				description: localize('tbb3FtControlProDesc', "Credits reset monthly and your additional budget kicks in automatically. Click the Copilot icon in the status bar to track your balance."),
+				title: localize('tbb3FtControlProTitle', "Track your usage"),
+				description: localize('tbb3FtControlProDesc', "Credits reset monthly and your additional budget kicks in when needed. Click the Copilot icon in the status bar to see your balance and adjust your cap."),
 				link: { label: localize('tbb3FtControlLink', "How do I track my usage?"), href: 'https://docs.github.com/en/copilot/concepts/billing/usage-based-billing-for-individuals' },
 			});
 		}
@@ -3502,151 +3534,146 @@ export class CopilotTBB3StatusBarContribution extends Disposable implements IWor
 	}
 
 	private renderFirstTimeOnboarding(dashboard: HTMLElement, disposables: DisposableStore, sku: string): void {
-		const contentContainer = append(dashboard, $('div.copilot-prototype-ft-container'));
+		const steps = this.getFirstTimeSteps(sku);
+		const el = append(dashboard, $('div.copilot-ft-walkthrough'));
 		const stepDisposables = disposables.add(new DisposableStore());
+
+		let prevStep = -1;
 
 		const renderStep = () => {
 			stepDisposables.clear();
-			contentContainer.textContent = '';
-
-			const steps = this.getFirstTimeSteps(sku);
 			const totalSteps = steps.length;
-			const currentStep = Math.min(this._firstTimeStep, totalSteps);
-			const stepData = steps[currentStep - 1];
-			const isLastStep = currentStep === totalSteps;
-			const isFirstStep = currentStep === 1;
+			const currentStep = Math.min(this._firstTimeStep, totalSteps) - 1; // convert to 0-based
+			const isLastStep = currentStep === totalSteps - 1;
+			const stepData = steps[currentStep];
+			const direction = currentStep > prevStep ? 'right' : 'left';
+			prevStep = currentStep;
 
-			// Header
-			const header = append(contentContainer, $('div.copilot-prototype-ft-header'));
-			const headerTitle = append(header, $('div.copilot-prototype-ft-header-title'));
-			headerTitle.textContent = localize('tbb3FtHeader', "What's New");
-			const headerStep = append(header, $('div.copilot-prototype-ft-header-step'));
-			headerStep.textContent = `${currentStep} of ${totalSteps}`;
+			// Persistent hero image — only create once
+			if (!el.querySelector('.copilot-ft-walkthrough-hero')) { // eslint-disable-line no-restricted-syntax
+				el.textContent = '';
 
-			// Body
-			const body = append(contentContainer, $('div.copilot-prototype-ft-body'));
+				const imgContainer = mainWindow.document.createElement('div');
+				imgContainer.className = 'copilot-ft-walkthrough-hero';
+				const img = mainWindow.document.createElement('img');
+				img.className = 'copilot-ft-walkthrough-hero-img';
+				img.src = FileAccess.asBrowserUri('vs/workbench/contrib/chat/browser/media/featured-v3-improvements.svg').toString(true);
+				img.alt = '';
+				imgContainer.appendChild(img);
 
-			const iconContainer = append(body, $('div.copilot-prototype-ft-card-icon'));
-			iconContainer.append(...renderLabelWithIcons(stepData.icon));
+				const overlaySlot = mainWindow.document.createElement('div');
+				overlaySlot.className = 'copilot-ft-walkthrough-overlay-slot';
+				imgContainer.appendChild(overlaySlot);
 
-			const cardTitle = append(body, $('div.copilot-prototype-ft-card-title'));
-			cardTitle.textContent = stepData.title;
+				el.appendChild(imgContainer);
 
-			const cardDesc = append(body, $('div.copilot-prototype-ft-card-desc'));
-			cardDesc.textContent = stepData.description;
+				const contentSlot = mainWindow.document.createElement('div');
+				contentSlot.className = 'copilot-ft-walkthrough-content-slot';
+				el.appendChild(contentSlot);
 
-			// Optional link for the step
-			if (stepData.link) {
-				const stepLink = append(body, $('a.copilot-prototype-ft-link')) as HTMLAnchorElement;
-				stepLink.textContent = stepData.link.label;
-				stepLink.href = stepData.link.href;
-				stepLink.target = '_blank';
-				stepLink.append(...renderLabelWithIcons(' $(link-external)'));
-				stepLink.style.marginTop = '10px';
+				const footer = mainWindow.document.createElement('div');
+				footer.className = 'copilot-ft-walkthrough-footer';
+				el.appendChild(footer);
 			}
 
-			// Token breakdown visualization for the dashboard
-			if (stepData.kind === 'token-breakdown') {
-				const tokenGrid = append(body, $('div.copilot-ft-token-grid'));
-				const tokens = [
-					{ icon: '$(arrow-up)', label: localize('tokenInput', "Input"), desc: localize('tokenInputDesc', "What you send to the model"), color: 'var(--vscode-charts-blue, #4fc1ff)', multiplier: localize('tokenInputRate', "per 1M tokens") },
-					{ icon: '$(arrow-down)', label: localize('tokenOutput', "Output"), desc: localize('tokenOutputDesc', "What Copilot generates back"), color: 'var(--vscode-charts-purple, #b180d7)', multiplier: localize('tokenOutputRate', "per 1M tokens") },
-					{ icon: '$(database)', label: localize('tokenCached', "Cached"), desc: localize('tokenCachedDesc', "Context the model reuses"), color: 'var(--vscode-charts-green, #89d185)', multiplier: localize('tokenCachedRate', "per 1M tokens") },
-				];
-				const detailArea = append(body, $('div.copilot-ft-token-detail'));
-				detailArea.textContent = localize('tokenDetailHover', "Tap a token type to learn more. Rates vary by model.");
+			const contentSlot = el.querySelector('.copilot-ft-walkthrough-content-slot') as HTMLElement; // eslint-disable-line no-restricted-syntax
+			const footer = el.querySelector('.copilot-ft-walkthrough-footer') as HTMLElement; // eslint-disable-line no-restricted-syntax
+			const overlaySlot = el.querySelector('.copilot-ft-walkthrough-overlay-slot') as HTMLElement; // eslint-disable-line no-restricted-syntax
 
-				for (const t of tokens) {
-					const card = append(tokenGrid, $('div.copilot-ft-token-card'));
-					card.style.setProperty('--token-color', t.color);
-					const ci = append(card, $('div.copilot-ft-token-card-icon'));
-					ci.append(...renderLabelWithIcons(t.icon));
-					const cl = append(card, $('div.copilot-ft-token-card-label'));
-					cl.textContent = t.label;
-					const cm = append(card, $('div.copilot-ft-token-card-mult'));
-					cm.textContent = t.multiplier;
-					card.addEventListener('mouseenter', () => {
-						detailArea.textContent = '';
-						const strong = mainWindow.document.createElement('strong');
-						strong.textContent = t.label + ': ';
-						detailArea.appendChild(strong);
-						detailArea.append(t.desc + '. ');
-						const mult = mainWindow.document.createElement('span');
-						mult.className = 'copilot-ft-token-detail-mult';
-						mult.textContent = localize('tokenMultLabel', "Priced {0}. Rate varies by model.", t.multiplier);
-						detailArea.appendChild(mult);
-						card.classList.add('active');
-					});
-					card.addEventListener('mouseleave', () => {
-						detailArea.textContent = localize('tokenDetailHover', "Tap a token type to learn more. Rates vary by model.");
-						card.classList.remove('active');
-					});
+			// Update hero overlay
+			if (overlaySlot) {
+				overlaySlot.textContent = '';
+				if (currentStep === 0 && steps[0]?.badge) {
+					const badge = mainWindow.document.createElement('div');
+					badge.className = 'copilot-ft-walkthrough-badge';
+					const badgeValue = mainWindow.document.createElement('span');
+					badgeValue.className = 'copilot-ft-walkthrough-badge-value';
+					badgeValue.textContent = steps[0].badge;
+					badge.appendChild(badgeValue);
+					const badgeLabel = mainWindow.document.createElement('span');
+					badgeLabel.className = 'copilot-ft-walkthrough-badge-label';
+					badgeLabel.textContent = localize('creditsIncluded', "credits/mo \u00b7 {0}", steps[0].planLabel ?? 'your plan');
+					badge.appendChild(badgeLabel);
+					overlaySlot.appendChild(badge);
 				}
 			}
 
-			if (isLastStep) {
-				const links = append(body, $('div.copilot-prototype-ft-links'));
-				const docsLink = append(links, $('a.copilot-prototype-ft-link')) as HTMLAnchorElement;
-				docsLink.textContent = localize('tbb3FtDocsLink', "Read the docs");
-				docsLink.href = 'https://docs.github.com/en/copilot/managing-copilot/managing-copilot-as-an-individual-subscriber/monitoring-usage-and-spend';
-				docsLink.target = '_blank';
-				docsLink.append(...renderLabelWithIcons(' $(link-external)'));
+			// Build content
+			const content = mainWindow.document.createElement('div');
+			content.className = `copilot-ft-walkthrough-slide copilot-ft-slide-enter-${direction}`;
 
-				const faqLink = append(links, $('a.copilot-prototype-ft-link')) as HTMLAnchorElement;
-				faqLink.textContent = localize('tbb3FtFaqLink', "Billing FAQ");
-				faqLink.href = 'https://docs.github.com/en/copilot/about-github-copilot/github-copilot-plans';
-				faqLink.target = '_blank';
-				faqLink.append(...renderLabelWithIcons(' $(link-external)'));
-			}
+			const titleEl = mainWindow.document.createElement('div');
+			titleEl.className = 'copilot-ft-walkthrough-step-title';
+			titleEl.textContent = stepData.title;
+			content.appendChild(titleEl);
 
-			// Footer nav
-			const footer = append(contentContainer, $('div.copilot-prototype-ft-footer'));
-			const footerLeft = append(footer, $('div.copilot-prototype-ft-footer-left'));
-			const footerRight = append(footer, $('div.copilot-prototype-ft-footer-right'));
+			const descEl = mainWindow.document.createElement('div');
+			descEl.className = 'copilot-ft-walkthrough-step-desc';
+			descEl.textContent = stepData.description;
+			content.appendChild(descEl);
 
-			// Back arrow
-			const backBtn = mainWindow.document.createElement('button');
-			backBtn.className = 'copilot-prototype-ft-nav-btn' + (isFirstStep ? ' disabled' : '');
-			backBtn.append(...renderLabelWithIcons('$(chevron-left)'));
-			backBtn.title = localize('ftBack', "Back");
-			if (!isFirstStep) {
-				backBtn.addEventListener('click', () => {
-					this._firstTimeStep = currentStep - 1;
-					renderStep();
-				});
-			}
-			footerLeft.appendChild(backBtn);
+			contentSlot.textContent = '';
+			contentSlot.appendChild(content);
+			mainWindow.requestAnimationFrame(() => {
+				content.classList.remove(`copilot-ft-slide-enter-${direction}`);
+				content.classList.add('copilot-ft-slide-active');
+			});
 
-			// Next arrow
-			const nextArrow = mainWindow.document.createElement('button');
-			nextArrow.className = 'copilot-prototype-ft-nav-btn' + (isLastStep ? ' disabled' : '');
-			nextArrow.append(...renderLabelWithIcons('$(chevron-right)'));
-			nextArrow.title = localize('ftNext', "Next");
+			// Footer
+			footer.textContent = '';
+
+			const navLeft = mainWindow.document.createElement('div');
+			navLeft.className = 'copilot-ft-walkthrough-nav';
+
+			const prevBtn = mainWindow.document.createElement('button');
+			prevBtn.className = 'copilot-ft-walkthrough-nav-btn' + (currentStep <= 0 ? ' disabled' : '');
+			prevBtn.append(...renderLabelWithIcons('$(chevron-left)'));
+			prevBtn.addEventListener('click', () => {
+				if (currentStep > 0) { this._firstTimeStep = currentStep; renderStep(); } // currentStep is 0-based, _firstTimeStep is 1-based
+			});
+			navLeft.appendChild(prevBtn);
+
+			const nextBtn = mainWindow.document.createElement('button');
+			nextBtn.className = 'copilot-ft-walkthrough-nav-btn' + (isLastStep ? ' disabled' : '');
+			nextBtn.append(...renderLabelWithIcons('$(chevron-right)'));
+			nextBtn.addEventListener('click', () => {
+				if (!isLastStep) { this._firstTimeStep = currentStep + 2; renderStep(); }
+			});
+			navLeft.appendChild(nextBtn);
+
 			if (!isLastStep) {
-				nextArrow.addEventListener('click', () => {
-					this._firstTimeStep = currentStep + 1;
-					renderStep();
-				});
-			}
-			footerLeft.appendChild(nextArrow);
-
-			// Progress dots
-			const dots = append(footerLeft, $('div.copilot-prototype-ft-progress'));
-			for (let i = 1; i <= totalSteps; i++) {
-				const dot = append(dots, $('div.copilot-prototype-ft-progress-dot'));
-				if (i === currentStep) { dot.classList.add('active'); }
-				else if (i < currentStep) { dot.classList.add('completed'); }
+				const counter = mainWindow.document.createElement('span');
+				counter.className = 'copilot-ft-walkthrough-counter';
+				counter.textContent = `${currentStep + 1}/${totalSteps}`;
+				navLeft.appendChild(counter);
 			}
 
-			// Action button (right side)
+			footer.appendChild(navLeft);
+
+			const footerRight = mainWindow.document.createElement('div');
+			footerRight.className = 'copilot-ft-walkthrough-footer-right';
+
+			if (stepData.link && currentStep > 0) {
+				const linkEl = mainWindow.document.createElement('a');
+				linkEl.className = 'copilot-ft-walkthrough-footer-link';
+				linkEl.href = stepData.link.href;
+				linkEl.target = '_blank';
+				linkEl.textContent = stepData.link.label;
+				footerRight.appendChild(linkEl);
+			}
+
 			if (isLastStep) {
-				const gotItBtn = stepDisposables.add(new Button(footerRight, { ...defaultButtonStyles }));
-				gotItBtn.label = localize('tbb3FtGotIt', "Got It");
-				stepDisposables.add(gotItBtn.onDidClick(() => {
+				const gotItBtn = mainWindow.document.createElement('button');
+				gotItBtn.className = 'copilot-ft-walkthrough-got-it';
+				gotItBtn.textContent = localize('tbb3FtGotIt', "Got It");
+				gotItBtn.addEventListener('click', () => {
 					this._firstTimeStep = 1;
 					this.setActiveCell(this._activeSku, 'Default');
-				}));
+				});
+				footerRight.appendChild(gotItBtn);
 			}
+
+			footer.appendChild(footerRight);
 		};
 
 		renderStep();
@@ -3662,11 +3689,14 @@ export class CopilotTBB3StatusBarContribution extends Disposable implements IWor
 		const state = this._activeState;
 		const dashboard = $('div.copilot-prototype-dashboard');
 
-		// First Time onboarding — multi-step walkthrough
+		// First Time onboarding — dashboard variant shows walkthrough in tooltip
 		if (state === 'First Time') {
 			this.renderFirstTimeOnboarding(dashboard, disposables, sku);
 			return dashboard;
 		}
+
+		// First Time (Banner) — walkthrough is inline above chat, dashboard shows normal view
+		// Falls through to normal dashboard rendering below
 
 		const isEnterprise = sku === 'Ent/Bus' || sku === 'Ent/Bus ULB';
 		const isUnlimitedEnt = sku === 'Ent/Bus';
