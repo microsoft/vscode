@@ -1048,14 +1048,14 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		const detailsByCopilotId = new Map<string, RequestIdDetails>();
 		const defaultModeInstructions = agentId ? await this.resolveAgentModeInstructions(agentId) : undefined;
 
-		await Promise.all(storedDetails.map(async d => {
+		for (const d of storedDetails) {
 			if (d.copilotRequestId) {
 				// Agents from older requests isn't useful, hence to save time.
 				// Re-use the same custom agent from last request for all previous requests.
 				const modeInstructions = defaultModeInstructions;
 				detailsByCopilotId.set(d.copilotRequestId, { requestId: d.vscodeRequestId, toolIdEditMap: d.toolIdEditMap, modeInstructions, responseModelId: d.responseModelId, creditsUsed: d.creditsUsed });
 			}
-		}));
+		}
 		const getVSCodeRequestId = (sdkRequestId: string) => {
 			const stored = detailsByCopilotId.get(sdkRequestId);
 			if (stored) {
