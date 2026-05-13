@@ -9,7 +9,8 @@ import { CustomizationHarnessServiceBase, createVSCodeHarnessDescriptor, IHarnes
 import { IPromptsService, PromptsStorage } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { BUILTIN_STORAGE } from '../common/builtinPromptsStorage.js';
 import { SessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { LOCAL_SESSION_ENABLED_SETTING } from '../../copilotChatSessions/browser/copilotChatSessionsProvider.js';
+// eslint-disable-next-line local/code-import-patterns
+import { LOCAL_SESSION_ENABLED_SETTING } from '../../providers/copilotChatSessions/browser/copilotChatSessionsProvider.js';
 
 /**
  * Sessions-window override of the customization harness service.
