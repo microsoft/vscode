@@ -66,7 +66,6 @@ beforeAll(() => {
 
 class TestSessionService extends mock<ICopilotCLISessionService>() {
 	declare readonly _serviceBrand: undefined;
-	override onDidChangeSessions = Event.None;
 	override onDidDeleteSession = Event.None;
 	override onDidChangeSession = Event.None;
 	override onDidCreateSession = Event.None;

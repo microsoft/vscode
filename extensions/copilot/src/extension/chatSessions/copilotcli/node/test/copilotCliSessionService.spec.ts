@@ -801,7 +801,7 @@ describe('CopilotCLISessionService', () => {
 			const id = session!.object.sessionId;
 			let fired = false;
 			disposables.add(session);
-			disposables.add(service.onDidChangeSessions(() => { fired = true; }));
+			disposables.add(service.onDidDeleteSession(() => { fired = true; }));
 			await service.deleteSession(id);
 
 			expect(manager.sessions.has(id)).toBe(false);

@@ -159,6 +159,7 @@ export interface IChatSessionMetadataStore {
 	 * on demand. Concurrent calls collapse: at most one in-flight + one pending.
 	 */
 	refresh(): Promise<void>;
+	clearSessionCache(sessionId: string): void;
 	/**
 	 * Returns session IDs whose working directory (worktree path or workspace folder)
 	 * matches the given folder URI.
