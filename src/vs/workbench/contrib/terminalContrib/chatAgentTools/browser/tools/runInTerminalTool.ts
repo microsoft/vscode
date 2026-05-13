@@ -263,9 +263,7 @@ function createZshModelDescription(isSandboxEnabled: boolean, allowToRunUnsandbo
 		'- Take advantage of zsh globbing features (**, extended globs)',
 		'',
 		'zsh pitfalls — these WILL cause errors or hangs:',
-		'- NEVER use ! inside double quotes (e.g. echo "hello!" hangs on dquote>). Use single quotes: echo \'hello!\'',
 		'- NEVER use bare == or === as separators (e.g. echo === triggers zsh equals expansion). Quote them: echo \'===\'',
-		'- NEVER include comment-only lines starting with # in tool commands (zsh: command not found: #). Remove the comment line or make it part of the surrounding prose instead',
 		'- NEVER use status as a variable name (it is read-only in zsh). Use exit_code or ret instead',
 		'- Unmatched globs fail by default (zsh: no matches found). Use a zsh-safe pattern like *(N) or quote the glob if it should be literal; do not rely on 2>/dev/null',
 	].join('\n');
