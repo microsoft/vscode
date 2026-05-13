@@ -251,7 +251,7 @@ export async function mapSessionEvents(
 				continue;
 			}
 			toolInfoByCallId.set(d.toolCallId, info);
-			if (isEditTool(d.toolName)) {
+			if (isEditTool(d.toolName, d.arguments)) {
 				editToolCallIds.push(d.toolCallId);
 			}
 		}

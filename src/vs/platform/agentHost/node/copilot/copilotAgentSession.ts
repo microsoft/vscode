@@ -1304,7 +1304,7 @@ export class CopilotAgentSession extends Disposable {
 
 	private async _handlePreToolUse(input: PreToolUseHookInput): Promise<void> {
 		try {
-			if (isEditTool(input.toolName)) {
+			if (isEditTool(input.toolName, input.toolArgs)) {
 				const filePaths = this._getEditFilePaths(input.toolArgs);
 				await Promise.all(filePaths.map(p => this._editTracker.trackEditStart(p)));
 			}
@@ -1316,7 +1316,7 @@ export class CopilotAgentSession extends Disposable {
 
 	private async _handlePostToolUse(input: PostToolUseHookInput): Promise<void> {
 		try {
-			if (isEditTool(input.toolName)) {
+			if (isEditTool(input.toolName, input.toolArgs)) {
 				const filePaths = this._getEditFilePaths(input.toolArgs);
 				await Promise.all(filePaths.map(p => this._editTracker.completeEdit(p)));
 			}
@@ -1498,7 +1498,7 @@ export class CopilotAgentSession extends Disposable {
 				content.push({ type: ToolResultContentType.Text, text: toolOutput });
 			}
 
-			const filePaths = isEditTool(tracked.toolName) ? this._getEditFilePaths(tracked.parameters) : [];
+			const filePaths = isEditTool(tracked.toolName, tracked.parameters) ? this._getEditFilePaths(tracked.parameters) : [];
 			for (const filePath of filePaths) {
 				try {
 					const fileEdit = await this._editTracker.takeCompletedEdit(this._turnId, e.data.toolCallId, filePath);

@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { getEditFilePath, getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellLanguage, getToolDisplayName, getToolInputString, getToolKind, isHiddenTool, synthesizeSkillToolCall, type ITypedPermissionRequest } from '../../node/copilot/copilotToolDisplay.js';
+import { getEditFilePath, getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellLanguage, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, synthesizeSkillToolCall, type ITypedPermissionRequest } from '../../node/copilot/copilotToolDisplay.js';
 
 suite('copilotToolDisplay — friendly tool names', () => {
 
@@ -75,6 +75,31 @@ suite('copilotToolDisplay — friendly tool names', () => {
 
 	test('falls back to the raw tool name for unknown tools', () => {
 		assert.strictEqual(getToolDisplayName('some_new_tool'), 'some_new_tool');
+	});
+});
+
+suite('copilotToolDisplay — edit tool classification', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('classifies direct file edit tools', () => {
+		for (const toolName of ['edit', 'str_replace', 'insert', 'create', 'apply_patch', 'git_apply_patch']) {
+			assert.strictEqual(isEditTool(toolName), true, toolName);
+		}
+	});
+
+	test('classifies str_replace_editor by command', () => {
+		for (const command of ['edit', 'str_replace', 'insert', 'create']) {
+			assert.strictEqual(isEditTool('str_replace_editor', { command, path: '/repo/file.ts' }), true, command);
+		}
+		assert.strictEqual(isEditTool('str_replace_editor', { command: 'view', path: '/repo/file.ts' }), false);
+		assert.strictEqual(isEditTool('str_replace_editor', { command: 'unknown', path: '/repo/file.ts' }), false);
+		assert.strictEqual(isEditTool('str_replace_editor'), false);
+	});
+
+	test('classifies str_replace_editor from JSON-encoded arguments', () => {
+		assert.strictEqual(isEditTool('str_replace_editor', JSON.stringify({ command: 'edit', path: '/repo/file.ts' })), true);
+		assert.strictEqual(isEditTool('str_replace_editor', JSON.stringify({ command: 'view', path: '/repo/file.ts' })), false);
 	});
 });
 
@@ -238,6 +263,10 @@ suite('copilotToolDisplay — write_/read_ shell tools', () => {
 
 		test('returns undefined for view', () => {
 			assert.strictEqual(getToolKind('view'), undefined);
+		});
+
+		test('returns search for glob', () => {
+			assert.strictEqual(getToolKind('glob'), 'search');
 		});
 	});
 

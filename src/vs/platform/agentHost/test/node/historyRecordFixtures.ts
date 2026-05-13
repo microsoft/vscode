@@ -398,7 +398,7 @@ export async function mapSessionEventsToHistoryRecords(
 			}
 			const rewrittenArgs = stripRedundantCdPrefix(d.toolName, parameters, workingDirectory) ? tryStringify(parameters) : undefined;
 			toolInfoByCallId.set(d.toolCallId, { toolName: d.toolName, parameters, rewrittenArgs });
-			if (isEditTool(d.toolName)) {
+			if (isEditTool(d.toolName, parameters ?? d.arguments)) {
 				editToolCallIds.push(d.toolCallId);
 			}
 		}
