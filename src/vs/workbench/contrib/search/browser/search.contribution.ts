@@ -22,7 +22,7 @@ import { ISearchViewModelWorkbenchService } from './searchTreeModel/searchViewMo
 import { SearchSortOrder, SEARCH_EXCLUDE_CONFIG, VIEWLET_ID, ViewMode, VIEW_ID, DEFAULT_MAX_SEARCH_RESULTS, SemanticSearchBehavior } from '../../../services/search/common/search.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { assertType } from '../../../../base/common/types.js';
-import { getWorkspaceSymbols, IWorkspaceSymbol } from '../common/search.js';
+import { getWorkspaceSymbols, IWorkspaceSymbol, searchConfigurationNode } from '../common/search.js';
 import * as Constants from '../common/constants.js';
 import { SearchChatContextContribution } from './searchChatContext.js';
 
@@ -101,10 +101,7 @@ quickAccessRegistry.registerQuickAccessProvider({
 // Configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 configurationRegistry.registerConfiguration({
-	id: 'search',
-	order: 13,
-	title: nls.localize('searchConfigurationTitle', "Search"),
-	type: 'object',
+	...searchConfigurationNode,
 	properties: {
 		[SEARCH_EXCLUDE_CONFIG]: {
 			type: 'object',
@@ -263,11 +260,6 @@ configurationRegistry.registerConfiguration({
 			default: 'right',
 			description: nls.localize('search.actionsPosition', "Controls the positioning of the actionbar on rows in the Search view.")
 		},
-		'search.searchOnType': {
-			type: 'boolean',
-			default: true,
-			description: nls.localize('search.searchOnType', "Search all files as you type.")
-		},
 		'search.seedWithNearestWord': {
 			type: 'boolean',
 			default: false,
@@ -277,11 +269,6 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			default: false,
 			markdownDescription: nls.localize('search.seedOnFocus', "Update the search query to the editor's selected text when focusing the Search view. This happens either on click or when triggering the `workbench.views.search.focus` command.")
-		},
-		'search.searchOnTypeDebouncePeriod': {
-			type: 'number',
-			default: 300,
-			markdownDescription: nls.localize('search.searchOnTypeDebouncePeriod', "When {0} is enabled, controls the timeout in milliseconds between a character being typed and the search starting. Has no effect when {0} is disabled.", '`#search.searchOnType#`')
 		},
 		'search.sortOrder': {
 			type: 'string',

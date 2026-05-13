@@ -25,26 +25,27 @@ import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from 
 import { Menus } from '../../../browser/menus.js';
 import { ActiveSessionHasGitRepositoryContext, ActiveSessionProviderIdContext, ActiveSessionTypeContext, ChatSessionProviderIdContext, IsNewChatSessionContext } from '../../../common/contextkeys.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { CLAUDE_CODE_SESSION_TYPE, COPILOT_CLI_SESSION_TYPE, COPILOT_CLOUD_SESSION_TYPE, LOCAL_SESSION_TYPE, ISession } from '../../../services/sessions/common/session.js';
+import { ISession } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { SessionItemContextMenuId } from '../../sessions/browser/views/sessionsList.js';
 import { BranchPicker } from './branchPicker.js';
 import { ClaudePermissionModePicker } from './claudePermissionModePicker.js';
-import { COPILOT_PROVIDER_ID, CopilotChatSessionsProvider } from './copilotChatSessionsProvider.js';
+import { ClaudeCodeSessionType, COPILOT_PROVIDER_ID, CopilotChatSessionsProvider, CopilotCloudSessionType, LocalSessionType } from './copilotChatSessionsProvider.js';
 import { IsolationPicker } from './isolationPicker.js';
 import { ModePicker } from './modePicker.js';
 import { CloudModelPicker } from './modelPicker.js';
 import { CopilotPermissionPickerDelegate, PermissionPicker } from './permissionPicker.js';
 import { SessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { reportNewChatPickerClosed } from '../../chat/browser/newChatPickerTelemetry.js';
+import { CopilotCLISessionType } from '../../agentHost/browser/baseAgentHostSessionsProvider.js';
 
-const IsActiveSessionCopilotCLI = ContextKeyExpr.equals(ActiveSessionTypeContext.key, COPILOT_CLI_SESSION_TYPE);
-const IsActiveSessionCopilotCloud = ContextKeyExpr.equals(ActiveSessionTypeContext.key, COPILOT_CLOUD_SESSION_TYPE);
-const IsActiveSessionLocal = ContextKeyExpr.equals(ActiveSessionTypeContext.key, LOCAL_SESSION_TYPE);
+const IsActiveSessionCopilotCLI = ContextKeyExpr.equals(ActiveSessionTypeContext.key, CopilotCLISessionType.id);
+const IsActiveSessionCopilotCloud = ContextKeyExpr.equals(ActiveSessionTypeContext.key, CopilotCloudSessionType.id);
+const IsActiveSessionLocal = ContextKeyExpr.equals(ActiveSessionTypeContext.key, LocalSessionType.id);
 const IsActiveCopilotChatSessionProvider = ContextKeyExpr.equals(ActiveSessionProviderIdContext.key, COPILOT_PROVIDER_ID);
 const IsActiveSessionCopilotChatCLI = ContextKeyExpr.and(IsActiveSessionCopilotCLI, IsActiveCopilotChatSessionProvider);
 const IsActiveSessionCopilotChatCloud = ContextKeyExpr.and(IsActiveSessionCopilotCloud, IsActiveCopilotChatSessionProvider);
-const IsActiveSessionClaudeCode = ContextKeyExpr.equals(ActiveSessionTypeContext.key, CLAUDE_CODE_SESSION_TYPE);
+const IsActiveSessionClaudeCode = ContextKeyExpr.equals(ActiveSessionTypeContext.key, ClaudeCodeSessionType.id);
 const IsActiveSessionCopilotChatClaudeCode = ContextKeyExpr.and(IsActiveSessionClaudeCode, IsActiveCopilotChatSessionProvider);
 const IsActiveSessionCopilotChatLocal = ContextKeyExpr.and(IsActiveSessionLocal, IsActiveCopilotChatSessionProvider);
 
@@ -549,7 +550,7 @@ registerAction2(class DeleteSessionAction extends Action2 {
 				order: 4,
 				when: ContextKeyExpr.and(
 					ContextKeyExpr.equals(ChatSessionProviderIdContext.key, COPILOT_PROVIDER_ID),
-					ContextKeyExpr.notEquals('chatSessionType', CLAUDE_CODE_SESSION_TYPE),
+					ContextKeyExpr.notEquals('chatSessionType', ClaudeCodeSessionType.id),
 				),
 			}]
 		});

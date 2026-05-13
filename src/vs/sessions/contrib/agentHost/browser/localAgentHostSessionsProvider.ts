@@ -162,6 +162,7 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 				gitRepository: { uri: repositoryUri, workTreeUri: undefined, baseBranchName: undefined, gitHubInfo: constObservable(undefined) },
 			}],
 			requiresWorkspaceTrust: true,
+			isVirtualWorkspace: false,
 		};
 	}
 }

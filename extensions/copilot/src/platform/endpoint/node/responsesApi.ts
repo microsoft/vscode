@@ -256,6 +256,7 @@ interface ToolSearchLoadedTool {
 	description: string;
 	defer_loading: true;
 	parameters: object;
+	strict: false;
 }
 
 interface LatestCompactionOutput {
@@ -485,6 +486,7 @@ function buildToolSearchOutputTools(resultText: string, toolsMap: Map<string, Op
 				description: tool.function.description || '',
 				defer_loading: true as const,
 				parameters: tool.function.parameters || { type: 'object', properties: {} },
+				strict: false as const,
 			};
 		});
 }

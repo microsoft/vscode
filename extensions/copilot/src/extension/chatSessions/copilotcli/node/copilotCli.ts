@@ -23,7 +23,6 @@ import { ResourceSet } from '../../../../util/vs/base/common/map';
 import { basename } from '../../../../util/vs/base/common/resources';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
-import { getCopilotLogger } from './logger';
 import { ensureNodePtyShim } from './nodePtyShim';
 import { ensureRipgrepShim } from './ripgrepShim';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
@@ -233,7 +232,7 @@ function buildAutoModel(defaultModel?: CopilotCLIModelInfo): vscode.LanguageMode
 	return {
 		id: 'auto',
 		name: 'Auto',
-		tooltip: l10n.t('Auto selects the best model for your request based on capacity and performance.'),
+		tooltip: l10n.t('Auto selects the best model based on your request complexity and model performance. Model use through Auto is billed at a 10% discount.'),
 		family: defaultModel?.id ?? '',
 		version: '',
 		maxInputTokens: defaultModel?.maxInputTokens ?? defaultModel?.maxContextWindowTokens ?? 0,
@@ -307,7 +306,6 @@ export class CopilotCLIAgents extends Disposable implements ICopilotCLIAgents {
 	readonly onDidChangeAgents: Event<void> = this._onDidChangeAgents.event;
 	constructor(
 		@IPromptsService private readonly promptsService: IPromptsService,
-		@ICopilotCLISDK private readonly copilotCLISDK: ICopilotCLISDK,
 		@IVSCodeExtensionContext private readonly extensionContext: IVSCodeExtensionContext,
 		@ILogService private readonly logService: ILogService,
 		@IWorkspaceService private readonly workspaceService: IWorkspaceService,
@@ -386,7 +384,7 @@ export class CopilotCLIAgents extends Disposable implements ICopilotCLIAgents {
 	async getAgentsImpl(): Promise<readonly CLIAgentInfo[]> {
 		const merged = new Map<string, CLIAgentInfo>();
 		const knownAgents = new ResourceSet();
-		const [sdkAgents, customAgents] = await Promise.all([this.getSDKAgents(), this.promptsService.getCustomAgents(CancellationToken.None)]);
+		const customAgents = await this.promptsService.getCustomAgents(CancellationToken.None);
 		const hiddenOrInvalidAgentUris = new ResourceSet();
 		const validCustomAgents = customAgents.filter(customAgent => {
 			if (!customAgent.enabled || !isEnabledForCopilotCLI(customAgent)) {
@@ -402,17 +400,6 @@ export class CopilotCLIAgents extends Disposable implements ICopilotCLIAgents {
 			return true;
 		});
 
-		for (const agent of sdkAgents) {
-			const sourceUri = agent.path ? URI.file(agent.path) : URI.from({ scheme: 'copilotcli', path: `/agents/${agent.name}` });
-			if (hiddenOrInvalidAgentUris.has(sourceUri)) {
-				continue;
-			}
-			knownAgents.add(sourceUri);
-			merged.set(agent.name.toLowerCase(), {
-				agent: this.cloneAgent(agent),
-				sourceUri,
-			});
-		}
 		for (const customAgent of validCustomAgents) {
 			if (knownAgents.has(customAgent.uri)) {
 				continue;
@@ -425,18 +412,6 @@ export class CopilotCLIAgents extends Disposable implements ICopilotCLIAgents {
 		}
 
 		return [...merged.values()];
-	}
-
-	private async getSDKAgents(): Promise<Readonly<SweCustomAgent>[]> {
-		const workspaceFolders = this.workspaceService.getWorkspaceFolders();
-		if (workspaceFolders.length === 0) {
-			return [];
-		}
-
-		const [auth, { getCustomAgents }] = await Promise.all([this.copilotCLISDK.getAuthInfo(), this.copilotCLISDK.getPackage()]);
-		const workingDirectory = workspaceFolders[0];
-		const agents = await getCustomAgents(auth, workingDirectory.fsPath, undefined, getCopilotLogger(this.logService));
-		return agents.map(agent => this.cloneAgent(agent));
 	}
 
 	private toCustomAgent(customAgent: vscode.ChatCustomAgent): CLIAgentInfo | undefined {
