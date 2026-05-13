@@ -250,3 +250,23 @@ div.chat-terminal-content-part.progress-step > div.chat-terminal-output-containe
 	text-decoration: underline;
 	color: var(--vscode-textLink-activeForeground);
 }
+
+.chat-terminal-thinking-collapsible {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+}
+
+.chat-terminal-thinking-collapsible > .chat-used-context-label {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.chat-terminal-show-link-container {
+	flex: 0 0 auto;
+	white-space: nowrap;
+}
+
+.chat-terminal-thinking-collapsible > .chat-terminal-thinking-content {
+	flex: 1 1 100%;
+}
