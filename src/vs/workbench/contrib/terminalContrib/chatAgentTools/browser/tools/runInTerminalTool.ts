@@ -2643,7 +2643,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			const exitCode = command.exitCode;
 			const exitCodeText = exitCode !== undefined ? ` with exit code ${exitCode}` : '';
 			const currentOutput = execution.getOutput();
-			const willDispose = terminalInstance.shellLaunchConfig.hideFromUser;
+			// Only dispose if the terminal is still hidden from the user. Once the
+			// user reveals it (via the "Show" link), it joins `foregroundInstances`
+			// and should persist so they can inspect/interact with it.
+			const willDispose = !this._terminalService.foregroundInstances.includes(terminalInstance);
 			const message = willDispose
 				? `[Terminal ${termId} notification: command completed${exitCodeText}. The terminal has been cleaned up.]\nTerminal output:\n${currentOutput}`
 				: `[Terminal ${termId} notification: command completed${exitCodeText}. Use send_to_terminal to send another command or kill_terminal to stop it.]\nTerminal output:\n${currentOutput}`;
@@ -2662,11 +2665,12 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 			// Background terminals are not reused, so dispose them once their
 			// command completes to prevent terminal accumulation across turns.
-			// Only dispose if the user hasn't revealed the terminal — if they
-			// have, they may want to inspect its output or interact with it.
+			// Only dispose if the user hasn't revealed the terminal — once revealed
+			// it joins `foregroundInstances` and they may want to inspect its
+			// output or interact with it.
 			// Capture the output snapshot first so the progress part can still
 			// display output after the terminal instance is gone.
-			if (terminalInstance.shellLaunchConfig.hideFromUser) {
+			if (willDispose) {
 				this._commandArtifactCollector.capture(toolSpecificData, terminalInstance, command.id).then(() => {
 					this._logService.debug(`RunInTerminalTool: Disposing finished background terminal ${termId}`);
 					// Mark as killed so the onDisposed handler below does not
