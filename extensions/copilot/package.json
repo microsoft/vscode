@@ -3272,10 +3272,7 @@
 							"preview",
 							"onExp"
 						],
-						"markdownDescription": "%github.copilot.config.claudeAgent.allowAutoPermissions%",
-						"agentsWindow": {
-							"default": true
-						}
+						"markdownDescription": "%github.copilot.config.claudeAgent.allowAutoPermissions%"
 					},
 					"github.copilot.chat.copilotDebugCommand.enabled": {
 						"type": "boolean",
