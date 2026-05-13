@@ -28,7 +28,7 @@ import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFolde
 import { testWorkspace } from '../../../../../../platform/workspace/test/common/testWorkspace.js';
 import { ILifecycleService } from '../../../../../services/lifecycle/common/lifecycle.js';
 import { ISandboxDependencyStatus, ISandboxHelperService } from '../../../../../../platform/sandbox/common/sandboxHelperService.js';
-import { getTerminalSandboxRuntimeConfigurationForCommands } from '../../common/terminalSandboxRuntimeConfigurationPerOperation.js';
+import { getTerminalSandboxRuntimeConfigurationForCommands } from '../../../../../../platform/sandbox/common/terminalSandboxRuntimeConfigurationPerOperation.js';
 
 suite('TerminalSandboxService - network domains', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

@@ -35,8 +35,8 @@ import { ElicitationState, IChatService } from '../../../chat/common/chatService
 import { SANDBOX_HELPER_CHANNEL_NAME, SandboxHelperChannelClient } from '../../../../../platform/sandbox/common/sandboxHelperIpc.js';
 import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../../platform/sandbox/common/settings.js';
 import { ITerminalSandboxService, TerminalSandboxPrerequisiteCheck, type ISandboxDependencyInstallOptions, type ISandboxDependencyInstallResult, type ITerminalSandboxCommand, type ITerminalSandboxPrerequisiteCheckResult, type ITerminalSandboxResolvedNetworkDomains, type ITerminalSandboxWrapResult } from '../../../../../platform/sandbox/common/terminalSandboxService.js';
-import { getTerminalSandboxReadAllowListForCommands } from './terminalSandboxReadAllowList.js';
-import { getTerminalSandboxRuntimeConfigurationForCommands } from './terminalSandboxRuntimeConfigurationPerOperation.js';
+import { getTerminalSandboxReadAllowListForCommands } from '../../../../../platform/sandbox/common/terminalSandboxReadAllowList.js';
+import { getTerminalSandboxRuntimeConfigurationForCommands } from '../../../../../platform/sandbox/common/terminalSandboxRuntimeConfigurationPerOperation.js';
 
 export { ITerminalSandboxService, TerminalSandboxPrerequisiteCheck } from '../../../../../platform/sandbox/common/terminalSandboxService.js';
 export type { ISandboxDependencyInstallOptions, ISandboxDependencyInstallResult, ISandboxDependencyInstallTerminal, ITerminalSandboxCommand, ITerminalSandboxPrerequisiteCheckResult, ITerminalSandboxResolvedNetworkDomains, ITerminalSandboxWrapResult } from '../../../../../platform/sandbox/common/terminalSandboxService.js';
