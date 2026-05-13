@@ -8,6 +8,7 @@ import { isBinaryFile } from 'isbinaryfile';
 import * as path from 'path';
 import { beforeAll, describe, it } from 'vitest';
 import { TestLogService } from '../../../../../platform/testing/common/testLogService';
+import { copyNodePtyFiles } from '../../../copilotcli/node/nodePtyShim';
 import { copyRipgrepShim } from '../../../copilotcli/node/ripgrepShim';
 
 describe('CopilotCLI SDK Upgrade', function () {
@@ -26,6 +27,16 @@ describe('CopilotCLI SDK Upgrade', function () {
 		// Such changes may require us to update our extension packaging or other handling.
 		const existingBinaries = new Set(await findAllBinaries(copilotSDKPath));
 		const knownBinaries = new Set([
+			path.join('native', 'runtime', 'runtime.darwin-arm64.node'),
+			path.join('native', 'runtime', 'runtime.linux-arm64-musl.node'),
+			path.join('native', 'runtime', 'runtime.darwin-x64.node'),
+			path.join('native', 'runtime', 'runtime.linux-x64-gnu.node'),
+			path.join('native', 'runtime', 'runtime.linux-x64-musl.node'),
+			path.join('native', 'runtime', 'runtime.linux-arm64-gnu.node'),
+			path.join('native', 'runtime', 'runtime.win32-arm64-msvc.node'),
+			path.join('native', 'runtime', 'runtime.win32-x64-msvc.node'),
+			path.join('native', 'win32', 'win32-native.win32-arm64-msvc.node'),
+			path.join('native', 'win32', 'win32-native.win32-x64-msvc.node'),
 			// node-pty related files (already accounted for in SDK, using VS Code node-pty).
 			path.join('prebuilds', 'darwin-arm64', 'pty.node'),
 			path.join('prebuilds', 'darwin-x64', 'pty.node'),
@@ -85,6 +96,38 @@ describe('CopilotCLI SDK Upgrade', function () {
 			path.join('sharp', 'node_modules', '@img', 'sharp-wasm32', 'lib', 'sharp-wasm32.node.wasm'),
 			// sharp related files, files copied by us.
 			path.join('sdk', 'sharp', 'node_modules', '@img', 'sharp-wasm32', 'lib', 'sharp-wasm32.node.wasm'),
+			// foundry-local-sdk vendored native bindings.
+			path.join('foundry-local-sdk', 'node_modules', 'foundry-local-sdk', 'prebuilds', 'darwin-arm64', 'foundry_local_napi.node'),
+			path.join('foundry-local-sdk', 'node_modules', 'foundry-local-sdk', 'prebuilds', 'linux-x64', 'foundry_local_napi.node'),
+			path.join('foundry-local-sdk', 'node_modules', 'foundry-local-sdk', 'prebuilds', 'win32-arm64', 'foundry_local_napi.node'),
+			path.join('foundry-local-sdk', 'node_modules', 'foundry-local-sdk', 'prebuilds', 'win32-x64', 'foundry_local_napi.node'),
+			// pvrecorder vendored native bindings.
+			path.join('pvrecorder', 'node_modules', '@picovoice', 'pvrecorder-node', 'lib', 'linux', 'x86_64', 'pv_recorder.node'),
+			path.join('pvrecorder', 'node_modules', '@picovoice', 'pvrecorder-node', 'lib', 'mac', 'arm64', 'pv_recorder.node'),
+			path.join('pvrecorder', 'node_modules', '@picovoice', 'pvrecorder-node', 'lib', 'mac', 'x86_64', 'pv_recorder.node'),
+			path.join('pvrecorder', 'node_modules', '@picovoice', 'pvrecorder-node', 'lib', 'windows', 'amd64', 'pv_recorder.node'),
+			path.join('pvrecorder', 'node_modules', '@picovoice', 'pvrecorder-node', 'lib', 'windows', 'arm64', 'pv_recorder.node'),
+			// mxc-bin (Windows sandbox + WSL helpers used by the SDK's command execution).
+			path.join('mxc-bin', 'arm64', 'lxc-exec'),
+			path.join('mxc-bin', 'arm64', 'winhttp-proxy-shim.exe'),
+			path.join('mxc-bin', 'arm64', 'wslcsdk.dll'),
+			path.join('mxc-bin', 'arm64', 'wxc-exec.exe'),
+			path.join('mxc-bin', 'arm64', 'wxc-test-proxy.exe'),
+			path.join('mxc-bin', 'arm64', 'wxc-windows-sandbox-daemon.exe'),
+			path.join('mxc-bin', 'arm64', 'wxc-windows-sandbox-guest.exe'),
+			path.join('mxc-bin', 'arm64', '_manifest', 'spdx_2.2', 'bsi.cose'),
+			path.join('mxc-bin', 'arm64', '_manifest', 'spdx_2.2', 'manifest.cat'),
+			path.join('mxc-bin', 'arm64', '_manifest', 'spdx_2.2', 'manifest.spdx.cose'),
+			path.join('mxc-bin', 'x64', 'lxc-exec'),
+			path.join('mxc-bin', 'x64', 'winhttp-proxy-shim.exe'),
+			path.join('mxc-bin', 'x64', 'wslcsdk.dll'),
+			path.join('mxc-bin', 'x64', 'wxc-exec.exe'),
+			path.join('mxc-bin', 'x64', 'wxc-test-proxy.exe'),
+			path.join('mxc-bin', 'x64', 'wxc-windows-sandbox-daemon.exe'),
+			path.join('mxc-bin', 'x64', 'wxc-windows-sandbox-guest.exe'),
+			path.join('mxc-bin', 'x64', '_manifest', 'spdx_2.2', 'bsi.cose'),
+			path.join('mxc-bin', 'x64', '_manifest', 'spdx_2.2', 'manifest.cat'),
+			path.join('mxc-bin', 'x64', '_manifest', 'spdx_2.2', 'manifest.spdx.cose'),
 			// parsing commands for shell.
 			'tree-sitter-bash.wasm',
 			'tree-sitter-powershell.wasm',
@@ -149,7 +192,7 @@ describe('CopilotCLI SDK Upgrade', function () {
 		const errors: string[] = [];
 		// Look for new binaries
 		for (const binary of existingBinaries) {
-			if (binary.startsWith(ripgrepFilesWeCopy)) {
+			if (binary.startsWith(ripgrepFilesWeCopy) || isNodePtyShimFile(binary)) {
 				continue;
 			}
 			const binaryName = path.basename(binary);
@@ -165,7 +208,7 @@ describe('CopilotCLI SDK Upgrade', function () {
 		}
 		// Look for removed binaries.
 		for (const binary of knownBinaries) {
-			if (binary.startsWith(ripgrepFilesWeCopy)) {
+			if (binary.startsWith(ripgrepFilesWeCopy) || isNodePtyShimFile(binary)) {
 				continue;
 			}
 			if (!existingBinaries.has(binary)) {
@@ -186,6 +229,8 @@ describe('CopilotCLI SDK Upgrade', function () {
 async function copyBinaries(extensionPath: string) {
 	const copilotSDKPath = path.join(extensionPath, 'node_modules', '@github', 'copilot');
 	const vscodeRipgrepPath = path.join(copilotSDKPath, 'ripgrep', 'bin', process.platform + '-' + process.arch);
+	const nodePtyPrebuilds = path.join(copilotSDKPath, 'prebuilds', process.platform + '-' + process.arch);
+	await copyNodePtyFiles(extensionPath, nodePtyPrebuilds, new TestLogService());
 	await copyRipgrepShim(extensionPath, vscodeRipgrepPath, new TestLogService());
 }
 async function findAllBinaries(dir: string): Promise<string[]> {
