@@ -49,11 +49,11 @@ suite('AiContributionFeature', () => {
 		correlationId: undefined,
 	});
 
-	function setup(): void {
+	function setup(options?: { visibilityByUri?: Map<string, boolean> }): void {
 		disposables = new DisposableStore();
 		const instantiationService = disposables.add(new TestInstantiationService(new ServiceCollection(), false, undefined, true));
 		instantiationService.stubInstance(DiffService, { computeDiff: async (original, modified) => computeStringDiff(original, modified, { maxComputationTimeMs: 500 }, 'advanced') });
-		instantiationService.stubInstance(UriVisibilityProvider, { isVisible: () => true });
+		instantiationService.stubInstance(UriVisibilityProvider, { isVisible: uri => options?.visibilityByUri?.get(uri.toString()) ?? true });
 		instantiationService.stub(ILogService, new NullLogService());
 
 		workspace = new MutableObservableWorkspace();
@@ -92,6 +92,24 @@ suite('AiContributionFeature', () => {
 
 		assert.strictEqual(hasAiContributions([d.uri], 'all'), true);
 		assert.strictEqual(hasAiContributions([d.uri], 'chatAndAgent'), true);
+		disposables.dispose();
+	}));
+
+	test('detects chat AI edits for open hidden documents', () => runWithFakedTimers({}, async () => {
+		setup({ visibilityByUri: new Map([[fileA.toString(), false]]) });
+		const d = disposables.add(workspace.createDocument({ uri: fileA, initialValue: 'hello' }, undefined));
+		await timeout(1500);
+
+		d.applyEdit(StringEditWithReason.replace(d.findRange('hello'), 'world', chatEdit));
+		await timeout(1500);
+
+		assert.deepStrictEqual({
+			all: hasAiContributions([d.uri], 'all'),
+			chatAndAgent: hasAiContributions([d.uri], 'chatAndAgent'),
+		}, {
+			all: true,
+			chatAndAgent: true,
+		});
 		disposables.dispose();
 	}));
 
