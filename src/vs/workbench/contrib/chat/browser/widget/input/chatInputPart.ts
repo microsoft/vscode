@@ -2150,11 +2150,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				this.initSelectedModel();
 				this.checkModelInSessionPool();
 				this.checkModeInSessionPool();
+			} else {
+				// For contributed sessions with history, pre-select the model
+				// from the last request so the user resumes with the same model.
+				// Only when the session type did NOT change — during session type
+				// switches, initSelectedModel already restores the user's stored
+				// preference and preselectModelFromSessionHistory would overwrite it.
+				this.preselectModelFromSessionHistory();
 			}
-
-			// For contributed sessions with history, pre-select the model
-			// from the last request so the user resumes with the same model.
-			this.preselectModelFromSessionHistory();
 		}));
 
 		let elements;
