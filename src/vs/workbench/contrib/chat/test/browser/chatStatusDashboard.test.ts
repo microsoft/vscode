@@ -350,7 +350,7 @@ suite('ChatStatusDashboard', () => {
 		assert.deepStrictEqual(getIncludedDescriptions(dashboard.element), ['Organization limit reached.']);
 	});
 
-	test('Enterprise — pooled exhausted but overages enabled: shows included with budget callout', () => {
+	test('Enterprise — pooled exhausted but overages enabled: shows limit reached with budget callout', () => {
 		const dashboard = createDashboard(createEntitlementService({
 			premiumChat: { percentRemaining: 0, unlimited: true, hasQuota: false },
 			completions: { percentRemaining: 100, unlimited: true },
@@ -359,7 +359,7 @@ suite('ChatStatusDashboard', () => {
 		}));
 
 		assert.deepStrictEqual(getIncludedLabels(dashboard.element), ['Premium Requests']);
-		assert.deepStrictEqual(getIncludedDescriptions(dashboard.element), ['Included with your organization\'s plan.']);
+		assert.deepStrictEqual(getIncludedDescriptions(dashboard.element), ['Organization limit reached.']);
 		assert.strictEqual(getCalloutText(dashboard.element), 'Premium request budget is configured. Usage will continue until limits reset.');
 	});
 

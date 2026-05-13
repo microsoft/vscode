@@ -240,7 +240,6 @@ export class ChatStatusDashboard extends DomWidget {
 		// Premium chat included indicator (shown when premium chat is unlimited)
 		const hasPremiumUnlimited = !!premiumChat?.unlimited;
 		if (hasPremiumUnlimited) {
-			const showExhaustedPoolMessage = isPooledQuotaDepleted && !(this.chatEntitlementService.quotas.additionalUsageEnabled ?? false);
 			const includedTitle = this.chatEntitlementService.quotas.usageBasedBilling
 				? localize('includedTitleTBB', "Credits")
 				: localize('includedTitle', "Premium Requests");
@@ -249,12 +248,12 @@ export class ChatStatusDashboard extends DomWidget {
 				const planName = getChatPlanName(this.chatEntitlementService.entitlement);
 				includedContainer.classList.add('compact');
 				includedContainer.appendChild($('div.quota-title', undefined, planName));
-				includedContainer.appendChild($('div.description', undefined, showExhaustedPoolMessage
+				includedContainer.appendChild($('div.description', undefined, isPooledQuotaDepleted
 					? localize('premiumLimitReachedCompact', "{0} limit reached.", includedTitle)
 					: localize('premiumIncludedCompact', "{0} included with your organization's plan.", includedTitle)));
 			} else {
 				includedContainer.appendChild($('div.quota-title', undefined, includedTitle));
-				includedContainer.appendChild($('div.description', undefined, showExhaustedPoolMessage
+				includedContainer.appendChild($('div.description', undefined, isPooledQuotaDepleted
 					? localize('premiumLimitReached', "Organization limit reached.")
 					: localize('premiumIncluded', "Included with your organization's plan.")));
 			}
