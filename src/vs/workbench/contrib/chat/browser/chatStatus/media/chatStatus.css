@@ -67,7 +67,6 @@
 	align-items: center;
 	flex-shrink: 0;
 	opacity: 0.7;
-	cursor: help;
 	color: var(--vscode-descriptionForeground);
 }
 

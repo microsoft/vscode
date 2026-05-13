@@ -438,7 +438,7 @@ export class ChatStatusDashboard extends DomWidget {
 						hoverContent.appendMarkdown(`[${localize('learnMore', "Learn More")}](${headerLink})`);
 					}
 					return { content: hoverContent };
-				}));
+				}, { reducedDelay: true }));
 			}
 
 			// Status text (right-aligned via margin-left: auto)
@@ -450,7 +450,7 @@ export class ChatStatusDashboard extends DomWidget {
 			if (currentTooltip) {
 				this._store.add(this.hoverService.setupDelayedHover(statusEl, () => ({
 					content: currentTooltip ?? '',
-				})));
+				}), { reducedDelay: true }));
 			}
 
 			// Detail (action link) rendered inline

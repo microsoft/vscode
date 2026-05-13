@@ -22,8 +22,6 @@ import { $ as h, disposableWindowInterval } from '../../../../../base/browser/do
 import { isNewUser } from './chatStatus.js';
 import product from '../../../../../platform/product/common/product.js';
 import { isCompletionsEnabled } from '../../../../../editor/common/services/completionsEnablement.js';
-import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
-import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { CHAT_SETUP_ACTION_ID } from '../actions/chatActions.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { isWeb } from '../../../../../base/common/platform.js';
@@ -51,38 +49,11 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInlineCompletionsService private readonly completionsService: IInlineCompletionsService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
-		@IHoverService private readonly hoverService: IHoverService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super();
 
 		this.runningSessionsCount = this.chatSessionsService.getInProgress().reduce((total, item) => total + item.count, 0);
-
-		this._register(CommandsRegistry.registerCommand('workbench.action.chat.openCopilotStatus', () => {
-			const target = this.entryAnchor.parentElement;
-			if (!target) {
-				return;
-			}
-
-			const store = new DisposableStore();
-			const content = ChatStatusDashboard.instantiateInContents(this.instantiationService, store, undefined);
-			const hover = this.hoverService.showInstantHover({
-				content,
-				target,
-				persistence: { hideOnKeyDown: true, sticky: true },
-				appearance: { maxHeightRatio: 0.9 },
-			}, true);
-			if (hover) {
-				store.add(hover);
-				store.add(disposableWindowInterval(mainWindow, () => {
-					if (!content.isConnected) {
-						store.dispose();
-					}
-				}, 2000));
-			} else {
-				store.dispose();
-			}
-		}));
 
 		this.update();
 

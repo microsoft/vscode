@@ -272,14 +272,10 @@ export class ChatInputNotificationContribution extends Disposable {
 			];
 		} else if (isManagedPlan) {
 			notification.description = vscode.l10n.t('Contact your admin to increase your limits.');
-			notification.actions = [
-				{ label: vscode.l10n.t('View Usage'), commandId: 'workbench.action.chat.openCopilotStatus' },
-			];
+			notification.actions = [];
 		} else if (this._chatQuotaService.additionalUsageEnabled) {
 			notification.description = vscode.l10n.t('Additional budget is enabled to cover extra usage.');
-			notification.actions = [
-				{ label: vscode.l10n.t('View Usage'), commandId: 'workbench.action.chat.openCopilotStatus' },
-			];
+			notification.actions = [];
 		} else {
 			notification.description = vscode.l10n.t('Set additional budget to cover extra usage.');
 			notification.actions = [
