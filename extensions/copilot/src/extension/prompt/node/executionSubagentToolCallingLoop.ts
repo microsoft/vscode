@@ -169,9 +169,6 @@ export class ExecutionSubagentToolCallingLoop extends ToolCallingLoop<IExecution
 		const hadBackgroundBefore = this._backgroundCommands.length > 0;
 		let result = await render(hadBackgroundBefore);
 
-		// Artificial 2 minute delay
-		await new Promise<void>(resolve => setTimeout(resolve, 2 * 60 * 1000));
-
 		// After rendering, scan the rendered tool results for background commands.
 		// Every tool call rendered into the prompt (including those executed just
 		// now during this render) emits a ToolResultMetadata entry on
