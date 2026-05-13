@@ -725,7 +725,6 @@ interface IQuotas {
 	readonly premiumChat?: IQuotaSnapshot;
 	readonly additionalUsageEnabled?: boolean;
 	readonly additionalUsageCount?: number;
-	readonly isExhausted?: boolean;
 }
 
 export function parseQuotas(entitlementsData: IEntitlementsData): IQuotas {
@@ -791,9 +790,6 @@ export function parseQuotas(entitlementsData: IEntitlementsData): IQuotas {
 		const overageSource = entitlementsData.quota_snapshots['premium_interactions'];
 		quotas.additionalUsageEnabled = overageSource?.overage_permitted ?? false;
 		quotas.additionalUsageCount = overageSource?.overage_count ?? 0;
-
-		// Pool-level exhaustion: premium chat at 0% with overages disabled
-		quotas.isExhausted = quotas.premiumChat?.percentRemaining === 0 && !(quotas.additionalUsageEnabled ?? false);
 	}
 	return quotas;
 }

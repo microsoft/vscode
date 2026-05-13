@@ -137,11 +137,13 @@ export class ChatStatusDashboard extends DomWidget {
 		const { chat, premiumChat, completions } = this.chatEntitlementService.quotas;
 		const hasQuotas = !!(chat || premiumChat);
 		const isAnonymousWithSentiment = this.chatEntitlementService.anonymous && this.chatEntitlementService.sentiment.completed;
+		const isPremiumChatLimitReached = premiumChat?.percentRemaining === 0 && !(this.chatEntitlementService.quotas.additionalUsageEnabled ?? false);
 		const hasUsageSection = hasQuotas || isAnonymousWithSentiment;
 		const hasVisibleUsageContent = chat?.unlimited === false ||
 			premiumChat?.unlimited === false ||
 			(!this.options?.compactQuotaLayout && completions?.unlimited === false) ||
-			isAnonymousWithSentiment;
+			isAnonymousWithSentiment ||
+			isPremiumChatLimitReached;
 		const contributedEntries = [...this.chatStatusItemService.getEntries()];
 		const hasQuickSettingsContent =
 			!this.options?.disableInlineSuggestionsSettings ||
@@ -235,41 +237,29 @@ export class ChatStatusDashboard extends DomWidget {
 			this.renderUsageContent(this.element, token, headerAdditionalSpendButton, updatePromise);
 		}
 
-		// Premium chat included indicator (shown when premium chat is unlimited and NOT exhausted)
+		// Premium chat included indicator (shown when premium chat is unlimited)
 		const hasPremiumUnlimited = !!premiumChat?.unlimited;
-		const isPooledExhausted = hasPremiumUnlimited && !!this.chatEntitlementService.quotas.isExhausted;
-		if (hasPremiumUnlimited && !isPooledExhausted) {
+		const isPooledExhausted = hasPremiumUnlimited && isPremiumChatLimitReached;
+		if (hasPremiumUnlimited) {
 			const includedTitle = this.chatEntitlementService.quotas.usageBasedBilling
 				? localize('includedTitleTBB', "Credits")
 				: localize('includedTitle', "Premium Requests");
 			const includedContainer = this.element.appendChild($('div.quota-indicator.included'));
+			if (isPooledExhausted) {
+				includedContainer.classList.add('exhausted');
+			}
 			if (this.options?.compactQuotaLayout) {
 				const planName = getChatPlanName(this.chatEntitlementService.entitlement);
 				includedContainer.classList.add('compact');
 				includedContainer.appendChild($('div.quota-title', undefined, planName));
-				includedContainer.appendChild($('div.description', undefined, localize('premiumIncludedCompact', "{0} included with your organization's plan.", includedTitle)));
+				includedContainer.appendChild($('div.description', undefined, isPooledExhausted
+					? localize('premiumLimitReachedCompact', "{0} limit reached.", includedTitle)
+					: localize('premiumIncludedCompact', "{0} included with your organization's plan.", includedTitle)));
 			} else {
 				includedContainer.appendChild($('div.quota-title', undefined, includedTitle));
-				includedContainer.appendChild($('div.description', undefined, localize('premiumIncluded', "Included with your organization's plan.")));
-			}
-		} else if (isPooledExhausted) {
-			const exhaustedTitle = this.chatEntitlementService.quotas.usageBasedBilling
-				? localize('includedTitleTBB', "Credits")
-				: localize('includedTitle', "Premium Requests");
-			const isEnterpriseUser = this.chatEntitlementService.entitlement === ChatEntitlement.Enterprise || this.chatEntitlementService.entitlement === ChatEntitlement.Business;
-			const exhaustedContainer = this.element.appendChild($('div.quota-indicator.included.exhausted'));
-			if (this.options?.compactQuotaLayout) {
-				const planName = getChatPlanName(this.chatEntitlementService.entitlement);
-				exhaustedContainer.classList.add('compact');
-				exhaustedContainer.appendChild($('div.quota-title', undefined, planName));
-				exhaustedContainer.appendChild($('div.description', undefined, isEnterpriseUser
-					? localize('premiumExhaustedOrgCompact', "{0} exhausted. Contact your administrator for more information.", exhaustedTitle)
-					: localize('premiumExhaustedCompact', "{0} exhausted.", exhaustedTitle)));
-			} else {
-				exhaustedContainer.appendChild($('div.quota-title', undefined, exhaustedTitle));
-				exhaustedContainer.appendChild($('div.description', undefined, isEnterpriseUser
-					? localize('premiumExhaustedOrg', "Exhausted. Contact your administrator for more information.")
-					: localize('premiumExhausted', "Exhausted.")));
+				includedContainer.appendChild($('div.description', undefined, isPooledExhausted
+					? localize('premiumLimitReached', "Limit reached.")
+					: localize('premiumIncluded', "Included with your organization's plan.")));
 			}
 		}
 
@@ -814,7 +804,7 @@ export class ChatStatusDashboard extends DomWidget {
 			if (quotas.completions && !quotas.completions.unlimited) { allQuotas.push(quotas.completions); }
 
 			const maxUsedPercentage = allQuotas.length > 0 ? Math.max(...allQuotas.map(q => Math.max(0, 100 - q.percentRemaining))) : 0;
-			const isPooledExhausted = !!quotas.isExhausted;
+			const isPooledExhausted = quotas.premiumChat?.percentRemaining === 0 && !additionalUsageEnabled;
 
 			if (maxUsedPercentage >= 100 && additionalUsageEnabled) {
 				quotaCallout.style.display = '';

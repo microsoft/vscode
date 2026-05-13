@@ -88,6 +88,15 @@ function getIncludedLabels(element: HTMLElement): string[] {
 	return Array.from(indicators).map(el => el.textContent ?? '');
 }
 
+function getIncludedDescriptions(element: HTMLElement): string[] {
+	const indicators = element.querySelectorAll('.quota-indicator.included .description');
+	return Array.from(indicators).map(el => el.textContent ?? '');
+}
+
+function hasExhaustedClass(element: HTMLElement): boolean {
+	return element.querySelector('.quota-indicator.included.exhausted') !== null;
+}
+
 function getQuotaValues(element: HTMLElement): string[] {
 	const values = element.querySelectorAll('.quota-indicator:not(.included) .quota-value');
 	return Array.from(values).map(el => el.textContent ?? '');
@@ -303,6 +312,62 @@ suite('ChatStatusDashboard', () => {
 
 		assert.deepStrictEqual(getQuotaLabels(dashboard.element), []);
 		assert.deepStrictEqual(getIncludedLabels(dashboard.element), ['Premium Requests']);
+		assert.deepStrictEqual(getIncludedDescriptions(dashboard.element), ['Included with your organization\'s plan.']);
+		assert.strictEqual(hasExhaustedClass(dashboard.element), false);
+	});
+
+	test('Business — pooled exhausted (no overages): shows exhausted indicator and callout', () => {
+		const dashboard = createDashboard(createEntitlementService({
+			premiumChat: { percentRemaining: 0, unlimited: true },
+			completions: { percentRemaining: 100, unlimited: true },
+			additionalUsageEnabled: false,
+			entitlement: ChatEntitlement.Business,
+		}));
+
+		assert.deepStrictEqual(getIncludedLabels(dashboard.element), ['Premium Requests']);
+		assert.deepStrictEqual(getIncludedDescriptions(dashboard.element), ['Limit reached.']);
+		assert.strictEqual(hasExhaustedClass(dashboard.element), true);
+		assert.strictEqual(getCalloutText(dashboard.element), 'Copilot is paused until the limit resets. Contact your administrator for more information.');
+	});
+
+	test('Enterprise — pooled exhausted (no overages): shows exhausted indicator and enterprise callout', () => {
+		const dashboard = createDashboard(createEntitlementService({
+			premiumChat: { percentRemaining: 0, unlimited: true },
+			completions: { percentRemaining: 100, unlimited: true },
+			additionalUsageEnabled: false,
+			entitlement: ChatEntitlement.Enterprise,
+		}));
+
+		assert.deepStrictEqual(getIncludedLabels(dashboard.element), ['Premium Requests']);
+		assert.deepStrictEqual(getIncludedDescriptions(dashboard.element), ['Limit reached.']);
+		assert.strictEqual(hasExhaustedClass(dashboard.element), true);
+		assert.strictEqual(getCalloutText(dashboard.element), 'Copilot is paused until the limit resets. Contact your administrator for more information.');
+	});
+
+	test('Enterprise — pooled exhausted TBB (no overages): shows Credits exhausted', () => {
+		const dashboard = createDashboard(createEntitlementService({
+			premiumChat: { percentRemaining: 0, unlimited: true, usageBasedBilling: true },
+			completions: { percentRemaining: 100, unlimited: true },
+			additionalUsageEnabled: false,
+			entitlement: ChatEntitlement.Enterprise,
+		}));
+
+		assert.deepStrictEqual(getIncludedLabels(dashboard.element), ['Credits']);
+		assert.deepStrictEqual(getIncludedDescriptions(dashboard.element), ['Limit reached.']);
+		assert.strictEqual(hasExhaustedClass(dashboard.element), true);
+	});
+
+	test('Enterprise — pooled at 0% but overages enabled: shows included, not exhausted', () => {
+		const dashboard = createDashboard(createEntitlementService({
+			premiumChat: { percentRemaining: 0, unlimited: true },
+			completions: { percentRemaining: 100, unlimited: true },
+			additionalUsageEnabled: true,
+			entitlement: ChatEntitlement.Enterprise,
+		}));
+
+		assert.deepStrictEqual(getIncludedLabels(dashboard.element), ['Premium Requests']);
+		assert.deepStrictEqual(getIncludedDescriptions(dashboard.element), ['Included with your organization\'s plan.']);
+		assert.strictEqual(hasExhaustedClass(dashboard.element), false);
 	});
 
 	test('Enterprise — TBB (multi-quota): shows only Credits, not Chat messages or Inline Suggestions', () => {

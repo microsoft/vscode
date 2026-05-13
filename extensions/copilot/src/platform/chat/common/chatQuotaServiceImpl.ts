@@ -46,7 +46,7 @@ export class ChatQuotaService extends Disposable implements IChatQuotaService {
 		if (!this._quotaInfo) {
 			return false;
 		}
-		return this._quotaInfo.percentRemaining <= 0 && !this._quotaInfo.additionalUsageEnabled && !this._quotaInfo.unlimited;
+		return this._quotaInfo.percentRemaining <= 0 && !this._quotaInfo.additionalUsageEnabled;
 	}
 
 	get additionalUsageEnabled(): boolean {

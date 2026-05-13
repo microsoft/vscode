@@ -149,7 +149,6 @@ suite('parseQuotas', () => {
 			},
 			additionalUsageEnabled: true,
 			additionalUsageCount: 0,
-			isExhausted: false,
 		});
 	});
 
@@ -310,7 +309,7 @@ suite('parseQuotas', () => {
 		assert.strictEqual(quotas.premiumChat, undefined);
 	});
 
-	test('isExhausted is true for pooled entitlements when premium_interactions is at 0% and overages are disabled', () => {
+	test('pooled entitlements exhausted when premium_interactions is at 0% and overages are disabled', () => {
 		const data = makeEntitlementsData({
 			access_type_sku: 'copilot_enterprise_seat_multi_quota',
 			copilot_plan: 'enterprise',
@@ -344,12 +343,11 @@ suite('parseQuotas', () => {
 		});
 
 		const quotas = parseQuotas(data);
-		assert.strictEqual(quotas.isExhausted, true);
-		assert.strictEqual(quotas.additionalUsageEnabled, false);
 		assert.strictEqual(quotas.premiumChat?.percentRemaining, 0);
+		assert.strictEqual(quotas.additionalUsageEnabled, false);
 	});
 
-	test('isExhausted is false when overages are enabled even if premium_interactions is at 0%', () => {
+	test('pooled entitlements not exhausted when overages are enabled', () => {
 		const data = makeEntitlementsData({
 			access_type_sku: 'copilot_enterprise_seat_multi_quota',
 			copilot_plan: 'enterprise',
@@ -367,11 +365,11 @@ suite('parseQuotas', () => {
 		});
 
 		const quotas = parseQuotas(data);
-		assert.strictEqual(quotas.isExhausted, false);
+		assert.strictEqual(quotas.premiumChat?.percentRemaining, 0);
 		assert.strictEqual(quotas.additionalUsageEnabled, true);
 	});
 
-	test('isExhausted is false when premium_interactions has remaining quota', () => {
+	test('pooled entitlements not exhausted when premium_interactions has remaining quota', () => {
 		const data = makeEntitlementsData({
 			access_type_sku: 'copilot_enterprise_seat_multi_quota',
 			copilot_plan: 'enterprise',
@@ -389,6 +387,7 @@ suite('parseQuotas', () => {
 		});
 
 		const quotas = parseQuotas(data);
-		assert.strictEqual(quotas.isExhausted, false);
+		assert.strictEqual(quotas.premiumChat?.percentRemaining, 50);
+		assert.strictEqual(quotas.additionalUsageEnabled, false);
 	});
 });

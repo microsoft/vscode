@@ -167,7 +167,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		} else {
 			const chatQuotaExceeded = this.chatEntitlementService.quotas.chat?.percentRemaining === 0;
 			const completionsQuotaExceeded = this.chatEntitlementService.quotas.completions?.percentRemaining === 0;
-			const isPooledExhausted = !!this.chatEntitlementService.quotas.isExhausted;
+			const isPooledExhausted = this.chatEntitlementService.quotas.premiumChat?.percentRemaining === 0 && !(this.chatEntitlementService.quotas.additionalUsageEnabled ?? false);
 
 			// Disabled
 			if (this.chatEntitlementService.sentiment.disabled || this.chatEntitlementService.sentiment.untrusted) {
