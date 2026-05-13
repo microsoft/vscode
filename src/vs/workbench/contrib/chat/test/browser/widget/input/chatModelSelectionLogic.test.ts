@@ -1605,9 +1605,27 @@ suite('ChatModelSelectionLogic', () => {
 		}
 
 		/**
+		 * Mirrors the mode-restoration logic in chatInputPart.restoreModeFromSessionHistory().
+		 * Returns the mode URI string that would be passed to setChatMode, or undefined.
+		 */
+		function restoreModeFromHistory(
+			sessionHistory: Array<{ modelId?: string; modeInfo?: { modeInstructions?: { uri: string } } }>,
+		): string | undefined {
+			const modeInfo = [...sessionHistory].reverse().find(r => !!r.modeInfo)?.modeInfo;
+			return modeInfo?.modeInstructions?.uri;
+		}
+
+		/**
 		 * Simulates the onDidChangeViewModel handler in chatInputPart.ts
-		 * with the else-branch fix: preselectModelFromSessionHistory only runs
-		 * when the session type did NOT change.
+		 * including the else-branch fix and the restoreModeFromSessionHistory
+		 * call in the type-change branch. Returns both the selected model and
+		 * the mode that would be restored.
+		 *
+		 * Note: this is a behavioral simulator — it mirrors the production
+		 * control flow but calls the same exported utility functions
+		 * (shouldRestorePersistedModel, filterModelsForSession, etc.) that the
+		 * real handler uses. Full integration tests against ChatInputPart
+		 * require the workbench test harness and are left to the VS Code team.
 		 */
 		function simulateSessionTypeSwitch(opts: {
 			storage: Map<string, string>;
@@ -1615,15 +1633,21 @@ suite('ChatModelSelectionLogic', () => {
 			currentModel: ILanguageModelChatMetadataAndIdentifier;
 			newSessionType: string;
 			previousSessionType: string | undefined;
-			sessionHistory: Array<{ modelId?: string }>;
+			sessionHistory: Array<{ modelId?: string; modeInfo?: { modeInstructions?: { uri: string } } }>;
 			location: ChatAgentLocation;
-		}): ILanguageModelChatMetadataAndIdentifier {
+		}): { model: ILanguageModelChatMetadataAndIdentifier; restoredMode: string | undefined } {
 			const { storage, allModels, newSessionType, previousSessionType, location, sessionHistory } = opts;
 			let selectedModel = opts.currentModel;
+			let restoredMode: string | undefined;
 
 			const sessionTypeChanged = newSessionType !== previousSessionType;
 
 			if (sessionTypeChanged) {
+				// restoreModeFromSessionHistory — runs before initSelectedModel
+				// so mode is preserved even when model preselection is skipped.
+				restoredMode = restoreModeFromHistory(sessionHistory);
+
+				// initSelectedModel — restore from storage
 				const storageKey = getStorageKey(newSessionType, allModels, location);
 				const sessionModels = getSessionModels(allModels, newSessionType, location);
 				const persistedId = storage.get(storageKey);
@@ -1643,6 +1667,9 @@ suite('ChatModelSelectionLogic', () => {
 					}
 				}
 			} else {
+				// preselectModelFromSessionHistory — handles both mode and model
+				restoredMode = restoreModeFromHistory(sessionHistory);
+
 				const sessionModels = getSessionModels(allModels, newSessionType, location);
 				const storageKey = getStorageKey(newSessionType, allModels, location);
 				if (sessionHistory.length > 0) {
@@ -1660,7 +1687,7 @@ suite('ChatModelSelectionLogic', () => {
 				}
 			}
 
-			return selectedModel;
+			return { model: selectedModel, restoredMode };
 		}
 
 		test('cross-type round-trip preserves stored model preference', () => {
@@ -1690,13 +1717,13 @@ suite('ChatModelSelectionLogic', () => {
 				sessionHistory: [],
 				location,
 			});
-			assert.strictEqual(afterCliSwitch.metadata.id, 'cli-auto',
+			assert.strictEqual(afterCliSwitch.model.metadata.id, 'cli-auto',
 				'CLI session should use its default model');
 
 			// Switch copilotcli → copilot
 			const afterReturn = simulateSessionTypeSwitch({
 				storage, allModels,
-				currentModel: afterCliSwitch,
+				currentModel: afterCliSwitch.model,
 				newSessionType: 'copilot',
 				previousSessionType: 'copilotcli',
 				sessionHistory: copilotHistory,
@@ -1704,7 +1731,7 @@ suite('ChatModelSelectionLogic', () => {
 			});
 
 			// preselectModelFromSessionHistory does not run — stored preference wins
-			assert.strictEqual(afterReturn.metadata.id, 'claude-sonnet',
+			assert.strictEqual(afterReturn.model.metadata.id, 'claude-sonnet',
 				'Stored preference preserved across session type switches');
 			assert.strictEqual(storage.get(copilotKey), copilotClaude.identifier,
 				'Storage not corrupted');
@@ -1733,8 +1760,46 @@ suite('ChatModelSelectionLogic', () => {
 			});
 
 			// else branch runs — session history applies
-			assert.strictEqual(result.metadata.id, 'claude-sonnet',
+			assert.strictEqual(result.model.metadata.id, 'claude-sonnet',
 				'Session history applies when session type does not change');
+		});
+
+		test('cross-type switch restores mode from session history', () => {
+			const copilotAuto = createSessionModel('auto', 'Auto', 'copilot', {
+				isDefaultForLocation: { [ChatAgentLocation.Chat]: true },
+			});
+			const copilotClaude = createSessionModel('claude-sonnet', 'Claude Sonnet', 'copilot');
+			const cliAuto = createSessionModel('cli-auto', 'CLI Auto', 'copilotcli', {
+				isDefaultForLocation: { [ChatAgentLocation.Chat]: true },
+			});
+			const allModels = [copilotAuto, copilotClaude, cliAuto];
+
+			const storage = new Map<string, string>();
+			const location = ChatAgentLocation.Chat;
+			const copilotKey = getStorageKey('copilot', allModels, location);
+			storage.set(copilotKey, copilotClaude.identifier);
+
+			const customModeUri = 'vscode://custom-mode/edit-mode';
+			const copilotHistory = [
+				{ modelId: copilotAuto.identifier, modeInfo: { modeInstructions: { uri: customModeUri } } },
+			];
+
+			// Switch copilot → copilotcli (session type changes)
+			const afterCliSwitch = simulateSessionTypeSwitch({
+				storage, allModels,
+				currentModel: copilotClaude,
+				newSessionType: 'copilotcli',
+				previousSessionType: 'copilot',
+				sessionHistory: copilotHistory,
+				location,
+			});
+
+			// Mode restored even during type change (restoreModeFromSessionHistory
+			// runs before initSelectedModel in the type-change branch)
+			assert.strictEqual(afterCliSwitch.restoredMode, customModeUri,
+				'Mode is restored from session history during cross-type switch');
+			assert.strictEqual(afterCliSwitch.model.metadata.id, 'cli-auto',
+				'Model still uses the target session type default');
 		});
 	});
 });
