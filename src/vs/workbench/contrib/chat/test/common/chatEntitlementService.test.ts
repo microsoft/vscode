@@ -149,6 +149,7 @@ suite('parseQuotas', () => {
 			},
 			additionalUsageEnabled: true,
 			additionalUsageCount: 0,
+			isExhausted: false,
 		});
 	});
 
@@ -307,5 +308,87 @@ suite('parseQuotas', () => {
 		assert.strictEqual(quotas.completions?.percentRemaining, 100);
 		assert.strictEqual(quotas.completions?.entitlement, 4000);
 		assert.strictEqual(quotas.premiumChat, undefined);
+	});
+
+	test('isExhausted is true for pooled entitlements when premium_interactions is at 0% and overages are disabled', () => {
+		const data = makeEntitlementsData({
+			access_type_sku: 'copilot_enterprise_seat_multi_quota',
+			copilot_plan: 'enterprise',
+			token_based_billing: true,
+			quota_snapshots: {
+				chat: {
+					overage_count: 0,
+					overage_permitted: false,
+					percent_remaining: 100,
+					unlimited: true,
+					entitlement: '0',
+					has_quota: false,
+				},
+				completions: {
+					overage_count: 0,
+					overage_permitted: false,
+					percent_remaining: 100,
+					unlimited: true,
+					entitlement: '0',
+					has_quota: false,
+				},
+				premium_interactions: {
+					overage_count: 0,
+					overage_permitted: false,
+					percent_remaining: 0,
+					unlimited: true,
+					entitlement: '0',
+					has_quota: false,
+				},
+			},
+		});
+
+		const quotas = parseQuotas(data);
+		assert.strictEqual(quotas.isExhausted, true);
+		assert.strictEqual(quotas.additionalUsageEnabled, false);
+		assert.strictEqual(quotas.premiumChat?.percentRemaining, 0);
+	});
+
+	test('isExhausted is false when overages are enabled even if premium_interactions is at 0%', () => {
+		const data = makeEntitlementsData({
+			access_type_sku: 'copilot_enterprise_seat_multi_quota',
+			copilot_plan: 'enterprise',
+			token_based_billing: true,
+			quota_snapshots: {
+				premium_interactions: {
+					overage_count: 5,
+					overage_permitted: true,
+					percent_remaining: 0,
+					unlimited: true,
+					entitlement: '0',
+					has_quota: false,
+				},
+			},
+		});
+
+		const quotas = parseQuotas(data);
+		assert.strictEqual(quotas.isExhausted, false);
+		assert.strictEqual(quotas.additionalUsageEnabled, true);
+	});
+
+	test('isExhausted is false when premium_interactions has remaining quota', () => {
+		const data = makeEntitlementsData({
+			access_type_sku: 'copilot_enterprise_seat_multi_quota',
+			copilot_plan: 'enterprise',
+			token_based_billing: true,
+			quota_snapshots: {
+				premium_interactions: {
+					overage_count: 0,
+					overage_permitted: false,
+					percent_remaining: 50,
+					unlimited: true,
+					entitlement: '0',
+					has_quota: false,
+				},
+			},
+		});
+
+		const quotas = parseQuotas(data);
+		assert.strictEqual(quotas.isExhausted, false);
 	});
 });

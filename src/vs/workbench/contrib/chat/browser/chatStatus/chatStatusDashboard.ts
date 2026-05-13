@@ -235,9 +235,10 @@ export class ChatStatusDashboard extends DomWidget {
 			this.renderUsageContent(this.element, token, headerAdditionalSpendButton, updatePromise);
 		}
 
-		// Premium chat included indicator (shown when premium chat is unlimited)
+		// Premium chat included indicator (shown when premium chat is unlimited and NOT exhausted)
 		const hasPremiumUnlimited = !!premiumChat?.unlimited;
-		if (hasPremiumUnlimited) {
+		const isPooledExhausted = hasPremiumUnlimited && !!this.chatEntitlementService.quotas.isExhausted;
+		if (hasPremiumUnlimited && !isPooledExhausted) {
 			const includedTitle = this.chatEntitlementService.quotas.usageBasedBilling
 				? localize('includedTitleTBB', "Credits")
 				: localize('includedTitle', "Premium Requests");
@@ -250,6 +251,25 @@ export class ChatStatusDashboard extends DomWidget {
 			} else {
 				includedContainer.appendChild($('div.quota-title', undefined, includedTitle));
 				includedContainer.appendChild($('div.description', undefined, localize('premiumIncluded', "Included with your organization's plan.")));
+			}
+		} else if (isPooledExhausted) {
+			const exhaustedTitle = this.chatEntitlementService.quotas.usageBasedBilling
+				? localize('includedTitleTBB', "Credits")
+				: localize('includedTitle', "Premium Requests");
+			const isEnterpriseUser = this.chatEntitlementService.entitlement === ChatEntitlement.Enterprise || this.chatEntitlementService.entitlement === ChatEntitlement.Business;
+			const exhaustedContainer = this.element.appendChild($('div.quota-indicator.included.exhausted'));
+			if (this.options?.compactQuotaLayout) {
+				const planName = getChatPlanName(this.chatEntitlementService.entitlement);
+				exhaustedContainer.classList.add('compact');
+				exhaustedContainer.appendChild($('div.quota-title', undefined, planName));
+				exhaustedContainer.appendChild($('div.description', undefined, isEnterpriseUser
+					? localize('premiumExhaustedOrgCompact', "{0} exhausted. Contact your administrator for more information.", exhaustedTitle)
+					: localize('premiumExhaustedCompact', "{0} exhausted.", exhaustedTitle)));
+			} else {
+				exhaustedContainer.appendChild($('div.quota-title', undefined, exhaustedTitle));
+				exhaustedContainer.appendChild($('div.description', undefined, isEnterpriseUser
+					? localize('premiumExhaustedOrg', "Exhausted. Contact your administrator for more information.")
+					: localize('premiumExhausted', "Exhausted.")));
 			}
 		}
 
@@ -794,6 +814,7 @@ export class ChatStatusDashboard extends DomWidget {
 			if (quotas.completions && !quotas.completions.unlimited) { allQuotas.push(quotas.completions); }
 
 			const maxUsedPercentage = allQuotas.length > 0 ? Math.max(...allQuotas.map(q => Math.max(0, 100 - q.percentRemaining))) : 0;
+			const isPooledExhausted = !!quotas.isExhausted;
 
 			if (maxUsedPercentage >= 100 && additionalUsageEnabled) {
 				quotaCallout.style.display = '';
@@ -809,7 +830,7 @@ export class ChatStatusDashboard extends DomWidget {
 				calloutText.textContent = isUsageBasedBilling
 					? localize('quotaAdditionalUsageApproaching', "Once the limit is reached, additional budget will be used.")
 					: localize('quotaBudgetApproaching', "Once the limit is reached, premium request budget will be used.");
-			} else if (maxUsedPercentage >= 100 && !additionalUsageEnabled) {
+			} else if ((maxUsedPercentage >= 100 || isPooledExhausted) && !additionalUsageEnabled) {
 				quotaCallout.style.display = '';
 				quotaCallout.className = 'quota-callout info';
 				calloutIcon.className = `callout-icon ${ThemeIcon.asClassName(Codicon.info)}`;

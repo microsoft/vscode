@@ -593,7 +593,11 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 	}
 
 	private updateContextKeys(): void {
-		this.chatQuotaExceededContextKey.set(this._quotas.chat?.percentRemaining === 0);
+		const chatExhausted = this._quotas.chat?.percentRemaining === 0;
+		const premiumChatExhausted = this._quotas.premiumChat?.percentRemaining === 0;
+		const additionalUsageEnabled = this._quotas.additionalUsageEnabled ?? false;
+
+		this.chatQuotaExceededContextKey.set(chatExhausted || (premiumChatExhausted && !additionalUsageEnabled));
 		this.completionsQuotaExceededContextKey.set(this._quotas.completions?.percentRemaining === 0);
 	}
 
@@ -721,6 +725,7 @@ interface IQuotas {
 	readonly premiumChat?: IQuotaSnapshot;
 	readonly additionalUsageEnabled?: boolean;
 	readonly additionalUsageCount?: number;
+	readonly isExhausted?: boolean;
 }
 
 export function parseQuotas(entitlementsData: IEntitlementsData): IQuotas {
@@ -786,6 +791,9 @@ export function parseQuotas(entitlementsData: IEntitlementsData): IQuotas {
 		const overageSource = entitlementsData.quota_snapshots['premium_interactions'];
 		quotas.additionalUsageEnabled = overageSource?.overage_permitted ?? false;
 		quotas.additionalUsageCount = overageSource?.overage_count ?? 0;
+
+		// Pool-level exhaustion: premium chat at 0% with overages disabled
+		quotas.isExhausted = quotas.premiumChat?.percentRemaining === 0 && !(quotas.additionalUsageEnabled ?? false);
 	}
 	return quotas;
 }

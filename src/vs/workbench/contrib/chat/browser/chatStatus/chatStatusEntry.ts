@@ -167,6 +167,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		} else {
 			const chatQuotaExceeded = this.chatEntitlementService.quotas.chat?.percentRemaining === 0;
 			const completionsQuotaExceeded = this.chatEntitlementService.quotas.completions?.percentRemaining === 0;
+			const isPooledExhausted = !!this.chatEntitlementService.quotas.isExhausted;
 
 			// Disabled
 			if (this.chatEntitlementService.sentiment.disabled || this.chatEntitlementService.sentiment.untrusted) {
@@ -200,6 +201,14 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 					quotaWarning = localize('chatAndCompletionsQuotaExceededStatus', "Quota reached");
 				}
 
+				text = `$(copilot-warning) ${quotaWarning}`;
+				ariaLabel = quotaWarning;
+				kind = 'prominent';
+			}
+
+			// Pooled Entitlement Exhausted (Business/Enterprise)
+			else if ((this.chatEntitlementService.entitlement === ChatEntitlement.Business || this.chatEntitlementService.entitlement === ChatEntitlement.Enterprise) && isPooledExhausted) {
+				const quotaWarning = localize('chatAndCompletionsQuotaExceededStatus', "Quota reached");
 				text = `$(copilot-warning) ${quotaWarning}`;
 				ariaLabel = quotaWarning;
 				kind = 'prominent';
