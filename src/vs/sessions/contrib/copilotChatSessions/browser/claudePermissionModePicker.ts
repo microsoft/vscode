@@ -8,11 +8,13 @@ import { Gesture, EventType as TouchEventType } from '../../../../base/browser/t
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { IObservable } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem, IActionListOptions } from '../../../../platform/actionWidget/browser/actionList.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
@@ -59,7 +61,7 @@ const permissionModes: IClaudePermissionModeItem[] = [
 export class ClaudePermissionModePicker extends Disposable {
 
 	private _currentModeId = 'acceptEdits';
-	private _autoPermissionsEnabled = false;
+	private readonly _autoPermissionsEnabled: IObservable<boolean>;
 	private _triggerElement: HTMLElement | undefined;
 	private readonly _renderDisposables = this._register(new DisposableStore());
 
@@ -68,16 +70,11 @@ export class ClaudePermissionModePicker extends Disposable {
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 	) {
 		super();
-		this._autoPermissionsEnabled = this.configurationService.getValue<boolean>(ALLOW_AUTO_PERMISSIONS_SETTING) === true;
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ALLOW_AUTO_PERMISSIONS_SETTING)) {
-				this._autoPermissionsEnabled = this.configurationService.getValue<boolean>(ALLOW_AUTO_PERMISSIONS_SETTING) === true;
-			}
-		}));
+		this._autoPermissionsEnabled = observableConfigValue<boolean>(ALLOW_AUTO_PERMISSIONS_SETTING, false, configurationService);
 	}
 
 	render(container: HTMLElement): HTMLElement {
@@ -116,7 +113,7 @@ export class ClaudePermissionModePicker extends Disposable {
 			return;
 		}
 
-		const autoAvailable = this._autoPermissionsEnabled && !this.chatEntitlementService.previewFeaturesDisabled;
+		const autoAvailable = this._autoPermissionsEnabled.get() && !this.chatEntitlementService.previewFeaturesDisabled;
 		const availableModes = permissionModes.filter(mode => mode.id !== 'auto' || autoAvailable);
 		const items: IActionListItem<IClaudePermissionModeItem>[] = availableModes.map(mode => ({
 			kind: ActionListItemKind.Action,
