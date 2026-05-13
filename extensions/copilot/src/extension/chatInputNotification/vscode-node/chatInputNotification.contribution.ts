@@ -77,10 +77,9 @@ export class ChatInputNotificationContribution extends Disposable {
 			return;
 		}
 
-		// Skip quota notifications for PRU users — only show for UBB or managed plans.
+		// Skip quota notifications for PRU users — only show for UBB.
 		const isQuotaNotificationEligible = !hasCopilotToken
-			|| !!this._authService.copilotToken?.isUsageBasedBilling
-			|| !!this._authService.copilotToken?.isManagedPlan;
+			|| !!this._authService.copilotToken?.isUsageBasedBilling;
 
 		// Priority 1: Quota exhausted — sticky info notification
 		if (isQuotaNotificationEligible && this._chatQuotaService.quotaExhausted) {
