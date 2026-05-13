@@ -124,13 +124,13 @@ class FixCIChecksAction extends Action2 {
 	constructor() {
 		super({
 			id: FixCIChecksAction.ID,
-			title: localize2('fixCIChecks', 'Fix CI Checks'),
+			title: localize2('fixChecks', 'Fix Checks'),
 			icon: Codicon.lightbulbAutofix,
 			category: CHAT_CATEGORY,
 			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, hasActiveSessionFailedCIChecks),
 			menu: [{
 				id: MenuId.AgentsChangesPrimaryActionSubMenu,
-				group: 'navigation',
+				group: '5_checks',
 				order: 4,
 				when: ContextKeyExpr.and(IsSessionsWindowContext, hasActiveSessionFailedCIChecks),
 			}],
