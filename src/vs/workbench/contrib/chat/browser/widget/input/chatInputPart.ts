@@ -106,6 +106,9 @@ import { IChatWidget, IChatWidgetViewModelChangeEvent, ISessionTypePickerDelegat
 import { ChatEditingShowChangesAction, ViewPreviousEditsAction } from '../../chatEditing/chatEditingActions.js';
 import { resizeImage } from '../../chatImageUtils.js';
 import { ChatSessionPickerActionItem, IChatSessionPickerDelegate } from '../../chatSessions/chatSessionPickerActionItem.js';
+import { AgentHostChatInputPicker, AgentHostChatInputPickerActionViewItem } from '../../agentSessions/agentHost/agentHostChatInputPicker.js';
+import { OpenAgentHostBranchPickerAction, OpenAgentHostIsolationPickerAction, OpenAgentHostModePickerAction } from '../../agentSessions/agentHost/agentHostChatInputPicker.contribution.js';
+import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { IChatPhoneInputPresenter, MobileChatInputCombinedPickerActionItem } from './chatPhoneInputPresenter.js';
 import { IChatContextService } from '../../contextContrib/chatContextService.js';
 import { IDisposableReference } from '../chatContentParts/chatCollections.js';
@@ -2530,6 +2533,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 
 		// Secondary toolbar (permissions) — below the input box
+		const agentHostShortPickerIds = new Set<string>([
+			OpenAgentHostModePickerAction.ID,
+			OpenAgentHostBranchPickerAction.ID,
+			OpenAgentHostIsolationPickerAction.ID,
+		]);
 		this.secondaryToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, this.secondaryToolbarContainer, MenuId.ChatInputSecondary, {
 			telemetrySource: this.options.menus.telemetrySource,
 			menuOptions: { shouldForwardArgs: true },
@@ -2537,9 +2545,15 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			hoverDelegate,
 			responsiveBehavior: {
 				enabled: true,
-				kind: 'last',
+				kind: 'all',
 				minItems: 1,
 				actionMinWidth: 48,
+				// Agent-host pickers collapse to icon+chevron when narrow
+				// (see `pickerOptions.hideChevrons` driving compact mode in
+				// `AgentHostChatInputPicker._renderTrigger`). Report a
+				// smaller min-width for them so the responsive layout keeps
+				// them visible instead of overflowing into the menu.
+				getActionMinWidth: action => agentHostShortPickerIds.has(action.id) ? 22 : undefined,
 			},
 			actionViewItemProvider: (action, options) => {
 				if ((action.id === OpenSessionTargetPickerAction.ID || action.id === OpenDelegationPickerAction.ID) && action instanceof MenuItemAction) {
@@ -2616,6 +2630,19 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						}
 					}));
 					return widget;
+				} else if (
+					(action.id === OpenAgentHostModePickerAction.ID
+						|| action.id === OpenAgentHostBranchPickerAction.ID
+						|| action.id === OpenAgentHostIsolationPickerAction.ID)
+					&& action instanceof MenuItemAction
+				) {
+					const property = action.id === OpenAgentHostBranchPickerAction.ID
+						? SessionConfigKey.Branch
+						: action.id === OpenAgentHostIsolationPickerAction.ID
+							? SessionConfigKey.Isolation
+							: SessionConfigKey.Mode;
+					const picker = this.instantiationService.createInstance(AgentHostChatInputPicker, widget, property, secondaryPickerOptions);
+					return new AgentHostChatInputPickerActionViewItem(action, picker);
 				} else if (action.id === ChatSessionPrimaryPickerAction.ID && action instanceof MenuItemAction) {
 					// Create all pickers and return a container action view item
 					const widgets = this.createChatSessionPickerWidgets(action, secondaryPickerOptions);

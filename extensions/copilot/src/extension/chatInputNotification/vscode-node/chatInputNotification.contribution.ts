@@ -25,7 +25,7 @@ interface IQuotaWarning {
 /**
  * Manages a single chat input notification for quota and rate limit status.
  *
- * Listens to {@link IChatQuotaService.onDidChange} and determines whether a
+ * Listens to `IChatQuotaService.onDidChange` and determines whether a
  * new threshold has been crossed, then shows the highest-priority notification:
  *
  * 1. **Quota exhausted** — info, not auto-dismissed, only dismissible via X.
@@ -72,17 +72,23 @@ export class ChatInputNotificationContribution extends Disposable {
 			return;
 		}
 
+		// Skip quota notifications for PRU users — only show for UBB.
+		const isQuotaNotificationEligible = !hasCopilotToken
+			|| !!this._authService.copilotToken?.isUsageBasedBilling;
+
 		// Priority 1: Quota exhausted — sticky info notification
-		if (this._chatQuotaService.quotaExhausted) {
+		if (isQuotaNotificationEligible && this._chatQuotaService.quotaExhausted) {
 			this._showExhaustedNotification();
 			return;
 		}
 
 		// Priority 2: Quota approaching threshold
-		const quotaWarning = this._computeQuotaWarning();
-		if (quotaWarning) {
-			this._showQuotaApproachingWarning(quotaWarning);
-			return;
+		if (isQuotaNotificationEligible) {
+			const quotaWarning = this._computeQuotaWarning();
+			if (quotaWarning) {
+				this._showQuotaApproachingWarning(quotaWarning);
+				return;
+			}
 		}
 
 		// Priority 3: Rate-limit warning (session > weekly)
@@ -152,7 +158,7 @@ export class ChatInputNotificationContribution extends Disposable {
 				for (let j = 0; j <= i; j++) {
 					shownThresholds.add(THRESHOLDS[j]);
 				}
-				return { percentUsed: Math.round(percentUsed), resetDate: info.resetDate };
+				return { percentUsed: Math.floor(percentUsed), resetDate: info.resetDate };
 			}
 		}
 		return undefined;
