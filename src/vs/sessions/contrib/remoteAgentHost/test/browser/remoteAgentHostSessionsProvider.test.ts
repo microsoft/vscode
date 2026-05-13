@@ -294,7 +294,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 	// ---- Provider identity -------
 
 	test('derives id and label from config, and session types from rootState agents', () => {
-		const provider = createProvider(disposables, connection, { address: '10.0.0.1:8080', connectionName: 'My Host' });
+		const provider = createProvider(disposables, connection, { address: '10.0.0.1:8080', connectionName: 'My Host', isWebPlatform: false });
 
 		assert.strictEqual(provider.id, 'agenthost-10.0.0.1__8080');
 		assert.strictEqual(provider.label, 'My Host');
@@ -304,7 +304,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 	});
 
 	test('session types update when the host advertises additional agents', () => {
-		const provider = createProvider(disposables, connection, { address: '10.0.0.1:8080', connectionName: 'My Host' });
+		const provider = createProvider(disposables, connection, { address: '10.0.0.1:8080', connectionName: 'My Host', isWebPlatform: false });
 		assert.deepStrictEqual(provider.sessionTypes.map(t => t.id), [
 			CopilotCLISessionType.id,
 		]);
