@@ -91,14 +91,19 @@ export class SessionSyncStatus extends Disposable {
 			case 'up-to-date':
 				this._statusItem.description = `$(check) ${l10n.t('Enabled')}`;
 				this._statusItem.detail = '';
-				this._statusItem.tooltip = l10n.t('Your sessions are being synced and available across devices.');
+				this._statusItem.tooltip = l10n.t('Your sessions are being synced and available across devices. Use /chronicle:tips for insights.');
 				break;
 
 			case 'syncing':
+				this._statusItem.description = `$(loading~spin) ${l10n.t('Syncing...')}`;
+				this._statusItem.detail = '';
+				this._statusItem.tooltip = l10n.t('Syncing {0} session(s)\u2026', state.sessionCount);
+				break;
+
 			case 'deleting':
 				this._statusItem.description = `$(loading~spin) ${l10n.t('Syncing...')}`;
 				this._statusItem.detail = '';
-				this._statusItem.tooltip = l10n.t('A sync is currently in progress...');
+				this._statusItem.tooltip = l10n.t('Deleting {0} session(s)\u2026', state.sessionCount);
 				break;
 
 			case 'error':

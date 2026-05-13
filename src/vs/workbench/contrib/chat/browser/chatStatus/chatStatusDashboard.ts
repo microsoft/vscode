@@ -75,8 +75,7 @@ export interface IChatStatusDashboardOptions {
 	disableCompletionsSnooze?: boolean;
 	/** When true, the Quick Settings region is rendered always-expanded without a collapsible header. */
 	disableQuickSettingsCollapsible?: boolean;
-	/** When true, contributed sections are rendered always-expanded without a collapsible header button. */
-	disableContributedSectionsCollapsible?: boolean;
+
 	/**
 	 * When provided, the title header (plan name + manage / CTA actions) is
 	 * rendered into this caller-owned container instead of inline at the top

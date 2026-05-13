@@ -13,6 +13,7 @@ import { IWorkspaceChunkSearchService, WorkspaceIndexState } from '../../../plat
 import { coalesce } from '../../../util/vs/base/common/arrays';
 import { Emitter, Event } from '../../../util/vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable } from '../../../util/vs/base/common/lifecycle';
+import { commandUri } from '../../linkify/common/commands';
 import { buildRemoteIndexCommandId } from './commands';
 
 
@@ -164,10 +165,15 @@ export class ChatStatusWorkspaceIndexingStatus extends Disposable {
 				// Check if we have any authorization errors
 				const notAuthorizedRepos = state.remoteIndexState.repos.filter(repo => repo.status === CodeSearchRepoStatus.NotAuthorized);
 				if (notAuthorizedRepos.length > 0) {
+					const inaccessibleRepo = notAuthorizedRepos[0].remoteInfo;
 					return this._writeStatusItem({
 						primary: {
 							message: t`Not authorized`,
 							icon: '$(lock)',
+						},
+						details: {
+							message: `[${t`Sign in?`}](${commandUri(reauthenticateCommandId, [inaccessibleRepo])} "${t('Try signing in again to use the codebase index')}")`,
+							busy: false,
 						},
 						tooltip: t`You don't have permission to access the index for this repository.`,
 					});
