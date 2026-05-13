@@ -411,6 +411,17 @@ export function buildModelPickerItems(
 		}));
 	}
 
+	const getUnavailableReason = (entry: IModelControlEntry): 'upgrade' | 'update' | 'admin' => {
+		const isBusinessOrEnterpriseUser = chatEntitlementService.entitlement === ChatEntitlement.Business || chatEntitlementService.entitlement === ChatEntitlement.Enterprise;
+		if (!isBusinessOrEnterpriseUser) {
+			return 'upgrade';
+		}
+		if (entry.minVSCodeVersion && !isVersionAtLeast(currentVSCodeVersion, entry.minVSCodeVersion)) {
+			return 'update';
+		}
+		return 'admin';
+	};
+
 	if (useGroupedModelPicker) {
 		let otherModels: ILanguageModelChatMetadataAndIdentifier[] = [];
 		// Build a lookup so each model can be assigned to its provider group
@@ -439,17 +450,6 @@ export function buildModelPickerItems(
 			};
 
 			const resolveModel = (id: string) => allModelsMap.get(id) ?? modelsByMetadataId.get(id);
-
-			const getUnavailableReason = (entry: IModelControlEntry): 'upgrade' | 'update' | 'admin' => {
-				const isBusinessOrEnterpriseUser = chatEntitlementService.entitlement === ChatEntitlement.Business || chatEntitlementService.entitlement === ChatEntitlement.Enterprise;
-				if (!isBusinessOrEnterpriseUser) {
-					return 'upgrade';
-				}
-				if (entry.minVSCodeVersion && !isVersionAtLeast(currentVSCodeVersion, entry.minVSCodeVersion)) {
-					return 'update';
-				}
-				return 'admin';
-			};
 
 			// --- 1. Auto ---
 			const autoModel = models.find(m => isAutoModel(m));
@@ -720,6 +720,33 @@ export function buildModelPickerItems(
 		for (const model of sortedModels) {
 			const { action: flatAction, ariaDescription: flatAriaDesc } = createModelAction(model, selectedModelId, onSelect, languageModelsService!, undefined, undefined, isUBB);
 			items.push(createModelItem(flatAction, model, openerService, undefined, isUBB, flatAriaDesc));
+		}
+
+		// Unavailable featured models from control manifest (upgrade / update / admin)
+		if (showFeatured && showUnavailableFeatured) {
+			const placedIds = new Set(models.map(m => m.metadata.id));
+			const unavailableItems: IActionListItem<IActionWidgetDropdownAction>[] = [];
+			for (const [entryId, entry] of Object.entries(controlModels)) {
+				if (!entry.featured || placedIds.has(entryId)) {
+					continue;
+				}
+				if (unavailableModelFilter && !unavailableModelFilter(entryId)) {
+					continue;
+				}
+				if (entry.exists) {
+					// Model is registered but not in this session's model list — skip
+					continue;
+				}
+				if (entry.minVSCodeVersion && !isVersionAtLeast(currentVSCodeVersion, entry.minVSCodeVersion)) {
+					unavailableItems.push(createUnavailableModelItem(entryId, entry, 'update', manageSettingsUrl, updateStateType, chatEntitlementService));
+				} else {
+					unavailableItems.push(createUnavailableModelItem(entryId, entry, getUnavailableReason(entry), manageSettingsUrl, updateStateType, chatEntitlementService));
+				}
+			}
+			if (unavailableItems.length > 0) {
+				items.push({ kind: ActionListItemKind.Separator });
+				items.push(...unavailableItems);
+			}
 		}
 	}
 
