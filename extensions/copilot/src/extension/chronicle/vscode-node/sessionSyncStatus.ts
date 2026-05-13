@@ -83,7 +83,7 @@ export class SessionSyncStatus extends Disposable {
 
 			case 'disabled-by-policy':
 				this._statusItem.description = `$(warning) ${l10n.t('Disabled by policy')}`;
-				this._statusItem.detail = l10n.t('Session sync is disabled by your organization\'s policy.');
+				this._statusItem.detail = '';
 				this._statusItem.tooltip = l10n.t('Session sync is disabled by your organization\'s policy.');
 				break;
 
