@@ -172,10 +172,7 @@ import { AgentPluginRepositoryService } from './agentPluginRepositoryService.js'
 import { BrowserPluginGitCommandService } from './pluginGitCommandService.js';
 import { IPluginGitService } from '../common/plugins/pluginGitService.js';
 import { PluginInstallService } from './pluginInstallService.js';
-import './promptSyntax/promptCodingAgentActionContribution.js';
-import './promptSyntax/promptToolsCodeLensProvider.js';
 import { ChatSessionOptionSlashCommandsContribution, ChatSlashCommandsContribution } from './chatSlashCommands.js';
-import './planReviewFeedback/planReviewFeedbackEditorContribution.js';
 import { registerPlanReviewFeedbackEditorActions } from './planReviewFeedback/planReviewFeedbackEditorActions.js';
 import { IPlanReviewFeedbackService, PlanReviewFeedbackService } from './planReviewFeedback/planReviewFeedbackService.js';
 import { PluginUrlHandler } from './pluginUrlHandler.js';
