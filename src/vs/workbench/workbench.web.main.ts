@@ -106,7 +106,6 @@ import { NullAgentHostService } from '../platform/agentHost/browser/nullAgentHos
 import { IRemoteAgentHostService, NullRemoteAgentHostService } from '../platform/agentHost/common/remoteAgentHostService.js';
 import { BrowserAgentHostDebugLogsExportService, IAgentHostDebugLogsExportService } from './contrib/chat/browser/actions/exportAgentHostDebugLogsAction.js';
 
-registerSingleton(IAgentHostService, NullAgentHostService, InstantiationType.Delayed);
 registerSingleton(IWorkbenchExtensionManagementService, ExtensionManagementService, InstantiationType.Delayed);
 registerSingleton(IAccessibilityService, AccessibilityService, InstantiationType.Delayed);
 registerSingleton(IContextMenuService, ContextMenuService, InstantiationType.Delayed);
