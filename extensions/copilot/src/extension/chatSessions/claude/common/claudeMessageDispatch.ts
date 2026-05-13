@@ -389,6 +389,7 @@ function sendToolInvokedTelemetry(
 	const startTime = toolStartTimes.get(toolUseId);
 	toolStartTimes.delete(toolUseId);
 	if (toolUse.name === ClaudeToolNames.TodoWrite) {
+		// Don't send telemetry for TodoWrite since it is passed into the workbench toolcall service and will be logged there.
 		return;
 	}
 	const invocationTimeMs = startTime !== undefined ? Date.now() - startTime : undefined;
