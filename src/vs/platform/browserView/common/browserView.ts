@@ -248,6 +248,18 @@ export function browserZoomAccessibilityLabel(zoomFactor: number): string {
  */
 export const browserViewIsolatedWorldId = 999;
 
+/**
+ * Well-known ids understood by `__vscode_helpers.getSelectedElement(id)` in
+ * `preload-browserView.ts`. Any other string is treated as the id of a
+ * dynamically tracked element.
+ */
+export const enum BrowserViewSelectedElementId {
+	/** The page's `document.activeElement`. */
+	Active = 'active',
+	/** The element targeted by the most recent `contextmenu` event. */
+	ContextMenuTarget = 'context-menu-target',
+}
+
 export interface IBrowserViewService {
 	/**
 	 * Fires when a new browser view is created from an internal source (e.g. CDP or window.open).

@@ -6,7 +6,7 @@
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
-import { IBrowserViewBounds, IBrowserViewState, IBrowserViewService, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, BrowserViewCommandId, IBrowserViewOwner, IBrowserViewInfo, IBrowserViewCreatedEvent, IBrowserViewOpenOptions, IBrowserViewCreateOptions } from '../common/browserView.js';
+import { IBrowserViewBounds, IBrowserViewState, IBrowserViewService, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, BrowserViewCommandId, IBrowserViewOwner, IBrowserViewInfo, IBrowserViewCreatedEvent, IBrowserViewOpenOptions, IBrowserViewCreateOptions, BrowserViewSelectedElementId } from '../common/browserView.js';
 import { clipboard, Menu, MenuItem } from 'electron';
 import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
 import { createDecorator, IInstantiationService } from '../../instantiation/common/instantiation.js';
@@ -371,7 +371,7 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		return view;
 	}
 
-	private showContextMenu(view: BrowserView, params: Electron.ContextMenuParams): void {
+	private async showContextMenu(view: BrowserView, params: Electron.ContextMenuParams): Promise<void> {
 		const win = view.getElectronWindow();
 		if (!win) {
 			return;
@@ -380,6 +380,8 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		if (webContents.isDestroyed()) {
 			return;
 		}
+
+		const inspectTarget = await view.inspector.getElementHandle(BrowserViewSelectedElementId.ContextMenuTarget);
 		const menu = new Menu();
 
 		if (params.linkURL) {
@@ -469,6 +471,12 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		}
 
 		menu.append(new MenuItem({ type: 'separator' }));
+		if (inspectTarget) {
+			menu.append(new MenuItem({
+				label: localize('browser.contextMenu.addElementToChat', 'Add Element to Chat'),
+				click: () => inspectTarget.addToChat()
+			}));
+		}
 		menu.append(new MenuItem({
 			label: localize('browser.contextMenu.inspect', 'Inspect'),
 			click: () => webContents.inspectElement(params.x, params.y)
