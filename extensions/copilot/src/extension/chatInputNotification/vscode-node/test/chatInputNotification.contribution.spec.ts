@@ -52,6 +52,7 @@ function makeQuota(percentRemaining: number, opts?: Partial<IChatQuota>): IChatQ
 		quota: 100,
 		percentRemaining,
 		unlimited: false,
+		hasQuota: true,
 		additionalUsageUsed: 0,
 		additionalUsageEnabled: false,
 		resetDate: new Date('2026-06-01T00:00:00Z'),
