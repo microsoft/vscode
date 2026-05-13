@@ -237,6 +237,7 @@ export abstract class BaseCopilotTokenManager extends Disposable implements ICop
 			codex_agent_enabled: userInfo?.codex_agent_enabled,
 			token_based_billing: userInfo?.token_based_billing,
 			organization_login_list: userInfo?.organization_login_list ?? [],
+			token_based_billing: userInfo?.token_based_billing,
 			username: login,
 			isVscodeTeamMember: containsVSCodeOrg(tokenInfo.organization_list ?? []),
 		};

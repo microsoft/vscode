@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { Codicon } from '../../../../base/common/codicons.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { IObservable } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
@@ -20,46 +19,6 @@ export interface ISessionType {
 	readonly label: string;
 	/** Icon for this session type. */
 	readonly icon: ThemeIcon;
-}
-
-/** Session type ID for local Copilot CLI sessions. */
-export const COPILOT_CLI_SESSION_TYPE = 'copilotcli';
-
-/** Session type ID for Copilot Cloud sessions. */
-export const COPILOT_CLOUD_SESSION_TYPE = 'copilot-cloud-agent';
-
-/** Copilot CLI session type — local background agent running in a Git worktree. */
-export const CopilotCLISessionType: ISessionType = {
-	id: COPILOT_CLI_SESSION_TYPE,
-	label: localize('copilotCLI', "Copilot CLI"),
-	icon: Codicon.copilot,
-};
-
-/** Copilot Cloud session type - cloud-hosted agent. */
-export const CopilotCloudSessionType: ISessionType = {
-	id: COPILOT_CLOUD_SESSION_TYPE,
-	label: localize('copilotCloud', "Cloud"),
-	icon: Codicon.cloud,
-};
-
-/** Session type ID for Claude Code sessions. */
-export const CLAUDE_CODE_SESSION_TYPE = 'claude-code';
-
-/** Claude Code session type — local agent powered by Claude. */
-export const ClaudeCodeSessionType: ISessionType = {
-	id: CLAUDE_CODE_SESSION_TYPE,
-	label: localize('claudeCode', "Claude"),
-	icon: Codicon.claude,
-};
-
-/**
- * Returns whether the given session type represents a workspace-backed
- * agent (e.g. Copilot CLI, Claude Code) that operates on a worktree or
- * repository — regardless of whether the agent runs locally or remotely.
- * TODO: Somehow make this contributable so we don't have to hardcode session types here.
- */
-export function isWorkspaceAgentSessionType(sessionType: string | undefined): boolean {
-	return sessionType === COPILOT_CLI_SESSION_TYPE || sessionType === CLAUDE_CODE_SESSION_TYPE;
 }
 
 export const GITHUB_REMOTE_FILE_SCHEME = 'github-remote-file';
@@ -80,16 +39,11 @@ export const enum SessionStatus {
 	Error = 4,
 }
 
-/**
- * A repository within a session workspace.
- */
-export interface ISessionRepository {
+export interface ISessionGitRepository {
 	/** The source repository URI. */
 	readonly uri: URI;
 	/** The working directory URI (e.g., a git worktree or checkout path). */
-	readonly workingDirectory: URI | undefined;
-	/** Provider-chosen display detail (e.g., branch name, host name). */
-	readonly detail: string | undefined;
+	readonly workTreeUri: URI | undefined;
 	/** Current branch name. */
 	readonly branchName?: string;
 	/** Name of the base branch. */
@@ -106,12 +60,34 @@ export interface ISessionRepository {
 	readonly outgoingChanges?: number;
 	/** Number of files with uncommitted changes. */
 	readonly uncommittedChanges?: number;
+	/** Whether a Git operation is currently in progress. */
+	readonly hasGitOperationInProgress?: boolean;
+	/** GitHub information associated with the repository. */
+	readonly gitHubInfo: IObservable<IGitHubInfo | undefined>;
+}
+
+/**
+ * A folder within a session workspace.
+ */
+export interface ISessionFolder {
+	/** Canonical URI of the folder. */
+	readonly root: URI;
+	/** Working directory used for file operations. */
+	readonly workingDirectory: URI;
+	/** Display name for the folder (e.g., repository or directory basename). */
+	readonly name: string;
+	/** Optional description shown alongside the name (e.g., parent folder path). */
+	readonly description: string | undefined;
+	/** Git repository information associated with this folder. */
+	readonly gitRepository?: ISessionGitRepository;
 }
 
 /**
  * Workspace information for a session, encapsulating one or more repositories.
  */
 export interface ISessionWorkspace {
+	/** URI identifying the workspace. */
+	readonly uri: URI;
 	/** Display label for the workspace (e.g., "my-app", "org/repo", "host:/path"). */
 	readonly label: string;
 	/** Optional description shown alongside the label (e.g., parent folder path "~/work"). */
@@ -125,10 +101,14 @@ export interface ISessionWorkspace {
 	readonly group?: string;
 	/** Icon for the workspace. */
 	readonly icon: ThemeIcon;
-	/** Repositories in this workspace. */
-	readonly repositories: ISessionRepository[];
+	/** Folders in this session workspace. */
+	readonly folders: ISessionFolder[];
 	/** Whether the session requires workspace trust to operate. */
 	readonly requiresWorkspaceTrust: boolean;
+	/**
+	 * Whether this workspace is a virtual
+	 */
+	readonly isVirtualWorkspace: boolean;
 }
 
 /**
@@ -147,6 +127,10 @@ export interface IGitHubInfo {
 		readonly uri: URI;
 		/** Icon reflecting the PR state. */
 		readonly icon?: ThemeIcon;
+		/** Object ID of the base ref (merge target) commit. */
+		readonly baseRefOid?: string;
+		/** Object ID of the head ref (PR branch) commit. */
+		readonly headRefOid?: string;
 	};
 }
 
@@ -163,6 +147,13 @@ export interface ISessionChangeset {
 	readonly enabled: IObservable<boolean>;
 	/** File changes associated with this changeset. */
 	readonly changes: IObservable<readonly ISessionFileChange[]>;
+}
+
+export interface IChatCheckpoints {
+	/** Reference to the first checkpoint in the chat. */
+	readonly firstCheckpointRef: string;
+	/** Reference to the last checkpoint in the chat. */
+	readonly lastCheckpointRef: string;
 }
 
 /**
@@ -186,6 +177,8 @@ export interface IChat {
 	readonly changes: IObservable<readonly ISessionFileChange[]>;
 	/** Changesets produced by the chat. */
 	readonly changesets: IObservable<readonly ISessionChangeset[]>;
+	/** Checkpoints associated with the chat. */
+	readonly checkpoints: IObservable<IChatCheckpoints | undefined>;
 	/** Currently selected model identifier. */
 	readonly modelId: IObservable<string | undefined>;
 	/** Currently selected mode identifier and kind. */
@@ -211,7 +204,7 @@ export interface ISession {
 	readonly resource: URI;
 	/** ID of the provider that owns this session. */
 	readonly providerId: string;
-	/** Session type ID (e.g., 'copilot-cli', 'copilot-cloud'). */
+	/** Session type ID (e.g., 'copilot-cli', 'copilot-cloud', 'local'). */
 	readonly sessionType: string;
 	/** Icon for this session. */
 	readonly icon: ThemeIcon;
@@ -246,8 +239,6 @@ export interface ISession {
 	readonly description: IObservable<IMarkdownString | undefined>;
 	/** Timestamp of when the last agent turn ended, if any. */
 	readonly lastTurnEnd: IObservable<Date | undefined>;
-	/** GitHub information associated with this session, if any. */
-	readonly gitHubInfo: IObservable<IGitHubInfo | undefined>;
 	/** The chats belonging to this session group. */
 	readonly chats: IObservable<readonly IChat[]>;
 	/** The main (first) chat of this session. */
@@ -377,4 +368,30 @@ export function sessionFileChangesEqual(a: readonly ISessionFileChange[], b: rea
 	}
 
 	return true;
+}
+
+/**
+ * Structural equality for {@link IGitHubInfo}. Used as an `equalsFn` on the `gitHubInfo` observable
+ * so that providers can re-publish updated info without notifying observers when the underlying GitHub
+ * info has not actually changed.
+ */
+export function gitHubInfoEqual(a: IGitHubInfo | undefined, b: IGitHubInfo | undefined): boolean {
+	if (a === b) {
+		return true;
+	}
+
+	if (a === undefined || b === undefined) {
+		return false;
+	}
+
+	const aIcon = a.pullRequest?.icon;
+	const bIcon = b.pullRequest?.icon;
+
+	return a.owner === b.owner &&
+		a.repo === b.repo &&
+		a.pullRequest?.number === b.pullRequest?.number &&
+		isEqual(a.pullRequest?.uri, b.pullRequest?.uri) &&
+		(aIcon === bIcon || (!!aIcon && !!bIcon && ThemeIcon.isEqual(aIcon, bIcon))) &&
+		a.pullRequest?.baseRefOid === b.pullRequest?.baseRefOid &&
+		a.pullRequest?.headRefOid === b.pullRequest?.headRefOid;
 }

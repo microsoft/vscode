@@ -28,6 +28,7 @@ import { dispatchMessage, KnownClaudeError } from '../common/claudeMessageDispat
 import { IClaudeRuntimeDataService } from '../common/claudeRuntimeDataService';
 import { ClaudeSessionUri } from '../common/claudeSessionUri';
 import { IClaudeToolPermissionService } from '../common/claudeToolPermissionService';
+import { IClaudePlanFileTracker } from '../common/claudePlanFileTracker';
 import { IClaudeCodeSdkService } from './claudeCodeSdkService';
 import { ClaudeLanguageModelServer } from './claudeLanguageModelServer';
 import { resolvePromptToContentBlocks } from './claudePromptResolver';
@@ -207,6 +208,7 @@ export class ClaudeCodeSession extends Disposable {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IClaudeCodeSdkService private readonly claudeCodeService: IClaudeCodeSdkService,
 		@IClaudeToolPermissionService private readonly toolPermissionService: IClaudeToolPermissionService,
+		@IClaudePlanFileTracker private readonly planFileTracker: IClaudePlanFileTracker,
 		@IClaudeSessionStateService private readonly sessionStateService: IClaudeSessionStateService,
 		@IClaudeRuntimeDataService private readonly runtimeDataService: IClaudeRuntimeDataService,
 		@IMcpService private readonly mcpService: IMcpService,
@@ -287,6 +289,7 @@ export class ClaudeCodeSession extends Disposable {
 		this._cancelGatewayIdleTimer();
 		this._disposeGateway();
 		this._abortController.abort();
+		this.planFileTracker.clear(this.sessionId);
 		this._inFlightRequests.forEach(req => {
 			if (!req.deferred.isSettled) {
 				req.deferred.error(new Error('Session disposed'));
@@ -487,7 +490,8 @@ export class ClaudeCodeSession extends Disposable {
 				return this.toolPermissionService.canUseTool(name, input, {
 					toolInvocationToken: this._currentRequest.request.toolInvocationToken,
 					permissionMode: this._currentPermissionMode,
-					stream: this._currentRequest.stream
+					stream: this._currentRequest.stream,
+					sessionId: this.sessionId,
 				});
 			},
 			systemPrompt: {
