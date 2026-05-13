@@ -733,6 +733,11 @@ export namespace ConfigKey {
 		 */
 		export const LongToolCallCachePreservation = defineSetting<boolean>('chat.agent.longToolCallCachePreservation.enabled', ConfigType.ExperimentBased, false);
 
+		/**
+		 * Maximum number of keep-alive probes to send during long-running tool calls.
+		 */
+		export const LongToolCallCachePreservationMaxProbes = defineSetting<number>('chat.agent.longToolCallCachePreservation.maxProbes', ConfigType.ExperimentBased, 3);
+
 		export const InlineEditsXtabProviderModelConfiguration = (() => {
 			const oldKey = 'chat.advanced.inlineEdits.xtabProvider.modelConfiguration';
 			const newKey = 'chat.inlineEdits.xtabProvider.modelConfiguration';

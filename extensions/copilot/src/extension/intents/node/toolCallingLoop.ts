@@ -190,8 +190,6 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 
 	/** Interval between keep-alive probes while buildPrompt is in flight. */
 	private static readonly KEEP_ALIVE_INTERVAL_MS = 4 * 60 * 1000;
-	/** Maximum total time we will keep probing before giving up. */
-	private static readonly KEEP_ALIVE_MAX_DURATION_MS = 15 * 60 * 1000;
 
 	public appendAdditionalHookContext(context: string): void {
 		if (!context) {
@@ -1702,7 +1700,7 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 	 *
 	 * - Fires every {@link KEEP_ALIVE_INTERVAL_MS} starting 5 minutes after `buildPrompt2`
 	 *   is called (so a fast render incurs no probe).
-	 * - Stops after {@link KEEP_ALIVE_MAX_DURATION_MS} of total elapsed time.
+	 * - Stops after the configured max probes limit is reached.
 	 * - Probes are pure side-channel: results are discarded, no mutation of
 	 *   `toolCallRounds`, `toolCallResults`, or `conversation`. Nothing to "slice off".
 	 * - The first chunk of any probe response causes the network layer to stop reading
@@ -1721,20 +1719,21 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 			return Disposable.None;
 		}
 
-		const startTime = Date.now();
+		const maxProbes = this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.LongToolCallCachePreservationMaxProbes, this._experimentationService);
 		const inFlight = new Set<CancellationTokenSource>();
 		let timer: ReturnType<typeof setTimeout> | undefined;
 		let disposed = false;
+		let probeCount = 0;
 
 		const probe = async () => {
 			if (disposed || parentToken.isCancellationRequested) {
 				return;
 			}
-			const elapsed = Date.now() - startTime;
-			if (elapsed > ToolCallingLoop.KEEP_ALIVE_MAX_DURATION_MS) {
-				this._logService.info(`[ToolCallingLoop] Keep-alive: max duration reached (${elapsed}ms), stopping probes`);
+			if (probeCount >= maxProbes) {
+				this._logService.info(`[ToolCallingLoop] Keep-alive: max probes reached (${probeCount}), stopping`);
 				return;
 			}
+			probeCount++;
 
 			const cts = new CancellationTokenSource(parentToken);
 			inFlight.add(cts);
@@ -1755,7 +1754,7 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 				]
 				: [...processedMessages];
 
-			this._logService.info(`[ToolCallingLoop] Keep-alive: sending probe (elapsed=${elapsed}ms)`);
+			this._logService.info(`[ToolCallingLoop] Keep-alive: sending probe ${probeCount}/${maxProbes}`);
 			try {
 				await this.fetch({
 					...baseFetchOptions,
