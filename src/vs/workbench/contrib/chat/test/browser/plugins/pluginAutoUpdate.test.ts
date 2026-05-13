@@ -23,6 +23,7 @@ suite('PluginAutoUpdate', () => {
 		hasUpdatesAvailable: ReturnType<typeof observableValue<boolean>>;
 		updateAllCalls: IUpdateAllPluginsOptions[];
 		updateAllImpl: () => Promise<IUpdateAllPluginsResult>;
+		clearUpdatesAvailableCalls: number;
 	}
 
 	function createContribution(autoUpdate: unknown, stateOverrides?: Partial<MockState>): { contribution: PluginAutoUpdate; state: MockState } {
@@ -32,11 +33,16 @@ suite('PluginAutoUpdate', () => {
 			hasUpdatesAvailable: observableValue<boolean>('test.hasUpdatesAvailable', false),
 			updateAllCalls: [],
 			updateAllImpl: async () => ({ updatedNames: [], failedNames: [] }),
+			clearUpdatesAvailableCalls: 0,
 			...stateOverrides,
 		};
 
 		instantiationService.stub(IPluginMarketplaceService, {
 			hasUpdatesAvailable: state.hasUpdatesAvailable,
+			clearUpdatesAvailable: () => {
+				state.clearUpdatesAvailableCalls++;
+				state.hasUpdatesAvailable.set(false, undefined);
+			},
 		} as Partial<IPluginMarketplaceService> as IPluginMarketplaceService);
 
 		instantiationService.stub(IPluginInstallService, {
@@ -85,13 +91,17 @@ suite('PluginAutoUpdate', () => {
 		assert.deepStrictEqual(state.updateAllCalls, []);
 	});
 
-	test('triggers update for non-boolean truthy auto-update values', async () => {
-		const { state } = createContribution('onlyEnabledExtensions');
+	test('does not trigger update for non-true auto-update values like onlyEnabledExtensions', async () => {
+		// Plugins have no per-item opt-in equivalent to extensions, so only
+		// `true` (update everything) opts plugins into auto-update.
+		for (const value of ['onlyEnabledExtensions', 'onlySelectedExtensions']) {
+			const { state } = createContribution(value);
 
-		state.hasUpdatesAvailable.set(true, undefined);
-		await flushMicrotasks();
+			state.hasUpdatesAvailable.set(true, undefined);
+			await flushMicrotasks();
 
-		assert.deepStrictEqual(state.updateAllCalls, [{ silent: true }]);
+			assert.deepStrictEqual(state.updateAllCalls, [], `expected no update for autoUpdate=${value}`);
+		}
 	});
 
 	test('does not run a second update concurrently with one in flight', async () => {
@@ -152,5 +162,43 @@ suite('PluginAutoUpdate', () => {
 		await flushMicrotasks();
 		await flushMicrotasks();
 		assert.strictEqual(state.updateAllCalls.length, 2);
+	});
+
+	test('clears the flag after an update so partial failures can re-arm', async () => {
+		// Simulate the install service NOT clearing the flag (partial failure
+		// path in `PluginInstallService.updateAllPlugins`). Without our own
+		// clear in `finally`, the observable would stay stuck at `true` and
+		// the next periodic check's `set(true)` would not notify subscribers.
+		const { state } = createContribution(true, {
+			updateAllImpl: async () => ({ updatedNames: [], failedNames: ['plugin-a'] }),
+		});
+
+		state.hasUpdatesAvailable.set(true, undefined);
+		await flushMicrotasks();
+		await flushMicrotasks();
+
+		assert.strictEqual(state.updateAllCalls.length, 1);
+		assert.strictEqual(state.clearUpdatesAvailableCalls, 1);
+		assert.strictEqual(state.hasUpdatesAvailable.get(), false);
+
+		// The next periodic check finds updates again; the cleared flag lets
+		// the autorun re-fire via a clean `false → true` transition.
+		state.hasUpdatesAvailable.set(true, undefined);
+		await flushMicrotasks();
+		await flushMicrotasks();
+		assert.strictEqual(state.updateAllCalls.length, 2);
+	});
+
+	test('clears the flag even when updateAllPlugins throws', async () => {
+		const { state } = createContribution(true, {
+			updateAllImpl: async () => { throw new Error('boom'); },
+		});
+
+		state.hasUpdatesAvailable.set(true, undefined);
+		await flushMicrotasks();
+		await flushMicrotasks();
+
+		assert.strictEqual(state.clearUpdatesAvailableCalls, 1);
+		assert.strictEqual(state.hasUpdatesAvailable.get(), false);
 	});
 });

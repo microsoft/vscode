@@ -23,10 +23,17 @@ import { IPluginMarketplaceService } from '../common/plugins/pluginMarketplaceSe
  * Without this contribution, that signal was never consumed and plugins
  * were never auto-updated (see microsoft/vscode#308563).
  *
- * When the signal becomes `true` and `extensions.autoUpdate` is not `false`,
- * we silently update all installed plugins. `updateAllPlugins` clears the
- * flag once the update completes, so the autorun re-arms naturally for the
- * next 24h cycle.
+ * When the signal becomes `true` and `extensions.autoUpdate === true`, we
+ * silently update all installed plugins. Other auto-update modes
+ * (`'onlyEnabledExtensions'`, `'onlySelectedExtensions'`) gate updates on a
+ * per-extension opt-in that has no plugin equivalent, so they are treated
+ * the same as `false` for plugins.
+ *
+ * The flag is cleared after every attempt — including failures — so the
+ * next periodic check's `false → true` transition can always re-trigger the
+ * autorun. `updateAllPlugins` already clears it on success; clearing again
+ * in `finally` is a no-op on the success path and handles the partial-
+ * failure path where the install service leaves the flag at `true`.
  */
 export class PluginAutoUpdate extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.pluginAutoUpdate';
@@ -34,7 +41,7 @@ export class PluginAutoUpdate extends Disposable implements IWorkbenchContributi
 	private _updateInFlight = false;
 
 	constructor(
-		@IPluginMarketplaceService pluginMarketplaceService: IPluginMarketplaceService,
+		@IPluginMarketplaceService private readonly _pluginMarketplaceService: IPluginMarketplaceService,
 		@IPluginInstallService private readonly _pluginInstallService: IPluginInstallService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILogService private readonly _logService: ILogService,
@@ -42,7 +49,7 @@ export class PluginAutoUpdate extends Disposable implements IWorkbenchContributi
 		super();
 
 		this._register(autorun(reader => {
-			if (!pluginMarketplaceService.hasUpdatesAvailable.read(reader)) {
+			if (!this._pluginMarketplaceService.hasUpdatesAvailable.read(reader)) {
 				return;
 			}
 			void this._triggerAutoUpdate();
@@ -55,7 +62,7 @@ export class PluginAutoUpdate extends Disposable implements IWorkbenchContributi
 		}
 
 		const autoUpdate = this._configurationService.getValue<AutoUpdateConfigurationValue>(AutoUpdateConfigurationKey);
-		if (autoUpdate === false) {
+		if (autoUpdate !== true) {
 			return;
 		}
 
@@ -66,6 +73,10 @@ export class PluginAutoUpdate extends Disposable implements IWorkbenchContributi
 			this._logService.error('[PluginAutoUpdate] Failed to auto-update plugins:', err);
 		} finally {
 			this._updateInFlight = false;
+			// Ensure the flag is cleared even on partial failure so the next
+			// periodic check can re-arm the autorun via a `false → true`
+			// transition.
+			this._pluginMarketplaceService.clearUpdatesAvailable();
 		}
 	}
 }
