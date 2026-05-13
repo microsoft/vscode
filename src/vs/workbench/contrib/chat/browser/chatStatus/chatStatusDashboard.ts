@@ -137,14 +137,14 @@ export class ChatStatusDashboard extends DomWidget {
 		const { chat, premiumChat, completions } = this.chatEntitlementService.quotas;
 		const hasQuotas = !!(chat || premiumChat);
 		const isAnonymousWithSentiment = this.chatEntitlementService.anonymous && this.chatEntitlementService.sentiment.completed;
-		const isPremiumChatLimitReached = premiumChat?.percentRemaining === 0 && !(this.chatEntitlementService.quotas.additionalUsageEnabled ?? false);
-		const isPremiumChatAtZero = premiumChat?.percentRemaining === 0;
+		const isPremiumChatLimitReached = premiumChat?.unlimited && premiumChat.hasQuota === false && !(this.chatEntitlementService.quotas.additionalUsageEnabled ?? false);
+		const isPremiumChatPoolExhaustedOrOverage = premiumChat?.unlimited && premiumChat.hasQuota === false;
 		const hasUsageSection = hasQuotas || isAnonymousWithSentiment;
 		const hasVisibleUsageContent = chat?.unlimited === false ||
 			premiumChat?.unlimited === false ||
 			(!this.options?.compactQuotaLayout && completions?.unlimited === false) ||
 			isAnonymousWithSentiment ||
-			isPremiumChatAtZero;
+			isPremiumChatPoolExhaustedOrOverage;
 		const contributedEntries = [...this.chatStatusItemService.getEntries()];
 		const hasQuickSettingsContent =
 			!this.options?.disableInlineSuggestionsSettings ||
@@ -805,9 +805,9 @@ export class ChatStatusDashboard extends DomWidget {
 			if (quotas.completions && !quotas.completions.unlimited) { allQuotas.push(quotas.completions); }
 
 			const maxUsedPercentage = allQuotas.length > 0 ? Math.max(...allQuotas.map(q => Math.max(0, 100 - q.percentRemaining))) : 0;
-			const isPooledAtZero = quotas.premiumChat?.percentRemaining === 0;
+			const isPooledExhausted = quotas.premiumChat?.unlimited && quotas.premiumChat.hasQuota === false;
 
-			if ((maxUsedPercentage >= 100 || isPooledAtZero) && additionalUsageEnabled) {
+			if ((maxUsedPercentage >= 100 || isPooledExhausted) && additionalUsageEnabled) {
 				quotaCallout.style.display = '';
 				quotaCallout.className = 'quota-callout info';
 				calloutIcon.className = `callout-icon ${ThemeIcon.asClassName(Codicon.info)}`;
@@ -821,7 +821,7 @@ export class ChatStatusDashboard extends DomWidget {
 				calloutText.textContent = isUsageBasedBilling
 					? localize('quotaAdditionalUsageApproaching', "Once the limit is reached, additional budget will be used.")
 					: localize('quotaBudgetApproaching', "Once the limit is reached, premium request budget will be used.");
-			} else if ((maxUsedPercentage >= 100 || isPooledAtZero) && !additionalUsageEnabled) {
+			} else if ((maxUsedPercentage >= 100 || isPooledExhausted) && !additionalUsageEnabled) {
 				quotaCallout.style.display = '';
 				quotaCallout.className = 'quota-callout info';
 				calloutIcon.className = `callout-icon ${ThemeIcon.asClassName(Codicon.info)}`;

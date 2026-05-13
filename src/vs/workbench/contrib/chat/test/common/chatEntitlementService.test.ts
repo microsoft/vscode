@@ -129,6 +129,7 @@ suite('parseQuotas', () => {
 			chat: {
 				percentRemaining: 100,
 				unlimited: true,
+				hasQuota: undefined,
 				usageBasedBilling: true,
 				resetAt: undefined,
 				entitlement: 0,
@@ -136,6 +137,7 @@ suite('parseQuotas', () => {
 			completions: {
 				percentRemaining: 100,
 				unlimited: true,
+				hasQuota: undefined,
 				usageBasedBilling: true,
 				resetAt: undefined,
 				entitlement: 0,
@@ -143,6 +145,7 @@ suite('parseQuotas', () => {
 			premiumChat: {
 				percentRemaining: 97.4,
 				unlimited: false,
+				hasQuota: undefined,
 				usageBasedBilling: true,
 				resetAt: undefined,
 				entitlement: 3900,
@@ -309,7 +312,7 @@ suite('parseQuotas', () => {
 		assert.strictEqual(quotas.premiumChat, undefined);
 	});
 
-	test('pooled entitlements exhausted when premium_interactions is at 0% and overages are disabled', () => {
+	test('pooled entitlements exhausted when has_quota is false and overages are disabled', () => {
 		const data = makeEntitlementsData({
 			access_type_sku: 'copilot_enterprise_seat_multi_quota',
 			copilot_plan: 'enterprise',
@@ -343,11 +346,35 @@ suite('parseQuotas', () => {
 		});
 
 		const quotas = parseQuotas(data);
-		assert.strictEqual(quotas.premiumChat?.percentRemaining, 0);
+		assert.strictEqual(quotas.premiumChat?.hasQuota, false);
+		assert.strictEqual(quotas.premiumChat?.unlimited, true);
 		assert.strictEqual(quotas.additionalUsageEnabled, false);
 	});
 
-	test('pooled entitlements not exhausted when overages are enabled', () => {
+	test('pooled entitlements not exhausted when has_quota is true', () => {
+		const data = makeEntitlementsData({
+			access_type_sku: 'copilot_enterprise_seat_multi_quota',
+			copilot_plan: 'enterprise',
+			token_based_billing: true,
+			quota_snapshots: {
+				premium_interactions: {
+					overage_count: 0,
+					overage_permitted: false,
+					percent_remaining: 50,
+					unlimited: true,
+					entitlement: '0',
+					has_quota: true,
+				},
+			},
+		});
+
+		const quotas = parseQuotas(data);
+		assert.strictEqual(quotas.premiumChat?.hasQuota, true);
+		assert.strictEqual(quotas.premiumChat?.unlimited, true);
+		assert.strictEqual(quotas.additionalUsageEnabled, false);
+	});
+
+	test('pooled entitlements not exhausted when overages are enabled even if has_quota is false', () => {
 		const data = makeEntitlementsData({
 			access_type_sku: 'copilot_enterprise_seat_multi_quota',
 			copilot_plan: 'enterprise',
@@ -365,29 +392,7 @@ suite('parseQuotas', () => {
 		});
 
 		const quotas = parseQuotas(data);
-		assert.strictEqual(quotas.premiumChat?.percentRemaining, 0);
+		assert.strictEqual(quotas.premiumChat?.hasQuota, false);
 		assert.strictEqual(quotas.additionalUsageEnabled, true);
-	});
-
-	test('pooled entitlements not exhausted when premium_interactions has remaining quota', () => {
-		const data = makeEntitlementsData({
-			access_type_sku: 'copilot_enterprise_seat_multi_quota',
-			copilot_plan: 'enterprise',
-			token_based_billing: true,
-			quota_snapshots: {
-				premium_interactions: {
-					overage_count: 0,
-					overage_permitted: false,
-					percent_remaining: 50,
-					unlimited: true,
-					entitlement: '0',
-					has_quota: false,
-				},
-			},
-		});
-
-		const quotas = parseQuotas(data);
-		assert.strictEqual(quotas.premiumChat?.percentRemaining, 50);
-		assert.strictEqual(quotas.additionalUsageEnabled, false);
 	});
 });

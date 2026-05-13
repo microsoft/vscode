@@ -20,6 +20,7 @@ import { IChatStatusItemService } from '../../../chat/browser/chatStatus/chatSta
 interface IQuotaConfig {
 	percentRemaining: number;
 	unlimited: boolean;
+	hasQuota?: boolean;
 	usageBasedBilling?: boolean;
 	resetAt?: number;
 	entitlement?: number;
@@ -318,7 +319,7 @@ suite('ChatStatusDashboard', () => {
 
 	test('Business — pooled exhausted (no overages): shows exhausted indicator and callout', () => {
 		const dashboard = createDashboard(createEntitlementService({
-			premiumChat: { percentRemaining: 0, unlimited: true },
+			premiumChat: { percentRemaining: 0, unlimited: true, hasQuota: false },
 			completions: { percentRemaining: 100, unlimited: true },
 			additionalUsageEnabled: false,
 			entitlement: ChatEntitlement.Business,
@@ -332,7 +333,7 @@ suite('ChatStatusDashboard', () => {
 
 	test('Enterprise — pooled exhausted (no overages): shows exhausted indicator and enterprise callout', () => {
 		const dashboard = createDashboard(createEntitlementService({
-			premiumChat: { percentRemaining: 0, unlimited: true },
+			premiumChat: { percentRemaining: 0, unlimited: true, hasQuota: false },
 			completions: { percentRemaining: 100, unlimited: true },
 			additionalUsageEnabled: false,
 			entitlement: ChatEntitlement.Enterprise,
@@ -346,7 +347,7 @@ suite('ChatStatusDashboard', () => {
 
 	test('Enterprise — pooled exhausted TBB (no overages): shows Credits exhausted', () => {
 		const dashboard = createDashboard(createEntitlementService({
-			premiumChat: { percentRemaining: 0, unlimited: true, usageBasedBilling: true },
+			premiumChat: { percentRemaining: 0, unlimited: true, usageBasedBilling: true, hasQuota: false },
 			completions: { percentRemaining: 100, unlimited: true },
 			additionalUsageEnabled: false,
 			entitlement: ChatEntitlement.Enterprise,
@@ -357,9 +358,9 @@ suite('ChatStatusDashboard', () => {
 		assert.strictEqual(hasExhaustedClass(dashboard.element), true);
 	});
 
-	test('Enterprise — pooled at 0% but overages enabled: shows included with budget callout', () => {
+	test('Enterprise — pooled exhausted but overages enabled: shows included with budget callout', () => {
 		const dashboard = createDashboard(createEntitlementService({
-			premiumChat: { percentRemaining: 0, unlimited: true },
+			premiumChat: { percentRemaining: 0, unlimited: true, hasQuota: false },
 			completions: { percentRemaining: 100, unlimited: true },
 			additionalUsageEnabled: true,
 			entitlement: ChatEntitlement.Enterprise,
