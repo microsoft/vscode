@@ -27,7 +27,6 @@ export class BYOKContrib extends Disposable implements IExtensionContribution {
 	private readonly _byokStorageService: IBYOKStorageService;
 	private readonly _providers: Map<string, LanguageModelChatProvider<LanguageModelChatInformation>> = new Map();
 	private readonly _byokRegistrations = this._register(new DisposableStore());
-	private _providersBuilt = false;
 	private _registeredWithLM = false;
 
 	constructor(
@@ -39,22 +38,12 @@ export class BYOKContrib extends Disposable implements IExtensionContribution {
 	) {
 		super();
 		this._byokStorageService = new BYOKStorageService(extensionContext);
-		try {
-			this._buildProviders();
-		} catch (err) {
-			this._logService.error(err instanceof Error ? err : String(err), 'BYOK: Failed to build providers.');
-			return;
-		}
+		this._buildProviders();
 		this._applyPolicy();
 		this._register(this._authService.onDidAuthenticationChange(() => this._applyPolicy()));
 	}
 
 	private _buildProviders(): void {
-		if (this._providersBuilt) {
-			return;
-		}
-		this._providersBuilt = true;
-
 		const instantiationService = this._instantiationService;
 
 		const anthropic = instantiationService.createInstance(AnthropicLMProvider, undefined, this._byokStorageService);
