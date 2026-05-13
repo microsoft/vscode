@@ -137,14 +137,13 @@ export class ChatStatusDashboard extends DomWidget {
 		const { chat, premiumChat, completions } = this.chatEntitlementService.quotas;
 		const hasQuotas = !!(chat || premiumChat);
 		const isAnonymousWithSentiment = this.chatEntitlementService.anonymous && this.chatEntitlementService.sentiment.completed;
-		const isPremiumChatLimitReached = premiumChat?.unlimited && premiumChat.hasQuota === false && !(this.chatEntitlementService.quotas.additionalUsageEnabled ?? false);
-		const isPremiumChatPoolExhaustedOrOverage = premiumChat?.unlimited && premiumChat.hasQuota === false;
+		const isPooledQuotaDepleted = premiumChat?.unlimited && premiumChat.hasQuota === false;
 		const hasUsageSection = hasQuotas || isAnonymousWithSentiment;
 		const hasVisibleUsageContent = chat?.unlimited === false ||
 			premiumChat?.unlimited === false ||
 			(!this.options?.compactQuotaLayout && completions?.unlimited === false) ||
 			isAnonymousWithSentiment ||
-			isPremiumChatPoolExhaustedOrOverage;
+			isPooledQuotaDepleted;
 		const contributedEntries = [...this.chatStatusItemService.getEntries()];
 		const hasQuickSettingsContent =
 			!this.options?.disableInlineSuggestionsSettings ||
@@ -240,25 +239,22 @@ export class ChatStatusDashboard extends DomWidget {
 
 		// Premium chat included indicator (shown when premium chat is unlimited)
 		const hasPremiumUnlimited = !!premiumChat?.unlimited;
-		const isPooledExhausted = hasPremiumUnlimited && isPremiumChatLimitReached;
 		if (hasPremiumUnlimited) {
+			const showExhaustedPoolMessage = isPooledQuotaDepleted && !(this.chatEntitlementService.quotas.additionalUsageEnabled ?? false);
 			const includedTitle = this.chatEntitlementService.quotas.usageBasedBilling
 				? localize('includedTitleTBB', "Credits")
 				: localize('includedTitle', "Premium Requests");
 			const includedContainer = this.element.appendChild($('div.quota-indicator.included'));
-			if (isPooledExhausted) {
-				includedContainer.classList.add('exhausted');
-			}
 			if (this.options?.compactQuotaLayout) {
 				const planName = getChatPlanName(this.chatEntitlementService.entitlement);
 				includedContainer.classList.add('compact');
 				includedContainer.appendChild($('div.quota-title', undefined, planName));
-				includedContainer.appendChild($('div.description', undefined, isPooledExhausted
+				includedContainer.appendChild($('div.description', undefined, showExhaustedPoolMessage
 					? localize('premiumLimitReachedCompact', "{0} limit reached.", includedTitle)
 					: localize('premiumIncludedCompact', "{0} included with your organization's plan.", includedTitle)));
 			} else {
 				includedContainer.appendChild($('div.quota-title', undefined, includedTitle));
-				includedContainer.appendChild($('div.description', undefined, isPooledExhausted
+				includedContainer.appendChild($('div.description', undefined, showExhaustedPoolMessage
 					? localize('premiumLimitReached', "Organization limit reached.")
 					: localize('premiumIncluded', "Included with your organization's plan.")));
 			}

@@ -94,10 +94,6 @@ function getIncludedDescriptions(element: HTMLElement): string[] {
 	return Array.from(indicators).map(el => el.textContent ?? '');
 }
 
-function hasExhaustedClass(element: HTMLElement): boolean {
-	return element.querySelector('.quota-indicator.included.exhausted') !== null;
-}
-
 function getQuotaValues(element: HTMLElement): string[] {
 	const values = element.querySelectorAll('.quota-indicator:not(.included) .quota-value');
 	return Array.from(values).map(el => el.textContent ?? '');
@@ -314,7 +310,6 @@ suite('ChatStatusDashboard', () => {
 		assert.deepStrictEqual(getQuotaLabels(dashboard.element), []);
 		assert.deepStrictEqual(getIncludedLabels(dashboard.element), ['Premium Requests']);
 		assert.deepStrictEqual(getIncludedDescriptions(dashboard.element), ['Included with your organization\'s plan.']);
-		assert.strictEqual(hasExhaustedClass(dashboard.element), false);
 	});
 
 	test('Business — pooled exhausted (no overages): shows exhausted indicator and callout', () => {
@@ -327,7 +322,6 @@ suite('ChatStatusDashboard', () => {
 
 		assert.deepStrictEqual(getIncludedLabels(dashboard.element), ['Premium Requests']);
 		assert.deepStrictEqual(getIncludedDescriptions(dashboard.element), ['Organization limit reached.']);
-		assert.strictEqual(hasExhaustedClass(dashboard.element), true);
 		assert.strictEqual(getCalloutText(dashboard.element), 'Copilot is paused until the limit resets. Contact your administrator for more information.');
 	});
 
@@ -341,7 +335,6 @@ suite('ChatStatusDashboard', () => {
 
 		assert.deepStrictEqual(getIncludedLabels(dashboard.element), ['Premium Requests']);
 		assert.deepStrictEqual(getIncludedDescriptions(dashboard.element), ['Organization limit reached.']);
-		assert.strictEqual(hasExhaustedClass(dashboard.element), true);
 		assert.strictEqual(getCalloutText(dashboard.element), 'Copilot is paused until the limit resets. Contact your administrator for more information.');
 	});
 
@@ -355,7 +348,6 @@ suite('ChatStatusDashboard', () => {
 
 		assert.deepStrictEqual(getIncludedLabels(dashboard.element), ['Credits']);
 		assert.deepStrictEqual(getIncludedDescriptions(dashboard.element), ['Organization limit reached.']);
-		assert.strictEqual(hasExhaustedClass(dashboard.element), true);
 	});
 
 	test('Enterprise — pooled exhausted but overages enabled: shows included with budget callout', () => {
@@ -368,7 +360,6 @@ suite('ChatStatusDashboard', () => {
 
 		assert.deepStrictEqual(getIncludedLabels(dashboard.element), ['Premium Requests']);
 		assert.deepStrictEqual(getIncludedDescriptions(dashboard.element), ['Included with your organization\'s plan.']);
-		assert.strictEqual(hasExhaustedClass(dashboard.element), false);
 		assert.strictEqual(getCalloutText(dashboard.element), 'Premium request budget is configured. Usage will continue until limits reset.');
 	});
 

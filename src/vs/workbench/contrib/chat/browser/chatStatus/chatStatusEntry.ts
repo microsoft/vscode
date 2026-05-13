@@ -165,11 +165,10 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 				return this.getSetupEntryProps();
 			}
 		} else {
-			const chatQuotaExceeded = this.chatEntitlementService.quotas.chat?.percentRemaining === 0;
-			const completionsQuotaExceeded = this.chatEntitlementService.quotas.completions?.percentRemaining === 0;
-			const isPooledExhausted = this.chatEntitlementService.quotas.premiumChat?.unlimited
-				&& this.chatEntitlementService.quotas.premiumChat.hasQuota === false
-				&& !(this.chatEntitlementService.quotas.additionalUsageEnabled ?? false);
+			const quotas = this.chatEntitlementService.quotas;
+			const chatQuotaExceeded = quotas.chat?.percentRemaining === 0;
+			const completionsQuotaExceeded = quotas.completions?.percentRemaining === 0;
+			const isPooledQuotaDepleted = quotas.premiumChat?.unlimited && quotas.premiumChat.hasQuota === false && !(quotas.additionalUsageEnabled ?? false);
 
 			// Disabled
 			if (this.chatEntitlementService.sentiment.disabled || this.chatEntitlementService.sentiment.untrusted) {
@@ -209,7 +208,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 			}
 
 			// Pooled Entitlement Exhausted (Business/Enterprise)
-			else if ((this.chatEntitlementService.entitlement === ChatEntitlement.Business || this.chatEntitlementService.entitlement === ChatEntitlement.Enterprise) && isPooledExhausted) {
+			else if ((this.chatEntitlementService.entitlement === ChatEntitlement.Business || this.chatEntitlementService.entitlement === ChatEntitlement.Enterprise) && isPooledQuotaDepleted) {
 				const quotaWarning = localize('chatAndCompletionsQuotaExceededStatus', "Quota reached");
 				text = `$(copilot-warning) ${quotaWarning}`;
 				ariaLabel = quotaWarning;
