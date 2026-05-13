@@ -31,7 +31,7 @@ import { ChatEntitlement, ChatEntitlementService, IChatEntitlementService } from
 import { getAccountTitleBarState, getAccountProfileImageUrl, getAccountTitleBarBadgeKey, resolveAccountInfo } from '../../accountTitleBarState.js';
 import { IChatDashboardService } from '../../chatDashboardService.js';
 import { basename } from '../../../../base/common/resources.js';
-import { IFileDiffViewData, MOBILE_OPEN_DIFF_VIEW_COMMAND_ID } from './contributions/mobileDiffView.js';
+import { IFileDiffViewData, IMobileDiffViewData, MOBILE_OPEN_DIFF_VIEW_COMMAND_ID } from './contributions/mobileDiffView.js';
 
 /**
  * Mobile titlebar — prepended above the workbench grid on phone viewports
@@ -100,6 +100,7 @@ export class MobileTitlebarPart extends Disposable {
 	// Changes pill state — kept here so the click handler can read the
 	// latest set without re-deriving it on each tap.
 	private latestChanges: readonly ISessionFileChange[] = [];
+	private latestActiveSessionResource: URI | undefined;
 
 	constructor(
 		parent: HTMLElement,
@@ -232,6 +233,7 @@ export class MobileTitlebarPart extends Disposable {
 		this._register(autorun(reader => {
 			const session = this.sessionsManagementService.activeSession.read(reader);
 			this.latestChanges = session?.changes.read(reader) ?? [];
+			this.latestActiveSessionResource = session?.resource;
 			renderChangesPill();
 		}));
 
@@ -332,7 +334,11 @@ export class MobileTitlebarPart extends Disposable {
 		store.add(picker.onDidAccept(() => {
 			const selected = picker.selectedItems[0];
 			if (selected) {
-				this.commandService.executeCommand(MOBILE_OPEN_DIFF_VIEW_COMMAND_ID, selected.diff);
+				const arg: IMobileDiffViewData = {
+					diff: selected.diff,
+					sessionResource: this.latestActiveSessionResource,
+				};
+				this.commandService.executeCommand(MOBILE_OPEN_DIFF_VIEW_COMMAND_ID, arg);
 			}
 			picker.hide();
 		}));

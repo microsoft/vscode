@@ -14,6 +14,7 @@ import { ITextFileService } from '../../../../../workbench/services/textfile/com
 import { URI } from '../../../../../base/common/uri.js';
 import { basename } from '../../../../../base/common/resources.js';
 import { linesDiffComputers } from '../../../../../editor/common/diff/linesDiffComputers.js';
+import { showMobileFeedbackComposerSheet } from './mobileFeedbackComposerSheet.js';
 
 const $ = DOM.$;
 
@@ -42,10 +43,43 @@ export interface IFileDiffViewData {
 }
 
 /**
+ * Minimal callback contract used by {@link MobileDiffView} to record an
+ * agent feedback comment authored from the diff view's bottom action bar.
+ *
+ * Defined locally to avoid importing the full `IAgentFeedbackService`
+ * interface from `vs/sessions/contrib` into `vs/sessions/browser`. The
+ * `vs/sessions/contrib/sessions/browser/mobile/mobileOverlayContribution`
+ * binds an `IAgentFeedbackService.addFeedback` adaptor here when running
+ * the full sessions workbench.
+ */
+export interface IMobileDiffFeedbackHandler {
+	/**
+	 * Author a file-wide feedback comment for the given session/resource
+	 * pair. Implementers are expected to forward the call to
+	 * `IAgentFeedbackService.addFeedback`.
+	 *
+	 * @param sessionResource The session that owns the diff.
+	 * @param resourceUri The modified resource the comment is anchored to.
+	 * @param text The trimmed comment text (non-empty).
+	 * @param diffHunks Optional rendered unified-diff string for the file
+	 * (used as feedback context for the agent).
+	 */
+	addFileFeedback(sessionResource: URI, resourceUri: URI, text: string, diffHunks: string | undefined): void;
+}
+
+/**
  * Data passed to {@link MobileDiffView} when opening a diff view.
  */
 export interface IMobileDiffViewData {
 	readonly diff: IFileDiffViewData;
+	/**
+	 * The session this diff belongs to. When provided together with an
+	 * {@link IMobileDiffFeedbackHandler}, the diff view shows a sticky
+	 * bottom action bar with a "Comment" button that opens a composer
+	 * sheet and records the comment as agent feedback for this session.
+	 * Without it, the action bar is hidden.
+	 */
+	readonly sessionResource?: URI;
 }
 
 /**
@@ -65,18 +99,20 @@ export class MobileDiffView extends Disposable {
 
 	private readonly viewStore = this._register(new DisposableStore());
 	private disposed = false;
+	private allHunks: IDiffHunk[] = [];
 
 	constructor(
-		workbenchContainer: HTMLElement,
+		private readonly workbenchContainer: HTMLElement,
 		data: IMobileDiffViewData,
 		private readonly textFileService: ITextFileService,
+		private readonly feedbackHandler: IMobileDiffFeedbackHandler | undefined,
 	) {
 		super();
 		this.render(workbenchContainer, data);
 	}
 
 	private render(workbenchContainer: HTMLElement, data: IMobileDiffViewData): void {
-		const { diff } = data;
+		const { diff, sessionResource } = data;
 		const fileName = basename(diff.modifiedURI);
 
 		// -- Root overlay -----------------------------------------
@@ -116,6 +152,48 @@ export class MobileDiffView extends Disposable {
 		const contentArea = DOM.append(scrollWrapper, $('div.mobile-diff-output'));
 
 		this.loadDiffContent(contentArea, diff);
+
+		// -- Bottom action bar (only when scoped to a session and the
+		//    feedback handler is available — i.e. on web/desktop sessions
+		//    workbench, not in stripped-down test contexts). ------------
+		if (sessionResource && this.feedbackHandler) {
+			this.renderActionBar(overlay, sessionResource, diff);
+		}
+	}
+
+	private renderActionBar(overlay: HTMLElement, sessionResource: URI, diff: IFileDiffViewData): void {
+		const actions = DOM.append(overlay, $('div.mobile-diff-actions'));
+
+		const commentBtn = DOM.append(actions, $('button.mobile-diff-action-btn', { type: 'button' })) as HTMLButtonElement;
+		commentBtn.setAttribute('aria-label', localize('diffView.comment', "Comment"));
+		DOM.append(commentBtn, $('span')).classList.add(...ThemeIcon.asClassNameArray(Codicon.comment));
+		DOM.append(commentBtn, $('span')).textContent = localize('diffView.commentLabel', "Comment");
+
+		const open = () => this.openCommentComposer(sessionResource, diff);
+		this.viewStore.add(Gesture.addTarget(commentBtn));
+		this.viewStore.add(DOM.addDisposableListener(commentBtn, DOM.EventType.CLICK, e => {
+			e.preventDefault();
+			open();
+		}));
+		this.viewStore.add(DOM.addDisposableListener(commentBtn, TouchEventType.Tap, () => open()));
+	}
+
+	private async openCommentComposer(sessionResource: URI, diff: IFileDiffViewData): Promise<void> {
+		if (!this.feedbackHandler) {
+			return;
+		}
+		const fileName = basename(diff.modifiedURI);
+		const text = await showMobileFeedbackComposerSheet(this.workbenchContainer, {
+			title: localize('feedbackComposer.titleForFile', "Comment on {0}", fileName),
+			placeholder: localize('feedbackComposer.placeholder', "Add a comment for the agent…"),
+			sendLabel: localize('feedbackComposer.send', "Send"),
+		});
+		if (this.disposed || !text) {
+			return;
+		}
+
+		const diffHunksText = this.allHunks.length > 0 ? renderHunksAsUnifiedDiff(this.allHunks) : undefined;
+		this.feedbackHandler.addFileFeedback(sessionResource, diff.modifiedURI, text, diffHunksText);
 	}
 
 	private loadDiffContent(container: HTMLElement, diff: IFileDiffViewData): void {
@@ -139,6 +217,7 @@ export class MobileDiffView extends Disposable {
 			}
 			DOM.clearNode(container);
 			const hunks = computeUnifiedDiff(originalText, modifiedText);
+			this.allHunks = hunks;
 			if (hunks.length === 0) {
 				const empty = DOM.append(container, $('div.mobile-diff-empty-state'));
 				empty.textContent = localize('diffView.noChanges', "No changes in this file.");
@@ -277,6 +356,25 @@ export function openMobileDiffView(
 	workbenchContainer: HTMLElement,
 	data: IMobileDiffViewData,
 	textFileService: ITextFileService,
+	feedbackHandler?: IMobileDiffFeedbackHandler,
 ): MobileDiffView {
-	return new MobileDiffView(workbenchContainer, data, textFileService);
+	return new MobileDiffView(workbenchContainer, data, textFileService, feedbackHandler);
+}
+
+/**
+ * Format an array of {@link IDiffHunk} as a unified-diff string. Used as
+ * the `diffHunks` field on agent feedback context, giving the agent the
+ * surrounding context for a file-wide mobile comment (analogous to the
+ * desktop selection-scoped hunks).
+ */
+function renderHunksAsUnifiedDiff(hunks: IDiffHunk[]): string {
+	const out: string[] = [];
+	for (const hunk of hunks) {
+		out.push(hunk.header);
+		for (const line of hunk.lines) {
+			const prefix = line.type === 'added' ? '+' : line.type === 'removed' ? '-' : ' ';
+			out.push(`${prefix}${line.text}`);
+		}
+	}
+	return out.join('\n');
 }

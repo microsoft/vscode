@@ -44,6 +44,7 @@ Two registrations can target the same slot with opposite `when` clauses, pointin
 | Code review toolbar | ❌ Gated | `when: !sessionsIsPhoneLayout` on menu item |
 | Customizations toolbar | ❌ Hidden | CSS `display: none` on phone |
 | Titlebar | ❌ Hidden | Grid `visible: false` + CSS + MobileTitlebarPart replacement |
+| Agent feedback (compose) | ✅ Phone-specific UX | Bottom action bar in `MobileDiffView` opens `MobileFeedbackComposerSheet` (file-level comment); chat-input attachment chip is shared with desktop |
 
 ### Phone Layout
 

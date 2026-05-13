@@ -291,3 +291,197 @@
 	padding: 32px;
 	text-align: center;
 }
+
+/* -- Diff bottom action bar (phone-only) -------------------------------------------------- */
+/* Sticky bar above the safe-area inset on mobile diff views. Hosts the
+ * "Comment" button per the design mock — single primary surface-styled
+ * button at the bottom of the screen. Hidden when no session resource is
+ * available (i.e. the diff was opened without a session context). */
+
+.mobile-diff-actions {
+	display: flex;
+	gap: 8px;
+	padding: 12px 12px;
+	padding-bottom: calc(12px + env(safe-area-inset-bottom));
+	background: var(--vscode-editor-background);
+	border-top: 1px solid var(--vscode-panel-border, var(--vscode-editorWidget-border, transparent));
+	flex-shrink: 0;
+}
+
+.mobile-diff-action-btn {
+	flex: 1;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 6px;
+	height: 44px;
+	border-radius: 12px;
+	border: 1px solid var(--vscode-widget-border, color-mix(in srgb, var(--vscode-foreground) 15%, transparent));
+	background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+	color: var(--vscode-foreground);
+	font-family: inherit;
+	font-size: 14px;
+	font-weight: 600;
+	cursor: pointer;
+	touch-action: manipulation;
+	-webkit-tap-highlight-color: transparent;
+}
+
+.mobile-diff-action-btn:active {
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
+.mobile-diff-action-btn .codicon {
+	font-size: 16px;
+}
+
+/* -- Mobile feedback composer bottom sheet ------------------------------------------------ */
+/* Slide-up sheet for composing a feedback comment from the diff view. */
+
+.mobile-feedback-composer-sheet-overlay {
+	position: fixed;
+	inset: 0;
+	z-index: 1100;
+	pointer-events: auto;
+}
+
+.mobile-feedback-composer-sheet-backdrop {
+	position: absolute;
+	inset: 0;
+	background: rgba(0, 0, 0, 0.45);
+	opacity: 1;
+	transition: opacity 0.18s ease;
+}
+
+.mobile-feedback-composer-sheet-backdrop.closing {
+	opacity: 0;
+}
+
+.mobile-feedback-composer-sheet {
+	position: absolute;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	max-height: 80%;
+	background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+	color: var(--vscode-foreground);
+	border-top-left-radius: 16px;
+	border-top-right-radius: 16px;
+	box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.3);
+	display: flex;
+	flex-direction: column;
+	transform: translateY(0);
+	transition: transform 0.18s ease;
+	padding-bottom: env(safe-area-inset-bottom);
+}
+
+.mobile-feedback-composer-sheet.closing {
+	transform: translateY(100%);
+}
+
+.mobile-feedback-composer-sheet-handle {
+	align-self: center;
+	width: 40px;
+	height: 4px;
+	border-radius: 2px;
+	background: color-mix(in srgb, var(--vscode-foreground) 25%, transparent);
+	margin: 8px 0 4px;
+	flex-shrink: 0;
+}
+
+.mobile-feedback-composer-sheet-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 8px 16px 4px;
+	flex-shrink: 0;
+}
+
+.mobile-feedback-composer-sheet-title {
+	font-size: 15px;
+	font-weight: 600;
+	color: var(--vscode-foreground);
+}
+
+.mobile-feedback-composer-sheet-close {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 32px;
+	height: 32px;
+	border: none;
+	background: transparent;
+	color: var(--vscode-foreground);
+	cursor: pointer;
+	border-radius: 16px;
+	touch-action: manipulation;
+}
+
+.mobile-feedback-composer-sheet-close:active {
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
+.mobile-feedback-composer-sheet-description {
+	padding: 0 16px 8px;
+	font-size: 12.5px;
+	color: var(--vscode-descriptionForeground);
+	line-height: 1.4;
+}
+
+.mobile-feedback-composer-sheet-textarea {
+	margin: 4px 16px 8px;
+	min-height: 96px;
+	max-height: 240px;
+	padding: 10px 12px;
+	border-radius: 10px;
+	border: 1px solid var(--vscode-input-border, var(--vscode-widget-border, transparent));
+	background: var(--vscode-input-background, var(--vscode-editor-background));
+	color: var(--vscode-input-foreground, var(--vscode-foreground));
+	font-family: inherit;
+	font-size: 14px;
+	line-height: 1.45;
+	resize: none;
+	outline: none;
+	box-sizing: border-box;
+}
+
+.mobile-feedback-composer-sheet-textarea:focus {
+	border-color: var(--vscode-focusBorder, var(--vscode-input-border));
+}
+
+.mobile-feedback-composer-sheet-footer {
+	display: flex;
+	justify-content: flex-end;
+	padding: 4px 16px 16px;
+	flex-shrink: 0;
+}
+
+.mobile-feedback-composer-sheet-send {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	height: 40px;
+	padding: 0 18px;
+	border-radius: 10px;
+	border: none;
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+	font-family: inherit;
+	font-size: 14px;
+	font-weight: 600;
+	cursor: pointer;
+	touch-action: manipulation;
+}
+
+.mobile-feedback-composer-sheet-send:not(:disabled):active {
+	background: var(--vscode-button-hoverBackground, var(--vscode-button-background));
+}
+
+.mobile-feedback-composer-sheet-send:disabled {
+	opacity: 0.5;
+	cursor: default;
+}
+
+.mobile-feedback-composer-sheet-send .codicon {
+	font-size: 14px;
+}
