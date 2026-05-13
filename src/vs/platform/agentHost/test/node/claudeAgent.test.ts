@@ -22,7 +22,7 @@ import {
 	makeThinkingDelta,
 } from './claudeMapSessionEventsTestUtils.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
-import { Emitter, Event } from '../../../../base/common/event.js';
+import { Event } from '../../../../base/common/event.js';
 import type { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { isUUID } from '../../../../base/common/uuid.js';
@@ -2725,14 +2725,19 @@ suite('ClaudeAgentSession (Phase 7 §3.2)', () => {
 		// loop unwinds and the subprocess shuts down cleanly.
 		const sdk = new FakeClaudeAgentSdkService();
 		const warm = new FakeWarmQuery(sdk);
-		const session = disposables.add(new ClaudeAgentSession(
+		const services = new ServiceCollection(
+			[ILogService, new NullLogService()],
+		);
+		const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
+		const dbRef = { object: new TestSessionDatabase(), dispose: () => { } };
+		const session = disposables.add(instantiationService.createInstance(
+			ClaudeAgentSession,
 			'session-id',
 			URI.parse('claude:/session-id'),
 			undefined,
 			warm,
 			new AbortController(),
-			disposables.add(new Emitter<AgentSignal>()),
-			new NullLogService(),
+			dbRef,
 		));
 
 		const permission = session.requestPermission({
@@ -2912,7 +2917,7 @@ suite('ClaudeAgent (Phase 7 §3.4 — _handleCanUseTool)', () => {
 		// with `deny` and clears the entry.
 		const { ctx, canUseTool, sessionUri } = await materialize();
 
-		const session = ctx.agent['_sessions'].get(AgentSession.id(sessionUri));
+		const session = ctx.agent['_sessions'].get(AgentSession.id(sessionUri))?.session;
 		assert.ok(session, 'session is materialized');
 
 		const ac = new AbortController();
@@ -3304,4 +3309,41 @@ suite('ClaudeAgent (Phase 7 §3.7 — onElicitation cancel stub)', () => {
 		});
 	});
 });
+
+suite('ClaudeAgent (Phase 8 — file edit tracking via SDK message stream)', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	async function materialize(): Promise<{ ctx: ITestContext; sessionId: string; sessionUri: URI }> {
+		const ctx = createTestContext(disposables);
+		await ctx.agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await ctx.agent.createSession({ workingDirectory: URI.file('/work') });
+		const sessionId = AgentSession.id(created.session);
+		ctx.sdk.nextQueryMessages = [makeSystemInitMessage(sessionId), makeResultSuccess(sessionId)];
+		await ctx.agent.sendMessage(created.session, 'hi', undefined, 'turn-1');
+		return { ctx, sessionId, sessionUri: created.session };
+	}
+
+	test('Options carries enableFileCheckpointing on and no SDK hooks (file-edit tracking is observed off the message stream, not via user-bypassable hooks)', async () => {
+		// Phase 8 refactor. Pins the Options shape that
+		// `_materializeProvisional` ships to the SDK: file checkpointing
+		// must be on (a startup option, not user-bypassable), and
+		// `Options.hooks` must be absent — file-edit tracking is wired
+		// through `ClaudeAgentSession._observeAssistantMessage` /
+		// `_observeUserMessage` in the message-pump loop. Hooks were
+		// rejected because they can be disabled via the user's settings,
+		// which would silently break the diff/checkpoint UX.
+		const { ctx } = await materialize();
+		const opts = ctx.sdk.capturedStartupOptions[0];
+		assert.ok(opts, 'Options captured');
+
+		assert.deepStrictEqual({
+			enableFileCheckpointing: opts.enableFileCheckpointing,
+			hooks: opts.hooks,
+		}, {
+			enableFileCheckpointing: true,
+			hooks: undefined,
+		});
+	});
+});
+
 

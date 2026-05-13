@@ -172,6 +172,7 @@ export interface IChatEntitlementService {
 
 	readonly onDidChangeQuotaExceeded: Event<void>;
 	readonly onDidChangeQuotaRemaining: Event<void>;
+	readonly onDidChangeUsageBasedBilling: Event<void>;
 
 	readonly quotas: IQuotas;
 
@@ -330,6 +331,8 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 
 	declare _serviceBrand: undefined;
 
+	private static readonly CACHED_UBB_STORAGE_KEY = 'chat.usageBasedBilling';
+
 	readonly context: Lazy<ChatEntitlementContext> | undefined;
 	readonly requests: Lazy<ChatEntitlementRequests> | undefined;
 
@@ -341,8 +344,12 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILogService private readonly logService: ILogService,
+		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super();
+
+		const cachedUBB = this.storageService.getBoolean(ChatEntitlementService.CACHED_UBB_STORAGE_KEY, StorageScope.PROFILE);
+		this._quotas = cachedUBB !== undefined ? { usageBasedBilling: cachedUBB } : {};
 
 		this.chatQuotaExceededContextKey = ChatEntitlementContextKeys.chatQuotaExceeded.bindTo(this.contextKeyService);
 		this.completionsQuotaExceededContextKey = ChatEntitlementContextKeys.completionsQuotaExceeded.bindTo(this.contextKeyService);
@@ -466,7 +473,10 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 	private readonly _onDidChangeQuotaRemaining = this._register(new Emitter<void>());
 	readonly onDidChangeQuotaRemaining = this._onDidChangeQuotaRemaining.event;
 
-	private _quotas: IQuotas = {};
+	private readonly _onDidChangeUsageBasedBilling = this._register(new Emitter<void>());
+	readonly onDidChangeUsageBasedBilling = this._onDidChangeUsageBasedBilling.event;
+
+	private _quotas: IQuotas;
 	get quotas() { return this._quotas; }
 
 	private readonly chatQuotaExceededContextKey: IContextKey<boolean>;
@@ -522,6 +532,14 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 		this._quotas = quotas;
 		this.updateContextKeys();
 
+		if (oldQuota.usageBasedBilling !== quotas.usageBasedBilling) {
+			if (quotas.usageBasedBilling !== undefined) {
+				this.storageService.store(ChatEntitlementService.CACHED_UBB_STORAGE_KEY, quotas.usageBasedBilling, StorageScope.PROFILE, StorageTarget.MACHINE);
+			} else {
+				this.storageService.remove(ChatEntitlementService.CACHED_UBB_STORAGE_KEY, StorageScope.PROFILE);
+			}
+		}
+
 		if (this.logService.getLevel() === LogLevel.Trace) {
 			this.logService.trace(`[chat entitlement]: acceptQuotas: ${JSON.stringify(quotas)}`);
 		}
@@ -536,6 +554,10 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 
 		if (chatChanged.remaining || completionsChanged.remaining || premiumChatChanged.remaining || oldQuota.usageBasedBilling !== quotas.usageBasedBilling) {
 			this._onDidChangeQuotaRemaining.fire();
+		}
+
+		if (oldQuota.usageBasedBilling !== quotas.usageBasedBilling) {
+			this._onDidChangeUsageBasedBilling.fire();
 		}
 
 		// Track additional spend configuration changes (only when both values come from server snapshots)

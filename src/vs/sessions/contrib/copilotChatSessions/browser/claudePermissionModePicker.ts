@@ -8,16 +8,23 @@ import { Gesture, EventType as TouchEventType } from '../../../../base/browser/t
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { IObservable } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem, IActionListOptions } from '../../../../platform/actionWidget/browser/actionList.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { CopilotChatSessionsProvider } from './copilotChatSessionsProvider.js';
+import { reportNewChatPickerClosed } from '../../chat/browser/newChatPickerTelemetry.js';
 import { IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 
 const PERMISSION_MODE_OPTION_ID = 'permissionMode';
+const ALLOW_AUTO_PERMISSIONS_SETTING = 'github.copilot.chat.claudeAgent.allowAutoPermissions';
 
 interface IClaudePermissionModeItem {
 	readonly id: string;
@@ -47,9 +54,17 @@ const permissionModes: IClaudePermissionModeItem[] = [
 	},
 ];
 
+const autoPermissionMode: IClaudePermissionModeItem = {
+	id: 'auto',
+	label: localize('claude.permissionMode.auto', "Auto"),
+	description: localize('claude.permissionMode.auto.description', "A model classifier approves or denies tool operations automatically"),
+	icon: Codicon.sparkle,
+};
+
 export class ClaudePermissionModePicker extends Disposable {
 
 	private _currentModeId = 'acceptEdits';
+	private readonly _autoPermissionsEnabled: IObservable<boolean>;
 	private _triggerElement: HTMLElement | undefined;
 	private readonly _renderDisposables = this._register(new DisposableStore());
 
@@ -58,14 +73,18 @@ export class ClaudePermissionModePicker extends Disposable {
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
+		this._autoPermissionsEnabled = observableConfigValue<boolean>(ALLOW_AUTO_PERMISSIONS_SETTING, false, configurationService);
 	}
 
 	render(container: HTMLElement): HTMLElement {
 		this._renderDisposables.clear();
 
-		const slot = dom.append(container, dom.$('.sessions-chat-picker-slot'));
+		const slot = dom.append(container, dom.$('.sessions-chat-picker-slot.sessions-chat-permission-picker'));
 		this._renderDisposables.add({ dispose: () => slot.remove() });
 
 		const trigger = dom.append(slot, dom.$('a.action-label'));
@@ -98,7 +117,9 @@ export class ClaudePermissionModePicker extends Disposable {
 			return;
 		}
 
-		const items: IActionListItem<IClaudePermissionModeItem>[] = permissionModes.map(mode => ({
+		const autoAvailable = this._autoPermissionsEnabled.get() && !this.chatEntitlementService.previewFeaturesDisabled;
+		const availableModes = autoAvailable ? [...permissionModes, autoPermissionMode] : permissionModes;
+		const items: IActionListItem<IClaudePermissionModeItem>[] = availableModes.map(mode => ({
 			kind: ActionListItemKind.Action,
 			group: { kind: ActionListItemKind.Header, title: '', icon: mode.icon },
 			item: mode,
@@ -133,6 +154,18 @@ export class ClaudePermissionModePicker extends Disposable {
 	}
 
 	private _selectMode(mode: IClaudePermissionModeItem): void {
+		const beforeId = this._currentModeId;
+		const beforeLabel = [...permissionModes, autoPermissionMode].find(m => m.id === beforeId)?.label;
+		reportNewChatPickerClosed(this.telemetryService, {
+			id: 'NewChatClaudePermissionModePicker',
+			name: 'NewChatClaudePermissionModePicker',
+			optionIdBefore: beforeId,
+			optionIdAfter: mode.id,
+			optionLabelBefore: beforeLabel,
+			optionLabelAfter: mode.label,
+			isPII: false,
+		});
+
 		this._currentModeId = mode.id;
 		this._updateTriggerLabel(this._triggerElement);
 
@@ -161,7 +194,7 @@ export class ClaudePermissionModePicker extends Disposable {
 		}
 
 		dom.clearNode(trigger);
-		const currentMode = permissionModes.find(m => m.id === this._currentModeId) ?? permissionModes[1];
+		const currentMode = [...permissionModes, autoPermissionMode].find(m => m.id === this._currentModeId) ?? permissionModes[1];
 
 		dom.append(trigger, renderIcon(currentMode.icon));
 		const labelSpan = dom.append(trigger, dom.$('span.sessions-chat-dropdown-label'));

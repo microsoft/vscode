@@ -11,13 +11,17 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { CLAUDE_CODE_SESSION_TYPE, COPILOT_CLI_SESSION_TYPE } from '../../../../services/sessions/common/session.js';
+import { SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { getAvailableModels, modelPickerStorageKey, SessionModelPicker } from '../../browser/copilotChatSessionsActions.js';
+import { CopilotCLISessionType } from '../../../agentHost/browser/baseAgentHostSessionsProvider.js';
+import { ClaudeCodeSessionType } from '../../browser/copilotChatSessionsProvider.js';
 
 function makeModel(id: string, sessionType: string): ILanguageModelChatMetadataAndIdentifier {
 	return {
@@ -26,11 +30,24 @@ function makeModel(id: string, sessionType: string): ILanguageModelChatMetadataA
 	};
 }
 
+function makeActiveSession(session: Partial<IActiveSession>): IActiveSession {
+	const sessionId = session.sessionId ?? 'sess-1';
+	return {
+		providerId: session.providerId ?? 'default-copilot',
+		sessionId,
+		sessionType: session.sessionType ?? CopilotCLISessionType.id,
+		modelId: session.modelId ?? observableValue<string | undefined>(`modelId-${sessionId}`, undefined),
+		status: session.status ?? observableValue<SessionStatus>(`status-${sessionId}`, SessionStatus.Untitled),
+		...session,
+	} as IActiveSession;
+}
+
 function stubServices(
 	disposables: DisposableStore,
 	opts?: {
 		models?: ILanguageModelChatMetadataAndIdentifier[];
 		activeSession?: Partial<IActiveSession>;
+		resolvedVendors?: Set<string>;
 		storedEntries?: Map<string, string>;
 		setModelSpy?: (sessionId: string, modelId: string) => void;
 	},
@@ -40,7 +57,7 @@ function stubServices(
 	const storage = opts?.storedEntries ?? new Map<string, string>();
 
 	const activeSession = opts?.activeSession
-		? observableValue<IActiveSession | undefined>('activeSession', opts.activeSession as IActiveSession)
+		? observableValue<IActiveSession | undefined>('activeSession', makeActiveSession(opts.activeSession))
 		: observableValue<IActiveSession | undefined>('activeSession', undefined);
 
 	const setModelSpy = opts?.setModelSpy ?? (() => { });
@@ -51,6 +68,7 @@ function stubServices(
 		onDidChangeLanguageModels: onDidChangeLanguageModelsEmitter.event,
 		getLanguageModelIds: () => models.map(m => m.identifier),
 		lookupLanguageModel: (id: string) => models.find(m => m.identifier === id)?.metadata,
+		hasResolvedVendor: (vendor: string) => opts?.resolvedVendors?.has(vendor) ?? false,
 	} as Partial<ILanguageModelsService>);
 
 	instantiationService.stub(IStorageService, {
@@ -78,8 +96,11 @@ function stubServices(
 	instantiationService.stub(IChatEntitlementService, {
 		quotas: {},
 		onDidChangeQuotaRemaining: Event.None,
+		onDidChangeUsageBasedBilling: Event.None,
 		onDidChangeEntitlement: Event.None,
 	} as Partial<IChatEntitlementService>);
+
+	instantiationService.stub(ITelemetryService, NullTelemetryService);
 
 	return { instantiationService, storage, activeSession, fireLanguageModelsChanged: () => onDidChangeLanguageModelsEmitter.fire({}) };
 }
@@ -88,8 +109,8 @@ suite('modelPickerStorageKey', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('produces per-session-type keys', () => {
-		assert.strictEqual(modelPickerStorageKey(COPILOT_CLI_SESSION_TYPE), `sessions.modelPicker.${COPILOT_CLI_SESSION_TYPE}.selectedModelId`);
-		assert.strictEqual(modelPickerStorageKey(CLAUDE_CODE_SESSION_TYPE), `sessions.modelPicker.${CLAUDE_CODE_SESSION_TYPE}.selectedModelId`);
+		assert.strictEqual(modelPickerStorageKey(CopilotCLISessionType.id), `sessions.modelPicker.${CopilotCLISessionType.id}.selectedModelId`);
+		assert.strictEqual(modelPickerStorageKey(ClaudeCodeSessionType.id), `sessions.modelPicker.${ClaudeCodeSessionType.id}.selectedModelId`);
 	});
 });
 
@@ -100,7 +121,7 @@ suite('getAvailableModels', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('returns empty when no active session', () => {
-		const models = [makeModel('model-1', COPILOT_CLI_SESSION_TYPE)];
+		const models = [makeModel('model-1', CopilotCLISessionType.id)];
 		const { instantiationService } = stubServices(disposables, { models });
 		const languageModelsService = instantiationService.get(ILanguageModelsService);
 		const sessionsManagementService = instantiationService.get(ISessionsManagementService);
@@ -110,13 +131,13 @@ suite('getAvailableModels', () => {
 
 	test('filters models by session type', () => {
 		const models = [
-			makeModel('cli-model', COPILOT_CLI_SESSION_TYPE),
+			makeModel('cli-model', CopilotCLISessionType.id),
 			makeModel('cloud-model', 'copilot-cloud'),
-			makeModel('claude-model', CLAUDE_CODE_SESSION_TYPE),
+			makeModel('claude-model', ClaudeCodeSessionType.id),
 		];
 		const { instantiationService } = stubServices(disposables, {
 			models,
-			activeSession: { providerId: 'default-copilot', sessionId: 'sess-1', sessionType: CLAUDE_CODE_SESSION_TYPE },
+			activeSession: { providerId: 'default-copilot', sessionId: 'sess-1', sessionType: ClaudeCodeSessionType.id },
 		});
 		const languageModelsService = instantiationService.get(ILanguageModelsService);
 		const sessionsManagementService = instantiationService.get(ISessionsManagementService);
@@ -132,23 +153,23 @@ suite('SessionModelPicker', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('stores selected model under session-type-scoped key', () => {
-		const models = [makeModel('model-1', CLAUDE_CODE_SESSION_TYPE)];
+		const models = [makeModel('model-1', ClaudeCodeSessionType.id)];
 		const { instantiationService, storage } = stubServices(disposables, {
 			models,
-			activeSession: { providerId: 'default-copilot', sessionId: 'sess-1', sessionType: CLAUDE_CODE_SESSION_TYPE },
+			activeSession: { providerId: 'default-copilot', sessionId: 'sess-1', sessionType: ClaudeCodeSessionType.id },
 		});
 		// Creating the picker triggers initModel which calls setModel for the first available model
 		disposables.add(instantiationService.createInstance(SessionModelPicker));
-		assert.strictEqual(storage.get(modelPickerStorageKey(CLAUDE_CODE_SESSION_TYPE)), 'model-1');
-		assert.strictEqual(storage.has(modelPickerStorageKey(COPILOT_CLI_SESSION_TYPE)), false);
+		assert.strictEqual(storage.get(modelPickerStorageKey(ClaudeCodeSessionType.id)), 'model-1');
+		assert.strictEqual(storage.has(modelPickerStorageKey(CopilotCLISessionType.id)), false);
 	});
 
 	test('calls provider.setModel on init', () => {
 		const calls: { sessionId: string; modelId: string }[] = [];
-		const models = [makeModel('model-1', CLAUDE_CODE_SESSION_TYPE)];
+		const models = [makeModel('model-1', ClaudeCodeSessionType.id)];
 		const { instantiationService } = stubServices(disposables, {
 			models,
-			activeSession: { providerId: 'default-copilot', sessionId: 'sess-1', sessionType: CLAUDE_CODE_SESSION_TYPE },
+			activeSession: { providerId: 'default-copilot', sessionId: 'sess-1', sessionType: ClaudeCodeSessionType.id },
 			setModelSpy: (sessionId, modelId) => calls.push({ sessionId, modelId }),
 		});
 		disposables.add(instantiationService.createInstance(SessionModelPicker));
@@ -156,12 +177,12 @@ suite('SessionModelPicker', () => {
 	});
 
 	test('remembers model per session type from storage', () => {
-		const models = [makeModel('model-a', CLAUDE_CODE_SESSION_TYPE), makeModel('model-b', CLAUDE_CODE_SESSION_TYPE)];
-		const storedEntries = new Map([[modelPickerStorageKey(CLAUDE_CODE_SESSION_TYPE), 'model-b']]);
+		const models = [makeModel('model-a', ClaudeCodeSessionType.id), makeModel('model-b', ClaudeCodeSessionType.id)];
+		const storedEntries = new Map([[modelPickerStorageKey(ClaudeCodeSessionType.id), 'model-b']]);
 		const calls: { sessionId: string; modelId: string }[] = [];
 		const { instantiationService } = stubServices(disposables, {
 			models,
-			activeSession: { providerId: 'default-copilot', sessionId: 'sess-1', sessionType: CLAUDE_CODE_SESSION_TYPE },
+			activeSession: { providerId: 'default-copilot', sessionId: 'sess-1', sessionType: ClaudeCodeSessionType.id },
 			storedEntries,
 			setModelSpy: (sessionId, modelId) => calls.push({ sessionId, modelId }),
 		});
@@ -176,32 +197,32 @@ suite('SessionModelPicker', () => {
 	});
 
 	test('different session types use independent storage keys', () => {
-		const cliModels = [makeModel('cli-m', COPILOT_CLI_SESSION_TYPE)];
-		const claudeModels = [makeModel('claude-m', CLAUDE_CODE_SESSION_TYPE)];
+		const cliModels = [makeModel('cli-m', CopilotCLISessionType.id)];
+		const claudeModels = [makeModel('claude-m', ClaudeCodeSessionType.id)];
 		const allModels = [...cliModels, ...claudeModels];
 
 		const { instantiationService, storage, activeSession } = stubServices(disposables, {
 			models: allModels,
-			activeSession: { providerId: 'default-copilot', sessionId: 's1', sessionType: COPILOT_CLI_SESSION_TYPE },
+			activeSession: { providerId: 'default-copilot', sessionId: 's1', sessionType: CopilotCLISessionType.id },
 		});
 		disposables.add(instantiationService.createInstance(SessionModelPicker));
-		assert.strictEqual(storage.get(modelPickerStorageKey(COPILOT_CLI_SESSION_TYPE)), 'cli-m');
+		assert.strictEqual(storage.get(modelPickerStorageKey(CopilotCLISessionType.id)), 'cli-m');
 
 		// Switch session type
-		activeSession.set({ providerId: 'default-copilot', sessionId: 's2', sessionType: CLAUDE_CODE_SESSION_TYPE } as IActiveSession, undefined);
+		activeSession.set(makeActiveSession({ providerId: 'default-copilot', sessionId: 's2', sessionType: ClaudeCodeSessionType.id }), undefined);
 
-		assert.strictEqual(storage.get(modelPickerStorageKey(CLAUDE_CODE_SESSION_TYPE)), 'claude-m');
+		assert.strictEqual(storage.get(modelPickerStorageKey(ClaudeCodeSessionType.id)), 'claude-m');
 		// CLI key should still be intact
-		assert.strictEqual(storage.get(modelPickerStorageKey(COPILOT_CLI_SESSION_TYPE)), 'cli-m');
+		assert.strictEqual(storage.get(modelPickerStorageKey(CopilotCLISessionType.id)), 'cli-m');
 	});
 
 	test('propagates selected model to a new session of the same type (#313385)', () => {
-		const models = [makeModel('cli-a', COPILOT_CLI_SESSION_TYPE), makeModel('cli-b', COPILOT_CLI_SESSION_TYPE)];
-		const storedEntries = new Map([[modelPickerStorageKey(COPILOT_CLI_SESSION_TYPE), 'cli-b']]);
+		const models = [makeModel('cli-a', CopilotCLISessionType.id), makeModel('cli-b', CopilotCLISessionType.id)];
+		const storedEntries = new Map([[modelPickerStorageKey(CopilotCLISessionType.id), 'cli-b']]);
 		const calls: { sessionId: string; modelId: string }[] = [];
 		const { instantiationService, activeSession } = stubServices(disposables, {
 			models,
-			activeSession: { providerId: 'default-copilot', sessionId: 's1', sessionType: COPILOT_CLI_SESSION_TYPE },
+			activeSession: { providerId: 'default-copilot', sessionId: 's1', sessionType: CopilotCLISessionType.id },
 			storedEntries,
 			setModelSpy: (sessionId, modelId) => calls.push({ sessionId, modelId }),
 		});
@@ -210,18 +231,18 @@ suite('SessionModelPicker', () => {
 		assert.ok(calls.some(c => c.sessionId === 's1' && c.modelId === 'cli-b'));
 
 		// Switch to a new session of the same type (e.g. user picked a different repo).
-		activeSession.set({ providerId: 'default-copilot', sessionId: 's2', sessionType: COPILOT_CLI_SESSION_TYPE } as IActiveSession, undefined);
+		activeSession.set(makeActiveSession({ providerId: 'default-copilot', sessionId: 's2', sessionType: CopilotCLISessionType.id }), undefined);
 
 		// The new session must receive the same model so the request isn't sent with the default.
 		assert.ok(calls.some(c => c.sessionId === 's2' && c.modelId === 'cli-b'));
 	});
 
 	test('does not re-push model to the same session when language models change', () => {
-		const models = [makeModel('cli-a', COPILOT_CLI_SESSION_TYPE)];
+		const models = [makeModel('cli-a', CopilotCLISessionType.id)];
 		const calls: { sessionId: string; modelId: string }[] = [];
 		const { instantiationService, fireLanguageModelsChanged } = stubServices(disposables, {
 			models,
-			activeSession: { providerId: 'default-copilot', sessionId: 's1', sessionType: COPILOT_CLI_SESSION_TYPE },
+			activeSession: { providerId: 'default-copilot', sessionId: 's1', sessionType: CopilotCLISessionType.id },
 			setModelSpy: (sessionId, modelId) => calls.push({ sessionId, modelId }),
 		});
 		disposables.add(instantiationService.createInstance(SessionModelPicker));
@@ -234,5 +255,101 @@ suite('SessionModelPicker', () => {
 		fireLanguageModelsChanged();
 
 		assert.strictEqual(calls.filter(c => c.sessionId === 's1').length, initialCallCount);
+	});
+
+	test('does not overwrite existing session model on init', () => {
+		const models = [makeModel('cli-a', CopilotCLISessionType.id), makeModel('cli-b', CopilotCLISessionType.id)];
+		const calls: { sessionId: string; modelId: string }[] = [];
+		const { instantiationService, storage } = stubServices(disposables, {
+			models,
+			activeSession: {
+				providerId: 'default-copilot',
+				sessionId: 's1',
+				sessionType: CopilotCLISessionType.id,
+				modelId: observableValue<string | undefined>('existingModelId', 'cli-b'),
+				status: observableValue<SessionStatus>('existingStatus', SessionStatus.Completed),
+			},
+			setModelSpy: (sessionId, modelId) => calls.push({ sessionId, modelId }),
+		});
+
+		disposables.add(instantiationService.createInstance(SessionModelPicker));
+
+		assert.deepStrictEqual(calls, []);
+		assert.strictEqual(storage.has(modelPickerStorageKey(CopilotCLISessionType.id)), false);
+	});
+
+	test('keeps unresolved existing session model pending instead of defaulting', () => {
+		const models = [makeModel('copilotcli/cli-a', CopilotCLISessionType.id)];
+		const calls: { sessionId: string; modelId: string }[] = [];
+		const { instantiationService, storage, fireLanguageModelsChanged } = stubServices(disposables, {
+			models,
+			activeSession: {
+				providerId: 'default-copilot',
+				sessionId: 's1',
+				sessionType: CopilotCLISessionType.id,
+				modelId: observableValue<string | undefined>('existingModelId', 'copilotcli/cli-b'),
+				status: observableValue<SessionStatus>('existingStatus', SessionStatus.Completed),
+			},
+			setModelSpy: (sessionId, modelId) => calls.push({ sessionId, modelId }),
+		});
+
+		disposables.add(instantiationService.createInstance(SessionModelPicker));
+		fireLanguageModelsChanged();
+
+		models.push(makeModel('copilotcli/cli-b', CopilotCLISessionType.id));
+		fireLanguageModelsChanged();
+
+		assert.deepStrictEqual(calls, []);
+		assert.strictEqual(storage.has(modelPickerStorageKey(CopilotCLISessionType.id)), false);
+	});
+
+	test('defaults existing session with removed model after vendor resolves', () => {
+		const models = [makeModel('copilotcli/cli-a', CopilotCLISessionType.id), makeModel('copilotcli/cli-c', CopilotCLISessionType.id)];
+		const resolvedVendors = new Set<string>();
+		const storedEntries = new Map([[modelPickerStorageKey(CopilotCLISessionType.id), 'copilotcli/cli-c']]);
+		const calls: { sessionId: string; modelId: string }[] = [];
+		const { instantiationService, fireLanguageModelsChanged } = stubServices(disposables, {
+			models,
+			resolvedVendors,
+			storedEntries,
+			activeSession: {
+				providerId: 'default-copilot',
+				sessionId: 's1',
+				sessionType: CopilotCLISessionType.id,
+				modelId: observableValue<string | undefined>('existingModelId', 'copilotcli/removed'),
+				status: observableValue<SessionStatus>('existingStatus', SessionStatus.Completed),
+			},
+			setModelSpy: (sessionId, modelId) => calls.push({ sessionId, modelId }),
+		});
+
+		disposables.add(instantiationService.createInstance(SessionModelPicker));
+		assert.deepStrictEqual(calls, []);
+
+		resolvedVendors.add('copilotcli');
+		fireLanguageModelsChanged();
+
+		assert.deepStrictEqual(calls, [{ sessionId: 's1', modelId: 'copilotcli/cli-c' }]);
+	});
+
+	test('does not push previous current model into existing session without model state', () => {
+		const models = [makeModel('cli-a', CopilotCLISessionType.id), makeModel('cli-b', CopilotCLISessionType.id)];
+		const storedEntries = new Map([[modelPickerStorageKey(CopilotCLISessionType.id), 'cli-b']]);
+		const calls: { sessionId: string; modelId: string }[] = [];
+		const { instantiationService, activeSession } = stubServices(disposables, {
+			models,
+			activeSession: { providerId: 'default-copilot', sessionId: 'new-session', sessionType: CopilotCLISessionType.id },
+			storedEntries,
+			setModelSpy: (sessionId, modelId) => calls.push({ sessionId, modelId }),
+		});
+		disposables.add(instantiationService.createInstance(SessionModelPicker));
+
+		activeSession.set(makeActiveSession({
+			providerId: 'default-copilot',
+			sessionId: 'existing-session',
+			sessionType: CopilotCLISessionType.id,
+			status: observableValue<SessionStatus>('existingStatus', SessionStatus.Completed),
+		}), undefined);
+
+		assert.deepStrictEqual(calls, [{ sessionId: 'new-session', modelId: 'cli-b' }]);
 	});
 });
