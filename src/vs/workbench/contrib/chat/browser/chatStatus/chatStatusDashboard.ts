@@ -438,7 +438,7 @@ export class ChatStatusDashboard extends DomWidget {
 						hoverContent.appendMarkdown(`[${localize('learnMore', "Learn More")}](${headerLink})`);
 					}
 					return { content: hoverContent };
-				}));
+				}, { reducedDelay: true }));
 			}
 
 			// Status text (right-aligned via margin-left: auto)
