@@ -5,6 +5,8 @@
 
 import { localize2 } from '../../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
+import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { IsSessionsWindowContext } from '../../../../../common/contextkeys.js';
 import { ChatContextKeys, ChatContextKeyExprs } from '../../../common/actions/chatContextKeys.js';
 
 /**
@@ -98,7 +100,10 @@ export class OpenAgentHostBranchPickerAction extends Action2 {
 				// Large order so Branch always sorts after the existing
 				// secondary chips (SessionTarget, Mode, Approvals, ...).
 				order: 100,
-				when: ChatContextKeyExprs.isAgentHostSession,
+				// Workbench is locked to `isolation: 'folder'` (no worktrees /
+				// branch picking yet); only expose this chip in the dedicated
+				// agent sessions window.
+				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, IsSessionsWindowContext),
 			}],
 		});
 	}
@@ -117,7 +122,7 @@ export class OpenAgentHostIsolationPickerAction extends Action2 {
 				id: MenuId.ChatInputSecondary,
 				group: 'navigation',
 				order: 101,
-				when: ChatContextKeyExprs.isAgentHostSession,
+				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, IsSessionsWindowContext),
 			}],
 		});
 	}

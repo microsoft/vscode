@@ -41,7 +41,7 @@ import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, ICh
 import { isImageVariableEntry, type IChatRequestVariableEntry, type IImageVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { coerceImageBuffer } from '../../../common/chatImageExtraction.js';
 import { getChatSessionType } from '../../../common/model/chatUri.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, isChatPermissionLevel } from '../../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
 import { IChatEditingService } from '../../../common/editing/chatEditingService.js';
 import { ChatElicitationRequestPart } from '../../../common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import { ChatQuestionCarouselData } from '../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
@@ -2539,7 +2539,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	/**
-	 * HACK to enable auto-approve in vscode for AH evals when the picker has not been implemented yet.
+	 * Workbench-only default session config seed merged into outgoing
+	 * `createSession` / `replace` config dispatches. Currently just forces
+	 * `isolation: 'folder'` since the workbench does not expose the
+	 * isolation picker.
 	 */
 	private _mergeDefaultSessionConfig(sessionConfig: Record<string, unknown> | undefined): Record<string, unknown> | undefined {
 		const defaults = this._getWorkbenchDefaultSessionConfig();
@@ -2553,17 +2556,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (this._environmentService.isSessionsWindow) {
 			return undefined;
 		}
-		const result = {
-			[SessionConfigKey.Isolation]: 'folder'
-		};
-		const defaultPermissionLevel = this._configurationService.getValue<ChatPermissionLevel>(ChatConfiguration.DefaultPermissionLevel);
-		if (!isChatPermissionLevel(defaultPermissionLevel) || defaultPermissionLevel === ChatPermissionLevel.Default) {
-			return result;
-		}
-		return {
-			...result,
-			[SessionConfigKey.AutoApprove]: defaultPermissionLevel,
-		};
+		return { [SessionConfigKey.Isolation]: 'folder' };
 	}
 
 	/**

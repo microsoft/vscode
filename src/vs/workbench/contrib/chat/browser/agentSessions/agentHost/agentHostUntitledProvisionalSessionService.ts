@@ -54,10 +54,13 @@ import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { KNOWN_AUTO_APPROVE_VALUES, SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
+import { ChatConfiguration } from '../../../common/constants.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 
 export const IAgentHostUntitledProvisionalSessionService =
@@ -142,6 +145,7 @@ class AgentHostUntitledProvisionalSessionService extends Disposable implements I
 		@IAgentHostService private readonly _agentHostService: IAgentHostService,
 		@ILogService private readonly _logService: ILogService,
 		@IChatService chatService: IChatService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -198,6 +202,7 @@ class AgentHostUntitledProvisionalSessionService extends Disposable implements I
 					provider,
 					session: backendSession,
 					workingDirectory,
+					config: this._getInitialConfig(),
 				});
 				this._entries.set(sessionResource, { backendSession: created });
 				this._onDidChange.fire(sessionResource);
@@ -306,6 +311,26 @@ class AgentHostUntitledProvisionalSessionService extends Disposable implements I
 	private _toBackendUri(sessionResource: URI, provider: string): URI {
 		const rawId = sessionResource.path.replace(/^\//, '');
 		return URI.from({ scheme: provider, path: `/${rawId}` });
+	}
+
+	/**
+	 * Seed the agent-host `autoApprove` config slot from the user-facing
+	 * `chat.permissions.default` setting so the workbench picker reflects
+	 * the user's chosen permission level from the moment the provisional
+	 * session is created. Clamped to `default` when the
+	 * `chat.tools.global.autoApprove` policy is disabled.
+	 */
+	private _getInitialConfig(): Record<string, unknown> | undefined {
+		const configured = this._configurationService.getValue<string>(ChatConfiguration.DefaultPermissionLevel);
+		if (typeof configured !== 'string' || !KNOWN_AUTO_APPROVE_VALUES.has(configured)) {
+			return undefined;
+		}
+		const policyRestricted = this._configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false;
+		const value = policyRestricted ? 'default' : configured;
+		if (value === 'default') {
+			return undefined;
+		}
+		return { [SessionConfigKey.AutoApprove]: value };
 	}
 
 	private _readCurrentValues(backendSession: URI): Record<string, unknown> | undefined {
