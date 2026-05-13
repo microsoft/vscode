@@ -5,7 +5,7 @@
 
 import { strictEqual } from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { detectsCommonPromptPattern } from '../../browser/executeStrategy/executeStrategy.js';
+import { detectsCommonPromptPattern, isContinuationPrompt } from '../../browser/executeStrategy/executeStrategy.js';
 
 suite('Execute Strategy - Prompt Detection', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -67,5 +67,53 @@ user@host:~$ `;
 		strictEqual(detectsCommonPromptPattern('output\n\n\n').detected, false);
 		strictEqual(detectsCommonPromptPattern('\n\n$ \n\n').detected, true); // prompt with surrounding whitespace
 		strictEqual(detectsCommonPromptPattern('output\nPS C:\\> ').detected, true); // prompt at end after output
+	});
+
+	test('detectsCommonPromptPattern should reject shell continuation prompts', () => {
+		strictEqual(detectsCommonPromptPattern('dquote>').detected, false);
+		strictEqual(detectsCommonPromptPattern('dquote> ').detected, false);
+		strictEqual(detectsCommonPromptPattern('quote>').detected, false);
+		strictEqual(detectsCommonPromptPattern('bquote>').detected, false);
+		strictEqual(detectsCommonPromptPattern('pipe>').detected, false);
+		strictEqual(detectsCommonPromptPattern('heredoc>').detected, false);
+		strictEqual(detectsCommonPromptPattern('cmdsubst>').detected, false);
+	});
+});
+
+suite('Execute Strategy - Continuation Prompt Detection', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('isContinuationPrompt should detect zsh continuation prompts', () => {
+		strictEqual(isContinuationPrompt('dquote>'), true);
+		strictEqual(isContinuationPrompt('dquote> '), true);
+		strictEqual(isContinuationPrompt('quote>'), true);
+		strictEqual(isContinuationPrompt('bquote>'), true);
+		strictEqual(isContinuationPrompt('pipe>'), true);
+		strictEqual(isContinuationPrompt('heredoc>'), true);
+		strictEqual(isContinuationPrompt('cmdsubst>'), true);
+	});
+
+	test('isContinuationPrompt should handle whitespace', () => {
+		strictEqual(isContinuationPrompt('  dquote>  '), true);
+		strictEqual(isContinuationPrompt('\tdquote>\t'), true);
+	});
+
+	test('isContinuationPrompt should reject normal prompts', () => {
+		strictEqual(isContinuationPrompt('$ '), false);
+		strictEqual(isContinuationPrompt('# '), false);
+		strictEqual(isContinuationPrompt('user@host:~$ '), false);
+		strictEqual(isContinuationPrompt('PS C:\\>'), false);
+	});
+
+	test('isContinuationPrompt should reject command output', () => {
+		strictEqual(isContinuationPrompt('some output'), false);
+		strictEqual(isContinuationPrompt('error: command not found'), false);
+		strictEqual(isContinuationPrompt(''), false);
+		strictEqual(isContinuationPrompt('   '), false);
+	});
+
+	test('isContinuationPrompt should reject partial matches', () => {
+		strictEqual(isContinuationPrompt('some dquote>'), false);
+		strictEqual(isContinuationPrompt('dquote> some text'), false);
 	});
 });

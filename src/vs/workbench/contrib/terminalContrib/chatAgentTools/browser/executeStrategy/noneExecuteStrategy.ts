@@ -9,7 +9,7 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ITerminalLogService } from '../../../../../../platform/terminal/common/terminal.js';
-import { waitForIdle, waitForIdleWithPromptHeuristics, type ITerminalExecuteStrategy, type ITerminalExecuteStrategyResult } from './executeStrategy.js';
+import { waitForContinuationPrompt, waitForIdle, waitForIdleWithPromptHeuristics, type ITerminalExecuteStrategy, type ITerminalExecuteStrategyResult } from './executeStrategy.js';
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
 import { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { createAltBufferPromise, setupRecreatingStartMarker, stripCommandEchoAndPrompt } from './strategyHelpers.js';
@@ -128,11 +128,18 @@ export class NoneExecuteStrategy extends Disposable implements ITerminalExecuteS
 
 			// Assume the command is done when it's idle
 			this._log('Waiting for idle with prompt heuristics');
-			const promptResultOrAltBuffer = await Promise.race([
-				waitForIdleWithPromptHeuristics(this._instance.onData, this._instance, idlePollInterval, idlePollInterval * 10),
-				alternateBufferPromise.then(() => 'alternateBuffer' as const)
+			const continuationPromptPromise = waitForContinuationPrompt(this._instance.onData, this._instance, idlePollInterval, store, this._logService);
+			const promptResultOrAltBufferOrContinuation = await Promise.race([
+				waitForIdleWithPromptHeuristics(this._instance.onData, this._instance, idlePollInterval, idlePollInterval * 10).then(result => ({ type: 'prompt' as const, result })),
+				alternateBufferPromise.then(() => ({ type: 'alternateBuffer' as const })),
+				// Detect shell continuation prompts (e.g. dquote>, quote>) that
+				// indicate unmatched quotes or brackets.
+				continuationPromptPromise.then(prompt => {
+					this._log(`Detected continuation prompt: ${prompt}`);
+					return { type: 'continuationPrompt' as const, prompt };
+				}),
 			]);
-			if (promptResultOrAltBuffer === 'alternateBuffer') {
+			if (promptResultOrAltBufferOrContinuation.type === 'alternateBuffer') {
 				this._log('Detected alternate buffer entry, skipping output capture');
 				return {
 					output: undefined,
@@ -142,7 +149,17 @@ export class NoneExecuteStrategy extends Disposable implements ITerminalExecuteS
 					didEnterAltBuffer: true,
 				};
 			}
-			const promptResult = promptResultOrAltBuffer;
+			if (promptResultOrAltBufferOrContinuation.type === 'continuationPrompt') {
+				this._log(`Aborting command due to continuation prompt: ${promptResultOrAltBufferOrContinuation.prompt}`);
+				this._instance.sendText('\x03', false);
+				await waitForIdle(this._instance.onData, 200);
+				return {
+					output: undefined,
+					exitCode: undefined,
+					error: `The command has a syntax error — the shell showed a "${promptResultOrAltBufferOrContinuation.prompt}" continuation prompt, indicating unmatched quotes or brackets. Fix the quoting and retry.`,
+				};
+			}
+			const promptResult = promptResultOrAltBufferOrContinuation.result;
 			this._log(`Prompt detection result: ${promptResult.detected ? 'detected' : 'not detected'} - ${promptResult.reason}`);
 
 			if (token.isCancellationRequested) {

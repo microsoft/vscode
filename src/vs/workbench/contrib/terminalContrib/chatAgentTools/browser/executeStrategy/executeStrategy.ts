@@ -59,11 +59,84 @@ export interface IPromptDetectionResult {
 }
 
 /**
+ * Known shell continuation prompt patterns that indicate a command has
+ * unmatched quotes, brackets, or other syntax issues. These prompts appear
+ * when the shell is waiting for additional input to complete a construct.
+ */
+const continuationPromptPatterns: RegExp[] = [
+	/^dquote>\s*$/,    // zsh: unmatched double quote
+	/^quote>\s*$/,     // zsh: unmatched single quote
+	/^bquote>\s*$/,    // zsh: unmatched backtick
+	/^pipe>\s*$/,      // zsh: pipe continuation
+	/^cmdsubst>\s*$/,  // zsh: command substitution
+	/^heredoc>\s*$/,   // zsh: heredoc
+];
+
+/**
+ * Detects if the given text looks like a shell continuation prompt, indicating
+ * that a command has unmatched quotes or other syntax issues.
+ */
+export function isContinuationPrompt(cursorLine: string): boolean {
+	const trimmed = cursorLine.trim();
+	return continuationPromptPatterns.some(p => p.test(trimmed));
+}
+
+/**
+ * Monitors the terminal for shell continuation prompts (e.g. `dquote>`, `quote>`)
+ * which indicate that a command has unmatched quotes or brackets. Returns a promise
+ * that resolves with the prompt text when a continuation prompt is detected.
+ */
+export function waitForContinuationPrompt(
+	onData: Event<unknown>,
+	instance: ITerminalInstance,
+	idleDurationMs: number,
+	store: DisposableStore,
+	logService?: ITerminalLogService,
+): Promise<string> {
+	const deferred = new DeferredPromise<string>();
+
+	const checkForContinuationPrompt = async () => {
+		try {
+			const xterm = await instance.xtermReadyPromise;
+			if (!xterm) {
+				return;
+			}
+			const buffer = xterm.raw.buffer.active;
+			const line = buffer.getLine?.(buffer.baseY + buffer.cursorY);
+			if (line) {
+				const content = line.translateToString(true);
+				if (isContinuationPrompt(content)) {
+					logService?.debug(`waitForContinuationPrompt: Detected continuation prompt "${content.trim()}"`);
+					deferred.complete(content.trim());
+				}
+			}
+		} catch {
+			// Ignore errors reading terminal content
+		}
+	};
+
+	const scheduler = store.add(new RunOnceScheduler(() => {
+		void checkForContinuationPrompt();
+	}, idleDurationMs));
+
+	store.add(onData(() => scheduler.schedule()));
+	scheduler.schedule();
+
+	return deferred.p;
+}
+
+/**
  * Detects if the given text content appears to end with a common prompt pattern.
  */
 export function detectsCommonPromptPattern(cursorLine: string): IPromptDetectionResult {
 	if (cursorLine.trim().length === 0) {
 		return { detected: false, reason: 'Content is empty or contains only whitespace' };
+	}
+
+	// Exclude shell continuation prompts (e.g. dquote>, quote>) — these
+	// indicate unmatched quotes, not a ready prompt.
+	if (isContinuationPrompt(cursorLine)) {
+		return { detected: false, reason: `Shell continuation prompt detected (not a ready prompt): "${cursorLine}"` };
 	}
 
 	// PowerShell prompt: PS C:\> or similar patterns

@@ -11,7 +11,7 @@ import { isNumber } from '../../../../../../base/common/types.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import type { ICommandDetectionCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ITerminalLogService, type ITerminalLaunchError } from '../../../../../../platform/terminal/common/terminal.js';
-import { trackIdleOnPrompt, waitForIdle, type ITerminalExecuteStrategy, type ITerminalExecuteStrategyResult } from './executeStrategy.js';
+import { trackIdleOnPrompt, waitForContinuationPrompt, waitForIdle, type ITerminalExecuteStrategy, type ITerminalExecuteStrategyResult } from './executeStrategy.js';
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
 import { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { createAltBufferPromise, setupRecreatingStartMarker, stripCommandEchoAndPrompt } from './strategyHelpers.js';
@@ -168,6 +168,12 @@ export class BasicExecuteStrategy extends Disposable implements ITerminalExecute
 				trackIdleOnPrompt(this._instance, idlePollInterval * 3, store, idlePollInterval, this._logService).then(() => {
 					this._log('onDone long idle prompt');
 				}),
+				// Detect shell continuation prompts (e.g. dquote>, quote>) that
+				// indicate unmatched quotes or brackets.
+				waitForContinuationPrompt(this._instance.onData, this._instance, idlePollInterval, store, this._logService).then(prompt => {
+					this._log(`onDone via continuation prompt: ${prompt}`);
+					return { type: 'continuationPrompt', prompt } as const;
+				}),
 			]);
 
 			// Ensure xterm is available
@@ -236,6 +242,16 @@ export class BasicExecuteStrategy extends Disposable implements ITerminalExecute
 					exitCode: undefined,
 					error: 'alternateBuffer',
 					didEnterAltBuffer: true
+				};
+			}
+			if (onDoneResult && onDoneResult.type === 'continuationPrompt') {
+				this._log(`Aborting command due to continuation prompt: ${onDoneResult.prompt}`);
+				await this._instance.sendText('\x03', false);
+				await waitForIdle(this._instance.onData, 200);
+				return {
+					output: undefined,
+					exitCode: undefined,
+					error: `The command has a syntax error — the shell showed a "${onDoneResult.prompt}" continuation prompt, indicating unmatched quotes or brackets. Fix the quoting and retry.`,
 				};
 			}
 			const finishedCommand = onDoneResult && onDoneResult.type === 'success' ? onDoneResult.command : undefined;
