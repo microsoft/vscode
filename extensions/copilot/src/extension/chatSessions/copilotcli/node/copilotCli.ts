@@ -384,7 +384,7 @@ export class CopilotCLIAgents extends Disposable implements ICopilotCLIAgents {
 	async getAgentsImpl(): Promise<readonly CLIAgentInfo[]> {
 		const merged = new Map<string, CLIAgentInfo>();
 		const knownAgents = new ResourceSet();
-		const [sdkAgents, customAgents] = await Promise.all([this.getSDKAgents(), this.promptsService.getCustomAgents(CancellationToken.None)]);
+		const customAgents = await this.promptsService.getCustomAgents(CancellationToken.None);
 		const hiddenOrInvalidAgentUris = new ResourceSet();
 		const validCustomAgents = customAgents.filter(customAgent => {
 			if (!customAgent.enabled || !isEnabledForCopilotCLI(customAgent)) {
@@ -400,17 +400,6 @@ export class CopilotCLIAgents extends Disposable implements ICopilotCLIAgents {
 			return true;
 		});
 
-		for (const agent of sdkAgents) {
-			const sourceUri = agent.path ? URI.file(agent.path) : URI.from({ scheme: 'copilotcli', path: `/agents/${agent.name}` });
-			if (hiddenOrInvalidAgentUris.has(sourceUri)) {
-				continue;
-			}
-			knownAgents.add(sourceUri);
-			merged.set(agent.name.toLowerCase(), {
-				agent: this.cloneAgent(agent),
-				sourceUri,
-			});
-		}
 		for (const customAgent of validCustomAgents) {
 			if (knownAgents.has(customAgent.uri)) {
 				continue;
@@ -423,12 +412,6 @@ export class CopilotCLIAgents extends Disposable implements ICopilotCLIAgents {
 		}
 
 		return [...merged.values()];
-	}
-
-	private async getSDKAgents(): Promise<Readonly<SweCustomAgent>[]> {
-		// The SDK path is intentionally disabled because agent discovery there
-		// spawns a process and is slower than the prompt-based discovery above.
-		return [];
 	}
 
 	private toCustomAgent(customAgent: vscode.ChatCustomAgent): CLIAgentInfo | undefined {
