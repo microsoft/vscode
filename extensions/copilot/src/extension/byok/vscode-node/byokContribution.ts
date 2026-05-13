@@ -71,7 +71,7 @@ export class BYOKContrib extends Disposable implements IExtensionContribution {
 	}
 
 	private _applyPolicy(): void {
-		const allowed = isClientBYOKAllowed(this._authService.copilotToken);
+		const allowed = isClientBYOKAllowed(!!this._authService.anyGitHubSession, this._authService.copilotToken);
 		if (allowed && !this._registeredWithLM) {
 			for (const [providerId, provider] of this._providers) {
 				this._byokRegistrations.add(lm.registerLanguageModelChatProvider(providerId, provider));

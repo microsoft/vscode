@@ -211,13 +211,12 @@ export class ContextKeysContribution extends Disposable {
 	}
 
 	private async _updateClientByokEnabledContext() {
+		const hasGitHubSession = !!this._authenticationService.anyGitHubSession;
 		try {
 			const copilotToken = await this._authenticationService.getCopilotToken();
-			commands.executeCommand('setContext', clientByokEnabledContextKey, isClientBYOKAllowed(copilotToken));
+			commands.executeCommand('setContext', clientByokEnabledContextKey, isClientBYOKAllowed(hasGitHubSession, copilotToken));
 		} catch (e) {
-			// Signed-out: BYOK is available by default so users can configure local/3rd-party
-			// models without a GitHub sign-in.
-			commands.executeCommand('setContext', clientByokEnabledContextKey, isClientBYOKAllowed(undefined));
+			commands.executeCommand('setContext', clientByokEnabledContextKey, isClientBYOKAllowed(hasGitHubSession, undefined));
 		}
 	}
 

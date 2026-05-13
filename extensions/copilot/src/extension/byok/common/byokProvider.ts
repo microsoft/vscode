@@ -167,14 +167,13 @@ export function byokKnownModelToAPIInfo(providerName: string, id: string, capabi
 	};
 }
 
-/**
- * Whether client-side BYOK is allowed for the given Copilot token. Signed-out users
- * are allowed (no policy is known); signed-in users must be internal, individual, or
- * on a managed plan that has explicitly enabled BYOK.
- */
-export function isClientBYOKAllowed(copilotToken: Omit<CopilotToken, 'token'> | undefined): boolean {
-	if (!copilotToken) {
+/** Signed-out users are allowed; signed-in users without a Copilot token (e.g. enterprise-managed errors) are denied to avoid bypassing policy. */
+export function isClientBYOKAllowed(hasGitHubSession: boolean, copilotToken: Omit<CopilotToken, 'token'> | undefined): boolean {
+	if (!hasGitHubSession) {
 		return true;
+	}
+	if (!copilotToken) {
+		return false;
 	}
 	return copilotToken.isInternal || copilotToken.isIndividual || copilotToken.isClientBYOKEnabled();
 }
