@@ -417,7 +417,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 		assert.deepStrictEqual(log.warns, []);
 	});
 
-	test('result success emits SessionUsage (with model) followed by SessionTurnComplete', () => {
+	test('result success emits SessionUsage (with model); SessionTurnComplete now lives on the pipeline, not the mapper', () => {
 		const result = makeResultSuccess(SESSION_ID);
 		result.usage.input_tokens = 12;
 		result.usage.output_tokens = 34;
@@ -437,6 +437,11 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 
 		const signals = mapSDKMessageToAgentSignals(result, SESSION, TURN_ID, new ClaudeMapperState(), new NullLogService());
 
+		// Pipeline (Phase 9 refactor) owns the protocol-Turn boundary; it
+		// fires SessionTurnComplete via `onTurnComplete` only on the FINAL
+		// result of a turn (intermediate results during steering preempt do
+		// NOT close the protocol Turn). The mapper therefore emits only
+		// SessionUsage for `result` messages.
 		assert.deepStrictEqual(signals, [
 			{
 				kind: 'action',
@@ -453,15 +458,6 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 					},
 				},
 			},
-			{
-				kind: 'action',
-				session: SESSION,
-				action: {
-					type: ActionType.SessionTurnComplete,
-					session: SESSION_STR,
-					turnId: TURN_ID,
-				},
-			},
 		]);
 	});
 
@@ -471,7 +467,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 
 		const signals = mapSDKMessageToAgentSignals(result, SESSION, TURN_ID, new ClaudeMapperState(), new NullLogService());
 
-		assert.strictEqual(signals.length, 2);
+		assert.strictEqual(signals.length, 1);
 		const usage = signals[0];
 		assert.ok(usage.kind === 'action' && usage.action.type === ActionType.SessionUsage);
 		assert.strictEqual(usage.action.usage.model, undefined);
@@ -500,7 +496,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 			log,
 		);
 
-		assert.strictEqual(resultSignals.length, 2);
+		assert.strictEqual(resultSignals.length, 1);
 		assert.strictEqual(log.warns.length, 1);
 		assert.ok(log.warns[0].includes(TOOL_USE_ID), `expected warn to mention orphan id, got: ${log.warns[0]}`);
 		assert.ok(log.warns[0].includes('Read'), `expected warn to mention tool name, got: ${log.warns[0]}`);

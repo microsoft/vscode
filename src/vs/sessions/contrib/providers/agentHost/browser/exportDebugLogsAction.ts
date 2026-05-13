@@ -5,17 +5,17 @@
 
 import { localize2 } from '../../../../../nls.js';
 import { Categories } from '../../../../../platform/action/common/actionCommonCategories.js';
-import { Action2 } from '../../../../../platform/actions/common/actions.js';
+import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { AgentHostEnabledSettingId } from '../../../../../platform/agentHost/common/agentService.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
+import { exportAgentHostDebugLogs, IActiveAgentHostSessionForExport } from '../../../../../workbench/contrib/chat/browser/actions/exportAgentHostDebugLogsAction.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { exportAgentHostDebugLogs, IActiveAgentHostSessionForExport } from '../../../../../workbench/contrib/chat/electron-browser/actions/exportAgentHostDebugLogsAction.js';
 import { type ISession } from '../../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { BaseAgentHostSessionsProvider } from '../browser/baseAgentHostSessionsProvider.js';
+import { BaseAgentHostSessionsProvider } from './baseAgentHostSessionsProvider.js';
 
 export class ExportAgentHostDebugLogsAction extends Action2 {
 
@@ -70,3 +70,5 @@ function getMostRecentAgentHostSession(sessions: readonly ISession[], sessionsPr
 	}
 	return mostRecent;
 }
+
+registerAction2(ExportAgentHostDebugLogsAction);

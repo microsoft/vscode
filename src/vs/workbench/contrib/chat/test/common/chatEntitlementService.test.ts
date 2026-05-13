@@ -126,6 +126,7 @@ suite('parseQuotas', () => {
 			resetDate: '2026-06-01T00:00:00.000Z',
 			resetDateHasTime: true,
 			usageBasedBilling: true,
+			canUpgradePlan: undefined,
 			chat: {
 				percentRemaining: 100,
 				unlimited: true,

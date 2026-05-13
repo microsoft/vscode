@@ -18,13 +18,13 @@ import { ILogService } from '../../../log/common/log.js';
 import { ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { createSchema, platformSessionSchema, schemaProperty } from '../../common/agentHostSchema.js';
 import { ClaudePermissionMode, ClaudeSessionConfigKey, narrowClaudePermissionMode } from '../../common/claudeSessionConfigKeys.js';
-import { createClaudeThinkingLevelSchema, isClaudeEffortLevel } from '../../common/claudeModelConfig.js';
+import { clampEffortForRuntime, createClaudeThinkingLevelSchema, isClaudeEffortLevel, resolveClaudeEffort } from '../../common/claudeModelConfig.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AgentProvider, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE, IAgent, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSessionProjectInfo } from '../../common/agentService.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { PolicyState, ProtectedResourceMetadata, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
-import { CustomizationRef, SessionInputResponseKind, type MessageAttachment, type SessionInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
+import { CustomizationRef, SessionInputResponseKind, type MessageAttachment, type PendingMessage, type SessionInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostGitService } from '../agentHostGitService.js';
 import { projectFromCopilotContext } from '../copilot/copilotGitProject.js';
@@ -135,7 +135,12 @@ interface IClaudeProvisionalSession {
 	readonly workingDirectory: URI | undefined;
 	readonly abortController: AbortController;
 	readonly project: IAgentSessionProjectInfo | undefined;
-	readonly model: ModelSelection | undefined;
+	/**
+	 * Mutable so {@link ClaudeAgent.changeModel} can update the pending
+	 * model selection before materialize promotes the record. The first
+	 * `sendMessage` reads this when building Options.
+	 */
+	model: ModelSelection | undefined;
 	readonly config: Record<string, unknown> | undefined;
 }
 
@@ -465,6 +470,24 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			);
 
 		const session = await this._materializer.materialize(provisional, proxyHandle, permissionMode, canUseTool);
+
+		// Phase 9 — wire the rematerializer hook so abort/crash recovery
+		// can rebuild the SDK plumbing via resume mode without coupling the
+		// session to the materializer service. Also seed the bijective state
+		// cache so a rebuild re-applies the user's last-chosen model/effort
+		// without losing the picker config.
+		const initialEffort = clampEffortForRuntime(resolveClaudeEffort(provisional.model));
+		session.seedBijectiveState({
+			model: provisional.model?.id,
+			effort: initialEffort,
+			permissionMode,
+		});
+		session.attachRematerializer(async (_reason) => {
+			// Re-read the live permissionMode so a SessionConfigChanged that
+			// arrived since the last materialize is honored on rebuild.
+			const liveMode = this._readSessionPermissionMode(provisional.sessionUri) ?? permissionMode;
+			return this._materializer.materializeResume(provisional, proxyHandle, liveMode, canUseTool);
+		});
 
 		// Persist customization-directory metadata BEFORE firing the
 		// materialize event — see plan section 3.4 ordering rationale.
@@ -820,14 +843,72 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		}
 	}
 
-	async abortSession(_session: URI): Promise<void> {
-		// `async` for the same reason as `sendMessage` — abort flows through
-		// `.catch()` chains in the agent service.
-		throw new Error('TODO: Phase 9');
+	async abortSession(session: URI): Promise<void> {
+		// Phase 9 D1: cancel via the abort controller, NOT `Query.interrupt()`.
+		// Abort is a control-plane operation — it must NOT serialize
+		// through `_sessionSequencer` because an in-flight `sendMessage`
+		// task is parked on its turn deferred and would deadlock the abort
+		// behind the very turn it's trying to cancel. Calling
+		// `entry.session.abort()` directly rejects the in-flight deferred,
+		// which lets the queued sendMessage task complete and frees the
+		// sequencer for the next caller.
+		const sessionId = AgentSession.id(session);
+		const provisional = this._provisionalSessions.get(sessionId);
+		if (provisional) {
+			provisional.abortController.abort();
+			return;
+		}
+		const entry = this._sessions.get(sessionId);
+		entry?.session.abort();
 	}
 
-	async changeModel(_session: URI, _model: ModelSelection): Promise<void> {
-		throw new Error('TODO: Phase 9');
+	setPendingMessages(session: URI, steeringMessage: PendingMessage | undefined, _queuedMessages: readonly PendingMessage[]): void {
+		// Phase 9 D5: queued messages are intentionally a no-op. CONTEXT.md
+		// M10 + AgentSideEffects confirm queued messages are consumed
+		// server-side; the agent boundary always receives an empty queue.
+		const sessionId = AgentSession.id(session);
+		this._logService.info(`[Claude:${sessionId}] setPendingMessages called: steering=${steeringMessage?.id ?? 'none'} queued=${_queuedMessages.length}`);
+		const entry = this._sessions.get(sessionId);
+		if (!entry) {
+			this._logService.warn(`[Claude:${sessionId}] setPendingMessages: session not found`);
+			return;
+		}
+		if (steeringMessage) {
+			entry.session.injectSteering(steeringMessage);
+		}
+	}
+
+	async changeModel(session: URI, model: ModelSelection): Promise<void> {
+		// Phase 9 D6/D7: bundle-atomic. Provisional sessions mutate their
+		// pending `model` field directly (next sendMessage reads it when
+		// building Options). Materialized sessions queue a {@link
+		// ClaudeAgentSession.queueModelChange} bundle that the prompt
+		// iterable's yield-boundary applies via `Query.setModel` and
+		// `Query.applyFlagSettings`. `'max'` effort is clamped to `'xhigh'`
+		// on the runtime path — genuine `'max'` requires the
+		// restart-required path which is deferred (see TODO).
+		const sessionId = AgentSession.id(session);
+		await this._sessionSequencer.queue(sessionId, async () => {
+			const provisional = this._provisionalSessions.get(sessionId);
+			if (provisional) {
+				provisional.model = model;
+				await this._metadataStore.write(session, { model });
+				return;
+			}
+			const entry = this._sessions.get(sessionId);
+			if (entry) {
+				const requestedEffort = resolveClaudeEffort(model);
+				const runtimeEffort = clampEffortForRuntime(requestedEffort);
+				if (requestedEffort === 'max') {
+					// Copilot CAPI does not currently expose a 'max' reasoning
+					// tier, so the runtime hot-swap path clamps to 'xhigh'. Lift
+					// when CAPI gains a 'max' model.
+					this._logService.warn(`[Claude:${sessionId}] changeModel: 'max' effort clamped to 'xhigh' (Copilot CAPI has no 'max' model yet)`);
+				}
+				await entry.session.queueModelChange(model.id, runtimeEffort);
+			}
+			await this._metadataStore.write(session, { model });
+		});
 	}
 
 	setClientTools(_session: URI, _clientId: string, _tools: ToolDefinition[]): void {

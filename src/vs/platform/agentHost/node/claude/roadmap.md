@@ -757,7 +757,15 @@ client-side accept of one and reject of the other behaves correctly.
 Exit criteria: file diffs render in the workbench; per-file accept/reject
 works.
 
-### Phase 9 — Abort + steering + model change + shutdown polish
+### Phase 9 — Abort + steering + model change + shutdown polish ✅ **DONE**
+
+Implementation contract: [phase9-plan.md](./phase9-plan.md). Unit tests
+green, type-check / layer-check clean, and live E2E (Scenarios A–D from
+[smoke.md](./smoke.md)) completed 2026-05-13 — abort + resend, steering
+preemption with `steering_consumed` echo, `changeModel` hot-swap, and the
+`'max'` → `'xhigh'` clamp warning all verified against a live Claude
+proxy. The yield-restart primitive is in place; tool-set-diff and
+settings-file change triggers are deferred to Phases 10/11 as planned.
 
 Every runtime mutation in this phase classifies into one of M11's three
 buckets — **hot-swap**, **defer-and-coalesce**, or **restart-required**
