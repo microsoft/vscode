@@ -32,10 +32,12 @@ import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../..
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { TextEditorSelectionRevealType } from '../../../../../platform/editor/common/editor.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { EditorsOrder, IEditorIdentifier, isDiffEditorInput } from '../../../../common/editor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { minimapGutterAddedBackground, minimapGutterDeletedBackground, minimapGutterModifiedBackground, overviewRulerAddedForeground, overviewRulerDeletedForeground, overviewRulerModifiedForeground } from '../../../scm/common/quickDiff.js';
+import { ChatConfiguration } from '../../common/constants.js';
 import { IChatEditingService, IModifiedFileEntry, IModifiedFileEntryChangeHunk, IModifiedFileEntryEditorIntegration, ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
 import { isTextDiffEditorForEntry } from './chatEditing.js';
 import { ActionViewItem } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
@@ -107,6 +109,7 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 		@IChatEditingExplanationModelManager private readonly _explanationModelManager: IChatEditingExplanationModelManager,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IViewsService private readonly _viewsService: IViewsService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		this._diffLineDecorations = _editor.createDecorationsCollection();
 		const codeEditorObs = observableCodeEditor(_editor);
@@ -664,7 +667,9 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 		closestWidget = closestWidget ?? this._findClosestWidget();
 		if (closestWidget instanceof DiffHunkWidget) {
 			await closestWidget.reject();
-			this.next(true);
+			if (this._configurationService.getValue<boolean>(ChatConfiguration.RevealNextChangeOnResolve)) {
+				this.next(true);
+			}
 		}
 	}
 
@@ -672,7 +677,9 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 		closestWidget = closestWidget ?? this._findClosestWidget();
 		if (closestWidget instanceof DiffHunkWidget) {
 			await closestWidget.accept();
-			this.next(true);
+			if (this._configurationService.getValue<boolean>(ChatConfiguration.RevealNextChangeOnResolve)) {
+				this.next(true);
+			}
 		}
 	}
 
