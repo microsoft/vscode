@@ -43,6 +43,7 @@ import { ChatConfiguration } from '../../../common/constants.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IChatWidgetService } from '../../chat.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
+import { ITitleService } from '../../../../../services/title/browser/titleService.js';
 
 // Telemetry types
 type AgentStatusClickAction =
@@ -168,6 +169,7 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@ITitleService private readonly titleService: ITitleService,
 	) {
 		super(undefined, action, options);
 
@@ -179,6 +181,13 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 
 		// Create WindowTitle to honor the user's window.title setting
 		this._windowTitle = this._register(this.instantiationService.createInstance(WindowTitle, mainWindow));
+
+		// Sync title properties (isAdmin, isPure, prefix) from the title service
+		// so that decorations like [Administrator] are shown correctly
+		this._windowTitle.updateProperties(this.titleService.titleProperties);
+		this._register(this.titleService.onDidChangeTitleProperties(properties => {
+			this._windowTitle.updateProperties(properties);
+		}));
 
 		// Re-render when control mode or session info changes
 		this._register(this.agentTitleBarStatusService.onDidChangeMode(() => {

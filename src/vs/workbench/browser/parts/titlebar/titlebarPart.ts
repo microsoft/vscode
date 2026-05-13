@@ -77,6 +77,16 @@ export interface ITitlebarPart extends IDisposable {
 	readonly onMenubarVisibilityChange: Event<boolean>;
 
 	/**
+	 * An event when the title properties change.
+	 */
+	readonly onDidChangeTitleProperties: Event<ITitleProperties>;
+
+	/**
+	 * The current title properties.
+	 */
+	readonly titleProperties: ITitleProperties;
+
+	/**
 	 * Update some environmental title properties.
 	 */
 	updateProperties(properties: ITitleProperties): void;
@@ -165,8 +175,8 @@ export class BrowserTitleService extends MultiWindowParts<BrowserTitlebarPart> i
 		disposables.add(Event.runAndSubscribe(titlebarPart.onDidChange, () => titlebarPartContainer.style.height = `${titlebarPart.height}px`));
 		titlebarPart.create(titlebarPartContainer);
 
-		if (this.properties) {
-			titlebarPart.updateProperties(this.properties);
+		if (this._titleProperties) {
+			titlebarPart.updateProperties(this._titleProperties);
 		}
 
 		if (this.variables.size) {
@@ -189,14 +199,23 @@ export class BrowserTitleService extends MultiWindowParts<BrowserTitlebarPart> i
 
 	readonly onMenubarVisibilityChange: Event<boolean>;
 
-	private properties: ITitleProperties | undefined = undefined;
+	private readonly _onDidChangeTitleProperties = this._register(new Emitter<ITitleProperties>());
+	readonly onDidChangeTitleProperties = this._onDidChangeTitleProperties.event;
+
+	private _titleProperties: ITitleProperties = {};
+
+	get titleProperties(): ITitleProperties {
+		return this._titleProperties;
+	}
 
 	updateProperties(properties: ITitleProperties): void {
-		this.properties = properties;
+		this._titleProperties = properties;
 
 		for (const part of this.parts) {
 			part.updateProperties(properties);
 		}
+
+		this._onDidChangeTitleProperties.fire(properties);
 	}
 
 	private readonly variables = new Map<string, ITitleVariable>();
@@ -244,6 +263,9 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 	private _onMenubarVisibilityChange = this._register(new Emitter<boolean>());
 	readonly onMenubarVisibilityChange = this._onMenubarVisibilityChange.event;
+
+	private readonly _onDidChangeTitleProperties = this._register(new Emitter<ITitleProperties>());
+	readonly onDidChangeTitleProperties = this._onDidChangeTitleProperties.event;
 
 	private readonly _onWillDispose = this._register(new Emitter<void>());
 	readonly onWillDispose = this._onWillDispose.event;
@@ -449,8 +471,16 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		}
 	}
 
+	private _titleProperties: ITitleProperties = {};
+
+	get titleProperties(): ITitleProperties {
+		return this._titleProperties;
+	}
+
 	updateProperties(properties: ITitleProperties): void {
+		this._titleProperties = properties;
 		this.windowTitle.updateProperties(properties);
+		this._onDidChangeTitleProperties.fire(properties);
 	}
 
 	registerVariables(variables: ITitleVariable[]): void {

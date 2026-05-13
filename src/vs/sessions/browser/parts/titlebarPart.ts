@@ -70,6 +70,9 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 	private readonly _onMenubarVisibilityChange = this._register(new Emitter<boolean>());
 	readonly onMenubarVisibilityChange = this._onMenubarVisibilityChange.event;
 
+	private readonly _onDidChangeTitleProperties = this._register(new Emitter<ITitleProperties>());
+	readonly onDidChangeTitleProperties = this._onDidChangeTitleProperties.event;
+
 	private readonly _onWillDispose = this._register(new Emitter<void>());
 	readonly onWillDispose = this._onWillDispose.event;
 
@@ -128,6 +131,8 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 		this.isInactive = false;
 		this.updateStyles();
 	}
+
+	readonly titleProperties: ITitleProperties = {};
 
 	updateProperties(_properties: ITitleProperties): void {
 		// No window title to update in simplified titlebar
@@ -461,10 +466,17 @@ export class TitleService extends MultiWindowParts<TitlebarPart> implements ITit
 
 	readonly onMenubarVisibilityChange: Event<boolean>;
 
+	private readonly _onDidChangeTitleProperties = this._register(new Emitter<ITitleProperties>());
+	readonly onDidChangeTitleProperties = this._onDidChangeTitleProperties.event;
+
+	readonly titleProperties: ITitleProperties = {};
+
 	updateProperties(properties: ITitleProperties): void {
 		for (const part of this.parts) {
 			part.updateProperties(properties);
 		}
+
+		this._onDidChangeTitleProperties.fire(properties);
 	}
 
 	registerVariables(variables: ITitleVariable[]): void {
