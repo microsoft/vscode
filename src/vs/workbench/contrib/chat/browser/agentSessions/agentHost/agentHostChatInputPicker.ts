@@ -18,6 +18,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { KNOWN_AUTO_APPROVE_VALUES, SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
+import { ClaudeSessionConfigKey } from '../../../../../../platform/agentHost/common/claudeSessionConfigKeys.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import type { ResolveSessionConfigResult, SessionConfigPropertySchema, SessionConfigValueItem } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import type { SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -25,6 +26,7 @@ import { StateComponents } from '../../../../../../platform/agentHost/common/sta
 import { type IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
+import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import type { IAction } from '../../../../../../base/common/actions.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import type { IChatWidget } from '../../chat.js';
@@ -34,6 +36,9 @@ import type { IChatInputPickerOptions } from '../../widget/input/chatInputPicker
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 
 const FILTER_THRESHOLD = 10;
+
+const LEARN_MORE_VALUE = '__agentHostChatInputPicker.learnMore__';
+const PERMISSION_MODE_LEARN_MORE_URL = 'https://code.visualstudio.com/docs/copilot/agents/agent-tools#_permission-levels';
 
 interface IConfigPickerItem {
 	readonly value: string;
@@ -153,6 +158,7 @@ export const WELL_KNOWN_PICKER_PROPERTIES: ReadonlySet<string> = new Set<string>
 	SessionConfigKey.Isolation,
 	SessionConfigKey.AutoApprove,
 	SessionConfigKey.Permissions,
+	ClaudeSessionConfigKey.PermissionMode,
 ]);
 
 /**
@@ -195,6 +201,7 @@ export class AgentHostChatInputPicker extends Disposable {
 		private readonly _pickerOptions: IChatInputPickerOptions | undefined,
 		@IAgentHostService private readonly _agentHostService: IAgentHostService,
 		@IActionWidgetService private readonly _actionWidgetService: IActionWidgetService,
+		@IOpenerService private readonly _openerService: IOpenerService,
 		@IAgentHostSessionWorkingDirectoryResolver private readonly _workingDirectoryResolver: IAgentHostSessionWorkingDirectoryResolver,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IAgentHostUntitledProvisionalSessionService private readonly _provisional: IAgentHostUntitledProvisionalSessionService,
@@ -433,10 +440,22 @@ export class AgentHostChatInputPicker extends Disposable {
 		}
 		const currentValue = ctx.value;
 		const actionItems = toActionItems(this._property, items, currentValue);
+		if (this._property === ClaudeSessionConfigKey.PermissionMode || this._property === SessionConfigKey.AutoApprove) {
+			actionItems.push({
+				kind: ActionListItemKind.Action,
+				label: localize('agentHostChatInputPicker.learnMorePermissions', "Learn more about permissions"),
+				group: { title: '', icon: Codicon.blank },
+				item: { value: LEARN_MORE_VALUE, label: localize('agentHostChatInputPicker.learnMorePermissions', "Learn more about permissions") },
+			});
+		}
 
 		const delegate: IActionListDelegate<IConfigPickerItem> = {
 			onSelect: item => {
 				this._actionWidgetService.hide();
+				if (item.value === LEARN_MORE_VALUE) {
+					void this._openerService.open(URI.parse(PERMISSION_MODE_LEARN_MORE_URL));
+					return;
+				}
 				void this._setValue(ctx.backendSession, item.value);
 			},
 			onFilter: ctx.schema.enumDynamic
