@@ -140,7 +140,7 @@ export class AnthropicLMProvider extends AbstractLanguageModelChatProvider {
 					},
 				});
 
-			const memoryToolEnabled = modelSupportsMemory(model.id);
+			const memoryToolEnabled = modelSupportsMemory(model.id) && this._configurationService.getConfig(ConfigKey.Advanced.MemoryEnabled);
 
 			// Requires the client-side tool_search tool in the request: without it, defer-loaded tools can't be retrieved.
 			// If the user disables tool_search in the tool picker, it won't be present here and tool search is skipped.

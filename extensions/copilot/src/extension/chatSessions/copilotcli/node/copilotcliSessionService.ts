@@ -946,7 +946,11 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 			allOptions.copilotUrl = copilotUrl;
 		}
 		allOptions.systemMessage = systemMessage;
-		allOptions.sessionCapabilities = new Set(['plan-mode', 'memory', 'cli-documentation', 'ask-user', 'interactive-mode', 'system-notifications']);
+		const sessionCapabilities = new Set(['plan-mode', 'cli-documentation', 'ask-user', 'interactive-mode', 'system-notifications']);
+		if (this.configurationService.getConfig(ConfigKey.Advanced.MemoryEnabled)) {
+			sessionCapabilities.add('memory');
+		}
+		allOptions.sessionCapabilities = sessionCapabilities;
 		if (options.reasoningEffort && this.configurationService.getConfig(ConfigKey.Advanced.CLIThinkingEffortEnabled)) {
 			allOptions.reasoningEffort = options.reasoningEffort;
 		}
