@@ -45,6 +45,12 @@ const permissionModes: IClaudePermissionModeItem[] = [
 		description: localize('claude.permissionMode.plan.description', "Claude creates a plan before making changes"),
 		icon: Codicon.lightbulb,
 	},
+	{
+		id: 'auto',
+		label: localize('claude.permissionMode.auto', "Auto"),
+		description: localize('claude.permissionMode.auto.description', "A model classifier approves or denies tool operations automatically"),
+		icon: Codicon.sparkle,
+	},
 ];
 
 export class ClaudePermissionModePicker extends Disposable {
