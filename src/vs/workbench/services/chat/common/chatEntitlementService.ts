@@ -172,6 +172,7 @@ export interface IChatEntitlementService {
 
 	readonly onDidChangeQuotaExceeded: Event<void>;
 	readonly onDidChangeQuotaRemaining: Event<void>;
+	readonly onDidChangeUsageBasedBilling: Event<void>;
 
 	readonly quotas: IQuotas;
 
@@ -472,6 +473,9 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 	private readonly _onDidChangeQuotaRemaining = this._register(new Emitter<void>());
 	readonly onDidChangeQuotaRemaining = this._onDidChangeQuotaRemaining.event;
 
+	private readonly _onDidChangeUsageBasedBilling = this._register(new Emitter<void>());
+	readonly onDidChangeUsageBasedBilling = this._onDidChangeUsageBasedBilling.event;
+
 	private _quotas: IQuotas;
 	get quotas() { return this._quotas; }
 
@@ -550,6 +554,10 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 
 		if (chatChanged.remaining || completionsChanged.remaining || premiumChatChanged.remaining || oldQuota.usageBasedBilling !== quotas.usageBasedBilling) {
 			this._onDidChangeQuotaRemaining.fire();
+		}
+
+		if (oldQuota.usageBasedBilling !== quotas.usageBasedBilling) {
+			this._onDidChangeUsageBasedBilling.fire();
 		}
 
 		// Track additional spend configuration changes (only when both values come from server snapshots)

@@ -203,7 +203,6 @@ export interface ILanguageModelChatMetadata {
 	readonly isDefaultForLocation: { [K in ChatAgentLocation]?: boolean };
 	readonly isUserSelectable?: boolean;
 	readonly statusIcon?: ThemeIcon;
-	readonly modelPickerCategory: { label: string; order: number } | undefined;
 	readonly auth?: {
 		readonly providerLabel: string;
 		readonly accountLabel?: string;
@@ -443,6 +442,31 @@ export interface ILanguageModelsService {
 	clearRecentlyUsedList(): void;
 
 	/**
+	 * Returns the pinned model identifiers, in the order they were pinned.
+	 */
+	getPinnedModelIds(): string[];
+
+	/**
+	 * Pins a model so it appears in the pinned section of the model picker.
+	 */
+	pinModel(modelIdentifier: string): void;
+
+	/**
+	 * Unpins a model, removing it from the pinned section.
+	 */
+	unpinModel(modelIdentifier: string): void;
+
+	/**
+	 * Returns whether the given model is pinned.
+	 */
+	isModelPinned(modelIdentifier: string): boolean;
+
+	/**
+	 * Fires when the pinned models list changes.
+	 */
+	readonly onDidChangePinnedModels: Event<void>;
+
+	/**
 	 * Returns the models from the control manifest,
 	 * separated into free and paid tiers.
 	 */
@@ -558,6 +582,13 @@ export const languageModelChatProviderExtensionPoint = ExtensionsRegistry.regist
 });
 
 const CHAT_MODEL_RECENTLY_USED_STORAGE_KEY = 'chatModelRecentlyUsed';
+const CHAT_MODEL_PINNED_STORAGE_KEY = 'chatModelPinned';
+
+/**
+ * The identifier for the Auto model which dynamically routes to the best backend.
+ * Auto should never appear in user-curated lists (MRU, pinned).
+ */
+const AUTO_MODEL_IDENTIFIER = 'copilot/auto';
 const CHAT_PARTICIPANT_NAME_REGISTRY_STORAGE_KEY = 'chat.participantNameRegistry';
 const CHAT_MODELS_CONTROL_STORAGE_KEY = 'chat.modelsControl';
 
@@ -595,9 +626,13 @@ export class LanguageModelsService implements ILanguageModelsService {
 	readonly onDidChangeLanguageModels: Event<string> = this._onLanguageModelChange.event;
 
 	private _recentlyUsedModelIds: string[] = [];
+	private _pinnedModelIds: string[] = [];
 
 	private readonly _onDidChangeModelsControlManifest = this._store.add(new Emitter<IModelsControlManifest>());
 	readonly onDidChangeModelsControlManifest = this._onDidChangeModelsControlManifest.event;
+
+	private readonly _onDidChangePinnedModels = this._store.add(new Emitter<void>());
+	readonly onDidChangePinnedModels = this._onDidChangePinnedModels.event;
 
 	private _modelsControlManifest: IModelsControlManifest = { free: {}, paid: {} };
 	private _modelsControlRawResponse: IChatControlResponse['models'] | undefined;
@@ -621,6 +656,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 	) {
 		this._hasUserSelectableModels = ChatContextKeys.languageModelsAreUserSelectable.bindTo(_contextKeyService);
 		this._recentlyUsedModelIds = this._readRecentlyUsedModels();
+		this._pinnedModelIds = this._readPinnedModels();
 		this._initChatControlData();
 
 		this._store.add(this.onDidChangeLanguageModels(() => {
@@ -1655,12 +1691,12 @@ export class LanguageModelsService implements ILanguageModelsService {
 	getRecentlyUsedModelIds(): string[] {
 		// Filter to only include models that still exist in the cache
 		return this._recentlyUsedModelIds
-			.filter(id => this._modelCache.has(id) && id !== 'copilot/auto')
+			.filter(id => this._modelCache.has(id) && id !== AUTO_MODEL_IDENTIFIER)
 			.slice(0, 4);
 	}
 
 	addToRecentlyUsedList(modelIdentifier: string): void {
-		if (modelIdentifier === 'copilot/auto') {
+		if (modelIdentifier === AUTO_MODEL_IDENTIFIER) {
 			return;
 		}
 
@@ -1681,6 +1717,45 @@ export class LanguageModelsService implements ILanguageModelsService {
 	clearRecentlyUsedList(): void {
 		this._recentlyUsedModelIds = [];
 		this._saveRecentlyUsedModels();
+	}
+
+	//#endregion
+
+	//#region Pinned models
+
+	private _readPinnedModels(): string[] {
+		return this._storageService.getObject<string[]>(CHAT_MODEL_PINNED_STORAGE_KEY, StorageScope.PROFILE, []);
+	}
+
+	private _savePinnedModels(): void {
+		this._storageService.store(CHAT_MODEL_PINNED_STORAGE_KEY, this._pinnedModelIds, StorageScope.PROFILE, StorageTarget.USER);
+	}
+
+	getPinnedModelIds(): string[] {
+		return this._pinnedModelIds.filter(id => id !== AUTO_MODEL_IDENTIFIER && this._modelCache.has(id));
+	}
+
+	pinModel(modelIdentifier: string): void {
+		if (modelIdentifier === AUTO_MODEL_IDENTIFIER || this._pinnedModelIds.includes(modelIdentifier)) {
+			return;
+		}
+		this._pinnedModelIds.push(modelIdentifier);
+		this._savePinnedModels();
+		this._onDidChangePinnedModels.fire();
+	}
+
+	unpinModel(modelIdentifier: string): void {
+		const index = this._pinnedModelIds.indexOf(modelIdentifier);
+		if (index === -1) {
+			return;
+		}
+		this._pinnedModelIds.splice(index, 1);
+		this._savePinnedModels();
+		this._onDidChangePinnedModels.fire();
+	}
+
+	isModelPinned(modelIdentifier: string): boolean {
+		return modelIdentifier !== AUTO_MODEL_IDENTIFIER && this._pinnedModelIds.includes(modelIdentifier);
 	}
 
 	//#endregion

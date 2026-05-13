@@ -216,6 +216,10 @@ export class BrowserTitleService extends MultiWindowParts<BrowserTitlebarPart> i
 		}
 	}
 
+	get windowTitle(): WindowTitle {
+		return this.mainPart.windowTitle;
+	}
+
 	//#endregion
 }
 
@@ -292,7 +296,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 	private readonly isCompactContextKey: IContextKey<boolean>;
 
-	private readonly windowTitle: WindowTitle;
+	readonly windowTitle: WindowTitle;
 
 	protected readonly instantiationService: IInstantiationService;
 

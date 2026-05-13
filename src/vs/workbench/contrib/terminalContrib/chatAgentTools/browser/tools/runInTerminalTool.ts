@@ -260,7 +260,11 @@ function createZshModelDescription(isSandboxEnabled: boolean, allowToRunUnsandbo
 		'- Use jobs, fg, bg for job control',
 		'- Use [[ ]] for conditional tests instead of [ ]',
 		'- Prefer $() over backticks for command substitution',
-		'- Take advantage of zsh globbing features (**, extended globs)'
+		'- Take advantage of zsh globbing features (**, extended globs). Note: unmatched globs fail by default (zsh: no matches found) — use a glob qualifier like *(N) or quote the glob if it should be literal',
+		'',
+		'zsh pitfalls — these WILL cause errors or hangs:',
+		'- NEVER use bare == or === as separators (e.g. echo === triggers zsh equals expansion). Quote them: echo \'===\'',
+		'- NEVER use status as a variable name (it is read-only in zsh). Use exit_code or ret instead',
 	].join('\n');
 }
 
@@ -505,10 +509,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	private static readonly _activeExecutions = new Map<string, IActiveTerminalExecution & { dispose(): void }>();
 
 	/**
-	 * Terminal IDs currently being disposed by `kill_terminal`. Used to
-	 * suppress redundant steering messages in `_registerCompletionNotification`'s
-	 * `onDisposed` handler — the agent already receives the output through the
-	 * `kill_terminal` tool result.
+	 * Terminal IDs being programmatically disposed (by `kill_terminal` or
+	 * automatic background-terminal cleanup). Used to suppress the redundant
+	 * "terminal exited" steering message in `_registerCompletionNotification`'s
+	 * `onDisposed` handler.
 	 */
 	private static readonly _killedByTool = new Set<string>();
 	public static getBackgroundOutput(id: string): string {
@@ -1699,8 +1703,12 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					idleSilenceScheduler.schedule();
 					raceCandidates.push(idleSilenceDeferred.p);
 				}
-				const raceResult = await Promise.race(raceCandidates);
-				raceCleanup.dispose();
+				let raceResult: { type: 'completed'; result: ITerminalExecuteStrategyResult } | { type: 'background' } | { type: 'timeout' } | { type: 'inputNeeded' } | { type: 'idleSilence' };
+				try {
+					raceResult = await Promise.race(raceCandidates);
+				} finally {
+					raceCleanup.dispose();
+				}
 
 				if (raceResult.type === 'inputNeeded') {
 					// Output monitor detected the terminal is waiting for input.
@@ -1861,7 +1869,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					// same prompt does not send a redundant steering message that would
 					// yield the agent's in-flight `send_to_terminal` response.
 					const alreadyNotifiedInputNeededOutput = didInputNeeded ? terminalResult : undefined;
-					this._registerCompletionNotification(toolTerminal.instance, termId, chatSessionResource, command, outputMonitor, alreadyNotifiedInputNeededOutput);
+					this._registerCompletionNotification(toolTerminal.instance, termId, chatSessionResource, command, toolSpecificData, outputMonitor, alreadyNotifiedInputNeededOutput);
 				} else {
 					outputMonitor?.dispose();
 				}
@@ -2444,7 +2452,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	 * to detect prompts-for-input while the terminal runs in the background.
 	 * The output monitor is cancelled and disposed when a command finishes.
 	 */
-	private _registerCompletionNotification(terminalInstance: ITerminalInstance, termId: string, chatSessionResource: URI, commandName: string, outputMonitor?: OutputMonitor, alreadyNotifiedInputNeededOutput?: string): void {
+	private _registerCompletionNotification(terminalInstance: ITerminalInstance, termId: string, chatSessionResource: URI, commandName: string, toolSpecificData: IChatTerminalToolInvocationData, outputMonitor?: OutputMonitor, alreadyNotifiedInputNeededOutput?: string): void {
 		// Dispose any previous background notification for this terminal instance to prevent
 		// listener accumulation (e.g. multiple onDidInputData subscriptions) when the same
 		// foreground terminal is reused across run_in_terminal invocations.
@@ -2638,7 +2646,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			const exitCode = command.exitCode;
 			const exitCodeText = exitCode !== undefined ? ` with exit code ${exitCode}` : '';
 			const currentOutput = execution.getOutput();
-			const message = `[Terminal ${termId} notification: command completed${exitCodeText}. Use send_to_terminal to send another command or kill_terminal to stop it.]\nTerminal output:\n${currentOutput}`;
+			const willDispose = terminalInstance.shellLaunchConfig.hideFromUser;
+			const message = willDispose
+				? `[Terminal ${termId} notification: command completed${exitCodeText}. The terminal has been cleaned up.]\nTerminal output:\n${currentOutput}`
+				: `[Terminal ${termId} notification: command completed${exitCodeText}. Use send_to_terminal to send another command or kill_terminal to stop it.]\nTerminal output:\n${currentOutput}`;
 
 			this._logService.debug(`RunInTerminalTool: Command completed in background terminal ${termId}, notifying chat session`);
 
@@ -2651,6 +2662,24 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			}).catch(e => {
 				this._logService.warn(`RunInTerminalTool: Failed to send completion notification for terminal ${termId}`, e);
 			});
+
+			// Background terminals are not reused, so dispose them once their
+			// command completes to prevent terminal accumulation across turns.
+			// Only dispose if the user hasn't revealed the terminal — if they
+			// have, they may want to inspect its output or interact with it.
+			// Capture the output snapshot first so the progress part can still
+			// display output after the terminal instance is gone.
+			if (terminalInstance.shellLaunchConfig.hideFromUser) {
+				this._commandArtifactCollector.capture(toolSpecificData, terminalInstance, command.id).then(() => {
+					this._logService.debug(`RunInTerminalTool: Disposing finished background terminal ${termId}`);
+					// Mark as killed so the onDisposed handler below does not
+					// send a redundant "terminal exited" steering message.
+					RunInTerminalTool._killedByTool.add(termId);
+					execution.dispose();
+					RunInTerminalTool._activeExecutions.delete(termId);
+					terminalInstance.dispose();
+				});
+			}
 		}));
 
 		// Clean up all background resources when the terminal is disposed
