@@ -2649,10 +2649,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			// Only dispose if the terminal is still hidden from the user. Once the
 			// user reveals it (via the "Show" link), it joins `foregroundInstances`
 			// and should persist so they can inspect/interact with it.
-			const willDispose = !this._terminalService.foregroundInstances.includes(terminalInstance);
-			const message = willDispose
-				? `[Terminal ${termId} notification: command completed${exitCodeText}. The terminal has been cleaned up.]\nTerminal output:\n${currentOutput}`
-				: `[Terminal ${termId} notification: command completed${exitCodeText}. Use send_to_terminal to send another command or kill_terminal to stop it.]\nTerminal output:\n${currentOutput}`;
+			const isUserVisible = this._terminalService.foregroundInstances.includes(terminalInstance);
+			const message = isUserVisible
+				? `[Terminal ${termId} notification: command completed${exitCodeText}. Use send_to_terminal to send another command or kill_terminal to stop it.]\nTerminal output:\n${currentOutput}`
+				: `[Terminal ${termId} notification: command completed${exitCodeText}. The terminal has been cleaned up.]\nTerminal output:\n${currentOutput}`;
 
 			this._logService.debug(`RunInTerminalTool: Command completed in background terminal ${termId}, notifying chat session`);
 
@@ -2673,17 +2673,21 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			// output or interact with it.
 			// Capture the output snapshot first so the progress part can still
 			// display output after the terminal instance is gone.
-			if (willDispose) {
-				this._commandArtifactCollector.capture(toolSpecificData, terminalInstance, command.id).then(() => {
-					this._logService.debug(`RunInTerminalTool: Disposing finished background terminal ${termId}`);
-					// Mark as killed so the onDisposed handler below does not
-					// send a redundant "terminal exited" steering message.
-					RunInTerminalTool._killedByTool.add(termId);
-					execution.dispose();
-					RunInTerminalTool._activeExecutions.delete(termId);
-					terminalInstance.dispose();
-				});
-			}
+			// Re-check foregroundInstances inside the callback because the user
+			// may click the "Show" link while capture is in progress.
+			this._commandArtifactCollector.capture(toolSpecificData, terminalInstance, command.id).then(() => {
+				if (this._terminalService.foregroundInstances.includes(terminalInstance)) {
+					this._logService.debug(`RunInTerminalTool: Background terminal ${termId} was revealed by user, skipping disposal`);
+					return;
+				}
+				this._logService.debug(`RunInTerminalTool: Disposing finished background terminal ${termId}`);
+				// Mark as killed so the onDisposed handler below does not
+				// send a redundant "terminal exited" steering message.
+				RunInTerminalTool._killedByTool.add(termId);
+				execution.dispose();
+				RunInTerminalTool._activeExecutions.delete(termId);
+				terminalInstance.dispose();
+			});
 		}));
 
 		// Clean up all background resources when the terminal is disposed
