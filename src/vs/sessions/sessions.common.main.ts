@@ -444,6 +444,7 @@ import './contrib/sessions/browser/customizationsToolbar.contribution.js';
 import './contrib/changes/browser/changes.contribution.js';
 import './contrib/layout/browser/layout.contribution.js';
 import './contrib/codeReview/browser/codeReview.contributions.js';
+import './contrib/agentFeedback/browser/agentFeedback.contribution.js';
 import './contrib/files/browser/files.contribution.js';
 import './contrib/github/browser/github.contribution.js';
 import './contrib/applyCommitsToParentRepo/browser/applyChangesToParentRepo.js';
