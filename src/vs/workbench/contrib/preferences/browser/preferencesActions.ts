@@ -25,6 +25,7 @@ import { IExtensionService } from '../../../services/extensions/common/extension
 import { EnablementState, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { timeout } from '../../../../base/common/async.js';
 import { ExtensionIdentifierSet } from '../../../../platform/extensions/common/extensions.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
 
 export class ConfigureLanguageBasedSettingsAction extends Action {
 
@@ -184,21 +185,25 @@ CommandsRegistry.registerCommand({
 			for (const ext of extensionService.extensions) {
 				pending.delete(ext.identifier);
 			}
+			let sub: IDisposable | undefined;
 			const allRegistered = pending.size === 0
 				? Promise.resolve()
 				: new Promise<void>(resolve => {
-					const sub = extensionService.onDidChangeExtensions(({ added }) => {
+					sub = extensionService.onDidChangeExtensions(({ added }) => {
 						for (const ext of added) {
 							pending.delete(ext.identifier);
 						}
 						if (pending.size === 0) {
-							sub.dispose();
 							resolve();
 						}
 					});
 				});
-			await extensionEnablementService.setEnablement(toEnable, EnablementState.EnabledGlobally);
-			await Promise.race([allRegistered, timeout(15000)]);
+			try {
+				await extensionEnablementService.setEnablement(toEnable, EnablementState.EnabledGlobally);
+				await Promise.race([allRegistered, timeout(15000)]);
+			} finally {
+				sub?.dispose();
+			}
 			await extensionService.whenInstalledExtensionsRegistered();
 		}
 
