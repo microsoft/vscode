@@ -235,19 +235,5 @@
 	"builtInExtensionsEnabledWithAutoUpdates": [
 		"GitHub.copilot-chat"
 	],
-	"sessionsWindowAllowedExtensions": [
-		"pkief.material-icon-theme",
-		"zhuangtongfa.material-theme",
-		"vscode-icons-team.vscode-icons",
-		"oderwat.indent-rainbow",
-		"formulahendry.auto-close-tag",
-		"pranaygp.vscode-css-peek",
-		"codezombiech.gitignore",
-		"usernamehw.errorlens",
-		"wayou.vscode-todo-highlight",
-		"bierner.markdown-mermaid",
-		"kisstkondoros.vscode-gutter-preview",
-		"tomoki1207.pdf",
-		"vscodevim.vim"
-	]
+	"sessionsWindowAllowedExtensions": []
 }

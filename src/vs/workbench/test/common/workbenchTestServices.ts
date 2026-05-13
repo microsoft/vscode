@@ -796,6 +796,7 @@ export class TestChatEntitlementService implements IChatEntitlementService {
 
 	readonly onDidChangeQuotaExceeded = Event.None;
 	readonly onDidChangeQuotaRemaining = Event.None;
+	readonly onDidChangeUsageBasedBilling = Event.None;
 	readonly quotas = {};
 
 	update(token: CancellationToken): Promise<void> {
