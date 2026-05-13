@@ -1711,6 +1711,10 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 	 * Returns a disposable that clears the timer and cancels any in-flight probe.
 	 */
 	private startBuildPromptKeepAlive(parentToken: CancellationToken): IDisposable {
+		if (!this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.LongToolCallCachePreservation, this._experimentationService)) {
+			return Disposable.None;
+		}
+
 		const baseFetchOptions = this.lastFetchOptions;
 		// Nothing useful to send if we haven't rendered a prompt yet (first iteration).
 		if (!baseFetchOptions || baseFetchOptions.messages.length === 0) {
