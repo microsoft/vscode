@@ -429,7 +429,7 @@ export class CopilotCLIAgents extends Disposable implements ICopilotCLIAgents {
 
 	private async getSDKAgents(): Promise<Readonly<SweCustomAgent>[]> {
 		// The SDK spawns a process when finding agents, and this is slow.
-		// Avoid using SDK for findinng agents for now, as we find them ourselves.
+		// Avoid using SDK for finding agents for now, as we find them ourselves.
 		if ((false as unknown)) {
 			const workspaceFolders = this.workspaceService.getWorkspaceFolders();
 			if (workspaceFolders.length === 0) {
