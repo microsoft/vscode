@@ -590,12 +590,13 @@ suite('isExtendedCacheTtlEnabled', function () {
 		expect(isExtendedCacheTtlEnabled(ELIGIBLE_MODEL, configurationService, experimentationService, ChatLocation.Agent, false)).toBe(true);
 	});
 
-	test('returns true when location is undefined', function () {
-		// Defensive coverage for callers that don't forward a location (e.g. subclass
-		// overrides that call `super.getExtraHeaders()` without arguments). The location
-		// gate is re-applied at body-emission time.
+	test('returns false when location is undefined', function () {
+		// The gate requires an explicit `ChatLocation.Agent`. Callers that route through
+		// subclass overrides which drop the `location` argument (e.g. `super.getExtraHeaders()`
+		// without arguments — see `OpenRouterEndpoint`, `AzureOpenAIEndpoint`, etc.) are
+		// correctly excluded so the beta header is never sent for non-Agent paths.
 		enableConfig();
-		expect(isExtendedCacheTtlEnabled(ELIGIBLE_MODEL, configurationService, experimentationService, undefined, false)).toBe(true);
+		expect(isExtendedCacheTtlEnabled(ELIGIBLE_MODEL, configurationService, experimentationService, undefined, false)).toBe(false);
 	});
 
 	test('returns false when isSubagent is true', function () {

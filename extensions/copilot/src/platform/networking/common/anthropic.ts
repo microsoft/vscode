@@ -159,15 +159,16 @@ export function modelSupportsExtendedCacheTtl(modelId: string): boolean {
  * Returns true when the Anthropic Messages API request should use the extended
  * (1 hour) prompt cache TTL on its tools and system breakpoints. Gated on the
  * model (only the 1M context variants), the experiment-based setting, the chat
- * location (only the main agent conversation qualifies), and the subagent flag.
+ * location (must be exactly {@link ChatLocation.Agent}), and the subagent flag.
  *
  * {@link ChatLocation.MessagesProxy} is intentionally out of scope — extended
  * TTL is only meant for the main agent conversation, not for the Claude CLI
  * passthrough.
  *
- * @param location When omitted, the location gate is skipped. Body emission in
- * {@link createMessagesRequestBody} always passes a real location, so the gate
- * is enforced there.
+ * @param location Must be {@link ChatLocation.Agent}; any other value (including
+ * `undefined`) fails the gate. Callers that route through subclass overrides
+ * which drop the `location` argument (e.g. `super.getExtraHeaders()`) are
+ * correctly excluded by this strict check.
  * @param isSubagent Subagent requests are short-lived and would not benefit
  * from the 1h TTL.
  */
@@ -175,8 +176,8 @@ export function isExtendedCacheTtlEnabled(
 	endpoint: IChatEndpoint | string,
 	configurationService: IConfigurationService,
 	experimentationService: IExperimentationService,
-	location?: ChatLocation,
-	isSubagent?: boolean,
+	location: ChatLocation | undefined,
+	isSubagent: boolean | undefined,
 ): boolean {
 	const modelId = typeof endpoint === 'string' ? endpoint : endpoint.model;
 	if (!modelSupportsExtendedCacheTtl(modelId)) {
@@ -185,7 +186,7 @@ export function isExtendedCacheTtlEnabled(
 	if (!configurationService.getExperimentBasedConfig(ConfigKey.Advanced.AnthropicExtendedCacheTtl, experimentationService)) {
 		return false;
 	}
-	if (location !== undefined && location !== ChatLocation.Agent) {
+	if (location !== ChatLocation.Agent) {
 		return false;
 	}
 	if (isSubagent) {
