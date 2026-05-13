@@ -75,6 +75,13 @@ export class MainThreadChatDebug extends Disposable implements MainThreadChatDeb
 				return uri;
 			}
 		}));
+
+		// Register a lazy fetcher so historical sessions are loaded from the
+		// extension only when the debug panel home page first needs them.
+		this._chatDebugService.registerAvailableSessionsFetcher(async (token) => {
+			const entries = await this._proxy.$getAvailableDebugSessionResources(handle, token);
+			return entries.map(e => ({ uri: URI.revive(e.uri), title: e.title }));
+		});
 	}
 
 	$unregisterChatDebugLogProvider(handle: number): void {
@@ -107,7 +114,7 @@ export class MainThreadChatDebug extends Disposable implements MainThreadChatDeb
 			case 'toolCall':
 				return { ...base, kind: 'toolCall', toolName: event.toolName, toolCallId: event.toolCallId, input: event.input, output: event.output, result: event.result, durationInMillis: event.durationInMillis };
 			case 'modelTurn':
-				return { ...base, kind: 'modelTurn', model: event.model, requestName: event.requestName, inputTokens: event.inputTokens, outputTokens: event.outputTokens, totalTokens: event.totalTokens, durationInMillis: event.durationInMillis };
+				return { ...base, kind: 'modelTurn', model: event.model, requestName: event.requestName, inputTokens: event.inputTokens, outputTokens: event.outputTokens, cachedTokens: event.cachedTokens, totalTokens: event.totalTokens, copilotUsageNanoAiu: event.copilotUsageNanoAiu, durationInMillis: event.durationInMillis };
 			case 'generic':
 				return { ...base, kind: 'generic', name: event.name, details: event.details, level: event.level, category: event.category };
 			case 'subagentInvocation':
@@ -147,7 +154,9 @@ export class MainThreadChatDebug extends Disposable implements MainThreadChatDeb
 					requestName: dto.requestName,
 					inputTokens: dto.inputTokens,
 					outputTokens: dto.outputTokens,
+					cachedTokens: dto.cachedTokens,
 					totalTokens: dto.totalTokens,
+					copilotUsageNanoAiu: dto.copilotUsageNanoAiu,
 					durationInMillis: dto.durationInMillis,
 				};
 			case 'generic':
@@ -214,10 +223,15 @@ export class MainThreadChatDebug extends Disposable implements MainThreadChatDeb
 					model: dto.model,
 					status: dto.status,
 					durationInMillis: dto.durationInMillis,
+					timeToFirstTokenInMillis: dto.timeToFirstTokenInMillis,
+					requestId: dto.requestId,
+					maxInputTokens: dto.maxInputTokens,
+					maxOutputTokens: dto.maxOutputTokens,
 					inputTokens: dto.inputTokens,
 					outputTokens: dto.outputTokens,
 					cachedTokens: dto.cachedTokens,
 					totalTokens: dto.totalTokens,
+					requestOptions: dto.requestOptions,
 					errorMessage: dto.errorMessage,
 					sections: dto.sections,
 				};

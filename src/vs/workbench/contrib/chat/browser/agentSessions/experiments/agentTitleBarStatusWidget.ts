@@ -40,7 +40,7 @@ import { mainWindow } from '../../../../../../base/browser/window.js';
 import { LayoutSettings } from '../../../../../services/layout/browser/layoutService.js';
 import { WindowTitle } from '../../../../../browser/parts/titlebar/windowTitle.js';
 import { ChatConfiguration } from '../../../common/constants.js';
-import { ChatEntitlement, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
+import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IChatWidgetService } from '../../chat.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 
@@ -51,7 +51,6 @@ type AgentStatusClickAction =
 	| 'focusSessionsView'
 	| 'toggleChat'
 	| 'setupChat'
-	| 'openQuotaExceededDialog'
 	| 'applyFilter'
 	| 'clearFilter'
 	| 'enterProjection'
@@ -71,8 +70,6 @@ type AgentStatusClickClassification = {
 
 // Action IDs
 const TOGGLE_CHAT_ACTION_ID = 'workbench.action.chat.toggle';
-const CHAT_SETUP_ACTION_ID = 'workbench.action.chat.triggerSetup';
-const OPEN_CHAT_QUOTA_EXCEEDED_DIALOG = 'workbench.action.chat.openQuotaExceededDialog';
 const QUICK_OPEN_ACTION_ID = 'workbench.action.quickOpenWithModes';
 
 // Storage key for filter state
@@ -85,8 +82,7 @@ type AgentStatusSettingMode = 'hidden' | 'badge' | 'compact';
 function shouldForceHiddenAgentStatus(configurationService: IConfigurationService): boolean {
 	const aiFeaturesDisabled = configurationService.getValue<boolean>(ChatConfiguration.AIDisabled) === true;
 	const aiCustomizationsDisabled = configurationService.getValue<boolean>('disableAICustomizations') === true
-		|| configurationService.getValue<boolean>('workbench.disableAICustomizations') === true
-		|| configurationService.getValue<boolean>(ChatConfiguration.ChatCustomizationMenuEnabled) === false;
+		|| configurationService.getValue<boolean>('workbench.disableAICustomizations') === true;
 
 	return aiFeaturesDisabled && aiCustomizationsDisabled;
 }
@@ -233,8 +229,6 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 				|| e.affectsConfiguration(ChatConfiguration.UnifiedAgentsBar)
 				|| e.affectsConfiguration(ChatConfiguration.ChatViewSessionsEnabled)
 				|| e.affectsConfiguration(ChatConfiguration.AIDisabled)
-				|| e.affectsConfiguration(ChatConfiguration.ChatCustomizationMenuEnabled)
-				|| e.affectsConfiguration(ChatConfiguration.SignInTitleBarEnabled)
 				|| e.affectsConfiguration('disableAICustomizations')
 				|| e.affectsConfiguration('workbench.disableAICustomizations')
 			) {
@@ -858,31 +852,9 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 		// Get menu actions for dropdown with proper group separators
 		const menuActions: IAction[] = Separator.join(...this._chatTitleBarMenu.getActions({ shouldForwardArgs: true }).map(([, actions]) => actions));
 
-		// Determine primary action based on entitlement state
-		// Special case 1: User is signed out (needs to sign in)
-		// Special case 2: User has exceeded quota (needs to upgrade)
-		const chatSentiment = this.chatEntitlementService.sentiment;
-		const chatQuotaExceeded = this.chatEntitlementService.quotas.chat?.percentRemaining === 0;
-		const signedOut = this.chatEntitlementService.entitlement === ChatEntitlement.Unknown;
-		const anonymous = this.chatEntitlementService.anonymous;
-		const free = this.chatEntitlementService.entitlement === ChatEntitlement.Free;
-
-		let primaryActionId = TOGGLE_CHAT_ACTION_ID;
-		let primaryActionTitle = localize('toggleChat', "Toggle Chat");
-		let primaryActionIcon = Codicon.chatSparkle;
-
-		const signInTitleBarEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.SignInTitleBarEnabled);
-		if (chatSentiment.installed && !chatSentiment.disabled) {
-			if (signedOut && !anonymous && !signInTitleBarEnabled) {
-				primaryActionId = CHAT_SETUP_ACTION_ID;
-				primaryActionTitle = localize('signInToChatSetup', "Sign in to use AI features...");
-				primaryActionIcon = Codicon.chatSparkleError;
-			} else if (chatQuotaExceeded && free) {
-				primaryActionId = OPEN_CHAT_QUOTA_EXCEEDED_DIALOG;
-				primaryActionTitle = localize('chatQuotaExceededButton', "GitHub Copilot Free plan chat messages quota reached. Click for details.");
-				primaryActionIcon = Codicon.chatSparkleWarning;
-			}
-		}
+		const primaryActionId = TOGGLE_CHAT_ACTION_ID;
+		const primaryActionTitle = localize('toggleChat', "Toggle Chat");
+		const primaryActionIcon = Codicon.chatSparkle;
 
 		// Create primary action
 		const primaryAction = this.instantiationService.createInstance(MenuItemAction, {
@@ -1461,7 +1433,6 @@ export class AgentTitleBarStatusRendering extends Disposable implements IWorkben
 				e.affectsConfiguration(ChatConfiguration.AgentStatusEnabled)
 				|| e.affectsConfiguration(LayoutSettings.COMMAND_CENTER)
 				|| e.affectsConfiguration(ChatConfiguration.AIDisabled)
-				|| e.affectsConfiguration(ChatConfiguration.ChatCustomizationMenuEnabled)
 				|| e.affectsConfiguration('disableAICustomizations')
 				|| e.affectsConfiguration('workbench.disableAICustomizations')
 			) {

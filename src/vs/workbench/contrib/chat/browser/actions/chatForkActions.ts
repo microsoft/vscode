@@ -12,11 +12,12 @@ import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
-import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { ChatContextKeyExprs, ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatService, ResponseModelState } from '../../common/chatService/chatService.js';
 import type { ISerializableChatData } from '../../common/model/chatModel.js';
 import { isChatTreeItem, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
 import { IChatSessionRequestHistoryItem, IChatSessionsService } from '../../common/chatSessionsService.js';
+import { getChatSessionType } from '../../common/model/chatUri.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 import { ChatTreeItem, ChatViewPaneTarget, IChatWidgetService } from '../chat.js';
 
@@ -40,7 +41,7 @@ export function registerChatForkActions() {
 							ChatContextKeys.isRequest,
 							ChatContextKeys.isFirstRequest.negate(),
 							ContextKeyExpr.or(
-								ChatContextKeys.lockedToCodingAgent.negate(),
+								ContextKeyExpr.or(ChatContextKeys.lockedToCodingAgent.negate(), ChatContextKeyExprs.isAgentHostSession),
 								ChatContextKeys.chatSessionSupportsFork
 							)
 						)
@@ -62,7 +63,7 @@ export function registerChatForkActions() {
 
 				// Check if this is a contributed session that supports forking
 				const contentProviderSchemes = chatSessionsService.getContentProviderSchemes();
-				if (contentProviderSchemes.includes(sourceSessionResource.scheme)) {
+				if (contentProviderSchemes.includes(getChatSessionType(sourceSessionResource))) {
 					return await this.forkContributedChatSession(sourceSessionResource, undefined, false, chatSessionsService, chatWidgetService);
 				}
 
@@ -142,7 +143,7 @@ export function registerChatForkActions() {
 
 			// Check if this is a contributed session that supports forking
 			const contentProviderSchemes = chatSessionsService.getContentProviderSchemes();
-			if (contentProviderSchemes.includes(sessionResource.scheme)) {
+			if (contentProviderSchemes.includes(getChatSessionType(sessionResource))) {
 				const contributedSession = await chatSessionsService.getOrCreateChatSession(sessionResource, CancellationToken.None);
 				let request = contributedSession.history.find((entry): entry is IChatSessionRequestHistoryItem => entry.type === 'request' && entry.id === targetRequestId);
 				if (!request) {

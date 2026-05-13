@@ -978,6 +978,7 @@ interface IAbstractFindControllerOptions extends IFindWidgetOptions {
 	placeholder?: string;
 	toggles?: ITreeFindToggleContribution[];
 	showNotFoundMessage?: boolean;
+	findWidgetContainer?: HTMLElement;
 }
 
 export interface IFindControllerOptions extends IAbstractFindControllerOptions {
@@ -1034,9 +1035,12 @@ export abstract class AbstractFindController<T, TFilterData> implements IDisposa
 			return;
 		}
 
-		this.tree.updateOptions({ paddingTop: 30 });
+		const widgetContainer = this.options.findWidgetContainer ?? this.tree.getHTMLElement();
+		if (!this.options.findWidgetContainer) {
+			this.tree.updateOptions({ paddingTop: 30 });
+		}
 
-		this.widget = new FindWidget(this.tree.getHTMLElement(), this.tree, this.contextViewProvider, this.placeholder, this.toggles.states(), { ...this.options, history: this._history });
+		this.widget = new FindWidget(widgetContainer, this.tree, this.contextViewProvider, this.placeholder, this.toggles.states(), { ...this.options, history: this._history });
 		this.enabledDisposables.add(this.widget);
 
 		this.widget.onDidChangeValue(this.onDidChangeValue, this, this.enabledDisposables);
@@ -1056,7 +1060,9 @@ export abstract class AbstractFindController<T, TFilterData> implements IDisposa
 			return;
 		}
 
-		this.tree.updateOptions({ paddingTop: 0 });
+		if (!this.options.findWidgetContainer) {
+			this.tree.updateOptions({ paddingTop: 0 });
+		}
 
 		this._history = this.widget.getHistory();
 		this.widget = undefined;
@@ -2227,6 +2233,7 @@ export interface IAbstractTreeOptions<T, TFilterData = void> extends IAbstractTr
 	readonly paddingBottom?: number;
 	readonly findWidgetEnabled?: boolean;
 	readonly findWidgetStyles?: IFindWidgetStyles;
+	readonly findWidgetContainer?: HTMLElement;
 	readonly defaultFindVisibility?: TreeVisibility | ((e: T) => TreeVisibility);
 	readonly stickyScrollDelegate?: IStickyScrollDelegate<T, TFilterData>;
 	readonly disableExpandOnSpacebar?: boolean; // defaults to false
@@ -2702,6 +2709,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 				defaultFindMode: _options.defaultFindMode,
 				defaultFindMatchType: _options.defaultFindMatchType,
 				showNotFoundMessage: _options.showNotFoundMessage,
+				findWidgetContainer: _options.findWidgetContainer,
 			};
 			this.findController = this.disposables.add(new FindController(this, this.findFilter!, _options.contextViewProvider, findOptions));
 			this.focusNavigationFilter = node => this.findController!.shouldAllowFocus(node);

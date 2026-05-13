@@ -16,7 +16,7 @@ export const GetTerminalOutputToolData: IToolData = {
 	toolReferenceName: 'getTerminalOutput',
 	legacyToolReferenceFullNames: ['runCommands/getTerminalOutput'],
 	displayName: localize('getTerminalOutputTool.displayName', 'Get Terminal Output'),
-	modelDescription: `Get the output of a background terminal command previously started with ${TerminalToolId.RunInTerminal}. The ID must be the exact opaque value returned by ${TerminalToolId.RunInTerminal} when isBackground=true; terminal names, labels, and integers are not valid IDs.`,
+	modelDescription: `Get output from an active terminal execution (identified by the \`id\` returned from ${TerminalToolId.RunInTerminal}).`,
 	icon: Codicon.terminal,
 	source: ToolDataSource.Internal,
 	inputSchema: {
@@ -24,36 +24,49 @@ export const GetTerminalOutputToolData: IToolData = {
 		properties: {
 			id: {
 				type: 'string',
-				description: `The ID of the background terminal to check (returned by ${TerminalToolId.RunInTerminal} when isBackground=true). This must be the exact opaque ID returned by that tool; terminal names, labels, or integers are invalid.`,
+				description: `The ID of an active terminal execution to check (returned by ${TerminalToolId.RunInTerminal} for async executions, or for sync executions that timed out and were moved to the background). This must be the exact opaque UUID returned by that tool; terminal names, labels, or integers are invalid.`,
 				pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$'
 			},
 		},
-		required: [
-			'id',
-		]
+		required: ['id'],
 	}
 };
 
 export interface IGetTerminalOutputInputParams {
-	id: string;
+	id?: string;
 }
 
 export class GetTerminalOutputTool extends Disposable implements IToolImpl {
+
+	constructor() {
+		super();
+	}
+
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
 		return {
-			invocationMessage: localize('bg.progressive', "Checking background terminal output"),
-			pastTenseMessage: localize('bg.past', "Checked background terminal output"),
+			invocationMessage: localize('getTerminalOutput.progressive', "Checking terminal output"),
+			pastTenseMessage: localize('getTerminalOutput.past', "Checked terminal output"),
 		};
 	}
 
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
 		const args = invocation.parameters as IGetTerminalOutputInputParams;
+
+		if (!args.id) {
+			return {
+				content: [{
+					kind: 'text',
+					value: `Error: 'id' (the persistent terminal UUID returned by ${TerminalToolId.RunInTerminal} in async mode) must be provided.`
+				}]
+			};
+		}
+
 		const execution = RunInTerminalTool.getExecution(args.id);
 		if (!execution) {
 			return {
 				content: [{
 					kind: 'text',
-					value: `Error: No active terminal execution found with ID ${args.id}. The ID must be the exact value returned by ${TerminalToolId.RunInTerminal} for a background command.`
+					value: `Error: No active terminal execution found with ID ${args.id}. The ID must be the exact value returned by ${TerminalToolId.RunInTerminal} in async mode.`
 				}]
 			};
 		}

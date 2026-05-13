@@ -3,30 +3,62 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import {
-	CustomizationHarness,
-	CustomizationHarnessServiceBase,
-	createCliHarnessDescriptor,
-	getCliUserRoots,
-} from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
-import { IPathService } from '../../../../workbench/services/path/common/pathService.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { CustomizationHarnessServiceBase, createVSCodeHarnessDescriptor, IHarnessDescriptor } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
+import { IPromptsService, PromptsStorage } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { BUILTIN_STORAGE } from '../common/builtinPromptsStorage.js';
+import { SessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { LOCAL_SESSION_ENABLED_SETTING } from '../../copilotChatSessions/browser/copilotChatSessionsProvider.js';
 
 /**
  * Sessions-window override of the customization harness service.
  *
- * Only the CLI harness is registered because sessions always run via
- * the Copilot CLI. With a single harness the toggle bar is hidden.
+ * The Local harness is registered when the `sessions.chat.localAgent.enabled`
+ * setting is true (the default). When the setting is toggled, the harness is
+ * dynamically added or removed so that the Customizations editor reflects the
+ * current state.
+ *
+ * The Copilot CLI extension provides its harness (with `itemProvider`) via
+ * `registerChatSessionCustomizationProvider()`, and AHP remote servers
+ * register directly via `registerExternalHarness()`.
  */
 export class SessionsCustomizationHarnessService extends CustomizationHarnessServiceBase {
+
+	private _localHarnessRegistration: IDisposable | undefined;
+
 	constructor(
-		@IPathService pathService: IPathService,
+		@IPromptsService promptsService: IPromptsService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
-		const userHome = pathService.userHome({ preferLocal: true });
-		const extras = [BUILTIN_STORAGE];
+		const localExtras = [PromptsStorage.extension, BUILTIN_STORAGE];
+		const localHarness = createVSCodeHarnessDescriptor(localExtras);
+
 		super(
-			[createCliHarnessDescriptor(getCliUserRoots(userHome), extras)],
-			CustomizationHarness.CLI,
+			[],
+			SessionType.Local,
+			promptsService,
 		);
+
+		// Register the local harness dynamically so it can be toggled
+		// when the `sessions.chat.localAgent.enabled` setting changes.
+		if (configurationService.getValue<boolean>(LOCAL_SESSION_ENABLED_SETTING) !== false) {
+			this._localHarnessRegistration = this.registerExternalHarness(localHarness);
+		}
+
+		configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(LOCAL_SESSION_ENABLED_SETTING)) {
+				this._syncLocalHarness(localHarness, configurationService.getValue<boolean>(LOCAL_SESSION_ENABLED_SETTING) !== false);
+			}
+		});
+	}
+
+	private _syncLocalHarness(descriptor: IHarnessDescriptor, enabled: boolean): void {
+		if (enabled && !this._localHarnessRegistration) {
+			this._localHarnessRegistration = this.registerExternalHarness(descriptor);
+		} else if (!enabled && this._localHarnessRegistration) {
+			this._localHarnessRegistration.dispose();
+			this._localHarnessRegistration = undefined;
+		}
 	}
 }
