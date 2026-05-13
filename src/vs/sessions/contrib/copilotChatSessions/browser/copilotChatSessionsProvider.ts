@@ -23,7 +23,7 @@ import { AgentSessionProviders, AgentSessionTarget } from '../../../../workbench
 import { IChatService, IChatSendRequestOptions } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatResponseModel } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ChatSessionStatus, IChatSessionsService, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, SessionType, IChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { ISession, IChat, ISessionGitRepository, ISessionFolder, ISessionWorkspace, SessionStatus, GITHUB_REMOTE_FILE_SCHEME, IGitHubInfo, CopilotCLISessionType, CopilotCloudSessionType, ClaudeCodeSessionType, LocalSessionType, ISessionType, ISessionWorkspaceBrowseAction, ISessionFileChange, sessionFileChangesEqual, toSessionId, SESSION_WORKSPACE_GROUP_LOCAL, ISessionChangeset, IChatCheckpoints } from '../../../services/sessions/common/session.js';
+import { ISession, IChat, ISessionGitRepository, ISessionFolder, ISessionWorkspace, SessionStatus, GITHUB_REMOTE_FILE_SCHEME, IGitHubInfo, ISessionType, ISessionWorkspaceBrowseAction, ISessionFileChange, sessionFileChangesEqual, toSessionId, SESSION_WORKSPACE_GROUP_LOCAL, ISessionChangeset, IChatCheckpoints } from '../../../services/sessions/common/session.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, isChatPermissionLevel } from '../../../../workbench/contrib/chat/common/constants.js';
 import { basename, dirname, isEqual } from '../../../../base/common/resources.js';
 import { ISendRequestOptions, ISessionChangeEvent, ISessionsProvider } from '../../../services/sessions/common/sessionsProvider.js';
@@ -47,6 +47,28 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { IGitHubService } from '../../github/browser/githubService.js';
 import { computePullRequestIcon, GitHubPullRequestState } from '../../github/common/types.js';
 import { structuralEquals } from '../../../../base/common/equals.js';
+import { CopilotCLISessionType } from '../../agentHost/browser/baseAgentHostSessionsProvider.js';
+
+/** Local session type — in-process VS Code chat, no background agent or worktree. */
+export const LocalSessionType: ISessionType = {
+	id: 'local',
+	label: localize('localSession', "Local"),
+	icon: Codicon.vm,
+};
+
+/** Claude Code session type — local agent powered by Claude. */
+export const ClaudeCodeSessionType: ISessionType = {
+	id: 'claude-code',
+	label: localize('claudeCode', "Claude"),
+	icon: Codicon.claude,
+};
+
+/** Copilot Cloud session type - cloud-hosted agent. */
+export const CopilotCloudSessionType: ISessionType = {
+	id: 'copilot-cloud-agent',
+	label: localize('copilotCloud', "Cloud"),
+	icon: Codicon.cloud,
+};
 
 const SESSION_WORKSPACE_GROUP_GITHUB = localize('sessionWorkspaceGroup.github', "GitHub");
 const STORAGE_KEY_ISOLATION_MODE = 'sessions.isolationPicker.selectedMode';
@@ -107,7 +129,7 @@ export interface ICopilotChatSession {
 	readonly isolationMode: IObservable<IsolationMode | undefined>;
 	setIsolationMode(mode: IsolationMode): void;
 
-	setModelId(modelId: string): void;
+	setModelId(modelId: string | undefined): void;
 	setMode(chatMode: IChatMode | undefined): void;
 	setOption?(optionId: string, value: IChatSessionProviderOptionItem | string): void;
 
@@ -1160,6 +1182,7 @@ class AgentSessionAdapter implements ICopilotChatSession {
 	private readonly _checkpoints: ReturnType<typeof observableValueOpts<IChatCheckpoints | undefined>>;
 	readonly checkpoints: IObservable<IChatCheckpoints | undefined>;
 
+	private readonly _modelId: ReturnType<typeof observableValue<string | undefined>>;
 	readonly modelId: IObservable<string | undefined>;
 	readonly mode: IObservable<{ readonly id: string; readonly kind: string } | undefined>;
 	readonly loading: IObservable<boolean>;
@@ -1233,7 +1256,8 @@ class AgentSessionAdapter implements ICopilotChatSession {
 		this._checkpoints = observableValueOpts<IChatCheckpoints | undefined>({ owner: this, equalsFn: structuralEquals }, this._extractCheckpoints(session));
 		this.checkpoints = this._checkpoints;
 
-		this.modelId = observableValue(this, undefined);
+		this._modelId = observableValue<string | undefined>(this, undefined);
+		this.modelId = this._modelId;
 		this.mode = observableValue(this, undefined);
 		this.loading = observableValue(this, false);
 
@@ -1256,8 +1280,8 @@ class AgentSessionAdapter implements ICopilotChatSession {
 	setIsolationMode(mode: IsolationMode): void {
 		throw new Error('Method not implemented.');
 	}
-	setModelId(modelId: string): void {
-		throw new Error('Method not implemented.');
+	setModelId(modelId: string | undefined): void {
+		this._modelId.set(modelId, undefined);
 	}
 	setMode(chatMode: IChatMode | undefined): void {
 		throw new Error('Method not implemented.');
@@ -1512,6 +1536,7 @@ class AgentSessionAdapter implements ICopilotChatSession {
 			group: repoUri?.scheme === GITHUB_REMOTE_FILE_SCHEME ? SESSION_WORKSPACE_GROUP_GITHUB : SESSION_WORKSPACE_GROUP_LOCAL,
 			folders: [folder],
 			requiresWorkspaceTrust: session.providerType !== AgentSessionProviders.Cloud,
+			isVirtualWorkspace: session.providerType === AgentSessionProviders.Cloud,
 		};
 	}
 
@@ -1779,7 +1804,11 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	setModel(sessionId: string, modelId: string): void {
 		if (this._currentNewSession?.id === sessionId) {
 			this._currentNewSession.setModelId(modelId);
+			return;
 		}
+
+		this._ensureSessionCache();
+		this._findChatSession(sessionId)?.setModelId(modelId);
 	}
 
 	// -- Session Actions --
@@ -2505,6 +2534,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		}
 		const resource = URI.from({ scheme: AgentSessionProviders.Background, path: `/untitled-${generateUuid()}` });
 		const session = this.instantiationService.createInstance(CopilotCLISession, resource, newWorkspace, this.id);
+		session.setModelId(chat.modelId.get());
 		session.setIsolationMode('workspace');
 		session.setOption(PARENT_SESSION_OPTION_ID, chat.resource.path.slice(1));
 		const level = this.configurationService.getValue<string>(ChatConfiguration.DefaultPermissionLevel);
@@ -2646,6 +2676,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 				group: SESSION_WORKSPACE_GROUP_GITHUB,
 				folders: [folder],
 				requiresWorkspaceTrust: false,
+				isVirtualWorkspace: true,
 			};
 		}
 		return undefined;
@@ -2669,7 +2700,8 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			group: uri.scheme === GITHUB_REMOTE_FILE_SCHEME ? SESSION_WORKSPACE_GROUP_GITHUB : SESSION_WORKSPACE_GROUP_LOCAL,
 			icon: this._iconFromUri(uri),
 			folders: [folder],
-			requiresWorkspaceTrust: uri.scheme !== GITHUB_REMOTE_FILE_SCHEME
+			requiresWorkspaceTrust: uri.scheme !== GITHUB_REMOTE_FILE_SCHEME,
+			isVirtualWorkspace: uri.scheme === GITHUB_REMOTE_FILE_SCHEME,
 		};
 	}
 
@@ -3109,7 +3141,9 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			lastTurnEnd: chatsObs.map((chats, reader) => this._latestDate(chats, c => c.lastTurnEnd.read(reader))),
 			chats: chatsObs,
 			mainChat,
-			capabilities: { supportsMultipleChats: primaryChat.sessionType === CopilotCLISessionType.id && this._isMultiChatEnabled() },
+			capabilities: {
+				supportsMultipleChats: primaryChat.sessionType === CopilotCLISessionType.id && this._isMultiChatEnabled(),
+			},
 		};
 		this._sessionGroupCache.set(sessionId, session);
 		return session;

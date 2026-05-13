@@ -422,6 +422,91 @@ describe('createResponsesRequestBody tools', () => {
 			mcpToolNamespace: 'some_mcp_tool',
 		});
 	});
+
+	it('preserves rich JSON Schema keywords and emits strict: false on both the inline and deferred paths (issue #315526)', () => {
+		// Extension-contributed tools (e.g. agent-helper-kit's `run_in_shell`) use JSON Schema
+		// keywords outside OpenAI's strict-mode subset — `allOf`, `not`, `anyOf`, `if`/`then`,
+		// numeric bounds — to express mutually-exclusive arguments. The Responses API defaults
+		// `strict` to `true` when omitted, which silently strips those keywords. Both the
+		// inline (non-deferred) and the tool_search_output (deferred) paths must explicitly
+		// emit `strict: false` and round-trip the schema verbatim, otherwise the model invokes
+		// the tool with all the mutually-exclusive fields populated at once.
+		const richSchema = {
+			type: 'object',
+			required: ['command'],
+			properties: {
+				command: { type: 'string' },
+				full_output: { type: 'boolean' },
+				last_lines: { type: 'number', minimum: 0 },
+				regex: { type: 'string' },
+			},
+			allOf: [
+				{ not: { required: ['last_lines', 'regex'] } },
+				{ not: { required: ['full_output', 'last_lines'] } },
+				{ not: { required: ['full_output', 'regex'] } },
+			],
+		};
+		const endpoint = createMockEndpoint('gpt-5.4');
+
+		// Inline path: non-deferred tools are sent in the initial request body.
+		const inlineBody = accessor.get(IInstantiationService).invokeFunction(
+			createResponsesRequestBody,
+			createMockOptions({
+				requestOptions: {
+					tools: [
+						{ type: 'function', function: { name: 'read_file', description: 'Read a file', parameters: richSchema } },
+						{ type: 'function', function: { name: 'tool_search', description: 'Search tools', parameters: { type: 'object', properties: {} } } },
+					]
+				}
+			}),
+			endpoint.model,
+			endpoint,
+		);
+
+		// Deferred path: the same schema must come back via tool_search_output unchanged.
+		const deferredBody = accessor.get(IInstantiationService).invokeFunction(
+			createResponsesRequestBody,
+			createMockOptions({
+				messages: [
+					{ role: Raw.ChatRole.User, content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Run a shell command' }] },
+					{
+						role: Raw.ChatRole.Assistant,
+						content: [],
+						toolCalls: [{ id: 'call_ts_strict', type: 'function', function: { name: 'tool_search', arguments: '{"query":"shell"}' } }],
+					},
+					{
+						role: Raw.ChatRole.Tool,
+						toolCallId: 'call_ts_strict',
+						content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: '["run_in_shell"]' }],
+					},
+				],
+				requestOptions: {
+					tools: [
+						{ type: 'function', function: { name: 'run_in_shell', description: 'Run a shell command', parameters: richSchema } },
+						{ type: 'function', function: { name: 'tool_search', description: 'Search tools', parameters: { type: 'object', properties: {} } } },
+					]
+				},
+			}),
+			endpoint.model,
+			endpoint,
+		);
+
+		const inlineReadFile = (inlineBody.tools as Array<{ name?: string; strict?: unknown; parameters?: unknown }>).find(t => t.name === 'read_file');
+		const deferredToolSearchOutput = (deferredBody.input as Array<{ type?: string; tools?: Array<{ name: string; strict?: unknown; defer_loading?: unknown; parameters?: unknown }> }>).find(i => i.type === 'tool_search_output');
+		const deferredRunInShell = deferredToolSearchOutput?.tools?.find(t => t.name === 'run_in_shell');
+
+		expect({
+			inline: { strict: inlineReadFile?.strict, parameters: inlineReadFile?.parameters },
+			deferred: {
+				strict: deferredRunInShell?.strict,
+				defer_loading: deferredRunInShell?.defer_loading,
+				parameters: deferredRunInShell?.parameters,
+			},
+		}).toEqual({
+			inline: { strict: false, parameters: richSchema },
+			deferred: { strict: false, defer_loading: true, parameters: richSchema },
+		});
+	});
 });
 
 describe('OpenAIResponsesProcessor tool search events', () => {

@@ -813,13 +813,8 @@ export class ModelPickerWidget extends Disposable {
 			this._renderLabel();
 		}));
 
-		let lastIsUBB = !!this._entitlementService.quotas.usageBasedBilling;
-		this._register(this._entitlementService.onDidChangeQuotaRemaining(() => {
-			const currentIsUBB = !!this._entitlementService.quotas.usageBasedBilling;
-			if (currentIsUBB !== lastIsUBB) {
-				lastIsUBB = currentIsUBB;
-				this._renderLabel();
-			}
+		this._register(this._entitlementService.onDidChangeUsageBasedBilling(() => {
+			this._renderLabel();
 		}));
 	}
 

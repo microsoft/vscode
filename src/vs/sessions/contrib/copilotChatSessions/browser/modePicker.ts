@@ -22,8 +22,8 @@ import { AICustomizationManagementSection } from '../../../../workbench/contrib/
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { CopilotChatSessionsProvider } from './copilotChatSessionsProvider.js';
-import { CopilotCLISessionType } from '../../../services/sessions/common/session.js';
 import { reportNewChatPickerClosed } from '../../chat/browser/newChatPickerTelemetry.js';
+import { CopilotCLISessionType } from '../../agentHost/browser/baseAgentHostSessionsProvider.js';
 
 interface IModePickerItem {
 	readonly kind: 'mode';

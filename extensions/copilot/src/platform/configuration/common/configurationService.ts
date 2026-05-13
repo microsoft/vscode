@@ -519,7 +519,7 @@ export const enum CHAT_MODEL {
 	XTAB_4O_MINI_FINETUNED = 'xtab-4o-mini-finetuned',
 	GPT4OPROXY = 'gpt-4o-instant-apply-full-ft-v66',
 	SHORT_INSTANT_APPLY = 'gpt-4o-instant-apply-full-ft-v66-short',
-	CLAUDE_SONNET = 'claude-3.5-sonnet',
+	CLAUDE_SONNET = 'claude-sonnet-4.5',
 	CLAUDE_37_SONNET = 'claude-3.7-sonnet',
 	DEEPSEEK_CHAT = 'deepseek-chat',
 	GEMINI_25_PRO = 'gemini-2.5-pro',
