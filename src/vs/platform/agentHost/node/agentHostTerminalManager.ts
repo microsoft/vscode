@@ -113,6 +113,7 @@ export interface IAgentHostTerminalManager {
 	onExit(uri: string, cb: (exitCode: number) => void): IDisposable;
 	onClaimChanged(uri: string, cb: (claim: TerminalClaim) => void): IDisposable;
 	onCommandFinished(uri: string, cb: (event: ICommandFinishedEvent) => void): IDisposable;
+	createAltBufferPromise(uri: string, store: DisposableStore): Promise<void>;
 	getContent(uri: string): string | undefined;
 	getClaim(uri: string): TerminalClaim | undefined;
 	hasTerminal(uri: string): boolean;
@@ -501,6 +502,14 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 			return toDisposable(() => { });
 		}
 		return terminal.onCommandFinishedEmitter.event(cb);
+	}
+
+	createAltBufferPromise(uri: string, store: DisposableStore): Promise<void> {
+		const terminal = this._terminals.get(uri);
+		if (!terminal?.headlessTerminal) {
+			return new Promise(() => { });
+		}
+		return terminal.headlessTerminal.createAltBufferPromise(store);
 	}
 
 	/** Get accumulated scrollback content for a terminal as raw text. */

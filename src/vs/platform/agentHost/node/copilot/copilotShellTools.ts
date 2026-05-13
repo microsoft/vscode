@@ -29,6 +29,7 @@ const DEFAULT_TIMEOUT_MS = 120_000;
  * The full sentinel format is: `<<<COPILOT_SENTINEL_<uuid>_EXIT_<code>>>`.
  */
 const SENTINEL_PREFIX = '<<<COPILOT_SENTINEL_';
+const ALT_BUFFER_MESSAGE = 'The command opened the alternate buffer and is still running in the terminal. It likely launched an interactive terminal UI. Use write_bash/write_powershell to interact with it, or shutdown the shell to stop it.';
 
 /**
  * Tracks a single persistent shell instance backed by a managed PTY terminal.
@@ -101,6 +102,8 @@ export class ShellManager extends Disposable {
 	private _resolvedExecutable: Promise<string> | undefined;
 	/** Set of shell ids currently executing a command and unsafe to share. */
 	private readonly _busyShellIds = new Set<string>();
+	/** Release listeners for shells held after a tool returns while the command is still running. */
+	private readonly _heldShellReleaseListeners = new Map<string, DisposableStore>();
 
 	private readonly _onDidAssociateTerminal = this._register(new Emitter<{ toolCallId: string; terminalUri: string; displayName: string }>());
 	readonly onDidAssociateTerminal: Event<{ toolCallId: string; terminalUri: string; displayName: string }> = this._onDidAssociateTerminal.event;
@@ -114,6 +117,10 @@ export class ShellManager extends Disposable {
 		super();
 
 		this._register(toDisposable(() => {
+			for (const store of this._heldShellReleaseListeners.values()) {
+				store.dispose();
+			}
+			this._heldShellReleaseListeners.clear();
 			for (const shell of this._shells.values()) {
 				if (this._terminalManager.hasTerminal(shell.terminalUri)) {
 					this._terminalManager.disposeTerminal(shell.terminalUri);
@@ -212,6 +219,22 @@ export class ShellManager extends Disposable {
 		};
 	}
 
+	holdShellUntilCommandFinishes(shell: IManagedShell): void {
+		if (this._heldShellReleaseListeners.has(shell.id)) {
+			return;
+		}
+
+		const store = new DisposableStore();
+		const release = () => {
+			this._busyShellIds.delete(shell.id);
+			this._heldShellReleaseListeners.delete(shell.id);
+			store.dispose();
+		};
+		store.add(this._terminalManager.onCommandFinished(shell.terminalUri, release));
+		store.add(this._terminalManager.onExit(shell.terminalUri, release));
+		this._heldShellReleaseListeners.set(shell.id, store);
+	}
+
 	private _trackToolCall(toolCallId: string, shellId: string): void {
 		this._toolCallShells.set(toolCallId, shellId);
 		const shell = this._shells.get(shellId);
@@ -248,6 +271,8 @@ export class ShellManager extends Disposable {
 		if (!shell) {
 			return false;
 		}
+		this._heldShellReleaseListeners.get(id)?.dispose();
+		this._heldShellReleaseListeners.delete(id);
 		this._terminalManager.disposeTerminal(shell.terminalUri);
 		this._shells.delete(id);
 		this._busyShellIds.delete(id);
@@ -323,6 +348,11 @@ function prepareOutputForModel(rawOutput: string): string {
 // Tool implementations
 // ---------------------------------------------------------------------------
 
+interface IShellExecutionResult {
+	readonly toolResult: ToolResultObject;
+	readonly keepShellBusy?: boolean;
+}
+
 function makeSuccessResult(text: string): ToolResultObject {
 	return { textResultForLlm: text, resultType: 'success' };
 }
@@ -331,19 +361,47 @@ function makeFailureResult(text: string, error?: string): ToolResultObject {
 	return { textResultForLlm: text, resultType: 'failure', error };
 }
 
+function makeExecutionResult(toolResult: ToolResultObject, options?: { keepShellBusy?: boolean }): IShellExecutionResult {
+	return { toolResult, keepShellBusy: options?.keepShellBusy };
+}
+
+function makeBackgroundExecutionResult(text: string): IShellExecutionResult {
+	return makeExecutionResult(makeSuccessResult(text), { keepShellBusy: true });
+}
+
+function makeAltBufferExecutionResult(): IShellExecutionResult {
+	return makeExecutionResult(makeFailureResult(ALT_BUFFER_MESSAGE, 'alternateBuffer'), { keepShellBusy: true });
+}
+
+function registerAltBufferHandler(
+	shell: IManagedShell,
+	terminalManager: IAgentHostTerminalManager,
+	logService: ILogService,
+	disposables: DisposableStore,
+	finish: (result: IShellExecutionResult) => void,
+): void {
+	void terminalManager.createAltBufferPromise(shell.terminalUri, disposables).then(() => {
+		logService.info('[ShellTool] Command entered alternate buffer');
+		finish(makeAltBufferExecutionResult());
+	});
+}
+
 async function executeCommandInShell(
 	shell: IManagedShell,
 	command: string,
 	timeoutMs: number,
 	terminalManager: IAgentHostTerminalManager,
 	logService: ILogService,
-): Promise<ToolResultObject> {
+): Promise<IShellExecutionResult> {
 	const result = terminalManager.supportsCommandDetection(shell.terminalUri)
 		? await executeCommandWithShellIntegration(shell, command, timeoutMs, terminalManager, logService)
 		: await executeCommandWithSentinel(shell, command, timeoutMs, terminalManager, logService);
 	return {
 		...result,
-		textResultForLlm: `Shell ID: ${shell.id}\n${result.textResultForLlm}`,
+		toolResult: {
+			...result.toolResult,
+			textResultForLlm: `Shell ID: ${shell.id}\n${result.toolResult.textResultForLlm}`,
+		},
 	};
 }
 
@@ -358,17 +416,12 @@ async function executeCommandWithShellIntegration(
 	timeoutMs: number,
 	terminalManager: IAgentHostTerminalManager,
 	logService: ILogService,
-): Promise<ToolResultObject> {
+): Promise<IShellExecutionResult> {
 	const disposables = new DisposableStore();
 
-	await terminalManager.sendText(shell.terminalUri, `${prefixForHistorySuppression(shell.shellType)}${command}`, {
-		shouldExecute: true,
-		bracketedPasteMode: shouldUseBracketedPasteMode(command),
-	});
-
-	return new Promise<ToolResultObject>(resolve => {
+	const result = new Promise<IShellExecutionResult>(resolve => {
 		let resolved = false;
-		const finish = (result: ToolResultObject) => {
+		const finish = (result: IShellExecutionResult) => {
 			if (resolved) {
 				return;
 			}
@@ -382,23 +435,25 @@ async function executeCommandWithShellIntegration(
 			const exitCode = event.exitCode ?? 0;
 			logService.info(`[ShellTool] Command completed (shell integration) with exit code ${exitCode}`);
 			if (exitCode === 0) {
-				finish(makeSuccessResult(`Exit code: ${exitCode}\n${output}`));
+				finish(makeExecutionResult(makeSuccessResult(`Exit code: ${exitCode}\n${output}`)));
 			} else {
-				finish(makeFailureResult(`Exit code: ${exitCode}\n${output}`));
+				finish(makeExecutionResult(makeFailureResult(`Exit code: ${exitCode}\n${output}`)));
 			}
 		}));
+
+		registerAltBufferHandler(shell, terminalManager, logService, disposables, finish);
 
 		disposables.add(terminalManager.onExit(shell.terminalUri, (exitCode: number) => {
 			logService.info(`[ShellTool] Shell exited unexpectedly with code ${exitCode}`);
 			const fullContent = terminalManager.getContent(shell.terminalUri) ?? '';
 			const output = prepareOutputForModel(fullContent);
-			finish(makeFailureResult(`Shell exited with code ${exitCode}\n${output}`));
+			finish(makeExecutionResult(makeFailureResult(`Shell exited with code ${exitCode}\n${output}`)));
 		}));
 
 		disposables.add(terminalManager.onClaimChanged(shell.terminalUri, (claim) => {
 			if (claim.kind === TerminalClaimKind.Session && !claim.toolCallId) {
 				logService.info(`[ShellTool] Continuing in background (claim narrowed)`);
-				finish(makeSuccessResult('The user chose to continue this command in the background. The terminal is still running.'));
+				finish(makeBackgroundExecutionResult('The user chose to continue this command in the background. The terminal is still running.'));
 			}
 		}));
 
@@ -406,13 +461,26 @@ async function executeCommandWithShellIntegration(
 			logService.warn(`[ShellTool] Command timed out after ${timeoutMs}ms`);
 			const fullContent = terminalManager.getContent(shell.terminalUri) ?? '';
 			const output = prepareOutputForModel(fullContent);
-			finish(makeFailureResult(
+			finish(makeExecutionResult(makeFailureResult(
 				`Command timed out after ${Math.round(timeoutMs / 1000)}s. Partial output:\n${output}`,
 				'timeout',
-			));
+			)));
 		}, timeoutMs);
 		disposables.add(toDisposable(() => clearTimeout(timer)));
+
 	});
+
+	try {
+		await terminalManager.sendText(shell.terminalUri, `${prefixForHistorySuppression(shell.shellType)}${command}`, {
+			shouldExecute: true,
+			bracketedPasteMode: shouldUseBracketedPasteMode(command),
+		});
+	} catch (err) {
+		disposables.dispose();
+		throw err;
+	}
+
+	return result;
 }
 
 /**
@@ -425,7 +493,7 @@ async function executeCommandWithSentinel(
 	timeoutMs: number,
 	terminalManager: IAgentHostTerminalManager,
 	logService: ILogService,
-): Promise<ToolResultObject> {
+): Promise<IShellExecutionResult> {
 	const sentinelId = makeSentinelId();
 	const sentinelCmd = buildSentinelCommand(sentinelId, shell.shellType);
 	const disposables = new DisposableStore();
@@ -433,15 +501,9 @@ async function executeCommandWithSentinel(
 	const contentBefore = terminalManager.getContent(shell.terminalUri) ?? '';
 	const offsetBefore = contentBefore.length;
 
-	await terminalManager.sendText(shell.terminalUri, `${prefixForHistorySuppression(shell.shellType)}${command}`, {
-		shouldExecute: true,
-		bracketedPasteMode: shouldUseBracketedPasteMode(command),
-	});
-	await terminalManager.sendText(shell.terminalUri, sentinelCmd, { shouldExecute: true });
-
-	return new Promise<ToolResultObject>(resolve => {
+	const result = new Promise<IShellExecutionResult>(resolve => {
 		let resolved = false;
-		const finish = (result: ToolResultObject) => {
+		const finish = (result: IShellExecutionResult) => {
 			if (resolved) {
 				return;
 			}
@@ -462,9 +524,9 @@ async function executeCommandWithSentinel(
 				const output = prepareOutputForModel(parsed.outputBeforeSentinel);
 				logService.info(`[ShellTool] Command completed with exit code ${parsed.exitCode}`);
 				if (parsed.exitCode === 0) {
-					finish(makeSuccessResult(`Exit code: ${parsed.exitCode}\n${output}`));
+					finish(makeExecutionResult(makeSuccessResult(`Exit code: ${parsed.exitCode}\n${output}`)));
 				} else {
-					finish(makeFailureResult(`Exit code: ${parsed.exitCode}\n${output}`));
+					finish(makeExecutionResult(makeFailureResult(`Exit code: ${parsed.exitCode}\n${output}`)));
 				}
 			}
 		};
@@ -473,18 +535,20 @@ async function executeCommandWithSentinel(
 			checkForSentinel();
 		}));
 
+		registerAltBufferHandler(shell, terminalManager, logService, disposables, finish);
+
 		disposables.add(terminalManager.onExit(shell.terminalUri, (exitCode: number) => {
 			logService.info(`[ShellTool] Shell exited unexpectedly with code ${exitCode}`);
 			const fullContent = terminalManager.getContent(shell.terminalUri) ?? '';
 			const newContent = fullContent.substring(offsetBefore);
 			const output = prepareOutputForModel(newContent);
-			finish(makeFailureResult(`Shell exited with code ${exitCode}\n${output}`));
+			finish(makeExecutionResult(makeFailureResult(`Shell exited with code ${exitCode}\n${output}`)));
 		}));
 
 		disposables.add(terminalManager.onClaimChanged(shell.terminalUri, (claim) => {
 			if (claim.kind === TerminalClaimKind.Session && !claim.toolCallId) {
 				logService.info(`[ShellTool] Continuing in background (claim narrowed)`);
-				finish(makeSuccessResult('The user chose to continue this command in the background. The terminal is still running.'));
+				finish(makeBackgroundExecutionResult('The user chose to continue this command in the background. The terminal is still running.'));
 			}
 		}));
 
@@ -493,15 +557,28 @@ async function executeCommandWithSentinel(
 			const fullContent = terminalManager.getContent(shell.terminalUri) ?? '';
 			const newContent = fullContent.substring(offsetBefore);
 			const output = prepareOutputForModel(newContent);
-			finish(makeFailureResult(
+			finish(makeExecutionResult(makeFailureResult(
 				`Command timed out after ${Math.round(timeoutMs / 1000)}s. Partial output:\n${output}`,
 				'timeout',
-			));
+			)));
 		}, timeoutMs);
 		disposables.add(toDisposable(() => clearTimeout(timer)));
 
 		checkForSentinel();
 	});
+
+	try {
+		await terminalManager.sendText(shell.terminalUri, `${prefixForHistorySuppression(shell.shellType)}${command}`, {
+			shouldExecute: true,
+			bracketedPasteMode: shouldUseBracketedPasteMode(command),
+		});
+		await terminalManager.sendText(shell.terminalUri, sentinelCmd, { shouldExecute: true });
+	} catch (err) {
+		disposables.dispose();
+		throw err;
+	}
+
+	return result;
 }
 
 // ---------------------------------------------------------------------------
@@ -558,10 +635,18 @@ export async function createShellTools(
 				invocation.toolCallId,
 				invocation.toolCallId,
 			);
+			let shouldReleaseShell = true;
 			try {
-				return await executeCommandInShell(ref.object, args.command, timeoutMs, terminalManager, logService);
+				const result = await executeCommandInShell(ref.object, args.command, timeoutMs, terminalManager, logService);
+				if (result.keepShellBusy) {
+					shouldReleaseShell = false;
+					shellManager.holdShellUntilCommandFinishes(ref.object);
+				}
+				return result.toolResult;
 			} finally {
-				ref.dispose();
+				if (shouldReleaseShell) {
+					ref.dispose();
+				}
 			}
 		},
 	};
