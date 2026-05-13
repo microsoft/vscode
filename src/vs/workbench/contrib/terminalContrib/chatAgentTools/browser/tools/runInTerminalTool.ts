@@ -70,6 +70,7 @@ import { CommandLineBackgroundDetachRewriter } from './commandLineRewriter/comma
 import { CommandLineSandboxRewriter } from './commandLineRewriter/commandLineSandboxRewriter.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IHistoryService } from '../../../../../services/history/common/history.js';
+import { ILifecycleService } from '../../../../../services/lifecycle/common/lifecycle.js';
 import { TerminalCommandArtifactCollector } from './terminalCommandArtifactCollector.js';
 import { isNumber, isString } from '../../../../../../base/common/types.js';
 import { IChatWidgetService } from '../../../../chat/browser/chat.js';
@@ -499,6 +500,14 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	 */
 	private readonly _backgroundNotifications = this._register(new DisposableMap<number>());
 
+	/**
+	 * Set when VS Code is shutting down. Suppresses "terminal exited"
+	 * notifications that would otherwise be generated when background
+	 * terminals are disposed during shutdown and then persist as
+	 * undeliverable steering messages after restart.
+	 */
+	private _isShuttingDown = false;
+
 	// Immutable window state
 	protected readonly _osBackend: Promise<OperatingSystem>;
 
@@ -615,8 +624,13 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IAgentSessionsService private readonly _agentSessionsService: IAgentSessionsService,
+		@ILifecycleService lifecycleService: ILifecycleService,
 	) {
 		super();
+
+		this._register(lifecycleService.onWillShutdown(() => {
+			this._isShuttingDown = true;
+		}));
 
 		this._osBackend = this._remoteAgentService.getEnvironment().then(remoteEnv => remoteEnv?.os ?? OS);
 
@@ -2632,6 +2646,13 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			// receive the output through the normal tool-result flow —
 			// skip the redundant steering message.
 			if (RunInTerminalTool._killedByTool.has(termId)) {
+				disposeNotification();
+				return;
+			}
+			// During VS Code shutdown, terminals are disposed as part of
+			// normal cleanup. Suppress notifications so they don't persist
+			// as undeliverable steering messages after restart (#314791).
+			if (this._isShuttingDown) {
 				disposeNotification();
 				return;
 			}
