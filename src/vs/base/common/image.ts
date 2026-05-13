@@ -107,8 +107,12 @@ function readWebPDimensions(bytes: Uint8Array): IImageDimensions | undefined {
 	if (bytes.length < 30) {
 		return undefined;
 	}
-	// VP8 (lossy, "VP8 " with trailing space)
+	// VP8 (lossy, "VP8 " with trailing space). The frame tag occupies bytes 23..25 and must be the
+	// 3-byte start code 0x9D 0x01 0x2A; without it the buffer is not a valid VP8 keyframe.
 	if (bytes[12] === 0x56 && bytes[13] === 0x50 && bytes[14] === 0x38 && bytes[15] === 0x20) {
+		if (bytes[23] !== 0x9D || bytes[24] !== 0x01 || bytes[25] !== 0x2A) {
+			return undefined;
+		}
 		const width = (bytes[26] | (bytes[27] << 8)) & 0x3FFF;
 		const height = (bytes[28] | (bytes[29] << 8)) & 0x3FFF;
 		return { width, height };
@@ -116,6 +120,9 @@ function readWebPDimensions(bytes: Uint8Array): IImageDimensions | undefined {
 	// VP8L (lossless). The bitstream starts at byte 21 (after the 0x2F signature). Width-1
 	// occupies bits 0..13 and height-1 occupies bits 14..27, both little-endian.
 	if (bytes[12] === 0x56 && bytes[13] === 0x50 && bytes[14] === 0x38 && bytes[15] === 0x4C) {
+		if (bytes[20] !== 0x2F) {
+			return undefined;
+		}
 		const width = ((bytes[21] | (bytes[22] << 8)) & 0x3FFF) + 1;
 		const height = (((bytes[22] >> 6) | (bytes[23] << 2) | ((bytes[24] & 0x0F) << 10)) & 0x3FFF) + 1;
 		return { width, height };

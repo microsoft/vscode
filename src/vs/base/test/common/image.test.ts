@@ -12,6 +12,12 @@ function buf(...bytes: number[]): VSBuffer {
 	return VSBuffer.wrap(new Uint8Array(bytes));
 }
 
+function corruptByte(input: VSBuffer, offset: number, value: number): VSBuffer {
+	const copy = new Uint8Array(input.buffer);
+	copy[offset] = value;
+	return VSBuffer.wrap(copy);
+}
+
 /**
  * Build a minimal JPEG containing only SOI, an APP0 segment, an SOFn segment with the requested
  * dimensions, and EOI. Not decodable, but valid for header parsing.
@@ -107,6 +113,8 @@ suite('readImageDimensions', () => {
 			empty: { input: VSBuffer.alloc(0), expected: undefined },
 			tooShort: { input: buf(0xFF, 0xD8, 0xFF, 0xE0), expected: undefined },
 			unknown: { input: buf(0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B), expected: undefined },
+			webpVp8MissingStartCode: { input: corruptByte(makeWebPVp8(300, 200), 23, 0x00), expected: undefined },
+			webpVp8lMissingSignature: { input: corruptByte(makeWebPVp8l(1024, 768), 20, 0x00), expected: undefined },
 		};
 
 		const actual = Object.fromEntries(
