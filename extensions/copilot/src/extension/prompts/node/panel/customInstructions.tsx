@@ -87,7 +87,7 @@ export class CustomInstructions extends PromptElement<CustomInstructionsProps> {
 			const hasSeen = new ResourceSet();
 			const hasSeenContent = new Set();
 
-					const liveIndexVariable = this.props.chatVariables?.find(isCustomizationsIndex);
+			const liveIndexVariable = this.props.chatVariables?.find(isCustomizationsIndex);
 			const overrideActive = this.props.customizationsIndexOverride !== undefined;
 			const indexValue = overrideActive
 				? this.props.customizationsIndexOverride!
