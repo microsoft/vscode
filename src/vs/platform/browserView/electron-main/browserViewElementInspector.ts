@@ -41,6 +41,18 @@ export interface IElementHandle {
 	addToChat(): Promise<void>;
 }
 
+/**
+ * Well-known ids understood by `__vscode_helpers.getElement(id)` in
+ * `preload-browserView.ts`. Any other string is treated as the id of a
+ * dynamically tracked element.
+ */
+export const enum BrowserViewInspectElementId {
+	/** The page's `document.activeElement`. */
+	Active = 'active',
+	/** The element targeted by the most recent `contextmenu` event. */
+	ContextMenuTarget = 'context-menu-target',
+}
+
 function useScopedDisposal() {
 	const store = new DisposableStore() as DisposableStore & { [Symbol.dispose](): void };
 	store[Symbol.dispose] = () => store.dispose();
