@@ -8,7 +8,7 @@ import type * as vscode from 'vscode';
 import { ChatFetchResponseType } from '../../../platform/chat/common/commonTypes';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { CapturingToken } from '../../../platform/requestLogger/common/capturingToken';
-import { IRequestLogger } from '../../../platform/requestLogger/node/requestLogger';
+import { IRequestLogger } from '../../../platform/requestLogger/common/requestLogger';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { ChatResponseStreamImpl } from '../../../util/common/chatResponseStreamImpl';
 import { generateUuid } from '../../../util/vs/base/common/uuid';
@@ -16,7 +16,7 @@ import { IInstantiationService } from '../../../util/vs/platform/instantiation/c
 import { ChatResponseNotebookEditPart, ChatResponseTextEditPart, ChatToolInvocationPart, ExtendedLanguageModelToolResult, LanguageModelTextPart, MarkdownString } from '../../../vscodeTypes';
 import { Conversation, Turn } from '../../prompt/common/conversation';
 import { IBuildPromptContext } from '../../prompt/common/intents';
-import { ExecutionSubagentToolCallingLoop } from '../../prompt/node/executionSubagentToolCallingLoop';
+import { ExecutionSubagentToolCallingLoop, IBackgroundCommand } from '../../prompt/node/executionSubagentToolCallingLoop';
 import { ToolName } from '../common/toolNames';
 import { CopilotToolMode, ICopilotTool, ToolRegistry } from '../common/toolsRegistry';
 
@@ -68,6 +68,9 @@ class ExecutionSubagentTool implements ICopilotTool<IExecutionSubagentParams> {
 			promptText: options.input.query,
 			subAgentInvocationId: subAgentInvocationId,
 			parentToolCallId: options.chatStreamToolCallId,
+			parentHeaderRequestId: this._inputContext?.parentHeaderRequestId,
+			parentModelCallId: this._inputContext?.parentModelCallId,
+			topLevelTurnId: this._inputContext?.requestId,
 		});
 
 		const stream = this._inputContext?.stream && ChatResponseStreamImpl.filter(
@@ -106,6 +109,11 @@ class ExecutionSubagentTool implements ICopilotTool<IExecutionSubagentParams> {
 			subagentResponse = `The execution subagent request failed with this message:\n${loopResult.response.type}: ${loopResult.response.reason}`;
 		}
 
+		// If any terminal commands moved to the background (timeout or async) during
+		// the subagent's run, append a Note line for each on the line(s) immediately
+		// after the final </final_answer>.
+		subagentResponse = appendBackgroundCommandNotesToFinalAnswer(subagentResponse, loop.backgroundCommands);
+
 		// toolMetadata will be automatically included in exportAllPromptLogsAsJsonCommand
 		const result = new ExtendedLanguageModelToolResult([new LanguageModelTextPart(subagentResponse)]);
 		result.toolMetadata = toolMetadata;
@@ -126,3 +134,39 @@ class ExecutionSubagentTool implements ICopilotTool<IExecutionSubagentParams> {
 }
 
 ToolRegistry.registerTool(ExecutionSubagentTool);
+
+/**
+ * Appends a `Note: ...` line for each stopped terminal command (timed out or
+ * invoked in async/background mode) on the line(s) immediately after the final
+ * `</final_answer>` of the subagent's response. If no `<final_answer>` block is
+ * present, appends the notes to the end of the response.
+ */
+function appendBackgroundCommandNotesToFinalAnswer(
+	response: string,
+	backgroundCommands: readonly IBackgroundCommand[],
+): string {
+	if (backgroundCommands.length === 0) {
+		return response;
+	}
+
+	const notes = backgroundCommands.map(c => {
+		if (c.reason === 'timeout') {
+			const timeoutText = c.timeoutMs !== undefined ? ` after ${c.timeoutMs} ms` : '';
+			return `Note: The command \`${c.command}\` timed out${timeoutText}. It may still be running in terminal ID ${c.termId}.`;
+		}
+		if (c.reason === 'inputNeeded') {
+			return `Note: The command \`${c.command}\` may be waiting for input in terminal ID ${c.termId}. Use send_to_terminal or get_terminal_output to check.`;
+		}
+		return `Note: The command \`${c.command}\` was started in the background. It may still be running in terminal ID ${c.termId}.`;
+	}).join('\n');
+
+	const closingTag = '</final_answer>';
+	const closeIdx = response.lastIndexOf(closingTag);
+	if (closeIdx === -1) {
+		return response.length > 0 ? `${response}\n\n${notes}` : notes;
+	}
+	const insertAt = closeIdx + closingTag.length;
+	const before = response.slice(0, insertAt);
+	const after = response.slice(insertAt).replace(/^\s*/, '');
+	return after.length > 0 ? `${before}\n${notes}\n${after}` : `${before}\n${notes}`;
+}

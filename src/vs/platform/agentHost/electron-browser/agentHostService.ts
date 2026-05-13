@@ -6,21 +6,28 @@
 import { DeferredPromise } from '../../../base/common/async.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, IReference } from '../../../base/common/lifecycle.js';
+import { IObservable, ISettableObservable, observableValue } from '../../../base/common/observable.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { getDelayedChannel, ProxyChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { Client as MessagePortClient } from '../../../base/parts/ipc/common/ipc.mp.js';
 import { acquirePort } from '../../../base/parts/ipc/electron-browser/ipc.mp.js';
 import { InstantiationType, registerSingleton } from '../../instantiation/common/extensions.js';
+import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { IEnvironmentService } from '../../environment/common/environment.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentHostEnabledSettingId, AgentHostIpcChannels, IAgentCreateSessionConfig, IAgentHostService, IAgentService, IAgentSessionMetadata, IAuthenticateParams, IAuthenticateResult } from '../common/agentService.js';
+import { AgentHostAhpJsonlLoggingSettingId, AgentHostEnabledSettingId, AgentHostIpcChannels, IAgentCreateSessionConfig, IAgentHostInspectInfo, IAgentHostService, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IAgentHostSocketInfo, IConnectionTrackerService } from '../common/agentService.js';
+import { AhpJsonlLogger, getAhpLogByteLength } from '../common/ahpJsonlLogger.js';
+import { wrapAgentServiceWithAhpLogging } from './localAhpJsonlLogging.js';
 import { AgentSubscriptionManager, type IAgentSubscription } from '../common/state/agentSubscription.js';
-import type { ICreateTerminalParams } from '../common/state/protocol/commands.js';
-import type { IActionEnvelope, INotification, ISessionAction, ITerminalAction } from '../common/state/sessionActions.js';
-import type { IResourceCopyParams, IResourceCopyResult, IResourceDeleteParams, IResourceDeleteResult, IResourceListResult, IResourceMoveParams, IResourceMoveResult, IResourceReadResult, IResourceWriteParams, IResourceWriteResult, IStateSnapshot } from '../common/state/sessionProtocol.js';
-import { StateComponents, ROOT_STATE_URI, type IRootState } from '../common/state/sessionState.js';
+import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
+import type { ActionEnvelope, INotification, IRootConfigChangedAction, SessionAction, TerminalAction } from '../common/state/sessionActions.js';
+import type { ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceWriteParams, ResourceWriteResult, IStateSnapshot } from '../common/state/sessionProtocol.js';
+import { StateComponents, ROOT_STATE_URI, type RootState } from '../common/state/sessionState.js';
 import { revive } from '../../../base/common/marshalling.js';
 import { URI } from '../../../base/common/uri.js';
+import { IFileService } from '../../files/common/files.js';
+import { AGENT_HOST_CLIENT_RESOURCE_CHANNEL, AgentHostClientResourceChannel } from '../common/agentHostClientResourceChannel.js';
 
 /**
  * Renderer-side implementation of {@link IAgentHostService} that connects
@@ -36,6 +43,8 @@ class AgentHostServiceClient extends Disposable implements IAgentHostService {
 
 	private readonly _clientEventually = new DeferredPromise<MessagePortClient>();
 	private readonly _proxy: IAgentService;
+	private readonly _ahpLogger: AhpJsonlLogger | undefined;
+	private readonly _connectionTracker: IConnectionTrackerService;
 	private readonly _subscriptionManager: AgentSubscriptionManager;
 
 	private readonly _onAgentHostExit = this._register(new Emitter<number>());
@@ -43,22 +52,58 @@ class AgentHostServiceClient extends Disposable implements IAgentHostService {
 	private readonly _onAgentHostStart = this._register(new Emitter<void>());
 	readonly onAgentHostStart = this._onAgentHostStart.event;
 
-	private readonly _onDidAction = this._register(new Emitter<IActionEnvelope>());
+	private readonly _onDidAction = this._register(new Emitter<ActionEnvelope>());
 	readonly onDidAction = this._onDidAction.event;
 
 	private readonly _onDidNotification = this._register(new Emitter<INotification>());
 	readonly onDidNotification = this._onDidNotification.event;
 
+	private readonly _authenticationPending: ISettableObservable<boolean> = observableValue('authenticationPending', true);
+	readonly authenticationPending: IObservable<boolean> = this._authenticationPending;
+	private _authenticationSettled = false;
+
+	setAuthenticationPending(pending: boolean): void {
+		// Sticky: once the first authentication pass settles, never surface
+		// pending again. Subsequent re-auths (account/session changes, reconnect)
+		// happen silently in the background and should not flicker the UI.
+		if (this._authenticationSettled) {
+			return;
+		}
+		if (!pending) {
+			this._authenticationSettled = true;
+		}
+		this._authenticationPending.set(pending, undefined);
+	}
+
 	constructor(
 		@ILogService private readonly _logService: ILogService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@IFileService private readonly _fileService: IFileService,
+		@IEnvironmentService environmentService: IEnvironmentService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
 
 		// Create a proxy backed by a delayed channel - usable immediately,
 		// calls queue until the MessagePort connection is established.
-		this._proxy = ProxyChannel.toService<IAgentService>(
+		const rawProxy = ProxyChannel.toService<IAgentService>(
 			getDelayedChannel(this._clientEventually.p.then(client => client.getChannel(AgentHostIpcChannels.AgentHost)))
+		);
+
+		// Optionally wrap the proxy with a logging layer that synthesizes JSON-RPC
+		// frames for every request/response/notification on the in-process MessagePort
+		// channel, mirroring the AHP transport JSONL logs produced by remote agent hosts.
+		this._ahpLogger = configurationService.getValue<boolean>(AgentHostAhpJsonlLoggingSettingId)
+			? this._register(instantiationService.createInstance(AhpJsonlLogger, {
+				logsHome: environmentService.logsHome,
+				connectionId: this.clientId,
+				transport: 'local',
+			}))
+			: undefined;
+		this._proxy = this._ahpLogger ? wrapAgentServiceWithAhpLogging(rawProxy, this._ahpLogger) : rawProxy;
+
+		this._connectionTracker = ProxyChannel.toService<IConnectionTrackerService>(
+			getDelayedChannel(this._clientEventually.p.then(client => client.getChannel(AgentHostIpcChannels.ConnectionTracker)))
 		);
 
 		this._subscriptionManager = this._register(new AgentSubscriptionManager(
@@ -80,15 +125,30 @@ class AgentHostServiceClient extends Disposable implements IAgentHostService {
 		this._logService.info('[AgentHost:renderer] MessagePort acquired, creating client...');
 
 		const store = this._register(new DisposableStore());
-		const client = store.add(new MessagePortClient(port, `agentHost:window`));
+		// Use clientId as the IPC ctx so the agent host can route reverse-RPC
+		// calls (vscode-agent-client filesystem reads) back to this renderer
+		// via `IPCServer.getChannel(name, c => c.ctx === clientId)`.
+		const client = store.add(new MessagePortClient(port, this.clientId));
+		// Serve filesystem reverse-RPCs from the local file service. The
+		// agent host registers an authority on its
+		// AgentHostClientFileSystemProvider that calls back through this channel.
+		client.registerChannel(AGENT_HOST_CLIENT_RESOURCE_CHANNEL, new AgentHostClientResourceChannel(this._fileService));
 		this._clientEventually.complete(client);
 
 		store.add(this._proxy.onDidAction(e => {
-			const revived = revive(e) as IActionEnvelope;
+			const revived = revive(e) as ActionEnvelope;
+			if (this._ahpLogger) {
+				const frame = { jsonrpc: '2.0' as const, method: 'action', params: e };
+				this._ahpLogger.log(frame, 's2c', getAhpLogByteLength(JSON.stringify(frame)));
+			}
 			this._subscriptionManager.receiveEnvelope(revived);
 			this._onDidAction.fire(revived);
 		}));
 		store.add(this._proxy.onDidNotification(e => {
+			if (this._ahpLogger) {
+				const frame = { jsonrpc: '2.0' as const, method: 'notification', params: { notification: e } };
+				this._ahpLogger.log(frame, 's2c', getAhpLogByteLength(JSON.stringify(frame)));
+			}
 			this._onDidNotification.fire(revive(e));
 		}));
 		this._logService.info('[AgentHost:renderer] Direct MessagePort connection established');
@@ -96,7 +156,7 @@ class AgentHostServiceClient extends Disposable implements IAgentHostService {
 
 		// Subscribe to root state
 		this.subscribe(URI.parse(ROOT_STATE_URI)).then(snapshot => {
-			this._subscriptionManager.handleRootSnapshot(snapshot.state as IRootState, snapshot.fromSeq);
+			this._subscriptionManager.handleRootSnapshot(snapshot.state as RootState, snapshot.fromSeq);
 		}).catch(err => {
 			this._logService.error('[AgentHost:renderer] Failed to subscribe to root state', err);
 		});
@@ -104,7 +164,7 @@ class AgentHostServiceClient extends Disposable implements IAgentHostService {
 
 	// ---- IAgentService forwarding (no await needed, delayed channel handles queuing) ----
 
-	authenticate(params: IAuthenticateParams): Promise<IAuthenticateResult> {
+	authenticate(params: AuthenticateParams): Promise<AuthenticateResult> {
 		return this._proxy.authenticate(params);
 	}
 	listSessions(): Promise<IAgentSessionMetadata[]> {
@@ -113,10 +173,23 @@ class AgentHostServiceClient extends Disposable implements IAgentHostService {
 	createSession(config?: IAgentCreateSessionConfig): Promise<URI> {
 		return this._proxy.createSession(config);
 	}
+	resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {
+		return this._proxy.resolveSessionConfig(params);
+	}
+	sessionConfigCompletions(params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult> {
+		return this._proxy.sessionConfigCompletions(params);
+	}
+	completions(params: CompletionsParams): Promise<CompletionsResult> {
+		return this._proxy.completions(params);
+	}
+	getCompletionTriggerCharacters(): Promise<readonly string[]> {
+		return this._completionTriggerCharactersOnce ??= this._proxy.getCompletionTriggerCharacters();
+	}
+	private _completionTriggerCharactersOnce: Promise<readonly string[]> | undefined;
 	disposeSession(session: URI): Promise<void> {
 		return this._proxy.disposeSession(session);
 	}
-	createTerminal(params: ICreateTerminalParams): Promise<void> {
+	createTerminal(params: CreateTerminalParams): Promise<void> {
 		return this._proxy.createTerminal(params);
 	}
 	disposeTerminal(terminal: URI): Promise<void> {
@@ -125,13 +198,13 @@ class AgentHostServiceClient extends Disposable implements IAgentHostService {
 	shutdown(): Promise<void> {
 		return this._proxy.shutdown();
 	}
-	subscribe(resource: URI): Promise<IStateSnapshot> {
-		return this._proxy.subscribe(resource);
+	private subscribe(resource: URI): Promise<IStateSnapshot> {
+		return this._proxy.subscribe(resource, this.clientId);
 	}
-	unsubscribe(resource: URI): void {
-		this._proxy.unsubscribe(resource);
+	private unsubscribe(resource: URI): void {
+		this._proxy.unsubscribe(resource, this.clientId);
 	}
-	dispatchAction(action: ISessionAction | ITerminalAction, clientId: string, clientSeq: number): void {
+	dispatchAction(action: SessionAction | TerminalAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void {
 		this._proxy.dispatchAction(action, clientId, clientSeq);
 	}
 	private _nextSeq = 1;
@@ -139,7 +212,7 @@ class AgentHostServiceClient extends Disposable implements IAgentHostService {
 		return this._nextSeq++;
 	}
 
-	get rootState(): IAgentSubscription<IRootState> {
+	get rootState(): IAgentSubscription<RootState> {
 		return this._subscriptionManager.rootState;
 	}
 
@@ -147,31 +220,43 @@ class AgentHostServiceClient extends Disposable implements IAgentHostService {
 		return this._subscriptionManager.getSubscription<T>(kind, resource);
 	}
 
-	dispatch(action: ISessionAction | ITerminalAction): void {
+	getSubscriptionUnmanaged<T>(_kind: StateComponents, resource: URI): IAgentSubscription<T> | undefined {
+		return this._subscriptionManager.getSubscriptionUnmanaged<T>(resource);
+	}
+
+	dispatch(action: SessionAction | TerminalAction | IRootConfigChangedAction): void {
 		const seq = this._subscriptionManager.dispatchOptimistic(action);
 		this.dispatchAction(action, this.clientId, seq);
 	}
 
-	resourceList(uri: URI): Promise<IResourceListResult> {
+	resourceList(uri: URI): Promise<ResourceListResult> {
 		return this._proxy.resourceList(uri);
 	}
-	resourceRead(uri: URI): Promise<IResourceReadResult> {
+	resourceRead(uri: URI): Promise<ResourceReadResult> {
 		return this._proxy.resourceRead(uri);
 	}
-	resourceWrite(params: IResourceWriteParams): Promise<IResourceWriteResult> {
+	resourceWrite(params: ResourceWriteParams): Promise<ResourceWriteResult> {
 		return this._proxy.resourceWrite(params);
 	}
-	resourceCopy(params: IResourceCopyParams): Promise<IResourceCopyResult> {
+	resourceCopy(params: ResourceCopyParams): Promise<ResourceCopyResult> {
 		return this._proxy.resourceCopy(params);
 	}
-	resourceDelete(params: IResourceDeleteParams): Promise<IResourceDeleteResult> {
+	resourceDelete(params: ResourceDeleteParams): Promise<ResourceDeleteResult> {
 		return this._proxy.resourceDelete(params);
 	}
-	resourceMove(params: IResourceMoveParams): Promise<IResourceMoveResult> {
+	resourceMove(params: ResourceMoveParams): Promise<ResourceMoveResult> {
 		return this._proxy.resourceMove(params);
 	}
 	async restartAgentHost(): Promise<void> {
 		// Restart is handled by the main process side
+	}
+
+	startWebSocketServer(): Promise<IAgentHostSocketInfo> {
+		return this._connectionTracker.startWebSocketServer();
+	}
+
+	getInspectInfo(tryEnable: boolean): Promise<IAgentHostInspectInfo | undefined> {
+		return this._connectionTracker.getInspectInfo(tryEnable);
 	}
 }
 

@@ -75,7 +75,7 @@ suite('NativeExtensionsScanerService Test', () => {
 			extensionsPath: userExtensionsLocation.fsPath,
 			cacheHome: joinPath(ROOT, 'cache'),
 		});
-		instantiationService.stub(IProductService, { version: '1.66.0' });
+		instantiationService.stub(IProductService, { version: '1.66.0', builtInExtensionsEnabledWithAutoUpdates: [] });
 		const uriIdentityService = disposables.add(new UriIdentityService(fileService));
 		instantiationService.stub(IUriIdentityService, uriIdentityService);
 		const userDataProfilesService = disposables.add(new UserDataProfilesService(environmentService, fileService, uriIdentityService, logService));
@@ -238,6 +238,7 @@ suite('NativeExtensionsScanerService Test', () => {
 	test('scan system extensions include additional builtin extensions', async () => {
 		instantiationService.stub(IProductService, {
 			version: '1.66.0',
+			builtInExtensionsEnabledWithAutoUpdates: [],
 			builtInExtensions: [
 				{ name: 'pub.name2', version: '', repo: '', metadata: undefined },
 				{ name: 'pub.name', version: '', repo: '', metadata: undefined }
@@ -354,14 +355,15 @@ suite('NativeExtensionsScanerService Test', () => {
 			assert.deepStrictEqual(actual[0].manifest.version, '1.66.1');
 		});
 
-		test('scan user extension with mismatched product version is excluded', async () => {
+		test('scan user extension with different version is included when forceAutoUpdate is enabled', async () => {
 			instantiationService.stub(IProductService, { version: '1.66.0', quality: 'stable', builtInExtensionsEnabledWithAutoUpdates: ['pub.name'] });
 			await aUserExtension(anExtensionManifest({ 'name': 'name', 'publisher': 'pub', version: '1.67.0' }));
 			const testObject: IExtensionsScannerService = disposables.add(instantiationService.createInstance(ExtensionsScannerService));
 
 			const actual = await testObject.scanUserExtensions({ profileLocation: instantiationService.get(IUserDataProfilesService).defaultProfile.extensionsResource });
 
-			assert.deepStrictEqual(actual.length, 0);
+			assert.deepStrictEqual(actual.length, 1);
+			assert.deepStrictEqual(actual[0].manifest.version, '1.67.0');
 		});
 
 		test('scan user extension not in autoUpdateBuiltinExtensions is not filtered', async () => {
@@ -374,7 +376,7 @@ suite('NativeExtensionsScanerService Test', () => {
 			assert.deepStrictEqual(actual.length, 1);
 		});
 
-		test('scan picks matching version when multiple versions exist', async () => {
+		test('scan picks latest version when multiple versions exist', async () => {
 			instantiationService.stub(IProductService, { version: '1.66.0', quality: 'stable', builtInExtensionsEnabledWithAutoUpdates: ['pub.name'] });
 			await aUserExtension(anExtensionManifest({ 'name': 'name', 'publisher': 'pub', version: '1.66.1' }));
 			await aUserExtension(anExtensionManifest({ 'name': 'name', 'publisher': 'pub', version: '1.67.0' }));
@@ -383,7 +385,7 @@ suite('NativeExtensionsScanerService Test', () => {
 			const actual = await testObject.scanUserExtensions({ profileLocation: instantiationService.get(IUserDataProfilesService).defaultProfile.extensionsResource });
 
 			assert.deepStrictEqual(actual.length, 1);
-			assert.deepStrictEqual(actual[0].manifest.version, '1.66.1');
+			assert.deepStrictEqual(actual[0].manifest.version, '1.67.0');
 		});
 
 		test('scan all extensions prefers matching user extension over system extension', async () => {
@@ -397,10 +399,10 @@ suite('NativeExtensionsScanerService Test', () => {
 			const extension = actual.find(e => e.identifier.id === 'pub.name');
 			assert.ok(extension);
 			assert.deepStrictEqual(extension.manifest.version, '1.66.1');
-			assert.deepStrictEqual(extension.isBuiltin, true);
+			assert.deepStrictEqual(extension.isBuiltin, false);
 		});
 
-		test('scan all extensions falls back to system extension when user extension has mismatched version', async () => {
+		test('scan all extensions picks user extension with newer version over system extension', async () => {
 			instantiationService.stub(IProductService, { version: '1.66.0', quality: 'stable', builtInExtensionsEnabledWithAutoUpdates: ['pub.name'] });
 			await aSystemExtension(anExtensionManifest({ 'name': 'name', 'publisher': 'pub', version: '1.66.0' }));
 			await aUserExtension(anExtensionManifest({ 'name': 'name', 'publisher': 'pub', version: '1.67.0' }));
@@ -410,8 +412,8 @@ suite('NativeExtensionsScanerService Test', () => {
 
 			const extension = actual.find(e => e.identifier.id === 'pub.name');
 			assert.ok(extension);
-			assert.deepStrictEqual(extension.manifest.version, '1.66.0');
-			assert.deepStrictEqual(extension.type, ExtensionType.System);
+			assert.deepStrictEqual(extension.manifest.version, '1.67.0');
+			assert.deepStrictEqual(extension.type, ExtensionType.User);
 		});
 
 		test('system extension has autoUpdate set to true when in autoUpdateBuiltinExtensions and quality is stable', async () => {

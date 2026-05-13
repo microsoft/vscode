@@ -58,6 +58,12 @@ interface ILazyToolItem {
 interface ILazyMarkdownItem {
 	kind: 'markdown';
 	lazy: Lazy<{ domNode: HTMLElement; disposable?: IDisposable }>;
+	/**
+	 * True when the caller passed an eagerDisposable that has already been registered on this
+	 * subagent part. In that case, materializeLazyItem must not register the factory's returned
+	 * disposable again.
+	 */
+	eagerlyRegistered?: boolean;
 }
 
 /**
@@ -195,7 +201,8 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		const { description, isDefaultDescription, agentName, prompt, modelName } = ChatSubagentContentPart.extractSubagentInfo(toolInvocation);
 
 		// Build title: "AgentName: description" or "Subagent: description"
-		const prefix = agentName || localize('chat.subagent.prefix', 'Subagent');
+		const rawPrefix = agentName || localize('chat.subagent.prefix', 'Subagent');
+		const prefix = rawPrefix.charAt(0).toUpperCase() + rawPrefix.slice(1);
 		const initialTitle = `${prefix}: ${description}`;
 		super(initialTitle, context, undefined, hoverService, configurationService);
 
@@ -337,7 +344,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		}
 
 		// Use ResizeObserver to trigger layout when wrapper content changes
-		const resizeObserver = this._register(new DisposableResizeObserver(() => this.layoutScheduler.schedule()));
+		const resizeObserver = this._register(new DisposableResizeObserver('ChatSubagentContentPart.layout', () => this.layoutScheduler.schedule()));
 		this._register(resizeObserver.observe(this.wrapper));
 
 		return this.wrapper;
@@ -469,7 +476,8 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 	}
 
 	private updateTitle(): void {
-		const prefix = this.agentName || localize('chat.subagent.prefix', 'Subagent');
+		const rawName = this.agentName || localize('chat.subagent.prefix', 'Subagent');
+		const prefix = rawName.charAt(0).toUpperCase() + rawName.slice(1);
 		const shimmerText = `${prefix}: ${this.description}`;
 		const toolCallText = this.currentRunningToolMessage && this.isActive ? ` \u2014 ${this.currentRunningToolMessage}` : ``;
 
@@ -738,6 +746,25 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 					}
 					this.renderPromptSection();
 					this.updateTitle();
+				} else if (toolInvocation.toolSpecificData?.kind === 'subagent') {
+					// toolSpecificData was updated after initial render (e.g.
+					// subagent content arrived via SessionToolCallContentChanged
+					// after the part was first constructed in PendingConfirmation).
+					// Re-read metadata and update the title if real values are
+					// now available that we didn't have before.
+					const { description, isDefaultDescription, agentName } = ChatSubagentContentPart.extractSubagentInfo(toolInvocation);
+					const descriptionChanged = this._isDefaultDescription && !isDefaultDescription;
+					const agentNameChanged = !!agentName && agentName !== this.agentName;
+					if (descriptionChanged || agentNameChanged) {
+						if (descriptionChanged) {
+							this.description = description;
+							this._isDefaultDescription = isDefaultDescription;
+						}
+						if (agentNameChanged) {
+							this.agentName = agentName;
+						}
+						this.updateTitle();
+					}
 				}
 			}));
 		} else if (toolInvocation.toolSpecificData?.kind === 'subagent' && toolInvocation.toolSpecificData.result) {
@@ -850,18 +877,31 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 	/**
 	 * Appends a markdown item (e.g., an edit pill) to the subagent content part.
 	 * This is used to route codeblockUri parts with subAgentInvocationId to this subagent's container.
+	 *
+	 * When the caller has already created the content part eagerly (for example, a
+	 * pre-built `ChatMarkdownContentPart` wrapped in a factory), the caller MUST pass
+	 * that part as `eagerDisposable` so it is registered on this subagent part
+	 * immediately. Otherwise, if the subagent section is collapsed and the lazy item
+	 * is never materialized, the eagerly-created part would leak.
 	 */
 	public appendMarkdownItem(
 		factory: () => { domNode: HTMLElement; disposable?: IDisposable },
 		_codeblocksPartId: string | undefined,
 		_markdown: IChatMarkdownContent,
-		_originalParent?: HTMLElement
+		_originalParent?: HTMLElement,
+		eagerDisposable?: IDisposable,
 	): void {
+		// Register any caller-owned disposable up-front so it is always cleaned up
+		// with this subagent part, even if the lazy item is never materialized.
+		if (eagerDisposable) {
+			this._register(eagerDisposable);
+		}
+
 		// If expanded or has been expanded once, render immediately
 		if (this.isExpanded() || this.hasExpandedOnce) {
 			const result = factory();
 			this.appendMarkdownItemToDOM(result.domNode);
-			if (result.disposable) {
+			if (result.disposable && result.disposable !== eagerDisposable) {
 				this._register(result.disposable);
 			}
 		} else {
@@ -869,6 +909,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 			const item: ILazyMarkdownItem = {
 				kind: 'markdown',
 				lazy: new Lazy(factory),
+				eagerlyRegistered: !!eagerDisposable,
 			};
 			this.lazyItems.push(item);
 		}
@@ -1065,7 +1106,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		} else if (item.kind === 'markdown') {
 			const result = item.lazy.value;
 			this.appendMarkdownItemToDOM(result.domNode);
-			if (result.disposable) {
+			if (result.disposable && !item.eagerlyRegistered) {
 				this._register(result.disposable);
 			}
 		} else if (item.kind === 'hook') {

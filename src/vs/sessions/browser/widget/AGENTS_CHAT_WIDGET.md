@@ -77,6 +77,7 @@ The main wrapper around `ChatWidget`. It:
 4. **Gathers initial options** — collects all option selections and attaches them to the session context
 5. **Hides duplicate pickers** — uses `hiddenPickerIds` and `excludeOptionGroup` to avoid showing pickers in both the welcome view and input toolbar
 6. **Caches option groups** — persists extension-contributed option groups to `StorageService` so pickers render immediately on next load before extensions activate
+7. **Aligns input controls** — the active chat input's send action keeps the same circular primary-button shape as the new-session chat input
 
 #### Submission Interception: Two Mechanisms
 
@@ -155,7 +156,7 @@ Renders the welcome view when the chat is empty:
 - **Option pickers** — extension-contributed option groups (repository, folder, etc.)
 - **Input slot** — where the chat input is placed when in welcome mode
 
-The welcome part reads from `IAgentChatTargetConfig` and the `IChatSessionsService` for option groups.
+The welcome part reads from `IAgentChatTargetConfig` and the `IChatSessionsService` for option groups. When the shared `ChatInputPart` is rendered in this slot, the sessions window preserves the core `.chat-input-container.focused` focus border behavior so the active chat input uses `focusBorder` while focused.
 
 ### 3.4 `AgentSessionsChatInputPart`
 

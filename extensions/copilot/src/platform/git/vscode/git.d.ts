@@ -232,6 +232,7 @@ export interface Repository {
 	readonly state: RepositoryState;
 	readonly kind: RepositoryKind;
 	readonly ui: RepositoryUIState;
+	readonly isUsingVirtualFileSystem: boolean;
 
 	readonly onDidCommit: Event<void>;
 

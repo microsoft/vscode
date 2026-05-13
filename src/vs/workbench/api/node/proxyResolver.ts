@@ -102,13 +102,11 @@ export function connectProxyResolver(
 				}
 			}
 			const result = (await Promise.all(promises)).flat();
-			const nodeSystemCertErrors = collectNodeSystemCertErrors(useNodeSystemCerts, extHostLogService);
 			mainThreadTelemetry.$publicLog2<AdditionalCertificatesEvent, AdditionalCertificatesClassification>('additionalCertificates', {
 				count: result.length,
 				isRemote,
 				loadLocalCertificates,
 				useNodeSystemCerts,
-				nodeSystemCertErrors,
 			});
 			return result;
 		},
@@ -280,7 +278,6 @@ type AdditionalCertificatesClassification = {
 	isRemote: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether this is a remote extension host' };
 	loadLocalCertificates: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether local certificates are loaded' };
 	useNodeSystemCerts: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether Node.js system certificates are used' };
-	nodeSystemCertErrors: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Summary of certificate loading errors from tls.getSystemCACertificatesErrors() or a sentinel string when unavailable/disabled' };
 };
 
 type AdditionalCertificatesEvent = {
@@ -288,83 +285,7 @@ type AdditionalCertificatesEvent = {
 	isRemote: boolean;
 	loadLocalCertificates: boolean;
 	useNodeSystemCerts: boolean;
-	nodeSystemCertErrors: string;
 };
-
-function collectNodeSystemCertErrors(useNodeSystemCerts: boolean, logService: ILogService): string {
-	if (!useNodeSystemCerts) {
-		const result = 'Not using Node.js system certificates';
-		logService.debug(`ProxyResolver#collectNodeSystemCertErrors: ${result}`);
-		return result;
-	}
-	// eslint-disable-next-line local/code-no-any-casts
-	if (typeof (tls as any).getSystemCACertificatesErrors !== 'function') {
-		const result = 'tls.getSystemCACertificatesErrors is not available';
-		logService.debug(`ProxyResolver#collectNodeSystemCertErrors: ${result}`);
-		return result;
-	}
-	try {
-		// eslint-disable-next-line local/code-no-any-casts
-		const errors = (tls as any).getSystemCACertificatesErrors();
-		if (!errors || typeof errors !== 'object') {
-			const result = 'tls.getSystemCACertificatesErrors() did not return an object';
-			logService.debug(`ProxyResolver#collectNodeSystemCertErrors: ${result}`);
-			return result;
-		}
-		const counts = new Map<string, { error: string; count: number; code: number | string }>();
-		for (const [category, entries] of Object.entries(errors)) {
-			if (Array.isArray(entries)) {
-				for (const entry of entries as { errorMessage?: string; errorCode?: number }[]) {
-					const code = entry.errorCode ?? 'missing code';
-					const error = `${category}: ${sanitizeCertErrorMessage(entry.errorMessage ?? 'missing message')}`;
-					const key = `${error} (${code})`;
-					const existing = counts.get(key);
-					if (existing) {
-						existing.count++;
-					} else {
-						counts.set(key, { error, code, count: 1 });
-					}
-				}
-			}
-		}
-		const result = JSON.stringify([...counts.values()].sort((a, b) => b.count - a.count));
-		logService.trace(`ProxyResolver#collectNodeSystemCertErrors: ${result}`);
-		return result;
-	} catch (err) {
-		logService.debug('ProxyResolver#collectNodeSystemCertErrors: Failed to get certificate errors', err);
-		return `Error: ${err instanceof Error ? err.message : String(err)}`;
-	}
-}
-
-// Sanitize known error messages to avoid false-positive redaction by the
-// telemetry scrubbing regex in telemetryUtils.ts (the Generic Secret pattern
-// matches "key", "sig", "signature" followed by a non-alphanumeric character).
-// Source strings from Node.js RecordCertError() and OpenSSL's x509_err.c / asn1_err.c.
-const certErrorReplacements: [string, string][] = [
-	// Node.js RecordCertError:
-	['key usage flags', 'k usage flags'],
-	// x509_err.c:
-	['check dh key', 'check dh k'],
-	['key type mismatch', 'k type mismatch'],
-	['key values mismatch', 'k values mismatch'],
-	['public key decode error', 'public k decode error'],
-	['public key encode error', 'public k encode error'],
-	['unable to get certs public key', 'unable to get certs public k'],
-	['unknown key type', 'unknown k type'],
-	// asn1_err.c:
-	['key type not supported', 'k type not supported'],
-	['public key type', 'public k type'],
-	['sig parse error', 's parse error'],
-	['sig invalid mime type', 's invalid mime type'],
-	['sig content type', 's content type'],
-	['signature algorithm', 's algorithm'],
-];
-function sanitizeCertErrorMessage(message: string): string {
-	for (const [search, replacement] of certErrorReplacements) {
-		message = message.replaceAll(search, replacement);
-	}
-	return message;
-}
 
 type ProxyResolveStatsClassification = {
 	owner: 'chrmarti';

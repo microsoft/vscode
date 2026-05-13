@@ -61,6 +61,13 @@ export interface BYOKModelCapabilities {
 	supportedEndpoints?: ModelSupportedEndpoint[];
 	zeroDataRetentionEnabled?: boolean;
 	supportsReasoningEffort?: string[];
+	/**
+	 * Override the body shape used to forward the reasoning effort to the model.
+	 * - `'chat-completions'`: top-level `reasoning_effort` (default for `/chat/completions`).
+	 * - `'responses'`: nested `reasoning.effort` (default for `/responses`).
+	 * If unset the format is inferred from whether the endpoint uses the Responses API.
+	 */
+	reasoningEffortFormat?: 'chat-completions' | 'responses';
 }
 
 export interface BYOKModelRegistry {
@@ -108,7 +115,8 @@ export function resolveModelInfo(modelId: string, providerName: string, knownMod
 				tool_calls: !!knownModelInfo?.toolCalling,
 				vision: !!knownModelInfo?.vision,
 				thinking: !!knownModelInfo?.thinking,
-				adaptive_thinking: !!knownModelInfo?.adaptiveThinking
+				adaptive_thinking: !!knownModelInfo?.adaptiveThinking,
+				reasoning_effort: knownModelInfo?.supportsReasoningEffort
 			},
 			tokenizer: TokenizerType.O200K,
 			limits: {
@@ -121,7 +129,8 @@ export function resolveModelInfo(modelId: string, providerName: string, knownMod
 		is_chat_fallback: false,
 		model_picker_enabled: true,
 		supported_endpoints: knownModelInfo?.supportedEndpoints,
-		zeroDataRetentionEnabled: knownModelInfo?.zeroDataRetentionEnabled
+		zeroDataRetentionEnabled: knownModelInfo?.zeroDataRetentionEnabled,
+		reasoningEffortFormat: knownModelInfo?.reasoningEffortFormat
 	};
 	if (knownModelInfo?.requestHeaders && Object.keys(knownModelInfo.requestHeaders).length > 0) {
 		modelInfo.requestHeaders = { ...knownModelInfo.requestHeaders };
@@ -143,13 +152,19 @@ export function byokKnownModelToAPIInfo(providerName: string, id: string, capabi
 		version: '1.0.0',
 		maxOutputTokens: capabilities.maxOutputTokens,
 		maxInputTokens: capabilities.maxInputTokens,
-		detail: providerName,
+		// `detail` is intentionally omitted: when this model is resolved
+		// via a configured provider group, `LanguageModelsService` will
+		// fall back to the group name so multiple instances of the same
+		// vendor (e.g. multiple Ollama servers) are distinguishable in
+		// the model picker.
 		family: id,
 		tooltip: `${capabilities.name} is contributed via the ${providerName} provider.`,
 		multiplierNumeric: 0,
+		isUserSelectable: true,
 		capabilities: {
 			toolCalling: capabilities.toolCalling,
-			imageInput: capabilities.vision
+			imageInput: capabilities.vision,
+			editTools: capabilities.editTools,
 		},
 	};
 }
@@ -160,7 +175,7 @@ export function isBYOKEnabled(copilotToken: Omit<CopilotToken, 'token'>, capiCli
 	}
 
 	const isGHE = capiClientService.dotcomAPIURL !== 'https://api.github.com';
-	const byokAllowed = (copilotToken.isInternal || copilotToken.isIndividual) && !isGHE;
+	const byokAllowed = (copilotToken.isInternal || copilotToken.isIndividual || copilotToken.isClientBYOKEnabled()) && !isGHE;
 	return byokAllowed;
 }
 

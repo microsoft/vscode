@@ -20,7 +20,7 @@ import {
 } from 'vscode';
 import { ILogger, ILogService, LogTarget } from '../../../../../platform/log/common/logService';
 import { CapturingToken } from '../../../../../platform/requestLogger/common/capturingToken';
-import { IRequestLogger } from '../../../../../platform/requestLogger/node/requestLogger';
+import { IRequestLogger } from '../../../../../platform/requestLogger/common/requestLogger';
 import { softAssert } from '../../../../../util/vs/base/common/assert';
 import { Disposable } from '../../../../../util/vs/base/common/lifecycle';
 import { StopWatch } from '../../../../../util/vs/base/common/stopwatch';
@@ -119,6 +119,7 @@ export class CopilotInlineCompletionItemProvider extends Disposable implements I
 		return await this.requestLogger.captureInvocation(capturingToken, async () => {
 
 			const logContext = new GhostTextLogContext(doc.uri.toString(), doc.version, context);
+			this.inlineEditLogger.addLive(logContext);
 
 			const logger = this.logger.createSubLogger('provideInlineCompletionItems').withExtraTarget(LogTarget.fromCallback((_level, msg) => {
 				logContext.trace(`[${Math.floor(sw.elapsed()).toString().padStart(4, ' ')}ms] ${msg}`);
@@ -136,8 +137,7 @@ export class CopilotInlineCompletionItemProvider extends Disposable implements I
 				const emptyList = { items: [], telemetryBuilder }; // we need to return an empty list, such that vscode invokes endOfLife on it and we send telemetry
 				return emptyList;
 			} finally {
-				this.inlineEditLogger.add(logContext);
-
+				logContext.markCompleted();
 				telemetryBuilder.nesBuilder.markEndTime();
 			}
 		});

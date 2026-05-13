@@ -17,7 +17,7 @@ import { IEnvService } from '../../env/common/envService';
 import { GitHubOutageStatus, IOctoKitService } from '../../github/common/githubService';
 import { ILogService } from '../../log/common/logService';
 import { getRequest } from '../../networking/common/networking';
-import { IRequestLogger } from '../../requestLogger/node/requestLogger';
+import { IRequestLogger } from '../../requestLogger/common/requestLogger';
 import { IExperimentationService } from '../../telemetry/common/nullExperimentationService';
 import { ChatEndpointFamily, IChatModelInformation, ICompletionModelInformation, IEmbeddingModelInformation, IModelAPIResponse, isChatModelInformation, isCompletionModelInformation, isEmbeddingModelInformation } from '../common/endpointProvider';
 import { ModelAliasRegistry } from '../common/modelAliasRegistry';
@@ -93,7 +93,12 @@ export class ModelMetadataFetcher extends Disposable implements IModelMetadataFe
 		super();
 		this._register(this._authService.onDidAuthenticationChange(() => {
 			// Auth changed so next fetch should be forced to get a new list
-			this._familyMap.clear();
+
+			// Only clear the family map if the copilot token is undefined, as this means the user has logged out and we should clear the models, otherwise we want to keep the old models around until we get a new list
+			if (this._authService.copilotToken === undefined) {
+				this._familyMap.clear();
+			}
+
 			this._completionsFamilyMap.clear();
 			this._lastFetchTime = 0;
 		}));

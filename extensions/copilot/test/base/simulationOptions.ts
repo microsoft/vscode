@@ -14,7 +14,7 @@ export type NesDatagen = {
 	readonly output: string | undefined;
 	readonly rowOffset: number;
 	readonly workerMode: boolean;
-}
+};
 
 export class SimulationOptions {
 	public static fromProcessArgs(): SimulationOptions {
@@ -254,7 +254,7 @@ export class SimulationOptions {
 			``,
 			`Global options (placed before 'nes-datagen'):`,
 			`  --config-file                      Path to a JSON config file (required for nes-datagen)`,
-			`                                     Must include "chat.advanced.inlineEdits.xtabProvider.modelConfiguration"`,
+			`                                     Must include "github.copilot.chat.inlineEdits.xtabProvider.modelConfiguration"`,
 			`                                     with at least { "modelName", "promptingStrategy", "includeTagsInCurrentFile" }`,
 			`  -p, --parallelism                  Number of parallel workers (default: 20)`,
 			`  --verbose                          Print detailed progress and error information`,

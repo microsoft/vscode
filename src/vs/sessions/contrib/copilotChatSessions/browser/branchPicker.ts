@@ -4,13 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../base/browser/dom.js';
+import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { reportNewChatPickerClosed } from '../../chat/browser/newChatPickerTelemetry.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { CopilotChatSessionsProvider, ICopilotChatSession } from './copilotChatSessionsProvider.js';
@@ -36,12 +39,14 @@ export class BranchPicker extends Disposable {
 		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 
 		this._register(autorun(reader => {
 			const session = this.sessionsManagementService.activeSession.read(reader);
-			const providerSession = session ? this.sessionsProvidersService.getProvider<CopilotChatSessionsProvider>(session.providerId)?.getSession(session.sessionId) : undefined;
+			const provider = session ? this.sessionsProvidersService.getProvider(session.providerId) : undefined;
+			const providerSession = provider instanceof CopilotChatSessionsProvider ? provider.getSession(session!.sessionId) : undefined;
 			if (providerSession) {
 				providerSession.loading.read(reader);
 				providerSession.branches.read(reader);
@@ -57,7 +62,8 @@ export class BranchPicker extends Disposable {
 		if (!session) {
 			return undefined;
 		}
-		return this.sessionsProvidersService.getProvider<CopilotChatSessionsProvider>(session.providerId)?.getSession(session.sessionId);
+		const provider = this.sessionsProvidersService.getProvider(session.providerId);
+		return provider instanceof CopilotChatSessionsProvider ? provider.getSession(session.sessionId) : undefined;
 	}
 
 	render(container: HTMLElement): void {
@@ -73,10 +79,13 @@ export class BranchPicker extends Disposable {
 		this._triggerElement = trigger;
 		this._updateTriggerLabel();
 
-		this._renderDisposables.add(dom.addDisposableListener(trigger, dom.EventType.CLICK, (e) => {
-			dom.EventHelper.stop(e, true);
-			this.showPicker();
-		}));
+		this._renderDisposables.add(Gesture.addTarget(trigger));
+		for (const eventType of [dom.EventType.CLICK, TouchEventType.Tap]) {
+			this._renderDisposables.add(dom.addDisposableListener(trigger, eventType, (e) => {
+				dom.EventHelper.stop(e, true);
+				this.showPicker();
+			}));
+		}
 
 		this._renderDisposables.add(dom.addDisposableListener(trigger, dom.EventType.KEY_DOWN, (e) => {
 			if (e.key === 'Enter' || e.key === ' ') {
@@ -105,6 +114,15 @@ export class BranchPicker extends Disposable {
 		const delegate: IActionListDelegate<IBranchItem> = {
 			onSelect: (item) => {
 				this.actionWidgetService.hide();
+				reportNewChatPickerClosed(this.telemetryService, {
+					id: 'NewChatBranchPicker',
+					name: 'NewChatBranchPicker',
+					optionIdBefore: selectedBranch,
+					optionIdAfter: item.name,
+					optionLabelBefore: selectedBranch,
+					optionLabelAfter: item.name,
+					isPII: true,
+				});
 				session?.setBranch(item.name);
 			},
 			onHide: () => { triggerElement.focus(); },
@@ -144,6 +162,8 @@ export class BranchPicker extends Disposable {
 		const labelSpan = dom.append(this._triggerElement, dom.$('span.sessions-chat-dropdown-label'));
 		labelSpan.textContent = label;
 		dom.append(this._triggerElement, renderIcon(Codicon.chevronDown));
+
+		this._triggerElement.ariaLabel = localize('branchPicker.triggerAriaLabel', "Pick Branch, {0}", label);
 
 		this._slotElement?.classList.toggle('disabled', isLoading || isDisabled);
 		this._triggerElement.setAttribute('aria-disabled', String(isLoading || isDisabled));

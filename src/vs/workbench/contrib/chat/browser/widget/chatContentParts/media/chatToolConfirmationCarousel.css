@@ -23,11 +23,24 @@
 	color: var(--vscode-foreground);
 	display: flex;
 	flex-direction: column;
-	max-height: min(420px, 45vh);
+	max-height: min(300px, 45vh);
 	border: 1px solid var(--vscode-input-border, transparent);
 	border-radius: var(--vscode-cornerRadius-large);
 	background-color: var(--vscode-panel-background);
 	overflow: hidden;
+
+	&:focus {
+		outline: none !important;
+	}
+
+	&:focus-visible,
+	&:focus-within {
+		border-color: var(--vscode-focusBorder);
+	}
+
+	.chat-tool-carousel-content .chat-confirmation-widget-container:focus {
+		outline: none;
+	}
 
 	a {
 		color: var(--vscode-foreground);
@@ -89,6 +102,31 @@
 		margin-left: auto;
 	}
 
+	.monaco-button.chat-tool-carousel-dismiss-button {
+		min-width: 22px;
+		width: 22px;
+		height: 22px;
+		padding: 0;
+		border: none !important;
+		box-shadow: none !important;
+		background: transparent !important;
+		color: var(--vscode-icon-foreground) !important;
+		cursor: pointer;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+
+	.monaco-button.chat-tool-carousel-dismiss-button:hover {
+		background: var(--vscode-toolbar-hoverBackground) !important;
+	}
+
+	button:focus,
+	.monaco-button:focus {
+		outline: none !important;
+		box-shadow: none !important;
+	}
+
 	.chat-tool-carousel-nav-arrows {
 		display: flex;
 		align-items: center;
@@ -132,24 +170,12 @@
 		background: var(--vscode-toolbar-hoverBackground) !important;
 	}
 
-	&.chat-tool-carousel-collapsed {
-		.chat-tool-carousel-content {
-			display: none;
-		}
+	&.chat-tool-carousel-content-expanded {
+		max-height: min(650px, 70vh);
+	}
 
-		.chat-tool-carousel-overlay {
-			padding: 6px 10px 6px 12px;
-			border-bottom: none;
-		}
-
-		.chat-tool-carousel-title-group {
-			flex: 1;
-		}
-
-		.chat-tool-carousel-nav-arrows,
-		.chat-tool-carousel-step-indicator {
-			display: none;
-		}
+	.monaco-list:focus {
+		outline: none !important;
 	}
 
 	.chat-tool-carousel-content {
@@ -160,16 +186,28 @@
 		flex: 1;
 
 		.chat-tool-invocation-part {
+			display: flex;
+			flex-direction: column;
+			flex: 1;
+			min-height: 0;
 			margin: 0;
 		}
 
 		.chat-confirmation-widget-container {
+			display: flex;
+			flex-direction: column;
+			flex: 1;
+			min-height: 0;
 			margin: 0;
 			border: none;
 		}
 
 		.chat-confirmation-widget,
 		.chat-confirmation-widget2 {
+			display: flex;
+			flex-direction: column;
+			flex: 1;
+			min-height: 0;
 			border: none;
 			border-radius: 0;
 			margin: 0;
@@ -178,24 +216,42 @@
 		.chat-confirmation-widget-message-container {
 			display: flex;
 			flex-direction: column;
+			flex: 1;
+			min-height: 0;
 			border: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-border, transparent));
 			border-radius: var(--vscode-cornerRadius-medium);
 			overflow: hidden;
 		}
 
+		.chat-confirmation-widget-message-scrollable {
+			flex: 1;
+			min-height: 0;
+		}
+
 		.chat-confirmation-widget-message {
-			overflow: auto;
+			flex: 1;
+			min-height: 0;
 			max-height: min(200px, 30vh);
 		}
 
+		.chat-tool-carousel-content-expanded & {
+			.chat-confirmation-widget-message {
+				max-height: min(500px, 55vh);
+			}
+		}
+
 		.chat-confirmation-message-terminal-editor .interactive-result-code-block {
-			max-height: min(150px, 25vh);
-			overflow: auto;
+			background-color: var(--vscode-sideBar-background);
+		}
+
+		.chat-confirmation-message-terminal-editor .interactive-result-editor {
+			background-color: var(--vscode-sideBar-background);
 		}
 
 		.chat-buttons-container {
 			flex-shrink: 0;
 		}
+
 		.interactive-result-code-block {
 			border: none;
 			border-radius: 0;

@@ -187,10 +187,10 @@ export type ChatFetchRetriableError<T> =
 	/**
 	 * We requested conversation, the response was filtered by RAI, but we want to retry.
 	 */
-	{ type: ChatFetchResponseType.FilteredRetry; reason: string; category: FilterReason; value: T; requestId: string; serverRequestId: string | undefined }
+	{ type: ChatFetchResponseType.FilteredRetry; reason: string; category: FilterReason; value: T; requestId: string; serverRequestId: string | undefined };
 
 export type FetchSuccess<T> =
-	{ type: ChatFetchResponseType.Success; value: T; requestId: string; serverRequestId: string | undefined; usage: APIUsage | undefined; resolvedModel: string };
+	{ type: ChatFetchResponseType.Success; value: T; requestId: string; serverRequestId: string | undefined; usage: APIUsage | undefined; resolvedModel: string; modelCallId?: string };
 
 export type FetchResponse<T> = FetchSuccess<T> | ChatFetchError;
 
@@ -198,7 +198,7 @@ export type ChatResponse = FetchResponse<string>;
 
 export type ChatResponses = FetchResponse<string[]>;
 
-function getRateLimitMessage(fetchResult: ChatFetchError): string {
+function getRateLimitMessage(fetchResult: ChatFetchError, copilotPlan: string | undefined): string {
 	if (fetchResult.type !== ChatFetchResponseType.RateLimited) {
 		throw new Error('Expected RateLimited error');
 	}
@@ -225,8 +225,49 @@ function getRateLimitMessage(fetchResult: ChatFetchError): string {
 		});
 	}
 	if (fetchResult.capiError?.code?.startsWith('user_global_rate_limited')) {
+		if (copilotPlan === 'free' || copilotPlan === 'individual' || copilotPlan === 'individual_pro') {
+			return l10n.t({
+				message: 'You\'ve hit your session rate limit. Please upgrade your plan or wait {0} for your limit to reset. [Learn More]({1})',
+				args: [retryAfterString, 'https://aka.ms/github-copilot-rate-limit-error'],
+				comment: [`{Locked=']({'}`]
+			});
+		}
+
 		return l10n.t({
-			message: 'You\'ve hit your global rate limit. Please upgrade your plan or wait {0} for your limit to reset. [Learn More]({1})',
+			message: 'You\'ve hit your session rate limit. Please wait {0} for your limit to reset. [Learn More]({1})',
+			args: [retryAfterString, 'https://aka.ms/github-copilot-rate-limit-error'],
+			comment: [`{Locked=']({'}`]
+		});
+	}
+	if (fetchResult.capiError?.code?.startsWith('user_weekly_rate_limited')) {
+		if (fetchResult.retryAfter) {
+			const resetDate = new Date(Date.now() + fetchResult.retryAfter * 1000);
+			const resetDateString = resetDate.toLocaleString(undefined, { year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+			if (fetchResult.isAuto) {
+				return l10n.t({
+					message: 'You\'ve reached your weekly rate limit. Please wait for your limit to reset on {0}. [Learn More]({1})',
+					args: [resetDateString, 'https://aka.ms/github-copilot-rate-limit-error'],
+					comment: [`{Locked=']({'}`]
+				});
+			}
+
+			return l10n.t({
+				message: 'You\'ve reached your weekly rate limit. Please switch to the Auto model to continue working or wait for your limit to reset on {0}. [Learn More]({1})',
+				args: [resetDateString, 'https://aka.ms/github-copilot-rate-limit-error'],
+				comment: [`{Locked=']({'}`]
+			});
+		}
+
+		if (fetchResult.isAuto) {
+			return l10n.t({
+				message: 'You\'ve reached your weekly rate limit. Please wait {0} for your limit to reset. [Learn More]({1})',
+				args: [retryAfterString, 'https://aka.ms/github-copilot-rate-limit-error'],
+				comment: [`{Locked=']({'}`]
+			});
+		}
+
+		return l10n.t({
+			message: 'You\'ve reached your weekly rate limit. Please switch to the Auto model to continue working or wait {0} for your limit to reset. [Learn More]({1})',
 			args: [retryAfterString, 'https://aka.ms/github-copilot-rate-limit-error'],
 			comment: [`{Locked=']({'}`]
 		});
@@ -282,6 +323,22 @@ function getRateLimitMessage(fetchResult: ChatFetchError): string {
 	});
 }
 
+export function getQuotaMessageForPlan(copilotPlan: string | undefined): string {
+	switch (copilotPlan) {
+		case 'free':
+			return l10n.t(`You've reached your monthly chat messages quota. Upgrade to Copilot Pro or wait for your allowance to renew.`);
+		case 'individual':
+			return l10n.t(`You've exhausted your premium model quota. Please enable additional paid premium requests, upgrade to Copilot Pro+, or wait for your allowance to renew.`);
+		case 'individual_pro':
+			return l10n.t(`You've exhausted your premium model quota. Please enable additional paid premium requests or wait for your allowance to renew.`);
+		case 'business':
+		case 'enterprise':
+			return l10n.t(`You've exhausted your credits. To continue working, please contact your organization's Copilot admin or wait for your allowance to renew.`);
+		default:
+			return l10n.t(`You've exhausted your premium model quota. To continue working, switch to Auto. For additional paid premium requests, please reach out to your organization's Copilot admin or wait for your allowance to renew.`);
+	}
+}
+
 function getQuotaHitMessage(fetchResult: ChatFetchError, copilotPlan: string | undefined): string {
 	if (fetchResult.type !== ChatFetchResponseType.QuotaExceeded) {
 		throw new Error('Expected QuotaExceeded error');
@@ -290,22 +347,15 @@ function getQuotaHitMessage(fetchResult: ChatFetchError, copilotPlan: string | u
 		fetchResult.capiError.code = 'quota_exceeded'; // Remap this to the generic quota code so we get per plan handling
 	}
 	if (fetchResult.capiError?.code === 'quota_exceeded') {
-		switch (copilotPlan) {
-			case 'free':
-				return l10n.t(`You've reached your monthly chat messages quota. Upgrade to Copilot Pro (30-day free trial) or wait for your allowance to renew.`);
-			case 'individual':
-				return l10n.t(`You've exhausted your premium model quota. Please enable additional paid premium requests, upgrade to Copilot Pro+, or wait for your allowance to renew.`);
-			case 'individual_pro':
-				return l10n.t(`You've exhausted your premium model quota. Please enable additional paid premium requests or wait for your allowance to renew.`);
-			default:
-				return l10n.t(`You've exhausted your premium model quota. To continue working, switch to Auto. For additional paid premium requests, please reach out to your organization's Copilot admin or wait for your allowance to renew.`);
-		}
+		return getQuotaMessageForPlan(copilotPlan);
 	} else if (fetchResult.capiError?.code === 'overage_limit_reached') {
 		return l10n.t({
 			message: 'You cannot accrue additional premium requests at this time. Please contact [GitHub Support]({0}) to continue using Copilot.',
 			args: ['https://support.github.com/contact'],
 			comment: [`{Locked=']({'}`]
 		});
+	} else if (fetchResult.capiError?.code === 'billing_not_configured' && fetchResult.capiError?.message) {
+		return fetchResult.capiError.message;
 	} else if (fetchResult.capiError?.code && fetchResult.capiError?.message) {
 		return l10n.t({
 			message: 'Quota Exceeded\n\nServer Error: {0}\nError Code: {1}',
@@ -317,11 +367,11 @@ function getQuotaHitMessage(fetchResult: ChatFetchError, copilotPlan: string | u
 	}
 }
 
-export function getErrorDetailsFromChatFetchError(fetchResult: ChatFetchError, copilotPlan: string, gitHubOutageStatus: GitHubOutageStatus): ChatErrorDetails {
+export function getErrorDetailsFromChatFetchError(fetchResult: ChatFetchError, copilotPlan: string | undefined, gitHubOutageStatus: GitHubOutageStatus): ChatErrorDetails {
 	return { code: fetchResult.type, ...getErrorDetailsFromChatFetchErrorInner(fetchResult, copilotPlan, gitHubOutageStatus) };
 }
 
-function getErrorDetailsFromChatFetchErrorInner(fetchResult: ChatFetchError, copilotPlan: string, gitHubOutageStatus: GitHubOutageStatus): ChatErrorDetails {
+function getErrorDetailsFromChatFetchErrorInner(fetchResult: ChatFetchError, copilotPlan: string | undefined, gitHubOutageStatus: GitHubOutageStatus): ChatErrorDetails {
 	let details: ChatErrorDetails;
 	switch (fetchResult.type) {
 		case ChatFetchResponseType.OffTopic:
@@ -332,7 +382,7 @@ function getErrorDetailsFromChatFetchErrorInner(fetchResult: ChatFetchError, cop
 			break;
 		case ChatFetchResponseType.RateLimited:
 			details = {
-				message: getRateLimitMessage(fetchResult),
+				message: getRateLimitMessage(fetchResult, copilotPlan),
 				level: ChatErrorLevel.Info,
 				isRateLimited: true
 			};
