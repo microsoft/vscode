@@ -325,7 +325,7 @@ suite('ChatStatusDashboard', () => {
 		}));
 
 		assert.deepStrictEqual(getIncludedLabels(dashboard.element), ['Premium Requests']);
-		assert.deepStrictEqual(getIncludedDescriptions(dashboard.element), ['Limit reached.']);
+		assert.deepStrictEqual(getIncludedDescriptions(dashboard.element), ['Organization limit reached.']);
 		assert.strictEqual(hasExhaustedClass(dashboard.element), true);
 		assert.strictEqual(getCalloutText(dashboard.element), 'Copilot is paused until the limit resets. Contact your administrator for more information.');
 	});
@@ -339,7 +339,7 @@ suite('ChatStatusDashboard', () => {
 		}));
 
 		assert.deepStrictEqual(getIncludedLabels(dashboard.element), ['Premium Requests']);
-		assert.deepStrictEqual(getIncludedDescriptions(dashboard.element), ['Limit reached.']);
+		assert.deepStrictEqual(getIncludedDescriptions(dashboard.element), ['Organization limit reached.']);
 		assert.strictEqual(hasExhaustedClass(dashboard.element), true);
 		assert.strictEqual(getCalloutText(dashboard.element), 'Copilot is paused until the limit resets. Contact your administrator for more information.');
 	});
@@ -353,11 +353,11 @@ suite('ChatStatusDashboard', () => {
 		}));
 
 		assert.deepStrictEqual(getIncludedLabels(dashboard.element), ['Credits']);
-		assert.deepStrictEqual(getIncludedDescriptions(dashboard.element), ['Limit reached.']);
+		assert.deepStrictEqual(getIncludedDescriptions(dashboard.element), ['Organization limit reached.']);
 		assert.strictEqual(hasExhaustedClass(dashboard.element), true);
 	});
 
-	test('Enterprise — pooled at 0% but overages enabled: shows included, not exhausted', () => {
+	test('Enterprise — pooled at 0% but overages enabled: shows included with budget callout', () => {
 		const dashboard = createDashboard(createEntitlementService({
 			premiumChat: { percentRemaining: 0, unlimited: true },
 			completions: { percentRemaining: 100, unlimited: true },
@@ -368,6 +368,7 @@ suite('ChatStatusDashboard', () => {
 		assert.deepStrictEqual(getIncludedLabels(dashboard.element), ['Premium Requests']);
 		assert.deepStrictEqual(getIncludedDescriptions(dashboard.element), ['Included with your organization\'s plan.']);
 		assert.strictEqual(hasExhaustedClass(dashboard.element), false);
+		assert.strictEqual(getCalloutText(dashboard.element), 'Premium request budget is configured. Usage will continue until limits reset.');
 	});
 
 	test('Enterprise — TBB (multi-quota): shows only Credits, not Chat messages or Inline Suggestions', () => {
