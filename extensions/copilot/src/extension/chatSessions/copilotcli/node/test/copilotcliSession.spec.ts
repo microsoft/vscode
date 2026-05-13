@@ -30,6 +30,8 @@ import { PermissionRequest } from '../permissionHelpers';
 import { IQuestion, IQuestionAnswer, IUserQuestionHandler, UserInputResponse } from '../userInputHelpers';
 import { NullICopilotCLIImageSupport } from './testHelpers';
 import { MockGitService } from '../../../../../platform/ignore/node/test/mockGitService';
+import { NullTelemetryService } from '../../../../../platform/telemetry/common/nullTelemetryService';
+import type { ITelemetryService, TelemetryEventMeasurements, TelemetryEventProperties } from '../../../../../platform/telemetry/common/telemetry';
 
 vi.mock('../cliHelpers', async (importOriginal) => ({
 	...(await importOriginal<typeof import('../cliHelpers')>()),
@@ -214,6 +216,7 @@ describe('CopilotCLISession', () => {
 	let chatSessionMetadataStore: MockChatSessionMetadataStore;
 	let authInfo: NonNullable<SessionOptions['authInfo']>;
 	let userQuestionAnswer: IQuestionAnswer | undefined;
+	let telemetryService: ITelemetryService;
 	beforeEach(async () => {
 		const services = disposables.add(createExtensionUnitTestingServices());
 		const accessor = services.createTestingAccessor();
@@ -234,6 +237,7 @@ describe('CopilotCLISession', () => {
 		instaService = services.seal();
 		toolsService = new FakeToolsService();
 		userQuestionAnswer = undefined;
+		telemetryService = new NullTelemetryService();
 	});
 
 	afterEach(() => {
@@ -266,7 +270,8 @@ describe('CopilotCLISession', () => {
 			new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'test' })),
 			new MockGitService(),
 			{ _serviceBrand: undefined } as any,
-			{ _serviceBrand: undefined, resetTurnCredits() { }, getCreditsForTurn() { return undefined; }, setLastCopilotUsage() { } } as any
+			{ _serviceBrand: undefined, resetTurnCredits() { }, getCreditsForTurn() { return undefined; }, setLastCopilotUsage() { } } as any,
+			telemetryService
 		));
 	}
 
@@ -678,6 +683,60 @@ describe('CopilotCLISession', () => {
 		sdkSession.emit('tool.execution_complete', { toolCallId: 'bash-delay-1', toolName: 'bash', success: true, result: { content: 'hi' } });
 		resolveSend!();
 		await requestPromise;
+	});
+
+	it('emits languageModelToolInvoked telemetry for each completed tool invocation', async () => {
+		class RecordingTelemetryService extends NullTelemetryService {
+			readonly events: { name: string; properties?: TelemetryEventProperties; measurements?: TelemetryEventMeasurements }[] = [];
+			override sendMSFTTelemetryEvent(name: string, properties?: TelemetryEventProperties, measurements?: TelemetryEventMeasurements): void {
+				this.events.push({ name, properties, measurements });
+			}
+		}
+		const recorder = new RecordingTelemetryService();
+		telemetryService = recorder;
+
+		let resolveSend: () => void;
+		sdkSession.send = async () => new Promise<void>(r => { resolveSend = r; });
+
+		const session = await createSession();
+		session.attachStream(new MockChatResponseStream());
+		const sessionResource = Uri.parse('copilotcli:/test-session');
+		const requestPromise = session.handleRequest({ id: 'req-1', toolInvocationToken: undefined as never, sessionResource }, { prompt: 'Run tools' }, [], undefined, authInfo, CancellationToken.None);
+		await new Promise(r => setTimeout(r, 0));
+
+		// Native CLI tool: success
+		sdkSession.emit('tool.execution_start', { toolName: 'bash', toolCallId: 't-success', arguments: {} });
+		sdkSession.emit('tool.execution_complete', { toolCallId: 't-success', toolName: 'completion_bash', success: true, result: { content: 'ok' } });
+
+		// MCP tool: failure
+		sdkSession.emit('tool.execution_start', { toolName: 'mcp_tool', toolCallId: 't-mcp', mcpServerName: 'srv', mcpToolName: 'mt', arguments: {} });
+		sdkSession.emit('tool.execution_complete', { toolCallId: 't-mcp', toolName: 'mcp_tool', success: false, error: { code: 'tool_error', message: 'boom' } });
+
+		// User-denied permission: userCancelled
+		sdkSession.emit('tool.execution_start', { toolName: 'bash', toolCallId: 't-denied', arguments: {} });
+		sdkSession.emit('tool.execution_complete', { toolCallId: 't-denied', toolName: 'bash', success: false, error: { code: 'denied', message: 'no' } });
+
+		// Completion-only event: fallback to toolName from the completion event
+		sdkSession.emit('tool.execution_complete', { toolCallId: 't-complete-only', toolName: 'completion_tool', success: true, result: { content: 'ok' } });
+
+		resolveSend!();
+		await requestPromise;
+
+		const invokedEvents = recorder.events.filter(e => e.name === 'languageModelToolInvoked');
+		const invokedSnapshot = invokedEvents.map(e => ({
+			result: e.properties?.result,
+			chatSessionId: e.properties?.chatSessionId,
+			toolId: e.properties?.toolId,
+			toolExtensionId: e.properties?.toolExtensionId,
+			toolSourceKind: e.properties?.toolSourceKind,
+			hasInvocationTimeMs: typeof e.measurements?.invocationTimeMs === 'number',
+		}));
+		expect(invokedSnapshot).toEqual([
+			{ result: 'success', chatSessionId: 'copilotcli:/test-session', toolId: 'bash', toolExtensionId: undefined, toolSourceKind: 'copilotCli', hasInvocationTimeMs: true },
+			{ result: 'error', chatSessionId: 'copilotcli:/test-session', toolId: 'mcp_tool', toolExtensionId: undefined, toolSourceKind: 'mcp', hasInvocationTimeMs: true },
+			{ result: 'userCancelled', chatSessionId: 'copilotcli:/test-session', toolId: 'bash', toolExtensionId: undefined, toolSourceKind: 'copilotCli', hasInvocationTimeMs: true },
+			{ result: 'success', chatSessionId: 'copilotcli:/test-session', toolId: 'completion_tool', toolExtensionId: undefined, toolSourceKind: 'copilotCli', hasInvocationTimeMs: false },
+		]);
 	});
 
 	it('uses remote permission responses when Mission Control is active', async () => {

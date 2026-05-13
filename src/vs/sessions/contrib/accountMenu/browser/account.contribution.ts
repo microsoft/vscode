@@ -48,8 +48,6 @@ const SESSIONS_ACCOUNT_TITLEBAR_PANEL_WIDTH = 360;
 
 const PERSONALIZE_ACTION_IDS: readonly string[] = [
 	'workbench.action.openSettings',
-	'workbench.action.openGlobalKeybindings',
-	'workbench.action.selectTheme',
 ];
 const SIGN_OUT_ACTION_ID = 'workbench.action.agenticSignOut';
 const SIGN_IN_ACTION_ID = 'workbench.action.agenticSignIn';
@@ -127,17 +125,6 @@ registerAction2(class extends Action2 {
 	}
 });
 
-// Color Theme (hidden on phone — no theme picker UI on mobile)
-MenuRegistry.appendMenuItem(AccountMenu, {
-	command: {
-		id: 'workbench.action.selectTheme',
-		title: localize('selectColorTheme', "Color Theme"),
-	},
-	when: IsPhoneLayoutContext.negate(),
-	group: '2_settings',
-	order: 1,
-});
-
 // Settings (hidden on phone — no settings UI on mobile)
 MenuRegistry.appendMenuItem(AccountMenu, {
 	command: {
@@ -146,18 +133,7 @@ MenuRegistry.appendMenuItem(AccountMenu, {
 	},
 	when: IsPhoneLayoutContext.negate(),
 	group: '2_settings',
-	order: 2,
-});
-
-// Keyboard Shortcuts (hidden on phone — no keybindings UI on mobile)
-MenuRegistry.appendMenuItem(AccountMenu, {
-	command: {
-		id: 'workbench.action.openGlobalKeybindings',
-		title: localize('sessionsAccountMenu.keyboardShortcuts', "Keyboard Shortcuts"),
-	},
-	when: IsPhoneLayoutContext.negate(),
-	group: '2_settings',
-	order: 3,
+	order: 1,
 });
 
 // Update actions
@@ -464,28 +440,22 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		}
 		const title = append(headerSection, $('div.sessions-account-titlebar-panel-title'));
 		title.textContent = this.getPanelHeaderLabel();
+		const headerActionsContainer = append(headerSection, $('.sessions-account-titlebar-panel-header-actions'));
+
+		// CTA buttons (Manage Budget, Upgrade) will be rendered here by the dashboard
+		const ctaButtonsContainer = append(headerActionsContainer, $('.sessions-account-titlebar-panel-cta-actions'));
+
+		for (const action of partitioned.personalize) {
+			this.createPanelButton(headerActionsContainer, action, panelStore, {
+				classNames: ['sessions-account-titlebar-panel-header-action'],
+				icon: this.getHeaderActionIcon(action),
+			});
+		}
 		if (partitioned.signOut) {
-			const headerActionsContainer = append(headerSection, $('.sessions-account-titlebar-panel-header-actions'));
 			this.createPanelButton(headerActionsContainer, partitioned.signOut, panelStore, {
 				classNames: ['sessions-account-titlebar-panel-header-action'],
 				icon: this.getHeaderActionIcon(partitioned.signOut),
 			});
-		}
-
-		// Personalize section.
-		if (partitioned.personalize.length > 0) {
-			const personalizeId = 'sessions-account-personalize-title';
-			const personalizeSection = append(panel, $('section.sessions-account-titlebar-panel-section', { 'aria-labelledby': personalizeId }));
-			const personalizeHeading = append(personalizeSection, $('div.sessions-account-titlebar-panel-section-title', { id: personalizeId }));
-			personalizeHeading.textContent = localize('sessionsAccountMenu.personalize', "Personalize");
-			const personalizeActionsContainer = append(personalizeSection, $('.sessions-account-titlebar-panel-actions'));
-			for (const action of partitioned.personalize) {
-				this.createPanelButton(personalizeActionsContainer, action, panelStore, {
-					classNames: ['sessions-account-titlebar-panel-action', 'with-icon'],
-					icon: this.getPersonalizeActionIcon(action),
-					includeLabel: true,
-				});
-			}
 		}
 
 		// Other panel actions (sign-in, etc.) — only render if there's at least one non-separator action.
@@ -512,14 +482,10 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		// Subscription / Copilot dashboard.
 		const contentSection = append(panel, $('.sessions-account-titlebar-panel-content'));
 		if (this.shouldShowCopilotDashboardHover()) {
-			const subscriptionId = 'sessions-account-subscription-title';
-			const subscriptionSection = append(contentSection, $('section.sessions-account-titlebar-panel-section.subscription', { 'aria-labelledby': subscriptionId }));
-			const subscriptionHeader = append(subscriptionSection, $('.sessions-account-titlebar-panel-section-header'));
-			const subscriptionHeading = append(subscriptionHeader, $('div.sessions-account-titlebar-panel-section-title', { id: subscriptionId }));
-			subscriptionHeading.textContent = localize('sessionsAccountMenu.subscription', "Subscription");
-			// Render the dashboard's title header (plan name + manage / CTA actions)
-			// directly into our section header row via the dashboard's public API.
-			const dashboard = this.createCopilotHoverContent({ titleHeaderContainer: subscriptionHeader });
+			const subscriptionSection = append(contentSection, $('section.sessions-account-titlebar-panel-section.subscription', {
+				'aria-label': localize('sessionsAccountSubscriptionSectionLabel', "Subscription")
+			}));
+			const dashboard = this.createCopilotHoverContent({ compactQuotaLayout: true, ctaButtonsContainer });
 			append(subscriptionSection, dashboard);
 		} else if (!this.isAccountLoading) {
 			const summary = append(contentSection, $('.sessions-account-titlebar-panel-summary'));
@@ -629,25 +595,10 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 
 	private getHeaderActionIcon(action: IAction): ThemeIcon {
 		switch (action.id) {
-			case 'workbench.action.selectTheme':
-				return Codicon.symbolColor;
 			case 'workbench.action.openSettings':
 				return Codicon.settingsGear;
 			case SIGN_OUT_ACTION_ID:
 				return Codicon.signOut;
-			default:
-				return Codicon.circleLargeFilled;
-		}
-	}
-
-	private getPersonalizeActionIcon(action: IAction): ThemeIcon {
-		switch (action.id) {
-			case 'workbench.action.openSettings':
-				return Codicon.settingsGear;
-			case 'workbench.action.openGlobalKeybindings':
-				return Codicon.keyboard;
-			case 'workbench.action.selectTheme':
-				return Codicon.symbolColor;
 			default:
 				return Codicon.circleLargeFilled;
 		}
@@ -666,7 +617,6 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 			disableProviderOptions: true,
 			disableCompletionsSnooze: true,
 			disableQuickSettingsCollapsible: true,
-			disableContributedSectionsCollapsible: true,
 			...extraOptions,
 		});
 
