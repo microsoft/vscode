@@ -450,7 +450,7 @@ export class ChatStatusDashboard extends DomWidget {
 			if (currentTooltip) {
 				this._store.add(this.hoverService.setupDelayedHover(statusEl, () => ({
 					content: currentTooltip ?? '',
-				})));
+				}), { reducedDelay: true }));
 			}
 
 			// Detail (action link) rendered inline
