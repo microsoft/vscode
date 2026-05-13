@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import type { ToolInvocation, ToolResultObject } from '@github/copilot-sdk';
-import { DeferredPromise } from '../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { URI } from '../../../../base/common/uri.js';
 import * as platform from '../../../../base/common/platform.js';
 import { Emitter } from '../../../../base/common/event.js';
@@ -31,6 +31,7 @@ class TestAgentHostTerminalManager implements IAgentHostTerminalManager {
 	commandDetectionSupported = false;
 	readonly commandFinishedListenerRegistered = new DeferredPromise<void>();
 	private readonly _onCommandFinished = new Emitter<ICommandFinishedEvent>();
+	private readonly _altBufferPromises: DeferredPromise<void>[] = [];
 
 	async createTerminal(params: CreateTerminalParams, options?: { shell?: string; preventShellHistory?: boolean; nonInteractive?: boolean }): Promise<void> {
 		this.created.push({ params, options: { ...options, shell: options?.shell ?? this.defaultShell } });
@@ -49,6 +50,11 @@ class TestAgentHostTerminalManager implements IAgentHostTerminalManager {
 		this.commandFinishedListenerRegistered.complete();
 		return this._onCommandFinished.event(cb);
 	}
+	createAltBufferPromise(): Promise<void> {
+		const deferred = new DeferredPromise<void>();
+		this._altBufferPromises.push(deferred);
+		return deferred.p;
+	}
 	getContent(): string | undefined { return undefined; }
 	getClaim(): TerminalClaim | undefined { return undefined; }
 	hasTerminal(uri: string): boolean { return this.existingTerminalUris.has(uri); }
@@ -59,6 +65,11 @@ class TestAgentHostTerminalManager implements IAgentHostTerminalManager {
 	getTerminalState(): undefined { return undefined; }
 	async getDefaultShell(): Promise<string> { return this.defaultShell; }
 	fireCommandFinished(event: ICommandFinishedEvent): void { this._onCommandFinished.fire(event); }
+	fireDidEnterAltBuffer(): void {
+		for (const promise of this._altBufferPromises) {
+			promise.complete();
+		}
+	}
 }
 
 suite('CopilotShellTools', () => {
@@ -76,6 +87,21 @@ suite('CopilotShellTools', () => {
 		const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
 		services.set(IInstantiationService, instantiationService);
 		return { instantiationService, terminalManager };
+	}
+
+	async function waitForSentTexts(terminalManager: TestAgentHostTerminalManager, count: number): Promise<void> {
+		for (let i = 0; i < 20; i++) {
+			if (terminalManager.sentTexts.length >= count) {
+				return;
+			}
+			await timeout(10);
+		}
+	}
+
+	function markCreatedTerminalsExist(terminalManager: TestAgentHostTerminalManager): void {
+		for (const created of terminalManager.created) {
+			terminalManager.existingTerminalUris.add(created.params.terminal);
+		}
 	}
 
 	test('uses session working directory for created shells', async () => {
@@ -217,6 +243,112 @@ suite('CopilotShellTools', () => {
 		assert.strictEqual(terminalManager.sentTexts.length, 1);
 		assert.strictEqual(terminalManager.sentTexts[0].options.bracketedPasteMode, true);
 		assert.strictEqual(terminalManager.writes[0].data, ' echo first\recho second\r');
+	});
+
+	test('primary shell tool returns alternateBuffer when shell integration enters alt buffer', async () => {
+		const { instantiationService, terminalManager } = createServices();
+		terminalManager.commandDetectionSupported = true;
+		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), undefined));
+		const tools = await createShellTools(shellManager, terminalManager, new NullLogService());
+		const bashTool = tools.find(tool => tool.name === 'bash');
+		assert.ok(bashTool);
+
+		const invocation: ToolInvocation = {
+			sessionId: 'session-1',
+			toolCallId: 'tool-1',
+			toolName: 'bash',
+			arguments: { command: 'vim README.md', timeout: 1000 },
+		};
+		const resultPromise = bashTool.handler({ command: 'vim README.md', timeout: 1000 }, invocation) as Promise<ToolResultObject>;
+		await waitForSentTexts(terminalManager, 1);
+		terminalManager.fireDidEnterAltBuffer();
+		const result = await resultPromise;
+
+		assert.strictEqual(result.resultType, 'failure');
+		assert.strictEqual(result.error, 'alternateBuffer');
+		assert.match(result.textResultForLlm, /opened the alternate buffer/);
+	});
+
+	test('primary shell tool returns alternateBuffer when sentinel fallback enters alt buffer', async () => {
+		const { instantiationService, terminalManager } = createServices();
+		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), undefined));
+		const tools = await createShellTools(shellManager, terminalManager, new NullLogService());
+		const bashTool = tools.find(tool => tool.name === 'bash');
+		assert.ok(bashTool);
+
+		const invocation: ToolInvocation = {
+			sessionId: 'session-1',
+			toolCallId: 'tool-1',
+			toolName: 'bash',
+			arguments: { command: 'vim README.md', timeout: 1000 },
+		};
+		const resultPromise = bashTool.handler({ command: 'vim README.md', timeout: 1000 }, invocation) as Promise<ToolResultObject>;
+		await waitForSentTexts(terminalManager, 2);
+		terminalManager.fireDidEnterAltBuffer();
+		const result = await resultPromise;
+
+		assert.strictEqual(result.resultType, 'failure');
+		assert.strictEqual(result.error, 'alternateBuffer');
+		assert.match(result.textResultForLlm, /opened the alternate buffer/);
+	});
+
+	test('alt-buffer shell is released when command finishes', async () => {
+		const { instantiationService, terminalManager } = createServices();
+		terminalManager.commandDetectionSupported = true;
+		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), undefined));
+		const tools = await createShellTools(shellManager, terminalManager, new NullLogService());
+		const bashTool = tools.find(tool => tool.name === 'bash');
+		assert.ok(bashTool);
+
+		const invocation: ToolInvocation = {
+			sessionId: 'session-1',
+			toolCallId: 'tool-1',
+			toolName: 'bash',
+			arguments: { command: 'vim README.md', timeout: 1000 },
+		};
+		const resultPromise = bashTool.handler({ command: 'vim README.md', timeout: 1000 }, invocation) as Promise<ToolResultObject>;
+		await waitForSentTexts(terminalManager, 1);
+		terminalManager.fireDidEnterAltBuffer();
+		const result = await resultPromise;
+		assert.strictEqual(result.error, 'alternateBuffer');
+		markCreatedTerminalsExist(terminalManager);
+		const shell = shellManager.listShells()[0];
+
+		terminalManager.fireCommandFinished({ commandId: 'cmd-1', exitCode: 0, command: 'vim README.md', output: '' });
+		const next = await shellManager.getOrCreateShell('bash', 'turn-2', 'tool-2');
+
+		assert.strictEqual(next.object.id, shell.id);
+		assert.strictEqual(terminalManager.created.length, 1);
+		next.dispose();
+	});
+
+	test('alt-buffer shell is not immediately reused', async () => {
+		const { instantiationService, terminalManager } = createServices();
+		terminalManager.commandDetectionSupported = true;
+		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), undefined));
+		const tools = await createShellTools(shellManager, terminalManager, new NullLogService());
+		const bashTool = tools.find(tool => tool.name === 'bash');
+		assert.ok(bashTool);
+
+		const invocation: ToolInvocation = {
+			sessionId: 'session-1',
+			toolCallId: 'tool-1',
+			toolName: 'bash',
+			arguments: { command: 'vim README.md', timeout: 1000 },
+		};
+		const resultPromise = bashTool.handler({ command: 'vim README.md', timeout: 1000 }, invocation) as Promise<ToolResultObject>;
+		await waitForSentTexts(terminalManager, 1);
+		terminalManager.fireDidEnterAltBuffer();
+		const result = await resultPromise;
+		assert.strictEqual(result.error, 'alternateBuffer');
+		markCreatedTerminalsExist(terminalManager);
+		const shell = shellManager.listShells()[0];
+
+		const next = await shellManager.getOrCreateShell('bash', 'turn-2', 'tool-2');
+
+		assert.notStrictEqual(next.object.id, shell.id);
+		assert.strictEqual(terminalManager.created.length, 2);
+		next.dispose();
 	});
 
 	test('primary shell tool only forces bracketed paste for single-line commands on macOS', async () => {
