@@ -172,6 +172,70 @@ describe('createResponsesRequestBody tools', () => {
 		expect(tools.every(t => !t.defer_loading)).toBe(true);
 	});
 
+	// Regression coverage for https://github.com/microsoft/vscode/issues/316154:
+	// the original gate used `subType?.startsWith('subagent')`, which never matched
+	// the producer values `'execution_subagent'` and `'search_subagent'` (subagent
+	// is a suffix, not a prefix). All three subagent shapes must skip client tool
+	// deferral so the subagent loop receives its full toolset directly.
+	describe('subagent gate (issue #316154)', () => {
+		function getToolNames(overrides: Partial<ICreateEndpointBodyOptions>): string[] {
+			const endpoint = createMockEndpoint('gpt-5.4');
+			const body = accessor.get(IInstantiationService).invokeFunction(
+				createResponsesRequestBody, createMockOptions(overrides), endpoint.model, endpoint
+			);
+			return (body.tools as any[]).map(t => t.name ?? t.type);
+		}
+
+		// All deferred tools from the default mock options should be present (not
+		// stripped) and the client `tool_search` entry should NOT be added.
+		const expectedNonDeferredToolNames = [
+			'read_file', 'grep_search', 'some_mcp_tool', 'another_deferred_tool',
+		];
+
+		it('execution_subagent (subType from executionSubagentToolCallingLoop) skips deferral', () => {
+			expect(getToolNames({
+				telemetryProperties: { subType: 'execution_subagent' },
+				interactionTypeOverride: 'conversation-subagent',
+			}).sort()).toEqual(expectedNonDeferredToolNames.sort());
+		});
+
+		it('search_subagent (subType from searchSubagentToolCallingLoop) skips deferral', () => {
+			expect(getToolNames({
+				telemetryProperties: { subType: 'search_subagent' },
+				interactionTypeOverride: 'conversation-subagent',
+			}).sort()).toEqual(expectedNonDeferredToolNames.sort());
+		});
+
+		it('literal "subagent" subType (from defaultIntentRequestHandler) skips deferral', () => {
+			expect(getToolNames({
+				telemetryProperties: { subType: 'subagent' },
+				interactionTypeOverride: 'conversation-subagent',
+			}).sort()).toEqual(expectedNonDeferredToolNames.sort());
+		});
+
+		it('interactionTypeOverride alone is sufficient to skip deferral', () => {
+			expect(getToolNames({
+				interactionTypeOverride: 'conversation-subagent',
+			}).sort()).toEqual(expectedNonDeferredToolNames.sort());
+		});
+
+		it('hypothetical future subagent name (e.g. explore_subagent) skips deferral', () => {
+			expect(getToolNames({
+				telemetryProperties: { subType: 'explore_subagent' },
+			}).sort()).toEqual(expectedNonDeferredToolNames.sort());
+		});
+
+		it('non-subagent agent request still defers MCP tools', () => {
+			const names = getToolNames({
+				telemetryProperties: { subType: 'system-initiated' },
+			});
+			expect(names).toContain('tool_search');
+			expect(names).toContain('read_file');
+			expect(names).not.toContain('some_mcp_tool');
+			expect(names).not.toContain('another_deferred_tool');
+		});
+	});
+
 	it('does not defer tools when tool_search is not in the request tool list', () => {
 		// Repro for https://github.com/microsoft/vscode/issues/311946: a custom agent with
 		// `tools: ['my-mcp-server/*']` filters out tool_search. Without this gate, every

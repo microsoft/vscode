@@ -19,7 +19,7 @@ import { ConfigKey, IConfigurationService } from '../../configuration/common/con
 import { ILogService } from '../../log/common/logService';
 import { CUSTOM_TOOL_SEARCH_NAME } from '../../networking/common/anthropic';
 import { FinishedCallback, getRequestId, IResponseDelta, OpenAiFunctionTool, OpenAiResponsesFunctionTool, OpenAiToolSearchTool } from '../../networking/common/fetch';
-import { IChatEndpoint, ICreateEndpointBodyOptions, IEndpointBody } from '../../networking/common/networking';
+import { IChatEndpoint, ICreateEndpointBodyOptions, IEndpointBody, isSubagentRequest } from '../../networking/common/networking';
 import { APIErrorResponse, ChatCompletion, FilterReason, FinishedCompletionReason, modelsWithoutResponsesContextManagement, openAIContextManagementCompactionType, OpenAIContextManagementResponse, rawMessageToCAPI, TokenLogProb } from '../../networking/common/openai';
 import { IToolDeferralService } from '../../networking/common/toolDeferralService';
 import { sendEngineMessagesTelemetry, sendResponsesApiCompactionTelemetry } from '../../networking/node/chatStream';
@@ -66,7 +66,7 @@ export function createResponsesRequestBody(accessor: ServicesAccessor, options: 
 	const toolSearchEnabled = !!endpoint.supportsToolSearch
 		&& !!options.requestOptions?.tools?.some(t => t.function.name === CUSTOM_TOOL_SEARCH_NAME);
 	const isAllowedConversationAgent = options.location === ChatLocation.Agent || options.location === ChatLocation.MessagesProxy;
-	const isSubagent = options.telemetryProperties?.subType?.startsWith('subagent') ?? false;
+	const isSubagent = isSubagentRequest(options);
 	const shouldDeferTools = toolSearchEnabled && isAllowedConversationAgent && !isSubagent;
 	const toolDeferralService = shouldDeferTools ? accessor.get(IToolDeferralService) : undefined;
 

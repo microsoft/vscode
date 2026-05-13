@@ -15,7 +15,7 @@ import { ConfigKey, IConfigurationService } from '../../configuration/common/con
 import { ILogService } from '../../log/common/logService';
 import { AnthropicMessagesTool, ContextManagementResponse, CUSTOM_TOOL_SEARCH_NAME, getContextManagementFromConfig, isAnthropicContextEditingEnabled, isExtendedCacheTtlEnabled } from '../../networking/common/anthropic';
 import { FinishedCallback, getRequestId, IIPCodeCitation, IResponseDelta } from '../../networking/common/fetch';
-import { IChatEndpoint, ICreateEndpointBodyOptions, IEndpointBody } from '../../networking/common/networking';
+import { IChatEndpoint, ICreateEndpointBodyOptions, IEndpointBody, isSubagentRequest } from '../../networking/common/networking';
 import { ChatCompletion, FinishedCompletionReason, rawMessageToCAPI } from '../../networking/common/openai';
 import { IToolDeferralService } from '../../networking/common/toolDeferralService';
 import { sendEngineMessagesTelemetry } from '../../networking/node/chatStream';
@@ -185,7 +185,7 @@ export function createMessagesRequestBody(accessor: ServicesAccessor, options: I
 	// `interactionTypeOverride: 'conversation-subagent'`, which is also the
 	// source of truth for the `X-Interaction-Type` wire header. The rolling
 	// breakpoints on messages always use the default 5m TTL.
-	const isSubagent = options.interactionTypeOverride === 'conversation-subagent';
+	const isSubagent = isSubagentRequest(options);
 	const useExtendedCacheTtl = isExtendedCacheTtlEnabled(endpoint, configurationService, experimentationService, options.location, isSubagent);
 	const cacheTtl = useExtendedCacheTtl ? '1h' : undefined;
 

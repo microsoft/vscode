@@ -255,6 +255,35 @@ export type IChatRequestTelemetryProperties = {
 	iterationNumber?: string;
 };
 
+/**
+ * Returns `true` when the given chat request is a subagent invocation.
+ *
+ * All three subagent call sites — the search loop, the execution loop, and
+ * the Task-tool-spawned agent in the panel — set BOTH:
+ * - `interactionTypeOverride: 'conversation-subagent'` (the source of truth
+ *   for the `X-Interaction-Type` wire header), and
+ * - `telemetryProperties.subType` containing `'subagent'` (currently one of
+ *   `'execution_subagent'`, `'search_subagent'`, or the literal `'subagent'`).
+ *
+ * The structured `interactionTypeOverride` check is the primary signal; the
+ * `subType` substring check is a robust fallback that stays correct if either
+ * signal is missed at a call site and matches future subagent names like
+ * `'explore_subagent'` automatically (using `includes` rather than
+ * `startsWith`).
+ *
+ * Keep both API paths (Messages, Responses) in sync by going through this
+ * helper instead of duplicating the check inline — see issue #316154 for the
+ * `startsWith('subagent')` regression that motivated this helper.
+ */
+export function isSubagentRequest(
+	options: Pick<IMakeChatRequestOptions, 'interactionTypeOverride' | 'telemetryProperties'>,
+): boolean {
+	if (options.interactionTypeOverride === 'conversation-subagent') {
+		return true;
+	}
+	return options.telemetryProperties?.subType?.includes('subagent') ?? false;
+}
+
 export interface ICreateEndpointBodyOptions extends IMakeChatRequestOptions {
 	requestId: string;
 	postOptions: OptionalChatRequestParams;
