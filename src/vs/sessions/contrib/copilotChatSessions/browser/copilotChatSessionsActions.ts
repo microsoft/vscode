@@ -364,8 +364,8 @@ export class SessionModelPicker extends Disposable {
 				// or when an untitled session becomes an established one after send.
 				session.modelId.read(reader);
 				session.status.read(reader);
-				this._initModel();
 			}
+			this._initModel();
 		}));
 	}
 
