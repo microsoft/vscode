@@ -17,16 +17,13 @@ import { basename } from '../../../../base/common/resources.js';
 // =============================================================================
 // Copilot CLI built-in tool interfaces
 //
-// The Copilot CLI (via @github/copilot) exposes these built-in tools. Tool names
-// and parameter shapes are not typed in the SDK -- they come from the CLI server
-// as plain strings. These interfaces are derived from observing the CLI's actual
-// tool events and the ShellConfig class in @github/copilot.
+// Mirrors the Copilot Chat CLI display labels for SDK tool event names.
 //
 // Shell tool names follow a pattern per ShellConfig:
 //   shellToolName, readShellToolName, writeShellToolName,
 //   stopShellToolName, listShellsToolName
-// For bash: bash, read_bash, write_bash, bash_shutdown, list_bash
-// For powershell: powershell, read_powershell, write_powershell, list_powershell
+// For bash: bash, read_bash, write_bash, stop_bash/bash_shutdown, list_bash
+// For powershell: powershell, read_powershell, write_powershell, stop_powershell/powershell_shutdown, list_powershell
 // =============================================================================
 
 /**
@@ -34,15 +31,22 @@ import { basename } from '../../../../base/common/resources.js';
  * in `tool.execution_start` events from the SDK.
  */
 const enum CopilotToolName {
+	StrReplaceEditor = 'str_replace_editor',
+	StrReplace = 'str_replace',
+	Insert = 'insert',
+
 	Bash = 'bash',
 	ReadBash = 'read_bash',
 	WriteBash = 'write_bash',
+	StopBash = 'stop_bash',
 	BashShutdown = 'bash_shutdown',
 	ListBash = 'list_bash',
 
 	PowerShell = 'powershell',
 	ReadPowerShell = 'read_powershell',
 	WritePowerShell = 'write_powershell',
+	StopPowerShell = 'stop_powershell',
+	PowerShellShutdown = 'powershell_shutdown',
 	ListPowerShell = 'list_powershell',
 
 	View = 'view',
@@ -51,14 +55,38 @@ const enum CopilotToolName {
 	Grep = 'grep',
 	Rg = 'rg',
 	Glob = 'glob',
+	SearchCodeSubagent = 'search_code_subagent',
+	ReplyToComment = 'reply_to_comment',
+	CodeReview = 'code_review',
 	ApplyPatch = 'apply_patch',
 	GitApplyPatch = 'git_apply_patch',
 	WebSearch = 'web_search',
 	WebFetch = 'web_fetch',
 	AskUser = 'ask_user',
 	ReportIntent = 'report_intent',
+	Think = 'think',
+	ReportProgress = 'report_progress',
+	UpdateTodo = 'update_todo',
+	ShowFile = 'show_file',
+	FetchCopilotCliDocumentation = 'fetch_copilot_cli_documentation',
+	ProposeWork = 'propose_work',
+	TaskComplete = 'task_complete',
 	Skill = 'skill',
+	Task = 'task',
+	ListAgents = 'list_agents',
+	ReadAgent = 'read_agent',
 	ExitPlanMode = 'exit_plan_mode',
+	Sql = 'sql',
+	Lsp = 'lsp',
+	CreatePullRequest = 'create_pull_request',
+	GhAdvisoryDatabase = 'gh-advisory-database',
+	StoreMemory = 'store_memory',
+	ParallelValidation = 'parallel_validation',
+	WriteAgent = 'write_agent',
+	McpReload = 'mcp_reload',
+	McpValidate = 'mcp_validate',
+	ToolSearchToolRegex = 'tool_search_tool_regex',
+	CodeqlChecker = 'codeql_checker',
 }
 
 /** Parameters for the `bash` / `powershell` shell tools. */
@@ -148,6 +176,12 @@ interface ICopilotRgToolArgs {
 interface ICopilotGlobToolArgs {
 	pattern: string;
 	path?: string;
+}
+
+/** Parameters for the `sql` tool. */
+interface ICopilotSqlToolArgs {
+	description?: string;
+	query?: string;
 }
 
 /**
@@ -360,27 +394,59 @@ function md(value: string): StringOrMarkdown {
 
 export function getToolDisplayName(toolName: string): string {
 	switch (toolName) {
-		case CopilotToolName.Bash: return localize('toolName.bash', "Bash");
-		case CopilotToolName.PowerShell: return localize('toolName.powershell', "PowerShell");
-		case CopilotToolName.ReadBash:
-		case CopilotToolName.ReadPowerShell: return localize('toolName.readShell', "Read Shell Output");
-		case CopilotToolName.WriteBash:
-		case CopilotToolName.WritePowerShell: return localize('toolName.writeShell', "Write Shell Input");
-		case CopilotToolName.BashShutdown: return localize('toolName.bashShutdown', "Stop Shell");
-		case CopilotToolName.ListBash:
-		case CopilotToolName.ListPowerShell: return localize('toolName.listShells', "List Shells");
-		case CopilotToolName.View: return localize('toolName.view', "View File");
-		case CopilotToolName.Edit: return localize('toolName.edit', "Edit File");
+		case CopilotToolName.StrReplaceEditor:
+		case CopilotToolName.Edit:
+		case CopilotToolName.StrReplace:
+		case CopilotToolName.Insert: return localize('toolName.edit', "Edit File");
 		case CopilotToolName.Create: return localize('toolName.create', "Create File");
+		case CopilotToolName.View: return localize('toolName.view', "Read");
+		case CopilotToolName.Bash:
+		case CopilotToolName.PowerShell: return localize('toolName.shell', "Run Shell Command");
+		case CopilotToolName.ReadBash:
+		case CopilotToolName.ReadPowerShell: return localize('toolName.readShell', "Read Terminal");
+		case CopilotToolName.WriteBash: return localize('toolName.writeBash', "Write to Bash");
+		case CopilotToolName.WritePowerShell: return localize('toolName.writePowerShell', "Write to PowerShell");
+		case CopilotToolName.StopBash:
+		case CopilotToolName.StopPowerShell:
+		case CopilotToolName.BashShutdown:
+		case CopilotToolName.PowerShellShutdown: return localize('toolName.stopShell', "Stop Terminal Session");
+		case CopilotToolName.ListBash:
+		case CopilotToolName.ListPowerShell: return localize('toolName.listShells', "List Shell Sessions");
 		case CopilotToolName.Grep:
-		case CopilotToolName.Rg: return localize('toolName.grep', "Search");
-		case CopilotToolName.Glob: return localize('toolName.glob', "Find Files");
-		case CopilotToolName.ApplyPatch:
+		case CopilotToolName.Rg:
+		case CopilotToolName.Glob: return localize('toolName.search', "Search");
+		case CopilotToolName.SearchCodeSubagent: return localize('toolName.searchCode', "Search Code");
+		case CopilotToolName.ApplyPatch: return localize('toolName.applyPatch', "Apply Patch");
 		case CopilotToolName.GitApplyPatch: return localize('toolName.patch', "Patch");
+		case CopilotToolName.CodeqlChecker: return localize('toolName.codeqlChecker', "CodeQL Security Scan");
+		case CopilotToolName.CodeReview: return localize('toolName.codeReview', "Code Review");
+		case CopilotToolName.ReplyToComment: return localize('toolName.replyToComment', "Reply to Comment");
+		case CopilotToolName.Think: return localize('toolName.think', "Thinking");
+		case CopilotToolName.ReportIntent: return localize('toolName.reportIntent', "Report Intent");
+		case CopilotToolName.ReportProgress: return localize('toolName.reportProgress', "Progress update");
 		case CopilotToolName.WebSearch: return localize('toolName.webSearch', "Web Search");
-		case CopilotToolName.WebFetch: return localize('toolName.webFetch', "Web Fetch");
+		case CopilotToolName.WebFetch: return localize('toolName.webFetch', "Fetch Web Content");
+		case CopilotToolName.UpdateTodo: return localize('toolName.updateTodo', "Update Todo");
+		case CopilotToolName.ShowFile: return localize('toolName.showFile', "Show File");
+		case CopilotToolName.FetchCopilotCliDocumentation: return localize('toolName.fetchCopilotCliDocumentation', "Fetch Documentation");
+		case CopilotToolName.ProposeWork: return localize('toolName.proposeWork', "Propose Work");
+		case CopilotToolName.TaskComplete: return localize('toolName.taskComplete', "Task Complete");
 		case CopilotToolName.AskUser: return localize('toolName.askUser', "Ask User");
-		case CopilotToolName.ExitPlanMode: return localize('toolName.exitPlanMode', "Plan");
+		case CopilotToolName.Skill: return localize('toolName.skill', "Invoke Skill");
+		case CopilotToolName.Task: return localize('toolName.task', "Delegate Task");
+		case CopilotToolName.ListAgents: return localize('toolName.listAgents', "List Agents");
+		case CopilotToolName.ReadAgent: return localize('toolName.readAgent', "Read Agent");
+		case CopilotToolName.ExitPlanMode: return localize('toolName.exitPlanMode', "Exit Plan Mode");
+		case CopilotToolName.Sql: return localize('toolName.sql', "Execute SQL");
+		case CopilotToolName.Lsp: return localize('toolName.lsp', "Language Server");
+		case CopilotToolName.CreatePullRequest: return localize('toolName.createPullRequest', "Create Pull Request");
+		case CopilotToolName.GhAdvisoryDatabase: return localize('toolName.ghAdvisoryDatabase', "Check Dependencies");
+		case CopilotToolName.StoreMemory: return localize('toolName.storeMemory', "Store Memory");
+		case CopilotToolName.ParallelValidation: return localize('toolName.parallelValidation', "Validate Changes");
+		case CopilotToolName.WriteAgent: return localize('toolName.writeAgent', "Write to Agent");
+		case CopilotToolName.McpReload: return localize('toolName.mcpReload', "Reload MCP Config");
+		case CopilotToolName.McpValidate: return localize('toolName.mcpValidate', "Validate MCP Config");
+		case CopilotToolName.ToolSearchToolRegex: return localize('toolName.toolSearchToolRegex', "Search Tools");
 		default: return toolName;
 	}
 }
@@ -405,7 +471,7 @@ export function getInvocationMessage(toolName: string, displayName: string, para
 	}
 
 	if (READ_SHELL_TOOL_NAMES.has(toolName)) {
-		return localize('toolInvoke.readShell', "Reading shell output");
+		return localize('toolInvoke.readShell', "Reading Terminal");
 	}
 
 	switch (toolName) {
@@ -473,6 +539,10 @@ export function getInvocationMessage(toolName: string, displayName: string, para
 			}
 			return localize('toolInvoke.patch', "Editing files");
 		}
+		case CopilotToolName.Sql: {
+			const args = parameters as ICopilotSqlToolArgs | undefined;
+			return args?.description || localize('toolInvoke.sql', "Executing SQL query");
+		}
 		case CopilotToolName.ExitPlanMode:
 			return localize('toolInvoke.exitPlanMode', "Presenting plan");
 		default:
@@ -504,7 +574,7 @@ export function getPastTenseMessage(toolName: string, displayName: string, param
 	}
 
 	if (READ_SHELL_TOOL_NAMES.has(toolName)) {
-		return localize('toolComplete.readShell', "Read shell output");
+		return localize('toolComplete.readShell', "Read Terminal");
 	}
 
 	switch (toolName) {
@@ -572,6 +642,10 @@ export function getPastTenseMessage(toolName: string, displayName: string, param
 			}
 			return localize('toolComplete.patch', "Edited files");
 		}
+		case CopilotToolName.Sql: {
+			const args = parameters as ICopilotSqlToolArgs | undefined;
+			return args?.description || localize('toolComplete.sql', "Executed SQL query");
+		}
 		case CopilotToolName.ExitPlanMode:
 			return localize('toolComplete.exitPlanMode', "Exited plan mode");
 		default:
@@ -638,7 +712,7 @@ export function synthesizeSkillToolCall(
 	eventId: string | undefined,
 ): ISynthesizedSkillToolCall {
 	const toolCallId = getSkillSyntheticToolCallId(eventId, data);
-	const displayName = localize('toolName.skill', "Read Skill");
+	const displayName = localize('toolName.readSkill', "Read Skill");
 	// Use the skill name as the link text rather than the basename: every skill
 	// file is named SKILL.md, so `Reading skill [plan]` reads better than the
 	// always-identical `Reading skill [SKILL.md]`. The client may further upgrade
