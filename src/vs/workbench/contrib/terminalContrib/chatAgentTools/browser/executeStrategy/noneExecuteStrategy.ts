@@ -151,7 +151,7 @@ export class NoneExecuteStrategy extends Disposable implements ITerminalExecuteS
 			}
 			if (promptResultOrAltBufferOrContinuation.type === 'continuationPrompt') {
 				this._log(`Aborting command due to continuation prompt: ${promptResultOrAltBufferOrContinuation.prompt}`);
-				this._instance.sendText('\x03', false);
+				await this._instance.sendText('\x03', false);
 				await waitForIdle(this._instance.onData, 200);
 				return {
 					output: undefined,

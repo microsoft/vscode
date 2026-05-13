@@ -85,6 +85,10 @@ export function isContinuationPrompt(cursorLine: string): boolean {
  * Monitors the terminal for shell continuation prompts (e.g. `dquote>`, `quote>`)
  * which indicate that a command has unmatched quotes or brackets. Returns a promise
  * that resolves with the prompt text when a continuation prompt is detected.
+ *
+ * Uses a longer idle window (2x the normal interval) and verifies the cursor is
+ * positioned right after the prompt text to reduce false positives from commands
+ * that happen to print continuation-prompt-like text in their output.
  */
 export function waitForContinuationPrompt(
 	onData: Event<unknown>,
@@ -94,6 +98,9 @@ export function waitForContinuationPrompt(
 	logService?: ITerminalLogService,
 ): Promise<string> {
 	const deferred = new DeferredPromise<string>();
+	// Require a longer idle period than normal prompt detection to reduce
+	// false positives from commands that briefly print prompt-like text.
+	const conservativeIdleMs = idleDurationMs * 2;
 
 	const checkForContinuationPrompt = async () => {
 		try {
@@ -102,12 +109,20 @@ export function waitForContinuationPrompt(
 				return;
 			}
 			const buffer = xterm.raw.buffer.active;
-			const line = buffer.getLine?.(buffer.baseY + buffer.cursorY);
+			const cursorY = buffer.baseY + buffer.cursorY;
+			const line = buffer.getLine?.(cursorY);
 			if (line) {
 				const content = line.translateToString(true);
 				if (isContinuationPrompt(content)) {
-					logService?.debug(`waitForContinuationPrompt: Detected continuation prompt "${content.trim()}"`);
-					deferred.complete(content.trim());
+					// Verify the cursor is positioned at the end of the prompt
+					// (i.e. the shell is awaiting input), not mid-line in command output.
+					const trimmedLen = content.trimEnd().length;
+					if (buffer.cursorX <= trimmedLen) {
+						logService?.debug(`waitForContinuationPrompt: Detected continuation prompt "${content.trim()}"`);
+						deferred.complete(content.trim());
+					} else {
+						logService?.debug(`waitForContinuationPrompt: Cursor at column ${buffer.cursorX} beyond prompt end ${trimmedLen}, ignoring`);
+					}
 				}
 			}
 		} catch {
@@ -117,7 +132,7 @@ export function waitForContinuationPrompt(
 
 	const scheduler = store.add(new RunOnceScheduler(() => {
 		void checkForContinuationPrompt();
-	}, idleDurationMs));
+	}, conservativeIdleMs));
 
 	store.add(onData(() => scheduler.schedule()));
 	scheduler.schedule();
