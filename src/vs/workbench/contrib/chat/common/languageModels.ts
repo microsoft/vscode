@@ -1433,6 +1433,23 @@ export class LanguageModelsService implements ILanguageModelsService {
 		return false;
 	}
 
+	private getDescriptionPlaintext(propertySchema: IJSONSchema): string | undefined {
+		if (propertySchema.description) {
+			return propertySchema.description;
+		}
+		const md = propertySchema.markdownDescription;
+		if (!md) {
+			return undefined;
+		}
+		// Quick input renders plain text only. Strip the inline markdown features used by
+		// our schemas (inline code, bold/italic, links) so users see readable help.
+		return md
+			.replace(/`([^`]+)`/g, '$1')
+			.replace(/\*\*([^*]+)\*\*/g, '$1')
+			.replace(/\*([^*]+)\*/g, '$1')
+			.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
+	}
+
 	private async promptForArray(groupName: string, property: string, propertySchema: IJSONSchema): Promise<string[] | undefined> {
 		if (!propertySchema.items || Array.isArray(propertySchema.items) || !propertySchema.items.enum) {
 			return undefined;
@@ -1444,7 +1461,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 				const quickPick = disposables.add(this._quickInputService.createQuickPick());
 				quickPick.title = `${groupName}: ${propertySchema.title ?? property}`;
 				quickPick.items = items.map(item => ({ label: item }));
-				quickPick.placeholder = propertySchema.description ?? localize('selectValue', "Select value for {0}", property);
+				quickPick.placeholder = this.getDescriptionPlaintext(propertySchema) ?? localize('selectValue', "Select value for {0}", property);
 				quickPick.canSelectMany = true;
 				quickPick.ignoreFocusOut = true;
 
@@ -1480,7 +1497,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 				const quickPick = disposables.add(this._quickInputService.createQuickPick<IQuickPickItem>());
 				quickPick.title = `${groupName}: ${propertySchema.title ?? property}`;
 				quickPick.items = items;
-				quickPick.placeholder = propertySchema.description ?? localize('selectValue', "Select value for {0}", property);
+				quickPick.placeholder = this.getDescriptionPlaintext(propertySchema) ?? localize('selectValue', "Select value for {0}", property);
 				quickPick.ignoreFocusOut = true;
 				if (initial !== undefined) {
 					const match = items.find(item => item.id === initial);
@@ -1525,8 +1542,9 @@ export class LanguageModelsService implements ILanguageModelsService {
 				} else if (propertySchema.default) {
 					inputBox.value = String(propertySchema.default);
 				}
-				if (propertySchema.description) {
-					inputBox.prompt = propertySchema.description;
+				const promptText = this.getDescriptionPlaintext(propertySchema);
+				if (promptText) {
+					inputBox.prompt = promptText;
 				}
 
 				disposables.add(inputBox.onDidChangeValue(value => {

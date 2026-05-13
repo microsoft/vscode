@@ -324,12 +324,15 @@ export class OpenAIEndpoint extends ChatEndpoint {
 		if (body) {
 			if (this.modelMetadata.capabilities.supports.thinking) {
 				delete body.temperature;
-				body['max_completion_tokens'] = body.max_tokens;
-				delete body.max_tokens;
+				if (!this.useMessagesApi && !this.useResponsesApi) {
+					// OpenAI Chat Completions thinking models (e.g. o1/o3) require `max_completion_tokens` instead of `max_tokens`.
+					// Responses bodies use `max_output_tokens` natively, and Messages requires `max_tokens` — neither needs this rename.
+					body['max_completion_tokens'] = body.max_tokens;
+					delete body.max_tokens;
+				}
 			}
-			// The Anthropic Messages API requires `max_tokens`; for OpenAI Chat Completions /
-			// Responses, omitting it lets the server default to its maximum, which is what we
-			// want for BYOK. So only strip it when not using the Messages API.
+			// Chat Completions: drop `max_tokens` so the server defaults to its maximum (preferred for BYOK).
+			// Responses uses `max_output_tokens`, so this delete is a no-op there. Messages requires `max_tokens`, so leave it alone.
 			if (!this.useMessagesApi) {
 				delete body.max_tokens;
 			}
