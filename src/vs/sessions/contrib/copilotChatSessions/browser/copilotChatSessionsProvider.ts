@@ -129,7 +129,7 @@ export interface ICopilotChatSession {
 	readonly isolationMode: IObservable<IsolationMode | undefined>;
 	setIsolationMode(mode: IsolationMode): void;
 
-	setModelId(modelId: string): void;
+	setModelId(modelId: string | undefined): void;
 	setMode(chatMode: IChatMode | undefined): void;
 	setOption?(optionId: string, value: IChatSessionProviderOptionItem | string): void;
 
@@ -1182,6 +1182,7 @@ class AgentSessionAdapter implements ICopilotChatSession {
 	private readonly _checkpoints: ReturnType<typeof observableValueOpts<IChatCheckpoints | undefined>>;
 	readonly checkpoints: IObservable<IChatCheckpoints | undefined>;
 
+	private readonly _modelId: ReturnType<typeof observableValue<string | undefined>>;
 	readonly modelId: IObservable<string | undefined>;
 	readonly mode: IObservable<{ readonly id: string; readonly kind: string } | undefined>;
 	readonly loading: IObservable<boolean>;
@@ -1255,7 +1256,8 @@ class AgentSessionAdapter implements ICopilotChatSession {
 		this._checkpoints = observableValueOpts<IChatCheckpoints | undefined>({ owner: this, equalsFn: structuralEquals }, this._extractCheckpoints(session));
 		this.checkpoints = this._checkpoints;
 
-		this.modelId = observableValue(this, undefined);
+		this._modelId = observableValue<string | undefined>(this, undefined);
+		this.modelId = this._modelId;
 		this.mode = observableValue(this, undefined);
 		this.loading = observableValue(this, false);
 
@@ -1278,8 +1280,8 @@ class AgentSessionAdapter implements ICopilotChatSession {
 	setIsolationMode(mode: IsolationMode): void {
 		throw new Error('Method not implemented.');
 	}
-	setModelId(modelId: string): void {
-		throw new Error('Method not implemented.');
+	setModelId(modelId: string | undefined): void {
+		this._modelId.set(modelId, undefined);
 	}
 	setMode(chatMode: IChatMode | undefined): void {
 		throw new Error('Method not implemented.');
@@ -1802,7 +1804,11 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	setModel(sessionId: string, modelId: string): void {
 		if (this._currentNewSession?.id === sessionId) {
 			this._currentNewSession.setModelId(modelId);
+			return;
 		}
+
+		this._ensureSessionCache();
+		this._findChatSession(sessionId)?.setModelId(modelId);
 	}
 
 	// -- Session Actions --
@@ -2528,6 +2534,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		}
 		const resource = URI.from({ scheme: AgentSessionProviders.Background, path: `/untitled-${generateUuid()}` });
 		const session = this.instantiationService.createInstance(CopilotCLISession, resource, newWorkspace, this.id);
+		session.setModelId(chat.modelId.get());
 		session.setIsolationMode('workspace');
 		session.setOption(PARENT_SESSION_OPTION_ID, chat.resource.path.slice(1));
 		const level = this.configurationService.getValue<string>(ChatConfiguration.DefaultPermissionLevel);
