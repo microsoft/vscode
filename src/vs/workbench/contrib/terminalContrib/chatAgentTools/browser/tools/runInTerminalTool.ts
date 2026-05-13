@@ -260,12 +260,11 @@ function createZshModelDescription(isSandboxEnabled: boolean, allowToRunUnsandbo
 		'- Use jobs, fg, bg for job control',
 		'- Use [[ ]] for conditional tests instead of [ ]',
 		'- Prefer $() over backticks for command substitution',
-		'- Take advantage of zsh globbing features (**, extended globs)',
+		'- Take advantage of zsh globbing features (**, extended globs). Note: unmatched globs fail by default (zsh: no matches found) — use a glob qualifier like *(N) or quote the glob if it should be literal',
 		'',
 		'zsh pitfalls — these WILL cause errors or hangs:',
 		'- NEVER use bare == or === as separators (e.g. echo === triggers zsh equals expansion). Quote them: echo \'===\'',
 		'- NEVER use status as a variable name (it is read-only in zsh). Use exit_code or ret instead',
-		'- Unmatched globs fail by default (zsh: no matches found). Use a zsh-safe pattern like *(N) or quote the glob if it should be literal; do not rely on 2>/dev/null',
 	].join('\n');
 }
 
