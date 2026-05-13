@@ -373,8 +373,8 @@ suite('RunInTerminalTool', () => {
 			ok(allowToRunUnsandboxedCommandsProperty?.description?.includes('chat.agent.sandbox.allowUnsandboxedCommands'), 'Expected allowToRunUnsandboxedCommands description to mention the source setting');
 			ok(properties?.['requestUnsandboxedExecution'], 'Expected requestUnsandboxedExecution in schema when sandbox is enabled');
 			ok(properties?.['requestUnsandboxedExecutionReason'], 'Expected requestUnsandboxedExecutionReason in schema when sandbox is enabled');
-			ok(requestUnsandboxedExecutionProperty?.description?.includes('after first executing the command in sandbox and observing that sandboxing caused the failure'), 'Expected schema description to require a sandboxed first attempt');
-			ok(requestUnsandboxedExecutionReasonProperty?.description?.includes('sandboxed execution failure or blocked-domain requirement'), 'Expected reason schema description to require concrete sandbox justification');
+			ok(requestUnsandboxedExecutionProperty?.description?.includes('Only set this when the command clearly needs unsandboxed access'), 'Expected schema description to require a clear need for unsandboxed access');
+			ok(requestUnsandboxedExecutionReasonProperty?.description?.includes('why this command must run outside the terminal sandbox'), 'Expected reason schema description to require concrete sandbox justification');
 		});
 
 		test('should set allowToRunUnsandboxedCommands from setting in schema when unsandboxed commands are disabled', async () => {
@@ -462,7 +462,7 @@ suite('RunInTerminalTool', () => {
 
 			ok(toolData.modelDescription?.includes('github.com, npmjs.org'), 'Expected allowed domains in description');
 			ok(toolData.modelDescription?.includes('evil.com'), 'Expected denied domains in description');
-			ok(toolData.modelDescription?.includes('without first executing the command in sandbox mode'), 'Expected model description to require a sandboxed first attempt before unsandboxing');
+			ok(toolData.modelDescription?.includes('Only set requestUnsandboxedExecution=true when there is evidence of failures caused by the sandbox'), 'Expected model description to require concrete evidence before unsandboxing');
 		});
 
 		test('should exclude denied domains from effective allowed list', async () => {
@@ -2427,35 +2427,6 @@ suite('RunInTerminalTool', () => {
 		});
 	});
 
-	suite('input-needed steering text', () => {
-		function buildSteeringText(hungHint: 'none' | 'timeout' | 'idleSilence'): string {
-			const sessionResource = LocalChatSessionUri.forSession('input-needed-steering-session');
-			// eslint-disable-next-line @typescript-eslint/naming-convention
-			return (runInTerminalTool as unknown as { _buildInputNeededSteeringText(s: URI, t: string, h: 'none' | 'timeout' | 'idleSilence'): string })
-				._buildInputNeededSteeringText(sessionResource, 'test-term-id', hungHint);
-		}
-
-		test('none mode does not mention timeout, idle silence, or kill_terminal', () => {
-			const text = buildSteeringText('none');
-			ok(!text.toLowerCase().includes('timeout'), 'Expected no mention of timeout in the input-needed (none) hint');
-			ok(!text.toLowerCase().includes('no output'), 'Expected no mention of idle silence in the input-needed (none) hint');
-			ok(!text.includes(TerminalToolId.KillTerminal), 'Expected kill_terminal not to be advertised in the input-needed (none) hint');
-		});
-
-		test('timeout mode advertises kill_terminal and mentions timeout', () => {
-			const text = buildSteeringText('timeout');
-			ok(text.toLowerCase().includes('timeout'), 'Expected timeout hint to mention "timeout"');
-			ok(text.includes(TerminalToolId.KillTerminal), 'Expected timeout hint to advertise kill_terminal');
-		});
-
-		test('idleSilence mode advertises kill_terminal without saying "timeout"', () => {
-			const text = buildSteeringText('idleSilence');
-			ok(!text.toLowerCase().includes('timeout'), 'Idle-silence hint must not refer to a timeout');
-			ok(text.toLowerCase().includes('no output'), 'Expected idle-silence hint to describe the no-output condition');
-			ok(text.includes(TerminalToolId.KillTerminal), 'Expected idle-silence hint to advertise kill_terminal');
-		});
-	});
-
 	suite('unique rules deduplication', () => {
 		test('should properly deduplicate rules with same sourceText in auto-approve info', async () => {
 			setAutoApprove({
@@ -2834,6 +2805,7 @@ suite('ChatAgentToolsContribution - tool registration refresh', () => {
 		instantiationService.stub(IToolResultCompressor, {
 			_serviceBrand: undefined,
 			registerFilter: () => { },
+			registerCache: () => { },
 			maybeCompress: () => undefined,
 		});
 	});

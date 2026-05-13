@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Attachment, LocalSession, SendOptions, Session, SessionOptions } from '@github/copilot/sdk';
+import type { Attachment, LocalSession, SendOptions, Session, SessionOptions, ToolExecutionCompleteEvent } from '@github/copilot/sdk';
 import * as l10n from '@vscode/l10n';
 import * as cp from 'child_process';
 import * as crypto from 'crypto';
@@ -18,6 +18,7 @@ import { GenAiMetrics } from '../../../../platform/otel/common/genAiMetrics';
 import { CopilotChatAttr, GenAiAttr, GenAiOperationName, GenAiProviderName, IOTelService, ISpanHandle, SpanKind, SpanStatusCode, truncateForOTel, resolveWorkspaceOTelMetadata, workspaceMetadataToOTelAttributes } from '../../../../platform/otel/common/index';
 import { CapturingToken } from '../../../../platform/requestLogger/common/capturingToken';
 import { IRequestLogger, LoggedRequestKind } from '../../../../platform/requestLogger/common/requestLogger';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
 import { PromptTokenCategory, PromptTokenLabel } from '../../../../platform/tokenizer/node/promptTokenDetails';
 import { IGitService } from '../../../../platform/git/common/gitService';
 import { IWorkspaceService } from '../../../../platform/workspace/common/workspaceService';
@@ -815,6 +816,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		@IGitService private readonly _gitService: IGitService,
 		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
 		@IChatQuotaService private readonly _chatQuotaService: IChatQuotaService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
 		this.sessionId = _sdkSession.sessionId;
@@ -955,7 +957,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 	}
 
 	private async _handleRequestImpl(
-		request: { id: string; toolInvocationToken: ChatParticipantToolToken },
+		request: { id: string; toolInvocationToken: ChatParticipantToolToken; sessionResource?: vscode.Uri },
 		input: CopilotCLISessionInput,
 		attachments: Attachment[],
 		model: { model: string; reasoningEffort?: string } | undefined,
@@ -1010,7 +1012,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 
 	private async _handleRequestImplInner(
 		invokeAgentSpan: ISpanHandle,
-		request: { id: string; toolInvocationToken: ChatParticipantToolToken },
+		request: { id: string; toolInvocationToken: ChatParticipantToolToken; sessionResource?: vscode.Uri },
 		input: CopilotCLISessionInput,
 		attachments: Attachment[],
 		modelId: string | undefined,
@@ -1062,6 +1064,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 
 		const editToolIds = new Set<string>();
 		const toolCalls = new Map<string, ToolCall>();
+		const toolStartTimes = new Map<string, number>();
 		const editTracker = new ExternalEditTracker();
 		let sdkRequestId: string | undefined;
 		let isQuotaError = false;
@@ -1332,6 +1335,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			})));
 			disposables.add(toDisposable(this._sdkSession.on('tool.execution_start', (event) => {
 				toolCalls.set(event.data.toolCallId, event.data as unknown as ToolCall);
+				toolStartTimes.set(event.data.toolCallId, Date.now());
 
 				if (isCopilotCliEditToolCall(event.data)) {
 					flushPendingInvocationMessages();
@@ -1359,7 +1363,8 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 				}
 			})));
 			disposables.add(toDisposable(this._sdkSession.on('tool.execution_complete', (event) => {
-				const toolName = toolCalls.get(event.data.toolCallId)?.toolName || '<unknown>';
+				const toolCall = toolCalls.get(event.data.toolCallId);
+				const toolName = toolCall?.toolName || '<unknown>';
 				if (toolName.endsWith('create_pull_request') && event.data.success) {
 					const pullRequestUrl = extractPullRequestUrlFromToolResult(event.data.result);
 					if (pullRequestUrl) {
@@ -1367,10 +1372,15 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 						GenAiMetrics.incrementPullRequestCount(this._otelService);
 					}
 				}
+				// Emit `languageModelToolInvoked` to mirror the workbench LanguageModelToolsService event
+				// for the Copilot CLI agent. CLI tools execute inside the SDK and never reach
+				// LanguageModelToolsService, so the workbench-side emission does not fire for them.
+				this._sendToolInvokedTelemetry(event, toolCall, toolStartTimes, request.sessionResource);
+
 				// Log tool call to request logger
 				const eventError = event.data.error ? { ...event.data.error, code: event.data.error.code || '' } : undefined;
 				const eventData = { ...event.data, error: eventError };
-				this._logToolCall(event.data.toolCallId, toolName, toolCalls.get(event.data.toolCallId)?.arguments, eventData);
+				this._logToolCall(event.data.toolCallId, toolName, toolCall?.arguments, eventData);
 
 				// Mark the end of the edit if this was an edit tool.
 				toolIdEditMap.set(event.data.toolCallId, editTracker.completeEdit(event.data.toolCallId));
@@ -1392,9 +1402,8 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 				// When a sql tool execution completes that modifies the todos table,
 				// query the session database and update the todo list widget.
 				if (toolName === 'sql' && event.data.success) {
-					const toolCallData = toolCalls.get(event.data.toolCallId);
 					try {
-						const query = (toolCallData?.arguments as { query?: string } | undefined)?.query ?? '';
+						const query = (toolCall?.arguments as { query?: string } | undefined)?.query ?? '';
 						if (isTodoRelatedSqlQuery(query)) {
 							const sessionDir = getCopilotCLISessionDir(this.sessionId);
 							this._todoSqlQuery.queryTodos(sessionDir).then(items => {
@@ -2613,6 +2622,53 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			markdownContent,
 			isConversationRequest: true
 		});
+	}
+
+	private _sendToolInvokedTelemetry(
+		event: ToolExecutionCompleteEvent,
+		toolCall: ToolCall | undefined,
+		toolStartTimes: Map<string, number>,
+		sessionResource: vscode.Uri | undefined,
+	): void {
+		const { toolCallId, success, error } = event.data;
+		const eventToolName = 'toolName' in event.data && typeof event.data.toolName === 'string' ? event.data.toolName : undefined;
+		const toolName = toolCall?.toolName ?? eventToolName ?? '<unknown>';
+		const startTime = toolStartTimes.get(toolCallId);
+		toolStartTimes.delete(toolCallId);
+		const invocationTimeMs = startTime !== undefined ? Date.now() - startTime : undefined;
+
+		let result: 'success' | 'error' | 'userCancelled';
+		if (success) {
+			result = 'success';
+		} else if (error?.code === 'rejected' || error?.code === 'denied' || error?.code === 'cancelled') {
+			// `rejected`/`denied` come from the user denying a permission prompt; `cancelled` comes
+			// from request cancellation.
+			result = 'userCancelled';
+		} else {
+			result = 'error';
+		}
+
+		const toolSourceKind = toolCall?.mcpServerName ? 'mcp' : 'copilotCli';
+
+		/* __GDPR__
+			"languageModelToolInvoked" : {
+				"owner": "zhichli",
+				"comment": "Provides insight into the usage of language model tools (Copilot CLI agent).",
+				"result": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "success | error | userCancelled" },
+				"chatSessionId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The chat session resource id." },
+				"toolId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The CLI/SDK tool name (e.g. bash, str_replace_editor, apply_patch)." },
+				"toolExtensionId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Always undefined for CLI." },
+				"toolSourceKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "copilotCli | mcp" },
+				"invocationTimeMs": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Time between tool.execution_start and tool.execution_complete (includes any permission wait)." }
+			}
+		*/
+		this._telemetryService.sendMSFTTelemetryEvent('languageModelToolInvoked', {
+			result,
+			chatSessionId: sessionResource?.toString(),
+			toolId: toolName,
+			toolExtensionId: undefined,
+			toolSourceKind,
+		}, invocationTimeMs !== undefined ? { invocationTimeMs } : undefined);
 	}
 }
 

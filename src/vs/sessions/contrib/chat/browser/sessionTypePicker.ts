@@ -16,6 +16,7 @@ import { ISessionsProvidersService } from '../../../services/sessions/browser/se
 import { autorun } from '../../../../base/common/observable.js';
 import { ISession, ISessionType } from '../../../services/sessions/common/session.js';
 import { Emitter } from '../../../../base/common/event.js';
+import { isWeb } from '../../../../base/common/platform.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { reportNewChatPickerClosed } from './newChatPickerTelemetry.js';
@@ -207,7 +208,14 @@ export class SessionTypePicker extends Disposable {
 
 		dom.clearNode(this._triggerElement);
 
-		if (this._allProviderSessionTypes.length === 0) {
+		// In web (vscode.dev/agents) the host filter already scopes the
+		// workbench to a single agent host, so when that host advertises only
+		// one harness there is nothing to pick — hide the trigger entirely.
+		// Note: the existing CSS rule on `.session-workspace-picker-with-label`
+		// uses `:has(+ .sessions-chat-session-type-picker .action-label.hidden)`
+		// to also hide the "with" connector when the trigger is hidden.
+		const hideForSingleHarness = isWeb && this._allProviderSessionTypes.length <= 1;
+		if (this._allProviderSessionTypes.length === 0 || hideForSingleHarness) {
 			this._triggerElement.classList.add('hidden');
 			return;
 		}

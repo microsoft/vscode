@@ -300,11 +300,13 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 	readonly openedDefaultEditors = false;
 
 	private _savedPartSizes: IPartSizesState = {};
+	private _editorInitialSizeApplied = false;
 
 	//#endregion
 
 	private static readonly _PART_VISIBILITY_KEY = 'workbench.sessions.partVisibility';
 	private static readonly _PART_SIZES_KEY = 'workbench.sessions.partSizes';
+	private static readonly _EDITOR_INITIAL_SIZE_APPLIED_KEY = 'workbench.sessions.editorInitialSizeApplied';
 
 	//#region Services
 
@@ -721,6 +723,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		// grid descriptor so editor/sidebar/auxbar/panel restore to their previous
 		// dimensions across reloads.
 		this._savedPartSizes = this._loadPartSizes(storageService);
+		this._editorInitialSizeApplied = storageService.getBoolean(Workbench._EDITOR_INITIAL_SIZE_APPLIED_KEY, StorageScope.WORKSPACE, false);
 
 		// State specific classes
 		const platformClass = isWindows ? 'windows' : isLinux ? 'linux' : 'mac';
@@ -1003,7 +1006,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 
 		// Hide editor part when last editor closes
 		this._register(this.editorService.onDidCloseEditor(() => {
-			if (this.partVisibility.editor && this.areAllGroupsEmpty()) {
+			if (this.partVisibility.editor && this.areAllGroupsInMainPartEmpty()) {
 				this.rememberAttachedEditorMaximizedState();
 				this.setEditorHidden(true);
 			}
@@ -1022,8 +1025,8 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		this.partVisibility.editor = visDefaults.editor;
 	}
 
-	private areAllGroupsEmpty(): boolean {
-		for (const group of this.editorGroupService.groups) {
+	private areAllGroupsInMainPartEmpty(): boolean {
+		for (const group of this.editorGroupService.mainPart.groups) {
 			if (!group.isEmpty) {
 				return false;
 			}
@@ -1663,9 +1666,36 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 
 		if (this.editorPartView) {
 			this.workbenchGrid.setViewVisible(this.editorPartView, !hidden);
+
+			const shouldApplyInitialSize = !hidden && !this._editorInitialSizeApplied;
+			if (shouldApplyInitialSize) {
+				this._applyInitialEditorSize();
+			}
 		}
 
 		this._savePartVisibility();
+	}
+
+	/**
+	 * Sizes the editor part to half of the given chat bar width on its first
+	 * appearance in this workspace. The result is persisted so subsequent
+	 * show/hide cycles leave the user's chosen sizes untouched.
+	*/
+	private _applyInitialEditorSize(): void {
+		// On the very first time the editor becomes visible, capture the
+		// chat bar width before showing so we can size the editor to half
+		// of it afterwards. The editor is hidden by default, so without this
+		// initial split it would appear too small
+		const mainAreaWidth = this.workbenchGrid.getViewSize(this.chatBarPartView).width + this.workbenchGrid.getViewSize(this.editorPartView).width;
+		const targetEditorWidth = Math.max(300, Math.floor(mainAreaWidth / 2));
+		const currentEditorSize = this.workbenchGrid.getViewSize(this.editorPartView);
+		this.workbenchGrid.resizeView(this.editorPartView, {
+			width: targetEditorWidth,
+			height: currentEditorSize.height
+		});
+
+		this._editorInitialSizeApplied = true;
+		this.storageService.store(Workbench._EDITOR_INITIAL_SIZE_APPLIED_KEY, true, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
 	private setPanelHidden(hidden: boolean): void {

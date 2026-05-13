@@ -361,6 +361,67 @@ suite('AgentHostTerminalManager – command detection integration', () => {
 		assert.deepStrictEqual(pty.writes, ['\x1b[1;4R']);
 	});
 
+	test('resolves alt-buffer promise from headless terminal data', async () => {
+		const logService = new NullLogService();
+		const stateManager = disposables.add(new AgentHostStateManager(logService));
+		const configurationService = disposables.add(new AgentConfigurationService(stateManager, logService));
+		const productService = { _serviceBrand: undefined, applicationName: 'vscode' } as IProductService;
+		const pty = new TestPty();
+		const manager = disposables.add(new TestAgentHostTerminalManager(stateManager, logService, productService, configurationService, pty));
+		const uri = 'agenthost-terminal://test/alt-buffer';
+
+		const createTerminal = manager.createTerminal({
+			terminal: uri,
+			claim: { kind: TerminalClaimKind.Client, clientId: 'test-client' },
+			cwd: process.cwd(),
+			cols: 80,
+			rows: 24,
+		}, { shell: '/bin/bash' });
+
+		await pty.dataListenerRegistered.p;
+		pty.fireData('prompt');
+		await createTerminal;
+
+		const altBufferStore = disposables.add(new DisposableStore());
+		const altBufferPromise = manager.createAltBufferPromise(uri, altBufferStore);
+
+		pty.fireData('\x1b[?1049h');
+
+		await altBufferPromise;
+	});
+
+	test('disposed alt-buffer promise listener does not resolve', async () => {
+		const logService = new NullLogService();
+		const stateManager = disposables.add(new AgentHostStateManager(logService));
+		const configurationService = disposables.add(new AgentConfigurationService(stateManager, logService));
+		const productService = { _serviceBrand: undefined, applicationName: 'vscode' } as IProductService;
+		const pty = new TestPty();
+		const manager = disposables.add(new TestAgentHostTerminalManager(stateManager, logService, productService, configurationService, pty));
+		const uri = 'agenthost-terminal://test/alt-buffer-disposed';
+
+		const createTerminal = manager.createTerminal({
+			terminal: uri,
+			claim: { kind: TerminalClaimKind.Client, clientId: 'test-client' },
+			cwd: process.cwd(),
+			cols: 80,
+			rows: 24,
+		}, { shell: '/bin/bash' });
+
+		await pty.dataListenerRegistered.p;
+		pty.fireData('prompt');
+		await createTerminal;
+
+		const altBufferStore = new DisposableStore();
+		const altBufferPromise = manager.createAltBufferPromise(uri, altBufferStore);
+		let didEnterAltBuffer = false;
+		void altBufferPromise.then(() => didEnterAltBuffer = true);
+		altBufferStore.dispose();
+		pty.fireData('\x1b[?1049h');
+		await timeout(10);
+
+		assert.strictEqual(didEnterAltBuffer, false);
+	});
+
 	test('server-handled CPR queries are stripped from client-facing data', () => {
 		function filter(data: string): string {
 			return removeServerHandledTerminalQueries(data, { pendingData: '' });

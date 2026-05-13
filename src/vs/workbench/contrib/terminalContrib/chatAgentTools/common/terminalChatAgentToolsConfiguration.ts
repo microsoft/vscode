@@ -25,7 +25,6 @@ export const enum TerminalChatAgentToolsSettingId {
 	AgentSandboxAdvancedRuntime = 'chat.agent.sandbox.advanced.runtime',
 	PreventShellHistory = 'chat.tools.terminal.preventShellHistory',
 	EnforceTimeoutFromModel = 'chat.tools.terminal.enforceTimeoutFromModel',
-	IdleSilenceTimeoutMs = 'chat.tools.terminal.idleSilenceTimeoutMs',
 	DetachBackgroundProcesses = 'chat.tools.terminal.detachBackgroundProcesses',
 	BackgroundNotifications = 'chat.tools.terminal.backgroundNotifications',
 	IdlePollInterval = 'chat.tools.terminal.idlePollInterval',
@@ -720,17 +719,6 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			mode: 'auto'
 		},
 		markdownDescription: localize('enforceTimeoutFromModel.description', "Whether to enforce the timeout value provided by the model in the run in terminal tool. When enabled, if the model provides a timeout parameter, the tool will stop tracking the command after that duration and return the output collected so far."),
-	},
-	[TerminalChatAgentToolsSettingId.IdleSilenceTimeoutMs]: {
-		restricted: true,
-		type: 'number',
-		default: 60000,
-		minimum: 0,
-		tags: ['experimental'],
-		experiment: {
-			mode: 'auto'
-		},
-		markdownDescription: localize('idleSilenceTimeoutMs.description', "Number of milliseconds the run in terminal tool will wait for new output from a synchronous command before moving it to a background terminal and returning what was collected so far. The process is not killed — the tool returns the terminal ID so the model can poll, send input, or kill it. Set to {0} to disable.", '`0`'),
 	},
 	[TerminalChatAgentToolsSettingId.DetachBackgroundProcesses]: {
 		included: false,

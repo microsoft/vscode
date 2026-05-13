@@ -153,6 +153,11 @@ class MockLanguageModelsService implements ILanguageModelsService {
 	getRecentlyUsedModelIds(): string[] { return []; }
 	addToRecentlyUsedList(): void { }
 	clearRecentlyUsedList(): void { }
+	getPinnedModelIds(): string[] { return []; }
+	pinModel(_modelIdentifier: string): void { }
+	unpinModel(_modelIdentifier: string): void { }
+	isModelPinned(_modelIdentifier: string): boolean { return false; }
+	onDidChangePinnedModels = Event.None;
 	getModelsControlManifest(): IModelsControlManifest { return { free: {}, paid: {} }; }
 	restrictedChatParticipants = observableValue('restrictedChatParticipants', Object.create(null));
 }

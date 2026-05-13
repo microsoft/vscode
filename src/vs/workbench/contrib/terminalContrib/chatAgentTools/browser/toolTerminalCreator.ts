@@ -148,6 +148,11 @@ export class ToolTerminalCreator {
 		const shellPath = isString(shellOrProfile) ? shellOrProfile : shellOrProfile.path;
 
 		const env: Record<string, string> = {
+			// Let CLI tools detect that they are running inside an AI agent.
+			// This allows programs to adapt their output (e.g. JSON instead of
+			// ANSI, disable interactive prompts, skip animations).
+			// See https://github.com/microsoft/vscode/issues/311734
+			COPILOT_AGENT: '1',
 			// Avoid making `git diff` interactive when called from copilot
 			GIT_PAGER: 'cat',
 			// Prevent git from opening an editor for merge commits

@@ -89,6 +89,7 @@ function makeAgentSession(opts: {
 				icon: Codicon.repo,
 				folders: [folder],
 				requiresWorkspaceTrust: false,
+				isVirtualWorkspace: false
 			} satisfies ISessionWorkspace
 			: undefined),
 		title: chat.title,
@@ -373,24 +374,24 @@ suite('SessionsTerminalContribution', () => {
 		assert.strictEqual(createdTerminals[0].cwd.fsPath, repoUri.fsPath);
 	});
 
-	// --- Non-background providers: use home directory ---
+	// --- Workspace-backed sessions: use working directory ---
 
-	test('uses home directory for a cloud agent session', async () => {
+	test('uses worktree directory for a cloud agent session when workspace exists', async () => {
 		const session = makeAgentSession({ worktree: URI.file('/worktree'), repository: URI.file('/repo'), providerType: AgentSessionProviders.Cloud });
 		activeSessionObs.set(session, undefined);
 		await tick();
 
 		assert.strictEqual(createdTerminals.length, 1);
-		assert.strictEqual(createdTerminals[0].cwd.fsPath, HOME_DIR.fsPath);
+		assert.strictEqual(createdTerminals[0].cwd.fsPath, URI.file('/worktree').fsPath);
 	});
 
-	test('uses home directory for a local agent session', async () => {
+	test('uses worktree directory for a local agent session when workspace exists', async () => {
 		const session = makeAgentSession({ worktree: URI.file('/worktree'), providerType: AgentSessionProviders.Local });
 		activeSessionObs.set(session, undefined);
 		await tick();
 
 		assert.strictEqual(createdTerminals.length, 1);
-		assert.strictEqual(createdTerminals[0].cwd.fsPath, HOME_DIR.fsPath);
+		assert.strictEqual(createdTerminals[0].cwd.fsPath, URI.file('/worktree').fsPath);
 	});
 
 	test('uses home directory for a non-agent session', async () => {
