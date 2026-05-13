@@ -12,6 +12,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import { isAbsolute, join } from '../../../../base/common/path.js';
 import { extUriBiasedIgnorePathCase, normalizePath } from '../../../../base/common/resources.js';
 import { splitLinesIncludeSeparators } from '../../../../base/common/strings.js';
+import { hasKey } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
@@ -27,13 +28,13 @@ import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ISessionDatabase, ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../../common/sessionDataService.js';
 import { MessageAttachmentKind, type FileEdit, type MessageAttachment, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { ActionType, type SessionAction } from '../../common/state/sessionActions.js';
-import { ResponsePartKind, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, type PendingMessage, type URI as ProtocolURI, type SessionInputAnswer, type SessionInputRequest, type ToolCallResult, type ToolResultContent, type Turn } from '../../common/state/sessionState.js';
+import { ResponsePartKind, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, type PendingMessage, type SessionInputAnswer, type SessionInputOption, type SessionInputQuestion, type SessionInputRequest, type ToolCallResult, type ToolResultContent, type Turn, type URI as ProtocolURI, type UsageInfo } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import type { IExitPlanModeRequestParams, IExitPlanModeResponse } from './copilotAgent.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
 import type { ShellManager } from './copilotShellTools.js';
 import { getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellLanguage, getSubagentMetadata, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, isShellTool, synthesizeSkillToolCall, tryStringify, type ITypedPermissionRequest } from './copilotToolDisplay.js';
-import { FileEditTracker } from './fileEditTracker.js';
+import { FileEditTracker } from '../shared/fileEditTracker.js';
 import { mapSessionEvents } from './mapSessionEvents.js';
 import { buildPendingEditContentUri } from './pendingEditContentStore.js';
 
@@ -85,9 +86,123 @@ function getPlanActionDescription(actionId: string): { label: string; descriptio
 type UserInputHandler = NonNullable<SessionConfig['onUserInputRequest']>;
 type UserInputRequest = Parameters<UserInputHandler>[0];
 type UserInputResponse = Awaited<ReturnType<UserInputHandler>>;
+type ElicitationHandler = NonNullable<SessionConfig['onElicitationRequest']>;
+type ElicitationContext = Parameters<ElicitationHandler>[0];
+type ElicitationResult = Awaited<ReturnType<ElicitationHandler>>;
+type ElicitationSchema = NonNullable<ElicitationContext['requestedSchema']>;
+type ElicitationSchemaField = ElicitationSchema['properties'][string];
+type ElicitationFieldValue = NonNullable<ElicitationResult['content']>[string];
 type SessionHooks = NonNullable<SessionConfig['hooks']>;
 type PreToolUseHookInput = Parameters<NonNullable<SessionHooks['onPreToolUse']>>[0];
 type PostToolUseHookInput = Parameters<NonNullable<SessionHooks['onPostToolUse']>>[0];
+
+/**
+ * Projects an {@link ElicitationSchema} field into a
+ * {@link SessionInputQuestion}. The schema's property key becomes the
+ * question id so we can route the answer back by field name.
+ */
+function elicitationFieldToQuestion(fieldName: string, field: ElicitationSchemaField, required: boolean): SessionInputQuestion {
+	const base = {
+		id: fieldName,
+		title: field.title ?? fieldName,
+		message: field.description ?? field.title ?? fieldName,
+		required,
+	};
+
+	switch (field.type) {
+		case 'boolean':
+			return { ...base, kind: SessionInputQuestionKind.Boolean, defaultValue: field.default };
+		case 'integer':
+		case 'number':
+			return {
+				...base,
+				kind: field.type === 'integer' ? SessionInputQuestionKind.Integer : SessionInputQuestionKind.Number,
+				min: field.minimum,
+				max: field.maximum,
+				defaultValue: field.default,
+			};
+		case 'array': {
+			const options: SessionInputOption[] = hasKey(field.items, { enum: true })
+				? field.items.enum.map(value => ({ id: value, label: value }))
+				: field.items.anyOf.map(option => ({ id: option.const, label: option.title }));
+			return {
+				...base,
+				kind: SessionInputQuestionKind.MultiSelect,
+				options,
+				min: field.minItems,
+				max: field.maxItems,
+			};
+		}
+		case 'string': {
+			if (hasKey(field, { enum: true })) {
+				const enumNames = field.enumNames;
+				const options: SessionInputOption[] = field.enum.map((value, idx) => ({ id: value, label: enumNames?.[idx] ?? value }));
+				return { ...base, kind: SessionInputQuestionKind.SingleSelect, options };
+			}
+			if (hasKey(field, { oneOf: true })) {
+				const options: SessionInputOption[] = field.oneOf.map(option => ({ id: option.const, label: option.title }));
+				return { ...base, kind: SessionInputQuestionKind.SingleSelect, options };
+			}
+			return {
+				...base,
+				kind: SessionInputQuestionKind.Text,
+				format: field.format,
+				min: field.minLength,
+				max: field.maxLength,
+				defaultValue: field.default,
+			};
+		}
+	}
+}
+
+/**
+ * Projects a {@link SessionInputAnswer} back into the
+ * {@link ElicitationFieldValue} shape expected by the SDK for the given
+ * schema field. Returns `undefined` when the answer is missing/skipped or
+ * cannot be coerced to the field's declared type.
+ */
+function elicitationAnswerToFieldValue(field: ElicitationSchemaField, answer: SessionInputAnswer | undefined): ElicitationFieldValue | undefined {
+	if (!answer || answer.state === SessionInputAnswerState.Skipped) {
+		return undefined;
+	}
+	const value = answer.value;
+	if (field.type === 'boolean') {
+		if (value.kind === SessionInputAnswerValueKind.Boolean) { return value.value; }
+		if (value.kind === SessionInputAnswerValueKind.Text) {
+			if (value.value === 'true') { return true; }
+			if (value.value === 'false') { return false; }
+			return undefined;
+		}
+		return undefined;
+	}
+	if (field.type === 'number' || field.type === 'integer') {
+		if (value.kind === SessionInputAnswerValueKind.Number) {
+			return field.type === 'integer' ? Math.trunc(value.value) : value.value;
+		}
+		if (value.kind === SessionInputAnswerValueKind.Text) {
+			if (value.value.trim() === '') { return undefined; }
+			const n = Number(value.value);
+			return Number.isFinite(n) ? (field.type === 'integer' ? Math.trunc(n) : n) : undefined;
+		}
+		return undefined;
+	}
+	if (field.type === 'array') {
+		if (value.kind === SessionInputAnswerValueKind.SelectedMany) {
+			return [...value.value, ...(value.freeformValues ?? [])];
+		}
+		if (value.kind === SessionInputAnswerValueKind.Selected) {
+			return value.value ? [value.value, ...(value.freeformValues ?? [])] : [...(value.freeformValues ?? [])];
+		}
+		if (value.kind === SessionInputAnswerValueKind.Text) {
+			return value.value ? [value.value] : [];
+		}
+		return undefined;
+	}
+	// field.type === 'string'
+	if (value.kind === SessionInputAnswerValueKind.Text) { return value.value; }
+	if (value.kind === SessionInputAnswerValueKind.Selected) { return value.value; }
+	return undefined;
+}
 
 function getCopilotCLISessionStateDir(userHome: string): string {
 	const xdgHome = process.env['XDG_STATE_HOME'];
@@ -142,6 +257,7 @@ export interface IActiveClientSnapshot {
 export type SessionWrapperFactory = (callbacks: {
 	readonly onPermissionRequest: (request: ITypedPermissionRequest) => Promise<PermissionRequestResult>;
 	readonly onUserInputRequest: (request: UserInputRequest, invocation: { sessionId: string }) => Promise<UserInputResponse>;
+	readonly onElicitationRequest: (context: ElicitationContext) => Promise<ElicitationResult>;
 	readonly hooks: {
 		readonly onPreToolUse: (input: PreToolUseHookInput) => Promise<void>;
 		readonly onPostToolUse: (input: PostToolUseHookInput) => Promise<void>;
@@ -186,6 +302,16 @@ export class CopilotAgentSession extends Disposable {
 	/** Pending user input requests awaiting a renderer-side answer. */
 	private readonly _pendingUserInputs = new Map<string, { deferred: DeferredPromise<{ response: SessionInputResponseKind; answers?: Record<string, SessionInputAnswer> }>; questionId: string }>();
 	/**
+	 * Pending elicitation requests awaiting a renderer-side answer. Keyed
+	 * by request id; the schema is retained so the completion handler can
+	 * project the submitted {@link SessionInputAnswer}s back into the
+	 * SDK's {@link ElicitationResult.content} shape.
+	 */
+	private readonly _pendingElicitations = new Map<string, {
+		readonly deferred: DeferredPromise<{ response: SessionInputResponseKind; answers?: Record<string, SessionInputAnswer> }>;
+		readonly schema: ElicitationSchema | undefined;
+	}>();
+	/**
 	 * Pending plan-review requests originating from the CLI's
 	 * `exitPlanMode.request` RPC. Tracked separately from
 	 * {@link _pendingUserInputs} so the completion handler can resolve the
@@ -207,6 +333,8 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _sessionDataDir: URI;
 	/** Protocol turn ID set by {@link send}, used for file edit tracking. */
 	private _turnId = '';
+	/** Accumulated Copilot usage for the current top-level turn, in nano-AIU. */
+	private _turnCopilotUsageTotalNanoAiu = 0;
 	/** SDK session wrapper, set by {@link initializeSession}. */
 	private _wrapper!: CopilotSessionWrapper;
 	/** Last agent mode pushed to the SDK via {@link applyMode}, to elide redundant `rpc.mode.set` calls. */
@@ -271,6 +399,7 @@ export class CopilotAgentSession extends Disposable {
 		this._register(toDisposable(() => this._denyPendingPermissions()));
 		this._register(toDisposable(() => this._shellManager?.dispose()));
 		this._register(toDisposable(() => this._cancelPendingUserInputs()));
+		this._register(toDisposable(() => this._cancelPendingElicitations()));
 		this._register(toDisposable(() => this._cancelPendingPlanReviews()));
 
 		// When a shell tool associates a terminal with a tool call, fire a
@@ -337,6 +466,7 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	resetTurnState(turnId: string): void {
 		this._turnId = turnId;
+		this._turnCopilotUsageTotalNanoAiu = 0;
 		this._currentMarkdownPartIds.clear();
 		this._currentReasoningPartIds.clear();
 		this._parentToolCallIdsByAgentId.clear();
@@ -509,6 +639,7 @@ export class CopilotAgentSession extends Disposable {
 		this._wrapper = this._register(await this._wrapperFactory({
 			onPermissionRequest: request => this.handlePermissionRequest(request),
 			onUserInputRequest: (request, invocation) => this.handleUserInputRequest(request, invocation),
+			onElicitationRequest: context => this.handleElicitationRequest(context),
 			clientTools: this.createClientSdkTools(),
 			hooks: {
 				onPreToolUse: input => this._handlePreToolUse(input),
@@ -524,6 +655,7 @@ export class CopilotAgentSession extends Disposable {
 	async send(prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, mode?: CopilotSdkMode): Promise<void> {
 		if (turnId) {
 			this._turnId = turnId;
+			this._turnCopilotUsageTotalNanoAiu = 0;
 		}
 		this._logService.info(`[Copilot:${this.sessionId}] sendMessage called: "${prompt.substring(0, 100)}${prompt.length > 100 ? '...' : ''}" (${attachments?.length ?? 0} attachments)`);
 
@@ -985,11 +1117,98 @@ export class CopilotAgentSession extends Disposable {
 		}
 	}
 
+	/**
+	 * Handles an elicitation request from the SDK (MCP server / tool prompt)
+	 * by firing a `session/inputRequested` action and waiting for the
+	 * renderer to respond via {@link respondToUserInputRequest}.
+	 *
+	 * - `form` mode requests are projected from the SDK's
+	 *   {@link ElicitationSchema} into a list of
+	 *   {@link SessionInputQuestion}s.
+	 * - `url` mode requests surface as a question-less input request whose
+	 *   {@link SessionInputRequest.url} drives the renderer's "open URL"
+	 *   affordance.
+	 *
+	 * Under autopilot the request is auto-cancelled — there is no user
+	 * available to fill in a form, and accepting with empty content would
+	 * be misleading to the MCP server.
+	 */
+	async handleElicitationRequest(context: ElicitationContext): Promise<ElicitationResult> {
+		const isAutopilot = this._configurationService.getEffectiveValue(this.sessionUri.toString(), platformSessionSchema, SessionConfigKey.AutoApprove) === 'autopilot';
+		if (isAutopilot) {
+			return { action: 'cancel' };
+		}
+
+		const messagePreview = context.message.substring(0, 100);
+		try {
+			const requestId = generateUuid();
+			this._logService.info(`[Copilot:${this.sessionId}] Elicitation request: requestId=${requestId}, mode=${context.mode ?? 'form'}, source=${context.elicitationSource ?? '<unknown>'}, message="${messagePreview}"`);
+
+			const schema = context.mode === 'url' ? undefined : context.requestedSchema;
+			const requiredSet = new Set(schema?.required ?? []);
+			const questions: SessionInputQuestion[] | undefined = schema
+				? Object.entries(schema.properties).map(([fieldName, field]) => elicitationFieldToQuestion(fieldName, field, requiredSet.has(fieldName)))
+				: undefined;
+
+			const deferred = new DeferredPromise<{ response: SessionInputResponseKind; answers?: Record<string, SessionInputAnswer> }>();
+			this._pendingElicitations.set(requestId, { deferred, schema });
+
+			const inputRequest: SessionInputRequest = {
+				id: requestId,
+				message: context.message,
+				...(context.mode === 'url' && context.url ? { url: context.url } : {}),
+				...(questions && questions.length > 0 ? { questions } : {}),
+			};
+
+			this._emitAction({
+				type: ActionType.SessionInputRequested,
+				session: this._protocolSession(),
+				request: inputRequest,
+			});
+
+			const result = await deferred.p;
+			this._logService.info(`[Copilot:${this.sessionId}] Elicitation response: requestId=${requestId}, response=${result.response}`);
+
+			if (result.response === SessionInputResponseKind.Decline) {
+				return { action: 'decline' };
+			}
+			if (result.response !== SessionInputResponseKind.Accept) {
+				return { action: 'cancel' };
+			}
+			const answers = result.answers ?? {};
+			if (!schema) {
+				const freeform = answers.answer;
+				if (freeform && freeform.state !== SessionInputAnswerState.Skipped && freeform.value.kind === SessionInputAnswerValueKind.Text) {
+					return { action: 'accept', content: { answer: freeform.value.value } };
+				}
+				return { action: 'accept' };
+			}
+			const content: Record<string, ElicitationFieldValue> = {};
+			for (const [fieldName, field] of Object.entries(schema.properties)) {
+				const value = elicitationAnswerToFieldValue(field, answers[fieldName]);
+				if (value !== undefined) {
+					content[fieldName] = value;
+				}
+			}
+			return { action: 'accept', content };
+		} catch (error) {
+			this._logService.error(error, `[Copilot:${this.sessionId}] Failed to handle elicitation request: message="${messagePreview}"`);
+			throw error;
+		}
+	}
+
 	respondToUserInputRequest(requestId: string, response: SessionInputResponseKind, answers?: Record<string, SessionInputAnswer>): boolean {
 		const pendingPlanReview = this._pendingPlanReviews.get(requestId);
 		if (pendingPlanReview) {
 			this._pendingPlanReviews.delete(requestId);
 			pendingPlanReview.deferred.complete(this._resolveExitPlanMode(pendingPlanReview, response, answers));
+			return true;
+		}
+
+		const pendingElicitation = this._pendingElicitations.get(requestId);
+		if (pendingElicitation) {
+			this._pendingElicitations.delete(requestId);
+			pendingElicitation.deferred.complete({ response, answers });
 			return true;
 		}
 
@@ -1404,17 +1623,30 @@ export class CopilotAgentSession extends Disposable {
 		}));
 
 		this._register(wrapper.onUsage(e => {
-			this._logService.trace(`[Copilot:${sessionId}] Usage: model=${e.data.model}, in=${e.data.inputTokens ?? '?'}, out=${e.data.outputTokens ?? '?'}, cacheRead=${e.data.cacheReadTokens ?? '?'}`);
+			const metadata: Record<string, unknown> = {};
+			if (typeof e.data.cost === 'number') {
+				metadata.cost = e.data.cost;
+			}
+			if (typeof e.data.copilotUsage?.totalNanoAiu === 'number') {
+				this._turnCopilotUsageTotalNanoAiu += e.data.copilotUsage.totalNanoAiu;
+				metadata.copilotUsage = {
+					...e.data.copilotUsage,
+					totalNanoAiu: this._turnCopilotUsageTotalNanoAiu,
+				};
+			}
+			this._logService.trace(`[Copilot:${sessionId}] Usage: model=${e.data.model}, in=${e.data.inputTokens ?? '?'}, out=${e.data.outputTokens ?? '?'}, cacheRead=${e.data.cacheReadTokens ?? '?'}, cost=${e.data.cost ?? '?'}, totalNanoAiu=${this._turnCopilotUsageTotalNanoAiu || '?'}`);
+			const usage: UsageInfo = {
+				inputTokens: e.data.inputTokens,
+				outputTokens: e.data.outputTokens,
+				model: e.data.model,
+				cacheReadTokens: e.data.cacheReadTokens,
+				...(Object.keys(metadata).length > 0 ? { _meta: metadata } : {}),
+			};
 			this._emitAction({
 				type: ActionType.SessionUsage,
 				session: this._protocolSession(),
 				turnId: this._turnId,
-				usage: {
-					inputTokens: e.data.inputTokens,
-					outputTokens: e.data.outputTokens,
-					model: e.data.model,
-					cacheReadTokens: e.data.cacheReadTokens,
-				},
+				usage,
 			});
 		}));
 
@@ -1667,6 +1899,11 @@ export class CopilotAgentSession extends Disposable {
 				this._parentToolCallIdsByAgentId.delete(e.agentId);
 			}
 			this._logService.trace(`[Copilot:${sessionId}] Subagent completed: ${e.data.agentName}`);
+			this._onDidSessionProgress.fire({
+				kind: 'subagent_completed',
+				session: this.sessionUri,
+				toolCallId: e.data.toolCallId,
+			});
 		}));
 
 		this._register(wrapper.onSubagentFailed(e => {
@@ -1674,6 +1911,11 @@ export class CopilotAgentSession extends Disposable {
 				this._parentToolCallIdsByAgentId.delete(e.agentId);
 			}
 			this._logService.error(`[Copilot:${sessionId}] Subagent failed: ${e.data.agentName} - ${e.data.error}`);
+			this._onDidSessionProgress.fire({
+				kind: 'subagent_completed',
+				session: this.sessionUri,
+				toolCallId: e.data.toolCallId,
+			});
 		}));
 
 		this._register(wrapper.onSubagentSelected(e => {
@@ -1771,6 +2013,13 @@ export class CopilotAgentSession extends Disposable {
 			pending.deferred.complete({ response: SessionInputResponseKind.Cancel });
 		}
 		this._pendingUserInputs.clear();
+	}
+
+	private _cancelPendingElicitations(): void {
+		for (const [, pending] of this._pendingElicitations) {
+			pending.deferred.complete({ response: SessionInputResponseKind.Cancel });
+		}
+		this._pendingElicitations.clear();
 	}
 
 	private _cancelPendingPlanReviews(): void {

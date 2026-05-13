@@ -106,6 +106,9 @@ import { IChatWidget, IChatWidgetViewModelChangeEvent, ISessionTypePickerDelegat
 import { ChatEditingShowChangesAction, ViewPreviousEditsAction } from '../../chatEditing/chatEditingActions.js';
 import { resizeImage } from '../../chatImageUtils.js';
 import { ChatSessionPickerActionItem, IChatSessionPickerDelegate } from '../../chatSessions/chatSessionPickerActionItem.js';
+import { AgentHostChatInputPicker, AgentHostChatInputPickerActionViewItem } from '../../agentSessions/agentHost/agentHostChatInputPicker.js';
+import { OpenAgentHostBranchPickerAction, OpenAgentHostIsolationPickerAction, OpenAgentHostModePickerAction } from '../../agentSessions/agentHost/agentHostChatInputPicker.contribution.js';
+import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { IChatPhoneInputPresenter, MobileChatInputCombinedPickerActionItem } from './chatPhoneInputPresenter.js';
 import { IChatContextService } from '../../contextContrib/chatContextService.js';
 import { IDisposableReference } from '../chatContentParts/chatCollections.js';
@@ -400,6 +403,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private _lastSessionPickerAction: MenuItemAction | undefined;
 	private _lastSessionPickerOptions: IChatInputPickerOptions | undefined;
 	private readonly _waitForPersistedLanguageModel: MutableDisposable<IDisposable> = this._register(new MutableDisposable<IDisposable>());
+	private readonly _waitForSessionHistoryLanguageModel: MutableDisposable<IDisposable> = this._register(new MutableDisposable<IDisposable>());
 	private readonly _chatSessionOptionEmitters = this._register(new DisposableMap<string, Emitter<IChatSessionProviderOptionItem>>());
 
 	/**
@@ -750,6 +754,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	private initSelectedModel() {
+		// initSelectedModel is scoped to the current storage key/session type.
+		// Do not let a delayed restore from a previous session type apply later.
+		this._waitForPersistedLanguageModel.clear();
+
 		const persistedSelection = this.storageService.get(this.getSelectedModelStorageKey(), StorageScope.APPLICATION);
 		const persistedAsDefault = this.storageService.getBoolean(this.getSelectedModelIsDefaultStorageKey(), StorageScope.APPLICATION, true);
 
@@ -845,6 +853,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			currentModel: this._currentLanguageModel,
 			setModel: (model: ILanguageModelChatMetadataAndIdentifier) => {
 				this._waitForPersistedLanguageModel.clear();
+				this._waitForSessionHistoryLanguageModel.clear();
 				this.setCurrentLanguageModel(model);
 				this.renderAttachedContext();
 			},
@@ -1331,7 +1340,18 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 * that was last used - providing continuity.
 	 */
 	private preselectModelFromSessionHistory(): void {
-		const requests = this._widget?.viewModel?.model.getRequests();
+		// Session-history preselection is delayed when extension-provided models
+		// have not arrived yet. Always clear the previous session-history wait
+		// before any early return so a listener captured for another session cannot
+		// later apply its model to the active session.
+		this._waitForSessionHistoryLanguageModel.clear();
+
+		const sessionModel = this._widget?.viewModel?.model;
+		const sessionResource = sessionModel?.sessionResource;
+		const requests = sessionModel?.getRequests();
+		if (!sessionResource) {
+			return;
+		}
 		if (!requests || requests.length === 0) {
 			return;
 		}
@@ -1373,10 +1393,16 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 
 		// Models may not be loaded yet - wait for them
-		this._waitForPersistedLanguageModel.value = this.languageModelsService.onDidChangeLanguageModels(() => {
+		this._waitForSessionHistoryLanguageModel.value = this.languageModelsService.onDidChangeLanguageModels(() => {
+			const currentSessionResource = this._widget?.viewModel?.model.sessionResource;
+			if (!currentSessionResource || !isEqual(currentSessionResource, sessionResource)) {
+				this._waitForSessionHistoryLanguageModel.clear();
+				return;
+			}
+
 			const found = tryMatch();
 			if (found) {
-				this._waitForPersistedLanguageModel.clear();
+				this._waitForSessionHistoryLanguageModel.clear();
 				this.setCurrentLanguageModel(found);
 			}
 		});
@@ -2530,6 +2556,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 
 		// Secondary toolbar (permissions) — below the input box
+		const agentHostShortPickerIds = new Set<string>([
+			OpenAgentHostModePickerAction.ID,
+			OpenAgentHostBranchPickerAction.ID,
+			OpenAgentHostIsolationPickerAction.ID,
+		]);
 		this.secondaryToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, this.secondaryToolbarContainer, MenuId.ChatInputSecondary, {
 			telemetrySource: this.options.menus.telemetrySource,
 			menuOptions: { shouldForwardArgs: true },
@@ -2537,9 +2568,15 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			hoverDelegate,
 			responsiveBehavior: {
 				enabled: true,
-				kind: 'last',
+				kind: 'all',
 				minItems: 1,
 				actionMinWidth: 48,
+				// Agent-host pickers collapse to icon+chevron when narrow
+				// (see `pickerOptions.hideChevrons` driving compact mode in
+				// `AgentHostChatInputPicker._renderTrigger`). Report a
+				// smaller min-width for them so the responsive layout keeps
+				// them visible instead of overflowing into the menu.
+				getActionMinWidth: action => agentHostShortPickerIds.has(action.id) ? 22 : undefined,
 			},
 			actionViewItemProvider: (action, options) => {
 				if ((action.id === OpenSessionTargetPickerAction.ID || action.id === OpenDelegationPickerAction.ID) && action instanceof MenuItemAction) {
@@ -2616,6 +2653,19 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						}
 					}));
 					return widget;
+				} else if (
+					(action.id === OpenAgentHostModePickerAction.ID
+						|| action.id === OpenAgentHostBranchPickerAction.ID
+						|| action.id === OpenAgentHostIsolationPickerAction.ID)
+					&& action instanceof MenuItemAction
+				) {
+					const property = action.id === OpenAgentHostBranchPickerAction.ID
+						? SessionConfigKey.Branch
+						: action.id === OpenAgentHostIsolationPickerAction.ID
+							? SessionConfigKey.Isolation
+							: SessionConfigKey.Mode;
+					const picker = this.instantiationService.createInstance(AgentHostChatInputPicker, widget, property, secondaryPickerOptions);
+					return new AgentHostChatInputPickerActionViewItem(action, picker);
 				} else if (action.id === ChatSessionPrimaryPickerAction.ID && action instanceof MenuItemAction) {
 					// Create all pickers and return a container action view item
 					const widgets = this.createChatSessionPickerWidgets(action, secondaryPickerOptions);

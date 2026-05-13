@@ -311,6 +311,12 @@
 .session-show-more.session-show-more-folders {
 	font-weight: 500;
 	text-transform: uppercase;
+
+	/* No surrounding separator lines for the folders show-more/less item */
+	&::before,
+	&::after {
+		content: none;
+	}
 }
 
 /* Section Header */
