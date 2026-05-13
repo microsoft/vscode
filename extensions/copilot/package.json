@@ -4094,6 +4094,16 @@
 							"advanced"
 						]
 					},
+					"github.copilot.chat.anthropic.promptCaching.extendedTtl": {
+						"type": "boolean",
+						"default": false,
+						"tags": [
+							"advanced",
+							"experimental",
+							"onExp"
+						],
+						"description": "%github.copilot.config.anthropic.promptCaching.extendedTtl%"
+					},
 					"github.copilot.chat.installExtensionSkill.enabled": {
 						"type": "boolean",
 						"default": false,
