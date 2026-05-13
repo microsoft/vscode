@@ -5,10 +5,10 @@
 
 import assert from 'assert';
 import type { ToolInvocation, ToolResultObject } from '@github/copilot-sdk';
-import { DeferredPromise, timeout } from '../../../../base/common/async.js';
+import { DeferredPromise } from '../../../../base/common/async.js';
 import { URI } from '../../../../base/common/uri.js';
 import * as platform from '../../../../base/common/platform.js';
-import { Emitter } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, type IDisposable } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
@@ -31,6 +31,8 @@ class TestAgentHostTerminalManager implements IAgentHostTerminalManager {
 	commandDetectionSupported = false;
 	readonly commandFinishedListenerRegistered = new DeferredPromise<void>();
 	private readonly _onCommandFinished = new Emitter<ICommandFinishedEvent>();
+	private readonly _onDidSendText = new Emitter<void>();
+	readonly onDidSendText = this._onDidSendText.event;
 	private readonly _altBufferPromises: DeferredPromise<void>[] = [];
 
 	async createTerminal(params: CreateTerminalParams, options?: { shell?: string; preventShellHistory?: boolean; nonInteractive?: boolean }): Promise<void> {
@@ -42,6 +44,7 @@ class TestAgentHostTerminalManager implements IAgentHostTerminalManager {
 	async sendText(uri: string, data: string, options: ISendTextOptions): Promise<void> {
 		this.sentTexts.push({ uri, data, options });
 		this.writeInput(uri, formatTerminalText(data, options));
+		this._onDidSendText.fire();
 	}
 	onData(): IDisposable { return Disposable.None; }
 	onExit(): IDisposable { return Disposable.None; }
@@ -90,11 +93,8 @@ suite('CopilotShellTools', () => {
 	}
 
 	async function waitForSentTexts(terminalManager: TestAgentHostTerminalManager, count: number): Promise<void> {
-		for (let i = 0; i < 20; i++) {
-			if (terminalManager.sentTexts.length >= count) {
-				return;
-			}
-			await timeout(10);
+		while (terminalManager.sentTexts.length < count) {
+			await Event.toPromise(terminalManager.onDidSendText);
 		}
 	}
 

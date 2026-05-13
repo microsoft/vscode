@@ -8,7 +8,7 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { URI } from '../../../../base/common/uri.js';
 import { removeAnsiEscapeCodes } from '../../../../base/common/strings.js';
 import * as platform from '../../../../base/common/platform.js';
-import { Disposable, DisposableStore, type IDisposable, type IReference, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, type IReference, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { ILogService } from '../../../log/common/log.js';
 import { TerminalClaimKind, type TerminalSessionClaim } from '../../common/state/protocol/state.js';
@@ -102,7 +102,7 @@ export class ShellManager extends Disposable {
 	private _resolvedExecutable: Promise<string> | undefined;
 	/** Set of shell ids currently executing a command and unsafe to share. */
 	private readonly _busyShellIds = new Set<string>();
-	private readonly _busyShellReleaseListeners = new Map<string, IDisposable>();
+	private readonly _activeCommandListeners = new Map<string, DisposableStore>();
 
 	private readonly _onDidAssociateTerminal = this._register(new Emitter<{ toolCallId: string; terminalUri: string; displayName: string }>());
 	readonly onDidAssociateTerminal: Event<{ toolCallId: string; terminalUri: string; displayName: string }> = this._onDidAssociateTerminal.event;
@@ -116,10 +116,10 @@ export class ShellManager extends Disposable {
 		super();
 
 		this._register(toDisposable(() => {
-			for (const listener of this._busyShellReleaseListeners.values()) {
-				listener.dispose();
+			for (const store of this._activeCommandListeners.values()) {
+				store.dispose();
 			}
-			this._busyShellReleaseListeners.clear();
+			this._activeCommandListeners.clear();
 			for (const shell of this._shells.values()) {
 				if (this._terminalManager.hasTerminal(shell.terminalUri)) {
 					this._terminalManager.disposeTerminal(shell.terminalUri);
@@ -218,20 +218,20 @@ export class ShellManager extends Disposable {
 		};
 	}
 
-	keepBusyUntilTerminalSettles(shell: IManagedShell): void {
-		if (this._busyShellReleaseListeners.has(shell.id)) {
+	keepBusyUntilCommandFinishes(shell: IManagedShell): void {
+		if (this._activeCommandListeners.has(shell.id)) {
 			return;
 		}
 
 		const store = new DisposableStore();
 		const release = () => {
 			this._busyShellIds.delete(shell.id);
-			this._busyShellReleaseListeners.delete(shell.id);
+			this._activeCommandListeners.delete(shell.id);
 			store.dispose();
 		};
 		store.add(this._terminalManager.onCommandFinished(shell.terminalUri, release));
 		store.add(this._terminalManager.onExit(shell.terminalUri, release));
-		this._busyShellReleaseListeners.set(shell.id, store);
+		this._activeCommandListeners.set(shell.id, store);
 	}
 
 	private _trackToolCall(toolCallId: string, shellId: string): void {
@@ -270,8 +270,8 @@ export class ShellManager extends Disposable {
 		if (!shell) {
 			return false;
 		}
-		this._busyShellReleaseListeners.get(id)?.dispose();
-		this._busyShellReleaseListeners.delete(id);
+		this._activeCommandListeners.get(id)?.dispose();
+		this._activeCommandListeners.delete(id);
 		this._terminalManager.disposeTerminal(shell.terminalUri);
 		this._shells.delete(id);
 		this._busyShellIds.delete(id);
@@ -623,7 +623,7 @@ export async function createShellTools(
 				const result = await executeCommandInShell(ref.object, args.command, timeoutMs, terminalManager, logService);
 				if (result.error === 'alternateBuffer') {
 					shouldReleaseShell = false;
-					shellManager.keepBusyUntilTerminalSettles(ref.object);
+					shellManager.keepBusyUntilCommandFinishes(ref.object);
 				}
 				return result;
 			} finally {
