@@ -52,13 +52,14 @@ const permissionModes: IClaudePermissionModeItem[] = [
 		description: localize('claude.permissionMode.plan.description', "Claude creates a plan before making changes"),
 		icon: Codicon.lightbulb,
 	},
-	{
-		id: 'auto',
-		label: localize('claude.permissionMode.auto', "Auto"),
-		description: localize('claude.permissionMode.auto.description', "A model classifier approves or denies tool operations automatically"),
-		icon: Codicon.sparkle,
-	},
 ];
+
+const autoPermissionMode: IClaudePermissionModeItem = {
+	id: 'auto',
+	label: localize('claude.permissionMode.auto', "Auto"),
+	description: localize('claude.permissionMode.auto.description', "A model classifier approves or denies tool operations automatically"),
+	icon: Codicon.sparkle,
+};
 
 export class ClaudePermissionModePicker extends Disposable {
 
@@ -117,7 +118,7 @@ export class ClaudePermissionModePicker extends Disposable {
 		}
 
 		const autoAvailable = this._autoPermissionsEnabled.get() && !this.chatEntitlementService.previewFeaturesDisabled;
-		const availableModes = permissionModes.filter(mode => mode.id !== 'auto' || autoAvailable);
+		const availableModes = autoAvailable ? [...permissionModes, autoPermissionMode] : permissionModes;
 		const items: IActionListItem<IClaudePermissionModeItem>[] = availableModes.map(mode => ({
 			kind: ActionListItemKind.Action,
 			group: { kind: ActionListItemKind.Header, title: '', icon: mode.icon },
@@ -154,7 +155,7 @@ export class ClaudePermissionModePicker extends Disposable {
 
 	private _selectMode(mode: IClaudePermissionModeItem): void {
 		const beforeId = this._currentModeId;
-		const beforeLabel = permissionModes.find(m => m.id === beforeId)?.label;
+		const beforeLabel = [...permissionModes, autoPermissionMode].find(m => m.id === beforeId)?.label;
 		reportNewChatPickerClosed(this.telemetryService, {
 			id: 'NewChatClaudePermissionModePicker',
 			name: 'NewChatClaudePermissionModePicker',
@@ -193,7 +194,7 @@ export class ClaudePermissionModePicker extends Disposable {
 		}
 
 		dom.clearNode(trigger);
-		const currentMode = permissionModes.find(m => m.id === this._currentModeId) ?? permissionModes[1];
+		const currentMode = [...permissionModes, autoPermissionMode].find(m => m.id === this._currentModeId) ?? permissionModes[1];
 
 		dom.append(trigger, renderIcon(currentMode.icon));
 		const labelSpan = dom.append(trigger, dom.$('span.sessions-chat-dropdown-label'));
