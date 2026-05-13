@@ -50,10 +50,13 @@ export interface IToolResultCompressor {
 }
 
 /**
- * Outputs at or below this many characters (UTF-16 code units, i.e.
- * `string.length`) are not worth compressing.
+ * Outputs below this many characters (UTF-16 code units, i.e.
+ * `string.length`) are not worth compressing: filter savings on short
+ * outputs rarely outweigh the banner overhead, and skipping them avoids
+ * the agent issuing redundant `read_file` / `get_terminal_output` calls
+ * to recover content that would have fit uncompressed.
  */
-export const MIN_COMPRESSIBLE_LENGTH = 80;
+export const MIN_COMPRESSIBLE_LENGTH = 1024;
 
 /**
  * Format the banner that gets prepended to compressed text parts so the

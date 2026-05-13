@@ -5,11 +5,12 @@
 
 import { localize } from '../../../../../nls.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { SessionTypePicker, STORAGE_KEY_LAST_SESSION_TYPE } from '../sessionTypePicker.js';
+import { SessionTypePicker } from '../sessionTypePicker.js';
 import { isPhoneLayout } from '../../../../browser/parts/mobile/mobileLayout.js';
 import { IMobilePickerSheetItem, showMobilePickerSheet } from '../../../../browser/parts/mobile/mobilePickerSheet.js';
 
@@ -31,9 +32,10 @@ export class MobileSessionTypePicker extends SessionTypePicker {
 		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
 		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
 		@IStorageService storageService: IStorageService,
+		@ITelemetryService telemetryService: ITelemetryService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 	) {
-		super(actionWidgetService, sessionsManagementService, sessionsProvidersService, storageService);
+		super(actionWidgetService, sessionsManagementService, sessionsProvidersService, storageService, telemetryService);
 	}
 
 	override render(container: HTMLElement, options?: { className?: string }): void {
@@ -77,9 +79,8 @@ export class MobileSessionTypePicker extends SessionTypePicker {
 		).then(id => {
 			trigger.setAttribute('aria-expanded', 'false');
 			trigger.focus();
-			if (id !== undefined && id !== this._sessionType) {
-				this.storageService.store(STORAGE_KEY_LAST_SESSION_TYPE, id, StorageScope.PROFILE, StorageTarget.MACHINE);
-				this._onDidSelectSessionType.fire(id);
+			if (id !== undefined) {
+				this._handleSelectedSessionType(id);
 			}
 		});
 	}

@@ -9,7 +9,6 @@ import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { extname } from '../../../../../base/common/path.js';
-import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
@@ -22,6 +21,7 @@ import { ChatImageMimeType } from '../../common/languageModels.js';
 import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, IToolResultDataPart, IToolResultTextPart, ToolDataSource, ToolProgress } from '../../common/tools/languageModelToolsService.js';
 import { InternalFetchWebPageToolId } from '../../common/tools/builtinTools/tools.js';
 import { AgentNetworkFilterFetchWebToolName, IAgentNetworkFilterService } from '../../../../../platform/networkFilter/common/networkFilterService.js';
+import { WorkingDirectory } from '../../common/workingDirectory.js';
 
 export const FetchWebPageToolData: IToolData = {
 	id: InternalFetchWebPageToolId,
@@ -183,12 +183,8 @@ export class FetchWebPageTool implements IToolImpl {
 		// and don't carry the web content risks (prompt injection, malicious redirects).
 		// When a working directory is set (agents window), it is the source of truth;
 		// only fall back to workspace folders when no working directory is specified.
-		const fileUrisOutsideWorkspace = validFileUris.filter(uri => {
-			if (context.workingDirectory) {
-				return !extUriBiasedIgnorePathCase.isEqualOrParent(uri, context.workingDirectory);
-			}
-			return !this._workspaceContextService.getWorkspaceFolder(uri);
-		});
+		const workingDir = new WorkingDirectory(this._workspaceContextService, context.workingDirectory);
+		const fileUrisOutsideWorkspace = validFileUris.filter(uri => !workingDir.getFolder(uri));
 		const urlsNeedingConfirmation = new ResourceSet([...webUris.values(), ...fileUrisOutsideWorkspace]);
 
 		const pastTenseMessage = invalid.length

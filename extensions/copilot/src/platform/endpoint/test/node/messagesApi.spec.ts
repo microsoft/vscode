@@ -13,7 +13,11 @@ import { AnthropicMessagesTool, CUSTOM_TOOL_SEARCH_NAME } from '../../../network
 import { IChatEndpoint, ICreateEndpointBodyOptions } from '../../../networking/common/networking';
 import { IToolDeferralService } from '../../../networking/common/toolDeferralService';
 import { createPlatformServices } from '../../../test/node/services';
-import { addMessagesApiCacheControl, addToolsAndSystemCacheControl, buildToolInputSchema, clearAllCacheControl, createMessagesRequestBody, rawMessagesToMessagesAPI } from '../../node/messagesApi';
+import { addMessagesApiCacheControl, addToolsAndSystemCacheControl, buildToolInputSchema, clearAllCacheControl, createMessagesRequestBody, processNonStreamingResponseFromMessagesEndpoint, processResponseFromMessagesEndpoint, rawMessagesToMessagesAPI } from '../../node/messagesApi';
+import { HeadersImpl, Response } from '../../../networking/common/fetcherService';
+import { TelemetryData } from '../../../telemetry/common/telemetryData';
+import { TestLogService } from '../../../testing/common/testLogService';
+import { NullTelemetryService } from '../../../telemetry/common/nullTelemetryService';
 
 function assertContentArray(content: MessageParam['content']): ContentBlockParam[] {
 	expect(Array.isArray(content)).toBe(true);
@@ -568,23 +572,23 @@ suite('addMessagesApiCacheControl', function () {
 		return out;
 	}
 
-	test('marks the last cacheable block of the latest cacheable message', function () {
+	test('marks the last cacheable block of the two most recent cacheable messages', function () {
 		const messages: MessageParam[] = [
 			{ role: 'user', content: [{ type: 'text', text: 'do stuff' }] },
 			{ role: 'assistant', content: [{ type: 'text', text: 'calling tools' }, { type: 'tool_use', id: 'a', name: 't', input: {} }, { type: 'tool_use', id: 'b', name: 't', input: {} }] },
 			{ role: 'user', content: [{ type: 'tool_result', tool_use_id: 'a', content: 'ra' }, { type: 'tool_result', tool_use_id: 'b', content: 'rb' }] },
 		];
 		addMessagesApiCacheControl({ messages });
-		expect(ccPositions({ messages })).toEqual(['messages[2].block[1]']);
+		expect(ccPositions({ messages })).toEqual(['messages[1].block[2]', 'messages[2].block[1]']);
 	});
 
-	test('skips thinking-only blocks within the latest message', function () {
+	test('skips thinking-only blocks within recent messages', function () {
 		const messages: MessageParam[] = [
 			{ role: 'user', content: [{ type: 'text', text: 'hello' }] },
 			{ role: 'assistant', content: [{ type: 'thinking', thinking: 'hmm', signature: 'sig' }, { type: 'text', text: 'response' }] },
 		];
 		addMessagesApiCacheControl({ messages });
-		expect(ccPositions({ messages })).toEqual(['messages[1].block[1]']);
+		expect(ccPositions({ messages })).toEqual(['messages[0].block[0]', 'messages[1].block[1]']);
 	});
 
 	test('walks past trailing messages with no cacheable blocks', function () {
@@ -595,7 +599,7 @@ suite('addMessagesApiCacheControl', function () {
 			{ role: 'user', content: [] },
 		];
 		addMessagesApiCacheControl({ messages });
-		expect(ccPositions({ messages })).toEqual(['messages[1].block[0]']);
+		expect(ccPositions({ messages })).toEqual(['messages[0].block[0]', 'messages[1].block[0]']);
 	});
 
 	test('handles single message and empty array', function () {
@@ -608,7 +612,7 @@ suite('addMessagesApiCacheControl', function () {
 		expect(empty).toHaveLength(0);
 	});
 
-	test('combined with addToolsAndSystemCacheControl produces the 3-cc layout', function () {
+	test('combined with addToolsAndSystemCacheControl produces the 4-cc layout', function () {
 		const tools: AnthropicMessagesTool[] = [
 			{ name: 'read_file', description: '', input_schema: { type: 'object', properties: {}, required: [] } },
 			{ name: 'edit_file', description: '', input_schema: { type: 'object', properties: {}, required: [] } },
@@ -622,11 +626,11 @@ suite('addMessagesApiCacheControl', function () {
 		addMessagesApiCacheControl({ messages, system });
 		addToolsAndSystemCacheControl(tools, { messages, system });
 		expect(ccPositions({ messages, system, tools })).toEqual([
-			'tools[1]', 'system[0]', 'messages[2].block[0]',
+			'tools[1]', 'system[0]', 'messages[1].block[0]', 'messages[2].block[0]',
 		]);
 	});
 
-	test('cc shifts forward each iteration of an agent loop', function () {
+	test('cc anchors shift forward each iteration of an agent loop', function () {
 		const query: ContentBlockParam = { type: 'text', text: 'do work' };
 		const r1Use: ContentBlockParam = { type: 'tool_use', id: 'a', name: 't', input: {} };
 		const r1Res: ContentBlockParam = { type: 'tool_result', tool_use_id: 'a', content: 'r1' };
@@ -639,7 +643,8 @@ suite('addMessagesApiCacheControl', function () {
 			{ role: 'user', content: [r1Res] },
 		];
 		addMessagesApiCacheControl({ messages: iterA });
-		expect(ccPositions({ messages: iterA })).toEqual(['messages[2].block[0]']);
+		expect(ccPositions({ messages: iterA })).toEqual(['messages[1].block[0]', 'messages[2].block[0]']);
+		(r1Use as { cache_control?: unknown }).cache_control = undefined;
 		(r1Res as ToolResultBlockParam).cache_control = undefined;
 
 		const iterB: MessageParam[] = [
@@ -650,7 +655,7 @@ suite('addMessagesApiCacheControl', function () {
 			{ role: 'user', content: [r2Res] },
 		];
 		addMessagesApiCacheControl({ messages: iterB });
-		expect(ccPositions({ messages: iterB })).toEqual(['messages[4].block[0]']);
+		expect(ccPositions({ messages: iterB })).toEqual(['messages[3].block[0]', 'messages[4].block[0]']);
 	});
 });
 
@@ -683,11 +688,11 @@ suite('clearAllCacheControl', function () {
 		expect(ccPositions({ messages, system })).toEqual([]);
 	});
 
-	test('caps total cc count at 3 even when upstream loaded 4 markers', function () {
+	test('caps total cc count at 4 even when upstream loaded markers', function () {
 		// Repro: a prompt-tsx prompt (e.g. inlineChatPrompt) emits multiple
 		// <cacheBreakpoint> parts that rawContentToAnthropicContent translates
 		// into cache_control fields. Without clearAllCacheControl we'd add
-		// 3 more on top → exceed Anthropic's 4-cc limit → 400.
+		// our own on top → exceed Anthropic's 4-cc limit → 400.
 		const tools: AnthropicMessagesTool[] = [
 			{ name: 't', description: '', input_schema: { type: 'object', properties: {}, required: [] } },
 		];
@@ -702,12 +707,12 @@ suite('clearAllCacheControl', function () {
 		addMessagesApiCacheControl({ messages, system });
 		addToolsAndSystemCacheControl(tools, { messages, system });
 
-		// Exactly 3 ccs, all in the deterministic positions we own.
+		// Exactly 4 ccs, all in the deterministic positions we own.
 		expect([
 			...tools.flatMap((t, i) => t.cache_control ? [`tools[${i}]`] : []),
 			...ccPositions({ messages, system }),
 		]).toEqual([
-			'tools[0]', 'system[0]', 'messages[2].block[0]',
+			'tools[0]', 'system[0]', 'messages[1].block[0]', 'messages[2].block[0]',
 		]);
 	});
 
@@ -981,5 +986,322 @@ describe('createMessagesRequestBody tool search deferral', () => {
 
 		const tools = body.tools as AnthropicMessagesTool[];
 		expect(tools.every(t => !t.defer_loading)).toBe(true);
+	});
+});
+
+function createNonStreamingHeaders(contentType = 'application/json'): HeadersImpl {
+	return HeadersImpl.fromMap(new Map([
+		['content-type', contentType],
+		['x-request-id', 'test-req-id'],
+		['x-github-request-id', 'gh-req-id'],
+	]));
+}
+
+function createNonStreamingResponse(body: object, contentType = 'application/json'): Response {
+	return Response.fromText(200, 'OK', createNonStreamingHeaders(contentType), JSON.stringify(body), 'node-fetch');
+}
+
+suite('processNonStreamingResponseFromMessagesEndpoint', () => {
+	test('parses text content from non-streaming response', async () => {
+		const response = createNonStreamingResponse({
+			id: 'msg_123',
+			type: 'message',
+			role: 'assistant',
+			content: [{ type: 'text', text: 'Hello world' }],
+			model: 'claude-sonnet-4-20250514',
+			stop_reason: 'end_turn',
+			usage: { input_tokens: 100, output_tokens: 20 },
+		});
+
+		const telemetryData = TelemetryData.createAndMarkAsIssued();
+		const completions = await processNonStreamingResponseFromMessagesEndpoint(
+			new NullTelemetryService(),
+			new TestLogService(),
+			response,
+			async () => undefined,
+			telemetryData,
+		);
+
+		const results = [];
+		for await (const c of completions) {
+			results.push(c);
+		}
+
+		expect(results).toHaveLength(1);
+		expect(results[0].model).toBe('claude-sonnet-4-20250514');
+		expect(results[0].message.content).toHaveLength(1);
+		expect(results[0].message.content[0]).toEqual({ type: Raw.ChatCompletionContentPartKind.Text, text: 'Hello world' });
+		expect(results[0].usage?.prompt_tokens).toBe(100);
+		expect(results[0].usage?.completion_tokens).toBe(20);
+	});
+
+	test('parses tool_use content from non-streaming response', async () => {
+		const response = createNonStreamingResponse({
+			id: 'msg_456',
+			type: 'message',
+			role: 'assistant',
+			content: [
+				{ type: 'text', text: 'Let me read that file.' },
+				{ type: 'tool_use', id: 'tc_1', name: 'read_file', input: { path: 'foo.ts' } },
+			],
+			model: 'claude-sonnet-4-20250514',
+			stop_reason: 'tool_use',
+			usage: { input_tokens: 50, output_tokens: 30 },
+		});
+
+		const telemetryData = TelemetryData.createAndMarkAsIssued();
+		const completions = await processNonStreamingResponseFromMessagesEndpoint(
+			new NullTelemetryService(),
+			new TestLogService(),
+			response,
+			async () => undefined,
+			telemetryData,
+		);
+
+		const results = [];
+		for await (const c of completions) {
+			results.push(c);
+		}
+
+		expect(results).toHaveLength(1);
+		const msg = results[0].message as Raw.AssistantChatMessage;
+		expect(msg.toolCalls).toHaveLength(1);
+		expect(msg.toolCalls![0].function.name).toBe('read_file');
+		expect(msg.toolCalls![0].function.arguments).toBe('{"path":"foo.ts"}');
+		expect(msg.toolCalls![0].id).toBe('tc_1');
+	});
+
+	test('handles error responses gracefully', async () => {
+		const response = createNonStreamingResponse({
+			type: 'error',
+			error: { type: 'invalid_request_error', message: 'Bad request' },
+		});
+
+		const telemetryData = TelemetryData.createAndMarkAsIssued();
+		const completions = await processNonStreamingResponseFromMessagesEndpoint(
+			new NullTelemetryService(),
+			new TestLogService(),
+			response,
+			async () => undefined,
+			telemetryData,
+		);
+
+		await expect(async () => {
+			for await (const _c of completions) { /* consume */ }
+		}).rejects.toThrow('Anthropic API error: Bad request');
+	});
+
+	test('maps stop_reason to correct finish reason', async () => {
+		const response = createNonStreamingResponse({
+			id: 'msg_789',
+			type: 'message',
+			role: 'assistant',
+			content: [{ type: 'text', text: 'truncated' }],
+			model: 'claude-sonnet-4-20250514',
+			stop_reason: 'max_tokens',
+			usage: { input_tokens: 100, output_tokens: 4096 },
+		});
+
+		const telemetryData = TelemetryData.createAndMarkAsIssued();
+		const completions = await processNonStreamingResponseFromMessagesEndpoint(
+			new NullTelemetryService(),
+			new TestLogService(),
+			response,
+			async () => undefined,
+			telemetryData,
+		);
+
+		const results = [];
+		for await (const c of completions) {
+			results.push(c);
+		}
+
+		expect(results[0].finishReason).toBe('length');
+	});
+
+	test('includes cache token details in usage', async () => {
+		const response = createNonStreamingResponse({
+			id: 'msg_cache',
+			type: 'message',
+			role: 'assistant',
+			content: [{ type: 'text', text: 'cached' }],
+			model: 'claude-sonnet-4-20250514',
+			stop_reason: 'end_turn',
+			usage: {
+				input_tokens: 50,
+				output_tokens: 10,
+				cache_creation_input_tokens: 20,
+				cache_read_input_tokens: 30,
+			},
+		});
+
+		const telemetryData = TelemetryData.createAndMarkAsIssued();
+		const completions = await processNonStreamingResponseFromMessagesEndpoint(
+			new NullTelemetryService(),
+			new TestLogService(),
+			response,
+			async () => undefined,
+			telemetryData,
+		);
+
+		const results = [];
+		for await (const c of completions) {
+			results.push(c);
+		}
+
+		// prompt_tokens = input_tokens + cache_creation + cache_read = 50 + 20 + 30 = 100
+		expect(results[0].usage?.prompt_tokens).toBe(100);
+		expect(results[0].usage?.prompt_tokens_details?.cached_tokens).toBe(30);
+	});
+
+	test('rejects on malformed JSON', async () => {
+		const response = Response.fromText(200, 'OK', createNonStreamingHeaders(), 'not json at all', 'node-fetch');
+		const telemetryData = TelemetryData.createAndMarkAsIssued();
+		const completions = await processNonStreamingResponseFromMessagesEndpoint(
+			new NullTelemetryService(),
+			new TestLogService(),
+			response,
+			async () => undefined,
+			telemetryData,
+		);
+		await expect(async () => {
+			for await (const _c of completions) { /* consume */ }
+		}).rejects.toThrow('Failed to parse non-streaming Anthropic response');
+	});
+
+	test('handles empty content array', async () => {
+		const response = createNonStreamingResponse({
+			id: 'msg_empty',
+			type: 'message',
+			role: 'assistant',
+			content: [],
+			model: 'claude-sonnet-4-20250514',
+			stop_reason: 'end_turn',
+			usage: { input_tokens: 10, output_tokens: 0 },
+		});
+		const telemetryData = TelemetryData.createAndMarkAsIssued();
+		const completions = await processNonStreamingResponseFromMessagesEndpoint(
+			new NullTelemetryService(),
+			new TestLogService(),
+			response,
+			async () => undefined,
+			telemetryData,
+		);
+		const results = [];
+		for await (const c of completions) {
+			results.push(c);
+		}
+		expect(results).toHaveLength(1);
+		expect(results[0].message.content).toHaveLength(0);
+	});
+
+	test('maps refusal stop_reason to ClientDone', async () => {
+		const response = createNonStreamingResponse({
+			id: 'msg_refusal',
+			type: 'message',
+			role: 'assistant',
+			content: [{ type: 'text', text: 'refused' }],
+			model: 'claude-sonnet-4-20250514',
+			stop_reason: 'refusal',
+			usage: { input_tokens: 10, output_tokens: 5 },
+		});
+		const telemetryData = TelemetryData.createAndMarkAsIssued();
+		const completions = await processNonStreamingResponseFromMessagesEndpoint(
+			new NullTelemetryService(),
+			new TestLogService(),
+			response,
+			async () => undefined,
+			telemetryData,
+		);
+		const results = [];
+		for await (const c of completions) {
+			results.push(c);
+		}
+		expect(results[0].finishReason).toBe('DONE');
+	});
+
+	test('reports tool calls through finishCallback delta', async () => {
+		const response = createNonStreamingResponse({
+			id: 'msg_tc',
+			type: 'message',
+			role: 'assistant',
+			content: [
+				{ type: 'text', text: '' },
+				{ type: 'tool_use', id: 'tc_1', name: 'read_file', input: { path: 'a.ts' } },
+			],
+			model: 'claude-sonnet-4-20250514',
+			stop_reason: 'tool_use',
+			usage: { input_tokens: 10, output_tokens: 20 },
+		});
+		const telemetryData = TelemetryData.createAndMarkAsIssued();
+		const deltas: { copilotToolCalls?: unknown[] }[] = [];
+		const completions = await processNonStreamingResponseFromMessagesEndpoint(
+			new NullTelemetryService(),
+			new TestLogService(),
+			response,
+			async (_text, _idx, delta) => { deltas.push(delta); return undefined; },
+			telemetryData,
+		);
+		for await (const _c of completions) { /* consume */ }
+		expect(deltas).toHaveLength(1);
+		expect(deltas[0].copilotToolCalls).toHaveLength(1);
+	});
+
+	test('handles response with missing usage object', async () => {
+		const response = createNonStreamingResponse({
+			id: 'msg_nousage',
+			type: 'message',
+			role: 'assistant',
+			content: [{ type: 'text', text: 'no usage' }],
+			model: 'claude-sonnet-4-20250514',
+			stop_reason: 'end_turn',
+		});
+		const telemetryData = TelemetryData.createAndMarkAsIssued();
+		const completions = await processNonStreamingResponseFromMessagesEndpoint(
+			new NullTelemetryService(),
+			new TestLogService(),
+			response,
+			async () => undefined,
+			telemetryData,
+		);
+		const results = [];
+		for await (const c of completions) {
+			results.push(c);
+		}
+		expect(results).toHaveLength(1);
+		// All token counts should default to 0
+		expect(results[0].usage?.prompt_tokens).toBe(0);
+		expect(results[0].usage?.completion_tokens).toBe(0);
+	});
+});
+
+suite('processResponseFromMessagesEndpoint routing', () => {
+	test('routes non-streaming content-type to non-streaming handler', async () => {
+		const body = {
+			id: 'msg_route',
+			type: 'message',
+			role: 'assistant',
+			content: [{ type: 'text', text: 'routed' }],
+			model: 'claude-sonnet-4-20250514',
+			stop_reason: 'end_turn',
+			usage: { input_tokens: 10, output_tokens: 5 },
+		};
+		const response = Response.fromText(200, 'OK', createNonStreamingHeaders('application/json'), JSON.stringify(body), 'node-fetch');
+		const telemetryData = TelemetryData.createAndMarkAsIssued();
+		const services = createPlatformServices().createTestingAccessor();
+		const completions = await processResponseFromMessagesEndpoint(
+			services.get(IInstantiationService),
+			new NullTelemetryService(),
+			new TestLogService(),
+			response,
+			async () => undefined,
+			telemetryData,
+		);
+		const results = [];
+		for await (const c of completions) {
+			results.push(c);
+		}
+		expect(results).toHaveLength(1);
+		expect(results[0].message.content).toHaveLength(1);
 	});
 });

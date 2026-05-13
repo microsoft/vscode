@@ -16,6 +16,7 @@ import { CommandsRegistry, ICommandService } from '../../../../platform/commands
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../../workbench/common/contributions.js';
 import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { IChatInputPickerOptions } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerActionItem.js';
@@ -24,25 +25,27 @@ import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from 
 import { Menus } from '../../../browser/menus.js';
 import { ActiveSessionHasGitRepositoryContext, ActiveSessionProviderIdContext, ActiveSessionTypeContext, ChatSessionProviderIdContext, IsNewChatSessionContext } from '../../../common/contextkeys.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { CLAUDE_CODE_SESSION_TYPE, COPILOT_CLI_SESSION_TYPE, COPILOT_CLOUD_SESSION_TYPE, LOCAL_SESSION_TYPE, ISession } from '../../../services/sessions/common/session.js';
+import { ISession } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { SessionItemContextMenuId } from '../../sessions/browser/views/sessionsList.js';
 import { BranchPicker } from './branchPicker.js';
 import { ClaudePermissionModePicker } from './claudePermissionModePicker.js';
-import { COPILOT_PROVIDER_ID, CopilotChatSessionsProvider } from './copilotChatSessionsProvider.js';
+import { ClaudeCodeSessionType, COPILOT_PROVIDER_ID, CopilotChatSessionsProvider, CopilotCloudSessionType, LocalSessionType } from './copilotChatSessionsProvider.js';
 import { IsolationPicker } from './isolationPicker.js';
 import { ModePicker } from './modePicker.js';
 import { CloudModelPicker } from './modelPicker.js';
 import { CopilotPermissionPickerDelegate, PermissionPicker } from './permissionPicker.js';
 import { SessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { reportNewChatPickerClosed } from '../../chat/browser/newChatPickerTelemetry.js';
+import { CopilotCLISessionType } from '../../agentHost/browser/baseAgentHostSessionsProvider.js';
 
-const IsActiveSessionCopilotCLI = ContextKeyExpr.equals(ActiveSessionTypeContext.key, COPILOT_CLI_SESSION_TYPE);
-const IsActiveSessionCopilotCloud = ContextKeyExpr.equals(ActiveSessionTypeContext.key, COPILOT_CLOUD_SESSION_TYPE);
-const IsActiveSessionLocal = ContextKeyExpr.equals(ActiveSessionTypeContext.key, LOCAL_SESSION_TYPE);
+const IsActiveSessionCopilotCLI = ContextKeyExpr.equals(ActiveSessionTypeContext.key, CopilotCLISessionType.id);
+const IsActiveSessionCopilotCloud = ContextKeyExpr.equals(ActiveSessionTypeContext.key, CopilotCloudSessionType.id);
+const IsActiveSessionLocal = ContextKeyExpr.equals(ActiveSessionTypeContext.key, LocalSessionType.id);
 const IsActiveCopilotChatSessionProvider = ContextKeyExpr.equals(ActiveSessionProviderIdContext.key, COPILOT_PROVIDER_ID);
 const IsActiveSessionCopilotChatCLI = ContextKeyExpr.and(IsActiveSessionCopilotCLI, IsActiveCopilotChatSessionProvider);
 const IsActiveSessionCopilotChatCloud = ContextKeyExpr.and(IsActiveSessionCopilotCloud, IsActiveCopilotChatSessionProvider);
-const IsActiveSessionClaudeCode = ContextKeyExpr.equals(ActiveSessionTypeContext.key, CLAUDE_CODE_SESSION_TYPE);
+const IsActiveSessionClaudeCode = ContextKeyExpr.equals(ActiveSessionTypeContext.key, ClaudeCodeSessionType.id);
 const IsActiveSessionCopilotChatClaudeCode = ContextKeyExpr.and(IsActiveSessionClaudeCode, IsActiveCopilotChatSessionProvider);
 const IsActiveSessionCopilotChatLocal = ContextKeyExpr.and(IsActiveSessionLocal, IsActiveCopilotChatSessionProvider);
 
@@ -296,6 +299,7 @@ export class SessionModelPicker extends Disposable {
 	private readonly _modelPicker: ModelPickerActionItem;
 	private _lastSessionType: string | undefined;
 	private _lastPushedSessionId: string | undefined;
+	private _settingModelInternally = false;
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -303,18 +307,30 @@ export class SessionModelPicker extends Disposable {
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@IStorageService private readonly _storageService: IStorageService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
 
 		this._delegate = {
 			currentModel: this._currentModel,
 			setModel: (model: ILanguageModelChatMetadataAndIdentifier) => {
+				const previousModel = this._currentModel.get();
 				this._currentModel.set(model, undefined);
 				const session = this._sessionsManagementService.activeSession.get();
 				if (session) {
 					this._storageService.store(modelPickerStorageKey(session.sessionType), model.identifier, StorageScope.PROFILE, StorageTarget.MACHINE);
 					const provider = this._sessionsProvidersService.getProviders().find(p => p.id === session.providerId);
 					provider?.setModel(session.sessionId, model.identifier);
+				}
+				if (!this._settingModelInternally) {
+					reportNewChatPickerClosed(this._telemetryService, {
+						id: 'NewChatLocalModelPicker',
+						optionIdBefore: previousModel?.identifier,
+						optionIdAfter: model.identifier,
+						optionLabelBefore: previousModel?.metadata.name,
+						optionLabelAfter: model.metadata.name,
+						isPII: false,
+					});
 				}
 			},
 			getModels: () => getAvailableModels(this._languageModelsService, this._sessionsManagementService),
@@ -362,23 +378,28 @@ export class SessionModelPicker extends Disposable {
 		}
 
 		const current = this._currentModel.get();
-		if (!current) {
-			const rememberedModelId = sessionType ? this._storageService.get(modelPickerStorageKey(sessionType), StorageScope.PROFILE) : undefined;
-			const remembered = rememberedModelId ? models.find(m => m.identifier === rememberedModelId) : undefined;
-			this._delegate.setModel(remembered ?? models[0]);
-			this._lastPushedSessionId = session?.sessionId;
-		} else if (session && session.sessionId !== this._lastPushedSessionId && models.some(m => m.identifier === current.identifier)) {
-			// Active session changed (e.g. user switched repository) but the
-			// previously selected model is still available. Re-push it so the
-			// new session's provider receives setModel — otherwise the request
-			// would be sent with the default model even though the picker UI
-			// still shows the user's selection. See #313385.
-			//
-			// Gated on sessionId so unrelated re-invocations of _initModel
-			// (e.g. from onDidChangeLanguageModels) don't redundantly write
-			// storage and dispatch provider.setModel for the same session.
-			this._delegate.setModel(current);
-			this._lastPushedSessionId = session.sessionId;
+		this._settingModelInternally = true;
+		try {
+			if (!current) {
+				const rememberedModelId = sessionType ? this._storageService.get(modelPickerStorageKey(sessionType), StorageScope.PROFILE) : undefined;
+				const remembered = rememberedModelId ? models.find(m => m.identifier === rememberedModelId) : undefined;
+				this._delegate.setModel(remembered ?? models[0]);
+				this._lastPushedSessionId = session?.sessionId;
+			} else if (session && session.sessionId !== this._lastPushedSessionId && models.some(m => m.identifier === current.identifier)) {
+				// Active session changed (e.g. user switched repository) but the
+				// previously selected model is still available. Re-push it so the
+				// new session's provider receives setModel — otherwise the request
+				// would be sent with the default model even though the picker UI
+				// still shows the user's selection. See #313385.
+				//
+				// Gated on sessionId so unrelated re-invocations of _initModel
+				// (e.g. from onDidChangeLanguageModels) don't redundantly write
+				// storage and dispatch provider.setModel for the same session.
+				this._delegate.setModel(current);
+				this._lastPushedSessionId = session.sessionId;
+			}
+		} finally {
+			this._settingModelInternally = false;
 		}
 	}
 
@@ -529,7 +550,7 @@ registerAction2(class DeleteSessionAction extends Action2 {
 				order: 4,
 				when: ContextKeyExpr.and(
 					ContextKeyExpr.equals(ChatSessionProviderIdContext.key, COPILOT_PROVIDER_ID),
-					ContextKeyExpr.notEquals('chatSessionType', CLAUDE_CODE_SESSION_TYPE),
+					ContextKeyExpr.notEquals('chatSessionType', ClaudeCodeSessionType.id),
 				),
 			}]
 		});
