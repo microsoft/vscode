@@ -17,7 +17,10 @@ import { basename } from '../../../../base/common/resources.js';
 // =============================================================================
 // Copilot CLI built-in tool interfaces
 //
-// Mirrors the Copilot Chat CLI display labels for SDK tool event names.
+// The Copilot CLI (via @github/copilot-sdk) exposes these built-in tools. Tool names
+// and parameter shapes are not typed in the SDK -- they come from the CLI server
+// as plain strings. These interfaces are derived from observing the CLI's actual
+// tool events and the Copilot Chat extension's CLI display table.
 //
 // Shell tool names follow a pattern per ShellConfig:
 //   shellToolName, readShellToolName, writeShellToolName,
