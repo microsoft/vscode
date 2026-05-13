@@ -17,7 +17,7 @@ import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
-import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
+import { KNOWN_AUTO_APPROVE_VALUES, SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import type { ResolveSessionConfigResult, SessionConfigPropertySchema, SessionConfigValueItem } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import type { SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -41,7 +41,7 @@ interface IConfigPickerItem {
 	readonly description?: string;
 }
 
-function getConfigIcon(property: SessionConfigKey, value: unknown | undefined): ThemeIcon | undefined {
+function getConfigIcon(property: string, value: unknown | undefined): ThemeIcon | undefined {
 	if (property === SessionConfigKey.Isolation) {
 		if (value === 'folder') { return Codicon.folder; }
 		if (value === 'worktree') { return Codicon.worktree; }
@@ -57,10 +57,19 @@ function getConfigIcon(property: SessionConfigKey, value: unknown | undefined): 
 			case 'interactive': return Codicon.comment;
 		}
 	}
+	if (property === SessionConfigKey.AutoApprove) {
+		if (value === 'autopilot') {
+			return Codicon.rocket;
+		}
+		if (value === 'autoApprove') {
+			return Codicon.warning;
+		}
+		return Codicon.shield;
+	}
 	return undefined;
 }
 
-function toActionItems(property: SessionConfigKey, items: readonly IConfigPickerItem[], currentValue: unknown | undefined): IActionListItem<IConfigPickerItem>[] {
+function toActionItems(property: string, items: readonly IConfigPickerItem[], currentValue: unknown | undefined): IActionListItem<IConfigPickerItem>[] {
 	return items.map(item => ({
 		kind: ActionListItemKind.Action,
 		label: item.label,
@@ -111,9 +120,64 @@ function toBackendSessionUri(sessionResource: URI): URI | undefined {
 }
 
 /**
- * One workbench chat-input chip bound to a single well-known agent-host
- * session-config property (`SessionConfigKey.Mode`, `.Isolation`, or
- * `.Branch`).
+ * Returns `true` when an `autoApprove` schema uses the well-known shape the
+ * dedicated Auto-Approve picker understands: a string enum that includes
+ * `default` and only contains values from {@link KNOWN_AUTO_APPROVE_VALUES}.
+ *
+ * Agents that advertise a custom auto-approve shape (e.g. Claude) fall
+ * through to the generic per-property picker lane.
+ */
+export function isWellKnownAutoApproveSchema(schema: SessionConfigPropertySchema): boolean {
+	if (schema.type !== 'string' || !Array.isArray(schema.enum) || schema.enum.length === 0) {
+		return false;
+	}
+	if (!schema.enum.includes('default')) {
+		return false;
+	}
+	return schema.enum.every(value => KNOWN_AUTO_APPROVE_VALUES.has(value));
+}
+
+/**
+ * The set of well-known session-config property names that have a dedicated
+ * picker chip in the secondary toolbar (registered as `MenuId.ChatInputSecondary`
+ * actions). The generic-fallback chip lane filters these out so unknown
+ * properties advertised by an agent get their own chip without duplicating
+ * the dedicated ones.
+ *
+ * `Permissions` has no chip — it is surfaced through other UI — but is
+ * included so the generic lane does not invent a chip for it.
+ */
+export const WELL_KNOWN_PICKER_PROPERTIES: ReadonlySet<string> = new Set<string>([
+	SessionConfigKey.Mode,
+	SessionConfigKey.Branch,
+	SessionConfigKey.Isolation,
+	SessionConfigKey.AutoApprove,
+	SessionConfigKey.Permissions,
+]);
+
+/**
+ * Whether the given `(property, schema)` pair will be rendered by a dedicated
+ * chip widget on the secondary toolbar. Used by the generic-fallback chip
+ * lane to decide whether to render a chip for `property`.
+ *
+ * For most well-known keys this is purely a property-name check. AutoApprove
+ * is special: only well-known schema shapes are claimed by the dedicated
+ * picker; non-conforming schemas (e.g. Claude's approval mode) fall through
+ * to the generic lane.
+ */
+export function isClaimedByDedicatedPicker(property: string, schema: SessionConfigPropertySchema): boolean {
+	if (property === SessionConfigKey.AutoApprove) {
+		return isWellKnownAutoApproveSchema(schema);
+	}
+	return WELL_KNOWN_PICKER_PROPERTIES.has(property);
+}
+
+/**
+ * One workbench chat-input chip bound to a single agent-host session-config
+ * property. Used both for dedicated well-known property chips
+ * (`SessionConfigKey.Mode`, `.Isolation`, `.Branch`, `.AutoApprove`) and for
+ * generic per-property chips advertised by an agent's config schema but not
+ * known to VS Code.
  */
 export class AgentHostChatInputPicker extends Disposable {
 
@@ -127,7 +191,7 @@ export class AgentHostChatInputPicker extends Disposable {
 
 	constructor(
 		private readonly _widget: IChatWidget,
-		private readonly _property: SessionConfigKey,
+		private readonly _property: string,
 		private readonly _pickerOptions: IChatInputPickerOptions | undefined,
 		@IAgentHostService private readonly _agentHostService: IAgentHostService,
 		@IActionWidgetService private readonly _actionWidgetService: IActionWidgetService,
@@ -263,6 +327,15 @@ export class AgentHostChatInputPicker extends Disposable {
 			this._container.classList.add('agent-host-chat-input-picker-host-hidden');
 			return;
 		}
+		// The dedicated AutoApprove chip only handles the well-known schema
+		// shape (default/autoApprove/autopilot). When an agent advertises a
+		// custom AutoApprove schema (e.g. Claude's approval modes), let the
+		// generic-fallback chip lane render it instead.
+		if (this._property === SessionConfigKey.AutoApprove && !isWellKnownAutoApproveSchema(ctx.schema)) {
+			this._container.style.display = 'none';
+			this._container.classList.add('agent-host-chat-input-picker-host-hidden');
+			return;
+		}
 		this._container.style.display = '';
 		this._container.classList.remove('agent-host-chat-input-picker-host-hidden');
 
@@ -282,6 +355,12 @@ export class AgentHostChatInputPicker extends Disposable {
 		const icon = getConfigIcon(this._property, value);
 		if (icon) {
 			dom.append(trigger, renderIcon(icon));
+		}
+		// Mirror the sessions-side picker: elevated auto-approve levels
+		// (autopilot / bypass) get themed colors on the chip trigger.
+		if (this._property === SessionConfigKey.AutoApprove) {
+			trigger.classList.toggle('warning', value === 'autopilot');
+			trigger.classList.toggle('info', value === 'autoApprove');
 		}
 		const label = this._labelFor(schema, value);
 		if (!compact) {

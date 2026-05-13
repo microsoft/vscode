@@ -17,6 +17,7 @@ import { ChatContextKeys, ChatContextKeyExprs } from '../../../common/actions/ch
  *   0.5  OpenDelegationPickerAction
  *   0.6  OpenWorkspacePickerAction
  *   0.7  OpenAgentHostModePickerAction        (NEW — Mode)
+ *   0.8  OpenAgentHostAutoApprovePickerAction (NEW — Auto-Approve)
  *   1    OpenPermissionPickerAction           (Default Approvals)
  *   100  OpenAgentHostBranchPickerAction      (NEW — Branch)
  *   101  OpenAgentHostIsolationPickerAction   (NEW — Isolation)
@@ -37,6 +38,25 @@ export class OpenAgentHostModePickerAction extends Action2 {
 				id: MenuId.ChatInputSecondary,
 				group: 'navigation',
 				order: 0.7,
+				when: ChatContextKeyExprs.isAgentHostSession,
+			}],
+		});
+	}
+	override async run(): Promise<void> { /* the action view item handles interaction */ }
+}
+
+export class OpenAgentHostAutoApprovePickerAction extends Action2 {
+	static readonly ID = 'workbench.action.chat.openAgentHostAutoApprovePicker';
+	constructor() {
+		super({
+			id: OpenAgentHostAutoApprovePickerAction.ID,
+			title: localize2('agentHost.autoApprovePicker', "Auto-Approve"),
+			f1: false,
+			precondition: ChatContextKeys.enabled,
+			menu: [{
+				id: MenuId.ChatInputSecondary,
+				group: 'navigation',
+				order: 0.8,
 				when: ChatContextKeyExprs.isAgentHostSession,
 			}],
 		});
@@ -85,5 +105,6 @@ export class OpenAgentHostIsolationPickerAction extends Action2 {
 }
 
 registerAction2(OpenAgentHostModePickerAction);
+registerAction2(OpenAgentHostAutoApprovePickerAction);
 registerAction2(OpenAgentHostBranchPickerAction);
 registerAction2(OpenAgentHostIsolationPickerAction);

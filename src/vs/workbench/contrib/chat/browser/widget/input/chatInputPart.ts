@@ -107,7 +107,8 @@ import { ChatEditingShowChangesAction, ViewPreviousEditsAction } from '../../cha
 import { resizeImage } from '../../chatImageUtils.js';
 import { ChatSessionPickerActionItem, IChatSessionPickerDelegate } from '../../chatSessions/chatSessionPickerActionItem.js';
 import { AgentHostChatInputPicker, AgentHostChatInputPickerActionViewItem } from '../../agentSessions/agentHost/agentHostChatInputPicker.js';
-import { OpenAgentHostBranchPickerAction, OpenAgentHostIsolationPickerAction, OpenAgentHostModePickerAction } from '../../agentSessions/agentHost/agentHostChatInputPicker.contribution.js';
+import { OpenAgentHostAutoApprovePickerAction, OpenAgentHostBranchPickerAction, OpenAgentHostIsolationPickerAction, OpenAgentHostModePickerAction } from '../../agentSessions/agentHost/agentHostChatInputPicker.contribution.js';
+import { AgentHostGenericConfigChips } from '../../agentSessions/agentHost/agentHostGenericConfigChips.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { IChatPhoneInputPresenter, MobileChatInputCombinedPickerActionItem } from './chatPhoneInputPresenter.js';
 import { IChatContextService } from '../../contextContrib/chatContextService.js';
@@ -2558,9 +2559,22 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		// Secondary toolbar (permissions) — below the input box
 		const agentHostShortPickerIds = new Set<string>([
 			OpenAgentHostModePickerAction.ID,
+			OpenAgentHostAutoApprovePickerAction.ID,
 			OpenAgentHostBranchPickerAction.ID,
 			OpenAgentHostIsolationPickerAction.ID,
 		]);
+		// Direct-rendered chip lane for agent-host config properties that
+		// are advertised by the agent's schema but not handled by a
+		// dedicated `MenuId.ChatInputSecondary` action (e.g. Claude's
+		// custom approval-mode property). Prepended into the secondary
+		// toolbar container so these chips appear ahead of the menu items.
+		const genericChipsContainer = dom.prepend(this.secondaryToolbarContainer, dom.$('.chat-secondary-generic-chips'));
+		const genericChipsLane = this._register(this.instantiationService.createInstance(
+			AgentHostGenericConfigChips,
+			widget,
+			secondaryPickerOptions,
+		));
+		genericChipsLane.render(genericChipsContainer);
 		this.secondaryToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, this.secondaryToolbarContainer, MenuId.ChatInputSecondary, {
 			telemetrySource: this.options.menus.telemetrySource,
 			menuOptions: { shouldForwardArgs: true },
@@ -2655,6 +2669,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					return widget;
 				} else if (
 					(action.id === OpenAgentHostModePickerAction.ID
+						|| action.id === OpenAgentHostAutoApprovePickerAction.ID
 						|| action.id === OpenAgentHostBranchPickerAction.ID
 						|| action.id === OpenAgentHostIsolationPickerAction.ID)
 					&& action instanceof MenuItemAction
@@ -2663,7 +2678,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						? SessionConfigKey.Branch
 						: action.id === OpenAgentHostIsolationPickerAction.ID
 							? SessionConfigKey.Isolation
-							: SessionConfigKey.Mode;
+							: action.id === OpenAgentHostAutoApprovePickerAction.ID
+								? SessionConfigKey.AutoApprove
+								: SessionConfigKey.Mode;
 					const picker = this.instantiationService.createInstance(AgentHostChatInputPicker, widget, property, secondaryPickerOptions);
 					return new AgentHostChatInputPickerActionViewItem(action, picker);
 				} else if (action.id === ChatSessionPrimaryPickerAction.ID && action instanceof MenuItemAction) {
