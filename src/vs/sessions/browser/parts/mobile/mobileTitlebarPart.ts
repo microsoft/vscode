@@ -12,14 +12,12 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { IAction, Separator } from '../../../../base/common/actions.js';
 import { localize } from '../../../../nls.js';
 import { autorun } from '../../../../base/common/observable.js';
-import { URI } from '../../../../base/common/uri.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { IMenuService } from '../../../../platform/actions/common/actions.js';
 import { fillInActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IAuthenticationService } from '../../../../workbench/services/authentication/common/authentication.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
@@ -30,8 +28,7 @@ import { Menus } from '../../menus.js';
 import { ChatEntitlement, ChatEntitlementService, IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { getAccountTitleBarState, getAccountProfileImageUrl, getAccountTitleBarBadgeKey, resolveAccountInfo } from '../../accountTitleBarState.js';
 import { IChatDashboardService } from '../../chatDashboardService.js';
-import { basename } from '../../../../base/common/resources.js';
-import { IFileDiffViewData, MOBILE_OPEN_DIFF_VIEW_COMMAND_ID } from './contributions/mobileDiffView.js';
+import { MOBILE_OPEN_CHANGES_VIEW_COMMAND_ID } from './contributions/mobileChangesView.js';
 
 /**
  * Mobile titlebar — prepended above the workbench grid on phone viewports
@@ -112,7 +109,6 @@ export class MobileTitlebarPart extends Disposable {
 		@IMenuService private readonly menuService: IMenuService,
 		@IChatDashboardService private readonly chatDashboardService: IChatDashboardService,
 		@ICommandService private readonly commandService: ICommandService,
-		@IQuickInputService private readonly quickInputService: IQuickInputService,
 	) {
 		super();
 
@@ -285,62 +281,20 @@ export class MobileTitlebarPart extends Disposable {
 	// --- Changes Pill --- //
 
 	/**
-	 * Open a quick pick listing the files changed in the active session.
-	 * Selecting one invokes {@link MOBILE_OPEN_DIFF_VIEW_COMMAND_ID} with
-	 * the corresponding {@link IFileDiffViewData}.
+	 * Tap handler for the changes pill. Opens the dedicated mobile
+	 * Changes overlay (a master list with file icons + add/remove
+	 * counts) via {@link MOBILE_OPEN_CHANGES_VIEW_COMMAND_ID}. The
+	 * overlay's own row taps fan out into per-file diff views with
+	 * prev/next navigation.
+	 *
+	 * The list overlay handles its own single-file shortcut, so the
+	 * caller just dispatches the command unconditionally.
 	 */
 	private showChangesPicker(): void {
-		const changes = this.latestChanges;
-		if (!changes.length) {
+		if (!this.latestChanges.length) {
 			return;
 		}
-
-		type Item = IQuickPickItem & { readonly diff: IFileDiffViewData };
-		const items: Item[] = changes.map(change => {
-			// IChatSessionFileChange2 carries `uri` (and may also have `modifiedUri`);
-			// the legacy IChatSessionFileChange only has `modifiedUri`. The discriminator
-			// is the presence of `uri` (required on the v2 shape, absent on v1).
-			const v2 = (change as { uri?: URI }).uri;
-			const modifiedURI = v2 ? (change.modifiedUri ?? v2) : change.modifiedUri!;
-			// `originalURI` may legitimately be undefined for newly-added files;
-			// MobileDiffView treats that as an empty original (all-added diff).
-			// Do NOT fall back to modifiedURI here — that would self-diff and
-			// render "No changes in this file." for added files.
-			const originalURI = change.originalUri;
-			const added = change.insertions;
-			const removed = change.deletions;
-			return {
-				label: basename(modifiedURI),
-				description: `+${added}  -${removed}`,
-				detail: modifiedURI.path,
-				diff: {
-					originalURI,
-					modifiedURI,
-					identical: added === 0 && removed === 0,
-					added,
-					removed,
-				},
-			};
-		});
-
-		const picker = this.quickInputService.createQuickPick<Item>();
-		picker.title = localize('mobileTopBar.changesPickerTitle', "Session Changes");
-		picker.placeholder = localize('mobileTopBar.changesPickerPlaceholder', "Select a file to view its diff");
-		picker.matchOnDescription = true;
-		picker.items = items;
-		const store = new DisposableStore();
-		store.add(picker.onDidAccept(() => {
-			const selected = picker.selectedItems[0];
-			if (selected) {
-				this.commandService.executeCommand(MOBILE_OPEN_DIFF_VIEW_COMMAND_ID, selected.diff);
-			}
-			picker.hide();
-		}));
-		store.add(picker.onDidHide(() => {
-			store.dispose();
-			picker.dispose();
-		}));
-		picker.show();
+		this.commandService.executeCommand(MOBILE_OPEN_CHANGES_VIEW_COMMAND_ID);
 	}
 
 	// --- Account Indicator --- //

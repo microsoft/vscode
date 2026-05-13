@@ -97,6 +97,8 @@ export interface CustomEditorDescriptor {
 	readonly displayName: string;
 	readonly providerDisplayName: string;
 	readonly priority: RegisteredEditorPriority;
+	readonly diffEditorPriority?: RegisteredEditorPriority;
+	readonly mergeEditorPriority?: RegisteredEditorPriority;
 	readonly selector: readonly CustomEditorSelector[];
 }
 
@@ -106,6 +108,8 @@ export class CustomEditorInfo implements CustomEditorDescriptor {
 	public readonly displayName: string;
 	public readonly providerDisplayName: string;
 	public readonly priority: RegisteredEditorPriority;
+	public readonly diffEditorPriority?: RegisteredEditorPriority;
+	public readonly mergeEditorPriority?: RegisteredEditorPriority;
 	public readonly selector: readonly CustomEditorSelector[];
 
 	constructor(descriptor: CustomEditorDescriptor) {
@@ -113,6 +117,8 @@ export class CustomEditorInfo implements CustomEditorDescriptor {
 		this.displayName = descriptor.displayName;
 		this.providerDisplayName = descriptor.providerDisplayName;
 		this.priority = descriptor.priority;
+		this.diffEditorPriority = descriptor.diffEditorPriority;
+		this.mergeEditorPriority = descriptor.mergeEditorPriority;
 		this.selector = descriptor.selector;
 	}
 

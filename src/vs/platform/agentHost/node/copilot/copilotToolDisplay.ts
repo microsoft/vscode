@@ -150,6 +150,64 @@ interface ICopilotGlobToolArgs {
 	path?: string;
 }
 
+/**
+ * Parameters for the `apply_patch` / `git_apply_patch` tools. The patch text
+ * itself lives in `input` using the V4A diff format (file headers like
+ * `*** Update File: <path>`), so file paths must be parsed out of the body
+ * rather than read from a top-level field.
+ */
+interface ICopilotApplyPatchToolArgs {
+	input?: string;
+	/** Some SDK callers send the patch under `patch` instead of `input`. */
+	patch?: string;
+	explanation?: string;
+}
+
+/**
+ * Headers of the V4A patch format the `apply_patch` tool accepts. Tolerates
+ * leading whitespace; trims the captured path.
+ */
+const APPLY_PATCH_FILE_HEADERS = [
+	/^\s*\*\*\*\s+Update File:\s*(.+?)\s*$/,
+	/^\s*\*\*\*\s+Add File:\s*(.+?)\s*$/,
+	/^\s*\*\*\*\s+Delete File:\s*(.+?)\s*$/,
+	/^\s*\*\*\*\s+Move to:\s*(.+?)\s*$/,
+];
+
+/**
+ * Extracts the set of file paths affected by an `apply_patch` payload. Reads
+ * the `*** Update File:` / `*** Add File:` / `*** Delete File:` / `*** Move to:`
+ * headers from the V4A diff body. Returns paths in document order with
+ * duplicates removed.
+ *
+ * Accepts either a structured args object ({@link ICopilotApplyPatchToolArgs})
+ * or a bare patch string. The Copilot SDK delivers `apply_patch` with
+ * `arguments` as a raw V4A patch string (custom tool format), not as a JSON
+ * object, so the string fallback is the common case for apply_patch.
+ */
+function getApplyPatchFiles(args: string | ICopilotApplyPatchToolArgs | undefined): string[] {
+	const text = typeof args === 'string' ? args : (args?.input ?? args?.patch);
+	if (typeof text !== 'string' || text.length === 0) {
+		return [];
+	}
+	const seen = new Set<string>();
+	const out: string[] = [];
+	for (const line of text.split('\n')) {
+		for (const re of APPLY_PATCH_FILE_HEADERS) {
+			const m = re.exec(line);
+			if (m) {
+				const path = m[1];
+				if (path && !seen.has(path)) {
+					seen.add(path);
+					out.push(path);
+				}
+				break;
+			}
+		}
+	}
+	return out;
+}
+
 /** Set of tool names that perform file edits. */
 const EDIT_TOOL_NAMES: ReadonlySet<string> = new Set([
 	CopilotToolName.Edit,
@@ -167,18 +225,49 @@ export function isEditTool(toolName: string): boolean {
 
 /**
  * Extracts the target file path from an edit tool's parameters, if available.
+ * For `apply_patch` / `git_apply_patch` the first file in the V4A patch body
+ * is returned. Callers that need every affected file (for snapshotting all
+ * edits in a multi-file patch) should use {@link getEditFilePaths} instead.
  */
 export function getEditFilePath(parameters: unknown): string | undefined {
+	return getEditFilePaths(parameters)[0];
+}
+
+/**
+ * Extracts every file path an edit tool will touch. For `edit` / `create` this
+ * is the single `path` parameter; for `apply_patch` / `git_apply_patch` this
+ * is the unique set of files declared in the V4A patch body, in document
+ * order. Returns an empty array if no paths can be determined.
+ */
+export function getEditFilePaths(parameters: unknown): string[] {
 	if (typeof parameters === 'string') {
+		// Could be either a JSON-encoded args object or a raw V4A patch
+		// string. Copilot SDK delivers `apply_patch` arguments as a bare
+		// patch string (custom tool format), so when JSON parsing fails
+		// fall back to treating it as the patch body.
 		try {
 			parameters = JSON.parse(parameters);
 		} catch {
-			return undefined;
+			return getApplyPatchFiles(parameters as string);
+		}
+		// JSON.parse may have returned a string (e.g. a JSON-encoded patch
+		// body that round-trips through tryStringify on the call site).
+		if (typeof parameters === 'string') {
+			return getApplyPatchFiles(parameters);
 		}
 	}
 
-	const args = parameters as ICopilotFileToolArgs | undefined;
-	return args?.path;
+	if (!parameters || typeof parameters !== 'object') {
+		return [];
+	}
+
+	const patchArgs = parameters as ICopilotApplyPatchToolArgs;
+	if (typeof patchArgs.input === 'string' || typeof patchArgs.patch === 'string') {
+		return getApplyPatchFiles(patchArgs);
+	}
+
+	const args = parameters as ICopilotFileToolArgs;
+	return typeof args.path === 'string' ? [args.path] : [];
 }
 
 /** Set of tool names that execute shell commands (bash or powershell). */
@@ -373,6 +462,17 @@ export function getInvocationMessage(toolName: string, displayName: string, para
 			}
 			return localize('toolInvoke.glob', "Finding files");
 		}
+		case CopilotToolName.ApplyPatch:
+		case CopilotToolName.GitApplyPatch: {
+			const files = getEditFilePaths(parameters);
+			if (files.length === 1) {
+				return md(localize('toolInvoke.patchFile', "Editing {0}", formatPathAsMarkdownLink(files[0])));
+			}
+			if (files.length > 1) {
+				return md(localize('toolInvoke.patchFiles', "Editing {0}", files.map(formatPathAsMarkdownLink).join(', ')));
+			}
+			return localize('toolInvoke.patch', "Editing files");
+		}
 		case CopilotToolName.ExitPlanMode:
 			return localize('toolInvoke.exitPlanMode', "Presenting plan");
 		default:
@@ -460,6 +560,17 @@ export function getPastTenseMessage(toolName: string, displayName: string, param
 				return md(localize('toolComplete.globPattern', "Found files matching {0}", appendEscapedMarkdownInlineCode(truncate(args.pattern, 80))));
 			}
 			return localize('toolComplete.glob', "Found files");
+		}
+		case CopilotToolName.ApplyPatch:
+		case CopilotToolName.GitApplyPatch: {
+			const files = getEditFilePaths(parameters);
+			if (files.length === 1) {
+				return md(localize('toolComplete.patchFile', "Edited {0}", formatPathAsMarkdownLink(files[0])));
+			}
+			if (files.length > 1) {
+				return md(localize('toolComplete.patchFiles', "Edited {0}", files.map(formatPathAsMarkdownLink).join(', ')));
+			}
+			return localize('toolComplete.patch', "Edited files");
 		}
 		case CopilotToolName.ExitPlanMode:
 			return localize('toolComplete.exitPlanMode', "Exited plan mode");

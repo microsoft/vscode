@@ -5,11 +5,12 @@
 
 import { registerAction2 } from '../../platform/actions/common/actions.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../workbench/common/contributions.js';
-import { OpenInVSCodeAction, OpenInVSCodeWidgetContribution } from './actions/vscodeActions.js';
+import { OpenSessionInVSCodeAction, OpenInVSCodeWidgetContribution, OpenVSCodeWindowAction } from './actions/vscodeActions.js';
 
 // Actions
 (function registerActions(): void {
-	registerAction2(OpenInVSCodeAction);
+	registerAction2(OpenSessionInVSCodeAction);
+	registerAction2(OpenVSCodeWindowAction);
 })();
 
 (function registerWorkbenchContributions(): void {

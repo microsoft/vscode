@@ -962,8 +962,9 @@ function registerCloseEditorCommands() {
 
 		for (const { group, editors } of resolvedContext.groupedEditors) {
 			for (const editor of editors) {
-				const editorToResolve = isDiffEditorInput(editor) ? editor.modified : editor;
-				const untypedEditor = editorToResolve.toUntyped();
+				const isDiffEditor = isDiffEditorInput(editor);
+				const editorToResolve = isDiffEditor ? editor.modified : editor;
+				const untypedEditor = isDiffEditor ? editor.toUntyped() : editorToResolve.toUntyped();
 				if (!untypedEditor) {
 					return; // Resolver can only resolve untyped editors
 				}
@@ -1486,12 +1487,12 @@ function registerModalEditorCommands(): void {
 				f1: true,
 				icon: Codicon.emptyWindow,
 				precondition: EditorPartModalContext,
-				menu: {
-					id: MenuId.ModalEditorTitle,
-					group: 'navigation',
+				menu: [{
+					id: MenuId.ModalEditorTitleContext,
+					group: '1_window',
 					order: 0,
 					when: IsSessionsWindowContext
-				}
+				}]
 			});
 		}
 		async run(accessor: ServicesAccessor): Promise<void> {

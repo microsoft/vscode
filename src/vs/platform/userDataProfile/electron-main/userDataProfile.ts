@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../base/common/event.js';
-import { INodeProcess } from '../../../base/common/platform.js';
 import { joinPath } from '../../../base/common/resources.js';
 import { INativeEnvironmentService } from '../../environment/common/environment.js';
 import { IFileService } from '../../files/common/files.js';
@@ -48,24 +47,9 @@ export class UserDataProfilesMainService extends UserDataProfilesService impleme
 	}
 
 	protected override createDefaultProfile(): IUserDataProfile {
-		const defaultProfile = {
+		return {
 			...super.createDefaultProfile(),
 			agentPluginsHome: this.agentPluginsHome
-		};
-		if (!(process as INodeProcess).isEmbeddedApp) {
-			return defaultProfile;
-		}
-		const hostUserRoamingDataHome = this.environmentService.parentAppUserRoamingDataHome;
-		if (!hostUserRoamingDataHome) {
-			return defaultProfile;
-		}
-		const hostAgentPluginsHome = getParentAppAgentPluginsPath(this.nativeEnvironmentService);
-		return {
-			...defaultProfile,
-			keybindingsResource: joinPath(hostUserRoamingDataHome, 'keybindings.json'),
-			promptsHome: joinPath(hostUserRoamingDataHome, 'prompts'),
-			mcpResource: joinPath(hostUserRoamingDataHome, 'mcp.json'),
-			agentPluginsHome: hostAgentPluginsHome ? URI.file(hostAgentPluginsHome) : this.agentPluginsHome
 		};
 	}
 
@@ -85,14 +69,6 @@ export class UserDataProfilesMainService extends UserDataProfilesService impleme
 		}
 		return emptyWindows;
 	}
-}
-
-function getParentAppAgentPluginsPath(environmentService: INativeEnvironmentService): string | undefined {
-	const hostUserHome = environmentService.parentAppUserHome;
-	if (!hostUserHome) {
-		return undefined;
-	}
-	return getAgentPluginsPath(environmentService.args, hostUserHome);
 }
 
 function getAgentPluginsPath(args: NativeParsedArgs, userHome: URI): string {

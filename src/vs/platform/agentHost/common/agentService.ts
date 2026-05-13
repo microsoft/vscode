@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { CancellationToken } from '../../../base/common/cancellation.js';
 import { Event } from '../../../base/common/event.js';
 import { IReference } from '../../../base/common/lifecycle.js';
 import { IAuthorizationProtectedResourceMetadata } from '../../../base/common/oauth.js';
@@ -11,11 +12,11 @@ import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { ISyncedCustomization } from './agentPluginManager.js';
 import type { IAgentSubscription } from './state/agentSubscription.js';
-import type { CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
-import { ProtectedResourceMetadata, type ConfigSchema, type FileEdit, type ModelSelection, type SessionActiveClient, type ToolCallPendingConfirmationState, type ToolDefinition } from './state/protocol/state.js';
+import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
+import { ProtectedResourceMetadata, type ConfigSchema, type FileEdit, type MessageAttachment, type ModelSelection, type SessionActiveClient, type ToolCallPendingConfirmationState, type ToolDefinition } from './state/protocol/state.js';
 import type { ActionEnvelope, INotification, IRootConfigChangedAction, SessionAction, TerminalAction } from './state/sessionActions.js';
 import type { ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceWriteParams, ResourceWriteResult, IStateSnapshot } from './state/sessionProtocol.js';
-import { AttachmentType, ComponentToState, SessionInputResponseKind, SessionStatus, StateComponents, type CustomizationRef, type PendingMessage, type RootState, type SessionCustomization, type SessionInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState } from './state/sessionState.js';
+import { ComponentToState, SessionInputResponseKind, SessionStatus, StateComponents, type CustomizationRef, type PendingMessage, type RootState, type SessionCustomization, type SessionInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState } from './state/sessionState.js';
 
 // IPC contract between the renderer and the agent host utility process.
 // Defines all serializable event types, the IAgent provider interface,
@@ -36,21 +37,30 @@ export const AgentHostEnabledSettingId = 'chat.agentHost.enabled';
 /** Configuration key that controls whether per-host IPC traffic output channels are created. */
 export const AgentHostIpcLoggingSettingId = 'chat.agentHost.ipcLoggingEnabled';
 
-/**
- * Configuration key that controls whether the Claude agent provider is registered
- * inside the agent host. Read on the workbench side and forwarded to the agent host
- * process via the `VSCODE_AGENT_HOST_ENABLE_CLAUDE` environment variable; the agent
- * host process must be restarted for changes to take effect.
- */
-export const AgentHostClaudeAgentEnabledSettingId = 'chat.agentHost.claudeAgent.enabled';
+/** Configuration key that controls whether AHP JSONL logs are written for agent host transports. */
+export const AgentHostAhpJsonlLoggingSettingId = 'chat.agentHost.ahpJsonlLoggingEnabled';
 
 /**
- * Environment variable that, when set to `'1'`, causes the agent host process to
- * register the Claude agent provider. Set by the agent host starters when
- * {@link AgentHostClaudeAgentEnabledSettingId} is enabled, and may also be set
- * directly by developers as an override.
+ * Configuration key that holds the absolute path to a locally-installed
+ * `@anthropic-ai/claude-agent-sdk` package. When non-empty, the Claude agent
+ * provider is registered inside the agent host and the SDK module is loaded
+ * via dynamic `import()` from this path. When empty (the default), the
+ * Claude provider is not registered. The SDK is intentionally not bundled
+ * with VS Code; users opting into the Claude agent install the SDK
+ * themselves and point this setting at it. The agent host process must be
+ * restarted for changes to take effect.
  */
-export const AgentHostEnableClaudeEnvVar = 'VSCODE_AGENT_HOST_ENABLE_CLAUDE';
+export const AgentHostClaudeAgentSdkPathSettingId = 'chat.agentHost.claudeAgent.path';
+
+/**
+ * Environment variable that holds the absolute path to a locally-installed
+ * `@anthropic-ai/claude-agent-sdk` package. When set to a non-empty value,
+ * the agent host process registers the Claude agent provider and loads the
+ * SDK module from this path. Set by the agent host starters from
+ * {@link AgentHostClaudeAgentSdkPathSettingId}, and may also be set directly
+ * by developers as an override.
+ */
+export const AgentHostClaudeSdkPathEnvVar = 'VSCODE_AGENT_HOST_CLAUDE_SDK_PATH';
 
 /** Result of starting the agent host WebSocket server on-demand. */
 export interface IAgentHostSocketInfo {
@@ -239,20 +249,6 @@ export interface IAgentSessionConfigCompletionsParams extends IAgentResolveSessi
 	readonly query?: string;
 }
 
-/** Serializable attachment passed alongside a message to the agent host. */
-export interface IAgentAttachment {
-	readonly type: AttachmentType;
-	readonly uri: URI;
-	readonly displayName?: string;
-	/** For selections: the selected text. */
-	readonly text?: string;
-	/** For selections: line/character range. */
-	readonly selection?: {
-		readonly start: { readonly line: number; readonly character: number };
-		readonly end: { readonly line: number; readonly character: number };
-	};
-}
-
 /** Serializable model information from the agent host. */
 export interface IAgentModelInfo {
 	readonly provider: AgentProvider;
@@ -281,6 +277,7 @@ export type AgentSignal =
 	| IAgentActionSignal
 	| IAgentToolPendingConfirmationSignal
 	| IAgentSubagentStartedSignal
+	| IAgentSubagentCompletedSignal
 	| IAgentSteeringConsumedSignal;
 
 /**
@@ -348,6 +345,19 @@ export interface IAgentSubagentStartedSignal {
 	readonly agentName: string;
 	readonly agentDisplayName: string;
 	readonly agentDescription?: string;
+}
+
+/**
+ * A subagent has finished — either successfully or with an error. The host
+ * uses this to tear down the child session after all of its events have been
+ * routed. The parent tool call completing is not a reliable signal for this
+ * because background subagents (e.g. Copilot's `mode: background` task) keep
+ * emitting events after their parent tool call returns immediately.
+ */
+export interface IAgentSubagentCompletedSignal {
+	readonly kind: 'subagent_completed';
+	readonly session: URI;
+	readonly toolCallId: string;
 }
 
 /** A steering message was consumed (sent to the model). */
@@ -422,7 +432,7 @@ export interface IAgent {
 	sessionConfigCompletions(params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult>;
 
 	/** Send a user message into an existing session. */
-	sendMessage(session: URI, prompt: string, attachments?: IAgentAttachment[], turnId?: string): Promise<void>;
+	sendMessage(session: URI, prompt: string, attachments?: readonly MessageAttachment[], turnId?: string): Promise<void>;
 
 	/**
 	 * Called when the session's pending (steering) message changes.
@@ -542,6 +552,8 @@ export interface IAgent {
 	 * Resolves the tool handler's deferred promise so the SDK can continue.
 	 *
 	 * @param session The session the tool call belongs to.
+	 * @param toolCallId The id of the tool call being completed.
+	 * @param result The result of the tool call.
 	 */
 	onClientToolCallComplete(session: URI, toolCallId: string, result: ToolCallResult): void;
 
@@ -592,6 +604,27 @@ export interface IAgentService {
 
 	/** Return dynamic completions for a session configuration property. */
 	sessionConfigCompletions(params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult>;
+
+	/**
+	 * Return completion items for a partially-typed input (e.g. an `@`-mention
+	 * inside a user message the user is composing). Delegates to a pluggable
+	 * set of {@link IAgentHostCompletionItemProvider}s registered with the
+	 * agent host.
+	 *
+	 * Note: this method does not accept a {@link CancellationToken} because
+	 * `CancellationToken`s do not round-trip through the IPC boundary today
+	 * (the deserialised value lacks the prototype methods used by
+	 * subscribers). Callers that need cancellation should race the returned
+	 * promise on their own side.
+	 */
+	completions(params: CompletionsParams): Promise<CompletionsResult>;
+
+	/**
+	 * Returns the set of characters that, when typed in a {@link UserMessage}
+	 * input, SHOULD cause the client to issue a `completions` request.
+	 * Aggregated from every registered {@link IAgentHostCompletionItemProvider}.
+	 */
+	getCompletionTriggerCharacters(): Promise<readonly string[]>;
 
 	/** Dispose a session in the agent host, freeing SDK resources. */
 	disposeSession(session: URI): Promise<void>;
@@ -716,6 +749,14 @@ export interface IAgentConnection {
 	createSession(config?: IAgentCreateSessionConfig): Promise<URI>;
 	resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult>;
 	sessionConfigCompletions(params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult>;
+	completions(params: CompletionsParams): Promise<CompletionsResult>;
+
+	/**
+	 * Trigger characters announced by the connected agent host that should
+	 * cause the client to issue a `completions` request when typed in a
+	 * user-message input. Resolves once on first request and is cached.
+	 */
+	getCompletionTriggerCharacters(): Promise<readonly string[]>;
 	disposeSession(session: URI): Promise<void>;
 
 	// ---- Terminal lifecycle -------------------------------------------------
