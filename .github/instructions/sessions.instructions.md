@@ -28,7 +28,7 @@ vs/editor → vs/platform → vs/base
 Entry Points → contrib/* / contrib/providers/* / services/* → browser/ & common/ (core)
 ```
 
-**Key constraint:** `contrib/*` must NOT import from `contrib/providers/*`. Providers can import from everything.
+**Key constraint:** `contrib/*` must NOT import from `contrib/providers/*`. Providers are the most permissive contrib layer and may import from non-provider contribs, services, core, and sibling providers.
 
 ## Core Services
 
