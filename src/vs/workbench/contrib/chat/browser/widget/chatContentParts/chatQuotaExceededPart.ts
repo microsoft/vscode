@@ -70,7 +70,7 @@ export class ChatQuotaExceededPart extends Disposable implements IChatContentPar
 			case ChatEntitlement.ProPlus:
 			case ChatEntitlement.Max:
 				primaryButtonLabel = isUsageBasedBilling
-					? localize('enableAdditionalUsage', "Configure Additional Spend")
+					? localize('enableAdditionalUsage', "Configure Budget")
 					: localize('configureBudget', "Configure Budget");
 				break;
 			case ChatEntitlement.Free:

@@ -141,6 +141,19 @@ export class AgentPluginService extends Disposable implements IAgentPluginServic
 type PluginEntry = IAgentPlugin;
 
 /**
+ * Minimal shape of a parsed plugin manifest. Known fields are typed; unknown
+ * keys (e.g. `commands`, `skills`, `hooks`, `mcpServers`) remain `unknown` and
+ * are parsed by the component readers.
+ *
+ * NOTE: `name` is typed as `string | undefined` to express intent, but
+ * consumers must still runtime-validate it (manifests are untrusted JSON).
+ */
+interface IPluginManifest {
+	readonly name?: string;
+	readonly [key: string]: unknown;
+}
+
+/**
  * Describes a single discovered plugin source, before the shared
  * infrastructure builds the full {@link IAgentPlugin} from it.
  */
@@ -205,7 +218,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 			if (!seenPluginUris.has(key)) {
 				seenPluginUris.add(key);
 				const format = await detectPluginFormat(source.uri, this._fileService);
-				plugins.push(this._toPlugin(source.uri, format, source.fromMarketplace, source.repositoryUri, () => source.remove()));
+				plugins.push(await this._toPlugin(source.uri, format, source.fromMarketplace, source.repositoryUri, () => source.remove()));
 			}
 		}
 
@@ -224,7 +237,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 		}
 	}
 
-	private _toPlugin(uri: URI, format: IPluginFormatConfig, fromMarketplace: IMarketplacePlugin | undefined, repositoryUri: URI | undefined, removeCallback: () => void): IAgentPlugin {
+	private async _toPlugin(uri: URI, format: IPluginFormatConfig, fromMarketplace: IMarketplacePlugin | undefined, repositoryUri: URI | undefined, removeCallback: () => void): Promise<IAgentPlugin> {
 		const key = uri.toString();
 		const existing = this._pluginEntries.get(key);
 		if (existing) {
@@ -239,9 +252,12 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 		const store = new DisposableStore();
 		const enablement = derived(r => this._enablementModel.readEnabled(key, r));
 
-		// Track current component directories for the file watcher. These are
-		// updated whenever the manifest is read (inside each component reader).
-		const manifest = observableValue<Record<string, unknown> | undefined>('agentPluginManifest', undefined);
+		// Read the manifest up front so its `name` field can be used in the
+		// plugin label (for direct installs that have no marketplace metadata).
+		// Component directories are tracked via observers downstream and
+		// re-read whenever the manifest changes on disk.
+		const initialManifest = await this._readManifest(uri, format);
+		const manifest = observableValue<IPluginManifest | undefined>('agentPluginManifest', initialManifest);
 
 		const observeComponent = <T>(
 			prop: string,
@@ -311,7 +327,8 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 			'.mcp.json',
 		);
 
-		// Read the manifest initially and re-read whenever manifest files change.
+		// Re-read the manifest whenever it changes on disk. The initial value
+		// was already populated above before constructing the observable.
 		const readManifest = async () => {
 			manifest.set(await this._readManifest(uri, format), undefined);
 		};
@@ -323,11 +340,13 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 		store.add(manifestWatcher);
 		store.add(manifestWatcher.onDidChange(() => readManifest()));
 
-		readManifest();
+		const manifestName = typeof initialManifest?.name === 'string' && initialManifest.name.trim()
+			? initialManifest.name.trim()
+			: undefined;
 
 		const plugin: PluginEntry = {
 			uri,
-			label: fromMarketplace?.name ?? basename(uri),
+			label: fromMarketplace?.name ?? manifestName ?? basename(uri),
 			enablement,
 			remove: removeCallback,
 			hooks,
@@ -344,10 +363,10 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 		return plugin;
 	}
 
-	private async _readManifest(pluginUri: URI, format: IPluginFormatConfig): Promise<Record<string, unknown> | undefined> {
+	private async _readManifest(pluginUri: URI, format: IPluginFormatConfig): Promise<IPluginManifest | undefined> {
 		const json = await this._readJsonFile(joinPath(pluginUri, format.manifestPath));
-		if (json && typeof json === 'object') {
-			return json as Record<string, unknown>;
+		if (json && typeof json === 'object' && !Array.isArray(json)) {
+			return json as IPluginManifest;
 		}
 		return undefined;
 	}

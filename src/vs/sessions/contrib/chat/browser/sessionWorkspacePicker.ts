@@ -37,6 +37,8 @@ import { getStatusHover, getStatusLabel, removeRemoteHost, showRemoteHostOptions
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { COPILOT_PROVIDER_ID } from '../../copilotChatSessions/browser/copilotChatSessionsProvider.js';
 import { IWorkspacesService, isRecentFolder } from '../../../../platform/workspaces/common/workspaces.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { reportNewChatPickerClosed } from './newChatPickerTelemetry.js';
 import { Menus } from '../../../browser/menus.js';
 
 const LEGACY_STORAGE_KEY_RECENT_PROJECTS = 'sessions.recentlyPickedProjects';
@@ -165,6 +167,7 @@ export class WorkspacePicker extends Disposable {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 
@@ -436,6 +439,7 @@ export class WorkspacePicker extends Disposable {
 	 * selection semantics. Treats unavailable workspaces as a no-op.
 	 */
 	protected _dispatchPickerItem(item: IWorkspacePickerItem): void {
+		this._reportPickerClosed(item);
 		if (item.run) {
 			item.run();
 		} else if (item.commandId) {
@@ -449,6 +453,28 @@ export class WorkspacePicker extends Disposable {
 		} else if (item.selection) {
 			this._selectProject(item.selection);
 		}
+	}
+
+	/**
+	 * Emits `newChatPickerClosed` telemetry on user selection. The
+	 * "before" value is read from storage (the currently-checked recent
+	 * workspace) if available, otherwise from the in-memory selection.
+	 * The "after" value comes from the item the user picked — undefined
+	 * when the item is a browse action or command rather than a workspace.
+	 */
+	private _reportPickerClosed(item: IWorkspacePickerItem): void {
+		const beforeFromStorage = this._restoreCheckedWorkspace();
+		const before = beforeFromStorage ?? this._selectedWorkspace;
+		const after = item.selection;
+		reportNewChatPickerClosed(this.telemetryService, {
+			id: 'NewChatWorkspacePicker',
+			name: 'NewChatWorkspacePicker',
+			optionIdBefore: before?.workspace?.uri.toString(),
+			optionIdAfter: after?.workspace?.uri.toString(),
+			optionLabelBefore: before?.workspace?.label,
+			optionLabelAfter: after?.workspace?.label,
+			isPII: true,
+		});
 	}
 
 	/**
@@ -491,7 +517,7 @@ export class WorkspacePicker extends Disposable {
 	 * Clears the selection if it matches the given URI.
 	 */
 	removeFromRecents(uri: URI): void {
-		if (this._selectedWorkspace && this.uriIdentityService.extUri.isEqual(this._selectedWorkspace.workspace.repositories[0]?.uri, uri)) {
+		if (this._selectedWorkspace && this.uriIdentityService.extUri.isEqual(this._selectedWorkspace.workspace.folders[0]?.root, uri)) {
 			this.clearSelection();
 		}
 	}
@@ -786,13 +812,13 @@ export class WorkspacePicker extends Disposable {
 		if (this._selectedWorkspace.providerId !== selection.providerId) {
 			return false;
 		}
-		const selectedUri = this._selectedWorkspace.workspace.repositories[0]?.uri;
-		const candidateUri = selection.workspace.repositories[0]?.uri;
+		const selectedUri = this._selectedWorkspace.workspace.folders[0]?.root;
+		const candidateUri = selection.workspace.folders[0]?.root;
 		return this.uriIdentityService.extUri.isEqual(selectedUri, candidateUri);
 	}
 
 	private _persistSelectedWorkspace(selection: IWorkspaceSelection): void {
-		const uri = selection.workspace.repositories[0]?.uri;
+		const uri = selection.workspace.folders[0]?.root;
 		if (!uri) {
 			return;
 		}
@@ -955,7 +981,7 @@ export class WorkspacePicker extends Disposable {
 	// -- Recent workspaces storage --
 
 	private _addRecentWorkspace(providerId: string, workspace: ISessionWorkspace, checked: boolean): void {
-		const uri = workspace.repositories[0]?.uri;
+		const uri = workspace.folders[0]?.root;
 		if (!uri) {
 			return;
 		}
@@ -991,7 +1017,7 @@ export class WorkspacePicker extends Disposable {
 	}
 
 	protected _removeRecentWorkspace(selection: IWorkspaceSelection): void {
-		const uri = selection.workspace.repositories[0]?.uri;
+		const uri = selection.workspace.folders[0]?.root;
 		if (!uri) {
 			return;
 		}
@@ -1011,7 +1037,7 @@ export class WorkspacePicker extends Disposable {
 	}
 
 	protected _removeVSCodeRecentWorkspace(selection: IWorkspaceSelection): void {
-		const uri = selection.workspace.repositories[0]?.uri;
+		const uri = selection.workspace.folders[0]?.root;
 		if (!uri) {
 			return;
 		}

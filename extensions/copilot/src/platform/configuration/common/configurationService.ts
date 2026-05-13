@@ -519,7 +519,7 @@ export const enum CHAT_MODEL {
 	XTAB_4O_MINI_FINETUNED = 'xtab-4o-mini-finetuned',
 	GPT4OPROXY = 'gpt-4o-instant-apply-full-ft-v66',
 	SHORT_INSTANT_APPLY = 'gpt-4o-instant-apply-full-ft-v66-short',
-	CLAUDE_SONNET = 'claude-3.5-sonnet',
+	CLAUDE_SONNET = 'claude-sonnet-4.5',
 	CLAUDE_37_SONNET = 'claude-3.7-sonnet',
 	DEEPSEEK_CHAT = 'deepseek-chat',
 	GEMINI_25_PRO = 'gemini-2.5-pro',
@@ -726,6 +726,9 @@ export namespace ConfigKey {
 
 		/** Internal: override reasoning/thinking effort sent to model APIs (e.g. Responses API, Messages API). Used by evals. */
 		export const ReasoningEffortOverride = defineSetting<string | null>('chat.reasoningEffortOverride', ConfigType.Simple, null);
+
+		/** Enable extended (1 hour) prompt cache TTL on tools and system blocks for the Anthropic Messages API. Only applied to 1M context Claude variants. */
+		export const AnthropicExtendedCacheTtl = defineSetting<boolean>('chat.anthropic.promptCaching.extendedTtl', ConfigType.ExperimentBased, false);
 
 		export const InlineEditsXtabProviderModelConfiguration = (() => {
 			const oldKey = 'chat.advanced.inlineEdits.xtabProvider.modelConfiguration';

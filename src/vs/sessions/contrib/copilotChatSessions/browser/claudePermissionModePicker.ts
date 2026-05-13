@@ -15,10 +15,12 @@ import { IActionWidgetService } from '../../../../platform/actionWidget/browser/
 import { ActionListItemKind, IActionListDelegate, IActionListItem, IActionListOptions } from '../../../../platform/actionWidget/browser/actionList.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { CopilotChatSessionsProvider } from './copilotChatSessionsProvider.js';
+import { reportNewChatPickerClosed } from '../../chat/browser/newChatPickerTelemetry.js';
 import { IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 
 const PERMISSION_MODE_OPTION_ID = 'permissionMode';
@@ -72,6 +74,7 @@ export class ClaudePermissionModePicker extends Disposable {
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 		this._autoPermissionsEnabled = observableConfigValue<boolean>(ALLOW_AUTO_PERMISSIONS_SETTING, false, configurationService);
@@ -150,6 +153,18 @@ export class ClaudePermissionModePicker extends Disposable {
 	}
 
 	private _selectMode(mode: IClaudePermissionModeItem): void {
+		const beforeId = this._currentModeId;
+		const beforeLabel = permissionModes.find(m => m.id === beforeId)?.label;
+		reportNewChatPickerClosed(this.telemetryService, {
+			id: 'NewChatClaudePermissionModePicker',
+			name: 'NewChatClaudePermissionModePicker',
+			optionIdBefore: beforeId,
+			optionIdAfter: mode.id,
+			optionLabelBefore: beforeLabel,
+			optionLabelAfter: mode.label,
+			isPII: false,
+		});
+
 		this._currentModeId = mode.id;
 		this._updateTriggerLabel(this._triggerElement);
 

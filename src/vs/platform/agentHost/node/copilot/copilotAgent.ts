@@ -856,6 +856,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			enumDescriptions: gitInfo ? [localize('agentHost.sessionConfig.isolation.folderDescription', "Work directly in the folder"), localize('agentHost.sessionConfig.isolation.worktreeDescription', "Create a Git worktree for isolation")] : [localize('agentHost.sessionConfig.isolation.folderDescription', "Work directly in the folder")],
 			default: gitInfo ? 'worktree' : 'folder',
 			readOnly: !gitInfo,
+			sessionMutable: false,
 		});
 
 		// Resolve isolation first — downstream schema shapes (branch's
@@ -879,6 +880,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				default: branchDefault,
 				enumDynamic: !branchReadOnly,
 				readOnly: branchReadOnly,
+				sessionMutable: false,
 			});
 		}
 
