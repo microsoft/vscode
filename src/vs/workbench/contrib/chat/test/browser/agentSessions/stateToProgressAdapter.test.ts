@@ -76,7 +76,7 @@ function makeLookup(prefix: string, displayNames: Record<string, string>, fallba
 			const r = resolveRaw(raw);
 			return r ? `${prefix}${r}` : undefined;
 		},
-		toModelDisplayName: (raw) => {
+		toResponseDetails: (raw) => {
 			const r = resolveRaw(raw);
 			return r ? displayNames[r] : undefined;
 		},

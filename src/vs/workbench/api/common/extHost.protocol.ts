@@ -3711,6 +3711,7 @@ export type ChatStatusItemDto = {
 	title: string | { label: string; link: string; helpText?: string };
 	description: string;
 	detail: string | undefined;
+	tooltip: string | undefined;
 };
 
 export interface MainThreadChatStatusShape {

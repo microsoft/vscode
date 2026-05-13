@@ -7,8 +7,7 @@ import { WebContentsView, webContents } from 'electron';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
-import { CancellationToken } from '../../../base/common/cancellation.js';
-import { IBrowserViewBounds, IBrowserViewDevToolsStateEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, IBrowserViewFindInPageResult, IBrowserViewVisibilityEvent, browserViewIsolatedWorldId, browserZoomFactors, browserZoomDefaultIndex, IElementData, IBrowserViewOwner, IBrowserViewOpenOptions } from '../common/browserView.js';
+import { IBrowserViewBounds, IBrowserViewDevToolsStateEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, IBrowserViewFindInPageResult, IBrowserViewVisibilityEvent, browserViewIsolatedWorldId, browserZoomFactors, browserZoomDefaultIndex, IBrowserViewOwner, IBrowserViewOpenOptions } from '../common/browserView.js';
 import { BrowserViewElementInspector } from './browserViewElementInspector.js';
 import { IWindowsMainService } from '../../windows/electron-main/windows.js';
 import { ICodeWindow, LoadReason } from '../../window/electron-main/window.js';
@@ -42,7 +41,7 @@ export class BrowserView extends Disposable {
 	private _browserZoomIndex: number = browserZoomDefaultIndex;
 
 	readonly debugger: BrowserViewDebugger;
-	private readonly _inspector: BrowserViewElementInspector;
+	readonly inspector: BrowserViewElementInspector;
 
 	private _ownerWindow: ICodeWindow;
 	private _currentWindow: ICodeWindow | IAuxiliaryWindow | undefined;
@@ -101,6 +100,11 @@ export class BrowserView extends Disposable {
 			nodeIntegration: false,
 			contextIsolation: true,
 			sandbox: true,
+
+			// NOTE: When `sandbox` is enabled, `nodeIntegrationInSubFrames` doesn't actually enable node integration or prevent sandboxing.
+			//       It allows preload scripts to run in subframes, which is important for our features like keyboard shortcut forwarding.
+			nodeIntegrationInSubFrames: true,
+
 			webviewTag: false,
 			session: this.session.electronSession,
 
@@ -187,7 +191,7 @@ export class BrowserView extends Disposable {
 		});
 
 		this.debugger = new BrowserViewDebugger(this, this.logService);
-		this._inspector = this._register(new BrowserViewElementInspector(this));
+		this.inspector = this._register(new BrowserViewElementInspector(this));
 
 		this.setupEventListeners();
 	}
@@ -341,10 +345,23 @@ export class BrowserView extends Disposable {
 			this._onDidChangeFocus.fire({ focused: false });
 		});
 
-		// Forward key down events that weren't handled by the page to the workbench for shortcut handling.
-		webContents.ipc.on('vscode:browserView:keydown', (_event, keyEvent: IBrowserViewKeyDownEvent) => {
+		const onCommandKeydown = (_event: unknown, keyEvent: IBrowserViewKeyDownEvent) => {
+			// Intercept Ctrl/Cmd+Enter during element selection to pick the focused element.
+			if (this.inspector.isElementSelectionActive && keyEvent.key === 'Enter' && (keyEvent.ctrlKey || keyEvent.metaKey)) {
+				void this.inspector.pickFocusedElement();
+				return;
+			}
 			this._onDidKeyCommand.fire(keyEvent);
+		};
+
+		// Forward key down events that weren't handled by the page to the workbench for shortcut handling.
+		webContents.ipc.on('vscode:browserView:keydown', onCommandKeydown);
+		webContents.on('devtools-opened', () => {
+			// Avoid double-registration if the webContents is reused.
+			webContents.devToolsWebContents?.ipc.off('vscode:browserView:keydown', onCommandKeydown);
+			webContents.devToolsWebContents?.ipc.on('vscode:browserView:keydown', onCommandKeydown);
 		});
+
 		// If the page won't be able to handle events, forward key down events directly.
 		webContents.on('before-input-event', (event, input) => {
 			if (input.type !== 'keyDown') {
@@ -459,7 +476,8 @@ export class BrowserView extends Disposable {
 			lastError: this._lastError,
 			certificateError: this.session.trust.getCertificateError(url),
 			storageScope: this.session.storageScope,
-			browserZoomIndex: this._browserZoomIndex
+			browserZoomIndex: this._browserZoomIndex,
+			isElementSelectionActive: this.inspector.isElementSelectionActive
 		};
 	}
 
@@ -520,22 +538,6 @@ export class BrowserView extends Disposable {
 	 */
 	getConsoleLogs(): string {
 		return this._consoleLogs.join('\n');
-	}
-
-	/**
-	 * Start element inspection mode. Sets up a CDP overlay that highlights elements
-	 * on hover. When the user clicks, the element data is returned and the overlay is removed.
-	 * @param token Cancellation token to abort the inspection.
-	 */
-	async getElementData(token: CancellationToken): Promise<IElementData | undefined> {
-		return this._inspector.getElementData(token);
-	}
-
-	/**
-	 * Get element data for the currently focused element.
-	 */
-	async getFocusedElementData(): Promise<IElementData | undefined> {
-		return this._inspector.getFocusedElementData();
 	}
 
 	/**
@@ -609,7 +611,7 @@ export class BrowserView extends Disposable {
 		if (options?.pageRect) {
 			const zoomFactor = this._view.webContents.getZoomFactor();
 			// The visual viewport scale accounts for pinch-to-zoom magnification, which is separate from the regular zoom factor.
-			const visualViewportScale = await this._inspector.getVisualViewportScale();
+			const visualViewportScale = await this.inspector.getVisualViewportScale();
 			options.screenRect = {
 				x: options.pageRect.x * visualViewportScale * zoomFactor,
 				y: options.pageRect.y * visualViewportScale * zoomFactor,

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { PromptReference, Raw } from '@vscode/prompt-tsx';
-import type { ChatRequest, ChatRequestEditedFileEvent, ChatResponseStream, ChatResult, LanguageModelToolResult } from 'vscode';
+import type { ChatLanguageModelToolReference, ChatRequest, ChatRequestEditedFileEvent, ChatResponseStream, ChatResult, LanguageModelToolResult } from 'vscode';
 import { FilterReason } from '../../../platform/networking/common/openai';
 import { IWorkspaceService } from '../../../platform/workspace/common/workspaceService';
 import { isLocation, toLocation } from '../../../util/common/types';
@@ -446,15 +446,39 @@ export class GlobalContextMessageMetadata {
 }
 
 /**
- * Metadata capturing token usage information from Anthropic Messages API.
- * Stores prompt tokens and output tokens for each turn.
- * This metadata is used to trigger summarization when token usage exceeds thresholds.
+ * Captures the customizations-index variable value (the bundled
+ * `<instructions>`/`<skills>`/`<agents>` text) as it appeared on the first
+ * turn of the conversation. Reused on subsequent turns so per-turn churn in
+ * any of those listings (e.g. the active mode swapping which subagent entry
+ * appears in `<agents>`) does not invalidate the system prompt cache. The
+ * cacheKey invalidates the snapshot when something genuinely changed (e.g.
+ * the user opened a different workspace mid-conversation).
+ *
+ * The {@link toolReferences} carry byte offsets into {@link value} and must
+ * be captured together — current-turn references built against current-turn
+ * text would mis-slice the frozen value.
  */
-export class AnthropicTokenUsageMetadata {
+export class CustomizationsIndexMetadata {
 	constructor(
-		/** Total number of prompt input tokens */
+		readonly value: string,
+		readonly toolReferences: readonly ChatLanguageModelToolReference[] | undefined,
+		readonly cacheKey: string
+	) { }
+}
+
+/**
+ * Captures `prompt_tokens` and `completion_tokens` from the most recent
+ * successful fetch on a turn. All providers return these values in their
+ * `usage` payload, so this metadata is the authoritative source for
+ * "how many tokens did we actually send last turn" — used by the agent
+ * loop to floor its local context-size estimate when deciding whether to
+ * trigger summarization.
+ */
+export class TurnTokenUsageMetadata {
+	constructor(
+		/** Total number of prompt input tokens reported by the server. */
 		readonly promptTokens: number,
-		/** Number of output/completion tokens */
+		/** Number of output/completion tokens reported by the server. */
 		readonly outputTokens: number,
 	) { }
 }

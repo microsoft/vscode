@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ApiError, GenerateContentParameters, GoogleGenAI, Tool, Type } from '@google/genai';
-import { CancellationToken, LanguageModelChatInformation, LanguageModelChatMessage, LanguageModelChatMessage2, LanguageModelResponsePart2, LanguageModelTextPart, LanguageModelThinkingPart, LanguageModelToolCallPart, Progress, ProvideLanguageModelChatResponseOptions } from 'vscode';
+import { CancellationToken, LanguageModelChatInformation, LanguageModelChatMessage, LanguageModelChatMessage2, LanguageModelDataPart, LanguageModelResponsePart2, LanguageModelTextPart, LanguageModelThinkingPart, LanguageModelToolCallPart, Progress, ProvideLanguageModelChatResponseOptions } from 'vscode';
 import { ChatFetchResponseType, ChatLocation } from '../../../platform/chat/common/commonTypes';
 import { ILogService } from '../../../platform/log/common/logService';
 import { IResponseDelta, OpenAiFunctionTool } from '../../../platform/networking/common/fetch';
 import { APIUsage } from '../../../platform/networking/common/openai';
+import { CustomDataPartMimeTypes } from '../../../platform/endpoint/common/endpointTypes';
 import { CopilotChatAttr, emitInferenceDetailsEvent, GenAiAttr, GenAiMetrics, GenAiOperationName, GenAiProviderName, type OTelModelOptions, StdAttr, toToolDefinitions, truncateForOTel } from '../../../platform/otel/common/index';
 import { IOTelService, SpanKind, SpanStatusCode } from '../../../platform/otel/common/otelService';
 import { IRequestLogger } from '../../../platform/requestLogger/common/requestLogger';
@@ -190,6 +191,10 @@ export class GeminiNativeBYOKLMProvider extends AbstractLanguageModelChatProvide
 						}] : undefined,
 					};
 				}));
+
+				if (result.usage) {
+					wrappedProgress.report(new LanguageModelDataPart(new TextEncoder().encode(JSON.stringify(result.usage)), CustomDataPartMimeTypes.Usage));
+				}
 
 				// Enrich OTel span with usage data from the Gemini response
 				if (otelSpan && result.usage) {

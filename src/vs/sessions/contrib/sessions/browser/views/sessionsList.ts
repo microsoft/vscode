@@ -33,7 +33,7 @@ import { WorkbenchObjectTree } from '../../../../../platform/list/browser/listSe
 import { IStyleOverride, defaultButtonStyles, defaultFindWidgetStyles, defaultToggleStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { CopilotCLISessionType, GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
@@ -45,7 +45,8 @@ import { ISessionsManagementService } from '../../../../services/sessions/common
 import { IAgentSessionsService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { ISessionsListModelService } from './sessionsListModelService.js';
-import { IAgentHostFilterService } from '../../../remoteAgentHost/common/agentHostFilter.js';
+// eslint-disable-next-line local/code-import-patterns -- TODO: move IAgentHostFilterService out of providers
+import { IAgentHostFilterService } from '../../../providers/remoteAgentHost/common/agentHostFilter.js';
 
 const $ = DOM.$;
 
@@ -55,6 +56,7 @@ export const SessionSectionToolbarMenuId = new MenuId('SessionSectionToolbar');
 export const IsSessionPinnedContext = new RawContextKey<boolean>('sessionItem.isPinned', false);
 export const IsSessionArchivedContext = new RawContextKey<boolean>('sessionItem.isArchived', false);
 export const IsSessionReadContext = new RawContextKey<boolean>('sessionItem.isRead', true);
+export const SessionItemHasBranchNameContext = new RawContextKey<boolean>('sessionItem.hasBranchName', false);
 export const SessionSectionTypeContext = new RawContextKey<string>('sessionSection.type', '');
 
 //#region Types
@@ -264,6 +266,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		IsSessionPinnedContext.bindTo(template.contextKeyService).set(isPinned);
 		IsSessionArchivedContext.bindTo(template.contextKeyService).set(element.isArchived.get());
 		IsSessionReadContext.bindTo(template.contextKeyService).set(this.options.isRead(element));
+		SessionItemHasBranchNameContext.bindTo(template.contextKeyService).set(!!element.workspace.get()?.folders[0]?.gitRepository?.branchName?.trim());
 
 		// Pinned & archived styling — reactive
 		template.elementDisposables.add(autorun(reader => {
@@ -284,7 +287,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			const sessionStatus = element.status.read(reader);
 			const isRead = this.options.isRead(element);
 			const isArchived = element.isArchived.read(reader);
-			const gitHubInfo = element.gitHubInfo.read(reader);
+			const gitHubInfo = element.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
 			this._motionReducedSignal.read(reader);
 			const icon = this.getStatusIcon(sessionStatus, isRead, isArchived, gitHubInfo?.pullRequest?.icon);
 			const iconSelector = ThemeIcon.asCSSSelector(icon);
@@ -331,21 +334,11 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			DOM.clearNode(template.detailsRow);
 			const parts: HTMLElement[] = [];
 
-			const isWorkspaceSession = workspace &&
-				workspace.repositories.length > 0 &&
-				workspace?.repositories[0].workingDirectory === undefined;
-
-			// Session type icon in details row
-			// Disabling background icon - hacky but couldn't figure out how to do it from the new provider
-			if (element.sessionType !== CopilotCLISessionType.id) {
-				const typeIconEl = DOM.append(template.detailsRow, $('span.session-details-icon'));
-				DOM.append(typeIconEl, $(`span${ThemeIcon.asCSSSelector(element.icon)}`));
-				parts.push(typeIconEl);
-			} else if (
-				element.sessionType === CopilotCLISessionType.id &&
-				sessionStatus !== SessionStatus.InProgress
-			) {
-				const icon = isWorkspaceSession ? Codicon.folder : Codicon.worktree;
+			if (sessionStatus !== SessionStatus.InProgress) {
+				const isWorkspaceSession = workspace &&
+					workspace.folders.length > 0 &&
+					workspace?.folders[0]?.gitRepository?.workTreeUri === undefined;
+				const icon = workspace?.isVirtualWorkspace ? Codicon.cloud : isWorkspaceSession ? Codicon.folder : Codicon.worktree;
 				const typeIconEl = DOM.append(template.detailsRow, $('span.session-details-icon'));
 				DOM.append(typeIconEl, $(`span${ThemeIcon.asCSSSelector(icon)}`));
 				parts.push(typeIconEl);
@@ -540,9 +533,9 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 
 	private getWorkspaceBadgeLabel(workspace: ISessionWorkspace): string | undefined {
 		// For GitHub remote sessions, extract owner/name from the repository URI path
-		const repo = workspace.repositories[0];
-		if (repo?.uri.scheme === GITHUB_REMOTE_FILE_SCHEME) {
-			const parts = repo.uri.path.split('/').filter(Boolean);
+		const folder = workspace.folders[0];
+		if (folder?.root.scheme === GITHUB_REMOTE_FILE_SCHEME) {
+			const parts = folder.root.path.split('/').filter(Boolean);
 			if (parts.length >= 2) {
 				return `${parts[0]}/${parts[1]}`;
 			}
@@ -649,7 +642,7 @@ class SessionShowMoreRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 		container?.classList.toggle('session-show-more-folders', element.kind === 'folders');
 		if (element.mode === 'less') {
 			template.textContent = element.kind === 'folders'
-				? localize('showLessWorkspacesCompact', "Show less workspaces")
+				? localize('showLessWorkspacesCompact', "Show fewer workspaces")
 				: localize('showLessCompact', "Show less");
 		} else {
 			template.textContent = element.kind === 'folders'
@@ -675,8 +668,8 @@ class SessionsAccessibilityProvider {
 		if (isSessionShowMore(element)) {
 			if (element.mode === 'less') {
 				return element.kind === 'folders'
-					? localize('showLessWorkspacesAria', "Show less workspaces")
-					: localize('showLessAria', "Show less sessions");
+					? localize('showLessWorkspacesAria', "Show fewer workspaces")
+					: localize('showLessAria', "Show fewer sessions");
 			}
 			return element.kind === 'folders'
 				? localize('showMoreWorkspacesAria', "Show {0} more workspaces", element.remainingCount)
@@ -1024,8 +1017,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const hasTodaySessions = sections.some(s => s.id === 'today' && s.sessions.length > 0);
 
 		// Partition workspace sections into "primary" (meets criteria) and "more"
-		// when grouping by workspace. Find widget bypasses partitioning.
-		const partitionFolders = grouping === SessionsGrouping.Workspace && !this.findOpen;
+		// when grouping by workspace. Find widget bypasses partitioning. When the
+		// user has chosen "Show All Sessions" (uncapped), show every workspace
+		// group inline instead of hiding some behind a "more workspaces" entry.
+		const partitionFolders = grouping === SessionsGrouping.Workspace && !this.findOpen && this.workspaceGroupCapped;
 		const moreFolderSectionIds = new Set<string>();
 		if (partitionFolders) {
 			const workspaceSections = sections.filter(s => s.id.startsWith('workspace:'));
@@ -1117,9 +1112,16 @@ export class SessionsList extends Disposable implements ISessionsList {
 		};
 
 		const moreFolderSections: ISessionSection[] = [];
+		// When expanding the "more workspaces" group, the archived ("Done")
+		// section is moved to sit right above the "Show less" action so that
+		// the additional workspaces appear contiguously with the primary ones.
+		const deferArchived = partitionFolders && this.expandedMoreFolders;
+		let archivedSection: ISessionSection | undefined;
 		for (const section of sections) {
 			if (moreFolderSectionIds.has(section.id)) {
 				moreFolderSections.push(section);
+			} else if (deferArchived && section.id === 'archived') {
+				archivedSection = section;
 			} else {
 				children.push(renderSection(section));
 			}
@@ -1130,6 +1132,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 				for (const section of moreFolderSections) {
 					children.push(renderSection(section));
 				}
+				if (archivedSection) {
+					children.push(renderSection(archivedSection));
+				}
 				children.push({
 					element: { showMore: true as const, kind: 'folders' as const, mode: 'less' as const, sectionLabel: SHOW_MORE_FOLDERS_LABEL, remainingCount: 0 },
 				});
@@ -1138,6 +1143,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 					element: { showMore: true as const, kind: 'folders' as const, mode: 'more' as const, sectionLabel: SHOW_MORE_FOLDERS_LABEL, remainingCount: moreFolderSections.length },
 				});
 			}
+		} else if (archivedSection) {
+			children.push(renderSection(archivedSection));
 		}
 
 		this.tree.setChildren(null, children);
@@ -1245,6 +1252,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			[IsSessionPinnedContext.key, this.isSessionPinned(element)],
 			[IsSessionArchivedContext.key, element.isArchived.get()],
 			[IsSessionReadContext.key, this.isSessionRead(element)],
+			[SessionItemHasBranchNameContext.key, !!element.workspace.get()?.folders[0]?.gitRepository?.branchName?.trim()],
 			['chatSessionType', element.sessionType],
 			[ChatSessionProviderIdContext.key, element.providerId],
 		];
@@ -1514,8 +1522,8 @@ function sessionMatchesFolder(session: ISession, folder: URI): boolean {
 		return false;
 	}
 	const folderStr = folder.toString();
-	for (const repo of workspace.repositories) {
-		if (repo.workingDirectory?.toString() === folderStr || repo.uri.toString() === folderStr) {
+	for (const folder of workspace.folders) {
+		if (folder.workingDirectory?.toString() === folderStr || folder.root.toString() === folderStr) {
 			return true;
 		}
 	}
