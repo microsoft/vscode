@@ -240,33 +240,18 @@ div.chat-terminal-content-part.progress-step > div.chat-terminal-output-containe
 	font-size: var(--vscode-chat-font-size-body-xs);
 }
 
-.chat-terminal-show-link {
+.chat-used-context-label .chat-terminal-show-link {
 	color: var(--vscode-textLink-foreground);
 	cursor: pointer;
 	text-decoration: none;
 }
 
-.chat-terminal-show-link:hover {
+.chat-used-context-label .chat-terminal-show-link:hover {
 	text-decoration: underline;
 	color: var(--vscode-textLink-activeForeground);
 }
 
-.chat-terminal-thinking-collapsible {
-	display: flex;
-	flex-wrap: wrap;
-	align-items: center;
-}
-
-.chat-terminal-thinking-collapsible > .chat-used-context-label {
-	flex: 1 1 auto;
-	min-width: 0;
-}
-
 .chat-terminal-show-link-container {
-	flex: 0 0 auto;
+	display: inline;
 	white-space: nowrap;
-}
-
-.chat-terminal-thinking-collapsible > .chat-terminal-thinking-content {
-	flex: 1 1 100%;
 }

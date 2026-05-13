@@ -1722,7 +1722,11 @@ export class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleConte
 		this._showLinkElement?.remove();
 		this._showLinkElement = undefined;
 		this._showLinkDisposables.value = undefined;
-		if (!this._isRunningInBackground || !this._onFocusTerminal) {
+		if (!this._isRunningInBackground || !this._onFocusTerminal || !this._collapseButton) {
+			return;
+		}
+		const buttonParent = this._collapseButton.element.parentElement;
+		if (!buttonParent) {
 			return;
 		}
 		const store = new DisposableStore();
@@ -1745,7 +1749,7 @@ export class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleConte
 			}
 		}));
 		container.appendChild(showLink);
-		this.domNode.appendChild(container);
+		buttonParent.appendChild(container);
 		this._showLinkElement = container;
 	}
 
