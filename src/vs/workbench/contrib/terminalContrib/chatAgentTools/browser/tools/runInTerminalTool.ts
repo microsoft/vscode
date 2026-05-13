@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
-import { DeferredPromise, timeout, type CancelablePromise } from '../../../../../../base/common/async.js';
+import { DeferredPromise, RunOnceScheduler, timeout, type CancelablePromise } from '../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
@@ -90,6 +90,12 @@ const TERMINAL_SANDBOX_DOCUMENTATION_URL = 'https://aka.ms/vscode-sandboxing';
 const TOOL_REFERENCE_NAME = 'runInTerminal';
 const LEGACY_TOOL_REFERENCE_FULL_NAMES = ['runCommands/runInTerminal'];
 const INPUT_NEEDED_NOTIFICATION_THROTTLE_MS = 5000;
+/**
+ * Time to wait for additional completions before flushing a batched
+ * steering notification. When multiple async terminals finish around
+ * the same time, this window lets them coalesce into a single message.
+ */
+const COMPLETION_BATCH_DELAY_MS = 500;
 
 function createPowerShellModelDescription(shell: string, isSandboxEnabled: boolean, allowToRunUnsandboxedCommands: boolean, networkDomains?: ITerminalSandboxResolvedNetworkDomains): string {
 	const isWinPwsh = isWindowsPowerShell(shell);
@@ -499,6 +505,18 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	 */
 	private readonly _backgroundNotifications = this._register(new DisposableMap<number>());
 
+	/**
+	 * Batches completion notifications per chat session so that multiple
+	 * async terminals finishing around the same time produce a single
+	 * combined steering message instead of N separate ones (#308932).
+	 */
+	private readonly _completionBatches = new Map<string /* session URI toString */, {
+		readonly scheduler: RunOnceScheduler;
+		readonly items: { termId: string; commandName: string; exitCode: number | undefined; output: string }[];
+		sendOptions: { userSelectedModelId?: string; modeInfo?: IChatRequestModeInfo; userSelectedTools?: IObservable<UserSelectedTools> };
+		chatSessionResource: URI;
+	}>();
+
 	// Immutable window state
 	protected readonly _osBackend: Promise<OperatingSystem>;
 
@@ -676,6 +694,13 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		this._register(this._chatService.onDidDisposeSession(e => {
 			for (const resource of e.sessionResources) {
 				this._cleanupSessionTerminals(resource);
+				// Cancel any pending batched notifications for this session
+				const key = resource.toString();
+				const batch = this._completionBatches.get(key);
+				if (batch) {
+					batch.scheduler.dispose();
+					this._completionBatches.delete(key);
+				}
 			}
 		}));
 
@@ -2600,21 +2625,11 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			disposeNotification();
 
 			const exitCode = command.exitCode;
-			const exitCodeText = exitCode !== undefined ? ` with exit code ${exitCode}` : '';
 			const currentOutput = execution.getOutput();
-			const message = `[Terminal ${termId} notification: command completed${exitCodeText}. Use send_to_terminal to send another command or kill_terminal to stop it.]\nTerminal output:\n${currentOutput}`;
 
-			this._logService.debug(`RunInTerminalTool: Command completed in background terminal ${termId}, notifying chat session`);
+			this._logService.debug(`RunInTerminalTool: Command completed in background terminal ${termId}, enqueuing batched notification`);
 
-			this._chatService.sendRequest(chatSessionResource, message, {
-				...sendOptions,
-				queue: ChatRequestQueueKind.Steering,
-				isSystemInitiated: true,
-				systemInitiatedLabel: localize('terminalCommandCompleted', "`{0}` completed", commandName),
-				terminalExecutionId: termId,
-			}).catch(e => {
-				this._logService.warn(`RunInTerminalTool: Failed to send completion notification for terminal ${termId}`, e);
-			});
+			this._enqueueCompletionNotification(chatSessionResource, termId, commandName, exitCode, currentOutput, sendOptions);
 		}));
 
 		// Clean up all background resources when the terminal is disposed
@@ -2669,6 +2684,82 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}));
 
 		this._backgroundNotifications.set(notificationKey, store);
+	}
+
+	/**
+	 * Enqueues a completion notification for batching. If multiple terminals
+	 * in the same session complete within {@link COMPLETION_BATCH_DELAY_MS},
+	 * they are flushed as a single combined steering message.
+	 */
+	private _enqueueCompletionNotification(
+		chatSessionResource: URI,
+		termId: string,
+		commandName: string,
+		exitCode: number | undefined,
+		output: string,
+		sendOptions: { userSelectedModelId?: string; modeInfo?: IChatRequestModeInfo; userSelectedTools?: IObservable<UserSelectedTools> },
+	): void {
+		const key = chatSessionResource.toString();
+		let batch = this._completionBatches.get(key);
+		if (!batch) {
+			batch = {
+				scheduler: new RunOnceScheduler(() => this._flushCompletionBatch(key), COMPLETION_BATCH_DELAY_MS),
+				items: [],
+				sendOptions,
+				chatSessionResource,
+			};
+			this._completionBatches.set(key, batch);
+		}
+		batch.items.push({ termId, commandName, exitCode, output });
+		batch.scheduler.schedule();
+	}
+
+	/**
+	 * Flushes all queued completion notifications for a session into a
+	 * single steering message.
+	 */
+	private _flushCompletionBatch(key: string): void {
+		const batch = this._completionBatches.get(key);
+		if (!batch || batch.items.length === 0) {
+			return;
+		}
+		this._completionBatches.delete(key);
+
+		const { items, sendOptions, chatSessionResource } = batch;
+
+		let message: string;
+		let systemInitiatedLabel: string;
+
+		if (items.length === 1) {
+			const item = items[0];
+			const exitCodeText = item.exitCode !== undefined ? ` with exit code ${item.exitCode}` : '';
+			message = `[Terminal ${item.termId} notification: command completed${exitCodeText}. Use send_to_terminal to send another command or kill_terminal to stop it.]\nTerminal output:\n${item.output}`;
+			systemInitiatedLabel = localize('terminalCommandCompleted', "`{0}` completed", item.commandName);
+		} else {
+			const summary = items.map(item => {
+				const exitCodeText = item.exitCode !== undefined ? ` (exit code ${item.exitCode})` : '';
+				return `- Terminal ${item.termId} (\`${item.commandName}\`)${exitCodeText}`;
+			}).join('\n');
+			const outputs = items.map(item =>
+				`Terminal ${item.termId} output:\n${item.output}`
+			).join('\n\n');
+			message = `[Terminal notification: ${items.length} commands completed. Use send_to_terminal to send another command or kill_terminal to stop it.]\n${summary}\n\n${outputs}`;
+			systemInitiatedLabel = localize('terminalCommandsCompleted', "{0} terminal commands completed", items.length);
+		}
+
+		this._logService.debug(`RunInTerminalTool: Flushing ${items.length} completion notification(s) for session`);
+
+		this._chatService.sendRequest(chatSessionResource, message, {
+			...sendOptions,
+			queue: ChatRequestQueueKind.Steering,
+			isSystemInitiated: true,
+			systemInitiatedLabel,
+			terminalExecutionId: items.length === 1 ? items[0].termId : undefined,
+		}).catch(e => {
+			this._logService.warn(`RunInTerminalTool: Failed to send batched completion notification`, e);
+		});
+
+		batch.scheduler.dispose();
 	}
 
 	/**
