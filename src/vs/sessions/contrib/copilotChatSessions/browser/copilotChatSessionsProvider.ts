@@ -23,7 +23,7 @@ import { AgentSessionProviders, AgentSessionTarget } from '../../../../workbench
 import { IChatService, IChatSendRequestOptions } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatResponseModel } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ChatSessionStatus, IChatSessionsService, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, SessionType, IChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { ISession, IChat, ISessionGitRepository, ISessionFolder, ISessionWorkspace, SessionStatus, GITHUB_REMOTE_FILE_SCHEME, IGitHubInfo, CopilotCLISessionType, CopilotCloudSessionType, ClaudeCodeSessionType, LocalSessionType, ISessionType, ISessionWorkspaceBrowseAction, ISessionFileChange, sessionFileChangesEqual, toSessionId, SESSION_WORKSPACE_GROUP_LOCAL, ISessionChangeset, IChatCheckpoints } from '../../../services/sessions/common/session.js';
+import { ISession, IChat, ISessionGitRepository, ISessionFolder, ISessionWorkspace, SessionStatus, GITHUB_REMOTE_FILE_SCHEME, IGitHubInfo, ISessionType, ISessionWorkspaceBrowseAction, ISessionFileChange, sessionFileChangesEqual, toSessionId, SESSION_WORKSPACE_GROUP_LOCAL, ISessionChangeset, IChatCheckpoints } from '../../../services/sessions/common/session.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, isChatPermissionLevel } from '../../../../workbench/contrib/chat/common/constants.js';
 import { basename, dirname, isEqual } from '../../../../base/common/resources.js';
 import { ISendRequestOptions, ISessionChangeEvent, ISessionsProvider } from '../../../services/sessions/common/sessionsProvider.js';
@@ -47,6 +47,28 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { IGitHubService } from '../../github/browser/githubService.js';
 import { computePullRequestIcon, GitHubPullRequestState } from '../../github/common/types.js';
 import { structuralEquals } from '../../../../base/common/equals.js';
+import { CopilotCLISessionType } from '../../agentHost/browser/baseAgentHostSessionsProvider.js';
+
+/** Local session type — in-process VS Code chat, no background agent or worktree. */
+export const LocalSessionType: ISessionType = {
+	id: 'local',
+	label: localize('localSession', "Local"),
+	icon: Codicon.vm,
+};
+
+/** Claude Code session type — local agent powered by Claude. */
+export const ClaudeCodeSessionType: ISessionType = {
+	id: 'claude-code',
+	label: localize('claudeCode', "Claude"),
+	icon: Codicon.claude,
+};
+
+/** Copilot Cloud session type - cloud-hosted agent. */
+export const CopilotCloudSessionType: ISessionType = {
+	id: 'copilot-cloud-agent',
+	label: localize('copilotCloud', "Cloud"),
+	icon: Codicon.cloud,
+};
 
 const SESSION_WORKSPACE_GROUP_GITHUB = localize('sessionWorkspaceGroup.github', "GitHub");
 const STORAGE_KEY_ISOLATION_MODE = 'sessions.isolationPicker.selectedMode';
@@ -1512,6 +1534,7 @@ class AgentSessionAdapter implements ICopilotChatSession {
 			group: repoUri?.scheme === GITHUB_REMOTE_FILE_SCHEME ? SESSION_WORKSPACE_GROUP_GITHUB : SESSION_WORKSPACE_GROUP_LOCAL,
 			folders: [folder],
 			requiresWorkspaceTrust: session.providerType !== AgentSessionProviders.Cloud,
+			isVirtualWorkspace: session.providerType === AgentSessionProviders.Cloud,
 		};
 	}
 
@@ -2646,6 +2669,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 				group: SESSION_WORKSPACE_GROUP_GITHUB,
 				folders: [folder],
 				requiresWorkspaceTrust: false,
+				isVirtualWorkspace: true,
 			};
 		}
 		return undefined;
@@ -2669,7 +2693,8 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			group: uri.scheme === GITHUB_REMOTE_FILE_SCHEME ? SESSION_WORKSPACE_GROUP_GITHUB : SESSION_WORKSPACE_GROUP_LOCAL,
 			icon: this._iconFromUri(uri),
 			folders: [folder],
-			requiresWorkspaceTrust: uri.scheme !== GITHUB_REMOTE_FILE_SCHEME
+			requiresWorkspaceTrust: uri.scheme !== GITHUB_REMOTE_FILE_SCHEME,
+			isVirtualWorkspace: uri.scheme === GITHUB_REMOTE_FILE_SCHEME,
 		};
 	}
 
@@ -3109,7 +3134,9 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			lastTurnEnd: chatsObs.map((chats, reader) => this._latestDate(chats, c => c.lastTurnEnd.read(reader))),
 			chats: chatsObs,
 			mainChat,
-			capabilities: { supportsMultipleChats: primaryChat.sessionType === CopilotCLISessionType.id && this._isMultiChatEnabled() },
+			capabilities: {
+				supportsMultipleChats: primaryChat.sessionType === CopilotCLISessionType.id && this._isMultiChatEnabled(),
+			},
 		};
 		this._sessionGroupCache.set(sessionId, session);
 		return session;

@@ -646,7 +646,7 @@
     "score": 0.9
   },
   {
-    "name": "edit-agent-claude-3.5-sonnet [panel] [typescript] - issue #8098: extract function to unseen file - (claude-3.5-sonnet)",
+    "name": "edit-agent-claude-sonnet-4.5 [panel] [typescript] - issue #8098: extract function to unseen file - (claude-sonnet-4.5)",
     "optional": true,
     "contentFilterCount": 0,
     "passCount": 10,
@@ -5840,6 +5840,104 @@
     "passCount": 10,
     "failCount": 0,
     "score": 1
+  },
+  {
+    "name": "multifile-edit-claude [panel] - create a README from two other files - (claude-sonnet-4.5)",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "multifile-edit-claude [panel] - issue #8131: properly using dotenv in this file - (claude-sonnet-4.5)",
+    "contentFilterCount": 0,
+    "passCount": 0,
+    "failCount": 10,
+    "score": 0
+  },
+  {
+    "name": "multifile-edit-claude [panel] - multiple edits on the same file - (claude-sonnet-4.5)",
+    "contentFilterCount": 0,
+    "passCount": 0,
+    "failCount": 10,
+    "score": 0
+  },
+  {
+    "name": "multifile-edit-claude [panel] - multiple questions - (claude-sonnet-4.5)",
+    "contentFilterCount": 0,
+    "passCount": 4,
+    "failCount": 6,
+    "score": 0.4
+  },
+  {
+    "name": "multifile-edit-claude [panel] - unicode string sequences - (claude-sonnet-4.5)",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "multifile-edit-claude [panel] - work with untitled files - (claude-sonnet-4.5)",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "multifile-edit-claude [panel] [typescript] - add a command and dependency to a VS Code extension - (claude-sonnet-4.5)",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "multifile-edit-claude [panel] [typescript] - add validation logic to three files - (claude-sonnet-4.5)",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "multifile-edit-claude [panel] [typescript] - change library used by two files - (claude-sonnet-4.5)",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "multifile-edit-claude [panel] [typescript] - does not delete code (big file) #15475",
+    "contentFilterCount": 0,
+    "passCount": 0,
+    "failCount": 10,
+    "score": 0
+  },
+  {
+    "name": "multifile-edit-claude [panel] [typescript] - fs provider: move function from one file to another - (claude-sonnet-4.5)",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "multifile-edit-claude [panel] [typescript] - import new helper function - (claude-sonnet-4.5)",
+    "contentFilterCount": 0,
+    "passCount": 10,
+    "failCount": 0,
+    "score": 1
+  },
+  {
+    "name": "multifile-edit-claude [panel] [typescript] - issue #8098: extract function to unseen file - (claude-sonnet-4.5)",
+    "contentFilterCount": 0,
+    "passCount": 3,
+    "failCount": 7,
+    "score": 0.3
+  },
+  {
+    "name": "multifile-edit-claude [panel] [typescript] - Issue #9647 - (claude-sonnet-4.5)",
+    "contentFilterCount": 0,
+    "passCount": 6,
+    "failCount": 4,
+    "score": 0.6
   },
   {
     "name": "new (prompt) [panel] [cpp] - File contents generation: src/fibModule.cpp in A nodejs native node module that has a fib function i…",

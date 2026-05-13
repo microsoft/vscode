@@ -164,7 +164,7 @@ suite('buildModelPickerItems', () => {
 		assert.strictEqual(provider.getAriaLabel({
 			kind: ActionListItemKind.Action,
 			label: 'Claude Sonnet 4.6',
-			description: new MarkdownString('$(circle-filled)$(circle-filled)$(circle)$(circle)'),
+			description: 'Copilot',
 			ariaDescription: 'Medium cost',
 		} as IActionListItem<IActionWidgetDropdownAction>), 'Claude Sonnet 4.6, Medium cost');
 	});
@@ -907,19 +907,15 @@ suite('buildModelPickerItems', () => {
 		assert.strictEqual(gptItem.item?.description, undefined);
 	});
 
-	test('model with priceCategory shows MarkdownString description with circle indicators', () => {
+	test('model with priceCategory shows ariaDescription with price label', () => {
 		const auto = createAutoModel();
 		const modelA = createModel('gpt-4o', 'GPT-4o');
 		modelA.metadata = { ...modelA.metadata, priceCategory: 'medium' } as ILanguageModelChatMetadata;
 		const items = callBuild([auto, modelA], { isUBB: true });
 		const gptItem = getActionItems(items).find(a => a.label === 'GPT-4o');
 		assert.ok(gptItem);
-		// When priceCategory is set, the action's plain description should be undefined
-		assert.strictEqual(gptItem.item?.description, undefined);
-		// The item's description should be a MarkdownString with circle icons
-		assert.ok(gptItem.description instanceof MarkdownString);
-		assert.ok(gptItem.description.value.includes('circle-filled'));
-		assert.ok(gptItem.description.value.includes('circle'));
+		// Price category is no longer shown as circle indicators in the description
+		assert.strictEqual(gptItem.description, undefined);
 		// ariaDescription should be a readable label for screen readers
 		assert.ok(typeof gptItem.ariaDescription === 'string');
 		assert.ok(!gptItem.ariaDescription.includes('circle'));

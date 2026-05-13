@@ -79,8 +79,16 @@ export class AgentHostHeadlessTerminal extends Disposable {
 		return this._writeBarrier;
 	}
 
+	whenPtyDataFlushed(): Promise<void> {
+		return this._writeBarrier.catch(() => undefined);
+	}
+
 	resize(cols: number, rows: number): void {
 		this._terminal.resize(cols, rows);
+	}
+
+	isBracketedPasteMode(): boolean {
+		return this._terminal.modes.bracketedPasteMode;
 	}
 
 	clear(): void {
