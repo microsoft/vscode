@@ -801,9 +801,9 @@ export class ChatStatusDashboard extends DomWidget {
 			if (quotas.completions && !quotas.completions.unlimited) { allQuotas.push(quotas.completions); }
 
 			const maxUsedPercentage = allQuotas.length > 0 ? Math.max(...allQuotas.map(q => Math.max(0, 100 - q.percentRemaining))) : 0;
-			const isPooledExhausted = quotas.premiumChat?.unlimited && quotas.premiumChat.hasQuota === false;
+			const showExhaustedPoolMessage = quotas.premiumChat?.unlimited && quotas.premiumChat.hasQuota === false;
 
-			if ((maxUsedPercentage >= 100 || isPooledExhausted) && additionalUsageEnabled) {
+			if ((maxUsedPercentage >= 100 || showExhaustedPoolMessage) && additionalUsageEnabled) {
 				quotaCallout.style.display = '';
 				quotaCallout.className = 'quota-callout info';
 				calloutIcon.className = `callout-icon ${ThemeIcon.asClassName(Codicon.info)}`;
@@ -817,7 +817,7 @@ export class ChatStatusDashboard extends DomWidget {
 				calloutText.textContent = isUsageBasedBilling
 					? localize('quotaAdditionalUsageApproaching', "Once the limit is reached, additional budget will be used.")
 					: localize('quotaBudgetApproaching', "Once the limit is reached, premium request budget will be used.");
-			} else if ((maxUsedPercentage >= 100 || isPooledExhausted) && !additionalUsageEnabled) {
+			} else if ((maxUsedPercentage >= 100 || showExhaustedPoolMessage) && !additionalUsageEnabled) {
 				quotaCallout.style.display = '';
 				quotaCallout.className = 'quota-callout info';
 				calloutIcon.className = `callout-icon ${ThemeIcon.asClassName(Codicon.info)}`;
