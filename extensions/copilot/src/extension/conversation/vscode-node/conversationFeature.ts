@@ -19,13 +19,14 @@ import { ISettingsEditorSearchService } from '../../../platform/settingsEditor/c
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
 import { ChatExtGlobalPerfMark, markChatExtGlobal } from '../../../util/common/performance';
 import { isUri } from '../../../util/common/types';
-import { DeferredPromise } from '../../../util/vs/base/common/async';
+import { DeferredPromise, raceTimeout } from '../../../util/vs/base/common/async';
 import { CancellationToken } from '../../../util/vs/base/common/cancellation';
 import { DisposableStore, IDisposable, combinedDisposable } from '../../../util/vs/base/common/lifecycle';
 import { URI } from '../../../util/vs/base/common/uri';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
+import { byokLanguageModelProviderNames } from '../../byok/vscode-node/byokContribution';
 import { ContributionCollection, IExtensionContribution } from '../../common/contributions';
-import { vscodeNodeChatContributions } from '../../extension/vscode-node/contributions';
+import { vscodeNodeChatContributions, vscodeNodeChatSignedInContributions } from '../../extension/vscode-node/contributions';
 import { IMergeConflictService } from '../../git/common/mergeConflictService';
 import { registerInlineChatCommands } from '../../inlineChat/vscode-node/inlineChatCommands';
 import { INewWorkspacePreviewContentManager } from '../../intents/node/newIntent';
@@ -43,6 +44,8 @@ import { startFeedbackCollection } from './feedbackCollection';
 import { registerNewWorkspaceIntentCommand } from './newWorkspaceFollowup';
 import { generateTerminalFixes, setLastCommandMatchResult } from './terminalFixGenerator';
 
+const BYOK_LANGUAGE_MODEL_AVAILABILITY_TIMEOUT = 5000;
+
 /**
  * Class that checks if users are allowed to use the conversation feature,
  * and registers the relevant providers if they are.
@@ -52,10 +55,16 @@ export class ConversationFeature implements IExtensionContribution {
 	private readonly _disposables = new DisposableStore();
 	/** Disposables that are cleared whenever feature enablement is toggled */
 	private readonly _activatedDisposables = new DisposableStore();
-	/** For the conversation features to be enabled, the proxy needs to return a token with k/v pair: chat=1 */
+	/** Disposables that are cleared whenever signed-in feature enablement is toggled */
+	private readonly _signedInDisposables = new DisposableStore();
+	/** Whether the conversation feature is currently enabled for Copilot auth or BYOK models. */
 	public _enabled;
 	/** The feature is marked as active the first time it is enabled. */
 	private _activated;
+	private _signedInContributionsRegistered = false;
+	private _hasByokLanguageModels = false;
+	private _byokLanguageModelAvailabilityCheck = 0;
+	private _disposed = false;
 
 	/** Whether or not the search provider has been registered */
 	private _searchProviderRegistered = false;
@@ -85,29 +94,34 @@ export class ConversationFeature implements IExtensionContribution {
 		this._enabled = false;
 		this._activated = false;
 
-		// Register Copilot token listener
-		this.registerCopilotTokenListener();
-
 		const activationBlockerDeferred = new DeferredPromise<void>();
 		this.activationBlocker = activationBlockerDeferred.p;
+
+		this._disposables.add(vscode.lm.onDidChangeChatModels(() => {
+			void this.updateByokLanguageModelAvailability();
+		}));
+
 		if (authenticationService.copilotToken) {
 			this.logService.info(`ConversationFeature: Copilot token already available`);
-			this.activated = true;
-			activationBlockerDeferred.complete();
 		} else {
 			markChatExtGlobal(ChatExtGlobalPerfMark.WillWaitForCopilotToken);
-			this.logService.info(`ConversationFeature: Waiting for copilot token to activate conversation feature`);
+			this.logService.info(`ConversationFeature: Waiting for copilot token or BYOK model to activate conversation feature`);
 		}
+		this.updateFeatureEnablement();
+		void Promise.resolve().then(() => {
+			if (this._disposed) {
+				return;
+			}
+			return this.updateByokLanguageModelAvailability();
+		}).finally(() => activationBlockerDeferred.complete());
 
 		this._disposables.add(authenticationService.onDidAuthenticationChange(async () => {
 			const hasSession = !!authenticationService.copilotToken;
 			this.logService.info(`ConversationFeature: onDidAuthenticationChange has token: ${hasSession}`);
 			if (hasSession) {
 				markChatExtGlobal(ChatExtGlobalPerfMark.DidWaitForCopilotToken);
-				this.activated = true;
-			} else {
-				this.activated = false;
 			}
+			this.updateFeatureEnablement();
 
 			activationBlockerDeferred.complete();
 		}));
@@ -139,21 +153,25 @@ export class ConversationFeature implements IExtensionContribution {
 
 		if (!value) {
 			this.logService.info('ConversationFeature: Deactivating contributions');
+			this._signedInDisposables.clear();
+			this._signedInContributionsRegistered = false;
+			this._searchProviderRegistered = false;
+			this._settingsSearchProviderRegistered = false;
 			this._activatedDisposables.clear();
 		} else {
 			this.logService.info('ConversationFeature: Activating contributions');
 			const options: IConversationOptions = this.conversationOptions;
 
-			this._activatedDisposables.add(this.registerProviders());
-			this._activatedDisposables.add(this.registerCommands(options));
-			this._activatedDisposables.add(this.registerRelatedInformationProviders());
 			this._activatedDisposables.add(this.registerParticipants(options));
 			this._activatedDisposables.add(this.instantiationService.createInstance(ContributionCollection, vscodeNodeChatContributions));
+			this.updateSignedInFeatures();
 		}
 	}
 
 	dispose(): void {
+		this._disposed = true;
 		this._activated = false;
+		this._signedInDisposables.dispose();
 		this._activatedDisposables.dispose();
 		this._disposables?.dispose();
 	}
@@ -170,9 +188,8 @@ export class ConversationFeature implements IExtensionContribution {
 		} else {
 			this._searchProviderRegistered = true;
 
-			// Don't register for no auth user
-			if (this.authenticationService.copilotToken?.isNoAuthUser) {
-				this.logService.debug('ConversationFeature: Skipping search provider registration - no GitHub session available');
+			if (!this.authenticationService.copilotToken || this.authenticationService.copilotToken.isNoAuthUser) {
+				this.logService.debug('ConversationFeature: Skipping search provider registration - no Copilot token available');
 				return;
 			}
 
@@ -182,6 +199,10 @@ export class ConversationFeature implements IExtensionContribution {
 
 	private registerSettingsSearchProvider(): IDisposable | undefined {
 		if (this._settingsSearchProviderRegistered) {
+			return;
+		}
+		if (!this.authenticationService.copilotToken) {
+			this.logService.debug('ConversationFeature: Skipping settings search provider registration - no Copilot token available');
 			return;
 		}
 
@@ -340,12 +361,70 @@ export class ConversationFeature implements IExtensionContribution {
 		return disposables;
 	}
 
-	private registerCopilotTokenListener() {
-		this._disposables.add(this.authenticationService.onDidAuthenticationChange(() => {
-			const chatEnabled = this.authenticationService.copilotToken !== undefined;
-			this.logService.info(`copilot token sku: ${this.authenticationService.copilotToken?.sku ?? ''}`);
-			this.enabled = chatEnabled ?? false;
-		}));
+	private updateFeatureEnablement(): void {
+		const chatEnabled = this.authenticationService.copilotToken !== undefined || this._hasByokLanguageModels;
+		if (this.authenticationService.copilotToken) {
+			this.logService.info(`copilot token sku: ${this.authenticationService.copilotToken.sku ?? ''}`);
+		}
+		this.enabled = chatEnabled;
+		if (!chatEnabled) {
+			this.activated = false;
+		}
+		this.updateSignedInFeatures();
+	}
+
+	private updateSignedInFeatures(): void {
+		if (!this.activated) {
+			return;
+		}
+
+		if (!this.authenticationService.copilotToken) {
+			if (this._signedInContributionsRegistered) {
+				this.logService.info('ConversationFeature: Deactivating signed-in contributions');
+				this._signedInDisposables.clear();
+				this._signedInContributionsRegistered = false;
+				this._searchProviderRegistered = false;
+				this._settingsSearchProviderRegistered = false;
+			}
+			return;
+		}
+
+		if (this._signedInContributionsRegistered) {
+			return;
+		}
+
+		this.logService.info('ConversationFeature: Activating signed-in contributions');
+		const options: IConversationOptions = this.conversationOptions;
+		this._signedInDisposables.add(this.registerProviders());
+		this._signedInDisposables.add(this.registerCommands(options));
+		this._signedInDisposables.add(this.registerRelatedInformationProviders());
+		this._signedInDisposables.add(this.instantiationService.createInstance(ContributionCollection, vscodeNodeChatSignedInContributions));
+		this._signedInContributionsRegistered = true;
+	}
+
+	private async updateByokLanguageModelAvailability(): Promise<void> {
+		const check = ++this._byokLanguageModelAvailabilityCheck;
+		const results = await Promise.all(byokLanguageModelProviderNames.map(vendor => this.hasByokLanguageModels(vendor)));
+		const hasByokLanguageModels = results.some(Boolean);
+
+		if (this._disposed || check !== this._byokLanguageModelAvailabilityCheck) {
+			return;
+		}
+
+		this._hasByokLanguageModels = hasByokLanguageModels;
+		this.updateFeatureEnablement();
+	}
+
+	private async hasByokLanguageModels(vendor: string): Promise<boolean> {
+		try {
+			const models = await raceTimeout(Promise.resolve(vscode.lm.selectChatModels({ vendor })), BYOK_LANGUAGE_MODEL_AVAILABILITY_TIMEOUT, () => {
+				this.logService.debug(`ConversationFeature: Timed out checking BYOK models for provider ${vendor}`);
+			});
+			return !!models?.length;
+		} catch (error) {
+			this.logService.debug(`ConversationFeature: Failed to check BYOK models for provider ${vendor}: ${error instanceof Error ? error.message : String(error)}`);
+			return false;
+		}
 	}
 
 	private registerTerminalQuickFixProviders() {

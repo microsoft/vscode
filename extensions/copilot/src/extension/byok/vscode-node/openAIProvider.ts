@@ -8,7 +8,7 @@ import { ILogService } from '../../../platform/log/common/logService';
 import { IFetcherService } from '../../../platform/networking/common/fetcherService';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
-import { BYOKKnownModels } from '../common/byokProvider';
+import { BYOKKnownModels, BYOKModelCapabilities } from '../common/byokProvider';
 import { AbstractOpenAICompatibleLMProvider } from './abstractLanguageModelChatProvider';
 import { IBYOKStorageService } from './byokStorageService';
 
@@ -43,6 +43,14 @@ export class OAIBYOKLMProvider extends AbstractOpenAICompatibleLMProvider {
 		return 'https://api.openai.com/v1';
 	}
 
+	protected override resolveModelCapabilities(modelData: unknown): BYOKModelCapabilities | undefined {
+		const modelId = this.getModelId(modelData);
+		if (!modelId || !isOpenAIChatModel(modelId)) {
+			return undefined;
+		}
+		return this.createGenericModelCapabilities(modelId);
+	}
+
 	protected override getModelInfo(modelId: string, modelUrl: string): IChatModelInformation {
 		const modelInfo = super.getModelInfo(modelId, modelUrl);
 		modelInfo.supported_endpoints = [
@@ -51,4 +59,8 @@ export class OAIBYOKLMProvider extends AbstractOpenAICompatibleLMProvider {
 		];
 		return modelInfo;
 	}
+}
+
+function isOpenAIChatModel(modelId: string): boolean {
+	return /^(gpt|chatgpt|codex)-/i.test(modelId) || /^o\d(?:-|$)/i.test(modelId);
 }

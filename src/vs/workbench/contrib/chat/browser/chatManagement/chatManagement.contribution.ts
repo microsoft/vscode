@@ -29,16 +29,12 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 
 const languageModelsOpenSettingsIcon = registerIcon('language-models-open-settings', Codicon.goToFile, localize('languageModelsOpenSettings', 'Icon for open language models settings commands.'));
 
-const LANGUAGE_MODELS_ENTITLEMENT_PRECONDITION = ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.or(
-	ChatContextKeys.Entitlement.planFree,
-	ChatContextKeys.Entitlement.planEdu,
-	ChatContextKeys.Entitlement.planPro,
-	ChatContextKeys.Entitlement.planProPlus,
-	ChatContextKeys.Entitlement.planMax,
-	ChatContextKeys.Entitlement.planBusiness,
-	ChatContextKeys.Entitlement.planEnterprise,
-	ChatContextKeys.Entitlement.internal
-));
+const LANGUAGE_MODELS_SETUP_PRECONDITION = ContextKeyExpr.and(
+	ChatContextKeys.Setup.hidden.toNegated(),
+	ChatContextKeys.Setup.disabled.toNegated(),
+	ChatContextKeys.Setup.disabledInWorkspace.toNegated(),
+	ChatContextKeys.Setup.untrusted.toNegated()
+);
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(
@@ -68,6 +64,37 @@ class ModelsManagementEditorInputSerializer implements IEditorSerializer {
 
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(ModelsManagementEditorInput.ID, ModelsManagementEditorInputSerializer);
 
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: MANAGE_CHAT_COMMAND_ID,
+			title: localize2('openAiManagement', "Manage Language Models"),
+			category: CHAT_CATEGORY,
+			f1: true,
+		});
+	}
+	async run(accessor: ServicesAccessor) {
+		const editorService = accessor.get(IEditorService);
+		return editorService.openEditor(new ModelsManagementEditorInput(), { pinned: true });
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.openLanguageModelsJson',
+			title: localize2('openLanguageModelsJson', "Open Language Models (JSON)"),
+			category: CHAT_CATEGORY,
+			f1: true,
+		});
+	}
+
+	async run(accessor: ServicesAccessor) {
+		const languageModelsConfigurationService = accessor.get(ILanguageModelsConfigurationService);
+		await languageModelsConfigurationService.configureLanguageModels();
+	}
+});
+
 class ChatManagementActionsContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.chatManagementActions';
@@ -81,22 +108,6 @@ class ChatManagementActionsContribution extends Disposable implements IWorkbench
 	}
 
 	private registerChatManagementActions() {
-		this._register(registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: MANAGE_CHAT_COMMAND_ID,
-					title: localize2('openAiManagement', "Manage Language Models"),
-					category: CHAT_CATEGORY,
-					precondition: LANGUAGE_MODELS_ENTITLEMENT_PRECONDITION,
-					f1: true,
-				});
-			}
-			async run(accessor: ServicesAccessor) {
-				const editorService = accessor.get(IEditorService);
-				return editorService.openEditor(new ModelsManagementEditorInput(), { pinned: true });
-			}
-		}));
-
 		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
@@ -119,23 +130,6 @@ class ChatManagementActionsContribution extends Disposable implements IWorkbench
 				return null;
 			}
 		}));
-
-		this._register(registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: 'workbench.action.openLanguageModelsJson',
-					title: localize2('openLanguageModelsJson', "Open Language Models (JSON)"),
-					category: CHAT_CATEGORY,
-					precondition: LANGUAGE_MODELS_ENTITLEMENT_PRECONDITION,
-					f1: true,
-				});
-			}
-
-			async run(accessor: ServicesAccessor) {
-				const languageModelsConfigurationService = accessor.get(ILanguageModelsConfigurationService);
-				await languageModelsConfigurationService.configureLanguageModels();
-			}
-		}));
 	}
 
 	private registerLanguageModelsEditorTitleActions() {
@@ -144,7 +138,7 @@ class ChatManagementActionsContribution extends Disposable implements IWorkbench
 			CONTEXT_MODELS_EDITOR.toNegated(),
 			ResourceContextKey.Resource.isEqualTo(modelsConfigurationFile.toString()),
 			ContextKeyExpr.not('isInDiffEditor'),
-			LANGUAGE_MODELS_ENTITLEMENT_PRECONDITION
+			LANGUAGE_MODELS_SETUP_PRECONDITION
 		);
 
 		MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
@@ -160,7 +154,7 @@ class ChatManagementActionsContribution extends Disposable implements IWorkbench
 
 		const openLanguageModelsJsonWhen = ContextKeyExpr.and(
 			CONTEXT_MODELS_EDITOR,
-			LANGUAGE_MODELS_ENTITLEMENT_PRECONDITION
+			LANGUAGE_MODELS_SETUP_PRECONDITION
 		);
 
 		MenuRegistry.appendMenuItem(MenuId.EditorTitle, {

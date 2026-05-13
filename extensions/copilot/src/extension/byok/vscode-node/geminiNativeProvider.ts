@@ -24,6 +24,15 @@ import { apiMessageToGeminiMessage, geminiMessagesToRawMessagesForLogging } from
 import { AbstractLanguageModelChatProvider, ExtendedLanguageModelChatInformation, LanguageModelChatConfiguration } from './abstractLanguageModelChatProvider';
 import { IBYOKStorageService } from './byokStorageService';
 
+interface GeminiModelData {
+	name?: string;
+	displayName?: string;
+	inputTokenLimit?: number;
+	outputTokenLimit?: number;
+	supportedActions?: string[];
+	supportedGenerationMethods?: string[];
+}
+
 export class GeminiNativeBYOKLMProvider extends AbstractLanguageModelChatProvider {
 
 	public static readonly providerName = 'Gemini';
@@ -56,10 +65,18 @@ export class GeminiNativeBYOKLMProvider extends AbstractLanguageModelChatProvide
 					continue; // Skip models without names
 				}
 
-				// Enable only known models.
-				if (this._knownModels && this._knownModels[modelId]) {
-					modelList[modelId] = this._knownModels[modelId];
+				let modelCapabilities = this._knownModels?.[modelId];
+				if (!modelCapabilities) {
+					modelCapabilities = this.resolveModelCapabilities(model);
+					if (!modelCapabilities) {
+						continue;
+					}
+					if (!this._knownModels) {
+						this._knownModels = {};
+					}
+					this._knownModels[modelId] = modelCapabilities;
 				}
+				modelList[modelId] = modelCapabilities;
 			}
 			return byokKnownModelsToAPIInfo(this._name, modelList);
 		} catch (e) {
@@ -74,6 +91,25 @@ export class GeminiNativeBYOKLMProvider extends AbstractLanguageModelChatProvide
 			this._logService.error(error, `Error fetching available ${GeminiNativeBYOKLMProvider.providerName} models`);
 			throw error;
 		}
+	}
+
+	private resolveModelCapabilities(modelData: unknown): BYOKModelCapabilities | undefined {
+		const model = modelData as GeminiModelData;
+		if (!model.name) {
+			return undefined;
+		}
+		const supportedActions = model.supportedActions ?? model.supportedGenerationMethods;
+		if (supportedActions?.length && !supportedActions.includes('generateContent')) {
+			return undefined;
+		}
+
+		return {
+			name: model.displayName ?? model.name.replace(/^models\//, ''),
+			maxInputTokens: model.inputTokenLimit ?? 100000,
+			maxOutputTokens: model.outputTokenLimit ?? 8192,
+			toolCalling: true,
+			vision: true
+		};
 	}
 
 	async provideLanguageModelChatResponse(model: ExtendedLanguageModelChatInformation<LanguageModelChatConfiguration>, messages: Array<LanguageModelChatMessage | LanguageModelChatMessage2>, options: ProvideLanguageModelChatResponseOptions, progress: Progress<LanguageModelResponsePart2>, token: CancellationToken): Promise<any> {

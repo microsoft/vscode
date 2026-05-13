@@ -134,6 +134,18 @@ suite('LanguageModels', function () {
 		assert.deepStrictEqual(result2.length, 0);
 	});
 
+	test('vendor with no registered provider is resolved empty', async function () {
+		const modelChange = new DeferredPromise<string>();
+		store.add(languageModels.onDidChangeLanguageModels(vendor => modelChange.complete(vendor)));
+
+		const result = await languageModels.selectLanguageModels({ vendor: 'actual-vendor' });
+
+		assert.deepStrictEqual(result, []);
+		assert.strictEqual(await modelChange.p, 'actual-vendor');
+		assert.strictEqual(languageModels.hasResolvedVendor('actual-vendor'), true);
+		assert.strictEqual(activationEvents.has('onLanguageModelChatProvider:actual-vendor'), true);
+	});
+
 	test('sendChatRequest returns a response-stream', async function () {
 
 		store.add(languageModels.registerLanguageModelProvider('actual-vendor', {

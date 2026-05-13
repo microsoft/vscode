@@ -29,6 +29,7 @@ suite('Conversation feature test suite', function () {
 	let accessor: ITestingServicesAccessor;
 	let instaService: IInstantiationService;
 	let sandbox: sinon.SinonSandbox;
+	let selectChatModelsStub: sinon.SinonStub;
 
 	function createAccessor() {
 		const testingServiceCollection = createExtensionTestingServices();
@@ -50,6 +51,7 @@ suite('Conversation feature test suite', function () {
 		sandbox = sinon.createSandbox();
 		sandbox.stub(vscode.commands, 'registerCommand').returns({ dispose: () => { } });
 		sandbox.stub(vscode.workspace, 'registerFileSystemProvider').returns({ dispose: () => { } });
+		selectChatModelsStub = sandbox.stub(vscode.lm, 'selectChatModels').resolves([]);
 		createAccessor();
 	});
 
@@ -114,6 +116,30 @@ suite('Conversation feature test suite', function () {
 			setCopilotToken(accessor.get(IAuthenticationService), copilotToken);
 			assert.deepStrictEqual(conversationFeature.enabled, true);
 			assert.deepStrictEqual(conversationFeature.activated, true);
+		} finally {
+			conversationFeature.dispose();
+		}
+	});
+
+	test('The feature is enabled and activated when a BYOK language model is available', async function () {
+		const byokModel: vscode.LanguageModelChat = {
+			id: 'gemma4:latest',
+			name: 'Gemma 4',
+			vendor: 'ollama',
+			family: 'gemma',
+			version: 'latest',
+			maxInputTokens: 4096,
+			capabilities: { supportsToolCalling: true, supportsImageToText: false },
+			sendRequest: async () => { throw new Error('Unexpected chat request'); },
+			countTokens: async () => 0
+		};
+		selectChatModelsStub.callsFake(async (selector?: vscode.LanguageModelChatSelector) => selector?.vendor === 'ollama' ? [byokModel] : []);
+
+		const conversationFeature = instaService.createInstance(ConversationFeature);
+		try {
+			await conversationFeature.activationBlocker;
+
+			assert.deepStrictEqual({ enabled: conversationFeature.enabled, activated: conversationFeature.activated }, { enabled: true, activated: true });
 		} finally {
 			conversationFeature.dispose();
 		}

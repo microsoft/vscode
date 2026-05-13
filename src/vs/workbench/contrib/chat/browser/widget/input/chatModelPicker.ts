@@ -315,8 +315,9 @@ function createModelAction(
 	return { action, ariaDescription };
 }
 
-function shouldShowManageModelsAction(chatEntitlementService: IChatEntitlementService): boolean {
-	return chatEntitlementService.entitlement === ChatEntitlement.Free ||
+export function shouldShowManageModelsAction(chatEntitlementService: IChatEntitlementService): boolean {
+	return chatEntitlementService.clientByokEnabled ||
+		chatEntitlementService.entitlement === ChatEntitlement.Free ||
 		chatEntitlementService.entitlement === ChatEntitlement.EDU ||
 		chatEntitlementService.entitlement === ChatEntitlement.Pro ||
 		chatEntitlementService.entitlement === ChatEntitlement.ProPlus ||

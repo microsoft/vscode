@@ -458,6 +458,11 @@ export interface ILanguageModelsService {
 	 * Fetched from the chat control manifest.
 	 */
 	readonly restrictedChatParticipants: IObservable<{ [name: string]: string[] }>;
+
+	/**
+	 * Returns true if there are any user-selectable models from vendors other than Copilot.
+	 */
+	readonly hasNonCopilotUserSelectableModels: boolean;
 }
 
 export interface IModelControlEntry {
@@ -591,6 +596,9 @@ export class LanguageModelsService implements ILanguageModelsService {
 	private readonly _modelConfigurations = new Map<string, IStringDictionary<unknown>>();
 	private readonly _hasUserSelectableModels: IContextKey<boolean>;
 
+	private readonly _hasNonCopilotUserSelectableModels: IContextKey<boolean>;
+	get hasNonCopilotUserSelectableModels(): boolean { return !!this._hasNonCopilotUserSelectableModels.get(); }
+
 	private readonly _onLanguageModelChange = this._store.add(new Emitter<string>());
 	readonly onDidChangeLanguageModels: Event<string> = this._onLanguageModelChange.event;
 
@@ -620,11 +628,23 @@ export class LanguageModelsService implements ILanguageModelsService {
 		@IRequestService private readonly _requestService: IRequestService,
 	) {
 		this._hasUserSelectableModels = ChatContextKeys.languageModelsAreUserSelectable.bindTo(_contextKeyService);
+		this._hasNonCopilotUserSelectableModels = ChatContextKeys.nonCopilotLanguageModelsAreUserSelectable.bindTo(_contextKeyService);
 		this._recentlyUsedModelIds = this._readRecentlyUsedModels();
 		this._initChatControlData();
 
 		this._store.add(this.onDidChangeLanguageModels(() => {
-			this._hasUserSelectableModels.set(this._modelCache.size > 0 && Array.from(this._modelCache.values()).some(model => model.isUserSelectable));
+			let hasSelectableModels = false, hasNonCopilotUserSelectableModels = false;
+			for (const model of this._modelCache.values()) {
+				if (model.isUserSelectable) {
+					hasSelectableModels = true;
+					if (model.vendor !== 'copilot') {
+						hasNonCopilotUserSelectableModels = true;
+						break;
+					}
+				}
+			}
+			this._hasUserSelectableModels.set(hasSelectableModels);
+			this._hasNonCopilotUserSelectableModels.set(hasNonCopilotUserSelectableModels);
 			this._refreshModelsControlManifest();
 		}));
 		this._store.add(this._languageModelsConfigurationService.onDidChangeLanguageModelGroups(changedGroups => this._onDidChangeLanguageModelGroups(changedGroups)));
@@ -768,6 +788,14 @@ export class LanguageModelsService implements ILanguageModelsService {
 		}
 		if (!provider) {
 			this._logService.warn(`[LM] No provider registered for vendor ${vendorId}`);
+			const wasResolved = this._modelsGroups.has(vendorId);
+			const oldGroups = this._modelsGroups.get(vendorId) ?? [];
+			this._modelsGroups.set(vendorId, []);
+			const oldModels = this._clearModelCache(vendorId);
+			this._clearModelConfigurations(vendorId);
+			if (!wasResolved || oldGroups.length > 0 || oldModels.size > 0) {
+				this._onLanguageModelChange.fire(vendorId);
+			}
 			return;
 		}
 

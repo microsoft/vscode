@@ -134,8 +134,13 @@ export class PromptCategorizerService implements IPromptCategorizerService {
 	) { }
 
 	categorizePrompt(request: vscode.ChatRequest, context: vscode.ChatContext, telemetryMessageId: string): void {
+		const copilotToken = this.copilotTokenStore.copilotToken;
+		if (!copilotToken) {
+			return;
+		}
+
 		// Always enable for internal users; external users require experiment flag
-		const isInternal = this.copilotTokenStore.copilotToken?.isInternal === true;
+		const isInternal = copilotToken.isInternal === true;
 		if (!isInternal && !this.experimentationService.getTreatmentVariable<boolean>(EXP_FLAG_PROMPT_CATEGORIZATION)) {
 			return;
 		}

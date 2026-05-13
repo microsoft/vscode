@@ -460,7 +460,8 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 	}
 
 	get clientByokEnabled(): boolean {
-		return this.contextKeyService.getContextKeyValue<boolean>('github.copilot.clientByokEnabled') === true;
+		return this.contextKeyService.getContextKeyValue<boolean>('github.copilot.clientByokEnabled') === true
+			|| this.entitlement === ChatEntitlement.Unknown;
 	}
 
 	//#endregion

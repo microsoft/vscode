@@ -38,6 +38,8 @@ const previewFeaturesDisabledContextKey = 'github.copilot.previewFeaturesDisable
 
 const clientByokEnabledContextKey = 'github.copilot.clientByokEnabled';
 
+const copilotAgentSessionsAvailableContextKey = 'github.copilot.chat.agentSessionsAvailable';
+
 const debugContextKey = 'github.copilot.chat.debug';
 
 const missingPermissiveSessionContextKey = 'github.copilot.auth.missingPermissiveSession';
@@ -66,6 +68,7 @@ export class ContextKeysContribution extends Disposable {
 		void this._inspectContext().catch(console.error);
 		void this._updatePermissiveSessionContext().catch(console.error);
 		void this._updateClientByokEnabledContext().catch(console.error);
+		this._updateCopilotAgentSessionsAvailableContext();
 		this._register(_authenticationService.onDidAuthenticationChange(async () => await this._onAuthenticationChange()));
 		this._register(commands.registerCommand('github.copilot.refreshToken', async () => await this._inspectContext()));
 		this._register(commands.registerCommand('github.copilot.debug.showChatLogView', async () => {
@@ -129,6 +132,15 @@ export class ContextKeysContribution extends Disposable {
 		this._logService.debug(`[context keys] Updating context keys.`);
 		this._cancelPendingOfflineCheck();
 		const allKeys = Object.values(welcomeViewContextKeys);
+		if (!this._authenticationService.copilotToken && !this._authenticationService.anyGitHubSession) {
+			this._lastContextKey = undefined;
+			for (const contextKey of allKeys) {
+				commands.executeCommand('setContext', contextKey, false);
+			}
+			this._updateCopilotAgentSessionsAvailableContext();
+			await this._updatePermissiveSessionContext();
+			return;
+		}
 		let error: unknown | undefined = undefined;
 		let key: string | undefined;
 		try {
@@ -184,10 +196,20 @@ export class ContextKeysContribution extends Disposable {
 			}
 		}
 
+		this._updateCopilotAgentSessionsAvailableContext();
 		await this._updatePermissiveSessionContext();
 	}
 
+	private _updateCopilotAgentSessionsAvailableContext() {
+		const copilotToken = this._authenticationService.copilotToken;
+		commands.executeCommand('setContext', copilotAgentSessionsAvailableContextKey, !!copilotToken && !copilotToken.isNoAuthUser);
+	}
+
 	private async _updateQuotaExceededContext() {
+		if (!this._authenticationService.copilotToken && !this._authenticationService.anyGitHubSession) {
+			commands.executeCommand('setContext', chatQuotaExceededContextKey, false);
+			return;
+		}
 		try {
 			const copilotToken = await this._authenticationService.getCopilotToken();
 			commands.executeCommand('setContext', chatQuotaExceededContextKey, copilotToken.isChatQuotaExceeded);
@@ -197,6 +219,10 @@ export class ContextKeysContribution extends Disposable {
 	}
 
 	private async _updatePreviewFeaturesDisabledContext() {
+		if (!this._authenticationService.copilotToken && !this._authenticationService.anyGitHubSession) {
+			commands.executeCommand('setContext', previewFeaturesDisabledContextKey, undefined);
+			return;
+		}
 		try {
 			const copilotToken = await this._authenticationService.getCopilotToken();
 			const disabled = !copilotToken.isEditorPreviewFeaturesEnabled();
@@ -210,11 +236,15 @@ export class ContextKeysContribution extends Disposable {
 	}
 
 	private async _updateClientByokEnabledContext() {
+		if (!this._authenticationService.copilotToken && !this._authenticationService.anyGitHubSession) {
+			commands.executeCommand('setContext', clientByokEnabledContextKey, true);
+			return;
+		}
 		try {
 			const copilotToken = await this._authenticationService.getCopilotToken();
-			commands.executeCommand('setContext', clientByokEnabledContextKey, copilotToken.isClientBYOKEnabled());
+			commands.executeCommand('setContext', clientByokEnabledContextKey, copilotToken.isClientBYOKEnabled() || copilotToken.isInternal || copilotToken.isIndividual);
 		} catch (e) {
-			commands.executeCommand('setContext', clientByokEnabledContextKey, undefined);
+			commands.executeCommand('setContext', clientByokEnabledContextKey, !(e instanceof EnterpriseManagedError));
 		}
 	}
 
@@ -243,6 +273,7 @@ export class ContextKeysContribution extends Disposable {
 		this._updateQuotaExceededContext();
 		this._updatePreviewFeaturesDisabledContext();
 		this._updateClientByokEnabledContext();
+		this._updateCopilotAgentSessionsAvailableContext();
 		this._updateShowLogViewContext();
 		this._updatePermissiveSessionContext();
 	}
@@ -250,7 +281,7 @@ export class ContextKeysContribution extends Disposable {
 	private async _updatePermissiveSessionContext() {
 		let hasPermissiveSession = false;
 		let missingPermissiveSession = false;
-		if (!this._authenticationService.isMinimalMode) {
+		if (!this._authenticationService.isMinimalMode && this._authenticationService.anyGitHubSession) {
 			try {
 				hasPermissiveSession = !!(await this._authenticationService.getGitHubSession('permissive', { silent: true }));
 			} catch (error) {

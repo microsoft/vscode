@@ -229,3 +229,4 @@ export class OllamaLMProvider extends AbstractOpenAICompatibleLMProvider<OllamaC
 		}
 	}
 }
+

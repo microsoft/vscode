@@ -107,10 +107,22 @@ function createTestCopilotToken(): CopilotToken {
 	}));
 }
 
+function createTestGitHubSession(): AuthenticationSession {
+	return {
+		id: 'test-session-id',
+		accessToken: 'test-access-token',
+		scopes: ['user:email'],
+		account: {
+			id: 'test-user-id',
+			label: 'test-user'
+		}
+	};
+}
+
 class TestAuthService extends Disposable implements IAuthenticationService {
 	readonly _serviceBrand: undefined;
 	readonly isMinimalMode = true;
-	readonly anyGitHubSession = undefined;
+	readonly anyGitHubSession = createTestGitHubSession();
 	readonly permissiveGitHubSession = undefined;
 	readonly copilotToken = createTestCopilotToken();
 	speculativeDecodingEndpointToken: string | undefined;

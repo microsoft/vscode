@@ -901,7 +901,10 @@ export class ChatModelsWidget extends Disposable {
 		this.element = DOM.$('.models-widget');
 		this.create(this.element);
 
-		const loadingPromise = this.extensionService.whenInstalledExtensionsRegistered().then(() => this.viewModel.refresh());
+		const loadingPromise = this.extensionService.whenInstalledExtensionsRegistered().then(() => {
+			this.updateAddModelsButton();
+			return this.viewModel.refresh();
+		});
 		this.editorProgressService.showWhile(loadingPromise, 300);
 	}
 
@@ -1286,8 +1289,8 @@ export class ChatModelsWidget extends Disposable {
 
 		const entitlement = this.chatEntitlementService.entitlement;
 		const isManagedEntitlement = entitlement === ChatEntitlement.Business || entitlement === ChatEntitlement.Enterprise;
-		const supportsAddingModels = this.chatEntitlementService.isInternal
-			|| (isManagedEntitlement && this.chatEntitlementService.clientByokEnabled)
+		const supportsAddingModels = this.chatEntitlementService.clientByokEnabled
+			|| this.chatEntitlementService.isInternal
 			|| (entitlement !== ChatEntitlement.Unknown
 				&& entitlement !== ChatEntitlement.Available
 				&& !isManagedEntitlement);

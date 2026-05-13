@@ -35,7 +35,7 @@ export class CopilotTokenManagerImpl extends Disposable implements ICompletionsC
 	) {
 		super();
 
-		this.updateCachedToken();
+		void this.updateCachedToken();
 		this._register(this.authenticationService.onDidAuthenticationChange(() => this.updateCachedToken()));
 	}
 
@@ -54,11 +54,19 @@ export class CopilotTokenManagerImpl extends Disposable implements ICompletionsC
 	}
 
 	async getToken(): Promise<CopilotToken> {
-		return this.updateCachedToken();
+		const token = await this.updateCachedToken();
+		if (!token) {
+			throw new Error('GitHubLoginFailed');
+		}
+		return token;
 	}
 
-	private async updateCachedToken(): Promise<CopilotToken> {
-		this._token = await this.authenticationService.getCopilotToken();
+	private async updateCachedToken(): Promise<CopilotToken | undefined> {
+		if (this.authenticationService.anyGitHubSession) {
+			this._token = await this.authenticationService.getCopilotToken();
+		} else {
+			this._token = undefined;
+		}
 		return this._token;
 	}
 

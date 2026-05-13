@@ -257,13 +257,18 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 
 	private async doInvoke(request: IChatAgentRequest, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatWidgetService: IChatWidgetService, chatAgentService: IChatAgentService, languageModelToolsService: ILanguageModelToolsService, defaultAccountService: IDefaultAccountService): Promise<IChatAgentResult> {
 		if (
-			!this.context.state.completed ||									// Setup not completed
 			this.context.state.disabled ||										// Extension disabled: run setup to enable
 			this.context.state.untrusted ||										// Workspace untrusted: run setup to ask for trust
-			this.context.state.entitlement === ChatEntitlement.Available ||		// Entitlement available: run setup to sign up
 			(
-				this.context.state.entitlement === ChatEntitlement.Unknown &&	// Entitlement unknown: run setup to sign in / sign up
-				!this.chatEntitlementService.anonymous							// unless anonymous access is enabled
+				!languageModelsService.hasNonCopilotUserSelectableModels &&
+				(
+					!this.context.state.completed ||
+					this.context.state.entitlement === ChatEntitlement.Available ||
+					(
+						this.context.state.entitlement === ChatEntitlement.Unknown &&	// Entitlement unknown: run setup to sign in / sign up
+						!this.chatEntitlementService.anonymous							// unless anonymous access is enabled
+					)
+				)
 			)
 		) {
 			return this.doInvokeWithSetup(request, progress, chatService, languageModelsService, chatWidgetService, chatAgentService, languageModelToolsService, defaultAccountService);
@@ -323,11 +328,12 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 		// Ensure auth extension is enabled before waiting for chat readiness.
 		// This must run before the readiness event listeners are set up because
 		// updateRunningExtensions restarts all extension hosts.
-		const authExtensionReEnabled = await maybeEnableAuthExtension(this.extensionsWorkbenchService, this.logService);
-		if (authExtensionReEnabled) {
-			refreshTokens(this.commandService);
+		if (!languageModelsService.hasNonCopilotUserSelectableModels) {
+			const authExtensionReEnabled = await maybeEnableAuthExtension(this.extensionsWorkbenchService, this.logService);
+			if (authExtensionReEnabled) {
+				refreshTokens(this.commandService);
+			}
 		}
-
 		const widget = chatWidgetService.getWidgetBySessionResource(requestModel.session.sessionResource);
 		const modeInfo = widget?.input.currentModeInfo;
 
@@ -583,7 +589,7 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 
 			for (const id of languageModelsService.getLanguageModelIds()) {
 				const model = languageModelsService.lookupLanguageModel(id);
-				if (model?.isDefaultForLocation[ChatAgentLocation.Chat]) {
+				if (model?.isDefaultForLocation[ChatAgentLocation.Chat] || (model?.isUserSelectable && model.vendor !== 'copilot')) {
 					return true;
 				}
 			}

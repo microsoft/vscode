@@ -10,6 +10,7 @@ import { ILogService } from '../../../platform/log/common/logService';
 import { IFetcherService } from '../../../platform/networking/common/fetcherService';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { IStringDictionary } from '../../../util/vs/base/common/collections';
+import { Emitter } from '../../../util/vs/base/common/event';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { CopilotLanguageModelWrapper } from '../../conversation/vscode-node/languageModelAccess';
 import { BYOKAuthType, BYOKKnownModels, BYOKModelCapabilities, resolveModelInfo } from '../common/byokProvider';
@@ -26,6 +27,8 @@ export interface ExtendedLanguageModelChatInformation<C extends LanguageModelCha
 }
 
 export abstract class AbstractLanguageModelChatProvider<C extends LanguageModelChatConfiguration = LanguageModelChatConfiguration, T extends ExtendedLanguageModelChatInformation<C> = ExtendedLanguageModelChatInformation<C>> implements LanguageModelChatProvider<T> {
+	private readonly _onDidChangeLanguageModelChatInformation = new Emitter<void>();
+	readonly onDidChangeLanguageModelChatInformation = this._onDidChangeLanguageModelChatInformation.event;
 
 	constructor(
 		protected readonly _id: string,
@@ -63,6 +66,17 @@ export abstract class AbstractLanguageModelChatProvider<C extends LanguageModelC
 			apiKey,
 			configuration
 		}));
+	}
+
+	updateKnownModelsList(knownModels: BYOKKnownModels | undefined): void {
+		if (!knownModels || Object.keys(knownModels).length === 0) {
+			return;
+		}
+		if (!this._knownModels) {
+			this._knownModels = {};
+		}
+		Object.assign(this._knownModels, knownModels);
+		this._onDidChangeLanguageModelChatInformation.fire();
 	}
 
 	abstract provideLanguageModelChatResponse(model: T, messages: Array<LanguageModelChatMessage | LanguageModelChatMessage2>, options: ProvideLanguageModelChatResponseOptions, progress: Progress<LanguageModelResponsePart2>, token: CancellationToken): Promise<void>;
@@ -173,7 +187,26 @@ export abstract class AbstractOpenAICompatibleLMProvider<T extends LanguageModel
 	}
 
 	protected resolveModelCapabilities(modelData: unknown): BYOKModelCapabilities | undefined {
-		return undefined;
+		const modelId = this.getModelId(modelData);
+		return modelId ? this.createGenericModelCapabilities(modelId) : undefined;
+	}
+
+	protected getModelId(modelData: unknown): string | undefined {
+		if (!modelData || typeof modelData !== 'object') {
+			return undefined;
+		}
+		const modelId = (modelData as { id?: unknown }).id;
+		return typeof modelId === 'string' && modelId.length > 0 ? modelId : undefined;
+	}
+
+	protected createGenericModelCapabilities(modelId: string, name = modelId): BYOKModelCapabilities {
+		return {
+			name,
+			maxInputTokens: 100000,
+			maxOutputTokens: 8192,
+			toolCalling: true,
+			vision: false
+		};
 	}
 
 	protected abstract getModelsBaseUrl(configuration: T | undefined): string | undefined;

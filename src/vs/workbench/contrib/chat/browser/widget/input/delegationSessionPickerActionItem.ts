@@ -87,7 +87,11 @@ export class DelegationSessionPickerActionItem extends SessionTypePickerActionIt
 			return false;
 		}
 
-		if (contribution && !contribution.canDelegate && activeProvider !== type /* Allow switching back to active type */) {
+		if (!contribution) {
+			return false;
+		}
+
+		if (!contribution.canDelegate && activeProvider !== type /* Allow switching back to active type */) {
 			return false;
 		}
 

@@ -44,6 +44,7 @@ import { isNewUser } from './chatStatus.js';
 import { IChatStatusItemService, ChatStatusEntry } from './chatStatusItemService.js';
 import product from '../../../../../platform/product/common/product.js';
 import { isCompletionsEnabled } from '../../../../../editor/common/services/completionsEnablement.js';
+import { ILanguageModelsService } from '../../common/languageModels.js';
 
 const defaultChat = product.defaultChatAgent;
 
@@ -125,6 +126,7 @@ export class ChatStatusDashboard extends DomWidget {
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IStorageService private readonly storageService: IStorageService,
+		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 	) {
 		super();
 
@@ -508,6 +510,10 @@ export class ChatStatusDashboard extends DomWidget {
 		const anonymousUser = this.chatEntitlementService.anonymous;
 		const disabled = this.chatEntitlementService.sentiment.disabled || this.chatEntitlementService.sentiment.untrusted;
 		const signedOut = this.chatEntitlementService.entitlement === ChatEntitlement.Unknown;
+		if (signedOut && !disabled && this.languageModelsService.hasNonCopilotUserSelectableModels) {
+			return;
+		}
+
 		if (!(newUser || signedOut || disabled)) {
 			return;
 		}

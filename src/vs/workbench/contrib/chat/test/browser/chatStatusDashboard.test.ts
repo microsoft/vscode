@@ -16,6 +16,7 @@ import { ChatEntitlement, IChatEntitlementService } from '../../../../services/c
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { ChatStatusDashboard, IChatStatusDashboardOptions } from '../../../chat/browser/chatStatus/chatStatusDashboard.js';
 import { IChatStatusItemService } from '../../../chat/browser/chatStatus/chatStatusItemService.js';
+import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../chat/common/languageModels.js';
 
 interface IQuotaConfig {
 	percentRemaining: number;
@@ -33,6 +34,9 @@ function createEntitlementService(opts: {
 	additionalUsageEnabled?: boolean;
 	additionalUsageCount?: number;
 	entitlement?: ChatEntitlement;
+	completed?: boolean;
+	disabled?: boolean;
+	untrusted?: boolean;
 }): IChatEntitlementService {
 	return {
 		_serviceBrand: undefined,
@@ -54,7 +58,7 @@ function createEntitlementService(opts: {
 		update: (_token: CancellationToken) => Promise.resolve(),
 		onDidChangeSentiment: Event.None,
 		sentimentObs: observableValue({}, {}),
-		sentiment: { completed: true },
+		sentiment: { completed: opts.completed ?? true, disabled: opts.disabled, untrusted: opts.untrusted },
 		onDidChangeEntitlement: Event.None,
 		entitlement: opts.entitlement ?? ChatEntitlement.Free,
 		entitlementObs: observableValue({}, opts.entitlement ?? ChatEntitlement.Free),
@@ -103,7 +107,7 @@ const dashboardOptions: IChatStatusDashboardOptions = {
 suite('ChatStatusDashboard', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createDashboard(entitlementService: IChatEntitlementService): ChatStatusDashboard {
+	function createDashboard(entitlementService: IChatEntitlementService, models: ILanguageModelChatMetadata[] = []): ChatStatusDashboard {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 
 		instantiationService.stub(IChatEntitlementService, entitlementService);
@@ -123,6 +127,12 @@ suite('ChatStatusDashboard', () => {
 		});
 		instantiationService.stub(IMarkdownRendererService, {
 			_serviceBrand: undefined,
+		});
+		instantiationService.stub(ILanguageModelsService, {
+			_serviceBrand: undefined,
+			onDidChangeLanguageModels: Event.None,
+			getLanguageModelIds: () => models.map(model => model.id),
+			lookupLanguageModel: (id: string) => models.find(model => model.id === id),
 		});
 
 		const dashboard = store.add(instantiationService.createInstance(ChatStatusDashboard, dashboardOptions));
@@ -409,6 +419,48 @@ suite('ChatStatusDashboard', () => {
 		const quotaPercentage = dashboard.element.querySelector('.quota-indicator:not(.included) .quota-percentage') as HTMLElement;
 		assert.ok(quotaPercentage);
 		assert.strictEqual(quotaPercentage.tabIndex, 0);
+	});
+
+	test('Signed out with BYOK model does not show setup action', () => {
+		const dashboard = createDashboard(createEntitlementService({
+			entitlement: ChatEntitlement.Unknown,
+			completed: false,
+		}), [{
+			extension: { value: 'test.extension', _lower: 'test.extension' },
+			name: 'BYOK Model',
+			vendor: 'openai',
+			family: 'test-family',
+			version: '1.0',
+			id: 'openai/test-model',
+			maxInputTokens: 100,
+			maxOutputTokens: 100,
+			modelPickerCategory: undefined,
+			isDefaultForLocation: {},
+			isUserSelectable: true,
+		}]);
+
+		assert.strictEqual(dashboard.element.textContent?.includes('Use AI Features'), false);
+	});
+
+	test('Signed out with BYOK model still shows setup action when disabled', () => {
+		const dashboard = createDashboard(createEntitlementService({
+			entitlement: ChatEntitlement.Unknown,
+			disabled: true,
+		}), [{
+			extension: { value: 'test.extension', _lower: 'test.extension' },
+			name: 'BYOK Model',
+			vendor: 'openai',
+			family: 'test-family',
+			version: '1.0',
+			id: 'openai/test-model',
+			maxInputTokens: 100,
+			maxOutputTokens: 100,
+			modelPickerCategory: undefined,
+			isDefaultForLocation: {},
+			isUserSelectable: true,
+		}]);
+
+		assert.strictEqual(dashboard.element.textContent?.includes('Enable AI Features'), true);
 	});
 
 	// --- CALLOUT MESSAGES ---

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ChatFetchResponseType, ChatLocation } from '../../../platform/chat/common/commonTypes';
+import { IAuthenticationService } from '../../../platform/authentication/common/authentication';
 import { IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
 import { IEnvService } from '../../../platform/env/common/envService';
 import { ILogService } from '../../../platform/log/common/logService';
@@ -36,6 +37,7 @@ export class InlineChatProgressMessages {
 		@IEndpointProvider private readonly _endpointProvider: IEndpointProvider,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IEnvService private readonly _envService: IEnvService,
+		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
 	) {
 		// Initialize caches with fallback messages
 		this._caches.set('generate', { messages: [...InlineChatProgressMessages._FALLBACK_GENERATE], fetchInProgress: false });
@@ -90,6 +92,10 @@ export class InlineChatProgressMessages {
 		const scenario: ProgressMessageScenario = documentContext.selection.isEmpty ? 'generate' : 'edit';
 
 		if (this._envService.isSimulation()) {
+			return this.getNextMessage(scenario);
+		}
+
+		if (!this._canUseCopilotEndpoint()) {
 			return this.getNextMessage(scenario);
 		}
 
@@ -169,6 +175,10 @@ export class InlineChatProgressMessages {
 			return;
 		}
 
+		if (!this._canUseCopilotEndpoint()) {
+			return;
+		}
+
 		const currentCache = this._caches.get(scenario);
 		if (currentCache) {
 			this._caches.set(scenario, { messages: currentCache.messages, fetchInProgress: true });
@@ -183,6 +193,10 @@ export class InlineChatProgressMessages {
 		});
 
 		this._pendingFetches.set(scenario, fetchPromise);
+	}
+
+	private _canUseCopilotEndpoint(): boolean {
+		return !!this._authenticationService.anyGitHubSession;
 	}
 
 	private async _fetchMessages(scenario: ProgressMessageScenario): Promise<void> {

@@ -435,7 +435,7 @@ function networkRequest(
 	const agentInteractionType = options.interactionTypeOverride ?? intent;
 
 	const headers: ReqHeaders = {
-		Authorization: `Bearer ${secretKey}`,
+		...(secretKey ? { Authorization: `Bearer ${secretKey}` } : {}),
 		'X-Request-Id': requestId,
 		'OpenAI-Intent': intent, // Tells CAPI who flighted this request. Helps find buggy features
 		'X-GitHub-Api-Version': '2026-01-09',

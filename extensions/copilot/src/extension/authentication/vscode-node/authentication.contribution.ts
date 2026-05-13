@@ -7,7 +7,6 @@ import { IAuthenticationService } from '../../../platform/authentication/common/
 import { IAuthenticationChatUpgradeService } from '../../../platform/authentication/common/authenticationUpgrade';
 import { IVSCodeExtensionContext } from '../../../platform/extContext/common/extensionContext';
 import { ILogService } from '../../../platform/log/common/logService';
-import { Event } from '../../../util/vs/base/common/event';
 import { Disposable } from '../../../util/vs/base/common/lifecycle';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 
@@ -44,25 +43,10 @@ class AuthUpgradeAsk extends Disposable {
 	}
 
 	async run() {
-		await this.waitForChatEnabled();
 		this.registerListeners();
-		await this.showPrompt();
-	}
-
-	private async waitForChatEnabled() {
-		try {
-			await this._authenticationService.getCopilotToken();
-		} catch (error) {
-			// likely due to the user canceling the auth flow
-			this._logService.error(error, 'Failed to get copilot token');
+		if (this._authenticationService.anyGitHubSession) {
+			await this.showPrompt();
 		}
-
-		await Event.toPromise(
-			Event.filter(
-				this._authenticationService.onDidAuthenticationChange,
-				() => this._authenticationService.copilotToken !== undefined
-			)
-		);
 	}
 
 	private registerListeners() {

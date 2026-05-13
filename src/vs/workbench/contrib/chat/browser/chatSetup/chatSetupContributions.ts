@@ -371,7 +371,8 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 							ChatContextKeys.Setup.hidden.negate(),
 							ChatContextKeys.Setup.disabledInWorkspace.negate(),
 							ChatContextKeys.Setup.completed.negate(),
-							ChatContextKeys.Entitlement.signedOut
+							ChatContextKeys.Entitlement.signedOut,
+							ChatContextKeys.nonCopilotLanguageModelsAreUserSelectable.negate()
 						)
 					}
 				});
@@ -402,6 +403,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 						when: ContextKeyExpr.and(
 							IsWebContext.negate(),
 							ChatContextKeys.Entitlement.signedOut,
+							ChatContextKeys.nonCopilotLanguageModelsAreUserSelectable.negate(),
 							ChatContextKeys.Setup.hidden.negate(),
 							ChatContextKeys.Setup.disabledInWorkspace.negate(),
 							ContextKeyExpr.equals(`config.${ChatConfiguration.TitleBarSignInEnabled}`, true),

@@ -172,6 +172,9 @@ export class ModelMetadataFetcher extends Disposable implements IModelMetadataFe
 			resolvedModel = this._familyMap.get(family)?.[0];
 		}
 		if (!resolvedModel || !isChatModelInformation(resolvedModel)) {
+			if (this._lastFetchError?.message === 'GitHubLoginFailed') {
+				throw this._lastFetchError;
+			}
 			throw new Error(await this._getErrorMessage(`Unable to resolve chat model with family selection: ${family}`));
 		}
 		return resolvedModel;
@@ -202,6 +205,9 @@ export class ModelMetadataFetcher extends Disposable implements IModelMetadataFe
 		await this._taskSingler.getOrCreate(ModelMetadataFetcher.ALL_MODEL_KEY, this._fetchModels.bind(this));
 		const resolvedModel = this._familyMap.get(family)?.[0];
 		if (!resolvedModel || !isEmbeddingModelInformation(resolvedModel)) {
+			if (this._lastFetchError?.message === 'GitHubLoginFailed') {
+				throw this._lastFetchError;
+			}
 			throw new Error(await this._getErrorMessage(`Unable to resolve embeddings model with family selection: ${family}`));
 		}
 		return resolvedModel;
@@ -235,6 +241,14 @@ export class ModelMetadataFetcher extends Disposable implements IModelMetadataFe
 			return;
 		}
 		const requestStartTime = Date.now();
+
+		if (!this._authService.anyGitHubSession) {
+			this._familyMap.clear();
+			this._completionsFamilyMap.clear();
+			this._copilotBaseModel = undefined;
+			this._lastFetchError = new Error('GitHubLoginFailed');
+			return;
+		}
 
 		const copilotToken = (await this._authService.getCopilotToken()).token;
 		const requestId = generateUuid();

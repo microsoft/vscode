@@ -11,16 +11,17 @@ import { MarkdownString } from '../../../../../../../base/common/htmlContent.js'
 import { ActionListItemKind, IActionListItem } from '../../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetDropdownAction } from '../../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { StateType } from '../../../../../../../platform/update/common/update.js';
-import { buildModelPickerItems, formatTokenCount, getModelPickerAccessibilityProvider } from '../../../../browser/widget/input/chatModelPicker.js';
+import { buildModelPickerItems, formatTokenCount, getModelPickerAccessibilityProvider, shouldShowManageModelsAction } from '../../../../browser/widget/input/chatModelPicker.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelControlEntry } from '../../../../common/languageModels.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../../services/chat/common/chatEntitlementService.js';
 
-function createStubEntitlementService(opts?: { entitlement?: ChatEntitlement; isInternal?: boolean; anonymous?: boolean }): IChatEntitlementService {
+function createStubEntitlementService(opts?: { entitlement?: ChatEntitlement; isInternal?: boolean; anonymous?: boolean; clientByokEnabled?: boolean }): IChatEntitlementService {
 	return {
 		entitlement: opts?.entitlement ?? ChatEntitlement.Pro,
 		sentiment: { completed: true } as IChatEntitlementService['sentiment'],
 		isInternal: opts?.isInternal ?? false,
 		anonymous: opts?.anonymous ?? false,
+		clientByokEnabled: opts?.clientByokEnabled ?? false,
 	} as IChatEntitlementService;
 }
 
@@ -107,6 +108,7 @@ function callBuild(
 		updateStateType?: StateType;
 		manageSettingsUrl?: string;
 		anonymous?: boolean;
+		clientByokEnabled?: boolean;
 		showUnavailableFeatured?: boolean;
 		showFeatured?: boolean;
 		isUBB?: boolean;
@@ -117,6 +119,7 @@ function callBuild(
 	const entitlementService = createStubEntitlementService({
 		entitlement: opts.entitlement ?? ChatEntitlement.Pro,
 		anonymous: opts.anonymous ?? false,
+		clientByokEnabled: opts.clientByokEnabled ?? false,
 	});
 	return buildModelPickerItems(
 		models,
@@ -183,6 +186,16 @@ suite('buildModelPickerItems', () => {
 		assert.strictEqual(actions.length, 2);
 		assert.strictEqual(actions[0].label, 'Auto');
 		assert.strictEqual(actions[1].item?.id, 'manageModels');
+	});
+
+	test('signed-out BYOK can show manage models action', () => {
+		assert.deepStrictEqual({
+			withoutByok: shouldShowManageModelsAction(createStubEntitlementService({ entitlement: ChatEntitlement.Unknown })),
+			withByok: shouldShowManageModelsAction(createStubEntitlementService({ entitlement: ChatEntitlement.Unknown, clientByokEnabled: true }))
+		}, {
+			withoutByok: false,
+			withByok: true
+		});
 	});
 
 	test('only auto model produces auto and manage models with separator', () => {

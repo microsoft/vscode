@@ -304,6 +304,12 @@ export abstract class BaseAuthenticationService extends Disposable implements IA
 			permissiveGitHubSessionBefore?.accessToken !== this._permissiveGitHubSession?.accessToken
 		) {
 			this._onDidAccessTokenChange.fire();
+			if (!this._anyGitHubSession && !this._permissiveGitHubSession) {
+				this._tokenStore.copilotToken = undefined;
+				this._copilotTokenError = undefined;
+				this.fireAuthenticationChange('handleAuthChangeEvent no GitHub session');
+				return;
+			}
 			this._logService.debug('Auth state changed, minting a new CopilotToken...');
 			// The auth state has changed, so mint a new Copilot token
 			try {
@@ -321,10 +327,12 @@ export abstract class BaseAuthenticationService extends Disposable implements IA
 		}
 
 		// Auth state hasn't changed, but the Copilot token might have
-		try {
-			await this.getCopilotToken();
-		} catch (e) {
-			// Ignore errors
+		if (this._anyGitHubSession || this._permissiveGitHubSession || this._tokenStore.copilotToken) {
+			try {
+				await this.getCopilotToken();
+			} catch (e) {
+				// Ignore errors
+			}
 		}
 
 		if (copilotTokenBefore?.token !== this._tokenStore.copilotToken?.token ||

@@ -276,15 +276,18 @@ Learn more about [GitHub Copilot](https://docs.github.com/copilot/using-github-c
 	}
 
 	private async switchToBaseModel(request: vscode.ChatRequest, stream: vscode.ChatResponseStream): Promise<ChatRequest> {
+		if (request.model.vendor !== 'copilot') {
+			return request;
+		}
 		const endpoint = await this.endpointProvider.getChatEndpoint(request);
-		const baseEndpoint = await this.endpointProvider.getChatEndpoint('copilot-base');
-		// If it has a 0x multipler, it's free so don't switch them. If it's BYOK, it's free so don't switch them.
-		if (endpoint.multiplier === 0 || request.model.vendor !== 'copilot' || endpoint.multiplier === undefined) {
+		// If it has a 0x multipler, it's free so don't switch them.
+		if (endpoint.multiplier === 0 || endpoint.multiplier === undefined) {
 			return request;
 		}
 		if (this._chatQuotaService.additionalUsageEnabled || !this._chatQuotaService.quotaExhausted) {
 			return request;
 		}
+		const baseEndpoint = await this.endpointProvider.getChatEndpoint('copilot-base');
 		const baseLmModel = (await vscode.lm.selectChatModels({ id: baseEndpoint.model, family: baseEndpoint.family, vendor: 'copilot' }))[0];
 		if (!baseLmModel) {
 			return request;

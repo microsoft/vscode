@@ -29,6 +29,7 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { isWeb } from '../../../../../base/common/platform.js';
 import { InEditorZenModeContext } from '../../../../common/contextkeys.js';
 import { ChatConfiguration } from '../../common/constants.js';
+import { hasNonCopilotUserSelectableLanguageModel, ILanguageModelsService } from '../../common/languageModels.js';
 
 export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribution {
 
@@ -53,6 +54,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 	) {
 		super();
 
@@ -108,6 +110,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		this._register(this.chatEntitlementService.onDidChangeQuotaExceeded(() => this.update()));
 		this._register(this.chatEntitlementService.onDidChangeSentiment(() => this.update()));
 		this._register(this.chatEntitlementService.onDidChangeEntitlement(() => this.update()));
+		this._register(this.languageModelsService.onDidChangeLanguageModels(() => this.update()));
 		this._register(this.contextKeyService.onDidChangeContext(e => {
 			if (e.affectsSome(ChatStatusBarEntry.TITLE_BAR_CONTEXT_KEYS)) {
 				this.update();
@@ -151,17 +154,18 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		let text = '$(copilot)';
 		let ariaLabel = localize('chatStatusAria', "Copilot status");
 		let kind: StatusbarEntryKind | undefined;
+		const hasNonCopilotModel = hasNonCopilotUserSelectableLanguageModel(this.languageModelsService);
 
 		if (isNewUser(this.chatEntitlementService)) {
 			const entitlement = this.chatEntitlementService.entitlement;
 
 			// Sign In
-			if (
+			if (!hasNonCopilotModel && (
 				this.chatEntitlementService.sentiment.later ||	// user skipped setup
 				entitlement === ChatEntitlement.Available ||	// user is entitled
 				isProUser(entitlement) ||						// user is already pro
 				entitlement === ChatEntitlement.Free			// user is already free
-			) {
+			)) {
 				return this.getSetupEntryProps();
 			}
 		} else {
@@ -185,7 +189,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 			}
 
 			// Signed out
-			else if (this.chatEntitlementService.entitlement === ChatEntitlement.Unknown) {
+			else if (this.chatEntitlementService.entitlement === ChatEntitlement.Unknown && !hasNonCopilotModel) {
 				return this.getSetupEntryProps();
 			}
 

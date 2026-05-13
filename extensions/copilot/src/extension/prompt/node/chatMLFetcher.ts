@@ -218,8 +218,10 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 			} else {
 				let tokenCountPromise: Promise<number> | undefined;
 				const countTokens = () => tokenCountPromise ??= chatEndpoint.acquireTokenizer().countMessagesTokens(messages);
-				const copilotToken = await this._authenticationService.getCopilotToken();
-				usernameToScrub = copilotToken.username;
+				const copilotToken = chatEndpoint.modelProvider === 'copilot' && !chatEndpoint.isExtensionContributed
+					? await this._authenticationService.getCopilotToken()
+					: undefined;
+				usernameToScrub = copilotToken?.username ?? this._authenticationService.copilotToken?.username;
 
 				const fetchResult = await this._fetchAndStreamChat(
 					chatEndpoint,
@@ -750,7 +752,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 			let token = '';
 			if (url === this._capiClientService.dotcomAPIURL) {
 				token = this._authenticationService.anyGitHubSession?.accessToken || '';
-			} else {
+			} else if (this._authenticationService.anyGitHubSession) {
 				try {
 					token = (await this._authenticationService.getCopilotToken()).token;
 				} catch (_err) {
@@ -886,7 +888,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		baseTelemetryData: TelemetryData,
 		finishedCb: FinishedCallback,
 		secretKey: string | undefined,
-		copilotToken: CopilotToken,
+		copilotToken: CopilotToken | undefined,
 		location: ChatLocation,
 		ourRequestId: string,
 		nChoices: number | undefined,
@@ -965,7 +967,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		baseTelemetryData: TelemetryData,
 		finishedCb: FinishedCallback,
 		secretKey: string | undefined,
-		copilotToken: CopilotToken,
+		copilotToken: CopilotToken | undefined,
 		location: ChatLocation,
 		ourRequestId: string,
 		nChoices: number | undefined,
@@ -1020,8 +1022,8 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 			this._logService.debug(`modelMaxResponseTokens ${request.max_tokens ?? 2048}`);
 			this._logService.debug(`chat model ${chatEndpointInfo.model}`);
 
-			secretKey ??= copilotToken.token;
-			if (!secretKey) {
+			secretKey ??= copilotToken?.token;
+			if (!secretKey && chatEndpointInfo.modelProvider === 'copilot' && !chatEndpointInfo.isExtensionContributed) {
 				// If no key is set we error
 				const urlOrRequestMetadata = stringifyUrlOrRequestMetadata(chatEndpointInfo.urlOrRequestMetadata);
 				this._logService.error(`Failed to send request to ${urlOrRequestMetadata} due to missing key`);
@@ -1043,7 +1045,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 					request,
 					baseTelemetryData,
 					finishedCb,
-					secretKey,
+					secretKey ?? '',
 					location,
 					ourRequestId,
 					turnId,
@@ -1064,7 +1066,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 				request,
 				baseTelemetryData,
 				finishedCb,
-				secretKey,
+				secretKey ?? '',
 				location,
 				ourRequestId,
 				nChoices,
@@ -1340,7 +1342,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 			const telemetryData = createTelemetryData(chatEndpointInfo, location, ourRequestId);
 			this._logService.info('Request ID for failed request: ' + ourRequestId);
 			return {
-				result: await this._handleError(telemetryData, response, ourRequestId),
+				result: await this._handleError(telemetryData, response, ourRequestId, chatEndpointInfo),
 				fetcher: response.fetcher,
 				bytesReceived: response.bytesReceived,
 				statusCode: response.status
@@ -1544,7 +1546,8 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 	private async _handleError(
 		telemetryData: TelemetryData,
 		response: Response,
-		requestId: string
+		requestId: string,
+		chatEndpointInfo: IChatEndpoint
 	): Promise<ChatRequestFailed> {
 		const modelRequestIdObj = getRequestId(response.headers);
 		requestId = modelRequestIdObj.headerRequestId || requestId;
@@ -1598,10 +1601,14 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 				};
 			}
 
+			const isCopilotEndpoint = chatEndpointInfo.modelProvider === 'copilot' && !chatEndpointInfo.isExtensionContributed;
+
 			if (response.status === 401 || response.status === 403) {
 				// Token has expired or invalid, fetch a new one on next request
 				// TODO(drifkin): these actions should probably happen in vsc specific code
-				this._authenticationService.resetCopilotToken(response.status);
+				if (isCopilotEndpoint) {
+					this._authenticationService.resetCopilotToken(response.status);
+				}
 				return {
 					type: FetchResponseKind.Failed,
 					modelRequestId: modelRequestIdObj,
@@ -1613,7 +1620,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 			if (response.status === 402) {
 				// When we receive a 402, we have exceed a quota
 				// This is stored on the token so let's refresh it
-				if (!this._authenticationService.copilotToken?.isChatQuotaExceeded) {
+				if (isCopilotEndpoint && !this._authenticationService.copilotToken?.isChatQuotaExceeded) {
 					this._authenticationService.resetCopilotToken(response.status);
 					await this._authenticationService.getCopilotToken();
 				}
