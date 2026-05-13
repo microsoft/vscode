@@ -6,6 +6,7 @@
 import type { Query, SDKUserMessage, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../base/common/async.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { DisposableStore, IReference } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -219,6 +220,41 @@ suite('ClaudeSdkPipeline', () => {
 				err => assert.strictEqual(err, rebuildErr),
 			);
 			assert.strictEqual(calls, 1);
+		});
+
+		test('abort issued while the rematerializer is still resolving cancels the freshly-built controller (rebind-window race)', async () => {
+			const { pipeline } = createPipeline(disposables);
+			const releaseRebuild = new DeferredPromise<{ warm: FakeWarmQuery; controller: AbortController }>();
+			const built: { warm: FakeWarmQuery; controller: AbortController }[] = [];
+			pipeline.attachRematerializer(async () => {
+				const pair = await releaseRebuild.p;
+				built.push(pair);
+				return { warm: pair.warm, abortController: pair.controller };
+			});
+
+			// Trigger rebind by aborting the seed controller and starting a send.
+			// The send awaits _rebindQuery, which awaits releaseRebuild.
+			pipeline.abort();
+			const sendPromise = pipeline.send(makePrompt('p1'), 'turn-A');
+			await Promise.resolve(); // let _rebindQuery start its await
+
+			// Issue a SECOND abort while rebind is in-flight. This must
+			// land on the not-yet-installed controller — abort returning
+			// early as idempotent here would silently drop the user's
+			// cancel.
+			pipeline.abort();
+
+			// Now release the rematerializer with a fresh, non-aborted controller.
+			const freshController = new AbortController();
+			releaseRebuild.complete({ warm: new FakeWarmQuery(), controller: freshController });
+
+			await sendPromise.then(
+				() => assert.fail('expected cancellation after rebind-window abort'),
+				err => assert.ok(isCancellationError(err), `expected CancellationError, got ${err}`),
+			);
+			assert.strictEqual(built.length, 1);
+			assert.strictEqual(built[0].controller.signal.aborted, true, 'fresh controller cancelled before being installed');
+			assert.strictEqual(pipeline.isAborted, true);
 		});
 	});
 

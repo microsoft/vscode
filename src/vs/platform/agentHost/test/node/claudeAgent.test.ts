@@ -3529,6 +3529,31 @@ suite('ClaudeAgent (Phase 9 — runtime mutation surface)', () => {
 		}, { resume: sid, sessionId: undefined });
 	});
 
+	test('abortSession denies any parked permission requests so the SDK canUseTool callback unwinds with deny instead of leaving stale UI behind', async () => {
+		const ctx = createTestContext(disposables);
+		await ctx.agent.authenticate('https://api.github.com', 'tok');
+		await tick();
+		const created = await ctx.agent.createSession({ workingDirectory: URI.file('/workspace'), model: { id: 'claude-opus-4.6' } });
+		const sid = AgentSession.id(created.session);
+
+		// Materialize the session by driving one full turn so canUseTool is wired into Options.
+		ctx.sdk.nextQueryMessages = [makeSystemInitMessage(sid), makeResultSuccess(sid)];
+		await ctx.agent.sendMessage(created.session, 'hi', undefined, 'turn-1');
+
+		const canUseTool = ctx.sdk.capturedStartupOptions[0]?.canUseTool;
+		assert.ok(canUseTool, 'canUseTool was wired into Options');
+
+		const permissionPromise = canUseTool('Read', { file_path: '/tmp/foo.txt' }, {
+			signal: new AbortController().signal,
+			toolUseID: 'tu_pending',
+		});
+		await tick();
+
+		await ctx.agent.abortSession(created.session);
+		const result = await permissionPromise;
+		assert.deepStrictEqual(result, { behavior: 'deny', message: 'User declined' });
+	});
+
 	test('subprocess crash mid-stream rejects the in-flight turn and the next sendMessage rebinds via resume', async () => {
 		const ctx = createTestContext(disposables);
 		await ctx.agent.authenticate('https://api.github.com', 'tok');

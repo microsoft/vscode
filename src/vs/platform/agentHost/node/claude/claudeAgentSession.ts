@@ -91,8 +91,16 @@ export class ClaudeAgentSession extends Disposable {
 		return this._pipeline.send(prompt, turnId);
 	}
 
-	/** Cancel the in-flight SDK turn. Mirrors the production reference; see {@link ClaudeSdkPipeline.abort}. */
+	/**
+	 * Cancel the in-flight SDK turn. Mirrors the production reference;
+	 * see {@link ClaudeSdkPipeline.abort}. Also denies any parked
+	 * permission / user-input requests so the SDK's `canUseTool`
+	 * callback (and any interactive tool waiting on user input) unwinds
+	 * with a deny / cancel result instead of leaving stale UI behind.
+	 */
 	abort(): void {
+		this._pendingPermissions.denyAll(false);
+		this._pendingUserInputs.denyAll({ response: SessionInputResponseKind.Cancel });
 		this._pipeline.abort();
 	}
 

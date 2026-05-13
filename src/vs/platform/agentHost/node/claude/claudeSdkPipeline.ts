@@ -267,6 +267,12 @@ export class ClaudeSdkPipeline extends Disposable {
 	 * the production reference (`claudeCodeAgent.ts:719`). Drops every
 	 * pending entry's deferred (rejected with `CancellationError`),
 	 * marks the pipeline for rebind on next {@link send}. Idempotent.
+	 *
+	 * Safe to call during rebind: {@link _rebindQuery} swaps in a fresh
+	 * placeholder {@link AbortController} before awaiting the
+	 * rematerializer, so an abort issued during recovery lands on that
+	 * placeholder and is honored when the freshly-built pair arrives
+	 * (the rebind discards the new pair and surfaces a cancellation).
 	 */
 	abort(): void {
 		if (this._abortController.signal.aborted) {
@@ -341,6 +347,12 @@ export class ClaudeSdkPipeline extends Disposable {
 			throw new Error(`ClaudeSdkPipeline.rebind: no rematerializer attached (reason=${reason})`);
 		}
 		const oldWarm = this._warm;
+		// Install a placeholder controller BEFORE awaiting the
+		// rematerializer so a concurrent {@link abort} has a live target
+		// instead of returning early as idempotent against the already-
+		// aborted old controller.
+		const placeholder = new AbortController();
+		this._abortController = placeholder;
 		const built = await this._rematerializer(reason);
 		// Dispose may have run while we were awaiting the rematerializer.
 		// The dispose chain has already torn down the OLD warm/controller;
@@ -350,6 +362,20 @@ export class ClaudeSdkPipeline extends Disposable {
 			built.abortController.abort();
 			void Promise.resolve(built.warm[Symbol.asyncDispose]()).catch((err: unknown) =>
 				this._logService.warn(`[ClaudeSdkPipeline:${this.sessionId}] rebind-after-dispose: warm dispose failed: ${err}`));
+			throw new CancellationError();
+		}
+		// Abort issued while we were awaiting the rematerializer landed on
+		// the placeholder. Discard the freshly-built pair and surface a
+		// cancellation to the in-flight `send`.
+		if (placeholder.signal.aborted) {
+			built.abortController.abort();
+			void Promise.resolve(built.warm[Symbol.asyncDispose]()).catch((err: unknown) =>
+				this._logService.warn(`[ClaudeSdkPipeline:${this.sessionId}] rebind-aborted: warm dispose failed: ${err}`));
+			void Promise.resolve(oldWarm[Symbol.asyncDispose]()).catch((err: unknown) =>
+				this._logService.warn(`[ClaudeSdkPipeline:${this.sessionId}] previous WarmQuery dispose failed during aborted rebind: ${err}`));
+			this._queue.failAll(new CancellationError());
+			this._query = undefined;
+			this._needsRebind = true;
 			throw new CancellationError();
 		}
 		void Promise.resolve(oldWarm[Symbol.asyncDispose]()).catch((err: unknown) =>
@@ -428,9 +454,14 @@ export class ClaudeSdkPipeline extends Disposable {
 			throw new Error('Claude SDK stream ended without a result message');
 		} catch (err) {
 			const fatal = err instanceof Error ? err : new Error(String(err));
-			this._queue.failAll(fatal);
-			this._query = undefined;
-			this._needsRebind = true;
+			// A previous unwinding loop must NOT clobber a freshly
+			// rebound query. Identity-check against the local capture so
+			// only the loop that owns the live query nulls it.
+			if (this._query === query) {
+				this._queue.failAll(fatal);
+				this._query = undefined;
+				this._needsRebind = true;
+			}
 			if (!isCancellationError(fatal)) {
 				throw fatal;
 			}
