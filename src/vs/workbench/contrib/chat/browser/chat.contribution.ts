@@ -6,10 +6,11 @@
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
+import { autorun, observableFromEvent } from '../../../../base/common/observable.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
 import { PolicyCategory } from '../../../../base/common/policy.js';
 import { CopilotSessionSearchPolicy } from '../../../../base/common/defaultAccount.js';
-import { AgentHostClaudeAgentEnabledSettingId, AgentHostEnabledSettingId, AgentHostIpcLoggingSettingId } from '../../../../platform/agentHost/common/agentService.js';
+import { AgentHostAhpJsonlLoggingSettingId, AgentHostClaudeAgentSdkPathSettingId, AgentHostEnabledSettingId, AgentHostIpcLoggingSettingId } from '../../../../platform/agentHost/common/agentService.js';
 import { AgentNetworkFilterService, IAgentNetworkFilterService } from '../../../../platform/networkFilter/common/networkFilterService.js';
 import { AgentNetworkDomainSettingId } from '../../../../platform/networkFilter/common/settings.js';
 import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../platform/sandbox/common/settings.js';
@@ -44,11 +45,11 @@ import { CodeMapperService, ICodeMapperService } from '../common/editing/chatCod
 import '../common/widget/chatColors.js';
 import { IChatEditingService } from '../common/editing/chatEditingService.js';
 import { IChatLayoutService } from '../common/widget/chatLayoutService.js';
-import { ChatModeService, IChatMode, IChatModeService } from '../common/chatModes.js';
+import { ChatModeService, IChatMode, IChatModeService, IChatModes } from '../common/chatModes.js';
 import { ChatResponseResourceFileSystemProvider, ChatResponseResourceWorkbenchContribution, IChatResponseResourceFileSystemProvider } from '../common/widget/chatResponseResourceFileSystemProvider.js';
 import { IChatService } from '../common/chatService/chatService.js';
 import { ChatService } from '../common/chatService/chatServiceImpl.js';
-import { IChatSessionsService, SessionType } from '../common/chatSessionsService.js';
+import { IChatSessionsService } from '../common/chatSessionsService.js';
 import { ChatSlashCommandService, IChatSlashCommandService } from '../common/participants/chatSlashCommands.js';
 import { ChatArtifactsService, IChatArtifactsService } from '../common/tools/chatArtifactsService.js';
 import { ChatTodoListService, IChatTodoListService } from '../common/tools/chatTodoListService.js';
@@ -153,13 +154,14 @@ import { ChatCodeBlockContextProviderService } from './codeBlockContextProviderS
 import { ChatDynamicVariableModel } from './attachments/chatDynamicVariables.js';
 import { ChatImplicitContextContribution } from './attachments/chatImplicitContext.js';
 import './widget/input/editor/chatInputCompletions.js';
+import './widget/input/editor/agentHostInputCompletions.js';
 import './widget/input/editor/chatInputEditorContrib.js';
 import './widget/input/editor/chatInputEditorHover.js';
 import { LanguageModelToolsConfirmationService } from './tools/languageModelToolsConfirmationService.js';
 import { LanguageModelToolsService, globalAutoApproveDescription } from './tools/languageModelToolsService.js';
 import { IToolResultCompressor } from '../common/tools/toolResultCompressor.js';
 import { ToolResultCompressorService } from './tools/toolResultCompressorService.js';
-import { AgentPluginService, ConfiguredAgentPluginDiscovery, ExtensionAgentPluginDiscovery, MarketplaceAgentPluginDiscovery } from '../common/plugins/agentPluginServiceImpl.js';
+import { AgentPluginService, ConfiguredAgentPluginDiscovery, CopilotCliAgentPluginDiscovery, ExtensionAgentPluginDiscovery, MarketplaceAgentPluginDiscovery } from '../common/plugins/agentPluginServiceImpl.js';
 import { IAgentPluginRepositoryService } from '../common/plugins/agentPluginRepositoryService.js';
 import { IPluginInstallService } from '../common/plugins/pluginInstallService.js';
 import { IPluginMarketplaceService, PluginMarketplaceService } from '../common/plugins/pluginMarketplaceService.js';
@@ -400,15 +402,6 @@ configurationRegistry.registerConfiguration({
 			default: 'word',
 			tags: ['experimental'],
 		},
-		[ChatConfiguration.SymbolToolsCacheStable]: {
-			type: 'boolean',
-			description: nls.localize('chat.experimental.symbolTools.cacheStable', "When enabled, the rename and list-code-usages tools are always registered with a static description (no per-language list). Stabilizes the tools-array bytes across requests so prompt caches survive language-extension activations mid-turn. Tool behavior is unchanged: unsupported languages still produce an error at invocation time."),
-			default: false,
-			tags: ['experimental'],
-			experiment: {
-				mode: 'startup'
-			}
-		},
 		'chat.detectParticipant.enabled': {
 			type: 'boolean',
 			description: nls.localize('chat.detectParticipant.enabled', "Enables chat participant autodetection for panel chat."),
@@ -456,6 +449,11 @@ configurationRegistry.registerConfiguration({
 			markdownDescription: nls.localize('chat.autopilot.enabled', "Controls whether the Autopilot mode is available in the permissions picker. When enabled, Autopilot auto-approves all tool calls and continues until the task is done."),
 			default: true,
 			tags: ['experimental'],
+		},
+		[ChatConfiguration.PlanReviewInlineEditorEnabled]: {
+			type: 'boolean',
+			markdownDescription: nls.localize('chat.planReview.inlineEditor.enabled', "When enabled, the plan review widget mounts an editor inline, as opposed to in a separate editor tab."),
+			default: true,
 		},
 		[ChatConfiguration.DefaultPermissionLevel]: {
 			type: 'string',
@@ -986,16 +984,23 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental', 'advanced'],
 			included: product.quality !== 'stable',
 		},
-		[AgentHostClaudeAgentEnabledSettingId]: {
-			type: 'boolean',
-			description: nls.localize('chat.agentHost.claudeAgent.enabled', "When enabled, the Claude agent provider is registered inside the agent host. Requires `#chat.agentHost.enabled#`. The agent host process must be restarted for changes to this setting to take effect."),
-			default: false,
+		[AgentHostClaudeAgentSdkPathSettingId]: {
+			type: 'string',
+			description: nls.localize('chat.agentHost.claudeAgent.path', "Experimental, for local testing only. Absolute path to a locally-installed `@anthropic-ai/claude-agent-sdk` package. When set, the Claude agent provider is registered inside the agent host and the SDK is loaded from this path. Requires `#chat.agentHost.enabled#`. The agent host process must be restarted for changes to take effect. This setting will be removed once the SDK is delivered through the Extension Marketplace."),
+			default: '',
 			tags: ['experimental', 'advanced'],
 			included: product.quality !== 'stable',
 		},
 		[AgentHostIpcLoggingSettingId]: {
 			type: 'boolean',
 			description: nls.localize('chat.agentHost.ipcLogging', "When enabled, logs all IPC traffic for each agent host to a dedicated output channel."),
+			default: product.quality !== 'stable',
+			tags: ['experimental', 'advanced'],
+			included: product.quality !== 'stable',
+		},
+		[AgentHostAhpJsonlLoggingSettingId]: {
+			type: 'boolean',
+			description: nls.localize('chat.agentHost.ahpJsonlLogging', "When enabled, logs all AHP transport messages for agent host connections to JSONL files under the window's log directory."),
 			default: product.quality !== 'stable',
 			tags: ['experimental', 'advanced'],
 			included: product.quality !== 'stable',
@@ -1022,8 +1027,7 @@ configurationRegistry.registerConfiguration({
 		[ChatConfiguration.ToolRiskAssessmentEnabled]: {
 			type: 'boolean',
 			description: nls.localize('chat.tools.riskAssessment.enabled', "When enabled, terminal tool confirmations show an LLM-generated risk level (Safe / Caution / Review carefully) and a short explanation."),
-			default: false,
-			tags: ['experimental'],
+			default: true,
 			experiment: {
 				mode: 'auto'
 			},
@@ -1560,6 +1564,11 @@ configurationRegistry.registerConfiguration({
 			default: false,
 			scope: ConfigurationScope.WINDOW,
 		},
+		[ChatConfiguration.TitleBarSignInEnabled]: {
+			type: 'boolean',
+			description: nls.localize('chat.titleBar.signIn.enabled', "Controls whether the Copilot Sign In button is shown in the title bar when signed out. When disabled, the Sign In affordance falls back to the status bar."),
+			default: true,
+		},
 		'chat.approvedAccountOrganizations': {
 			type: 'array',
 			items: { type: 'string' },
@@ -2068,41 +2077,41 @@ class ChatAgentActionsContribution extends Disposable implements IWorkbenchContr
 	private readonly _modeActionDisposables = new DisposableMap<string>();
 
 	constructor(
-		@IChatModeService private readonly chatModeService: IChatModeService,
+		@IChatModeService _chatModeService: IChatModeService,
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 	) {
 		super();
 		this._store.add(this._modeActionDisposables);
 
-		const chatModes = this.chatModeService.getModes(SessionType.Local);
-		const { builtin, custom } = chatModes;
+		const focusedWidget = observableFromEvent(this, this.chatWidgetService.onDidChangeFocusedSession, () => this.chatWidgetService.lastFocusedWidget);
+		this._register(autorun(reader => {
+			const chatModes = focusedWidget.read(reader)?.input.currentChatModesObs.read(reader);
+			this._syncModeActions(chatModes);
+		}));
+	}
 
-		// Register actions for existing custom modes (avoiding name collisions)
+	private _syncModeActions(chatModes: IChatModes | undefined): void {
+		if (!chatModes) {
+			this._modeActionDisposables.clearAndDisposeAll();
+			return;
+		}
+
+		const { builtin, custom } = chatModes;
 		const currentModeIds = getCustomModesWithUniqueNames(builtin, custom);
-		for (const mode of custom) {
-			if (currentModeIds.has(mode.id)) {
-				this._registerModeAction(mode);
+
+		// Remove modes that no longer exist and those replaced by modes later in the list with same name.
+		for (const modeId of this._modeActionDisposables.keys()) {
+			if (!currentModeIds.has(modeId)) {
+				this._modeActionDisposables.deleteAndDispose(modeId);
 			}
 		}
 
-		// Listen for custom mode changes by tracking snapshots
-		this._register(chatModes.onDidChange(() => {
-			const { builtin, custom } = chatModes;
-			const currentModeIds = getCustomModesWithUniqueNames(builtin, custom);
-
-			// Remove modes that no longer exist and those replaced by modes later in the list with same name
-			for (const modeId of this._modeActionDisposables.keys()) {
-				if (!currentModeIds.has(modeId)) {
-					this._modeActionDisposables.deleteAndDispose(modeId);
-				}
+		// Register new modes.
+		for (const mode of custom) {
+			if (currentModeIds.has(mode.id) && !this._modeActionDisposables.has(mode.id)) {
+				this._registerModeAction(mode);
 			}
-
-			// Register new modes
-			for (const mode of custom) {
-				if (currentModeIds.has(mode.id) && !this._modeActionDisposables.has(mode.id)) {
-					this._registerModeAction(mode);
-				}
-			}
-		}));
+		}
 	}
 
 	private _registerModeAction(mode: IChatMode): void {
@@ -2287,6 +2296,7 @@ registerEditorFeature(ChatPasteProvidersFeature);
 agentPluginDiscoveryRegistry.register(new SyncDescriptor(ConfiguredAgentPluginDiscovery));
 agentPluginDiscoveryRegistry.register(new SyncDescriptor(MarketplaceAgentPluginDiscovery));
 agentPluginDiscoveryRegistry.register(new SyncDescriptor(ExtensionAgentPluginDiscovery));
+agentPluginDiscoveryRegistry.register(new SyncDescriptor(CopilotCliAgentPluginDiscovery));
 
 registerSingleton(IChatResponseResourceFileSystemProvider, ChatResponseResourceFileSystemProvider, InstantiationType.Delayed);
 registerSingleton(IChatTransferService, ChatTransferService, InstantiationType.Delayed);

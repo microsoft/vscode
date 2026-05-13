@@ -19,10 +19,10 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
-import { IAction, toAction, Action, Separator, SubmenuAction } from '../../../../../base/common/actions.js';
+import { IAction, toAction, Action, Separator } from '../../../../../base/common/actions.js';
 import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { ChatModelsViewModel, ILanguageModel, ILanguageModelEntry, ILanguageModelProviderEntry, ILanguageModelGroupEntry, SEARCH_SUGGESTIONS, isLanguageModelProviderEntry, isLanguageModelGroupEntry, ChatModelGroup, IViewModelEntry, isStatusEntry, IStatusEntry } from './chatModelsViewModel.js';
+import { ChatModelsViewModel, ILanguageModel, ILanguageModelEntry, ILanguageModelProviderEntry, ILanguageModelGroupEntry, SEARCH_SUGGESTIONS, isLanguageModelProviderEntry, isLanguageModelGroupEntry, IViewModelEntry, isStatusEntry, IStatusEntry } from './chatModelsViewModel.js';
 import { HighlightedLabel } from '../../../../../base/browser/ui/highlightedlabel/highlightedLabel.js';
 import { SuggestEnabledInput } from '../../../codeEditor/browser/suggestEnabledInput/suggestEnabledInput.js';
 import { Delayer } from '../../../../../base/common/async.js';
@@ -187,20 +187,6 @@ class ModelsSearchFilterDropdownMenuActionViewItem extends DropdownMenuActionVie
 		);
 	}
 
-	private createGroupByAction(grouping: ChatModelGroup, label: string): IAction {
-		return {
-			id: `groupBy.${grouping}`,
-			label,
-			class: undefined,
-			enabled: true,
-			tooltip: localize('groupByTooltip', "Group by {0}", label),
-			checked: this.viewModel.groupBy === grouping,
-			run: () => {
-				this.viewModel.groupBy = grouping;
-			}
-		};
-	}
-
 	private createProviderAction(vendor: string, displayName: string): IAction {
 		const query = `@provider:"${displayName}"`;
 		const currentQuery = this.search.getValue();
@@ -233,22 +219,6 @@ class ModelsSearchFilterDropdownMenuActionViewItem extends DropdownMenuActionVie
 		};
 	}
 
-	private createVisibleAction(visible: boolean, label: string): IAction {
-		const query = `@visible:${visible}`;
-		const currentQuery = this.search.getValue();
-		const isChecked = currentQuery.includes(query);
-
-		return {
-			id: `visible-${visible}`,
-			label,
-			tooltip: localize('filterByVisible', "Filter by {0}", label),
-			class: undefined,
-			enabled: true,
-			checked: isChecked,
-			run: () => this.toggleFilterAndSearch({ query, excludes: [`@visible:${!visible}`] })
-		};
-	}
-
 	private toggleFilterAndSearch(filter: IFilterQuery): void {
 		const currentQuery = this.search.getValue();
 		const newQuery = toggleFilter(currentQuery, filter);
@@ -265,24 +235,12 @@ class ModelsSearchFilterDropdownMenuActionViewItem extends DropdownMenuActionVie
 			this.createCapabilityAction('agent', localize('capability.agent', "Agent Mode"))
 		);
 
-		// Visibility filters
-		actions.push(new Separator());
-		actions.push(this.createVisibleAction(true, localize('filter.visible', "Visible in Chat Model Picker")));
-		actions.push(this.createVisibleAction(false, localize('filter.hidden', "Hidden in Chat Model Picker")));
-
 		// Provider filters - only show providers with configured models
 		const configuredVendors = this.viewModel.getConfiguredVendors();
 		if (configuredVendors.length > 1) {
 			actions.push(new Separator());
 			actions.push(...configuredVendors.map(vendor => this.createProviderAction(vendor.vendor.vendor, vendor.group.name)));
 		}
-
-		// Group By
-		actions.push(new Separator());
-		const groupByActions: IAction[] = [];
-		groupByActions.push(this.createGroupByAction(ChatModelGroup.Vendor, localize('groupBy.provider', "Provider")));
-		groupByActions.push(this.createGroupByAction(ChatModelGroup.Visibility, localize('groupBy.visibility', "Visibility (Chat Model Picker)")));
-		actions.push(new SubmenuAction('groupBy', localize('groupBy', "Group By"), groupByActions));
 
 		return actions;
 	}
@@ -314,7 +272,6 @@ abstract class ModelsTableColumnRenderer<T extends IModelTableColumnTemplateData
 		templateData.container.parentElement!.classList.toggle('models-vendor-row', isVendor || isGroup);
 		templateData.container.parentElement!.classList.toggle('models-model-row', !isVendor && !isGroup);
 		templateData.container.parentElement!.classList.toggle('models-status-row', isStatus);
-		templateData.container.parentElement!.classList.toggle('model-hidden', !isVendor && !isGroup && !isStatus && !element.model.visible);
 		if (isVendor) {
 			this.renderVendorElement(element, index, templateData);
 		} else if (isGroup) {
@@ -401,17 +358,6 @@ class GutterColumnRenderer extends ModelsTableColumnRenderer<IToggleCollapseColu
 	}
 
 	override renderModelElement(entry: ILanguageModelEntry, index: number, templateData: IToggleCollapseColumnTemplateData): void {
-		const { model: modelEntry } = entry;
-		const isVisible = modelEntry.visible;
-		const toggleVisibilityAction = toAction({
-			id: 'toggleVisibility',
-			label: isVisible ? localize('models.hide', 'Hide') : localize('models.show', 'Show'),
-			class: `model-visibility-toggle ${isVisible ? `${ThemeIcon.asClassName(Codicon.eye)} model-visible` : `${ThemeIcon.asClassName(Codicon.eyeClosed)} model-hidden`}`,
-			tooltip: isVisible ? localize('models.visible', 'Hide in the chat model picker') : localize('models.hidden', 'Show in the chat model picker'),
-			checked: !isVisible,
-			run: async () => this.viewModel.toggleVisibility(entry)
-		});
-		templateData.actionBar.push(toggleVisibilityAction, { icon: true, label: false });
 	}
 }
 
@@ -496,10 +442,6 @@ class ModelNameColumnRenderer extends ModelsTableColumnRenderer<IModelNameColumn
 			}
 			markdown.appendMarkdown(`${entry.model.metadata.tooltip}`);
 			markdown.appendText(`\n`);
-		}
-
-		if (!entry.model.visible) {
-			markdown.appendMarkdown(`\n\n${localize('models.userSelectable', 'This model is hidden in the chat model picker')}`);
 		}
 
 		templateData.elementDisposables.add(this.hoverService.setupDelayedHoverAtMouse(templateData.container!, () => ({
@@ -855,21 +797,44 @@ class ActionsColumnRenderer extends ModelsTableColumnRenderer<IActionsColumnTemp
 	}
 
 	override renderModelElement(entry: ILanguageModelEntry, index: number, templateData: IActionsColumnTemplateData): void {
-		const configActions = this.languageModelsService.getModelConfigurationActions(entry.model.identifier);
-		if (configActions.length === 0 && !entry.model.metadata.configurationSchema) {
-			return;
+		const primaryActions: IAction[] = [];
+
+		// Auto model cannot be pinned
+		if (entry.model.metadata.id !== 'auto') {
+			primaryActions.push(this.createPinAction(entry.model.identifier));
 		}
 
+		const configActions = this.languageModelsService.getModelConfigurationActions(entry.model.identifier);
 		const secondaryActions: IAction[] = [...configActions];
 
-		// Always add "Configure..." as fallback for complex properties
-		secondaryActions.push(toAction({
-			id: 'configureModel',
-			label: localize('models.configureModel', 'Configure...'),
-			run: () => this.languageModelsService.configureModel(entry.model.identifier)
-		}));
+		if (configActions.length > 0 || entry.model.metadata.configurationSchema) {
+			secondaryActions.push(toAction({
+				id: 'configureModel',
+				label: localize('models.configureModel', 'Configure...'),
+				run: () => this.languageModelsService.configureModel(entry.model.identifier)
+			}));
+		}
 
-		templateData.actionBar.setActions([], secondaryActions);
+		templateData.actionBar.setActions(primaryActions, secondaryActions);
+	}
+
+	private createPinAction(modelIdentifier: string): IAction {
+		const isPinned = this.languageModelsService.isModelPinned(modelIdentifier);
+		return toAction({
+			id: isPinned ? `unpin.${modelIdentifier}` : `pin.${modelIdentifier}`,
+			label: isPinned
+				? localize('models.unpinModel', "Unpin Model")
+				: localize('models.pinModel', "Pin Model"),
+			class: ThemeIcon.asClassName(isPinned ? Codicon.pinned : Codicon.pin),
+			run: () => {
+				if (isPinned) {
+					this.languageModelsService.unpinModel(modelIdentifier);
+				} else {
+					this.languageModelsService.pinModel(modelIdentifier);
+				}
+				this.viewModel.refresh();
+			}
+		});
 	}
 }
 
@@ -979,7 +944,6 @@ export class ChatModelsWidget extends Disposable {
 					const allSuggestions = [
 						...providerSuggestions,
 						...SEARCH_SUGGESTIONS.CAPABILITIES,
-						...SEARCH_SUGGESTIONS.VISIBILITY,
 					];
 					if (!query.trim()) {
 						return allSuggestions;
@@ -990,8 +954,6 @@ export class ChatModelsWidget extends Disposable {
 						return providerSuggestions;
 					} else if (lastPart.startsWith('@capability:')) {
 						return SEARCH_SUGGESTIONS.CAPABILITIES;
-					} else if (lastPart.startsWith('@visible:')) {
-						return SEARCH_SUGGESTIONS.VISIBILITY;
 					} else if (lastPart.startsWith('@')) {
 						return allSuggestions;
 					}
@@ -1081,7 +1043,9 @@ export class ChatModelsWidget extends Disposable {
 			this.updateAddModelsButton();
 			this.createTable();
 		}));
+		this._register(this.chatEntitlementService.onDidChangeUsageBasedBilling(() => this.createTable()));
 		this._register(this.languageModelsService.onDidChangeLanguageModelVendors(() => this.updateAddModelsButton()));
+		this._register(this.languageModelsService.onDidChangePinnedModels(() => this.viewModel.refresh()));
 		this._register(this.contextKeyService.onDidChangeContext(e => {
 			if (e.affectsSome(new Set(['github.copilot.clientByokEnabled']))) {
 				this.updateAddModelsButton();
@@ -1129,18 +1093,7 @@ export class ChatModelsWidget extends Disposable {
 			}
 		];
 
-		if (this.viewModel.groupBy === ChatModelGroup.Visibility) {
-			columns.push({
-				label: localize('provider', 'Provider'),
-				tooltip: '',
-				weight: 0.15,
-				minimumWidth: 100,
-				templateId: ProviderColumnRenderer.TEMPLATE_ID,
-				project(row: IViewModelEntry): IViewModelEntry { return row; }
-			});
-		}
-
-		const hasAnyCostFields = this.viewModel.viewModelEntries.some(e => !isLanguageModelProviderEntry(e) && !isLanguageModelGroupEntry(e) && !isStatusEntry(e) && (e.model.metadata.inputCost !== undefined || e.model.metadata.outputCost !== undefined || e.model.metadata.cacheCost !== undefined));
+		const isUBB = this.chatEntitlementService.quotas.usageBasedBilling === true;
 		columns.push(
 			{
 				label: localize('tokenLimits', 'Context Size'),
@@ -1159,10 +1112,10 @@ export class ChatModelsWidget extends Disposable {
 				project(row: IViewModelEntry): IViewModelEntry { return row; }
 			},
 			{
-				label: hasAnyCostFields ? localize('cost', 'Cost (Credits per 1M Tokens)') : localize('pricing', 'Pricing'),
+				label: isUBB ? localize('cost', 'Cost (Credits per 1M Tokens)') : localize('pricing', 'Pricing'),
 				tooltip: '',
-				weight: hasAnyCostFields ? 0.24 : 0.15,
-				minimumWidth: hasAnyCostFields ? 240 : 200,
+				weight: isUBB ? 0.24 : 0.15,
+				minimumWidth: isUBB ? 240 : 200,
 				templateId: CombinedCostColumnRenderer.TEMPLATE_ID,
 				project(row: IViewModelEntry): IViewModelEntry { return row; }
 			},
@@ -1232,11 +1185,6 @@ export class ChatModelsWidget extends Disposable {
 								? localize('cacheCost.ariaLabel.singular', "Cache cost: {0} credit per 1M tokens", e.model.metadata.cacheCost)
 								: localize('cacheCost.ariaLabel.plural', "Cache cost: {0} credits per 1M tokens", e.model.metadata.cacheCost));
 						}
-						if (e.model.visible) {
-							ariaLabels.push(localize('model.visible', 'This model is visible in the chat model picker'));
-						} else {
-							ariaLabels.push(localize('model.hidden', 'This model is hidden in the chat model picker'));
-						}
 						return ariaLabels.join('. ');
 					},
 					getWidgetAriaLabel: () => localize('modelsTable.ariaLabel', 'Language Models')
@@ -1266,22 +1214,27 @@ export class ChatModelsWidget extends Disposable {
 			let configureVendor: ILanguageModelProviderDescriptor | undefined;
 
 			if (selectedModelEntries.length) {
-				const visibleModels = selectedModelEntries.filter(entry => entry.model.visible);
-				const hiddenModels = selectedModelEntries.filter(entry => !entry.model.visible);
-
-				actions.push(toAction({
-					id: 'hideSelectedModels',
-					label: localize('models.hideSelected', 'Hide in the Chat Model Picker'),
-					enabled: visibleModels.length > 0,
-					run: () => this.viewModel.setModelsVisibility(selectedModelEntries, false)
-				}));
-
-				actions.push(toAction({
-					id: 'showSelectedModels',
-					label: localize('models.showSelected', 'Show in the Chat Model Picker'),
-					enabled: hiddenModels.length > 0,
-					run: () => this.viewModel.setModelsVisibility(selectedModelEntries, true)
-				}));
+				// Pin/unpin action — single action for all selected models
+				const pinnableEntries = selectedModelEntries.filter(e => e.model.metadata.id !== 'auto');
+				if (pinnableEntries.length > 0) {
+					const allPinned = pinnableEntries.every(e => this.languageModelsService.isModelPinned(e.model.identifier));
+					actions.push(toAction({
+						id: allPinned ? 'unpinModels' : 'pinModels',
+						label: allPinned
+							? localize('models.unpinModel', "Unpin Model")
+							: localize('models.pinModel', "Pin Model"),
+						class: ThemeIcon.asClassName(allPinned ? Codicon.pinned : Codicon.pin),
+						run: () => {
+							for (const entry of pinnableEntries) {
+								if (allPinned) {
+									this.languageModelsService.unpinModel(entry.model.identifier);
+								} else {
+									this.languageModelsService.pinModel(entry.model.identifier);
+								}
+							}
+						}
+					}));
+				}
 
 				// Show per-model configuration actions for a single model
 				if (selectedModelEntries.length === 1) {
@@ -1302,18 +1255,6 @@ export class ChatModelsWidget extends Disposable {
 			} else if (selectedEntries.length === 1) {
 				const entry = e.element;
 				if (isLanguageModelProviderEntry(entry)) {
-					if (!entry.vendorEntry.vendor.isDefault) {
-						actions.push(toAction({
-							id: 'hideAllModels',
-							label: localize('models.hideAll', 'Hide in the Chat Model Picker'),
-							run: () => this.viewModel.setGroupVisibility(entry, false)
-						}));
-						actions.push(toAction({
-							id: 'showAllModels',
-							label: localize('models.showAll', 'Show in the Chat Model Picker'),
-							run: () => this.viewModel.setGroupVisibility(entry, true)
-						}));
-					}
 					configureGroup = entry.vendorEntry.group.name;
 					configureVendor = entry.vendorEntry.vendor;
 				}
@@ -1372,8 +1313,6 @@ export class ChatModelsWidget extends Disposable {
 			}
 			if (isLanguageModelProviderEntry(element) || isLanguageModelGroupEntry(element)) {
 				this.viewModel.toggleCollapsed(element);
-			} else if (!DOM.isMouseEvent(browserEvent) || browserEvent.detail === 2) {
-				this.viewModel.toggleVisibility(element);
 			}
 		}));
 

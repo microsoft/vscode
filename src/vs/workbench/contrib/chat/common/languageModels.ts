@@ -195,6 +195,7 @@ export interface ILanguageModelChatMetadata {
 	readonly inputCost?: number;
 	readonly outputCost?: number;
 	readonly cacheCost?: number;
+	readonly priceCategory?: string;
 	readonly family: string;
 	readonly maxInputTokens: number;
 	readonly maxOutputTokens: number;
@@ -202,7 +203,6 @@ export interface ILanguageModelChatMetadata {
 	readonly isDefaultForLocation: { [K in ChatAgentLocation]?: boolean };
 	readonly isUserSelectable?: boolean;
 	readonly statusIcon?: ThemeIcon;
-	readonly modelPickerCategory: { label: string; order: number } | undefined;
 	readonly auth?: {
 		readonly providerLabel: string;
 		readonly accountLabel?: string;
@@ -356,8 +356,6 @@ export interface ILanguageModelsService {
 	readonly onDidChangeLanguageModelVendors: Event<readonly string[]>;
 	readonly onDidChangeLanguageModels: Event<string>;
 
-	updateModelPickerPreference(modelIdentifier: string, showInModelPicker: boolean): void;
-
 	getLanguageModelIds(): string[];
 
 	getVendors(): ILanguageModelProviderDescriptor[];
@@ -442,6 +440,31 @@ export interface ILanguageModelsService {
 	 * Clears the recently used model list.
 	 */
 	clearRecentlyUsedList(): void;
+
+	/**
+	 * Returns the pinned model identifiers, in the order they were pinned.
+	 */
+	getPinnedModelIds(): string[];
+
+	/**
+	 * Pins a model so it appears in the pinned section of the model picker.
+	 */
+	pinModel(modelIdentifier: string): void;
+
+	/**
+	 * Unpins a model, removing it from the pinned section.
+	 */
+	unpinModel(modelIdentifier: string): void;
+
+	/**
+	 * Returns whether the given model is pinned.
+	 */
+	isModelPinned(modelIdentifier: string): boolean;
+
+	/**
+	 * Fires when the pinned models list changes.
+	 */
+	readonly onDidChangePinnedModels: Event<void>;
 
 	/**
 	 * Returns the models from the control manifest,
@@ -558,8 +581,14 @@ export const languageModelChatProviderExtensionPoint = ExtensionsRegistry.regist
 	}
 });
 
-const CHAT_MODEL_PICKER_PREFERENCES_STORAGE_KEY = 'chatModelPickerPreferences';
 const CHAT_MODEL_RECENTLY_USED_STORAGE_KEY = 'chatModelRecentlyUsed';
+const CHAT_MODEL_PINNED_STORAGE_KEY = 'chatModelPinned';
+
+/**
+ * The identifier for the Auto model which dynamically routes to the best backend.
+ * Auto should never appear in user-curated lists (MRU, pinned).
+ */
+const AUTO_MODEL_IDENTIFIER = 'copilot/auto';
 const CHAT_PARTICIPANT_NAME_REGISTRY_STORAGE_KEY = 'chat.participantNameRegistry';
 const CHAT_MODELS_CONTROL_STORAGE_KEY = 'chat.modelsControl';
 
@@ -590,7 +619,6 @@ export class LanguageModelsService implements ILanguageModelsService {
 	private readonly _modelsGroups = new Map<string, ILanguageModelsGroup[]>();
 	private readonly _modelCache = new Map<string, ILanguageModelChatMetadata>();
 	private readonly _resolveLMSequencer = new SequencerByKey<string>();
-	private _modelPickerUserPreferences: IStringDictionary<boolean> = {};
 	private readonly _modelConfigurations = new Map<string, IStringDictionary<unknown>>();
 	private readonly _hasUserSelectableModels: IContextKey<boolean>;
 
@@ -598,9 +626,13 @@ export class LanguageModelsService implements ILanguageModelsService {
 	readonly onDidChangeLanguageModels: Event<string> = this._onLanguageModelChange.event;
 
 	private _recentlyUsedModelIds: string[] = [];
+	private _pinnedModelIds: string[] = [];
 
 	private readonly _onDidChangeModelsControlManifest = this._store.add(new Emitter<IModelsControlManifest>());
 	readonly onDidChangeModelsControlManifest = this._onDidChangeModelsControlManifest.event;
+
+	private readonly _onDidChangePinnedModels = this._store.add(new Emitter<void>());
+	readonly onDidChangePinnedModels = this._onDidChangePinnedModels.event;
 
 	private _modelsControlManifest: IModelsControlManifest = { free: {}, paid: {} };
 	private _modelsControlRawResponse: IChatControlResponse['models'] | undefined;
@@ -623,10 +655,9 @@ export class LanguageModelsService implements ILanguageModelsService {
 		@IRequestService private readonly _requestService: IRequestService,
 	) {
 		this._hasUserSelectableModels = ChatContextKeys.languageModelsAreUserSelectable.bindTo(_contextKeyService);
-		this._modelPickerUserPreferences = this._readModelPickerPreferences();
 		this._recentlyUsedModelIds = this._readRecentlyUsedModels();
+		this._pinnedModelIds = this._readPinnedModels();
 		this._initChatControlData();
-		this._store.add(this._storageService.onDidChangeValue(StorageScope.PROFILE, CHAT_MODEL_PICKER_PREFERENCES_STORAGE_KEY, this._store)(() => this._onDidChangeModelPickerPreferences()));
 
 		this._store.add(this.onDidChangeLanguageModels(() => {
 			this._hasUserSelectableModels.set(this._modelCache.size > 0 && Array.from(this._modelCache.values()).some(model => model.isUserSelectable));
@@ -694,9 +725,6 @@ export class LanguageModelsService implements ILanguageModelsService {
 			this._vendors.set(item.vendor, vendor);
 			addedVendorIds.push(item.vendor);
 			// Have some models we want from this vendor, so activate the extension
-			if (this._hasStoredModelForVendor(item.vendor)) {
-				this._extensionService.activateByEvent(`onLanguageModelChatProvider:${item.vendor}`);
-			}
 		}
 
 		for (const item of removed) {
@@ -728,77 +756,6 @@ export class LanguageModelsService implements ILanguageModelsService {
 		await Promise.all(Array.from(changedVendors).map(vendor => this._resolveAllLanguageModels(vendor, true)));
 	}
 
-	private _readModelPickerPreferences(): IStringDictionary<boolean> {
-		return this._storageService.getObject<IStringDictionary<boolean>>(CHAT_MODEL_PICKER_PREFERENCES_STORAGE_KEY, StorageScope.PROFILE, {});
-	}
-
-	private _onDidChangeModelPickerPreferences(): void {
-		const newPreferences = this._readModelPickerPreferences();
-		const oldPreferences = this._modelPickerUserPreferences;
-
-		// Check if there are any changes by computing diff
-		const affectedVendors = new Set<string>();
-		let hasChanges = false;
-
-		// Check for added or updated keys
-		for (const modelId in newPreferences) {
-			if (oldPreferences[modelId] !== newPreferences[modelId]) {
-				hasChanges = true;
-				const model = this._modelCache.get(modelId);
-				if (model) {
-					affectedVendors.add(model.vendor);
-				}
-			}
-		}
-
-		// Check for removed keys
-		for (const modelId in oldPreferences) {
-			if (!newPreferences.hasOwnProperty(modelId)) {
-				hasChanges = true;
-				const model = this._modelCache.get(modelId);
-				if (model) {
-					affectedVendors.add(model.vendor);
-				}
-			}
-		}
-
-		if (hasChanges) {
-			this._logService.trace('[LM] Updated model picker preferences from storage');
-			this._modelPickerUserPreferences = newPreferences;
-			for (const vendor of affectedVendors) {
-				this._onLanguageModelChange.fire(vendor);
-			}
-		}
-	}
-
-	private _hasStoredModelForVendor(vendor: string): boolean {
-		return Object.keys(this._modelPickerUserPreferences).some(modelId => {
-			return modelId.startsWith(vendor);
-		});
-	}
-
-	private _saveModelPickerPreferences(): void {
-		this._storageService.store(CHAT_MODEL_PICKER_PREFERENCES_STORAGE_KEY, this._modelPickerUserPreferences, StorageScope.PROFILE, StorageTarget.USER);
-	}
-
-	updateModelPickerPreference(modelIdentifier: string, showInModelPicker: boolean): void {
-		const model = this._modelCache.get(modelIdentifier);
-		if (!model) {
-			this._logService.warn(`[LM] Cannot update model picker preference for unknown model ${modelIdentifier}`);
-			return;
-		}
-
-		this._modelPickerUserPreferences[modelIdentifier] = showInModelPicker;
-		if (showInModelPicker === model.isUserSelectable) {
-			delete this._modelPickerUserPreferences[modelIdentifier];
-			this._saveModelPickerPreferences();
-		} else if (model.isUserSelectable !== showInModelPicker) {
-			this._saveModelPickerPreferences();
-		}
-		this._onLanguageModelChange.fire(model.vendor);
-		this._logService.trace(`[LM] Updated model picker preference for ${modelIdentifier} to ${showInModelPicker}`);
-	}
-
 	getVendors(): ILanguageModelProviderDescriptor[] {
 		return Array.from(this._vendors.values())
 			.filter(vendor => {
@@ -815,11 +772,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 	}
 
 	lookupLanguageModel(modelIdentifier: string): ILanguageModelChatMetadata | undefined {
-		const model = this._modelCache.get(modelIdentifier);
-		if (model && this._modelPickerUserPreferences[modelIdentifier] !== undefined) {
-			return { ...model, isUserSelectable: this._modelPickerUserPreferences[modelIdentifier] };
-		}
-		return model;
+		return this._modelCache.get(modelIdentifier);
 	}
 
 	lookupLanguageModelByQualifiedName(referenceName: string): ILanguageModelChatMetadataAndIdentifier | undefined {
@@ -867,7 +820,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 					for (const m of models) {
 						if (vendor.isDefault) {
 							// Special case for copilot models - they are all user selectable unless marked otherwise
-							if (m.metadata.isUserSelectable || this._modelPickerUserPreferences[m.identifier] === true) {
+							if (m.metadata.isUserSelectable) {
 								modelIdentifiers.push(m.identifier);
 							} else {
 								this._logService.trace(`[LM] Skipping model ${m.identifier} from model picker as it is not user selectable.`);
@@ -1055,10 +1008,6 @@ export class LanguageModelsService implements ILanguageModelsService {
 		}
 
 		this._providers.set(vendor, provider);
-
-		if (this._hasStoredModelForVendor(vendor)) {
-			this._resolveAllLanguageModels(vendor, true);
-		}
 
 		const modelChangeListener = provider.onDidChange(() => {
 			this._resolveAllLanguageModels(vendor, true);
@@ -1724,15 +1673,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 			throw new Error(`Chat model provider for vendor ${vendor} is not registered.`);
 		}
 
-		const models = await provider.provideLanguageModelChatInfo({ group: name, silent: false, configuration }, CancellationToken.None);
-		for (const model of models) {
-			const oldIdentifier = `${vendor}/${model.metadata.id}`;
-			if (this._modelPickerUserPreferences[oldIdentifier] === true) {
-				this._modelPickerUserPreferences[model.identifier] = true;
-			}
-			delete this._modelPickerUserPreferences[oldIdentifier];
-		}
-		this._saveModelPickerPreferences();
+		await provider.provideLanguageModelChatInfo({ group: name, silent: false, configuration }, CancellationToken.None);
 
 		await this.addLanguageModelsProviderGroup(name, vendor, configuration);
 	}
@@ -1750,12 +1691,12 @@ export class LanguageModelsService implements ILanguageModelsService {
 	getRecentlyUsedModelIds(): string[] {
 		// Filter to only include models that still exist in the cache
 		return this._recentlyUsedModelIds
-			.filter(id => this._modelCache.has(id) && id !== 'copilot/auto')
+			.filter(id => this._modelCache.has(id) && id !== AUTO_MODEL_IDENTIFIER)
 			.slice(0, 4);
 	}
 
 	addToRecentlyUsedList(modelIdentifier: string): void {
-		if (modelIdentifier === 'copilot/auto') {
+		if (modelIdentifier === AUTO_MODEL_IDENTIFIER) {
 			return;
 		}
 
@@ -1776,6 +1717,45 @@ export class LanguageModelsService implements ILanguageModelsService {
 	clearRecentlyUsedList(): void {
 		this._recentlyUsedModelIds = [];
 		this._saveRecentlyUsedModels();
+	}
+
+	//#endregion
+
+	//#region Pinned models
+
+	private _readPinnedModels(): string[] {
+		return this._storageService.getObject<string[]>(CHAT_MODEL_PINNED_STORAGE_KEY, StorageScope.PROFILE, []);
+	}
+
+	private _savePinnedModels(): void {
+		this._storageService.store(CHAT_MODEL_PINNED_STORAGE_KEY, this._pinnedModelIds, StorageScope.PROFILE, StorageTarget.USER);
+	}
+
+	getPinnedModelIds(): string[] {
+		return this._pinnedModelIds.filter(id => id !== AUTO_MODEL_IDENTIFIER && this._modelCache.has(id));
+	}
+
+	pinModel(modelIdentifier: string): void {
+		if (modelIdentifier === AUTO_MODEL_IDENTIFIER || this._pinnedModelIds.includes(modelIdentifier)) {
+			return;
+		}
+		this._pinnedModelIds.push(modelIdentifier);
+		this._savePinnedModels();
+		this._onDidChangePinnedModels.fire();
+	}
+
+	unpinModel(modelIdentifier: string): void {
+		const index = this._pinnedModelIds.indexOf(modelIdentifier);
+		if (index === -1) {
+			return;
+		}
+		this._pinnedModelIds.splice(index, 1);
+		this._savePinnedModels();
+		this._onDidChangePinnedModels.fire();
+	}
+
+	isModelPinned(modelIdentifier: string): boolean {
+		return modelIdentifier !== AUTO_MODEL_IDENTIFIER && this._pinnedModelIds.includes(modelIdentifier);
 	}
 
 	//#endregion

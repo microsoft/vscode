@@ -75,9 +75,20 @@ export interface IChatQuotaService {
 	readonly rateLimitInfo: { readonly session: IChatQuota | undefined; readonly weekly: IChatQuota | undefined };
 	quotaExhausted: boolean;
 	additionalUsageEnabled: boolean;
+	/** AIC credits accumulated for the given turn, from copilot_usage.total_nano_aiu. */
+	getCreditsForTurn(turnId: string): number | undefined;
 	processQuotaHeaders(headers: IHeaders): void;
 	processQuotaSnapshots(snapshots: QuotaSnapshots): void;
+	/** Accumulate per-request cost from copilot_usage.total_nano_aiu (in nano-AIUs), scoped to a turn. */
+	setLastCopilotUsage(totalNanoAiu: number, turnId: string): void;
+	/** Reset accumulated credits for the given turn. */
+	resetTurnCredits(turnId: string): void;
 	clearQuota(): void;
+	/**
+	 * Fetches up-to-date quota data from the `copilot_internal/user` endpoint.
+	 * Errors are caught and logged.
+	 */
+	refreshQuota(): Promise<void>;
 }
 
 export const IChatQuotaService = createServiceIdentifier<IChatQuotaService>('IChatQuotaService');

@@ -22,14 +22,14 @@ import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPlu
 import { AgentSession, type AgentSignal, type IAgentActionSignal, type IAgentSessionMetadata } from '../../common/agentService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
-import { buildSubagentSessionUri, ResponsePartKind, SessionCustomization, TurnState, type CustomizationRef, type MarkdownResponsePart, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
+import { buildSubagentSessionUri, ResponsePartKind, SessionCustomization, ToolCallConfirmationReason, ToolCallStatus, TurnState, type CustomizationRef, type MarkdownResponsePart, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
 import { ActionType, type IDeltaAction } from '../../common/state/sessionActions.js';
 
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { IAgentHostGitService } from '../../node/agentHostGitService.js';
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
-import { CopilotAgent, getCopilotWorktreeBranchName, getCopilotWorktreeName, getCopilotWorktreesRoot } from '../../node/copilot/copilotAgent.js';
+import { COPILOT_AGENT_HOST_SYSTEM_MESSAGE, CopilotAgent, getCopilotBranchNameHintFromMessage, getCopilotWorktreeBranchName, getCopilotWorktreeName, getCopilotWorktreesRoot } from '../../node/copilot/copilotAgent.js';
 import { CopilotAgentSession, type SessionWrapperFactory } from '../../node/copilot/copilotAgentSession.js';
 import { CopilotSessionWrapper } from '../../node/copilot/copilotSessionWrapper.js';
 import { ShellManager } from '../../node/copilot/copilotShellTools.js';
@@ -86,10 +86,12 @@ class TestAgentHostTerminalManager implements IAgentHostTerminalManager {
 
 	async createTerminal(): Promise<void> { }
 	writeInput(): void { }
+	async sendText(): Promise<void> { }
 	onData(): IDisposable { return Disposable.None; }
 	onExit(): IDisposable { return Disposable.None; }
 	onClaimChanged(): IDisposable { return Disposable.None; }
 	onCommandFinished(): IDisposable { return Disposable.None; }
+	createAltBufferPromise(_uri: string, _store: DisposableStore): Promise<void> { return new Promise(() => { }); }
 	getContent(): string | undefined { return undefined; }
 	getClaim(): undefined { return undefined; }
 	hasTerminal(): boolean { return false; }
@@ -273,8 +275,8 @@ class TestableCopilotAgent extends CopilotAgent {
 		return stub;
 	}
 
-	resolveWorktreeForTest(config: Parameters<CopilotAgent['createSession']>[0], sessionId: string): Promise<URI | undefined> {
-		return this._resolveSessionWorkingDirectory(config, sessionId);
+	resolveWorktreeForTest(config: Parameters<CopilotAgent['createSession']>[0], sessionId: string, prompt?: string): Promise<URI | undefined> {
+		return this._resolveSessionWorkingDirectory(config, sessionId, prompt);
 	}
 }
 
@@ -370,6 +372,16 @@ suite('CopilotAgent', () => {
 
 	test('keeps hinted branch names short', () => {
 		assert.strictEqual(getCopilotWorktreeBranchName('12345678-aaaa-bbbb-cccc-123456789abc', 'a'.repeat(48)).length, 'agents/'.length + 48 + '-12345678'.length);
+	});
+
+	test('derives slug branch hint from first message', () => {
+		assert.strictEqual(getCopilotBranchNameHintFromMessage('Add agent host config'), 'add-agent-host-config');
+		assert.strictEqual(getCopilotBranchNameHintFromMessage('  Fix: the bug!! '), 'fix-the-bug');
+		assert.strictEqual(getCopilotBranchNameHintFromMessage('Refactor café ☕ rendering'), 'refactor-cafe-rendering');
+		assert.strictEqual(getCopilotBranchNameHintFromMessage('one two three four five six seven eight nine ten'), 'one-two-three-four-five-six-seven-eight');
+		assert.strictEqual(getCopilotBranchNameHintFromMessage('a'.repeat(100))?.length, 48);
+		assert.strictEqual(getCopilotBranchNameHintFromMessage('!!! ??? ...'), undefined);
+		assert.strictEqual(getCopilotBranchNameHintFromMessage(''), undefined);
 	});
 
 	test('returns empty models and throws AuthRequired for sessions before authentication', async () => {
@@ -676,6 +688,43 @@ suite('CopilotAgent', () => {
 		// Forking a provisional session is no longer a special case: the agent
 		// service drops `config.fork` for sources with no turns, so the call
 		// reduces to a plain new-session create.
+
+		test('materialization passes VS Code-specific system message to the SDK', async () => {
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([]);
+			let capturedConfig: Parameters<ITestCopilotClient['createSession']>[0] | undefined;
+			client.createSession = async config => {
+				capturedConfig = config;
+				return new MockCopilotSession() as unknown as CopilotSession;
+			};
+
+			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+
+				const result = await agent.createSession({
+					session: AgentSession.uri('copilotcli', 'system-message-session'),
+					workingDirectory: URI.file('/workspace'),
+				});
+				assert.strictEqual(result.provisional, true);
+
+				await agent.sendMessage(result.session, 'hello');
+
+				assert.ok(capturedConfig, 'SDK createSession should be called during provisional materialization');
+				const systemMessage = capturedConfig.systemMessage;
+				assert.deepStrictEqual(systemMessage, COPILOT_AGENT_HOST_SYSTEM_MESSAGE);
+				if (!systemMessage || systemMessage.mode !== 'customize') {
+					assert.fail('Expected customize-mode system message');
+				}
+				assert.strictEqual(systemMessage.sections?.identity?.action, 'replace');
+				assert.strictEqual(
+					systemMessage.sections?.identity?.content,
+					'You are an AI assistant using Copilot CLI runtime in VS Code. You help users with software engineering tasks. When asked about your identity, you must state that you are an AI assistant using Copilot CLI runtime in VS Code.'
+				);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
 	});
 
 	suite('onClientToolCallComplete', () => {
@@ -804,7 +853,28 @@ suite('CopilotAgent', () => {
 			}) as TestableCopilotAgent;
 
 			const fakeMessages: Turn[] = [
-				{ id: 'u1', userMessage: { text: 'hi' }, responseParts: [{ kind: ResponsePartKind.Markdown, id: 'a1', content: 'hello back' }], usage: undefined, state: TurnState.Complete },
+				{
+					id: 'u1',
+					userMessage: { text: 'hi' },
+					responseParts: [
+						{
+							kind: ResponsePartKind.ToolCall,
+							toolCall: {
+								status: ToolCallStatus.Completed,
+								toolCallId: 'tc-1',
+								toolName: 'view',
+								displayName: 'View File',
+								invocationMessage: 'Reading file',
+								success: true,
+								pastTenseMessage: 'Read file',
+								confirmed: ToolCallConfirmationReason.NotNeeded,
+							},
+						},
+						{ kind: ResponsePartKind.Markdown, id: 'a1', content: 'hello back' },
+					],
+					usage: undefined,
+					state: TurnState.Complete,
+				},
 			];
 			let sendCalls = 0;
 			agent.registerFakeSession(sessionId, {
@@ -824,8 +894,8 @@ suite('CopilotAgent', () => {
 				const expectedBranchName = getCopilotWorktreeBranchName(sessionId, branchHint);
 				const workingDir = await agent.resolveWorktreeForTest({
 					workingDirectory: repositoryRoot,
-					config: { isolation: 'worktree', branch: 'main', branchNameHint: branchHint },
-				}, sessionId);
+					config: { isolation: 'worktree', branch: 'main' },
+				}, sessionId, 'Add feature');
 				assert.ok(workingDir, 'resolveWorktreeForTest must return a worktree URI');
 				assert.deepStrictEqual(gitService.addedWorktrees.length, 1, 'addWorktree must be called once');
 				assert.strictEqual(gitService.addedWorktrees[0].branchName, expectedBranchName);
@@ -867,13 +937,14 @@ suite('CopilotAgent', () => {
 				assert.strictEqual(reemittedMarkdown.length, 0, 'announcement must not be re-emitted on subsequent sends');
 
 				// 4. Restore path: getSessionMessages must prepend the
-				//    announcement to the first turn's first markdown part,
+				//    announcement ahead of every first-turn response part,
 				//    using the persisted branch metadata.
 				const restored = await agent.getSessionMessages(session);
-				const md = restored[0]?.responseParts.find((p): p is MarkdownResponsePart => p.kind === ResponsePartKind.Markdown);
+				const md = restored[0]?.responseParts[0] as MarkdownResponsePart | undefined;
 				assert.ok(md, 'restored turns should include a markdown response part');
+				assert.strictEqual(md.kind, ResponsePartKind.Markdown, 'worktree announcement must be the first response part');
 				assert.ok(md.content.includes(expectedBranchName), `restored markdown content should include the branch name, got '${md.content}'`);
-				assert.ok(md.content.endsWith('hello back'), `restored markdown content should still end with the original reply, got '${md.content}'`);
+				assert.strictEqual(restored[0]?.responseParts[1]?.kind, ResponsePartKind.ToolCall, 'existing tool calls must remain after the announcement');
 			} finally {
 				await disposeAgent(agent);
 			}
@@ -950,7 +1021,7 @@ suite('CopilotAgent', () => {
 				await agent.authenticate('https://api.github.com', 'token');
 				const workingDir = await agent.resolveWorktreeForTest({
 					workingDirectory: repositoryRoot,
-					config: { isolation: 'worktree', branch: 'main', branchNameHint: 'feat' },
+					config: { isolation: 'worktree', branch: 'main' },
 				}, sessionId);
 				assert.ok(workingDir, 'worktree must be created');
 				// Simulate the worktree directory existing on disk so the archive
@@ -997,7 +1068,7 @@ suite('CopilotAgent', () => {
 				await agent.authenticate('https://api.github.com', 'token');
 				const workingDir = await agent.resolveWorktreeForTest({
 					workingDirectory: repositoryRoot,
-					config: { isolation: 'worktree', branch: 'main', branchNameHint: 'feat' },
+					config: { isolation: 'worktree', branch: 'main' },
 				}, sessionId);
 				await fs.mkdir(workingDir!.fsPath, { recursive: true });
 				gitService.dirtyWorkingDirectories.add(workingDir!.fsPath);
@@ -1028,7 +1099,7 @@ suite('CopilotAgent', () => {
 				await agent.authenticate('https://api.github.com', 'token');
 				const workingDir = await agent.resolveWorktreeForTest({
 					workingDirectory: repositoryRoot,
-					config: { isolation: 'worktree', branch: 'main', branchNameHint: 'feat' },
+					config: { isolation: 'worktree', branch: 'main' },
 				}, sessionId);
 				await fs.mkdir(workingDir!.fsPath, { recursive: true });
 				// Drop the branch so cleanup must skip.
@@ -1083,7 +1154,7 @@ suite('CopilotAgent', () => {
 				await agent.authenticate('https://api.github.com', 'token');
 				const workingDir = await agent.resolveWorktreeForTest({
 					workingDirectory: repositoryRoot,
-					config: { isolation: 'worktree', branch: 'main', branchNameHint: 'feat' },
+					config: { isolation: 'worktree', branch: 'main' },
 				}, sessionId);
 				await fs.mkdir(workingDir!.fsPath, { recursive: true });
 

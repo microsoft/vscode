@@ -1632,7 +1632,8 @@ export default tseslint.config(
 						'@xterm/headless', // node module allowed even in /common/
 						'@vscode/tree-sitter-wasm', // used by agentHost for command auto-approval
 						'@vscode/copilot-api', // used by agentHost for Copilot API requests
-						'@anthropic-ai/sdk' // used by agentHost for Anthropic API requests
+						'@anthropic-ai/sdk', // used by agentHost for Anthropic API requests
+						'@anthropic-ai/claude-agent-sdk' // used by agentHost for Claude Agent SDK session enumeration / queries
 					]
 				},
 				{
@@ -1919,7 +1920,8 @@ export default tseslint.config(
 						'vs/workbench/services/*/~',
 						'vs/workbench/contrib/*/~',
 						'vs/workbench/contrib/terminal/terminal.all.js',
-						'vs/sessions/common/theme.js' // side-effect import for color registry
+						'vs/sessions/common/theme.js', // side-effect import for color registry
+						'vs/sessions/common/sizes.js' // side-effect import for size registry
 					]
 				},
 				{
@@ -2016,6 +2018,7 @@ export default tseslint.config(
 						'vs/sessions/~',
 						'vs/sessions/services/*/~',
 						'vs/sessions/contrib/*/~',
+						'vs/sessions/contrib/providers/*/~',
 						'vs/workbench/~',
 						'vs/workbench/api/~',
 						'vs/workbench/services/*/~',
@@ -2036,6 +2039,7 @@ export default tseslint.config(
 						'vs/sessions/~',
 						'vs/sessions/services/*/~',
 						'vs/sessions/contrib/*/~',
+						'vs/sessions/contrib/providers/*/~',
 						'vs/workbench/~',
 						'vs/workbench/api/~',
 						'vs/workbench/services/*/~',
@@ -2056,6 +2060,7 @@ export default tseslint.config(
 						'vs/sessions/~',
 						'vs/sessions/services/*/~',
 						'vs/sessions/contrib/*/~',
+						'vs/sessions/contrib/providers/*/~',
 						'vs/workbench/~',
 						'vs/workbench/api/~',
 						'vs/workbench/services/*/~',
@@ -2072,6 +2077,7 @@ export default tseslint.config(
 						'vs/platform/*/~',
 						'vs/sessions/~',
 						'vs/sessions/contrib/*/~',
+						'vs/sessions/contrib/providers/*/~',
 						'vs/workbench/~',
 						'vs/workbench/browser/**',
 						'vs/workbench/services/*/~',
@@ -2089,6 +2095,7 @@ export default tseslint.config(
 						'vs/sessions/~',
 						'vs/sessions/test/**',
 						'vs/sessions/contrib/*/~',
+						'vs/sessions/contrib/providers/*/~',
 						'vs/workbench/~',
 						'vs/workbench/browser/**',
 						'vs/workbench/services/*/~',
@@ -2125,6 +2132,24 @@ export default tseslint.config(
 						'vs/workbench/services/*/~',
 						'vs/sessions/~',
 						'vs/sessions/services/*/~'
+					]
+				},
+				{
+					'target': 'src/vs/sessions/contrib/providers/*/~',
+					'restrictions': [
+						'vs/base/~',
+						'vs/base/parts/*/~',
+						'vs/platform/*/~',
+						'vs/editor/~',
+						'vs/editor/contrib/*/~',
+						'vs/workbench/~',
+						'vs/workbench/browser/**',
+						'vs/workbench/services/*/~',
+						'vs/workbench/contrib/*/~',
+						'vs/sessions/~',
+						'vs/sessions/contrib/*/~',
+						'vs/sessions/contrib/providers/*/~',
+						'vs/sessions/services/*/~',
 					]
 				},
 				{

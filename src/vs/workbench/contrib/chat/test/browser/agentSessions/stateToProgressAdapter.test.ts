@@ -60,7 +60,7 @@ function finalizeToolInvocation(invocation: Parameters<typeof rawFinalizeToolInv
 }
 
 function turnsToHistory(backendSession: Parameters<typeof rawTurnsToHistory>[0], turns: Parameters<typeof rawTurnsToHistory>[1], participantId: Parameters<typeof rawTurnsToHistory>[2], lookup?: Parameters<typeof rawTurnsToHistory>[4]) {
-	return rawTurnsToHistory(backendSession, turns, participantId, undefined, lookup);
+	return rawTurnsToHistory(backendSession, turns, participantId, 'local', lookup);
 }
 
 /**
@@ -76,7 +76,7 @@ function makeLookup(prefix: string, displayNames: Record<string, string>, fallba
 			const r = resolveRaw(raw);
 			return r ? `${prefix}${r}` : undefined;
 		},
-		toModelDisplayName: (raw) => {
+		toResponseDetails: (raw) => {
 			const r = resolveRaw(raw);
 			return r ? displayNames[r] : undefined;
 		},
@@ -188,6 +188,7 @@ suite('stateToProgressAdapter', () => {
 				prompt: 'Use restored model',
 				participant: 'participant-1',
 				modelId: 'agent-host-copilot:gpt-5',
+				variableData: undefined,
 			});
 		});
 
